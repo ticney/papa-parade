@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Le frigo</title>
+<style>
+/*
+  KEY SCREEN — Fridge home (age select), phone landscape 844x390 CSS px
+  Governing spine sections (check these before changing this mock):
+    - EXPERIENCE.md  > Information Architecture / Key Flows   (log [ia]: returning launch -> Fridge; polaroid -> Loading -> Level; magnet -> Réglages; max depth 2)
+    - EXPERIENCE.md  > State Patterns   (locked age, newly unlocked drop-in, keyboard/gamepad focus ring)  (log [diegetic-menus], [juice-ui], [input] menus)
+    - EXPERIENCE.md  > Progression      (unlock next age at >= 2 stars, GDD)
+    - DESIGN.md      > Components       (polaroid, magnet, star sticker magnet, locked slot, "Nouveau !" sticker, icon magnet button)
+    - DESIGN.md      > Color (cream/paper/fridge/ink/primary/star), Typography (heading, label), Shape (polaroid sm + tilt ±3°, pill/full), Elevation (sticker), Spacing (screen margin)
+  Source of truth: .decision-log.md (2026-10-26). Photo contents are placeholder shapes, NOT tokens.
+  No gameplay colours here (blue / red / alert yellow never decorate a menu).
+  Safe areas simulated: 47px left/right, 21px bottom. Screen margin = max(16px, safe-area).
+*/
+:root{
+  --cream:#FFF4E3; --paper:#FFFFFF; --fridge:#E9EEF2; --ink:#2A2140; --ink-soft:#6B6283; --scrim:rgba(42,33,64,0.62);
+  --primary:#6D3FE0; --primary-press:#5329C2; --on-primary:#FFFFFF;
+  --parry:#1F6BFF; --dodge:#F0353D; --alert:#FFC21A; --smell:#7CC243;
+  --gauge-calm:#1F9E73; --gauge-warn:#E06A00; --gauge-track:#FFFFFF; /* track = paper, 2px ink segment outlines (gauge-contrast) */
+  --mama-laugh:#1F9E73; --mama-sigh:#8A80A8; --mama-scream:#E06A00; --star:#FFB800;
+  --r-sm:8px; --r-md:14px; --r-lg:22px; --r-xl:32px; --r-full:9999px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+  --font-display:'Baloo 2', ui-rounded, 'Arial Rounded MT Bold', 'Trebuchet MS', system-ui, sans-serif;
+  --font-body:'Nunito', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-epic:'Anton', Impact, 'Arial Narrow Bold', sans-serif;
+  --outline:3px solid var(--ink); --lift:0 4px 0 var(--ink);
+  --safe-l:47px; --safe-r:47px; --safe-b:21px; --safe-t:0px;
+  --margin-l:max(16px, var(--safe-l)); --margin-r:max(16px, var(--safe-r)); --margin-b:max(16px, var(--safe-b)); --margin-t:max(16px, var(--safe-t));
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--ink);font:700 18px/1.35 var(--font-body);padding:var(--s6) var(--s4)}
+.page{max-width:900px;margin:0 auto}
+h1{font:800 56px/1.0 var(--font-display);margin:0 0 var(--s2)}
+h2{font:700 28px/1.1 var(--font-display);margin:var(--s6) 0 var(--s3)}
+.note{font:700 16px/1.35 var(--font-body);color:var(--ink-soft);margin:var(--s3) 0 0;max-width:844px}
+.stage{overflow-x:auto;padding:16px 16px 8px}
+
+.device{position:relative;width:844px;height:390px;border-radius:52px;overflow:hidden;box-shadow:0 0 0 14px var(--ink);
+  background:linear-gradient(105deg, rgba(255,255,255,0) 0 38%, rgba(255,255,255,.55) 46%, rgba(255,255,255,0) 54%), var(--fridge)}
+.device .notch{position:absolute;left:0;top:50%;width:30px;height:160px;transform:translateY(-50%);background:var(--ink);border-radius:0 22px 22px 0;z-index:60}
+.device .home{position:absolute;left:50%;bottom:8px;width:140px;height:5px;margin-left:-70px;border-radius:3px;background:rgba(42,33,64,.45);z-index:60}
+
+.screen{position:absolute;inset:0;padding:var(--margin-t) var(--margin-r) var(--margin-b) var(--margin-l)}
+.topbar{display:flex;align-items:center;justify-content:space-between;height:48px}
+.title{font:700 28px/1.1 var(--font-display);margin:0}
+.magnet-btn{width:48px;height:48px;border-radius:var(--r-full);background:var(--primary);border:var(--outline);box-shadow:var(--lift);display:grid;place-items:center;padding:0}
+.magnet-btn svg{width:26px;height:26px}
+
+.row{display:flex;justify-content:space-between;align-items:flex-start;margin-top:44px}
+.slot{width:130px;display:flex;flex-direction:column;align-items:center}
+.polaroid{position:relative;width:130px;height:162px;background:var(--paper);border:var(--outline);border-radius:var(--r-sm);box-shadow:var(--lift);padding:8px 8px 0}
+.polaroid .photo{width:108px;height:92px;border:2px solid var(--ink);border-radius:4px;overflow:hidden;display:block}
+.polaroid .cap{height:56px; /* age name in label role on the bottom strip */ display:flex;align-items:center;justify-content:center;text-align:center;font:800 16px/1.2 var(--font-body);color:var(--ink)}
+.magnet{position:absolute;left:50%;top:-12px;width:24px;height:24px;margin-left:-12px;border-radius:50%;background:var(--primary);border:var(--outline);box-shadow:0 3px 0 var(--ink)}
+.magnet::after{content:"";position:absolute;left:4px;top:3px;width:6px;height:5px;border-radius:50%;background:rgba(255,255,255,.7)}
+.tilt-a{transform:rotate(-3deg)} .tilt-b{transform:rotate(2deg)} .tilt-c{transform:rotate(-1.5deg)} .tilt-d{transform:rotate(3deg)} .tilt-e{transform:rotate(-2deg)}
+.stars{display:flex;gap:3px;margin-top:14px}
+.stars svg{width:22px;height:22px}
+.locked{position:relative;width:130px;height:162px;border:3px dashed var(--ink-soft);border-radius:var(--r-sm);background:rgba(42,33,64,.04);
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:14px 6px 10px}
+.locked .crayon{font:800 56px/1.0 var(--font-display);color:var(--ink-soft); /* crayon "?" in ink-soft */ transform:rotate(-8deg);margin-top:10px}
+.locked .cap{font:800 16px/1.2 var(--font-body);color:var(--ink-soft);text-align:center}
+.hint{margin-top:12px;font:800 16px/1.2 var(--font-body);color:var(--ink-soft);text-align:center}
+/* newly unlocked: drop-in captured mid-fall */
+.dropping{transform:translateY(-22px) rotate(4deg)}
+.motion{position:absolute;top:-34px;left:0;right:0;display:flex;justify-content:center;gap:18px}
+.motion i{display:block;width:4px;height:16px;border-radius:2px;background:var(--ink);opacity:.35}
+.sticker-new{position:absolute;right:-14px;top:14px;transform:rotate(12deg);background:var(--primary);color:var(--on-primary);border:var(--outline);box-shadow:var(--lift);
+  border-radius:var(--r-full);padding:2px 10px;font:800 16px/1.2 var(--font-body);white-space:nowrap;z-index:2}
+/* keyboard / gamepad focus */
+.focused{transform:rotate(0deg);outline:4px solid var(--primary);outline-offset:3px} /* focus ring: 4px primary, 3px offset */
+.callout{position:absolute;z-index:58;font:800 16px/1.2 var(--font-body);color:var(--ink);background:var(--paper);border:2px dashed var(--ink);border-radius:var(--r-sm);padding:2px 6px;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Le frigo</h1>
+<p class="note">Home screen on a returning launch. Five ages as polaroids held by magnets, each captioned with its age name on the bottom strip (label role); stars are sticker magnets; a locked age is an empty slot with a crayon "?". Unlock rule: 2 stars on the previous age.</p>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="star-on" viewBox="0 0 24 26"><polygon points="12,3 14.9,9.2 21.6,9.9 16.6,14.4 18,21 12,17.6 6,21 7.4,14.4 2.4,9.9 9.1,9.2" fill="#2A2140" transform="translate(0,3)"/><polygon points="12,1.5 14.9,8 21.6,8.7 16.6,13.2 18,19.8 12,16.4 6,19.8 7.4,13.2 2.4,8.7 9.1,8" fill="#FFB800" stroke="#2A2140" stroke-width="2.2" stroke-linejoin="round"/></symbol>
+    <symbol id="star-off" viewBox="0 0 24 26"><polygon points="12,1.5 14.9,8 21.6,8.7 16.6,13.2 18,19.8 12,16.4 6,19.8 7.4,13.2 2.4,8.7 9.1,8" fill="none" stroke="#6B6283" stroke-width="2" stroke-dasharray="3 2.5" stroke-linejoin="round"/></symbol>
+    <symbol id="gear" viewBox="0 0 26 26"><circle cx="13" cy="13" r="8" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-dasharray="3.1 3.18"/><circle cx="13" cy="13" r="6.5" fill="#FFFFFF"/><circle cx="13" cy="13" r="2.6" fill="#6D3FE0"/></symbol>
+    <!-- placeholder photo scenes -->
+    <symbol id="ph-1" viewBox="0 0 108 92"><rect width="108" height="92" fill="#F2D9BF"/><polygon points="0,58 54,30 108,58 108,92 0,92" fill="#C99B74"/><polygon points="54,30 108,58 108,0 54,0" fill="#E6C6A6"/><ellipse cx="56" cy="72" rx="14" ry="4" fill="#2A2140" opacity=".25"/><ellipse cx="60" cy="66" rx="11" ry="7" fill="#F4C7B5" stroke="#2A2140" stroke-width="2"/><circle cx="48" cy="57" r="10" fill="#F6D2B4" stroke="#2A2140" stroke-width="2"/><circle cx="45" cy="56" r="1.8" fill="#2A2140"/><circle cx="51" cy="56" r="1.8" fill="#2A2140"/></symbol>
+    <symbol id="ph-2" viewBox="0 0 108 92"><rect width="108" height="92" fill="#E4D3EA"/><polygon points="0,60 54,32 108,60 108,92 0,92" fill="#BFA58A"/><polygon points="54,32 108,60 108,0 54,0" fill="#D6C2DF"/><rect x="70" y="40" width="26" height="18" rx="3" fill="#F6E7C8" stroke="#2A2140" stroke-width="2"/><ellipse cx="44" cy="80" rx="12" ry="4" fill="#2A2140" opacity=".25"/><rect x="35" y="56" width="18" height="22" rx="8" fill="#F4C7B5" stroke="#2A2140" stroke-width="2"/><circle cx="44" cy="46" r="11" fill="#F6D2B4" stroke="#2A2140" stroke-width="2"/><circle cx="40" cy="45" r="1.8" fill="#2A2140"/><circle cx="48" cy="45" r="1.8" fill="#2A2140"/></symbol>
+    <symbol id="ph-3" viewBox="0 0 108 92"><rect width="108" height="92" fill="#DCEBD8"/><polygon points="0,62 54,36 108,62 108,92 0,92" fill="#B9A27E"/><circle cx="86" cy="18" r="9" fill="#F6E7C8" stroke="#2A2140" stroke-width="2"/><ellipse cx="50" cy="84" rx="12" ry="4" fill="#2A2140" opacity=".25"/><rect x="41" y="52" width="18" height="30" rx="8" fill="#E2D4C0" stroke="#2A2140" stroke-width="2"/><circle cx="50" cy="42" r="10" fill="#F6D2B4" stroke="#2A2140" stroke-width="2"/><circle cx="46" cy="41" r="1.8" fill="#2A2140"/><circle cx="54" cy="41" r="1.8" fill="#2A2140"/></symbol>
+  </defs>
+</svg>
+
+<!-- ===================== STATE A: touch, new unlock dropping in ===================== -->
+<h2>A · Nouvel âge débloqué</h2>
+<div class="stage">
+<div class="device">
+  <div class="screen">
+    <div class="topbar">
+      <p class="title">Le frigo</p>
+      <button class="magnet-btn" aria-label="Réglages"><svg><use href="#gear"/></svg></button>
+    </div>
+    <div class="row">
+      <div class="slot">
+        <div class="polaroid tilt-a"><span class="magnet"></span><svg class="photo"><use href="#ph-1"/></svg><div class="cap">Bébé à 4 pattes</div></div>
+        <div class="stars" aria-label="3 étoiles sur 5"><svg><use href="#star-on"/></svg><svg><use href="#star-on"/></svg><svg><use href="#star-on"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg></div>
+      </div>
+      <div class="slot">
+        <div class="polaroid tilt-b"><span class="magnet"></span><svg class="photo"><use href="#ph-2"/></svg><div class="cap">Petite enfance</div></div>
+        <div class="stars" aria-label="2 étoiles sur 5"><svg><use href="#star-on"/></svg><svg><use href="#star-on"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg></div>
+      </div>
+      <div class="slot" style="position:relative">
+        <div class="motion" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="polaroid dropping"><span class="magnet"></span><span class="sticker-new">Nouveau !</span><svg class="photo"><use href="#ph-3"/></svg><div class="cap">Enfance</div></div>
+        <div class="stars" aria-label="0 étoile sur 5"><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg></div>
+      </div>
+      <div class="slot">
+        <div class="locked tilt-d" aria-disabled="true"><span class="crayon">?</span><span class="cap">Adolescence</span></div>
+        <div class="hint">2 étoiles pour débloquer</div>
+      </div>
+      <div class="slot">
+        <div class="locked tilt-e" aria-disabled="true"><span class="crayon">?</span><span class="cap">Adulte</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="notch"></div><div class="home"></div>
+</div>
+</div>
+<p class="note">Arriving from a 2★+ result on Petite enfance. The Enfance polaroid drops in with a magnet "thunk" (shown mid-fall, motion marks) and wears a "Nouveau !" sticker. Locked ages are dashed empty slots with a crayon "?" in ink-soft and their age name in ink-soft. The next one carries the hint. The settings magnet (top right, 48px) opens Réglages. No shop, ad or IAP surface.</p>
+
+<!-- ===================== STATE B: keyboard / gamepad focus ===================== -->
+<h2>B · Focus clavier / manette</h2>
+<div class="stage">
+<div class="device">
+  <div class="screen">
+    <div class="topbar">
+      <p class="title">Le frigo</p>
+      <button class="magnet-btn" aria-label="Réglages"><svg><use href="#gear"/></svg></button>
+    </div>
+    <div class="row">
+      <div class="slot">
+        <div class="polaroid tilt-a"><span class="magnet"></span><svg class="photo"><use href="#ph-1"/></svg><div class="cap">Bébé à 4 pattes</div></div>
+        <div class="stars"><svg><use href="#star-on"/></svg><svg><use href="#star-on"/></svg><svg><use href="#star-on"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg></div>
+      </div>
+      <div class="slot">
+        <div class="polaroid focused" tabindex="0"><span class="magnet"></span><svg class="photo"><use href="#ph-2"/></svg><div class="cap">Petite enfance</div></div>
+        <div class="stars"><svg><use href="#star-on"/></svg><svg><use href="#star-on"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg></div>
+      </div>
+      <div class="slot">
+        <div class="polaroid tilt-c"><span class="magnet"></span><span class="sticker-new">Nouveau !</span><svg class="photo"><use href="#ph-3"/></svg><div class="cap">Enfance</div></div>
+        <div class="stars"><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg></div>
+      </div>
+      <div class="slot">
+        <div class="locked tilt-d" aria-disabled="true"><span class="crayon">?</span><span class="cap">Adolescence</span></div>
+        <div class="hint">2 étoiles pour débloquer</div>
+      </div>
+      <div class="slot">
+        <div class="locked tilt-e" aria-disabled="true"><span class="crayon">?</span><span class="cap">Adulte</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="callout" style="left:300px;top:332px">focus ring: primary 4px, offset 3px</div>
+  <div class="notch"></div><div class="home"></div>
+</div>
+</div>
+<p class="note">Arrows / left stick move between polaroids and the settings magnet; B / Esc / Android back = back in menus. The focused polaroid straightens its tilt and gets the grape focus ring. Espace / A opens it (then Loading, then Level). Menus are fully navigable by keyboard and gamepad with a visible focus ring (log [input]).</p>
+</div>
+</body>
+</html>

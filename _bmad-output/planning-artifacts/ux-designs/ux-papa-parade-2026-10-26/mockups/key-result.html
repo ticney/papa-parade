@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Écran de résultat</title>
+<style>
+/*
+  KEY SCREEN — Result (V1), phone landscape 844x390 CSS px
+  Governing spine sections (check these before changing this mock):
+    - EXPERIENCE.md  > Key Flows: End of level (door -> final rush -> photo -> Mama -> Result; actions Rejouer · Âge suivant · Frigo)  (log [ia])
+    - EXPERIENCE.md  > State Patterns: Mama woke early (reason + visible lost star, story 3.2); next age locked below 2 stars
+    - EXPERIENCE.md  > Feedback & Juice (stars stamp one by one, score rows count up — shown here at rest)  (log [juice-ui])
+    - EXPERIENCE.md  > Voice & Microcopy (Mama exasperated-loving; failure never named)  (log [voice])
+    - DESIGN.md      > Components (polaroid photo, Mama speech bubble, score row, star stamp, pill buttons primary/secondary/tertiary, locked button)
+    - DESIGN.md      > Color (cream, paper, ink, primary, mama-laugh/sigh/scream, star), Typography (display, heading, label, numeric), Elevation (sticker), Shape
+  Score formula (GDD): Rires 0–40 + État du bébé 0–30 + (15 − sighs) + (15 − screams) = /100. Stars at 20/40/60/75/90.
+  Rows show points earned out of their max so they sum to the total (log [score-rows]): Rires /40 · État du bébé /30 · Sans soupir /15 · Sans hurlement /15.
+  Actions (log [result-actions], [button-tertiary]): >=2★ primary Âge suivant, secondary Rejouer, button-tertiary Frigo; <2★ primary Rejouer, Âge suivant locked + hint.
+  Lost star (log [lost-star]): dashed ink-soft empty star + « −1 » chip in mama-scream.
+  Photo content is placeholder illustration, NOT tokens. Safe areas simulated: 47px left/right, 21px bottom.
+*/
+:root{
+  --cream:#FFF4E3; --paper:#FFFFFF; --fridge:#E9EEF2; --ink:#2A2140; --ink-soft:#6B6283; --scrim:rgba(42,33,64,0.62);
+  --primary:#6D3FE0; --primary-press:#5329C2; --on-primary:#FFFFFF;
+  --parry:#1F6BFF; --dodge:#F0353D; --alert:#FFC21A; --smell:#7CC243;
+  --gauge-calm:#1F9E73; --gauge-warn:#E06A00; --gauge-track:#FFFFFF; /* track = paper, 2px ink segment outlines (gauge-contrast) */
+  --mama-laugh:#1F9E73; --mama-sigh:#8A80A8; --mama-scream:#E06A00; --star:#FFB800;
+  --r-sm:8px; --r-md:14px; --r-lg:22px; --r-xl:32px; --r-full:9999px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+  --font-display:'Baloo 2', ui-rounded, 'Arial Rounded MT Bold', 'Trebuchet MS', system-ui, sans-serif;
+  --font-body:'Nunito', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-epic:'Anton', Impact, 'Arial Narrow Bold', sans-serif;
+  --outline:3px solid var(--ink); --lift:0 4px 0 var(--ink);
+  --safe-l:47px; --safe-r:47px; --safe-b:21px; --safe-t:0px;
+  --margin-l:max(16px, var(--safe-l)); --margin-r:max(16px, var(--safe-r)); --margin-b:max(16px, var(--safe-b)); --margin-t:max(16px, var(--safe-t));
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--ink);font:700 18px/1.35 var(--font-body);padding:var(--s6) var(--s4)}
+.page{max-width:900px;margin:0 auto}
+h1{font:800 56px/1.0 var(--font-display);margin:0 0 var(--s2)}
+h2{font:700 28px/1.1 var(--font-display);margin:var(--s6) 0 var(--s3)}
+.note{font:700 16px/1.35 var(--font-body);color:var(--ink-soft);margin:var(--s3) 0 0;max-width:844px}
+.stage{overflow-x:auto;padding:16px 16px 8px}
+
+.device{position:relative;width:844px;height:390px;border-radius:52px;overflow:hidden;box-shadow:0 0 0 14px var(--ink);background:var(--cream)}
+.device .notch{position:absolute;left:0;top:50%;width:30px;height:160px;transform:translateY(-50%);background:var(--ink);border-radius:0 22px 22px 0;z-index:60}
+.device .home{position:absolute;left:50%;bottom:8px;width:140px;height:5px;margin-left:-70px;border-radius:3px;background:rgba(42,33,64,.45);z-index:60}
+.screen{position:absolute;inset:0;padding:var(--margin-t) var(--margin-r) var(--margin-b) var(--margin-l);display:grid;grid-template-columns:58fr 42fr;gap:var(--s5);align-items:center}
+
+/* Left: frozen photo as polaroid + Mama bubble */
+.photo-wrap{position:relative;height:100%;display:flex;align-items:center}
+.polaroid{position:relative;background:var(--paper);border:var(--outline);border-radius:var(--r-sm);box-shadow:var(--lift);padding:10px 10px 30px;transform:rotate(-2deg)}
+.polaroid svg{display:block;width:380px;height:240px;border:2px solid var(--ink);border-radius:4px}
+.bubble{position:absolute;top:2px;right:-6px;z-index:3;background:var(--paper);border:var(--outline);border-radius:var(--r-lg);box-shadow:var(--lift);padding:6px 16px 8px;
+  font:700 28px/1.1 var(--font-display);white-space:nowrap;transform:rotate(1.5deg)}
+.bubble em{font-style:italic}
+.bubble::after{content:"";position:absolute;right:38px;bottom:-19px;border:11px solid transparent;border-top:16px solid var(--ink);border-bottom:0}
+.bubble::before{content:"";position:absolute;right:42px;bottom:-12px;z-index:1;border:7px solid transparent;border-top:11px solid var(--paper);border-bottom:0}
+
+/* Right: score + stars + actions */
+.side{display:flex;flex-direction:column;gap:var(--s3)}
+.reason{font:700 28px/1.1 var(--font-display);margin:0}
+.card{background:var(--paper);border:var(--outline);border-radius:var(--r-lg);box-shadow:var(--lift);padding:var(--s2) var(--s4)}
+.srow{display:flex;align-items:center;gap:var(--s2);height:32px}
+.srow .chip{width:24px;height:24px;flex:none;border-radius:50%;border:2.5px solid var(--ink);display:grid;place-items:center}
+.srow .chip svg{width:16px;height:16px}
+.srow .lab{flex:1;font:800 16px/1.2 var(--font-body)}
+.srow .val{font:900 22px/1 var(--font-body);font-variant-numeric:tabular-nums}
+.srow .max{font:800 16px/1.2 var(--font-body);color:var(--ink-soft);width:34px;font-variant-numeric:tabular-nums}
+.total{display:flex;align-items:center;justify-content:space-between}
+.score{display:flex;align-items:baseline;gap:var(--s1)}
+.score b{font:800 56px/1.0 var(--font-display)}
+.score span{font:900 22px/1 var(--font-body);color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.stars{display:flex;gap:2px;align-items:center}
+.stars svg{width:30px;height:32px}
+.stamp-1{transform:rotate(-9deg)} .stamp-2{transform:rotate(6deg)} .stamp-3{transform:rotate(-4deg)}
+.lost{position:relative}
+.lost-wrap{position:relative;display:flex;margin-right:10px}
+.minus{position:absolute;right:-18px;bottom:-10px;z-index:2;background:var(--mama-scream);border:2.5px solid var(--ink);border-radius:var(--r-full);padding:0 6px;font:900 16px/1.3 var(--font-body);color:var(--ink)}
+.actions{display:flex;gap:var(--s2);align-items:center}
+.btn{height:48px;border-radius:var(--r-full);border:var(--outline);box-shadow:var(--lift);font:800 16px/1.2 var(--font-body);padding:0 var(--s4);display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);white-space:nowrap}
+.btn-primary{background:var(--primary);color:var(--on-primary);flex:1.3}
+.btn-primary.grow1{flex:1}
+.btn-secondary{background:var(--paper);color:var(--ink);flex:1}
+.btn-tertiary{width:48px;flex:none;padding:0;background:transparent;box-shadow:none;color:var(--ink)} /* button-tertiary: transparent pill, 3px ink outline, no lift */
+.btn-tertiary svg{width:24px;height:24px}
+.btn-locked{background:rgba(42,33,64,.06);color:var(--ink-soft);border:3px dashed var(--ink-soft);box-shadow:none;flex:1.3}
+.btn-locked svg{width:16px;height:16px}
+.hint{font:800 16px/1.2 var(--font-body);color:var(--ink-soft);text-align:right;margin-top:-4px}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Écran de résultat</h1>
+<p class="note">V1 end of level, after the photo and Mama's three reactions (laugh, sigh, scream). The HUD is hidden. Shown at rest, after the rows count up and the stars stamp in.</p>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="star-on" viewBox="0 0 24 26"><polygon points="12,3 14.9,9.2 21.6,9.9 16.6,14.4 18,21 12,17.6 6,21 7.4,14.4 2.4,9.9 9.1,9.2" fill="#2A2140" transform="translate(0,3)"/><polygon points="12,1.5 14.9,8 21.6,8.7 16.6,13.2 18,19.8 12,16.4 6,19.8 7.4,13.2 2.4,8.7 9.1,8" fill="#FFB800" stroke="#2A2140" stroke-width="2.2" stroke-linejoin="round"/></symbol>
+    <symbol id="star-off" viewBox="0 0 24 26"><polygon points="12,1.5 14.9,8 21.6,8.7 16.6,13.2 18,19.8 12,16.4 6,19.8 7.4,13.2 2.4,8.7 9.1,8" fill="#2A214033" stroke="#6B6283" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="star-lost" viewBox="0 0 24 26"><polygon points="12,1.5 14.9,8 21.6,8.7 16.6,13.2 18,19.8 12,16.4 6,19.8 7.4,13.2 2.4,8.7 9.1,8" fill="none" stroke="#6B6283" stroke-width="2.6" stroke-dasharray="3.2 2.4" stroke-linejoin="round"/></symbol>
+    <symbol id="i-laugh" viewBox="0 0 16 16"><circle cx="5" cy="6" r="1.4" fill="#2A2140"/><circle cx="11" cy="6" r="1.4" fill="#2A2140"/><path d="M4 9.5q4 4.5 8 0z" fill="#2A2140"/></symbol>
+    <symbol id="i-baby" viewBox="0 0 16 16"><circle cx="5.5" cy="7" r="1.4" fill="#2A2140"/><circle cx="10.5" cy="7" r="1.4" fill="#2A2140"/><path d="M6 10.5q2 1.5 4 0" stroke="#2A2140" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M8 1.5q2 0 1.5 2" stroke="#2A2140" stroke-width="1.4" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-sigh" viewBox="0 0 16 16"><path d="M3.5 6.5h3M9.5 6.5h3" stroke="#2A2140" stroke-width="1.8" stroke-linecap="round"/><path d="M5.5 11h5" stroke="#2A2140" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-scream" viewBox="0 0 16 16"><circle cx="5" cy="5.5" r="1.4" fill="#2A2140"/><circle cx="11" cy="5.5" r="1.4" fill="#2A2140"/><ellipse cx="8" cy="11" rx="2.6" ry="3" fill="#2A2140"/></symbol>
+    <symbol id="i-fridge" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="3" fill="none" stroke="#2A2140" stroke-width="2.4"/><path d="M5 9.5h14M8.5 5v2M8.5 12v4" stroke="#2A2140" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 16 16"><rect x="2.5" y="7" width="11" height="8" rx="2" fill="#6B6283"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="#6B6283" stroke-width="2" fill="none"/></symbol>
+
+    <!-- Frozen photo (placeholder illustration) -->
+    <symbol id="photo" viewBox="0 0 380 240">
+      <polygon points="0,0 190,0 190,58 0,148" fill="#F2D9BF"/>
+      <polygon points="190,0 380,0 380,148 190,58" fill="#E6C6A6"/>
+      <polygon points="0,148 190,58 380,148 380,240 0,240" fill="#C99B74"/>
+      <g stroke="#B88762" stroke-width="2"><line x1="0" y1="190" x2="230" y2="80"/><line x1="60" y1="240" x2="300" y2="120"/></g>
+      <path d="M0 148 L190 58 L380 148" stroke="#2A2140" stroke-width="3" fill="none"/>
+      <line x1="190" y1="0" x2="190" y2="58" stroke="#2A2140" stroke-width="3"/>
+      <!-- open door on right wall -->
+      <polygon points="296,108 340,128 340,48 296,28" fill="#3E3557" stroke="#2A2140" stroke-width="3"/>
+      <polygon points="340,128 356,118 356,40 340,48" fill="#B98A5E" stroke="#2A2140" stroke-width="3"/>
+      <!-- tipped shelf (étagère) + scattered books -->
+      <polygon points="30,170 128,128 142,146 44,190" fill="#B98A5E" stroke="#2A2140" stroke-width="3"/>
+      <line x1="62" y1="156" x2="76" y2="176" stroke="#2A2140" stroke-width="2"/><line x1="94" y1="142" x2="108" y2="162" stroke="#2A2140" stroke-width="2"/>
+      <g stroke="#2A2140" stroke-width="2">
+        <rect x="40" y="200" width="22" height="12" rx="2" fill="#D9C2A0" transform="rotate(-18 51 206)"/>
+        <rect x="150" y="150" width="20" height="11" rx="2" fill="#C7A7C2" transform="rotate(24 160 155)"/>
+        <rect x="96" y="208" width="24" height="12" rx="2" fill="#E5D5B8" transform="rotate(8 108 214)"/>
+        <circle cx="300" cy="205" r="11" fill="#E9B48C"/>
+        <rect x="262" y="178" width="14" height="14" rx="2" fill="#F6E7C8" transform="rotate(14 269 185)"/>
+      </g>
+      <!-- baby, sitting, delighted -->
+      <ellipse cx="128" cy="212" rx="20" ry="6" fill="#2A2140" opacity=".25"/>
+      <ellipse cx="128" cy="198" rx="16" ry="14" fill="#F4C7B5" stroke="#2A2140" stroke-width="3"/>
+      <circle cx="128" cy="172" r="16" fill="#F6D2B4" stroke="#2A2140" stroke-width="3"/>
+      <path d="M121 168q2 -3 4 0M131 168q2 -3 4 0" stroke="#2A2140" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M122 176q6 7 12 0z" fill="#2A2140"/>
+      <!-- Papa, degraded look: hair standing up, purée on the cheek, t-shirt inside out -->
+      <ellipse cx="226" cy="220" rx="32" ry="9" fill="#2A2140" opacity=".25"/>
+      <ellipse cx="226" cy="190" rx="28" ry="30" fill="#E2D4C0" stroke="#2A2140" stroke-width="3"/>
+      <path d="M204 176v28M248 176v28" stroke="#2A2140" stroke-width="2" stroke-dasharray="4 3"/>
+      <rect x="221" y="160" width="10" height="7" rx="1" fill="#FFFFFF" stroke="#2A2140" stroke-width="2"/>
+      <circle cx="226" cy="140" r="21" fill="#E9B992" stroke="#2A2140" stroke-width="3"/>
+      <path d="M208 128 l-4 -18 l10 12 l2 -20 l8 18 l6 -20 l4 20 l9 -15 l-2 19 l9 -8 l-6 14z" fill="#5A3E2B" stroke="#2A2140" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M216 140h7M230 140h7" stroke="#2A2140" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M220 151q6 -3 12 1" stroke="#2A2140" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      <path d="M236 146q6 -5 10 1q2 6 -5 6q-7 0 -5 -7z" fill="#F1E2B4" stroke="#2A2140" stroke-width="1.8"/>
+      <!-- flash vignette -->
+      <rect width="380" height="240" fill="url(#vig)"/>
+    </symbol>
+    <radialGradient id="vig" cx="50%" cy="50%" r="70%"><stop offset="60%" stop-color="#2A2140" stop-opacity="0"/><stop offset="100%" stop-color="#2A2140" stop-opacity=".28"/></radialGradient>
+    <symbol id="mama-sigh" viewBox="0 0 380 240">
+      <circle cx="318" cy="42" r="6" fill="#2A2140"/>
+      <circle cx="318" cy="58" r="12" fill="#F3C9A6" stroke="#2A2140" stroke-width="2.5"/>
+      <path d="M311 57h5M320 57h5M313 64h10" stroke="#2A2140" stroke-width="2" stroke-linecap="round"/>
+      <path d="M306 72h24l3 44h-30z" fill="#C9B6D6" stroke="#2A2140" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M306 80l-8 12 8 6M330 80l8 12 -8 6" stroke="#2A2140" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="mama-woke" viewBox="0 0 380 240">
+      <circle cx="318" cy="58" r="12" fill="#F3C9A6" stroke="#2A2140" stroke-width="2.5"/>
+      <path d="M306 52q12 -16 24 0" fill="#2A2140"/>
+      <circle cx="313" cy="58" r="2" fill="#2A2140"/><circle cx="323" cy="58" r="2" fill="#2A2140"/>
+      <ellipse cx="318" cy="65" rx="3" ry="3.6" fill="#2A2140"/>
+      <path d="M306 72h24l3 44h-30z" fill="#C9B6D6" stroke="#2A2140" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M300 44l-6 -6M318 38v-8M336 44l6 -6" stroke="#2A2140" stroke-width="2.5" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- ===================== STATE A: canonical result, 3 stars ===================== -->
+<h2>A · Résultat : 3 étoiles</h2>
+<div class="stage">
+<div class="device">
+  <div class="screen">
+    <div class="photo-wrap">
+      <div class="polaroid"><svg viewBox="0 0 380 240" aria-label="Photo de fin"><use href="#photo"/><use href="#mama-sigh"/></svg></div>
+      <div class="bubble">« <em>Encore</em> l'étagère ?! »</div>
+    </div>
+    <div class="side">
+      <p class="reason">Nouvel âge débloqué !</p>
+      <div class="card" role="table" aria-label="Score">
+        <div class="srow"><span class="chip" style="background:var(--mama-laugh)"><svg><use href="#i-laugh"/></svg></span><span class="lab">Rires</span><span class="val">32</span><span class="max">/40</span></div>
+        <div class="srow"><span class="chip" style="background:var(--paper)"><svg><use href="#i-baby"/></svg></span><span class="lab">État du bébé</span><span class="val">20</span><span class="max">/30</span></div>
+        <div class="srow"><span class="chip" style="background:var(--mama-sigh)"><svg><use href="#i-sigh"/></svg></span><span class="lab">Sans soupir</span><span class="val">9</span><span class="max">/15</span></div>
+        <div class="srow"><span class="chip" style="background:var(--mama-scream)"><svg><use href="#i-scream"/></svg></span><span class="lab">Sans hurlement</span><span class="val">12</span><span class="max">/15</span></div>
+      </div>
+      <div class="total">
+        <div class="score"><b>73</b><span>/100</span></div>
+        <div class="stars" aria-label="3 étoiles sur 5">
+          <svg class="stamp-1"><use href="#star-on"/></svg><svg class="stamp-2"><use href="#star-on"/></svg><svg class="stamp-3"><use href="#star-on"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-tertiary" aria-label="Frigo"><svg><use href="#i-fridge"/></svg></button>
+        <button class="btn btn-secondary">Rejouer</button>
+        <button class="btn btn-primary">Âge suivant</button>
+      </div>
+    </div>
+  </div>
+  <div class="notch"></div><div class="home"></div>
+</div>
+</div>
+<p class="note">Frozen photo as a polaroid (left, about 60%): Papa's degraded look (hair standing up, purée on the cheek, t-shirt inside out), the fallen étagère, the baby delighted. Mama's line is a speech bubble attached to the photo; nothing sits between the photo and her reaction. 32 + 20 + 9 + 12 = 73, so 3 stars (thresholds 20/40/60/75/90), and « Nouvel âge débloqué ! » is announced (story 3.11). Âge suivant is primary, Rejouer secondary, Frigo is button-tertiary (icon). The Mama line is illustrative: lines are content-driven, and the most specific one wins.</p>
+
+<!-- ===================== STATE B: Mama woke early ===================== -->
+<h2>B · Maman s'est réveillée</h2>
+<div class="stage">
+<div class="device">
+  <div class="screen">
+    <div class="photo-wrap">
+      <div class="polaroid"><svg viewBox="0 0 380 240" aria-label="Photo de fin"><use href="#photo"/><use href="#mama-woke"/></svg></div>
+      <div class="bubble">« <em>Encore</em> l'étagère ?! »</div>
+    </div>
+    <div class="side">
+      <p class="reason">Maman s'est réveillée !</p>
+      <div class="card" role="table" aria-label="Score">
+        <div class="srow"><span class="chip" style="background:var(--mama-laugh)"><svg><use href="#i-laugh"/></svg></span><span class="lab">Rires</span><span class="val">22</span><span class="max">/40</span></div>
+        <div class="srow"><span class="chip" style="background:var(--paper)"><svg><use href="#i-baby"/></svg></span><span class="lab">État du bébé</span><span class="val">10</span><span class="max">/30</span></div>
+        <div class="srow"><span class="chip" style="background:var(--mama-sigh)"><svg><use href="#i-sigh"/></svg></span><span class="lab">Sans soupir</span><span class="val">8</span><span class="max">/15</span></div>
+        <div class="srow"><span class="chip" style="background:var(--mama-scream)"><svg><use href="#i-scream"/></svg></span><span class="lab">Sans hurlement</span><span class="val">4</span><span class="max">/15</span></div>
+      </div>
+      <div class="total">
+        <div class="score"><b>44</b><span>/100</span></div>
+        <div class="stars" aria-label="1 étoile sur 5, une étoile perdue">
+          <svg class="stamp-1"><use href="#star-on"/></svg>
+          <span class="lost-wrap"><svg class="lost"><use href="#star-lost"/></svg><span class="minus">−1</span></span>
+          <svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg><svg><use href="#star-off"/></svg>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-tertiary" aria-label="Frigo"><svg><use href="#i-fridge"/></svg></button>
+        <button class="btn btn-primary grow1">Rejouer</button>
+        <button class="btn btn-locked" aria-disabled="true" aria-label="Âge suivant, verrouillé"><svg><use href="#i-lock"/></svg>Âge suivant</button>
+      </div>
+      <div class="hint">2 étoiles pour débloquer</div>
+    </div>
+  </div>
+  <div class="notch"></div><div class="home"></div>
+</div>
+</div>
+<p class="note">Sieste variant: Bruit reached 100%, so the level ended early, which costs 1 star (GDD). 44 points earn 2 stars, minus 1 leaves 1. The lost star stays visible as a dashed ink-soft empty star with a « −1 » chip in mama-scream (story 3.2, with door-slam sound, visual and vibration). Below 2 stars, Rejouer becomes primary, and Âge suivant stays visible but locked (dashed, no lift, padlock) with the unlock hint. The copy never says failure; Mama stays exasperated-loving.</p>
+</div>
+</body>
+</html>

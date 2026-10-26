@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pause et reprise</title>
+<style>
+/*
+  KEY SCREEN — Pause overlay + inline quit confirmation + 3-2-1 resume countdown, phone landscape 844x390 CSS px
+  Governing spine sections (check these before changing this mock):
+    - EXPERIENCE.md  > Information Architecture (Level -> Pause: Reprendre · Recommencer · Réglages · Quitter vers le frigo; overlays never stack; Réglages replaces Pause and returns to it)  (log [ia])
+    - EXPERIENCE.md  > State Patterns: Interruption (auto-pause on background / gamepad disconnect / portrait; resume always via 3s countdown; inline quit confirm, no stacked modal)  (log [interrupt])
+    - EXPERIENCE.md  > Accessibility & Motion (panel pop <= 220ms, plain fade under Réduire les animations; nothing flashes faster than 3Hz)  (log [juice-ui], [reduced-motion])
+    - DESIGN.md      > Components (panel, pill buttons primary / secondary / tertiary, countdown disc)
+    - DESIGN.md      > Color (scrim, paper, ink, primary), Elevation (sticker; no backdrop-filter blur — scrim dim only), Shape (panel lg, buttons full), Typography (heading, label, display)
+  Source of truth: .decision-log.md (2026-10-26). Room, baby and Papa are placeholder illustration colours, NOT tokens.
+  Safe areas simulated: 47px left/right, 21px bottom.
+*/
+:root{
+  --cream:#FFF4E3; --paper:#FFFFFF; --fridge:#E9EEF2; --ink:#2A2140; --ink-soft:#6B6283; --scrim:rgba(42,33,64,0.62);
+  --primary:#6D3FE0; --primary-press:#5329C2; --on-primary:#FFFFFF;
+  --parry:#1F6BFF; --dodge:#F0353D; --alert:#FFC21A; --smell:#7CC243;
+  --gauge-calm:#1F9E73; --gauge-warn:#E06A00; --gauge-track:#FFFFFF; /* track = paper, 2px ink segment outlines (gauge-contrast) */
+  --mama-laugh:#1F9E73; --mama-sigh:#8A80A8; --mama-scream:#E06A00; --star:#FFB800;
+  --r-sm:8px; --r-md:14px; --r-lg:22px; --r-xl:32px; --r-full:9999px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+  --font-display:'Baloo 2', ui-rounded, 'Arial Rounded MT Bold', 'Trebuchet MS', system-ui, sans-serif;
+  --font-body:'Nunito', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-epic:'Anton', Impact, 'Arial Narrow Bold', sans-serif;
+  --outline:3px solid var(--ink); --lift:0 4px 0 var(--ink);
+  --safe-l:47px; --safe-r:47px; --safe-b:21px; --safe-t:0px;
+  --hud-inset-t:max(12px, var(--safe-t)); --hud-inset-l:max(12px, var(--safe-l)); --hud-inset-r:max(12px, var(--safe-r));
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--ink);font:700 18px/1.35 var(--font-body);padding:var(--s6) var(--s4)}
+.page{max-width:900px;margin:0 auto}
+h1{font:800 56px/1.0 var(--font-display);margin:0 0 var(--s2)}
+h2{font:700 28px/1.1 var(--font-display);margin:var(--s6) 0 var(--s3)}
+.note{font:700 16px/1.35 var(--font-body);color:var(--ink-soft);margin:var(--s3) 0 0;max-width:844px}
+.stage{overflow-x:auto;padding:16px 16px 8px}
+
+.device{position:relative;width:844px;height:390px;border-radius:52px;overflow:hidden;box-shadow:0 0 0 14px var(--ink);background:#3E3557}
+.device .notch{position:absolute;left:0;top:50%;width:30px;height:160px;transform:translateY(-50%);background:var(--ink);border-radius:0 22px 22px 0;z-index:60}
+.device .home{position:absolute;left:50%;bottom:8px;width:140px;height:5px;margin-left:-70px;border-radius:3px;background:rgba(255,255,255,.55);z-index:60}
+.scene{position:absolute;inset:0;width:844px;height:390px;display:block}
+
+/* Frozen level underneath (HUD as in play) */
+.hud{position:absolute;top:var(--hud-inset-t);left:var(--hud-inset-l);right:var(--hud-inset-r);height:44px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
+.gauges{justify-self:start;display:flex;align-items:center;gap:var(--s3);height:40px;padding:0 var(--s2);background:var(--paper);border:var(--outline);border-radius:var(--r-full);box-shadow:var(--lift)}
+.gauge{display:flex;align-items:center;gap:var(--s1)} .gauge.idle{opacity:.7}
+.gauge svg{width:22px;height:22px}
+.bar{position:relative;width:60px;height:16px;border-radius:3px;background:var(--gauge-track);border:2px solid var(--ink);overflow:hidden}
+.bar .fill{position:absolute;inset:0;background:var(--gauge-calm);transform-origin:left center}
+.gauge.warn .bar .fill{background:var(--gauge-warn)}
+.bar::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg, transparent 0 3.8px, var(--ink) 3.8px 5.8px)}
+.gauge.warn svg{border-radius:50%;box-shadow:0 0 0 3px var(--gauge-warn)} /* warn also pulses the icon chip (static here) */
+.timer{justify-self:center;display:flex;align-items:center;gap:var(--s2);height:40px;padding:0 var(--s4) 0 var(--s2);background:var(--paper);border:var(--outline);border-radius:var(--r-full);box-shadow:var(--lift);font:900 22px/1 var(--font-body);font-variant-numeric:tabular-nums}
+.timer svg{width:28px;height:28px}
+.pause-btn{justify-self:end;width:44px;height:44px;border-radius:var(--r-full);background:var(--paper);border:var(--outline);box-shadow:var(--lift);display:grid;place-items:center;padding:0}
+.pause-btn svg{width:20px;height:20px}
+
+/* Scrim (no blur) + panel */
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:40}
+.overlay{position:absolute;inset:0;z-index:45;display:grid;place-items:center}
+.panel{width:320px;background:var(--paper);border:var(--outline);border-radius:var(--r-lg);box-shadow:var(--lift);padding:var(--s4) var(--s5) var(--s5);display:flex;flex-direction:column;gap:10px}
+.panel h3{font:700 28px/1.1 var(--font-display);margin:0 0 2px;text-align:center}
+.btn{height:48px;width:100%;border-radius:var(--r-full);border:var(--outline);box-shadow:var(--lift);font:800 16px/1.2 var(--font-body);display:flex;align-items:center;justify-content:center;white-space:nowrap}
+.btn-primary{background:var(--primary);color:var(--on-primary)}
+.btn-secondary{background:var(--paper);color:var(--ink)}
+.btn-tertiary{background:transparent;color:var(--ink);box-shadow:none} /* button-tertiary: transparent pill, 3px ink outline, no lift */
+.btn-armed{background:var(--ink);color:var(--paper);box-shadow:none} /* quit-armed: ink fill, paper text, reverts after 3s */
+.focus{outline:4px solid var(--primary);outline-offset:4px}
+
+/* Countdown */
+.count{position:relative;width:150px;height:150px;border-radius:50%;background:var(--paper);border:var(--outline);box-shadow:var(--lift);display:grid;place-items:center;
+  font:800 112px/1.0 var(--font-display);font-variant-numeric:tabular-nums; /* typography.countdown: Baloo 2 800 112px/1.0 */color:var(--ink);padding-top:10px}
+.pulse{position:absolute;border-radius:50%;border:6px solid var(--primary)}
+.pulse.p1{inset:-20px;opacity:.55} .pulse.p2{inset:-42px;opacity:.25}
+.strip{display:flex;gap:var(--s4);align-items:center;margin-top:var(--s4)}
+.mini{width:56px;height:56px;border-radius:50%;background:var(--paper);border:var(--outline);box-shadow:var(--lift);display:grid;place-items:center;font:800 40px/1 var(--font-display);padding-top:4px}
+.mini.now{outline:4px solid var(--primary);outline-offset:3px}
+.arrow{font:800 16px/1.2 var(--font-body);color:var(--ink-soft)}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Pause et reprise</h1>
+<p class="note">Manual pause in play: the on-screen button, Esc, Start/Options or Android back (B never pauses; B is dodge). Auto-pause: background, gamepad disconnect, portrait. The level freezes under a scrim with no blur. The HUD stays visible under the scrim, dimmed and inert (log [pause-hud]).</p>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="room" viewBox="0 0 844 390">
+      <rect width="844" height="390" fill="#3E3557"/>
+      <polygon points="92,260 422,95 422,-60 92,105" fill="#F2D9BF" stroke="#2A2140" stroke-width="3"/>
+      <polygon points="422,95 752,260 752,105 422,-60" fill="#E6C6A6" stroke="#2A2140" stroke-width="3"/>
+      <!-- wallpaper stripes -->
+      <g stroke="#E7C9A9" stroke-width="6">
+        <line x1="152" y1="230" x2="152" y2="75"/><line x1="212" y1="200" x2="212" y2="45"/><line x1="272" y1="170" x2="272" y2="15"/><line x1="332" y1="140" x2="332" y2="-15"/>
+      </g>
+      <!-- window on right wall -->
+      <polygon points="610,140 690,180 690,120 610,80" fill="#4B4168" stroke="#2A2140" stroke-width="3"/>
+      <line x1="650" y1="160" x2="650" y2="100" stroke="#2A2140" stroke-width="3"/>
+      <circle cx="668" cy="118" r="7" fill="#F7EBD3"/>
+      <!-- floor -->
+      <polygon points="92,260 422,95 752,260 422,425" fill="#C99B74" stroke="#2A2140" stroke-width="3"/>
+      <g stroke="#B88762" stroke-width="2">
+        <line x1="150" y1="289" x2="480" y2="124"/><line x1="208" y1="318" x2="538" y2="153"/><line x1="266" y1="347" x2="596" y2="182"/><line x1="324" y1="376" x2="654" y2="211"/>
+      </g>
+      <!-- rug -->
+      <polygon points="430,222 560,287 430,352 300,287" fill="#E9B48C" stroke="#2A2140" stroke-width="3"/>
+      <polygon points="430,240 524,287 430,334 336,287" fill="none" stroke="#F6D7B8" stroke-width="3"/>
+      <!-- sofa along right wall -->
+      <polygon points="552,160 712,240 712,196 552,116" fill="#A5785A" stroke="#2A2140" stroke-width="3"/>
+      <polygon points="552,160 712,240 672,260 512,180" fill="#B88A68" stroke="#2A2140" stroke-width="3"/>
+      <polygon points="512,180 672,260 672,290 512,210" fill="#94684C" stroke="#2A2140" stroke-width="3"/>
+      <!-- shelf (étagère) on left wall -->
+      <polygon points="312,150 392,110 392,0 312,40" fill="#B98A5E" stroke="#2A2140" stroke-width="3"/>
+      <polygon points="312,150 332,160 332,50 312,40" fill="#9C7049" stroke="#2A2140" stroke-width="3"/>
+      <g stroke="#2A2140" stroke-width="2"><line x1="312" y1="78" x2="392" y2="38"/><line x1="312" y1="114" x2="392" y2="74"/></g>
+      <g stroke="#2A2140" stroke-width="2">
+        <polygon points="322,108 330,104 330,84 322,88" fill="#D9C2A0"/><polygon points="334,102 342,98 342,80 334,84" fill="#C7A7C2"/><polygon points="358,90 368,85 368,66 358,71" fill="#E5D5B8"/>
+      </g>
+      <!-- outlet on left wall -->
+      <polygon points="185,186 199,179 199,161 185,168" fill="#FFFFFF" stroke="#2A2140" stroke-width="2"/>
+      <circle cx="190" cy="175" r="1.6" fill="#2A2140"/><circle cx="195" cy="172" r="1.6" fill="#2A2140"/>
+      <!-- coffee table -->
+      <polygon points="330,250 380,275 350,290 300,265" fill="#D7B48A" stroke="#2A2140" stroke-width="3"/>
+      <polygon points="300,265 350,290 350,302 300,277" fill="#B38E66" stroke="#2A2140" stroke-width="3"/>
+      <polygon points="350,290 380,275 380,287 350,302" fill="#A27E58" stroke="#2A2140" stroke-width="3"/>
+    </symbol>
+
+    <symbol id="papa" viewBox="-40 -80 80 100">
+      <ellipse cx="0" cy="12" rx="34" ry="11" fill="#2A2140" opacity=".25"/>
+      <ellipse cx="0" cy="-14" rx="26" ry="28" fill="#E2D4C0" stroke="#2A2140" stroke-width="3"/>
+      <circle cx="0" cy="-56" r="20" fill="#E9B992" stroke="#2A2140" stroke-width="3"/>
+      <path d="M-18 -62 q4 -16 18 -16 q14 0 18 16 q-8 -6 -18 -5 q-10 -1 -18 5z" fill="#5A3E2B" stroke="#2A2140" stroke-width="2"/>
+      <circle cx="-7" cy="-55" r="2.6" fill="#2A2140"/><circle cx="7" cy="-55" r="2.6" fill="#2A2140"/>
+      <path d="M-6 -46 q6 4 12 0" stroke="#2A2140" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="baby" viewBox="-30 -40 60 56">
+      <ellipse cx="2" cy="10" rx="20" ry="6" fill="#2A2140" opacity=".25"/>
+      <ellipse cx="8" cy="0" rx="16" ry="11" fill="#F4C7B5" stroke="#2A2140" stroke-width="3"/>
+      <circle cx="-8" cy="-14" r="15" fill="#F6D2B4" stroke="#2A2140" stroke-width="3"/>
+      <circle cx="-14" cy="-16" r="3" fill="#2A2140"/><circle cx="-5" cy="-17" r="3" fill="#2A2140"/>
+      <circle cx="-13" cy="-17" r="1" fill="#FFFFFF"/><circle cx="-4" cy="-18" r="1" fill="#FFFFFF"/>
+      <path d="M-12 -8 q3 2 6 0" stroke="#2A2140" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </symbol>
+    <!-- HUD icons -->
+    <symbol id="i-bruit" viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z" fill="#2A2140"/><path d="M15.5 8.5c1.6 1.2 1.6 5.8 0 7M18.5 6c3.2 2.6 3.2 9.4 0 12" stroke="#2A2140" stroke-width="2.2" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-fatigue" viewBox="0 0 24 24"><path d="M2.5 12.5c3.5 5 15.5 5 19 0" stroke="#2A2140" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M2.5 12.5c3.5-4.6 15.5-4.6 19 0c-4 1.6-15 1.6-19 0z" fill="#2A2140"/><circle cx="12" cy="15" r="2.2" fill="#2A2140"/><path d="M16 3.5h4l-4 4h4" stroke="#2A2140" stroke-width="1.8" fill="none" stroke-linejoin="round"/></symbol>
+    <symbol id="i-envie" viewBox="0 0 24 24"><path d="M12 2.5c3.2 5 6.5 8.2 6.5 12.2a6.5 6.5 0 0 1-13 0c0-4 3.3-7.2 6.5-12.2z" fill="#2A2140"/><path d="M9 15.5a3 3 0 0 0 3 3" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-mama-sleep" viewBox="0 0 28 28"><circle cx="13" cy="15" r="9" fill="#F3C9A6" stroke="#2A2140" stroke-width="2.4"/><circle cx="13" cy="5.5" r="3.4" fill="#2A2140"/><path d="M8.5 15q2 1.8 3.6 0M14 15q2 1.8 3.6 0" stroke="#2A2140" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M20 3h5l-5 5h5" stroke="#2A2140" stroke-width="2" fill="none" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 20 20"><rect x="3" y="2" width="5" height="16" rx="2" fill="#2A2140"/><rect x="12" y="2" width="5" height="16" rx="2" fill="#2A2140"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M14 1.5L4.5 14h6.5l-1.5 8.5L19.5 10H13z" fill="#FFFFFF" stroke="#2A2140" stroke-width="2" stroke-linejoin="round"/></symbol>
+
+  </defs>
+</svg>
+
+<!-- ===================== STATE A: pause panel ===================== -->
+<h2>A · Pause</h2>
+<div class="stage">
+<div class="device">
+  <svg class="scene" viewBox="0 0 844 390" aria-hidden="true"><use href="#room"/><use href="#baby" x="198" y="208" width="60" height="56"/><use href="#papa" x="480" y="210" width="80" height="100"/></svg>
+  <div class="hud">
+    <div class="gauges"><div class="gauge idle"><svg><use href="#i-bruit"/></svg><div class="bar"><div class="fill" style="transform:scaleX(.4)"></div></div></div><div class="gauge warn"><svg><use href="#i-fatigue"/></svg><div class="bar"><div class="fill" style="transform:scaleX(.8)"></div></div></div><div class="gauge idle"><svg><use href="#i-envie"/></svg><div class="bar"><div class="fill" style="transform:scaleX(.3)"></div></div></div></div>
+    <div class="timer"><svg><use href="#i-mama-sleep"/></svg>2:47</div>
+    <button class="pause-btn" aria-label="Pause"><svg><use href="#i-pause"/></svg></button>
+  </div>
+  <div class="scrim"></div>
+  <div class="overlay">
+    <div class="panel" role="dialog" aria-label="Pause">
+      <h3>Pause</h3>
+      <button class="btn btn-primary">Reprendre</button>
+      <button class="btn btn-secondary">Recommencer</button>
+      <button class="btn btn-secondary">Réglages</button>
+      <button class="btn btn-tertiary">Quitter vers le frigo</button>
+    </div>
+  </div>
+  <div class="notch"></div><div class="home"></div>
+</div>
+</div>
+<p class="note">Panel pops in with overshoot (220 ms or less; a plain fade with Réduire les animations). Reprendre is primary and takes default focus (first action of a panel). Recommencer and Réglages are secondary; Quitter vers le frigo is button-tertiary. Réglages replaces this panel and comes back to it (overlays never stack).</p>
+
+<!-- ===================== STATE B: inline quit confirmation ===================== -->
+<h2>B · Confirmer la sortie</h2>
+<div class="stage">
+<div class="device">
+  <svg class="scene" viewBox="0 0 844 390" aria-hidden="true"><use href="#room"/><use href="#baby" x="198" y="208" width="60" height="56"/><use href="#papa" x="480" y="210" width="80" height="100"/></svg>
+  <div class="hud">
+    <div class="gauges"><div class="gauge idle"><svg><use href="#i-bruit"/></svg><div class="bar"><div class="fill" style="transform:scaleX(.4)"></div></div></div><div class="gauge warn"><svg><use href="#i-fatigue"/></svg><div class="bar"><div class="fill" style="transform:scaleX(.8)"></div></div></div><div class="gauge idle"><svg><use href="#i-envie"/></svg><div class="bar"><div class="fill" style="transform:scaleX(.3)"></div></div></div></div>
+    <div class="timer"><svg><use href="#i-mama-sleep"/></svg>2:47</div>
+    <button class="pause-btn" aria-label="Pause"><svg><use href="#i-pause"/></svg></button>
+  </div>
+  <div class="scrim"></div>
+  <div class="overlay">
+    <div class="panel" role="dialog" aria-label="Pause">
+      <h3>Pause</h3>
+      <button class="btn btn-primary">Reprendre</button>
+      <button class="btn btn-secondary">Recommencer</button>
+      <button class="btn btn-secondary">Réglages</button>
+      <button class="btn btn-armed" aria-label="Sûr ? Le niveau sera perdu.">Sûr ? Le niveau sera perdu.</button>
+    </div>
+  </div>
+  <div class="notch"></div><div class="home"></div>
+</div>
+</div>
+<p class="note">First tap on Quitter vers le frigo arms it in place. The label becomes « Sûr ? Le niveau sera perdu. » with an ink fill and paper text. A second tap confirms, and it reverts after 3s. There is no stacked modal. Neutral ink, not red: dodge red is reserved for gameplay.</p>
+
+<!-- ===================== STATE C: 3-2-1 resume countdown ===================== -->
+<h2>C · Reprise : 3, 2, 1</h2>
+<div class="stage">
+<div class="device">
+  <svg class="scene" viewBox="0 0 844 390" aria-hidden="true"><use href="#room"/><use href="#baby" x="198" y="208" width="60" height="56"/><use href="#papa" x="480" y="210" width="80" height="100"/></svg>
+  <div class="hud">
+    <div class="gauges"><div class="gauge idle"><svg><use href="#i-bruit"/></svg><div class="bar"><div class="fill" style="transform:scaleX(.4)"></div></div></div><div class="gauge warn"><svg><use href="#i-fatigue"/></svg><div class="bar"><div class="fill" style="transform:scaleX(.8)"></div></div></div><div class="gauge idle"><svg><use href="#i-envie"/></svg><div class="bar"><div class="fill" style="transform:scaleX(.3)"></div></div></div></div>
+    <div class="timer"><svg><use href="#i-mama-sleep"/></svg>2:47</div>
+    <button class="pause-btn" aria-label="Pause"><svg><use href="#i-pause"/></svg></button>
+  </div>
+  <div class="scrim"></div>
+  <div class="overlay">
+    <div class="count" role="timer" aria-live="assertive"><span class="pulse p1"></span><span class="pulse p2"></span>2</div>
+  </div>
+  <div class="notch"></div><div class="home"></div>
+</div>
+</div>
+<div class="strip" aria-hidden="true"><div class="mini">3</div><span class="arrow">→</span><div class="mini now">2</div><span class="arrow">→</span><div class="mini">1</div><span class="arrow">→ play resumes at the exact frozen instant; AudioContext resumes</span></div>
+<p class="note">Reprendre (or coming back from background) always goes through a 3-second real-time countdown: typography.countdown digits (Baloo 2 800 112px), each with a tick sound, a haptic pulse and a visual pulse ring (1Hz, under the 3Hz flash limit). The frozen level stays under the scrim until 0.</p>
+</div>
+</body>
+</html>
