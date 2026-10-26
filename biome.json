@@ -145,6 +145,14 @@
                   {
                     "group": ["@debug/**"],
                     "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@capacitor/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@dimforge/**"],
+                    "message": "Only src/sim/physics/rapierPhysics.ts may import Rapier."
                   }
                 ]
               }
@@ -190,7 +198,7 @@
                     "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
                   },
                   {
-                    "group": ["@shared/log"],
+                    "group": ["@shared/log", "@shared/log.*"],
                     "message": "The sim never logs: it emits SimEvents and the client logs them."
                   },
                   {
@@ -255,7 +263,7 @@
                     "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
                   },
                   {
-                    "group": ["@shared/log"],
+                    "group": ["@shared/log", "@shared/log.*"],
                     "message": "The sim never logs: it emits SimEvents and the client logs them."
                   }
                 ]
@@ -310,6 +318,14 @@
                   {
                     "group": ["@debug/**"],
                     "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@content/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@dimforge/**"],
+                    "message": "Only src/sim/physics/rapierPhysics.ts may import Rapier."
                   }
                 ]
               }
@@ -342,6 +358,46 @@
                   {
                     "group": ["@client/**"],
                     "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@bots/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@content/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@debug/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@dimforge/**"],
+                    "message": "Only src/sim/physics/rapierPhysics.ts may import Rapier."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/main.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@debug/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@dimforge/**"],
+                    "message": "Only src/sim/physics/rapierPhysics.ts may import Rapier."
                   }
                 ]
               }
@@ -370,6 +426,10 @@
                   {
                     "group": ["@bots/**"],
                     "message": "Bots are loaded by a dynamic import() in client/boot.ts only (autoplay)."
+                  },
+                  {
+                    "group": ["@dimforge/**"],
+                    "message": "Only src/sim/physics/rapierPhysics.ts may import Rapier."
                   }
                 ]
               }
@@ -390,6 +450,10 @@
                   {
                     "group": ["@sim/**"],
                     "message": "The client uses the sim's public API only: import from '@sim'."
+                  },
+                  {
+                    "group": ["@dimforge/**"],
+                    "message": "Only src/sim/physics/rapierPhysics.ts may import Rapier."
                   }
                 ]
               }

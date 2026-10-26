@@ -1,5 +1,11 @@
 import { LOG_BUFFER_SIZE } from '@shared/constants';
-import { createConsoleSink, createLogger, type LogEntry, type LogLevel } from '@shared/log';
+import {
+  createConsoleSink,
+  createDefaultSink,
+  createLogger,
+  type LogEntry,
+  type LogLevel,
+} from '@shared/log';
 import { describe, expect, it } from 'vitest';
 
 function setup(level: LogLevel = 'debug') {
@@ -52,10 +58,35 @@ describe('createLogger', () => {
     expect(logger.buffer().map((e) => e.message)).toEqual(['ready']);
   });
 
-  it('does not buffer entries filtered out by the level threshold', () => {
-    const { logger } = setup('error');
-    logger.info('boot', 'filtered out');
-    expect(logger.buffer()).toEqual([]);
+  it('buffers info and above whatever the sink threshold, but never reaches the sink below it', () => {
+    const { logger, sunk } = setup('error');
+    logger.debug('boot', 'dropped');
+    logger.info('boot', 'kept');
+    logger.warn('boot', 'kept too');
+    expect(sunk).toEqual([]);
+    expect(logger.buffer().map((e) => e.message)).toEqual(['kept', 'kept too']);
+  });
+
+  it('keeps buffering after the threshold is raised', () => {
+    const { logger } = setup('debug');
+    logger.setLevel('error');
+    logger.warn('sim', 'still recorded');
+    expect(logger.buffer().map((e) => e.message)).toEqual(['still recorded']);
+  });
+
+  it('clamps a nonsensical bufferSize instead of corrupting the ring', () => {
+    for (const bufferSize of [0, -3, 1.9, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const logger = createLogger({ level: 'info', sink: null, bufferSize });
+      logger.info('boot', 'a');
+      logger.info('boot', 'b');
+      const messages = logger.buffer().map((e) => e.message);
+      expect(messages.length).toBeGreaterThanOrEqual(1);
+      expect(messages[messages.length - 1]).toBe('b');
+    }
+    const one = createLogger({ level: 'info', sink: null, bufferSize: 0 });
+    one.info('boot', 'a');
+    one.info('boot', 'b');
+    expect(one.buffer().map((e) => e.message)).toEqual(['b']);
   });
 
   it('keeps exactly the last 200 entries, oldest first, after 250 writes', () => {
@@ -89,10 +120,65 @@ describe('createLogger', () => {
     expect(copy).toHaveLength(0);
   });
 
+  it('buffer() returns copies of the entries', () => {
+    const { logger } = setup('info');
+    logger.info('boot', 'a');
+    const [first] = logger.buffer();
+    (first as LogEntry).message = 'tampered';
+    expect(logger.buffer()[0]?.message).toBe('a');
+  });
+
   it('still buffers when the console sink is disabled', () => {
     const logger = createLogger({ level: 'info', sink: null });
     logger.info('boot', 'quiet');
     expect(logger.buffer()).toHaveLength(1);
+  });
+});
+
+describe('createDefaultSink', () => {
+  function recordingConsole() {
+    const calls: string[] = [];
+    const record =
+      (level: string) =>
+      (...args: unknown[]) =>
+        calls.push(`${level}:${args[0]}`);
+    return {
+      calls,
+      target: {
+        error: record('error'),
+        warn: record('warn'),
+        info: record('info'),
+        debug: record('debug'),
+      },
+    };
+  }
+  const entry = (level: LogLevel): LogEntry => ({
+    atReal: 0,
+    level,
+    channel: 'boot',
+    message: 'm',
+  });
+  const levels: LogLevel[] = ['error', 'warn', 'info', 'debug'];
+
+  it('prints everything in dev and when there is no Vite env (Node, tsx)', () => {
+    for (const env of [{ DEV: true }, undefined, {}]) {
+      const { calls, target } = recordingConsole();
+      const sink = createDefaultSink(env, target);
+      for (const level of levels) sink?.(entry(level));
+      expect(calls).toHaveLength(4);
+    }
+  });
+
+  it('prints only warn and error in a playtest build (VITE_DEBUG_ALLOWED=true)', () => {
+    const { calls, target } = recordingConsole();
+    const sink = createDefaultSink({ DEV: false, VITE_DEBUG_ALLOWED: 'true' }, target);
+    for (const level of levels) sink?.(entry(level));
+    expect(calls).toEqual(['error:[boot] m', 'warn:[boot] m']);
+  });
+
+  it('prints nothing in a production build', () => {
+    expect(createDefaultSink({ DEV: false, VITE_DEBUG_ALLOWED: 'false' })).toBeNull();
+    expect(createDefaultSink({ DEV: false })).toBeNull();
   });
 });
 

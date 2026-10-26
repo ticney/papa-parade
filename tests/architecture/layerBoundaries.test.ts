@@ -26,12 +26,32 @@ const CASES: Case[] = [
   { fixture: 'r2-content-imports-three', rule: 'R2', file: 'src/content/a.ts', detail: 'three' },
   { fixture: 'r2-content-imports-sim', rule: 'R2', file: 'src/content/a.ts', detail: '@sim' },
   {
+    fixture: 'r2-content-imports-capacitor',
+    rule: 'R2',
+    file: 'src/content/a.ts',
+    detail: '@capacitor/haptics',
+  },
+  {
+    fixture: 'r2-content-imports-debug-static',
+    rule: 'R2',
+    file: 'src/content/a.ts',
+    detail: '@debug/overlay',
+  },
+  {
     fixture: 'r3-sim-imports-client-relative',
     rule: 'R3',
     file: 'src/sim/a.ts',
     detail: '../client/x',
   },
   { fixture: 'r3-sim-imports-three', rule: 'R3', file: 'src/sim/a.ts', detail: 'three' },
+  {
+    fixture: 'r3-sim-imports-client-index',
+    rule: 'R3',
+    file: 'src/sim/a.ts',
+    detail: '../client',
+  },
+  { fixture: 'r3-sim-requires-three', rule: 'R3', file: 'src/sim/a.ts', detail: 'three' },
+  { fixture: 'r3-sim-mts-imports-three', rule: 'R3', file: 'src/sim/a.mts', detail: 'three' },
   {
     fixture: 'r3-sim-imports-capacitor',
     rule: 'R3',
@@ -53,6 +73,18 @@ const CASES: Case[] = [
     file: 'src/sim/threats/a.ts',
     detail: '@dimforge/rapier3d-deterministic-compat',
   },
+  ...['client', 'bots', 'platform', 'content'].map((zone) => ({
+    fixture: `r4-${zone}-imports-rapier`,
+    rule: 'R4',
+    file: `src/${zone}/a.ts`,
+    detail: '@dimforge/rapier3d-deterministic-compat',
+  })),
+  {
+    fixture: 'r5-bots-imports-content',
+    rule: 'R5',
+    file: 'src/bots/a.ts',
+    detail: '@content/schema',
+  },
   {
     fixture: 'r5-bots-imports-sim-internals',
     rule: 'R5',
@@ -70,6 +102,18 @@ const CASES: Case[] = [
   { fixture: 'r6-platform-imports-sim', rule: 'R6', file: 'src/platform/a.ts', detail: '@sim' },
   { fixture: 'r6-platform-imports-three', rule: 'R6', file: 'src/platform/a.ts', detail: 'three' },
   {
+    fixture: 'r6-platform-imports-bots',
+    rule: 'R6',
+    file: 'src/platform/a.ts',
+    detail: '@bots/perfect',
+  },
+  {
+    fixture: 'r6-platform-imports-content',
+    rule: 'R6',
+    file: 'src/platform/a.ts',
+    detail: '@content/schema',
+  },
+  {
     fixture: 'r7-client-imports-debug-static',
     rule: 'R7',
     file: 'src/client/a.ts',
@@ -81,6 +125,25 @@ const CASES: Case[] = [
     file: 'src/client/a.ts',
     detail: '@debug/overlay',
   },
+  {
+    fixture: 'r7-client-imports-bots-dynamic-outside-boot',
+    rule: 'R7',
+    file: 'src/client/a.ts',
+    detail: '@bots/perfect',
+  },
+  {
+    fixture: 'r7-client-template-import-debug',
+    rule: 'R7',
+    file: 'src/client/a.ts',
+    detail: '@debug/',
+  },
+  {
+    fixture: 'r7-client-globs-sim-internals',
+    rule: 'R7',
+    file: 'src/client/a.ts',
+    detail: '../sim/*.ts',
+  },
+  { fixture: 'r7-client-imports-sim-index', rule: 'R7', file: 'src/client/a.ts', detail: '../sim' },
   {
     fixture: 'r7-client-imports-sim-internals',
     rule: 'R7',
@@ -112,6 +175,39 @@ const CASES: Case[] = [
     file: 'src/main.ts',
     detail: '@debug/overlay',
   },
+  {
+    fixture: 'r9-platform-imports-debug-static',
+    rule: 'R9',
+    file: 'src/platform/a.ts',
+    detail: '@debug/overlay',
+  },
+  { fixture: 'r10-sim-imports-entry', rule: 'R10', file: 'src/sim/a.ts', detail: '../main.ts' },
+  { fixture: 'r10-client-imports-entry', rule: 'R10', file: 'src/client/a.ts', detail: '../main' },
+  // Files and imports that no layer rule can place are refused instead of skipped.
+  {
+    fixture: 'layout-unknown-folder',
+    rule: 'LAYOUT',
+    file: 'src/clients/a.ts',
+    detail: 'src/clients/a.ts',
+  },
+  {
+    fixture: 'unresolved-import-unknown-folder',
+    rule: 'UNRESOLVED',
+    file: 'src/client/a.ts',
+    detail: '../clients/x',
+  },
+  {
+    fixture: 'unresolved-import-escapes-repo',
+    rule: 'UNRESOLVED',
+    file: 'src/client/a.ts',
+    detail: '../../../x',
+  },
+  {
+    fixture: 'unresolved-dynamic-template',
+    rule: 'UNRESOLVED',
+    file: 'src/client/a.ts',
+    detail: '',
+  },
 ];
 
 describe('layerBoundaries', () => {
@@ -121,7 +217,7 @@ describe('layerBoundaries', () => {
 
   it('has an offending fixture for every rule', () => {
     const covered = new Set(CASES.map((c) => c.rule));
-    expect([...covered].sort()).toEqual(BOUNDARY_RULES.map((r) => r.id).sort());
+    expect(BOUNDARY_RULES.filter((r) => !covered.has(r.id)).map((r) => r.id)).toEqual([]);
   });
 
   for (const { fixture, rule, file, detail } of CASES) {
@@ -173,6 +269,35 @@ describe('findImports', () => {
     expect(findImports(source)).toEqual([{ specifier: 'real', dynamic: false }]);
   });
 
+  it('finds require() calls and the first pattern of import.meta.glob', () => {
+    const source = `
+      const a = require('a');
+      const b = import.meta.glob('../client/*.ts');
+      const c = import.meta.glob(['./c/*.ts', '!./c/skip.ts'], { eager: true });
+      const d = import.meta.globEager('./d/*.ts');
+      const notRequire = obj.require('nope');
+    `;
+    expect(findImports(source)).toEqual([
+      { specifier: 'a', dynamic: false },
+      { specifier: '../client/*.ts', dynamic: true },
+      { specifier: './c/*.ts', dynamic: true },
+      { specifier: './d/*.ts', dynamic: false },
+    ]);
+  });
+
+  it('keeps the static start of a template import with a substitution', () => {
+    const source = `
+      const a = import(\`@client/\${name}\`);
+      const b = import(\`\${name}\`);
+      const c = import(\`./levels/\${id}.json\`);
+    `;
+    expect(findImports(source)).toEqual([
+      { specifier: '@client/', dynamic: true, partial: true },
+      { specifier: '', dynamic: true, partial: true },
+      { specifier: './levels/', dynamic: true, partial: true },
+    ]);
+  });
+
   it('does not take an export without `from` for a re-export', () => {
     const source = `
       export const x = 1;
@@ -205,6 +330,31 @@ describe('maskSource', () => {
 
   it('treats a slash after an identifier as a division', () => {
     const { masked } = maskSource("const half = total / 2; const s = 'Date'; Date.now() / 2;");
+    expect(masked.match(/Date/g)).toHaveLength(1);
+  });
+
+  it('treats a slash after a non-null assertion as a division', () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the source under test is a template literal
+    const source = "const a = `${items[0]! / total} ${x! / 2}`; const s = 'Date'; Date.now();";
+    expect(maskSource(source).masked.match(/Date/g)).toHaveLength(1);
+  });
+
+  it('still reads a slash after a negation as a regex', () => {
+    const { masked } = maskSource(
+      'const ok = !/Date/.test(s) && a && !/Date/.test(t); Date.now();',
+    );
+    expect(masked.match(/Date/g)).toHaveLength(1);
+  });
+
+  it('treats a slash after a keyword-named property as a division', () => {
+    const { masked } = maskSource(
+      "const a = o.of / 2; const s = 'Date'; const b = x.in / n; Date.now();",
+    );
+    expect(masked.match(/Date/g)).toHaveLength(1);
+  });
+
+  it('does not let an unterminated regex-looking slash swallow the rest of the line', () => {
+    const { masked } = maskSource('const a = (b) /* c */ ; return /not closed; Date.now();');
     expect(masked.match(/Date/g)).toHaveLength(1);
   });
 });

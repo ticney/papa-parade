@@ -6,7 +6,7 @@ import { scanSimPurity } from './scanners.ts';
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, 'fixtures', 'simPurity');
 
-const OFFENDERS: { name: string; detail: string }[] = [
+const OFFENDERS: { name: string; detail: string; file?: string }[] = [
   { name: 'math-random', detail: 'Math.random' },
   { name: 'math-random-bracket', detail: 'Math.random' },
   { name: 'date', detail: 'Date' },
@@ -17,6 +17,11 @@ const OFFENDERS: { name: string; detail: string }[] = [
   { name: 'request-animation-frame', detail: 'requestAnimationFrame' },
   { name: 'local-storage', detail: 'localStorage' },
   { name: 'global-this-window', detail: 'window' },
+  { name: 'global-this-bracket', detail: 'Date' },
+  { name: 'math-destructure', detail: 'Math alias' },
+  { name: 'math-alias', detail: 'Math alias' },
+  { name: 'math-optional', detail: 'Math alias' },
+  { name: 'date-mts', detail: 'Date', file: 'a.mts' },
   { name: 'import-three', detail: 'import three' },
   { name: 'import-three-subpath', detail: 'import three/examples/jsm/loaders/GLTFLoader.js' },
   { name: 'import-type-three', detail: 'import three' },
@@ -31,11 +36,11 @@ describe('simPurity', () => {
     expect(scanSimPurity(join(here, '..', '..', 'src', 'sim'))).toEqual([]);
   });
 
-  for (const { name, detail } of OFFENDERS) {
+  for (const { name, detail, file = 'a.ts' } of OFFENDERS) {
     it(`flags the offending fixture "${name}"`, () => {
       const violations = scanSimPurity(join(fixtures, name));
       expect(violations).toHaveLength(1);
-      expect(violations[0]).toMatchObject({ file: 'a.ts', rule: 'sim-purity', detail });
+      expect(violations[0]).toMatchObject({ file, rule: 'sim-purity', detail });
     });
   }
 

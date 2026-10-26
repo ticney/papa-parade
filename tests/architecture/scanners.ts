@@ -22,9 +22,13 @@ export interface MaskedSource {
   masked: string;
   /** Content of each string literal (and substitution-free template), keyed by opening-quote index. */
   literals: Map<number, string>;
+  /** Text before the first `${` of each template that has a substitution, keyed by backtick index. */
+  templatePrefixes: Map<number, string>;
 }
 
 const REGEX_PRECEDING_CHARS = '(,=:[!&|?{};*%<>~^';
+// A `!` right after one of these is a non-null assertion (`items[i]! / n`), not a negation.
+const POSTFIX_BANG_PRECEDING = /[\w$)\]]/;
 const REGEX_PRECEDING_WORDS = new Set([
   'return',
   'typeof',
@@ -45,6 +49,7 @@ export function maskSource(source: string): MaskedSource {
   const n = source.length;
   const out: string[] = new Array<string>(n);
   const literals = new Map<number, string>();
+  const templatePrefixes = new Map<number, string>();
   const templateStack: number[] = [];
   let braceDepth = 0;
   let i = 0;
@@ -83,32 +88,34 @@ export function maskSource(source: string): MaskedSource {
     return { text, opensExpression: false };
   }
 
-  function previousSignificant(): { char: string; word: string } {
+  // The last significant token before `i`: its last char, the identifier it ends (if any), and
+  // the char just before that identifier or `!` (to tell `a.of / 2` and `a! / 2` from a regex).
+  function previousSignificant(): { char: string; word: string; before: string } {
     let j = i - 1;
     while (j >= 0 && /\s/.test(out[j] ?? ' ')) j--;
-    if (j < 0) return { char: '', word: '' };
+    if (j < 0) return { char: '', word: '', before: '' };
     const char = out[j] as string;
     let k = j;
     while (k >= 0 && /[\w$]/.test(out[k] ?? '')) k--;
-    return { char, word: out.slice(k + 1, j + 1).join('') };
+    const word = out.slice(k + 1, j + 1).join('');
+    return { char, word, before: (word === '' ? out[j - 1] : out[k]) ?? '' };
   }
 
   // Tracks whether the template currently being read had a substitution, per opening backtick.
-  const templateStarts: { start: number; text: string; hadExpression: boolean }[] = [];
+  const templateStarts: { start: number; text: string; hadExpression: boolean; prefix?: string }[] =
+    [];
 
   function continueTemplate(): void {
-    const current = templateStarts[templateStarts.length - 1] as {
-      start: number;
-      text: string;
-      hadExpression: boolean;
-    };
+    const current = templateStarts[templateStarts.length - 1] as (typeof templateStarts)[number];
     const { text, opensExpression } = scanTemplateChars();
     current.text += text;
     if (opensExpression) {
+      if (!current.hadExpression) current.prefix = current.text;
       current.hadExpression = true;
     } else {
       templateStarts.pop();
       if (!current.hadExpression) literals.set(current.start, current.text);
+      else templatePrefixes.set(current.start, current.prefix ?? '');
     }
   }
 
@@ -175,10 +182,15 @@ export function maskSource(source: string): MaskedSource {
       }
     } else if (c === '/') {
       const prev = previousSignificant();
+      const afterNonNullAssertion = prev.char === '!' && POSTFIX_BANG_PRECEDING.test(prev.before);
+      // `o.of`, `x.in`: a keyword used as a property name is an identifier.
+      const keywordIsProperty = prev.word !== '' && prev.before === '.';
       const startsRegex =
         prev.char === '' ||
-        (REGEX_PRECEDING_CHARS.includes(prev.char) && prev.word === '') ||
-        REGEX_PRECEDING_WORDS.has(prev.word);
+        (REGEX_PRECEDING_CHARS.includes(prev.char) && prev.word === '' && !afterNonNullAssertion) ||
+        (REGEX_PRECEDING_WORDS.has(prev.word) && !keywordIsProperty);
+      const regexStart = i;
+      let closed = false;
       if (startsRegex) {
         out[i] = '/';
         i++;
@@ -200,10 +212,14 @@ export function maskSource(source: string): MaskedSource {
         if (i < n && source[i] === '/') {
           out[i] = '/';
           i++;
+          closed = true;
         }
-      } else {
-        out[i] = c;
-        i++;
+      }
+      if (!startsRegex || !closed) {
+        // Not a regex (or an unterminated one, which cannot span lines): a plain `/`. Rewind so
+        // that the text after it is masked as code again.
+        out[regexStart] = c;
+        i = regexStart + 1;
       }
     } else {
       out[i] = c;
@@ -212,7 +228,7 @@ export function maskSource(source: string): MaskedSource {
   }
 
   for (let k = 0; k < n; k++) if (out[k] === undefined) out[k] = ' ';
-  return { masked: out.join(''), literals };
+  return { masked: out.join(''), literals, templatePrefixes };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -222,18 +238,31 @@ export function maskSource(source: string): MaskedSource {
 export interface ImportRef {
   specifier: string;
   dynamic: boolean;
+  /**
+   * The specifier is only the static start of a template literal with a substitution
+   * (``import(`@client/${name}`)``). An empty specifier then means nothing is known about it.
+   */
+  partial?: true;
 }
 
-/** Static imports, re-exports, side-effect imports and `import('…')` calls of a TypeScript file. */
+/**
+ * Static imports, re-exports, side-effect imports, `import('…')` and `require('…')` calls and the
+ * first pattern of `import.meta.glob('…')` of a TypeScript file.
+ */
 export function findImports(source: string): ImportRef[] {
-  const { masked, literals } = maskSource(source);
+  const { masked, literals, templatePrefixes } = maskSource(source);
   const found = new Map<number, ImportRef>();
 
   const add = (match: RegExpExecArray, dynamic: boolean): void => {
     const quoteIndex = match.index + match[0].length - 1;
+    if (found.has(quoteIndex)) return;
     const specifier = literals.get(quoteIndex);
-    if (specifier !== undefined && !found.has(quoteIndex))
+    if (specifier !== undefined) {
       found.set(quoteIndex, { specifier, dynamic });
+      return;
+    }
+    const prefix = templatePrefixes.get(quoteIndex);
+    if (prefix !== undefined) found.set(quoteIndex, { specifier: prefix, dynamic, partial: true });
   };
 
   const staticFrom = /\b(?:import|export)\b(?:(?!\bimport\b|\bexport\b)[^;'"`])*?\bfrom\s*(['"`])/g;
@@ -245,6 +274,13 @@ export function findImports(source: string): ImportRef[] {
   const sideEffect = /\bimport\s*(['"`])/g;
   for (let m = sideEffect.exec(masked); m !== null; m = sideEffect.exec(masked)) add(m, false);
 
+  const requireCall = /(?<![\w$.])require\s*\(\s*(['"`])/g;
+  for (let m = requireCall.exec(masked); m !== null; m = requireCall.exec(masked)) add(m, false);
+
+  // Vite's glob import. Only the first pattern is read; an eager glob is a static import.
+  const glob = /\bimport\s*\.\s*meta\s*\.\s*glob(Eager)?\s*(?:<[^>(]*>)?\s*\(\s*(?:\[\s*)?(['"`])/g;
+  for (let m = glob.exec(masked); m !== null; m = glob.exec(masked)) add(m, m[1] === undefined);
+
   return [...found.entries()].sort((a, b) => a[0] - b[0]).map(([, ref]) => ref);
 }
 
@@ -252,13 +288,16 @@ export function findImports(source: string): ImportRef[] {
 // File walking
 // ---------------------------------------------------------------------------------------------
 
-function listTsFiles(dir: string): string[] {
+const SOURCE_FILE = /\.[cm]?[jt]sx?$/;
+const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/;
+
+function listSourceFiles(dir: string): string[] {
   const files: string[] = [];
   for (const name of readdirSync(dir).sort()) {
     if (name === 'node_modules') continue;
     const full = join(dir, name);
-    if (statSync(full).isDirectory()) files.push(...listTsFiles(full));
-    else if (name.endsWith('.ts')) files.push(full);
+    if (statSync(full).isDirectory()) files.push(...listSourceFiles(full));
+    else if (SOURCE_FILE.test(name)) files.push(full);
   }
   return files;
 }
@@ -288,6 +327,10 @@ const GLOBAL_THIS_PATTERN = new RegExp(
 );
 const MATH_RANDOM_PATTERN = /(?<![\w$.])Math\s*\.\s*random\b/;
 const MATH_RANDOM_BRACKET_PATTERN = /(?<![\w$.])Math\s*\[\s*(['"`])/g;
+// `Math` used as a value (`const { random } = Math`, `const M = Math`, `Math?.random()`): only a
+// plain `Math.member` access can be checked, so anything else is refused.
+const MATH_ALIAS_PATTERN = /(?<![\w$.])Math\b(?!\s*\.\s*[A-Za-z_$])(?!\s*\[)/;
+const GLOBAL_THIS_BRACKET_PATTERN = /\b(?:globalThis|self)\s*\[\s*(['"`])/g;
 
 function bannedSimImport(specifier: string): boolean {
   return (
@@ -297,8 +340,8 @@ function bannedSimImport(specifier: string): boolean {
 
 export function scanSimPurity(simDir: string): Violation[] {
   const violations: Violation[] = [];
-  for (const path of listTsFiles(simDir)) {
-    if (path.endsWith('.test.ts')) continue;
+  for (const path of listSourceFiles(simDir)) {
+    if (TEST_FILE.test(path)) continue;
     const file = toPosix(relative(simDir, path));
     const source = readFileSync(path, 'utf8');
     const { masked, literals } = maskSource(source);
@@ -317,6 +360,22 @@ export function scanSimPurity(simDir: string): Violation[] {
     }
     if (MATH_RANDOM_PATTERN.test(masked)) {
       report('Math.random', '`Math.random` is forbidden in src/sim: use `world.rng`');
+    }
+    if (MATH_ALIAS_PATTERN.test(masked)) {
+      report(
+        'Math alias',
+        '`Math` must only be used as `Math.<member>` in src/sim (an alias could hide `Math.random`)',
+      );
+    }
+    for (
+      let m = GLOBAL_THIS_BRACKET_PATTERN.exec(masked);
+      m !== null;
+      m = GLOBAL_THIS_BRACKET_PATTERN.exec(masked)
+    ) {
+      const name = literals.get(m.index + m[0].length - 1);
+      if (name !== undefined && (BANNED_GLOBALS as readonly string[]).includes(name)) {
+        report(name, `\`${name}\` is forbidden in src/sim (the sim is pure and deterministic)`);
+      }
     }
     for (
       let m = MATH_RANDOM_BRACKET_PATTERN.exec(masked);
@@ -378,6 +437,7 @@ interface Rule {
 }
 
 const RAPIER_FILE = 'src/sim/physics/rapierPhysics.ts';
+const BOOT_FILE = 'src/client/boot.ts';
 
 const isZone = (target: Target, ...zones: Zone[]): boolean =>
   target.kind === 'zone' && zones.includes(target.zone as Zone);
@@ -401,7 +461,8 @@ export const BOUNDARY_RULES: readonly Rule[] = [
       'content imports only shared and zod (never sim, bots, client, platform, debug, three)',
     applies: (file, _imp, target) =>
       file.zone === 'content' &&
-      (isZone(target, 'sim', 'bots', 'client', 'platform', 'debug') || isPackage(target, 'three')),
+      (isZone(target, 'sim', 'bots', 'client', 'platform', 'debug') ||
+        isPackage(target, 'three', '@capacitor')),
   },
   {
     id: 'R3',
@@ -420,24 +481,25 @@ export const BOUNDARY_RULES: readonly Rule[] = [
   {
     id: 'R4',
     description: 'only sim/physics/rapierPhysics.ts imports Rapier',
-    applies: (file, _imp, target) =>
-      file.zone === 'sim' && file.rel !== RAPIER_FILE && isPackage(target, '@dimforge'),
+    applies: (file, _imp, target) => file.rel !== RAPIER_FILE && isPackage(target, '@dimforge'),
   },
   {
     id: 'R5',
     description:
-      'bots import only the sim public API (@sim) and shared; never client, platform, three',
+      'bots import only the sim public API (@sim) and shared; never client, platform, content, three',
     applies: (file, _imp, target) =>
       file.zone === 'bots' &&
-      (isZone(target, 'client', 'platform') ||
+      (isZone(target, 'client', 'platform', 'content') ||
         isPackage(target, 'three') ||
         (isZone(target, 'sim') && !target.isSimPublicApi)),
   },
   {
     id: 'R6',
-    description: 'platform never imports sim, client or three',
+    description:
+      'platform imports only shared and @capacitor/*: never sim, client, bots, content, three',
     applies: (file, _imp, target) =>
-      file.zone === 'platform' && (isZone(target, 'sim', 'client') || isPackage(target, 'three')),
+      file.zone === 'platform' &&
+      (isZone(target, 'sim', 'client', 'bots', 'content') || isPackage(target, 'three')),
   },
   {
     id: 'R7',
@@ -446,8 +508,8 @@ export const BOUNDARY_RULES: readonly Rule[] = [
     applies: (file, imp, target) =>
       file.zone === 'client' &&
       ((isZone(target, 'sim') && !target.isSimPublicApi) ||
-        (isZone(target, 'debug') && !(imp.dynamic && file.rel === 'src/client/boot.ts')) ||
-        (isZone(target, 'bots') && !imp.dynamic)),
+        (isZone(target, 'debug') && !(imp.dynamic && file.rel === BOOT_FILE)) ||
+        (isZone(target, 'bots') && !(imp.dynamic && file.rel === BOOT_FILE))),
   },
   {
     id: 'R8',
@@ -457,32 +519,49 @@ export const BOUNDARY_RULES: readonly Rule[] = [
   {
     id: 'R9',
     description:
-      'no layer imports debug statically (client/boot.ts imports it dynamically, see R7; sim is covered by R3)',
+      'no layer imports debug statically (shared, content, sim and client are covered by R1, R2, R3 and R7; client/boot.ts imports it dynamically)',
     applies: (file, imp, target) =>
-      file.zone !== 'debug' &&
-      file.zone !== 'client' &&
-      file.zone !== 'sim' &&
+      (file.zone === 'bots' || file.zone === 'platform' || file.zone === 'entry') &&
       isZone(target, 'debug') &&
       !imp.dynamic,
+  },
+  {
+    id: 'R10',
+    description: 'nothing imports the entry file src/main.ts',
+    applies: (file, _imp, target) => file.zone !== 'entry' && isZone(target, 'entry'),
   },
 ];
 
 const ALIAS_PATTERN = /^@(shared|content|sim|bots|client|platform|debug)(?:\/(.*))?$/;
 
-function classifyZone(rel: string): Zone | null {
+const isLayer = (name: string | undefined): name is Layer =>
+  (LAYERS as readonly string[]).includes(name as string);
+
+/**
+ * The zone of a path relative to the repo root, or null outside `src/` and `tools/`. Under `src/`
+ * a folder that is not a layer is `'unknown'`. A bare `src/<layer>` is that layer: it is how an
+ * extensionless relative import such as `'../sim'` resolves.
+ */
+function classifyZone(rel: string): Zone | 'unknown' | null {
   const parts = rel.split('/');
   if (parts[0] === 'tools') return 'tools';
   if (parts[0] !== 'src') return null;
-  const second = parts[1] as string;
-  if (parts.length === 2) return 'entry';
-  return (LAYERS as readonly string[]).includes(second) ? (second as Layer) : null;
+  const second = parts[1];
+  if (second === undefined) return 'entry';
+  if (isLayer(second)) return second;
+  return parts.length === 2 ? 'entry' : 'unknown';
 }
 
 function stripExtension(path: string): string {
   return path.replace(/\.(d\.)?[cm]?[jt]sx?$/, '');
 }
 
-function resolveTarget(file: SourceFile, specifier: string): Target | null {
+/**
+ * `null`: not a repo layer (a package.json import, a root-level file…). `'unresolved'`: it points
+ * into `src/` outside every layer, out of the repo, or nothing is known about it.
+ */
+function resolveTarget(file: SourceFile, specifier: string): Target | null | 'unresolved' {
+  if (specifier === '') return 'unresolved';
   const bare = specifier.split('?')[0] as string;
   const alias = ALIAS_PATTERN.exec(bare);
   if (alias) {
@@ -497,9 +576,10 @@ function resolveTarget(file: SourceFile, specifier: string): Target | null {
   }
   if (bare.startsWith('./') || bare.startsWith('../')) {
     const resolved = posix.normalize(posix.join(posix.dirname(file.rel), bare));
-    if (resolved.startsWith('..')) return null;
+    if (resolved.startsWith('..')) return 'unresolved';
     const zone = classifyZone(resolved);
     if (zone === null) return null;
+    if (zone === 'unknown') return 'unresolved';
     const parts = resolved.split('/');
     const inner = stripExtension(parts.slice(zone === 'tools' ? 1 : 2).join('/'));
     return { kind: 'zone', zone, inner, isSimPublicApi: false };
@@ -515,14 +595,33 @@ function resolveTarget(file: SourceFile, specifier: string): Target | null {
 export function scanLayerBoundaries(rootDir: string): Violation[] {
   const violations: Violation[] = [];
   const srcDir = join(rootDir, 'src');
-  for (const path of listTsFiles(srcDir)) {
+  for (const path of listSourceFiles(srcDir)) {
     const rel = toPosix(relative(rootDir, path));
     const zone = classifyZone(rel);
     if (zone === null) continue;
-    const file: SourceFile = { rel, zone, isTest: rel.endsWith('.test.ts') };
+    if (zone === 'unknown') {
+      violations.push({
+        file: rel,
+        rule: 'LAYOUT',
+        message: 'LAYOUT: source files live in a known layer folder (or are src/main.ts)',
+        detail: rel,
+      });
+      continue;
+    }
+    const file: SourceFile = { rel, zone, isTest: TEST_FILE.test(rel) };
     for (const imp of findImports(readFileSync(path, 'utf8'))) {
       const target = resolveTarget(file, imp.specifier);
       if (target === null) continue;
+      if (target === 'unresolved') {
+        violations.push({
+          file: rel,
+          rule: 'UNRESOLVED',
+          message:
+            'UNRESOLVED: the import cannot be placed in a layer (unknown folder under src/, path out of the repo, or a template with no static start)',
+          detail: imp.specifier,
+        });
+        continue;
+      }
       for (const rule of BOUNDARY_RULES) {
         if (rule.applies(file, imp, target)) {
           violations.push({

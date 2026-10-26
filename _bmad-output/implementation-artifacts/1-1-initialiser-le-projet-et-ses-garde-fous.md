@@ -4,7 +4,7 @@ baseline_commit: b871ec35b4a4dd358d8e72966099ab6cdd764ea6
 
 # Story 1.1: Initialize the project and its guardrails
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.1 « Initialiser le projet et ses garde-fous ». Epics, GDD and architecture are in French; this file is in English (document_output_language). -->
 
@@ -126,6 +126,33 @@ so that I can never mix the simulation and the rendering by mistake.
   - [x] `npm run dev`, then open the page in the built-in browser and check for a full-screen canvas and an empty console.
   - [x] `git status` shows no change under `_bmad/`, `_bmad-output/` (apart from this story file and `sprint-status.yaml`), `docs/` or `.claude/`.
   - [x] Temporarily add `import 'three'` to a `src/sim/tmp.ts`: `npm test` and `npm run lint` both fail. Remove the file afterwards.
+
+### Review Findings
+
+Code review of `b871ec3..47fb4ed` (2026-10-26): Blind Hunter, Edge Case Hunter and Acceptance Auditor. 3 decision-needed (all resolved to patch), 15 patch in total, 7 deferred, 18 dismissed.
+
+- [x] [Review][Patch] (decided 2026-10-26: option b, buffer `info` and above whatever the console threshold) The level threshold also gates the ring buffer — `write()` returns before the buffer write, so after `setLevel('error')` or `'warn'` the `info`/`warn` entries are no longer kept. AC 7 says the buffer keeps the last 200 entries of level `info` and above, and T5 says "the buffer is always on" (the test "does not buffer entries filtered out by the level threshold" locks the current behaviour in). Options: (a) keep it, the threshold is global; (b) buffer `info` and above whatever the console threshold is, so a raised level never drops diagnostics. [src/shared/log.ts:76-85]
+- [x] [Review][Patch] (decided 2026-10-26: option b, keep `warn` and `error` on the console when `VITE_DEBUG_ALLOWED` is `true`) In production and playtest builds no entry reaches the console — the default sink is `null` when `import.meta.env.DEV === false` (as AC 7 and T5 specify), nothing reads `log.buffer()` yet, so every `warn` fallback ("every fallback logs a warn") is invisible in a playtest build. Options: (a) keep as specified until a debug overlay reads the buffer; (b) keep `warn` and `error` on the console when `VITE_DEBUG_ALLOWED` is `true`; (c) always send `warn` and `error` to the console. [src/shared/log.ts:43,66]
+- [x] [Review][Patch] (decided 2026-10-26: option a, add `.env.development` with `VITE_DEBUG_ALLOWED=true`) `npm run dev` and the e2e `webServer` run in Vite mode `development`, which only loads `.env` (`VITE_DEBUG_ALLOWED=false`), so the debug/bots dynamic imports will be gated off in dev and e2e. Options: (a) add `.env.development` with `VITE_DEBUG_ALLOWED=true`; (b) run `dev` and the e2e server with `--mode playtest`; (c) leave it until the story that first reads the flag. [.env, .env.playtest, package.json `dev`, playwright.config.ts]
+- [x] [Review][Patch] Extensionless or directory relative imports bypass every rule — `import x from '../sim'` (from client) or `'../client'` (from sim) resolve to `src/<layer>`, which `classifyZone` calls `entry`; relative imports of `src/main.ts` are not flagged for any layer; imports that escape `src` and files under an unknown `src/<dir>` are silently skipped. Treat `src/<layer>` as that layer, add a rule "nothing imports `src/main.ts`", and report unclassified directories and escaping relative imports, each with a fixture. [tests/architecture/scanners.ts:477,498-505,521]
+- [x] [Review][Patch] R5, R6 and R4 are narrower than the "Frontières d'architecture" table — `bots` importing `@content`, `platform` importing `@bots`/`@content`, and any layer except `sim/physics/rapierPhysics.ts` importing `@dimforge/*` are not flagged (no Biome pattern either). Add them with one fixture each. [tests/architecture/scanners.ts:424,432,440]
+- [x] [Review][Patch] R7 lets a dynamic `import('@bots/…')` through in any `client` file — the rule description, the Dev Agent Record and Biome say `client/boot.ts` only, so scanner and Biome disagree. Use `!(imp.dynamic && file.rel === 'src/client/boot.ts')` and add a fixture like `r7-client-imports-debug-dynamic-outside-boot` for bots. Also correct the Dev Agent Record claim that all decisions are "more restrictive" (the `vitest`/`node:*` exemption in `src/shared/*.test.ts` loosens R1). [tests/architecture/scanners.ts:446-450]
+- [x] [Review][Patch] Biome misses imports that the scanner catches — `@shared/log.ts` (with the extension, which the project uses) is not matched by the `@shared/log` pattern; `src/platform/**` has no `@debug/**` ban; `@dimforge/**` is not banned in `content`, `bots`, `platform` and `client`; `@capacitor/**` is not banned in `content`. Add the patterns (in the `rapierPhysics.ts` override too) and the matching cases in `biomeBoundaries.test.ts`. [biome.json:193,258,322-352]
+- [x] [Review][Patch] `biomeBoundaries.test.ts` proves only `Date` and `performance` among the seven denied globals, and R9 has fixtures for `bots` and `src/main.ts` only — add `window`, `document`, `setTimeout`, `requestAnimationFrame`, `localStorage` cases, and R9 fixtures for `platform`, `content` and `shared` importing `debug` statically. [tests/architecture/biomeBoundaries.test.ts:34-125, tests/architecture/fixtures/layers]
+- [x] [Review][Patch] The scanners only walk `*.ts` — `.tsx`, `.mts`, `.cts`, `.js`, `.mjs` files escape both `scanSimPurity` and `scanLayerBoundaries`, and `*.spec.ts` is not treated as a test file (false R1 on `vitest`). Match `/\.[cm]?[jt]sx?$/` and `/\.(test|spec)\./`. [tests/architecture/scanners.ts:261,522]
+- [x] [Review][Patch] `findImports` misses `require('three')`, `import.meta.glob('../client/*.ts')` and dynamic imports with a template substitution (`` import(`@client/${x}`) ``) — the first two are not forms the scanner knows, the last is recorded as a literal. Detect them, and fail the layer test on an unresolvable dynamic specifier. [tests/architecture/scanners.ts:239-246]
+- [x] [Review][Patch] `maskSource` mistakes a division for a regex literal after a non-null assertion (`${count! / total}`) or a keyword-named property (`o.of / 2`, `x.in / n`); the swallowed `}` or backtick desynchronises `templateStack`, so the rest of the file is masked and `Date.now()` or an import after it escapes. Drop `!` from the regex-preceding characters, treat a word preceded by `.` as an identifier, and reset the stack when a regex scan swallows `}` or a backtick; add tests. [tests/architecture/scanners.ts:86-94,176-181]
+- [x] [Review][Patch] `simPurity` is bypassable in trivial ways — `const { random } = Math`, `const M = Math; M.random()`, `Math?.random()` and `globalThis['Date']` are not flagged. Ban bare `Math` aliasing/destructuring and bracket access on `globalThis`/`self`, with fixtures. [tests/architecture/scanners.ts:284-290]
+- [x] [Review][Patch] `createLogger` with `bufferSize` 0, negative, fractional or `NaN` writes at `NaN` or throws a `RangeError` at construction (the default `log` is built at module load). Clamp: `Math.max(1, Math.floor(size))`, fall back to `LOG_BUFFER_SIZE`; add a test. [src/shared/log.ts:65]
+- [x] [Review][Patch] `buffer()` copies the array but returns the same entry objects, so a caller that mutates a returned entry (or the `data` it logged) rewrites history for the next call. Return shallow copies of the entries and document that `data` is kept by reference. [src/shared/log.ts:98-105]
+- [x] [Review][Patch] `ci.yml` has no `permissions` block (default token scopes) and no `timeout-minutes` — add `permissions: { contents: read }` and a job timeout. [.github/workflows/ci.yml]
+- [x] [Review][Defer] The TS type system lets `window`, `document` and Node APIs compile inside `src/sim` (`lib` has DOM, `types` has `node`) — a `src/sim/tsconfig.json` with `lib: ['ES2023']` and `types: []` would add a compile-time guard [tsconfig.json] — deferred, architectural hardening beyond story 1.1
+- [x] [Review][Defer] Biome lints `*.test.ts` under `src/sim` against the purity globals while `simPurity` skips them (AC 3), so lint and architecture test disagree for sim tests [biome.json:157-220] — deferred, no sim test exists yet; decide with story 1.3
+- [x] [Review][Defer] `#pp-canvas` uses `100vw`/`100vh` (as T2 specifies), which includes the area under mobile browser bars; no `100dvh`, `touch-action: none`, `overscroll-behavior` or safe-area handling [src/client/ui/styles/ui.css] — deferred, belongs to stories 1.4 (renderer) and 1.5 (UI)
+- [x] [Review][Defer] No global `error` / `unhandledrejection` hook feeds `log.error`, so uncaught errors on a phone never reach the ring buffer [src/main.ts] — deferred, belongs to the composition root (story 1.4)
+- [x] [Review][Defer] The `src/sim/**` and `rapierPhysics.ts` Biome overrides duplicate the whole `deniedGlobals` and pattern lists by hand and can drift apart [biome.json:157-282] — deferred, maintainability; add a drift test if the lists grow
+- [x] [Review][Defer] CI never runs `npm run build` (production, `VITE_DEBUG_ALLOWED=false`) and e2e runs against the dev server, not the built bundle; `isMobile` is not emulated [.github/workflows/ci.yml, playwright.config.ts] — deferred, story 1.24 finalizes the playtest build
+- [x] [Review][Defer] `public/favicon.svg` is the stock Vite logo [public/favicon.svg] — deferred, placeholder until real branding assets
 
 ## Dev Notes
 
@@ -251,7 +278,7 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`), via the `gds-dev-story` workflow.
 - **TS 7 / Vite 8.** `paths` without `baseUrl`, `types: ["vite/client", "node"]`, `resolve.tsconfigPaths: true` (tsconfig is the single alias source, also resolved by Vitest and `tsx`; the `content:check` placeholder imports `@shared/log` through it).
 - **Logger and Result.** `createLogger` with an injectable console sink, a preallocated 200-slot ring buffer (info and above only, `buffer()` returns a copy, no allocation for filtered-out calls). The level threshold filters both the console and the buffer. `createConsoleSink` is exported so the level-to-console-method mapping is unit tested.
 - **Architecture tests.** `tests/architecture/scanners.ts` masks comments, strings and regex literals, then extracts static, re-export, side-effect and dynamic imports. 17 offending fixtures for `simPurity`, 27 for the 10 boundary rules (R1 to R9 plus R3b), plus "clean" and "allowed" fixtures that guard against over-restriction. Tests assert the exact file, rule id and specifier.
-- **Decisions beyond the story text** (all in the direction of "more restrictive", none changes a documented rule):
+- **Decisions beyond the story text** (in the direction of "more restrictive", except the `vitest`/`node:*` exemption in `src/shared` tests; none changes a documented rule):
   - R3b: `src/sim` may not import `@shared/log` (recommended in Dev Notes).
   - R9 does not fire for `sim` (R3 already covers `debug` there), so each fixture yields exactly one violation.
   - Dynamic `import()` of `bots` is allowed only in `client/boot.ts`, like `debug`, so Biome (which cannot tell static from dynamic) and the scanner agree. Static imports of either are still caught by the scanner everywhere in `client`.
@@ -265,7 +292,7 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`), via the `gds-dev-story` workflow.
 ### File List
 
 New:
-- `.env`, `.env.playtest`, `.gitignore`, `.nvmrc`
+- `.env`, `.env.development`, `.env.playtest`, `.gitignore`, `.nvmrc`
 - `.github/workflows/ci.yml`
 - `CLAUDE.md`
 - `biome.json`
@@ -292,4 +319,5 @@ Deleted from the index (file kept on disk):
 
 ### Change Log
 
+- 2026-10-26: Code review (Blind Hunter, Edge Case Hunter, Acceptance Auditor): 15 patches applied, 7 items deferred (see `deferred-work.md`), 18 dismissed. Logger: the ring buffer keeps `info` and above whatever the sink threshold, `bufferSize` is clamped, `buffer()` returns copies, playtest builds print `warn` and `error` (`createDefaultSink`); `.env.development` added. Scanners: bare `src/<layer>` imports, `src/main.ts` (R10), unknown folders and unresolved imports (`LAYOUT`, `UNRESOLVED`), `require`, `import.meta.glob`, template imports, all source extensions, R4/R5/R6/R7 aligned with the table, sturdier regex masking and `Math` alias detection. Biome: matching patterns for every new rule plus an `src/main.ts` override, and 31 more `biomeBoundaries` cases. CI: read-only token and a 20 minute timeout. `npm run ci`: 159 tests, e2e and playtest build green.
 - 2026-10-26: Story 1.1 implemented. Vite vanilla-ts shell with pinned stack, TS 7 strict config with layer aliases, `Result` and `log` with tests, layer skeleton, `simPurity` / `layerBoundaries` / `biomeBoundaries` architecture tests with fixtures, per-layer Biome rules, scripts, CI workflow, `CLAUDE.md`. Status set to review.
