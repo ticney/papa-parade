@@ -11,7 +11,13 @@ async function loadFile<T>(
   entry: ContentFile<T>,
 ): Promise<Result<T, ContentProblem[]>> {
   const file = `content/${entry.file}`;
-  const text = await source.read(entry.file);
+  // A source honours its Result contract; a rejection is a bug in the source, still reported as a problem.
+  const text = await Promise.resolve(source.read(entry.file)).catch((cause: unknown) =>
+    err({
+      kind: 'content' as const,
+      message: cause instanceof Error ? cause.message : String(cause),
+    }),
+  );
   if (!text.ok) return err([{ file, jsonPath: '', message: text.error.message }]);
   return parseContentFile(file, text.value, entry.schema);
 }

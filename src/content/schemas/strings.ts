@@ -8,7 +8,7 @@ export const STRING_KEY_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
  * because JS `\b` is ASCII-only.
  */
 export const FORBIDDEN_FAILURE_WORDS =
-  /(?<![\p{L}])(échecs?|echecs?|perdu(?:e|s|es)?|perdre|game over|mort(?:e|s|es)?)(?![\p{L}])/iu;
+  /(?<![\p{L}])(?:[eé]chec\p{L}*|[eé]chou\p{L}*|perd\p{L}*|ratée?s?|défaites?|game[\s-]?over|mort(?:e|s|es)?)(?![\p{L}])/iu;
 
 /** Tutoiement register: the game says « tu », never « vous ». */
 const VOUVOIEMENT = /(?<![\p{L}])(vous|votre|vos)(?![\p{L}])/iu;
@@ -21,7 +21,7 @@ const StringValueSchema = z
   .min(1, 'a string must not be empty')
   .refine((value) => value === '' || value.trim() !== '', { error: 'a string must not be blank' })
   .refine((value) => !FORBIDDEN_FAILURE_WORDS.test(value), {
-    error: 'never name failure to the player (échec, perdu, game over, mort): reword it',
+    error: 'never name failure to the player (échec, perdu, raté, game over, mort): reword it',
   })
   .refine((value) => !VOUVOIEMENT.test(value), {
     error: 'use the tutoiement register (tu), not vous/votre/vos',

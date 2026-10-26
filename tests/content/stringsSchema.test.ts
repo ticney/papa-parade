@@ -129,6 +129,13 @@ describe('forbidden failure words', () => {
     'mort',
     'Échecs',
     'Tu as perdu',
+    'Tu perds',
+    'On perd',
+    'Tu as échoué',
+    'Raté !',
+    'Game-Over',
+    'GAMEOVER',
+    'Défaite',
   ])('matches %s', (text) => {
     expect(FORBIDDEN_FAILURE_WORDS.test(text)).toBe(true);
   });
@@ -151,6 +158,10 @@ describe('StringsSchema', () => {
       );
     },
   );
+
+  it('tells the author which rule a bad key breaks', () => {
+    expect(failures({ 'Bad Key': 'x' })[0]?.message).toMatch(/group\.lower_snake_case/);
+  });
 
   it('accepts well-formed keys', () => {
     for (const key of ['a.b', 'start.tap_to_start', 'countdown.step_3', 'a.b.c']) {

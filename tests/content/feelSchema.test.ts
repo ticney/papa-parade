@@ -10,6 +10,8 @@ import { FeelSchema } from '../../src/content/schemas/feel.ts';
 const FEEL_URL = new URL('../../content/feel.json', import.meta.url);
 const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FEEL_URL, 'utf8'));
 
+// AC 1 lists the suffixes. The bare `fatigue.perSec` is the one documented exception (Dev Notes ›
+// Feel keys): the group name `fatigue` already carries the quantity.
 const UNIT_SUFFIX = /(?:Ms|Pct|PerSec|Mps|Deg|Px|Scale|Multiplier|Points|Count|Stars)$|^perSec$/;
 
 function parse(value: unknown) {

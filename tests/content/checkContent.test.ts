@@ -124,6 +124,23 @@ describe('checkContent', () => {
     expect(problems[0]?.message).toContain('npm run content:schemas');
   });
 
+  it('reports a registered content file that is missing', async () => {
+    await rm(join(root, 'content/feel.json'));
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: 'content/feel.json',
+        message: expect.stringMatching(/missing/),
+      }),
+    ]);
+  });
+
+  it('reports a generated schema that no content file owns', async () => {
+    await put('content/_schemas/orphan.schema.json', '{}\n');
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: 'content/_schemas/orphan.schema.json' }),
+    ]);
+  });
+
   it('reports a missing generated schema', async () => {
     await rm(join(root, 'content/_schemas/strings.schema.json'));
     expect(await checkContent(root)).toEqual([
@@ -136,6 +153,12 @@ describe('stripComments', () => {
   it('keeps comment markers that sit inside strings', () => {
     const source = "const url = 'http://x//y'; t('a.b') // t('gone.key')";
     expect(stripComments(source)).toBe("const url = 'http://x//y'; t('a.b') \n");
+  });
+
+  it('does not let a quote in a regex literal swallow the next lines', () => {
+    expect(stripComments("const quoted = /'/;\n// t('gone.key')\n")).toBe(
+      "const quoted = /'/;\n\n",
+    );
   });
 
   it('keeps line numbers across block comments', () => {

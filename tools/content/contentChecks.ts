@@ -33,6 +33,13 @@ export async function listContentFiles(rootDir: string): Promise<string[]> {
     .map((file) => posixRelative(contentDir, file));
 }
 
+/** The `_schemas/*.schema.json` files that no registered content file generates: stale or hand-made. */
+export async function listOrphanSchemas(rootDir: string): Promise<string[]> {
+  const expected = new Set(CONTENT_FILES.map((entry) => `${entry.schemaName}.schema.json`));
+  const names = await readdir(join(rootDir, 'content', SCHEMAS_DIR)).catch(() => [] as string[]);
+  return names.filter((name) => name.endsWith('.schema.json') && !expected.has(name)).sort();
+}
+
 /** Blanks `//` and block comments, leaving string literals (and newlines) as they are. */
 export function stripComments(source: string): string {
   let out = '';
@@ -43,7 +50,8 @@ export function stripComments(source: string): string {
     if (quote !== '') {
       out += c;
       if (c === '\\') out += source[++i] ?? '';
-      else if (c === quote) quote = '';
+      // Only a template literal spans lines: a lone quote (in a regex literal, say) ends with its line.
+      else if (c === quote || (c === '\n' && quote !== '`')) quote = '';
     } else if (c === '/' && next === '/') {
       while (i < source.length && source[i] !== '\n') i++;
       out += '\n';
@@ -123,6 +131,25 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
     }
     if (entry === STRINGS_FILE) strings = result.value as Record<string, string>;
     else parsed.push({ file: display, value: result.value });
+  }
+
+  const present = new Set(await listContentFiles(rootDir));
+  for (const entry of CONTENT_FILES) {
+    if (present.has(entry.file)) continue;
+    problems.push({
+      file: `content/${entry.file}`,
+      jsonPath: '',
+      message: 'registered content file is missing',
+    });
+  }
+
+  for (const name of await listOrphanSchemas(rootDir)) {
+    problems.push({
+      file: `content/${SCHEMAS_DIR}/${name}`,
+      jsonPath: '',
+      message:
+        'no registered content file generates this schema: delete it or run `npm run content:schemas`',
+    });
   }
 
   for (const entry of CONTENT_FILES) {

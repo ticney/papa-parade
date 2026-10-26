@@ -83,9 +83,10 @@ describe('loadContent', () => {
   });
 
   it('reports a duplicate key', async () => {
+    // Repeat the entry whatever its value is: the test must not pin a tunable number.
     const text = readReal('feel.json').replace(
-      '"windowMs": 300,',
-      '"windowMs": 300, "windowMs": 200,',
+      /"windowMs":\s*[^,\s]+/,
+      (entry) => `${entry}, ${entry}`,
     );
     const problems = await problemsOf({ 'feel.json': text });
     expect(problems).toEqual([
@@ -99,11 +100,22 @@ describe('loadContent', () => {
     expect(files).toEqual(new Set(['content/feel.json', 'content/strings.fr.json']));
   });
 
-  it('does not throw when the source rejects', async () => {
+  it('returns an error Result when the source returns one', async () => {
     const source: ContentSource = {
       read: () => Promise.resolve(err({ kind: 'content', message: 'disk on fire' })),
     };
     const result = await loadContent(source);
     expect(result.ok).toBe(false);
+  });
+
+  it('does not throw when the source rejects', async () => {
+    const source: ContentSource = { read: () => Promise.reject(new Error('disk on fire')) };
+    const result = await loadContent(source);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.problems).toContainEqual(
+        expect.objectContaining({ file: 'content/feel.json', message: 'disk on fire' }),
+      );
+    }
   });
 });

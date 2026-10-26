@@ -21,6 +21,14 @@ export function issueToProblems(file: string, issue: z.core.$ZodIssue): ContentP
       message: `unknown key "${key}" (the schema is strict: add it to the schema first)`,
     }));
   }
+  if (issue.code === 'invalid_key') {
+    // The useful message (for example "a string key is group.lower_snake_case") is nested.
+    return issue.issues.map((inner) => ({
+      file,
+      jsonPath: formatJsonPath(issue.path),
+      message: inner.message,
+    }));
+  }
   return [{ file, jsonPath: formatJsonPath(issue.path), message: issue.message }];
 }
 
