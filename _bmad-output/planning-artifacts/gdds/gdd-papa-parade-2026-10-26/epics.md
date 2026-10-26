@@ -7,6 +7,8 @@ updated: 2026-10-26
 
 # Papa Parade — Epics de développement
 
+> **Remplacé pour le détail.** Les epics et les 76 stories avec critères d'acceptation sont dans [`planning-artifacts/epics.md`](../../epics.md) (2026-10-26). Ce fichier reste la vue d'ensemble du GDD ; en cas d'écart, `planning-artifacts/epics.md` fait foi.
+
 Détail des epics résumés dans `gdd.md`. Les stories sont de haut niveau ; elles seront découpées par `gds-create-epics-and-stories`.
 
 ## E1 — Prototype « Bébé à 4 pattes » en cubes

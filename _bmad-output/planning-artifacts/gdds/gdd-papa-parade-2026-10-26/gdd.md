@@ -4,7 +4,7 @@ game_type: Action chaotique à timing, solo (hybride Fighting / Party Game / Rhy
 platforms: [web, ios, android]
 created: 2026-10-26
 updated: 2026-10-26
-version: 2.0
+version: 2.1
 sources:
   - docs/Papa Parade — Game Design Doc.pdf (GDD v1, 2026-10-23)
   - _bmad-output/brainstorming/brainstorm-papa-parade-gameplay-2026-10-26/.memlog.md
@@ -61,7 +61,7 @@ Du point de vue du bébé, tout ce qui est dangereux est super cool. Du point de
 
 ### Contexte et intention
 
-Le GDD v1 (2026-10-23) posait le pitch, les piliers, la boucle, les 5 âges et la stack. Le brainstorming du 2026-10-26 (mode Creative Partner, Persona Journey puis Trait Transfer) a produit environ 70 idées. Il a fait évoluer la conception sur cinq points : le verbe central (« lire, puis répondre juste »), le rôle du son, la structure des niveaux autour de Maman, la note de fin et les contrôles mobiles. Ce document v2 intègre ces décisions ; le journal des décisions est dans `decision-log.md`.
+Le GDD v1 (2026-10-23) posait le pitch, les piliers, la boucle, les 5 âges et la stack. Le brainstorming du 2026-10-26 (mode Creative Partner, Persona Journey puis Trait Transfer) a produit environ 70 idées. Il a fait évoluer la conception sur cinq points : le verbe central (« lire, puis répondre juste »), le rôle du son, la structure des niveaux autour de Maman, la note de fin et les contrôles mobiles. Ce document v2 intègre ces décisions ; le journal des décisions est dans `decision-log.md`. La v2.1 (2026-10-26) reporte trois décisions prises pendant l'architecture : les règles d'entrée (seuil unique de 0,4 s), la mesure des fenêtres en temps de jeu avec la règle de l'appui trop tôt, et les gestes sur le bébé.
 
 ---
 
@@ -140,7 +140,9 @@ Termes dérivés, tous ramenés aux cinq réponses :
 | Attendre à distance (enfance) | Attendre |
 | Anticipation, préparation | Déplacement et placement, pas une réponse |
 
-**Règles d'entrée.** Le timing est mesuré à l'appui du doigt (ou de la touche). Un relâchement avant 0,2 s compte comme Parer ; un maintien au-delà de 0,4 s compte comme Fermeté. « Ne rien faire » échoue seulement si le joueur agit sur la menace visée ; il peut traiter d'autres menaces pendant ce temps.
+**Règles d'entrée.** Le timing est mesuré à l'appui du doigt (ou de la touche). Un seuil unique de 0,4 s sépare les deux gestes : un relâchement avant 0,4 s compte comme Parer ; un maintien de 0,4 s ou plus compte comme Fermeté. Le seuil est réglable dans le fichier de feeling. « Ne rien faire » échoue seulement si le joueur agit sur la menace visée ; il peut traiter d'autres menaces pendant ce temps.
+
+**Appui trop tôt.** Par défaut, un appui sur une menace avant l'ouverture de sa fenêtre (moins le buffer d'entrée) déclenche le gag. Un mode « en garde » est réglable dans le fichier de feeling, pour comparaison au playtest : l'appui précoce lance la glissade sans être jugé, et il faut appuyer à nouveau dans la fenêtre.
 
 **2. Fenêtres de timing**
 
@@ -150,6 +152,7 @@ Termes dérivés, tous ramenés aux cinq réponses :
 | Fenêtre de réponse standard | 300 ms |
 | Fenêtre de réponse parfaite | 100 ms, centrée |
 | Tolérance cachée (façon Celeste) | +60 ms de chaque côté, non affichée |
+| Temps de référence | Temps de jeu : un ralenti allonge aussi les fenêtres en temps réel ; le hitstop gèle le temps de jeu ; la pause ne consomme rien |
 | Buffer d'entrée | 100 ms |
 | Hitstop sur réponse réussie | 80 ms |
 | Ralenti sur réponse parfaite | ×0,3 pendant 1,2 s |
@@ -180,7 +183,7 @@ Termes dérivés, tous ramenés aux cinq réponses :
 - **Les pleurs typés :** faim, couche, dents, fatigue, sans raison. Chacun a une signature sonore et visuelle et son remède (biberon, change, anneau de dentition, bercer). Un mauvais remède fait monter le pleur d'un cran et la jauge de bruit de 5 %.
 - **Le comportement.**
 
-**Renifler** (1 s) révèle l'état de la couche. Ces états alimentent la note de Maman.
+**Renifler** (maintien de 1 s sur le bébé) révèle l'état de la couche. Ces états alimentent la note de Maman.
 
 **11. Physique légère.** Les objets tombent, roulent et rebondissent. Les accidents émergents font le spectacle.
 
@@ -207,7 +210,9 @@ Termes dérivés, tous ramenés aux cinq réponses :
 | Fermeté | Maintien sur la menace | Espace (maintien) | A (maintien) |
 | Esquiver | Swipe | Maj + direction | B + direction |
 | Retenir son souffle (infiltration uniquement) | Maintien n'importe où | E (maintien) | RT (maintien) |
-| Boire un café, renifler | Tap sur l'objet ou sur le bébé | Interaction contextuelle (Espace) | A contextuel |
+| Boire un café, décrocher le téléphone | Tap sur l'objet | Interaction contextuelle (Espace) | A contextuel |
+| Prendre le bébé, le trouver (silence suspect) | Tap sur le bébé, hors menace en cours | Espace près du bébé | A près du bébé |
+| Renifler | Maintien de 1 s sur le bébé, hors menace en cours | Espace (maintien) près du bébé | A (maintien) près du bébé |
 
 - **Orientation :** paysage.
 - **Retour haptique** sur mobile : vibration courte à chaque télégraphe, vibration marquée sur une réponse parfaite.
@@ -330,7 +335,7 @@ Les boss sont des situations, pas des personnages : change de couche, lavage de 
 
 - **Calibration** de la latence audio et tactile au premier lancement : tap en rythme sur 8 temps, décalage appliqué aux fenêtres.
 - **Réponse visuelle à un tap :** au plus 50 ms.
-- Les fenêtres de timing sont définies en millisecondes, indépendamment du framerate.
+- Les fenêtres de timing sont définies en millisecondes de **temps de jeu**, indépendamment du framerate. Le décalage de calibration est corrigé en temps réel, avant la conversion en temps de jeu.
 
 ### Durée des sessions
 
