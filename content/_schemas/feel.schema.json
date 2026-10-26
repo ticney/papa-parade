@@ -1,0 +1,413 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "telegraphDelayDefaultMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Telegraph delay used when a threat declares `telegraphDelayMs: null`, in ms (GDD §1: 0.8 to 1.5 s per threat)."
+        },
+        "windowMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Standard response window, in ms (GDD §1)."
+        },
+        "perfectMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Perfect-response window, centred in the response window, in ms."
+        },
+        "toleranceMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Hidden tolerance added on each side of the window, in ms (GDD §1)."
+        },
+        "bufferMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Input buffer: a press this early before the window is kept, in ms (GDD §1)."
+        },
+        "hitstopMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Hitstop on a successful response, in ms (GDD §1)."
+        },
+        "slowMoPerfect": {
+          "type": "object",
+          "properties": {
+            "timeScale": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "description": "Sim speed during the slow-mo (1 = normal, 0.3 = 30 % speed)."
+            },
+            "durationMs": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "How long the slow-mo lasts, in real ms."
+            }
+          },
+          "required": [
+            "timeScale",
+            "durationMs"
+          ],
+          "additionalProperties": false,
+          "description": "Slow-mo played on a perfect response."
+        },
+        "slowMoLastThreat": {
+          "type": "object",
+          "properties": {
+            "timeScale": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "description": "Sim speed during the slow-mo (1 = normal, 0.3 = 30 % speed)."
+            },
+            "durationMs": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "How long the slow-mo lasts, in real ms."
+            }
+          },
+          "required": [
+            "timeScale",
+            "durationMs"
+          ],
+          "additionalProperties": false,
+          "description": "Slow-mo played on the last threat of a wave."
+        }
+      },
+      "required": [
+        "telegraphDelayDefaultMs",
+        "windowMs",
+        "perfectMs",
+        "toleranceMs",
+        "bufferMs",
+        "hitstopMs",
+        "slowMoPerfect",
+        "slowMoLastThreat"
+      ],
+      "additionalProperties": false,
+      "description": "Response timing (GDD §1, §2)."
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "holdMinMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "A press released before this is a Parry, one held to or past it is a Firmness (ADR-010), in ms."
+        },
+        "earlyPress": {
+          "type": "string",
+          "enum": [
+            "fail",
+            "guard"
+          ],
+          "description": "What a press before the telegraph does: `fail` misses the threat, `guard` waits."
+        },
+        "touchRadiusPx": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Generous touch radius around a threat, in screen px (targets stay >= 44 pt)."
+        },
+        "autoTargetConeDeg": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 360,
+          "description": "Auto-target cone for keyboard and gamepad, in degrees (story 1.17)."
+        }
+      },
+      "required": [
+        "holdMinMs",
+        "earlyPress",
+        "touchRadiusPx",
+        "autoTargetConeDeg"
+      ],
+      "additionalProperties": false,
+      "description": "Input interpretation (GDD §2, ADR-010)."
+    },
+    "movement": {
+      "type": "object",
+      "properties": {
+        "glideMaxMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Papa's glide towards a target takes at most this long, in ms (GDD §3)."
+        }
+      },
+      "required": [
+        "glideMaxMs"
+      ],
+      "additionalProperties": false,
+      "description": "Papa movement (GDD §3)."
+    },
+    "fatigue": {
+      "type": "object",
+      "properties": {
+        "perSec": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Fatigue gained per second, in points per second."
+        },
+        "carriedMultiplier": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Fatigue gain multiplier while carrying the baby."
+        },
+        "thresholdPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Above this fatigue, windows shrink and micro-sleeps start, in points."
+        },
+        "windowPenaltyPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Response windows shrink by this percentage above the threshold."
+        },
+        "microSleepMinMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Shortest delay between two micro-sleeps above the threshold, in ms."
+        },
+        "microSleepMaxMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Longest delay between two micro-sleeps above the threshold, in ms."
+        },
+        "coffeeReductionPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Fatigue removed by a coffee, in points."
+        },
+        "coffeeDurationMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Time Papa spends drinking a coffee, in ms."
+        }
+      },
+      "required": [
+        "perSec",
+        "carriedMultiplier",
+        "thresholdPoints",
+        "windowPenaltyPct",
+        "microSleepMinMs",
+        "microSleepMaxMs",
+        "coffeeReductionPoints",
+        "coffeeDurationMs"
+      ],
+      "additionalProperties": false,
+      "description": "Papa's fatigue (GDD §6)."
+    },
+    "instinct": {
+      "type": "object",
+      "properties": {
+        "timeScale": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "description": "Sim speed while Fatherly Instinct is active (1 = normal)."
+        },
+        "windowBonusPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Response windows grow by this percentage while active."
+        },
+        "durationMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How long the instinct lasts, in ms."
+        },
+        "cooldownMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Recharge time after the instinct ends, in ms."
+        },
+        "minActiveThreatsCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Trigger: at least this many active threats at once..."
+        },
+        "missesCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "...and this many misses..."
+        },
+        "missesWithinMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "...within this window, in ms."
+        }
+      },
+      "required": [
+        "timeScale",
+        "windowBonusPct",
+        "durationMs",
+        "cooldownMs",
+        "minActiveThreatsCount",
+        "missesCount",
+        "missesWithinMs"
+      ],
+      "additionalProperties": false,
+      "description": "Fatherly Instinct (GDD §9)."
+    },
+    "difficulty": {
+      "type": "object",
+      "properties": {
+        "assistance": {
+          "type": "object",
+          "properties": {
+            "windowMultiplier": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Multiplier applied to every response window of the tier."
+            },
+            "hasInstinct": {
+              "type": "boolean",
+              "description": "Whether Fatherly Instinct (GDD §9) is available."
+            }
+          },
+          "required": [
+            "windowMultiplier",
+            "hasInstinct"
+          ],
+          "additionalProperties": false,
+          "description": "Assistance tier: wider windows, instinct on (GDD, accessibility)."
+        },
+        "normal": {
+          "type": "object",
+          "properties": {
+            "windowMultiplier": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Multiplier applied to every response window of the tier."
+            },
+            "hasInstinct": {
+              "type": "boolean",
+              "description": "Whether Fatherly Instinct (GDD §9) is available."
+            }
+          },
+          "required": [
+            "windowMultiplier",
+            "hasInstinct"
+          ],
+          "additionalProperties": false,
+          "description": "Normal tier: the game as designed."
+        },
+        "experienced": {
+          "type": "object",
+          "properties": {
+            "windowMultiplier": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Multiplier applied to every response window of the tier."
+            },
+            "hasInstinct": {
+              "type": "boolean",
+              "description": "Whether Fatherly Instinct (GDD §9) is available."
+            }
+          },
+          "required": [
+            "windowMultiplier",
+            "hasInstinct"
+          ],
+          "additionalProperties": false,
+          "description": "Experienced-dad tier: tighter windows, no instinct."
+        }
+      },
+      "required": [
+        "assistance",
+        "normal",
+        "experienced"
+      ],
+      "additionalProperties": false,
+      "description": "Difficulty tiers (GDD, accessibility and skill range)."
+    },
+    "mama": {
+      "type": "object",
+      "properties": {
+        "laughMaxPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Most points the baby laughs can give, in points."
+        },
+        "babyStateMaxPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Most points the baby state can give, in points."
+        },
+        "babyStateFixedPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Baby-state points used by the prototype instead of the real computation, in points."
+        },
+        "baseScorePoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Base points added to every score, in points."
+        },
+        "sighMaxPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Most points a sigh can take off, in points."
+        },
+        "screamMaxPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Most points a scream can take off, in points."
+        },
+        "starThresholdPoints": {
+          "minItems": 5,
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "description": "Score needed for 1, 2, 3, 4 and 5 stars, in points (0 to 100, ascending)."
+        },
+        "earlyWakePenaltyStars": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Stars taken off when Mama wakes early, in stars."
+        }
+      },
+      "required": [
+        "laughMaxPoints",
+        "babyStateMaxPoints",
+        "babyStateFixedPoints",
+        "baseScorePoints",
+        "sighMaxPoints",
+        "screamMaxPoints",
+        "starThresholdPoints",
+        "earlyWakePenaltyStars"
+      ],
+      "additionalProperties": false,
+      "description": "Mama's note (GDD, economy › Mama's note)."
+    }
+  },
+  "required": [
+    "timing",
+    "input",
+    "movement",
+    "fatigue",
+    "instinct",
+    "difficulty",
+    "mama"
+  ],
+  "additionalProperties": false,
+  "description": "Every feel value of the game, tuned by hand or from the feel panel."
+}

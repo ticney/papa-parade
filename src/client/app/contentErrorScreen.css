@@ -1,0 +1,47 @@
+.pp-content-error {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 16px 24px;
+  background: #1b1020;
+  color: #f4ece6;
+  font:
+    14px / 1.4 ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.pp-content-error__title {
+  margin: 0 0 4px;
+  font-size: 18px;
+  color: #ff8a7a;
+}
+
+.pp-content-error__hint {
+  margin: 0 0 16px;
+  opacity: 0.8;
+}
+
+.pp-content-error__problem {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 3px solid #ff8a7a;
+  background: rgb(255 255 255 / 6%);
+}
+
+.pp-content-error__where {
+  display: block;
+  font-weight: bold;
+}
+
+.pp-content-error__path {
+  color: #ffd27a;
+}
+
+.pp-content-error__message {
+  display: block;
+  white-space: pre-wrap;
+}

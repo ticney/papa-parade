@@ -9,3 +9,7 @@
 - **Duplicated Biome override lists.** `src/sim/**` and `src/sim/physics/rapierPhysics.ts` repeat the whole `deniedGlobals` and import pattern lists by hand. Add a drift test if the lists grow.
 - **Build coverage in CI.** CI never runs `npm run build` (production, `VITE_DEBUG_ALLOWED=false`) and e2e runs against the dev server, not the built bundle; `isMobile` is not emulated. Story 1.24.
 - **Placeholder favicon.** `public/favicon.svg` is the stock Vite logo. Replace with real branding assets.
+
+## Deferred from: creation of story 1-2-pipeline-de-contenu-et-fichier-de-feeling (2026-10-26)
+
+- **Armed label of "Quitter vers le frigo".** The canonical string « Sûr ? Le niveau sera perdu. » (`EXPERIENCE.md` › Canonical on-screen strings) contains « perdu », which Voice and Tone and NFR9 forbid. It is not seeded in `content/strings.fr.json`. Geo reformulates it before story 3.11 (decision of 2026-10-26: later).

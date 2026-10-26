@@ -40,7 +40,8 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 | `npm run format` | `biome format --write .` |
 | `npm test` | Vitest: unit, golden and architecture tests |
 | `npm run e2e` | Playwright, chromium + webkit, landscape phone viewport |
-| `npm run content:check` | Validate content JSON (placeholder until story 1.2) |
+| `npm run content:check` | Validate `content/**` against the Zod schemas, string references and generated JSON Schemas |
+| `npm run content:schemas` | Regenerate `content/_schemas/` (commit the result; never edit it by hand) |
 | `npm run ci` | Everything CI runs, in order, stopping at the first failure |
 
 ## Conventions

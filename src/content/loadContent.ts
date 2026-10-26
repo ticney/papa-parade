@@ -1,0 +1,44 @@
+import { err, ok, type Result } from '@shared/result';
+import type { ContentBundle } from './contentBundle.ts';
+import { type ContentError, type ContentProblem, createContentError } from './contentError.ts';
+import { type ContentFile, FEEL_FILE, STRINGS_FILE } from './contentFiles.ts';
+import type { ContentSource } from './contentSource.ts';
+import { parseContentFile } from './parseContentFile.ts';
+import { checkStringReferences } from './stringRefs.ts';
+
+async function loadFile<T>(
+  source: ContentSource,
+  entry: ContentFile<T>,
+): Promise<Result<T, ContentProblem[]>> {
+  const file = `content/${entry.file}`;
+  const text = await source.read(entry.file);
+  if (!text.ok) return err([{ file, jsonPath: '', message: text.error.message }]);
+  return parseContentFile(file, text.value, entry.schema);
+}
+
+/**
+ * Reads, parses and validates every registered content file. It collects the problems of all the
+ * files (it does not stop at the first), then checks that every string key a content file points
+ * at exists. Never throws and never logs: the caller logs.
+ */
+export async function loadContent(
+  source: ContentSource,
+): Promise<Result<ContentBundle, ContentError>> {
+  const [feel, strings] = await Promise.all([
+    loadFile(source, FEEL_FILE),
+    loadFile(source, STRINGS_FILE),
+  ]);
+
+  const problems: ContentProblem[] = [];
+  if (!feel.ok) problems.push(...feel.error);
+  if (!strings.ok) problems.push(...strings.error);
+
+  if (strings.ok) {
+    // The strings file itself is exempt: it is the target of the references.
+    const loaded = feel.ok ? [{ file: `content/${FEEL_FILE.file}`, value: feel.value }] : [];
+    problems.push(...checkStringReferences(loaded, strings.value, `content/${STRINGS_FILE.file}`));
+  }
+
+  if (problems.length > 0 || !feel.ok || !strings.ok) return err(createContentError(problems));
+  return ok({ feel: feel.value, strings: strings.value });
+}

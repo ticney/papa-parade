@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "propertyNames": {
+    "type": "string",
+    "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"
+  },
+  "additionalProperties": {
+    "type": "string",
+    "minLength": 1
+  },
+  "description": "Every player-facing string, in French, keyed by `group.lower_snake_case`."
+}

@@ -1,0 +1,56 @@
+{
+  "$schema": "./_schemas/feel.schema.json",
+  "timing": {
+    "telegraphDelayDefaultMs": 1200,
+    "windowMs": 300,
+    "perfectMs": 100,
+    "toleranceMs": 60,
+    "bufferMs": 100,
+    "hitstopMs": 80,
+    "slowMoPerfect": { "timeScale": 0.3, "durationMs": 1200 },
+    "slowMoLastThreat": { "timeScale": 0.2, "durationMs": 1500 }
+  },
+  "input": {
+    "holdMinMs": 400,
+    "earlyPress": "fail",
+    "touchRadiusPx": 48,
+    "autoTargetConeDeg": 60
+  },
+  "movement": {
+    "glideMaxMs": 600
+  },
+  "fatigue": {
+    "perSec": 0.5,
+    "carriedMultiplier": 2,
+    "thresholdPoints": 70,
+    "windowPenaltyPct": 20,
+    "microSleepMinMs": 8000,
+    "microSleepMaxMs": 12000,
+    "coffeeReductionPoints": 40,
+    "coffeeDurationMs": 3000
+  },
+  "instinct": {
+    "timeScale": 0.8,
+    "windowBonusPct": 30,
+    "durationMs": 4000,
+    "cooldownMs": 30000,
+    "minActiveThreatsCount": 3,
+    "missesCount": 2,
+    "missesWithinMs": 10000
+  },
+  "difficulty": {
+    "assistance": { "windowMultiplier": 1.5, "hasInstinct": true },
+    "normal": { "windowMultiplier": 1, "hasInstinct": true },
+    "experienced": { "windowMultiplier": 0.75, "hasInstinct": false }
+  },
+  "mama": {
+    "laughMaxPoints": 40,
+    "babyStateMaxPoints": 30,
+    "babyStateFixedPoints": 20,
+    "baseScorePoints": 30,
+    "sighMaxPoints": 15,
+    "screamMaxPoints": 15,
+    "starThresholdPoints": [20, 40, 60, 75, 90],
+    "earlyWakePenaltyStars": 1
+  }
+}
