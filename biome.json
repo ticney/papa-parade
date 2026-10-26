@@ -1,0 +1,402 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!_bmad",
+      "!_bmad-output",
+      "!.claude",
+      "!docs",
+      "!dist",
+      "!package-lock.json",
+      "!tests/architecture/fixtures",
+      "!content/_schemas",
+      "!public",
+      "!**/*.md"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        "noConsole": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/shared/log.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/shared/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "three": "Layer boundary (see CLAUDE.md > Layer boundaries).",
+                  "zod": "shared imports nothing. Layer boundary (see CLAUDE.md > Layer boundaries).",
+                  "@sim": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                },
+                "patterns": [
+                  {
+                    "group": ["three/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@content/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@sim/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@bots/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@client/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@platform/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@debug/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@capacitor/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@dimforge/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/content/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "three": "Layer boundary (see CLAUDE.md > Layer boundaries).",
+                  "@sim": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                },
+                "patterns": [
+                  {
+                    "group": ["three/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@sim/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@bots/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@client/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@platform/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@debug/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/sim/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "three": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                },
+                "patterns": [
+                  {
+                    "group": ["three/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@capacitor/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@client/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@platform/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@debug/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@bots/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@shared/log"],
+                    "message": "The sim never logs: it emits SimEvents and the client logs them."
+                  },
+                  {
+                    "group": ["@dimforge/**"],
+                    "message": "Only src/sim/physics/rapierPhysics.ts may import Rapier."
+                  }
+                ]
+              }
+            },
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "Date": "`Date` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "performance": "`performance` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "window": "`window` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "document": "`document` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "setTimeout": "`setTimeout` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "requestAnimationFrame": "`requestAnimationFrame` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "localStorage": "`localStorage` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md)."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/sim/physics/rapierPhysics.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "three": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                },
+                "patterns": [
+                  {
+                    "group": ["three/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@capacitor/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@client/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@platform/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@debug/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@bots/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@shared/log"],
+                    "message": "The sim never logs: it emits SimEvents and the client logs them."
+                  }
+                ]
+              }
+            },
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "Date": "`Date` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "performance": "`performance` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "window": "`window` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "document": "`document` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "setTimeout": "`setTimeout` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "requestAnimationFrame": "`requestAnimationFrame` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md).",
+                  "localStorage": "`localStorage` is forbidden in src/sim: the sim is pure and deterministic (see CLAUDE.md)."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/bots/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "three": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                },
+                "patterns": [
+                  {
+                    "group": ["three/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@sim/**"],
+                    "message": "Bots use the sim's public API only: import from '@sim'."
+                  },
+                  {
+                    "group": ["@client/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@platform/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@debug/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/platform/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "three": "Layer boundary (see CLAUDE.md > Layer boundaries).",
+                  "@sim": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                },
+                "patterns": [
+                  {
+                    "group": ["three/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@sim/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  },
+                  {
+                    "group": ["@client/**"],
+                    "message": "Layer boundary (see CLAUDE.md > Layer boundaries)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/client/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@sim/**"],
+                    "message": "The client uses the sim's public API only: import from '@sim'."
+                  },
+                  {
+                    "group": ["@debug/**"],
+                    "message": "Debug code is loaded by a dynamic import() in client/boot.ts only."
+                  },
+                  {
+                    "group": ["@bots/**"],
+                    "message": "Bots are loaded by a dynamic import() in client/boot.ts only (autoplay)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/client/boot.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@sim/**"],
+                    "message": "The client uses the sim's public API only: import from '@sim'."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

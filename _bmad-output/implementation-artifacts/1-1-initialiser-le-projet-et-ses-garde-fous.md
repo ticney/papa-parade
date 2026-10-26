@@ -1,6 +1,10 @@
+---
+baseline_commit: b871ec35b4a4dd358d8e72966099ab6cdd764ea6
+---
+
 # Story 1.1: Initialize the project and its guardrails
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.1 « Initialiser le projet et ses garde-fous ». Epics, GDD and architecture are in French; this file is in English (document_output_language). -->
 
@@ -30,98 +34,98 @@ so that I can never mix the simulation and the rendering by mistake.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 — Scaffold Vite safely (AC 1)**
-  - [ ] Do NOT run `npm create vite@latest .` in the repo root (see Dev Notes › Scaffold trap). Scaffold into a scratch dir instead: `npm create vite@9.3.1 <scratch>/pp-scaffold -- --template vanilla-ts --no-interactive --no-immediate`.
-  - [ ] Copy into the repo root only: `index.html`, `package.json`, `tsconfig.json`, `_gitignore`→`.gitignore` (create-vite renames it already), `src/main.ts`, `public/favicon.svg`. Do **not** copy the demo files (`src/counter.ts`, `src/style.css`, `src/assets/*`, `public/icons.svg`).
-  - [ ] Before copying, check that none of these paths already exist in the root (they don't today; abort and ask Geo if one does).
-  - [ ] `package.json`: set `"name": "papa-parade"`, keep `"private": true`, `"type": "module"`; add `"engines": { "node": ">=22.12" }`. Add `.nvmrc` with `25.8.1`.
-  - [ ] Install exact versions (`--save-exact`): `npm i -E three@0.186.1 @dimforge/rapier3d-deterministic-compat@0.21.0 zod@4.6.7` and `npm i -E -D typescript@7.0.2 vite@8.3.5 vitest@5.0.5 @playwright/test@1.64.1 @biomejs/biome@2.6.3 tweakpane@4.0.5 tsx@4.23.15 @types/three@0.186.0 @types/node gltfpack@1.3.0`. The template ships `typescript ~6.0.3` and `vite ^8.3.4`: they must end up as exactly `7.0.2` and `8.3.5`. Pin `@types/node` exactly too (e.g. the current `26.x`; Vitest 5 requires `^22 || >=24`).
-  - [ ] `npx playwright install chromium webkit`.
-  - [ ] Do NOT run `git init` (a repo with history already exists). Do NOT add Capacitor, ESLint, Prettier, React or any other dependency.
-- [ ] **T2 — App shell: full-screen canvas, no console error (AC 1)**
-  - [ ] `index.html`: `lang="fr"`, `<title>Papa Parade</title>`, viewport meta, a `<canvas id="pp-canvas">` and a `<div id="pp-ui">` (UI DOM root, filled from story 1.5), script `/src/main.ts`. Favicon must resolve (no 404 → it would show as a console error).
-  - [ ] `src/client/ui/styles/ui.css`: `html, body` margin 0, `overflow: hidden`, full height; `#pp-canvas` `position: fixed; inset: 0; width: 100vw; height: 100vh; display: block`. Imported from `src/main.ts`. No inline `<style>`/`style=""` (a future CSP is `default-src 'self'`).
-  - [ ] `src/main.ts`: imports the CSS and logs `log.info('boot', 'shell ready')`. No Three.js renderer, no game loop: those belong to story 1.4.
-- [ ] **T3 — TypeScript config (AC 2)**
-  - [ ] Keep the template's bundler-mode options, then make sure these are set: `strict: true`, `erasableSyntaxOnly: true`, `noEmit: true`, `moduleResolution: "bundler"`, `verbatimModuleSyntax: true`, `allowImportingTsExtensions: true`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`.
-  - [ ] `types: ["vite/client", "node"]`. TS 7 loads no `@types/*` automatically.
-  - [ ] `paths` with **no `baseUrl`** (removed in TS 7), targets prefixed with `./`:
+- [x] **T1 — Scaffold Vite safely (AC 1)**
+  - [x] Do NOT run `npm create vite@latest .` in the repo root (see Dev Notes › Scaffold trap). Scaffold into a scratch dir instead: `npm create vite@9.3.1 <scratch>/pp-scaffold -- --template vanilla-ts --no-interactive --no-immediate`.
+  - [x] Copy into the repo root only: `index.html`, `package.json`, `tsconfig.json`, `_gitignore`→`.gitignore` (create-vite renames it already), `src/main.ts`, `public/favicon.svg`. Do **not** copy the demo files (`src/counter.ts`, `src/style.css`, `src/assets/*`, `public/icons.svg`).
+  - [x] Before copying, check that none of these paths already exist in the root (they don't today; abort and ask Geo if one does).
+  - [x] `package.json`: set `"name": "papa-parade"`, keep `"private": true`, `"type": "module"`; add `"engines": { "node": ">=22.12" }`. Add `.nvmrc` with `25.8.1`.
+  - [x] Install exact versions (`--save-exact`): `npm i -E three@0.186.1 @dimforge/rapier3d-deterministic-compat@0.21.0 zod@4.6.7` and `npm i -E -D typescript@7.0.2 vite@8.3.5 vitest@5.0.5 @playwright/test@1.64.1 @biomejs/biome@2.6.3 tweakpane@4.0.5 tsx@4.23.15 @types/three@0.186.0 @types/node gltfpack@1.3.0`. The template ships `typescript ~6.0.3` and `vite ^8.3.4`: they must end up as exactly `7.0.2` and `8.3.5`. Pin `@types/node` exactly too (e.g. the current `26.x`; Vitest 5 requires `^22 || >=24`).
+  - [x] `npx playwright install chromium webkit`.
+  - [x] Do NOT run `git init` (a repo with history already exists). Do NOT add Capacitor, ESLint, Prettier, React or any other dependency.
+- [x] **T2 — App shell: full-screen canvas, no console error (AC 1)**
+  - [x] `index.html`: `lang="fr"`, `<title>Papa Parade</title>`, viewport meta, a `<canvas id="pp-canvas">` and a `<div id="pp-ui">` (UI DOM root, filled from story 1.5), script `/src/main.ts`. Favicon must resolve (no 404 → it would show as a console error).
+  - [x] `src/client/ui/styles/ui.css`: `html, body` margin 0, `overflow: hidden`, full height; `#pp-canvas` `position: fixed; inset: 0; width: 100vw; height: 100vh; display: block`. Imported from `src/main.ts`. No inline `<style>`/`style=""` (a future CSP is `default-src 'self'`).
+  - [x] `src/main.ts`: imports the CSS and logs `log.info('boot', 'shell ready')`. No Three.js renderer, no game loop: those belong to story 1.4.
+- [x] **T3 — TypeScript config (AC 2)**
+  - [x] Keep the template's bundler-mode options, then make sure these are set: `strict: true`, `erasableSyntaxOnly: true`, `noEmit: true`, `moduleResolution: "bundler"`, `verbatimModuleSyntax: true`, `allowImportingTsExtensions: true`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`.
+  - [x] `types: ["vite/client", "node"]`. TS 7 loads no `@types/*` automatically.
+  - [x] `paths` with **no `baseUrl`** (removed in TS 7), targets prefixed with `./`:
         `"@shared/*": ["./src/shared/*"]`, `"@content/*": ["./src/content/*"]`, `"@sim": ["./src/sim/index.ts"]`, `"@bots/*": ["./src/bots/*"]`, `"@client/*": ["./src/client/*"]`, `"@platform/*": ["./src/platform/*"]`, `"@debug/*": ["./src/debug/*"]`.
         `@sim` is exact on purpose: other layers may only use the sim's public API. There is no `@sim/*`, and inside `src/sim` imports are relative.
-  - [ ] `include`: `["src", "tests", "tools", "*.config.ts"]`; `exclude`: `["tests/architecture/fixtures", "node_modules", "dist"]`.
-- [ ] **T4 — Vite, Vitest, Playwright configs (AC 1, 2, 5)**
-  - [ ] `vite.config.ts`: `base: './'`, `resolve: { tsconfigPaths: true }` (built into Vite 8, no `vite-tsconfig-paths` plugin), `server: { host: true }`. Leave a comment that the `feel-writer` plugin arrives in story 2.1. `build:playtest` is created here so that CI has its last stage; story 1.24 finalizes the playtest build (CSP headers, performance budget).
-  - [ ] `vitest.config.ts`: `mergeConfig(viteConfig, defineConfig({ test: { environment: 'node', include: ['src/**/*.test.ts', 'tests/**/*.test.ts'], exclude: ['tests/e2e/**', 'tests/architecture/fixtures/**', 'node_modules/**'] } }))`. Import `describe/it/expect` explicitly from `vitest` (no globals).
-  - [ ] Add a tiny alias smoke test (for example `src/shared/result.test.ts` imports `@shared/result`) so that alias resolution is proven in Vitest, not just in `tsc`.
-  - [ ] `playwright.config.ts`: `testDir: 'tests/e2e'`; projects `chromium` and `webkit`; mobile landscape viewport (e.g. 844×390, `hasTouch: true`); `webServer: { command: 'npm run dev -- --port 5179 --strictPort', url: 'http://localhost:5179', reuseExistingServer: !process.env.CI }`.
-  - [ ] `tests/e2e/boot.spec.ts`: load `/`; assert `#pp-canvas` is visible and its bounding box equals the viewport size; collect `page.on('console')` messages of type `error` and `page.on('pageerror')`, and assert there are none.
-- [ ] **T5 — `src/shared/result.ts` and `src/shared/log.ts` with tests (AC 7)**
-  - [ ] `result.ts`: `export type Result<T, E = AppError> = { ok: true; value: T } | { ok: false; error: E }`. Minimal `AppError` (`{ kind: string; message: string; cause?: unknown }`) and the helpers `ok(value)` and `err(error)`. No library. `result.test.ts` covers narrowing on `ok` and both helpers.
-  - [ ] `log.ts`: `createLogger(options?)` factory and a default exported `log` instance. API: `log.error | warn | info | debug(channel, message, data?)`, `log.enabled(level)`, `log.setLevel(level)`, `log.buffer()` (returns a **copy** of the entries, oldest first).
-  - [ ] `LogChannel` is a string-literal union: `boot`, `assets`, `audio`, `input`, `render`, `feedback`, `storage`, `platform`, `debug`, `content`, `sim`. Entry shape: `{ atReal: number; level; channel; message; data? }`.
-  - [ ] Level order: `error` < `warn` < `info` < `debug`. The threshold defaults to `debug` in dev and `info` otherwise. `enabled(level)` reflects the threshold.
-  - [ ] Ring buffer: a fixed capacity of 200 (a constant in `src/shared/constants.ts`, `LOG_BUFFER_SIZE = 200`). It keeps only `info`, `warn` and `error`, even when `debug` is enabled, and never grows beyond 200 (overwrite the oldest entry; no `Array.shift` loop).
-  - [ ] Console sink: on when `import.meta.env?.DEV !== false` (true in Vite dev; also true in Node/tsx, where `import.meta.env` is undefined, so tools still print), and off in production builds. The buffer is always on. The sink is injectable through `createLogger({ sink })` so tests stay silent.
-  - [ ] `log.test.ts`: level filtering; `enabled()`; `debug` never buffered; exactly the last 200 entries kept, in order, after 250 writes; `buffer()` returns a copy; the sink receives the right console method per level.
-  - [ ] `log.ts` is the **only** file allowed to call `console.*`. `Date.now()`/`performance.now()` for `atReal` are fine here (shared is not sim), but `log` must never be imported from `src/sim` (the sim doesn't log; see Dev Notes).
-- [ ] **T6 — Folder skeleton (AC 3)**
-  - [ ] Create `src/{shared,content,sim,bots,platform,client,debug}/`, `content/`, `tools/`, `tests/{architecture,golden,e2e}/`. Git doesn't track empty folders, so add a `.gitkeep` to each one that would otherwise be empty.
-  - [ ] Don't create game files ahead of their stories (no `world.ts`, `step.ts`, `feel.json`…). `src/sim/index.ts` is created by story 1.3.
-- [ ] **T7 — `tests/architecture/simPurity.test.ts` (AC 3)**
-  - [ ] Write a reusable scanner `scanSimPurity(simDir): Violation[]` in `tests/architecture/scanners.ts` (Node `fs`, recursive over `*.ts`, skipping `*.test.ts`).
-  - [ ] Before matching, strip comments and string/template-literal contents, but keep the import specifiers and check them separately. That way `// no Date here` doesn't trip it, while `import x from 'three'` does.
-  - [ ] Banned identifiers, matched as whole words: `Math.random`, `Date`, `performance`, `window`, `document`; also `setTimeout`, `requestAnimationFrame` and `localStorage`, from the boundaries table. Banned imports: `three`, `three/*`, `@capacitor/*` (static `import`/`export … from`, side-effect `import '…'`, and dynamic `import('…')`).
-  - [ ] Tests: run the scanner on the real `src/sim` and expect `[]`; run it on one fixture per banned item under `tests/architecture/fixtures/simPurity/<case>/…` and expect exactly that violation; add a clean fixture (comment that mentions `Date`, a `*.test.ts` that uses `Math.random`) and expect `[]`.
-- [ ] **T8 — `tests/architecture/layerBoundaries.test.ts` (AC 3)**
-  - [ ] Write the scanner `scanLayerBoundaries(rootDir): Violation[]` in the same `scanners.ts`. It parses every import specifier (static, re-export, side-effect, dynamic), resolves aliases (`@shared/*`, `@content/*`, `@sim`, `@bots/*`, `@client/*`, `@platform/*`, `@debug/*`) **and relative paths** to the target layer, and classifies bare packages (`three`, `@capacitor/*`, `@dimforge/*`, `zod`…).
-  - [ ] TS 7 ships no JS compiler API: use a careful regex/tokenizer and test it. Don't add a parser dependency.
-  - [ ] Encode the table as data (one entry per rule, with a readable message) and give each rule its own fixture directory under `tests/architecture/fixtures/layers/<rule>/src/...` (see Dev Notes › Boundary rules). Each fixture must produce exactly its expected violation.
-  - [ ] Add an "allowed" fixture that exercises every allowed edge and must produce `[]`: client → `@sim`, `@content/*`, `@shared/*`, `@platform/*`, `three`; `client/boot.ts` → `import('@debug/overlay')`; sim → `@shared/*` and `@content/*`; `sim/physics/rapierPhysics.ts` → `@dimforge/rapier3d-deterministic-compat`; content → `zod`. This guards against over-restriction.
-  - [ ] Run it on the real repo root as well and expect `[]`.
-  - [ ] Fixtures are excluded from `tsc` (T3), Vitest discovery (T4) and Biome (T9). They may contain imports of files that don't exist.
-- [ ] **T9 — Biome (AC 4)**
-  - [ ] Create `biome.json` with `$schema` set to `https://biomejs.dev/schemas/2.6.3/schema.json` (or run `npx biome init` and edit it).
-  - [ ] `vcs: { enabled: true, clientKind: "git", useIgnoreFile: true }`.
-  - [ ] `files.includes` excludes `_bmad/**`, `_bmad-output/**`, `.claude/**`, `docs/**`, `dist/**`, `tests/architecture/fixtures/**` and `content/_schemas/**` (Biome 2 uses `includes` with `!` negations, not `include`/`ignore`).
-  - [ ] Formatter: 2 spaces, single quotes, semicolons (matches the architecture's code samples), `lineWidth` 100.
-  - [ ] Rules: `suspicious.noConsole` = error globally, with an override for `src/shared/log.ts` that turns it off.
-  - [ ] `overrides`, one per layer folder (`src/shared/**`, `src/content/**`, `src/sim/**`, `src/bots/**`, `src/platform/**`, `src/client/**`), each with `noRestrictedImports` (`paths` for exact specifiers like `three`, `@sim`; `patterns` for globs like `@capacitor/*`, `@client/*`, `@debug/*`, `three/*`) following the table. Give each a message that points to `CLAUDE.md`.
-  - [ ] For `src/sim/**`, also set `noRestrictedGlobals` with `deniedGlobals` as a **record** (Biome 2 format) for `Date`, `performance`, `window`, `document`, `setTimeout`, `requestAnimationFrame`, `localStorage`. `Math.random` cannot be expressed this way; `simPurity.test.ts` covers it.
-  - [ ] Add a later override for `src/sim/physics/rapierPhysics.ts` that allows `@dimforge/*` (the rest of `src/sim/**` bans it). Verify the override precedence (see Dev Notes).
-  - [ ] Check the rule group names (`style.noRestrictedImports`, `style.noRestrictedGlobals`, `suspicious.noConsole`) against the 2.6.3 schema or `npx biome explain <rule>`; don't guess.
-  - [ ] Add `tests/architecture/biomeBoundaries.test.ts`. It pipes offending snippets through `npx biome lint --stdin-file-path=<virtual path>` (`execFileSync`) and asserts a non-zero exit for: `src/sim/x.ts` importing `three`; `src/sim/x.ts` using `Date.now()`; `src/client/x.ts` calling `console.log`; `src/client/x.ts` importing `@debug/overlay` statically. It asserts a zero exit for `src/shared/log.ts` calling `console.info` and for `src/sim/physics/rapierPhysics.ts` importing Rapier. This proves the Biome config really enforces what CLAUDE.md claims.
-- [ ] **T10 — `package.json` scripts (AC 5, 8)**
-  - [ ] `dev`: `vite --host`.
-  - [ ] `build`: `vite build`. Drop the template's `tsc &&`; typecheck is its own step.
-  - [ ] `build:playtest`: `vite build --mode playtest`, with a committed `.env.playtest` containing `VITE_DEBUG_ALLOWED=true` (and `.env` with `VITE_DEBUG_ALLOWED=false`).
-  - [ ] `preview`: `vite preview`.
-  - [ ] `typecheck`: `tsc --noEmit`.
-  - [ ] `lint`: `biome check .`. Also add `format`: `biome format --write .`.
-  - [ ] `test`: `vitest run`.
-  - [ ] `e2e`: `playwright test`.
-  - [ ] `content:check`: `tsx tools/content/checkContent.ts`, a **placeholder** that logs `log.info('content', 'no content schemas yet')` and exits 0. Story 1.2 replaces it with real validation. Mark it with a `// Replaced by story 1.2` comment.
-  - [ ] `ci`: `npm run typecheck && npm run lint && npm run content:check && npm run test && npm run e2e && npm run build:playtest`.
-  - [ ] Don't add `content:schemas`, `assets:extract`, `sim`, `sim:replay` or `playtest:metrics` yet: each story that implements them adds its script, and a script that fails is worse than a missing one.
-- [ ] **T11 — CI workflow (AC 8)**
-  - [ ] `.github/workflows/ci.yml`: on `push` and `pull_request`, `ubuntu-latest`, `actions/setup-node` with `node-version-file: .nvmrc` and `cache: npm`, `npm ci`, `npx playwright install --with-deps chromium webkit`, then one step per stage in this order: typecheck, lint, content:check, test, e2e, build:playtest. Separate steps, so the first failure stops the job and the failing stage is obvious. Set `CI: true`.
-  - [ ] Don't create a remote or push. Geo chooses the hosting.
-- [ ] **T12 — `CLAUDE.md` (AC 6)**
-  - [ ] Write it in English (like `project-context.md`), short and scannable, around 120 lines at most. It must contain:
+  - [x] `include`: `["src", "tests", "tools", "*.config.ts"]`; `exclude`: `["tests/architecture/fixtures", "node_modules", "dist"]`.
+- [x] **T4 — Vite, Vitest, Playwright configs (AC 1, 2, 5)**
+  - [x] `vite.config.ts`: `base: './'`, `resolve: { tsconfigPaths: true }` (built into Vite 8, no `vite-tsconfig-paths` plugin), `server: { host: true }`. Leave a comment that the `feel-writer` plugin arrives in story 2.1. `build:playtest` is created here so that CI has its last stage; story 1.24 finalizes the playtest build (CSP headers, performance budget).
+  - [x] `vitest.config.ts`: `mergeConfig(viteConfig, defineConfig({ test: { environment: 'node', include: ['src/**/*.test.ts', 'tests/**/*.test.ts'], exclude: ['tests/e2e/**', 'tests/architecture/fixtures/**', 'node_modules/**'] } }))`. Import `describe/it/expect` explicitly from `vitest` (no globals).
+  - [x] Add a tiny alias smoke test (for example `src/shared/result.test.ts` imports `@shared/result`) so that alias resolution is proven in Vitest, not just in `tsc`.
+  - [x] `playwright.config.ts`: `testDir: 'tests/e2e'`; projects `chromium` and `webkit`; mobile landscape viewport (e.g. 844×390, `hasTouch: true`); `webServer: { command: 'npm run dev -- --port 5179 --strictPort', url: 'http://localhost:5179', reuseExistingServer: !process.env.CI }`.
+  - [x] `tests/e2e/boot.spec.ts`: load `/`; assert `#pp-canvas` is visible and its bounding box equals the viewport size; collect `page.on('console')` messages of type `error` and `page.on('pageerror')`, and assert there are none.
+- [x] **T5 — `src/shared/result.ts` and `src/shared/log.ts` with tests (AC 7)**
+  - [x] `result.ts`: `export type Result<T, E = AppError> = { ok: true; value: T } | { ok: false; error: E }`. Minimal `AppError` (`{ kind: string; message: string; cause?: unknown }`) and the helpers `ok(value)` and `err(error)`. No library. `result.test.ts` covers narrowing on `ok` and both helpers.
+  - [x] `log.ts`: `createLogger(options?)` factory and a default exported `log` instance. API: `log.error | warn | info | debug(channel, message, data?)`, `log.enabled(level)`, `log.setLevel(level)`, `log.buffer()` (returns a **copy** of the entries, oldest first).
+  - [x] `LogChannel` is a string-literal union: `boot`, `assets`, `audio`, `input`, `render`, `feedback`, `storage`, `platform`, `debug`, `content`, `sim`. Entry shape: `{ atReal: number; level; channel; message; data? }`.
+  - [x] Level order: `error` < `warn` < `info` < `debug`. The threshold defaults to `debug` in dev and `info` otherwise. `enabled(level)` reflects the threshold.
+  - [x] Ring buffer: a fixed capacity of 200 (a constant in `src/shared/constants.ts`, `LOG_BUFFER_SIZE = 200`). It keeps only `info`, `warn` and `error`, even when `debug` is enabled, and never grows beyond 200 (overwrite the oldest entry; no `Array.shift` loop).
+  - [x] Console sink: on when `import.meta.env?.DEV !== false` (true in Vite dev; also true in Node/tsx, where `import.meta.env` is undefined, so tools still print), and off in production builds. The buffer is always on. The sink is injectable through `createLogger({ sink })` so tests stay silent.
+  - [x] `log.test.ts`: level filtering; `enabled()`; `debug` never buffered; exactly the last 200 entries kept, in order, after 250 writes; `buffer()` returns a copy; the sink receives the right console method per level.
+  - [x] `log.ts` is the **only** file allowed to call `console.*`. `Date.now()`/`performance.now()` for `atReal` are fine here (shared is not sim), but `log` must never be imported from `src/sim` (the sim doesn't log; see Dev Notes).
+- [x] **T6 — Folder skeleton (AC 3)**
+  - [x] Create `src/{shared,content,sim,bots,platform,client,debug}/`, `content/`, `tools/`, `tests/{architecture,golden,e2e}/`. Git doesn't track empty folders, so add a `.gitkeep` to each one that would otherwise be empty.
+  - [x] Don't create game files ahead of their stories (no `world.ts`, `step.ts`, `feel.json`…). `src/sim/index.ts` is created by story 1.3.
+- [x] **T7 — `tests/architecture/simPurity.test.ts` (AC 3)**
+  - [x] Write a reusable scanner `scanSimPurity(simDir): Violation[]` in `tests/architecture/scanners.ts` (Node `fs`, recursive over `*.ts`, skipping `*.test.ts`).
+  - [x] Before matching, strip comments and string/template-literal contents, but keep the import specifiers and check them separately. That way `// no Date here` doesn't trip it, while `import x from 'three'` does.
+  - [x] Banned identifiers, matched as whole words: `Math.random`, `Date`, `performance`, `window`, `document`; also `setTimeout`, `requestAnimationFrame` and `localStorage`, from the boundaries table. Banned imports: `three`, `three/*`, `@capacitor/*` (static `import`/`export … from`, side-effect `import '…'`, and dynamic `import('…')`).
+  - [x] Tests: run the scanner on the real `src/sim` and expect `[]`; run it on one fixture per banned item under `tests/architecture/fixtures/simPurity/<case>/…` and expect exactly that violation; add a clean fixture (comment that mentions `Date`, a `*.test.ts` that uses `Math.random`) and expect `[]`.
+- [x] **T8 — `tests/architecture/layerBoundaries.test.ts` (AC 3)**
+  - [x] Write the scanner `scanLayerBoundaries(rootDir): Violation[]` in the same `scanners.ts`. It parses every import specifier (static, re-export, side-effect, dynamic), resolves aliases (`@shared/*`, `@content/*`, `@sim`, `@bots/*`, `@client/*`, `@platform/*`, `@debug/*`) **and relative paths** to the target layer, and classifies bare packages (`three`, `@capacitor/*`, `@dimforge/*`, `zod`…).
+  - [x] TS 7 ships no JS compiler API: use a careful regex/tokenizer and test it. Don't add a parser dependency.
+  - [x] Encode the table as data (one entry per rule, with a readable message) and give each rule its own fixture directory under `tests/architecture/fixtures/layers/<rule>/src/...` (see Dev Notes › Boundary rules). Each fixture must produce exactly its expected violation.
+  - [x] Add an "allowed" fixture that exercises every allowed edge and must produce `[]`: client → `@sim`, `@content/*`, `@shared/*`, `@platform/*`, `three`; `client/boot.ts` → `import('@debug/overlay')`; sim → `@shared/*` and `@content/*`; `sim/physics/rapierPhysics.ts` → `@dimforge/rapier3d-deterministic-compat`; content → `zod`. This guards against over-restriction.
+  - [x] Run it on the real repo root as well and expect `[]`.
+  - [x] Fixtures are excluded from `tsc` (T3), Vitest discovery (T4) and Biome (T9). They may contain imports of files that don't exist.
+- [x] **T9 — Biome (AC 4)**
+  - [x] Create `biome.json` with `$schema` set to `https://biomejs.dev/schemas/2.6.3/schema.json` (or run `npx biome init` and edit it).
+  - [x] `vcs: { enabled: true, clientKind: "git", useIgnoreFile: true }`.
+  - [x] `files.includes` excludes `_bmad/**`, `_bmad-output/**`, `.claude/**`, `docs/**`, `dist/**`, `tests/architecture/fixtures/**` and `content/_schemas/**` (Biome 2 uses `includes` with `!` negations, not `include`/`ignore`).
+  - [x] Formatter: 2 spaces, single quotes, semicolons (matches the architecture's code samples), `lineWidth` 100.
+  - [x] Rules: `suspicious.noConsole` = error globally, with an override for `src/shared/log.ts` that turns it off.
+  - [x] `overrides`, one per layer folder (`src/shared/**`, `src/content/**`, `src/sim/**`, `src/bots/**`, `src/platform/**`, `src/client/**`), each with `noRestrictedImports` (`paths` for exact specifiers like `three`, `@sim`; `patterns` for globs like `@capacitor/*`, `@client/*`, `@debug/*`, `three/*`) following the table. Give each a message that points to `CLAUDE.md`.
+  - [x] For `src/sim/**`, also set `noRestrictedGlobals` with `deniedGlobals` as a **record** (Biome 2 format) for `Date`, `performance`, `window`, `document`, `setTimeout`, `requestAnimationFrame`, `localStorage`. `Math.random` cannot be expressed this way; `simPurity.test.ts` covers it.
+  - [x] Add a later override for `src/sim/physics/rapierPhysics.ts` that allows `@dimforge/*` (the rest of `src/sim/**` bans it). Verify the override precedence (see Dev Notes).
+  - [x] Check the rule group names (`style.noRestrictedImports`, `style.noRestrictedGlobals`, `suspicious.noConsole`) against the 2.6.3 schema or `npx biome explain <rule>`; don't guess.
+  - [x] Add `tests/architecture/biomeBoundaries.test.ts`. It pipes offending snippets through `npx biome lint --stdin-file-path=<virtual path>` (`execFileSync`) and asserts a non-zero exit for: `src/sim/x.ts` importing `three`; `src/sim/x.ts` using `Date.now()`; `src/client/x.ts` calling `console.log`; `src/client/x.ts` importing `@debug/overlay` statically. It asserts a zero exit for `src/shared/log.ts` calling `console.info` and for `src/sim/physics/rapierPhysics.ts` importing Rapier. This proves the Biome config really enforces what CLAUDE.md claims.
+- [x] **T10 — `package.json` scripts (AC 5, 8)**
+  - [x] `dev`: `vite --host`.
+  - [x] `build`: `vite build`. Drop the template's `tsc &&`; typecheck is its own step.
+  - [x] `build:playtest`: `vite build --mode playtest`, with a committed `.env.playtest` containing `VITE_DEBUG_ALLOWED=true` (and `.env` with `VITE_DEBUG_ALLOWED=false`).
+  - [x] `preview`: `vite preview`.
+  - [x] `typecheck`: `tsc --noEmit`.
+  - [x] `lint`: `biome check .`. Also add `format`: `biome format --write .`.
+  - [x] `test`: `vitest run`.
+  - [x] `e2e`: `playwright test`.
+  - [x] `content:check`: `tsx tools/content/checkContent.ts`, a **placeholder** that logs `log.info('content', 'no content schemas yet')` and exits 0. Story 1.2 replaces it with real validation. Mark it with a `// Replaced by story 1.2` comment.
+  - [x] `ci`: `npm run typecheck && npm run lint && npm run content:check && npm run test && npm run e2e && npm run build:playtest`.
+  - [x] Don't add `content:schemas`, `assets:extract`, `sim`, `sim:replay` or `playtest:metrics` yet: each story that implements them adds its script, and a script that fails is worse than a missing one.
+- [x] **T11 — CI workflow (AC 8)**
+  - [x] `.github/workflows/ci.yml`: on `push` and `pull_request`, `ubuntu-latest`, `actions/setup-node` with `node-version-file: .nvmrc` and `cache: npm`, `npm ci`, `npx playwright install --with-deps chromium webkit`, then one step per stage in this order: typecheck, lint, content:check, test, e2e, build:playtest. Separate steps, so the first failure stops the job and the failing stage is obvious. Set `CI: true`.
+  - [x] Don't create a remote or push. Geo chooses the hosting.
+- [x] **T12 — `CLAUDE.md` (AC 6)**
+  - [x] Write it in English (like `project-context.md`), short and scannable, around 120 lines at most. It must contain:
     1. the golden rule;
     2. the layer boundaries table (copied from the architecture, translated) plus "cross-layer imports always go through aliases; relative imports never cross a layer";
     3. the commands (every script from T10 and what it does);
     4. the essential naming conventions (unit suffixes, `create*` factories, PascalCase past-tense events, imperative commands, `lower_snake_case` content ids, no `enum`/`namespace`/parameter properties);
     5. links: GDD `_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/gdd.md`, architecture `_bmad-output/planning-artifacts/game-architecture.md`, `_bmad-output/project-context.md`, UX `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/{DESIGN,EXPERIENCE}.md`, epics, sprint status.
-  - [ ] Point to `project-context.md` for the full rule set instead of duplicating it.
-- [ ] **T13 — Git hygiene (AC 1)**
-  - [ ] `.gitignore`: the template's entries plus `.DS_Store`, `coverage/`, `test-results/`, `playwright-report/`, `blob-report/`, `.env.local`. Keep `.env` and `.env.playtest` committed (they hold no secrets).
-  - [ ] `.DS_Store` is currently **tracked**: untrack it with `git rm --cached .DS_Store`. The file stays on disk.
-  - [ ] Don't commit: leave the changes for Geo or code review, following the sprint workflow.
-- [ ] **T14 — Verify (all ACs)**
-  - [ ] `npm run ci` passes end to end.
-  - [ ] `npm run dev`, then open the page in the built-in browser and check for a full-screen canvas and an empty console.
-  - [ ] `git status` shows no change under `_bmad/`, `_bmad-output/` (apart from this story file and `sprint-status.yaml`), `docs/` or `.claude/`.
-  - [ ] Temporarily add `import 'three'` to a `src/sim/tmp.ts`: `npm test` and `npm run lint` both fail. Remove the file afterwards.
+  - [x] Point to `project-context.md` for the full rule set instead of duplicating it.
+- [x] **T13 — Git hygiene (AC 1)**
+  - [x] `.gitignore`: the template's entries plus `.DS_Store`, `coverage/`, `test-results/`, `playwright-report/`, `blob-report/`, `.env.local`. Keep `.env` and `.env.playtest` committed (they hold no secrets).
+  - [x] `.DS_Store` is currently **tracked**: untrack it with `git rm --cached .DS_Store`. The file stays on disk.
+  - [x] Don't commit: leave the changes for Geo or code review, following the sprint workflow.
+- [x] **T14 — Verify (all ACs)**
+  - [x] `npm run ci` passes end to end.
+  - [x] `npm run dev`, then open the page in the built-in browser and check for a full-screen canvas and an empty console.
+  - [x] `git status` shows no change under `_bmad/`, `_bmad-output/` (apart from this story file and `sprint-status.yaml`), `docs/` or `.claude/`.
+  - [x] Temporarily add `import 'three'` to a `src/sim/tmp.ts`: `npm test` and `npm run lint` both fail. Remove the file afterwards.
 
 ## Dev Notes
 
@@ -233,8 +237,59 @@ From `_bmad-output/project-context.md`:
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), via the `gds-dev-story` workflow.
+
 ### Debug Log References
+
+- `npm run ci` (typecheck, lint, content:check, test, e2e chromium + webkit, build:playtest): exit 0. Vitest: 5 files, 94 tests. Playwright: 2 tests.
+- Guardrail check (T14): a temporary `src/sim/tmp.ts` containing `import 'three'` made both `npm test` (`simPurity` and `layerBoundaries`) and `npm run lint` (`noRestrictedImports`) fail; the file was removed afterwards and the suite is green again.
+- `git status`: nothing changed under `_bmad/`, `docs/` or `.claude/`; under `_bmad-output/` only this story file and `sprint-status.yaml`.
 
 ### Completion Notes List
 
+- **Scaffold.** `create-vite@9.3.1` was run in the scratchpad (never in the repo root); only `.gitignore` and `public/favicon.svg` were copied, and `package.json`, `tsconfig.json`, `index.html` and `src/main.ts` were rewritten for the project (no demo files). All dependencies are installed with exact versions as pinned (`@types/node` 26.6.5). No `git init`, no Capacitor, ESLint or Prettier. npm prints an `allow-scripts` warning for esbuild's postinstall; `tsx` and Vite work without it.
+- **TS 7 / Vite 8.** `paths` without `baseUrl`, `types: ["vite/client", "node"]`, `resolve.tsconfigPaths: true` (tsconfig is the single alias source, also resolved by Vitest and `tsx`; the `content:check` placeholder imports `@shared/log` through it).
+- **Logger and Result.** `createLogger` with an injectable console sink, a preallocated 200-slot ring buffer (info and above only, `buffer()` returns a copy, no allocation for filtered-out calls). The level threshold filters both the console and the buffer. `createConsoleSink` is exported so the level-to-console-method mapping is unit tested.
+- **Architecture tests.** `tests/architecture/scanners.ts` masks comments, strings and regex literals, then extracts static, re-export, side-effect and dynamic imports. 17 offending fixtures for `simPurity`, 27 for the 10 boundary rules (R1 to R9 plus R3b), plus "clean" and "allowed" fixtures that guard against over-restriction. Tests assert the exact file, rule id and specifier.
+- **Decisions beyond the story text** (all in the direction of "more restrictive", none changes a documented rule):
+  - R3b: `src/sim` may not import `@shared/log` (recommended in Dev Notes).
+  - R9 does not fire for `sim` (R3 already covers `debug` there), so each fixture yields exactly one violation.
+  - Dynamic `import()` of `bots` is allowed only in `client/boot.ts`, like `debug`, so Biome (which cannot tell static from dynamic) and the scanner agree. Static imports of either are still caught by the scanner everywhere in `client`.
+  - In `*.test.ts` files under `src/shared`, the packages `vitest` and `node:*` are allowed (R1).
+  - A bare `window` property key in `src/sim` is flagged by `simPurity` (names carry unit suffixes, e.g. `windowMs`).
+- **Biome.** Rule names verified with `biome explain`. `noRestrictedImports` patterns use `/**` because `/*` does not match deep paths (found by the Biome test with `three/examples/...`). Overrides per layer; `rapierPhysics.ts` has its own override that allows `@dimforge/*`. `biome lint --stdin-file-path` does not report diagnostics, so `biomeBoundaries.test.ts` lints real files in a temporary directory with a copy of `biome.json` (and checks the rule name in the output). Biome 2.6 also formats Markdown and SVG: `**/*.md` and `public/` are excluded.
+- **CI.** `.github/workflows/ci.yml` has one step per stage in the required order; not run remotely (no remote exists). `npm run ci` is the local equivalent and passes.
+- **Verification of "full-screen canvas, no console error".** Checked by `tests/e2e/boot.spec.ts` against `npm run dev` (Playwright `webServer`) in chromium and webkit: canvas bounding box equals the viewport, no `console.error`, no `pageerror`. I did not open the built-in browser pane, because starting it needs a `.claude/launch.json` and `.claude/` must stay untouched.
+- Nothing is committed (T13). `.DS_Store` is untracked with `git rm --cached` (staged deletion), the file stays on disk.
+
 ### File List
+
+New:
+- `.env`, `.env.playtest`, `.gitignore`, `.nvmrc`
+- `.github/workflows/ci.yml`
+- `CLAUDE.md`
+- `biome.json`
+- `index.html`
+- `package.json`, `package-lock.json`
+- `playwright.config.ts`, `tsconfig.json`, `vite.config.ts`, `vitest.config.ts`
+- `public/favicon.svg`
+- `src/main.ts`
+- `src/client/ui/styles/ui.css`
+- `src/shared/constants.ts`, `src/shared/log.ts`, `src/shared/log.test.ts`, `src/shared/result.ts`, `src/shared/result.test.ts`
+- `src/content/.gitkeep`, `src/sim/.gitkeep`, `src/bots/.gitkeep`, `src/platform/.gitkeep`, `src/debug/.gitkeep`
+- `content/.gitkeep`, `tests/golden/.gitkeep`
+- `tools/content/checkContent.ts`
+- `tests/e2e/boot.spec.ts`
+- `tests/architecture/scanners.ts`, `simPurity.test.ts`, `layerBoundaries.test.ts`, `biomeBoundaries.test.ts`
+- `tests/architecture/fixtures/simPurity/**` and `tests/architecture/fixtures/layers/**` (offending, clean and allowed fixtures)
+
+Modified:
+- `_bmad-output/implementation-artifacts/1-1-initialiser-le-projet-et-ses-garde-fous.md` (this file)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+Deleted from the index (file kept on disk):
+- `.DS_Store`
+
+### Change Log
+
+- 2026-10-26: Story 1.1 implemented. Vite vanilla-ts shell with pinned stack, TS 7 strict config with layer aliases, `Result` and `log` with tests, layer skeleton, `simPurity` / `layerBoundaries` / `biomeBoundaries` architecture tests with fixtures, per-layer Biome rules, scripts, CI workflow, `CLAUDE.md`. Status set to review.
