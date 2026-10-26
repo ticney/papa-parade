@@ -1,0 +1,1286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Papa Parade Brainstorm</title>
+<meta name="description" content="Keepsake of the Papa Parade gameplay brainstorm, 26 October 2026: Geo and the coach, Creative Partner mode.">
+<style>
+:root{
+  --bg:#fff7ea; --bg-2:#ffefd3; --card:#ffffff; --ink:#24203b; --ink-2:#5d5874;
+  --outline:#24203b; --shadow:#24203b;
+  --geo:#0b9c95; --geo-ink:#05716c; --geo-soft:#d3f3ee; --on-geo:#ffffff;
+  --coach:#6a4cf0; --coach-ink:#4d32c9; --coach-soft:#e9e3ff; --on-coach:#ffffff;
+  --sun:#ffc531; --sun-soft:#fff0bf; --on-sun:#24203b;
+  --parry:#2f7bff; --alert:#ff3b3b;
+  --stage:#221d3d; --stage-2:#2e2852; --stage-ink:#fff7ea; --stage-ink-2:#cfc8e8;
+  --skin:#f2c39b; --skin-2:#e3a77c; --mash:#f7e2a8;
+  --display:"Arial Black","Arial Rounded MT Bold","Helvetica Neue",Impact,system-ui,sans-serif;
+  --body:ui-rounded,"SF Pro Rounded","Nunito","Segoe UI",system-ui,-apple-system,sans-serif;
+  --hand:"Marker Felt","Chalkboard SE","Comic Sans MS","Segoe Print",ui-rounded,cursive;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15122a; --bg-2:#1c1838; --card:#25204a; --ink:#fff4e0; --ink-2:#c3bcdc;
+    --outline:#07051a; --shadow:#07051a;
+    --geo:#35d3c9; --geo-ink:#7cf1e8; --geo-soft:#143f45; --on-geo:#08201f;
+    --coach:#9d88ff; --coach-ink:#c6baff; --coach-soft:#2d2562; --on-coach:#140d33;
+    --sun:#ffd04d; --sun-soft:#3a3120;
+    --parry:#5b9bff; --alert:#ff5a5a;
+    --stage:#0b0919; --stage-2:#17132e; --stage-ink:#fff4e0; --stage-ink-2:#c3bcdc;
+    --mash:#e9d08a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15122a; --bg-2:#1c1838; --card:#25204a; --ink:#fff4e0; --ink-2:#c3bcdc;
+  --outline:#07051a; --shadow:#07051a;
+  --geo:#35d3c9; --geo-ink:#7cf1e8; --geo-soft:#143f45; --on-geo:#08201f;
+  --coach:#9d88ff; --coach-ink:#c6baff; --coach-soft:#2d2562; --on-coach:#140d33;
+  --sun:#ffd04d; --sun-soft:#3a3120;
+  --parry:#5b9bff; --alert:#ff5a5a;
+  --stage:#0b0919; --stage-2:#17132e; --stage-ink:#fff4e0; --stage-ink-2:#c3bcdc;
+  --mash:#e9d08a;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; overflow-x:clip}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--body); font-size:17px; line-height:1.5;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  background-image:
+    linear-gradient(30deg, transparent 49.5%, color-mix(in srgb, var(--ink) 5%, transparent) 50%, transparent 50.5%),
+    linear-gradient(150deg, transparent 49.5%, color-mix(in srgb, var(--ink) 5%, transparent) 50%, transparent 50.5%);
+  background-size:56px 32px;
+}
+h1,h2,h3,h4{font-family:var(--display); line-height:1.08; margin:0; letter-spacing:.01em}
+p{margin:0}
+a{color:inherit}
+.wrap{max-width:1120px; margin:0 auto; padding:0 16px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- HUD ---------- */
+.hud{
+  position:sticky; top:0; z-index:50;
+  display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:center;
+  padding:8px 16px; background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  border-bottom:3px solid var(--outline);
+}
+.bar{display:flex; align-items:center; gap:8px; min-width:0}
+.bar.p2{flex-direction:row-reverse}
+.bar .who{font:900 12px/1 var(--display); letter-spacing:.06em; white-space:nowrap}
+.bar.p1 .who{color:var(--geo-ink)} .bar.p2 .who{color:var(--coach-ink)}
+.track{flex:1; height:14px; min-width:40px; border:2.5px solid var(--outline); border-radius:3px; background:var(--card); position:relative; overflow:hidden; transform:skewX(-14deg)}
+.bar.p2 .track{transform:skewX(14deg)}
+.track i{position:absolute; inset:0; width:calc(var(--v,1)*100%); transition:width .5s cubic-bezier(.2,1.4,.4,1)}
+.bar.p1 .track i{left:0; background:linear-gradient(var(--geo), color-mix(in srgb, var(--geo) 70%, #000))}
+.bar.p2 .track i{left:auto; right:0; background:linear-gradient(var(--coach), color-mix(in srgb, var(--coach) 70%, #000))}
+.bar .num{font:900 12px/1 var(--display); font-variant-numeric:tabular-nums; white-space:nowrap}
+.seg{display:flex; border:2.5px solid var(--outline); border-radius:999px; overflow:hidden; background:var(--card)}
+.seg button{all:unset; cursor:pointer; padding:5px 11px; font:900 11px/1 var(--display); letter-spacing:.05em; color:var(--ink-2)}
+.seg button+button{border-left:2px solid var(--outline)}
+.seg button[aria-pressed="true"]{background:var(--sun); color:var(--on-sun)}
+.seg button[data-f="geo"][aria-pressed="true"]{background:var(--geo); color:var(--on-geo)}
+.seg button[data-f="coach"][aria-pressed="true"]{background:var(--coach); color:var(--on-coach)}
+.seg button:focus-visible{outline:3px solid var(--parry); outline-offset:-3px}
+@media (max-width:620px){
+  .hud{gap:6px; padding:7px 10px}
+  .bar .who{display:none}
+  .seg button{padding:5px 8px; font-size:10px}
+  .bar .num{font-size:11px}
+}
+
+/* combo counter */
+.combo{
+  position:fixed; right:14px; bottom:14px; z-index:40;
+  background:var(--sun); color:var(--on-sun); border:3px solid var(--outline);
+  box-shadow:4px 4px 0 var(--shadow); padding:6px 12px 7px; border-radius:6px;
+  transform:rotate(-4deg); text-align:center; pointer-events:none;
+}
+.combo small{display:block; font:900 10px/1 var(--display); letter-spacing:.18em}
+.combo b{display:block; font:900 26px/1 var(--display); font-variant-numeric:tabular-nums}
+.combo span{display:block; font:700 10px/1.1 var(--body); opacity:.8}
+.combo.pop{animation:pop .35s ease-out}
+@keyframes pop{0%{transform:rotate(-4deg) scale(1)}40%{transform:rotate(3deg) scale(1.22)}100%{transform:rotate(-4deg) scale(1)}}
+@media (max-width:620px){.combo{right:10px; bottom:10px; padding:4px 9px} .combo b{font-size:20px} .combo span{display:none}}
+
+/* focus filter */
+body[data-focus="geo"] [data-by="coach"], body[data-focus="coach"] [data-by="geo"]{opacity:.22; filter:grayscale(1); transition:opacity .3s, filter .3s}
+[data-by]{transition:opacity .3s, filter .3s}
+
+/* ---------- shared bits ---------- */
+.tag{display:inline-flex; align-items:center; gap:5px; font:900 10.5px/1 var(--display); letter-spacing:.07em; padding:4px 7px 4px; border-radius:4px; border:2px solid var(--outline); white-space:nowrap}
+.tag.geo{background:var(--geo); color:var(--on-geo)}
+.tag.coach{background:var(--coach); color:var(--on-coach)}
+.tag.neutral{background:var(--sun); color:var(--on-sun)}
+.stamp{
+  display:inline-block; font:900 11px/1 var(--display); letter-spacing:.12em;
+  color:var(--geo-ink); border:2.5px solid currentColor; padding:4px 6px 3px; border-radius:3px;
+  transform:rotate(-7deg); text-transform:uppercase; white-space:nowrap;
+}
+.round-banner{
+  position:relative; margin:0 auto; display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px;
+  padding:90px 0 34px;
+}
+.round-banner .kicker{font:900 14px/1 var(--display); letter-spacing:.3em; color:var(--ink-2)}
+.round-banner h2{
+  font-size:clamp(38px, 8vw, 84px); font-style:italic; transform:skewX(-8deg);
+  color:var(--sun); -webkit-text-stroke:3px var(--outline); paint-order:stroke fill;
+  text-shadow:5px 5px 0 var(--shadow); text-transform:uppercase;
+}
+.round-banner .lede{max-width:640px; color:var(--ink-2); font-size:18px}
+.fight{font:900 clamp(22px,4vw,34px)/1 var(--display); font-style:italic; color:var(--alert); letter-spacing:.06em; transform:rotate(-3deg)}
+
+/* ---------- HERO ---------- */
+.hero{padding-top:44px; padding-bottom:30px; position:relative}
+@media (max-width:620px){.slowmo{max-width:300px} .slowmo .cap{white-space:normal; width:86%}}
+.title-screen{display:grid; grid-template-columns:1.25fr 1fr; gap:34px; align-items:center}
+@media (max-width:860px){.title-screen{grid-template-columns:1fr}}
+.logo{
+  font:900 clamp(54px, 11.5vw, 124px)/.86 var(--display); font-style:italic; text-transform:uppercase; padding-right:14px;
+  color:var(--sun); -webkit-text-stroke:4px var(--outline); paint-order:stroke fill;
+  text-shadow:6px 6px 0 var(--coach), 12px 12px 0 var(--shadow);
+  transform:skewX(-9deg) rotate(-3deg); margin:6px 0 24px; letter-spacing:-.01em;
+}
+.logo span{display:block; color:var(--geo)}
+.subtitle{font:900 14px/1.2 var(--display); letter-spacing:.24em; color:var(--ink-2); text-transform:uppercase}
+.hero .pitch{font-size:clamp(18px,2.2vw,21px); max-width:560px; margin-top:6px}
+.hero .pitch em{font-style:normal; background:var(--sun-soft); padding:0 4px; border-radius:3px}
+.press{margin-top:22px; font:900 15px/1 var(--display); letter-spacing:.3em; color:var(--ink); animation:blink 1.2s steps(2) infinite}
+@keyframes blink{50%{opacity:.15}}
+
+.slowmo{position:relative; aspect-ratio:1/1; max-width:420px; width:100%; justify-self:center}
+.slowmo svg{width:100%; height:100%; overflow:visible}
+.slowmo .cap{position:absolute; left:50%; bottom:2%; transform:translateX(-50%) rotate(-2deg); background:var(--card); border:3px solid var(--outline); box-shadow:4px 4px 0 var(--shadow); padding:6px 12px; font:900 12px/1.2 var(--display); letter-spacing:.08em; white-space:nowrap; text-align:center}
+.spoon{animation:float 5s ease-in-out infinite; transform-origin:210px 200px}
+@keyframes float{0%,100%{transform:translate(0,0) rotate(-8deg)}50%{transform:translate(6px,-10px) rotate(4deg)}}
+.blob{animation:wob 5s ease-in-out infinite}
+@keyframes wob{0%,100%{transform:translate(0,0)}50%{transform:translate(10px,-22px)}}
+
+.vs{display:grid; grid-template-columns:1fr auto 1fr; gap:14px; align-items:stretch; margin-top:40px}
+.player{border:3px solid var(--outline); box-shadow:6px 6px 0 var(--shadow); border-radius:10px; padding:16px 18px; background:var(--card); position:relative; overflow:hidden}
+.player.p1{background:linear-gradient(135deg, var(--geo-soft), var(--card) 70%)}
+.player.p2{background:linear-gradient(225deg, var(--coach-soft), var(--card) 70%); text-align:right}
+.player h3{font-size:28px; font-style:italic}
+.player.p1 h3{color:var(--geo-ink)} .player.p2 h3{color:var(--coach-ink)}
+.player .role{font:900 11px/1 var(--display); letter-spacing:.2em; color:var(--ink-2); margin-bottom:6px}
+.player p{font-size:15px; color:var(--ink-2); margin-top:6px}
+.player .big{font:900 44px/1 var(--display); margin-top:10px}
+.player.p1 .big{color:var(--geo)} .player.p2 .big{color:var(--coach)}
+.player .big small{font:700 13px/1 var(--body); color:var(--ink-2); margin-left:4px}
+.vs-mid{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px}
+.vs-mid b{font:900 40px/1 var(--display); font-style:italic; color:var(--alert); -webkit-text-stroke:2px var(--outline); paint-order:stroke fill}
+.vs-mid span{font:900 11px/1.1 var(--display); letter-spacing:.14em; background:var(--sun); color:var(--on-sun); border:2px solid var(--outline); padding:5px 7px; border-radius:4px; transform:rotate(-4deg); text-align:center}
+@media (max-width:620px){
+  .vs{grid-template-columns:1fr}
+  .player.p2{text-align:left}
+  .vs-mid{flex-direction:row}
+}
+
+.meta{display:grid; grid-template-columns:repeat(auto-fit, minmax(230px,1fr)); gap:14px; margin-top:28px}
+.meta div{background:var(--card); border:2.5px dashed color-mix(in srgb, var(--ink) 35%, transparent); border-radius:8px; padding:12px 14px}
+.meta dt{font:900 11px/1 var(--display); letter-spacing:.2em; color:var(--ink-2); margin-bottom:6px; text-transform:uppercase}
+.meta dd{margin:0; font-size:15.5px}
+.meta .wide{grid-column:1/-1}
+
+/* ---------- ROUND 1: character select + move lists ---------- */
+.select{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:34px}
+@media (max-width:760px){.select{grid-template-columns:repeat(2,1fr)}}
+.select a{
+  text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:6px;
+  background:var(--card); border:3px solid var(--outline); border-radius:10px; padding:12px 8px 10px;
+  box-shadow:4px 4px 0 var(--shadow); transition:transform .15s, box-shadow .15s;
+}
+.select a:hover, .select a:focus-visible{transform:translate(-2px,-3px); box-shadow:6px 7px 0 var(--shadow); outline:none}
+.select a:focus-visible{border-color:var(--parry)}
+.select svg{width:76px; height:76px}
+.select b{font:900 13px/1.1 var(--display); text-align:center; letter-spacing:.03em}
+.select small{font:900 10px/1 var(--display); letter-spacing:.2em; color:var(--ink-2)}
+
+.fighter{
+  margin:0 0 56px; border:3px solid var(--outline); border-radius:14px; background:var(--card);
+  box-shadow:8px 8px 0 var(--shadow); overflow:hidden; scroll-margin-top:70px;
+}
+.fighter-head{
+  display:grid; grid-template-columns:150px 1fr; gap:20px; align-items:center;
+  padding:20px 22px; border-bottom:3px solid var(--outline);
+  background:
+    repeating-linear-gradient(-45deg, transparent 0 14px, color-mix(in srgb, var(--accent) 12%, transparent) 14px 28px),
+    color-mix(in srgb, var(--accent) 16%, var(--card));
+}
+.fighter-head svg.portrait{width:150px; height:150px}
+.fighter-head .no{font:900 12px/1 var(--display); letter-spacing:.24em; color:var(--ink-2)}
+.fighter-head h3{font-size:clamp(28px,4.4vw,44px); font-style:italic; text-transform:uppercase; margin:4px 0 8px}
+.fighter-head .tagline{font-size:16.5px; color:var(--ink-2); max-width:620px}
+@media (max-width:620px){
+  .fighter-head{grid-template-columns:1fr; text-align:left}
+  .fighter-head svg.portrait{width:110px; height:110px}
+}
+.gauge{display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap}
+.gauge label{font:900 11px/1 var(--display); letter-spacing:.16em}
+.gtrack{height:14px; width:min(260px, 60vw); border:2.5px solid var(--outline); border-radius:3px; background:var(--bg); overflow:hidden; position:relative}
+.gtrack i{position:absolute; inset:0 auto 0 0; background:var(--accent)}
+.awake i{width:62%; animation:doze 4s ease-in-out infinite}
+@keyframes doze{0%,100%{width:62%}45%{width:18%}50%{width:70%}}
+.attn i{width:80%; animation:drain 6s linear infinite}
+@keyframes drain{0%{width:85%}90%{width:4%; background:var(--alert)}100%{width:85%}}
+.monitor{display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap}
+.monitor svg{width:min(300px,70vw); height:44px; background:var(--stage); border-radius:6px; border:2.5px solid var(--outline)}
+.monitor .wave{stroke-dasharray:6 0; animation:scan 3s linear infinite}
+@keyframes scan{to{stroke-dashoffset:-60}}
+.monitor small{font:700 12.5px/1.3 var(--body); color:var(--ink-2); max-width:220px}
+.judge{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap}
+.judge span{display:inline-flex; align-items:center; gap:6px; font:900 11px/1 var(--display); letter-spacing:.1em; padding:6px 9px; border:2.5px solid var(--outline); border-radius:999px; background:var(--card)}
+.judge span i{width:10px; height:10px; border-radius:50%; border:2px solid var(--outline)}
+.judge .laugh i{background:var(--sun)} .judge .sigh i{background:var(--ink-2)} .judge .scream i{background:var(--alert)}
+
+.quote{
+  margin:18px 22px 0; padding:14px 18px; border-left:6px solid var(--geo); background:var(--geo-soft);
+  border-radius:0 8px 8px 0; font:700 18px/1.4 var(--body); display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; justify-content:space-between;
+}
+.quote q{quotes:"\201C" "\201D"}
+
+.movelist{list-style:none; margin:0; padding:10px 22px 22px; counter-reset:mv}
+.movelist > li{
+  display:grid; grid-template-columns:92px 1fr auto; gap:14px; align-items:start;
+  padding:14px 0; border-bottom:2px dashed color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.movelist > li:last-child{border-bottom:0}
+.inp{
+  font:900 13px/1.25 var(--display); letter-spacing:.04em; text-align:center; color:var(--ink-2);
+  background:var(--bg-2); border:2px solid color-mix(in srgb, var(--ink) 30%, transparent); border-radius:6px; padding:6px 4px;
+}
+.movelist h4{font-size:17px; text-transform:uppercase; letter-spacing:.02em; margin-bottom:3px}
+.movelist p{font-size:15.5px; color:var(--ink-2)}
+.movelist .side{display:flex; flex-direction:column; align-items:flex-end; gap:9px; padding-top:2px}
+.movelist li[data-by="geo"]{
+  background:linear-gradient(90deg, var(--geo-soft), transparent 85%);
+  margin:0 -22px; padding-left:22px; padding-right:22px; border-left:6px solid var(--geo);
+}
+.movelist li[data-by="geo"] h4{color:var(--geo-ink)}
+.movelist li[data-by="geo"] p{color:var(--ink)}
+.movelist li.note{grid-template-columns:1fr; background:var(--sun-soft); margin:8px -22px; padding:12px 22px; border-bottom:0; font-size:15.5px}
+.movelist li.note b{font:900 11px/1 var(--display); letter-spacing:.18em; margin-right:8px}
+@media (max-width:620px){
+  .movelist{padding:6px 16px 18px}
+  .movelist > li{grid-template-columns:1fr; gap:6px}
+  .movelist li[data-by="geo"], .movelist li.note{margin-left:-16px; margin-right:-16px; padding-left:14px; padding-right:16px}
+  .inp{justify-self:start; padding:4px 8px}
+  .movelist .side{flex-direction:row; align-items:center; justify-content:flex-start}
+  .quote{margin:14px 16px 0}
+}
+.approve{font:900 10px/1 var(--display); letter-spacing:.1em; color:var(--geo-ink); white-space:nowrap}
+
+/* ---------- ROUND 2: cartridges ---------- */
+.shelf{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:26px 22px; align-items:start}
+@media (max-width:400px){.shelf{grid-template-columns:1fr}}
+.cart{
+  position:relative; background:var(--c, var(--coach-soft)); border:3px solid var(--outline); border-radius:12px 12px 6px 6px;
+  box-shadow:6px 6px 0 var(--shadow); padding:22px 16px 16px;
+  clip-path:polygon(0 0, 34% 0, 38% 10px, 62% 10px, 66% 0, 100% 0, 100% 100%, 0 100%);
+}
+.cart::before{content:""; position:absolute; left:10px; right:10px; top:18px; height:4px; background:repeating-linear-gradient(90deg, var(--outline) 0 6px, transparent 6px 11px); opacity:.35}
+.label{background:var(--card); border:2.5px solid var(--outline); border-radius:6px; padding:12px 12px 12px; margin-top:12px}
+.label .game{font:900 20px/1 var(--display); font-style:italic; text-transform:uppercase; letter-spacing:.01em}
+.label .graft{font:900 10px/1 var(--display); letter-spacing:.2em; color:var(--ink-2); margin-bottom:6px; display:block}
+.cart ul{list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:10px}
+.cart li{font-size:15px; color:var(--ink); padding-left:18px; position:relative}
+.cart li::before{content:"+"; position:absolute; left:0; top:-1px; font:900 16px/1.3 var(--display); color:var(--coach)}
+.cart li b{font-family:var(--display); font-weight:900; font-size:13px; letter-spacing:.03em; text-transform:uppercase; display:block}
+.cart .viz{min-height:58px; display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:4px}
+.cart .foot{display:flex; justify-content:space-between; align-items:center; margin-top:12px; gap:8px; flex-wrap:wrap}
+.p1pick{position:relative; display:table; margin:0 auto 4px; transform:rotate(-3deg); background:var(--geo); color:var(--on-geo); border:2.5px solid var(--outline); font:900 10px/1.15 var(--display); letter-spacing:.08em; padding:6px 9px; border-radius:4px; text-align:center; z-index:2}
+.onoma{font:900 15px/1 var(--display); font-style:italic; padding:6px 9px; border:2.5px solid var(--outline); border-radius:50% 50% 50% 8px; background:var(--card)}
+.chip{font:900 11px/1 var(--display); letter-spacing:.08em; padding:7px 9px; border-radius:4px; border:2.5px solid var(--outline); color:#fff}
+.chip.blue{background:var(--parry)} .chip.red{background:var(--alert)}
+.verb{font:900 22px/1 var(--display); font-style:italic; background:var(--sun); color:var(--on-sun); border:3px solid var(--outline); padding:6px 9px 5px; transform:rotate(var(--r,-3deg)); box-shadow:3px 3px 0 var(--shadow)}
+.verb small{display:block; font:700 10px/1 var(--body); letter-spacing:.06em; margin-top:2px; font-style:normal}
+.beats{display:flex; align-items:center}
+.beats i{width:12px; height:12px; border-radius:50%; background:var(--coach); border:2px solid var(--outline); display:block}
+.window{width:100%; max-width:230px}
+.window .w{height:16px; border:2.5px solid var(--outline); border-radius:3px; background:var(--card); position:relative; overflow:hidden}
+.window .w i{position:absolute; top:0; bottom:0; left:28%; width:44%; background:var(--parry); opacity:.85}
+.window .w b{position:absolute; top:0; bottom:0; left:72%; width:10%; background:repeating-linear-gradient(45deg, var(--parry) 0 3px, transparent 3px 6px)}
+.window small{display:flex; justify-content:space-between; font:700 11px/1.4 var(--body); color:var(--ink-2)}
+.bigcombo{font:900 38px/1 var(--display); font-style:italic; color:var(--sun); -webkit-text-stroke:2px var(--outline); paint-order:stroke fill; text-shadow:3px 3px 0 var(--shadow)}
+.bigcombo small{font-size:13px; -webkit-text-stroke:0; color:var(--ink); text-shadow:none; letter-spacing:.1em; margin-left:4px}
+.handoff{
+  grid-column:1/-1; display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap;
+  padding:16px; border:3px dashed color-mix(in srgb, var(--ink) 35%, transparent); border-radius:12px; text-align:center;
+}
+.handoff p{font-size:16px; max-width:560px}
+.pad{width:64px; height:40px}
+
+/* ---------- CONVERGENCE ---------- */
+.clusters{display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+@media (max-width:860px){.clusters{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:520px){.clusters{grid-template-columns:1fr}}
+.cluster{background:var(--card); border:3px solid var(--outline); border-radius:10px; padding:14px 16px 16px; box-shadow:5px 5px 0 var(--shadow); display:grid; grid-template-columns:62px 1fr; gap:12px; align-items:start}
+.cluster svg{width:62px; height:62px}
+.cluster h4{font-size:17px; text-transform:uppercase; font-style:italic}
+.cluster p{font-size:14.5px; color:var(--ink-2); margin-top:4px}
+.cluster .fr{font:700 12px/1.3 var(--body); color:var(--ink-2); font-style:italic; display:block; margin-top:2px}
+
+.verdict{display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; margin:60px 0 26px; text-align:center}
+.verdict .banner{
+  font:900 clamp(30px,6.5vw,64px)/1 var(--display); font-style:italic; text-transform:uppercase;
+  color:var(--sun); -webkit-text-stroke:3px var(--outline); paint-order:stroke fill; text-shadow:5px 5px 0 var(--shadow);
+  transform:skewX(-10deg) rotate(-2deg); padding:0 10px;
+}
+.go .banner{animation:slam .6s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes slam{0%{transform:skewX(-10deg) rotate(-2deg) scale(2.6); opacity:0}60%{opacity:1}100%{transform:skewX(-10deg) rotate(-2deg) scale(1)}}
+.flash{position:absolute; inset:0; pointer-events:none}
+
+.roots-callout{
+  margin:0 auto 30px; max-width:820px; text-align:center; background:var(--geo); color:var(--on-geo);
+  border:3px solid var(--outline); box-shadow:6px 6px 0 var(--shadow); border-radius:12px; padding:18px 20px;
+}
+.roots-callout b{display:block; font:900 clamp(22px,4vw,34px)/1.1 var(--display); font-style:italic; text-transform:uppercase}
+.roots-callout p{font-size:16px; margin-top:6px; opacity:.95}
+
+.top5{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:22px}
+.pick{display:grid; grid-template-columns:1fr 56px 1.25fr; align-items:center; gap:0}
+@media (max-width:760px){.pick{grid-template-columns:1fr} .pick .vine{height:34px; width:100%}}
+.seed{
+  background:var(--geo-soft); border:3px solid var(--geo); border-radius:10px; padding:12px 14px;
+  font-size:15px; position:relative;
+}
+.seed .tagrow{display:flex; gap:8px; align-items:center; margin-bottom:6px; flex-wrap:wrap}
+.seed .tagrow small{font:900 10px/1 var(--display); letter-spacing:.16em; color:var(--geo-ink)}
+.vine{height:100%; min-height:40px; width:56px; display:flex; align-items:center; justify-content:center}
+.vine svg{width:100%; height:100%}
+.finisher{
+  background:var(--card); border:3px solid var(--outline); border-radius:10px; box-shadow:6px 6px 0 var(--shadow);
+  padding:14px 16px 14px 74px; position:relative; min-height:96px
+}
+.finisher .rank{
+  position:absolute; left:12px; top:12px; width:50px; height:50px; display:grid; place-items:center;
+  font:900 26px/1 var(--display); font-style:italic; background:var(--sun); color:var(--on-sun); border:3px solid var(--outline);
+  clip-path:polygon(50% 0,100% 30%,100% 75%,50% 100%,0 75%,0 30%);
+}
+.finisher h4{font-size:19px; text-transform:uppercase; font-style:italic}
+.finisher p{font-size:15px; color:var(--ink-2); margin-top:4px}
+.validated{display:flex; justify-content:center; gap:16px; flex-wrap:wrap; margin-top:30px}
+.validated .card{background:var(--card); border:3px solid var(--outline); border-radius:10px; padding:12px 16px; box-shadow:4px 4px 0 var(--shadow); display:flex; gap:10px; align-items:center; max-width:520px; font-size:15px}
+
+/* ---------- FINAL ROUND (stage) ---------- */
+.stage{
+  background:var(--stage); color:var(--stage-ink); margin-top:90px; padding-bottom:70px; position:relative; overflow:hidden;
+  border-top:4px solid var(--outline);
+  --geo:#35d3c9; --geo-ink:#7cf1e8; --on-geo:#08201f; --coach:#a18bff; --coach-ink:#c6baff; --on-coach:#140d33;
+}
+.stage::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:
+    radial-gradient(60% 40% at 50% 0%, color-mix(in srgb, var(--sun) 22%, transparent), transparent 70%),
+    linear-gradient(30deg, transparent 49.5%, rgba(255,255,255,.04) 50%, transparent 50.5%),
+    linear-gradient(150deg, transparent 49.5%, rgba(255,255,255,.04) 50%, transparent 50.5%);
+  background-size:auto, 56px 32px, 56px 32px;
+}
+.stage .wrap{position:relative}
+.stage .round-banner .kicker, .stage .round-banner .lede{color:var(--stage-ink-2)}
+.stage .round-banner h2{-webkit-text-stroke-color:#07051a; text-shadow:5px 5px 0 var(--coach)}
+.panel{
+  background:var(--stage-2); border:3px solid color-mix(in srgb, var(--stage-ink) 25%, transparent); border-radius:14px;
+  padding:24px 22px; margin-bottom:28px; position:relative;
+}
+.panel h3{font-size:clamp(22px,3.4vw,32px); font-style:italic; text-transform:uppercase; color:var(--sun)}
+.panel .sub{color:var(--stage-ink-2); font-size:16px; margin-top:8px; max-width:780px}
+.panel .who-tag{position:absolute; top:-14px; right:18px}
+.panel .num{font:900 12px/1 var(--display); letter-spacing:.24em; color:var(--stage-ink-2); display:block; margin-bottom:8px}
+
+.readrespond{display:grid; grid-template-columns:1fr auto 1fr; gap:18px; align-items:center; margin-top:22px}
+@media (max-width:720px){.readrespond{grid-template-columns:1fr} .readrespond .arrow{transform:rotate(90deg); justify-self:center}}
+.col{border:3px solid var(--stage-ink); border-radius:12px; padding:14px; background:rgba(255,255,255,.04)}
+.col h4{font-size:28px; font-style:italic; letter-spacing:.04em}
+.col.read h4{color:var(--geo)} .col.resp h4{color:var(--coach)}
+.col .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px}
+.col .chips span{font:800 14px/1 var(--body); padding:7px 11px; border-radius:999px; background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.18)}
+.col.resp .chips span.parry{background:var(--parry); color:#fff; border-color:var(--parry)}
+.arrow{font:900 46px/1 var(--display); color:var(--sun)}
+.fineprint{margin-top:16px; color:var(--stage-ink-2); font-size:15.5px; display:grid; gap:6px}
+.fineprint b{color:var(--stage-ink)}
+
+.sound{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:20px}
+@media (max-width:720px){.sound{grid-template-columns:1fr}}
+.sound .lane{border-radius:12px; padding:14px; background:rgba(255,255,255,.05); border:2px solid rgba(255,255,255,.14)}
+.sound .lane h4{font-size:16px; text-transform:uppercase; letter-spacing:.06em}
+.sound .lane.inform h4{color:var(--geo)} .sound .lane.threat h4{color:var(--sun)}
+.sound .lane p{font-size:14.5px; color:var(--stage-ink-2); margin-top:6px}
+.sound svg{width:100%; height:64px; margin-top:8px; display:block}
+.muted{
+  margin-top:18px; display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:center;
+  background:var(--sun-soft); color:var(--ink); border:3px solid var(--outline); border-radius:12px; padding:14px 16px;
+}
+:root .stage .muted{background:#fff0bf; color:#24203b}
+.muted .trio{display:flex; gap:6px; align-items:center}
+.muted .trio svg{width:40px; height:40px}
+.muted .trio b{font:900 18px/1 var(--display); color:#24203b}
+.muted p{font-size:15px}
+.muted h4{font-size:14px; letter-spacing:.12em; text-transform:uppercase; margin-bottom:4px}
+@media (max-width:560px){.muted{grid-template-columns:1fr}}
+
+.nap{margin-top:22px}
+.nap .timeline{position:relative; height:58px; border:3px solid var(--stage-ink); border-radius:10px; overflow:hidden; background:linear-gradient(90deg, #2c3e8f, #4e3c9a 60%, #8a4c9a)}
+.nap .timeline .z{position:absolute; top:8px; font:900 16px/1 var(--display); color:#fff; opacity:.75}
+.nap .timeline .spike{position:absolute; bottom:0; width:6px; background:var(--sun); border-radius:3px 3px 0 0}
+.nap .timeline .lbl{position:absolute; left:12px; top:10px; font:900 11px/1 var(--display); letter-spacing:.18em; color:#fff}
+.nap .ends{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px}
+.nap .end{border:2px dashed rgba(255,255,255,.3); border-radius:10px; padding:10px 12px; font-size:14.5px; color:var(--stage-ink-2)}
+.nap .end b{display:block; color:var(--stage-ink); font:900 13px/1.2 var(--display); letter-spacing:.06em; text-transform:uppercase; margin-bottom:4px}
+.nap .merge{text-align:center; font:900 24px/1 var(--display); color:var(--sun); margin:8px 0}
+.nap .door{display:flex; justify-content:center; gap:10px; flex-wrap:wrap}
+.nap .door span{background:var(--sun); color:var(--on-sun); border:3px solid #07051a; padding:8px 12px; font:900 13px/1 var(--display); letter-spacing:.06em; text-transform:uppercase; border-radius:6px; transform:rotate(var(--r,0deg))}
+.nap .safe{margin-top:12px; text-align:center; color:var(--stage-ink-2); font-size:14.5px}
+@media (max-width:560px){.nap .ends{grid-template-columns:1fr}}
+
+.thread{display:flex; align-items:stretch; gap:0; margin-top:22px; flex-wrap:nowrap}
+.thread .stone{flex:1; position:relative; padding:12px 10px; text-align:center; font:800 13.5px/1.25 var(--body); background:rgba(255,255,255,.06); border:2px solid rgba(255,255,255,.2); border-radius:10px; display:flex; align-items:center; justify-content:center}
+.thread .link{width:22px; display:flex; align-items:center; justify-content:center; color:var(--sun); font:900 18px/1 var(--display); flex:none}
+.thread .exam{flex:1.5; background:var(--geo); color:var(--on-geo); border:3px solid var(--stage-ink); flex-direction:column; gap:4px}
+.thread .exam b{font:900 16px/1.1 var(--display); text-transform:uppercase; font-style:italic}
+.thread .exam small{font:700 12px/1.2 var(--body)}
+@media (max-width:820px){
+  .thread{flex-direction:column}
+  .thread .link{width:auto; height:22px; transform:rotate(90deg)}
+}
+
+.loop{display:grid; grid-template-columns:minmax(0,340px) 1fr; gap:26px; align-items:center; margin-top:18px}
+.loop svg{width:100%; height:auto}
+@media (max-width:720px){.loop{grid-template-columns:1fr} .loop svg{max-width:320px; justify-self:center}}
+.loop ul{margin:0; padding-left:18px; color:var(--stage-ink-2); font-size:15.5px; display:grid; gap:8px}
+.loop ul b{color:var(--stage-ink)}
+
+.hidden{display:grid; grid-template-columns:1fr auto 1fr; gap:16px; align-items:center; margin-top:20px}
+@media (max-width:720px){.hidden{grid-template-columns:1fr} .hidden .arrow{transform:rotate(90deg); justify-self:center}}
+.mystery{display:grid; gap:10px}
+.mystery div{display:flex; gap:10px; align-items:center; background:rgba(255,255,255,.06); border:2px dashed rgba(255,255,255,.28); border-radius:10px; padding:10px 12px; font-size:14.5px}
+.mystery div i{flex:none; width:30px; height:30px; display:grid; place-items:center; font:900 18px/1 var(--display); font-style:normal; background:var(--coach); color:var(--on-coach); border-radius:6px; border:2px solid #07051a}
+.rating{background:var(--card); color:var(--ink); border:3px solid var(--outline); border-radius:12px; padding:14px 16px; box-shadow:5px 5px 0 #000}
+.rating h4{font-size:16px; text-transform:uppercase; font-style:italic}
+.rating ul{list-style:none; padding:0; margin:10px 0 0; display:grid; gap:8px}
+.rating li{display:flex; justify-content:space-between; gap:10px; align-items:center; font:800 15px/1 var(--body); border-bottom:2px dotted color-mix(in srgb, var(--ink) 25%, transparent); padding-bottom:7px}
+.rating li span{font:900 11px/1 var(--display); letter-spacing:.12em; color:var(--ink-2)}
+.rating small{display:block; margin-top:8px; color:var(--ink-2); font-size:13px}
+
+/* prototype climax */
+.unlock{position:relative; margin-top:70px; text-align:center}
+.unlock .kicker{font:900 14px/1 var(--display); letter-spacing:.34em; color:var(--sun)}
+.unlock h2{
+  font:900 clamp(36px,7.5vw,78px)/.95 var(--display); font-style:italic; text-transform:uppercase; margin-top:12px;
+  color:var(--stage-ink); -webkit-text-stroke:3px #07051a; paint-order:stroke fill; text-shadow:5px 5px 0 var(--geo), 10px 10px 0 var(--coach);
+  transform:skewX(-8deg);
+}
+.unlock .confetti{position:absolute; inset:-40px 0 auto 0; height:260px; pointer-events:none; overflow:visible}
+.unlock .confetti i{position:absolute; top:40%; left:50%; width:10px; height:16px; border:2px solid #07051a; opacity:0}
+.go .confetti i{animation:burst 1.4s cubic-bezier(.1,.8,.3,1) forwards}
+@keyframes burst{0%{opacity:1; transform:translate(0,0) rotate(0)}100%{opacity:0; transform:translate(var(--x),var(--y)) rotate(var(--rot))}}
+.levels{display:grid; grid-template-columns:1.6fr 1fr; gap:22px; margin-top:34px; text-align:left}
+@media (max-width:820px){.levels{grid-template-columns:1fr}}
+.level{border-radius:16px; border:4px solid #07051a; overflow:hidden; box-shadow:8px 8px 0 #000}
+.level .top{padding:18px 20px; background:linear-gradient(135deg, var(--sun), #ff9f43); color:#24203b; position:relative}
+.level .top small{font:900 12px/1 var(--display); letter-spacing:.24em}
+.level .top h3{font:900 clamp(26px,4.4vw,40px)/1 var(--display); font-style:italic; margin-top:6px; text-transform:uppercase}
+.level .top p{font:800 15px/1.3 var(--body); margin-top:4px}
+.level .body{background:var(--card); color:var(--ink); padding:16px 20px 20px}
+.level .body h4{font:900 12px/1 var(--display); letter-spacing:.2em; color:var(--ink-2); margin-bottom:10px}
+.loadout{list-style:none; margin:0; padding:0; display:grid; gap:10px}
+.loadout li{display:grid; grid-template-columns:30px 1fr; gap:10px; align-items:start; font-size:15.5px}
+.loadout li i{width:26px; height:26px; border:3px solid var(--outline); border-radius:5px; background:var(--geo); position:relative}
+.loadout li i::after{content:""; position:absolute; left:6px; top:1px; width:7px; height:13px; border:solid var(--on-geo); border-width:0 3px 3px 0; transform:rotate(45deg)}
+.loadout li b{font-family:var(--display); font-weight:900; font-size:14px; text-transform:uppercase; letter-spacing:.02em}
+.loadout li span{color:var(--ink-2)}
+.level.locked .top{background:repeating-linear-gradient(-45deg, #3b3566 0 14px, #2f2a55 14px 28px); color:var(--stage-ink)}
+.level.locked .body{background:var(--stage-2); color:var(--stage-ink)}
+.level.locked .body h4{color:var(--stage-ink-2)}
+.level.locked .body p{font-size:15px; color:var(--stage-ink-2)}
+.lock{position:absolute; right:16px; top:16px; width:40px; height:44px}
+.level.locked ol{margin:10px 0 0; padding-left:20px; display:grid; gap:6px; font-size:15px}
+
+/* ---------- photo de fin ---------- */
+.finale{padding-top:80px; padding-bottom:110px; text-align:center}
+.finale .kicker{font:900 13px/1 var(--display); letter-spacing:.3em; color:var(--ink-2)}
+.polaroid{
+  display:inline-block; margin-top:22px; background:#fffdf7; color:#24203b; padding:14px 14px 18px; width:min(440px, 100%);
+  border:1px solid rgba(0,0,0,.12); box-shadow:0 18px 40px rgba(0,0,0,.25), 0 2px 0 rgba(0,0,0,.08);
+  transform:rotate(-3deg); position:relative;
+}
+.polaroid::before{content:""; position:absolute; top:-14px; left:50%; width:110px; height:28px; transform:translateX(-50%) rotate(2deg); background:rgba(255,197,49,.65); border:1px solid rgba(0,0,0,.08)}
+.polaroid svg{width:100%; height:auto; display:block; background:#ffe9c7; border:1px solid rgba(0,0,0,.15)}
+.polaroid .cap{font:400 21px/1.25 var(--hand); margin-top:12px}
+.polaroid .cap small{display:block; font-size:15px; opacity:.75; margin-top:4px}
+.momscore{display:flex; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:12px}
+.momscore span{font:900 10.5px/1 var(--display); letter-spacing:.1em; display:flex; gap:5px; align-items:center}
+.momscore em{font-style:normal; letter-spacing:2px}
+.freeze{position:absolute; top:24px; right:24px; background:#24203b; color:#fff; font:900 11px/1 var(--display); letter-spacing:.16em; padding:5px 7px; border-radius:3px}
+footer{border-top:3px solid var(--outline); padding:22px 0 80px; color:var(--ink-2); font-size:14px}
+footer .wrap{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap}
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none !important; transition:none !important; scroll-behavior:auto !important}
+  .go .confetti i{opacity:0}
+}
+</style>
+</head>
+<body data-focus="all">
+
+<!-- ===== HUD: two-player co-op meters ===== -->
+<div class="hud" role="region" aria-label="Session scoreboard">
+  <div class="bar p1" aria-label="Geo's ideas seen">
+    <span class="who">P1 · GEO</span>
+    <div class="track"><i id="b1" style="--v:1"></i></div>
+    <b class="num" id="n1">19</b>
+  </div>
+  <div class="seg" role="group" aria-label="Highlight ideas by author">
+    <button type="button" data-f="all" aria-pressed="true">ALL</button>
+    <button type="button" data-f="geo" aria-pressed="false">GEO</button>
+    <button type="button" data-f="coach" aria-pressed="false">COACH</button>
+  </div>
+  <div class="bar p2" aria-label="Coach's ideas seen">
+    <span class="who">P2 · COACH</span>
+    <div class="track"><i id="b2" style="--v:1"></i></div>
+    <b class="num" id="n2">39</b>
+  </div>
+</div>
+<div class="combo" id="combo" aria-hidden="true"><small>COMBO</small><b id="cb">×58</b><span>ideas seen</span></div>
+
+<main>
+<!-- ===== TITLE SCREEN ===== -->
+<header class="hero wrap">
+  <div class="title-screen">
+    <div>
+      <p class="subtitle">Brainstorm keepsake · Gameplay session</p>
+      <h1 class="logo">Papa<span>Parade</span></h1>
+      <p class="pitch">One dad, one baby, one sleeping Mom next door. A session about how a young father <em>parries</em> his child's dangers like in a fighting game, and about everything that isn't a parry.</p>
+      <p class="press">▼ PRESS START</p>
+    </div>
+    <div class="slowmo" aria-hidden="true">
+      <svg viewBox="0 0 420 420">
+        <!-- speed lines -->
+        <g stroke="var(--ink)" stroke-width="5" stroke-linecap="round" opacity=".18">
+          <line x1="20" y1="120" x2="140" y2="150"/><line x1="10" y1="200" x2="150" y2="205"/><line x1="30" y1="280" x2="150" y2="255"/>
+          <line x1="300" y1="80" x2="400" y2="50"/><line x1="310" y1="330" x2="405" y2="370"/>
+        </g>
+        <!-- iso cube stage -->
+        <g transform="translate(210 300)">
+          <polygon points="0,-60 104,0 0,60 -104,0" fill="var(--sun)" stroke="var(--outline)" stroke-width="4" stroke-linejoin="round"/>
+          <polygon points="-104,0 0,60 0,100 -104,40" fill="var(--geo)" stroke="var(--outline)" stroke-width="4" stroke-linejoin="round"/>
+          <polygon points="104,0 0,60 0,100 104,40" fill="var(--coach)" stroke="var(--outline)" stroke-width="4" stroke-linejoin="round"/>
+        </g>
+        <!-- flying mash -->
+        <g class="blob">
+          <polygon points="250,110 282,98 300,118 292,146 262,150 244,132" fill="var(--mash)" stroke="var(--outline)" stroke-width="4" stroke-linejoin="round"/>
+          <polygon points="262,112 280,106 284,120 268,124" fill="#fff" opacity=".7"/>
+          <circle cx="232" cy="96" r="7" fill="var(--mash)" stroke="var(--outline)" stroke-width="3"/>
+          <circle cx="312" cy="96" r="5" fill="var(--mash)" stroke="var(--outline)" stroke-width="3"/>
+        </g>
+        <!-- spoon -->
+        <g class="spoon">
+          <rect x="120" y="196" width="120" height="16" rx="8" transform="rotate(-28 180 204)" fill="#cfd6e4" stroke="var(--outline)" stroke-width="4"/>
+          <ellipse cx="248" cy="164" rx="34" ry="22" transform="rotate(-28 248 164)" fill="#e6ebf5" stroke="var(--outline)" stroke-width="4"/>
+        </g>
+        <text x="210" y="56" text-anchor="middle" font-family="Arial Black, Impact, sans-serif" font-weight="900" font-size="22" font-style="italic" fill="var(--alert)" stroke="var(--outline)" stroke-width="1.2" paint-order="stroke">SLOW-MO ×0.1</text>
+      </svg>
+      <div class="cap">EPIC / BANAL<br><span style="font-weight:700;letter-spacing:0;font-family:var(--body)">action-movie slow-mo, for a spoon of mash</span></div>
+    </div>
+  </div>
+
+  <div class="vs">
+    <div class="player p1" data-by="geo">
+      <p class="role">PLAYER 1 · THE DAD WHO LIVED IT</p>
+      <h3>GEO</h3>
+      <p>Brought the nights: the pacing, the breath-held exits, the unknown dirty diaper, the three-year-old who wants to do it all himself.</p>
+      <p class="big">19<small>ideas + 1 insight</small></p>
+    </div>
+    <div class="vs-mid"><b>VS</b><span>…actually<br>CO-OP</span></div>
+    <div class="player p2" data-by="coach">
+      <p class="role">PLAYER 2 · CREATIVE PARTNER</p>
+      <h3>COACH</h3>
+      <p>Turned each scene into a mechanic, grafted traits from other games, then crossed it all into one design.</p>
+      <p class="big">39<small>ideas + 8 insights</small></p>
+    </div>
+  </div>
+
+  <dl class="meta">
+    <div class="wide"><dt>Topic</dt><dd>Papa Parade gameplay: the parry, plus other mechanics to diversify it.</dd></div>
+    <div class="wide"><dt>Goal</dt><dd>A dynamic, very fun game that's easy to pick up, full of situations a dad recognises himself in, with very polished game feel. The parry is not 100% of the gameplay.</dd></div>
+    <div><dt>Date</dt><dd>26 October 2026</dd></div>
+    <div><dt>Mode</dt><dd>Creative Partner</dd></div>
+    <div><dt>Input</dt><dd>The Papa Parade GDD (docs/)</dd></div>
+    <div><dt>Techniques (picked by the coach)</dt><dd>1. Persona Journey · 2. Trait Transfer</dd></div>
+    <div><dt>Convergence</dt><dd>Affinity Clustering, then a top 5</dd></div>
+    <div><dt>Status</dt><dd>Complete</dd></div>
+  </dl>
+</header>
+
+<!-- ===== ROUND 1: PERSONA JOURNEY ===== -->
+<section class="wrap" id="round1" aria-labelledby="r1">
+  <div class="round-banner">
+    <p class="kicker">ROUND 1 · TECHNIQUE 1</p>
+    <h2 id="r1">Persona Journey</h2>
+    <p class="fight">SELECT YOUR FIGHTER</p>
+    <p class="lede">Step into four people in the house, one after the other. Each one gets a move list. Highlighted rows are Geo's own scenes, the ones he has lived.</p>
+  </div>
+
+  <nav class="select" aria-label="Personas">
+    <a href="#p-dad"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#face-dad"/></svg><small>P·01</small><b>The Exhausted Dad</b></a>
+    <a href="#p-baby"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#face-baby"/></svg><small>P·02</small><b>The Baby</b></a>
+    <a href="#p-three"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#face-three"/></svg><small>P·03</small><b>The 3-Year-Old</b></a>
+    <a href="#p-mom"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#face-mom"/></svg><small>P·04</small><b>Mom</b></a>
+  </nav>
+
+  <!-- portrait symbols -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="face-dad" viewBox="0 0 120 120">
+        <polygon points="30,42 60,24 90,42 92,80 60,102 28,80" fill="var(--skin)" stroke="var(--outline)" stroke-width="4" stroke-linejoin="round"/>
+        <polygon points="60,24 90,42 92,80 60,62" fill="var(--skin-2)" opacity=".55"/>
+        <polygon points="24,48 36,18 56,28 70,12 86,26 98,46 86,38 72,32 60,38 46,32 34,42" fill="#4a3427" stroke="var(--outline)" stroke-width="3.5" stroke-linejoin="round"/>
+        <path d="M40 60 h14 M66 60 h14" stroke="var(--outline)" stroke-width="4" stroke-linecap="round"/>
+        <path d="M40 66 q7 5 14 0 M66 66 q7 5 14 0" stroke="#8d6bd1" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M50 86 q10 -5 20 0" stroke="var(--outline)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <polygon points="74,72 84,68 88,76 80,82 72,80" fill="var(--mash)" stroke="var(--outline)" stroke-width="2.5"/>
+        <path d="M96 52 q6 8 0 12 q-6 -4 0 -12z" fill="#7cc7ff" stroke="var(--outline)" stroke-width="2.5"/>
+      </symbol>
+      <symbol id="face-baby" viewBox="0 0 120 120">
+        <polygon points="34,38 60,26 86,38 96,64 86,92 60,102 34,92 24,64" fill="#ffd7b5" stroke="var(--outline)" stroke-width="4" stroke-linejoin="round"/>
+        <polygon points="60,26 86,38 96,64 60,64" fill="#f3bf96" opacity=".5"/>
+        <path d="M58 26 q-8 -14 6 -16 q8 2 2 10" stroke="var(--outline)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <circle cx="46" cy="60" r="9" fill="#fff" stroke="var(--outline)" stroke-width="3"/>
+        <circle cx="74" cy="60" r="9" fill="#fff" stroke="var(--outline)" stroke-width="3"/>
+        <circle cx="50" cy="60" r="4.5" fill="var(--outline)"/><circle cx="78" cy="60" r="4.5" fill="var(--outline)"/>
+        <path d="M52 82 q8 6 16 0" stroke="var(--outline)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <circle cx="38" cy="74" r="5" fill="#ff9d9d" opacity=".6"/><circle cx="82" cy="74" r="5" fill="#ff9d9d" opacity=".6"/>
+      </symbol>
+      <symbol id="face-three" viewBox="0 0 120 120">
+        <polygon points="32,44 60,32 88,44 94,76 60,104 26,76" fill="#ffd2a8" stroke="var(--outline)" stroke-width="4" stroke-linejoin="round"/>
+        <polygon points="60,32 88,44 94,76 60,70" fill="#f0b98a" opacity=".5"/>
+        <polygon points="36,36 40,14 52,26 60,10 68,26 80,14 84,36" fill="var(--sun)" stroke="var(--outline)" stroke-width="3.5" stroke-linejoin="round"/>
+        <path d="M38 54 l14 5 M82 54 l-14 5" stroke="var(--outline)" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="46" cy="64" r="4" fill="var(--outline)"/><circle cx="74" cy="64" r="4" fill="var(--outline)"/>
+        <ellipse cx="60" cy="86" rx="9" ry="7" fill="#9a3434" stroke="var(--outline)" stroke-width="3"/>
+      </symbol>
+      <symbol id="face-mom" viewBox="0 0 120 120">
+        <polygon points="22,50 40,16 80,16 98,50 100,100 80,104 76,64 44,64 40,104 20,100" fill="#7b4a2b" stroke="var(--outline)" stroke-width="3.5" stroke-linejoin="round"/>
+        <polygon points="36,44 60,30 84,44 86,78 60,98 34,78" fill="var(--skin)" stroke="var(--outline)" stroke-width="4" stroke-linejoin="round"/>
+        <polygon points="60,30 84,44 86,78 60,62" fill="var(--skin-2)" opacity=".5"/>
+        <path d="M42 62 q7 6 14 0 M64 62 q7 6 14 0" stroke="var(--outline)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path d="M54 82 q6 3 12 0" stroke="var(--outline)" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <text x="92" y="30" font-family="Arial Black, sans-serif" font-weight="900" font-size="16" fill="var(--coach)">z</text>
+        <text x="102" y="18" font-family="Arial Black, sans-serif" font-weight="900" font-size="11" fill="var(--coach)">z</text>
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- ---------- FIGHTER 1: DAD ---------- -->
+  <article class="fighter" id="p-dad" style="--accent:var(--geo)">
+    <div class="fighter-head">
+      <svg class="portrait" viewBox="0 0 120 120" aria-hidden="true"><use href="#face-dad"/></svg>
+      <div>
+        <p class="no">FIGHTER 01 / 04</p>
+        <h3>The Exhausted Dad</h3>
+        <p class="tagline">His first opponent is his own sleep. Carry, pace, defuse, sneak out, and start over.</p>
+        <div class="gauge awake"><label>STAY AWAKE</label><div class="gtrack"><i></i></div></div>
+      </div>
+    </div>
+    <ol class="movelist">
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">hold ◐</span><div><h4>The Baby-Arm</h4><p>Carrying the baby takes up one hand, so Papa can do only one action at a time. Putting the baby down and picking him back up becomes a tactical resource.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">mash ●●●</span><div><h4>Fight Your Own Sleep</h4><p>Keep the baby in your arms without dozing off. He only sleeps against Papa, and falling asleep with him is dangerous: you battle your own drowsiness.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">← → ← →</span><div><h4>Les 100 Pas</h4><p>Pace back and forth carrying the baby until he falls asleep. Putting him down in his crib? Impossible.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">tap ×</span><div><h4>Parry Your Own Sleep</h4><p>Telegraphed micro-naps (eyelids, the screen darkening, the head dropping). Tap at the right moment to jolt awake.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">↓ … ↓ … ↓</span><div><h4>Crib Drop = Bomb Defusal</h4><p>Laying him in the crib becomes an epic slow-motion bomb disposal: the epic/banal signature applied to the slowest gesture in the world.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="note"><p><b>INSIGHT</b>Tracks beyond the parry: <strong>rhythm</strong> (the pacing), <strong>precision / stealth</strong> (the put-down), <strong>endurance</strong> (staying awake).</p></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">hold ○</span><div><h4>The Breath-Held Exit</h4><p>Leave the room after the put-down without a sound, holding your breath. Huge tension: every little noise from the baby is stressful.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">↺ restart</span><div><h4>The Mystery Diaper</h4><p>An unknown dirty diaper: you put baby down, he won't sleep because he's dirty, you have to change him, and it all starts again.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">hold ○ + →</span><div><h4>Metal Gear Exit</h4><p>Leaving the room as a stealth phase: creaky floorboards to memorise, and a held button for held breath, with a gauge.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">listen ◎</span><div><h4>False Alarms</h4><p>A sigh versus a real wake-up. The player learns to read the baby's noises: readability becomes a skill.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">? / !</span><div><h4>Schrödinger's Diaper</h4><p>Hidden information. Sniffing to check costs time and risks waking him; or you gamble, and risk starting everything over.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">BOSS</span><div><h4>Diaper Change: Boss Fight</h4><p>Its attacks: the surprise spray, the foot plunging into the diaper, the roll-over mid-operation, the missing wipe.</p></div><div class="side"><span class="tag coach">P2 · COACH</span><span class="approve">✓ approved by Geo</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">+ outfit</span><div><h4>The Overflow</h4><p>The diaper overflows: dirty clothes, so the whole outfit has to be changed too.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">))) → zZ</span><div><h4>Don't Wake Mom</h4><p>Baby cries for too long and wakes Mom, who is sleeping to get some rest.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">care ✚</span><div><h4>The Usual Care</h4><p>The classic care jobs need doing too: nose, nails, and so on.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">⇄ GDD</span><div><h4>Flip the GDD Frame</h4><p>Mom isn't coming home: she is SLEEPING in the next room. A global noise gauge. The goal: let her sleep as long as possible.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">puzzle ▦</span><div><h4>The Redressing Puzzle</h4><p>Getting dressed as a physics puzzle: the snap-button bodysuit, the sleeve where the arm pops out through the neck, the baby going stiff.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">BOSS ★</span><div><h4>Nose Wash: The Most Dreaded Boss</h4><p>Baby dodges with his head; the parry window is ultra short. Nail clipping: precision between two kicks.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+    </ol>
+  </article>
+
+  <!-- ---------- FIGHTER 2: BABY ---------- -->
+  <article class="fighter" id="p-baby" style="--accent:var(--parry)">
+    <div class="fighter-head">
+      <svg class="portrait" viewBox="0 0 120 120" aria-hidden="true"><use href="#face-baby"/></svg>
+      <div>
+        <p class="no">FIGHTER 02 / 04</p>
+        <h3>The Baby</h3>
+        <p class="tagline">Explores, grabs, puts things in his mouth, and fakes you out. His gaze and his silence are the tells.</p>
+        <div class="monitor">
+          <svg viewBox="0 0 300 44" preserveAspectRatio="none" aria-hidden="true">
+            <path class="wave" d="M0 22 L20 22 L26 12 L32 32 L38 16 L44 26 L50 22 L70 22 L76 8 L82 36 L88 14 L94 28 L100 22 L130 22 L136 15 L142 29 L148 22 L180 22" stroke="var(--geo)" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+            <path d="M180 22 L300 22" stroke="var(--alert)" stroke-width="3" fill="none"/>
+            <text x="292" y="14" text-anchor="end" font-family="Arial Black, sans-serif" font-size="9" font-weight="900" fill="var(--alert)">SILENCE</text>
+          </svg>
+          <small>Babbling = safe. A flat line = he's up to something.</small>
+        </div>
+      </div>
+    </div>
+    <div class="quote" data-by="geo">
+      <p><q>From baby's point of view, everything dangerous looks super cool.</q></p>
+      <span class="tag geo">P1 · GEO · INSIGHT</span>
+    </div>
+    <ol class="movelist">
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">slow ←</span><div><h4>The Fork</h4><p>Baby grabs a dangerous object (a fork). Take it from him without a sudden move, praying he doesn't do anything.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">!! secure</span><div><h4>The Safe Zone That Wasn't</h4><p>An area you thought was safe turns out to be dangerous. Secure it, fast.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">↘ hook</span><div><h4>Something in the Mouth</h4><p>Something in his mouth that has to come out.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">calm ≈</span><div><h4>Hostage Negotiation</h4><p>Disarming as a hostage negotiation: a calm gauge; move too fast and baby waves the fork. Swap it for a "cooler" object (a coolness value).</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">◉ → ✦</span><div><h4>The Gaze Telegraph</h4><p>Baby's gaze is the tell: his eyes lock onto an object, and the player follows his gaze to discover the hidden danger.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">build ▣</span><div><h4>Tower-Defense Prep</h4><p>A light prep phase between waves: place outlet covers and gates, move things up high. Then baby reveals the flaw.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">↘ precise</span><div><h4>The Finger Hook</h4><p>Getting the thing out of his mouth: a precision finger hook while baby clenches his jaw.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">feint ①</span><div><h4>Feint: The Cry</h4><p>Crying for no reason (or with one).</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">feint ②</span><div><h4>Feint: Not Asleep</h4><p>Papa thinks he's asleep. He is not, at all.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">feint ③</span><div><h4>Ultimate Feint: Silence</h4><p>Suddenly, no more noise at all, which means he's preparing something bad.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">read ◎</span><div><h4>Cry Diagnosis</h4><p>Each cry (hunger, diaper, teeth, tiredness, nothing) has its own sound and visual signature. The wrong remedy escalates it. The "no reason" cry can't be parried: the only counter is to rock him and endure.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">wait …</span><div><h4>Fake Sleep = Delayed Attack</h4><p>Elden Ring-style: one eye cracks open and punishes whoever relaxes too early.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">— silence</span><div><h4>Silence as the Telegraph</h4><p>Ambient babbling = safe. When baby leaves the frame and the sound cuts out, the music stops: an inverted alert, where the absence of a signal is the signal.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+    </ol>
+  </article>
+
+  <!-- ---------- FIGHTER 3: 3 YEAR OLD ---------- -->
+  <article class="fighter" id="p-three" style="--accent:var(--sun)">
+    <div class="fighter-head">
+      <svg class="portrait" viewBox="0 0 120 120" aria-hidden="true"><use href="#face-three"/></svg>
+      <div>
+        <p class="no">FIGHTER 03 / 04</p>
+        <h3>The 3-Year-Old</h3>
+        <p class="tagline">Battle cry: <strong>"Moi tout seul !"</strong> (Me, all by myself!)</p>
+        <div class="gauge attn"><label>ATTENTION</label><div class="gtrack"><i></i></div></div>
+      </div>
+    </div>
+    <ol class="movelist">
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">MOI !</span><div><h4>Moi Tout Seul</h4><p>Wants to do everything himself; meltdown the moment you do it for him.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">→ P</span><div><h4>A Bit Violent</h4><p>Sometimes gets a little rough.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">∞</span><div><h4>Attention, Always</h4><p>Demands attention constantly. No rest possible.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">✕ on purpose</span><div><h4>The Provocation</h4><p>Does forbidden things on purpose, just to get a reaction.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">→→ ↑</span><div><h4>Run &amp; Climb</h4><p>Runs off in every direction and climbs things.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">don't ✋</span><div><h4>Invisible Help</h4><p>"Moi tout seul !" means helping unseen: hold the glass from behind without him noticing. The parry becomes <em>not touching</em>, and it foreshadows the Adult level, "let it be".</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">tap / HOLD</span><div><h4>The Mind Game</h4><p>Over-reacting (a big parry) rewards his bid for attention and he does it again. The right counter is calm: parry intensity, a calm tap versus a firm hold.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">juggle ⟳</span><div><h4>The Attention Gauge</h4><p>It drains while Papa does his own things (coffee, phone). Empty, and he escalates to the forbidden. Overcooked-style juggling.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">→→→ dive</span><div><h4>Benny Hill Chase</h4><p>Escape and climbing: a Benny Hill chase, and a slow-mo diving catch when he falls off the furniture.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+    </ol>
+  </article>
+
+  <!-- ---------- FIGHTER 4: MOM ---------- -->
+  <article class="fighter" id="p-mom" style="--accent:var(--coach)">
+    <div class="fighter-head">
+      <svg class="portrait" viewBox="0 0 120 120" aria-hidden="true"><use href="#face-mom"/></svg>
+      <div>
+        <p class="no">FIGHTER 04 / 04</p>
+        <h3>Mom</h3>
+        <p class="tagline">The judge. She rates the round in three sounds.</p>
+        <div class="judge" aria-hidden="true"><span class="laugh"><i></i>LAUGH</span><span class="sigh"><i></i>SIGH</span><span class="scream"><i></i>SCREAM</span></div>
+      </div>
+    </div>
+    <ol class="movelist">
+      <li class="idea" data-by="geo"><span class="inp" aria-hidden="true">☺ ~ !</span><div><h4>Mom's Judgment</h4><p><strong>Laugh</strong> = seeing Papa overwhelmed. <strong>Sigh</strong> = a messy house. <strong>Scream</strong> = child in danger or hurt.</p></div><div class="side"><span class="tag geo">P1 · GEO</span><span class="stamp">Vécu · lived it</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">3 axes</span><div><h4>Three-Axis Rating</h4><p>Mom scores on three emotional axes (laugh / sigh / scream) instead of abstract stars. Being overwhelmed earns style points: Papa's look, with mash on his face, the hair, the sweat.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">▣ snap</span><div><h4>Photo de Fin</h4><p>The scene freezes as the door opens. A scream = baby frozen on top of the shelf (a near-miss, never hurt).</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">mash ↓↓↓</span><div><h4>The Final Rush</h4><p>In the last seconds, stash everything under the couch before the door opens.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="idea" data-by="coach"><span class="inp" aria-hidden="true">◀◀ replay</span><div><h4>Sports Replay</h4><p>At the end of the level, a best-of of the near-misses and perfect parries, with Mom's reactions.</p></div><div class="side"><span class="tag coach">P2 · COACH</span></div></li>
+      <li class="note"><p><b>INSIGHT</b>Tension with pillar 2 (baby never hurt): the "scream" must be about danger and near-misses, never injury.</p></li>
+    </ol>
+  </article>
+</section>
+
+<!-- ===== ROUND 2: TRAIT TRANSFER ===== -->
+<section class="wrap" id="round2" aria-labelledby="r2">
+  <div class="round-banner">
+    <p class="kicker">ROUND 2 · TECHNIQUE 2</p>
+    <h2 id="r2">Trait Transfer</h2>
+    <p class="fight">INSERT CARTRIDGE</p>
+    <p class="lede">Eleven games plugged into Papa. Each cartridge grafts one trait (or three) onto the dad.</p>
+  </div>
+
+  <div class="shelf">
+    <div class="cart" style="--c:var(--coach-soft)">
+      <div class="viz" aria-hidden="true"><span class="onoma">pouic!</span><span class="onoma" style="--r:4deg">chlak!</span><span class="onoma">ha ha!</span></div>
+      <div class="label"><span class="graft">CARTRIDGE · SEKIRO</span><span class="game">Sekiro</span>
+        <ul><li class="idea" data-by="coach"><b>Signature parry sounds</b>One iconic sound per type (a toy's squeak, a cupboard's clack), plus the baby's burst of laughter on a perfect parry.</li></ul>
+      </div>
+      <div class="foot"><span class="tag coach">P2 · COACH</span></div>
+    </div>
+
+    <div class="cart" style="--c:var(--geo-soft)">
+      <span class="p1pick" data-by="geo">P1 CALLED THIS ONE</span>
+      <div class="viz" aria-hidden="true"><span class="bigcombo">×12<small>COMBO</small></span></div>
+      <div class="label"><span class="graft">CARTRIDGE · BATMAN</span><span class="game">Arkham</span>
+        <ul>
+          <li class="idea" data-by="coach"><b>Freeflow</b>Papa glides magnetically from one threat to the next (direction + button), with a combo counter for chained parries.</li>
+          <li class="idea" data-by="coach"><b>Last-threat slow-mo</b>A cinematic slow-motion on the final threat of a wave.</li>
+        </ul>
+      </div>
+      <div class="foot"><span class="tag geo" data-by="geo">REF BY GEO</span><span class="tag coach">TRAITS · COACH</span></div>
+    </div>
+
+    <div class="cart" style="--c:var(--geo-soft)">
+      <span class="p1pick" data-by="geo">P1 CALLED THIS ONE</span>
+      <div class="viz" aria-hidden="true"><span class="chip blue">BLUE = PARRY</span><span class="chip red">RED = DODGE</span></div>
+      <div class="label"><span class="graft">CARTRIDGE · GHOST OF</span><span class="game">Tsushima</span>
+        <ul>
+          <li class="idea" data-by="coach"><b>Colour code</b>Blue = parryable; red = unparryable, dodge it (e.g. projectile vomit).</li>
+          <li class="idea" data-by="coach"><b>The standoff</b>The bedtime duel: motionless facing the crib, release and walk away the instant he closes his eyes.</li>
+          <li class="idea" data-by="coach"><b>Guiding wind</b>The smell, a visible trail, guides you to the dirty diaper. No HUD.</li>
+        </ul>
+      </div>
+      <div class="foot"><span class="tag geo" data-by="geo">REF BY GEO</span><span class="tag coach">TRAITS · COACH</span></div>
+    </div>
+
+    <div class="handoff" data-by="geo">
+      <svg class="pad" viewBox="0 0 64 40" aria-hidden="true"><rect x="3" y="6" width="58" height="28" rx="14" fill="var(--card)" stroke="var(--outline)" stroke-width="3"/><path d="M14 20h10M19 15v10" stroke="var(--outline)" stroke-width="3" stroke-linecap="round"/><circle cx="44" cy="16" r="3.5" fill="var(--geo)"/><circle cx="50" cy="23" r="3.5" fill="var(--coach)"/></svg>
+      <p><strong>P1 passes the controller to P2.</strong> Geo named Batman Arkham and Ghost of Tsushima as game-feel references (without pinning down the exact detail), then ran dry on micro-details and let the coach propose the rest.</p>
+      <span class="tag geo">P1 · GEO · DIRECTION</span>
+    </div>
+
+    <div class="cart" style="--c:var(--sun-soft)">
+      <div class="viz" aria-hidden="true"><span class="verb">SOULÈVE !<small>LIFT!</small></span><span class="verb" style="--r:4deg">FERME !<small>CLOSE!</small></span><span class="verb" style="--r:-6deg">ÉCHANGE !<small>SWAP!</small></span></div>
+      <div class="label"><span class="graft">CARTRIDGE · MICROGAMES</span><span class="game">WarioWare</span>
+        <ul><li class="idea" data-by="coach"><b>One-word verbs</b>Each threat flashes a single verb in huge letters, for instant pick-up-and-play.</li></ul>
+      </div>
+      <div class="foot"><span class="tag coach">P2 · COACH</span></div>
+    </div>
+
+    <div class="cart" style="--c:var(--coach-soft)">
+      <div class="viz" aria-hidden="true"><div class="window"><div class="w"><i></i><b></b></div><small><span>parry window</span><span>+ coyote time</span></small></div></div>
+      <div class="label"><span class="graft">CARTRIDGE · MOUNTAIN</span><span class="game">Celeste</span>
+        <ul><li class="idea" data-by="coach"><b>Forgiving windows</b>Coyote time and generous parry windows, tunable in the feel file. An assist mode, with no shame attached.</li></ul>
+      </div>
+      <div class="foot"><span class="tag coach">P2 · COACH</span></div>
+    </div>
+
+    <div class="cart" style="--c:var(--geo-soft)">
+      <div class="viz" aria-hidden="true"><div class="beats"><i></i><span style="width:8px"></span><i></i><span style="width:14px"></span><i></i><span style="width:22px"></span><i></i><span style="width:32px"></span><i></i><span style="width:44px"></span><i style="background:var(--sun)"></i></div></div>
+      <div class="label"><span class="graft">CARTRIDGE · RHYTHM</span><span class="game">Rhythm Heaven</span>
+        <ul><li class="idea" data-by="coach"><b>Les 100 pas, on beat</b>The pacing as a rhythm game: a lullaby that slows down as baby falls asleep, with treacherous off-beats.</li></ul>
+      </div>
+      <div class="foot"><span class="tag coach">P2 · COACH</span></div>
+    </div>
+
+    <div class="cart" style="--c:var(--sun-soft)">
+      <div class="viz" aria-hidden="true">
+        <svg width="120" height="56" viewBox="0 0 120 56"><rect x="8" y="4" width="62" height="48" rx="4" fill="var(--card)" stroke="var(--outline)" stroke-width="3"/><g stroke="var(--outline)" stroke-width="2.5"><rect x="15" y="13" width="7" height="7" fill="none"/><rect x="15" y="26" width="7" height="7" fill="none"/><rect x="15" y="39" width="7" height="7" fill="none"/><path d="M28 16h34M28 29h28M28 42h32" opacity=".4"/></g><g fill="var(--outline)"><rect x="80" y="20" width="10" height="26" rx="2"/><rect x="94" y="12" width="10" height="34" rx="2"/><rect x="108" y="26" width="10" height="20" rx="2"/></g></svg>
+      </div>
+      <div class="label"><span class="graft">CARTRIDGE · HONK</span><span class="game">Untitled Goose Game</span>
+        <ul><li class="idea" data-by="coach"><b>Adaptive piano + mischief list</b>Adaptive piano music that follows the action; in a bonus mode, the baby has a visible "to-do list of mischief".</li></ul>
+      </div>
+      <div class="foot"><span class="tag coach">P2 · COACH</span></div>
+    </div>
+
+    <div class="cart" style="--c:var(--coach-soft)">
+      <div class="viz" aria-hidden="true">
+        <svg width="140" height="58" viewBox="0 0 140 58"><g stroke="var(--outline)" stroke-width="3" stroke-linecap="round"><path d="M70 30 L70 6 M70 30 L92 14 M70 30 L48 14 M70 30 L98 34 M70 30 L42 34"/></g><g fill="var(--sun)" stroke="var(--outline)" stroke-width="2"><circle cx="70" cy="6" r="5"/><circle cx="92" cy="14" r="5"/><circle cx="48" cy="14" r="5"/><circle cx="98" cy="34" r="4"/><circle cx="42" cy="34" r="4"/></g><ellipse cx="70" cy="48" rx="16" ry="7" fill="var(--mash)" stroke="var(--outline)" stroke-width="3"/></svg>
+      </div>
+      <div class="label"><span class="graft">CARTRIDGE · ODE TO JOY</span><span class="game">Peggle</span>
+        <ul><li class="idea" data-by="coach"><b>Over-the-top finale</b>An outsized celebration on the last parry of a level: opera choir, fireworks… for a spoon of mash.</li></ul>
+      </div>
+      <div class="foot"><span class="tag coach">P2 · COACH</span></div>
+    </div>
+
+    <div class="cart" style="--c:var(--geo-soft)">
+      <div class="viz" aria-hidden="true"><span class="bigcombo">×4</span><span class="verb" style="--r:3deg">CASH OUT<small>by putting baby down</small></span></div>
+      <div class="label"><span class="graft">CARTRIDGE · SKATE</span><span class="game">Tony Hawk</span>
+        <ul><li class="idea" data-by="coach"><b>Bank the multiplier</b>A combo multiplier you "cash out" by putting the baby down. Get caught before that and you lose it: risk and reward.</li></ul>
+      </div>
+      <div class="foot"><span class="tag coach">P2 · COACH</span></div>
+    </div>
+
+    <div class="cart" style="--c:var(--sun-soft)">
+      <div class="viz" aria-hidden="true"><span class="verb" style="--r:-2deg">INSTINCT<br>PATERNEL<small>rubber-band mode</small></span></div>
+      <div class="label"><span class="graft">CARTRIDGE · KART</span><span class="game">Mario Kart</span>
+        <ul><li class="idea" data-by="coach"><b>Catch-up instinct</b>A "paternal instinct" catch-up when Papa is overwhelmed (slight slow-mo, wider windows) to keep the chaos fun.</li></ul>
+      </div>
+      <div class="foot"><span class="tag coach">P2 · COACH</span></div>
+    </div>
+
+    <div class="cart" style="--c:var(--coach-soft)">
+      <div class="viz" aria-hidden="true"><span class="onoma" style="font-size:16px">Encore l'étagère ?!</span></div>
+      <div class="label"><span class="graft">CARTRIDGE · UNDERWORLD</span><span class="game">Hades</span>
+        <ul><li class="idea" data-by="coach"><b>Mom remembers</b>Mom's reactions vary and remember previous runs ("The shelf <em>again</em>?!"). It makes you want to replay.</li></ul>
+      </div>
+      <div class="foot"><span class="tag coach">P2 · COACH</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CONVERGENCE ===== -->
+<section class="wrap" id="converge" aria-labelledby="r3">
+  <div class="round-banner">
+    <p class="kicker">ROUND 3 · CONVERGENCE</p>
+    <h2 id="r3">Toy Box Sort</h2>
+    <p class="lede">Both techniques used up. Everything on the floor gets tidied into six bins (Affinity Clustering), then a forced top five.</p>
+  </div>
+
+  <div class="clusters">
+    <div class="cluster"><svg viewBox="0 0 62 62" aria-hidden="true"><polygon points="31,4 58,18 31,32 4,18" fill="var(--sun)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="4,18 31,32 31,58 4,44" fill="var(--geo)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="58,18 31,32 31,58 58,44" fill="var(--coach)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><text x="31" y="23" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="13" fill="#24203b">A</text></svg><div><h4>The Sleep Cycle</h4><span class="fr">Le cycle du dodo</span><p>Rock, put down, escape.</p></div></div>
+    <div class="cluster"><svg viewBox="0 0 62 62" aria-hidden="true"><polygon points="31,4 58,18 31,32 4,18" fill="var(--sun)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="4,18 31,32 31,58 4,44" fill="var(--geo)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="58,18 31,32 31,58 58,44" fill="var(--coach)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><text x="31" y="23" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="13" fill="#24203b">B</text></svg><div><h4>Hygiene Bosses</h4><span class="fr">Boss de l'hygiène</span><p>Diaper, redressing, care.</p></div></div>
+    <div class="cluster"><svg viewBox="0 0 62 62" aria-hidden="true"><polygon points="31,4 58,18 31,32 4,18" fill="var(--sun)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="4,18 31,32 31,58 4,44" fill="var(--geo)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="58,18 31,32 31,58 58,44" fill="var(--coach)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><text x="31" y="23" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="13" fill="#24203b">C</text></svg><div><h4>Explorer Baby</h4><span class="fr">Bébé explorateur</span><p>Dangers, the gaze, disarming, prep.</p></div></div>
+    <div class="cluster"><svg viewBox="0 0 62 62" aria-hidden="true"><polygon points="31,4 58,18 31,32 4,18" fill="var(--sun)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="4,18 31,32 31,58 4,44" fill="var(--geo)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="58,18 31,32 31,58 58,44" fill="var(--coach)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><text x="31" y="23" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="13" fill="#24203b">D</text></svg><div><h4>Little 3-Year-Old Tyrant</h4><span class="fr">Petit tyran 3 ans</span><p>Mind games, attention, escapes.</p></div></div>
+    <div class="cluster"><svg viewBox="0 0 62 62" aria-hidden="true"><polygon points="31,4 58,18 31,32 4,18" fill="var(--sun)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="4,18 31,32 31,58 4,44" fill="var(--geo)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="58,18 31,32 31,58 58,44" fill="var(--coach)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><text x="31" y="23" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="13" fill="#24203b">E</text></svg><div><h4>Mom &amp; the Judgment</h4><span class="fr">Maman &amp; le jugement</span><p>Asleep next door; laugh / sigh / scream; the end photo.</p></div></div>
+    <div class="cluster"><svg viewBox="0 0 62 62" aria-hidden="true"><polygon points="31,4 58,18 31,32 4,18" fill="var(--sun)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="4,18 31,32 31,58 4,44" fill="var(--geo)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><polygon points="58,18 31,32 31,58 58,44" fill="var(--coach)" stroke="var(--outline)" stroke-width="3" stroke-linejoin="round"/><text x="31" y="23" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="13" fill="#24203b">F</text></svg><div><h4>Game-Feel Layer</h4><span class="fr">Couche game feel transversale</span><p>Cross-cutting: sounds, freeflow, blue/red, verbs, forgiveness, celebration.</p></div></div>
+  </div>
+
+  <div class="verdict trig" id="pp">
+    <span class="banner">Perfect Parry!</span>
+  </div>
+
+  <div class="roots-callout" data-by="geo">
+    <b>5 / 5 picks grew from Geo's own scenes</b>
+    <p>Every finisher below has a root in something Geo has lived as a dad. The coach shaped the mechanic; the night came first.</p>
+  </div>
+
+  <ol class="top5">
+    <li class="pick">
+      <div class="seed" data-by="geo"><div class="tagrow"><span class="tag geo">GEO'S SCENE</span><small>THE SEED</small></div>Ultimate feint: suddenly no more noise at all, which means he's preparing something bad.</div>
+      <div class="vine" aria-hidden="true"><svg viewBox="0 0 56 40" preserveAspectRatio="none"><path d="M2 20 C 18 4, 38 36, 54 20" stroke="var(--geo)" stroke-width="4" fill="none" stroke-dasharray="6 5"/></svg></div>
+      <div class="finisher"><span class="rank">1</span><h4>The Silence Telegraph</h4><p>Babbling means safe; when the sound cuts and the music stops, danger. The absence of a signal is the signal.</p></div>
+    </li>
+    <li class="pick">
+      <div class="seed" data-by="geo"><div class="tagrow"><span class="tag geo">GEO'S SCENE</span><small>THE SEED</small></div>Baby cries for too long and wakes Mom, who is sleeping to get some rest.</div>
+      <div class="vine" aria-hidden="true"><svg viewBox="0 0 56 40" preserveAspectRatio="none"><path d="M2 20 C 18 4, 38 36, 54 20" stroke="var(--geo)" stroke-width="4" fill="none" stroke-dasharray="6 5"/></svg></div>
+      <div class="finisher"><span class="rank">2</span><h4>Mom Asleep Next Door + Noise Gauge</h4><p>She doesn't come home: she's sleeping in the next room. One global noise gauge; keep her asleep as long as possible.</p></div>
+    </li>
+    <li class="pick">
+      <div class="seed" data-by="geo"><div class="tagrow"><span class="tag geo">GEO'S SCENES</span><small>THE SEEDS</small></div>Pacing back and forth carrying baby until he sleeps, impossible to put him down; then leaving the room without a sound, holding your breath.</div>
+      <div class="vine" aria-hidden="true"><svg viewBox="0 0 56 40" preserveAspectRatio="none"><path d="M2 20 C 18 4, 38 36, 54 20" stroke="var(--geo)" stroke-width="4" fill="none" stroke-dasharray="6 5"/></svg></div>
+      <div class="finisher"><span class="rank">3</span><h4>The Bedtime Sequence</h4><p>The bedtime duel (standoff), the bomb-defusal put-down, then the stealth exit.</p></div>
+    </li>
+    <li class="pick">
+      <div class="seed" data-by="geo"><div class="tagrow"><span class="tag geo">GEO'S SCENE</span><small>THE SEED</small></div>An unknown dirty diaper: baby won't sleep because he's dirty, you change him, and it all starts again.</div>
+      <div class="vine" aria-hidden="true"><svg viewBox="0 0 56 40" preserveAspectRatio="none"><path d="M2 20 C 18 4, 38 36, 54 20" stroke="var(--geo)" stroke-width="4" fill="none" stroke-dasharray="6 5"/></svg></div>
+      <div class="finisher"><span class="rank">4</span><h4>Schrödinger's Diaper</h4><p>Hidden information: sniff to check (time, wake risk) or gamble and maybe redo it all.</p></div>
+    </li>
+    <li class="pick">
+      <div class="seed" data-by="geo"><div class="tagrow"><span class="tag geo">GEO'S SCENE</span><small>THE SEED</small></div>The 3-year-old does forbidden things on purpose, just to get a reaction.</div>
+      <div class="vine" aria-hidden="true"><svg viewBox="0 0 56 40" preserveAspectRatio="none"><path d="M2 20 C 18 4, 38 36, 54 20" stroke="var(--geo)" stroke-width="4" fill="none" stroke-dasharray="6 5"/></svg></div>
+      <div class="finisher"><span class="rank">5</span><h4>Provocation to Dose</h4><p>Calm tap or firm hold: over-react and he does it again. The right counter is measured.</p></div>
+    </li>
+  </ol>
+
+  <div class="validated">
+    <div class="card" data-by="coach"><span class="tag coach">COACH</span><span>Proposed this top 5.</span></div>
+    <div class="card" data-by="geo"><span class="tag geo">GEO</span><span>Validated it exactly as-is, loves every retained idea, and handed the final crossover to the coach.</span></div>
+  </div>
+</section>
+
+<!-- ===== FINAL ROUND: SYNTHESIS ===== -->
+<section class="stage" id="final" aria-labelledby="r4">
+  <div class="wrap">
+    <div class="round-banner">
+      <p class="kicker">FINAL ROUND · THE CROSSOVER</p>
+      <h2 id="r4">Synthesis</h2>
+      <p class="lede">Six insights from the coach that fuse the picks into one game, then the prototype call.</p>
+    </div>
+
+    <div class="panel" data-by="coach">
+      <span class="who-tag tag coach">INSIGHT · COACH</span>
+      <span class="num">01 · THE CORE VERB</span>
+      <h3>Read the baby, then pick the right response</h3>
+      <div class="readrespond">
+        <div class="col read"><h4>READ</h4><div class="chips"><span>his gaze</span><span>the silence</span><span>the cries</span><span>false alarms</span><span>fake sleep</span></div></div>
+        <div class="arrow" aria-hidden="true">➜</div>
+        <div class="col resp"><h4>RESPOND</h4><div class="chips"><span class="parry">parry</span><span>dodge</span><span>wait</span><span>do nothing</span><span>dose it</span></div></div>
+      </div>
+      <div class="fineprint">
+        <p>The parry is <b>one answer among several</b>, which diversifies the game without breaking pillar 1.</p>
+        <p>Pillar 4 grows too: <b>as the child ages, the right response changes</b>.</p>
+      </div>
+    </div>
+
+    <div class="panel" data-by="coach">
+      <span class="who-tag tag coach">INSIGHT · COACH</span>
+      <span class="num">02 · THE NERVOUS SYSTEM</span>
+      <h3>Noise is the game's nervous system</h3>
+      <p class="sub">A single sound economy. Strong, cheap game feel, ideal for the cube prototype.</p>
+      <div class="sound">
+        <div class="lane inform">
+          <h4>Baby's noises inform</h4>
+          <p>Silence, cries, false alarms: they tell you what's coming.</p>
+          <svg viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true"><path class="wave" d="M0 32 L18 32 L24 18 L30 46 L36 24 L42 38 L48 32 L80 32 L86 12 L92 52 L98 20 L104 42 L110 32 L170 32 L176 26 L182 38 L188 32" stroke="var(--geo)" stroke-width="3" fill="none"/><path d="M188 32 L300 32" stroke="var(--alert)" stroke-width="3.5" stroke-dasharray="2 0"/><text x="296" y="22" text-anchor="end" font-family="Arial Black,sans-serif" font-size="11" font-weight="900" fill="var(--alert)">…SILENCE</text></svg>
+        </div>
+        <div class="lane threat">
+          <h4>Papa's noises threaten</h4>
+          <p>The floorboard, the saucepan: they feed Mom's gauge.</p>
+          <svg viewBox="0 0 300 64" aria-hidden="true"><rect x="2" y="22" width="296" height="20" rx="4" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="3"/><rect x="6" y="26" width="120" height="12" rx="2" fill="var(--sun)"/><rect x="126" y="26" width="44" height="12" rx="2" fill="#ff9f43"/><text x="6" y="16" font-family="Arial Black,sans-serif" font-size="10" font-weight="900" fill="var(--stage-ink-2)">CREAK</text><text x="120" y="16" font-family="Arial Black,sans-serif" font-size="10" font-weight="900" fill="var(--stage-ink-2)">CLANG</text><text x="294" y="58" text-anchor="end" font-family="Arial Black,sans-serif" font-size="10" font-weight="900" fill="var(--stage-ink-2)">MOM WAKES →</text></svg>
+        </div>
+      </div>
+      <div class="muted">
+        <div class="trio" aria-hidden="true">
+          <svg viewBox="0 0 40 40"><path d="M6 15h7l9-7v24l-9-7H6z" fill="#24203b"/><path d="M27 14l9 12M36 14l-9 12" stroke="#ff3b3b" stroke-width="3.5" stroke-linecap="round"/></svg>
+          <b>=</b>
+          <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="4" fill="#24203b"/><circle cx="20" cy="20" r="10" fill="none" stroke="#24203b" stroke-width="3"/><circle cx="20" cy="20" r="17" fill="none" stroke="#24203b" stroke-width="3" opacity=".5"/></svg>
+          <b>+</b>
+          <svg viewBox="0 0 40 40"><rect x="13" y="5" width="14" height="30" rx="3" fill="none" stroke="#24203b" stroke-width="3"/><path d="M6 13v14M34 13v14M2 17v6M38 17v6" stroke="#24203b" stroke-width="3" stroke-linecap="round"/></svg>
+        </div>
+        <div>
+          <h4>The mobile caveat: plenty of people play muted</h4>
+          <p>So every sound cue needs a <strong>visual twin</strong> (waves, bubbles) and a <strong>haptic twin</strong> (a Capacitor vibration on parries and alerts). Respects pillar 3.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" data-by="coach">
+      <span class="who-tag tag coach">INSIGHT · COACH</span>
+      <span class="num">03 · LEVEL STRUCTURE</span>
+      <h3>Mom's nap is the level</h3>
+      <p class="sub">The timer is her sleep.</p>
+      <div class="nap">
+        <div class="timeline" aria-hidden="true">
+          <span class="z" style="left:40%">z</span><span class="z" style="left:56%;top:14px">Z</span><span class="z" style="left:72%">z</span><span class="z" style="left:90%;top:12px">Z</span>
+          <span class="spike" style="left:30%;height:14px"></span><span class="spike" style="left:41%;height:26px"></span><span class="spike" style="left:62%;height:18px"></span><span class="spike" style="left:86%;height:34px"></span>
+          <span class="lbl">MOM'S NAP ▸ TIMER</span>
+        </div>
+        <div class="ends">
+          <div class="end"><b>Natural end</b>She wakes up rested.</div>
+          <div class="end"><b>Early end</b>The noise woke her.</div>
+        </div>
+        <p class="merge" aria-hidden="true">⇣ either way ⇣</p>
+        <div class="door"><span style="--r:-2deg">The door opens</span><span style="--r:2deg">Final rush</span><span style="--r:-1deg">Photo de fin</span></div>
+        <p class="safe">Failure is funny. The baby is never hurt.</p>
+      </div>
+    </div>
+
+    <div class="panel" data-by="coach">
+      <span class="who-tag tag coach">INSIGHT · COACH</span>
+      <span class="num">04 · THE "DON'T ACT" THREAD</span>
+      <h3>Restraint, trained all game long</h3>
+      <div class="thread">
+        <div class="stone">Provocation to dose</div><div class="link" aria-hidden="true">▶</div>
+        <div class="stone">Invisible help</div><div class="link" aria-hidden="true">▶</div>
+        <div class="stone">The bedtime duel</div><div class="link" aria-hidden="true">▶</div>
+        <div class="stone">Fake sleep</div><div class="link" aria-hidden="true">▶</div>
+        <div class="stone">The cry you endure</div><div class="link" aria-hidden="true">▶</div>
+        <div class="stone exam"><b>Adult level · "Laisser faire"</b><small>Let it be: the final exam of a learned skill</small></div>
+      </div>
+      <p class="sub" style="margin-top:16px">It answers the GDD's open questions (funny vs. emotional, a narrative thread) through mechanics rather than script.</p>
+    </div>
+
+    <div class="panel" data-by="coach">
+      <span class="who-tag tag coach">INSIGHT · COACH</span>
+      <span class="num">05 · ONE RISK/REWARD LOOP</span>
+      <h3>Carry, put down, cash out</h3>
+      <div class="loop">
+        <svg viewBox="0 0 320 300" aria-hidden="true">
+          <defs><marker id="ah" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--sun)"/></marker></defs>
+          <path d="M160 52 A110 110 0 0 1 262 200" fill="none" stroke="var(--sun)" stroke-width="5" marker-end="url(#ah)"/>
+          <path d="M240 236 A110 110 0 0 1 80 236" fill="none" stroke="var(--sun)" stroke-width="5" marker-end="url(#ah)"/>
+          <path d="M58 200 A110 110 0 0 1 140 52" fill="none" stroke="var(--sun)" stroke-width="5" marker-end="url(#ah)"/>
+          <g font-family="Arial Black,sans-serif" font-weight="900" text-anchor="middle">
+            <circle cx="160" cy="44" r="38" fill="var(--geo)" stroke="#07051a" stroke-width="4"/>
+            <text x="160" y="40" font-size="12" fill="var(--on-geo)">CARRY</text><text x="160" y="56" font-size="10" fill="var(--on-geo)">baby-arm</text>
+            <circle cx="268" cy="228" r="38" fill="var(--sun)" stroke="#07051a" stroke-width="4"/>
+            <text x="268" y="226" font-size="17" fill="#24203b">×2 ×3</text><text x="268" y="242" font-size="10" fill="#24203b">multiplier</text>
+            <circle cx="52" cy="228" r="38" fill="var(--coach)" stroke="#07051a" stroke-width="4"/>
+            <text x="52" y="224" font-size="11" fill="var(--on-coach)">SLOW-MO</text><text x="52" y="238" font-size="11" fill="var(--on-coach)">PUT-DOWN</text>
+            <text x="160" y="160" font-size="14" fill="var(--stage-ink)">CASH</text><text x="160" y="178" font-size="14" fill="var(--stage-ink)">OUT</text>
+          </g>
+        </svg>
+        <ul>
+          <li><b>Baby-arm</b>: carrying the baby is the risk, one hand busy.</li>
+          <li><b>Tony Hawk combo</b>: carrying him makes the multiplier climb.</li>
+          <li><b>Bomb-defusal put-down</b>: the slow-motion drop is the moment you cash it in.</li>
+          <li>Three ideas from two rounds, fused into <b>a single loop</b>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" data-by="coach">
+      <span class="who-tag tag coach">INSIGHT · COACH</span>
+      <span class="num">06 · HIDDEN STATE</span>
+      <h3>What you can't see feeds Mom's verdict</h3>
+      <div class="hidden">
+        <div class="mystery">
+          <div><i>?</i>Schrödinger's diaper</div>
+          <div><i>~</i>The smell-trail guide</div>
+          <div><i>◎</i>Cry diagnosis</div>
+        </div>
+        <div class="arrow" aria-hidden="true">➜</div>
+        <div class="rating">
+          <h4>Mom's rating (from the GDD)</h4>
+          <ul><li>Clean <span>?</span></li><li>Fed <span>?</span></li><li>Asleep <span>?</span></li></ul>
+          <small>Hidden information on the baby's state flows straight into the clean / fed / asleep score.</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLIMAX -->
+    <div class="unlock trig" id="unlock">
+      <div class="confetti" aria-hidden="true" id="confetti"></div>
+      <p class="kicker">★ NEW STAGE UNLOCKED ★</p>
+      <h2>Prototype<br>Recommendation</h2>
+      <div class="levels">
+        <div class="level" data-by="coach">
+          <div class="top">
+            <small>STAGE 1 · PROTOTYPE</small>
+            <h3>« Bébé à 4 pattes »</h3>
+            <p>The crawling-baby level gets this loadout:</p>
+          </div>
+          <div class="body">
+            <h4>ADD TO THE PROTOTYPE</h4>
+            <ul class="loadout">
+              <li><i></i><div><b>Silence telegraph</b><br><span>the absence of babbling as the alert</span></div></li>
+              <li><i></i><div><b>Noise gauge + sleeping Mom</b><br><span>the nap is the timer</span></div></li>
+              <li><i></i><div><b>WarioWare verbs</b><br><span>one big word per threat</span></div></li>
+              <li><i></i><div><b>Signature parry sounds + baby's laugh</b><br><span>the Sekiro graft</span></div></li>
+              <li><i></i><div><b>Celeste forgiveness in the feel file</b><br><span>generous, tunable windows</span></div></li>
+              <li><i></i><div><b>Visual + haptic twins</b><br><span>for every sound cue, for muted phones</span></div></li>
+            </ul>
+          </div>
+        </div>
+        <div class="level locked" data-by="coach">
+          <div class="top">
+            <svg class="lock" viewBox="0 0 40 44" aria-hidden="true"><path d="M10 20v-6a10 10 0 0 1 20 0v6" fill="none" stroke="var(--stage-ink)" stroke-width="4"/><rect x="5" y="20" width="30" height="22" rx="4" fill="var(--sun)" stroke="#07051a" stroke-width="3"/><circle cx="20" cy="30" r="3" fill="#07051a"/></svg>
+            <small>STAGE 2 · CANDIDATE</small>
+            <h3>Séquence du dodo</h3>
+            <p>The bedtime sequence</p>
+          </div>
+          <div class="body">
+            <h4>NEXT PROTOTYPE LEVEL, IN THREE ACTS</h4>
+            <ol>
+              <li>The bedtime duel</li>
+              <li>The bomb-defusal put-down</li>
+              <li>The stealth exit</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PHOTO DE FIN ===== -->
+<section class="finale wrap" aria-labelledby="r5">
+  <p class="kicker" id="r5">THE DOOR OPENS · SCENE FROZEN</p>
+  <figure class="polaroid" style="margin-left:auto;margin-right:auto">
+    <svg viewBox="0 0 320 240" role="img" aria-label="Frozen end-of-level scene: Mom opens the door, Papa mid-dive with mash on his face, baby on top of the shelf, unharmed.">
+      <polygon points="0,168 320,150 320,240 0,240" fill="#e8c48f"/>
+      <polygon points="0,168 320,150 320,156 0,174" fill="#d4ab74"/>
+      <!-- door -->
+      <rect x="16" y="58" width="68" height="114" fill="#2e2650"/>
+      <polygon points="80,178 104,182 170,240 92,240" fill="#fff3b0" opacity=".8"/>
+      <polygon points="16,58 54,66 54,176 16,172" fill="#c98f5a" stroke="#24203b" stroke-width="3" stroke-linejoin="round"/>
+      <polygon points="58,74 70,70 76,74 78,168 58,172" fill="#7b4a2b" stroke="#24203b" stroke-width="2.5"/>
+      <!-- mom bubble -->
+      <rect x="66" y="16" width="134" height="30" rx="14" fill="#fff" stroke="#24203b" stroke-width="3"/>
+      <polygon points="80,44 72,58 92,44" fill="#fff" stroke="#24203b" stroke-width="3" stroke-linejoin="round"/>
+      <rect x="80" y="40" width="14" height="6" fill="#fff"/>
+      <text x="133" y="36" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="12" font-style="italic" fill="#24203b">Encore l'étagère ?!</text>
+      <!-- shelf -->
+      <rect x="236" y="74" width="62" height="96" fill="#b77b4d" stroke="#24203b" stroke-width="3"/>
+      <path d="M236 106h62M236 138h62" stroke="#24203b" stroke-width="3"/>
+      <rect x="244" y="112" width="12" height="22" fill="#6a4cf0"/><rect x="258" y="116" width="10" height="18" fill="#0b9c95"/><rect x="276" y="146" width="16" height="20" fill="#ffc531"/>
+      <!-- baby on top -->
+      <polygon points="256,60 274,52 290,60 290,74 256,74" fill="#ffffff" stroke="#24203b" stroke-width="3" stroke-linejoin="round"/>
+      <polygon points="262,40 273,34 284,40 286,52 273,58 260,52" fill="#ffd7b5" stroke="#24203b" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="268" cy="46" r="2" fill="#24203b"/><circle cx="279" cy="46" r="2" fill="#24203b"/>
+      <path d="M269 51 q4 3 8 0" stroke="#24203b" stroke-width="2" fill="none"/>
+      <!-- dad mid-dive -->
+      <g transform="rotate(-14 170 150)">
+        <polygon points="132,140 196,124 206,150 140,166" fill="#0b9c95" stroke="#24203b" stroke-width="3" stroke-linejoin="round"/>
+        <polygon points="196,124 236,96 244,104 206,140" fill="#0b9c95" stroke="#24203b" stroke-width="3" stroke-linejoin="round"/>
+        <polygon points="140,166 104,184 100,176 132,156" fill="#3a3566" stroke="#24203b" stroke-width="3" stroke-linejoin="round"/>
+        <polygon points="114,124 132,114 148,122 148,142 130,150 114,142" fill="#f2c39b" stroke="#24203b" stroke-width="3" stroke-linejoin="round"/>
+        <polygon points="110,124 120,104 136,112 150,108 152,124 138,116 124,118" fill="#4a3427" stroke="#24203b" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="134" cy="128" r="2.5" fill="#24203b"/>
+        <polygon points="120,132 132,130 134,140 122,142" fill="#f7e2a8" stroke="#24203b" stroke-width="2"/>
+        <path d="M152 126 q6 6 0 10" stroke="#7cc7ff" stroke-width="3" fill="none"/>
+      </g>
+      <g stroke="#24203b" stroke-width="3" stroke-linecap="round" opacity=".45"><path d="M96 120h-22M92 136h-28M98 152h-20"/></g>
+      <!-- spoon of mash -->
+      <ellipse cx="206" cy="58" rx="12" ry="8" fill="#f7e2a8" stroke="#24203b" stroke-width="2.5"/>
+      <rect x="188" y="62" width="30" height="5" rx="2.5" transform="rotate(-20 203 64)" fill="#cfd6e4" stroke="#24203b" stroke-width="2"/>
+      <rect x="214" y="212" width="98" height="20" rx="3" fill="#24203b"/>
+      <text x="263" y="226" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="10" letter-spacing="1.5" fill="#fff">▌▌ PHOTO DE FIN</text>
+    </svg>
+    <figcaption class="cap">Papa Parade · gameplay brainstorm<br><small>26.10.2026 · Geo + Coach · Creative Partner<br>58 ideas · 2 techniques · 6 bins · 5 picks · baby never hurt</small></figcaption>
+    <div class="momscore" aria-label="Mom's rating of the session">
+      <span>LAUGH <em style="color:#e0a800">●●●</em></span>
+      <span>SIGH <em style="color:#5d5874">●○○</em></span>
+      <span>SCREAM <em style="color:#ff3b3b">○○○</em></span>
+    </div>
+  </figure>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Source: session log <code>.memlog.md</code> · status: complete · last updated 26 Oct 2026, 10:04</span>
+    <span>Geo's 19 ideas + 1 insight · the coach's 39 ideas + 8 insights</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* author filter */
+  var btns = document.querySelectorAll('.seg button');
+  btns.forEach(function(b){
+    b.addEventListener('click', function(){
+      document.body.setAttribute('data-focus', b.dataset.f);
+      btns.forEach(function(x){ x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+    });
+  });
+
+  /* combo + co-op meters */
+  var ideas = Array.prototype.slice.call(document.querySelectorAll('.idea'));
+  var totG = ideas.filter(function(e){return e.dataset.by==='geo';}).length;
+  var totC = ideas.length - totG;
+  var g = 0, c = 0;
+  var b1 = document.getElementById('b1'), b2 = document.getElementById('b2');
+  var n1 = document.getElementById('n1'), n2 = document.getElementById('n2');
+  var cb = document.getElementById('cb'), combo = document.getElementById('combo');
+  function render(){
+    b1.style.setProperty('--v', totG ? g/totG : 0);
+    b2.style.setProperty('--v', totC ? c/totC : 0);
+    n1.textContent = g + '/' + totG;
+    n2.textContent = c + '/' + totC;
+    cb.textContent = '×' + (g + c);
+  }
+  if (!('IntersectionObserver' in window)) { g = totG; c = totC; render(); return; }
+  render();
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (!e.isIntersecting) return;
+      if (e.target.dataset.by === 'geo') g++; else c++;
+      io.unobserve(e.target);
+      render();
+      if (!reduce){ combo.classList.remove('pop'); void combo.offsetWidth; combo.classList.add('pop'); }
+    });
+  }, {threshold: .6});
+  ideas.forEach(function(el){ io.observe(el); });
+
+  /* confetti pieces */
+  var conf = document.getElementById('confetti');
+  var cols = ['var(--sun)','var(--geo)','var(--coach)','#ff9f43','#ffffff'];
+  for (var i = 0; i < 34; i++){
+    var p = document.createElement('i');
+    var a = Math.random() * Math.PI * 2, d = 120 + Math.random() * 260;
+    p.style.background = cols[i % cols.length];
+    p.style.setProperty('--x', Math.round(Math.cos(a) * d) + 'px');
+    p.style.setProperty('--y', Math.round(Math.sin(a) * d * .7 - 40) + 'px');
+    p.style.setProperty('--rot', Math.round(Math.random() * 720 - 360) + 'deg');
+    p.style.animationDelay = (Math.random() * .25) + 's';
+    conf.appendChild(p);
+  }
+
+  /* banners slam in once */
+  var trig = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting){ e.target.classList.add('go'); trig.unobserve(e.target); }
+    });
+  }, {threshold: .45});
+  document.querySelectorAll('.trig').forEach(function(t){ trig.observe(t); });
+})();
+</script>
+</body>
+</html>
