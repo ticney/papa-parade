@@ -1,0 +1,158 @@
+# generated: 2026-10-26
+# last_updated: 2026-10-26
+# project: papa-parade
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: {project-root}/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+#
+# ORDRE DE LIVRAISON (papa-parade):
+# =================================
+# - L'ordre du fichier est l'ordre de livraison (create-story prend la première story 'backlog').
+# - Les stories 3.5 à 3.11 [V1] sont placées après l'epic 4, conformément à epics.md.
+# - epic-3 reste 'in-progress' entre 3.4 et 3.5 : ne pas le passer à 'done' après 3.4.
+
+generated: 2026-10-26
+last_updated: 2026-10-26
+project: papa-parade
+project_key: NOKEY
+tracking_system: file-system
+story_location: "{project-root}/_bmad-output/implementation-artifacts"
+
+development_status:
+  epic-1: backlog
+  1-1-initialiser-le-projet-et-ses-garde-fous: backlog
+  1-2-pipeline-de-contenu-et-fichier-de-feeling: backlog
+  1-3-coeur-de-simulation-deterministe-en-headless: backlog
+  1-4-boucle-client-vue-isometrique-et-pause-exacte: backlog
+  1-5-fondations-de-l-ui-tokens-ecran-de-demarrage-hud-et-panneau-de-pause: backlog
+  1-6-salon-greybox-depuis-blender: backlog
+  1-7-deplacer-papa: backlog
+  1-8-le-bebe-vit-dans-le-salon: backlog
+  1-9-retours-de-base: backlog
+  1-10-premiere-menace-jugee-en-headless-la-prise-electrique: backlog
+  1-11-parer-la-prise-electrique-au-tap: backlog
+  1-12-bots-et-simulation-en-masse: backlog
+  1-13-autoplay-et-api-de-test-dans-le-navigateur: backlog
+  1-14-hitstop-et-ralentis: backlog
+  1-15-physique-legere-des-objets: backlog
+  1-16-escalier-et-objet-sur-la-table-basse: backlog
+  1-17-ciblage-automatique-au-clavier-et-a-la-manette: backlog
+  1-18-vagues-de-menaces-et-chrono-du-niveau: backlog
+  1-19-fatigue-cafe-et-micro-siestes: backlog
+  1-20-le-telephone-qui-sonne: backlog
+  1-21-le-silence-suspect: backlog
+  1-22-note-de-maman-et-ecran-de-fin: backlog
+  1-23-fermete-optionnelle: backlog
+  1-24-build-de-playtest-partageable-et-budget-de-performance: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-overlay-de-debug-timeline-de-timing-et-panneau-de-feeling: backlog
+  2-2-verbe-affiche-et-icones-couleur-forme: backlog
+  2-3-sons-cultes-rire-du-bebe-et-telegraphes-distincts: backlog
+  2-4-equivalents-visuels-et-haptiques-complets: backlog
+  2-5-effets-de-feeling-a-l-ecran: backlog
+  2-6-musique-adaptative-de-base: backlog
+  2-7-calibration-de-la-latence: backlog
+  2-8-paliers-de-difficulte-et-reglages: backlog
+  2-9-instinct-paternel: backlog
+  2-10-reglages-d-accessibilite-mouvement-reduit-et-grands-verbes: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  # 3.1–3.4 [P] : prototype prêt pour le playtest
+  3-1-jauge-de-bruit: backlog
+  3-2-variante-sieste-et-reveil-de-maman: backlog
+  3-3-journal-de-partie-exportable: backlog
+  3-4-indicateurs-de-playtest: backlog
+
+  epic-4: backlog
+  4-1-porter-le-bebe-bras-bebe: backlog
+  4-2-combo-a-encaisser: backlog
+  4-3-envie-pressante: backlog
+  4-4-cadre-des-sequences-speciales-et-rester-eveille: backlog
+  4-5-les-100-pas-en-rythme: backlog
+  4-6-duel-du-coucher-reponse-attendre: backlog
+  4-7-faux-sommeil: backlog
+  4-8-depose-bombe: backlog
+  4-9-sortie-en-infiltration-reponse-ne-rien-faire: backlog
+  4-10-niveau-chambre-de-nuit-et-playtest-du-deuxieme-prototype: backlog
+  epic-4-retrospective: optional
+
+  # Epic 3 [V1] (suite) — différé après E4 (séquence des epics :
+  # E1 → E2 → E3 [P] → playtest → E4 → E3 [V1] → E5 → E6).
+  # Les stories 3.5 à 3.11 restent rattachées à epic-3 (clé 3-x) mais se livrent ici.
+  3-5-porte-qui-s-ouvre-et-rush-final: backlog
+  3-6-photo-de-fin-figee: backlog
+  3-7-reactions-de-maman-et-degaine-de-papa: backlog
+  3-8-memoire-de-maman: backlog
+  3-9-replay-des-meilleurs-moments: backlog
+  3-10-variante-retour: backlog
+  3-11-reussite-deblocage-par-etoiles-et-frigo: backlog
+  epic-3-retrospective: optional
+
+  epic-5: backlog
+  5-1-esquiver-et-vomi-en-jet: backlog
+  5-2-etats-caches-du-bebe-et-note-reelle: backlog
+  5-3-odeur-et-renifler: backlog
+  5-4-pleurs-types-et-remedes: backlog
+  5-5-pleur-sans-raison-et-couche-de-schrodinger: backlog
+  5-6-rhabillage: backlog
+  5-7-change-de-couche-en-boss: backlog
+  5-8-soins-lavage-de-nez-et-coupe-d-ongles: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-chien-et-casserole: backlog
+  6-2-coolitude-et-desarmement: backlog
+  6-3-preparation-entre-les-vagues: backlog
+  6-4-petite-enfance-jauge-d-attention-et-provocation: backlog
+  6-5-petite-enfance-crises-coups-aide-invisible-et-fugue: backlog
+  6-6-niveau-enfance: backlog
+  6-7-niveau-adolescence: backlog
+  6-8-niveau-adulte: backlog
+  6-9-selection-des-ages-et-tutoriel-implicite: backlog
+  epic-6-retrospective: optional
+
+  epic-7: backlog
+  7-1-pieces-modelisees-dans-blender: backlog
+  7-2-personnages-rigges-et-animes: backlog
+  7-3-rendu-toon-final-et-effets: backlog
+  7-4-celebration-finale-et-cadrages-parodiques: backlog
+  7-5-musique-adaptative-par-age-et-bibliotheque-sonore: backlog
+  epic-7-retrospective: optional
+
+  epic-8: backlog
+  8-1-builds-ios-et-android-via-capacitor: backlog
+  8-2-audio-et-latence-sur-appareils-reels: backlog
+  8-3-fiches-stores-et-builds-de-release: backlog
+  epic-8-retrospective: optional
