@@ -63,6 +63,7 @@ Pinned versions (verified on npm 2026-10-26). Do NOT upgrade or swap without an 
 - Response sound + haptic fire at judgement; final pose animation plays at papa's arrival (`arriveAt`).
 - Rendering: `MeshToonMaterial` (3-tone ramp) + inverted-hull outlines; no heavy post-processing. Views are reconciled from `World` each frame by a `ViewRegistry` with pools.
 - UI is vanilla DOM + CSS (`pp-` prefixed kebab-case classes); world-anchored labels via `CSS2DRenderer`. No WebGL UI, no framework.
+- **UX spec is the source of truth for the interface:** `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/DESIGN.md` (tokens, components) and `EXPERIENCE.md` (flows, states, strings, inputs, accessibility). `tokens.css` mirrors the DESIGN.md frontmatter 1:1 (test-enforced); never hard-code a colour, size or UI string — strings live in `content/strings.fr.json` and go through `t(key)`. Reduced motion is client-only: it must never change sim timing (hitstop, slow-mo, windows).
 - Audio: hand-rolled Web Audio (buses music/sfx/voice/ui, pre-decoded buffers, unlock on first tap). The baby's babble must loop continuously while `baby.babbling` — its stop *is* the silence telegraph.
 
 ### Performance Rules
@@ -120,19 +121,19 @@ Pinned versions (verified on npm 2026-10-26). Do NOT upgrade or swap without an 
 - **Content tests:** `npm run content:check` validates schemas *and* cross-references; a new JSON file isn't done until it passes.
 - **E2E (Playwright, chromium + webkit, landscape mobile viewport):** drive the game via `window.__PP__` (`state`, `events`, `send`, `advance`, `freeze`, `setFeel`, `loadLevel`) or `?autoplay=<bot>&seed=&speed=`. Use `freeze()` + `advance(n)` for stable screenshots — never `waitForTimeout` to "let the game play". `window.__PP__` exists from story 1.12 onward.
 - **Bots** (`perfect`, `human`, `random`, `idle`) produce `SimCommand`s exactly like the client; use `npm run sim -- --level <id> --seed <n> --bot <b> --runs <n>` for balancing / regression checks.
-- **Real-device checks** (60 FPS p95, tap latency filmed at 240 fps) are manual with `?debug=1` and gate the playtest (story 1.23); CI perf tests don't replace them.
+- **Real-device checks** (60 FPS p95, tap latency filmed at 240 fps) are manual with `?debug=1` and gate the playtest (story 1.24); CI perf tests don't replace them.
 
 ### Platform & Build Rules
 
 - **Targets:** browser first (mobile + desktop, playtest by link); iOS/Android via Capacitor in E8. Inputs: touch, keyboard, gamepad — every action must be doable with all three (keyboard/gamepad use auto-targeting of the most urgent threat in the aimed direction, cone `feel.autoTargetConeDeg`).
 - **Platform code only behind `Platform`** (`src/platform/platform.ts`: `storage`, `haptics`, `lifecycle`, `capabilities`), chosen by `createPlatform(import.meta.env.VITE_TARGET)` (`web | ios | android`). Never branch on user agent in game code; never call `navigator.vibrate`/localStorage/`@capacitor/*` outside `src/platform`. Haptics are a no-op when unsupported.
-- **Input capture:** Pointer Events on the canvas (not mouse/touch events), keyboard, Gamepad API polled each frame; always keep `event.timeStamp` (same timebase as `performance.now()`).
+- **Input capture:** Pointer Events on the canvas (not mouse/touch events), keyboard, Gamepad API polled each frame; always keep `event.timeStamp` (same timebase as `performance.now()`). Bind keys by `KeyboardEvent.code` (physical position: ZQSD/WASD both work), never `event.key`. Hit-test priority: threat > baby > object > floor.
 - **Lifecycle:** going to background = pause (exact resume with 3 s countdown). Audio context is unlocked on the first tap ("Touch to start" screen) — never assume audio plays before that.
 - **Landscape only:** locked by Capacitor config on native; on web a "Turn your phone" screen in portrait. Respect `env(safe-area-inset-*)`; touch targets ≥ 44 × 44 pt; HUD uses fixed zones.
 - **Persistence:** single versioned save `save.v{n}` under key `papa-parade.save` via `StoragePort` (async, JSON, `Result`). Every schema change adds a migration `v{n-1} → v{n}`; invalid data is set aside and replaced with defaults (with `warn`), never crashes.
 - **Build flavors:** `npm run dev` (debug + feel panel + `feel-writer` plugin), `build:playtest` (`VITE_DEBUG_ALLOWED=true`, debug via `?debug=1`, F1 or 3-finger tap), `build` (store/prod: `VITE_DEBUG_ALLOWED=false`). Debug code must sit behind `if (import.meta.env.VITE_DEBUG_ALLOWED)` + dynamic `import()` so it's tree-shaken from store builds (no `window.__PP__`, cheats or panel).
 - **`feel-writer` Vite plugin** exists only on the dev server and writes only `content/feel.json` — reject any other path.
-- **Static hosting:** `base: './'` (same build works under any path and in Capacitor); strict CSP with `script-src 'self' 'wasm-unsafe-eval'` (Rapier WASM); HTTPS. No backend, no network calls, no accounts, no personal data — telemetry is a local journal the tester copies/downloads manually.
+- **Static hosting:** `base: './'` (same build works under any path and in Capacitor); strict CSP with `default-src 'self'`, `script-src 'self' 'wasm-unsafe-eval'` (Rapier WASM) and `font-src 'self'` (self-hosted woff2); HTTPS. No backend, no network calls, no accounts, no personal data — telemetry is a local journal the tester copies/downloads manually.
 - **CI pipeline (also `npm run ci` locally):** `typecheck` → `lint` → `content:check` → `test` (Vitest, golden, architecture) → `e2e` (chromium + webkit) → `build:playtest`; fail on first error. Node scripts in `tools/` run via `tsx` (alias resolution).
 - **Assets:** `.blend` (in `assets-src/blender/`, versioned in git) → `tools/blender/export_level.py` → `.glb` → gltfpack (meshopt) → `public/assets/`; `npm run assets:extract` produces `content/levels/<id>.geometry.json`. Blender MCP runs AI Python unguarded: only on project `.blend` files under git, never third-party files.
 

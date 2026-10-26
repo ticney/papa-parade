@@ -447,7 +447,7 @@ Rules `[ASSUMPTION]`:
 
 Rules `[ASSUMPTION]`:
 
-- **16px is the absolute text floor.** Story 1.21 requires a minimum text size in `tokens.css`; the 16px value is facilitator-set.
+- **16px is the absolute text floor.** Story 1.22 requires a minimum text size in `tokens.css`; the 16px value is facilitator-set.
 - Verbs never go below **28px**, even on the smallest compact surface.
 - The "Grands verbes" setting scales `verb` and `verb-compact` by +25%.
 - Numbers that change in place use `tabular-nums`, so digits do not jitter.
@@ -458,11 +458,11 @@ Rules `[ASSUMPTION]`:
 `[ASSUMPTION]` 4px base: `{spacing.1}` 4 · `{spacing.2}` 8 · `{spacing.3}` 12 · `{spacing.4}` 16 · `{spacing.5}` 24 · `{spacing.6}` 32 · `{spacing.7}` 48.
 
 - **Margins** `[ASSUMPTION]`: screen margin `{spacing.screen-margin}` = `max(16px, env(safe-area-inset-*))`; HUD inset `{spacing.hud-inset}` = `max(12px, safe-area)`. The safe-area insets themselves (with `viewport-fit=cover`) are locked by story 1.4.
-- **Targets**: every interactive target is at least `{spacing.touch-target-min}` (44×44pt), per stories 1.4 and 1.21.
-- **HUD zones** (locked, story 1.4): gauges top-left, timer top-centre, pause top-right. The bottom third stays free as the thumb zone. No HUD element covers more than 12% of the room height. `[ASSUMPTION]` The whole HUD band fits that 12% on a 375px-tall phone.
+- **Targets**: every interactive target is at least `{spacing.touch-target-min}` (44×44pt), per stories 1.5 and 1.21.
+- **HUD zones** (locked, story 1.5): gauges top-left, timer top-centre, pause top-right. The bottom third stays free as the thumb zone. No HUD element covers more than 12% of the room height. `[ASSUMPTION]` The whole HUD band fits that 12% on a 375px-tall phone.
 - **Surfaces** `[ASSUMPTION]`: compact means a landscape short side under 430px (phones); regular means a short side of 430px or more (tablets, desktop). On compact, verbs switch to `{typography.verb-compact}` and threat icons to 56px (64px on regular). The HUD corners never move between surfaces.
 - **Compact timer** `[ASSUMPTION]`: while a sequence bar is shown, the timer pill drops to 32px tall with `{typography.numeric-compact}`.
-- **String length** `[ASSUMPTION]`: landscape only (story 1.4). Any label must fit at +30% length without truncation (see Localization in EXPERIENCE.md).
+- **String length** `[ASSUMPTION]`: landscape only (story 1.5). Any label must fit at +30% length without truncation (see Localization in EXPERIENCE.md).
 
 ## Elevation & Depth
 
@@ -500,7 +500,7 @@ These are visual specs. The behaviour of each component is in EXPERIENCE.md › 
   - Armed state ("Quitter vers le frigo" after the first tap): `{colors.ink}` fill, `{colors.paper}` label.
   - Locked state ("Âge suivant" under 2★): `{colors.ink-soft}` label, no shadow, with a hint in `{typography.label}` below it.
 - **button-tertiary**: a transparent pill with a 3px `{colors.ink}` outline and a `{colors.ink}` label in `{typography.label}`, with no lift (no shadow). Used for "Frigo" on Result and other lowest-priority actions. Min height `{spacing.touch-target-min}`; same focus ring as the other buttons. `[ASSUMPTION]`
-- **button-icon**: the pause button (HUD top-right), the Fridge magnet that opens Réglages, and the close control on the repeated-failure card. A `{colors.paper}` round pill with a `{colors.ink}` icon and ink outline, at least 44×44pt (story 1.4).
+- **button-icon**: the pause button (HUD top-right), the Fridge magnet that opens Réglages, and the close control on the repeated-failure card. A `{colors.paper}` round pill with a `{colors.ink}` icon and ink outline, at least 44×44pt (story 1.5).
 - **panel**: `{colors.paper}`, 3px ink outline, sticker shadow, `{rounded.lg}`, `{spacing.5}` padding. Used for pause, settings and errors; over the scene it sits on a `{colors.scrim}` dim. The repeated-failure card on Result is a smaller panel with a button-secondary and a close button-icon.
 - **settings-toggle**: on is a `{colors.primary}` track with a `{colors.paper}` thumb; off is a `{colors.paper}` track with a `{colors.ink-soft}` thumb. Both have an ink outline. Label in `{typography.label}`.
 - **settings-slider**: a `{colors.primary}` fill on a `{colors.paper}` track with an ink outline, and a `{colors.paper}` thumb with an ink outline. One slider per audio bus.
@@ -513,7 +513,7 @@ These are visual specs. The behaviour of each component is in EXPERIENCE.md › 
 - **polaroid**: a `{colors.paper}` card, `{rounded.sm}`, with an ink outline and sticker shadow, tilted at random by ±3°. On the Fridge it holds an age and shows the age name in `{typography.label}` on its bottom strip; it hangs from a `{colors.primary}` magnet, and a new unlock carries a « Nouveau ! » label in `{colors.primary}`. On Result it frames the frozen end photo. A locked age is an empty slot with a crayon "?" in `{colors.ink-soft}`; its age name stays visible in `{colors.ink-soft}`, to build anticipation. `[ASSUMPTION]`
 - **star**: a `{colors.star}` sticker with an `{colors.ink}` outline, on `{colors.cream}`. Only for earned results on Result and the Fridge magnets; never during play. A lost star (Mama woke early) is a dashed `{colors.ink-soft}` empty star with a « −1 » chip in `{colors.mama-scream}`. `[ASSUMPTION]`
 - **mum-bubble**: Mama's line as a speech bubble: `{colors.paper}` with an ink outline, text in `{typography.body}`, `{colors.ink}`. The bubble accent takes the colour of the active reaction: `{colors.mama-laugh}`, `{colors.mama-sigh}` or `{colors.mama-scream}`.
-- **score-row**: one row per score component (4 rows, story 1.21). The label is in `{typography.label}` and the value in `{typography.numeric}` (tabular). Each row shows points earned out of its maximum, so the rows add up to the score: « Rires » /40, « État du bébé » /30, « Sans soupir » /15, « Sans hurlement » /15. The Rires, Sans soupir and Sans hurlement rows carry their matching `mama-*` accent; the État du bébé row has no accent. `[ASSUMPTION]`
+- **score-row**: one row per score component (4 rows, story 1.22). The label is in `{typography.label}` and the value in `{typography.numeric}` (tabular). Each row shows points earned out of its maximum, so the rows add up to the score: « Rires » /40, « État du bébé » /30, « Sans soupir » /15, « Sans hurlement » /15. The Rires, Sans soupir and Sans hurlement rows carry their matching `mama-*` accent; the État du bébé row has no accent. `[ASSUMPTION]`
 - **epic-stamp**: "PARADE PARFAITE" and the "REPLAY" banner. Set in `{typography.epic}`, uppercase, with a `{colors.paper}` fill and `{colors.ink}` stroke for hard contrast. The stamp shows for at most 900ms.
 
 **HUD (screen-anchored)**: see [`./mockups/key-hud-level.html`](./mockups/key-hud-level.html) (touch parry, keyboard auto-target, suspicious silence).
@@ -536,9 +536,9 @@ These are visual specs. The behaviour of each component is in EXPERIENCE.md › 
 - **combo-badge**: the multiplier (x2 to x8) above Papa, set in `{typography.combo}` with a `{colors.paper}` fill and a 5px `{colors.ink}` stroke.
 - **attention-meter**: 5 pips above the toddler, using the hud-gauge fill rules: `{colors.gauge-calm}`, then `{colors.gauge-warn}` at 70% or above, on a paper track with 2px ink pip outlines, at 70% opacity when idle.
 - **glyph-chip**: a single input glyph beside the auto-targeted threat's verb (keyboard and gamepad only). A `{colors.paper}` pill with an ink outline and `{typography.label}` in `{colors.ink}`.
-- **target-highlight**: a solid 4px `{colors.alert}` outline on the auto-targeted or pressed threat (stories 1.10 and 1.16), plus a small bouncing `{colors.alert}` chevron with an ink outline above the verb-label.
-- **silence-bubble**: a "…" speech bubble at the screen edge, on the side of the silent zone (story 1.20). `{colors.alert}` fill with an `{colors.ink}` "…" and outline. It blinks, never faster than 3Hz; under reduced motion it pulses at 1Hz or slower.
-- **tap-marker**: a `{colors.paper}` ring with an `{colors.ink}` outline at the tapped floor point. It appears the frame after `pointerdown` (story 1.6), then scales from 0.6 to 1.2 and fades out over 300ms.
+- **target-highlight**: a solid 4px `{colors.alert}` outline on the auto-targeted or pressed threat (stories 1.11 and 1.17), plus a small bouncing `{colors.alert}` chevron with an ink outline above the verb-label.
+- **silence-bubble**: a "…" speech bubble at the screen edge, on the side of the silent zone (story 1.21). `{colors.alert}` fill with an `{colors.ink}` "…" and outline. It blinks, never faster than 3Hz; under reduced motion it pulses at 1Hz or slower.
+- **tap-marker**: a `{colors.paper}` ring with an `{colors.ink}` outline at the tapped floor point. It appears the frame after `pointerdown` (story 1.7), then scales from 0.6 to 1.2 and fades out over 300ms.
 - **instinct-vignette**: a radial edge darkening in `{colors.vignette}` (ink at 35%) during paternal instinct (story 2.9). Never red.
 
 ## Do's and Don'ts
@@ -554,4 +554,4 @@ These are visual specs. The behaviour of each component is in EXPERIENCE.md › 
 | Keep Epic (Anton) to short bursts; the PARADE PARFAITE stamp lasts at most 900ms `[ASSUMPTION]` | Let Epic own a whole screen, or set body text in Anton `[ASSUMPTION]` |
 | Keep text at 16px or more and verbs at 28px or more `[ASSUMPTION]` | Set body text on `mama-sigh`, `gauge-calm` or `gauge-warn` |
 | Use `cream` for menu backgrounds and `ink` for calibration, for night play `[ASSUMPTION]` | Use a pure-white full-screen background, or follow the OS dark mode `[ASSUMPTION]` |
-| Keep the HUD inside its story 1.4 zones and within 12% of the room height | Put any HUD in the bottom third during play (story 1.4) |
+| Keep the HUD inside its story 1.5 zones and within 12% of the room height | Put any HUD in the bottom third during play (story 1.5) |

@@ -8,7 +8,7 @@
 /*
   KEY SCREEN — In-level HUD (phone landscape, iPhone 12 class, 844x390 CSS px)
   Governing spine sections (check these before changing this mock):
-    - EXPERIENCE.md  > HUD & Diegetic UI      (log [hud], [hud-fade], [legibility-over-3D], story 1.4 zones)
+    - EXPERIENCE.md  > HUD & Diegetic UI      (log [hud], [hud-fade], [legibility-over-3D], story 1.5 zones)
     - EXPERIENCE.md  > Input & Prompts        (log [input]: touch shows no prompts; KB/gamepad = one glyph chip)
     - EXPERIENCE.md  > Feedback / Hold ring   (log [hold-feedback])
     - EXPERIENCE.md  > State Patterns         (silence "…" bubble, auto-target highlight)
@@ -49,7 +49,7 @@ h2{font:700 28px/1.1 var(--font-display);margin:var(--s6) 0 var(--s3)}
   background:repeating-linear-gradient(135deg, rgba(255,255,255,.10) 0 6px, transparent 6px 12px)}
 .scene{position:absolute;inset:0;width:844px;height:390px;display:block}
 
-/* HUD band (story 1.4 zones) */
+/* HUD band (story 1.5 zones) */
 .hud{position:absolute;top:var(--hud-inset-t);left:var(--hud-inset-l);right:var(--hud-inset-r);height:44px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;z-index:40}
 .gauges{justify-self:start;display:flex;align-items:center;gap:var(--s3);height:40px;padding:0 var(--s2);background:var(--paper);border:var(--outline);border-radius:var(--r-full);box-shadow:var(--lift)}
 .gauge{display:flex;align-items:center;gap:var(--s1)}

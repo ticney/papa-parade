@@ -6,6 +6,8 @@ inputDocuments:
   - _bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/epics.md
   - _bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/decision-log.md
   - _bmad-output/planning-artifacts/game-architecture.md
+  - _bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/DESIGN.md
+  - _bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md
 language: fr
 ---
 
@@ -13,7 +15,7 @@ language: fr
 
 ## Vue d'ensemble
 
-Ce document découpe en epics et en stories implémentables les exigences du GDD v2.0 et de l'architecture (`planning-artifacts/game-architecture.md`). Il n'existe pas encore de document UX. Il est rédigé en français, comme le GDD et l'architecture ; les identifiants techniques restent en anglais.
+Ce document découpe en epics et en stories implémentables les exigences du GDD v2.1, de l'architecture (`planning-artifacts/game-architecture.md`) et de la spécification UX (`planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/`, reprise en UX-DR1 à UX-DR26). Il compte 8 epics et 80 stories. Il est rédigé en français, comme le GDD et l'architecture ; les identifiants techniques restent en anglais.
 
 **Phases :** `[P]` prototype « Bébé à 4 pattes » (E1, E2, E3 partiel) · `[P2]` deuxième prototype (cycle du dodo, E4) · `[V1]` version 1.
 
@@ -167,7 +169,7 @@ Ce document découpe en epics et en stories implémentables les exigences du GDD
 
 **Entrées**
 - Pointer Events, clavier et Gamepad, horodatés avec `event.timeStamp`.
-- `InputMapper` : hit-test avec priorité menace > objet > sol, et rayon tactile défini dans `feel.json`.
+- `InputMapper` : hit-test avec priorité menace > bébé > objet > sol, et rayon tactile défini dans `feel.json`. Clavier lié par `KeyboardEvent.code` ; `gamepaddisconnected` met en pause.
 - La sim ne reçoit que des `SimCommand` horodatées en `simTime`.
 - Correction de latence (`visualOffsetMs`), puis conversion par `timeMap`.
 - `earlyPress = 'fail' | 'guard'` dans `feel.json`, `'fail'` par défaut ; seuil `holdMinMs` = 400.
@@ -186,7 +188,7 @@ Ce document découpe en epics et en stories implémentables les exigences du GDD
 
 **Présentation**
 - `WebGLRenderer`, `MeshToonMaterial`, contours inverted hull, DPR plafonné à 2 et adaptatif.
-- UI en DOM vanilla, éléments ancrés au monde via `CSS2DRenderer`, écran « Tourne ton téléphone » en portrait.
+- UI en DOM vanilla, éléments ancrés au monde via `CSS2DRenderer`, écran « Tourne ton téléphone » en portrait ; `tokens.css` reflète `DESIGN.md`, chaînes dans `content/strings.fr.json`, polices auto-hébergées (`font-src 'self'`).
 - `AudioEngine` Web Audio : bus, buffers pré-décodés, stems, déverrouillage audio ; fichiers `.m4a`.
 - `FeedbackDirector` ; P3 : son et haptique au jugement, animation à l'arrivée de papa.
 
@@ -197,7 +199,7 @@ Ce document découpe en epics et en stories implémentables les exigences du GDD
 - Logger à canaux et mémoire tampon jointe au journal de partie ; `Result<T, E>` pour l'I/O ; `invariant` et `clampInvariant(ctx, …)` émettent `InvariantViolated` ; handler global → écran « Oups ».
 
 **Persistance, télémétrie, déploiement**
-- `StoragePort` : localStorage (web) ou `@capacitor/preferences` (natif) ; sauvegarde versionnée avec migrations (calibration, réglages, palier, étoiles, mémoire de Maman).
+- `StoragePort` : localStorage (web) ou `@capacitor/preferences` (natif) ; sauvegarde versionnée avec migrations (`calibration`, `settings`, `progress`, `mamaMemory` ; détail dans l'architecture, « Persistance »).
 - Journal de partie anonyme, copiable ou téléchargeable en fin de partie.
 - Build statique (`base: './'`) ; `build:playtest` avec `VITE_DEBUG_ALLOWED=true` ; hébergeur choisi au premier déploiement ; en-têtes CSP.
 - CI (avec le dépôt git) : typecheck → lint → content:check → test → e2e → build playtest.
@@ -208,7 +210,55 @@ Ce document découpe en epics et en stories implémentables les exigences du GDD
 
 ### Exigences de design UX
 
-Il n'y a pas de document UX. Les exigences d'interface du prototype (HUD, verbes affichés, icônes, bulle « … », écrans de chargement, menu, calibration, pause, résultat, « Oups », « Tourne ton téléphone ») sont couvertes par FR13, FR14, FR19, FR53 à FR56 et par les exigences supplémentaires. Une spécification UX (`gds-ux`) est recommandée avant la v1.
+La spécification UX fait foi pour l'interface : `ux-designs/ux-papa-parade-2026-10-26/DESIGN.md` (identité visuelle, tokens, composants) et `EXPERIENCE.md` (parcours, états, textes, entrées, accessibilité), avec quatre maquettes dans `mockups/`. **En cas de conflit, les deux fichiers l'emportent sur les maquettes.** Les noms de composants (`hud-gauge`, `verb-label`…) et les tokens (`{colors.ink}`…) cités dans les stories renvoient à ces fichiers. Les décisions marquées `[ASSUMPTION]` attendent la relecture de Geo.
+
+- UX-DR1 : **Tokens et style.** `src/client/ui/styles/tokens.css` reflète le frontmatter de `DESIGN.md` 1:1 (vérifié par un test). Les classes sont préfixées `pp-*`. La seule profondeur est l'« autocollant » (contour `ink` de 3 px et ombre `0 4px 0`), sans ombre douce ni `backdrop-filter`. Les trois polices (Baloo 2, Anton, Nunito) sont auto-hébergées en woff2. Il n'y a pas de thème sombre. Bleu, rouge et jaune d'alerte sont réservés au jeu.
+- UX-DR2 : **Textes.** Toutes les chaînes et tous les `aria-label` sont dans `content/strings.fr.json`, en français, au tutoiement. L'échec n'est jamais nommé. Aucun texte de tutoriel. Les mises en page tolèrent +30 % de longueur sans troncature.
+- UX-DR3 : **Flux de l'app.** Démarrage → (premier lancement) Calibration → Âge 1, sans menu ; aux lancements suivants, Démarrage → Frigo. Rien n'est à plus de 2 niveaux du Frigo, et les overlays ne s'empilent jamais.
+- UX-DR4 : **HUD.**
+  - Zones fixes : jauges en haut à gauche, chrono en haut au centre, pause en haut à droite. Le tiers inférieur reste libre, et la bande du HUD fait au plus 12 % de la hauteur.
+  - Les jauges tiennent dans une seule pastille (Bruit · Fatigue · Envie, 10 segments). Au repos, elles sont à 70 % d'opacité ; à partir de 70 %, elles passent en `gauge-warn` et leur icône pulse.
+  - Le HUD est masqué de la photo jusqu'à la fin du replay, maintenu pendant les ralentis, et atténué sous le voile de la pause.
+- UX-DR5 : **Pause.**
+  - Le panneau propose Reprendre · Recommencer · Réglages · Quitter vers le frigo ; quitter se fait en deux temps, sans fenêtre modale.
+  - Déclencheurs : bouton, Échap, Start/Options, retour Android, passage en arrière-plan, déconnexion de la manette (avec message).
+  - Chaque reprise passe par le décompte « 3 » « 2 » « 1 ».
+- UX-DR6 : **Portrait (web).** L'overlay « Tourne ton téléphone » met en pause ; le retour en paysage affiche la pause.
+- UX-DR7 : **Cibles et focus.**
+  - Chaque bouton fait au moins 44 × 44 pt. L'appui est marqué au `pointerdown`, l'action a lieu au `pointerup`.
+  - Les menus se parcourent entièrement au clavier et à la manette, avec un anneau de focus `primary` de 4 px. B ou Échap revient en arrière, et B ne met jamais en pause en jeu.
+- UX-DR8 : **Chargement et « Oups ».** L'indicateur est un biberon qui se remplit, avec des phrases d'ambiance et sans pourcentage. « Oups ! Quelque chose s'est renversé. » propose « Réessayer ».
+- UX-DR9 : **Déplacement.** Le clavier est lié par `KeyboardEvent.code` (ZQSD ou WASD) ; un `tap-marker` apparaît au point tapé.
+- UX-DR10 : **Lisibilité des menaces.**
+  - `threat-icon` : cercle bleu ou triangle rouge, avec un halo `alert`.
+  - `target-highlight` : contour et chevron, distincts du halo par la forme.
+  - `verb-label` : 40 px en surface normale, 32 px en compacte, jamais sous 28 px, jamais tronqué.
+- UX-DR11 : **Invites clavier et manette.** Un seul `glyph-chip` à côté du verbe ciblé, avec `getLayoutMap()` au clavier et la famille de la manette pour les glyphes. Aucune invite au tactile.
+- UX-DR12 : **Silence.** La `silence-bubble` s'affiche au bord de l'écran, du côté de la zone, et ne clignote jamais à plus de 3 Hz.
+- UX-DR13 : **Résultat.**
+  - Séquence : photo en polaroïd → répliques de Maman (`mum-bubble`, qui sert de sous-titre) → 4 lignes de score positives (« Rires » /40, « État du bébé » /30, « Sans soupir » /15, « Sans hurlement » /15) → étoiles posées une à une → REPLAY → actions.
+  - Les actions dépendent du cas.
+  - Maman réveillée : en-tête dédié et étoile perdue en pointillé avec « −1 ».
+  - « Copier le journal » n'existe que dans les builds de playtest.
+- UX-DR14 : **Anneau de maintien.** Le `hold-ring` se remplit en 400 ms (Fermeté) ou en 1 s (renifler).
+- UX-DR15 : **Juice d'UI.** Tampon « PARADE PARFAITE » (900 ms au plus, sans bloquer les entrées), bandeau « REPLAY », vignette de l'instinct (jamais rouge).
+- UX-DR16 : **Calibration.** Fond `ink`, phase audio qu'on peut sauter (« Pas de son ? Passe au visuel »), Espace ou A comptent comme un tap, redémarrage de la phase en arrière-plan, « Calé ! » à la fin.
+- UX-DR17 : **Réglages.**
+  - Difficulté en sélecteur segmenté, avec description et « Appliqué à la prochaine partie ».
+  - Quatre volumes, Vibrations (masquée sans haptique), Recalibrer, Crédits.
+  - Enregistrement instantané. Ouverts depuis la pause, ils la remplacent.
+- UX-DR18 : **Mouvement réduit.** Il suit la table de correspondance d'`EXPERIENCE.md`. Le hitstop et les ralentis ne changent pas, et rien ne clignote à plus de 3 Hz.
+- UX-DR19 : **Grands verbes.** Les verbes sont agrandis de 25 %.
+- UX-DR20 : **Frigo.** Les âges sont des polaroïds légendés, avec les étoiles en aimants. Un âge verrouillé est un « ? » au crayon, son nom restant visible. Un déblocage tombe avec « Nouveau ! » (une seule fois), et un aimant ouvre les réglages.
+- UX-DR21 : **Carte d'échecs répétés.** Après 3 résultats de suite à 1 étoile ou moins sur un même niveau, hors Assistance, une carte propose le mode Assistance. Elle peut être fermée.
+- UX-DR22 : **Indicateurs ancrés au monde.** `combo-badge` au-dessus de papa (masqué à x1), `breath-ring` autour de papa pendant l'infiltration, `attention-meter` à 5 pastilles au-dessus de l'enfant.
+- UX-DR23 : **Barre de séquence.** La `sequence-bar` se place sous le chrono, qui passe en forme compacte. La « vie » de l'adversaire se remplit en `gauge-warn`, les ressources du joueur (calme) en `gauge-calm`.
+- UX-DR24 : **Crédits.** On les ouvre depuis les réglages ; ils se jouent aussi automatiquement à la première fin du niveau Adulte avec au moins 1 étoile.
+- UX-DR25 : **Retour Android.** Il met en pause en jeu et revient d'un niveau dans les menus.
+- UX-DR26 : **Budget de performance de l'UI.**
+  - HUD de 40 nœuds DOM au plus, mises à jour regroupées une fois par frame.
+  - Jauges animées en `scaleX` uniquement, étiquettes CSS2D en pool.
+  - Retour visuel au plus 50 ms après le tap.
 
 ### Carte de couverture des FR
 
@@ -287,21 +337,52 @@ Il n'y a pas de document UX. Les exigences d'interface du prototype (HUD, verbes
 
 Les NFR sont transverses. NFR2, NFR4, NFR5, NFR12 et NFR14 sont posées dès E1 ; NFR6 à NFR9 sont consolidées en E2 ; NFR1 et NFR3 sont mesurées en E1 (test de performance), puis tenues à chaque epic ; NFR11 est mesurée en fin de E3 `[P]` ; NFR13 est vérifiée en E1 (web) et en E8 (WebView).
 
+### Carte de couverture UX-DR
+
+| UX-DR | Stories |
+|---|---|
+| UX-DR1 | 1.5, 1.24 |
+| UX-DR2 | 1.2, 1.5 |
+| UX-DR3 | 1.5, 2.7, 3.11 |
+| UX-DR4 | 1.5, 1.18, 1.19, 3.1, 3.6, 3.10, 4.3 |
+| UX-DR5 | 1.5, 1.17, 3.11 |
+| UX-DR6 | 1.5 |
+| UX-DR7 | 1.5, 1.17 |
+| UX-DR8 | 1.6 |
+| UX-DR9 | 1.7 |
+| UX-DR10 | 1.11, 1.17, 2.2 |
+| UX-DR11 | 1.17 |
+| UX-DR12 | 1.21 |
+| UX-DR13 | 1.22, 3.2, 3.3, 3.6, 3.7, 3.9, 3.11, 6.8 |
+| UX-DR14 | 1.23, 5.3 |
+| UX-DR15 | 2.5, 2.9, 3.9 |
+| UX-DR16 | 2.7 |
+| UX-DR17 | 2.8 |
+| UX-DR18 | 2.10 |
+| UX-DR19 | 2.10 |
+| UX-DR20 | 3.11, 6.9 |
+| UX-DR21 | 3.11 |
+| UX-DR22 | 4.2, 4.9, 6.4 |
+| UX-DR23 | 4.4, 5.7, 6.2 |
+| UX-DR24 | 2.8, 6.8 |
+| UX-DR25 | 8.1 |
+| UX-DR26 | 1.5, 1.24 |
+
 ## Liste des epics
 
 **Séquence :** E1 → E2 → E3 `[P]` → **playtest** → E4 → E3 `[V1]` → E5 → E6, avec E7 et E8 en parallèle à partir de E4. **Attention au sprint planning :** le tri par numéro placerait les stories 3.5 à 3.11 avant E4 ; elles doivent être différées après E4. La numérotation est celle du GDD et de l'architecture.
 
 ### Epic 1 : Le salon jouable en cubes
-Le joueur joue une partie complète de 3 minutes dans un salon isométrique en cubes. Il protège le bébé de trois menaces et du téléphone en parant au bon moment, gère sa fatigue avec le café, repère le silence suspect, et reçoit la note de Maman. La partie est jouable à la souris, au tactile, au clavier et à la manette, par lien web, et sans humain grâce aux bots. Les fondations techniques de l'architecture (sim pure, horloge, contenu, feeling, tests) arrivent dans les premières stories, au service d'une tranche verticale jouable au plus tôt.
+Le joueur joue une partie complète de 3 minutes dans un salon isométrique en cubes. Il protège le bébé de trois menaces et du téléphone en parant au bon moment, gère sa fatigue avec le café, repère le silence suspect, et reçoit la note de Maman. La partie est jouable à la souris, au tactile, au clavier et à la manette, par lien web, et sans humain grâce aux bots. Les fondations techniques de l'architecture (sim pure, horloge, contenu, feeling, tests) et celles de l'UI (tokens, HUD, pause : story 1.5) arrivent dans les premières stories, au service d'une tranche verticale jouable au plus tôt.
 **FR couvertes :** FR1, FR2, FR3, FR7, FR8, FR9, FR10, FR11, FR12, FR13, FR14, FR15, FR16, FR19, FR21, FR25, FR26, FR27, FR28, FR29, FR31, FR34, FR63, FR64, FR65 (fichier), FR66, FR67.
 
 ### Epic 2 : Game feel et lisibilité
-Chaque réponse se ressent (sons cultes, rire du bébé, haptique, tremblement, particules, zoom), chaque menace se comprend sans explication (verbe affiché, couleur et forme), le jeu reste juste sur chaque appareil (calibration) et reste drôle quand il déborde (instinct paternel, palier Assistance). Geo règle tout le feeling en jouant, grâce au panneau.
+Chaque réponse se ressent (sons cultes, rire du bébé, haptique, tremblement, particules, zoom), chaque menace se comprend sans explication (verbe affiché, couleur et forme), le jeu reste juste sur chaque appareil (calibration) et reste drôle quand il déborde (instinct paternel, palier Assistance). Geo règle tout le feeling en jouant, grâce au panneau. Le joueur règle sa difficulté, son confort (mouvement réduit, grands verbes) et sa calibration.
 **FR couvertes :** FR20, FR53, FR54, FR55, FR56, FR57, FR58, FR59, FR60 (base), FR61, FR65 (panneau).
 
 ### Epic 3 : Bruit et Maman
 `[P]` Le bruit devient la menace globale du salon (variante Sieste : Maman peut se réveiller avant la fin), et le prototype est prêt pour le playtest, avec un journal de partie et le calcul des 5 indicateurs.
-`[V1]` La fin de niveau devient mémorable : la porte s'ouvre, rush final, photo figée, réactions de Maman qui se souvient des parties précédentes, dégaine de papa, replay des meilleurs moments. S'y ajoutent la variante Retour et le déblocage par étoiles.
+`[V1]` La fin de niveau devient mémorable : la porte s'ouvre, rush final, photo figée, réactions de Maman qui se souvient des parties précédentes, dégaine de papa, replay des meilleurs moments. S'y ajoutent la variante Retour, le déblocage par étoiles et le Frigo, écran d'accueil des âges.
 **FR couvertes :** `[P]` FR18, FR32, FR68 · `[V1]` FR33, FR35, FR36, FR37, FR38, FR39.
 
 ### Epic 4 : Cycle du dodo (deuxième prototype)
@@ -326,7 +407,7 @@ Le joueur installe le jeu sur iOS ou Android, avec haptique native, audio fiable
 
 ## Epic 1 : Le salon jouable en cubes
 
-Le joueur joue une partie complète de 3 minutes dans un salon isométrique en cubes. Il protège le bébé de trois menaces et du téléphone en parant au bon moment, gère sa fatigue, repère le silence suspect, et reçoit la note de Maman. Tout est jouable par lien web et sans humain. Les fondations de l'architecture arrivent au service d'une tranche verticale jouable au plus tôt (stories 1.9 et 1.10).
+Le joueur joue une partie complète de 3 minutes dans un salon isométrique en cubes. Il protège le bébé de trois menaces et du téléphone en parant au bon moment, gère sa fatigue, repère le silence suspect, et reçoit la note de Maman. Tout est jouable par lien web et sans humain. Les fondations de l'architecture arrivent au service d'une tranche verticale jouable au plus tôt (stories 1.10 et 1.11).
 
 ### Story 1.1 : Initialiser le projet et ses garde-fous
 
@@ -377,6 +458,7 @@ afin de ne jamais pouvoir mélanger la simulation et le rendu par erreur.
 ### Story 1.2 : Pipeline de contenu et fichier de feeling
 
 **Exigences :** FR64, FR65
+**UX :** UX-DR2
 
 En tant que Geo, game designer,
 je veux toutes les valeurs de feeling du GDD dans un seul fichier validé,
@@ -408,6 +490,11 @@ afin de les régler sans jamais toucher à la logique.
 **Étant donné** `npm run content:schemas`
 **Quand** il s'exécute
 **Alors** `content/_schemas/*.json` est régénéré (JSON Schema via `z.toJSONSchema`), et `feel.json` le référence par `$schema` pour l'autocomplétion
+
+**Étant donné** `src/content/schemas/strings.ts` (`StringsSchema`) et `content/strings.fr.json`
+**Quand** `content:check` s'exécute
+**Alors** le fichier de chaînes est validé (clés uniques, aucune valeur vide), et une clé référencée par le code ou par un autre fichier de contenu mais absente du fichier fait échouer la vérification
+**Et** le fichier contient, dès cette story, les chaînes canoniques d'`EXPERIENCE.md` › Voice and Tone (tutoiement, aucune mention d'« échec », de « perdu » ni de « game over »)
 
 **Étant donné** `src/content/feelMerge.ts`
 **Quand** un niveau déclare `feelOverrides`
@@ -460,7 +547,7 @@ afin que tout le gameplay soit testable dans Node, sans navigateur.
 
 ### Story 1.4 : Boucle client, vue isométrique et pause exacte
 
-**Exigences :** FR13, FR14, NFR5, NFR6 (HUD lisible, zones sûres)
+**Exigences :** FR13, FR14, NFR5
 
 En tant que joueur,
 je veux voir le monde en vue isométrique fluide, et que le jeu se mette en pause sans rien perdre,
@@ -481,33 +568,85 @@ afin de pouvoir être interrompu à tout moment.
 **Quand** un horodatage réel compris dans les 2 dernières secondes est converti
 **Alors** il donne le temps de jeu interpolé, ralentis et gels compris (tests unitaires sur des historiques construits)
 
-**Étant donné** une partie en cours
-**Quand** l'onglet passe en arrière-plan (`visibilitychange`) ou que le joueur touche le bouton pause
+**Étant donné** `src/client/app/pauseController.ts`
+**Quand** l'onglet passe en arrière-plan (`visibilitychange`) ou que `requestPause()` est appelé (par le bouton et les touches de la story 1.5)
 **Alors** aucun pas n'est exécuté, et le client émet `PauseRequested` (les systèmes du client qui produisent du son ou des vibrations s'y abonnent)
-**Et** au retour, un décompte de 3 s en temps réel s'affiche, puis la partie reprend au même temps de jeu, à 10 ms près
+**Et** à `requestResume()`, un décompte de 3 s en temps réel précède la reprise, puis la partie reprend au même temps de jeu, à 10 ms près (vérifié par un test ; l'affichage du décompte arrive en story 1.5)
 
-**Étant donné** un téléphone tenu en portrait
-**Quand** le jeu est affiché
-**Alors** un écran « Tourne ton téléphone » recouvre le jeu, et la partie reste en pause tant que l'orientation est portrait
+**Étant donné** une reprise après n'importe quelle pause (bouton, arrière-plan, portrait, manette débranchée)
+**Quand** elle a lieu
+**Alors** elle passe toujours par le décompte de 3 s
+
+### Story 1.5 : Fondations de l'UI : tokens, écran de démarrage, HUD et panneau de pause
+
+**Exigences :** FR13, FR14, NFR6 (HUD lisible, zones sûres), NFR8
+**UX :** UX-DR1, UX-DR2, UX-DR3, UX-DR4, UX-DR5, UX-DR6, UX-DR7, UX-DR26 (`DESIGN.md` : frontmatter, Typography, Layout & Spacing, Elevation & Depth ; `EXPERIENCE.md` : Information Architecture, Voice and Tone, State Patterns › Start, Pause et Portrait, HUD & Diegetic UI, Accessibility Floor, Performance Budget (UI) ; maquette `mockups/key-pause.html`)
+
+En tant que joueur,
+je veux une interface chaleureuse et lisible, qui me laisse toujours le tiers bas de l'écran et que je mets en pause d'un geste,
+afin de ne jamais perdre l'action de vue.
+
+**Critères d'acceptation :**
+
+**Étant donné** `src/client/ui/styles/tokens.css`
+**Quand** on le compare au frontmatter de `DESIGN.md`
+**Alors** chaque token (`colors`, `typography`, `rounded`, `spacing`) y a sa variable CSS (`--pp-color-ink`, `--pp-font-verb-size`…) avec la même valeur, vérifiée par `tests/architecture/designTokens.test.ts`, qui lit le frontmatter YAML
+**Et** `ui.css` n'utilise que ces variables (aucune couleur en dur, vérifié par le même test), avec des classes `pp-*`, la profondeur « autocollant » (contour `ink` de 3 px et ombre `0 4px 0`) et aucun `backdrop-filter`
+
+**Étant donné** les polices Baloo 2, Anton et Nunito (SIL OFL) en woff2 dans `public/fonts/`
+**Quand** le jeu démarre
+**Alors** elles sont préchargées et servies par le même domaine, sans aucune requête réseau externe
+
+**Étant donné** `content/strings.fr.json` (story 1.2) et la fonction `t(key)`
+**Quand** une surface affiche du texte
+**Alors** toutes les chaînes viennent de ce fichier, et aucune chaîne d'UI n'est écrite en dur dans `src/client/ui/` (test)
+**Et** chaque bouton DOM porte un `aria-label` français tiré du même fichier
+**Et** un test Playwright avec des chaînes allongées de 30 % vérifie qu'aucun texte n'est tronqué ni ne déborde, sur un viewport d'iPhone 12 en paysage
+
+**Étant donné** `src/client/app/appFsm.ts`
+**Quand** l'app démarre
+**Alors** elle suit les états `boot → start → loading → level → result`, avec `oops` atteignable depuis `loading` et `level` ; les états `calibration` (story 2.7), `settings` (story 2.8) et `fridge` (story 3.11) s'y ajoutent sans modifier les transitions existantes
+**Et** les overlays ne s'empilent jamais : le portrait et « Oups » remplacent ce qui est affiché
 
 **Étant donné** le premier affichage du jeu
 **Quand** il est prêt
-**Alors** un écran de démarrage « Touche pour commencer » attend un tap, un clic ou une touche ; ce premier geste est celui qui servira à déverrouiller l'audio (story 1.8) et à lancer la calibration (story 2.7)
+**Alors** l'écran de démarrage montre le titre et « Touche pour commencer » sur la scène assombrie, et attend un tap, un clic ou une touche
+**Et** ce premier geste déverrouille l'audio (story 1.9), puis mène au chargement du niveau (la calibration s'y intercale à partir de la story 2.7)
 
-**Étant donné** `src/client/ui/styles/tokens.css` et la couche HUD en DOM
+**Étant donné** un téléphone tenu en portrait
+**Quand** le jeu est affiché
+**Alors** l'overlay « Tourne ton téléphone » recouvre le jeu, la partie reste en pause tant que l'orientation est portrait, et le retour en paysage affiche le panneau de pause
+
+**Étant donné** la couche HUD en DOM
 **Quand** le HUD s'affiche en paysage
-**Alors** il respecte des zones fixes :
-- en haut à gauche, les jauges ;
-- en haut au centre, le chrono ;
+**Alors** il respecte des zones fixes, dans la marge `{spacing.hud-inset}` :
+- en haut à gauche, une seule pastille de jauges (story 1.19) ;
+- en haut au centre, le chrono (story 1.18) ;
 - en haut à droite, le bouton pause ;
-- le tiers inférieur reste libre (zone des pouces), et aucun élément de HUD ne recouvre la pièce au-delà de 12 % de la hauteur.
+- le tiers inférieur reste libre (zone des pouces), et la bande du HUD ne dépasse pas 12 % de la hauteur de la pièce.
 
 **Et** toutes les marges intègrent `env(safe-area-inset-*)` (viewport `viewport-fit=cover`), si bien qu'aucun élément n'est masqué par l'encoche d'un iPhone en paysage (vérifié par un test Playwright avec un viewport d'iPhone 12 en paysage)
-**Et** le bouton pause, comme tout bouton d'UI, a une cible tactile d'au moins 44 × 44 pt
+**Et** la surface est « compacte » quand le petit côté du paysage fait moins de 430 px, « normale » au-delà ; les coins du HUD ne bougent pas d'une surface à l'autre
+**Et** le HUD compte au plus 40 nœuds DOM, ses mises à jour sont regroupées une fois par frame, et ses jauges ne s'animent que par `transform: scaleX` (vérifié par un test Playwright)
 
-### Story 1.5 : Salon greybox depuis Blender
+**Étant donné** le bouton pause (`button-icon`, cible d'au moins 44 × 44 pt) ou la touche Échap
+**Quand** je l'actionne en jeu
+**Alors** `requestPause()` est appelé et le panneau « Pause » s'ouvre sur le voile `{colors.scrim}`, en 220 ms au plus ; le HUD reste visible sous le voile, atténué et inerte
+**Et** le panneau propose « Reprendre » (focus par défaut) et « Recommencer » ; « Réglages » apparaît à partir de la story 2.8, et « Quitter vers le frigo » à partir de la story 3.11
+**Et** « Reprendre », Échap ou un retour ferme le panneau et lance le décompte ; « Recommencer » relance le niveau par l'écran de chargement, avec une nouvelle graine
+
+**Étant donné** une reprise
+**Quand** le décompte s'affiche
+**Alors** les chiffres « 3 » « 2 » « 1 » s'affichent en `{typography.countdown}` au centre de la scène assombrie, avec un tic sonore, une vibration et une pulsation chaque seconde
+
+**Étant donné** n'importe quel bouton d'UI
+**Quand** je l'utilise
+**Alors** il marque l'appui au `pointerdown` et agit au `pointerup` à l'intérieur du bouton (glisser hors du bouton annule), sa cible fait au moins 44 × 44 pt, et au clavier il est atteignable par Tab ou les flèches et s'active par Entrée ou Espace, avec un anneau de focus visible (`{spacing.focus-ring-width}` `{colors.primary}`)
+
+### Story 1.6 : Salon greybox depuis Blender
 
 **Exigences :** FR64 (pipeline Blender de l'architecture)
+**UX :** UX-DR8
 
 En tant que Geo,
 je veux que le salon soit bloqué dans Blender et chargé tel quel par le jeu,
@@ -532,19 +671,24 @@ afin que Blender soit mon éditeur de niveaux dès le prototype.
 **Étant donné** le client
 **Quand** le niveau `salon_crawler` est chargé
 **Alors** le salon s'affiche en vue isométrique, avec un matériau toon provisoire et des ombres « blob »
-**Et** un écran de chargement reste visible jusqu'à ce que tous les assets soient prêts
+**Et** un écran de chargement reste visible jusqu'à ce que tous les assets soient prêts : un biberon (`loading-indicator`) se remplit sur fond `{colors.cream}`, des phrases d'ambiance de `strings.fr.json` tournent (jamais des instructions), et aucun pourcentage n'est affiché
+
+**Étant donné** un chargement en cours
+**Quand** l'app passe en arrière-plan
+**Alors** le chargement continue, et le niveau attend le retour au premier plan pour démarrer par le décompte de 3 s
 
 **Étant donné** un échec de chargement du `.glb` ou de la géométrie (réseau coupé, fichier absent)
 **Quand** `loadLevelAssets` renvoie un `Result` en erreur
-**Alors** l'écran « Oups » s'affiche, sur un ton léger, avec un bouton « Réessayer », et l'erreur est loguée en `warn` avec l'identifiant du niveau
+**Alors** l'écran « Oups » s'affiche (« Oups ! Quelque chose s'est renversé. », panneau simple), avec un bouton « Réessayer » qui a le focus et ramène au chargement, et l'erreur est loguée en `warn` avec l'identifiant du niveau
 
 **Étant donné** le handler global (`error`, `unhandledrejection`) installé par `boot.ts`
 **Quand** une exception non capturée survient
 **Alors** elle est loguée en `error`, et l'écran « Oups » propose de relancer le niveau (test e2e qui déclenche une exception via le paramètre de dev `?throwAfterMs=…`)
 
-### Story 1.6 : Déplacer papa
+### Story 1.7 : Déplacer papa
 
 **Exigences :** FR10
+**UX :** UX-DR9
 
 En tant que joueur,
 je veux déplacer papa dans le salon d'un tap au sol, au clavier ou au stick,
@@ -555,7 +699,7 @@ afin d'aller où je veux sans réfléchir aux contrôles.
 **Étant donné** papa (cube) à son ancre de départ
 **Quand** je tape le sol à un point marchable
 **Alors** le client envoie `TapFloor{x, z, t}`, et la sim calcule un chemin A* sur la grille de navigation et déplace papa jusqu'au point en contournant les `NAV_block_*`
-**Et** un repère visuel apparaît au point tapé dans la frame suivant le `pointerdown`
+**Et** un repère visuel (`tap-marker` : anneau `{colors.paper}` cerné d'`ink`, qui passe de 0,6 à 1,2 et s'efface en 300 ms) apparaît au point tapé dans la frame suivant le `pointerdown`
 
 **Étant donné** un tap sur une zone non marchable
 **Quand** il est traité
@@ -565,11 +709,15 @@ afin d'aller où je veux sans réfléchir aux contrôles.
 **Quand** je maintiens une direction
 **Alors** papa se déplace en continu dans cette direction (`Move{dir, t}` / `MoveStop{t}`), à la vitesse définie dans `feel.json`, et s'arrête contre les obstacles
 
+**Étant donné** un clavier AZERTY ou QWERTY
+**Quand** les touches de déplacement sont lues
+**Alors** elles sont liées par `KeyboardEvent.code` (`KeyW`, `KeyA`, `KeyS`, `KeyD`), si bien que ZQSD en AZERTY et WASD en QWERTY marchent sans réglage ; les flèches marchent toujours
+
 **Étant donné** `src/sim/nav/`
 **Quand** les tests s'exécutent
 **Alors** A* et le lissage de chemin sont couverts : chemin direct, contournement, destination inaccessible
 
-### Story 1.7 : Le bébé vit dans le salon
+### Story 1.8 : Le bébé vit dans le salon
 
 **Exigences :** FR15
 
@@ -590,9 +738,9 @@ afin de sentir qu'il est vivant et imprévisible.
 
 **Étant donné** `world.baby.babbling`
 **Quand** le bébé est en `wander` ou en `babble`
-**Alors** `babbling` vaut `true` (le son de babillage arrive en story 1.8)
+**Alors** `babbling` vaut `true` (le son de babillage arrive en story 1.9)
 
-### Story 1.8 : Retours de base
+### Story 1.9 : Retours de base
 
 **Exigences :** FR59 (base), FR63, NFR7
 
@@ -603,7 +751,7 @@ afin que chaque signal me parvienne d'une façon ou d'une autre.
 **Critères d'acceptation :**
 
 **Étant donné** `src/client/audio/` (`AudioEngine`, avec les bus `music`, `sfx`, `voice` et `ui`)
-**Quand** le joueur fait son premier geste sur l'écran de démarrage (story 1.4)
+**Quand** le joueur fait son premier geste sur l'écran de démarrage (story 1.5)
 **Alors** l'`AudioContext` (`latencyHint: 'interactive'`) est déverrouillé
 **Et** sur `PauseRequested`, l'`AudioContext` est suspendu, puis repris à la fin du décompte
 **Et** les buffers `.m4a` du niveau sont décodés à l'avance pendant le chargement
@@ -621,7 +769,7 @@ afin que chaque signal me parvienne d'une façon ou d'une autre.
 **Quand** un indice haptique est joué sur un navigateur sans `navigator.vibrate` (Safari iOS)
 **Alors** l'appel ne fait rien, sans erreur, et `platform.capabilities.haptics` vaut `false`
 
-### Story 1.9 : Première menace jugée en headless, la prise électrique
+### Story 1.10 : Première menace jugée en headless, la prise électrique
 
 **Exigences :** FR1, FR2, FR7, FR15, FR25, NFR9
 
@@ -650,9 +798,10 @@ afin de valider en tests, sans navigateur, le cœur du verbe « lire, puis répo
 **Alors** `effectiveWindow` (base × palier × fatigue × instinct, puis ± tolérance, avec des modificateurs à 1 tant que leurs systèmes n'existent pas) et `judgePress` sont couverts par des cas limites au milliseconde près
 **Et** chaque fichier de `content/threats/` génère automatiquement les tests « parfait », « réussi », « trop tôt » et « trop tard »
 
-### Story 1.10 : Parer la prise électrique au tap
+### Story 1.11 : Parer la prise électrique au tap
 
 **Exigences :** FR1, FR2, FR9, FR25, NFR2
+**UX :** UX-DR10 (maquette `mockups/key-hud-level.html`, état A)
 
 En tant que joueur,
 je veux voir le bébé foncer vers la prise, lire le danger et le parer d'un tap au bon moment,
@@ -660,14 +809,14 @@ afin de vivre le verbe central du jeu : lire, puis répondre juste.
 
 **Critères d'acceptation :**
 
-**Étant donné** la menace de la story 1.9 en `telegraph`
+**Étant donné** la menace de la story 1.10 en `telegraph`
 **Quand** le client traite `ThreatTelegraphed`
-**Alors** une icône éclair et un halo apparaissent sur la prise, et le son de télégraphe est joué via `feedback.json`
+**Alors** une icône éclair (`threat-icon` : cercle `{colors.parry}` cerné d'`ink`, 56 px en surface compacte et 64 px en surface normale) et un halo `{colors.alert}` qui pulse doucement apparaissent sur la prise, et le son de télégraphe est joué via `feedback.json`
 
 **Étant donné** un `pointerdown` à portée de la menace (rayon tactile de `feel.json`)
 **Quand** `inputMapper` le traite
 **Alors** le hit-test donne la priorité à la menace sur le sol, et envoie `PressThreat` horodaté avec `event.timeStamp`, converti par `timeMap`
-**Et** la menace est surlignée, et papa amorce sa glissade dès la frame suivante
+**Et** la menace est surlignée (`target-highlight` : contour plein de 4 px `{colors.alert}` et chevron qui rebondit, distinct du halo par la forme), et papa amorce sa glissade dès la frame suivante
 
 **Étant donné** une `ResponseResolved` réussie
 **Quand** le `FeedbackDirector` la traite
@@ -681,7 +830,7 @@ afin de vivre le verbe central du jeu : lire, puis répondre juste.
 **Quand** il simule un `pointerdown` sur la menace
 **Alors** l'écart entre `performance.mark('press')` (dans le gestionnaire) et `performance.mark('highlightRendered')` (après le rendu de la frame qui affiche la surbrillance) est au plus de 50 ms
 
-### Story 1.11 : Bots et simulation en masse
+### Story 1.12 : Bots et simulation en masse
 
 **Exigences :** FR66
 
@@ -708,7 +857,7 @@ afin de valider chaque changement et d'équilibrer sans humain.
 **Quand** il joue 100 parties
 **Alors** toutes les réponses à la prise électrique sont `perfect` (test Vitest)
 
-### Story 1.12 : Autoplay et API de test dans le navigateur
+### Story 1.13 : Autoplay et API de test dans le navigateur
 
 **Exigences :** FR66, NFR13
 
@@ -730,7 +879,7 @@ afin de vérifier le jeu complet, rendu compris, sans intervention humaine.
 **Quand** il charge le jeu avec `?autoplay=perfect`
 **Alors** il vérifie qu'au moins une `ResponseResolved` réussie est émise, sans erreur de console, et prend une capture d'écran figée (`freeze`) comparée à une référence
 
-### Story 1.13 : Hitstop et ralentis
+### Story 1.14 : Hitstop et ralentis
 
 **Exigences :** FR8
 
@@ -757,7 +906,7 @@ afin de ressentir chaque réussite.
 **Quand** une nouvelle fenêtre s'ouvre
 **Alors** ses durées sont mesurées en temps de jeu, donc plus longues en temps réel (ADR-002)
 
-### Story 1.14 : Physique légère des objets
+### Story 1.15 : Physique légère des objets
 
 **Exigences :** FR21
 
@@ -784,7 +933,7 @@ afin que le chaos crée du spectacle.
 **Quand** ils bougent
 **Alors** ils sont rendus depuis des pools de vues (`ViewRegistry`), avec interpolation
 
-### Story 1.15 : Escalier et objet sur la table basse
+### Story 1.16 : Escalier et objet sur la table basse
 
 **Exigences :** FR26, FR27
 
@@ -808,9 +957,10 @@ afin de devoir lire avant d'agir et choisir quoi traiter.
 **Quand** les tests générés depuis les JSON s'exécutent
 **Alors** les quatre cas (parfait, réussi, trop tôt, trop tard) passent pour chaque menace, sans code propre à une menace hors de `gags.ts`
 
-### Story 1.16 : Ciblage automatique au clavier et à la manette
+### Story 1.17 : Ciblage automatique au clavier et à la manette
 
 **Exigences :** FR11, FR12
+**UX :** UX-DR5, UX-DR7, UX-DR10, UX-DR11 (maquette `mockups/key-hud-level.html`, état B)
 
 En tant que joueur au clavier ou à la manette,
 je veux parer la menace la plus urgente dans la direction que je vise,
@@ -824,7 +974,12 @@ afin de jouer aussi bien qu'au tactile.
 
 **Étant donné** la menace actuellement ciblée
 **Quand** je vise
-**Alors** elle est surlignée en continu, pour que je sache laquelle sera parée
+**Alors** elle est surlignée en continu (`target-highlight`), pour que je sache laquelle sera parée
+**Et** un seul `glyph-chip` s'affiche à côté de son verbe et la suit quand la cible change ; il n'apparaît jamais au tactile
+
+**Étant donné** le `glyph-chip`
+**Quand** il affiche la touche de réponse
+**Alors** au clavier il montre le nom réel de la touche lu par `navigator.keyboard.getLayoutMap()`, ou « Espace » et des flèches si l'API manque ; à la manette, il suit la famille détectée (✕ ○ pour PlayStation, A B façon Xbox par défaut)
 
 **Étant donné** aucune menace active
 **Quand** j'appuie sur Espace ou A près d'un objet interactif
@@ -834,9 +989,19 @@ afin de jouer aussi bien qu'au tactile.
 **Quand** une manette est branchée en cours de partie
 **Alors** elle est prise en compte sans recharger la page
 
-### Story 1.17 : Vagues de menaces et chrono du niveau
+**Étant donné** une partie en cours avec une manette
+**Quand** j'appuie sur Start / Options, ou que la manette se débranche (`gamepaddisconnected`)
+**Alors** la partie se met en pause (story 1.5) ; après une déconnexion, le panneau affiche « Manette débranchée. Rebranche-la pour reprendre. »
+**Et** B ne met jamais en pause en jeu, puisque B + direction sert à esquiver (story 5.1)
+
+**Étant donné** un panneau ou un menu ouvert
+**Quand** j'utilise la manette
+**Alors** le stick et la croix déplacent le focus, A valide et B revient d'un niveau, comme au clavier
+
+### Story 1.18 : Vagues de menaces et chrono du niveau
 
 **Exigences :** FR8, FR31, NFR10
+**UX :** UX-DR4
 
 En tant que joueur,
 je veux que les menaces s'empilent par vagues pendant 3 minutes,
@@ -855,19 +1020,20 @@ afin de passer du calme au chaos.
 
 **Étant donné** le HUD
 **Quand** la partie tourne
-**Alors** un chrono visible, dans la zone HUD du haut au centre (story 1.4), décompte le temps restant ; à 0, la sim passe le flux en `ended` (`LevelEnded{reason: "timer"}`)
+**Alors** un chrono visible (`hud-timer` : pastille `{colors.paper}`, chiffres en `{typography.numeric}` à chasse fixe, icône de la variante : Maman qui dort pour la Sieste), dans la zone HUD du haut au centre (story 1.5), décompte le temps restant à partir de `durationMs` du niveau (3 min dans le prototype ; aucune durée codée en dur) ; à 0, la sim passe le flux en `ended` (`LevelEnded{reason: "timer"}`)
 
 **Étant donné** la dernière menace d'une vague, résolue avec succès
 **Quand** elle est jugée
-**Alors** `timeScale` passe à 0,2 pendant 1500 ms, selon la règle de chevauchement de la story 1.13
+**Alors** `timeScale` passe à 0,2 pendant 1500 ms, selon la règle de chevauchement de la story 1.14
 
 **Étant donné** `npm run sim -- --bot idle`
 **Quand** la partie se termine
 **Alors** le rapport montre des menaces dans chaque vague, et jamais plus de menaces simultanées que la vague ne l'autorise
 
-### Story 1.18 : Fatigue, café et micro-siestes
+### Story 1.19 : Fatigue, café et micro-siestes
 
 **Exigences :** FR12, FR16
+**UX :** UX-DR4
 
 En tant que joueur,
 je veux voir papa s'épuiser au point de piquer du nez, et pouvoir me relancer au café,
@@ -877,7 +1043,12 @@ afin de gérer mon propre rythme au milieu du chaos.
 
 **Étant donné** `src/sim/gauges/fatigue.ts`
 **Quand** le temps passe
-**Alors** la fatigue monte de 0,5/s, bornée entre 0 et 100, et s'affiche dans une jauge de la zone HUD en haut à gauche (story 1.4) (le multiplicateur ×2 du bras-bébé est lu depuis `feel.json`, mais ne s'applique qu'à partir de E4)
+**Alors** la fatigue monte de 0,5/s, bornée entre 0 et 100, et s'affiche dans une jauge de la zone HUD en haut à gauche (story 1.5) (le multiplicateur ×2 du bras-bébé est lu depuis `feel.json`, mais ne s'applique qu'à partir de E4)
+
+**Étant donné** la pastille de jauges (`hud-gauge`), créée par cette story
+**Quand** elle s'affiche
+**Alors** les jauges y sont côte à côte, dans l'ordre Bruit · Fatigue · Envie (chacune n'apparaît que si son système existe dans le niveau), avec une icône et une barre de 10 segments cernés d'`ink`
+**Et** une jauge sous 50 % et immobile est à 70 % d'opacité ; elle passe à pleine opacité quand elle change ou dès 70 %, et à partir de 70 % son remplissage passe en `{colors.gauge-warn}` et son icône pulse (jamais la teinte seule)
 
 **Étant donné** une fatigue supérieure à 70
 **Quand** une fenêtre est calculée
@@ -892,7 +1063,7 @@ afin de gérer mon propre rythme au milieu du chaos.
 **Quand** il joue 3 minutes
 **Alors** les micro-siestes apparaissent après le franchissement du seuil, à l'intervalle prévu (vérifié par un test en headless)
 
-### Story 1.19 : Le téléphone qui sonne
+### Story 1.20 : Le téléphone qui sonne
 
 **Exigences :** FR29
 
@@ -914,9 +1085,10 @@ afin de décider quoi traiter dans le chaos.
 **Quand** je l'ignore
 **Alors** il continue de sonner, et la sim émet `PhoneRinging` à chaque seconde (la jauge de bruit de E3 s'y branchera à +2 %/s, sans modifier cette story)
 
-### Story 1.20 : Le silence suspect
+### Story 1.21 : Le silence suspect
 
-**Exigences :** FR19, FR28
+**Exigences :** FR12 (trouver le bébé), FR19, FR28
+**UX :** UX-DR12 (maquette `mockups/key-hud-level.html`, état C)
 
 En tant que joueur,
 je veux comprendre qu'il se passe quelque chose quand le bébé disparaît et se tait,
@@ -931,16 +1103,22 @@ afin de partir le chercher avant la bêtise.
 
 **Étant donné** `SilenceStarted`
 **Quand** le `FeedbackDirector` le traite
-**Alors** la musique se coupe, une bulle « … » clignote au bord de l'écran, du côté de la zone, et une vibration courte part
+**Alors** la musique se coupe, une bulle « … » (`silence-bubble`, fond `{colors.alert}`) clignote au bord de l'écran, du côté de la zone, jamais plus vite que 3 Hz, et une vibration courte part
+
+**Étant donné** `inputMapper` et le bébé
+**Quand** je tape le bébé hors de toute menace en cours (ou Espace / A près de lui)
+**Alors** le client envoie la commande `TapBaby{t}`, créée par cette story (et réutilisée par la story 4.1) ; le hit-test place le bébé entre les menaces et les objets (menace > bébé > objet > sol)
+**Et** hors d'un silence, la commande reste sans effet jusqu'à la story 4.1 (prendre le bébé)
 
 **Étant donné** le silence en cours
-**Quand** papa entre dans la zone ou que je tape le bébé
+**Quand** papa entre dans la zone ou que je tape le bébé (`TapBaby`)
 **Alors** la sim émet `SilenceEnded`, la menace passe en `windowOpen` et se pare comme une autre ; la musique et le babillage reprennent
 **Et** si personne ne vient avant l'échéance du JSON, une bêtise surprise est tirée au hasard dans la liste des gags (gag, bazar)
 
-### Story 1.21 : Note de Maman et écran de fin
+### Story 1.22 : Note de Maman et écran de fin
 
 **Exigences :** FR34
+**UX :** UX-DR13 (maquette `mockups/key-result.html`)
 
 En tant que joueur,
 je veux recevoir une note de Maman sur 5 étoiles à la fin de la partie,
@@ -960,7 +1138,9 @@ afin d'avoir envie de rejouer pour faire mieux.
 
 **Étant donné** l'écran de résultat (DOM)
 **Quand** il s'affiche
-**Alors** il montre le détail des quatre composantes, les étoiles et les boutons « Rejouer » et « Copier le journal » (le journal arrive en E3, le bouton est masqué jusque-là)
+**Alors** le HUD est masqué, et quatre lignes de score (`score-row`) s'affichent, chacune en points gagnés sur son maximum, si bien que leur somme donne le score : « Rires » /40, « État du bébé » /30, « Sans soupir » /15 (15 − Soupir), « Sans hurlement » /15 (15 − Hurlement) ; les valeurs défilent jusqu'à leur total
+**Et** les étoiles (`star`, contour `ink` obligatoire) se posent ensuite une à une, chacune avec un son et une vibration légère, la dernière avec une vibration marquée
+**Et** les actions apparaissent enfin : « Rejouer » en action principale (« Âge suivant » et « Frigo » arrivent en story 3.11), et « Copier le journal », présent seulement dans les builds de playtest (`VITE_DEBUG_ALLOWED`) et masqué tant que le journal n'existe pas (story 3.3)
 
 **Étant donné** l'écran de résultat sur un téléphone en paysage
 **Quand** il s'affiche
@@ -970,9 +1150,10 @@ afin d'avoir envie de rejouer pour faire mieux.
 **Quand** je le touche
 **Alors** une nouvelle partie démarre avec une nouvelle graine, sans recharger la page
 
-### Story 1.22 : Fermeté (optionnelle)
+### Story 1.23 : Fermeté (optionnelle)
 
 **Exigences :** FR3
+**UX :** UX-DR14
 
 En tant que joueur,
 je veux qu'un maintien sur une menace signifie « tenir ferme »,
@@ -992,13 +1173,18 @@ afin d'avoir une seconde réponse que le même geste distingue.
 **Quand** je maintiens au-delà de 400 ms
 **Alors** c'est un gag, avec `reason: "wrongResponse"`
 
+**Étant donné** un appui sur une menace
+**Quand** il dure
+**Alors** un `hold-ring` (anneau de 5 px, progression `{colors.paper}` sur piste `{colors.ring-track}`, contour `ink` de 2 px) se remplit autour de l'icône en `holdMinMs` (400 ms) ; relâché avant, c'est Parer ; quand il se ferme, il devient plein avec un « pop » et une vibration moyenne : c'est Fermeté
+
 **Étant donné** une menace de test `firm` dans un niveau de test
 **Quand** les tests générés s'exécutent
 **Alors** les cas parfait, réussi, relâché tôt, trop tôt et trop tard passent
 
-### Story 1.23 : Build de playtest partageable et budget de performance
+### Story 1.24 : Build de playtest partageable et budget de performance
 
 **Exigences :** FR67, NFR1, NFR2, NFR3, NFR14
+**UX :** UX-DR1 (polices et CSP), UX-DR26
 
 En tant que Geo,
 je veux envoyer un lien à des testeurs et savoir que le jeu tient 60 FPS,
@@ -1012,11 +1198,11 @@ afin de lancer les playtests du prototype.
 
 **Étant donné** `npm run build` (prod)
 **Quand** on inspecte le bundle
-**Alors** il ne contient ni `window.__PP__`, ni le code de debug, ni Tweakpane
+**Alors** il ne contient ni `window.__PP__`, ni le code de debug, ni Tweakpane, ni le bouton « Copier le journal »
 
 **Étant donné** l'hébergeur statique choisi par Geo (Cloudflare Pages ou Netlify)
 **Quand** le build de playtest est déployé
-**Alors** il est accessible en HTTPS par lien, avec des en-têtes CSP (`script-src 'self' 'wasm-unsafe-eval'`)
+**Alors** il est accessible en HTTPS par lien, avec des en-têtes CSP (`default-src 'self'`, `script-src 'self' 'wasm-unsafe-eval'`, `font-src 'self'`), sans aucune requête vers un autre domaine
 **Et** la procédure de déploiement est documentée dans `CLAUDE.md`
 
 **Étant donné** `tests/e2e/perf.spec.ts`
@@ -1060,6 +1246,7 @@ afin de régler le feeling sans toucher au code.
 ### Story 2.2 : Verbe affiché et icônes couleur + forme
 
 **Exigences :** FR53, FR54, NFR6, NFR8
+**UX :** UX-DR10
 
 En tant que joueur qui découvre le jeu,
 je veux voir en gros ce que je dois faire sur chaque menace,
@@ -1069,7 +1256,8 @@ afin de comprendre sans tutoriel, même daltonien.
 
 **Étant donné** une menace en `telegraph`
 **Quand** elle s'affiche
-**Alors** son verbe (`verb` du JSON, par exemple « SOULÈVE ! ») apparaît en gros au-dessus de la menace (`CSS2DRenderer`), lisible sur un écran de téléphone en paysage
+**Alors** son verbe (`verb` du JSON, par exemple « SOULÈVE ! ») apparaît en gros au-dessus de la menace (`CSS2DRenderer`), lisible sur un écran de téléphone en paysage : `verb-label` en `{typography.verb}` (surface normale) ou `{typography.verb-compact}` (surface compacte), en capitales, remplissage `{colors.paper}` et contour `ink` de 5 px, jamais sous 28 px
+**Et** un verbe trop long rétrécit sans jamais être tronqué ; une menace d'esquive sans verbe propre affiche « ESQUIVE ! »
 **Et** son icône a la couleur et la forme de son type de réponse : bleu et cercle pour les menaces parables ; rouge et triangle pour l'esquive (le style est prêt, utilisé à partir de E5)
 
 **Étant donné** plusieurs menaces actives
@@ -1136,6 +1324,7 @@ afin de ne rien rater.
 ### Story 2.5 : Effets de feeling à l'écran
 
 **Exigences :** FR61
+**UX :** UX-DR15
 
 En tant que joueur,
 je veux que l'image réagisse à mes réussites et aux catastrophes,
@@ -1151,9 +1340,17 @@ afin de ressentir chaque réponse, même avec des cubes.
 **Quand** le ralenti démarre
 **Alors** la caméra zoome et pivote légèrement vers l'action, puis revient au cadrage isométrique à la fin du ralenti (paramètres dans `feel.json`)
 
+**Étant donné** une réponse parfaite
+**Quand** elle est jugée
+**Alors** le tampon « PARADE PARFAITE » (`epic-stamp`, en `{typography.epic}`, registre Épique) s'affiche au plus 900 ms par-dessus la scène, sans jamais bloquer les entrées
+
 **Étant donné** un gag
 **Quand** il se déclenche
 **Alors** un effet comique (particules « pouf », secousse) accompagne l'animation provisoire
+
+**Étant donné** chaque effet de cette story
+**Quand** il est défini
+**Alors** il expose une variante « mouvement réduit », branchée par la story 2.10
 
 **Étant donné** les budgets de performance
 **Quand** le bot `human` joue un niveau complet avec tous les effets
@@ -1183,11 +1380,12 @@ afin de sentir la menace approcher et le ralenti s'installer.
 
 **Étant donné** `SilenceStarted`
 **Quand** il est émis
-**Alors** la musique se coupe (comportement de la story 1.20 conservé), et reprend sur `SilenceEnded`
+**Alors** la musique se coupe (comportement de la story 1.21 conservé), et reprend sur `SilenceEnded`
 
 ### Story 2.7 : Calibration de la latence
 
 **Exigences :** FR56
+**UX :** UX-DR3, UX-DR16 (`EXPERIENCE.md` › State Patterns › Calibration)
 
 En tant que joueur sur un nouvel appareil,
 je veux un court réglage au premier lancement,
@@ -1197,12 +1395,22 @@ afin que mes réponses soient jugées justes malgré la latence de mon écran et
 
 **Étant donné** le premier lancement (aucune calibration dans la sauvegarde)
 **Quand** le jeu démarre
-**Alors** l'écran de calibration propose une phase audio (8 bips à 100 BPM, taper en rythme), puis une phase visuelle (8 flashs)
+**Alors** l'état `calibration` d'`appFsm` s'insère entre l'écran de démarrage et le chargement, et l'écran de calibration (fond `{colors.ink}`, texte `{colors.paper}`) propose une phase audio (8 bips à 100 BPM, « Tape en rythme avec les bips », un anneau qui pulse à chaque bip), puis une phase visuelle (8 flashs de disque à 1,67 Hz, « Tape à chaque flash »)
+**Et** un tap, Espace ou A comptent comme un tap, et « Calé ! » s'affiche à la fin
+**Et** au premier lancement, la calibration mène directement au chargement de l'Âge 1, sans menu
+
+**Étant donné** la phase audio
+**Quand** je touche « Pas de son ? Passe au visuel »
+**Alors** seule la phase visuelle est jouée ; `audioOffsetMs` reprend la valeur de `visualOffsetMs`, et `save.calibration.audioSkipped` vaut `true` (les séquences rythmiques de E4 l'utilisent telle quelle)
+
+**Étant donné** une phase en cours
+**Quand** l'app passe en arrière-plan
+**Alors** la phase est mise en pause, puis recommence depuis son début au retour
 
 **Étant donné** les écarts mesurés d'une phase
 **Quand** la phase se termine
 **Alors** le décalage retenu est la médiane, après rejet des valeurs à plus de 150 ms de la médiane, bornée entre −50 et 250 ms
-**Et** si moins de 5 taps sont valides, la phase est reproposée
+**Et** si moins de 5 taps sont valides, la phase est reproposée avec « Pas assez de taps, on recommence ? »
 
 **Étant donné** `StoragePort` (web : localStorage) et `src/client/save/saveStore.ts` (`SaveSchema` v1, avec migrations)
 **Quand** la calibration est terminée
@@ -1210,21 +1418,27 @@ afin que mes réponses soient jugées justes malgré la latence de mon écran et
 
 **Étant donné** une calibration enregistrée
 **Quand** je joue
-**Alors** chaque appui est corrigé de `visualOffsetMs` avant d'être converti en temps de jeu, et l'option « Recalibrer » est disponible dans les réglages
+**Alors** chaque appui est corrigé de `visualOffsetMs` avant d'être converti en temps de jeu
+**Et** la calibration expose `startRecalibration(returnTo)`, que la story 2.8 relie à la ligne « Recalibrer » des réglages
 
 ### Story 2.8 : Paliers de difficulté et réglages
 
 **Exigences :** FR55
+**UX :** UX-DR17, UX-DR24 (`EXPERIENCE.md` › State Patterns › Réglages)
 
 En tant que joueur,
-je veux choisir un palier Assistance, Normal ou Papa expérimenté,
-afin que le jeu reste drôle quel que soit mon niveau.
+je veux choisir un palier Assistance, Normal ou Papa expérimenté, et régler le son, les vibrations et la calibration,
+afin que le jeu reste drôle et confortable quel que soit mon niveau.
 
 **Critères d'acceptation :**
 
-**Étant donné** l'écran de réglages (accessible depuis le menu et la pause)
+**Étant donné** le panneau « Réglages » (état `settings` d'`appFsm`), accessible depuis la pause (l'accès depuis le Frigo arrive en story 3.11)
+**Quand** je l'ouvre depuis la pause
+**Alors** il remplace le panneau de pause (sans s'empiler) et y revient au retour ; le focus est sur la première ligne
+
+**Étant donné** la ligne « Difficulté » (`settings-segmented` : Assistance, Normal, Papa expérimenté)
 **Quand** je choisis un palier
-**Alors** il est enregistré dans la sauvegarde et appliqué à la partie suivante
+**Alors** sa description s'affiche dessous (« Fenêtres plus larges, instinct activé », « Le jeu tel qu'il est pensé », « Fenêtres serrées, aucune aide »), il est enregistré aussitôt dans la sauvegarde et appliqué à la partie suivante (« Appliqué à la prochaine partie »)
 
 **Étant donné** le palier Assistance, Normal ou Papa expérimenté
 **Quand** une fenêtre est calculée
@@ -1236,11 +1450,17 @@ afin que le jeu reste drôle quel que soit mon niveau.
 
 **Étant donné** les réglages
 **Quand** je les ouvre
-**Alors** j'y trouve aussi le volume par bus, l'activation de l'haptique et « Recalibrer »
+**Alors** j'y trouve aussi un curseur de volume par bus (« Musique », « Effets », « Voix », « Interface »), l'interrupteur « Vibrations » (masqué quand `capabilities.haptics` vaut `false`), « Recalibrer » (story 2.7, qui revient aux réglages) et « Crédits »
+**Et** chaque changement s'applique et s'enregistre aussitôt (`save.settings`), sans bouton Enregistrer
+
+**Étant donné** la ligne « Crédits »
+**Quand** je l'ouvre
+**Alors** un panneau simple affiche les crédits depuis `strings.fr.json` (contenu provisoire, à compléter avant la v1), et un retour ramène aux réglages
 
 ### Story 2.9 : Instinct paternel
 
 **Exigences :** FR20
+**UX :** UX-DR15
 
 En tant que joueur débordé,
 je veux qu'un coup de pouce discret m'aide quand tout s'effondre,
@@ -1258,11 +1478,52 @@ afin que le chaos reste drôle et jamais frustrant.
 
 **Étant donné** `InstinctTriggered`
 **Quand** le `FeedbackDirector` le traite
-**Alors** il joue un indice audio, visuel et haptique dédié (vignettage léger, son « cœur qui bat »)
+**Alors** il joue un indice audio, visuel et haptique dédié (`instinct-vignette` : assombrissement radial des bords en `{colors.vignette}`, jamais rouge ; son « cœur qui bat »)
 
 **Étant donné** les tests de la sim
 **Quand** ils s'exécutent
-**Alors** le déclenchement, la recharge et la combinaison avec un ralenti parfait (règle de chevauchement de la story 1.13) sont couverts
+**Alors** le déclenchement, la recharge et la combinaison avec un ralenti parfait (règle de chevauchement de la story 1.14) sont couverts
+
+### Story 2.10 : Réglages d'accessibilité : mouvement réduit et grands verbes
+
+**Exigences :** NFR6, NFR7
+**UX :** UX-DR18, UX-DR19 (`EXPERIENCE.md` › Game Feel & Juice › Reduced motion, Accessibility Floor)
+
+En tant que joueur sensible au mouvement, ou qui lit mal les petits textes,
+je veux atténuer les effets à l'écran et agrandir les verbes,
+afin de jouer confortablement sans rien perdre du jeu.
+
+**Critères d'acceptation :**
+
+**Étant donné** les réglages (story 2.8)
+**Quand** je les ouvre
+**Alors** ils contiennent les interrupteurs « Réduire les animations » et « Grands verbes », enregistrés aussitôt dans `save.settings.reducedMotion` et `save.settings.largeVerbs`
+
+**Étant donné** « Réduire les animations » actif
+**Quand** un effet est joué
+**Alors** la correspondance d'`EXPERIENCE.md` s'applique :
+- tremblement d'écran et rotation de caméra sur réponse parfaite supprimés ;
+- zoom de caméra plafonné à 50 % ;
+- particules réduites de 60 % ;
+- panneaux en simple fondu ;
+- flash plein écran remplacé par une lueur au bord ;
+- bulle « … » qui pulse à 1 Hz au plus ;
+- biberon de chargement figé.
+
+**Et** le hitstop et les ralentis ne changent pas, car ils font partie du timing de jeu
+**Et** le réglage n'est lu que par le client : les tests golden de la sim donnent les mêmes résultats avec ou sans lui
+
+**Étant donné** n'importe quel effet clignotant
+**Quand** il est joué, avec ou sans le réglage
+**Alors** il ne clignote jamais plus vite que 3 Hz (vérifié par un test sur `feedback.json` et les composants concernés)
+
+**Étant donné** « Grands verbes » actif
+**Quand** un verbe s'affiche
+**Alors** `{typography.verb}` et `{typography.verb-compact}` sont agrandis de 25 %, toujours sans troncature
+
+**Étant donné** `tests/e2e/reducedMotion.spec.ts`
+**Quand** le bot `perfect` joue avec le réglage actif
+**Alors** aucune rotation de caméra ni aucun tremblement n'est observé (via `window.__PP__`), et les jugements sont identiques à ceux d'une partie sans le réglage
 
 ## Epic 3 : Bruit et Maman
 
@@ -1273,6 +1534,7 @@ afin que le chaos reste drôle et jamais frustrant.
 ### Story 3.1 : Jauge de bruit `[P]`
 
 **Exigences :** FR18
+**UX :** UX-DR4
 
 En tant que joueur,
 je veux voir monter le bruit à chaque chute et chaque sonnerie,
@@ -1292,15 +1554,16 @@ afin de sentir que le chaos risque de réveiller Maman.
 
 **Étant donné** le HUD
 **Quand** la jauge change
-**Alors** une jauge de bruit visible l'affiche avec un code couleur progressif, et la sim émet `NoiseChanged` (indice visuel et haptique au-delà de 80 %)
+**Alors** la jauge « Bruit » s'affiche en première position dans la pastille de jauges (story 1.19), seulement dans les niveaux Sieste, avec le code couleur progressif `gauge-calm` → `gauge-warn` (à partir de 70 %) ; la sim émet `NoiseChanged` (indice visuel et haptique au-delà de 80 %)
 
-**Étant donné** les stories 1.14 et 1.19, déjà livrées
+**Étant donné** les stories 1.15 et 1.20, déjà livrées
 **Quand** la jauge est branchée
 **Alors** aucun code de ces stories n'est modifié : la jauge réagit uniquement à leurs événements
 
 ### Story 3.2 : Variante Sieste et réveil de Maman `[P]`
 
 **Exigences :** FR32
+**UX :** UX-DR13 (maquette `mockups/key-result.html`, état B)
 
 En tant que joueur,
 je veux que Maman se réveille si je fais trop de bruit,
@@ -1318,7 +1581,7 @@ afin que le bruit soit un vrai enjeu jusqu'à la dernière seconde.
 
 **Étant donné** l'écran de résultat
 **Quand** Maman a été réveillée
-**Alors** la raison s'affiche avec un indice dédié (son de porte qui claque, visuel, vibration), et l'étoile perdue est visible
+**Alors** l'en-tête « Maman s'est réveillée ! » s'affiche avec un indice dédié (son de porte qui claque, visuel, vibration), et l'étoile perdue se pose en dernier, en étoile vide pointillée `{colors.ink-soft}` avec une pastille « −1 » en `{colors.mama-scream}`
 
 **Étant donné** le bot `random`
 **Quand** il joue 100 parties en headless
@@ -1327,6 +1590,7 @@ afin que le bruit soit un vrai enjeu jusqu'à la dernière seconde.
 ### Story 3.3 : Journal de partie exportable `[P]`
 
 **Exigences :** FR68, NFR14
+**UX :** UX-DR13
 
 En tant que testeur,
 je veux copier ou télécharger le journal de ma partie en un geste,
@@ -1336,7 +1600,7 @@ afin que Geo puisse analyser mon playtest sans que je donne d'information person
 
 **Étant donné** une partie terminée
 **Quand** l'écran de résultat s'affiche
-**Alors** le bouton « Copier / Télécharger le journal » produit un JSON validé par `JournalSchema`, qui contient :
+**Alors** le bouton « Copier le journal » (builds de playtest uniquement) copie en un geste un JSON validé par `JournalSchema` et confirme par « Journal copié ! » ; si l'API du presse-papiers échoue, il devient « Télécharger le journal » et télécharge un fichier `.json`. Le JSON contient :
 - le rejeu : graine, version du contenu, hash de `feel.json`, commandes, changements de feeling ;
 - le résumé : réponses par menace et par qualité, appareil d'entrée dominant (tactile, clavier ou manette), fin, score, étoiles, numéro de la partie dans la session (relances sans rechargement) ;
 - le diagnostic : les 200 dernières entrées de log `info` et plus.
@@ -1396,6 +1660,7 @@ afin de finir chaque niveau en apothéose de panique.
 ### Story 3.6 : Photo de fin figée `[V1]`
 
 **Exigences :** FR35
+**UX :** UX-DR4, UX-DR13
 
 En tant que joueur,
 je veux une photo figée de l'état du salon à l'arrivée de Maman,
@@ -1406,6 +1671,7 @@ afin de rire de la scène, et de mes catastrophes.
 **Étant donné** le flux en `photo`
 **Quand** il démarre
 **Alors** la sim prend un snapshot final ; le client le rend sans simulation, avec une caméra et un filtre « photo » (cadre, flash, son d'appareil), et cette caméra est réglable dans `feel.json`
+**Et** le HUD est masqué de la photo jusqu'à la fin du replay, et la photo s'affiche dans un `polaroid` sur l'écran de résultat
 
 **Étant donné** des presque-accidents figés sur la photo (bébé en hauteur)
 **Quand** le score est calculé
@@ -1414,6 +1680,7 @@ afin de rire de la scène, et de mes catastrophes.
 ### Story 3.7 : Réactions de Maman et dégaine de papa `[V1]`
 
 **Exigences :** FR35, FR37
+**UX :** UX-DR13
 
 En tant que joueur,
 je veux voir Maman rire, soupirer ou hurler, et papa de plus en plus débraillé,
@@ -1427,7 +1694,7 @@ afin que la note raconte ma partie.
 
 **Étant donné** la fin de la photo
 **Quand** les réactions s'affichent
-**Alors** Maman réagit dans l'ordre Rire, Soupir, Hurlement ; chaque réaction a son animation provisoire, son son et sa valeur, puis la note et les étoiles s'affichent
+**Alors** Maman réagit dans l'ordre Rire, Soupir, Hurlement ; chaque réaction a son animation provisoire, son son et sa valeur, et sa réplique s'affiche toujours dans une `mum-bubble` (qui sert aussi de sous-titre) teintée selon la réaction (`mama-laugh`, `mama-sigh`, `mama-scream`) ; puis les lignes de score et les étoiles de la story 1.22 s'affichent
 
 ### Story 3.8 : Mémoire de Maman `[V1]`
 
@@ -1454,6 +1721,7 @@ afin de rire de ses « *Encore* l'étagère ?! ».
 ### Story 3.9 : Replay des meilleurs moments `[V1]`
 
 **Exigences :** FR38
+**UX :** UX-DR13, UX-DR15
 
 En tant que joueur,
 je veux revoir mes meilleurs moments façon match de sport,
@@ -1467,7 +1735,8 @@ afin de savourer mes parades et mes désastres.
 
 **Étant donné** un moment retenu à l'instant `t`
 **Quand** le replay le joue
-**Alors** une sim de replay séparée restaure le snapshot qui précède `t − 2 s`, rejoue le journal jusqu'à `t + 1,5 s`, et le rendu utilise une caméra de replay avec le bandeau « REPLAY »
+**Alors** une sim de replay séparée restaure le snapshot qui précède `t − 2 s`, rejoue le journal jusqu'à `t + 1,5 s`, et le rendu utilise une caméra de replay avec le bandeau « REPLAY » (`epic-stamp`, affiché pendant tout le replay)
+**Et** le replay se joue après les lignes de score et les étoiles, et avant les actions de l'écran de résultat
 **Et** la sim de la partie n'est pas modifiée
 
 **Étant donné** le replay
@@ -1477,6 +1746,7 @@ afin de savourer mes parades et mes désastres.
 ### Story 3.10 : Variante Retour `[V1]`
 
 **Exigences :** FR33
+**UX :** UX-DR4
 
 En tant que joueur,
 je veux des niveaux où Maman est sortie et rentre à la fin du chrono,
@@ -1486,18 +1756,19 @@ afin de varier l'enjeu selon l'âge.
 
 **Étant donné** un niveau `variant: "return"`
 **Quand** il se déroule
-**Alors** la jauge de bruit n'est pas affichée et ne peut pas terminer le niveau ; le chrono mène à la même fin (porte, rush final, photo, note)
+**Alors** la jauge de bruit n'est pas affichée et ne peut pas terminer le niveau ; le chrono (icône de porte) mène à la même fin (porte, rush final, photo, note)
 
 **Étant donné** `LevelSchema`
 **Quand** un niveau « return » déclare une durée
 **Alors** la valeur par défaut est de 180 000 ms, surchargeable par le niveau
 
-### Story 3.11 : Réussite et déblocage par étoiles `[V1]`
+### Story 3.11 : Réussite, déblocage par étoiles et Frigo `[V1]`
 
 **Exigences :** FR39
+**UX :** UX-DR3, UX-DR5, UX-DR13, UX-DR20, UX-DR21 (`EXPERIENCE.md` › Information Architecture, State Patterns › Fridge et Result ; maquettes `mockups/key-fridge.html` et `mockups/key-result.html`)
 
 En tant que joueur,
-je veux débloquer l'âge suivant quand je fais assez bien,
+je veux débloquer l'âge suivant quand je fais assez bien, et le voir apparaître sur le frigo familial,
 afin d'avoir un objectif de progression.
 
 **Critères d'acceptation :**
@@ -1506,13 +1777,32 @@ afin d'avoir un objectif de progression.
 **Quand** elle obtient au moins 1 étoile
 **Alors** le niveau est marqué réussi ; la meilleure note par niveau est enregistrée dans la sauvegarde
 
+**Étant donné** le Frigo (état `fridge` d'`appFsm`, `menuScreen` intitulé « Le frigo »), créé par cette story et enrichi en 6.9
+**Quand** il s'affiche
+**Alors** chaque âge est un `polaroid` légendé tenu par un aimant, avec ses étoiles en aimants ; un âge verrouillé est un emplacement vide avec un « ? » au crayon, son nom restant visible en `{colors.ink-soft}`, et il ne peut pas être choisi
+**Et** toucher (ou valider au focus) un polaroïd débloqué lance le chargement de ce niveau ; un aimant en haut à droite (`button-icon`) ouvre les réglages (story 2.8)
+**Et** au clavier et à la manette, le focus passe d'un polaroïd à l'autre et à l'aimant, avec l'anneau de focus
+
+**Étant donné** un lancement qui n'est pas le premier (calibration déjà enregistrée)
+**Quand** je passe l'écran de démarrage
+**Alors** j'arrive sur le Frigo ; le premier lancement, lui, mène toujours directement à l'Âge 1 (story 2.7)
+
 **Étant donné** au moins 2 étoiles (seuil dans `feel.json`)
 **Quand** l'écran de résultat s'affiche
-**Alors** l'âge suivant est annoncé comme débloqué, et un menu de sélection des niveaux (créé par cette story, enrichi en 6.9) l'affiche comme jouable
+**Alors** l'en-tête « Nouvel âge débloqué ! » s'affiche, avec « Âge suivant » en action principale, « Rejouer » en secondaire et « Frigo » en tertiaire
+**Et** à la visite suivante du Frigo, le nouveau polaroïd tombe avec un « clac » d'aimant et l'étiquette « Nouveau ! », une seule fois (`save.progress.seenUnlocks`)
 
-**Étant donné** l'écran de résultat
-**Quand** je le quitte
-**Alors** je peux rejouer ou passer à l'âge suivant (s'il est débloqué et existe)
+**Étant donné** moins de 2 étoiles
+**Quand** l'écran de résultat s'affiche
+**Alors** « Rejouer » est l'action principale, et « Âge suivant » reste visible mais verrouillé, avec l'indice « 2 étoiles pour débloquer » ; le toucher ne fait rien
+
+**Étant donné** le panneau de pause (story 1.5)
+**Quand** le Frigo existe
+**Alors** le bouton « Quitter vers le frigo » apparaît ; un premier appui l'arme (« Sûr ? Le niveau sera perdu. », fond `{colors.ink}`), un second dans les 3 s confirme, sinon il revient à son état normal, sans fenêtre modale
+
+**Étant donné** 3 résultats consécutifs à 1 étoile ou moins sur le même niveau, hors palier Assistance (`save.progress.failStreak[levelId]`)
+**Quand** l'écran de résultat s'affiche
+**Alors** une carte douce propose « Envie de souffler ? Essaie le mode Assistance », avec un bouton vers les réglages (Difficulté en première ligne) et un bouton pour la fermer ; elle n'apparaît jamais en Assistance
 
 ## Epic 4 : Cycle du dodo (deuxième prototype)
 
@@ -1533,7 +1823,7 @@ afin de décider à chaque instant quand porter et quand déposer.
 **Alors** la zone apparaît dans `geometry.json`
 
 **Étant donné** papa près du bébé
-**Quand** je tape le bébé hors de toute menace (`TapBaby`)
+**Quand** je tape le bébé hors de toute menace (`TapBaby`, commande créée en story 1.21)
 **Alors** papa le prend : le bébé passe en `carried`, et ses menaces directes en cours sont annulées sans gag (`ThreatCancelled{reason: "carried"}`)
 
 **Étant donné** le bébé porté
@@ -1548,6 +1838,7 @@ afin de décider à chaque instant quand porter et quand déposer.
 ### Story 4.2 : Combo à encaisser
 
 **Exigences :** FR23, FR34 (coût d'un gag)
+**UX :** UX-DR22
 
 En tant que joueur,
 je veux faire grimper un multiplicateur que je n'encaisse qu'en déposant le bébé en lieu sûr,
@@ -1557,7 +1848,7 @@ afin de prendre des risques pour un gros score.
 
 **Étant donné** `src/sim/scoring/combo.ts`
 **Quand** une réponse est réussie, ou que 10 s passent sans incident bébé dans les bras
-**Alors** le multiplicateur gagne +1, borné entre x1 et x8 (valeurs dans `feel.json`), et s'affiche dans le HUD
+**Alors** le multiplicateur gagne +1, borné entre x1 et x8 (valeurs dans `feel.json`), et s'affiche dans un `combo-badge` ancré au-dessus de papa (`{typography.combo}`), masqué à x1 et visible de x2 à x8
 
 **Étant donné** un multiplicateur supérieur à x1
 **Quand** papa dépose le bébé dans une `ZONE_safe_*`
@@ -1570,6 +1861,7 @@ afin de prendre des risques pour un gros score.
 ### Story 4.3 : Envie pressante
 
 **Exigences :** FR17
+**UX :** UX-DR4
 
 En tant que joueur,
 je veux que papa doive un jour aller aux toilettes,
@@ -1579,7 +1871,7 @@ afin de devoir choisir le moment où je laisse le bébé seul.
 
 **Étant donné** `src/sim/gauges/bladder.ts`
 **Quand** le temps passe
-**Alors** la jauge monte de 0,4/s (0–100), s'affiche dans le HUD, et à 100 les déplacements de papa sont ralentis de 30 %
+**Alors** la jauge monte de 0,4/s (0–100), s'affiche en dernière position dans la pastille de jauges (« Envie », story 1.19), et à 100 les déplacements de papa sont ralentis de 30 %
 
 **Étant donné** `ANCHOR_toilet`, ajoutée au salon greybox via Blender MCP par cette story
 **Quand** je tape la porte des toilettes
@@ -1592,6 +1884,7 @@ afin de devoir choisir le moment où je laisse le bébé seul.
 ### Story 4.4 : Cadre des séquences spéciales et « Rester éveillé »
 
 **Exigences :** FR40
+**UX :** UX-DR23
 
 En tant que joueur,
 je veux que le jeu bascule dans une séquence courte aux règles propres, en commençant par lutter contre le sommeil, bébé dans les bras,
@@ -1603,6 +1896,7 @@ afin de varier le gameplay au-delà de la parade.
 **Quand** une séquence démarre
 **Alors** la sim émet `SequenceStarted{id}` ; le director normal est suspendu, puis reprend à `SequenceEnded{id, outcome}`
 **Et** le client applique le cadrage de caméra et la musique de la séquence
+**Et** si la séquence déclare une barre, une `sequence-bar` glisse sous le chrono au début et repart à la fin, et le chrono passe en forme compacte (32 px de haut, `{typography.numeric-compact}`) pendant ce temps
 
 **Étant donné** la séquence `stay_awake` (bébé dans les bras)
 **Quand** elle se déroule
@@ -1701,13 +1995,14 @@ afin de vivre le ralenti épique du moment le plus tendu de la soirée.
 **Quand** il est jugé
 **Alors** le bébé se réveille (gag), et la séquence recule
 
-**Étant donné** la Fermeté de la story 1.22
+**Étant donné** la Fermeté de la story 1.23
 **Quand** cette story démarre
-**Alors** si la story 1.22 n'a pas été livrée en E1, celle-ci l'implémente d'abord (mêmes critères que 1.22)
+**Alors** si la story 1.23 n'a pas été livrée en E1, celle-ci l'implémente d'abord (mêmes critères que 1.23)
 
 ### Story 4.9 : Sortie en infiltration (réponse Ne rien faire)
 
 **Exigences :** FR6, FR40
+**UX :** UX-DR22
 
 En tant que joueur,
 je veux quitter la chambre sans faire grincer le parquet, en retenant mon souffle et en ignorant les fausses alertes,
@@ -1721,7 +2016,7 @@ afin de vivre une infiltration façon Metal Gear.
 
 **Étant donné** la commande `HoldAnywhere` (tactile : maintien n'importe où ; clavier : maintien de E ; manette : maintien de RT ; uniquement pendant l'infiltration)
 **Quand** je retiens mon souffle
-**Alors** une jauge de souffle de 6000 ms se vide ; à vide, ou en cas de relâchement trop tôt pendant un passage critique, le bruit monte de 5 %
+**Alors** une jauge de souffle de 6000 ms se vide, affichée par un `breath-ring` autour de papa (même visuel que le `hold-ring`) ; à vide, ou en cas de relâchement trop tôt pendant un passage critique, le bruit monte de 5 %
 
 **Étant donné** la réponse générique `nothing` (P2)
 **Quand** le bébé émet une fausse alerte (soupir, `content/threats/false_alarm_sigh.json`)
@@ -1789,6 +2084,7 @@ afin de devoir les deviner, et que Maman les juge.
 ### Story 5.3 : Odeur et renifler
 
 **Exigences :** FR24
+**UX :** UX-DR14
 
 En tant que joueur,
 je veux voir une traînée verte et pouvoir renifler la couche,
@@ -1803,6 +2099,7 @@ afin de vérifier mon hypothèse avant d'agir.
 **Étant donné** papa près du bébé
 **Quand** je le renifle (tap maintenu sur le bébé, 1000 ms)
 **Alors** l'état de la couche est révélé, et le bruit monte de 3 %
+**Et** pendant le maintien, un `hold-ring` se remplit sur le bébé en 1000 ms
 
 ### Story 5.4 : Pleurs typés et remèdes
 
@@ -1857,6 +2154,7 @@ afin de résoudre un puzzle d'escape game absurde.
 ### Story 5.7 : Change de couche en boss
 
 **Exigences :** FR42
+**UX :** UX-DR23
 
 En tant que joueur,
 je veux affronter le change comme un combat de boss, avec une barre de vie… de la couche,
@@ -1866,7 +2164,7 @@ afin de rire d'une galère que tout parent connaît.
 
 **Étant donné** la séquence `diaper_boss` (attaques en JSON : jet surprise à esquiver, pied dans la couche, retournement, lingette qui manque)
 **Quand** elle se déroule
-**Alors** chaque attaque est une menace P1 enchaînée (Parer, Esquiver ou Fermeté), et la barre de vie de la couche baisse à chaque réussite
+**Alors** chaque attaque est une menace P1 enchaînée (Parer, Esquiver ou Fermeté), et la barre de vie de la couche (`sequence-bar`, remplissage adverse `{colors.gauge-warn}`) baisse à chaque réussite
 
 **Étant donné** une couche débordée
 **Quand** le change se termine
@@ -1912,6 +2210,7 @@ afin de traiter des perturbations en plus du bébé.
 ### Story 6.2 : Coolitude et désarmement
 
 **Exigences :** FR45, FR46
+**UX :** UX-DR23
 
 En tant que joueur,
 je veux retirer une fourchette au bébé sans geste brusque, en l'échangeant contre un objet plus cool,
@@ -1922,6 +2221,7 @@ afin de vivre une négociation de prise d'otage.
 **Étant donné** `content/objects/` (`coolness` de 1 à 10) et la jauge de calme (de 0 à 100, départ à 50)
 **Quand** papa glisse trop vite vers le bébé
 **Alors** le calme baisse de 30 ; sous 20, le bébé agite l'objet
+**Et** la jauge de calme s'affiche dans la `sequence-bar` (ressource du joueur, `{colors.gauge-calm}`)
 
 **Étant donné** papa qui tient un objet
 **Quand** je le propose au bébé
@@ -1949,6 +2249,7 @@ afin d'anticiper au lieu de seulement réagir.
 ### Story 6.4 : Petite enfance : jauge d'attention et provocation
 
 **Exigences :** FR6, FR50
+**UX :** UX-DR22
 
 En tant que joueur,
 je veux un enfant de 3 ans qui teste mes réactions,
@@ -1956,7 +2257,7 @@ afin d'apprendre que la retenue est parfois la bonne réponse.
 
 **Critères d'acceptation :**
 
-**Étant donné** la jauge d'attention (−5/s quand papa s'occupe de lui-même, +10 par interaction)
+**Étant donné** la jauge d'attention (−5/s quand papa s'occupe de lui-même, +10 par interaction), affichée par un `attention-meter` de 5 pastilles au-dessus de l'enfant pendant tout le niveau
 **Quand** elle atteint 0
 **Alors** l'enfant passe à l'interdit
 
@@ -2010,6 +2311,7 @@ afin de doser calme et fermeté face à un ado.
 ### Story 6.8 : Niveau Adulte
 
 **Exigences :** FR51
+**UX :** UX-DR13, UX-DR24
 
 En tant que joueur,
 je veux un dernier niveau où la bonne réponse est de ne plus parer,
@@ -2021,9 +2323,14 @@ afin de passer l'examen final du fil de la retenue.
 **Quand** le niveau est implémenté
 **Alors** la réponse dominante est `nothing`, et l'action est le plus souvent pénalisée
 
+**Étant donné** l'écran de résultat du niveau Adulte (dernier âge)
+**Quand** il s'affiche
+**Alors** « Frigo » remplace « Âge suivant » comme action principale ; à la première fin avec au moins 1 étoile, les Crédits se jouent, puis le jeu revient au Frigo
+
 ### Story 6.9 : Sélection des âges et tutoriel implicite
 
 **Exigences :** FR52, NFR6
+**UX :** UX-DR20
 
 En tant que joueur,
 je veux choisir un âge débloqué, et découvrir le premier niveau sans un mot d'explication,
@@ -2033,7 +2340,7 @@ afin de progresser d'âge en âge.
 
 **Étant donné** un niveau par âge
 **Quand** j'ouvre le menu
-**Alors** les âges débloqués (au moins 2 étoiles sur le précédent) sont jouables, et les autres sont verrouillés
+**Alors** le Frigo (story 3.11) montre les 5 âges (« Bébé à 4 pattes », « Petite enfance », « Enfance », « Adolescence », « Adulte ») ; les âges débloqués (au moins 2 étoiles sur le précédent) sont jouables, et les autres sont verrouillés
 
 **Étant donné** le premier niveau
 **Quand** il démarre
@@ -2053,7 +2360,7 @@ afin que le monde soit lisible et charmant.
 
 **Critères d'acceptation :**
 
-**Étant donné** le pipeline de la story 1.5
+**Étant donné** le pipeline de la story 1.6
 **Quand** une pièce finale remplace une greybox
 **Alors** les conventions de nommage, la géométrie extraite et les tests de niveau restent valides, sans changement de code de la sim
 **Et** le budget de performance (`perf.spec.ts`) est respecté
@@ -2126,6 +2433,7 @@ afin que chaque âge ait son identité.
 ### Story 8.1 : Builds iOS et Android via Capacitor
 
 **Exigences :** FR69, NFR13
+**UX :** UX-DR25
 
 En tant que joueur mobile,
 je veux installer le jeu sur mon téléphone, avec une haptique native et une sauvegarde fiable,
@@ -2137,6 +2445,10 @@ afin de jouer partout, même hors ligne.
 **Quand** l'app tourne sur iOS ou Android
 **Alors** l'orientation est verrouillée en paysage, l'haptique native remplace `navigator.vibrate`, et la pause automatique passe par `appStateChange`
 **Et** la sauvegarde utilise `@capacitor/preferences`, via le même `StoragePort`
+
+**Étant donné** le bouton retour d'Android (`@capacitor/app`, `backButton`)
+**Quand** je l'utilise
+**Alors** il met en pause en jeu, et revient d'un niveau dans les menus et les panneaux (fermer la pause équivaut à « Reprendre », par le décompte)
 
 ### Story 8.2 : Audio et latence sur appareils réels
 

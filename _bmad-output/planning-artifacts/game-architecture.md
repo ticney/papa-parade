@@ -14,6 +14,8 @@ language: 'fr'
 gdd: '_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/gdd.md'
 epics: '_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/epics.md'
 decision_log: '_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/decision-log.md'
+ux_design: '_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/DESIGN.md'
+ux_experience: '_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md'
 brief: null
 ---
 
@@ -22,7 +24,7 @@ brief: null
 ## Statut du document
 
 **Statut :** complet (workflow GDS Architecture, 9 étapes sur 9), validé le 2026-10-26.
-Le document est rédigé en français, comme le GDD (dérogation à `document_output_language: English`, décidée par Geo le 2026-10-26). Les identifiants de code restent en anglais. Il est la source de vérité **technique** ; le GDD reste la source de vérité des **règles du jeu**.
+Le document est rédigé en français, comme le GDD (dérogation à `document_output_language: English`, décidée par Geo le 2026-10-26). Les identifiants de code restent en anglais. Il est la source de vérité **technique** ; le GDD reste la source de vérité des **règles du jeu**, et la spécification UX (`DESIGN.md`, `EXPERIENCE.md`) celle de **l'interface**.
 
 ## Résumé exécutif
 
@@ -159,7 +161,7 @@ Aucun starter communautaire : les starters Three.js imposent des structures (Rea
 6. Audio : moteur, latence, musique adaptative, équivalents visuels et haptiques.
 7. Format du contenu (menaces, niveaux) et validation par schéma.
 8. Fichier de feeling : format, chargement, réglage à chaud.
-9. Scènes et états du jeu (menu, calibration, niveau, fin de niveau, replay).
+9. Scènes et états du jeu (démarrage, calibration, Frigo, niveau, fin de niveau, replay, réglages) ; les parcours sont décrits dans `EXPERIENCE.md`.
 10. UI et HUD (DOM ou WebGL).
 11. Rendu : WebGL ou WebGPU, toon et contours, budget de performance.
 12. Persistance locale.
@@ -185,7 +187,7 @@ Aucun starter communautaire : les starters Three.js imposent des structures (Rea
 | Feeling | `feel.json` unique, surcharges par niveau ; panneau Tweakpane en dev, réglage à chaud, sauvegarde via un plugin Vite | tweakpane 4.0.5 | E1, E2 | Règle d'or : Geo règle sans toucher à la logique |
 | Rendu | `WebGLRenderer`, `MeshToonMaterial` (rampe 3 tons), contours inverted hull, pas de post-process lourd, DPR plafonné et adaptatif | three 0.186.1 | E1, E7 | Fiable en WebView mobile, 60 FPS ; WebGPU réévalué en E7 |
 | Audio | Web Audio maison : bus musique / sfx / voix / UI, buffers pré-décodés, stems synchronisés, déverrouillage au premier tap | API native | E1, E2, E4 | Maîtrise de la latence et de la synchro ; Howler n'est plus maintenu |
-| UI et HUD | DOM superposé en vanilla TS + CSS ; éléments ancrés au monde via `CSS2DRenderer` | addon three | E1, E2, E3 | Lisible par Playwright, facile à écrire pour l'IA, sans framework |
+| UI et HUD | DOM superposé en vanilla TS + CSS ; éléments ancrés au monde via `CSS2DRenderer` ; tokens et composants définis par `DESIGN.md` et `EXPERIENCE.md` | addon three | E1, E2, E3 | Lisible par Playwright, facile à écrire pour l'IA, sans framework |
 | Pipeline d'assets | Blender 5.2 LTS (greybox dès E1, via Blender MCP) → `.glb` avec convention `COL_` / `NAV_` / `ANCHOR_` ; optimisation gltfpack | Blender 5.2.3, gltfpack 1.3.0 | E1, E7 | Le pipeline est validé tôt ; les niveaux JSON référencent les ancres par nom |
 | Chargement | Par niveau : préchargement complet avant le début du niveau | — | E1, E6 | Aucun accroc en jeu ; < 5 s en 4G |
 | IA du bébé | `WaveDirector` (JSON du niveau) + FSM du bébé | — | E1, E4, E6 | Rythme des vagues contrôlé par les données |
@@ -212,8 +214,11 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 ### Chaîne d'entrées
 
 1. **Capture** : Pointer Events sur le canvas, clavier, et API Gamepad interrogée à chaque frame. Chaque entrée est horodatée avec `event.timeStamp`, qui partage la base de temps de `performance.now()`.
-2. **Mapping** (client, `InputMapper`) : la position écran est projetée sur le plan du sol par la caméra. Le hit-test donne la priorité aux menaces, puis aux objets interactifs, puis au sol, avec un rayon tactile généreux en px écran fixé dans `feel.json`. Au clavier et à la manette, la menace la plus urgente dans la direction visée est ciblée automatiquement.
-3. **Commandes** : le client envoie à la sim des commandes typées et horodatées en `simTime` : `PressThreat{threatId, t}`, `Release{t}`, `TapFloor{x, z, t}`, `TapObject{objectId, t}`, `Swipe{dir, t}`. La sim ne voit jamais d'événement brut. Les bots produisent directement ces commandes.
+   - Le clavier est lié par `KeyboardEvent.code` (position physique) : ZQSD en AZERTY et WASD en QWERTY marchent sans réglage. Les glyphes affichés (`glyph-chip`) viennent de `navigator.keyboard.getLayoutMap()` quand l'API existe, et sinon « Espace » et des flèches.
+   - La famille de la manette (Xbox par défaut, PlayStation) est déduite de `Gamepad.id` pour les glyphes. `gamepaddisconnected` met la partie en pause.
+   - Pause en jeu : bouton du HUD, Échap, Start/Options, retour Android (`@capacitor/app`). B ne met jamais en pause, car B + direction sert à esquiver.
+2. **Mapping** (client, `InputMapper`) : la position écran est projetée sur le plan du sol par la caméra. Le hit-test donne la priorité aux menaces, puis au bébé, puis aux objets interactifs, puis au sol, avec un rayon tactile généreux en px écran fixé dans `feel.json`. Au clavier et à la manette, la menace la plus urgente dans la direction visée est ciblée automatiquement.
+3. **Commandes** : le client envoie à la sim des commandes typées et horodatées en `simTime` : `PressThreat{threatId, t}`, `Release{t}`, `TapFloor{x, z, t}`, `TapObject{objectId, t}`, `TapBaby{t}`, `Swipe{dir, t}`. La sim ne voit jamais d'événement brut. Les bots produisent directement ces commandes.
 4. **Jugement** (sim) : la réponse est jugée sur `t` de l'appui. Le type de réponse se décide au relâchement, ou à 400 ms de maintien : en dessous de `holdMinMs` (400), c'est Parer ; au-delà, Fermeté. Le buffer d'entrée (100 ms) accepte un appui légèrement antérieur à l'ouverture de la fenêtre. « Attendre » et « Ne rien faire » sont jugés par les machines à états des menaces, sur l'absence de commande visant la menace pendant la période requise.
 5. **Fenêtre effective** = base × palier de difficulté × modificateur de fatigue × modificateur d'instinct, puis ± tolérance cachée. Cet ordre est fixe ; il est défini et testé dans `sim/timing`.
 
@@ -241,6 +246,8 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 - Les conséquences de gameplay (bruit, bazar, casse) sont tirées des événements de contact Rapier, filtrés par seuil d'impulsion.
 
 ### Retours multimodaux
+
+- **Mouvement réduit** (`save.settings.reducedMotion`) : seul le client le lit (`FeedbackDirector`, `cameraFx`, `vfx/`, UI). Il supprime le tremblement et la rotation de caméra, plafonne le zoom à 50 %, réduit les particules de 60 % et remplace les flashs par une lueur. Il ne touche jamais la sim : hitstop, ralentis et fenêtres restent identiques, et les tests golden ne changent pas. Quel que soit le réglage, rien ne clignote à plus de 3 Hz.
 
 - La sim émet des événements de domaine typés, comme `ThreatTelegraphed`, `WindowOpened`, `ResponseResolved{quality: perfect | success | fail}`, `GagTriggered`, `SilenceStarted`, `NoiseChanged` ou `MamaWoke`.
 - Le client relaie ces événements au `FeedbackDirector`, qui consulte `content/feedback.json` : à chaque événement correspondent des `audio`, `visual`, `haptic` et `camera` (facultatif).
@@ -277,6 +284,12 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 
 - `StoragePort` avec `get`, `set` et `remove` asynchrones, en JSON. Une implémentation web (localStorage) et une native (`@capacitor/preferences`).
 - Une sauvegarde unique `save.v{n}` : calibration, réglages, palier, étoiles par niveau, mémoire de Maman. Les migrations vont de `v{n-1}` à `v{n}`. Une donnée invalide est mise de côté et remplacée par les valeurs par défaut.
+- Contenu de `SaveSchema` (chaque champ est ajouté par la story qui l'utilise, avec sa migration) :
+  - `calibration` : `{ visualOffsetMs, audioOffsetMs, audioSkipped, measuredAt, device }` ;
+  - `settings` : `{ tier, volumes: { music, sfx, voice, ui }, haptics, reducedMotion, largeVerbs }` ;
+  - `progress` : `{ bestStars: { [levelId]: number }, seenUnlocks: LevelId[], failStreak: { [levelId]: number } }` ;
+  - `mamaMemory` : `{ counts: { [tagId]: number } }`.
+- Un échec d'écriture reste silencieux pour le joueur (`warn` dans les logs).
 
 ### Télémétrie de playtest
 
@@ -372,7 +385,7 @@ if (log.enabled('debug')) log.debug('input', 'press mapped', { target: hit.kind,
 |---|---|---|---|
 | Constantes | `src/shared/constants.ts` | `STEP_MS = 10`, `MAX_STEPS_PER_FRAME = 10`, `SNAPSHOT_EVERY_MS = 5000` | L'IA, rarement |
 | Équilibrage et feeling | `content/feel.json` + `feelOverrides` par niveau | Fenêtres, tolérance, hitstop, ralentis, jauges, paliers, note de Maman | Geo (panneau dev) |
-| Réglages du joueur | Sauvegarde (`StoragePort`) | Calibration, palier, volumes, haptique activée | Le joueur |
+| Réglages du joueur | Sauvegarde (`StoragePort`) | Calibration, palier, volumes, haptique activée, mouvement réduit, grands verbes | Le joueur |
 | Plateforme | `import.meta.env` + détection des capacités | `VITE_TARGET = web \| ios \| android`, `VITE_DEBUG_ALLOWED`, présence du tactile et de l'haptique | Le build |
 
 **Règle :** aucune valeur chiffrée du GDD en dur dans le code. Si une valeur relève du feeling, elle va dans `feel.json`.
@@ -456,7 +469,7 @@ papa-parade/
 │   │   ├── ids.ts                 # Types brandés : ThreatInstanceId, PropId, LevelId…
 │   │   └── math/                  # vec2.ts, vec3.ts, geometry.ts, easing.ts
 │   ├── content/                   # Schémas Zod + chargement validé (Node et navigateur)
-│   │   ├── schemas/               # feel.ts, threat.ts, level.ts, levelGeometry.ts, disruption.ts, feedback.ts, mamaLines.ts, save.ts
+│   │   ├── schemas/               # feel.ts, threat.ts, level.ts, levelGeometry.ts, disruption.ts, feedback.ts, mamaLines.ts, strings.ts, save.ts
 │   │   ├── contentBundle.ts       # Type ContentBundle (tout le contenu validé d'un niveau)
 │   │   ├── loadContent.ts         # Lecture + validation → Result<ContentBundle>
 │   │   └── feelMerge.ts           # feel.json + feelOverrides du niveau → Feel effectif
@@ -494,7 +507,7 @@ papa-parade/
 │   │   ├── boot.ts                # Assemble platform, contenu, sim, rendu, audio, UI
 │   │   ├── loop.ts                # rAF, accumulateur, interpolation, drain des SimEvent
 │   │   ├── timeMap.ts             # Historique (realTime, simTime) et conversion
-│   │   ├── app/                   # appFsm.ts : boot → calibration → menu → niveau → résultat ; pauseController.ts
+│   │   ├── app/                   # appFsm.ts : boot → start → (calibration) → fridge → loading → level → result, + settings, credits, oops ; pauseController.ts
 │   │   ├── input/                 # pointerInput.ts, keyboardInput.ts, gamepadInput.ts, inputMapper.ts, hitTest.ts, autoTarget.ts, calibration.ts
 │   │   ├── render/                # renderer.ts, isoCamera.ts, cameraFx.ts, levelScene.ts, interpolate.ts
 │   │   │   ├── views/             # papaView.ts, babyView.ts, threatView.ts, propView.ts
@@ -503,10 +516,11 @@ papa-parade/
 │   │   ├── audio/                 # audioEngine.ts, buses.ts, adaptiveMusic.ts, audioUnlock.ts
 │   │   ├── feedback/              # feedbackDirector.ts, visualCues.ts, hapticCues.ts
 │   │   ├── ui/
-│   │   │   ├── hud/               # gaugesHud.ts, timerHud.ts, pauseButton.ts
-│   │   │   ├── world/             # verbLabel.ts, threatIcon.ts, silenceBubble.ts (CSS2DRenderer)
-│   │   │   ├── screens/           # loadingScreen.ts, menuScreen.ts, calibrationScreen.ts, pauseScreen.ts, resultScreen.ts, oopsScreen.ts
-│   │   │   └── styles/            # ui.css, tokens.css
+│   │   │   ├── strings.ts         # t(key) : lecture de content/strings.fr.json
+│   │   │   ├── hud/               # gaugesHud.ts, timerHud.ts, sequenceBar.ts, pauseButton.ts, countdown.ts
+│   │   │   ├── world/             # verbLabel.ts, threatIcon.ts, targetHighlight.ts, holdRing.ts, glyphChip.ts, comboBadge.ts, silenceBubble.ts, tapMarker.ts (CSS2DRenderer)
+│   │   │   ├── screens/           # startScreen.ts, loadingScreen.ts, menuScreen.ts (le Frigo), calibrationScreen.ts, pauseScreen.ts, settingsScreen.ts, resultScreen.ts, creditsScreen.ts, oopsScreen.ts, portraitOverlay.ts
+│   │   │   └── styles/            # ui.css, tokens.css (reflet 1:1 du frontmatter de DESIGN.md, vérifié par tests/architecture/designTokens.test.ts)
 │   │   ├── endOfLevel/            # photo.ts, highlights.ts (replay des meilleurs moments)
 │   │   ├── save/                  # saveStore.ts, migrations.ts
 │   │   ├── telemetry/             # sessionLog.ts, exportLog.ts
@@ -519,6 +533,7 @@ papa-parade/
 │   ├── feel.json
 │   ├── feedback.json
 │   ├── mama-lines.json
+│   ├── strings.fr.json            # Toutes les chaînes d'UI et les aria-label (français ; prêt pour d'autres langues)
 │   ├── threats/                   # outlet.json, stairs.json, coffee_table_object.json, silence_mischief.json
 │   ├── disruptions/               # phone.json (E6 : dog.json, pot.json)
 │   ├── levels/                    # salon_crawler.json (rédigé) + salon_crawler.geometry.json (généré depuis le .glb)
@@ -532,6 +547,7 @@ papa-parade/
 │   ├── blender/                   # salon_crawler.blend
 │   └── audio/                     # Sources .wav
 ├── public/
+│   ├── fonts/                     # Baloo 2, Anton, Nunito (woff2, SIL OFL, auto-hébergées)
 │   └── assets/
 │       ├── levels/                # salon_crawler.glb (optimisé gltfpack)
 │       ├── characters/            # (E7) papa.glb, baby.glb, mama.glb, dog.glb
@@ -572,7 +588,7 @@ Les tests unitaires sont colocalisés : `src/sim/timing/judge.test.ts` est à c�
 | Note de Maman | `src/sim/scoring/` | Score, étoiles, mémoire des parties |
 | Flux du niveau | `src/sim/flow/` | Vagues, porte, rush final, photo, résultat |
 | Snapshot, journal | `src/sim/snapshot.ts`, `src/sim/journal.ts` | Pause exacte, replay, tests golden |
-| Flux de l'app | `src/client/app/` | Boot, calibration, menu, niveau, résultat, pause |
+| Flux de l'app | `src/client/app/` | Boot, démarrage, calibration, Frigo (menu), chargement, niveau, résultat, réglages, crédits, « Oups », pause et portrait |
 | Entrées | `src/client/input/` | Capture, hit-test, ciblage auto, calibration → `SimCommand` |
 | Rendu | `src/client/render/` | Scène iso, vues, toon, contours, caméra, VFX |
 | Audio | `src/client/audio/` | Moteur Web Audio, bus, musique adaptative |
@@ -776,7 +792,9 @@ if (th.def.response === 'nothing' && th.state === 'windowOpen') {
   - phase audio : 8 bips à 100 BPM, et le joueur tape en rythme ;
   - phase visuelle : 8 flashs, et le joueur tape en rythme.
 - Chaque phase donne la médiane des écarts, bornée à `[-50, 250]` ms, après rejet des valeurs aberrantes (au-delà de ±150 ms de la médiane).
-- `save.calibration = { visualOffsetMs, audioOffsetMs, measuredAt, device }`.
+- `save.calibration = { visualOffsetMs, audioOffsetMs, audioSkipped, measuredAt, device }`.
+- **Phase audio sautée** (« Pas de son ? Passe au visuel », appareil en silencieux) : `audioOffsetMs = visualOffsetMs` et `audioSkipped = true`. Les séquences rythmiques (E4) utilisent cette valeur telle quelle ; « Recalibrer » permet de refaire la phase audio.
+- Une phase interrompue par un passage en arrière-plan recommence depuis son début.
 - **Application au jugement :** `pressedAtReal − visualOffsetMs`, converti en temps de jeu par `timeMap`. Les séquences rythmiques (E4) utilisent `audioOffsetMs`.
 
 ```ts
@@ -916,6 +934,7 @@ export function runFatigue(world: World, ctx: StepContext): void {
 |---|---|---|---|
 | **E1** | Initialisation du projet (Vite, TS 7, Biome, Vitest, Playwright, git, CLAUDE.md) | racine, `tools/`, `tests/architecture/` | Structure, frontières |
 | E1 | Boucle, horloge, pas fixe, pause et reprise exactes | `src/client/loop.ts`, `src/sim/time/`, `src/client/app/pauseController.ts` | ADR-002 |
+| E1 | Fondations de l'UI : tokens, polices, chaînes, démarrage, portrait, HUD, panneau de pause | `src/client/ui/`, `content/strings.fr.json`, `public/fonts/`, `src/client/app/appFsm.ts` | ADR-008, `DESIGN.md`, `EXPERIENCE.md` |
 | E1 | Déplacement (tap au sol, clavier, manette) | `src/client/input/`, `src/sim/papa/`, `src/sim/nav/` | Chaîne d'entrées |
 | E1 | Bébé (sphère) qui choisit ses cibles | `src/sim/baby/`, `src/sim/director/` | FSM, WaveDirector |
 | E1 | 3 menaces (prise, escalier, table basse) : télégraphe, fenêtre, gag | `content/threats/`, `src/sim/threats/`, `src/sim/timing/` | P1, ADR-010 |
@@ -935,12 +954,14 @@ export function runFatigue(world: World, ctx: StepContext): void {
 | E2 | Haptique, équivalents visuels | `src/platform/*/…Haptics.ts`, `src/client/feedback/` | ADR-006 (test de triple équivalence) |
 | E2 | Calibration de la latence | `src/client/input/calibration.ts`, `src/client/ui/screens/calibrationScreen.ts` | P5 |
 | E2 | Instinct paternel, mode assistance | `src/sim/assist/paternalInstinct.ts`, `feel.difficultyTiers` | Fenêtre effective |
+| E2 | Réglages, mouvement réduit, grands verbes | `src/client/ui/screens/settingsScreen.ts`, `save.settings` | Client seul (la sim n'est pas touchée) |
 | **E3 (prototype)** | Jauge de bruit, variante Sieste (réveil anticipé : −1 étoile) | `src/sim/gauges/noise.ts`, `level.variant = 'nap'`, `src/sim/flow/` | Événement `MamaWoke` |
 | E3 (v1) | Porte, rush final, photo figée | `src/sim/flow/levelFlow.ts`, `src/client/endOfLevel/photo.ts` | P7 |
 | E3 (v1) | Réactions de Maman, étoiles, dégaine de papa | `src/sim/scoring/`, `World.papa.look` | — |
 | E3 (v1) | Replay des meilleurs moments | `src/client/endOfLevel/highlights.ts`, `src/sim/snapshot.ts`, `src/sim/journal.ts` | P7, ADR-004 |
 | E3 (v1) | Mémoire de Maman, répliques | `src/sim/scoring/mamaMemory.ts`, `content/mama-lines.json`, sauvegarde | P7 |
 | E3 (v1) | Variante Retour | `level.variant = 'return'` | — |
+| E3 (v1) | Frigo, déblocage, carte d'échecs répétés | `src/client/ui/screens/menuScreen.ts`, `save.progress` | `EXPERIENCE.md` › Fridge, Result |
 | **E4** | Bras-bébé (une main, fatigue doublée) | `World.papa.carrying`, `babyFsm` (`carried`), `classifyPress.ts` (Fermeté interdite) | FSM |
 | E4 | 100 pas en rythme (90 → 60 BPM, fenêtre de 180 ms) | `src/sim/sequences/lullabyWalk.ts`, `content/sequences/`, `audioOffsetMs` | P1 généralisé : un « temps » = une fenêtre ; audio planifié depuis le `simTime` |
 | E4 | Duel du coucher, faux sommeil | ThreatDef `response: 'wait'` | P2 |
@@ -969,6 +990,7 @@ export function runFatigue(world: World, ctx: StepContext): void {
 | Niveau (géométrie) | `content/levels/<id>.geometry.json` | `LevelGeometrySchema` | `tools/assets/extractLevelGeometry.ts` (généré) | sim (colliders, nav, ancres, zones) |
 | Table de retours | `content/feedback.json` | `FeedbackTableSchema` | L'IA, Geo | client |
 | Répliques de Maman | `content/mama-lines.json` | `MamaLinesSchema` | L'IA, Geo | sim (sélection), client (affichage) |
+| Textes de l'UI | `content/strings.fr.json` | `StringsSchema` | L'IA, Geo | client (`t(key)`) |
 | Sauvegarde | `StoragePort`, clé `papa-parade.save` | `SaveSchema` (versionné) | client | client, sim (mémoire de Maman passée à `createSim`) |
 | Journal de partie | export manuel en JSON | `JournalSchema` | client | sim (replay), `tools/sim/` |
 
@@ -977,6 +999,7 @@ export function runFatigue(world: World, ctx: StepContext): void {
 - `Anchor.id` provient des `ANCHOR_*` de la géométrie.
 - `ThreatDef.feedback.*` et `DisruptionDef.feedback.*` référencent des clés de `feedback.json`.
 - `ThreatDef.gag` référence un identifiant de gag.
+- Les clés de chaînes utilisées par le client et par le contenu existent dans `strings.fr.json`.
 - `content:check` vérifie **toutes** ces références croisées, en plus des schémas.
 
 **Exemple de niveau (extrait) :**
@@ -1047,7 +1070,7 @@ interface Platform {
 
 - **Aucun backend, aucun compte, aucune donnée personnelle.** La sauvegarde reste locale. Les journaux de playtest sont anonymes et partagés manuellement par le testeur.
 - **Build stores :** le code de debug est retiré (`VITE_DEBUG_ALLOWED=false`) ; pas de `window.__PP__`, pas de triches, pas de panneau.
-- **Hébergement web :** en-têtes `Content-Security-Policy` stricts (`script-src 'self' 'wasm-unsafe-eval'` pour Rapier), HTTPS obligatoire.
+- **Hébergement web :** en-têtes `Content-Security-Policy` stricts (`default-src 'self'`, `script-src 'self' 'wasm-unsafe-eval'` pour Rapier, `font-src 'self'` pour les polices auto-hébergées), HTTPS obligatoire, aucune requête vers un autre domaine.
 - **Blender MCP :** il exécute le code Python généré par l'IA sans garde-fou. Il ne doit être utilisé que sur des fichiers `.blend` du projet, versionnés dans git, pour pouvoir revenir en arrière. On n'ouvre jamais de fichier `.blend` tiers avec l'add-on actif.
 - **Plugin `feel-writer` :** il n'existe que dans le serveur de dev Vite, n'écrit que dans `content/feel.json`, et refuse tout autre chemin.
 
