@@ -21,6 +21,13 @@ describe('createGamepadInput', () => {
     expect(poll([null, undefined, pad(1, 1, false), pad(-0.3, 0.8)])).toEqual({ x: -0.3, y: 0.8 });
   });
 
+  it('prefers a pad with the standard mapping over an earlier device of another kind', () => {
+    const wheel: GamepadLike = { connected: true, axes: [0.9, 0.9], mapping: '' };
+    const standard: GamepadLike = { connected: true, axes: [-0.5, 0.2], mapping: 'standard' };
+    expect(poll([wheel, standard])).toEqual({ x: -0.5, y: 0.2 });
+    expect(poll([wheel])).toEqual({ x: 0.9, y: 0.9 }); // better than no pad at all
+  });
+
   it('is (0, 0) with no pad at all, and when the pad disappears', () => {
     expect(poll([])).toEqual({ x: 0, y: 0 });
     expect(poll([null, null])).toEqual({ x: 0, y: 0 });

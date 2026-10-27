@@ -225,6 +225,38 @@ describe('snapshot / restore', () => {
           papa.isBlocked = 1;
         },
       ],
+      // The state and its data must agree.
+      [
+        'dir',
+        (papa) => {
+          papa.state = 'walkDir';
+        },
+      ],
+      [
+        'dir',
+        (papa) => {
+          papa.dirX = 1;
+        },
+      ],
+      [
+        'path',
+        (papa) => {
+          papa.state = 'walkPath';
+        },
+      ],
+      [
+        'path',
+        (papa) => {
+          papa.path = [1, 1];
+        },
+      ],
+      [
+        'heading',
+        (papa) => {
+          papa.headingX = 0;
+          papa.headingZ = 0;
+        },
+      ],
     ];
     for (const [name, damage] of broken) {
       const snapshot = JSON.parse(JSON.stringify(good)) as typeof good;

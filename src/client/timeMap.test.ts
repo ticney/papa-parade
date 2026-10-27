@@ -105,6 +105,16 @@ describe('createTimeMap › realToSim', () => {
     expect(warnings).toEqual([{ channel: 'input', message: expect.stringContaining('capped') }]);
   });
 
+  it('warns once per recorded frame, not once per input past the cap', () => {
+    const { map, warnings } = build([[300, 200, 1]]);
+    for (let i = 0; i < 5; i++) at(map, 5000 + i);
+    expect(warnings).toHaveLength(1);
+    map.record(asRealMs(6000), asSimMs(300), 1); // a new frame: the next excess may warn again
+    at(map, 9000);
+    at(map, 9001);
+    expect(warnings).toHaveLength(2);
+  });
+
   it("caps at the newest record's rate, so a slow-motion tail is capped in sim time too", () => {
     const { map } = build([[300, 160, 0.3]]);
     expect(at(map, 10_000)).toBeCloseTo(160 + TIME_MAP_MAX_EXTRAPOLATION_MS * 0.3, 9);

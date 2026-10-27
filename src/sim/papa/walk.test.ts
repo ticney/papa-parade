@@ -117,6 +117,14 @@ describe('stepInDirection', () => {
     expect(stepInDirection(papa, grid, 0.03)).toBe(false);
   });
 
+  it('does not squeeze through a corner: a diagonal cell is not enough when both sides are closed', () => {
+    const corner = createTestNavGrid(['10', '01']);
+    const papa = papaAt(0.24, 0.24, { dirX: Math.SQRT1_2, dirZ: Math.SQRT1_2 });
+    expect(corner.isOpenAt(0.24 + 0.03 * Math.SQRT1_2, 0.24 + 0.03 * Math.SQRT1_2)).toBe(true);
+    expect(stepInDirection(papa, corner, 0.03)).toBe(false);
+    expect([papa.xM, papa.zM]).toEqual([0.24, 0.24]);
+  });
+
   it('refuses a step off the grid', () => {
     const papa = papaAt(0.01, 0.5, { dirX: -1, dirZ: 0 });
     expect(stepInDirection(papa, grid, 0.03)).toBe(false);

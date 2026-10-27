@@ -58,12 +58,21 @@ function tapFloor(world: World, ctx: StepContext, tapXM: number, tapZM: number):
 
 /** A direction cancels a path. A new direction while already walking one only updates it. */
 function move(world: World, ctx: StepContext, dirX: number, dirZ: number): void {
-  const length = Math.sqrt(dirX * dirX + dirZ * dirZ);
-  if (!(length > 0)) return; // `commandProblem` refuses (0, 0); this is a vector too small to normalise
+  // Scaled by the larger component first, so that a huge (or tiny) finite vector neither overflows
+  // nor underflows when squared.
+  const largest = Math.max(Math.abs(dirX), Math.abs(dirZ));
+  if (!(largest > 0)) return; // `commandProblem` refuses (0, 0)
+  const scaledX = dirX / largest;
+  const scaledZ = dirZ / largest;
+  const length = Math.sqrt(scaledX * scaledX + scaledZ * scaledZ);
   const { papa } = world;
   // `+ 0` turns a -0 into 0: nothing in the sim may depend on a sign of zero.
-  papa.dirX = dirX / length + 0;
-  papa.dirZ = dirZ / length + 0;
+  const nextX = scaledX / length + 0;
+  const nextZ = scaledZ / length + 0;
+  // Turning towards another wall is a new blockage: it must be reported again.
+  if (nextX !== papa.dirX || nextZ !== papa.dirZ) papa.isBlocked = false;
+  papa.dirX = nextX;
+  papa.dirZ = nextZ;
   papa.headingX = papa.dirX;
   papa.headingZ = papa.dirZ;
   if (papa.state === 'walkPath') {

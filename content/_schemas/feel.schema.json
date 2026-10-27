@@ -159,11 +159,13 @@
         "walkSpeedMps": {
           "type": "number",
           "exclusiveMinimum": 0,
+          "maximum": 12.5,
           "description": "Papa walking speed (tap on the floor, keys, stick), in metres per second."
         },
         "papaRadiusM": {
           "type": "number",
           "minimum": 0,
+          "maximum": 1,
           "description": "Papa's half width, in metres: his centre stays this far from furniture and walls. Read once when the level starts: a `SetFeel` takes effect at the next level."
         }
       },

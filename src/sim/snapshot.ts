@@ -59,6 +59,25 @@ function papaProblem(papa: unknown): string | null {
     return 'world.papa.pathIndex';
   }
   if (typeof slice.isBlocked !== 'boolean') return 'world.papa.isBlocked';
+
+  // The state and the data it walks on must agree.
+  const dirLength = Math.sqrt((slice.dirX as number) ** 2 + (slice.dirZ as number) ** 2);
+  if (slice.state === 'walkDir') {
+    if (Math.abs(dirLength - 1) > 1e-6) return 'world.papa.dir';
+  } else if (dirLength !== 0) {
+    return 'world.papa.dir';
+  }
+  if (slice.state === 'walkPath') {
+    if (path.length === 0 || (slice.pathIndex as number) * 2 >= path.length) {
+      return 'world.papa.path';
+    }
+  } else if (path.length !== 0) {
+    return 'world.papa.path';
+  }
+  const headingLength = Math.sqrt(
+    (slice.headingX as number) ** 2 + (slice.headingZ as number) ** 2,
+  );
+  if (Math.abs(headingLength - 1) > 1e-6) return 'world.papa.heading';
   return null;
 }
 

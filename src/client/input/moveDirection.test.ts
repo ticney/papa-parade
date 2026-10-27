@@ -6,6 +6,7 @@ import {
   type FloorDir,
   keysToScreenDir,
   type ScreenDir,
+  type StickMemory,
   screenToWorldDir,
   stickToScreenDir,
 } from './moveDirection.ts';
@@ -192,5 +193,48 @@ describe('stickToScreenDir', () => {
     expect(stick(0.4, 0, 50).has).toBe(false);
     expect(stick(0.6, 0, 50).has).toBe(true);
     expect(stick(0.01, 0, 0).has).toBe(true);
+  });
+});
+
+describe('stickToScreenDir with a memory (hysteresis)', () => {
+  it('stays pushed on the edge of the deadzone, and releases only well inside it', () => {
+    const out = { x: 0, up: 0 };
+    const memory: StickMemory = { isActive: false, turns: 0 };
+    expect(stickToScreenDir(0.21, 0, 20, 5, out, memory)).toBe(true);
+    // 0.19 is under the 0.2 deadzone but over its release threshold (0.16).
+    expect(stickToScreenDir(0.19, 0, 20, 5, out, memory)).toBe(true);
+    expect(stickToScreenDir(0.17, 0, 20, 5, out, memory)).toBe(true);
+    expect(stickToScreenDir(0.15, 0, 20, 5, out, memory)).toBe(false);
+    // Released: it takes the full deadzone to push it again.
+    expect(stickToScreenDir(0.19, 0, 20, 5, out, memory)).toBe(false);
+    expect(stickToScreenDir(0.21, 0, 20, 5, out, memory)).toBe(true);
+  });
+
+  it('keeps its rounded angle while the raw one wobbles on a boundary between two steps', () => {
+    const out = { x: 0, up: 0 };
+    const memory: StickMemory = { isActive: false, turns: 0 };
+    const at = (turns: number): [number, number] => [
+      Math.cos((turns * 5 * Math.PI) / 180),
+      -Math.sin((turns * 5 * Math.PI) / 180),
+    ];
+    // 0.49 steps: rounds to 0. 0.51 steps would round to 1, but is not 0.25 steps past the boundary.
+    const [x0, y0] = at(0.49);
+    stickToScreenDir(x0, y0, 20, 5, out, memory);
+    expect(memory.turns).toBe(0);
+    const [x1, y1] = at(0.6);
+    stickToScreenDir(x1, y1, 20, 5, out, memory);
+    expect(memory.turns).toBe(0);
+    const [x2, y2] = at(0.8);
+    stickToScreenDir(x2, y2, 20, 5, out, memory);
+    expect(memory.turns).toBe(1);
+  });
+
+  it('wraps the circle: -180° and +180° are the same angle', () => {
+    const out = { x: 0, up: 0 };
+    const memory: StickMemory = { isActive: false, turns: 0 };
+    stickToScreenDir(-1, 0.001, 20, 5, out, memory);
+    const first = memory.turns;
+    stickToScreenDir(-1, -0.001, 20, 5, out, memory);
+    expect(memory.turns).toBe(first);
   });
 });

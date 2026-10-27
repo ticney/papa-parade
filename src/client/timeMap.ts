@@ -19,8 +19,8 @@ export interface TimeMap {
    * `TIME_MAP_MAX_EXTRAPOLATION_MS` (a longer gap is clamped to it, with a `warn`: a hidden tab
    * leaves a rate-1 record behind). Before the start of the
    * history (`TIME_MAP_HISTORY_MS` before the newest record, or the oldest kept record if the
-   * ring is shorter): the sim time at that start, with a `warn`. An empty map answers `0`, with
-   * a `warn`. Allocation-free, but meant for rare calls (one per input).
+   * ring is shorter): the sim time at that start, with a `warn` (once per recorded frame). An empty map
+   * answers `0`, with a `warn`. Allocation-free, but meant for rare calls (one per sent command).
    */
   realToSim(realMs: RealMs): SimMs;
   reset(): void;
@@ -46,6 +46,8 @@ export function createTimeMap(options: TimeMapOptions = {}): TimeMap {
   const recordSimPerRealMs = new Float64Array(TIME_MAP_CAPACITY);
   let head = 0; // slot of the oldest record
   let count = 0;
+  // The cap warning is given once per recorded frame, not once per input past the cap.
+  let hasWarnedCap = false;
 
   const slot = (index: number): number => (head + index) % TIME_MAP_CAPACITY;
 
@@ -90,6 +92,7 @@ export function createTimeMap(options: TimeMapOptions = {}): TimeMap {
       recordSimMs[target] = simMs;
       recordSimPerRealMs[target] = simPerRealMs;
       count++;
+      hasWarnedCap = false;
 
       // Drop what the history no longer needs: a record is useless once the one after it is at or
       // before the start of the window.
@@ -123,11 +126,13 @@ export function createTimeMap(options: TimeMapOptions = {}): TimeMap {
       if (query >= newestAtReal) {
         let aheadMs = query - newestAtReal;
         if (aheadMs > TIME_MAP_MAX_EXTRAPOLATION_MS) {
-          logger.warn('input', 'timestamp far past the newest frame: extrapolation capped', {
-            realMs,
-            newestAtReal,
-            maxExtrapolationMs: TIME_MAP_MAX_EXTRAPOLATION_MS,
-          });
+          if (!hasWarnedCap)
+            logger.warn('input', 'timestamp far past the newest frame: extrapolation capped', {
+              realMs,
+              newestAtReal,
+              maxExtrapolationMs: TIME_MAP_MAX_EXTRAPOLATION_MS,
+            });
+          hasWarnedCap = true;
           aheadMs = TIME_MAP_MAX_EXTRAPOLATION_MS;
         }
         return asSimMs(
@@ -150,6 +155,7 @@ export function createTimeMap(options: TimeMapOptions = {}): TimeMap {
     reset() {
       head = 0;
       count = 0;
+      hasWarnedCap = false;
     },
   };
 }

@@ -102,6 +102,11 @@ export function bindKeyboard(
   bindings: KeyboardBindings,
 ): () => void {
   const onKeyDown = (event: KeyboardEvent): void => {
+    // macOS sends no `keyup` for a key released while Cmd is down: pressing Cmd lets go of everything.
+    if (event.code === 'MetaLeft' || event.code === 'MetaRight') {
+      if (keys.clear()) bindings.onChange(event.timeStamp);
+      return;
+    }
     if (!isMoveKey(event.code)) return;
     const changed = keys.keyDown(event);
     // The chord check already ran inside `keyDown`; a chord or a repeat of a held key is not a change.

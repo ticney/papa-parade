@@ -1,3 +1,4 @@
+import { MAX_PAPA_RADIUS_M, MAX_WALK_SPEED_MPS } from '@shared/constants';
 import { z } from 'zod';
 
 // Every key of content/feel.json lives here. No `.default()`, `.optional()`, `.transform()` or
@@ -91,10 +92,12 @@ const MovementSchema = z
     walkSpeedMps: z
       .number()
       .positive()
+      .max(MAX_WALK_SPEED_MPS)
       .describe('Papa walking speed (tap on the floor, keys, stick), in metres per second.'),
     papaRadiusM: z
       .number()
       .min(0)
+      .max(MAX_PAPA_RADIUS_M)
       .describe(
         "Papa's half width, in metres: his centre stays this far from furniture and walls. Read once when the level starts: a `SetFeel` takes effect at the next level.",
       ),

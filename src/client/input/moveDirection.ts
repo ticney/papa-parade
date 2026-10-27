@@ -1,3 +1,4 @@
+import { STICK_RELEASE_RATIO, STICK_TURN_HYSTERESIS_STEPS } from '@shared/constants';
 import type { OrthographicCamera } from 'three';
 import { MOVE_KEY_CODES } from './keyboardInput.ts';
 
@@ -63,11 +64,23 @@ export function keysToScreenDir(held: ReadonlySet<string>, out: ScreenDir): bool
   return out.x !== 0 || out.up !== 0;
 }
 
+/** What `stickToScreenDir` remembers between two calls, for its hysteresis. */
+export interface StickMemory {
+  /** Whether the stick was outside the deadzone at the last call. */
+  isActive: boolean;
+  /** The rounded angle of the last call, in angle steps. */
+  turns: number;
+}
+
 /**
  * The screen direction of a left stick (gamepad axes: +x right, +y DOWN). Inside the deadzone
  * (`deadzonePct` percent of the full range) it is no direction. Outside, the angle is rounded to a
  * multiple of `stepDeg`, so a resting hand does not journal a command per frame (D5); the length
  * is always 1, the stick's magnitude does not set the speed. Returns false inside the deadzone.
+ *
+ * With a `memory`, a stick already pushed leaves the deadzone only below `STICK_RELEASE_RATIO` of
+ * it, and keeps its last rounded angle until the raw one is clearly past the boundary: a hand
+ * resting on an edge does not flip between two states every frame.
  */
 export function stickToScreenDir(
   axisX: number,
@@ -75,13 +88,30 @@ export function stickToScreenDir(
   deadzonePct: number,
   stepDeg: number,
   out: ScreenDir,
+  memory?: StickMemory,
 ): boolean {
   out.x = 0;
   out.up = 0;
   const magnitude = Math.sqrt(axisX * axisX + axisY * axisY);
-  if (!(magnitude > 0) || magnitude < deadzonePct / 100) return false;
+  const deadzone = (memory?.isActive ? deadzonePct * STICK_RELEASE_RATIO : deadzonePct) / 100;
+  if (!(magnitude > 0) || magnitude < deadzone) {
+    if (memory) memory.isActive = false;
+    return false;
+  }
   const stepRad = (stepDeg * Math.PI) / 180;
-  const turns = Math.round(Math.atan2(-axisY, axisX) / stepRad);
+  const rawTurns = Math.atan2(-axisY, axisX) / stepRad;
+  let turns = Math.round(rawTurns);
+  if (memory?.isActive) {
+    // Distance to the last angle, going the short way round the circle.
+    const circleTurns = (2 * Math.PI) / stepRad;
+    let delta = rawTurns - memory.turns;
+    delta -= Math.round(delta / circleTurns) * circleTurns;
+    if (Math.abs(delta) < 0.5 + STICK_TURN_HYSTERESIS_STEPS) turns = memory.turns;
+  }
+  if (memory) {
+    memory.isActive = true;
+    memory.turns = turns;
+  }
   out.x = snapZero(Math.cos(turns * stepRad));
   out.up = snapZero(Math.sin(turns * stepRad));
   return true;

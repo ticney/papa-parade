@@ -165,6 +165,18 @@ describe('bindKeyboard', () => {
     };
   }
 
+  it('lets go of every key when Cmd goes down: macOS sends no keyup for them afterwards', () => {
+    const { press, keys, changes } = setup();
+    press('KeyD', { timeStamp: 10 });
+    press('KeyW', { timeStamp: 20 });
+    expect(keys.held.size).toBe(2);
+    press('MetaLeft', { timeStamp: 30, metaKey: true });
+    expect(keys.held.size).toBe(0);
+    expect(changes).toEqual([10, 20, 30]);
+    press('MetaRight', { timeStamp: 40, metaKey: true }); // nothing held: no change
+    expect(changes).toEqual([10, 20, 30]);
+  });
+
   it('reports each change once, with the event timestamp', () => {
     const { press, fire, changes } = setup();
     press('KeyD', { timeStamp: 10 });

@@ -250,6 +250,8 @@ export async function boot(): Promise<void> {
     onSimEvent: (event) => {
       logSimEvent(event);
       if (isMirrored) mirrorPapaEvent(event);
+      // A key still held after a tap's path ends walks again.
+      if (event.type === 'PapaArrived') inputMapper.resumeHeld();
     },
     canResumeNow: () => !shell.isPortrait && document.visibilityState !== 'hidden',
     waitForForeground: () => waitForForeground(document),
@@ -294,7 +296,18 @@ export async function boot(): Promise<void> {
   // live. Keys and stick are tracked outside that gate so that a resume can send what is held.
   const heldKeys = createHeldKeys();
   const readGamepads = (): ArrayLike<Gamepad | null> => {
-    if (typeof navigator.getGamepads === 'function') return navigator.getGamepads();
+    if (typeof navigator.getGamepads === 'function') {
+      try {
+        return navigator.getGamepads();
+      } catch (cause) {
+        // A permissions policy (a cross-origin iframe) makes it throw: it must not stop the loop.
+        if (!hasWarnedNoGamepads) {
+          hasWarnedNoGamepads = true;
+          log.warn('input', 'navigator.getGamepads() threw: no gamepad', { cause: String(cause) });
+        }
+        return [];
+      }
+    }
     if (!hasWarnedNoGamepads) {
       hasWarnedNoGamepads = true;
       log.warn('input', 'the Gamepad API is not available here (insecure context?): no gamepad');

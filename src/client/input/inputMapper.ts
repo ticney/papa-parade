@@ -1,5 +1,5 @@
 import { log } from '@shared/log';
-import { asRealMs } from '@shared/time';
+import { asRealMs, type SimMs } from '@shared/time';
 import type { AppFsm } from '../app/appFsm.ts';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import type { PauseController } from '../app/pauseController.ts';
@@ -43,6 +43,11 @@ export interface InputMapper {
    * level begins (a new sim starts with nothing sent).
    */
   resync(): void;
+  /**
+   * Forgets what was sent, then sends what is held: a tap made while a key was held replaced the
+   * direction walk by a path, and when the path ends the held direction walks again.
+   */
+  resumeHeld(): void;
 }
 
 /**
@@ -59,20 +64,30 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
   const isLive = (): boolean =>
     deps.appFsm.state === 'level' && deps.pause.state === 'running' && deps.getActive() !== null;
 
-  const refreshMove = (atReal: number): void => {
+  // Sends what is held if it changed. `stampOf` gives the command's sim time and is only called
+  // when a command is sent, so a frame with nothing new never reads the time map.
+  const refreshMove = (stampOf: (active: ActiveLevel) => SimMs): void => {
     const active = deps.getActive();
     if (active === null || !isLive()) return;
     if (active.sim !== boundSim) {
       boundSim = active.sim;
       deps.moveIntent.reset();
     }
-    deps.moveIntent.update(deps.held, stick, active.timeMap.realToSim(asRealMs(atReal)));
+    deps.moveIntent.update(deps.held, stick, () => stampOf(active));
   };
 
   const pollAndRefresh = (): void => {
     if (!isLive()) return;
     deps.gamepad.poll(stick);
-    refreshMove(deps.nowAtReal());
+    refreshMove((active) => active.timeMap.realToSim(asRealMs(deps.nowAtReal())));
+  };
+
+  // After a resume or a new level the loop may not have recorded a frame yet, so the time map
+  // cannot be asked: the command is stamped with the sim clock, which is "now" for the sim.
+  const resyncNow = (): void => {
+    if (!isLive()) return;
+    deps.gamepad.poll(stick);
+    refreshMove((active) => active.sim.world.time.sim);
   };
 
   return {
@@ -99,9 +114,13 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       deps.onTap?.(picked.xM, picked.zM);
     },
     onKeysChanged(timeStampAtReal) {
-      refreshMove(timeStampAtReal);
+      refreshMove((active) => active.timeMap.realToSim(asRealMs(timeStampAtReal)));
     },
     pollGamepad: pollAndRefresh,
-    resync: pollAndRefresh,
+    resync: resyncNow,
+    resumeHeld() {
+      deps.moveIntent.reset();
+      resyncNow();
+    },
   };
 }

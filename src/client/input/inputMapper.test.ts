@@ -38,7 +38,10 @@ function setup() {
   const state = { app: 'level' as string, pause: 'running' as string, stick: { x: 0, y: 0 } };
   const commands: SimCommand[] = [];
   const clock = { realToSim: (ms: number) => asSimMs(ms - 1000) };
-  const sim = { enqueue: (command: SimCommand) => commands.push(command) };
+  const sim = {
+    enqueue: (command: SimCommand) => commands.push(command),
+    world: { time: { sim: asSimMs(777) } },
+  };
   let active: ActiveLevel | null = { sim, timeMap: clock } as unknown as ActiveLevel;
   const held = new Set<string>();
   const markers: [number, number][] = [];
@@ -80,7 +83,10 @@ function setup() {
     camera,
     setActive: (next: ActiveLevel | null) => (active = next),
     newSim: () => {
-      const other = { enqueue: (command: SimCommand) => commands.push(command) };
+      const other = {
+        enqueue: (command: SimCommand) => commands.push(command),
+        world: { time: { sim: asSimMs(888) } },
+      };
       return { sim: other, timeMap: clock } as unknown as ActiveLevel;
     },
     setNow: (ms: number) => (nowAtReal = ms),
@@ -184,6 +190,45 @@ describe('createInputMapper: movement', () => {
     state.pause = 'running';
     mapper.resync(); // still held and still what the sim was told: nothing more to say
     expect(commands.map((c) => c.type)).toEqual(['Move']);
+  });
+
+  it('stamps what a resume sends with the sim clock: the time map may have no frame yet', () => {
+    const { mapper, held, commands } = setup();
+    held.add('KeyD');
+    mapper.resync();
+    expect(commands).toMatchObject([{ type: 'Move', t: 777 }]);
+  });
+
+  it('sends a held key again when a tap path ends (resumeHeld), and nothing when none is held', () => {
+    const { mapper, held, commands } = setup();
+    mapper.resumeHeld();
+    expect(commands).toEqual([]);
+    held.add('KeyD');
+    mapper.onKeysChanged(1500);
+    mapper.resync(); // unchanged: nothing
+    expect(commands.map((c) => c.type)).toEqual(['Move']);
+    mapper.resumeHeld(); // the tap's path replaced the walk: the held key walks again
+    expect(commands.map((c) => c.type)).toEqual(['Move', 'Move']);
+  });
+
+  it('does not read the time map on a frame that sends nothing', () => {
+    const { mapper, state, commands, setActive } = setup();
+    let reads = 0;
+    setActive({
+      sim: { enqueue: (c: SimCommand) => commands.push(c), world: { time: { sim: asSimMs(0) } } },
+      timeMap: {
+        realToSim: (ms: number) => {
+          reads++;
+          return asSimMs(ms);
+        },
+      },
+    } as unknown as ActiveLevel);
+    for (let i = 0; i < 5; i++) mapper.pollGamepad();
+    expect(reads).toBe(0);
+    state.stick = { x: 0.9, y: 0 };
+    mapper.pollGamepad();
+    mapper.pollGamepad();
+    expect(reads).toBe(1);
   });
 
   it('a key released during the pause stops Papa at the resume', () => {

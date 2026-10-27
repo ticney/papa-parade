@@ -70,6 +70,27 @@ export const FONT_LOAD_TIMEOUT_MS = 3000;
 /** Side of one cell of a level's navigation grid, in metres (the extractor writes it, story 1.7's A* reads it). */
 export const NAV_CELL_M = 0.25;
 
+/**
+ * A stick that is already pushed stays pushed until it falls below this share of the deadzone, so a
+ * resting hand on the edge of the deadzone does not send a command every frame (hysteresis).
+ */
+export const STICK_RELEASE_RATIO = 0.8;
+
+/**
+ * A pushed stick keeps its rounded angle until the raw angle is this many angle steps past the
+ * boundary to the next one (half a step is the boundary itself), against flicker on a boundary.
+ */
+export const STICK_TURN_HYSTERESIS_STEPS = 0.25;
+
+/**
+ * Fastest Papa may walk, in metres per second: one sim step then covers at most half a navigation
+ * cell, so testing the end point of a step cannot jump over a wall (the feel schema enforces it).
+ */
+export const MAX_WALK_SPEED_MPS = (NAV_CELL_M * 1000) / (2 * STEP_MS);
+
+/** Widest Papa may be, in metres: past this the clearance would close every cell of a room (feel schema). */
+export const MAX_PAPA_RADIUS_M = 1;
+
 /** A level's shipped payload (the optimised `.glb`) is at most this many bytes (NFR3: 3 MB). */
 export const LEVEL_PAYLOAD_MAX_BYTES = 3 * 1024 * 1024;
 

@@ -369,11 +369,19 @@ describe('Move and MoveStop', () => {
     expect(Object.is(papaOf(sim).headingX, 0)).toBe(true);
   });
 
-  it('ignores a direction too small to normalise', async () => {
-    const sim = await newSim();
-    sim.enqueue(move(1e-200, 1e-200));
-    expect(run(sim, 3)).toEqual([]);
-    expect(papaOf(sim).state).toBe('idle');
+  it('normalises a vector too small or too large to square', async () => {
+    const tiny = await newSim();
+    tiny.enqueue(move(1e-200, 1e-200));
+    run(tiny, 1);
+    expect(papaOf(tiny).state).toBe('walkDir');
+    expect(papaOf(tiny).dirX).toBeCloseTo(Math.SQRT1_2, 12);
+    expect(papaOf(tiny).dirZ).toBeCloseTo(Math.SQRT1_2, 12);
+
+    const huge = await newSim();
+    huge.enqueue(move(1e200, 1e200));
+    run(huge, 1);
+    expect(papaOf(huge).dirX).toBeCloseTo(Math.SQRT1_2, 12);
+    expect(papaOf(huge).dirZ).toBeCloseTo(Math.SQRT1_2, 12);
   });
 });
 
@@ -402,6 +410,18 @@ describe('walls and obstacles', () => {
     sim.enqueue(move(0, -1, sim.world.time.sim));
     const events = run(sim, 600);
     expect(events.filter((e) => e.type === 'PapaBlocked')).toHaveLength(1);
+  });
+
+  it('reports a blockage again when a new direction runs into another wall', async () => {
+    const sim = await newSim();
+    sim.enqueue(move(1, -1)); // slides into the back-right corner
+    run(sim, 900);
+    expect(papaOf(sim).isBlocked).toBe(true);
+    sim.enqueue(move(0, -1, sim.world.time.sim)); // another wall, no step succeeds in between
+    const events = run(sim, 5);
+    expect(events.filter((e) => e.type === 'PapaBlocked')).toHaveLength(1);
+    sim.enqueue(move(0, -1, sim.world.time.sim)); // the same direction again is not a new blockage
+    expect(run(sim, 5).filter((e) => e.type === 'PapaBlocked')).toEqual([]);
   });
 
   it('a stop clears the blocked flag', async () => {

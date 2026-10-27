@@ -57,13 +57,22 @@ export async function replayJournal(
       message: `untilSimMs must be finite, got ${String(untilSimMs)}`,
     });
   }
-  const sim = await createSim({
-    content,
-    geometry,
-    seed: journal.seed,
-    journal,
-    strictInvariants: options.strictInvariants,
-  });
+  let sim: Sim;
+  try {
+    sim = await createSim({
+      content,
+      geometry,
+      seed: journal.seed,
+      journal,
+      strictInvariants: options.strictInvariants,
+    });
+  } catch (cause) {
+    // A level or a journal the sim refuses (no spawn, no room for Papa) is an unreplayable journal.
+    return err({
+      kind: 'journal',
+      message: `the sim refused the journal: ${cause instanceof Error ? cause.message : String(cause)}`,
+    });
+  }
   const events: SimEvent[] = [];
   while (sim.world.time.sim < untilSimMs) {
     sim.step();

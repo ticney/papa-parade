@@ -20,19 +20,27 @@ describe('golden scenario papa_walk covers the cases it is there for', () => {
   const changes = events.filter((event) => event.type === 'PapaStateChanged');
 
   it('plans a path with a detour round the sofa', () => {
+    // A straight walk is one waypoint (the goal): the second one is the corner of the detour.
     expect(planned[0]).toMatchObject({ targetXM: 0.5, targetZM: -2.6, waypointCount: 2 });
   });
 
-  it('snaps a tap on the sofa and a tap outside the grid to the nearest open cell', () => {
-    const tapped = journal.entries
-      .map((entry) => entry.command)
-      .filter((command) => command.type === 'TapFloor');
-    const snapped = planned.filter(
-      (event, index) =>
-        event.targetXM !== (tapped[index] as { xM: number }).xM ||
-        event.targetZM !== (tapped[index] as { zM: number }).zM,
-    );
-    expect(snapped).toHaveLength(2);
+  const tapped = journal.entries
+    .map((entry) => entry.command)
+    .filter((command) => command.type === 'TapFloor');
+  const isSnapped = (index: number): boolean =>
+    planned[index]?.targetXM !== (tapped[index] as { xM: number }).xM ||
+    planned[index]?.targetZM !== (tapped[index] as { zM: number }).zM;
+
+  it('keeps a tap on open floor where it was, and snaps a tap on the sofa to the nearest open cell', () => {
+    expect(tapped[0]).toMatchObject({ xM: 0.5, zM: -2.6 });
+    expect(isSnapped(0)).toBe(false);
+    expect(tapped[1]).toMatchObject({ xM: 0.5, zM: -1.7 });
+    expect(isSnapped(1)).toBe(true);
+  });
+
+  it('snaps a tap outside the grid to the nearest open cell', () => {
+    expect(tapped[2]).toMatchObject({ xM: 10, zM: 10 });
+    expect(isSnapped(2)).toBe(true);
   });
 
   it('ignores a MoveStop during a path: the first walk ends by arriving', () => {

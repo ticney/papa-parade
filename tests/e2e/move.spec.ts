@@ -129,8 +129,8 @@ test.describe('move Papa', () => {
             }
           ).ppMarker,
       );
-      // Visible in the frame after the pointerdown (one more for the order of two callbacks).
-      expect(marker.firstFrame - marker.downFrame).toBeLessThanOrEqual(2);
+      // Visible in the frame after the pointerdown (NFR2, DESIGN.md).
+      expect(marker.firstFrame - marker.downFrame).toBeLessThanOrEqual(1);
       expect(Math.abs((marker.box[0] as number) - target.x)).toBeLessThanOrEqual(6);
       expect(Math.abs((marker.box[1] as number) - target.y)).toBeLessThanOrEqual(6);
 
@@ -216,16 +216,22 @@ test.describe('move Papa', () => {
     const start = await papaAt(page);
     await page.keyboard.down('ArrowUp');
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkDir');
-    // The position is mirrored when he is blocked: it changes once, and he is still walking.
+    // The mirrored position only changes on an event (the walk starting, the blockage), so it
+    // cannot tell a Papa who stopped from one who keeps drifting: wait until the picture of the
+    // room does not change over FRAMES_TO_SETTLE frames, which only a stopped Papa gives.
     await expect
-      .poll(async () => JSON.stringify(await papaAt(page)) !== JSON.stringify(start), {
-        timeout: WALK_BOUND_MS,
-      })
+      .poll(
+        async () => {
+          const before = await sceneShot(page);
+          await waitFrames(page, FRAMES_TO_SETTLE);
+          return (await sceneShot(page)).equals(before);
+        },
+        { timeout: WALK_BOUND_MS },
+      )
       .toBe(true);
-    const stuck = await papaAt(page);
-    expect(await state(page)).toBe('walkDir');
-    await waitFrames(page, FRAMES_TO_SETTLE);
-    expect(await papaAt(page)).toEqual(stuck);
+    expect(await state(page)).toBe('walkDir'); // still pushing, but not moving
+    const stuck = await papaAt(page); // mirrored when he was blocked
+    expect(stuck).not.toEqual(start);
     expect(stuck.x).toBeGreaterThanOrEqual(FLOOR.minX);
     expect(stuck.x).toBeLessThanOrEqual(FLOOR.maxX);
     expect(stuck.z).toBeGreaterThanOrEqual(FLOOR.minZ);

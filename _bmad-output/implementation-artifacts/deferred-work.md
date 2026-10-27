@@ -114,3 +114,12 @@
 - **Debug view of the open mask and the path** (story 2.1's navigation view). The client has the geometry; the sim keeps the grid in `ctx.nav`, outside `World`.
 - **A tap on a threat, the baby or an object** (hit-test priority threat > baby > object > floor): stories 1.11, 1.17 and the interactions of 1.19 / 1.20. `createHitTester` only picks the floor today.
 - **The Gamepad API is secure-context only.** Over plain `http://<LAN ip>` (a phone on `npm run dev --host`) `navigator.getGamepads` is missing: the game logs one `warn` and plays without a pad. Playtest over HTTPS (story 1.24) if a pad matters there.
+
+## Deferred from: code review of story 1-7-deplacer-papa (2026-10-27)
+
+- **Tap marker at the raw tapped point.** It does not move to the snapped target and a failed tap (`findPath` false) still shows it; a marker at `PapaPathPlanned`'s target or a « denied » marker is a design choice. Reason: matches UX-DR9, Open point 5 with Geo.
+- **`#pp-world` is `inset: 0` while taps use the canvas rect.** A letterboxed or inset canvas (notch, HUD insets) would offset the marker. Reason: equal today, safe areas come with story 2.10.
+- **Tap marker and `prefers-reduced-motion` / pause.** The marker animates regardless and keeps fading behind the pause panel. Reason: accessibility pass, story 2.10.
+- **Papa's yaw has no smoothing** (shortest-arc turn, turn rate in `feel.json`). Reason: Papa is a provisional cube, art pass E7.
+- **E2E brittleness.** Taps are chosen by screen share and tied to the level art, `startWalking` walks only a few seconds (a `walkPath` assertion can race), the pause-gate tests are trivially true. Reason: resolve taps from the sim's nav grid when the e2e suite is reworked.
+- **Spawn in a tiny region.** `papaSpawnOf` takes the nearest open cell whatever its region. Reason: the current level is fine; add a « spawn region is the main region » check with the level validation, stories 1.10 / 1.21.

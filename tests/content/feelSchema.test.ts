@@ -12,9 +12,9 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 
 // AC 1 lists the suffixes. The bare `fatigue.perSec` is the one documented exception (Dev Notes ›
 // Feel keys): the group name `fatigue` already carries the quantity.
-// `[a-z]M` is metres (`papaRadiusM`): the capital M of `Ms` is not enough, a lone `M` needs a letter before it.
+// `RadiusM` is metres (`papaRadiusM`): a length is spelled out, so a bare `M` does not pass.
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Deg|Px|Scale|Multiplier|Points|Count|Stars|[a-z]M)$|^perSec$/;
+  /(?:Ms|Pct|PerSec|Mps|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM)$|^perSec$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -93,6 +93,16 @@ describe('content/feel.json', () => {
     ['a negative duration', [['movement.glideMaxMs', -1]], ['movement.glideMaxMs']],
     ['a non-integer count', [['instinct.missesCount', 1.5]], ['instinct.missesCount']],
     ['a walking speed of 0', [['movement.walkSpeedMps', 0]], ['movement.walkSpeedMps']],
+    [
+      'a walking speed that jumps walls',
+      [['movement.walkSpeedMps', 13]],
+      ['movement.walkSpeedMps'],
+    ],
+    [
+      'a papa radius that closes the room',
+      [['movement.papaRadiusM', 1.5]],
+      ['movement.papaRadiusM'],
+    ],
     ['a negative papa radius', [['movement.papaRadiusM', -0.1]], ['movement.papaRadiusM']],
     ['a stick deadzone of 100 %', [['input.stickDeadzonePct', 100]], ['input.stickDeadzonePct']],
     ['a negative stick deadzone', [['input.stickDeadzonePct', -1]], ['input.stickDeadzonePct']],
@@ -124,6 +134,8 @@ describe('feel unit suffixes', () => {
   it('catches a key without a unit', () => {
     expect(UNIT_SUFFIX.test('duration')).toBe(false);
     expect(UNIT_SUFFIX.test('speed')).toBe(false);
+    expect(UNIT_SUFFIX.test('distanceM')).toBe(false);
+    expect(UNIT_SUFFIX.test('papaRadiusM')).toBe(true);
     expect(UNIT_SUFFIX.test('windowMs')).toBe(true);
   });
 });

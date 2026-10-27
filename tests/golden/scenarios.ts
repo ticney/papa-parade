@@ -54,8 +54,8 @@ export const SCENARIOS: readonly Scenario[] = [
     // Papa on the frozen living-room geometry: a tap that needs a detour (the centre of the
     // `behind_sofa` zone), a MoveStop during that path (ignored), a tap on the sofa (a blocked
     // cell) and one outside the grid (both snap to the nearest open cell), a Move into the right
-    // wall and a diagonal one that slides along the bottom edge (a PapaBlocked each), a TapFloor
-    // during a direction walk, and a command with an off-grid, already past `t`.
+    // wall (the one PapaBlocked), a diagonal Move that walks away from it (sliding along a wall is
+    // pinned in `papaSystem.test.ts`), a TapFloor during a direction walk, and a command with an off-grid, already past `t`.
     name: 'papa_walk',
     seed: 7,
     untilSimMs: 15000,
