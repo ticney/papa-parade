@@ -1,10 +1,10 @@
 import { expect, type Page, test } from '@playwright/test';
 import { MAX_PIXEL_RATIO } from '../../src/shared/constants.ts';
+import { openGame } from './support/game.ts';
 
-// `data-pp-state` is written by the composition root in dev and playtest builds only.
+// The app is up when it shows the start screen (`data-pp-app`, written in dev and playtest builds).
 async function waitForGame(page: Page): Promise<void> {
-  await page.goto('/');
-  await expect(page.locator('html')).toHaveAttribute('data-pp-state', 'running');
+  await openGame(page);
 }
 
 interface BackingStore {

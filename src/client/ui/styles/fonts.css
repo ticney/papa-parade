@@ -1,0 +1,28 @@
+/*
+  Self-hosted fonts (SIL OFL, licences in public/fonts/). Latin subset only: it covers every
+  character of content/strings.fr.json. The URLs are public-folder URLs: Vite rewrites them for
+  `base: './'`, so the same build works under any path.
+*/
+@font-face {
+  font-family: "Baloo 2";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/baloo-2-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 200 1000;
+  font-display: swap;
+  src: url("/fonts/nunito-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Anton";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/anton-latin-400-normal.woff2") format("woff2");
+}

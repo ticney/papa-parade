@@ -1,4 +1,5 @@
 {
+  "start.title": "Papa Parade",
   "start.tap_to_start": "Touche pour commencer",
   "fridge.title": "Le frigo",
   "fridge.new_unlock": "Nouveau !",
@@ -28,6 +29,7 @@
   "gauge.noise": "Bruit",
   "gauge.urge": "Envie",
   "key.space": "Espace",
+  "hud.pause_button": "Pause",
   "pause.title": "Pause",
   "pause.resume": "Reprendre",
   "pause.restart": "Recommencer",

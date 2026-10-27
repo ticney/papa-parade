@@ -57,3 +57,18 @@ export const PROVISIONAL_ROOM_DEPTH_M = 6;
 
 /** Provisional room height (y), in metres. Dies with story 1.6. */
 export const PROVISIONAL_ROOM_HEIGHT_M = 2.5;
+
+/** A landscape screen whose short side is under this is the "compact" surface, in CSS px. */
+export const COMPACT_SURFACE_MAX_PX = 430;
+
+/** Smallest side of any tappable UI element, in CSS px (DESIGN.md writes it `44pt`: points = px). */
+export const TOUCH_TARGET_MIN_PX = 44;
+
+/** The HUD band is at most this share of the room height, in percent. */
+export const HUD_BAND_MAX_PCT = 12;
+
+/** The HUD layer has at most this many DOM nodes. */
+export const HUD_MAX_DOM_NODES = 40;
+
+/** A panel pops in within this much real time, in ms (a plain fade under reduced motion). */
+export const PANEL_POP_MAX_MS = 220;

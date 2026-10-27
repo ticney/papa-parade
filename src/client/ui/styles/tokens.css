@@ -1,0 +1,110 @@
+/*
+  Design tokens: a 1:1 mirror of the frontmatter of
+  _bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/DESIGN.md
+  (colors, typography, rounded, spacing). tests/architecture/designTokens.test.ts compares the two,
+  so change DESIGN.md first and this file to match. Components are not tokens: they are `pp-*`
+  classes in ui.css built from these variables.
+
+  Deviations, both pinned by story 1.5 and handled by the test:
+  - spacing.screen-margin and spacing.hud-inset write `env(safe-area-inset-*)`; `*` is not valid
+    CSS, so each becomes four variables, one per side.
+  - spacing.touch-target-min is written `44pt` (iOS points = CSS px); in CSS 44pt is 58.7px, so it
+    is 44px here.
+*/
+:root {
+  /* colors */
+  --pp-color-cream: #fff4e3;
+  --pp-color-paper: #ffffff;
+  --pp-color-fridge: #e9eef2;
+  --pp-color-ink: #2a2140;
+  --pp-color-ink-soft: #6b6283;
+  --pp-color-scrim: rgba(42, 33, 64, 0.62);
+  --pp-color-ring-track: rgba(42, 33, 64, 0.4);
+  --pp-color-vignette: rgba(42, 33, 64, 0.35);
+  --pp-color-primary: #6d3fe0;
+  --pp-color-primary-press: #5329c2;
+  --pp-color-on-primary: #ffffff;
+  --pp-color-parry: #1f6bff;
+  --pp-color-dodge: #f0353d;
+  --pp-color-alert: #ffc21a;
+  --pp-color-smell: #7cc243;
+  --pp-color-gauge-calm: #1f9e73;
+  --pp-color-gauge-warn: #e06a00;
+  --pp-color-gauge-track: #ffffff;
+  --pp-color-mama-laugh: #1f9e73;
+  --pp-color-mama-sigh: #8a80a8;
+  --pp-color-mama-scream: #e06a00;
+  --pp-color-star: #ffb800;
+
+  /* typography */
+  --pp-font-display-family: "Baloo 2";
+  --pp-font-display-size: 56px;
+  --pp-font-display-weight: 800;
+  --pp-font-display-line-height: 1;
+  --pp-font-heading-family: "Baloo 2";
+  --pp-font-heading-size: 28px;
+  --pp-font-heading-weight: 700;
+  --pp-font-heading-line-height: 1.1;
+  --pp-font-verb-family: "Baloo 2";
+  --pp-font-verb-size: 40px;
+  --pp-font-verb-weight: 800;
+  --pp-font-verb-line-height: 1;
+  --pp-font-verb-compact-family: "Baloo 2";
+  --pp-font-verb-compact-size: 32px;
+  --pp-font-verb-compact-weight: 800;
+  --pp-font-verb-compact-line-height: 1;
+  --pp-font-combo-family: "Baloo 2";
+  --pp-font-combo-size: 28px;
+  --pp-font-combo-weight: 800;
+  --pp-font-combo-line-height: 1;
+  --pp-font-epic-family: "Anton";
+  --pp-font-epic-size: 64px;
+  --pp-font-epic-weight: 400;
+  --pp-font-epic-line-height: 0.95;
+  --pp-font-epic-letter-spacing: 0.04em;
+  --pp-font-body-family: "Nunito";
+  --pp-font-body-size: 18px;
+  --pp-font-body-weight: 700;
+  --pp-font-body-line-height: 1.35;
+  --pp-font-label-family: "Nunito";
+  --pp-font-label-size: 16px;
+  --pp-font-label-weight: 800;
+  --pp-font-label-line-height: 1.2;
+  --pp-font-numeric-family: "Nunito";
+  --pp-font-numeric-size: 22px;
+  --pp-font-numeric-weight: 900;
+  --pp-font-numeric-compact-family: "Nunito";
+  --pp-font-numeric-compact-size: 18px;
+  --pp-font-numeric-compact-weight: 900;
+  --pp-font-countdown-family: "Baloo 2";
+  --pp-font-countdown-size: 112px;
+  --pp-font-countdown-weight: 800;
+  --pp-font-countdown-line-height: 1;
+
+  /* rounded */
+  --pp-rounded-sm: 8px;
+  --pp-rounded-md: 14px;
+  --pp-rounded-lg: 22px;
+  --pp-rounded-xl: 32px;
+  --pp-rounded-full: 9999px;
+
+  /* spacing */
+  --pp-spacing-1: 4px;
+  --pp-spacing-2: 8px;
+  --pp-spacing-3: 12px;
+  --pp-spacing-4: 16px;
+  --pp-spacing-5: 24px;
+  --pp-spacing-6: 32px;
+  --pp-spacing-7: 48px;
+  --pp-spacing-screen-margin-top: max(16px, env(safe-area-inset-top));
+  --pp-spacing-screen-margin-right: max(16px, env(safe-area-inset-right));
+  --pp-spacing-screen-margin-bottom: max(16px, env(safe-area-inset-bottom));
+  --pp-spacing-screen-margin-left: max(16px, env(safe-area-inset-left));
+  --pp-spacing-hud-inset-top: max(12px, env(safe-area-inset-top));
+  --pp-spacing-hud-inset-right: max(12px, env(safe-area-inset-right));
+  --pp-spacing-hud-inset-bottom: max(12px, env(safe-area-inset-bottom));
+  --pp-spacing-hud-inset-left: max(12px, env(safe-area-inset-left));
+  --pp-spacing-touch-target-min: 44px;
+  --pp-spacing-focus-ring-width: 4px;
+  --pp-spacing-focus-ring-offset: 3px;
+}

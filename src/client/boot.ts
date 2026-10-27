@@ -6,17 +6,28 @@ import {
 } from '@shared/constants';
 import { createEmitter } from '@shared/emitter';
 import { log } from '@shared/log';
-import { createSim, type SimEvent } from '@sim';
+import type { SimEvent } from '@sim';
+import { createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
 import { installGlobalErrorHandlers } from './app/globalErrorHandlers.ts';
+import { createLevelSession } from './app/levelSession.ts';
+import { bindOrientation } from './app/orientation.ts';
 import { createPauseController } from './app/pauseController.ts';
+import { bindSurface } from './app/surface.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
-import { createGameLoop } from './loop.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
 import { createProvisionalScene } from './render/provisionalScene.ts';
 import { createRenderer } from './render/renderer.ts';
-import { createTimeMap } from './timeMap.ts';
+import { loadFonts } from './ui/fonts.ts';
+import { createHudBatch } from './ui/hud/hudBatch.ts';
+import { createHudLayer } from './ui/hud/hudLayer.ts';
+import { createOverlayHost } from './ui/overlayHost.ts';
+import { createPauseScreen } from './ui/screens/pauseScreen.ts';
+import { createPortraitOverlay } from './ui/screens/portraitOverlay.ts';
+import { createStartScreen } from './ui/screens/startScreen.ts';
+import { createTranslator } from './ui/strings.ts';
+import { createUiShell } from './ui/uiShell.ts';
 
 // Provisional, like the scene: story 1.6 passes the real level bounds.
 const ROOM: RoomSize = {
@@ -35,8 +46,9 @@ function logSimEvent(event: SimEvent): void {
 }
 
 /**
- * The composition root: the only place that wires content, sim, renderer, loop and pause
- * together. Dependencies are passed explicitly; nothing here is a singleton but `log`.
+ * The composition root: the only place that wires content, renderer, UI, flow and pause together.
+ * Dependencies are passed explicitly; nothing here is a singleton but `log`. A level (sim, time
+ * map, loop) is built by the level session each time the player starts or restarts.
  */
 export async function boot(): Promise<void> {
   // First, so that nothing below can fail unseen.
@@ -60,15 +72,16 @@ export async function boot(): Promise<void> {
   log.info('content', 'content loaded');
 
   const canvas = document.getElementById('pp-canvas');
-  if (!(canvas instanceof HTMLCanvasElement)) {
-    log.error('boot', 'missing #pp-canvas: cannot start the game');
+  const hudRoot = document.getElementById('pp-hud');
+  const uiRoot = document.getElementById('pp-ui');
+  if (!(canvas instanceof HTMLCanvasElement) || hudRoot === null || uiRoot === null) {
+    log.error('boot', 'missing #pp-canvas, #pp-hud or #pp-ui: cannot start the game');
     return;
   }
 
-  // The client may use randomness (the sim may not). Logging the seed makes any run reproducible.
-  const seed = crypto.getRandomValues(new Uint32Array(1))[0] as number;
-  const sim = await createSim({ content: content.value, seed });
-  log.info('boot', 'sim ready', { seed });
+  const t = createTranslator(content.value.strings);
+  // A font that fails to load is a `warn` (logged by loadFonts); the fallback stack takes over.
+  await loadFonts(document.fonts);
 
   const created = createRenderer(canvas);
   if (!created.ok) {
@@ -80,47 +93,93 @@ export async function boot(): Promise<void> {
 
   const camera = createIsoCamera();
   const scene = createProvisionalScene();
+  const events = createEmitter<ClientEvents>();
+  const appFsm = createAppFsm({ events });
+  const pause = createPauseController({ events });
+
+  // Outside a level (start, loading) nothing steps and nothing draws on its own: draw the scene
+  // once, and again whenever a resize has cleared the canvas.
+  const drawStatic = (): void => {
+    if (appFsm.state !== 'level') renderer.render(scene.scene, camera);
+  };
   const fitViewToCanvas = (): void => {
     const aspect = renderer.resize();
     if (aspect !== null) fitIsoCamera(camera, ROOM, aspect);
+    drawStatic();
   };
   fitViewToCanvas();
   new ResizeObserver(fitViewToCanvas).observe(canvas);
   window.addEventListener('resize', fitViewToCanvas);
+  bindSurface(window, document.documentElement);
 
-  const events = createEmitter<ClientEvents>();
-  const pause = createPauseController({ events });
-
-  // Provisional: story 1.5 replaces it with the pause panel.
-  // Mirrors the pause state for Playwright; stripped from store builds by the flag. Subscribed
-  // before the visibility binding, which pauses at once (and emits) if the page starts hidden.
-  const isStateMirrored = import.meta.env.VITE_DEBUG_ALLOWED === 'true';
-  const mirrorPauseState = (): void => {
+  // Debug mirrors of the flow for Playwright, stripped from store builds by the flag. They go
+  // before the bindings below, which can emit as soon as they are bound. Story 1.13 brings
+  // `window.__PP__`; until then these are how a test sees the app.
+  const isMirrored = import.meta.env.VITE_DEBUG_ALLOWED === 'true';
+  const mirrorState = (): void => {
     document.documentElement.dataset.ppState = pause.state;
+    document.documentElement.dataset.ppApp = appFsm.state;
   };
-  if (isStateMirrored) {
-    events.on('PauseRequested', mirrorPauseState);
-    events.on('ResumeRequested', mirrorPauseState);
-    events.on('GameResumed', mirrorPauseState);
+  if (isMirrored) {
+    events.on('PauseRequested', mirrorState);
+    events.on('ResumeRequested', mirrorState);
+    events.on('GameResumed', mirrorState);
+    events.on('AppStateChanged', mirrorState);
   }
-  bindVisibilityPause(document, pause); // also pauses at once if the page starts hidden
 
-  const timeMap = createTimeMap();
-  const render = (alpha: number): void => {
-    scene.update(sim.world, alpha);
-    renderer.render(scene.scene, camera);
-  };
-  const loop = createGameLoop({ sim, timeMap, pause, render, onSimEvent: logSimEvent });
-  loop.start();
-
-  // Provisional: story 1.5 replaces it with the pause panel.
-  // Until then a tap anywhere resumes a paused game (otherwise a tab switch would pause it for good).
-  canvas.addEventListener('pointerdown', () => {
-    if (pause.state === 'paused') pause.requestResume();
+  // The level is made later; the screens below only need it when a button is pressed.
+  const levelSession = createLevelSession({
+    content: content.value,
+    appFsm,
+    pause,
+    renderer,
+    camera,
+    scene,
+    newSeed: () => crypto.getRandomValues(new Uint32Array(1))[0] as number,
+    onSeed: (seed) => {
+      if (isMirrored) document.documentElement.dataset.ppSeed = String(seed);
+    },
+    onLevelFrame: () => shell.frame(),
+    onSimEvent: logSimEvent,
+    canResumeNow: () => !shell.isPortrait && document.visibilityState !== 'hidden',
   });
 
-  // Written once more here so that the attribute only appears once the game is up and running.
-  if (isStateMirrored) mirrorPauseState();
+  const hudBatch = createHudBatch([]);
+  const hud = createHudLayer(hudRoot, { t, onPausePress: () => pause.requestPause('user') });
+  const overlayHost = createOverlayHost(uiRoot, {
+    start: () =>
+      createStartScreen({
+        t,
+        target: window,
+        onStart: () => {
+          // Synchronous, inside the gesture: story 1.9 unlocks the AudioContext on this event.
+          events.emit('StartGestureReceived', {});
+          void levelSession.start();
+        },
+      }),
+    pause: () =>
+      createPauseScreen({
+        t,
+        events,
+        onResume: () => pause.requestResume(),
+        onRestart: () => void levelSession.start(),
+      }),
+    portrait: () => createPortraitOverlay({ t }),
+  });
+  const shell = createUiShell({ events, appFsm, pause, hud, hudBatch, overlayHost });
+  shell.bindKeys(window);
 
-  log.info('boot', 'game running');
+  // Subscribers are in place: the bindings below can emit.
+  bindOrientation(matchMedia('(orientation: portrait)'), (isPortrait) => {
+    shell.setPortrait(isPortrait);
+    if (isPortrait && appFsm.state === 'level') pause.requestPause('portrait');
+  });
+  bindVisibilityPause(document, pause); // also pauses at once if the page starts hidden
+
+  appFsm.enter('start');
+  drawStatic();
+  // Written once more here so that the attributes only appear once the app is up.
+  if (isMirrored) mirrorState();
+
+  log.info('boot', 'ready: waiting for the first gesture');
 }

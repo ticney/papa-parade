@@ -1,0 +1,225 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import {
+  checkStylesheet,
+  checkTokens,
+  declaredVariables,
+  expectedTokens,
+  normaliseValue,
+} from './designTokens.ts';
+import { extractFrontmatter, parseYamlSubset } from './yamlSubset.ts';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(here, '..', '..');
+const DESIGN = join(
+  repoRoot,
+  '_bmad-output',
+  'planning-artifacts',
+  'ux-designs',
+  'ux-papa-parade-2026-10-26',
+  'DESIGN.md',
+);
+const STYLES = join(repoRoot, 'src', 'client', 'ui');
+
+const FRONTMATTER = parseYamlSubset(extractFrontmatter(readFileSync(DESIGN, 'utf8')));
+
+const TINY_FRONTMATTER = parseYamlSubset(
+  [
+    'colors:',
+    "  ink: '#2A2140'",
+    "  scrim: 'rgba(42,33,64,0.62)'",
+    'typography:',
+    '  verb:',
+    "    fontFamily: 'Baloo 2'",
+    '    fontSize: 40px',
+    "    lineHeight: '1.0'",
+    'rounded:',
+    '  sm: 8px',
+    'spacing:',
+    "  '1': 4px",
+    "  hud-inset: 'max(12px, env(safe-area-inset-*))'",
+    '  touch-target-min: 44pt',
+  ].join('\n'),
+);
+
+const TINY_CSS = `
+:root {
+  --pp-color-ink: #2a2140;
+  --pp-color-scrim: rgba(42, 33, 64, 0.62);
+  --pp-font-verb-family: "Baloo 2";
+  --pp-font-verb-size: 40px;
+  --pp-font-verb-line-height: 1;
+  --pp-rounded-sm: 8px;
+  --pp-spacing-1: 4px;
+  --pp-spacing-hud-inset-top: max(12px, env(safe-area-inset-top));
+  --pp-spacing-hud-inset-right: max(12px, env(safe-area-inset-right));
+  --pp-spacing-hud-inset-bottom: max(12px, env(safe-area-inset-bottom));
+  --pp-spacing-hud-inset-left: max(12px, env(safe-area-inset-left));
+  --pp-spacing-touch-target-min: 44px;
+}`;
+
+function without(css: string, name: string): string {
+  return css
+    .split('\n')
+    .filter((line) => !line.includes(`${name}:`))
+    .join('\n');
+}
+
+function listCss(dir: string): string[] {
+  const files: string[] = [];
+  for (const name of readdirSync(dir).sort()) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) files.push(...listCss(full));
+    else if (name.endsWith('.css')) files.push(full);
+  }
+  return files;
+}
+
+describe('expectedTokens', () => {
+  it('names variables after the frontmatter keys, with the side and unit decisions of story 1.5', () => {
+    const tokens = new Map(expectedTokens(TINY_FRONTMATTER).map((t) => [t.name, t.value]));
+    expect(tokens.get('--pp-color-ink')).toBe('#2A2140');
+    expect(tokens.get('--pp-font-verb-family')).toBe('Baloo 2');
+    expect(tokens.get('--pp-font-verb-line-height')).toBe('1.0');
+    expect(tokens.get('--pp-rounded-sm')).toBe('8px');
+    expect(tokens.get('--pp-spacing-1')).toBe('4px');
+    expect(tokens.get('--pp-spacing-hud-inset-left')).toBe('max(12px, env(safe-area-inset-left))');
+    expect(tokens.get('--pp-spacing-touch-target-min')).toBe('44px');
+    expect(tokens.has('--pp-spacing-hud-inset')).toBe(false);
+  });
+});
+
+describe('normaliseValue', () => {
+  it('ignores quotes, spacing, case and trailing zeros, but not real differences', () => {
+    expect(normaliseValue("'Baloo 2'")).toBe(normaliseValue('"Baloo 2"'));
+    expect(normaliseValue('rgba(42, 33, 64, 0.62)')).toBe(normaliseValue('rgba(42,33,64,0.62)'));
+    expect(normaliseValue('1.0')).toBe(normaliseValue('1'));
+    expect(normaliseValue('.5')).toBe(normaliseValue('0.50'));
+    expect(normaliseValue('#2A2140')).toBe(normaliseValue('#2a2140'));
+    expect(normaliseValue('#2a2140')).not.toBe(normaliseValue('#2a2141'));
+    expect(normaliseValue('40px')).not.toBe(normaliseValue('41px'));
+  });
+});
+
+describe('checkTokens', () => {
+  it('accepts a stylesheet that mirrors the frontmatter', () => {
+    expect(checkTokens(TINY_FRONTMATTER, TINY_CSS)).toEqual([]);
+  });
+
+  it('flags a missing variable', () => {
+    const problems = checkTokens(TINY_FRONTMATTER, without(TINY_CSS, '--pp-color-ink'));
+    expect(problems).toEqual(['missing --pp-color-ink (DESIGN.md: #2A2140)']);
+  });
+
+  it('flags a wrong value', () => {
+    const css = TINY_CSS.replace('--pp-rounded-sm: 8px', '--pp-rounded-sm: 9px');
+    expect(checkTokens(TINY_FRONTMATTER, css)).toEqual([
+      '--pp-rounded-sm is "9px" but DESIGN.md says "8px"',
+    ]);
+  });
+
+  it('flags a safe-area side that lost its env()', () => {
+    const css = TINY_CSS.replace(
+      '--pp-spacing-hud-inset-left: max(12px, env(safe-area-inset-left))',
+      '--pp-spacing-hud-inset-left: 12px',
+    );
+    expect(checkTokens(TINY_FRONTMATTER, css)).toHaveLength(1);
+  });
+
+  it('flags a token the frontmatter lacks, but not a helper outside the four groups', () => {
+    const extra = TINY_CSS.replace(
+      ':root {',
+      ':root {\n  --pp-color-neon: #0f0;\n  --pp-helper: 1;',
+    );
+    expect(checkTokens(TINY_FRONTMATTER, extra)).toEqual([
+      '--pp-color-neon is not in the DESIGN.md frontmatter',
+    ]);
+  });
+
+  it('flags a touch target that kept the pt unit', () => {
+    const css = TINY_CSS.replace(
+      '--pp-spacing-touch-target-min: 44px',
+      '--pp-spacing-touch-target-min: 44pt',
+    );
+    expect(checkTokens(TINY_FRONTMATTER, css)).toHaveLength(1);
+  });
+
+  it('reads variables through comments', () => {
+    expect(declaredVariables('/* --pp-color-x: red; */ :root { --pp-color-y: blue; }')).toEqual(
+      new Map([['--pp-color-y', 'blue']]),
+    );
+  });
+
+  it('tokens.css mirrors DESIGN.md, both ways', () => {
+    const css = readFileSync(join(STYLES, 'styles', 'tokens.css'), 'utf8');
+    expect(checkTokens(FRONTMATTER, css)).toEqual([]);
+  });
+});
+
+describe('checkStylesheet', () => {
+  it('accepts rules built from variables', () => {
+    const css = `
+      .pp-button { color: var(--pp-color-ink); background: var(--pp-color-paper) url(x.png);
+        border: 3px solid var(--pp-color-ink); box-shadow: 0 4px 0 var(--pp-color-ink);
+        background-color: transparent; outline: none; transition: transform 100ms, opacity 100ms; }
+      .pp-gauge { transform-origin: left; }
+      @keyframes pp-pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); } }`;
+    expect(checkStylesheet(css)).toEqual([]);
+  });
+
+  it('flags hex colours, colour functions and named colours', () => {
+    expect(checkStylesheet('a { color: #fff; }')).toHaveLength(1);
+    expect(checkStylesheet('a { background: rgb(0 0 0); }')).toHaveLength(1);
+    expect(checkStylesheet('a { border: 1px solid red; }')).toEqual([
+      'named colour "red" in border',
+    ]);
+    expect(checkStylesheet('a { box-shadow: 0 4px 0 black; }')).toHaveLength(1);
+  });
+
+  it('does not take class names, selectors or non-colour properties for colours', () => {
+    expect(checkStylesheet('.pp-red:hover { content: "tan"; animation-name: pp-red; }')).toEqual(
+      [],
+    );
+  });
+
+  it('ignores colours in comments', () => {
+    expect(checkStylesheet('/* #fff red */ a { color: var(--pp-color-ink); }')).toEqual([]);
+  });
+
+  it('flags backdrop-filter, with or without a prefix', () => {
+    expect(checkStylesheet('a { backdrop-filter: blur(4px); }')).toHaveLength(1);
+    expect(checkStylesheet('a { -webkit-backdrop-filter: blur(4px); }')).toHaveLength(1);
+  });
+
+  it('flags a transition on a layout property, or on all', () => {
+    expect(checkStylesheet('a { transition: width 1s; }')).toHaveLength(1);
+    expect(checkStylesheet('a { transition: all 1s; }')).toHaveLength(1);
+    expect(checkStylesheet('a { transition-property: margin-left, transform; }')).toHaveLength(1);
+  });
+
+  it('flags a keyframe on a layout property', () => {
+    expect(checkStylesheet('@keyframes k { from { width: 0; } to { width: 10px; } }')).toEqual([
+      '@keyframes animates "width" (layout)',
+      '@keyframes animates "width" (layout)',
+    ]);
+    expect(checkStylesheet('@keyframes k { 0% { top: 0; } }')).toHaveLength(1);
+  });
+});
+
+describe('the UI stylesheets of the repository', () => {
+  const sheets = listCss(STYLES).filter((file) => !/[\\/](tokens|fonts)\.css$/.test(file));
+
+  it('include ui.css', () => {
+    expect(sheets.map((file) => relative(STYLES, file).replaceAll('\\', '/'))).toContain(
+      'styles/ui.css',
+    );
+  });
+
+  for (const file of sheets) {
+    it(`${relative(repoRoot, file).replaceAll('\\', '/')} uses variables only, no blur, no layout animation`, () => {
+      expect(checkStylesheet(readFileSync(file, 'utf8'))).toEqual([]);
+    });
+  }
+});
