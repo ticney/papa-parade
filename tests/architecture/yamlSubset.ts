@@ -58,6 +58,7 @@ function parseScalar(raw: string, lineNumber: number): string {
     return text.slice(1, -1);
   }
   if (/^[[{&*|>!%@`#]/.test(text)) return fail(lineNumber, `unsupported scalar "${text}"`);
+  if (/\s#/.test(text)) return fail(lineNumber, `inline comments are not supported ("${text}")`);
   if (/:(\s|$)/.test(text)) return fail(lineNumber, `unquoted scalar contains ": " ("${text}")`);
   return text;
 }

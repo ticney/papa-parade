@@ -91,7 +91,7 @@ describe('createLevelSession', () => {
   });
 
   it('restarts from a level with a new seed, through loading, and stops the old loop', async () => {
-    const { session, appFsm, scheduler, trace, reportedSeeds } = setup();
+    const { session, appFsm, scheduler, trace, reportedSeeds, drawn } = setup();
     await session.start();
     scheduler.tick(0);
     trace.length = 0;
@@ -100,9 +100,15 @@ describe('createLevelSession', () => {
     expect(trace[0]).toBe('app:loading');
     expect(trace.at(-1)).toBe('app:level');
     expect(appFsm.state).toBe('level');
-    // One chain of frames: the old loop's pending frame was cancelled, the new one is pending.
+    // One chain of frames: each tick requests exactly one next frame and renders exactly once.
     expect(scheduler.pending).toBe(true);
-    expect(() => scheduler.tick(32)).not.toThrow();
+    for (const at of [32, 48, 64]) {
+      const requested = scheduler.requested;
+      const renders = drawn.renders;
+      scheduler.tick(at);
+      expect(scheduler.requested - requested).toBe(1);
+      expect(drawn.renders - renders).toBe(1);
+    }
   });
 
   it('leaves a paused game behind: the restarted level counts down instead of staying paused', async () => {
@@ -144,10 +150,11 @@ describe('createLevelSession', () => {
     await session.start();
     expect(appFsm.state).toBe('oops');
     expect(scheduler.requested).toBe(0);
-    const entries = log.buffer().slice(before);
-    expect(entries.some((entry) => entry.level === 'error' && /sim/.test(entry.message))).toBe(
-      true,
-    );
+    const errors = log
+      .buffer()
+      .slice(before)
+      .filter((entry) => entry.level === 'error');
+    expect(errors.map((entry) => entry.message)).toEqual(['cannot create the sim for the level']);
   });
 
   it('stop() cancels the pending frame, and is harmless without a level', async () => {

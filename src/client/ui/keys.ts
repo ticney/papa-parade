@@ -10,7 +10,9 @@ export interface KeyLike {
   readonly altKey: boolean;
 }
 
-// Keys that mean nothing on their own, and Escape, which is for pausing and going back.
+// Keys that are not a player's gesture: modifiers on their own, Escape (pause and back), Tab
+// (moving focus), the function keys (F5 reloads, F12 opens the devtools), and the keys of the
+// browser, the system and the media player.
 const NOT_A_START_KEY = new Set([
   'ShiftLeft',
   'ShiftRight',
@@ -21,17 +23,23 @@ const NOT_A_START_KEY = new Set([
   'MetaLeft',
   'MetaRight',
   'CapsLock',
+  'NumLock',
+  'ScrollLock',
   'Escape',
+  'Tab',
+  'ContextMenu',
+  'PrintScreen',
+  'Pause',
 ]);
+const NOT_A_START_KEY_PREFIX = /^(F\d{1,2}|OS|Media|AudioVolume|Browser|Launch|Lang)/;
 
 /**
- * Does this key press start the game from the start screen? Any key does, except the modifiers on
- * their own, Escape, a held key repeating, and a chord with Ctrl, Cmd or Alt (a browser shortcut,
- * not a player's gesture).
+ * Does this key press start the game from the start screen? Any key does, except the ones above, a
+ * held key repeating, and a chord with Ctrl, Cmd or Alt (a browser shortcut, not a player's gesture).
  */
 export function isStartKey(key: KeyLike): boolean {
   if (key.repeat || key.ctrlKey || key.metaKey || key.altKey) return false;
-  return !NOT_A_START_KEY.has(key.code);
+  return !NOT_A_START_KEY.has(key.code) && !NOT_A_START_KEY_PREFIX.test(key.code);
 }
 
 export type EscapeAction = 'pause' | 'resume';

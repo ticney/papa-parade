@@ -76,7 +76,28 @@ export function settleAnimations(page: Page): Promise<unknown> {
           (animation) =>
             animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY,
         )
-        .map((animation) => animation.finished),
+        // A cancelled animation (a hidden digit) rejects `finished`: that is not a failure here.
+        .map((animation) => animation.finished.catch(() => undefined)),
     ),
   );
+}
+
+/** The warnings the app raises about its own bugs; the dev server's other warnings are not ours. */
+const OWN_WARNINGS =
+  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed/;
+
+/**
+ * Collects what must fail a session: console errors, page errors, and the app's own warnings about
+ * a missing string, a screen it could not build, a font that failed, a lost pointer capture.
+ */
+export function collectProblems(page: Page): string[] {
+  const problems: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') problems.push(`console: ${message.text()}`);
+    else if (message.type() === 'warning' && OWN_WARNINGS.test(message.text())) {
+      problems.push(`warning: ${message.text()}`);
+    }
+  });
+  page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
+  return problems;
 }

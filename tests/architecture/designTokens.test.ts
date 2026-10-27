@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkStylesheet,
   checkTokens,
+  declaredNames,
   declaredVariables,
   expectedTokens,
   normaliseValue,
@@ -128,13 +129,30 @@ describe('checkTokens', () => {
     expect(checkTokens(TINY_FRONTMATTER, css)).toHaveLength(1);
   });
 
-  it('flags a token the frontmatter lacks, but not a helper outside the four groups', () => {
+  it('flags a token the frontmatter lacks, and a helper too: tokens.css holds only tokens', () => {
     const extra = TINY_CSS.replace(
       ':root {',
       ':root {\n  --pp-color-neon: #0f0;\n  --pp-helper: 1;',
     );
     expect(checkTokens(TINY_FRONTMATTER, extra)).toEqual([
       '--pp-color-neon is not in the DESIGN.md frontmatter',
+      '--pp-helper is not in the DESIGN.md frontmatter',
+    ]);
+  });
+
+  it('flags a token declared twice in :root', () => {
+    const twice = TINY_CSS.replace(':root {', ':root {\n  --pp-rounded-sm: 8px;');
+    expect(checkTokens(TINY_FRONTMATTER, twice)).toEqual(['--pp-rounded-sm is declared twice']);
+  });
+
+  it('flags a token overridden under another selector or inside a media query', () => {
+    const other = `${TINY_CSS}\n.pp-x { --pp-color-ink: red; }`;
+    expect(checkTokens(TINY_FRONTMATTER, other)).toEqual([
+      '--pp-color-ink is declared outside :root',
+    ]);
+    const media = `${TINY_CSS}\n@media (min-width: 1px) { :root { --pp-rounded-sm: 99px; } }`;
+    expect(checkTokens(TINY_FRONTMATTER, media)).toEqual([
+      '--pp-rounded-sm is declared outside :root',
     ]);
   });
 
@@ -188,6 +206,67 @@ describe('checkStylesheet', () => {
     expect(checkStylesheet('/* #fff red */ a { color: var(--pp-color-ink); }')).toEqual([]);
   });
 
+  it('flags a colour hidden in a custom property, but not a font stack', () => {
+    expect(checkStylesheet(':root { --pp-outline: 3px solid red; }')).toEqual([
+      'named colour "red" in --pp-outline',
+    ]);
+    expect(
+      checkStylesheet(':root { --pp-fallback-body: ui-rounded, "Arial Black", sans-serif; }'),
+    ).toEqual([]);
+  });
+
+  it('flags a selector that is not prefixed pp-, but not at-rules or keyframe steps', () => {
+    expect(checkStylesheet('.button { color: var(--pp-color-ink); }')).toEqual([
+      'selector "button" is not prefixed pp-',
+    ]);
+    expect(checkStylesheet('#canvas { display: block; }')).toEqual([
+      'selector "canvas" is not prefixed pp-',
+    ]);
+    expect(
+      checkStylesheet(
+        '@supports (height: 100dvh) { #pp-canvas { height: 100dvh; } } @keyframes pp-k { 0%, 100% { opacity: 0; } }',
+      ),
+    ).toEqual([]);
+  });
+
+  it('flags a var() of a name nobody declares, when the known names are given', () => {
+    const known = new Set(['--pp-color-ink']);
+    expect(checkStylesheet('.pp-a { color: var(--pp-color-ink); }', known)).toEqual([]);
+    expect(checkStylesheet('.pp-a { color: var(--pp-color-inkk); }', known)).toEqual([
+      'var(--pp-color-inkk) is not declared anywhere',
+    ]);
+    expect(checkStylesheet('.pp-a { color: var(--pp-color-inkk); }')).toEqual([]); // no list, no check
+  });
+
+  it('accepts hard shadows and flags a blurred one', () => {
+    expect(
+      checkStylesheet(
+        '.pp-a { box-shadow: 0 4px 0 var(--pp-color-ink), 0 0 0 2px var(--pp-color-paper); text-shadow: 0 4px 0 var(--pp-color-ink); }',
+      ),
+    ).toEqual([]);
+    expect(checkStylesheet('.pp-a { box-shadow: 0 2px 8px var(--pp-color-ink); }')).toHaveLength(1);
+    expect(checkStylesheet('.pp-a { text-shadow: 0 0 4px var(--pp-color-ink); }')).toHaveLength(1);
+    expect(checkStylesheet('.pp-a { box-shadow: var(--pp-lift); }')).toEqual([]);
+  });
+
+  it('flags a transition or keyframe on sizes, gaps, font metrics and borders too', () => {
+    for (const property of [
+      'gap',
+      'min-width',
+      'max-height',
+      'font-size',
+      'line-height',
+      'flex-basis',
+      'border-width',
+    ]) {
+      expect(checkStylesheet(`.pp-a { transition: ${property} 1s; }`), property).toHaveLength(1);
+      expect(
+        checkStylesheet(`@keyframes pp-k { to { ${property}: 1px; } }`),
+        property,
+      ).toHaveLength(1);
+    }
+  });
+
   it('flags backdrop-filter, with or without a prefix', () => {
     expect(checkStylesheet('a { backdrop-filter: blur(4px); }')).toHaveLength(1);
     expect(checkStylesheet('a { -webkit-backdrop-filter: blur(4px); }')).toHaveLength(1);
@@ -209,7 +288,9 @@ describe('checkStylesheet', () => {
 });
 
 describe('the UI stylesheets of the repository', () => {
-  const sheets = listCss(STYLES).filter((file) => !/[\\/](tokens|fonts)\.css$/.test(file));
+  const all = listCss(STYLES);
+  const sheets = all.filter((file) => !/[\\/](tokens|fonts)\.css$/.test(file));
+  const known = new Set(all.flatMap((file) => [...declaredNames(readFileSync(file, 'utf8'))]));
 
   it('include ui.css', () => {
     expect(sheets.map((file) => relative(STYLES, file).replaceAll('\\', '/'))).toContain(
@@ -218,8 +299,8 @@ describe('the UI stylesheets of the repository', () => {
   });
 
   for (const file of sheets) {
-    it(`${relative(repoRoot, file).replaceAll('\\', '/')} uses variables only, no blur, no layout animation`, () => {
-      expect(checkStylesheet(readFileSync(file, 'utf8'))).toEqual([]);
+    it(`${relative(repoRoot, file).replaceAll('\\', '/')} uses declared variables only, no blur, no layout animation`, () => {
+      expect(checkStylesheet(readFileSync(file, 'utf8'), known)).toEqual([]);
     });
   }
 });

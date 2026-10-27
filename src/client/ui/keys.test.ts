@@ -11,9 +11,12 @@ const PLAIN: Omit<KeyLike, 'code'> = {
 };
 
 describe('isStartKey', () => {
-  it.each(['Space', 'Enter', 'KeyA', 'ArrowUp', 'Digit1', 'Tab'])('%s starts the game', (code) => {
-    expect(isStartKey({ ...PLAIN, code })).toBe(true);
-  });
+  it.each(['Space', 'Enter', 'NumpadEnter', 'KeyA', 'ArrowUp', 'Digit1', 'Numpad5', 'Backspace'])(
+    '%s starts the game',
+    (code) => {
+      expect(isStartKey({ ...PLAIN, code })).toBe(true);
+    },
+  );
 
   it.each([
     'ShiftLeft',
@@ -25,7 +28,21 @@ describe('isStartKey', () => {
     'MetaLeft',
     'MetaRight',
     'CapsLock',
+    'NumLock',
+    'ScrollLock',
     'Escape',
+    'Tab',
+    'F1',
+    'F5',
+    'F12',
+    'F24',
+    'ContextMenu',
+    'PrintScreen',
+    'Pause',
+    'OSLeft',
+    'MediaPlayPause',
+    'AudioVolumeUp',
+    'BrowserBack',
   ])('%s does not', (code) => {
     expect(isStartKey({ ...PLAIN, code })).toBe(false);
   });

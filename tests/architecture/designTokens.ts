@@ -13,8 +13,6 @@ const TYPOGRAPHY_FIELDS: Record<string, string> = {
   lineHeight: 'line-height',
   letterSpacing: 'letter-spacing',
 };
-/** Groups of variables that must exist in the frontmatter (the others may hold helpers). */
-const TOKEN_PREFIXES = ['--pp-color-', '--pp-font-', '--pp-rounded-', '--pp-spacing-'];
 
 export interface ExpectedToken {
   name: string;
@@ -77,13 +75,78 @@ function stripComments(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
-/** Custom properties declared in a stylesheet, by name (the last declaration wins). */
+/** The text inside each top-level `:root { … }` block. */
+function rootBlocks(css: string): string[] {
+  const source = stripComments(css);
+  const blocks: string[] = [];
+  let depth = 0;
+  let blockStart = -1;
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i];
+    if (char === '{') {
+      if (depth === 0 && /(^|[}\s;]):root\s*$/.test(source.slice(0, i))) blockStart = i + 1;
+      depth++;
+    } else if (char === '}') {
+      depth--;
+      if (depth === 0 && blockStart !== -1) {
+        blocks.push(source.slice(blockStart, i));
+        blockStart = -1;
+      }
+    }
+  }
+  return blocks;
+}
+
+function declarationsOf(text: string): Array<{ name: string; value: string }> {
+  return [...text.matchAll(/(--pp-[a-z0-9-]+)\s*:\s*([^;}]+)/g)].map((match) => ({
+    name: match[1] as string,
+    value: (match[2] as string).trim(),
+  }));
+}
+
+/** Custom properties declared in the top-level `:root` blocks of a stylesheet (the last one wins). */
 export function declaredVariables(css: string): Map<string, string> {
   const variables = new Map<string, string>();
-  for (const match of stripComments(css).matchAll(/(--pp-[a-z0-9-]+)\s*:\s*([^;}]+)/g)) {
-    variables.set(match[1] as string, (match[2] as string).trim());
+  for (const block of rootBlocks(css)) {
+    for (const { name, value } of declarationsOf(block)) variables.set(name, value);
   }
   return variables;
+}
+
+/** Every `--pp-*` custom property declared anywhere in a stylesheet, under any selector. */
+export function declaredNames(css: string): Set<string> {
+  return new Set(declarationsOf(stripComments(css)).map((declaration) => declaration.name));
+}
+
+/** Names declared somewhere that is not a top-level `:root` block (another selector, a media query). */
+function declaredOutsideRoot(css: string): string[] {
+  const counts = new Map<string, number>();
+  for (const { name } of declarationsOf(stripComments(css)))
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  for (const { name } of rootBlocks(css).flatMap(declarationsOf)) {
+    counts.set(name, (counts.get(name) ?? 0) - 1);
+  }
+  return [...counts].filter(([, left]) => left > 0).map(([name]) => name);
+}
+
+/** Names declared more than once in the `:root` blocks of a stylesheet. */
+function duplicateVariables(css: string): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const block of rootBlocks(css)) {
+    for (const { name } of declarationsOf(block)) {
+      if (seen.has(name)) duplicates.add(name);
+      seen.add(name);
+    }
+  }
+  return [...duplicates];
+}
+
+/** Every `--pp-*` a stylesheet reads through `var()`. */
+export function usedVariables(css: string): string[] {
+  return [...stripComments(css).matchAll(/var\(\s*(--pp-[a-z0-9-]+)/g)].map(
+    (match) => match[1] as string,
+  );
 }
 
 /** A value reduced to what must match: no quotes, no spaces around separators, numbers as numbers. */
@@ -114,11 +177,12 @@ export function checkTokens(frontmatter: YamlMap, css: string): string[] {
       problems.push(`${name} is "${actual}" but DESIGN.md says "${value}"`);
     }
   }
-  for (const name of declared.keys()) {
-    if (TOKEN_PREFIXES.some((prefix) => name.startsWith(prefix)) && !expectedNames.has(name)) {
-      problems.push(`${name} is not in the DESIGN.md frontmatter`);
-    }
+  // tokens.css holds the tokens and nothing else: helpers belong to ui.css.
+  for (const name of declaredNames(css)) {
+    if (!expectedNames.has(name)) problems.push(`${name} is not in the DESIGN.md frontmatter`);
   }
+  for (const name of declaredOutsideRoot(css)) problems.push(`${name} is declared outside :root`);
+  for (const name of duplicateVariables(css)) problems.push(`${name} is declared twice`);
   return problems;
 }
 
@@ -151,7 +215,9 @@ const COLOUR_PROPERTY =
   /color|background|border|outline|shadow|fill|stroke|filter|accent|caret|text-decoration/;
 const COLOUR_FUNCTION = /\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\s*\(/;
 const HEX_COLOUR = /#[0-9a-fA-F]{3,8}\b/;
-const LAYOUT_PROPERTY = /^(width|height|top|right|bottom|left|margin|padding|inset|all)(-|$)/;
+// Properties whose animation moves other things (layout) or repaints text: `transform` and `opacity` only.
+const LAYOUT_PROPERTY =
+  /^(width|height|top|right|bottom|left|margin|padding|inset|all|gap|row-gap|column-gap|flex|flex-basis|font-size|line-height|letter-spacing|border-width|(?:min|max)-(?:width|height))(-|$)/;
 
 interface Declaration {
   property: string;
@@ -187,8 +253,39 @@ function keyframeBodies(css: string): string[] {
   return bodies;
 }
 
-/** Problems of one UI stylesheet (everything but tokens.css and fonts.css). */
-export function checkStylesheet(css: string): string[] {
+const FALLBACK_STACKS = /^--pp-fallback-/;
+
+/** The class and id names a stylesheet's selectors use. */
+function selectorNames(css: string): string[] {
+  const names: string[] = [];
+  let prelude = '';
+  for (const char of css) {
+    if (char === '{') {
+      if (!prelude.trim().startsWith('@')) {
+        for (const match of prelude.matchAll(/[.#]([A-Za-z_][\w-]*)/g))
+          names.push(match[1] as string);
+      }
+      prelude = '';
+    } else if (char === '}' || char === ';') prelude = '';
+    else prelude += char;
+  }
+  return names;
+}
+
+/** A shadow with a blur radius is soft depth: sticker depth is hard (`0 4px 0 ink`). */
+function hasBlur(value: string): boolean {
+  const layers = value.replace(/var\([^)]*\)/g, ' V ').split(',');
+  return layers.some((layer) => {
+    const lengths = layer.match(/(?<![\w.#-])-?\d*\.?\d+(?:px|em|rem)?(?![\w%])/g) ?? [];
+    return lengths.length >= 3 && Number.parseFloat(lengths[2] as string) !== 0;
+  });
+}
+
+/**
+ * Problems of one UI stylesheet (everything but tokens.css and fonts.css). `knownVariables` is every
+ * `--pp-*` declared by tokens.css and the stylesheets: a `var()` of another name is a typo.
+ */
+export function checkStylesheet(css: string, knownVariables?: ReadonlySet<string>): string[] {
   const problems: string[] = [];
   const source = stripComments(css);
 
@@ -198,13 +295,26 @@ export function checkStylesheet(css: string): string[] {
   const fn = source.match(COLOUR_FUNCTION);
   if (fn !== null) problems.push(`hard-coded colour ${fn[1]}(): use a --pp-color-* variable`);
 
+  for (const name of selectorNames(source)) {
+    if (!name.startsWith('pp-')) problems.push(`selector "${name}" is not prefixed pp-`);
+  }
+  if (knownVariables !== undefined) {
+    for (const name of new Set(usedVariables(source))) {
+      if (!knownVariables.has(name)) problems.push(`var(${name}) is not declared anywhere`);
+    }
+  }
+
   for (const { property, value } of declarations(source)) {
-    if (property.startsWith('--')) continue;
-    if (COLOUR_PROPERTY.test(property)) {
+    const isCustom = property.startsWith('--');
+    // A custom property can hide a colour too (`--pp-outline: 3px solid red`), except the font stacks.
+    if (isCustom ? !FALLBACK_STACKS.test(property) : COLOUR_PROPERTY.test(property)) {
       const bare = value.replace(/var\([^)]*\)/g, ' ').replace(/url\([^)]*\)/g, ' ');
       for (const word of bare.toLowerCase().match(/[a-z]+/g) ?? []) {
         if (COLOUR_KEYWORDS.has(word)) problems.push(`named colour "${word}" in ${property}`);
       }
+    }
+    if ((property === 'box-shadow' || property === 'text-shadow') && hasBlur(value)) {
+      problems.push(`${property} "${value}" has a blur: sticker depth is a hard shadow`);
     }
     if (property === 'transition' || property === 'transition-property') {
       for (const word of value.toLowerCase().match(/[a-z-]+/g) ?? []) {

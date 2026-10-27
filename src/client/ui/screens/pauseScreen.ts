@@ -20,6 +20,8 @@ export interface PauseScreen extends OverlayScreen {
 
 export interface PauseScreenOptions {
   t: Translator;
+  /** The face it opens in. Default: `panel`. */
+  mode?: PauseMode;
   events: Emitter<ClientEvents>;
   onResume(): void;
   onRestart(): void;
@@ -71,14 +73,16 @@ export function createPauseScreen(options: PauseScreenOptions): PauseScreen {
     list.append(button);
   }
 
+  let mode: PauseMode = options.mode ?? 'panel';
   const countdown = createCountdownView({ t, events });
-  countdown.element.hidden = true;
+  panel.hidden = mode !== 'panel';
+  countdown.element.hidden = mode !== 'countdown';
   element.append(panel, countdown.element);
 
-  let mode: PauseMode = 'panel';
   return {
     element,
-    initialFocus: buttons[0] ?? null,
+    // The countdown has nothing to focus: the panel's first button only when the panel shows.
+    initialFocus: mode === 'panel' ? (buttons[0] ?? null) : null,
     get mode() {
       return mode;
     },

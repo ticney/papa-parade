@@ -225,6 +225,14 @@ body {
     0 0 0 2px var(--pp-color-paper);
 }
 
+/* Pressed with a key while focused: the lift collapses here too (same specificity as the rule above
+   and later in the file would otherwise keep it), the paper ring stays. */
+.pp-button-icon.pp-pressed:focus-visible {
+  box-shadow:
+    0 0 0 var(--pp-color-ink),
+    0 0 0 2px var(--pp-color-paper);
+}
+
 .pp-button-icon svg {
   width: 20px;
   height: 20px;

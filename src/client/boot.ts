@@ -81,7 +81,7 @@ export async function boot(): Promise<void> {
 
   const t = createTranslator(content.value.strings);
   // A font that fails to load is a `warn` (logged by loadFonts); the fallback stack takes over.
-  await loadFonts(document.fonts);
+  await loadFonts(document.fonts); // gives up after FONT_LOAD_TIMEOUT_MS
 
   const created = createRenderer(canvas);
   if (!created.ok) {
@@ -116,9 +116,15 @@ export async function boot(): Promise<void> {
   // before the bindings below, which can emit as soon as they are bound. Story 1.13 brings
   // `window.__PP__`; until then these are how a test sees the app.
   const isMirrored = import.meta.env.VITE_DEBUG_ALLOWED === 'true';
+  // Written only when the value changes: a test observing the attributes then sees each real change once.
+  const mirror = (name: 'ppState' | 'ppApp', value: string): void => {
+    if (document.documentElement.dataset[name] !== value) {
+      document.documentElement.dataset[name] = value;
+    }
+  };
   const mirrorState = (): void => {
-    document.documentElement.dataset.ppState = pause.state;
-    document.documentElement.dataset.ppApp = appFsm.state;
+    mirror('ppState', pause.state);
+    mirror('ppApp', appFsm.state);
   };
   if (isMirrored) {
     events.on('PauseRequested', mirrorState);
@@ -157,10 +163,11 @@ export async function boot(): Promise<void> {
           void levelSession.start();
         },
       }),
-    pause: () =>
+    pause: (mode) =>
       createPauseScreen({
         t,
         events,
+        mode,
         onResume: () => pause.requestResume(),
         onRestart: () => void levelSession.start(),
       }),

@@ -72,3 +72,6 @@ export const HUD_MAX_DOM_NODES = 40;
 
 /** A panel pops in within this much real time, in ms (a plain fade under reduced motion). */
 export const PANEL_POP_MAX_MS = 220;
+
+/** How long the app waits for its fonts before it starts with the fallback fonts, in ms. */
+export const FONT_LOAD_TIMEOUT_MS = 3000;

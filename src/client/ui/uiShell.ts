@@ -49,8 +49,9 @@ export function createUiShell(options: UiShellOptions): UiShell {
       isPortrait,
       pauseState: pause.state,
     });
-    overlayHost.sync(kind);
-    overlayHost.pauseScreen?.setMode(pause.state === 'paused' ? 'panel' : 'countdown');
+    const pauseMode = pause.state === 'paused' ? 'panel' : 'countdown';
+    overlayHost.sync(kind, pauseMode);
+    overlayHost.pauseScreen?.setMode(pauseMode);
     const isInLevel = appFsm.state === 'level';
     hud.setVisible(isInLevel);
     hud.setInteractive(isInLevel && !isPortrait && pause.state === 'running');

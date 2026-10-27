@@ -73,6 +73,8 @@ describe('parseYamlSubset', () => {
     ['an anchor', 'a: &x 1'],
     ['a block scalar', 'a: |\n  text'],
     ['an unquoted colon', 'a: b: c'],
+    ['an inline comment', 'a: 8px # note'],
+    ['an inline comment after a hex', 'a: red #c00'],
     ['an empty value', 'a:\nb: 1'],
     ['a trailing empty value', 'a:'],
     ['a duplicate key', 'a: 1\na: 2'],

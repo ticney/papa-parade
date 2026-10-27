@@ -99,8 +99,9 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           onSimEvent: deps.onSimEvent,
         });
 
-        // Paused then resumed in the same tick, before the app enters `level`: the pause panel
-        // never builds, the first thing the player sees is « 3 ».
+        // Paused then resumed in the same tick, before the app enters `level`: the pause screen is
+        // then built straight as the countdown (no panel, no focus), and the first thing the player
+        // sees is « 3 ».
         pause.requestPause('levelStart');
         if (deps.canResumeNow()) pause.requestResume();
         appFsm.enter('level');

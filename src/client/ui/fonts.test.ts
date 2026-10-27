@@ -2,6 +2,9 @@ import type { LogChannel } from '@shared/log';
 import { describe, expect, it } from 'vitest';
 import { FONT_LOADS, loadFonts } from './fonts.ts';
 
+/** A timer that never fires: the loads settle first. */
+const NEVER = (): Promise<void> => new Promise(() => {});
+
 function setup() {
   const warnings: string[] = [];
   const logger = {
@@ -23,7 +26,7 @@ describe('loadFonts', () => {
           return Promise.resolve([{}]);
         },
       },
-      logger,
+      { logger, wait: NEVER },
     );
     expect(result.ok).toBe(true);
     expect(asked.sort()).toEqual([...FONT_LOADS].sort());
@@ -39,7 +42,7 @@ describe('loadFonts', () => {
             ? Promise.reject(new Error('network down'))
             : Promise.resolve([{}]),
       },
-      logger,
+      { logger, wait: NEVER },
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -51,14 +54,41 @@ describe('loadFonts', () => {
 
   it('treats a request that matches no @font-face as a failure', async () => {
     const { warnings, logger } = setup();
-    const result = await loadFonts({ load: () => Promise.resolve([]) }, logger);
+    const result = await loadFonts({ load: () => Promise.resolve([]) }, { logger, wait: NEVER });
     expect(result.ok).toBe(false);
     expect(warnings).toHaveLength(1);
   });
 
   it('keeps going when a load throws something that is not an Error', async () => {
     const { logger } = setup();
-    const result = await loadFonts({ load: () => Promise.reject('boom') }, logger);
+    const result = await loadFonts({ load: () => Promise.reject('boom') }, { logger, wait: NEVER });
     expect(result.ok).toBe(false);
+  });
+
+  it('gives up after the timeout when a load never settles, and says so', async () => {
+    const { warnings, logger } = setup();
+    const waited: number[] = [];
+    const result = await loadFonts(
+      { load: () => new Promise(() => {}) },
+      {
+        logger,
+        timeoutMs: 1234,
+        wait: (ms) => {
+          waited.push(ms);
+          return Promise.resolve();
+        },
+      },
+    );
+    expect(waited).toEqual([1234]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(JSON.stringify(result.error.cause)).toContain('1234');
+    expect(warnings).toHaveLength(1);
+  });
+
+  it('does not report a timeout when everything loaded first', async () => {
+    const { warnings, logger } = setup();
+    const result = await loadFonts({ load: () => Promise.resolve([{}]) }, { logger, wait: NEVER });
+    expect(result.ok).toBe(true);
+    expect(warnings).toEqual([]);
   });
 });

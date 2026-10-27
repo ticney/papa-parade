@@ -76,3 +76,12 @@
 - **The portrait overlay also covers a narrow desktop window** (`orientation: portrait`). Decide with Geo whether desktop is exempt.
 - **A restart costs a 3 s countdown** (the level always starts through it, story 1.5 D1). If it slows the tuning loop, add a shorter or skippable one in dev builds.
 
+## Deferred from: code review of story 1-5-fondations-de-l-ui-tokens-ecran-de-demarrage-hud-et-panneau-de-pause (2026-10-27)
+
+- **`levelSession.stop()` does not cancel a start awaiting `createSim`.** The start resumes, builds a loop and enters `level` after a teardown. No caller does it yet; add a generation token with the first teardown path. Story 1.6.
+- **Focus and screen-reader semantics.** No focus restore when an overlay closes, no Tab trap in the `aria-modal` panel, no focus target for the countdown, the start button's `aria-label` hides the title, no role on the portrait overlay. The story pins focus to `document.body` after the panel and `aria-label` = the prompt. Accessibility pass, story 2.10.
+- **The start screen starts on any window `pointerup`,** including the tail of a gesture begun before it was mounted. D15 pins it; require a `pointerdown` seen while mounted when the audio unlock is checked on a device. Story 1.9.
+- **`paint-order` fallback for `.pp-stroked`.** Chromium 123+ and Safari 11+ paint the stroke behind the fill for HTML text; an older WebView would let the stroke eat the glyphs. Add an `@supports not (paint-order: stroke fill)` fallback if the device pass finds one. E8 device pass.
+- **The press state machine has no unit test** (pointer id tracking, `detail === 0`, slide-out, multi-touch); only `isInsideRect` does. Extract a pure reducer with the input mapper. Story 1.11.
+- **No « every animation has a reduced-motion override » check** in `tests/architecture/designTokens.ts`. With the « Réduire les animations » setting, story 2.8.
+

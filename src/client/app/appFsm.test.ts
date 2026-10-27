@@ -86,23 +86,37 @@ describe('createAppFsm', () => {
     expect(() => fsm.enter('loading')).toThrow(/cannot go/);
   });
 
-  it('keeps every existing transition legal when later stories add states', () => {
-    // What story 2.7 will do: calibration between start and loading, start → loading kept.
+  it('has exactly the edges of the app flow: removing one fails here', () => {
+    const edges = Object.entries(APP_TRANSITIONS).flatMap(([from, targets]) =>
+      targets.map((to) => `${from}>${to}`),
+    );
+    expect(edges.sort()).toEqual(
+      [
+        'boot>start',
+        'start>loading',
+        'loading>level',
+        'loading>oops',
+        'level>loading',
+        'level>result',
+        'level>oops',
+        'result>loading',
+      ].sort(),
+    );
+  });
+
+  it('accepts a table that adds states and keeps the edges (what story 2.7 will do)', () => {
     const extended: Record<string, readonly string[]> = {
       ...APP_TRANSITIONS,
       start: [...APP_TRANSITIONS.start, 'calibration'],
       calibration: ['loading'],
     };
-    for (const [from, targets] of Object.entries(APP_TRANSITIONS)) {
-      for (const to of targets) expect(extended[from]).toContain(to);
-    }
     const { fsm } = setup(extended);
     fsm.enter('start');
-    (fsm.enter as (next: string) => void)('calibration');
+    (fsm.enter as (next: string) => void)('calibration'); // the new path
     fsm.enter('loading');
     expect(fsm.state).toBe('loading');
     const returning = setup(extended);
-    goTo(returning.fsm, ['start', 'loading']);
+    goTo(returning.fsm, ['start', 'loading']); // the returning-player path, unchanged
     expect(returning.fsm.state).toBe('loading');
   });
 });

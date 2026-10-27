@@ -7,6 +7,7 @@ import {
   TOUCH_TARGET_MIN_PX,
 } from '../../src/shared/constants.ts';
 import {
+  collectProblems,
   html,
   OVERRUN_MARGIN_MS,
   openGame,
@@ -36,14 +37,10 @@ async function pauseWithEscape(page: Page): Promise<void> {
   await expect(panel(page)).toBeVisible();
 }
 
-test('a whole session (start, pause, resume, restart, turn the phone) raises no console or page error', async ({
+test("a whole session (start, pause, resume, restart, turn the phone) raises no error and none of the app's own warnings", async ({
   page,
 }) => {
-  const problems: string[] = [];
-  page.on('console', (message) => {
-    if (message.type() === 'error') problems.push(`console: ${message.text()}`);
-  });
-  page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
+  const problems = collectProblems(page);
 
   await startLevel(page);
   await pauseWithEscape(page);
@@ -77,6 +74,9 @@ test.describe('start screen', () => {
       'aria-label',
       STRINGS['start.tap_to_start'],
     );
+    const startBox = await page.locator('.pp-start-screen').boundingBox();
+    expect(startBox?.width).toBeGreaterThanOrEqual(TOUCH_TARGET_MIN_PX);
+    expect(startBox?.height).toBeGreaterThanOrEqual(TOUCH_TARGET_MIN_PX);
     const fonts = await page.evaluate(async () => {
       await document.fonts.ready;
       return {
@@ -101,6 +101,14 @@ test.describe('start screen', () => {
     await page.locator('.pp-start-screen').click();
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
     await expect(page.locator('.pp-start-screen')).toHaveCount(0);
+    // The level starts through the countdown: the pause screen is built as the countdown, so the
+    // panel is hidden and nothing took focus.
+    await expect(page.locator('#pp-ui > *')).toHaveCount(1);
+    await expect(panel(page)).toBeHidden();
+    const isFocusInPanel = await page.evaluate(
+      () => document.activeElement?.closest('.pp-panel') != null,
+    );
+    expect(isFocusInPanel).toBe(false);
     await expect(page.locator('.pp-countdown-digit:not([hidden])')).toHaveText(
       STRINGS['countdown.step_3'],
     );
@@ -179,6 +187,29 @@ test.describe('pause', () => {
       return colour;
     });
     expect(veil).toBe(scrim);
+  });
+
+  test('a click with no pointer (assistive technology, detail 0) activates the button', async ({
+    page,
+  }) => {
+    await startLevel(page);
+    await pauseHud(page).evaluate((node) => (node as HTMLElement).click());
+    await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
+    await expect(panel(page)).toBeVisible();
+  });
+
+  test('the veil swallows a tap outside the panel: nothing resumes, there is one overlay', async ({
+    page,
+  }) => {
+    await startLevel(page);
+    await pauseWithEscape(page);
+    await settleAnimations(page);
+    await page.mouse.click(20, LANDSCAPE.height / 2); // the veil, well left of the panel
+    await page.touchscreen.tap(LANDSCAPE.width - 20, LANDSCAPE.height - 20);
+    await waitFrames(page, FRAMES_TO_SETTLE);
+    await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
+    await expect(panel(page)).toBeVisible();
+    await expect(page.locator('#pp-ui > *')).toHaveCount(1);
   });
 
   test('the panel opens within the pop-in budget, and under reduced motion it is a plain fade', async ({
@@ -266,9 +297,24 @@ test.describe('pause', () => {
     const seed = await html(page).getAttribute('data-pp-seed');
     expect(seed).not.toBeNull();
     await pauseWithEscape(page);
+    // The old value of each change of data-pp-app, in order: level → loading → level.
+    await page.evaluate(() => {
+      const left: string[] = [];
+      new MutationObserver((records) => {
+        for (const record of records) left.push(record.oldValue ?? '');
+      }).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-pp-app'],
+        attributeOldValue: true,
+      });
+      Object.assign(window, { ppAppLeft: left });
+    });
 
     await pauseButton(page, STRINGS['pause.restart']).click();
     await expect(html(page)).not.toHaveAttribute('data-pp-seed', seed as string);
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { ppAppLeft: string[] }).ppAppLeft))
+      .toEqual(['level', 'loading']);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
     await expect(panel(page)).toHaveCount(0);
     await expect(html(page)).toHaveAttribute('data-pp-state', 'running', {
@@ -288,6 +334,7 @@ test.describe('portrait', () => {
     await expect(page.locator('.pp-portrait-text')).toHaveText(STRINGS['portrait.rotate']);
     await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
     await expect(page.locator('.pp-pause-screen')).toHaveCount(0); // overlays never stack
+    await expect(page.locator('#pp-ui > *')).toHaveCount(1);
     await expect(page.locator('#pp-hud')).toHaveJSProperty('inert', true);
 
     await waitFrames(page, FRAMES_TO_SETTLE);
@@ -433,32 +480,33 @@ test.describe('buttons and keyboard', () => {
     page,
   }) => {
     await startLevel(page);
-    const values = new Set(Object.values(STRINGS));
     const audit = () =>
       page.locator('button').evaluateAll((nodes) =>
         nodes.map((node) => {
           const rect = node.getBoundingClientRect();
           return {
-            label: node.getAttribute('aria-label'),
+            label: node.getAttribute('aria-label') ?? '',
             width: rect.width,
             height: rect.height,
           };
         }),
       );
+    // Each button has the exact label of its own string, not just some string of the file.
+    const labels = async () => (await audit()).map((button) => button.label).sort();
 
+    expect(await labels()).toEqual([STRINGS['hud.pause_button']]);
     for (const button of await audit()) {
       expect(button.width).toBeGreaterThanOrEqual(TOUCH_TARGET_MIN_PX);
       expect(button.height).toBeGreaterThanOrEqual(TOUCH_TARGET_MIN_PX);
-      expect(values.has(button.label ?? '')).toBe(true);
     }
     await pauseWithEscape(page);
     await settleAnimations(page);
-    const inPanel = await audit();
-    expect(inPanel.length).toBeGreaterThanOrEqual(3); // pause button + two actions
-    for (const button of inPanel) {
+    expect(await labels()).toEqual(
+      [STRINGS['hud.pause_button'], STRINGS['pause.resume'], STRINGS['pause.restart']].sort(),
+    );
+    for (const button of await audit()) {
       expect(button.width).toBeGreaterThanOrEqual(TOUCH_TARGET_MIN_PX);
       expect(button.height).toBeGreaterThanOrEqual(TOUCH_TARGET_MIN_PX);
-      expect(values.has(button.label ?? '')).toBe(true);
     }
   });
 
@@ -520,7 +568,9 @@ test.describe('buttons and keyboard', () => {
 });
 
 test.describe('strings 30 % longer', () => {
-  test('nothing is truncated or overflows on any surface', async ({ page }) => {
+  test('nothing is truncated or overflows on the start, pause, countdown and portrait screens', async ({
+    page,
+  }) => {
     // Vite serves each content file as a JS module: `export default "<file text>"`.
     await page.route(/\/content\/strings\.fr\.json\?/, async (route) => {
       const response = await route.fetch();
@@ -581,7 +631,12 @@ test.describe('strings 30 % longer', () => {
       );
 
     await openGame(page);
-    expect(await page.locator('.pp-start-prompt').innerText()).toContain('ab'); // the route worked
+    // The route only works against the dev server's module shape (`export default "<json>"`): if it
+    // stops matching, the strings are not lengthened and this line says why.
+    expect(
+      await page.locator('.pp-start-prompt').textContent(),
+      'the strings were not lengthened: the dev module shape changed, update the route',
+    ).toContain('ab');
     expect(await overflowing('#pp-ui')).toEqual([]);
 
     await page.locator('.pp-start-screen').click();

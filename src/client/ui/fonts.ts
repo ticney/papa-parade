@@ -1,3 +1,4 @@
+import { FONT_LOAD_TIMEOUT_MS } from '@shared/constants';
 import { type Logger, log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
 
@@ -13,17 +14,35 @@ export interface FontSetLike {
   load(font: string): Promise<readonly unknown[]>;
 }
 
+export interface LoadFontsOptions {
+  logger?: Pick<Logger, 'warn'>;
+  /** How long to wait before giving up, in ms. Default: `FONT_LOAD_TIMEOUT_MS`. */
+  timeoutMs?: number;
+  /** Resolves after the given ms. Default: a `setTimeout`. Tests pass their own. */
+  wait?: (ms: number) => Promise<void>;
+}
+
+const waitMs = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
 /**
- * Waits for the three families, so the start screen never flashes a fallback font. A family that
- * cannot be loaded is not fatal: the CSS stacks end in system fonts, so it logs a `warn` and the
- * game goes on with the fallback.
+ * Waits for the three families, so the start screen never flashes a fallback font, but never longer
+ * than `FONT_LOAD_TIMEOUT_MS`: a font request that stalls must not leave the player a blank page. A
+ * family that cannot be loaded (or a timeout) is not fatal: the CSS stacks end in system fonts, so
+ * it logs a `warn` and the game goes on with the fallback.
  */
 export async function loadFonts(
   fontSet: FontSetLike,
-  logger: Pick<Logger, 'warn'> = log,
+  options: LoadFontsOptions = {},
 ): Promise<Result<void, AppError>> {
+  const logger = options.logger ?? log;
+  const timeoutMs = options.timeoutMs ?? FONT_LOAD_TIMEOUT_MS;
+  const wait = options.wait ?? waitMs;
   const failures: string[] = [];
-  await Promise.all(
+
+  const loads = Promise.all(
     FONT_LOADS.map(async (font) => {
       try {
         const faces = await fontSet.load(font);
@@ -32,11 +51,14 @@ export async function loadFonts(
         failures.push(`${font}: ${cause instanceof Error ? cause.message : String(cause)}`);
       }
     }),
-  );
+  ).then(() => 'loaded' as const);
+  const outcome = await Promise.race([loads, wait(timeoutMs).then(() => 'timeout' as const)]);
+  if (outcome === 'timeout') failures.push(`still loading after ${timeoutMs} ms`);
+
   if (failures.length === 0) return ok(undefined);
   const error: AppError = {
     kind: 'assets',
-    message: `cannot load ${failures.length} font(s): falling back to system fonts`,
+    message: `cannot load ${failures.length} font problem(s): falling back to system fonts`,
     cause: failures,
   };
   logger.warn('assets', error.message, failures);
