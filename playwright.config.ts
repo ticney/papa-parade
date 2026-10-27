@@ -8,6 +8,19 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? 'github' : 'list',
+  // Screenshot references are per browser and per OS: `darwin` made on the Mac, `linux` made in
+  // Docker for CI. The ratio is a guard against GPU dithering, never a slack for real changes: a
+  // frame that needs more than 1 % is not deterministic, and that is the bug.
+  snapshotPathTemplate:
+    '{testDir}/__screenshots__/{testFilePath}/{arg}-{projectName}-{platform}{ext}',
+  expect: {
+    toHaveScreenshot: {
+      animations: 'disabled',
+      caret: 'hide',
+      scale: 'css',
+      maxDiffPixelRatio: 0.002,
+    },
+  },
   use: { baseURL: `http://localhost:${PORT}` },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'], ...landscapePhone } },

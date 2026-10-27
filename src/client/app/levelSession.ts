@@ -1,5 +1,6 @@
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { ContentError } from '@content/contentError';
+import type { Feel } from '@content/schemas/feel';
 import { DEFAULT_LEVEL_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
@@ -41,8 +42,17 @@ export interface LevelSessionDeps {
   /** Resolves once the page is in the foreground (at once if it is). The countdown starts after it. */
   waitForForeground(): Promise<void>;
   scheduler?: FrameScheduler;
-  /** Default: `DEFAULT_LEVEL_ID`. */
+  /** The level the first `start()` loads, and what a restart reloads until a start names another. Default: `DEFAULT_LEVEL_ID`. */
   levelId?: string;
+  /** Real-time multiplier of every level's loop (`?speed`). Default 1. */
+  speed?: number;
+  /** Called before every step of every level's loop (the autoplay bot hangs here). Given to each new loop as is. */
+  beforeStep?(sim: Sim): void;
+  /**
+   * A level is about to begin: its sim exists, no step has run, the app has not entered `level`
+   * yet. Once per started level (not for one that fails or goes stale).
+   */
+  onLevelStarted?(started: StartedLevel): void;
   /** Default: the real `createSim`. */
   createSim?(options: CreateSimOptions): Promise<Sim>;
   /**
@@ -73,6 +83,31 @@ export interface ActiveLevel {
   readonly level: LevelContent;
 }
 
+/** What `start()` may be told; every field that is absent keeps its rule. */
+export interface LevelStartOptions {
+  /** Default: the level last asked for (initially `levelId` of the deps). */
+  levelId?: string;
+  /** An integer in `[0, 2**32)`. Default: `deps.newSeed()`. */
+  seed?: number;
+  /** The feel the sim and the scene use. Default: the one last asked for (initially `content.feel`). */
+  feel?: Feel;
+}
+
+/**
+ * How a `start()` ended. `started`: the app is in `level`. `ignored`: a start was in flight.
+ * `stale`: `stop()` came first. `failed`: the app is in `oops`.
+ */
+export type LevelStartOutcome = 'started' | 'ignored' | 'stale' | 'failed';
+
+/** A level that is about to begin, as `onLevelStarted` is told. */
+export interface StartedLevel {
+  readonly sim: Sim;
+  readonly levelId: string;
+  readonly seed: number;
+  readonly level: LevelContent;
+  readonly feel: Feel;
+}
+
 export interface LevelSession {
   /**
    * The level being played: set when the app enters `level`, `null` while a level loads and after
@@ -84,8 +119,20 @@ export interface LevelSession {
    * geometry and threats), the level's scene, then the wait for the foreground, then `level`, which always
    * begins through the resume countdown. A failed load goes to `oops`. Called again, it restarts.
    * Ignored while a start is in flight (a second tap on « Recommencer » must not start two levels).
+   * Without options it restarts the level last asked for, with its feel and a fresh seed.
    */
-  start(): Promise<void>;
+  start(options?: LevelStartOptions): Promise<LevelStartOutcome>;
+  /**
+   * What a start without options would load: the level and the feel last asked for, and the seed of
+   * the level that last began (`null` before the first).
+   */
+  readonly current: { readonly levelId: string; readonly seed: number | null; readonly feel: Feel };
+  /** Whether the loop of the current and of every later level is frozen (the wish is kept across levels). */
+  readonly isFrozen: boolean;
+  /** Freezes or unfreezes the loop: it renders on but runs no step. Applies to every later level too. */
+  freeze(isFrozen: boolean): void;
+  /** Freezes the level and runs exactly `steps` steps now. Throws `no level is running` without one. */
+  advance(steps: number): void;
   /**
    * Stops the frame loop of the current level and cancels any start in flight: a start that
    * resumes after `stop()` (or after a newer start) does nothing more and leaves nothing behind.
@@ -114,7 +161,12 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
   const makeSim = deps.createSim ?? createSim;
   const loadAssets = deps.loadAssets ?? loadLevelAssets;
   const makeScene = deps.createScene ?? createLevelScene;
-  const levelId = deps.levelId ?? DEFAULT_LEVEL_ID;
+  const requested: { levelId: string; seed: number | null; feel: Feel } = {
+    levelId: deps.levelId ?? DEFAULT_LEVEL_ID,
+    seed: null,
+    feel: deps.content.feel,
+  };
+  let isFrozenWish = false;
   let loop: GameLoop | null = null;
   let current: LevelScene | null = null;
   let isStarting = false;
@@ -133,17 +185,39 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     get active() {
       return active;
     },
+    get current() {
+      return { levelId: requested.levelId, seed: requested.seed, feel: requested.feel };
+    },
+    get isFrozen() {
+      return isFrozenWish;
+    },
+    freeze(next) {
+      isFrozenWish = next;
+      loop?.setFrozen(next);
+    },
+    advance(steps) {
+      if (loop === null) throw new Error('no level is running');
+      isFrozenWish = true;
+      loop.advance(steps);
+    },
     stop() {
       generation++;
       isStarting = false;
       active = null;
       stopLoop();
     },
-    async start() {
+    async start(options = {}) {
       if (isStarting) {
         log.debug('boot', 'level start ignored: one is already in flight');
-        return;
+        return 'ignored';
       }
+      const levelId = options.levelId ?? requested.levelId;
+      const feel = options.feel ?? requested.feel;
+      requested.levelId = levelId;
+      requested.feel = feel;
+      // The bundle the sim sees: the content as is, unless a feel was asked for.
+      const content: ContentBundle =
+        feel === deps.content.feel ? deps.content : { ...deps.content, feel };
       isStarting = true;
       const mine = ++generation;
       const isStale = (): boolean => mine !== generation;
@@ -155,27 +229,27 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         const audioLoad = settle(() => deps.loadAudio?.() ?? Promise.resolve());
         const levelLoad = settle(() => deps.loadLevelContent(levelId));
         const assets = await settle(() => loadAssets(levelId));
-        if (isStale()) return;
+        if (isStale()) return 'stale';
         if (!assets.ok) {
           // `loadLevelAssets` never throws; a replacement that does is a bug, not a failed load.
           log.error('boot', 'loading the level assets threw', { id: levelId, error: assets.error });
           appFsm.enter('oops');
-          return;
+          return 'failed';
         }
         if (!assets.value.ok) {
           // `loadLevelAssets` has logged the warn with the level id.
           appFsm.enter('oops');
-          return;
+          return 'failed';
         }
         const levelContent = await levelLoad;
-        if (isStale()) return;
+        if (isStale()) return 'stale';
         if (!levelContent.ok) {
           log.error('boot', 'loading the level content threw', {
             id: levelId,
             error: levelContent.error,
           });
           appFsm.enter('oops');
-          return;
+          return 'failed';
         }
         if (!levelContent.value.ok) {
           log.warn('content', 'cannot load the level', {
@@ -183,44 +257,45 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
             problems: levelContent.value.error.problems,
           });
           appFsm.enter('oops');
-          return;
+          return 'failed';
         }
         const audio = await audioLoad;
-        if (isStale()) return;
+        if (isStale()) return 'stale';
         if (!audio.ok)
           log.warn('audio', 'loading the level sounds threw: starting without them', audio.error);
         // The sim needs the level's geometry (Papa's navigation grid), so it comes after the assets.
         const levelAssets = assets.value.value;
         const levelPlan = levelContent.value.value;
-        const seed = deps.newSeed();
+        const seed = options.seed ?? deps.newSeed();
         const simResult = await settle(() =>
           makeSim({
-            content: deps.content,
+            content,
             geometry: levelAssets.geometry,
             level: levelPlan,
             seed,
           }),
         );
-        if (isStale()) return;
+        if (isStale()) return 'stale';
         if (!simResult.ok) {
           log.error('boot', 'cannot create the sim for the level', simResult.error);
           appFsm.enter('oops');
-          return;
+          return 'failed';
         }
         const sim = simResult.value;
         log.info('boot', 'sim ready', { seed });
+        requested.seed = seed;
         deps.onSeed(seed);
 
         let level: LevelScene;
         try {
           level = makeScene(levelAssets, {
-            papaRadiusM: deps.content.feel.movement.papaRadiusM,
-            babyRadiusM: deps.content.feel.baby.bodyRadiusM,
+            papaRadiusM: feel.movement.papaRadiusM,
+            babyRadiusM: feel.baby.bodyRadiusM,
           });
         } catch (cause) {
           log.error('render', 'cannot build the level scene', { id: levelId, error: cause });
           appFsm.enter('oops');
-          return;
+          return 'failed';
         }
         try {
           deps.onLevelReady(
@@ -232,7 +307,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           level.dispose();
           log.error('render', 'cannot show the level scene', { id: levelId, error: cause });
           appFsm.enter('oops');
-          return;
+          return 'failed';
         }
         const previous = current;
         current = level;
@@ -241,7 +316,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         // Loaded in the background: the app stays in `loading` until the player is back, then the
         // countdown starts (D8).
         await deps.waitForForeground();
-        if (isStale()) return;
+        if (isStale()) return 'stale';
 
         const render = (alpha: number): void => {
           level.update(sim.world, alpha);
@@ -256,7 +331,11 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           scheduler: deps.scheduler,
           render,
           onSimEvent: deps.onSimEvent,
+          speed: deps.speed,
+          beforeStep: deps.beforeStep,
         });
+        loop.setFrozen(isFrozenWish);
+        deps.onLevelStarted?.({ sim, levelId, seed, level: levelPlan, feel });
 
         // Paused then resumed in the same tick, before the app enters `level`: the pause screen is
         // then built straight as the countdown (no panel, no focus), and the first thing the player
@@ -266,6 +345,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         active = { sim, timeMap, level: levelPlan };
         appFsm.enter('level');
         loop.start();
+        return 'started';
       } finally {
         if (!isStale()) isStarting = false;
       }

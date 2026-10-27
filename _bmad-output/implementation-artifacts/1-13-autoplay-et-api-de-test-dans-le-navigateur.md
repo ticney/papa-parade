@@ -1,6 +1,10 @@
+---
+baseline_commit: ea248640f1f5148009da703ad7c48976ff1dc828
+---
+
 # Story 1.13: Autoplay and Test API in the Browser
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.13 « Autoplay et API de test dans le navigateur ». Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -29,38 +33,38 @@ Story 1.12 is in `review` at the time of writing (commit `ffddcda`). Start only 
 
 ## Tasks / Subtasks
 
-- [ ] **T0 — Baseline** (Precondition)
-  - [ ] `npm run ci` green on the untouched tree on the reference machine; note unit and e2e test counts and durations in the Debug Log.
-- [ ] **T1 — URL parameters** (AC 1, 3; D1, D2, D3)
-  - [ ] `src/client/app/debugParams.ts`: `readDebugParams(search): DebugParams` (`{ isDebug, autoplay, seed, speed }`, each `null` when absent or invalid), pattern of `threatsSwitch.ts` (one `warn` per bad value, on channel `'boot'`). Constants `PLAY_SPEED_MAX` in `shared/constants.ts`. Colocated `debugParams.test.ts` (every valid / invalid case of Dev Notes › URL parameters).
-- [ ] **T2 — The loop learns to freeze, advance, speed up and ask a hook before each step** (AC 1, 4; D4, D5, D6)
-  - [ ] `src/client/loop.ts`: options `speed?: number` (default 1) and `beforeStep?: (sim: Sim) => void`; methods `setFrozen(isFrozen)`, `readonly isFrozen`, `advance(steps)` (Dev Notes › Loop). No allocation per frame or per step; doc comment updated.
-  - [ ] `src/client/loop.test.ts`: new cases (Dev Notes › Testing › loop). Every existing case passes unchanged.
-- [ ] **T3 — The level session takes start options** (AC 1, 4; D7, D8)
-  - [ ] `src/client/app/levelSession.ts`: `start(options?: LevelStartOptions)` with `levelId`, `seed`, `feel`, returning a `LevelStartOutcome`; deps `speed?`, `beforeStep?`, `onLevelStarted?`; methods `freeze(on)`, `advance(steps)`, `readonly isFrozen`, `readonly current` (id + seed + feel of the running level). « Recommencer » / « Réessayer » restart the **same** level id, seed rule of D2, and the current feel override.
-  - [ ] `src/client/app/levelSession.test.ts`: new cases (Dev Notes › Testing › level session). Existing cases unchanged (the default `start()` keeps today's behaviour).
-- [ ] **T4 — The host the debug code drives** (AC 4; D10)
-  - [ ] `src/client/app/testHost.ts`: `TestHost` interface only (Dev Notes › Test host); built in `boot.ts`, passed to the debug modules. No logic here.
-- [ ] **T5 — Bot setup shared with the CLI** (AC 2; D9)
-  - [ ] Move `responsesOf` from `tools/sim/runSim.ts` to `src/bots/botResponses.ts` as `botResponsesOf(defs)` (structural type, no `@content` import); `runSim.ts` imports it. `tests/tools/sim/*` stay green unchanged; colocated `botResponses.test.ts`.
-- [ ] **T6 — Autoplay** (AC 1, 2, 3; D1, D2, D11, D12)
-  - [ ] `src/debug/autoplay.ts`: `installAutoplay(host, botId)` → `Result<void, AppError>`: validates the id with `createBot` against a throwaway setup (unknown → `err` with the `createBot` message), then on every `onLevelStarted` builds a fresh bot (`seed` = level seed, `holdMinMs` = the level's feel, `responses` = `botResponsesOf(level.threats)`, `settings` = `content.bots`) and installs it as the step hook (one reused `out` array).
-  - [ ] `boot.ts`: when `VITE_DEBUG_ALLOWED === 'true'` and `params.autoplay !== null`, `await import('@debug/autoplay')` before `appFsm.enter('start')`; on success the app skips the start screen and calls `levelSession.start()` itself, the gameplay input is ignored (D11), and audio stays locked and silent (D12). On `err`: `log.warn('boot', …)` and the normal start screen.
-  - [ ] `src/debug/autoplay.test.ts` (Node, frozen fixtures): over a fake host driving a real sim, N steps through the hook give the same `journal()` and `hashJson(world)` as `playGame` with the same bot and seed; an unknown id is an `err` naming `perfect, human, random, idle`; a second level start builds a new bot (no plan carried over).
-- [ ] **T7 — `window.__PP__`** (AC 4; D13–D18)
-  - [ ] `src/debug/feelPatch.ts`: `applyFeelPatch(feel, patch)` → `Result<Feel, AppError>` (deep merge of plain objects, arrays replaced, then `FeelSchema.safeParse`; the error lists the Zod issue paths). Colocated test.
-  - [ ] `src/debug/testApi.ts`: `createTestApi(host): PPTestApi` and `installTestApi(window, host)`; the `PPTestApi` type and the `Window.__PP__` global declaration live here. Behaviour exactly as Dev Notes › Test API. Colocated `testApi.test.ts` over a fake host (every method, every error).
-  - [ ] `boot.ts`: when `VITE_DEBUG_ALLOWED === 'true'` and (`import.meta.env.DEV` or `params.isDebug`), `await import('@debug/testApi')` and install it once boot is ready (just before `log.info('boot', 'ready: …')`).
-- [ ] **T8 — E2E** (AC 2, 4, 5; Dev Notes › Testing › e2e)
-  - [ ] `tests/e2e/support/testApi.ts`: typed helpers over `page.evaluate` (`waitForTestApi`, `ppState`, `ppEvents`, `ppSend`, `ppAdvance`, `ppFreeze`, `ppSetFeel`, `ppLoadLevel`), importing `PPTestApi` as a type from `src/debug/testApi.ts`.
-  - [ ] `tests/e2e/autoplay.spec.ts` (AC 2, 3, 5) and `tests/e2e/testApi.spec.ts` (AC 4).
-  - [ ] Screenshot references: `playwright.config.ts` gains `snapshotPathTemplate` and an `expect.toHaveScreenshot` default (Dev Notes › Screenshots); generate the `darwin` ones with `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` and the `linux` ones in Docker (`linux/amd64`, Dev Notes › Screenshots), look at each of the four PNGs, commit them.
-- [ ] **T9 — Docs and status**
-  - [ ] `CLAUDE.md` › Commands: one row for the autoplay URL and `window.__PP__`, one for refreshing the screenshot references (Dev Notes › Docs). Nothing else.
-  - [ ] `_bmad-output/project-context.md` › Testing Rules: « `window.__PP__` exists from story 1.12 onward » → « from story 1.13 onward », and add `setFeel` restarts the level until story 2.1 (D16). Nothing else.
-  - [ ] Fix the stale comment in `boot.ts` (« Story 1.13 brings `window.__PP__`; until then these are how a test sees the app ») to say the mirrors stay for the existing specs and `__PP__` is the API for new ones.
-  - [ ] `deferred-work.md`: Dev Notes › Deferred items this story touches / Deferred by this story.
-  - [ ] Final `npm run ci` green on the reference machine. By hand: `npm run build` then `grep -rl "__PP__\|createPerfectBot" dist/` finds nothing (paste the result in the Debug Log); open `/?autoplay=human&seed=42&speed=4` in the dev server and note in the Debug Log what you saw (responses, gags).
+- [x] **T0 — Baseline** (Precondition)
+  - [x] `npm run ci` green on the untouched tree on the reference machine; note unit and e2e test counts and durations in the Debug Log.
+- [x] **T1 — URL parameters** (AC 1, 3; D1, D2, D3)
+  - [x] `src/client/app/debugParams.ts`: `readDebugParams(search): DebugParams` (`{ isDebug, autoplay, seed, speed }`, each `null` when absent or invalid), pattern of `threatsSwitch.ts` (one `warn` per bad value, on channel `'boot'`). Constants `PLAY_SPEED_MAX` in `shared/constants.ts`. Colocated `debugParams.test.ts` (every valid / invalid case of Dev Notes › URL parameters).
+- [x] **T2 — The loop learns to freeze, advance, speed up and ask a hook before each step** (AC 1, 4; D4, D5, D6)
+  - [x] `src/client/loop.ts`: options `speed?: number` (default 1) and `beforeStep?: (sim: Sim) => void`; methods `setFrozen(isFrozen)`, `readonly isFrozen`, `advance(steps)` (Dev Notes › Loop). No allocation per frame or per step; doc comment updated.
+  - [x] `src/client/loop.test.ts`: new cases (Dev Notes › Testing › loop). Every existing case passes unchanged.
+- [x] **T3 — The level session takes start options** (AC 1, 4; D7, D8)
+  - [x] `src/client/app/levelSession.ts`: `start(options?: LevelStartOptions)` with `levelId`, `seed`, `feel`, returning a `LevelStartOutcome`; deps `speed?`, `beforeStep?`, `onLevelStarted?`; methods `freeze(on)`, `advance(steps)`, `readonly isFrozen`, `readonly current` (id + seed + feel of the running level). « Recommencer » / « Réessayer » restart the **same** level id, seed rule of D2, and the current feel override.
+  - [x] `src/client/app/levelSession.test.ts`: new cases (Dev Notes › Testing › level session). Existing cases unchanged (the default `start()` keeps today's behaviour).
+- [x] **T4 — The host the debug code drives** (AC 4; D10)
+  - [x] `src/client/app/testHost.ts`: `TestHost` interface only (Dev Notes › Test host); built in `boot.ts`, passed to the debug modules. No logic here.
+- [x] **T5 — Bot setup shared with the CLI** (AC 2; D9)
+  - [x] Move `responsesOf` from `tools/sim/runSim.ts` to `src/bots/botResponses.ts` as `botResponsesOf(defs)` (structural type, no `@content` import); `runSim.ts` imports it. `tests/tools/sim/*` stay green unchanged; colocated `botResponses.test.ts`.
+- [x] **T6 — Autoplay** (AC 1, 2, 3; D1, D2, D11, D12)
+  - [x] `src/debug/autoplay.ts`: `installAutoplay(host, botId)` → `Result<void, AppError>`: validates the id with `createBot` against a throwaway setup (unknown → `err` with the `createBot` message), then on every `onLevelStarted` builds a fresh bot (`seed` = level seed, `holdMinMs` = the level's feel, `responses` = `botResponsesOf(level.threats)`, `settings` = `content.bots`) and installs it as the step hook (one reused `out` array).
+  - [x] `boot.ts`: when `VITE_DEBUG_ALLOWED === 'true'` and `params.autoplay !== null`, `await import('@debug/autoplay')` before `appFsm.enter('start')`; on success the app skips the start screen and calls `levelSession.start()` itself, the gameplay input is ignored (D11), and audio stays locked and silent (D12). On `err`: `log.warn('boot', …)` and the normal start screen.
+  - [x] `src/debug/autoplay.test.ts` (Node, frozen fixtures): over a fake host driving a real sim, N steps through the hook give the same `journal()` and `hashJson(world)` as `playGame` with the same bot and seed; an unknown id is an `err` naming `perfect, human, random, idle`; a second level start builds a new bot (no plan carried over).
+- [x] **T7 — `window.__PP__`** (AC 4; D13–D18)
+  - [x] `src/debug/feelPatch.ts`: `applyFeelPatch(feel, patch)` → `Result<Feel, AppError>` (deep merge of plain objects, arrays replaced, then `FeelSchema.safeParse`; the error lists the Zod issue paths). Colocated test.
+  - [x] `src/debug/testApi.ts`: `createTestApi(host): PPTestApi` and `installTestApi(window, host)`; the `PPTestApi` type and the `Window.__PP__` global declaration live here. Behaviour exactly as Dev Notes › Test API. Colocated `testApi.test.ts` over a fake host (every method, every error).
+  - [x] `boot.ts`: when `VITE_DEBUG_ALLOWED === 'true'` and (`import.meta.env.DEV` or `params.isDebug`), `await import('@debug/testApi')` and install it once boot is ready (just before `log.info('boot', 'ready: …')`).
+- [x] **T8 — E2E** (AC 2, 4, 5; Dev Notes › Testing › e2e)
+  - [x] `tests/e2e/support/testApi.ts`: typed helpers over `page.evaluate` (`waitForTestApi`, `ppState`, `ppEvents`, `ppSend`, `ppAdvance`, `ppFreeze`, `ppSetFeel`, `ppLoadLevel`), importing `PPTestApi` as a type from `src/debug/testApi.ts`.
+  - [x] `tests/e2e/autoplay.spec.ts` (AC 2, 3, 5) and `tests/e2e/testApi.spec.ts` (AC 4).
+  - [x] Screenshot references: `playwright.config.ts` gains `snapshotPathTemplate` and an `expect.toHaveScreenshot` default (Dev Notes › Screenshots); generate the `darwin` ones with `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` and the `linux` ones in Docker (`linux/amd64`, Dev Notes › Screenshots), look at each of the four PNGs, commit them.
+- [x] **T9 — Docs and status**
+  - [x] `CLAUDE.md` › Commands: one row for the autoplay URL and `window.__PP__`, one for refreshing the screenshot references (Dev Notes › Docs). Nothing else.
+  - [x] `_bmad-output/project-context.md` › Testing Rules: « `window.__PP__` exists from story 1.12 onward » → « from story 1.13 onward », and add `setFeel` restarts the level until story 2.1 (D16). Nothing else.
+  - [x] Fix the stale comment in `boot.ts` (« Story 1.13 brings `window.__PP__`; until then these are how a test sees the app ») to say the mirrors stay for the existing specs and `__PP__` is the API for new ones.
+  - [x] `deferred-work.md`: Dev Notes › Deferred items this story touches / Deferred by this story.
+  - [x] Final `npm run ci` green on the reference machine. By hand: `npm run build` then `grep -rl "__PP__\|createPerfectBot" dist/` finds nothing (paste the result in the Debug Log); open `/?autoplay=human&seed=42&speed=4` in the dev server and note in the Debug Log what you saw (responses, gags).
 
 ## Dev Notes
 
@@ -327,15 +331,80 @@ From `_bmad-output/project-context.md` and `CLAUDE.md`:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-sonnet-5-5
 
 ### Debug Log References
 
+- **T0 baseline** (commit `ea24864`, Geo's Mac, Apple Silicon): `npm run ci` green on the untouched tree once `VITE_DEBUG_ALLOWED` was unset in the shell: typecheck, lint, `content:check`, 145 test files / **2003 unit tests**, **140 e2e** (1 min 45 s), `build:playtest`.
+  - **First baseline run was red on e2e (6 of 140 passed) and it was not WebGL**: the agent shell exports `VITE_DEBUG_ALLOWED=false`, and a process env var beats `.env.development` in Vite, so the dev server had no `data-pp-*` mirrors and every spec timed out on `data-pp-app="start"`. A probe showed `webgl: true` in chromium and webkit. Every e2e / dev-server / `npm run ci` command of this story was run with `unset VITE_DEBUG_ALLOWED`. **The 1.12 note « 134 of 140 e2e fail, likely no WebGL in the container » (deferred-work.md) probably had this same cause**: worth rechecking.
+- **Final**: `npm run ci` green: 150 test files / **2088 unit tests** (+85), `src/sim` coverage thresholds met, **172 e2e** (+32: 10 in `autoplay.spec.ts`, 22 in `testApi.spec.ts`, both browsers; 2 min), `build:playtest`.
+- **AC 2 (same game as headless)**: passes in chromium **and** webkit, no loosening. The browser's frozen world at the first response (`?autoplay=perfect&seed=42&speed=4`) hashes to the CLI's `runList[0].worldHash` for the same `--until-ms`.
+- **Screenshot stability**: `autoplay.spec.ts --repeat-each 4` on the Mac: 40 / 40 green with the committed `darwin` references. The `linux` references were made in Docker (`linux/amd64`, `mcr.microsoft.com/playwright:v1.64.1-noble`, 51 s including the pull); WebGL worked in the container for both browsers. I opened all four PNGs: each shows the greybox living room with the outlet's icon and halo (telegraphed) and the pause button.
+  - **Deviation from the story's Docker command**: I added `-v pp-node-modules:/work/node_modules` (a named volume), so the container's `npm ci` does not overwrite the Mac's `node_modules`; no `npm ci` was needed afterwards. Also `docker` needed `PATH="$HOME/.docker/bin:$PATH"` (the credential helper lives there), not only the CLI path. The volume `pp-node-modules` is left on Geo's Docker (`docker volume rm pp-node-modules` to remove it).
+- **T9 by hand**:
+  - `npm run build` (production) then `grep -rl "__PP__\|createPerfectBot" dist/` → **no match** (exit 1). `dist/assets` holds only `index`, `gltf`, the geometry chunk and the CSS: no `autoplay` / `testApi` chunk. (A looser `grep autoplay` matches two harmless strings: a description in the `bots.json` schema and the `{ autoplay: null }` constant of the params.) The playtest build does have `dist/assets/testApi-*.js`.
+  - `/?autoplay=human&seed=42&speed=4` in the dev server, chromium and webkit, 30 s of sim: the level starts by itself (`start → loading → level`), silent; four outlets, answered at 5420 ms `perfect`, 12 870 `perfect`, 20 300 `perfect`, 27 890 `success`; **no gag**; identical in both browsers. Chromium logged one `[sim] frame stall: dropped 300 ms of sim backlog` (first-frame GPU stall at ×4); it changes when the game reaches a sim time, never what happens.
+
+### Implementation Plan / Decisions
+
+- Followed D1 to D18 as written. Where the story left a choice:
+  - `LevelSession.current.seed` is the seed of the level that last **began** (`null` before the first); `levelId` and `feel` are the last **requested**. `setFeel` reuses it for « same id and seed »; « Recommencer » / « Réessayer » take a fresh seed (or `?seed`).
+  - `beforeStep` is given to each loop as is (a stable function in `boot.ts` that reads the swappable `stepHook`), instead of wrapped again in the session.
+  - `onLevelStarted` fires after the loop is created and the freeze wish applied, just before the pause/resume pair and `appFsm.enter('level')`: once per level that really starts (not on `failed` / `stale`).
+  - `FeelPatch` and `DeepPartial` live in `src/debug/feelPatch.ts` and are re-exported from `testApi.ts`.
+  - The availability rule of `window.__PP__` is a pure function, `isTestApiEnabled`, in `debugParams.ts`, so the « playtest without `?debug=1` » and « production » cases are unit-tested.
+  - `setFeel` with no level running rejects (`no level is running`) instead of starting one.
+  - **D12 generalised to « no start gesture »**: in debug builds `loadAudio` skips the preload and logs one `info` whenever `audio.state === 'none'` (autoplay, but also `__PP__.loadLevel` from the start screen), otherwise the existing `[audio] preload skipped` warning would fail `collectProblems` in every spec that loads a level through the API. A start by gesture unlocks audio first, so existing behaviour is unchanged.
+  - A `loadLevel` sent while a level start is already in flight (e.g. right after an autoplay page opens) is `ignored` and rejects (D17); `autoplay.spec.ts` waits for the level to exist, then freezes, then loads.
+- Test support added: `tests/support/fakeTestHost.ts` (a `TestHost` fake for the debug modules' unit tests).
+
 ### Completion Notes List
 
+- ✅ T0: baseline measured (see above), including the discovery that the shell's `VITE_DEBUG_ALLOWED=false` makes the e2e suite look red.
+- ✅ T1: `src/client/app/debugParams.ts` (`readDebugParams`, `isTestApiEnabled`) + 13 tests; `PLAY_SPEED_MAX`, `ADVANCE_MAX_STEPS`, `TEST_API_EVENT_LOG_MAX` in `shared/constants.ts`.
+- ✅ T2: loop `speed`, `beforeStep`, `setFrozen` / `isFrozen`, `advance` with one shared `runStep()`; 17 new cases in `loop.test.ts`, the 31 existing ones untouched.
+- ✅ T3: `levelSession.start(options?)` → `LevelStartOutcome`, `onLevelStarted`, `current`, `freeze`, `advance`, `isFrozen`, `speed`, `beforeStep`; 13 new cases, existing ones untouched.
+- ✅ T4: `src/client/app/testHost.ts` (interface only), built in `boot.ts` in debug builds only.
+- ✅ T5: `botResponsesOf` moved to `src/bots/botResponses.ts`; `runSim.ts` imports it (the only change to `tools/sim`); `tests/tools/sim/*` and `tests/bots/*` unchanged and green.
+- ✅ T6: `src/debug/autoplay.ts` + test: 4 000 steps through the hook give the same journal and `hashJson(world)` as `playGame` for `perfect` and `human`; unknown id is an `err` naming `perfect, human, random, idle`; a new bot per level. `boot.ts` loads it by a literal dynamic `import()` behind the flag, blocks the game input (D11), starts the level itself.
+- ✅ T7: `src/debug/feelPatch.ts`, `src/debug/testApi.ts` + tests (every method, every error, the event cap through `eventLogMax`, the `events(since)` cursor, the copy in `state()`).
+- ✅ T8: `tests/e2e/support/testApi.ts`, `autoplay.spec.ts` (5 tests), `testApi.spec.ts` (11 tests), `playwright.config.ts` snapshot template and defaults, four screenshot references (`darwin` and `linux` × chromium and webkit).
+- ✅ T9: `CLAUDE.md` (two rows), `project-context.md` (one line), `boot.ts` comment, `deferred-work.md`; final CI and the by-hand checks above.
+- **Nothing else moved**: `src/sim/**` untouched, no golden regenerated, every existing e2e spec untouched and green. **Existing tests edited**: `src/client/loop.test.ts` (the `createRig` helper takes `speed` and `beforeStep`; new cases appended) and `src/client/app/levelSession.test.ts` (new cases appended, two imports); no existing assertion changed.
+- Variances from the architecture's `PPTestApi`, stated in the story and in the module's doc comment: `state()` may be `null` and is a copy; `events` returns a copy; `send` accepts a missing `t`; `setFeel` returns a promise and restarts the level.
+
 ### File List
+
+New:
+- `src/client/app/debugParams.ts`, `src/client/app/debugParams.test.ts`
+- `src/client/app/testHost.ts`
+- `src/bots/botResponses.ts`, `src/bots/botResponses.test.ts`
+- `src/debug/autoplay.ts`, `src/debug/autoplay.test.ts`
+- `src/debug/feelPatch.ts`, `src/debug/feelPatch.test.ts`
+- `src/debug/testApi.ts`, `src/debug/testApi.test.ts`
+- `tests/support/fakeTestHost.ts`
+- `tests/e2e/support/testApi.ts`
+- `tests/e2e/autoplay.spec.ts`, `tests/e2e/testApi.spec.ts`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-chromium-darwin.png`, `…-webkit-darwin.png`, `…-chromium-linux.png`, `…-webkit-linux.png`
+
+Modified:
+- `src/client/boot.ts`
+- `src/client/loop.ts`, `src/client/loop.test.ts`
+- `src/client/app/levelSession.ts`, `src/client/app/levelSession.test.ts`
+- `src/shared/constants.ts`
+- `tools/sim/runSim.ts` (import only)
+- `playwright.config.ts`
+- `CLAUDE.md`
+- `_bmad-output/project-context.md`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/implementation-artifacts/1-13-autoplay-et-api-de-test-dans-le-navigateur.md`
+
+Deleted:
+- `src/debug/.gitkeep`
 
 ## Change Log
 
 - 2026-10-27: Story 1.13 created (ready-for-dev). Ultimate context engine analysis completed - comprehensive developer guide created.
 - 2026-10-27: Open point 3 settled (Docker installed): Linux screenshot references made in Docker `linux/amd64`, no skip path.
+- 2026-10-27: Story 1.13 implemented (review). Autoplay (`?autoplay=<bot>&seed=&speed=`) and `window.__PP__` in the browser; loop `speed` / `beforeStep` / freeze / advance; level session start options; `botResponsesOf` shared with the CLI; 32 new e2e tests and four screenshot references (darwin and linux); no sim change, no golden regenerated.

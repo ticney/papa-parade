@@ -1,4 +1,10 @@
-import { LOOP_WARN_INTERVAL_MS, MAX_STEPS_PER_FRAME, STEP_MS } from '@shared/constants';
+import {
+  ADVANCE_MAX_STEPS,
+  LOOP_WARN_INTERVAL_MS,
+  MAX_STEPS_PER_FRAME,
+  STEP_MS,
+} from '@shared/constants';
+import { invariant } from '@shared/invariant';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs } from '@shared/time';
 import type { Sim, SimEvent } from '@sim';
@@ -21,6 +27,10 @@ export interface GameLoopOptions {
   render(alpha: number): void;
   /** Called synchronously for each sim event, right after the step that produced it. Do not keep the event. */
   onSimEvent(event: SimEvent): void;
+  /** Real-time multiplier for the level (`?speed`). Default 1. A finite number above 0. */
+  readonly speed?: number;
+  /** Called before every `sim.step()` this loop runs, frames and `advance` alike. */
+  readonly beforeStep?: (sim: Sim) => void;
 }
 
 export interface LoopStats {
@@ -37,6 +47,19 @@ export interface GameLoop {
   stop(): void;
   /** One object, mutated in place by every frame. */
   readonly stats: LoopStats;
+  readonly isFrozen: boolean;
+  /**
+   * While frozen the loop keeps running frames (the countdown ends, the scene renders) but runs no
+   * step, adds nothing to the accumulator and pays off no hitstop. Idempotent. Unfreezing measures
+   * no elapsed time for the next frame: no catch-up.
+   */
+  setFrozen(isFrozen: boolean): void;
+  /**
+   * Freezes the loop, then runs exactly `steps` steps now (hook, step, drain, events, as in a frame;
+   * the pause state and a pending hitstop are ignored, and the hitstop is not consumed) and renders
+   * once. Throws on a `steps` that is not an integer in `[0, ADVANCE_MAX_STEPS]`.
+   */
+  advance(steps: number): void;
 }
 
 const rafScheduler: FrameScheduler = {
@@ -58,12 +81,19 @@ const rafScheduler: FrameScheduler = {
  * Every frame also records the continuous sim clock (`world.time.sim` plus the accumulator) in the
  * time map, paused or not.
  *
+ * `speed` multiplies the real time a frame measures (the hitstop's payment included). A frozen loop
+ * (`setFrozen`, `advance`) keeps rendering and ending a pause countdown, but steps nothing.
+ * `beforeStep` runs before every step, wherever the step comes from, so a bot is asked exactly as
+ * `playGame` asks it.
+ *
  * Fail-stop: the next frame is requested at the end of a successful frame, so an exception ends
  * the loop and reaches the global error hook; `start()` brings it back (story 1.6 restarts a
  * level that way). Nothing here allocates per frame.
  */
 export function createGameLoop(options: GameLoopOptions): GameLoop {
-  const { sim, timeMap, pause, render, onSimEvent } = options;
+  const { sim, timeMap, pause, render, onSimEvent, beforeStep } = options;
+  const speed = options.speed ?? 1;
+  invariant(Number.isFinite(speed) && speed > 0, 'the loop speed must be a finite number above 0');
   const scheduler = options.scheduler ?? rafScheduler;
   const stats: LoopStats = { stepsLastFrame: 0, droppedBacklogMs: 0, frames: 0 };
 
@@ -77,6 +107,22 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
   let lastClockMs = 0;
   let lastBacklogWarnAtReal = Number.NEGATIVE_INFINITY;
   let lastTimestampWarnAtReal = Number.NEGATIVE_INFINITY;
+  let isFrozen = false;
+
+  /** One step as a frame runs it, and as `advance` does: the hook, the step, then its events. */
+  const runStep = (): void => {
+    beforeStep?.(sim);
+    sim.step();
+    const events = sim.drainEvents();
+    for (let i = 0; i < events.length; i++) onSimEvent(events[i] as SimEvent);
+  };
+
+  const setFrozen = (next: boolean): void => {
+    if (next === isFrozen) return;
+    isFrozen = next;
+    // Frozen or not, the next frame measures no elapsed time (a pause's rule: no catch-up).
+    hasLastRunning = false;
+  };
 
   const onFrame = (frameAtReal: number): void => {
     isPending = false;
@@ -96,7 +142,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
 
     let steps = 0;
     let simPerRealMs = 0;
-    if (pause.state === 'running') {
+    if (pause.state === 'running' && !isFrozen) {
       let dtRealMs = 0;
       if (isGood) {
         if (hasLastRunning) dtRealMs = atReal - lastRunningAtReal;
@@ -111,14 +157,12 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
         dtRealMs -= consumedMs;
       }
 
-      accumulatorMs += dtRealMs * sim.timeScale;
+      accumulatorMs += dtRealMs * speed * sim.timeScale;
 
       while (accumulatorMs >= STEP_MS && steps < MAX_STEPS_PER_FRAME && sim.freezeRealMs === 0) {
-        sim.step();
+        runStep();
         accumulatorMs -= STEP_MS;
         steps++;
-        const events = sim.drainEvents();
-        for (let i = 0; i < events.length; i++) onSimEvent(events[i] as SimEvent);
       }
 
       // Stopped by the cap with whole steps still owed: a stall. Drop them rather than spiral.
@@ -138,7 +182,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
         }
       }
 
-      simPerRealMs = sim.freezeRealMs > 0 ? 0 : sim.timeScale;
+      simPerRealMs = sim.freezeRealMs > 0 ? 0 : sim.timeScale * speed;
     } else {
       hasLastRunning = false;
     }
@@ -163,6 +207,19 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
 
   return {
     stats,
+    get isFrozen() {
+      return isFrozen;
+    },
+    setFrozen,
+    advance(steps) {
+      invariant(
+        Number.isInteger(steps) && steps >= 0 && steps <= ADVANCE_MAX_STEPS,
+        'advance: steps must be an integer in [0, ADVANCE_MAX_STEPS]',
+      );
+      setFrozen(true);
+      for (let i = 0; i < steps; i++) runStep();
+      render(Math.min(accumulatorMs / STEP_MS, 1));
+    },
     start() {
       // After a fail-stop (a frame threw) `isRunning` is still true but nothing is pending: restart.
       if (isRunning && isPending) return;

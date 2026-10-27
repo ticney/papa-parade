@@ -119,7 +119,7 @@ Pinned versions (verified on npm 2026-10-26). Do NOT upgrade or swap without an 
 - **Architecture tests are guardrails, not obstacles:** `simPurity.test.ts`, `layerBoundaries.test.ts` (each rule has a failing fixture), `feedbackEquivalence.test.ts`. Never weaken or skip them to make code pass.
 - **Express time in sim steps / sim ms** (e.g. `stepN(sim, 120)` = 1200 ms), never `setTimeout`/fake timers inside sim tests.
 - **Content tests:** `npm run content:check` validates schemas *and* cross-references; a new JSON file isn't done until it passes.
-- **E2E (Playwright, chromium + webkit, landscape mobile viewport):** drive the game via `window.__PP__` (`state`, `events`, `send`, `advance`, `freeze`, `setFeel`, `loadLevel`) or `?autoplay=<bot>&seed=&speed=`. Use `freeze()` + `advance(n)` for stable screenshots — never `waitForTimeout` to "let the game play". `window.__PP__` exists from story 1.12 onward.
+- **E2E (Playwright, chromium + webkit, landscape mobile viewport):** drive the game via `window.__PP__` (`state`, `events`, `send`, `advance`, `freeze`, `setFeel`, `loadLevel`) or `?autoplay=<bot>&seed=&speed=`. Use `freeze()` + `advance(n)` for stable screenshots — never `waitForTimeout` to "let the game play". `window.__PP__` exists from story 1.13 onward; until story 2.1, `setFeel` restarts the level (same id and seed) instead of sending the `SetFeel` command.
 - **Bots** (`perfect`, `human`, `random`, `idle`) produce `SimCommand`s exactly like the client; use `npm run sim -- --level <id> --seed <n> --bot <b> --runs <n>` for balancing / regression checks.
 - **Real-device checks** (60 FPS p95, tap latency filmed at 240 fps) are manual with `?debug=1` and gate the playtest (story 1.24); CI perf tests don't replace them.
 

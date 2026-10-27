@@ -157,3 +157,15 @@ export const SIM_CLI_MAX_UNTIL_MS = 3_600_000;
 
 /** The most games one `npm run sim` batch plays: their recorded games are kept in memory until the end. */
 export const SIM_CLI_MAX_RUNS = 10_000;
+
+/**
+ * The fastest `?speed=` a debug build accepts: a dimensionless multiplier of the real time the loop
+ * measures. At 60 Hz, ×4 is about 67 ms of sim per frame (7 steps), under `MAX_STEPS_PER_FRAME`.
+ */
+export const PLAY_SPEED_MAX = 4;
+
+/** The most steps one `advance` of the test API runs: one hour of sim time. A larger value is a typo, not a test. */
+export const ADVANCE_MAX_STEPS = 360_000;
+
+/** The test API keeps this many sim events of the current level; beyond, the oldest are dropped (with a warning). */
+export const TEST_API_EVENT_LOG_MAX = 50_000;

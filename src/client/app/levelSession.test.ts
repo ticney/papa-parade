@@ -1,9 +1,10 @@
 import type { LevelContent } from '@content/contentBundle';
 import { createContentError } from '@content/contentError';
+import { STEP_MS } from '@shared/constants';
 import { createEmitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
-import { createSim } from '@sim';
+import { type CreateSimOptions, createSim } from '@sim';
 import { Group, Scene } from 'three';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createFakeScheduler } from '../../../tests/support/fakeScheduler.ts';
@@ -20,7 +21,7 @@ import type { GameRenderer } from '../render/renderer.ts';
 import type { ThreatMarkerEntry } from '../ui/world/threatMarkers.ts';
 import { type AppState, createAppFsm } from './appFsm.ts';
 import type { ClientEvents } from './clientEvents.ts';
-import { createLevelSession, type LevelSessionDeps } from './levelSession.ts';
+import { createLevelSession, type LevelSessionDeps, type StartedLevel } from './levelSession.ts';
 import { createPauseController } from './pauseController.ts';
 
 beforeAll(() => {
@@ -771,5 +772,224 @@ describe('createLevelSession', () => {
       expect(appFsm.state).toBe('oops');
       expect(scheduler.requested).toBe(0);
     });
+  });
+});
+
+describe('createLevelSession › start options and outcomes', () => {
+  const patchedFeel = () => {
+    const feel = createTestContent().feel;
+    return { ...feel, movement: { ...feel.movement, papaRadiusM: 0.42 } };
+  };
+
+  it('starts the level that start() names, with its seed and feel, and builds the scene from that feel', async () => {
+    const simOptions: CreateSimOptions[] = [];
+    const assetIds: string[] = [];
+    const contentIds: string[] = [];
+    const bodies: unknown[] = [];
+    const content = createTestContent();
+    const feel = patchedFeel();
+    const { session } = setup({
+      content,
+      loadAssets: async (id) => {
+        assetIds.push(id);
+        return ok(assetsOf(id));
+      },
+      loadLevelContent: async (id) => {
+        contentIds.push(id);
+        return ok(levelOf(id));
+      },
+      createSim: (options) => {
+        simOptions.push(options);
+        return createSim(options);
+      },
+      createScene: (assets, sceneBodies) => {
+        bodies.push(sceneBodies);
+        return {
+          id: assets.id,
+          scene: new Scene(),
+          room: { widthM: 8, depthM: 6, heightM: 2.5 },
+          fx: NO_FX,
+          resetFx: () => {},
+          update: () => {},
+          dispose: () => {},
+        };
+      },
+    });
+    const outcome = await session.start({ levelId: 'other_room', seed: 7, feel });
+    expect(outcome).toBe('started');
+    expect(assetIds).toEqual(['other_room']);
+    expect(contentIds).toEqual(['other_room']);
+    expect(simOptions[0]?.seed).toBe(7);
+    expect(simOptions[0]?.content).toEqual({ ...content, feel });
+    expect(bodies).toEqual([{ papaRadiusM: 0.42, babyRadiusM: content.feel.baby.bodyRadiusM }]);
+  });
+
+  it("keeps today's behaviour for a plain start(): the default level, the fresh seed, the content as is", async () => {
+    const simOptions: CreateSimOptions[] = [];
+    const content = createTestContent();
+    const { session } = setup({
+      content,
+      createSim: (options) => {
+        simOptions.push(options);
+        return createSim(options);
+      },
+    });
+    expect(await session.start()).toBe('started');
+    expect(simOptions[0]?.seed).toBe(111);
+    expect(simOptions[0]?.content).toBe(content);
+  });
+
+  it('reports `current`: the last requested level and feel, and the seed of the level that started', async () => {
+    const content = createTestContent();
+    const { session } = setup({ content });
+    expect(session.current).toEqual({
+      levelId: 'salon_crawler',
+      seed: null,
+      feel: content.feel,
+    });
+    const feel = patchedFeel();
+    await session.start({ levelId: 'other_room', seed: 9, feel });
+    expect(session.current).toEqual({ levelId: 'other_room', seed: 9, feel });
+  });
+
+  it('restarts the same level and feel override with a fresh seed when start() has no options', async () => {
+    const simOptions: CreateSimOptions[] = [];
+    const feel = patchedFeel();
+    const { session } = setup({
+      createSim: (options) => {
+        simOptions.push(options);
+        return createSim(options);
+      },
+    });
+    await session.start({ levelId: 'other_room', seed: 9, feel });
+    await session.start();
+    expect(simOptions.map((options) => options.seed)).toEqual([9, 111]);
+    expect(simOptions[1]?.level.level.id).toBe('other_room');
+    expect(simOptions[1]?.content.feel).toEqual(feel);
+    expect(session.current.seed).toBe(111);
+  });
+
+  it('resolves `ignored` while a start is in flight, `stale` after stop(), `failed` in « Oups »', async () => {
+    const gate = deferred<void>();
+    const first = setup({ loadAudio: () => gate.promise });
+    const starting = first.session.start();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await first.session.start()).toBe('ignored');
+    first.session.stop();
+    gate.resolve();
+    expect(await starting).toBe('stale');
+
+    const failing = setup({ loadAssets: async () => err({ kind: 'assets', message: 'no glb' }) });
+    expect(await failing.session.start()).toBe('failed');
+    expect(failing.appFsm.state).toBe('oops');
+
+    const noSim = setup({ createSim: () => Promise.reject(new Error('bad level')) });
+    expect(await noSim.session.start()).toBe('failed');
+  });
+
+  it('calls onLevelStarted once per started level, before the app enters `level` and before any step', async () => {
+    const started: StartedLevel[] = [];
+    const order: string[] = [];
+    const { session, appFsm, trace } = setup({
+      onLevelStarted: (level) => {
+        started.push(level);
+        order.push(`started:${appFsm.state}:${level.sim.world.time.sim}`);
+      },
+    });
+    await session.start({ seed: 5 });
+    expect(order).toEqual(['started:loading:0']);
+    expect(trace.at(-1)).toBe('app:level');
+    expect(started).toHaveLength(1);
+    expect(started[0]?.seed).toBe(5);
+    expect(started[0]?.levelId).toBe('salon_crawler');
+    expect(started[0]?.level.level.id).toBe('salon_crawler');
+    expect(started[0]?.sim).toBe(session.active?.sim);
+    expect(started[0]?.feel).toBe(session.current.feel);
+    await session.start();
+    expect(started).toHaveLength(2);
+    expect(started[1]?.seed).toBe(111);
+  });
+
+  it('does not call onLevelStarted for a level that fails or goes stale', async () => {
+    const onLevelStarted = vi.fn();
+    const failing = setup({
+      onLevelStarted,
+      loadAssets: async () => err({ kind: 'assets', message: 'no glb' }),
+    });
+    await failing.session.start();
+    const gate = deferred<void>();
+    const stale = setup({ onLevelStarted, loadAudio: () => gate.promise });
+    const starting = stale.session.start();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    stale.session.stop();
+    gate.resolve();
+    await starting;
+    expect(onLevelStarted).not.toHaveBeenCalled();
+  });
+});
+
+describe('createLevelSession › freeze, advance, speed and the step hook', () => {
+  it('advance() throws with no level running', () => {
+    const { session } = setup();
+    expect(() => session.advance(3)).toThrow('no level is running');
+  });
+
+  it('freeze(true) before a start gives a frozen loop: frames render, the sim does not move', async () => {
+    const { session, scheduler, drawn } = setup();
+    session.freeze(true);
+    expect(session.isFrozen).toBe(true);
+    await session.start();
+    scheduler.tick(0);
+    scheduler.tick(5000);
+    scheduler.tick(10_000);
+    expect(session.active?.sim.world.time.sim).toBe(0);
+    expect(drawn.renders).toBe(3);
+  });
+
+  it('keeps the freeze across levels, and freeze(false) lets the sim run', async () => {
+    const { session, scheduler } = setup();
+    session.freeze(true);
+    await session.start();
+    await session.start();
+    // The countdown of the second level, then frames that would owe steps if the loop were running.
+    scheduler.tick(0);
+    scheduler.tick(10_000);
+    scheduler.tick(10_100);
+    expect(session.active?.sim.world.time.sim).toBe(0);
+    session.freeze(false);
+    expect(session.isFrozen).toBe(false);
+    scheduler.tick(10_200); // unfreezing measures no time
+    scheduler.tick(10_200 + STEP_MS);
+    expect(session.active?.sim.world.time.sim).toBe(STEP_MS);
+  });
+
+  it('advance(n) runs n steps now and leaves the level frozen', async () => {
+    const { session } = setup();
+    await session.start();
+    session.advance(7);
+    expect(session.active?.sim.world.time.sim).toBe(7 * STEP_MS);
+    expect(session.isFrozen).toBe(true);
+  });
+
+  it('passes the speed to the loop of each level', async () => {
+    const { session, scheduler, pause } = setup({ speed: 4 });
+    await session.start();
+    // The countdown first (it is real time), then a frame of 10 ms at speed 4 is 4 steps.
+    scheduler.tick(0);
+    scheduler.tick(10_000);
+    expect(pause.state).toBe('running');
+    scheduler.tick(10_010);
+    expect(session.active?.sim.world.time.sim).toBe(4 * STEP_MS);
+  });
+
+  it("calls the step hook before every step of the loop, with the level's sim", async () => {
+    const seen: number[] = [];
+    const { session, scheduler } = setup({
+      beforeStep: (sim) => seen.push(sim.world.time.sim),
+    });
+    await session.start();
+    session.advance(3);
+    scheduler.tick(0);
+    expect(seen).toEqual([0, STEP_MS, 2 * STEP_MS]);
   });
 });

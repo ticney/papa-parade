@@ -215,3 +215,16 @@
 - **`BotOptions` / `BotSettings` compile check is one-directional** and sits in `tests/bots/botContract.test.ts`: an extra field in the content schema is not caught.
 - **Run-file wrapper has no content hashes** (D13 / story 3.3): a content change shows up only as « another state » in `sim:replay`.
 - **A late human press is not capped at the end of its cycle** (`src/bots/humanBot.ts`): a very large `reactionMs` or `jitterSdMs` can land the press on the next cycle of the same threat id. `humanBot.test.ts` pins the `late` response, so a cap needs the sim to expose the cycle end.
+
+## Deferred from: implementation of story 1-13-autoplay-et-api-de-test-dans-le-navigateur (2026-10-27)
+
+- **`__PP__.setFeel` restarts the level** (D16): story 2.1 replaces it with the journaled `SetFeel` command, applied at the next step with no restart; the patched feel then also reaches the input mapper (which keeps the boot feel's `touchRadiusPx` and stick values until then). Still open from 1.3, « Effective feel in `World` » (2.1).
+- **Screenshot references are per OS** (`darwin` from the Mac, `linux` from Docker `linux/amd64`): any content or art change means refreshing both, with `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` and the Docker command of story 1.13 › Screenshots. A script wrapping the Docker command is not worth it yet; add one if refreshing becomes frequent.
+- **Autoplay is silent** (D12): a « play with sound » option would need a gesture; not needed for agents. In debug builds a level started with no gesture (autoplay, `__PP__.loadLevel` from the start screen) skips the sound preload and logs one `info`.
+- **Existing specs still read the `data-pp-*` mirrors**; migrate them to `__PP__` when the e2e suite is reworked (with the 1.9 « E2E brittleness » item), not one by one.
+- **`__PP__` in a playtest build without `?debug=1`, and in production, is not e2e-tested** (e2e runs on the dev server): the predicate is unit-tested (`isTestApiEnabled`) and `dist/` is grepped by hand; story 1.24 (bundle inspection, perf spec on the build).
+- **`__PP__.loadLevel` waits for the countdown**: on a device in portrait or with the page hidden the level starts paused and the promise stays pending until a player resumes it. Not a concern for agents (landscape, foreground).
+- **`?threats=off` is kept** (1.11 / 1.12 items): `loadLevel` does not strip the threats and the specs still use it to get a quiet room.
+- **Tools now exist, specs not migrated** (still open): 1.9, « a per-frame proof of Papa's motion still needs `window.__PP__` » (`freeze` + `advance` + `state`); 1.11, « the e2e suite does not cover the gag's lights and hair, the baby lift, nor the `boot.ts` glue with the outlet live »; 1.11, « `threat.spec.ts` taps inside a window of a few hundred ms in real time » (`freeze` + `advance` + `send`, or the frozen icon point).
+- **The human bot's reaction floor reads `threat.enteredAt`** (1.12): does not apply to autoplay, whose bot starts with its level at sim time 0 (D8); still open for a bot created mid-level.
+- **A very slow frame at `?speed=4` drops sim backlog** (`[sim] frame stall` warning, `MAX_STEPS_PER_FRAME`): the game stays the same game (fewer steps, never different ones), but a run at ×4 on a loaded machine reaches a given sim time later in real time.

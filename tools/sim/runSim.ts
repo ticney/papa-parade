@@ -1,7 +1,8 @@
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { BotResponse, BotSetup } from '@bots/bot';
+import type { BotSetup } from '@bots/bot';
+import { botResponsesOf } from '@bots/botResponses';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
 import { UINT32_RANGE } from '@shared/constants';
@@ -30,13 +31,6 @@ export interface RunSimHooks {
   onProgress?: (done: number, total: number) => void;
 }
 
-/** What every threat def of the level asks for: a bot is only told about the defs it can answer. */
-function responsesOf(loaded: SimLevel): Record<string, BotResponse> {
-  const responses: Record<string, BotResponse> = {};
-  for (const [defId, def] of Object.entries(loaded.level.threats)) responses[defId] = def.response;
-  return responses;
-}
-
 /**
  * Plays `args.runs` headless games of `args.botId` on a loaded level and folds them into a report.
  * Run `i` uses seed `(args.seed + i) % 2**32` and a fresh sim and bot. Everything runs with strict
@@ -49,7 +43,7 @@ export async function runSim(
   hooks: RunSimHooks = {},
 ): Promise<Result<SimReport, string>> {
   const { content, geometry, level } = loaded;
-  const responses = responsesOf(loaded);
+  const responses = botResponsesOf(level.threats);
   const summaries: RunSummary[] = [];
   for (let index = 0; index < args.runs; index++) {
     const seed = (args.seed + index) % UINT32_RANGE;

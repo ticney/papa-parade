@@ -6,17 +6,19 @@ import { MAX_TIMER_DELAY_MS } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
-import type { SimEvent } from '@sim';
+import type { Sim, SimEvent } from '@sim';
 import { Color, Scene, Vector3 } from 'three';
-import { createAppFsm } from './app/appFsm.ts';
+import { type AppState, createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
+import { isTestApiEnabled, readDebugParams } from './app/debugParams.ts';
 import { parseThrowDelayMs } from './app/forcedThrow.ts';
 import { waitForForeground } from './app/foreground.ts';
 import { installGlobalErrorHandlers } from './app/globalErrorHandlers.ts';
-import { createLevelSession } from './app/levelSession.ts';
+import { createLevelSession, type StartedLevel } from './app/levelSession.ts';
 import { bindOrientation } from './app/orientation.ts';
 import { createPauseController } from './app/pauseController.ts';
 import { bindSurface } from './app/surface.ts';
+import type { TestHost } from './app/testHost.ts';
 import { readThreatsOff, withoutThreats } from './app/threatsSwitch.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
@@ -166,9 +168,13 @@ export async function boot(): Promise<void> {
   bindSurface(window, document.documentElement);
 
   // Debug mirrors of the flow for Playwright, stripped from store builds by the flag. They go
-  // before the bindings below, which can emit as soon as they are bound. Story 1.13 brings
-  // `window.__PP__`; until then these are how a test sees the app.
+  // before the bindings below, which can emit as soon as they are bound. The existing specs read
+  // these; `window.__PP__` (installed at the end of boot) is the API for new ones.
   const isMirrored = import.meta.env.VITE_DEBUG_ALLOWED === 'true';
+  // `?debug`, `?autoplay`, `?seed`, `?speed`: read only where debug code is allowed at all.
+  const params = isMirrored
+    ? readDebugParams(window.location.search)
+    : { isDebug: false, autoplay: null, seed: null, speed: null };
   // Written only when the value changes: a test observing the attributes then sees each real change once.
   const mirror = (
     name:
@@ -361,6 +367,13 @@ export async function boot(): Promise<void> {
     }
   };
 
+  // What the debug modules hang on (see `TestHost`); empty, and so free, unless one is installed.
+  let stepHook: ((sim: Sim) => void) | null = null;
+  const levelStartedListeners: ((started: StartedLevel) => void)[] = [];
+  const simEventListeners: ((event: SimEvent) => void)[] = [];
+  let isGameInputBlocked = false;
+  let hasLoggedSilentStart = false;
+
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
     content: content.value,
@@ -368,7 +381,13 @@ export async function boot(): Promise<void> {
     pause,
     renderer,
     camera,
-    newSeed: () => crypto.getRandomValues(new Uint32Array(1))[0] as number,
+    // `?seed=<n>` fixes the seed of every level of the page, restarts included.
+    newSeed: () => params.seed ?? (crypto.getRandomValues(new Uint32Array(1))[0] as number),
+    speed: params.speed ?? undefined,
+    beforeStep: isMirrored ? (sim) => stepHook?.(sim) : undefined,
+    onLevelStarted: (started) => {
+      for (const listener of levelStartedListeners) listener(started);
+    },
     onSeed: (seed) => {
       if (isMirrored) document.documentElement.dataset.ppSeed = String(seed);
     },
@@ -422,7 +441,18 @@ export async function boot(): Promise<void> {
       if (!stripThreats || !loaded.ok) return loaded;
       return ok(withoutThreats(loaded.value));
     },
-    loadAudio: () => audio.preload(feedbackClips(feedbackTable)),
+    loadAudio: () => {
+      // A level started with no gesture (autoplay, `__PP__.loadLevel` from the start screen) has
+      // no audio context: the game is silent, which is the expected run of an agent, not a warning.
+      if (isMirrored && audio.state === 'none') {
+        if (!hasLoggedSilentStart) {
+          hasLoggedSilentStart = true;
+          log.info('audio', 'no start gesture: the game is silent');
+        }
+        return Promise.resolve();
+      }
+      return audio.preload(feedbackClips(feedbackTable));
+    },
     onSimEvent: (event) => {
       logSimEvent(event);
       const active = levelSession.active;
@@ -453,6 +483,8 @@ export async function boot(): Promise<void> {
       }
       // A key still held after a tap's path ends walks again.
       if (event.type === 'PapaArrived') inputMapper.resumeHeld();
+      // The debug modules last: they see the event after the app has handled it.
+      for (let i = 0; i < simEventListeners.length; i++) simEventListeners[i]?.(event);
     },
     canResumeNow: () => !shell.isPortrait && document.visibilityState !== 'hidden',
     waitForForeground: () => waitForForeground(document),
@@ -521,7 +553,8 @@ export async function boot(): Promise<void> {
   const inputMapper = createInputMapper({
     appFsm,
     pause,
-    getActive: () => levelSession.active,
+    // An autoplay bot owns the game: the player's taps, keys and stick reach the sim no more.
+    getActive: () => (isGameInputBlocked ? null : levelSession.active),
     hitTester: createHitTester(camera),
     canvasRect: () => canvas.getBoundingClientRect(),
     held: heldKeys.held,
@@ -529,7 +562,9 @@ export async function boot(): Promise<void> {
     moveIntent: createMoveIntent({
       camera,
       input: content.value.feel.input,
-      send: (command) => levelSession.active?.sim.enqueue(command),
+      send: (command) => {
+        if (!isGameInputBlocked) levelSession.active?.sim.enqueue(command);
+      },
     }),
     getThreatTargets: () => {
       const active = levelSession.active;
@@ -589,10 +624,66 @@ export async function boot(): Promise<void> {
 
   if (import.meta.env.VITE_DEBUG_ALLOWED === 'true') armForcedThrow(events);
 
+  // Debug builds only. The two modules are loaded by a literal dynamic import behind the flag, so a
+  // store build ships neither them nor the bots.
+  let isAutoplaying = false;
+  let testHost: TestHost | null = null;
+  if (import.meta.env.VITE_DEBUG_ALLOWED === 'true') {
+    const subscribe = <T>(listeners: T[], listener: T): (() => void) => {
+      listeners.push(listener);
+      return () => {
+        const index = listeners.indexOf(listener);
+        if (index >= 0) listeners.splice(index, 1);
+      };
+    };
+    testHost = {
+      content: content.value,
+      levelSession,
+      appState: () => appFsm.state,
+      pauseState: () => pause.state,
+      setStepHook: (hook) => {
+        stepHook = hook;
+      },
+      onLevelStarted: (listener) => subscribe(levelStartedListeners, listener),
+      onSimEvent: (listener) => subscribe(simEventListeners, listener),
+      onGameResumed: (listener) => events.on('GameResumed', listener),
+      onAppStateChanged: (listener: (to: AppState) => void) =>
+        events.on('AppStateChanged', ({ to }) => listener(to)),
+      setGameInputBlocked: (isBlocked) => {
+        isGameInputBlocked = isBlocked;
+      },
+    };
+    if (params.autoplay !== null) {
+      const { installAutoplay } = await import('@debug/autoplay');
+      const installed = installAutoplay(testHost, params.autoplay);
+      if (installed.ok) isAutoplaying = true;
+      else log.warn('boot', `ignoring ?autoplay=${params.autoplay}: ${installed.error.message}`);
+    }
+  }
+
   appFsm.enter('start');
   drawStatic();
   // Written once more here so that the attributes only appear once the app is up.
   if (isMirrored) mirrorState();
 
-  log.info('boot', 'ready: waiting for the first gesture');
+  // Last, so that a test that sees `window.__PP__` is looking at an app that is up.
+  if (
+    import.meta.env.VITE_DEBUG_ALLOWED === 'true' &&
+    testHost !== null &&
+    isTestApiEnabled({
+      isDebugAllowed: true,
+      isDev: import.meta.env.DEV,
+      isDebug: params.isDebug,
+    })
+  ) {
+    const { installTestApi } = await import('@debug/testApi');
+    installTestApi(window, testHost);
+  }
+
+  log.info(
+    'boot',
+    isAutoplaying ? 'ready: autoplay starts the level' : 'ready: waiting for the first gesture',
+  );
+  // No start screen to press: the bot's level begins by itself (start → loading is a legal move).
+  if (isAutoplaying) void levelSession.start();
 }

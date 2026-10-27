@@ -1,4 +1,9 @@
-import { MAX_STEPS_PER_FRAME, RESUME_COUNTDOWN_MS, STEP_MS } from '@shared/constants';
+import {
+  ADVANCE_MAX_STEPS,
+  MAX_STEPS_PER_FRAME,
+  RESUME_COUNTDOWN_MS,
+  STEP_MS,
+} from '@shared/constants';
 import { createEmitter } from '@shared/emitter';
 import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
@@ -87,7 +92,9 @@ function createSimDouble(real: Sim) {
   };
 }
 
-async function createRig(options: { warnings?: string[] } = {}) {
+async function createRig(
+  options: { warnings?: string[]; speed?: number; beforeStep?: (sim: Sim) => void } = {},
+) {
   const double = createSimDouble(
     await createSim({
       content: createTestContent(),
@@ -117,6 +124,8 @@ async function createRig(options: { warnings?: string[] } = {}) {
       simEvents.push({ ...event });
       double.calls.push('event');
     },
+    speed: options.speed,
+    beforeStep: options.beforeStep,
   });
   loop.start();
   return {
@@ -691,5 +700,192 @@ describe('createGameLoop › pause', () => {
     expect(rig.stepCalls).toBe(0); // the frame that ends the countdown measures no time
     rig.tick(100 + RESUME_COUNTDOWN_MS + FRAME_MS);
     expect(rig.stepCalls).toBe(1);
+  });
+});
+
+describe('createGameLoop › step hook', () => {
+  it('calls beforeStep once before every step of a frame, with the sim, never between frames without a step', async () => {
+    const seenAtMs: number[] = [];
+    const rig = await createRig({ beforeStep: (sim) => seenAtMs.push(sim.world.time.sim) });
+    rig.tick(0);
+    expect(seenAtMs).toEqual([]);
+    rig.tick(3 * STEP_MS);
+    expect(seenAtMs).toEqual([0, STEP_MS, 2 * STEP_MS]);
+    expect(rig.stepCalls).toBe(3);
+  });
+
+  it('puts the hook right before sim.step() in the call order', async () => {
+    const holder: { rig?: Rig } = {};
+    const rig = await createRig({ beforeStep: () => holder.rig?.calls.push('hook') });
+    holder.rig = rig;
+    rig.tick(0);
+    rig.tick(STEP_MS);
+    expect(rig.calls.filter((call) => call !== 'render')).toEqual(['hook', 'step', 'drain']);
+  });
+});
+
+describe('createGameLoop › speed', () => {
+  it('multiplies the real time of a frame: speed 4 with 10 ms frames runs 4 steps per frame', async () => {
+    const rig = await createRig({ speed: 4 });
+    rig.tick(0);
+    rig.tick(FRAME_MS);
+    expect(rig.loop.stats.stepsLastFrame).toBe(4);
+    rig.tick(2 * FRAME_MS);
+    expect(rig.simMs()).toBe(8 * STEP_MS);
+  });
+
+  it('records speed × timeScale as the real to sim rate in the time map', async () => {
+    const rig = await createRig({ speed: 2 });
+    rig.tick(0);
+    rig.tick(FRAME_MS);
+    rig.tick(2 * FRAME_MS);
+    // 20 ms of real time = 40 ms of sim at speed 2: an input 5 ms after the last frame is 10 ms later in sim.
+    const atLast = rig.simMs();
+    expect(rig.timeMap.realToSim(asRealMs(2 * FRAME_MS + 5))).toBeCloseTo(atLast + 10, 9);
+  });
+
+  it('throws at creation on a speed that is not a finite number above 0', async () => {
+    for (const speed of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(createRig({ speed })).rejects.toThrow(/speed/);
+    }
+  });
+});
+
+describe('createGameLoop › frozen', () => {
+  it('renders every frame, runs no step, keeps the sim time and ends a countdown', async () => {
+    const rig = await createRig();
+    const last = runFrames(rig, 0, 5, FRAME_MS);
+    const simBefore = rig.simMs();
+    rig.loop.setFrozen(true);
+    expect(rig.loop.isFrozen).toBe(true);
+    const rendersBefore = rig.alphas.length;
+    runFrames(rig, last + FRAME_MS, 20, 100);
+    expect(rig.simMs()).toBe(simBefore);
+    expect(rig.alphas.length).toBe(rendersBefore + 20);
+    expect(rig.loop.stats.stepsLastFrame).toBe(0);
+
+    // A countdown still ends while frozen: `loadLevel` resolves on it.
+    rig.pause.requestPause('user');
+    rig.pause.requestResume();
+    rig.tick(10_000);
+    rig.tick(10_000 + RESUME_COUNTDOWN_MS);
+    expect(rig.pause.state).toBe('running');
+    expect(rig.simMs()).toBe(simBefore);
+  });
+
+  it('does not pay off a hitstop and adds nothing to the accumulator while frozen', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    rig.loop.setFrozen(true);
+    rig.setFreeze(50);
+    runFrames(rig, FRAME_MS, 5, 100);
+    expect(rig.freezeRealMs).toBe(50);
+    expect(rig.alphas.at(-1)).toBe(0);
+  });
+
+  it('records a flat segment in the time map while frozen', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    rig.tick(FRAME_MS);
+    rig.loop.setFrozen(true);
+    rig.tick(2 * FRAME_MS);
+    rig.tick(1000);
+    const simMs = rig.simMs();
+    expect(rig.timeMap.realToSim(asRealMs(500))).toBeCloseTo(simMs, 9);
+  });
+
+  it('measures no elapsed time on the first frame after unfreezing: no catch-up', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    rig.loop.setFrozen(true);
+    rig.tick(5000);
+    rig.loop.setFrozen(false);
+    expect(rig.loop.isFrozen).toBe(false);
+    rig.tick(9000);
+    expect(rig.stepCalls).toBe(0);
+    rig.tick(9000 + FRAME_MS);
+    expect(rig.stepCalls).toBe(1);
+  });
+
+  it('is idempotent', async () => {
+    const rig = await createRig();
+    rig.loop.setFrozen(true);
+    rig.loop.setFrozen(true);
+    rig.loop.setFrozen(false);
+    rig.loop.setFrozen(false);
+    expect(rig.loop.isFrozen).toBe(false);
+  });
+});
+
+describe('createGameLoop › advance', () => {
+  it('runs exactly n steps, each with the hook before it and its events delivered, renders once, and leaves the loop frozen', async () => {
+    const seenAtMs: number[] = [];
+    const rig = await createRig({ beforeStep: (sim) => seenAtMs.push(sim.world.time.sim) });
+    rig.tick(0);
+    const rendersBefore = rig.alphas.length;
+    rig.loop.advance(5);
+    expect(rig.stepCalls).toBe(5);
+    expect(rig.simMs()).toBe(5 * STEP_MS);
+    expect(seenAtMs).toEqual([0, 1, 2, 3, 4].map((i) => i * STEP_MS));
+    expect(rig.alphas.length).toBe(rendersBefore + 1);
+    expect(rig.loop.isFrozen).toBe(true);
+    // Step, drain, then the event handler, as in a frame.
+    const advanced = rig.calls.slice(rig.calls.indexOf('step'));
+    expect(advanced.slice(0, 2)).toEqual(['step', 'drain']);
+  });
+
+  it('delivers the events of the steps it runs', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    rig.sim.enqueue({ type: 'SetTimeScale', t: asSimMs(0), scale: 0.5 });
+    rig.loop.advance(3);
+    expect(rig.simEvents.length).toBeGreaterThan(0);
+  });
+
+  it('works while paused, and ignores a pending hitstop without consuming it', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    rig.pause.requestPause('user');
+    rig.setFreeze(70);
+    rig.loop.advance(4);
+    expect(rig.simMs()).toBe(4 * STEP_MS);
+    expect(rig.freezeRealMs).toBe(70);
+  });
+
+  it('with 0 steps only freezes and renders', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    rig.loop.advance(0);
+    expect(rig.stepCalls).toBe(0);
+    expect(rig.loop.isFrozen).toBe(true);
+  });
+
+  it('renders with the current alpha (the accumulator is untouched)', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    rig.tick(1.5 * STEP_MS); // one step, half a step owed
+    rig.loop.advance(2);
+    expect(rig.alphas.at(-1)).toBeCloseTo(0.5, 9);
+  });
+
+  it('throws on a count that is not an integer in [0, ADVANCE_MAX_STEPS], and runs nothing', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    for (const steps of [1.5, -1, ADVANCE_MAX_STEPS + 1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => rig.loop.advance(steps)).toThrow(/steps/);
+    }
+    expect(rig.stepCalls).toBe(0);
+    expect(rig.loop.isFrozen).toBe(false);
+  });
+
+  it('keeps the frames going after an advance (frozen frames still render)', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    rig.loop.advance(2);
+    const rendersBefore = rig.alphas.length;
+    rig.tick(100);
+    rig.tick(200);
+    expect(rig.alphas.length).toBe(rendersBefore + 2);
+    expect(rig.simMs()).toBe(2 * STEP_MS);
   });
 });
