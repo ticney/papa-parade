@@ -1,14 +1,7 @@
 import { asSimMs } from '@shared/time';
 import type { ThreatInstance } from '@sim';
 import { describe, expect, it } from 'vitest';
-import {
-  centreOf,
-  createCycleMemory,
-  dueThisStep,
-  holdMsFor,
-  isPressable,
-  responseOf,
-} from './threatTiming.ts';
+import { centreOf, createCycleMemory, holdMsFor, isPressable, responseOf } from './threatTiming.ts';
 
 function threat(overrides: Partial<ThreatInstance> = {}): ThreatInstance {
   return {
@@ -48,15 +41,6 @@ describe('isPressable', () => {
         threat({ press: { t: asSimMs(2300), quality: 'perfect', offsetMs: 0, releasedAt: null } }),
       ),
     ).toBe(false);
-  });
-});
-
-describe('dueThisStep', () => {
-  it('is [now, now + 10)', () => {
-    expect(dueThisStep(100, 100)).toBe(true);
-    expect(dueThisStep(109.9, 100)).toBe(true);
-    expect(dueThisStep(110, 100)).toBe(false);
-    expect(dueThisStep(99.9, 100)).toBe(false);
   });
 });
 

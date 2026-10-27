@@ -54,6 +54,10 @@ async function main(): Promise<void> {
     process.exitCode = 1;
   };
   const path = process.argv[2];
+  if (path === '--help' || path === '-h') {
+    process.stdout.write('Usage: npm run sim:replay -- <recorded game file>\n');
+    return;
+  }
   if (path === undefined || process.argv.length > 3) {
     return fail('usage: npm run sim:replay -- <recorded game file>');
   }

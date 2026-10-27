@@ -207,3 +207,11 @@
 - **Still open (1.3), « `JournalSchema`, `contentVersion` / `levelId` in the journal »** (story 3.3): the recorded-game wrapper (`tools/sim/runFile.ts`, D12) carries `levelId`, `untilSimMs` and `worldHash` for the CLI only; 3.3 may absorb it.
 - **`?threats=off`** (1.11): untouched, still for story 1.13.
 - **`npm run ci` e2e step does not pass in the remote container this story was developed in** (134 of 140 Playwright tests never see `data-pp-app="start"`, the same on the untouched tree before the first edit; likely no WebGL in the container). Not caused by this story; to re-run on Geo's Mac.
+
+## Deferred from: code review of story-1-12 (2026-10-27)
+
+- **Recorder threat → def map is frozen at `createSim`** (`tools/sim/simReport.ts`): threats spawned later (stories 1.16, 1.18) fall back to `threat_<id>` and split the per-def stats silently. Rebuild the lookup from `ThreatSpawned` events when dynamic threats arrive.
+- **`commandScheduler.flush` can emit a command with a `t` below one already in `out`**: harmless while only the scheduler writes `out`; revisit if a bot pushes commands directly.
+- **`BotOptions` / `BotSettings` compile check is one-directional** and sits in `tests/bots/botContract.test.ts`: an extra field in the content schema is not caught.
+- **Run-file wrapper has no content hashes** (D13 / story 3.3): a content change shows up only as « another state » in `sim:replay`.
+- **A late human press is not capped at the end of its cycle** (`src/bots/humanBot.ts`): a very large `reactionMs` or `jitterSdMs` can land the press on the next cycle of the same threat id. `humanBot.test.ts` pins the `late` response, so a cap needs the sim to expose the cycle end.

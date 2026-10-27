@@ -95,15 +95,31 @@ describe('summarizeRuns', () => {
     expect(report.meanSuccessPct).toBe(50);
   });
 
-  it('never gives NaN: no response at all is 0 %, and the mean offset is null', () => {
+  it('never gives NaN: no response at all has no success rate, and the mean offset is null', () => {
     const report = summarizeRuns(INPUT, [
       run(5, { threats: { outlet: tally({ responses: 0 }) } }),
       run(6, { threats: { outlet: tally({ responses: 2, fail: 2 }) } }),
     ]);
     expect(report.threats.outlet?.meanAbsOffsetMs).toBeNull();
-    expect(summarizeRuns(INPUT, []).meanSuccessPct).toBe(0);
+    expect(summarizeRuns(INPUT, []).meanSuccessPct).toBeNull();
     expect(summarizeRuns(INPUT, [run(1)]).gags.meanPerRun).toBe(0);
-    expect(JSON.stringify(report)).not.toMatch(/NaN|null,"?meanAbsOffsetMs":NaN/);
+    const outlet = report.threats.outlet;
+    for (const value of [outlet?.perfectPct, outlet?.successPct, outlet?.failPct]) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+
+  it('counts a threat def or a gag named like a member of Object.prototype', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, {
+        threats: { constructor: tally({ responses: 1, success: 1 }) },
+        byGag: { toString: 2 },
+      }),
+    ]);
+    expect(Object.entries(report.threats)).toEqual([
+      ['constructor', expect.objectContaining({ responses: 1 })],
+    ]);
+    expect(Object.entries(report.gags.byGag)).toEqual([['toString', 2]]);
   });
 
   it('sorts the threat and gag keys', () => {

@@ -8,6 +8,7 @@ import { loadContent } from '@content/loadContent';
 import { loadLevelContent } from '@content/loadLevelContent';
 import { parseContentFile } from '@content/parseContentFile';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
 import { createNodeContentSource } from '../content/nodeContentSource.ts';
 
@@ -21,7 +22,16 @@ export interface SimLevel {
 
 /** The ids of the levels under `<contentDir>/levels/`, sorted. A geometry file is not a level. */
 export async function listLevelIds(contentDir: string): Promise<string[]> {
-  const names = await readdir(join(contentDir, LEVEL_PATTERN.dir)).catch(() => [] as string[]);
+  const dir = join(contentDir, LEVEL_PATTERN.dir);
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch (cause) {
+    log.warn('sim', `cannot list the levels in ${dir}`, {
+      reason: cause instanceof Error ? cause.message : String(cause),
+    });
+    return [];
+  }
   return names
     .filter((name) => name.endsWith(LEVEL_PATTERN.suffix))
     .filter((name) => !name.endsWith(LEVEL_GEOMETRY_PATTERN.suffix))

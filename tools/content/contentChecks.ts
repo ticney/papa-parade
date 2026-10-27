@@ -195,14 +195,22 @@ async function checkFeedbackReferences(
  * must be shorter than `feel.input.holdMinMs` or their tap would be a Firmness, not a Parry.
  */
 function checkBotReferences(bots: BotSettings, feel: Feel): ContentProblem[] {
-  if (bots.tapMs < feel.input.holdMinMs) return [];
-  return [
-    {
+  const problems: ContentProblem[] = [];
+  if (bots.tapMs >= feel.input.holdMinMs) {
+    problems.push({
       file: `content/${BOTS_FILE.file}`,
       jsonPath: 'tapMs',
       message: `bots.json › tapMs (${bots.tapMs}) must be under feel.json › input.holdMinMs (${feel.input.holdMinMs}), or a bot's tap would be a Firmness`,
-    },
-  ];
+    });
+  }
+  if (bots.random.maxHoldMs <= feel.input.holdMinMs) {
+    problems.push({
+      file: `content/${BOTS_FILE.file}`,
+      jsonPath: 'random.maxHoldMs',
+      message: `bots.json › random.maxHoldMs (${bots.random.maxHoldMs}) must be above feel.json › input.holdMinMs (${feel.input.holdMinMs}), or the random bot never produces a Firmness`,
+    });
+  }
+  return problems;
 }
 
 /** What the cross-reference checks need of the files that parsed, by id. */

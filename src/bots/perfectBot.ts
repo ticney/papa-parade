@@ -20,7 +20,8 @@ export function createPerfectBot(setup: BotSetup): Bot {
         if (!isPressable(threat)) continue;
         const response = responseOf(setup.responses, threat.defId);
         if (response === undefined || !cycles.isNew(threat)) continue;
-        const pressAt = Math.max(centreOf(threat), now);
+        // Whole ms, as a client's commands are (and as the human bot's are).
+        const pressAt = Math.max(Math.round(centreOf(threat)), now);
         scheduler.schedule({ type: 'PressThreat', t: asSimMs(pressAt), threatId: threat.id });
         scheduler.schedule({
           type: 'Release',

@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { botSetup, botTestLevel, makeBot, playBotGame, responses } from '../support/botSupport.ts';
 import { createTestContent, createTestGeometry } from '../support/testContent.ts';
 
-// AC 6: 100 games, seeds 0 to 99. 40 s of sim time holds at least two outlet cycles (the outlet
-// is planned from 4 s, a cycle is about 8 s). The headless sim runs millions of steps per second,
+// AC 6: 100 games, seeds 0 to 99. 40 s of sim time holds several outlet cycles (the outlet
+// is planned from 4 s, a cycle is about 8 s; the story's Debug Log has the count). The headless sim runs millions of steps per second,
 // so this stays well under the 10 s budget; the measured duration is in the story's Debug Log.
 const GAMES = 100;
 const UNTIL_MS = 40_000;

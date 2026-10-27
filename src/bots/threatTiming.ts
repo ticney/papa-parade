@@ -1,4 +1,3 @@
-import { STEP_MS } from '@shared/constants';
 import type { ThreatInstance } from '@sim';
 import type { BotResponse } from './bot.ts';
 
@@ -14,11 +13,6 @@ export function isPressable(threat: Readonly<ThreatInstance>): boolean {
     threat.responseWindow !== null &&
     threat.press === null
   );
-}
-
-/** Whether `t` falls in the step that starts at `now`: `[now, now + STEP_MS)`. */
-export function dueThisStep(t: number, now: number): boolean {
-  return t >= now && t < now + STEP_MS;
 }
 
 /**

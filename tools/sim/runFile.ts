@@ -1,3 +1,4 @@
+import { SIM_CLI_MAX_UNTIL_MS } from '@shared/constants';
 import { err, ok, type Result } from '@shared/result';
 import type { Journal } from '@sim';
 
@@ -51,11 +52,23 @@ export function parseRunFile(json: unknown): Result<RunFile, string> {
     }
   }
   const { untilSimMs } = file;
-  if (typeof untilSimMs !== 'number' || !Number.isFinite(untilSimMs) || untilSimMs <= 0) {
-    return err('invalid recorded game: "untilSimMs" must be a number above 0');
+  if (
+    typeof untilSimMs !== 'number' ||
+    !Number.isFinite(untilSimMs) ||
+    untilSimMs <= 0 ||
+    untilSimMs > SIM_CLI_MAX_UNTIL_MS
+  ) {
+    return err(
+      `invalid recorded game: "untilSimMs" must be a number in (0, ${SIM_CLI_MAX_UNTIL_MS}]`,
+    );
   }
-  if (typeof file.journal !== 'object' || file.journal === null || Array.isArray(file.journal)) {
+  const { journal } = file;
+  if (typeof journal !== 'object' || journal === null || Array.isArray(journal)) {
     return err('invalid recorded game: "journal" must be an object');
+  }
+  const { version, entries } = journal as Record<string, unknown>;
+  if (typeof version !== 'number' || !Array.isArray(entries)) {
+    return err('invalid recorded game: "journal" needs a numeric "version" and an "entries" array');
   }
   return ok({
     kind: RUN_FILE_KIND,

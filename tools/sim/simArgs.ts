@@ -3,6 +3,8 @@ import { BOT_IDS, type BotId } from '@bots/bot';
 import {
   DEFAULT_LEVEL_ID,
   SIM_CLI_DEFAULT_UNTIL_MS,
+  SIM_CLI_MAX_RUNS,
+  SIM_CLI_MAX_UNTIL_MS,
   STEP_MS,
   UINT32_RANGE,
 } from '@shared/constants';
@@ -28,8 +30,8 @@ export const SIM_HELP = `Usage: npm run sim -- --bot <id> [options]
   --level <id>       level to play (default ${DEFAULT_LEVEL_ID})
   --bot <id>         ${BOT_IDS.join(', ')} (required)
   --seed <n>         seed of the first run, an integer in [0, 2**32) (default 1)
-  --runs <n>         number of games, an integer >= 1 (default 1); run i uses seed + i
-  --until-ms <n>     sim time of a game, in ms, rounded up to ${STEP_MS} (default ${SIM_CLI_DEFAULT_UNTIL_MS})
+  --runs <n>         number of games, an integer in [1, ${SIM_CLI_MAX_RUNS}] (default 1); run i uses seed + i
+  --until-ms <n>     sim time of a game, in ms, rounded up to ${STEP_MS}, at most ${SIM_CLI_MAX_UNTIL_MS} (default ${SIM_CLI_DEFAULT_UNTIL_MS})
   --out <file>       write the JSON report there (default: stdout)
   --journals <dir>   write one recorded game per run there, for \`npm run sim:replay\`
   --help             print this
@@ -93,7 +95,9 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
   if (seed.value >= UINT32_RANGE) return err(`--seed must be below 2**32, got ${seed.value}`);
   const runs = integerOption('runs', text('runs'), 1);
   if (!runs.ok) return runs;
-  if (runs.value < 1) return err(`--runs must be at least 1, got ${runs.value}`);
+  if (runs.value < 1 || runs.value > SIM_CLI_MAX_RUNS) {
+    return err(`--runs must be between 1 and ${SIM_CLI_MAX_RUNS}, got ${runs.value}`);
+  }
 
   let untilSimMs = SIM_CLI_DEFAULT_UNTIL_MS;
   const untilText = text('until-ms');
@@ -102,8 +106,16 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
     if (!Number.isFinite(parsed) || parsed <= 0) {
       return err(`--until-ms must be a number above 0, got "${untilText}"`);
     }
+    if (parsed > SIM_CLI_MAX_UNTIL_MS) {
+      return err(`--until-ms must be at most ${SIM_CLI_MAX_UNTIL_MS}, got "${untilText}"`);
+    }
     untilSimMs = Math.ceil(parsed / STEP_MS) * STEP_MS;
   }
+
+  const outPath = text('out');
+  if (outPath === '') return err('--out needs a file path, got an empty string');
+  const journalsDir = text('journals');
+  if (journalsDir === '') return err('--journals needs a folder path, got an empty string');
 
   return ok({
     levelId: text('level') ?? DEFAULT_LEVEL_ID,
@@ -111,8 +123,8 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
     seed: seed.value,
     runs: runs.value,
     untilSimMs,
-    outPath: text('out') ?? null,
-    journalsDir: text('journals') ?? null,
+    outPath: outPath ?? null,
+    journalsDir: journalsDir ?? null,
     help,
   });
 }

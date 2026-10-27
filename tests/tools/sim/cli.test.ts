@@ -35,7 +35,7 @@ describe('npm run sim', () => {
     'exits non-zero on an unknown bot, naming the choices, with no stack trace',
     () => {
       const done = run('runSim', ['--bot', 'genius']);
-      expect(done.status).not.toBe(0);
+      expect(done.status).toBeGreaterThan(0);
       expect(done.stderr).toContain('unknown bot "genius"');
       expect(done.stderr).toContain('perfect, human, random, idle');
       expect(done.stderr).not.toMatch(/\n\s+at /);
@@ -47,7 +47,7 @@ describe('npm run sim', () => {
     'exits non-zero on an unknown level, naming the known ones',
     () => {
       const done = run('runSim', ['--bot', 'idle', '--level', 'nowhere']);
-      expect(done.status).not.toBe(0);
+      expect(done.status).toBeGreaterThan(0);
       expect(done.stderr).toContain('unknown level "nowhere"');
       expect(done.stderr).toContain('salon_crawler');
     },
@@ -57,8 +57,12 @@ describe('npm run sim', () => {
   it(
     'exits non-zero on --runs 0 and on a malformed seed',
     () => {
-      expect(run('runSim', ['--bot', 'idle', '--runs', '0']).status).not.toBe(0);
-      expect(run('runSim', ['--bot', 'idle', '--seed', 'abc']).status).not.toBe(0);
+      const noRuns = run('runSim', ['--bot', 'idle', '--runs', '0']);
+      expect(noRuns.status).toBeGreaterThan(0);
+      expect(noRuns.stderr).toContain('--runs');
+      const badSeed = run('runSim', ['--bot', 'idle', '--seed', 'abc']);
+      expect(badSeed.status).toBeGreaterThan(0);
+      expect(badSeed.stderr).toContain('--seed');
     },
     TIMEOUT_MS,
   );
@@ -107,7 +111,7 @@ describe('npm run sim', () => {
       const alteredFile = join(games, 'altered.journal.json');
       writeFileSync(alteredFile, JSON.stringify(altered));
       const refused = run('replaySim', [alteredFile]);
-      expect(refused.status).not.toBe(0);
+      expect(refused.status).toBeGreaterThan(0);
       expect(refused.stderr).toContain('another state');
     },
     TIMEOUT_MS,
@@ -118,12 +122,16 @@ describe('npm run sim:replay', () => {
   it(
     'exits non-zero without a file, on a missing file and on a file that is not a game',
     () => {
-      expect(run('replaySim', []).status).not.toBe(0);
-      expect(run('replaySim', [join(dir, 'missing.json')]).status).not.toBe(0);
+      const noFile = run('replaySim', []);
+      expect(noFile.status).toBeGreaterThan(0);
+      expect(noFile.stderr).toContain('usage');
+      const missing = run('replaySim', [join(dir, 'missing.json')]);
+      expect(missing.status).toBeGreaterThan(0);
+      expect(missing.stderr).toContain('cannot read');
       const junk = join(dir, 'junk.json');
       writeFileSync(junk, '{"hello":1}');
       const done = run('replaySim', [junk]);
-      expect(done.status).not.toBe(0);
+      expect(done.status).toBeGreaterThan(0);
       expect(done.stderr).toContain('not a recorded game');
     },
     TIMEOUT_MS,

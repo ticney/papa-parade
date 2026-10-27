@@ -61,28 +61,28 @@ export async function runSim(
     };
     const bot = createBot(args.botId, setup);
     if (!bot.ok) return err(bot.error.message);
+    let game: RunFile | null = null;
     try {
       const sim = await createSim({ content, geometry, level, seed, strictInvariants: true });
       const recorder = createRunRecorder(sim, seed);
       playGame(sim, bot.value, args.untilSimMs, recorder.onEvent);
       const summary = recorder.finish();
       summaries.push(summary);
-      if (hooks.onGame !== undefined) {
-        hooks.onGame(
-          runFileName(loaded.levelId, args.botId, seed),
-          toRunFile({
-            levelId: loaded.levelId,
-            bot: args.botId,
-            untilSimMs: args.untilSimMs,
-            worldHash: summary.worldHash,
-            journal: sim.journal(),
-          }),
-        );
-      }
+      game = toRunFile({
+        levelId: loaded.levelId,
+        bot: args.botId,
+        untilSimMs: args.untilSimMs,
+        worldHash: summary.worldHash,
+        journal: sim.journal(),
+      });
     } catch (cause) {
       return err(
         `run ${index + 1} of ${args.runs} (seed ${seed}) crashed: ${cause instanceof Error ? cause.message : String(cause)}`,
       );
+    }
+    // Outside the `try`: a bug in the hook is not a crash of the sim.
+    if (hooks.onGame !== undefined && game !== null) {
+      hooks.onGame(runFileName(loaded.levelId, args.botId, seed), game);
     }
     hooks.onProgress?.(index + 1, args.runs);
   }
@@ -114,6 +114,31 @@ async function writeText(path: string, text: string): Promise<Result<null, strin
   }
 }
 
+async function makeDir(path: string): Promise<Result<null, string>> {
+  try {
+    await mkdir(path, { recursive: true });
+    return ok(null);
+  } catch (cause) {
+    return err(`cannot create ${path}: ${cause instanceof Error ? cause.message : String(cause)}`);
+  }
+}
+
+/** Why `path` cannot be written as a report file, or `null` when it can: its folder exists and it is not a folder. */
+async function outProblem(path: string): Promise<string | null> {
+  const parent = dirname(path);
+  try {
+    if (!(await stat(parent)).isDirectory()) return `${parent} is not a folder`;
+  } catch {
+    return `the folder ${parent} does not exist`;
+  }
+  try {
+    if ((await stat(path)).isDirectory()) return `${path} is a folder, not a file`;
+  } catch {
+    // A file that does not exist yet is the normal case.
+  }
+  return null;
+}
+
 async function main(): Promise<void> {
   const fail = (message: string): void => {
     log.error('sim', message);
@@ -128,11 +153,8 @@ async function main(): Promise<void> {
   }
 
   if (args.outPath !== null) {
-    const parent = dirname(args.outPath);
-    const info = await stat(parent).catch(() => null);
-    if (info === null || !info.isDirectory()) {
-      return fail(`--out: the folder ${parent} does not exist`);
-    }
+    const problem = await outProblem(args.outPath);
+    if (problem !== null) return fail(`--out: ${problem}`);
   }
   const loaded = await loadSimLevel(CONTENT_DIR, args.levelId);
   if (!loaded.ok) return fail(loaded.error);
@@ -157,7 +179,8 @@ async function main(): Promise<void> {
   const report = result.value;
 
   if (args.journalsDir !== null) {
-    await mkdir(args.journalsDir, { recursive: true });
+    const made = await makeDir(args.journalsDir);
+    if (!made.ok) return fail(made.error);
     for (const [name, game] of games) {
       const written = await writeText(join(args.journalsDir, name), `${JSON.stringify(game)}\n`);
       if (!written.ok) return fail(written.error);

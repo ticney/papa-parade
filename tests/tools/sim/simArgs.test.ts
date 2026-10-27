@@ -1,4 +1,9 @@
-import { DEFAULT_LEVEL_ID, SIM_CLI_DEFAULT_UNTIL_MS } from '@shared/constants';
+import {
+  DEFAULT_LEVEL_ID,
+  SIM_CLI_DEFAULT_UNTIL_MS,
+  SIM_CLI_MAX_RUNS,
+  SIM_CLI_MAX_UNTIL_MS,
+} from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import { parseSimArgs, SIM_HELP } from '../../../tools/sim/simArgs.ts';
 
@@ -9,6 +14,18 @@ function messageOf(argv: string[]): string {
 }
 
 describe('parseSimArgs', () => {
+  it('refuses a batch or a game beyond the caps, and an empty path', () => {
+    expect(messageOf(['--bot', 'idle', '--runs', String(SIM_CLI_MAX_RUNS + 1)])).toContain(
+      '--runs',
+    );
+    expect(messageOf(['--bot', 'idle', '--until-ms', String(SIM_CLI_MAX_UNTIL_MS + 1)])).toContain(
+      '--until-ms',
+    );
+    expect(messageOf(['--bot', 'idle', '--out', ''])).toContain('--out');
+    expect(messageOf(['--bot', 'idle', '--journals', ''])).toContain('--journals');
+    expect(parseSimArgs(['--bot', 'idle', '--runs', String(SIM_CLI_MAX_RUNS)]).ok).toBe(true);
+  });
+
   it('fills the defaults', () => {
     const parsed = parseSimArgs(['--bot', 'perfect']);
     expect(parsed).toEqual({
@@ -83,7 +100,7 @@ describe('parseSimArgs', () => {
     [['--seed', '1.5'], '--seed must be a whole number, got "1.5"'],
     [['--seed', ''], '--seed must be a whole number, got ""'],
     [['--seed', '4294967296'], '--seed must be below 2**32, got 4294967296'],
-    [['--runs', '0'], '--runs must be at least 1, got 0'],
+    [['--runs', '0'], `--runs must be between 1 and ${SIM_CLI_MAX_RUNS}, got 0`],
     [['--runs', 'many'], '--runs must be a whole number, got "many"'],
     [['--until-ms', '0'], '--until-ms must be a number above 0, got "0"'],
     [['--until-ms', 'soon'], '--until-ms must be a number above 0, got "soon"'],

@@ -151,3 +151,9 @@ export const BOT_SEED_SALT = 0xb07b07b0;
 
 /** How long `npm run sim` plays a game by default, in sim ms: the GDD's 3-minute level (until a level has its own duration). */
 export const SIM_CLI_DEFAULT_UNTIL_MS = 180_000;
+
+/** The longest game `npm run sim --until-ms` accepts, in sim ms (one hour): a larger value is a typo, not a test. */
+export const SIM_CLI_MAX_UNTIL_MS = 3_600_000;
+
+/** The most games one `npm run sim` batch plays: their recorded games are kept in memory until the end. */
+export const SIM_CLI_MAX_RUNS = 10_000;

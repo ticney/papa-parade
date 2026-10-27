@@ -4,7 +4,7 @@ baseline_commit: ca7e772594ab999e03798b3f126ff3237de8df16
 
 # Story 1.12: Bots and Mass Simulation
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.12 « Bots et simulation en masse ». Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -352,7 +352,33 @@ Modified:
 Deleted:
 - `src/bots/.gitkeep`
 
+### Review Findings
+
+Code review of commit ffddcda (2026-10-27): Blind Hunter, Edge Case Hunter, Acceptance Auditor.
+
+- [x] [Review][Decision] `npm run ci` is not green (e2e 134/140 red in the dev container) while AC 7 asks for green and T0/T7 are ticked — accept on the strength of the untouched-tree failure, or run e2e on Geo's Mac before `done`? [story Debug Log, deferred-work.md] → Resolved: accepted (the e2e failure is the same on the untouched tree and is in deferred-work.md); `npm run e2e` still has to be run on Geo's Mac.
+- [x] [Review][Decision] Random bot can emit TapFloor/Move/MoveStop while a PressThreat finger is down, contradicting its "at most one finger down" doc — forbid it in the bot, or keep it (fuzzer) and fix the comment? [src/bots/randomBot.ts] → Resolved: forbidden; the bot now does nothing while a command is planned.
+- [x] [Review][Decision] No upper bound on `--until-ms` / `--runs` (and `untilSimMs` in a run file): `1e20` never ends, huge `--runs` exhausts memory (journals are held until the end) — which caps (and should they live in `feel.json`/`bots.json` or `shared/constants.ts`), and write journals per run? [tools/sim/simArgs.ts, tools/sim/runFile.ts, src/bots/playGame.ts] → Resolved: `SIM_CLI_MAX_RUNS` (10 000) and `SIM_CLI_MAX_UNTIL_MS` (1 h) in `shared/constants.ts`, applied to the CLI and to run files; journals stay in memory (bounded by the cap).
+- [x] [Review][Patch] `mkdir(args.journalsDir)` is outside the Result pattern (stack trace on `--journals package.json`); `readdir(...).catch(() => [])` in `listLevelIds` and `stat(parent).catch(() => null)` are silent fallbacks without `log.warn` [tools/sim/runSim.ts:160, tools/sim/loadSimLevel.ts, tools/sim/runSim.ts:131]
+- [x] [Review][Patch] Reject empty `--out ""` / `--journals ""` in the parser, and `--out` pointing at a directory, before the batch runs [tools/sim/simArgs.ts:114, tools/sim/runSim.ts:130]
+- [x] [Review][Patch] Tallies keyed by content ids use plain objects (`constructor`, `toString` ids corrupt them): use `Map` or `Object.create(null)` [tools/sim/simReport.ts:37,85,164]
+- [x] [Review][Patch] A report with zero responses prints `meanSuccessPct: 0`, indistinguishable from total failure: use `null` like `meanScore` [tools/sim/simReport.ts:142,210]
+- [x] [Review][Patch] A late human press can land after the window closed and hit the next cycle of the same threat: skip the press when its time is past the window end [src/bots/humanBot.ts, src/bots/threatTiming.ts] → Deferred, not patched: a test pins the `late` response and the sim exposes no cycle end; see deferred-work.md.
+- [x] [Review][Patch] Perfect bot schedules a fractional `t` for an odd `windowMs`: round like the human bot [src/bots/perfectBot.ts, src/bots/threatTiming.ts]
+- [x] [Review][Patch] `dueThisStep` is tested but unused (the scheduler re-implements it): use it in `commandScheduler.flush` or remove it [src/bots/threatTiming.ts, src/bots/commandScheduler.ts]
+- [x] [Review][Patch] Add a `content:check` rule `random.maxHoldMs > feel.input.holdMinMs` (only `tapMs < holdMinMs` is checked) [tools/content/contentChecks.ts]
+- [x] [Review][Patch] `parseRunFile` casts the journal without checking `version`/`entries`; `sim:replay --help` is read as a file name [tools/sim/runFile.ts:54, tools/sim/replaySim.ts:56]
+- [x] [Review][Patch] A throwing `onGame` hook is reported as "run N crashed": move it out of the `try` around `createSim`/`playGame` [tools/sim/runSim.ts]
+- [x] [Review][Patch] Weak tests: CLI "must fail" cases only assert `status !== 0` (null on timeout/ENOENT passes) — assert a numeric status and stderr; the NaN regex on `JSON.stringify` cannot fail; the bot-contract mutation check hashes 1 step in 50 [tests/tools/sim/cli.test.ts, tests/tools/sim/simReport.test.ts, tests/bots/botContract.test.ts]
+- [x] [Review][Patch] Dead branch `if (dirX !== 0 || dirZ !== 0)` in the random bot; `perfectBot.test.ts` comment says "at least two outlet cycles" while the Debug Log says about 5 [src/bots/randomBot.ts, tests/bots/perfectBot.test.ts]
+- [x] [Review][Defer] Cycle id uses `windowOpenAt`, so the human reaction floor reads `enteredAt` for a bot that first sees a threat mid-window [src/bots/threatTiming.ts, src/bots/humanBot.ts] — deferred, already in deferred-work.md
+- [x] [Review][Defer] Recorder builds the threat-id → def map once at `createSim`; threats spawned later (1.16, 1.18) fall back to `threat_<id>` [tools/sim/simReport.ts:62] — deferred, matters only once dynamic threats exist
+- [x] [Review][Defer] `commandScheduler` may emit a due command with a `t` lower than one already in `out`; only the scheduler writes `out` today [src/bots/commandScheduler.ts] — deferred, harmless until a bot pushes into `out` itself
+- [x] [Review][Defer] `BotOptions` vs `BotSettings` compile check is one-directional and lives in a test file [src/bots/bot.ts, tests/bots/botContract.test.ts] — deferred, low value
+- [x] [Review][Defer] Replay hash does not cover content (no content hashes in `RunFile`) [tools/sim/replaySim.ts] — deferred, already D13 / 3.3
+
 ## Change Log
 
+- 2026-10-27: Code review (3 layers): 3 decisions resolved, 13 patches applied, 1 patch deferred, 4 deferred. Status done; `npm run e2e` to run on Geo's Mac.
 - 2026-10-27: Story 1.12 created (ready-for-dev). Ultimate context engine analysis completed - comprehensive developer guide created.
 - 2026-10-27: Story 1.12 implemented (review): bot settings as content, the `Bot` contract and runner, the four bots, `npm run sim` and `npm run sim:replay`, with their tests. `src/sim` untouched. e2e is red in the dev container as it was before the story.

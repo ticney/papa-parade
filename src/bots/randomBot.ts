@@ -24,9 +24,9 @@ export function createRandomBot(setup: BotSetup): Bot {
     id: 'random',
     act(world: Readonly<World>, out: SimCommand[]) {
       const now = world.time.sim;
-      if (nextFloat(rng) < chancePerStep) {
-        // A planned release means a finger is down: no second press until it is up.
-        const kind = nextInt(rng, 0, scheduler.size > 0 ? 3 : 4);
+      // A planned command means a finger is down (or about to be): nothing new until it is up.
+      if (scheduler.size === 0 && nextFloat(rng) < chancePerStep) {
+        const kind = nextInt(rng, 0, 4);
         const t = asSimMs(now + nextInt(rng, 0, STEP_MS));
         if (kind === 0) {
           // Uniform in the disc around Papa; the sim snaps the point to the floor.
@@ -42,8 +42,7 @@ export function createRandomBot(setup: BotSetup): Bot {
           const angle = nextFloat(rng) * TWO_PI;
           const dirX = Math.cos(angle);
           const dirZ = Math.sin(angle);
-          // Unit vectors are never (0, 0); the sim throws on that, so guard anyway.
-          if (dirX !== 0 || dirZ !== 0) scheduler.schedule({ type: 'Move', t, dirX, dirZ });
+          scheduler.schedule({ type: 'Move', t, dirX, dirZ });
         } else if (kind === 2) {
           scheduler.schedule({ type: 'MoveStop', t });
         } else if (world.threats.length > 0) {

@@ -35,11 +35,10 @@ export interface RunRecorder {
 
 /** The tally of `defId` in `tallies`, created empty on first use. */
 function tallyOf(tallies: Record<string, ThreatTally>, defId: string): ThreatTally {
-  let tally = tallies[defId];
-  if (tally === undefined) {
-    tally = emptyTally();
-    tallies[defId] = tally;
-  }
+  // `hasOwn`: an id such as `constructor` must not find a member of `Object.prototype`.
+  if (Object.hasOwn(tallies, defId)) return tallies[defId] as ThreatTally;
+  const tally = emptyTally();
+  tallies[defId] = tally;
   return tally;
 }
 
@@ -82,7 +81,7 @@ export function createRunRecorder(sim: Sim, seed: number): RunRecorder {
         }
       } else if (event.type === 'GagTriggered') {
         gags++;
-        byGag[event.gag] = (byGag[event.gag] ?? 0) + 1;
+        byGag[event.gag] = countOf(byGag, event.gag) + 1;
       }
     },
     finish() {
@@ -121,7 +120,8 @@ export interface SimReport {
   /** Mama's score arrives with story 1.22. */
   meanScore: null;
   scoreNote: string;
-  meanSuccessPct: number;
+  /** `null` when no response was seen (no threat, or a game too short for one): not 0 %. */
+  meanSuccessPct: number | null;
   threats: Record<string, ThreatReport>;
   gags: { total: number; meanPerRun: number; byGag: Record<string, number> };
   runList: {
@@ -139,6 +139,8 @@ const round = (value: number, decimals: number): number => {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor + 0; // + 0: no "-0"
 };
+const countOf = (counts: Record<string, number>, key: string): number =>
+  Object.hasOwn(counts, key) ? (counts[key] as number) : 0;
 const pct = (part: number, whole: number): number =>
   whole === 0 ? 0 : round((part / whole) * 100, 1);
 
@@ -161,8 +163,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let gags = 0;
   for (const run of runs) {
     gags += run.gags;
-    for (const gag of Object.keys(run.byGag))
-      byGag[gag] = (byGag[gag] ?? 0) + (run.byGag[gag] ?? 0);
+    for (const gag of Object.keys(run.byGag)) {
+      byGag[gag] = countOf(byGag, gag) + countOf(run.byGag, gag);
+    }
     for (const defId of Object.keys(run.threats)) {
       const from = run.threats[defId] as ThreatTally;
       const into = tallyOf(merged, defId);
@@ -207,7 +210,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     hashes: input.hashes,
     meanScore: null,
     scoreNote: SCORE_NOTE,
-    meanSuccessPct: pct(good, responses),
+    meanSuccessPct: responses === 0 ? null : pct(good, responses),
     threats,
     gags: {
       total: gags,

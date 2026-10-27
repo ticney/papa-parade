@@ -18,8 +18,8 @@ import { createTestContent, createTestGeometry } from '../support/testContent.ts
 const settingsAreOptions = (settings: BotSettings): BotOptions => settings;
 
 const SEED = 11;
-/** Hash the whole world on one step in this many: enough to catch a mutation, cheap enough to stay fast. */
-const HASH_EVERY_STEPS = 50;
+/** Hash the whole world on one step in this many: 1, because a bot only touches anything in the few steps where it acts. */
+const HASH_EVERY_STEPS = 1;
 
 describe.each(BOT_IDS)('the %s bot contract', (id: BotId) => {
   it('never mutates the world, and only sends a t in the coming step', async () => {
