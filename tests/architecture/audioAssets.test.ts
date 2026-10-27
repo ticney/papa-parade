@@ -23,16 +23,22 @@ const parsed = parseContentFile(
 );
 if (!parsed.ok) throw new Error('content/feedback.json is invalid: run `npm run content:check`');
 const clips = feedbackClips(parsed.value);
+/** Below this, a file is a header and not a sound, in bytes. */
+const MIN_CLIP_BYTES = 1024;
 
 describe('the committed audio clips', () => {
   it('names at least one clip', () => {
     expect(clips.length).toBeGreaterThan(0);
   });
 
-  it.each(clips)('%s.m4a exists and starts with an MP4 ftyp box', (clip) => {
+  // A 12-byte stub with a valid header would decode to silence with every test green: the brand
+  // is the audio one (`M4A `, what `afconvert -f m4af` writes, not an MP4 video or ALAC) and the
+  // file is more than a header.
+  it.each(clips)('%s.m4a exists, is an M4A audio file and is not a stub', (clip) => {
     const bytes = readFileSync(join(audioDir, `${clip}.m4a`));
-    expect(bytes.length).toBeGreaterThan(8);
+    expect(bytes.length).toBeGreaterThan(MIN_CLIP_BYTES);
     expect(bytes.toString('ascii', 4, 8)).toBe('ftyp');
+    expect(bytes.toString('ascii', 8, 12)).toBe('M4A ');
   });
 
   it('keeps the level .glb and every clip within the payload ceiling', () => {

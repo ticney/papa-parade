@@ -3,7 +3,7 @@ import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
 import { createSim } from '@sim';
 import { Group, Scene } from 'three';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createFakeScheduler } from '../../../tests/support/fakeScheduler.ts';
 import { createTestContent, createTestGeometry } from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
@@ -63,7 +63,13 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     dispose: () => {},
   };
   let simsCreated = 0;
-  const scenes: { id: string; scene: Scene; updates: number; disposed: boolean }[] = [];
+  const scenes: {
+    id: string;
+    scene: Scene;
+    updates: number;
+    resets: number;
+    disposed: boolean;
+  }[] = [];
   const ready: LevelScene[] = [];
   const deps: LevelSessionDeps = {
     content: createTestContent(),
@@ -90,13 +96,16 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     },
     loadAssets: async (id) => ok(assetsOf(id)),
     createScene: (assets) => {
-      const record = { id: assets.id, scene: new Scene(), updates: 0, disposed: false };
+      const record = { id: assets.id, scene: new Scene(), updates: 0, resets: 0, disposed: false };
       scenes.push(record);
       return {
         id: assets.id,
         scene: record.scene,
         room: { widthM: 8, depthM: 6, heightM: 2.5 },
         fx: NO_FX,
+        resetFx: () => {
+          record.resets++;
+        },
         update: () => {
           record.updates++;
         },
@@ -162,6 +171,7 @@ describe('createLevelSession', () => {
           scene: new Scene(),
           room: { widthM: 8, depthM: 6, heightM: 2.5 },
           fx: NO_FX,
+          resetFx: () => {},
           update: () => {},
           dispose: () => {},
         };
@@ -331,26 +341,59 @@ describe('createLevelSession', () => {
     expect(states).toEqual(['loading', 'level', 'loading', 'level']);
   });
 
+  describe('effects of a level that is over', () => {
+    it('ends the rings and the shake when the loop stops, so nothing stays frozen mid-effect', async () => {
+      const { session, scenes } = setup();
+      await session.start();
+      expect(scenes[0]?.resets).toBe(0);
+      session.stop();
+      expect(scenes[0]?.resets).toBe(1);
+    });
+
+    it('ends them when a restart begins, and on a restart that fails (the old scene stays up)', async () => {
+      let attempt = 0;
+      const { session, scenes, appFsm } = setup({
+        loadAssets: async (id) =>
+          ++attempt === 1 ? ok(assetsOf(id)) : err({ kind: 'assets', message: 'no glb' }),
+      });
+      await session.start();
+      await session.start();
+      expect(appFsm.state).toBe('oops');
+      expect(scenes).toHaveLength(1);
+      expect(scenes[0]?.resets).toBe(1);
+    });
+  });
+
   describe('the level sounds', () => {
     it('loads them once per start, in parallel with the assets', async () => {
-      const gate = deferred<void>();
+      const audioGate = deferred<void>();
+      const assetsGate = deferred<void>();
       const calls: string[] = [];
-      const { session } = setup({
+      const { session, appFsm, sims } = setup({
         loadAudio: () => {
           calls.push('audio');
-          return gate.promise;
+          return calls.filter((call) => call === 'audio').length === 1
+            ? audioGate.promise
+            : Promise.resolve();
         },
         loadAssets: async (id) => {
           calls.push('assets');
+          if (calls.filter((call) => call === 'assets').length === 1) await assetsGate.promise;
           return ok(assetsOf(id));
         },
       });
       const starting = session.start();
       await new Promise((resolve) => setTimeout(resolve, 0));
-      // Both have begun while the audio is still pending.
+      // Both have begun while both are still pending: the audio did not wait for the assets.
       expect(calls).toEqual(['audio', 'assets']);
-      gate.resolve();
+      // The assets alone are not enough: the sim waits for the sounds too.
+      assetsGate.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(sims()).toBe(0);
+      expect(appFsm.state).toBe('loading');
+      audioGate.resolve();
       await starting;
+      expect(appFsm.state).toBe('level');
       await session.start();
       expect(calls.filter((call) => call === 'audio')).toHaveLength(2);
     });
@@ -368,19 +411,17 @@ describe('createLevelSession', () => {
       expect(sims()).toBe(1);
     });
 
-    it('starts the level when the sounds are done first, and when a load that rejects is not expected', async () => {
-      const before = log.buffer().length;
+    it('starts the level, with an audio warning, when the sound load rejects', async () => {
+      // A spy, not `log.buffer()`: an offset into the capped ring buffer stops being valid once it is full.
+      const warnSpy = vi.spyOn(log, 'warn');
+      const before = warnSpy.mock.calls.length;
       const { session, appFsm } = setup({
         loadAudio: () => Promise.reject(new Error('bad decoder')),
       });
       await session.start();
       expect(appFsm.state).toBe('level');
-      expect(
-        log
-          .buffer()
-          .slice(before)
-          .some((entry) => entry.level === 'warn' && entry.channel === 'audio'),
-      ).toBe(true);
+      expect(warnSpy.mock.calls.slice(before).some(([channel]) => channel === 'audio')).toBe(true);
+      warnSpy.mockRestore();
     });
 
     it('does not wait for the sounds when the assets failed: « Oups »', async () => {
@@ -494,6 +535,7 @@ describe('createLevelSession', () => {
             scene: new Scene(),
             room: { widthM: 8, depthM: 6, heightM: 2.5 },
             fx: NO_FX,
+            resetFx: () => {},
             update: () => {},
             dispose: () => {},
           };

@@ -258,7 +258,7 @@ describe('createLevelScene', () => {
     expect(wave().visible).toBe(false);
   });
 
-  it('freezes the effects with the sim: the same clock draws the same picture (pause)', () => {
+  it('draws the effects from the sim clock alone, so a clock that stands still (pause) draws one picture', () => {
     const { scene, fx, update } = build();
     fx.soundWave(0, 0, 1, 1000, asSimMs(0));
     fx.shake(0.1, 1000, asSimMs(0));
@@ -266,8 +266,25 @@ describe('createLevelScene', () => {
     const wave = scene.getObjectsByProperty('name', 'sound_wave')[0] as Mesh;
     const root = scene.getObjectByName('content_root');
     const frozen = [wave.scale.x, root?.position.x, root?.position.z];
-    update(fakeWorldAt(300), 0);
+    for (let frame = 0; frame < 5; frame++) update(fakeWorldAt(300), 0);
     expect([wave.scale.x, root?.position.x, root?.position.z]).toEqual(frozen);
+    // And it moves only when the clock does.
+    update(fakeWorldAt(400), 0);
+    expect(wave.scale.x).toBeGreaterThan(frozen[0] as number);
+  });
+
+  it('resetFx ends the rings and the shake under way', () => {
+    const { scene, fx, update, resetFx } = build();
+    fx.soundWave(0, 0, 1, 1000, asSimMs(0));
+    fx.shake(0.1, 1000, asSimMs(0));
+    update(fakeWorldAt(300), 0);
+    const root = scene.getObjectByName('content_root');
+    expect([root?.position.x, root?.position.z]).not.toEqual([0, 0]);
+    resetFx();
+    expect(root?.position.toArray()).toEqual([0, 0, 0]);
+    expect(scene.getObjectsByProperty('name', 'sound_wave').every((wave) => !wave.visible)).toBe(
+      true,
+    );
   });
 
   it('shakes the content root, not the lights, and is back to exactly zero after', () => {

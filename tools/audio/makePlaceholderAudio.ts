@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { log } from '@shared/log';
+import { type AppError, err, ok, type Result } from '@shared/result';
 import { createRng, nextFloat, type RngState } from '@shared/rng';
 import { ROOT } from '../assets/paths.ts';
 
@@ -200,38 +201,68 @@ function run(command: string, args: string[]): Promise<{ code: number | null; ou
   });
 }
 
-async function main(): Promise<void> {
-  const outDir = join(ROOT, 'public', 'assets', 'audio');
-  await mkdir(outDir, { recursive: true });
+/** Turns one WAV file into one `.m4a`; `err` carries what to tell the user. */
+export type ConvertWav = (wavPath: string, m4aPath: string) => Promise<Result<void, AppError>>;
+
+const afconvert: ConvertWav = async (wavPath, m4aPath) => {
+  const result = await run('afconvert', [
+    '-f',
+    'm4af',
+    '-d',
+    'aac',
+    '-b',
+    String(AAC_BITRATE_BPS),
+    wavPath,
+    m4aPath,
+  ]);
+  if (result.code === 0) return ok(undefined);
+  return err({
+    kind: 'assets',
+    message: `afconvert failed (exit ${String(result.code)}): ${result.output.trim()}. This tool needs macOS, which ships afconvert.`,
+  });
+};
+
+/**
+ * Synthesizes every placeholder clip and writes the `.m4a` files into `outDir`, all or none: each
+ * clip is converted into a temporary directory first, and `outDir` is touched only when every
+ * conversion has succeeded, so a failure never leaves a mix of fresh, stale and truncated files
+ * (which `content:check` would accept, since it only looks that a file exists).
+ */
+export async function generatePlaceholderClips(
+  outDir: string,
+  convert: ConvertWav = afconvert,
+): Promise<Result<string[], AppError>> {
   const work = await mkdtemp(join(tmpdir(), 'pp-audio-'));
   try {
     for (const { clip, synth } of PLACEHOLDER_CLIPS) {
       const wavPath = join(work, `${clip}.wav`);
-      const m4aPath = join(outDir, `${clip}.m4a`);
       await writeFile(wavPath, encodeWav(synth()));
-      const result = await run('afconvert', [
-        '-f',
-        'm4af',
-        '-d',
-        'aac',
-        '-b',
-        String(AAC_BITRATE_BPS),
-        wavPath,
-        m4aPath,
-      ]);
-      if (result.code !== 0) {
-        log.error(
-          'assets',
-          `afconvert failed for ${clip} (exit ${String(result.code)}): ${result.output.trim()}. This tool needs macOS, which ships afconvert.`,
-        );
-        process.exitCode = 1;
-        return;
+      const converted = await convert(wavPath, join(work, `${clip}.m4a`));
+      if (!converted.ok) {
+        return err({ ...converted.error, message: `${clip}: ${converted.error.message}` });
       }
-      log.info('assets', 'placeholder clip written', { clip, m4a: m4aPath });
     }
+    await mkdir(outDir, { recursive: true });
+    const written: string[] = [];
+    for (const { clip } of PLACEHOLDER_CLIPS) {
+      const target = join(outDir, `${clip}.m4a`);
+      await copyFile(join(work, `${clip}.m4a`), target);
+      written.push(target);
+    }
+    return ok(written);
   } finally {
     await rm(work, { recursive: true, force: true });
   }
+}
+
+async function main(): Promise<void> {
+  const result = await generatePlaceholderClips(join(ROOT, 'public', 'assets', 'audio'));
+  if (!result.ok) {
+    log.error('assets', result.error.message);
+    process.exitCode = 1;
+    return;
+  }
+  for (const m4a of result.value) log.info('assets', 'placeholder clip written', { m4a });
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

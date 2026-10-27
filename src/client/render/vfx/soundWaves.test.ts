@@ -114,4 +114,15 @@ describe('createSoundWaves', () => {
     expect(events.filter((event) => event === 'material')).toHaveLength(SOUND_WAVE_POOL_SIZE);
     expect(parent.children).toHaveLength(0);
   });
+
+  it('reset hides every ring and frees the slots, so none comes back with the clock', () => {
+    const { waves, meshes } = build();
+    for (let i = 0; i < SOUND_WAVE_POOL_SIZE; i++) waves.play(i, 0, 1, 1000, 0);
+    waves.update(300);
+    expect(meshes.every((mesh) => mesh.visible)).toBe(true);
+    waves.reset();
+    expect(meshes.every((mesh) => !mesh.visible)).toBe(true);
+    waves.update(400);
+    expect(meshes.every((mesh) => !mesh.visible)).toBe(true);
+  });
 });

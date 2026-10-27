@@ -1,0 +1,9 @@
+{
+  "cues": {
+    "papa_bump": {
+      "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
+    }
+  }
+}

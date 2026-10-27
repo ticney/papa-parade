@@ -64,4 +64,25 @@ describe('createShake', () => {
       0.01,
     );
   });
+
+  it('takes its offset off when the clock is before its start (a clock that went back)', () => {
+    const target = new Object3D();
+    const shake = createShake(target);
+    shake.start(0.1, 400, 0);
+    shake.update(100);
+    expect(target.position.x).not.toBe(0);
+    shake.update(-50);
+    expect([target.position.x, target.position.z]).toEqual([0, 0]);
+  });
+
+  it('reset ends the shake under way and puts the target back at once', () => {
+    const target = new Object3D();
+    const shake = createShake(target);
+    shake.start(0.1, 400, 0);
+    shake.update(100);
+    shake.reset();
+    expect([target.position.x, target.position.z]).toEqual([0, 0]);
+    shake.update(150); // it is over: nothing moves again
+    expect([target.position.x, target.position.z]).toEqual([0, 0]);
+  });
 });

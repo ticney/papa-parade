@@ -1,4 +1,4 @@
-import { RESUME_COUNTDOWN_MS } from '@shared/constants';
+import { RESUME_COUNTDOWN_DIGITS, RESUME_COUNTDOWN_MS } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import { countdownStep } from './countdown.ts';
 
@@ -38,5 +38,14 @@ describe('countdownStep', () => {
     expect(countdownStep(900, 900)).toBe(3);
     expect(countdownStep(300, 900)).toBe(1);
     expect(countdownStep(1, 0)).toBeNull();
+  });
+
+  it('shows exactly RESUME_COUNTDOWN_DIGITS different digits over the countdown (the e2e counts its ticks with it)', () => {
+    const shown = new Set<number>();
+    for (let remainingMs = RESUME_COUNTDOWN_MS; remainingMs > 0; remainingMs -= 10) {
+      const step = countdownStep(remainingMs);
+      if (step !== null) shown.add(step);
+    }
+    expect(shown.size).toBe(RESUME_COUNTDOWN_DIGITS);
   });
 });

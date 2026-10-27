@@ -149,3 +149,11 @@
 - **Per-level audio manifest** (only the clips a level uses): with `LevelSchema`, story 1.10 or later. Today every clip of `feedback.json` is preloaded.
 - **Real sounds.** The three `.m4a` files are synthesized beeps (`npm run assets:audio`, macOS only); replace them under the same names (stories 2.3, 7.5). Nobody has listened to them yet: see the Completion Notes of story 1.9.
 
+
+## Deferred from: code review of story 1-9-retours-de-base (2026-10-27)
+
+- **A held Enter or Space still starts the game from the start screen.** `startScreen.ts` `onKeyDown` ignores `event.repeat`, so an auto-repeating `keydown` carried over from the previous screen (« Recommencer ») starts the game at once; only the pointer path got the D12 protection. Reason: pre-existing key path from story 1.5; D12 covers pointers only. Revisit with the next start-screen change.
+- **Shake frequency is tied to `durationMs` and aliases at 60 fps** (`shake.ts`: `SHAKE_CYCLES / durationMs`, z at 1.5×; 20 Hz and 30 Hz with the table's 200 ms and 4 cycles, the z axis sits at Nyquist). Make the frequency a value in Hz in the data. Reason: no cue uses `camera` yet; story 2.5 introduces and tunes the first one.
+- **Taps and the tap marker ignore the shake offset** (`hitTest.pickFloor` and the world UI work in unshaken space while the shake moves `content_root` by up to `amplitudeM`). Reason: latent until the first `camera` cue; story 2.5.
+- **Looped `.m4a` clips will not loop gaplessly** on WebKit (AAC encoder delay and padding survive `decodeAudioData`). Reason: today's clips are placeholders; check the real babble and music (stories 2.3, 7.5) on a device, and reconsider the container (or trim the padding) if there is an audible gap.
+- **WebKit reports `running` once at the start of the level's countdown** (seen by the e2e's mirror history, found while writing the silent-countdown proof): the unlock's `resume()` lands after `PauseRequested('levelStart')` queued the `suspend()`, so the context runs for a moment, then settles on `suspended`. Nothing plays then (the loops start with the level), so it is inaudible today; the e2e accepts it. Check on a real iPhone (with the real-device audio item above), and if a sound ever plays during loading, make `suspend()` wait for a pending `resume()`.

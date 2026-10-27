@@ -1,15 +1,24 @@
 import { expect, type Page, test } from '@playwright/test';
-import { RESUME_COUNTDOWN_MS } from '../../src/shared/constants.ts';
+import { RESUME_COUNTDOWN_DIGITS, RESUME_COUNTDOWN_MS } from '../../src/shared/constants.ts';
+import { createConsoleSink } from '../../src/shared/log.ts';
 import {
+  areCountdownsSilent,
+  audioContextActivations,
+  audioDuringCountdowns,
   audioState,
   collectProblems,
   cueCount,
+  hapticPatternOf,
   html,
   liveClipCount,
   liveFeedback,
+  mirrorWrites,
   OVERRUN_MARGIN_MS,
+  OWN_WARNINGS,
   openGame,
   pauseButton,
+  recordAudioContexts,
+  recordMirrorWrites,
   recordVibrations,
   setVisibility,
   startLevel,
@@ -26,7 +35,10 @@ import { STRINGS } from './support/strings.ts';
 
 const COUNTDOWN_TIMEOUT_MS = RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS;
 const FRAMES_TO_SETTLE = 10;
-const LIGHT_PATTERN = liveFeedback.haptics.light.patternMs;
+const BUMP_CUE = liveFeedback.events.PapaBlocked as string;
+const TICK_CUE = liveFeedback.events.CountdownTicked as string;
+const BUMP_PATTERN = hapticPatternOf('PapaBlocked');
+const TICK_PATTERN = hapticPatternOf('CountdownTicked');
 
 const hasVibrate = (): boolean => test.info().project.name === 'chromium';
 
@@ -41,6 +53,8 @@ test.describe('audio', () => {
     page,
   }) => {
     const problems = collectProblems(page);
+    await recordAudioContexts(page);
+    await recordMirrorWrites(page, ['data-pp-audio', 'data-pp-state']);
     await openGame(page);
     // Nothing exists before the first gesture: our code creates the context, not the browser.
     await expect(html(page)).toHaveAttribute('data-pp-audio', 'none');
@@ -59,6 +73,13 @@ test.describe('audio', () => {
     await expect(html(page)).toHaveAttribute('data-pp-audio', 'running');
     await expect(html(page)).toHaveAttribute('data-pp-babble', 'on');
     await expect(html(page)).toHaveAttribute('data-pp-music', 'on');
+    // One context, made in the task of the gesture (not from a timer, a load or the countdown's
+    // end): iOS unlocks audio there and nowhere else, and `GameResumed` later resumes outside any.
+    expect(await audioContextActivations(page)).toEqual([true]);
+    // The countdown settled on `suspended` and stayed there: the whole history, not one sample.
+    const countdowns = audioDuringCountdowns(await mirrorWrites(page));
+    expect(countdowns).toHaveLength(1);
+    expect(areCountdownsSilent(countdowns), JSON.stringify(countdowns)).toBe(true);
     expect(problems).toEqual([]);
   });
 
@@ -66,6 +87,7 @@ test.describe('audio', () => {
     page,
   }) => {
     const problems = collectProblems(page);
+    await recordMirrorWrites(page, ['data-pp-audio', 'data-pp-state']);
     await startLevel(page);
     await expect(html(page)).toHaveAttribute('data-pp-audio', 'running');
 
@@ -78,6 +100,10 @@ test.describe('audio', () => {
     expect(await audioState(page)).toBe('suspended');
     await waitForRunning(page);
     await expect(html(page)).toHaveAttribute('data-pp-audio', 'running');
+    // Neither countdown (the level's, then this resume's) let the context run.
+    const countdowns = audioDuringCountdowns(await mirrorWrites(page));
+    expect(countdowns).toHaveLength(2);
+    expect(areCountdownsSilent(countdowns), JSON.stringify(countdowns)).toBe(true);
     expect(problems).toEqual([]);
   });
 
@@ -115,24 +141,25 @@ test.describe('feedback', () => {
     const problems = collectProblems(page);
     await recordVibrations(page);
     await startLevel(page);
-    await expect(html(page)).toHaveAttribute('data-pp-cue', 'countdown_tick');
+    await expect(html(page)).toHaveAttribute('data-pp-cue', TICK_CUE);
     const before = await cueCount(page);
     const vibrationsBefore = (await vibrations(page)).length;
 
     await page.keyboard.down('ArrowUp');
-    await expect(html(page)).toHaveAttribute('data-pp-cue', liveFeedback.events.PapaBlocked, {
-      timeout: WALK_BOUND_MS,
-    });
+    await expect(html(page)).toHaveAttribute('data-pp-cue', BUMP_CUE, { timeout: WALK_BOUND_MS });
     await page.keyboard.up('ArrowUp');
-    expect(await cueCount(page)).toBeGreaterThan(before);
+    // Once per blockage, not once per frame of it.
+    await waitFrames(page, FRAMES_TO_SETTLE);
+    expect(await cueCount(page)).toBe(before + 1);
 
     const patterns = (await vibrations(page)).slice(vibrationsBefore);
-    if (hasVibrate()) expect(patterns).toContainEqual(LIGHT_PATTERN);
+    if (!hasVibrate()) expect(patterns).toEqual([]);
+    else if (BUMP_PATTERN !== null) expect(patterns).toEqual([BUMP_PATTERN]);
     else expect(patterns).toEqual([]);
     expect(problems).toEqual([]);
   });
 
-  test('ticks once per countdown digit: three light vibrations over one pause and resume', async ({
+  test('ticks once per countdown digit: one vibration per digit over one pause and resume', async ({
     page,
   }) => {
     const problems = collectProblems(page);
@@ -145,14 +172,15 @@ test.describe('feedback', () => {
 
     await page.keyboard.press('Escape');
     await waitForRunning(page);
-    await expect.poll(() => cueCount(page)).toBe(countBefore + 3);
-    await expect(html(page)).toHaveAttribute('data-pp-cue', 'countdown_tick');
+    await expect.poll(() => cueCount(page)).toBe(countBefore + RESUME_COUNTDOWN_DIGITS);
+    await expect(html(page)).toHaveAttribute('data-pp-cue', TICK_CUE);
     await waitFrames(page, FRAMES_TO_SETTLE);
-    expect(await cueCount(page)).toBe(countBefore + 3);
+    expect(await cueCount(page)).toBe(countBefore + RESUME_COUNTDOWN_DIGITS);
 
     const patterns = (await vibrations(page)).slice(vibrationsBefore);
-    if (hasVibrate()) expect(patterns).toEqual([LIGHT_PATTERN, LIGHT_PATTERN, LIGHT_PATTERN]);
-    else expect(patterns).toEqual([]);
+    if (hasVibrate() && TICK_PATTERN !== null) {
+      expect(patterns).toEqual(Array.from({ length: RESUME_COUNTDOWN_DIGITS }, () => TICK_PATTERN));
+    } else expect(patterns).toEqual([]);
     expect(problems).toEqual([]);
   });
 
@@ -202,5 +230,53 @@ test.describe('feedback', () => {
     await expect(html(page)).toHaveAttribute('data-pp-audio-clips', String(liveClipCount));
     await expect(html(page)).toHaveAttribute('data-pp-audio', 'running');
     expect(problems).toEqual([]);
+  });
+});
+
+test.describe('the harness', () => {
+  test('fails a session on a warning of the audio engine or of the feedback director', () => {
+    // The very line the console sink prints for each warning (`[channel] message`).
+    const printed: string[] = [];
+    const sink = createConsoleSink({
+      error: () => {},
+      info: () => {},
+      debug: () => {},
+      warn: (line: string) => printed.push(line),
+    });
+    const warn = (channel: 'audio' | 'feedback' | 'platform', message: string): void =>
+      sink({ level: 'warn', channel, message, atReal: 0 });
+    warn('audio', 'audio resume failed: boom');
+    warn('audio', 'audio clip papa_bump unavailable: HTTP 404');
+    warn('audio', 'audio loop babble failed to start: too many sources');
+    warn('audio', 'audio preload gave up after 5000 ms: the level starts without the rest');
+    warn('feedback', 'feedback sound for PapaBlocked failed: boom');
+    expect(printed).toHaveLength(5);
+    for (const line of printed) expect(OWN_WARNINGS.test(line), line).toBe(true);
+    // A warning of another channel is not the app's audio.
+    printed.length = 0;
+    warn('platform', 'navigator.vibrate refused the pattern (no user activation yet?)');
+    expect(OWN_WARNINGS.test(printed[0] ?? ''), 'platform').toBe(false);
+  });
+
+  test('tells a silent countdown from one where the context runs', () => {
+    const write = (name: string, value: string) => ({ name, value });
+    const countdown = (...audio: string[]) => [
+      write('data-pp-state', 'resuming'),
+      ...audio.map((value) => write('data-pp-audio', value)),
+      write('data-pp-state', 'running'),
+    ];
+    expect(areCountdownsSilent(audioDuringCountdowns(countdown()))).toBe(true);
+    expect(areCountdownsSilent(audioDuringCountdowns(countdown('suspended')))).toBe(true);
+    expect(areCountdownsSilent(audioDuringCountdowns(countdown('running', 'suspended')))).toBe(
+      true,
+    );
+    expect(areCountdownsSilent(audioDuringCountdowns(countdown('running')))).toBe(false);
+    expect(areCountdownsSilent(audioDuringCountdowns(countdown('suspended', 'running')))).toBe(
+      false,
+    );
+    // The audio written after the countdown (the context resuming) is not the countdown's.
+    expect(
+      audioDuringCountdowns([...countdown('suspended'), write('data-pp-audio', 'running')]),
+    ).toEqual([['suspended']]);
   });
 });

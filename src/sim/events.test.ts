@@ -1,18 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { SIM_EVENT_TYPES, SIM_EVENT_TYPES_ARE_COMPLETE } from './events.ts';
 
-// The list is kept in the order of the `SimEvent` union (a convention the compiler cannot check);
-// what is checked here is that it has no duplicate and that every name follows the event naming.
+// Completeness is the compiler's (see the last test); what is checked at runtime is the rest: the
+// list is sorted, has no duplicate, and every name follows the event naming.
 describe('SIM_EVENT_TYPES', () => {
   it('lists each event once', () => {
     expect(new Set(SIM_EVENT_TYPES).size).toBe(SIM_EVENT_TYPES.length);
+  });
+
+  it('is sorted alphabetically', () => {
+    expect([...SIM_EVENT_TYPES]).toEqual([...SIM_EVENT_TYPES].sort());
   });
 
   it('names events in PascalCase', () => {
     for (const name of SIM_EVENT_TYPES) expect(name).toMatch(/^[A-Z][a-z]+(?:[A-Z][a-z]+)*$/);
   });
 
-  it('is proved complete at compile time', () => {
+  // `SIM_EVENT_TYPES_ARE_COMPLETE` is the literal `true` by construction, so this assertion cannot
+  // fail at runtime: the proof is that this file typechecks (`npm run typecheck`), and a `SimEvent`
+  // missing from the list stops it from doing so. The import keeps the constant, and so the proof, alive.
+  it('is proved complete at compile time, by typecheck', () => {
     expect(SIM_EVENT_TYPES_ARE_COMPLETE).toBe(true);
   });
 });

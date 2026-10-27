@@ -14,14 +14,22 @@ const LIVE_FILE = join(here, '..', '..', 'content', 'feedback.json');
 
 type Json = Record<string, unknown>;
 
+/** A member is there when it is neither missing nor `null`: `"haptic": null` is no twin. */
+const isPresent = (value: unknown): boolean => value !== undefined && value !== null;
+
+/** The cues of a feedback file that carry an `audio`. */
+function audioCues(table: unknown): [string, Json][] {
+  const cues = (table as { cues?: unknown } | null)?.cues;
+  if (typeof cues !== 'object' || cues === null) return [];
+  return Object.entries(cues as Record<string, Json>).filter(([, cue]) => isPresent(cue.audio));
+}
+
 /** The cues of a feedback file that have an `audio` and lack a `visual` or a `haptic`, one message each. */
 function untwinnedCues(table: unknown): string[] {
-  const cues = (table as { cues?: Record<string, Json> } | null)?.cues ?? {};
   const problems: string[] = [];
-  for (const [id, cue] of Object.entries(cues)) {
-    if (cue.audio === undefined) continue;
-    if (cue.visual === undefined) problems.push(`cue "${id}" has an audio but no visual twin`);
-    if (cue.haptic === undefined) problems.push(`cue "${id}" has an audio but no haptic twin`);
+  for (const [id, cue] of audioCues(table)) {
+    if (!isPresent(cue.visual)) problems.push(`cue "${id}" has an audio but no visual twin`);
+    if (!isPresent(cue.haptic)) problems.push(`cue "${id}" has an audio but no haptic twin`);
   }
   return problems;
 }
@@ -33,36 +41,40 @@ describe('feedbackEquivalence', () => {
     expect(untwinnedCues(readJson(LIVE_FILE))).toEqual([]);
   });
 
-  const MUST_FAIL: Record<string, string> = {
-    'audio-without-visual.json': 'papa_bump',
-    'audio-without-haptic.json': 'papa_bump',
+  // Not vacuous: a file that lost its `cues` (renamed, restructured) or all its audio would pass the
+  // test above with nothing examined.
+  it('examines at least one cue with an audio in content/feedback.json', () => {
+    expect(audioCues(readJson(LIVE_FILE)).length).toBeGreaterThan(0);
+  });
+
+  /** Fixture -> the problems it must give, in order. */
+  const MUST_FAIL: Record<string, string[]> = {
+    'audio-without-visual.json': ['papa_bump:visual'],
+    'audio-without-haptic.json': ['papa_bump:haptic'],
+    'audio-without-either.json': ['papa_bump:visual', 'papa_bump:haptic'],
+    'audio-with-null-twins.json': ['papa_bump:visual', 'papa_bump:haptic'],
   };
-  const MUST_PASS = ['haptic-only.json', 'visual-only.json'];
+  const MUST_PASS = ['haptic-only.json', 'visual-only.json', 'audio-with-both-twins.json'];
 
   it('has exactly the fixtures this test declares', () => {
     expect(readdirSync(FIXTURES).sort()).toEqual([...Object.keys(MUST_FAIL), ...MUST_PASS].sort());
   });
 
-  for (const [file, cue] of Object.entries(MUST_FAIL)) {
-    it(`fails the fixture "${file}", naming the cue`, () => {
+  for (const [file, expected] of Object.entries(MUST_FAIL)) {
+    it(`fails the fixture "${file}", naming the cue and the missing twin`, () => {
       const problems = untwinnedCues(readJson(join(FIXTURES, file)));
-      expect(problems).toHaveLength(1);
-      expect(problems[0]).toContain(`"${cue}"`);
+      expect(problems).toHaveLength(expected.length);
+      expected.forEach((want, index) => {
+        const [cue, twin] = want.split(':');
+        expect(problems[index]).toContain(`"${cue}"`);
+        expect(problems[index]).toContain(`no ${twin} twin`);
+      });
     });
   }
 
   for (const file of MUST_PASS) {
-    it(`passes the fixture "${file}" (a cue without audio owes no twin)`, () => {
+    it(`passes the fixture "${file}" (no audio owes no twin; a complete cue has both)`, () => {
       expect(untwinnedCues(readJson(join(FIXTURES, file)))).toEqual([]);
     });
   }
-
-  it('names the missing twin: the visual and the haptic are told apart', () => {
-    expect(untwinnedCues(readJson(join(FIXTURES, 'audio-without-visual.json')))[0]).toContain(
-      'visual',
-    );
-    expect(untwinnedCues(readJson(join(FIXTURES, 'audio-without-haptic.json')))[0]).toContain(
-      'haptic',
-    );
-  });
 });

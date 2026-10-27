@@ -1,12 +1,5 @@
 import { SOUND_WAVE_POOL_SIZE } from '@shared/constants';
-import {
-  DoubleSide,
-  type Material,
-  Mesh,
-  MeshBasicMaterial,
-  type Object3D,
-  RingGeometry,
-} from 'three';
+import { DoubleSide, Mesh, MeshBasicMaterial, type Object3D, RingGeometry } from 'three';
 
 // Art constants of the provisional ring (E7 replaces it), named with their units.
 /** Inner radius of the ring as a share of its outer radius (1): how thick the line is. */
@@ -24,6 +17,8 @@ export interface SoundWaves {
   play(xM: number, zM: number, maxRadiusM: number, durationMs: number, startAt: number): void;
   /** Draws every wave at `clockMs` (sim ms): scale, opacity, and hidden once it is over. Allocates nothing. */
   update(clockMs: number): void;
+  /** Hides every ring at once: the level is over and the loop no longer runs to finish them. */
+  reset(): void;
   /** Frees the shared geometry and every material. */
   dispose(): void;
 }
@@ -100,11 +95,17 @@ export function createSoundWaves(parent: Object3D, color: number): SoundWaves {
         wave.material.opacity = 1 - progress;
       }
     },
+    reset() {
+      for (const wave of waves) {
+        wave.isActive = false;
+        wave.mesh.visible = false;
+      }
+    },
     dispose() {
       geometry.dispose();
       for (const wave of waves) {
         wave.mesh.removeFromParent();
-        (wave.material as Material).dispose();
+        wave.material.dispose();
       }
     },
   };

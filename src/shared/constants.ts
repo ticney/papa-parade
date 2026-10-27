@@ -22,6 +22,9 @@ export const MAX_STEPS_PER_FRAME = 10;
 /** Real time between a resume request and the game going on (the "3, 2, 1" of the pause panel). */
 export const RESUME_COUNTDOWN_MS = 3000;
 
+/** How many digits the resume countdown shows (« 3 », « 2 », « 1 »), one tick of feedback each. */
+export const RESUME_COUNTDOWN_DIGITS = 3;
+
 /** How far back, in real ms, `timeMap` can convert a timestamp to sim time. */
 export const TIME_MAP_HISTORY_MS = 2000;
 
@@ -108,6 +111,9 @@ export const LOADING_LINE_INTERVAL_MS = 2000;
 
 /** How long the fetch of a level's `.glb` may take before it counts as failed (« Oups »), in real ms. */
 export const LEVEL_FETCH_TIMEOUT_MS = 20_000;
+
+/** Longest the loading screen waits for the level's sounds (fetch and decode together), in real ms; the level then starts without them. */
+export const AUDIO_LOAD_TIMEOUT_MS = 5000;
 
 /** The longest delay `setTimeout` can hold, in ms: a longer one overflows and fires at once. */
 export const MAX_TIMER_DELAY_MS = 2_147_483_647;

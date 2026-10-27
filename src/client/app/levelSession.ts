@@ -112,6 +112,9 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
   const stopLoop = (): void => {
     loop?.stop();
     loop = null;
+    // Effects advance only with the loop: end the ring and shake it froze mid-way, or `drawStatic`
+    // shows them behind the loading and error screens (a failed restart keeps this scene for good).
+    current?.resetFx();
   };
 
   return {

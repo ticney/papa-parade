@@ -148,6 +148,18 @@ export const FeedbackTableSchema = z
         'Event name -> cue id. A sim event (`PapaBlocked`) or a client one (`CountdownTicked`); `npm run content:check` refuses any other name.',
       ),
   })
+  .superRefine((table, ctx) => {
+    // An event that points at a cue that does not exist plays nothing: refuse it where the file is
+    // read (`loadContent`), not only in `npm run content:check`. `hasOwn`: `constructor` is no cue.
+    for (const [name, cueId] of Object.entries(table.events)) {
+      if (Object.hasOwn(table.cues, cueId)) continue;
+      ctx.addIssue({
+        code: 'custom',
+        path: ['events', name],
+        message: `the cue "${cueId}" is not in cues`,
+      });
+    }
+  })
   .describe(
     'The multimodal feedback table (ADR-006): which event plays which sound, ring, vibration and camera effect.',
   );

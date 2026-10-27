@@ -80,4 +80,22 @@ describe('createStartGesture', () => {
     gesture.onPointerUp(touch(3));
     expect(starts).toBe(1);
   });
+
+  it('forgets a pointerdown that was cancelled: a later pointerup of that pointer does not start', () => {
+    let starts = 0;
+    const gesture = createStartGesture(() => starts++);
+    gesture.onPointerDown(touch(1));
+    gesture.onPointerCancel(touch(1));
+    gesture.onPointerUp(touch(1));
+    expect(starts).toBe(0);
+  });
+
+  it('keeps the pointerdown of another pointer when one is cancelled', () => {
+    let starts = 0;
+    const gesture = createStartGesture(() => starts++);
+    gesture.onPointerDown(touch(1));
+    gesture.onPointerCancel(touch(2));
+    gesture.onPointerUp(touch(1));
+    expect(starts).toBe(1);
+  });
 });

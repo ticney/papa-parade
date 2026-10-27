@@ -116,8 +116,9 @@ const exists = (path: string): Promise<boolean> =>
 
 /**
  * The cross-references of `feedback.json` that its schema cannot see: an `events` key is the name
- * of a sim or client event (a typo is a cue that never plays), an `events` value is a cue of
- * `cues`, and every clip is a file under `public/assets/audio/`.
+ * of a sim or client event (a typo is a cue that never plays), a client event's cue has neither
+ * visual nor camera (they need a world), and every clip is a file under `public/assets/audio/`.
+ * (That an `events` value is a cue of `cues` is the schema's own check.)
  */
 async function checkFeedbackReferences(
   rootDir: string,
@@ -134,11 +135,19 @@ async function checkFeedbackReferences(
         message: `"${name}" is not an event name (a SimEvent type or a client event the director listens to)`,
       });
     }
-    if (!Object.hasOwn(table.cues, cueId)) {
+    // A client event has no sim world to read: its cue cannot draw a ring or shake the room (the
+    // director would skip them without a word). The schema has already checked that the cue exists.
+    const cue = Object.hasOwn(table.cues, cueId) ? table.cues[cueId] : undefined;
+    const isClientEvent = (FEEDBACK_CLIENT_EVENTS as readonly string[]).includes(name);
+    if (
+      isClientEvent &&
+      cue !== undefined &&
+      (cue.visual !== undefined || cue.camera !== undefined)
+    ) {
       problems.push({
         file,
         jsonPath: formatJsonPath(['events', name]),
-        message: `the cue "${cueId}" is not in cues`,
+        message: `"${name}" is a client event with no world: its cue "${cueId}" cannot have a visual or a camera`,
       });
     }
   }

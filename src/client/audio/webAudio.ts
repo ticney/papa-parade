@@ -44,6 +44,7 @@ export interface AudioContextLike {
   decodeAudioData(data: ArrayBuffer): Promise<AudioBufferLike>;
   resume(): Promise<void>;
   suspend(): Promise<void>;
+  close(): Promise<void>;
   addEventListener(type: 'statechange', listener: () => void): void;
 }
 

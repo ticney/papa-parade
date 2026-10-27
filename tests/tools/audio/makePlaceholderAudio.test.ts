@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { err, ok } from '@shared/result';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   encodeWav,
+  generatePlaceholderClips,
   PLACEHOLDER_CLIPS,
   SAMPLE_RATE_HZ,
   synthBabble,
@@ -70,5 +75,49 @@ describe('placeholder audio', () => {
     expect(wav.readUInt16LE(22)).toBe(1);
     expect(wav.readUInt32LE(24)).toBe(SAMPLE_RATE_HZ);
     expect(wav.length).toBe(44 + synthBump().length * 2);
+  });
+});
+
+describe('generatePlaceholderClips', () => {
+  const dirs: string[] = [];
+  const tempDir = async (): Promise<string> => {
+    const dir = await mkdtemp(join(tmpdir(), 'pp-audio-test-'));
+    dirs.push(dir);
+    return dir;
+  };
+  afterEach(async () => {
+    for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
+  });
+
+  /** A converter that "encodes" by copying the WAV, and fails for the clip named `failing`. */
+  const converter = (failing?: string) => async (wavPath: string, m4aPath: string) => {
+    if (failing !== undefined && wavPath.includes(failing)) {
+      return err({ kind: 'assets', message: 'afconvert failed (exit 1): boom' });
+    }
+    await writeFile(m4aPath, await readFile(wavPath));
+    return ok(undefined);
+  };
+
+  it('writes every clip, named after its id, when every conversion succeeds', async () => {
+    const out = await tempDir();
+    const result = await generatePlaceholderClips(out, converter());
+    expect(result.ok).toBe(true);
+    expect((await readdir(out)).sort()).toEqual(
+      PLACEHOLDER_CLIPS.map(({ clip }) => `${clip}.m4a`).sort(),
+    );
+  });
+
+  it('touches nothing in the output directory when a conversion fails, and names the clip', async () => {
+    const out = await tempDir();
+    const stale = join(out, `${PLACEHOLDER_CLIPS[0]?.clip}.m4a`);
+    await writeFile(stale, 'stale but whole');
+    const second = PLACEHOLDER_CLIPS[1]?.clip as string;
+    const result = await generatePlaceholderClips(out, converter(second));
+    expect(result).toMatchObject({
+      ok: false,
+      error: { message: expect.stringContaining(second) },
+    });
+    expect(await readdir(out)).toEqual([`${PLACEHOLDER_CLIPS[0]?.clip}.m4a`]);
+    expect(await readFile(stale, 'utf8')).toBe('stale but whole');
   });
 });

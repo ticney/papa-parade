@@ -6,12 +6,12 @@ import type { Translator } from '../strings.ts';
 /** The slice of `window` the start screen listens on. */
 export interface StartTarget {
   addEventListener(
-    type: 'pointerdown' | 'pointerup',
+    type: 'pointerdown' | 'pointerup' | 'pointercancel',
     listener: (event: PointerEvent) => void,
   ): void;
   addEventListener(type: 'keydown', listener: (event: KeyboardEvent) => void): void;
   removeEventListener(
-    type: 'pointerdown' | 'pointerup',
+    type: 'pointerdown' | 'pointerup' | 'pointercancel',
     listener: (event: PointerEvent) => void,
   ): void;
   removeEventListener(type: 'keydown', listener: (event: KeyboardEvent) => void): void;
@@ -55,11 +55,13 @@ export function createStartScreen(options: StartScreenOptions): OverlayScreen {
   const gesture = createStartGesture(start);
   const onPointerDown = (event: PointerEvent): void => gesture.onPointerDown(event);
   const onPointerUp = (event: PointerEvent): void => gesture.onPointerUp(event);
+  const onPointerCancel = (event: PointerEvent): void => gesture.onPointerCancel(event);
   const onKeyDown = (event: KeyboardEvent): void => {
     if (isStartKey(event)) start();
   };
   target.addEventListener('pointerdown', onPointerDown);
   target.addEventListener('pointerup', onPointerUp);
+  target.addEventListener('pointercancel', onPointerCancel);
   target.addEventListener('keydown', onKeyDown);
 
   return {
@@ -68,6 +70,7 @@ export function createStartScreen(options: StartScreenOptions): OverlayScreen {
     dispose() {
       target.removeEventListener('pointerdown', onPointerDown);
       target.removeEventListener('pointerup', onPointerUp);
+      target.removeEventListener('pointercancel', onPointerCancel);
       target.removeEventListener('keydown', onKeyDown);
     },
   };

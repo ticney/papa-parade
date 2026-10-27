@@ -9,6 +9,8 @@ export interface StartPointerEvent {
 export interface StartGesture {
   onPointerDown(event: StartPointerEvent): void;
   onPointerUp(event: StartPointerEvent): void;
+  /** The browser took the gesture over (a scroll, a system gesture): its `pointerup` will not come, or does not count. */
+  onPointerCancel(event: StartPointerEvent): void;
 }
 
 const isStartPointer = (event: StartPointerEvent): boolean =>
@@ -31,6 +33,9 @@ export function createStartGesture(onStart: () => void): StartGesture {
       if (!isStartPointer(event) || downPointerId !== event.pointerId) return;
       downPointerId = null;
       onStart();
+    },
+    onPointerCancel(event) {
+      if (downPointerId === event.pointerId) downPointerId = null;
     },
   };
 }

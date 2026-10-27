@@ -48,12 +48,20 @@ export interface FakeAudioContext extends AudioContextLike {
       | 'decode'
       | 'resume'
       | 'suspend'
+      | 'close'
       | 'start',
       Error
     >
   >;
   /** Fires the `statechange` listeners after setting the state, as a browser does. */
   setState(state: AudioContextStateName): void;
+}
+
+/** What a browser throws for a call the node's state forbids. */
+function invalidState(message: string): Error {
+  const error = new Error(message);
+  error.name = 'InvalidStateError';
+  return error;
 }
 
 function createParam(initial = 1): FakeParam {
@@ -123,9 +131,13 @@ export function createFakeAudioContext(
         stopCalls: [] as (number | undefined)[],
         start(whenS?: number) {
           if (context.failures.start !== undefined) throw context.failures.start;
+          // A source plays once: starting it again throws, as in browsers.
+          if (source.startCalls.length > 0) throw invalidState('start called more than once');
           source.startCalls.push(whenS);
         },
         stop(whenS?: number) {
+          // And it cannot be stopped before it was started.
+          if (source.startCalls.length === 0) throw invalidState('stop called before start');
           source.stopCalls.push(whenS);
         },
       }) as FakeSource;
@@ -148,6 +160,8 @@ export function createFakeAudioContext(
     resume() {
       context.calls.push('resume');
       if (context.failures.resume !== undefined) return Promise.reject(context.failures.resume);
+      // A closed context cannot be resumed.
+      if (context.state === 'closed') return Promise.reject(invalidState('context is closed'));
       context.setState('running');
       return Promise.resolve();
     },
@@ -155,6 +169,12 @@ export function createFakeAudioContext(
       context.calls.push('suspend');
       if (context.failures.suspend !== undefined) return Promise.reject(context.failures.suspend);
       context.setState('suspended');
+      return Promise.resolve();
+    },
+    close() {
+      context.calls.push('close');
+      if (context.failures.close !== undefined) return Promise.reject(context.failures.close);
+      context.setState('closed');
       return Promise.resolve();
     },
     addEventListener(_type, listener) {

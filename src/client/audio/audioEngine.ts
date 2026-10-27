@@ -1,4 +1,5 @@
 import type { AudioBus, FeedbackTable } from '@content/schemas/feedback';
+import { AUDIO_LOAD_TIMEOUT_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
 import { loadAudioClip } from '../assets/audioAssets.ts';
@@ -8,6 +9,7 @@ import { type BusGraph, createBusGraph } from './buses.ts';
 import type {
   AudioBufferLike,
   AudioContextLike,
+  AudioNodeLike,
   AudioStateName,
   BufferSourceLike,
   GainNodeLike,
@@ -23,6 +25,8 @@ export interface AudioEngineOptions {
   fetchBytes?: (url: string) => Promise<Uint8Array>;
   /** Default: `import.meta.env.BASE_URL`. */
   baseUrl?: string;
+  /** Longest a `preload` waits for its clips, in real ms. Default: `AUDIO_LOAD_TIMEOUT_MS`. */
+  loadTimeoutMs?: number;
   /** The context's state changed (the debug mirror). Not called for the initial `none`. */
   onStateChange?: (state: AudioStateName) => void;
   /** A preload settled: how many clips are decoded now (the debug mirror). */
@@ -43,7 +47,10 @@ export interface AudioEngine {
   unlock(): Result<void, AppError>;
   suspend(): void;
   resume(): void;
-  /** Fetches and decodes the clips not decoded yet. Never rejects: a clip that fails is a `warn` and is skipped. */
+  /**
+   * Fetches and decodes the clips not decoded yet. Never rejects: a clip that fails is a `warn` and
+   * is skipped, and so is a wait longer than `loadTimeoutMs` (the clips keep loading in the background).
+   */
   preload(clips: readonly string[]): Promise<void>;
   /** Plays a decoded clip once, through `bus`, at the cue's gain times the bus's. */
   playOneShot(clip: string, bus: AudioBus, gainPct: number): void;
@@ -79,6 +86,7 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
   const createContext = options.createContext ?? defaultCreateContext;
   const fetchBytes = options.fetchBytes ?? ((url: string) => fetchBytesWithTimeout(url));
   const baseUrl = options.baseUrl ?? import.meta.env.BASE_URL;
+  const loadTimeoutMs = options.loadTimeoutMs ?? AUDIO_LOAD_TIMEOUT_MS;
 
   let context: AudioContextLike | null = null;
   let graph: BusGraph | null = null;
@@ -101,6 +109,16 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
     options.onLoopChange?.(name, handle !== null);
   };
 
+  const disconnectAll = (...nodes: (AudioNodeLike | null)[]): void => {
+    for (const node of nodes) {
+      try {
+        node?.disconnect();
+      } catch (cause) {
+        warn(`audio node disconnect failed: ${reasonOf(cause)}`, cause);
+      }
+    }
+  };
+
   const startLoop = (name: LoopName): void => {
     if (context === null || graph === null || loops[name] !== null || skippedLoops.has(name)) {
       return;
@@ -113,11 +131,13 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       if (log.enabled('debug')) log.debug('audio', `loop ${name} skipped: ${def.clip} not decoded`);
       return;
     }
+    let source: BufferSourceLike | null = null;
+    let gain: GainNodeLike | null = null;
     try {
-      const source = context.createBufferSource();
+      source = context.createBufferSource();
       source.buffer = buffer;
       source.loop = true;
-      const gain = context.createGain();
+      gain = context.createGain();
       const targetGain = def.gainPct / 100;
       const now = context.currentTime;
       gain.gain.setValueAtTime(0, now);
@@ -127,16 +147,19 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       source.start(0);
       setLoop(name, { source, gain });
     } catch (cause) {
+      // Skipped for the level, like a clip that is not decoded: `setBabbling` runs every frame and
+      // must not retry (and warn) 60 times a second.
+      skippedLoops.add(name);
       warn(`audio loop ${name} failed to start: ${reasonOf(cause)}`, cause);
+      disconnectAll(source, gain);
     }
   };
 
   const stopLoop = (name: LoopName): void => {
     const handle = loops[name];
     if (handle === null || context === null) return;
-    setLoop(name, null);
+    const { source, gain } = handle;
     try {
-      const { source, gain } = handle;
       source.onended = () => {
         source.disconnect();
         gain.disconnect();
@@ -155,6 +178,21 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       }
     } catch (cause) {
       warn(`audio loop ${name} failed to stop: ${reasonOf(cause)}`, cause);
+      // A source that could not be told to stop must at least not be heard, and not be orphaned.
+      disconnectAll(source, gain);
+    }
+    // Forgotten only now, whatever happened: `setBabbling(false)` runs every frame and must not retry.
+    setLoop(name, null);
+  };
+
+  /** Releases a context the engine will not use (one of the browser's few). */
+  const closeContext = (ctx: AudioContextLike): void => {
+    try {
+      void ctx.close().catch((cause: unknown) => {
+        warn(`audio close failed: ${reasonOf(cause)}`, cause);
+      });
+    } catch (cause) {
+      warn(`audio close failed: ${reasonOf(cause)}`, cause);
     }
   };
 
@@ -207,6 +245,7 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
           cause,
         };
         warn(unlockError.message, cause);
+        closeContext(ctx);
         return err(unlockError);
       }
       context = ctx;
@@ -243,19 +282,34 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
         }
         return;
       }
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        await Promise.all(
+        const loading = Promise.all(
           clips.filter((clip) => !buffers.has(clip)).map((clip) => decodeClip(clip, ctx)),
-        );
+        ).then(() => true);
+        const timeout = new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), loadTimeoutMs);
+        });
+        // A decode that never settles must not hold the loading screen: audio is optional.
+        if (!(await Promise.race([loading, timeout]))) {
+          warn(
+            `audio preload gave up after ${loadTimeoutMs} ms: the level starts without the rest`,
+          );
+        }
       } catch (cause) {
         // `decodeClip` handles each clip's failure; this is a bug in the engine, still not the level's.
         warn(`audio preload failed: ${reasonOf(cause)}`, cause);
+      } finally {
+        clearTimeout(timer);
       }
       skippedLoops.clear();
       options.onClipsDecoded?.(buffers.size);
     },
     playOneShot(clip, bus, gainPct) {
       if (context === null || graph === null) return;
+      // A frozen clock (paused, `interrupted`) never ends a source: cues would pile up and all sound
+      // at once on resume. A cue played while the context is not running is lost, like its moment.
+      if (context.state !== 'running') return;
       const buffer = buffers.get(clip);
       if (buffer === undefined) {
         if (log.enabled('debug')) log.debug('audio', `one-shot skipped: ${clip} not decoded`);

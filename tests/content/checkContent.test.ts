@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FEEDBACK_CLIENT_EVENTS } from '@client/feedback/feedbackEvents';
+import { SIM_EVENT_TYPES } from '@sim';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkContent, stripComments } from '../../tools/content/contentChecks.ts';
 import { createTestLevelGeometry } from '../support/testLevelGeometry.ts';
@@ -167,48 +170,80 @@ describe('checkContent', () => {
 
 describe('checkContent on feedback.json references', () => {
   const FILE = 'content/feedback.json';
+  // The ids come from the live file, never typed here: Geo tunes or deletes cues (D13).
+  const live = JSON.parse(
+    readFileSync(new URL('../../content/feedback.json', import.meta.url), 'utf8'),
+  ) as {
+    events: Record<string, string>;
+    cues: Record<string, { audio?: { clip: string }; visual?: unknown }>;
+    loops: { music: { clip: string } };
+  };
+  const SIM_EVENT = SIM_EVENT_TYPES[0];
+  const CLIENT_EVENT = FEEDBACK_CLIENT_EVENTS[0];
+  const cueWithAudio = Object.entries(live.cues).find(([, cue]) => cue.audio !== undefined);
+  const cueWithVisual = Object.entries(live.cues).find(([, cue]) => cue.visual !== undefined);
 
   it('reports an event name that no event has, with its JSON path', async () => {
     await mutateJson('content/feedback.json', (feedback) => {
-      (feedback.events as Record<string, string>).PapaBlockd = 'papa_bump';
+      (feedback.events as Record<string, string>).NoSuchEventHappened = Object.values(
+        live.events,
+      )[0] as string;
     });
     expect(await checkContent(root)).toEqual([
-      expect.objectContaining({ file: FILE, jsonPath: 'events.PapaBlockd' }),
+      expect.objectContaining({ file: FILE, jsonPath: 'events.NoSuchEventHappened' }),
     ]);
   });
 
-  it('reports an event that points at a cue that does not exist', async () => {
+  it('reports an event that points at a cue that does not exist (the schema refuses it)', async () => {
     await mutateJson('content/feedback.json', (feedback) => {
-      (feedback.events as Record<string, string>).PapaBlocked = 'papa_bonk';
+      (feedback.events as Record<string, string>)[SIM_EVENT] = 'no_such_cue';
     });
     const problems = await checkContent(root);
     expect(problems).toEqual([
-      expect.objectContaining({ file: FILE, jsonPath: 'events.PapaBlocked' }),
+      expect.objectContaining({ file: FILE, jsonPath: `events.${SIM_EVENT}` }),
     ]);
-    expect(problems[0]?.message).toContain('papa_bonk');
+    expect(problems[0]?.message).toContain('no_such_cue');
   });
 
-  it('accepts a client event name as well as a sim one', async () => {
+  it('accepts a client event whose cue has neither visual nor camera, as well as a sim event', async () => {
     await mutateJson('content/feedback.json', (feedback) => {
-      (feedback.events as Record<string, string>).PapaArrived = 'countdown_tick';
+      (feedback.cues as Record<string, unknown>).only_haptic = { haptic: 'light' };
+      (feedback.events as Record<string, string>)[CLIENT_EVENT] = 'only_haptic';
+      (feedback.events as Record<string, string>)[SIM_EVENT] = 'only_haptic';
     });
     expect(await checkContent(root)).toEqual([]);
   });
 
-  it('reports a cue clip with no file, and tells how to make the placeholders', async () => {
+  it('reports a client event whose cue has a visual: the director has no world to draw it in', async () => {
+    expect(cueWithVisual).toBeDefined();
     await mutateJson('content/feedback.json', (feedback) => {
-      const cues = feedback.cues as Record<string, { audio: { clip: string } }>;
-      (cues.papa_bump as { audio: { clip: string } }).audio.clip = 'papa_bonk';
+      (feedback.events as Record<string, string>)[CLIENT_EVENT] = (
+        cueWithVisual as [string, unknown]
+      )[0];
     });
     const problems = await checkContent(root);
     expect(problems).toEqual([
-      expect.objectContaining({ file: FILE, jsonPath: 'cues.papa_bump.audio.clip' }),
+      expect.objectContaining({ file: FILE, jsonPath: `events.${CLIENT_EVENT}` }),
+    ]);
+    expect(problems[0]?.message).toContain('client event');
+  });
+
+  it('reports a cue clip with no file, and tells how to make the placeholders', async () => {
+    expect(cueWithAudio).toBeDefined();
+    const [cueId] = cueWithAudio as [string, unknown];
+    await mutateJson('content/feedback.json', (feedback) => {
+      const cues = feedback.cues as Record<string, { audio: { clip: string } }>;
+      (cues[cueId] as { audio: { clip: string } }).audio.clip = 'papa_bonk';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: `cues.${cueId}.audio.clip` }),
     ]);
     expect(problems[0]?.message).toContain('npm run assets:audio');
   });
 
   it('reports a loop clip with no file', async () => {
-    await rm(join(root, 'public/assets/audio/music_crawler_calm.m4a'));
+    await rm(join(root, `public/assets/audio/${live.loops.music.clip}.m4a`));
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({ file: FILE, jsonPath: 'loops.music.clip' }),
     ]);

@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { feedbackClips } from '../../../src/content/feedbackClips.ts';
+import type { FeedbackTable } from '../../../src/content/schemas/feedback.ts';
 import { RESUME_COUNTDOWN_MS } from '../../../src/shared/constants.ts';
 
 // The live room and feel, read here and never copied: Geo re-exports the room and retunes the feel freely.
@@ -14,16 +16,22 @@ const liveGeometry = JSON.parse(
 export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'utf8')) as {
   haptics: Record<'light' | 'medium' | 'heavy', { patternMs: number[] }>;
   loops: { babble: { clip: string }; music: { clip: string } };
-  cues: Record<string, { audio?: { clip: string } }>;
+  cues: Record<string, { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' }>;
   events: Record<string, string>;
 };
 
 /** How many distinct clips the live feedback table names: what the preload must have decoded. */
-export const liveClipCount = new Set([
-  liveFeedback.loops.babble.clip,
-  liveFeedback.loops.music.clip,
-  ...Object.values(liveFeedback.cues).flatMap((cue) => (cue.audio ? [cue.audio.clip] : [])),
-]).size;
+export const liveClipCount = feedbackClips(liveFeedback as unknown as FeedbackTable).length;
+
+/**
+ * The vibration pattern the live table gives an event (`events` -> cue -> `haptic` -> `haptics`), or
+ * `null` when its cue has none. Geo retunes or deletes cues: no id and no kind is typed in a spec.
+ */
+export function hapticPatternOf(event: string): number[] | null {
+  const cueId = liveFeedback.events[event];
+  const kind = cueId === undefined ? undefined : liveFeedback.cues[cueId]?.haptic;
+  return kind === undefined ? null : liveFeedback.haptics[kind].patternMs;
+}
 
 export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
   movement: { walkSpeedMps: number };
@@ -172,10 +180,12 @@ export function settleAnimations(page: Page): Promise<unknown> {
 
 /**
  * The warnings the app raises about its own bugs; the dev server's other warnings are not ours.
- * The engine's own are here too: a clip that cannot be fetched or decoded fails every spec.
+ * Every warning of the audio engine (`[audio]`: unlock, resume, a clip, a loop, a one-shot, a
+ * preload that gave up...) and of the feedback director (`[feedback]`) is here: the console sink
+ * prints the channel in brackets, and a sound that silently fails to play fails every spec.
  */
-const OWN_WARNINGS =
-  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed|audio unlock failed|audio clip \S+ unavailable/;
+export const OWN_WARNINGS =
+  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed|\[(?:audio|feedback)\] /;
 
 /**
  * Collects what must fail a session: console errors, page errors, and the app's own warnings about
@@ -380,4 +390,110 @@ export function pressCode(
     },
     [type, key, code],
   );
+}
+
+/**
+ * Before the page loads: wraps `AudioContext` so that each construction records whether it ran in
+ * the task of a user gesture: a capture listener on `window` marks the task of every
+ * `pointerdown`, `pointerup`, `click` and `keydown` and clears the mark in the next macrotask. A
+ * context made from a timer, a `fetch` or the countdown's end (`GameResumed`) is outside any
+ * gesture, and iOS honours the unlock nowhere else. (`navigator.userActivation.isActive` would not
+ * do: it stays true for seconds after the gesture, longer than the loading screen.)
+ * `audioContextActivations` reads them back.
+ */
+export async function recordAudioContexts(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const Original = window.AudioContext;
+    const seen: boolean[] = [];
+    Object.assign(window, { ppAudioContextActivations: seen });
+    let isGestureTask = false;
+    for (const type of ['pointerdown', 'pointerup', 'click', 'keydown']) {
+      window.addEventListener(
+        type,
+        () => {
+          isGestureTask = true;
+          setTimeout(() => {
+            isGestureTask = false;
+          }, 0);
+        },
+        { capture: true },
+      );
+    }
+    if (typeof Original !== 'function') return;
+    window.AudioContext = class extends Original {
+      constructor(options?: AudioContextOptions) {
+        seen.push(isGestureTask);
+        super(options);
+      }
+    };
+  });
+}
+
+/** One entry per `AudioContext` made: `true` when it was made in the task of a gesture. */
+export function audioContextActivations(page: Page): Promise<boolean[]> {
+  return page.evaluate(() => [
+    ...(window as unknown as { ppAudioContextActivations: boolean[] }).ppAudioContextActivations,
+  ]);
+}
+
+/** A value an attribute of `<html>` took, in the order the page wrote them. */
+export interface MirrorWrite {
+  name: string;
+  value: string;
+}
+
+/**
+ * Before the page loads: records every write of the given `data-pp-*` attributes of `<html>`, in
+ * order and across attributes, from the first one (a `MutationObserver` on `document`, which exists
+ * before `<html>` does). `mirrorWrites` reads them back.
+ */
+export async function recordMirrorWrites(page: Page, names: string[]): Promise<void> {
+  await page.addInitScript((watched) => {
+    const writes: { name: string; value: string }[] = [];
+    Object.assign(window, { ppMirrorWrites: writes });
+    new MutationObserver((records) => {
+      for (const record of records) {
+        const name = record.attributeName as string;
+        const value = (record.target as Element).getAttribute(name) ?? '';
+        writes.push({ name, value });
+      }
+    }).observe(document, { attributes: true, subtree: true, attributeFilter: watched });
+  }, names);
+}
+
+export function mirrorWrites(page: Page): Promise<MirrorWrite[]> {
+  return page.evaluate(() => [
+    ...(window as unknown as { ppMirrorWrites: { name: string; value: string }[] }).ppMirrorWrites,
+  ]);
+}
+
+/**
+ * The `data-pp-audio` values written during each countdown (while `data-pp-state` is `resuming`),
+ * one list per countdown. A countdown is silent when its context ends suspended and stays so: a
+ * list is empty (nothing changed) or, from its first `suspended` on, only `suspended`. WebKit may
+ * report `running` once at the very start of the level's countdown, when the unlock's `resume()`
+ * lands after `PauseRequested` queued the suspend: nothing plays then (the loops start with the
+ * level), and it settles to `suspended` for the rest of the countdown.
+ */
+export function audioDuringCountdowns(writes: MirrorWrite[]): string[][] {
+  const countdowns: string[][] = [];
+  let state = '';
+  for (const { name, value } of writes) {
+    if (name === 'data-pp-state') {
+      if (value === 'resuming' && state !== 'resuming') countdowns.push([]);
+      state = value;
+    } else if (name === 'data-pp-audio' && state === 'resuming') {
+      countdowns.at(-1)?.push(value);
+    }
+  }
+  return countdowns;
+}
+
+/** Whether every countdown of `audioDuringCountdowns` was silent: settled on `suspended`, and kept there. */
+export function areCountdownsSilent(countdowns: string[][]): boolean {
+  return countdowns.every((values) => {
+    const firstSuspended = values.indexOf('suspended');
+    if (firstSuspended < 0) return values.length === 0;
+    return values.slice(firstSuspended).every((value) => value === 'suspended');
+  });
 }

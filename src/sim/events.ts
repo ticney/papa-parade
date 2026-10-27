@@ -16,17 +16,18 @@ export type SimEvent =
   | InvariantViolation;
 
 /**
- * The name of every `SimEvent`, as data, in the order of the union above (the client checks the
- * event names of `content/feedback.json` against it). No system reads it, so no golden moves.
+ * The name of every `SimEvent`, as data, sorted alphabetically (`events.test.ts` checks it; the
+ * union above is in the order the systems emit them). The client checks the event names of
+ * `content/feedback.json` against it. No system reads it, so no golden moves.
  */
 export const SIM_EVENT_TYPES = [
-  'TimeScaleChanged',
-  'PapaStateChanged',
-  'PapaPathPlanned',
-  'PapaArrived',
-  'PapaBlocked',
   'BabyStateChanged',
   'InvariantViolated',
+  'PapaArrived',
+  'PapaBlocked',
+  'PapaPathPlanned',
+  'PapaStateChanged',
+  'TimeScaleChanged',
 ] as const satisfies readonly SimEvent['type'][];
 
 type UnlistedSimEventType = Exclude<SimEvent['type'], (typeof SIM_EVENT_TYPES)[number]>;

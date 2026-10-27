@@ -60,6 +60,12 @@ export interface LevelScene {
    * step to the next; then the effects, on the interpolated sim clock.
    */
   update(world: Readonly<World>, alpha: number): void;
+  /**
+   * Ends the effects under way (rings hidden, shake offset back to zero). Effects advance only
+   * while the game loop runs; call it when the loop stops, so a frozen mid-effect frame is not what
+   * `drawStatic` shows behind the loading or error screen.
+   */
+  resetFx(): void;
   /** Frees geometries, materials and textures. Call it when a new level replaces this one. */
   dispose(): void;
 }
@@ -180,6 +186,10 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       const clockMs = world.time.sim + alpha * STEP_MS;
       waves.update(clockMs);
       shake.update(clockMs);
+    },
+    resetFx() {
+      waves.reset();
+      shake.reset();
     },
     dispose() {
       waves.dispose();

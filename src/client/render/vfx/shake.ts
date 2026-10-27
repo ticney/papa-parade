@@ -9,6 +9,8 @@ export interface Shake {
   start(amplitudeM: number, durationMs: number, startAt: number): void;
   /** Offsets the target for `clockMs` (sim ms), and back to exactly zero once the shake is over. */
   update(clockMs: number): void;
+  /** Ends the shake at once and puts the target back: the level is over and the loop no longer runs to finish it. */
+  reset(): void;
 }
 
 /**
@@ -37,10 +39,20 @@ export function createShake(target: Object3D): Shake {
         target.position.z = 0;
         return;
       }
-      if (progress < 0) return;
+      if (progress < 0) {
+        // Not started yet (or the clock went back): never leave the previous shake's offset on.
+        target.position.x = 0;
+        target.position.z = 0;
+        return;
+      }
       const decay = amplitudeM * (1 - progress);
       target.position.x = decay * Math.sin(progress * 2 * Math.PI * SHAKE_CYCLES);
       target.position.z = decay * Math.sin(progress * 2 * Math.PI * SHAKE_CYCLES * SHAKE_Z_RATIO);
+    },
+    reset() {
+      isActive = false;
+      target.position.x = 0;
+      target.position.z = 0;
     },
   };
 }

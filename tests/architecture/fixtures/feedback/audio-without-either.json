@@ -1,0 +1,5 @@
+{
+  "cues": {
+    "papa_bump": { "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 } }
+  }
+}

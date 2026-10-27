@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { toContentJsonSchema } from '../../src/content/jsonSchema.ts';
 import { parseContentFile } from '../../src/content/parseContentFile.ts';
 import { FeedbackTableSchema } from '../../src/content/schemas/feedback.ts';
+import { createTestFeedback } from '../support/testContent.ts';
 
 // Tunable values are never pinned here (golden rule: Geo tunes them). Structure, ranges and
 // cross-field rules only.
@@ -11,7 +12,9 @@ const FEEDBACK_URL = new URL('../../content/feedback.json', import.meta.url);
 const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 
 // Every numeric key of the file carries its unit: a percentage, a duration or a length in metres.
-const UNIT_SUFFIX = /(?:Pct|Ms|M)$/;
+// The suffixes are spelled out, as in `feelSchema.test.ts`: a bare `M` would accept `gamM`. A new
+// unit gets a deliberate, commented entry here.
+const UNIT_SUFFIX = /(?:Pct|Ms|RadiusM|AmplitudeM)$/;
 
 type Json = Record<string, unknown>;
 
@@ -125,9 +128,61 @@ describe('content/feedback.json', () => {
       ['events.PapaBlocked'],
     ],
     ['a cue id in camelCase', [['cues.papaBump', { haptic: 'light' }]], ['cues.papaBump']],
-  ])('refuses %s', (_name, changes, expected) => {
-    const failed = failedPaths(mutated(...changes));
-    for (const path of expected) expect(failed).toContain(path);
+    // The cross-reference of the schema: an event whose cue does not exist (and `constructor` is
+    // no cue, whatever `Object.prototype` says).
+    [
+      'an event pointing at a cue that does not exist',
+      [['events.PapaBlocked', 'no_such_cue']],
+      ['events.PapaBlocked'],
+    ],
+    [
+      'an event pointing at the cue id "constructor"',
+      [['events.PapaBlocked', 'constructor']],
+      ['events.PapaBlocked'],
+    ],
+    // Unknown keys at every level.
+    ['an unknown key in a haptic', [['haptics.light.bogusMs', 1]], ['haptics.light.bogusMs']],
+    [
+      'an unknown haptic kind in the table',
+      [['haptics.bogus', { patternMs: [1] }]],
+      ['haptics.bogus'],
+    ],
+    ['an unknown key in a loop', [['loops.babble.bogusPct', 1]], ['loops.babble.bogusPct']],
+    ['an unknown loop', [['loops.bogus', {}]], ['loops.bogus']],
+    [
+      'an unknown key in a cue audio',
+      [['cues.papa_bump.audio.bogusPct', 1]],
+      ['cues.papa_bump.audio.bogusPct'],
+    ],
+    [
+      'a non-integer vibration',
+      [['haptics.light.patternMs', [1.5]]],
+      ['haptics.light.patternMs[0]'],
+    ],
+    [
+      'a vibration of 1001 ms',
+      [['haptics.light.patternMs', [1001]]],
+      ['haptics.light.patternMs[0]'],
+    ],
+    ['a cue gain of -1', [['cues.papa_bump.audio.gainPct', -1]], ['cues.papa_bump.audio.gainPct']],
+  ])('refuses %s, and only that', (_name, changes, expected) => {
+    // The exact set of failing paths: a blanket failure, or a second unrelated one, does not pass.
+    expect([...new Set(failedPaths(mutated(...changes)))].sort()).toEqual([...expected].sort());
+  });
+
+  // The other side of each bound: a schema that is too strict breaks the content Geo tunes.
+  it.each<[string, [string, unknown][]]>([
+    ['a bus gain of 0', [['buses.sfx.gainPct', 0]]],
+    ['a bus gain of 100', [['buses.sfx.gainPct', 100]]],
+    ['a cue gain of 0', [['cues.papa_bump.audio.gainPct', 0]]],
+    ['a cue gain of 100', [['cues.papa_bump.audio.gainPct', 100]]],
+    ['a fade of 0 ms', [['loops.music.fadeMs', 0]]],
+    ['a vibration of 1 ms', [['haptics.light.patternMs', [1]]]],
+    ['a vibration of 1000 ms', [['haptics.light.patternMs', [1000]]]],
+    ['a vibration pattern of eight items', [['haptics.light.patternMs', [1, 1, 1, 1, 1, 1, 1, 1]]]],
+    ['a sound wave of radius exactly 3 m', [['cues.papa_bump.visual.maxRadiusM', 3]]],
+  ])('accepts %s', (_name, changes) => {
+    expect(mutated(...changes)).toMatchObject({ ok: true });
   });
 
   it('accepts a shake camera effect and a cue with only a camera', () => {
@@ -139,49 +194,78 @@ describe('content/feedback.json', () => {
   });
 
   it.each([
-    ['a shake of amplitude 0', { kind: 'shake', amplitudeM: 0, durationMs: 100 }],
-    ['a shake wider than half a metre', { kind: 'shake', amplitudeM: 0.6, durationMs: 100 }],
-    ['a shake of duration 0', { kind: 'shake', amplitudeM: 0.1, durationMs: 0 }],
-  ])('refuses %s', (_name, camera) => {
-    expect(mutated(['cues.countdown_tick', { camera }])).toMatchObject({ ok: false });
+    ['a shake of amplitude 0', { kind: 'shake', amplitudeM: 0, durationMs: 100 }, 'amplitudeM'],
+    [
+      'a shake wider than half a metre',
+      { kind: 'shake', amplitudeM: 0.6, durationMs: 100 },
+      'amplitudeM',
+    ],
+    ['a shake of duration 0', { kind: 'shake', amplitudeM: 0.1, durationMs: 0 }, 'durationMs'],
+    [
+      'an unknown key in a shake',
+      { kind: 'shake', amplitudeM: 0.1, durationMs: 100, bogusM: 1 },
+      'bogusM',
+    ],
+    ['an unknown camera kind', { kind: 'zoom', amplitudeM: 0.1, durationMs: 100 }, 'kind'],
+  ])('refuses %s, on that field', (_name, camera, field) => {
+    const failed = failedPaths(mutated(['cues.countdown_tick', { camera }]));
+    expect(failed.length).toBeGreaterThan(0);
+    expect(failed.every((path) => path.startsWith('cues.countdown_tick.camera'))).toBe(true);
+    expect(failed.some((path) => path.endsWith(field))).toBe(true);
   });
 
-  it('gives every numeric key of the file a unit suffix', () => {
+  it('accepts the table the tests build by hand: it cannot drift from the schema', () => {
+    expect(parse(createTestFeedback())).toMatchObject({ ok: true });
+  });
+
+  it('gives every numeric key of the file a unit suffix, in arrays too', () => {
     const numericKeys: string[] = [];
     const walk = (node: unknown, key: string): void => {
       if (typeof node === 'number') numericKeys.push(key);
-      else if (typeof node === 'object' && node !== null && !Array.isArray(node)) {
+      else if (Array.isArray(node)) for (const child of node) walk(child, key);
+      else if (typeof node === 'object' && node !== null) {
         for (const [name, child] of Object.entries(node)) walk(child, name);
       }
     };
     walk(real, '');
     expect(numericKeys.length).toBeGreaterThan(0);
+    // `patternMs: [15]` is checked through its array's key.
+    expect(numericKeys).toContain('patternMs');
     for (const key of numericKeys) expect(key, `${key} has no unit suffix`).toMatch(UNIT_SUFFIX);
+  });
+
+  it('rejects a key that only ends in a bare M or Ms: the suffixes are spelled out', () => {
+    for (const key of ['gamM', 'items', 'terms']) expect(key).not.toMatch(UNIT_SUFFIX);
   });
 
   it('describes every key in the JSON Schema, with its unit where it has one', () => {
     const emitted = toContentJsonSchema(FeedbackTableSchema);
     const undescribed: string[] = [];
+    let visited = 0;
     const walk = (node: unknown, path: string): void => {
       if (typeof node !== 'object' || node === null) return;
       const schema = node as Record<string, unknown>;
       const properties = schema.properties as Record<string, unknown> | undefined;
       for (const [name, child] of Object.entries(properties ?? {})) {
         if (name === '$schema') continue;
+        visited++;
         const described = (child as { description?: unknown }).description;
         if (typeof described !== 'string' || described === '') undescribed.push(`${path}${name}`);
         walk(child, `${path}${name}.`);
       }
       const additional = schema.additionalProperties;
       if (typeof additional === 'object' && additional !== null) walk(additional, `${path}*.`);
-      for (const branch of [
-        ...((schema.oneOf as unknown[]) ?? []),
-        ...((schema.anyOf as unknown[]) ?? []),
-      ]) {
-        walk(branch, path);
+      if (typeof schema.items === 'object') walk(schema.items, `${path}[].`);
+      for (const group of [schema.oneOf, schema.anyOf, schema.allOf]) {
+        for (const branch of (group as unknown[] | undefined) ?? []) walk(branch, path);
       }
+      // A `$ref` would hide a whole subtree from this walk: if the emitter ever starts to use
+      // them, follow them here rather than silently describe nothing.
+      expect(schema.$ref, `${path} uses a $ref the walk does not follow`).toBeUndefined();
     };
     walk(emitted, '');
+    // Not vacuous: the walk really went through the table (top level, buses, haptics, loops, cues...).
+    expect(visited).toBeGreaterThan(30);
     expect(undescribed).toEqual([]);
   });
 });

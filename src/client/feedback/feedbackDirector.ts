@@ -42,18 +42,28 @@ const reasonOf = (cause: unknown): string =>
  */
 export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDirector {
   const { table, audio, haptics } = deps;
-  // Built once: `handle` looks an event up and allocates nothing but what Web Audio makes.
+  // Built once: `handle` looks an event up in a Map. An event is not a frame, so what it allocates
+  // (the closures of the parts it plays, and what Web Audio makes) is not a hot path.
   const byEvent = new Map<string, ResolvedCue>();
   for (const [name, id] of Object.entries(table.events)) {
-    const cue = table.cues[id];
-    if (cue !== undefined) byEvent.set(name, { id, cue });
+    // `hasOwn`: a cue id like `constructor` must not resolve to a member of `Object.prototype`.
+    const cue = Object.hasOwn(table.cues, id) ? table.cues[id] : undefined;
+    if (cue === undefined) {
+      log.warn('feedback', `event ${name} points at the unknown cue ${id}: it plays nothing`);
+      continue;
+    }
+    byEvent.set(name, { id, cue });
   }
 
-  const part = (name: string, what: string, play: () => void): void => {
+  // Anything a cue calls can throw (Web Audio, `navigator.vibrate`, `matchMedia`, a DOM mirror):
+  // `handle` runs inside the frame loop, which stops on an exception, so each call is guarded and
+  // a part that fails is a `warn` that leaves the others playing.
+  const attempt = <T>(name: string, what: string, fallback: T, run: () => T): T => {
     try {
-      play();
+      return run();
     } catch (cause) {
       log.warn('feedback', `feedback ${what} for ${name} failed: ${reasonOf(cause)}`);
+      return fallback;
     }
   };
 
@@ -65,30 +75,38 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
 
       if (cue.audio !== undefined) {
         const { clip, bus, gainPct } = cue.audio;
-        part(name, 'sound', () => audio.playOneShot(clip, bus, gainPct));
+        attempt(name, 'sound', undefined, () => audio.playOneShot(clip, bus, gainPct));
       }
       if (cue.haptic !== undefined) {
         const kind = cue.haptic;
-        part(name, 'vibration', () => haptics.pulse(kind));
+        attempt(name, 'vibration', undefined, () => haptics.pulse(kind));
       }
-      if (cue.visual !== undefined) {
-        const { anchor, maxRadiusM, durationMs } = cue.visual;
-        const scene = deps.getScene();
-        if (world !== null && scene !== null) {
-          const at = anchor === 'papa' ? world.papa : world.baby;
-          part(name, 'ring', () =>
-            scene.soundWave(at.xM, at.zM, maxRadiusM, durationMs, world.time.sim),
-          );
+      // The visuals need a world to read and a scene to draw on (neither exists for a client event
+      // like the countdown tick: `content:check` refuses a visual on such a cue).
+      if (world !== null && (cue.visual !== undefined || cue.camera !== undefined)) {
+        const scene = attempt(name, 'scene lookup', null, deps.getScene);
+        if (scene !== null) {
+          if (cue.visual !== undefined) {
+            const { anchor, maxRadiusM, durationMs } = cue.visual;
+            const at = anchor === 'papa' ? world.papa : world.baby;
+            attempt(name, 'ring', undefined, () =>
+              scene.soundWave(at.xM, at.zM, maxRadiusM, durationMs, world.time.sim),
+            );
+          }
+          // A failing motion query counts as reduced motion: the safe side.
+          if (
+            cue.camera !== undefined &&
+            !attempt(name, 'motion query', true, deps.prefersReducedMotion)
+          ) {
+            const { amplitudeM, durationMs } = cue.camera;
+            attempt(name, 'camera effect', undefined, () =>
+              scene.shake(amplitudeM, durationMs, world.time.sim),
+            );
+          }
         }
       }
-      if (cue.camera !== undefined && !deps.prefersReducedMotion()) {
-        const { amplitudeM, durationMs } = cue.camera;
-        const scene = deps.getScene();
-        if (world !== null && scene !== null) {
-          part(name, 'camera effect', () => scene.shake(amplitudeM, durationMs, world.time.sim));
-        }
-      }
-      deps.onCue?.(id);
+      const { onCue } = deps;
+      if (onCue !== undefined) attempt(name, 'cue report', undefined, () => onCue(id));
     },
   };
 }
