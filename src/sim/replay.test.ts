@@ -192,6 +192,31 @@ describe('replayJournal', () => {
     });
   });
 
+  it('returns an error, not a rejection, when no open cell is left for the baby', async () => {
+    // A 5 × 5 block of walkable cells: Papa (one cell of clearance) still has cells, the baby
+    // (a 1 m radius is four cells) has none.
+    const rows = geometry.nav.rows.map((row, index) =>
+      index < 5 ? `11111${'0'.repeat(row.length - 5)}` : '0'.repeat(row.length),
+    );
+    const tight = { ...geometry, nav: { ...geometry.nav, rows } };
+    const fat = {
+      ...content,
+      feel: { ...content.feel, baby: { ...content.feel.baby, bodyRadiusM: 1 } },
+    };
+    const journal = (await liveGame()).sim.journal();
+    const forged = { ...journal, feelHash: hashJson(fat.feel), geometryHash: hashJson(tight) };
+    const result = await replayJournal({
+      content: fat,
+      geometry: tight,
+      journal: forged,
+      untilSimMs: 100,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: 'journal', message: expect.stringContaining('where the baby can stand') },
+    });
+  });
+
   it('returns an error for another level geometry, naming it, without throwing', async () => {
     const journal = (await liveGame()).sim.journal();
     const other = { ...geometry, id: 'other_room' };

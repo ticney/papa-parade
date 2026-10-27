@@ -132,3 +132,8 @@
 - **Smoothed turning** of the gaze marker and any crawl animation (bob, squash and stretch): E7. Reason: provisional art.
 - **Debug view of the baby's path and grid:** story 2.1's navigation view.
 - **E2E stability of « the scene changed » proofs.** The baby moves on its own, so a changing picture no longer proves that Papa walks; the specs that used it now also check Papa's own mirrored position (`papaAt`) at the end of his walk or at the wall. The mirrors are written on events only, so a per-frame proof of Papa's motion still needs `window.__PP__` (story 1.13).
+
+## Deferred from: code review of story 1-8-le-bebe-vit-dans-le-salon (2026-10-27)
+
+- **Agent spawned in a tiny region or walled in never moves, and nothing reports it.** `spawnOf` takes the nearest open cell whatever its region; the baby's failed plan retries a pause forever (D3) with no event. Reason: the retry is the specified behaviour and the sim never logs; the « spawn is in the main region » check belongs to the level validation, stories 1.10 / 1.21 (same item as the Papa entry of story 1.7).
+- **`Math.random` is not in Biome's `noRestrictedGlobals` for `src/sim`.** Only `tests/architecture/simPurity.test.ts` catches it, while CLAUDE.md says Biome enforces the sim purity rules. Reason: adding a restricted global strengthens a guardrail, Geo's call.

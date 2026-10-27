@@ -273,10 +273,18 @@ describe('snapshot / restore', () => {
     // Past the first babble, then until the baby is wandering with waypoints behind it.
     for (let i = 0; i < 2000 && live.world.baby.state !== 'wander'; i++) live.step();
     expect(live.world.baby.state).toBe('wander');
-    stepN(live, 20);
+    // A straight wander has a single waypoint (its goal): go on until one with a corner is half done.
+    for (
+      let i = 0;
+      i < 20000 && !(live.world.baby.state === 'wander' && live.world.baby.pathIndex > 0);
+      i++
+    )
+      live.step();
     expect(live.world.baby.state).toBe('wander');
     const snapshot = live.snapshot();
-    expect(snapshot.world.baby.path.length).toBeGreaterThan(0);
+    // Path half done: some waypoints behind it, some still ahead.
+    expect(snapshot.world.baby.pathIndex).toBeGreaterThan(0);
+    expect(snapshot.world.baby.pathIndex).toBeLessThan(snapshot.world.baby.path.length);
     live.enqueue({ type: 'TapFloor', t: asSimMs(live.world.time.sim + 500), xM: 2, zM: 1 });
     const tail = live.journal().entries.filter((e) => e.applyAt > snapshot.world.time.sim);
     stepN(live, 3000);

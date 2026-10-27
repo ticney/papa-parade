@@ -60,7 +60,7 @@ describe('pickWanderCell', () => {
       const cell = pickWanderCell(grid, center(0), center(0), 0.4, 1.1, rng);
       counts.set(cell, (counts.get(cell) ?? 0) + 1);
     }
-    expect([...counts.keys()].sort()).toEqual([2, 3, 4]);
+    expect([...counts.keys()].sort((a, b) => a - b)).toEqual([2, 3, 4]);
     for (const hits of counts.values()) {
       expect(hits).toBeGreaterThan(850);
       expect(hits).toBeLessThan(1150);
@@ -74,7 +74,7 @@ describe('pickWanderCell', () => {
     for (let i = 0; i < 300; i++) {
       seen.add(pickWanderCell(grid, center(0), center(0), 5, 6, rng));
     }
-    expect([...seen].sort()).toEqual([1, 2, 3]);
+    expect([...seen].sort((a, b) => a - b)).toEqual([1, 2, 3]);
   });
 
   it('never picks the cell the baby stands in', () => {

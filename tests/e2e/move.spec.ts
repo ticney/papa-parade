@@ -16,6 +16,7 @@ import {
   sceneShot,
   startLevel,
   stubGamepad,
+  WALK_BOUND_MS,
   waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
@@ -35,13 +36,6 @@ const FLOOR = {
   minZ: geometry.nav.originM[1],
   maxZ: geometry.nav.originM[1] + geometry.nav.rowCount * geometry.cellM,
 };
-/** The longest walk across the room, in metres, for the bound on how long a walk may take. */
-const ROOM_DIAGONAL_M = Math.hypot(FLOOR.maxX - FLOOR.minX, FLOOR.maxZ - FLOOR.minZ);
-/** `feel.json` speed: read, not copied. */
-const WALK_SPEED_MPS = (
-  JSON.parse(readFileSync('content/feel.json', 'utf8')) as { movement: { walkSpeedMps: number } }
-).movement.walkSpeedMps;
-const WALK_BOUND_MS = (ROOM_DIAGONAL_M / WALK_SPEED_MPS) * 1000 + OVERRUN_MARGIN_MS * 2;
 /** Frames a key is held to move Papa a visible distance, a bound and not a wait. */
 const HOLD_FRAMES = 20;
 const FRAMES_TO_SETTLE = 10;
@@ -216,10 +210,12 @@ test.describe('move Papa', () => {
     const start = await papaAt(page);
     await page.keyboard.down('ArrowUp');
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkDir');
-    // The mirrored position changes on an event: the walk starting (where he started), then the
-    // blockage (where he stopped, once, when he cannot move at all). The picture of the room
-    // cannot say he stopped any more, since the baby moves on its own.
-    await expect.poll(() => papaAt(page), { timeout: WALK_BOUND_MS }).not.toEqual(start);
+    // The mirrored position changes on an event: the walk starting (already one step from where
+    // he started), then the blockage (where he stopped, once, when he cannot move at all). So wait
+    // for a change from the position mirrored at the walk's start. The picture of the room cannot
+    // say he stopped any more, since the baby moves on its own.
+    const walkStart = await papaAt(page);
+    await expect.poll(() => papaAt(page), { timeout: WALK_BOUND_MS }).not.toEqual(walkStart);
     expect(await state(page)).toBe('walkDir'); // still pushing, but not moving
     const stuck = await papaAt(page); // mirrored when he was blocked
     expect(stuck).not.toEqual(start);

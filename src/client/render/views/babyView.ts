@@ -17,6 +17,10 @@ const BABY_GAZE_LENGTH_PCT = 55;
 const BABY_GAZE_WIDTH_PCT = 40;
 /** The marker sits at this height on the body, as a share of the radius above the centre, in percent. */
 const BABY_GAZE_HEIGHT_PCT = 25;
+/** Smallest body radius drawn, in metres: a feel with no radius still shows a (tiny) baby. */
+const BABY_MIN_RADIUS_M = 0.01;
+/** Radial segments of the gaze cone: a six-sided cone reads as a cone and costs 12 triangles. */
+const BABY_GAZE_SEGMENTS = 6;
 
 /** Where the baby is drawn and which way it looks. */
 export interface BabyPose extends PointXZ {
@@ -52,19 +56,26 @@ export function createBabyView(
   blobs: BlobKit,
   radiusM: number,
 ): BabyView {
-  const bodyRadiusM = Math.max(radiusM, 0.01);
+  const bodyRadiusM = Math.max(radiusM, BABY_MIN_RADIUS_M);
   const bodyGeometry = new IcosahedronGeometry(bodyRadiusM, BABY_BODY_DETAIL);
   const body = new Mesh(bodyGeometry, toon.get(new Color(BABY_COLOR)));
   body.name = 'baby';
 
   // A cone points along +y: laid down so that its tip points along +z, the group's forward.
   const gazeLengthM = (bodyRadiusM * BABY_GAZE_LENGTH_PCT) / 100;
-  const gazeGeometry = new ConeGeometry((bodyRadiusM * BABY_GAZE_WIDTH_PCT) / 100, gazeLengthM, 6);
+  const gazeGeometry = new ConeGeometry(
+    (bodyRadiusM * BABY_GAZE_WIDTH_PCT) / 100,
+    gazeLengthM,
+    BABY_GAZE_SEGMENTS,
+  );
+  gazeGeometry.translate(0, gazeLengthM / 2, 0); // the base at the origin, the tip along +y
   gazeGeometry.rotateX(Math.PI / 2);
   const gaze = new Mesh(gazeGeometry, toon.get(new Color(BABY_GAZE_COLOR)));
   gaze.name = 'baby_gaze';
-  // Its base is on the surface, its tip out in front.
-  gaze.position.set(0, (bodyRadiusM * BABY_GAZE_HEIGHT_PCT) / 100, bodyRadiusM);
+  // Its base is on the surface (at this height, where the sphere is a little narrower than at the
+  // equator), its tip out in front.
+  const gazeHeightM = (bodyRadiusM * BABY_GAZE_HEIGHT_PCT) / 100;
+  gaze.position.set(0, gazeHeightM, Math.sqrt(bodyRadiusM ** 2 - gazeHeightM ** 2));
   const gazeGroup = new Group();
   gazeGroup.name = 'baby_gaze_group';
   gazeGroup.position.y = bodyRadiusM; // the centre of the body

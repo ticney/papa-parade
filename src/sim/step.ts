@@ -11,9 +11,10 @@ import type { World } from './world.ts';
  *   applyCommands, advanceTime, runDirector, runBaby, runThreats, runPapa, runPhysics,
  *   runGauges, runInstinct, runScoring, runFlow
  *
- * Only applyCommands, advanceTime, runBaby and runPapa exist so far (the director and threats
- * systems will be inserted around runBaby and before runPapa). Each later story inserts its system at its slot, edits the
- * pinned order test and, if behaviour changes, regenerates the golden references and says so.
+ * Only applyCommands, advanceTime, runBaby and runPapa exist so far: runDirector will go before
+ * runBaby, runThreats between runBaby and runPapa. Each later story inserts its system at its
+ * slot, edits the pinned order test and, if behaviour changes, regenerates the golden references
+ * and says so.
  * Systems never call each other: they read and write `World` and push to `ctx.events`.
  */
 export const SYSTEMS: readonly System[] = [applyCommands, advanceTime, runBaby, runPapa];

@@ -1,3 +1,4 @@
+import { STEP_MS } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import { createTestContent, createTestGeometry } from '../support/testContent.ts';
 import { recordScenario, SCENARIOS } from './scenarios.ts';
@@ -27,7 +28,7 @@ describe('golden scenario baby_wander covers the cases it is there for', () => {
     expect(changes[0]).toMatchObject({ from: 'babble', to: 'wander' });
     const t = changes[0]?.t as number;
     expect(t).toBeGreaterThanOrEqual(content.feel.baby.babbleMinMs);
-    expect(t).toBeLessThan(content.feel.baby.babbleMinMs + 10);
+    expect(t).toBeLessThan(content.feel.baby.babbleMinMs + STEP_MS);
   });
 
   it('strictly alternates babble and wander, for at least three full cycles', () => {
