@@ -195,3 +195,15 @@
 - **Only the primary pointer presses a threat**: a thumb resting on the screen makes every other touch non-primary. Reason: D6 / Open point 2 (`Release` names no threat); decide with the first multi-threat story (1.16 / 1.18) or on the first phone playtest.
 - **The pressed threat's highlight is optimistic**: a press the sim ignores keeps the ring and chevron up while the threat stays `telegraph` / `windowOpen`. Reason: same family as the 1.10 « press enqueued after its window expired » item; watch in the playtest (1.24).
 - **`tapLatency` marks are JS-side** (handler, right after `worldUi.render`): compositor and vsync presentation are not measured. Reason: AC 6 defines these marks; a trace-based check belongs to the performance pass (1.24).
+
+## Deferred from: implementation of story 1-12-bots-et-simulation-en-masse (2026-10-27)
+
+- **Run duration is a CLI default** (`SIM_CLI_DEFAULT_UNTIL_MS`, 3 min, D10). Story 1.18 gives the level a `durationMs`; the CLI should then default to it.
+- **`meanScore` is `null`** in the report (D9). Story 1.22 fills it from Mama's score; 3.4 adds the playtest indicators.
+- **Overlapping presses**: a bot's `Release` ends every pending press (the sim's rule), fine while one threat is active at a time. Stories 1.16 / 1.18 (two threats at once), with the multi-touch item of 1.11.
+- **Bots know only Parry** (`BotResponse` = `'parry'`): `holdMsFor` is an exhaustive `switch`, so story 1.23 (Firmness) fails to typecheck until the bots learn it; 4.6 / 4.9 (`wait`, `nothing`) likewise.
+- **The human bot's reaction floor reads `threat.enteredAt`**, the entry of the *current* state: a bot created while a window is already open measures its reaction from the window's opening, not from the telegraph. Only matters for a bot created mid-window (1.13's autoplay started late); fix with a telegraph time on `ThreatInstance` if it ever does.
+- **`sim:replay` is always strict** (D13). Still open from 1.3, « Invariant strictness follows the build »: a playtest journal recorded with clamping on may diverge in `sim:replay`.
+- **Still open (1.3), « `JournalSchema`, `contentVersion` / `levelId` in the journal »** (story 3.3): the recorded-game wrapper (`tools/sim/runFile.ts`, D12) carries `levelId`, `untilSimMs` and `worldHash` for the CLI only; 3.3 may absorb it.
+- **`?threats=off`** (1.11): untouched, still for story 1.13.
+- **`npm run ci` e2e step does not pass in the remote container this story was developed in** (134 of 140 Playwright tests never see `data-pp-app="start"`, the same on the untouched tree before the first edit; likely no WebGL in the container). Not caused by this story; to re-run on Geo's Mac.

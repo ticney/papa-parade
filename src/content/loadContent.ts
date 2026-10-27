@@ -1,7 +1,13 @@
 import { err, ok, type Result } from '@shared/result';
 import type { ContentBundle } from './contentBundle.ts';
 import { type ContentError, type ContentProblem, createContentError } from './contentError.ts';
-import { type ContentFile, FEEDBACK_FILE, FEEL_FILE, STRINGS_FILE } from './contentFiles.ts';
+import {
+  BOTS_FILE,
+  type ContentFile,
+  FEEDBACK_FILE,
+  FEEL_FILE,
+  STRINGS_FILE,
+} from './contentFiles.ts';
 import type { ContentSource } from './contentSource.ts';
 import { parseContentFile } from './parseContentFile.ts';
 import { checkStringReferences } from './stringRefs.ts';
@@ -30,15 +36,17 @@ async function loadFile<T>(
 export async function loadContent(
   source: ContentSource,
 ): Promise<Result<ContentBundle, ContentError>> {
-  const [feel, feedback, strings] = await Promise.all([
+  const [feel, feedback, bots, strings] = await Promise.all([
     loadFile(source, FEEL_FILE),
     loadFile(source, FEEDBACK_FILE),
+    loadFile(source, BOTS_FILE),
     loadFile(source, STRINGS_FILE),
   ]);
 
   const problems: ContentProblem[] = [];
   if (!feel.ok) problems.push(...feel.error);
   if (!feedback.ok) problems.push(...feedback.error);
+  if (!bots.ok) problems.push(...bots.error);
   if (!strings.ok) problems.push(...strings.error);
 
   if (strings.ok) {
@@ -50,8 +58,13 @@ export async function loadContent(
     problems.push(...checkStringReferences(loaded, strings.value, `content/${STRINGS_FILE.file}`));
   }
 
-  if (problems.length > 0 || !feel.ok || !feedback.ok || !strings.ok) {
+  if (problems.length > 0 || !feel.ok || !feedback.ok || !bots.ok || !strings.ok) {
     return err(createContentError(problems));
   }
-  return ok({ feel: feel.value, feedback: feedback.value, strings: strings.value });
+  return ok({
+    feel: feel.value,
+    feedback: feedback.value,
+    bots: bots.value,
+    strings: strings.value,
+  });
 }

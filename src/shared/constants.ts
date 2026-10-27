@@ -142,3 +142,12 @@ export const SOUND_WAVE_POOL_SIZE = 4;
 
 /** A window modifier that changes nothing: fatigue and instinct (stories 1.19 and 2.9) stay at it until their systems exist. */
 export const NEUTRAL_WINDOW_MODIFIER = 1;
+
+/**
+ * XORed with the run's seed to seed a bot's own RNG: a bot that drew from the world's stream would
+ * change the game it plays, and the same seed must not give the bot the world's sfc32 stream.
+ */
+export const BOT_SEED_SALT = 0xb07b07b0;
+
+/** How long `npm run sim` plays a game by default, in sim ms: the GDD's 3-minute level (until a level has its own duration). */
+export const SIM_CLI_DEFAULT_UNTIL_MS = 180_000;

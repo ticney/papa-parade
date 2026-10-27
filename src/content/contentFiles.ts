@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { SNAKE_ID_PATTERN } from './levelNodeNames.ts';
+import { type BotSettings, BotsSchema } from './schemas/bots.ts';
 import { type FeedbackTable, FeedbackTableSchema } from './schemas/feedback.ts';
 import { type Feel, FeelSchema } from './schemas/feel.ts';
 import { type Level, LevelSchema } from './schemas/level.ts';
@@ -27,6 +28,12 @@ export const FEEDBACK_FILE: ContentFile<FeedbackTable> = {
   schema: FeedbackTableSchema,
 };
 
+export const BOTS_FILE: ContentFile<BotSettings> = {
+  file: 'bots.json',
+  schemaName: 'bots',
+  schema: BotsSchema,
+};
+
 export const STRINGS_FILE: ContentFile<Strings> = {
   file: 'strings.fr.json',
   schemaName: 'strings',
@@ -40,6 +47,7 @@ export const STRINGS_FILE: ContentFile<Strings> = {
 export const CONTENT_FILES: readonly ContentFile<unknown>[] = [
   FEEL_FILE,
   FEEDBACK_FILE,
+  BOTS_FILE,
   STRINGS_FILE,
 ];
 

@@ -41,6 +41,8 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 | `npm test` | Vitest: unit, golden and architecture tests |
 | `npm run test:coverage` | Vitest with the `src/sim` ≥ 90 % coverage thresholds; this is what CI runs instead of `npm test` |
 | `npm run golden:update` | Regenerate the golden journals and references (deliberate: say so in the story) |
+| `npm run sim -- --bot <id> …` | Plays headless games with a bot (`perfect`, `human`, `random`, `idle`) and writes a JSON report (`--level`, `--seed`, `--runs`, `--until-ms`, `--out`, `--journals`); `--help` lists them |
+| `npm run sim:replay -- <file>` | Replays a game recorded by `npm run sim --journals` and checks it ends in the same state (exit 0 if so) |
 | `npm run e2e` | Playwright, chromium + webkit, landscape phone viewport |
 | `npm run content:check` | Validate `content/**` against the Zod schemas, string references and generated JSON Schemas |
 | `npm run content:schemas` | Regenerate `content/_schemas/` (commit the result; never edit it by hand) |

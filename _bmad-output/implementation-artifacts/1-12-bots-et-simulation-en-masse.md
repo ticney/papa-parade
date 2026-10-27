@@ -1,6 +1,10 @@
+---
+baseline_commit: ca7e772594ab999e03798b3f126ff3237de8df16
+---
+
 # Story 1.12: Bots and Mass Simulation
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.12 « Bots et simulation en masse ». Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -28,40 +32,40 @@ Story 1.11 is in `review` at the time of writing (commit `5e1bd53`). Start only 
 
 ## Tasks / Subtasks
 
-- [ ] **T0 — Baseline** (Precondition)
-  - [ ] `npm run ci` green on the untouched tree; note the unit test count and duration in the Debug Log.
-  - [ ] Measure the cost of a headless step: a throwaway script (not committed) running `createSim` on the live level for 18 000 steps; note steps/s in the Debug Log. It sizes AC 6's test and the CLI's progress logging.
-- [ ] **T1 — Bot settings as content** (AC 1; D2)
-  - [ ] `src/content/schemas/bots.ts`: `BotsSchema` (strict, every key described, units in the names, no default/optional), shape in Dev Notes › `content/bots.json`. Export `type BotSettings = z.infer<…>`.
-  - [ ] `content/bots.json` with the starting values of the Dev Notes; register `BOTS_FILE` in `src/content/contentFiles.ts` (`CONTENT_FILES`), add `bots: BotSettings` to `ContentBundle`, load it in `loadContent` like `feedback`.
-  - [ ] `npm run content:schemas` → commit `content/_schemas/bots.schema.json` (generated, never by hand).
-  - [ ] `tests/support/testContent.ts`: `createTestContent()` adds an inline `createTestBots()` (same pattern as `createTestFeedback`: not hashed by the sim, so no golden moves). Update the content tests that enumerate `CONTENT_FILES` or build a `ContentBundle` by hand (`tests/content/*`, client tests that build bundles) — list each in the Completion Notes.
-  - [ ] Schema tests in `tests/content/botsSchema.test.ts` (valid file, unknown key refused, `tapMs ≥` nothing silly: `tapMs > 0`, `jitterSdMs ≥ 0`, `pressChancePct` in [0, 100]…).
-- [ ] **T2 — The `Bot` contract and the runner** (AC 1, 2; D1, D3, D4)
-  - [ ] `src/bots/bot.ts`: `BOT_IDS`, `BotId`, `Bot`, `BotSetup`, `BotResponse` (Dev Notes › Contract).
-  - [ ] `src/bots/createBot.ts`: `createBot(id: string, setup): Result<Bot, AppError>`; an unknown id is an `err` whose message lists `BOT_IDS`. Validates the setup (`tapMs < holdMinMs`, finite numbers) → `err`, never a throw.
-  - [ ] `src/bots/playGame.ts`: `playGame(sim, bot, untilSimMs, onEvent?)`: the loop of Dev Notes › Runner (act → enqueue → step → drain). Allocation-free per step (one reused `out` array). Returns nothing; the caller reads `sim`.
-  - [ ] `src/bots/gaussian.ts`: `nextGaussian(rng: RngState): number` (Box–Muller on `@shared/rng`'s `nextFloat`, standard normal), with `gaussian.test.ts` colocated (determinism, mean ≈ 0 and sd ≈ 1 over 20 000 draws within a stated tolerance, never `NaN` / `±Infinity`).
-- [ ] **T3 — The four bots** (AC 1, 2, 6; D5–D8)
-  - [ ] `src/bots/idleBot.ts`, `perfectBot.ts`, `humanBot.ts`, `randomBot.ts`, each `create<Name>Bot(setup)`; behaviour exactly as Dev Notes › The four bots.
-  - [ ] Bot tests in `tests/bots/` (they need the frozen fixtures of `tests/support/`, which `src/bots` may not import): one file per bot plus `tests/bots/botContract.test.ts` (Dev Notes › Testing).
-  - [ ] **AC 6** in `tests/bots/perfectBot.test.ts`: 100 games, seeds 0–99, frozen test level with the outlet, every `ResponseResolved` of the outlet `perfect`, ≥ 1 per game, zero `GagTriggered`. Keep the test under ~10 s on the dev Mac (size `untilSimMs` from T0; see Dev Notes › Testing).
-- [ ] **T4 — `npm run sim`** (AC 3, 4; D9–D12)
-  - [ ] `tools/sim/loadSimLevel.ts`: loads `ContentBundle`, `LevelContent` and the geometry of a level from a content folder (node content source, same parsers and schemas as the game), plus `listLevelIds(contentDir)`. An unknown level → an error naming the known ids.
-  - [ ] `tools/sim/simArgs.ts`: `parseSimArgs(argv): Result<SimArgs, string>` with `node:util` `parseArgs` (`strict: true`); defaults and checks in Dev Notes › CLI.
-  - [ ] `tools/sim/simReport.ts`: `createRunSummary(sim, …)` and `summarizeRuns(…)`: pure, the report shape of Dev Notes › Report.
-  - [ ] `tools/sim/runSim.ts`: exported `runSim(args, loaded): Promise<Result<SimReport, string>>` (pure of I/O, testable with the frozen fixtures) and a `main()` behind the `import.meta.url === pathToFileURL(process.argv[1]).href` guard (same as `extractLevelGeometry.ts`), which parses, loads, runs, writes the report (`--out`) and the recorded games (`--journals`).
-  - [ ] `package.json`: `"sim": "tsx tools/sim/runSim.ts"`, `"sim:replay": "tsx tools/sim/replaySim.ts"`. Do not add them to `npm run ci`.
-- [ ] **T5 — `npm run sim:replay`** (AC 5; D10)
-  - [ ] `tools/sim/runFile.ts`: the recorded-game file (Dev Notes › Recorded game file): `toRunFile(…)` and `parseRunFile(json): Result<RunFile, string>` (shape checks; the journal itself is checked by `replayJournal`).
-  - [ ] `tools/sim/replaySim.ts`: exported `replayRunFile(file, loaded): Promise<Result<{ worldHash }, string>>` and a guarded `main()`: read, parse, load the live content of `file.levelId`, `replayJournal` to `untilSimMs` (strict invariants), compare `hashJson(sim.world)` with `worldHash`.
-- [ ] **T6 — Tool tests** (AC 3–5)
-  - [ ] `tests/tools/sim/simArgs.test.ts`, `simReport.test.ts`, `runSim.test.ts`, `runFile.test.ts`, `replaySim.test.ts` (Dev Notes › Testing), with the frozen fixtures.
-  - [ ] `tests/tools/sim/cli.test.ts`: spawns the two real commands (`npx tsx …` via `node:child_process` `spawnSync`) for the exit-code paths only: unknown bot, unknown level, `--runs 0`, a valid 1-run game into a temp dir (`os.tmpdir()` + `mkdtempSync`) then `sim:replay` of its recorded game → exit 0, then the same file with its `worldHash` altered → exit ≠ 0. Remove the temp dir in `afterAll`.
-- [ ] **T7 — Docs and status**
-  - [ ] `CLAUDE.md` › Commands: add the two rows (`npm run sim`, `npm run sim:replay`) in the existing table style. Do not touch anything else in it.
-  - [ ] `deferred-work.md`: Dev Notes › Deferred items this story touches / Deferred by this story.
-  - [ ] Final `npm run ci` green; run once by hand `npm run sim -- --level salon_crawler --seed 42 --bot perfect --runs 100 --out <tmp>/report.json` and `--bot human`, `--bot idle`, `--bot random` (10 runs each) and paste the headline numbers and the wall time in the Debug Log.
+- [x] **T0 — Baseline** (Precondition)
+  - [x] `npm run ci` green on the untouched tree; note the unit test count and duration in the Debug Log.
+  - [x] Measure the cost of a headless step: a throwaway script (not committed) running `createSim` on the live level for 18 000 steps; note steps/s in the Debug Log. It sizes AC 6's test and the CLI's progress logging.
+- [x] **T1 — Bot settings as content** (AC 1; D2)
+  - [x] `src/content/schemas/bots.ts`: `BotsSchema` (strict, every key described, units in the names, no default/optional), shape in Dev Notes › `content/bots.json`. Export `type BotSettings = z.infer<…>`.
+  - [x] `content/bots.json` with the starting values of the Dev Notes; register `BOTS_FILE` in `src/content/contentFiles.ts` (`CONTENT_FILES`), add `bots: BotSettings` to `ContentBundle`, load it in `loadContent` like `feedback`.
+  - [x] `npm run content:schemas` → commit `content/_schemas/bots.schema.json` (generated, never by hand).
+  - [x] `tests/support/testContent.ts`: `createTestContent()` adds an inline `createTestBots()` (same pattern as `createTestFeedback`: not hashed by the sim, so no golden moves). Update the content tests that enumerate `CONTENT_FILES` or build a `ContentBundle` by hand (`tests/content/*`, client tests that build bundles) — list each in the Completion Notes.
+  - [x] Schema tests in `tests/content/botsSchema.test.ts` (valid file, unknown key refused, `tapMs ≥` nothing silly: `tapMs > 0`, `jitterSdMs ≥ 0`, `pressChancePct` in [0, 100]…).
+- [x] **T2 — The `Bot` contract and the runner** (AC 1, 2; D1, D3, D4)
+  - [x] `src/bots/bot.ts`: `BOT_IDS`, `BotId`, `Bot`, `BotSetup`, `BotResponse` (Dev Notes › Contract).
+  - [x] `src/bots/createBot.ts`: `createBot(id: string, setup): Result<Bot, AppError>`; an unknown id is an `err` whose message lists `BOT_IDS`. Validates the setup (`tapMs < holdMinMs`, finite numbers) → `err`, never a throw.
+  - [x] `src/bots/playGame.ts`: `playGame(sim, bot, untilSimMs, onEvent?)`: the loop of Dev Notes › Runner (act → enqueue → step → drain). Allocation-free per step (one reused `out` array). Returns nothing; the caller reads `sim`.
+  - [x] `src/bots/gaussian.ts`: `nextGaussian(rng: RngState): number` (Box–Muller on `@shared/rng`'s `nextFloat`, standard normal), with `gaussian.test.ts` colocated (determinism, mean ≈ 0 and sd ≈ 1 over 20 000 draws within a stated tolerance, never `NaN` / `±Infinity`).
+- [x] **T3 — The four bots** (AC 1, 2, 6; D5–D8)
+  - [x] `src/bots/idleBot.ts`, `perfectBot.ts`, `humanBot.ts`, `randomBot.ts`, each `create<Name>Bot(setup)`; behaviour exactly as Dev Notes › The four bots.
+  - [x] Bot tests in `tests/bots/` (they need the frozen fixtures of `tests/support/`, which `src/bots` may not import): one file per bot plus `tests/bots/botContract.test.ts` (Dev Notes › Testing).
+  - [x] **AC 6** in `tests/bots/perfectBot.test.ts`: 100 games, seeds 0–99, frozen test level with the outlet, every `ResponseResolved` of the outlet `perfect`, ≥ 1 per game, zero `GagTriggered`. Keep the test under ~10 s on the dev Mac (size `untilSimMs` from T0; see Dev Notes › Testing).
+- [x] **T4 — `npm run sim`** (AC 3, 4; D9–D12)
+  - [x] `tools/sim/loadSimLevel.ts`: loads `ContentBundle`, `LevelContent` and the geometry of a level from a content folder (node content source, same parsers and schemas as the game), plus `listLevelIds(contentDir)`. An unknown level → an error naming the known ids.
+  - [x] `tools/sim/simArgs.ts`: `parseSimArgs(argv): Result<SimArgs, string>` with `node:util` `parseArgs` (`strict: true`); defaults and checks in Dev Notes › CLI.
+  - [x] `tools/sim/simReport.ts`: `createRunSummary(sim, …)` and `summarizeRuns(…)`: pure, the report shape of Dev Notes › Report.
+  - [x] `tools/sim/runSim.ts`: exported `runSim(args, loaded): Promise<Result<SimReport, string>>` (pure of I/O, testable with the frozen fixtures) and a `main()` behind the `import.meta.url === pathToFileURL(process.argv[1]).href` guard (same as `extractLevelGeometry.ts`), which parses, loads, runs, writes the report (`--out`) and the recorded games (`--journals`).
+  - [x] `package.json`: `"sim": "tsx tools/sim/runSim.ts"`, `"sim:replay": "tsx tools/sim/replaySim.ts"`. Do not add them to `npm run ci`.
+- [x] **T5 — `npm run sim:replay`** (AC 5; D10)
+  - [x] `tools/sim/runFile.ts`: the recorded-game file (Dev Notes › Recorded game file): `toRunFile(…)` and `parseRunFile(json): Result<RunFile, string>` (shape checks; the journal itself is checked by `replayJournal`).
+  - [x] `tools/sim/replaySim.ts`: exported `replayRunFile(file, loaded): Promise<Result<{ worldHash }, string>>` and a guarded `main()`: read, parse, load the live content of `file.levelId`, `replayJournal` to `untilSimMs` (strict invariants), compare `hashJson(sim.world)` with `worldHash`.
+- [x] **T6 — Tool tests** (AC 3–5)
+  - [x] `tests/tools/sim/simArgs.test.ts`, `simReport.test.ts`, `runSim.test.ts`, `runFile.test.ts`, `replaySim.test.ts` (Dev Notes › Testing), with the frozen fixtures.
+  - [x] `tests/tools/sim/cli.test.ts`: spawns the two real commands (`npx tsx …` via `node:child_process` `spawnSync`) for the exit-code paths only: unknown bot, unknown level, `--runs 0`, a valid 1-run game into a temp dir (`os.tmpdir()` + `mkdtempSync`) then `sim:replay` of its recorded game → exit 0, then the same file with its `worldHash` altered → exit ≠ 0. Remove the temp dir in `afterAll`.
+- [x] **T7 — Docs and status**
+  - [x] `CLAUDE.md` › Commands: add the two rows (`npm run sim`, `npm run sim:replay`) in the existing table style. Do not touch anything else in it.
+  - [x] `deferred-work.md`: Dev Notes › Deferred items this story touches / Deferred by this story.
+  - [x] Final `npm run ci` green; run once by hand `npm run sim -- --level salon_crawler --seed 42 --bot perfect --runs 100 --out <tmp>/report.json` and `--bot human`, `--bot idle`, `--bot random` (10 runs each) and paste the headline numbers and the wall time in the Debug Log.
 
 ## Dev Notes
 
@@ -295,12 +299,60 @@ From `_bmad-output/project-context.md` and `CLAUDE.md`:
 
 ### Agent Model Used
 
+claude-sonnet-5-5
+
 ### Debug Log References
+
+- **T0 baseline** (untouched tree, `ca7e772`): typecheck, lint, content:check green; Vitest 129 files / 1851 tests in 3.7 s; sim coverage 97.4 % statements. **`npm run e2e` was red before the first edit: 134 of 140 Playwright tests (chromium and webkit) never see `data-pp-app="start"`** in this remote container (probably no WebGL there). After the story: the same 134 fail and the same 6 pass, so the story changes nothing there. Not fixable from here; to re-run on Geo's Mac (noted in `deferred-work.md`).
+- **Cost of a headless step** (throwaway script, deleted): 18 000 steps of the live level in ~5 ms, about 3.5 million steps/s with no commands; `createSim` ~1 ms. So AC 6's 100 games of 40 s of sim (2.4 M steps) take ~0.3 s in total, far under the 10 s budget, and a 100-run batch of the 3-minute default takes ~0.4 s.
+- **AC 6** (`tests/bots/perfectBot.test.ts`): 100 seeds, 40 s of sim each (about 5 outlet cycles), every response `perfect` with offset 0, no gag. The whole `tests/bots/` folder (13 tests) runs in ~0.3 s.
+- **Hand runs** (`npm run sim -- --level salon_crawler --seed 42 --bot <id> …`, live content, 3 min of sim per run):
+  - `perfect`, 100 runs, 0.4 s: 2400 responses, 100 % perfect, mean offset 0 ms, 0 gags.
+  - `human`, 100 runs, 0.4 s: 58.4 % perfect, 41.6 % success, 0 fail, mean |offset| 48.4 ms (the 60 % / 40 % the Dev Notes predicted).
+  - `idle`, 10 runs: 240 responses, 100 % fail `late`, 240 gags (`outlet_hair`, 24 per run).
+  - `random`, 10 runs: 251 responses, 2 % perfect, 6.4 % success, 91.6 % fail (101 early, 116 late, 13 wrongResponse), 230 gags.
+- The `npm run sim` report is byte-identical for the same arguments (tested in `runSim.test.ts`, and by hand: two runs of the same command).
 
 ### Completion Notes List
 
+- **T1.** `BotsSchema` (`src/content/schemas/bots.ts`), `content/bots.json` with the Dev Notes' starting values, `BOTS_FILE` in `CONTENT_FILES`, `bots: BotSettings` in `ContentBundle`, loaded by `loadContent`; `content/_schemas/bots.schema.json` generated. The browser source picks `bots.json` up through its `import.meta.glob`, nothing else to change. Cross-file rule `bots.json › tapMs < feel.json › input.holdMinMs` in `tools/content/contentChecks.ts` (`checkBotReferences`) with two fixture tests in `tests/content/checkContent.test.ts`. The only place that built a `ContentBundle` by hand was `tests/support/testContent.ts` (`createTestBots()`, inline and frozen); `src/client/app/levelSession.ts` only consumes a bundle. `tests/content/loadContent.test.ts` gained a bots case (broken value, unreadable file).
+- **T2.** `src/bots/bot.ts` (`BOT_IDS`, `BotId`, `Bot`, `BotSetup`, `BotOptions`, `BotResponse`), `createBot.ts` (`Result`, validates the setup: seed, `tapMs < holdMinMs`, finite numbers), `playGame.ts` (the loop of the Dev Notes, one reused `out` array), `gaussian.ts` (Box–Muller, one draw per call, uses two uniforms), constants `BOT_SEED_SALT` and `SIM_CLI_DEFAULT_UNTIL_MS`.
+- **T3.** `idleBot`, `perfectBot`, `humanBot`, `randomBot`, plus three small shared modules: `threatTiming.ts` (`centreOf`, `isPressable`, `dueThisStep`, exhaustive `holdMsFor`, `responseOf`, `createCycleMemory`), `commandScheduler.ts` (planned press/release, emitted in `t` order when due, a command planned in the past moves to `now`), `botSeed.ts`. **Deviation from the Dev Notes:** a cycle is identified by `(threat.id, threat.windowOpenAt)`, not by the telegraph's `enteredAt`: `enteredAt` changes again when the window opens, so a bot would have taken the same cycle for a new one (it is fixed at telegraph and differs in every cycle). The perfect bot does not round its press time (offset exactly 0 whatever `perfectMs`); the human bot rounds to the ms, as D6 says; the random bot draws its `t` inside the step.
+- **T4.** `tools/sim/loadSimLevel.ts` (`listLevelIds`, `loadSimLevel`), `simArgs.ts` (`parseSimArgs`, `SIM_HELP`; `node:util` `parseArgs` strict, its `TypeError`s become the `Result` error), `simReport.ts` (`createRunRecorder` counts events per run, `summarizeRuns`, `renderReport`), `runSim.ts` (`runSim(args, loaded, hooks?)` and the guarded `main()`), scripts `sim` and `sim:replay` in `package.json` (not in `ci`). **Small deviations:** `runSim` takes an optional third argument `hooks { onGame, onProgress }` so the pure function can hand the recorded games to `main()` without doing I/O; `--help` returns `help: true` and `botId` defaults to `idle` in that case (never read). Without `--out` the report goes to stdout and nothing is logged at `info` (the console sink writes `info` to stdout).
+- **T5.** `tools/sim/runFile.ts` (`toRunFile`, `parseRunFile`, `runFileName`) and `tools/sim/replaySim.ts` (`replayRunFile`, guarded `main()`): a refused journal gives the `replayJournal` message plus « was the content changed since it was recorded? », a different final hash gives both hashes; both exit 1.
+- **T6.** `tests/tools/sim/{simArgs,simReport,runSim,runFile,replaySim,cli}.test.ts` with the frozen fixtures (`tests/support/simSupport.ts`, `botSupport.ts`); `cli.test.ts` spawns the real commands through `npx tsx` for the exit-code paths and the record-then-replay round trip, in a temp dir removed in `afterAll`. Bot tests: `tests/bots/{botContract,createBot,perfectBot,humanBot,randomBot,idleBot}.test.ts`; colocated `src/bots/{gaussian,commandScheduler,threatTiming}.test.ts`.
+- **T7.** `CLAUDE.md` › Commands: two rows. `deferred-work.md`: new section. Final run: typecheck, lint, `content:check`, `test:coverage` green (145 files, 2001 tests; sim coverage 97.5 % statements, 96.8 % branches, thresholds hold) and `build:playtest` green. **`npm run e2e` is red as in the baseline (see Debug Log), so a full `npm run ci` is not green in this container.**
+- **AC 7:** `src/sim/**` is untouched (`git status` shows no file there), no golden or expected file regenerated.
+- **Existing tests edited:** `tests/content/checkContent.test.ts` and `tests/content/loadContent.test.ts` (new cases for `bots.json`), `tests/support/testContent.ts` (`bots` in the bundle). No other test changed.
+- **Open points for Geo** (not blocking, from the Dev Notes): bot settings in `content/bots.json` and not in `feel.json`; the human bot's model (the hand run gives ~58 % perfect); no score in the report until 1.22; default run length 3 min.
+
 ### File List
+
+New:
+- `content/bots.json`
+- `content/_schemas/bots.schema.json` (generated)
+- `src/content/schemas/bots.ts`
+- `src/bots/bot.ts`, `botSeed.ts`, `commandScheduler.ts`, `commandScheduler.test.ts`, `createBot.ts`, `gaussian.ts`, `gaussian.test.ts`, `humanBot.ts`, `idleBot.ts`, `perfectBot.ts`, `playGame.ts`, `randomBot.ts`, `threatTiming.ts`, `threatTiming.test.ts`
+- `tools/sim/loadSimLevel.ts`, `replaySim.ts`, `runFile.ts`, `runSim.ts`, `simArgs.ts`, `simReport.ts`
+- `tests/bots/botContract.test.ts`, `createBot.test.ts`, `humanBot.test.ts`, `idleBot.test.ts`, `perfectBot.test.ts`, `randomBot.test.ts`
+- `tests/content/botsSchema.test.ts`
+- `tests/support/botSupport.ts`, `tests/support/simSupport.ts`
+- `tests/tools/sim/cli.test.ts`, `replaySim.test.ts`, `runFile.test.ts`, `runSim.test.ts`, `simArgs.test.ts`, `simReport.test.ts`
+
+Modified:
+- `CLAUDE.md`
+- `package.json`
+- `src/content/contentBundle.ts`, `contentFiles.ts`, `loadContent.ts`
+- `src/shared/constants.ts`
+- `tools/content/contentChecks.ts`
+- `tests/content/checkContent.test.ts`, `tests/content/loadContent.test.ts`
+- `tests/support/testContent.ts`
+- `_bmad-output/implementation-artifacts/deferred-work.md`, `sprint-status.yaml`, this story file
+
+Deleted:
+- `src/bots/.gitkeep`
 
 ## Change Log
 
 - 2026-10-27: Story 1.12 created (ready-for-dev). Ultimate context engine analysis completed - comprehensive developer guide created.
+- 2026-10-27: Story 1.12 implemented (review): bot settings as content, the `Bot` contract and runner, the four bots, `npm run sim` and `npm run sim:replay`, with their tests. `src/sim` untouched. e2e is red in the dev container as it was before the story.

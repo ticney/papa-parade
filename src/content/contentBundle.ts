@@ -1,3 +1,4 @@
+import type { BotSettings } from './schemas/bots.ts';
 import type { FeedbackTable } from './schemas/feedback.ts';
 import type { Feel } from './schemas/feel.ts';
 import type { Level } from './schemas/level.ts';
@@ -9,6 +10,8 @@ export interface ContentBundle {
   feel: Feel;
   /** Client-only: the sim ignores it, so it never enters `feelHash` or a golden journal. */
   feedback: FeedbackTable;
+  /** The sim ignores it too (outside every hash): only the bots and the autoplay read it. */
+  bots: BotSettings;
   strings: Strings;
 }
 

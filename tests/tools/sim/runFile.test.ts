@@ -1,0 +1,53 @@
+import { describe, expect, it } from 'vitest';
+import { parseRunFile, runFileName, toRunFile } from '../../../tools/sim/runFile.ts';
+
+const JOURNAL = { version: 3, entries: [] };
+const file = () =>
+  toRunFile({
+    levelId: 'salon_crawler',
+    bot: 'human',
+    untilSimMs: 180_000,
+    worldHash: 'abc',
+    journal: JOURNAL as never,
+  });
+
+function parseWith(change: Record<string, unknown>) {
+  return parseRunFile({ ...file(), ...change });
+}
+
+describe('runFile', () => {
+  it('round-trips through JSON', () => {
+    const parsed = parseRunFile(JSON.parse(JSON.stringify(file())));
+    expect(parsed).toEqual({ ok: true, value: file() });
+  });
+
+  it('names a game after its level, bot and seed', () => {
+    expect(runFileName('salon_crawler', 'human', 42)).toBe('salon_crawler_human_42.journal.json');
+  });
+
+  it.each([
+    ['null', null],
+    ['an array', []],
+    ['a string', 'x'],
+  ])('refuses %s', (_label, value) => {
+    expect(parseRunFile(value).ok).toBe(false);
+  });
+
+  it.each([
+    [{ kind: 'something.else' }, 'kind'],
+    [{ version: 2 }, 'version'],
+    [{ levelId: '' }, 'levelId'],
+    [{ levelId: 3 }, 'levelId'],
+    [{ bot: undefined }, 'bot'],
+    [{ worldHash: 12 }, 'worldHash'],
+    [{ untilSimMs: 0 }, 'untilSimMs'],
+    [{ untilSimMs: '180000' }, 'untilSimMs'],
+    [{ untilSimMs: Number.POSITIVE_INFINITY }, 'untilSimMs'],
+    [{ journal: null }, 'journal'],
+    [{ journal: [] }, 'journal'],
+  ])('refuses %j and names the field', (change, field) => {
+    const parsed = parseWith(change);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.error).toContain(field);
+  });
+});

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "tapMs": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "How long the perfect and human bots hold a tap, in ms; must stay under `feel.input.holdMinMs` so the tap is a Parry."
+    },
+    "human": {
+      "type": "object",
+      "properties": {
+        "reactionMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Shortest time the human bot needs to react, in ms: it never presses before the telegraph plus this."
+        },
+        "aimOffsetMs": {
+          "type": "number",
+          "description": "Where the human bot aims relative to the window's centre, in ms (negative = early, 0 = dead centre)."
+        },
+        "jitterSdMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Standard deviation of the human bot's press around its aim, in ms (Gaussian)."
+        }
+      },
+      "required": [
+        "reactionMs",
+        "aimOffsetMs",
+        "jitterSdMs"
+      ],
+      "additionalProperties": false,
+      "description": "The `human` bot: a plausible attentive player."
+    },
+    "random": {
+      "type": "object",
+      "properties": {
+        "actionsPerSec": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "How many actions the random bot starts per second of sim time, on average."
+        },
+        "floorReachM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How far from Papa the random bot may tap on the floor, in metres."
+        },
+        "maxHoldMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Longest the random bot holds a press, in ms; above `feel.input.holdMinMs` so that it also produces Firmness."
+        }
+      },
+      "required": [
+        "actionsPerSec",
+        "floorReachM",
+        "maxHoldMs"
+      ],
+      "additionalProperties": false,
+      "description": "The `random` bot: a fuzzer that exercises every command."
+    }
+  },
+  "required": [
+    "tapMs",
+    "human",
+    "random"
+  ],
+  "additionalProperties": false,
+  "description": "Settings of the automatic players used by `npm run sim` and the autoplay."
+}

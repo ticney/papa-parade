@@ -3,9 +3,11 @@ import { join, relative, sep } from 'node:path';
 import { FEEDBACK_CLIENT_EVENTS } from '@client/feedback/feedbackEvents';
 import type { ContentProblem } from '@content/contentError';
 import {
+  BOTS_FILE,
   CONTENT_FILES,
   CONTENT_SCHEMAS,
   FEEDBACK_FILE,
+  FEEL_FILE,
   LEVEL_GEOMETRY_PATTERN,
   LEVEL_PATTERN,
   matchContentPattern,
@@ -15,7 +17,9 @@ import {
 import { formatJsonPath } from '@content/jsonPath';
 import { renderContentJsonSchema } from '@content/jsonSchema';
 import { parseContentFile } from '@content/parseContentFile';
+import type { BotSettings } from '@content/schemas/bots';
 import type { FeedbackTable } from '@content/schemas/feedback';
+import type { Feel } from '@content/schemas/feel';
 import type { Level } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import type { ThreatDef } from '@content/schemas/threat';
@@ -186,6 +190,21 @@ async function checkFeedbackReferences(
   return problems;
 }
 
+/**
+ * The rule of `bots.json` that crosses a file: the perfect and human bots tap for `tapMs`, which
+ * must be shorter than `feel.input.holdMinMs` or their tap would be a Firmness, not a Parry.
+ */
+function checkBotReferences(bots: BotSettings, feel: Feel): ContentProblem[] {
+  if (bots.tapMs < feel.input.holdMinMs) return [];
+  return [
+    {
+      file: `content/${BOTS_FILE.file}`,
+      jsonPath: 'tapMs',
+      message: `bots.json › tapMs (${bots.tapMs}) must be under feel.json › input.holdMinMs (${feel.input.holdMinMs}), or a bot's tap would be a Firmness`,
+    },
+  ];
+}
+
 /** What the cross-reference checks need of the files that parsed, by id. */
 interface ParsedFamilies {
   threats: Map<string, ThreatDef>;
@@ -280,6 +299,8 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   const parsed: { file: string; value: unknown }[] = [];
   let strings: Record<string, string> | undefined;
   let feedback: FeedbackTable | undefined;
+  let feel: Feel | undefined;
+  let bots: BotSettings | undefined;
   const families: ParsedFamilies = {
     threats: new Map(),
     levels: new Map(),
@@ -339,6 +360,8 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
     if (entry === STRINGS_FILE) strings = result.value as Record<string, string>;
     else parsed.push({ file: display, value: result.value });
     if (entry === FEEDBACK_FILE) feedback = result.value as FeedbackTable;
+    if (entry === FEEL_FILE) feel = result.value as Feel;
+    if (entry === BOTS_FILE) bots = result.value as BotSettings;
   }
 
   const present = new Set(await listContentFiles(rootDir));
@@ -374,6 +397,8 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
 
   problems.push(...checkThreatReferences(families.threats, feedback));
   problems.push(...checkLevelReferences(families, present));
+
+  if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));
 
   if (feedback !== undefined) problems.push(...(await checkFeedbackReferences(rootDir, feedback)));
 

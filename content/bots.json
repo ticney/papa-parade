@@ -1,0 +1,6 @@
+{
+  "$schema": "./_schemas/bots.schema.json",
+  "tapMs": 80,
+  "human": { "reactionMs": 250, "aimOffsetMs": 0, "jitterSdMs": 60 },
+  "random": { "actionsPerSec": 2, "floorReachM": 3, "maxHoldMs": 800 }
+}

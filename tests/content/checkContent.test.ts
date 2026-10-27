@@ -168,6 +168,30 @@ describe('checkContent', () => {
   });
 });
 
+describe('checkContent on bots.json references', () => {
+  it('reports a tap that is not shorter than the hold that makes a Firmness', async () => {
+    const feel = JSON.parse(await readFile(join(root, 'content/feel.json'), 'utf8'));
+    await mutateJson('content/bots.json', (bots) => {
+      bots.tapMs = feel.input.holdMinMs;
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: 'content/bots.json',
+        jsonPath: 'tapMs',
+        message: expect.stringContaining('bots.json › tapMs'),
+      }),
+    ]);
+  });
+
+  it('accepts a tap just under it', async () => {
+    const feel = JSON.parse(await readFile(join(root, 'content/feel.json'), 'utf8'));
+    await mutateJson('content/bots.json', (bots) => {
+      bots.tapMs = feel.input.holdMinMs - 1;
+    });
+    expect(await checkContent(root)).toEqual([]);
+  });
+});
+
 describe('checkContent on feedback.json references', () => {
   const FILE = 'content/feedback.json';
   // The ids come from the live file, never typed here: Geo tunes or deletes cues (D13).

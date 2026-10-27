@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import { formatContentProblem } from '@content/contentError';
 import { parseContentFile } from '@content/parseContentFile';
+import type { BotSettings } from '@content/schemas/bots';
 import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
 import type { LevelThreatEntry } from '@content/schemas/level';
@@ -48,6 +49,18 @@ export function createTestFeedback(): FeedbackTable {
 }
 
 /**
+ * Bot settings, inline like the feedback table: the sim ignores them, so they move no hash and no
+ * golden. Frozen on purpose: retuning `content/bots.json` must not change a bot test.
+ */
+export function createTestBots(): BotSettings {
+  return {
+    tapMs: 80,
+    human: { reactionMs: 250, aimOffsetMs: 0, jitterSdMs: 60 },
+    random: { actionsPerSec: 2, floorReachM: 3, maxHoldMs: 800 },
+  };
+}
+
+/**
  * A content bundle for sim and golden tests, built from a FROZEN copy of the feel
  * (`testFeel.json`), never from `content/feel.json`: Geo retunes the live file freely, and no test
  * result may depend on it. A story that adds a feel key also adds it to the fixture.
@@ -60,7 +73,12 @@ export function createTestContent(): ContentBundle {
       `${FEEL_FIXTURE} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`,
     );
   }
-  return { feel: parsed.value, feedback: createTestFeedback(), strings: {} };
+  return {
+    feel: parsed.value,
+    feedback: createTestFeedback(),
+    bots: createTestBots(),
+    strings: {},
+  };
 }
 
 /**

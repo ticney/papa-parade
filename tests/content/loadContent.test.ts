@@ -39,6 +39,7 @@ describe('loadContent', () => {
       expect(result.value.feel.timing).toBeDefined();
       expect(result.value.strings['start.tap_to_start']).toBeTypeOf('string');
       expect(result.value.feedback.cues).toBeDefined();
+      expect(result.value.bots.tapMs).toBeGreaterThan(0);
     }
   });
 
@@ -48,6 +49,22 @@ describe('loadContent', () => {
     const problems = await problemsOf({ 'feedback.json': JSON.stringify(feedback) });
     expect(problems).toEqual([
       expect.objectContaining({ file: 'content/feedback.json', jsonPath: 'buses.sfx.gainPct' }),
+    ]);
+  });
+
+  it('names the file and the JSON path of a broken bots value', async () => {
+    const bots = JSON.parse(readReal('bots.json'));
+    bots.human.jitterSdMs = -1;
+    const problems = await problemsOf({ 'bots.json': JSON.stringify(bots) });
+    expect(problems).toEqual([
+      expect.objectContaining({ file: 'content/bots.json', jsonPath: 'human.jitterSdMs' }),
+    ]);
+  });
+
+  it('reports a bots file the source cannot read', async () => {
+    const problems = await problemsOf({ 'bots.json': null });
+    expect(problems).toEqual([
+      expect.objectContaining({ file: 'content/bots.json', jsonPath: '' }),
     ]);
   });
 
