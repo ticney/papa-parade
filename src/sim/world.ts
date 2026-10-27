@@ -116,12 +116,12 @@ export const SLOW_MO_SOURCES_ARE_COMPLETE: [UnlistedSlowMoSource] extends [never
   ? true
   : UnlistedSlowMoSource = true;
 
-/** A slow-mo: `scale` from `startedAt` to `holdUntil`, then a smoothstep back to 1 by `endsAt` (sim ms). */
+/** A slow-mo: `scale` from `startedAt` up to (not including) `holdUntil`, then a smoothstep back to 1 by `endsAt` (sim ms). */
 export interface SlowMo {
   source: SlowMoSource;
   scale: number;
   startedAt: SimMs;
-  /** `startedAt + durationMs`; may be off the step grid. */
+  /** `startedAt + durationMs`; may be off the step grid. The hold excludes it: the return starts here. */
   holdUntil: SimMs;
   /** `holdUntil + returnMs`; the entry is removed at the first step at or after it. */
   endsAt: SimMs;

@@ -7,14 +7,15 @@ import { setTimeScale } from './timeScale.ts';
 /** The feel of one slow-mo (`feel.timing.slowMoPerfect`, `slowMoLastThreat`). */
 type SlowMoFeel = Feel['timing']['slowMoPerfect'];
 
-/** Smoothstep on `[0, 1]`: only `+ − ×`, so the same bits on every platform. */
+/** Smoothstep on `[0, 1]`: a polynomial of `+ − ×` (with the one IEEE division of its caller), the same bits on every platform. */
 function smoothstep(u: number): number {
   return u * u * (3 - 2 * u);
 }
 
 /**
- * The factor of one slow-mo at sim time `t`: `scale` while held, a smoothstep back to 1 during the
- * return, 1 after.
+ * The factor of one slow-mo at sim time `t`: `scale` while `t < holdUntil`, a smoothstep back to 1
+ * for `holdUntil <= t < endsAt`, 1 from `endsAt` on. With `returnMs = 0` (`endsAt === holdUntil`)
+ * the return is empty: the slow-mo is over at `holdUntil` itself.
  */
 export function slowMoFactorAt(slowMo: Readonly<SlowMo>, t: number): number {
   if (t < slowMo.holdUntil) return slowMo.scale;

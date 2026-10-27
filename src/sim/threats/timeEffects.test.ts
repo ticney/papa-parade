@@ -9,6 +9,10 @@ import {
   createTestOutlet,
   outletEntry,
 } from '../../../tests/support/testContent.ts';
+import {
+  PARRY_RELEASE_AFTER_MS,
+  SLOW_MO_COVER_MARGIN_MS,
+} from '../../../tests/support/timeEffects.ts';
 import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
@@ -20,6 +24,12 @@ const content = createTestContent();
 const { timing, input } = content.feel;
 const outlet = createTestOutlet();
 const OUTLET_ID = 1;
+/** Sim time to run past a resolution so that its events and freeze have been seen. */
+const SETTLE_MS = 100;
+/** A release this long after the window opens is a success, not a perfect (the centre is perfect). */
+const SUCCESS_RELEASE_AFTER_MS = 30;
+/** A press this far before the buffer and tolerance is an early gag. */
+const EARLY_PRESS_MARGIN_MS = 200;
 
 async function newSim(withContent: ContentBundle = content): Promise<Sim> {
   return createSim({
@@ -82,10 +92,10 @@ describe('a perfect parry', () => {
   it('freezes for hitstopMs and goes into slow-mo at the step that resolves it', async () => {
     const { sim, center } = await telegraphed();
     sim.enqueue(press(center));
-    sim.enqueue(release(center + 50));
-    const frames = runTo(sim, center + 100);
+    sim.enqueue(release(center + PARRY_RELEASE_AFTER_MS));
+    const frames = runTo(sim, center + SETTLE_MS);
     const resolving = frames.find((f) => only(f.events, 'ResponseResolved').length > 0);
-    expect(resolving?.t).toBe(center + 50);
+    expect(resolving?.t).toBe(center + PARRY_RELEASE_AFTER_MS);
     expect(resolving?.events.map((e) => e.type)).toEqual(
       expect.arrayContaining(['ResponseResolved', 'TimeScaleChanged']),
     );
@@ -93,12 +103,17 @@ describe('a perfect parry', () => {
     expect(types.indexOf('TimeScaleChanged')).toBeGreaterThan(types.indexOf('ResponseResolved'));
     expect(only(resolving?.events ?? [], 'ResponseResolved')[0]?.quality).toBe('perfect');
     expect(only(resolving?.events ?? [], 'TimeScaleChanged')).toEqual([
-      { type: 'TimeScaleChanged', t: center + 50, from: 1, to: timing.slowMoPerfect.timeScale },
+      {
+        type: 'TimeScaleChanged',
+        t: center + PARRY_RELEASE_AFTER_MS,
+        from: 1,
+        to: timing.slowMoPerfect.timeScale,
+      },
     ]);
     expect(resolving?.freezeRealMs).toBe(timing.hitstopMs);
     expect(resolving?.timeScale).toBe(timing.slowMoPerfect.timeScale);
     // Nothing before the resolving step.
-    for (const frame of frames.filter((f) => f.t < center + 50)) {
+    for (const frame of frames.filter((f) => f.t < center + PARRY_RELEASE_AFTER_MS)) {
       expect(frame.freezeRealMs).toBe(0);
       expect(frame.timeScale).toBe(1);
     }
@@ -107,8 +122,8 @@ describe('a perfect parry', () => {
   it('holds the scale for durationMs of sim time, ramps back, and is 1 at the end', async () => {
     const { sim, center } = await telegraphed();
     sim.enqueue(press(center));
-    sim.enqueue(release(center + 50));
-    const resolvedAt = center + 50;
+    sim.enqueue(release(center + PARRY_RELEASE_AFTER_MS));
+    const resolvedAt = center + PARRY_RELEASE_AFTER_MS;
     const { timeScale, durationMs, returnMs } = timing.slowMoPerfect;
     const frames = runTo(sim, resolvedAt + durationMs + returnMs + 2 * STEP_MS).filter(
       (f) => f.t >= resolvedAt,
@@ -128,26 +143,42 @@ describe('a perfect parry', () => {
     noHitstop.feel.timing.hitstopMs = 0;
     const { sim, center } = await telegraphed(noHitstop);
     sim.enqueue(press(center));
-    sim.enqueue(release(center + 50));
+    sim.enqueue(release(center + PARRY_RELEASE_AFTER_MS));
     const frames = runTo(sim, center + 60);
     expect(frames.at(-1)?.freezeRealMs).toBe(0);
     expect(frames.at(-1)?.timeScale).toBe(timing.slowMoPerfect.timeScale);
   });
 
-  it('plays the glide in slow-mo without changing it: sim time arrival, scale below 1', async () => {
-    const { sim, center } = await telegraphed();
-    sim.enqueue(press(center));
-    sim.enqueue(release(center + 50));
-    const pressed = runTo(sim, center + STEP_MS);
-    expect(pressed.at(-1)?.timeScale).toBe(1);
-    const glide = sim.world.papa.glide;
-    if (glide === null) throw new Error('no glide after the press');
-    const { arriveAt, startedAt } = glide;
+  it('plays the glide in slow-mo without changing it: same sim arrival as without a slow-mo', async () => {
+    /** One perfect parry: the glide it starts, when Papa arrives, and the scale at that step. */
+    async function glideOf(withContent: ContentBundle) {
+      const { sim, center } = await telegraphed(withContent);
+      sim.enqueue(press(center));
+      sim.enqueue(release(center + PARRY_RELEASE_AFTER_MS));
+      const pressed = runTo(sim, center + STEP_MS);
+      expect(pressed.at(-1)?.timeScale).toBe(1);
+      const glide = sim.world.papa.glide;
+      if (glide === null) throw new Error('no glide after the press');
+      const frames = runTo(
+        sim,
+        center + PARRY_RELEASE_AFTER_MS + content.feel.movement.glideMaxMs + 2 * STEP_MS,
+      );
+      const arrived = frames.find((f) => only(f.events, 'PapaArrived').length > 0);
+      return { glide, arrived };
+    }
+
+    const noSlowMo = createTestContent();
+    noSlowMo.feel.timing.slowMoPerfect.timeScale = 1;
+    const control = await glideOf(noSlowMo);
+    const slowed = await glideOf(content);
+
+    const { arriveAt, startedAt } = slowed.glide;
     expect(arriveAt - startedAt).toBeLessThanOrEqual(content.feel.movement.glideMaxMs);
-    const frames = runTo(sim, center + 50 + content.feel.movement.glideMaxMs + 2 * STEP_MS);
-    const arrived = frames.find((f) => only(f.events, 'PapaArrived').length > 0);
-    expect(arrived?.t).toBe(gridCeil(arriveAt));
-    expect(arrived?.timeScale).toBeLessThan(1);
+    expect(arriveAt - startedAt).toBe(control.glide.arriveAt - control.glide.startedAt);
+    expect(slowed.arrived?.t).toBe(gridCeil(arriveAt));
+    expect(slowed.arrived?.t).toBe(control.arrived?.t);
+    expect(control.arrived?.timeScale).toBe(1);
+    expect(slowed.arrived?.timeScale).toBeLessThan(1);
   });
 });
 
@@ -155,8 +186,8 @@ describe('a successful (not perfect) parry', () => {
   it('freezes for hitstopMs and does not slow down', async () => {
     const { sim, openAt } = await telegraphed();
     sim.enqueue(press(openAt));
-    sim.enqueue(release(openAt + 30));
-    const frames = runTo(sim, openAt + 100);
+    sim.enqueue(release(openAt + SUCCESS_RELEASE_AFTER_MS));
+    const frames = runTo(sim, openAt + SETTLE_MS);
     const resolving = frames.find((f) => only(f.events, 'ResponseResolved').length > 0);
     expect(only(resolving?.events ?? [], 'ResponseResolved')[0]?.quality).toBe('success');
     expect(resolving?.freezeRealMs).toBe(timing.hitstopMs);
@@ -169,8 +200,8 @@ describe('a successful (not perfect) parry', () => {
 describe('a gag', () => {
   it('requests nothing: an early press', async () => {
     const { sim, openAt } = await telegraphed();
-    sim.enqueue(press(openAt - timing.toleranceMs - timing.bufferMs - 200));
-    const frames = runTo(sim, openAt + 200);
+    sim.enqueue(press(openAt - timing.toleranceMs - timing.bufferMs - EARLY_PRESS_MARGIN_MS));
+    const frames = runTo(sim, openAt + 2 * SETTLE_MS);
     expect(only(eventsOf(frames), 'GagTriggered')).toHaveLength(1);
     expect(sim.freezeRealMs).toBe(0);
     expect(only(eventsOf(frames), 'TimeScaleChanged')).toEqual([]);
@@ -197,29 +228,52 @@ describe('a gag', () => {
 });
 
 describe('windows stay in sim time (ADR-002, AC 4)', () => {
-  it('a window that opens during a slow-mo lasts as many sim ms as without it', async () => {
-    const long = createTestContent();
-    // Long enough to cover the next cycle: cooldown, then the telegraph delay, plus a margin.
-    long.feel.timing.slowMoPerfect.durationMs =
-      outlet.cooldownMs + (outlet.telegraphDelayMs ?? 0) + 3000;
-    const { sim, center } = await telegraphed(long);
+  /** A perfect parry, then the second window of the outlet: when it opens, closes, and at what scale. */
+  async function secondWindow(withContent: ContentBundle) {
+    const { sim, center } = await telegraphed(withContent);
     sim.enqueue(press(center));
-    sim.enqueue(release(center + 50));
-    const resolvedAt = center + 50;
+    sim.enqueue(release(center + PARRY_RELEASE_AFTER_MS));
+    const resolvedAt = center + PARRY_RELEASE_AFTER_MS;
     const frames = runTo(
       sim,
-      resolvedAt + outlet.cooldownMs + (outlet.telegraphDelayMs ?? 0) + 2000 + 5000,
+      resolvedAt + outlet.cooldownMs + (outlet.telegraphDelayMs ?? 0) + 2 * SLOW_MO_COVER_MARGIN_MS,
     ).filter((f) => f.t > resolvedAt);
-    const second = frames.filter((f) => only(f.events, 'WindowOpened').length > 0)[0];
-    expect(second).toBeDefined();
-    // The scale is still low when the second window opens.
-    expect(second?.timeScale).toBe(timing.slowMoPerfect.timeScale);
+    const opened = frames.find((f) => only(f.events, 'WindowOpened').length > 0);
     const telegraph = frames.find((f) => only(f.events, 'ThreatTelegraphed').length > 0);
-    expect((second?.t ?? 0) - (telegraph?.t ?? 0)).toBe(outlet.telegraphDelayMs);
     const gag = frames.find((f) => only(f.events, 'GagTriggered').length > 0);
-    // `windowMs + toleranceMs` of sim time later, to the step.
-    expect(gag?.t).toBe(
-      (second?.t ?? 0) + gridCeil(timing.windowMs + timing.toleranceMs) + STEP_MS,
+    if (opened === undefined || telegraph === undefined || gag === undefined) {
+      throw new Error('the second cycle did not run to its end');
+    }
+    return { opened, telegraph, gag };
+  }
+
+  it('a window that opens during a slow-mo lasts as many sim ms as without it', async () => {
+    // A hold long enough to cover the next cycle: cooldown, then the telegraph delay, plus a margin.
+    const slowed = createTestContent();
+    slowed.feel.timing.slowMoPerfect.durationMs =
+      outlet.cooldownMs + (outlet.telegraphDelayMs ?? 0) + SLOW_MO_COVER_MARGIN_MS;
+    // The control is the same level with a slow-mo that does not slow anything down.
+    const control = createTestContent();
+    control.feel.timing = {
+      ...slowed.feel.timing,
+      slowMoPerfect: { ...slowed.feel.timing.slowMoPerfect, timeScale: 1 },
+    };
+
+    const withSlowMo = await secondWindow(slowed);
+    const without = await secondWindow(control);
+
+    expect(without.opened.timeScale).toBe(1);
+    expect(withSlowMo.opened.timeScale).toBe(timing.slowMoPerfect.timeScale);
+    // Telegraph to opening, and opening to the close: the same sim ms, with or without the slow-mo.
+    const telegraphToOpen = (r: typeof withSlowMo) => r.opened.t - r.telegraph.t;
+    const openToClose = (r: typeof withSlowMo) => r.gag.t - r.opened.t;
+    expect(telegraphToOpen(withSlowMo)).toBe(telegraphToOpen(without));
+    expect(telegraphToOpen(withSlowMo)).toBe(outlet.telegraphDelayMs);
+    expect(openToClose(withSlowMo)).toBe(openToClose(without));
+    // The window closes on the first step strictly after `windowMs + toleranceMs`.
+    expect(openToClose(withSlowMo)).toBeGreaterThanOrEqual(timing.windowMs + timing.toleranceMs);
+    expect(openToClose(withSlowMo)).toBeLessThanOrEqual(
+      gridCeil(timing.windowMs + timing.toleranceMs) + STEP_MS,
     );
   });
 });

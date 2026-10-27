@@ -18,6 +18,10 @@ import {
   createTestOutlet,
   outletEntry,
 } from '../../tests/support/testContent.ts';
+import {
+  PARRY_RELEASE_AFTER_MS,
+  SLOW_MO_COVER_MARGIN_MS,
+} from '../../tests/support/timeEffects.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
 import { createPauseController } from './app/pauseController.ts';
 import { createGameLoop } from './loop.ts';
@@ -971,15 +975,15 @@ async function createRealRig(withContent = createTestContent()) {
 
 type RealRig = Awaited<ReturnType<typeof createRealRig>>;
 
-/** Enqueues a perfect Parry (press at the centre of the window, release 50 ms later) on the outlet. */
+/** Enqueues a perfect Parry (press at the centre of the window, release `PARRY_RELEASE_AFTER_MS` later) on the outlet. */
 function enqueuePerfectParry(rig: RealRig): number {
   rig.frameUntil(() => rig.sim.world.threats[0]?.state === 'telegraph');
   const { windowOpenAt, responseWindow } = rig.sim.world.threats[0] ?? {};
   if (responseWindow == null || windowOpenAt === undefined) throw new Error('not telegraphed');
   const center = windowOpenAt + responseWindow.windowMs / 2;
   rig.sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId: 1 });
-  rig.sim.enqueue({ type: 'Release', t: asSimMs(center + 50) });
-  return center + 50;
+  rig.sim.enqueue({ type: 'Release', t: asSimMs(center + PARRY_RELEASE_AFTER_MS) });
+  return center + PARRY_RELEASE_AFTER_MS;
 }
 
 describe('createGameLoop › real sim: hitstop and slow-mo (story 1.14)', () => {
@@ -1031,7 +1035,7 @@ describe('createGameLoop › real sim: hitstop and slow-mo (story 1.14)', () => 
     const outlet = createTestOutlet();
     // The perfect slow-mo covers the outlet's next cycle (cooldown, telegraph, window), with no ramp.
     long.feel.timing.slowMoPerfect.durationMs =
-      outlet.cooldownMs + (outlet.telegraphDelayMs ?? 0) + 3000;
+      outlet.cooldownMs + (outlet.telegraphDelayMs ?? 0) + SLOW_MO_COVER_MARGIN_MS;
     long.feel.timing.slowMoPerfect.returnMs = 0;
     const { timing } = long.feel;
     const rig = await createRealRig(long);

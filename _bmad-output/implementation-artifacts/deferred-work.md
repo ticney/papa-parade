@@ -29,7 +29,7 @@
 - **Periodic snapshots every 5 s (`SNAPSHOT_EVERY_MS`).** Story 1.3 delivers manual `snapshot()` / `restore()` only. The 5 s cadence and the snapshot list belong to the replay of best moments (story 3.9).
 - **`JournalSchema`, `contentVersion` / `levelId` in the journal.** Story 1.3's `Journal` is `{ version, seed, feelHash, entries }` as a TypeScript type. The Zod schema, the content/level version and the export arrive with story 3.3 (levels do not exist before 1.6).
 - **Effective feel in `World`.** `ctx.feel` is constant per sim in story 1.3. When `SetFeel` arrives (story 2.1) the effective feel has to live in the snapshotted state.
-- **Slow-mo duration unit.** `feel.json` documents `slowMo*.durationMs` as real ms; the sim has no real clock. Story 1.14 decides how the sim counts it (and the overlap rule). Also for story 1.14: the freeze overlap rule (story 1.3 keeps `max`).
+- **Slow-mo duration unit.** `feel.json` documents `slowMo*.durationMs` as real ms; the sim has no real clock. Resolved by story 1.14: slow-mo durations are sim ms (D2), the overlap rule is « slowest factor wins, per-source timers » (D5), and the freeze overlap keeps `max`.
 - **Rapier in the snapshot.** Story 1.15 adds the Rapier blob to `SimSnapshot` and bumps its `version`.
 
 ## Deferred from: code review of story 1-3-coeur-de-simulation-deterministe-en-headless (2026-10-27)
@@ -180,7 +180,7 @@
 
 ## Deferred from: implementation of story 1-11-parer-la-prise-electrique-au-tap (2026-10-27)
 
-- **Glide start under slow-mo or hitstop** (D2): the glide starts with the step that applies the press, so at ×1 Papa moves on the next frame that runs a step, but under the perfect slow-mo or a hitstop it can start a frame or two later. The highlight is always drawn the frame after `pointerdown`. Reason: story 1.14 decides whether the client must predict the glide.
+- **Glide start under slow-mo or hitstop** (D2): the glide starts with the step that applies the press, so at ×1 Papa moves on the next frame that runs a step, but under the perfect slow-mo or a hitstop it can start a frame or two later. The highlight is always drawn the frame after `pointerdown`. Resolved by story 1.14: the glide is sim-time choreography that plays out under the slow-mo, the client does not predict it.
 - **Multi-touch on several threats** (D6): `Release` names no threat and ends every pending press, so only the primary pointer presses a threat. Reason: story 1.16 or 1.18, the first time two threats are active together.
 - **A real lamp in the room and real gag / lift animations** (D9, D10): the room's lights are « the lamp » and the lift is a hop of the baby sphere. Reason: E7 (or a Blender pass if Geo wants the lamp sooner).
 - **The halo and chevron animations run on real time**, so they keep moving behind the pause panel (like the tap marker). Reason: accessibility pass, story 2.10.
@@ -248,3 +248,10 @@
 - **Real-time feel of the slow-mo is untuned** (open points 1 to 3 of the story): 1.2 s of sim time is about 4 s of real time at ×0.3, the 80 ms hitstop also hits a perfect, and `returnMs: 300` is a guess. Geo tunes `slowMoPerfect.durationMs` / `returnMs` and `hitstopMs` after playing.
 - **CSS animations stay real-time under slow-mo** (threat pulse, chevron bounce): only the world VFX follow the sim clock.
 
+
+## Deferred from: code review of story 1-14-hitstop-et-ralentis (2026-10-27)
+
+- **Snapshot validation does not cross-check the time slice** (`src/sim/snapshot.ts`): `time.scale` vs `min(baseScale, slow-mo factors at sim)`, `startedAt <= sim`, no entry with `endsAt <= sim`. A hand-edited snapshot passes and `sim.timeScale` is stale until the next step. Harmless for self-produced snapshots.
+- **`loop.advance(steps)` never consumes `sim.freezeRealMs`** (`src/client/loop.ts`): after a perfect stepped with `advance` (Playwright, debug), the next real frames spend up to 80 ms frozen.
+- **Slow-mo scale is read once per frame** (`src/client/loop.ts`): after a frame hitch, the remaining catch-up steps of that frame run at the old scale. Negligible at 60 fps.
+- **No upper bounds on `hitstopMs`, `durationMs`, `returnMs`** (`src/content/schemas/feel.ts`): a typo (`1e9`) freezes the client for days or makes `endsAt` infinite. Choose bounds with Geo for every timing key.

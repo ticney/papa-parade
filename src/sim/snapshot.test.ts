@@ -8,6 +8,7 @@ import {
   outletEntry,
   stepN,
 } from '../../tests/support/testContent.ts';
+import { PARRY_RELEASE_AFTER_MS } from '../../tests/support/timeEffects.ts';
 import type { System } from './context.ts';
 import { createSim, createSimWithSystems } from './createSim.ts';
 import type { SimEvent } from './events.ts';
@@ -794,9 +795,10 @@ describe('snapshot / restore under a slow-mo', () => {
     if (responseWindow == null || windowOpenAt === undefined) throw new Error('not telegraphed');
     const center = windowOpenAt + responseWindow.windowMs / 2;
     sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId: 1 });
-    sim.enqueue({ type: 'Release', t: asSimMs(center + 50) });
-    const resolvedAt = center + 50;
-    stepN(sim, (untilMs(resolvedAt) - sim.world.time.sim) / 10);
+    sim.enqueue({ type: 'Release', t: asSimMs(center + PARRY_RELEASE_AFTER_MS) });
+    const resolvedAt = center + PARRY_RELEASE_AFTER_MS;
+    const untilSimMs = untilMs(resolvedAt);
+    while (sim.world.time.sim < untilSimMs) sim.step();
     return { sim, resolvedAt };
   }
 
@@ -808,7 +810,7 @@ describe('snapshot / restore under a slow-mo', () => {
         Math.ceil((resolvedAt + slowMoPerfect.durationMs + slowMoPerfect.returnMs / 2) / 10) * 10,
     ],
   ])('restores a snapshot taken while %s to the uninterrupted hash', async (phase, at) => {
-    const { sim: live, resolvedAt } = await parried(at);
+    const { sim: live } = await parried(at);
     const snapshot = live.snapshot();
     const slowMo = snapshot.world.time.slowMos[0];
     expect(slowMo).toMatchObject({ source: 'perfect', scale: slowMoPerfect.timeScale });
@@ -827,7 +829,6 @@ describe('snapshot / restore under a slow-mo', () => {
     expect(restored.world).toEqual(live.world);
     expect(hashJson(restored.world)).toBe(hashJson(live.world));
     expect(restored.drainEvents()).toEqual(liveAfter);
-    expect(resolvedAt).toBeGreaterThan(0);
   });
 
   it('refuses a snapshot whose time slice is malformed', async () => {
@@ -847,7 +848,10 @@ describe('snapshot / restore under a slow-mo', () => {
       ['an unknown source', (w) => (entry(w).source = 'nap'), /slowMos\[0\]\.source/],
       ['a scale of 0', (w) => (entry(w).scale = 0), /slowMos\[0\]\.scale/],
       ['a scale above 1', (w) => (entry(w).scale = 1.2), /slowMos\[0\]\.scale/],
+      ['a scale below the minimum', (w) => (entry(w).scale = 0.01), /slowMos\[0\]\.scale/],
       ['a non-finite start', (w) => (entry(w).startedAt = 'now'), /slowMos\[0\]\.startedAt/],
+      ['a non-finite hold', (w) => (entry(w).holdUntil = 'soon'), /slowMos\[0\]\.holdUntil/],
+      ['a non-finite end', (w) => (entry(w).endsAt = 'later'), /slowMos\[0\]\.endsAt/],
       [
         'a hold that ends before it starts',
         (w) => (entry(w).holdUntil = (entry(w).startedAt as number) - 10),
@@ -864,11 +868,14 @@ describe('snapshot / restore under a slow-mo', () => {
         /world\.time\.slowMos$/,
       ],
     ];
-    for (const [, mutate, message] of broken) {
+    for (const [name, mutate, message] of broken) {
       const world = JSON.parse(JSON.stringify(good.world)) as Record<string, unknown>;
       mutate(world);
       const target = await newSim();
-      expect(() => target.restore({ ...good, world: world as never }, [])).toThrow(message);
+      expect(
+        () => target.restore({ ...good, world: world as never }, []),
+        `${name} must be refused`,
+      ).toThrow(message);
     }
   });
 });

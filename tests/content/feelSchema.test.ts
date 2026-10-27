@@ -102,6 +102,16 @@ describe('content/feel.json', () => {
       [['timing.slowMoLastThreat.returnMs', undefined]],
       ['timing.slowMoLastThreat.returnMs'],
     ],
+    [
+      'a perfect slow-mo below the minimum time scale',
+      [['timing.slowMoPerfect.timeScale', 0.01]],
+      ['timing.slowMoPerfect.timeScale'],
+    ],
+    [
+      'a last-threat slow-mo below the minimum time scale',
+      [['timing.slowMoLastThreat.timeScale', 0.01]],
+      ['timing.slowMoLastThreat.timeScale'],
+    ],
     ['a non-integer count', [['instinct.missesCount', 1.5]], ['instinct.missesCount']],
     ['a walking speed of 0', [['movement.walkSpeedMps', 0]], ['movement.walkSpeedMps']],
     [

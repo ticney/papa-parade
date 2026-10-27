@@ -44,9 +44,9 @@
           "properties": {
             "timeScale": {
               "type": "number",
-              "exclusiveMinimum": 0,
+              "minimum": 0.05,
               "maximum": 1,
-              "description": "Sim speed during the slow-mo (1 = normal, 0.3 = 30 % speed)."
+              "description": "Sim speed during the slow-mo (1 = normal, 0.3 = 30 % speed, never below 0.05)."
             },
             "durationMs": {
               "type": "number",
@@ -72,9 +72,9 @@
           "properties": {
             "timeScale": {
               "type": "number",
-              "exclusiveMinimum": 0,
+              "minimum": 0.05,
               "maximum": 1,
-              "description": "Sim speed during the slow-mo (1 = normal, 0.3 = 30 % speed)."
+              "description": "Sim speed during the slow-mo (1 = normal, 0.3 = 30 % speed, never below 0.05)."
             },
             "durationMs": {
               "type": "number",

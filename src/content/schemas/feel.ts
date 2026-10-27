@@ -3,6 +3,7 @@ import {
   MAX_CRAWL_SPEED_MPS,
   MAX_PAPA_RADIUS_M,
   MAX_WALK_SPEED_MPS,
+  MIN_TIME_SCALE,
 } from '@shared/constants';
 import { z } from 'zod';
 
@@ -21,7 +22,11 @@ const timeScale = (description: string) => z.number().gt(0).max(1).describe(desc
 const slowMo = (description: string) =>
   z
     .strictObject({
-      timeScale: timeScale('Sim speed during the slow-mo (1 = normal, 0.3 = 30 % speed).'),
+      timeScale: z
+        .number()
+        .min(MIN_TIME_SCALE)
+        .max(1)
+        .describe('Sim speed during the slow-mo (1 = normal, 0.3 = 30 % speed, never below 0.05).'),
       durationMs: durationMs('How long the slow-mo holds, in **sim** ms (ADR-002).'),
       returnMs: delayMs('Return to the base scale after the slow-mo, in sim ms (0 = instant).'),
     })

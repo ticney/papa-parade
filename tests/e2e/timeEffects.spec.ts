@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { STEP_MS } from '../../src/shared/constants.ts';
+import { PARRY_RELEASE_AFTER_MS } from '../support/timeEffects.ts';
 import { collectProblems, FIRST_TELEGRAPH_MS, OVERRUN_MARGIN_MS } from './support/game.ts';
 import {
   ppAdvance,
@@ -13,13 +14,11 @@ import {
 } from './support/testApi.ts';
 
 // A perfect response goes into slow-mo (story 1.14), driven by the test API: the level is frozen,
-// every step is advanced by hand and the sim times are read from the world and the live feel. The
-// hitstop is a real-time freeze that `advance` ignores, so the loop test covers it, not this one.
+// every step is advanced by hand, the sim times are read from the world and the slow-mo numbers from
+// `content/feel.json` (the build under test serves that file unchanged). The hitstop is a real-time freeze that `advance` ignores, so the loop test covers it, not this one.
 
 const LEVEL = 'salon_crawler';
 const SEED = 42;
-/** Release this long after the press: a Parry, not a Firmness (`input.holdMinMs`). */
-const RELEASE_AFTER_MS = 50;
 
 const { timing } = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
   timing: { slowMoPerfect: { timeScale: number; durationMs: number; returnMs: number } };
@@ -59,7 +58,7 @@ test.describe('slow-mo on a perfect response', () => {
 
     // A perfect Parry: the press at the centre of the window, the release shortly after.
     const centerMs = outlet.windowOpenAt + outlet.responseWindow.windowMs / 2;
-    const resolvedAt = centerMs + RELEASE_AFTER_MS;
+    const resolvedAt = centerMs + PARRY_RELEASE_AFTER_MS;
     await ppSend(page, { type: 'PressThreat', t: centerMs as never, threatId: outlet.id });
     await ppSend(page, { type: 'Release', t: resolvedAt as never });
     const beforeResolve = await ppWorld(page);
@@ -69,12 +68,16 @@ test.describe('slow-mo on a perfect response', () => {
     const slowed = await ppWorld(page);
     expect(slowed.time.scale).toBe(slowMoPerfect.timeScale);
     expect(slowed.time.slowMos).toHaveLength(1);
-    const types = (await ppEvents(page)).map((event) => event.type);
-    const resolved = types.indexOf('ResponseResolved');
+    // `ResponseResolved{perfect}` is followed by the `TimeScaleChanged` that enters the slow-mo.
+    const events = await ppEvents(page);
+    const resolved = events.findIndex((event) => event.type === 'ResponseResolved');
     expect(resolved).toBeGreaterThanOrEqual(0);
-    expect(types.indexOf('TimeScaleChanged')).toBeGreaterThan(resolved);
-    const response = (await ppEvents(page)).find((event) => event.type === 'ResponseResolved');
-    expect(response).toMatchObject({ quality: 'perfect' });
+    expect(events[resolved]).toMatchObject({ quality: 'perfect' });
+    expect(events[resolved + 1]).toMatchObject({
+      type: 'TimeScaleChanged',
+      from: 1,
+      to: slowMoPerfect.timeScale,
+    });
 
     // Past the hold and the return: the base scale is back and the slow-mo is gone.
     await ppAdvance(
