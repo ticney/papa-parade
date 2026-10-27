@@ -60,7 +60,7 @@ development_status:
   1-9-retours-de-base: done
   1-10-premiere-menace-jugee-en-headless-la-prise-electrique: done
   1-11-parer-la-prise-electrique-au-tap: review
-  1-12-bots-et-simulation-en-masse: backlog
+  1-12-bots-et-simulation-en-masse: ready-for-dev
   1-13-autoplay-et-api-de-test-dans-le-navigateur: backlog
   1-14-hitstop-et-ralentis: backlog
   1-15-physique-legere-des-objets: backlog
