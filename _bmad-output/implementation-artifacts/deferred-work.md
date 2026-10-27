@@ -289,4 +289,11 @@
 - **Distinct haptics and visuals per telegraph** beyond the icon: story 2.4. The four new sounds and the two glyphs are placeholders.
 - **Still open from 1.10 to 1.12:** multi-touch, overlapping presses, `responseChoreography`'s single queue, anchor kinds. They need two simultaneous threats: story 1.18.
 - **`npm run assets:audio` is not reproducible byte for byte.** `afconvert` writes a creation time in the `.m4a` header (12 bytes at offset 51), and the decoded audio of the two long clips (`baby_babble_loop`, `music_crawler_calm`) differs from one run to the next (about 200 and 2000 bytes of PCM out of 500 000 and 700 000). The synthesis itself is deterministic (`makePlaceholderAudio.test.ts`). Story 1.16 added its four clips alone and kept the seven existing files from git. A run of the tool rewrites all eleven: commit only the clips you meant to change.
-- **The sim report shows gags per `GagId`, not `NearMiss` as such** (`tools/sim`): the stairs' gags are the near misses today. Add a counter when 1.22 scores them.
+- ~~The sim report shows gags per `GagId`, not `NearMiss` as such~~ (`tools/sim`): closed by the code review of story 1.16, the report now has `gags.nearMisses`. Mama's score itself stays with 1.22.
+
+## Deferred from: code review of story 1-16-escalier-et-objet-sur-la-table-basse (2026-10-27)
+
+- **The stairs slide direction is computed at drain time, not at the event's `t`** (`src/client/boot.ts`): at speed × 4 or after a hitstop the baby may have moved since the gag, so the direction can vary with the frame rate. D6 makes the slide client-only and provisional; E7's animation replaces it. The alternative is to carry the direction in `GagTriggered`.
+- **`tableObjectFall` selects its prop by horizontal distance only** (`src/sim/threats/gags.ts`): a prop in flight or on a higher shelf within `propReachDistM` would be pushed instead of the mug. This is D4 as specified; add a height tolerance to `feel.gags.tableObjectFall` when a level has a second off-floor prop.
+- **The coffee-table threat stays targetable once the mug is on the floor** (gag pushes nothing): already listed above by the implementation; story 1.18's wave director may skip a threat whose gag has no target.
+- **The four new cues copy the outlet's visuals and haptics** (`content/feedback.json`): placeholders; distinct haptics and visuals per telegraph are story 2.4.

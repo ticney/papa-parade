@@ -82,7 +82,7 @@ const GAG_BZZT_RELEASE_MS = 40;
 
 // Stairs telegraph: the baby's knees and hands pattering faster and faster (4 gaps, each shorter).
 const TEL_STAIRS_LENGTH_MS = 400;
-const TEL_STAIRS_KNOCKS_AT_MS = [0, 110, 200, 270, 325];
+const TEL_STAIRS_KNOCKS_AT_MS: readonly number[] = [0, 110, 200, 270, 325];
 const TEL_STAIRS_PITCH_HZ = { from: 120, to: 60 };
 const TEL_STAIRS_KNOCK_DECAY_S = 0.025;
 const TEL_STAIRS_CLICK_MS = 3;
@@ -105,14 +105,16 @@ const TEL_TABLE_SCRAPE_RATE_HZ = 6;
 
 // Stairs gag: a bumpy slide down (five « bdoum »), ending in a delighted « hi! ».
 const GAG_STAIRS_LENGTH_MS = 600;
-const GAG_STAIRS_THUMPS_AT_MS = [0, 90, 180, 270, 360];
+const GAG_STAIRS_THUMPS_AT_MS: readonly number[] = [0, 90, 180, 270, 360];
 /** Pitch of the first thump; each next one starts lower. */
 const GAG_STAIRS_THUMP_START_HZ = 200;
 const GAG_STAIRS_THUMP_STEP_HZ = 20;
 const GAG_STAIRS_THUMP_DROP = 0.6;
 const GAG_STAIRS_THUMP_DECAY_S = 0.04;
 const GAG_STAIRS_CHIRP_AT_MS = 470;
-const GAG_STAIRS_CHIRP_HZ = [900, 1200];
+const GAG_STAIRS_CHIRP_HZ: readonly number[] = [900, 1200];
+/** The « hi! » comes in over this long, in ms (its own: the parry's attack is another clip's). */
+const GAG_STAIRS_CHIRP_ATTACK_MS = 2;
 const GAG_STAIRS_CHIRP_RISE = 1.25;
 const GAG_STAIRS_CHIRP_DECAY_S = 0.05;
 const GAG_STAIRS_CHIRP_GAIN = 0.6;
@@ -416,7 +418,7 @@ export function synthGagStairs(): Float32Array {
     const seconds = (i - start) / SAMPLE_RATE_HZ;
     const progress = (i - start) / (out.length - start);
     const envelope =
-      Math.min(1, (i - start) / samplesOf(PARRY_ATTACK_MS)) *
+      Math.min(1, (i - start) / samplesOf(GAG_STAIRS_CHIRP_ATTACK_MS)) *
       Math.exp(-seconds / GAG_STAIRS_CHIRP_DECAY_S);
     GAG_STAIRS_CHIRP_HZ.forEach((baseHz, voice) => {
       const frequencyHz = baseHz * (1 + (GAG_STAIRS_CHIRP_RISE - 1) * progress);
@@ -430,7 +432,7 @@ export function synthGagStairs(): Float32Array {
   return out;
 }
 
-/** A falling whistle: a sine gliding from 1200 down to 400 Hz. */
+/** A falling whistle: a sine gliding down from `GAG_TABLE_PITCH_HZ.from` to `.to`. */
 export function synthGagCoffeeTable(): Float32Array {
   const out = new Float32Array(samplesOf(GAG_TABLE_LENGTH_MS));
   const attack = samplesOf(GAG_TABLE_ATTACK_MS);

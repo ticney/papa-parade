@@ -480,6 +480,22 @@ describe('createLevelScene', () => {
       expect(group.position.x).toBe(home.x);
     });
 
+    it('slides the baby in place: its position vector and the scene are the same objects every frame', () => {
+      const { scene, fx, update } = build();
+      const group = scene.getObjectByName('baby_group') as Object3D;
+      update(fakeWorldAt(0), 0);
+      const { position } = group;
+      const children = [...scene.children];
+      const babyChildren = [...group.children];
+      fx.gag('stairs_slide', asSimMs(1000), false, 0.6, 0.8);
+      for (let ms = 1000; ms <= 1000 + GAG_SLIDE_TOTAL_MS + 20; ms += 20) {
+        update(fakeWorldAt(ms), 0);
+        expect(group.position).toBe(position);
+      }
+      expect(scene.children).toEqual(children);
+      expect(group.children).toEqual(babyChildren);
+    });
+
     it('resetFx brings the lights, the hair and the baby back at once', () => {
       const { scene, fx, update, resetFx } = build();
       const base = lights(scene).map((light) => light.intensity);

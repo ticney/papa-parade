@@ -35,6 +35,29 @@ function longestSilenceS(samples: Float32Array): number {
   return longest / SAMPLE_RATE_HZ;
 }
 
+/** Two clips are alike above this normalised correlation. */
+const CORRELATION_MAX = 0.5;
+/** The shifts tried between two clips, in ms, and the step between them, in samples. */
+const LAG_MAX_MS = 50;
+const LAG_STEP_SAMPLES = 8;
+
+/** The normalised dot product of `first` and `second` shifted by `lag` samples, over what they share. */
+function correlation(first: Float32Array, second: Float32Array, lag: number): number {
+  const from = Math.max(0, -lag);
+  const to = Math.min(first.length, second.length - lag);
+  let dot = 0;
+  let a = 0;
+  let b = 0;
+  for (let i = from; i < to; i++) {
+    const x = first[i] as number;
+    const y = second[i + lag] as number;
+    dot += x * y;
+    a += x * x;
+    b += y * y;
+  }
+  return a === 0 || b === 0 ? 0 : dot / Math.sqrt(a * b);
+}
+
 describe('placeholder audio', () => {
   it('is deterministic', () => {
     for (const { synth } of PLACEHOLDER_CLIPS) expect(synth()).toEqual(synth());
@@ -103,29 +126,30 @@ describe('placeholder audio', () => {
   });
 
   it('makes each telegraph and each gag sound unlike the others (no two clips are alike)', () => {
-    // The largest normalised dot product between two clips, over their common length: a clip that
-    // sounded like another would correlate with it. Two unrelated sounds stay far from 1.
+    // The largest normalised dot product between two clips, over their common length and for every
+    // shift of one against the other up to `LAG_MAX_MS`: a clip that sounded like another, or like
+    // a copy of it started a little later, would correlate with it. Two unrelated sounds stay far from 1.
+    const lagMax = Math.round((LAG_MAX_MS * SAMPLE_RATE_HZ) / 1000);
     const clips = PLACEHOLDER_CLIPS.filter(({ clip }) => /^(tel|gag)_/.test(clip)).map(
       ({ clip, synth }) => ({ clip, samples: synth() }),
     );
-    expect(clips.length).toBe(6);
+    expect(clips.map(({ clip }) => clip)).toEqual(
+      expect.arrayContaining(['tel_stairs', 'gag_stairs', 'tel_coffee_table', 'gag_coffee_table']),
+    );
     for (const [index, first] of clips.entries()) {
       for (const second of clips.slice(index + 1)) {
-        const length = Math.min(first.samples.length, second.samples.length);
-        let dot = 0;
-        let a = 0;
-        let b = 0;
-        for (let i = 0; i < length; i++) {
-          const x = first.samples[i] as number;
-          const y = second.samples[i] as number;
-          dot += x * y;
-          a += x * x;
-          b += y * y;
+        let best = 0;
+        for (let lag = -lagMax; lag <= lagMax; lag += LAG_STEP_SAMPLES) {
+          best = Math.max(best, Math.abs(correlation(first.samples, second.samples, lag)));
         }
-        expect(Math.abs(dot) / Math.sqrt(a * b), `${first.clip} / ${second.clip}`).toBeLessThan(
-          0.5,
-        );
+        expect(best, `${first.clip} / ${second.clip}`).toBeLessThan(CORRELATION_MAX);
       }
+    }
+  });
+
+  it('never gives a NaN, in any clip', () => {
+    for (const { clip, synth } of PLACEHOLDER_CLIPS) {
+      expect(synth().every(Number.isFinite), clip).toBe(true);
     }
   });
 

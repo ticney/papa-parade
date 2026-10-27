@@ -25,6 +25,7 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     worldHash: `hash${seed}`,
     responses: 0,
     gags: 0,
+    nearMisses: 0,
     commands: 0,
     threats: {},
     byGag: {},
@@ -49,6 +50,7 @@ describe('summarizeRuns', () => {
       run(5, {
         responses: 3,
         gags: 1,
+        nearMisses: 1,
         commands: 6,
         byGag: { outlet_hair: 1 },
         threats: {
@@ -76,7 +78,12 @@ describe('summarizeRuns', () => {
       meanAbsOffsetMs: 15,
     });
     expect(report.meanSuccessPct).toBe(66.7);
-    expect(report.gags).toEqual({ total: 1, meanPerRun: 1, byGag: { outlet_hair: 1 } });
+    expect(report.gags).toEqual({
+      total: 1,
+      meanPerRun: 1,
+      byGag: { outlet_hair: 1 },
+      nearMisses: 1,
+    });
     expect(report.meanScore).toBeNull();
     expect(report.scoreNote).toContain('1.22');
     expect(report.runList).toEqual([
@@ -93,6 +100,15 @@ describe('summarizeRuns', () => {
     expect(report.threats.outlet?.responses).toBe(4);
     expect(report.threats.outlet?.perfectPct).toBe(50);
     expect(report.meanSuccessPct).toBe(50);
+  });
+
+  it('adds the near misses of the runs up', () => {
+    const report = summarizeRuns(INPUT, [
+      run(5, { gags: 2, nearMisses: 2 }),
+      run(6, { gags: 3, nearMisses: 1 }),
+    ]);
+    expect(report.gags.nearMisses).toBe(3);
+    expect(summarizeRuns(INPUT, []).gags.nearMisses).toBe(0);
   });
 
   it('never gives NaN: no response at all has no success rate, and the mean offset is null', () => {
@@ -143,7 +159,7 @@ describe('summarizeRuns', () => {
 });
 
 describe('createRunRecorder', () => {
-  it('counts the responses and gags of the events it is given', async () => {
+  it('counts the responses, gags and near misses of the events it is given', async () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
@@ -170,11 +186,13 @@ describe('createRunRecorder', () => {
       gag: 'outlet_hair',
       reason: 'late',
     });
+    recorder.onEvent({ type: 'NearMiss', t: asSimMs(0), threatId, gag: 'stairs_slide' });
     const summary = recorder.finish();
     expect(summary).toMatchObject({
       seed: 1,
       responses: 2,
       gags: 1,
+      nearMisses: 1,
       commands: 0,
       byGag: { outlet_hair: 1 },
     });

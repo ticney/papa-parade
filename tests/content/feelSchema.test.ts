@@ -14,11 +14,10 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // Feel keys): the group name `fatigue` already carries the quantity.
 // `RadiusM` and `DistM` are metres (`papaRadiusM`, `wanderMaxDistM`): a length is spelled out, so a
 // bare `M` does not pass.
-// Story 1.16 adds `ReachM` (`propReachM`: how far a gag reaches).
 // Story 1.15 adds `Kg`, `Ns` (newton-seconds) and `Mps2`, and the dimensionless physics ratios
 // `friction` and `restitution` (a coefficient has no unit; the key says what it is).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|Kg|Ns)$|^(?:perSec|friction|restitution)$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|Kg|Ns)$|^(?:perSec|friction|restitution)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -220,11 +219,11 @@ describe('feel.physics (story 1.15)', () => {
 describe('feel.gags (story 1.16)', () => {
   const tablePath = (key: string) => `gags.tableObjectFall.${key}`;
 
-  it.each(['pushImpulseNs', 'propReachM'])('refuses a missing %s, at its path', (key) => {
+  it.each(['pushImpulseNs', 'propReachDistM'])('refuses a missing %s, at its path', (key) => {
     expect(failedPaths(mutated([tablePath(key), undefined]))).toEqual([tablePath(key)]);
   });
 
-  it.each(['pushImpulseNs', 'propReachM'])('refuses a %s of 0, at its path', (key) => {
+  it.each(['pushImpulseNs', 'propReachDistM'])('refuses a %s of 0, at its path', (key) => {
     expect(failedPaths(mutated([tablePath(key), 0]))).toEqual([tablePath(key)]);
   });
 
@@ -263,7 +262,7 @@ describe('feel unit suffixes', () => {
     expect(UNIT_SUFFIX.test('massKg')).toBe(true);
     expect(UNIT_SUFFIX.test('breakImpulseNs')).toBe(true);
     expect(UNIT_SUFFIX.test('gravityMps2')).toBe(true);
-    expect(UNIT_SUFFIX.test('propReachM')).toBe(true);
+    expect(UNIT_SUFFIX.test('propReachDistM')).toBe(true);
     expect(UNIT_SUFFIX.test('mass')).toBe(false);
     expect(UNIT_SUFFIX.test('impulse')).toBe(false);
   });

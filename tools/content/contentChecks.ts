@@ -326,7 +326,9 @@ function checkPropReferences(
  * threshold); (2) a prop at rest takes `massKg · g · STEP` of impulse each step, which must stay
  * under `impactMinImpulseNs` or it would report an impact all the time it rests; (3) the largest
  * push gives it a speed that must carry it less than half a wall of the room in one step, or it
- * could cross the wall.
+ * could cross the wall; (4) a gag's push (`feel.gags.tableObjectFall.pushImpulseNs`) must not be
+ * above `maxPushImpulseNs`, which `pushProp` holds every push to (a strict sim throws on a longer
+ * one, a normal one clamps it and reports `InvariantViolated` at every gag).
  */
 function checkPhysicsTuning(feel: Feel): ContentProblem[] {
   const problems: ContentProblem[] = [];
@@ -358,6 +360,14 @@ function checkPhysicsTuning(feel: Feel): ContentProblem[] {
         message: `${where}.massKg (${kind.massKg}) is too light for physics.maxPushImpulseNs (${physics.maxPushImpulseNs}): the largest push moves it ${pushStepM.toFixed(2)} m per step, and the room's walls are ${PHYSICS_BOUNDS_WALL_THICKNESS_M} m thick, so it could cross one`,
       });
     }
+  }
+  const { pushImpulseNs } = feel.gags.tableObjectFall;
+  if (pushImpulseNs > physics.maxPushImpulseNs) {
+    problems.push({
+      file: `content/${FEEL_FILE.file}`,
+      jsonPath: formatJsonPath(['gags', 'tableObjectFall', 'pushImpulseNs']),
+      message: `feel.json › gags.tableObjectFall.pushImpulseNs (${pushImpulseNs}) must not be above physics.maxPushImpulseNs (${physics.maxPushImpulseNs}): pushProp holds every push to it, so the gag would be clamped (or throw in a strict sim)`,
+    });
   }
   return problems;
 }

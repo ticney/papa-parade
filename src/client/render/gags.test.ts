@@ -1,3 +1,4 @@
+import { SLIDE_DIRECTION_MIN_M } from '@shared/constants';
 import { GAG_IDS } from '@sim';
 import { describe, expect, it } from 'vitest';
 import {
@@ -142,6 +143,23 @@ describe('slideDirection', () => {
     slideDirection(2, 3, 2, 3, 0, 1, out);
     expect(out.x).toBeCloseTo(0, 12);
     expect(out.z).toBe(-1);
+  });
+
+  it('takes a baby closer than the minimum distance for being on the threat, not a noisy direction', () => {
+    const out = { x: 9, z: 9 };
+    slideDirection(2, 3, 2 + SLIDE_DIRECTION_MIN_M / 2, 3, 0, 1, out);
+    expect(out.z).toBe(-1);
+    slideDirection(2, 3, 2 + SLIDE_DIRECTION_MIN_M * 2, 3, 0, 1, out);
+    expect(out).toEqual({ x: 1, z: 0 });
+  });
+
+  it('normalises the gaze it goes against, and has a default axis with no gaze', () => {
+    const out = { x: 9, z: 9 };
+    slideDirection(2, 3, 2, 3, 3, 4, out);
+    expect(out.x).toBeCloseTo(-0.6, 12);
+    expect(out.z).toBeCloseTo(-0.8, 12);
+    slideDirection(2, 3, 2, 3, 0, 0, out);
+    expect(out).toEqual({ x: 0, z: 1 });
   });
 });
 

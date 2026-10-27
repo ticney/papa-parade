@@ -59,6 +59,13 @@ function releaseOffsetMs(response: ThreatResponse): number {
   }
 }
 
+/** The anchor a live level plans `def` at; a def no level plans fails here, with its name. */
+function anchorOf(def: ThreatDef): string {
+  const anchor = anchors.get(def.id);
+  if (anchor === undefined) throw new Error(`"${def.id}" is planned by no level`);
+  return anchor;
+}
+
 /** The frozen room planning every def at its live anchor: `tested` from 0 ms, the others much later. */
 function levelPlanning(tested: ThreatDef): LevelContent {
   return {
@@ -66,7 +73,7 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       id: 'salon_crawler',
       threats: defs.map((def) => ({
         def: def.id,
-        anchor: anchors.get(def.id) ?? 'planned_by_no_level',
+        anchor: anchorOf(def),
         fromMs: def === tested ? 0 : CATALOG_OTHERS_FROM_MS,
       })),
     },

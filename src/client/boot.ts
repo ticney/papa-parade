@@ -478,17 +478,19 @@ export async function boot(): Promise<void> {
             const { world } = active.sim;
             const threat = world.threats.find((candidate) => candidate.id === event.threatId);
             // The stairs slide: from the threat's anchor to the baby (D6 of story 1.16).
-            if (threat !== undefined) {
-              slideDirection(
-                threat.xM,
-                threat.zM,
-                world.baby.xM,
-                world.baby.zM,
-                world.baby.gazeX,
-                world.baby.gazeZ,
-                slideDir,
-              );
+            if (threat === undefined) {
+              // Never a stale direction from the previous gag: with no anchor, the baby is "on" it.
+              log.warn('render', 'GagTriggered for a threat the world does not have', event);
             }
+            slideDirection(
+              threat?.xM ?? world.baby.xM,
+              threat?.zM ?? world.baby.zM,
+              world.baby.xM,
+              world.baby.zM,
+              world.baby.gazeX,
+              world.baby.gazeZ,
+              slideDir,
+            );
             currentLevel.fx.gag(event.gag, event.t, isMotionReduced, slideDir.x, slideDir.z);
           }
         }

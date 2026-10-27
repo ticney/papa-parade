@@ -430,6 +430,20 @@ describe('checkContent on level geometry files', () => {
       ]);
       expect(problems[0]?.message).toContain('could cross one');
     });
+
+    it('reports a gag push above the largest push the physics allows, where it would be clamped', async () => {
+      await mutateJson('content/feel.json', (feel) => {
+        const gags = feel.gags as { tableObjectFall: Record<string, number> };
+        gags.tableObjectFall.pushImpulseNs = 5;
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: 'content/feel.json',
+          jsonPath: 'gags.tableObjectFall.pushImpulseNs',
+          message: expect.stringContaining('must not be above physics.maxPushImpulseNs'),
+        }),
+      ]);
+    });
   });
 
   it('reports a stale generated geometry schema', async () => {

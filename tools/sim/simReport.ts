@@ -22,6 +22,8 @@ export interface RunSummary {
   worldHash: string;
   responses: number;
   gags: number;
+  /** The `NearMiss` events: what Mama's « Hurlement » will count (story 1.22). */
+  nearMisses: number;
   commands: number;
   threats: Record<string, ThreatTally>;
   byGag: Record<string, number>;
@@ -64,6 +66,7 @@ export function createRunRecorder(sim: Sim, seed: number): RunRecorder {
   const byGag: Record<string, number> = {};
   let responses = 0;
   let gags = 0;
+  let nearMisses = 0;
   return {
     onEvent(event) {
       if (event.type === 'ResponseResolved') {
@@ -82,6 +85,8 @@ export function createRunRecorder(sim: Sim, seed: number): RunRecorder {
       } else if (event.type === 'GagTriggered') {
         gags++;
         byGag[event.gag] = countOf(byGag, event.gag) + 1;
+      } else if (event.type === 'NearMiss') {
+        nearMisses++;
       }
     },
     finish() {
@@ -90,6 +95,7 @@ export function createRunRecorder(sim: Sim, seed: number): RunRecorder {
         worldHash: hashJson(sim.world),
         responses,
         gags,
+        nearMisses,
         commands: sim.journal().entries.length,
         threats,
         byGag,
@@ -123,7 +129,13 @@ export interface SimReport {
   /** `null` when no response was seen (no threat, or a game too short for one): not 0 %. */
   meanSuccessPct: number | null;
   threats: Record<string, ThreatReport>;
-  gags: { total: number; meanPerRun: number; byGag: Record<string, number> };
+  gags: {
+    total: number;
+    meanPerRun: number;
+    byGag: Record<string, number>;
+    /** Total `NearMiss` events over the runs (the stairs' gags today). */
+    nearMisses: number;
+  };
   runList: {
     seed: number;
     worldHash: string;
@@ -161,8 +173,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let responses = 0;
   let good = 0;
   let gags = 0;
+  let nearMisses = 0;
   for (const run of runs) {
     gags += run.gags;
+    nearMisses += run.nearMisses;
     for (const gag of Object.keys(run.byGag)) {
       byGag[gag] = countOf(byGag, gag) + countOf(run.byGag, gag);
     }
@@ -216,6 +230,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       total: gags,
       meanPerRun: runs.length === 0 ? 0 : round(gags / runs.length, 2),
       byGag: sortedByGag,
+      nearMisses,
     },
     runList: runs.map((run) => ({
       seed: run.seed,

@@ -1,4 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
+import { THREAT_ICON_PATHS } from '../../src/client/ui/world/threatMarkers.ts';
+import { STEP_MS } from '../../src/shared/constants.ts';
 import { collectProblems } from './support/game.ts';
 import {
   ppAdvance,
@@ -22,6 +24,8 @@ const CHUNK_STEPS = 25;
 const CHUNKS_MAX = 160;
 /** The object that falls must hit something within this long of its gag, in sim ms. */
 const FALL_WITHIN_MS = 1000;
+/** Two markers at different anchors are at least this far apart on the screen, in px. */
+const MARKERS_APART_PX = 20;
 
 /** Advances by chunks until `isDone(world)` holds; fails the test when it never does. */
 async function advanceUntil(
@@ -36,27 +40,39 @@ async function advanceUntil(
   throw new Error(`never reached: ${what}`);
 }
 
-/** The paths drawn by the markers that are shown (not `display: none`), in DOM order. */
-const shownGlyphs = (page: Page): Promise<(string | null)[]> =>
-  page
-    .locator('.pp-threat')
-    .evaluateAll((elements) =>
-      elements
-        .filter((element) => getComputedStyle(element).display !== 'none')
-        .map((element) => element.querySelector('.pp-threat-icon path')?.getAttribute('d') ?? null),
-    );
+/** A marker that is shown: the path of its glyph and where it is on the screen, in px. */
+interface ShownMarker {
+  glyph: string | null;
+  xPx: number;
+  yPx: number;
+}
 
-/** Advances to the telegraph of `defId` and returns the glyph of the one marker then shown. */
-async function glyphWhenTelegraphed(page: Page, defId: string): Promise<string> {
+/** The markers that are shown (not `display: none`), in DOM order. */
+const shownMarkers = (page: Page): Promise<ShownMarker[]> =>
+  page.locator('.pp-threat').evaluateAll((elements) =>
+    elements
+      .filter((element) => getComputedStyle(element).display !== 'none')
+      .map((element) => {
+        const box = element.getBoundingClientRect();
+        return {
+          glyph: element.querySelector('.pp-threat-icon path')?.getAttribute('d') ?? null,
+          xPx: box.x + box.width / 2,
+          yPx: box.y + box.height / 2,
+        };
+      }),
+  );
+
+/** Advances to the telegraph of `defId` and returns the one marker then shown. */
+async function markerWhenTelegraphed(page: Page, defId: string): Promise<ShownMarker> {
   await advanceUntil(page, `${defId} is telegraphed`, (world) => {
     const threat = world.threats.find((candidate) => candidate.defId === defId);
     return threat?.state === 'telegraph' || threat?.state === 'windowOpen';
   });
   // The marker is drawn on the next rendered frame (the frozen level renders on).
-  await expect.poll(async () => (await shownGlyphs(page)).length).toBe(1);
-  const [glyph] = await shownGlyphs(page);
-  if (glyph === null || glyph === undefined) throw new Error(`no glyph shown for ${defId}`);
-  return glyph;
+  await expect.poll(async () => (await shownMarkers(page)).length).toBe(1);
+  const [marker] = await shownMarkers(page);
+  if (marker === undefined || marker.glyph === null) throw new Error(`no glyph shown for ${defId}`);
+  return marker;
 }
 
 const threatOf = (world: Awaited<ReturnType<typeof ppWorld>>, defId: string) =>
@@ -80,10 +96,16 @@ test.describe('the three threats', () => {
       'coffee_table_object',
     ]);
 
-    // Each threat is telegraphed with its own glyph: the one marker shown draws the path of its icon.
-    const outletGlyph = await glyphWhenTelegraphed(page, 'outlet');
-    const stairsGlyph = await glyphWhenTelegraphed(page, 'stairs');
-    const stairsIndex = planned.threats.findIndex((threat) => threat.defId === 'stairs');
+    // Each threat is telegraphed with its own glyph (the def's icon), at its own anchor: the one
+    // marker shown draws the path of its icon, and the markers are not on the same spot.
+    const outletMarker = await markerWhenTelegraphed(page, 'outlet');
+    const stairsMarker = await markerWhenTelegraphed(page, 'stairs');
+    expect(outletMarker.glyph).toBe(THREAT_ICON_PATHS.bolt);
+    expect(stairsMarker.glyph).toBe(THREAT_ICON_PATHS.stairs);
+    expect(
+      Math.hypot(stairsMarker.xPx - outletMarker.xPx, stairsMarker.yPx - outletMarker.yPx),
+    ).toBeGreaterThan(MARKERS_APART_PX);
+    const stairsThreat = planned.threats.find((threat) => threat.defId === 'stairs');
 
     // Nothing answers: the stairs ends in its gag, a near miss at the same step.
     await advanceUntil(
@@ -101,21 +123,21 @@ test.describe('the three threats', () => {
         type: 'NearMiss',
         gag: 'stairs_slide',
         t: stairsGag?.t,
-        threatId: stairsIndex + 1,
+        threatId: stairsThreat?.id,
       }),
     );
     await expect(page.locator('html')).toHaveAttribute('data-pp-gag', 'stairs_slide');
 
     // The coffee-table object: telegraphed with the mug, then it falls (the mug hits something within a second).
-    const mugGlyph = await glyphWhenTelegraphed(page, 'coffee_table_object');
-    expect(new Set([outletGlyph, stairsGlyph, mugGlyph]).size).toBe(3);
+    const mugMarker = await markerWhenTelegraphed(page, 'coffee_table_object');
+    expect(mugMarker.glyph).toBe(THREAT_ICON_PATHS.mug);
     await advanceUntil(
       page,
       'the coffee table gags',
       (world) => threatOf(world, 'coffee_table_object')?.state === 'gag',
     );
     // Run on until the mug has had time to land.
-    await ppAdvance(page, FALL_WITHIN_MS / 10);
+    await ppAdvance(page, FALL_WITHIN_MS / STEP_MS);
     const events = await ppEvents(page);
     const tableGag = events.find(
       (event) => event.type === 'GagTriggered' && event.gag === 'table_object_fall',
@@ -123,9 +145,6 @@ test.describe('the three threats', () => {
     expect(tableGag).toBeDefined();
     await expect(page.locator('html')).toHaveAttribute('data-pp-gag', 'table_object_fall');
     const gagAt = tableGag?.t ?? 0;
-    expect(events).toContainEqual(
-      expect.objectContaining({ type: 'PropImpact', propId: 'mug_01' }),
-    );
     const mugImpacts = events.filter(
       (event) => event.type === 'PropImpact' && event.propId === 'mug_01' && event.t >= gagAt,
     );
@@ -133,8 +152,11 @@ test.describe('the three threats', () => {
     expect(Math.min(...mugImpacts.map((event) => event.t)) - gagAt).toBeLessThanOrEqual(
       FALL_WITHIN_MS,
     );
-    // The stairs' near miss is the only one: the table gag is no near miss.
-    expect(events.filter((event) => event.type === 'NearMiss')).toHaveLength(1);
+    // The table gag is no near miss: every near miss of the run is the stairs', none at its step.
+    const nearMisses = events.filter((event) => event.type === 'NearMiss');
+    expect(nearMisses.length).toBeGreaterThan(0);
+    for (const nearMiss of nearMisses) expect(nearMiss.gag).toBe('stairs_slide');
+    expect(nearMisses.filter((nearMiss) => nearMiss.t === gagAt)).toEqual([]);
 
     await expect
       .poll(async () => Number(await page.locator('html').getAttribute('data-pp-draw-calls')))

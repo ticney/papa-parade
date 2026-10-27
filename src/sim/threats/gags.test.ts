@@ -1,4 +1,5 @@
 import type { Feel } from '@content/schemas/feel';
+import { MS_PER_S, STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
@@ -14,10 +15,10 @@ import type { StepContext } from '../context.ts';
 import { createSim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import type { World } from '../world.ts';
-import { applyGag, GAG_IDS } from './gags.ts';
+import { applyGag, GAG_IDS, type GagId } from './gags.ts';
 
 const content = createTestContent();
-const { pushImpulseNs, propReachM } = content.feel.gags.tableObjectFall;
+const { pushImpulseNs, propReachDistM } = content.feel.gags.tableObjectFall;
 
 /** A gag step on the frozen room, with a port that records the impulses the gag asks for. */
 async function setup(feel: Feel = content.feel) {
@@ -51,8 +52,15 @@ async function setup(feel: Feel = content.feel) {
 
 const withReach = (reachM: number): Feel => ({
   ...content.feel,
-  gags: { tableObjectFall: { pushImpulseNs, propReachM: reachM } },
+  gags: { tableObjectFall: { pushImpulseNs, propReachDistM: reachM } },
 });
+
+/** What each gag does on the threat that owns it: a `Record`, so that a new gag with no row is a type error. */
+const OWN_THREAT: Record<GagId, { defId: string; eventCount: number; pushCount: number }> = {
+  outlet_hair: { defId: 'outlet', eventCount: 0, pushCount: 0 },
+  stairs_slide: { defId: 'stairs', eventCount: 1, pushCount: 0 },
+  table_object_fall: { defId: 'coffee_table_object', eventCount: 0, pushCount: 1 },
+};
 
 describe('applyGag', () => {
   it('outlet_hair pushes no event and touches no prop', async () => {
@@ -72,9 +80,12 @@ describe('applyGag', () => {
     expect(impulses).toEqual([]);
   });
 
-  it.each(GAG_IDS)('%s does not throw', async (gag) => {
-    const { world, ctx, threatOf } = await setup();
-    expect(() => applyGag(world, ctx, threatOf('coffee_table_object'), gag)).not.toThrow();
+  it.each(GAG_IDS)('%s does what its row says on its own threat', async (gag) => {
+    const { defId, eventCount, pushCount } = OWN_THREAT[gag];
+    const { world, ctx, events, impulses, threatOf } = await setup();
+    applyGag(world, ctx, threatOf(defId), gag);
+    expect(events).toHaveLength(eventCount);
+    expect(impulses).toHaveLength(pushCount);
   });
 });
 
@@ -155,12 +166,12 @@ describe('table_object_fall (a scripted port)', () => {
     expect(impulses).toEqual([{ propIndex: vaseIndex, xNs: 0, yNs: 0, zNs: pushImpulseNs }]);
   });
 
-  it('reaches a prop at exactly propReachM', async () => {
+  it('reaches a prop at exactly propReachDistM', async () => {
     const { world, ctx, impulses, threatOf } = await setup();
     const threat = threatOf('coffee_table_object');
     threat.xM = 0;
     threat.zM = 0;
-    (world.props[mugIndex] as World['props'][number]).xM = propReachM;
+    (world.props[mugIndex] as World['props'][number]).xM = propReachDistM;
     (world.props[mugIndex] as World['props'][number]).zM = 0;
     applyGag(world, ctx, threat, 'table_object_fall');
     expect(impulses).toHaveLength(1);
@@ -187,6 +198,8 @@ describe('table_object_fall (real Rapier, through createSim)', () => {
       const events = [...sim.drainEvents()];
       if (events.some((event) => event.type === 'GagTriggered')) gagStepEvents = events;
     }
+    // The loop gives up silently: no gag step would otherwise fail on confusing assertions below.
+    expect(gagStepEvents.length).toBeGreaterThan(0);
     return { sim, world, mug, vase, gagStepEvents, before };
   }
 
@@ -206,7 +219,7 @@ describe('table_object_fall (real Rapier, through createSim)', () => {
 
   it('drops the mug to the floor within a second of sim', async () => {
     const { sim, mug } = await failedTable();
-    stepN(sim, 100);
+    stepN(sim, Math.round(MS_PER_S / STEP_MS));
     expect(mug.isOnFloor).toBe(true);
     sim.dispose();
   });

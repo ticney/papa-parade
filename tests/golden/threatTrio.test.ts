@@ -84,9 +84,9 @@ describe('golden scenario threat_trio covers what it is there for', () => {
     const tableGagIndex = events.findIndex(
       (event) => event.type === 'GagTriggered' && event.gag === 'table_object_fall',
     );
-    expect(events.slice(0, tableGagIndex).some((event) => event.type.startsWith('Prop'))).toBe(
-      false,
-    );
+    expect(tableGagIndex).toBeGreaterThanOrEqual(0);
+    const propEvents = new Set(['PropImpact', 'PropBroken']);
+    expect(events.slice(0, tableGagIndex).some((event) => propEvents.has(event.type))).toBe(false);
   });
 
   it('leaves the mess at {propsOnFloor: 1, propsBroken: 1}, whatever the later gags do', async () => {

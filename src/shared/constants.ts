@@ -197,3 +197,9 @@ export const PHYSICS_BOUNDS_WALL_THICKNESS_M = 1;
  * (float32 inside) and stored as a double is not exactly unit. The snapshot check uses it.
  */
 export const QUATERNION_LENGTH_TOLERANCE = 1e-4;
+
+/**
+ * Closer than this to a threat's anchor, in metres, the baby has no direction from it (the vector
+ * would be float noise): the stairs slide then goes against the baby's gaze instead.
+ */
+export const SLIDE_DIRECTION_MIN_M = 0.001;

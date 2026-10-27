@@ -311,7 +311,7 @@ const GagsSchema = z
         pushImpulseNs: positive(
           'Impulse the coffee-table gag gives the object on the table, in newton-seconds, horizontally away from the anchor (held to `physics.maxPushImpulseNs`).',
         ),
-        propReachM: positive(
+        propReachDistM: positive(
           'How far from the threat anchor, in metres (horizontal), an object that is off the floor still counts as « on the table ».',
         ),
       })

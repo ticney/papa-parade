@@ -606,7 +606,7 @@
               "exclusiveMinimum": 0,
               "description": "Impulse the coffee-table gag gives the object on the table, in newton-seconds, horizontally away from the anchor (held to `physics.maxPushImpulseNs`)."
             },
-            "propReachM": {
+            "propReachDistM": {
               "type": "number",
               "exclusiveMinimum": 0,
               "description": "How far from the threat anchor, in metres (horizontal), an object that is off the floor still counts as « on the table »."
@@ -614,7 +614,7 @@
           },
           "required": [
             "pushImpulseNs",
-            "propReachM"
+            "propReachDistM"
           ],
           "additionalProperties": false,
           "description": "The gag of the object on the coffee table (story 1.16)."

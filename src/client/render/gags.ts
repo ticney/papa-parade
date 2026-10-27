@@ -1,3 +1,4 @@
+import { SLIDE_DIRECTION_MIN_M } from '@shared/constants';
 import type { GagId } from '@sim';
 
 // Art constants for the provisional gags (Geo tunes them here until the real animations, E7), named
@@ -88,7 +89,8 @@ export function slideOffsetAt(elapsedMs: number): number {
 
 /**
  * The unit horizontal vector the baby slides along: from the threat to the baby, or, with the baby
- * on the threat (no direction), against its gaze. Written into `out`, no allocation.
+ * on the threat (closer than `SLIDE_DIRECTION_MIN_M`: no direction), against its gaze (+z with no
+ * gaze either). Written into `out`, no allocation.
  */
 export function slideDirection(
   threatXM: number,
@@ -102,12 +104,18 @@ export function slideDirection(
   const dx = babyXM - threatXM;
   const dz = babyZM - threatZM;
   const lengthM = Math.sqrt(dx * dx + dz * dz);
-  if (lengthM > 0) {
+  if (lengthM > SLIDE_DIRECTION_MIN_M) {
     out.x = dx / lengthM;
     out.z = dz / lengthM;
+    return;
+  }
+  const gazeLength = Math.sqrt(gazeX * gazeX + gazeZ * gazeZ);
+  if (gazeLength > 0) {
+    out.x = -gazeX / gazeLength;
+    out.z = -gazeZ / gazeLength;
   } else {
-    out.x = -gazeX;
-    out.z = -gazeZ;
+    out.x = 0;
+    out.z = 1;
   }
 }
 

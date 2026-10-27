@@ -93,6 +93,6 @@
     }
   },
   "gags": {
-    "tableObjectFall": { "pushImpulseNs": 0.72, "propReachM": 0.5 }
+    "tableObjectFall": { "pushImpulseNs": 0.72, "propReachDistM": 0.5 }
   }
 }

@@ -39,12 +39,12 @@ function stairsSlide(world: World, ctx: StepContext, threat: ThreatInstance): vo
 
 /**
  * The object on the coffee table falls. It is the unbroken prop that is off the floor, nearest the
- * threat's anchor within `propReachM` (ties go to the lower index), pushed horizontally away from
+ * threat's anchor within `propReachDistM` (ties go to the lower index), pushed horizontally away from
  * the anchor, so that it leaves the table by its nearest edge. A prop exactly on the anchor is
  * pushed along the baby's gaze. No such prop: nothing is pushed.
  */
 function tableObjectFall(world: World, ctx: StepContext, threat: ThreatInstance): void {
-  const { pushImpulseNs, propReachM } = ctx.feel.gags.tableObjectFall;
+  const { pushImpulseNs, propReachDistM } = ctx.feel.gags.tableObjectFall;
   let nearestIndex = -1;
   let nearestM = Number.POSITIVE_INFINITY;
   let nearestDxM = 0;
@@ -55,7 +55,7 @@ function tableObjectFall(world: World, ctx: StepContext, threat: ThreatInstance)
     const dxM = prop.xM - threat.xM;
     const dzM = prop.zM - threat.zM;
     const distanceM = Math.sqrt(dxM * dxM + dzM * dzM);
-    if (distanceM > propReachM || distanceM >= nearestM) continue;
+    if (distanceM > propReachDistM || distanceM >= nearestM) continue;
     nearestIndex = index;
     nearestM = distanceM;
     nearestDxM = dxM;
