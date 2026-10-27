@@ -4,8 +4,8 @@
 
 - **Type-level isolation of the sim.** `tsconfig.json` gives `src/sim` the DOM `lib` and the Node `types`, so `window`, `document`, `process` or `Buffer` compile there; only Biome and the `simPurity` scanner stop them. A `src/sim/tsconfig.json` with `lib: ['ES2023']` and `types: []` would add a compile-time guard. Beyond story 1.1.
 - **Biome vs `simPurity` on sim tests.** Biome lints `*.test.ts` under `src/sim` with the purity globals while `simPurity` skips them (AC 3). Decide with story 1.3, when the first sim test exists. **Resolved in story 1.3: no change** (Biome stays strict on sim tests, `simPurity` keeps skipping them; a sim test that needs a clock or randomness belongs in `tests/`).
-- **Mobile canvas CSS.** `#pp-canvas` uses `100vw`/`100vh` as T2 specifies; the area under mobile browser bars is included. Missing: `100dvh`, `touch-action: none`, `overscroll-behavior`, safe-area insets. Stories 1.4 and 1.5.
-- **Global error hook.** No `error` / `unhandledrejection` listener feeds `log.error`, so uncaught errors on a phone never reach the ring buffer. Composition root, story 1.4.
+- **Mobile canvas CSS.** `#pp-canvas` uses `100vw`/`100vh` as T2 specifies; the area under mobile browser bars is included. Missing: `100dvh`, `touch-action: none`, `overscroll-behavior`, safe-area insets. Stories 1.4 and 1.5. **Resolved in story 1.4:** `100dvh` (in an `@supports` block, since Biome rejects the duplicate `height`), `touch-action: none`, `overscroll-behavior: none`, `user-select` and `-webkit-touch-callout` are done; the safe-area insets are the HUD's, story 1.5.
+- **Global error hook.** No `error` / `unhandledrejection` listener feeds `log.error`, so uncaught errors on a phone never reach the ring buffer. Composition root, story 1.4. **Resolved in story 1.4:** `installGlobalErrorHandlers(window)` is the first call of `boot()` and logs both events through `log.error`; the player-facing « Oups » screen stays story 1.6.
 - **Duplicated Biome override lists.** `src/sim/**` and `src/sim/physics/rapierPhysics.ts` repeat the whole `deniedGlobals` and import pattern lists by hand. Add a drift test if the lists grow.
 - **Build coverage in CI.** CI never runs `npm run build` (production, `VITE_DEBUG_ALLOWED=false`) and e2e runs against the dev server, not the built bundle; `isMobile` is not emulated. Story 1.24.
 - **Placeholder favicon.** `public/favicon.svg` is the stock Vite logo. Replace with real branding assets.
@@ -21,7 +21,7 @@
 - **Browser content source inlines every `content/**/*.json` in the main bundle** and derives the relative key with `lastIndexOf('/content/')`. Bundle size belongs to the performance budget (story 1.24); a nested `content/` folder is hypothetical.
 - **No unused-string-key check.** Dead strings cannot be told from "not wired yet" until the client reads strings (stories 1.5+).
 - **End-to-end test of `…Key` references.** The wiring in `loadContent` and `checkContent` is only covered through the `checkStringReferences` helper: `FeelSchema` is strict and no content file has a `…Key` field yet. Add the "reference to a missing string" test to both when the first threat file (story 1.6) has a `verbKey`.
-- **Player-facing fallback when content fails outside dev.** `main.ts` only logs, so a playtest build with bad content shows an empty page (the `oops.message` / `oops.retry` strings are unused, and `void main()` drops any rejection). Story 1.4 (composition root), with the global error hook deferred from story 1.1.
+- **Player-facing fallback when content fails outside dev.** `main.ts` only logs, so a playtest build with bad content shows an empty page (the `oops.message` / `oops.retry` strings are unused, and `void main()` drops any rejection). Story 1.4 (composition root), with the global error hook deferred from story 1.1. **Resolved in story 1.4: moved to story 1.6**, with the « Oups » screen (the epic puts it there, not in 1.4); `boot()` still only logs and, in dev, shows the content error screen.
 - **Feel bounds are loose on purpose.** `windowMultiplier` accepts 0, `windowPenaltyPct` can reach 100, `earlyWakePenaltyStars` has no max of 5, `microSleepMinMs` accepts 0, and nothing checks that the Mama score can reach the top star threshold. Geo keeps them loose to experiment; tighten when the sim reads these values (story 1.6 onwards).
 
 ## Deferred from: creation of story 1-3-coeur-de-simulation-deterministe-en-headless (2026-10-26)
@@ -37,3 +37,19 @@
 - **`cloneJson` normalises `-0` to `0`.** A restored world can differ from the live one where the sign of zero matters (`Math.atan2`, `1/x`). Latent: the sim has no float math yet. Decide with the first movement code (story 1.7).
 - **The golden scenario never touches the rng or ids.** `core_basic` only sends `SetTimeScale`, and the determinism test compares two runs of the same process. The first gameplay golden (story 1.10) must exercise rng, ids and events.
 - **Invariant strictness follows the build.** A playtest build (`PROD`) clamps what dev and CI throw on, and a journal recorded in one mode replays differently in the other. Matches the architecture; story 3.3 should record the mode in the exported journal.
+
+## Deferred from: creation of story 1-4-boucle-client-vue-isometrique-et-pause-exacte (2026-10-27)
+
+- **Adaptive DPR** (2 → 1.5 → 1 on mean frame time). `pixelRatioFor` only caps at `MAX_PIXEL_RATIO`. Story 1.24, with the performance budget.
+- **Interpolation of entity views** (`render/interpolate.ts`, previous and current state). `alpha` only feeds the probe cube today. Story 1.7, with the first moving entity.
+- **`Platform.lifecycle`** replacing the direct `visibilitychange` listener, and Capacitor's app-state event. When `src/platform` is created, and in E8.
+- **Forbid `@shared/emitter` in `src/sim`** with a Biome pattern and a scanner rule (like R3b for `@shared/log`). Add it if a second client-only shared module appears.
+- **The « Oups » screen**, the player-facing fallback for a renderer or content failure, and restarting the level after an uncaught error. Story 1.6.
+
+## Deferred from: implementation of story 1-4-boucle-client-vue-isometrique-et-pause-exacte (2026-10-27)
+
+- **`timeMap.reset()` after `sim.restore()`.** The loop records `world.time.sim + accumulator`, which jumps back when a snapshot is restored; `timeMap.record` throws on a sim time that goes back (the loop's monotone clamp would instead hold the old clock). Nothing restores a sim in the client yet. Story 3.9 (replay of the best moments) must call `timeMap.reset()` and reset the loop's clock when it restores.
+- **One `frame stall` warning at boot in dev.** The second frame arrives about 100 ms late (seen as « dropped 90 ms of sim backlog » in the Playwright server log, probably the first render), so the loop drops that backlog and warns once. Harmless (nothing is happening yet); revisit with the loading screen (story 1.6), which can render once before the loop starts.
+- **The room is assumed centred on the origin.** `fitIsoCamera` takes only a size; story 1.6 passes the real level bounds and may need a `center` field.
+- **WebGL in CI.** The e2e specs need a WebGL context in chromium and webkit; both create one on the development Mac. Not yet seen on GitHub's ubuntu runner (webkit on Linux is the suspect). If a project cannot create one, report the exact error here and keep the test active for the other.
+- **Bundle size.** `npm run build:playtest` gives a 645 kB JS chunk (168 kB gzip) now that `three` is in; Vite warns above 500 kB. Named imports are already used. Code-splitting or `three` trimming belongs to the performance budget, story 1.24.

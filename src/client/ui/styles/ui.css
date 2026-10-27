@@ -3,6 +3,13 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 #pp-canvas {
@@ -11,4 +18,12 @@ body {
   width: 100vw;
   height: 100vh;
   display: block;
+  touch-action: none;
+}
+
+/* Dynamic viewport height: the area under the mobile browser bars is not part of the canvas. */
+@supports (height: 100dvh) {
+  #pp-canvas {
+    height: 100dvh;
+  }
 }
