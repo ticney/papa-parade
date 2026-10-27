@@ -103,6 +103,30 @@ export interface ThreatInstance {
   press: PendingPress | null;
 }
 
+/** What started a slow-mo. Story 1.18 triggers `lastThreat`; story 2.9 adds `instinct`. */
+export type SlowMoSource = 'perfect' | 'lastThreat';
+
+/** Every `SlowMoSource`, as data: a snapshot is checked against it. */
+export const SLOW_MO_SOURCES = ['perfect', 'lastThreat'] as const satisfies readonly SlowMoSource[];
+
+type UnlistedSlowMoSource = Exclude<SlowMoSource, (typeof SLOW_MO_SOURCES)[number]>;
+
+/** Compile-time proof that `SLOW_MO_SOURCES` holds every member of the union (see `THREAT_STATES_ARE_COMPLETE`). */
+export const SLOW_MO_SOURCES_ARE_COMPLETE: [UnlistedSlowMoSource] extends [never]
+  ? true
+  : UnlistedSlowMoSource = true;
+
+/** A slow-mo: `scale` from `startedAt` to `holdUntil`, then a smoothstep back to 1 by `endsAt` (sim ms). */
+export interface SlowMo {
+  source: SlowMoSource;
+  scale: number;
+  startedAt: SimMs;
+  /** `startedAt + durationMs`; may be off the step grid. */
+  holdUntil: SimMs;
+  /** `holdUntil + returnMs`; the entry is removed at the first step at or after it. */
+  endsAt: SimMs;
+}
+
 /**
  * The whole simulated state: plain serializable data (no classes, functions, Map/Set, Three or
  * Rapier handles). Later stories add their slice (baby, threats…).
@@ -111,8 +135,12 @@ export interface World {
   time: {
     /** Sim time, in ms. Advances by exactly `STEP_MS` per step, whatever `scale` is. */
     sim: SimMs;
-    /** `timeScale`: how fast the client loop feeds steps (1 = real time). Never 0. */
+    /** The effective `timeScale` the client loop reads: min(baseScale, every slow-mo). Never 0. */
     scale: number;
+    /** The scale outside any slow-mo: 1, or what the debug `SetTimeScale` set. */
+    baseScale: number;
+    /** Active slow-mos, at most one per source, in start order. */
+    slowMos: SlowMo[];
   };
   rng: RngState;
   /** Next entity id. Ids come from {@link allocateId}, never from a UUID or a global counter. */
@@ -133,7 +161,7 @@ export interface WorldOptions {
 
 export function createWorld({ seed, papaSpawn, babySpawn, firstWanderAt }: WorldOptions): World {
   return {
-    time: { sim: asSimMs(0), scale: 1 },
+    time: { sim: asSimMs(0), scale: 1, baseScale: 1, slowMos: [] },
     rng: createRng(seed),
     nextId: 1,
     papa: {

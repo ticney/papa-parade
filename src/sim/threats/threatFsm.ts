@@ -3,6 +3,7 @@ import { NEUTRAL_WINDOW_MODIFIER } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import type { FailReason, ResponseQuality } from '../events.ts';
+import { startSlowMo } from '../time/slowMo.ts';
 import { effectiveWindow } from '../timing/effectiveWindow.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { gagIdOf } from './gags.ts';
@@ -77,7 +78,11 @@ export function openWindow(world: World, ctx: StepContext, threat: ThreatInstanc
   ctx.events.push({ type: 'WindowOpened', t: world.time.sim, threatId: threat.id });
 }
 
-/** `→ resolved`: a perfect or successful response of the right kind. */
+/**
+ * `→ resolved`: a perfect or successful response of the right kind. It also owns the time effects
+ * of a success (story 1.14, decided here from `feel.json`): a hitstop, and for a perfect the
+ * slow-mo, both at the step that emits `ResponseResolved`.
+ */
 export function resolveThreat(
   world: World,
   ctx: StepContext,
@@ -96,11 +101,13 @@ export function resolveThreat(
     quality,
     offsetMs,
   });
+  ctx.requestFreezeRealMs(ctx.feel.timing.hitstopMs);
+  if (quality === 'perfect') startSlowMo(world, ctx, 'perfect', ctx.feel.timing.slowMoPerfect);
 }
 
 /**
  * `→ gag`: a failed response. `ResponseResolved{fail}` then `GagTriggered`; the gag is an event
- * only (NFR9). `offsetMs` is `null` when no press ever came.
+ * only (NFR9), with no hitstop and no slow-mo. `offsetMs` is `null` when no press ever came.
  */
 export function gagThreat(
   world: World,

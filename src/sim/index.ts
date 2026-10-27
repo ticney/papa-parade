@@ -20,6 +20,8 @@ export type {
   PapaGlide,
   PapaSlice,
   PendingPress,
+  SlowMo,
+  SlowMoSource,
   ThreatInstance,
   World,
 } from './world.ts';

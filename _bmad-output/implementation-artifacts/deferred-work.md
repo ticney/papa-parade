@@ -238,3 +238,13 @@
 - **D2 / D11 / D12 have no automated test** (`src/client/boot.ts`): seed reuse on restart, input ignored under autoplay and silent autoplay; joins the 1.11 « `boot.ts` glue » item.
 - **`boot.ts` listener dispatch is not removal-safe** (`levelStartedListeners` for…of, `simEventListeners` by index): iterate a copy (or use `createEmitter`) when a subscriber first unsubscribes.
 - **`__PP__.events(since)` is an absolute index that the API never exposes** (`src/debug/testApi.ts`): after the 50 000-event cap, `events(prev.length)` re-delivers events already seen and an old cursor jumps forward silently (one `warn` per level says events were dropped). Add `eventCount()` or return `{ events, next }` if a long run needs it.
+
+## Deferred from: implementation of story 1-14-hitstop-et-ralentis (2026-10-27)
+
+- **`slowMoLastThreat` exists but nothing triggers it**: story 1.18 calls `startSlowMo(world, ctx, 'lastThreat', feel.timing.slowMoLastThreat)` on the last threat of a wave.
+- **Instinct (2.9)** adds `'instinct'` to `SlowMoSource` (and `SLOW_MO_SOURCES`), and its window bonus separately; the overlap test of 2.9 builds on `slowMo.test.ts`.
+- **Camera and music under slow-mo** (2.5, 2.6): start on `ResponseResolved{perfect}`, end when `timeScale` returns to its base (D10).
+- **Easing curve is fixed (smoothstep)**: an easing key in `feel.json` if Geo asks for another shape.
+- **Real-time feel of the slow-mo is untuned** (open points 1 to 3 of the story): 1.2 s of sim time is about 4 s of real time at ×0.3, the 80 ms hitstop also hits a perfect, and `returnMs: 300` is a guess. Geo tunes `slowMoPerfect.durationMs` / `returnMs` and `hitstopMs` after playing.
+- **CSS animations stay real-time under slow-mo** (threat pulse, chevron bounce): only the world VFX follow the sim clock.
+

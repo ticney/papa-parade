@@ -92,6 +92,16 @@ describe('content/feel.json', () => {
     ['a time scale above 1', [['instinct.timeScale', 1.5]], ['instinct.timeScale']],
     ['a percentage above 100', [['fatigue.windowPenaltyPct', 120]], ['fatigue.windowPenaltyPct']],
     ['a negative duration', [['movement.glideMaxMs', -1]], ['movement.glideMaxMs']],
+    [
+      'a negative slow-mo return',
+      [['timing.slowMoPerfect.returnMs', -1]],
+      ['timing.slowMoPerfect.returnMs'],
+    ],
+    [
+      'a missing slow-mo return',
+      [['timing.slowMoLastThreat.returnMs', undefined]],
+      ['timing.slowMoLastThreat.returnMs'],
+    ],
     ['a non-integer count', [['instinct.missesCount', 1.5]], ['instinct.missesCount']],
     ['a walking speed of 0', [['movement.walkSpeedMps', 0]], ['movement.walkSpeedMps']],
     [

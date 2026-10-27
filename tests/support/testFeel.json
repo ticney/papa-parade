@@ -7,8 +7,8 @@
     "toleranceMs": 60,
     "bufferMs": 100,
     "hitstopMs": 80,
-    "slowMoPerfect": { "timeScale": 0.3, "durationMs": 1200 },
-    "slowMoLastThreat": { "timeScale": 0.2, "durationMs": 1500 }
+    "slowMoPerfect": { "timeScale": 0.3, "durationMs": 1200, "returnMs": 300 },
+    "slowMoLastThreat": { "timeScale": 0.2, "durationMs": 1500, "returnMs": 300 }
   },
   "input": {
     "holdMinMs": 400,

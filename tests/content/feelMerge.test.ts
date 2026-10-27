@@ -52,6 +52,18 @@ describe('mergeFeel', () => {
     }
   });
 
+  it('keeps the siblings of a partial slow-mo return override', () => {
+    const result = mergeFeel(base, { timing: { slowMoPerfect: { returnMs: 0 } } });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.timing.slowMoPerfect.returnMs).toBe(0);
+      expect(result.value.timing.slowMoPerfect.timeScale).toBe(base.timing.slowMoPerfect.timeScale);
+      expect(result.value.timing.slowMoPerfect.durationMs).toBe(
+        base.timing.slowMoPerfect.durationMs,
+      );
+    }
+  });
+
   it('replaces an array as a whole', () => {
     const result = mergeFeel(base, { mama: { starThresholdPoints: [10, 20, 30, 40, 50] } });
     expect(result.ok).toBe(true);

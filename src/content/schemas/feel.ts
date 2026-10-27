@@ -22,7 +22,8 @@ const slowMo = (description: string) =>
   z
     .strictObject({
       timeScale: timeScale('Sim speed during the slow-mo (1 = normal, 0.3 = 30 % speed).'),
-      durationMs: durationMs('How long the slow-mo lasts, in real ms.'),
+      durationMs: durationMs('How long the slow-mo holds, in **sim** ms (ADR-002).'),
+      returnMs: delayMs('Return to the base scale after the slow-mo, in sim ms (0 = instant).'),
     })
     .describe(description);
 
@@ -45,7 +46,9 @@ const TimingSchema = z
     bufferMs: delayMs(
       'Input buffer: a press this early before the window is kept, in ms (GDD §1).',
     ),
-    hitstopMs: delayMs('Hitstop on a successful response, in ms (GDD §1).'),
+    hitstopMs: delayMs(
+      'Real-time freeze on a successful or perfect response, in real ms (GDD §1).',
+    ),
     slowMoPerfect: slowMo('Slow-mo played on a perfect response.'),
     slowMoLastThreat: slowMo('Slow-mo played on the last threat of a wave.'),
   })

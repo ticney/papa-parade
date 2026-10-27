@@ -37,9 +37,16 @@ async function setup() {
   const world = sim.world as World;
   world.time.sim = asSimMs(500);
   const events: SimEvent[] = [];
-  const ctx = { feel: content.feel, events } as unknown as StepContext;
+  const freezes: number[] = [];
+  const ctx = {
+    feel: content.feel,
+    events,
+    strictInvariants: true,
+    t: world.time.sim,
+    requestFreezeRealMs: (ms: number) => freezes.push(ms),
+  } as unknown as StepContext;
   const threat = world.threats[0] as World['threats'][number];
-  return { world, ctx, events, threat };
+  return { world, ctx, events, threat, freezes };
 }
 
 describe('threat FSM', () => {
@@ -79,10 +86,13 @@ describe('threat FSM', () => {
   });
 
   it('resolveThreat emits the quality and clears the press', async () => {
-    const { world, ctx, events, threat } = await setup();
+    const { world, ctx, events, threat, freezes } = await setup();
     threat.press = { t: asSimMs(400), quality: 'success', offsetMs: -20, releasedAt: null };
     resolveThreat(world, ctx, threat, def, 'success', -20);
     expect(threat).toMatchObject({ state: 'resolved', press: null });
+    // A success freezes for the hitstop, with no slow-mo.
+    expect(freezes).toEqual([content.feel.timing.hitstopMs]);
+    expect(world.time.slowMos).toEqual([]);
     expect(events).toEqual([
       {
         type: 'ResponseResolved',
@@ -95,9 +105,29 @@ describe('threat FSM', () => {
     ]);
   });
 
-  it('gagThreat emits the failed response, then the gag', async () => {
-    const { world, ctx, events, threat } = await setup();
+  it('resolveThreat on a perfect also starts the perfect slow-mo, after the event', async () => {
+    const { world, ctx, events, threat, freezes } = await setup();
+    resolveThreat(world, ctx, threat, def, 'perfect', 0);
+    const { timeScale, durationMs, returnMs } = content.feel.timing.slowMoPerfect;
+    expect(freezes).toEqual([content.feel.timing.hitstopMs]);
+    expect(world.time.slowMos).toEqual([
+      {
+        source: 'perfect',
+        scale: timeScale,
+        startedAt: 500,
+        holdUntil: 500 + durationMs,
+        endsAt: 500 + durationMs + returnMs,
+      },
+    ]);
+    expect(events.map((event) => event.type)).toEqual(['ResponseResolved', 'TimeScaleChanged']);
+    expect(world.time.scale).toBe(timeScale);
+  });
+
+  it('gagThreat emits the failed response, then the gag, and asks for no time effect', async () => {
+    const { world, ctx, events, threat, freezes } = await setup();
     gagThreat(world, ctx, threat, def, 'late', null);
+    expect(freezes).toEqual([]);
+    expect(world.time.slowMos).toEqual([]);
     expect(threat.state).toBe('gag');
     expect(events.map((event) => event.type)).toEqual(['ResponseResolved', 'GagTriggered']);
     expect(events[1]).toEqual({

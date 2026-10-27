@@ -15,6 +15,8 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestOutlet,
+  outletEntry,
 } from '../../tests/support/testContent.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
 import { createPauseController } from './app/pauseController.ts';
@@ -41,8 +43,9 @@ function countWarnings(pattern: RegExp): number {
 }
 
 /**
- * Wraps a real `Sim` so that a test can hold a freeze and count calls: `@sim` has no way to
- * request a hitstop yet (story 1.14). Everything else is the real sim.
+ * Wraps a real `Sim` so that a test can hold a freeze and count calls: the double lets a test hold
+ * an arbitrary freeze; the real sim requests one on a successful response (story 1.14, see the
+ * « real sim » describe at the end). Everything else is the real sim.
  */
 function createSimDouble(real: Sim) {
   let freezeRealMs = 0;
@@ -905,5 +908,149 @@ describe('createGameLoop › advance', () => {
     rig.tick(200);
     expect(rig.alphas.length).toBe(rendersBefore + 2);
     expect(rig.simMs()).toBe(2 * STEP_MS);
+  });
+});
+
+/**
+ * A loop over the real sim and the outlet level (the rig above plays an empty level over a double):
+ * hitstop and slow-mo come from the sim itself (story 1.14). One frame is one step at scale 1.
+ */
+async function createRealRig(withContent = createTestContent()) {
+  const sim = await createSim({
+    content: withContent,
+    geometry: createTestGeometry(),
+    level: createTestLevel([outletEntry(0)]),
+    seed: 1,
+  });
+  const scheduler = createFakeScheduler();
+  const events = createEmitter<ClientEvents>();
+  const pause = createPauseController({ events });
+  const timeMap = createTimeMap({ logger: { warn: () => undefined } });
+  let renders = 0;
+  let atReal = 0;
+  const seen: { event: SimEvent; atReal: number; timeScale: number }[] = [];
+  const loop = createGameLoop({
+    sim,
+    timeMap,
+    pause,
+    scheduler,
+    render: () => {
+      renders++;
+    },
+    onSimEvent: (event) => seen.push({ event: { ...event }, atReal, timeScale: sim.timeScale }),
+  });
+  loop.start();
+  const frame = () => {
+    scheduler.tick(atReal);
+    atReal += FRAME_MS;
+  };
+  return {
+    sim,
+    seen,
+    loop,
+    get renders() {
+      return renders;
+    },
+    get atReal() {
+      return atReal;
+    },
+    frame,
+    /** Frames until `done` holds, at most `limit` of them. */
+    frameUntil(done: () => boolean, limit = 100_000) {
+      for (let i = 0; i < limit && !done(); i++) frame();
+      if (!done()) throw new Error('the condition was never reached');
+    },
+    /** The first event of `type` seen at or after index `from`. */
+    find<T extends SimEvent['type']>(type: T, from = 0) {
+      return seen.slice(from).find((entry) => entry.event.type === type) as
+        | { event: Extract<SimEvent, { type: T }>; atReal: number; timeScale: number }
+        | undefined;
+    },
+  };
+}
+
+type RealRig = Awaited<ReturnType<typeof createRealRig>>;
+
+/** Enqueues a perfect Parry (press at the centre of the window, release 50 ms later) on the outlet. */
+function enqueuePerfectParry(rig: RealRig): number {
+  rig.frameUntil(() => rig.sim.world.threats[0]?.state === 'telegraph');
+  const { windowOpenAt, responseWindow } = rig.sim.world.threats[0] ?? {};
+  if (responseWindow == null || windowOpenAt === undefined) throw new Error('not telegraphed');
+  const center = windowOpenAt + responseWindow.windowMs / 2;
+  rig.sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId: 1 });
+  rig.sim.enqueue({ type: 'Release', t: asSimMs(center + 50) });
+  return center + 50;
+}
+
+describe('createGameLoop › real sim: hitstop and slow-mo (story 1.14)', () => {
+  const { hitstopMs, slowMoPerfect } = createTestContent().feel.timing;
+
+  it('freezes steps for hitstopMs of real time after a perfect response, then runs at the slow-mo scale', async () => {
+    const rig = await createRealRig();
+    const resolvedAt = enqueuePerfectParry(rig);
+    rig.frameUntil(() => rig.find('ResponseResolved') !== undefined);
+    expect(rig.sim.world.time.sim).toBe(resolvedAt);
+    expect(rig.sim.freezeRealMs).toBe(hitstopMs);
+    expect(rig.sim.timeScale).toBe(slowMoPerfect.timeScale);
+
+    // The freeze: no step for hitstopMs of real time, and every frame still renders.
+    const frozenFrames = hitstopMs / FRAME_MS;
+    for (let i = 0; i < frozenFrames; i++) {
+      const rendersBefore = rig.renders;
+      rig.frame();
+      expect(rig.loop.stats.stepsLastFrame).toBe(0);
+      expect(rig.sim.world.time.sim).toBe(resolvedAt);
+      expect(rig.renders).toBe(rendersBefore + 1);
+      expect(rig.sim.freezeRealMs).toBe(hitstopMs - (i + 1) * FRAME_MS);
+    }
+    expect(rig.sim.freezeRealMs).toBe(0);
+
+    // Then the accumulator receives timeScale × real time: 10 frames of 10 ms are 3 steps at ×0.3.
+    const frames = 10;
+    let steps = 0;
+    for (let i = 0; i < frames; i++) {
+      rig.frame();
+      steps += rig.loop.stats.stepsLastFrame;
+    }
+    expect(steps).toBe(Math.floor((frames * FRAME_MS * slowMoPerfect.timeScale) / STEP_MS));
+    expect(rig.sim.world.time.sim).toBe(resolvedAt + steps * STEP_MS);
+  });
+
+  it('does not freeze after a gag: steps carry on at the same scale', async () => {
+    const rig = await createRealRig();
+    rig.frameUntil(() => rig.find('ResponseResolved') !== undefined);
+    expect(rig.find('GagTriggered')).toBeDefined();
+    expect(rig.sim.freezeRealMs).toBe(0);
+    rig.frame();
+    expect(rig.loop.stats.stepsLastFrame).toBe(1);
+    expect(rig.sim.timeScale).toBe(1);
+  });
+
+  it('keeps a window open for windowMs of sim time: windowMs / timeScale of real time under a slow-mo (ADR-002)', async () => {
+    const long = createTestContent();
+    const outlet = createTestOutlet();
+    // The perfect slow-mo covers the outlet's next cycle (cooldown, telegraph, window), with no ramp.
+    long.feel.timing.slowMoPerfect.durationMs =
+      outlet.cooldownMs + (outlet.telegraphDelayMs ?? 0) + 3000;
+    long.feel.timing.slowMoPerfect.returnMs = 0;
+    const { timing } = long.feel;
+    const rig = await createRealRig(long);
+    enqueuePerfectParry(rig);
+    rig.frameUntil(() => rig.find('ResponseResolved') !== undefined);
+    const first = rig.seen.length;
+    // Nobody answers the second cycle: its window opens, then closes on a late gag.
+    rig.frameUntil(() => rig.find('GagTriggered', first) !== undefined);
+    const opened = rig.find('WindowOpened', first);
+    const gagged = rig.find('ResponseResolved', first);
+    if (opened === undefined || gagged === undefined) throw new Error('no second window');
+    expect(gagged.event.quality).toBe('fail');
+    expect(opened.timeScale).toBe(timing.slowMoPerfect.timeScale);
+
+    // Sim time: the window and its tolerance, closed at the next step.
+    const simMs = gagged.event.t - opened.event.t;
+    expect(simMs).toBeGreaterThanOrEqual(timing.windowMs + timing.toleranceMs);
+    // Real time: the same sim time at ×timeScale, within one frame (no hitstop after a gag).
+    const realMs = gagged.atReal - opened.atReal;
+    expect(Math.abs(realMs - simMs / timing.slowMoPerfect.timeScale)).toBeLessThanOrEqual(FRAME_MS);
   });
 });

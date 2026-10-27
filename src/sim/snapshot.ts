@@ -1,16 +1,17 @@
+import { MIN_TIME_SCALE } from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
 import { THREAT_STATES } from './threats/threatFsm.ts';
-import type { ThreatInstance, World } from './world.ts';
+import { SLOW_MO_SOURCES, type SlowMoSource, type ThreatInstance, type World } from './world.ts';
 
 /**
  * The restorable state: `World` only, plus the identity of the sim it came from (a snapshot of
  * another seed, feel, level geometry or level is refused on restore). Pending commands are rebuilt from the journal, and
- * freeze is a real-time artefact. Story 1.15 adds the Rapier blob and bumps `version`.
+ * freeze is a real-time artefact. Story 1.15 adds the Rapier blob and bumps `version` again.
  */
 export interface SimSnapshot {
-  /** 3 since story 1.10: the snapshot names the level (its planned threats) it was taken on. */
-  version: 3;
+  /** 4 since story 1.14: `World.time` carries the base scale and the slow-mos (3 named the level). */
+  version: 4;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -25,7 +26,7 @@ export function takeSnapshot(
   geometryHash: string,
   levelHash: string,
 ): SimSnapshot {
-  return { version: 3, seed, feelHash, geometryHash, levelHash, world: cloneJson(world) };
+  return { version: 4, seed, feelHash, geometryHash, levelHash, world: cloneJson(world) };
 }
 
 const PAPA_STATES: readonly unknown[] = ['idle', 'walkPath', 'walkDir', 'glide'];
@@ -238,13 +239,50 @@ function threatProblem(threat: unknown, index: number): string | null {
 /** What `worldProblem` needs of the level: the defs it plans, in order (the threats are index-aligned). */
 type PlannedThreats = readonly { readonly def: { readonly id: string } }[];
 
+function isTimeScale(value: unknown): boolean {
+  return (
+    typeof value === 'number' && Number.isFinite(value) && value >= MIN_TIME_SCALE && value <= 1
+  );
+}
+
+function slowMoProblem(slowMo: unknown, where: string): string | null {
+  if (typeof slowMo !== 'object' || slowMo === null) return where;
+  const fields = slowMo as Record<string, unknown>;
+  if (!SLOW_MO_SOURCES.includes(fields.source as SlowMoSource)) return `${where}.source`;
+  if (!isTimeScale(fields.scale)) return `${where}.scale`;
+  for (const key of ['startedAt', 'holdUntil', 'endsAt']) {
+    if (!isFiniteNumber(fields[key])) return `${where}.${key}`;
+  }
+  if ((fields.holdUntil as number) < (fields.startedAt as number)) return `${where}.holdUntil`;
+  if ((fields.endsAt as number) < (fields.holdUntil as number)) return `${where}.endsAt`;
+  return null;
+}
+
+function timeProblem(clock: Record<string, unknown>): string | null {
+  if (!isFiniteNumber(clock.sim)) return 'world.time.sim';
+  if (!isTimeScale(clock.scale)) return 'world.time.scale';
+  if (!isTimeScale(clock.baseScale)) return 'world.time.baseScale';
+  const { slowMos } = clock;
+  if (!Array.isArray(slowMos)) return 'world.time.slowMos';
+  const sources = new Set<unknown>();
+  for (let i = 0; i < slowMos.length; i++) {
+    const problem = slowMoProblem(slowMos[i], `world.time.slowMos[${i}]`);
+    if (problem !== null) return problem;
+    const { source } = slowMos[i] as { source: unknown };
+    // At most one slow-mo per source: `startSlowMo` merges into the running one.
+    if (sources.has(source)) return 'world.time.slowMos';
+    sources.add(source);
+  }
+  return null;
+}
+
 function worldProblem(world: unknown, planned: PlannedThreats): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
   const { time, rng, nextId, papa, baby, threats } = world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
   if (typeof clock !== 'object' || clock === null) return 'world.time is missing';
-  if (typeof clock.sim !== 'number' || !Number.isFinite(clock.sim)) return 'world.time.sim';
-  if (typeof clock.scale !== 'number' || !Number.isFinite(clock.scale)) return 'world.time.scale';
+  const clockProblem = timeProblem(clock);
+  if (clockProblem !== null) return clockProblem;
   const state = rng as Record<string, unknown> | null | undefined;
   if (typeof state !== 'object' || state === null) return 'world.rng is missing';
   for (const key of ['a', 'b', 'c', 'd']) {
@@ -279,7 +317,7 @@ export function worldFromSnapshot(
   levelHash: string,
   planned: PlannedThreats,
 ): World {
-  invariant(snapshot.version === 3, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 4, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

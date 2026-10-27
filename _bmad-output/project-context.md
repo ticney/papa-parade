@@ -34,7 +34,7 @@ Pinned versions (verified on npm 2026-10-26). Do NOT upgrade or swap without an 
 
 **Simulation core (`src/sim`) — pure, deterministic, headless**
 - Fixed step `STEP_MS = 10` of *sim time*; client loop = rAF + accumulator, max `MAX_STEPS_PER_FRAME = 10`, render interpolated with `alpha`.
-- `timeScale` (slow-mo ×0.3 perfect, ×0.2 last threat, ×0.8 instinct) changes how many steps run per real second — never the step size. Every step is always 10 ms of `simTime`.
+- `timeScale` (slow-mo ×0.3 perfect, ×0.2 last threat, ×0.8 instinct) changes how many steps run per real second — never the step size. Every step is always 10 ms of `simTime`. Effective scale = min(base scale set by `SetTimeScale`, every active slow-mo); slow-mos are `World.time.slowMos`, one per source, see `src/sim/time/slowMo.ts`.
 - Hitstop is a *real-time freeze*: sim sets `freezeRealMs`, client loop consumes it (no steps, render keeps going). Sim never reads real time; in headless, freeze is a no-op.
 - Pause = loop stops stepping; resume after a 3 s real-time countdown. Never "pause" by setting `timeScale = 0`.
 - `World` is plain serializable data: no classes, functions, Maps with object keys, or Three.js refs. Systems are `(world, ctx) => void` run in the fixed order in `step.ts` (commands → time → director → baby → threats → papa → physics → gauges → instinct → scoring → flow). Systems never call each other; they read/write `World` and push `SimEvent`s to `ctx.events`.

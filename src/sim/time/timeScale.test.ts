@@ -1,4 +1,4 @@
-import { MIN_TIME_SCALE } from '@shared/constants';
+import { MIN_TIME_SCALE, STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
@@ -7,7 +7,10 @@ import {
   createTestLevel,
   stepN,
 } from '../../../tests/support/testContent.ts';
-import { createSim } from '../createSim.ts';
+import type { System } from '../context.ts';
+import { createSim, createSimWithSystems } from '../createSim.ts';
+import { SYSTEMS } from '../step.ts';
+import { startSlowMo } from './slowMo.ts';
 
 describe('timeScale', () => {
   it('exposes the scale while a step stays 10 ms of sim time', async () => {
@@ -76,5 +79,33 @@ describe('timeScale', () => {
       value: 0,
       t: 10,
     });
+  });
+
+  it('keeps SetTimeScale as the base scale under a slow-mo', async () => {
+    const { slowMoPerfect } = createTestContent().feel.timing;
+    const startAtStep2: System = (world, ctx) => {
+      if (world.time.sim === 20) startSlowMo(world, ctx, 'perfect', slowMoPerfect);
+    };
+    const sim = await createSimWithSystems(
+      {
+        content: createTestContent(),
+        geometry: createTestGeometry(),
+        level: createTestLevel(),
+        seed: 1,
+      },
+      [...SYSTEMS, startAtStep2],
+    );
+    sim.enqueue({ type: 'SetTimeScale', t: asSimMs(0), scale: 0.5 });
+    stepN(sim, 2);
+    expect(sim.timeScale).toBe(slowMoPerfect.timeScale);
+    stepN(sim, (slowMoPerfect.durationMs + slowMoPerfect.returnMs) / STEP_MS);
+    expect(sim.timeScale).toBe(0.5);
+    const changes = sim
+      .drainEvents()
+      .filter((event) => event.type === 'TimeScaleChanged')
+      .map((event) => [event.from, event.to]);
+    expect(changes[0]).toEqual([1, 0.5]);
+    expect(changes[1]).toEqual([0.5, slowMoPerfect.timeScale]);
+    expect(changes.at(-1)?.[1]).toBe(0.5);
   });
 });
