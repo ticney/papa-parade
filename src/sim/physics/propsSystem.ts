@@ -1,4 +1,5 @@
 import { PROP_ON_FLOOR_TOLERANCE_M, PROP_TIPPED_UP_Y_MAX } from '@shared/constants';
+import { clampInvariant } from '@shared/invariant';
 import type { StepContext } from '../context.ts';
 import type { PropSlice, World } from '../world.ts';
 import type { PropPose } from './physicsPort.ts';
@@ -15,6 +16,11 @@ let activeCtx: StepContext | null = null;
  * it. A broken prop is left alone. This is what a gag calls (story 1.16); the journaled test and
  * debug command `PushProp` goes through it too. Call it before `runPhysics` steps the engine (any
  * system that runs earlier in the step may), so that the push counts in this step.
+ *
+ * The length of the impulse is held to `feel.physics.maxPushImpulseNs`: with that bound a prop
+ * cannot cross a wall of the room in one step. A longer push, or one that is not a finite vector (a
+ * gag that normalised a zero vector), is an invariant violation: strict, it throws; otherwise the
+ * push is clamped, or dropped when it is not finite, and `InvariantViolated` is emitted.
  */
 export function pushProp(
   world: World,
@@ -26,7 +32,17 @@ export function pushProp(
 ): void {
   const prop = world.props[propIndex];
   if (prop === undefined || prop.isBroken) return;
-  ctx.physics.applyImpulse(propIndex, xNs, yNs, zNs);
+  const lengthNs = Math.hypot(xNs, yNs, zNs);
+  const heldNs = clampInvariant(
+    ctx,
+    Number.isFinite(lengthNs) ? lengthNs : Number.NaN,
+    0,
+    ctx.feel.physics.maxPushImpulseNs,
+    'prop.pushImpulseNs',
+  );
+  if (heldNs === 0) return;
+  const scale = heldNs < lengthNs ? heldNs / lengthNs : 1;
+  ctx.physics.applyImpulse(propIndex, xNs * scale, yNs * scale, zNs * scale);
 }
 
 /** A prop that took a hit of `impulseNs` from `otherIndex` (-1: the floor, a wall or furniture). */
@@ -123,9 +139,13 @@ export function runPhysics(world: World, ctx: StepContext): void {
 
   activeWorld = world;
   activeCtx = ctx;
-  ctx.physics.forEachImpact(onImpact);
-  activeWorld = null;
-  activeCtx = null;
+  try {
+    ctx.physics.forEachImpact(onImpact);
+  } finally {
+    // A throw (a strict invariant) must not leave this step's world and context pinned here.
+    activeWorld = null;
+    activeCtx = null;
+  }
 
   let onFloor = 0;
   let broken = 0;

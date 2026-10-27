@@ -48,7 +48,8 @@ describe('decodeBase64', () => {
     ['three padding characters', 'Z==='],
     ['non-zero bits in the padding (2)', 'Zh=='],
     ['non-zero bits in the padding (1)', 'Zm9='],
-    ['whitespace', 'Zm9v '],
+    ['a space inside a group', 'Zm 9'],
+    ['a newline at the end of a group', 'Zm9\n'],
   ])('refuses %s', (_name, text) => {
     expect(decodeBase64(text).ok).toBe(false);
   });

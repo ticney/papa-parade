@@ -48,6 +48,32 @@ describe('replayJournal', () => {
     expect(replay.value.sim.journal()).toEqual(journal);
   });
 
+  it('rethrows a strict invariant violation of the replay, so the caller sees it (the sim is freed first)', async () => {
+    // Recorded without strict mode, where a push over the bound is clamped and reported.
+    const sim = await createSim({ content, geometry, level, seed: 11, strictInvariants: false });
+    sim.enqueue({
+      type: 'PushProp',
+      t: asSimMs(100),
+      propId: 'mug_01',
+      impulseXNs: content.feel.physics.maxPushImpulseNs * 4,
+      impulseYNs: 0,
+      impulseZNs: 0,
+    });
+    stepN(sim, 30);
+    const journal = sim.journal();
+    sim.dispose();
+    await expect(
+      replayJournal({
+        content,
+        geometry,
+        level,
+        journal,
+        untilSimMs: 1000,
+        strictInvariants: true,
+      }),
+    ).rejects.toThrow('prop.pushImpulseNs');
+  });
+
   it('would diverge if the late command were replayed by t instead of applyAt', async () => {
     const live = await liveGame();
     const journal = live.sim.journal();

@@ -74,9 +74,10 @@ export async function runSim(
       return err(
         `run ${index + 1} of ${args.runs} (seed ${seed}) crashed: ${cause instanceof Error ? cause.message : String(cause)}`,
       );
+    } finally {
+      // 10 000 runs must not leak 10 000 WASM worlds, a crashed run included.
+      sim?.dispose();
     }
-    // 10 000 runs must not leak 10 000 WASM worlds, a crashed run included.
-    sim?.dispose();
     // Outside the `try`: a bug in the hook is not a crash of the sim.
     if (hooks.onGame !== undefined && game !== null) {
       hooks.onGame(runFileName(loaded.levelId, args.botId, seed), game);

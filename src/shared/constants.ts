@@ -185,7 +185,15 @@ export const PROP_TIPPED_UP_Y_MAX = Math.SQRT1_2;
 export const PHYSICS_FLOOR_THICKNESS_M = 1;
 
 /**
- * Thickness of each of the four invisible walls on the level bounds' x and z faces, in metres. The
- * floor extends this far past the bounds, under the walls. A prop cannot leave the room.
+ * Thickness of each of the four invisible walls on the level bounds' x and z faces, and of the
+ * ceiling above their top, in metres. The floor and the ceiling extend this far past the bounds. A
+ * prop cannot leave the room, as long as it moves less than half of this in one step
+ * (`content:check` holds `feel.physics.maxPushImpulseNs` to that).
  */
 export const PHYSICS_BOUNDS_WALL_THICKNESS_M = 1;
+
+/**
+ * How far a unit quaternion's length may be from 1 and still be one: a pose read back from Rapier
+ * (float32 inside) and stored as a double is not exactly unit. The snapshot check uses it.
+ */
+export const QUATERNION_LENGTH_TOLERANCE = 1e-4;

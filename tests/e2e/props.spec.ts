@@ -21,7 +21,7 @@ const SEED = 42;
 const DRAW_CALLS_MAX = 100;
 /** The push of the golden scenario: along +x, off the coffee table. */
 const PUSH_NS = 0.72;
-/** Three seconds of sim time: the mug has left the table, hit the vase and come to the floor. */
+/** Three seconds of sim time: the mug has left the table and come to the floor. */
 const STEPS = 300;
 
 test.describe('props', () => {

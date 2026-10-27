@@ -102,6 +102,8 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
   const stats: LoopStats = { stepsLastFrame: 0, droppedBacklogMs: 0, frames: 0 };
 
   let isRunning = false; // between start() and stop()
+  /** Counts the `stop()` calls: a step hook or event listener that stops the loop cuts the steps still owed. */
+  let stopCount = 0;
   let isPending = false; // a frame is requested and has not run yet
   let handle = 0;
   let accumulatorMs = 0; // owed sim time
@@ -131,6 +133,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
   const onFrame = (frameAtReal: number): void => {
     isPending = false;
     stats.frames++;
+    const stopCountAtFrame = stopCount;
 
     const isGood = Number.isFinite(frameAtReal) && frameAtReal >= lastSeenAtReal;
     if (isGood) lastSeenAtReal = frameAtReal;
@@ -163,7 +166,14 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
 
       accumulatorMs += dtSpedMs * sim.timeScale;
 
-      while (accumulatorMs >= STEP_MS && steps < maxStepsPerFrame && sim.freezeRealMs === 0) {
+      // A hook or a listener may stop the loop (a restart, a level change) and dispose the sim: the
+      // steps still owed are then dropped, not run on a sim that is gone.
+      while (
+        accumulatorMs >= STEP_MS &&
+        steps < maxStepsPerFrame &&
+        sim.freezeRealMs === 0 &&
+        stopCount === stopCountAtFrame
+      ) {
         runStep();
         accumulatorMs -= STEP_MS;
         steps++;
@@ -221,7 +231,8 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
         'advance: steps must be an integer in [0, ADVANCE_MAX_STEPS]',
       );
       setFrozen(true);
-      for (let i = 0; i < steps; i++) runStep();
+      const stopCountAtCall = stopCount;
+      for (let i = 0; i < steps && stopCount === stopCountAtCall; i++) runStep();
       render(Math.min(accumulatorMs / STEP_MS, 1));
     },
     start() {
@@ -234,6 +245,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
     },
     stop() {
       isRunning = false;
+      stopCount++;
       if (!isPending) return;
       scheduler.cancel(handle);
       isPending = false;

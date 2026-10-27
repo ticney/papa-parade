@@ -40,13 +40,17 @@ describe('golden scenario prop_fall covers the chain accident it is there for', 
     );
   });
 
-  it('lands the mug on the floor after the vase is hit, and ends with one prop broken and one on the floor', () => {
+  it('lands the mug on the floor after the vase is hit', () => {
     const firstChain = impacts.findIndex(
       (event) => event.type === 'PropImpact' && event.otherPropId !== null,
     );
+    // The mug's first impact after the chain names no other prop: it is the floor (or furniture).
     const mugOnFloor = impacts.findIndex(
       (event, index) =>
-        index > firstChain && event.type === 'PropImpact' && event.propId === 'mug_01',
+        index > firstChain &&
+        event.type === 'PropImpact' &&
+        event.propId === 'mug_01' &&
+        event.otherPropId === null,
     );
     expect(firstChain).toBeGreaterThanOrEqual(0);
     expect(mugOnFloor).toBeGreaterThan(firstChain);

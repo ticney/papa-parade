@@ -270,3 +270,11 @@
 - **Per-kind physics lives in `feel.json`** until `content/objects/` exists (E6). Open point for Geo.
 - **A level `feelOverrides` that adds a physics kind is not checked against the geometry** by `content:check` (it checks `feel.json` only).
 - **`runPhysics` mirrors poses with Rapier's allocating getters** for awake bodies only (`translation()`, `rotation()` make a small object each). Ten props moving at once make about twenty small objects per step; revisit if a profile shows it.
+
+## Deferred from: code review of story 1-15-physique-legere-des-objets (2026-10-27)
+
+- **A broken prop's squash is local, its drop is in world Y** (`src/client/render/views/propView.ts`): a prop that breaks while tipped sinks about 0.1 m below the floor or floats until it rests. Cosmetic; E7 shards replace the squash.
+- **`mess.propsOnFloor` / `isOnFloor` flicker while a prop bounces or rolls** (`src/sim/physics/propsSystem.ts`): a 2 cm tolerance with no hysteresis, and the tipped approximation uses the largest half extent. Mama's sigh (1.22) reads the count: decide there between a hysteresis and a settled-only rule.
+- **No content check that a prop's box does not overlap furniture or another prop at t=0** (`tools/content/contentChecks.ts`): the first step gives depenetration impulses, so a spurious `PropImpact` / `PropBroken` near t=0. Joins « geometry cross-checks stay open ».
+- (The per-kind pool taking the first prop's `halfExtentsM` was already listed by the implementation of this story, D14; not repeated.)
+- **A snapshot's world and Rapier halves are not cross-checked** (`src/sim/snapshot.ts`, `rapierPhysics.ts`): a world from one snapshot with the Rapier bytes of another (same level and tuning, same body counts) restores without error and the sim desyncs; `lastImpactAt` is only checked to be finite. Snapshots come from the sim itself, so accepted for now (review decision of story 1.15). Revisit with 3.9 (periodic snapshots): a hash of the physics bytes in the snapshot would close it.

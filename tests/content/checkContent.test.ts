@@ -372,6 +372,66 @@ describe('checkContent on level geometry files', () => {
     ]);
   });
 
+  describe('physics tuning', () => {
+    type Kinds = Record<string, Record<string, number>>;
+    const tune = (change: (physics: Record<string, unknown> & { kinds: Kinds }) => void) =>
+      mutateJson('content/feel.json', (feel) => {
+        change(feel.physics as Record<string, unknown> & { kinds: Kinds });
+      });
+
+    it('accepts the shipped tuning', async () => {
+      expect(await checkContent(root)).toEqual([]);
+    });
+
+    it('reports a breakable kind that breaks under the impact threshold, where it could never break', async () => {
+      await tune((physics) => {
+        (physics.kinds.vase as Record<string, number>).breakImpulseNs = 0.1;
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: 'content/feel.json',
+          jsonPath: 'physics.kinds.vase.breakImpulseNs',
+          message: expect.stringContaining('could never break'),
+        }),
+      ]);
+    });
+
+    it('accepts a kind that is not breakable whatever its break impulse', async () => {
+      await tune((physics) => {
+        const vase = physics.kinds.vase as Record<string, unknown>;
+        vase.breakable = false;
+        vase.breakImpulseNs = 0.1;
+      });
+      expect(await checkContent(root)).toEqual([]);
+    });
+
+    it('reports a kind so heavy that it reports an impact all the time it rests', async () => {
+      await tune((physics) => {
+        (physics.kinds.mug as Record<string, number>).massKg = 40;
+      });
+      const problems = await checkContent(root);
+      expect(problems).toContainEqual(
+        expect.objectContaining({
+          file: 'content/feel.json',
+          jsonPath: 'physics.kinds.mug.massKg',
+          message: expect.stringContaining('all the time it rests'),
+        }),
+      );
+    });
+
+    it('reports a kind so light that the largest push could carry it through a wall in one step', async () => {
+      await tune((physics) => {
+        physics.maxPushImpulseNs = 100;
+      });
+      const problems = await checkContent(root);
+      expect(problems.map((problem) => problem.jsonPath)).toEqual([
+        'physics.kinds.mug.massKg',
+        'physics.kinds.vase.massKg',
+      ]);
+      expect(problems[0]?.message).toContain('could cross one');
+    });
+  });
+
   it('reports a stale generated geometry schema', async () => {
     await writeFile(join(root, 'content/_schemas/levelGeometry.schema.json'), '{}\n');
     expect(await checkContent(root)).toEqual([

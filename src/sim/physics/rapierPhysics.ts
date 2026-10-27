@@ -15,22 +15,33 @@ type RapierWorld = InstanceType<RapierModule['World']>;
 type RapierEventQueue = InstanceType<RapierModule['EventQueue']>;
 type RapierBody = ReturnType<RapierWorld['getRigidBody']>;
 
-let loading: Promise<RapierModule> | null = null;
+/**
+ * Runs `load` once and hands the same promise to every caller. A failure (a chunk fetch that
+ * dropped on a flaky network) is not remembered: the next call tries again, so a « retry » works.
+ */
+export function memoizeLoader<T>(load: () => Promise<T>): () => Promise<T> {
+  let loading: Promise<T> | null = null;
+  return () => {
+    if (loading === null) {
+      loading = load().catch((cause: unknown) => {
+        loading = null;
+        throw cause;
+      });
+    }
+    return loading;
+  };
+}
 
 /**
  * Loads Rapier and initialises its WASM, once per process (Node, chromium, webkit): every call
  * returns the same promise. A dynamic `import()`, so that Vite puts the module (the WASM is inlined
  * in it) in a chunk of its own, fetched during the loading screen.
  */
-export function initRapier(): Promise<RapierModule> {
-  if (loading === null) {
-    loading = import('@dimforge/rapier3d-deterministic-compat').then(async (rapier) => {
-      await rapier.init();
-      return rapier;
-    });
-  }
-  return loading;
-}
+export const initRapier = memoizeLoader(async (): Promise<RapierModule> => {
+  const rapier = await import('@dimforge/rapier3d-deterministic-compat');
+  await rapier.init();
+  return rapier;
+});
 
 export interface RapierPhysicsOptions {
   /** The room: its colliders, its bounds and the props' start poses and sizes. */
@@ -43,7 +54,7 @@ const STEP_S = STEP_MS / MS_PER_S;
 
 /**
  * The physics of one level in Rapier (the deterministic build, `rapier3d-deterministic-compat`):
- * the geometry's boxes, a floor and the bounds' walls are fixed; each prop is a dynamic body whose
+ * the geometry's boxes, a floor, a ceiling and the bounds' walls are fixed; each prop is a dynamic body whose
  * shape, mass, friction and restitution come from its kind. The timestep is exactly one sim step.
  * Contact-force events above the impact threshold are what `forEachImpact` reports.
  */
@@ -55,12 +66,22 @@ export async function createRapierPhysics(options: RapierPhysicsOptions): Promis
   const [maxX, maxY, maxZ] = geometry.boundsMaxM;
   invariant(maxY > 0, `level ${geometry.id}: the bounds must reach above the floor`);
 
+  // Every refusal comes before the first WASM allocation, so that a refused level leaks nothing.
+  const kinds = geometry.props.map((prop, index) => {
+    const kind = Object.hasOwn(physics.kinds, prop.kind) ? physics.kinds[prop.kind] : undefined;
+    invariant(
+      kind !== undefined,
+      `level ${geometry.id}: props[${index}].kind "${prop.kind}" has no feel.physics.kinds entry`,
+    );
+    return kind;
+  });
+
   let world = new rapier.World({ x: 0, y: -physics.gravityMps2, z: 0 });
   world.timestep = STEP_S;
   const queue: RapierEventQueue = new rapier.EventQueue(true);
   let isDisposed = false;
 
-  // Fixed colliders, with no body: furniture, then the floor, then the four walls of the bounds.
+  // Fixed colliders, with no body: furniture, then the floor, the four walls of the bounds and the ceiling.
   let fixedColliderCount = 0;
   const fixed = (hx: number, hy: number, hz: number, x: number, y: number, z: number): void => {
     world.createCollider(rapier.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z));
@@ -90,6 +111,8 @@ export async function createRapierPhysics(options: RapierPhysicsOptions): Promis
   fixed(wallM / 2, halfHeightM, halfDepthM + wallM, maxX + wallM / 2, halfHeightM, centerZM);
   fixed(halfWidthM, halfHeightM, wallM / 2, centerXM, halfHeightM, minZ - wallM / 2);
   fixed(halfWidthM, halfHeightM, wallM / 2, centerXM, halfHeightM, maxZ + wallM / 2);
+  // The ceiling closes the room at the bounds' top: a push cannot send a prop over the walls.
+  fixed(halfWidthM + wallM, wallM / 2, halfDepthM + wallM, centerXM, maxY + wallM / 2, centerZM);
 
   // Props: one dynamic body each, in the geometry's order. Rapier filters the contacts by force:
   // an impulse under the threshold is a prop settling and never reaches us.
@@ -99,11 +122,7 @@ export async function createRapierPhysics(options: RapierPhysicsOptions): Promis
   /** Collider handle -> prop index. Handles survive a Rapier snapshot, so this stays valid after `restore`. */
   const propOfCollider = new Map<number, number>();
   geometry.props.forEach((prop, index) => {
-    const kind = Object.hasOwn(physics.kinds, prop.kind) ? physics.kinds[prop.kind] : undefined;
-    invariant(
-      kind !== undefined,
-      `level ${geometry.id}: props[${index}].kind "${prop.kind}" has no feel.physics.kinds entry`,
-    );
+    const kind = kinds[index] as Feel['physics']['kinds'][string];
     const [hx, hy, hz] = prop.halfExtentsM;
     const [x, y, z] = prop.centerM;
     const body = world.createRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(x, y, z));

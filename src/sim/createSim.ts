@@ -232,7 +232,12 @@ export async function createSimWithSystems(
     queue.push(cloneJson(entry));
   };
 
-  if (source) for (const entry of source.entries) record(entry);
+  try {
+    if (source) for (const entry of source.entries) record(entry);
+  } catch (cause) {
+    physics.dispose();
+    throw cause;
+  }
 
   return {
     enqueue(cmd) {

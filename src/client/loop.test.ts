@@ -732,6 +732,40 @@ describe('createGameLoop › step hook', () => {
   });
 });
 
+describe('createGameLoop › stop from inside a step', () => {
+  it('runs no more steps of the frame once a step hook has stopped the loop', async () => {
+    const holder: { rig?: Rig } = {};
+    const rig = await createRig({ beforeStep: () => holder.rig?.loop.stop() });
+    holder.rig = rig;
+    rig.tick(0);
+    rig.tick(3 * STEP_MS);
+    expect(rig.stepCalls).toBe(1);
+  });
+
+  it('stops advance(steps) the same way', async () => {
+    const holder: { rig?: Rig } = {};
+    const rig = await createRig({ beforeStep: () => holder.rig?.loop.stop() });
+    holder.rig = rig;
+    rig.loop.advance(5);
+    expect(rig.stepCalls).toBe(1);
+  });
+
+  it('runs steps again after a start()', async () => {
+    const holder: { rig?: Rig; isStopping: boolean } = { isStopping: true };
+    const rig = await createRig({
+      beforeStep: () => {
+        if (holder.isStopping) holder.rig?.loop.stop();
+      },
+    });
+    holder.rig = rig;
+    rig.loop.advance(5);
+    holder.isStopping = false;
+    rig.loop.start();
+    rig.loop.advance(2);
+    expect(rig.stepCalls).toBe(3);
+  });
+});
+
 describe('createGameLoop › speed', () => {
   it('multiplies the real time of a frame: speed 4 with 10 ms frames runs 4 steps per frame', async () => {
     const rig = await createRig({ speed: 4 });

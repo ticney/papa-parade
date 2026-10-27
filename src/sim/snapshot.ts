@@ -1,5 +1,5 @@
 import { decodeBase64, encodeBase64 } from '@shared/base64';
-import { MIN_TIME_SCALE } from '@shared/constants';
+import { MIN_TIME_SCALE, QUATERNION_LENGTH_TOLERANCE } from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
 import { THREAT_STATES } from './threats/threatFsm.ts';
@@ -305,15 +305,12 @@ function timeProblem(clock: Record<string, unknown>): string | null {
   return null;
 }
 
-/** A rotation of this length (squared) is a unit quaternion, within the tolerance of a float32 read. */
-const QUATERNION_TOLERANCE = 1e-4;
-
 function isUnitQuaternion(x: unknown, y: unknown, z: unknown, w: unknown): boolean {
   if (![x, y, z, w].every(isFiniteNumber)) return false;
   const length = Math.sqrt(
     (x as number) ** 2 + (y as number) ** 2 + (z as number) ** 2 + (w as number) ** 2,
   );
-  return Math.abs(length - 1) <= QUATERNION_TOLERANCE;
+  return Math.abs(length - 1) <= QUATERNION_LENGTH_TOLERANCE;
 }
 
 function propProblem(prop: unknown, index: number, planned: PlannedLevel['props']): string | null {

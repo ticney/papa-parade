@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { createTestContent } from '../../../tests/support/testContent.ts';
 import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
 import type { PhysicsPort, PropPose } from './physicsPort.ts';
-import { createRapierPhysics, initRapier } from './rapierPhysics.ts';
+import { createRapierPhysics, initRapier, memoizeLoader } from './rapierPhysics.ts';
 
 const physics = createTestContent().feel.physics;
 const STEP_S = STEP_MS / MS_PER_S;
@@ -47,21 +47,44 @@ describe('initRapier', () => {
   });
 });
 
+describe('memoizeLoader', () => {
+  it('runs the loader once and shares its promise', async () => {
+    let calls = 0;
+    const load = memoizeLoader(async () => ++calls);
+    expect(await Promise.all([load(), load()])).toEqual([1, 1]);
+    expect(await load()).toBe(1);
+    expect(calls).toBe(1);
+  });
+
+  it('does not remember a failure: the next call loads again', async () => {
+    let calls = 0;
+    const load = memoizeLoader(async () => {
+      calls++;
+      if (calls === 1) throw new Error('chunk fetch dropped');
+      return 'loaded';
+    });
+    await expect(load()).rejects.toThrow('chunk fetch dropped');
+    expect(await load()).toBe('loaded');
+    expect(await load()).toBe('loaded');
+    expect(calls).toBe(2);
+  });
+});
+
 describe('createRapierPhysics', () => {
   it('steps by exactly one sim step: free fall for 0.5 s of steps is g·t²/2, not what a 1/60 s timestep gives', async () => {
     const port = await createRapierPhysics({ geometry: roomWith(2.4), physics });
     stepN(port, 50);
-    // Rapier's solver substeps the timestep, so the fall is the continuous one within a few mm; a
-    // default 1/60 s step would have fallen 3.4 m.
+    // Rapier's solver substeps the timestep, so the fall is the continuous one within 7 mm (the
+    // measured gap); a default 1/60 s step would have fallen 3.47 m, a step of 0.0101 s 3 cm more.
     const fallenM = 0.5 * physics.gravityMps2 * (50 * STEP_S) ** 2;
-    expect(2.4 - poseOf(port).yM).toBeCloseTo(fallenM, 1);
+    expect(Math.abs(2.4 - poseOf(port).yM - fallenM)).toBeLessThan(0.01);
     port.dispose();
   });
 
-  it('builds one fixed collider per geometry collider, plus the floor and the four bounds walls', async () => {
+  it('builds one fixed collider per geometry collider, plus the floor, the four bounds walls and the ceiling', async () => {
     const geometry = roomWith(2);
     const port = await createRapierPhysics({ geometry, physics });
-    expect(port.fixedColliderCount).toBe(geometry.colliders.length + 1 + 4);
+    expect(port.fixedColliderCount).toBe(geometry.colliders.length + 1 + 4 + 1);
     expect(port.propCount).toBe(1);
     port.dispose();
   });
@@ -142,12 +165,48 @@ describe('createRapierPhysics', () => {
     port.dispose();
   });
 
-  it('keeps a pushed prop inside the room: the bounds walls hold it', async () => {
-    const port = await createRapierPhysics({ geometry: roomWith(0.05), physics });
-    port.applyImpulse(0, 50, 0, 0);
-    stepN(port, 400);
-    expect(poseOf(port).xM).toBeLessThan(2);
-    expect(poseOf(port).yM).toBeGreaterThan(0);
+  it('keeps a prop pushed with the largest allowed impulse inside the room, whatever the direction', async () => {
+    const maxNs = physics.maxPushImpulseNs;
+    const [minX, , minZ] = createTestLevelGeometry().boundsMinM;
+    const [maxX, maxY, maxZ] = createTestLevelGeometry().boundsMaxM;
+    const directions: [number, number, number][] = [
+      [1, 0, 0],
+      [-1, 0, 0],
+      [0, 0, 1],
+      [0, 0, -1],
+      [0, 1, 0],
+      [0.6, 0.6, 0.529],
+    ];
+    for (const kind of Object.keys(physics.kinds)) {
+      for (const [dx, dy, dz] of directions) {
+        const port = await createRapierPhysics({ geometry: roomWith(1.2, kind), physics });
+        port.applyImpulse(0, dx * maxNs, dy * maxNs, dz * maxNs);
+        for (let i = 0; i < 400; i++) {
+          port.step();
+          const { xM, yM, zM } = poseOf(port);
+          expect(xM, `${kind} ${dx} ${dy} ${dz} x`).toBeGreaterThan(minX);
+          expect(xM, `${kind} ${dx} ${dy} ${dz} x`).toBeLessThan(maxX);
+          expect(zM, `${kind} ${dx} ${dy} ${dz} z`).toBeGreaterThan(minZ);
+          expect(zM, `${kind} ${dx} ${dy} ${dz} z`).toBeLessThan(maxZ);
+          expect(yM, `${kind} ${dx} ${dy} ${dz} y`).toBeGreaterThan(0);
+          expect(yM, `${kind} ${dx} ${dy} ${dz} y`).toBeLessThan(maxY);
+        }
+        port.dispose();
+      }
+    }
+  });
+
+  it('closes the room with a ceiling: a prop shot straight up comes back down', async () => {
+    const port = await createRapierPhysics({ geometry: roomWith(1.2), physics });
+    // 12 m/s up would reach 7 m under gravity alone, in a room 2.5 m high.
+    port.applyImpulse(0, 0.3 * 12, 0, 0);
+    let highestM = 0;
+    for (let i = 0; i < 300; i++) {
+      port.step();
+      highestM = Math.max(highestM, poseOf(port).yM);
+    }
+    expect(highestM).toBeLessThan(createTestLevelGeometry().boundsMaxM[1]);
+    expect(poseOf(port).yM).toBeLessThan(1.2);
     port.dispose();
   });
 

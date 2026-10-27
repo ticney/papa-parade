@@ -196,10 +196,65 @@ describe('runPhysics (scripted port)', () => {
 
   it('pushProp helper pushes an unbroken prop and refuses an index that does not exist', () => {
     const s = scripted();
-    pushProp(s.world, s.ctx, 0, 1, 2, 3);
-    pushProp(s.world, s.ctx, 5, 1, 2, 3);
-    pushProp(s.world, s.ctx, -1, 1, 2, 3);
-    expect(s.calls).toEqual(['impulse:0:1:2:3']);
+    pushProp(s.world, s.ctx, 0, 1, 2, 2);
+    pushProp(s.world, s.ctx, 5, 1, 2, 2);
+    pushProp(s.world, s.ctx, -1, 1, 2, 2);
+    expect(s.calls).toEqual(['impulse:0:1:2:2']);
+  });
+
+  describe('pushProp bounds', () => {
+    const maxNs = physics.maxPushImpulseNs;
+
+    it('pushes with exactly the largest allowed impulse', () => {
+      const s = scripted();
+      pushProp(s.world, s.ctx, 0, maxNs, 0, 0);
+      expect(s.calls).toEqual([`impulse:0:${maxNs}:0:0`]);
+      expect(s.events).toEqual([]);
+    });
+
+    it('throws in strict mode on a push over the bound, a NaN or an infinite one, and pushes nothing', () => {
+      const s = scripted();
+      expect(() => pushProp(s.world, s.ctx, 0, maxNs * 2, 0, 0)).toThrow('prop.pushImpulseNs');
+      expect(() => pushProp(s.world, s.ctx, 0, Number.NaN, 0, 1)).toThrow('prop.pushImpulseNs');
+      expect(() => pushProp(s.world, s.ctx, 0, Number.POSITIVE_INFINITY, 0, 0)).toThrow(
+        'prop.pushImpulseNs',
+      );
+      expect(() => pushProp(s.world, s.ctx, 0, 1e300, 1e300, 1e300)).toThrow('prop.pushImpulseNs');
+      expect(s.calls).toEqual([]);
+    });
+
+    it('outside strict mode clamps a long push to the bound, keeping its direction, and reports it', () => {
+      const s = scripted();
+      Object.assign(s.ctx, { strictInvariants: false });
+      pushProp(s.world, s.ctx, 0, 0, 5 * maxNs, 0);
+      pushProp(s.world, s.ctx, 0, 3 * maxNs, 0, 4 * maxNs);
+      expect(s.calls[0]).toBe(`impulse:0:0:${maxNs}:0`);
+      const [x, y, z] = (s.calls[1] as string).split(':').slice(2).map(Number) as [
+        number,
+        number,
+        number,
+      ];
+      expect(x).toBeCloseTo(0.6 * maxNs, 9);
+      expect(y).toBe(0);
+      expect(z).toBeCloseTo(0.8 * maxNs, 9);
+      expect(s.events.map((event) => event.type)).toEqual([
+        'InvariantViolated',
+        'InvariantViolated',
+      ]);
+    });
+
+    it('outside strict mode drops a push that is not a finite vector, and reports it', () => {
+      const s = scripted();
+      Object.assign(s.ctx, { strictInvariants: false });
+      pushProp(s.world, s.ctx, 0, Number.NaN, 0, 0);
+      pushProp(s.world, s.ctx, 0, Number.POSITIVE_INFINITY, 0, 0);
+      pushProp(s.world, s.ctx, 0, 0, 0, 0);
+      expect(s.calls).toEqual([]);
+      expect(s.events.map((event) => event.type)).toEqual([
+        'InvariantViolated',
+        'InvariantViolated',
+      ]);
+    });
   });
 
   it('emits no event for a hit under the threshold, and one at the threshold', () => {
@@ -351,21 +406,24 @@ describe('runPhysics (scripted port)', () => {
 
     it('takes a tipped prop to lie on its largest half extent', () => {
       const s = scripted();
-      // The vase (half height 0.15) lying on its side: its centre is 0.05 above the floor, a lowest
-      // point of -0.10 if it were still counted upright... and 0.05 - 0.15 = -0.10 tipped. Upright at
-      // this height it would hover 0.05 - 0.15 = -0.1, so use a centre that tells them apart.
-      const quarter = Math.SQRT1_2;
-      s.poses[1] = { xM: 1.3, yM: 0.2, zM: 0, qx: quarter, qy: 0, qz: 0, qw: quarter };
+      // A flat prop (half extents 0.10, 0.03, 0.05), so that standing and lying differ: upright its
+      // lowest point is its centre minus 0.03, tipped it is its centre minus the largest half extent, 0.10.
+      Object.assign(s.ctx.level.props[0] as SimPropSpec, { halfExtentsM: [0.1, 0.03, 0.05] });
+      const quarter = Math.SQRT1_2; // a 90° turn about x: its up axis points sideways
+      const upright = { qx: 0, qy: 0, qz: 0, qw: 1 };
+      const tipped = { qx: quarter, qy: 0, qz: 0, qw: quarter };
+      s.poses[0] = { xM: 0.7, yM: 0.1, zM: 0, ...upright };
       runAt(s, 10);
-      // Tipped 90°: lowest point = 0.2 - 0.15 = 0.05 > tolerance: not on the floor.
-      expect(s.world.props[1]?.isOnFloor).toBe(false);
-      s.poses[1] = { xM: 1.3, yM: 0.16, zM: 0, qx: quarter, qy: 0, qz: 0, qw: quarter };
+      // Upright at 0.1 it would hover: lowest point 0.1 - 0.03 = 0.07, above the tolerance.
+      expect(s.world.props[0]?.isOnFloor).toBe(false);
+      s.poses[0] = { xM: 0.7, yM: 0.1, zM: 0, ...tipped };
       runAt(s, 20);
-      expect(s.world.props[1]?.isOnFloor).toBe(true);
-      // Upright at 0.16 the lowest point would be 0.01: on the floor too, but a hover at 0.2 is not.
-      s.poses[1] = { xM: 1.3, yM: 0.2, zM: 0, qx: 0, qy: 0, qz: 0, qw: 1 };
+      // Tipped at the same height its lowest point is 0.1 - 0.10 = 0: on the floor.
+      expect(s.world.props[0]?.isOnFloor).toBe(true);
+      s.poses[0] = { xM: 0.7, yM: 0.15, zM: 0, ...tipped };
       runAt(s, 30);
-      expect(s.world.props[1]?.isOnFloor).toBe(false);
+      // Tipped but 5 cm up: 0.15 - 0.10 = 0.05, above the tolerance.
+      expect(s.world.props[0]?.isOnFloor).toBe(false);
     });
   });
 });

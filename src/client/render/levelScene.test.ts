@@ -247,13 +247,21 @@ describe('createLevelScene', () => {
     it('frees the geometry of its templates on dispose', () => {
       const geometry = createTestLevelGeometry('test_room');
       const model = buildModel();
+      // A second node of the same kind is taken out of the scene but is never a template, so no
+      // pooled view shares its geometry: only the scene's explicit loop over the taken nodes frees it.
+      const spare = mesh('PROP_mug_01', 0x8a80a8);
+      model.add(spare);
       const template = model.getObjectByName('PROP_mug_01') as Mesh;
-      let freed = 0;
-      template.geometry.addEventListener('dispose', () => freed++);
+      expect(template).not.toBe(spare);
+      let spareFreed = 0;
+      let templateFreed = 0;
+      spare.geometry.addEventListener('dispose', () => spareFreed++);
+      template.geometry.addEventListener('dispose', () => templateFreed++);
       const built = createLevelScene({ id: 'test_room', geometry, model }, BODIES);
-      expect(freed).toBe(0);
+      expect(spareFreed + templateFreed).toBe(0);
       built.dispose();
-      expect(freed).toBeGreaterThan(0);
+      expect(spareFreed).toBeGreaterThan(0);
+      expect(templateFreed).toBeGreaterThan(0);
     });
   });
 

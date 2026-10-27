@@ -15,7 +15,7 @@ export interface PropPose {
  * The engine lives outside `World`, like the navigation grids, and rides in `SimSnapshot.physics`.
  */
 export interface PhysicsPort {
-  /** Fixed colliders of the level: furniture and walls from the geometry, the floor and the four bounds walls. */
+  /** Fixed colliders of the level: furniture and walls from the geometry, the floor, the four bounds walls and the ceiling. */
   readonly fixedColliderCount: number;
   /** Dynamic bodies: one per prop of the geometry. */
   readonly propCount: number;

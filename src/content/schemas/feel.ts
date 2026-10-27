@@ -293,6 +293,9 @@ const PhysicsSchema = z
     impactCooldownMs: delayMs(
       'After a `PropImpact`, the same prop emits no other for this long, in sim ms.',
     ),
+    maxPushImpulseNs: positive(
+      'Largest impulse one push (a gag, the debug `PushProp`) gives a prop, in newton-seconds: a larger one is clamped to it. `content:check` holds it low enough that no kind crosses a wall of the room in one step.',
+    ),
     kinds: z
       .record(z.string().regex(SNAKE_ID_PATTERN, 'a kind is lower_snake_case'), PropKindSchema)
       .describe('Physics of each kind of prop, by kind (`mug` for `PROP_mug_01`).'),

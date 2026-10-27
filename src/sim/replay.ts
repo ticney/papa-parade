@@ -83,9 +83,15 @@ export async function replayJournal(
     });
   }
   const events: SimEvent[] = [];
-  while (sim.world.time.sim < untilSimMs) {
-    sim.step();
-    for (const event of sim.drainEvents()) events.push(event);
+  try {
+    while (sim.world.time.sim < untilSimMs) {
+      sim.step();
+      for (const event of sim.drainEvents()) events.push(event);
+    }
+  } catch (cause) {
+    // The caller never gets the sim of a replay that throws: free its physics world here.
+    sim.dispose();
+    throw cause;
   }
   return ok({ sim, events });
 }

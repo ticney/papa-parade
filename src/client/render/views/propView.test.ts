@@ -39,7 +39,6 @@ describe('propPoseAt', () => {
     const out = newPose();
     propPoseAt(propAt(), 0, out);
     expect([out.xM, out.yM, out.zM]).toEqual([0, 0.7, -1]);
-    propAt();
     propPoseAt(propAt(), 0.5, out);
     expect(out.xM).toBeCloseTo(0.5, 12);
     expect(out.yM).toBeCloseTo(0.6, 12);

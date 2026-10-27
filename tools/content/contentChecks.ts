@@ -24,6 +24,7 @@ import type { Level } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import type { ThreatDef } from '@content/schemas/threat';
 import { checkStringReferences } from '@content/stringRefs';
+import { MS_PER_S, PHYSICS_BOUNDS_WALL_THICKNESS_M, STEP_MS } from '@shared/constants';
 import { GAG_IDS, SIM_EVENT_TYPES } from '@sim';
 
 const SCHEMAS_DIR = '_schemas';
@@ -319,6 +320,49 @@ function checkPropReferences(
 }
 
 /**
+ * The tuning rules of `feel.json › physics` that no single field can state. For each kind:
+ * (1) a breakable kind breaks at `breakImpulseNs`, but the sim reads no impact under
+ * `impactMinImpulseNs`, so the first must not be under the second (it could never break at its own
+ * threshold); (2) a prop at rest takes `massKg · g · STEP` of impulse each step, which must stay
+ * under `impactMinImpulseNs` or it would report an impact all the time it rests; (3) the largest
+ * push gives it a speed that must carry it less than half a wall of the room in one step, or it
+ * could cross the wall.
+ */
+function checkPhysicsTuning(feel: Feel): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const { physics } = feel;
+  const stepS = STEP_MS / MS_PER_S;
+  for (const [kindId, kind] of Object.entries(physics.kinds)) {
+    const at = (field: string) => ({
+      file: `content/${FEEL_FILE.file}`,
+      jsonPath: formatJsonPath(['physics', 'kinds', kindId, field]),
+    });
+    const where = `feel.json › physics.kinds.${kindId}`;
+    if (kind.breakable && kind.breakImpulseNs < physics.impactMinImpulseNs) {
+      problems.push({
+        ...at('breakImpulseNs'),
+        message: `${where}.breakImpulseNs (${kind.breakImpulseNs}) must not be under physics.impactMinImpulseNs (${physics.impactMinImpulseNs}): the sim ignores impacts under it, so the ${kindId} could never break at its own threshold`,
+      });
+    }
+    const restingImpulseNs = kind.massKg * physics.gravityMps2 * stepS;
+    if (restingImpulseNs >= physics.impactMinImpulseNs) {
+      problems.push({
+        ...at('massKg'),
+        message: `${where}.massKg (${kind.massKg}) is too heavy: at rest it presses with ${restingImpulseNs.toFixed(3)} N·s per step, which reaches physics.impactMinImpulseNs (${physics.impactMinImpulseNs}), so it would report an impact all the time it rests`,
+      });
+    }
+    const pushStepM = (physics.maxPushImpulseNs / kind.massKg) * stepS;
+    if (pushStepM >= PHYSICS_BOUNDS_WALL_THICKNESS_M / 2) {
+      problems.push({
+        ...at('massKg'),
+        message: `${where}.massKg (${kind.massKg}) is too light for physics.maxPushImpulseNs (${physics.maxPushImpulseNs}): the largest push moves it ${pushStepM.toFixed(2)} m per step, and the room's walls are ${PHYSICS_BOUNDS_WALL_THICKNESS_M} m thick, so it could cross one`,
+      });
+    }
+  }
+  return problems;
+}
+
+/**
  * Everything `npm run content:check` verifies, as a list of problems (empty = OK):
  * every content file against its schema, no content file without a schema, string references from
  * content (`…Key`) and from code (`t('…')`), and the generated JSON Schemas being up to date.
@@ -429,7 +473,10 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   problems.push(...checkLevelReferences(families, present));
 
   if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));
-  if (feel !== undefined) problems.push(...checkPropReferences(families.geometries, feel));
+  if (feel !== undefined) {
+    problems.push(...checkPropReferences(families.geometries, feel));
+    problems.push(...checkPhysicsTuning(feel));
+  }
 
   if (feedback !== undefined) problems.push(...(await checkFeedbackReferences(rootDir, feedback)));
 

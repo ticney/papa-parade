@@ -124,7 +124,7 @@ export interface PropSlice {
   prevQy: number;
   prevQz: number;
   prevQw: number;
-  /** Lies on the floor (see `propsSystem`); a prop that was never above it is on it from the start. */
+  /** Lies on the floor (see `propsSystem`). False at spawn, whatever the start pose: `runPhysics` sets it from the first step on. */
   isOnFloor: boolean;
   /** Broke on an impact. A broken prop keeps its body (it still collides). */
   isBroken: boolean;
