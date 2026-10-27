@@ -16,17 +16,22 @@ export function planWalkTo(
   zM: number,
 ): { goalXM: number; goalZM: number } | null {
   const grid = ctx.nav.papa;
-  let startCell = grid.cellAt(papa.xM, papa.zM);
+  let startXM = papa.xM;
+  let startZM = papa.zM;
+  const startCell = grid.cellAt(startXM, startZM);
   if (startCell < 0 || grid.open[startCell] !== 1) {
     // Impossible after the spawn snapping, but cheap: stand on the nearest open cell of any region.
-    startCell = grid.nearestOpenCell(papa.xM, papa.zM, -1);
-    if (startCell < 0) return null;
-    papa.xM = grid.centerXM(startCell);
-    papa.zM = grid.centerZM(startCell);
+    const nearest = grid.nearestOpenCell(startXM, startZM, -1);
+    if (nearest < 0) return null;
+    startXM = grid.centerXM(nearest);
+    startZM = grid.centerZM(nearest);
   }
   const path: number[] = [];
-  const goal = planRoute(grid, papa.xM, papa.zM, xM, zM, path);
+  const goal = planRoute(grid, startXM, startZM, xM, zM, path);
   if (goal === null) return null;
+  // Papa is touched only once the plan exists: a failure leaves him where he was.
+  papa.xM = startXM;
+  papa.zM = startZM;
   papa.path = path;
   papa.pathIndex = 0;
   return goal;

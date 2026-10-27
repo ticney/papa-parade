@@ -11,13 +11,15 @@ async function readText(
   source: ContentSource,
   file: string,
 ): Promise<Result<string, ContentProblem[]>> {
-  // A source honours its Result contract; a rejection is a bug in the source, still reported as a problem.
-  const text = await Promise.resolve(source.read(file)).catch((cause: unknown) =>
-    err({
-      kind: 'content' as const,
-      message: cause instanceof Error ? cause.message : String(cause),
-    }),
-  );
+  // A source honours its Result contract; a rejection or a throw is a bug in the source, still reported as a problem.
+  const text = await Promise.resolve()
+    .then(() => source.read(file))
+    .catch((cause: unknown) =>
+      err({
+        kind: 'content' as const,
+        message: cause instanceof Error ? cause.message : String(cause),
+      }),
+    );
   if (!text.ok)
     return err([{ file: `content/${file}`, jsonPath: '', message: text.error.message }]);
   return ok(text.value);

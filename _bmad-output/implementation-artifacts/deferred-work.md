@@ -166,5 +166,14 @@
 - **Gag consequences** (noise, mess, near miss, score) and the **gag presentation**: E3, 1.15, 1.16, 1.22 and 1.11.
 - **`feelOverrides` in `LevelSchema`** and the client merge (`mergeFeel` is ready): the first level that needs one, story 1.18 at the latest.
 - **A threat's `window` is called `responseWindow`.** `tests/architecture/simPurity` forbids the identifier `window` in `src/sim` (any declaration, parameter or key), so the story's `ThreatInstance.window` became `responseWindow`. Keep the name; do not weaken the scanner.
-- **The baby never abandons an `act`.** Story 1.10's rule 1 would send it back to `babble` as soon as a short cooldown re-arms the threat; `act` is now played out for `actMs` whatever the threat does (a cooldown shorter than `actMs` is the only way to see the difference). To confirm with Geo if a gag should be interruptible.
+- **The baby never abandons an `act`.** Story 1.10's rule 1 would send it back to `babble` as soon as a short cooldown re-arms the threat; `act` is now played out for `actMs` whatever the threat does (a cooldown shorter than `actMs` is the only way to see the difference). Confirmed in the code review of 2026-10-27: kept (the spec's rule 1 was amended).
 
+
+## Deferred from: code review of story 1-10-premiere-menace-jugee-en-headless-la-prise-electrique (2026-10-27)
+
+- **The director targets the first idle due threat in array order**, not the one with the smallest `fromMs`, and adds no gap between threats (`directorSystem.ts`; pinned by a test). Reason: story 1.18's wave director replaces this policy.
+- **`cooldownMs: 0` gags and re-arms in the same step** (`threatSystem.ts`): the baby never sees the gag and Papa's glide is skipped. Reason: legal by schema but no content uses it; decide with the first threat that needs a zero cooldown.
+- **Anchor checks only test existence** (`contentChecks.ts`, `createSim.ts`): a threat can be planned on `baby_spawn` / `papa_spawn`, and two entries can share an anchor. Reason: needs anchor kinds in the geometry; stories 1.16 / 1.18.
+- **A degenerate `glideMaxMs` (0 or tiny) gives a wrong `arriveAt` or a huge `speedMps`** (`glide.ts`). Reason: enforce a floor in the feel schema when story 1.14 tunes the glide.
+- **`threatCatalog.test.ts` hard-codes anchor `outlet_01` and a Parry release for every def.** Reason: story 1.16 (second threat) is the first to break it; derive both from the def then.
+- **`loadLevelContent` does not check `levelId` against `SNAKE_ID_PATTERN`**, and a non-snake file name under `levels/` or `threats/` reports "no schema registered" instead of "id must be lower_snake_case". Reason: the level id is a code constant today.

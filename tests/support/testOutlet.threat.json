@@ -1,5 +1,5 @@
 {
-  "$schema": "../_schemas/threat.schema.json",
+  "$schema": "../../content/_schemas/threat.schema.json",
   "id": "outlet",
   "response": "parry",
   "telegraphDelayMs": 1200,

@@ -72,8 +72,10 @@ describe('runDirector', () => {
     const acts = events.filter(
       (event) => event.type === 'BabyStateChanged' && event.to === 'act',
     ) as { t: number }[];
-    expect((acts[0]?.t ?? 0) + content.feel.baby.actMs).toBeLessThanOrEqual(next?.t ?? 0);
-    expect(next?.t).toBeLessThan(gagAt + 6000 + STEP_MS * 2 + content.feel.baby.babbleMaxMs);
+    const actEndsAt = (acts[0]?.t ?? 0) + content.feel.baby.actMs;
+    expect(actEndsAt).toBeLessThanOrEqual(next?.t ?? 0);
+    // Targeted as soon as both the cooldown is over and the baby is free: it does not wait for a babble.
+    expect(next?.t).toBeLessThanOrEqual(Math.max(gagAt + 6000, actEndsAt) + STEP_MS * 2);
   });
 
   it('never targets while the baby is in act', async () => {

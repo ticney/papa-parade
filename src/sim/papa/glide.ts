@@ -1,11 +1,10 @@
+import { MS_PER_S } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import { remainingPathLengthM } from '../nav/pathLength.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { enterPapaState } from './papaFsm.ts';
 import { planWalkTo } from './planWalk.ts';
-
-const MS_PER_S = 1000;
 
 /**
  * Papa sets off to a pressed threat (D11, P3): the choreography of a response, never part of its

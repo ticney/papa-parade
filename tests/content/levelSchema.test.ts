@@ -52,9 +52,12 @@ describe('content/levels/salon_crawler.json', () => {
   });
 
   it('gives every numeric key of an entry a unit suffix', () => {
-    const keys = Object.entries(entry)
-      .filter(([, value]) => typeof value === 'number')
+    // The schema's own shape, so a future `fromSec` or `delay` fails here.
+    const shape = LevelSchema.shape.threats.element.shape;
+    const numeric = Object.entries(shape)
+      .filter(([, field]) => field.def.type === 'number')
       .map(([key]) => key);
-    expect(keys.filter((key) => !UNIT_SUFFIX.test(key))).toEqual([]);
+    expect(numeric).toContain('fromMs');
+    expect(numeric.filter((key) => !UNIT_SUFFIX.test(key))).toEqual([]);
   });
 });

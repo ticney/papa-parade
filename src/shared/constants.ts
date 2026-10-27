@@ -1,6 +1,9 @@
 /** Number of log entries (level `info` and above) kept by the logger's ring buffer. */
 export const LOG_BUFFER_SIZE = 200;
 
+/** Milliseconds in a second: converts a duration in ms to a speed in m/s. */
+export const MS_PER_S = 1000;
+
 /** Length of one simulation step, in sim ms. Every `sim.step()` advances exactly this much. */
 export const STEP_MS = 10;
 

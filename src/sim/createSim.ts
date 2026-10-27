@@ -230,7 +230,14 @@ export async function createSimWithSystems(
       return takeSnapshot(world, seed, feelHash, geometryHash, levelHash);
     },
     restore(snapshot, tail = []) {
-      const restored = worldFromSnapshot(snapshot, seed, feelHash, geometryHash, levelHash);
+      const restored = worldFromSnapshot(
+        snapshot,
+        seed,
+        feelHash,
+        geometryHash,
+        levelHash,
+        ctx.level.threats,
+      );
       for (const entry of tail) {
         const problem = entryProblem(entry);
         invariant(problem === null, `invalid journal entry: ${String(problem)}`);

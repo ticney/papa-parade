@@ -1,7 +1,7 @@
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
 import { THREAT_STATES } from './threats/threatFsm.ts';
-import type { World } from './world.ts';
+import type { ThreatInstance, World } from './world.ts';
 
 /**
  * The restorable state: `World` only, plus the identity of the sim it came from (a snapshot of
@@ -77,8 +77,8 @@ function papaProblem(papa: unknown): string | null {
   } else if (slice.state !== 'glide' && path.length !== 0) {
     return 'world.papa.path';
   }
-  // A glide state has a glide, any other does not; the path of a glide is not checked (it is fully
-  // walked at the step of the arrival, before the state goes back to idle).
+  // A glide state has a glide, any other does not; a glide has a path (it is fully walked at the step
+  // of the arrival, before the state goes back to idle).
   const hasGlide = slice.glide !== null;
   if (hasGlide !== (slice.state === 'glide')) return 'world.papa.glide';
   if (hasGlide) {
@@ -90,6 +90,11 @@ function papaProblem(papa: unknown): string | null {
         return `world.papa.glide.${key}`;
       }
     }
+    // A glide that cannot end would leave Papa stuck in it (`MoveStop` is ignored while it lasts).
+    if ((glide.speedMps as number) <= 0) return 'world.papa.glide.speedMps';
+    if ((glide.arriveAt as number) < (glide.startedAt as number))
+      return 'world.papa.glide.arriveAt';
+    if (path.length === 0) return 'world.papa.path';
   }
   const headingLength = Math.sqrt(
     (slice.headingX as number) ** 2 + (slice.headingZ as number) ** 2,
@@ -105,7 +110,7 @@ function isUnitVector(x: unknown, z: unknown): boolean {
   return Math.abs(Math.sqrt(x * x + z * z) - 1) <= 1e-6;
 }
 
-function babyProblem(baby: unknown): string | null {
+function babyProblem(baby: unknown, threats: readonly { id: number }[]): string | null {
   if (typeof baby !== 'object' || baby === null) return 'world.baby is missing';
   const slice = baby as Record<string, unknown>;
   if (!BABY_STATES.includes(slice.state)) return 'world.baby.state';
@@ -161,7 +166,14 @@ function babyProblem(baby: unknown): string | null {
   // The baby stares at, crawls to or plays out a target: it has one.
   const needsTarget =
     slice.state === 'targetLocked' || slice.state === 'approach' || slice.state === 'act';
-  if (needsTarget && slice.targetThreatId === null) return 'world.baby.targetThreatId';
+  if (needsTarget !== (slice.targetThreatId !== null)) return 'world.baby.targetThreatId';
+  if (slice.targetThreatId !== null && !threats.some((t) => t.id === slice.targetThreatId)) {
+    return 'world.baby.targetThreatId';
+  }
+  // Only an approach crawls to a threat.
+  if (slice.state !== 'approach' && slice.approachSpeedMps !== 0) {
+    return 'world.baby.approachSpeedMps';
+  }
   if (!isUnitVector(slice.headingX, slice.headingZ)) return 'world.baby.heading';
   if (!isUnitVector(slice.gazeX, slice.gazeZ)) return 'world.baby.gaze';
   return null;
@@ -223,7 +235,10 @@ function threatProblem(threat: unknown, index: number): string | null {
   return null;
 }
 
-function worldProblem(world: unknown): string | null {
+/** What `worldProblem` needs of the level: the defs it plans, in order (the threats are index-aligned). */
+type PlannedThreats = readonly { readonly def: { readonly id: string } }[];
+
+function worldProblem(world: unknown, planned: PlannedThreats): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
   const { time, rng, nextId, papa, baby, threats } = world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
@@ -241,7 +256,18 @@ function worldProblem(world: unknown): string | null {
     const problem = threatProblem(threats[i], i);
     if (problem !== null) return problem;
   }
-  return papaProblem(papa) ?? babyProblem(baby);
+  // `runThreats` and the director index the level's threats by the instances' index.
+  if (threats.length !== planned.length) return 'world.threats';
+  const ids = new Set<number>();
+  for (let i = 0; i < threats.length; i++) {
+    const threat = threats[i] as ThreatInstance;
+    if (threat.defId !== (planned[i] as PlannedThreats[number]).def.id) {
+      return `world.threats[${i}].defId`;
+    }
+    if (ids.has(threat.id) || threat.id >= (nextId as number)) return `world.threats[${i}].id`;
+    ids.add(threat.id);
+  }
+  return papaProblem(papa) ?? babyProblem(baby, threats as readonly ThreatInstance[]);
 }
 
 /** A deep copy of the snapshot's world, ready to become the live one. */
@@ -251,6 +277,7 @@ export function worldFromSnapshot(
   feelHash: string,
   geometryHash: string,
   levelHash: string,
+  planned: PlannedThreats,
 ): World {
   invariant(snapshot.version === 3, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
@@ -260,7 +287,7 @@ export function worldFromSnapshot(
     'the snapshot was taken by a sim with another level geometry',
   );
   invariant(snapshot.levelHash === levelHash, 'the snapshot was taken by a sim with another level');
-  const problem = worldProblem(snapshot.world);
+  const problem = worldProblem(snapshot.world, planned);
   invariant(problem === null, `invalid snapshot world: ${String(problem)}`);
   return cloneJson(snapshot.world);
 }

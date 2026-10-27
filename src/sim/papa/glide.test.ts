@@ -153,6 +153,23 @@ describe('the glide to a pressed threat', () => {
     expect(only(events, 'GagTriggered')).toHaveLength(1);
   });
 
+  it('glides on a press on a gagged threat too (a new press replans), but not on an idle one', async () => {
+    const sim = await newSim();
+    run(sim, 400); // no press: the window (1210) and its tolerance are over, the outlet is gagged
+    expect(sim.world.threats[0]?.state).toBe('gag');
+    sim.enqueue(press(sim.world.time.sim + STEP_MS));
+    expect(only(run(sim, 3), 'PapaGlideStarted')).toHaveLength(1);
+    // An outlet the director has not targeted yet is idle: there is nothing to glide to.
+    const idle = await createSim({
+      content,
+      geometry,
+      level: createTestLevel([outletEntry(5000)]),
+      seed: 1,
+    });
+    idle.enqueue(press(100));
+    expect(only(run(idle, 20), 'PapaGlideStarted')).toEqual([]);
+  });
+
   it('is replanned by a new press, from where Papa stands', async () => {
     const sim = await pressedAt(500);
     run(sim, 11); // 610: Papa has moved
@@ -191,7 +208,11 @@ describe('what cancels a glide', () => {
     const events = run(sim, 2);
     expect(only(events, 'PapaPathPlanned')).toHaveLength(1);
     expect(papaOf(sim)).toMatchObject({ state: 'walkPath', glide: null });
-    run(sim, 600);
+    const arrivals = only(run(sim, 600), 'PapaArrived');
+    expect(arrivals).toHaveLength(1);
+    expect(Math.hypot((arrivals[0]?.xM ?? NaN) - 2, (arrivals[0]?.zM ?? NaN) - 1)).toBeLessThan(
+      0.5,
+    );
     expect(only(run(sim, 1), 'PapaArrived')).toEqual([]);
     expect(papaOf(sim).state).toBe('idle');
   });
@@ -259,6 +280,22 @@ describe('planWalkTo', () => {
     papa.path = [1, 1];
     const ctx = { nav: { papa: closedRoom, baby: closedRoom } } as never;
     expect(planWalkTo(papa, ctx, 1, 1)).toBeNull();
+    expect(papa.path).toEqual([1, 1]);
+  });
+
+  it('leaves Papa where he stood when the plan fails after the snap', () => {
+    const real = createTestNavGrid(['1111', '1111']);
+    // The snap (region -1: any) works, then the goal cannot be placed in Papa's region.
+    const grid = {
+      ...real,
+      nearestOpenCell: (xM: number, zM: number, region: number) =>
+        region === -1 ? real.nearestOpenCell(xM, zM, region) : -1,
+    };
+    const papa = papaAt(-3, -3);
+    papa.path = [1, 1];
+    const ctx = { nav: { papa: grid, baby: grid } } as never;
+    expect(planWalkTo(papa, ctx, 50, 50)).toBeNull();
+    expect([papa.xM, papa.zM]).toEqual([-3, -3]);
     expect(papa.path).toEqual([1, 1]);
   });
 

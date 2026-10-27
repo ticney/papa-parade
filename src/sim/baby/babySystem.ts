@@ -1,4 +1,4 @@
-import { MAX_CRAWL_SPEED_MPS, STEP_MS } from '@shared/constants';
+import { MAX_CRAWL_SPEED_MPS, MS_PER_S, STEP_MS } from '@shared/constants';
 import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
@@ -28,8 +28,6 @@ function ensureOnOpenCell(world: World, ctx: StepContext): void {
   baby.xM = grid.centerXM(cell);
   baby.zM = grid.centerZM(cell);
 }
-
-const MS_PER_S = 1000;
 
 function isActive(threat: ThreatInstance): boolean {
   return threat.state === 'telegraph' || threat.state === 'windowOpen';

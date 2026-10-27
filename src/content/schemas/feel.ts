@@ -63,7 +63,7 @@ const InputSchema = z
     earlyPress: z
       .enum(['fail', 'guard'])
       .describe(
-        'What a press before the window (minus tolerance and buffer) does: `fail` triggers the gag, `guard` starts the glide without a judgement.',
+        'What a press before the window (minus tolerance and buffer) does to the judgement: `fail` triggers the gag, `guard` ignores it. Papa glides to the threat in both cases.',
       ),
     touchRadiusPx: z
       .number()

@@ -111,7 +111,7 @@
             "fail",
             "guard"
           ],
-          "description": "What a press before the window (minus tolerance and buffer) does: `fail` triggers the gag, `guard` starts the glide without a judgement."
+          "description": "What a press before the window (minus tolerance and buffer) does to the judgement: `fail` triggers the gag, `guard` ignores it. Papa glides to the threat in both cases."
         },
         "touchRadiusPx": {
           "type": "number",

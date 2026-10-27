@@ -57,9 +57,11 @@ function move(world: World, ctx: StepContext, dirX: number, dirZ: number): void 
 }
 
 /**
- * A press on a threat that has been telegraphed (and not yet re-armed) sends Papa gliding to it, whatever the
- * judgement says (D11): the client starts the glide at `pointerdown`, before any judgement, and the two must not
- * contradict. A press on an unknown or idle threat does nothing.
+ * A press on a threat sends Papa gliding to it, whatever the judgement says (D11): the client starts the glide at
+ * `pointerdown`, before any judgement, and the two must not contradict. That includes a press this very step gagged
+ * (too early or too late), and a later press on a threat that is resolved or gagged and waits out its cooldown (a new
+ * press replans the glide: it is where Papa goes, not a judgement). A press on an unknown threat, or on one that is
+ * idle (not telegraphed yet, or already re-armed), does nothing.
  */
 function pressThreat(world: World, ctx: StepContext, threatId: number): void {
   for (let i = 0; i < world.threats.length; i++) {

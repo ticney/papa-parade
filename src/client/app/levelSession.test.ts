@@ -177,6 +177,7 @@ describe('createLevelSession', () => {
     const order: string[] = [];
     let simLevel: LevelContent | undefined;
     const loaded = levelOf('salon_crawler', createTestLevel([outletEntry(2000)]));
+    const levelGate = deferred<void>();
     const { session, appFsm } = setup({
       loadAssets: async (id) => {
         order.push('assets');
@@ -184,6 +185,7 @@ describe('createLevelSession', () => {
       },
       loadLevelContent: async () => {
         order.push('level');
+        await levelGate.promise;
         return ok(loaded);
       },
       createSim: (options) => {
@@ -192,7 +194,12 @@ describe('createLevelSession', () => {
         return createSim(options);
       },
     });
-    await session.start();
+    const starting = session.start();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The assets began while the level is still pending: a serial load would deadlock here.
+    expect(order).toEqual(['level', 'assets']);
+    levelGate.resolve();
+    await starting;
     expect(order).toEqual(['level', 'assets', 'sim']);
     expect(simLevel).toBe(loaded);
     expect(appFsm.state).toBe('level');

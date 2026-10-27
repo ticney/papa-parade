@@ -12,6 +12,7 @@ import type { System } from './context.ts';
 import { createSim, createSimWithSystems } from './createSim.ts';
 import type { SimEvent } from './events.ts';
 import { SYSTEMS } from './step.ts';
+import { THREAT_STATES } from './threats/threatFsm.ts';
 
 const content = createTestContent();
 const geometry = createTestGeometry();
@@ -438,13 +439,22 @@ describe('snapshot / restore with a threat', () => {
       sim.step();
       expect(JSON.parse(JSON.stringify(sim.world))).toEqual(sim.world);
     }
+    // Unanswered: idle, telegraph, windowOpen, gag. Answered (a Parry in the window): resolved too.
     const states = new Set<string>();
-    const live = await newSim();
+    const unanswered = await newSim();
     for (let i = 0; i < 3000; i++) {
-      live.step();
-      states.add(live.world.threats[0]?.state ?? '');
+      unanswered.step();
+      states.add(unanswered.world.threats[0]?.state ?? '');
     }
-    expect([...states].sort()).toEqual(['gag', 'idle', 'telegraph', 'windowOpen']);
+    const answered = await newSim();
+    answered.enqueue(press(1220));
+    answered.enqueue({ type: 'Release', t: asSimMs(1250) });
+    for (let i = 0; i < 300; i++) {
+      answered.step();
+      expect(JSON.parse(JSON.stringify(answered.world))).toEqual(answered.world);
+      states.add(answered.world.threats[0]?.state ?? '');
+    }
+    expect([...states].sort()).toEqual([...THREAT_STATES].sort());
   });
 
   it('refuses a snapshot whose threats are malformed', async () => {
@@ -643,6 +653,73 @@ describe('snapshot / restore with a threat', () => {
       speedMps: 1,
     };
     expect(() => idle.restore(withGlide)).toThrow(/world\.papa\.glide/);
+  });
+
+  it('refuses a glide that cannot end, and a snapshot whose threats are not the level’s', async () => {
+    const sim = await newSim();
+    sim.enqueue(press(300));
+    stepN(sim, 40);
+    expect(sim.world.papa.state).toBe('glide');
+    const good = sim.snapshot();
+    const copyOf = () => JSON.parse(JSON.stringify(good)) as typeof good;
+    const glideOf = (snapshot: typeof good) =>
+      snapshot.world.papa.glide as unknown as Record<string, unknown>;
+
+    const slow = copyOf();
+    glideOf(slow).speedMps = 0;
+    expect(() => sim.restore(slow)).toThrow(/glide\.speedMps/);
+    const backwards = copyOf();
+    glideOf(backwards).arriveAt = (glideOf(backwards).startedAt as number) - 1;
+    expect(() => sim.restore(backwards)).toThrow(/glide\.arriveAt/);
+    const pathless = copyOf();
+    pathless.world.papa.path = [];
+    pathless.world.papa.pathIndex = 0;
+    expect(() => sim.restore(pathless)).toThrow(/world\.papa\.path/);
+
+    const extra = copyOf();
+    extra.world.threats.push({ ...(extra.world.threats[0] as object), id: 7 } as never);
+    expect(() => sim.restore(extra)).toThrow(/world\.threats/);
+    const missing = copyOf();
+    missing.world.threats.length = 0;
+    expect(() => sim.restore(missing)).toThrow(/world\.threats/);
+    const otherDef = copyOf();
+    (otherDef.world.threats[0] as unknown as Record<string, unknown>).defId = 'sofa';
+    expect(() => sim.restore(otherDef)).toThrow(/threats\[0\]\.defId/);
+    const aheadOfNextId = copyOf();
+    (aheadOfNextId.world.threats[0] as unknown as Record<string, unknown>).id =
+      aheadOfNextId.world.nextId;
+    expect(() => sim.restore(aheadOfNextId)).toThrow(/threats\[0\]\.id/);
+  });
+
+  it('refuses a baby whose target is no threat, who has one while free, or who crawls while not approaching', async () => {
+    const sim = await newSim();
+    stepN(sim, 5); // targetLocked
+    expect(sim.world.baby.state).toBe('targetLocked');
+    const good = sim.snapshot();
+    const mutate = (change: (baby: Record<string, unknown>) => void) => {
+      const copy = JSON.parse(JSON.stringify(good)) as typeof good;
+      change(copy.world.baby as unknown as Record<string, unknown>);
+      return copy;
+    };
+    expect(() =>
+      sim.restore(
+        mutate((baby) => {
+          baby.targetThreatId = 99;
+        }),
+      ),
+    ).toThrow(/world\.baby\.targetThreatId/);
+    expect(() =>
+      sim.restore(
+        mutate((baby) => {
+          baby.approachSpeedMps = 0.5;
+        }),
+      ),
+    ).toThrow(/world\.baby\.approachSpeedMps/);
+    const free = await createSim({ content, geometry, level, seed: 5 });
+    const freeGood = free.snapshot();
+    const withTarget = JSON.parse(JSON.stringify(freeGood)) as typeof freeGood;
+    (withTarget.world.baby as unknown as Record<string, unknown>).targetThreatId = 1;
+    expect(() => free.restore(withTarget)).toThrow(/world\.baby\.targetThreatId/);
   });
 
   it('refuses a baby that locks on nothing, or whose approach speed is not a speed', async () => {

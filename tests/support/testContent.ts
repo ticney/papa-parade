@@ -83,8 +83,8 @@ export function createTestGeometry(): LevelGeometry {
 }
 
 /**
- * The outlet for sim and golden tests, from a FROZEN byte copy of `content/threats/outlet.json`
- * (`testOutlet.threat.json`), never from the live file: Geo retunes it freely, and no test result
+ * The outlet for sim and golden tests, from a FROZEN copy of `content/threats/outlet.json`
+ * (`testOutlet.threat.json`, same values; only its `$schema` path differs), never from the live file: Geo retunes it freely, and no test result
  * may depend on it.
  */
 export function createTestOutlet(): ThreatDef {
