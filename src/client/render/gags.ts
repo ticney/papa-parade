@@ -61,8 +61,12 @@ export interface GagStage {
 }
 
 export interface GagFx {
-  /** Starts a gag's presentation at `startAt` (sim ms); a new one restarts the effects it lists. */
-  start(gag: GagId, startAt: number): void;
+  /**
+   * Starts a gag's presentation at `startAt` (sim ms); a new one restarts the effects it lists.
+   * `isMotionReduced` (the player asked for fewer animations) keeps the lights, which carry the
+   * gag, and drops the hair's snap.
+   */
+  start(gag: GagId, startAt: number, isMotionReduced?: boolean): void;
   /** Sets the stage for `clockMs` (sim ms). Writes only while an effect runs, and a last time when it ends. */
   update(clockMs: number): void;
   /** Ends the effects at once and puts the stage back (a restart, a stopped loop). */
@@ -77,10 +81,10 @@ export function createGagFx(stage: GagStage): GagFx {
   let lightsStartAt: number | null = null;
   let hairStartAt: number | null = null;
   return {
-    start(gag, startAt) {
+    start(gag, startAt, isMotionReduced = false) {
       const presentation = GAG_PRESENTATIONS[gag];
       if (presentation.lightsOff) lightsStartAt = startAt;
-      if (presentation.hair) hairStartAt = startAt;
+      if (presentation.hair && !isMotionReduced) hairStartAt = startAt;
     },
     update(clockMs) {
       if (lightsStartAt !== null) {

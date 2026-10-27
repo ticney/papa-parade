@@ -156,12 +156,16 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
   let markers: Marker[] = [];
   let mounted: readonly ThreatMarkerEntry[] = [];
   let shownCount = 0;
+  // `threats[i]` must be the instance of `entries[i]` (same order, built from `world.threats`): a
+  // pair that is not is skipped, and said once per mount.
+  let isMisalignedWarned = false;
 
   const unmount = (): void => {
     for (const marker of markers) scene.remove(marker.object);
     markers = [];
     mounted = [];
     shownCount = 0;
+    isMisalignedWarned = false;
   };
 
   return {
@@ -176,7 +180,22 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
       let isHighlightShown = false;
       for (let i = 0; i < markers.length; i++) {
         const marker = markers[i] as Marker;
-        const threat = threats[i];
+        const candidate = threats[i];
+        // A pair that does not match is no threat of this marker (never the wrong icon).
+        const threat =
+          candidate !== undefined && candidate.id === (mounted[i] as ThreatMarkerEntry).threatId
+            ? candidate
+            : undefined;
+        if (threat === undefined && !isMisalignedWarned) {
+          isMisalignedWarned = true;
+          log.warn(
+            'render',
+            'threat markers are not aligned with the world threats: marker skipped',
+            {
+              index: i,
+            },
+          );
+        }
         const isPressed = threat !== undefined && threat.id === highlightedId;
         const isActive =
           threat !== undefined &&

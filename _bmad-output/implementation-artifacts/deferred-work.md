@@ -187,3 +187,11 @@
 - **`?threats=off` is a test switch** (debug builds only). Remove it if story 1.13's `window.__PP__.loadLevel()` makes it redundant.
 - **Placeholder sounds and ring sizes** of the four outlet cues (`tel_outlet`, `resp_parry`, `resp_parry_perfect`, `gag_outlet`) are synthesized and unheard by the dev; volumes and radii in `feedback.json` are starting values. Reason: Geo tunes them; stories 2.3 and 7.5 replace the clips under the same names.
 - **A press that resolves its threat in the frame it is pressed** keeps the icon and highlight up for one more frame (the highlight must be drawn once). Reason: by design of the NFR2 budget; revisit if it reads as a flicker in the playtest.
+
+## Deferred from: code review of story 1-11-parer-la-prise-electrique-au-tap (2026-10-27)
+
+- **The e2e suite does not cover the gag's lights and hair, the baby lift, nor the `boot.ts` glue with the outlet live** (restart while a threat is telegraphed, pause with a finger held, error-screen exit). Reason: no debug mirror to read yet; add with story 1.13 (`window.__PP__`).
+- **`threat.spec.ts` taps inside a window of a few hundred ms in real time** (CDP round trip), a possible flake on a loaded runner or in WebKit. Reason: green on the full suite now; make deterministic with story 1.13.
+- **Only the primary pointer presses a threat**: a thumb resting on the screen makes every other touch non-primary. Reason: D6 / Open point 2 (`Release` names no threat); decide with the first multi-threat story (1.16 / 1.18) or on the first phone playtest.
+- **The pressed threat's highlight is optimistic**: a press the sim ignores keeps the ring and chevron up while the threat stays `telegraph` / `windowOpen`. Reason: same family as the 1.10 « press enqueued after its window expired » item; watch in the playtest (1.24).
+- **`tapLatency` marks are JS-side** (handler, right after `worldUi.render`): compositor and vsync presentation are not measured. Reason: AC 6 defines these marks; a trace-based check belongs to the performance pass (1.24).

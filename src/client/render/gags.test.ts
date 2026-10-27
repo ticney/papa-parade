@@ -91,6 +91,13 @@ describe('createGagFx', () => {
     expect(calls).toEqual([]);
   });
 
+  it('keeps the lights and leaves the hair flat when motion is reduced', () => {
+    const { calls, fx } = build();
+    fx.start('outlet_hair', 1000, true);
+    fx.update(1000 + GAG_LIGHTS_FADE_MS + 10);
+    expect(calls).toEqual([`lights:${MIN.toFixed(2)}`]);
+  });
+
   it('is frozen by a clock that does not move (a pause) and restarted by a new gag', () => {
     const { calls, fx } = build();
     fx.start('outlet_hair', 0);

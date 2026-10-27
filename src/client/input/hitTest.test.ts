@@ -111,6 +111,12 @@ describe('pickThreat', () => {
     expect(tester.pickThreat(a.x - 2, a.y, RECT, forward, RADIUS)).toBe(1);
   });
 
+  it('never aims at an icon that belongs to another threat (ids differ)', () => {
+    const at = pxOf(entryA);
+    const targets = { threats: [threat(9)], entries: [entryA] }; // entryA is the icon of threat 1
+    expect(tester.pickThreat(at.x, at.y, RECT, targets, RADIUS)).toBeNull();
+  });
+
   it('skips a threat that is not telegraphed or open', () => {
     const at = pxOf(entryA);
     for (const state of ['idle', 'resolved', 'gag']) {

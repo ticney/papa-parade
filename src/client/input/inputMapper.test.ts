@@ -390,6 +390,16 @@ describe('createInputMapper: threats', () => {
     expect(commands.map((c) => c.type)).toEqual(['PressThreat', 'Release']);
   });
 
+  it('a pause request right after a press dates Release no earlier than the press, which is ahead of the sim clock', () => {
+    const { mapper, commands, iconPx } = withThreat();
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y, { timeStamp: 2000 }));
+    mapper.releaseHeld();
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 1000, threatId: 4 },
+      { type: 'Release', t: 1000 },
+    ]);
+  });
+
   it('forgets a press of the previous level without sending anything', () => {
     const { mapper, commands, iconPx, setActive, newSim } = withThreat();
     mapper.handlePointerDown(click(iconPx.x, iconPx.y));

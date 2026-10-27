@@ -67,6 +67,7 @@ export function createHitTester(camera: OrthographicCamera): HitTester {
         const threat = targets.threats[i] as Readonly<ThreatInstance>;
         if (threat.state !== 'telegraph' && threat.state !== 'windowOpen') continue;
         const entry = targets.entries[i] as ThreatMarkerEntry;
+        if (entry.threatId !== threat.id) continue; // not the icon of this threat: never aim at it
         icon.set(entry.xM, entry.yM, entry.zM).project(camera);
         if (!(icon.z >= -1 && icon.z <= 1)) continue; // behind the camera, or past the far plane
         const dx = rect.left + ((icon.x + 1) / 2) * rect.width - clientX;

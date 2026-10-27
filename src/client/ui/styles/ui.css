@@ -549,12 +549,6 @@ body {
   .pp-button {
     transition: none;
   }
-
-  /* The halo glows steady and the chevron stands still. */
-  .pp-threat-halo,
-  .pp-threat-chevron {
-    animation: none;
-  }
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -668,6 +662,17 @@ body {
   }
   50% {
     transform: translateY(6px);
+  }
+}
+
+/*
+  After the base rules on purpose: same selector, same specificity, so the later rule wins. The
+  halo glows steady and the chevron stands still.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .pp-threat-halo,
+  .pp-threat-chevron {
+    animation: none;
   }
 }
 

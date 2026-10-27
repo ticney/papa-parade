@@ -237,13 +237,16 @@ export async function boot(): Promise<void> {
     },
   });
   let cuesPlayedCount = 0;
+  // One query, read live: the player can change the setting while the page is open.
+  const reducedMotionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+  const prefersReducedMotion = (): boolean => reducedMotionQuery.matches;
   const director = createFeedbackDirector({
     table: feedbackTable,
     audio,
     haptics: platform.haptics,
     // Only while a level is on: a scene behind the loading screen must not play for a dead sim.
     getScene: () => (appFsm.state === 'level' ? (currentLevel?.fx ?? null) : null),
-    prefersReducedMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+    prefersReducedMotion,
     onCue: (cueId) => {
       cuesPlayedCount++;
       if (isMirrored) {
@@ -275,6 +278,7 @@ export async function boot(): Promise<void> {
   // from the next frame (D8), before the sim has applied the press.
   let highlightedThreatId: number | null = null;
   const choreography = createResponseChoreography();
+  const noLiftFx = { liftBaby: () => {} };
   const stripThreats = isMirrored && readThreatsOff(window.location.search);
 
   // The render stats are mirrored once per level, on its first rendered frame.
@@ -333,6 +337,9 @@ export async function boot(): Promise<void> {
           const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
           const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
           mirror('ppThreatPx', `${x.toFixed(1)},${y.toFixed(1)}`);
+        } else {
+          // No icon for this threat: a point left by a previous one must not be tapped.
+          document.documentElement.removeAttribute('data-pp-threat-px');
         }
         return;
       }
@@ -427,8 +434,16 @@ export async function boot(): Promise<void> {
           director.playCue(cue, active.sim.world, event.threatId);
         }
         if (currentLevel !== null) {
-          choreography.onEvent(event, active.sim.world, currentLevel.fx);
-          if (event.type === 'GagTriggered') currentLevel.fx.gag(event.gag, event.t);
+          // Reduced motion: no hop of the baby, no snap of Papa's hair (the lights carry the gag).
+          const isMotionReduced = prefersReducedMotion();
+          choreography.onEvent(
+            event,
+            active.sim.world,
+            isMotionReduced ? noLiftFx : currentLevel.fx,
+          );
+          if (event.type === 'GagTriggered') {
+            currentLevel.fx.gag(event.gag, event.t, isMotionReduced);
+          }
         }
       }
       if (isMirrored) {

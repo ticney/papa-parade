@@ -1,3 +1,4 @@
+import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import type { ThreatInstance, ThreatState } from '@sim';
 import { Scene } from 'three';
@@ -151,6 +152,24 @@ describe('createThreatMarkers', () => {
     markers.mount([ENTRY, { ...ENTRY, threatId: 5 }]);
     expect(() => markers.update([threat(4, 'telegraph')], null)).not.toThrow();
     expect(markers.isAnyVisible).toBe(true);
+  });
+
+  it('skips a marker whose threat is not its own (ids differ) and warns once per mount', () => {
+    const { markers, scene } = build();
+    const countWarnings = (): number =>
+      log.buffer().filter((entry) => entry.level === 'warn' && /not aligned/.test(entry.message))
+        .length;
+    const before = countWarnings();
+    markers.mount([ENTRY, { ...ENTRY, threatId: 5 }]);
+    // The world of another level: ids 7 and 8 against the entries 4 and 5.
+    markers.update([threat(7, 'telegraph'), threat(8, 'windowOpen')], 7);
+    expect(scene.children.map((child) => child.visible)).toEqual([false, false]);
+    expect(markers.isAnyVisible).toBe(false);
+    markers.update([threat(7, 'telegraph'), threat(8, 'windowOpen')], null);
+    expect(countWarnings()).toBe(before + 1);
+    markers.mount([ENTRY]);
+    markers.update([threat(9, 'telegraph')], null);
+    expect(countWarnings()).toBe(before + 2);
   });
 
   it('replaces the previous level on mount and empties on unmount', () => {

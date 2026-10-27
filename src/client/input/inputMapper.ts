@@ -1,5 +1,5 @@
 import { log } from '@shared/log';
-import { asRealMs, type SimMs } from '@shared/time';
+import { asRealMs, asSimMs, type SimMs } from '@shared/time';
 import type { AppFsm } from '../app/appFsm.ts';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import type { PauseController } from '../app/pauseController.ts';
@@ -84,6 +84,9 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
   const picked: FloorPoint = { xM: 0, zM: 0 };
   let boundSim: ActiveLevel['sim'] | null = null;
   const press = createThreatPressTracker();
+  // The sim time of the press the tracker holds: a `Release` must not be dated before it (the sim
+  // ends only the presses made at or before its `t`).
+  let heldPressAt: SimMs = asSimMs(0);
 
   const isLive = (): boolean =>
     deps.appFsm.state === 'level' && deps.pause.state === 'running' && deps.getActive() !== null;
@@ -143,11 +146,8 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
               deps.touchRadiusPx,
             );
       if (threatId !== null) {
-        active.sim.enqueue({
-          type: 'PressThreat',
-          t: active.timeMap.realToSim(asRealMs(sample.timeStamp)),
-          threatId,
-        });
+        heldPressAt = active.timeMap.realToSim(asRealMs(sample.timeStamp));
+        active.sim.enqueue({ type: 'PressThreat', t: heldPressAt, threatId });
         press.pressed(sample.pointerId, threatId);
         deps.onThreatPressed?.(threatId);
         return;
@@ -179,7 +179,9 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (active === null) return;
       bindTo(active);
       if (!press.releaseAll()) return;
-      active.sim.enqueue({ type: 'Release', t: active.sim.world.time.sim });
+      // The press may be dated a step ahead of the sim clock (it is applied at the next step).
+      const simNow = active.sim.world.time.sim;
+      active.sim.enqueue({ type: 'Release', t: heldPressAt > simNow ? heldPressAt : simNow });
     },
     onKeysChanged(timeStampAtReal) {
       refreshMove((active) => active.timeMap.realToSim(asRealMs(timeStampAtReal)));

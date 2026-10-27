@@ -47,8 +47,11 @@ export interface LevelFx {
   soundWave(xM: number, zM: number, maxRadiusM: number, durationMs: number, startAt: SimMs): void;
   /** Shakes the room (not the camera) by up to `amplitudeM` for `durationMs`. */
   shake(amplitudeM: number, durationMs: number, startAt: SimMs): void;
-  /** Presents a gag (`GAG_PRESENTATIONS`): the lights go out and come back, Papa's hair stands up. */
-  gag(gag: GagId, startAt: SimMs): void;
+  /**
+   * Presents a gag (`GAG_PRESENTATIONS`): the lights go out and come back, Papa's hair stands up.
+   * With `isMotionReduced` the hair stays flat (the lights alone carry the gag).
+   */
+  gag(gag: GagId, startAt: SimMs, isMotionReduced?: boolean): void;
   /** The provisional « lift the baby » pose: a short hop of the baby. */
   liftBaby(startAt: SimMs): void;
 }
@@ -191,7 +194,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
       waves.play(xM, zM, maxRadiusM, durationMs, startAt),
     shake: (amplitudeM, durationMs, startAt) => shake.start(amplitudeM, durationMs, startAt),
-    gag: (gag, startAt) => gags.start(gag, startAt),
+    gag: (gag, startAt, isMotionReduced) => gags.start(gag, startAt, isMotionReduced),
     liftBaby: (startAt) => lift.start(startAt),
   };
 
