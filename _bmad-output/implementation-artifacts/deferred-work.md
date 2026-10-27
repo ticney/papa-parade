@@ -31,3 +31,9 @@
 - **Effective feel in `World`.** `ctx.feel` is constant per sim in story 1.3. When `SetFeel` arrives (story 2.1) the effective feel has to live in the snapshotted state.
 - **Slow-mo duration unit.** `feel.json` documents `slowMo*.durationMs` as real ms; the sim has no real clock. Story 1.14 decides how the sim counts it (and the overlap rule). Also for story 1.14: the freeze overlap rule (story 1.3 keeps `max`).
 - **Rapier in the snapshot.** Story 1.15 adds the Rapier blob to `SimSnapshot` and bumps its `version`.
+
+## Deferred from: code review of story 1-3-coeur-de-simulation-deterministe-en-headless (2026-10-27)
+
+- **`cloneJson` normalises `-0` to `0`.** A restored world can differ from the live one where the sign of zero matters (`Math.atan2`, `1/x`). Latent: the sim has no float math yet. Decide with the first movement code (story 1.7).
+- **The golden scenario never touches the rng or ids.** `core_basic` only sends `SetTimeScale`, and the determinism test compares two runs of the same process. The first gameplay golden (story 1.10) must exercise rng, ids and events.
+- **Invariant strictness follows the build.** A playtest build (`PROD`) clamps what dev and CI throw on, and a journal recorded in one mode replays differently in the other. Matches the architecture; story 3.3 should record the mode in the exported journal.

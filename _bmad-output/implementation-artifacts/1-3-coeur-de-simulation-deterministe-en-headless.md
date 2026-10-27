@@ -4,7 +4,7 @@ baseline_commit: 15312b98c551ff38b8e5b01774bba254106c310a
 
 # Story 1.3: Deterministic simulation core in headless
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.3 « Cœur de simulation déterministe en headless ». Epics, GDD and architecture are in French; this file is in English (document_output_language). -->
 
@@ -86,6 +86,26 @@ so that all gameplay is testable in Node, without a browser.
   - [x] Prove the coverage gate bites: temporarily move one `src/sim/**/*.test.ts` file away, confirm `npm run test:coverage` fails on the 90 % threshold, then restore it.
   - [x] Temporarily add `Math.random()` to a `src/sim` file: `npm test` (simPurity) and `npm run lint` both fail; remove it.
   - [x] `git status`: only the files of the File List changed; `tests/architecture/**` and `biome.json` are unchanged.
+
+### Review Findings
+
+Code review of `15312b9` against the working tree (2026-10-27), story file and `package-lock.json` excluded from the diff: Blind Hunter, Edge Case Hunter and Acceptance Auditor. 1 decision-needed (resolved to patch), 11 patch, 3 deferred, 10 dismissed. The Auditor ran typecheck, lint and `test:coverage` (green) and found no acceptance criterion violated; the weakest ticked boxes are T3 and T5.
+
+- [x] [Review][Patch] (decided 2026-10-27: option 1 — `restore(snapshot, tail?)` re-queues the remaining journal entries with their recorded `applyAt`; the snapshot gains `seed` and `feelHash`, checked on restore) `restore()` cannot reproduce a late command enqueued after the snapshot, and a restored sim's journal is not self-describing — AC 6's recipe re-enqueues `applyAt > snapshot time` entries through the public `enqueue`, which recomputes `applyAt = max(ceilToStep(t), now + STEP_MS)` at the restored time. A command enqueued live at sim 1200 with `t = 1100` has `applyAt = 1210`; after restore to 1000 it gets `1100` and applies 110 ms earlier, so the final state diverges. `snapshot.test.ts` only covers a late command enqueued *before* the snapshot, which the filter drops. Also: the snapshot carries no seed or feel hash (a snapshot of another sim is accepted, and `journal()` then reports a seed that does not match the world), and `restore` empties the journal and the pre-loaded replay entries without marking the journal as partial. Options: (1) `restore(snapshot, tail?)` takes the journal entries still to apply and queues them with their recorded `applyAt`; the snapshot gains `seed` and `feelHash`, checked on restore; (2) keep the API, document that the recipe only holds for commands with `t > snapshot time`, still add the seed/feel check and a test for the limit; (3) defer the whole question to story 3.9, the first real consumer of snapshot replay. [src/sim/createSim.ts:122, src/sim/snapshot.ts, src/sim/snapshot.test.ts]
+- [x] [Review][Patch] A freeze request of `Infinity` outside strict mode becomes `Number.MAX_VALUE`, so `freezeRealMs` never drains and the client freezes forever; the lenient test only tries `NaN` and `-4`. Report, then ignore a non-finite or negative request, and test `Infinity` in lenient mode [src/sim/time/hitstop.ts:17, src/sim/time/hitstop.test.ts]
+- [x] [Review][Patch] `InvariantViolated.value` can be `NaN` or `±Infinity`, which `canonicalJson`/`hashJson`/`cloneJson` reject: the diagnostics path crashes the golden summary or any event export in a non-strict run. Make the event carry a JSON-safe value (a finite number, or the strings `'NaN'`, `'Infinity'`, `'-Infinity'`) and test that `hashJson(events)` works [src/shared/invariant.ts:44]
+- [x] [Review][Patch] Command and journal input is unvalidated: `enqueue` accepts a command whose `t` is missing or not a number (`applyAt` becomes `NaN`, the queue stalls behind it and `journal()` throws), journal entries with a non-finite `applyAt` or non-array `entries` are accepted at load, and `clampInvariant` coerces a string (`"0.5"`) as in-bounds. Add `invariant(Number.isFinite(command.t))` in `enqueue`, validate entries when pre-loading a journal, and make `clampInvariant` treat a non-number as a violation [src/sim/createSim.ts:93, src/sim/commandQueue.ts:12, src/shared/invariant.ts:36]
+- [x] [Review][Patch] `replayJournal` is documented as returning an `err`, not throwing, yet a bad `seed`, non-array `entries`, an out-of-range scale or an unknown shape makes it reject; `untilSimMs = Infinity` loops forever and `NaN` returns `ok` after 0 steps. Add a journal validator (seed, entries shape, finite `t`/`applyAt`, known command types) returning an `err` of kind `'journal'`, require a finite `untilSimMs`, and test each case plus a non-multiple `untilSimMs` (15 ends at 20) [src/sim/replay.ts:23]
+- [x] [Review][Patch] `drainDue` calls `pending.splice(0, count)`, which allocates on every step that applies a command, against the "zero allocation in `step()`" rule. Compact in place and truncate `length` instead [src/sim/commandQueue.ts:40]
+- [x] [Review][Patch] The journal entries and the live queue share the same objects, and `ctx.commands` hands out the journal's own command objects: a system mutating a command rewrites the recorded history (reproduced). Queue a separate deep copy, and test that mutating `ctx.commands` leaves `journal()` intact [src/sim/createSim.ts:85, src/sim/commandQueue.ts:37]
+- [x] [Review][Patch] `canonicalJson` accepts sparse arrays (`[1,,3]` is hashed but `cloneJson` throws a `SyntaxError`) and overflows the stack on a cycle instead of naming the path; `restore` accepts any world shape with the right version (`{}` fails later in `step`); `nextInt` has no range cap above 2**32 where `nextFloat`'s 32-bit resolution leaves gaps. Reject holes and cycles with the "Not serializable" error, check the world's basic shape in `restore`, cap the `nextInt` range, and test seeds `2**32`, `Infinity` and `-0` [src/shared/hash.ts:14, src/sim/snapshot.ts:22, src/shared/rng.ts:43]
+- [x] [Review][Patch] `WARMUP_ROUNDS` and `UINT32_RANGE` are defined in `rng.ts`; project convention puts `UPPER_SNAKE` constants in `shared/constants.ts` [src/shared/rng.ts:8]
+- [x] [Review][Patch] `project-context.md` still lists the CI stage as `test`; CI now runs `test:coverage` [_bmad-output/project-context.md:137]
+- [x] [Review][Patch] `deferred-work.md` records the "Biome vs `simPurity`" decision twice (resolved note on the 1.1 item, and again as a bullet of the 1.3 creation section); keep the resolved note only [_bmad-output/implementation-artifacts/deferred-work.md]
+- [x] [Review][Patch] Weak or misleading tests and test-support defects: the `timeScale` lenient test only checks `(0, 1)` instead of pinning the clamp to `MIN_TIME_SCALE`; `[...seen].sort()` has no comparator; `golden.test.ts` asserts `eventTypes` twice and treats `CI=false` as CI; `hash.test.ts` declares `KNOWN_HASH` after its use; `recordScenario` rounds a non-multiple `untilSimMs` up and silently drops an action with `atStep >= steps`; the rule table lacks `t = 1e15 + 0.1`, `2**53` and `-0`; no test for `restore` on a sim built with a journal, or for ordering between a pre-loaded entry and a new one at equal `applyAt` [src/sim/time/timeScale.test.ts:38, src/shared/rng.test.ts, tests/golden/golden.test.ts, tests/golden/scenarios.ts, src/sim/commandQueue.test.ts]
+- [x] [Review][Defer] `cloneJson` turns `-0` into `0`, so a restored world can differ from the live one in sign-of-zero behaviour (`atan2`, `1/x`) [src/shared/hash.ts:42] — deferred, latent: no float math in the sim yet; decide with the first movement code (story 1.7)
+- [x] [Review][Defer] The golden scenario never touches the rng or ids, and the determinism test compares two runs in the same process only [tests/golden/scenarios.ts] — deferred: no gameplay system uses them yet; the first gameplay golden (story 1.10) must exercise them
+- [x] [Review][Defer] Invariant strictness follows the build (`PROD`), so a playtest build clamps what dev and CI would throw on, and a journal recorded in one mode replays differently in the other [src/shared/invariant.ts:29] — deferred: matches the architecture ("in prod, clamp"); story 3.3 should record the mode in the exported journal
 
 ## Dev Notes
 
@@ -320,6 +340,16 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`), via the `gds-dev-story` workflow.
 - **No guardrail touched.** `tests/architecture/**` and `biome.json` are unchanged; the layer scanner accepts the relative imports of `tests/support/*` from `src/sim/*.test.ts` as predicted.
 - **Not verified here:** nothing was run in a browser (this story has no client part), and nothing was committed. `package-lock.json` changed only for `@vitest/coverage-v8`.
 
+### Review fixes (2026-10-27)
+
+All 12 patches applied; `npm run ci` green (394 tests, `src/sim` coverage 96 % statements and 92.5 % branches, e2e, playtest build).
+
+- `restore(snapshot, tail?)` re-queues the remaining journal entries with their recorded `applyAt`; `SimSnapshot` now carries `seed` and `feelHash` (checked on restore) and `Journal` gained `startSimMs` (0, or the snapshot time of a restored sim; `replayJournal` refuses a non-zero one). **The golden journal and expected files were regenerated** (`npm run golden:update`) because `startSimMs` joined the journal shape; hashes and events are unchanged.
+- Input validation: `commandProblem` / `entryProblem` / `journalProblem` (`commands.ts`, `journal.ts`) check commands and journals at `enqueue`, at journal pre-load and in `replayJournal`, which now returns an `err` for any malformed journal or a non-finite `untilSimMs`. `clampInvariant` treats a non-number as a violation, and `InvariantViolated.value` is `number | string` (non-finite values spelled out) so events always hash.
+- `requestFreeze` reports and ignores a negative or non-finite request. `drainDue` compacts in place (no allocation). The journal and the queue hold separate copies. `canonicalJson` rejects holes and cycles by name, `nextInt` caps its range at 2**32, `RNG_WARMUP_ROUNDS` and `UINT32_RANGE` moved to `shared/constants.ts`.
+- Tests tightened or added for each fix; golden scenarios validate `untilSimMs` and `atStep`, and `CI=false` no longer counts as CI. `project-context.md` CI line and the duplicate `deferred-work.md` bullet fixed. Three findings were deferred (see Review Findings).
+- Left as designed and noted for the record: `replayJournal` follows `strictInvariants` (strict throws on an invariant violation during replay); the story's Dev Notes still describe the pre-review `restore()` signature.
+
 ### File List
 
 New:
@@ -352,4 +382,5 @@ Deleted:
 ## Change Log
 
 - 2026-10-26: Story 1.3 created (ready-for-dev).
+- 2026-10-27: Code review (Blind Hunter, Edge Case Hunter, Acceptance Auditor): 12 patches applied, 3 deferred, 10 dismissed. Status → done.
 - 2026-10-26: Story 1.3 implemented. Deterministic sim core (`World`, fixed 10 ms step, command queue with `applyAt`, time scale and freeze, seeded sfc32 rng, invariants, snapshot/restore, journal and `replayJournal`), golden tests on a frozen feel, `src/sim` coverage gate. Status → review.
