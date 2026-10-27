@@ -38,7 +38,24 @@ describe('loadContent', () => {
     if (result.ok) {
       expect(result.value.feel.timing).toBeDefined();
       expect(result.value.strings['start.tap_to_start']).toBeTypeOf('string');
+      expect(result.value.feedback.cues).toBeDefined();
     }
+  });
+
+  it('names the file and the JSON path of a broken feedback value', async () => {
+    const feedback = JSON.parse(readReal('feedback.json'));
+    feedback.buses.sfx.gainPct = 101;
+    const problems = await problemsOf({ 'feedback.json': JSON.stringify(feedback) });
+    expect(problems).toEqual([
+      expect.objectContaining({ file: 'content/feedback.json', jsonPath: 'buses.sfx.gainPct' }),
+    ]);
+  });
+
+  it('reports a feedback file the source cannot read', async () => {
+    const problems = await problemsOf({ 'feedback.json': null });
+    expect(problems).toEqual([
+      expect.objectContaining({ file: 'content/feedback.json', jsonPath: '' }),
+    ]);
   });
 
   it('names the file and the JSON path of a broken value', async () => {

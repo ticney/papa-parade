@@ -1,6 +1,10 @@
+---
+baseline_commit: c1fcde8f1541ad3a8ff62e3562063e75968d70ff
+---
+
 # Story 1.9: Basic Feedback
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.9 « Retours de base ». Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -33,50 +37,50 @@ From the epic (1 to 7), then derived from the architecture, the UX spec and the 
 
 ## Tasks / Subtasks
 
-- [ ] **T0: Precondition (all ACs)** — check the Precondition section.
-- [ ] **T1: Content (AC 5, 6, 9)**
-  - [ ] `src/content/schemas/feedback.ts`: `FeedbackTableSchema` exactly as Dev Notes › Feedback table, `.describe` on every key with its unit, `z.strictObject` everywhere, the clip-name regex, the « at least one member » refine on a cue. Export `FeedbackTable`, `FeedbackCue`, `AudioBus`, `HapticKind` via `z.infer`.
-  - [ ] `src/content/feedbackClips.ts` (+ test): `feedbackClips(table): string[]`, every distinct clip of `loops` and `cues`, sorted. Used by the client preload, `content:check` and the audio-assets test.
-  - [ ] `contentFiles.ts`: `FEEDBACK_FILE` (`feedback.json`, schema name `feedback`) in `CONTENT_FILES`; `ContentBundle.feedback`; `loadContent` loads it alongside feel and strings (still explicit; see Dev Notes › Deferred items this story touches).
-  - [ ] `content/feedback.json` with the starting values of Dev Notes › Feedback table, first key `"$schema": "./_schemas/feedback.schema.json"` like `feel.json` (`parseContentFile` drops it). `npm run content:schemas` (generates `content/_schemas/feedback.schema.json`; never by hand), then `npm run content:check`.
-  - [ ] `tests/support/testContent.ts`: `createTestContent()` returns a minimal valid `feedback` (typed `FeedbackTable`, inline). The sim ignores it; `feelHash` is unchanged, so no golden moves.
-  - [ ] `tests/content/feedbackSchema.test.ts`: the live file parses; refused: an unknown bus, `gainPct` 101 or −1, an unknown haptic kind, an empty `patternMs`, a cue with no member, an unknown key at any level, a clip `bump` (no category) or `noise_bump` (unknown category), a `soundWave` with `maxRadiusM` 0. Unit-suffix rule on every numeric key (`Pct`, `Ms`, `M`), same spirit as `feelSchema.test.ts`.
-  - [ ] Fix `tests/content/loadContent.test.ts` and `tests/content/checkContent.test.ts` where their in-memory sources or fixture roots now lack `feedback.json` (deliberate edits; list them).
-- [ ] **T2: Event names and clip files in `content:check` (AC 5, D9)**
-  - [ ] `src/sim/events.ts`: `export const SIM_EVENT_TYPES = [...] as const` listing every `SimEvent['type']`, with a compile-time check that the list and the union are equal both ways (Dev Notes › SIM_EVENT_TYPES). Export it from `src/sim/index.ts`. A small test next to it (`events.test.ts`): no duplicate, sorted or in union order (your pick, state it).
-  - [ ] `src/client/feedback/feedbackEvents.ts`: `FEEDBACK_CLIENT_EVENTS = ['CountdownTicked'] as const` (the client events the director listens to) and the type `FeedbackEventName = SimEvent['type'] | (typeof FEEDBACK_CLIENT_EVENTS)[number]`.
-  - [ ] `tools/content/contentChecks.ts`: a feedback check run when `feedback.json` parsed: every `events` key is in `SIM_EVENT_TYPES` or `FEEDBACK_CLIENT_EVENTS`; every `events` value is a key of `cues`; every clip of `feedbackClips` exists as `public/assets/audio/<clip>.m4a`. Problems name the file and the JSON path (`events.PapaBlockd`, `cues.papa_bump.audio.clip`). Cases in `tests/content/checkContent.test.ts`, each with a failing fixture. **Trap:** that test copies only `content/` into a temp root (`beforeEach`), so the clip-file check fails there until the `beforeEach` also copies `public/assets/audio/`; the « on the real repository » case uses the repo itself.
-- [ ] **T3: Placeholder audio (AC 3, 4, 5, D14)**
-  - [ ] `tools/audio/makePlaceholderAudio.ts` + `npm run assets:audio`: synthesizes the three clips of Dev Notes › Placeholder clips into WAV in a temp dir (deterministic: `@shared/rng` with a fixed seed), then `afconvert -f m4af -d aac -b <kbps>` each into `public/assets/audio/<clip>.m4a`. On a machine without `afconvert` it exits ≠ 0 with a clear message (macOS only; CI never runs it). Commit the `.m4a` files, not the WAVs.
-  - [ ] `tests/architecture/audioAssets.test.ts` (new file): every clip of the live `feedback.json` exists, starts with an MP4 `ftyp` box (bytes 4 to 7), and the level's `.glb` plus every clip stay within `LEVEL_PAYLOAD_MAX_BYTES` (NFR3).
+- [x] **T0: Precondition (all ACs)** — check the Precondition section.
+- [x] **T1: Content (AC 5, 6, 9)**
+  - [x] `src/content/schemas/feedback.ts`: `FeedbackTableSchema` exactly as Dev Notes › Feedback table, `.describe` on every key with its unit, `z.strictObject` everywhere, the clip-name regex, the « at least one member » refine on a cue. Export `FeedbackTable`, `FeedbackCue`, `AudioBus`, `HapticKind` via `z.infer`.
+  - [x] `src/content/feedbackClips.ts` (+ test): `feedbackClips(table): string[]`, every distinct clip of `loops` and `cues`, sorted. Used by the client preload, `content:check` and the audio-assets test.
+  - [x] `contentFiles.ts`: `FEEDBACK_FILE` (`feedback.json`, schema name `feedback`) in `CONTENT_FILES`; `ContentBundle.feedback`; `loadContent` loads it alongside feel and strings (still explicit; see Dev Notes › Deferred items this story touches).
+  - [x] `content/feedback.json` with the starting values of Dev Notes › Feedback table, first key `"$schema": "./_schemas/feedback.schema.json"` like `feel.json` (`parseContentFile` drops it). `npm run content:schemas` (generates `content/_schemas/feedback.schema.json`; never by hand), then `npm run content:check`.
+  - [x] `tests/support/testContent.ts`: `createTestContent()` returns a minimal valid `feedback` (typed `FeedbackTable`, inline). The sim ignores it; `feelHash` is unchanged, so no golden moves.
+  - [x] `tests/content/feedbackSchema.test.ts`: the live file parses; refused: an unknown bus, `gainPct` 101 or −1, an unknown haptic kind, an empty `patternMs`, a cue with no member, an unknown key at any level, a clip `bump` (no category) or `noise_bump` (unknown category), a `soundWave` with `maxRadiusM` 0. Unit-suffix rule on every numeric key (`Pct`, `Ms`, `M`), same spirit as `feelSchema.test.ts`.
+  - [x] Fix `tests/content/loadContent.test.ts` and `tests/content/checkContent.test.ts` where their in-memory sources or fixture roots now lack `feedback.json` (deliberate edits; list them).
+- [x] **T2: Event names and clip files in `content:check` (AC 5, D9)**
+  - [x] `src/sim/events.ts`: `export const SIM_EVENT_TYPES = [...] as const` listing every `SimEvent['type']`, with a compile-time check that the list and the union are equal both ways (Dev Notes › SIM_EVENT_TYPES). Export it from `src/sim/index.ts`. A small test next to it (`events.test.ts`): no duplicate, sorted or in union order (your pick, state it).
+  - [x] `src/client/feedback/feedbackEvents.ts`: `FEEDBACK_CLIENT_EVENTS = ['CountdownTicked'] as const` (the client events the director listens to) and the type `FeedbackEventName = SimEvent['type'] | (typeof FEEDBACK_CLIENT_EVENTS)[number]`.
+  - [x] `tools/content/contentChecks.ts`: a feedback check run when `feedback.json` parsed: every `events` key is in `SIM_EVENT_TYPES` or `FEEDBACK_CLIENT_EVENTS`; every `events` value is a key of `cues`; every clip of `feedbackClips` exists as `public/assets/audio/<clip>.m4a`. Problems name the file and the JSON path (`events.PapaBlockd`, `cues.papa_bump.audio.clip`). Cases in `tests/content/checkContent.test.ts`, each with a failing fixture. **Trap:** that test copies only `content/` into a temp root (`beforeEach`), so the clip-file check fails there until the `beforeEach` also copies `public/assets/audio/`; the « on the real repository » case uses the repo itself.
+- [x] **T3: Placeholder audio (AC 3, 4, 5, D14)**
+  - [x] `tools/audio/makePlaceholderAudio.ts` + `npm run assets:audio`: synthesizes the three clips of Dev Notes › Placeholder clips into WAV in a temp dir (deterministic: `@shared/rng` with a fixed seed), then `afconvert -f m4af -d aac -b <kbps>` each into `public/assets/audio/<clip>.m4a`. On a machine without `afconvert` it exits ≠ 0 with a clear message (macOS only; CI never runs it). Commit the `.m4a` files, not the WAVs.
+  - [x] `tests/architecture/audioAssets.test.ts` (new file): every clip of the live `feedback.json` exists, starts with an MP4 `ftyp` box (bytes 4 to 7), and the level's `.glb` plus every clip stay within `LEVEL_PAYLOAD_MAX_BYTES` (NFR3).
   - [ ] Listen to each clip once (built-in browser or `afplay`): the loops loop without an audible click or gap. Say in the Completion Notes what you heard.
-- [ ] **T4: Platform (AC 7, D8)**
-  - [ ] `src/platform/platform.ts`: `Platform`, `Haptics`, `PlatformCapabilities` (Dev Notes › Platform). `src/platform/createPlatform.ts` (+ test): `createPlatform({ target, hapticPatternsMs, env? })`. `src/platform/web/webHaptics.ts` (+ test). Delete `src/platform/.gitkeep`.
-  - [ ] `.env`: add `VITE_TARGET=web` (the three `.env*` files are read by Vite; `.env` is the shared base). Boot passes `import.meta.env.VITE_TARGET`.
-  - [ ] `tests/architecture/platformApis.test.ts` (new file, with a failing fixture under `tests/architecture/fixtures/platformApis/`): `navigator.vibrate` appears in `src/` only under `src/platform/` (comments ignored). It turns a project-context rule into a test; it edits no existing guard.
-- [ ] **T5: Audio engine (AC 1 to 4, D3 to D5, D11)**
-  - [ ] `src/client/audio/audioUnlock.ts` (+ test), `audioEngine.ts` (+ test), `buses.ts` if you split the bus graph out. `src/client/assets/audioAssets.ts` (+ test): fetch (reuse `fetchBytesWithTimeout`), `ftyp` check, decode. All per Dev Notes › Audio engine; all tests in Node with a fake context (no Web Audio in Vitest).
-  - [ ] Every Web Audio call that can throw or reject is caught there and logged (`warn`, channel `audio`): the engine never throws into an emitter listener or the frame loop (D11).
-- [ ] **T6: Feedback director and diegetic visuals (AC 5, 8, D6, D7, D13)**
-  - [ ] `src/client/feedback/feedbackDirector.ts` (+ test) per Dev Notes › Feedback director.
-  - [ ] `src/client/render/vfx/soundWaves.ts` (+ test): the pooled sound-wave rings. `levelScene.ts`: owns them and the shake (Dev Notes › Diegetic visuals); `LevelScene` gains `fx`; `update(world, alpha)` drives them on the interpolated sim clock; `dispose` frees their geometry and material. Extend `levelScene.test.ts` (fx present, hidden at rest, freed on dispose, a wave started at `t` grows with sim time and is hidden after `durationMs`).
-- [ ] **T7: Wiring (AC 1 to 5, 8, D3 to D6, D12, D15)**
-  - [ ] `boot.ts` per Dev Notes › Wiring: platform, audio engine, director; unlock in `onStart` (before `StartGestureReceived`), suspend / resume on the pause events, loops on `AppStateChanged`, babble per frame, sim and client events to the director. Replace the « Story 1.9 replaces this » comment of `logSimEvent` (keep the `InvariantViolated` warn and the debug log).
-  - [ ] `levelSession.ts` (+ test): optional dep `loadAudio(): Promise<void>`, run in parallel with `loadAssets` and awaited before the sim is created; it never rejects (the engine logs); a stale start still returns after it. Tests: called once per start, in parallel (both pending at once), a slow `loadAudio` delays `level`, a rejecting fake is not possible by contract but is still caught (log, carry on).
-  - [ ] `startScreen.ts`: D12. `StartTarget` gains `pointerdown`; remove both listeners on dispose.
-  - [ ] Debug mirrors (D15), behind `VITE_DEBUG_ALLOWED === 'true'`, event-driven, added to the `mirror` union.
-- [ ] **T8: Architecture guard (AC 6, D10)**
-  - [ ] `tests/architecture/feedbackEquivalence.test.ts` (new file): reads the live `content/feedback.json` as raw JSON and every file of `tests/architecture/fixtures/feedback/`; a cue with `audio` and no `visual`, or no `haptic`, fails with a message naming the cue. Fixtures: `audio-without-visual.json`, `audio-without-haptic.json` (must fail), `haptic-only.json`, `visual-only.json` (must pass). Same style as the other scanners: the test proves each fixture fails or passes as declared.
-- [ ] **T9: End-to-end (AC 1 to 5, 7, 8)**
-  - [ ] `tests/e2e/feedback.spec.ts` (new, chromium + webkit) per Dev Notes › E2E script. Helpers in `support/game.ts` (`audioState`, `cueCount`, live `feedback.json` read like `liveFeel`).
-  - [ ] `support/game.ts`: add the engine's own warnings to `OWN_WARNINGS` (`audio unlock failed`, `audio clip \S+ unavailable`), so a broken clip fails every spec.
-  - [ ] `ui.spec.ts` start-screen test: add « a lone `pointerup` does not start, a full click does » (D12). Keep its three existing ways to start.
-- [ ] **T10: Docs and verification (AC 9, 10)**
-  - [ ] `deferred-work.md`: mark resolved what Dev Notes › Deferred items this story touches says; add Dev Notes › Deferred by this story.
-  - [ ] Run `npm run lint`, `npm run typecheck`, `npm test` after T2, after T5 and after T7, not only at the end; then `npm run ci` end to end. `npm test` must show every golden green **without** `golden:update` (AC 9); if one moves, you changed the sim: find out why before anything else.
-  - [ ] Manual check in the built-in browser pane on `npm run dev` (844 × 390): silence before the first tap; after it, the babble and the music during play; silence during pause and the countdown, sound back on « 1 »'s end; Papa walking into a wall gives the bump, a ring on the floor at Papa (and, on a phone with vibration, a short buzz); « Recommencer » restarts the loops once (not twice). Screenshots plus the mirrors are the evidence; say what was **not** checked (a real iPhone: unlock on `pointerup` and `keydown`, resume outside a gesture, the silent switch; a real Android vibration).
-  - [ ] Break things to prove the guards bite, then restore: remove `haptic` from `papa_bump` → `feedbackEquivalence` fails; rename the clip to `papa_bonk` → `content:check` fails (missing file); key `events.PapaBlockd` → `content:check` fails; a `navigator.vibrate` call in `boot.ts` → `platformApis` fails; a new `SimEvent` member without updating `SIM_EVENT_TYPES` → `npm run typecheck` fails.
-  - [ ] `git status`: only the files of the File List changed; nothing committed.
+- [x] **T4: Platform (AC 7, D8)**
+  - [x] `src/platform/platform.ts`: `Platform`, `Haptics`, `PlatformCapabilities` (Dev Notes › Platform). `src/platform/createPlatform.ts` (+ test): `createPlatform({ target, hapticPatternsMs, env? })`. `src/platform/web/webHaptics.ts` (+ test). Delete `src/platform/.gitkeep`.
+  - [x] `.env`: add `VITE_TARGET=web` (the three `.env*` files are read by Vite; `.env` is the shared base). Boot passes `import.meta.env.VITE_TARGET`.
+  - [x] `tests/architecture/platformApis.test.ts` (new file, with a failing fixture under `tests/architecture/fixtures/platformApis/`): `navigator.vibrate` appears in `src/` only under `src/platform/` (comments ignored). It turns a project-context rule into a test; it edits no existing guard.
+- [x] **T5: Audio engine (AC 1 to 4, D3 to D5, D11)**
+  - [x] `src/client/audio/audioUnlock.ts` (+ test), `audioEngine.ts` (+ test), `buses.ts` if you split the bus graph out. `src/client/assets/audioAssets.ts` (+ test): fetch (reuse `fetchBytesWithTimeout`), `ftyp` check, decode. All per Dev Notes › Audio engine; all tests in Node with a fake context (no Web Audio in Vitest).
+  - [x] Every Web Audio call that can throw or reject is caught there and logged (`warn`, channel `audio`): the engine never throws into an emitter listener or the frame loop (D11).
+- [x] **T6: Feedback director and diegetic visuals (AC 5, 8, D6, D7, D13)**
+  - [x] `src/client/feedback/feedbackDirector.ts` (+ test) per Dev Notes › Feedback director.
+  - [x] `src/client/render/vfx/soundWaves.ts` (+ test): the pooled sound-wave rings. `levelScene.ts`: owns them and the shake (Dev Notes › Diegetic visuals); `LevelScene` gains `fx`; `update(world, alpha)` drives them on the interpolated sim clock; `dispose` frees their geometry and material. Extend `levelScene.test.ts` (fx present, hidden at rest, freed on dispose, a wave started at `t` grows with sim time and is hidden after `durationMs`).
+- [x] **T7: Wiring (AC 1 to 5, 8, D3 to D6, D12, D15)**
+  - [x] `boot.ts` per Dev Notes › Wiring: platform, audio engine, director; unlock in `onStart` (before `StartGestureReceived`), suspend / resume on the pause events, loops on `AppStateChanged`, babble per frame, sim and client events to the director. Replace the « Story 1.9 replaces this » comment of `logSimEvent` (keep the `InvariantViolated` warn and the debug log).
+  - [x] `levelSession.ts` (+ test): optional dep `loadAudio(): Promise<void>`, run in parallel with `loadAssets` and awaited before the sim is created; it never rejects (the engine logs); a stale start still returns after it. Tests: called once per start, in parallel (both pending at once), a slow `loadAudio` delays `level`, a rejecting fake is not possible by contract but is still caught (log, carry on).
+  - [x] `startScreen.ts`: D12. `StartTarget` gains `pointerdown`; remove both listeners on dispose.
+  - [x] Debug mirrors (D15), behind `VITE_DEBUG_ALLOWED === 'true'`, event-driven, added to the `mirror` union.
+- [x] **T8: Architecture guard (AC 6, D10)**
+  - [x] `tests/architecture/feedbackEquivalence.test.ts` (new file): reads the live `content/feedback.json` as raw JSON and every file of `tests/architecture/fixtures/feedback/`; a cue with `audio` and no `visual`, or no `haptic`, fails with a message naming the cue. Fixtures: `audio-without-visual.json`, `audio-without-haptic.json` (must fail), `haptic-only.json`, `visual-only.json` (must pass). Same style as the other scanners: the test proves each fixture fails or passes as declared.
+- [x] **T9: End-to-end (AC 1 to 5, 7, 8)**
+  - [x] `tests/e2e/feedback.spec.ts` (new, chromium + webkit) per Dev Notes › E2E script. Helpers in `support/game.ts` (`audioState`, `cueCount`, live `feedback.json` read like `liveFeel`).
+  - [x] `support/game.ts`: add the engine's own warnings to `OWN_WARNINGS` (`audio unlock failed`, `audio clip \S+ unavailable`), so a broken clip fails every spec.
+  - [x] `ui.spec.ts` start-screen test: add « a lone `pointerup` does not start, a full click does » (D12). Keep its three existing ways to start.
+- [x] **T10: Docs and verification (AC 9, 10)**
+  - [x] `deferred-work.md`: mark resolved what Dev Notes › Deferred items this story touches says; add Dev Notes › Deferred by this story.
+  - [x] Run `npm run lint`, `npm run typecheck`, `npm test` after T2, after T5 and after T7, not only at the end; then `npm run ci` end to end. `npm test` must show every golden green **without** `golden:update` (AC 9); if one moves, you changed the sim: find out why before anything else.
+  - [x] Manual check in the built-in browser pane on `npm run dev` (844 × 390): silence before the first tap; after it, the babble and the music during play; silence during pause and the countdown, sound back on « 1 »'s end; Papa walking into a wall gives the bump, a ring on the floor at Papa (and, on a phone with vibration, a short buzz); « Recommencer » restarts the loops once (not twice). Screenshots plus the mirrors are the evidence; say what was **not** checked (a real iPhone: unlock on `pointerup` and `keydown`, resume outside a gesture, the silent switch; a real Android vibration).
+  - [x] Break things to prove the guards bite, then restore: remove `haptic` from `papa_bump` → `feedbackEquivalence` fails; rename the clip to `papa_bonk` → `content:check` fails (missing file); key `events.PapaBlockd` → `content:check` fails; a `navigator.vibrate` call in `boot.ts` → `platformApis` fails; a new `SimEvent` member without updating `SIM_EVENT_TYPES` → `npm run typecheck` fails.
+  - [x] `git status`: only the files of the File List changed; nothing committed.
 
 ## Dev Notes
 
@@ -342,12 +346,61 @@ From `_bmad-output/project-context.md` and `CLAUDE.md`:
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), Claude Code desktop.
+
 ### Debug Log References
+
+- Precondition: `git status` clean, `npm run ci` green at `c1fcde8` (baseline_commit).
+- `afinfo` on the three clips: 6.000 s, 8.000 s and 0.150 s exactly (`valid frames` match the synthesized lengths), so AAC priming does not move a loop point.
+- Guards proved by breaking them, then restoring (git diff of those three files shows only this story's edits): `haptic` removed from `papa_bump` → `feedbackEquivalence` fails naming the cue; clip renamed `papa_bonk` → `content:check` (and `audioAssets`) fail; `events.PapaBlockd` → `content:check` fails at `events.PapaBlockd`; `navigator.vibrate` appended to `boot.ts` → `platformApis` fails on `client/boot.ts`; a `BabyLaughed` member added to `SimEvent` → `typecheck` fails (`Type 'true' is not assignable to type '"BabyLaughed"'`).
+- Manual check in the built-in browser (dev server, 844 × 390), reading the debug mirrors: before the tap `data-pp-audio` = `none`, `clips` = 0, loops `off`, `haptics` = `true` (Chromium); right after the tap `running` (loading), then `clips` = 3; entering the level it is `suspended` through the whole countdown (`resuming/suspended` sampled while `data-pp-cue-count` went 3 → 6, one tick per digit) and `running/running` when it ends, with `babble` and `music` `on`. Escape: `paused/suspended`. Walking into a wall: `data-pp-cue` = `papa_bump`, cue count +1, and the live scene showed the ring (4 pooled meshes, one visible, scale 0.115 → 0.529 and opacity 0.81 → 0.12 over ~300 ms, hidden afterwards, position = Papa's). A frozen frame (pause mid-ring) showed the ring at Papa's feet. A temporary `window.__dbg` hook used for that was removed (`grep TEMP DEBUG` = 0).
+- The Browser pane must be visible for `requestAnimationFrame` to run: while it was hidden the game paused itself (`visibilityHidden`) and the scene froze; showing the pane fixed it. Not a game bug.
 
 ### Completion Notes List
 
+- **Content (T1, T2).** `FeedbackTableSchema` (`src/content/schemas/feedback.ts`), `content/feedback.json` with the Dev Notes' starting values, generated `content/_schemas/feedback.schema.json`, `feedbackClips`, `FEEDBACK_FILE` in `CONTENT_FILES`, `ContentBundle.feedback`, `loadContent` loads it explicitly (and checks its string references with feel's). `content:check` gained the feedback check (event names, cue ids, clip files) with failing fixtures. `SIM_EVENT_TYPES` + `SIM_EVENT_TYPES_ARE_COMPLETE` (a `true` that only typechecks when the list is complete; no suppression needed) in `src/sim/events.ts`, exported by `@sim`; `events.test.ts` checks **no duplicate and PascalCase** (my pick: the list follows the union's order by convention, which the compiler cannot check). `FEEDBACK_CLIENT_EVENTS = ['CountdownTicked']`.
+- **Placeholder audio (T3).** `tools/audio/makePlaceholderAudio.ts` (+ `npm run assets:audio`, macOS only) synthesizes the babble (6 s, irregular 120–220 ms syllables, longest silence < 0.4 s including across the loop point), the music (8 s, 21 eighth notes on a C pentatonic, about 79 BPM, peak ≈ −12 dBFS) and the bump (150 ms), with the seeded `@shared/rng`; WAV → `afconvert` AAC 64 kbps. Committed: three `.m4a`, 95 kB in total. `tests/tools/audio/` proves determinism, peaks ≤ −6 dBFS, zero at both ends, lengths, the no-long-silence rule. **I did not listen to the clips** (I cannot hear): the « Listen to each clip once » subtask is left unchecked for Geo. What I verified instead is in the Debug Log (exact decoded durations, zero crossings at the ends, both browsers decode them).
+- **Platform (T4).** `Platform`, `Haptics`, `PlatformCapabilities`, `createPlatform`, `createWebHaptics`; a missing `vibrate` is silent and `capabilities.haptics` is `false`; a throw or a `false` answer is one `warn` each per session. `.env` gains `VITE_TARGET=web`. `platformApis.test.ts` + four failing fixtures and a clean one.
+- **Audio engine (T5).** `webAudio.ts` (the slice of Web Audio as interfaces), `buses.ts`, `audioUnlock.ts`, `audioEngine.ts`, `client/assets/audioAssets.ts`. Everything is tested in Node with `tests/support/fakeAudioContext.ts`. Two behaviours beyond the Dev Notes: (1) a loop stopped while the context is not `running` stops at once (`stop(0)`) instead of fading, because a frozen clock never reaches the end of the fade and the old loop would sound over the new level when the context resumes; (2) a loop whose clip is not decoded is skipped once per preload, not retried every frame.
+- **Director and visuals (T6).** `feedbackDirector.ts`, `render/vfx/soundWaves.ts`, `render/vfx/shake.ts` (split from `levelScene.ts` so it is unit-testable), `LevelScene.fx`. The scene now has a `content_root` group (model, blob shadows, Papa, baby, waves) that the shake moves; the lights stay outside. Deviation from D7: each pooled ring has **its own material** (shared geometry only), because opacity is per material and each wave must fade on its own. `papaView`, `babyView` and `addBlobShadows` now take an `Object3D` parent instead of a `Scene` (type widening only). Ring art constants at the top of `soundWaves.ts`; I raised `RING_INNER_RATIO` from 0.86 to 0.65 after seeing the ring at 1 px thick on screen.
+- **Wiring (T7).** `boot.ts`: platform, engine, director, mirrors (`data-pp-audio`, `-audio-clips`, `-babble`, `-music`, `-haptics`, `-cue`, `-cue-count`); `audio.unlock()` first in `onStart`; suspend on `PauseRequested`, resume on `GameResumed`; loops on `AppStateChanged`; `setBabbling` per frame; sim events and `CountdownTicked` to the director; `getScene` only while the app is in `level`. `levelSession` has the optional `loadAudio` (parallel with `loadAssets`, awaited before the sim, never fatal). `startScreen` uses the new `createStartGesture` (D12; `StartTarget` gained `pointerdown`).
+- **Guard and e2e (T8, T9).** `feedbackEquivalence.test.ts` with four fixtures; `tests/e2e/feedback.spec.ts` (5 tests × 2 browsers) covering unlock, pause, background, haptics, the bump, three countdown ticks per resume, restart; `ui.spec.ts` gained the D12 case. I dropped the planned « the ring is visible » e2e: the ring is a scene object, not DOM, so the only honest assertion was « the game kept running » (vacuous). It is covered by `soundWaves`/`levelScene` unit tests and the manual check above.
+- **Chromium vs WebKit (measured here, Playwright 1.64.1).** Both decode the AAC files, both start the context `running` from the start click; Chromium has `navigator.vibrate` (3 light patterns recorded over one countdown), WebKit has none and records nothing.
+- **Edited existing tests, and why:** `tests/content/loadContent.test.ts` (feedback in the bundle; broken and unreadable feedback file cases), `tests/content/checkContent.test.ts` (the temp root now also copies `public/assets/audio/`, otherwise the clip check fails there; invalid-feedback and five reference cases), `tests/content/jsonSchema.test.ts` (feedback `$schema` pointer), `src/client/render/levelScene.test.ts` (fx cases), `src/client/app/levelSession.test.ts` (`NO_FX` in the fake scenes, the `loadAudio` cases), `tests/e2e/ui.spec.ts` (D12 case; its three ways of starting are untouched), `tests/e2e/support/game.ts` (helpers, `OWN_WARNINGS`), `tests/support/testContent.ts` (`createTestFeedback`). `tests/architecture/*.test.ts`, `biome.json`, every golden journal: untouched.
+- **Result.** `npm run ci` green: typecheck, lint, `content:check`, 105 test files / 1444 tests with `src/sim` coverage 96.29 % lines (≥ 90), 124 e2e tests on chromium + webkit, `build:playtest`. No `golden:update`; the goldens pass as they were. No new dependency.
+- **Not checked:** a real iPhone (unlock on `pointerup` and `keydown`, `resume()` outside a gesture, the silent switch, the `interrupted` state), a real Android vibration, GitHub's Linux runner decoding AAC (all in `deferred-work.md`), and the sound itself (nobody heard it).
+
 ### File List
+
+New:
+- `content/feedback.json`, `content/_schemas/feedback.schema.json`
+- `public/assets/audio/baby_babble_loop.m4a`, `music_crawler_calm.m4a`, `papa_bump.m4a`
+- `src/content/schemas/feedback.ts`, `src/content/feedbackClips.ts`, `src/content/feedbackClips.test.ts`
+- `src/sim/events.test.ts`
+- `src/platform/platform.ts`, `createPlatform.ts`, `createPlatform.test.ts`, `src/platform/web/webHaptics.ts`, `webHaptics.test.ts`
+- `src/client/audio/webAudio.ts`, `buses.ts`, `audioUnlock.ts`, `audioUnlock.test.ts`, `audioEngine.ts`, `audioEngine.test.ts`
+- `src/client/assets/audioAssets.ts`, `audioAssets.test.ts`
+- `src/client/feedback/feedbackEvents.ts`, `feedbackDirector.ts`, `feedbackDirector.test.ts`
+- `src/client/render/vfx/soundWaves.ts`, `soundWaves.test.ts`, `shake.ts`, `shake.test.ts`
+- `src/client/ui/startGesture.ts`, `startGesture.test.ts`
+- `tools/audio/makePlaceholderAudio.ts`, `tests/tools/audio/makePlaceholderAudio.test.ts`
+- `tests/architecture/feedbackEquivalence.test.ts`, `audioAssets.test.ts`, `platformApis.test.ts`
+- `tests/architecture/fixtures/feedback/{audio-without-visual,audio-without-haptic,haptic-only,visual-only}.json`
+- `tests/architecture/fixtures/platformApis/{vibrate-in-client,vibrate-bracket,vibrate-destructure,vibrate-optional-chain,clean}/…`
+- `tests/content/feedbackSchema.test.ts`, `tests/support/fakeAudioContext.ts`, `tests/e2e/feedback.spec.ts`
+
+Modified:
+- `.env`, `package.json` (`assets:audio`), `_bmad-output/implementation-artifacts/deferred-work.md`, `sprint-status.yaml`
+- `src/sim/events.ts`, `src/sim/index.ts`, `src/shared/constants.ts`
+- `src/content/contentFiles.ts`, `contentBundle.ts`, `loadContent.ts`, `tools/content/contentChecks.ts`
+- `src/client/boot.ts`, `src/client/app/levelSession.ts`, `levelSession.test.ts`
+- `src/client/render/levelScene.ts`, `levelScene.test.ts`, `blobShadow.ts`, `views/papaView.ts`, `views/babyView.ts`
+- `src/client/ui/screens/startScreen.ts`
+- `tests/support/testContent.ts`, `tests/content/loadContent.test.ts`, `checkContent.test.ts`, `jsonSchema.test.ts`, `tests/e2e/support/game.ts`, `tests/e2e/ui.spec.ts`
+
+Deleted: `src/platform/.gitkeep`
 
 ## Change Log
 
 - 2026-10-27: Story 1.9 created (ready-for-dev). Ultimate context engine analysis completed - comprehensive developer guide created.
+- 2026-10-27: Story 1.9 implemented (review): feedback table and schema, placeholder audio, platform haptics, audio engine, feedback director, sound-wave rings and shake, start-gesture rule, debug mirrors, architecture guards and e2e. One subtask (listening to the clips) left for Geo.

@@ -26,6 +26,10 @@ async function mutateJson(relativePath: string, change: (json: Record<string, un
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'pp-content-'));
   await cp(join(REPO, 'content'), join(root, 'content'), { recursive: true });
+  // The clip files `feedback.json` names: the check looks for them under the root it is given.
+  await cp(join(REPO, 'public', 'assets', 'audio'), join(root, 'public', 'assets', 'audio'), {
+    recursive: true,
+  });
   await mkdir(join(root, 'src', 'client'), { recursive: true });
 });
 
@@ -63,6 +67,17 @@ describe('checkContent', () => {
     });
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({ file: 'content/feel.json', jsonPath: 'timing.windowMs' }),
+    ]);
+  });
+
+  it('reports an invalid feedback file with its JSON path', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      (
+        (feedback.buses as Record<string, Record<string, unknown>>).sfx as Record<string, unknown>
+      ).gainPct = 101;
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: 'content/feedback.json', jsonPath: 'buses.sfx.gainPct' }),
     ]);
   });
 
@@ -146,6 +161,56 @@ describe('checkContent', () => {
     await rm(join(root, 'content/_schemas/strings.schema.json'));
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({ file: 'content/_schemas/strings.schema.json' }),
+    ]);
+  });
+});
+
+describe('checkContent on feedback.json references', () => {
+  const FILE = 'content/feedback.json';
+
+  it('reports an event name that no event has, with its JSON path', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      (feedback.events as Record<string, string>).PapaBlockd = 'papa_bump';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'events.PapaBlockd' }),
+    ]);
+  });
+
+  it('reports an event that points at a cue that does not exist', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      (feedback.events as Record<string, string>).PapaBlocked = 'papa_bonk';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'events.PapaBlocked' }),
+    ]);
+    expect(problems[0]?.message).toContain('papa_bonk');
+  });
+
+  it('accepts a client event name as well as a sim one', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      (feedback.events as Record<string, string>).PapaArrived = 'countdown_tick';
+    });
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('reports a cue clip with no file, and tells how to make the placeholders', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      const cues = feedback.cues as Record<string, { audio: { clip: string } }>;
+      (cues.papa_bump as { audio: { clip: string } }).audio.clip = 'papa_bonk';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'cues.papa_bump.audio.clip' }),
+    ]);
+    expect(problems[0]?.message).toContain('npm run assets:audio');
+  });
+
+  it('reports a loop clip with no file', async () => {
+    await rm(join(root, 'public/assets/audio/music_crawler_calm.m4a'));
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'loops.music.clip' }),
     ]);
   });
 });

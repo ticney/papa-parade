@@ -1,11 +1,14 @@
 import { looksLikeGameplayNode, parseNodeName } from '@content/levelNodeNames';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import { STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
+import type { SimMs } from '@shared/time';
 import type { World } from '@sim';
 import {
   AmbientLight,
   Color,
   DirectionalLight,
+  Group,
   type Material,
   Mesh,
   type Object3D,
@@ -16,6 +19,8 @@ import { addBlobShadows } from './blobShadow.ts';
 import type { RoomSize } from './isoCamera.ts';
 import { PALETTE } from './materials/palette.ts';
 import { createToonMaterialCache } from './materials/toonMaterial.ts';
+import { createShake } from './vfx/shake.ts';
+import { createSoundWaves } from './vfx/soundWaves.ts';
 import { createBabyView } from './views/babyView.ts';
 import { createPapaView } from './views/papaView.ts';
 
@@ -31,13 +36,29 @@ export interface SceneBodies {
   babyRadiusM: number;
 }
 
+/**
+ * What the feedback director plays in the 3D world, on the sim clock: a pause freezes it, a
+ * slow-mo slows it and a restart frees it. Times are sim ms.
+ */
+export interface LevelFx {
+  /** An ink ring on the floor at (`xM`, `zM`) that grows to `maxRadiusM` and fades over `durationMs`. */
+  soundWave(xM: number, zM: number, maxRadiusM: number, durationMs: number, startAt: SimMs): void;
+  /** Shakes the room (not the camera) by up to `amplitudeM` for `durationMs`. */
+  shake(amplitudeM: number, durationMs: number, startAt: SimMs): void;
+}
+
 export interface LevelScene {
   /** The level id (`salon_crawler`). */
   readonly id: string;
   readonly scene: Scene;
   /** The box the camera fits, from the bounds of the visual nodes. */
   readonly room: RoomSize;
-  /** Moves what the world moves: today Papa and the baby, drawn `alpha` of the way from the last step to the next. */
+  /** The effects of the level; they die with it. */
+  readonly fx: LevelFx;
+  /**
+   * Moves what the world moves: today Papa and the baby, drawn `alpha` of the way from the last
+   * step to the next; then the effects, on the interpolated sim clock.
+   */
   update(world: Readonly<World>, alpha: number): void;
   /** Frees geometries, materials and textures. Call it when a new level replaces this one. */
   dispose(): void;
@@ -120,7 +141,12 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     node.material = toon.get(originalColor(original));
     disposeMaterial(original);
   });
-  scene.add(model);
+  // The room, its shadows, Papa, the baby and the waves live under one root: a shake moves the
+  // root, not the camera, so the framing and the world UI layer stay put. The lights stay outside.
+  const content = new Group();
+  content.name = 'content_root';
+  scene.add(content);
+  content.add(model);
 
   const room = roomOf(geometry);
   const centerX = room.centerXM ?? 0;
@@ -131,20 +157,32 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   sun.target.position.set(centerX, 0, centerZ);
   scene.add(sun, sun.target);
 
-  const shadows = addBlobShadows(scene, geometry.colliders);
+  const shadows = addBlobShadows(content, geometry.colliders);
 
-  const papa = createPapaView(scene, toon, shadows.kit, bodies.papaRadiusM);
-  const baby = createBabyView(scene, toon, shadows.kit, bodies.babyRadiusM);
+  const papa = createPapaView(content, toon, shadows.kit, bodies.papaRadiusM);
+  const baby = createBabyView(content, toon, shadows.kit, bodies.babyRadiusM);
+  const waves = createSoundWaves(content, PALETTE.ink);
+  const shake = createShake(content);
+  const fx: LevelFx = {
+    soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
+      waves.play(xM, zM, maxRadiusM, durationMs, startAt),
+    shake: (amplitudeM, durationMs, startAt) => shake.start(amplitudeM, durationMs, startAt),
+  };
 
   return {
     id: assets.id,
     scene,
     room,
+    fx,
     update(world, alpha) {
       papa.update(world.papa, alpha);
       baby.update(world.baby, alpha);
+      const clockMs = world.time.sim + alpha * STEP_MS;
+      waves.update(clockMs);
+      shake.update(clockMs);
     },
     dispose() {
+      waves.dispose();
       disposeObject(scene);
       toon.dispose();
       shadows.dispose();

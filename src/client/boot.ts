@@ -1,4 +1,6 @@
+import { feedbackClips } from '@content/feedbackClips';
 import { loadContent } from '@content/loadContent';
+import { createPlatform } from '@platform/createPlatform';
 import { MAX_TIMER_DELAY_MS } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
@@ -15,6 +17,8 @@ import { createPauseController } from './app/pauseController.ts';
 import { bindSurface } from './app/surface.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
+import { createAudioEngine } from './audio/audioEngine.ts';
+import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
 import { createGamepadInput } from './input/gamepadInput.ts';
 import { createHitTester } from './input/hitTest.ts';
 import { createInputMapper } from './input/inputMapper.ts';
@@ -43,7 +47,7 @@ function logSimEvent(event: SimEvent): void {
     log.warn('sim', `invariant violated: ${event.name}`, event);
     return;
   }
-  // Story 1.9 replaces this with the FeedbackDirector.
+  // Everything else is for the feedback director (it plays what `content/feedback.json` lists).
   if (log.enabled('debug')) log.debug('sim', event.type, event);
 }
 
@@ -173,7 +177,14 @@ export async function boot(): Promise<void> {
       | 'ppPapaAt'
       | 'ppBabyState'
       | 'ppBabyAt'
-      | 'ppTap',
+      | 'ppTap'
+      | 'ppAudio'
+      | 'ppAudioClips'
+      | 'ppBabble'
+      | 'ppMusic'
+      | 'ppHaptics'
+      | 'ppCue'
+      | 'ppCueCount',
     value: string,
   ): void => {
     if (document.documentElement.dataset[name] !== value) {
@@ -190,6 +201,64 @@ export async function boot(): Promise<void> {
     events.on('GameResumed', mirrorState);
     events.on('AppStateChanged', mirrorState);
   }
+
+  // The device, then the sound and the feedback of the game, wired in the composition root: the
+  // platform may not import content, so the vibration patterns reach it from here.
+  const feedbackTable = content.value.feedback;
+  const platform = createPlatform({
+    target: import.meta.env.VITE_TARGET,
+    hapticPatternsMs: {
+      light: feedbackTable.haptics.light.patternMs,
+      medium: feedbackTable.haptics.medium.patternMs,
+      heavy: feedbackTable.haptics.heavy.patternMs,
+    },
+  });
+  const audio = createAudioEngine({
+    table: feedbackTable,
+    onStateChange: (state) => {
+      if (isMirrored) mirror('ppAudio', state);
+    },
+    onClipsDecoded: (count) => {
+      if (isMirrored) mirror('ppAudioClips', String(count));
+    },
+    onLoopChange: (loop, isOn) => {
+      if (isMirrored) mirror(loop === 'babble' ? 'ppBabble' : 'ppMusic', isOn ? 'on' : 'off');
+    },
+  });
+  let cuesPlayedCount = 0;
+  const director = createFeedbackDirector({
+    table: feedbackTable,
+    audio,
+    haptics: platform.haptics,
+    // Only while a level is on: a scene behind the loading screen must not play for a dead sim.
+    getScene: () => (appFsm.state === 'level' ? (currentLevel?.fx ?? null) : null),
+    prefersReducedMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+    onCue: (cueId) => {
+      cuesPlayedCount++;
+      if (isMirrored) {
+        mirror('ppCue', cueId);
+        mirror('ppCueCount', String(cuesPlayedCount));
+      }
+    },
+  });
+  if (isMirrored) {
+    mirror('ppAudio', audio.state);
+    mirror('ppAudioClips', '0');
+    mirror('ppBabble', 'off');
+    mirror('ppMusic', 'off');
+    mirror('ppHaptics', String(platform.capabilities.haptics));
+    mirror('ppCueCount', '0');
+  }
+  // The context is suspended with every pause, the countdown's included, and resumed only when the
+  // countdown is over; the loops follow the level. None of these throws: the engine logs its own.
+  events.on('PauseRequested', () => audio.suspend());
+  events.on('GameResumed', () => audio.resume());
+  events.on('AppStateChanged', ({ from, to }) => {
+    if (to === 'level') audio.startLevelLoops();
+    else if (from === 'level') audio.stopLevelLoops();
+  });
+  // The countdown's digit is a haptic tick (its visual twin is the digit's pulse).
+  events.on('CountdownTicked', () => director.handle('CountdownTicked', null));
 
   // The render stats are mirrored once per level, on its first rendered frame.
   let isStatsMirrored = false;
@@ -249,6 +318,8 @@ export async function boot(): Promise<void> {
       if (isMirrored) mirror('ppLevel', level.id);
     },
     onLevelFrame: () => {
+      // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
+      audio.setBabbling(levelSession.active?.sim.world.baby.babbling ?? false);
       shell.frame();
       inputMapper.pollGamepad();
       worldUi.render(camera);
@@ -261,8 +332,10 @@ export async function boot(): Promise<void> {
         mirror('ppTextures', String(textures));
       }
     },
+    loadAudio: () => audio.preload(feedbackClips(feedbackTable)),
     onSimEvent: (event) => {
       logSimEvent(event);
+      director.handle(event.type, levelSession.active?.sim.world ?? null);
       if (isMirrored) {
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);
@@ -289,7 +362,9 @@ export async function boot(): Promise<void> {
         t,
         target: window,
         onStart: () => {
-          // Synchronous, inside the gesture: story 1.9 unlocks the AudioContext on this event.
+          // Synchronous, inside the gesture, before anything else and with no await in front: iOS
+          // only unlocks audio there.
+          audio.unlock();
           events.emit('StartGestureReceived', {});
           void levelSession.start();
         },

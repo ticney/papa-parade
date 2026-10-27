@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@shared/result';
 import type { ContentBundle } from './contentBundle.ts';
 import { type ContentError, type ContentProblem, createContentError } from './contentError.ts';
-import { type ContentFile, FEEL_FILE, STRINGS_FILE } from './contentFiles.ts';
+import { type ContentFile, FEEDBACK_FILE, FEEL_FILE, STRINGS_FILE } from './contentFiles.ts';
 import type { ContentSource } from './contentSource.ts';
 import { parseContentFile } from './parseContentFile.ts';
 import { checkStringReferences } from './stringRefs.ts';
@@ -30,21 +30,28 @@ async function loadFile<T>(
 export async function loadContent(
   source: ContentSource,
 ): Promise<Result<ContentBundle, ContentError>> {
-  const [feel, strings] = await Promise.all([
+  const [feel, feedback, strings] = await Promise.all([
     loadFile(source, FEEL_FILE),
+    loadFile(source, FEEDBACK_FILE),
     loadFile(source, STRINGS_FILE),
   ]);
 
   const problems: ContentProblem[] = [];
   if (!feel.ok) problems.push(...feel.error);
+  if (!feedback.ok) problems.push(...feedback.error);
   if (!strings.ok) problems.push(...strings.error);
 
   if (strings.ok) {
     // The strings file itself is exempt: it is the target of the references.
-    const loaded = feel.ok ? [{ file: `content/${FEEL_FILE.file}`, value: feel.value }] : [];
+    const loaded = [
+      ...(feel.ok ? [{ file: `content/${FEEL_FILE.file}`, value: feel.value }] : []),
+      ...(feedback.ok ? [{ file: `content/${FEEDBACK_FILE.file}`, value: feedback.value }] : []),
+    ];
     problems.push(...checkStringReferences(loaded, strings.value, `content/${STRINGS_FILE.file}`));
   }
 
-  if (problems.length > 0 || !feel.ok || !strings.ok) return err(createContentError(problems));
-  return ok({ feel: feel.value, strings: strings.value });
+  if (problems.length > 0 || !feel.ok || !feedback.ok || !strings.ok) {
+    return err(createContentError(problems));
+  }
+  return ok({ feel: feel.value, feedback: feedback.value, strings: strings.value });
 }

@@ -1,17 +1,23 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
+import { FEEDBACK_CLIENT_EVENTS } from '@client/feedback/feedbackEvents';
 import type { ContentProblem } from '@content/contentError';
 import {
   CONTENT_FILES,
   CONTENT_SCHEMAS,
+  FEEDBACK_FILE,
   matchContentPattern,
   STRINGS_FILE,
 } from '@content/contentFiles';
+import { formatJsonPath } from '@content/jsonPath';
 import { renderContentJsonSchema } from '@content/jsonSchema';
 import { parseContentFile } from '@content/parseContentFile';
+import type { FeedbackTable } from '@content/schemas/feedback';
 import { checkStringReferences } from '@content/stringRefs';
+import { SIM_EVENT_TYPES } from '@sim';
 
 const SCHEMAS_DIR = '_schemas';
+const AUDIO_DIR = ['public', 'assets', 'audio'];
 // `t('some.key')` with a literal key and nothing else. A non-literal argument cannot be checked.
 const LITERAL_T_CALL = /(?<![\w$.])t\(\s*(['"])([^'"\n]+)\1\s*\)/g;
 
@@ -102,6 +108,60 @@ async function checkSourceReferences(
   return problems;
 }
 
+const exists = (path: string): Promise<boolean> =>
+  access(path).then(
+    () => true,
+    () => false,
+  );
+
+/**
+ * The cross-references of `feedback.json` that its schema cannot see: an `events` key is the name
+ * of a sim or client event (a typo is a cue that never plays), an `events` value is a cue of
+ * `cues`, and every clip is a file under `public/assets/audio/`.
+ */
+async function checkFeedbackReferences(
+  rootDir: string,
+  table: FeedbackTable,
+): Promise<ContentProblem[]> {
+  const file = `content/${FEEDBACK_FILE.file}`;
+  const problems: ContentProblem[] = [];
+  const eventNames = new Set<string>([...SIM_EVENT_TYPES, ...FEEDBACK_CLIENT_EVENTS]);
+  for (const [name, cueId] of Object.entries(table.events)) {
+    if (!eventNames.has(name)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['events', name]),
+        message: `"${name}" is not an event name (a SimEvent type or a client event the director listens to)`,
+      });
+    }
+    if (!Object.hasOwn(table.cues, cueId)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['events', name]),
+        message: `the cue "${cueId}" is not in cues`,
+      });
+    }
+  }
+  const clipPaths: { clip: string; path: (string | number)[] }[] = [
+    { clip: table.loops.babble.clip, path: ['loops', 'babble', 'clip'] },
+    { clip: table.loops.music.clip, path: ['loops', 'music', 'clip'] },
+    ...Object.entries(table.cues).flatMap(([id, cue]) =>
+      cue.audio === undefined
+        ? []
+        : [{ clip: cue.audio.clip, path: ['cues', id, 'audio', 'clip'] }],
+    ),
+  ];
+  for (const { clip, path } of clipPaths) {
+    if (await exists(join(rootDir, ...AUDIO_DIR, `${clip}.m4a`))) continue;
+    problems.push({
+      file,
+      jsonPath: formatJsonPath(path),
+      message: `no file public/assets/audio/${clip}.m4a (\`npm run assets:audio\` makes the placeholders)`,
+    });
+  }
+  return problems;
+}
+
 /**
  * Everything `npm run content:check` verifies, as a list of problems (empty = OK):
  * every content file against its schema, no content file without a schema, string references from
@@ -112,6 +172,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   const contentDir = join(rootDir, 'content');
   const parsed: { file: string; value: unknown }[] = [];
   let strings: Record<string, string> | undefined;
+  let feedback: FeedbackTable | undefined;
 
   for (const file of await listContentFiles(rootDir)) {
     const display = `content/${file}`;
@@ -158,6 +219,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
     }
     if (entry === STRINGS_FILE) strings = result.value as Record<string, string>;
     else parsed.push({ file: display, value: result.value });
+    if (entry === FEEDBACK_FILE) feedback = result.value as FeedbackTable;
   }
 
   const present = new Set(await listContentFiles(rootDir));
@@ -190,6 +252,8 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
       });
     }
   }
+
+  if (feedback !== undefined) problems.push(...(await checkFeedbackReferences(rootDir, feedback)));
 
   if (strings !== undefined) {
     problems.push(...checkStringReferences(parsed, strings, `content/${STRINGS_FILE.file}`));

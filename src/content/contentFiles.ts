@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { type FeedbackTable, FeedbackTableSchema } from './schemas/feedback.ts';
 import { type Feel, FeelSchema } from './schemas/feel.ts';
 import { type LevelGeometry, LevelGeometrySchema } from './schemas/levelGeometry.ts';
 import { type Strings, StringsSchema } from './schemas/strings.ts';
@@ -17,6 +18,12 @@ export const FEEL_FILE: ContentFile<Feel> = {
   schema: FeelSchema,
 };
 
+export const FEEDBACK_FILE: ContentFile<FeedbackTable> = {
+  file: 'feedback.json',
+  schemaName: 'feedback',
+  schema: FeedbackTableSchema,
+};
+
 export const STRINGS_FILE: ContentFile<Strings> = {
   file: 'strings.fr.json',
   schemaName: 'strings',
@@ -27,7 +34,11 @@ export const STRINGS_FILE: ContentFile<Strings> = {
  * Single source for `loadContent`, `content:check` and `content:schemas`. A story that adds a
  * content file adds its entry here (and a field to `ContentBundle`).
  */
-export const CONTENT_FILES: readonly ContentFile<unknown>[] = [FEEL_FILE, STRINGS_FILE];
+export const CONTENT_FILES: readonly ContentFile<unknown>[] = [
+  FEEL_FILE,
+  FEEDBACK_FILE,
+  STRINGS_FILE,
+];
 
 /**
  * A family of content files that share one schema and are named after what they describe (one per

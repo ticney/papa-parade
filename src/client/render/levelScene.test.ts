@@ -1,10 +1,11 @@
 import { asSimMs } from '@shared/time';
-import { createSim } from '@sim';
+import { createSim, type World } from '@sim';
 import {
   BoxGeometry,
   Color,
   Group,
   Mesh,
+  type MeshBasicMaterial,
   MeshStandardMaterial,
   MeshToonMaterial,
   Object3D,
@@ -50,6 +51,16 @@ function build() {
     geometry,
     ...createLevelScene({ id: 'test_room', geometry, model: buildModel() }, BODIES),
   };
+}
+
+// A real world (Papa and the baby at their spawn) whose sim clock the effects tests set by hand.
+const effectsWorld = (
+  await createSim({ content: createTestContent(), geometry: createTestGeometry(), seed: 1 })
+).world;
+
+function fakeWorldAt(simMs: number): World {
+  effectsWorld.time.sim = asSimMs(simMs);
+  return effectsWorld;
 }
 
 function names(scene: { children: Object3D[] }): string[] {
@@ -215,6 +226,77 @@ describe('createLevelScene', () => {
     expect(group?.position.x).toBeCloseTo((baby.prevXM + baby.xM) / 2, 12);
     expect(group?.position.z).toBeCloseTo((baby.prevZM + baby.zM) / 2, 12);
     expect(gazeGroup?.rotation.y).toBeCloseTo(Math.atan2(baby.gazeX, baby.gazeZ), 12);
+  });
+
+  it('has effects, hidden at rest: no sound wave is visible and nothing is offset', () => {
+    const { scene, fx, update } = build();
+    expect(typeof fx.soundWave).toBe('function');
+    expect(typeof fx.shake).toBe('function');
+    const sim = fakeWorldAt(5000);
+    update(sim, 0);
+    const waves = scene.getObjectsByProperty('name', 'sound_wave');
+    expect(waves.length).toBeGreaterThan(0);
+    expect(waves.every((wave) => !wave.visible)).toBe(true);
+    expect(scene.getObjectByName('content_root')?.position.toArray()).toEqual([0, 0, 0]);
+  });
+
+  it('runs a wave started at t on the interpolated sim clock: it grows with sim time and ends after durationMs', () => {
+    const { scene, fx, update } = build();
+    const wave = () => scene.getObjectsByProperty('name', 'sound_wave')[0] as Mesh;
+    fx.soundWave(1, 2, 0.6, 350, asSimMs(1000));
+    update(fakeWorldAt(900), 0);
+    expect(wave().visible).toBe(false);
+    update(fakeWorldAt(1100), 0);
+    expect(wave().visible).toBe(true);
+    const early = wave().scale.x;
+    // alpha counts: the clock is the sim time plus alpha of a step.
+    update(fakeWorldAt(1100), 0.5);
+    expect(wave().scale.x).toBeGreaterThan(early);
+    update(fakeWorldAt(1200), 0);
+    expect(wave().scale.x).toBeGreaterThan(early);
+    update(fakeWorldAt(1350), 0);
+    expect(wave().visible).toBe(false);
+  });
+
+  it('freezes the effects with the sim: the same clock draws the same picture (pause)', () => {
+    const { scene, fx, update } = build();
+    fx.soundWave(0, 0, 1, 1000, asSimMs(0));
+    fx.shake(0.1, 1000, asSimMs(0));
+    update(fakeWorldAt(300), 0);
+    const wave = scene.getObjectsByProperty('name', 'sound_wave')[0] as Mesh;
+    const root = scene.getObjectByName('content_root');
+    const frozen = [wave.scale.x, root?.position.x, root?.position.z];
+    update(fakeWorldAt(300), 0);
+    expect([wave.scale.x, root?.position.x, root?.position.z]).toEqual(frozen);
+  });
+
+  it('shakes the content root, not the lights, and is back to exactly zero after', () => {
+    const { scene, fx, update } = build();
+    const root = scene.getObjectByName('content_root');
+    const light = scene.children.find((child) => 'isDirectionalLight' in child);
+    const lightAt = light?.position.toArray();
+    fx.shake(0.1, 400, asSimMs(1000));
+    update(fakeWorldAt(1000), 0);
+    expect(root?.position.toArray()).toEqual([0, 0, 0]);
+    update(fakeWorldAt(1100), 0);
+    expect([root?.position.x, root?.position.z]).not.toEqual([0, 0]);
+    expect(light?.position.toArray()).toEqual(lightAt);
+    update(fakeWorldAt(1400), 0);
+    expect(root?.position.toArray()).toEqual([0, 0, 0]);
+  });
+
+  it('frees the ring geometry and its materials on dispose', () => {
+    const { scene, dispose } = build();
+    const waves = scene.getObjectsByProperty('name', 'sound_wave') as Mesh[];
+    let geometries = 0;
+    let materials = 0;
+    waves[0]?.geometry.addEventListener('dispose', () => geometries++);
+    for (const wave of waves) {
+      (wave.material as MeshBasicMaterial).addEventListener('dispose', () => materials++);
+    }
+    dispose();
+    expect(geometries).toBe(1);
+    expect(materials).toBe(waves.length);
   });
 
   it('disposes geometries, materials and textures, and empties the scene', () => {

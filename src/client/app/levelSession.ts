@@ -46,6 +46,13 @@ export interface LevelSessionDeps {
   loadAssets?(id: string): Promise<Result<LevelAssets, AppError>>;
   /** Default: the real `createLevelScene`. */
   createScene?(assets: LevelAssets, bodies: SceneBodies): LevelScene;
+  /**
+   * Fetches and decodes the level's sounds. Runs in parallel with `loadAssets` and is awaited
+   * before the sim is created, so the countdown never starts on a level that is still loading
+   * sound. Never rejects by contract (the engine logs what fails: a missing sound is a `warn`, not
+   * « Oups »); one that does is logged and the level starts anyway.
+   */
+  loadAudio?(): Promise<void>;
 }
 
 /** What the input needs of the running level: the sim to send commands to and its real → sim clock. */
@@ -129,6 +136,8 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         stopLoop();
         active = null;
         appFsm.enter('loading');
+        // Both start now and are awaited below: the sound loads while the `.glb` does.
+        const audioLoad = settle(() => deps.loadAudio?.() ?? Promise.resolve());
         const assets = await settle(() => loadAssets(levelId));
         if (isStale()) return;
         if (!assets.ok) {
@@ -142,6 +151,10 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           appFsm.enter('oops');
           return;
         }
+        const audio = await audioLoad;
+        if (isStale()) return;
+        if (!audio.ok)
+          log.warn('audio', 'loading the level sounds threw: starting without them', audio.error);
         // The sim needs the level's geometry (Papa's navigation grid), so it comes after the assets.
         const levelAssets = assets.value.value;
         const seed = deps.newSeed();

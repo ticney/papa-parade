@@ -8,7 +8,7 @@ import { createFakeScheduler } from '../../../tests/support/fakeScheduler.ts';
 import { createTestContent, createTestGeometry } from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
-import type { LevelScene } from '../render/levelScene.ts';
+import type { LevelFx, LevelScene } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import { type AppState, createAppFsm } from './appFsm.ts';
 import type { ClientEvents } from './clientEvents.ts';
@@ -18,6 +18,8 @@ import { createPauseController } from './pauseController.ts';
 beforeAll(() => {
   log.setLevel('error');
 });
+
+const NO_FX: LevelFx = { soundWave: () => {}, shake: () => {} };
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -94,6 +96,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
         id: assets.id,
         scene: record.scene,
         room: { widthM: 8, depthM: 6, heightM: 2.5 },
+        fx: NO_FX,
         update: () => {
           record.updates++;
         },
@@ -158,6 +161,7 @@ describe('createLevelSession', () => {
           id: assets.id,
           scene: new Scene(),
           room: { widthM: 8, depthM: 6, heightM: 2.5 },
+          fx: NO_FX,
           update: () => {},
           dispose: () => {},
         };
@@ -327,6 +331,88 @@ describe('createLevelSession', () => {
     expect(states).toEqual(['loading', 'level', 'loading', 'level']);
   });
 
+  describe('the level sounds', () => {
+    it('loads them once per start, in parallel with the assets', async () => {
+      const gate = deferred<void>();
+      const calls: string[] = [];
+      const { session } = setup({
+        loadAudio: () => {
+          calls.push('audio');
+          return gate.promise;
+        },
+        loadAssets: async (id) => {
+          calls.push('assets');
+          return ok(assetsOf(id));
+        },
+      });
+      const starting = session.start();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      // Both have begun while the audio is still pending.
+      expect(calls).toEqual(['audio', 'assets']);
+      gate.resolve();
+      await starting;
+      await session.start();
+      expect(calls.filter((call) => call === 'audio')).toHaveLength(2);
+    });
+
+    it('holds the sim back until the sounds are loaded, so the level waits for them', async () => {
+      const gate = deferred<void>();
+      const { session, appFsm, sims } = setup({ loadAudio: () => gate.promise });
+      const starting = session.start();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(appFsm.state).toBe('loading');
+      expect(sims()).toBe(0);
+      gate.resolve();
+      await starting;
+      expect(appFsm.state).toBe('level');
+      expect(sims()).toBe(1);
+    });
+
+    it('starts the level when the sounds are done first, and when a load that rejects is not expected', async () => {
+      const before = log.buffer().length;
+      const { session, appFsm } = setup({
+        loadAudio: () => Promise.reject(new Error('bad decoder')),
+      });
+      await session.start();
+      expect(appFsm.state).toBe('level');
+      expect(
+        log
+          .buffer()
+          .slice(before)
+          .some((entry) => entry.level === 'warn' && entry.channel === 'audio'),
+      ).toBe(true);
+    });
+
+    it('does not wait for the sounds when the assets failed: « Oups »', async () => {
+      const gate = deferred<void>();
+      const { session, appFsm } = setup({
+        loadAudio: () => gate.promise,
+        loadAssets: async () => err({ kind: 'assets', message: 'no glb' }),
+      });
+      await session.start();
+      expect(appFsm.state).toBe('oops');
+      gate.resolve();
+    });
+
+    it('drops a stale start after the sounds, creating nothing', async () => {
+      const gate = deferred<void>();
+      const { session, sims, appFsm } = setup({ loadAudio: () => gate.promise });
+      const starting = session.start();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      session.stop();
+      gate.resolve();
+      await starting;
+      expect(sims()).toBe(0);
+      expect(appFsm.state).toBe('loading');
+    });
+
+    it('is optional', async () => {
+      const { session, appFsm } = setup();
+      await session.start();
+      expect(appFsm.state).toBe('level');
+    });
+  });
+
   describe('failures', () => {
     it('goes to oops, logs an error and starts no loop when the sim cannot be created', async () => {
       const before = log.buffer().length;
@@ -407,6 +493,7 @@ describe('createLevelSession', () => {
             id: assets.id,
             scene: new Scene(),
             room: { widthM: 8, depthM: 6, heightM: 2.5 },
+            fx: NO_FX,
             update: () => {},
             dispose: () => {},
           };

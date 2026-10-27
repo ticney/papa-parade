@@ -3,12 +3,46 @@ import { fileURLToPath } from 'node:url';
 import type { ContentBundle } from '@content/contentBundle';
 import { formatContentProblem } from '@content/contentError';
 import { parseContentFile } from '@content/parseContentFile';
+import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
 import type { Sim } from '@sim';
 
 const FEEL_FIXTURE = 'tests/support/testFeel.json';
 const GEOMETRY_FIXTURE = 'tests/support/testLevel.geometry.json';
+
+/**
+ * A minimal valid feedback table, inline: the sim ignores it (it is client-only), so it does not
+ * move `feelHash` or any golden. Client tests that need a real table build their own.
+ */
+export function createTestFeedback(): FeedbackTable {
+  return {
+    buses: {
+      music: { gainPct: 50 },
+      sfx: { gainPct: 90 },
+      voice: { gainPct: 80 },
+      ui: { gainPct: 80 },
+    },
+    haptics: {
+      light: { patternMs: [15] },
+      medium: { patternMs: [30] },
+      heavy: { patternMs: [60] },
+    },
+    loops: {
+      babble: { clip: 'baby_babble_loop', bus: 'voice', gainPct: 100, fadeMs: 80 },
+      music: { clip: 'music_crawler_calm', bus: 'music', gainPct: 100, fadeMs: 400 },
+    },
+    cues: {
+      papa_bump: {
+        audio: { clip: 'papa_bump', bus: 'sfx', gainPct: 100 },
+        visual: { kind: 'soundWave', anchor: 'papa', maxRadiusM: 0.6, durationMs: 350 },
+        haptic: 'light',
+      },
+      countdown_tick: { haptic: 'light' },
+    },
+    events: { PapaBlocked: 'papa_bump', CountdownTicked: 'countdown_tick' },
+  };
+}
 
 /**
  * A content bundle for sim and golden tests, built from a FROZEN copy of the feel
@@ -23,7 +57,7 @@ export function createTestContent(): ContentBundle {
       `${FEEL_FIXTURE} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`,
     );
   }
-  return { feel: parsed.value, strings: {} };
+  return { feel: parsed.value, feedback: createTestFeedback(), strings: {} };
 }
 
 /**

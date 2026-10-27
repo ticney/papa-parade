@@ -5,9 +5,9 @@ import {
   LinearFilter,
   Mesh,
   MeshBasicMaterial,
+  type Object3D,
   PlaneGeometry,
   RGBAFormat,
-  type Scene,
 } from 'three';
 import { PALETTE } from './materials/palette.ts';
 
@@ -122,7 +122,10 @@ export interface BlobShadows {
  * One soft round shadow on the floor under each collider footprint (no shadow map anywhere: the
  * renderer's `shadowMap` stays off). All blobs share one geometry, one texture and one material.
  */
-export function addBlobShadows(scene: Scene, colliders: LevelGeometry['colliders']): BlobShadows {
+export function addBlobShadows(
+  scene: Object3D,
+  colliders: LevelGeometry['colliders'],
+): BlobShadows {
   const kit = createBlobKit();
   let count = 0;
   for (const collider of colliders) {

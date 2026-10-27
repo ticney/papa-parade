@@ -45,6 +45,10 @@ describe('content JSON Schemas', () => {
       readFileSync(new URL('../../content/strings.fr.json', import.meta.url), 'utf8'),
     );
     expect(feel.$schema).toBe('./_schemas/feel.schema.json');
+    const feedback = JSON.parse(
+      readFileSync(new URL('../../content/feedback.json', import.meta.url), 'utf8'),
+    );
+    expect(feedback.$schema).toBe('./_schemas/feedback.schema.json');
     expect(strings).not.toHaveProperty('$schema');
   });
 });

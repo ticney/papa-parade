@@ -10,6 +10,21 @@ const liveGeometry = JSON.parse(
   nav: { originM: [number, number]; cols: number; rowCount: number };
   cellM: number;
 };
+/** The live feedback table, read here and never copied: Geo retunes it freely. */
+export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'utf8')) as {
+  haptics: Record<'light' | 'medium' | 'heavy', { patternMs: number[] }>;
+  loops: { babble: { clip: string }; music: { clip: string } };
+  cues: Record<string, { audio?: { clip: string } }>;
+  events: Record<string, string>;
+};
+
+/** How many distinct clips the live feedback table names: what the preload must have decoded. */
+export const liveClipCount = new Set([
+  liveFeedback.loops.babble.clip,
+  liveFeedback.loops.music.clip,
+  ...Object.values(liveFeedback.cues).flatMap((cue) => (cue.audio ? [cue.audio.clip] : [])),
+]).size;
+
 export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
   movement: { walkSpeedMps: number };
   baby: {
@@ -64,6 +79,40 @@ export async function startLevel(page: Page): Promise<void> {
   await expect(html(page)).toHaveAttribute('data-pp-state', 'running', {
     timeout: RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS,
   });
+}
+
+/** The audio context state the app mirrors: `none` before the first gesture, then the context's own. */
+export const audioState = (page: Page): Promise<string | null> =>
+  html(page).getAttribute('data-pp-audio');
+
+/** How many cues the director has played since boot, as mirrored. */
+export async function cueCount(page: Page): Promise<number> {
+  return Number(await html(page).getAttribute('data-pp-cue-count'));
+}
+
+/**
+ * Before the page loads: wraps `navigator.vibrate` (when the browser has one) so that every
+ * pattern it is called with is recorded; `vibrations` reads them back. WebKit has no `vibrate`:
+ * nothing is wrapped and nothing is recorded.
+ */
+export async function recordVibrations(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const seen: number[][] = [];
+    Object.assign(window, { ppVibrations: seen });
+    const original = navigator.vibrate?.bind(navigator);
+    if (original === undefined) return;
+    Object.defineProperty(navigator, 'vibrate', {
+      configurable: true,
+      value: (pattern: number[]) => {
+        seen.push([...pattern]);
+        return original(pattern);
+      },
+    });
+  });
+}
+
+export function vibrations(page: Page): Promise<number[][]> {
+  return page.evaluate(() => [...(window as unknown as { ppVibrations: number[][] }).ppVibrations]);
 }
 
 /** Waits for `count` display frames inside the page: a bounded count, never a timeout. */
@@ -121,9 +170,12 @@ export function settleAnimations(page: Page): Promise<unknown> {
   );
 }
 
-/** The warnings the app raises about its own bugs; the dev server's other warnings are not ours. */
+/**
+ * The warnings the app raises about its own bugs; the dev server's other warnings are not ours.
+ * The engine's own are here too: a clip that cannot be fetched or decoded fails every spec.
+ */
 const OWN_WARNINGS =
-  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed/;
+  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed|audio unlock failed|audio clip \S+ unavailable/;
 
 /**
  * Collects what must fail a session: console errors, page errors, and the app's own warnings about

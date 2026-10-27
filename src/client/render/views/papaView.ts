@@ -1,5 +1,5 @@
 import type { PapaSlice } from '@sim';
-import { BoxGeometry, Color, Group, Mesh, type Scene } from 'three';
+import { BoxGeometry, Color, Group, Mesh, type Object3D } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
 import { PALETTE } from '../materials/palette.ts';
@@ -39,7 +39,7 @@ export interface PapaView {
  * turn: it follows his position only. No outline yet (E7, or with the baby in story 1.8).
  */
 export function createPapaView(
-  scene: Scene,
+  scene: Object3D,
   toon: ToonMaterialCache,
   blobs: BlobKit,
   radiusM: number,

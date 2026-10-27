@@ -1,0 +1,404 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "buses": {
+      "type": "object",
+      "properties": {
+        "music": {
+          "type": "object",
+          "properties": {
+            "gainPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Bus volume, in percent (100 = full)."
+            }
+          },
+          "required": [
+            "gainPct"
+          ],
+          "additionalProperties": false,
+          "description": "The music bus."
+        },
+        "sfx": {
+          "type": "object",
+          "properties": {
+            "gainPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Bus volume, in percent (100 = full)."
+            }
+          },
+          "required": [
+            "gainPct"
+          ],
+          "additionalProperties": false,
+          "description": "The sound-effects bus: responses, bumps, gags."
+        },
+        "voice": {
+          "type": "object",
+          "properties": {
+            "gainPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Bus volume, in percent (100 = full)."
+            }
+          },
+          "required": [
+            "gainPct"
+          ],
+          "additionalProperties": false,
+          "description": "The voice bus: the baby, Mama."
+        },
+        "ui": {
+          "type": "object",
+          "properties": {
+            "gainPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Bus volume, in percent (100 = full)."
+            }
+          },
+          "required": [
+            "gainPct"
+          ],
+          "additionalProperties": false,
+          "description": "The interface bus."
+        }
+      },
+      "required": [
+        "music",
+        "sfx",
+        "voice",
+        "ui"
+      ],
+      "additionalProperties": false,
+      "description": "Volume of each bus: the mix. The player volumes of story 2.8 multiply it."
+    },
+    "haptics": {
+      "type": "object",
+      "properties": {
+        "light": {
+          "type": "object",
+          "properties": {
+            "patternMs": {
+              "minItems": 1,
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "description": "`navigator.vibrate` pattern, in ms: vibrate, pause, vibrate, pause..."
+            }
+          },
+          "required": [
+            "patternMs"
+          ],
+          "additionalProperties": false,
+          "description": "A light tap: a tick, a bump."
+        },
+        "medium": {
+          "type": "object",
+          "properties": {
+            "patternMs": {
+              "minItems": 1,
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "description": "`navigator.vibrate` pattern, in ms: vibrate, pause, vibrate, pause..."
+            }
+          },
+          "required": [
+            "patternMs"
+          ],
+          "additionalProperties": false,
+          "description": "A medium tap: a response."
+        },
+        "heavy": {
+          "type": "object",
+          "properties": {
+            "patternMs": {
+              "minItems": 1,
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "description": "`navigator.vibrate` pattern, in ms: vibrate, pause, vibrate, pause..."
+            }
+          },
+          "required": [
+            "patternMs"
+          ],
+          "additionalProperties": false,
+          "description": "A heavy tap: a gag."
+        }
+      },
+      "required": [
+        "light",
+        "medium",
+        "heavy"
+      ],
+      "additionalProperties": false,
+      "description": "The vibration of each kind. A browser without vibration ignores them."
+    },
+    "loops": {
+      "type": "object",
+      "properties": {
+        "babble": {
+          "type": "object",
+          "properties": {
+            "clip": {
+              "type": "string",
+              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+              "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
+            },
+            "bus": {
+              "type": "string",
+              "enum": [
+                "music",
+                "sfx",
+                "voice",
+                "ui"
+              ],
+              "description": "Bus the sound goes through."
+            },
+            "gainPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Loop volume on its bus, in percent."
+            },
+            "fadeMs": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Fade in when the loop starts and fade out when it stops, in ms."
+            }
+          },
+          "required": [
+            "clip",
+            "bus",
+            "gainPct",
+            "fadeMs"
+          ],
+          "additionalProperties": false,
+          "description": "The baby babbles while `baby.babbling` (its stop is the silence)."
+        },
+        "music": {
+          "type": "object",
+          "properties": {
+            "clip": {
+              "type": "string",
+              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+              "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
+            },
+            "bus": {
+              "type": "string",
+              "enum": [
+                "music",
+                "sfx",
+                "voice",
+                "ui"
+              ],
+              "description": "Bus the sound goes through."
+            },
+            "gainPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Loop volume on its bus, in percent."
+            },
+            "fadeMs": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Fade in when the loop starts and fade out when it stops, in ms."
+            }
+          },
+          "required": [
+            "clip",
+            "bus",
+            "gainPct",
+            "fadeMs"
+          ],
+          "additionalProperties": false,
+          "description": "The level music, for the whole level."
+        }
+      },
+      "required": [
+        "babble",
+        "music"
+      ],
+      "additionalProperties": false,
+      "description": "Sounds driven by a state, not by an event: they are not cues."
+    },
+    "cues": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "audio": {
+            "type": "object",
+            "properties": {
+              "clip": {
+                "type": "string",
+                "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
+              },
+              "bus": {
+                "type": "string",
+                "enum": [
+                  "music",
+                  "sfx",
+                  "voice",
+                  "ui"
+                ],
+                "description": "Bus the sound goes through."
+              },
+              "gainPct": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Cue volume on its bus, in percent."
+              }
+            },
+            "required": [
+              "clip",
+              "bus",
+              "gainPct"
+            ],
+            "additionalProperties": false,
+            "description": "The sound of a cue, played once."
+          },
+          "visual": {
+            "description": "A diegetic effect in the 3D world, the visual twin of the sound.",
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "soundWave",
+                    "description": "A ring on the floor that grows and fades."
+                  },
+                  "anchor": {
+                    "type": "string",
+                    "enum": [
+                      "papa",
+                      "baby"
+                    ],
+                    "description": "Whose position the ring starts from."
+                  },
+                  "maxRadiusM": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 3,
+                    "description": "Radius of the ring when it is gone, in metres."
+                  },
+                  "durationMs": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "How long the ring takes to grow and fade, in sim ms."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "anchor",
+                  "maxRadiusM",
+                  "durationMs"
+                ],
+                "additionalProperties": false,
+                "description": "The visual twin of a sound."
+              }
+            ]
+          },
+          "haptic": {
+            "description": "Vibration played with the cue, one of `haptics`.",
+            "type": "string",
+            "enum": [
+              "light",
+              "medium",
+              "heavy"
+            ]
+          },
+          "camera": {
+            "description": "A camera effect, skipped under reduced motion.",
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "shake",
+                    "description": "The scene shakes."
+                  },
+                  "amplitudeM": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 0.5,
+                    "description": "Largest offset of the scene, in metres."
+                  },
+                  "durationMs": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "How long the shake lasts, in sim ms."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "amplitudeM",
+                  "durationMs"
+                ],
+                "additionalProperties": false,
+                "description": "A camera effect. Skipped under reduced motion."
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "What the player hears, sees and feels for one signal. Every audio has a visual and a haptic."
+      },
+      "description": "Every cue, by id. Threats will point at these ids."
+    },
+    "events": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+      },
+      "description": "Event name -> cue id. A sim event (`PapaBlocked`) or a client one (`CountdownTicked`); `npm run content:check` refuses any other name."
+    }
+  },
+  "required": [
+    "buses",
+    "haptics",
+    "loops",
+    "cues",
+    "events"
+  ],
+  "additionalProperties": false,
+  "description": "The multimodal feedback table (ADR-006): which event plays which sound, ring, vibration and camera effect."
+}

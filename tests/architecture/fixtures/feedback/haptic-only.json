@@ -1,0 +1,5 @@
+{
+  "cues": {
+    "countdown_tick": { "haptic": "light" }
+  }
+}

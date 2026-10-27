@@ -127,3 +127,6 @@ export const TAP_MARKER_SCALE_TO = 1.2;
  * seconds in the sim's future.
  */
 export const TIME_MAP_MAX_EXTRAPOLATION_MS = 100;
+
+/** Sound-wave rings the level scene can show at once; a fifth wave reuses the oldest (they cost no draw call at rest). */
+export const SOUND_WAVE_POOL_SIZE = 4;

@@ -1,0 +1,7 @@
+{
+  "cues": {
+    "silent_ring": {
+      "visual": { "kind": "soundWave", "anchor": "baby", "maxRadiusM": 1, "durationMs": 500 }
+    }
+  }
+}

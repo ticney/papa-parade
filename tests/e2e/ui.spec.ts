@@ -130,6 +130,28 @@ test.describe('start screen', () => {
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
   });
 
+  test('a lone pointerup does not start the game, a full click does (the tail of an earlier gesture is not a start)', async ({
+    page,
+  }) => {
+    await openGame(page);
+    // The end of a gesture that began before this screen existed: no pointerdown was seen.
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new PointerEvent('pointerup', {
+          isPrimary: true,
+          pointerType: 'touch',
+          pointerId: 41,
+          bubbles: true,
+        }),
+      );
+    });
+    await waitFrames(page, FRAMES_TO_SETTLE);
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
+
+    await page.locator('.pp-start-screen').click();
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
+  });
+
   test('Escape and a bare modifier do not start the game', async ({ page }) => {
     await openGame(page);
     await page.keyboard.press('Escape');

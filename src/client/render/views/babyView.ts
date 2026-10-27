@@ -1,5 +1,5 @@
 import type { BabySlice } from '@sim';
-import { Color, ConeGeometry, Group, IcosahedronGeometry, Mesh, type Scene } from 'three';
+import { Color, ConeGeometry, Group, IcosahedronGeometry, Mesh, type Object3D } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
 import { PALETTE } from '../materials/palette.ts';
@@ -51,7 +51,7 @@ export interface BabyView {
  * outline yet (E7).
  */
 export function createBabyView(
-  scene: Scene,
+  scene: Object3D,
   toon: ToonMaterialCache,
   blobs: BlobKit,
   radiusM: number,
