@@ -3,7 +3,7 @@
 ## Deferred from: code review of story 1-1-initialiser-le-projet-et-ses-garde-fous (2026-10-26)
 
 - **Type-level isolation of the sim.** `tsconfig.json` gives `src/sim` the DOM `lib` and the Node `types`, so `window`, `document`, `process` or `Buffer` compile there; only Biome and the `simPurity` scanner stop them. A `src/sim/tsconfig.json` with `lib: ['ES2023']` and `types: []` would add a compile-time guard. Beyond story 1.1.
-- **Biome vs `simPurity` on sim tests.** Biome lints `*.test.ts` under `src/sim` with the purity globals while `simPurity` skips them (AC 3). Decide with story 1.3, when the first sim test exists.
+- **Biome vs `simPurity` on sim tests.** Biome lints `*.test.ts` under `src/sim` with the purity globals while `simPurity` skips them (AC 3). Decide with story 1.3, when the first sim test exists. **Resolved in story 1.3: no change** (Biome stays strict on sim tests, `simPurity` keeps skipping them; a sim test that needs a clock or randomness belongs in `tests/`).
 - **Mobile canvas CSS.** `#pp-canvas` uses `100vw`/`100vh` as T2 specifies; the area under mobile browser bars is included. Missing: `100dvh`, `touch-action: none`, `overscroll-behavior`, safe-area insets. Stories 1.4 and 1.5.
 - **Global error hook.** No `error` / `unhandledrejection` listener feeds `log.error`, so uncaught errors on a phone never reach the ring buffer. Composition root, story 1.4.
 - **Duplicated Biome override lists.** `src/sim/**` and `src/sim/physics/rapierPhysics.ts` repeat the whole `deniedGlobals` and import pattern lists by hand. Add a drift test if the lists grow.
@@ -23,3 +23,11 @@
 - **End-to-end test of `…Key` references.** The wiring in `loadContent` and `checkContent` is only covered through the `checkStringReferences` helper: `FeelSchema` is strict and no content file has a `…Key` field yet. Add the "reference to a missing string" test to both when the first threat file (story 1.6) has a `verbKey`.
 - **Player-facing fallback when content fails outside dev.** `main.ts` only logs, so a playtest build with bad content shows an empty page (the `oops.message` / `oops.retry` strings are unused, and `void main()` drops any rejection). Story 1.4 (composition root), with the global error hook deferred from story 1.1.
 - **Feel bounds are loose on purpose.** `windowMultiplier` accepts 0, `windowPenaltyPct` can reach 100, `earlyWakePenaltyStars` has no max of 5, `microSleepMinMs` accepts 0, and nothing checks that the Mama score can reach the top star threshold. Geo keeps them loose to experiment; tighten when the sim reads these values (story 1.6 onwards).
+
+## Deferred from: creation of story 1-3-coeur-de-simulation-deterministe-en-headless (2026-10-26)
+
+- **Periodic snapshots every 5 s (`SNAPSHOT_EVERY_MS`).** Story 1.3 delivers manual `snapshot()` / `restore()` only. The 5 s cadence and the snapshot list belong to the replay of best moments (story 3.9).
+- **`JournalSchema`, `contentVersion` / `levelId` in the journal.** Story 1.3's `Journal` is `{ version, seed, feelHash, entries }` as a TypeScript type. The Zod schema, the content/level version and the export arrive with story 3.3 (levels do not exist before 1.6).
+- **Effective feel in `World`.** `ctx.feel` is constant per sim in story 1.3. When `SetFeel` arrives (story 2.1) the effective feel has to live in the snapshotted state.
+- **Slow-mo duration unit.** `feel.json` documents `slowMo*.durationMs` as real ms; the sim has no real clock. Story 1.14 decides how the sim counts it (and the overlap rule). Also for story 1.14: the freeze overlap rule (story 1.3 keeps `max`).
+- **Rapier in the snapshot.** Story 1.15 adds the Rapier blob to `SimSnapshot` and bumps its `version`.

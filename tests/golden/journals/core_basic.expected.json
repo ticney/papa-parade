@@ -1,0 +1,12 @@
+{
+  "untilSimMs": 30000,
+  "worldHash": "1421caeeca9ebf",
+  "eventTypes": [
+    "TimeScaleChanged",
+    "TimeScaleChanged",
+    "TimeScaleChanged",
+    "TimeScaleChanged",
+    "TimeScaleChanged"
+  ],
+  "eventsHash": "0c7432df426d5d"
+}

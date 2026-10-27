@@ -29,7 +29,7 @@ jobs:
       - name: content:check
         run: npm run content:check
       - name: test
-        run: npm run test
+        run: npm run test:coverage
       - name: e2e
         run: npm run e2e
       - name: build:playtest

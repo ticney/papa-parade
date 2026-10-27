@@ -1,0 +1,63 @@
+import type { ContentBundle } from '@content/contentBundle';
+import { hashJson } from '@shared/hash';
+import { type AppError, err, ok, type Result } from '@shared/result';
+import { createSim, type Sim } from './createSim.ts';
+import type { SimEvent } from './events.ts';
+import { type Journal, journalProblem } from './journal.ts';
+
+export interface ReplayOptions {
+  content: ContentBundle;
+  journal: Journal;
+  /** Steps until `world.time.sim` reaches this sim time. */
+  untilSimMs: number;
+  strictInvariants?: boolean;
+}
+
+export interface ReplayResult {
+  sim: Sim;
+  /** Every event emitted during the replay, in order. */
+  events: SimEvent[];
+}
+
+/**
+ * Replays a journal from its start. A journal this build cannot replay (malformed, other feel,
+ * not recorded from the start) is an `err`, not a throw. An invariant violation during the replay
+ * follows `strictInvariants`, as in a live game (strict throws).
+ */
+export async function replayJournal(
+  options: ReplayOptions,
+): Promise<Result<ReplayResult, AppError>> {
+  const { content, journal, untilSimMs } = options;
+  const problem = journalProblem(journal);
+  if (problem !== null) return err({ kind: 'journal', message: problem });
+  if (journal.feelHash !== hashJson(content.feel)) {
+    return err({
+      kind: 'journal',
+      message: 'the journal was recorded with a different feel than the given content',
+    });
+  }
+  if (journal.startSimMs !== 0) {
+    return err({
+      kind: 'journal',
+      message: `the journal starts at ${journal.startSimMs} ms (a restored sim): it cannot be replayed from the start`,
+    });
+  }
+  if (typeof untilSimMs !== 'number' || !Number.isFinite(untilSimMs)) {
+    return err({
+      kind: 'journal',
+      message: `untilSimMs must be finite, got ${String(untilSimMs)}`,
+    });
+  }
+  const sim = await createSim({
+    content,
+    seed: journal.seed,
+    journal,
+    strictInvariants: options.strictInvariants,
+  });
+  const events: SimEvent[] = [];
+  while (sim.world.time.sim < untilSimMs) {
+    sim.step();
+    for (const event of sim.drainEvents()) events.push(event);
+  }
+  return ok({ sim, events });
+}

@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "seed": 42,
+  "feelHash": "1375f0328afa49",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 500,
+      "command": {
+        "scale": 0.3,
+        "t": 500,
+        "type": "SetTimeScale"
+      }
+    },
+    {
+      "applyAt": 6010,
+      "command": {
+        "scale": 1,
+        "t": 6003.7,
+        "type": "SetTimeScale"
+      }
+    },
+    {
+      "applyAt": 8010,
+      "command": {
+        "scale": 0.5,
+        "t": 7900,
+        "type": "SetTimeScale"
+      }
+    },
+    {
+      "applyAt": 15010,
+      "command": {
+        "scale": 0.2,
+        "t": 15000,
+        "type": "SetTimeScale"
+      }
+    },
+    {
+      "applyAt": 25000,
+      "command": {
+        "scale": 1,
+        "t": 25000,
+        "type": "SetTimeScale"
+      }
+    }
+  ]
+}
