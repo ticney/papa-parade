@@ -549,6 +549,12 @@ body {
   .pp-button {
     transition: none;
   }
+
+  /* The halo glows steady and the chevron stands still. */
+  .pp-threat-halo,
+  .pp-threat-chevron {
+    animation: none;
+  }
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -571,6 +577,98 @@ body {
   box-shadow:
     0 0 0 3px var(--pp-color-ink),
     inset 0 0 0 3px var(--pp-color-ink);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   The threat icon (DESIGN.md › threat-icon, target-highlight; mockup key-hud-level.html state A).
+   The outer box is the icon's size and is centred on the anchor by the CSS2DRenderer; the halo, the
+   highlight and the chevron are placed around it from that size. The halo is a radial gradient
+   (a soft glow, no blur filter); the highlight is a solid ring with a chevron, so it differs from
+   the halo by shape, not by colour. Nothing flashes: the halo pulses at about 0.7 Hz.
+   --------------------------------------------------------------------------------------------- */
+.pp-threat {
+  --pp-threat-size: 64px;
+  position: relative;
+  width: var(--pp-threat-size);
+  height: var(--pp-threat-size);
+  pointer-events: none;
+}
+
+:root[data-pp-surface="compact"] .pp-threat {
+  --pp-threat-size: 56px;
+}
+
+.pp-threat-icon {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 3px solid var(--pp-color-ink);
+  border-radius: 50%;
+  background: var(--pp-color-parry);
+  display: grid;
+  place-items: center;
+}
+
+.pp-threat-icon svg {
+  width: 54%;
+  height: 54%;
+}
+
+.pp-threat-halo {
+  position: absolute;
+  inset: calc(var(--pp-threat-size) * -0.55);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--pp-color-alert) 75%, transparent) 0 42%,
+    color-mix(in srgb, var(--pp-color-alert) 35%, transparent) 56%,
+    transparent 70%
+  );
+  animation: pp-threat-pulse 1400ms ease-in-out infinite;
+}
+
+.pp-threat-highlight {
+  position: absolute;
+  inset: calc(var(--pp-threat-size) * -0.3);
+  box-sizing: border-box;
+  border: 4px solid var(--pp-color-alert);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--pp-color-ink),
+    inset 0 0 0 2px var(--pp-color-ink);
+}
+
+.pp-threat-chevron {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--pp-threat-size) * 0.3 + 2px);
+  width: 24px;
+  height: 16px;
+  margin-left: -12px;
+  color: var(--pp-color-alert);
+  animation: pp-threat-bounce 500ms ease-in-out infinite;
+}
+
+@keyframes pp-threat-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pp-threat-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(6px);
+  }
 }
 
 /*

@@ -5,8 +5,9 @@ import { createPlatform } from '@platform/createPlatform';
 import { MAX_TIMER_DELAY_MS } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
+import { ok } from '@shared/result';
 import type { SimEvent } from '@sim';
-import { Color, Scene } from 'three';
+import { Color, Scene, Vector3 } from 'three';
 import { createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
 import { parseThrowDelayMs } from './app/forcedThrow.ts';
@@ -16,12 +17,15 @@ import { createLevelSession } from './app/levelSession.ts';
 import { bindOrientation } from './app/orientation.ts';
 import { createPauseController } from './app/pauseController.ts';
 import { bindSurface } from './app/surface.ts';
+import { readThreatsOff, withoutThreats } from './app/threatsSwitch.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
 import { createAudioEngine } from './audio/audioEngine.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
+import { createResponseChoreography } from './feedback/responseChoreography.ts';
+import { threatCueOf } from './feedback/threatFeedback.ts';
 import { createGamepadInput } from './input/gamepadInput.ts';
-import { createHitTester } from './input/hitTest.ts';
+import { createHitTester, type ThreatTargets } from './input/hitTest.ts';
 import { createInputMapper } from './input/inputMapper.ts';
 import { bindKeyboard, createHeldKeys } from './input/keyboardInput.ts';
 import { createMoveIntent } from './input/moveIntent.ts';
@@ -186,7 +190,12 @@ export async function boot(): Promise<void> {
       | 'ppMusic'
       | 'ppHaptics'
       | 'ppCue'
-      | 'ppCueCount',
+      | 'ppCueCount'
+      | 'ppThreat'
+      | 'ppThreatPx'
+      | 'ppResponse'
+      | 'ppGag'
+      | 'ppPress',
     value: string,
   ): void => {
     if (document.documentElement.dataset[name] !== value) {
@@ -262,6 +271,12 @@ export async function boot(): Promise<void> {
   // The countdown's digit is a haptic tick (its visual twin is the digit's pulse).
   events.on('CountdownTicked', () => director.handle('CountdownTicked', null));
 
+  // The threat the player pressed last, until it is no longer active: the world UI highlights it
+  // from the next frame (D8), before the sim has applied the press.
+  let highlightedThreatId: number | null = null;
+  const choreography = createResponseChoreography();
+  const stripThreats = isMirrored && readThreatsOff(window.location.search);
+
   // The render stats are mirrored once per level, on its first rendered frame.
   let isStatsMirrored = false;
 
@@ -298,6 +313,45 @@ export async function boot(): Promise<void> {
     mirror('ppBabyState', levelSession.active?.sim.world.baby.state ?? 'babble');
     mirrorBabyAt();
     delete document.documentElement.dataset.ppTap;
+    for (const name of ['ppThreat', 'ppThreatPx', 'ppResponse', 'ppGag', 'ppPress'] as const) {
+      delete document.documentElement.dataset[name];
+    }
+  };
+  // The threats, on their events only: the state of the threat, where its icon is on the page
+  // (CSS px, for a test to tap), the last response and the last gag.
+  const iconPoint = new Vector3();
+  const mirrorThreatEvent = (event: SimEvent): void => {
+    switch (event.type) {
+      case 'ThreatTelegraphed': {
+        mirror('ppThreat', `${event.threatId}:telegraph`);
+        const entry = worldUi.threatEntries.find(
+          (candidate) => candidate.threatId === event.threatId,
+        );
+        if (entry !== undefined) {
+          const rect = canvas.getBoundingClientRect();
+          iconPoint.set(entry.xM, entry.yM, entry.zM).project(camera);
+          const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
+          const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
+          mirror('ppThreatPx', `${x.toFixed(1)},${y.toFixed(1)}`);
+        }
+        return;
+      }
+      case 'WindowOpened':
+        mirror('ppThreat', `${event.threatId}:windowOpen`);
+        return;
+      case 'ResponseResolved':
+        mirror('ppThreat', `${event.threatId}:${event.quality === 'fail' ? 'gag' : 'resolved'}`);
+        mirror('ppResponse', event.quality);
+        return;
+      case 'GagTriggered':
+        mirror('ppGag', event.gag);
+        return;
+      case 'ThreatRearmed':
+        mirror('ppThreat', `${event.threatId}:idle`);
+        return;
+      default:
+        return;
+    }
   };
 
   // The level is made later; the screens below only need it when a button is pressed.
@@ -311,9 +365,12 @@ export async function boot(): Promise<void> {
     onSeed: (seed) => {
       if (isMirrored) document.documentElement.dataset.ppSeed = String(seed);
     },
-    onLevelReady: (level) => {
+    onLevelReady: (level, threatEntries) => {
       // The room is only known now: fit the camera and show it behind the loading screen.
       currentLevel = level;
+      worldUi.mountThreats(threatEntries);
+      highlightedThreatId = null;
+      choreography.reset();
       room = level.room;
       isStatsMirrored = false;
       fitViewToCanvas();
@@ -324,7 +381,26 @@ export async function boot(): Promise<void> {
       audio.setBabbling(levelSession.active?.sim.world.baby.babbling ?? false);
       shell.frame();
       inputMapper.pollGamepad();
+      const world = levelSession.active?.sim.world;
+      const isHighlightShown =
+        world !== undefined && worldUi.updateThreats(world.threats, highlightedThreatId);
       worldUi.render(camera);
+      if (isHighlightShown && isMirrored) {
+        performance.clearMarks('highlightRendered');
+        performance.mark('highlightRendered');
+      }
+      // The highlight is drawn once at least; it goes when its threat is no longer active
+      // (resolved, or gag). A quick tap resolves the threat in the very frame that draws it.
+      if (world !== undefined && highlightedThreatId !== null) {
+        let isActive = false;
+        for (const threat of world.threats) {
+          if (threat.id === highlightedThreatId) {
+            isActive = threat.state === 'telegraph' || threat.state === 'windowOpen';
+            break;
+          }
+        }
+        if (!isActive) highlightedThreatId = null;
+      }
       if (isMirrored && !isStatsMirrored) {
         isStatsMirrored = true;
         const { drawCalls, triangles, geometries, textures } = renderer.stats();
@@ -334,14 +410,31 @@ export async function boot(): Promise<void> {
         mirror('ppTextures', String(textures));
       }
     },
-    loadLevelContent: (id) => loadLevelContent(contentSource, id),
+    loadLevelContent: async (id) => {
+      const loaded = await loadLevelContent(contentSource, id);
+      if (!stripThreats || !loaded.ok) return loaded;
+      return ok(withoutThreats(loaded.value));
+    },
     loadAudio: () => audio.preload(feedbackClips(feedbackTable)),
     onSimEvent: (event) => {
       logSimEvent(event);
-      director.handle(event.type, levelSession.active?.sim.world ?? null);
+      const active = levelSession.active;
+      director.handle(event.type, active?.sim.world ?? null);
+      if (active !== null) {
+        // A threat's cues come from its def, not from the `events` table (D3).
+        const cue = threatCueOf(event, active.sim.world, active.level.threats);
+        if (cue !== null && 'threatId' in event) {
+          director.playCue(cue, active.sim.world, event.threatId);
+        }
+        if (currentLevel !== null) {
+          choreography.onEvent(event, active.sim.world, currentLevel.fx);
+          if (event.type === 'GagTriggered') currentLevel.fx.gag(event.gag, event.t);
+        }
+      }
       if (isMirrored) {
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);
+        mirrorThreatEvent(event);
       }
       // A key still held after a tap's path ends walks again.
       if (event.type === 'PapaArrived') inputMapper.resumeHeld();
@@ -423,18 +516,49 @@ export async function boot(): Promise<void> {
       input: content.value.feel.input,
       send: (command) => levelSession.active?.sim.enqueue(command),
     }),
+    getThreatTargets: () => {
+      const active = levelSession.active;
+      if (active === null) return null;
+      const targets: ThreatTargets = {
+        threats: active.sim.world.threats,
+        entries: worldUi.threatEntries,
+      };
+      return targets;
+    },
+    touchRadiusPx: content.value.feel.input.touchRadiusPx,
+    onThreatPressed: (threatId) => {
+      highlightedThreatId = threatId;
+      if (isMirrored) {
+        performance.clearMarks('press');
+        performance.mark('press');
+        mirror('ppPress', String(threatId));
+      }
+    },
     showTapMarker: (xM, zM) => worldUi.tapMarker.showAt(xM, zM),
     onTap: (xM, zM) => {
       if (isMirrored) mirror('ppTap', `${xM.toFixed(2)},${zM.toFixed(2)}`);
     },
     nowAtReal: () => performance.now(),
   });
-  bindPointer(canvas, (sample) => inputMapper.handlePointerDown(sample));
+  bindPointer(
+    canvas,
+    window,
+    (sample) => inputMapper.handlePointerDown(sample),
+    (sample) => inputMapper.handlePointerUp(sample),
+  );
+  // A finger still on a threat when the game pauses is released at the sim clock.
+  events.on('PauseRequested', () => inputMapper.releaseHeld());
   bindKeyboard(heldKeys, window, document, {
     onChange: (timeStampAtReal) => inputMapper.onKeysChanged(timeStampAtReal),
     isLive: () => inputMapper.isLive(),
   });
   events.on('GameResumed', () => inputMapper.resync());
+  // A restart or an error leaves the level: its threat icons must not stay up behind the next screen.
+  events.on('AppStateChanged', ({ from }) => {
+    if (from !== 'level') return;
+    worldUi.unmountThreats();
+    highlightedThreatId = null;
+  });
   events.on('AppStateChanged', ({ to }) => {
     if (to !== 'level') return;
     inputMapper.resync();

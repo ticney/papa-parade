@@ -53,6 +53,10 @@ describe('content/feedback.json', () => {
     expect(real.$schema).toBe('./_schemas/feedback.schema.json');
   });
 
+  it('accepts a sound wave anchored on a threat', () => {
+    expect(mutated(['cues.papa_bump.visual.anchor', 'threat'])).toMatchObject({ ok: true });
+  });
+
   it.each<[string, [string, unknown][], string[]]>([
     ['an unknown bus on a loop', [['loops.babble.bus', 'radio']], ['loops.babble.bus']],
     [

@@ -1,6 +1,6 @@
 import { asSimMs } from '@shared/time';
 import type { PapaSlice } from '@sim';
-import { Mesh, Scene, Vector3 } from 'three';
+import { Mesh, type Object3D, Scene, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { createBlobKit } from '../blobShadow.ts';
 import { PALETTE } from '../materials/palette.ts';
@@ -51,6 +51,12 @@ describe('papaPoseAt', () => {
   });
 });
 
+/** Whether a node and all its ancestors are visible: what the renderer would draw. */
+function isShown(node: Object3D | null): boolean {
+  for (let n = node; n !== null; n = n.parent) if (!n.visible) return false;
+  return true;
+}
+
 describe('createPapaView', () => {
   function build(radiusM = 0.25) {
     const scene = new Scene();
@@ -66,7 +72,13 @@ describe('createPapaView', () => {
     scene.traverse((node) => {
       if (node instanceof Mesh) meshes.push(node);
     });
-    expect(meshes.map((m) => m.name).sort()).toEqual(['blob_papa', 'papa']);
+    // The hair (hidden spikes) comes with the cube: it is not a draw call until a gag raises it.
+    expect(
+      meshes
+        .filter((m) => isShown(m))
+        .map((m) => m.name)
+        .sort(),
+    ).toEqual(['blob_papa', 'papa']);
     const cube = scene.getObjectByName('papa') as Mesh;
     cube.geometry.computeBoundingBox();
     const size = cube.geometry.boundingBox?.getSize(new Vector3());
@@ -82,7 +94,7 @@ describe('createPapaView', () => {
     expect((cube.material as unknown as { color: { getHex(): number } }).color.getHex()).toBe(
       PALETTE.primary,
     );
-    expect(toon.size).toBe(1);
+    expect(toon.size).toBe(2); // the cube and the ink of the hair
   });
 
   it('puts the cube on the floor at the interpolated position, turned toward where he walks', () => {
@@ -105,6 +117,33 @@ describe('createPapaView', () => {
     expect(shadow.position.y).toBeLessThan(0.05);
     expect(shadow.getWorldPosition(new Vector3()).x).toBe(2);
     expect(shadow.scale.x).toBeGreaterThan(0.5);
+  });
+
+  it('keeps the hair hidden until it is raised, scales it with the amount and clamps it', () => {
+    const { scene, view } = build();
+    const hair = scene.getObjectByName('papa_hair');
+    const spikes = hair?.children ?? [];
+    expect(spikes.length).toBeGreaterThan(1);
+    expect(hair?.visible).toBe(false);
+    view.setHair(0.5);
+    expect(hair?.visible).toBe(true);
+    expect(hair?.scale.y).toBe(0.5);
+    view.setHair(7);
+    expect(hair?.scale.y).toBe(1);
+    view.setHair(-3);
+    expect(hair?.visible).toBe(false);
+  });
+
+  it('puts the hair on top of the cube, over its width, with one shared geometry', () => {
+    const { scene } = build(0.25);
+    const hair = scene.getObjectByName('papa_hair');
+    expect(hair?.position.y).toBe(PAPA_HEIGHT_M);
+    const geometries = new Set((hair?.children ?? []).map((spike) => (spike as Mesh).geometry));
+    expect(geometries.size).toBe(1);
+    for (const spike of hair?.children ?? []) {
+      expect(Math.abs(spike.position.x)).toBeLessThanOrEqual(0.25);
+      expect(Math.abs(spike.position.z)).toBeLessThanOrEqual(0.25);
+    }
   });
 
   it('tolerates a feel with no radius, and disposes by taking Papa out of the scene', () => {

@@ -228,6 +228,31 @@ describe('checkContent on feedback.json references', () => {
     expect(problems[0]?.message).toContain('client event');
   });
 
+  it('reports a threat-anchored visual on a cue that an event points at, with the path of the anchor', async () => {
+    const [cueId, cue] = cueWithVisual as [string, { visual: { anchor: string } }];
+    const eventName = Object.entries(live.events).find(([, id]) => id === cueId)?.[0];
+    expect(eventName).toBeDefined();
+    await mutateJson('content/feedback.json', (feedback) => {
+      const cues = feedback.cues as Record<string, { visual: { anchor: string } }>;
+      (cues[cueId] as { visual: { anchor: string } }).visual.anchor = 'threat';
+    });
+    expect(cue.visual).toBeDefined();
+    const problems = await checkContent(root);
+    expect(problems).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: `cues.${cueId}.visual.anchor` }),
+    ]);
+    expect(problems[0]?.message).toContain(eventName as string);
+  });
+
+  it('accepts a threat-anchored visual on a cue that no event points at', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      (feedback.cues as Record<string, unknown>).only_threat = {
+        visual: { kind: 'soundWave', anchor: 'threat', maxRadiusM: 0.5, durationMs: 300 },
+      };
+    });
+    expect(await checkContent(root)).toEqual([]);
+  });
+
   it('reports a cue clip with no file, and tells how to make the placeholders', async () => {
     expect(cueWithAudio).toBeDefined();
     const [cueId] = cueWithAudio as [string, unknown];

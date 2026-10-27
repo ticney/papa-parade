@@ -41,6 +41,11 @@ export function babyPoseAt(baby: Readonly<BabySlice>, alpha: number, out: BabyPo
 export interface BabyView {
   /** Moves the baby, turns its gaze marker and moves its shadow. Allocates nothing. */
   update(baby: Readonly<BabySlice>, alpha: number): void;
+  /**
+   * Lifts the body and its gaze marker `heightM` above the floor (the « lift the baby » pose); the
+   * shadow stays on the floor. Allocates nothing.
+   */
+  setLiftM(heightM: number): void;
   /** Frees what the view made (its geometries); the shared materials belong to the scene. */
   dispose(): void;
 }
@@ -96,6 +101,10 @@ export function createBabyView(
       babyPoseAt(baby, alpha, pose);
       group.position.set(pose.xM, 0, pose.zM);
       gazeGroup.rotation.y = pose.yawRad;
+    },
+    setLiftM(heightM) {
+      body.position.y = bodyRadiusM + heightM;
+      gazeGroup.position.y = bodyRadiusM + heightM;
     },
     dispose() {
       bodyGeometry.dispose();

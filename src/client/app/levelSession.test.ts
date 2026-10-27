@@ -17,6 +17,7 @@ import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
 import type { LevelFx, LevelScene } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
+import type { ThreatMarkerEntry } from '../ui/world/threatMarkers.ts';
 import { type AppState, createAppFsm } from './appFsm.ts';
 import type { ClientEvents } from './clientEvents.ts';
 import { createLevelSession, type LevelSessionDeps } from './levelSession.ts';
@@ -26,7 +27,7 @@ beforeAll(() => {
   log.setLevel('error');
 });
 
-const NO_FX: LevelFx = { soundWave: () => {}, shake: () => {} };
+const NO_FX: LevelFx = { soundWave: () => {}, shake: () => {}, gag: () => {}, liftBaby: () => {} };
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -84,6 +85,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     disposed: boolean;
   }[] = [];
   const ready: LevelScene[] = [];
+  const readyEntries: (readonly ThreatMarkerEntry[])[] = [];
   const deps: LevelSessionDeps = {
     content: createTestContent(),
     appFsm,
@@ -93,9 +95,10 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     scheduler,
     newSeed: () => seeds.shift() ?? 999,
     onSeed: (seed) => reportedSeeds.push(seed),
-    onLevelReady: (level) => {
+    onLevelReady: (level, threatEntries) => {
       trace.push('ready');
       ready.push(level);
+      readyEntries.push(threatEntries);
     },
     onLevelFrame: () => {
       drawn.frames++;
@@ -141,6 +144,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     drawn,
     scenes,
     ready,
+    readyEntries,
     sims: () => simsCreated,
   };
 }
@@ -283,6 +287,27 @@ describe('createLevelSession', () => {
     await session.start();
     expect(asked).toEqual(['other_room']);
     expect(ready.map((level) => level.id)).toEqual(['other_room']);
+  });
+
+  it('hands onLevelReady the icon points of the planned threats, from the anchors of the geometry', async () => {
+    const { session, readyEntries } = setup({
+      loadLevelContent: async (id) => ok(levelOf(id, createTestLevel([outletEntry(2000)]))),
+    });
+    await session.start();
+    const anchor = createTestGeometry().anchors.find((a) => a.id === 'outlet_01');
+    const [xM, yM, zM] = anchor?.positionM ?? [Number.NaN, 0, 0];
+    expect(readyEntries).toHaveLength(1);
+    expect(readyEntries[0]).toEqual([
+      { threatId: session.active?.sim.world.threats[0]?.id, xM, yM, zM },
+    ]);
+  });
+
+  it('hands none for a level that plans no threat, and keeps the level content in the active level', async () => {
+    const { session, readyEntries } = setup();
+    await session.start();
+    expect(readyEntries[0]).toEqual([]);
+    expect(session.active?.level.level.id).toBe('salon_crawler');
+    expect(session.active?.level.threats).toEqual({});
   });
 
   it('draws the level scene every frame, paused or not, updates it, and reports the seed', async () => {

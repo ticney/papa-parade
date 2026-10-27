@@ -304,9 +304,10 @@
                     "type": "string",
                     "enum": [
                       "papa",
-                      "baby"
+                      "baby",
+                      "threat"
                     ],
-                    "description": "Whose position the ring starts from."
+                    "description": "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at."
                   },
                   "maxRadiusM": {
                     "type": "number",

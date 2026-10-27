@@ -25,6 +25,14 @@ export interface FeedbackDirector {
    * play is skipped and the others still play. `world` is read, never written.
    */
   handle(name: FeedbackEventName, world: Readonly<World> | null): void;
+  /**
+   * Plays a cue by its id, the way `handle` plays an event's: a threat's def names its cues
+   * (`feedback.telegraph`...), not the `events` table (D3 of story 1.11). `threatId` is the threat
+   * the cue is about, where a `threat`-anchored ring starts from; with none (or one the world does
+   * not know) the ring is skipped with a `warn` and the rest still plays. An unknown id is a
+   * `warn` and plays nothing.
+   */
+  playCue(cueId: string, world: Readonly<World> | null, threatId: number | null): void;
 }
 
 interface ResolvedCue {
@@ -67,46 +75,85 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
     }
   };
 
-  return {
-    handle(name, world) {
-      const resolved = byEvent.get(name);
-      if (resolved === undefined) return;
-      const { id, cue } = resolved;
+  // Where a ring starts from. A `threat` anchor is the threat the event names, read from the world
+  // by id; with none the ring is skipped (the sound and the vibration still play).
+  const anchorOf = (
+    anchor: 'papa' | 'baby' | 'threat',
+    world: Readonly<World>,
+    threatId: number | null,
+    name: string,
+  ): { xM: number; zM: number } | null => {
+    if (anchor === 'papa') return world.papa;
+    if (anchor === 'baby') return world.baby;
+    if (threatId !== null) {
+      for (const threat of world.threats) if (threat.id === threatId) return threat;
+    }
+    log.warn('feedback', `feedback ring for ${name} skipped: no threat to anchor it on`, {
+      threatId,
+    });
+    return null;
+  };
 
-      if (cue.audio !== undefined) {
-        const { clip, bus, gainPct } = cue.audio;
-        attempt(name, 'sound', undefined, () => audio.playOneShot(clip, bus, gainPct));
-      }
-      if (cue.haptic !== undefined) {
-        const kind = cue.haptic;
-        attempt(name, 'vibration', undefined, () => haptics.pulse(kind));
-      }
-      // The visuals need a world to read and a scene to draw on (neither exists for a client event
-      // like the countdown tick: `content:check` refuses a visual on such a cue).
-      if (world !== null && (cue.visual !== undefined || cue.camera !== undefined)) {
-        const scene = attempt(name, 'scene lookup', null, deps.getScene);
-        if (scene !== null) {
-          if (cue.visual !== undefined) {
-            const { anchor, maxRadiusM, durationMs } = cue.visual;
-            const at = anchor === 'papa' ? world.papa : world.baby;
+  // Plays the parts of one cue: the sound, the vibration, the ring, the camera effect, in that
+  // order. `name` is only what a warning calls it by (an event name, or `cue <id>`).
+  const play = (
+    name: string,
+    id: string,
+    cue: FeedbackCue,
+    world: Readonly<World> | null,
+    threatId: number | null,
+  ): void => {
+    if (cue.audio !== undefined) {
+      const { clip, bus, gainPct } = cue.audio;
+      attempt(name, 'sound', undefined, () => audio.playOneShot(clip, bus, gainPct));
+    }
+    if (cue.haptic !== undefined) {
+      const kind = cue.haptic;
+      attempt(name, 'vibration', undefined, () => haptics.pulse(kind));
+    }
+    // The visuals need a world to read and a scene to draw on (neither exists for a client event
+    // like the countdown tick: `content:check` refuses a visual on such a cue).
+    if (world !== null && (cue.visual !== undefined || cue.camera !== undefined)) {
+      const scene = attempt(name, 'scene lookup', null, deps.getScene);
+      if (scene !== null) {
+        if (cue.visual !== undefined) {
+          const { anchor, maxRadiusM, durationMs } = cue.visual;
+          const at = anchorOf(anchor, world, threatId, name);
+          if (at !== null) {
             attempt(name, 'ring', undefined, () =>
               scene.soundWave(at.xM, at.zM, maxRadiusM, durationMs, world.time.sim),
             );
           }
-          // A failing motion query counts as reduced motion: the safe side.
-          if (
-            cue.camera !== undefined &&
-            !attempt(name, 'motion query', true, deps.prefersReducedMotion)
-          ) {
-            const { amplitudeM, durationMs } = cue.camera;
-            attempt(name, 'camera effect', undefined, () =>
-              scene.shake(amplitudeM, durationMs, world.time.sim),
-            );
-          }
+        }
+        // A failing motion query counts as reduced motion: the safe side.
+        if (
+          cue.camera !== undefined &&
+          !attempt(name, 'motion query', true, deps.prefersReducedMotion)
+        ) {
+          const { amplitudeM, durationMs } = cue.camera;
+          attempt(name, 'camera effect', undefined, () =>
+            scene.shake(amplitudeM, durationMs, world.time.sim),
+          );
         }
       }
-      const { onCue } = deps;
-      if (onCue !== undefined) attempt(name, 'cue report', undefined, () => onCue(id));
+    }
+    const { onCue } = deps;
+    if (onCue !== undefined) attempt(name, 'cue report', undefined, () => onCue(id));
+  };
+
+  return {
+    handle(name, world) {
+      const resolved = byEvent.get(name);
+      if (resolved === undefined) return;
+      play(name, resolved.id, resolved.cue, world, null);
+    },
+    playCue(cueId, world, threatId) {
+      const cue = Object.hasOwn(table.cues, cueId) ? table.cues[cueId] : undefined;
+      if (cue === undefined) {
+        log.warn('feedback', `cue ${cueId} is not in the feedback table: it plays nothing`);
+        return;
+      }
+      play(`cue ${cueId}`, cueId, cue, world, threatId);
     },
   };
 }

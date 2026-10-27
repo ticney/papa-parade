@@ -32,13 +32,13 @@ async function problemsOf(overrides: Record<string, string | null>, levelId = 's
 }
 
 describe('loadLevelContent', () => {
-  it('loads the live level, which plans no threat yet', async () => {
+  it('loads the live level, which plans the outlet and loads its def', async () => {
     const result = await loadLevelContent(memorySource(), 'salon_crawler');
     expect(result).toMatchObject({ ok: true });
     if (!result.ok) return;
     expect(result.value.level.id).toBe('salon_crawler');
-    expect(result.value.level.threats).toEqual([]);
-    expect(result.value.threats).toEqual({});
+    expect(result.value.level.threats.map((entry) => entry.def)).toContain('outlet');
+    expect(Object.keys(result.value.threats)).toContain('outlet');
   });
 
   it('loads exactly the defs a level plans, once each, in order of first reference', async () => {

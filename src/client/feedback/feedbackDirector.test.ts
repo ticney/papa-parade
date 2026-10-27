@@ -48,6 +48,11 @@ const TABLE: FeedbackTable = {
       camera: { kind: 'shake', amplitudeM: 0.05, durationMs: 200 },
     },
     tick: { haptic: 'light' },
+    threatPop: {
+      audio: { clip: 'resp_parry', bus: 'sfx', gainPct: 80 },
+      visual: { kind: 'soundWave', anchor: 'threat', maxRadiusM: 0.8, durationMs: 350 },
+      haptic: 'medium',
+    },
     babyRing: {
       audio: { clip: 'baby_babble_loop', bus: 'voice', gainPct: 100 },
       visual: { kind: 'soundWave', anchor: 'baby', maxRadiusM: 1, durationMs: 500 },
@@ -64,6 +69,8 @@ function setup(options: { reducedMotion?: boolean; hasScene?: boolean } = {}) {
       trace.push(`wave:${xM},${zM},${maxRadiusM},${durationMs},${startAt}`),
     shake: (amplitudeM, durationMs, startAt) =>
       trace.push(`shake:${amplitudeM},${durationMs},${startAt}`),
+    gag: () => {},
+    liftBaby: () => {},
   };
   const state = {
     throwOnAudio: false,
@@ -98,6 +105,8 @@ function setup(options: { reducedMotion?: boolean; hasScene?: boolean } = {}) {
           shake: () => {
             throw new Error('scene on fire');
           },
+          gag: () => {},
+          liftBaby: () => {},
         };
       }
       return fx;
@@ -217,6 +226,60 @@ describe('feedbackDirector', () => {
     cue.state.throwOnCue = true;
     expect(() => cue.director.handle('PapaBlocked', world)).not.toThrow();
     expect(cue.newWarnings()).toEqual([expect.stringContaining('cue report')]);
+  });
+
+  describe('playCue', () => {
+    const withThreat = (): World => {
+      const threat = { id: 7, xM: -3.95, zM: 0.5 };
+      return { ...world, threats: [threat] } as unknown as World;
+    };
+
+    it('plays the sound, the vibration and a ring at the threat the cue is about, in the order of handle', () => {
+      const { director, trace } = setup();
+      director.playCue('threatPop', withThreat(), 7);
+      expect(trace).toEqual([
+        'audio:resp_parry,sfx,80',
+        'haptic:medium',
+        'wave:-3.95,0.5,0.8,350,4200',
+        'cue:threatPop',
+      ]);
+    });
+
+    it('plays the cue of an event table too, by its id', () => {
+      const { director, trace } = setup();
+      director.playCue('full', world, null);
+      expect(trace[0]).toBe('audio:papa_bump,sfx,70');
+      expect(trace).toContain('cue:full');
+    });
+
+    it('skips the ring, with a warning, when the threat is not named or not in the world; the rest still plays', () => {
+      const none = setup();
+      none.director.playCue('threatPop', withThreat(), null);
+      expect(none.trace).toEqual(['audio:resp_parry,sfx,80', 'haptic:medium', 'cue:threatPop']);
+      expect(none.newWarnings()).toEqual([expect.stringContaining('no threat to anchor')]);
+
+      const missing = setup();
+      missing.director.playCue('threatPop', withThreat(), 99);
+      expect(missing.trace.some((line) => line.startsWith('wave:'))).toBe(false);
+      expect(missing.newWarnings()).toEqual([expect.stringContaining('no threat to anchor')]);
+    });
+
+    it('warns and plays nothing for a cue the table does not have, including Object.prototype members', () => {
+      for (const id of ['nope', 'constructor', '__proto__']) {
+        const { director, trace, newWarnings } = setup();
+        director.playCue(id, world, null);
+        expect(trace, id).toEqual([]);
+        expect(newWarnings(), id).toEqual([expect.stringContaining(id)]);
+      }
+    });
+
+    it('guards each part like handle does', () => {
+      const { director, trace, state, newWarnings } = setup();
+      state.throwOnAudio = true;
+      expect(() => director.playCue('threatPop', withThreat(), 7)).not.toThrow();
+      expect(trace[0]).toBe('haptic:medium');
+      expect(newWarnings()).toEqual([expect.stringContaining('sound for cue threatPop failed')]);
+    });
   });
 
   it('never writes the world', () => {

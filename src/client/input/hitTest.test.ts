@@ -66,3 +66,77 @@ describe('createHitTester', () => {
     expect(out.xM).not.toBeCloseTo(first.xM, 3);
   });
 });
+
+describe('pickThreat', () => {
+  const RECT = { left: 100, top: 50, width: 800, height: 400 };
+  const RADIUS = 48;
+  const camera = createIsoCamera();
+  fitIsoCamera(camera, ROOM, RECT.width / RECT.height);
+  const tester = createHitTester(camera);
+  const entryA = { threatId: 1, xM: -3, yM: 0.3, zM: 0.5 };
+  const entryB = { threatId: 2, xM: -2.6, yM: 0.3, zM: 0.5 };
+  const pxOf = (entry: { xM: number; yM: number; zM: number }) => {
+    const v = new Vector3(entry.xM, entry.yM, entry.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+  const threat = (id: number, state = 'telegraph') => ({ id, state }) as never;
+
+  it('picks the threat whose icon is within the radius, and none outside it', () => {
+    const targets = { threats: [threat(1)], entries: [entryA] };
+    const at = pxOf(entryA);
+    expect(tester.pickThreat(at.x, at.y, RECT, targets, RADIUS)).toBe(1);
+    expect(tester.pickThreat(at.x + RADIUS - 1, at.y, RECT, targets, RADIUS)).toBe(1);
+    expect(tester.pickThreat(at.x + RADIUS + 1, at.y, RECT, targets, RADIUS)).toBeNull();
+  });
+
+  it('includes the boundary of the radius', () => {
+    const targets = { threats: [threat(1)], entries: [entryA] };
+    const at = pxOf(entryA);
+    expect(tester.pickThreat(at.x, at.y + 30, RECT, targets, 30)).toBe(1);
+    expect(tester.pickThreat(at.x, at.y + 30.01, RECT, targets, 30)).toBeNull();
+  });
+
+  it('picks the nearest of two icons within the radius, whatever their order', () => {
+    const a = pxOf(entryA);
+    const b = pxOf(entryB);
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeLessThan(RADIUS * 2);
+    const between = { x: b.x - 2, y: b.y };
+    const forward = { threats: [threat(1), threat(2)], entries: [entryA, entryB] };
+    const backward = { threats: [threat(2), threat(1)], entries: [entryB, entryA] };
+    expect(tester.pickThreat(between.x, between.y, RECT, forward, RADIUS)).toBe(2);
+    expect(tester.pickThreat(between.x, between.y, RECT, backward, RADIUS)).toBe(2);
+    expect(tester.pickThreat(a.x - 2, a.y, RECT, forward, RADIUS)).toBe(1);
+  });
+
+  it('skips a threat that is not telegraphed or open', () => {
+    const at = pxOf(entryA);
+    for (const state of ['idle', 'resolved', 'gag']) {
+      const targets = { threats: [threat(1, state)], entries: [entryA] };
+      expect(tester.pickThreat(at.x, at.y, RECT, targets, RADIUS), state).toBeNull();
+    }
+    const open = { threats: [threat(1, 'windowOpen')], entries: [entryA] };
+    expect(tester.pickThreat(at.x, at.y, RECT, open, RADIUS)).toBe(1);
+  });
+
+  it('ignores an icon outside the frustum, and a point that is not a number', () => {
+    const far = { threatId: 3, xM: -3, yM: 0.3, zM: 0.5 };
+    const farCamera = createIsoCamera();
+    fitIsoCamera(farCamera, ROOM, 2);
+    farCamera.position.set(0, 0, 1000);
+    farCamera.lookAt(0, 0, 0);
+    farCamera.updateMatrixWorld(true);
+    const behind = createHitTester(farCamera);
+    const targets = { threats: [threat(3)], entries: [far] };
+    expect(behind.pickThreat(500, 250, RECT, targets, 10_000)).toBeNull();
+    const at = pxOf(entryA);
+    const ok = { threats: [threat(1)], entries: [entryA] };
+    expect(tester.pickThreat(Number.NaN, at.y, RECT, ok, RADIUS)).toBeNull();
+  });
+
+  it('returns null for a level with no threat', () => {
+    expect(tester.pickThreat(300, 200, RECT, { threats: [], entries: [] }, RADIUS)).toBeNull();
+  });
+});

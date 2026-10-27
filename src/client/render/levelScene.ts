@@ -3,7 +3,7 @@ import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import type { SimMs } from '@shared/time';
-import type { World } from '@sim';
+import type { GagId, World } from '@sim';
 import {
   AmbientLight,
   Color,
@@ -16,9 +16,11 @@ import {
 } from 'three';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { addBlobShadows } from './blobShadow.ts';
+import { createGagFx } from './gags.ts';
 import type { RoomSize } from './isoCamera.ts';
 import { PALETTE } from './materials/palette.ts';
 import { createToonMaterialCache } from './materials/toonMaterial.ts';
+import { createLiftFx } from './vfx/liftHop.ts';
 import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
 import { createBabyView } from './views/babyView.ts';
@@ -45,6 +47,10 @@ export interface LevelFx {
   soundWave(xM: number, zM: number, maxRadiusM: number, durationMs: number, startAt: SimMs): void;
   /** Shakes the room (not the camera) by up to `amplitudeM` for `durationMs`. */
   shake(amplitudeM: number, durationMs: number, startAt: SimMs): void;
+  /** Presents a gag (`GAG_PRESENTATIONS`): the lights go out and come back, Papa's hair stands up. */
+  gag(gag: GagId, startAt: SimMs): void;
+  /** The provisional « lift the baby » pose: a short hop of the baby. */
+  liftBaby(startAt: SimMs): void;
 }
 
 export interface LevelScene {
@@ -61,7 +67,8 @@ export interface LevelScene {
    */
   update(world: Readonly<World>, alpha: number): void;
   /**
-   * Ends the effects under way (rings hidden, shake offset back to zero). Effects advance only
+   * Ends the effects under way (rings hidden, shake offset back to zero, lights back, hair down,
+   * baby on the floor). Effects advance only
    * while the game loop runs; call it when the loop stops, so a frozen mid-effect frame is not what
    * `drawStatic` shows behind the loading or error screen.
    */
@@ -157,7 +164,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const room = roomOf(geometry);
   const centerX = room.centerXM ?? 0;
   const centerZ = room.centerZM ?? 0;
-  scene.add(new AmbientLight(0xffffff, AMBIENT_INTENSITY));
+  const ambient = new AmbientLight(0xffffff, AMBIENT_INTENSITY);
+  scene.add(ambient);
   const sun = new DirectionalLight(0xffffff, SUN_INTENSITY);
   sun.position.set(centerX + SUN_OFFSET_M[0], SUN_OFFSET_M[1], centerZ + SUN_OFFSET_M[2]);
   sun.target.position.set(centerX, 0, centerZ);
@@ -169,10 +177,22 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const baby = createBabyView(content, toon, shadows.kit, bodies.babyRadiusM);
   const waves = createSoundWaves(content, PALETTE.ink);
   const shake = createShake(content);
+  // The gags move the lights (the room's lights are « the lamp » until E7) and Papa's hair; the
+  // hop moves the baby. Both on the sim clock.
+  const gags = createGagFx({
+    setLightsFactor: (factor) => {
+      ambient.intensity = AMBIENT_INTENSITY * factor;
+      sun.intensity = SUN_INTENSITY * factor;
+    },
+    setHairAmount: (amount) => papa.setHair(amount),
+  });
+  const lift = createLiftFx((heightM) => baby.setLiftM(heightM));
   const fx: LevelFx = {
     soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
       waves.play(xM, zM, maxRadiusM, durationMs, startAt),
     shake: (amplitudeM, durationMs, startAt) => shake.start(amplitudeM, durationMs, startAt),
+    gag: (gag, startAt) => gags.start(gag, startAt),
+    liftBaby: (startAt) => lift.start(startAt),
   };
 
   return {
@@ -186,10 +206,14 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       const clockMs = world.time.sim + alpha * STEP_MS;
       waves.update(clockMs);
       shake.update(clockMs);
+      gags.update(clockMs);
+      lift.update(clockMs);
     },
     resetFx() {
       waves.reset();
       shake.reset();
+      gags.reset();
+      lift.reset();
     },
     dispose() {
       waves.dispose();

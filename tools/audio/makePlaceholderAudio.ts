@@ -8,7 +8,7 @@ import { type AppError, err, ok, type Result } from '@shared/result';
 import { createRng, nextFloat, type RngState } from '@shared/rng';
 import { ROOT } from '../assets/paths.ts';
 
-// The three provisional sounds of story 1.9, synthesized so that the whole audio pipeline works
+// The provisional sounds of stories 1.9 and 1.11 (the outlet's four cues), synthesized so that the whole audio pipeline works
 // end to end with no human (golden rule). Real sounds replace the `.m4a` files under the same
 // names (stories 2.3 and 7.5). The tool is macOS only (`afconvert`) and CI never runs it.
 
@@ -48,6 +48,36 @@ const BUMP_PITCH_HZ = { from: 180, to: 80 };
 const BUMP_ATTACK_MS = 2;
 const BUMP_DECAY_S = 0.05;
 const BUMP_RELEASE_MS = 5;
+
+const TEL_LENGTH_MS = 300;
+const TEL_PITCH_HZ = { from: 220, to: 660 };
+/** Rate of the buzz's amplitude flutter, the electric part of the telegraph. */
+const TEL_BUZZ_HZ = 55;
+const TEL_BUZZ_DEPTH = 0.5;
+const TEL_ATTACK_MS = 8;
+const TEL_RELEASE_MS = 40;
+
+const PARRY_LENGTH_MS = 150;
+const PARRY_PITCH_HZ = { from: 520, to: 780 };
+const PARRY_ATTACK_MS = 2;
+const PARRY_DECAY_S = 0.04;
+const PARRY_RELEASE_MS = 10;
+
+const PERFECT_LENGTH_MS = 350;
+/** The chime rings after the pop: two sines a fifth apart. */
+const PERFECT_CHIME_HZ = [1046.5, 1568];
+const PERFECT_CHIME_DELAY_MS = 60;
+const PERFECT_CHIME_DECAY_S = 0.09;
+const PERFECT_CHIME_GAIN = 0.7;
+const PERFECT_RELEASE_MS = 25;
+
+const GAG_LENGTH_MS = 500;
+const GAG_CRACKLE_MS = 160;
+/** Share of the crackle's samples that are a click, in percent. */
+const GAG_CRACKLE_DENSITY_PCT = 6;
+const GAG_BZZT_PITCH_HZ = { from: 420, to: 90 };
+const GAG_BZZT_DECAY_S = 0.18;
+const GAG_BZZT_RELEASE_MS = 40;
 
 const samplesOf = (ms: number): number => Math.round((ms / 1000) * SAMPLE_RATE_HZ);
 const between = (rng: RngState, range: { min: number; max: number }): number =>
@@ -157,6 +187,100 @@ export function synthBump(): Float32Array {
   return out;
 }
 
+/** A short rising electric buzz: a saw sweeping up, flickering in amplitude. */
+export function synthTelegraph(): Float32Array {
+  const out = new Float32Array(samplesOf(TEL_LENGTH_MS));
+  const attack = samplesOf(TEL_ATTACK_MS);
+  const release = samplesOf(TEL_RELEASE_MS);
+  let cycle = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const frequencyHz = TEL_PITCH_HZ.from + (TEL_PITCH_HZ.to - TEL_PITCH_HZ.from) * progress;
+    cycle += frequencyHz / SAMPLE_RATE_HZ;
+    const saw = 2 * (cycle - Math.floor(cycle + 0.5));
+    const flutter =
+      1 - TEL_BUZZ_DEPTH * (0.5 + 0.5 * Math.sin((2 * Math.PI * TEL_BUZZ_HZ * i) / SAMPLE_RATE_HZ));
+    out[i] = saw * flutter * Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A bright « pop »: a sine that jumps up in pitch and dies fast. */
+export function synthParry(): Float32Array {
+  const out = new Float32Array(samplesOf(PARRY_LENGTH_MS));
+  const attack = samplesOf(PARRY_ATTACK_MS);
+  const release = samplesOf(PARRY_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const frequencyHz =
+      PARRY_PITCH_HZ.to -
+      (PARRY_PITCH_HZ.to - PARRY_PITCH_HZ.from) * Math.exp(-seconds / PARRY_DECAY_S);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const envelope =
+      Math.min(1, i / attack, (out.length - i) / release) * Math.exp(-seconds / PARRY_DECAY_S);
+    out[i] = Math.sin(phase) * envelope;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** The pop plus a higher chime that rings after it. */
+export function synthParryPerfect(): Float32Array {
+  const out = new Float32Array(samplesOf(PERFECT_LENGTH_MS));
+  const pop = synthParry();
+  out.set(pop.subarray(0, Math.min(pop.length, out.length)));
+  const start = samplesOf(PERFECT_CHIME_DELAY_MS);
+  for (let i = start; i < out.length; i++) {
+    const seconds = (i - start) / SAMPLE_RATE_HZ;
+    let chime = 0;
+    for (const frequencyHz of PERFECT_CHIME_HZ)
+      chime += Math.sin(2 * Math.PI * frequencyHz * seconds);
+    const attack = Math.min(1, (i - start) / samplesOf(PARRY_ATTACK_MS));
+    out[i] =
+      (out[i] as number) +
+      PERFECT_CHIME_GAIN * attack * chime * Math.exp(-seconds / PERFECT_CHIME_DECAY_S);
+  }
+  fadeEnds(out, PERFECT_RELEASE_MS);
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A crackle, then a descending « bzzt ». */
+export function synthGagOutlet(): Float32Array {
+  const rng = createRng(SEED + 2);
+  const out = new Float32Array(samplesOf(GAG_LENGTH_MS));
+  const crackle = samplesOf(GAG_CRACKLE_MS);
+  for (let i = 0; i < crackle; i++) {
+    if (nextFloat(rng) * 100 < GAG_CRACKLE_DENSITY_PCT)
+      out[i] = (nextFloat(rng) * 2 - 1) * (1 - i / crackle);
+  }
+  const release = samplesOf(GAG_BZZT_RELEASE_MS);
+  let cycle = 0;
+  for (let i = crackle; i < out.length; i++) {
+    const seconds = (i - crackle) / SAMPLE_RATE_HZ;
+    const progress = (i - crackle) / (out.length - crackle);
+    const frequencyHz =
+      GAG_BZZT_PITCH_HZ.from + (GAG_BZZT_PITCH_HZ.to - GAG_BZZT_PITCH_HZ.from) * progress;
+    cycle += frequencyHz / SAMPLE_RATE_HZ;
+    const square = Math.sin(2 * Math.PI * cycle) > 0 ? 1 : -1;
+    out[i] =
+      0.6 *
+      square *
+      Math.min(1, (out.length - i) / release) *
+      Math.exp(-seconds / GAG_BZZT_DECAY_S);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -184,6 +308,10 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'baby_babble_loop', synth: synthBabble },
   { clip: 'music_crawler_calm', synth: synthMusic },
   { clip: 'papa_bump', synth: synthBump },
+  { clip: 'tel_outlet', synth: synthTelegraph },
+  { clip: 'resp_parry', synth: synthParry },
+  { clip: 'resp_parry_perfect', synth: synthParryPerfect },
+  { clip: 'gag_outlet', synth: synthGagOutlet },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

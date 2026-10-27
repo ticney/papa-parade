@@ -10,7 +10,11 @@ import {
   SAMPLE_RATE_HZ,
   synthBabble,
   synthBump,
+  synthGagOutlet,
   synthMusic,
+  synthParry,
+  synthParryPerfect,
+  synthTelegraph,
 } from '../../../tools/audio/makePlaceholderAudio.ts';
 
 const peakOf = (samples: Float32Array): number =>
@@ -62,6 +66,21 @@ describe('placeholder audio', () => {
     doubled.set(babble);
     doubled.set(babble, babble.length);
     expect(longestSilenceS(doubled)).toBeLessThan(0.4);
+  });
+
+  it('has the lengths of the outlet clips: 300, 150, 350 and 500 ms', () => {
+    const ms = (samples: Float32Array): number => (samples.length / SAMPLE_RATE_HZ) * 1000;
+    expect(ms(synthTelegraph())).toBeCloseTo(300, 0);
+    expect(ms(synthParry())).toBeCloseTo(150, 0);
+    expect(ms(synthParryPerfect())).toBeCloseTo(350, 0);
+    expect(ms(synthGagOutlet())).toBeCloseTo(500, 0);
+  });
+
+  it('lists the four outlet clips by the names the feedback table uses', () => {
+    const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+    for (const clip of ['tel_outlet', 'resp_parry', 'resp_parry_perfect', 'gag_outlet']) {
+      expect(names, clip).toContain(clip);
+    }
   });
 
   it('keeps the music quiet, around -12 dBFS', () => {

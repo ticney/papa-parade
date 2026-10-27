@@ -10,6 +10,7 @@ import {
   pauseButton,
   sceneShot,
   startLevel,
+  THREATS_OFF,
   waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
@@ -27,6 +28,8 @@ const DETOUR_FACTOR = 3;
 const WANDER_BOUND_MS =
   ((FEEL.wanderMaxDistM * DETOUR_FACTOR) / FEEL.crawlSpeedMps) * 1000 + OVERRUN_MARGIN_MS;
 
+// The wander cycle is what these specs read: the live level's outlet (story 1.11) would send the
+// baby to the wall after 4 s of play, so they load the level without its threats.
 test.describe('the baby lives in the living room', () => {
   test.setTimeout(60_000);
 
@@ -42,7 +45,7 @@ test.describe('the baby lives in the living room', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await startLevel(page);
+    await startLevel(page, THREATS_OFF);
     // `startLevel` returns once the countdown is over: the sim has just started running.
     await expect(html(page)).toHaveAttribute('data-pp-baby-state', 'wander', {
       timeout: FEEL.babbleMinMs + RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS,
@@ -57,7 +60,7 @@ test.describe('the baby lives in the living room', () => {
   test('freezes with the pause: its state, its position and the picture of the room', async ({
     page,
   }) => {
-    await startLevel(page);
+    await startLevel(page, THREATS_OFF);
     await expect(html(page)).toHaveAttribute('data-pp-baby-state', 'wander', {
       timeout: FEEL.babbleMinMs + RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS,
     });
@@ -74,7 +77,7 @@ test.describe('the baby lives in the living room', () => {
   });
 
   test('« Recommencer » puts the baby back at the spawn, babbling', async ({ page }) => {
-    await startLevel(page);
+    await startLevel(page, THREATS_OFF);
     await expect(html(page)).toHaveAttribute('data-pp-baby-state', 'wander', {
       timeout: FEEL.babbleMinMs + RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS,
     });

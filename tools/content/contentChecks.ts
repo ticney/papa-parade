@@ -123,7 +123,8 @@ const exists = (path: string): Promise<boolean> =>
 /**
  * The cross-references of `feedback.json` that its schema cannot see: an `events` key is the name
  * of a sim or client event (a typo is a cue that never plays), a client event's cue has neither
- * visual nor camera (they need a world), and every clip is a file under `public/assets/audio/`.
+ * visual nor camera (they need a world), a cue an event points at has no `threat`-anchored visual
+ * (a generic event names no threat), and every clip is a file under `public/assets/audio/`.
  * (That an `events` value is a cue of `cues` is the schema's own check.)
  */
 async function checkFeedbackReferences(
@@ -154,6 +155,14 @@ async function checkFeedbackReferences(
         file,
         jsonPath: formatJsonPath(['events', name]),
         message: `"${name}" is a client event with no world: its cue "${cueId}" cannot have a visual or a camera`,
+      });
+    }
+    // A generic event names no threat: a ring anchored on one has nowhere to start from.
+    if (cue?.visual?.anchor === 'threat') {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['cues', cueId, 'visual', 'anchor']),
+        message: `the cue "${cueId}" is played by the event "${name}", which names no threat: its visual cannot be anchored on a threat`,
       });
     }
   }

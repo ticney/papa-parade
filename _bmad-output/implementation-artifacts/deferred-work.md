@@ -82,7 +82,7 @@
 - **Focus and screen-reader semantics.** No focus restore when an overlay closes, no Tab trap in the `aria-modal` panel, no focus target for the countdown, the start button's `aria-label` hides the title, no role on the portrait overlay. The story pins focus to `document.body` after the panel and `aria-label` = the prompt. Accessibility pass, story 2.10.
 - **The start screen starts on any window `pointerup`,** including the tail of a gesture begun before it was mounted. D15 pins it; require a `pointerdown` seen while mounted when the audio unlock is checked on a device. Story 1.9. **Resolved in story 1.9:** a tap or click starts only on the `pointerup` of a pointer whose primary `pointerdown` the screen saw while mounted (`createStartGesture`); keys are unchanged.
 - **`paint-order` fallback for `.pp-stroked`.** Chromium 123+ and Safari 11+ paint the stroke behind the fill for HTML text; an older WebView would let the stroke eat the glyphs. Add an `@supports not (paint-order: stroke fill)` fallback if the device pass finds one. E8 device pass.
-- **The press state machine has no unit test** (pointer id tracking, `detail === 0`, slide-out, multi-touch); only `isInsideRect` does. Extract a pure reducer with the input mapper. Story 1.11.
+- **The press state machine has no unit test** (pointer id tracking, `detail === 0`, slide-out, multi-touch); only `isInsideRect` does. Extract a pure reducer with the input mapper. Story 1.11. **Partly resolved in story 1.11:** the in-game threat press is a pure, tested tracker (`threatPress.ts`); the UI button press machine (`pressButton.ts`) is unchanged, moved to the accessibility pass (2.10).
 - **No « every animation has a reduced-motion override » check** in `tests/architecture/designTokens.ts`. With the « Réduire les animations » setting, story 2.8.
 
 ## Deferred from: implementation of story 1-6-salon-greybox-depuis-blender (2026-10-27)
@@ -112,13 +112,13 @@
 - **Iso-flattened tap marker** (an ellipse lying on the floor) if Geo prefers it to the flat circle on screen (Open point 5).
 - **Clearance per agent from data** beyond `papaRadiusM`. The baby's radius and grid arrive with story 1.8 (`ctx.nav.baby`). **Resolved in story 1.8:** `feel.baby.bodyRadiusM` and `ctx.nav.baby` (built once, with the baby's own clearance).
 - **Debug view of the open mask and the path** (story 2.1's navigation view). The client has the geometry; the sim keeps the grid in `ctx.nav`, outside `World`.
-- **A tap on a threat, the baby or an object** (hit-test priority threat > baby > object > floor): stories 1.11, 1.17 and the interactions of 1.19 / 1.20. `createHitTester` only picks the floor today.
+- **A tap on a threat, the baby or an object** (hit-test priority threat > baby > object > floor): stories 1.11, 1.17 and the interactions of 1.19 / 1.20. `createHitTester` only picks the floor today. **Partly resolved in story 1.11:** threat > floor (`pickThreat`); the baby and objects stay with 1.17, 1.19 and 1.20.
 - **The Gamepad API is secure-context only.** Over plain `http://<LAN ip>` (a phone on `npm run dev --host`) `navigator.getGamepads` is missing: the game logs one `warn` and plays without a pad. Playtest over HTTPS (story 1.24) if a pad matters there.
 
 ## Deferred from: code review of story 1-7-deplacer-papa (2026-10-27)
 
 - **Tap marker at the raw tapped point.** It does not move to the snapped target and a failed tap (`findPath` false) still shows it; a marker at `PapaPathPlanned`'s target or a « denied » marker is a design choice. Reason: matches UX-DR9, Open point 5 with Geo.
-- **`#pp-world` is `inset: 0` while taps use the canvas rect.** A letterboxed or inset canvas (notch, HUD insets) would offset the marker. Reason: equal today, safe areas come with story 2.10.
+- **`#pp-world` is `inset: 0` while taps use the canvas rect.** A letterboxed or inset canvas (notch, HUD insets) would offset the marker. Reason: equal today, safe areas come with story 2.10. *Still open after story 1.11: the threat icons share the assumption (hit test on the canvas rect, layer on the window).*
 - **Tap marker and `prefers-reduced-motion` / pause.** The marker animates regardless and keeps fading behind the pause panel. Reason: accessibility pass, story 2.10.
 - **Papa's yaw has no smoothing** (shortest-arc turn, turn rate in `feel.json`). Reason: Papa is a provisional cube, art pass E7.
 - **E2E brittleness.** Taps are chosen by screen share and tied to the level art, `startWalking` walks only a few seconds (a `walkPath` assertion can race), the pause-gate tests are trivially true. Reason: resolve taps from the sim's nav grid when the e2e suite is reworked.
@@ -145,8 +145,8 @@
 - **Countdown tick sound.** Needs the context running during the countdown with the game buses held silent (the epic resumes audio at the countdown's end, so today the tick is a vibration and the digit's CSS pulse).
 - **Volumes and the « Vibrations » toggle** (`save.settings.volumes`, `settings.haptics`): story 2.8. The bus gains of `feedback.json` are the mix; the player's volumes will multiply them.
 - **More visual and camera kinds** (`flash`, `bubble`, `zoom`) and the full twins: stories 2.4, 2.5. The in-game reduced-motion setting: story 2.10 (today the OS query only).
-- **Sound waves as final art**, waves anchored on threats or props (`anchor` gains values with 1.11 / 1.15): E7 and those stories. Today's ring is small on screen (0.6 m in an 8 m room, ink on cream) and starts hidden under Papa's body; Geo tunes `maxRadiusM` / `durationMs` in `feedback.json` and the ring's thickness constant in `soundWaves.ts`.
-- **Per-level audio manifest** (only the clips a level uses): with `LevelSchema`, story 1.10 or later. Today every clip of `feedback.json` is preloaded. *Still open after story 1.10: with story 1.11 (the first threat cues with sounds) or 1.18.*
+- **Sound waves as final art**, waves anchored on threats or props (`anchor` gains values with 1.11 / 1.15): E7 and those stories. **Partly resolved in story 1.11:** `anchor: 'threat'` (the threat an event names, for the cues a threat def points at); props stay with 1.15. Today's ring is small on screen (0.6 m in an 8 m room, ink on cream) and starts hidden under Papa's body; Geo tunes `maxRadiusM` / `durationMs` in `feedback.json` and the ring's thickness constant in `soundWaves.ts`.
+- **Per-level audio manifest** (only the clips a level uses): with `LevelSchema`, story 1.10 or later. Today every clip of `feedback.json` is preloaded. *Still open after story 1.10: with story 1.11 (the first threat cues with sounds) or 1.18.* *Still open after story 1.11 (four tiny clips added, every clip is still preloaded): moved to story 1.18.*
 - **Real sounds.** The three `.m4a` files are synthesized beeps (`npm run assets:audio`, macOS only); replace them under the same names (stories 2.3, 7.5). Nobody has listened to them yet: see the Completion Notes of story 1.9.
 
 
@@ -160,10 +160,10 @@
 
 ## Deferred from: implementation of story 1-10-premiere-menace-jugee-en-headless-la-prise-electrique (2026-10-27)
 
-- **A press enqueued after its window expired** (a client whose time map lags by more than one step at the window's end) is lost: the threat already gagged `late`. Commands run before the expiry in a step, which covers a same-step arrival; anything later is story 1.11's input pipeline to watch (`tapLatency`), or a small expiry grace in the feel if the playtest shows it.
+- **A press enqueued after its window expired** (a client whose time map lags by more than one step at the window's end) is lost: the threat already gagged `late`. Commands run before the expiry in a step, which covers a same-step arrival; anything later is story 1.11's input pipeline to watch (`tapLatency`), or a small expiry grace in the feel if the playtest shows it. *Watched, not changed, in story 1.11: `tapLatency` measures the visual side only; the window side needs a lagging time map to show up. Keep open for the playtest (1.24).*
 - **`targeted` state and a reach gate** (P1): only if a later threat needs the baby in reach before its telegraph.
 - **Several simultaneous threats and one baby**: the baby locks on the first active threat; story 1.18 decides how waves share it.
-- **Gag consequences** (noise, mess, near miss, score) and the **gag presentation**: E3, 1.15, 1.16, 1.22 and 1.11.
+- **Gag consequences** (noise, mess, near miss, score) and the **gag presentation**: E3, 1.15, 1.16, 1.22 and 1.11. *Presentation resolved in story 1.11 (provisional: the lights dim, Papa's hair stands up); consequences stay with E3, 1.15, 1.16, 1.22.*
 - **`feelOverrides` in `LevelSchema`** and the client merge (`mergeFeel` is ready): the first level that needs one, story 1.18 at the latest.
 - **A threat's `window` is called `responseWindow`.** `tests/architecture/simPurity` forbids the identifier `window` in `src/sim` (any declaration, parameter or key), so the story's `ThreatInstance.window` became `responseWindow`. Keep the name; do not weaken the scanner.
 - **The baby never abandons an `act`.** Story 1.10's rule 1 would send it back to `babble` as soon as a short cooldown re-arms the threat; `act` is now played out for `actMs` whatever the threat does (a cooldown shorter than `actMs` is the only way to see the difference). Confirmed in the code review of 2026-10-27: kept (the spec's rule 1 was amended).
@@ -177,3 +177,13 @@
 - **A degenerate `glideMaxMs` (0 or tiny) gives a wrong `arriveAt` or a huge `speedMps`** (`glide.ts`). Reason: enforce a floor in the feel schema when story 1.14 tunes the glide.
 - **`threatCatalog.test.ts` hard-codes anchor `outlet_01` and a Parry release for every def.** Reason: story 1.16 (second threat) is the first to break it; derive both from the def then.
 - **`loadLevelContent` does not check `levelId` against `SNAKE_ID_PATTERN`**, and a non-snake file name under `levels/` or `threats/` reports "no schema registered" instead of "id must be lower_snake_case". Reason: the level id is a code constant today.
+
+## Deferred from: implementation of story 1-11-parer-la-prise-electrique-au-tap (2026-10-27)
+
+- **Glide start under slow-mo or hitstop** (D2): the glide starts with the step that applies the press, so at ×1 Papa moves on the next frame that runs a step, but under the perfect slow-mo or a hitstop it can start a frame or two later. The highlight is always drawn the frame after `pointerdown`. Reason: story 1.14 decides whether the client must predict the glide.
+- **Multi-touch on several threats** (D6): `Release` names no threat and ends every pending press, so only the primary pointer presses a threat. Reason: story 1.16 or 1.18, the first time two threats are active together.
+- **A real lamp in the room and real gag / lift animations** (D9, D10): the room's lights are « the lamp » and the lift is a hop of the baby sphere. Reason: E7 (or a Blender pass if Geo wants the lamp sooner).
+- **The halo and chevron animations run on real time**, so they keep moving behind the pause panel (like the tap marker). Reason: accessibility pass, story 2.10.
+- **`?threats=off` is a test switch** (debug builds only). Remove it if story 1.13's `window.__PP__.loadLevel()` makes it redundant.
+- **Placeholder sounds and ring sizes** of the four outlet cues (`tel_outlet`, `resp_parry`, `resp_parry_perfect`, `gag_outlet`) are synthesized and unheard by the dev; volumes and radii in `feedback.json` are starting values. Reason: Geo tunes them; stories 2.3 and 7.5 replace the clips under the same names.
+- **A press that resolves its threat in the frame it is pressed** keeps the icon and highlight up for one more frame (the highlight must be drawn once). Reason: by design of the NFR2 budget; revisit if it reads as a flicker in the playtest.

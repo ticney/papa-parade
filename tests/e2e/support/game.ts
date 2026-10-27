@@ -34,6 +34,7 @@ export function hapticPatternOf(event: string): number[] | null {
 }
 
 export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
+  timing: { telegraphDelayDefaultMs: number; windowMs: number; toleranceMs: number };
   movement: { walkSpeedMps: number };
   baby: {
     crawlSpeedMps: number;
@@ -42,6 +43,34 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     wanderMaxDistM: number;
   };
 };
+
+/** The live level's plan and the outlet def, read here and never copied: Geo retunes both freely. */
+const liveLevel = JSON.parse(readFileSync('content/levels/salon_crawler.json', 'utf8')) as {
+  threats: { def: string; anchor: string; fromMs: number }[];
+};
+export const liveOutlet = JSON.parse(readFileSync('content/threats/outlet.json', 'utf8')) as {
+  telegraphDelayMs: number | null;
+  windowMs: number | null;
+  cooldownMs: number;
+  feedback: { telegraph: string; success: string; perfect: string; gag: string };
+};
+/** Sim ms from the start of the level to the first telegraph of the live plan. */
+export const FIRST_TELEGRAPH_MS = Math.min(...liveLevel.threats.map((entry) => entry.fromMs));
+/** Sim ms from a telegraph to the opening of the window. */
+export const TELEGRAPH_DELAY_MS =
+  liveOutlet.telegraphDelayMs ?? liveFeel.timing.telegraphDelayDefaultMs;
+/** Sim ms a window stays open for a press, tolerance included. */
+export const WINDOW_OPEN_MS =
+  (liveOutlet.windowMs ?? liveFeel.timing.windowMs) + liveFeel.timing.toleranceMs;
+
+/** The vibration pattern the live table gives a cue (`cues` -> `haptic` -> `haptics`), or `null`. */
+export function hapticPatternOfCue(cueId: string): number[] | null {
+  const kind = liveFeedback.cues[cueId]?.haptic;
+  return kind === undefined ? null : liveFeedback.haptics[kind].patternMs;
+}
+
+/** The query that loads the level with no planned threat (debug builds only). */
+export const THREATS_OFF = '?threats=off';
 
 /** Where an anchor of the live room is, in metres, as the debug mirrors write it (two decimals). */
 export function anchorMirror(id: string): { x: number; z: number } {
@@ -74,19 +103,40 @@ export function html(page: Page): Locator {
  * Opens the app and waits until it shows the start screen. `data-pp-app` and `data-pp-state` are
  * written by the composition root in dev and playtest builds only, once everything is up.
  */
-export async function openGame(page: Page): Promise<void> {
-  await page.goto('/');
+export async function openGame(page: Page, query = ''): Promise<void> {
+  await page.goto(`/${query}`);
   await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
 }
 
 /** Opens the app, presses the start screen and waits for the level to be running (countdown included). */
-export async function startLevel(page: Page): Promise<void> {
-  await openGame(page);
+export async function startLevel(page: Page, query = ''): Promise<void> {
+  await openGame(page, query);
   await page.locator('.pp-start-screen').click();
   await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
   await expect(html(page)).toHaveAttribute('data-pp-state', 'running', {
     timeout: RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS,
   });
+}
+
+/**
+ * Waits for the threat to reach `state` (`telegraph`, `windowOpen`, `resolved`, `gag` or `idle`) as
+ * the app mirrors it, polling on every display frame: a press has to land inside a window of a few
+ * hundred ms, which a slower poll could eat.
+ */
+export function waitForThreat(page: Page, state: string, timeoutMs: number): Promise<unknown> {
+  return page.waitForFunction(
+    (wanted) => document.documentElement.dataset.ppThreat?.endsWith(`:${wanted}`) === true,
+    state,
+    { polling: 'raf', timeout: timeoutMs },
+  );
+}
+
+/** The centre of the threat icon in page coordinates, as the app mirrors it on a telegraph. */
+export async function threatIconPoint(page: Page): Promise<{ x: number; y: number }> {
+  const value = await html(page).getAttribute('data-pp-threat-px');
+  const match = /^(-?\d+\.\d),(-?\d+\.\d)$/.exec(value ?? '');
+  if (match === null) throw new Error(`data-pp-threat-px is "${String(value)}", not "x,y"`);
+  return { x: Number(match[1]), y: Number(match[2]) };
 }
 
 /** The audio context state the app mirrors: `none` before the first gesture, then the context's own. */

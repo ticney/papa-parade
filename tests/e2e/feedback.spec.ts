@@ -22,6 +22,7 @@ import {
   recordVibrations,
   setVisibility,
   startLevel,
+  THREATS_OFF,
   vibrations,
   WALK_BOUND_MS,
   waitFrames,
@@ -127,6 +128,8 @@ test.describe('audio', () => {
   });
 });
 
+// These two count every cue and vibration exactly: the live level's outlet (story 1.11) plays its
+// own, so they load the level without its threats.
 test.describe('feedback', () => {
   test('reports whether the device can vibrate: Chromium yes, WebKit (Safari) no', async ({
     page,
@@ -140,7 +143,7 @@ test.describe('feedback', () => {
   }) => {
     const problems = collectProblems(page);
     await recordVibrations(page);
-    await startLevel(page);
+    await startLevel(page, THREATS_OFF);
     await expect(html(page)).toHaveAttribute('data-pp-cue', TICK_CUE);
     const before = await cueCount(page);
     const vibrationsBefore = (await vibrations(page)).length;
@@ -164,7 +167,7 @@ test.describe('feedback', () => {
   }) => {
     const problems = collectProblems(page);
     await recordVibrations(page);
-    await startLevel(page);
+    await startLevel(page, THREATS_OFF);
     await page.keyboard.press('Escape');
     await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
     const countBefore = await cueCount(page);

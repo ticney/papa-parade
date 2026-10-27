@@ -118,6 +118,21 @@ describe('createBabyView', () => {
     expect(marker.z).toBeCloseTo(1, 12);
   });
 
+  it('lifts the body and its gaze marker, not the shadow, and puts them back', () => {
+    const { scene, view } = build(0.2);
+    view.update(baby(), 1);
+    view.setLiftM(0.3);
+    const body = scene.getObjectByName('baby') as Mesh;
+    const gazeGroup = scene.getObjectByName('baby_gaze_group') as Mesh;
+    const shadowY = (scene.getObjectByName('blob_baby') as Mesh).position.y;
+    expect(body.position.y).toBeCloseTo(0.5, 12);
+    expect(gazeGroup.position.y).toBeCloseTo(0.5, 12);
+    expect((scene.getObjectByName('blob_baby') as Mesh).position.y).toBe(shadowY);
+    view.setLiftM(0);
+    expect(body.position.y).toBe(0.2);
+    expect(gazeGroup.position.y).toBe(0.2);
+  });
+
   it('the shadow follows the position but does not rise', () => {
     const { scene, view } = build();
     view.update(baby(), 1);

@@ -1,10 +1,11 @@
 import { asSimMs } from '@shared/time';
 import type { SimCommand } from '@sim';
+import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import { createIsoCamera, fitIsoCamera } from '../render/isoCamera.ts';
 import type { StickAxes } from './gamepadInput.ts';
-import { createHitTester } from './hitTest.ts';
+import { createHitTester, type ThreatTargets } from './hitTest.ts';
 import { createInputMapper } from './inputMapper.ts';
 import { createMoveIntent } from './moveIntent.ts';
 import type { PointerSample } from './pointerInput.ts';
@@ -18,6 +19,7 @@ const ROOM = {
   centerZM: -0.1,
 };
 const RECT = { left: 100, top: 50, width: 800, height: 400 };
+const TOUCH_RADIUS_PX = 48;
 
 const click = (
   clientX: number,
@@ -29,6 +31,7 @@ const click = (
   timeStamp: 1234,
   isPrimary: true,
   button: 0,
+  pointerId: 1,
   ...extra,
 });
 
@@ -47,6 +50,8 @@ function setup() {
   const markers: [number, number][] = [];
   const taps: [number, number][] = [];
   let nowAtReal = 2000;
+  const pressedIds: number[] = [];
+  let targets: ThreatTargets | null = null;
   const moveIntent = createMoveIntent({
     camera,
     input: { stickDeadzonePct: 20, stickAngleStepDeg: 5 },
@@ -69,6 +74,9 @@ function setup() {
     held,
     gamepad: { poll: (out: StickAxes) => Object.assign(out, state.stick) },
     moveIntent,
+    getThreatTargets: () => targets,
+    touchRadiusPx: TOUCH_RADIUS_PX,
+    onThreatPressed: (id) => pressedIds.push(id),
     showTapMarker: (x, z) => markers.push([x, z]),
     onTap: (x, z) => taps.push([x, z]),
     nowAtReal: () => nowAtReal,
@@ -81,6 +89,8 @@ function setup() {
     markers,
     taps,
     camera,
+    pressedIds,
+    setTargets: (next: ThreatTargets | null) => (targets = next),
     setActive: (next: ActiveLevel | null) => (active = next),
     newSim: () => {
       const other = {
@@ -280,6 +290,127 @@ describe('createInputMapper: movement', () => {
     state.stick = { x: 0.9, y: 0 };
     state.pause = 'paused';
     mapper.pollGamepad();
+    expect(commands).toEqual([]);
+  });
+});
+
+describe('createInputMapper: threats', () => {
+  /** An outlet-like icon at (-3, 0.3, 0.5): where it lands on screen with the test camera. */
+  const ICON = { threatId: 4, xM: -3, yM: 0.3, zM: 0.5 };
+  const threat = (state: string, id = 4) => ({ id, state }) as never;
+
+  function withThreat(state = 'windowOpen') {
+    const env = setup();
+    env.setTargets({ threats: [threat(state)], entries: [ICON] });
+    const probe = new Vector3(ICON.xM, ICON.yM, ICON.zM).project(env.camera);
+    const iconPx = {
+      x: RECT.left + ((probe.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - probe.y) / 2) * RECT.height,
+    };
+    return { ...env, iconPx };
+  }
+
+  it('turns a press on the icon into PressThreat, stamped in sim time, with no floor tap and no marker', () => {
+    const { mapper, commands, markers, taps, pressedIds, iconPx } = withThreat();
+    mapper.handlePointerDown(click(iconPx.x + 10, iconPx.y - 10));
+    expect(commands).toEqual([{ type: 'PressThreat', t: 234, threatId: 4 }]);
+    expect(markers).toEqual([]);
+    expect(taps).toEqual([]);
+    expect(pressedIds).toEqual([4]);
+  });
+
+  it('is a floor tap outside the radius, exactly as before', () => {
+    const { mapper, commands, markers, pressedIds, iconPx } = withThreat();
+    mapper.handlePointerDown(click(iconPx.x + TOUCH_RADIUS_PX + 5, iconPx.y));
+    expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
+    expect(markers).toHaveLength(1);
+    expect(pressedIds).toEqual([]);
+  });
+
+  it('presses only a telegraphed or open threat: an idle, resolved or gag one is the floor', () => {
+    for (const state of ['idle', 'resolved', 'gag']) {
+      const { mapper, commands, iconPx } = withThreat(state);
+      mapper.handlePointerDown(click(iconPx.x, iconPx.y));
+      expect(
+        commands.map((c) => c.type),
+        state,
+      ).toEqual(['TapFloor']);
+    }
+  });
+
+  it('is a floor tap when the level has no threat targets', () => {
+    const { mapper, commands, setTargets } = withThreat();
+    setTargets(null);
+    mapper.handlePointerDown(click(300, 200));
+    expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
+  });
+
+  it('sends Release when the pressing pointer lets go, stamped in sim time, wherever the finger is', () => {
+    const { mapper, commands, iconPx } = withThreat();
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y, { pointerId: 5 }));
+    mapper.handlePointerUp(click(0, 0, { pointerId: 5, timeStamp: 1300 }));
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 234, threatId: 4 },
+      { type: 'Release', t: 300 },
+    ]);
+  });
+
+  it('sends Release once, and only for the pointer that pressed', () => {
+    const { mapper, commands, iconPx } = withThreat();
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y, { pointerId: 5 }));
+    mapper.handlePointerUp(click(0, 0, { pointerId: 6 }));
+    expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+    mapper.handlePointerUp(click(0, 0, { pointerId: 5 }));
+    mapper.handlePointerUp(click(0, 0, { pointerId: 5 }));
+    expect(commands.map((c) => c.type)).toEqual(['PressThreat', 'Release']);
+  });
+
+  it('sends nothing for the up of a floor tap', () => {
+    const { mapper, commands } = withThreat();
+    mapper.handlePointerDown(click(300, 200, { pointerId: 2 }));
+    mapper.handlePointerUp(click(300, 200, { pointerId: 2 }));
+    expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
+  });
+
+  it('still sends Release while the game is paused or counting down', () => {
+    const { mapper, commands, state, iconPx } = withThreat();
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y));
+    state.pause = 'paused';
+    mapper.handlePointerUp(click(0, 0, { timeStamp: 1500 }));
+    expect(commands.at(-1)).toEqual({ type: 'Release', t: 500 });
+  });
+
+  it('a pause request with a finger down sends Release at the sim clock, and the later up sends nothing', () => {
+    const { mapper, commands, iconPx } = withThreat();
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y));
+    mapper.releaseHeld();
+    expect(commands.at(-1)).toEqual({ type: 'Release', t: 777 });
+    mapper.handlePointerUp(click(0, 0));
+    mapper.releaseHeld();
+    expect(commands.map((c) => c.type)).toEqual(['PressThreat', 'Release']);
+  });
+
+  it('forgets a press of the previous level without sending anything', () => {
+    const { mapper, commands, iconPx, setActive, newSim } = withThreat();
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y));
+    setActive(newSim());
+    mapper.handlePointerUp(click(0, 0));
+    mapper.releaseHeld();
+    expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+  });
+
+  it('ignores a secondary pointer and a non-main button for a press', () => {
+    const { mapper, commands, pressedIds, iconPx } = withThreat();
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y, { isPrimary: false }));
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y, { button: 2 }));
+    expect(commands).toEqual([]);
+    expect(pressedIds).toEqual([]);
+  });
+
+  it('drops a press while paused, like any tap', () => {
+    const { mapper, commands, state, iconPx } = withThreat();
+    state.pause = 'paused';
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y));
     expect(commands).toEqual([]);
   });
 });

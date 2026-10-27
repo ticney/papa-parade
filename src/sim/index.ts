@@ -15,4 +15,11 @@ export { type ReplayOptions, type ReplayResult, replayJournal } from './replay.t
 export type { SimSnapshot } from './snapshot.ts';
 export { GAG_IDS, type GagId } from './threats/gags.ts';
 export type { ThreatState } from './threats/threatFsm.ts';
-export type { BabySlice, PapaSlice, ThreatInstance, World } from './world.ts';
+export type {
+  BabySlice,
+  PapaGlide,
+  PapaSlice,
+  PendingPress,
+  ThreatInstance,
+  World,
+} from './world.ts';

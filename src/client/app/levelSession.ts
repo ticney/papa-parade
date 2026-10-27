@@ -10,6 +10,7 @@ import { createGameLoop, type FrameScheduler, type GameLoop } from '../loop.ts';
 import { createLevelScene, type LevelScene, type SceneBodies } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import { createTimeMap, type TimeMap } from '../timeMap.ts';
+import { type ThreatMarkerEntry, threatMarkerEntries } from '../ui/world/threatMarkers.ts';
 import type { AppFsm } from './appFsm.ts';
 import type { PauseController } from './pauseController.ts';
 
@@ -25,9 +26,10 @@ export interface LevelSessionDeps {
   onSeed(seed: number): void;
   /**
    * The level's scene is up (its room is known): fit the camera, show it behind the loading screen.
-   * Called before the previous level's scene is disposed.
+   * Called before the previous level's scene is disposed. `threatEntries` are the icon points of the
+   * level's threats (one per `world.threats` entry, same order), for the world UI and the hit test.
    */
-  onLevelReady(level: LevelScene): void;
+  onLevelReady(level: LevelScene, threatEntries: readonly ThreatMarkerEntry[]): void;
   /** Once per rendered frame, paused or not (the UI follows the countdown there). */
   onLevelFrame(): void;
   onSimEvent(event: SimEvent): void;
@@ -61,10 +63,14 @@ export interface LevelSessionDeps {
   loadAudio?(): Promise<void>;
 }
 
-/** What the input needs of the running level: the sim to send commands to and its real → sim clock. */
+/**
+ * What the client needs of the running level: the sim to send commands to, its real → sim clock,
+ * and the level's content (the threat defs the feedback director plays the cues of).
+ */
 export interface ActiveLevel {
   readonly sim: Sim;
   readonly timeMap: TimeMap;
+  readonly level: LevelContent;
 }
 
 export interface LevelSession {
@@ -217,7 +223,10 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           return;
         }
         try {
-          deps.onLevelReady(level);
+          deps.onLevelReady(
+            level,
+            threatMarkerEntries(sim.world.threats, levelAssets.geometry.anchors),
+          );
         } catch (cause) {
           // The new scene never became current: free it, and keep the previous one as it was.
           level.dispose();
@@ -254,7 +263,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         // sees is « 3 ».
         pause.requestPause('levelStart');
         if (deps.canResumeNow()) pause.requestResume();
-        active = { sim, timeMap };
+        active = { sim, timeMap, level: levelPlan };
         appFsm.enter('level');
         loop.start();
       } finally {

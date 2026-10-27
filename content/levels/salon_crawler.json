@@ -1,1 +1,5 @@
-{ "$schema": "../_schemas/level.schema.json", "id": "salon_crawler", "threats": [] }
+{
+  "$schema": "../_schemas/level.schema.json",
+  "id": "salon_crawler",
+  "threats": [{ "def": "outlet", "anchor": "outlet_01", "fromMs": 4000 }]
+}

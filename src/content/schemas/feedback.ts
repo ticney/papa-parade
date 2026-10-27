@@ -89,7 +89,11 @@ const AudioCueSchema = z
 const SoundWaveSchema = z
   .strictObject({
     kind: z.literal('soundWave').describe('A ring on the floor that grows and fades.'),
-    anchor: z.enum(['papa', 'baby']).describe('Whose position the ring starts from.'),
+    anchor: z
+      .enum(['papa', 'baby', 'threat'])
+      .describe(
+        'Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at.',
+      ),
     maxRadiusM: z.number().gt(0).max(3).describe('Radius of the ring when it is gone, in metres.'),
     durationMs: z
       .number()

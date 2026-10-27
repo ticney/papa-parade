@@ -18,7 +18,9 @@ import {
   stepN,
 } from '../../../tests/support/testContent.ts';
 import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
+import { GAG_LIGHTS_DARK_MS, GAG_LIGHTS_FADE_MS, GAG_LIGHTS_MIN_PCT } from './gags.ts';
 import { createLevelScene, roomOf } from './levelScene.ts';
+import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
 
 const BODIES = { papaRadiusM: 0.25, babyRadiusM: 0.2 };
 
@@ -240,6 +242,8 @@ describe('createLevelScene', () => {
     const { scene, fx, update } = build();
     expect(typeof fx.soundWave).toBe('function');
     expect(typeof fx.shake).toBe('function');
+    expect(typeof fx.gag).toBe('function');
+    expect(typeof fx.liftBaby).toBe('function');
     const sim = fakeWorldAt(5000);
     update(sim, 0);
     const waves = scene.getObjectsByProperty('name', 'sound_wave');
@@ -279,6 +283,53 @@ describe('createLevelScene', () => {
     // And it moves only when the clock does.
     update(fakeWorldAt(400), 0);
     expect(wave.scale.x).toBeGreaterThan(frozen[0] as number);
+  });
+
+  describe('the gag and the lift', () => {
+    const lights = (scene: { children: Object3D[] }) =>
+      scene.children.filter(
+        (child) => 'isAmbientLight' in child || 'isDirectionalLight' in child,
+      ) as unknown as { intensity: number }[];
+
+    it('puts the lights out and back on the sim clock, and raises Papa hair meanwhile', () => {
+      const { scene, fx, update } = build();
+      const base = lights(scene).map((light) => light.intensity);
+      const hair = scene.getObjectByName('papa_hair') as Object3D;
+      expect(hair.visible).toBe(false);
+      fx.gag('outlet_hair', asSimMs(1000));
+      update(fakeWorldAt(1000 + GAG_LIGHTS_FADE_MS + GAG_LIGHTS_DARK_MS / 2), 0);
+      lights(scene).forEach((light, i) => {
+        expect(light.intensity).toBeCloseTo((base[i] as number) * (GAG_LIGHTS_MIN_PCT / 100), 6);
+      });
+      expect(hair.visible).toBe(true);
+      update(fakeWorldAt(1000 + 5000), 0);
+      expect(lights(scene).map((light) => light.intensity)).toEqual(base);
+      expect(hair.visible).toBe(false);
+    });
+
+    it('hops the baby on the sim clock and puts it back on the floor', () => {
+      const { scene, fx, update } = build();
+      const body = scene.getObjectByName('baby') as Mesh;
+      const floorY = body.position.y;
+      fx.liftBaby(asSimMs(2000));
+      update(fakeWorldAt(2000 + LIFT_MS / 2), 0);
+      expect(body.position.y).toBeCloseTo(floorY + LIFT_HEIGHT_M, 6);
+      update(fakeWorldAt(2000 + LIFT_MS), 0);
+      expect(body.position.y).toBe(floorY);
+    });
+
+    it('resetFx brings the lights, the hair and the baby back at once', () => {
+      const { scene, fx, update, resetFx } = build();
+      const base = lights(scene).map((light) => light.intensity);
+      fx.gag('outlet_hair', asSimMs(0));
+      fx.liftBaby(asSimMs(0));
+      update(fakeWorldAt(GAG_LIGHTS_FADE_MS + 10), 0);
+      resetFx();
+      expect(lights(scene).map((light) => light.intensity)).toEqual(base);
+      expect((scene.getObjectByName('papa_hair') as Object3D).visible).toBe(false);
+      const body = scene.getObjectByName('baby') as Mesh;
+      expect(body.position.y).toBe(BODIES.babyRadiusM);
+    });
   });
 
   it('resetFx ends the rings and the shake under way', () => {

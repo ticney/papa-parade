@@ -1,0 +1,210 @@
+import { log } from '@shared/log';
+import type { ThreatInstance } from '@sim';
+import type { Scene } from 'three';
+import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { svgElement } from '../svg.ts';
+
+/** The icon point of one threat: where its marker stands and where the hit test aims, in metres. */
+export interface ThreatMarkerEntry {
+  readonly threatId: number;
+  readonly xM: number;
+  readonly yM: number;
+  readonly zM: number;
+}
+
+export interface ThreatMarkers {
+  /** One marker per entry, replacing the previous level's. All hidden until `update` shows them. */
+  mount(entries: readonly ThreatMarkerEntry[]): void;
+  /** Removes the markers of the current level. */
+  unmount(): void;
+  /**
+   * Once per frame: shows the markers of the threats that are `telegraph` or `windowOpen`, hides
+   * the others, and highlights the one named `highlightedId`. That one is shown even if the sim
+   * already resolved it: a quick tap is judged in the same frame as its press, and the highlight
+   * must still be drawn once (the caller forgets `highlightedId` after that frame). `threats[i]` is the instance of
+   * `entries[i]` (same order, built from `world.threats`). Writes the DOM only when a value
+   * changes and allocates nothing. Returns true when a highlight became visible in this call.
+   */
+  update(threats: readonly Readonly<ThreatInstance>[], highlightedId: number | null): boolean;
+  /** True while at least one marker is shown: the layer must be rendered. */
+  readonly isAnyVisible: boolean;
+  /** The icon points of the mounted level, for the hit test (the same objects, never copied). */
+  readonly entries: readonly ThreatMarkerEntry[];
+  dispose(): void;
+}
+
+/**
+ * The marker entries of a level: one per threat of `threats`, in the same order, at the position
+ * of its anchor (`anchors` are the level geometry's). An anchor the geometry lacks cannot happen
+ * (`createSim` refuses it); if it does the icon goes to the threat's floor point, with a `warn`.
+ * Built once per level, never per frame.
+ */
+export function threatMarkerEntries(
+  threats: readonly Readonly<ThreatInstance>[],
+  anchors: readonly { id: string; positionM: readonly [number, number, number] }[],
+): ThreatMarkerEntry[] {
+  return threats.map((threat) => {
+    const anchor = anchors.find((candidate) => candidate.id === threat.anchorId);
+    if (anchor === undefined) {
+      log.warn(
+        'render',
+        `threat ${threat.id} names the anchor ${threat.anchorId}, which the room lacks`,
+      );
+      return { threatId: threat.id, xM: threat.xM, yM: 0, zM: threat.zM };
+    }
+    const [xM, yM, zM] = anchor.positionM;
+    return { threatId: threat.id, xM, yM, zM };
+  });
+}
+
+/** The two classes of a marker the CSS styles; `ui.css` owns their look (sizes by surface). */
+export const THREAT_CLASSES = {
+  root: 'pp-threat',
+  halo: 'pp-threat-halo',
+  highlight: 'pp-threat-highlight',
+  chevron: 'pp-threat-chevron',
+  icon: 'pp-threat-icon',
+} as const;
+
+/** The lightning bolt of the mockup's `i-bolt` (24 × 24 view box), in the paper fill with an ink outline. */
+const BOLT_PATH = 'M14 1.5L4.5 14h6.5l-1.5 8.5L19.5 10H13z';
+/** The chevron: a down-pointing triangle above the icon (12 × 8 view box). */
+const CHEVRON_PATH = 'M1 1h10L6 7z';
+
+interface Marker {
+  readonly object: CSS2DObject;
+  readonly element: HTMLElement;
+  readonly highlight: HTMLElement;
+  readonly chevron: Element;
+  isShown: boolean;
+  isHighlighted: boolean;
+}
+
+type Doc = Pick<Document, 'createElement' | 'createElementNS'>;
+
+function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
+  const element = doc.createElement('div');
+  element.className = THREAT_CLASSES.root;
+  element.setAttribute('aria-hidden', 'true');
+
+  const halo = doc.createElement('div');
+  halo.className = THREAT_CLASSES.halo;
+  const highlight = doc.createElement('div');
+  highlight.className = THREAT_CLASSES.highlight;
+  highlight.hidden = true;
+  const chevron = svgElement(
+    'svg',
+    { class: THREAT_CLASSES.chevron, viewBox: '0 0 12 8' },
+    [
+      svgElement(
+        'path',
+        {
+          d: CHEVRON_PATH,
+          fill: 'currentcolor',
+          stroke: 'var(--pp-color-ink)',
+          'stroke-width': '1.5',
+          'stroke-linejoin': 'round',
+        },
+        [],
+        doc,
+      ),
+    ],
+    doc,
+  );
+  chevron.setAttribute('hidden', '');
+  const icon = doc.createElement('div');
+  icon.className = THREAT_CLASSES.icon;
+  icon.append(
+    svgElement(
+      'svg',
+      { viewBox: '0 0 24 24' },
+      [
+        svgElement(
+          'path',
+          {
+            d: BOLT_PATH,
+            fill: 'var(--pp-color-paper)',
+            stroke: 'var(--pp-color-ink)',
+            'stroke-width': '2',
+            'stroke-linejoin': 'round',
+          },
+          [],
+          doc,
+        ),
+      ],
+      doc,
+    ),
+  );
+  element.append(halo, highlight, chevron, icon);
+  // Hidden until its threat is active: the CSS2D renderer only writes `display` when it runs.
+  element.style.display = 'none';
+
+  const object = new CSS2DObject(element);
+  object.position.set(entry.xM, entry.yM, entry.zM);
+  object.visible = false;
+  return { object, element, highlight, chevron, isShown: false, isHighlighted: false };
+}
+
+/**
+ * The threat icons of a level, world-anchored in the `CSS2DRenderer` layer: a `{colors.parry}`
+ * circle with a bolt and a pulsing `{colors.alert}` halo while the threat is `telegraph` or
+ * `windowOpen`, and the `target-highlight` (a solid ring and a bouncing chevron) on the pressed
+ * one. Reconciled from the world every frame (D8), not from events. `doc` makes the elements
+ * (the browser's `document`; a double in tests).
+ */
+export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMarkers {
+  let markers: Marker[] = [];
+  let mounted: readonly ThreatMarkerEntry[] = [];
+  let shownCount = 0;
+
+  const unmount = (): void => {
+    for (const marker of markers) scene.remove(marker.object);
+    markers = [];
+    mounted = [];
+    shownCount = 0;
+  };
+
+  return {
+    mount(entries) {
+      unmount();
+      mounted = entries;
+      markers = entries.map((entry) => createMarker(entry, doc));
+      for (const marker of markers) scene.add(marker.object);
+    },
+    unmount,
+    update(threats, highlightedId) {
+      let isHighlightShown = false;
+      for (let i = 0; i < markers.length; i++) {
+        const marker = markers[i] as Marker;
+        const threat = threats[i];
+        const isPressed = threat !== undefined && threat.id === highlightedId;
+        const isActive =
+          threat !== undefined &&
+          (isPressed || threat.state === 'telegraph' || threat.state === 'windowOpen');
+        if (isActive !== marker.isShown) {
+          marker.isShown = isActive;
+          marker.object.visible = isActive;
+          // The renderer writes `display` only when it runs, and it is skipped once nothing shows.
+          if (!isActive) marker.element.style.display = 'none';
+          shownCount += isActive ? 1 : -1;
+        }
+        const isHighlighted = isPressed;
+        if (isHighlighted !== marker.isHighlighted) {
+          marker.isHighlighted = isHighlighted;
+          marker.highlight.hidden = !isHighlighted;
+          if (isHighlighted) marker.chevron.removeAttribute('hidden');
+          else marker.chevron.setAttribute('hidden', '');
+          if (isHighlighted) isHighlightShown = true;
+        }
+      }
+      return isHighlightShown;
+    },
+    get isAnyVisible() {
+      return shownCount > 0;
+    },
+    get entries() {
+      return mounted;
+    },
+    dispose: unmount,
+  };
+}
