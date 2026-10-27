@@ -19,9 +19,13 @@ function setup() {
     },
   };
   const logged: Logged[] = [];
+  const warned: Logged[] = [];
   const logger = {
     error: (channel: LogChannel, message: string, data?: unknown) => {
       logged.push({ channel, message, data });
+    },
+    warn: (channel: LogChannel, message: string, data?: unknown) => {
+      warned.push({ channel, message, data });
     },
   };
   const fire = (type: string, event: object): void => {
@@ -29,7 +33,7 @@ function setup() {
     if (listener === undefined) throw new Error(`no ${type} listener installed`);
     listener(event as never);
   };
-  return { target, logger, logged, listeners, fire };
+  return { target, logger, logged, warned, listeners, fire };
 }
 
 describe('installGlobalErrorHandlers', () => {
@@ -59,9 +63,9 @@ describe('installGlobalErrorHandlers', () => {
   it('logs an uncaught error that carries no file or line', () => {
     const { target, logger, logged, fire } = setup();
     installGlobalErrorHandlers(target, logger);
-    fire('error', { message: 'Script error.' });
+    fire('error', { message: 'Uncaught TypeError: x is not a function' });
     expect(logged).toHaveLength(1);
-    expect(logged[0]?.message).toContain('Script error.');
+    expect(logged[0]?.message).toContain('x is not a function');
     expect(logged[0]?.data).not.toHaveProperty('file');
     expect(logged[0]?.data).not.toHaveProperty('line');
   });
@@ -121,6 +125,27 @@ describe('installGlobalErrorHandlers', () => {
     fire('unhandledrejection', { reason: undefined });
     expect(logged).toHaveLength(2);
     expect(logged[0]?.message).toContain('plain string');
+  });
+
+  it('only warns about browser noise with no error object, and does not recover from it', () => {
+    const { target, logger, logged, warned, fire } = setup();
+    let recovered = 0;
+    installGlobalErrorHandlers(target, logger, () => recovered++);
+    fire('error', { message: 'ResizeObserver loop completed with undelivered notifications.' });
+    fire('error', { message: 'ResizeObserver loop limit exceeded' });
+    fire('error', { message: 'Script error.' });
+    expect(logged).toHaveLength(0);
+    expect(warned).toHaveLength(3);
+    expect(recovered).toBe(0);
+  });
+
+  it('still treats a real error whose message looks like noise as an error', () => {
+    const { target, logger, logged, fire } = setup();
+    let recovered = 0;
+    installGlobalErrorHandlers(target, logger, () => recovered++);
+    fire('error', { message: 'Script error.', error: new Error('same words, real error') });
+    expect(logged).toHaveLength(1);
+    expect(recovered).toBe(1);
   });
 
   it('removes both listeners when uninstalled', () => {

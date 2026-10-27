@@ -1,10 +1,12 @@
 import { loadContent } from '@content/loadContent';
+import { MAX_TIMER_DELAY_MS } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import type { SimEvent } from '@sim';
 import { Color, Scene } from 'three';
 import { createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
+import { parseThrowDelayMs } from './app/forcedThrow.ts';
 import { waitForForeground } from './app/foreground.ts';
 import { installGlobalErrorHandlers } from './app/globalErrorHandlers.ts';
 import { createLevelSession } from './app/levelSession.ts';
@@ -46,9 +48,12 @@ function logSimEvent(event: SimEvent): void {
 function armForcedThrow(events: Emitter<ClientEvents>): void {
   const raw = new URLSearchParams(window.location.search).get('throwAfterMs');
   if (raw === null) return;
-  const delayMs = raw.trim() === '' ? Number.NaN : Number(raw);
-  if (!Number.isInteger(delayMs) || delayMs < 0) {
-    log.warn('boot', `ignoring ?throwAfterMs=${raw}: not a whole number of ms >= 0`);
+  const delayMs = parseThrowDelayMs(raw);
+  if (delayMs === null) {
+    log.warn(
+      'boot',
+      `ignoring ?throwAfterMs=${raw}: not a whole number of ms in 0..${MAX_TIMER_DELAY_MS}`,
+    );
     return;
   }
   const off = events.on('AppStateChanged', ({ to }) => {
@@ -139,7 +144,14 @@ export async function boot(): Promise<void> {
   const isMirrored = import.meta.env.VITE_DEBUG_ALLOWED === 'true';
   // Written only when the value changes: a test observing the attributes then sees each real change once.
   const mirror = (
-    name: 'ppState' | 'ppApp' | 'ppLevel' | 'ppDrawCalls' | 'ppTriangles',
+    name:
+      | 'ppState'
+      | 'ppApp'
+      | 'ppLevel'
+      | 'ppDrawCalls'
+      | 'ppTriangles'
+      | 'ppGeometries'
+      | 'ppTextures',
     value: string,
   ): void => {
     if (document.documentElement.dataset[name] !== value) {
@@ -183,9 +195,11 @@ export async function boot(): Promise<void> {
       shell.frame();
       if (isMirrored && !isStatsMirrored) {
         isStatsMirrored = true;
-        const { drawCalls, triangles } = renderer.stats();
+        const { drawCalls, triangles, geometries, textures } = renderer.stats();
         mirror('ppDrawCalls', String(drawCalls));
         mirror('ppTriangles', String(triangles));
+        mirror('ppGeometries', String(geometries));
+        mirror('ppTextures', String(textures));
       }
     },
     onSimEvent: logSimEvent,

@@ -52,6 +52,8 @@ export interface ParsedNodeName {
   subKind?: string;
 }
 
+/** `ZONE_<kind>_<name>`; the same pattern is in `tools/blender/export_level.py` (a test compares them). */
+export const ZONE_NAME_PATTERN = /^ZONE_([a-z]+)_(.+)$/;
 const PROP_PATTERN = /^PROP_([a-z][a-z0-9_]*)_(\d{2})$/;
 // A name that *looks* like it wants to be a gameplay node must be one: `col_sofa`, `ANCHORS_x`,
 // `COL` alone are mistakes, not visuals. `collar` or `navigation` are fine (the prefix word ends).
@@ -80,7 +82,7 @@ export function parseNodeName(name: string): Result<ParsedNodeName, string> {
     return prefixed(NODE_PREFIXES.anchor, 'anchor', 'the id');
   }
   if (name.startsWith(NODE_PREFIXES.zone)) {
-    const [, zoneKind, id] = /^ZONE_([a-z]+)_(.+)$/.exec(name) ?? [];
+    const [, zoneKind, id] = ZONE_NAME_PATTERN.exec(name) ?? [];
     if (zoneKind === undefined || id === undefined || !isZoneKind(zoneKind)) {
       return err(`"${name}": a zone is ZONE_<${ZONE_KINDS.join('|')}>_<name>`);
     }
@@ -109,6 +111,14 @@ export function parseNodeName(name: string): Result<ParsedNodeName, string> {
 
 function isZoneKind(value: string): value is ZoneKind {
   return (ZONE_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * True for a name that wants to be a gameplay node (`COL_`, `NAV_`, `ANCHOR_`, `ZONE_`, `PROP_`,
+ * in any case) whether or not it is well-formed: such a node is never a visual.
+ */
+export function looksLikeGameplayNode(name: string): boolean {
+  return name === NODE_PREFIXES.navFloor || name.startsWith('NAV') || RESERVED_LOOKING.test(name);
 }
 
 /** True for a well-formed visual name (no prefix): the nodes the client keeps and the bounds cover. */

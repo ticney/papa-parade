@@ -166,6 +166,23 @@ describe('extractLevelGeometry', () => {
     expect(result.value.colliders[0]?.halfExtentsM).toEqual([0.5, 0.45, 1]);
   });
 
+  it('counts a rotated, mirrored or stretched visual in the bounds with a conservative box', () => {
+    const gltf = withSpecs((specs) => [
+      ...specs,
+      // 45° about Y: the 1 x 1 footprint sticks out by 0.5 * sqrt(2) = 0.707 m around its centre.
+      { name: 'lamp', center: [3.9, 1, 0], half: [0.5, 1, 0.5], rotationY: Math.PI / 4 },
+      { name: 'mirrored_rug', center: [-4.5, 0, 0], half: [0.5, 0.01, 0.5], scale: [-1, 1, 1] },
+      { name: 'long_shelf', center: [0, 2, 0], half: [0.5, 0.1, 0.5], scale: [1, 1, 3] },
+    ]);
+    const result = extract(gltf);
+    if (!result.ok) throw new Error(result.error.join('; '));
+    const { boundsMinM, boundsMaxM } = result.value;
+    expect(boundsMaxM[0]).toBeCloseTo(3.9 + Math.SQRT1_2, 2);
+    expect(boundsMinM[0]).toBeCloseTo(-5, 2);
+    expect(boundsMaxM[1]).toBeCloseTo(2.1, 2); // the top of the shelf
+    expect(boundsMaxM[2]).toBeCloseTo(3, 2); // the floor: the stretched shelf (1.5 m each way) stays inside
+  });
+
   describe('refusals, each naming the node', () => {
     it('a name that breaks a prefix shape', () => {
       expect(

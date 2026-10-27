@@ -144,7 +144,7 @@ def export(out):
     path = out if out else os.path.join(repo_root(), DEFAULT_OUT)
     path = os.path.abspath(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    bpy.ops.export_scene.gltf(
+    result = bpy.ops.export_scene.gltf(
         filepath=path,
         export_format="GLB",
         export_yup=True,
@@ -161,18 +161,25 @@ def export(out):
         export_skins=False,
         export_morph=False,
     )
+    # The operator reports a failure by returning CANCELLED, not always by raising; a stale .glb
+    # left on disk would then pass for a fresh one.
+    if result != {"FINISHED"}:
+        raise RuntimeError("the glTF exporter did not finish (it returned %s)" % sorted(result))
+    if not os.path.isfile(path):
+        raise RuntimeError("the glTF exporter wrote nothing at %s" % path)
     return path
 
 
 def main():
     try:
         path = export(parse_args(sys.argv))
+        size = os.path.getsize(path)
     except Exception as error:  # noqa: BLE001 - the message is the product
         if bpy.app.background:
             sys.stderr.write("export_level.py: %s\n" % error)
             sys.exit(1)
         raise
-    print("export_level.py: wrote %s (%d bytes)" % (path, os.path.getsize(path)))
+    print("export_level.py: wrote %s (%d bytes)" % (path, size))
 
 
 main()

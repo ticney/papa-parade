@@ -25,6 +25,9 @@ export interface GlobalErrorTarget {
   ): void;
 }
 
+/** Messages of an `error` event that carries no `error` object and that the game cannot act on. */
+const BENIGN_MESSAGE = /^(?:ResizeObserver\b|Script error\.?$)/;
+
 function describeThrown(value: unknown): string {
   if (value instanceof Error) return value.message;
   try {
@@ -39,13 +42,14 @@ function describeThrown(value: unknown): string {
 /**
  * Feeds every uncaught error and unhandled promise rejection to `log.error`, so that they reach
  * the ring buffer on a phone too, then calls `onUncaught` (the composition root shows the « Oups »
- * screen from there). `onUncaught` runs after the log, and a throw inside it is swallowed (logged
+ * screen from there). Browser noise with no `error` object (a `ResizeObserver` loop notice, a
+ * cross-origin `Script error.`) is only logged as a `warn`: nothing the game did failed. `onUncaught` runs after the log, and a throw inside it is swallowed (logged
  * as an error): the handler of last resort must never throw itself. Returns the function that
  * removes the listeners.
  */
 export function installGlobalErrorHandlers(
   target: GlobalErrorTarget,
-  logger: Pick<Logger, 'error'> = log,
+  logger: Pick<Logger, 'error' | 'warn'> = log,
   onUncaught?: () => void,
 ): () => void {
   const notify = (): void => {
@@ -59,6 +63,10 @@ export function installGlobalErrorHandlers(
   const onError = (event: ErrorEventLike): void => {
     const hasError = event.error !== undefined && event.error !== null;
     const message = event.message || (hasError ? describeThrown(event.error) : 'unknown error');
+    if (!hasError && BENIGN_MESSAGE.test(message)) {
+      logger.warn('boot', `ignored browser error: ${message}`, { file: event.filename });
+      return;
+    }
     const data: Record<string, unknown> = { error: event.error };
     if (event.filename) {
       data.file = event.filename;

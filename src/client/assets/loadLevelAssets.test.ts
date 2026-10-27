@@ -2,7 +2,7 @@ import { type Logger, log } from '@shared/log';
 import { Group } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
-import { type LoadLevelDeps, loadLevelAssets } from './loadLevelAssets.ts';
+import { fetchBytesWithTimeout, type LoadLevelDeps, loadLevelAssets } from './loadLevelAssets.ts';
 
 const GLB = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0]);
 const geometryText = (id = 'test_room') => JSON.stringify(createTestLevelGeometry(id));
@@ -152,5 +152,33 @@ describe('loadLevelAssets', () => {
       }),
     );
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('fetchBytesWithTimeout', () => {
+  /** A fetch that never answers on its own and rejects when its signal aborts, like the real one. */
+  const stalledFetch = ((_url: string, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+    })) as typeof fetch;
+
+  it('rejects with a timeout when the response never comes', async () => {
+    await expect(fetchBytesWithTimeout('./x.glb', 10, stalledFetch)).rejects.toMatchObject({
+      name: 'TimeoutError',
+    });
+  });
+
+  it('turns that timeout into an assets error with the file name', async () => {
+    const message = await errorOf({
+      fetchBytes: (url) => fetchBytesWithTimeout(url, 10, stalledFetch),
+    });
+    expect(message).toContain('cannot fetch test_room.glb');
+  });
+
+  it('returns the bytes of a 2xx answer and rejects on any other status', async () => {
+    const answer = (status: number) =>
+      (async () => new Response(GLB, { status })) as unknown as typeof fetch;
+    expect([...(await fetchBytesWithTimeout('./x.glb', 1000, answer(200)))]).toEqual([...GLB]);
+    await expect(fetchBytesWithTimeout('./x.glb', 1000, answer(404))).rejects.toThrow('HTTP 404');
   });
 });

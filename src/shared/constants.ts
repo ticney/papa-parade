@@ -78,3 +78,9 @@ export const DEFAULT_LEVEL_ID = 'salon_crawler';
 
 /** How long one flavour line of the loading screen stays up before the next, in real ms. */
 export const LOADING_LINE_INTERVAL_MS = 2000;
+
+/** How long the fetch of a level's `.glb` may take before it counts as failed (« Oups »), in real ms. */
+export const LEVEL_FETCH_TIMEOUT_MS = 20_000;
+
+/** The longest delay `setTimeout` can hold, in ms: a longer one overflows and fires at once. */
+export const MAX_TIMER_DELAY_MS = 2_147_483_647;

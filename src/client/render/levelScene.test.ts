@@ -54,16 +54,28 @@ function names(scene: { children: Object3D[] }): string[] {
 }
 
 describe('roomOf', () => {
-  it('takes the box from the bounds, with the floor at y = 0', () => {
+  it('takes the box from the bounds, down to what goes below the floor (y = 0)', () => {
     const geometry = createTestLevelGeometry();
     geometry.boundsMinM = [-4.2, -0.8, -3.2];
     geometry.boundsMaxM = [4.9, 2.5, 3];
     const room = roomOf(geometry);
     expect(room.widthM).toBeCloseTo(9.1, 9);
     expect(room.depthM).toBeCloseTo(6.2, 9);
-    expect(room.heightM).toBe(2.5);
+    expect(room.floorYM).toBe(-0.8);
+    expect(room.heightM).toBeCloseTo(3.3, 9);
     expect(room.centerXM).toBeCloseTo(0.35, 9);
     expect(room.centerZM).toBeCloseTo(-0.1, 9);
+  });
+});
+
+describe('roomOf, a level that stays above the floor', () => {
+  it('starts the box at y = 0, not at the lowest visual', () => {
+    const geometry = createTestLevelGeometry();
+    geometry.boundsMinM = [-4, 0.3, -3];
+    geometry.boundsMaxM = [4, 2.5, 3];
+    const room = roomOf(geometry);
+    expect(room.floorYM).toBe(0);
+    expect(room.heightM).toBe(2.5);
   });
 });
 
@@ -94,6 +106,24 @@ describe('createLevelScene', () => {
     ]) {
       expect(found).not.toContain(gone);
     }
+  });
+
+  it('hides a malformed gameplay node instead of showing it as a box, and keeps odd visual names', () => {
+    const geometry = createTestLevelGeometry('test_room');
+    const model = new Group();
+    model.add(
+      mesh('COL_Sofa', 0xffffff),
+      mesh('nav_block_x', 0xffffff),
+      mesh('ZONE_nowhere', 0xffffff),
+      mesh('Sofa_Cube', 0x6d3fe0),
+      mesh('collar', 0x6d3fe0),
+    );
+    const found = names(createLevelScene({ id: 'test_room', geometry, model }).scene);
+    for (const gone of ['COL_Sofa', 'nav_block_x', 'ZONE_nowhere']) {
+      expect(found).not.toContain(gone);
+    }
+    expect(found).toContain('Sofa_Cube');
+    expect(found).toContain('collar');
   });
 
   it('gives every model mesh a shared toon material of its own colour, and the probe a basic one', () => {

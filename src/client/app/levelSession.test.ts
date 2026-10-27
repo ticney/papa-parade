@@ -57,7 +57,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
       drawn.renders++;
       drawn.scenes.push(scene);
     },
-    stats: () => ({ drawCalls: 0, triangles: 0 }),
+    stats: () => ({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0 }),
     dispose: () => {},
   };
   let simsCreated = 0;
@@ -288,7 +288,7 @@ describe('createLevelSession', () => {
       expect(scenes).toHaveLength(1);
     });
 
-    it('a throwing loadAssets does not leave the session stuck "starting"', async () => {
+    it('a throwing loadAssets goes to oops, logs an error, and a retry works', async () => {
       let first = true;
       const { session, appFsm } = setup({
         loadAssets: async (id) => {
@@ -299,9 +299,61 @@ describe('createLevelSession', () => {
           return ok(assetsOf(id));
         },
       });
-      await expect(session.start()).rejects.toThrow('boom');
+      const before = log.buffer().length;
+      await session.start();
+      expect(appFsm.state).toBe('oops');
+      expect(
+        log
+          .buffer()
+          .slice(before)
+          .some((entry) => entry.level === 'error' && entry.message.includes('assets threw')),
+      ).toBe(true);
       await session.start();
       expect(appFsm.state).toBe('level');
+    });
+
+    it('a scene that cannot be built goes to oops and a retry works', async () => {
+      let first = true;
+      const { session, appFsm, scenes } = setup({
+        createScene: (assets) => {
+          if (first) {
+            first = false;
+            throw new Error('out of GPU memory');
+          }
+          return {
+            id: assets.id,
+            scene: new Scene(),
+            room: { widthM: 8, depthM: 6, heightM: 2.5 },
+            update: () => {},
+            dispose: () => {},
+          };
+        },
+      });
+      await session.start();
+      expect(appFsm.state).toBe('oops');
+      expect(scenes).toHaveLength(0);
+      await session.start();
+      expect(appFsm.state).toBe('level');
+    });
+
+    it('when onLevelReady throws, the new scene is freed and the previous one stays current', async () => {
+      let ready = 0;
+      const { session, appFsm, scenes, trace } = setup({
+        onLevelReady: () => {
+          if (++ready === 2) throw new Error('bad room');
+        },
+      });
+      await session.start();
+      expect(appFsm.state).toBe('level');
+      await session.start();
+      expect(appFsm.state).toBe('oops');
+      expect(scenes).toHaveLength(2);
+      expect(scenes[0]?.disposed).toBe(false); // still the one on screen
+      expect(scenes[1]?.disposed).toBe(true);
+      expect(trace).toContain('dispose:1');
+      await session.start();
+      expect(appFsm.state).toBe('level');
+      expect(scenes[0]?.disposed).toBe(true); // replaced by the third
     });
   });
 

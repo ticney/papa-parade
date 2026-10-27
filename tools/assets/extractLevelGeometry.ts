@@ -333,12 +333,19 @@ export function extractLevelGeometry(
       anchors.push({ id, positionM: roundVec(transformPoint(resolved.world, [0, 0, 0])) });
       continue;
     }
-    const box = worldBox(gltf, resolved);
     if (kind === 'visual') {
-      // A visual that cannot give a box (an empty group) just does not count towards the bounds.
-      if (box.ok) visualBoxes.push(box.value);
+      // A visual may be rotated, mirrored or scaled any way: the bounds only need a conservative
+      // box of its transformed corners (only a node the sim reads needs the strict `worldBox`). An
+      // empty group has no box and just does not count towards the bounds.
+      const local = localBox(gltf, resolved.node);
+      if (local !== null) {
+        visualBoxes.push(
+          aabbOfPoints(cornersOf(local).map((corner) => transformPoint(resolved.world, corner))),
+        );
+      }
       continue;
     }
+    const box = worldBox(gltf, resolved);
     if (!box.ok) {
       problems.push(box.error);
       continue;

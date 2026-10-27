@@ -90,17 +90,32 @@ const OWN_WARNINGS =
  * Collects what must fail a session: console errors, page errors, and the app's own warnings about
  * a missing string, a screen it could not build, a font that failed, a lost pointer capture.
  */
-export function collectProblems(page: Page): string[] {
+export function collectProblems(page: Page, options: { allowedErrors?: RegExp } = {}): string[] {
   const problems: string[] = [];
   page.on('console', (message) => {
-    if (message.type() === 'error') problems.push(`console: ${message.text()}`);
-    else if (message.type() === 'warning' && OWN_WARNINGS.test(message.text())) {
+    if (message.type() === 'error') {
+      // A test that breaks the network on purpose expects the browser's own "Failed to load" line.
+      if (!options.allowedErrors?.test(message.text())) problems.push(`console: ${message.text()}`);
+    }
+    if (message.type() === 'warning' && OWN_WARNINGS.test(message.text())) {
       problems.push(`warning: ${message.text()}`);
     }
   });
   page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
   return problems;
 }
+
+/** The texts of the console errors so far: the page's own `log.error` lines reach the console in dev. */
+export function collectConsoleErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  return errors;
+}
+
+/** The browser's own line for a request that failed or answered with an error status. */
+export const FAILED_REQUEST = /Failed to load resource/;
 
 /** Requests for the level's `.glb` (served from `public/` by the dev server). */
 export const GLB_URL = '**/assets/levels/*.glb';

@@ -6,7 +6,9 @@ import {
   NODE_PREFIXES,
   REQUIRED_ANCHOR_IDS,
   REQUIRED_ZONE_IDS,
+  SNAKE_ID_PATTERN,
   ZONE_KINDS,
+  ZONE_NAME_PATTERN,
 } from '../../src/content/levelNodeNames.ts';
 
 // The naming rules are written twice: in TypeScript (the extractor and the client use them) and in
@@ -50,6 +52,11 @@ describe('Blender naming conventions: Python and TypeScript agree', () => {
 
   it('the zone kinds', () => {
     expect(pythonTuple('ZONE_KINDS')).toEqual([...ZONE_KINDS]);
+  });
+
+  it('the shape of a snake_case id and of a zone name', () => {
+    expect(python).toContain(`SNAKE_ID = re.compile(r"${SNAKE_ID_PATTERN.source}")`);
+    expect(python).toContain(`re.match(r"${ZONE_NAME_PATTERN.source}", name)`);
   });
 
   it('the shape of a prop name and of the reserved-looking prefixes', () => {

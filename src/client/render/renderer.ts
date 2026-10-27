@@ -13,10 +13,16 @@ export function pixelRatioFor(devicePixelRatio: number): number {
   return Math.min(devicePixelRatio, MAX_PIXEL_RATIO);
 }
 
-/** What the renderer drew in its last `render` call (budget: ≤ 100 draw calls, ≤ 100k triangles). */
+/**
+ * What the renderer drew in its last `render` call (budget: ≤ 100 draw calls, ≤ 100k triangles),
+ * and what it holds on the GPU right now: a scene that was not disposed keeps its geometries and
+ * textures here, which the draw calls (only the scene drawn last) cannot show.
+ */
 export interface RenderStats {
   drawCalls: number;
   triangles: number;
+  geometries: number;
+  textures: number;
 }
 
 export interface GameRenderer {
@@ -26,7 +32,7 @@ export interface GameRenderer {
    */
   resize(): number | null;
   render(scene: Scene, camera: Camera): void;
-  /** The last frame's draw calls and triangles: one object, rewritten by each call (no allocation). */
+  /** The last frame's draw calls and triangles, and the GPU memory held: one object, rewritten by each call (no allocation). */
   stats(): Readonly<RenderStats>;
   dispose(): void;
 }
@@ -64,7 +70,7 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
   canvas.addEventListener('webglcontextlost', onContextLost);
   canvas.addEventListener('webglcontextrestored', onContextRestored);
 
-  const stats: RenderStats = { drawCalls: 0, triangles: 0 };
+  const stats: RenderStats = { drawCalls: 0, triangles: 0, geometries: 0, textures: 0 };
 
   return ok({
     resize() {
@@ -81,6 +87,8 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
     stats() {
       stats.drawCalls = renderer.info.render.calls;
       stats.triangles = renderer.info.render.triangles;
+      stats.geometries = renderer.info.memory.geometries;
+      stats.textures = renderer.info.memory.textures;
       return stats;
     },
     dispose() {

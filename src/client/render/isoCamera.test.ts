@@ -18,19 +18,29 @@ const OFF_CENTRE_ROOM: RoomSize = {
   centerZM: -0.1,
 };
 const BIG_ROOM: RoomSize = { widthM: 14, depthM: 5, heightM: 3.2 };
+// Stairs going down: the box starts 0.8 m below the floor (y = 0).
+const SUNKEN_ROOM: RoomSize = {
+  widthM: 9.1,
+  depthM: 6.2,
+  heightM: 3.3,
+  floorYM: -0.8,
+  centerXM: 0.35,
+  centerZM: -0.1,
+};
 
 // Square, 4:3, 16:9, a landscape phone, ultra-wide, and a portrait phone.
 const ASPECTS = [1, 4 / 3, 16 / 9, 844 / 390, 21 / 9, 0.46];
 const MARGIN = ISO_FIT_MARGIN_PCT / 100;
 const EPSILON = 1e-9;
 
-/** The 8 corners of the room box: footprint centred on `centerXM`/`centerZM`, floor at y = 0. */
+/** The 8 corners of the room box: footprint centred on `centerXM`/`centerZM`, from `floorYM`. */
 function cornersOf(room: RoomSize): Vector3[] {
   const corners: Vector3[] = [];
   const centerX = room.centerXM ?? 0;
   const centerZ = room.centerZM ?? 0;
+  const floorY = room.floorYM ?? 0;
   for (const x of [centerX - room.widthM / 2, centerX + room.widthM / 2]) {
-    for (const y of [0, room.heightM]) {
+    for (const y of [floorY, floorY + room.heightM]) {
       for (const z of [centerZ - room.depthM / 2, centerZ + room.depthM / 2])
         corners.push(new Vector3(x, y, z));
     }
@@ -51,7 +61,7 @@ function ndcOf(camera: OrthographicCamera, point: Vector3): Vector3 {
 const degrees = (radians: number): number => (radians * 180) / Math.PI;
 
 describe('fitIsoCamera', () => {
-  describe.each([ROOM, BIG_ROOM, OFF_CENTRE_ROOM])(
+  describe.each([ROOM, BIG_ROOM, OFF_CENTRE_ROOM, SUNKEN_ROOM])(
     'room $widthM × $depthM × $heightM m',
     (room) => {
       it.each(ASPECTS)('keeps the whole room inside the view at aspect %f', (aspect) => {
@@ -86,7 +96,11 @@ describe('fitIsoCamera', () => {
 
       it('looks at the room centre, which projects to the middle of the screen', () => {
         const camera = fitted(room, 16 / 9);
-        const centre = new Vector3(room.centerXM ?? 0, room.heightM / 2, room.centerZM ?? 0);
+        const centre = new Vector3(
+          room.centerXM ?? 0,
+          (room.floorYM ?? 0) + room.heightM / 2,
+          room.centerZM ?? 0,
+        );
         const toCentre = centre.clone().sub(camera.position).normalize();
         expect(camera.getWorldDirection(new Vector3()).dot(toCentre)).toBeCloseTo(1, 9);
         const ndc = ndcOf(camera, centre);

@@ -1,6 +1,7 @@
-import { parseNodeName } from '@content/levelNodeNames';
+import { looksLikeGameplayNode, parseNodeName } from '@content/levelNodeNames';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { STEP_MS } from '@shared/constants';
+import { log } from '@shared/log';
 import type { World } from '@sim';
 import {
   AmbientLight,
@@ -42,14 +43,19 @@ export interface LevelScene {
   dispose(): void;
 }
 
-/** The camera box of a level: width and depth from the bounds, height above the floor (y = 0). */
+/**
+ * The camera box of a level: its bounds, down to the lowest point below the floor (y = 0) if
+ * something such as a stairwell goes there.
+ */
 export function roomOf(geometry: LevelGeometry): RoomSize {
-  const [minX, , minZ] = geometry.boundsMinM;
+  const [minX, minY, minZ] = geometry.boundsMinM;
   const [maxX, maxY, maxZ] = geometry.boundsMaxM;
+  const floorYM = Math.min(0, minY);
   return {
     widthM: maxX - minX,
     depthM: maxZ - minZ,
-    heightM: maxY,
+    heightM: maxY - floorYM,
+    floorYM,
     centerXM: (minX + maxX) / 2,
     centerZM: (minZ + maxZ) / 2,
   };
@@ -73,7 +79,14 @@ export function probePathOf(geometry: LevelGeometry): {
 /** Nodes the game uses but the player never sees: collision, navigation, zones, anchors (D4). */
 function isHiddenInGame(name: string): boolean {
   const parsed = parseNodeName(name);
-  return parsed.ok && parsed.value.kind !== 'visual' && parsed.value.kind !== 'prop';
+  if (parsed.ok) return parsed.value.kind !== 'visual' && parsed.value.kind !== 'prop';
+  // A mistyped gameplay node (`COL_Sofa`) must not show as a grey box in the room: the extractor
+  // and the Blender gate refuse it, so reaching here means a stale or hand-made `.glb`.
+  if (looksLikeGameplayNode(name)) {
+    log.warn('assets', `hiding a malformed gameplay node: ${parsed.error}`, { name });
+    return true;
+  }
+  return false;
 }
 
 function disposeMaterial(material: Material | Material[]): void {

@@ -121,8 +121,8 @@ export const LevelGeometrySchema = z
     }
 
     for (const axis of [0, 1, 2] as const) {
-      if ((level.boundsMinM[axis] as number) > (level.boundsMaxM[axis] as number)) {
-        fail(['boundsMaxM', axis], 'the upper bound is below the lower bound');
+      if ((level.boundsMinM[axis] as number) >= (level.boundsMaxM[axis] as number)) {
+        fail(['boundsMaxM', axis], 'the upper bound must be above the lower bound');
       }
     }
 
@@ -132,8 +132,14 @@ export const LevelGeometrySchema = z
       }
     }
     for (const required of REQUIRED_ZONE_IDS) {
-      if (!level.zones.some((zone) => zone.id === required)) {
+      const zone = level.zones.find((candidate) => candidate.id === required);
+      if (zone === undefined) {
         fail(['zones'], `missing the required zone "${required}"`);
+      } else if (zone.kind !== 'hidden') {
+        fail(
+          ['zones'],
+          `the required zone "${required}" must be of kind "hidden" (it is "${zone.kind}")`,
+        );
       }
     }
 

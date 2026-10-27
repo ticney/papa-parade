@@ -115,7 +115,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         const seed = deps.newSeed();
         const [simResult, assets] = await Promise.all([
           settle(() => makeSim({ content: deps.content, seed })),
-          loadAssets(levelId),
+          settle(() => loadAssets(levelId)),
         ]);
         if (isStale()) return;
         if (!simResult.ok) {
@@ -124,6 +124,12 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           return;
         }
         if (!assets.ok) {
+          // `loadLevelAssets` never throws; a replacement that does is a bug, not a failed load.
+          log.error('boot', 'loading the level assets threw', { id: levelId, error: assets.error });
+          appFsm.enter('oops');
+          return;
+        }
+        if (!assets.value.ok) {
           // `loadLevelAssets` has logged the warn with the level id.
           appFsm.enter('oops');
           return;
@@ -132,10 +138,25 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         log.info('boot', 'sim ready', { seed });
         deps.onSeed(seed);
 
-        const level = makeScene(assets.value);
+        let level: LevelScene;
+        try {
+          level = makeScene(assets.value.value);
+        } catch (cause) {
+          log.error('render', 'cannot build the level scene', { id: levelId, error: cause });
+          appFsm.enter('oops');
+          return;
+        }
+        try {
+          deps.onLevelReady(level);
+        } catch (cause) {
+          // The new scene never became current: free it, and keep the previous one as it was.
+          level.dispose();
+          log.error('render', 'cannot show the level scene', { id: levelId, error: cause });
+          appFsm.enter('oops');
+          return;
+        }
         const previous = current;
         current = level;
-        deps.onLevelReady(level);
         previous?.dispose();
 
         // Loaded in the background: the app stays in `loading` until the player is back, then the

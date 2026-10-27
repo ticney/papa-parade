@@ -1,6 +1,7 @@
 import { formatContentProblem } from '@content/contentError';
 import { parseContentFile } from '@content/parseContentFile';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
+import { LEVEL_FETCH_TIMEOUT_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
 import type { Group } from 'three';
@@ -14,7 +15,7 @@ export interface LevelAssets {
 }
 
 export interface LoadLevelDeps {
-  /** The bytes of a file; rejects on a network error or a non-2xx status. Default: `fetch`. */
+  /** The bytes of a file; rejects on a network error, a non-2xx status or a timeout. Default: `fetchBytesWithTimeout`. */
   fetchBytes?(url: string): Promise<Uint8Array>;
   /** The text of `content/levels/<id>.geometry.json`; rejects when it cannot be had. Default: the lazy glob below. */
   loadGeometryText?(id: string): Promise<string>;
@@ -33,8 +34,16 @@ const GEOMETRY_FILES = import.meta.glob<string>('../../../content/levels/*.geome
   import: 'default',
 });
 
-async function defaultFetchBytes(url: string): Promise<Uint8Array> {
-  const response = await fetch(url);
+/**
+ * The bytes of `url`. Rejects on a network error, a non-2xx status, or when the response (headers
+ * and body) takes longer than `timeoutMs`: a stalled connection must reach « Oups », not hang.
+ */
+export async function fetchBytesWithTimeout(
+  url: string,
+  timeoutMs: number = LEVEL_FETCH_TIMEOUT_MS,
+  fetchFn: typeof fetch = fetch,
+): Promise<Uint8Array> {
+  const response = await fetchFn(url, { signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return new Uint8Array(await response.arrayBuffer());
 }
@@ -114,7 +123,7 @@ export async function loadLevelAssets(
   deps: LoadLevelDeps = {},
 ): Promise<Result<LevelAssets, AppError>> {
   const resolved: Required<LoadLevelDeps> = {
-    fetchBytes: deps.fetchBytes ?? defaultFetchBytes,
+    fetchBytes: deps.fetchBytes ?? fetchBytesWithTimeout,
     loadGeometryText: deps.loadGeometryText ?? defaultLoadGeometryText,
     parseModel: deps.parseModel ?? defaultParseModel,
     baseUrl: deps.baseUrl ?? import.meta.env.BASE_URL,

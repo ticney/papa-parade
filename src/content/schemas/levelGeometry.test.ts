@@ -98,6 +98,18 @@ describe('LevelGeometrySchema', () => {
     expect(problems(level).some((line) => line.includes('boundsMaxM[1]'))).toBe(true);
   });
 
+  it('refuses bounds with no extent on an axis', () => {
+    const level = goodLevel();
+    level.boundsMaxM = [-1, 2.5, 1]; // same x as the lower corner
+    expect(problems(level).some((line) => line.includes('boundsMaxM[0]'))).toBe(true);
+  });
+
+  it('refuses the zone behind the sofa when it is not a hidden zone', () => {
+    const level = goodLevel();
+    (level.zones[0] as { kind: string }).kind = 'safe';
+    expect(problems(level)).toEqual([expect.stringContaining('must be of kind "hidden"')]);
+  });
+
   it('refuses a zone of an unknown kind and a negative half extent', () => {
     const level = goodLevel();
     (level.zones[0] as { kind: string }).kind = 'scary';

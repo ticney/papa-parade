@@ -97,3 +97,10 @@
 - **Tool tests live in `tests/tools/`**, because `vitest.config.ts` only includes `src/**` and `tests/**`; `tools/` itself has no co-located tests.
 - **Bundle size:** the glTF loader and meshopt decoder are a lazy 72 kB chunk, the geometry a 3 kB chunk per level; the main chunk (three) is 715 kB. Story 1.24.
 - **No WebGL means no « Oups »:** when `createRenderer` fails there is no canvas to put the screen over and `boot()` returns after logging. A plain-DOM fallback is a separate decision.
+
+## Deferred from: code review of story 1-6-salon-greybox-depuis-blender (2026-10-27)
+
+- **Loading screen polish.** `role="status"` with `aria-live="polite"` re-announces every rotating line; the 5 s bottle animation is a CSS literal (not data, ends at 0.9 scale, never jumps to full when the screen goes); a sub-100 ms load flashes the opaque screen. Accessibility pass story 2.10; the fill duration with the performance and feel pass. Reason: not an AC, and accessibility is already scheduled.
+- **The toon swap keeps only `color` of `material[0]`.** `side`, `transparent`, `opacity`, `alphaTest`, `emissive` and the further materials of an array are lost, and the cache key is the sRGB hex. Fine for opaque greybox cubes; revisit with the final art, E7. Reason: provisional material by design (AC 4).
+- **Blob shadow eligibility is a height heuristic** (`BLOB_MAX_TOP_M`, non-zero half extents): a raised collider or a low partition gets a blob on the floor, a tall wall gets none, and only code changes it. Move it to a flag from Blender or to data with the art pass, E7. Reason: provisional.
+- **More cross-field checks for `LevelGeometrySchema`.** `cellM` is not tied to `NAV_CELL_M`; colliders, zones and props are not checked against the bounds; a prop's `kind` is not checked against its id prefix. Add them when the sim reads the geometry (stories 1.7, 1.10). Reason: nothing consumes them yet.

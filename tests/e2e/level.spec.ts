@@ -2,9 +2,11 @@ import { expect, type Page, test } from '@playwright/test';
 import { LOADING_LINE_INTERVAL_MS, RESUME_COUNTDOWN_MS } from '../../src/shared/constants.ts';
 import {
   appHistory,
+  collectConsoleErrors,
   collectLoadWarnings,
   collectProblems,
   distinctColours,
+  FAILED_REQUEST,
   GEOMETRY_URL,
   GLB_URL,
   holdRequests,
@@ -76,6 +78,7 @@ test.describe('the loading screen', () => {
   test('2. stays up while the level loads: bottle, a flavour line, no number, opaque', async ({
     page,
   }) => {
+    const problems = collectProblems(page);
     await openGame(page);
     const glb = await holdRequests(page, GLB_URL);
     await pressStart(page);
@@ -110,9 +113,11 @@ test.describe('the loading screen', () => {
     glb.release();
     await expectRunning(page);
     await expect(loadingScreen(page)).toHaveCount(0);
+    expect(problems).toEqual([]);
   });
 
   test('3. the flavour lines rotate while it waits', async ({ page }) => {
+    const problems = collectProblems(page);
     await openGame(page);
     const glb = await holdRequests(page, GLB_URL);
     await pressStart(page);
@@ -125,11 +130,13 @@ test.describe('the loading screen', () => {
     expect(LOADING_LINES).toContain(((await loadingScreen(page).textContent()) ?? '').trim());
     glb.release();
     await expectRunning(page);
+    expect(problems).toEqual([]);
   });
 
   test('4. in the background the load goes on and the level waits for the foreground', async ({
     page,
   }) => {
+    const problems = collectProblems(page);
     await openGame(page);
     const glb = await holdRequests(page, GLB_URL);
     await pressStart(page);
@@ -149,6 +156,7 @@ test.describe('the loading screen', () => {
     await expect(html(page)).toHaveAttribute('data-pp-state', 'running', {
       timeout: LEVEL_TIMEOUT_MS,
     });
+    expect(problems).toEqual([]);
   });
 });
 
@@ -157,6 +165,7 @@ test.describe('a failed load', () => {
     page,
   }) => {
     const warnings = collectLoadWarnings(page);
+    const problems = collectProblems(page, { allowedErrors: FAILED_REQUEST });
     await failTheLoad(page);
 
     await expect(oopsPanel(page)).toBeVisible();
@@ -175,18 +184,22 @@ test.describe('a failed load', () => {
       timeout: LEVEL_TIMEOUT_MS,
     });
     await expect(oopsPanel(page)).toHaveCount(0);
+    expect(problems).toEqual([]);
   });
 
   test('5b. Réessayer works with Enter too', async ({ page }) => {
+    const problems = collectProblems(page, { allowedErrors: FAILED_REQUEST });
     await failTheLoad(page);
     await expect(retryButton(page)).toBeFocused();
     await page.unroute(GLB_URL);
     await page.keyboard.press('Enter');
     await expectRunning(page);
+    expect(problems).toEqual([]);
   });
 
   test('5c. a 404 on the geometry is a failed load', async ({ page }) => {
     const warnings = collectLoadWarnings(page);
+    const problems = collectProblems(page, { allowedErrors: FAILED_REQUEST });
     await page.route(GEOMETRY_URL, (route) => route.fulfill({ status: 404, body: 'nope' }));
     await openGame(page);
     await pressStart(page);
@@ -196,10 +209,12 @@ test.describe('a failed load', () => {
     await page.unroute(GEOMETRY_URL);
     await retryButton(page).click();
     await expectRunning(page);
+    expect(problems).toEqual([]);
   });
 
   test('5d. an HTML page served as the glb (a SPA fallback) is a failed load', async ({ page }) => {
     const warnings = collectLoadWarnings(page);
+    const problems = collectProblems(page, { allowedErrors: FAILED_REQUEST });
     await page.route(GLB_URL, (route) =>
       route.fulfill({
         status: 200,
@@ -214,6 +229,7 @@ test.describe('a failed load', () => {
     await page.unroute(GLB_URL);
     await retryButton(page).click();
     await expectRunning(page);
+    expect(problems).toEqual([]);
   });
 });
 
@@ -221,6 +237,7 @@ test.describe('an uncaught exception', () => {
   test('6a. shows « Oups », and Réessayer restarts the level with a new seed', async ({ page }) => {
     const thrown: string[] = [];
     page.on('pageerror', (error) => thrown.push(error.message));
+    const logged = collectConsoleErrors(page);
     await page.goto('/?throwAfterMs=300');
     await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
     await pressStart(page);
@@ -229,6 +246,10 @@ test.describe('an uncaught exception', () => {
 
     await expect(html(page)).toHaveAttribute('data-pp-app', 'oops');
     expect(thrown).toEqual([expect.stringContaining('forced by ?throwAfterMs')]);
+    // The global handler logged it as an error (AC 8), once.
+    expect(logged.filter((text) => text.includes('uncaught error'))).toEqual([
+      expect.stringContaining('forced by ?throwAfterMs'),
+    ]);
     await expect(retryButton(page)).toBeFocused();
 
     await retryButton(page).click();
@@ -261,6 +282,9 @@ test('7. « Recommencer » reloads behind the loading screen, with no scene left
   await startLevel(page);
   const drawCalls = await html(page).getAttribute('data-pp-draw-calls');
   const triangles = await html(page).getAttribute('data-pp-triangles');
+  const geometries = await html(page).getAttribute('data-pp-geometries');
+  const textures = await html(page).getAttribute('data-pp-textures');
+  expect(Number(geometries)).toBeGreaterThan(0);
   await recordAppStates(page);
 
   await page.keyboard.press('Escape');
@@ -269,9 +293,12 @@ test('7. « Recommencer » reloads behind the loading screen, with no scene left
   await expectRunning(page);
 
   expect(await appHistory(page)).toEqual(['loading', 'level']);
-  // The previous scene was disposed: the same room costs the same, not twice as much.
+  // The previous scene was disposed: the same room costs the same, not twice as much. The draw
+  // calls only count the scene drawn last; the GPU memory is what shows a scene left behind.
   expect(await html(page).getAttribute('data-pp-draw-calls')).toBe(drawCalls);
   expect(await html(page).getAttribute('data-pp-triangles')).toBe(triangles);
+  expect(await html(page).getAttribute('data-pp-geometries')).toBe(geometries);
+  expect(await html(page).getAttribute('data-pp-textures')).toBe(textures);
   expect(problems).toEqual([]);
 });
 

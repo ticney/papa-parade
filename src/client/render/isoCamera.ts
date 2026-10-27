@@ -9,13 +9,17 @@ import { invariant } from '@shared/invariant';
 import { OrthographicCamera, Vector3 } from 'three';
 
 /**
- * Size of the room box. The floor is at y = 0; the footprint is centred on `(centerXM, centerZM)`
- * (the origin when they are left out).
+ * Size of the room box. The footprint is centred on `(centerXM, centerZM)` (the origin when they
+ * are left out); the box runs from `floorYM` (y = 0 when left out, lower when something such as a
+ * stairwell goes below the floor) up by `heightM`.
  */
 export interface RoomSize {
   readonly widthM: number;
   readonly depthM: number;
+  /** From the bottom of the box (`floorYM`) to its top. */
   readonly heightM: number;
+  /** The bottom of the box, in metres. Default: 0. */
+  readonly floorYM?: number;
   readonly centerXM?: number;
   readonly centerZM?: number;
 }
@@ -57,7 +61,9 @@ export function fitIsoCamera(camera: OrthographicCamera, room: RoomSize, aspect:
     Number.isFinite(centerX) && Number.isFinite(centerZ),
     `fitIsoCamera: the room centre must be finite (${centerX}, ${centerZ})`,
   );
-  centre.set(centerX, room.heightM / 2, centerZ);
+  const floorY = room.floorYM ?? 0;
+  invariant(Number.isFinite(floorY), `fitIsoCamera: the room floor must be finite (${floorY})`);
+  centre.set(centerX, floorY + room.heightM / 2, centerZ);
   camera.position
     .set(Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw))
     .multiplyScalar(ISO_CAMERA_DISTANCE_M)
@@ -73,7 +79,7 @@ export function fitIsoCamera(camera: OrthographicCamera, room: RoomSize, aspect:
   let minY = Number.POSITIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
   for (const x of [centerX - room.widthM / 2, centerX + room.widthM / 2]) {
-    for (const y of [0, room.heightM]) {
+    for (const y of [floorY, floorY + room.heightM]) {
       for (const z of [centerZ - room.depthM / 2, centerZ + room.depthM / 2]) {
         corner.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
         minX = Math.min(minX, corner.x);
