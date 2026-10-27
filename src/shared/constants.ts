@@ -49,15 +49,6 @@ export const ISO_CAMERA_NEAR_M = 0.1;
 /** Warnings raised from the frame loop are rate-limited to one per this much real time, in ms. */
 export const LOOP_WARN_INTERVAL_MS = 1000;
 
-/** Provisional room width (x), in metres. Dies with story 1.6, which reads the real level geometry. */
-export const PROVISIONAL_ROOM_WIDTH_M = 8;
-
-/** Provisional room depth (z), in metres. Dies with story 1.6. */
-export const PROVISIONAL_ROOM_DEPTH_M = 6;
-
-/** Provisional room height (y), in metres. Dies with story 1.6. */
-export const PROVISIONAL_ROOM_HEIGHT_M = 2.5;
-
 /** A landscape screen whose short side is under this is the "compact" surface, in CSS px. */
 export const COMPACT_SURFACE_MAX_PX = 430;
 
@@ -75,3 +66,15 @@ export const PANEL_POP_MAX_MS = 220;
 
 /** How long the app waits for its fonts before it starts with the fallback fonts, in ms. */
 export const FONT_LOAD_TIMEOUT_MS = 3000;
+
+/** Side of one cell of a level's navigation grid, in metres (the extractor writes it, story 1.7's A* reads it). */
+export const NAV_CELL_M = 0.25;
+
+/** A level's shipped payload (the optimised `.glb`) is at most this many bytes (NFR3: 3 MB). */
+export const LEVEL_PAYLOAD_MAX_BYTES = 3 * 1024 * 1024;
+
+/** The level the prototype loads, until story 1.10 gives the level JSON its own `id`. */
+export const DEFAULT_LEVEL_ID = 'salon_crawler';
+
+/** How long one flavour line of the loading screen stays up before the next, in real ms. */
+export const LOADING_LINE_INTERVAL_MS = 2000;

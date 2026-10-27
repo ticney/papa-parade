@@ -6,7 +6,7 @@ export type AppState = 'boot' | 'start' | 'loading' | 'level' | 'result' | 'oops
 
 /**
  * Which screen may follow which. Data, not code: later stories add rows and entries
- * (`start → calibration`, `calibration → loading`, `settings`, `fridge`, `oops → loading`) and never
+ * (`start → calibration`, `calibration → loading`, `settings`, `fridge`) and never
  * remove or change these. `start → loading` stays legal: it is the path of a returning player.
  */
 export const APP_TRANSITIONS: Readonly<Record<AppState, readonly AppState[]>> = {
@@ -15,7 +15,7 @@ export const APP_TRANSITIONS: Readonly<Record<AppState, readonly AppState[]>> = 
   loading: ['level', 'oops'],
   level: ['loading', 'result', 'oops'], // loading: « Recommencer »
   result: ['loading'],
-  oops: [],
+  oops: ['loading'], // « Réessayer »
 };
 
 export interface AppFsm {

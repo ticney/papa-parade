@@ -8,6 +8,8 @@ import {
 } from '../../src/shared/constants.ts';
 import {
   collectProblems,
+  GLB_URL,
+  holdRequests,
   html,
   OVERRUN_MARGIN_MS,
   openGame,
@@ -639,7 +641,14 @@ test.describe('strings 30 % longer', () => {
     ).toContain('ab');
     expect(await overflowing('#pp-ui')).toEqual([]);
 
+    // The loading screen too: the level's `.glb` is held back so that it stays up.
+    const glb = await holdRequests(page, GLB_URL);
     await page.locator('.pp-start-screen').click();
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'loading');
+    await expect(page.locator('.pp-loading-screen')).toBeVisible();
+    expect(await overflowing('#pp-ui')).toEqual([]);
+    glb.release();
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
     await expect(html(page)).toHaveAttribute('data-pp-state', 'running', {
       timeout: RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS,
     });

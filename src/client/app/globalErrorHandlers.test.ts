@@ -129,4 +129,25 @@ describe('installGlobalErrorHandlers', () => {
     uninstall();
     expect(listeners.size).toBe(0);
   });
+
+  it('calls onUncaught after logging, for an error and for a rejection', () => {
+    const { target, logger, logged, fire } = setup();
+    const order: string[] = [];
+    installGlobalErrorHandlers(target, logger, () =>
+      order.push(`recover after ${logged.length} log(s)`),
+    );
+    fire('error', { message: 'a' });
+    fire('unhandledrejection', { reason: 'b' });
+    expect(order).toEqual(['recover after 1 log(s)', 'recover after 2 log(s)']);
+  });
+
+  it('never throws, even when onUncaught does: it logs that too', () => {
+    const { target, logger, logged, fire } = setup();
+    installGlobalErrorHandlers(target, logger, () => {
+      throw new Error('recovery broke');
+    });
+    expect(() => fire('error', { message: 'a' })).not.toThrow();
+    expect(logged).toHaveLength(2);
+    expect(logged[1]?.message).toContain('recovery itself failed');
+  });
 });

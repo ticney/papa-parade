@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkContent, stripComments } from '../../tools/content/contentChecks.ts';
+import { createTestLevelGeometry } from '../support/testLevelGeometry.ts';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -145,6 +146,57 @@ describe('checkContent', () => {
     await rm(join(root, 'content/_schemas/strings.schema.json'));
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({ file: 'content/_schemas/strings.schema.json' }),
+    ]);
+  });
+});
+
+describe('checkContent on level geometry files', () => {
+  const FILE = 'content/levels/test_room.geometry.json';
+  const put_ = (text: string) => put(FILE, text);
+  const geometryText = (change: (level: Record<string, unknown>) => void = () => {}) => {
+    const level = createTestLevelGeometry('test_room') as unknown as Record<string, unknown>;
+    change(level);
+    return `${JSON.stringify(level, null, 2)}\n`;
+  };
+
+  it('accepts a geometry file named after its id', async () => {
+    await put_(geometryText());
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('reports a geometry file that breaks the schema, with the JSON path', async () => {
+    await put_(
+      geometryText((level) => {
+        level.anchors = (level.anchors as { id: string }[]).filter((a) => a.id !== 'phone');
+      }),
+    );
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: FILE, message: expect.stringContaining('"phone"') }),
+    ]);
+  });
+
+  it('reports an id that differs from the file name', async () => {
+    await put_(
+      geometryText((level) => {
+        level.id = 'other_room';
+      }),
+    );
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'id' }),
+    ]);
+  });
+
+  it('still refuses a JSON file in levels/ that matches no pattern', async () => {
+    await put('content/levels/salon.json', '{}');
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: 'content/levels/salon.json' }),
+    ]);
+  });
+
+  it('reports a stale generated geometry schema', async () => {
+    await writeFile(join(root, 'content/_schemas/levelGeometry.schema.json'), '{}\n');
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: 'content/_schemas/levelGeometry.schema.json' }),
     ]);
   });
 });

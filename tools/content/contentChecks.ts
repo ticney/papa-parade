@@ -1,7 +1,12 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import type { ContentProblem } from '@content/contentError';
-import { CONTENT_FILES, STRINGS_FILE } from '@content/contentFiles';
+import {
+  CONTENT_FILES,
+  CONTENT_SCHEMAS,
+  matchContentPattern,
+  STRINGS_FILE,
+} from '@content/contentFiles';
 import { renderContentJsonSchema } from '@content/jsonSchema';
 import { parseContentFile } from '@content/parseContentFile';
 import { checkStringReferences } from '@content/stringRefs';
@@ -35,7 +40,7 @@ export async function listContentFiles(rootDir: string): Promise<string[]> {
 
 /** The `_schemas/*.schema.json` files that no registered content file generates: stale or hand-made. */
 export async function listOrphanSchemas(rootDir: string): Promise<string[]> {
-  const expected = new Set(CONTENT_FILES.map((entry) => `${entry.schemaName}.schema.json`));
+  const expected = new Set(CONTENT_SCHEMAS.map((entry) => `${entry.schemaName}.schema.json`));
   const names = await readdir(join(rootDir, 'content', SCHEMAS_DIR)).catch(() => [] as string[]);
   return names.filter((name) => name.endsWith('.schema.json') && !expected.has(name)).sort();
 }
@@ -111,12 +116,34 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   for (const file of await listContentFiles(rootDir)) {
     const display = `content/${file}`;
     const entry = CONTENT_FILES.find((candidate) => candidate.file === file);
+    const matched = entry === undefined ? matchContentPattern(file) : undefined;
+    if (entry === undefined && matched !== undefined) {
+      const result = parseContentFile(
+        display,
+        await readFile(join(contentDir, file), 'utf8'),
+        matched.pattern.schema,
+      );
+      if (!result.ok) {
+        problems.push(...result.error);
+        continue;
+      }
+      const id = (result.value as { id?: unknown }).id;
+      if (id !== matched.id) {
+        problems.push({
+          file: display,
+          jsonPath: 'id',
+          message: `the id "${String(id)}" must equal the file name ("${matched.id}")`,
+        });
+      }
+      parsed.push({ file: display, value: result.value });
+      continue;
+    }
     if (entry === undefined) {
       problems.push({
         file: display,
         jsonPath: '',
         message:
-          'no schema registered for this file (add it to CONTENT_FILES in src/content/contentFiles.ts)',
+          'no schema registered for this file (add it to CONTENT_FILES or CONTENT_PATTERNS in src/content/contentFiles.ts)',
       });
       continue;
     }
@@ -152,7 +179,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
     });
   }
 
-  for (const entry of CONTENT_FILES) {
+  for (const entry of CONTENT_SCHEMAS) {
     const display = `content/${SCHEMAS_DIR}/${entry.schemaName}.schema.json`;
     const onDisk = await readFile(join(rootDir, display), 'utf8').catch(() => null);
     if (onDisk !== renderContentJsonSchema(entry.schema)) {

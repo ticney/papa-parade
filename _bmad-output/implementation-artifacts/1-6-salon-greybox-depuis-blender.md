@@ -1,0 +1,410 @@
+---
+baseline_commit: 82a0127678c8a30691dbd99ffdafeaa782d4ad4e
+---
+
+# Story 1.6: Greybox living room from Blender
+
+Status: review
+
+<!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.6 « Salon greybox depuis Blender ». Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
+
+## Story
+
+As Geo,
+I want the living room to be blocked out in Blender and loaded by the game as it is,
+so that Blender is my level editor from the prototype on.
+
+**Requirements covered:** FR64 (Blender pipeline of the architecture, ADR-009), NFR3 (level load < 5 s on 4G, payload ≤ 3 MB), NFR12 (the sim never reads a `.glb`), performance budgets (≤ 100 draw calls, ≤ 100k triangles, blob shadows only). **UX:** UX-DR8 (loading screen: a baby bottle that fills, flavour lines, no percentage; « Oups ! Quelque chose s'est renversé. » with « Réessayer »). It also closes three items that stories 1.4 and 1.5 left for this story: the « Oups » screen, the level waiting for the foreground, and the real room bounds for the camera.
+
+## Acceptance Criteria
+
+1. **The `.blend`.** Given `assets-src/blender/salon_crawler.blend`, blocked out in cubes by the AI through Blender MCP, when it is inspected, then it has the collections `level`, `colliders`, `nav`, `anchors`, `props`, and objects named by the conventions: `COL_*`, `NAV_floor`, `NAV_block_*`, `ANCHOR_papa_spawn`, `ANCHOR_baby_spawn`, `ANCHOR_outlet_01`, `ANCHOR_stairs_top`, `ANCHOR_coffee_table`, `ANCHOR_phone`, `ANCHOR_coffee_machine`, `ANCHOR_door`, `ZONE_hidden_behind_sofa`, `PROP_*`.
+2. **Export.** Given `tools/blender/export_level.py`, when it runs (through Blender MCP or `blender -b -P`), then it exports `public/assets/levels/salon_crawler.glb` (metres, Y up), and it fails with a clear message when a name breaks the conventions or a required anchor is missing.
+3. **Extraction.** Given `npm run assets:extract`, when it reads the `.glb`, then it writes `content/levels/salon_crawler.geometry.json`, valid against `LevelGeometrySchema`: colliders, a 0.25 m navigation grid, anchors, zones, props. And `npm run assets:optimize` passes the `.glb` through gltfpack.
+4. **Display.** Given the client, when the level `salon_crawler` is loaded, then the room is shown in isometric view with a provisional toon material and blob shadows.
+5. **Loading screen.** Given a load in progress, then a loading screen stays up until every asset is ready: a baby bottle (`loading-indicator`) fills on `{colors.cream}`, flavour lines from `strings.fr.json` rotate (never instructions), and no percentage is shown.
+6. **Background.** Given a load in progress, when the app goes to the background, then the load goes on, and the level waits for the foreground to start through the 3 s countdown.
+7. **Load failure.** Given a failed load of the `.glb` or of the geometry (network cut, file absent), when `loadLevelAssets` returns an error `Result`, then the « Oups » screen shows (« Oups ! Quelque chose s'est renversé. », plain panel) with a « Réessayer » button that has focus and goes back to loading, and the error is logged as a `warn` with the level id.
+8. **Uncaught exception.** Given the global handler (`error`, `unhandledrejection`) installed by `boot.ts`, when an exception is not caught, then it is logged as `error` and the « Oups » screen offers to restart the level (an e2e test throws through the dev parameter `?throwAfterMs=…`).
+9. **Quality gates.** `npm run ci` passes with the new unit, architecture and e2e tests; `biome.json` and the existing `tests/architecture/*.test.ts` files are untouched (new architecture test files may be added); no new npm dependency.
+
+## Tasks / Subtasks
+
+- [x] **T1: Conventions and geometry schema (AC 2, 3)**
+  - [x] `src/content/levelNodeNames.ts` (+ test): the single TypeScript source of the Blender naming rules. `parseNodeName(name): { kind: 'col' | 'navFloor' | 'navBlock' | 'anchor' | 'zone' | 'prop' | 'visual'; id: string; zoneKind?: string }` (prefix rules of Dev Notes › Naming), `isVisualNodeName(name)`, `REQUIRED_ANCHOR_IDS` (the eight anchors of AC 1), `REQUIRED_ZONE_IDS` (`behind_sofa`). Pure, no `three`.
+  - [x] `src/content/schemas/levelGeometry.ts` (+ test): `LevelGeometrySchema` (strict, camelCase, units in names), shape in Dev Notes › Geometry file. Refinements: unique ids per list, nav rows all the same length as `cols` and `rows.length === rowCount`, only `0`/`1`, every `REQUIRED_ANCHOR_IDS` present, anchors inside `bounds`. Good and bad inputs in the test.
+  - [x] `NAV_CELL_M = 0.25` and `LEVEL_PAYLOAD_MAX_BYTES = 3 * 1024 * 1024` in `src/shared/constants.ts` (one doc line each; `DEFAULT_LEVEL_ID = 'salon_crawler'` too, until story 1.10 gives the level JSON its `id`).
+  - [x] Register the schema for `content:check` without weakening it (Dev Notes › Content pipeline): `content/levels/*.geometry.json` is validated against `LevelGeometrySchema`, `content/_schemas/levelGeometry.schema.json` is generated by `npm run content:schemas` and checked for drift, and `listOrphanSchemas` knows it.
+- [x] **T2: The room in Blender (AC 1)**
+  - [x] Ask Geo to start Blender with the MCP add-on and its server (`localhost:9876`); at story creation it was **not connected**. Fallback if Geo is away: Blender 5.2.3 is at `/Applications/Blender.app/Contents/MacOS/Blender` (not on `PATH`), and `-b -P script.py` builds the same scene headlessly. Either way, only project `.blend` files under git (Dev Notes › Blender MCP safety).
+  - [x] Build `assets-src/blender/salon_crawler.blend` per Dev Notes › The room (layout table, colours, far walls only). Collections `level`, `colliders`, `nav`, `anchors`, `props`; names per the conventions; origin and rotation applied (no unapplied scale: the extractor reads node transforms but a non-uniform scale on a collider is refused); one material per colour, named after the colour role.
+  - [x] Add `*.blend1` and `*.blend@` to `.gitignore` (Blender's backups). The `.blend` itself is committed.
+  - [x] Inspect it back (MCP `get_objects_summary` or a headless dump) and list the objects in the Completion Notes.
+- [x] **T3: Export script (AC 2)**
+  - [x] `tools/blender/export_level.py`: validates names and the required anchors **before** exporting (message names the object and the rule, exit code ≠ 0 headless; `raise` via MCP), then `bpy.ops.export_scene.gltf` to `--out` (default `public/assets/levels/salon_crawler.glb`) with `export_format='GLB'`, `export_yup=True`, empties kept, no cameras or lights, materials exported, `export_apply=True`. Python 3 of Blender 5.2, no third-party module. Arguments after `--`.
+  - [x] `npm run assets:export` → `tools/assets/exportLevel.ts` runs Blender headless (`BLENDER_BIN` env, else the macOS path above, else `blender` on `PATH`) with `-b <blend> -P export_level.py -- --out <glb>`; a missing Blender is a clear error, not a stack trace. Uses `log`, never `console`.
+  - [x] Drift test (new, `tests/architecture/blenderConventions.test.ts`): the prefixes, the required anchors and the required zones written in `export_level.py` equal `levelNodeNames.ts`. The Python file is read as text; do not run Python in CI.
+- [x] **T4: Extraction and optimisation (AC 3)**
+  - [x] `tools/assets/glb.ts` (+ test on a GLB built in memory): `parseGlb(bytes)` returns the JSON chunk and the BIN chunk, throws a typed error on a bad magic, version or chunk. No dependency (glTF is a small container).
+  - [x] `tools/assets/extractLevelGeometry.ts` (+ test): pure `extractLevelGeometry(gltfJson, options): Result<LevelGeometry, string[]>` plus a thin Node `main` (`npm run assets:extract`, reads the `.glb`, writes `content/levels/<id>.geometry.json` with 2-space indent, trailing newline, arrays sorted by id, numbers rounded to 1 mm). Rules in Dev Notes › Extraction. It refuses a file already optimised by gltfpack (`EXT_meshopt_compression` in `extensionsUsed`) with « re-export from Blender first ».
+  - [x] `tools/assets/optimizeGlb.ts`: runs the `gltfpack` package (1.3.0, already a devDependency) on the file **in place**, flags in Dev Notes › Pipeline order. `npm run assets:optimize`.
+  - [x] Run the three steps for real: `assets:export`, `assets:extract`, `assets:optimize`, then `content:check`. Commit-ready artefacts: the `.blend`, the optimised `.glb`, the geometry JSON.
+  - [x] `tests/architecture/levelAssets.test.ts` (new): the committed `.glb` is at most `LEVEL_PAYLOAD_MAX_BYTES`, the committed geometry file passes `LevelGeometrySchema`, and the `.glb` still holds at least one visual mesh node (a quick structural read of its JSON chunk; no rendering).
+- [x] **T5: Loading the level assets (AC 4, 7)**
+  - [x] `src/client/assets/loadLevelAssets.ts` (+ test with injected `fetch` and `parse`): `loadLevelAssets(id, deps?): Promise<Result<LevelAssets, AppError>>`. Fetches `${BASE_URL}assets/levels/<id>.glb` and the geometry (Dev Notes › Fetching), parses the geometry with `parseContentFile` + `LevelGeometrySchema`, parses the glb. Never throws: a rejected fetch, a non-OK status, a bad geometry and a bad glb are all `err({ kind: 'assets', message, cause })`, each with a distinct message naming the file. It logs the `warn` itself (`log.warn('assets', 'level load failed', { id, error })`) like the architecture's example.
+  - [x] `src/client/assets/gltf.ts`: the only importer of `GLTFLoader` and `MeshoptDecoder` (`three/addons/...`), loaded with a dynamic `import()` from `loadLevelAssets` so they stay out of the main chunk. `parseGlb(bytes, baseUrl): Promise<Group>` through `loader.parseAsync`.
+  - [x] `LevelAssets = { id; geometry: LevelGeometry; model: Group }`.
+- [x] **T6: The level scene (AC 4)**
+  - [x] `src/client/render/levelScene.ts` replaces `provisionalScene.ts` and its test (delete both, move what is reusable): `createLevelScene(assets): LevelScene` with `scene`, `room` (`RoomSize` from the geometry bounds), `update(world, alpha)`, `dispose()`. Removes the non-visual nodes of the model (`COL_`, `NAV_`, `ZONE_`, `ANCHOR_`), keeps `PROP_*` as static meshes at their place (story 1.15 turns them into physics views), swaps every material for a shared toon material, adds the lights, the blob shadows and the **probe** (Dev Notes › The probe).
+  - [x] `src/client/render/materials/toonMaterial.ts` (+ test of the pure part): `createToonMaterialCache()` → `get(color)`; `MeshToonMaterial` with a 3-tone `gradientMap` (`DataTexture` 3×1, `NearestFilter`); one material per distinct colour; `dispose()`.
+  - [x] `src/client/render/blobShadow.ts` (+ test of the pure footprint maths): one soft round shadow on the floor under each collider footprint (`colliders` of the geometry), a shared radial-gradient texture, `depthWrite: false`, lifted a few mm above the floor; no shadow map anywhere (`renderer.shadowMap` stays off).
+  - [x] `isoCamera.ts`: `RoomSize` gains optional `centerXM` and `centerZM` (default 0, existing tests untouched); `fitIsoCamera` aims at the room centre. Add tests for an off-centre room (all 8 corners inside the view at several aspects).
+  - [x] `GameRenderer` gains `stats(): { drawCalls: number; triangles: number }` (from `renderer.info.render`, no allocation: write into a reused object) for the debug mirrors (T8). Remove `PROVISIONAL_ROOM_*` from `constants.ts`.
+- [x] **T7: Loading, « Oups » and the level session (AC 5 to 8)**
+  - [x] `OverlayKind` gains `'loading'`; `chooseOverlay` precedence becomes **portrait > oops > pause > loading > start** and `appState === 'loading'` returns `'loading'`. Update `overlay.test.ts`: the old `loading → null` row changes (say so in the Completion Notes); every other row is untouched.
+  - [x] `APP_TRANSITIONS.oops` becomes `['loading']` (« Réessayer »). Update the explicit edge list in `appFsm.test.ts`; no other edge changes.
+  - [x] `src/client/ui/screens/loadingScreen.ts` (+ pure helper test): opaque `cream` full surface, the bottle (inline SVG built with `svgElement`, `aria-hidden`), `loading.line_*` rotating every `LOADING_LINE_INTERVAL_MS`, `role="status"`, no digits, no `%`. CSS in `ui.css` per Dev Notes › Loading screen. `LOADING_LINE_INTERVAL_MS` goes in `constants.ts`.
+  - [x] `src/client/ui/screens/oopsScreen.ts`: `pp-panel` on the scrim, `oops.message` in `pp-type-heading`, « Réessayer » `pp-button-primary` through `bindPressButton`, `initialFocus` = that button, `aria-label` from `oops.retry`, `role="alertdialog"` with `aria-label` from `oops.message`. `OverlayBuilders.oops` becomes required and the « no screen to show yet » warning path for `oops` goes away.
+  - [x] `levelSession.ts` (+ tests): after `enter('loading')` it calls `loadLevelAssets`; on `err` → `enter('oops')`, stop; on success creates the `LevelScene`, tells the shell the room (`onLevelReady(room)`), disposes the previous scene, then **waits for the foreground** (`deps.waitForForeground()`) before the countdown starts. Adds the **generation token** deferred from the story 1.5 review: `stop()` bumps it, and a start that resumes after a `stop()` (or after a newer start) does nothing more and leaves no state behind. Keep the single-flight guard (a second « Recommencer » while loading is ignored) correct with the token.
+  - [x] `globalErrorHandlers.ts`: optional `onUncaught(): void` called after the `log.error`. `boot.ts` passes a function that, in `loading` or `level`, calls `levelSession.stop()` then `appFsm.enter('oops')`; in any other state it only logs. It must never throw.
+  - [x] `boot.ts`: wire `oops` retry → `levelSession.start()`; the backdrop for `start` and `oops` is an empty scene (background `ink`); `drawStatic` draws the level scene if one exists, else the backdrop; the camera is fitted from `onLevelReady(room)`. The dev-only `?throwAfterMs=<n>` (only inside `if (import.meta.env.VITE_DEBUG_ALLOWED === 'true')`): n ms after the app enters `level`, a `setTimeout` throws `new Error('forced by ?throwAfterMs')`.
+- [x] **T8: Debug mirrors and end-to-end (AC 4 to 8)**
+  - [x] Debug mirrors on `<html>` (same rule as story 1.5 D13: only when `VITE_DEBUG_ALLOWED === 'true'`, written when the value changes): `data-pp-level` (the level id once its scene is up) and, once per level on its first rendered frame, `data-pp-draw-calls` and `data-pp-triangles`.
+  - [x] `tests/e2e/level.spec.ts` (chromium + webkit) following Dev Notes › E2E script. No `waitForTimeout`; delay a request with a `page.route` that waits on a promise the test resolves.
+  - [x] Update existing specs only where the new flow forces it (`startLevel` already waits on `data-pp-app="level"` then `running`); the probe keeps `pauseResume.spec.ts` and the byte-equal screenshot checks meaningful.
+- [x] **T9: Docs and verification (AC 9)**
+  - [x] `deferred-work.md`: mark « Resolved in story 1.6 » on the items listed in Dev Notes › Items this story resolves, and add Dev Notes › Deferred by this story.
+  - [x] `npm run ci` passes end to end. Run `npm run lint` and `npm test` after the first new files, not at the end.
+  - [x] Manual check in a real browser (built-in browser pane on `npm run dev`): start, loading screen (throttle the glb request in devtools or with a delayed route), the room in isometric view with toon shading and blob shadows, probe sliding, pause, restart. Say what was and was not checked; never claim a visual check you did not make (a screenshot of the canvas is the evidence).
+  - [x] Break things to prove the guards bite, then restore: rename `ANCHOR_door` in a copy → `export_level.py` refuses; remove `ANCHOR_phone` from the geometry JSON → `content:check` fails; a `.glb` over 3 MB → `levelAssets` fails; a prefix changed in `export_level.py` → `blenderConventions` fails.
+  - [x] `git status`: only the files of the File List changed; nothing committed.
+
+## Dev Notes
+
+### What exists today (stories 1.1 to 1.5, done)
+
+- **Flow:** `src/client/app/appFsm.ts` has `boot → start → loading → level → result`, `oops` from `loading` and `level`, and **no way out of `oops`** (this story adds `oops → loading`). `overlay.ts` derives one overlay from `{ appState, isPortrait, pauseState }`; `loading` shows nothing today and `oops` has no builder (the overlay host warns `no "oops" screen to show yet`). `uiShell.ts` shows the HUD only in `level`.
+- **`levelSession.ts`** (`createLevelSession(deps)`): `start()` is single-flight (`isStarting`), calls `stop()`, `appFsm.enter('loading')`, draws a seed, `await makeSim(...)`, builds a **per-level** `timeMap` and `loop`, then `pause.requestPause('levelStart')`, `requestResume()` only if `deps.canResumeNow()`, `appFsm.enter('level')`, `loop.start()`. A failed `createSim` already logs an `error` and goes to `oops`. Its `deps` hold the **boot-time** `scene: ProvisionalScene` and `camera`; the scene is built once at boot and survives restarts.
+- **`boot.ts`**: builds the renderer, `createProvisionalScene()`, a fixed `ROOM` from `PROVISIONAL_ROOM_*`, `drawStatic()` (draws the scene when the app is not in `level`) and `fitViewToCanvas()` (resize observer + window resize), debug mirrors `data-pp-state|app|seed`, the shell and the overlay host with builders `start`, `pause(mode)`, `portrait`. `canResumeNow` = not portrait and page not hidden: **today a level started while the page is hidden is left paused and shows the panel on return**; this story replaces that for the background case (portrait keeps today's behaviour).
+- **`provisionalScene.ts`**: flat cream floor, a 1 m grid, and a **probe cube** sliding as a function of the sim clock (`world.time.sim + alpha * STEP_MS`), `MeshBasicMaterial`, no lights. Its header says « Story 1.6 replaces this file with `levelScene.ts`; story 1.7 deletes the probe ».
+- **`renderer.ts`**: `createRenderer(canvas): Result<GameRenderer, AppError>`, `resize()`, `render()`, `dispose()`, context-loss logging. **`isoCamera.ts`**: `fitIsoCamera(camera, room: RoomSize, aspect)` assumes the room is centred on the origin with the floor at y = 0; the camera sits at `+x +z` looking toward the room (`ISO_YAW_DEG` 45°, `ISO_PITCH_DEG` 35.264°).
+- **Content:** `src/content` has `FeelSchema`, `StringsSchema`, `ContentBundle { feel, strings }`, `CONTENT_FILES` (the single registry for `loadContent`, `content:check`, `content:schemas`), `parseContentFile(file, text, schema)`. `createBrowserContentSource()` inlines **every** `content/**/*.json` (except `_schemas`) in the bundle with `import.meta.glob(..., { eager: true, query: '?raw' })`. `tools/content/contentChecks.ts` flags any content JSON without a registered schema and any orphan schema.
+- **Strings already present:** `loading.line_bottle|toys|keys`, `oops.message`, `oops.retry`. **No new string is needed.**
+- **Sim:** `createSim({ content, seed })` takes no level yet; the sim does not read geometry in this story (navigation is story 1.7).
+- **CI:** typecheck → lint → content:check → test:coverage → e2e (chromium + webkit, 844 × 390, touch, dev server on port 5179) → build:playtest. `.env.development` has `VITE_DEBUG_ALLOWED=true`. CI has no Blender: the three generated artefacts are committed.
+- **Tooling facts checked at story creation (2026-10-27):** Blender 5.2.3 LTS at `/Applications/Blender.app` (not on `PATH`); Blender MCP tools exist but the add-on server was **not running**; `gltfpack@1.3.0` is installed (`node_modules/.bin/gltfpack`); there is no `assets-src/` folder, no `tools/blender`, no `tools/assets`, no `content/levels`, no `public/assets` yet.
+
+### Decisions pinned by this story
+
+| # | Decision | Why |
+|---|---|---|
+| D1 | The level id is the constant `DEFAULT_LEVEL_ID = 'salon_crawler'` (`shared/constants.ts`). There is no level JSON yet (`LevelSchema` is story 1.10). | The epic names the level; nothing else carries its id. 1.10 replaces the constant by the level file's `id`. |
+| D2 | **Pipeline order is `export → extract → optimize`, all writing the same `public/assets/levels/salon_crawler.glb`.** The export holds every node (visual, `COL_`, `NAV_`, `ANCHOR_`, `ZONE_`, `PROP_`); `extract` reads that raw file; `optimize` rewrites it in place with gltfpack. `extract` refuses an optimised file. | The AC sends the export to `public/`. The extractor needs the unquantised positions and the collision nodes; gltfpack quantises positions and compresses buffers. Re-running means re-exporting; a guard turns the mistake into a clear message. |
+| D3 | The extractor reads node transforms and **accessor `min`/`max`**, never the binary buffers. A collider, nav, zone or prop node is a box mesh: its world AABB is the 8 corners of its accessor box through the node's world matrix. | Dependency-free and exact for greybox cubes. Only rotation about Y by a multiple of 90° is allowed on `COL_`/`NAV_`/`ZONE_` boxes (otherwise the AABB is a lie): the extractor refuses any other rotation with the node's name. |
+| D4 | The client **removes** `COL_`, `NAV_`, `ZONE_`, `ANCHOR_` nodes from the scene after loading; they stay in the shipped `.glb`. `PROP_` nodes stay visible, static, at their start position. | Cheapest while the room is cubes. Story 1.15 replaces the static prop meshes with pooled physics views (and then should stop exporting the dynamic props twice). The debug overlay (story 2.1) will want the removed nodes; if so it can re-load or the export can tag them then. |
+| D5 | Geometry is **fetched by the client at load time**, not bundled: `*.geometry.json` is excluded from the eager content glob and loaded with a **lazy** `import.meta.glob('../../../content/levels/*.geometry.json', { query: '?raw', import: 'default' })`, which makes one chunk per level that is requested over the network. A missing or unreachable chunk rejects → `err`. | The AC wants a network failure of the geometry to reach « Oups », and the eager glob would inline it in the main bundle (a deferred item of story 1.2). Verify in the dev server **and** in `npm run build:playtest` that the chunk exists and a blocked request fails the load. If `?raw` lazy globs turn out not to emit a separate chunk, fall back to copying the JSON to `public/assets/levels/` in `assets:extract` and `fetch` it; keep the `Result` contract identical and note the change. |
+| D6 | The start screen no longer sits over the room: at `start` the canvas shows an empty `ink` backdrop under the scrim. The room appears after the first gesture, behind the loading screen, when the level is ready. | The room is only known after loading; the 1.5 AC says the first gesture leads to loading. Preloading at boot would change that AC. Open point 1. |
+| D7 | `Recommencer` and `Réessayer` **reload** the level assets (HTTP cache makes it cheap) and dispose the previous `LevelScene`. No cache of parsed assets. | A parsed `Group` is mutable (materials swapped, nodes removed); sharing it across levels is a bug farm. Revisit with real assets (E7). |
+| D8 | Background during loading: the load continues; when assets are ready and the page is hidden the app **stays in `loading`** until `visibilitychange` says visible, then enters `level` through the 3 s countdown. Portrait during loading is unchanged from story 1.5 (the level starts paused and the panel shows when the phone is turned back). | EXPERIENCE.md › Loading › Background. Portrait is a different condition (UI flag, story 1.5 D5). |
+| D9 | The loading screen has **no minimum display time** and no delay. | A minimum would add to every restart. If it flickers on a fast load, Geo decides. Open point 2. |
+| D10 | Uncaught exception: from `loading` or `level` the app stops the level and enters `oops`; from `boot`, `start`, `result`, `oops` it only logs. | `oops` is reachable only from `loading` and `level` (story 1.5 AC 4); not widening the table keeps its tests. |
+| D11 | `?throwAfterMs=<n>` is read inside `if (import.meta.env.VITE_DEBUG_ALLOWED === 'true')` so the store build contains none of it; the timer starts when the app enters `level`. Invalid or negative values are ignored with a `warn`. | The AC asks for it; the flag keeps cheats out of store builds. |
+
+### Naming conventions (Blender → `.glb` → code)
+
+From `game-architecture.md` › Conventions de nommage, enforced in two places (Python at export, TypeScript at extraction) and kept in sync by a test:
+
+- Collections: `level` (visuals), `colliders`, `nav`, `anchors`, `props`.
+- `COL_<name>` static collider box, invisible in game. `NAV_floor` the walkable surface (exactly one). `NAV_block_<name>` a non-walkable box. `ANCHOR_<id>` a named point (an empty; its world position is the point). `PROP_<kind>_<nn>` a dynamic prop (`PROP_mug_01`: kind `mug`, two-digit index). `ZONE_<kind>_<name>` a gameplay volume (`ZONE_hidden_behind_sofa` → kind `hidden`, id `behind_sofa`; kinds `hidden`, `safe`, `creak`). Visual meshes have no prefix.
+- After the prefix: `lower_snake_case` (`[a-z][a-z0-9_]*`). Metres, Y up at export. Blender is Z up: the exporter's Y-up conversion maps Blender `(x, y, z)` to glTF `(x, z, -y)`. **All coordinates in `geometry.json` are glTF coordinates** (x right, y up, z toward the viewer on screen's lower-left, as the sim and the client use).
+- Any other prefix-looking name (`COL`, `ANCHORS_x`, `col_sofa`) is an error, not a visual mesh: a name that starts with one of the uppercase prefixes but breaks the shape is refused.
+- Ids are unique within their kind. Required: anchors `papa_spawn`, `baby_spawn`, `outlet_01`, `stairs_top`, `coffee_table`, `phone`, `coffee_machine`, `door`; zone `hidden` / `behind_sofa`. The architecture's level example refers to `behind_sofa`, `papa_spawn`, `baby_spawn`, `outlet_01`, `stairs_top`, `coffee_table` by id without prefix: the extractor strips the prefix.
+
+### The room (what to block out)
+
+A single living room, a few cubes, readable at a glance in isometric view. Suggested layout (glTF metres, floor at y = 0; adjust freely, Geo will move things in Blender later; keep the footprint about 8 m × 6 m and the walls 2.5 m so the iso fit looks like story 1.4's):
+
+| Object | Names | Rough place and size |
+|---|---|---|
+| Floor slab | visual `floor`, `NAV_floor` | centred on the origin, 8 × 6 m |
+| Far walls | visual `wall_back`, `wall_side`, `COL_wall_back`, `COL_wall_side` | **only** on the two sides away from the camera: the camera is at `+x +z`, so the walls stand on the `-x` and `-z` edges. Near sides stay open or the room is hidden |
+| Sofa | visual `sofa`, `COL_sofa`, `NAV_block_sofa` | along the `-z` wall, about 2.2 × 0.9 × 0.9 m; `ZONE_hidden_behind_sofa` is the 0.8 m gap between sofa and wall |
+| Coffee table | visual `coffee_table`, `COL_coffee_table`, `NAV_block_coffee_table`, `ANCHOR_coffee_table`, `PROP_mug_01` on top | in front of the sofa, 1.2 × 0.45 × 0.6 m |
+| Electrical outlet | `ANCHOR_outlet_01` on a wall at 0.3 m height, a small visual lamp or plug box | on the `-x` wall, reachable from the floor |
+| Stairs | visual steps, `COL_stairs`, `NAV_block_stairs`, `ANCHOR_stairs_top` | at the `+x` edge going down off the floor slab (a landing plus 3 to 4 steps); the stair opening is non-walkable |
+| Phone | visual small box on a side table, `COL_side_table`, `NAV_block_side_table`, `ANCHOR_phone` | near the sofa |
+| Coffee machine | visual box on a counter, `COL_counter`, `NAV_block_counter`, `ANCHOR_coffee_machine` | along the `-x` or `-z` wall |
+| Door | visual door frame, `ANCHOR_door` | in a far wall, visible from the camera |
+| Spawns | `ANCHOR_papa_spawn`, `ANCHOR_baby_spawn` | on open floor, away from furniture |
+
+- Materials: one flat material per role with a base colour, no textures. Take colours from the DESIGN.md `colors` (cream, ink, ink-soft, paper, primary, and neutrals); **never** the signal colours `parry` (blue), `dodge` (red) or `alert` (yellow): they are reserved for threats (UX-DR1).
+- Budget: far under 100 draw calls and 100k triangles; no mesh with more than a few hundred triangles; no texture.
+
+### Geometry file (`content/levels/<id>.geometry.json`)
+
+Generated, never edited by hand. Strict schema, camelCase, units in names. Indicative shape (the dev finalises names; keep the suffixes):
+
+```json
+{
+  "id": "salon_crawler",
+  "cellM": 0.25,
+  "boundsMinM": [-4, 0, -3],
+  "boundsMaxM": [4, 2.5, 3],
+  "colliders": [{ "id": "sofa", "centerM": [0, 0.45, -2.2], "halfExtentsM": [1.1, 0.45, 0.45] }],
+  "nav": { "originM": [-4, -3], "cols": 32, "rows": ["1111…", "…"] },
+  "anchors": [{ "id": "outlet_01", "positionM": [-3.9, 0.3, 0.5] }],
+  "zones": [{ "id": "behind_sofa", "kind": "hidden", "centerM": [0, 0.5, -2.8], "halfExtentsM": [1, 0.5, 0.35] }],
+  "props": [{ "id": "mug_01", "kind": "mug", "centerM": [0, 0.7, -1], "halfExtentsM": [0.05, 0.05, 0.05] }]
+}
+```
+
+- `nav.rows[r][c]` is `'1'` walkable, `'0'` blocked, row `r` covering `z = originM[1] + r * cellM` and column `c` covering `x = originM[0] + c * cellM`. Readable and diff-friendly on purpose.
+- `bounds` is the AABB of every **visual** node (the `level` collection), floor included; the client derives the camera `RoomSize` from it (width = x extent, depth = z extent, height = y extent, centre = middle of x and z). The floor must rest at y = 0 (`NAV_floor` top face; a tolerance of 1 mm).
+- Tunables are not here: speeds, radii, thresholds are `feel.json`.
+
+### Extraction rules (`extractLevelGeometry`)
+
+- A cell is walkable when its **centre** lies inside the `NAV_floor` footprint and inside **no** `NAV_block_*` footprint. Intervals are half-open (`min <= v < max`) so the result does not depend on rounding. Coordinates are rounded to 1 mm before the test and in the output so the committed JSON is identical on every machine.
+- Errors are collected, not first-fail, each naming the node: unknown prefix shape, duplicate id, missing `NAV_floor` or more than one, missing required anchor or zone, a box node without a mesh or without accessor `min`/`max`, a forbidden rotation (D3), non-uniform or negative scale on a box.
+- Reachability: every anchor and the `behind_sofa` zone centre must have a walkable cell within `ANCHOR_MAX_DISTANCE_TO_WALKABLE_M` (1 m; a constant in `tools/assets`, it is a validation, not a game number), `papa_spawn` and `baby_spawn` must **be** on walkable cells, and all of them must be in the same connected walkable region as `papa_spawn` (4-neighbour flood fill). Story 1.7's A* depends on this; fail here, not in the sim.
+- Output ordering: arrays sorted by id; keys in a fixed order. Run it twice: byte-identical.
+
+### Pipeline order and gltfpack
+
+`export_level.py` → raw `.glb` (D2) → `assets:extract` → `assets:optimize`. For gltfpack use `-cc` (meshopt compression, so the real decode path is exercised from the start: the architecture ships meshopt) and `-kn` (keep named nodes: the client finds `PROP_*` and removes the others by name). Add `-km` if merging would drop material identity the toon cache relies on. Record the exact command in `optimizeGlb.ts`. The result must load with `GLTFLoader` + `MeshoptDecoder` and render the same room. Do not run gltfpack on a file that already carries `EXT_meshopt_compression` (no-op guard with a message).
+
+The shipped `.glb` still contains the collider / nav / zone / anchor nodes (D4). At greybox size this is bytes; the architecture test only checks the 3 MB ceiling. If a later story wants them out, `export_level.py` can write a second file; do not do it now.
+
+### Fetching and parsing in the client
+
+- Base: `import.meta.env.BASE_URL` (`./` in builds, `/` in dev). The glb URL is `${BASE_URL}assets/levels/<id>.glb`. Do not write `/assets/...` (breaks `base: './'` and Capacitor).
+- `loadLevelAssets` takes injectable `fetchBytes(url)`/`loadGeometryText(id)`/`parseModel(bytes)` (defaults: real `fetch`, the lazy glob of D5, `gltf.ts`) so Vitest in Node covers every failure with no DOM. A non-2xx status is an error (a SPA fallback returning HTML for a missing file must not parse as a glb: check the status and, for the glb, the magic `glTF` before parsing).
+- Load the glb and the geometry in parallel; report the first failure. Both failures are `AppError { kind: 'assets' }`.
+- `GLTFLoader` and `MeshoptDecoder` come from `three/addons/...` (the `three` package, already pinned at 0.186.1; types in `@types/three`). Do not add a dependency. If Biome's import rules reject the subpath, fix the import, not `biome.json`.
+- **Never** `loader.load(url)` (it reports errors through callbacks and hides the status): fetch bytes yourself, then `parseAsync`.
+
+### The probe (do not delete it)
+
+Story 1.5's e2e tests rely on something moving with the sim clock: the countdown test needs the canvas **byte-identical during the countdown and different after**, `pauseResume.spec.ts` the same around a pause. Keep the probe cube in `levelScene.ts`: same formula (`world.time.sim + alpha * STEP_MS`, a sine along x), now positioned from the geometry (`ANCHOR_papa_spawn` row of `z`, half path = half the x extent minus a margin). Mark it `// Provisional, removed with story 1.7` and keep it a cheap basic mesh (not toon, so it stays visible and distinct). It may clip furniture; that is fine. Story 1.7 deletes it when papa moves.
+
+### Toon material, lights, blob shadows
+
+- Architecture ADR-008: `MeshToonMaterial` with a 3-tone ramp, **inverted-hull outlines only on characters, active threats and salient props**: none exists yet, so **no outlines in this story**.
+- One `DirectionalLight` (from the camera side, high) plus a soft `AmbientLight`/`HemisphereLight`; **no shadow maps**. Light intensities and the 3 tone thresholds are constants in `levelScene.ts`/`toonMaterial.ts` named with units where they have them (they are art direction, not GDD numbers; Geo tunes them in code until E7).
+- Keep the original glTF colour of each mesh (read `material.color`) and share one toon material per distinct colour (draw calls and memory). Dispose them with the scene.
+- Blob shadow: a shared 64 × 64 radial-alpha texture on a unit quad scaled to each collider footprint × a margin constant; lying flat just above the floor; `transparent`, `depthWrite: false`, `renderOrder` after the floor. The texture is generated once (a small `DataTexture` computed in code, or a canvas in the client); do not ship an image.
+- Budget check: `GameRenderer.stats()` feeds the e2e assertions (T8): `drawCalls <= 100`, `triangles <= 100000`. With ~15 furniture objects plus ~15 shadow quads this is far under; the assertion is there for regressions.
+
+### Loading screen
+
+- Overlay `loading`: full-surface `div.pp-overlay.pp-loading-screen`, background `var(--pp-color-cream)`, centred column: bottle SVG then the flavour line in `pp-type-body` colour `ink`. The bottle outline is `ink`; the fill is `gauge-calm`; the fill animates with `transform: scaleY` only (no layout property; the token test refuses it), from 0 toward ~90 % over a CSS duration near the NFR3 budget (indeterminate by design: there is no real progress), jumping to full when the screen is removed. Under `prefers-reduced-motion: reduce` the fill is static (half full). No digits, no `%`, no `<progress>`.
+- Lines rotate in order `loading.line_bottle`, `loading.line_toys`, `loading.line_keys`, every `LOADING_LINE_INTERVAL_MS` (about 2000), with `setInterval` cleared in `dispose()`; the pure `nextLineIndex(current, count)` is unit-tested. Lines are flavour, never instructions (Voice and Tone).
+- `role="status"`, `aria-live="polite"`. It is not a button: no `aria-label` rule applies, but all text comes from `t()` (the `uiStrings` test applies to `src/client/ui/`).
+- It must tolerate +30 % strings without truncation (same Playwright check as story 1.5's).
+- Pointer events must not reach the canvas under it (it is opaque and full-surface).
+
+### « Oups » screen
+
+- Panel per DESIGN.md › panel and EXPERIENCE.md › Oups: pops in at most `PANEL_POP_MAX_MS`, plain fade under reduced motion (reuse the existing panel classes and pop animation of the pause panel), default focus on « Réessayer ». It is the same scrim + `pp-panel` structure as the pause panel; share the CSS, not the code, unless the shared part is obvious.
+- Tone: light. The failure is never named in the strings (already true); the panel shows the message and the button only. No stack trace, no error text for the player.
+- « Réessayer » activates through `bindPressButton` (press on `pointerdown`, act on `pointerup` inside). It calls the session's `start()`; the app goes `oops → loading`. The previous attempt's overlay is replaced by the loading screen (overlays never stack).
+
+### Architecture guardrails and traps (read before coding)
+
+- **Layers:** `src/client/**` may import `@sim` (types and `createSim`), `@content/*`, `@shared/*`, `three`. `tools/` may import anything but is never imported by `src/`. The client must not import from `tools/`; shared naming rules live in `src/content/levelNodeNames.ts`, imported by both. Aliases across layers, relative paths inside a layer, `.ts` extensions inside `src/client`. No `console.*` anywhere (use `log`, including in `tools/`); no silent `catch`; `Result` for I/O.
+- **Sim untouched.** Geometry reaches the sim in story 1.7 (nav grid, colliders). Do not add geometry to `ContentBundle` or `createSim` here; the schema type lives in `@content` so 1.7 can.
+- **`loadContent` stays as is.** `LevelGeometrySchema` is a content schema validated by `content:check` and by the client's loader, but the file is not in `CONTENT_FILES` as a single entry (there will be one per level). Extend the registry with a *pattern* concept rather than listing `salon_crawler.geometry.json` by name; keep one source for `content:check` and `content:schemas`. Do not weaken the « no schema registered » or orphan checks.
+- **Units and time:** `…M`, `…Ms`, `…Pct`, `…Bytes`. Bare `size` or `distance` is a review failure. `LOADING_LINE_INTERVAL_MS` is real time (a `setInterval` for a UI line is fine; a `setTimeout` for pause or countdown logic is not).
+- **No hard-coded numbers that Geo may tune:** light intensities, tone thresholds and shadow size are art constants named in code; nav cell size, payload ceiling and the loading interval are in `constants.ts`.
+- **Hot path:** `levelScene.update` runs every frame: no allocation (one probe, one position write). The loading screen's interval and the Oups panel are event-driven and may allocate.
+- **Disposal:** `LevelScene.dispose()` traverses the scene and disposes geometries, materials (the cache) and textures. Call it when a new level replaces the scene and from tests. This also closes the « no `dispose()` on the scene » item of story 1.4's review.
+- **WebGL context loss** stays as story 1.4 left it (logged). Do not widen scope.
+- **`[hidden]` loses to `display`:** story 1.5's `[hidden] { display: none }` rule sits at the end of `ui.css`; new screens use `hidden` the same way and add rules before it.
+- **Focus:** the Oups panel takes focus when it is built; the loading screen takes none. When `oops` is replaced by `loading`, focus goes to `document.body` (story 1.5's rule).
+- **Existing tests that must keep passing unchanged:** everything in `tests/architecture/*.test.ts` (new test files may be added), `pauseResume.spec.ts`, `boot.spec.ts`, `ui.spec.ts`, except the two deliberate edits (`overlay.test.ts` loading row, `appFsm.test.ts` edge list) and the unit tests of the files you replace (`provisionalScene.test.ts`, `levelSession.test.ts`, which you adapt).
+- **Blender MCP safety:** it runs generated Python unguarded. Use it only on project `.blend` files under git; never open a third-party `.blend` with the add-on active. Before changing the committed `.blend`, make sure `git status` is clean for it so you can revert.
+
+### E2E script (`tests/e2e/level.spec.ts`)
+
+Chromium and webkit, 844 × 390, helpers from `tests/e2e/support/game.ts` (add small helpers there). Import numbers from `src/shared/constants.ts`.
+
+1. **The room shows.** `startLevel`; `data-pp-level="salon_crawler"`; `data-pp-draw-calls` ≤ 100 and `data-pp-triangles` ≤ 100000 and both > 0. The canvas screenshot of the running level is not a single flat colour (decode with a tiny helper or compare two screenshots at different sim times: the probe moved, the rest equal). State plainly that the visual quality is judged by hand (T9).
+2. **Loading screen.** `page.route('**/assets/levels/*.glb')` holds the response until the test releases it. Press the start screen: `data-pp-app="loading"`, the loading screen is visible, contains one of the three `loading.line_*` strings from the file, contains no `%` and no digit (the text content), and the canvas is covered (the screen is opaque). Release: the app goes to `level` and the countdown shows.
+3. **Lines rotate.** While held, the line text changes within a bounded number of `requestAnimationFrame`s equal to `LOADING_LINE_INTERVAL_MS` plus margin (poll with `expect.poll`, not a fixed sleep).
+4. **Background.** While the glb is held, `setVisibility(page, 'hidden')`, release the request, assert `data-pp-app` is still `loading` after a bounded number of frames; `setVisibility(page, 'visible')` → `level`, then the countdown, then `running`.
+5. **Glb failure.** `route.abort()` on the glb: the Oups panel shows with exactly `oops.message` and « Réessayer » focused (`document.activeElement`), `data-pp-app="oops"`, the page logged a warning naming `salon_crawler` (collect console messages; `collectProblems` ignores this warning, so assert it explicitly). Unroute, activate « Réessayer » (touch tap and Enter in two runs): `loading` then `level`. Repeat once for a 404 on the geometry request and once for an HTML body served as the glb.
+6. **Uncaught exception.** Open with `/?throwAfterMs=300`: after the countdown the app goes to `oops` (the error is in the console as an error, collected by the test and expected), « Réessayer » restarts the level (a new `data-pp-seed`). Also open with `?throwAfterMs=abc`: ignored, the level runs.
+7. **Restart and teardown.** Start, « Recommencer »: `loading` is observed (record `data-pp-app` changes with a `MutationObserver`), the level comes back, `data-pp-draw-calls` is the same as before (no accumulation of old scenes).
+8. **Boot-to-oops race.** Hold the glb, throw while `loading` (`page.evaluate(() => setTimeout(() => { throw new Error('x') }))`), the app goes to `oops` and **stays there** after the glb is released (the stale start must not enter `level`).
+9. **No leftover warnings.** A whole session collects no `console.error` and none of story 1.5's own-warning patterns (extend that pattern list in `support/game.ts` with `no "oops" screen`).
+
+### Previous story intelligence (1.4, 1.5 and their reviews)
+
+- Subscribe to events before binding sources that emit at bind time. `requestPause` while `paused` is a no-op and `requestResume` works only from `paused`: derive what to show from `pause.state`; call the controller only from user actions and bindings.
+- Hot-path rule: a template string in an `invariant(...)` message allocates even when the condition holds; test the condition first. Do not repeat it in `levelScene.update` or the loop's render callback.
+- Story 1.5 review found: a builder that throws left the overlay host stuck (now build-then-commit: your new builders must be safe to throw from); tests that pinned magic numbers or claimed more than they checked; Playwright timing races between `setViewportSize` calls (wait for a DOM change in between); WebKit does not Tab to buttons by default (Tab assertions run in chromium only; arrow keys and Enter in both).
+- `loading` was a name for the `await makeSim(...)` window (story 1.5 D2); it is now a real screen. The `levelStart` pause reason, the single-flight guard, `canResumeNow` and the « paused then resumed in the same tick before `enter('level')` » trick must keep working; the countdown screen is still built straight (no panel flash).
+- The Vitest environment is Node: no DOM. Everything unit-tested takes its environment by parameter. DOM behaviour is covered by Playwright. `tests/support/` has `testContent` and `fakeScheduler` helpers.
+- Biome lints CSS and rejects duplicate properties and `!important`; fix the CSS, not `biome.json`. `designTokens.test.ts` scans every `src/client/ui/**/*.css`: only token variables for colours, `pp-` prefixed classes and ids, no layout-property transitions, no `backdrop-filter`, no blurred shadows. The bottle's SVG colours come from CSS variables or `currentColor`, not hex.
+- `uiStrings` forbids any prose literal in `src/client/ui/`. The screens only call `t('…')`. New string keys are not needed; if you find you need one, add it to `content/strings.fr.json` (schema rules: tutoiement, no failure words) and run `content:check`.
+
+### Git intelligence
+
+Last commits: `82a0127` Story 1.5 review fixes, `42bc749` Story 1.5, `fd3300b`/`e75afa1` Story 1.4. Style: one implementation commit and one review-fix commit per story, short French title (`Story 1.6 : …`) with the `Co-Authored-By` line; the dev workflow leaves changes uncommitted. Dependencies are exact-pinned; none is added here (`gltfpack` and `three` are installed).
+
+### Project Structure Notes
+
+- New: `assets-src/blender/salon_crawler.blend`; `tools/blender/export_level.py`; `tools/assets/{glb,extractLevelGeometry,optimizeGlb,exportLevel}.ts` with tests; `public/assets/levels/salon_crawler.glb`; `content/levels/salon_crawler.geometry.json`; `content/_schemas/levelGeometry.schema.json` (generated); `src/content/levelNodeNames.ts`, `src/content/schemas/levelGeometry.ts` with tests; `src/client/assets/{loadLevelAssets,gltf}.ts` (`gltf.ts` is in the architecture tree); `src/client/render/{levelScene,blobShadow}.ts` and `src/client/render/materials/toonMaterial.ts` (`levelScene.ts` and `toonMaterial.ts` are in the tree; `blobShadow.ts` is an addition in the same folder); `src/client/ui/screens/{loadingScreen,oopsScreen}.ts` (both in the tree); `tests/architecture/{blenderConventions,levelAssets}.test.ts`; `tests/e2e/level.spec.ts`.
+- Modified: `src/shared/constants.ts`, `src/content/contentFiles.ts` (pattern support), `tools/content/{contentChecks,emitSchemas}.ts`, `src/client/assets/browserContentSource.ts` (exclude geometry from the eager glob), `src/client/render/{isoCamera,renderer}.ts` (+ tests), `src/client/app/{appFsm,overlay,levelSession,globalErrorHandlers}.ts` (+ tests), `src/client/ui/{overlayHost,uiShell}.ts`, `src/client/ui/styles/ui.css`, `src/client/boot.ts`, `package.json` (scripts only), `.gitignore`, `tests/e2e/support/game.ts`, `deferred-work.md`, `sprint-status.yaml`.
+- Deleted: `src/client/render/provisionalScene.ts` and `provisionalScene.test.ts`.
+- `assets-src/` and `tools/{blender,assets}` are in the architecture tree; `content/levels/` too. `tools/blender` holds Python; Biome does not lint `.py`.
+
+### Project Context Rules
+
+From `_bmad-output/project-context.md` and `CLAUDE.md`:
+- **Golden rule:** the AI writes and tests; Geo plays and tunes. The whole pipeline (`assets:export` → `assets:extract` → `assets:optimize`) must be runnable by an agent with no human, apart from Blender being installed; the loading and failure paths are tested in e2e; tweakable values are data or named constants.
+- **Assets:** `.blend` in `assets-src/blender/` (versioned) → `tools/blender/export_level.py` → `.glb` → gltfpack → `public/assets/`; `assets:extract` produces `content/levels/<id>.geometry.json`; generated files are never edited by hand; the sim never reads a `.glb`.
+- **Blender nodes:** `COL_`, `NAV_floor`/`NAV_block_`, `ANCHOR_`, `PROP_<kind>_<nn>`, `ZONE_hidden_|safe_|creak_`; visuals unprefixed; `lower_snake_case`; metres, Y up.
+- **Rendering:** `MeshToonMaterial` 3-tone ramp, blob shadows, no shadow maps, no heavy post-processing; ≤ 100 draw calls, ≤ 100k triangles, no texture > 1024 px, level payload ≤ 3 MB; DPR `min(devicePixelRatio, 2)`.
+- **Loading:** the whole level is preloaded behind the loading screen; nothing loads during play.
+- **Errors:** I/O returns `Result<T, E>`; every fallback logs a `warn`; the sim never logs; uncaught errors → global handler → « Oups » screen + level restart. No `console.*`; no `try/catch` in `src/sim`.
+- **UI:** vanilla DOM + CSS, `pp-` classes, tokens mirror `DESIGN.md`, strings through `t()`, reduced motion is client-only and never changes sim timing; touch targets ≥ 44 × 44; the spines (`DESIGN.md`, `EXPERIENCE.md`) win over the mockups.
+- **Debug code** behind `if (import.meta.env.VITE_DEBUG_ALLOWED === 'true')`; no `window.__PP__` before story 1.13 (the `data-pp-*` mirrors are the stopgap).
+- **Stack pinned:** no new dependency; no Capacitor before E8.
+- **Don't-miss:** no `Math.random`/`Date`/`performance`/`setTimeout` in `src/sim`; no `three` in `src/sim`; no hard-coded GDD value; never weaken a guardrail (`biome.json`, `tests/architecture/`).
+- **When docs disagree:** game rules follow the GDD, technical mechanics the architecture; if still ambiguous, ask Geo.
+
+### Items this story resolves (mark them in `deferred-work.md`)
+
+- Story 1.2: « Player-facing fallback when content fails outside dev » stays **open** (content failure at boot is not a level load failure); say so, do not mark it. « End-to-end test of `…Key` references » stays open (still no `…Key` field).
+- Story 1.4 creation: « The « Oups » screen… restarting the level after an uncaught error » → resolved. Implementation: « The room is assumed centred on the origin » → resolved by `centerXM`/`centerZM`. « One `frame stall` warning at boot » → check it once with the loading screen in front; resolved only if it is gone.
+- Story 1.4 review: « WebGL context loss and teardown » → `ProvisionalScene` has no `dispose()` resolved by `LevelScene.dispose()`; the context-loss handling and `forceContextLoss()` stay open.
+- Story 1.5 implementation: « Loading screen, « Oups » screen, `oops → loading`, « level waits for the foreground » » → resolved.
+- Story 1.5 review: « `levelSession.stop()` does not cancel a start awaiting `createSim` » → resolved by the generation token.
+
+### Deferred by this story
+
+- **Preloading the level while the start screen shows**, and a cache of parsed assets across restarts (D6, D7).
+- **No drift check between the `.blend`/raw export and the committed geometry**: the shipped `.glb` is optimised, so it cannot be re-extracted; a stale geometry JSON is caught only by re-running the pipeline. A source hash in the geometry file written at extraction, checked against the `.blend` timestamp or the export, is the obvious next step if this bites.
+- **Collision nodes shipped in the `.glb`** (D4) and static `PROP_` meshes (story 1.15).
+- **Navigation, colliders and zones consumption** by the sim: story 1.7 (and 1.10, 1.21 for zones).
+- **Arbitrary-rotation and convex colliders:** only axis-aligned and 90° boxes in the greybox (D3).
+- **Debug overlay views** of nav, colliders and anchors: story 2.1.
+- **Bundle size:** the lazy glTF chunk helps; the rest belongs to story 1.24.
+
+### Open points for Geo (do not block the dev)
+
+1. D6: the start screen now sits over an empty dark backdrop, not over the room. Preloading the room at boot would restore the room behind the title but changes story 1.5's flow (first gesture → loading).
+2. D9: the loading screen has no minimum display time; on a fast machine it can flash for a frame or two. Say if you want a minimum.
+3. D7: every « Recommencer » reloads the level behind the loading screen, then the 3 s countdown. Tell the dev if that slows tuning.
+4. The room layout above is a proposal; move things in Blender as you like, re-run `assets:export`, `assets:extract`, `assets:optimize`.
+5. Blender must be running with the MCP add-on for the interactive path; otherwise the agent builds the scene headlessly.
+
+### References
+
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 1.6 : Salon greybox depuis Blender] and [#Story 1.4], [#Story 1.5], [#Story 1.7] (navigation, anchors consumers), [#Story 1.10] (`LevelSchema`), [#Story 1.15] (props), [#Story 1.24] (budgets), [#Exigences supplémentaires (architecture) › Physique, navigation, assets], [#Exigences de design UX › UX-DR8]
+- [Source: _bmad-output/planning-artifacts/game-architecture.md#Gestion des assets], [#Gestion des erreurs] (`loadLevelAssets` example), [#Conventions de nommage › Assets de jeu], [#Arborescence], [#Architecture des données] (`LevelGeometrySchema`, level example), [#ADR-009], [#Architecture de sécurité] (Blender MCP), [#Performance] budgets
+- [Source: _bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/DESIGN.md] (`loading-indicator`, panel, tokens, colour roles) and [EXPERIENCE.md] (Loading, Oups, Reduced motion table, Canonical strings, Voice and Tone)
+- [Source: _bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/gdd.md#Scope du prototype] (one living room, outlet, stairs, coffee table, phone)
+- [Source: _bmad-output/project-context.md] (Assets, Rendering, Errors, Testing, Platform & Build rules)
+- [Source: _bmad-output/implementation-artifacts/1-5-fondations-de-l-ui-tokens-ecran-de-demarrage-hud-et-panneau-de-pause.md] (D1 to D15, Review Findings) and [deferred-work.md]
+
+## Dev Agent Record
+
+### Agent Model Used
+
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), Claude Code desktop app.
+
+### Debug Log References
+
+- Blender MCP was not connected at the start; Geo launched Blender mid-session and the room was built through MCP (`execute_blender_code`), saved to `assets-src/blender/salon_crawler.blend`. The headless fallback was only used to run `export_level.py` (`blender -b … -P …`), which `npm run assets:export` does too.
+- First lighting pass (ambient 1.5, sun 2.4) burnt the cream floor and the walls to white in the browser pane; lowered to 0.9 / 1.3 (art constants in `levelScene.ts`).
+- Two test designs were wrong, not the code: a walled-off pocket made of blocks thinner than the 0.25 m grid (cell centres slipped between them) and a stale-start test whose retry reused the same pending promise.
+
+### Completion Notes List
+
+- **Pipeline works end to end, by an agent, with no human but Blender being installed:** `npm run assets:export` (Blender headless, `export_level.py`) → `assets:extract` (raw `.glb` → `content/levels/salon_crawler.geometry.json`, byte-identical on a second run) → `assets:optimize` (gltfpack `-cc -kn`, in place: 36 288 → 20 252 bytes). Re-running `extract` on the optimised file refuses with « re-export from Blender first »; re-running `optimize` warns and does nothing.
+- **The room** (glTF metres, floor top at y = 0): floor 8 × 6 m, two far walls (`-z`, `-x`), sofa on the `-z` wall with a 0.8 m gap behind it (`ZONE_hidden_behind_sofa`), coffee table with `PROP_mug_01`, side table with the phone, counter with the coffee machine on the `-x` wall, outlet plate at 0.3 m on the `-x` wall, door frame in the back wall, three steps going down off the `+x` edge (`ANCHOR_stairs_top` on the landing), `papa_spawn` and `baby_spawn` on open floor. Colours are DESIGN.md roles (`cream`, `fridge`, `primary`, `ink_soft`, `ink`, `paper`, `mama_sigh`), one material each, converted sRGB → linear; no `parry`, `dodge` or `alert`. 37 objects: collections `level` (14 visuals), `colliders` (7 `COL_*`), `nav` (`NAV_floor` + 5 `NAV_block_*`), `anchors` (8 `ANCHOR_*` + the zone), `props` (`PROP_mug_01`). No unapplied scale or rotation.
+- **Geometry result:** 7 colliders, 8 anchors, 1 zone, 1 prop, a 32 × 24 grid of 0.25 m cells, bounds `[-4.2, -0.8, -3.2]` to `[4.9, 2.5, 3]` (the steps are what makes it off-centre and goes below y = 0). Every anchor is within 1 m of a walkable cell, spawns stand on walkable cells, everything is in `papa_spawn`'s region.
+- **Choices the story left to the dev:** the schema has a `rowCount` field next to `cols` and `rows` (the refinement the story names needs it); the zone object lives in the `anchors` collection (it is a marker, not a collider; the export checks names, not collections); a node classified as a `visual` that cannot give a box (empty group) is ignored for the bounds; `RoomSize` for the camera is width/depth from the bounds, height = `boundsMax.y` (floor at 0); `onLevelReady` receives the whole `LevelScene` (the room and the id) rather than the room alone; `LevelScene` has an `id`; the gltfpack output keeps named nodes but puts meshes on unnamed child nodes, so the architecture test looks for a mesh under a visual node.
+- **Tests for `tools/`** live in `tests/tools/assets/` because `vitest.config.ts` only includes `src/**` and `tests/**` and the story says not to weaken config; `tools/` has no co-located tests.
+- **Deliberate edits to existing tests:** `overlay.test.ts` (the `loading → null` row is now `loading → 'loading'`, and the table function gained that line; every other row is untouched), `appFsm.test.ts` (the « leaves oops for good » test became « leaves oops through loading only », and `oops>loading` joined the explicit edge list), `isoCamera.test.ts` (the room constants it imported from `constants.ts` are now literal because `PROVISIONAL_ROOM_*` are gone; the old cases are unchanged), `levelSession.test.ts` (rewritten around injected `loadAssets` / `createScene` / `waitForForeground`, every old case kept), `provisionalScene.test.ts` (deleted with its file; its probe test moved to `levelScene.test.ts`), `ui.spec.ts` (the « strings 30 % longer » test waited for `data-pp-state=running`, which is also the pause state during loading; it now holds the `.glb`, checks the loading screen for overflow, then waits for `data-pp-app=level` first). `tests/e2e/support/game.ts` `OWN_WARNINGS` was left as it is: `no "[a-z]+" screen to show` already matches the `oops` case and the warning itself no longer exists.
+- **`biome.json` and every existing `tests/architecture/*.test.ts` are untouched** (`git diff` is empty for them); no new npm dependency (`package.json` gained three scripts only).
+- **D5 (lazy geometry chunk) verified in the build:** `npm run build:playtest` emits `salon_crawler.geometry-*.js` (3 kB) and `gltf-*.js` (72 kB); the nav rows are not in the main chunk. Against `vite preview`, aborting the geometry chunk sends the app to « Oups » and « Réessayer » then loads the level (draw calls 21).
+- **Guards bite (broken, observed, restored):** renamed `ANCHOR_door` and `sofa` in a scratch copy → `export_level.py` exits 1 naming both and the missing anchor, no file written; removed `ANCHOR_phone` from the geometry → `content:check` reports it; a `.glb` padded over 3 MB → `levelAssets.test.ts` fails; `PREFIX_COL` changed in `export_level.py` → `blenderConventions.test.ts` fails.
+- **Quality gates:** `npm run ci` passes end to end (typecheck, lint, content:check, test:coverage with the sim thresholds, 80 e2e on chromium + webkit, build:playtest). Unit: 64 files, 943 tests, all passing.
+- **Manual check (built-in browser pane, 844 × 390, `npm run dev`), what was and was not checked:** checked by eye on screenshots: the loading screen (bottle, « Préparation du biberon… », cream surface), the room in isometric view with toon shading (after the light fix), walls, sofa, door, stairs and the blob under the stairs, the probe moving, the « Oups » screen over the room with the button focused (`?throwAfterMs=500`). Draw calls 21, triangles 202. **Not checked:** a real phone or the iOS Simulator, a throttled network in devtools (the e2e tests hold and fail requests with `page.route` instead), the pause panel and the countdown by eye in this pass (covered by the existing e2e), the toon ramp and blob shadows on a bright external display, and anything on GitHub's runner (WebGL in CI is still unseen, see deferred-work).
+- **Visual judgement for Geo:** the room is legible but plain; the blob shadows under the sofa and tables are mostly hidden by the furniture (only the stairs and the outside edge show), the toon bands are subtle on the pale floor, and the probe cube (provisional, removed in story 1.7) reads as a purple hexagon from this angle.
+- **Open points for Geo** (unchanged from the story): D6 (empty dark backdrop behind the start screen), D9 (no minimum time on the loading screen: on this machine it flashes briefly), D7 (every « Recommencer » reloads), the room layout is a proposal, and the lighting constants are mine.
+
+### File List
+
+- `src/shared/constants.ts`
+- `src/content/levelNodeNames.ts`
+- `src/content/levelNodeNames.test.ts`
+- `src/content/schemas/levelGeometry.ts`
+- `src/content/schemas/levelGeometry.test.ts`
+- `src/content/contentFiles.ts`
+- `tools/content/contentChecks.ts`
+- `tools/content/emitSchemas.ts`
+- `content/_schemas/levelGeometry.schema.json`
+- `content/levels/salon_crawler.geometry.json`
+- `assets-src/blender/salon_crawler.blend`
+- `.gitignore`
+- `tools/blender/export_level.py`
+- `tools/assets/paths.ts`
+- `tools/assets/glb.ts`
+- `tools/assets/exportLevel.ts`
+- `tools/assets/extractLevelGeometry.ts`
+- `tools/assets/optimizeGlb.ts`
+- `public/assets/levels/salon_crawler.glb`
+- `package.json`
+- `src/client/assets/gltf.ts`
+- `src/client/assets/loadLevelAssets.ts`
+- `src/client/assets/loadLevelAssets.test.ts`
+- `src/client/assets/browserContentSource.ts`
+- `src/client/render/levelScene.ts`
+- `src/client/render/levelScene.test.ts`
+- `src/client/render/blobShadow.ts`
+- `src/client/render/blobShadow.test.ts`
+- `src/client/render/materials/toonMaterial.ts`
+- `src/client/render/materials/toonMaterial.test.ts`
+- `src/client/render/isoCamera.ts`
+- `src/client/render/isoCamera.test.ts`
+- `src/client/render/renderer.ts`
+- `src/client/render/provisionalScene.ts` (deleted)
+- `src/client/render/provisionalScene.test.ts` (deleted)
+- `src/client/app/appFsm.ts`
+- `src/client/app/appFsm.test.ts`
+- `src/client/app/overlay.ts`
+- `src/client/app/overlay.test.ts`
+- `src/client/app/levelSession.ts`
+- `src/client/app/levelSession.test.ts`
+- `src/client/app/globalErrorHandlers.ts`
+- `src/client/app/globalErrorHandlers.test.ts`
+- `src/client/app/foreground.ts`
+- `src/client/app/foreground.test.ts`
+- `src/client/boot.ts`
+- `src/client/ui/overlayHost.ts`
+- `src/client/ui/screens/loadingScreen.ts`
+- `src/client/ui/screens/loadingScreen.test.ts`
+- `src/client/ui/screens/oopsScreen.ts`
+- `src/client/ui/styles/ui.css`
+- `tests/support/testLevelGeometry.ts`
+- `tests/content/checkContent.test.ts`
+- `tests/tools/assets/glb.test.ts`
+- `tests/tools/assets/extractLevelGeometry.test.ts`
+- `tests/tools/assets/pipeline.test.ts`
+- `tests/architecture/blenderConventions.test.ts`
+- `tests/architecture/levelAssets.test.ts`
+- `tests/e2e/level.spec.ts`
+- `tests/e2e/support/game.ts`
+- `tests/e2e/ui.spec.ts`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/implementation-artifacts/1-6-salon-greybox-depuis-blender.md`
+
+## Change Log
+
+- 2026-10-27: Story 1.6 created (ready-for-dev).
+- 2026-10-27: Story 1.6 implemented: Blender greybox room, export/extract/optimize pipeline, `LevelGeometrySchema` and `levelNodeNames`, client level loading, level scene (toon material, blob shadows, probe), loading and « Oups » screens, `oops → loading`, generation token in the level session, uncaught-error recovery, `?throwAfterMs`, debug mirrors, e2e `level.spec.ts`. Status → review.

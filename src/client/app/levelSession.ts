@@ -1,9 +1,12 @@
 import type { ContentBundle } from '@content/contentBundle';
+import { DEFAULT_LEVEL_ID } from '@shared/constants';
 import { log } from '@shared/log';
+import { type AppError, err, ok, type Result } from '@shared/result';
 import { type CreateSimOptions, createSim, type Sim, type SimEvent } from '@sim';
 import type { OrthographicCamera } from 'three';
+import { type LevelAssets, loadLevelAssets } from '../assets/loadLevelAssets.ts';
 import { createGameLoop, type FrameScheduler, type GameLoop } from '../loop.ts';
-import type { ProvisionalScene } from '../render/provisionalScene.ts';
+import { createLevelScene, type LevelScene } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import { createTimeMap } from '../timeMap.ts';
 import type { AppFsm } from './appFsm.ts';
@@ -15,11 +18,15 @@ export interface LevelSessionDeps {
   pause: PauseController;
   renderer: GameRenderer;
   camera: OrthographicCamera;
-  scene: ProvisionalScene;
   /** A fresh seed for each level. Randomness is the client's to use; the sim may not. */
   newSeed(): number;
   /** Told each level's seed (the debug build mirrors it for Playwright). */
   onSeed(seed: number): void;
+  /**
+   * The level's scene is up (its room is known): fit the camera, show it behind the loading screen.
+   * Called before the previous level's scene is disposed.
+   */
+  onLevelReady(level: LevelScene): void;
   /** Once per rendered frame, paused or not (the UI follows the countdown there). */
   onLevelFrame(): void;
   onSimEvent(event: SimEvent): void;
@@ -28,66 +35,117 @@ export interface LevelSessionDeps {
    * waits for the player to resume it.
    */
   canResumeNow(): boolean;
+  /** Resolves once the page is in the foreground (at once if it is). The countdown starts after it. */
+  waitForForeground(): Promise<void>;
   scheduler?: FrameScheduler;
+  /** Default: `DEFAULT_LEVEL_ID`. */
+  levelId?: string;
   /** Default: the real `createSim`. */
   createSim?(options: CreateSimOptions): Promise<Sim>;
+  /** Default: the real `loadLevelAssets`. It logs its own failures. */
+  loadAssets?(id: string): Promise<Result<LevelAssets, AppError>>;
+  /** Default: the real `createLevelScene`. */
+  createScene?(assets: LevelAssets): LevelScene;
 }
 
 export interface LevelSession {
   /**
-   * Loads and starts a level: `loading`, a new sim with a new seed, then `level`, which always
-   * begins through the resume countdown. Called again, it restarts. Ignored while a start is in
+   * Loads and starts a level: `loading` (the sim and the assets load together), the level's scene,
+   * then the wait for the foreground, then `level`, which always begins through the resume
+   * countdown. A failed load goes to `oops`. Called again, it restarts. Ignored while a start is in
    * flight (a second tap on « Recommencer » must not start two levels).
    */
   start(): Promise<void>;
-  /** Stops the frame loop of the current level. */
+  /**
+   * Stops the frame loop of the current level and cancels any start in flight: a start that
+   * resumes after `stop()` (or after a newer start) does nothing more and leaves nothing behind.
+   */
   stop(): void;
 }
 
+async function settle<T>(work: () => Promise<T>): Promise<Result<T, unknown>> {
+  try {
+    return ok(await work());
+  } catch (cause) {
+    return err(cause);
+  }
+}
+
 /**
- * One level at a time. Sim, time map and loop belong to the level and are replaced at each start;
- * the pause controller, the renderer and the scene outlive it. The new level is paused with the
+ * One level at a time. Sim, time map, loop and scene belong to the level and are replaced at each
+ * start; the pause controller and the renderer outlive it. The new level is paused with the
  * `levelStart` reason and resumed at once, so the only way into play is the countdown.
+ *
+ * Every start carries a generation number that `stop()` and each newer start bump; after each
+ * `await`, a start of an older generation drops what it made and returns.
  */
 export function createLevelSession(deps: LevelSessionDeps): LevelSession {
-  const { appFsm, pause, renderer, camera, scene } = deps;
+  const { appFsm, pause, renderer, camera } = deps;
   const makeSim = deps.createSim ?? createSim;
+  const loadAssets = deps.loadAssets ?? loadLevelAssets;
+  const makeScene = deps.createScene ?? createLevelScene;
+  const levelId = deps.levelId ?? DEFAULT_LEVEL_ID;
   let loop: GameLoop | null = null;
+  let current: LevelScene | null = null;
   let isStarting = false;
+  let generation = 0;
 
-  const stop = (): void => {
+  const stopLoop = (): void => {
     loop?.stop();
     loop = null;
   };
 
   return {
-    stop,
+    stop() {
+      generation++;
+      isStarting = false;
+      stopLoop();
+    },
     async start() {
       if (isStarting) {
         log.debug('boot', 'level start ignored: one is already in flight');
         return;
       }
       isStarting = true;
+      const mine = ++generation;
+      const isStale = (): boolean => mine !== generation;
       try {
-        stop();
+        stopLoop();
         appFsm.enter('loading');
         const seed = deps.newSeed();
-        let sim: Sim;
-        try {
-          sim = await makeSim({ content: deps.content, seed });
-        } catch (cause) {
-          // The player-facing « Oups » screen is story 1.6; until then the state is reachable and
-          // the error is logged.
-          log.error('boot', 'cannot create the sim for the level', cause);
+        const [simResult, assets] = await Promise.all([
+          settle(() => makeSim({ content: deps.content, seed })),
+          loadAssets(levelId),
+        ]);
+        if (isStale()) return;
+        if (!simResult.ok) {
+          log.error('boot', 'cannot create the sim for the level', simResult.error);
           appFsm.enter('oops');
           return;
         }
+        if (!assets.ok) {
+          // `loadLevelAssets` has logged the warn with the level id.
+          appFsm.enter('oops');
+          return;
+        }
+        const sim = simResult.value;
         log.info('boot', 'sim ready', { seed });
         deps.onSeed(seed);
 
+        const level = makeScene(assets.value);
+        const previous = current;
+        current = level;
+        deps.onLevelReady(level);
+        previous?.dispose();
+
+        // Loaded in the background: the app stays in `loading` until the player is back, then the
+        // countdown starts (D8).
+        await deps.waitForForeground();
+        if (isStale()) return;
+
         const render = (alpha: number): void => {
-          scene.update(sim.world, alpha);
-          renderer.render(scene.scene, camera);
+          level.update(sim.world, alpha);
+          renderer.render(level.scene, camera);
           deps.onLevelFrame();
         };
         loop = createGameLoop({
@@ -107,7 +165,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         appFsm.enter('level');
         loop.start();
       } finally {
-        isStarting = false;
+        if (!isStale()) isStarting = false;
       }
     },
   };

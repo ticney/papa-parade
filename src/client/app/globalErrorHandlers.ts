@@ -38,13 +38,24 @@ function describeThrown(value: unknown): string {
 
 /**
  * Feeds every uncaught error and unhandled promise rejection to `log.error`, so that they reach
- * the ring buffer on a phone too. Logging only: the player-facing « Oups » screen is story 1.6.
- * Returns the function that removes the listeners.
+ * the ring buffer on a phone too, then calls `onUncaught` (the composition root shows the « Oups »
+ * screen from there). `onUncaught` runs after the log, and a throw inside it is swallowed (logged
+ * as an error): the handler of last resort must never throw itself. Returns the function that
+ * removes the listeners.
  */
 export function installGlobalErrorHandlers(
   target: GlobalErrorTarget,
   logger: Pick<Logger, 'error'> = log,
+  onUncaught?: () => void,
 ): () => void {
+  const notify = (): void => {
+    if (onUncaught === undefined) return;
+    try {
+      onUncaught();
+    } catch (cause) {
+      logger.error('boot', 'the uncaught-error recovery itself failed', { error: cause });
+    }
+  };
   const onError = (event: ErrorEventLike): void => {
     const hasError = event.error !== undefined && event.error !== null;
     const message = event.message || (hasError ? describeThrown(event.error) : 'unknown error');
@@ -55,11 +66,13 @@ export function installGlobalErrorHandlers(
       data.column = event.colno;
     }
     logger.error('boot', `uncaught error: ${message}`, data);
+    notify();
   };
   const onRejection = (event: RejectionEventLike): void => {
     logger.error('boot', `unhandled promise rejection: ${describeThrown(event.reason)}`, {
       reason: event.reason,
     });
+    notify();
   };
 
   target.addEventListener('error', onError);

@@ -80,10 +80,12 @@ describe('createAppFsm', () => {
     expect(seen).toHaveLength(1);
   });
 
-  it('leaves oops for good until a later story adds oops → loading', () => {
+  it('leaves oops through loading only (« Réessayer »)', () => {
     const { fsm } = setup();
     goTo(fsm, ['start', 'loading', 'oops']);
-    expect(() => fsm.enter('loading')).toThrow(/cannot go/);
+    expect(() => fsm.enter('level')).toThrow(/cannot go/);
+    fsm.enter('loading');
+    expect(fsm.state).toBe('loading');
   });
 
   it('has exactly the edges of the app flow: removing one fails here', () => {
@@ -100,6 +102,7 @@ describe('createAppFsm', () => {
         'level>result',
         'level>oops',
         'result>loading',
+        'oops>loading',
       ].sort(),
     );
   });

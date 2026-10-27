@@ -9,6 +9,7 @@ const PAUSE_STATES: PauseState[] = ['running', 'paused', 'resuming'];
 /** The rule, written out as a table for the landscape case. */
 function expectedLandscape(appState: AppState, pauseState: PauseState): OverlayKind | null {
   if (appState === 'oops') return 'oops';
+  if (appState === 'loading') return 'loading';
   if (appState === 'start') return 'start';
   if (appState === 'level') return pauseState === 'running' ? null : 'pause';
   return null;
@@ -35,9 +36,18 @@ describe('chooseOverlay', () => {
     expect(chooseOverlay({ ...paused, isPortrait: false })).toBe('pause');
   });
 
-  it('never picks pause outside a level (a restart leaves the pause state behind)', () => {
-    expect(
-      chooseOverlay({ appState: 'loading', isPortrait: false, pauseState: 'paused' }),
-    ).toBeNull();
+  it('never picks pause outside a level: a restart leaves the pause state behind, the loading screen shows', () => {
+    expect(chooseOverlay({ appState: 'loading', isPortrait: false, pauseState: 'paused' })).toBe(
+      'loading',
+    );
+  });
+
+  it('puts oops before pause and pause before loading and start', () => {
+    expect(chooseOverlay({ appState: 'oops', isPortrait: false, pauseState: 'paused' })).toBe(
+      'oops',
+    );
+    expect(chooseOverlay({ appState: 'level', isPortrait: false, pauseState: 'paused' })).toBe(
+      'pause',
+    );
   });
 });

@@ -20,6 +20,9 @@
     "e2e": "playwright test",
     "content:check": "tsx tools/content/checkContent.ts",
     "content:schemas": "tsx tools/content/emitSchemas.ts",
+    "assets:export": "tsx tools/assets/exportLevel.ts",
+    "assets:extract": "tsx tools/assets/extractLevelGeometry.ts",
+    "assets:optimize": "tsx tools/assets/optimizeGlb.ts",
     "ci": "npm run typecheck && npm run lint && npm run content:check && npm run test:coverage && npm run e2e && npm run build:playtest"
   },
   "dependencies": {

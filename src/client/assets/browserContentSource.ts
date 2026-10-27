@@ -4,7 +4,12 @@ import { err, ok } from '@shared/result';
 // The one place of `src` that touches the content folder. In a build the files are inlined in the
 // bundle (no request, offline start); in dev Vite serves each one as a module.
 const RAW_CONTENT = import.meta.glob<string>(
-  ['../../../content/**/*.json', '!../../../content/_schemas/**'],
+  [
+    '../../../content/**/*.json',
+    '!../../../content/_schemas/**',
+    // Fetched per level at load time (loadLevelAssets), not inlined in the main bundle.
+    '!../../../content/**/*.geometry.json',
+  ],
   { eager: true, query: '?raw', import: 'default' },
 );
 

@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "The level id; equals the file name before `.geometry.json`."
+    },
+    "cellM": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Side of one navigation cell, in metres."
+    },
+    "boundsMinM": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "Lowest corner of the box that holds every visual node, in metres."
+    },
+    "boundsMaxM": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "Highest corner of the box that holds every visual node, in metres."
+    },
+    "colliders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Name of the `COL_<id>` node."
+          },
+          "centerM": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Centre of the box, in metres."
+          },
+          "halfExtentsM": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              }
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Half the size of the box along x, y and z, in metres."
+          }
+        },
+        "required": [
+          "id",
+          "centerM",
+          "halfExtentsM"
+        ],
+        "additionalProperties": false,
+        "description": "A static collider box (axis-aligned)."
+      }
+    },
+    "nav": {
+      "type": "object",
+      "properties": {
+        "originM": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "x and z of the corner of cell (0, 0), in metres."
+        },
+        "cols": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Number of columns (cells along x)."
+        },
+        "rowCount": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Number of rows (cells along z); equals `rows.length`."
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[01]+$"
+          },
+          "description": "One string per row of z: `1` walkable, `0` blocked. Column `c` covers x = originM[0] + c * cellM."
+        }
+      },
+      "required": [
+        "originM",
+        "cols",
+        "rowCount",
+        "rows"
+      ],
+      "additionalProperties": false,
+      "description": "The walkable grid."
+    },
+    "anchors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Name of the `ANCHOR_<id>` node."
+          },
+          "positionM": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "World position of the anchor, in metres."
+          }
+        },
+        "required": [
+          "id",
+          "positionM"
+        ],
+        "additionalProperties": false,
+        "description": "A named point the level and the threats refer to."
+      }
+    },
+    "zones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Name after `ZONE_<kind>_`."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hidden",
+              "safe",
+              "creak"
+            ],
+            "description": "What the zone means to the game."
+          },
+          "centerM": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Centre of the box, in metres."
+          },
+          "halfExtentsM": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              }
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Half the size of the box along x, y and z, in metres."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "centerM",
+          "halfExtentsM"
+        ],
+        "additionalProperties": false,
+        "description": "A gameplay volume (axis-aligned)."
+      }
+    },
+    "props": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "`<kind>_<nn>` of the `PROP_<kind>_<nn>` node."
+          },
+          "kind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "The kind of prop (`mug` for `PROP_mug_01`)."
+          },
+          "centerM": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Centre of the box, in metres."
+          },
+          "halfExtentsM": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              }
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Half the size of the box along x, y and z, in metres."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "centerM",
+          "halfExtentsM"
+        ],
+        "additionalProperties": false,
+        "description": "A dynamic prop at its start position."
+      }
+    }
+  },
+  "required": [
+    "id",
+    "cellM",
+    "boundsMinM",
+    "boundsMaxM",
+    "colliders",
+    "nav",
+    "anchors",
+    "zones",
+    "props"
+  ],
+  "additionalProperties": false,
+  "description": "Geometry of one level, generated from its `.glb` (colliders, navigation grid, anchors, zones, props)."
+}

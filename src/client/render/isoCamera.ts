@@ -8,11 +8,16 @@ import {
 import { invariant } from '@shared/invariant';
 import { OrthographicCamera, Vector3 } from 'three';
 
-/** Size of the room box. Its footprint is centred on the origin, the floor is at y = 0. */
+/**
+ * Size of the room box. The floor is at y = 0; the footprint is centred on `(centerXM, centerZM)`
+ * (the origin when they are left out).
+ */
 export interface RoomSize {
   readonly widthM: number;
   readonly depthM: number;
   readonly heightM: number;
+  readonly centerXM?: number;
+  readonly centerZM?: number;
 }
 
 const centre = new Vector3();
@@ -46,7 +51,13 @@ export function fitIsoCamera(camera: OrthographicCamera, room: RoomSize, aspect:
 
   const yaw = (ISO_YAW_DEG * Math.PI) / 180;
   const pitch = (ISO_PITCH_DEG * Math.PI) / 180;
-  centre.set(0, room.heightM / 2, 0);
+  const centerX = room.centerXM ?? 0;
+  const centerZ = room.centerZM ?? 0;
+  invariant(
+    Number.isFinite(centerX) && Number.isFinite(centerZ),
+    `fitIsoCamera: the room centre must be finite (${centerX}, ${centerZ})`,
+  );
+  centre.set(centerX, room.heightM / 2, centerZ);
   camera.position
     .set(Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw))
     .multiplyScalar(ISO_CAMERA_DISTANCE_M)
@@ -61,9 +72,9 @@ export function fitIsoCamera(camera: OrthographicCamera, room: RoomSize, aspect:
   let maxX = Number.NEGATIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
-  for (const x of [-room.widthM / 2, room.widthM / 2]) {
+  for (const x of [centerX - room.widthM / 2, centerX + room.widthM / 2]) {
     for (const y of [0, room.heightM]) {
-      for (const z of [-room.depthM / 2, room.depthM / 2]) {
+      for (const z of [centerZ - room.depthM / 2, centerZ + room.depthM / 2]) {
         corner.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
         minX = Math.min(minX, corner.x);
         maxX = Math.max(maxX, corner.x);

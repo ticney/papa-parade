@@ -1,11 +1,15 @@
 import { createEmitter } from '@shared/emitter';
 import { log } from '@shared/log';
+import { type AppError, err, ok, type Result } from '@shared/result';
 import { createSim } from '@sim';
+import { Group, Scene } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createFakeScheduler } from '../../../tests/support/fakeScheduler.ts';
 import { createTestContent } from '../../../tests/support/testContent.ts';
+import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
+import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
-import { createProvisionalScene } from '../render/provisionalScene.ts';
+import type { LevelScene } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import { type AppState, createAppFsm } from './appFsm.ts';
 import type { ClientEvents } from './clientEvents.ts';
@@ -14,6 +18,24 @@ import { createPauseController } from './pauseController.ts';
 
 beforeAll(() => {
   log.setLevel('error');
+});
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve(value: T): void;
+}
+function deferred<T>(): Deferred<T> {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+const assetsOf = (id: string): LevelAssets => ({
+  id,
+  geometry: createTestLevelGeometry(id),
+  model: new Group(),
 });
 
 function setup(overrides: Partial<LevelSessionDeps> = {}) {
@@ -28,33 +50,58 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
   events.on('ResumeRequested', () => trace.push('resume'));
   const seeds = [111, 222, 333];
   const reportedSeeds: number[] = [];
-  const drawn = { renders: 0, frames: 0 };
+  const drawn = { renders: 0, frames: 0, scenes: [] as Scene[] };
   const renderer: GameRenderer = {
     resize: () => 1,
-    render: () => {
+    render: (scene) => {
       drawn.renders++;
+      drawn.scenes.push(scene);
     },
+    stats: () => ({ drawCalls: 0, triangles: 0 }),
     dispose: () => {},
   };
   let simsCreated = 0;
+  const scenes: { id: string; scene: Scene; updates: number; disposed: boolean }[] = [];
+  const ready: LevelScene[] = [];
   const deps: LevelSessionDeps = {
     content: createTestContent(),
     appFsm,
     pause,
     renderer,
     camera: createIsoCamera(),
-    scene: createProvisionalScene(),
     scheduler,
     newSeed: () => seeds.shift() ?? 999,
     onSeed: (seed) => reportedSeeds.push(seed),
+    onLevelReady: (level) => {
+      trace.push('ready');
+      ready.push(level);
+    },
     onLevelFrame: () => {
       drawn.frames++;
     },
     onSimEvent: () => {},
     canResumeNow: () => true,
+    waitForForeground: () => Promise.resolve(),
     createSim: (options) => {
       simsCreated++;
       return createSim(options);
+    },
+    loadAssets: async (id) => ok(assetsOf(id)),
+    createScene: (assets) => {
+      const record = { id: assets.id, scene: new Scene(), updates: 0, disposed: false };
+      scenes.push(record);
+      return {
+        id: assets.id,
+        scene: record.scene,
+        room: { widthM: 8, depthM: 6, heightM: 2.5 },
+        update: () => {
+          record.updates++;
+        },
+        dispose: () => {
+          record.disposed = true;
+          trace.push(`dispose:${scenes.indexOf(record)}`);
+        },
+      };
     },
     ...overrides,
   };
@@ -66,21 +113,37 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     trace,
     reportedSeeds,
     drawn,
+    scenes,
+    ready,
     sims: () => simsCreated,
   };
 }
 
 describe('createLevelSession', () => {
-  it('goes start → loading → level, and the level begins through the countdown', async () => {
+  it('goes start → loading → level, the scene is up before, and the level begins through the countdown', async () => {
     const { session, appFsm, pause, trace } = setup();
     await session.start();
     expect(appFsm.state).toBe('level');
     expect(pause.state).toBe('resuming');
-    expect(trace).toEqual(['app:loading', 'pause:levelStart', 'resume', 'app:level']);
+    expect(trace).toEqual(['app:loading', 'ready', 'pause:levelStart', 'resume', 'app:level']);
   });
 
-  it('draws every frame of the level, paused or not, and reports the seed', async () => {
-    const { session, scheduler, drawn, reportedSeeds } = setup();
+  it('loads the level by its id and hands its scene to onLevelReady', async () => {
+    const asked: string[] = [];
+    const { session, ready } = setup({
+      levelId: 'other_room',
+      loadAssets: async (id) => {
+        asked.push(id);
+        return ok(assetsOf(id));
+      },
+    });
+    await session.start();
+    expect(asked).toEqual(['other_room']);
+    expect(ready.map((level) => level.id)).toEqual(['other_room']);
+  });
+
+  it('draws the level scene every frame, paused or not, updates it, and reports the seed', async () => {
+    const { session, scheduler, drawn, reportedSeeds, scenes } = setup();
     await session.start();
     expect(reportedSeeds).toEqual([111]);
     expect(scheduler.pending).toBe(true);
@@ -88,6 +151,8 @@ describe('createLevelSession', () => {
     scheduler.tick(16);
     expect(drawn.renders).toBe(2);
     expect(drawn.frames).toBe(2);
+    expect(drawn.scenes.every((scene) => scene === scenes[0]?.scene)).toBe(true);
+    expect(scenes[0]?.updates).toBe(2);
   });
 
   it('restarts from a level with a new seed, through loading, and stops the old loop', async () => {
@@ -109,6 +174,24 @@ describe('createLevelSession', () => {
       expect(scheduler.requested - requested).toBe(1);
       expect(drawn.renders - renders).toBe(1);
     }
+  });
+
+  it('disposes the previous scene only after the new one is up, and draws the new one', async () => {
+    const { session, trace, scenes, scheduler, drawn } = setup();
+    await session.start();
+    trace.length = 0;
+    await session.start();
+    expect(trace).toEqual([
+      'app:loading',
+      'ready',
+      'dispose:0',
+      'pause:levelStart',
+      'resume',
+      'app:level',
+    ]);
+    expect(scenes.map((s) => s.disposed)).toEqual([true, false]);
+    scheduler.tick(0);
+    expect(drawn.scenes.at(-1)).toBe(scenes[1]?.scene);
   });
 
   it('leaves a paused game behind: the restarted level counts down instead of staying paused', async () => {
@@ -142,21 +225,6 @@ describe('createLevelSession', () => {
     expect(sims()).toBe(2);
   });
 
-  it('goes to oops, logs an error and starts no loop when the sim cannot be created', async () => {
-    const before = log.buffer().length;
-    const { session, appFsm, scheduler } = setup({
-      createSim: () => Promise.reject(new Error('no sim today')),
-    });
-    await session.start();
-    expect(appFsm.state).toBe('oops');
-    expect(scheduler.requested).toBe(0);
-    const errors = log
-      .buffer()
-      .slice(before)
-      .filter((entry) => entry.level === 'error');
-    expect(errors.map((entry) => entry.message)).toEqual(['cannot create the sim for the level']);
-  });
-
   it('stop() cancels the pending frame, and is harmless without a level', async () => {
     const { session, scheduler } = setup();
     session.stop();
@@ -174,5 +242,161 @@ describe('createLevelSession', () => {
     for (const entry of trace)
       if (entry.startsWith('app:')) states.push(entry.slice(4) as AppState);
     expect(states).toEqual(['loading', 'level', 'loading', 'level']);
+  });
+
+  describe('failures', () => {
+    it('goes to oops, logs an error and starts no loop when the sim cannot be created', async () => {
+      const before = log.buffer().length;
+      const { session, appFsm, scheduler } = setup({
+        createSim: () => Promise.reject(new Error('no sim today')),
+      });
+      await session.start();
+      expect(appFsm.state).toBe('oops');
+      expect(scheduler.requested).toBe(0);
+      const errors = log
+        .buffer()
+        .slice(before)
+        .filter((entry) => entry.level === 'error');
+      expect(errors.map((entry) => entry.message)).toEqual(['cannot create the sim for the level']);
+    });
+
+    it('goes to oops and starts no loop when the assets cannot be loaded', async () => {
+      const failure: AppError = {
+        kind: 'assets',
+        message: 'cannot fetch salon_crawler.glb: offline',
+      };
+      const { session, appFsm, scheduler, ready, pause } = setup({
+        loadAssets: async () => err(failure),
+      });
+      await session.start();
+      expect(appFsm.state).toBe('oops');
+      expect(scheduler.requested).toBe(0);
+      expect(ready).toEqual([]);
+      expect(pause.state).toBe('running'); // never paused for a level that did not start
+    });
+
+    it('retries from oops: loading again, then the level, with the old scene kept until then', async () => {
+      let attempts = 0;
+      const { session, appFsm, scenes } = setup({
+        loadAssets: async (id) =>
+          ++attempts === 1 ? err({ kind: 'assets', message: 'x' }) : ok(assetsOf(id)),
+      });
+      await session.start();
+      expect(appFsm.state).toBe('oops');
+      await session.start();
+      expect(appFsm.state).toBe('level');
+      expect(scenes).toHaveLength(1);
+    });
+
+    it('a throwing loadAssets does not leave the session stuck "starting"', async () => {
+      let first = true;
+      const { session, appFsm } = setup({
+        loadAssets: async (id) => {
+          if (first) {
+            first = false;
+            throw new Error('boom');
+          }
+          return ok(assetsOf(id));
+        },
+      });
+      await expect(session.start()).rejects.toThrow('boom');
+      await session.start();
+      expect(appFsm.state).toBe('level');
+    });
+  });
+
+  describe('the foreground', () => {
+    it('keeps loading until the page is in the foreground, then counts down', async () => {
+      const foreground = deferred<void>();
+      const { session, appFsm, pause, scheduler } = setup({
+        waitForForeground: () => foreground.promise,
+      });
+      const starting = session.start();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(appFsm.state).toBe('loading');
+      expect(pause.state).toBe('running');
+      expect(scheduler.requested).toBe(0);
+      foreground.resolve();
+      await starting;
+      expect(appFsm.state).toBe('level');
+      expect(pause.state).toBe('resuming');
+    });
+
+    it('has loaded the scene by then (the load went on in the background)', async () => {
+      const foreground = deferred<void>();
+      const { session, ready } = setup({ waitForForeground: () => foreground.promise });
+      const starting = session.start();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(ready).toHaveLength(1);
+      foreground.resolve();
+      await starting;
+    });
+  });
+
+  describe('stop() and the generation token', () => {
+    it('a start that resumes after stop() does nothing more and leaves no loop behind', async () => {
+      const assets = deferred<Result<LevelAssets, AppError>>();
+      const { session, appFsm, scheduler, trace, ready, reportedSeeds } = setup({
+        loadAssets: () => assets.promise,
+      });
+      const starting = session.start();
+      expect(appFsm.state).toBe('loading');
+      session.stop();
+      appFsm.enter('oops'); // what the global error handler does
+      assets.resolve(ok(assetsOf('salon_crawler')));
+      await starting;
+      expect(appFsm.state).toBe('oops');
+      expect(scheduler.requested).toBe(0);
+      expect(ready).toEqual([]);
+      expect(reportedSeeds).toEqual([]);
+      expect(trace).toEqual(['app:loading', 'app:oops']);
+    });
+
+    it('a stale start that fails does not move the app to oops again', async () => {
+      const first = deferred<Result<LevelAssets, AppError>>();
+      let calls = 0;
+      const { session, appFsm } = setup({
+        loadAssets: (id) => (++calls === 1 ? first.promise : Promise.resolve(ok(assetsOf(id)))),
+      });
+      const stale = session.start();
+      session.stop();
+      appFsm.enter('oops');
+      await session.start(); // the retry runs while the first is still loading
+      expect(appFsm.state).toBe('level');
+      first.resolve(err({ kind: 'assets', message: 'late failure' }));
+      await stale;
+      expect(appFsm.state).toBe('level');
+    });
+
+    it('stop() frees the single-flight guard: a retry right after is not ignored', async () => {
+      const first = deferred<Result<LevelAssets, AppError>>();
+      let calls = 0;
+      const { session, appFsm, sims } = setup({
+        loadAssets: (id) => (++calls === 1 ? first.promise : Promise.resolve(ok(assetsOf(id)))),
+      });
+      const stale = session.start();
+      session.stop();
+      appFsm.enter('oops');
+      await session.start();
+      expect(appFsm.state).toBe('level');
+      expect(sims()).toBe(2);
+      first.resolve(ok(assetsOf('salon_crawler')));
+      await stale;
+      expect(appFsm.state).toBe('level'); // the late one changed nothing
+    });
+
+    it('a start stopped while waiting for the foreground never enters the level', async () => {
+      const foreground = deferred<void>();
+      const { session, appFsm, scheduler } = setup({ waitForForeground: () => foreground.promise });
+      const starting = session.start();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      session.stop();
+      appFsm.enter('oops');
+      foreground.resolve();
+      await starting;
+      expect(appFsm.state).toBe('oops');
+      expect(scheduler.requested).toBe(0);
+    });
   });
 });

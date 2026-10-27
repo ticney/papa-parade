@@ -1,4 +1,3 @@
-import { log } from '@shared/log';
 import type { OverlayKind } from '../app/overlay.ts';
 import type { OverlayScreen } from './overlayScreen.ts';
 import type { PauseMode, PauseScreen } from './screens/pauseScreen.ts';
@@ -8,8 +7,8 @@ export interface OverlayBuilders {
   /** Built in the mode it opens in, so a level start never builds a panel just to hide it. */
   pause(mode: PauseMode): PauseScreen;
   portrait(): OverlayScreen;
-  /** Story 1.6 adds the « Oups » screen. */
-  oops?(): OverlayScreen;
+  loading(): OverlayScreen;
+  oops(): OverlayScreen;
 }
 
 export interface OverlayHost {
@@ -36,14 +35,16 @@ export function createOverlayHost(root: HTMLElement, builders: OverlayBuilders):
   const build = (
     next: OverlayKind,
     pauseMode: PauseMode,
-  ): { screen: OverlayScreen | undefined; pause: PauseScreen | null } => {
+  ): { screen: OverlayScreen; pause: PauseScreen | null } => {
     switch (next) {
       case 'start':
         return { screen: builders.start(), pause: null };
       case 'portrait':
         return { screen: builders.portrait(), pause: null };
       case 'oops':
-        return { screen: builders.oops?.(), pause: null };
+        return { screen: builders.oops(), pause: null };
+      case 'loading':
+        return { screen: builders.loading(), pause: null };
       case 'pause': {
         const pause = builders.pause(pauseMode);
         return { screen: pause, pause };
@@ -75,10 +76,6 @@ export function createOverlayHost(root: HTMLElement, builders: OverlayBuilders):
       clear();
       kind = next;
       if (built === null) return;
-      if (built.screen === undefined) {
-        log.warn('boot', `no "${next}" screen to show yet`);
-        return;
-      }
       current = built.screen;
       pauseScreen = built.pause;
       root.append(built.screen.element);

@@ -1,14 +1,11 @@
 import { loadContent } from '@content/loadContent';
-import {
-  PROVISIONAL_ROOM_DEPTH_M,
-  PROVISIONAL_ROOM_HEIGHT_M,
-  PROVISIONAL_ROOM_WIDTH_M,
-} from '@shared/constants';
-import { createEmitter } from '@shared/emitter';
+import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import type { SimEvent } from '@sim';
+import { Color, Scene } from 'three';
 import { createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
+import { waitForForeground } from './app/foreground.ts';
 import { installGlobalErrorHandlers } from './app/globalErrorHandlers.ts';
 import { createLevelSession } from './app/levelSession.ts';
 import { bindOrientation } from './app/orientation.ts';
@@ -17,24 +14,20 @@ import { bindSurface } from './app/surface.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
-import { createProvisionalScene } from './render/provisionalScene.ts';
+import type { LevelScene } from './render/levelScene.ts';
+import { PALETTE } from './render/materials/palette.ts';
 import { createRenderer } from './render/renderer.ts';
 import { loadFonts } from './ui/fonts.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
 import { createOverlayHost } from './ui/overlayHost.ts';
+import { createLoadingScreen } from './ui/screens/loadingScreen.ts';
+import { createOopsScreen } from './ui/screens/oopsScreen.ts';
 import { createPauseScreen } from './ui/screens/pauseScreen.ts';
 import { createPortraitOverlay } from './ui/screens/portraitOverlay.ts';
 import { createStartScreen } from './ui/screens/startScreen.ts';
 import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
-
-// Provisional, like the scene: story 1.6 passes the real level bounds.
-const ROOM: RoomSize = {
-  widthM: PROVISIONAL_ROOM_WIDTH_M,
-  depthM: PROVISIONAL_ROOM_DEPTH_M,
-  heightM: PROVISIONAL_ROOM_HEIGHT_M,
-};
 
 function logSimEvent(event: SimEvent): void {
   if (event.type === 'InvariantViolated') {
@@ -46,13 +39,37 @@ function logSimEvent(event: SimEvent): void {
 }
 
 /**
+ * Debug builds only: `?throwAfterMs=<n>` throws an uncaught error n ms after the app first enters
+ * `level`, so a test can prove the « Oups » screen. Once per page load; a value that is not a whole
+ * number of ms >= 0 is ignored with a warning.
+ */
+function armForcedThrow(events: Emitter<ClientEvents>): void {
+  const raw = new URLSearchParams(window.location.search).get('throwAfterMs');
+  if (raw === null) return;
+  const delayMs = raw.trim() === '' ? Number.NaN : Number(raw);
+  if (!Number.isInteger(delayMs) || delayMs < 0) {
+    log.warn('boot', `ignoring ?throwAfterMs=${raw}: not a whole number of ms >= 0`);
+    return;
+  }
+  const off = events.on('AppStateChanged', ({ to }) => {
+    if (to !== 'level') return;
+    off();
+    window.setTimeout(() => {
+      throw new Error('forced by ?throwAfterMs');
+    }, delayMs);
+  });
+}
+
+/**
  * The composition root: the only place that wires content, renderer, UI, flow and pause together.
  * Dependencies are passed explicitly; nothing here is a singleton but `log`. A level (sim, time
  * map, loop) is built by the level session each time the player starts or restarts.
  */
 export async function boot(): Promise<void> {
-  // First, so that nothing below can fail unseen.
-  installGlobalErrorHandlers(window);
+  // First, so that nothing below can fail unseen. The recovery is wired once the level session
+  // exists; an error before that is only logged.
+  let recoverFromUncaught: () => void = () => {};
+  installGlobalErrorHandlers(window, log, () => recoverFromUncaught());
   log.info('boot', 'shell ready');
 
   const content = await loadContent(createBrowserContentSource());
@@ -85,14 +102,18 @@ export async function boot(): Promise<void> {
 
   const created = createRenderer(canvas);
   if (!created.ok) {
-    // The player-facing fallback is story 1.6 (the « Oups » screen).
+    // No WebGL, no scene to put the « Oups » screen over: only logged (see deferred-work.md).
     log.error('render', created.error.message, created.error);
     return;
   }
   const renderer = created.value;
 
   const camera = createIsoCamera();
-  const scene = createProvisionalScene();
+  // Behind the start and « Oups » screens until a level has been loaded: an empty ink stage.
+  const backdrop = new Scene();
+  backdrop.background = new Color(PALETTE.ink);
+  let currentLevel: LevelScene | null = null;
+  let room: RoomSize | null = null;
   const events = createEmitter<ClientEvents>();
   const appFsm = createAppFsm({ events });
   const pause = createPauseController({ events });
@@ -100,11 +121,11 @@ export async function boot(): Promise<void> {
   // Outside a level (start, loading) nothing steps and nothing draws on its own: draw the scene
   // once, and again whenever a resize has cleared the canvas.
   const drawStatic = (): void => {
-    if (appFsm.state !== 'level') renderer.render(scene.scene, camera);
+    if (appFsm.state !== 'level') renderer.render(currentLevel?.scene ?? backdrop, camera);
   };
   const fitViewToCanvas = (): void => {
     const aspect = renderer.resize();
-    if (aspect !== null) fitIsoCamera(camera, ROOM, aspect);
+    if (aspect !== null && room !== null) fitIsoCamera(camera, room, aspect);
     drawStatic();
   };
   fitViewToCanvas();
@@ -117,7 +138,10 @@ export async function boot(): Promise<void> {
   // `window.__PP__`; until then these are how a test sees the app.
   const isMirrored = import.meta.env.VITE_DEBUG_ALLOWED === 'true';
   // Written only when the value changes: a test observing the attributes then sees each real change once.
-  const mirror = (name: 'ppState' | 'ppApp', value: string): void => {
+  const mirror = (
+    name: 'ppState' | 'ppApp' | 'ppLevel' | 'ppDrawCalls' | 'ppTriangles',
+    value: string,
+  ): void => {
     if (document.documentElement.dataset[name] !== value) {
       document.documentElement.dataset[name] = value;
     }
@@ -133,6 +157,9 @@ export async function boot(): Promise<void> {
     events.on('AppStateChanged', mirrorState);
   }
 
+  // The render stats are mirrored once per level, on its first rendered frame.
+  let isStatsMirrored = false;
+
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
     content: content.value,
@@ -140,15 +167,38 @@ export async function boot(): Promise<void> {
     pause,
     renderer,
     camera,
-    scene,
     newSeed: () => crypto.getRandomValues(new Uint32Array(1))[0] as number,
     onSeed: (seed) => {
       if (isMirrored) document.documentElement.dataset.ppSeed = String(seed);
     },
-    onLevelFrame: () => shell.frame(),
+    onLevelReady: (level) => {
+      // The room is only known now: fit the camera and show it behind the loading screen.
+      currentLevel = level;
+      room = level.room;
+      isStatsMirrored = false;
+      fitViewToCanvas();
+      if (isMirrored) mirror('ppLevel', level.id);
+    },
+    onLevelFrame: () => {
+      shell.frame();
+      if (isMirrored && !isStatsMirrored) {
+        isStatsMirrored = true;
+        const { drawCalls, triangles } = renderer.stats();
+        mirror('ppDrawCalls', String(drawCalls));
+        mirror('ppTriangles', String(triangles));
+      }
+    },
     onSimEvent: logSimEvent,
     canResumeNow: () => !shell.isPortrait && document.visibilityState !== 'hidden',
+    waitForForeground: () => waitForForeground(document),
   });
+  // An error nobody caught, while a level is loading or running: stop it and offer to start again.
+  // From any other state (boot, start, result, oops) it is only logged.
+  recoverFromUncaught = () => {
+    if (appFsm.state !== 'loading' && appFsm.state !== 'level') return;
+    levelSession.stop();
+    appFsm.enter('oops');
+  };
 
   const hudBatch = createHudBatch([]);
   const hud = createHudLayer(hudRoot, { t, onPausePress: () => pause.requestPause('user') });
@@ -172,6 +222,8 @@ export async function boot(): Promise<void> {
         onRestart: () => void levelSession.start(),
       }),
     portrait: () => createPortraitOverlay({ t }),
+    loading: () => createLoadingScreen({ t }),
+    oops: () => createOopsScreen({ t, onRetry: () => void levelSession.start() }),
   });
   const shell = createUiShell({ events, appFsm, pause, hud, hudBatch, overlayHost });
   shell.bindKeys(window);
@@ -182,6 +234,8 @@ export async function boot(): Promise<void> {
     if (isPortrait && appFsm.state === 'level') pause.requestPause('portrait');
   });
   bindVisibilityPause(document, pause); // also pauses at once if the page starts hidden
+
+  if (import.meta.env.VITE_DEBUG_ALLOWED === 'true') armForcedThrow(events);
 
   appFsm.enter('start');
   drawStatic();

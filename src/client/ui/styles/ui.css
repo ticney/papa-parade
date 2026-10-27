@@ -333,7 +333,8 @@ body {
 /* ---------------------------------------------------------------------------------------------
    Pause: veil, panel, countdown
    --------------------------------------------------------------------------------------------- */
-.pp-pause-screen {
+.pp-pause-screen,
+.pp-oops-screen {
   background: var(--pp-color-scrim);
 }
 
@@ -379,6 +380,45 @@ body {
 .pp-countdown-digit {
   display: block;
   animation: pp-pulse 1s ease-out both;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Loading: opaque cream, a bottle that fills, one flavour line (no number, no percentage)
+   --------------------------------------------------------------------------------------------- */
+.pp-loading-screen {
+  flex-direction: column;
+  gap: var(--pp-spacing-5);
+  background: var(--pp-color-cream);
+  color: var(--pp-color-ink);
+  text-align: center;
+}
+
+.pp-bottle {
+  width: 72px;
+  height: 108px;
+  overflow: visible;
+  stroke: var(--pp-color-ink);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.pp-bottle-glass,
+.pp-bottle-neck,
+.pp-bottle-teat {
+  fill: var(--pp-color-paper);
+}
+
+.pp-bottle-fill {
+  fill: var(--pp-color-gauge-calm);
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: pp-bottle-fill 5s cubic-bezier(0.1, 0.6, 0.3, 1) both;
+}
+
+.pp-loading-line {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -434,6 +474,16 @@ body {
   }
 }
 
+@keyframes pp-bottle-fill {
+  from {
+    transform: scaleY(0);
+  }
+
+  to {
+    transform: scaleY(0.9);
+  }
+}
+
 @keyframes pp-pulse {
   from {
     opacity: 0.4;
@@ -480,6 +530,12 @@ body {
   .pp-start-prompt,
   .pp-portrait-icon {
     animation: none;
+  }
+
+  /* The fill is static under reduced motion: half full. */
+  .pp-bottle-fill {
+    animation: none;
+    transform: scaleY(0.5);
   }
 
   .pp-button {

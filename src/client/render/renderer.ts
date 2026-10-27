@@ -13,6 +13,12 @@ export function pixelRatioFor(devicePixelRatio: number): number {
   return Math.min(devicePixelRatio, MAX_PIXEL_RATIO);
 }
 
+/** What the renderer drew in its last `render` call (budget: ≤ 100 draw calls, ≤ 100k triangles). */
+export interface RenderStats {
+  drawCalls: number;
+  triangles: number;
+}
+
 export interface GameRenderer {
   /**
    * Re-reads the canvas CSS size and the device pixel ratio (CSS owns the canvas size). Returns
@@ -20,6 +26,8 @@ export interface GameRenderer {
    */
   resize(): number | null;
   render(scene: Scene, camera: Camera): void;
+  /** The last frame's draw calls and triangles: one object, rewritten by each call (no allocation). */
+  stats(): Readonly<RenderStats>;
   dispose(): void;
 }
 
@@ -56,6 +64,8 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
   canvas.addEventListener('webglcontextlost', onContextLost);
   canvas.addEventListener('webglcontextrestored', onContextRestored);
 
+  const stats: RenderStats = { drawCalls: 0, triangles: 0 };
+
   return ok({
     resize() {
       const width = canvas.clientWidth;
@@ -67,6 +77,11 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
     },
     render(scene, camera) {
       renderer.render(scene, camera);
+    },
+    stats() {
+      stats.drawCalls = renderer.info.render.calls;
+      stats.triangles = renderer.info.render.triangles;
+      return stats;
     },
     dispose() {
       canvas.removeEventListener('webglcontextlost', onContextLost);
