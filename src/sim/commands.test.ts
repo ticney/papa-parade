@@ -9,6 +9,16 @@ describe('commandProblem', () => {
     expect(commandProblem({ type: 'MoveStop', t: 10 })).toBeNull();
     expect(commandProblem({ type: 'PressThreat', t: 10, threatId: 1 })).toBeNull();
     expect(commandProblem({ type: 'Release', t: 10 })).toBeNull();
+    expect(
+      commandProblem({
+        type: 'PushProp',
+        t: 10,
+        propId: 'mug_01',
+        impulseXNs: 0.4,
+        impulseYNs: 0,
+        impulseZNs: -0.1,
+      }),
+    ).toBeNull();
   });
 
   it('knows every command type it accepts', () => {
@@ -16,6 +26,7 @@ describe('commandProblem', () => {
       'Move',
       'MoveStop',
       'PressThreat',
+      'PushProp',
       'Release',
       'SetTimeScale',
       'TapFloor',
@@ -37,6 +48,53 @@ describe('commandProblem', () => {
     ['a string threatId', { type: 'PressThreat', t: 0, threatId: '1' }, /threatId/],
     ['a Release with a NaN t', { type: 'Release', t: Number.NaN }, /finite/],
     ['a non-finite t', { type: 'MoveStop', t: Number.NaN }, /finite/],
+    [
+      'a PushProp with no prop',
+      { type: 'PushProp', t: 0, impulseXNs: 1, impulseYNs: 0, impulseZNs: 0 },
+      /propId/,
+    ],
+    [
+      'a PushProp with an empty prop id',
+      { type: 'PushProp', t: 0, propId: '', impulseXNs: 1, impulseYNs: 0, impulseZNs: 0 },
+      /propId/,
+    ],
+    [
+      'a PushProp with a numeric prop id',
+      { type: 'PushProp', t: 0, propId: 1, impulseXNs: 1, impulseYNs: 0, impulseZNs: 0 },
+      /propId/,
+    ],
+    [
+      'a PushProp with a NaN impulse',
+      { type: 'PushProp', t: 0, propId: 'a', impulseXNs: Number.NaN, impulseYNs: 0, impulseZNs: 1 },
+      /impulseXNs/,
+    ],
+    [
+      'a PushProp with an infinite impulse',
+      {
+        type: 'PushProp',
+        t: 0,
+        propId: 'a',
+        impulseXNs: 0,
+        impulseYNs: Number.POSITIVE_INFINITY,
+        impulseZNs: 1,
+      },
+      /impulseYNs/,
+    ],
+    [
+      'a PushProp with a string impulse',
+      { type: 'PushProp', t: 0, propId: 'a', impulseXNs: 0, impulseYNs: 0, impulseZNs: '1' },
+      /impulseZNs/,
+    ],
+    [
+      'a PushProp with a missing impulse',
+      { type: 'PushProp', t: 0, propId: 'a', impulseXNs: 1, impulseYNs: 0 },
+      /impulseZNs/,
+    ],
+    [
+      'a PushProp with a zero impulse',
+      { type: 'PushProp', t: 0, propId: 'a', impulseXNs: 0, impulseYNs: -0, impulseZNs: 0 },
+      /\(0, 0, 0\)/,
+    ],
     ['an unknown type', { type: 'Teleport', t: 0 }, /unknown command type/],
     ['a non-object', 42, /object/],
   ])('refuses %s', (_name, command, message) => {

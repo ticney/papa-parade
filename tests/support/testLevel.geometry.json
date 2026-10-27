@@ -119,6 +119,12 @@
       "kind": "mug",
       "centerM": [0.7, 0.5, -0.6],
       "halfExtentsM": [0.05, 0.05, 0.05]
+    },
+    {
+      "id": "vase_01",
+      "kind": "vase",
+      "centerM": [1.3, 0.15, -0.6],
+      "halfExtentsM": [0.08, 0.15, 0.08]
     }
   ]
 }

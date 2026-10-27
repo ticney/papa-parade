@@ -3,9 +3,10 @@ import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import type { SimMs } from '@shared/time';
-import type { GagId, World } from '@sim';
+import type { GagId, PropSlice, World } from '@sim';
 import {
   AmbientLight,
+  BoxGeometry,
   Color,
   DirectionalLight,
   Group,
@@ -25,12 +26,17 @@ import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
 import { createBabyView } from './views/babyView.ts';
 import { createPapaView } from './views/papaView.ts';
+import { createPropView, type PropView } from './views/propView.ts';
+import { createViewPool, type ViewPool } from './views/viewPool.ts';
+import { createViewRegistry } from './views/viewRegistry.ts';
 
 // Art direction, not GDD numbers: Geo tunes the light here until the final art (E7).
 const AMBIENT_INTENSITY = 0.9;
 const SUN_INTENSITY = 1.3;
 /** Where the sun sits relative to the room centre: the camera side, high, in metres. */
 const SUN_OFFSET_M: readonly [number, number, number] = [5, 9, 7];
+/** Half extents of the box drawn for a prop kind that has no model node and no prop in the geometry, in metres. */
+const DEFAULT_PROP_HALF_EXTENTS_M: readonly [number, number, number] = [0.05, 0.05, 0.05];
 
 /** The sizes of the agents the scene draws, in metres (the feel's, passed by the session). */
 export interface SceneBodies {
@@ -65,8 +71,8 @@ export interface LevelScene {
   /** The effects of the level; they die with it. */
   readonly fx: LevelFx;
   /**
-   * Moves what the world moves: today Papa and the baby, drawn `alpha` of the way from the last
-   * step to the next; then the effects, on the interpolated sim clock.
+   * Moves what the world moves: Papa, the baby and the props, drawn `alpha` of the way from the
+   * last step to the next; then the effects, on the interpolated sim clock.
    */
   update(world: Readonly<World>, alpha: number): void;
   /**
@@ -131,9 +137,45 @@ function originalColor(material: Material | Material[]): Color {
 }
 
 /**
+ * Takes the `PROP_*` nodes out of the model: they are no longer drawn in place, the pooled prop
+ * views are. The first node of each kind becomes that kind's template (its geometry and its toon
+ * material are shared by every view of the kind). Returns the templates by kind and every node
+ * taken out, so that the scene can free their geometry.
+ */
+function takePropNodes(
+  model: Object3D,
+  geometry: LevelGeometry,
+): { templates: Map<string, Object3D>; taken: Object3D[] } {
+  const templates = new Map<string, Object3D>();
+  const taken: Object3D[] = [];
+  const kindOfId = new Map(geometry.props.map((prop) => [prop.id, prop.kind]));
+  const found: Object3D[] = [];
+  model.traverse((node) => {
+    const parsed = node === model ? null : parseNodeName(node.name);
+    if (parsed?.ok && parsed.value.kind === 'prop') found.push(node);
+  });
+  for (const node of found) {
+    const parsed = parseNodeName(node.name);
+    if (!parsed.ok) continue;
+    const kind = kindOfId.get(parsed.value.id);
+    node.removeFromParent();
+    taken.push(node);
+    if (kind === undefined) {
+      log.warn('assets', 'a PROP_ node of the model is not a prop of the geometry: not drawn', {
+        name: node.name,
+      });
+    } else if (!templates.has(kind)) {
+      templates.set(kind, node);
+    }
+  }
+  return { templates, taken };
+}
+
+/**
  * The scene of one level: the loaded model with its non-visual nodes removed, every material
  * swapped for a shared toon one (keeping each mesh's colour), lights, blob shadows (no shadow map),
- * Papa and the baby. The model is taken over: it belongs to this scene from now on. The bodies'
+ * Papa, the baby and the props (pooled views, one pool per kind, made here so that nothing is
+ * built during play). The model is taken over: it belongs to this scene from now on. The bodies'
  * radii are the feel's, read once when the level starts (a `SetFeel` takes effect at the next level).
  */
 export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): LevelScene {
@@ -176,6 +218,44 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
 
   const shadows = addBlobShadows(content, geometry.colliders);
 
+  // The props: the model's PROP_ nodes are templates, the views are pooled per kind.
+  const { templates, taken: propNodes } = takePropNodes(model, geometry);
+  const pools = new Map<string, ViewPool<PropView>>();
+  const poolOf = (kind: string, halfExtentsM: readonly [number, number, number]) => {
+    const existing = pools.get(kind);
+    if (existing !== undefined) return existing;
+    let template = templates.get(kind);
+    if (template === undefined) {
+      // A prop kind with no PROP_ node in the model, or one the geometry never listed: a grey box
+      // of its size, so that the prop is not invisible while it falls.
+      log.warn('assets', `no PROP_${kind}_nn node in the model: drawing a plain box`, { kind });
+      template = new Mesh(
+        new BoxGeometry(halfExtentsM[0] * 2, halfExtentsM[1] * 2, halfExtentsM[2] * 2),
+        toon.get(new Color(PALETTE.cream)),
+      );
+      propNodes.push(template);
+    }
+    const count = geometry.props.filter((prop) => prop.kind === kind).length;
+    const pool = createViewPool(() => {
+      const view = createPropView(kind, template as Object3D, shadows.kit, { halfExtentsM });
+      content.add(view.object);
+      return view;
+    }, count);
+    pools.set(kind, pool);
+    return pool;
+  };
+  for (const prop of geometry.props) poolOf(prop.kind, prop.halfExtentsM);
+  const props = createViewRegistry<PropSlice, PropView>({
+    keyOf: (prop) => prop.id,
+    // A kind the geometry never listed (a world that does not match the scene) gets a pool on demand.
+    create: (prop) => poolOf(prop.kind, DEFAULT_PROP_HALF_EXTENTS_M).acquire(),
+    update: (view, prop, alpha) => view.update(prop, alpha),
+    release: (view) => {
+      view.hide();
+      pools.get(view.kind)?.release(view);
+    },
+  });
+
   const papa = createPapaView(content, toon, shadows.kit, bodies.papaRadiusM);
   const baby = createBabyView(content, toon, shadows.kit, bodies.babyRadiusM);
   const waves = createSoundWaves(content, PALETTE.ink);
@@ -206,6 +286,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     update(world, alpha) {
       papa.update(world.papa, alpha);
       baby.update(world.baby, alpha);
+      props.sync(world.props, alpha);
       const clockMs = world.time.sim + alpha * STEP_MS;
       waves.update(clockMs);
       shake.update(clockMs);
@@ -219,8 +300,15 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       lift.reset();
     },
     dispose() {
+      props.dispose();
       waves.dispose();
       disposeObject(scene);
+      // The templates are not in the scene any more: free their geometry too (the materials are the toon cache's).
+      for (const node of propNodes) {
+        node.traverse((child) => {
+          if (child instanceof Mesh) child.geometry.dispose();
+        });
+      }
       toon.dispose();
       shadows.dispose();
       scene.clear();

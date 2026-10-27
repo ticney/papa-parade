@@ -1,3 +1,4 @@
+import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import { createSim, type World } from '@sim';
 import {
@@ -108,14 +109,15 @@ describe('roomOf, a level that stays above the floor', () => {
 });
 
 describe('createLevelScene', () => {
-  it('removes the collision, navigation, zone and anchor nodes and keeps the visuals and props', () => {
+  it('removes the collision, navigation, zone and anchor nodes and keeps the visuals; props are drawn by pooled views at world.props poses', () => {
     const { scene } = build();
     const found = names(scene);
     for (const kept of [
       'floor',
       'sofa',
       'wall_back',
-      'PROP_mug_01',
+      'prop_mug',
+      'blob_mug',
       'papa',
       'blob_papa',
       'baby',
@@ -125,6 +127,8 @@ describe('createLevelScene', () => {
       expect(found).toContain(kept);
     }
     for (const gone of [
+      // The static prop mesh is gone: it is the template of the pooled views now (story 1.15).
+      'PROP_mug_01',
       'COL_sofa',
       'NAV_floor',
       'NAV_block_sofa',
@@ -133,6 +137,124 @@ describe('createLevelScene', () => {
     ]) {
       expect(found).not.toContain(gone);
     }
+  });
+
+  describe('the props (story 1.15)', () => {
+    const propBody = (scene: { getObjectByName(name: string): Object3D | undefined }) =>
+      scene.getObjectByName('prop_mug') as Object3D;
+
+    async function pushedSim() {
+      const sim = await createSim({
+        content: createTestContent(),
+        geometry: createTestGeometry(),
+        level: createTestLevel(),
+        seed: 1,
+      });
+      sim.enqueue({
+        type: 'PushProp',
+        t: asSimMs(0),
+        propId: 'mug_01',
+        impulseXNs: 0.72,
+        impulseYNs: 0,
+        impulseZNs: 0,
+      });
+      return sim;
+    }
+
+    it('has its views ready at creation, hidden, so that nothing is built during play', () => {
+      const { scene } = build();
+      expect(scene.getObjectsByProperty('name', 'prop_mug')).toHaveLength(1);
+      expect(propBody(scene).parent?.visible).toBe(false);
+    });
+
+    it('draws a prop at its pose in the world, interpolated, once the world has props', async () => {
+      const { scene, update } = build();
+      const sim = await pushedSim();
+      stepN(sim, 30);
+      const mug = sim.world.props[0] as Readonly<World['props'][number]>;
+      expect(mug.xM).toBeGreaterThan(mug.prevXM);
+      update(sim.world, 0);
+      expect(propBody(scene).parent?.visible).toBe(true);
+      expect(propBody(scene).position.toArray()).toEqual([mug.prevXM, mug.prevYM, mug.prevZM]);
+      update(sim.world, 1);
+      expect(propBody(scene).position.toArray()).toEqual([mug.xM, mug.yM, mug.zM]);
+      update(sim.world, 0.5);
+      expect(propBody(scene).position.x).toBeCloseTo((mug.prevXM + mug.xM) / 2, 12);
+    });
+
+    it('moves the view when the prop moves in the world', async () => {
+      const { scene, update } = build();
+      const sim = await pushedSim();
+      update(sim.world, 1);
+      const before = propBody(scene).position.x;
+      stepN(sim, 30);
+      update(sim.world, 1);
+      expect(propBody(scene).position.x).toBeGreaterThan(before);
+    });
+
+    it('builds no view for a frame with the same world: the scene graph is the same object by object', async () => {
+      const { scene, update } = build();
+      const sim = await pushedSim();
+      stepN(sim, 10);
+      update(sim.world, 0);
+      const all = (): Object3D[] => {
+        const found: Object3D[] = [];
+        scene.traverse((node) => found.push(node));
+        return found;
+      };
+      const before = all();
+      for (let frame = 0; frame < 20; frame++) update(sim.world, frame / 20);
+      const after = all();
+      expect(after).toHaveLength(before.length);
+      expect(after.every((node, index) => node === before[index])).toBe(true);
+    });
+
+    it('squashes a broken prop', () => {
+      const { scene, update } = build();
+      const world = fakeWorldAt(0);
+      const mug = world.props[0] as World['props'][number];
+      update(world, 1);
+      expect(propBody(scene).scale.y).toBe(1);
+      mug.isBroken = true;
+      update(world, 1);
+      expect(propBody(scene).scale.y).toBeLessThan(1);
+      mug.isBroken = false;
+    });
+
+    it('warns and draws a plain box for a kind the model has no node for', () => {
+      const seen = log.buffer().length;
+      const geometry = createTestLevelGeometry('test_room');
+      geometry.props.push({
+        id: 'vase_01',
+        kind: 'vase',
+        centerM: [1, 0.15, 0],
+        halfExtentsM: [0.08, 0.15, 0.08],
+      });
+      const { scene } = createLevelScene(
+        { id: 'test_room', geometry, model: buildModel() },
+        BODIES,
+      );
+      expect(scene.getObjectByName('prop_vase')).toBeDefined();
+      const warnings = log
+        .buffer()
+        .slice(seen)
+        .filter((entry) => entry.level === 'warn');
+      expect(warnings.map((entry) => entry.message)).toContainEqual(
+        expect.stringContaining('PROP_vase_nn'),
+      );
+    });
+
+    it('frees the geometry of its templates on dispose', () => {
+      const geometry = createTestLevelGeometry('test_room');
+      const model = buildModel();
+      const template = model.getObjectByName('PROP_mug_01') as Mesh;
+      let freed = 0;
+      template.geometry.addEventListener('dispose', () => freed++);
+      const built = createLevelScene({ id: 'test_room', geometry, model }, BODIES);
+      expect(freed).toBe(0);
+      built.dispose();
+      expect(freed).toBeGreaterThan(0);
+    });
   });
 
   it('hides a malformed gameplay node instead of showing it as a box, and keeps odd visual names', () => {

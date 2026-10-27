@@ -14,8 +14,10 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // Feel keys): the group name `fatigue` already carries the quantity.
 // `RadiusM` and `DistM` are metres (`papaRadiusM`, `wanderMaxDistM`): a length is spelled out, so a
 // bare `M` does not pass.
+// Story 1.15 adds `Kg`, `Ns` (newton-seconds) and `Mps2`, and the dimensionless physics ratios
+// `friction` and `restitution` (a coefficient has no unit; the key says what it is).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM)$|^perSec$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|Kg|Ns)$|^(?:perSec|friction|restitution)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -174,6 +176,46 @@ describe('content/feel.json', () => {
   });
 });
 
+describe('feel.physics (story 1.15)', () => {
+  // `mug` is a kind of the real file; the values stay Geo's, only the structure is pinned.
+  const mugPath = (key: string) => `physics.kinds.mug.${key}`;
+  const mugKeys = ['shape', 'massKg', 'friction', 'restitution', 'breakable', 'breakImpulseNs'];
+
+  it.each(mugKeys)('refuses a kind with no %s, at its path', (key) => {
+    expect(failedPaths(mutated([mugPath(key), undefined]))).toEqual([mugPath(key)]);
+  });
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a negative mass', [[mugPath('massKg'), -1]], [mugPath('massKg')]],
+    ['a zero mass', [[mugPath('massKg'), 0]], [mugPath('massKg')]],
+    ['a negative friction', [[mugPath('friction'), -0.1]], [mugPath('friction')]],
+    ['a restitution above 1', [[mugPath('restitution'), 1.5]], [mugPath('restitution')]],
+    ['an unknown shape', [[mugPath('shape'), 'pyramid']], [mugPath('shape')]],
+    [
+      'a breakable kind with a non-positive break impulse',
+      [
+        [mugPath('breakable'), true],
+        [mugPath('breakImpulseNs'), 0],
+      ],
+      [mugPath('breakImpulseNs')],
+    ],
+    ['a zero gravity', [['physics.gravityMps2', 0]], ['physics.gravityMps2']],
+    [
+      'a zero impact threshold',
+      [['physics.impactMinImpulseNs', 0]],
+      ['physics.impactMinImpulseNs'],
+    ],
+    ['a negative cooldown', [['physics.impactCooldownMs', -1]], ['physics.impactCooldownMs']],
+    ['an unknown key in a kind', [[mugPath('bogusKg'), 1]], [mugPath('bogusKg')]],
+  ])('refuses %s', (_name, changes, expected) => {
+    expect(failedPaths(mutated(...changes))).toEqual(expected);
+  });
+
+  it('accepts a prop kind that is not breakable', () => {
+    expect(mutated([mugPath('breakable'), false])).toMatchObject({ ok: true });
+  });
+});
+
 describe('feel unit suffixes', () => {
   function numericLeafKeys(value: unknown, key = ''): string[] {
     if (typeof value === 'number') return [key];
@@ -197,6 +239,11 @@ describe('feel unit suffixes', () => {
     expect(UNIT_SUFFIX.test('papaRadiusM')).toBe(true);
     expect(UNIT_SUFFIX.test('wanderMinDistM')).toBe(true);
     expect(UNIT_SUFFIX.test('windowMs')).toBe(true);
+    expect(UNIT_SUFFIX.test('massKg')).toBe(true);
+    expect(UNIT_SUFFIX.test('breakImpulseNs')).toBe(true);
+    expect(UNIT_SUFFIX.test('gravityMps2')).toBe(true);
+    expect(UNIT_SUFFIX.test('mass')).toBe(false);
+    expect(UNIT_SUFFIX.test('impulse')).toBe(false);
   });
 });
 

@@ -49,6 +49,14 @@ export type SimEvent =
   /** A failed response ends in a gag: a harmless comic consequence, never an injury (NFR9). */
   | { type: 'GagTriggered'; t: SimMs; threatId: number; gag: GagId; reason: FailReason }
   | { type: 'ThreatRearmed'; t: SimMs; threatId: number }
+  /**
+   * A prop took a hit of `impulseNs` (N·s) or more, at most once per `feel.physics.impactCooldownMs`.
+   * `otherPropId` is the prop it hit, null for the floor, a wall or furniture; a hit between two
+   * props gives one event for each. The noise gauge (3.1) reads only this event.
+   */
+  | { type: 'PropImpact'; t: SimMs; propId: string; impulseNs: number; otherPropId: string | null }
+  /** A breakable prop took a hit of `impulseNs` or more, once; it stays in the world, broken. */
+  | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
   | InvariantViolation;
 
 /**
@@ -65,6 +73,8 @@ export const SIM_EVENT_TYPES = [
   'PapaGlideStarted',
   'PapaPathPlanned',
   'PapaStateChanged',
+  'PropBroken',
+  'PropImpact',
   'ResponseResolved',
   'ThreatRearmed',
   'ThreatTelegraphed',

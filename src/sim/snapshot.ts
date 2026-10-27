@@ -1,22 +1,34 @@
+import { decodeBase64, encodeBase64 } from '@shared/base64';
 import { MIN_TIME_SCALE } from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
 import { THREAT_STATES } from './threats/threatFsm.ts';
-import { SLOW_MO_SOURCES, type SlowMoSource, type ThreatInstance, type World } from './world.ts';
+import {
+  type PropSlice,
+  SLOW_MO_SOURCES,
+  type SlowMoSource,
+  type ThreatInstance,
+  type World,
+} from './world.ts';
 
 /**
- * The restorable state: `World` only, plus the identity of the sim it came from (a snapshot of
- * another seed, feel, level geometry or level is refused on restore). Pending commands are rebuilt from the journal, and
- * freeze is a real-time artefact. Story 1.15 adds the Rapier blob and bumps `version` again.
+ * The restorable state: `World` and the Rapier world beside it, plus the identity of the sim it
+ * came from (a snapshot of another seed, feel, level geometry or level is refused on restore).
+ * Pending commands are rebuilt from the journal, and freeze is a real-time artefact.
  */
 export interface SimSnapshot {
-  /** 4 since story 1.14: `World.time` carries the base scale and the slow-mos (3 named the level). */
-  version: 4;
+  /**
+   * 5 since story 1.15: the Rapier world, base64 (4 carried the base scale and the slow-mos in
+   * `World.time`, since story 1.14; 3 named the level).
+   */
+  version: 5;
   seed: number;
   feelHash: string;
   geometryHash: string;
   levelHash: string;
   world: World;
+  /** Rapier's own snapshot of the props' bodies, base64 of its bytes: a snapshot stays JSON. */
+  physics: string;
 }
 
 export function takeSnapshot(
@@ -25,8 +37,17 @@ export function takeSnapshot(
   feelHash: string,
   geometryHash: string,
   levelHash: string,
+  physics: Uint8Array,
 ): SimSnapshot {
-  return { version: 4, seed, feelHash, geometryHash, levelHash, world: cloneJson(world) };
+  return {
+    version: 5,
+    seed,
+    feelHash,
+    geometryHash,
+    levelHash,
+    world: cloneJson(world),
+    physics: encodeBase64(physics),
+  };
 }
 
 const PAPA_STATES: readonly unknown[] = ['idle', 'walkPath', 'walkDir', 'glide'];
@@ -236,8 +257,16 @@ function threatProblem(threat: unknown, index: number): string | null {
   return null;
 }
 
-/** What `worldProblem` needs of the level: the defs it plans, in order (the threats are index-aligned). */
-type PlannedThreats = readonly { readonly def: { readonly id: string } }[];
+/** What `worldProblem` needs of the level: the defs it plans and its props, in order (both are index-aligned with the world's). */
+export interface PlannedLevel {
+  readonly threats: readonly { readonly def: { readonly id: string } }[];
+  readonly props: readonly {
+    readonly id: string;
+    readonly kind: string;
+    readonly spawnedAboveFloor: boolean;
+  }[];
+}
+type PlannedThreats = PlannedLevel['threats'];
 
 function isTimeScale(value: unknown): boolean {
   return (
@@ -276,9 +305,75 @@ function timeProblem(clock: Record<string, unknown>): string | null {
   return null;
 }
 
-function worldProblem(world: unknown, planned: PlannedThreats): string | null {
+/** A rotation of this length (squared) is a unit quaternion, within the tolerance of a float32 read. */
+const QUATERNION_TOLERANCE = 1e-4;
+
+function isUnitQuaternion(x: unknown, y: unknown, z: unknown, w: unknown): boolean {
+  if (![x, y, z, w].every(isFiniteNumber)) return false;
+  const length = Math.sqrt(
+    (x as number) ** 2 + (y as number) ** 2 + (z as number) ** 2 + (w as number) ** 2,
+  );
+  return Math.abs(length - 1) <= QUATERNION_TOLERANCE;
+}
+
+function propProblem(prop: unknown, index: number, planned: PlannedLevel['props']): string | null {
+  const where = `world.props[${index}]`;
+  if (typeof prop !== 'object' || prop === null) return where;
+  const slice = prop as Record<string, unknown>;
+  const spec = planned[index];
+  if (slice.id !== spec?.id) return `${where}.id`;
+  if (slice.kind !== spec?.kind) return `${where}.kind`;
+  for (const key of ['xM', 'yM', 'zM', 'prevXM', 'prevYM', 'prevZM']) {
+    if (!isFiniteNumber(slice[key])) return `${where}.${key}`;
+  }
+  if (!isUnitQuaternion(slice.qx, slice.qy, slice.qz, slice.qw)) return `${where}.q`;
+  if (!isUnitQuaternion(slice.prevQx, slice.prevQy, slice.prevQz, slice.prevQw)) {
+    return `${where}.prevQ`;
+  }
+  for (const key of ['isOnFloor', 'isBroken']) {
+    if (typeof slice[key] !== 'boolean') return `${where}.${key}`;
+  }
+  if (slice.lastImpactAt !== null && !isFiniteNumber(slice.lastImpactAt)) {
+    return `${where}.lastImpactAt`;
+  }
+  return null;
+}
+
+function propsProblem(
+  props: unknown,
+  mess: unknown,
+  planned: PlannedLevel['props'],
+): string | null {
+  if (!Array.isArray(props) || props.length !== planned.length) return 'world.props';
+  for (let i = 0; i < props.length; i++) {
+    const problem = propProblem(props[i], i, planned);
+    if (problem !== null) return problem;
+  }
+  if (typeof mess !== 'object' || mess === null) return 'world.mess is missing';
+  const counts = mess as Record<string, unknown>;
+  for (const key of ['propsOnFloor', 'propsBroken']) {
+    if (!Number.isInteger(counts[key]) || (counts[key] as number) < 0) return `world.mess.${key}`;
+  }
+  // The counts are a function of the props: a snapshot that disagrees with itself is damaged.
+  let onFloor = 0;
+  let broken = 0;
+  (props as PropSlice[]).forEach((prop, index) => {
+    if (prop.isBroken) broken++;
+    else if (
+      prop.isOnFloor &&
+      (planned[index] as PlannedLevel['props'][number]).spawnedAboveFloor
+    ) {
+      onFloor++;
+    }
+  });
+  if (counts.propsOnFloor !== onFloor) return 'world.mess.propsOnFloor';
+  if (counts.propsBroken !== broken) return 'world.mess.propsBroken';
+  return null;
+}
+
+function worldProblem(world: unknown, planned: PlannedLevel): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
-  const { time, rng, nextId, papa, baby, threats } = world as Record<string, unknown>;
+  const { time, rng, nextId, papa, baby, threats, props, mess } = world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
   if (typeof clock !== 'object' || clock === null) return 'world.time is missing';
   const clockProblem = timeProblem(clock);
@@ -295,29 +390,42 @@ function worldProblem(world: unknown, planned: PlannedThreats): string | null {
     if (problem !== null) return problem;
   }
   // `runThreats` and the director index the level's threats by the instances' index.
-  if (threats.length !== planned.length) return 'world.threats';
+  if (threats.length !== planned.threats.length) return 'world.threats';
   const ids = new Set<number>();
   for (let i = 0; i < threats.length; i++) {
     const threat = threats[i] as ThreatInstance;
-    if (threat.defId !== (planned[i] as PlannedThreats[number]).def.id) {
+    if (threat.defId !== (planned.threats[i] as PlannedThreats[number]).def.id) {
       return `world.threats[${i}].defId`;
     }
     if (ids.has(threat.id) || threat.id >= (nextId as number)) return `world.threats[${i}].id`;
     ids.add(threat.id);
   }
-  return papaProblem(papa) ?? babyProblem(baby, threats as readonly ThreatInstance[]);
+  return (
+    papaProblem(papa) ??
+    babyProblem(baby, threats as readonly ThreatInstance[]) ??
+    propsProblem(props, mess, planned.props)
+  );
 }
 
-/** A deep copy of the snapshot's world, ready to become the live one. */
+/** What a valid snapshot hands over: a copy of its world and the decoded Rapier bytes. */
+export interface RestoredSnapshot {
+  world: World;
+  physics: Uint8Array;
+}
+
+/**
+ * A deep copy of the snapshot's world, ready to become the live one, with the Rapier bytes decoded.
+ * Everything is checked here, before the caller changes anything: a refused snapshot leaves the sim as it was.
+ */
 export function worldFromSnapshot(
   snapshot: SimSnapshot,
   seed: number,
   feelHash: string,
   geometryHash: string,
   levelHash: string,
-  planned: PlannedThreats,
-): World {
-  invariant(snapshot.version === 4, `unsupported snapshot version ${String(snapshot.version)}`);
+  planned: PlannedLevel,
+): RestoredSnapshot {
+  invariant(snapshot.version === 5, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(
@@ -327,5 +435,8 @@ export function worldFromSnapshot(
   invariant(snapshot.levelHash === levelHash, 'the snapshot was taken by a sim with another level');
   const problem = worldProblem(snapshot.world, planned);
   invariant(problem === null, `invalid snapshot world: ${String(problem)}`);
-  return cloneJson(snapshot.world);
+  invariant(typeof snapshot.physics === 'string', 'invalid snapshot physics: not a string');
+  const bytes = decodeBase64(snapshot.physics);
+  invariant(bytes.ok, `invalid snapshot physics: ${bytes.ok ? '' : bytes.error}`);
+  return { world: cloneJson(snapshot.world), physics: bytes.value };
 }

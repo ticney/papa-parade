@@ -17,7 +17,20 @@ export type SimCommand =
   /** A finger went down on this threat. The type of the response (Parry or Firmness) is decided at `Release`. */
   | { type: 'PressThreat'; t: SimMs; threatId: number }
   /** The finger went up. It names no threat: it ends every press made before it. */
-  | { type: 'Release'; t: SimMs };
+  | { type: 'Release'; t: SimMs }
+  /**
+   * Debug / test command, journaled: pushes a prop with this impulse (N·s, world axes) at its
+   * centre of mass and wakes it. An unknown or broken `propId` is ignored. Gameplay pushes props
+   * through the `pushProp` helper (a gag), never through a command.
+   */
+  | {
+      type: 'PushProp';
+      t: SimMs;
+      propId: string;
+      impulseXNs: number;
+      impulseYNs: number;
+      impulseZNs: number;
+    };
 
 /** Every `type` a {@link SimCommand} can have; a journal from outside is checked against it. */
 export const COMMAND_TYPES: readonly SimCommand['type'][] = [
@@ -27,6 +40,7 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'MoveStop',
   'PressThreat',
   'Release',
+  'PushProp',
 ];
 
 /**
@@ -64,6 +78,19 @@ export function commandProblem(value: unknown): string | null {
   if (command.type === 'PressThreat') {
     if (!Number.isInteger(command.threatId) || (command.threatId as number) < 1) {
       return 'PressThreat: threatId must be an integer of at least 1';
+    }
+  }
+  if (command.type === 'PushProp') {
+    if (typeof command.propId !== 'string' || command.propId === '') {
+      return 'PushProp: propId must be a non-empty string';
+    }
+    for (const key of ['impulseXNs', 'impulseYNs', 'impulseZNs']) {
+      if (typeof command[key] !== 'number' || !Number.isFinite(command[key])) {
+        return `PushProp: ${key} must be a finite number`;
+      }
+    }
+    if (command.impulseXNs === 0 && command.impulseYNs === 0 && command.impulseZNs === 0) {
+      return 'PushProp: the impulse must not be (0, 0, 0)';
     }
   }
   return null;

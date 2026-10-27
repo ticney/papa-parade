@@ -25,3 +25,22 @@ export function interpolateXZ(
   out.xM = lerp(prevXM, xM, alpha);
   out.zM = lerp(prevZM, zM, alpha);
 }
+
+/** A point in space, in metres. */
+export interface PointXYZ {
+  xM: number;
+  yM: number;
+  zM: number;
+}
+
+/** {@link interpolateXZ} with a height: where a free body is drawn between two steps. Allocation-free: it writes `out`. */
+export function interpolateXYZ(
+  prev: Readonly<PointXYZ>,
+  current: Readonly<PointXYZ>,
+  alpha: number,
+  out: PointXYZ,
+): void {
+  out.xM = lerp(prev.xM, current.xM, alpha);
+  out.yM = lerp(prev.yM, current.yM, alpha);
+  out.zM = lerp(prev.zM, current.zM, alpha);
+}

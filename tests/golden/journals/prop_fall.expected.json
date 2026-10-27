@@ -1,0 +1,13 @@
+{
+  "untilSimMs": 3000,
+  "worldHash": "0fcdcc92a4f897",
+  "eventTypes": [
+    "PropImpact",
+    "PropImpact",
+    "PropBroken",
+    "PropImpact",
+    "PropImpact",
+    "BabyStateChanged"
+  ],
+  "eventsHash": "14536f42bd4f24"
+}

@@ -67,5 +67,28 @@
     "screamMaxPoints": 15,
     "starThresholdPoints": [20, 40, 60, 75, 90],
     "earlyWakePenaltyStars": 1
+  },
+  "physics": {
+    "gravityMps2": 9.81,
+    "impactMinImpulseNs": 0.3,
+    "impactCooldownMs": 100,
+    "kinds": {
+      "mug": {
+        "shape": "cylinder",
+        "massKg": 0.3,
+        "friction": 0.6,
+        "restitution": 0.3,
+        "breakable": true,
+        "breakImpulseNs": 2.5
+      },
+      "vase": {
+        "shape": "cylinder",
+        "massKg": 0.8,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "breakable": true,
+        "breakImpulseNs": 0.35
+      }
+    }
   }
 }

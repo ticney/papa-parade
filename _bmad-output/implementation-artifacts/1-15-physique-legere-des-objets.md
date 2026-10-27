@@ -5,7 +5,7 @@ baseline_commit: 152b09f
 
 # Story 1.15: Light Physics for Props
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.15 « Physique légère des objets ». Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -63,26 +63,26 @@ Story 1.14 is `done` or at least `review` with its review fixes committed. `git 
 
 ## Tasks / Subtasks
 
-- [ ] **T0: Baseline** (Precondition)
-  - [ ] `(unset VITE_DEBUG_ALLOWED; npm run ci)` is green on the untouched tree; counts go in the Debug Log.
-- [ ] **T1: Feel `physics` section** (AC 1, 2, 6; D5)
-  - [ ] `src/content/schemas/feel.ts`: add `PhysicsSchema` (Dev Notes › Feel) and add it to `FeelSchema`. Use `strictObject` with no `.default`, `.optional` or `.transform` (rules at the top of the file). Reuse the existing helpers (`durationMs`, …) and add a `positive(…)` helper if none fits.
-  - [ ] `content/feel.json` and `tests/support/testFeel.json` get the values of Dev Notes › Feel.
-  - [ ] Run `npm run content:schemas` and commit `content/_schemas/feel.schema.json`.
-  - [ ] `tests/content/feelSchema.test.ts`: a missing kind field is refused at its path, as are a negative mass, `breakable: true` with a non-positive `breakImpulseNs`, and an unknown `shape`.
-  - [ ] `feelMerge.test.ts`: a level override of `physics.kinds.mug.restitution` keeps the siblings.
-  - [ ] `tools/content/contentChecks.ts`: every `props[].kind` of every `*.geometry.json` has a `feel.physics.kinds` entry. Error message: `<level>.geometry.json › props[i].kind "<kind>" has no feel.physics.kinds entry`. Add a test in `tests/content/checkContent.test.ts`.
-- [ ] **T2: Content: the vase** (AC 7; D10)
-  - [ ] In `assets-src/blender/salon_crawler.blend`, add `PROP_vase_01` to the `props` collection. It is a low-poly mesh with uniform scale and rotation in multiples of 90° (the extractor refuses anything else), with its origin at its bounding-box centre, standing on the floor at about `centerM [1.3, 0.15, -0.6]` with `halfExtentsM ≈ [0.08, 0.15, 0.08]`.
-  - [ ] Run the story 1.6 pipeline (`npm run assets:export`, then `assets:extract`, then `assets:optimize`; check `1-6-salon-greybox-depuis-blender.md` for the exact order). Use Blender MCP or `/Applications/Blender.app` headless.
-  - [ ] Check the regenerated `content/levels/salon_crawler.geometry.json`: it has two props, `mug_01` and `vase_01`. Check that `public/assets/levels/salon_crawler.glb` stays under `LEVEL_PAYLOAD_MAX_BYTES`.
-  - [ ] Copy the new geometry into the frozen fixture `tests/support/testLevel.geometry.json`. It is byte-identical to the salon today; keep it so, deliberately, and say so.
-  - [ ] `tests/support/testLevelGeometry.ts` (tiny room): its mug floats at `y = 0.7` with nothing under it, so it would fall at step 1 and add events to every test that uses that room. Put it on the floor at `centerM: [0, 0.05, 0]`.
-  - [ ] If Blender cannot run, stop and tell Geo; do not hand-edit the generated JSON.
-- [ ] **T3: `PhysicsPort` and `rapierPhysics.ts`** (AC 1, 2; D1-D4, D6)
-  - [ ] Create `src/sim/physics/physicsPort.ts` with the interface only and no Rapier type (Dev Notes › PhysicsPort).
-  - [ ] Create `src/sim/physics/rapierPhysics.ts` with `createRapierPhysics(options): Promise<PhysicsPort>` and a memoised module-level `initRapier()`. Use a **dynamic** `import('@dimforge/rapier3d-deterministic-compat')` inside it, so Vite puts the ~4.4 MB module in its own chunk (D2).
-  - [ ] `src/sim/physics/rapierPhysics.test.ts` (Node), covering:
+- [x] **T0: Baseline** (Precondition)
+  - [x] `(unset VITE_DEBUG_ALLOWED; npm run ci)` is green on the untouched tree; counts go in the Debug Log.
+- [x] **T1: Feel `physics` section** (AC 1, 2, 6; D5)
+  - [x] `src/content/schemas/feel.ts`: add `PhysicsSchema` (Dev Notes › Feel) and add it to `FeelSchema`. Use `strictObject` with no `.default`, `.optional` or `.transform` (rules at the top of the file). Reuse the existing helpers (`durationMs`, …) and add a `positive(…)` helper if none fits.
+  - [x] `content/feel.json` and `tests/support/testFeel.json` get the values of Dev Notes › Feel.
+  - [x] Run `npm run content:schemas` and commit `content/_schemas/feel.schema.json`.
+  - [x] `tests/content/feelSchema.test.ts`: a missing kind field is refused at its path, as are a negative mass, `breakable: true` with a non-positive `breakImpulseNs`, and an unknown `shape`.
+  - [x] `feelMerge.test.ts`: a level override of `physics.kinds.mug.restitution` keeps the siblings.
+  - [x] `tools/content/contentChecks.ts`: every `props[].kind` of every `*.geometry.json` has a `feel.physics.kinds` entry. Error message: `<level>.geometry.json › props[i].kind "<kind>" has no feel.physics.kinds entry`. Add a test in `tests/content/checkContent.test.ts`.
+- [x] **T2: Content: the vase** (AC 7; D10)
+  - [x] In `assets-src/blender/salon_crawler.blend`, add `PROP_vase_01` to the `props` collection. It is a low-poly mesh with uniform scale and rotation in multiples of 90° (the extractor refuses anything else), with its origin at its bounding-box centre, standing on the floor at about `centerM [1.3, 0.15, -0.6]` with `halfExtentsM ≈ [0.08, 0.15, 0.08]`.
+  - [x] Run the story 1.6 pipeline (`npm run assets:export`, then `assets:extract`, then `assets:optimize`; check `1-6-salon-greybox-depuis-blender.md` for the exact order). Use Blender MCP or `/Applications/Blender.app` headless.
+  - [x] Check the regenerated `content/levels/salon_crawler.geometry.json`: it has two props, `mug_01` and `vase_01`. Check that `public/assets/levels/salon_crawler.glb` stays under `LEVEL_PAYLOAD_MAX_BYTES`.
+  - [x] Copy the new geometry into the frozen fixture `tests/support/testLevel.geometry.json`. It is byte-identical to the salon today; keep it so, deliberately, and say so.
+  - [x] `tests/support/testLevelGeometry.ts` (tiny room): its mug floats at `y = 0.7` with nothing under it, so it would fall at step 1 and add events to every test that uses that room. Put it on the floor at `centerM: [0, 0.05, 0]`.
+  - [x] If Blender cannot run, stop and tell Geo; do not hand-edit the generated JSON.
+- [x] **T3: `PhysicsPort` and `rapierPhysics.ts`** (AC 1, 2; D1-D4, D6)
+  - [x] Create `src/sim/physics/physicsPort.ts` with the interface only and no Rapier type (Dev Notes › PhysicsPort).
+  - [x] Create `src/sim/physics/rapierPhysics.ts` with `createRapierPhysics(options): Promise<PhysicsPort>` and a memoised module-level `initRapier()`. Use a **dynamic** `import('@dimforge/rapier3d-deterministic-compat')` inside it, so Vite puts the ~4.4 MB module in its own chunk (D2).
+  - [x] `src/sim/physics/rapierPhysics.test.ts` (Node), covering:
     - init twice gives one init;
     - the timestep is 0.01;
     - one fixed body per collider, plus the floor and the bounds;
@@ -90,81 +90,81 @@ Story 1.14 is `done` or at least `review` with its review fixes committed. `git 
     - `applyImpulse` wakes a sleeping body;
     - `snapshot` → `restore` → N steps gives the same poses as N steps without the round trip;
     - after `dispose`, any call throws.
-- [ ] **T4: `World` slice, system, command, events** (AC 2, 3; D6-D8)
-  - [ ] `src/sim/world.ts`: add `PropSlice` and `MessSlice` and export them (Dev Notes › World). `createWorld` receives the prop specs and fills `props` index-aligned with `geometry.props`, plus `mess: { propsOnFloor: 0, propsBroken: 0 }`.
-  - [ ] `src/sim/context.ts`: `StepContext.physics: PhysicsPort` and `SimLevel.props: readonly SimPropSpec[]` (constant data: id, kind, the kind's feel entry, `spawnedAboveFloor`).
-  - [ ] `src/sim/commands.ts`: add `PushProp` to the union, to `COMMAND_TYPES` and to `commandProblem`. It needs a non-empty `propId` string and three finite impulse components that are not all 0. Add `commands.test.ts` cases.
-  - [ ] `src/sim/events.ts`: add `PropImpact` and `PropBroken` to the union and to `SIM_EVENT_TYPES` (keep it sorted). Update `events.test.ts`.
-  - [ ] Create `src/sim/physics/propsSystem.ts`, exporting the system `runPhysics(world, ctx)` (Dev Notes › Order inside `runPhysics`) and the helper `pushProp(world, ctx, propIndex, xNs, yNs, zNs)` that 1.16's gags will call.
-  - [ ] `src/sim/step.ts`: insert `runPhysics` after `runPapa`, update the doc comment and the pinned order test.
-  - [ ] `src/sim/physics/propsSystem.test.ts`: Dev Notes › Testing › propsSystem.
-- [ ] **T5: `createSim`, `restore`, `dispose`, snapshot v5** (AC 1, 4; D3, D9, D12)
-  - [ ] `createSim.ts`:
+- [x] **T4: `World` slice, system, command, events** (AC 2, 3; D6-D8)
+  - [x] `src/sim/world.ts`: add `PropSlice` and `MessSlice` and export them (Dev Notes › World). `createWorld` receives the prop specs and fills `props` index-aligned with `geometry.props`, plus `mess: { propsOnFloor: 0, propsBroken: 0 }`.
+  - [x] `src/sim/context.ts`: `StepContext.physics: PhysicsPort` and `SimLevel.props: readonly SimPropSpec[]` (constant data: id, kind, the kind's feel entry, `spawnedAboveFloor`).
+  - [x] `src/sim/commands.ts`: add `PushProp` to the union, to `COMMAND_TYPES` and to `commandProblem`. It needs a non-empty `propId` string and three finite impulse components that are not all 0. Add `commands.test.ts` cases.
+  - [x] `src/sim/events.ts`: add `PropImpact` and `PropBroken` to the union and to `SIM_EVENT_TYPES` (keep it sorted). Update `events.test.ts`.
+  - [x] Create `src/sim/physics/propsSystem.ts`, exporting the system `runPhysics(world, ctx)` (Dev Notes › Order inside `runPhysics`) and the helper `pushProp(world, ctx, propIndex, xNs, yNs, zNs)` that 1.16's gags will call.
+  - [x] `src/sim/step.ts`: insert `runPhysics` after `runPapa`, update the doc comment and the pinned order test.
+  - [x] `src/sim/physics/propsSystem.test.ts`: Dev Notes › Testing › propsSystem.
+- [x] **T5: `createSim`, `restore`, `dispose`, snapshot v5** (AC 1, 4; D3, D9, D12)
+  - [x] `createSim.ts`:
     - check every prop kind against `feel.physics.kinds` with `invariant` (a broken level);
     - `await createRapierPhysics({ geometry, physics: content.feel.physics })`;
     - put the port in `ctx`.
-  - [ ] `Sim` gains `dispose(): void`. It frees the Rapier world, is idempotent, and makes a later `step` or `snapshot` throw through `invariant`. Call it where a sim is dropped:
+  - [x] `Sim` gains `dispose(): void`. It frees the Rapier world, is idempotent, and makes a later `step` or `snapshot` throw through `invariant`. Call it where a sim is dropped:
     - `levelSession` (restart, `loadLevel`, `setFeel`);
     - `tools/sim/runSim.ts` (after each run);
     - `tools/sim/replaySim.ts`;
     - `src/sim/replay.ts` callers, which own the returned sim, so document that;
     - the golden helpers.
-  - [ ] Create `src/shared/base64.ts` (`encodeBase64(bytes: Uint8Array): string`, `decodeBase64(text: string): Result<Uint8Array, string>`). It is pure, uses no `btoa` or `Buffer`, and has a colocated test with round trips of 0, 1, 2, 3 and 4096 random bytes, plus refusal of bad input.
-  - [ ] `snapshot.ts`:
+  - [x] Create `src/shared/base64.ts` (`encodeBase64(bytes: Uint8Array): string`, `decodeBase64(text: string): Result<Uint8Array, string>`). It is pure, uses no `btoa` or `Buffer`, and has a colocated test with round trips of 0, 1, 2, 3 and 4096 random bytes, plus refusal of bad input.
+  - [x] `snapshot.ts`:
     - `version: 5`;
     - `physics: string`;
     - `takeSnapshot` receives the port's bytes;
     - `worldProblem` validates `props` (index-aligned with the level's props: same count and same ids; finite numbers; a unit quaternion within 1e-4; booleans; `lastImpactAt` null or finite) and `mess` (non-negative integers that match a recount from `props`);
     - version 4 is refused;
     - the comment at the top says « 5 since story 1.15: the Rapier world, base64 ».
-  - [ ] `restore`:
+  - [x] `restore`:
     - decode the base64 first (an `invariant` on error);
     - restore Rapier into a new world, check the body count, then free the old one, so that a refused snapshot leaves the sim untouched.
-  - [ ] `snapshot.test.ts`, covering:
+  - [x] `snapshot.test.ts`, covering:
     - mid-fall snapshot → restore → same hash as uninterrupted;
     - restore into a **second** sim;
     - each malformed field refused with its path;
     - corrupt base64 refused with the sim untouched.
-- [ ] **T6: Client views** (AC 5; D13, D14)
-  - [ ] Create `src/client/render/views/viewPool.ts` (`createViewPool<V>(make, prewarm)` with `acquire()`, `release(v)`, `size`) and `viewRegistry.ts` (Dev Notes › Client), each with a colocated test that counts creations, releases and reuse and checks that a second `sync` with the same entities creates nothing.
-  - [ ] Create `src/client/render/views/propView.ts`:
+- [x] **T6: Client views** (AC 5; D13, D14)
+  - [x] Create `src/client/render/views/viewPool.ts` (`createViewPool<V>(make, prewarm)` with `acquire()`, `release(v)`, `size`) and `viewRegistry.ts` (Dev Notes › Client), each with a colocated test that counts creations, releases and reuse and checks that a second `sync` with the same entities creates nothing.
+  - [x] Create `src/client/render/views/propView.ts`:
     - `propPoseAt(prop, alpha, out)` (pure, tested);
     - `createPropView(template: Object3D, blobs: BlobKit, footprint)`, returning `{ object, update(prop, alpha), hide(), dispose() }`;
     - the broken look is a squash, `BROKEN_SCALE_Y`, an art constant at the top of the file like `papaView`'s.
-  - [ ] `src/client/render/interpolate.ts`: add an allocation-free `interpolateXYZ`, with tests.
-  - [ ] `levelScene.ts`:
+  - [x] `src/client/render/interpolate.ts`: add an allocation-free `interpolateXYZ`, with tests.
+  - [x] `levelScene.ts`:
     - pull the `PROP_*` nodes out of the model, toon-materialise them like today, and keep the first one of each kind as its template;
     - prewarm one pool per kind with the count of `geometry.props` of that kind;
     - build the registry;
     - `update(world, alpha)` calls `registry.sync(world.props, alpha)`;
     - `dispose` releases everything.
-  - [ ] `levelScene.test.ts`: the case « keeps the visuals and props » becomes « keeps the visuals; props are drawn by pooled views at `world.props` poses ». Add a case where a prop moved in the `World` moves its view, and a case where a frame with the same world allocates no view.
-  - [ ] `src/client/assets/loadLevelAssets.ts`: fix the doc comment, which should mention `PROP_` nodes.
-- [ ] **T7: Goldens and determinism** (AC 4, 8; D11)
-  - [ ] `tests/golden/scenarios.ts`: add `prop_fall` on `createTestGeometry()` with the planned level empty, seed 42, `PushProp` on `mug_01` at step 10 with an impulse towards +x calibrated in T9, until 3000 sim ms. Add `tests/golden/propFall.test.ts`, which pins the behaviour like `outletParry.test.ts` does: there is a `PropImpact` for the mug, a `PropImpact` for the vase with `otherPropId: 'mug_01'` (or the reverse), a `PropBroken` for the vase, then `mess` = `{propsOnFloor: 1, propsBroken: 1}`.
-  - [ ] Run `npm run golden:update` and review the diff:
+  - [x] `levelScene.test.ts`: the case « keeps the visuals and props » becomes « keeps the visuals; props are drawn by pooled views at `world.props` poses ». Add a case where a prop moved in the `World` moves its view, and a case where a frame with the same world allocates no view.
+  - [x] `src/client/assets/loadLevelAssets.ts`: fix the doc comment, which should mention `PROP_` nodes.
+- [x] **T7: Goldens and determinism** (AC 4, 8; D11)
+  - [x] `tests/golden/scenarios.ts`: add `prop_fall` on `createTestGeometry()` with the planned level empty, seed 42, `PushProp` on `mug_01` at step 10 with an impulse towards +x calibrated in T9, until 3000 sim ms. Add `tests/golden/propFall.test.ts`, which pins the behaviour like `outletParry.test.ts` does: there is a `PropImpact` for the mug, a `PropImpact` for the vase with `otherPropId: 'mug_01'` (or the reverse), a `PropBroken` for the vase, then `mess` = `{propsOnFloor: 1, propsBroken: 1}`.
+  - [x] Run `npm run golden:update` and review the diff:
     - `core_basic`, `papa_walk`, `baby_wander` and `outlet_parry` change **only** `feelHash`, `geometryHash` and `worldHash`; their `eventTypes` and `eventsHash` stay identical;
     - paste that check in the Completion Notes;
     - if a prop event appears in any of them, stop: a resting prop is emitting, so fix the spawn or the settling. Never fix it by raising the threshold blindly.
-  - [ ] `src/sim/determinism.test.ts`: add a case where a 10 000-step run with periodic `PushProp`s is identical twice.
-  - [ ] Run `npm run sim -- --bot perfect --level salon_crawler --seed 42 --runs 3 --journals`, then `npm run sim:replay` on a recorded journal: exit 0, and the quality distribution is the same as the baseline.
-- [ ] **T8: E2E** (AC 1, 5, 8)
-  - [ ] Create `tests/e2e/props.spec.ts` (chromium and webkit). It drives the game through `tests/e2e/support/testApi.ts` only, with no `waitForTimeout`:
+  - [x] `src/sim/determinism.test.ts`: add a case where a 10 000-step run with periodic `PushProp`s is identical twice.
+  - [x] Run `npm run sim -- --bot perfect --level salon_crawler --seed 42 --runs 3 --journals`, then `npm run sim:replay` on a recorded journal: exit 0, and the quality distribution is the same as the baseline.
+- [x] **T8: E2E** (AC 1, 5, 8)
+  - [x] Create `tests/e2e/props.spec.ts` (chromium and webkit). It drives the game through `tests/e2e/support/testApi.ts` only, with no `waitForTimeout`:
     1. `ppLoadLevel`, `ppFreeze(true)`;
     2. `ppSend({type:'PushProp', propId:'mug_01', …})`, then `ppAdvance(300)`;
     3. `ppEvents()` contains a `PropImpact` for `mug_01`;
     4. the `mug_01` entry of `ppWorld().props` moved, and `mess.propsOnFloor` ≥ 1;
     5. `collectProblems` is empty (no console error: Rapier's WASM loaded in WebKit, NFR13);
     6. `data-pp-draw-calls` ≤ `DRAW_CALLS_MAX`.
-  - [ ] Run the whole suite. `autoplay.spec.ts` compares the browser and Node world hashes, which now include the Rapier poses. If it fails only in one browser, **do not loosen it**: write it up in the Debug Log and stop for Geo (Dev Notes › Determinism scope).
-  - [ ] The screenshot references `autoplay-frozen-*` change because the vase is new. Regenerate the darwin ones with `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` and the linux ones with the Docker command of story 1.13 › Screenshots (memory: mount the `pp-node-modules` volume). **Look at them** and say so in the Completion Notes.
-- [ ] **T9: Calibrate, measure, document**
-  - [ ] Calibrate the `prop_fall` impulse and, if needed, the `[ASSUMPTION]` values of Dev Notes › Feel, so that the mug leaves the table, hits the vase, and the vase breaks while the mug does not. Note the final numbers, and the measured impulses of each impact, in the Debug Log.
-  - [ ] Measure the cost: 10 000 steps of the salon with both props moving, time per step in Node. The budget is sim ≤ 2 ms per frame of up to 10 steps, so aim for ≪ 0.2 ms per step for the whole step. Also note the size of the Rapier chunk of `npm run build:playtest` and its gzip size. Both go in the Debug Log, not in a CI test.
-  - [ ] By hand: `(unset VITE_DEBUG_ALLOWED; npm run dev)`, open `/?debug=1`, send a `PushProp` from the console through `window.__PP__.send`, and write in the Debug Log what you saw: the fall, the interpolation is smooth, the vase squashes.
-  - [ ] `_bmad-output/project-context.md` › the Rapier bullet: add « props are mirrored every step into `World.props` (poses, `isBroken`, `isOnFloor`) and `World.mess`; the Rapier state rides in `SimSnapshot.physics` (base64); `Sim.dispose()` frees it ».
-  - [ ] `deferred-work.md`: Dev Notes › Deferred by this story. Close the items this story settles: L33 (Rapier in the snapshot), L92 (static `PROP_*`) and L93 (colliders reach the sim).
-  - [ ] Final `(unset VITE_DEBUG_ALLOWED; npm run ci)` green; counts in the Debug Log.
+  - [x] Run the whole suite. `autoplay.spec.ts` compares the browser and Node world hashes, which now include the Rapier poses. If it fails only in one browser, **do not loosen it**: write it up in the Debug Log and stop for Geo (Dev Notes › Determinism scope).
+  - [x] The screenshot references `autoplay-frozen-*` change because the vase is new. Regenerate the darwin ones with `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` and the linux ones with the Docker command of story 1.13 › Screenshots (memory: mount the `pp-node-modules` volume). **Look at them** and say so in the Completion Notes.
+- [x] **T9: Calibrate, measure, document**
+  - [x] Calibrate the `prop_fall` impulse and, if needed, the `[ASSUMPTION]` values of Dev Notes › Feel, so that the mug leaves the table, hits the vase, and the vase breaks while the mug does not. Note the final numbers, and the measured impulses of each impact, in the Debug Log.
+  - [x] Measure the cost: 10 000 steps of the salon with both props moving, time per step in Node. The budget is sim ≤ 2 ms per frame of up to 10 steps, so aim for ≪ 0.2 ms per step for the whole step. Also note the size of the Rapier chunk of `npm run build:playtest` and its gzip size. Both go in the Debug Log, not in a CI test.
+  - [x] By hand: `(unset VITE_DEBUG_ALLOWED; npm run dev)`, open `/?debug=1`, send a `PushProp` from the console through `window.__PP__.send`, and write in the Debug Log what you saw: the fall, the interpolation is smooth, the vase squashes.
+  - [x] `_bmad-output/project-context.md` › the Rapier bullet: add « props are mirrored every step into `World.props` (poses, `isBroken`, `isOnFloor`) and `World.mess`; the Rapier state rides in `SimSnapshot.physics` (base64); `Sim.dispose()` frees it ».
+  - [x] `deferred-work.md`: Dev Notes › Deferred by this story. Close the items this story settles: L33 (Rapier in the snapshot), L92 (static `PROP_*`) and L93 (colliders reach the sim).
+  - [x] Final `(unset VITE_DEBUG_ALLOWED; npm run ci)` green; counts in the Debug Log.
 
 ## Dev Notes
 
@@ -434,14 +434,105 @@ export interface PhysicsPort {
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), through Claude Code.
+
 ### Debug Log References
+
+- **T0 baseline** (untouched tree, `(unset VITE_DEBUG_ALLOWED; npm run ci)`): green. 152 test files, 2132 unit tests, 174 e2e (chromium + webkit); `build:playtest` entry chunk 797.16 kB (215.68 kB gzip).
+- **Final `npm run ci`** (same command): green. 159 test files, 2302 unit tests, 178 e2e (the 4 new ones are `props.spec.ts`), `src/sim` coverage 98.22 % statements, 97.66 % branches, 100 % functions, 99.75 % lines; `build:playtest` green.
+- **Rapier facts that differ from the story (found while building T3):**
+  - `world.timestep = STEP_MS / 1000` is set, but Rapier's solver **substeps** each step (a 10-step fall of 0.0503 m fits 4 substeps exactly, `g·(dt/4)²·40·41/2`; I did not read the source), so a free fall is not the textbook `g·dt²·n(n+1)/2` of one integration per step. `rapierPhysics.test.ts` therefore proves the timestep by behaviour: 50 steps (0.5 s) of free fall from 2.4 m fall `g·t²/2` within 0.05 m, whereas a default 1/60 s step would have fallen 3.4 m.
+  - Collider handles are floats (`0`, `5e-324`, …): the collider → prop index table is a `Map<number, number>`, which stays valid after `restoreSnapshot` because handles survive it (checked).
+  - `restoreSnapshot` on garbage bytes **throws** (it does not return `undefined`), and a snapshot of another level is caught by the body and collider counts; both leave the live world untouched (tested).
+  - When two props touch, Rapier's contact force on the lighter one can be dominated by its floor contact. The port reports each prop's largest impulse and that contact's partner, so at some pushes the vase's `otherPropId` is `null` (floor) although the mug is what broke it. At the golden's impulse both name each other.
+- **Calibration (T9).** Scan of the `PushProp` impulse on the mug in the frozen salon (push applied from sim time 100, vase `breakImpulseNs` 0.4 for the scan), the impulses of the mug-on-vase contact and of the vase break:
+
+  | impulse (N·s) | what happens |
+  |---|---|
+  | 0.60 | the mug stops at the edge of the table |
+  | 0.68 | mug on the vase 0.53, vase breaks at 0.61 |
+  | 0.72 | mug on the vase 0.40 to 0.55 depending on where the push falls in the step grid, vase breaks |
+  | 0.75 / 0.78 | same chain, 0.49 / 0.40 on the vase |
+  | 0.82 | the mug clears the vase: floor only (0.75) |
+
+  - **The contact impulse depends on the phase of the push in the 10 ms step grid** (the same push, started 10 ms later, hits the vase at 0.40 instead of 0.55). Rapier's force is sampled once per step, so a hit's measured impulse moves by about ±30 % with the phase. I checked 5 phases × 3 impulses × 2 break thresholds.
+  - **Final values:** `prop_fall` pushes the mug with **0.72 N·s** along +x, the middle of the 0.68–0.78 window. The vase's `breakImpulseNs` went from the story's `[ASSUMPTION]` 0.6 to **0.35** (in `content/feel.json` and `tests/support/testFeel.json`): with 0.6 the mug hit the vase at 0.37–0.56 N·s and never broke it, and with 0.4 the golden's first contact (0.40) was a coin flip, whereas 0.35 breaks the vase at the first contact at every phase tried. Everything else is as in Dev Notes › Feel (gravity 9.81, impact threshold 0.3 N·s, cooldown 100 ms, mug 0.3 kg / friction 0.6 / restitution 0.3 / breaks at 2.5, vase 0.8 kg / friction 0.6 / restitution 0.1).
+  - **Measured impulses of the `prop_fall` golden (final feel):** t = 530 ms mug on vase 0.40 N·s (both sides, `PropImpact` for each), vase broken at the same step (0.40 ≥ 0.35), t = 630 ms the vase's own second contact 0.32, t = 880 ms the mug on the floor 0.83 (a mug that falls from the table never gets near its 2.5 N·s break impulse). The mug dropped from 1 m gives exactly one `PropImpact`; a room where every prop rests emits nothing for 5 s.
+- **Cost (T9, Node, `performance.now` around `sim.step()`).** 10 000 steps of the salon with both props pushed every 0.6 s: **158.8 ms, 15.9 µs per step**. The same room with no props: 0.3 µs per step. The budget was ≪ 0.2 ms per step.
+- **Bundle (T9, `build:playtest`, `VITE_DEBUG_ALLOWED` unset as in CI).** Rapier is its own chunk: `rapier-*.js` **4,366.82 kB, 1,677.19 kB gzip** (a plain `gzip -c` gives 1,661,178 bytes), fetched during the loading screen because `createSim` awaits it. The entry chunk went from 797.16 kB (215.68 kB gzip) to 809.85 kB (220.50 kB gzip). **For story 1.24:** the Rapier chunk alone is 1.68 MB gzip, more than half of the 3 MB NFR3 level payload budget, which counts the `.glb` (20.97 kB) too.
+- **By hand (T9)** (run before the last calibration change, with the vase's break impulse at 0.4; the chain was the same), not through `window.__PP__.send` typed in a console but through the same API from a Playwright script (`/?debug=1&threats=off`, level frozen, `advance`, screenshots, deleted afterwards), in chromium on the dev server:
+  - step 30: the mug has left the table at x = 1.18; the vase, a tall white box, stands beside the table;
+  - step 46: the mug is in the air at (1.33, 0.37), the vase is already broken: it is drawn as a flat white slab on the floor (the squash, `BROKEN_SCALE_Y`);
+  - step 150: the mug lies on the floor at (1.66, 0.05), `mess` is `{propsOnFloor: 1, propsBroken: 1}`, 28 draw calls, no console error (only the headless GPU's « GPU stall due to ReadPixels » driver warnings).
+  - Interpolation is pinned by unit tests (`propPoseAt`, `levelScene.test.ts`: positions at alpha 0, 0.5 and 1); a frozen frame cannot show motion between two steps, so I did not judge smoothness by eye. **Geo: please look at it live.**
+- **Mutation check.** With the `PropImpact` push of `propsSystem.ts` disabled, **13 tests fail** (the `propsSystem` scripted-port and real-engine cases, the determinism-with-props test, `golden: prop_fall` and `propFall.test.ts`); restored, they pass.
+- **Determinism scope (Dev Notes).** `autoplay.spec.ts` compares the browser's world hash with Node's, and it now includes Rapier's poses. It passes in chromium and webkit on the Mac, and in chromium and webkit on **Linux amd64 (Docker)** against the hash computed by Node on macOS: no cross-platform difference showed up on this scenario. The golden journals were generated on macOS and are checked on Linux CI as before.
+- **Shell trap:** `VITE_DEBUG_ALLOWED=false` was exported in the agent shell. Every `dev`, `e2e`, `ci` and `build:playtest` above ran with it unset (a first `build:playtest` run with it set tree-shook the debug chunks and showed a smaller entry chunk).
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed: comprehensive developer guide created.
+- **What now exists.**
+  - A Rapier world beside `World`, behind `PhysicsPort` (`src/sim/physics/physicsPort.ts`, `rapierPhysics.ts`): a fixed cuboid per `COL_*` collider, a floor and four invisible walls on the bounds, one dynamic body per `PROP_*` prop with the shape, mass, friction and restitution of its kind. One engine step is one sim step. Rapier is loaded by a dynamic `import()` behind a memoised `initRapier()`.
+  - `runPhysics` (after `runPapa`): applies `PushProp`, copies the poses to `prev*`, steps, mirrors the awake bodies into `world.props`, emits `PropImpact` (above the impact threshold, once per cooldown per prop) and `PropBroken` (a breakable kind at its break impulse, once), recounts `isOnFloor` and `world.mess`. The helper `pushProp` is what 1.16's gags will call.
+  - `PushProp` command, `PropImpact` and `PropBroken` events, `PropSlice` and `MessSlice` (exported by `@sim`), `Sim.dispose()`, `SimSnapshot` version 5 with `physics` (base64, `src/shared/base64.ts`), refusing version 4 and each malformed prop or mess field with its path.
+  - `feel.physics` (schema, `content/feel.json`, `tests/support/testFeel.json`, `content/_schemas/feel.schema.json` regenerated) and the `content:check` rule « every prop kind has a `feel.physics.kinds` entry ».
+  - `PROP_vase_01` in the `.blend` (a white 0.16 × 0.16 × 0.30 m cube on the floor at `[1.3, 0.15, -0.6]`, next to the coffee table's +x edge), exported by the three `assets:*` commands, so `salon_crawler.geometry.json` has `mug_01` and `vase_01` and the `.glb` is 20 972 bytes.
+  - Client: `viewPool.ts`, `viewRegistry.ts` (handlers given once at creation, D13), `propView.ts` (a clone of the kind's template plus a blob shadow, squashed to `BROKEN_SCALE_Y` when broken), `interpolateXYZ`, and `levelScene.ts` which takes the `PROP_*` nodes out of the model as templates, prewarms one pool per kind, and syncs the registry in `update`.
+- **Golden references regenerated deliberately (D11), `npm run golden:update`.** Checked against the old `*.expected.json`:
+  - `core_basic`, `papa_walk`, `baby_wander` and `outlet_parry`: **only `feelHash`, `geometryHash` and `worldHash` moved**; `untilSimMs`, `eventTypes` and `eventsHash` are identical (14, 29, 10 and 116 events), and no `Prop*` event appears in any of them. The journals changed only in `feelHash` and `geometryHash`.
+  - New `prop_fall`: five prop events, `PropImpact` mug on vase, `PropImpact` vase on mug, `PropBroken` vase (all at 530 ms), `PropImpact` of the vase's own contact (630 ms) and `PropImpact` of the mug on the floor (880 ms); `propFall.test.ts` pins the chain, the one break, the mess `{1, 1}` and bit-identical replay.
+  - `npm run sim` (perfect, human, random, idle; level `salon_crawler`, seed 42, 3 runs) gives the same report as a clean checkout of the baseline commit apart from the hashes; `npm run sim:replay` on a recorded journal exits 0.
+- **Screenshot references regenerated deliberately**: `autoplay-frozen-{chromium,webkit}-{darwin,linux}.png`. The old ones still matched within the 0.2 % tolerance (the vase is a few pixels), so `--update-snapshots` alone did not rewrite them; I used `--update-snapshots=all` on the Mac and the Docker command of story 1.13 (with the `pp-node-modules` volume) for Linux. **I looked at all four**: the same frame, the room, the outlet with its halo, Papa, the baby, and the new white vase next to the coffee table.
+- **Decisions and deviations, to review.**
+  1. `forEachImpact` is aggregated in the port: it visits each prop at most once per step, with that prop's largest impulse and the partner of that contact (ties go to the lower partner index, so Rapier's drain order never matters). A prop–prop contact is therefore reported on both sides by the port itself and `runPhysics` needs no scratch arrays of its own. Dev Notes › Order inside `runPhysics` describes the aggregation in the system; the result is the same.
+  2. `PhysicsPort` has two readonly counts, `fixedColliderCount` and `propCount`: the tests cannot import Rapier (architecture rule R4), so they could not count bodies otherwise.
+  3. `isOnFloor` is recomputed **for every prop each step from its slice pose** (pure arithmetic, no Rapier call), not only for awake props, so a prop that never wakes gets a correct flag after the first step. At spawn the flags stay false, as the story says.
+  4. `createWorld` takes `props` as an optional option (default none), so the existing `createWorld` callers did not change. `runPhysics` returns at once in a level without props.
+  5. The tipped-over threshold of D8 is `PROP_TIPPED_UP_Y_MAX = Math.SQRT1_2` (the cosine of 45°, a language constant: no `Math.cos` in the sim).
+  6. `tests/content/feelSchema.test.ts`: the unit-suffix check gained `Kg`, `Ns` and `Mps2`, and a documented exception for the dimensionless `friction` and `restitution` keys.
+  7. `levelSession` frees the sim of the previous level when a new start begins, on `stop()`, when a start goes stale after its sim was made, and when the scene or `onLevelStarted` fails. `runSim`, `replayRunFile` and the golden helpers dispose theirs. `ReplayResult.sim` is documented as the caller's to dispose.
+  8. A prop kind with no `PROP_<kind>_nn` node in the model, or a world prop of a kind the scene has no pool for, gets a plain box and a `warn` instead of being invisible.
+  9. `.blend` edited with Blender headless (`/Applications/Blender.app … -b … -P`), not through Blender MCP, which was not connected; the pipeline then ran as in story 1.6 and no generated JSON was edited by hand. `tests/support/testLevel.geometry.json` is again a byte copy of `content/levels/salon_crawler.geometry.json` (checked with `cmp`), deliberately; the tiny test room's mug now rests on the floor at `[0, 0.05, 0]`.
+  10. `loop.ts`, `testApi.ts`, `biome.json`, `tests/architecture/**`, `content/feedback.json`, `gags.ts` and the bots were not changed.
+- **Open points for Geo (from the story, still open):**
+  - Per-kind physics sits in `feel.json` until `content/objects/` exists (E6): fine, or `content/props/*.json` now?
+  - The calibrated values (masses, restitutions, break thresholds) are mine, tuned only to make the chain happen; play with them once the debug panel (2.1) exists. A vase that breaks at 0.35 N·s is easy to break.
+  - Determinism scope: nothing differed between Node, chromium, webkit, macOS and Linux amd64 here, so no decision is needed yet.
+  - The Rapier chunk is 1.68 MB gzip: worth a look in story 1.24.
 
 ### File List
+
+New:
+- `src/sim/physics/physicsPort.ts`
+- `src/sim/physics/rapierPhysics.ts`, `src/sim/physics/rapierPhysics.test.ts`
+- `src/sim/physics/propsSystem.ts`, `src/sim/physics/propsSystem.test.ts`
+- `src/shared/base64.ts`, `src/shared/base64.test.ts`
+- `src/client/render/views/viewPool.ts`, `viewPool.test.ts`
+- `src/client/render/views/viewRegistry.ts`, `viewRegistry.test.ts`
+- `src/client/render/views/propView.ts`, `propView.test.ts`
+- `tests/golden/propFall.test.ts`
+- `tests/golden/journals/prop_fall.json`, `tests/golden/journals/prop_fall.expected.json` (generated)
+- `tests/e2e/props.spec.ts`
+
+Modified:
+- `src/sim/world.ts`, `context.ts`, `commands.ts`, `events.ts`, `step.ts`, `snapshot.ts`, `createSim.ts`, `replay.ts`, `index.ts`
+- `src/sim/commands.test.ts`, `step.test.ts`, `createSim.test.ts`, `snapshot.test.ts`, `determinism.test.ts`
+- `src/shared/constants.ts`
+- `src/content/schemas/feel.ts`
+- `content/feel.json`, `content/_schemas/feel.schema.json` (generated)
+- `content/levels/salon_crawler.geometry.json`, `public/assets/levels/salon_crawler.glb`, `assets-src/blender/salon_crawler.blend` (generated / Blender)
+- `src/client/render/levelScene.ts`, `levelScene.test.ts`, `interpolate.ts`, `interpolate.test.ts`
+- `src/client/app/levelSession.ts`, `levelSession.test.ts`, `src/client/assets/loadLevelAssets.ts` (comment), `src/client/loop.test.ts` (the `Sim` double gains `dispose`)
+- `tools/content/contentChecks.ts`, `tools/sim/runSim.ts`, `tools/sim/replaySim.ts`
+- `tests/content/feelSchema.test.ts`, `feelMerge.test.ts`, `checkContent.test.ts`
+- `tests/support/testFeel.json`, `testLevel.geometry.json`, `testLevelGeometry.ts`
+- `tests/golden/scenarios.ts`, `golden.test.ts`
+- `tests/golden/journals/{core_basic,papa_walk,baby_wander,outlet_parry}{,.expected}.json` (regenerated: hashes only)
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-{chromium,webkit}-{darwin,linux}.png` (regenerated)
+- `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
 
 ## Change Log
 
 - 2026-10-27: story created (create-story).
+- 2026-10-27: implemented (dev-story): light physics of the props (Rapier behind `PhysicsPort`, `runPhysics`, `PushProp`, `PropImpact`, `PropBroken`, `world.props` and `world.mess`, snapshot version 5, pooled prop views), the vase in the salon, goldens and screenshot references regenerated deliberately, status set to `review`.

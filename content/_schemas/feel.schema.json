@@ -503,6 +503,91 @@
       ],
       "additionalProperties": false,
       "description": "Mama's note (GDD, economy › Mama's note)."
+    },
+    "physics": {
+      "type": "object",
+      "properties": {
+        "gravityMps2": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Gravity pulling the props down, in metres per second squared."
+        },
+        "impactMinImpulseNs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "A contact impulse under this is a prop settling, not an impact: nothing is emitted, in newton-seconds."
+        },
+        "impactCooldownMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "After a `PropImpact`, the same prop emits no other for this long, in sim ms."
+        },
+        "kinds": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "shape": {
+                "type": "string",
+                "enum": [
+                  "box",
+                  "cylinder",
+                  "ball"
+                ],
+                "description": "Collider shape, sized from the prop's half extents: `box` is a cuboid, `cylinder` stands on its axis (radius = the larger of x and z, half height = y), `ball` has the smallest half extent as radius."
+              },
+              "massKg": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Mass of one prop of this kind, in kilograms."
+              },
+              "friction": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Friction coefficient of the prop (0 = ice, 1 = rubber); a dimensionless ratio."
+              },
+              "restitution": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Bounciness (0 = stays where it lands, 1 = rebounds with all its speed); a dimensionless ratio."
+              },
+              "breakable": {
+                "type": "boolean",
+                "description": "Whether an impact of `breakImpulseNs` or more breaks the prop."
+              },
+              "breakImpulseNs": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Contact impulse that breaks a breakable prop, in newton-seconds. Required even when `breakable` is false, where it is not read."
+              }
+            },
+            "required": [
+              "shape",
+              "massKg",
+              "friction",
+              "restitution",
+              "breakable",
+              "breakImpulseNs"
+            ],
+            "additionalProperties": false,
+            "description": "The physics of one kind of prop (`PROP_<kind>_<nn>` in the level)."
+          },
+          "description": "Physics of each kind of prop, by kind (`mug` for `PROP_mug_01`)."
+        }
+      },
+      "required": [
+        "gravityMps2",
+        "impactMinImpulseNs",
+        "impactCooldownMs",
+        "kinds"
+      ],
+      "additionalProperties": false,
+      "description": "Light physics of the props (GDD §11, story 1.15): falls, bounces, impacts and breakage."
     }
   },
   "required": [
@@ -513,7 +598,8 @@
     "fatigue",
     "instinct",
     "difficulty",
-    "mama"
+    "mama",
+    "physics"
   ],
   "additionalProperties": false,
   "description": "Every feel value of the game, tuned by hand or from the feel panel."

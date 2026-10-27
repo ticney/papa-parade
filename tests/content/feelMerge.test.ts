@@ -41,6 +41,20 @@ describe('mergeFeel', () => {
     }
   });
 
+  it('merges the physics kinds: a level override of one restitution keeps the siblings', () => {
+    const newRestitution = Math.min(1, base.physics.kinds.mug.restitution + 0.1);
+    const result = mergeFeel(base, {
+      physics: { kinds: { mug: { restitution: newRestitution } } },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.physics.kinds.mug.restitution).toBe(newRestitution);
+      expect(result.value.physics.kinds.mug.massKg).toBe(base.physics.kinds.mug.massKg);
+      expect(result.value.physics.kinds.vase).toEqual(base.physics.kinds.vase);
+      expect(result.value.physics.gravityMps2).toBe(base.physics.gravityMps2);
+    }
+  });
+
   it('merges two levels deep (slow-mo group)', () => {
     const result = mergeFeel(base, { timing: { slowMoPerfect: { timeScale: 0.5 } } });
     expect(result.ok).toBe(true);

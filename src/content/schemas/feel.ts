@@ -6,6 +6,7 @@ import {
   MIN_TIME_SCALE,
 } from '@shared/constants';
 import { z } from 'zod';
+import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 
 // Every key of content/feel.json lives here. No `.default()`, `.optional()`, `.transform()` or
 // `.preprocess()`: the file, the type and the emitted JSON Schema map one to one, and every key is
@@ -248,6 +249,58 @@ const MamaSchema = z
   })
   .describe("Mama's note (GDD, economy › Mama's note).");
 
+/** The shapes a prop's collider can have, as data (the sim builds a cuboid, a cylinder or a ball from the geometry's half extents). */
+export const PROP_SHAPES = ['box', 'cylinder', 'ball'] as const;
+
+export type PropShape = (typeof PROP_SHAPES)[number];
+
+const positive = (description: string) => z.number().positive().describe(description);
+
+const PropKindSchema = z
+  .strictObject({
+    shape: z
+      .enum(PROP_SHAPES)
+      .describe(
+        "Collider shape, sized from the prop's half extents: `box` is a cuboid, `cylinder` stands on its axis (radius = the larger of x and z, half height = y), `ball` has the smallest half extent as radius.",
+      ),
+    massKg: positive('Mass of one prop of this kind, in kilograms.'),
+    friction: z
+      .number()
+      .min(0)
+      .describe('Friction coefficient of the prop (0 = ice, 1 = rubber); a dimensionless ratio.'),
+    restitution: z
+      .number()
+      .min(0)
+      .max(1)
+      .describe(
+        'Bounciness (0 = stays where it lands, 1 = rebounds with all its speed); a dimensionless ratio.',
+      ),
+    breakable: z
+      .boolean()
+      .describe('Whether an impact of `breakImpulseNs` or more breaks the prop.'),
+    breakImpulseNs: positive(
+      'Contact impulse that breaks a breakable prop, in newton-seconds. Required even when `breakable` is false, where it is not read.',
+    ),
+  })
+  .describe('The physics of one kind of prop (`PROP_<kind>_<nn>` in the level).');
+
+const PhysicsSchema = z
+  .strictObject({
+    gravityMps2: positive('Gravity pulling the props down, in metres per second squared.'),
+    impactMinImpulseNs: positive(
+      'A contact impulse under this is a prop settling, not an impact: nothing is emitted, in newton-seconds.',
+    ),
+    impactCooldownMs: delayMs(
+      'After a `PropImpact`, the same prop emits no other for this long, in sim ms.',
+    ),
+    kinds: z
+      .record(z.string().regex(SNAKE_ID_PATTERN, 'a kind is lower_snake_case'), PropKindSchema)
+      .describe('Physics of each kind of prop, by kind (`mug` for `PROP_mug_01`).'),
+  })
+  .describe(
+    'Light physics of the props (GDD §11, story 1.15): falls, bounces, impacts and breakage.',
+  );
+
 export const FeelSchema = z
   .strictObject({
     timing: TimingSchema,
@@ -258,6 +311,7 @@ export const FeelSchema = z
     instinct: InstinctSchema,
     difficulty: DifficultySchema,
     mama: MamaSchema,
+    physics: PhysicsSchema,
   })
   .describe('Every feel value of the game, tuned by hand or from the feel panel.');
 

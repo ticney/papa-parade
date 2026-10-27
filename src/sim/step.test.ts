@@ -17,6 +17,7 @@ describe('system order', () => {
       'runBaby',
       'runThreats',
       'runPapa',
+      'runPhysics',
     ]);
   });
 

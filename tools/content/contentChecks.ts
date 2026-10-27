@@ -297,6 +297,28 @@ function checkLevelReferences(
 }
 
 /**
+ * The references a level geometry makes that its schema cannot see: each prop's kind has an entry in
+ * `feel.json › physics.kinds` (the sim builds its body from it, and refuses a level without one).
+ */
+function checkPropReferences(
+  geometries: ReadonlyMap<string, LevelGeometry>,
+  feel: Feel,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  for (const [id, geometry] of geometries) {
+    geometry.props.forEach((prop, index) => {
+      if (Object.hasOwn(feel.physics.kinds, prop.kind)) return;
+      problems.push({
+        file: `content/${LEVEL_GEOMETRY_PATTERN.dir}/${id}${LEVEL_GEOMETRY_PATTERN.suffix}`,
+        jsonPath: formatJsonPath(['props', index, 'kind']),
+        message: `${id}.geometry.json › props[${index}].kind "${prop.kind}" has no feel.physics.kinds entry`,
+      });
+    });
+  }
+  return problems;
+}
+
+/**
  * Everything `npm run content:check` verifies, as a list of problems (empty = OK):
  * every content file against its schema, no content file without a schema, string references from
  * content (`…Key`) and from code (`t('…')`), and the generated JSON Schemas being up to date.
@@ -407,6 +429,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   problems.push(...checkLevelReferences(families, present));
 
   if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));
+  if (feel !== undefined) problems.push(...checkPropReferences(families.geometries, feel));
 
   if (feedback !== undefined) problems.push(...(await checkFeedbackReferences(rootDir, feedback)));
 

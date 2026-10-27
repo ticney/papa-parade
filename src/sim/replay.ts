@@ -19,6 +19,7 @@ export interface ReplayOptions {
 }
 
 export interface ReplayResult {
+  /** The replayed sim, at its end state. The caller owns it: call `sim.dispose()` when done reading it (it holds a physics world). */
   sim: Sim;
   /** Every event emitted during the replay, in order. */
   events: SimEvent[];

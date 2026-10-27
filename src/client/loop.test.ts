@@ -85,6 +85,7 @@ function createSimDouble(real: Sim) {
     snapshot: () => real.snapshot(),
     restore: (snapshot, tail) => real.restore(snapshot, tail),
     journal: () => real.journal(),
+    dispose: () => real.dispose(),
   };
   return {
     sim,

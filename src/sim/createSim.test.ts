@@ -229,3 +229,53 @@ describe('the level it plans', () => {
     expect(sim.snapshot().levelHash).not.toBe(hashJson(level));
   });
 });
+
+describe('physics (story 1.15)', () => {
+  it('creates one prop slice per prop of the geometry, index-aligned, at rest at its start pose', async () => {
+    const sim = await createSim({ content, geometry, level, seed: 1 });
+    expect(sim.world.props.map((prop) => prop.id)).toEqual(geometry.props.map((prop) => prop.id));
+    expect(sim.world.props[0]).toMatchObject({
+      id: 'mug_01',
+      kind: 'mug',
+      xM: geometry.props[0]?.centerM[0],
+      yM: geometry.props[0]?.centerM[1],
+      qw: 1,
+      prevXM: geometry.props[0]?.centerM[0],
+      isOnFloor: false,
+      isBroken: false,
+      lastImpactAt: null,
+    });
+    expect(sim.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0 });
+    sim.dispose();
+  });
+
+  it('refuses a level whose prop kind has no entry in the feel, naming the prop', async () => {
+    const broken = createTestGeometry();
+    broken.props = [
+      { id: 'teapot_01', kind: 'teapot', centerM: [0, 0.2, 0], halfExtentsM: [0.1, 0.1, 0.1] },
+    ];
+    await expect(createSim({ content, geometry: broken, level, seed: 1 })).rejects.toThrow(
+      /props\[0\]\.kind "teapot" has no feel\.physics\.kinds entry/,
+    );
+  });
+
+  describe('dispose', () => {
+    it('is idempotent, and a step, a snapshot or a restore after it fails an invariant', async () => {
+      const sim = await createSim({ content, geometry, level, seed: 1 });
+      const snapshot = sim.snapshot();
+      sim.dispose();
+      expect(() => sim.dispose()).not.toThrow();
+      expect(() => sim.step()).toThrow(/disposed/);
+      expect(() => sim.snapshot()).toThrow(/disposed/);
+      expect(() => sim.restore(snapshot)).toThrow(/disposed/);
+    });
+
+    it('leaves another sim alone', async () => {
+      const first = await createSim({ content, geometry, level, seed: 1 });
+      const second = await createSim({ content, geometry, level, seed: 1 });
+      first.dispose();
+      expect(() => stepN(second, 50)).not.toThrow();
+      second.dispose();
+    });
+  });
+});

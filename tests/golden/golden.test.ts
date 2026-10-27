@@ -67,6 +67,7 @@ describe.each(SCENARIOS)('golden: $name', (scenario) => {
       hashJson(replay.value.sim.world),
       replay.value.events,
     );
+    replay.value.sim.dispose();
     expect(actual).toEqual(expected);
   });
 
@@ -83,5 +84,6 @@ describe.each(SCENARIOS)('golden: $name', (scenario) => {
     if (!replay.ok) return;
     expect(hashJson(replay.value.sim.world)).toBe(recording.worldHash);
     expect(replay.value.events).toEqual(recording.events);
+    replay.value.sim.dispose();
   });
 });

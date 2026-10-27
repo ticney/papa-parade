@@ -30,7 +30,7 @@
 - **`JournalSchema`, `contentVersion` / `levelId` in the journal.** Story 1.3's `Journal` is `{ version, seed, feelHash, entries }` as a TypeScript type. The Zod schema, the content/level version and the export arrive with story 3.3 (levels do not exist before 1.6).
 - **Effective feel in `World`.** `ctx.feel` is constant per sim in story 1.3. When `SetFeel` arrives (story 2.1) the effective feel has to live in the snapshotted state.
 - **Slow-mo duration unit.** `feel.json` documents `slowMo*.durationMs` as real ms; the sim has no real clock. Resolved by story 1.14: slow-mo durations are sim ms (D2), the overlap rule is « slowest factor wins, per-source timers » (D5), and the freeze overlap keeps `max`.
-- **Rapier in the snapshot.** Story 1.15 adds the Rapier blob to `SimSnapshot` and bumps its `version`.
+- **Rapier in the snapshot.** Story 1.15 adds the Rapier blob to `SimSnapshot` and bumps its `version`. **Resolved in story 1.15** (D9): `SimSnapshot` is version 5 and carries `physics`, the base64 of Rapier's own snapshot; `restore` swaps the Rapier world only after everything else is validated.
 
 ## Deferred from: code review of story 1-3-coeur-de-simulation-deterministe-en-headless (2026-10-27)
 
@@ -89,8 +89,8 @@
 
 - **Preloading the level while the start screen shows, and a cache of parsed assets across restarts.** At `start` the canvas shows an empty ink backdrop; the room appears after the first gesture, behind the loading screen (D6). Every « Recommencer » reloads the level (D7). Revisit with real assets (E7) or if Geo wants the room behind the title.
 - **No drift check between the `.blend` / raw export and the committed geometry.** The shipped `.glb` is optimised, so it cannot be re-extracted; a stale `salon_crawler.geometry.json` is only caught by re-running `assets:export` → `assets:extract` → `assets:optimize`. A source hash written by the extractor, checked against the `.blend`, is the next step if this bites.
-- **Collision, navigation, zone and anchor nodes still ship in the `.glb`** (D4) and `PROP_*` stay static meshes. Story 1.15 replaces the props with pooled physics views; if the extra nodes ever matter, `export_level.py` can write a second file.
-- **The sim does not read the geometry yet.** Navigation, colliders and zones reach it in stories 1.7, 1.10 and 1.21; the schema type lives in `@content` for that. **Partly resolved in story 1.7:** `createSim` takes the geometry (D1) and reads its navigation grid for Papa; colliders and zones stay for stories 1.10, 1.15 and 1.21. **Partly resolved in story 1.10:** the sim reads the threat anchors (`createSim` checks them and places each threat); colliders (1.15) and zones (1.21) stay.
+- **Collision, navigation, zone and anchor nodes still ship in the `.glb`** (D4) and `PROP_*` stay static meshes. Story 1.15 replaces the props with pooled physics views; if the extra nodes ever matter, `export_level.py` can write a second file. **Partly resolved in story 1.15:** the `PROP_*` nodes are no longer drawn in place, they are the per-kind templates of the pooled prop views (D14); the collision, navigation, zone and anchor nodes still ship in the `.glb`.
+- **The sim does not read the geometry yet.** Navigation, colliders and zones reach it in stories 1.7, 1.10 and 1.21; the schema type lives in `@content` for that. **Partly resolved in story 1.7:** `createSim` takes the geometry (D1) and reads its navigation grid for Papa; colliders and zones stay for stories 1.10, 1.15 and 1.21. **Partly resolved in story 1.10:** the sim reads the threat anchors (`createSim` checks them and places each threat); colliders (1.15) and zones (1.21) stay. **Colliders resolved in story 1.15:** the physics world builds a fixed cuboid per `COL_*` collider (plus the floor and the room's walls); zones (1.21) stay.
 - **Only axis-aligned and 90° boxes** for `COL_`, `NAV_`, `ZONE_` (D3): the extractor refuses any other rotation. Convex or rotated colliders come with a story that needs them.
 - **Debug views of navigation, colliders and anchors:** story 2.1 (the client removes those nodes after loading).
 - **The `.blend` was built through Blender MCP and is reproducible only from the committed file.** There is no script that regenerates it from scratch; Geo edits it in Blender and re-runs the three `assets:*` commands.
@@ -255,3 +255,18 @@
 - **`loop.advance(steps)` never consumes `sim.freezeRealMs`** (`src/client/loop.ts`): after a perfect stepped with `advance` (Playwright, debug), the next real frames spend up to 80 ms frozen.
 - **Slow-mo scale is read once per frame** (`src/client/loop.ts`): after a frame hitch, the remaining catch-up steps of that frame run at the old scale. Negligible at 60 fps.
 - **No upper bounds on `hitstopMs`, `durationMs`, `returnMs`** (`src/content/schemas/feel.ts`): a typo (`1e9`) freezes the client for days or makes `endsAt` infinite. Choose bounds with Geo for every timing key.
+
+## Deferred from: implementation of story 1-15-physique-legere-des-objets (2026-10-27)
+
+- **No sound, haptic or feedback ring for `PropImpact` and `PropBroken`.** `content/feedback.json` lists neither event, so they are harmless today. Sounds and haptics arrive with stories 2.3 and 2.5 (the « ring anchored on props » item moves there).
+- **Noise and mess are read, not consumed.** The noise gauge (3.1) reads only `PropImpact`; Mama's sigh (1.22) reads `world.mess`. Neither exists yet.
+- **Papa and the baby do not collide with props, and props are not nav obstacles.** They walk through a fallen mug. Revisit when a gag or E6's dog needs it.
+- **A broken prop keeps its body and has no shards.** It is drawn squashed (`BROKEN_SCALE_Y`) and still collides. Shards and a removed body are E7 art.
+- **Instanced prop meshes** once a room has about 10 props. Each prop is two draw calls today (body and blob shadow).
+- **Periodic 5 s snapshots stay with 3.9**, which now carries Rapier.
+- **Geometry cross-checks stay open:** props against the bounds, a prop `kind` against the id prefix.
+- **The shadow of a prop does not fade with its height**, and the per-kind pool takes its shadow size from the first prop of the kind.
+- **The prop's pool takes `halfExtentsM` of the first prop of each kind** for the blob shadow and the squash: two props of one kind with different sizes share it.
+- **Per-kind physics lives in `feel.json`** until `content/objects/` exists (E6). Open point for Geo.
+- **A level `feelOverrides` that adds a physics kind is not checked against the geometry** by `content:check` (it checks `feel.json` only).
+- **`runPhysics` mirrors poses with Rapier's allocating getters** for awake bodies only (`translation()`, `rotation()` make a small object each). Ten props moving at once make about twenty small objects per step; revisit if a profile shows it.

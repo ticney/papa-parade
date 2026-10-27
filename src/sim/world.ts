@@ -103,6 +103,43 @@ export interface ThreatInstance {
   press: PendingPress | null;
 }
 
+/** A free object (`PROP_*`): its pose mirrors its Rapier body at the end of each step (story 1.15). */
+export interface PropSlice {
+  /** The geometry id (`mug_01`); `world.props[i]` is `geometry.props[i]`. */
+  id: string;
+  kind: string;
+  xM: number;
+  yM: number;
+  zM: number;
+  /** Rotation as a unit quaternion. */
+  qx: number;
+  qy: number;
+  qz: number;
+  qw: number;
+  /** Pose at the start of the last step, so that the view can interpolate between two steps. */
+  prevXM: number;
+  prevYM: number;
+  prevZM: number;
+  prevQx: number;
+  prevQy: number;
+  prevQz: number;
+  prevQw: number;
+  /** Lies on the floor (see `propsSystem`); a prop that was never above it is on it from the start. */
+  isOnFloor: boolean;
+  /** Broke on an impact. A broken prop keeps its body (it still collides). */
+  isBroken: boolean;
+  /** Sim time of the last `PropImpact`; null before the first. */
+  lastImpactAt: SimMs | null;
+}
+
+/** The mess the props made, for Mama's sigh (story 1.22): recounted by `runPhysics` every step. */
+export interface MessSlice {
+  /** Unbroken props that spawned above the floor and now lie on it. */
+  propsOnFloor: number;
+  /** Broken props. */
+  propsBroken: number;
+}
+
 /** What started a slow-mo. Story 1.18 triggers `lastThreat`; story 2.9 adds `instinct`. */
 export type SlowMoSource = 'perfect' | 'lastThreat';
 
@@ -149,6 +186,9 @@ export interface World {
   baby: BabySlice;
   /** One per planned threat, in the level's order. */
   threats: ThreatInstance[];
+  /** One per prop of the level's geometry, index-aligned with `geometry.props` (their bodies live in Rapier, beside `World`). */
+  props: PropSlice[];
+  mess: MessSlice;
 }
 
 export interface WorldOptions {
@@ -157,9 +197,21 @@ export interface WorldOptions {
   babySpawn: { xM: number; zM: number };
   /** When the baby first sets off, in sim ms. */
   firstWanderAt: SimMs;
+  /** The level's props (`geometry.props`): they start at their `centerM`, upright and at rest. */
+  props?: readonly {
+    readonly id: string;
+    readonly kind: string;
+    readonly centerM: readonly [number, number, number];
+  }[];
 }
 
-export function createWorld({ seed, papaSpawn, babySpawn, firstWanderAt }: WorldOptions): World {
+export function createWorld({
+  seed,
+  papaSpawn,
+  babySpawn,
+  firstWanderAt,
+  props = [],
+}: WorldOptions): World {
   return {
     time: { sim: asSimMs(0), scale: 1, baseScale: 1, slowMos: [] },
     rng: createRng(seed),
@@ -199,6 +251,28 @@ export function createWorld({ seed, papaSpawn, babySpawn, firstWanderAt }: World
       approachSpeedMps: 0,
     },
     threats: [],
+    props: props.map(({ id, kind, centerM: [xM, yM, zM] }) => ({
+      id,
+      kind,
+      xM,
+      yM,
+      zM,
+      qx: 0,
+      qy: 0,
+      qz: 0,
+      qw: 1,
+      prevXM: xM,
+      prevYM: yM,
+      prevZM: zM,
+      prevQx: 0,
+      prevQy: 0,
+      prevQz: 0,
+      prevQw: 1,
+      isOnFloor: false,
+      isBroken: false,
+      lastImpactAt: null,
+    })),
+    mess: { propsOnFloor: 0, propsBroken: 0 },
   };
 }
 

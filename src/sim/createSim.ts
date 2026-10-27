@@ -1,5 +1,7 @@
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
+import type { Feel } from '@content/schemas/feel';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import { PROP_ON_FLOOR_TOLERANCE_M } from '@shared/constants';
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
@@ -15,6 +17,7 @@ import {
   journalProblem,
 } from './journal.ts';
 import { createNavGrid, type NavGrid } from './nav/navGrid.ts';
+import { createRapierPhysics } from './physics/rapierPhysics.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
 import { GAG_IDS } from './threats/gags.ts';
@@ -60,8 +63,10 @@ export interface Sim {
   consumeFreeze(realMs: number): void;
   snapshot(): SimSnapshot;
   /**
-   * Replaces the world with a copy of the snapshot's (refused if it was taken by a sim with
-   * another seed, feel, geometry or level), and clears pending commands, events and freeze. The journal restarts
+   * Replaces the world with a copy of the snapshot's and the physics world with the snapshot's
+   * Rapier state (refused if it was taken by a sim with another seed, feel, geometry or level, or
+   * if either half is damaged: everything is checked first, a refused snapshot changes nothing),
+   * and clears pending commands, events and freeze. The journal restarts
    * from the snapshot time (`startSimMs`) and holds `tail`: the journal entries still to apply,
    * with their recorded `applyAt` (each must be later than the snapshot time). Re-enqueueing them
    * through `enqueue` would recompute `applyAt` and could apply a late command too early.
@@ -69,6 +74,13 @@ export interface Sim {
   restore(snapshot: SimSnapshot, tail?: readonly JournalEntry[]): void;
   /** A deep copy of the journal. */
   journal(): Journal;
+  /**
+   * Frees the physics world (WASM memory is not garbage-collected): call it when the sim is
+   * dropped, a restart, a level change, the end of a run in a CLI. Idempotent. A `step`,
+   * `snapshot` or `restore` after it fails an invariant. The sim returned by `replayJournal` is
+   * the caller's to dispose.
+   */
+  dispose(): void;
 }
 
 /**
@@ -96,7 +108,11 @@ function spawnOf(
  * def is loaded, every anchor exists and every gag is one the sim knows. A level that breaks one is a
  * broken level (`content:check` catches it statically).
  */
-function simLevelOf(level: LevelContent, geometry: LevelGeometry): SimLevel {
+function simLevelOf(
+  level: LevelContent,
+  geometry: LevelGeometry,
+  physics: Feel['physics'],
+): SimLevel {
   invariant(
     level.level.id === geometry.id,
     `level ${level.level.id} was given the geometry of ${geometry.id}`,
@@ -116,6 +132,20 @@ function simLevelOf(level: LevelContent, geometry: LevelGeometry): SimLevel {
       );
       return { def, fromMs: entry.fromMs };
     }),
+    props: geometry.props.map((prop, index) => {
+      const kind = Object.hasOwn(physics.kinds, prop.kind) ? physics.kinds[prop.kind] : undefined;
+      invariant(
+        kind !== undefined,
+        `level ${geometry.id}: props[${index}].kind "${prop.kind}" has no feel.physics.kinds entry`,
+      );
+      return {
+        id: prop.id,
+        kind: prop.kind,
+        halfExtentsM: prop.halfExtentsM,
+        spawnedAboveFloor: prop.centerM[1] - prop.halfExtentsM[1] > PROP_ON_FLOOR_TOLERANCE_M,
+        physics: kind,
+      };
+    }),
   };
 }
 
@@ -128,7 +158,7 @@ export async function createSimWithSystems(
   const feelHash = hashJson(content.feel);
   const geometryHash = hashJson(geometry);
   const levelHash = hashJson(level);
-  const simLevel = simLevelOf(level, geometry);
+  const simLevel = simLevelOf(level, geometry, content.feel.physics);
   const papaGrid = createNavGrid(geometry, content.feel.movement.papaRadiusM);
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
   let world = createWorld({
@@ -136,6 +166,7 @@ export async function createSimWithSystems(
     papaSpawn: spawnOf(geometry, papaGrid, 'papa_spawn', 'Papa'),
     babySpawn: spawnOf(geometry, babyGrid, 'baby_spawn', 'the baby'),
     firstWanderAt: asSimMs(content.feel.baby.babbleMinMs),
+    props: geometry.props,
   });
   simLevel.threats.forEach((planned, index) => {
     const entry = level.level.threats[index];
@@ -167,6 +198,9 @@ export async function createSimWithSystems(
     invariant(source.startSimMs === 0, 'only a journal recorded from the start can be replayed');
   }
 
+  // Last, so that a refused level or journal above never leaves a physics world behind.
+  const physics = await createRapierPhysics({ geometry, physics: content.feel.physics });
+  let isDisposed = false;
   const queue = createCommandQueue();
   const freeze = createFreezeState();
   const entries: JournalEntry[] = [];
@@ -181,6 +215,7 @@ export async function createSimWithSystems(
     commands: [],
     nav: { papa: papaGrid, baby: babyGrid },
     level: simLevel,
+    physics,
     strictInvariants: options.strictInvariants ?? defaultStrictInvariants(),
     get t() {
       return world.time.sim;
@@ -206,6 +241,7 @@ export async function createSimWithSystems(
       record({ applyAt: computeApplyAt(cmd.t, world.time.sim), command: cmd });
     },
     step() {
+      invariant(!isDisposed, 'the sim was disposed');
       step(world, ctx, systems);
     },
     drainEvents() {
@@ -227,16 +263,19 @@ export async function createSimWithSystems(
       consumeFreeze(freeze, realMs);
     },
     snapshot() {
-      return takeSnapshot(world, seed, feelHash, geometryHash, levelHash);
+      invariant(!isDisposed, 'the sim was disposed');
+      return takeSnapshot(world, seed, feelHash, geometryHash, levelHash, physics.snapshot());
     },
     restore(snapshot, tail = []) {
-      const restored = worldFromSnapshot(
+      invariant(!isDisposed, 'the sim was disposed');
+      // Everything is checked before anything changes: a refused snapshot leaves the sim untouched.
+      const { world: restored, physics: physicsBytes } = worldFromSnapshot(
         snapshot,
         seed,
         feelHash,
         geometryHash,
         levelHash,
-        ctx.level.threats,
+        ctx.level,
       );
       for (const entry of tail) {
         const problem = entryProblem(entry);
@@ -246,6 +285,7 @@ export async function createSimWithSystems(
           `journal entry at ${entry.applyAt} was already applied at ${restored.time.sim}`,
         );
       }
+      physics.restore(physicsBytes);
       world = restored;
       queue.clear();
       ctx.commands.length = 0;
@@ -255,6 +295,10 @@ export async function createSimWithSystems(
       entries.length = 0;
       startSimMs = restored.time.sim;
       for (const entry of tail) record(entry);
+    },
+    dispose() {
+      isDisposed = true;
+      physics.dispose();
     },
     journal() {
       const copy = createJournal(seed, feelHash, geometryHash, levelHash, startSimMs);

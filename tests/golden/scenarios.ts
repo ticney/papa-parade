@@ -42,6 +42,14 @@ const pressOutlet = (t: number): SimCommand => ({
   threatId: 1,
 });
 const release = (t: number): SimCommand => ({ type: 'Release', t: asSimMs(t) });
+const pushProp = (t: number, propId: string, impulseXNs: number): SimCommand => ({
+  type: 'PushProp',
+  t: asSimMs(t),
+  propId,
+  impulseXNs,
+  impulseYNs: 0,
+  impulseZNs: 0,
+});
 
 export const SCENARIOS: readonly Scenario[] = [
   {
@@ -119,6 +127,17 @@ export const SCENARIOS: readonly Scenario[] = [
       { atStep: 2548, command: tapFloor(25500, 0.5, -2.6) },
     ],
   },
+  {
+    // The chain accident of story 1.15, on the frozen living room: the mug is pushed along +x off the
+    // coffee table (0.72 N·s, calibrated: between about 0.68 and 0.78 it lands on the vase), falls
+    // on the vase, which breaks, and ends on the floor. Props only: no threat, no command but the push.
+    // The calibration and the measured impulses are in the story's Debug Log.
+    name: 'prop_fall',
+    level: createTestLevel(),
+    seed: 42,
+    untilSimMs: 3000,
+    actions: [{ atStep: 10, command: pushProp(100, 'mug_01', 0.72) }],
+  },
 ];
 
 export interface Recording {
@@ -148,7 +167,9 @@ export async function recordScenario(
     sim.step();
     for (const event of sim.drainEvents()) events.push(event);
   }
-  return { journal: sim.journal(), worldHash: hashJson(sim.world), events };
+  const recording = { journal: sim.journal(), worldHash: hashJson(sim.world), events };
+  sim.dispose();
+  return recording;
 }
 
 export interface Expected {

@@ -5,6 +5,7 @@ import type { CommandQueue } from './commandQueue.ts';
 import type { SimCommand } from './commands.ts';
 import type { SimEvent } from './events.ts';
 import type { NavGrid } from './nav/navGrid.ts';
+import type { PhysicsPort } from './physics/physicsPort.ts';
 import type { World } from './world.ts';
 
 /** Navigation grids, one per kind of agent, built once from the level geometry. Outside `World`. */
@@ -21,6 +22,20 @@ export interface NavContext {
  */
 export interface SimLevel {
   readonly threats: readonly { readonly def: ThreatDef; readonly fromMs: number }[];
+  /** Index-aligned with `world.props`. */
+  readonly props: readonly SimPropSpec[];
+}
+
+/** What a prop is, apart from where it is: constant data, built once from the geometry and the feel. */
+export interface SimPropSpec {
+  readonly id: string;
+  readonly kind: string;
+  /** Half the size of the prop's box along x, y and z, in metres. */
+  readonly halfExtentsM: readonly [number, number, number];
+  /** Its lowest point started above the floor: it counts as mess once it lies on it. */
+  readonly spawnedAboveFloor: boolean;
+  /** The kind's entry of `feel.physics.kinds`. */
+  readonly physics: Feel['physics']['kinds'][string];
 }
 
 export interface StepContext extends InvariantContext {
@@ -34,6 +49,8 @@ export interface StepContext extends InvariantContext {
   readonly commands: SimCommand[];
   readonly nav: NavContext;
   readonly level: SimLevel;
+  /** The props' physics (Rapier), outside `World` like the grids; `Sim.dispose()` frees it. */
+  readonly physics: PhysicsPort;
   /** The sanctioned hitstop channel: it writes outside `World`, in real ms. */
   requestFreezeRealMs(ms: number): void;
 }

@@ -10,7 +10,7 @@ import type { Group } from 'three';
 export interface LevelAssets {
   id: string;
   geometry: LevelGeometry;
-  /** The loaded `.glb` scene, still holding the `COL_`/`NAV_`/`ZONE_`/`ANCHOR_` nodes. Mutable: not shared across loads (D7). */
+  /** The loaded `.glb` scene, still holding the `COL_`/`NAV_`/`ZONE_`/`ANCHOR_` nodes and the `PROP_` nodes (the scene turns those into per-kind templates for the pooled prop views). Mutable: not shared across loads (D7). */
   model: Group;
 }
 

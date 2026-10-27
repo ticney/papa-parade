@@ -1,0 +1,21 @@
+{
+  "version": 3,
+  "seed": 42,
+  "feelHash": "166512044de623",
+  "geometryHash": "15e699e93a8b63",
+  "levelHash": "0b4fdc3368fb29",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 110,
+      "command": {
+        "impulseXNs": 0.72,
+        "impulseYNs": 0,
+        "impulseZNs": 0,
+        "propId": "mug_01",
+        "t": 100,
+        "type": "PushProp"
+      }
+    }
+  ]
+}

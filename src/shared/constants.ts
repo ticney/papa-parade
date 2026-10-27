@@ -170,3 +170,22 @@ export const ADVANCE_MAX_STEPS = 360_000;
 
 /** The test API keeps this many sim events of the current level; beyond, the oldest are dropped (with a warning). */
 export const TEST_API_EVENT_LOG_MAX = 50_000;
+
+/** A prop whose lowest point is within this of the floor (y = 0) lies on it, in metres (`World.mess`, story 1.15). */
+export const PROP_ON_FLOOR_TOLERANCE_M = 0.02;
+
+/**
+ * A prop whose own up axis points less than this up (its y component, the cosine of 45°) is tipped
+ * over: its lowest point is then approximated with its largest half extent. `Math.SQRT1_2` is a
+ * constant of the language, not a computation, so it is the same on every JS engine.
+ */
+export const PROP_TIPPED_UP_Y_MAX = Math.SQRT1_2;
+
+/** Thickness of the floor cuboid the physics world adds under a level (the geometry has no floor collider), in metres. */
+export const PHYSICS_FLOOR_THICKNESS_M = 1;
+
+/**
+ * Thickness of each of the four invisible walls on the level bounds' x and z faces, in metres. The
+ * floor extends this far past the bounds, under the walls. A prop cannot leave the room.
+ */
+export const PHYSICS_BOUNDS_WALL_THICKNESS_M = 1;

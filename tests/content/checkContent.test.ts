@@ -352,6 +352,26 @@ describe('checkContent on level geometry files', () => {
     ]);
   });
 
+  it('reports a prop whose kind has no feel.physics.kinds entry, with its index', async () => {
+    await put_(
+      geometryText((level) => {
+        (level.props as { kind: string }[]).push({
+          id: 'lamp_01',
+          kind: 'lamp',
+          centerM: [0, 0.2, 0],
+          halfExtentsM: [0.1, 0.2, 0.1],
+        } as never);
+      }),
+    );
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'props[1].kind',
+        message: 'test_room.geometry.json › props[1].kind "lamp" has no feel.physics.kinds entry',
+      }),
+    ]);
+  });
+
   it('reports a stale generated geometry schema', async () => {
     await writeFile(join(root, 'content/_schemas/levelGeometry.schema.json'), '{}\n');
     expect(await checkContent(root)).toEqual([

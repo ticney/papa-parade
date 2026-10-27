@@ -22,6 +22,6 @@ export function createTestLevelGeometry(id = 'test_room'): LevelGeometry {
     zones: [
       { id: 'behind_sofa', kind: 'hidden', centerM: [0, 0.5, -1.4], halfExtentsM: [1, 0.5, 0.1] },
     ],
-    props: [{ id: 'mug_01', kind: 'mug', centerM: [0, 0.7, 0], halfExtentsM: [0.05, 0.05, 0.05] }],
+    props: [{ id: 'mug_01', kind: 'mug', centerM: [0, 0.05, 0], halfExtentsM: [0.05, 0.05, 0.05] }],
   };
 }

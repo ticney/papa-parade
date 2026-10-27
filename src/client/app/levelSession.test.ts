@@ -775,6 +775,77 @@ describe('createLevelSession', () => {
   });
 });
 
+describe('createLevelSession › the physics world of each level (story 1.15)', () => {
+  /** Real sims whose `dispose` calls are counted, in creation order. */
+  function counting() {
+    const disposed: number[] = [];
+    let created = 0;
+    return {
+      disposed,
+      createSim: async (options: CreateSimOptions) => {
+        const index = created++;
+        const sim = await createSim(options);
+        const dispose = sim.dispose.bind(sim);
+        sim.dispose = () => {
+          disposed.push(index);
+          dispose();
+        };
+        return sim;
+      },
+    };
+  }
+
+  it('frees the previous level only when the next one starts, never the running one', async () => {
+    const { disposed, createSim: makeSim } = counting();
+    const { session } = setup({ createSim: makeSim });
+    await session.start();
+    expect(disposed).toEqual([]);
+    await session.start();
+    expect(disposed).toEqual([0]);
+  });
+
+  it('frees the level on stop()', async () => {
+    const { disposed, createSim: makeSim } = counting();
+    const { session } = setup({ createSim: makeSim });
+    await session.start();
+    session.stop();
+    expect(disposed).toEqual([0]);
+    session.stop();
+    expect(disposed).toEqual([0]);
+  });
+
+  it('frees a sim whose start went stale while it was being created', async () => {
+    const { disposed, createSim: makeSim } = counting();
+    const creating = deferred<void>();
+    const { session } = setup({
+      createSim: async (options) => {
+        const sim = await makeSim(options);
+        await creating.promise;
+        return sim;
+      },
+    });
+    const starting = session.start();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    session.stop();
+    creating.resolve();
+    expect(await starting).toBe('stale');
+    expect(disposed).toEqual([0]);
+  });
+
+  it('frees the sim of a level whose scene cannot be built', async () => {
+    const { disposed, createSim: makeSim } = counting();
+    const { session, appFsm } = setup({
+      createSim: makeSim,
+      createScene: () => {
+        throw new Error('no scene today');
+      },
+    });
+    expect(await session.start()).toBe('failed');
+    expect(appFsm.state).toBe('oops');
+    expect(disposed).toEqual([0]);
+  });
+});
+
 describe('createLevelSession › start options and outcomes', () => {
   const patchedFeel = () => {
     const feel = createTestContent().feel;

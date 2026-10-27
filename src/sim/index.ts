@@ -17,9 +17,11 @@ export { GAG_IDS, type GagId } from './threats/gags.ts';
 export type { ThreatState } from './threats/threatFsm.ts';
 export type {
   BabySlice,
+  MessSlice,
   PapaGlide,
   PapaSlice,
   PendingPress,
+  PropSlice,
   SlowMo,
   SlowMoSource,
   ThreatInstance,

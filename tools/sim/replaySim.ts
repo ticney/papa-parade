@@ -40,6 +40,7 @@ export async function replayRunFile(
     );
   }
   const worldHash = hashJson(replayed.value.sim.world);
+  replayed.value.sim.dispose();
   if (worldHash !== file.worldHash) {
     return err(
       `the replay ends in another state: recorded world ${file.worldHash}, replayed world ${worldHash}`,

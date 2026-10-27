@@ -9,7 +9,7 @@ import { UINT32_RANGE } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
-import { createSim } from '@sim';
+import { createSim, type Sim } from '@sim';
 import { loadSimLevel, type SimLevel } from './loadSimLevel.ts';
 import { type RunFile, runFileName, toRunFile } from './runFile.ts';
 import { parseSimArgs, SIM_HELP, type SimArgs } from './simArgs.ts';
@@ -56,8 +56,9 @@ export async function runSim(
     const bot = createBot(args.botId, setup);
     if (!bot.ok) return err(bot.error.message);
     let game: RunFile | null = null;
+    let sim: Sim | null = null;
     try {
-      const sim = await createSim({ content, geometry, level, seed, strictInvariants: true });
+      sim = await createSim({ content, geometry, level, seed, strictInvariants: true });
       const recorder = createRunRecorder(sim, seed);
       playGame(sim, bot.value, args.untilSimMs, recorder.onEvent);
       const summary = recorder.finish();
@@ -74,6 +75,8 @@ export async function runSim(
         `run ${index + 1} of ${args.runs} (seed ${seed}) crashed: ${cause instanceof Error ? cause.message : String(cause)}`,
       );
     }
+    // 10 000 runs must not leak 10 000 WASM worlds, a crashed run included.
+    sim?.dispose();
     // Outside the `try`: a bug in the hook is not a crash of the sim.
     if (hooks.onGame !== undefined && game !== null) {
       hooks.onGame(runFileName(loaded.levelId, args.botId, seed), game);

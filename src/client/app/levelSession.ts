@@ -172,6 +172,8 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
   let isStarting = false;
   let generation = 0;
   let active: ActiveLevel | null = null;
+  /** The sim of the level being played or about to be: its physics world is freed when the level ends (WASM memory is not collected). */
+  let liveSim: Sim | null = null;
 
   const stopLoop = (): void => {
     loop?.stop();
@@ -179,6 +181,11 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     // Effects advance only with the loop: end the ring and shake it froze mid-way, or `drawStatic`
     // shows them behind the loading and error screens (a failed restart keeps this scene for good).
     current?.resetFx();
+  };
+
+  const releaseSim = (): void => {
+    liveSim?.dispose();
+    liveSim = null;
   };
 
   return {
@@ -206,6 +213,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
       isStarting = false;
       active = null;
       stopLoop();
+      releaseSim();
     },
     async start(options = {}) {
       if (isStarting) {
@@ -223,6 +231,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
       try {
         stopLoop();
         active = null;
+        releaseSim();
         appFsm.enter('loading');
         // Both start now and are awaited below: the sound loads while the `.glb` does.
         const audioLoad = settle(() => deps.loadAudio?.() ?? Promise.resolve());
@@ -274,13 +283,17 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
             seed,
           }),
         );
-        if (isStale()) return 'stale';
+        if (isStale()) {
+          if (simResult.ok) simResult.value.dispose();
+          return 'stale';
+        }
         if (!simResult.ok) {
           log.error('boot', 'cannot create the sim for the level', simResult.error);
           appFsm.enter('oops');
           return 'failed';
         }
         const sim = simResult.value;
+        liveSim = sim;
         log.info('boot', 'sim ready', { seed });
         deps.onSeed(seed);
 
@@ -292,6 +305,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           });
         } catch (cause) {
           log.error('render', 'cannot build the level scene', { id: levelId, error: cause });
+          releaseSim();
           appFsm.enter('oops');
           return 'failed';
         }
@@ -304,6 +318,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           // The new scene never became current: free it, and keep the previous one as it was.
           level.dispose();
           log.error('render', 'cannot show the level scene', { id: levelId, error: cause });
+          releaseSim();
           appFsm.enter('oops');
           return 'failed';
         }
@@ -337,6 +352,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           deps.onLevelStarted?.({ sim, levelId, seed, level: levelPlan, feel });
         } catch (cause) {
           stopLoop();
+          releaseSim();
           log.error('boot', 'a level-started listener threw', { id: levelId, error: cause });
           appFsm.enter('oops');
           return 'failed';

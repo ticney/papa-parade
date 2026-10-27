@@ -388,9 +388,11 @@ describe('snapshot / restore', () => {
   it('refuses an unknown snapshot version', async () => {
     const sim = await createSim({ content, geometry, level, seed: 5 });
     const snapshot = sim.snapshot();
-    expect(() => sim.restore({ ...snapshot, version: 1 as 4 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 1 as 5 })).toThrow(/version/);
     // Version 3 predates the base scale and the slow-mos (story 1.14).
-    expect(() => sim.restore({ ...snapshot, version: 3 as 4 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 3 as 5 })).toThrow(/version/);
+    // Version 4 has no Rapier world (story 1.15).
+    expect(() => sim.restore({ ...snapshot, version: 4 as 5 })).toThrow(/version 4/);
   });
 
   it('refuses a snapshot of another level', async () => {
@@ -877,5 +879,197 @@ describe('snapshot / restore under a slow-mo', () => {
         `${name} must be refused`,
       ).toThrow(message);
     }
+  });
+});
+
+describe('snapshot / restore with props in motion (story 1.15)', () => {
+  const pushMug = {
+    type: 'PushProp',
+    t: asSimMs(0),
+    propId: 'mug_01',
+    impulseXNs: 0.72,
+    impulseYNs: 0,
+    impulseZNs: 0,
+  } as const;
+  const PUSHED_STEPS = 40;
+
+  async function newSim() {
+    return createSim({ content, geometry, level, seed: 5 });
+  }
+
+  /** A sim whose mug was pushed off the coffee table and is still in the air. */
+  async function midFall() {
+    const sim = await newSim();
+    sim.enqueue(pushMug);
+    stepN(sim, PUSHED_STEPS);
+    return sim;
+  }
+
+  /** The prop events after `afterT`, from a sim stepped `steps` more times. */
+  function propEvents(sim: Awaited<ReturnType<typeof newSim>>, steps: number): SimEvent[] {
+    const out: SimEvent[] = [];
+    for (let i = 0; i < steps; i++) {
+      sim.step();
+      for (const event of sim.drainEvents()) if (event.type.startsWith('Prop')) out.push(event);
+    }
+    return out;
+  }
+
+  it('is taken while a prop moves, and carries the Rapier world as base64', async () => {
+    const sim = await midFall();
+    const snapshot = sim.snapshot();
+    expect(snapshot.version).toBe(5);
+    expect(snapshot.physics).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+    expect(snapshot.world.props[0]?.xM).toBeGreaterThan(0.7);
+    expect(snapshot.world.props[0]?.yM).toBeLessThan(0.5);
+    expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
+  });
+
+  it('restored into the same sim, continues to the same hash and events as an uninterrupted run', async () => {
+    const straight = await midFall();
+    const snapshot = straight.snapshot();
+    straight.drainEvents();
+    const expectedEvents = propEvents(straight, 400);
+    expect(expectedEvents.length).toBeGreaterThan(0);
+
+    const resumed = await midFall();
+    resumed.drainEvents();
+    stepN(resumed, 60); // go on, then come back to the snapshot
+    resumed.restore(snapshot);
+    expect(resumed.world).toEqual(snapshot.world);
+    expect(propEvents(resumed, 400)).toEqual(expectedEvents);
+    expect(hashJson(resumed.world)).toBe(hashJson(straight.world));
+    expect(resumed.world.props).toEqual(straight.world.props);
+  });
+
+  it('restored into a second sim built from the same content, continues identically', async () => {
+    const first = await midFall();
+    const snapshot = first.snapshot();
+    first.drainEvents();
+    const expectedEvents = propEvents(first, 400);
+
+    const second = await newSim();
+    second.restore(snapshot);
+    expect(propEvents(second, 400)).toEqual(expectedEvents);
+    expect(hashJson(second.world)).toBe(hashJson(first.world));
+    first.dispose();
+    second.dispose();
+  });
+
+  it('restores a snapshot taken after the props came to rest', async () => {
+    const first = await midFall();
+    stepN(first, 600);
+    const snapshot = first.snapshot();
+    const second = await newSim();
+    second.restore(snapshot);
+    stepN(first, 100);
+    stepN(second, 100);
+    expect(hashJson(second.world)).toBe(hashJson(first.world));
+  });
+
+  it('refuses a snapshot from before the Rapier world (version 4)', async () => {
+    const sim = await newSim();
+    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 5 })).toThrow(/version 4/);
+  });
+
+  describe('refuses a malformed props slice, with its path', () => {
+    const prop = (w: Record<string, unknown>) =>
+      (w.props as Record<string, unknown>[])[0] as Record<string, unknown>;
+    const broken: [string, (w: Record<string, unknown>) => void, RegExp][] = [
+      ['no props at all', (w) => delete w.props, /world\.props$/],
+      ['props that is not an array', (w) => (w.props = {}), /world\.props$/],
+      ['a prop missing', (w) => (w.props = []), /world\.props$/],
+      ['an extra prop', (w) => (w.props = [...(w.props as unknown[]), prop(w)]), /world\.props$/],
+      ['a prop that is not an object', (w) => (w.props = [3, 3]), /world\.props\[0\]$/],
+      ['another id', (w) => (prop(w).id = 'vase_09'), /world\.props\[0\]\.id/],
+      ['another kind', (w) => (prop(w).kind = 'vase'), /world\.props\[0\]\.kind/],
+      ['a non-finite x', (w) => (prop(w).xM = Number.NaN), /world\.props\[0\]\.xM/],
+      ['a string y', (w) => (prop(w).yM = '1'), /world\.props\[0\]\.yM/],
+      ['a missing z', (w) => delete prop(w).zM, /world\.props\[0\]\.zM/],
+      ['a non-finite previous x', (w) => (prop(w).prevXM = null), /world\.props\[0\]\.prevXM/],
+      ['a non-finite previous y', (w) => (prop(w).prevYM = 'a'), /world\.props\[0\]\.prevYM/],
+      ['a non-finite previous z', (w) => delete prop(w).prevZM, /world\.props\[0\]\.prevZM/],
+      ['a quaternion that is not a unit', (w) => (prop(w).qw = 2), /world\.props\[0\]\.q$/],
+      ['a quaternion with a NaN', (w) => (prop(w).qx = Number.NaN), /world\.props\[0\]\.q$/],
+      [
+        'a previous quaternion that is not a unit',
+        (w) => (prop(w).prevQw = 0),
+        /world\.props\[0\]\.prevQ$/,
+      ],
+      ['a non-boolean isOnFloor', (w) => (prop(w).isOnFloor = 1), /world\.props\[0\]\.isOnFloor/],
+      ['a non-boolean isBroken', (w) => (prop(w).isBroken = 'no'), /world\.props\[0\]\.isBroken/],
+      [
+        'a last impact that is a string',
+        (w) => (prop(w).lastImpactAt = 'then'),
+        /world\.props\[0\]\.lastImpactAt/,
+      ],
+      ['no mess', (w) => delete w.mess, /world\.mess is missing/],
+      [
+        'a negative mess count',
+        (w) => ((w.mess as Record<string, unknown>).propsBroken = -1),
+        /world\.mess\.propsBroken/,
+      ],
+      [
+        'a fractional mess count',
+        (w) => ((w.mess as Record<string, unknown>).propsOnFloor = 0.5),
+        /world\.mess\.propsOnFloor/,
+      ],
+      [
+        'a mess that disagrees with the props (broken)',
+        (w) => ((w.mess as Record<string, unknown>).propsBroken = 1),
+        /world\.mess\.propsBroken/,
+      ],
+      [
+        'a mess that disagrees with the props (on the floor)',
+        (w) => ((w.mess as Record<string, unknown>).propsOnFloor = 1),
+        /world\.mess\.propsOnFloor/,
+      ],
+      [
+        'a broken prop the mess does not count',
+        (w) => (prop(w).isBroken = true),
+        /world\.mess\.propsBroken/,
+      ],
+    ];
+
+    it.each(broken)('%s', async (_name, mutate, message) => {
+      const sim = await midFall();
+      const world = JSON.parse(JSON.stringify(sim.snapshot().world)) as Record<string, unknown>;
+      mutate(world);
+      const target = await newSim();
+      expect(() => target.restore({ ...sim.snapshot(), world: world as never })).toThrow(message);
+    });
+  });
+
+  describe('refuses a damaged physics blob, and leaves the sim untouched', () => {
+    async function expectUntouched(physics: unknown, message: RegExp) {
+      const sim = await midFall();
+      const twin = await midFall();
+      const snapshot = sim.snapshot();
+      stepN(sim, 5);
+      stepN(twin, 5);
+      const before = JSON.stringify(sim.world);
+      expect(() => sim.restore({ ...snapshot, physics: physics as string })).toThrow(message);
+      expect(JSON.stringify(sim.world)).toBe(before);
+      stepN(sim, 200);
+      stepN(twin, 200);
+      expect(hashJson(sim.world)).toBe(hashJson(twin.world));
+    }
+
+    it('not a string', () => expectUntouched(42, /physics/));
+    it('not base64', () => expectUntouched('not base64!', /invalid snapshot physics/));
+    it('base64 of nothing', () => expectUntouched('', /physics/));
+    it('base64 of garbage', () => expectUntouched('AAECAwQFBgcICQoL', /./));
+
+    it('the snapshot of a level with other props', async () => {
+      const otherGeometry = createTestGeometry();
+      otherGeometry.props = [];
+      const other = await createSim({ content, geometry: otherGeometry, level, seed: 5 });
+      const sim = await midFall();
+      const snapshot = sim.snapshot();
+      // The world half is the sim's own; only the Rapier half comes from another level.
+      expect(() => sim.restore({ ...snapshot, physics: other.snapshot().physics })).toThrow(
+        /does not fit/,
+      );
+    });
   });
 });

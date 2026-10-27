@@ -69,3 +69,58 @@ describe('determinism', () => {
     expect(a.events).not.toEqual(b.events);
   });
 });
+
+/**
+ * Props moving under periodic pushes: the physics is part of the determinism promise. The pushes
+ * alternate between the two props and four directions, so that the mug and the vase collide and
+ * the vase breaks (and later pushes of it are ignored) along the way.
+ */
+async function playProps(seed: number): Promise<{ sim: Sim; events: SimEvent[] }> {
+  const sim = await createSimWithSystems(
+    {
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: createTestLevel(),
+      seed,
+    },
+    SYSTEMS,
+  );
+  const events: SimEvent[] = [];
+  const directions = [
+    [0.72, 0],
+    [0, 0.5],
+    [-0.4, 0],
+    [0, -0.5],
+  ] as const;
+  for (let i = 1; i <= 10000; i++) {
+    if (i % 350 === 1) {
+      const turn = Math.floor(i / 350);
+      const [x, z] = directions[turn % directions.length] as readonly [number, number];
+      sim.enqueue({
+        type: 'PushProp',
+        t: asSimMs(sim.world.time.sim),
+        propId: turn % 3 === 2 ? 'vase_01' : 'mug_01',
+        impulseXNs: x,
+        impulseYNs: turn % 5 === 0 ? 0.2 : 0,
+        impulseZNs: z,
+      });
+    }
+    sim.step();
+    if (i % 100 === 0) for (const event of sim.drainEvents()) events.push(event);
+  }
+  return { sim, events };
+}
+
+describe('determinism with props in motion', () => {
+  it('gives identical World, poses and events twice over 10 000 steps of periodic pushes', async () => {
+    const a = await playProps(7);
+    const b = await playProps(7);
+    expect(a.events.filter((event) => event.type === 'PropImpact').length).toBeGreaterThan(5);
+    expect(a.sim.world.props).toEqual(b.sim.world.props);
+    expect(a.sim.world).toEqual(b.sim.world);
+    expect(a.events).toEqual(b.events);
+    expect(hashJson(a.sim.world)).toBe(hashJson(b.sim.world));
+    a.sim.dispose();
+    b.sim.dispose();
+  });
+});

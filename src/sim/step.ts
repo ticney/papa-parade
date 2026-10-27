@@ -3,6 +3,7 @@ import { applyCommands } from './commandQueue.ts';
 import type { StepContext, System } from './context.ts';
 import { runDirector } from './director/directorSystem.ts';
 import { runPapa } from './papa/papaSystem.ts';
+import { runPhysics } from './physics/propsSystem.ts';
 import { runThreats } from './threats/threatSystem.ts';
 import { advanceTime } from './time/clock.ts';
 import type { World } from './world.ts';
@@ -13,7 +14,7 @@ import type { World } from './world.ts';
  *   applyCommands, advanceTime, runDirector, runBaby, runThreats, runPapa, runPhysics,
  *   runGauges, runInstinct, runScoring, runFlow
  *
- * applyCommands, advanceTime, runDirector, runBaby, runThreats and runPapa exist so far. Each later
+ * applyCommands, advanceTime, runDirector, runBaby, runThreats, runPapa and runPhysics exist so far. Each later
  * story inserts its system at its slot, edits the pinned order test and, if behaviour changes,
  * regenerates the golden references and says so.
  * Systems never call each other: they read and write `World` and push to `ctx.events`.
@@ -25,6 +26,7 @@ export const SYSTEMS: readonly System[] = [
   runBaby,
   runThreats,
   runPapa,
+  runPhysics,
 ];
 
 export function step(world: World, ctx: StepContext, systems: readonly System[] = SYSTEMS): void {
