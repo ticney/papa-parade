@@ -734,6 +734,24 @@ describe('createGameLoop › speed', () => {
     expect(rig.simMs()).toBe(8 * STEP_MS);
   });
 
+  it('lets the step cap grow with speed: a slow frame at ×4 keeps the speed-up instead of dropping it', async () => {
+    const rig = await createRig({ speed: 4 });
+    rig.tick(0);
+    const owedSteps = MAX_STEPS_PER_FRAME + 5; // owed at ×4 by a frame of (10 + 5) × STEP_MS / 4 real ms
+    rig.tick((owedSteps * STEP_MS) / 4);
+    expect(rig.loop.stats.stepsLastFrame).toBe(owedSteps);
+    expect(rig.loop.stats.droppedBacklogMs).toBe(0);
+  });
+
+  it('pays a hitstop in sped-up time too: 25 real ms at ×4 pay 100 ms of freeze', async () => {
+    const rig = await createRig({ speed: 4 });
+    rig.tick(0);
+    rig.setFreeze(100);
+    rig.tick(25);
+    expect(rig.freezeRealMs).toBe(0);
+    expect(rig.loop.stats.stepsLastFrame).toBe(0);
+  });
+
   it('records speed × timeScale as the real to sim rate in the time map', async () => {
     const rig = await createRig({ speed: 2 });
     rig.tick(0);

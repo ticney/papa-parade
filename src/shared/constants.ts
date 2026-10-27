@@ -160,7 +160,8 @@ export const SIM_CLI_MAX_RUNS = 10_000;
 
 /**
  * The fastest `?speed=` a debug build accepts: a dimensionless multiplier of the real time the loop
- * measures. At 60 Hz, ×4 is about 67 ms of sim per frame (7 steps), under `MAX_STEPS_PER_FRAME`.
+ * measures. The loop's cap on steps per frame grows with it (`MAX_STEPS_PER_FRAME` times `speed`),
+ * so a slow frame does not drop the speed-up.
  */
 export const PLAY_SPEED_MAX = 4;
 

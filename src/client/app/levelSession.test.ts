@@ -839,7 +839,7 @@ describe('createLevelSession › start options and outcomes', () => {
     expect(simOptions[0]?.content).toBe(content);
   });
 
-  it('reports `current`: the last requested level and feel, and the seed of the level that started', async () => {
+  it('reports `current`: the level, feel and seed of the level that last started', async () => {
     const content = createTestContent();
     const { session } = setup({ content });
     expect(session.current).toEqual({
@@ -850,6 +850,35 @@ describe('createLevelSession › start options and outcomes', () => {
     const feel = patchedFeel();
     await session.start({ levelId: 'other_room', seed: 9, feel });
     expect(session.current).toEqual({ levelId: 'other_room', seed: 9, feel });
+  });
+
+  it('keeps `current` on the last level that started when a later start fails (the retry reloads it)', async () => {
+    const loaded: string[] = [];
+    const { session, appFsm } = setup({
+      loadAssets: async (id) => {
+        loaded.push(id);
+        return id === 'nowhere' ? err({ kind: 'assets', message: 'no glb' }) : ok(assetsOf(id));
+      },
+    });
+    await session.start({ levelId: 'other_room', seed: 9 });
+    expect(await session.start({ levelId: 'nowhere', seed: 10 })).toBe('failed');
+    expect(appFsm.state).toBe('oops');
+    expect(session.current).toMatchObject({ levelId: 'other_room', seed: 9 });
+    // « Recommencer » / the Oops retry starts with no options: back to the level that played.
+    expect(await session.start()).toBe('started');
+    expect(loaded.at(-1)).toBe('other_room');
+  });
+
+  it('goes to « Oups » when an onLevelStarted listener throws, and keeps `current` as it was', async () => {
+    const { session, appFsm } = setup({
+      onLevelStarted: () => {
+        throw new Error('listener bug');
+      },
+    });
+    expect(await session.start({ levelId: 'other_room', seed: 9 })).toBe('failed');
+    expect(appFsm.state).toBe('oops');
+    expect(session.active).toBeNull();
+    expect(session.current).toMatchObject({ levelId: 'salon_crawler', seed: null });
   });
 
   it('restarts the same level and feel override with a fresh seed when start() has no options', async () => {
@@ -932,6 +961,13 @@ describe('createLevelSession › freeze, advance, speed and the step hook', () =
   it('advance() throws with no level running', () => {
     const { session } = setup();
     expect(() => session.advance(3)).toThrow('no level is running');
+  });
+
+  it('advance() with a bad step count throws and leaves the level unfrozen', async () => {
+    const { session } = setup();
+    await session.start();
+    expect(() => session.advance(1.5)).toThrow();
+    expect(session.isFrozen).toBe(false);
   });
 
   it('freeze(true) before a start gives a frozen loop: frames render, the sim does not move', async () => {

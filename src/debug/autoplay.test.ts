@@ -6,7 +6,7 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { createSim, type Sim } from '@sim';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { botSetup, botTestLevel } from '../../tests/support/botSupport.ts';
 import { createFakeTestHost } from '../../tests/support/fakeTestHost.ts';
 import { createTestContent, createTestGeometry } from '../../tests/support/testContent.ts';
@@ -138,7 +138,13 @@ describe('installAutoplay', () => {
     const sim = await newSim(4);
     host.fireLevelStarted(startedOf(sim, 4));
     expect(host.stepHook).not.toBeNull();
+    expect(host.isGameInputBlocked).toBe(true);
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
     host.fireLevelStarted({ ...startedOf(sim, 4), seed: -1 });
     expect(host.stepHook).toBeNull();
+    // Nothing plays this level: the player gets the game back, and the log says why.
+    expect(host.isGameInputBlocked).toBe(false);
+    expect(warn).toHaveBeenCalledWith('debug', expect.stringContaining('no bot for this level'));
+    warn.mockRestore();
   });
 });

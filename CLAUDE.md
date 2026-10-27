@@ -45,7 +45,7 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 | `npm run sim:replay -- <file>` | Replays a game recorded by `npm run sim --journals` and checks it ends in the same state (exit 0 if so) |
 | `npm run e2e` | Playwright, chromium + webkit, landscape phone viewport |
 | `/?autoplay=<bot>&seed=<n>&speed=<x>` | A bot (`perfect`, `human`, `random`, `idle`) plays in the browser, silent, `speed` ≤ 4 (dev and playtest builds); `window.__PP__` (dev, or `?debug=1`) drives the game from Playwright |
-| `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` | Regenerate the macOS screenshot references (deliberate: look at them, say so in the story); the Linux ones (CI) with the Docker command of story 1.13 › Screenshots |
+| `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` | Regenerate the macOS screenshot references (deliberate: look at them, say so in the story); the Linux ones (CI) with the Docker command of story 1.13 › Screenshots (it mounts the `pp-node-modules` volume so the Mac's `node_modules` stays intact) |
 | `npm run content:check` | Validate `content/**` against the Zod schemas, string references and generated JSON Schemas |
 | `npm run content:schemas` | Regenerate `content/_schemas/` (commit the result; never edit it by hand) |
 | `npm run ci` | Everything CI runs, in order, stopping at the first failure |

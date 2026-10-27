@@ -119,12 +119,12 @@ export interface LevelSession {
    * geometry and threats), the level's scene, then the wait for the foreground, then `level`, which always
    * begins through the resume countdown. A failed load goes to `oops`. Called again, it restarts.
    * Ignored while a start is in flight (a second tap on « Recommencer » must not start two levels).
-   * Without options it restarts the level last asked for, with its feel and a fresh seed.
+   * Without options it restarts the level that last began, with its feel and a fresh seed.
    */
   start(options?: LevelStartOptions): Promise<LevelStartOutcome>;
   /**
-   * What a start without options would load: the level and the feel last asked for, and the seed of
-   * the level that last began (`null` before the first).
+   * What a start without options would load: the level, the feel and the seed of the level that
+   * last began (`null` before the first). A failed or stale start leaves it as it was.
    */
   readonly current: { readonly levelId: string; readonly seed: number | null; readonly feel: Feel };
   /** Whether the loop of the current and of every later level is frozen (the wish is kept across levels). */
@@ -197,8 +197,9 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     },
     advance(steps) {
       if (loop === null) throw new Error('no level is running');
-      isFrozenWish = true;
+      // The loop validates `steps` first and stays as it was when it throws.
       loop.advance(steps);
+      isFrozenWish = true;
     },
     stop() {
       generation++;
@@ -213,8 +214,6 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
       }
       const levelId = options.levelId ?? requested.levelId;
       const feel = options.feel ?? requested.feel;
-      requested.levelId = levelId;
-      requested.feel = feel;
       // The bundle the sim sees: the content as is, unless a feel was asked for.
       const content: ContentBundle =
         feel === deps.content.feel ? deps.content : { ...deps.content, feel };
@@ -283,7 +282,6 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         }
         const sim = simResult.value;
         log.info('boot', 'sim ready', { seed });
-        requested.seed = seed;
         deps.onSeed(seed);
 
         let level: LevelScene;
@@ -335,7 +333,19 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           beforeStep: deps.beforeStep,
         });
         loop.setFrozen(isFrozenWish);
-        deps.onLevelStarted?.({ sim, levelId, seed, level: levelPlan, feel });
+        try {
+          deps.onLevelStarted?.({ sim, levelId, seed, level: levelPlan, feel });
+        } catch (cause) {
+          stopLoop();
+          log.error('boot', 'a level-started listener threw', { id: levelId, error: cause });
+          appFsm.enter('oops');
+          return 'failed';
+        }
+        // Remembered only now that the level is going to play: a failed or stale start must leave
+        // « Recommencer » and the Oops retry on the last level that did start.
+        requested.levelId = levelId;
+        requested.seed = seed;
+        requested.feel = feel;
 
         // Paused then resumed in the same tick, before the app enters `level`: the pause screen is
         // then built straight as the countdown (no panel, no focus), and the first thing the player

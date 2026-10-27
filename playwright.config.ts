@@ -10,7 +10,7 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'list',
   // Screenshot references are per browser and per OS: `darwin` made on the Mac, `linux` made in
   // Docker for CI. The ratio is a guard against GPU dithering, never a slack for real changes: a
-  // frame that needs more than 1 % is not deterministic, and that is the bug.
+  // frame that needs more than 0.2 % is not deterministic, and that is the bug.
   snapshotPathTemplate:
     '{testDir}/__screenshots__/{testFilePath}/{arg}-{projectName}-{platform}{ext}',
   expect: {

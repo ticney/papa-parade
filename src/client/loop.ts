@@ -72,7 +72,7 @@ const rafScheduler: FrameScheduler = {
  *
  * Per frame, while `pause.state` is `running`: the real time since the previous running frame
  * pays off a freeze first (hitstop), the rest times `sim.timeScale` goes into the accumulator, and
- * whole steps are run (at most `MAX_STEPS_PER_FRAME`; the rest of a stall is dropped). The freeze
+ * whole steps are run (at most `MAX_STEPS_PER_FRAME` times `speed`; the rest of a stall is dropped). The freeze
  * is checked before every step, so a hitstop requested by step k stops step k+1. A frame that
  * follows a pause, a bad timestamp or the start measures no elapsed time, so a resume never
  * catches up. While paused the loop only renders. The accumulator survives a pause, which makes a
@@ -81,7 +81,8 @@ const rafScheduler: FrameScheduler = {
  * Every frame also records the continuous sim clock (`world.time.sim` plus the accumulator) in the
  * time map, paused or not.
  *
- * `speed` multiplies the real time a frame measures (the hitstop's payment included). A frozen loop
+ * `speed` multiplies the real time a frame measures (the hitstop's payment included), and the cap
+ * on steps per frame, so a slow frame at ×4 still runs ×4. A frozen loop
  * (`setFrozen`, `advance`) keeps rendering and ending a pause countdown, but steps nothing.
  * `beforeStep` runs before every step, wherever the step comes from, so a bot is asked exactly as
  * `playGame` asks it.
@@ -93,6 +94,9 @@ const rafScheduler: FrameScheduler = {
 export function createGameLoop(options: GameLoopOptions): GameLoop {
   const { sim, timeMap, pause, render, onSimEvent, beforeStep } = options;
   const speed = options.speed ?? 1;
+  // At ×4 a 50 ms frame owes 200 ms of sim (20 steps): the cap grows with `speed`, or a slow frame
+  // would drop the speed-up as a stall.
+  const maxStepsPerFrame = Math.ceil(MAX_STEPS_PER_FRAME * speed);
   invariant(Number.isFinite(speed) && speed > 0, 'the loop speed must be a finite number above 0');
   const scheduler = options.scheduler ?? rafScheduler;
   const stats: LoopStats = { stepsLastFrame: 0, droppedBacklogMs: 0, frames: 0 };
@@ -143,23 +147,23 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
     let steps = 0;
     let simPerRealMs = 0;
     if (pause.state === 'running' && !isFrozen) {
-      let dtRealMs = 0;
+      let dtSpedMs = 0;
       if (isGood) {
-        if (hasLastRunning) dtRealMs = atReal - lastRunningAtReal;
+        if (hasLastRunning) dtSpedMs = (atReal - lastRunningAtReal) * speed;
         lastRunningAtReal = atReal;
         hasLastRunning = true;
       }
 
-      // A hitstop eats real time first; rendering goes on meanwhile.
+      // A hitstop eats (sped-up) real time first; rendering goes on meanwhile.
       if (sim.freezeRealMs > 0) {
-        const consumedMs = Math.min(dtRealMs, sim.freezeRealMs);
+        const consumedMs = Math.min(dtSpedMs, sim.freezeRealMs);
         if (consumedMs > 0) sim.consumeFreeze(consumedMs);
-        dtRealMs -= consumedMs;
+        dtSpedMs -= consumedMs;
       }
 
-      accumulatorMs += dtRealMs * speed * sim.timeScale;
+      accumulatorMs += dtSpedMs * sim.timeScale;
 
-      while (accumulatorMs >= STEP_MS && steps < MAX_STEPS_PER_FRAME && sim.freezeRealMs === 0) {
+      while (accumulatorMs >= STEP_MS && steps < maxStepsPerFrame && sim.freezeRealMs === 0) {
         runStep();
         accumulatorMs -= STEP_MS;
         steps++;
@@ -169,7 +173,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
       // Deviation from the literal step 7 of the story: if a freeze is pending too (the last step
       // asked for a hitstop), keep them. A hitstop delays sim time, it does not delete it, and the
       // next frames spend the owed steps after the freeze (a stall is dropped then, if it remains).
-      if (steps === MAX_STEPS_PER_FRAME && accumulatorMs >= STEP_MS && sim.freezeRealMs === 0) {
+      if (steps === maxStepsPerFrame && accumulatorMs >= STEP_MS && sim.freezeRealMs === 0) {
         const remainderMs = accumulatorMs % STEP_MS;
         const droppedMs = accumulatorMs - remainderMs;
         accumulatorMs = remainderMs;

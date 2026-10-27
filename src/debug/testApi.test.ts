@@ -54,7 +54,7 @@ interface FakeSession extends LevelSession {
 async function createRig(options: { eventLogMax?: number } = {}): Promise<Rig> {
   const content = createTestContent();
   const sim = await newSim();
-  // eslint-free fake: the host and the session know each other through these closures.
+  // The fake: the host and the session know each other through these closures.
   const holder: { host?: FakeTestHost } = {};
   const session = {
     active: { sim, level: createTestLevel([outletEntry(2000)]), timeMap: {} as never },
@@ -157,6 +157,9 @@ describe('events(since)', () => {
     const first = api.events();
     expect(first[0]?.t).toBe(STEP_MS);
     expect(api.events()).not.toBe(first);
+    // The events handed out are copies too: rewriting one does not rewrite the log.
+    (first[0] as { t: number }).t = 999;
+    expect(api.events()[0]?.t).toBe(STEP_MS);
   });
 
   it('starts over at each new level: the indices restart at 0', async () => {

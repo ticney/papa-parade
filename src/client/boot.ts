@@ -8,7 +8,7 @@ import { log } from '@shared/log';
 import { ok } from '@shared/result';
 import type { Sim, SimEvent } from '@sim';
 import { Color, Scene, Vector3 } from 'three';
-import { type AppState, createAppFsm } from './app/appFsm.ts';
+import { createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
 import { isTestApiEnabled, readDebugParams } from './app/debugParams.ts';
 import { parseThrowDelayMs } from './app/forcedThrow.ts';
@@ -639,7 +639,6 @@ export async function boot(): Promise<void> {
     testHost = {
       content: content.value,
       levelSession,
-      appState: () => appFsm.state,
       pauseState: () => pause.state,
       setStepHook: (hook) => {
         stepHook = hook;
@@ -647,17 +646,20 @@ export async function boot(): Promise<void> {
       onLevelStarted: (listener) => subscribe(levelStartedListeners, listener),
       onSimEvent: (listener) => subscribe(simEventListeners, listener),
       onGameResumed: (listener) => events.on('GameResumed', listener),
-      onAppStateChanged: (listener: (to: AppState) => void) =>
-        events.on('AppStateChanged', ({ to }) => listener(to)),
       setGameInputBlocked: (isBlocked) => {
         isGameInputBlocked = isBlocked;
       },
     };
     if (params.autoplay !== null) {
-      const { installAutoplay } = await import('@debug/autoplay');
-      const installed = installAutoplay(testHost, params.autoplay);
-      if (installed.ok) isAutoplaying = true;
-      else log.warn('boot', `ignoring ?autoplay=${params.autoplay}: ${installed.error.message}`);
+      try {
+        const { installAutoplay } = await import('@debug/autoplay');
+        const installed = installAutoplay(testHost, params.autoplay);
+        if (installed.ok) isAutoplaying = true;
+        else log.warn('boot', `ignoring ?autoplay=${params.autoplay}: ${installed.error.message}`);
+      } catch (cause) {
+        // A broken debug module must not take the game down: the normal start screen follows.
+        log.warn('boot', 'ignoring ?autoplay: the autoplay module did not load', cause);
+      }
     }
   }
 
@@ -676,8 +678,12 @@ export async function boot(): Promise<void> {
       isDebug: params.isDebug,
     })
   ) {
-    const { installTestApi } = await import('@debug/testApi');
-    installTestApi(window, testHost);
+    try {
+      const { installTestApi } = await import('@debug/testApi');
+      installTestApi(window, testHost);
+    } catch (cause) {
+      log.warn('boot', 'window.__PP__ is not available: the test API module did not load', cause);
+    }
   }
 
   log.info(

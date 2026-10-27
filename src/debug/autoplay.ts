@@ -31,11 +31,14 @@ export function installAutoplay(host: TestHost, botId: string): Result<void, App
       setupFor(host, seed, feel.input.holdMinMs, botResponsesOf(level.threats)),
     );
     if (!made.ok) {
+      // No bot plays this level: give the game back to whoever is holding the device.
       host.setStepHook(null);
+      host.setGameInputBlocked(false);
       log.warn('debug', `autoplay: no bot for this level: ${made.error.message}`);
       return;
     }
     host.setStepHook(stepHookOf(made.value, out));
+    host.setGameInputBlocked(true);
     log.info('debug', `autoplay: ${botId} plays seed ${seed}`);
   });
   return ok(undefined);

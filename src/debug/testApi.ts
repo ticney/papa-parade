@@ -114,7 +114,10 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
       if (!Number.isInteger(since) || since < 0) {
         throw new Error(`__PP__.events: since must be an integer >= 0, got ${since}`);
       }
-      return entries.slice(Math.max(since, firstIndex) - firstIndex);
+      // Copies: a page that rewrites what it got must not rewrite the log.
+      return entries
+        .slice(Math.max(since, firstIndex) - firstIndex)
+        .map((event) => cloneJson(event));
     },
 
     send(cmd) {
@@ -152,6 +155,13 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
       const { levelId, seed, feel } = host.levelSession.current;
       const merged = applyFeelPatch(feel, patch);
       if (!merged.ok) throw new Error(`__PP__.setFeel: ${merged.error.message}`);
+      if (typeof patch === 'object' && patch !== null && 'input' in patch) {
+        // The sim and the bot see the new input section, the player's input mapper keeps the boot one.
+        log.warn(
+          'debug',
+          '__PP__.setFeel: the client input keeps the boot feel until story 2.1 (the sim and the bot use the patch)',
+        );
+      }
       await startAndWait('setFeel', {
         levelId,
         ...(seed === null ? {} : { seed }),

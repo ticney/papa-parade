@@ -1,6 +1,5 @@
 import type { ContentBundle } from '@content/contentBundle';
 import type { Sim, SimEvent } from '@sim';
-import type { AppState } from './appFsm.ts';
 import type { LevelSession, StartedLevel } from './levelSession.ts';
 import type { PauseState } from './pauseController.ts';
 
@@ -12,7 +11,6 @@ import type { PauseState } from './pauseController.ts';
 export interface TestHost {
   readonly content: ContentBundle;
   readonly levelSession: LevelSession;
-  appState(): AppState;
   pauseState(): PauseState;
   /** The hook run before every step of the level loop; `null` removes it. One at a time. */
   setStepHook(hook: ((sim: Sim) => void) | null): void;
@@ -21,7 +19,6 @@ export interface TestHost {
   /** Told each event after the app has handled it (feedback, choreography, mirrors). Do not keep the event. */
   onSimEvent(listener: (event: SimEvent) => void): () => void;
   onGameResumed(listener: () => void): () => void;
-  onAppStateChanged(listener: (to: AppState) => void): () => void;
   /** Set by autoplay: the input mapper sends nothing to the sim while true. */
   setGameInputBlocked(isBlocked: boolean): void;
 }

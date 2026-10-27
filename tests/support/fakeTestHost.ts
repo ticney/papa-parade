@@ -1,4 +1,3 @@
-import type { AppState } from '../../src/client/app/appFsm.ts';
 import type { LevelSession, StartedLevel } from '../../src/client/app/levelSession.ts';
 import type { PauseState } from '../../src/client/app/pauseController.ts';
 import type { TestHost } from '../../src/client/app/testHost.ts';
@@ -16,8 +15,6 @@ export interface FakeTestHost extends TestHost {
   fireLevelStarted(started: StartedLevel): void;
   fireSimEvent(event: SimEvent): void;
   fireGameResumed(): void;
-  fireAppStateChanged(to: AppState): void;
-  setApp(state: AppState): void;
   setPause(state: PauseState): void;
 }
 
@@ -31,11 +28,9 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
   const levelListeners = new Set<(started: StartedLevel) => void>();
   const eventListeners = new Set<(event: SimEvent) => void>();
   const resumedListeners = new Set<() => void>();
-  const stateListeners = new Set<(to: AppState) => void>();
   const calls: string[] = [];
   let stepHook: ((sim: Sim) => void) | null = null;
   let isBlocked = false;
-  let app: AppState = 'start';
   let pause: PauseState = 'running';
 
   const subscribe = <T>(listeners: Set<T>, listener: T): (() => void) => {
@@ -57,7 +52,6 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
   return {
     content,
     levelSession,
-    appState: () => app,
     pauseState: () => pause,
     setStepHook(hook) {
       calls.push(hook === null ? 'hook:off' : 'hook:on');
@@ -66,7 +60,6 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     onLevelStarted: (listener) => subscribe(levelListeners, listener),
     onSimEvent: (listener) => subscribe(eventListeners, listener),
     onGameResumed: (listener) => subscribe(resumedListeners, listener),
-    onAppStateChanged: (listener) => subscribe(stateListeners, listener),
     setGameInputBlocked(next) {
       calls.push(`blocked:${next}`);
       isBlocked = next;
@@ -87,18 +80,8 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     fireGameResumed: () => {
       for (const listener of [...resumedListeners]) listener();
     },
-    fireAppStateChanged: (to) => {
-      app = to;
-      for (const listener of [...stateListeners]) listener(to);
-    },
-    setApp: (state) => {
-      app = state;
-    },
     setPause: (state) => {
       pause = state;
     },
   };
 }
-
-// Re-exported so the tests of the debug modules take everything fake from one place.
-export type { StartedLevel };
