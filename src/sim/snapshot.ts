@@ -4,23 +4,67 @@ import type { World } from './world.ts';
 
 /**
  * The restorable state: `World` only, plus the identity of the sim it came from (a snapshot of
- * another seed or feel is refused on restore). Pending commands are rebuilt from the journal, and
+ * another seed, feel or level geometry is refused on restore). Pending commands are rebuilt from the journal, and
  * freeze is a real-time artefact. Story 1.15 adds the Rapier blob and bumps `version`.
  */
 export interface SimSnapshot {
-  version: 1;
+  /** 2 since story 1.7: the snapshot names the level geometry it was taken on. */
+  version: 2;
   seed: number;
   feelHash: string;
+  geometryHash: string;
   world: World;
 }
 
-export function takeSnapshot(world: World, seed: number, feelHash: string): SimSnapshot {
-  return { version: 1, seed, feelHash, world: cloneJson(world) };
+export function takeSnapshot(
+  world: World,
+  seed: number,
+  feelHash: string,
+  geometryHash: string,
+): SimSnapshot {
+  return { version: 2, seed, feelHash, geometryHash, world: cloneJson(world) };
+}
+
+const PAPA_STATES: readonly unknown[] = ['idle', 'walkPath', 'walkDir'];
+
+function papaProblem(papa: unknown): string | null {
+  if (typeof papa !== 'object' || papa === null) return 'world.papa is missing';
+  const slice = papa as Record<string, unknown>;
+  if (!PAPA_STATES.includes(slice.state)) return 'world.papa.state';
+  for (const key of [
+    'enteredAt',
+    'xM',
+    'zM',
+    'prevXM',
+    'prevZM',
+    'headingX',
+    'headingZ',
+    'dirX',
+    'dirZ',
+  ]) {
+    if (typeof slice[key] !== 'number' || !Number.isFinite(slice[key])) {
+      return `world.papa.${key}`;
+    }
+  }
+  const { path } = slice;
+  if (!Array.isArray(path) || path.length % 2 !== 0) return 'world.papa.path';
+  if (!path.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+    return 'world.papa.path';
+  }
+  if (
+    !Number.isInteger(slice.pathIndex) ||
+    (slice.pathIndex as number) < 0 ||
+    (slice.pathIndex as number) * 2 > path.length
+  ) {
+    return 'world.papa.pathIndex';
+  }
+  if (typeof slice.isBlocked !== 'boolean') return 'world.papa.isBlocked';
+  return null;
 }
 
 function worldProblem(world: unknown): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
-  const { time, rng, nextId } = world as Record<string, unknown>;
+  const { time, rng, nextId, papa } = world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
   if (typeof clock !== 'object' || clock === null) return 'world.time is missing';
   if (typeof clock.sim !== 'number' || !Number.isFinite(clock.sim)) return 'world.time.sim';
@@ -31,14 +75,23 @@ function worldProblem(world: unknown): string | null {
     if (!Number.isInteger(state[key])) return `world.rng.${key}`;
   }
   if (!Number.isInteger(nextId)) return 'world.nextId';
-  return null;
+  return papaProblem(papa);
 }
 
 /** A deep copy of the snapshot's world, ready to become the live one. */
-export function worldFromSnapshot(snapshot: SimSnapshot, seed: number, feelHash: string): World {
-  invariant(snapshot.version === 1, `unsupported snapshot version ${String(snapshot.version)}`);
+export function worldFromSnapshot(
+  snapshot: SimSnapshot,
+  seed: number,
+  feelHash: string,
+  geometryHash: string,
+): World {
+  invariant(snapshot.version === 2, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
+  invariant(
+    snapshot.geometryHash === geometryHash,
+    'the snapshot was taken by a sim with another level geometry',
+  );
   const problem = worldProblem(snapshot.world);
   invariant(problem === null, `invalid snapshot world: ${String(problem)}`);
   return cloneJson(snapshot.world);

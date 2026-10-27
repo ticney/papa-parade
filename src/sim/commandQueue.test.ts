@@ -1,6 +1,6 @@
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
-import { createTestContent, stepN } from '../../tests/support/testContent.ts';
+import { createTestContent, createTestGeometry, stepN } from '../../tests/support/testContent.ts';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import type { SimCommand } from './commands.ts';
 import type { System } from './context.ts';
@@ -65,7 +65,11 @@ describe('createCommandQueue', () => {
 
 describe('commands through the sim', () => {
   async function appliedAtStep(t: number, enqueueAfterSteps = 0): Promise<number> {
-    const sim = await createSim({ content: createTestContent(), seed: 1 });
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      seed: 1,
+    });
     stepN(sim, enqueueAfterSteps);
     sim.enqueue(scale(t));
     for (let i = 1; i < 1000; i++) {
@@ -93,7 +97,11 @@ describe('commands through the sim', () => {
   });
 
   it('after N steps, every command with t <= 10 N has been applied', async () => {
-    const sim = await createSim({ content: createTestContent(), seed: 1 });
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      seed: 1,
+    });
     sim.enqueue(scale(40, 0.4));
     sim.enqueue(scale(41, 0.41));
     stepN(sim, 4);
@@ -103,7 +111,11 @@ describe('commands through the sim', () => {
   });
 
   it('applies two commands of the same step in enqueue order (the last one wins)', async () => {
-    const sim = await createSim({ content: createTestContent(), seed: 1 });
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      seed: 1,
+    });
     sim.enqueue(scale(10, 0.6));
     sim.enqueue(scale(10, 0.7));
     sim.step();
@@ -111,14 +123,22 @@ describe('commands through the sim', () => {
   });
 
   it('records every command in the journal with its applyAt', async () => {
-    const sim = await createSim({ content: createTestContent(), seed: 9 });
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      seed: 9,
+    });
     stepN(sim, 100);
     sim.enqueue(scale(980, 0.5));
     expect(sim.journal().entries).toEqual([{ applyAt: 1010, command: scale(980, 0.5) }]);
   });
 
   it('refuses a command whose t is missing, not finite or not a number', async () => {
-    const sim = await createSim({ content: createTestContent(), seed: 1 });
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      seed: 1,
+    });
     for (const t of [undefined, Number.NaN, Number.POSITIVE_INFINITY, '50']) {
       const bad = { type: 'SetTimeScale', t, scale: 0.5 } as unknown as SimCommand;
       expect(() => sim.enqueue(bad)).toThrow(/invalid command/);
@@ -134,20 +154,25 @@ describe('commands through the sim', () => {
     const mutate: System = (_world, ctx) => {
       for (const command of ctx.commands) (command as { scale: number }).scale = 0.99;
     };
-    const sim = await createSimWithSystems({ content: createTestContent(), seed: 1 }, [
-      ...SYSTEMS,
-      mutate,
-    ]);
+    const sim = await createSimWithSystems(
+      { content: createTestContent(), geometry: createTestGeometry(), seed: 1 },
+      [...SYSTEMS, mutate],
+    );
     sim.enqueue(scale(10, 0.5));
     sim.step();
     expect(sim.journal().entries[0]?.command).toMatchObject({ scale: 0.5 });
   });
 
   it('orders a pre-loaded entry before a new one at the same applyAt', async () => {
-    const source = await createSim({ content: createTestContent(), seed: 1 });
+    const source = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      seed: 1,
+    });
     source.enqueue(scale(10, 0.6));
     const sim = await createSim({
       content: createTestContent(),
+      geometry: createTestGeometry(),
       seed: 1,
       journal: source.journal(),
     });
@@ -157,7 +182,11 @@ describe('commands through the sim', () => {
   });
 
   it('copies the command: mutating it after enqueue changes nothing', async () => {
-    const sim = await createSim({ content: createTestContent(), seed: 1 });
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      seed: 1,
+    });
     const command = scale(10, 0.5) as { t: number; scale: number };
     sim.enqueue(command as SimCommand);
     command.scale = 0.9;

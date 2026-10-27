@@ -1,18 +1,19 @@
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
-import { createTestContent, stepN } from '../../tests/support/testContent.ts';
+import { createTestContent, createTestGeometry, stepN } from '../../tests/support/testContent.ts';
 import { createSim } from './createSim.ts';
 import type { SimEvent } from './events.ts';
 import type { Journal, JournalEntry } from './journal.ts';
 import { replayJournal } from './replay.ts';
 
 const content = createTestContent();
+const geometry = createTestGeometry();
 const scale = (t: number, value: number) =>
   ({ type: 'SetTimeScale', t: asSimMs(t), scale: value }) as const;
 
 async function liveGame() {
-  const sim = await createSim({ content, seed: 11 });
+  const sim = await createSim({ content, geometry, seed: 11 });
   const events: SimEvent[] = [];
   const drain = () => {
     for (const event of sim.drainEvents()) events.push(event);
@@ -32,7 +33,7 @@ describe('replayJournal', () => {
     const journal = live.sim.journal();
     expect(journal.entries.find((e) => e.command.t === 480)?.applyAt).toBe(510);
 
-    const replay = await replayJournal({ content, journal, untilSimMs: 3000 });
+    const replay = await replayJournal({ content, geometry, journal, untilSimMs: 3000 });
     expect(replay.ok).toBe(true);
     if (!replay.ok) return;
     expect(hashJson(replay.value.sim.world)).toBe(hashJson(live.sim.world));
@@ -43,7 +44,7 @@ describe('replayJournal', () => {
   it('would diverge if the late command were replayed by t instead of applyAt', async () => {
     const live = await liveGame();
     const journal = live.sim.journal();
-    const naive = await createSim({ content, seed: 11 });
+    const naive = await createSim({ content, geometry, seed: 11 });
     for (const entry of journal.entries) naive.enqueue(entry.command);
     const naiveEvents: SimEvent[] = [];
     for (let i = 0; i < 300; i++) {
@@ -55,7 +56,12 @@ describe('replayJournal', () => {
 
   it('rounds an untilSimMs that is not a multiple of the step up to the next step', async () => {
     const live = await liveGame();
-    const replay = await replayJournal({ content, journal: live.sim.journal(), untilSimMs: 15 });
+    const replay = await replayJournal({
+      content,
+      geometry,
+      journal: live.sim.journal(),
+      untilSimMs: 15,
+    });
     expect(replay.ok && replay.value.sim.world.time.sim).toBe(20);
   });
 
@@ -77,12 +83,17 @@ describe('replayJournal', () => {
       ['journal must', null],
     ];
     for (const [needle, value] of bad) {
-      const result = await replayJournal({ content, journal: value as Journal, untilSimMs: 100 });
+      const result = await replayJournal({
+        content,
+        geometry,
+        journal: value as Journal,
+        untilSimMs: 100,
+      });
       expect(result).toMatchObject({ ok: false, error: { kind: 'journal' } });
       expect(!result.ok && result.error.message).toContain(needle);
     }
     for (const untilSimMs of [Number.POSITIVE_INFINITY, Number.NaN]) {
-      expect(await replayJournal({ content, journal, untilSimMs })).toMatchObject({
+      expect(await replayJournal({ content, geometry, journal, untilSimMs })).toMatchObject({
         ok: false,
         error: { kind: 'journal' },
       });
@@ -90,17 +101,27 @@ describe('replayJournal', () => {
   });
 
   it('refuses a journal that does not start at 0 (a restored sim)', async () => {
-    const sim = await createSim({ content, seed: 11 });
+    const sim = await createSim({ content, geometry, seed: 11 });
     stepN(sim, 5);
     sim.restore(sim.snapshot());
-    const result = await replayJournal({ content, journal: sim.journal(), untilSimMs: 100 });
+    const result = await replayJournal({
+      content,
+      geometry,
+      journal: sim.journal(),
+      untilSimMs: 100,
+    });
     expect(result).toMatchObject({ ok: false, error: { kind: 'journal' } });
     expect(!result.ok && result.error.message).toContain('starts at 50');
   });
 
   it('stops at untilSimMs', async () => {
     const live = await liveGame();
-    const replay = await replayJournal({ content, journal: live.sim.journal(), untilSimMs: 1000 });
+    const replay = await replayJournal({
+      content,
+      geometry,
+      journal: live.sim.journal(),
+      untilSimMs: 1000,
+    });
     expect(replay.ok && replay.value.sim.world.time.sim).toBe(1000);
   });
 
@@ -108,16 +129,38 @@ describe('replayJournal', () => {
     const journal = (await liveGame()).sim.journal();
     const otherFeel = {
       ...content,
-      feel: { ...content.feel, movement: { glideMaxMs: content.feel.movement.glideMaxMs + 1 } },
+      feel: {
+        ...content.feel,
+        movement: { ...content.feel.movement, glideMaxMs: content.feel.movement.glideMaxMs + 1 },
+      },
     };
-    const feelResult = await replayJournal({ content: otherFeel, journal, untilSimMs: 100 });
+    const feelResult = await replayJournal({
+      content: otherFeel,
+      geometry,
+      journal,
+      untilSimMs: 100,
+    });
     expect(feelResult).toMatchObject({ ok: false, error: { kind: 'journal' } });
 
     const versionResult = await replayJournal({
       content,
-      journal: { ...journal, version: 2 as 1 },
+      geometry,
+      journal: { ...journal, version: 1 as 2 },
       untilSimMs: 100,
     });
-    expect(versionResult).toMatchObject({ ok: false, error: { kind: 'journal' } });
+    expect(versionResult).toMatchObject({
+      ok: false,
+      error: { kind: 'journal', message: expect.stringContaining('version 1') },
+    });
+  });
+
+  it('returns an error for another level geometry, naming it, without throwing', async () => {
+    const journal = (await liveGame()).sim.journal();
+    const other = { ...geometry, id: 'other_room' };
+    const result = await replayJournal({ content, geometry: other, journal, untilSimMs: 100 });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: 'journal', message: expect.stringContaining('other_room') },
+    });
   });
 });

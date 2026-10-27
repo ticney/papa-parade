@@ -15,6 +15,12 @@ import { createPauseController } from './app/pauseController.ts';
 import { bindSurface } from './app/surface.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
+import { createGamepadInput } from './input/gamepadInput.ts';
+import { createHitTester } from './input/hitTest.ts';
+import { createInputMapper } from './input/inputMapper.ts';
+import { bindKeyboard, createHeldKeys } from './input/keyboardInput.ts';
+import { createMoveIntent } from './input/moveIntent.ts';
+import { bindPointer } from './input/pointerInput.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
 import type { LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
@@ -30,6 +36,7 @@ import { createPortraitOverlay } from './ui/screens/portraitOverlay.ts';
 import { createStartScreen } from './ui/screens/startScreen.ts';
 import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
+import { createWorldUi } from './ui/world/worldUi.ts';
 
 function logSimEvent(event: SimEvent): void {
   if (event.type === 'InvariantViolated') {
@@ -94,10 +101,16 @@ export async function boot(): Promise<void> {
   log.info('content', 'content loaded');
 
   const canvas = document.getElementById('pp-canvas');
+  const worldRoot = document.getElementById('pp-world');
   const hudRoot = document.getElementById('pp-hud');
   const uiRoot = document.getElementById('pp-ui');
-  if (!(canvas instanceof HTMLCanvasElement) || hudRoot === null || uiRoot === null) {
-    log.error('boot', 'missing #pp-canvas, #pp-hud or #pp-ui: cannot start the game');
+  if (
+    !(canvas instanceof HTMLCanvasElement) ||
+    worldRoot === null ||
+    hudRoot === null ||
+    uiRoot === null
+  ) {
+    log.error('boot', 'missing #pp-canvas, #pp-world, #pp-hud or #pp-ui: cannot start the game');
     return;
   }
 
@@ -128,9 +141,13 @@ export async function boot(): Promise<void> {
   const drawStatic = (): void => {
     if (appFsm.state !== 'level') renderer.render(currentLevel?.scene ?? backdrop, camera);
   };
+  // The layer of world-anchored UI (the tap marker): sized like the canvas, or the marker would
+  // drift from the tapped point after a resize.
+  const worldUi = createWorldUi(worldRoot);
   const fitViewToCanvas = (): void => {
     const aspect = renderer.resize();
     if (aspect !== null && room !== null) fitIsoCamera(camera, room, aspect);
+    worldUi.setSize(canvas.clientWidth, canvas.clientHeight);
     drawStatic();
   };
   fitViewToCanvas();
@@ -151,7 +168,10 @@ export async function boot(): Promise<void> {
       | 'ppDrawCalls'
       | 'ppTriangles'
       | 'ppGeometries'
-      | 'ppTextures',
+      | 'ppTextures'
+      | 'ppPapaState'
+      | 'ppPapaAt'
+      | 'ppTap',
     value: string,
   ): void => {
     if (document.documentElement.dataset[name] !== value) {
@@ -171,6 +191,29 @@ export async function boot(): Promise<void> {
 
   // The render stats are mirrored once per level, on its first rendered frame.
   let isStatsMirrored = false;
+
+  // Papa's state and position are mirrored on events, never per frame. The position is read from
+  // the live sim (the client only reads the world).
+  const mirrorPapaAt = (): void => {
+    const papa = levelSession.active?.sim.world.papa;
+    if (papa !== undefined) mirror('ppPapaAt', `${papa.xM.toFixed(2)},${papa.zM.toFixed(2)}`);
+  };
+  const mirrorPapaEvent = (event: SimEvent): void => {
+    if (event.type === 'PapaStateChanged') mirror('ppPapaState', event.to);
+    if (
+      event.type === 'PapaStateChanged' ||
+      event.type === 'PapaArrived' ||
+      event.type === 'PapaBlocked'
+    ) {
+      mirrorPapaAt();
+    }
+  };
+  // A new level begins at the spawn, idle, and has had no tap yet.
+  const mirrorNewLevel = (): void => {
+    mirror('ppPapaState', levelSession.active?.sim.world.papa.state ?? 'idle');
+    mirrorPapaAt();
+    delete document.documentElement.dataset.ppTap;
+  };
 
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
@@ -193,6 +236,8 @@ export async function boot(): Promise<void> {
     },
     onLevelFrame: () => {
       shell.frame();
+      inputMapper.pollGamepad();
+      worldUi.render(camera);
       if (isMirrored && !isStatsMirrored) {
         isStatsMirrored = true;
         const { drawCalls, triangles, geometries, textures } = renderer.stats();
@@ -202,7 +247,10 @@ export async function boot(): Promise<void> {
         mirror('ppTextures', String(textures));
       }
     },
-    onSimEvent: logSimEvent,
+    onSimEvent: (event) => {
+      logSimEvent(event);
+      if (isMirrored) mirrorPapaEvent(event);
+    },
     canResumeNow: () => !shell.isPortrait && document.visibilityState !== 'hidden',
     waitForForeground: () => waitForForeground(document),
   });
@@ -241,6 +289,49 @@ export async function boot(): Promise<void> {
   });
   const shell = createUiShell({ events, appFsm, pause, hud, hudBatch, overlayHost });
   shell.bindKeys(window);
+
+  // Input: raw events become typed, timestamped commands in the mapper, and only while a level is
+  // live. Keys and stick are tracked outside that gate so that a resume can send what is held.
+  const heldKeys = createHeldKeys();
+  const readGamepads = (): ArrayLike<Gamepad | null> => {
+    if (typeof navigator.getGamepads === 'function') return navigator.getGamepads();
+    if (!hasWarnedNoGamepads) {
+      hasWarnedNoGamepads = true;
+      log.warn('input', 'the Gamepad API is not available here (insecure context?): no gamepad');
+    }
+    return [];
+  };
+  let hasWarnedNoGamepads = false;
+  const inputMapper = createInputMapper({
+    appFsm,
+    pause,
+    getActive: () => levelSession.active,
+    hitTester: createHitTester(camera),
+    canvasRect: () => canvas.getBoundingClientRect(),
+    held: heldKeys.held,
+    gamepad: createGamepadInput(readGamepads),
+    moveIntent: createMoveIntent({
+      camera,
+      input: content.value.feel.input,
+      send: (command) => levelSession.active?.sim.enqueue(command),
+    }),
+    showTapMarker: (xM, zM) => worldUi.tapMarker.showAt(xM, zM),
+    onTap: (xM, zM) => {
+      if (isMirrored) mirror('ppTap', `${xM.toFixed(2)},${zM.toFixed(2)}`);
+    },
+    nowAtReal: () => performance.now(),
+  });
+  bindPointer(canvas, (sample) => inputMapper.handlePointerDown(sample));
+  bindKeyboard(heldKeys, window, document, {
+    onChange: (timeStampAtReal) => inputMapper.onKeysChanged(timeStampAtReal),
+    isLive: () => inputMapper.isLive(),
+  });
+  events.on('GameResumed', () => inputMapper.resync());
+  events.on('AppStateChanged', ({ to }) => {
+    if (to !== 'level') return;
+    inputMapper.resync();
+    if (isMirrored) mirrorNewLevel();
+  });
 
   // Subscribers are in place: the bindings below can emit.
   bindOrientation(matchMedia('(orientation: portrait)'), (isPortrait) => {

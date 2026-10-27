@@ -1,4 +1,5 @@
 import type { ContentBundle } from '@content/contentBundle';
+import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
@@ -12,6 +13,7 @@ import {
   type JournalEntry,
   journalProblem,
 } from './journal.ts';
+import { createNavGrid, type NavGrid } from './nav/navGrid.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
 import { consumeFreeze, createFreezeState, requestFreeze } from './time/hitstop.ts';
@@ -19,9 +21,14 @@ import { createWorld, type World } from './world.ts';
 
 export interface CreateSimOptions {
   content: ContentBundle;
+  /**
+   * The level's geometry (fetched per level, not part of `ContentBundle`). A journal or snapshot
+   * carries its hash and is refused on another room. Needed because a sim without a room has no Papa.
+   */
+  geometry: LevelGeometry;
   /** An integer in `[0, 2**32)`. */
   seed: number;
-  /** Replay mode: pre-loads these entries, with their recorded `applyAt`. Needs the same seed and feel. */
+  /** Replay mode: pre-loads these entries, with their recorded `applyAt`. Needs the same seed, feel and geometry. */
   journal?: Journal;
   /** Throw on an invariant violation (default: yes, except in a `vite build`). */
   strictInvariants?: boolean;
@@ -46,7 +53,7 @@ export interface Sim {
   snapshot(): SimSnapshot;
   /**
    * Replaces the world with a copy of the snapshot's (refused if it was taken by a sim with
-   * another seed or feel), and clears pending commands, events and freeze. The journal restarts
+   * another seed, feel or geometry), and clears pending commands, events and freeze. The journal restarts
    * from the snapshot time (`startSimMs`) and holds `tail`: the journal entries still to apply,
    * with their recorded `applyAt` (each must be later than the snapshot time). Re-enqueueing them
    * through `enqueue` would recompute `applyAt` and could apply a late command too early.
@@ -56,19 +63,40 @@ export interface Sim {
   journal(): Journal;
 }
 
+/**
+ * Where Papa starts: the `papa_spawn` anchor, moved to the centre of the nearest open cell of his
+ * grid if his clearance closes it. A level where he has nowhere to stand is a broken level.
+ */
+function papaSpawnOf(geometry: LevelGeometry, grid: NavGrid): { xM: number; zM: number } {
+  const anchor = geometry.anchors.find((candidate) => candidate.id === 'papa_spawn');
+  invariant(anchor !== undefined, `level ${geometry.id} has no papa_spawn anchor`);
+  const xM = anchor.positionM[0];
+  const zM = anchor.positionM[2];
+  if (grid.isOpenAt(xM, zM)) return { xM, zM };
+  const cell = grid.nearestOpenCell(xM, zM, -1);
+  invariant(cell >= 0, `level ${geometry.id} has no cell where Papa can stand`);
+  return { xM: grid.centerXM(cell), zM: grid.centerZM(cell) };
+}
+
 /** Internal factory: tests inject extra systems here. The public API is {@link createSim}. */
 export async function createSimWithSystems(
   options: CreateSimOptions,
   systems: readonly System[],
 ): Promise<Sim> {
-  const { content, seed, journal: source } = options;
-  let world = createWorld(seed);
+  const { content, geometry, seed, journal: source } = options;
   const feelHash = hashJson(content.feel);
+  const geometryHash = hashJson(geometry);
+  const papaGrid = createNavGrid(geometry, content.feel.movement.papaRadiusM);
+  let world = createWorld(seed, papaSpawnOf(geometry, papaGrid));
   if (source) {
     const problem = journalProblem(source);
     invariant(problem === null, `invalid journal: ${String(problem)}`);
     invariant(source.seed === seed, 'the journal was recorded with another seed');
     invariant(source.feelHash === feelHash, 'the journal was recorded with another feel');
+    invariant(
+      source.geometryHash === geometryHash,
+      'the journal was recorded with another level geometry',
+    );
     invariant(source.startSimMs === 0, 'only a journal recorded from the start can be replayed');
   }
 
@@ -84,6 +112,7 @@ export async function createSimWithSystems(
     events,
     queue,
     commands: [],
+    nav: { papa: papaGrid },
     strictInvariants: options.strictInvariants ?? defaultStrictInvariants(),
     get t() {
       return world.time.sim;
@@ -130,10 +159,10 @@ export async function createSimWithSystems(
       consumeFreeze(freeze, realMs);
     },
     snapshot() {
-      return takeSnapshot(world, seed, feelHash);
+      return takeSnapshot(world, seed, feelHash, geometryHash);
     },
     restore(snapshot, tail = []) {
-      const restored = worldFromSnapshot(snapshot, seed, feelHash);
+      const restored = worldFromSnapshot(snapshot, seed, feelHash, geometryHash);
       for (const entry of tail) {
         const problem = entryProblem(entry);
         invariant(problem === null, `invalid journal entry: ${String(problem)}`);
@@ -153,7 +182,7 @@ export async function createSimWithSystems(
       for (const entry of tail) record(entry);
     },
     journal() {
-      const copy = createJournal(seed, feelHash, startSimMs);
+      const copy = createJournal(seed, feelHash, geometryHash, startSimMs);
       copy.entries = cloneJson(entries);
       return copy;
     },

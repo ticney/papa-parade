@@ -7,6 +7,7 @@ import {
   sceneShot,
   setVisibility,
   startLevel,
+  startWalking,
   waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
@@ -19,12 +20,15 @@ test('pauses in the background, stays paused when back, and resumes through the 
   page,
 }) => {
   await startLevel(page);
+  await startWalking(page);
 
-  // 1. The loop steps and the renderer draws: the probe cube moves.
+  // 1. The loop steps and the renderer draws: Papa walks.
   const firstShot = await sceneShot(page);
   await expect
-    .poll(async () => (await sceneShot(page)).equals(firstShot), { message: 'the cube moves' })
+    .poll(async () => (await sceneShot(page)).equals(firstShot), { message: 'Papa walks' })
     .toBe(false);
+  // Still on his way when the game is paused: what moves again after the resume is the walk.
+  await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkPath');
 
   // 2. Going to the background pauses, opens the panel, and nothing moves any more.
   await setVisibility(page, 'hidden');
@@ -79,7 +83,7 @@ test('pauses in the background, stays paused when back, and resumes through the 
   // 5. The sim runs again after the resume.
   await expect
     .poll(async () => (await sceneShot(page)).equals(pausedShot), {
-      message: 'the cube moves again after the resume',
+      message: 'Papa walks again after the resume',
     })
     .toBe(false);
 });

@@ -240,8 +240,16 @@ body {
 }
 
 /* ---------------------------------------------------------------------------------------------
-   Layers: canvas < #pp-hud < #pp-ui (start, pause veil and panel, countdown, portrait)
+   Layers: canvas < #pp-world < #pp-hud < #pp-ui (start, pause veil and panel, countdown, portrait)
    --------------------------------------------------------------------------------------------- */
+#pp-world {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 #pp-hud {
   position: fixed;
   inset: 0;
@@ -541,6 +549,28 @@ body {
   .pp-button {
     transition: none;
   }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   World-anchored UI (#pp-world). The tap marker: a paper ring with an ink outline on both sides
+   (hard spreads, no blur), about 40px. The outer box is placed by the CSS2DRenderer; the ring is
+   scaled and faded by the Web Animations API from the TAP_MARKER_* constants, not from here.
+   --------------------------------------------------------------------------------------------- */
+.pp-tap-marker {
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+}
+
+.pp-tap-marker-ring {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 4px solid var(--pp-color-paper);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px var(--pp-color-ink),
+    inset 0 0 0 3px var(--pp-color-ink);
 }
 
 /*

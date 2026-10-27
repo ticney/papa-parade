@@ -1,0 +1,31 @@
+{
+  "untilSimMs": 15000,
+  "worldHash": "0e301ffc1511d0",
+  "eventTypes": [
+    "PapaPathPlanned",
+    "PapaStateChanged",
+    "PapaArrived",
+    "PapaStateChanged",
+    "PapaPathPlanned",
+    "PapaStateChanged",
+    "PapaArrived",
+    "PapaStateChanged",
+    "PapaPathPlanned",
+    "PapaStateChanged",
+    "PapaArrived",
+    "PapaStateChanged",
+    "PapaStateChanged",
+    "PapaBlocked",
+    "PapaStateChanged",
+    "PapaPathPlanned",
+    "PapaStateChanged",
+    "PapaStateChanged",
+    "PapaPathPlanned",
+    "PapaStateChanged",
+    "PapaArrived",
+    "PapaStateChanged",
+    "PapaStateChanged",
+    "PapaStateChanged"
+  ],
+  "eventsHash": "0b41c061f675b6"
+}

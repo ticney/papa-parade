@@ -14,10 +14,14 @@
     "holdMinMs": 400,
     "earlyPress": "fail",
     "touchRadiusPx": 48,
-    "autoTargetConeDeg": 60
+    "autoTargetConeDeg": 60,
+    "stickDeadzonePct": 20,
+    "stickAngleStepDeg": 5
   },
   "movement": {
-    "glideMaxMs": 600
+    "glideMaxMs": 600,
+    "walkSpeedMps": 3,
+    "papaRadiusM": 0.25
   },
   "fatigue": {
     "perSec": 0.5,

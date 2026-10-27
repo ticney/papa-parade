@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { hashJson } from '@shared/hash';
 import { type Journal, replayJournal } from '@sim';
 import { describe, expect, it } from 'vitest';
-import { createTestContent } from '../support/testContent.ts';
+import { createTestContent, createTestGeometry } from '../support/testContent.ts';
 import { recordScenario, SCENARIOS, summarize } from './scenarios.ts';
 
 const journalsDir = join(dirname(fileURLToPath(import.meta.url)), 'journals');
@@ -12,6 +12,7 @@ const UPDATE = process.env.GOLDEN_UPDATE === '1';
 // `CI=false` or an empty value is not a CI: only a truthy-looking value counts.
 const ON_CI = !['', '0', 'false'].includes(process.env.CI ?? '');
 const content = createTestContent();
+const geometry = createTestGeometry();
 
 if (UPDATE && ON_CI) {
   throw new Error(
@@ -34,7 +35,7 @@ describe.each(SCENARIOS)('golden: $name', (scenario) => {
 
   if (UPDATE) {
     it('regenerates the references (GOLDEN_UPDATE=1)', async () => {
-      const recording = await recordScenario(content, scenario);
+      const recording = await recordScenario(content, geometry, scenario);
       writeJson(journalFile, recording.journal);
       writeJson(
         expectedFile,
@@ -45,14 +46,19 @@ describe.each(SCENARIOS)('golden: $name', (scenario) => {
   }
 
   it('recording the scenario again gives exactly the committed journal', async () => {
-    const recording = await recordScenario(content, scenario);
+    const recording = await recordScenario(content, geometry, scenario);
     expect(recording.journal).toEqual(readJson<Journal>(journalFile));
   });
 
   it('replaying the committed journal gives the committed hash and events', async () => {
     const journal = readJson<Journal>(journalFile);
     const expected = readJson<ReturnType<typeof summarize>>(expectedFile);
-    const replay = await replayJournal({ content, journal, untilSimMs: expected.untilSimMs });
+    const replay = await replayJournal({
+      content,
+      geometry,
+      journal,
+      untilSimMs: expected.untilSimMs,
+    });
     expect(replay.ok).toBe(true);
     if (!replay.ok) return;
     const actual = summarize(
@@ -64,9 +70,10 @@ describe.each(SCENARIOS)('golden: $name', (scenario) => {
   });
 
   it('the live run and the replay agree', async () => {
-    const recording = await recordScenario(content, scenario);
+    const recording = await recordScenario(content, geometry, scenario);
     const replay = await replayJournal({
       content,
+      geometry,
       journal: recording.journal,
       untilSimMs: scenario.untilSimMs,
     });

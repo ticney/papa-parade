@@ -1,0 +1,118 @@
+{
+  "version": 2,
+  "seed": 7,
+  "feelHash": "11c94b4b1edd46",
+  "geometryHash": "05334996ba4b2c",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "t": 0,
+        "type": "TapFloor",
+        "xM": 0.5,
+        "zM": -2.6
+      }
+    },
+    {
+      "applyAt": 610,
+      "command": {
+        "t": 600,
+        "type": "MoveStop"
+      }
+    },
+    {
+      "applyAt": 3010,
+      "command": {
+        "t": 3000,
+        "type": "TapFloor",
+        "xM": 0.5,
+        "zM": -1.7
+      }
+    },
+    {
+      "applyAt": 4510,
+      "command": {
+        "t": 4500,
+        "type": "TapFloor",
+        "xM": 10,
+        "zM": 10
+      }
+    },
+    {
+      "applyAt": 8010,
+      "command": {
+        "dirX": 1,
+        "dirZ": 0,
+        "t": 8000,
+        "type": "Move"
+      }
+    },
+    {
+      "applyAt": 8510,
+      "command": {
+        "dirX": -1,
+        "dirZ": 1,
+        "t": 8500,
+        "type": "Move"
+      }
+    },
+    {
+      "applyAt": 9510,
+      "command": {
+        "t": 9500,
+        "type": "MoveStop"
+      }
+    },
+    {
+      "applyAt": 10010,
+      "command": {
+        "t": 10000,
+        "type": "TapFloor",
+        "xM": -2,
+        "zM": 0
+      }
+    },
+    {
+      "applyAt": 10410,
+      "command": {
+        "t": 10400,
+        "type": "MoveStop"
+      }
+    },
+    {
+      "applyAt": 11010,
+      "command": {
+        "dirX": 0,
+        "dirZ": -1,
+        "t": 11000,
+        "type": "Move"
+      }
+    },
+    {
+      "applyAt": 11410,
+      "command": {
+        "t": 11400,
+        "type": "TapFloor",
+        "xM": 2.5,
+        "zM": 1.5
+      }
+    },
+    {
+      "applyAt": 13010,
+      "command": {
+        "dirX": -1,
+        "dirZ": -0.5,
+        "t": 12987.3,
+        "type": "Move"
+      }
+    },
+    {
+      "applyAt": 13410,
+      "command": {
+        "t": 13400,
+        "type": "MoveStop"
+      }
+    }
+  ]
+}

@@ -12,7 +12,9 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 
 // AC 1 lists the suffixes. The bare `fatigue.perSec` is the one documented exception (Dev Notes ›
 // Feel keys): the group name `fatigue` already carries the quantity.
-const UNIT_SUFFIX = /(?:Ms|Pct|PerSec|Mps|Deg|Px|Scale|Multiplier|Points|Count|Stars)$|^perSec$/;
+// `[a-z]M` is metres (`papaRadiusM`): the capital M of `Ms` is not enough, a lone `M` needs a letter before it.
+const UNIT_SUFFIX =
+  /(?:Ms|Pct|PerSec|Mps|Deg|Px|Scale|Multiplier|Points|Count|Stars|[a-z]M)$|^perSec$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -90,6 +92,12 @@ describe('content/feel.json', () => {
     ['a percentage above 100', [['fatigue.windowPenaltyPct', 120]], ['fatigue.windowPenaltyPct']],
     ['a negative duration', [['movement.glideMaxMs', -1]], ['movement.glideMaxMs']],
     ['a non-integer count', [['instinct.missesCount', 1.5]], ['instinct.missesCount']],
+    ['a walking speed of 0', [['movement.walkSpeedMps', 0]], ['movement.walkSpeedMps']],
+    ['a negative papa radius', [['movement.papaRadiusM', -0.1]], ['movement.papaRadiusM']],
+    ['a stick deadzone of 100 %', [['input.stickDeadzonePct', 100]], ['input.stickDeadzonePct']],
+    ['a negative stick deadzone', [['input.stickDeadzonePct', -1]], ['input.stickDeadzonePct']],
+    ['a stick angle step of 0', [['input.stickAngleStepDeg', 0]], ['input.stickAngleStepDeg']],
+    ['a stick angle step above 90', [['input.stickAngleStepDeg', 91]], ['input.stickAngleStepDeg']],
     ['a missing group', [['movement', undefined]], ['movement']],
     ['a missing key', [['timing.windowMs', undefined]], ['timing.windowMs']],
   ])('rejects %s', (_name, changes, expected) => {

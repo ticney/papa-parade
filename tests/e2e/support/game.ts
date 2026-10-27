@@ -53,12 +53,12 @@ export function setVisibility(page: Page, visibilityState: 'hidden' | 'visible')
 }
 
 /**
- * A screenshot of the canvas alone: the DOM layers (HUD, panels, countdown) are hidden while it is
- * taken, so "nothing moved" means the scene, not an animation of the interface.
+ * A screenshot of the canvas alone: the DOM layers (tap marker, HUD, panels, countdown) are hidden
+ * while it is taken, so "nothing moved" means the scene, not an animation of the interface.
  */
 export function sceneShot(page: Page): Promise<Buffer> {
   return page.locator('#pp-canvas').screenshot({
-    style: '#pp-hud, #pp-ui { visibility: hidden !important }',
+    style: '#pp-world, #pp-hud, #pp-ui { visibility: hidden !important }',
     animations: 'disabled',
   });
 }
@@ -200,4 +200,85 @@ export function appHistory(page: Page): Promise<string[]> {
   return page.evaluate(() => [
     ...(window as unknown as { __ppAppHistory: string[] }).__ppAppHistory,
   ]);
+}
+
+/** A point of the canvas, as shares of its width and height (0 to 1), in page coordinates. */
+export async function canvasPoint(
+  page: Page,
+  shareX: number,
+  shareY: number,
+): Promise<{ x: number; y: number }> {
+  const box = await page.locator('#pp-canvas').boundingBox();
+  if (box === null) throw new Error('the canvas has no box');
+  return { x: box.x + box.width * shareX, y: box.y + box.height * shareY };
+}
+
+/**
+ * Taps the canvas at 50 % of its width and 25 % of its height, a point of the floor far enough from
+ * the spawn for a walk of a few seconds, and waits for Papa to follow the path. Tests that need the
+ * scene to change over time (a pause, a countdown) use it instead of a provisional moving cube.
+ */
+export async function startWalking(page: Page): Promise<void> {
+  const { x, y } = await canvasPoint(page, 0.5, 0.25);
+  await page.touchscreen.tap(x, y);
+  await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkPath');
+}
+
+/** Papa's position as last mirrored (on a change of state, an arrival or a block), in metres. */
+export async function papaAt(page: Page): Promise<{ x: number; z: number }> {
+  const value = await html(page).getAttribute('data-pp-papa-at');
+  const match = /^(-?\d+\.\d+),(-?\d+\.\d+)$/.exec(value ?? '');
+  if (match === null) throw new Error(`data-pp-papa-at is "${String(value)}", not "x,z"`);
+  return { x: Number(match[1]), z: Number(match[2]) };
+}
+
+/**
+ * Replaces `navigator.getGamepads` before the page loads, with one standard pad that the test
+ * drives through `setStick` and unplugs with `setPadPresent(false)`. Call it before `startLevel`.
+ */
+export async function stubGamepad(page: Page): Promise<{
+  setStick(x: number, y: number): Promise<void>;
+  setPadPresent(isPresent: boolean): Promise<void>;
+}> {
+  await page.addInitScript(() => {
+    const state = { isPresent: false, axes: [0, 0, 0, 0] };
+    Object.assign(window, { ppPad: state });
+    Object.defineProperty(navigator, 'getGamepads', {
+      configurable: true,
+      value: () => (state.isPresent ? [{ connected: true, axes: state.axes }] : [null]),
+    });
+  });
+  return {
+    setStick: (x, y) =>
+      page.evaluate(
+        ([axisX, axisY]) => {
+          const state = (window as unknown as { ppPad: { isPresent: boolean; axes: number[] } })
+            .ppPad;
+          state.isPresent = true;
+          state.axes = [axisX as number, axisY as number, 0, 0];
+        },
+        [x, y],
+      ),
+    setPadPresent: (isPresent) =>
+      page.evaluate((next) => {
+        (window as unknown as { ppPad: { isPresent: boolean } }).ppPad.isPresent = next;
+      }, isPresent),
+  };
+}
+
+/** Dispatches a key event with a given `key` and `code`, as an AZERTY or QWERTY keyboard would. */
+export function pressCode(
+  page: Page,
+  type: 'keydown' | 'keyup',
+  key: string,
+  code: string,
+): Promise<void> {
+  return page.evaluate(
+    ([eventType, eventKey, eventCode]) => {
+      window.dispatchEvent(
+        new KeyboardEvent(eventType as string, { key: eventKey, code: eventCode }),
+      );
+    },
+    [type, key, code],
+  );
 }

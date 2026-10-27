@@ -1,4 +1,8 @@
-import { TIME_MAP_CAPACITY, TIME_MAP_HISTORY_MS } from '@shared/constants';
+import {
+  TIME_MAP_CAPACITY,
+  TIME_MAP_HISTORY_MS,
+  TIME_MAP_MAX_EXTRAPOLATION_MS,
+} from '@shared/constants';
 import type { LogChannel } from '@shared/log';
 import { asRealMs, asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
@@ -84,7 +88,26 @@ describe('createTimeMap › realToSim', () => {
       [200, 100, 1],
       [300, 200, 1],
     ]);
-    expect(at(map, 450)).toBeCloseTo(350, 9);
+    expect(at(map, 350)).toBeCloseTo(250, 9);
+  });
+
+  it('caps the extrapolation at TIME_MAP_MAX_EXTRAPOLATION_MS past the newest record, with a warning', () => {
+    const { map, warnings } = build([
+      [200, 100, 1],
+      [300, 200, 1],
+    ]);
+    expect(at(map, 300 + TIME_MAP_MAX_EXTRAPOLATION_MS)).toBeCloseTo(
+      200 + TIME_MAP_MAX_EXTRAPOLATION_MS,
+      9,
+    );
+    expect(warnings).toEqual([]); // exactly at the cap is still fine
+    expect(at(map, 5000)).toBeCloseTo(200 + TIME_MAP_MAX_EXTRAPOLATION_MS, 9);
+    expect(warnings).toEqual([{ channel: 'input', message: expect.stringContaining('capped') }]);
+  });
+
+  it("caps at the newest record's rate, so a slow-motion tail is capped in sim time too", () => {
+    const { map } = build([[300, 160, 0.3]]);
+    expect(at(map, 10_000)).toBeCloseTo(160 + TIME_MAP_MAX_EXTRAPOLATION_MS * 0.3, 9);
   });
 
   it('does not move after the newest record when that record is frozen or paused (rate 0)', () => {

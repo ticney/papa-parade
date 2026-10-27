@@ -6,7 +6,7 @@ import { asRealMs, asSimMs } from '@shared/time';
 import { createSim, type Sim, type SimEvent } from '@sim';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createFakeScheduler } from '../../tests/support/fakeScheduler.ts';
-import { createTestContent } from '../../tests/support/testContent.ts';
+import { createTestContent, createTestGeometry } from '../../tests/support/testContent.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
 import { createPauseController } from './app/pauseController.ts';
 import { createGameLoop } from './loop.ts';
@@ -84,7 +84,9 @@ function createSimDouble(real: Sim) {
 }
 
 async function createRig(options: { warnings?: string[] } = {}) {
-  const double = createSimDouble(await createSim({ content: createTestContent(), seed: 1 }));
+  const double = createSimDouble(
+    await createSim({ content: createTestContent(), geometry: createTestGeometry(), seed: 1 }),
+  );
   const scheduler = createFakeScheduler();
   const events = createEmitter<ClientEvents>();
   const pause = createPauseController({ events });
@@ -411,7 +413,9 @@ describe('createGameLoop › failure and lifecycle', () => {
   });
 
   it('keeps a single chain of frames when a frame stops and restarts the loop', async () => {
-    const double = createSimDouble(await createSim({ content: createTestContent(), seed: 1 }));
+    const double = createSimDouble(
+      await createSim({ content: createTestContent(), geometry: createTestGeometry(), seed: 1 }),
+    );
     const scheduler = createFakeScheduler();
     const pause = createPauseController({ events: createEmitter<ClientEvents>() });
     let restartOnce = true;
@@ -449,7 +453,9 @@ describe('createGameLoop › failure and lifecycle', () => {
   });
 
   it('does not request another frame when render calls stop()', async () => {
-    const double = createSimDouble(await createSim({ content: createTestContent(), seed: 1 }));
+    const double = createSimDouble(
+      await createSim({ content: createTestContent(), geometry: createTestGeometry(), seed: 1 }),
+    );
     const scheduler = createFakeScheduler();
     const pause = createPauseController({ events: createEmitter<ClientEvents>() });
     const loop = createGameLoop({
@@ -490,7 +496,9 @@ describe('createGameLoop › failure and lifecycle', () => {
     vi.stubGlobal('cancelAnimationFrame', (handle: number) => {
       cancelled.push(handle);
     });
-    const double = createSimDouble(await createSim({ content: createTestContent(), seed: 1 }));
+    const double = createSimDouble(
+      await createSim({ content: createTestContent(), geometry: createTestGeometry(), seed: 1 }),
+    );
     const loop = createGameLoop({
       sim: double.sim,
       timeMap: createTimeMap(),

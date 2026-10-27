@@ -17,6 +17,7 @@ import {
   sceneShot,
   settleAnimations,
   startLevel,
+  startWalking,
   waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
@@ -262,6 +263,9 @@ test.describe('pause', () => {
     page,
   }) => {
     await startLevel(page);
+    await startWalking(page);
+    // Still on his way when the game is paused: what moves again after the countdown is the walk.
+    await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkPath');
     await pauseWithEscape(page);
     const stillShot = await sceneShot(page);
 

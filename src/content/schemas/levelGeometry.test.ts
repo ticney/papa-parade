@@ -1,3 +1,4 @@
+import { NAV_CELL_M } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import { REQUIRED_ANCHOR_IDS } from '../levelNodeNames.ts';
 import { parseContentFile } from '../parseContentFile.ts';
@@ -48,6 +49,15 @@ describe('LevelGeometrySchema', () => {
     const level = goodLevel();
     level.colliders[0] = { ...(level.colliders[0] as object), id: 'Sofa' } as never;
     expect(problems(level)).toEqual([expect.stringContaining('colliders[0].id')]);
+  });
+
+  it('accepts the cell size of the sim and refuses any other', () => {
+    expect(problems({ ...goodLevel(), cellM: NAV_CELL_M })).toEqual([]);
+    for (const cellM of [0.5, 0.125, 0, -0.25]) {
+      expect(problems({ ...goodLevel(), cellM })).toEqual([
+        expect.stringContaining('cellM must be 0.25'),
+      ]);
+    }
   });
 
   it('refuses a duplicate id in a list', () => {

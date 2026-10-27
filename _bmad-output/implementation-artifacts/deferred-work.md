@@ -34,14 +34,14 @@
 
 ## Deferred from: code review of story 1-3-coeur-de-simulation-deterministe-en-headless (2026-10-27)
 
-- **`cloneJson` normalises `-0` to `0`.** A restored world can differ from the live one where the sign of zero matters (`Math.atan2`, `1/x`). Latent: the sim has no float math yet. Decide with the first movement code (story 1.7).
+- **`cloneJson` normalises `-0` to `0`.** A restored world can differ from the live one where the sign of zero matters (`Math.atan2`, `1/x`). Latent: the sim has no float math yet. Decide with the first movement code (story 1.7). **Resolved in story 1.7** (D15): nothing in the sim depends on the sign of zero (`Math.sqrt` only, no `Math.hypot`, no trigonometry, no `1/x`; a `Move` direction is normalised with `+ 0`), and the mid-walk snapshot test proves a restored world equals the live one.
 - **The golden scenario never touches the rng or ids.** `core_basic` only sends `SetTimeScale`, and the determinism test compares two runs of the same process. The first gameplay golden (story 1.10) must exercise rng, ids and events.
 - **Invariant strictness follows the build.** A playtest build (`PROD`) clamps what dev and CI throw on, and a journal recorded in one mode replays differently in the other. Matches the architecture; story 3.3 should record the mode in the exported journal.
 
 ## Deferred from: creation of story 1-4-boucle-client-vue-isometrique-et-pause-exacte (2026-10-27)
 
 - **Adaptive DPR** (2 → 1.5 → 1 on mean frame time). `pixelRatioFor` only caps at `MAX_PIXEL_RATIO`. Story 1.24, with the performance budget.
-- **Interpolation of entity views** (`render/interpolate.ts`, previous and current state). `alpha` only feeds the probe cube today. Story 1.7, with the first moving entity.
+- **Interpolation of entity views** (`render/interpolate.ts`, previous and current state). `alpha` only feeds the probe cube today. Story 1.7, with the first moving entity. **Resolved in story 1.7:** `render/interpolate.ts` (`lerp`, `interpolateXZ`) feeds `papaView`, from the sim's `prevXM` / `prevZM` (D11).
 - **`Platform.lifecycle`** replacing the direct `visibilitychange` listener, and Capacitor's app-state event. When `src/platform` is created, and in E8.
 - **Forbid `@shared/emitter` in `src/sim`** with a Biome pattern and a scanner rule (like R3b for `@shared/log`). Add it if a second client-only shared module appears.
 - **The « Oups » screen**, the player-facing fallback for a renderer or content failure, and restarting the level after an uncaught error. Story 1.6. **Resolved in story 1.6** for a failed level load and an uncaught exception (`oops → loading`, « Réessayer », `?throwAfterMs` e2e); the renderer and boot-time content failures stay open (see story 1.2's item).
@@ -56,7 +56,7 @@
 
 ## Deferred from: code review of story 1-4-boucle-client-vue-isometrique-et-pause-exacte (2026-10-27)
 
-- **`timeMap.realToSim` extrapolates without a bound.** A pause that starts between two frames (hidden tab: rAF stops, so no rate-0 record is written) leaves the newest record at rate 1, and a query before the next frame maps up to the hidden duration into the sim future. No caller yet. Decide with the first caller (stories 1.7 / 1.11): record a rate-0 point on `PauseRequested`, or cap the extrapolation to a couple of frames.
+- **`timeMap.realToSim` extrapolates without a bound.** A pause that starts between two frames (hidden tab: rAF stops, so no rate-0 record is written) leaves the newest record at rate 1, and a query before the next frame maps up to the hidden duration into the sim future. No caller yet. Decide with the first caller (stories 1.7 / 1.11): record a rate-0 point on `PauseRequested`, or cap the extrapolation to a couple of frames. **Resolved in story 1.7** (D14): the extrapolation is capped at `TIME_MAP_MAX_EXTRAPOLATION_MS` (100) with a `warn`; the input mapper's gate (only a running level) is the first line of defence.
 - **Only the first pause reason is kept.** `requestPause` returns early when already `paused`, so `portrait` then `gamepadDisconnected` loses the second and the player can resume while it still holds. Story 1.5 needs a set of reasons (and a `blockedBy` for the resume). **Resolved in story 1.5 for portrait:** portrait is a UI flag (`isPortrait`), not a pause reason; the overlay is derived from it and no code path resumes while it is true (Escape included). The set of reasons is still needed for the gamepad (story 1.17).
 - **WebGL context loss and teardown.** Context loss is only logged (the loop keeps stepping into a dead context); `GameRenderer.dispose()` lacks `forceContextLoss()` and `ProvisionalScene` has no `dispose()`. Story 1.6 (« Oups » screen, level reload). **Partly resolved in story 1.6:** `LevelScene.dispose()` frees geometries, materials and textures and runs on every level replacement. The context-loss handling and `forceContextLoss()` stay open.
 - **No listener isolation in `Emitter.emit`.** A throwing listener skips the next ones and ends the loop (D4 fail-stop). Fine while listeners are internal; decide with story 1.9 (audio, `FeedbackDirector`).
@@ -90,7 +90,7 @@
 - **Preloading the level while the start screen shows, and a cache of parsed assets across restarts.** At `start` the canvas shows an empty ink backdrop; the room appears after the first gesture, behind the loading screen (D6). Every « Recommencer » reloads the level (D7). Revisit with real assets (E7) or if Geo wants the room behind the title.
 - **No drift check between the `.blend` / raw export and the committed geometry.** The shipped `.glb` is optimised, so it cannot be re-extracted; a stale `salon_crawler.geometry.json` is only caught by re-running `assets:export` → `assets:extract` → `assets:optimize`. A source hash written by the extractor, checked against the `.blend`, is the next step if this bites.
 - **Collision, navigation, zone and anchor nodes still ship in the `.glb`** (D4) and `PROP_*` stay static meshes. Story 1.15 replaces the props with pooled physics views; if the extra nodes ever matter, `export_level.py` can write a second file.
-- **The sim does not read the geometry yet.** Navigation, colliders and zones reach it in stories 1.7, 1.10 and 1.21; the schema type lives in `@content` for that.
+- **The sim does not read the geometry yet.** Navigation, colliders and zones reach it in stories 1.7, 1.10 and 1.21; the schema type lives in `@content` for that. **Partly resolved in story 1.7:** `createSim` takes the geometry (D1) and reads its navigation grid for Papa; colliders and zones stay for stories 1.10, 1.15 and 1.21.
 - **Only axis-aligned and 90° boxes** for `COL_`, `NAV_`, `ZONE_` (D3): the extractor refuses any other rotation. Convex or rotated colliders come with a story that needs them.
 - **Debug views of navigation, colliders and anchors:** story 2.1 (the client removes those nodes after loading).
 - **The `.blend` was built through Blender MCP and is reproducible only from the committed file.** There is no script that regenerates it from scratch; Geo edits it in Blender and re-runs the three `assets:*` commands.
@@ -103,4 +103,14 @@
 - **Loading screen polish.** `role="status"` with `aria-live="polite"` re-announces every rotating line; the 5 s bottle animation is a CSS literal (not data, ends at 0.9 scale, never jumps to full when the screen goes); a sub-100 ms load flashes the opaque screen. Accessibility pass story 2.10; the fill duration with the performance and feel pass. Reason: not an AC, and accessibility is already scheduled.
 - **The toon swap keeps only `color` of `material[0]`.** `side`, `transparent`, `opacity`, `alphaTest`, `emissive` and the further materials of an array are lost, and the cache key is the sRGB hex. Fine for opaque greybox cubes; revisit with the final art, E7. Reason: provisional material by design (AC 4).
 - **Blob shadow eligibility is a height heuristic** (`BLOB_MAX_TOP_M`, non-zero half extents): a raised collider or a low partition gets a blob on the floor, a tall wall gets none, and only code changes it. Move it to a flag from Blender or to data with the art pass, E7. Reason: provisional.
-- **More cross-field checks for `LevelGeometrySchema`.** `cellM` is not tied to `NAV_CELL_M`; colliders, zones and props are not checked against the bounds; a prop's `kind` is not checked against its id prefix. Add them when the sim reads the geometry (stories 1.7, 1.10). Reason: nothing consumes them yet.
+- **More cross-field checks for `LevelGeometrySchema`.** `cellM` is not tied to `NAV_CELL_M`; colliders, zones and props are not checked against the bounds; a prop's `kind` is not checked against its id prefix. Add them when the sim reads the geometry (stories 1.7, 1.10). Reason: nothing consumes them yet. **Partly resolved in story 1.7:** `cellM` is now `NAV_CELL_M` (the sim's grid maths assume it); the other checks stay open.
+
+## Deferred from: implementation of story 1-7-deplacer-papa (2026-10-27)
+
+- **Analog walking speed** from the stick magnitude. The stick walks at full speed past its deadzone (D5, Open point 3); a slow walk with a half push is a feel choice for Geo.
+- **Inverted-hull outline on Papa** (ADR-008 puts outlines on characters). With the baby (story 1.8) or the art pass (E7). Reason: Papa is a provisional cube.
+- **Iso-flattened tap marker** (an ellipse lying on the floor) if Geo prefers it to the flat circle on screen (Open point 5).
+- **Clearance per agent from data** beyond `papaRadiusM`. The baby's radius and grid arrive with story 1.8 (`ctx.nav.baby`).
+- **Debug view of the open mask and the path** (story 2.1's navigation view). The client has the geometry; the sim keeps the grid in `ctx.nav`, outside `World`.
+- **A tap on a threat, the baby or an object** (hit-test priority threat > baby > object > floor): stories 1.11, 1.17 and the interactions of 1.19 / 1.20. `createHitTester` only picks the floor today.
+- **The Gamepad API is secure-context only.** Over plain `http://<LAN ip>` (a phone on `npm run dev --host`) `navigator.getGamepads` is missing: the game logs one `warn` and plays without a pad. Playtest over HTTPS (story 1.24) if a pad matters there.

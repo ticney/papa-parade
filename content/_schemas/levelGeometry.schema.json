@@ -13,8 +13,8 @@
     },
     "cellM": {
       "type": "number",
-      "exclusiveMinimum": 0,
-      "description": "Side of one navigation cell, in metres."
+      "const": 0.25,
+      "description": "Side of one navigation cell, in metres; always `NAV_CELL_M`."
     },
     "boundsMinM": {
       "type": "array",

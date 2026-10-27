@@ -38,8 +38,12 @@ export function blobFootprint(collider: LevelGeometry['colliders'][number]): Blo
   const [cx, cy, cz] = collider.centerM;
   const [hx, hy, hz] = collider.halfExtentsM;
   if (cy + hy > BLOB_MAX_TOP_M || hx === 0 || hz === 0) return null;
-  const grow = 1 + BLOB_MARGIN_PCT / 100;
-  return { centerXM: cx, centerZM: cz, widthM: hx * 2 * grow, depthM: hz * 2 * grow };
+  return {
+    centerXM: cx,
+    centerZM: cz,
+    widthM: blobSizeM(hx * 2),
+    depthM: blobSizeM(hz * 2),
+  };
 }
 
 /** Alpha of the shadow at distance `r` from its centre, `r` = 1 at the rim: smooth, 0 at and past the rim. */
@@ -67,17 +71,19 @@ function createBlobTexture(): DataTexture {
   return texture;
 }
 
-export interface BlobShadows {
-  /** How many blobs were added. */
-  readonly count: number;
+/** The size of a blob under something `footprintM` wide: a little wider, so that it peeks out. */
+export function blobSizeM(footprintM: number): number {
+  return footprintM * (1 + BLOB_MARGIN_PCT / 100);
+}
+
+/** The shared parts of every blob: one geometry, one texture, one material. */
+export interface BlobKit {
+  /** A new blob on the floor, centred on the origin, unit size, drawn after the floor. Place and scale it. */
+  createMesh(name: string): Mesh;
   dispose(): void;
 }
 
-/**
- * One soft round shadow on the floor under each collider footprint (no shadow map anywhere: the
- * renderer's `shadowMap` stays off). All blobs share one geometry, one texture and one material.
- */
-export function addBlobShadows(scene: Scene, colliders: LevelGeometry['colliders']): BlobShadows {
+export function createBlobKit(): BlobKit {
   const texture = createBlobTexture();
   const material = new MeshBasicMaterial({
     map: texture,
@@ -88,24 +94,46 @@ export function addBlobShadows(scene: Scene, colliders: LevelGeometry['colliders
   });
   const geometry = new PlaneGeometry(1, 1);
   geometry.rotateX(-Math.PI / 2); // a plane is born vertical; the blob lies on the floor
-  let count = 0;
-  for (const collider of colliders) {
-    const footprint = blobFootprint(collider);
-    if (footprint === null) continue;
-    const blob = new Mesh(geometry, material);
-    blob.name = `blob_${collider.id}`;
-    blob.position.set(footprint.centerXM, BLOB_LIFT_M, footprint.centerZM);
-    blob.scale.set(footprint.widthM, 1, footprint.depthM);
-    blob.renderOrder = 1; // after the floor
-    scene.add(blob);
-    count++;
-  }
   return {
-    count,
+    createMesh(name) {
+      const blob = new Mesh(geometry, material);
+      blob.name = name;
+      blob.position.y = BLOB_LIFT_M;
+      blob.renderOrder = 1; // after the floor
+      return blob;
+    },
     dispose() {
       geometry.dispose();
       material.dispose();
       texture.dispose();
     },
   };
+}
+
+export interface BlobShadows {
+  /** How many blobs were added. */
+  readonly count: number;
+  /** The parts the blobs share, so that Papa's own blob uses the same ones. */
+  readonly kit: BlobKit;
+  dispose(): void;
+}
+
+/**
+ * One soft round shadow on the floor under each collider footprint (no shadow map anywhere: the
+ * renderer's `shadowMap` stays off). All blobs share one geometry, one texture and one material.
+ */
+export function addBlobShadows(scene: Scene, colliders: LevelGeometry['colliders']): BlobShadows {
+  const kit = createBlobKit();
+  let count = 0;
+  for (const collider of colliders) {
+    const footprint = blobFootprint(collider);
+    if (footprint === null) continue;
+    const blob = kit.createMesh(`blob_${collider.id}`);
+    blob.position.x = footprint.centerXM;
+    blob.position.z = footprint.centerZM;
+    blob.scale.set(footprint.widthM, 1, footprint.depthM);
+    scene.add(blob);
+    count++;
+  }
+  return { count, kit, dispose: () => kit.dispose() };
 }

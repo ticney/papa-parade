@@ -1,16 +1,13 @@
 import { looksLikeGameplayNode, parseNodeName } from '@content/levelNodeNames';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
-import { STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import type { World } from '@sim';
 import {
   AmbientLight,
-  BoxGeometry,
   Color,
   DirectionalLight,
   type Material,
   Mesh,
-  MeshBasicMaterial,
   type Object3D,
   Scene,
 } from 'three';
@@ -19,6 +16,7 @@ import { addBlobShadows } from './blobShadow.ts';
 import type { RoomSize } from './isoCamera.ts';
 import { PALETTE } from './materials/palette.ts';
 import { createToonMaterialCache } from './materials/toonMaterial.ts';
+import { createPapaView } from './views/papaView.ts';
 
 // Art direction, not GDD numbers: Geo tunes the light here until the final art (E7).
 const AMBIENT_INTENSITY = 0.9;
@@ -26,18 +24,13 @@ const SUN_INTENSITY = 1.3;
 /** Where the sun sits relative to the room centre: the camera side, high, in metres. */
 const SUN_OFFSET_M: readonly [number, number, number] = [5, 9, 7];
 
-// Provisional, removed with story 1.7 (papa moves): the probe cube that lets a human or Playwright
-// *see* the sim run, pause and resume. A cheap basic mesh, not toon, so it stays distinct.
-const PROBE_SIZE_M = 0.5;
-const PROBE_PERIOD_MS = 4000;
-
 export interface LevelScene {
   /** The level id (`salon_crawler`). */
   readonly id: string;
   readonly scene: Scene;
   /** The box the camera fits, from the bounds of the visual nodes. */
   readonly room: RoomSize;
-  /** Moves the probe to where the continuous sim clock (`world.time.sim + alpha * STEP_MS`) puts it. */
+  /** Moves what the world moves: today Papa, drawn `alpha` of the way from the last step to the next. */
   update(world: Readonly<World>, alpha: number): void;
   /** Frees geometries, materials and textures. Call it when a new level replaces this one. */
   dispose(): void;
@@ -58,21 +51,6 @@ export function roomOf(geometry: LevelGeometry): RoomSize {
     floorYM,
     centerXM: (minX + maxX) / 2,
     centerZM: (minZ + maxZ) / 2,
-  };
-}
-
-/** Where the probe slides: along x through the centre of the room, on the row of `papa_spawn`. */
-export function probePathOf(geometry: LevelGeometry): {
-  centerXM: number;
-  zM: number;
-  halfPathM: number;
-} {
-  const room = roomOf(geometry);
-  const spawn = geometry.anchors.find((anchor) => anchor.id === 'papa_spawn');
-  return {
-    centerXM: room.centerXM ?? 0,
-    zM: spawn?.positionM[2] ?? room.centerZM ?? 0,
-    halfPathM: Math.max(0, room.widthM / 2 - PROBE_SIZE_M),
   };
 }
 
@@ -111,9 +89,10 @@ function originalColor(material: Material | Material[]): Color {
 /**
  * The scene of one level: the loaded model with its non-visual nodes removed, every material
  * swapped for a shared toon one (keeping each mesh's colour), lights, blob shadows (no shadow map),
- * and the provisional probe. The model is taken over: it belongs to this scene from now on.
+ * and Papa. The model is taken over: it belongs to this scene from now on. `papaRadiusM` is the
+ * feel's, read once when the level starts (a `SetFeel` takes effect at the next level).
  */
-export function createLevelScene(assets: LevelAssets): LevelScene {
+export function createLevelScene(assets: LevelAssets, papaRadiusM: number): LevelScene {
   const { geometry, model } = assets;
   const scene = new Scene();
   scene.background = new Color(PALETTE.ink);
@@ -147,23 +126,14 @@ export function createLevelScene(assets: LevelAssets): LevelScene {
 
   const shadows = addBlobShadows(scene, geometry.colliders);
 
-  const path = probePathOf(geometry);
-  const probe = new Mesh(
-    new BoxGeometry(PROBE_SIZE_M, PROBE_SIZE_M, PROBE_SIZE_M),
-    new MeshBasicMaterial({ color: PALETTE.primary }),
-  );
-  probe.name = 'probe';
-  probe.position.set(path.centerXM, PROBE_SIZE_M / 2, path.zM);
-  scene.add(probe);
+  const papa = createPapaView(scene, toon, shadows.kit, papaRadiusM);
 
   return {
     id: assets.id,
     scene,
     room,
     update(world, alpha) {
-      const clockMs = world.time.sim + alpha * STEP_MS;
-      probe.position.x =
-        path.centerXM + path.halfPathM * Math.sin((2 * Math.PI * clockMs) / PROBE_PERIOD_MS);
+      papa.update(world.papa, alpha);
     },
     dispose() {
       disposeObject(scene);

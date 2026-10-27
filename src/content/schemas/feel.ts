@@ -66,6 +66,20 @@ const InputSchema = z
       .gt(0)
       .max(360)
       .describe('Auto-target cone for keyboard and gamepad, in degrees (story 1.17).'),
+    stickDeadzonePct: z
+      .number()
+      .min(0)
+      .lt(100)
+      .describe(
+        'Left-stick deadzone: a push under this share of the full range is no direction, in percent.',
+      ),
+    stickAngleStepDeg: z
+      .number()
+      .gt(0)
+      .max(90)
+      .describe(
+        'The left-stick direction is rounded to a multiple of this angle before it is sent, so a resting hand does not flood the journal, in degrees.',
+      ),
   })
   .describe('Input interpretation (GDD §2, ADR-010).');
 
@@ -74,6 +88,16 @@ const MovementSchema = z
     glideMaxMs: durationMs(
       "Papa's glide towards a target takes at most this long, in ms (GDD §3).",
     ),
+    walkSpeedMps: z
+      .number()
+      .positive()
+      .describe('Papa walking speed (tap on the floor, keys, stick), in metres per second.'),
+    papaRadiusM: z
+      .number()
+      .min(0)
+      .describe(
+        "Papa's half width, in metres: his centre stays this far from furniture and walls. Read once when the level starts: a `SetFeel` takes effect at the next level.",
+      ),
   })
   .describe('Papa movement (GDD §3).');
 

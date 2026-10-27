@@ -47,7 +47,8 @@ export interface GltfJson {
 
 export interface ExtractOptions {
   id: string;
-  cellM: number;
+  /** The schema only accepts `NAV_CELL_M`. */
+  cellM: typeof NAV_CELL_M;
 }
 
 const round = (value: number): number => Math.round(value * MM) / MM + 0; // + 0: no "-0"

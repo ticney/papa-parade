@@ -8,7 +8,7 @@ import { type LevelAssets, loadLevelAssets } from '../assets/loadLevelAssets.ts'
 import { createGameLoop, type FrameScheduler, type GameLoop } from '../loop.ts';
 import { createLevelScene, type LevelScene } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
-import { createTimeMap } from '../timeMap.ts';
+import { createTimeMap, type TimeMap } from '../timeMap.ts';
 import type { AppFsm } from './appFsm.ts';
 import type { PauseController } from './pauseController.ts';
 
@@ -45,15 +45,26 @@ export interface LevelSessionDeps {
   /** Default: the real `loadLevelAssets`. It logs its own failures. */
   loadAssets?(id: string): Promise<Result<LevelAssets, AppError>>;
   /** Default: the real `createLevelScene`. */
-  createScene?(assets: LevelAssets): LevelScene;
+  createScene?(assets: LevelAssets, papaRadiusM: number): LevelScene;
+}
+
+/** What the input needs of the running level: the sim to send commands to and its real → sim clock. */
+export interface ActiveLevel {
+  readonly sim: Sim;
+  readonly timeMap: TimeMap;
 }
 
 export interface LevelSession {
   /**
-   * Loads and starts a level: `loading` (the sim and the assets load together), the level's scene,
-   * then the wait for the foreground, then `level`, which always begins through the resume
-   * countdown. A failed load goes to `oops`. Called again, it restarts. Ignored while a start is in
-   * flight (a second tap on « Recommencer » must not start two levels).
+   * The level being played: set when the app enters `level`, `null` while a level loads and after
+   * `stop()`. The input mapper reads it for each input, so it never holds a stale sim.
+   */
+  readonly active: ActiveLevel | null;
+  /**
+   * Loads and starts a level: `loading` (the assets first, then the sim, which needs the level's
+   * geometry), the level's scene, then the wait for the foreground, then `level`, which always
+   * begins through the resume countdown. A failed load goes to `oops`. Called again, it restarts.
+   * Ignored while a start is in flight (a second tap on « Recommencer » must not start two levels).
    */
   start(): Promise<void>;
   /**
@@ -89,6 +100,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
   let current: LevelScene | null = null;
   let isStarting = false;
   let generation = 0;
+  let active: ActiveLevel | null = null;
 
   const stopLoop = (): void => {
     loop?.stop();
@@ -96,9 +108,13 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
   };
 
   return {
+    get active() {
+      return active;
+    },
     stop() {
       generation++;
       isStarting = false;
+      active = null;
       stopLoop();
     },
     async start() {
@@ -111,18 +127,10 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
       const isStale = (): boolean => mine !== generation;
       try {
         stopLoop();
+        active = null;
         appFsm.enter('loading');
-        const seed = deps.newSeed();
-        const [simResult, assets] = await Promise.all([
-          settle(() => makeSim({ content: deps.content, seed })),
-          settle(() => loadAssets(levelId)),
-        ]);
+        const assets = await settle(() => loadAssets(levelId));
         if (isStale()) return;
-        if (!simResult.ok) {
-          log.error('boot', 'cannot create the sim for the level', simResult.error);
-          appFsm.enter('oops');
-          return;
-        }
         if (!assets.ok) {
           // `loadLevelAssets` never throws; a replacement that does is a bug, not a failed load.
           log.error('boot', 'loading the level assets threw', { id: levelId, error: assets.error });
@@ -134,13 +142,25 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           appFsm.enter('oops');
           return;
         }
+        // The sim needs the level's geometry (Papa's navigation grid), so it comes after the assets.
+        const levelAssets = assets.value.value;
+        const seed = deps.newSeed();
+        const simResult = await settle(() =>
+          makeSim({ content: deps.content, geometry: levelAssets.geometry, seed }),
+        );
+        if (isStale()) return;
+        if (!simResult.ok) {
+          log.error('boot', 'cannot create the sim for the level', simResult.error);
+          appFsm.enter('oops');
+          return;
+        }
         const sim = simResult.value;
         log.info('boot', 'sim ready', { seed });
         deps.onSeed(seed);
 
         let level: LevelScene;
         try {
-          level = makeScene(assets.value.value);
+          level = makeScene(levelAssets, deps.content.feel.movement.papaRadiusM);
         } catch (cause) {
           log.error('render', 'cannot build the level scene', { id: levelId, error: cause });
           appFsm.enter('oops');
@@ -169,9 +189,10 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           renderer.render(level.scene, camera);
           deps.onLevelFrame();
         };
+        const timeMap = createTimeMap();
         loop = createGameLoop({
           sim,
-          timeMap: createTimeMap(),
+          timeMap,
           pause,
           scheduler: deps.scheduler,
           render,
@@ -183,6 +204,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         // sees is « 3 ».
         pause.requestPause('levelStart');
         if (deps.canResumeNow()) pause.requestResume();
+        active = { sim, timeMap };
         appFsm.enter('level');
         loop.start();
       } finally {

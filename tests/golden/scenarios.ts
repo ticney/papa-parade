@@ -1,4 +1,5 @@
 import type { ContentBundle } from '@content/contentBundle';
+import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
@@ -19,6 +20,20 @@ const scale = (t: number, value: number): SimCommand => ({
   scale: value,
 });
 
+const tapFloor = (t: number, xM: number, zM: number): SimCommand => ({
+  type: 'TapFloor',
+  t: asSimMs(t),
+  xM,
+  zM,
+});
+const walk = (t: number, dirX: number, dirZ: number): SimCommand => ({
+  type: 'Move',
+  t: asSimMs(t),
+  dirX,
+  dirZ,
+});
+const walkStop = (t: number): SimCommand => ({ type: 'MoveStop', t: asSimMs(t) });
+
 export const SCENARIOS: readonly Scenario[] = [
   {
     // Time and commands only (no gameplay system exists yet). It still covers a late command
@@ -35,6 +50,31 @@ export const SCENARIOS: readonly Scenario[] = [
       { atStep: 1600, command: scale(25000, 1) },
     ],
   },
+  {
+    // Papa on the frozen living-room geometry: a tap that needs a detour (the centre of the
+    // `behind_sofa` zone), a MoveStop during that path (ignored), a tap on the sofa (a blocked
+    // cell) and one outside the grid (both snap to the nearest open cell), a Move into the right
+    // wall and a diagonal one that slides along the bottom edge (a PapaBlocked each), a TapFloor
+    // during a direction walk, and a command with an off-grid, already past `t`.
+    name: 'papa_walk',
+    seed: 7,
+    untilSimMs: 15000,
+    actions: [
+      { atStep: 0, command: tapFloor(0, 0.5, -2.6) },
+      { atStep: 60, command: walkStop(600) },
+      { atStep: 300, command: tapFloor(3000, 0.5, -1.7) },
+      { atStep: 450, command: tapFloor(4500, 10, 10) },
+      { atStep: 800, command: walk(8000, 1, 0) },
+      { atStep: 850, command: walk(8500, -1, 1) },
+      { atStep: 950, command: walkStop(9500) },
+      { atStep: 1000, command: tapFloor(10000, -2, 0) },
+      { atStep: 1040, command: walkStop(10400) },
+      { atStep: 1100, command: walk(11000, 0, -1) },
+      { atStep: 1140, command: tapFloor(11400, 2.5, 1.5) },
+      { atStep: 1300, command: walk(12987.3, -1, -0.5) },
+      { atStep: 1340, command: walkStop(13400) },
+    ],
+  },
 ];
 
 export interface Recording {
@@ -45,6 +85,7 @@ export interface Recording {
 
 export async function recordScenario(
   content: ContentBundle,
+  geometry: LevelGeometry,
   scenario: Scenario,
 ): Promise<Recording> {
   const steps = scenario.untilSimMs / STEP_MS;
@@ -56,7 +97,7 @@ export async function recordScenario(
       throw new Error(`${scenario.name}: action at step ${atStep} is outside [0, ${steps})`);
     }
   }
-  const sim = await createSim({ content, seed: scenario.seed });
+  const sim = await createSim({ content, geometry, seed: scenario.seed });
   const events: SimEvent[] = [];
   for (let i = 0; i < steps; i++) {
     for (const action of scenario.actions) if (action.atStep === i) sim.enqueue(action.command);

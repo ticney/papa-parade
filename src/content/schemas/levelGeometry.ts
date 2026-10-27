@@ -1,3 +1,4 @@
+import { NAV_CELL_M } from '@shared/constants';
 import { z } from 'zod';
 import {
   REQUIRED_ANCHOR_IDS,
@@ -79,7 +80,11 @@ function duplicates(ids: readonly string[]): string[] {
 export const LevelGeometrySchema = z
   .strictObject({
     id: idSchema('The level id; equals the file name before `.geometry.json`.'),
-    cellM: z.number().positive().describe('Side of one navigation cell, in metres.'),
+    cellM: z
+      .literal(NAV_CELL_M, {
+        error: `cellM must be ${NAV_CELL_M} (NAV_CELL_M): the sim's grid maths assume it`,
+      })
+      .describe('Side of one navigation cell, in metres; always `NAV_CELL_M`.'),
     boundsMinM: vec3M('Lowest corner of the box that holds every visual node, in metres.'),
     boundsMaxM: vec3M('Highest corner of the box that holds every visual node, in metres.'),
     colliders: z.array(ColliderSchema),

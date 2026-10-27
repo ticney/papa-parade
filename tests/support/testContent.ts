@@ -4,9 +4,11 @@ import type { ContentBundle } from '@content/contentBundle';
 import { formatContentProblem } from '@content/contentError';
 import { parseContentFile } from '@content/parseContentFile';
 import { FeelSchema } from '@content/schemas/feel';
+import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
 import type { Sim } from '@sim';
 
 const FEEL_FIXTURE = 'tests/support/testFeel.json';
+const GEOMETRY_FIXTURE = 'tests/support/testLevel.geometry.json';
 
 /**
  * A content bundle for sim and golden tests, built from a FROZEN copy of the feel
@@ -22,6 +24,25 @@ export function createTestContent(): ContentBundle {
     );
   }
   return { feel: parsed.value, strings: {} };
+}
+
+/**
+ * The geometry of the living room for sim and golden tests, from a FROZEN byte copy of
+ * `content/levels/salon_crawler.geometry.json` (`testLevel.geometry.json`), never from the live
+ * file: Geo re-exports the room from Blender freely, and no test result may depend on it.
+ */
+export function createTestGeometry(): LevelGeometry {
+  const text = readFileSync(
+    fileURLToPath(new URL('./testLevel.geometry.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(GEOMETRY_FIXTURE, text, LevelGeometrySchema);
+  if (!parsed.ok) {
+    throw new Error(
+      `${GEOMETRY_FIXTURE} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`,
+    );
+  }
+  return parsed.value;
 }
 
 /** Runs `n` steps: time in tests is counted in steps (`stepN(sim, 120)` = 1200 ms of sim time). */

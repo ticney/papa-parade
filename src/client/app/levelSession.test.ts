@@ -5,8 +5,7 @@ import { createSim } from '@sim';
 import { Group, Scene } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createFakeScheduler } from '../../../tests/support/fakeScheduler.ts';
-import { createTestContent } from '../../../tests/support/testContent.ts';
-import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
+import { createTestContent, createTestGeometry } from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
 import type { LevelScene } from '../render/levelScene.ts';
@@ -34,7 +33,8 @@ function deferred<T>(): Deferred<T> {
 
 const assetsOf = (id: string): LevelAssets => ({
   id,
-  geometry: createTestLevelGeometry(id),
+  // The frozen living room: the sim needs a room where Papa has room to stand.
+  geometry: { ...createTestGeometry(), id },
   model: new Group(),
 });
 
@@ -126,6 +126,64 @@ describe('createLevelSession', () => {
     expect(appFsm.state).toBe('level');
     expect(pause.state).toBe('resuming');
     expect(trace).toEqual(['app:loading', 'ready', 'pause:levelStart', 'resume', 'app:level']);
+  });
+
+  it('creates the sim after the assets, from the geometry they carry', async () => {
+    const order: string[] = [];
+    let simGeometryId = '';
+    const { session } = setup({
+      loadAssets: async (id) => {
+        order.push('assets');
+        return ok(assetsOf(id));
+      },
+      createSim: (options) => {
+        order.push('sim');
+        simGeometryId = options.geometry.id;
+        return createSim(options);
+      },
+    });
+    await session.start();
+    expect(order).toEqual(['assets', 'sim']);
+    expect(simGeometryId).toBe('salon_crawler');
+  });
+
+  it('exposes the active sim and time map once the level is entered, and nothing before or after', async () => {
+    const { session, appFsm } = setup();
+    expect(session.active).toBeNull();
+    let seenWhenEntering: unknown = 'unset';
+    const original = appFsm.enter.bind(appFsm);
+    appFsm.enter = (next) => {
+      if (next === 'level') seenWhenEntering = session.active;
+      original(next);
+    };
+    await session.start();
+    expect(session.active).not.toBeNull();
+    expect(session.active?.sim.world.papa.state).toBe('idle');
+    expect(session.active?.timeMap.realToSim).toBeTypeOf('function');
+    expect(seenWhenEntering).toBe(session.active); // already set when the app enters `level`
+    session.stop();
+    expect(session.active).toBeNull();
+  });
+
+  it('has no active level while the next one loads, and a new one after it', async () => {
+    const gate = deferred<void>();
+    let calls = 0;
+    const { session } = setup({
+      loadAssets: async (id) => {
+        if (++calls === 2) await gate.promise;
+        return ok(assetsOf(id));
+      },
+    });
+    await session.start();
+    const first = session.active;
+    expect(first).not.toBeNull();
+    const restarting = session.start();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(session.active).toBeNull();
+    gate.resolve();
+    await restarting;
+    expect(session.active).not.toBeNull();
+    expect(session.active?.sim).not.toBe(first?.sim);
   });
 
   it('loads the level by its id and hands its scene to onLevelReady', async () => {
@@ -432,7 +490,7 @@ describe('createLevelSession', () => {
       appFsm.enter('oops');
       await session.start();
       expect(appFsm.state).toBe('level');
-      expect(sims()).toBe(2);
+      expect(sims()).toBe(1); // the stale start was still loading: it never made a sim
       first.resolve(ok(assetsOf('salon_crawler')));
       await stale;
       expect(appFsm.state).toBe('level'); // the late one changed nothing

@@ -123,13 +123,27 @@
           "exclusiveMinimum": 0,
           "maximum": 360,
           "description": "Auto-target cone for keyboard and gamepad, in degrees (story 1.17)."
+        },
+        "stickDeadzonePct": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 100,
+          "description": "Left-stick deadzone: a push under this share of the full range is no direction, in percent."
+        },
+        "stickAngleStepDeg": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 90,
+          "description": "The left-stick direction is rounded to a multiple of this angle before it is sent, so a resting hand does not flood the journal, in degrees."
         }
       },
       "required": [
         "holdMinMs",
         "earlyPress",
         "touchRadiusPx",
-        "autoTargetConeDeg"
+        "autoTargetConeDeg",
+        "stickDeadzonePct",
+        "stickAngleStepDeg"
       ],
       "additionalProperties": false,
       "description": "Input interpretation (GDD §2, ADR-010)."
@@ -141,10 +155,22 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "Papa's glide towards a target takes at most this long, in ms (GDD §3)."
+        },
+        "walkSpeedMps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Papa walking speed (tap on the floor, keys, stick), in metres per second."
+        },
+        "papaRadiusM": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Papa's half width, in metres: his centre stays this far from furniture and walls. Read once when the level starts: a `SetFeel` takes effect at the next level."
         }
       },
       "required": [
-        "glideMaxMs"
+        "glideMaxMs",
+        "walkSpeedMps",
+        "papaRadiusM"
       ],
       "additionalProperties": false,
       "description": "Papa movement (GDD §3)."

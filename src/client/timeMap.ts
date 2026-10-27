@@ -1,4 +1,8 @@
-import { TIME_MAP_CAPACITY, TIME_MAP_HISTORY_MS } from '@shared/constants';
+import {
+  TIME_MAP_CAPACITY,
+  TIME_MAP_HISTORY_MS,
+  TIME_MAP_MAX_EXTRAPOLATION_MS,
+} from '@shared/constants';
 import { invariant } from '@shared/invariant';
 import { type Logger, log } from '@shared/log';
 import { asSimMs, type RealMs, type SimMs } from '@shared/time';
@@ -11,7 +15,9 @@ export interface TimeMap {
   record(realMs: RealMs, simMs: SimMs, simPerRealMs: number): void;
   /**
    * Sim time at `realMs`. Inside the history: linear interpolation between the two surrounding
-   * records. After the newest: extrapolated at the newest record's rate. Before the start of the
+   * records. After the newest: extrapolated at the newest record's rate, for at most
+   * `TIME_MAP_MAX_EXTRAPOLATION_MS` (a longer gap is clamped to it, with a `warn`: a hidden tab
+   * leaves a rate-1 record behind). Before the start of the
    * history (`TIME_MAP_HISTORY_MS` before the newest record, or the oldest kept record if the
    * ring is shorter): the sim time at that start, with a `warn`. An empty map answers `0`, with
    * a `warn`. Allocation-free, but meant for rare calls (one per input).
@@ -115,9 +121,17 @@ export function createTimeMap(options: TimeMapOptions = {}): TimeMap {
       }
 
       if (query >= newestAtReal) {
+        let aheadMs = query - newestAtReal;
+        if (aheadMs > TIME_MAP_MAX_EXTRAPOLATION_MS) {
+          logger.warn('input', 'timestamp far past the newest frame: extrapolation capped', {
+            realMs,
+            newestAtReal,
+            maxExtrapolationMs: TIME_MAP_MAX_EXTRAPOLATION_MS,
+          });
+          aheadMs = TIME_MAP_MAX_EXTRAPOLATION_MS;
+        }
         return asSimMs(
-          (recordSimMs[newest] as number) +
-            (query - newestAtReal) * (recordSimPerRealMs[newest] as number),
+          (recordSimMs[newest] as number) + aheadMs * (recordSimPerRealMs[newest] as number),
         );
       }
 

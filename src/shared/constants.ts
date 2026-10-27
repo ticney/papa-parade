@@ -84,3 +84,19 @@ export const LEVEL_FETCH_TIMEOUT_MS = 20_000;
 
 /** The longest delay `setTimeout` can hold, in ms: a longer one overflows and fires at once. */
 export const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
+/** The tap marker fades out over this long, in real ms (DESIGN.md › tap-marker `fadeMs`). */
+export const TAP_MARKER_FADE_MS = 300;
+
+/** The tap marker starts at this scale of its ring (DESIGN.md › tap-marker `scale: 0.6 → 1.2`). */
+export const TAP_MARKER_SCALE_FROM = 0.6;
+
+/** ...and has grown to this scale when it is gone (DESIGN.md › tap-marker `scale: 0.6 → 1.2`). */
+export const TAP_MARKER_SCALE_TO = 1.2;
+
+/**
+ * `timeMap.realToSim` extrapolates at most this far past its newest record, in real ms: a hidden
+ * tab leaves a rate-1 record behind, and an input before the next frame could otherwise land
+ * seconds in the sim's future.
+ */
+export const TIME_MAP_MAX_EXTRAPOLATION_MS = 100;
