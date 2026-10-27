@@ -83,6 +83,12 @@ const InputSchema = z
       .gt(0)
       .max(360)
       .describe('Auto-target cone for keyboard and gamepad, in degrees (story 1.17).'),
+    contextReachM: z
+      .number()
+      .positive()
+      .describe(
+        'Space or A acts on the nearest interactive object within this distance of Papa, in metres (story 1.17).',
+      ),
     stickDeadzonePct: z
       .number()
       .min(0)

@@ -5,6 +5,7 @@ describe('commandProblem', () => {
   it('accepts well formed commands of every type', () => {
     expect(commandProblem({ type: 'SetTimeScale', t: 0, scale: 0.5 })).toBeNull();
     expect(commandProblem({ type: 'TapFloor', t: 10, xM: 1.5, zM: -2 })).toBeNull();
+    expect(commandProblem({ type: 'TapObject', t: 10, objectId: 'coffee_machine' })).toBeNull();
     expect(commandProblem({ type: 'Move', t: 10, dirX: 0, dirZ: -3 })).toBeNull();
     expect(commandProblem({ type: 'MoveStop', t: 10 })).toBeNull();
     expect(commandProblem({ type: 'PressThreat', t: 10, threatId: 1 })).toBeNull();
@@ -30,6 +31,7 @@ describe('commandProblem', () => {
       'Release',
       'SetTimeScale',
       'TapFloor',
+      'TapObject',
     ]);
   });
 
@@ -38,6 +40,9 @@ describe('commandProblem', () => {
     ['Infinity zM', { type: 'TapFloor', t: 0, xM: 0, zM: Number.POSITIVE_INFINITY }, /zM/],
     ['a string xM', { type: 'TapFloor', t: 0, xM: '1', zM: 0 }, /xM/],
     ['a missing zM', { type: 'TapFloor', t: 0, xM: 1 }, /zM/],
+    ['a TapObject with no object', { type: 'TapObject', t: 0 }, /objectId/],
+    ['a TapObject with an empty object id', { type: 'TapObject', t: 0, objectId: '' }, /objectId/],
+    ['a TapObject with a numeric object id', { type: 'TapObject', t: 0, objectId: 3 }, /objectId/],
     ['a NaN dirX', { type: 'Move', t: 0, dirX: Number.NaN, dirZ: 1 }, /dirX/],
     ['an Infinity dirZ', { type: 'Move', t: 0, dirX: 1, dirZ: Number.NEGATIVE_INFINITY }, /dirZ/],
     ['a zero vector', { type: 'Move', t: 0, dirX: 0, dirZ: 0 }, /\(0, 0\)/],

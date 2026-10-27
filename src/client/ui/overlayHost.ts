@@ -13,6 +13,8 @@ export interface OverlayBuilders {
 
 export interface OverlayHost {
   readonly kind: OverlayKind | null;
+  /** The screen shown, whatever it is, or null. */
+  readonly screen: OverlayScreen | null;
   /** The pause screen while it is the one shown. */
   readonly pauseScreen: PauseScreen | null;
   /**
@@ -66,6 +68,9 @@ export function createOverlayHost(root: HTMLElement, builders: OverlayBuilders):
   return {
     get kind() {
       return kind;
+    },
+    get screen() {
+      return current;
     },
     get pauseScreen() {
       return pauseScreen;

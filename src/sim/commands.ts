@@ -10,6 +10,11 @@ export type SimCommand =
   | { type: 'SetTimeScale'; t: SimMs; scale: number }
   /** Walk to this point of the floor (metres); an unreachable point means the nearest reachable one. */
   | { type: 'TapFloor'; t: SimMs; xM: number; zM: number }
+  /**
+   * Walk to this interactive object of the level; what happens there is the object's (stories 1.19,
+   * 1.20). An unknown id does nothing.
+   */
+  | { type: 'TapObject'; t: SimMs; objectId: string }
   /** Walk in this direction on the floor (world axes, any length but 0: the sim normalises it) until `MoveStop`. */
   | { type: 'Move'; t: SimMs; dirX: number; dirZ: number }
   /** Stop a `Move`. Ignored while Papa follows a tapped path. */
@@ -36,6 +41,7 @@ export type SimCommand =
 export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetTimeScale',
   'TapFloor',
+  'TapObject',
   'Move',
   'MoveStop',
   'PressThreat',
@@ -65,6 +71,11 @@ export function commandProblem(value: unknown): string | null {
       if (typeof command[key] !== 'number' || !Number.isFinite(command[key])) {
         return `TapFloor: ${key} must be a finite number`;
       }
+    }
+  }
+  if (command.type === 'TapObject') {
+    if (typeof command.objectId !== 'string' || command.objectId === '') {
+      return 'TapObject: objectId must be a non-empty string';
     }
   }
   if (command.type === 'Move') {

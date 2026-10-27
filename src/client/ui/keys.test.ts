@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { AppState } from '../app/appFsm.ts';
+import type { OverlayKind } from '../app/overlay.ts';
 import type { PauseState } from '../app/pauseController.ts';
-import { escapeAction, isStartKey, type KeyLike, nextFocusIndex } from './keys.ts';
+import type { PadButton } from '../input/gamepadInput.ts';
+import {
+  escapeAction,
+  isStartKey,
+  type KeyLike,
+  nextFocusIndex,
+  type PadAction,
+  padAction,
+} from './keys.ts';
 
 const PLAIN: Omit<KeyLike, 'code'> = {
   repeat: false,
@@ -108,5 +117,70 @@ describe('nextFocusIndex', () => {
     expect(nextFocusIndex(3, 0, 'Enter')).toBeNull();
     expect(nextFocusIndex(0, -1, 'ArrowDown')).toBeNull();
     expect(nextFocusIndex(Number.NaN, 0, 'ArrowDown')).toBeNull();
+  });
+});
+
+describe('padAction (story 1.17)', () => {
+  const BUTTONS: PadButton[] = ['confirm', 'back', 'start', 'up', 'down', 'left', 'right'];
+  const act = (
+    appState: AppState,
+    pauseState: PauseState,
+    overlay: OverlayKind | null,
+    button: PadButton,
+  ) => padAction({ appState, pauseState, overlay, button });
+
+  it('starts the game on A or Start from the start screen, and ignores the rest', () => {
+    for (const button of BUTTONS) {
+      const expected: PadAction = button === 'confirm' || button === 'start' ? 'activate' : null;
+      expect(act('start', 'running', 'start', button), button).toBe(expected);
+    }
+  });
+
+  it('presses « Réessayer » on A from the « Oups » screen, and ignores the rest (Start included)', () => {
+    for (const button of BUTTONS) {
+      expect(act('oops', 'running', 'oops', button), button).toBe(
+        button === 'confirm' ? 'activate' : null,
+      );
+    }
+  });
+
+  it('moves the focus of the pause panel with the D-pad, activates with A, goes back with B', () => {
+    expect(act('level', 'paused', 'pause', 'up')).toBe('ArrowUp');
+    expect(act('level', 'paused', 'pause', 'down')).toBe('ArrowDown');
+    expect(act('level', 'paused', 'pause', 'left')).toBe('ArrowLeft');
+    expect(act('level', 'paused', 'pause', 'right')).toBe('ArrowRight');
+    expect(act('level', 'paused', 'pause', 'confirm')).toBe('activate');
+    expect(act('level', 'paused', 'pause', 'back')).toBe('back');
+  });
+
+  it('does what Escape does on Start: pause, resume, or cancel the countdown', () => {
+    expect(act('level', 'running', null, 'start')).toBe('pause');
+    expect(act('level', 'paused', 'pause', 'start')).toBe('resume');
+    expect(act('level', 'resuming', 'pause', 'start')).toBe('pause');
+  });
+
+  it('never pauses, parries or acts on B in play (D15), nor on any other button but Start', () => {
+    for (const button of BUTTONS) {
+      if (button === 'start') continue;
+      expect(act('level', 'running', null, button), button).toBeNull();
+    }
+  });
+
+  it('takes nothing but Start while the countdown runs', () => {
+    for (const button of BUTTONS) {
+      if (button === 'start') continue;
+      expect(act('level', 'resuming', 'pause', button), button).toBeNull();
+    }
+  });
+
+  it('takes nothing in portrait, over the loading screen, or with no level', () => {
+    for (const button of BUTTONS) {
+      for (const pauseState of ['running', 'paused', 'resuming'] as const) {
+        expect(act('level', pauseState, 'portrait', button), `${pauseState} ${button}`).toBeNull();
+      }
+      expect(act('loading', 'running', 'loading', button), button).toBeNull();
+      expect(act('boot', 'running', null, button), button).toBeNull();
+      expect(act('result', 'running', null, button), button).toBeNull();
+    }
   });
 });

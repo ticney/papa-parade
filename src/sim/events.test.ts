@@ -16,10 +16,11 @@ describe('SIM_EVENT_TYPES', () => {
     for (const name of SIM_EVENT_TYPES) expect(name).toMatch(/^[A-Z][a-z]+(?:[A-Z][a-z]+)*$/);
   });
 
-  it('lists NearMiss (story 1.16), between InvariantViolated and PapaArrived', () => {
+  it('lists NearMiss (story 1.16) and ObjectTapped (story 1.17), between InvariantViolated and PapaArrived', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
     expect(names.indexOf('NearMiss')).toBe(names.indexOf('InvariantViolated') + 1);
-    expect(names.indexOf('PapaArrived')).toBe(names.indexOf('NearMiss') + 1);
+    expect(names.indexOf('ObjectTapped')).toBe(names.indexOf('NearMiss') + 1);
+    expect(names.indexOf('PapaArrived')).toBe(names.indexOf('ObjectTapped') + 1);
   });
 
   // `SIM_EVENT_TYPES_ARE_COMPLETE` is the literal `true` by construction, so this assertion cannot

@@ -1,10 +1,23 @@
+import type { Feel } from '@content/schemas/feel';
+import { GAMEPAD_PRESS_ID, KEYBOARD_PRESS_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type SimMs } from '@shared/time';
 import type { AppFsm } from '../app/appFsm.ts';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import type { PauseController } from '../app/pauseController.ts';
-import type { GamepadInput, StickAxes } from './gamepadInput.ts';
+import { pickAutoTarget } from './autoTarget.ts';
+import { type ContextObject, pickContextObject } from './contextObject.ts';
+import {
+  createPadState,
+  type GamepadInput,
+  PAD_BUTTONS,
+  type PadButton,
+  type PadFamily,
+  type StickAxes,
+} from './gamepadInput.ts';
 import type { FloorPoint, HitTester, ThreatTargets } from './hitTest.ts';
+import { type MenuStickMemory, stickToMenuStep } from './menuStep.ts';
+import type { FloorDir } from './moveDirection.ts';
 import type { MoveIntent } from './moveIntent.ts';
 import type { PointerSample } from './pointerInput.ts';
 import { createThreatPressTracker } from './threatPress.ts';
@@ -34,9 +47,26 @@ export interface InputMapperDeps {
    * frame (and the debug build marks the press for the latency check).
    */
   onThreatPressed?(threatId: number): void;
+  /**
+   * `feel.input`: the auto-target cone, the reach of the context action and the stick's deadzone,
+   * read at each use so that a changed feel applies at once.
+   */
+  input: Pick<Feel['input'], 'autoTargetConeDeg' | 'contextReachM' | 'stickDeadzonePct'>;
+  /** The interactive objects of the level being played at their floor points, or an empty list. */
+  getObjects(): readonly ContextObject[];
+  /**
+   * A button of the pad went down that the mapper does not act on: any button outside play, and in
+   * play every one but A (Start, B, the D-pad). The UI shell routes it (pause, menus).
+   */
+  onPadButton?(button: PadButton): void;
+  /** The pad appeared (`true`) or went away (`false`), seen by the poll. */
+  onPadPresence?(isPresent: boolean, family: PadFamily): void;
   /** Real time now, same base as `event.timeStamp`. */
   nowAtReal(): number;
 }
+
+/** The device that gave the last input: it decides whether the auto-target is shown (D8). */
+export type InputDevice = 'pointer' | 'keyboard' | 'gamepad';
 
 export interface InputMapper {
   /** Whether input reaches the sim: a level is running, not paused, not counting down. */
@@ -58,7 +88,26 @@ export interface InputMapper {
   releaseHeld(): void;
   /** The held movement keys changed (keydown, keyup, blur, hidden). */
   onKeysChanged(timeStampAtReal: number): void;
-  /** Once per level frame: reads the stick, and sends a direction if it changed. */
+  /**
+   * The action key went down or up (Space, or A on a pad): while live, the down parries the
+   * auto-targeted threat or, with no threat active, walks Papa to the nearest object in reach; the
+   * up releases a press this device made. `timeStampAtReal` is the event's (a pad's: D5).
+   */
+  handleAction(phase: 'down' | 'up', timeStampAtReal: number, device: 'keyboard' | 'gamepad'): void;
+  /** The device of the last input, or null before any: the auto-target shows for keyboard and gamepad only. */
+  readonly lastDevice: InputDevice | null;
+  /**
+   * The threat Space or A would parry now, or null (also when no level is live). Recomputed from
+   * the live world with the aim of the held keys or stick; allocation-free, read once per frame.
+   */
+  targetedThreatId(): number | null;
+  /** The family of the pad last seen (glyphs): Xbox until a pad says otherwise. */
+  readonly padFamily: PadFamily;
+  /**
+   * Once per frame, in a level or not: reads the pad (presence, buttons, stick). The stick walks
+   * only while live; A acts only while live; the other buttons, and every one outside play, go to
+   * `onPadButton`.
+   */
   pollGamepad(): void;
   /**
    * Sends what is held right now if it differs from what the sim was last told: after a resume
@@ -81,7 +130,13 @@ export interface InputMapper {
  */
 export function createInputMapper(deps: InputMapperDeps): InputMapper {
   const stick: StickAxes = { x: 0, y: 0 };
+  const padState = createPadState();
+  const aim: FloorDir = { x: 0, z: 0 };
   const picked: FloorPoint = { xM: 0, zM: 0 };
+  let lastDevice: InputDevice | null = null;
+  let wasPadPresent = false;
+  const menuStick: MenuStickMemory = { isActive: false };
+  let family: PadFamily = 'xbox';
   let boundSim: ActiveLevel['sim'] | null = null;
   const press = createThreatPressTracker();
   // The sim time of the press the tracker holds: a `Release` must not be dated before it (the sim
@@ -108,24 +163,114 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     deps.moveIntent.update(deps.held, stick, () => stampOf(active));
   };
 
-  const pollAndRefresh = (): void => {
-    if (!isLive()) return;
-    deps.gamepad.poll(stick);
-    refreshMove((active) => active.timeMap.realToSim(asRealMs(deps.nowAtReal())));
+  // The threat Space or A parries, from the live world and the aim (D1, D4). Null when none is active.
+  const targetNow = (active: ActiveLevel): number | null => {
+    const { world } = active.sim;
+    const hasAim = deps.moveIntent.aimDir(aim);
+    return pickAutoTarget(
+      world.threats,
+      world.papa.xM,
+      world.papa.zM,
+      hasAim ? aim : null,
+      deps.input.autoTargetConeDeg,
+    );
   };
+
+  const handleAction = (
+    phase: 'down' | 'up',
+    timeStampAtReal: number,
+    device: 'keyboard' | 'gamepad',
+  ): void => {
+    const pressId = device === 'keyboard' ? KEYBOARD_PRESS_ID : GAMEPAD_PRESS_ID;
+    const active = deps.getActive();
+    if (phase === 'up') {
+      // Sent even while paused or counting down, like a finger's end; nothing if it pressed nothing.
+      if (active === null || deps.appFsm.state !== 'level') return;
+      bindTo(active);
+      if (!press.released(pressId)) return;
+      active.sim.enqueue({
+        type: 'Release',
+        t: active.timeMap.realToSim(asRealMs(timeStampAtReal)),
+      });
+      return;
+    }
+    lastDevice = device;
+    if (active === null || !isLive()) {
+      if (log.enabled('debug')) log.debug('input', 'action dropped: no level is live');
+      return;
+    }
+    bindTo(active);
+    const t = active.timeMap.realToSim(asRealMs(timeStampAtReal));
+    const threatId = targetNow(active);
+    if (threatId !== null) {
+      heldPressAt = t;
+      active.sim.enqueue({ type: 'PressThreat', t, threatId });
+      press.pressed(pressId, threatId);
+      deps.onThreatPressed?.(threatId);
+      return;
+    }
+    // No threat is active (D6): the context action, on the nearest object in reach.
+    const { papa } = active.sim.world;
+    const objectId = pickContextObject(
+      deps.getObjects(),
+      papa.xM,
+      papa.zM,
+      deps.input.contextReachM,
+    );
+    if (objectId === null) {
+      if (log.enabled('debug')) log.debug('input', 'action: no threat and no object in reach');
+      return;
+    }
+    active.sim.enqueue({ type: 'TapObject', t, objectId });
+  };
+
+  // Reads the pad: its presence, its stick (into `stick`) and its button edges. Runs outside play
+  // too (menus). In play the stick refreshes the walk, then A acts; everything else goes to the shell.
+  const readPad = (stampOf: (active: ActiveLevel) => SimMs): void => {
+    deps.gamepad.poll(stick, padState);
+    family = padState.family;
+    if (padState.isPresent !== wasPadPresent) {
+      wasPadPresent = padState.isPresent;
+      deps.onPadPresence?.(padState.isPresent, family);
+    }
+    const isLiveNow = isLive();
+    if (isLiveNow) refreshMove(stampOf);
+    if (padState.isPresent) {
+      if (Math.hypot(stick.x, stick.y) * 100 > deps.input.stickDeadzonePct) lastDevice = 'gamepad';
+    }
+    // The stick also moves a menu's focus, one step per push; its memory follows it in play too, so
+    // that a stick held while the game pauses does not step the moment the panel shows.
+    const step = padState.isPresent
+      ? stickToMenuStep(stick, menuStick, deps.input.stickDeadzonePct)
+      : null;
+    if (step !== null && !isLiveNow) deps.onPadButton?.(step);
+    for (let i = 0; i < PAD_BUTTONS.length; i++) {
+      const button = PAD_BUTTONS[i] as PadButton;
+      if (padState.released[button] && button === 'confirm') {
+        handleAction('up', padState.stampAtReal, 'gamepad');
+      }
+      if (!padState.pressed[button]) continue;
+      lastDevice = 'gamepad';
+      if (button === 'confirm' && isLiveNow) handleAction('down', padState.stampAtReal, 'gamepad');
+      else deps.onPadButton?.(button);
+    }
+  };
+
+  const pollAndRefresh = (): void =>
+    readPad((active) => active.timeMap.realToSim(asRealMs(deps.nowAtReal())));
 
   // After a resume or a new level the loop may not have recorded a frame yet, so the time map
   // cannot be asked: the command is stamped with the sim clock, which is "now" for the sim.
   const resyncNow = (): void => {
     if (!isLive()) return;
-    deps.gamepad.poll(stick);
-    refreshMove((active) => active.sim.world.time.sim);
+    readPad((active) => active.sim.world.time.sim);
   };
 
   return {
     isLive,
     handlePointerDown(sample) {
       if (!sample.isPrimary || sample.button !== 0) return;
+      lastDevice = 'pointer';
       const active = deps.getActive();
       if (active === null || !isLive()) {
         if (log.enabled('debug')) log.debug('input', 'tap dropped: no level is live');
@@ -184,7 +329,20 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       active.sim.enqueue({ type: 'Release', t: heldPressAt > simNow ? heldPressAt : simNow });
     },
     onKeysChanged(timeStampAtReal) {
+      if (deps.held.size > 0) lastDevice = 'keyboard';
       refreshMove((active) => active.timeMap.realToSim(asRealMs(timeStampAtReal)));
+    },
+    handleAction,
+    get lastDevice() {
+      return lastDevice;
+    },
+    targetedThreatId() {
+      const active = deps.getActive();
+      if (active === null || !isLive()) return null;
+      return targetNow(active);
+    },
+    get padFamily() {
+      return family;
     },
     pollGamepad: pollAndRefresh,
     resync: resyncNow,

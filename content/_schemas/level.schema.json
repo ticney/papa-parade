@@ -41,12 +41,39 @@
         "description": "One planned threat: what, where, and from when."
       },
       "description": "The threats the level plans, in order."
+    },
+    "objects": {
+      "default": [],
+      "description": "The interactive objects of the level (story 1.17); none by default.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "The object id, the `objectId` of `TapObject`; unique in the level."
+          },
+          "anchor": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "An anchor of the level geometry, without the `ANCHOR_` prefix."
+          }
+        },
+        "required": [
+          "id",
+          "anchor"
+        ],
+        "additionalProperties": false,
+        "description": "One interactive object: what Space or A can walk Papa to, and where it stands."
+      }
     }
   },
   "required": [
     "id",
-    "threats"
+    "threats",
+    "objects"
   ],
   "additionalProperties": false,
-  "description": "A level: the threats it plans."
+  "description": "A level: the threats it plans and the objects it offers."
 }

@@ -136,6 +136,11 @@
           "maximum": 360,
           "description": "Auto-target cone for keyboard and gamepad, in degrees (story 1.17)."
         },
+        "contextReachM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Space or A acts on the nearest interactive object within this distance of Papa, in metres (story 1.17)."
+        },
         "stickDeadzonePct": {
           "type": "number",
           "minimum": 0,
@@ -154,6 +159,7 @@
         "earlyPress",
         "touchRadiusPx",
         "autoTargetConeDeg",
+        "contextReachM",
         "stickDeadzonePct",
         "stickAngleStepDeg"
       ],

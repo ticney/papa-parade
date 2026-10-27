@@ -30,7 +30,7 @@ export interface HitTester {
    * Projects a screen point (normalised device coordinates, x right and y up, both in `[-1, 1]`)
    * onto the floor plane y = 0 and writes where it lands into `out`. False when the point is not a
    * finite number or the ray never meets the plane. The threats are tried before it (threat >
-   * baby > object > floor; the baby and the objects come with stories 1.17, 1.19 and 1.20).
+   * baby > object > floor; the baby comes with story 1.21 and the objects, for touch, with stories 1.19 and 1.20; Space and A reach objects since 1.17 through `TapObject`).
    */
   pickFloor(ndcX: number, ndcY: number, out: FloorPoint): boolean;
   /**

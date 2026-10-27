@@ -20,6 +20,13 @@ export interface MoveIntent {
    * called when a command is sent (it reads the time map, which is meant for rare calls).
    */
   update(held: ReadonlySet<string>, stick: StickAxes, at: () => SimMs): void;
+  /**
+   * Writes into `out` the direction the player pushes right now (a unit vector in world axes, the
+   * one `update` last computed from the keys and the stick, whether or not it sent it) and returns
+   * true; false, with `out` at (0, 0), when nothing is pushed. It is the aim of the auto-target
+   * (story 1.17): the walk direction, not a second conversion.
+   */
+  aimDir(out: FloorDir): boolean;
   /** Forgets what was sent: the next `update` sends whatever is pushed now. A new level (a new sim) starts so. */
   reset(): void;
 }
@@ -44,6 +51,10 @@ export function createMoveIntent(deps: MoveIntentDeps): MoveIntent {
   let isMoving = false;
   let sentX = 0;
   let sentZ = 0;
+  // What `update` last found pushed, sent or not: the aim.
+  let hasAim = false;
+  let aimX = 0;
+  let aimZ = 0;
 
   return {
     update(held, stick, at) {
@@ -60,6 +71,9 @@ export function createMoveIntent(deps: MoveIntentDeps): MoveIntent {
       const screen = hasStick ? stickDir : keyDir;
       const hasDirection =
         (hasStick || hasKeys) && screenToWorldDir(deps.camera, screen.x, screen.up, worldDir);
+      hasAim = hasDirection;
+      aimX = hasDirection ? worldDir.x : 0;
+      aimZ = hasDirection ? worldDir.z : 0;
       if (!hasDirection) {
         if (isMoving) {
           isMoving = false;
@@ -73,7 +87,15 @@ export function createMoveIntent(deps: MoveIntentDeps): MoveIntent {
       sentZ = worldDir.z;
       deps.send({ type: 'Move', t: at(), dirX: worldDir.x, dirZ: worldDir.z });
     },
+    aimDir(out) {
+      out.x = aimX;
+      out.z = aimZ;
+      return hasAim;
+    },
     reset() {
+      hasAim = false;
+      aimX = 0;
+      aimZ = 0;
       isMoving = false;
       sentX = 0;
       sentZ = 0;

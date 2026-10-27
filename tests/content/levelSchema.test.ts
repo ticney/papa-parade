@@ -46,9 +46,35 @@ describe('content/levels/salon_crawler.json', () => {
       { ...real, threats: [{ ...entry, anchor: 'ANCHOR_outlet_01' }] },
       ['threats[0].anchor'],
     ],
+    [
+      'an object with an unknown key',
+      { ...real, objects: [{ id: 'phone', anchor: 'phone', bogus: 1 }] },
+      ['objects[0].bogus'],
+    ],
+    [
+      'an object id in camelCase',
+      { ...real, objects: [{ id: 'coffeeMachine', anchor: 'phone' }] },
+      ['objects[0].id'],
+    ],
+    [
+      'an object anchor with its prefix',
+      { ...real, objects: [{ id: 'phone', anchor: 'ANCHOR_phone' }] },
+      ['objects[0].anchor'],
+    ],
     ['a negative fromMs', { ...real, threats: [{ ...entry, fromMs: -1 }] }, ['threats[0].fromMs']],
   ])('rejects %s', (_name, value, expected) => {
     expect(failedPaths(parse(value))).toEqual(expected);
+  });
+
+  it('lists the coffee machine and the phone, and defaults to no objects', () => {
+    const parsed = parse(real);
+    expect(parsed.ok && parsed.value.objects.map((object) => object.id)).toEqual([
+      'coffee_machine',
+      'phone',
+    ]);
+    const { objects: _objects, ...withoutObjects } = real;
+    const bare = parse(withoutObjects);
+    expect(bare.ok && bare.value.objects).toEqual([]);
   });
 
   it('gives every numeric key of an entry a unit suffix', () => {

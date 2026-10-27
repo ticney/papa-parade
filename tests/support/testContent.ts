@@ -6,7 +6,7 @@ import { parseContentFile } from '@content/parseContentFile';
 import type { BotSettings } from '@content/schemas/bots';
 import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
-import type { LevelThreatEntry } from '@content/schemas/level';
+import type { LevelObject, LevelThreatEntry } from '@content/schemas/level';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
 import { type ThreatDef, ThreatDefSchema } from '@content/schemas/threat';
 import type { Sim } from '@sim';
@@ -139,7 +139,10 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
  * The level of the frozen living room that plans `entries` (none: it plans nothing, as the live one
  * does today). Each entry's def is resolved from the frozen threats; an unknown one throws.
  */
-export function createTestLevel(entries: readonly LevelThreatEntry[] = []): LevelContent {
+export function createTestLevel(
+  entries: readonly LevelThreatEntry[] = [],
+  objects: readonly LevelObject[] = [],
+): LevelContent {
   const all = createTestThreats();
   const threats: Record<string, ThreatDef> = {};
   for (const entry of entries) {
@@ -147,8 +150,14 @@ export function createTestLevel(entries: readonly LevelThreatEntry[] = []): Leve
     if (def === undefined) throw new Error(`no frozen threat "${entry.def}" in tests/support`);
     threats[def.id] = def;
   }
-  return { level: { id: 'salon_crawler', threats: [...entries] }, threats };
+  return { level: { id: 'salon_crawler', threats: [...entries], objects: [...objects] }, threats };
 }
+
+/** The coffee machine and the phone of the live level, at the frozen room's anchors of the same names. */
+export const TEST_OBJECTS: readonly LevelObject[] = [
+  { id: 'coffee_machine', anchor: 'coffee_machine' },
+  { id: 'phone', anchor: 'phone' },
+];
 
 /** A plan for the outlet at the frozen room's `outlet_01` anchor, from `fromMs` of sim time. */
 export function outletEntry(fromMs: number): LevelThreatEntry {

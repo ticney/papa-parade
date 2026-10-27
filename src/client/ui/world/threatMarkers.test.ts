@@ -102,7 +102,7 @@ describe('createThreatMarkers', () => {
       ['gag', false],
       ['idle', false],
     ] as const) {
-      markers.update([threat(4, state)], null);
+      markers.update([threat(4, state)], null, null);
       expect(scene.children[0]?.visible, state).toBe(isShown);
       expect(markers.isAnyVisible, state).toBe(isShown);
       if (!isShown) expect(root?.style.display, state).toBe('none');
@@ -113,19 +113,61 @@ describe('createThreatMarkers', () => {
     const { markers, byClass } = build();
     markers.mount([ENTRY]);
     const [highlight] = byClass(THREAT_CLASSES.highlight);
-    expect(markers.update([threat(4, 'telegraph')], null)).toBe(false);
+    expect(markers.update([threat(4, 'telegraph')], null, null)).toBe(false);
     expect(highlight?.hidden).toBe(true);
-    expect(markers.update([threat(4, 'telegraph')], 4)).toBe(true);
+    expect(markers.update([threat(4, 'telegraph')], 4, null)).toBe(true);
     expect(highlight?.hidden).toBe(false);
-    expect(markers.update([threat(4, 'telegraph')], 4)).toBe(false);
+    expect(markers.update([threat(4, 'telegraph')], 4, null)).toBe(false);
     expect(highlight?.hidden).toBe(false);
+  });
+
+  it('highlights the auto-targeted threat, follows the target, and keeps the pressed one lit', () => {
+    const { markers, byClass } = build();
+    markers.mount([ENTRY, { ...ENTRY, threatId: 5 }]);
+    const [first, second] = byClass(THREAT_CLASSES.highlight);
+    const threats = [threat(4, 'telegraph'), threat(5, 'windowOpen')];
+    expect(markers.update(threats, null, null)).toBe(false);
+    expect([first?.hidden, second?.hidden]).toEqual([true, true]);
+    expect(markers.update(threats, null, 4)).toBe(true);
+    expect([first?.hidden, second?.hidden]).toEqual([false, true]);
+    expect(markers.update(threats, null, 4)).toBe(false);
+    // The target moves: one ring goes, the other appears.
+    expect(markers.update(threats, null, 5)).toBe(true);
+    expect([first?.hidden, second?.hidden]).toEqual([true, false]);
+    // Pressed 4 while 5 is the target: both are lit.
+    expect(markers.update(threats, 4, 5)).toBe(true);
+    expect([first?.hidden, second?.hidden]).toEqual([false, false]);
+    // No target any more: only the pressed one stays.
+    expect(markers.update(threats, 4, null)).toBe(false);
+    expect([first?.hidden, second?.hidden]).toEqual([false, true]);
+  });
+
+  it('does not make a ring appear twice when the pressed threat is already the target', () => {
+    const { markers, byClass } = build();
+    markers.mount([ENTRY]);
+    const [highlight] = byClass(THREAT_CLASSES.highlight);
+    expect(markers.update([threat(4, 'telegraph')], null, 4)).toBe(true);
+    // The press lands on the target whose ring is already up: nothing new became visible.
+    expect(markers.update([threat(4, 'telegraph')], 4, 4)).toBe(false);
+    expect(highlight?.hidden).toBe(false);
+    // The press ends and the target goes: the ring goes with it.
+    expect(markers.update([threat(4, 'telegraph')], null, null)).toBe(false);
+    expect(highlight?.hidden).toBe(true);
+  });
+
+  it('never highlights a target that is not one of its threats, or not active', () => {
+    const { markers, byClass } = build();
+    markers.mount([ENTRY]);
+    const [highlight] = byClass(THREAT_CLASSES.highlight);
+    expect(markers.update([threat(4, 'telegraph')], null, 9)).toBe(false);
+    expect(highlight?.hidden).toBe(true);
   });
 
   it('does not highlight another threat', () => {
     const { markers, byClass } = build();
     markers.mount([ENTRY]);
     const [highlight] = byClass(THREAT_CLASSES.highlight);
-    expect(markers.update([threat(4, 'windowOpen')], 9)).toBe(false);
+    expect(markers.update([threat(4, 'windowOpen')], 9, null)).toBe(false);
     expect(highlight?.hidden).toBe(true);
   });
 
@@ -134,12 +176,12 @@ describe('createThreatMarkers', () => {
     markers.mount([ENTRY]);
     const [highlight] = byClass(THREAT_CLASSES.highlight);
     // A quick tap: the press and its result land in the same step, before any frame drew the highlight.
-    expect(markers.update([threat(4, 'resolved')], 4)).toBe(true);
+    expect(markers.update([threat(4, 'resolved')], 4, null)).toBe(true);
     expect(scene.children[0]?.visible).toBe(true);
     expect(highlight?.hidden).toBe(false);
     expect(markers.isAnyVisible).toBe(true);
     // The caller forgets the press after that frame: the icon and the highlight go.
-    expect(markers.update([threat(4, 'resolved')], null)).toBe(false);
+    expect(markers.update([threat(4, 'resolved')], null, null)).toBe(false);
     expect(scene.children[0]?.visible).toBe(false);
     expect(highlight?.hidden).toBe(true);
     expect(markers.isAnyVisible).toBe(false);
@@ -148,14 +190,14 @@ describe('createThreatMarkers', () => {
   it('matches markers to threats by index, so two threats show independently', () => {
     const { markers, scene } = build();
     markers.mount([ENTRY, { ...ENTRY, threatId: 5 }]);
-    markers.update([threat(4, 'idle'), threat(5, 'telegraph')], null);
+    markers.update([threat(4, 'idle'), threat(5, 'telegraph')], null, null);
     expect(scene.children.map((child) => child.visible)).toEqual([false, true]);
   });
 
   it('tolerates fewer threats than markers', () => {
     const { markers } = build();
     markers.mount([ENTRY, { ...ENTRY, threatId: 5 }]);
-    expect(() => markers.update([threat(4, 'telegraph')], null)).not.toThrow();
+    expect(() => markers.update([threat(4, 'telegraph')], null, null)).not.toThrow();
     expect(markers.isAnyVisible).toBe(true);
   });
 
@@ -167,20 +209,20 @@ describe('createThreatMarkers', () => {
     const before = countWarnings();
     markers.mount([ENTRY, { ...ENTRY, threatId: 5 }]);
     // The world of another level: ids 7 and 8 against the entries 4 and 5.
-    markers.update([threat(7, 'telegraph'), threat(8, 'windowOpen')], 7);
+    markers.update([threat(7, 'telegraph'), threat(8, 'windowOpen')], 7, null);
     expect(scene.children.map((child) => child.visible)).toEqual([false, false]);
     expect(markers.isAnyVisible).toBe(false);
-    markers.update([threat(7, 'telegraph'), threat(8, 'windowOpen')], null);
+    markers.update([threat(7, 'telegraph'), threat(8, 'windowOpen')], null, null);
     expect(countWarnings()).toBe(before + 1);
     markers.mount([ENTRY]);
-    markers.update([threat(9, 'telegraph')], null);
+    markers.update([threat(9, 'telegraph')], null, null);
     expect(countWarnings()).toBe(before + 2);
   });
 
   it('replaces the previous level on mount and empties on unmount', () => {
     const { markers, scene } = build();
     markers.mount([ENTRY]);
-    markers.update([threat(4, 'telegraph')], null);
+    markers.update([threat(4, 'telegraph')], null, null);
     markers.mount([ENTRY]);
     expect(scene.children).toHaveLength(1);
     expect(markers.isAnyVisible).toBe(false);

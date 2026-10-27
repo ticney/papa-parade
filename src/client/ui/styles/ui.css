@@ -369,6 +369,12 @@ body {
   overflow-wrap: anywhere;
 }
 
+.pp-panel-note {
+  margin: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
 .pp-panel-actions {
   display: flex;
   flex-direction: column;
@@ -641,6 +647,42 @@ body {
   margin-left: -12px;
   color: var(--pp-color-alert);
   animation: pp-threat-bounce 500ms ease-in-out infinite;
+}
+
+/*
+  The glyph chip (DESIGN.md › glyph-chip; mockup key-hud-level.html state B): a paper pill with the
+  ink outline and the sticker shadow, to the right of the targeted icon. The anchor is a point (the
+  CSS2DRenderer centres it on the icon); the chip hangs from it by the icon's half size plus a gap
+  and is centred on the icon vertically. It never animates: it moves with its target.
+*/
+.pp-glyph-chip-anchor {
+  --pp-threat-size: 64px;
+  position: relative;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+:root[data-pp-surface="compact"] .pp-glyph-chip-anchor {
+  --pp-threat-size: 56px;
+}
+
+.pp-glyph-chip {
+  position: absolute;
+  left: calc(var(--pp-threat-size) / 2 + var(--pp-spacing-2));
+  top: 0;
+  transform: translateY(-50%);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--pp-spacing-3);
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+  color: var(--pp-color-ink);
+  box-shadow: var(--pp-lift);
+  white-space: nowrap;
 }
 
 @keyframes pp-threat-pulse {

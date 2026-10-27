@@ -72,8 +72,8 @@ describe('createWorldUi, threat icons', () => {
     ui.setSize(800, 400);
     ui.mountThreats([entry]);
     expect(ui.threatEntries).toEqual([entry]);
-    ui.updateThreats(threat('telegraph'), null);
-    const object = ui.scene.children[1] as unknown as { element: FakeElement };
+    ui.updateThreats(threat('telegraph'), null, null);
+    const object = ui.scene.children[2] as unknown as { element: FakeElement };
     ui.render(camera);
     expect(object.element.style.transform).toMatch(/translate\(400px, (200|199\.9\d*)px\)/);
     expect(object.element.parentNode).toBe(container);
@@ -83,9 +83,9 @@ describe('createWorldUi, threat icons', () => {
     const { ui, camera } = build();
     ui.setSize(800, 400);
     ui.mountThreats([entry]);
-    ui.updateThreats(threat('telegraph'), null);
-    ui.updateThreats(threat('resolved'), null);
-    const object = ui.scene.children[1] as unknown as { element: FakeElement };
+    ui.updateThreats(threat('telegraph'), null, null);
+    ui.updateThreats(threat('resolved'), null, null);
+    const object = ui.scene.children[2] as unknown as { element: FakeElement };
     object.element.style.transform = 'untouched';
     ui.render(camera);
     expect(object.element.style.transform).toBe('untouched');
@@ -96,6 +96,30 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     ui.unmountThreats();
     expect(ui.threatEntries).toEqual([]);
-    expect(ui.scene.children).toHaveLength(1); // the tap marker stays
+    expect(ui.scene.children).toHaveLength(2); // the tap marker and the glyph chip stay
+  });
+});
+
+describe('createWorldUi, glyph chip (story 1.17)', () => {
+  const entry = { threatId: 1, xM: 0, yM: 0, zM: 0, icon: 'bolt' as const };
+
+  it('renders the layer while the chip shows, and stops once it is hidden', () => {
+    const { ui, camera, container } = build();
+    ui.setSize(800, 400);
+    ui.glyphChip.showAt(entry, 'Espace');
+    const object = ui.scene.children[1] as unknown as { element: FakeElement };
+    ui.render(camera);
+    expect(object.element.style.transform).toMatch(/translate\(400px, (200|199\.9\d*)px\)/);
+    expect(object.element.parentNode).toBe(container);
+    ui.glyphChip.hide();
+    object.element.style.transform = 'untouched';
+    ui.render(camera);
+    expect(object.element.style.transform).toBe('untouched');
+  });
+
+  it('highlights the targeted threat through updateThreats', () => {
+    const { ui } = build();
+    ui.mountThreats([entry]);
+    expect(ui.updateThreats([{ id: 1, state: 'telegraph' }] as never, null, 1)).toBe(true);
   });
 });

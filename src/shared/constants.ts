@@ -203,3 +203,34 @@ export const QUATERNION_LENGTH_TOLERANCE = 1e-4;
  * would be float noise): the stairs slide then goes against the baby's gaze instead.
  */
 export const SLIDE_DIRECTION_MIN_M = 0.001;
+
+/**
+ * Closer than this to Papa, in metres, a threat has no direction from him (the vector would be
+ * float noise): the auto-target counts it in every cone (story 1.17).
+ */
+export const AUTO_TARGET_ON_PAPA_M = 1e-3;
+
+/**
+ * Rounding slack of the auto-target's cone test, in metres of projected distance: a threat exactly
+ * at the half-angle is in the cone even though `cos` and `sqrt` round (story 1.17, « inclusive »).
+ */
+export const AUTO_TARGET_EDGE_EPSILON_M = 1e-9;
+
+/** `threatPress` ids of the presses that do not come from a pointer; pointer ids are >= 0 (story 1.17). */
+export const KEYBOARD_PRESS_ID = -1;
+export const GAMEPAD_PRESS_ID = -2;
+
+/**
+ * A pad's own timestamp older than this, in real ms, is not trusted for a press: the press is
+ * stamped with the time it is read instead (story 1.17).
+ */
+export const PAD_STAMP_MAX_AGE_MS = 100;
+
+/** Buttons of the W3C « standard » gamepad layout the game reads (story 1.17). */
+export const PAD_BUTTON_CONFIRM = 0;
+export const PAD_BUTTON_BACK = 1;
+export const PAD_BUTTON_START = 9;
+export const PAD_BUTTON_DPAD_UP = 12;
+export const PAD_BUTTON_DPAD_DOWN = 13;
+export const PAD_BUTTON_DPAD_LEFT = 14;
+export const PAD_BUTTON_DPAD_RIGHT = 15;

@@ -312,7 +312,14 @@ test.describe('move Papa', () => {
 
     await pad.setStick(0.9, 0);
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkDir');
+    // A pad that goes away pauses the game (story 1.17): the resume resyncs and stops Papa.
     await pad.setPadPresent(false);
+    await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
+    await expect(page.locator('.pp-panel-note')).toHaveText(STRINGS['pause.gamepad_disconnected']);
+    await page.keyboard.press('Escape');
+    await expect(html(page)).toHaveAttribute('data-pp-state', 'running', {
+      timeout: RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS,
+    });
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'idle');
   });
 

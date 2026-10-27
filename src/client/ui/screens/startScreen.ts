@@ -67,6 +67,8 @@ export function createStartScreen(options: StartScreenOptions): OverlayScreen {
   return {
     element,
     initialFocus: element,
+    // The same closure as a key or a tap: the audio unlock inside it stays synchronous (D14).
+    activate: start,
     dispose() {
       target.removeEventListener('pointerdown', onPointerDown);
       target.removeEventListener('pointerup', onPointerUp);

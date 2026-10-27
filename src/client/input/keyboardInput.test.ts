@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ACTION_KEY_CODES,
   bindKeyboard,
   createHeldKeys,
+  isActionKey,
   isMoveKey,
   type KeyboardEventTarget,
   type KeySample,
@@ -44,6 +46,15 @@ describe('MOVE_KEY_CODES', () => {
     expect(isMoveKey('KeyZ')).toBe(false);
     expect(isMoveKey('KeyQ')).toBe(false);
     expect(isMoveKey('Space')).toBe(false);
+  });
+});
+
+describe('ACTION_KEY_CODES (story 1.17)', () => {
+  it('binds the space bar by code', () => {
+    expect([...ACTION_KEY_CODES]).toEqual(['Space']);
+    expect(isActionKey('Space')).toBe(true);
+    expect(isActionKey('Enter')).toBe(false);
+    expect(isActionKey('KeyW')).toBe(false);
   });
 });
 
@@ -133,10 +144,12 @@ describe('bindKeyboard', () => {
     const targets = fakeTargets();
     const keys = createHeldKeys();
     const changes: number[] = [];
+    const actions: string[] = [];
     let live = isLive;
     const unbind = bindKeyboard(keys, targets.windowTarget, targets.documentTarget, {
       onChange: (timeStampMs) => changes.push(timeStampMs),
       isLive: () => live,
+      onAction: (phase, timeStampAtReal) => actions.push(`${phase}@${timeStampAtReal}`),
     });
     const press = (code: string, extra: Record<string, unknown> = {}) => {
       const event = {
@@ -159,6 +172,7 @@ describe('bindKeyboard', () => {
       ...targets,
       keys,
       changes,
+      actions,
       unbind,
       press,
       setLive: (value: boolean) => (live = value),
@@ -232,5 +246,88 @@ describe('bindKeyboard', () => {
     const { unbind, listeners } = setup();
     unbind();
     for (const set of listeners.values()) expect(set.size).toBe(0);
+  });
+
+  describe('the action key (story 1.17)', () => {
+    it('reports Space down once, with the event timestamp, and up on its keyup', () => {
+      const { press, fire, actions } = setup();
+      press('Space', { timeStamp: 10 });
+      press('Space', { timeStamp: 20, repeat: true });
+      fire('keyup', { code: 'Space', timeStamp: 30 });
+      expect(actions).toEqual(['down@10', 'up@30']);
+    });
+
+    it('ignores a chord on the way down but not on the way up', () => {
+      const { press, fire, actions } = setup();
+      for (const modifier of ['ctrlKey', 'metaKey', 'altKey']) {
+        const event = press('Space', { [modifier]: true });
+        expect(event.defaultPrevented).toBe(false);
+      }
+      expect(actions).toEqual([]);
+      // A Space pressed alone, then Ctrl added before it goes up: the keyup still releases.
+      press('Space', { timeStamp: 40 });
+      fire('keyup', { code: 'Space', timeStamp: 50, ctrlKey: true });
+      expect(actions).toEqual(['down@40', 'up@50']);
+    });
+
+    it('cancels the page scroll only while a level is live', () => {
+      const { press, setLive } = setup(true);
+      expect(press('Space').defaultPrevented).toBe(true);
+      expect(press('Space', { repeat: true }).defaultPrevented).toBe(true);
+      setLive(false);
+      expect(press('Space').defaultPrevented).toBe(false);
+    });
+
+    it('still reports Space when no level is live (the consumer gates), without cancelling it', () => {
+      const { press, actions } = setup(false);
+      const event = press('Space', { timeStamp: 5 });
+      expect(event.defaultPrevented).toBe(false);
+      expect(actions).toEqual(['down@5']);
+    });
+
+    it('reports a keyup whose keydown it never saw (the Space that started the game)', () => {
+      const { fire, actions } = setup();
+      fire('keyup', { code: 'Space', timeStamp: 9 });
+      expect(actions).toEqual(['up@9']);
+    });
+
+    it('lets go on blur, on a hidden page and when Cmd goes down, only if Space is down', () => {
+      const { press, fire, actions, documentTarget } = setup();
+      fire('blur', { timeStamp: 1 });
+      expect(actions).toEqual([]);
+      press('Space', { timeStamp: 10 });
+      fire('blur', { timeStamp: 20 });
+      fire('blur', { timeStamp: 21 }); // already released
+      press('Space', { timeStamp: 30 });
+      fire('visibilitychange', { timeStamp: 35 }); // still visible
+      documentTarget.visibilityState = 'hidden';
+      fire('visibilitychange', { timeStamp: 40 });
+      documentTarget.visibilityState = 'visible';
+      press('Space', { timeStamp: 50 });
+      press('MetaLeft', { timeStamp: 60, metaKey: true });
+      expect(actions).toEqual(['down@10', 'up@20', 'down@30', 'up@40', 'down@50', 'up@60']);
+    });
+
+    it('does not touch the held movement keys, and a movement key does not act', () => {
+      const { press, fire, keys, changes, actions } = setup();
+      press('KeyD', { timeStamp: 10 });
+      press('Space', { timeStamp: 20 });
+      fire('keyup', { code: 'Space', timeStamp: 30 });
+      expect(keys.held.has('KeyD')).toBe(true);
+      expect(changes).toEqual([10]);
+      expect(actions).toEqual(['down@20', 'up@30']);
+    });
+
+    it('works without an onAction binding', () => {
+      const targets = fakeTargets();
+      bindKeyboard(createHeldKeys(), targets.windowTarget, targets.documentTarget, {
+        onChange: () => {},
+        isLive: () => true,
+      });
+      expect(() => {
+        targets.fire('keydown', { code: 'Space', repeat: false, preventDefault() {} });
+        targets.fire('keyup', { code: 'Space' });
+      }).not.toThrow();
+    });
   });
 });

@@ -15,6 +15,7 @@
     "earlyPress": "fail",
     "touchRadiusPx": 48,
     "autoTargetConeDeg": 60,
+    "contextReachM": 1.5,
     "stickDeadzonePct": 20,
     "stickAngleStepDeg": 5
   },

@@ -26,10 +26,12 @@ import { createAudioEngine } from './audio/audioEngine.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
 import { createResponseChoreography } from './feedback/responseChoreography.ts';
 import { threatCueOf } from './feedback/threatFeedback.ts';
+import type { ContextObject } from './input/contextObject.ts';
 import { createGamepadInput } from './input/gamepadInput.ts';
 import { createHitTester, type ThreatTargets } from './input/hitTest.ts';
 import { createInputMapper } from './input/inputMapper.ts';
 import { bindKeyboard, createHeldKeys } from './input/keyboardInput.ts';
+import { keyGlyph, loadKeyboardLayoutMap, padConfirmGlyph } from './input/keyGlyphs.ts';
 import { createMoveIntent } from './input/moveIntent.ts';
 import { bindPointer } from './input/pointerInput.ts';
 import { slideDirection } from './render/gags.ts';
@@ -202,7 +204,8 @@ export async function boot(): Promise<void> {
       | 'ppThreatPx'
       | 'ppResponse'
       | 'ppGag'
-      | 'ppPress',
+      | 'ppPress'
+      | 'ppTarget',
     value: string,
   ): void => {
     if (document.documentElement.dataset[name] !== value) {
@@ -284,6 +287,15 @@ export async function boot(): Promise<void> {
   // The threat the player pressed last, until it is no longer active: the world UI highlights it
   // from the next frame (D8), before the sim has applied the press.
   let highlightedThreatId: number | null = null;
+  // The level's interactive objects at their floor points (Space or A walks Papa to one).
+  let levelObjects: readonly ContextObject[] = [];
+  // The names the browser gives the keys of the layout in use; null until loaded, or where it cannot.
+  let keyboardLayoutMap: ReadonlyMap<string, string> | null = null;
+  // The chip's text, recomputed only when what it depends on changes (no string built per frame).
+  let chipText = '';
+  let chipDevice: 'keyboard' | 'gamepad' | null = null;
+  let chipFamily: 'xbox' | 'playstation' | null = null;
+  let chipMap: ReadonlyMap<string, string> | null = null;
   const choreography = createResponseChoreography();
   const noLiftFx = { liftBaby: () => {} };
   /** The direction of the last gag's slide, written once per `GagTriggered`. */
@@ -326,7 +338,14 @@ export async function boot(): Promise<void> {
     mirror('ppBabyState', levelSession.active?.sim.world.baby.state ?? 'babble');
     mirrorBabyAt();
     delete document.documentElement.dataset.ppTap;
-    for (const name of ['ppThreat', 'ppThreatPx', 'ppResponse', 'ppGag', 'ppPress'] as const) {
+    for (const name of [
+      'ppThreat',
+      'ppThreatPx',
+      'ppResponse',
+      'ppGag',
+      'ppPress',
+      'ppTarget',
+    ] as const) {
       delete document.documentElement.dataset[name];
     }
   };
@@ -370,6 +389,44 @@ export async function boot(): Promise<void> {
     }
   };
 
+  // The one chip beside the targeted threat's icon: the key or the button that parries it. Finds the
+  // icon by index (`world.threats[i]` is `worldUi.threatEntries[i]`), allocates nothing.
+  const showGlyphChip = (
+    world: Readonly<{ threats: readonly Readonly<{ id: number }>[] }> | undefined,
+    targetedId: number | null,
+    device: 'pointer' | 'keyboard' | 'gamepad' | null,
+  ): void => {
+    if (
+      world === undefined ||
+      targetedId === null ||
+      (device !== 'keyboard' && device !== 'gamepad')
+    ) {
+      worldUi.glyphChip.hide();
+      return;
+    }
+    const family = inputMapper.padFamily;
+    if (device !== chipDevice || family !== chipFamily || keyboardLayoutMap !== chipMap) {
+      chipDevice = device;
+      chipFamily = family;
+      chipMap = keyboardLayoutMap;
+      chipText =
+        device === 'keyboard'
+          ? keyGlyph('Space', keyboardLayoutMap, t)
+          : padConfirmGlyph(family, t);
+    }
+    const entries = worldUi.threatEntries;
+    for (let i = 0; i < world.threats.length; i++) {
+      if ((world.threats[i] as { id: number }).id !== targetedId) continue;
+      const entry = entries[i];
+      if (entry !== undefined && entry.threatId === targetedId) {
+        worldUi.glyphChip.showAt(entry, chipText);
+        return;
+      }
+      break;
+    }
+    worldUi.glyphChip.hide();
+  };
+
   // What the debug modules hang on (see `TestHost`); empty, and so free, unless one is installed.
   let stepHook: ((sim: Sim) => void) | null = null;
   const levelStartedListeners: ((started: StartedLevel) => void)[] = [];
@@ -394,9 +451,10 @@ export async function boot(): Promise<void> {
     onSeed: (seed) => {
       if (isMirrored) document.documentElement.dataset.ppSeed = String(seed);
     },
-    onLevelReady: (level, threatEntries) => {
+    onLevelReady: (level, threatEntries, objects) => {
       // The room is only known now: fit the camera and show it behind the loading screen.
       currentLevel = level;
+      levelObjects = objects;
       worldUi.mountThreats(threatEntries);
       highlightedThreatId = null;
       choreography.reset();
@@ -411,8 +469,16 @@ export async function boot(): Promise<void> {
       shell.frame();
       inputMapper.pollGamepad();
       const world = levelSession.active?.sim.world;
+      // The auto-target shows for the keyboard and the gamepad only, never after a touch or a click
+      // (D8); `targetedThreatId` is null when no level is live (paused, autoplay, countdown).
+      const device = inputMapper.lastDevice;
+      const targetedId =
+        device === 'keyboard' || device === 'gamepad' ? inputMapper.targetedThreatId() : null;
       const isHighlightShown =
-        world !== undefined && worldUi.updateThreats(world.threats, highlightedThreatId);
+        world !== undefined &&
+        worldUi.updateThreats(world.threats, highlightedThreatId, targetedId);
+      showGlyphChip(world, targetedId, device);
+      if (isMirrored) mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
       worldUi.render(camera);
       if (isHighlightShown && isMirrored) {
         performance.clearMarks('highlightRendered');
@@ -595,6 +661,21 @@ export async function boot(): Promise<void> {
       return targets;
     },
     touchRadiusPx: content.value.feel.input.touchRadiusPx,
+    input: content.value.feel.input,
+    getObjects: () => levelObjects,
+    onPadButton: (button) => shell.handlePadButton(button),
+    onPadPresence: (isPresent, family) => {
+      log.info('input', isPresent ? 'gamepad connected' : 'gamepad gone', { family });
+      if (isPresent) {
+        shell.setPadDisconnected(false);
+        return;
+      }
+      // Only a pad lost while playing pauses the game (D13): the panel then shows the line. The
+      // pause is a no-op when the game is already paused for another reason.
+      if (appFsm.state !== 'level') return;
+      shell.setPadDisconnected(true);
+      pause.requestPause('gamepadDisconnected');
+    },
     onThreatPressed: (threatId) => {
       highlightedThreatId = threatId;
       if (isMirrored) {
@@ -620,13 +701,45 @@ export async function boot(): Promise<void> {
   bindKeyboard(heldKeys, window, document, {
     onChange: (timeStampAtReal) => inputMapper.onKeysChanged(timeStampAtReal),
     isLive: () => inputMapper.isLive(),
+    onAction: (phase, timeStampAtReal) =>
+      inputMapper.handleAction(phase, timeStampAtReal, 'keyboard'),
+  });
+  // The names the browser gives the keys (Chromium only). Space is never in the map (D10), so the
+  // chip says « Espace » until a letter key needs a name; one `warn` where it cannot be read.
+  void loadKeyboardLayoutMap(navigator).then((loaded) => {
+    if (loaded.ok) keyboardLayoutMap = loaded.value;
+    else log.warn('input', loaded.error.message, loaded.error.cause);
+  });
+  // A pad plugged in or pulled out is seen by the next frame's poll; the events only ask for that
+  // poll now. Nothing reads `event.gamepad`: the poll is the truth, and a second pad cannot pause.
+  window.addEventListener('gamepadconnected', () => inputMapper.pollGamepad());
+  window.addEventListener('gamepaddisconnected', () => inputMapper.pollGamepad());
+  // Outside a level (start, « Oups ») nothing else polls: a light frame loop reads the pad so that
+  // A or Start can start the game and A can retry. It runs only in those two states.
+  let menuPollHandle: number | null = null;
+  const menuPoll = (): void => {
+    inputMapper.pollGamepad();
+    menuPollHandle = requestAnimationFrame(menuPoll);
+  };
+  events.on('AppStateChanged', ({ to }) => {
+    const wantsPoll = to === 'start' || to === 'oops';
+    if (wantsPoll && menuPollHandle === null) {
+      menuPollHandle = requestAnimationFrame(menuPoll);
+    } else if (!wantsPoll && menuPollHandle !== null) {
+      cancelAnimationFrame(menuPollHandle);
+      menuPollHandle = null;
+    }
   });
   events.on('GameResumed', () => inputMapper.resync());
   // A restart or an error leaves the level: its threat icons must not stay up behind the next screen.
   events.on('AppStateChanged', ({ from }) => {
     if (from !== 'level') return;
     worldUi.unmountThreats();
+    worldUi.glyphChip.hide();
     highlightedThreatId = null;
+    levelObjects = [];
+    // A pad lost in that level does not follow the player into the next one (the line is for the pause).
+    shell.setPadDisconnected(false);
   });
   events.on('AppStateChanged', ({ to }) => {
     if (to !== 'level') return;

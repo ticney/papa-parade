@@ -1,5 +1,7 @@
 import type { AppState } from '../app/appFsm.ts';
+import type { OverlayKind } from '../app/overlay.ts';
 import type { PauseState } from '../app/pauseController.ts';
+import type { PadButton } from '../input/gamepadInput.ts';
 
 /** The parts of a `KeyboardEvent` the key rules read (so tests need no DOM). */
 export interface KeyLike {
@@ -71,4 +73,53 @@ export function nextFocusIndex(count: number, current: number, code: string): nu
   if (code === 'ArrowUp' || code === 'ArrowLeft')
     return current < 0 ? count - 1 : (current - 1 + count) % count;
   return null;
+}
+
+export interface PadInput {
+  appState: AppState;
+  pauseState: PauseState;
+  /** The overlay actually shown (portrait covers whatever else is due). */
+  overlay: OverlayKind | null;
+  button: PadButton;
+}
+
+/**
+ * What a pad button does outside the sim (story 1.17, UX-DR5, UX-DR7). `pause` and `resume` are
+ * what Escape does (`escapeAction`); `ArrowUp` and the like move the focus of the pause panel;
+ * `activate` presses the focused button (the panel) or the screen's own action (start, « Oups »);
+ * `back` is B on the panel: it resumes. A button in play that is not Start is the mapper's or
+ * nothing: B never pauses (it will dodge, story 5.1). Portrait, the loading screen and a
+ * countdown take nothing, except Start, which cancels the countdown like Escape.
+ */
+export type PadAction =
+  | 'pause'
+  | 'resume'
+  | 'ArrowUp'
+  | 'ArrowDown'
+  | 'ArrowLeft'
+  | 'ArrowRight'
+  | 'activate'
+  | 'back'
+  | null;
+
+const PAD_FOCUS: Readonly<Partial<Record<PadButton, PadAction>>> = {
+  up: 'ArrowUp',
+  down: 'ArrowDown',
+  left: 'ArrowLeft',
+  right: 'ArrowRight',
+};
+
+export function padAction(input: PadInput): PadAction {
+  const { appState, pauseState, overlay, button } = input;
+  if (overlay === 'start') return button === 'confirm' || button === 'start' ? 'activate' : null;
+  if (overlay === 'oops') return button === 'confirm' ? 'activate' : null;
+  if (appState !== 'level') return null;
+  if (button === 'start') {
+    if (overlay !== null && overlay !== 'pause') return null;
+    return escapeAction({ appState, pauseState, isPortrait: false, repeat: false });
+  }
+  if (overlay !== 'pause' || pauseState !== 'paused') return null;
+  if (button === 'confirm') return 'activate';
+  if (button === 'back') return 'back';
+  return PAD_FOCUS[button] ?? null;
 }

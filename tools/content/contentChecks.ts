@@ -254,7 +254,7 @@ function checkThreatReferences(
 
 /**
  * The references a level file makes: it has its geometry beside it, each planned threat is a threat
- * file, and each anchor is an anchor of that geometry. A file that exists but did not parse was
+ * file, each anchor (of a threat or an object) is an anchor of that geometry, and object ids are unique. A file that exists but did not parse was
  * already reported on its own: it is not reported again here.
  */
 function checkLevelReferences(
@@ -290,6 +290,27 @@ function checkLevelReferences(
           file,
           jsonPath: formatJsonPath(['threats', index, 'anchor']),
           message: `"${entry.anchor}" is not an anchor of content/${geometryFile}`,
+        });
+      }
+    });
+    const seenObjects = new Set<string>();
+    level.objects.forEach((object, index) => {
+      if (seenObjects.has(object.id)) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['objects', index, 'id']),
+          message: `level ${id}: the object "${object.id}" is listed twice`,
+        });
+      }
+      seenObjects.add(object.id);
+      if (
+        geometry !== undefined &&
+        !geometry.anchors.some((anchor) => anchor.id === object.anchor)
+      ) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['objects', index, 'anchor']),
+          message: `level ${id}: the object "${object.id}" is at "${object.anchor}", which is not an anchor of content/${geometryFile}`,
         });
       }
     });

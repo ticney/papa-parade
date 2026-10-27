@@ -563,6 +563,42 @@ describe('checkContent on level files', () => {
     ]);
   });
 
+  it('names the level, the object and the anchor when an object stands at an anchor the geometry lacks', async () => {
+    await mutateJson(FILE, (level) => {
+      level.objects = [{ id: 'kettle', anchor: 'kettle_spot' }];
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'objects[0].anchor',
+        message: expect.stringMatching(/salon_crawler.*kettle.*kettle_spot/),
+      }),
+    ]);
+  });
+
+  it('names the object listed twice', async () => {
+    await mutateJson(FILE, (level) => {
+      level.objects = [
+        { id: 'phone', anchor: 'phone' },
+        { id: 'phone', anchor: 'coffee_machine' },
+      ];
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'objects[1].id',
+        message: expect.stringContaining('phone'),
+      }),
+    ]);
+  });
+
+  it('accepts a level with no objects key at all (it defaults to none)', async () => {
+    await mutateJson(FILE, (level) => {
+      delete level.objects;
+    });
+    expect(await checkContent(root)).toEqual([]);
+  });
+
   it('reports a level that has no geometry file', async () => {
     await put('content/levels/test_room.json', '{ "id": "test_room", "threats": [] }\n');
     expect(await checkContent(root)).toEqual([

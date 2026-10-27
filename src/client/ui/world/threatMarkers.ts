@@ -22,13 +22,20 @@ export interface ThreatMarkers {
   unmount(): void;
   /**
    * Once per frame: shows the markers of the threats that are `telegraph` or `windowOpen`, hides
-   * the others, and highlights the one named `highlightedId`. That one is shown even if the sim
+   * the others, and highlights the one named `highlightedId` (the pressed one) and the one named
+   * `targetedId` (the keyboard or gamepad auto-target, or null: touch and mouse show none, story
+   * 1.17). `highlightedId` is shown even if the sim
    * already resolved it: a quick tap is judged in the same frame as its press, and the highlight
    * must still be drawn once (the caller forgets `highlightedId` after that frame). `threats[i]` is the instance of
    * `entries[i]` (same order, built from `world.threats`). Writes the DOM only when a value
-   * changes and allocates nothing. Returns true when a highlight became visible in this call.
+   * changes and allocates nothing. Returns true when a highlight became visible in this call (one
+   * that was already up for the same threat as the target is not new).
    */
-  update(threats: readonly Readonly<ThreatInstance>[], highlightedId: number | null): boolean;
+  update(
+    threats: readonly Readonly<ThreatInstance>[],
+    highlightedId: number | null,
+    targetedId: number | null,
+  ): boolean;
   /** True while at least one marker is shown: the layer must be rendered. */
   readonly isAnyVisible: boolean;
   /** The icon points of the mounted level, for the hit test (the same objects, never copied). */
@@ -174,7 +181,7 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
  * The threat icons of a level, world-anchored in the `CSS2DRenderer` layer: a `{colors.parry}`
  * circle with the threat's glyph (`THREAT_ICON_PATHS`) and a pulsing `{colors.alert}` halo while the threat is `telegraph` or
  * `windowOpen`, and the `target-highlight` (a solid ring and a bouncing chevron) on the pressed
- * one. Reconciled from the world every frame (D8), not from events. `doc` makes the elements
+ * one and on the auto-targeted one. Reconciled from the world every frame (D8), not from events. `doc` makes the elements
  * (the browser's `document`; a double in tests).
  */
 export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMarkers {
@@ -201,7 +208,7 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
       for (const marker of markers) scene.add(marker.object);
     },
     unmount,
-    update(threats, highlightedId) {
+    update(threats, highlightedId, targetedId) {
       let isHighlightShown = false;
       for (let i = 0; i < markers.length; i++) {
         const marker = markers[i] as Marker;
@@ -232,7 +239,7 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
           if (!isActive) marker.element.style.display = 'none';
           shownCount += isActive ? 1 : -1;
         }
-        const isHighlighted = isPressed;
+        const isHighlighted = isPressed || (threat !== undefined && threat.id === targetedId);
         if (isHighlighted !== marker.isHighlighted) {
           marker.isHighlighted = isHighlighted;
           marker.highlight.hidden = !isHighlighted;

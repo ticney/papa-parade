@@ -10,6 +10,16 @@ export const MOVE_KEY_CODES = {
   right: ['KeyD', 'ArrowRight'],
 } as const;
 
+/**
+ * The action key (story 1.17): Space parries the auto-targeted threat, or acts on the nearest
+ * object. Bound by code like the movement keys; the chip may show a localised name for it.
+ */
+export const ACTION_KEY_CODES = ['Space'] as const;
+
+export function isActionKey(code: string): boolean {
+  return (ACTION_KEY_CODES as readonly string[]).includes(code);
+}
+
 const ALL_MOVE_CODES: ReadonlySet<string> = new Set([
   ...MOVE_KEY_CODES.up,
   ...MOVE_KEY_CODES.down,
@@ -88,6 +98,13 @@ export interface KeyboardBindings {
    * scroll with the arrows) cancelled: during a pause the arrows belong to the panel's focus.
    */
   isLive(): boolean;
+  /**
+   * The action key (Space) went down (`down`: not a repeat, no Ctrl, Cmd or Alt) or up (`up`: every
+   * keyup, chord or not, and the window losing focus or the page hiding while it is down, so that a
+   * lost keyup never holds a threat). `timeStampAtReal` is the event's timestamp. The consumer gates
+   * on a live level: Space on the pause panel keeps its native activation.
+   */
+  onAction?(phase: 'down' | 'up', timeStampAtReal: number): void;
 }
 
 /**
@@ -101,10 +118,28 @@ export function bindKeyboard(
   documentTarget: VisibilityTarget,
   bindings: KeyboardBindings,
 ): () => void {
+  // Space is down (from a non-repeat keydown to its keyup): a lost keyup is made up for on blur.
+  let isActionDown = false;
+  const releaseAction = (timeStampAtReal: number): void => {
+    if (!isActionDown) return;
+    isActionDown = false;
+    bindings.onAction?.('up', timeStampAtReal);
+  };
   const onKeyDown = (event: KeyboardEvent): void => {
     // macOS sends no `keyup` for a key released while Cmd is down: pressing Cmd lets go of everything.
     if (event.code === 'MetaLeft' || event.code === 'MetaRight') {
       if (keys.clear()) bindings.onChange(event.timeStamp);
+      releaseAction(event.timeStamp);
+      return;
+    }
+    if (isActionKey(event.code)) {
+      const isChord = event.ctrlKey || event.metaKey || event.altKey;
+      if (!event.repeat && !isChord) {
+        isActionDown = true;
+        bindings.onAction?.('down', event.timeStamp);
+      }
+      // The page scroll of Space is cancelled while playing; on a panel it activates the focused button.
+      if (!isChord && bindings.isLive()) event.preventDefault();
       return;
     }
     if (!isMoveKey(event.code)) return;
@@ -116,15 +151,23 @@ export function bindKeyboard(
     }
   };
   const onKeyUp = (event: KeyboardEvent): void => {
+    if (isActionKey(event.code)) {
+      // Every keyup, even one whose keydown we never saw (the Space that started the game): the
+      // consumer ends a press only if it holds one.
+      isActionDown = false;
+      bindings.onAction?.('up', event.timeStamp);
+      return;
+    }
     if (keys.keyUp(event.code)) bindings.onChange(event.timeStamp);
   };
   const onBlur = (event: Event): void => {
     if (keys.clear()) bindings.onChange(event.timeStamp);
+    releaseAction(event.timeStamp);
   };
   const onVisibility = (event: Event): void => {
-    if (documentTarget.visibilityState === 'hidden' && keys.clear()) {
-      bindings.onChange(event.timeStamp);
-    }
+    if (documentTarget.visibilityState !== 'hidden') return;
+    if (keys.clear()) bindings.onChange(event.timeStamp);
+    releaseAction(event.timeStamp);
   };
   windowTarget.addEventListener('keydown', onKeyDown);
   windowTarget.addEventListener('keyup', onKeyUp);

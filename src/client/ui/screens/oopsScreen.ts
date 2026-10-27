@@ -41,5 +41,6 @@ export function createOopsScreen(options: OopsScreenOptions): OverlayScreen {
   panel.append(message, actions);
   element.append(panel);
 
-  return { element, initialFocus: retry, dispose: unbind };
+  // A pad's A presses the button the way a key does (`click` with no pointer), so it is one path.
+  return { element, initialFocus: retry, activate: () => retry.click(), dispose: unbind };
 }

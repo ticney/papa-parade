@@ -7,6 +7,7 @@ import {
   createTestLevel,
   outletEntry,
   stepN,
+  TEST_OBJECTS,
 } from '../../tests/support/testContent.ts';
 import type { System } from './context.ts';
 import { createSim, createSimWithSystems } from './createSim.ts';
@@ -213,6 +214,33 @@ describe('the level it plans', () => {
     await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
       /salon_crawler.*threats\[0\].*outlet.*outlet_02/,
     );
+  });
+
+  it('refuses an object whose anchor the room does not have, naming the level, the object and the anchor', async () => {
+    const wrong = createTestLevel([], [{ id: 'kettle', anchor: 'kettle_spot' }]);
+    await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
+      /salon_crawler.*objects\[0\].*kettle.*kettle_spot/,
+    );
+  });
+
+  it('refuses an object id listed twice', async () => {
+    const twice = createTestLevel(
+      [],
+      [
+        { id: 'phone', anchor: 'phone' },
+        { id: 'phone', anchor: 'coffee_machine' },
+      ],
+    );
+    await expect(createSim({ content, geometry, level: twice, seed: 1 })).rejects.toThrow(
+      /objects\[1\].*"phone" is listed twice/,
+    );
+  });
+
+  it('accepts a level with objects, and hashes them into the journal', async () => {
+    const withObjects = createTestLevel([], TEST_OBJECTS);
+    const sim = await createSim({ content, geometry, level: withObjects, seed: 1 });
+    expect(sim.journal().levelHash).toBe(hashJson(withObjects));
+    expect(sim.journal().levelHash).not.toBe(hashJson(level));
   });
 
   it('refuses a gag the sim does not know', async () => {

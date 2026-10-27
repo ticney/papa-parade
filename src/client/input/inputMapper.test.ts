@@ -4,7 +4,8 @@ import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import { createIsoCamera, fitIsoCamera } from '../render/isoCamera.ts';
-import type { StickAxes } from './gamepadInput.ts';
+import type { ContextObject } from './contextObject.ts';
+import type { PadButton, PadFamily, PadState, StickAxes } from './gamepadInput.ts';
 import { createHitTester, type ThreatTargets } from './hitTest.ts';
 import { createInputMapper } from './inputMapper.ts';
 import { createMoveIntent } from './moveIntent.ts';
@@ -39,11 +40,26 @@ function setup() {
   const camera = createIsoCamera();
   fitIsoCamera(camera, ROOM, RECT.width / RECT.height);
   const state = { app: 'level' as string, pause: 'running' as string, stick: { x: 0, y: 0 } };
+  // What the fake pad reports at the next poll: presence, family, stamp; the edges are one-shot.
+  const pad = {
+    isPresent: false,
+    family: 'xbox' as PadFamily,
+    stampAtReal: 0,
+    pressed: [] as PadButton[],
+    released: [] as PadButton[],
+  };
+  const padButtons: PadButton[] = [];
+  const padPresence: [boolean, PadFamily][] = [];
+  let objects: ContextObject[] = [];
   const commands: SimCommand[] = [];
   const clock = { realToSim: (ms: number) => asSimMs(ms - 1000) };
   const sim = {
     enqueue: (command: SimCommand) => commands.push(command),
-    world: { time: { sim: asSimMs(777) } },
+    world: {
+      time: { sim: asSimMs(777) },
+      papa: { xM: 0, zM: 0 },
+      threats: [] as unknown[],
+    },
   };
   let active: ActiveLevel | null = { sim, timeMap: clock } as unknown as ActiveLevel;
   const held = new Set<string>();
@@ -72,7 +88,25 @@ function setup() {
     hitTester: createHitTester(camera),
     canvasRect: () => RECT,
     held,
-    gamepad: { poll: (out: StickAxes) => Object.assign(out, state.stick) },
+    gamepad: {
+      poll: (out: StickAxes, padOut?: PadState) => {
+        Object.assign(out, state.stick);
+        if (padOut === undefined) return;
+        padOut.isPresent = pad.isPresent;
+        padOut.family = pad.family;
+        padOut.stampAtReal = pad.stampAtReal;
+        for (const button of Object.keys(padOut.pressed) as PadButton[]) {
+          padOut.pressed[button] = pad.pressed.includes(button);
+          padOut.released[button] = pad.released.includes(button);
+        }
+        pad.pressed = [];
+        pad.released = [];
+      },
+    },
+    input: { autoTargetConeDeg: 60, contextReachM: 1.5, stickDeadzonePct: 20 },
+    getObjects: () => objects,
+    onPadButton: (button) => padButtons.push(button),
+    onPadPresence: (isPresent, family) => padPresence.push([isPresent, family]),
     moveIntent,
     getThreatTargets: () => targets,
     touchRadiusPx: TOUCH_RADIUS_PX,
@@ -83,6 +117,11 @@ function setup() {
   });
   return {
     mapper,
+    sim,
+    pad,
+    padButtons,
+    padPresence,
+    setObjects: (next: ContextObject[]) => (objects = next),
     state,
     commands,
     held,
@@ -422,5 +461,390 @@ describe('createInputMapper: threats', () => {
     state.pause = 'paused';
     mapper.handlePointerDown(click(iconPx.x, iconPx.y));
     expect(commands).toEqual([]);
+  });
+});
+
+describe('createInputMapper: Space and A (story 1.17)', () => {
+  /** A threat of the sim's world, active, closing at `windowOpenAt + 600`. */
+  const threatAt = (
+    id: number,
+    xM: number,
+    zM: number,
+    windowOpenAt: number,
+    state = 'telegraph',
+  ) =>
+    ({
+      id,
+      state,
+      xM,
+      zM,
+      windowOpenAt,
+      responseWindow: { windowMs: 600, perfectMs: 100, toleranceMs: 30, bufferMs: 100 },
+    }) as never;
+
+  // KeyD walks up-right on screen: (√½, -√½) in world axes with the test camera.
+  const D_DIR = { x: Math.SQRT1_2, z: -Math.SQRT1_2 };
+  const along = (dir: { x: number; z: number }, distanceM: number) => ({
+    xM: dir.x * distanceM,
+    zM: dir.z * distanceM,
+  });
+
+  it('parries the only active threat at Space down, stamped from the event, and releases at Space up', () => {
+    const { mapper, sim, commands, pressedIds } = setup();
+    sim.world.threats = [threatAt(3, 2, 0, 1000)];
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'PressThreat', t: 500, threatId: 3 }]);
+    expect(pressedIds).toEqual([3]);
+    mapper.handleAction('up', 1620, 'keyboard');
+    expect(commands[1]).toEqual({ type: 'Release', t: 620 });
+  });
+
+  it('picks the more urgent threat with no direction held, and the one in the cone with a key held', () => {
+    const { mapper, sim, commands, held } = setup();
+    const ahead = along(D_DIR, 3);
+    sim.world.threats = [
+      threatAt(1, -3, 2, 1000), // more urgent, behind
+      threatAt(2, ahead.xM, ahead.zM, 4000), // later, straight ahead of KeyD
+    ];
+    mapper.handleAction('down', 1500, 'keyboard');
+    mapper.handleAction('up', 1510, 'keyboard');
+    held.add('KeyD');
+    mapper.onKeysChanged(1520);
+    mapper.handleAction('down', 1530, 'keyboard');
+    expect(commands.filter((c) => c.type === 'PressThreat')).toMatchObject([
+      { threatId: 1 },
+      { threatId: 2 },
+    ]);
+  });
+
+  it('falls back to the most urgent threat when the aim has none in its cone (D3)', () => {
+    const { mapper, sim, commands, held } = setup();
+    const behind = along(D_DIR, -3);
+    sim.world.threats = [
+      threatAt(1, behind.xM, behind.zM, 2000),
+      threatAt(2, behind.xM - 1, behind.zM + 2, 1000),
+    ];
+    held.add('KeyD');
+    mapper.onKeysChanged(1500);
+    mapper.handleAction('down', 1510, 'keyboard');
+    expect(commands.at(-1)).toMatchObject({ type: 'PressThreat', threatId: 2 });
+  });
+
+  it('measures the cone from where Papa stands now', () => {
+    const { mapper, sim, commands, held } = setup();
+    sim.world.papa.xM = 5;
+    sim.world.papa.zM = 5;
+    const ahead = along(D_DIR, 2);
+    sim.world.threats = [
+      threatAt(1, -1, 5, 1000), // more urgent, but to the left of Papa
+      threatAt(2, 5 + ahead.xM, 5 + ahead.zM, 3000),
+    ];
+    held.add('KeyD');
+    mapper.onKeysChanged(1500);
+    mapper.handleAction('down', 1510, 'keyboard');
+    expect(commands.at(-1)).toMatchObject({ type: 'PressThreat', threatId: 2 });
+  });
+
+  it('reports the targeted threat as the press would choose it, and none when nothing is live', () => {
+    const { mapper, sim, state, setActive, held } = setup();
+    expect(mapper.targetedThreatId()).toBeNull();
+    const ahead = along(D_DIR, 3);
+    sim.world.threats = [threatAt(1, -3, 2, 1000), threatAt(2, ahead.xM, ahead.zM, 4000)];
+    expect(mapper.targetedThreatId()).toBe(1);
+    held.add('KeyD');
+    mapper.onKeysChanged(1500);
+    expect(mapper.targetedThreatId()).toBe(2);
+    state.pause = 'paused';
+    expect(mapper.targetedThreatId()).toBeNull();
+    state.pause = 'running';
+    setActive(null);
+    expect(mapper.targetedThreatId()).toBeNull();
+  });
+
+  it.each([
+    ['the app is not in a level', { app: 'start' }],
+    ['the game is paused', { pause: 'paused' }],
+    ['the countdown runs', { pause: 'resuming' }],
+  ])('sends nothing at Space down while %s', (_name, patch) => {
+    const { mapper, sim, state, commands, pressedIds } = setup();
+    sim.world.threats = [threatAt(1, 2, 0, 1000)];
+    Object.assign(state, patch);
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([]);
+    expect(pressedIds).toEqual([]);
+  });
+
+  it('sends nothing when no level is active (autoplay: getActive is null)', () => {
+    const { mapper, sim, commands, setActive } = setup();
+    sim.world.threats = [threatAt(1, 2, 0, 1000)];
+    setActive(null);
+    mapper.handleAction('down', 1500, 'keyboard');
+    mapper.handleAction('up', 1600, 'keyboard');
+    expect(commands).toEqual([]);
+    expect(mapper.targetedThreatId()).toBeNull();
+  });
+
+  it('sends nothing for a Space up that pressed nothing (the Space that started the game)', () => {
+    const { mapper, commands } = setup();
+    mapper.handleAction('up', 1500, 'keyboard');
+    expect(commands).toEqual([]);
+  });
+
+  it('a Space pressed before the level was live and released after sends nothing', () => {
+    const { mapper, sim, state, commands } = setup();
+    sim.world.threats = [threatAt(1, 2, 0, 1000)];
+    state.pause = 'resuming';
+    mapper.handleAction('down', 1500, 'keyboard');
+    state.pause = 'running';
+    mapper.handleAction('up', 1600, 'keyboard');
+    expect(commands).toEqual([]);
+  });
+
+  it('a pause while Space is held sends one Release at the sim clock, and the later up nothing', () => {
+    const { mapper, sim, commands } = setup();
+    sim.world.threats = [threatAt(1, 2, 0, 1000)];
+    mapper.handleAction('down', 1500, 'keyboard'); // t = 500, behind the sim clock (777)
+    mapper.releaseHeld();
+    mapper.releaseHeld();
+    mapper.handleAction('up', 2500, 'keyboard');
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 500, threatId: 1 },
+      { type: 'Release', t: 777 },
+    ]);
+  });
+
+  it("keeps the keyboard and the pad presses apart from a finger's", () => {
+    const { mapper, sim, commands, iconPx } = Object.assign(setup(), { iconPx: { x: 0, y: 0 } });
+    sim.world.threats = [threatAt(1, 2, 0, 1000)];
+    mapper.handleAction('down', 1500, 'keyboard');
+    // A finger's up is not the keyboard's up.
+    mapper.handlePointerUp(click(iconPx.x, iconPx.y, { pointerId: 9 }));
+    expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+    mapper.handleAction('up', 1600, 'gamepad'); // the pad did not press
+    expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+    mapper.handleAction('up', 1700, 'keyboard');
+    expect(commands.map((c) => c.type)).toEqual(['PressThreat', 'Release']);
+  });
+
+  describe('the context action (D6)', () => {
+    const COFFEE = { id: 'coffee_machine', xM: -3.6, zM: -2 };
+    const PHONE = { id: 'phone', xM: -1.3, zM: -1.2 };
+
+    it('walks to the nearest object in reach when no threat is active', () => {
+      const { mapper, sim, commands, setObjects } = setup();
+      setObjects([COFFEE, PHONE]);
+      sim.world.papa.xM = -1.8;
+      sim.world.papa.zM = -1.5;
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'phone' }]);
+    });
+
+    it('sends nothing with no object in reach', () => {
+      const { mapper, commands, setObjects } = setup();
+      setObjects([COFFEE, PHONE]);
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([]);
+    });
+
+    it('prefers a threat to an object, even a distant threat', () => {
+      const { mapper, sim, commands, setObjects } = setup();
+      setObjects([PHONE]);
+      sim.world.papa.xM = PHONE.xM;
+      sim.world.papa.zM = PHONE.zM;
+      sim.world.threats = [threatAt(1, 3, 3, 1000)];
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'PressThreat', t: 500, threatId: 1 }]);
+    });
+
+    it('does not take an idle, resolved or gag threat for an active one', () => {
+      const { mapper, sim, commands, setObjects } = setup();
+      setObjects([PHONE]);
+      sim.world.papa.xM = PHONE.xM;
+      sim.world.papa.zM = PHONE.zM;
+      sim.world.threats = [
+        threatAt(1, 3, 3, 1000, 'idle'),
+        threatAt(2, 3, 3, 1000, 'resolved'),
+        threatAt(3, 3, 3, 1000, 'gag'),
+      ];
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'phone' }]);
+    });
+
+    it('sends nothing at the up of a context action', () => {
+      const { mapper, sim, commands, setObjects } = setup();
+      setObjects([PHONE]);
+      sim.world.papa.xM = PHONE.xM;
+      sim.world.papa.zM = PHONE.zM;
+      mapper.handleAction('down', 1500, 'keyboard');
+      mapper.handleAction('up', 1600, 'keyboard');
+      expect(commands.map((c) => c.type)).toEqual(['TapObject']);
+    });
+  });
+
+  describe('the pad', () => {
+    it('parries on the A press edge, stamped with the pad stamp, and releases on the A release edge', () => {
+      const { mapper, sim, pad, commands, pressedIds } = setup();
+      sim.world.threats = [threatAt(1, 2, 0, 1000)];
+      pad.isPresent = true;
+      pad.stampAtReal = 1990;
+      pad.pressed = ['confirm'];
+      mapper.pollGamepad();
+      expect(commands).toEqual([{ type: 'PressThreat', t: 990, threatId: 1 }]);
+      expect(pressedIds).toEqual([1]);
+      pad.stampAtReal = 2040;
+      pad.released = ['confirm'];
+      mapper.pollGamepad();
+      expect(commands[1]).toEqual({ type: 'Release', t: 1040 });
+    });
+
+    it('does not repeat a held A: only an edge acts', () => {
+      const { mapper, sim, pad, commands } = setup();
+      sim.world.threats = [threatAt(1, 2, 0, 1000)];
+      pad.isPresent = true;
+      pad.pressed = ['confirm'];
+      mapper.pollGamepad();
+      mapper.pollGamepad();
+      mapper.pollGamepad();
+      expect(commands).toHaveLength(1);
+    });
+
+    it('aims with the stick: the threat in its direction wins over a more urgent one', () => {
+      const { mapper, sim, pad, state, commands } = setup();
+      const ahead = { xM: Math.SQRT1_2 * 3, zM: -Math.SQRT1_2 * 3 };
+      sim.world.threats = [threatAt(1, -3, 2, 1000), threatAt(2, ahead.xM, ahead.zM, 4000)];
+      pad.isPresent = true;
+      state.stick = { x: 0.9, y: 0 }; // right on the screen: the same world direction as KeyD
+      pad.pressed = ['confirm'];
+      mapper.pollGamepad();
+      expect(commands.filter((c) => c.type === 'PressThreat')).toMatchObject([{ threatId: 2 }]);
+    });
+
+    it('sends the A press to the shell instead when no level is live, with every other button', () => {
+      const { mapper, state, pad, padButtons, commands } = setup();
+      state.pause = 'paused';
+      pad.isPresent = true;
+      pad.pressed = ['confirm', 'down', 'back', 'start'];
+      mapper.pollGamepad();
+      expect(padButtons).toEqual(['confirm', 'back', 'start', 'down']);
+      expect(commands).toEqual([]);
+    });
+
+    it('sends B, Start and the D-pad to the shell in play, and never to the sim (D15)', () => {
+      const { mapper, sim, pad, padButtons, commands } = setup();
+      sim.world.threats = [threatAt(1, 2, 0, 1000)];
+      pad.isPresent = true;
+      pad.pressed = ['back', 'start', 'up', 'left'];
+      mapper.pollGamepad();
+      expect(padButtons).toEqual(['back', 'start', 'up', 'left']);
+      expect(commands).toEqual([]);
+    });
+
+    it('turns a stick push into one menu step per push when no level is live', () => {
+      const { mapper, state, pad, padButtons } = setup();
+      state.pause = 'paused';
+      pad.isPresent = true;
+      state.stick = { x: 0, y: 0.9 };
+      mapper.pollGamepad();
+      mapper.pollGamepad();
+      expect(padButtons).toEqual(['down']);
+      state.stick = { x: 0, y: 0 };
+      mapper.pollGamepad();
+      state.stick = { x: 0.9, y: 0 };
+      mapper.pollGamepad();
+      expect(padButtons).toEqual(['down', 'right']);
+    });
+
+    it('does not step a menu while playing, nor when the stick held in play meets a pause', () => {
+      const { mapper, state, pad, padButtons } = setup();
+      pad.isPresent = true;
+      state.stick = { x: 0.9, y: 0 };
+      mapper.pollGamepad(); // walking
+      state.pause = 'paused';
+      mapper.pollGamepad(); // the same push, held through the pause: no step
+      expect(padButtons).toEqual([]);
+    });
+
+    it('reports a pad that appears and one that goes away, once each, with its family', () => {
+      const { mapper, pad, padPresence } = setup();
+      mapper.pollGamepad();
+      expect(padPresence).toEqual([]);
+      pad.isPresent = true;
+      pad.family = 'playstation';
+      mapper.pollGamepad();
+      mapper.pollGamepad();
+      expect(padPresence).toEqual([[true, 'playstation']]);
+      expect(mapper.padFamily).toBe('playstation');
+      pad.isPresent = false;
+      mapper.pollGamepad();
+      mapper.pollGamepad();
+      expect(padPresence).toEqual([
+        [true, 'playstation'],
+        [false, 'playstation'],
+      ]);
+    });
+
+    it('reads the pad even when the game is paused, but walks only while live', () => {
+      const { mapper, state, pad, padPresence, commands } = setup();
+      state.pause = 'paused';
+      state.stick = { x: 0.9, y: 0 };
+      pad.isPresent = true;
+      mapper.pollGamepad();
+      expect(padPresence).toEqual([[true, 'xbox']]);
+      expect(commands).toEqual([]);
+    });
+
+    it('turns a button edge pending at a resume into the same action as a poll would', () => {
+      const { mapper, sim, pad, commands } = setup();
+      sim.world.threats = [threatAt(1, 2, 0, 1000)];
+      pad.isPresent = true;
+      pad.pressed = ['confirm'];
+      mapper.resync();
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+    });
+  });
+
+  describe('lastDevice (D8)', () => {
+    it('is null before any input', () => {
+      expect(setup().mapper.lastDevice).toBeNull();
+    });
+
+    it('follows a pointer, a movement key, Space and the pad', () => {
+      const { mapper, held, pad, state } = setup();
+      mapper.handlePointerDown(click(300, 200));
+      expect(mapper.lastDevice).toBe('pointer');
+      held.add('KeyW');
+      mapper.onKeysChanged(1500);
+      expect(mapper.lastDevice).toBe('keyboard');
+      mapper.handlePointerDown(click(300, 200));
+      expect(mapper.lastDevice).toBe('pointer');
+      mapper.handleAction('down', 1600, 'keyboard');
+      expect(mapper.lastDevice).toBe('keyboard');
+      pad.isPresent = true;
+      pad.pressed = ['start'];
+      mapper.pollGamepad();
+      expect(mapper.lastDevice).toBe('gamepad');
+      mapper.handlePointerDown(click(300, 200));
+      state.stick = { x: 0.1, y: 0 }; // inside the deadzone: not an input
+      mapper.pollGamepad();
+      expect(mapper.lastDevice).toBe('pointer');
+      state.stick = { x: 0.9, y: 0 };
+      mapper.pollGamepad();
+      expect(mapper.lastDevice).toBe('gamepad');
+    });
+
+    it('does not take the release of a key for a keyboard input', () => {
+      const { mapper, held } = setup();
+      mapper.handlePointerDown(click(300, 200));
+      held.clear();
+      mapper.onKeysChanged(1500);
+      expect(mapper.lastDevice).toBe('pointer');
+    });
+
+    it('is set even by a press that was dropped (the hint follows the hand)', () => {
+      const { mapper, state } = setup();
+      state.pause = 'paused';
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(mapper.lastDevice).toBe('keyboard');
+    });
   });
 });

@@ -36,6 +36,7 @@ export function hapticPatternOf(event: string): number[] | null {
 export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
   timing: { telegraphDelayDefaultMs: number; windowMs: number; toleranceMs: number };
   movement: { walkSpeedMps: number };
+  input: { contextReachM: number; autoTargetConeDeg: number };
   baby: {
     crawlSpeedMps: number;
     babbleMinMs: number;
@@ -391,28 +392,67 @@ export async function babyAt(page: Page): Promise<{ x: number; z: number }> {
   return { x: Number(match[1]), z: Number(match[2]) };
 }
 
-/**
- * Replaces `navigator.getGamepads` before the page loads, with one standard pad that the test
- * drives through `setStick` and unplugs with `setPadPresent(false)`. Call it before `startLevel`.
- */
-export async function stubGamepad(page: Page): Promise<{
+/** The pad the test drives; see {@link stubGamepad}. */
+export interface GamepadStub {
   setStick(x: number, y: number): Promise<void>;
+  /** Plugs the pad in or pulls it out; both also dispatch the window event, as a browser does. */
   setPadPresent(isPresent: boolean): Promise<void>;
-}> {
-  await page.addInitScript(() => {
-    const state = { isPresent: false, axes: [0, 0, 0, 0] };
-    Object.assign(window, { ppPad: state });
-    Object.defineProperty(navigator, 'getGamepads', {
-      configurable: true,
-      value: () => (state.isPresent ? [{ connected: true, axes: state.axes }] : [null]),
-    });
-  });
-  return {
+  /** Holds the button down (a standard-layout index: 0 = A, 1 = B, 9 = Start, 12 to 15 = D-pad). */
+  pressButton(index: number): Promise<void>;
+  releaseButton(index: number): Promise<void>;
+  /** A press and a release the game polls: a button seen for at least `frames` frames each way. */
+  tapButton(index: number, frames?: number): Promise<void>;
+  /** Sets `Gamepad.id` (the family of the glyphs is read from it). */
+  setId(id: string): Promise<void>;
+}
+
+/** An Xbox pad's id as Chrome writes it. */
+export const XBOX_PAD_ID = 'Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)';
+/** A DualSense's id as Chrome writes it (Sony's vendor id is 054c). */
+export const DUALSENSE_PAD_ID =
+  'DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)';
+
+/**
+ * Replaces `navigator.getGamepads` before the page loads, with one standard-mapping pad that the
+ * test drives through `setStick`, the buttons and `setPadPresent` (it starts unplugged). Call it
+ * before `startLevel`. `setStick` also plugs the pad in, as it always did.
+ */
+export async function stubGamepad(page: Page): Promise<GamepadStub> {
+  await page.addInitScript(
+    ({ id }) => {
+      const state = {
+        isPresent: false,
+        axes: [0, 0, 0, 0],
+        buttons: Array.from({ length: 17 }, () => false),
+        id,
+      };
+      Object.assign(window, { ppPad: state });
+      Object.defineProperty(navigator, 'getGamepads', {
+        configurable: true,
+        value: () =>
+          state.isPresent
+            ? [
+                {
+                  connected: true,
+                  index: 0,
+                  id: state.id,
+                  mapping: 'standard',
+                  timestamp: performance.now(),
+                  axes: state.axes,
+                  buttons: state.buttons.map((pressed) => ({ pressed })),
+                },
+              ]
+            : [null],
+      });
+    },
+    { id: XBOX_PAD_ID },
+  );
+  type PadState = { isPresent: boolean; axes: number[]; buttons: boolean[]; id: string };
+  const stub: GamepadStub = {
     setStick: (x, y) =>
       page.evaluate(
         ([axisX, axisY]) => {
-          const state = (window as unknown as { ppPad: { isPresent: boolean; axes: number[] } })
-            .ppPad;
+          const state = (window as unknown as { ppPad: PadState }).ppPad;
           state.isPresent = true;
           state.axes = [axisX as number, axisY as number, 0, 0];
         },
@@ -420,9 +460,30 @@ export async function stubGamepad(page: Page): Promise<{
       ),
     setPadPresent: (isPresent) =>
       page.evaluate((next) => {
-        (window as unknown as { ppPad: { isPresent: boolean } }).ppPad.isPresent = next;
+        (window as unknown as { ppPad: PadState }).ppPad.isPresent = next;
+        // `GamepadEvent` needs a real pad: a plain `Event` is what the game must cope with.
+        window.dispatchEvent(new Event(next ? 'gamepadconnected' : 'gamepaddisconnected'));
       }, isPresent),
+    pressButton: (index) =>
+      page.evaluate((button) => {
+        (window as unknown as { ppPad: PadState }).ppPad.buttons[button] = true;
+      }, index),
+    releaseButton: (index) =>
+      page.evaluate((button) => {
+        (window as unknown as { ppPad: PadState }).ppPad.buttons[button] = false;
+      }, index),
+    async tapButton(index, frames = 2) {
+      await stub.pressButton(index);
+      await waitFrames(page, frames);
+      await stub.releaseButton(index);
+      await waitFrames(page, frames);
+    },
+    setId: (id) =>
+      page.evaluate((next) => {
+        (window as unknown as { ppPad: PadState }).ppPad.id = next;
+      }, id),
   };
+  return stub;
 }
 
 /** Dispatches a key event with a given `key` and `code`, as an AZERTY or QWERTY keyboard would. */

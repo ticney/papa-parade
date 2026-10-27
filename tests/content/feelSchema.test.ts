@@ -16,8 +16,9 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // bare `M` does not pass.
 // Story 1.15 adds `Kg`, `Ns` (newton-seconds) and `Mps2`, and the dimensionless physics ratios
 // `friction` and `restitution` (a coefficient has no unit; the key says what it is).
+// Story 1.17 adds `ReachM` (`contextReachM`: a length in metres, spelled out like `RadiusM`).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|Kg|Ns)$|^(?:perSec|friction|restitution)$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|Kg|Ns)$|^(?:perSec|friction|restitution)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -165,6 +166,9 @@ describe('content/feel.json', () => {
       ['baby.approachSpeedMps'],
     ],
     ['a negative act time', [['baby.actMs', -1]], ['baby.actMs']],
+    ['a context reach of 0', [['input.contextReachM', 0]], ['input.contextReachM']],
+    ['a missing context reach', [['input.contextReachM', undefined]], ['input.contextReachM']],
+    ['a negative context reach', [['input.contextReachM', -1]], ['input.contextReachM']],
     ['a stick deadzone of 100 %', [['input.stickDeadzonePct', 100]], ['input.stickDeadzonePct']],
     ['a negative stick deadzone', [['input.stickDeadzonePct', -1]], ['input.stickDeadzonePct']],
     ['a stick angle step of 0', [['input.stickAngleStepDeg', 0]], ['input.stickAngleStepDeg']],

@@ -16,6 +16,18 @@ export interface PauseScreen extends OverlayScreen {
   updateCountdown(remainingMs: number): void;
   /** Moves focus between the panel's buttons for an arrow key; false when the key is not one. */
   moveFocus(code: string): boolean;
+  /**
+   * Shows or hides « Manette débranchée. Rebranche-la pour reprendre. » under the title (story
+   * 1.17). The note is a status for assistive technology and never takes focus.
+   */
+  setPadDisconnected(isDisconnected: boolean): void;
+  /**
+   * A on a pad: presses the focused button, or focuses the first one when none has focus. False
+   * when the panel is not showing (the countdown), where there is nothing to press.
+   */
+  activateFocused(): boolean;
+  /** B on a pad: back one level, which on the panel resumes (through the countdown). */
+  back(): void;
 }
 
 export interface PauseScreenOptions {
@@ -58,7 +70,12 @@ export function createPauseScreen(options: PauseScreenOptions): PauseScreen {
   title.textContent = t('pause.title');
   const list = document.createElement('div');
   list.className = 'pp-panel-actions';
-  panel.append(title, list);
+  // Empty and hidden until the pad goes: a live region announces the text it receives.
+  const padNote = document.createElement('p');
+  padNote.className = 'pp-panel-note pp-type-body';
+  padNote.setAttribute('role', 'status');
+  padNote.hidden = true;
+  panel.append(title, padNote, list);
 
   const buttons: HTMLButtonElement[] = [];
   const unbinds: Array<() => void> = [];
@@ -109,6 +126,21 @@ export function createPauseScreen(options: PauseScreenOptions): PauseScreen {
       if (target === null) return false;
       buttons[target]?.focus({ preventScroll: true });
       return true;
+    },
+    setPadDisconnected(isDisconnected) {
+      if (!padNote.hidden === isDisconnected) return; // already as asked
+      padNote.textContent = isDisconnected ? t('pause.gamepad_disconnected') : '';
+      padNote.hidden = !isDisconnected;
+    },
+    activateFocused() {
+      if (mode !== 'panel') return false;
+      const focused = buttons.find((button) => button === document.activeElement);
+      if (focused === undefined) buttons[0]?.focus({ preventScroll: true });
+      else focused.click();
+      return true;
+    },
+    back() {
+      if (mode === 'panel') options.onResume();
     },
     dispose() {
       for (const unbind of unbinds) unbind();

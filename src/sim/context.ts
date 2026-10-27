@@ -24,6 +24,16 @@ export interface SimLevel {
   readonly threats: readonly { readonly def: ThreatDef; readonly fromMs: number }[];
   /** Index-aligned with `world.props`. */
   readonly props: readonly SimPropSpec[];
+  /** The level's interactive objects, each at the floor point of its anchor (story 1.17). */
+  readonly objects: readonly SimObjectSpec[];
+}
+
+/** An interactive object of the level: constant data, no runtime state yet (stories 1.19, 1.20). */
+export interface SimObjectSpec {
+  readonly id: string;
+  /** Where Papa walks to, on the floor (the anchor's x and z), in metres. */
+  readonly xM: number;
+  readonly zM: number;
 }
 
 /** What a prop is, apart from where it is: constant data, built once from the geometry and the feel. */

@@ -71,6 +71,7 @@ function levelPlanning(tested: ThreatDef): LevelContent {
   return {
     level: {
       id: 'salon_crawler',
+      objects: [],
       threats: defs.map((def) => ({
         def: def.id,
         anchor: anchorOf(def),

@@ -8,6 +8,8 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  outletEntry,
+  TEST_OBJECTS,
 } from '../../../tests/support/testContent.ts';
 import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
@@ -32,6 +34,11 @@ const move = (dirX: number, dirZ: number, t = 0): SimCommand => ({
   dirX,
   dirZ,
 });
+const tapObject = (objectId: string, t = 0): SimCommand => ({
+  type: 'TapObject',
+  t: asSimMs(t),
+  objectId,
+});
 const stop = (t = 0): SimCommand => ({ type: 'MoveStop', t: asSimMs(t) });
 
 async function newSim(
@@ -40,7 +47,7 @@ async function newSim(
   return createSim({
     content: options.content ?? content,
     geometry: options.geometry ?? geometry,
-    level: createTestLevel(),
+    level: createTestLevel([], TEST_OBJECTS),
     seed: options.seed ?? 1,
   });
 }
@@ -165,6 +172,84 @@ describe('TapFloor on open floor', () => {
       'PapaArrived',
       'PapaStateChanged',
     ]);
+  });
+});
+
+describe('TapObject (story 1.17)', () => {
+  it('walks to the anchor of the object like a tap there, then says it was tapped', async () => {
+    const sim = await newSim();
+    const [x, , z] = anchor('coffee_machine');
+    sim.enqueue(tapObject('coffee_machine'));
+    const events = run(sim, 600);
+    // `ObjectTapped` follows the plan and Papa setting off, in the step the command is applied.
+    expect(types(events).slice(0, 3)).toEqual([
+      'PapaPathPlanned',
+      'PapaStateChanged',
+      'ObjectTapped',
+    ]);
+    expect(events[2]).toEqual({
+      type: 'ObjectTapped',
+      t: (events[0] as { t: number }).t,
+      objectId: 'coffee_machine',
+    });
+    expect(types(events)).toContain('PapaArrived');
+
+    const floor = await newSim();
+    floor.enqueue(tap(x, z));
+    const floorEvents = run(floor, 600);
+    // Same plan, same walk, same arrival as a tap on the anchor.
+    expect(events.filter((e) => e.type !== 'ObjectTapped')).toEqual(floorEvents);
+    expect(papaOf(sim)).toEqual(papaOf(floor));
+  });
+
+  it('does nothing for an object the level does not have', async () => {
+    const sim = await newSim();
+    const before = hashJson(sim.world.papa);
+    sim.enqueue(tapObject('toaster'));
+    const events = run(sim, 5);
+    expect(types(events)).toEqual([]);
+    expect(papaOf(sim).state).toBe('idle');
+    expect(hashJson(papaOf(sim))).toBe(before);
+  });
+
+  it('does nothing in a level with no objects', async () => {
+    const sim = await createSim({ content, geometry, level: createTestLevel(), seed: 1 });
+    sim.enqueue(tapObject('coffee_machine'));
+    expect(types(run(sim, 5))).toEqual([]);
+    expect(papaOf(sim).state).toBe('idle');
+  });
+
+  it('takes over a direction walk', async () => {
+    const sim = await newSim();
+    sim.enqueue(move(-1, 0));
+    run(sim, 10);
+    sim.enqueue(tapObject('phone', 100));
+    const events = run(sim, 20);
+    expect(types(events).slice(0, 3)).toEqual([
+      'PapaPathPlanned',
+      'PapaStateChanged',
+      'ObjectTapped',
+    ]);
+    expect(events.find((e) => e.type === 'PapaStateChanged')).toMatchObject({
+      from: 'walkDir',
+      to: 'walkPath',
+    });
+  });
+
+  it('cancels a glide, as a TapFloor does', async () => {
+    const content2 = createTestContent();
+    const planning = createTestLevel([outletEntry(0)], TEST_OBJECTS);
+    const sim = await createSim({ content: content2, geometry, level: planning, seed: 1 });
+    // Telegraph the outlet, press it: Papa glides.
+    for (let i = 0; i < 400 && sim.world.threats[0]?.state === 'idle'; i++) sim.step();
+    sim.enqueue({ type: 'PressThreat', t: sim.world.time.sim, threatId: 1 });
+    sim.step();
+    expect(papaOf(sim).state).toBe('glide');
+    sim.enqueue(tapObject('phone', sim.world.time.sim));
+    sim.step();
+    expect(papaOf(sim).state).toBe('walkPath');
+    expect(papaOf(sim).glide).toBeNull();
+    expect(sim.drainEvents().some((e) => e.type === 'ObjectTapped')).toBe(true);
   });
 });
 

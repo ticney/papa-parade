@@ -18,6 +18,11 @@ export type SimEvent =
   /** A path to a tapped point was found: where it ends (after any snapping) and how many waypoints it has. */
   | { type: 'PapaPathPlanned'; t: SimMs; targetXM: number; targetZM: number; waypointCount: number }
   | { type: 'PapaArrived'; t: SimMs; xM: number; zM: number }
+  /**
+   * Papa set off to an interactive object the player asked for (`TapObject`). What happens when
+   * he gets there is the object's (stories 1.19, 1.20); nothing consumes this yet.
+   */
+  | { type: 'ObjectTapped'; t: SimMs; objectId: string }
   /** A direction walk ran into an obstacle and cannot move at all (once per blockage). */
   | { type: 'PapaBlocked'; t: SimMs; xM: number; zM: number }
   | { type: 'BabyStateChanged'; t: SimMs; from: BabyState; to: BabyState }
@@ -74,6 +79,7 @@ export const SIM_EVENT_TYPES = [
   'GagTriggered',
   'InvariantViolated',
   'NearMiss',
+  'ObjectTapped',
   'PapaArrived',
   'PapaBlocked',
   'PapaGlideStarted',

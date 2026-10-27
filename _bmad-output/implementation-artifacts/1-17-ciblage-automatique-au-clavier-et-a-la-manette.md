@@ -5,7 +5,7 @@ baseline_commit: 9dc17d2
 
 # Story 1.17: Auto-Target on Keyboard and Gamepad
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.17 « Ciblage automatique au clavier et à la manette ». Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -58,71 +58,71 @@ Story 1.16 is `done`, with its review fixes committed. When this story was writt
 
 ## Tasks / Subtasks
 
-- [ ] **T0 — Precondition** (§ Precondition). Baseline CI, counts in the Debug Log.
-- [ ] **T1 — Content: objects and reach** (AC 6)
-  - [ ] `src/content/schemas/level.ts`: `LevelObjectSchema = strictObject({ id: idSchema(…), anchor: idSchema(…) })`; `objects: z.array(LevelObjectSchema).default([])`, with `.describe()` texts in the style of the file. Update the file's header comment (1.17 adds objects).
-  - [ ] `src/content/schemas/feel.ts` › `InputSchema`: `contextReachM: z.number().positive().describe('Space or A acts on the nearest interactive object within this distance of Papa, in metres (story 1.17).')`.
-  - [ ] `content/feel.json` and `tests/support/testFeel.json`: `"contextReachM": 1.5` in `input`, after `autoTargetConeDeg`.
-  - [ ] `content/levels/salon_crawler.json`: `"objects": [{ "id": "coffee_machine", "anchor": "coffee_machine" }, { "id": "phone", "anchor": "phone" }]`.
-  - [ ] `tools/content/contentChecks.ts`: an object's anchor exists in `<level>.geometry.json`; ids are unique. Name the level, the object and the anchor in the message. Add tests to `tests/content/checkContent.test.ts`.
-  - [ ] `npm run content:schemas` (commit the regenerated `level.schema.json` and `feel.schema.json`); `npm run content:check` green.
-  - [ ] `ReachM` already passes the unit-suffix test (1.16 added it). Check it.
-- [ ] **T2 — Sim: `TapObject` and `ObjectTapped`** (AC 5)
-  - [ ] `src/sim/commands.ts`: `| { type: 'TapObject'; t: SimMs; objectId: string }` (doc comment: « Walk to this interactive object of the level; what happens there is the object's (stories 1.19, 1.20). An unknown id does nothing. »). Add it to `COMMAND_TYPES`, and to `commandProblem` (`objectId` must be a non-empty string).
-  - [ ] `src/sim/createSim.ts`: validate the level's objects next to the threats (anchor exists, ids unique: `invariant` with the same wording as `content:check`). Resolve each object's floor point **once**, outside `World` (where the level's threats and defs live today in the step context). Objects have no runtime state yet, so nothing goes into `World` or the snapshot.
-  - [ ] `src/sim/papa/papaSystem.ts`: `tapObject(world, ctx, objectId)`. Find the object (unknown → return). Plan exactly as `tapFloor` to the anchor's `(xM, zM)`, and reuse `tapFloor`'s body rather than copying it. When a path is planned, push `ObjectTapped{type, t: world.time.sim, objectId}`. Update `runPapa`'s doc comment (it lists the commands it handles).
-  - [ ] `src/sim/events.ts`: `ObjectTapped` in the union and in `SIM_EVENT_TYPES`, which stays **sorted** (between `NearMiss` and `PapaArrived`). It gets no `feedback.json` entry (no sound yet; 1.19 / 1.20 add theirs).
-  - [ ] Tests: `commands.test.ts` (shape check), `papaSystem.test.ts` (walks to the coffee machine; `PapaPathPlanned` then `ObjectTapped`; unknown id: no event, no state change; a `TapObject` during a glide cancels it, as `TapFloor` does), `createSim.test.ts` (bad anchor, duplicate id), `replay.test.ts` or `determinism.test.ts` (a journal with `TapObject` replays bit-identical).
-- [ ] **T3 — `autoTarget.ts` and `contextObject.ts`** (AC 1, 5)
-  - [ ] `src/client/input/autoTarget.ts`: `pickAutoTarget` (AC 1). Use the squared distance and the dot product. The cone test is `dot ≥ cos(coneDeg/2) · distance` (no `atan2`, no `acos`). Compute the cosine from `coneDeg` on each call: Geo can change the feel. `coneDeg ≥ 360` accepts everything. Add `AUTO_TARGET_ON_PAPA_M` (1e-3) to `shared/constants.ts`.
-  - [ ] `src/client/input/contextObject.ts`: `pickContextObject(objects, papaXM, papaZM, reachM): string | null`, where `objects` are the resolved `{ id, xM, zM }[]` of the level (built once per level in the client from the level and the geometry, like `threatMarkerEntries`). Distance ≤ `reachM` inclusive, nearest wins, ties to the earlier entry.
-  - [ ] Unit tests (Node, no DOM). See § Testing.
-- [ ] **T4 — Keyboard action key** (AC 2)
-  - [ ] `keyboardInput.ts`: `ACTION_KEY_CODES = ['Space'] as const` and `isActionKey(code)`. `bindKeyboard` gains `bindings.onAction?(phase: 'down' | 'up', timeStampAtReal: number)`. `down` fires on a non-repeat Space with no Ctrl / Cmd / Alt. `up` fires on every Space `keyup`: a key must never stay stuck. Call `preventDefault()` on Space only while `isLive()`. The paused panel's focused button must keep Space for its native activation, so a non-live Space is left alone.
-  - [ ] Blur and hidden: if Space is down, call `onAction('up', …)` (the existing `clear()` path), so a lost keyup never holds a threat.
-  - [ ] Tests in `keyboardInput.test.ts`.
-- [ ] **T5 — Gamepad buttons, family, presence** (AC 2, 7, 8, 9)
-  - [ ] `gamepadInput.ts`: extend `GamepadLike` with `id?`, `timestamp?`, `buttons?: ArrayLike<{ pressed: boolean }>`. `poll(out)` keeps its stick contract and also fills the same `out` (or a second reused object) with:
+- [x] **T0 — Precondition** (§ Precondition). Baseline CI, counts in the Debug Log.
+- [x] **T1 — Content: objects and reach** (AC 6)
+  - [x] `src/content/schemas/level.ts`: `LevelObjectSchema = strictObject({ id: idSchema(…), anchor: idSchema(…) })`; `objects: z.array(LevelObjectSchema).default([])`, with `.describe()` texts in the style of the file. Update the file's header comment (1.17 adds objects).
+  - [x] `src/content/schemas/feel.ts` › `InputSchema`: `contextReachM: z.number().positive().describe('Space or A acts on the nearest interactive object within this distance of Papa, in metres (story 1.17).')`.
+  - [x] `content/feel.json` and `tests/support/testFeel.json`: `"contextReachM": 1.5` in `input`, after `autoTargetConeDeg`.
+  - [x] `content/levels/salon_crawler.json`: `"objects": [{ "id": "coffee_machine", "anchor": "coffee_machine" }, { "id": "phone", "anchor": "phone" }]`.
+  - [x] `tools/content/contentChecks.ts`: an object's anchor exists in `<level>.geometry.json`; ids are unique. Name the level, the object and the anchor in the message. Add tests to `tests/content/checkContent.test.ts`.
+  - [x] `npm run content:schemas` (commit the regenerated `level.schema.json` and `feel.schema.json`); `npm run content:check` green.
+  - [x] `ReachM` already passes the unit-suffix test (1.16 added it). Check it.
+- [x] **T2 — Sim: `TapObject` and `ObjectTapped`** (AC 5)
+  - [x] `src/sim/commands.ts`: `| { type: 'TapObject'; t: SimMs; objectId: string }` (doc comment: « Walk to this interactive object of the level; what happens there is the object's (stories 1.19, 1.20). An unknown id does nothing. »). Add it to `COMMAND_TYPES`, and to `commandProblem` (`objectId` must be a non-empty string).
+  - [x] `src/sim/createSim.ts`: validate the level's objects next to the threats (anchor exists, ids unique: `invariant` with the same wording as `content:check`). Resolve each object's floor point **once**, outside `World` (where the level's threats and defs live today in the step context). Objects have no runtime state yet, so nothing goes into `World` or the snapshot.
+  - [x] `src/sim/papa/papaSystem.ts`: `tapObject(world, ctx, objectId)`. Find the object (unknown → return). Plan exactly as `tapFloor` to the anchor's `(xM, zM)`, and reuse `tapFloor`'s body rather than copying it. When a path is planned, push `ObjectTapped{type, t: world.time.sim, objectId}`. Update `runPapa`'s doc comment (it lists the commands it handles).
+  - [x] `src/sim/events.ts`: `ObjectTapped` in the union and in `SIM_EVENT_TYPES`, which stays **sorted** (between `NearMiss` and `PapaArrived`). It gets no `feedback.json` entry (no sound yet; 1.19 / 1.20 add theirs).
+  - [x] Tests: `commands.test.ts` (shape check), `papaSystem.test.ts` (walks to the coffee machine; `PapaPathPlanned` then `ObjectTapped`; unknown id: no event, no state change; a `TapObject` during a glide cancels it, as `TapFloor` does), `createSim.test.ts` (bad anchor, duplicate id), `replay.test.ts` or `determinism.test.ts` (a journal with `TapObject` replays bit-identical).
+- [x] **T3 — `autoTarget.ts` and `contextObject.ts`** (AC 1, 5)
+  - [x] `src/client/input/autoTarget.ts`: `pickAutoTarget` (AC 1). Use the squared distance and the dot product. The cone test is `dot ≥ cos(coneDeg/2) · distance` (no `atan2`, no `acos`). Compute the cosine from `coneDeg` on each call: Geo can change the feel. `coneDeg ≥ 360` accepts everything. Add `AUTO_TARGET_ON_PAPA_M` (1e-3) to `shared/constants.ts`.
+  - [x] `src/client/input/contextObject.ts`: `pickContextObject(objects, papaXM, papaZM, reachM): string | null`, where `objects` are the resolved `{ id, xM, zM }[]` of the level (built once per level in the client from the level and the geometry, like `threatMarkerEntries`). Distance ≤ `reachM` inclusive, nearest wins, ties to the earlier entry.
+  - [x] Unit tests (Node, no DOM). See § Testing.
+- [x] **T4 — Keyboard action key** (AC 2)
+  - [x] `keyboardInput.ts`: `ACTION_KEY_CODES = ['Space'] as const` and `isActionKey(code)`. `bindKeyboard` gains `bindings.onAction?(phase: 'down' | 'up', timeStampAtReal: number)`. `down` fires on a non-repeat Space with no Ctrl / Cmd / Alt. `up` fires on every Space `keyup`: a key must never stay stuck. Call `preventDefault()` on Space only while `isLive()`. The paused panel's focused button must keep Space for its native activation, so a non-live Space is left alone.
+  - [x] Blur and hidden: if Space is down, call `onAction('up', …)` (the existing `clear()` path), so a lost keyup never holds a threat.
+  - [x] Tests in `keyboardInput.test.ts`.
+- [x] **T5 — Gamepad buttons, family, presence** (AC 2, 7, 8, 9)
+  - [x] `gamepadInput.ts`: extend `GamepadLike` with `id?`, `timestamp?`, `buttons?: ArrayLike<{ pressed: boolean }>`. `poll(out)` keeps its stick contract and also fills the same `out` (or a second reused object) with:
     - `isPresent`;
     - `family: 'xbox' | 'playstation'`;
     - the **press and release edges** of buttons 0 (confirm), 1 (back), 9 (start) and 12 to 15 (D-pad), against the previous poll;
     - `stampAtReal` (D5).
-  - [ ] Buttons are read only on a `mapping === 'standard'` pad. On another pad: the stick only, with one `warn` per pad id.
-  - [ ] Pad selection stays the same as today (first standard pad, else the first pad with two axes). If the selected pad changes (another index), reset the previous button state so that a held button is not read as a new press.
-  - [ ] `padFamily(id: string)`: `/054c|playstation|dualshock|dualsense/i` → `'playstation'`, else `'xbox'` (D11).
-  - [ ] Presence edge: `isPresent` false after true is the disconnect signal (D13). Allocate nothing per poll beyond what `getGamepads()` returns.
-  - [ ] Tests in `gamepadInput.test.ts`: edges (press, hold, release, re-press), non-standard pad, family ids (a DualSense Chrome id, a Firefox `054c-0ce6-…` id, an Xbox id, an empty id), presence.
-- [ ] **T6 — Input mapper: action, target, context** (AC 2, 3, 5)
-  - [ ] `MoveIntent` exposes the current aim: `aimDir(out: FloorDir): boolean`, from the same held keys and stick it already reads. The stick wins outside its deadzone. Same `screenToWorldDir`. **Do not duplicate the conversion.**
-  - [ ] `InputMapper` gains:
+  - [x] Buttons are read only on a `mapping === 'standard'` pad. On another pad: the stick only, with one `warn` per pad id.
+  - [x] Pad selection stays the same as today (first standard pad, else the first pad with two axes). If the selected pad changes (another index), reset the previous button state so that a held button is not read as a new press.
+  - [x] `padFamily(id: string)`: `/054c|playstation|dualshock|dualsense/i` → `'playstation'`, else `'xbox'` (D11).
+  - [x] Presence edge: `isPresent` false after true is the disconnect signal (D13). Allocate nothing per poll beyond what `getGamepads()` returns.
+  - [x] Tests in `gamepadInput.test.ts`: edges (press, hold, release, re-press), non-standard pad, family ids (a DualSense Chrome id, a Firefox `054c-0ce6-…` id, an Xbox id, an empty id), presence.
+- [x] **T6 — Input mapper: action, target, context** (AC 2, 3, 5)
+  - [x] `MoveIntent` exposes the current aim: `aimDir(out: FloorDir): boolean`, from the same held keys and stick it already reads. The stick wins outside its deadzone. Same `screenToWorldDir`. **Do not duplicate the conversion.**
+  - [x] `InputMapper` gains:
     - `handleAction(phase, timeStampAtReal, device: 'keyboard' | 'gamepad')`;
     - `lastDevice: 'pointer' | 'keyboard' | 'gamepad' | null`, set by `handlePointerDown` (pointer), a move key or Space (keyboard), and a pad edge or stick out of deadzone (gamepad);
     - `targetedThreatId(): number | null`, which recomputes `pickAutoTarget` from the live world (allocation-free; read once per frame by `boot.ts`).
-  - [ ] `handleAction('down')` when live:
+  - [x] `handleAction('down')` when live:
     - target ≠ null → `PressThreat` (D5 stamp), then `press.pressed(KEYBOARD_PRESS_ID | GAMEPAD_PRESS_ID, threatId)` and `onThreatPressed`;
     - else, no threat active → `pickContextObject` → `TapObject`;
     - else (threats active but `pickAutoTarget` found none: cannot happen, D3) → nothing.
-  - [ ] `handleAction('up')` → `press.released(id)` → `Release`.
-  - [ ] The two press ids are negative constants in `shared/constants.ts` (`KEYBOARD_PRESS_ID = -1`, `GAMEPAD_PRESS_ID = -2`). Pointer ids are ≥ 0, so they never collide.
-  - [ ] `pollGamepad()` also turns the A edges into `handleAction`, and reports the pad's presence edge and the other buttons to a callback (`onPadButtons` / `onPadPresence`) that `boot.ts` wires to the UI (T8). The mapper does not know about pause panels.
-  - [ ] Tests in `inputMapper.test.ts` (see § Testing).
-- [ ] **T7 — World UI: target highlight and glyph chip** (AC 3, 4)
-  - [ ] `threatMarkers.update(threats, highlightedId, targetedId)`: the highlight shows when `id === highlightedId || id === targetedId`. The return value keeps its meaning (true when a highlight **became** visible this call; the tap-latency mark reads it). Keep zero allocation.
-  - [ ] `src/client/ui/world/glyphChip.ts`: `createGlyphChip(scene, doc)` → `{ showAt(entry: ThreatMarkerEntry, text: string): void; hide(): void; readonly isVisible: boolean; dispose() }`.
+  - [x] `handleAction('up')` → `press.released(id)` → `Release`.
+  - [x] The two press ids are negative constants in `shared/constants.ts` (`KEYBOARD_PRESS_ID = -1`, `GAMEPAD_PRESS_ID = -2`). Pointer ids are ≥ 0, so they never collide.
+  - [x] `pollGamepad()` also turns the A edges into `handleAction`, and reports the pad's presence edge and the other buttons to a callback (`onPadButtons` / `onPadPresence`) that `boot.ts` wires to the UI (T8). The mapper does not know about pause panels.
+  - [x] Tests in `inputMapper.test.ts` (see § Testing).
+- [x] **T7 — World UI: target highlight and glyph chip** (AC 3, 4)
+  - [x] `threatMarkers.update(threats, highlightedId, targetedId)`: the highlight shows when `id === highlightedId || id === targetedId`. The return value keeps its meaning (true when a highlight **became** visible this call; the tap-latency mark reads it). Keep zero allocation.
+  - [x] `src/client/ui/world/glyphChip.ts`: `createGlyphChip(scene, doc)` → `{ showAt(entry: ThreatMarkerEntry, text: string): void; hide(): void; readonly isVisible: boolean; dispose() }`.
     - One `CSS2DObject` with a `<span class="pp-glyph-chip pp-type-label">`, moved to the entry's point. Write `textContent` and the position only on change.
     - CSS in `ui.css` (DESIGN.md › glyph-chip: `{colors.paper}` fill, ink outline 3 px, `{rounded.full}`, sticker shadow `0 4px 0`, `{typography.label}`, `white-space: nowrap`, height 32 px as in the mockup). Placed right of the icon box with a `{spacing}` gap, vertically centred: `transform` from `--pp-threat-size`, no hard-coded px where a token exists.
     - `aria-hidden="true"` (the icons are too).
-  - [ ] `worldUi.ts`: `updateThreats(threats, highlightedId, targetedId)`, the `glyphChip`, and `render` also runs while the chip is visible.
-  - [ ] Tests: `threatMarkers.test.ts` (targeted highlight, switch of target, pressed + targeted, no allocation), `glyphChip.test.ts` (one element, moves, text on change only), `worldUi.test.ts`.
-- [ ] **T8 — Key glyphs, pad UI, pause line, menus** (AC 4, 8, 9)
-  - [ ] `src/client/input/keyGlyphs.ts`:
+  - [x] `worldUi.ts`: `updateThreats(threats, highlightedId, targetedId)`, the `glyphChip`, and `render` also runs while the chip is visible.
+  - [x] Tests: `threatMarkers.test.ts` (targeted highlight, switch of target, pressed + targeted, no allocation), `glyphChip.test.ts` (one element, moves, text on change only), `worldUi.test.ts`.
+- [x] **T8 — Key glyphs, pad UI, pause line, menus** (AC 4, 8, 9)
+  - [x] `src/client/input/keyGlyphs.ts`:
     - `loadKeyboardLayoutMap(nav)` → `Promise<Result<ReadonlyMap<string, string>, AppError>>`. A missing `navigator.keyboard` or a rejection (iframe, insecure context) is an `err`, and the caller logs **one** `warn`.
     - `keyGlyph(code, layoutMap | null, t)`: the map's value, trimmed and upper-cased, if non-empty; else `Space` → `t('key.space')`, `ArrowUp/Down/Left/Right` → `t('key.arrow_up' …)`, else `code`.
     - `padConfirmGlyph(family, t)` → `t('key.pad_confirm_xbox')` (« A ») or `t('key.pad_confirm_playstation')` (« ✕ »).
     - Tests.
-  - [ ] `content/strings.fr.json`: `key.arrow_up` « ↑ », `key.arrow_down` « ↓ », `key.arrow_left` « ← », `key.arrow_right` « → », `key.pad_confirm_xbox` « A », `key.pad_confirm_playstation` « ✕ », `key.pad_back_xbox` « B », `key.pad_back_playstation` « ○ ». `key.space` and `pause.gamepad_disconnected` already exist. `content:check` must stay green (string references).
-  - [ ] `pauseScreen.ts`: `setPadDisconnected(isDisconnected: boolean)` shows or hides a `<p class="pp-panel-note pp-type-body">` with `t('pause.gamepad_disconnected')` under the title. Use `role="status"` so a screen reader announces it. The note never takes focus. Add `activateFocused(): boolean` (A: `click()` on the focused button, else focus the first and return true) and `back(): void` (B: `onResume`).
-  - [ ] `uiShell.ts`:
+  - [x] `content/strings.fr.json`: `key.arrow_up` « ↑ », `key.arrow_down` « ↓ », `key.arrow_left` « ← », `key.arrow_right` « → », `key.pad_confirm_xbox` « A », `key.pad_confirm_playstation` « ✕ », `key.pad_back_xbox` « B », `key.pad_back_playstation` « ○ ». `key.space` and `pause.gamepad_disconnected` already exist. `content:check` must stay green (string references).
+  - [x] `pauseScreen.ts`: `setPadDisconnected(isDisconnected: boolean)` shows or hides a `<p class="pp-panel-note pp-type-body">` with `t('pause.gamepad_disconnected')` under the title. Use `role="status"` so a screen reader announces it. The note never takes focus. Add `activateFocused(): boolean` (A: `click()` on the focused button, else focus the first and return true) and `back(): void` (B: `onResume`).
+  - [x] `uiShell.ts`:
     - `setPadDisconnected(flag)`. The flag is kept in the shell, like `isPortrait`, and pushed into the pause screen on each `refresh` and on change.
     - `handlePadButton(button: 'confirm' | 'back' | 'start' | 'up' | 'down' | 'left' | 'right')` routes by app and pause state:
       - level + panel: D-pad and stick → `moveFocus('Arrow…')`, confirm → `activateFocused`, back → `back`, start → `escapeAction`;
@@ -130,35 +130,35 @@ Story 1.16 is `done`, with its review fixes committed. When this story was writt
       - start screen: confirm or start → the start screen's `start`;
       - oops: confirm → retry.
     - Portrait: nothing, like Escape.
-  - [ ] `startScreen.ts` and `oopsScreen.ts`: expose their action for the shell, e.g. `OverlayScreen.activate?()`. Keep one way in: the start screen's `start()` is the same closure the key and the tap call (audio unlock inside it, D14).
-  - [ ] Stick as menu arrows: a small pure helper `stickToMenuStep(axes, memory, deadzonePct)` → `'up' | 'down' | 'left' | 'right' | null` on the **edge** of leaving the deadzone (hysteresis `STICK_RELEASE_RATIO`, dominant axis). No auto-repeat (D14). Tests.
-- [ ] **T9 — `boot.ts` wiring** (AC 2 to 9)
-  - [ ] `bindKeyboard(…, { onChange, isLive, onAction: (phase, ts) => inputMapper.handleAction(phase, ts, 'keyboard') })`.
-  - [ ] `onLevelFrame`:
+  - [x] `startScreen.ts` and `oopsScreen.ts`: expose their action for the shell, e.g. `OverlayScreen.activate?()`. Keep one way in: the start screen's `start()` is the same closure the key and the tap call (audio unlock inside it, D14).
+  - [x] Stick as menu arrows: a small pure helper `stickToMenuStep(axes, memory, deadzonePct)` → `'up' | 'down' | 'left' | 'right' | null` on the **edge** of leaving the deadzone (hysteresis `STICK_RELEASE_RATIO`, dominant axis). No auto-repeat (D14). Tests.
+- [x] **T9 — `boot.ts` wiring** (AC 2 to 9)
+  - [x] `bindKeyboard(…, { onChange, isLive, onAction: (phase, ts) => inputMapper.handleAction(phase, ts, 'keyboard') })`.
+  - [x] `onLevelFrame`:
     - `const targetedId = inputMapper.lastDevice === 'keyboard' || inputMapper.lastDevice === 'gamepad' ? inputMapper.targetedThreatId() : null`;
     - `worldUi.updateThreats(world.threats, highlightedThreatId, targetedId)`;
     - chip: `showAt(entry, glyph)` for the target, else `hide()`. `glyph` comes from `lastDevice` and the pad family. Cache the text: recompute only when the device or family changes.
     - Find the entry by index: `world.threats[i]` ↔ `worldUi.threatEntries[i]`. No `find` per frame.
-  - [ ] The target is `null` when `getActive()` is null: autoplay, paused, outside a level (`isLive()` false). Then no highlight and no chip.
-  - [ ] Pad presence: in a level, an edge to absent → `shell.setPadDisconnected(true)` and `pause.requestPause('gamepadDisconnected')` (a no-op when already paused). Present again → `setPadDisconnected(false)` and a `log.info`.
-  - [ ] `window` `gamepaddisconnected` / `gamepadconnected` listeners do the same (idempotent with the poll). Read `event.gamepad` defensively: a test may dispatch a plain `Event`.
-  - [ ] Pad buttons other than A in play, and every button outside play, go to `shell.handlePadButton`.
-  - [ ] Outside a level (start, oops), nothing polls today: run a light rAF poller only while `appFsm.state` is `start` or `oops`. Start it on `AppStateChanged` and stop it on leaving. Use the same `readGamepads` and the same `GamepadInput`. Allocate nothing per frame.
-  - [ ] In a level, `onLevelFrame` runs while paused and during the countdown: `loop.ts:26` says `render` is « called every frame, paused or not », and `onLevelFrame` is called from it (`levelSession.ts:337`). The panel's pad navigation relies on it. `inputMapper.pollGamepad()` returns early when not live (`pollAndRefresh`), so read the buttons and the presence **before** that gate (the stick still only walks when live).
-  - [ ] `events.on('PauseRequested', () => inputMapper.releaseHeld())` already releases a held Space or A: check with a test.
-  - [ ] The layout map: `void loadKeyboardLayoutMap(navigator).then(…)` at boot, stored in a `let`. The chip falls back until it resolves.
-  - [ ] Debug mirror (`isMirrored` only): `ppTarget` = the targeted threat id or `none`, written on change. It goes in the `mirror()` name union.
-- [ ] **T10 — e2e** (AC 2 to 9): `tests/e2e/autoTarget.spec.ts` (new) and the support changes. See § Testing.
-- [ ] **T11 — Goldens, docs, close**
-  - [ ] `npm run golden:update` **deliberately**. Every journal's `feelHash` moves (`input.contextReachM`). `levelHash` moves for the scenarios that use `salon_crawler` (`objects`). Event sequences must not move. Check with `git diff tests/golden` and state it in the Completion Notes, as 1.14 to 1.16 did.
-  - [ ] `deferred-work.md`:
+  - [x] The target is `null` when `getActive()` is null: autoplay, paused, outside a level (`isLive()` false). Then no highlight and no chip.
+  - [x] Pad presence: in a level, an edge to absent → `shell.setPadDisconnected(true)` and `pause.requestPause('gamepadDisconnected')` (a no-op when already paused). Present again → `setPadDisconnected(false)` and a `log.info`.
+  - [x] `window` `gamepaddisconnected` / `gamepadconnected` listeners do the same (idempotent with the poll). Read `event.gamepad` defensively: a test may dispatch a plain `Event`.
+  - [x] Pad buttons other than A in play, and every button outside play, go to `shell.handlePadButton`.
+  - [x] Outside a level (start, oops), nothing polls today: run a light rAF poller only while `appFsm.state` is `start` or `oops`. Start it on `AppStateChanged` and stop it on leaving. Use the same `readGamepads` and the same `GamepadInput`. Allocate nothing per frame.
+  - [x] In a level, `onLevelFrame` runs while paused and during the countdown: `loop.ts:26` says `render` is « called every frame, paused or not », and `onLevelFrame` is called from it (`levelSession.ts:337`). The panel's pad navigation relies on it. `inputMapper.pollGamepad()` returns early when not live (`pollAndRefresh`), so read the buttons and the presence **before** that gate (the stick still only walks when live).
+  - [x] `events.on('PauseRequested', () => inputMapper.releaseHeld())` already releases a held Space or A: check with a test.
+  - [x] The layout map: `void loadKeyboardLayoutMap(navigator).then(…)` at boot, stored in a `let`. The chip falls back until it resolves.
+  - [x] Debug mirror (`isMirrored` only): `ppTarget` = the targeted threat id or `none`, written on change. It goes in the `mirror()` name union.
+- [x] **T10 — e2e** (AC 2 to 9): `tests/e2e/autoTarget.spec.ts` (new) and the support changes. See § Testing.
+- [x] **T11 — Goldens, docs, close**
+  - [x] `npm run golden:update` **deliberately**. Every journal's `feelHash` moves (`input.contextReachM`). `levelHash` moves for the scenarios that use `salon_crawler` (`objects`). Event sequences must not move. Check with `git diff tests/golden` and state it in the Completion Notes, as 1.14 to 1.16 did.
+  - [x] `deferred-work.md`:
     - close « Only the first pause reason is kept » (1.4 review) for the gamepad, with a flag, see D13;
     - close « Gamepad Start/Options and disconnect pause, the « Manette débranchée » line » (1.5);
     - mark « A tap on a threat, the baby or an object » (1.7) as « objects: the command and keyboard / gamepad in 1.17; the touch tap on objects in 1.19 / 1.20; the baby in 1.21 »;
     - add § Deferred by this story.
-  - [ ] Fix the comments that name 1.17: `gamepadInput.ts:27` (« no button here (story 1.17) »), `hitTest.ts:33`, `feel.ts:85`.
-  - [ ] `_bmad-output/project-context.md`: one bullet under « Time & input judgement » or « Platform »: auto-target is `client/input/autoTarget.ts` (window close time, cone from Papa, fallback to the global most urgent); `TapObject` walks to `level.objects` and emits `ObjectTapped`; a pad disconnect is a UI flag plus a pause.
-  - [ ] Story file (Dev Agent Record, File List, Change Log), `sprint-status.yaml` → `review`. One commit `Story 1.17 : ciblage automatique au clavier et à la manette`, in French.
+  - [x] Fix the comments that name 1.17: `gamepadInput.ts:27` (« no button here (story 1.17) »), `hitTest.ts:33`, `feel.ts:85`.
+  - [x] `_bmad-output/project-context.md`: one bullet under « Time & input judgement » or « Platform »: auto-target is `client/input/autoTarget.ts` (window close time, cone from Papa, fallback to the global most urgent); `TapObject` walks to `level.objects` and emits `ObjectTapped`; a pad disconnect is a UI flag plus a pause.
+  - [x] Story file (Dev Agent Record, File List, Change Log), `sprint-status.yaml` → `review`. One commit `Story 1.17 : ciblage automatique au clavier et à la manette`, in French.
 
 ## Dev Notes
 
@@ -389,10 +389,64 @@ Use the real code style (no `!`; the repo casts `threats[i] as …`). The tie-br
 
 ### Agent Model Used
 
+AI developer agent (model not recorded in the repository).
+
 ### Debug Log References
+
+- **T0 baseline** (before the first edit, `(unset VITE_DEBUG_ALLOWED; npm run ci)`): green, **2399 unit tests** (161 files) and **180 e2e** (chromium + webkit). `env | grep VITE_` showed `VITE_DEBUG_ALLOWED=false`, unset for dev / e2e / ci as the CLAUDE.md trap says.
+- **Final CI** (same command): green, **2565 unit tests** (166 files, +166), **198 e2e** (+18, `autoTarget.spec.ts` on both browsers), `src/sim` coverage 97.91 % statements / 96.67 % branches (threshold 90 %). The autoplay screenshot references did not move (`git status tests/e2e/__screenshots__` is clean).
+- **`contextReachM` by hand** (nearest open cell of Papa's grid to each anchor, `papaRadiusM` clearance): `coffee_machine` anchor (-3.6, -2) → cell (-2.875, -2.125), **0.736 m**; `phone` anchor (-1.3, -1.2) → cell (-1.875, -1.125), **0.580 m**. Both are inside the 1.5 m reach, so no change to the value. The e2e also asserts Papa ends within `contextReachM` of the coffee machine after a `TapFloor` on its anchor.
+- **Mutation checks** (each restored afterwards):
+  1. cone test `>=` → `<=` in `pickAutoTarget`: 19 tests fail (`autoTarget.test.ts`, `inputMapper.test.ts`);
+  2. D6 guard removed (the context action also runs after a threat press): « prefers a threat to an object » fails;
+  3. `isLive()` gate removed from `handleAction('down')`: 4 `inputMapper` tests fail (paused, countdown, not in a level, no level).
+- **Story text that was wrong**: T1 says « `ReachM` already passes the unit-suffix test (1.16 added it) ». It did not: `feelSchema.test.ts` rejected `contextReachM`. `ReachM` is now an accepted suffix there (a length in metres, like `RadiusM` and `DistM`).
+- **The minimal director activates one threat at a time** (`directorSystem.ts`: no new target while one is `telegraph` / `windowOpen`), so the e2e « re-target » of § Testing cannot have two threats active on the live level. The cone's choice between threats is proved by `autoTarget.test.ts` and `inputMapper.test.ts` (two and three threats); the e2e proves the D3 fallback with the single outlet (target kept whatever key is held, Space parries walking away). The multi-threat e2e is deferred to the wave director (1.18), see `deferred-work.md`.
+- **Float edge of the cone**: a threat exactly at the half-angle (e.g. (1, 1) with a 90° cone) failed the `>=` by one ulp (`cos(45°) · √2 = 1.0000000000000002`). The AC says inclusive, so the test carries `AUTO_TARGET_EDGE_EPSILON_M` (1e-9 m, `shared/constants.ts`).
+- **Golden journals**: both `feelHash` (`input.contextReachM`) **and** `levelHash` moved in all six journals, not only the `salon_crawler` ones: the level object now has an `objects` key (`[]` in the test levels), which changes the hash of any level. `git diff tests/golden` shows nothing but those two lines per file; the recorded events and world hashes did not move.
+- Playwright (chromium and webkit here) logs one `[input] navigator.keyboard.getLayoutMap() is not available here` warn per page load: the single fallback warn the story asks for. It is not in `OWN_WARNINGS`, so it does not fail `collectProblems`.
+
+### Implementation Plan
+
+- **Content / sim (T1, T2):** `LevelSchema.objects` (default `[]`), `feel.input.contextReachM`; `content:check` and `createSim` refuse an object whose anchor is missing and duplicate ids, naming level, object and anchor. `SimLevel.objects` holds each object's floor point, resolved once outside `World`. `TapObject` reuses `tapFloor` (now returning whether a path was planned) and emits `ObjectTapped` after the plan; an unknown id does nothing.
+- **Targeting (T3):** `pickAutoTarget` (dot product against the cosine of the half-angle, recomputed per call, one pass, no allocation, global fallback kept in the same loop) and `pickContextObject`; `contextObjectsOf` resolves the level's objects once per level (like `threatMarkerEntries`) and `levelSession` hands them to `onLevelReady`.
+- **Input (T4 to T6):** `bindKeyboard` gets `onAction`; the gamepad input now fills a reused `PadState` (presence, family, press and release edges of buttons 0, 1, 9, 12 to 15, pad stamp per D5) and keeps its stick contract (second argument optional). `MoveIntent.aimDir` returns the direction `update` last computed (no second conversion). The mapper owns `handleAction`, `lastDevice`, `targetedThreatId`, and now reads the pad every frame, live or not (`readPad`); outside play, A and every other edge go to `onPadButton`, and the stick becomes one menu step per push (`stickToMenuStep`).
+- **UI (T7, T8):** `threatMarkers.update(…, targetedId)`, `createGlyphChip` (one `CSS2DObject`, text and position written on change only), CSS from the tokens. `padAction` (in `keys.ts`) is the pure routing table of a pad button by overlay, app and pause state; `uiShell.handlePadButton` executes it. `pauseScreen` gets `setPadDisconnected`, `activateFocused`, `back`; the start and « Oups » screens expose `activate`.
+- **Wiring (T9):** `boot.ts` binds Space, wires the presence callback (`level` only: `setPadDisconnected(true)` + `requestPause('gamepadDisconnected')`), the chip (text cached per device / family / layout map), the `ppTarget` mirror, a rAF menu poller only in `start` and `oops`, and `gamepadconnected` / `gamepaddisconnected` listeners that just poll now (the poll is the truth).
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- All ten acceptance criteria are met; `(unset VITE_DEBUG_ALLOWED; npm run ci)` is green (numbers in the Debug Log).
+- **Commit:** one commit `Story 1.17 : ciblage automatique au clavier et à la manette`, made on request after the review-ready state, on the branch `story-1-17-ciblage-clavier-manette` (the session was on `main`).
+- **Deviations from the story's test list:** there is no `pauseScreen.test.ts` or `uiShell.test.ts`. The test environment is Node with no DOM and those two files build their DOM directly with `document`, so the logic worth testing was put in pure functions: `padAction` (every app × pause × overlay × button, in `keys.test.ts`), `stickToMenuStep` (`menuStep.test.ts`) and `keyGlyph`; the DOM side (note shows and hides, `activateFocused`, `back`, Start / B / D-pad / A on the panel, the start screen and « Recommencer ») is covered by `autoTarget.spec.ts` on chromium and webkit.
+- **`aimDir`** reads what `update` last computed rather than recomputing from the held keys, so the aim is exactly the walk direction (D1) and the stick's hysteresis memory is touched once.
+- **`gamepadconnected` / `gamepaddisconnected`** do not read `event.gamepad`: they ask for an immediate poll. A second pad cannot pause the game, a stale event cannot pause it, and a plain `Event` (as the e2e stub dispatches) works.
+- **Open points for Geo** (unchanged from the story, nothing here settles them): D3 (fallback when nothing is in the cone), D10 (the chip always says « Espace »), `contextReachM` 1.5 m and `autoTargetConeDeg` 60°, D13 (resume without the pad), D14 (a pad-only start may be silent).
+- Deferred items are in `deferred-work.md` › « Deferred from: implementation of story 1-17 ». The two 1.4 / 1.5 items and the 1.7 hit-test item are closed or narrowed there.
 
 ### File List
+
+- `_bmad-output/implementation-artifacts/1-17-ciblage-automatique-au-clavier-et-a-la-manette.md` (this file)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/project-context.md`
+- `content/feel.json`, `content/levels/salon_crawler.json`, `content/strings.fr.json`
+- `content/_schemas/feel.schema.json`, `content/_schemas/level.schema.json` (generated)
+- `src/content/schemas/feel.ts`, `src/content/schemas/level.ts`
+- `src/shared/constants.ts`
+- `src/sim/commands.ts`, `src/sim/events.ts`, `src/sim/context.ts`, `src/sim/createSim.ts`, `src/sim/papa/papaSystem.ts`
+- `src/sim/commands.test.ts`, `src/sim/events.test.ts`, `src/sim/createSim.test.ts`, `src/sim/replay.test.ts`, `src/sim/papa/papaSystem.test.ts`
+- `src/client/input/autoTarget.ts` (+ test), `contextObject.ts` (+ test), `keyGlyphs.ts` (+ test), `menuStep.ts` (+ test) — new
+- `src/client/input/gamepadInput.ts`, `inputMapper.ts`, `keyboardInput.ts`, `moveIntent.ts`, `hitTest.ts` and the tests `gamepadInput.test.ts`, `inputMapper.test.ts`, `keyboardInput.test.ts`
+- `src/client/ui/world/glyphChip.ts` (+ test) — new; `threatMarkers.ts`, `worldUi.ts` and their tests
+- `src/client/ui/keys.ts`, `keys.test.ts`, `uiShell.ts`, `overlayHost.ts`, `overlayScreen.ts`, `screens/pauseScreen.ts`, `screens/startScreen.ts`, `screens/oopsScreen.ts`, `styles/ui.css`
+- `src/client/app/levelSession.ts`, `src/client/boot.ts`
+- `tools/content/contentChecks.ts`
+- `tests/content/checkContent.test.ts`, `tests/content/feelSchema.test.ts`, `tests/content/levelSchema.test.ts`
+- `tests/support/testContent.ts`, `tests/support/testFeel.json`, `tests/threats/threatCatalog.test.ts`
+- `tests/e2e/autoTarget.spec.ts` (new), `tests/e2e/move.spec.ts`, `tests/e2e/support/game.ts`
+- `tests/golden/journals/*.json` (six journals, `feelHash` and `levelHash` regenerated on purpose)
+
+### Change Log
+
+- 2026-10-27: Story 1.17 implemented. Keyboard and gamepad auto-target (`pickAutoTarget`), Space / A parry and context action (`TapObject`, `ObjectTapped`, `level.objects`, `feel.input.contextReachM`), target highlight and the single glyph chip, pad hot-plug, Start / Options and the disconnect pause with its line, pad navigation of the menus. Goldens regenerated on purpose (`feelHash`, `levelHash`). Status → review.

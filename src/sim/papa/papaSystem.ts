@@ -1,5 +1,5 @@
 import { STEP_MS } from '@shared/constants';
-import type { StepContext } from '../context.ts';
+import type { SimObjectSpec, StepContext } from '../context.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { startGlide } from './glide.ts';
@@ -9,12 +9,12 @@ import { stepInDirection } from './walk.ts';
 
 /**
  * Walks to a tapped point (D7): see {@link planWalkTo} for where the path ends. A tap cancels a
- * glide. A* failing anyway (it should not) leaves Papa where he is.
+ * glide. A* failing anyway (it should not) leaves Papa where he is. True when a path was planned.
  */
-function tapFloor(world: World, ctx: StepContext, tapXM: number, tapZM: number): void {
+function tapFloor(world: World, ctx: StepContext, tapXM: number, tapZM: number): boolean {
   const { papa } = world;
   const goal = planWalkTo(papa, ctx, tapXM, tapZM);
-  if (goal === null) return;
+  if (goal === null) return false;
   papa.dirX = 0;
   papa.dirZ = 0;
   papa.isBlocked = false;
@@ -27,6 +27,23 @@ function tapFloor(world: World, ctx: StepContext, tapXM: number, tapZM: number):
     waypointCount: papa.path.length / 2,
   });
   enterPapaState(world, ctx, 'walkPath');
+  return true;
+}
+
+/**
+ * Walks to an interactive object of the level exactly as a tap on its anchor does, then says so.
+ * What Papa does on arrival is the object's (stories 1.19, 1.20). An unknown id does nothing.
+ */
+function tapObject(world: World, ctx: StepContext, objectId: string): void {
+  const objects = ctx.level.objects;
+  for (let i = 0; i < objects.length; i++) {
+    const object = objects[i] as SimObjectSpec;
+    if (object.id !== objectId) continue;
+    if (tapFloor(world, ctx, object.xM, object.zM)) {
+      ctx.events.push({ type: 'ObjectTapped', t: world.time.sim, objectId });
+    }
+    return;
+  }
 }
 
 /** A direction cancels a path and a glide. A new direction while already walking one only updates it. */
@@ -84,7 +101,7 @@ function moveStop(world: World, ctx: StepContext): void {
 
 /**
  * System: Papa. Remembers where he stood (for the view's interpolation), handles this step's
- * `TapFloor` / `Move` / `MoveStop` / `PressThreat` in order, then moves him once for one step: by
+ * `TapFloor` / `TapObject` / `Move` / `MoveStop` / `PressThreat` in order, then moves him once for one step: by
  * `walkSpeedMps`, or by the speed of his glide. The speed is read each step, so a changed feel
  * applies at once.
  */
@@ -97,6 +114,7 @@ export function runPapa(world: World, ctx: StepContext): void {
     const command = ctx.commands[i];
     if (command === undefined) continue;
     if (command.type === 'TapFloor') tapFloor(world, ctx, command.xM, command.zM);
+    else if (command.type === 'TapObject') tapObject(world, ctx, command.objectId);
     else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
     else if (command.type === 'MoveStop') moveStop(world, ctx);
     else if (command.type === 'PressThreat') pressThreat(world, ctx, command.threatId);

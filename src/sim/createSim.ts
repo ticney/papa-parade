@@ -105,7 +105,8 @@ function spawnOf(
 
 /**
  * What the level plans, checked against the room: it is the level of this geometry, every planned
- * def is loaded, every anchor exists and every gag is one the sim knows. A level that breaks one is a
+ * def is loaded, every anchor exists (an object's too, and object ids are unique) and every gag is
+ * one the sim knows. A level that breaks one is a
  * broken level (`content:check` catches it statically).
  */
 function simLevelOf(
@@ -131,6 +132,19 @@ function simLevelOf(
         `${where}: threat ${entry.def} has an unknown gag ${def.gag}`,
       );
       return { def, fromMs: entry.fromMs };
+    }),
+    objects: level.level.objects.map((object, index) => {
+      const where = `level ${level.level.id} › objects[${index}]`;
+      invariant(
+        level.level.objects.findIndex((other) => other.id === object.id) === index,
+        `${where}: the object "${object.id}" is listed twice`,
+      );
+      const anchor = geometry.anchors.find((candidate) => candidate.id === object.anchor);
+      invariant(
+        anchor !== undefined,
+        `${where}: the object "${object.id}" is at ${object.anchor}, which ${geometry.id} does not have`,
+      );
+      return { id: object.id, xM: anchor.positionM[0], zM: anchor.positionM[2] };
     }),
     props: geometry.props.map((prop, index) => {
       const kind = Object.hasOwn(physics.kinds, prop.kind) ? physics.kinds[prop.kind] : undefined;

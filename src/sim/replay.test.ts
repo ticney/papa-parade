@@ -7,6 +7,7 @@ import {
   createTestLevel,
   outletEntry,
   stepN,
+  TEST_OBJECTS,
 } from '../../tests/support/testContent.ts';
 import { createSim } from './createSim.ts';
 import type { SimEvent } from './events.ts';
@@ -322,6 +323,29 @@ describe('replayJournal', () => {
       level: planning,
       journal: sim.journal(),
       untilSimMs: 8000,
+    });
+    expect(replay.ok).toBe(true);
+    if (!replay.ok) return;
+    expect(replay.value.events).toEqual(live);
+    expect(hashJson(replay.value.sim.world)).toBe(hashJson(sim.world));
+  });
+
+  it('reproduces a game that taps an object (story 1.17)', async () => {
+    const planning = createTestLevel([], TEST_OBJECTS);
+    const sim = await createSim({ content, geometry, level: planning, seed: 5 });
+    sim.enqueue({ type: 'TapObject', t: asSimMs(200), objectId: 'coffee_machine' });
+    sim.enqueue({ type: 'TapObject', t: asSimMs(2000), objectId: 'phone' });
+    sim.enqueue({ type: 'TapObject', t: asSimMs(2500), objectId: 'toaster' });
+    const live: SimEvent[] = [];
+    stepN(sim, 500);
+    for (const event of sim.drainEvents()) live.push(event);
+    expect(live.filter((event) => event.type === 'ObjectTapped')).toHaveLength(2);
+    const replay = await replayJournal({
+      content,
+      geometry,
+      level: planning,
+      journal: sim.journal(),
+      untilSimMs: 5000,
     });
     expect(replay.ok).toBe(true);
     if (!replay.ok) return;
