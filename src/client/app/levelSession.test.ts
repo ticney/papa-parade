@@ -299,7 +299,7 @@ describe('createLevelSession', () => {
     const [xM, yM, zM] = anchor?.positionM ?? [Number.NaN, 0, 0];
     expect(readyEntries).toHaveLength(1);
     expect(readyEntries[0]).toEqual([
-      { threatId: session.active?.sim.world.threats[0]?.id, xM, yM, zM },
+      { threatId: session.active?.sim.world.threats[0]?.id, xM, yM, zM, icon: 'bolt' },
     ]);
   });
 

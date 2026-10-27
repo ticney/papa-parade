@@ -15,6 +15,14 @@ const idSchema = (description: string) =>
 export const THREAT_RESPONSES = ['parry'] as const;
 export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
 
+/**
+ * The glyphs a threat's marker can draw, as data (the client has one per entry, as a
+ * `Record<ThreatIcon, …>`: a missing glyph is a type error). Story 2.2 adds the verb, shape and
+ * colour to the def in the same way.
+ */
+export const THREAT_ICONS = ['bolt', 'stairs', 'mug'] as const;
+export type ThreatIcon = (typeof THREAT_ICONS)[number];
+
 const FeedbackCuesSchema = z
   .strictObject({
     telegraph: idSchema('Cue played when the threat is telegraphed.'),
@@ -41,6 +49,9 @@ export const ThreatDefSchema = z
       .nullable()
       .describe('Base response window, in sim ms; `null` = `feel.timing.windowMs`.'),
     gag: idSchema('The gag played on a miss (a `GAG_IDS` entry of the sim).'),
+    icon: z
+      .enum(THREAT_ICONS)
+      .describe("Glyph drawn in the threat's marker (the client has one per entry)."),
     feedback: FeedbackCuesSchema,
     cooldownMs: z
       .number()

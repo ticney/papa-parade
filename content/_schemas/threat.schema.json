@@ -47,6 +47,15 @@
       "pattern": "^[a-z][a-z0-9_]*$",
       "description": "The gag played on a miss (a `GAG_IDS` entry of the sim)."
     },
+    "icon": {
+      "type": "string",
+      "enum": [
+        "bolt",
+        "stairs",
+        "mug"
+      ],
+      "description": "Glyph drawn in the threat's marker (the client has one per entry)."
+    },
     "feedback": {
       "type": "object",
       "properties": {
@@ -92,6 +101,7 @@
     "telegraphDelayMs",
     "windowMs",
     "gag",
+    "icon",
     "feedback",
     "cooldownMs"
   ],

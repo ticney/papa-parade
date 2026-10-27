@@ -6,7 +6,7 @@ import type { FailReason, ResponseQuality } from '../events.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import { effectiveWindow } from '../timing/effectiveWindow.ts';
 import type { ThreatInstance, World } from '../world.ts';
-import { gagIdOf } from './gags.ts';
+import { applyGag, gagIdOf } from './gags.ts';
 
 /**
  * `idle`: waiting for the director. `telegraph`: announced, the window opens `telegraphDelayMs`
@@ -106,8 +106,9 @@ export function resolveThreat(
 }
 
 /**
- * `→ gag`: a failed response. `ResponseResolved{fail}` then `GagTriggered`; the gag is an event
- * only (NFR9), with no hitstop and no slow-mo. `offsetMs` is `null` when no press ever came.
+ * `→ gag`: a failed response. `ResponseResolved{fail}`, `GagTriggered`, then the gag's own
+ * consequences (`applyGag`: a `NearMiss`, a pushed prop; NFR9: never an injury), with no hitstop
+ * and no slow-mo. `offsetMs` is `null` when no press ever came.
  */
 export function gagThreat(
   world: World,
@@ -119,6 +120,7 @@ export function gagThreat(
 ): void {
   threat.press = null;
   enterThreatState(world, threat, 'gag');
+  const gag = gagIdOf(def.gag);
   ctx.events.push(
     {
       type: 'ResponseResolved',
@@ -129,8 +131,9 @@ export function gagThreat(
       reason,
       offsetMs,
     },
-    { type: 'GagTriggered', t: world.time.sim, threatId: threat.id, gag: gagIdOf(def.gag), reason },
+    { type: 'GagTriggered', t: world.time.sim, threatId: threat.id, gag, reason },
   );
+  applyGag(world, ctx, threat, gag);
 }
 
 /** `resolved | gag → idle`, once the cooldown is over. */

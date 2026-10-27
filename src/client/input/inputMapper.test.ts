@@ -296,7 +296,7 @@ describe('createInputMapper: movement', () => {
 
 describe('createInputMapper: threats', () => {
   /** An outlet-like icon at (-3, 0.3, 0.5): where it lands on screen with the test camera. */
-  const ICON = { threatId: 4, xM: -3, yM: 0.3, zM: 0.5 };
+  const ICON = { threatId: 4, xM: -3, yM: 0.3, zM: 0.5, icon: 'bolt' as const };
   const threat = (state: string, id = 4) => ({ id, state }) as never;
 
   function withThreat(state = 'windowOpen') {

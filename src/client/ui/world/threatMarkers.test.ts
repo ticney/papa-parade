@@ -3,7 +3,12 @@ import { asSimMs } from '@shared/time';
 import type { ThreatInstance, ThreatState } from '@sim';
 import { Scene } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createThreatMarkers, THREAT_CLASSES, threatMarkerEntries } from './threatMarkers.ts';
+import {
+  createThreatMarkers,
+  THREAT_CLASSES,
+  THREAT_ICON_PATHS,
+  threatMarkerEntries,
+} from './threatMarkers.ts';
 
 class FakeElement {
   // What three's CSS2DObject reads when it is removed from a scene.
@@ -54,7 +59,7 @@ const threat = (id: number, state: ThreatState): Readonly<ThreatInstance> =>
     enteredAt: asSimMs(0),
   }) as Readonly<ThreatInstance>;
 
-const ENTRY = { threatId: 4, xM: -3.95, yM: 0.3, zM: 0.5 };
+const ENTRY = { threatId: 4, xM: -3.95, yM: 0.3, zM: 0.5, icon: 'bolt' as const };
 
 describe('createThreatMarkers', () => {
   it('mounts one hidden marker per entry, at the anchor position, hidden from assistive tech', () => {
@@ -192,7 +197,37 @@ describe('createThreatMarkers', () => {
   });
 });
 
+describe('the glyph of a marker', () => {
+  const glyphOf = (element: FakeElement): string | undefined =>
+    element.children[0]?.children[0]?.attributes.get('d');
+
+  it('is the path of its entry icon, one per ThreatIcon', () => {
+    const { markers, byClass } = build();
+    markers.mount([
+      { ...ENTRY, threatId: 1, icon: 'bolt' },
+      { ...ENTRY, threatId: 2, icon: 'stairs' },
+      { ...ENTRY, threatId: 3, icon: 'mug' },
+    ]);
+    expect(byClass(THREAT_CLASSES.icon).map(glyphOf)).toEqual([
+      THREAT_ICON_PATHS.bolt,
+      THREAT_ICON_PATHS.stairs,
+      THREAT_ICON_PATHS.mug,
+    ]);
+  });
+
+  it('differs from one icon to the next', () => {
+    expect(new Set(Object.values(THREAT_ICON_PATHS)).size).toBe(
+      Object.keys(THREAT_ICON_PATHS).length,
+    );
+  });
+});
+
 describe('threatMarkerEntries', () => {
+  const defs = {
+    outlet: { icon: 'bolt' },
+    stairs: { icon: 'stairs' },
+    coffee_table_object: { icon: 'mug' },
+  } as const;
   const anchors = [
     { id: 'door', positionM: [1, 0, 2] as const },
     { id: 'outlet_01', positionM: [-3.95, 0.3, 0.5] as const },
@@ -205,22 +240,53 @@ describe('threatMarkerEntries', () => {
         { ...threat(8, 'idle'), anchorId: 'door' },
       ],
       anchors,
+      defs,
     );
     expect(entries).toEqual([
-      { threatId: 7, xM: -3.95, yM: 0.3, zM: 0.5 },
-      { threatId: 8, xM: 1, yM: 0, zM: 2 },
+      { threatId: 7, xM: -3.95, yM: 0.3, zM: 0.5, icon: 'bolt' },
+      { threatId: 8, xM: 1, yM: 0, zM: 2, icon: 'bolt' },
     ]);
   });
 
+  it('carries the icon of each threat def', () => {
+    const entries = threatMarkerEntries(
+      [
+        { ...threat(7, 'idle'), defId: 'stairs', anchorId: 'door' },
+        { ...threat(8, 'idle'), defId: 'coffee_table_object', anchorId: 'door' },
+        { ...threat(9, 'idle'), defId: 'outlet', anchorId: 'door' },
+      ],
+      anchors,
+      defs,
+    );
+    expect(entries.map((entry) => entry.icon)).toEqual(['stairs', 'mug', 'bolt']);
+  });
+
+  it('draws a bolt and warns for a threat whose def the level lacks', () => {
+    const seen = log.buffer().length;
+    const entries = threatMarkerEntries(
+      [{ ...threat(7, 'idle'), defId: 'ghost', anchorId: 'door' }],
+      anchors,
+      defs,
+    );
+    expect(entries.map((entry) => entry.icon)).toEqual(['bolt']);
+    expect(
+      log
+        .buffer()
+        .slice(seen)
+        .some((entry) => entry.level === 'warn' && /ghost/.test(entry.message)),
+    ).toBe(true);
+  });
+
   it('is empty for a level without threats', () => {
-    expect(threatMarkerEntries([], anchors)).toEqual([]);
+    expect(threatMarkerEntries([], anchors, defs)).toEqual([]);
   });
 
   it('falls back to the threat floor point when the room lacks the anchor', () => {
     const entries = threatMarkerEntries(
       [{ ...threat(7, 'idle'), anchorId: 'ghost', xM: 2, zM: 3 }],
       anchors,
+      defs,
     );
-    expect(entries).toEqual([{ threatId: 7, xM: 2, yM: 0, zM: 3 }]);
+    expect(entries).toEqual([{ threatId: 7, xM: 2, yM: 0, zM: 3, icon: 'bolt' }]);
   });
 });

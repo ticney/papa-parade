@@ -46,6 +46,12 @@ export interface BabyView {
    * shadow stays on the floor. Allocates nothing.
    */
   setLiftM(heightM: number): void;
+  /**
+   * Offsets the whole view (body, gaze marker and shadow) from the sim position by (`xM`, `zM`) on
+   * the floor plane: the stairs gag's slide. It holds until set again, across `update`s. (0, 0)
+   * puts the baby back. Allocates nothing.
+   */
+  setSlideM(xM: number, zM: number): void;
   /** Frees what the view made (its geometries); the shared materials belong to the scene. */
   dispose(): void;
 }
@@ -95,16 +101,25 @@ export function createBabyView(
   group.add(body, gazeGroup, shadow);
   scene.add(group);
   const pose: BabyPose = { xM: 0, zM: 0, yawRad: 0 };
+  let slideXM = 0;
+  let slideZM = 0;
 
   return {
     update(baby, alpha) {
       babyPoseAt(baby, alpha, pose);
-      group.position.set(pose.xM, 0, pose.zM);
+      group.position.set(pose.xM + slideXM, 0, pose.zM + slideZM);
       gazeGroup.rotation.y = pose.yawRad;
     },
     setLiftM(heightM) {
       body.position.y = bodyRadiusM + heightM;
       gazeGroup.position.y = bodyRadiusM + heightM;
+    },
+    setSlideM(xM, zM) {
+      // Moves the group now (the slide is set after the frame's `update`), as `update` will next frame.
+      group.position.x += xM - slideXM;
+      group.position.z += zM - slideZM;
+      slideXM = xM;
+      slideZM = zM;
     },
     dispose() {
       bodyGeometry.dispose();

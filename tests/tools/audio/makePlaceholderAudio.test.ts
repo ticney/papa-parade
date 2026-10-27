@@ -10,11 +10,15 @@ import {
   SAMPLE_RATE_HZ,
   synthBabble,
   synthBump,
+  synthGagCoffeeTable,
   synthGagOutlet,
+  synthGagStairs,
   synthMusic,
   synthParry,
   synthParryPerfect,
   synthTelegraph,
+  synthTelegraphCoffeeTable,
+  synthTelegraphStairs,
 } from '../../../tools/audio/makePlaceholderAudio.ts';
 
 const peakOf = (samples: Float32Array): number =>
@@ -80,6 +84,48 @@ describe('placeholder audio', () => {
     const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
     for (const clip of ['tel_outlet', 'resp_parry', 'resp_parry_perfect', 'gag_outlet']) {
       expect(names, clip).toContain(clip);
+    }
+  });
+
+  it('has the lengths of the stairs and coffee-table clips: 400, 500, 600 and 350 ms', () => {
+    const ms = (samples: Float32Array): number => (samples.length / SAMPLE_RATE_HZ) * 1000;
+    expect(ms(synthTelegraphStairs())).toBeCloseTo(400, 0);
+    expect(ms(synthTelegraphCoffeeTable())).toBeCloseTo(500, 0);
+    expect(ms(synthGagStairs())).toBeCloseTo(600, 0);
+    expect(ms(synthGagCoffeeTable())).toBeCloseTo(350, 0);
+  });
+
+  it('lists the four stairs and coffee-table clips by the names the feedback table uses', () => {
+    const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+    for (const clip of ['tel_stairs', 'gag_stairs', 'tel_coffee_table', 'gag_coffee_table']) {
+      expect(names, clip).toContain(clip);
+    }
+  });
+
+  it('makes each telegraph and each gag sound unlike the others (no two clips are alike)', () => {
+    // The largest normalised dot product between two clips, over their common length: a clip that
+    // sounded like another would correlate with it. Two unrelated sounds stay far from 1.
+    const clips = PLACEHOLDER_CLIPS.filter(({ clip }) => /^(tel|gag)_/.test(clip)).map(
+      ({ clip, synth }) => ({ clip, samples: synth() }),
+    );
+    expect(clips.length).toBe(6);
+    for (const [index, first] of clips.entries()) {
+      for (const second of clips.slice(index + 1)) {
+        const length = Math.min(first.samples.length, second.samples.length);
+        let dot = 0;
+        let a = 0;
+        let b = 0;
+        for (let i = 0; i < length; i++) {
+          const x = first.samples[i] as number;
+          const y = second.samples[i] as number;
+          dot += x * y;
+          a += x * x;
+          b += y * y;
+        }
+        expect(Math.abs(dot) / Math.sqrt(a * b), `${first.clip} / ${second.clip}`).toBeLessThan(
+          0.5,
+        );
+      }
     }
   });
 

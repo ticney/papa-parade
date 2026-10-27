@@ -304,6 +304,23 @@ const PhysicsSchema = z
     'Light physics of the props (GDD §11, story 1.15): falls, bounces, impacts and breakage.',
   );
 
+const GagsSchema = z
+  .strictObject({
+    tableObjectFall: z
+      .strictObject({
+        pushImpulseNs: positive(
+          'Impulse the coffee-table gag gives the object on the table, in newton-seconds, horizontally away from the anchor (held to `physics.maxPushImpulseNs`).',
+        ),
+        propReachM: positive(
+          'How far from the threat anchor, in metres (horizontal), an object that is off the floor still counts as « on the table ».',
+        ),
+      })
+      .describe('The gag of the object on the coffee table (story 1.16).'),
+  })
+  .describe(
+    'Tunables of the gags whose consequence the sim applies (`sim/threats/gags.ts`); a gag with nothing to tune has no key.',
+  );
+
 export const FeelSchema = z
   .strictObject({
     timing: TimingSchema,
@@ -315,6 +332,7 @@ export const FeelSchema = z
     difficulty: DifficultySchema,
     mama: MamaSchema,
     physics: PhysicsSchema,
+    gags: GagsSchema,
   })
   .describe('Every feel value of the game, tuned by hand or from the feel panel.');
 

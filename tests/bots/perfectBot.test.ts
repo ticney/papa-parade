@@ -3,7 +3,14 @@ import { playGame } from '@bots/playGame';
 import { asSimMs } from '@shared/time';
 import { createSim, type SimCommand, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
-import { botSetup, botTestLevel, makeBot, playBotGame, responses } from '../support/botSupport.ts';
+import {
+  botSetup,
+  botTestLevel,
+  botTrioLevel,
+  makeBot,
+  playBotGame,
+  responses,
+} from '../support/botSupport.ts';
 import { createTestContent, createTestGeometry } from '../support/testContent.ts';
 
 // AC 6: 100 games, seeds 0 to 99. 40 s of sim time holds several outlet cycles (the outlet
@@ -28,6 +35,31 @@ describe('perfect bot', () => {
       ).toEqual([]);
     }
   }, 30_000);
+
+  it('parries all three threats of the prototype perfectly over 60 s, each def at least once', async () => {
+    for (const seed of [0, 1, 2, 3, 4]) {
+      const { events } = await playBotGame('perfect', seed, { level: botTrioLevel() });
+      const kindOf = new Map<number, string>();
+      for (const event of events) {
+        if (event.type === 'ThreatTelegraphed') kindOf.set(event.threatId, event.kind);
+      }
+      const resolved = responses(events);
+      for (const response of resolved) {
+        expect(response.quality, `seed ${seed}`).toBe('perfect');
+        expect(response.offsetMs, `seed ${seed}`).toBe(0);
+      }
+      const answered = new Set(resolved.map((response) => kindOf.get(response.threatId)));
+      expect([...answered].sort(), `seed ${seed}`).toEqual([
+        'coffee_table_object',
+        'outlet',
+        'stairs',
+      ]);
+      expect(
+        events.filter((event) => event.type === 'GagTriggered' || event.type === 'NearMiss'),
+        `seed ${seed}`,
+      ).toEqual([]);
+    }
+  });
 
   it('presses once per cycle, each followed by one release', async () => {
     const { sim, events } = await playBotGame('perfect', 5, { untilSimMs: UNTIL_MS });

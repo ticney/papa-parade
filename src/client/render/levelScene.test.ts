@@ -19,7 +19,15 @@ import {
   stepN,
 } from '../../../tests/support/testContent.ts';
 import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
-import { GAG_LIGHTS_DARK_MS, GAG_LIGHTS_FADE_MS, GAG_LIGHTS_MIN_PCT } from './gags.ts';
+import {
+  GAG_LIGHTS_DARK_MS,
+  GAG_LIGHTS_FADE_MS,
+  GAG_LIGHTS_MIN_PCT,
+  GAG_SLIDE_HOLD_MS,
+  GAG_SLIDE_M,
+  GAG_SLIDE_OUT_MS,
+  GAG_SLIDE_TOTAL_MS,
+} from './gags.ts';
 import { createLevelScene, roomOf } from './levelScene.ts';
 import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
 
@@ -446,6 +454,30 @@ describe('createLevelScene', () => {
       expect(body.position.y).toBeCloseTo(floorY + LIFT_HEIGHT_M, 6);
       update(fakeWorldAt(2000 + LIFT_MS), 0);
       expect(body.position.y).toBe(floorY);
+    });
+
+    it('slides the baby from the stairs on the sim clock for the stairs gag, and puts it back', () => {
+      const { scene, fx, update } = build();
+      const group = scene.getObjectByName('baby_group') as Object3D;
+      const world = fakeWorldAt(0);
+      update(world, 0);
+      const home = group.position.clone();
+      fx.gag('stairs_slide', asSimMs(1000), false, 1, 0);
+      update(fakeWorldAt(1000 + GAG_SLIDE_OUT_MS + GAG_SLIDE_HOLD_MS / 2), 0);
+      expect(group.position.x).toBeCloseTo(home.x + GAG_SLIDE_M, 6);
+      expect(group.position.z).toBeCloseTo(home.z, 6);
+      update(fakeWorldAt(1000 + GAG_SLIDE_TOTAL_MS), 0);
+      expect(group.position.x).toBeCloseTo(home.x, 6);
+    });
+
+    it('does not slide the baby when motion is reduced', () => {
+      const { scene, fx, update } = build();
+      const group = scene.getObjectByName('baby_group') as Object3D;
+      update(fakeWorldAt(0), 0);
+      const home = group.position.clone();
+      fx.gag('stairs_slide', asSimMs(1000), true, 1, 0);
+      update(fakeWorldAt(1000 + GAG_SLIDE_OUT_MS), 0);
+      expect(group.position.x).toBe(home.x);
     });
 
     it('resetFx brings the lights, the hair and the baby back at once', () => {

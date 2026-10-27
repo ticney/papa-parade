@@ -5,6 +5,7 @@ import {
   createTestGeometry,
   createTestLevel,
   outletEntry,
+  stairsEntry,
 } from '../../../tests/support/testContent.ts';
 import type { StepContext } from '../context.ts';
 import { createSim } from '../createSim.ts';
@@ -139,6 +140,40 @@ describe('threat FSM', () => {
     });
   });
 
+  it('gagThreat on a stairs miss emits ResponseResolved, GagTriggered, then NearMiss, at the same time', async () => {
+    const sim = await createSim({
+      content,
+      geometry: createTestGeometry(),
+      level: createTestLevel([stairsEntry(0)]),
+      seed: 1,
+    });
+    const world = sim.world as World;
+    world.time.sim = asSimMs(700);
+    const events: SimEvent[] = [];
+    const ctx = {
+      feel: content.feel,
+      events,
+      strictInvariants: true,
+      t: world.time.sim,
+    } as unknown as StepContext;
+    const stairs = createTestLevel([stairsEntry(0)]).threats.stairs;
+    if (stairs === undefined) throw new Error('no stairs');
+    gagThreat(world, ctx, world.threats[0] as World['threats'][number], stairs, 'late', null);
+    expect(events.map((event) => event.type)).toEqual([
+      'ResponseResolved',
+      'GagTriggered',
+      'NearMiss',
+    ]);
+    expect(events.map((event) => event.t)).toEqual([700, 700, 700]);
+    expect(events[2]).toEqual({ type: 'NearMiss', t: 700, threatId: 1, gag: 'stairs_slide' });
+  });
+
+  it('gagThreat on an outlet miss emits no NearMiss', async () => {
+    const { world, ctx, events, threat } = await setup();
+    gagThreat(world, ctx, threat, def, 'early', -300);
+    expect(events.map((event) => event.type)).not.toContain('NearMiss');
+  });
+
   it('rearmThreat puts the threat back to idle with nothing left of the cycle', async () => {
     const { world, ctx, events, threat } = await setup();
     telegraphThreat(world, ctx, threat, def);
@@ -157,8 +192,8 @@ describe('threat FSM', () => {
 });
 
 describe('gags', () => {
-  it('lists outlet_hair', () => {
-    expect([...GAG_IDS]).toContain('outlet_hair');
+  it('lists the three gags of the prototype', () => {
+    expect([...GAG_IDS]).toEqual(['outlet_hair', 'stairs_slide', 'table_object_fall']);
   });
 
   it('gagIdOf accepts a known gag and refuses another', () => {

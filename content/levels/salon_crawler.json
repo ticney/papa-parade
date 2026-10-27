@@ -1,5 +1,9 @@
 {
   "$schema": "../_schemas/level.schema.json",
   "id": "salon_crawler",
-  "threats": [{ "def": "outlet", "anchor": "outlet_01", "fromMs": 4000 }]
+  "threats": [
+    { "def": "outlet", "anchor": "outlet_01", "fromMs": 4000 },
+    { "def": "stairs", "anchor": "stairs_top", "fromMs": 10000 },
+    { "def": "coffee_table_object", "anchor": "coffee_table", "fromMs": 16000 }
+  ]
 }

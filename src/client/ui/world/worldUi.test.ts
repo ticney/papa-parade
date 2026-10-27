@@ -64,7 +64,7 @@ describe('createWorldUi', () => {
 });
 
 describe('createWorldUi, threat icons', () => {
-  const entry = { threatId: 1, xM: 0, yM: 0, zM: 0 };
+  const entry = { threatId: 1, xM: 0, yM: 0, zM: 0, icon: 'bolt' as const };
   const threat = (state: string) => [{ id: 1, state }] as never;
 
   it('renders the layer while a threat icon shows, though no tap marker does', () => {

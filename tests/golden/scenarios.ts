@@ -4,7 +4,12 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
-import { createTestLevel, outletEntry } from '../support/testContent.ts';
+import {
+  coffeeTableEntry,
+  createTestLevel,
+  outletEntry,
+  stairsEntry,
+} from '../support/testContent.ts';
 
 /** A recorded live game: commands are enqueued at given steps, as the client would. */
 export interface Scenario {
@@ -137,6 +142,18 @@ export const SCENARIOS: readonly Scenario[] = [
     seed: 42,
     untilSimMs: 3000,
     actions: [{ atStep: 10, command: pushProp(100, 'mug_01', 0.72) }],
+  },
+  {
+    // The three threats of the prototype, planned together from 0 ms in the live order (outlet,
+    // stairs, coffee table), none of them answered: the director cycles through the defs, and each
+    // ends in its gag. The stairs gag adds a `NearMiss`; the coffee-table gag pushes the mug off the
+    // table onto the vase (a `PropImpact` for the mug, the vase's `PropBroken`, and the mess).
+    // No command at all: `threatTrio.test.ts` pins what it covers.
+    name: 'threat_trio',
+    level: createTestLevel([outletEntry(0), stairsEntry(0), coffeeTableEntry(0)]),
+    seed: 42,
+    untilSimMs: 40000,
+    actions: [],
   },
 ];
 

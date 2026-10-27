@@ -13,7 +13,6 @@ import type { Sim } from '@sim';
 
 const FEEL_FIXTURE = 'tests/support/testFeel.json';
 const GEOMETRY_FIXTURE = 'tests/support/testLevel.geometry.json';
-const OUTLET_FIXTURE = 'tests/support/testOutlet.threat.json';
 
 /**
  * A minimal valid feedback table, inline: the sim ignores it (it is client-only), so it does not
@@ -100,35 +99,70 @@ export function createTestGeometry(): LevelGeometry {
   return parsed.value;
 }
 
+/** Reads a frozen threat fixture of `tests/support/`, named by its file. */
+function readThreatFixture(file: string): ThreatDef {
+  const path = `tests/support/${file}`;
+  const text = readFileSync(fileURLToPath(new URL(`./${file}`, import.meta.url)), 'utf8');
+  const parsed = parseContentFile(path, text, ThreatDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
 /**
  * The outlet for sim and golden tests, from a FROZEN copy of `content/threats/outlet.json`
  * (`testOutlet.threat.json`, same values; only its `$schema` path differs), never from the live file: Geo retunes it freely, and no test result
  * may depend on it.
  */
 export function createTestOutlet(): ThreatDef {
-  const text = readFileSync(
-    fileURLToPath(new URL('./testOutlet.threat.json', import.meta.url)),
-    'utf8',
-  );
-  const parsed = parseContentFile(OUTLET_FIXTURE, text, ThreatDefSchema);
-  if (!parsed.ok) {
-    throw new Error(
-      `${OUTLET_FIXTURE} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`,
-    );
-  }
-  return parsed.value;
+  return readThreatFixture('testOutlet.threat.json');
 }
 
-/** The level of the frozen living room that plans `entries` (none: it plans nothing, as the live one does today). */
+/** The stairs, frozen like the outlet (`testStairs.threat.json`). */
+export function createTestStairs(): ThreatDef {
+  return readThreatFixture('testStairs.threat.json');
+}
+
+/** The object on the coffee table, frozen like the outlet (`testCoffeeTableObject.threat.json`). */
+export function createTestCoffeeTableObject(): ThreatDef {
+  return readThreatFixture('testCoffeeTableObject.threat.json');
+}
+
+/** The three frozen threats, by id. */
+export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
+  const defs = [createTestOutlet(), createTestStairs(), createTestCoffeeTableObject()];
+  return Object.fromEntries(defs.map((def) => [def.id, def]));
+}
+
+/**
+ * The level of the frozen living room that plans `entries` (none: it plans nothing, as the live one
+ * does today). Each entry's def is resolved from the frozen threats; an unknown one throws.
+ */
 export function createTestLevel(entries: readonly LevelThreatEntry[] = []): LevelContent {
-  const outlet = createTestOutlet();
-  const defs = entries.some((entry) => entry.def === outlet.id) ? { [outlet.id]: outlet } : {};
-  return { level: { id: 'salon_crawler', threats: [...entries] }, threats: defs };
+  const all = createTestThreats();
+  const threats: Record<string, ThreatDef> = {};
+  for (const entry of entries) {
+    const def = all[entry.def];
+    if (def === undefined) throw new Error(`no frozen threat "${entry.def}" in tests/support`);
+    threats[def.id] = def;
+  }
+  return { level: { id: 'salon_crawler', threats: [...entries] }, threats };
 }
 
 /** A plan for the outlet at the frozen room's `outlet_01` anchor, from `fromMs` of sim time. */
 export function outletEntry(fromMs: number): LevelThreatEntry {
   return { def: 'outlet', anchor: 'outlet_01', fromMs };
+}
+
+/** A plan for the stairs at the frozen room's `stairs_top` anchor. */
+export function stairsEntry(fromMs: number): LevelThreatEntry {
+  return { def: 'stairs', anchor: 'stairs_top', fromMs };
+}
+
+/** A plan for the object on the coffee table at the frozen room's `coffee_table` anchor. */
+export function coffeeTableEntry(fromMs: number): LevelThreatEntry {
+  return { def: 'coffee_table_object', anchor: 'coffee_table', fromMs };
 }
 
 /** Runs `n` steps: time in tests is counted in steps (`stepN(sim, 120)` = 1200 ms of sim time). */

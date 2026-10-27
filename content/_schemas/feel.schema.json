@@ -594,6 +594,37 @@
       ],
       "additionalProperties": false,
       "description": "Light physics of the props (GDD §11, story 1.15): falls, bounces, impacts and breakage."
+    },
+    "gags": {
+      "type": "object",
+      "properties": {
+        "tableObjectFall": {
+          "type": "object",
+          "properties": {
+            "pushImpulseNs": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Impulse the coffee-table gag gives the object on the table, in newton-seconds, horizontally away from the anchor (held to `physics.maxPushImpulseNs`)."
+            },
+            "propReachM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "How far from the threat anchor, in metres (horizontal), an object that is off the floor still counts as « on the table »."
+            }
+          },
+          "required": [
+            "pushImpulseNs",
+            "propReachM"
+          ],
+          "additionalProperties": false,
+          "description": "The gag of the object on the coffee table (story 1.16)."
+        }
+      },
+      "required": [
+        "tableObjectFall"
+      ],
+      "additionalProperties": false,
+      "description": "Tunables of the gags whose consequence the sim applies (`sim/threats/gags.ts`); a gag with nothing to tune has no key."
     }
   },
   "required": [
@@ -605,7 +636,8 @@
     "instinct",
     "difficulty",
     "mama",
-    "physics"
+    "physics",
+    "gags"
   ],
   "additionalProperties": false,
   "description": "Every feel value of the game, tuned by hand or from the feel panel."

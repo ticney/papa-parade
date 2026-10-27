@@ -32,6 +32,7 @@ import { createInputMapper } from './input/inputMapper.ts';
 import { bindKeyboard, createHeldKeys } from './input/keyboardInput.ts';
 import { createMoveIntent } from './input/moveIntent.ts';
 import { bindPointer } from './input/pointerInput.ts';
+import { slideDirection } from './render/gags.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
 import type { LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
@@ -285,6 +286,8 @@ export async function boot(): Promise<void> {
   let highlightedThreatId: number | null = null;
   const choreography = createResponseChoreography();
   const noLiftFx = { liftBaby: () => {} };
+  /** The direction of the last gag's slide, written once per `GagTriggered`. */
+  const slideDir = { x: 0, z: 0 };
   const stripThreats = isMirrored && readThreatsOff(window.location.search);
 
   // The render stats are mirrored once per level, on its first rendered frame.
@@ -472,7 +475,21 @@ export async function boot(): Promise<void> {
             isMotionReduced ? noLiftFx : currentLevel.fx,
           );
           if (event.type === 'GagTriggered') {
-            currentLevel.fx.gag(event.gag, event.t, isMotionReduced);
+            const { world } = active.sim;
+            const threat = world.threats.find((candidate) => candidate.id === event.threatId);
+            // The stairs slide: from the threat's anchor to the baby (D6 of story 1.16).
+            if (threat !== undefined) {
+              slideDirection(
+                threat.xM,
+                threat.zM,
+                world.baby.xM,
+                world.baby.zM,
+                world.baby.gazeX,
+                world.baby.gazeZ,
+                slideDir,
+              );
+            }
+            currentLevel.fx.gag(event.gag, event.t, isMotionReduced, slideDir.x, slideDir.z);
           }
         }
       }

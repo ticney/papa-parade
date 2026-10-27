@@ -57,6 +57,7 @@ Pinned versions (verified on npm 2026-10-26). Do NOT upgrade or swap without an 
 - `null` in a threat def (e.g. `windowMs: null`) means "use the `feel.json` default".
 - Live tuning goes through the `SetFeel{patch, t}` command (journaled), never by mutating `ctx.feel` directly.
 - New threat = new JSON (+ maybe a gag), never a new class. Cross-references (threat→anchor, threat→feedback key, gag ids) must pass `content:check`.
+- A gag's sim consequences (near miss, pushed prop) live in `sim/threats/gags.ts` (`applyGag`, one entry per `GagId`); its presentation in `client/render/gags.ts` (`GAG_PRESENTATIONS`); a threat's marker glyph is its def's `icon` (`THREAT_ICONS`, one glyph per entry in `threatMarkers.ts`).
 
 **Feedback, rendering, UI**
 - Sim emits domain events (PascalCase past tense, `type` discriminant, `t` in sim time). Client drains them after each step → `FeedbackDirector` → `content/feedback.json`. Every entry with `audio` MUST also have `visual` and `haptic`. Time-altering effects (hitstop, slow-mo) are decided in the sim, not in feedback.

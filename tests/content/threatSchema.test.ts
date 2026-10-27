@@ -66,6 +66,8 @@ describe('content/threats/outlet.json', () => {
     ['a gag id in camelCase', [['gag', 'outletHair']], ['gag']],
     ['an id with a dot', [['id', 'out.let']], ['id']],
     ['a negative cooldown', [['cooldownMs', -1]], ['cooldownMs']],
+    ['an unknown icon', [['icon', 'anvil']], ['icon']],
+    ['a missing icon', [['icon', undefined]], ['icon']],
     ['a missing cue', [['feedback.gag', undefined]], ['feedback.gag']],
   ])('rejects %s', (_name, changes, expected) => {
     expect(failedPaths(mutated(...changes))).toEqual(expected);

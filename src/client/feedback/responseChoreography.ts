@@ -4,7 +4,7 @@ import type { LevelFx } from '../render/levelScene.ts';
 /**
  * The final pose of a response, played after its sound and haptic (P3 of the architecture: the
  * judgement is at the press, the pose at the arrival). Pure state, one queued threat id: E1 has one
- * active threat, and the structure takes a list if story 1.16 needs more.
+ * active threat at a time, and the structure takes a list if story 1.18 (the waves) needs more.
  */
 export interface ResponseChoreography {
   /**

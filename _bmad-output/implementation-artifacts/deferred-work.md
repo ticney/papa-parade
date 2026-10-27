@@ -163,7 +163,7 @@
 - **A press enqueued after its window expired** (a client whose time map lags by more than one step at the window's end) is lost: the threat already gagged `late`. Commands run before the expiry in a step, which covers a same-step arrival; anything later is story 1.11's input pipeline to watch (`tapLatency`), or a small expiry grace in the feel if the playtest shows it. *Watched, not changed, in story 1.11: `tapLatency` measures the visual side only; the window side needs a lagging time map to show up. Keep open for the playtest (1.24).*
 - **`targeted` state and a reach gate** (P1): only if a later threat needs the baby in reach before its telegraph.
 - **Several simultaneous threats and one baby**: the baby locks on the first active threat; story 1.18 decides how waves share it.
-- **Gag consequences** (noise, mess, near miss, score) and the **gag presentation**: E3, 1.15, 1.16, 1.22 and 1.11. *Presentation resolved in story 1.11 (provisional: the lights dim, Papa's hair stands up); consequences stay with E3, 1.15, 1.16, 1.22.*
+- **Gag consequences** (noise, mess, near miss, score) and the **gag presentation**: E3, 1.15, 1.16, 1.22 and 1.11. *Presentation resolved in story 1.11 (provisional: the lights dim, Papa's hair stands up); consequences stay with E3, 1.15, 1.16, 1.22.* *Near miss and the pushed prop resolved in story 1.16 (`NearMiss`, `applyGag` in `sim/threats/gags.ts`); noise (3.1) and Mama's score (1.22) read the events and `world.mess`.*
 - **`feelOverrides` in `LevelSchema`** and the client merge (`mergeFeel` is ready): the first level that needs one, story 1.18 at the latest.
 - **A threat's `window` is called `responseWindow`.** `tests/architecture/simPurity` forbids the identifier `window` in `src/sim` (any declaration, parameter or key), so the story's `ThreatInstance.window` became `responseWindow`. Keep the name; do not weaken the scanner.
 - **The baby never abandons an `act`.** Story 1.10's rule 1 would send it back to `babble` as soon as a short cooldown re-arms the threat; `act` is now played out for `actMs` whatever the threat does (a cooldown shorter than `actMs` is the only way to see the difference). Confirmed in the code review of 2026-10-27: kept (the spec's rule 1 was amended).
@@ -175,7 +175,7 @@
 - **`cooldownMs: 0` gags and re-arms in the same step** (`threatSystem.ts`): the baby never sees the gag and Papa's glide is skipped. Reason: legal by schema but no content uses it; decide with the first threat that needs a zero cooldown.
 - **Anchor checks only test existence** (`contentChecks.ts`, `createSim.ts`): a threat can be planned on `baby_spawn` / `papa_spawn`, and two entries can share an anchor. Reason: needs anchor kinds in the geometry; stories 1.16 / 1.18.
 - **A degenerate `glideMaxMs` (0 or tiny) gives a wrong `arriveAt` or a huge `speedMps`** (`glide.ts`). Reason: enforce a floor in the feel schema when story 1.14 tunes the glide.
-- **`threatCatalog.test.ts` hard-codes anchor `outlet_01` and a Parry release for every def.** Reason: story 1.16 (second threat) is the first to break it; derive both from the def then.
+- **`threatCatalog.test.ts` hard-codes anchor `outlet_01` and a Parry release for every def.** Reason: story 1.16 (second threat) is the first to break it; derive both from the def then. **Resolved in story 1.16:** the catalogue derives each def's anchor from the live levels and its release from its `response` (an exhaustive `switch`), and plans all the defs in one level.
 - **`loadLevelContent` does not check `levelId` against `SNAKE_ID_PATTERN`**, and a non-snake file name under `levels/` or `threats/` reports "no schema registered" instead of "id must be lower_snake_case". Reason: the level id is a code constant today.
 
 ## Deferred from: implementation of story 1-11-parer-la-prise-electrique-au-tap (2026-10-27)
@@ -278,3 +278,15 @@
 - **No content check that a prop's box does not overlap furniture or another prop at t=0** (`tools/content/contentChecks.ts`): the first step gives depenetration impulses, so a spurious `PropImpact` / `PropBroken` near t=0. Joins « geometry cross-checks stay open ».
 - (The per-kind pool taking the first prop's `halfExtentsM` was already listed by the implementation of this story, D14; not repeated.)
 - **A snapshot's world and Rapier halves are not cross-checked** (`src/sim/snapshot.ts`, `rapierPhysics.ts`): a world from one snapshot with the Rapier bytes of another (same level and tuning, same body counts) restores without error and the sim desyncs; `lastImpactAt` is only checked to be finite. Snapshots come from the sim itself, so accepted for now (review decision of story 1.15). Revisit with 3.9 (periodic snapshots): a hash of the physics bytes in the snapshot would close it.
+
+## Deferred from: implementation of story 1-16-escalier-et-objet-sur-la-table-basse (2026-10-27)
+
+- **« Le bébé se hisse »**: the baby sphere does not rise against the table; the approach ends at the nearest open cell. Pose for E7 (with the lift).
+- **« Papa retire l'objet »**: a success leaves the prop in place (D5). An E7 animation, or a `PhysicsPort.setPose` if a later gag needs it.
+- **The stairs slide is a view offset** (D6), with no height and no `ANCHOR_stairs_bottom`. E7.
+- **`outlet_hair` is not a near miss** (D3). Geo decides (Open points of the story): one line in `GAG_CONSEQUENCES`.
+- **The coffee-table threat is still targeted when no object is left on the table** (the mug fell): its gag then pushes nothing (the golden `threat_trio` shows it from its second cycle). Story 1.18's wave director may skip a threat whose gag has no target.
+- **Distinct haptics and visuals per telegraph** beyond the icon: story 2.4. The four new sounds and the two glyphs are placeholders.
+- **Still open from 1.10 to 1.12:** multi-touch, overlapping presses, `responseChoreography`'s single queue, anchor kinds. They need two simultaneous threats: story 1.18.
+- **`npm run assets:audio` is not reproducible byte for byte.** `afconvert` writes a creation time in the `.m4a` header (12 bytes at offset 51), and the decoded audio of the two long clips (`baby_babble_loop`, `music_crawler_calm`) differs from one run to the next (about 200 and 2000 bytes of PCM out of 500 000 and 700 000). The synthesis itself is deterministic (`makePlaceholderAudio.test.ts`). Story 1.16 added its four clips alone and kept the seven existing files from git. A run of the tool rewrites all eleven: commit only the clips you meant to change.
+- **The sim report shows gags per `GagId`, not `NearMiss` as such** (`tools/sim`): the stairs' gags are the near misses today. Add a counter when 1.22 scores them.

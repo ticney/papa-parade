@@ -5,7 +5,7 @@ baseline_commit: e55feca
 
 # Story 1.16: The Stairs and the Object on the Coffee Table
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.16 « Escalier et objet sur la table basse ». Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -71,76 +71,76 @@ Story 1.15 is `done`, or `review` with its review fixes committed: this story ca
 
 ## Tasks / Subtasks
 
-- [ ] **T0: Baseline** (Precondition)
-  - [ ] `(unset VITE_DEBUG_ALLOWED; npm run ci)` is green on the untouched tree; counts go in the Debug Log.
-- [ ] **T1: Schemas and feel** (AC 2, 6; D4, D7)
-  - [ ] `src/content/schemas/threat.ts`: add `THREAT_ICONS = ['bolt', 'stairs', 'mug'] as const`, `ThreatIcon`, and the required key `icon: z.enum(THREAT_ICONS)`, described as « Glyph drawn in the threat's marker (the client has one per entry) ». Update `tests/content/threatSchema.test.ts`: refuse an unknown icon and a missing one, each at its path.
-  - [ ] `content/threats/outlet.json` and `tests/support/testOutlet.threat.json`: `"icon": "bolt"`.
-  - [ ] `src/content/schemas/feel.ts`: add `gags: strictObject({ tableObjectFall: strictObject({ pushImpulseNs, propReachM }) })` to `FeelSchema`, using the file's rules (no `.default`, `.optional` or `.transform`), both `> 0`, each with a description that states its unit. Values in Dev Notes › Feel.
-  - [ ] `content/feel.json` and `tests/support/testFeel.json` get the values. Update `tests/content/feelSchema.test.ts` (refuse 0 and a missing key at their paths; the unit-suffix check already knows `Ns` and `M`).
-  - [ ] `npm run content:schemas` and commit `content/_schemas/{threat,feel}.schema.json`.
-- [ ] **T2: Sim: event and gags** (AC 1, 2, 3; D1-D5)
-  - [ ] `src/sim/events.ts`: add `NearMiss` to the union (doc comment: « a gag that was nearly an accident; Mama's « Hurlement » (1.22) counts these; never an injury (NFR9) ») and to `SIM_EVENT_TYPES` (keep it sorted). Update `events.test.ts`.
-  - [ ] `src/sim/threats/gags.ts`:
+- [x] **T0: Baseline** (Precondition)
+  - [x] `(unset VITE_DEBUG_ALLOWED; npm run ci)` is green on the untouched tree; counts go in the Debug Log.
+- [x] **T1: Schemas and feel** (AC 2, 6; D4, D7)
+  - [x] `src/content/schemas/threat.ts`: add `THREAT_ICONS = ['bolt', 'stairs', 'mug'] as const`, `ThreatIcon`, and the required key `icon: z.enum(THREAT_ICONS)`, described as « Glyph drawn in the threat's marker (the client has one per entry) ». Update `tests/content/threatSchema.test.ts`: refuse an unknown icon and a missing one, each at its path.
+  - [x] `content/threats/outlet.json` and `tests/support/testOutlet.threat.json`: `"icon": "bolt"`.
+  - [x] `src/content/schemas/feel.ts`: add `gags: strictObject({ tableObjectFall: strictObject({ pushImpulseNs, propReachM }) })` to `FeelSchema`, using the file's rules (no `.default`, `.optional` or `.transform`), both `> 0`, each with a description that states its unit. Values in Dev Notes › Feel.
+  - [x] `content/feel.json` and `tests/support/testFeel.json` get the values. Update `tests/content/feelSchema.test.ts` (refuse 0 and a missing key at their paths; the unit-suffix check already knows `Ns` and `M`).
+  - [x] `npm run content:schemas` and commit `content/_schemas/{threat,feel}.schema.json`.
+- [x] **T2: Sim: event and gags** (AC 1, 2, 3; D1-D5)
+  - [x] `src/sim/events.ts`: add `NearMiss` to the union (doc comment: « a gag that was nearly an accident; Mama's « Hurlement » (1.22) counts these; never an injury (NFR9) ») and to `SIM_EVENT_TYPES` (keep it sorted). Update `events.test.ts`.
+  - [x] `src/sim/threats/gags.ts`:
     - `GAG_IDS` gains `stairs_slide` and `table_object_fall`;
     - add `applyGag(world, ctx, threat, gag)` over a `GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>>` of module-level functions;
     - `stairs_slide` pushes `NearMiss`;
     - `table_object_fall` runs D4 and calls `pushProp` (import it from `../physics/propsSystem.ts`; it is a helper, not a system);
     - `outlet_hair` is a no-op;
     - rewrite the file's doc comment: the sim applies the consequences that need the sim (near miss, a pushed prop), the rest (noise 3.1, mess 1.22) comes from the events and `World`.
-  - [ ] `src/sim/threats/threatFsm.ts`: `gagThreat` calls `applyGag(world, ctx, threat, gagIdOf(def.gag))` after pushing its two events (compute `gagIdOf` once).
-  - [ ] Create `src/sim/threats/gags.test.ts` (Dev Notes › Testing › gags).
-  - [ ] `threatFsm.test.ts`: the event order of a stairs gag (`ResponseResolved`, `GagTriggered`, `NearMiss`, same `t`), and an outlet gag emits no `NearMiss`.
-- [ ] **T3: Content: the two threats and the live level** (AC 1, 2, 5; D7, D8)
-  - [ ] Create `content/threats/stairs.json` and `content/threats/coffee_table_object.json` (Dev Notes › Threat files), with `"$schema": "../_schemas/threat.schema.json"`.
-  - [ ] Frozen copies for tests: `tests/support/testStairs.threat.json` and `tests/support/testCoffeeTableObject.threat.json` (same values, `$schema` path `../../content/_schemas/threat.schema.json`, as `testOutlet.threat.json`).
-  - [ ] `tests/support/testContent.ts`:
+  - [x] `src/sim/threats/threatFsm.ts`: `gagThreat` calls `applyGag(world, ctx, threat, gagIdOf(def.gag))` after pushing its two events (compute `gagIdOf` once).
+  - [x] Create `src/sim/threats/gags.test.ts` (Dev Notes › Testing › gags).
+  - [x] `threatFsm.test.ts`: the event order of a stairs gag (`ResponseResolved`, `GagTriggered`, `NearMiss`, same `t`), and an outlet gag emits no `NearMiss`.
+- [x] **T3: Content: the two threats and the live level** (AC 1, 2, 5; D7, D8)
+  - [x] Create `content/threats/stairs.json` and `content/threats/coffee_table_object.json` (Dev Notes › Threat files), with `"$schema": "../_schemas/threat.schema.json"`.
+  - [x] Frozen copies for tests: `tests/support/testStairs.threat.json` and `tests/support/testCoffeeTableObject.threat.json` (same values, `$schema` path `../../content/_schemas/threat.schema.json`, as `testOutlet.threat.json`).
+  - [x] `tests/support/testContent.ts`:
     - `createTestThreats()` returns the three frozen defs by id;
     - `createTestLevel(entries)` resolves every entry's def from it (today it only knows the outlet);
     - add `stairsEntry(fromMs)` (`stairs_top`) and `coffeeTableEntry(fromMs)` (`coffee_table`) beside `outletEntry`.
-  - [ ] `content/levels/salon_crawler.json`: plan the three (AC 5).
-  - [ ] `npm run content:check` is green.
-- [ ] **T4: Catalogue test** (AC 4; D9)
-  - [ ] Rewrite `tests/threats/threatCatalog.test.ts` as in Dev Notes › Catalogue.
-  - [ ] Close `deferred-work.md:178`.
-- [ ] **T5: Sounds and cues** (AC 7; D7)
-  - [ ] `tools/audio/makePlaceholderAudio.ts`: add four synthesized clips (Dev Notes › Sounds), named with units like the existing constants; update the file's header comment (stories 1.9, 1.11 and 1.16).
-  - [ ] Run `npm run assets:audio` (macOS, `afconvert`) and commit the four `.m4a` files. The tool rewrites every clip: check with `git status` that the seven existing clips are byte-identical (same seed). If they are not, stop and find out why.
-  - [ ] `content/feedback.json`: add the four cues (Dev Notes › Cues).
-  - [ ] Listen to each clip once (`afplay public/assets/audio/tel_stairs.m4a`, …) and write one line per clip in the Debug Log.
-- [ ] **T6: Client** (AC 1, 2, 6; D5, D6)
-  - [ ] `src/client/ui/world/threatMarkers.ts`:
+  - [x] `content/levels/salon_crawler.json`: plan the three (AC 5).
+  - [x] `npm run content:check` is green.
+- [x] **T4: Catalogue test** (AC 4; D9)
+  - [x] Rewrite `tests/threats/threatCatalog.test.ts` as in Dev Notes › Catalogue.
+  - [x] Close `deferred-work.md:178`.
+- [x] **T5: Sounds and cues** (AC 7; D7)
+  - [x] `tools/audio/makePlaceholderAudio.ts`: add four synthesized clips (Dev Notes › Sounds), named with units like the existing constants; update the file's header comment (stories 1.9, 1.11 and 1.16).
+  - [x] Run `npm run assets:audio` (macOS, `afconvert`) and commit the four `.m4a` files. The tool rewrites every clip: check with `git status` that the seven existing clips are byte-identical (same seed). If they are not, stop and find out why.
+  - [x] `content/feedback.json`: add the four cues (Dev Notes › Cues).
+  - [x] Listen to each clip once (`afplay public/assets/audio/tel_stairs.m4a`, …) and write one line per clip in the Debug Log.
+- [x] **T6: Client** (AC 1, 2, 6; D5, D6)
+  - [x] `src/client/ui/world/threatMarkers.ts`:
     - `ThreatMarkerEntry` gains `icon: ThreatIcon`;
     - `threatMarkerEntries(threats, anchors, defs)` reads each threat's def (`defs` is the level's `LevelContent.threats`); an unknown def gets `bolt` with a `warn`;
     - `createMarker` draws the glyph of `THREAT_ICON_PATHS[entry.icon]` (Dev Notes › Icons);
     - update the doc comments that say « a bolt »;
     - fix the caller, `src/client/app/levelSession.ts:315`, which has the level's `LevelContent` at hand.
-  - [ ] `threatMarkers.test.ts`: each entry carries its def's icon, each marker's `path` has its glyph's `d`, and an unknown def falls back with a `warn`.
-  - [ ] `src/client/render/gags.ts`:
+  - [x] `threatMarkers.test.ts`: each entry carries its def's icon, each marker's `path` has its glyph's `d`, and an unknown def falls back with a `warn`.
+  - [x] `src/client/render/gags.ts`:
     - `GagPresentation` gains `babySlide: boolean`;
     - `GAG_PRESENTATIONS`: `outlet_hair` `{lightsOff: true, hair: true, babySlide: false}`, `stairs_slide` `{false, false, true}`, `table_object_fall` `{false, false, false}` (the falling prop is its show);
     - add `slideOffsetAt(elapsedMs)` and art constants `GAG_SLIDE_M`, `GAG_SLIDE_OUT_MS`, `GAG_SLIDE_HOLD_MS`, `GAG_SLIDE_BACK_MS` (D6);
     - `GagStage` gains `setBabySlide(offsetXM, offsetZM)`;
     - `GagFx.start` takes the slide direction (D6);
     - reduced motion drops the slide, as it drops the hair.
-  - [ ] `gags.test.ts` (client): the curve's ends and peak, the reduced-motion drop, and the stage written only while it runs.
-  - [ ] `levelScene.ts`:
+  - [x] `gags.test.ts` (client): the curve's ends and peak, the reduced-motion drop, and the stage written only while it runs.
+  - [x] `levelScene.ts`:
     - `LevelFx.gag(…)` gains the direction (D6);
     - the stage's `setBabySlide` offsets the baby view's position (add `setSlideM(xM, zM)` to `babyView`, next to `setLiftM`, applied in `update` after the interpolation, with no allocation).
-  - [ ] `boot.ts` (L474): on `GagTriggered`, compute the direction from the threat (`world.threats` by `event.threatId`) and the baby (D6), and pass it.
-  - [ ] `responseChoreography.ts`: no behaviour change (one active threat at a time, D11). Fix its comment, which says « story 1.16 needs more »: say that 1.18 decides.
-- [ ] **T7: Goldens, bots, determinism** (AC 5, 8; D10)
-  - [ ] `tests/golden/scenarios.ts`: add `threat_trio` (D10) and `tests/golden/threatTrio.test.ts`, which pins the behaviour like `propFall.test.ts`.
-  - [ ] `npm run golden:update`, then review the diff:
+  - [x] `boot.ts` (L474): on `GagTriggered`, compute the direction from the threat (`world.threats` by `event.threatId`) and the baby (D6), and pass it.
+  - [x] `responseChoreography.ts`: no behaviour change (one active threat at a time, D11). Fix its comment, which says « story 1.16 needs more »: say that 1.18 decides.
+- [x] **T7: Goldens, bots, determinism** (AC 5, 8; D10)
+  - [x] `tests/golden/scenarios.ts`: add `threat_trio` (D10) and `tests/golden/threatTrio.test.ts`, which pins the behaviour like `propFall.test.ts`.
+  - [x] `npm run golden:update`, then review the diff:
     - every existing scenario changes only `feelHash`, plus `levelHash` for `outlet_parry` (its journal too); `eventTypes` and `eventsHash` stay identical;
     - paste that check in the Completion Notes;
     - if an event moved in any of them, stop: a gag consequence leaks into a scenario that has no gag of the new kinds.
-  - [ ] `tests/bots/perfectBot.test.ts`: add a case on a test level with the three threats (fromMs 0, 0, 0), where every `ResponseResolved` is `perfect` over 60 s of sim and every def is answered at least once.
-  - [ ] Add a case to `tests/bots/idleBot.test.ts` (or a new colocated test if it does not fit): over 60 s, the idle bot sees one `GagTriggered` of each gag and at least one `NearMiss`.
-  - [ ] `src/sim/determinism.test.ts`: a 10 000-step run of the three-threat test level with the random bot (or periodic presses) is identical twice.
-  - [ ] Run `npm run sim -- --bot perfect --level salon_crawler --seed 42 --runs 3 --journals`, then `--bot idle`, then `npm run sim:replay` on a journal. Paste the per-def summary in the Debug Log.
-- [ ] **T8: E2E** (AC 1, 2, 5, 8)
-  - [ ] Create `tests/e2e/threats.spec.ts` (chromium and webkit), through `tests/e2e/support/testApi.ts` only, with no `waitForTimeout`:
+  - [x] `tests/bots/perfectBot.test.ts`: add a case on a test level with the three threats (fromMs 0, 0, 0), where every `ResponseResolved` is `perfect` over 60 s of sim and every def is answered at least once.
+  - [x] Add a case to `tests/bots/idleBot.test.ts` (or a new colocated test if it does not fit): over 60 s, the idle bot sees one `GagTriggered` of each gag and at least one `NearMiss`.
+  - [x] `src/sim/determinism.test.ts`: a 10 000-step run of the three-threat test level with the random bot (or periodic presses) is identical twice.
+  - [x] Run `npm run sim -- --bot perfect --level salon_crawler --seed 42 --runs 3 --journals`, then `--bot idle`, then `npm run sim:replay` on a journal. Paste the per-def summary in the Debug Log.
+- [x] **T8: E2E** (AC 1, 2, 5, 8)
+  - [x] Create `tests/e2e/threats.spec.ts` (chromium and webkit), through `tests/e2e/support/testApi.ts` only, with no `waitForTimeout`:
     1. `ppLoadLevel`, `ppFreeze(true)`;
     2. advance (in chunks, reading `ppWorld()`) until `stairs` has been telegraphed;
     3. check that its marker is shown at the stairs with the stairs glyph (read the DOM of the shown `.pp-threat`);
@@ -148,13 +148,13 @@ Story 1.15 is `done`, or `review` with its review fixes committed: this story ca
     5. advance until `coffee_table_object` has gagged, then check a `PropImpact` for `mug_01` within 1 s of sim;
     6. `collectProblems` is empty;
     7. draw calls ≤ 100 (`data-pp-draw-calls`, as `props.spec.ts` checks it).
-  - [ ] Run the whole suite. The live level now plans three threats. A spec that assumed the outlet is the only threat (`threat.spec.ts`, `timeEffects.spec.ts`, `autoplay.spec.ts`, `feedback.spec.ts`, `baby.spec.ts`) must still pass, because the outlet stays first (D8). If one fails, fix the spec's assumption (by index → by `defId`), never the order of the level; say which in the Debug Log.
-  - [ ] Screenshots `autoplay-frozen-*`: the frame is the first outlet telegraph, so it should not change. If it does, regenerate (darwin with `--update-snapshots=all`, linux with the Docker command of story 1.13 › Screenshots and the `pp-node-modules` volume), **look at them** and say why they moved.
-- [ ] **T9: By hand, measure, document**
-  - [ ] By hand: `(unset VITE_DEBUG_ALLOWED; npm run dev)`, open `/?debug=1`, play to 30 s without answering, then once answering. Write in the Debug Log what you saw: the stairs icon and halo on the step, the mug icon over the table, three distinct telegraph sounds, the slide, the mug falling and the vase. Use a Playwright script with screenshots if you cannot look live, as 1.15 did, and say so.
-  - [ ] `_bmad-output/project-context.md` › « Content & feel »: add « a gag's sim consequences (near miss, pushed prop) live in `sim/threats/gags.ts` (`applyGag`, one entry per `GagId`); its presentation in `client/render/gags.ts` (`GAG_PRESENTATIONS`); a threat's marker glyph is its def's `icon` ».
-  - [ ] `deferred-work.md`: Dev Notes › Deferred by this story; close L178 and the « near miss » part of L166.
-  - [ ] Final `(unset VITE_DEBUG_ALLOWED; npm run ci)` green; counts in the Debug Log.
+  - [x] Run the whole suite. The live level now plans three threats. A spec that assumed the outlet is the only threat (`threat.spec.ts`, `timeEffects.spec.ts`, `autoplay.spec.ts`, `feedback.spec.ts`, `baby.spec.ts`) must still pass, because the outlet stays first (D8). If one fails, fix the spec's assumption (by index → by `defId`), never the order of the level; say which in the Debug Log.
+  - [x] Screenshots `autoplay-frozen-*`: the frame is the first outlet telegraph, so it should not change. If it does, regenerate (darwin with `--update-snapshots=all`, linux with the Docker command of story 1.13 › Screenshots and the `pp-node-modules` volume), **look at them** and say why they moved.
+- [x] **T9: By hand, measure, document**
+  - [x] By hand: `(unset VITE_DEBUG_ALLOWED; npm run dev)`, open `/?debug=1`, play to 30 s without answering, then once answering. Write in the Debug Log what you saw: the stairs icon and halo on the step, the mug icon over the table, three distinct telegraph sounds, the slide, the mug falling and the vase. Use a Playwright script with screenshots if you cannot look live, as 1.15 did, and say so.
+  - [x] `_bmad-output/project-context.md` › « Content & feel »: add « a gag's sim consequences (near miss, pushed prop) live in `sim/threats/gags.ts` (`applyGag`, one entry per `GagId`); its presentation in `client/render/gags.ts` (`GAG_PRESENTATIONS`); a threat's marker glyph is its def's `icon` ».
+  - [x] `deferred-work.md`: Dev Notes › Deferred by this story; close L178 and the « near miss » part of L166.
+  - [x] Final `(unset VITE_DEBUG_ALLOWED; npm run ci)` green; counts in the Debug Log.
 
 ## Dev Notes
 
@@ -412,14 +412,80 @@ These are the outlet's starting values (Geo tunes them). Story 2.4 makes telegra
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), via the `gds-dev-story` workflow.
+
 ### Debug Log References
+
+- **T0 baseline** (`(unset VITE_DEBUG_ALLOWED; npm run ci)`, untouched tree; the shell did export `VITE_DEBUG_ALLOWED=false`): 159 test files, 2319 unit tests, 178 e2e. Green.
+- **Precondition:** 1.15 is `done`, no unchecked review finding; `pushProp` has its `Number.isFinite` guard, the `feel.physics.maxPushImpulseNs` clamp (3 N·s, above the 0.72 N·s push, so D4's chain holds) and `try/finally` around `onImpact`.
+- **Final run** (`npm run ci`, after the last code change; only docs changed since): 161 test files, 2393 unit tests, 180 e2e (178 + the 2 of `threats.spec.ts`), `src/sim` coverage above its 90 % thresholds (all files 97.9 % statements), typecheck, lint, `content:check` and `build:playtest` green.
+- **Unit-suffix test:** `propReachM` is a bare `M` ending, which `feelSchema.test.ts` refuses (« a length is spelled out »; the story assumed it was known). Added `ReachM` to its list beside `RadiusM` and `DistM`, with an assertion.
+- **A real bug found by the new clip test:** `addThump` of `makePlaceholderAudio.ts` broke out of its loop on its first sample (the attack envelope is 0 there), so no thump was written and only the clicks sounded. The « no two clips alike » correlation test returned NaN on the silent clip. Fixed (`THUMP_ATTACK_MS`, `THUMP_AUDIBLE_FLOOR`).
+- **`assets:audio` is not reproducible byte for byte (the story said to stop if the seven existing clips change; here is why).** Two consecutive runs on the same tree differ: `afconvert` writes a creation time into the `.m4a` header (12 bytes at offset 51), and for `baby_babble_loop` the decoded PCM differs between runs (201 bytes between two runs), while `music_crawler_calm` differs from the committed file by about 2000 of 700 000 PCM bytes. The five short clips decode to identical PCM. The existing synthesis is untouched (separate seeds, `makePlaceholderAudio.test.ts` checks determinism). I restored the seven existing files from git (`git checkout -- public/assets/audio`) and kept only the four new ones. Noted in `deferred-work.md`.
+- **The sounds were measured, not listened to** (I cannot hear). Measured on the shipped `.m4a`, decoded with `afconvert`:
+  - `tel_stairs`: 400 ms, 5 attacks, 70 to 110 Hz thumps (the outlet's telegraph is one rising buzz, 260 → 550 Hz, 1 attack);
+  - `tel_coffee_table`: 500 ms, one swelling tone wobbling between 160 and 240 Hz over a scrape;
+  - `gag_stairs`: 600 ms, 5 thumps falling 170 → 80 Hz, then a ~990 Hz chirp;
+  - `gag_coffee_table`: 350 ms, one whistle gliding 1130 → 500 Hz (no crash);
+  - for contrast `gag_outlet`: 500 ms, a crackle then a bzzt falling 1390 → 150 Hz.
+  `makePlaceholderAudio.test.ts` also checks that no two telegraph or gag clips correlate above 0.5. **Geo: please listen to them** (Open point 3).
+- **Calibration:** none needed. In `threat_trio` the first coffee-table gag (t = 7860) pushes the mug at 0.72 N·s; the mug hits the vase at t = 8280 with 0.3997 N·s (the vase breaks at 0.35), the vase's own floor impact follows, and the mug lands at 8640. No retuning of the vase or of `pushImpulseNs`.
+- **Golden diff** (checked by script against `HEAD`): `baby_wander`, `core_basic`, `papa_walk`, `prop_fall` change only `feelHash`; `outlet_parry` changes `feelHash` and `levelHash`. The five `*.expected.json` files are untouched, so `eventTypes`, `eventsHash` and the world hash are identical. New: `threat_trio.json` and `threat_trio.expected.json`.
+- **Mutation checks:**
+  - `pushProp` of `table_object_fall` commented out: 10 tests fail (`gags.test.ts` × 7, `threatTrio.test.ts` × 2, the `threat_trio` golden replay);
+  - `NearMiss` push removed: 6 tests fail (`gags.test.ts`, `threatFsm.test.ts`, `threatTrio.test.ts`, `idleBot.test.ts`, the golden replay, the determinism run).
+  Both restored (`diff` against a copy: identical).
+- **Catalogue test by hand:** a temporary `content/threats/ghost.json` (planned by no level) fails with `"ghost" is planned by no level`; deleted.
+- **`npm run sim -- --bot perfect --level salon_crawler --seed 42 --runs 3 --until-ms 60000`:** the three defs, all `perfect` at offset 0 (outlet 24 responses, stairs 21, coffee_table_object 18), 0 gags, 100 % success. **`--bot idle`:** 51 gags in 3 runs (`outlet_hair` 18, `stairs_slide` 18, `table_object_fall` 15), every response `fail` / `late`. `sim:replay` on a perfect and an idle journal: `replay matches`.
+- **By hand (Playwright script with screenshots, not a live session; Chromium, 844 × 390, `/?debug=1`, frozen level advanced by steps):**
+  - at the stairs' telegraph: the stairs glyph (three steps) in the blue circle with the yellow pulsing halo, on the step at the right of the room;
+  - at the coffee table's telegraph: the mug glyph (a cup with its handle) with the halo over the table;
+  - after the stairs gag: the baby sphere is away from the stairs toward the room (the slide), then comes back;
+  - after the table gag: the mug leaves the table, the vase is broken (`mess` = `{propsOnFloor: 1, propsBroken: 1}`), the mug on the floor at x = 1.63;
+  - no console error or page error.
+  I did not play it live with sound: three distinct telegraph sounds are verified by measurement only (above).
+- **E2E:** the existing specs that assumed the outlet is the only threat (`threat.spec.ts`, `timeEffects.spec.ts`, `autoplay.spec.ts`, `feedback.spec.ts`, `baby.spec.ts`) all passed unchanged, because the outlet stays first (D8). `autoplay-frozen-*` screenshots did not move (the frame is the first outlet telegraph): **no reference regenerated**, on either OS.
+- **In `threats.spec.ts`:** the CSS2D renderer only attaches a marker to the DOM the first time it is shown, so the spec reads the glyph of the one visible marker at each telegraph (outlet, stairs, mug) and checks that the three differ, rather than counting three elements.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed: comprehensive developer guide created.
+- **Schemas and feel (T1):** `THREAT_ICONS = ['bolt', 'stairs', 'mug']` and the required `icon` of `ThreatDefSchema`; `feel.gags.tableObjectFall.{pushImpulseNs 0.72, propReachM 0.5}`, in `feel.json` and the frozen fixture; `content/_schemas/{threat,feel}.schema.json` regenerated; `ReachM` added to the unit-suffix test.
+- **Sim (T2):** `NearMiss{t, threatId, gag}` event (sorted in `SIM_EVENT_TYPES`); `gags.ts` gains `stairs_slide` and `table_object_fall`, `applyGag` over `GAG_CONSEQUENCES: Readonly<Record<GagId, …>>` of module-level functions; `gagThreat` calls it after `GagTriggered`, so the order is `ResponseResolved`, `GagTriggered`, `NearMiss` at the same `t`. `table_object_fall` picks the nearest unbroken off-floor prop within `propReachM` of the anchor (ties to the lower index) and calls 1.15's `pushProp` along the horizontal unit vector away from the anchor (the baby's gaze when the prop is exactly on it), with `Math.sqrt` only. `outlet_hair` stays a no-op (D3). No other sim file names a threat, a gag or an anchor (`git diff src/sim`: only `events.ts`, `gags.ts`, `threatFsm.ts` and tests).
+- **Content (T3):** `stairs.json`, `coffee_table_object.json` and their frozen copies; `createTestThreats()`, `createTestStairs()`, `createTestCoffeeTableObject()`, `stairsEntry`, `coffeeTableEntry`; `createTestLevel` now resolves every entry's def from the three frozen ones and throws on an unknown def (it used to drop it silently); `salon_crawler.json` plans outlet 4000, stairs 10 000, coffee table 16 000.
+- **Catalogue (T4):** every def planned at the anchor a live level plans it, the def under test from 0 ms and the others at 600 000 ms; the release comes from an exhaustive `switch` on `response`; the threat under test is found by `defId`. 3 defs × 4 cases, plus `"<id>" is planned by a live level`. `deferred-work.md:178` closed.
+- **Sounds and cues (T5):** four synthesized clips and four cues, each with `audio`, `visual` and `haptic`.
+- **Client (T6):**
+  - `THREAT_ICON_PATHS: Record<ThreatIcon, string>` and `threatMarkerEntries(threats, anchors, defs)` (a def the level lacks draws a bolt, with a `warn`);
+  - `GAG_PRESENTATIONS` gains `babySlide`; `slideOffsetAt`, `slideDirection`, the `GAG_SLIDE_*` art constants, `GagStage.setBabySlide`, `GagFx.start(…, slideDirX, slideDirZ)`; reduced motion drops the slide;
+  - `babyView.setSlideM` (applies the offset at once and again in `update`, no allocation); `LevelFx.gag` takes the direction; `boot.ts` computes it from the threat's anchor and the baby into one reused object;
+  - `responseChoreography.ts` comment now says that 1.18 decides.
+- **Goldens, bots, determinism (T7):** `threat_trio` (frozen room, seed 42, 40 s, three defs planned at 0 ms, no input) and `threatTrio.test.ts`; existing goldens moved only as described in the Debug Log; `perfectBot` and `idleBot` cases on a three-threat level (`botSupport` gains `botTrioLevel` and a `level` option, and derives the bots' `responses` from the frozen defs with `botResponsesOf`); a 10 000-step determinism run of the three threats with periodic presses and taps.
+- **`NearMiss` name:** a noun phrase, not past tense, kept because the epic and story 1.22 call it that.
+- **Not done, on purpose (the story's no-change list):** `loop.ts`, `testApi.ts`, `biome.json`, `tests/architecture/**`, `runDirector`, `runBaby`, `propsSystem.ts`, `rapierPhysics.ts`, the bots' source and `snapshot.ts` are untouched.
+- **`--bot idle` and `NearMiss`:** the sim report counts gags by `GagId`, not `NearMiss` as an event; the 18 `stairs_slide` gags are the near misses, and the tests check one `NearMiss` per such gag. A dedicated counter waits for 1.22 (`deferred-work.md`).
+- **Open points for Geo (from the story, unchanged):** should the outlet's gag be a near miss; should a success on the coffee table really take the object away; listen to the four sounds and look at the two glyphs (both placeholders); `cooldownMs` 6000 and the 4000 / 10 000 / 16 000 `fromMs` are guesses.
 
 ### File List
+
+**New**
+- `content/threats/stairs.json`, `content/threats/coffee_table_object.json`
+- `tests/support/testStairs.threat.json`, `tests/support/testCoffeeTableObject.threat.json`
+- `src/sim/threats/gags.test.ts`
+- `tests/golden/threatTrio.test.ts`, `tests/golden/journals/threat_trio.json`, `tests/golden/journals/threat_trio.expected.json`
+- `tests/e2e/threats.spec.ts`
+- `public/assets/audio/tel_stairs.m4a`, `public/assets/audio/gag_stairs.m4a`, `public/assets/audio/tel_coffee_table.m4a`, `public/assets/audio/gag_coffee_table.m4a`
+
+**Modified**
+- Sim: `src/sim/events.ts`, `src/sim/events.test.ts`, `src/sim/threats/gags.ts`, `src/sim/threats/threatFsm.ts`, `src/sim/threats/threatFsm.test.ts`, `src/sim/determinism.test.ts`
+- Content: `src/content/schemas/threat.ts`, `src/content/schemas/feel.ts`, `content/_schemas/threat.schema.json`, `content/_schemas/feel.schema.json`, `content/feel.json`, `content/feedback.json`, `content/threats/outlet.json`, `content/levels/salon_crawler.json`
+- Client: `src/client/ui/world/threatMarkers.ts`, `src/client/render/gags.ts`, `src/client/render/levelScene.ts`, `src/client/render/views/babyView.ts`, `src/client/boot.ts`, `src/client/app/levelSession.ts`, `src/client/feedback/responseChoreography.ts`
+- Client tests: `src/client/ui/world/threatMarkers.test.ts`, `src/client/ui/world/worldUi.test.ts`, `src/client/render/gags.test.ts`, `src/client/render/levelScene.test.ts`, `src/client/render/views/babyView.test.ts`, `src/client/app/levelSession.test.ts`, `src/client/input/hitTest.test.ts`, `src/client/input/inputMapper.test.ts`
+- Tests and support: `tests/support/testContent.ts`, `tests/support/testFeel.json`, `tests/support/testOutlet.threat.json`, `tests/support/botSupport.ts`, `tests/threats/threatCatalog.test.ts`, `tests/content/threatSchema.test.ts`, `tests/content/feelSchema.test.ts`, `tests/bots/perfectBot.test.ts`, `tests/bots/idleBot.test.ts`, `tests/tools/audio/makePlaceholderAudio.test.ts`
+- Goldens: `tests/golden/scenarios.ts`, `tests/golden/journals/{baby_wander,core_basic,outlet_parry,papa_walk,prop_fall}.json` (hashes only)
+- Tools: `tools/audio/makePlaceholderAudio.ts`
+- Docs: `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this file
 
 ## Change Log
 
 - 2026-10-27: story created (create-story).
+- 2026-10-27: implemented (dev-story): the stairs and the coffee-table object as data, `NearMiss` and `applyGag`, the icons, four placeholder sounds and their cues, the `threat_trio` golden, bot and determinism cases, `threats.spec.ts`. Status → review.

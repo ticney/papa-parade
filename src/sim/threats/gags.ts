@@ -1,11 +1,16 @@
 import { invariant } from '@shared/invariant';
+import type { StepContext } from '../context.ts';
+import { pushProp } from '../physics/propsSystem.ts';
+import type { ThreatInstance, World } from '../world.ts';
 
 /**
- * Every gag a threat can end in, as data. A gag is a harmless, comic consequence (NFR9): the sim
- * only announces it (`GagTriggered`), the presentation and the consequences (noise, mess, near miss,
- * score) come with their own stories. `content:check` checks a threat's `gag` against this list.
+ * Every gag a threat can end in, as data. A gag is a harmless, comic consequence (NFR9). The sim
+ * applies the consequences that need the sim (`applyGag`: a near miss, a pushed prop); the rest
+ * comes from the events and from `World` (noise from `PropImpact`, story 3.1; Mama's sigh from
+ * `world.mess` and her scream from `NearMiss`, story 1.22). The presentation is the client's
+ * (`client/render/gags.ts`). `content:check` checks a threat's `gag` against this list.
  */
-export const GAG_IDS = ['outlet_hair'] as const;
+export const GAG_IDS = ['outlet_hair', 'stairs_slide', 'table_object_fall'] as const;
 
 export type GagId = (typeof GAG_IDS)[number];
 
@@ -14,4 +19,65 @@ export function gagIdOf(gag: string): GagId {
   const known = (GAG_IDS as readonly string[]).includes(gag);
   invariant(known, `unknown gag ${gag}`);
   return gag as GagId;
+}
+
+/** What a gag does to the world, at the step its threat is failed. It writes no slice: it emits events and pushes props. */
+type GagConsequence = (world: World, ctx: StepContext, threat: ThreatInstance) => void;
+
+/** Cartoon jolt, lights and hair: all client-side (D3: not a near miss). */
+function outletHair(): void {}
+
+/** The baby slides down the stairs, delighted: a near accident, never an injury (NFR9). */
+function stairsSlide(world: World, ctx: StepContext, threat: ThreatInstance): void {
+  ctx.events.push({
+    type: 'NearMiss',
+    t: world.time.sim,
+    threatId: threat.id,
+    gag: 'stairs_slide',
+  });
+}
+
+/**
+ * The object on the coffee table falls. It is the unbroken prop that is off the floor, nearest the
+ * threat's anchor within `propReachM` (ties go to the lower index), pushed horizontally away from
+ * the anchor, so that it leaves the table by its nearest edge. A prop exactly on the anchor is
+ * pushed along the baby's gaze. No such prop: nothing is pushed.
+ */
+function tableObjectFall(world: World, ctx: StepContext, threat: ThreatInstance): void {
+  const { pushImpulseNs, propReachM } = ctx.feel.gags.tableObjectFall;
+  let nearestIndex = -1;
+  let nearestM = Number.POSITIVE_INFINITY;
+  let nearestDxM = 0;
+  let nearestDzM = 0;
+  for (let index = 0; index < world.props.length; index++) {
+    const prop = world.props[index];
+    if (prop === undefined || prop.isBroken || prop.isOnFloor) continue;
+    const dxM = prop.xM - threat.xM;
+    const dzM = prop.zM - threat.zM;
+    const distanceM = Math.sqrt(dxM * dxM + dzM * dzM);
+    if (distanceM > propReachM || distanceM >= nearestM) continue;
+    nearestIndex = index;
+    nearestM = distanceM;
+    nearestDxM = dxM;
+    nearestDzM = dzM;
+  }
+  if (nearestIndex < 0) return;
+  const awayX = nearestM > 0 ? nearestDxM / nearestM : world.baby.gazeX;
+  const awayZ = nearestM > 0 ? nearestDzM / nearestM : world.baby.gazeZ;
+  pushProp(world, ctx, nearestIndex, awayX * pushImpulseNs, 0, awayZ * pushImpulseNs);
+}
+
+/** One entry per `GagId`, defined once at module scope: a new gag without a consequence is a type error. */
+const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
+  outlet_hair: outletHair,
+  stairs_slide: stairsSlide,
+  table_object_fall: tableObjectFall,
+};
+
+/**
+ * Applies what `gag` does to the world. `gagThreat` calls it right after `GagTriggered`, inside
+ * `runThreats`: a prop pushed here is stepped by `runPhysics` in the same step.
+ */
+export function applyGag(world: World, ctx: StepContext, threat: ThreatInstance, gag: GagId): void {
+  GAG_CONSEQUENCES[gag](world, ctx, threat);
 }

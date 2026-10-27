@@ -16,6 +16,12 @@ describe('SIM_EVENT_TYPES', () => {
     for (const name of SIM_EVENT_TYPES) expect(name).toMatch(/^[A-Z][a-z]+(?:[A-Z][a-z]+)*$/);
   });
 
+  it('lists NearMiss (story 1.16), between InvariantViolated and PapaArrived', () => {
+    const names: readonly string[] = SIM_EVENT_TYPES;
+    expect(names.indexOf('NearMiss')).toBe(names.indexOf('InvariantViolated') + 1);
+    expect(names.indexOf('PapaArrived')).toBe(names.indexOf('NearMiss') + 1);
+  });
+
   // `SIM_EVENT_TYPES_ARE_COMPLETE` is the literal `true` by construction, so this assertion cannot
   // fail at runtime: the proof is that this file typechecks (`npm run typecheck`), and a `SimEvent`
   // missing from the list stops it from doing so. The import keeps the constant, and so the proof, alive.

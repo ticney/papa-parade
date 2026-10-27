@@ -312,7 +312,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         try {
           deps.onLevelReady(
             level,
-            threatMarkerEntries(sim.world.threats, levelAssets.geometry.anchors),
+            threatMarkerEntries(sim.world.threats, levelAssets.geometry.anchors, levelPlan.threats),
           );
         } catch (cause) {
           // The new scene never became current: free it, and keep the previous one as it was.

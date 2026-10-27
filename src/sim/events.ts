@@ -48,6 +48,11 @@ export type SimEvent =
     }
   /** A failed response ends in a gag: a harmless comic consequence, never an injury (NFR9). */
   | { type: 'GagTriggered'; t: SimMs; threatId: number; gag: GagId; reason: FailReason }
+  /**
+   * A gag that was nearly an accident, emitted right after its `GagTriggered` (same `t`). Mama's
+   * « Hurlement » (story 1.22) counts these; it is never an injury (NFR9).
+   */
+  | { type: 'NearMiss'; t: SimMs; threatId: number; gag: GagId }
   | { type: 'ThreatRearmed'; t: SimMs; threatId: number }
   /**
    * A prop took a hit of `impulseNs` (N·s) or more, at most once per `feel.physics.impactCooldownMs`.
@@ -68,6 +73,7 @@ export const SIM_EVENT_TYPES = [
   'BabyStateChanged',
   'GagTriggered',
   'InvariantViolated',
+  'NearMiss',
   'PapaArrived',
   'PapaBlocked',
   'PapaGlideStarted',

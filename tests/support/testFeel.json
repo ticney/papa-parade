@@ -91,5 +91,8 @@
         "breakImpulseNs": 0.35
       }
     }
+  },
+  "gags": {
+    "tableObjectFall": { "pushImpulseNs": 0.72, "propReachM": 0.5 }
   }
 }

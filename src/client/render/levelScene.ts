@@ -54,10 +54,17 @@ export interface LevelFx {
   /** Shakes the room (not the camera) by up to `amplitudeM` for `durationMs`. */
   shake(amplitudeM: number, durationMs: number, startAt: SimMs): void;
   /**
-   * Presents a gag (`GAG_PRESENTATIONS`): the lights go out and come back, Papa's hair stands up.
-   * With `isMotionReduced` the hair stays flat (the lights alone carry the gag).
+   * Presents a gag (`GAG_PRESENTATIONS`): the lights go out and come back, Papa's hair stands up,
+   * the baby slides along (`slideDirX`, `slideDirZ`) and back. With `isMotionReduced` the hair
+   * stays flat and the baby stays put (the lights alone carry the gag).
    */
-  gag(gag: GagId, startAt: SimMs, isMotionReduced?: boolean): void;
+  gag(
+    gag: GagId,
+    startAt: SimMs,
+    isMotionReduced?: boolean,
+    slideDirX?: number,
+    slideDirZ?: number,
+  ): void;
   /** The provisional « lift the baby » pose: a short hop of the baby. */
   liftBaby(startAt: SimMs): void;
 }
@@ -260,21 +267,23 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const baby = createBabyView(content, toon, shadows.kit, bodies.babyRadiusM);
   const waves = createSoundWaves(content, PALETTE.ink);
   const shake = createShake(content);
-  // The gags move the lights (the room's lights are « the lamp » until E7) and Papa's hair; the
-  // hop moves the baby. Both on the sim clock.
+  // The gags move the lights (the room's lights are « the lamp » until E7), Papa's hair and the
+  // baby's slide; the hop moves the baby too. Both on the sim clock.
   const gags = createGagFx({
     setLightsFactor: (factor) => {
       ambient.intensity = AMBIENT_INTENSITY * factor;
       sun.intensity = SUN_INTENSITY * factor;
     },
     setHairAmount: (amount) => papa.setHair(amount),
+    setBabySlide: (offsetXM, offsetZM) => baby.setSlideM(offsetXM, offsetZM),
   });
   const lift = createLiftFx((heightM) => baby.setLiftM(heightM));
   const fx: LevelFx = {
     soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
       waves.play(xM, zM, maxRadiusM, durationMs, startAt),
     shake: (amplitudeM, durationMs, startAt) => shake.start(amplitudeM, durationMs, startAt),
-    gag: (gag, startAt, isMotionReduced) => gags.start(gag, startAt, isMotionReduced),
+    gag: (gag, startAt, isMotionReduced, slideDirX, slideDirZ) =>
+      gags.start(gag, startAt, isMotionReduced, slideDirX, slideDirZ),
     liftBaby: (startAt) => lift.start(startAt),
   };
 

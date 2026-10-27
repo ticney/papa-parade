@@ -133,6 +133,25 @@ describe('createBabyView', () => {
     expect(gazeGroup.position.y).toBe(0.2);
   });
 
+  it('offsets the whole view by the slide, across updates, and puts it back', () => {
+    const { scene, view } = build();
+    const group = scene.getObjectByName('baby_group') as Mesh;
+    view.update(baby(), 1);
+    const home = group.position.clone();
+    view.setSlideM(0.3, -0.2);
+    expect(group.position.x).toBeCloseTo(home.x + 0.3, 12);
+    expect(group.position.z).toBeCloseTo(home.z - 0.2, 12);
+    // The next frame's update keeps it.
+    view.update(baby(), 1);
+    expect(group.position.x).toBeCloseTo(home.x + 0.3, 12);
+    expect(group.position.z).toBeCloseTo(home.z - 0.2, 12);
+    view.setSlideM(0, 0);
+    expect(group.position.x).toBeCloseTo(home.x, 12);
+    expect(group.position.z).toBeCloseTo(home.z, 12);
+    view.update(baby(), 1);
+    expect(group.position.x).toBe(home.x);
+  });
+
   it('the shadow follows the position but does not rise', () => {
     const { scene, view } = build();
     view.update(baby(), 1);

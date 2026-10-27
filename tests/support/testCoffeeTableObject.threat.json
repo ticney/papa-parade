@@ -1,0 +1,16 @@
+{
+  "$schema": "../../content/_schemas/threat.schema.json",
+  "id": "coffee_table_object",
+  "response": "parry",
+  "telegraphDelayMs": 1500,
+  "windowMs": null,
+  "gag": "table_object_fall",
+  "icon": "mug",
+  "feedback": {
+    "telegraph": "tel_coffee_table",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_coffee_table"
+  },
+  "cooldownMs": 6000
+}

@@ -73,8 +73,8 @@ describe('pickThreat', () => {
   const camera = createIsoCamera();
   fitIsoCamera(camera, ROOM, RECT.width / RECT.height);
   const tester = createHitTester(camera);
-  const entryA = { threatId: 1, xM: -3, yM: 0.3, zM: 0.5 };
-  const entryB = { threatId: 2, xM: -2.6, yM: 0.3, zM: 0.5 };
+  const entryA = { threatId: 1, xM: -3, yM: 0.3, zM: 0.5, icon: 'bolt' as const };
+  const entryB = { threatId: 2, xM: -2.6, yM: 0.3, zM: 0.5, icon: 'bolt' as const };
   const pxOf = (entry: { xM: number; yM: number; zM: number }) => {
     const v = new Vector3(entry.xM, entry.yM, entry.zM).project(camera);
     return {
@@ -128,7 +128,7 @@ describe('pickThreat', () => {
   });
 
   it('ignores an icon outside the frustum, and a point that is not a number', () => {
-    const far = { threatId: 3, xM: -3, yM: 0.3, zM: 0.5 };
+    const far = { threatId: 3, xM: -3, yM: 0.3, zM: 0.5, icon: 'bolt' as const };
     const farCamera = createIsoCamera();
     fitIsoCamera(farCamera, ROOM, 2);
     farCamera.position.set(0, 0, 1000);

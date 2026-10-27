@@ -1,3 +1,4 @@
+import type { ThreatDef, ThreatIcon } from '@content/schemas/threat';
 import { log } from '@shared/log';
 import type { ThreatInstance } from '@sim';
 import type { Scene } from 'three';
@@ -10,6 +11,8 @@ export interface ThreatMarkerEntry {
   readonly xM: number;
   readonly yM: number;
   readonly zM: number;
+  /** The glyph its marker draws: the threat def's `icon`. */
+  readonly icon: ThreatIcon;
 }
 
 export interface ThreatMarkers {
@@ -33,27 +36,40 @@ export interface ThreatMarkers {
   dispose(): void;
 }
 
+/** The glyph a marker falls back to when the threat's def is unknown. */
+const FALLBACK_ICON: ThreatIcon = 'bolt';
+
 /**
  * The marker entries of a level: one per threat of `threats`, in the same order, at the position
- * of its anchor (`anchors` are the level geometry's). An anchor the geometry lacks cannot happen
- * (`createSim` refuses it); if it does the icon goes to the threat's floor point, with a `warn`.
- * Built once per level, never per frame.
+ * of its anchor (`anchors` are the level geometry's), with the glyph of its def (`defs` is the
+ * level's `LevelContent.threats`). An anchor the geometry lacks, or a def the level lacks, cannot
+ * happen (`createSim` refuses both); if it does the icon goes to the threat's floor point, or
+ * draws a bolt, with a `warn`. Built once per level, never per frame.
  */
 export function threatMarkerEntries(
   threats: readonly Readonly<ThreatInstance>[],
   anchors: readonly { id: string; positionM: readonly [number, number, number] }[],
+  defs: Readonly<Record<string, Pick<ThreatDef, 'icon'>>>,
 ): ThreatMarkerEntry[] {
   return threats.map((threat) => {
+    const def = defs[threat.defId];
+    if (def === undefined) {
+      log.warn(
+        'render',
+        `threat ${threat.id} names the def ${threat.defId}, which the level lacks`,
+      );
+    }
+    const icon = def?.icon ?? FALLBACK_ICON;
     const anchor = anchors.find((candidate) => candidate.id === threat.anchorId);
     if (anchor === undefined) {
       log.warn(
         'render',
         `threat ${threat.id} names the anchor ${threat.anchorId}, which the room lacks`,
       );
-      return { threatId: threat.id, xM: threat.xM, yM: 0, zM: threat.zM };
+      return { threatId: threat.id, xM: threat.xM, yM: 0, zM: threat.zM, icon };
     }
     const [xM, yM, zM] = anchor.positionM;
-    return { threatId: threat.id, xM, yM, zM };
+    return { threatId: threat.id, xM, yM, zM, icon };
   });
 }
 
@@ -66,8 +82,17 @@ export const THREAT_CLASSES = {
   icon: 'pp-threat-icon',
 } as const;
 
-/** The lightning bolt of the mockup's `i-bolt` (24 × 24 view box), in the paper fill with an ink outline. */
-const BOLT_PATH = 'M14 1.5L4.5 14h6.5l-1.5 8.5L19.5 10H13z';
+/**
+ * The glyph of each `ThreatIcon` (24 × 24 view box), drawn in the paper fill with an ink outline:
+ * a `Record`, so that an icon of the schema with no glyph is a type error. `bolt` is the mockup's
+ * `i-bolt`. `stairs` is three steps rising to the right; `mug` is a cup with its handle. Provisional
+ * placeholders (E7 draws the final ones).
+ */
+export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
+  bolt: 'M14 1.5L4.5 14h6.5l-1.5 8.5L19.5 10H13z',
+  stairs: 'M2.5 21.5V16h5.5v-5.5h5.5V5h8v16.5z',
+  mug: 'M3.5 6.5h13v9.5a4 4 0 0 1-4 4h-5a4 4 0 0 1-4-4z M16.5 9h2.5a3 3 0 0 1 0 6h-2.5v-2.2h2.5a.8.8 0 0 0 0-1.6h-2.5z',
+};
 /** The chevron: a down-pointing triangle above the icon (12 × 8 view box). */
 const CHEVRON_PATH = 'M1 1h10L6 7z';
 
@@ -122,7 +147,7 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
         svgElement(
           'path',
           {
-            d: BOLT_PATH,
+            d: THREAT_ICON_PATHS[entry.icon],
             fill: 'var(--pp-color-paper)',
             stroke: 'var(--pp-color-ink)',
             'stroke-width': '2',
@@ -147,7 +172,7 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
 
 /**
  * The threat icons of a level, world-anchored in the `CSS2DRenderer` layer: a `{colors.parry}`
- * circle with a bolt and a pulsing `{colors.alert}` halo while the threat is `telegraph` or
+ * circle with the threat's glyph (`THREAT_ICON_PATHS`) and a pulsing `{colors.alert}` halo while the threat is `telegraph` or
  * `windowOpen`, and the `target-highlight` (a solid ring and a bouncing chevron) on the pressed
  * one. Reconciled from the world every frame (D8), not from events. `doc` makes the elements
  * (the browser's `document`; a double in tests).

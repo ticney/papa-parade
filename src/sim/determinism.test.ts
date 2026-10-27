@@ -3,9 +3,12 @@ import { nextFloat, nextInt } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
+  coffeeTableEntry,
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  outletEntry,
+  stairsEntry,
 } from '../../tests/support/testContent.ts';
 import type { System } from './context.ts';
 import { createSimWithSystems, type Sim } from './createSim.ts';
@@ -117,6 +120,55 @@ describe('determinism with props in motion', () => {
     const b = await playProps(7);
     expect(a.events.filter((event) => event.type === 'PropImpact').length).toBeGreaterThan(5);
     expect(a.sim.world.props).toEqual(b.sim.world.props);
+    expect(a.sim.world).toEqual(b.sim.world);
+    expect(a.events).toEqual(b.events);
+    expect(hashJson(a.sim.world)).toBe(hashJson(b.sim.world));
+    a.sim.dispose();
+    b.sim.dispose();
+  });
+});
+
+/**
+ * The three threats of the prototype, with presses that hit and miss their windows at every phase:
+ * the director, the three gags (a near miss, a pushed prop) and the physics that follows are one
+ * deterministic whole. Papa is sent across the room now and then, so that the glides vary too.
+ */
+async function playThreatTrio(seed: number): Promise<{ sim: Sim; events: SimEvent[] }> {
+  const sim = await createSimWithSystems(
+    {
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: createTestLevel([outletEntry(0), stairsEntry(0), coffeeTableEntry(0)]),
+      seed,
+    },
+    SYSTEMS,
+  );
+  const events: SimEvent[] = [];
+  for (let i = 1; i <= 10000; i++) {
+    if (i % 90 === 0) {
+      const threatId = 1 + (Math.floor(i / 90) % 3);
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(sim.world.time.sim), threatId });
+      sim.enqueue({ type: 'Release', t: asSimMs(sim.world.time.sim + 50) });
+    }
+    if (i % 700 === 0) {
+      const side = Math.floor(i / 700) % 2 === 0 ? 1 : -1;
+      sim.enqueue({ type: 'TapFloor', t: asSimMs(sim.world.time.sim), xM: 2.5 * side, zM: 1.5 });
+    }
+    sim.step();
+    if (i % 100 === 0) for (const event of sim.drainEvents()) events.push(event);
+  }
+  return { sim, events };
+}
+
+describe('determinism with the three threats', () => {
+  it('gives identical World and events twice over 10 000 steps, gags and pushed props included', async () => {
+    const a = await playThreatTrio(5);
+    const b = await playThreatTrio(5);
+    const types = new Set(a.events.map((event) => event.type));
+    // The run really exercises what it is there for.
+    expect(types.has('GagTriggered')).toBe(true);
+    expect(types.has('NearMiss')).toBe(true);
+    expect(types.has('ResponseResolved')).toBe(true);
     expect(a.sim.world).toEqual(b.sim.world);
     expect(a.events).toEqual(b.events);
     expect(hashJson(a.sim.world)).toBe(hashJson(b.sim.world));

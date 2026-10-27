@@ -8,8 +8,9 @@ import { type AppError, err, ok, type Result } from '@shared/result';
 import { createRng, nextFloat, type RngState } from '@shared/rng';
 import { ROOT } from '../assets/paths.ts';
 
-// The provisional sounds of stories 1.9 and 1.11 (the outlet's four cues), synthesized so that the whole audio pipeline works
-// end to end with no human (golden rule). Real sounds replace the `.m4a` files under the same
+// The provisional sounds of stories 1.9, 1.11 and 1.16 (the outlet's four cues, then the stairs'
+// and the coffee table's telegraph and gag clips), synthesized so that the whole audio pipeline
+// works end to end with no human (golden rule). Real sounds replace the `.m4a` files under the same
 // names (stories 2.3 and 7.5). The tool is macOS only (`afconvert`) and CI never runs it.
 
 export const SAMPLE_RATE_HZ = 44_100;
@@ -78,6 +79,53 @@ const GAG_CRACKLE_DENSITY_PCT = 6;
 const GAG_BZZT_PITCH_HZ = { from: 420, to: 90 };
 const GAG_BZZT_DECAY_S = 0.18;
 const GAG_BZZT_RELEASE_MS = 40;
+
+// Stairs telegraph: the baby's knees and hands pattering faster and faster (4 gaps, each shorter).
+const TEL_STAIRS_LENGTH_MS = 400;
+const TEL_STAIRS_KNOCKS_AT_MS = [0, 110, 200, 270, 325];
+const TEL_STAIRS_PITCH_HZ = { from: 120, to: 60 };
+const TEL_STAIRS_KNOCK_DECAY_S = 0.025;
+const TEL_STAIRS_CLICK_MS = 3;
+const TEL_STAIRS_CLICK_GAIN = 0.5;
+/** Each knock is a little louder than the one before: it is getting closer. */
+const TEL_STAIRS_GROWTH = 1.12;
+
+// Coffee table telegraph: a creak (a wobbling low tone) and the scrape of something dragged.
+const TEL_TABLE_LENGTH_MS = 500;
+const TEL_TABLE_PITCH_HZ = 200;
+const TEL_TABLE_WOBBLE_HZ = 8;
+const TEL_TABLE_WOBBLE_DEPTH = 0.25;
+const TEL_TABLE_ATTACK_MS = 20;
+const TEL_TABLE_RELEASE_MS = 80;
+/** Weight of the one-pole low-passed noise (the scrape) against the tone. */
+const TEL_TABLE_SCRAPE_GAIN = 2.2;
+/** One-pole smoothing of the scrape noise: the share of the new sample, in percent. */
+const TEL_TABLE_SCRAPE_SMOOTHING_PCT = 12;
+const TEL_TABLE_SCRAPE_RATE_HZ = 6;
+
+// Stairs gag: a bumpy slide down (five « bdoum »), ending in a delighted « hi! ».
+const GAG_STAIRS_LENGTH_MS = 600;
+const GAG_STAIRS_THUMPS_AT_MS = [0, 90, 180, 270, 360];
+/** Pitch of the first thump; each next one starts lower. */
+const GAG_STAIRS_THUMP_START_HZ = 200;
+const GAG_STAIRS_THUMP_STEP_HZ = 20;
+const GAG_STAIRS_THUMP_DROP = 0.6;
+const GAG_STAIRS_THUMP_DECAY_S = 0.04;
+const GAG_STAIRS_CHIRP_AT_MS = 470;
+const GAG_STAIRS_CHIRP_HZ = [900, 1200];
+const GAG_STAIRS_CHIRP_RISE = 1.25;
+const GAG_STAIRS_CHIRP_DECAY_S = 0.05;
+const GAG_STAIRS_CHIRP_GAIN = 0.6;
+
+// Coffee table gag: the object falls with a whistle. No crash: the break sound is PropBroken's (2.3).
+const GAG_TABLE_LENGTH_MS = 350;
+const GAG_TABLE_PITCH_HZ = { from: 1200, to: 400 };
+const GAG_TABLE_ATTACK_MS = 10;
+const GAG_TABLE_RELEASE_MS = 40;
+
+/** A thump's ramp-up, in ms, and the level under which its tail is cut (a share of full scale). */
+const THUMP_ATTACK_MS = 2;
+const THUMP_AUDIBLE_FLOOR = 0.001;
 
 const samplesOf = (ms: number): number => Math.round((ms / 1000) * SAMPLE_RATE_HZ);
 const between = (rng: RngState, range: { min: number; max: number }): number =>
@@ -281,6 +329,126 @@ export function synthGagOutlet(): Float32Array {
   return out;
 }
 
+/** A decaying sine that drops in pitch, added into `out` from `startMs`: one « bdoum » or one knock. */
+function addThump(
+  out: Float32Array,
+  startMs: number,
+  pitchHz: { from: number; to: number },
+  decayS: number,
+  gain: number,
+): void {
+  const start = samplesOf(startMs);
+  let phase = 0;
+  for (let i = start; i < out.length; i++) {
+    const seconds = (i - start) / SAMPLE_RATE_HZ;
+    const frequencyHz = pitchHz.to + (pitchHz.from - pitchHz.to) * Math.exp(-seconds / decayS);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const decay = Math.exp(-seconds / decayS);
+    if (decay < THUMP_AUDIBLE_FLOOR) break;
+    const envelope = Math.min(1, (i - start) / samplesOf(THUMP_ATTACK_MS)) * decay;
+    out[i] = (out[i] as number) + gain * Math.sin(phase) * envelope;
+  }
+}
+
+/** Quick pattering that speeds up: five knocks (a low thump with a click), closer and closer. */
+export function synthTelegraphStairs(): Float32Array {
+  const rng = createRng(SEED + 3);
+  const out = new Float32Array(samplesOf(TEL_STAIRS_LENGTH_MS));
+  TEL_STAIRS_KNOCKS_AT_MS.forEach((startMs, knock) => {
+    const gain = TEL_STAIRS_GROWTH ** knock;
+    addThump(out, startMs, TEL_STAIRS_PITCH_HZ, TEL_STAIRS_KNOCK_DECAY_S, gain);
+    const click = samplesOf(TEL_STAIRS_CLICK_MS);
+    for (let i = 0; i < click; i++) {
+      const at = samplesOf(startMs) + i;
+      out[at] =
+        (out[at] as number) +
+        gain * TEL_STAIRS_CLICK_GAIN * (nextFloat(rng) * 2 - 1) * (1 - i / click);
+    }
+  });
+  fadeEnds(out, 2);
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A creak and a wobble: a slow pitch-modulated low tone over the scrape of filtered noise. */
+export function synthTelegraphCoffeeTable(): Float32Array {
+  const rng = createRng(SEED + 4);
+  const out = new Float32Array(samplesOf(TEL_TABLE_LENGTH_MS));
+  const attack = samplesOf(TEL_TABLE_ATTACK_MS);
+  const release = samplesOf(TEL_TABLE_RELEASE_MS);
+  let phase = 0;
+  let scrape = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const wobble = Math.sin(2 * Math.PI * TEL_TABLE_WOBBLE_HZ * seconds);
+    phase +=
+      (2 * Math.PI * TEL_TABLE_PITCH_HZ * (1 + TEL_TABLE_WOBBLE_DEPTH * wobble)) / SAMPLE_RATE_HZ;
+    scrape += (TEL_TABLE_SCRAPE_SMOOTHING_PCT / 100) * (nextFloat(rng) * 2 - 1 - scrape);
+    // The scrape comes in strokes: its level swells and fades a few times a second.
+    const stroke = 0.5 + 0.5 * Math.sin(2 * Math.PI * TEL_TABLE_SCRAPE_RATE_HZ * seconds);
+    const tone = Math.sin(phase) + 0.4 * Math.sin(2 * phase);
+    out[i] =
+      (tone + TEL_TABLE_SCRAPE_GAIN * stroke * scrape) *
+      Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A bumpy slide: five descending « bdoum » thumps, then a short high « hi! » of two sines. */
+export function synthGagStairs(): Float32Array {
+  const out = new Float32Array(samplesOf(GAG_STAIRS_LENGTH_MS));
+  GAG_STAIRS_THUMPS_AT_MS.forEach((startMs, thump) => {
+    const fromHz = GAG_STAIRS_THUMP_START_HZ - GAG_STAIRS_THUMP_STEP_HZ * thump;
+    addThump(
+      out,
+      startMs,
+      { from: fromHz, to: fromHz * GAG_STAIRS_THUMP_DROP },
+      GAG_STAIRS_THUMP_DECAY_S,
+      1,
+    );
+  });
+  const start = samplesOf(GAG_STAIRS_CHIRP_AT_MS);
+  const phases = GAG_STAIRS_CHIRP_HZ.map(() => 0);
+  for (let i = start; i < out.length; i++) {
+    const seconds = (i - start) / SAMPLE_RATE_HZ;
+    const progress = (i - start) / (out.length - start);
+    const envelope =
+      Math.min(1, (i - start) / samplesOf(PARRY_ATTACK_MS)) *
+      Math.exp(-seconds / GAG_STAIRS_CHIRP_DECAY_S);
+    GAG_STAIRS_CHIRP_HZ.forEach((baseHz, voice) => {
+      const frequencyHz = baseHz * (1 + (GAG_STAIRS_CHIRP_RISE - 1) * progress);
+      phases[voice] = (phases[voice] as number) + (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+      out[i] =
+        (out[i] as number) + GAG_STAIRS_CHIRP_GAIN * Math.sin(phases[voice] as number) * envelope;
+    });
+  }
+  fadeEnds(out, 2);
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A falling whistle: a sine gliding from 1200 down to 400 Hz. */
+export function synthGagCoffeeTable(): Float32Array {
+  const out = new Float32Array(samplesOf(GAG_TABLE_LENGTH_MS));
+  const attack = samplesOf(GAG_TABLE_ATTACK_MS);
+  const release = samplesOf(GAG_TABLE_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const frequencyHz =
+      GAG_TABLE_PITCH_HZ.from + (GAG_TABLE_PITCH_HZ.to - GAG_TABLE_PITCH_HZ.from) * progress;
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    out[i] = Math.sin(phase) * Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -312,6 +480,10 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'resp_parry', synth: synthParry },
   { clip: 'resp_parry_perfect', synth: synthParryPerfect },
   { clip: 'gag_outlet', synth: synthGagOutlet },
+  { clip: 'tel_stairs', synth: synthTelegraphStairs },
+  { clip: 'gag_stairs', synth: synthGagStairs },
+  { clip: 'tel_coffee_table', synth: synthTelegraphCoffeeTable },
+  { clip: 'gag_coffee_table', synth: synthGagCoffeeTable },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {
