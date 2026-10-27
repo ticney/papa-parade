@@ -73,6 +73,36 @@ describe('installGlobalErrorHandlers', () => {
     expect(logged[0]?.message).toContain('from the error object');
   });
 
+  it('says "unknown error" when the error event carries neither a message nor an error', () => {
+    const { target, logger, logged, fire } = setup();
+    installGlobalErrorHandlers(target, logger);
+    fire('error', {});
+    fire('error', { message: '', error: null });
+    expect(logged).toHaveLength(2);
+    expect(logged[0]?.message).toContain('unknown error');
+    expect(logged[1]?.message).toContain('unknown error');
+  });
+
+  it('still logs a rejection whose reason cannot be turned into a string', () => {
+    const { target, logger, logged, fire } = setup();
+    installGlobalErrorHandlers(target, logger);
+    const noPrototype = Object.create(null) as object;
+    const throwingToString = {
+      toString() {
+        throw new Error('no string for you');
+      },
+    };
+    expect(() => {
+      fire('unhandledrejection', { reason: noPrototype });
+      fire('unhandledrejection', { reason: throwingToString });
+      fire('error', { error: throwingToString });
+    }).not.toThrow();
+    expect(logged).toHaveLength(3);
+    expect(logged[0]?.message).toContain('unprintable');
+    expect(logged[0]?.data).toMatchObject({ reason: noPrototype });
+    expect(logged[2]?.message).toContain('unprintable');
+  });
+
   it('logs an unhandled rejection with its Error reason', () => {
     const { target, logger, logged, fire } = setup();
     installGlobalErrorHandlers(target, logger);

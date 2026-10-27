@@ -27,7 +27,13 @@ export interface GlobalErrorTarget {
 
 function describeThrown(value: unknown): string {
   if (value instanceof Error) return value.message;
-  return String(value);
+  try {
+    return String(value);
+  } catch {
+    // `String(Object.create(null))` or a throwing `toString` must not swallow the error being
+    // reported: the raw value still goes in the log data.
+    return '[unprintable value]';
+  }
 }
 
 /**
@@ -40,7 +46,8 @@ export function installGlobalErrorHandlers(
   logger: Pick<Logger, 'error'> = log,
 ): () => void {
   const onError = (event: ErrorEventLike): void => {
-    const message = event.message || describeThrown(event.error);
+    const hasError = event.error !== undefined && event.error !== null;
+    const message = event.message || (hasError ? describeThrown(event.error) : 'unknown error');
     const data: Record<string, unknown> = { error: event.error };
     if (event.filename) {
       data.file = event.filename;

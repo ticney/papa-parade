@@ -53,3 +53,11 @@
 - **The room is assumed centred on the origin.** `fitIsoCamera` takes only a size; story 1.6 passes the real level bounds and may need a `center` field.
 - **WebGL in CI.** The e2e specs need a WebGL context in chromium and webkit; both create one on the development Mac. Not yet seen on GitHub's ubuntu runner (webkit on Linux is the suspect). If a project cannot create one, report the exact error here and keep the test active for the other.
 - **Bundle size.** `npm run build:playtest` gives a 645 kB JS chunk (168 kB gzip) now that `three` is in; Vite warns above 500 kB. Named imports are already used. Code-splitting or `three` trimming belongs to the performance budget, story 1.24.
+
+## Deferred from: code review of story 1-4-boucle-client-vue-isometrique-et-pause-exacte (2026-10-27)
+
+- **`timeMap.realToSim` extrapolates without a bound.** A pause that starts between two frames (hidden tab: rAF stops, so no rate-0 record is written) leaves the newest record at rate 1, and a query before the next frame maps up to the hidden duration into the sim future. No caller yet. Decide with the first caller (stories 1.7 / 1.11): record a rate-0 point on `PauseRequested`, or cap the extrapolation to a couple of frames.
+- **Only the first pause reason is kept.** `requestPause` returns early when already `paused`, so `portrait` then `gamepadDisconnected` loses the second and the player can resume while it still holds. Story 1.5 needs a set of reasons (and a `blockedBy` for the resume).
+- **WebGL context loss and teardown.** Context loss is only logged (the loop keeps stepping into a dead context); `GameRenderer.dispose()` lacks `forceContextLoss()` and `ProvisionalScene` has no `dispose()`. Story 1.6 (« Oups » screen, level reload).
+- **No listener isolation in `Emitter.emit`.** A throwing listener skips the next ones and ends the loop (D4 fail-stop). Fine while listeners are internal; decide with story 1.9 (audio, `FeedbackDirector`).
+- **Resize can show one cleared frame.** `setSize` clears the canvas from a `ResizeObserver` callback (after rAF, before paint), and runs twice per resize (observer and window `resize`). Render in the same callback or mark the size dirty for the next frame. Polish, story 1.24.

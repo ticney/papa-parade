@@ -35,9 +35,9 @@ export interface TimeMapOptions {
  */
 export function createTimeMap(options: TimeMapOptions = {}): TimeMap {
   const logger = options.logger ?? log;
-  const realMsAt = new Float64Array(TIME_MAP_CAPACITY);
-  const simMsAt = new Float64Array(TIME_MAP_CAPACITY);
-  const rateAt = new Float64Array(TIME_MAP_CAPACITY);
+  const recordRealMs = new Float64Array(TIME_MAP_CAPACITY);
+  const recordSimMs = new Float64Array(TIME_MAP_CAPACITY);
+  const recordSimPerRealMs = new Float64Array(TIME_MAP_CAPACITY);
   let head = 0; // slot of the oldest record
   let count = 0;
 
@@ -45,22 +45,34 @@ export function createTimeMap(options: TimeMapOptions = {}): TimeMap {
 
   return {
     record(realMs, simMs, simPerRealMs) {
-      invariant(Number.isFinite(realMs), `timeMap.record: realMs is not finite (${realMs})`);
-      invariant(Number.isFinite(simMs), `timeMap.record: simMs is not finite (${simMs})`);
-      invariant(
-        Number.isFinite(simPerRealMs) && simPerRealMs >= 0,
-        `timeMap.record: simPerRealMs must be a finite number >= 0 (${simPerRealMs})`,
-      );
+      // Hot path (once per frame): each condition is tested first, so that the message strings
+      // are only built when one fails (`invariant(cond, template)` would build them every call).
+      if (!Number.isFinite(realMs)) {
+        invariant(false, `timeMap.record: realMs is not finite (${realMs})`);
+      }
+      if (!Number.isFinite(simMs)) {
+        invariant(false, `timeMap.record: simMs is not finite (${simMs})`);
+      }
+      if (!(Number.isFinite(simPerRealMs) && simPerRealMs >= 0)) {
+        invariant(
+          false,
+          `timeMap.record: simPerRealMs must be a finite number >= 0 (${simPerRealMs})`,
+        );
+      }
       if (count > 0) {
         const newest = slot(count - 1);
-        invariant(
-          realMs >= (realMsAt[newest] as number),
-          `timeMap.record: real time went back (${realMs} < ${realMsAt[newest]})`,
-        );
-        invariant(
-          simMs >= (simMsAt[newest] as number),
-          `timeMap.record: sim time went back (${simMs} < ${simMsAt[newest]})`,
-        );
+        if (realMs < (recordRealMs[newest] as number)) {
+          invariant(
+            false,
+            `timeMap.record: real time went back (${realMs} < ${recordRealMs[newest]})`,
+          );
+        }
+        if (simMs < (recordSimMs[newest] as number)) {
+          invariant(
+            false,
+            `timeMap.record: sim time went back (${simMs} < ${recordSimMs[newest]})`,
+          );
+        }
       }
 
       if (count === TIME_MAP_CAPACITY) {
@@ -68,15 +80,15 @@ export function createTimeMap(options: TimeMapOptions = {}): TimeMap {
         count--;
       }
       const target = slot(count);
-      realMsAt[target] = realMs;
-      simMsAt[target] = simMs;
-      rateAt[target] = simPerRealMs;
+      recordRealMs[target] = realMs;
+      recordSimMs[target] = simMs;
+      recordSimPerRealMs[target] = simPerRealMs;
       count++;
 
       // Drop what the history no longer needs: a record is useless once the one after it is at or
       // before the start of the window.
       const historyStartAtReal = realMs - TIME_MAP_HISTORY_MS;
-      while (count > 1 && (realMsAt[slot(1)] as number) <= historyStartAtReal) {
+      while (count > 1 && (recordRealMs[slot(1)] as number) <= historyStartAtReal) {
         head = (head + 1) % TIME_MAP_CAPACITY;
         count--;
       }
@@ -90,8 +102,8 @@ export function createTimeMap(options: TimeMapOptions = {}): TimeMap {
       }
 
       const newest = slot(count - 1);
-      const newestAtReal = realMsAt[newest] as number;
-      const oldestAtReal = realMsAt[head] as number;
+      const newestAtReal = recordRealMs[newest] as number;
+      const oldestAtReal = recordRealMs[head] as number;
       const historyStartAtReal = Math.max(newestAtReal - TIME_MAP_HISTORY_MS, oldestAtReal);
       let query: number = realMs;
       if (query < historyStartAtReal) {
@@ -104,20 +116,21 @@ export function createTimeMap(options: TimeMapOptions = {}): TimeMap {
 
       if (query >= newestAtReal) {
         return asSimMs(
-          (simMsAt[newest] as number) + (query - newestAtReal) * (rateAt[newest] as number),
+          (recordSimMs[newest] as number) +
+            (query - newestAtReal) * (recordSimPerRealMs[newest] as number),
         );
       }
 
       // The latest record at or before `query` (so, with equal timestamps, the later record wins).
       let before = count - 2;
-      while (before > 0 && (realMsAt[slot(before)] as number) > query) before--;
+      while (before > 0 && (recordRealMs[slot(before)] as number) > query) before--;
       const from = slot(before);
       const to = slot(before + 1);
-      const fromAtReal = realMsAt[from] as number;
-      const spanMs = (realMsAt[to] as number) - fromAtReal;
+      const fromAtReal = recordRealMs[from] as number;
+      const spanMs = (recordRealMs[to] as number) - fromAtReal;
       const fraction = spanMs > 0 ? (query - fromAtReal) / spanMs : 0;
-      const fromSim = simMsAt[from] as number;
-      return asSimMs(fromSim + fraction * ((simMsAt[to] as number) - fromSim));
+      const fromSim = recordSimMs[from] as number;
+      return asSimMs(fromSim + fraction * ((recordSimMs[to] as number) - fromSim));
     },
 
     reset() {

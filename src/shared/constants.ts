@@ -43,6 +43,12 @@ export const ISO_CAMERA_DISTANCE_M = 40;
 /** Breathing room added around the room when the camera is fitted to the window, in percent. */
 export const ISO_FIT_MARGIN_PCT = 4;
 
+/** Near plane of the isometric camera, in metres: the room is ~`ISO_CAMERA_DISTANCE_M` away, so nothing is ever this close. */
+export const ISO_CAMERA_NEAR_M = 0.1;
+
+/** Warnings raised from the frame loop are rate-limited to one per this much real time, in ms. */
+export const LOOP_WARN_INTERVAL_MS = 1000;
+
 /** Provisional room width (x), in metres. Dies with story 1.6, which reads the real level geometry. */
 export const PROVISIONAL_ROOM_WIDTH_M = 8;
 

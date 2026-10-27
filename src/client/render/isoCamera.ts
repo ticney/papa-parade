@@ -1,5 +1,6 @@
 import {
   ISO_CAMERA_DISTANCE_M,
+  ISO_CAMERA_NEAR_M,
   ISO_FIT_MARGIN_PCT,
   ISO_PITCH_DEG,
   ISO_YAW_DEG,
@@ -14,15 +15,12 @@ export interface RoomSize {
   readonly heightM: number;
 }
 
-/** Near plane, in metres: the room is ~`ISO_CAMERA_DISTANCE_M` away, so nothing is ever this close. */
-const NEAR_M = 0.1;
-
 const centre = new Vector3();
 const corner = new Vector3();
 
 /** Pure maths on a `three` camera (no DOM, no WebGL): call {@link fitIsoCamera} to place it. */
 export function createIsoCamera(): OrthographicCamera {
-  return new OrthographicCamera(-1, 1, 1, -1, NEAR_M, ISO_CAMERA_DISTANCE_M * 2);
+  return new OrthographicCamera(-1, 1, 1, -1, ISO_CAMERA_NEAR_M, ISO_CAMERA_DISTANCE_M * 2);
 }
 
 /**
@@ -55,7 +53,7 @@ export function fitIsoCamera(camera: OrthographicCamera, room: RoomSize, aspect:
     .add(centre);
   camera.up.set(0, 1, 0);
   camera.lookAt(centre);
-  camera.near = NEAR_M;
+  camera.near = ISO_CAMERA_NEAR_M;
   camera.far = ISO_CAMERA_DISTANCE_M + Math.hypot(room.widthM, room.depthM, room.heightM);
   camera.updateMatrixWorld(true); // refreshes matrixWorldInverse
 

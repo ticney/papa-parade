@@ -52,7 +52,7 @@ development_status:
   1-1-initialiser-le-projet-et-ses-garde-fous: done
   1-2-pipeline-de-contenu-et-fichier-de-feeling: done
   1-3-coeur-de-simulation-deterministe-en-headless: done
-  1-4-boucle-client-vue-isometrique-et-pause-exacte: review
+  1-4-boucle-client-vue-isometrique-et-pause-exacte: done
   1-5-fondations-de-l-ui-tokens-ecran-de-demarrage-hud-et-panneau-de-pause: backlog
   1-6-salon-greybox-depuis-blender: backlog
   1-7-deplacer-papa: backlog

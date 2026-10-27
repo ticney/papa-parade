@@ -44,7 +44,20 @@ test('boots a full-screen canvas without console errors', async ({ page }) => {
   });
   page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
 
-  await page.goto('/');
+  // The canvas is static HTML: wait for the game itself (content, sim, renderer) and a few
+  // frames before looking for errors, or a late failure would pass unseen.
+  await waitForGame(page);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let frames = 0;
+        const next = (): void => {
+          if (++frames >= 3) resolve();
+          else requestAnimationFrame(next);
+        };
+        requestAnimationFrame(next);
+      }),
+  );
 
   const canvas = page.locator('#pp-canvas');
   await expect(canvas).toBeVisible();

@@ -306,9 +306,11 @@ describe('createGameLoop › freeze (hitstop)', () => {
     expect(rig.loop.stats.droppedBacklogMs).toBe(0);
   });
 
-  it('never drops backlog because of a freeze, even when more than the cap is owed', async () => {
+  it('holds back the owed steps, instead of dropping them, when a freeze coincides with the cap', async () => {
     const rig = await createRig();
-    // The freeze arrives with the very step that hits the cap: both stop the frame, only the cap drops.
+    // The freeze arrives with the very step that hits the cap, so the frame stops for both
+    // reasons. Step 7 of the story drops for the cap alone; here the loop keeps the owed steps
+    // (a hitstop delays sim time, it does not delete it) and spends them after the freeze.
     rig.hooks.afterStep = (stepCall) => {
       if (stepCall === MAX_STEPS_PER_FRAME) rig.setFreeze(FRAME_MS);
     };
@@ -318,6 +320,14 @@ describe('createGameLoop › freeze (hitstop)', () => {
     expect(rig.freezeRealMs).toBe(FRAME_MS);
     expect(rig.loop.stats.stepsLastFrame).toBe(MAX_STEPS_PER_FRAME);
     expect(rig.loop.stats.droppedBacklogMs).toBe(0);
+    expect(rig.simMs()).toBe(MAX_STEPS_PER_FRAME * STEP_MS);
+
+    // The next frame pays the freeze off with its real time, then spends the owed steps.
+    rig.tick(owedSteps * STEP_MS + FRAME_MS);
+    expect(rig.freezeRealMs).toBe(0);
+    expect(rig.loop.stats.stepsLastFrame).toBe(MAX_STEPS_PER_FRAME);
+    expect(rig.loop.stats.droppedBacklogMs).toBe(0);
+    expect(rig.simMs()).toBe(owedSteps * STEP_MS);
   });
 
   it('records a flat segment in the time map while frozen', async () => {
@@ -374,6 +384,58 @@ describe('createGameLoop › failure and lifecycle', () => {
     const requested = rig.scheduler.requested;
     expect(() => rig.tick(2 * FRAME_MS)).toThrow('no frame is pending');
     expect(rig.scheduler.requested).toBe(requested);
+  });
+
+  it('start() brings the loop back after a fail-stop, without catching up', async () => {
+    const rig = await createRig();
+    rig.hooks.step = () => {
+      throw new Error('sim exploded');
+    };
+    rig.tick(0);
+    expect(() => rig.tick(FRAME_MS)).toThrow('sim exploded');
+    expect(rig.scheduler.pending).toBe(false);
+
+    rig.hooks.step = undefined;
+    const requested = rig.scheduler.requested;
+    rig.loop.start();
+    expect(rig.scheduler.pending).toBe(true);
+    expect(rig.scheduler.requested).toBe(requested + 1);
+    // The first frame after a start measures no real time: the only step it runs is the one the
+    // failed frame still owed (its accumulator was not paid off), not 60 s worth.
+    rig.tick(60_000);
+    expect(rig.loop.stats.stepsLastFrame).toBe(1);
+    expect(rig.simMs()).toBe(STEP_MS);
+    rig.tick(60_000 + FRAME_MS);
+    expect(rig.loop.stats.stepsLastFrame).toBe(1);
+    expect(rig.simMs()).toBe(2 * STEP_MS);
+  });
+
+  it('keeps a single chain of frames when a frame stops and restarts the loop', async () => {
+    const double = createSimDouble(await createSim({ content: createTestContent(), seed: 1 }));
+    const scheduler = createFakeScheduler();
+    const pause = createPauseController({ events: createEmitter<ClientEvents>() });
+    let restartOnce = true;
+    const loop = createGameLoop({
+      sim: double.sim,
+      timeMap: createTimeMap(),
+      pause,
+      scheduler,
+      render: () => {
+        if (!restartOnce) return;
+        restartOnce = false;
+        loop.stop();
+        loop.start();
+      },
+      onSimEvent: () => {},
+    });
+    loop.start();
+    const requestedBefore = scheduler.requested;
+    // The fake scheduler throws on a second request while one is pending.
+    expect(() => scheduler.tick(0)).not.toThrow();
+    expect(scheduler.pending).toBe(true);
+    expect(scheduler.requested).toBe(requestedBefore + 1);
+    expect(() => scheduler.tick(FRAME_MS)).not.toThrow();
+    expect(scheduler.requested).toBe(requestedBefore + 2);
   });
 
   it('cancels the pending frame on stop()', async () => {
@@ -450,6 +512,7 @@ describe('createGameLoop › bad timestamps', () => {
     ['NaN', Number.NaN],
     ['Infinity', Number.POSITIVE_INFINITY],
     ['a timestamp that went back', 5],
+    ['a negative timestamp', -FRAME_MS],
   ])(
     'counts %s as zero elapsed time, warns, and neither throws nor loses its place',
     async (_name, bad) => {
@@ -472,9 +535,14 @@ describe('createGameLoop › bad timestamps', () => {
     },
   );
 
-  it('copes with a bad very first timestamp', async () => {
+  it.each([
+    ['NaN', Number.NaN],
+    ['a negative timestamp', -FRAME_MS],
+  ])('copes with %s as the very first timestamp', async (_name, bad) => {
     const rig = await createRig();
-    rig.tick(Number.NaN);
+    const before = countWarnings(/timestamp/i);
+    rig.tick(bad);
+    expect(countWarnings(/timestamp/i)).toBe(before + 1);
     expect(rig.loop.stats.stepsLastFrame).toBe(0);
     rig.tick(FRAME_MS);
     expect(rig.loop.stats.stepsLastFrame).toBe(0); // first real measurement starts here

@@ -90,6 +90,19 @@ export async function boot(): Promise<void> {
 
   const events = createEmitter<ClientEvents>();
   const pause = createPauseController({ events });
+
+  // Provisional: story 1.5 replaces it with the pause panel.
+  // Mirrors the pause state for Playwright; stripped from store builds by the flag. Subscribed
+  // before the visibility binding, which pauses at once (and emits) if the page starts hidden.
+  const isStateMirrored = import.meta.env.VITE_DEBUG_ALLOWED === 'true';
+  const mirrorPauseState = (): void => {
+    document.documentElement.dataset.ppState = pause.state;
+  };
+  if (isStateMirrored) {
+    events.on('PauseRequested', mirrorPauseState);
+    events.on('ResumeRequested', mirrorPauseState);
+    events.on('GameResumed', mirrorPauseState);
+  }
   bindVisibilityPause(document, pause); // also pauses at once if the page starts hidden
 
   const timeMap = createTimeMap();
@@ -106,17 +119,8 @@ export async function boot(): Promise<void> {
     if (pause.state === 'paused') pause.requestResume();
   });
 
-  // Provisional: story 1.5 replaces it with the pause panel.
-  // Mirrors the pause state for Playwright; stripped from store builds by the flag.
-  if (import.meta.env.VITE_DEBUG_ALLOWED === 'true') {
-    const mirror = (): void => {
-      document.documentElement.dataset.ppState = pause.state;
-    };
-    events.on('PauseRequested', mirror);
-    events.on('ResumeRequested', mirror);
-    events.on('GameResumed', mirror);
-    mirror();
-  }
+  // Written once more here so that the attribute only appears once the game is up and running.
+  if (isStateMirrored) mirrorPauseState();
 
   log.info('boot', 'game running');
 }
