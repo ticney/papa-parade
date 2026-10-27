@@ -23,6 +23,14 @@
     "walkSpeedMps": 3,
     "papaRadiusM": 0.25
   },
+  "baby": {
+    "crawlSpeedMps": 0.6,
+    "bodyRadiusM": 0.2,
+    "babbleMinMs": 1500,
+    "babbleMaxMs": 4000,
+    "wanderMinDistM": 1,
+    "wanderMaxDistM": 3.5
+  },
   "fatigue": {
     "perSec": 0.5,
     "carriedMultiplier": 2,

@@ -1,5 +1,44 @@
+import { readFileSync } from 'node:fs';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { RESUME_COUNTDOWN_MS } from '../../../src/shared/constants.ts';
+
+// The live room and feel, read here and never copied: Geo re-exports the room and retunes the feel freely.
+const liveGeometry = JSON.parse(
+  readFileSync('content/levels/salon_crawler.geometry.json', 'utf8'),
+) as {
+  anchors: { id: string; positionM: [number, number, number] }[];
+  nav: { originM: [number, number]; cols: number; rowCount: number };
+  cellM: number;
+};
+export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
+  movement: { walkSpeedMps: number };
+  baby: {
+    crawlSpeedMps: number;
+    babbleMinMs: number;
+    babbleMaxMs: number;
+    wanderMaxDistM: number;
+  };
+};
+
+/** Where an anchor of the live room is, in metres, as the debug mirrors write it (two decimals). */
+export function anchorMirror(id: string): { x: number; z: number } {
+  const anchor = liveGeometry.anchors.find((candidate) => candidate.id === id);
+  if (anchor === undefined) throw new Error(`the live room has no ${id} anchor`);
+  return { x: Number(anchor.positionM[0].toFixed(2)), z: Number(anchor.positionM[2].toFixed(2)) };
+}
+
+/**
+ * How long Papa's longest walk may take: across the room diagonal at the live walking speed, plus
+ * slack. A bound that only catches a walk that never ends, not a duration to wait for.
+ */
+export const WALK_BOUND_MS =
+  (Math.hypot(
+    liveGeometry.nav.cols * liveGeometry.cellM,
+    liveGeometry.nav.rowCount * liveGeometry.cellM,
+  ) /
+    liveFeel.movement.walkSpeedMps) *
+    1000 +
+  4000;
 
 /** Slack on top of a countdown, for a loaded CI machine: it only catches a countdown that never ends. */
 export const OVERRUN_MARGIN_MS = 2000;
@@ -229,6 +268,14 @@ export async function papaAt(page: Page): Promise<{ x: number; z: number }> {
   const value = await html(page).getAttribute('data-pp-papa-at');
   const match = /^(-?\d+\.\d+),(-?\d+\.\d+)$/.exec(value ?? '');
   if (match === null) throw new Error(`data-pp-papa-at is "${String(value)}", not "x,z"`);
+  return { x: Number(match[1]), z: Number(match[2]) };
+}
+
+/** The baby's position as last mirrored (on a change of state), in metres. */
+export async function babyAt(page: Page): Promise<{ x: number; z: number }> {
+  const value = await html(page).getAttribute('data-pp-baby-at');
+  const match = /^(-?\d+\.\d+),(-?\d+\.\d+)$/.exec(value ?? '');
+  if (match === null) throw new Error(`data-pp-baby-at is "${String(value)}", not "x,z"`);
   return { x: Number(match[1]), z: Number(match[2]) };
 }
 

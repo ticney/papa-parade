@@ -173,6 +173,25 @@ describe('replayJournal', () => {
     });
   });
 
+  it('returns an error, not a rejection, when the level has no baby_spawn', async () => {
+    const journal = (await liveGame()).sim.journal();
+    const noBaby = {
+      ...geometry,
+      anchors: geometry.anchors.filter((anchor) => anchor.id !== 'baby_spawn'),
+    };
+    const forged = { ...journal, geometryHash: hashJson(noBaby) };
+    const result = await replayJournal({
+      content,
+      geometry: noBaby,
+      journal: forged,
+      untilSimMs: 100,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: 'journal', message: expect.stringContaining('baby_spawn') },
+    });
+  });
+
   it('returns an error for another level geometry, naming it, without throwing', async () => {
     const journal = (await liveGame()).sim.journal();
     const other = { ...geometry, id: 'other_room' };

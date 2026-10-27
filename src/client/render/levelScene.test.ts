@@ -18,7 +18,7 @@ import {
 import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
 import { createLevelScene, roomOf } from './levelScene.ts';
 
-const PAPA_RADIUS_M = 0.25;
+const BODIES = { papaRadiusM: 0.25, babyRadiusM: 0.2 };
 
 function mesh(name: string, color: number): Mesh {
   const result = new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ color }));
@@ -48,7 +48,7 @@ function build() {
   const geometry = createTestLevelGeometry('test_room');
   return {
     geometry,
-    ...createLevelScene({ id: 'test_room', geometry, model: buildModel() }, PAPA_RADIUS_M),
+    ...createLevelScene({ id: 'test_room', geometry, model: buildModel() }, BODIES),
   };
 }
 
@@ -92,7 +92,17 @@ describe('createLevelScene', () => {
   it('removes the collision, navigation, zone and anchor nodes and keeps the visuals and props', () => {
     const { scene } = build();
     const found = names(scene);
-    for (const kept of ['floor', 'sofa', 'wall_back', 'PROP_mug_01', 'papa', 'blob_papa']) {
+    for (const kept of [
+      'floor',
+      'sofa',
+      'wall_back',
+      'PROP_mug_01',
+      'papa',
+      'blob_papa',
+      'baby',
+      'baby_gaze',
+      'blob_baby',
+    ]) {
       expect(found).toContain(kept);
     }
     for (const gone of [
@@ -116,9 +126,7 @@ describe('createLevelScene', () => {
       mesh('Sofa_Cube', 0x6d3fe0),
       mesh('collar', 0x6d3fe0),
     );
-    const found = names(
-      createLevelScene({ id: 'test_room', geometry, model }, PAPA_RADIUS_M).scene,
-    );
+    const found = names(createLevelScene({ id: 'test_room', geometry, model }, BODIES).scene);
     for (const gone of ['COL_Sofa', 'nav_block_x', 'ZONE_nowhere']) {
       expect(found).not.toContain(gone);
     }
@@ -126,7 +134,7 @@ describe('createLevelScene', () => {
     expect(found).toContain('collar');
   });
 
-  it('gives every model mesh, and Papa, a shared toon material of its own colour', () => {
+  it('gives every model mesh, Papa and the baby, a shared toon material of its own colour', () => {
     const { scene } = build();
     const floor = scene.getObjectByName('floor') as Mesh;
     const wall = scene.getObjectByName('wall_back') as Mesh;
@@ -136,6 +144,8 @@ describe('createLevelScene', () => {
     expect(sofa.material).not.toBe(floor.material);
     expect((sofa.material as MeshToonMaterial).color.getHex()).toBe(new Color(0x6d3fe0).getHex());
     expect((scene.getObjectByName('papa') as Mesh).material).toBeInstanceOf(MeshToonMaterial);
+    expect((scene.getObjectByName('baby') as Mesh).material).toBeInstanceOf(MeshToonMaterial);
+    expect((scene.getObjectByName('baby_gaze') as Mesh).material).toBeInstanceOf(MeshToonMaterial);
   });
 
   it('adds blob shadows under the furniture and lights, and uses no shadow map', () => {
@@ -156,7 +166,7 @@ describe('createLevelScene', () => {
     expect(names(build().scene)).not.toContain('probe');
   });
 
-  it('moves Papa with the sim, interpolated, and nothing else', async () => {
+  it('moves Papa and the baby with the sim, interpolated, and nothing else', async () => {
     const { scene, update } = build();
     const group = scene.getObjectByName('papa_group');
     const floor = scene.getObjectByName('floor');
@@ -181,6 +191,30 @@ describe('createLevelScene', () => {
     update(sim.world, 1);
     expect(group?.position.x).toBe(xM);
     expect(floor?.position.toArray()).toEqual(floorBefore);
+  });
+
+  it('draws the baby where the sim has it, interpolated, looking where it crawls', async () => {
+    const { scene, update } = build();
+    const group = scene.getObjectByName('baby_group');
+    const gazeGroup = scene.getObjectByName('baby_gaze_group');
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      seed: 1,
+    });
+    const { xM, zM } = sim.world.baby;
+    update(sim.world, 0);
+    expect([group?.position.x, group?.position.z]).toEqual([xM, zM]);
+    // Until it sets off at 1.5 s and has crawled a few steps.
+    for (let i = 0; i < 200 && sim.world.baby.state !== 'wander'; i++) sim.step();
+    stepN(sim, 5);
+    const baby = sim.world.baby;
+    expect(baby.state).toBe('wander');
+    expect([baby.prevXM, baby.prevZM]).not.toEqual([baby.xM, baby.zM]);
+    update(sim.world, 0.5);
+    expect(group?.position.x).toBeCloseTo((baby.prevXM + baby.xM) / 2, 12);
+    expect(group?.position.z).toBeCloseTo((baby.prevZM + baby.zM) / 2, 12);
+    expect(gazeGroup?.rotation.y).toBeCloseTo(Math.atan2(baby.gazeX, baby.gazeZ), 12);
   });
 
   it('disposes geometries, materials and textures, and empties the scene', () => {

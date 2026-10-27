@@ -216,19 +216,10 @@ test.describe('move Papa', () => {
     const start = await papaAt(page);
     await page.keyboard.down('ArrowUp');
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkDir');
-    // The mirrored position only changes on an event (the walk starting, the blockage), so it
-    // cannot tell a Papa who stopped from one who keeps drifting: wait until the picture of the
-    // room does not change over FRAMES_TO_SETTLE frames, which only a stopped Papa gives.
-    await expect
-      .poll(
-        async () => {
-          const before = await sceneShot(page);
-          await waitFrames(page, FRAMES_TO_SETTLE);
-          return (await sceneShot(page)).equals(before);
-        },
-        { timeout: WALK_BOUND_MS },
-      )
-      .toBe(true);
+    // The mirrored position changes on an event: the walk starting (where he started), then the
+    // blockage (where he stopped, once, when he cannot move at all). The picture of the room
+    // cannot say he stopped any more, since the baby moves on its own.
+    await expect.poll(() => papaAt(page), { timeout: WALK_BOUND_MS }).not.toEqual(start);
     expect(await state(page)).toBe('walkDir'); // still pushing, but not moving
     const stuck = await papaAt(page); // mirrored when he was blocked
     expect(stuck).not.toEqual(start);
@@ -274,17 +265,20 @@ test.describe('move Papa', () => {
 
       await page.keyboard.down('KeyD');
       await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkDir');
+      const walkStart = await papaAt(page); // mirrored when the walk began
       await page.keyboard.press('Escape');
       await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
       await waitFrames(page, FRAMES_TO_SETTLE);
       const pausedShot = await sceneShot(page);
       await resume();
-      // Still walking: the scene changes again.
+      // Still walking: the scene changes again, and Papa (not only the baby) went on until the
+      // wall, where his position is mirrored.
       await expect
         .poll(async () => (await sceneShot(page)).equals(pausedShot), {
-          message: 'Papa walks again after the resume',
+          message: 'the scene moves again after the resume',
         })
         .toBe(false);
+      await expect.poll(() => papaAt(page), { timeout: WALK_BOUND_MS }).not.toEqual(walkStart);
       expect(await state(page)).toBe('walkDir');
 
       // Released during a second pause: idle at the resume.

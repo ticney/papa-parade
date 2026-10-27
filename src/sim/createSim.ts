@@ -2,6 +2,7 @@ import type { ContentBundle } from '@content/contentBundle';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
+import { asSimMs } from '@shared/time';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
 import type { StepContext, System } from './context.ts';
@@ -64,17 +65,22 @@ export interface Sim {
 }
 
 /**
- * Where Papa starts: the `papa_spawn` anchor, moved to the centre of the nearest open cell of his
- * grid if his clearance closes it. A level where he has nowhere to stand is a broken level.
+ * Where an agent starts: the `anchorId` anchor, moved to the centre of the nearest open cell of its
+ * grid if its clearance closes it. A level where it has nowhere to stand is a broken level.
  */
-function papaSpawnOf(geometry: LevelGeometry, grid: NavGrid): { xM: number; zM: number } {
-  const anchor = geometry.anchors.find((candidate) => candidate.id === 'papa_spawn');
-  invariant(anchor !== undefined, `level ${geometry.id} has no papa_spawn anchor`);
+function spawnOf(
+  geometry: LevelGeometry,
+  grid: NavGrid,
+  anchorId: string,
+  who: string,
+): { xM: number; zM: number } {
+  const anchor = geometry.anchors.find((candidate) => candidate.id === anchorId);
+  invariant(anchor !== undefined, `level ${geometry.id} has no ${anchorId} anchor`);
   const xM = anchor.positionM[0];
   const zM = anchor.positionM[2];
   if (grid.isOpenAt(xM, zM)) return { xM, zM };
   const cell = grid.nearestOpenCell(xM, zM, -1);
-  invariant(cell >= 0, `level ${geometry.id} has no cell where Papa can stand`);
+  invariant(cell >= 0, `level ${geometry.id} has no cell where ${who} can stand`);
   return { xM: grid.centerXM(cell), zM: grid.centerZM(cell) };
 }
 
@@ -87,7 +93,13 @@ export async function createSimWithSystems(
   const feelHash = hashJson(content.feel);
   const geometryHash = hashJson(geometry);
   const papaGrid = createNavGrid(geometry, content.feel.movement.papaRadiusM);
-  let world = createWorld(seed, papaSpawnOf(geometry, papaGrid));
+  const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
+  let world = createWorld({
+    seed,
+    papaSpawn: spawnOf(geometry, papaGrid, 'papa_spawn', 'Papa'),
+    babySpawn: spawnOf(geometry, babyGrid, 'baby_spawn', 'the baby'),
+    firstWanderAt: asSimMs(content.feel.baby.babbleMinMs),
+  });
   if (source) {
     const problem = journalProblem(source);
     invariant(problem === null, `invalid journal: ${String(problem)}`);
@@ -112,7 +124,7 @@ export async function createSimWithSystems(
     events,
     queue,
     commands: [],
-    nav: { papa: papaGrid },
+    nav: { papa: papaGrid, baby: babyGrid },
     strictInvariants: options.strictInvariants ?? defaultStrictInvariants(),
     get t() {
       return world.time.sim;

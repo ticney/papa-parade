@@ -9,6 +9,7 @@ describe('system order', () => {
     expect(SYSTEMS.map((system) => system.name)).toEqual([
       'applyCommands',
       'advanceTime',
+      'runBaby',
       'runPapa',
     ]);
   });

@@ -16,6 +16,7 @@ import { addBlobShadows } from './blobShadow.ts';
 import type { RoomSize } from './isoCamera.ts';
 import { PALETTE } from './materials/palette.ts';
 import { createToonMaterialCache } from './materials/toonMaterial.ts';
+import { createBabyView } from './views/babyView.ts';
 import { createPapaView } from './views/papaView.ts';
 
 // Art direction, not GDD numbers: Geo tunes the light here until the final art (E7).
@@ -24,13 +25,19 @@ const SUN_INTENSITY = 1.3;
 /** Where the sun sits relative to the room centre: the camera side, high, in metres. */
 const SUN_OFFSET_M: readonly [number, number, number] = [5, 9, 7];
 
+/** The sizes of the agents the scene draws, in metres (the feel's, passed by the session). */
+export interface SceneBodies {
+  papaRadiusM: number;
+  babyRadiusM: number;
+}
+
 export interface LevelScene {
   /** The level id (`salon_crawler`). */
   readonly id: string;
   readonly scene: Scene;
   /** The box the camera fits, from the bounds of the visual nodes. */
   readonly room: RoomSize;
-  /** Moves what the world moves: today Papa, drawn `alpha` of the way from the last step to the next. */
+  /** Moves what the world moves: today Papa and the baby, drawn `alpha` of the way from the last step to the next. */
   update(world: Readonly<World>, alpha: number): void;
   /** Frees geometries, materials and textures. Call it when a new level replaces this one. */
   dispose(): void;
@@ -89,10 +96,10 @@ function originalColor(material: Material | Material[]): Color {
 /**
  * The scene of one level: the loaded model with its non-visual nodes removed, every material
  * swapped for a shared toon one (keeping each mesh's colour), lights, blob shadows (no shadow map),
- * and Papa. The model is taken over: it belongs to this scene from now on. `papaRadiusM` is the
- * feel's, read once when the level starts (a `SetFeel` takes effect at the next level).
+ * Papa and the baby. The model is taken over: it belongs to this scene from now on. The bodies'
+ * radii are the feel's, read once when the level starts (a `SetFeel` takes effect at the next level).
  */
-export function createLevelScene(assets: LevelAssets, papaRadiusM: number): LevelScene {
+export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): LevelScene {
   const { geometry, model } = assets;
   const scene = new Scene();
   scene.background = new Color(PALETTE.ink);
@@ -126,7 +133,8 @@ export function createLevelScene(assets: LevelAssets, papaRadiusM: number): Leve
 
   const shadows = addBlobShadows(scene, geometry.colliders);
 
-  const papa = createPapaView(scene, toon, shadows.kit, papaRadiusM);
+  const papa = createPapaView(scene, toon, shadows.kit, bodies.papaRadiusM);
+  const baby = createBabyView(scene, toon, shadows.kit, bodies.babyRadiusM);
 
   return {
     id: assets.id,
@@ -134,6 +142,7 @@ export function createLevelScene(assets: LevelAssets, papaRadiusM: number): Leve
     room,
     update(world, alpha) {
       papa.update(world.papa, alpha);
+      baby.update(world.baby, alpha);
     },
     dispose() {
       disposeObject(scene);

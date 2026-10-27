@@ -6,7 +6,7 @@ import { type CreateSimOptions, createSim, type Sim, type SimEvent } from '@sim'
 import type { OrthographicCamera } from 'three';
 import { type LevelAssets, loadLevelAssets } from '../assets/loadLevelAssets.ts';
 import { createGameLoop, type FrameScheduler, type GameLoop } from '../loop.ts';
-import { createLevelScene, type LevelScene } from '../render/levelScene.ts';
+import { createLevelScene, type LevelScene, type SceneBodies } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import { createTimeMap, type TimeMap } from '../timeMap.ts';
 import type { AppFsm } from './appFsm.ts';
@@ -45,7 +45,7 @@ export interface LevelSessionDeps {
   /** Default: the real `loadLevelAssets`. It logs its own failures. */
   loadAssets?(id: string): Promise<Result<LevelAssets, AppError>>;
   /** Default: the real `createLevelScene`. */
-  createScene?(assets: LevelAssets, papaRadiusM: number): LevelScene;
+  createScene?(assets: LevelAssets, bodies: SceneBodies): LevelScene;
 }
 
 /** What the input needs of the running level: the sim to send commands to and its real → sim clock. */
@@ -160,7 +160,10 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
 
         let level: LevelScene;
         try {
-          level = makeScene(levelAssets, deps.content.feel.movement.papaRadiusM);
+          level = makeScene(levelAssets, {
+            papaRadiusM: deps.content.feel.movement.papaRadiusM,
+            babyRadiusM: deps.content.feel.baby.bodyRadiusM,
+          });
         } catch (cause) {
           log.error('render', 'cannot build the level scene', { id: levelId, error: cause });
           appFsm.enter('oops');

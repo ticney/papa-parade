@@ -10,6 +10,8 @@ import type { World } from './world.ts';
 export interface NavContext {
   /** Papa's: eroded by `feel.movement.papaRadiusM` (read once, when the sim is created). */
   readonly papa: NavGrid;
+  /** The baby's: eroded by `feel.baby.bodyRadiusM` (read once, when the sim is created). */
+  readonly baby: NavGrid;
 }
 
 export interface StepContext extends InvariantContext {

@@ -147,6 +147,31 @@ describe('createLevelSession', () => {
     expect(simGeometryId).toBe('salon_crawler');
   });
 
+  it('builds the scene with the body sizes of the feel', async () => {
+    const bodies: unknown[] = [];
+    const content = createTestContent();
+    const { session } = setup({
+      content,
+      createScene: (assets, sceneBodies) => {
+        bodies.push(sceneBodies);
+        return {
+          id: assets.id,
+          scene: new Scene(),
+          room: { widthM: 8, depthM: 6, heightM: 2.5 },
+          update: () => {},
+          dispose: () => {},
+        };
+      },
+    });
+    await session.start();
+    expect(bodies).toEqual([
+      {
+        papaRadiusM: content.feel.movement.papaRadiusM,
+        babyRadiusM: content.feel.baby.bodyRadiusM,
+      },
+    ]);
+  });
+
   it('exposes the active sim and time map once the level is entered, and nothing before or after', async () => {
     const { session, appFsm } = setup();
     expect(session.active).toBeNull();

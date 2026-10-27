@@ -1,6 +1,10 @@
+---
+baseline_commit: 0f387c7b36eb783ccf13751cbf2952dbf528a33d
+---
+
 # Story 1.8: The Baby Lives in the Living Room
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.8 « Le bébé vit dans le salon ». Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -30,46 +34,46 @@ From the epic (1 to 3), then derived from the architecture and the existing test
 
 ## Tasks / Subtasks
 
-- [ ] **T0: Precondition (all ACs)** — check the Precondition section; `git status` clean; `npm run ci` green before the first edit (so any later failure is yours).
-- [ ] **T1: Feel (AC 1, 2, 4)**
-  - [ ] `FeelSchema` (`src/content/schemas/feel.ts`): new section `baby` (Dev Notes › Feel), `.describe` on every key with its unit, same style as `MovementSchema`; two `.refine`s: `babbleMinMs <= babbleMaxMs`, `wanderMinDistM <= wanderMaxDistM` (same shape as the fatigue refine).
-  - [ ] `content/feel.json` and the frozen fixture `tests/support/testFeel.json`: the same six keys and values.
-  - [ ] `npm run content:schemas` (regenerates `content/_schemas/feel.schema.json`; never edit it by hand), then `npm run content:check`. Add good and bad cases to `tests/content/feelSchema.test.ts` (each refine, a negative speed, a negative radius).
-- [ ] **T2: Shared path following (AC 1, 6)**
-  - [ ] Move `advanceAlongPath` from `src/sim/papa/walk.ts` to a new `src/sim/nav/followPath.ts`, typed on a structural `PathFollower` (`xM`, `zM`, `headingX`, `headingZ`, `path`, `pathIndex`) instead of `PapaSlice` (D6). Move its tests from `walk.test.ts` to `followPath.test.ts` unchanged in substance. `walk.ts` keeps `stepInDirection`; `papaSystem.ts` imports `advanceAlongPath` from `../nav/followPath.ts`. No behaviour change: the `papa_walk` golden events must not change because of this move (check before T5 changes the world).
-- [ ] **T3: Baby in the sim (`src/sim/baby/`, AC 1 to 3, 6)**
-  - [ ] Events (`events.ts`): `BabyStateChanged{t, from: BabyState, to: BabyState}`. No other baby event (D8).
-  - [ ] `babyFsm.ts`: `BabyState = 'wander' | 'babble'` (D1) and `enterBabyState(world, ctx, next)`, the architecture's exact pattern (same as `enterPapaState`).
-  - [ ] `World.baby` slice (Dev Notes › Baby in the World), created from `baby_spawn` (snapped to the nearest open cell of the baby's grid if its clearance closes it; an invariant if there is none), starting in `babble` with `wanderAt = feel.baby.babbleMinMs` (D2). Generalise `papaSpawnOf` in `createSim.ts` into one `spawnOf(geometry, grid, anchorId)` used for both; keep its two invariant messages naming the anchor.
-  - [ ] `context.ts` / `createSim.ts`: `NavContext.baby: NavGrid`, built once with `clearanceM = feel.baby.bodyRadiusM` (D5). Keep `ctx.nav.papa` as it is.
-  - [ ] `wander.ts` (+ test): pure `pickWanderCell(grid, xM, zM, minDistM, maxDistM, rng): number` (D4) and `planWander(baby, grid, cell): boolean` (A* + string pulling into a new `baby.path`, from the baby's exact position to the cell centre). Unit tests on `createTestNavGrid` (tiny hand-drawn grids, Dev Notes › Sim test cases).
-  - [ ] `babySystem.ts` (+ test): `runBaby(world, ctx)` per Dev Notes › Movement rules. Reads `ctx.feel.baby` each step (a `SetFeel` changes speed, distances and durations at once; the radius only at the next level).
-  - [ ] `step.ts`: `SYSTEMS = [applyCommands, advanceTime, runBaby, runPapa]` (its architecture slot: after the director, before threats and Papa). Update the comment and the pinned order in `step.test.ts`.
-  - [ ] `snapshot.ts`: `worldProblem` checks the baby slice (`babyProblem`, same style as `papaProblem`; `BABY_STATES` list). No version bump (D9).
-  - [ ] `index.ts`: export `BabyState` and `BabySlice` (the client view and the debug mirrors need them).
-- [ ] **T4: Existing tests that see the baby now (AC 6)**
-  - [ ] Every test that asserts an **exact** event list from a sim built with the real `SYSTEMS` filters to its own subject (D10): at least `src/sim/papa/papaSystem.test.ts` (`types(events)` → a `papaEvents()` filter); check `timeScale.test.ts`, `createSim.test.ts`, `replay.test.ts`, `snapshot.test.ts`, `determinism.test.ts`, `commandQueue.test.ts` and fix only those that fail. Never weaken what a test proves about its own subject. List each edit in the Completion Notes.
-- [ ] **T5: Golden and determinism (AC 2, 5)**
-  - [ ] New scenario `baby_wander` in `tests/golden/scenarios.ts` (Dev Notes › Golden scenario) and `tests/golden/babyWander.test.ts`, which pins what it covers (pattern of `papaWalk.test.ts`).
-  - [ ] `npm run golden:update`: `core_basic` and `papa_walk` change (world shape, `BabyStateChanged` in `eventTypes`, `feelHash`), `baby_wander` is new. Review all three diffs; check that `papa_walk`'s **papa** events are identical to before (filter the old and new `eventTypes`), so only the baby was added. Say so in the Completion Notes.
-  - [ ] `snapshot.test.ts`: a snapshot taken mid-wander (baby in `wander`, path half done), restored with its journal tail, gives the uninterrupted hash; a snapshot world without `baby` is refused with a message naming `world.baby`.
-- [ ] **T6: Rendering (AC 4)**
-  - [ ] `src/client/render/materials/palette.ts`: add `paper` (DESIGN.md `colors.paper`, `#FFFFFF`, doc line like the others).
-  - [ ] `src/client/render/views/babyView.ts` (+ test of the pure maths): Dev Notes › Baby view. `babyPoseAt(baby, alpha, out)` interpolates with `interpolateXZ` and sets `yawRad = atan2(gazeX, gazeZ)`; `update(baby, alpha)` allocates nothing.
-  - [ ] `levelScene.ts`: create the baby view next to Papa's; `update(world, alpha)` updates both. `createLevelScene(assets, bodies: { papaRadiusM, babyRadiusM })` (D11); update its doc comment and `LevelScene.update`'s (« Papa and the baby »).
-  - [ ] `levelScene.test.ts`: the test « moves Papa with the sim, interpolated, and nothing else » becomes « moves Papa and the baby … »; add the baby to the toon-material test; the dispose test covers the baby's geometries. `levelSession.ts` / `levelSession.test.ts`: pass `{ papaRadiusM: feel.movement.papaRadiusM, babyRadiusM: feel.baby.bodyRadiusM }` to `createScene` (the fake's signature follows).
-- [ ] **T7: Debug mirrors (AC 1, 4)**
-  - [ ] `boot.ts` (only when `VITE_DEBUG_ALLOWED === 'true'`, event-driven, never per frame): `data-pp-baby-state` (from `BabyStateChanged`), `data-pp-baby-at` (`x,z` with 2 decimals, on `BabyStateChanged`, read from `levelSession.active.sim.world.baby`), both written once when a level enters `level` (`mirrorNewLevel`). Add the two names to the `mirror` union.
-- [ ] **T8: End-to-end (AC 1, 4, 6)**
-  - [ ] `tests/e2e/support/game.ts`: `babyAt(page)` (parses `data-pp-baby-at`, like `papaAt`).
-  - [ ] `tests/e2e/baby.spec.ts` (new, chromium + webkit) per Dev Notes › E2E script.
-  - [ ] Existing specs whose **message** claims Papa moved but whose check is a `sceneShot` comparison (the baby now changes the scene on its own): keep every assertion and add a check that is Papa's own, at least in `move.spec.ts` « Papa walks again after the resume », `pauseResume.spec.ts` steps 1 and 5, and the countdown test of `ui.spec.ts`. `data-pp-papa-at` is written on Papa's events only (`PapaStateChanged`, `PapaArrived`, `PapaBlocked`), not per frame: so prove the walk by its end (`walkPath` → `idle`, then `papaAt` differs from its value before the pause), or for a held key, release it after the resume and compare `papaAt` once `idle`. The « nothing moved while paused » `sceneShot` checks stay as they are (they now also prove the baby is frozen).
-- [ ] **T9: Docs and verification (AC 7)**
-  - [ ] `deferred-work.md`: mark « Clearance per agent from data » resolved in story 1.8 (the baby's radius and grid); move « Inverted-hull outline on Papa » to « Papa and the baby, art pass E7 »; add Dev Notes › Deferred by this story.
-  - [ ] Run `npm run lint`, `npm run typecheck` and `npm test` after T3/T4 and after T6, not only at the end. Then `npm run ci` end to end.
-  - [ ] Manual check in the built-in browser pane on `npm run dev` (844 × 390): the baby sits at its spawn, then crawls, stops, crawls again, never through furniture, never onto the stairs; its gaze marker faces where it goes; pause freezes it; « Recommencer » puts it back at the spawn; Papa still walks as before and passes through the baby. Screenshots are the evidence; say what was **not** checked (a real phone).
-  - [ ] Break things to prove the guards bite, then restore: `babbleMinMs > babbleMaxMs` in a copy of the feel → `content:check` fails; a snapshot world with `baby.state: 'sleep'` → refused; a `Math.random()` in `babySystem.ts` → Biome and `simPurity` fail.
-  - [ ] `git status`: only the files of the File List changed; nothing committed.
+- [x] **T0: Precondition (all ACs)** — check the Precondition section; `git status` clean; `npm run ci` green before the first edit (so any later failure is yours).
+- [x] **T1: Feel (AC 1, 2, 4)**
+  - [x] `FeelSchema` (`src/content/schemas/feel.ts`): new section `baby` (Dev Notes › Feel), `.describe` on every key with its unit, same style as `MovementSchema`; two `.refine`s: `babbleMinMs <= babbleMaxMs`, `wanderMinDistM <= wanderMaxDistM` (same shape as the fatigue refine).
+  - [x] `content/feel.json` and the frozen fixture `tests/support/testFeel.json`: the same six keys and values.
+  - [x] `npm run content:schemas` (regenerates `content/_schemas/feel.schema.json`; never edit it by hand), then `npm run content:check`. Add good and bad cases to `tests/content/feelSchema.test.ts` (each refine, a negative speed, a negative radius).
+- [x] **T2: Shared path following (AC 1, 6)**
+  - [x] Move `advanceAlongPath` from `src/sim/papa/walk.ts` to a new `src/sim/nav/followPath.ts`, typed on a structural `PathFollower` (`xM`, `zM`, `headingX`, `headingZ`, `path`, `pathIndex`) instead of `PapaSlice` (D6). Move its tests from `walk.test.ts` to `followPath.test.ts` unchanged in substance. `walk.ts` keeps `stepInDirection`; `papaSystem.ts` imports `advanceAlongPath` from `../nav/followPath.ts`. No behaviour change: the `papa_walk` golden events must not change because of this move (check before T5 changes the world).
+- [x] **T3: Baby in the sim (`src/sim/baby/`, AC 1 to 3, 6)**
+  - [x] Events (`events.ts`): `BabyStateChanged{t, from: BabyState, to: BabyState}`. No other baby event (D8).
+  - [x] `babyFsm.ts`: `BabyState = 'wander' | 'babble'` (D1) and `enterBabyState(world, ctx, next)`, the architecture's exact pattern (same as `enterPapaState`).
+  - [x] `World.baby` slice (Dev Notes › Baby in the World), created from `baby_spawn` (snapped to the nearest open cell of the baby's grid if its clearance closes it; an invariant if there is none), starting in `babble` with `wanderAt = feel.baby.babbleMinMs` (D2). Generalise `papaSpawnOf` in `createSim.ts` into one `spawnOf(geometry, grid, anchorId)` used for both; keep its two invariant messages naming the anchor.
+  - [x] `context.ts` / `createSim.ts`: `NavContext.baby: NavGrid`, built once with `clearanceM = feel.baby.bodyRadiusM` (D5). Keep `ctx.nav.papa` as it is.
+  - [x] `wander.ts` (+ test): pure `pickWanderCell(grid, xM, zM, minDistM, maxDistM, rng): number` (D4) and `planWander(baby, grid, cell): boolean` (A* + string pulling into a new `baby.path`, from the baby's exact position to the cell centre). Unit tests on `createTestNavGrid` (tiny hand-drawn grids, Dev Notes › Sim test cases).
+  - [x] `babySystem.ts` (+ test): `runBaby(world, ctx)` per Dev Notes › Movement rules. Reads `ctx.feel.baby` each step (a `SetFeel` changes speed, distances and durations at once; the radius only at the next level).
+  - [x] `step.ts`: `SYSTEMS = [applyCommands, advanceTime, runBaby, runPapa]` (its architecture slot: after the director, before threats and Papa). Update the comment and the pinned order in `step.test.ts`.
+  - [x] `snapshot.ts`: `worldProblem` checks the baby slice (`babyProblem`, same style as `papaProblem`; `BABY_STATES` list). No version bump (D9).
+  - [x] `index.ts`: export `BabyState` and `BabySlice` (the client view and the debug mirrors need them).
+- [x] **T4: Existing tests that see the baby now (AC 6)**
+  - [x] Every test that asserts an **exact** event list from a sim built with the real `SYSTEMS` filters to its own subject (D10): at least `src/sim/papa/papaSystem.test.ts` (`types(events)` → a `papaEvents()` filter); check `timeScale.test.ts`, `createSim.test.ts`, `replay.test.ts`, `snapshot.test.ts`, `determinism.test.ts`, `commandQueue.test.ts` and fix only those that fail. Never weaken what a test proves about its own subject. List each edit in the Completion Notes.
+- [x] **T5: Golden and determinism (AC 2, 5)**
+  - [x] New scenario `baby_wander` in `tests/golden/scenarios.ts` (Dev Notes › Golden scenario) and `tests/golden/babyWander.test.ts`, which pins what it covers (pattern of `papaWalk.test.ts`).
+  - [x] `npm run golden:update`: `core_basic` and `papa_walk` change (world shape, `BabyStateChanged` in `eventTypes`, `feelHash`), `baby_wander` is new. Review all three diffs; check that `papa_walk`'s **papa** events are identical to before (filter the old and new `eventTypes`), so only the baby was added. Say so in the Completion Notes.
+  - [x] `snapshot.test.ts`: a snapshot taken mid-wander (baby in `wander`, path half done), restored with its journal tail, gives the uninterrupted hash; a snapshot world without `baby` is refused with a message naming `world.baby`.
+- [x] **T6: Rendering (AC 4)**
+  - [x] `src/client/render/materials/palette.ts`: add `paper` (DESIGN.md `colors.paper`, `#FFFFFF`, doc line like the others).
+  - [x] `src/client/render/views/babyView.ts` (+ test of the pure maths): Dev Notes › Baby view. `babyPoseAt(baby, alpha, out)` interpolates with `interpolateXZ` and sets `yawRad = atan2(gazeX, gazeZ)`; `update(baby, alpha)` allocates nothing.
+  - [x] `levelScene.ts`: create the baby view next to Papa's; `update(world, alpha)` updates both. `createLevelScene(assets, bodies: { papaRadiusM, babyRadiusM })` (D11); update its doc comment and `LevelScene.update`'s (« Papa and the baby »).
+  - [x] `levelScene.test.ts`: the test « moves Papa with the sim, interpolated, and nothing else » becomes « moves Papa and the baby … »; add the baby to the toon-material test; the dispose test covers the baby's geometries. `levelSession.ts` / `levelSession.test.ts`: pass `{ papaRadiusM: feel.movement.papaRadiusM, babyRadiusM: feel.baby.bodyRadiusM }` to `createScene` (the fake's signature follows).
+- [x] **T7: Debug mirrors (AC 1, 4)**
+  - [x] `boot.ts` (only when `VITE_DEBUG_ALLOWED === 'true'`, event-driven, never per frame): `data-pp-baby-state` (from `BabyStateChanged`), `data-pp-baby-at` (`x,z` with 2 decimals, on `BabyStateChanged`, read from `levelSession.active.sim.world.baby`), both written once when a level enters `level` (`mirrorNewLevel`). Add the two names to the `mirror` union.
+- [x] **T8: End-to-end (AC 1, 4, 6)**
+  - [x] `tests/e2e/support/game.ts`: `babyAt(page)` (parses `data-pp-baby-at`, like `papaAt`).
+  - [x] `tests/e2e/baby.spec.ts` (new, chromium + webkit) per Dev Notes › E2E script.
+  - [x] Existing specs whose **message** claims Papa moved but whose check is a `sceneShot` comparison (the baby now changes the scene on its own): keep every assertion and add a check that is Papa's own, at least in `move.spec.ts` « Papa walks again after the resume », `pauseResume.spec.ts` steps 1 and 5, and the countdown test of `ui.spec.ts`. `data-pp-papa-at` is written on Papa's events only (`PapaStateChanged`, `PapaArrived`, `PapaBlocked`), not per frame: so prove the walk by its end (`walkPath` → `idle`, then `papaAt` differs from its value before the pause), or for a held key, release it after the resume and compare `papaAt` once `idle`. The « nothing moved while paused » `sceneShot` checks stay as they are (they now also prove the baby is frozen).
+- [x] **T9: Docs and verification (AC 7)**
+  - [x] `deferred-work.md`: mark « Clearance per agent from data » resolved in story 1.8 (the baby's radius and grid); move « Inverted-hull outline on Papa » to « Papa and the baby, art pass E7 »; add Dev Notes › Deferred by this story.
+  - [x] Run `npm run lint`, `npm run typecheck` and `npm test` after T3/T4 and after T6, not only at the end. Then `npm run ci` end to end.
+  - [x] Manual check in the built-in browser pane on `npm run dev` (844 × 390): the baby sits at its spawn, then crawls, stops, crawls again, never through furniture, never onto the stairs; its gaze marker faces where it goes; pause freezes it; « Recommencer » puts it back at the spawn; Papa still walks as before and passes through the baby. Screenshots are the evidence; say what was **not** checked (a real phone).
+  - [x] Break things to prove the guards bite, then restore: `babbleMinMs > babbleMaxMs` in a copy of the feel → `content:check` fails; a snapshot world with `baby.state: 'sleep'` → refused; a `Math.random()` in `babySystem.ts` → Biome and `simPurity` fail.
+  - [x] `git status`: only the files of the File List changed; nothing committed.
 
 ## Dev Notes
 
@@ -264,12 +268,101 @@ From `_bmad-output/project-context.md` and `CLAUDE.md`:
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), run through the `gds-dev-story` workflow on 2026-10-27.
+
 ### Debug Log References
+
+- T0: precondition checked (1.7 `done`, `git status` clean, `npm run ci` green at `0f387c7`).
+- The only red the baby caused in existing tests, before any edit to them: `papaSystem.test.ts › walls and obstacles › stops against the back wall…` (it asserted `run(sim, 200)` to equal `[]`, and the baby's `BabyStateChanged` is now in that stream). Everything else stayed green.
+- The `golden` tests went red as soon as `testFeel.json` gained the `baby` section (`feelHash` changed) and stayed red until T5's deliberate regeneration.
+- `babySystem.test.ts` « gaze » case failed first, on my test: the step that arrives already updates the gaze, so the babble keeps that value, not the last wander step I had sampled. Fixed the test, not the sim.
 
 ### Completion Notes List
 
+**What exists now**
+- Feel: `baby` section (`crawlSpeedMps`, `bodyRadiusM`, `babbleMinMs`, `babbleMaxMs`, `wanderMinDistM`, `wanderMaxDistM`) in `FeelSchema` (with `.describe` and the two `.refine`s), `content/feel.json`, `tests/support/testFeel.json` and the regenerated `content/_schemas/feel.schema.json`. Per the 1.7 review findings the schema bounds `crawlSpeedMps` by `MAX_CRAWL_SPEED_MPS` (= `MAX_WALK_SPEED_MPS`) and `bodyRadiusM` by `MAX_BABY_RADIUS_M` (1 m); both are new constants in `shared/constants.ts`. The unit-suffix guard in `feelSchema.test.ts` gets an explicit `DistM` entry (a length is spelled out, same as `RadiusM`); the pattern is not loosened otherwise.
+- Sim: `src/sim/baby/{babyFsm,wander,babySystem}.ts`, `World.baby` (`BabySlice`), `NavContext.baby` (one grid, clearance `feel.baby.bodyRadiusM`), `BabyStateChanged`, `SYSTEMS = [applyCommands, advanceTime, runBaby, runPapa]`, `spawnOf` generalised for both agents (same invariant messages, naming the anchor), `createWorld` now takes an options object, `babyProblem` in `snapshot.ts` (state, numbers, path and `pathIndex`, `babbling`, state ↔ path agreement, unit heading and gaze; no version bump, D9). `advanceAlongPath` moved to `nav/followPath.ts` on a structural `PathFollower` (D6).
+- Client: `PALETTE.paper`, `babyView.ts` (icosphere of `bodyRadiusM`, an ink cone as the gaze marker on a group that turns, a blob shadow; three draw calls), `createLevelScene(assets, { papaRadiusM, babyRadiusM })` (D11), `levelSession` passes the feel's radii.
+- Debug mirrors (`boot.ts`, `VITE_DEBUG_ALLOWED` only, event-driven): `data-pp-baby-state`, `data-pp-baby-at`, both also written when a level starts.
+- E2E: `tests/e2e/baby.spec.ts` (spawn, lives with no input, pause freezes it, « Recommencer » puts it back), `babyAt` and, in `support/game.ts`, `liveFeel` / `anchorMirror` / `WALK_BOUND_MS` read from the live files.
+
+**Choices worth knowing**
+- D4 as written, with one detail: the baby's own cell is excluded from the ring pass too (not only from the fallback), so a `wanderMinDistM` of 0 never picks « stay where you are ».
+- `runBaby` order inside a step: pick and plan (babble only), then move (wander, including a wander just entered), then gaze ← heading, then arrival. The pause drawn on arrival is the second `nextFloat` of a cycle; the destination is the first `nextInt`. This order is part of the golden.
+- `ensureOnOpenCell` (snap a baby in a closed cell, no event) only runs before planning, as for Papa's `tapFloor`.
+- **Biome does not forbid `Math.random` in `src/sim`** (its `noRestrictedGlobals` list holds `Date`, `performance`, `window`, `document`, `setTimeout`, `requestAnimationFrame`, `localStorage`); the `simPurity` architecture test does. The Task 9 line « Biome and `simPurity` fail » is only half true: I appended `Math.random()` to `babySystem.ts`, `simPurity` failed with « use `world.rng` », `npx biome lint` stayed silent, then I restored the file. I did not touch `biome.json` (golden rule).
+
+**Golden references: what changed and why (all deliberate, `npm run golden:update`)**
+- `core_basic`: new `feelHash` (the feel gained a section), world shape (`baby`), and 9 `BabyStateChanged` in its events (the baby lives during any scenario).
+- `papa_walk`: same reasons, 5 `BabyStateChanged`. Checked: filtering the new events to those that are not `BabyStateChanged` gives the **same `eventTypes` and the same `eventsHash` as the committed file before the change**, so only the baby was added (this also proves the `advanceAlongPath` move did not alter Papa).
+- `baby_wander` (new, seed 3, 30 s, no command): 10 events, five full cycles; `babyWander.test.ts` pins that it has no command, only baby events, the first set-off at the first step ≥ `babbleMinMs`, strict alternation.
+
+**Existing tests edited, and why**
+- `src/sim/papa/papaSystem.test.ts`: `run` drops `BabyStateChanged` (D10), with a comment; nothing weakened, every papa assertion is unchanged.
+- `src/sim/papa/walk.test.ts`: the `advanceAlongPath` cases moved to `src/sim/nav/followPath.test.ts`, same substance, now on a minimal `PathFollower`.
+- `src/sim/step.test.ts`: the pinned order gained `runBaby`.
+- `src/sim/snapshot.test.ts` (added: restore from mid-wander equals the live world; malformed or missing baby refused with a message naming the field) and `src/sim/replay.test.ts` (added: a level without `baby_spawn` is an `err`, not a throw).
+- `tests/content/feelSchema.test.ts`: `DistM` in the suffix rule, baby cases (each refine, speed 0 and above the cap, negative and oversized radius, negative pause, distance 0).
+- `src/client/render/levelScene.test.ts`: signature takes the bodies, baby meshes in the kept-names and toon-material tests, « moves Papa and the baby… » plus a baby-specific interpolation and gaze test. `src/client/app/levelSession.test.ts`: one new test that the scene gets the feel's two radii (the fakes ignore the second argument, so they did not change).
+- E2E, Papa's own proof now that the baby moves the picture on its own: `pauseResume.spec.ts` step 1 only claims « the scene moves » (Papa's own motion cannot be seen per frame, the mirrors being event-driven) and step 5 waits for his walk to end and requires `papaAt` ≠ where it began; `ui.spec.ts` countdown test, same; `move.spec.ts` « a key held through a pause walks again… » waits for Papa's blocked position to differ from where he started. **One more than the story listed:** `move.spec.ts` « Papa stops against a wall… » waited for a picture of the room that stops changing, which a babbling baby now gives while Papa still drifts, so it waits instead for the mirrored position to change (the `PapaBlocked` event). The « nothing moved while paused » `sceneShot` checks are untouched.
+- Untouched, as required: `biome.json`, `tests/architecture/*`, `boot.spec.ts`, `level.spec.ts`, `contentError.spec.ts`, every nav test.
+
+**Verification**
+- `npm run ci` green end to end (lint, typecheck, content check and schemas, `test:coverage` with the `src/sim` ≥ 90 % thresholds, Playwright 108 tests on chromium and webkit, both builds). `src/sim/baby` alone is at 92 % statements.
+- Guards proven to bite, then restored: `babbleMinMs` 9000 above `babbleMaxMs` → `content:check` fails (« babbleMinMs must not exceed babbleMaxMs »); `baby.state: 'sleep'` in a snapshot → refused (`world.baby.state`, in `snapshot.test.ts`); `Math.random()` in `babySystem.ts` → `simPurity` fails (Biome does not, see above).
+- Manual check in the built-in browser at 844 × 390 on `npm run dev`: the white sphere with its dark gaze marker sits at the spawn (`-0.50,1.20`, `babble`), sets off after a moment, crawls, sits again at a new spot, crawls again (several cycles read from `data-pp-baby-*`); « Pause » freezes its state and position for 6 s; « Recommencer » puts it back at `-0.50,1.20`, `babble`. Screenshots taken at each step.
+- **Not checked:** a real phone; by eye that the baby never crosses furniture or the stairs over a long run (the 60 s unit test checks every step is on an open cell of its grid); Papa passing through the baby on screen (the manual tap came after the baby had already moved off; the unit test « does not block Papa » proves it in the sim); gaze-marker legibility at the final art (a small ink cone, tunable at the top of `babyView.ts`).
+
+**Open points for Geo (from the story, unchanged):** the starting values of `baby` are guesses; radius 0.2 gives the same one-cell clearance as Papa; the gaze marker snaps at waypoints; Papa and the baby walk through each other; the baby may babble behind the sofa.
+
 ### File List
+
+New:
+- `src/sim/baby/babyFsm.ts`
+- `src/sim/baby/babySystem.ts`
+- `src/sim/baby/babySystem.test.ts`
+- `src/sim/baby/wander.ts`
+- `src/sim/baby/wander.test.ts`
+- `src/sim/nav/followPath.ts`
+- `src/sim/nav/followPath.test.ts`
+- `src/client/render/views/babyView.ts`
+- `src/client/render/views/babyView.test.ts`
+- `tests/e2e/baby.spec.ts`
+- `tests/golden/babyWander.test.ts`
+- `tests/golden/journals/baby_wander.json`
+- `tests/golden/journals/baby_wander.expected.json`
+
+Modified:
+- `_bmad-output/implementation-artifacts/1-8-le-bebe-vit-dans-le-salon.md`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `content/feel.json`
+- `content/_schemas/feel.schema.json` (generated)
+- `src/shared/constants.ts`
+- `src/content/schemas/feel.ts`
+- `src/sim/{world,context,createSim,step,snapshot,events,index}.ts`
+- `src/sim/papa/{papaSystem,walk}.ts`
+- `src/sim/papa/{papaSystem,walk}.test.ts`
+- `src/sim/{step,snapshot,replay}.test.ts`
+- `src/client/render/levelScene.ts`
+- `src/client/render/levelScene.test.ts`
+- `src/client/render/materials/palette.ts`
+- `src/client/app/levelSession.ts`
+- `src/client/app/levelSession.test.ts`
+- `src/client/boot.ts`
+- `tests/support/testFeel.json`
+- `tests/content/feelSchema.test.ts`
+- `tests/golden/scenarios.ts`
+- `tests/golden/journals/core_basic.json`
+- `tests/golden/journals/core_basic.expected.json`
+- `tests/golden/journals/papa_walk.json`
+- `tests/golden/journals/papa_walk.expected.json`
+- `tests/e2e/support/game.ts`
+- `tests/e2e/move.spec.ts`
+- `tests/e2e/pauseResume.spec.ts`
+- `tests/e2e/ui.spec.ts`
 
 ## Change Log
 
 - 2026-10-27: Story 1.8 created (ready-for-dev). Ultimate context engine analysis completed - comprehensive developer guide created.
+- 2026-10-27: Story 1.8 implemented (review): the baby wanders and babbles on its own grid, drawn as a provisional sphere with a gaze marker; `baby_wander` golden added, `core_basic` and `papa_walk` regenerated deliberately (papa events unchanged); `advanceAlongPath` moved to `nav/followPath`; debug mirrors and e2e added.

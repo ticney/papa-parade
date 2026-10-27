@@ -1,10 +1,11 @@
 import { STEP_MS } from '@shared/constants';
 import type { StepContext } from '../context.ts';
 import { findPath } from '../nav/astar.ts';
+import { advanceAlongPath } from '../nav/followPath.ts';
 import { smoothPath } from '../nav/smoothPath.ts';
 import type { World } from '../world.ts';
 import { enterPapaState } from './papaFsm.ts';
-import { advanceAlongPath, stepInDirection } from './walk.ts';
+import { stepInDirection } from './walk.ts';
 
 /**
  * Plans the walk to a tapped point (D7). The path ends exactly at the point when it is in an open

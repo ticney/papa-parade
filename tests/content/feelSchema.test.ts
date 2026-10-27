@@ -12,9 +12,10 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 
 // AC 1 lists the suffixes. The bare `fatigue.perSec` is the one documented exception (Dev Notes ›
 // Feel keys): the group name `fatigue` already carries the quantity.
-// `RadiusM` is metres (`papaRadiusM`): a length is spelled out, so a bare `M` does not pass.
+// `RadiusM` and `DistM` are metres (`papaRadiusM`, `wanderMaxDistM`): a length is spelled out, so a
+// bare `M` does not pass.
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM)$|^perSec$/;
+  /(?:Ms|Pct|PerSec|Mps|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM)$|^perSec$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -104,6 +105,36 @@ describe('content/feel.json', () => {
       ['movement.papaRadiusM'],
     ],
     ['a negative papa radius', [['movement.papaRadiusM', -0.1]], ['movement.papaRadiusM']],
+    ['a crawl speed of 0', [['baby.crawlSpeedMps', 0]], ['baby.crawlSpeedMps']],
+    ['a crawl speed that jumps walls', [['baby.crawlSpeedMps', 13]], ['baby.crawlSpeedMps']],
+    ['a negative baby radius', [['baby.bodyRadiusM', -0.1]], ['baby.bodyRadiusM']],
+    ['a baby radius that closes the room', [['baby.bodyRadiusM', 1.5]], ['baby.bodyRadiusM']],
+    [
+      'babble bounds in the wrong order',
+      [
+        ['baby.babbleMinMs', 5000],
+        ['baby.babbleMaxMs', 1000],
+      ],
+      ['baby.babbleMinMs'],
+    ],
+    ['a negative babble pause', [['baby.babbleMinMs', -1]], ['baby.babbleMinMs']],
+    [
+      'wander distances in the wrong order',
+      [
+        ['baby.wanderMinDistM', 4],
+        ['baby.wanderMaxDistM', 2],
+      ],
+      ['baby.wanderMinDistM'],
+    ],
+    ['a negative minimum wander distance', [['baby.wanderMinDistM', -1]], ['baby.wanderMinDistM']],
+    [
+      'a wander distance of 0',
+      [
+        ['baby.wanderMinDistM', 0],
+        ['baby.wanderMaxDistM', 0],
+      ],
+      ['baby.wanderMaxDistM'],
+    ],
     ['a stick deadzone of 100 %', [['input.stickDeadzonePct', 100]], ['input.stickDeadzonePct']],
     ['a negative stick deadzone', [['input.stickDeadzonePct', -1]], ['input.stickDeadzonePct']],
     ['a stick angle step of 0', [['input.stickAngleStepDeg', 0]], ['input.stickAngleStepDeg']],
@@ -136,6 +167,7 @@ describe('feel unit suffixes', () => {
     expect(UNIT_SUFFIX.test('speed')).toBe(false);
     expect(UNIT_SUFFIX.test('distanceM')).toBe(false);
     expect(UNIT_SUFFIX.test('papaRadiusM')).toBe(true);
+    expect(UNIT_SUFFIX.test('wanderMinDistM')).toBe(true);
     expect(UNIT_SUFFIX.test('windowMs')).toBe(true);
   });
 });

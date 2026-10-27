@@ -3,11 +3,13 @@ import { RESUME_COUNTDOWN_MS } from '../../src/shared/constants.ts';
 import {
   html,
   OVERRUN_MARGIN_MS,
+  papaAt,
   pauseButton,
   sceneShot,
   setVisibility,
   startLevel,
   startWalking,
+  WALK_BOUND_MS,
   waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
@@ -21,11 +23,14 @@ test('pauses in the background, stays paused when back, and resumes through the 
 }) => {
   await startLevel(page);
   await startWalking(page);
+  // Mirrored when the walk began: where Papa started.
+  const walkStart = await papaAt(page);
 
-  // 1. The loop steps and the renderer draws: Papa walks.
+  // 1. The loop steps and the renderer draw: the scene changes (the baby also moves on its own,
+  // so this does not prove Papa; step 5 does, by the end of his walk).
   const firstShot = await sceneShot(page);
   await expect
-    .poll(async () => (await sceneShot(page)).equals(firstShot), { message: 'Papa walks' })
+    .poll(async () => (await sceneShot(page)).equals(firstShot), { message: 'the scene moves' })
     .toBe(false);
   // Still on his way when the game is paused: what moves again after the resume is the walk.
   await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkPath');
@@ -80,10 +85,15 @@ test('pauses in the background, stays paused when back, and resumes through the 
   expect(countdownMs).toBeLessThanOrEqual(RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS);
   await expect(page.locator('.pp-pause-screen')).toHaveCount(0);
 
-  // 5. The sim runs again after the resume.
+  // 5. The sim runs again after the resume: the scene changes, and Papa's own walk goes on to its
+  // end (his position is mirrored on arrival).
   await expect
     .poll(async () => (await sceneShot(page)).equals(pausedShot), {
-      message: 'Papa walks again after the resume',
+      message: 'the scene moves again after the resume',
     })
     .toBe(false);
+  await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'idle', {
+    timeout: WALK_BOUND_MS,
+  });
+  expect(await papaAt(page)).not.toEqual(walkStart);
 });

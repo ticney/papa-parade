@@ -1,12 +1,21 @@
 {
   "untilSimMs": 30000,
-  "worldHash": "18cbfcf0d0c599",
+  "worldHash": "0a68b5fb0778c8",
   "eventTypes": [
     "TimeScaleChanged",
+    "BabyStateChanged",
+    "BabyStateChanged",
     "TimeScaleChanged",
     "TimeScaleChanged",
+    "BabyStateChanged",
+    "BabyStateChanged",
+    "BabyStateChanged",
     "TimeScaleChanged",
-    "TimeScaleChanged"
+    "BabyStateChanged",
+    "BabyStateChanged",
+    "TimeScaleChanged",
+    "BabyStateChanged",
+    "BabyStateChanged"
   ],
-  "eventsHash": "0c7432df426d5d"
+  "eventsHash": "1870e5ce045dcd"
 }

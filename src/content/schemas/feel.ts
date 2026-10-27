@@ -1,4 +1,9 @@
-import { MAX_PAPA_RADIUS_M, MAX_WALK_SPEED_MPS } from '@shared/constants';
+import {
+  MAX_BABY_RADIUS_M,
+  MAX_CRAWL_SPEED_MPS,
+  MAX_PAPA_RADIUS_M,
+  MAX_WALK_SPEED_MPS,
+} from '@shared/constants';
 import { z } from 'zod';
 
 // Every key of content/feel.json lives here. No `.default()`, `.optional()`, `.transform()` or
@@ -104,6 +109,49 @@ const MovementSchema = z
   })
   .describe('Papa movement (GDD §3).');
 
+const BabySchema = z
+  .strictObject({
+    crawlSpeedMps: z
+      .number()
+      .positive()
+      .max(MAX_CRAWL_SPEED_MPS)
+      .describe('Crawling speed while wandering, in metres per second.'),
+    bodyRadiusM: z
+      .number()
+      .min(0)
+      .max(MAX_BABY_RADIUS_M)
+      .describe(
+        "The baby's half width, in metres: its centre stays this far from furniture and walls, and the provisional sphere has this radius. Read once when the level starts: a `SetFeel` takes effect at the next level.",
+      ),
+    babbleMinMs: delayMs(
+      'Shortest sit-and-babble pause between two wanders, in ms; also the first pause when the level starts.',
+    ),
+    babbleMaxMs: delayMs('Longest sit-and-babble pause between two wanders, in ms.'),
+    wanderMinDistM: z
+      .number()
+      .min(0)
+      .describe(
+        'A new wander destination is at least this far from where the baby sits, in metres.',
+      ),
+    wanderMaxDistM: z
+      .number()
+      .positive()
+      .describe(
+        'A new wander destination is at most this far from where the baby sits, in metres.',
+      ),
+  })
+  .refine((baby) => baby.babbleMinMs <= baby.babbleMaxMs, {
+    path: ['babbleMinMs'],
+    error: 'babbleMinMs must not exceed babbleMaxMs',
+  })
+  .refine((baby) => baby.wanderMinDistM <= baby.wanderMaxDistM, {
+    path: ['wanderMinDistM'],
+    error: 'wanderMinDistM must not exceed wanderMaxDistM',
+  })
+  .describe(
+    'The baby exploring the room on its own (FR15, GDD › Micro-boucle: it wanders and babbles until it spots a danger).',
+  );
+
 const FatigueSchema = z
   .strictObject({
     perSec: z.number().min(0).describe('Fatigue gained per second, in points per second.'),
@@ -182,6 +230,7 @@ export const FeelSchema = z
     timing: TimingSchema,
     input: InputSchema,
     movement: MovementSchema,
+    baby: BabySchema,
     fatigue: FatigueSchema,
     instinct: InstinctSchema,
     difficulty: DifficultySchema,

@@ -1,5 +1,6 @@
 import type { InvariantViolation } from '@shared/invariant';
 import type { SimMs } from '@shared/time';
+import type { BabyState } from './baby/babyFsm.ts';
 import type { PapaState } from './papa/papaFsm.ts';
 
 /** Domain events pushed by the systems into `ctx.events`; `t` is sim time. */
@@ -11,4 +12,5 @@ export type SimEvent =
   | { type: 'PapaArrived'; t: SimMs; xM: number; zM: number }
   /** A direction walk ran into an obstacle and cannot move at all (once per blockage). */
   | { type: 'PapaBlocked'; t: SimMs; xM: number; zM: number }
+  | { type: 'BabyStateChanged'; t: SimMs; from: BabyState; to: BabyState }
   | InvariantViolation;

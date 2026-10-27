@@ -177,6 +177,53 @@
       "additionalProperties": false,
       "description": "Papa movement (GDD §3)."
     },
+    "baby": {
+      "type": "object",
+      "properties": {
+        "crawlSpeedMps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 12.5,
+          "description": "Crawling speed while wandering, in metres per second."
+        },
+        "bodyRadiusM": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "The baby's half width, in metres: its centre stays this far from furniture and walls, and the provisional sphere has this radius. Read once when the level starts: a `SetFeel` takes effect at the next level."
+        },
+        "babbleMinMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Shortest sit-and-babble pause between two wanders, in ms; also the first pause when the level starts."
+        },
+        "babbleMaxMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Longest sit-and-babble pause between two wanders, in ms."
+        },
+        "wanderMinDistM": {
+          "type": "number",
+          "minimum": 0,
+          "description": "A new wander destination is at least this far from where the baby sits, in metres."
+        },
+        "wanderMaxDistM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "A new wander destination is at most this far from where the baby sits, in metres."
+        }
+      },
+      "required": [
+        "crawlSpeedMps",
+        "bodyRadiusM",
+        "babbleMinMs",
+        "babbleMaxMs",
+        "wanderMinDistM",
+        "wanderMaxDistM"
+      ],
+      "additionalProperties": false,
+      "description": "The baby exploring the room on its own (FR15, GDD › Micro-boucle: it wanders and babbles until it spots a danger)."
+    },
     "fatigue": {
       "type": "object",
       "properties": {
@@ -431,6 +478,7 @@
     "timing",
     "input",
     "movement",
+    "baby",
     "fatigue",
     "instinct",
     "difficulty",

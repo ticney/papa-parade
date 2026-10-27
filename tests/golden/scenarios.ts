@@ -75,6 +75,14 @@ export const SCENARIOS: readonly Scenario[] = [
       { atStep: 1340, command: walkStop(13400) },
     ],
   },
+  {
+    // The baby on its own: no command at all. It sits and babbles, crawls to a drawn destination,
+    // sits again (the first `world.rng` draws of the sim), for several cycles.
+    name: 'baby_wander',
+    seed: 3,
+    untilSimMs: 30000,
+    actions: [],
+  },
 ];
 
 export interface Recording {

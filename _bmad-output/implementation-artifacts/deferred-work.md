@@ -108,9 +108,9 @@
 ## Deferred from: implementation of story 1-7-deplacer-papa (2026-10-27)
 
 - **Analog walking speed** from the stick magnitude. The stick walks at full speed past its deadzone (D5, Open point 3); a slow walk with a half push is a feel choice for Geo.
-- **Inverted-hull outline on Papa** (ADR-008 puts outlines on characters). With the baby (story 1.8) or the art pass (E7). Reason: Papa is a provisional cube.
+- **Papa and the baby, art pass E7: inverted-hull outline** (ADR-008 puts outlines on characters). Moved here by story 1.8: the baby is a provisional sphere too, so neither gets an outline before E7. Reason: both are provisional.
 - **Iso-flattened tap marker** (an ellipse lying on the floor) if Geo prefers it to the flat circle on screen (Open point 5).
-- **Clearance per agent from data** beyond `papaRadiusM`. The baby's radius and grid arrive with story 1.8 (`ctx.nav.baby`).
+- **Clearance per agent from data** beyond `papaRadiusM`. The baby's radius and grid arrive with story 1.8 (`ctx.nav.baby`). **Resolved in story 1.8:** `feel.baby.bodyRadiusM` and `ctx.nav.baby` (built once, with the baby's own clearance).
 - **Debug view of the open mask and the path** (story 2.1's navigation view). The client has the geometry; the sim keeps the grid in `ctx.nav`, outside `World`.
 - **A tap on a threat, the baby or an object** (hit-test priority threat > baby > object > floor): stories 1.11, 1.17 and the interactions of 1.19 / 1.20. `createHitTester` only picks the floor today.
 - **The Gamepad API is secure-context only.** Over plain `http://<LAN ip>` (a phone on `npm run dev --host`) `navigator.getGamepads` is missing: the game logs one `warn` and plays without a pad. Playtest over HTTPS (story 1.24) if a pad matters there.
@@ -123,3 +123,12 @@
 - **Papa's yaw has no smoothing** (shortest-arc turn, turn rate in `feel.json`). Reason: Papa is a provisional cube, art pass E7.
 - **E2E brittleness.** Taps are chosen by screen share and tied to the level art, `startWalking` walks only a few seconds (a `walkPath` assertion can race), the pause-gate tests are trivially true. Reason: resolve taps from the sim's nav grid when the e2e suite is reworked.
 - **Spawn in a tiny region.** `papaSpawnOf` takes the nearest open cell whatever its region. Reason: the current level is fine; add a « spawn region is the main region » check with the level validation, stories 1.10 / 1.21.
+
+## Deferred from: implementation of story 1-8-le-bebe-vit-dans-le-salon (2026-10-27)
+
+- **Inverted-hull outline** on Papa and the baby (ADR-008): art pass E7 (see the story 1.7 entry, moved there).
+- **Baby and Papa colliding** (Papa stepping round the baby, or the baby round Papa): each walks on its own grid and ignores the other (D5). A crawler blocking Papa's path would be a design question (Open point 4 of the story). Reason: not an AC; Geo decides with playtests.
+- **Hidden zones in wander:** the baby may wander behind the sofa (`behind_sofa`) while babbling; story 1.21 decides whether wander avoids hidden zones once silence exists.
+- **Smoothed turning** of the gaze marker and any crawl animation (bob, squash and stretch): E7. Reason: provisional art.
+- **Debug view of the baby's path and grid:** story 2.1's navigation view.
+- **E2E stability of « the scene changed » proofs.** The baby moves on its own, so a changing picture no longer proves that Papa walks; the specs that used it now also check Papa's own mirrored position (`papaAt`) at the end of his walk or at the wall. The mirrors are written on events only, so a per-frame proof of Papa's motion still needs `window.__PP__` (story 1.13).

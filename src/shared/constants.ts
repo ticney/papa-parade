@@ -91,6 +91,12 @@ export const MAX_WALK_SPEED_MPS = (NAV_CELL_M * 1000) / (2 * STEP_MS);
 /** Widest Papa may be, in metres: past this the clearance would close every cell of a room (feel schema). */
 export const MAX_PAPA_RADIUS_M = 1;
 
+/** Fastest the baby may crawl, in metres per second: the same per-step bound as Papa's walk (feel schema). */
+export const MAX_CRAWL_SPEED_MPS = MAX_WALK_SPEED_MPS;
+
+/** Widest the baby may be, in metres: past this the clearance would close every cell of a room (feel schema). */
+export const MAX_BABY_RADIUS_M = 1;
+
 /** A level's shipped payload (the optimised `.glb`) is at most this many bytes (NFR3: 3 MB). */
 export const LEVEL_PAYLOAD_MAX_BYTES = 3 * 1024 * 1024;
 

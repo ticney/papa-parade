@@ -268,6 +268,106 @@ describe('snapshot / restore', () => {
     expect(() => sim.restore(noPapa)).toThrow(/world\.papa is missing/);
   });
 
+  it('restores a snapshot taken mid-wander (path half done) to the same world as the live run', async () => {
+    const live = await createSim({ content, geometry, seed: 5 });
+    // Past the first babble, then until the baby is wandering with waypoints behind it.
+    for (let i = 0; i < 2000 && live.world.baby.state !== 'wander'; i++) live.step();
+    expect(live.world.baby.state).toBe('wander');
+    stepN(live, 20);
+    expect(live.world.baby.state).toBe('wander');
+    const snapshot = live.snapshot();
+    expect(snapshot.world.baby.path.length).toBeGreaterThan(0);
+    live.enqueue({ type: 'TapFloor', t: asSimMs(live.world.time.sim + 500), xM: 2, zM: 1 });
+    const tail = live.journal().entries.filter((e) => e.applyAt > snapshot.world.time.sim);
+    stepN(live, 3000);
+    live.drainEvents();
+
+    const restored = await createSim({ content, geometry, seed: 5 });
+    restored.restore(snapshot, tail);
+    stepN(restored, 3000);
+    expect(restored.world).toEqual(live.world);
+    expect(hashJson(restored.world)).toBe(hashJson(live.world));
+  });
+
+  it('refuses a snapshot whose baby slice is malformed or missing', async () => {
+    const sim = await createSim({ content, geometry, seed: 5 });
+    stepN(sim, 200); // wandering, so that the path rules apply
+    expect(sim.world.baby.state).toBe('wander');
+    const good = sim.snapshot();
+    const broken: [string, (baby: Record<string, unknown>) => void][] = [
+      [
+        'state',
+        (baby) => {
+          baby.state = 'sleep';
+        },
+      ],
+      [
+        'xM',
+        (baby) => {
+          baby.xM = Number.NaN;
+        },
+      ],
+      [
+        'wanderAt',
+        (baby) => {
+          baby.wanderAt = 'soon';
+        },
+      ],
+      [
+        'path',
+        (baby) => {
+          baby.path = [1];
+        },
+      ],
+      [
+        'pathIndex',
+        (baby) => {
+          baby.pathIndex = 99;
+        },
+      ],
+      [
+        'babbling',
+        (baby) => {
+          baby.babbling = 1;
+        },
+      ],
+      // The state and its data must agree.
+      [
+        'path',
+        (baby) => {
+          baby.path = [];
+        },
+      ],
+      [
+        'path',
+        (baby) => {
+          baby.state = 'babble';
+        },
+      ],
+      [
+        'heading',
+        (baby) => {
+          baby.headingX = 0;
+          baby.headingZ = 0;
+        },
+      ],
+      [
+        'gaze',
+        (baby) => {
+          baby.gazeX = 2;
+        },
+      ],
+    ];
+    for (const [name, damage] of broken) {
+      const snapshot = JSON.parse(JSON.stringify(good)) as typeof good;
+      damage(snapshot.world.baby as unknown as Record<string, unknown>);
+      expect(() => sim.restore(snapshot)).toThrow(new RegExp(`world\\.baby\\.${name}`));
+    }
+    const noBaby = JSON.parse(JSON.stringify(good)) as typeof good;
+    delete (noBaby.world as unknown as Record<string, unknown>).baby;
+    expect(() => sim.restore(noBaby)).toThrow(/world\.baby is missing/);
+  });
+
   it('refuses an unknown snapshot version', async () => {
     const sim = await createSim({ content, geometry, seed: 5 });
     const snapshot = sim.snapshot();

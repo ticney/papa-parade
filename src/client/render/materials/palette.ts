@@ -7,6 +7,8 @@ export const PALETTE = {
   cream: 0xfff4e3,
   /** DESIGN.md `colors.ink` (#2A2140). */
   ink: 0x2a2140,
+  /** DESIGN.md `colors.paper` (#FFFFFF). */
+  paper: 0xffffff,
   /** DESIGN.md `colors.primary` (#6D3FE0). */
   primary: 0x6d3fe0,
 } as const;

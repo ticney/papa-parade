@@ -81,9 +81,63 @@ function papaProblem(papa: unknown): string | null {
   return null;
 }
 
+const BABY_STATES: readonly unknown[] = ['wander', 'babble'];
+
+function isUnitVector(x: unknown, z: unknown): boolean {
+  if (typeof x !== 'number' || typeof z !== 'number') return false;
+  return Math.abs(Math.sqrt(x * x + z * z) - 1) <= 1e-6;
+}
+
+function babyProblem(baby: unknown): string | null {
+  if (typeof baby !== 'object' || baby === null) return 'world.baby is missing';
+  const slice = baby as Record<string, unknown>;
+  if (!BABY_STATES.includes(slice.state)) return 'world.baby.state';
+  for (const key of [
+    'enteredAt',
+    'xM',
+    'zM',
+    'prevXM',
+    'prevZM',
+    'headingX',
+    'headingZ',
+    'gazeX',
+    'gazeZ',
+    'wanderAt',
+  ]) {
+    if (typeof slice[key] !== 'number' || !Number.isFinite(slice[key])) {
+      return `world.baby.${key}`;
+    }
+  }
+  const { path } = slice;
+  if (!Array.isArray(path) || path.length % 2 !== 0) return 'world.baby.path';
+  if (!path.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+    return 'world.baby.path';
+  }
+  if (
+    !Number.isInteger(slice.pathIndex) ||
+    (slice.pathIndex as number) < 0 ||
+    (slice.pathIndex as number) * 2 > path.length
+  ) {
+    return 'world.baby.pathIndex';
+  }
+  if (typeof slice.babbling !== 'boolean') return 'world.baby.babbling';
+
+  // The state and the data it crawls on must agree.
+  if (slice.state === 'wander') {
+    if (path.length === 0 || (slice.pathIndex as number) * 2 >= path.length) {
+      return 'world.baby.path';
+    }
+  } else if (path.length !== 0) {
+    return 'world.baby.path';
+  }
+  if (!isUnitVector(slice.headingX, slice.headingZ)) return 'world.baby.heading';
+  if (!isUnitVector(slice.gazeX, slice.gazeZ)) return 'world.baby.gaze';
+  return null;
+}
+
 function worldProblem(world: unknown): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
-  const { time, rng, nextId, papa } = world as Record<string, unknown>;
+  const { time, rng, nextId, papa, baby } = world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
   if (typeof clock !== 'object' || clock === null) return 'world.time is missing';
   if (typeof clock.sim !== 'number' || !Number.isFinite(clock.sim)) return 'world.time.sim';
@@ -94,7 +148,7 @@ function worldProblem(world: unknown): string | null {
     if (!Number.isInteger(state[key])) return `world.rng.${key}`;
   }
   if (!Number.isInteger(nextId)) return 'world.nextId';
-  return papaProblem(papa);
+  return papaProblem(papa) ?? babyProblem(baby);
 }
 
 /** A deep copy of the snapshot's world, ready to become the live one. */

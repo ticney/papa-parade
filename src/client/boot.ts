@@ -171,6 +171,8 @@ export async function boot(): Promise<void> {
       | 'ppTextures'
       | 'ppPapaState'
       | 'ppPapaAt'
+      | 'ppBabyState'
+      | 'ppBabyAt'
       | 'ppTap',
     value: string,
   ): void => {
@@ -208,10 +210,22 @@ export async function boot(): Promise<void> {
       mirrorPapaAt();
     }
   };
+  // The baby's, the same way: on its state changes only, read from the live world.
+  const mirrorBabyAt = (): void => {
+    const baby = levelSession.active?.sim.world.baby;
+    if (baby !== undefined) mirror('ppBabyAt', `${baby.xM.toFixed(2)},${baby.zM.toFixed(2)}`);
+  };
+  const mirrorBabyEvent = (event: SimEvent): void => {
+    if (event.type !== 'BabyStateChanged') return;
+    mirror('ppBabyState', event.to);
+    mirrorBabyAt();
+  };
   // A new level begins at the spawn, idle, and has had no tap yet.
   const mirrorNewLevel = (): void => {
     mirror('ppPapaState', levelSession.active?.sim.world.papa.state ?? 'idle');
     mirrorPapaAt();
+    mirror('ppBabyState', levelSession.active?.sim.world.baby.state ?? 'babble');
+    mirrorBabyAt();
     delete document.documentElement.dataset.ppTap;
   };
 
@@ -249,7 +263,10 @@ export async function boot(): Promise<void> {
     },
     onSimEvent: (event) => {
       logSimEvent(event);
-      if (isMirrored) mirrorPapaEvent(event);
+      if (isMirrored) {
+        mirrorPapaEvent(event);
+        mirrorBabyEvent(event);
+      }
       // A key still held after a tap's path ends walks again.
       if (event.type === 'PapaArrived') inputMapper.resumeHeld();
     },

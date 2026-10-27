@@ -40,12 +40,18 @@ async function newSim(
   });
 }
 
-/** Runs `steps` steps and returns the events they emitted. */
+/**
+ * Runs `steps` steps and returns the events they emitted, less the baby's: this file proves Papa
+ * on the real system list, where the baby lives its own life (the baby's events are proved by
+ * `babySystem.test.ts` and the golden).
+ */
 function run(sim: Sim, steps: number): SimEvent[] {
   const events: SimEvent[] = [];
   for (let i = 0; i < steps; i++) {
     sim.step();
-    for (const event of sim.drainEvents()) events.push(event);
+    for (const event of sim.drainEvents()) {
+      if (event.type !== 'BabyStateChanged') events.push(event);
+    }
   }
   return events;
 }

@@ -13,11 +13,13 @@ import {
   html,
   OVERRUN_MARGIN_MS,
   openGame,
+  papaAt,
   pauseButton,
   sceneShot,
   settleAnimations,
   startLevel,
   startWalking,
+  WALK_BOUND_MS,
   waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
@@ -264,7 +266,9 @@ test.describe('pause', () => {
   }) => {
     await startLevel(page);
     await startWalking(page);
-    // Still on his way when the game is paused: what moves again after the countdown is the walk.
+    // Mirrored when the walk began: where Papa started.
+    const walkStart = await papaAt(page);
+    // Still on his way when the game is paused: what walks on after the countdown is the walk.
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkPath');
     await pauseWithEscape(page);
     const stillShot = await sceneShot(page);
@@ -294,6 +298,11 @@ test.describe('pause', () => {
         message: 'the sim runs again',
       })
       .toBe(false);
+    // The scene also changes when the baby moves: Papa's own proof is the end of his walk.
+    await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'idle', {
+      timeout: WALK_BOUND_MS,
+    });
+    expect(await papaAt(page)).not.toEqual(walkStart);
   });
 
   test('« Recommencer » restarts the level through loading with a new seed, and counts down', async ({
