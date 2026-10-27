@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "The level id; equals the file name and the id of its geometry."
+    },
+    "threats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "def": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "The id of a `content/threats/<def>.json`."
+          },
+          "anchor": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "An anchor of the level geometry, without the `ANCHOR_` prefix."
+          },
+          "fromMs": {
+            "type": "number",
+            "minimum": 0,
+            "description": "The director may target this threat from this sim time on, in sim ms."
+          }
+        },
+        "required": [
+          "def",
+          "anchor",
+          "fromMs"
+        ],
+        "additionalProperties": false,
+        "description": "One planned threat: what, where, and from when."
+      },
+      "description": "The threats the level plans, in order."
+    }
+  },
+  "required": [
+    "id",
+    "threats"
+  ],
+  "additionalProperties": false,
+  "description": "A level: the threats it plans."
+}

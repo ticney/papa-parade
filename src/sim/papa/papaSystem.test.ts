@@ -4,7 +4,11 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
-import { createTestContent, createTestGeometry } from '../../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+} from '../../../tests/support/testContent.ts';
 import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
@@ -36,6 +40,7 @@ async function newSim(
   return createSim({
     content: options.content ?? content,
     geometry: options.geometry ?? geometry,
+    level: createTestLevel(),
     seed: options.seed ?? 1,
   });
 }

@@ -111,7 +111,7 @@
             "fail",
             "guard"
           ],
-          "description": "What a press before the telegraph does: `fail` misses the threat, `guard` waits."
+          "description": "What a press before the window (minus tolerance and buffer) does: `fail` triggers the gag, `guard` starts the glide without a judgement."
         },
         "touchRadiusPx": {
           "type": "number",
@@ -211,6 +211,22 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "A new wander destination is at most this far from where the baby sits, in metres."
+        },
+        "lockMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How long the baby stares at its target, still, before it sets off (`targetLocked`), in ms."
+        },
+        "approachSpeedMps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 12.5,
+          "description": "Slowest approach speed towards a threat; the baby goes faster when it must to reach the target by the opening of the window, in metres per second."
+        },
+        "actMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How long the baby plays its mischief after a gag (`act`) before it babbles again, in ms."
         }
       },
       "required": [
@@ -219,7 +235,10 @@
         "babbleMinMs",
         "babbleMaxMs",
         "wanderMinDistM",
-        "wanderMaxDistM"
+        "wanderMaxDistM",
+        "lockMs",
+        "approachSpeedMps",
+        "actMs"
       ],
       "additionalProperties": false,
       "description": "The baby exploring the room on its own (FR15, GDD › Micro-boucle: it wanders and babbles until it spots a danger)."

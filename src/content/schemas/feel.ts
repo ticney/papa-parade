@@ -62,7 +62,9 @@ const InputSchema = z
     ),
     earlyPress: z
       .enum(['fail', 'guard'])
-      .describe('What a press before the telegraph does: `fail` misses the threat, `guard` waits.'),
+      .describe(
+        'What a press before the window (minus tolerance and buffer) does: `fail` triggers the gag, `guard` starts the glide without a judgement.',
+      ),
     touchRadiusPx: z
       .number()
       .positive()
@@ -139,6 +141,19 @@ const BabySchema = z
       .describe(
         'A new wander destination is at most this far from where the baby sits, in metres.',
       ),
+    lockMs: delayMs(
+      'How long the baby stares at its target, still, before it sets off (`targetLocked`), in ms.',
+    ),
+    approachSpeedMps: z
+      .number()
+      .positive()
+      .max(MAX_CRAWL_SPEED_MPS)
+      .describe(
+        'Slowest approach speed towards a threat; the baby goes faster when it must to reach the target by the opening of the window, in metres per second.',
+      ),
+    actMs: delayMs(
+      'How long the baby plays its mischief after a gag (`act`) before it babbles again, in ms.',
+    ),
   })
   .refine((baby) => baby.babbleMinMs <= baby.babbleMaxMs, {
     path: ['babbleMinMs'],

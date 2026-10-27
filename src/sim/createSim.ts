@@ -1,11 +1,11 @@
-import type { ContentBundle } from '@content/contentBundle';
+import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
-import type { StepContext, System } from './context.ts';
+import type { SimLevel, StepContext, System } from './context.ts';
 import type { SimEvent } from './events.ts';
 import {
   createJournal,
@@ -17,8 +17,9 @@ import {
 import { createNavGrid, type NavGrid } from './nav/navGrid.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
+import { GAG_IDS } from './threats/gags.ts';
 import { consumeFreeze, createFreezeState, requestFreeze } from './time/hitstop.ts';
-import { createWorld, type World } from './world.ts';
+import { allocateId, createWorld, type World } from './world.ts';
 
 export interface CreateSimOptions {
   content: ContentBundle;
@@ -27,6 +28,12 @@ export interface CreateSimOptions {
    * carries its hash and is refused on another room. Needed because a sim without a room has no Papa.
    */
   geometry: LevelGeometry;
+  /**
+   * What the level plans: its threats and their defs (`loadLevelContent`). A journal or snapshot
+   * carries its hash and is refused on another level, because the planned threats are part of what
+   * a replay needs. A level that plans nothing is fine.
+   */
+  level: LevelContent;
   /** An integer in `[0, 2**32)`. */
   seed: number;
   /** Replay mode: pre-loads these entries, with their recorded `applyAt`. Needs the same seed, feel and geometry. */
@@ -54,7 +61,7 @@ export interface Sim {
   snapshot(): SimSnapshot;
   /**
    * Replaces the world with a copy of the snapshot's (refused if it was taken by a sim with
-   * another seed, feel or geometry), and clears pending commands, events and freeze. The journal restarts
+   * another seed, feel, geometry or level), and clears pending commands, events and freeze. The journal restarts
    * from the snapshot time (`startSimMs`) and holds `tail`: the journal entries still to apply,
    * with their recorded `applyAt` (each must be later than the snapshot time). Re-enqueueing them
    * through `enqueue` would recompute `applyAt` and could apply a late command too early.
@@ -84,14 +91,44 @@ function spawnOf(
   return { xM: grid.centerXM(cell), zM: grid.centerZM(cell) };
 }
 
+/**
+ * What the level plans, checked against the room: it is the level of this geometry, every planned
+ * def is loaded, every anchor exists and every gag is one the sim knows. A level that breaks one is a
+ * broken level (`content:check` catches it statically).
+ */
+function simLevelOf(level: LevelContent, geometry: LevelGeometry): SimLevel {
+  invariant(
+    level.level.id === geometry.id,
+    `level ${level.level.id} was given the geometry of ${geometry.id}`,
+  );
+  return {
+    threats: level.level.threats.map((entry, index) => {
+      const where = `level ${level.level.id} › threats[${index}]`;
+      const def = Object.hasOwn(level.threats, entry.def) ? level.threats[entry.def] : undefined;
+      invariant(def !== undefined, `${where}: the threat ${entry.def} is not loaded`);
+      invariant(
+        geometry.anchors.some((anchor) => anchor.id === entry.anchor),
+        `${where}: threat ${entry.def} is planned at ${entry.anchor}, which ${geometry.id} does not have`,
+      );
+      invariant(
+        (GAG_IDS as readonly string[]).includes(def.gag),
+        `${where}: threat ${entry.def} has an unknown gag ${def.gag}`,
+      );
+      return { def, fromMs: entry.fromMs };
+    }),
+  };
+}
+
 /** Internal factory: tests inject extra systems here. The public API is {@link createSim}. */
 export async function createSimWithSystems(
   options: CreateSimOptions,
   systems: readonly System[],
 ): Promise<Sim> {
-  const { content, geometry, seed, journal: source } = options;
+  const { content, geometry, level, seed, journal: source } = options;
   const feelHash = hashJson(content.feel);
   const geometryHash = hashJson(geometry);
+  const levelHash = hashJson(level);
+  const simLevel = simLevelOf(level, geometry);
   const papaGrid = createNavGrid(geometry, content.feel.movement.papaRadiusM);
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
   let world = createWorld({
@@ -99,6 +136,23 @@ export async function createSimWithSystems(
     papaSpawn: spawnOf(geometry, papaGrid, 'papa_spawn', 'Papa'),
     babySpawn: spawnOf(geometry, babyGrid, 'baby_spawn', 'the baby'),
     firstWanderAt: asSimMs(content.feel.baby.babbleMinMs),
+  });
+  simLevel.threats.forEach((planned, index) => {
+    const entry = level.level.threats[index];
+    const anchor = geometry.anchors.find((candidate) => candidate.id === entry?.anchor);
+    invariant(entry !== undefined && anchor !== undefined, 'a planned threat has an anchor');
+    world.threats.push({
+      id: allocateId(world),
+      defId: planned.def.id,
+      anchorId: entry.anchor,
+      xM: anchor.positionM[0],
+      zM: anchor.positionM[2],
+      state: 'idle',
+      enteredAt: asSimMs(0),
+      windowOpenAt: asSimMs(0),
+      responseWindow: null,
+      press: null,
+    });
   });
   if (source) {
     const problem = journalProblem(source);
@@ -109,6 +163,7 @@ export async function createSimWithSystems(
       source.geometryHash === geometryHash,
       'the journal was recorded with another level geometry',
     );
+    invariant(source.levelHash === levelHash, 'the journal was recorded with another level');
     invariant(source.startSimMs === 0, 'only a journal recorded from the start can be replayed');
   }
 
@@ -125,6 +180,7 @@ export async function createSimWithSystems(
     queue,
     commands: [],
     nav: { papa: papaGrid, baby: babyGrid },
+    level: simLevel,
     strictInvariants: options.strictInvariants ?? defaultStrictInvariants(),
     get t() {
       return world.time.sim;
@@ -171,10 +227,10 @@ export async function createSimWithSystems(
       consumeFreeze(freeze, realMs);
     },
     snapshot() {
-      return takeSnapshot(world, seed, feelHash, geometryHash);
+      return takeSnapshot(world, seed, feelHash, geometryHash, levelHash);
     },
     restore(snapshot, tail = []) {
-      const restored = worldFromSnapshot(snapshot, seed, feelHash, geometryHash);
+      const restored = worldFromSnapshot(snapshot, seed, feelHash, geometryHash, levelHash);
       for (const entry of tail) {
         const problem = entryProblem(entry);
         invariant(problem === null, `invalid journal entry: ${String(problem)}`);
@@ -194,7 +250,7 @@ export async function createSimWithSystems(
       for (const entry of tail) record(entry);
     },
     journal() {
-      const copy = createJournal(seed, feelHash, geometryHash, startSimMs);
+      const copy = createJournal(seed, feelHash, geometryHash, levelHash, startSimMs);
       copy.entries = cloneJson(entries);
       return copy;
     },

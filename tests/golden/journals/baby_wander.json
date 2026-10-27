@@ -1,8 +1,9 @@
 {
-  "version": 2,
+  "version": 3,
   "seed": 3,
-  "feelHash": "0335f369b5172f",
+  "feelHash": "11bc9630ab0d27",
   "geometryHash": "05334996ba4b2c",
+  "levelHash": "0b4fdc3368fb29",
   "startSimMs": 0,
   "entries": []
 }

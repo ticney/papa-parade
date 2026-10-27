@@ -1,3 +1,5 @@
+import type { LevelContent } from '@content/contentBundle';
+import { createContentError } from '@content/contentError';
 import { createEmitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
@@ -5,7 +7,12 @@ import { createSim } from '@sim';
 import { Group, Scene } from 'three';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createFakeScheduler } from '../../../tests/support/fakeScheduler.ts';
-import { createTestContent, createTestGeometry } from '../../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+  outletEntry,
+} from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
 import type { LevelFx, LevelScene } from '../render/levelScene.ts';
@@ -38,6 +45,12 @@ const assetsOf = (id: string): LevelAssets => ({
   // The frozen living room: the sim needs a room where Papa has room to stand.
   geometry: { ...createTestGeometry(), id },
   model: new Group(),
+});
+
+/** The frozen living room's level, under the id the session asked for (its geometry carries the same). */
+const levelOf = (id: string, content: LevelContent = createTestLevel()): LevelContent => ({
+  ...content,
+  level: { ...content.level, id },
 });
 
 function setup(overrides: Partial<LevelSessionDeps> = {}) {
@@ -95,6 +108,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
       return createSim(options);
     },
     loadAssets: async (id) => ok(assetsOf(id)),
+    loadLevelContent: async (id) => ok(levelOf(id)),
     createScene: (assets) => {
       const record = { id: assets.id, scene: new Scene(), updates: 0, resets: 0, disposed: false };
       scenes.push(record);
@@ -157,6 +171,31 @@ describe('createLevelSession', () => {
     await session.start();
     expect(order).toEqual(['assets', 'sim']);
     expect(simGeometryId).toBe('salon_crawler');
+  });
+
+  it('loads the level in parallel with the assets and gives it to the sim', async () => {
+    const order: string[] = [];
+    let simLevel: LevelContent | undefined;
+    const loaded = levelOf('salon_crawler', createTestLevel([outletEntry(2000)]));
+    const { session, appFsm } = setup({
+      loadAssets: async (id) => {
+        order.push('assets');
+        return ok(assetsOf(id));
+      },
+      loadLevelContent: async () => {
+        order.push('level');
+        return ok(loaded);
+      },
+      createSim: (options) => {
+        order.push('sim');
+        simLevel = options.level;
+        return createSim(options);
+      },
+    });
+    await session.start();
+    expect(order).toEqual(['level', 'assets', 'sim']);
+    expect(simLevel).toBe(loaded);
+    expect(appFsm.state).toBe('level');
   });
 
   it('builds the scene with the body sizes of the feel', async () => {
@@ -468,6 +507,44 @@ describe('createLevelSession', () => {
         .slice(before)
         .filter((entry) => entry.level === 'error');
       expect(errors.map((entry) => entry.message)).toEqual(['cannot create the sim for the level']);
+    });
+
+    it('goes to oops with a warning that names the level and its problems when the level file is broken', async () => {
+      const warnSpy = vi.spyOn(log, 'warn');
+      const before = warnSpy.mock.calls.length;
+      const problems = [
+        { file: 'content/levels/salon_crawler.json', jsonPath: 'threats[0].def', message: 'no' },
+      ];
+      const { session, appFsm, scheduler, ready, sims } = setup({
+        loadLevelContent: async () => err(createContentError(problems)),
+      });
+      await session.start();
+      expect(appFsm.state).toBe('oops');
+      expect(scheduler.requested).toBe(0);
+      expect(ready).toEqual([]);
+      expect(sims()).toBe(0);
+      const warns = warnSpy.mock.calls.slice(before);
+      expect(warns).toEqual([
+        ['content', 'cannot load the level', { id: 'salon_crawler', problems }],
+      ]);
+      warnSpy.mockRestore();
+    });
+
+    it('a throwing loadLevelContent goes to oops with an error, and a retry works', async () => {
+      let first = true;
+      const { session, appFsm } = setup({
+        loadLevelContent: async (id) => {
+          if (first) {
+            first = false;
+            throw new Error('boom');
+          }
+          return ok(levelOf(id));
+        },
+      });
+      await session.start();
+      expect(appFsm.state).toBe('oops');
+      await session.start();
+      expect(appFsm.state).toBe('level');
     });
 
     it('goes to oops and starts no loop when the assets cannot be loaded', async () => {

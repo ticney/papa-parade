@@ -2,6 +2,8 @@ import { createRng, type RngState } from '@shared/rng';
 import { asSimMs, type SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
 import type { PapaState } from './papa/papaFsm.ts';
+import type { ThreatState } from './threats/threatFsm.ts';
+import type { EffectiveWindow } from './timing/effectiveWindow.ts';
 
 /** Papa: a point on the floor plane (y = 0) that walks on the navigation grid. */
 export interface PapaSlice {
@@ -25,6 +27,19 @@ export interface PapaSlice {
   dirZ: number;
   /** A direction walk that cannot move at all. */
   isBlocked: boolean;
+  /** The glide towards a threat that was pressed; non-null exactly in `glide`. Choreography only (P3). */
+  glide: PapaGlide | null;
+}
+
+/** Papa's glide to a pressed threat: it ends by `arriveAt` and never decides a judgement. */
+export interface PapaGlide {
+  threatId: number;
+  toXM: number;
+  toZM: number;
+  startedAt: SimMs;
+  /** May be off the step grid; Papa arrives at the first step at or after it. */
+  arriveAt: SimMs;
+  speedMps: number;
 }
 
 /** The baby: a point on the floor plane (y = 0) that crawls on its own grid and babbles. */
@@ -51,6 +66,41 @@ export interface BabySlice {
   wanderAt: SimMs;
   /** True while the baby makes its babble: wander and babble. Only a silent mischief clears it. */
   babbling: boolean;
+  /** The threat it locked on, from `targetLocked` to the end of the threat (`runBaby`'s own memory). */
+  targetThreatId: number | null;
+  /** Speed of the current approach, in metres per second; 0 outside `approach`. */
+  approachSpeedMps: number;
+}
+
+/** A response that was judged `perfect` or `success` and waits to be classified (Parry or Firmness). */
+export interface PendingPress {
+  t: SimMs;
+  quality: 'perfect' | 'success';
+  offsetMs: number;
+  /** The `Release` that ended it, or null while the finger is down. */
+  releasedAt: SimMs | null;
+}
+
+/**
+ * One planned threat (story 1.10 D5): created at `createSim`, one per entry of the level, and
+ * re-armed after each result. The def and `fromMs` stay in `ctx.level`, index-aligned with
+ * `world.threats`.
+ */
+export interface ThreatInstance {
+  id: number;
+  defId: string;
+  anchorId: string;
+  /** The anchor's position on the floor plane. */
+  xM: number;
+  zM: number;
+  state: ThreatState;
+  /** Sim time of the last state change. */
+  enteredAt: SimMs;
+  /** Telegraph entry plus the delay; 0 when idle. May be off the step grid. */
+  windowOpenAt: SimMs;
+  /** Frozen when the threat is telegraphed (a window that moves while read would be unfair); null when idle. */
+  responseWindow: EffectiveWindow | null;
+  press: PendingPress | null;
 }
 
 /**
@@ -69,6 +119,8 @@ export interface World {
   nextId: number;
   papa: PapaSlice;
   baby: BabySlice;
+  /** One per planned threat, in the level's order. */
+  threats: ThreatInstance[];
 }
 
 export interface WorldOptions {
@@ -98,6 +150,7 @@ export function createWorld({ seed, papaSpawn, babySpawn, firstWanderAt }: World
       dirX: 0,
       dirZ: 0,
       isBlocked: false,
+      glide: null,
     },
     baby: {
       state: 'babble',
@@ -114,7 +167,10 @@ export function createWorld({ seed, papaSpawn, babySpawn, firstWanderAt }: World
       pathIndex: 0,
       wanderAt: firstWanderAt,
       babbling: true,
+      targetThreatId: null,
+      approachSpeedMps: 0,
     },
+    threats: [],
   };
 }
 

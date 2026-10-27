@@ -1,63 +1,35 @@
 import { STEP_MS } from '@shared/constants';
 import type { StepContext } from '../context.ts';
-import { findPath } from '../nav/astar.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
-import { smoothPath } from '../nav/smoothPath.ts';
-import type { World } from '../world.ts';
+import type { ThreatInstance, World } from '../world.ts';
+import { startGlide } from './glide.ts';
 import { enterPapaState } from './papaFsm.ts';
+import { planWalkTo } from './planWalk.ts';
 import { stepInDirection } from './walk.ts';
 
 /**
- * Plans the walk to a tapped point (D7). The path ends exactly at the point when it is in an open
- * cell of Papa's region, else at the centre of the nearest open cell of that region, so a tap is
- * never unreachable. Replans from where Papa stands, in any state. A* failing anyway (it should
- * not) leaves Papa where he is.
+ * Walks to a tapped point (D7): see {@link planWalkTo} for where the path ends. A tap cancels a
+ * glide. A* failing anyway (it should not) leaves Papa where he is.
  */
 function tapFloor(world: World, ctx: StepContext, tapXM: number, tapZM: number): void {
   const { papa } = world;
-  const grid = ctx.nav.papa;
-
-  let startCell = grid.cellAt(papa.xM, papa.zM);
-  if (startCell < 0 || grid.open[startCell] !== 1) {
-    // Impossible after the spawn snapping, but cheap: stand on the nearest open cell of any region.
-    startCell = grid.nearestOpenCell(papa.xM, papa.zM, -1);
-    if (startCell < 0) return;
-    papa.xM = grid.centerXM(startCell);
-    papa.zM = grid.centerZM(startCell);
-  }
-  const region = grid.region[startCell] as number;
-
-  let goalCell = grid.cellAt(tapXM, tapZM);
-  let goalXM = tapXM;
-  let goalZM = tapZM;
-  if (goalCell < 0 || grid.region[goalCell] !== region) {
-    goalCell = grid.nearestOpenCell(tapXM, tapZM, region);
-    if (goalCell < 0) return;
-    goalXM = grid.centerXM(goalCell);
-    goalZM = grid.centerZM(goalCell);
-  }
-
-  const cells = grid.scratch.cells;
-  if (!findPath(grid, startCell, goalCell, cells)) return;
-  const path: number[] = []; // one per tap: it becomes part of the world
-  smoothPath(grid, cells, papa.xM, papa.zM, goalXM, goalZM, path);
-
-  papa.path = path;
-  papa.pathIndex = 0;
+  const goal = planWalkTo(papa, ctx, tapXM, tapZM);
+  if (goal === null) return;
   papa.dirX = 0;
   papa.dirZ = 0;
   papa.isBlocked = false;
+  papa.glide = null;
   ctx.events.push({
     type: 'PapaPathPlanned',
     t: world.time.sim,
-    targetXM: goalXM,
-    targetZM: goalZM,
-    waypointCount: path.length / 2,
+    targetXM: goal.goalXM,
+    targetZM: goal.goalZM,
+    waypointCount: papa.path.length / 2,
   });
   enterPapaState(world, ctx, 'walkPath');
 }
 
-/** A direction cancels a path. A new direction while already walking one only updates it. */
+/** A direction cancels a path and a glide. A new direction while already walking one only updates it. */
 function move(world: World, ctx: StepContext, dirX: number, dirZ: number): void {
   // Scaled by the larger component first, so that a huge (or tiny) finite vector neither overflows
   // nor underflows when squared.
@@ -76,11 +48,26 @@ function move(world: World, ctx: StepContext, dirX: number, dirZ: number): void 
   papa.dirZ = nextZ;
   papa.headingX = papa.dirX;
   papa.headingZ = papa.dirZ;
-  if (papa.state === 'walkPath') {
+  if (papa.state === 'walkPath' || papa.state === 'glide') {
     papa.path.length = 0;
     papa.pathIndex = 0;
   }
+  papa.glide = null;
   enterPapaState(world, ctx, 'walkDir');
+}
+
+/**
+ * A press on a threat that has been telegraphed (and not yet re-armed) sends Papa gliding to it, whatever the
+ * judgement says (D11): the client starts the glide at `pointerdown`, before any judgement, and the two must not
+ * contradict. A press on an unknown or idle threat does nothing.
+ */
+function pressThreat(world: World, ctx: StepContext, threatId: number): void {
+  for (let i = 0; i < world.threats.length; i++) {
+    const threat = world.threats[i] as ThreatInstance;
+    if (threat.id !== threatId) continue;
+    if (threat.state !== 'idle') startGlide(world, ctx, threat);
+    return;
+  }
 }
 
 /** Releasing a key only stops a direction walk: it must not cancel a tap made meanwhile (D6). */
@@ -95,8 +82,9 @@ function moveStop(world: World, ctx: StepContext): void {
 
 /**
  * System: Papa. Remembers where he stood (for the view's interpolation), handles this step's
- * `TapFloor` / `Move` / `MoveStop` in order, then moves him once by `walkSpeedMps` for one step.
- * The speed is read each step, so a changed feel applies at once.
+ * `TapFloor` / `Move` / `MoveStop` / `PressThreat` in order, then moves him once for one step: by
+ * `walkSpeedMps`, or by the speed of his glide. The speed is read each step, so a changed feel
+ * applies at once.
  */
 export function runPapa(world: World, ctx: StepContext): void {
   const { papa } = world;
@@ -109,6 +97,7 @@ export function runPapa(world: World, ctx: StepContext): void {
     if (command.type === 'TapFloor') tapFloor(world, ctx, command.xM, command.zM);
     else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
     else if (command.type === 'MoveStop') moveStop(world, ctx);
+    else if (command.type === 'PressThreat') pressThreat(world, ctx, command.threatId);
   }
 
   const budgetM = (ctx.feel.movement.walkSpeedMps * STEP_MS) / 1000;
@@ -116,6 +105,14 @@ export function runPapa(world: World, ctx: StepContext): void {
     if (advanceAlongPath(papa, budgetM)) {
       papa.path.length = 0;
       papa.pathIndex = 0;
+      ctx.events.push({ type: 'PapaArrived', t: world.time.sim, xM: papa.xM, zM: papa.zM });
+      enterPapaState(world, ctx, 'idle');
+    }
+  } else if (papa.state === 'glide' && papa.glide !== null) {
+    if (advanceAlongPath(papa, (papa.glide.speedMps * STEP_MS) / 1000)) {
+      papa.path.length = 0;
+      papa.pathIndex = 0;
+      papa.glide = null;
       ctx.events.push({ type: 'PapaArrived', t: world.time.sim, xM: papa.xM, zM: papa.zM });
       enterPapaState(world, ctx, 'idle');
     }

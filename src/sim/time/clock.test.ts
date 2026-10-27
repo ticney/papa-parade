@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createTestContent,
   createTestGeometry,
+  createTestLevel,
   stepN,
 } from '../../../tests/support/testContent.ts';
 import { createSim } from '../createSim.ts';
@@ -11,6 +12,7 @@ describe('advanceTime', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     const seen: number[] = [];

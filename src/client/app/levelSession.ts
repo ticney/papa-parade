@@ -1,4 +1,5 @@
-import type { ContentBundle } from '@content/contentBundle';
+import type { ContentBundle, LevelContent } from '@content/contentBundle';
+import type { ContentError } from '@content/contentError';
 import { DEFAULT_LEVEL_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
@@ -42,6 +43,11 @@ export interface LevelSessionDeps {
   levelId?: string;
   /** Default: the real `createSim`. */
   createSim?(options: CreateSimOptions): Promise<Sim>;
+  /**
+   * Reads and validates the level's JSON (`loadLevelContent` on the browser's content source). Runs
+   * in parallel with the assets and the sounds; it never logs, so the session logs a failure.
+   */
+  loadLevelContent(id: string): Promise<Result<LevelContent, ContentError>>;
   /** Default: the real `loadLevelAssets`. It logs its own failures. */
   loadAssets?(id: string): Promise<Result<LevelAssets, AppError>>;
   /** Default: the real `createLevelScene`. */
@@ -68,8 +74,8 @@ export interface LevelSession {
    */
   readonly active: ActiveLevel | null;
   /**
-   * Loads and starts a level: `loading` (the assets first, then the sim, which needs the level's
-   * geometry), the level's scene, then the wait for the foreground, then `level`, which always
+   * Loads and starts a level: `loading` (the assets and the level's JSON first, then the sim, which needs the level's
+   * geometry and threats), the level's scene, then the wait for the foreground, then `level`, which always
    * begins through the resume countdown. A failed load goes to `oops`. Called again, it restarts.
    * Ignored while a start is in flight (a second tap on « Recommencer » must not start two levels).
    */
@@ -141,6 +147,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         appFsm.enter('loading');
         // Both start now and are awaited below: the sound loads while the `.glb` does.
         const audioLoad = settle(() => deps.loadAudio?.() ?? Promise.resolve());
+        const levelLoad = settle(() => deps.loadLevelContent(levelId));
         const assets = await settle(() => loadAssets(levelId));
         if (isStale()) return;
         if (!assets.ok) {
@@ -154,15 +161,39 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           appFsm.enter('oops');
           return;
         }
+        const levelContent = await levelLoad;
+        if (isStale()) return;
+        if (!levelContent.ok) {
+          log.error('boot', 'loading the level content threw', {
+            id: levelId,
+            error: levelContent.error,
+          });
+          appFsm.enter('oops');
+          return;
+        }
+        if (!levelContent.value.ok) {
+          log.warn('content', 'cannot load the level', {
+            id: levelId,
+            problems: levelContent.value.error.problems,
+          });
+          appFsm.enter('oops');
+          return;
+        }
         const audio = await audioLoad;
         if (isStale()) return;
         if (!audio.ok)
           log.warn('audio', 'loading the level sounds threw: starting without them', audio.error);
         // The sim needs the level's geometry (Papa's navigation grid), so it comes after the assets.
         const levelAssets = assets.value.value;
+        const levelPlan = levelContent.value.value;
         const seed = deps.newSeed();
         const simResult = await settle(() =>
-          makeSim({ content: deps.content, geometry: levelAssets.geometry, seed }),
+          makeSim({
+            content: deps.content,
+            geometry: levelAssets.geometry,
+            level: levelPlan,
+            seed,
+          }),
         );
         if (isStale()) return;
         if (!simResult.ok) {

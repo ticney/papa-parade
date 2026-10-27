@@ -1,0 +1,15 @@
+{
+  "$schema": "../_schemas/threat.schema.json",
+  "id": "outlet",
+  "response": "parry",
+  "telegraphDelayMs": 1200,
+  "windowMs": null,
+  "gag": "outlet_hair",
+  "feedback": {
+    "telegraph": "tel_outlet",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_outlet"
+  },
+  "cooldownMs": 6000
+}

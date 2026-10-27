@@ -1,24 +1,31 @@
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
-import { createTestContent, createTestGeometry, stepN } from '../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+  outletEntry,
+  stepN,
+} from '../../tests/support/testContent.ts';
 import type { System } from './context.ts';
 import { createSim, createSimWithSystems } from './createSim.ts';
 import { SYSTEMS } from './step.ts';
 
 const content = createTestContent();
 const geometry = createTestGeometry();
+const level = createTestLevel();
 
 describe('createSim', () => {
   it('advances exactly 1000 ms in 100 steps', async () => {
-    const sim = await createSim({ content, geometry, seed: 42 });
+    const sim = await createSim({ content, geometry, level, seed: 42 });
     expect(sim.world.time.sim).toBe(0);
     stepN(sim, 100);
     expect(sim.world.time.sim).toBe(1000);
   });
 
   it('keeps World as plain serializable data, at creation and after 100 steps', async () => {
-    const sim = await createSim({ content, geometry, seed: 42 });
+    const sim = await createSim({ content, geometry, level, seed: 42 });
     expect(JSON.parse(JSON.stringify(sim.world))).toEqual(sim.world);
     stepN(sim, 100);
     expect(JSON.parse(JSON.stringify(sim.world))).toEqual(sim.world);
@@ -27,12 +34,12 @@ describe('createSim', () => {
 
   it('rejects a bad seed', async () => {
     for (const seed of [-1, 1.5, Number.NaN]) {
-      await expect(createSim({ content, geometry, seed })).rejects.toThrow();
+      await expect(createSim({ content, geometry, level, seed })).rejects.toThrow();
     }
   });
 
   it('exposes timeScale 1 at start', async () => {
-    expect((await createSim({ content, geometry, seed: 1 })).timeScale).toBe(1);
+    expect((await createSim({ content, geometry, level, seed: 1 })).timeScale).toBe(1);
   });
 });
 
@@ -42,7 +49,10 @@ describe('drainEvents', () => {
   };
 
   it('returns the events once, then an empty array, reusing the same array', async () => {
-    const sim = await createSimWithSystems({ content, geometry, seed: 1 }, [...SYSTEMS, emit]);
+    const sim = await createSimWithSystems({ content, geometry, level, seed: 1 }, [
+      ...SYSTEMS,
+      emit,
+    ]);
     stepN(sim, 3);
     const first = sim.drainEvents();
     expect(first.map((e) => e.t)).toEqual([10, 20, 30]);
@@ -52,7 +62,10 @@ describe('drainEvents', () => {
   });
 
   it('accumulates when nobody drains', async () => {
-    const sim = await createSimWithSystems({ content, geometry, seed: 1 }, [...SYSTEMS, emit]);
+    const sim = await createSimWithSystems({ content, geometry, level, seed: 1 }, [
+      ...SYSTEMS,
+      emit,
+    ]);
     stepN(sim, 5);
     stepN(sim, 5);
     expect(sim.drainEvents()).toHaveLength(10);
@@ -65,7 +78,7 @@ describe('freeze', () => {
   };
 
   it('exposes the remaining freeze, consumed by the client, and never blocks step()', async () => {
-    const sim = await createSimWithSystems({ content, geometry, seed: 1 }, [
+    const sim = await createSimWithSystems({ content, geometry, level, seed: 1 }, [
       ...SYSTEMS,
       requestAtFirstStep,
     ]);
@@ -82,11 +95,11 @@ describe('freeze', () => {
   });
 
   it('is not part of World: a never-consumed freeze does not change the hash', async () => {
-    const withFreeze = await createSimWithSystems({ content, geometry, seed: 1 }, [
+    const withFreeze = await createSimWithSystems({ content, geometry, level, seed: 1 }, [
       ...SYSTEMS,
       requestAtFirstStep,
     ]);
-    const without = await createSim({ content, geometry, seed: 1 });
+    const without = await createSim({ content, geometry, level, seed: 1 });
     stepN(withFreeze, 10);
     stepN(without, 10);
     expect(hashJson(withFreeze.world)).toBe(hashJson(without.world));
@@ -95,31 +108,38 @@ describe('freeze', () => {
 
 describe('journal option', () => {
   it('refuses a journal recorded with another seed, feel, geometry or version', async () => {
-    const source = await createSim({ content, geometry, seed: 7 });
+    const source = await createSim({ content, geometry, level, seed: 7 });
     source.enqueue({ type: 'SetTimeScale', t: asSimMs(0), scale: 0.5 });
     const journal = source.journal();
-    await expect(createSim({ content, geometry, seed: 8, journal })).rejects.toThrow(/seed/);
+    await expect(createSim({ content, geometry, level, seed: 8, journal })).rejects.toThrow(/seed/);
     await expect(
-      createSim({ content, geometry, seed: 7, journal: { ...journal, feelHash: 'x' } }),
+      createSim({ content, geometry, level, seed: 7, journal: { ...journal, feelHash: 'x' } }),
     ).rejects.toThrow(/feel/);
     await expect(
-      createSim({ content, geometry, seed: 7, journal: { ...journal, geometryHash: 'x' } }),
+      createSim({ content, geometry, level, seed: 7, journal: { ...journal, geometryHash: 'x' } }),
     ).rejects.toThrow(/another level geometry/);
     await expect(
-      createSim({ content, geometry, seed: 7, journal: { ...journal, version: 1 as 2 } }),
+      createSim({ content, geometry, level, seed: 7, journal: { ...journal, levelHash: 'x' } }),
+    ).rejects.toThrow(/another level$/);
+    await expect(
+      createSim({ content, geometry, level, seed: 7, journal: { ...journal, version: 2 as 3 } }),
+    ).rejects.toThrow(/story 1\.10/);
+    await expect(
+      createSim({ content, geometry, level, seed: 7, journal: { ...journal, version: 1 as 3 } }),
     ).rejects.toThrow(/version 1/);
     const movedWall = { ...geometry, id: 'other_room' };
-    await expect(createSim({ content, geometry: movedWall, seed: 7, journal })).rejects.toThrow(
-      /another level geometry/,
-    );
+    const otherLevel = { ...level, level: { ...level.level, id: 'other_room' } };
+    await expect(
+      createSim({ content, level: otherLevel, geometry: movedWall, seed: 7, journal }),
+    ).rejects.toThrow(/another level geometry/);
   });
 
   it('pre-loads the entries with their recorded applyAt', async () => {
-    const source = await createSim({ content, geometry, seed: 7 });
+    const source = await createSim({ content, geometry, level, seed: 7 });
     stepN(source, 100);
     source.enqueue({ type: 'SetTimeScale', t: asSimMs(980), scale: 0.5 });
     const journal = source.journal();
-    const replay = await createSim({ content, geometry, seed: 7, journal });
+    const replay = await createSim({ content, geometry, level, seed: 7, journal });
     stepN(replay, 100);
     expect(replay.timeScale).toBe(1);
     replay.step();
@@ -130,11 +150,82 @@ describe('journal option', () => {
 
 describe('journal()', () => {
   it('returns a deep copy: editing it does not rewrite history', async () => {
-    const sim = await createSim({ content, geometry, seed: 7 });
+    const sim = await createSim({ content, geometry, level, seed: 7 });
     sim.enqueue({ type: 'SetTimeScale', t: asSimMs(10), scale: 0.5 });
     const copy = sim.journal();
     copy.entries.length = 0;
     expect(sim.journal().entries).toHaveLength(1);
-    expect(sim.journal()).toMatchObject({ version: 2, seed: 7, feelHash: hashJson(content.feel) });
+    expect(sim.journal()).toMatchObject({ version: 3, seed: 7, feelHash: hashJson(content.feel) });
+  });
+});
+
+describe('the level it plans', () => {
+  const planning = createTestLevel([outletEntry(2000), outletEntry(9000)]);
+  const defOf = () => {
+    const def = planning.threats.outlet;
+    if (def === undefined) throw new Error('no outlet');
+    return def;
+  };
+
+  it('creates one idle instance per entry, in level order, with ids from the world and the anchor’s position', async () => {
+    const sim = await createSim({ content, geometry, level: planning, seed: 1 });
+    const outlet = geometry.anchors.find((anchor) => anchor.id === 'outlet_01');
+    expect(sim.world.threats).toEqual([
+      {
+        id: 1,
+        defId: 'outlet',
+        anchorId: 'outlet_01',
+        xM: outlet?.positionM[0],
+        zM: outlet?.positionM[2],
+        state: 'idle',
+        enteredAt: 0,
+        windowOpenAt: 0,
+        responseWindow: null,
+        press: null,
+      },
+      expect.objectContaining({ id: 2, defId: 'outlet', state: 'idle' }),
+    ]);
+    expect(sim.world.nextId).toBe(3);
+  });
+
+  it('plans nothing for a level that plans nothing', async () => {
+    const sim = await createSim({ content, geometry, level, seed: 1 });
+    expect(sim.world.threats).toEqual([]);
+    expect(sim.world.nextId).toBe(1);
+  });
+
+  it('refuses a level of another room, naming both', async () => {
+    const other = { ...level, level: { ...level.level, id: 'other_room' } };
+    await expect(createSim({ content, geometry, level: other, seed: 1 })).rejects.toThrow(
+      /other_room.*salon_crawler/,
+    );
+  });
+
+  it('refuses a planned threat whose def is not loaded', async () => {
+    const missing = { ...planning, threats: {} };
+    await expect(createSim({ content, geometry, level: missing, seed: 1 })).rejects.toThrow(
+      /threats\[0\].*outlet is not loaded/,
+    );
+  });
+
+  it('refuses an anchor the room does not have, naming the level, the def and the anchor', async () => {
+    const wrong = createTestLevel([{ ...outletEntry(0), anchor: 'outlet_02' }]);
+    await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
+      /salon_crawler.*threats\[0\].*outlet.*outlet_02/,
+    );
+  });
+
+  it('refuses a gag the sim does not know', async () => {
+    const odd = { ...planning, threats: { outlet: { ...defOf(), gag: 'outlet_hairs' } } };
+    await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
+      /unknown gag outlet_hairs/,
+    );
+  });
+
+  it('hashes the level into the journal and the snapshot', async () => {
+    const sim = await createSim({ content, geometry, level: planning, seed: 1 });
+    expect(sim.journal().levelHash).toBe(hashJson(planning));
+    expect(sim.snapshot().levelHash).toBe(hashJson(planning));
+    expect(sim.snapshot().levelHash).not.toBe(hashJson(level));
   });
 });

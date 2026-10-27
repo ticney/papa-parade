@@ -1,8 +1,11 @@
 import type { StepContext } from '../context.ts';
 import type { World } from '../world.ts';
 
-/** `walkPath`: following the waypoints of a tap. `walkDir`: pushed in a direction by keys or stick. */
-export type PapaState = 'idle' | 'walkPath' | 'walkDir';
+/**
+ * `walkPath`: following the waypoints of a tap. `walkDir`: pushed in a direction by keys or stick.
+ * `glide`: sliding to a pressed threat (P3: choreography, the response was judged at the press).
+ */
+export type PapaState = 'idle' | 'walkPath' | 'walkDir' | 'glide';
 
 /**
  * The only way to change `world.papa.state` (same pattern as the baby's `enterBabyState`): does

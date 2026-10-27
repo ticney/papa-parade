@@ -1,13 +1,16 @@
-import type { ContentBundle } from '@content/contentBundle';
+import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
+import { createTestLevel, outletEntry } from '../support/testContent.ts';
 
 /** A recorded live game: commands are enqueued at given steps, as the client would. */
 export interface Scenario {
   name: string;
+  /** What the level plans: `createTestLevel()` for a scenario without threats. */
+  level: LevelContent;
   seed: number;
   untilSimMs: number;
   /** Enqueued just before step number `atStep` (0 = before the first step). */
@@ -33,6 +36,12 @@ const walk = (t: number, dirX: number, dirZ: number): SimCommand => ({
   dirZ,
 });
 const walkStop = (t: number): SimCommand => ({ type: 'MoveStop', t: asSimMs(t) });
+const pressOutlet = (t: number): SimCommand => ({
+  type: 'PressThreat',
+  t: asSimMs(t),
+  threatId: 1,
+});
+const release = (t: number): SimCommand => ({ type: 'Release', t: asSimMs(t) });
 
 export const SCENARIOS: readonly Scenario[] = [
   {
@@ -40,6 +49,7 @@ export const SCENARIOS: readonly Scenario[] = [
     // (t older than the sim time at enqueue), an off-grid t and a future command. Later stories
     // add scenarios with real gameplay (the first one in story 1.10).
     name: 'core_basic',
+    level: createTestLevel(),
     seed: 42,
     untilSimMs: 30000,
     actions: [
@@ -57,6 +67,7 @@ export const SCENARIOS: readonly Scenario[] = [
     // wall (the one PapaBlocked), a diagonal Move that walks away from it (sliding along a wall is
     // pinned in `papaSystem.test.ts`), a TapFloor during a direction walk, and a command with an off-grid, already past `t`.
     name: 'papa_walk',
+    level: createTestLevel(),
     seed: 7,
     untilSimMs: 15000,
     actions: [
@@ -79,9 +90,34 @@ export const SCENARIOS: readonly Scenario[] = [
     // The baby on its own: no command at all. It sits and babbles, crawls to a drawn destination,
     // sits again (the first `world.rng` draws of the sim), for several cycles.
     name: 'baby_wander',
+    level: createTestLevel(),
     seed: 3,
     untilSimMs: 30000,
     actions: [],
+  },
+  {
+    // The outlet, planned from 2 s, over four cycles; the first scenario that draws from the rng
+    // (the baby wanders and babbles between cycles) and allocates ids. The times are read from a
+    // first recording (telegraphs at 2000, 9410, 16320 and 23900; the window opens 1200 ms later,
+    // its centre 150 ms after that) and written down as literals:
+    //  1. a perfect Parry (press at the centre of the window, released 50 ms later);
+    //  2. a press far too early: gag `early`, Papa already at the wall (a zero-length glide);
+    //  3. nothing pressed: gag `late`; Papa is sent away with a tap (he is far for the next cycle);
+    //  4. a perfect Parry whose press reaches the sim 150 ms after its own `t` (late enqueue: judged
+    //     on `t`), then a TapFloor in the middle of the glide, which cancels it.
+    name: 'outlet_parry',
+    level: createTestLevel([outletEntry(2000)]),
+    seed: 11,
+    untilSimMs: 30000,
+    actions: [
+      { atStep: 200, command: pressOutlet(3350) },
+      { atStep: 200, command: release(3400) },
+      { atStep: 1030, command: pressOutlet(10300) },
+      { atStep: 1800, command: tapFloor(18000, 2.5, 1.5) },
+      { atStep: 2540, command: pressOutlet(25250) },
+      { atStep: 2540, command: release(25300) },
+      { atStep: 2548, command: tapFloor(25500, 0.5, -2.6) },
+    ],
   },
 ];
 
@@ -105,7 +141,7 @@ export async function recordScenario(
       throw new Error(`${scenario.name}: action at step ${atStep} is outside [0, ${steps})`);
     }
   }
-  const sim = await createSim({ content, geometry, seed: scenario.seed });
+  const sim = await createSim({ content, geometry, level: scenario.level, seed: scenario.seed });
   const events: SimEvent[] = [];
   for (let i = 0; i < steps; i++) {
     for (const action of scenario.actions) if (action.atStep === i) sim.enqueue(action.command);

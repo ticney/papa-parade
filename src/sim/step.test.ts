@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createTestContent, createTestGeometry } from '../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+} from '../../tests/support/testContent.ts';
 import type { System } from './context.ts';
 import { createSimWithSystems } from './createSim.ts';
 import { SYSTEMS } from './step.ts';
@@ -9,7 +13,9 @@ describe('system order', () => {
     expect(SYSTEMS.map((system) => system.name)).toEqual([
       'applyCommands',
       'advanceTime',
+      'runDirector',
       'runBaby',
+      'runThreats',
       'runPapa',
     ]);
   });
@@ -19,7 +25,12 @@ describe('system order', () => {
     const first: System = () => calls.push('first');
     const second: System = () => calls.push('second');
     const sim = await createSimWithSystems(
-      { content: createTestContent(), geometry: createTestGeometry(), seed: 1 },
+      {
+        content: createTestContent(),
+        geometry: createTestGeometry(),
+        level: createTestLevel(),
+        seed: 1,
+      },
       [first, second],
     );
     sim.step();

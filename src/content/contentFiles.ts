@@ -1,8 +1,11 @@
 import type { z } from 'zod';
+import { SNAKE_ID_PATTERN } from './levelNodeNames.ts';
 import { type FeedbackTable, FeedbackTableSchema } from './schemas/feedback.ts';
 import { type Feel, FeelSchema } from './schemas/feel.ts';
+import { type Level, LevelSchema } from './schemas/level.ts';
 import { type LevelGeometry, LevelGeometrySchema } from './schemas/levelGeometry.ts';
 import { type Strings, StringsSchema } from './schemas/strings.ts';
+import { type ThreatDef, ThreatDefSchema } from './schemas/threat.ts';
 
 export interface ContentFile<T> {
   /** Relative to `content/` (`'feel.json'`, later `'threats/outlet.json'`). */
@@ -61,17 +64,41 @@ export const LEVEL_GEOMETRY_PATTERN: ContentPattern<LevelGeometry> = {
   schema: LevelGeometrySchema,
 };
 
-export const CONTENT_PATTERNS: readonly ContentPattern<unknown>[] = [LEVEL_GEOMETRY_PATTERN];
+export const THREAT_DEF_PATTERN: ContentPattern<ThreatDef> = {
+  dir: 'threats',
+  suffix: '.json',
+  schemaName: 'threat',
+  schema: ThreatDefSchema,
+};
 
-/** The pattern a file (relative to `content/`) belongs to, with the id its name carries. */
+export const LEVEL_PATTERN: ContentPattern<Level> = {
+  dir: 'levels',
+  suffix: '.json',
+  schemaName: 'level',
+  schema: LevelSchema,
+};
+
+/** `LEVEL_GEOMETRY_PATTERN` goes before `LEVEL_PATTERN`: both live in `levels/`. */
+export const CONTENT_PATTERNS: readonly ContentPattern<unknown>[] = [
+  LEVEL_GEOMETRY_PATTERN,
+  THREAT_DEF_PATTERN,
+  LEVEL_PATTERN,
+];
+
+/**
+ * The pattern a file (relative to `content/`) belongs to, with the id its name carries. An id is
+ * `lower_snake_case`: `levels/salon_crawler.geometry.json` is a geometry, never a level whose id
+ * would be `salon_crawler.geometry`.
+ */
 export function matchContentPattern(
   file: string,
+  patterns: readonly ContentPattern<unknown>[] = CONTENT_PATTERNS,
 ): { pattern: ContentPattern<unknown>; id: string } | undefined {
-  for (const pattern of CONTENT_PATTERNS) {
+  for (const pattern of patterns) {
     const prefix = `${pattern.dir}/`;
     if (!file.startsWith(prefix) || !file.endsWith(pattern.suffix)) continue;
     const id = file.slice(prefix.length, file.length - pattern.suffix.length);
-    if (id !== '' && !id.includes('/')) return { pattern, id };
+    if (SNAKE_ID_PATTERN.test(id)) return { pattern, id };
   }
   return undefined;
 }

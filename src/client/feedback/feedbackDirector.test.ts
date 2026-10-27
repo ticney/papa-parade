@@ -3,7 +3,11 @@ import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import { createSim, type World } from '@sim';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { createTestContent, createTestGeometry } from '../../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+} from '../../../tests/support/testContent.ts';
 import type { LevelFx } from '../render/levelScene.ts';
 import { createFeedbackDirector } from './feedbackDirector.ts';
 
@@ -15,7 +19,12 @@ beforeAll(() => {
 const warnSpy = vi.spyOn(log, 'warn');
 
 const world: World = (
-  await createSim({ content: createTestContent(), geometry: createTestGeometry(), seed: 1 })
+  await createSim({
+    content: createTestContent(),
+    geometry: createTestGeometry(),
+    level: createTestLevel(),
+    seed: 1,
+  })
 ).world;
 world.time.sim = asSimMs(4200);
 

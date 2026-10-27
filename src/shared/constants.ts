@@ -136,3 +136,6 @@ export const TIME_MAP_MAX_EXTRAPOLATION_MS = 100;
 
 /** Sound-wave rings the level scene can show at once; a fifth wave reuses the oldest (they cost no draw call at rest). */
 export const SOUND_WAVE_POOL_SIZE = 4;
+
+/** A window modifier that changes nothing: fatigue and instinct (stories 1.19 and 2.9) stay at it until their systems exist. */
+export const NEUTRAL_WINDOW_MODIFIER = 1;

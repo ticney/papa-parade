@@ -1,10 +1,15 @@
-import type { ContentBundle } from '@content/contentBundle';
+import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
-import { STEP_MS } from '@shared/constants';
+import { MAX_CRAWL_SPEED_MPS, STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
-import { createTestContent, createTestGeometry } from '../../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+  outletEntry,
+} from '../../../tests/support/testContent.ts';
 import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
@@ -19,11 +24,17 @@ const grid = createNavGrid(geometry, FEEL.bodyRadiusM);
 type BabyChange = Extract<SimEvent, { type: 'BabyStateChanged' }>;
 
 async function newSim(
-  options: { content?: ContentBundle; geometry?: LevelGeometry; seed?: number } = {},
+  options: {
+    content?: ContentBundle;
+    geometry?: LevelGeometry;
+    level?: LevelContent;
+    seed?: number;
+  } = {},
 ): Promise<Sim> {
   return createSim({
     content: options.content ?? content,
     geometry: options.geometry ?? geometry,
+    level: options.level ?? createTestLevel(),
     seed: options.seed ?? 1,
   });
 }
@@ -333,5 +344,203 @@ describe('when no destination can be planned', () => {
         expect(gap).toBeLessThan(FEEL.babbleMaxMs + STEP_MS);
       }
     });
+  });
+});
+
+describe('with a threat to watch', () => {
+  const OUTLET_ID = 1;
+  const { lockMs, actMs, approachSpeedMps } = FEEL;
+  const outletLevel = (fromMs = 0) => createTestLevel([outletEntry(fromMs)]);
+  const outlet = anchor('outlet_01');
+  const dist = (x: number, z: number) => Math.hypot(outlet[0] - x, outlet[2] - z);
+  const threatOf = (sim: Sim) => sim.world.threats[0];
+  const babyTo = (events: readonly SimEvent[], to: string) =>
+    babyEvents(events).find((event) => event.to === to);
+
+  async function withOutlet(fromMs = 0, options: Parameters<typeof newSim>[0] = {}) {
+    return newSim({ level: outletLevel(fromMs), ...options });
+  }
+
+  it('locks on the telegraphed threat in the very step it is telegraphed, gaze first', async () => {
+    const sim = await withOutlet(0);
+    const events = run(sim, 1);
+    expect(events.map((event) => event.type)).toEqual(['ThreatTelegraphed', 'BabyStateChanged']);
+    expect(babyEvents(events)).toEqual([
+      { type: 'BabyStateChanged', t: 10, from: 'babble', to: 'targetLocked' },
+    ]);
+    const baby = babyOf(sim);
+    expect(baby.targetThreatId).toBe(OUTLET_ID);
+    // It stares at the outlet, from where it sits, and does not move.
+    const [x, , z] = anchor('baby_spawn');
+    const length = dist(x, z);
+    expect(baby.gazeX).toBeCloseTo((outlet[0] - x) / length, 9);
+    expect(baby.gazeZ).toBeCloseTo((outlet[2] - z) / length, 9);
+    expect([baby.xM, baby.zM]).toEqual([x, z]);
+    expect(baby.path).toEqual([]);
+  });
+
+  it('stays still for lockMs, then sets off in the first step at or after it', async () => {
+    const sim = await withOutlet(0);
+    const [x, , z] = anchor('baby_spawn');
+    run(sim, 1); // telegraphed and locked at 10
+    const staring = run(sim, stepsFor(lockMs) - 1);
+    expect(babyEvents(staring)).toEqual([]);
+    expect([babyOf(sim).xM, babyOf(sim).zM]).toEqual([x, z]);
+    const events = run(sim, 1);
+    expect(babyEvents(events)).toEqual([
+      { type: 'BabyStateChanged', t: 10 + lockMs, from: 'targetLocked', to: 'approach' },
+    ]);
+    expect(babyOf(sim).path.length).toBeGreaterThan(0);
+  });
+
+  it('sets off in the same step when lockMs is 0', async () => {
+    const instant = createTestContent();
+    instant.feel.baby.lockMs = 0;
+    const sim = await withOutlet(0, { content: instant });
+    const events = run(sim, 1);
+    expect(babyEvents(events).map((event) => event.to)).toEqual(['targetLocked', 'approach']);
+  });
+
+  it('approaches the outlet and gets as close as its body allows, by the opening of the window', async () => {
+    const sim = await withOutlet(0);
+    run(sim, stepsFor(lockMs) + 1);
+    const { windowOpenAt } = threatOf(sim) as { windowOpenAt: number };
+    run(sim, stepsFor(windowOpenAt) - sim.world.time.sim / STEP_MS);
+    const baby = babyOf(sim);
+    expect(baby.state).toBe('approach');
+    expect(baby.path).toEqual([]);
+    const cell = grid.nearestOpenCell(outlet[0], outlet[2], -1);
+    expect(dist(baby.xM, baby.zM)).toBeLessThanOrEqual(
+      dist(grid.centerXM(cell), grid.centerZM(cell)) + 1e-9,
+    );
+    // It looks at the outlet.
+    const length = dist(baby.xM, baby.zM);
+    expect(baby.gazeX).toBeCloseTo((outlet[0] - baby.xM) / length, 9);
+    expect(baby.gazeZ).toBeCloseTo((outlet[2] - baby.zM) / length, 9);
+  });
+
+  it('goes at the speed that makes the opening of the window when that is more than approachSpeedMps', async () => {
+    const sim = await withOutlet(0);
+    run(sim, stepsFor(lockMs) + 1);
+    const { windowOpenAt } = threatOf(sim) as { windowOpenAt: number };
+    const baby = babyOf(sim);
+    const remainingS = (windowOpenAt - baby.enteredAt) / 1000;
+    expect(baby.approachSpeedMps).toBeGreaterThan(approachSpeedMps);
+    // Still at the start of its path: the length is what it must cover in the time left.
+    let lengthM = 0;
+    let [x, z] = [anchor('baby_spawn')[0], anchor('baby_spawn')[2]];
+    for (let i = 0; i < baby.path.length; i += 2) {
+      lengthM += Math.hypot((baby.path[i] as number) - x, (baby.path[i + 1] as number) - z);
+      x = baby.path[i] as number;
+      z = baby.path[i + 1] as number;
+    }
+    expect(baby.approachSpeedMps).toBeCloseTo(lengthM / remainingS, 6);
+    expect(baby.approachSpeedMps).toBeLessThanOrEqual(MAX_CRAWL_SPEED_MPS);
+  });
+
+  it('takes approachSpeedMps when the window is far away', async () => {
+    const slow = createTestContent();
+    const level = outletLevel(0);
+    const def = level.threats.outlet;
+    if (def === undefined) throw new Error('no outlet');
+    const sim = await newSim({
+      content: slow,
+      level: { ...level, threats: { outlet: { ...def, telegraphDelayMs: 60_000 } } },
+    });
+    run(sim, stepsFor(lockMs) + 1);
+    expect(babyOf(sim).approachSpeedMps).toBe(approachSpeedMps);
+    // And it crawls no faster than that each step.
+    const [x0, z0] = [babyOf(sim).xM, babyOf(sim).zM];
+    run(sim, 1);
+    expect(Math.hypot(babyOf(sim).xM - x0, babyOf(sim).zM - z0)).toBeLessThanOrEqual(
+      (approachSpeedMps * STEP_MS) / 1000 + 1e-9,
+    );
+  });
+
+  it('takes the cap when the window is already open', async () => {
+    const quick = createTestContent();
+    const level = outletLevel(0);
+    const def = level.threats.outlet;
+    if (def === undefined) throw new Error('no outlet');
+    const sim = await newSim({
+      content: quick,
+      level: { ...level, threats: { outlet: { ...def, telegraphDelayMs: 100 } } },
+    });
+    run(sim, stepsFor(lockMs) + 1);
+    expect(babyOf(sim).state).toBe('approach');
+    expect(babyOf(sim).approachSpeedMps).toBe(MAX_CRAWL_SPEED_MPS);
+  });
+
+  it('is interrupted in the middle of a wander: the path is dropped and it stares', async () => {
+    const sim = await withOutlet(FEEL.babbleMinMs + 200);
+    run(sim, stepsFor(FEEL.babbleMinMs) + 5);
+    expect(babyOf(sim).state).toBe('wander');
+    expect(babyOf(sim).path.length).toBeGreaterThan(0);
+    const events = run(sim, stepsFor(300));
+    expect(babyEvents(events)[0]).toMatchObject({ from: 'wander', to: 'targetLocked' });
+  });
+
+  it('after a success it babbles again, then wanders after its pause', async () => {
+    const sim = await withOutlet(0);
+    run(sim, 2);
+    const { windowOpenAt, responseWindow } = threatOf(sim) as {
+      windowOpenAt: number;
+      responseWindow: { windowMs: number };
+    };
+    const center = windowOpenAt + responseWindow.windowMs / 2;
+    sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId: OUTLET_ID });
+    sim.enqueue({ type: 'Release', t: asSimMs(center + 30) });
+    const events = run(sim, stepsFor(center + 30 + 200) - 2);
+    const babble = babyTo(events, 'babble');
+    expect(babble).toBeDefined();
+    expect(babble?.t).toBeGreaterThan(center + 30);
+    expect(babyOf(sim).targetThreatId).toBeNull();
+    expect(babyOf(sim).state).toBe('babble');
+    expect(babyOf(sim).wanderAt).toBeGreaterThanOrEqual(babble?.t as number);
+    // And then it goes back to its wandering.
+    const later = run(sim, stepsFor(FEEL.babbleMaxMs) + 20);
+    expect(babyTo(later, 'wander')).toBeDefined();
+  });
+
+  it('after a gag it plays act for actMs, then babbles', async () => {
+    const sim = await withOutlet(0);
+    const events = run(sim, stepsFor(4000));
+    const act = babyTo(events, 'act');
+    expect(act).toBeDefined();
+    const babble = babyEvents(events).find(
+      (event) => event.from === 'act' && event.to === 'babble',
+    );
+    expect(babble).toBeDefined();
+    expect((babble?.t as number) - (act?.t as number)).toBeGreaterThanOrEqual(actMs);
+    expect((babble?.t as number) - (act?.t as number)).toBeLessThan(actMs + STEP_MS);
+    expect(babyOf(sim).targetThreatId).toBeNull();
+    expect(babyOf(sim).approachSpeedMps).toBe(0);
+    expect(babyOf(sim).path).toEqual([]);
+  });
+
+  it('plays its act in the very step after an early gag, wherever it is', async () => {
+    const sim = await withOutlet(0);
+    run(sim, 5);
+    const { windowOpenAt } = threatOf(sim) as { windowOpenAt: number };
+    sim.enqueue({ type: 'PressThreat', t: asSimMs(windowOpenAt - 500), threatId: OUTLET_ID });
+    const events = run(sim, 120);
+    expect(babyEvents(events).map((event) => event.to)).toContain('act');
+    const gag = events.find((event) => event.type === 'GagTriggered') as { t: number };
+    expect((babyTo(events, 'act') as { t: number }).t).toBe(gag.t + STEP_MS);
+  });
+
+  it('babbles on all the time (story 1.21 owns silence)', async () => {
+    const sim = await withOutlet(0);
+    for (let i = 0; i < stepsFor(9000); i++) {
+      sim.step();
+      expect(babyOf(sim).babbling).toBe(true);
+    }
+  });
+
+  it('with no threat planned behaves exactly as before (same events, same trajectory)', async () => {
+    const plain = await newSim({ seed: 9 });
+    const empty = await newSim({ seed: 9, level: createTestLevel() });
+    expect(run(plain, stepsFor(20000))).toEqual(run(empty, stepsFor(20000)));
+    expect(hashJson(plain.world)).toBe(hashJson(empty.world));
   });
 });

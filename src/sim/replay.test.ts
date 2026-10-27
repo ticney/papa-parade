@@ -1,7 +1,13 @@
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
-import { createTestContent, createTestGeometry, stepN } from '../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+  outletEntry,
+  stepN,
+} from '../../tests/support/testContent.ts';
 import { createSim } from './createSim.ts';
 import type { SimEvent } from './events.ts';
 import type { Journal, JournalEntry } from './journal.ts';
@@ -9,11 +15,12 @@ import { replayJournal } from './replay.ts';
 
 const content = createTestContent();
 const geometry = createTestGeometry();
+const level = createTestLevel();
 const scale = (t: number, value: number) =>
   ({ type: 'SetTimeScale', t: asSimMs(t), scale: value }) as const;
 
 async function liveGame() {
-  const sim = await createSim({ content, geometry, seed: 11 });
+  const sim = await createSim({ content, geometry, level, seed: 11 });
   const events: SimEvent[] = [];
   const drain = () => {
     for (const event of sim.drainEvents()) events.push(event);
@@ -33,7 +40,7 @@ describe('replayJournal', () => {
     const journal = live.sim.journal();
     expect(journal.entries.find((e) => e.command.t === 480)?.applyAt).toBe(510);
 
-    const replay = await replayJournal({ content, geometry, journal, untilSimMs: 3000 });
+    const replay = await replayJournal({ content, geometry, level, journal, untilSimMs: 3000 });
     expect(replay.ok).toBe(true);
     if (!replay.ok) return;
     expect(hashJson(replay.value.sim.world)).toBe(hashJson(live.sim.world));
@@ -44,7 +51,7 @@ describe('replayJournal', () => {
   it('would diverge if the late command were replayed by t instead of applyAt', async () => {
     const live = await liveGame();
     const journal = live.sim.journal();
-    const naive = await createSim({ content, geometry, seed: 11 });
+    const naive = await createSim({ content, geometry, level, seed: 11 });
     for (const entry of journal.entries) naive.enqueue(entry.command);
     const naiveEvents: SimEvent[] = [];
     for (let i = 0; i < 300; i++) {
@@ -57,6 +64,7 @@ describe('replayJournal', () => {
   it('rounds an untilSimMs that is not a multiple of the step up to the next step', async () => {
     const live = await liveGame();
     const replay = await replayJournal({
+      level,
       content,
       geometry,
       journal: live.sim.journal(),
@@ -84,6 +92,7 @@ describe('replayJournal', () => {
     ];
     for (const [needle, value] of bad) {
       const result = await replayJournal({
+        level,
         content,
         geometry,
         journal: value as Journal,
@@ -93,7 +102,7 @@ describe('replayJournal', () => {
       expect(!result.ok && result.error.message).toContain(needle);
     }
     for (const untilSimMs of [Number.POSITIVE_INFINITY, Number.NaN]) {
-      expect(await replayJournal({ content, geometry, journal, untilSimMs })).toMatchObject({
+      expect(await replayJournal({ content, geometry, level, journal, untilSimMs })).toMatchObject({
         ok: false,
         error: { kind: 'journal' },
       });
@@ -101,10 +110,11 @@ describe('replayJournal', () => {
   });
 
   it('refuses a journal that does not start at 0 (a restored sim)', async () => {
-    const sim = await createSim({ content, geometry, seed: 11 });
+    const sim = await createSim({ content, geometry, level, seed: 11 });
     stepN(sim, 5);
     sim.restore(sim.snapshot());
     const result = await replayJournal({
+      level,
       content,
       geometry,
       journal: sim.journal(),
@@ -117,6 +127,7 @@ describe('replayJournal', () => {
   it('stops at untilSimMs', async () => {
     const live = await liveGame();
     const replay = await replayJournal({
+      level,
       content,
       geometry,
       journal: live.sim.journal(),
@@ -135,6 +146,7 @@ describe('replayJournal', () => {
       },
     };
     const feelResult = await replayJournal({
+      level,
       content: otherFeel,
       geometry,
       journal,
@@ -143,9 +155,10 @@ describe('replayJournal', () => {
     expect(feelResult).toMatchObject({ ok: false, error: { kind: 'journal' } });
 
     const versionResult = await replayJournal({
+      level,
       content,
       geometry,
-      journal: { ...journal, version: 1 as 2 },
+      journal: { ...journal, version: 1 as 3 },
       untilSimMs: 100,
     });
     expect(versionResult).toMatchObject({
@@ -162,6 +175,7 @@ describe('replayJournal', () => {
     };
     const forged = { ...journal, geometryHash: hashJson(noSpawn) };
     const result = await replayJournal({
+      level,
       content,
       geometry: noSpawn,
       journal: forged,
@@ -181,6 +195,7 @@ describe('replayJournal', () => {
     };
     const forged = { ...journal, geometryHash: hashJson(noBaby) };
     const result = await replayJournal({
+      level,
       content,
       geometry: noBaby,
       journal: forged,
@@ -206,6 +221,7 @@ describe('replayJournal', () => {
     const journal = (await liveGame()).sim.journal();
     const forged = { ...journal, feelHash: hashJson(fat.feel), geometryHash: hashJson(tight) };
     const result = await replayJournal({
+      level,
       content: fat,
       geometry: tight,
       journal: forged,
@@ -220,10 +236,70 @@ describe('replayJournal', () => {
   it('returns an error for another level geometry, naming it, without throwing', async () => {
     const journal = (await liveGame()).sim.journal();
     const other = { ...geometry, id: 'other_room' };
-    const result = await replayJournal({ content, geometry: other, journal, untilSimMs: 100 });
+    const result = await replayJournal({
+      content,
+      level,
+      geometry: other,
+      journal,
+      untilSimMs: 100,
+    });
     expect(result).toMatchObject({
       ok: false,
       error: { kind: 'journal', message: expect.stringContaining('other_room') },
     });
+  });
+
+  it('returns an error for another level, naming it, without throwing', async () => {
+    const journal = (await liveGame()).sim.journal();
+    const planning = createTestLevel([outletEntry(0)]);
+    const result = await replayJournal({
+      content,
+      geometry,
+      level: planning,
+      journal,
+      untilSimMs: 100,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: 'journal', message: expect.stringContaining('another level') },
+    });
+    expect(!result.ok && result.error.message).toContain('salon_crawler');
+  });
+
+  it('says that a version 2 journal was recorded before the sim read the level', async () => {
+    const journal = (await liveGame()).sim.journal();
+    const result = await replayJournal({
+      content,
+      geometry,
+      level,
+      journal: { ...journal, version: 2 as 3 },
+      untilSimMs: 100,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: 'journal', message: expect.stringMatching(/version 2.*story 1\.10/) },
+    });
+  });
+
+  it('reproduces a game with threats, a pressed outlet included', async () => {
+    const planning = createTestLevel([outletEntry(0)]);
+    const sim = await createSim({ content, geometry, level: planning, seed: 3 });
+    sim.enqueue({ type: 'PressThreat', t: asSimMs(1360), threatId: 1 });
+    sim.enqueue({ type: 'Release', t: asSimMs(1390) });
+    const live: SimEvent[] = [];
+    stepN(sim, 800);
+    for (const event of sim.drainEvents()) live.push(event);
+    expect(live.map((event) => event.type)).toContain('ResponseResolved');
+    const replay = await replayJournal({
+      content,
+      geometry,
+      level: planning,
+      journal: sim.journal(),
+      untilSimMs: 8000,
+    });
+    expect(replay.ok).toBe(true);
+    if (!replay.ok) return;
+    expect(replay.value.events).toEqual(live);
+    expect(hashJson(replay.value.sim.world)).toBe(hashJson(sim.world));
   });
 });

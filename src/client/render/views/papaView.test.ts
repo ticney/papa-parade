@@ -22,6 +22,7 @@ function papa(patch: Partial<PapaSlice> = {}): PapaSlice {
     dirX: 0,
     dirZ: 0,
     isBlocked: false,
+    glide: null,
     ...patch,
   };
 }

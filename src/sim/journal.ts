@@ -12,13 +12,15 @@ export interface JournalEntry {
 }
 
 export interface Journal {
-  /** 2 since story 1.7: the journal names the level geometry it was recorded on. */
-  version: 2;
+  /** 3 since story 1.10: the journal names the level (its planned threats) it was recorded on. */
+  version: 3;
   seed: number;
   /** `hashJson` of the effective feel the game ran with. */
   feelHash: string;
   /** `hashJson` of the level geometry the game ran on (the room is part of what a replay needs). */
   geometryHash: string;
+  /** `hashJson` of the level content (the planned threats and their defs) the game ran on. */
+  levelHash: string;
   /**
    * Sim time the entries start from: 0 for a game recorded from its start, the snapshot time for a
    * sim that was restored (its journal then only holds the commands that came after).
@@ -32,9 +34,10 @@ export function createJournal(
   seed: number,
   feelHash: string,
   geometryHash: string,
+  levelHash: string,
   startSimMs = 0,
 ): Journal {
-  return { version: 2, seed, feelHash, geometryHash, startSimMs, entries: [] };
+  return { version: 3, seed, feelHash, geometryHash, levelHash, startSimMs, entries: [] };
 }
 
 /** `null` when an entry is well formed, else the reason. */
@@ -59,13 +62,17 @@ export function journalProblem(value: unknown): string | null {
   if (journal.version === 1) {
     return 'journal version 1 was recorded before the sim read the level geometry (story 1.7): record it again';
   }
-  if (journal.version !== 2) return `unsupported journal version ${String(journal.version)}`;
+  if (journal.version === 2) {
+    return 'journal version 2 was recorded before the sim read the level (story 1.10): record it again';
+  }
+  if (journal.version !== 3) return `unsupported journal version ${String(journal.version)}`;
   const { seed } = journal;
   if (typeof seed !== 'number' || !Number.isInteger(seed) || seed < 0 || seed >= UINT32_RANGE) {
     return `seed must be an integer in [0, 2**32), got ${String(seed)}`;
   }
   if (typeof journal.feelHash !== 'string') return 'feelHash must be a string';
   if (typeof journal.geometryHash !== 'string') return 'geometryHash must be a string';
+  if (typeof journal.levelHash !== 'string') return 'levelHash must be a string';
   if (typeof journal.startSimMs !== 'number' || !Number.isFinite(journal.startSimMs)) {
     return 'startSimMs must be a finite number';
   }

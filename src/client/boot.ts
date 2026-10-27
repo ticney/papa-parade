@@ -1,5 +1,6 @@
 import { feedbackClips } from '@content/feedbackClips';
 import { loadContent } from '@content/loadContent';
+import { loadLevelContent } from '@content/loadLevelContent';
 import { createPlatform } from '@platform/createPlatform';
 import { MAX_TIMER_DELAY_MS } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
@@ -88,7 +89,8 @@ export async function boot(): Promise<void> {
   installGlobalErrorHandlers(window, log, () => recoverFromUncaught());
   log.info('boot', 'shell ready');
 
-  const content = await loadContent(createBrowserContentSource());
+  const contentSource = createBrowserContentSource();
+  const content = await loadContent(contentSource);
   if (!content.ok) {
     log.error('content', content.error.message, content.error.problems);
     if (import.meta.env.DEV) {
@@ -332,6 +334,7 @@ export async function boot(): Promise<void> {
         mirror('ppTextures', String(textures));
       }
     },
+    loadLevelContent: (id) => loadLevelContent(contentSource, id),
     loadAudio: () => audio.preload(feedbackClips(feedbackTable)),
     onSimEvent: (event) => {
       logSimEvent(event);

@@ -56,6 +56,7 @@ describe.each(SCENARIOS)('golden: $name', (scenario) => {
     const replay = await replayJournal({
       content,
       geometry,
+      level: scenario.level,
       journal,
       untilSimMs: expected.untilSimMs,
     });
@@ -74,6 +75,7 @@ describe.each(SCENARIOS)('golden: $name', (scenario) => {
     const replay = await replayJournal({
       content,
       geometry,
+      level: scenario.level,
       journal: recording.journal,
       untilSimMs: scenario.untilSimMs,
     });

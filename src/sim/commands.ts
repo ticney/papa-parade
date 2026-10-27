@@ -13,7 +13,11 @@ export type SimCommand =
   /** Walk in this direction on the floor (world axes, any length but 0: the sim normalises it) until `MoveStop`. */
   | { type: 'Move'; t: SimMs; dirX: number; dirZ: number }
   /** Stop a `Move`. Ignored while Papa follows a tapped path. */
-  | { type: 'MoveStop'; t: SimMs };
+  | { type: 'MoveStop'; t: SimMs }
+  /** A finger went down on this threat. The type of the response (Parry or Firmness) is decided at `Release`. */
+  | { type: 'PressThreat'; t: SimMs; threatId: number }
+  /** The finger went up. It names no threat: it ends every press made before it. */
+  | { type: 'Release'; t: SimMs };
 
 /** Every `type` a {@link SimCommand} can have; a journal from outside is checked against it. */
 export const COMMAND_TYPES: readonly SimCommand['type'][] = [
@@ -21,6 +25,8 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'TapFloor',
   'Move',
   'MoveStop',
+  'PressThreat',
+  'Release',
 ];
 
 /**
@@ -54,6 +60,11 @@ export function commandProblem(value: unknown): string | null {
       }
     }
     if (command.dirX === 0 && command.dirZ === 0) return 'Move: the direction must not be (0, 0)';
+  }
+  if (command.type === 'PressThreat') {
+    if (!Number.isInteger(command.threatId) || (command.threatId as number) < 1) {
+      return 'PressThreat: threatId must be an integer of at least 1';
+    }
   }
   return null;
 }

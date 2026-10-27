@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { CONTENT_FILES } from '@content/contentFiles';
+import { CONTENT_FILES, CONTENT_PATTERNS } from '@content/contentFiles';
 import { renderContentJsonSchema, toContentJsonSchema } from '@content/jsonSchema';
 import { FeelSchema } from '@content/schemas/feel';
 import { StringsSchema } from '@content/schemas/strings';
@@ -7,6 +7,17 @@ import { describe, expect, it } from 'vitest';
 
 describe('content JSON Schemas', () => {
   it.each(CONTENT_FILES.map((entry) => [entry.schemaName, entry]))(
+    'content/_schemas/%s.schema.json is up to date (run npm run content:schemas)',
+    (name, entry) => {
+      const onDisk = readFileSync(
+        new URL(`../../content/_schemas/${name}.schema.json`, import.meta.url),
+        'utf8',
+      );
+      expect(onDisk).toBe(renderContentJsonSchema(entry.schema));
+    },
+  );
+
+  it.each(CONTENT_PATTERNS.map((entry) => [entry.schemaName, entry]))(
     'content/_schemas/%s.schema.json is up to date (run npm run content:schemas)',
     (name, entry) => {
       const onDisk = readFileSync(
@@ -50,5 +61,13 @@ describe('content JSON Schemas', () => {
     );
     expect(feedback.$schema).toBe('./_schemas/feedback.schema.json');
     expect(strings).not.toHaveProperty('$schema');
+    const threat = JSON.parse(
+      readFileSync(new URL('../../content/threats/outlet.json', import.meta.url), 'utf8'),
+    );
+    expect(threat.$schema).toBe('../_schemas/threat.schema.json');
+    const level = JSON.parse(
+      readFileSync(new URL('../../content/levels/salon_crawler.json', import.meta.url), 'utf8'),
+    );
+    expect(level.$schema).toBe('../_schemas/level.schema.json');
   });
 });

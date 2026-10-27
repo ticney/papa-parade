@@ -1,6 +1,11 @@
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
-import { createTestContent, createTestGeometry, stepN } from '../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+  stepN,
+} from '../../tests/support/testContent.ts';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import type { SimCommand } from './commands.ts';
 import type { System } from './context.ts';
@@ -68,6 +73,7 @@ describe('commands through the sim', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     stepN(sim, enqueueAfterSteps);
@@ -100,6 +106,7 @@ describe('commands through the sim', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     sim.enqueue(scale(40, 0.4));
@@ -114,6 +121,7 @@ describe('commands through the sim', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     sim.enqueue(scale(10, 0.6));
@@ -126,6 +134,7 @@ describe('commands through the sim', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 9,
     });
     stepN(sim, 100);
@@ -137,6 +146,7 @@ describe('commands through the sim', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     for (const t of [undefined, Number.NaN, Number.POSITIVE_INFINITY, '50']) {
@@ -155,7 +165,12 @@ describe('commands through the sim', () => {
       for (const command of ctx.commands) (command as { scale: number }).scale = 0.99;
     };
     const sim = await createSimWithSystems(
-      { content: createTestContent(), geometry: createTestGeometry(), seed: 1 },
+      {
+        content: createTestContent(),
+        geometry: createTestGeometry(),
+        level: createTestLevel(),
+        seed: 1,
+      },
       [...SYSTEMS, mutate],
     );
     sim.enqueue(scale(10, 0.5));
@@ -167,12 +182,14 @@ describe('commands through the sim', () => {
     const source = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     source.enqueue(scale(10, 0.6));
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
       journal: source.journal(),
     });
@@ -185,6 +202,7 @@ describe('commands through the sim', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     const command = scale(10, 0.5) as { t: number; scale: number };

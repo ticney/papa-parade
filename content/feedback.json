@@ -21,7 +21,11 @@
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
       "haptic": "light"
     },
-    "countdown_tick": { "haptic": "light" }
+    "countdown_tick": { "haptic": "light" },
+    "tel_outlet": { "haptic": "light" },
+    "resp_parry": { "haptic": "medium" },
+    "resp_parry_perfect": { "haptic": "heavy" },
+    "gag_outlet": { "haptic": "heavy" }
   },
   "events": {
     "PapaBlocked": "papa_bump",

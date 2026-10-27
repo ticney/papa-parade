@@ -29,7 +29,10 @@
     "babbleMinMs": 1500,
     "babbleMaxMs": 4000,
     "wanderMinDistM": 1,
-    "wanderMaxDistM": 3.5
+    "wanderMaxDistM": 3.5,
+    "lockMs": 300,
+    "approachSpeedMps": 1.5,
+    "actMs": 1500
   },
   "fatigue": {
     "perSec": 0.5,

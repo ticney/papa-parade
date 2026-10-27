@@ -59,9 +59,9 @@ describe('checkContent', () => {
   });
 
   it('reports a registered file in a place the registry does not know', async () => {
-    await put('content/threats/feel.json', '{}');
+    await put('content/elsewhere/feel.json', '{}');
     const problems = await checkContent(root);
-    expect(problems.map((problem) => problem.file)).toEqual(['content/threats/feel.json']);
+    expect(problems.map((problem) => problem.file)).toEqual(['content/elsewhere/feel.json']);
   });
 
   it('reports an invalid feel file with its JSON path', async () => {
@@ -287,9 +287,9 @@ describe('checkContent on level geometry files', () => {
   });
 
   it('still refuses a JSON file in levels/ that matches no pattern', async () => {
-    await put('content/levels/salon.json', '{}');
+    await put('content/levels/Salon.json', '{}');
     expect(await checkContent(root)).toEqual([
-      expect.objectContaining({ file: 'content/levels/salon.json' }),
+      expect.objectContaining({ file: 'content/levels/Salon.json' }),
     ]);
   });
 
@@ -297,6 +297,150 @@ describe('checkContent on level geometry files', () => {
     await writeFile(join(root, 'content/_schemas/levelGeometry.schema.json'), '{}\n');
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({ file: 'content/_schemas/levelGeometry.schema.json' }),
+    ]);
+  });
+});
+
+describe('checkContent on threat files', () => {
+  const FILE = 'content/threats/outlet.json';
+
+  it('accepts a second threat file named after its id', async () => {
+    await mutateJson('content/threats/outlet.json', () => {});
+    const outlet = await readFile(join(root, FILE), 'utf8');
+    await put('content/threats/plug.json', outlet.replace('"id": "outlet"', '"id": "plug"'));
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('reports an id that differs from the file name', async () => {
+    await mutateJson(FILE, (threat) => {
+      threat.id = 'plug';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'id' }),
+    ]);
+  });
+
+  it('reports a gag the sim does not know', async () => {
+    await mutateJson(FILE, (threat) => {
+      threat.gag = 'outlet_hairs';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'gag',
+        message: expect.stringContaining('outlet_hairs'),
+      }),
+    ]);
+  });
+
+  it.each(['telegraph', 'success', 'perfect', 'gag'])(
+    'reports a %s cue that is not in feedback.json',
+    async (role) => {
+      await mutateJson(FILE, (threat) => {
+        (threat.feedback as Record<string, string>)[role] = 'no_such_cue';
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: `feedback.${role}`,
+          message: expect.stringContaining('no_such_cue'),
+        }),
+      ]);
+    },
+  );
+
+  it('reports a threat file that breaks its schema, with the JSON path', async () => {
+    await mutateJson(FILE, (threat) => {
+      threat.cooldownMs = -1;
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'cooldownMs' }),
+    ]);
+  });
+
+  it('reports a stale generated threat schema', async () => {
+    await writeFile(join(root, 'content/_schemas/threat.schema.json'), '{}\n');
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: 'content/_schemas/threat.schema.json' }),
+    ]);
+  });
+});
+
+describe('checkContent on level files', () => {
+  const FILE = 'content/levels/salon_crawler.json';
+  const entry = { def: 'outlet', anchor: 'outlet_01', fromMs: 2000 };
+  const plan = (...threats: Record<string, unknown>[]) =>
+    mutateJson(FILE, (level) => {
+      level.threats = threats;
+    });
+
+  it('accepts a level that plans the outlet at an anchor of its geometry', async () => {
+    await plan(entry, { ...entry, fromMs: 9000 });
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('reports an id that differs from the file name', async () => {
+    await mutateJson(FILE, (level) => {
+      level.id = 'salon';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'id' }),
+    ]);
+  });
+
+  it('names the planned threat that does not exist, with its index', async () => {
+    await plan(entry, { ...entry, def: 'outlett' });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'threats[1].def',
+        message: expect.stringContaining('outlett'),
+      }),
+    ]);
+  });
+
+  it('names the anchor the geometry lacks', async () => {
+    await plan({ ...entry, anchor: 'outlet_02' });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'threats[0].anchor',
+        message: expect.stringContaining('outlet_02'),
+      }),
+    ]);
+  });
+
+  it('reports a level that has no geometry file', async () => {
+    await put('content/levels/test_room.json', '{ "id": "test_room", "threats": [] }\n');
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: 'content/levels/test_room.json',
+        jsonPath: '',
+        message: expect.stringContaining('test_room.geometry.json'),
+      }),
+    ]);
+  });
+
+  it('reports a level file that breaks its schema, with the JSON path', async () => {
+    await plan({ ...entry, fromMs: -1 });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'threats[0].fromMs' }),
+    ]);
+  });
+
+  it('does not report a level twice for a threat file that is broken (it is reported on its own)', async () => {
+    await plan(entry);
+    await mutateJson('content/threats/outlet.json', (threat) => {
+      threat.cooldownMs = -1;
+    });
+    const problems = await checkContent(root);
+    expect(problems.map((problem) => problem.file)).toEqual(['content/threats/outlet.json']);
+  });
+
+  it('reports a stale generated level schema', async () => {
+    await writeFile(join(root, 'content/_schemas/level.schema.json'), '{}\n');
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: 'content/_schemas/level.schema.json' }),
     ]);
   });
 });

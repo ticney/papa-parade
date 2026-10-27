@@ -23,6 +23,8 @@ function baby(patch: Partial<BabySlice> = {}): BabySlice {
     pathIndex: 0,
     wanderAt: asSimMs(0),
     babbling: true,
+    targetThreatId: null,
+    approachSpeedMps: 0,
     ...patch,
   };
 }

@@ -6,15 +6,21 @@ import {
   CONTENT_FILES,
   CONTENT_SCHEMAS,
   FEEDBACK_FILE,
+  LEVEL_GEOMETRY_PATTERN,
+  LEVEL_PATTERN,
   matchContentPattern,
   STRINGS_FILE,
+  THREAT_DEF_PATTERN,
 } from '@content/contentFiles';
 import { formatJsonPath } from '@content/jsonPath';
 import { renderContentJsonSchema } from '@content/jsonSchema';
 import { parseContentFile } from '@content/parseContentFile';
 import type { FeedbackTable } from '@content/schemas/feedback';
+import type { Level } from '@content/schemas/level';
+import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import type { ThreatDef } from '@content/schemas/threat';
 import { checkStringReferences } from '@content/stringRefs';
-import { SIM_EVENT_TYPES } from '@sim';
+import { GAG_IDS, SIM_EVENT_TYPES } from '@sim';
 
 const SCHEMAS_DIR = '_schemas';
 const AUDIO_DIR = ['public', 'assets', 'audio'];
@@ -171,6 +177,89 @@ async function checkFeedbackReferences(
   return problems;
 }
 
+/** What the cross-reference checks need of the files that parsed, by id. */
+interface ParsedFamilies {
+  threats: Map<string, ThreatDef>;
+  levels: Map<string, Level>;
+  geometries: Map<string, LevelGeometry>;
+}
+
+/**
+ * The references a threat file makes that its schema cannot see: its gag is one the sim knows, and
+ * each of its feedback cues is a cue of `feedback.json`.
+ */
+function checkThreatReferences(
+  threats: ReadonlyMap<string, ThreatDef>,
+  feedback: FeedbackTable | undefined,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  for (const [id, threat] of threats) {
+    const file = `content/${THREAT_DEF_PATTERN.dir}/${id}${THREAT_DEF_PATTERN.suffix}`;
+    if (!(GAG_IDS as readonly string[]).includes(threat.gag)) {
+      problems.push({
+        file,
+        jsonPath: 'gag',
+        message: `"${threat.gag}" is not a gag of the sim (${GAG_IDS.join(', ')}; a new gag is added to GAG_IDS in src/sim/threats/gags.ts)`,
+      });
+    }
+    if (feedback === undefined) continue;
+    for (const [role, cueId] of Object.entries(threat.feedback)) {
+      if (Object.hasOwn(feedback.cues, cueId)) continue;
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['feedback', role]),
+        message: `"${cueId}" is not a cue of content/${FEEDBACK_FILE.file} › cues`,
+      });
+    }
+  }
+  return problems;
+}
+
+/**
+ * The references a level file makes: it has its geometry beside it, each planned threat is a threat
+ * file, and each anchor is an anchor of that geometry. A file that exists but did not parse was
+ * already reported on its own: it is not reported again here.
+ */
+function checkLevelReferences(
+  families: ParsedFamilies,
+  present: ReadonlySet<string>,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  for (const [id, level] of families.levels) {
+    const file = `content/${LEVEL_PATTERN.dir}/${id}${LEVEL_PATTERN.suffix}`;
+    const geometryFile = `${LEVEL_GEOMETRY_PATTERN.dir}/${id}${LEVEL_GEOMETRY_PATTERN.suffix}`;
+    const geometry = families.geometries.get(id);
+    if (geometry === undefined && !present.has(geometryFile)) {
+      problems.push({
+        file,
+        jsonPath: '',
+        message: `the level has no content/${geometryFile} (\`npm run assets:extract\` writes it)`,
+      });
+    }
+    level.threats.forEach((entry, index) => {
+      const defFile = `${THREAT_DEF_PATTERN.dir}/${entry.def}${THREAT_DEF_PATTERN.suffix}`;
+      if (!families.threats.has(entry.def) && !present.has(defFile)) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['threats', index, 'def']),
+          message: `no threat "${entry.def}" (content/${defFile} does not exist)`,
+        });
+      }
+      if (
+        geometry !== undefined &&
+        !geometry.anchors.some((anchor) => anchor.id === entry.anchor)
+      ) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['threats', index, 'anchor']),
+          message: `"${entry.anchor}" is not an anchor of content/${geometryFile}`,
+        });
+      }
+    });
+  }
+  return problems;
+}
+
 /**
  * Everything `npm run content:check` verifies, as a list of problems (empty = OK):
  * every content file against its schema, no content file without a schema, string references from
@@ -182,6 +271,11 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   const parsed: { file: string; value: unknown }[] = [];
   let strings: Record<string, string> | undefined;
   let feedback: FeedbackTable | undefined;
+  const families: ParsedFamilies = {
+    threats: new Map(),
+    levels: new Map(),
+    geometries: new Map(),
+  };
 
   for (const file of await listContentFiles(rootDir)) {
     const display = `content/${file}`;
@@ -206,6 +300,13 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
         });
       }
       parsed.push({ file: display, value: result.value });
+      if (matched.pattern === THREAT_DEF_PATTERN) {
+        families.threats.set(matched.id, result.value as ThreatDef);
+      } else if (matched.pattern === LEVEL_PATTERN) {
+        families.levels.set(matched.id, result.value as Level);
+      } else if (matched.pattern === LEVEL_GEOMETRY_PATTERN) {
+        families.geometries.set(matched.id, result.value as LevelGeometry);
+      }
       continue;
     }
     if (entry === undefined) {
@@ -261,6 +362,9 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
       });
     }
   }
+
+  problems.push(...checkThreatReferences(families.threats, feedback));
+  problems.push(...checkLevelReferences(families, present));
 
   if (feedback !== undefined) problems.push(...(await checkFeedbackReferences(rootDir, feedback)));
 

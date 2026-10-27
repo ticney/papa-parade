@@ -1,4 +1,5 @@
 import type { Feel } from '@content/schemas/feel';
+import type { ThreatDef } from '@content/schemas/threat';
 import type { InvariantContext } from '@shared/invariant';
 import type { CommandQueue } from './commandQueue.ts';
 import type { SimCommand } from './commands.ts';
@@ -14,6 +15,14 @@ export interface NavContext {
   readonly baby: NavGrid;
 }
 
+/**
+ * What the level plans, built once by `createSim`, outside `World` (it is constant data). `threats`
+ * is index-aligned with `world.threats`: entry `i` is the def and the start time of instance `i`.
+ */
+export interface SimLevel {
+  readonly threats: readonly { readonly def: ThreatDef; readonly fromMs: number }[];
+}
+
 export interface StepContext extends InvariantContext {
   /** The effective feel as given to `createSim` (callers pass the already merged feel). */
   readonly feel: Feel;
@@ -24,6 +33,7 @@ export interface StepContext extends InvariantContext {
   /** Commands applied at this step, in order. Reused array: do not keep it. */
   readonly commands: SimCommand[];
   readonly nav: NavContext;
+  readonly level: SimLevel;
   /** The sanctioned hitstop channel: it writes outside `World`, in real ms. */
   requestFreezeRealMs(ms: number): void;
 }

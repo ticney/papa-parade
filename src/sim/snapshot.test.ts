@@ -1,7 +1,13 @@
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
-import { createTestContent, createTestGeometry, stepN } from '../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+  outletEntry,
+  stepN,
+} from '../../tests/support/testContent.ts';
 import type { System } from './context.ts';
 import { createSim, createSimWithSystems } from './createSim.ts';
 import type { SimEvent } from './events.ts';
@@ -9,12 +15,13 @@ import { SYSTEMS } from './step.ts';
 
 const content = createTestContent();
 const geometry = createTestGeometry();
+const level = createTestLevel();
 const scale = (t: number, value: number) =>
   ({ type: 'SetTimeScale', t: asSimMs(t), scale: value }) as const;
 
 describe('snapshot / restore', () => {
   async function liveGame() {
-    const a = await createSim({ content, geometry, seed: 5 });
+    const a = await createSim({ content, geometry, level, seed: 5 });
     const events: SimEvent[] = [];
     const collect = () => {
       for (const event of a.drainEvents()) events.push(event);
@@ -41,7 +48,7 @@ describe('snapshot / restore', () => {
     expect(tail.map((e) => e.command.t)).toEqual([1205, 1500, 1100]);
     expect(tail.map((e) => e.applyAt)).toEqual([1210, 1500, 1310]);
 
-    const b = await createSim({ content, geometry, seed: 5 });
+    const b = await createSim({ content, geometry, level, seed: 5 });
     b.restore(snapshot, tail);
     expect(b.world.time.sim).toBe(1200);
     stepN(b, 130);
@@ -55,7 +62,7 @@ describe('snapshot / restore', () => {
   it('re-enqueueing through enqueue() would apply the late command too early', async () => {
     const { a, snapshot, events, eventsBeforeSnapshot } = await liveGame();
     const tail = a.journal().entries.filter((e) => e.applyAt > snapshot.world.time.sim);
-    const b = await createSim({ content, geometry, seed: 5 });
+    const b = await createSim({ content, geometry, level, seed: 5 });
     b.restore(snapshot);
     for (const entry of tail) b.enqueue(entry.command);
     stepN(b, 130);
@@ -63,7 +70,7 @@ describe('snapshot / restore', () => {
   });
 
   it('marks the journal as starting at the snapshot time, and keeps its seed and feel', async () => {
-    const sim = await createSim({ content, geometry, seed: 5 });
+    const sim = await createSim({ content, geometry, level, seed: 5 });
     stepN(sim, 7);
     const snapshot = sim.snapshot();
     expect(sim.journal().startSimMs).toBe(0);
@@ -77,8 +84,8 @@ describe('snapshot / restore', () => {
   });
 
   it('refuses a snapshot of another seed or feel, a malformed world and an already applied tail', async () => {
-    const other = await createSim({ content, geometry, seed: 6 });
-    const sim = await createSim({ content, geometry, seed: 5 });
+    const other = await createSim({ content, geometry, level, seed: 6 });
+    const sim = await createSim({ content, geometry, level, seed: 5 });
     expect(() => sim.restore(other.snapshot())).toThrow(/another seed/);
     expect(() => sim.restore({ ...sim.snapshot(), feelHash: 'x' })).toThrow(/another feel/);
     expect(() => sim.restore({ ...sim.snapshot(), geometryHash: 'x' })).toThrow(
@@ -98,10 +105,10 @@ describe('snapshot / restore', () => {
   });
 
   it('restoring a sim built from a journal drops its pre-loaded entries unless they are passed as the tail', async () => {
-    const source = await createSim({ content, geometry, seed: 5 });
+    const source = await createSim({ content, geometry, level, seed: 5 });
     source.enqueue(scale(500, 0.5));
     const journal = source.journal();
-    const replay = await createSim({ content, geometry, seed: 5, journal });
+    const replay = await createSim({ content, geometry, level, seed: 5, journal });
     const snapshot = replay.snapshot();
     replay.restore(snapshot);
     stepN(replay, 60);
@@ -112,12 +119,12 @@ describe('snapshot / restore', () => {
   });
 
   it('is a deep copy in both directions', async () => {
-    const sim = await createSim({ content, geometry, seed: 5 });
+    const sim = await createSim({ content, geometry, level, seed: 5 });
     stepN(sim, 10);
     const snapshot = sim.snapshot();
     stepN(sim, 10);
     expect(snapshot.world.time.sim).toBe(100);
-    const other = await createSim({ content, geometry, seed: 5 });
+    const other = await createSim({ content, geometry, level, seed: 5 });
     other.restore(snapshot);
     (snapshot.world as { nextId: number }).nextId = 999;
     expect(other.world.nextId).not.toBe(999);
@@ -130,7 +137,7 @@ describe('snapshot / restore', () => {
     const emit: System = (world, ctx) => {
       ctx.events.push({ type: 'TimeScaleChanged', t: world.time.sim, from: 1, to: 1 });
     };
-    const sim = await createSimWithSystems({ content, geometry, seed: 5 }, [
+    const sim = await createSimWithSystems({ content, geometry, level, seed: 5 }, [
       ...SYSTEMS,
       requestFreeze,
       emit,
@@ -150,7 +157,7 @@ describe('snapshot / restore', () => {
   });
 
   it('stamps events with the restored time (ctx.t follows the new world)', async () => {
-    const lenient = await createSim({ content, geometry, seed: 5, strictInvariants: false });
+    const lenient = await createSim({ content, geometry, level, seed: 5, strictInvariants: false });
     stepN(lenient, 10);
     const snapshot = lenient.snapshot();
     stepN(lenient, 40);
@@ -167,7 +174,7 @@ describe('snapshot / restore', () => {
 
   it('restores a snapshot taken mid-walk (path and direction) to the same world as the live run', async () => {
     for (const script of ['path', 'direction'] as const) {
-      const live = await createSim({ content, geometry, seed: 5 });
+      const live = await createSim({ content, geometry, level, seed: 5 });
       if (script === 'path') live.enqueue({ type: 'TapFloor', t: asSimMs(0), xM: 0.5, zM: -2.6 });
       else live.enqueue({ type: 'Move', t: asSimMs(0), dirX: -1, dirZ: -1 });
       stepN(live, 80);
@@ -177,7 +184,7 @@ describe('snapshot / restore', () => {
       live.enqueue({ type: 'TapFloor', t: asSimMs(1000), xM: 2, zM: 1 });
       const tail = live.journal().entries.filter((e) => e.applyAt > snapshot.world.time.sim);
       stepN(live, 300);
-      const restored = await createSim({ content, geometry, seed: 5 });
+      const restored = await createSim({ content, geometry, level, seed: 5 });
       restored.restore(snapshot, tail);
       stepN(restored, 300);
       expect(restored.world).toEqual(live.world);
@@ -186,7 +193,7 @@ describe('snapshot / restore', () => {
   });
 
   it('refuses a snapshot whose papa slice is malformed', async () => {
-    const sim = await createSim({ content, geometry, seed: 5 });
+    const sim = await createSim({ content, geometry, level, seed: 5 });
     const good = sim.snapshot();
     const broken: [string, (papa: Record<string, unknown>) => void][] = [
       [
@@ -269,7 +276,7 @@ describe('snapshot / restore', () => {
   });
 
   it('restores a snapshot taken mid-wander (path half done) to the same world as the live run', async () => {
-    const live = await createSim({ content, geometry, seed: 5 });
+    const live = await createSim({ content, geometry, level, seed: 5 });
     // Past the first babble, then until the baby is wandering with waypoints behind it.
     for (let i = 0; i < 2000 && live.world.baby.state !== 'wander'; i++) live.step();
     expect(live.world.baby.state).toBe('wander');
@@ -290,7 +297,7 @@ describe('snapshot / restore', () => {
     stepN(live, 3000);
     live.drainEvents();
 
-    const restored = await createSim({ content, geometry, seed: 5 });
+    const restored = await createSim({ content, geometry, level, seed: 5 });
     restored.restore(snapshot, tail);
     stepN(restored, 3000);
     expect(restored.world).toEqual(live.world);
@@ -298,7 +305,7 @@ describe('snapshot / restore', () => {
   });
 
   it('refuses a snapshot whose baby slice is malformed or missing', async () => {
-    const sim = await createSim({ content, geometry, seed: 5 });
+    const sim = await createSim({ content, geometry, level, seed: 5 });
     stepN(sim, 200); // wandering, so that the path rules apply
     expect(sim.world.baby.state).toBe('wander');
     const good = sim.snapshot();
@@ -377,8 +384,320 @@ describe('snapshot / restore', () => {
   });
 
   it('refuses an unknown snapshot version', async () => {
-    const sim = await createSim({ content, geometry, seed: 5 });
+    const sim = await createSim({ content, geometry, level, seed: 5 });
     const snapshot = sim.snapshot();
-    expect(() => sim.restore({ ...snapshot, version: 1 as 2 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 1 as 3 })).toThrow(/version/);
+  });
+
+  it('refuses a snapshot of another level', async () => {
+    const sim = await createSim({ content, geometry, level, seed: 5 });
+    expect(() => sim.restore({ ...sim.snapshot(), levelHash: 'x' })).toThrow(/another level$/);
+    const planning = await createSim({
+      content,
+      geometry,
+      level: createTestLevel([outletEntry(0)]),
+      seed: 5,
+    });
+    expect(() => sim.restore(planning.snapshot())).toThrow(/another level$/);
+  });
+});
+
+describe('snapshot / restore with a threat', () => {
+  const planned = createTestLevel([outletEntry(0)]);
+  const newSim = () => createSim({ content, geometry, level: planned, seed: 5 });
+  const press = (t: number) => ({ type: 'PressThreat', t: asSimMs(t), threatId: 1 }) as const;
+
+  it('restores a snapshot taken mid-telegraph (threat telegraph, baby approach, Papa glide) to the uninterrupted hash', async () => {
+    const live = await newSim();
+    // The telegraph is at 10, the window opens at 1210: press early in the buffer, mid-glide.
+    live.enqueue(press(1100));
+    live.enqueue({ type: 'Release', t: asSimMs(1130) });
+    stepN(live, 111); // 1110: the press (1100) is pending, Papa is gliding
+    live.drainEvents();
+    const snapshot = live.snapshot();
+    expect(snapshot.world.threats[0]).toMatchObject({ state: 'telegraph', press: { t: 1100 } });
+    expect(snapshot.world.baby.state).toBe('approach');
+    expect(snapshot.world.papa.state).toBe('glide');
+    expect(snapshot.world.papa.glide).not.toBeNull();
+    const tail = live.journal().entries.filter((e) => e.applyAt > snapshot.world.time.sim);
+    expect(tail.map((e) => e.command.type)).toEqual(['Release']);
+    stepN(live, 700);
+    const liveAfter = [...live.drainEvents()];
+    expect(liveAfter.map((event) => event.type)).toContain('ResponseResolved');
+    const restored = await newSim();
+    restored.restore(snapshot, tail);
+    stepN(restored, 700);
+    expect(restored.world).toEqual(live.world);
+    expect(hashJson(restored.world)).toBe(hashJson(live.world));
+    expect(restored.drainEvents()).toEqual(liveAfter);
+  });
+
+  it('keeps World plain data with a threat in every state', async () => {
+    const sim = await newSim();
+    for (let i = 0; i < 1000; i++) {
+      sim.step();
+      expect(JSON.parse(JSON.stringify(sim.world))).toEqual(sim.world);
+    }
+    const states = new Set<string>();
+    const live = await newSim();
+    for (let i = 0; i < 3000; i++) {
+      live.step();
+      states.add(live.world.threats[0]?.state ?? '');
+    }
+    expect([...states].sort()).toEqual(['gag', 'idle', 'telegraph', 'windowOpen']);
+  });
+
+  it('refuses a snapshot whose threats are malformed', async () => {
+    const sim = await newSim();
+    stepN(sim, 100); // telegraph, with a window
+    const good = sim.snapshot();
+    expect(good.world.threats[0]?.state).toBe('telegraph');
+    const broken: [string, (threat: Record<string, unknown>) => void, RegExp][] = [
+      [
+        'state',
+        (threat) => {
+          threat.state = 'sleeping';
+        },
+        /world\.threats\[0\]\.state/,
+      ],
+      [
+        'id',
+        (threat) => {
+          threat.id = 1.5;
+        },
+        /world\.threats\[0\]\.id/,
+      ],
+      [
+        'defId',
+        (threat) => {
+          threat.defId = 3;
+        },
+        /world\.threats\[0\]\.defId/,
+      ],
+      [
+        'xM',
+        (threat) => {
+          threat.xM = Number.NaN;
+        },
+        /world\.threats\[0\]\.xM/,
+      ],
+      [
+        'windowOpenAt',
+        (threat) => {
+          threat.windowOpenAt = 'x';
+        },
+        /world\.threats\[0\]\.windowOpenAt/,
+      ],
+      [
+        'a telegraph without window',
+        (threat) => {
+          threat.responseWindow = null;
+        },
+        /responseWindow/,
+      ],
+      [
+        'a window field',
+        (threat) => {
+          (threat.responseWindow as Record<string, unknown>).bufferMs = 'x';
+        },
+        /responseWindow\.bufferMs/,
+      ],
+      [
+        'a window that is not an object',
+        (threat) => {
+          threat.responseWindow = 4;
+        },
+        /responseWindow/,
+      ],
+      [
+        'an idle threat with a window',
+        (threat) => {
+          threat.state = 'idle';
+        },
+        /responseWindow/,
+      ],
+      [
+        'a press on a threat that has none to carry',
+        (threat) => {
+          threat.state = 'resolved';
+          threat.press = { t: 1, quality: 'perfect', offsetMs: 0, releasedAt: null };
+        },
+        /world\.threats\[0\]\.press/,
+      ],
+      [
+        'a press quality',
+        (threat) => {
+          threat.press = { t: 1, quality: 'fail', offsetMs: 0, releasedAt: null };
+        },
+        /press\.quality/,
+      ],
+      [
+        'a press time',
+        (threat) => {
+          threat.press = { t: 'x', quality: 'perfect', offsetMs: 0, releasedAt: null };
+        },
+        /press\.t/,
+      ],
+      [
+        'a press offset',
+        (threat) => {
+          threat.press = { t: 1, quality: 'perfect', offsetMs: null, releasedAt: null };
+        },
+        /press\.offsetMs/,
+      ],
+      [
+        'a press release',
+        (threat) => {
+          threat.press = { t: 1, quality: 'perfect', offsetMs: 0, releasedAt: 'x' };
+        },
+        /press\.releasedAt/,
+      ],
+      [
+        'a press that is not an object',
+        (threat) => {
+          threat.press = 7;
+        },
+        /world\.threats\[0\]\.press/,
+      ],
+    ];
+    for (const [name, change, message] of broken) {
+      const copy = JSON.parse(JSON.stringify(good)) as typeof good;
+      change(copy.world.threats[0] as unknown as Record<string, unknown>);
+      expect(() => sim.restore(copy), name).toThrow(message);
+    }
+    const notAList = JSON.parse(JSON.stringify(good)) as typeof good;
+    (notAList.world as unknown as Record<string, unknown>).threats = {};
+    expect(() => sim.restore(notAList)).toThrow(/world\.threats/);
+    const notAThreat = JSON.parse(JSON.stringify(good)) as typeof good;
+    (notAThreat.world as unknown as { threats: unknown[] }).threats = [null];
+    expect(() => sim.restore(notAThreat)).toThrow(/world\.threats\[0\]/);
+  });
+
+  it('refuses a windowOpen threat without its window, and an open window without one', async () => {
+    const sim = await newSim();
+    stepN(sim, 125);
+    const good = sim.snapshot();
+    expect(good.world.threats[0]?.state).toBe('windowOpen');
+    const copy = JSON.parse(JSON.stringify(good)) as typeof good;
+    (copy.world.threats[0] as unknown as Record<string, unknown>).responseWindow = null;
+    expect(() => sim.restore(copy)).toThrow(/responseWindow/);
+  });
+
+  it('refuses a Papa in glide with no glide, a glide without the state, and a glide with a bad field', async () => {
+    const sim = await newSim();
+    sim.enqueue(press(300));
+    stepN(sim, 40);
+    expect(sim.world.papa.state).toBe('glide');
+    const good = sim.snapshot();
+    const mutate = (change: (papa: Record<string, unknown>) => void) => {
+      const copy = JSON.parse(JSON.stringify(good)) as typeof good;
+      change(copy.world.papa as unknown as Record<string, unknown>);
+      return copy;
+    };
+    expect(() =>
+      sim.restore(
+        mutate((papa) => {
+          papa.glide = null;
+        }),
+      ),
+    ).toThrow(/world\.papa\.glide/);
+    expect(() =>
+      sim.restore(
+        mutate((papa) => {
+          papa.state = 'idle';
+          papa.path = [];
+        }),
+      ),
+    ).toThrow(/world\.papa\.glide/);
+    expect(() =>
+      sim.restore(
+        mutate((papa) => {
+          papa.glide = 'x';
+        }),
+      ),
+    ).toThrow(/world\.papa\.glide/);
+    expect(() =>
+      sim.restore(
+        mutate((papa) => {
+          (papa.glide as Record<string, unknown>).threatId = 0.5;
+        }),
+      ),
+    ).toThrow(/glide\.threatId/);
+    expect(() =>
+      sim.restore(
+        mutate((papa) => {
+          (papa.glide as Record<string, unknown>).arriveAt = 'x';
+        }),
+      ),
+    ).toThrow(/glide\.arriveAt/);
+    // An idle Papa with a glide is refused the same way.
+    const idle = await createSim({ content, geometry, level, seed: 5 });
+    const idleGood = idle.snapshot();
+    const withGlide = JSON.parse(JSON.stringify(idleGood)) as typeof idleGood;
+    (withGlide.world.papa as unknown as Record<string, unknown>).glide = {
+      threatId: 1,
+      toXM: 0,
+      toZM: 0,
+      startedAt: 0,
+      arriveAt: 0,
+      speedMps: 1,
+    };
+    expect(() => idle.restore(withGlide)).toThrow(/world\.papa\.glide/);
+  });
+
+  it('refuses a baby that locks on nothing, or whose approach speed is not a speed', async () => {
+    const sim = await newSim();
+    stepN(sim, 5); // targetLocked
+    expect(sim.world.baby.state).toBe('targetLocked');
+    const good = sim.snapshot();
+    const mutate = (change: (baby: Record<string, unknown>) => void) => {
+      const copy = JSON.parse(JSON.stringify(good)) as typeof good;
+      change(copy.world.baby as unknown as Record<string, unknown>);
+      return copy;
+    };
+    expect(() =>
+      sim.restore(
+        mutate((baby) => {
+          baby.targetThreatId = null;
+        }),
+      ),
+    ).toThrow(/world\.baby\.targetThreatId/);
+    expect(() =>
+      sim.restore(
+        mutate((baby) => {
+          baby.targetThreatId = 'x';
+        }),
+      ),
+    ).toThrow(/world\.baby\.targetThreatId/);
+    expect(() =>
+      sim.restore(
+        mutate((baby) => {
+          baby.approachSpeedMps = -1;
+        }),
+      ),
+    ).toThrow(/world\.baby\.approachSpeedMps/);
+    expect(() =>
+      sim.restore(
+        mutate((baby) => {
+          baby.approachSpeedMps = 'x';
+        }),
+      ),
+    ).toThrow(/world\.baby\.approachSpeedMps/);
+    expect(() =>
+      sim.restore(
+        mutate((baby) => {
+          baby.path = [1, 1];
+        }),
+      ),
+    ).toThrow(/world\.baby\.path/);
+  });
+
+  it('accepts a baby in approach with no path (it is already there)', async () => {
+    const sim = await newSim();
+    stepN(sim, 125); // at the outlet, still in approach, path empty
+    expect(sim.world.baby.state).toBe('approach');
+    expect(sim.world.baby.path).toEqual([]);
+    const other = await newSim();
+    expect(() => other.restore(sim.snapshot())).not.toThrow();
   });
 });

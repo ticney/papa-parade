@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createTestContent,
   createTestGeometry,
+  createTestLevel,
   stepN,
 } from '../../../tests/support/testContent.ts';
 import { createSim } from '../createSim.ts';
@@ -13,6 +14,7 @@ describe('timeScale', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     sim.enqueue({ type: 'SetTimeScale', t: asSimMs(0), scale: 0.3 });
@@ -27,6 +29,7 @@ describe('timeScale', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     sim.enqueue({ type: 'SetTimeScale', t: asSimMs(0), scale: 0.5 });
@@ -43,6 +46,7 @@ describe('timeScale', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
       strictInvariants: true,
     });
@@ -54,6 +58,7 @@ describe('timeScale', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
       strictInvariants: false,
     });

@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "The threat id; equals the file name."
+    },
+    "response": {
+      "type": "string",
+      "enum": [
+        "parry"
+      ],
+      "description": "The response the threat asks for."
+    },
+    "telegraphDelayMs": {
+      "anyOf": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "From the telegraph to the opening of the window, in sim ms; `null` = `feel.timing.telegraphDelayDefaultMs`."
+    },
+    "windowMs": {
+      "anyOf": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Base response window, in sim ms; `null` = `feel.timing.windowMs`."
+    },
+    "gag": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "The gag played on a miss (a `GAG_IDS` entry of the sim)."
+    },
+    "feedback": {
+      "type": "object",
+      "properties": {
+        "telegraph": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when the threat is telegraphed."
+        },
+        "success": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played on a successful response."
+        },
+        "perfect": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played on a perfect response."
+        },
+        "gag": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when the gag is triggered."
+        }
+      },
+      "required": [
+        "telegraph",
+        "success",
+        "perfect",
+        "gag"
+      ],
+      "additionalProperties": false,
+      "description": "Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11)."
+    },
+    "cooldownMs": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time spent resolved or in gag before the threat is idle again, in sim ms (0 = at once)."
+    }
+  },
+  "required": [
+    "id",
+    "response",
+    "telegraphDelayMs",
+    "windowMs",
+    "gag",
+    "feedback",
+    "cooldownMs"
+  ],
+  "additionalProperties": false,
+  "description": "A kind of threat: how it is telegraphed, answered and how it ends (GDD › Catalogue)."
+}

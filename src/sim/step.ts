@@ -1,7 +1,9 @@
 import { runBaby } from './baby/babySystem.ts';
 import { applyCommands } from './commandQueue.ts';
 import type { StepContext, System } from './context.ts';
+import { runDirector } from './director/directorSystem.ts';
 import { runPapa } from './papa/papaSystem.ts';
+import { runThreats } from './threats/threatSystem.ts';
 import { advanceTime } from './time/clock.ts';
 import type { World } from './world.ts';
 
@@ -11,13 +13,19 @@ import type { World } from './world.ts';
  *   applyCommands, advanceTime, runDirector, runBaby, runThreats, runPapa, runPhysics,
  *   runGauges, runInstinct, runScoring, runFlow
  *
- * Only applyCommands, advanceTime, runBaby and runPapa exist so far: runDirector will go before
- * runBaby, runThreats between runBaby and runPapa. Each later story inserts its system at its
- * slot, edits the pinned order test and, if behaviour changes, regenerates the golden references
- * and says so.
+ * applyCommands, advanceTime, runDirector, runBaby, runThreats and runPapa exist so far. Each later
+ * story inserts its system at its slot, edits the pinned order test and, if behaviour changes,
+ * regenerates the golden references and says so.
  * Systems never call each other: they read and write `World` and push to `ctx.events`.
  */
-export const SYSTEMS: readonly System[] = [applyCommands, advanceTime, runBaby, runPapa];
+export const SYSTEMS: readonly System[] = [
+  applyCommands,
+  advanceTime,
+  runDirector,
+  runBaby,
+  runThreats,
+  runPapa,
+];
 
 export function step(world: World, ctx: StepContext, systems: readonly System[] = SYSTEMS): void {
   for (let i = 0; i < systems.length; i++) (systems[i] as System)(world, ctx);

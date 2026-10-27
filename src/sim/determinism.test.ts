@@ -2,7 +2,11 @@ import { hashJson } from '@shared/hash';
 import { nextFloat, nextInt } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
-import { createTestContent, createTestGeometry } from '../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+} from '../../tests/support/testContent.ts';
 import type { System } from './context.ts';
 import { createSimWithSystems, type Sim } from './createSim.ts';
 import type { SimEvent } from './events.ts';
@@ -29,7 +33,12 @@ const probe: System = (world, ctx) => {
 
 async function play(seed: number): Promise<{ sim: Sim; events: SimEvent[] }> {
   const sim = await createSimWithSystems(
-    { content: createTestContent(), geometry: createTestGeometry(), seed },
+    {
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: createTestLevel(),
+      seed,
+    },
     [...SYSTEMS, probe],
   );
   const events: SimEvent[] = [];

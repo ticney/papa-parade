@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createTestContent,
   createTestGeometry,
+  createTestLevel,
   stepN,
 } from '../../../tests/support/testContent.ts';
 import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
@@ -55,7 +56,12 @@ function build() {
 
 // A real world (Papa and the baby at their spawn) whose sim clock the effects tests set by hand.
 const effectsWorld = (
-  await createSim({ content: createTestContent(), geometry: createTestGeometry(), seed: 1 })
+  await createSim({
+    content: createTestContent(),
+    geometry: createTestGeometry(),
+    level: createTestLevel(),
+    seed: 1,
+  })
 ).world;
 
 function fakeWorldAt(simMs: number): World {
@@ -185,6 +191,7 @@ describe('createLevelScene', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     const spawn = [sim.world.papa.xM, sim.world.papa.zM];
@@ -211,6 +218,7 @@ describe('createLevelScene', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
+      level: createTestLevel(),
       seed: 1,
     });
     const { xM, zM } = sim.world.baby;

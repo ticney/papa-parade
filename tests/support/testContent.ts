@@ -1,15 +1,18 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import type { ContentBundle } from '@content/contentBundle';
+import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import { formatContentProblem } from '@content/contentError';
 import { parseContentFile } from '@content/parseContentFile';
 import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
+import type { LevelThreatEntry } from '@content/schemas/level';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
+import { type ThreatDef, ThreatDefSchema } from '@content/schemas/threat';
 import type { Sim } from '@sim';
 
 const FEEL_FIXTURE = 'tests/support/testFeel.json';
 const GEOMETRY_FIXTURE = 'tests/support/testLevel.geometry.json';
+const OUTLET_FIXTURE = 'tests/support/testOutlet.threat.json';
 
 /**
  * A minimal valid feedback table, inline: the sim ignores it (it is client-only), so it does not
@@ -77,6 +80,37 @@ export function createTestGeometry(): LevelGeometry {
     );
   }
   return parsed.value;
+}
+
+/**
+ * The outlet for sim and golden tests, from a FROZEN byte copy of `content/threats/outlet.json`
+ * (`testOutlet.threat.json`), never from the live file: Geo retunes it freely, and no test result
+ * may depend on it.
+ */
+export function createTestOutlet(): ThreatDef {
+  const text = readFileSync(
+    fileURLToPath(new URL('./testOutlet.threat.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(OUTLET_FIXTURE, text, ThreatDefSchema);
+  if (!parsed.ok) {
+    throw new Error(
+      `${OUTLET_FIXTURE} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`,
+    );
+  }
+  return parsed.value;
+}
+
+/** The level of the frozen living room that plans `entries` (none: it plans nothing, as the live one does today). */
+export function createTestLevel(entries: readonly LevelThreatEntry[] = []): LevelContent {
+  const outlet = createTestOutlet();
+  const defs = entries.some((entry) => entry.def === outlet.id) ? { [outlet.id]: outlet } : {};
+  return { level: { id: 'salon_crawler', threats: [...entries] }, threats: defs };
+}
+
+/** A plan for the outlet at the frozen room's `outlet_01` anchor, from `fromMs` of sim time. */
+export function outletEntry(fromMs: number): LevelThreatEntry {
+  return { def: 'outlet', anchor: 'outlet_01', fromMs };
 }
 
 /** Runs `n` steps: time in tests is counted in steps (`stepN(sim, 120)` = 1200 ms of sim time). */
