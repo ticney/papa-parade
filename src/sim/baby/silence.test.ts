@@ -194,6 +194,35 @@ describe('runSilence: finding the baby', () => {
     expect(sim.world.threats[0]?.state).toBe('telegraph');
   });
 
+  it('Papa already in the box when the silence is announced finds him only from the next step: SilenceStarted comes first', async () => {
+    const sim = await newSim();
+    sim.step();
+    sim.drainEvents();
+    const papa = sim.world.papa as PapaSlice;
+    papa.xM = zoneXM;
+    papa.zM = zoneZM;
+    const events = runUntil(sim, () => sim.world.silence.threatId === null);
+    const types = events
+      .map((event) => event.type)
+      .filter((type) => type === 'SilenceStarted' || type === 'SilenceEnded');
+    expect(types).toEqual(['SilenceStarted', 'SilenceEnded']);
+    const [startedEvent] = ofType(events, 'SilenceStarted');
+    const [endedEvent] = ofType(events, 'SilenceEnded');
+    expect(endedEvent?.reason).toBe('found');
+    expect((endedEvent?.t as number) - (startedEvent?.t as number)).toBe(STEP_MS);
+  });
+
+  it('the tap that finds him is spent: Papa stays where he is, ready for the parry', async () => {
+    const { sim } = await started();
+    const papa = sim.world.papa as PapaSlice;
+    const { xM, zM } = papa;
+    tapBaby(sim);
+    const events = runUntil(sim, () => sim.world.silence.threatId === null, 5);
+    expect(ofType(events, 'SilenceEnded')).toEqual([expect.objectContaining({ reason: 'found' })]);
+    expect(ofType(events, 'PapaPathPlanned')).toEqual([]);
+    expect(sim.world.papa).toMatchObject({ state: 'idle', xM, zM });
+  });
+
   it('Papa outside the box finds nothing', async () => {
     const { sim } = await started();
     const events = runUntil(
@@ -276,6 +305,42 @@ describe('runSilence: not found in time', () => {
 });
 
 describe('runSilence: the level', () => {
+  it('names a threat the level does not plan as a hidden zone: an invariant, not a baby stuck for ever', async () => {
+    const sim = await newSim();
+    sim.world.silence.threatId = 999;
+    expect(() => sim.step()).toThrow(/does not plan as a hidden zone/);
+  });
+
+  it('closes an announced silence with the level: SilenceEnded{levelEnded} before LevelEnded, the slice empty, no mischief', async () => {
+    const { sim: probe } = await started();
+    const startedAt = probe.world.silence.startedAt as number;
+    const durationMs = startedAt + 4 * STEP_MS;
+    expect(durationMs - startedAt).toBeLessThan(findMaxMs);
+    const sim = await newSim({ durationMs });
+    const events = runUntil(sim, () => sim.world.flow.state === 'ended');
+    const kinds = events
+      .map((event) => event.type)
+      .filter((type) =>
+        ['SilenceStarted', 'SilenceEnded', 'LevelEnded', 'GagTriggered'].includes(type),
+      );
+    expect(kinds).toEqual(['SilenceStarted', 'SilenceEnded', 'LevelEnded']);
+    expect(ofType(events, 'SilenceEnded')).toEqual([
+      expect.objectContaining({ reason: 'levelEnded', t: durationMs }),
+    ]);
+    expect(sim.world.silence).toEqual({ threatId: null, zoneEnteredAt: null, startedAt: null });
+  });
+
+  it('a silence the level ends on before it is announced just stops: nobody heard it', async () => {
+    const { sim: probe } = await started();
+    const durationMs = (probe.world.silence.startedAt as number) - 4 * STEP_MS;
+    const sim = await newSim({ durationMs });
+    const events = runUntil(sim, () => sim.world.flow.state === 'ended');
+    expect(ofType(events, 'SilenceStarted')).toEqual([]);
+    expect(ofType(events, 'SilenceEnded')).toEqual([]);
+    expect(ofType(events, 'LevelEnded')).toHaveLength(1);
+    expect(sim.world.silence).toEqual({ threatId: null, zoneEnteredAt: null, startedAt: null });
+  });
+
   it('stops with the level: nothing moves once it has ended, a silence under way included', async () => {
     const sim = await newSim({ durationMs: 4000 });
     const events = runUntil(sim, () => sim.world.flow.state === 'ended');

@@ -1004,6 +1004,26 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       expect(taps).toEqual([[BABY.xM, BABY.zM]]);
     });
 
+    it('takes the nearer of the baby and an object, a tie going to the baby (a baby crawling past a ringing phone never swallows the tap)', () => {
+      const { mapper, sim, commands, camera, setObjects } = setup();
+      Object.assign(sim.world.baby, BABY);
+      const at = babyPx(camera);
+      const phone = { id: 'phone', xM: BABY.xM + 0.5, yM: BABY_RADIUS_M, zM: BABY.zM };
+      setObjects([phone]);
+      const phoneAt = new Vector3(phone.xM, phone.yM, phone.zM).project(camera);
+      const phonePx = {
+        x: RECT.left + ((phoneAt.x + 1) / 2) * RECT.width,
+        y: RECT.top + ((1 - phoneAt.y) / 2) * RECT.height,
+      };
+      // On the phone's icon: the phone, though the baby is in range too.
+      mapper.handlePointerDown(click(phonePx.x, phonePx.y));
+      expect(commands.map((c) => c.type)).toEqual(['TapObject']);
+      commands.length = 0;
+      // On the baby's centre: the baby, though the phone is in range too.
+      mapper.handlePointerDown(click(at.x, at.y));
+      expect(commands.map((c) => c.type)).toEqual(['TapBaby']);
+    });
+
     it('prefers a threat to the baby, and the baby to an object (threat > baby > object > floor)', () => {
       const { mapper, sim, commands, camera, setObjects, setTargets } = setup();
       Object.assign(sim.world.baby, BABY);

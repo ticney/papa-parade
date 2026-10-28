@@ -32,6 +32,7 @@ function setup(point = { x: 700, y: 200 }, viewport = { width: 844, height: 390 
       return true;
     },
     viewport: () => viewport,
+    targetHeightM: () => 0.2,
     hudBottomPx: () => 56,
   });
   const element = bubble.element as unknown as FakeElement;
@@ -133,18 +134,44 @@ describe('createSilenceBubble', () => {
     expect(element.style.top).toBe('151px');
   });
 
-  it('shows even if the point cannot be projected yet (no camera): hidden state still follows the sim', () => {
+  it('stays hidden while the point cannot be projected (no camera), places itself as soon as it can, never unplaced', () => {
     const doc = { createElement: () => new FakeElement() } as unknown as Document;
+    let canProject = false;
     const bubble = createSilenceBubble(doc, {
       t: (key) => key,
-      project: () => false,
+      project: (_xM, _yM, _zM, out) => {
+        if (!canProject) return false;
+        out.x = 100;
+        out.y = 180;
+        return true;
+      },
       viewport: () => ({ width: 800, height: 400 }),
+      targetHeightM: () => 0.2,
       hudBottomPx: () => 56,
     });
-    bubble.update(true, {
+    const world = {
       silence: { threatId: 1, zoneEnteredAt: 0, startedAt: 0 },
       threats: [{ id: 1, xM: 0, zM: 0 }],
-    } as unknown as Parameters<typeof bubble.update>[1]);
+    } as unknown as Parameters<typeof bubble.update>[1];
+    bubble.update(true, world);
+    expect(bubble.element.hidden).toBe(true);
+    canProject = true;
+    bubble.update(true, world);
     expect(bubble.element.hidden).toBe(false);
+    expect(bubble.element.className).toContain(SILENCE_BUBBLE_CLASSES.left);
+    expect(bubble.element.style.top).toBe('151px');
+    bubble.update(false, undefined);
+    expect(bubble.element.hidden).toBe(true);
+  });
+
+  it('falls back to the right edge under the HUD row when the silence names no known threat', () => {
+    const { bubble, element } = setup();
+    bubble.update(true, {
+      silence: { threatId: 99, zoneEnteredAt: 0, startedAt: 0 },
+      threats: [],
+    } as unknown as Parameters<typeof bubble.update>[1]);
+    expect(element.hidden).toBe(false);
+    expect(element.className).toContain(SILENCE_BUBBLE_CLASSES.right);
+    expect(element.style.top).toBe('64px');
   });
 });

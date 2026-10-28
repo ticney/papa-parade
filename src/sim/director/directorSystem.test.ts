@@ -379,11 +379,29 @@ describe('the suspicious silence and the director (story 1.21)', () => {
     },
   );
 
-  it('does not draw a silence while one is under way, even with room in the wave', async () => {
+  it('draws nothing else while a silence is under way, even with room in the wave: the baby is away and would ignore a telegraph', async () => {
+    // The wave's first draw is due at 5 s; the silence is forced at once and lasts well past it.
+    const sim = await newSim(
+      silenceLevel({ maxSimultaneous: 3, gapMinMs: 5000, gapMaxMs: 5000 }, [OUTLET, STAIRS]),
+    );
+    const silence = sim.world.threats[0] as { id: number };
+    sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: silence.id } as SimCommand);
+    const during = runTo(sim, 6000);
+    expect(sim.world.silence.threatId).toBe(silence.id);
+    expect(telegraphs(during)).toEqual([]);
+    // Once it is over, the others are drawn again.
+    const after = runTo(sim, 60_000);
+    expect(sim.world.silence.threatId).not.toBe(silence.id);
+    expect(telegraphs(after).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('never hides two silences at once, even when forced twice in one step', async () => {
     const sim = await newSim(silenceLevel({ maxSimultaneous: 3 }));
-    sim.world.silence.threatId = 999;
-    sim.step();
-    expect(hidden(sim.drainEvents())).toEqual([]);
+    const silence = sim.world.threats[0] as { id: number };
+    sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: silence.id } as SimCommand);
+    sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: silence.id } as SimCommand);
+    runTo(sim, 3 * STEP_MS);
+    expect(sim.world.threats.filter((t) => t.state === 'hidden')).toHaveLength(1);
   });
 
   it('does not draw a silence while Papa stands in its zone: he would find the baby at once', async () => {

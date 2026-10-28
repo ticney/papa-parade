@@ -68,6 +68,33 @@ describe('the bots and the suspicious silence', () => {
     expect(second.sim.world.rng).toEqual(first.sim.world.rng);
   });
 
+  it('human drops its planned tap when the silence ends before it is due (no stray TapBaby later)', () => {
+    const bot = makeBot(
+      'human',
+      botSetup(1, { human: { reactionMs: 400, aimOffsetMs: 0, jitterSdMs: 0 } } as never),
+    );
+    const worldAt = (sim: number, startedAt: number | null) =>
+      ({
+        time: { sim },
+        threats: [],
+        silence: { threatId: startedAt === null ? null : 1, zoneEnteredAt: startedAt, startedAt },
+      }) as never;
+    const out: { type: string; t: number }[] = [];
+    // The silence starts at 1000: the tap is planned for 1400.
+    bot.act(worldAt(1000, 1000), out as never);
+    expect(out).toEqual([]);
+    // Papa walked in meanwhile: the silence is over before 1400.
+    bot.act(worldAt(1200, null), out as never);
+    bot.act(worldAt(1400, null), out as never);
+    bot.act(worldAt(1600, null), out as never);
+    expect(out).toEqual([]);
+    // A new silence plans a new tap, which comes when due.
+    bot.act(worldAt(3000, 3000), out as never);
+    expect(out).toEqual([]);
+    bot.act(worldAt(3400, 3000), out as never);
+    expect(out).toEqual([expect.objectContaining({ type: 'TapBaby', t: 3400 })]);
+  });
+
   it('does not tap for a world that has no started silence', () => {
     const bot = makeBot('perfect', botSetup(1));
     const out: never[] = [];

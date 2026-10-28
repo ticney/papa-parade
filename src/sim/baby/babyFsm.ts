@@ -31,6 +31,18 @@ export function enterBabyState(world: World, ctx: StepContext, next: BabyState):
 }
 
 /**
+ * Whether a suspicious silence is under way: a threat is `hidden` (drawn, the baby not yet off to
+ * it) or the baby is in one. Pure. The director draws nothing else meanwhile (story 1.21).
+ */
+export function isSilenceUnderway(world: World): boolean {
+  if (world.silence.threatId !== null) return true;
+  for (let i = 0; i < world.threats.length; i++) {
+    if (world.threats[i]?.state === 'hidden') return true;
+  }
+  return false;
+}
+
+/**
  * Whether the baby is free to take a new errand: wandering or babbling, locked on no threat, in no
  * silence. Pure. The director draws a suspicious silence only then (story 1.21).
  */
@@ -39,6 +51,6 @@ export function isBabyFree(world: World): boolean {
   return (
     (baby.state === 'wander' || baby.state === 'babble') &&
     baby.targetThreatId === null &&
-    world.silence.threatId === null
+    !isSilenceUnderway(world)
   );
 }

@@ -744,12 +744,14 @@ export async function boot(): Promise<void> {
     project: (xM, yM, zM, out) => {
       if (room === null) return false;
       const rect = canvas.getBoundingClientRect();
+      const hudRect = hudRoot.getBoundingClientRect();
       bubblePoint.set(xM, yM, zM).project(camera);
-      out.x = rect.left + ((bubblePoint.x + 1) / 2) * rect.width;
-      out.y = rect.top + ((1 - bubblePoint.y) / 2) * rect.height;
+      out.x = rect.left + ((bubblePoint.x + 1) / 2) * rect.width - hudRect.left;
+      out.y = rect.top + ((1 - bubblePoint.y) / 2) * rect.height - hudRect.top;
       return true;
     },
     viewport: () => ({ width: hudRoot.clientWidth, height: hudRoot.clientHeight }),
+    targetHeightM: () => levelFeel().baby.bodyRadiusM,
     hudBottomPx: () => hudRoot.querySelector('.pp-hud-row')?.getBoundingClientRect().bottom ?? 0,
   });
   window.addEventListener('resize', () => silenceBubble.relayout());

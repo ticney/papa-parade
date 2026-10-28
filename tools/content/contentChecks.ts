@@ -361,7 +361,7 @@ function checkLevelReferences(
               problems.push({
                 file,
                 jsonPath: formatJsonPath(['waves', w, 'threats', i, 'anchor']),
-                message: `"${entry.anchor}" is not a hidden zone of content/${geometryFile}, but the threat "${entry.def}" has target "hiddenZone"`,
+                message: `the threat "${entry.def}" has target "hiddenZone", so "${entry.anchor}" must be a hidden zone, which content/${geometryFile} does not have`,
               });
             }
           } else if (!geometry.anchors.some((anchor) => anchor.id === entry.anchor)) {

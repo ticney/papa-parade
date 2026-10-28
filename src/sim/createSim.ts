@@ -1,7 +1,7 @@
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { Feel } from '@content/schemas/feel';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
-import { ThreatGagIds } from '@content/schemas/threat';
+import type { ThreatDef } from '@content/schemas/threat';
 import { PAPA_TARGET_ANCHOR_ID, PROP_ON_FLOOR_TOLERANCE_M } from '@shared/constants';
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
@@ -196,7 +196,7 @@ function simLevelOf(
       );
     }
     // The wording of these is the one `content:check` and the schema use.
-    for (const gag of ThreatGagIds(def)) {
+    for (const gag of gagIdsOf(def)) {
       invariant(
         (GAG_IDS as readonly string[]).includes(gag),
         `${entry.where}: the threat "${entry.def}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
@@ -206,7 +206,7 @@ function simLevelOf(
       def.target !== 'papa',
       `${entry.where}: the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef), a wave cannot plan it`,
     );
-    for (const gag of ThreatGagIds(def)) {
+    for (const gag of gagIdsOf(def)) {
       invariant(
         gag !== PAPA_ASLEEP_GAG_ID,
         `${entry.where}: the threat "${entry.def}" has the gag "${PAPA_ASLEEP_GAG_ID}": only the micro-sleep (target "papa") may end in it`,
@@ -229,7 +229,7 @@ function simLevelOf(
       def.target === 'papa',
       `${where}: the threat "${microSleepDef}" has target "${def.target}", but a micro-sleep must have target "papa"`,
     );
-    for (const gag of ThreatGagIds(def)) {
+    for (const gag of gagIdsOf(def)) {
       invariant(
         (GAG_IDS as readonly string[]).includes(gag),
         `${where}: the threat "${microSleepDef}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
@@ -329,6 +329,11 @@ function simLevelOf(
       };
     }),
   };
+}
+
+/** The gag ids a def can end in: its one `gag`, or the `surpriseGags` a hidden-zone threat draws from. */
+function gagIdsOf(def: ThreatDef): readonly string[] {
+  return def.target === 'hiddenZone' ? def.surpriseGags : [def.gag];
 }
 
 /**

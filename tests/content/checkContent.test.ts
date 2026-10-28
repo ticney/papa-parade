@@ -716,6 +716,86 @@ describe('checkContent on level files', () => {
     );
   });
 
+  describe('a hidden-zone threat (the suspicious silence, story 1.21)', () => {
+    const SILENCE_FILE = 'content/threats/silence_mischief.json';
+    const silence = { def: 'silence_mischief', anchor: 'behind_sofa' };
+
+    it('accepts it planned in a hidden zone of the geometry', async () => {
+      await plan([silence]);
+      expect(await checkContent(root)).toEqual([]);
+    });
+
+    it('names the wave threat planned at an anchor instead of a hidden zone', async () => {
+      await plan([{ ...silence, anchor: 'outlet_01' }]);
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'waves[0].threats[0].anchor',
+          message: expect.stringMatching(
+            /the threat "silence_mischief" has target "hiddenZone", so "outlet_01" must be a hidden zone, which content\/.* does not have/,
+          ),
+        }),
+      ]);
+    });
+
+    it('names the wave threat planned at a hidden zone when its def has target "anchor"', async () => {
+      await plan([{ ...entry, anchor: 'behind_sofa' }]);
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'waves[0].threats[0].anchor',
+          message: expect.stringMatching(/"behind_sofa" is not an anchor of content\/.*/),
+        }),
+      ]);
+    });
+
+    it('names a surprise gag the sim does not know, in the def and at the wave entry that plans it', async () => {
+      await mutateJson(SILENCE_FILE, (threat) => {
+        threat.surpriseGags = ['tissues_everywhere', 'glitter_bomb'];
+      });
+      await plan([silence]);
+      const problems = await checkContent(root);
+      expect(problems).toContainEqual(
+        expect.objectContaining({
+          file: SILENCE_FILE,
+          jsonPath: 'surpriseGags[1]',
+          message: expect.stringContaining('glitter_bomb'),
+        }),
+      );
+      expect(problems).toContainEqual(
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'waves[0].threats[0].def',
+          message: expect.stringMatching(/"silence_mischief".*glitter_bomb/),
+        }),
+      );
+    });
+
+    it('names the micro-sleep gag among the surprise gags', async () => {
+      await mutateJson(SILENCE_FILE, (threat) => {
+        threat.surpriseGags = ['papa_asleep'];
+      });
+      await plan([silence]);
+      const problems = await checkContent(root);
+      expect(problems).toContainEqual(
+        expect.objectContaining({
+          file: SILENCE_FILE,
+          jsonPath: 'surpriseGags[0]',
+          message: expect.stringMatching(/"papa_asleep".*micro-sleep/),
+        }),
+      );
+      expect(problems).toContainEqual(
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'waves[0].threats[0].def',
+          message: expect.stringMatching(
+            /"silence_mischief".*gag "papa_asleep".*only the micro-sleep/,
+          ),
+        }),
+      );
+    });
+  });
+
   it('names a coffee machine in a level with no fatigue gauge', async () => {
     await mutateJson(FILE, (level) => {
       level.gauges = {};

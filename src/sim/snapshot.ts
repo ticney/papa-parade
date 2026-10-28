@@ -215,7 +215,12 @@ function babyProblem(baby: unknown, threats: readonly { id: number }[]): string 
     if (path.length === 0 || (slice.pathIndex as number) * 2 >= path.length) {
       return 'world.baby.path';
     }
-  } else if (slice.state !== 'approach' && slice.state !== 'mischiefSilent' && path.length !== 0) {
+  } else if (slice.state === 'mischiefSilent') {
+    // Crawling to the zone (a path left to walk) or sitting in it (none).
+    if (path.length !== 0 && (slice.pathIndex as number) * 2 >= path.length) {
+      return 'world.baby.path';
+    }
+  } else if (slice.state !== 'approach' && path.length !== 0) {
     return 'world.baby.path';
   }
   // The baby stares at, crawls to or plays out a target: it has one.
@@ -511,14 +516,18 @@ function propProblem(prop: unknown, index: number, planned: PlannedLevel['props'
 }
 
 /**
- * The suspicious silence (story 1.21) and the world agree: it names a threat that is `hidden` (or
- * `telegraph`), its instants come in order, and the baby is `mischiefSilent` on that threat exactly
- * while there is one and babbles exactly until it has entered the zone.
+ * The suspicious silence (story 1.21) and the world agree: it names the one `hidden` threat, its
+ * instants come in order and are not in the future, and the baby is `mischiefSilent` on that threat
+ * exactly while there is one and babbles exactly until it has entered the zone. A level that has
+ * ended closes the silence (`SilenceEnded{levelEnded}`) and leaves the baby and the threat as they
+ * were: the coupling is then not checked.
  */
 function silenceProblem(
   silence: unknown,
   baby: unknown,
   threats: readonly { id: number; state: unknown }[],
+  nowMs: number,
+  isEnded: boolean,
 ): string | null {
   if (typeof silence !== 'object' || silence === null) return 'world.silence is missing';
   const slice = silence as Record<string, unknown>;
@@ -526,21 +535,27 @@ function silenceProblem(
   if (threatId !== null) {
     if (!Number.isInteger(threatId)) return 'world.silence.threatId';
     const threat = threats.find((candidate) => candidate.id === threatId);
-    if (threat === undefined || (threat.state !== 'hidden' && threat.state !== 'telegraph')) {
-      return 'world.silence.threatId';
-    }
+    if (threat === undefined || threat.state !== 'hidden') return 'world.silence.threatId';
   }
-  if (zoneEnteredAt !== null && (!isFiniteNumber(zoneEnteredAt) || threatId === null)) {
-    return 'world.silence.zoneEnteredAt';
+  if (zoneEnteredAt !== null) {
+    if (!isFiniteNumber(zoneEnteredAt) || threatId === null || (zoneEnteredAt as number) > nowMs) {
+      return 'world.silence.zoneEnteredAt';
+    }
   }
   if (startedAt !== null) {
     if (!isFiniteNumber(startedAt) || zoneEnteredAt === null) return 'world.silence.startedAt';
     if ((startedAt as number) < (zoneEnteredAt as number)) return 'world.silence.startedAt';
+    if ((startedAt as number) > nowMs) return 'world.silence.startedAt';
   }
   const slept = baby as Record<string, unknown>;
-  if ((slept.state === 'mischiefSilent') !== (threatId !== null)) return 'world.silence.threatId';
-  if (threatId !== null && slept.targetThreatId !== threatId) return 'world.silence.threatId';
   if (slept.babbling !== (zoneEnteredAt === null)) return 'world.silence.zoneEnteredAt';
+  if (threatId !== null && slept.targetThreatId !== threatId) return 'world.silence.threatId';
+  if (isEnded && threatId === null) return null;
+  if ((slept.state === 'mischiefSilent') !== (threatId !== null)) return 'world.silence.threatId';
+  // One threat is hidden exactly while the silence names it.
+  let hiddenCount = 0;
+  for (const threat of threats) if (threat.state === 'hidden') hiddenCount++;
+  if (hiddenCount !== (threatId === null ? 0 : 1)) return 'world.silence.threatId';
   return null;
 }
 
@@ -637,7 +652,13 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
       planned.objects.map((object) => object.id),
     ) ??
     babyProblem(baby, threats as readonly ThreatInstance[]) ??
-    silenceProblem(silence, baby, threats as readonly ThreatInstance[]) ??
+    silenceProblem(
+      silence,
+      baby,
+      threats as readonly ThreatInstance[],
+      clock.sim as number,
+      (flow as { state: unknown }).state === 'ended',
+    ) ??
     propsProblem(props, mess, planned.props)
   );
 }

@@ -52,6 +52,8 @@ export interface RunSummary {
   silencesFound: number;
   /** The silences nobody found (`SilenceEnded{timedOut}`): the surprise mischief came. */
   silencesTimedOut: number;
+  /** The silences the level ended in (`SilenceEnded{levelEnded}`): neither found nor timed out. */
+  silencesCutOff: number;
   commands: number;
   threats: Record<string, ThreatTally>;
   byGag: Record<string, number>;
@@ -113,6 +115,7 @@ export function createRunRecorder(
   let silences = 0;
   let silencesFound = 0;
   let silencesTimedOut = 0;
+  let silencesCutOff = 0;
   // A silence is picked (`ThreatHidden`), then telegraphed only if the baby is found: the pick is
   // what counts against the wave, and the later telegraph of the same threat is not a second one.
   const hiddenThreatIds = new Set<number>();
@@ -187,7 +190,8 @@ export function createRunRecorder(
         silences++;
       } else if (event.type === 'SilenceEnded') {
         if (event.reason === 'found') silencesFound++;
-        else silencesTimedOut++;
+        else if (event.reason === 'timedOut') silencesTimedOut++;
+        else silencesCutOff++;
       }
     },
     finish() {
@@ -206,6 +210,7 @@ export function createRunRecorder(
         silences,
         silencesFound,
         silencesTimedOut,
+        silencesCutOff,
         commands: sim.journal().entries.length,
         threats,
         byGag,
@@ -283,6 +288,8 @@ export interface SimReport {
   silencesFound: number;
   /** The silences nobody found, over the runs: each ended in the surprise mischief. */
   silencesTimedOut: number;
+  /** The silences the level ended in, over the runs. */
+  silencesCutOff: number;
   runList: {
     seed: number;
     worldHash: string;
@@ -333,6 +340,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let silences = 0;
   let silencesFound = 0;
   let silencesTimedOut = 0;
+  let silencesCutOff = 0;
   const waves: WaveReport[] = input.waves.map((wave) => ({
     fromMs: wave.fromMs,
     maxSimultaneous: wave.maxSimultaneous,
@@ -360,6 +368,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     silences += run.silences;
     silencesFound += run.silencesFound;
     silencesTimedOut += run.silencesTimedOut;
+    silencesCutOff += run.silencesCutOff;
     for (const gag of Object.keys(run.byGag)) {
       byGag[gag] = countOf(byGag, gag) + countOf(run.byGag, gag);
     }
@@ -426,6 +435,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     silences,
     silencesFound,
     silencesTimedOut,
+    silencesCutOff,
     runList: runs.map((run) => ({
       seed: run.seed,
       worldHash: run.worldHash,

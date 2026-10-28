@@ -238,28 +238,30 @@ describe('pickBaby (story 1.21)', () => {
     };
   };
 
-  it('is true within the radius of his centre, inclusive, and false just outside', () => {
+  it('gives the squared distance within the radius of his centre, inclusive, and null just outside', () => {
     const at = pxAt(HEIGHT_M);
-    expect(tester.pickBaby(at.x, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBe(true);
-    expect(tester.pickBaby(at.x + RADIUS, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBe(true);
-    expect(tester.pickBaby(at.x + RADIUS + 1, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBe(false);
+    expect(tester.pickBaby(at.x, at.y, RECT, BABY, HEIGHT_M, RADIUS)).not.toBeNull();
+    expect(tester.pickBaby(at.x, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBeCloseTo(0, 6);
+    expect(tester.pickBaby(at.x + 10, at.y - 20, RECT, BABY, HEIGHT_M, RADIUS)).toBeCloseTo(500, 6);
+    expect(tester.pickBaby(at.x + RADIUS, at.y, RECT, BABY, HEIGHT_M, RADIUS)).not.toBeNull();
+    expect(tester.pickBaby(at.x + RADIUS + 1, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBeNull();
   });
 
   it('projects his centre at the given height, not his floor point', () => {
     const centre = pxAt(HEIGHT_M);
     const floor = pxAt(0);
     expect(Math.hypot(centre.x - floor.x, centre.y - floor.y)).toBeGreaterThan(3);
-    expect(tester.pickBaby(centre.x, centre.y, RECT, BABY, HEIGHT_M, 1)).toBe(true);
-    expect(tester.pickBaby(floor.x, floor.y, RECT, BABY, HEIGHT_M, 1)).toBe(false);
+    expect(tester.pickBaby(centre.x, centre.y, RECT, BABY, HEIGHT_M, 1)).not.toBeNull();
+    expect(tester.pickBaby(floor.x, floor.y, RECT, BABY, HEIGHT_M, 1)).toBeNull();
   });
 
-  it('is false for a point that is not a number, a negative radius, or a baby behind the camera', () => {
+  it('is null for a point that is not a number, a negative radius, or a baby behind the camera', () => {
     const at = pxAt(HEIGHT_M);
-    expect(tester.pickBaby(Number.NaN, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBe(false);
-    expect(tester.pickBaby(at.x, Number.POSITIVE_INFINITY, RECT, BABY, HEIGHT_M, RADIUS)).toBe(
-      false,
-    );
-    expect(tester.pickBaby(at.x, at.y, RECT, BABY, HEIGHT_M, -1)).toBe(false);
-    expect(tester.pickBaby(at.x, at.y, RECT, { xM: 1e6, zM: 1e6 }, HEIGHT_M, RADIUS)).toBe(false);
+    expect(tester.pickBaby(Number.NaN, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBeNull();
+    expect(
+      tester.pickBaby(at.x, Number.POSITIVE_INFINITY, RECT, BABY, HEIGHT_M, RADIUS),
+    ).toBeNull();
+    expect(tester.pickBaby(at.x, at.y, RECT, BABY, HEIGHT_M, -1)).toBeNull();
+    expect(tester.pickBaby(at.x, at.y, RECT, { xM: 1e6, zM: 1e6 }, HEIGHT_M, RADIUS)).toBeNull();
   });
 });

@@ -41,6 +41,7 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     silences: 0,
     silencesFound: 0,
     silencesTimedOut: 0,
+    silencesCutOff: 0,
     commands: 0,
     threats: {},
     byGag: {},
@@ -187,14 +188,20 @@ describe('summarizeRuns', () => {
   it('adds the silences, the ones found and the ones nobody found up over the runs (story 1.21)', () => {
     const report = summarizeRuns(INPUT, [
       run(5, { silences: 2, silencesFound: 1, silencesTimedOut: 1 }),
-      run(6, { silences: 1, silencesFound: 0, silencesTimedOut: 1 }),
+      run(6, { silences: 2, silencesFound: 0, silencesTimedOut: 1, silencesCutOff: 1 }),
       run(7, {}),
     ]);
-    expect(report).toMatchObject({ silences: 3, silencesFound: 1, silencesTimedOut: 2 });
+    expect(report).toMatchObject({
+      silences: 4,
+      silencesFound: 1,
+      silencesTimedOut: 2,
+      silencesCutOff: 1,
+    });
     expect(summarizeRuns(INPUT, [])).toMatchObject({
       silences: 0,
       silencesFound: 0,
       silencesTimedOut: 0,
+      silencesCutOff: 0,
     });
   });
 
@@ -428,10 +435,12 @@ describe('createRunRecorder', () => {
       recorder.onEvent({ type: 'SilenceStarted', ...silence });
       recorder.onEvent({ type: 'SilenceEnded', reason: 'timedOut', ...silence });
       recorder.onEvent({ type: 'SilenceStarted', ...silence });
+      recorder.onEvent({ type: 'SilenceEnded', reason: 'levelEnded', ...silence });
       expect(recorder.finish()).toMatchObject({
         silences: 3,
         silencesFound: 1,
         silencesTimedOut: 1,
+        silencesCutOff: 1,
       });
     });
 

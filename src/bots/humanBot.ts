@@ -1,3 +1,4 @@
+import { STEP_MS } from '@shared/constants';
 import { createRng } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import type { SimCommand, ThreatInstance, World } from '@sim';
@@ -28,13 +29,23 @@ export function createHumanBot(setup: BotSetup): Bot {
   const scheduler = createCommandScheduler();
   const cycles = createCycleMemory();
   const silences = createSilenceMemory();
+  // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
+  let find: { startedAt: number; atMs: number } | null = null;
   return {
     id: 'human',
     act(world: Readonly<World>, out: SimCommand[]) {
       const now = world.time.sim;
-      if (silences.isNew(world.silence)) {
-        const foundAt = Math.max((world.silence.startedAt as number) + reactionMs, now);
-        scheduler.schedule({ type: 'TapBaby', t: asSimMs(foundAt) });
+      const { startedAt } = world.silence;
+      if (startedAt !== null && silences.isNew(world.silence)) {
+        find = { startedAt, atMs: Math.max(startedAt + reactionMs, now) };
+      }
+      if (find !== null) {
+        if (startedAt !== find.startedAt) {
+          find = null; // the silence ended (found, timed out, level over) before the bot got to it
+        } else if (find.atMs < now + STEP_MS) {
+          out.push({ type: 'TapBaby', t: asSimMs(find.atMs) });
+          find = null;
+        }
       }
       for (let i = 0; i < world.threats.length; i++) {
         const threat = world.threats[i] as Readonly<ThreatInstance>;

@@ -1,6 +1,7 @@
 import type { ObjectKind } from '@content/schemas/level';
 import { STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
+import { isBabyFoundNow } from '../baby/silence.ts';
 import type { SimObjectSpec, StepContext } from '../context.ts';
 import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
@@ -188,8 +189,10 @@ export function runPapa(world: World, ctx: StepContext): void {
     if (isPapaBusy(papa)) break;
     if (command.type === 'TapFloor') tapFloor(world, ctx, command.xM, command.zM);
     else if (command.type === 'TapObject') tapObject(world, ctx, command.objectId);
-    else if (command.type === 'TapBaby') tapFloor(world, ctx, world.baby.xM, world.baby.zM);
-    else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
+    else if (command.type === 'TapBaby') {
+      // The tap that found the baby is spent: Papa stays where he is for the parry.
+      if (!isBabyFoundNow(world, ctx)) tapFloor(world, ctx, world.baby.xM, world.baby.zM);
+    } else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
     else if (command.type === 'MoveStop') moveStop(world, ctx);
     else if (command.type === 'PressThreat') pressThreat(world, ctx, command.threatId);
   }

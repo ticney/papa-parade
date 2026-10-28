@@ -6,13 +6,7 @@ import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
 import { svgElement } from '../svg.ts';
 
-/**
- * A silence's icon floats this high above the floor, in metres: the baby's height plus the marker
- * offset. (The baby's radius is not known here; this is the provisional cube's size, E7 redraws it.)
- */
-const BABY_MARKER_HEIGHT_M = 0.7;
-
-/** An icon that follows Papa floats this far above the top of his cube, in metres. */
+/** An icon floats this far above the top of the body it marks (Papa's cube, the baby's), in metres. */
 const PAPA_MARKER_OFFSET_M = 0.3;
 
 /**
@@ -77,6 +71,7 @@ export function threatMarkerEntries(
   threats: readonly Readonly<ThreatInstance>[],
   anchors: readonly { id: string; positionM: readonly [number, number, number] }[],
   defs: Readonly<Record<string, Pick<ThreatDef, 'icon' | 'target'>>>,
+  babyBodyRadiusM: number,
 ): ThreatMarkerEntry[] {
   return threats.map((threat) => {
     const def = defs[threat.defId];
@@ -98,12 +93,13 @@ export function threatMarkerEntries(
         followsPapa: true,
       };
     }
-    // A silence stands on the open cell of its hidden zone, which the sim chose: the baby's height.
+    // A silence stands on the open cell of its hidden zone, which the sim chose: above the baby
+    // (his body is a cube of side twice `feel.baby.bodyRadiusM`).
     if (def?.target === 'hiddenZone') {
       return {
         threatId: threat.id,
         xM: threat.xM,
-        yM: BABY_MARKER_HEIGHT_M,
+        yM: babyBodyRadiusM * 2 + PAPA_MARKER_OFFSET_M,
         zM: threat.zM,
         icon,
         followsPapa: false,

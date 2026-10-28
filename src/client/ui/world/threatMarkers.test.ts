@@ -294,6 +294,7 @@ describe('threatMarkerEntries', () => {
       ],
       anchors,
       defs,
+      0.2,
     );
     expect(entries).toEqual([
       { threatId: 7, xM: -3.95, yM: 0.3, zM: 0.5, icon: 'bolt', followsPapa: false },
@@ -310,6 +311,7 @@ describe('threatMarkerEntries', () => {
       ],
       anchors,
       defs,
+      0.2,
     );
     expect(entries.map((entry) => entry.icon)).toEqual(['stairs', 'mug', 'bolt']);
   });
@@ -320,6 +322,7 @@ describe('threatMarkerEntries', () => {
       [{ ...threat(7, 'idle'), defId: 'ghost', anchorId: 'door' }],
       anchors,
       defs,
+      0.2,
     );
     expect(entries.map((entry) => entry.icon)).toEqual(['bolt']);
     expect(
@@ -331,7 +334,7 @@ describe('threatMarkerEntries', () => {
   });
 
   it('is empty for a level without threats', () => {
-    expect(threatMarkerEntries([], anchors, defs)).toEqual([]);
+    expect(threatMarkerEntries([], anchors, defs, 0.2)).toEqual([]);
   });
 
   it('falls back to the threat floor point when the room lacks the anchor', () => {
@@ -339,6 +342,7 @@ describe('threatMarkerEntries', () => {
       [{ ...threat(7, 'idle'), anchorId: 'ghost', xM: 2, zM: 3 }],
       anchors,
       defs,
+      0.2,
     );
     expect(entries).toEqual([
       { threatId: 7, xM: 2, yM: 0, zM: 3, icon: 'bolt', followsPapa: false },
@@ -364,9 +368,12 @@ describe('a marker that follows Papa (story 1.19)', () => {
 
   it('builds its entry on Papa, at the height of his head, with no anchor lookup and no warn', () => {
     const seen = log.buffer().length;
-    const entries = threatMarkerEntries([{ ...microSleep('idle'), xM: 2, zM: 3 }], [], {
-      papa_microsleep: { icon: 'eyelids', target: 'papa' },
-    });
+    const entries = threatMarkerEntries(
+      [{ ...microSleep('idle'), xM: 2, zM: 3 }],
+      [],
+      { papa_microsleep: { icon: 'eyelids', target: 'papa' } },
+      0.2,
+    );
     expect(entries).toEqual([
       expect.objectContaining({ threatId: 9, xM: 2, zM: 3, icon: 'eyelids', followsPapa: true }),
     ]);
@@ -418,13 +425,17 @@ describe('a silence in a hidden zone (story 1.21)', () => {
       xM: 0.5,
       zM: -2.6,
     } as Readonly<ThreatInstance>;
-    const entries = threatMarkerEntries([silence], [], {
-      silence_mischief: { icon: 'dots', target: 'hiddenZone' },
-    });
+    const entries = threatMarkerEntries(
+      [silence],
+      [],
+      { silence_mischief: { icon: 'dots', target: 'hiddenZone' } },
+      0.25,
+    );
     expect(entries).toEqual([
       { threatId: 11, xM: 0.5, yM: expect.any(Number), zM: -2.6, icon: 'dots', followsPapa: false },
     ]);
-    expect(entries[0]?.yM).toBeGreaterThan(0);
+    // Above the baby's body, whose size is the feel's: twice his radius plus the marker offset.
+    expect(entries[0]?.yM).toBeCloseTo(0.25 * 2 + 0.3, 9);
     expect(
       log
         .buffer()

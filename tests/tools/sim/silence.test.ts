@@ -69,16 +69,21 @@ describe('the suspicious silence of the live salon_crawler', () => {
   };
 
   describe.each(['idle', 'perfect'] as const)('with the %s bot', (bot) => {
-    it('hides at least one silence over the three seeds, and each goes: mischiefSilent, then SilenceStarted silenceAlertMs after the zone entry', async () => {
-      let total = 0;
+    it('hides at least one silence per seed, and each goes: mischiefSilent, then SilenceStarted silenceAlertMs after the zone entry, then exactly one end', async () => {
       for (const seed of SEEDS) {
-        const { events, feel, zoneEnteredAt } = await play(bot, seed);
+        const { events, feel, zoneEnteredAt, durationMs } = await play(bot, seed);
         const cycles = cyclesOf(events);
-        total += cycles.length;
-        for (const { hidden, cycle } of cycles) {
+        expect(cycles.length, `seed ${seed}`).toBeGreaterThanOrEqual(1);
+        cycles.forEach(({ hidden, cycle }, index) => {
           const started = ofType(cycle, 'SilenceStarted');
-          // A silence hidden in the last seconds of the level may never start; the others do.
-          if (started.length === 0) continue;
+          if (started.length === 0) {
+            // Only the silence the level ended on may never be announced, and then nobody heard it.
+            expect(index, `seed ${seed}: an unannounced silence is the last one`).toBe(
+              cycles.length - 1,
+            );
+            expect(ofType(cycle, 'SilenceEnded'), `seed ${seed}`).toEqual([]);
+            return;
+          }
           expect(started, `seed ${seed}`).toHaveLength(1);
           const startedAt = (started[0] as Of<'SilenceStarted'>).t;
           const silent = ofType(cycle, 'BabyStateChanged').find(
@@ -90,42 +95,60 @@ describe('the suspicious silence of the live salon_crawler', () => {
           expect(startedAt - (zoneEnteredAt.get(startedAt) as number), `seed ${seed}`).toBe(
             feel.baby.silenceAlertMs,
           );
-        }
+          // Every announced silence ends once, and one cut off by the level says so.
+          const ended = ofType(cycle, 'SilenceEnded');
+          expect(ended, `seed ${seed}`).toHaveLength(1);
+          if (ended[0]?.reason === 'levelEnded') {
+            expect(ended[0].t, `seed ${seed}`).toBe(durationMs);
+            expect(index, `seed ${seed}: the level ends once`).toBe(cycles.length - 1);
+          }
+        });
       }
-      expect(total).toBeGreaterThanOrEqual(1);
     });
   });
 
   it('with the idle bot, nobody finds the baby: SilenceEnded{timedOut} at startedAt + findMaxMs, then a surprise gag', async () => {
-    let checked = 0;
     for (const seed of SEEDS) {
-      const { events, def } = await play('idle', seed);
+      const { events, def, durationMs } = await play('idle', seed);
+      let checked = 0;
       for (const { hidden, cycle } of cyclesOf(events)) {
         const [start] = ofType(cycle, 'SilenceStarted');
+        if (start === undefined) continue; // the level ended before it was announced
         const ended = ofType(cycle, 'SilenceEnded');
-        // One that started in the last seconds of the level has no end in the run.
-        if (start === undefined || ended.length === 0) continue;
         expect(ended).toHaveLength(1);
+        const gags = ofType(cycle, 'GagTriggered').filter((e) => e.threatId === hidden.threatId);
+        if (ended[0]?.reason === 'levelEnded') {
+          // Cut off by the end of the level, before the deadline: no mischief.
+          expect(start.t + def.findMaxMs, `seed ${seed}`).toBeGreaterThan(durationMs);
+          expect(gags).toEqual([]);
+          continue;
+        }
         expect(ended[0]).toMatchObject({ reason: 'timedOut', t: start.t + def.findMaxMs });
-        const gag = ofType(cycle, 'GagTriggered').filter((e) => e.threatId === hidden.threatId);
-        expect(gag).toHaveLength(1);
-        expect(def.surpriseGags).toContain((gag[0] as Of<'GagTriggered'>).gag);
-        expect(gag[0]?.t).toBe(start.t + def.findMaxMs);
+        expect(gags).toHaveLength(1);
+        expect(def.surpriseGags).toContain((gags[0] as Of<'GagTriggered'>).gag);
+        expect(gags[0]?.t).toBe(start.t + def.findMaxMs);
         checked++;
       }
+      expect(
+        checked,
+        `seed ${seed}: at least one silence runs to its mischief`,
+      ).toBeGreaterThanOrEqual(1);
     }
-    expect(checked).toBeGreaterThanOrEqual(1);
   });
 
   it('with the perfect bot, the baby is found within one step of SilenceStarted and the threat is parried perfectly', async () => {
-    let checked = 0;
     for (const seed of SEEDS) {
+      let checked = 0;
       const { events, def, feel, durationMs, tapMs } = await play('perfect', seed);
       for (const { hidden, cycle } of cyclesOf(events)) {
         const [start] = ofType(cycle, 'SilenceStarted');
         const ended = ofType(cycle, 'SilenceEnded');
-        if (start === undefined || ended.length === 0) continue;
-        expect(ended[0]?.reason, `seed ${seed}`).toBe('found');
+        if (start === undefined) continue; // the level ended before it was announced
+        expect(ended, `seed ${seed}`).toHaveLength(1);
+        expect(ended[0]?.reason, `seed ${seed}`).toBe(
+          ended[0]?.t === durationMs ? 'levelEnded' : 'found',
+        );
+        if (ended[0]?.reason === 'levelEnded') continue;
         expect((ended[0]?.t ?? 0) - start.t).toBeLessThanOrEqual(STEP_MS);
         const resolved = ofType(cycle, 'ResponseResolved').filter(
           (e) => e.threatId === hidden.threatId,
@@ -150,7 +173,10 @@ describe('the suspicious silence of the live salon_crawler', () => {
         ]);
         checked++;
       }
+      expect(
+        checked,
+        `seed ${seed}: at least one silence is found and parried`,
+      ).toBeGreaterThanOrEqual(1);
     }
-    expect(checked).toBeGreaterThanOrEqual(1);
   });
 });

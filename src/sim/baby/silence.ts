@@ -37,6 +37,16 @@ function isBabyTapped(world: World, ctx: StepContext): boolean {
   return false;
 }
 
+/** Whether the baby was found at this very step (`SilenceEnded{found}`): the tap that found him is spent. */
+export function isBabyFoundNow(world: World, ctx: StepContext): boolean {
+  const now = world.time.sim;
+  for (let i = ctx.events.length - 1; i >= 0; i--) {
+    const event = ctx.events[i];
+    if (event?.type === 'SilenceEnded' && event.t === now && event.reason === 'found') return true;
+  }
+  return false;
+}
+
 /** Ends the silence: the baby babbles again and the slice is empty. The caller has emitted `SilenceEnded`. */
 function clearSilence(world: World): void {
   world.baby.babbling = true;
@@ -51,7 +61,8 @@ function clearSilence(world: World): void {
  * (the babble stops: the sound telegraph); announce the silence once the baby has been quiet for
  * `silenceAlertMs`; find the baby (Papa inside the box, or a `TapBaby` this step, Papa not busy)
  * and reveal the threat with a normal telegraph; or, when `findMaxMs` has run out, play the
- * surprise mischief (a `late` gag). A find and the deadline in one step: the find wins. Papa's
+ * surprise mischief (a `late` gag). A find and the deadline in one step: the find wins. The find is
+ * never tested in the step that announces the silence, so `SilenceStarted` always precedes its end. Papa's
  * point is the one at the end of the previous step (`runPapa` runs later). It writes the baby only
  * through `enterBabyState` and its own fields, the threat only through the `threatFsm` helpers.
  */
@@ -76,7 +87,10 @@ export function runSilence(world: World, ctx: StepContext): void {
 
   const index = indexOfThreat(world, silence.threatId as number);
   const planned = ctx.level.threats[index];
-  if (index < 0 || planned === undefined || planned.zone === null) return;
+  invariant(
+    planned !== undefined && planned.zone !== null,
+    `the silence names threat ${silence.threatId}, which the level does not plan as a hidden zone`,
+  );
   const threat = world.threats[index] as ThreatInstance;
   const { zone } = planned;
   const def = planned.def;
@@ -101,6 +115,7 @@ export function runSilence(world: World, ctx: StepContext): void {
     if (now < silence.zoneEnteredAt + ctx.feel.baby.silenceAlertMs) return;
     silence.startedAt = now;
     ctx.events.push({ type: 'SilenceStarted', t: now, threatId: threat.id });
+    return;
   }
 
   // Find: Papa walked in, or the player tapped the baby.
@@ -120,4 +135,23 @@ export function runSilence(world: World, ctx: StepContext): void {
     clearSilence(world);
     gagThreat(world, ctx, threat, def, 'late', null);
   }
+}
+
+/**
+ * The level ends while a silence is open: `SilenceEnded{levelEnded}` when it had been announced (so
+ * every `SilenceStarted` has its end), and the slice is emptied. A silence not yet announced just
+ * stops: nobody heard it. `runFlow` calls it in the step it ends the level, before `LevelEnded`.
+ */
+export function endSilence(world: World, ctx: StepContext): void {
+  const { silence } = world;
+  if (silence.threatId === null) return;
+  if (silence.startedAt !== null) {
+    ctx.events.push({
+      type: 'SilenceEnded',
+      t: world.time.sim,
+      threatId: silence.threatId,
+      reason: 'levelEnded',
+    });
+  }
+  clearSilence(world);
 }

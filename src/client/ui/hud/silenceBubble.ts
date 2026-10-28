@@ -12,12 +12,14 @@ export interface ScreenPoint {
 export interface SilenceBubbleOptions {
   t: Translator;
   /**
-   * Projects a point of the room (metres) to the screen (CSS px of the viewport) into `out`; false
+   * Projects a point of the room (metres) to the screen (CSS px from the top left of the HUD root) into `out`; false
    * when it cannot be (no camera yet). Called when the bubble shows and on a resize, never per frame.
    */
   project(xM: number, yM: number, zM: number, out: ScreenPoint): boolean;
-  /** The size of the HUD root, in CSS px. */
+  /** The size of the HUD root, in CSS px. `project` writes into the same box. */
   viewport(): { width: number; height: number };
+  /** The height the bubble points at above the floor, in metres: the baby's centre. Tuning data (`feel.baby.bodyRadiusM`). */
+  targetHeightM(): number;
   /** The bottom of the HUD row, in CSS px from the top: the bubble stays below it. */
   hudBottomPx(): number;
 }
@@ -35,8 +37,6 @@ export interface SilenceBubble {
   relayout(): void;
 }
 
-/** The height the bubble points at above the floor, in metres: the baby's centre. */
-const BUBBLE_TARGET_HEIGHT_M = 0.25;
 /** The bubble's own height, in CSS px (the mockup's 58 px). */
 const BUBBLE_HEIGHT_PX = 58;
 /** The gap under the HUD row, in CSS px. */
@@ -66,50 +66,67 @@ export function createSilenceBubble(doc: Doc, options: SilenceBubbleOptions): Si
 
   const point: ScreenPoint = { x: 0, y: 0 };
   let isShown = false;
+  let isPlaced = false;
+  let hasZone = false;
   let zoneXM = 0;
   let zoneZM = 0;
   let side: 'left' | 'right' | null = null;
   let topPx = Number.NaN;
 
-  const place = (): void => {
+  const setSide = (nextSide: 'left' | 'right'): void => {
+    if (nextSide === side) return;
+    side = nextSide;
+    element.className = `${SILENCE_BUBBLE_CLASSES.root} ${
+      nextSide === 'left' ? SILENCE_BUBBLE_CLASSES.left : SILENCE_BUBBLE_CLASSES.right
+    }`;
+  };
+  const setTop = (nextTopPx: number): void => {
+    if (nextTopPx === topPx) return;
+    topPx = nextTopPx;
+    element.style.top = `${nextTopPx}px`;
+  };
+
+  // Puts the bubble on the side of the zone, at its height; false when the zone cannot be projected
+  // yet (no camera), and the bubble stays hidden until it can.
+  const place = (): boolean => {
     const { width, height } = options.viewport();
-    if (!options.project(zoneXM, BUBBLE_TARGET_HEIGHT_M, zoneZM, point)) return;
-    const nextSide = point.x < width / 2 ? 'left' : 'right';
-    if (nextSide !== side) {
-      side = nextSide;
-      element.className = `${SILENCE_BUBBLE_CLASSES.root} ${
-        nextSide === 'left' ? SILENCE_BUBBLE_CLASSES.left : SILENCE_BUBBLE_CLASSES.right
-      }`;
-    }
     const minTopPx = options.hudBottomPx() + BUBBLE_GAP_PX;
-    const maxTopPx = Math.max(minTopPx, (height * BUBBLE_LOWEST_PCT) / 100 - BUBBLE_HEIGHT_PX);
-    const nextTopPx = Math.round(
-      Math.min(Math.max(point.y - BUBBLE_HEIGHT_PX / 2, minTopPx), maxTopPx),
-    );
-    if (nextTopPx !== topPx) {
-      topPx = nextTopPx;
-      element.style.top = `${nextTopPx}px`;
+    if (!hasZone) {
+      // The silence names no threat the HUD knows: never leave the player without the cue.
+      setSide('right');
+      setTop(minTopPx);
+      return true;
     }
+    if (!options.project(zoneXM, options.targetHeightM(), zoneZM, point)) return false;
+    setSide(point.x < width / 2 ? 'left' : 'right');
+    const maxTopPx = Math.max(minTopPx, (height * BUBBLE_LOWEST_PCT) / 100 - BUBBLE_HEIGHT_PX);
+    setTop(Math.round(Math.min(Math.max(point.y - BUBBLE_HEIGHT_PX / 2, minTopPx), maxTopPx)));
+    return true;
   };
 
   return {
     element,
     update(isSilent, world) {
-      if (isSilent === isShown) return;
-      isShown = isSilent;
-      if (isSilent && world !== undefined) {
-        const threatId = world.silence.threatId;
-        const threat = world.threats.find((candidate) => candidate.id === threatId);
-        if (threat !== undefined) {
-          zoneXM = threat.xM;
-          zoneZM = threat.zM;
-          place();
+      if (isSilent !== isShown) {
+        isShown = isSilent;
+        isPlaced = false;
+        hasZone = false;
+        if (isSilent && world !== undefined) {
+          const threatId = world.silence.threatId;
+          const threat = world.threats.find((candidate) => candidate.id === threatId);
+          if (threat !== undefined) {
+            hasZone = true;
+            zoneXM = threat.xM;
+            zoneZM = threat.zM;
+          }
         }
       }
-      element.hidden = !isSilent;
+      if (isShown && !isPlaced) isPlaced = place();
+      element.hidden = !(isShown && isPlaced);
     },
     relayout() {
-      if (isShown) place();
+      if (isShown) isPlaced = place();
+      element.hidden = !(isShown && isPlaced);
     },
   };
 }

@@ -178,6 +178,7 @@ const BabySchema = z
     ),
     silenceAlertMs: z
       .number()
+      .int()
       .positive()
       .describe(
         'How long the hidden baby stays quiet in its zone before the silence is announced (`SilenceStarted`), in ms.',

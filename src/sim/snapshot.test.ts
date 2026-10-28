@@ -1585,6 +1585,19 @@ describe('snapshot / restore of the suspicious silence (story 1.21)', () => {
     expect(liveEvents.map((event) => event.type)).toContain('SilenceEnded');
   });
 
+  it('restores a level that ended in the middle of a silence: the slice is closed, the baby and the threat as they were', async () => {
+    const level = createTestLevel({ waves: [testWave([SILENCE])], durationMs: 3500 });
+    const live = await createSim({ content, geometry, level, seed: 5 });
+    for (let i = 0; i < 400 && live.world.flow.state !== 'ended'; i++) live.step();
+    expect(live.world.flow.state).toBe('ended');
+    expect(live.world.silence).toEqual({ threatId: null, zoneEnteredAt: null, startedAt: null });
+    expect(live.world.threats[0]?.state).toBe('hidden');
+    expect(live.world.baby.state).toBe('mischiefSilent');
+    const restored = await createSim({ content, geometry, level, seed: 5 });
+    restored.restore(live.snapshot());
+    expect(hashJson(restored.world)).toBe(hashJson(live.world));
+  });
+
   it('goes through every threat state once the silence is played, hidden included', async () => {
     const states = new Set<string>();
     const sim = await newSim();
@@ -1644,6 +1657,50 @@ describe('snapshot / restore of the suspicious silence (story 1.21)', () => {
         /world\.silence\.startedAt/,
       ],
       [
+        'a start in the future',
+        (w) => {
+          (w.silence as Record<string, unknown>).startedAt = 1e9;
+        },
+        /world\.silence\.startedAt/,
+      ],
+      [
+        'a zone entry in the future',
+        (w) => {
+          (w.silence as Record<string, unknown>).zoneEnteredAt = 1e9;
+          (w.silence as Record<string, unknown>).startedAt = null;
+        },
+        /world\.silence\.zoneEnteredAt/,
+      ],
+      [
+        'a hidden threat no silence names',
+        (w) => {
+          Object.assign(w.silence as Record<string, unknown>, {
+            threatId: null,
+            zoneEnteredAt: null,
+            startedAt: null,
+          });
+          Object.assign(w.baby as Record<string, unknown>, {
+            state: 'babble',
+            targetThreatId: null,
+            babbling: true,
+            path: [],
+            pathIndex: 0,
+          });
+        },
+        /world\.silence\.threatId/,
+      ],
+      [
+        'a silence on a threat that is already telegraphed',
+        (w) => {
+          Object.assign(firstThreat(w), {
+            state: 'telegraph',
+            windowOpenAt: 1,
+            responseWindow: { windowMs: 100, toleranceMs: 0 },
+          });
+        },
+        /world\.silence\.threatId|world\.threats\[0\]/,
+      ],
+      [
         'a baby that is not hiding while a silence is under way',
         (w) => {
           (w.baby as Record<string, unknown>).state = 'babble';
@@ -1678,6 +1735,15 @@ describe('snapshot / restore of the suspicious silence (story 1.21)', () => {
       damage(snapshot.world);
       const target = await newSim();
       expect(() => target.restore(snapshot)).toThrow(pattern);
+    });
+
+    it('a hiding baby whose path is spent', async () => {
+      const live = await until((world) => world.baby.state === 'mischiefSilent');
+      const snapshot = JSON.parse(JSON.stringify(live.snapshot()));
+      expect(snapshot.world.baby.path.length).toBeGreaterThan(0);
+      snapshot.world.baby.pathIndex = snapshot.world.baby.path.length / 2;
+      const target = await newSim();
+      expect(() => target.restore(snapshot)).toThrow(/world\.baby\.path/);
     });
 
     it('a hidden threat with a window', async () => {

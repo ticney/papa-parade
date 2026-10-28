@@ -18,10 +18,10 @@ export type FailReason = 'early' | 'late' | 'wrongResponse';
 export type PhoneRingEndReason = 'answered' | 'timedOut' | 'levelEnded';
 
 /**
- * Why a suspicious silence ended: Papa found the baby, or `findMaxMs` ran out and the surprise
- * mischief came.
+ * Why a suspicious silence ended: Papa found the baby, `findMaxMs` ran out and the surprise
+ * mischief came, or the level ended first.
  */
-export type SilenceEndReason = 'found' | 'timedOut';
+export type SilenceEndReason = 'found' | 'timedOut' | 'levelEnded';
 
 /** Why a level ended. `'timer'` so far; the early end on noise (`MamaWoke`, story 3.x) adds one. */
 export type LevelEndReason = 'timer';

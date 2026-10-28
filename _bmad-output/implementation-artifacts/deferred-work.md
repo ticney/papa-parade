@@ -397,3 +397,8 @@
 - **The silence is drawn only while the baby is free,** so wave 2's other threats delay it (Open point 5). Kept on Geo's delegation; a fixed `atMs` like the phone's is the alternative.
 - **`ForceThreat` is generic** (any idle threat but the micro-sleep): the e2e and Geo use it; a debug-panel button is story 2.1's.
 - **`content:check` reports a threat def with no `target` once** (a union on `target` gives one bad-discriminator error, not one per missing key).
+
+## Deferred from: code review of story 1-21-le-silence-suspect (2026-10-28)
+
+- **A timed-out silence is reported as `ResponseResolved{fail, late}` with `offsetMs: null` and no window.** Whether story 1.22 counts it in Mama's Sigh is its own decision (Open point 4); give the gag a dedicated reason if scoring needs it.
+- **`loadLevelContent.test.ts` « collects every problem » was weakened from `> 2` to `>= 2`** (a def with no `target` is now one error, not one per missing key). Disclosed by the story; revisit if the schema reports per key again.

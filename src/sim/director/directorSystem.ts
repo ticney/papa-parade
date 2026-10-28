@@ -1,6 +1,6 @@
 import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
-import { isBabyFree } from '../baby/babyFsm.ts';
+import { isBabyFree, isSilenceUnderway } from '../baby/babyFsm.ts';
 import { isInZone } from '../baby/silence.ts';
 import type { StepContext } from '../context.ts';
 import { hideThreat, telegraphThreat } from '../threats/threatFsm.ts';
@@ -82,9 +82,10 @@ export function runDirector(world: World, ctx: StepContext): void {
 }
 
 /**
- * Whether the idle threat at `index` can be drawn by wave `waveIndex` now: it is in the pool and, if
- * it is a silence, the baby is free to go and hide and Papa does not already stand in the zone (he
- * would find the baby the very step the silence is announced: no silence at all).
+ * Whether the idle threat at `index` can be drawn by wave `waveIndex` now: it is in the pool and,
+ * while a silence is under way, nothing else is drawn (the baby is away and would ignore the
+ * telegraph). A silence needs the baby free to go and hide, and Papa outside the zone (he would
+ * find the baby at once: no silence at all).
  */
 function isCandidate(world: World, ctx: StepContext, index: number, waveIndex: number): boolean {
   const threat = world.threats[index];
@@ -92,7 +93,7 @@ function isCandidate(world: World, ctx: StepContext, index: number, waveIndex: n
     return false;
   }
   const planned = ctx.level.threats[index];
-  if (planned?.def.target !== 'hiddenZone') return true;
+  if (planned?.def.target !== 'hiddenZone') return !isSilenceUnderway(world);
   if (!isBabyFree(world)) return false;
   return planned.zone === null || !isInZone(planned.zone, world.papa.xM, world.papa.zM);
 }
@@ -111,7 +112,7 @@ function startThreat(world: World, ctx: StepContext, index: number, waveIndex: n
 
 /**
  * `ForceThreat` (debug): starts the idle threat `threatId` now. Ignored, with no event, when it is
- * unknown, not idle, on Papa, or a silence while the baby is not free.
+ * unknown, not idle, on Papa, or a silence while the baby is not free, or Papa stands in its zone.
  */
 function forceThreat(world: World, ctx: StepContext, threatId: number): void {
   for (let i = 0; i < world.threats.length; i++) {
@@ -119,7 +120,12 @@ function forceThreat(world: World, ctx: StepContext, threatId: number): void {
     if (threat.id !== threatId) continue;
     const target = ctx.level.threats[i]?.def.target;
     if (threat.state !== 'idle' || target === 'papa') return;
-    if (target === 'hiddenZone' && !isBabyFree(world)) return;
+    if (target === 'hiddenZone') {
+      const zone = ctx.level.threats[i]?.zone;
+      const isPapaIn =
+        zone !== null && zone !== undefined && isInZone(zone, world.papa.xM, world.papa.zM);
+      if (!isBabyFree(world) || isPapaIn) return;
+    }
     startThreat(world, ctx, i, world.director.waveIndex);
     return;
   }
