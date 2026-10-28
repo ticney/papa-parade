@@ -85,6 +85,8 @@ export interface PendingPress {
   offsetMs: number;
   /** The `Release` that ended it, or null while the finger is down. */
   releasedAt: SimMs | null;
+  /** The sim time at which it first reached `holdMinMs` (`ResponseHeld`), or null. Story 1.23. */
+  heldAt: SimMs | null;
 }
 
 /**

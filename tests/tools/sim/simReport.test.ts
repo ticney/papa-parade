@@ -58,7 +58,7 @@ const tally = (overrides: Partial<RunSummary['threats'][string]> = {}) => ({
   perfect: 0,
   success: 0,
   fail: 0,
-  failReasons: { early: 0, late: 0, wrongResponse: 0 },
+  failReasons: { early: 0, late: 0, wrongResponse: 0, released: 0 },
   absOffsetSumMs: 0,
   offsetCount: 0,
   ...overrides,
@@ -79,7 +79,7 @@ describe('summarizeRuns', () => {
             perfect: 1,
             success: 1,
             fail: 1,
-            failReasons: { early: 0, late: 1, wrongResponse: 0 },
+            failReasons: { early: 0, late: 1, wrongResponse: 0, released: 0 },
             absOffsetSumMs: 30,
             offsetCount: 2,
           }),
@@ -94,7 +94,7 @@ describe('summarizeRuns', () => {
       perfectPct: 33.3,
       successPct: 33.3,
       failPct: 33.3,
-      failReasons: { early: 0, late: 1, wrongResponse: 0 },
+      failReasons: { early: 0, late: 1, wrongResponse: 0, released: 0 },
       meanAbsOffsetMs: 15,
     });
     expect(report.meanSuccessPct).toBe(66.7);
@@ -295,6 +295,29 @@ describe('summarizeRuns', () => {
 });
 
 describe('createRunRecorder', () => {
+  it('counts a Firmness let go too soon under its own reason, "released" (story 1.23)', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 1,
+    });
+    const threatId = sim.world.threats[0]?.id ?? 0;
+    const recorder = createRunRecorder(sim, 1, [{ maxSimultaneous: 1 }]);
+    recorder.onEvent({
+      type: 'ResponseResolved',
+      t: asSimMs(0),
+      threatId,
+      response: 'firm',
+      quality: 'fail',
+      reason: 'released',
+      offsetMs: 0,
+    });
+    const tallies = Object.values(recorder.finish().threats);
+    expect(tallies).toHaveLength(1);
+    expect(tallies[0]?.failReasons).toEqual({ early: 0, late: 0, wrongResponse: 0, released: 1 });
+  });
+
   it('counts the responses, gags and near misses of the events it is given', async () => {
     const sim = await createSim({
       content: createTestContent(),

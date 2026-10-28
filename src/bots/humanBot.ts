@@ -9,10 +9,11 @@ import { nextGaussian } from './gaussian.ts';
 import {
   centreOf,
   createCycleMemory,
+  createFirmHold,
   createSilenceMemory,
-  holdMsFor,
   isPressable,
   responseOf,
+  schedulePress,
 } from './threatTiming.ts';
 
 /**
@@ -29,6 +30,7 @@ export function createHumanBot(setup: BotSetup): Bot {
   const scheduler = createCommandScheduler();
   const cycles = createCycleMemory();
   const silences = createSilenceMemory();
+  const firmHold = createFirmHold();
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
   let find: { startedAt: number; atMs: number } | null = null;
   return {
@@ -47,8 +49,11 @@ export function createHumanBot(setup: BotSetup): Bot {
           find = null;
         }
       }
+      firmHold.update(world.threats, now, out);
       for (let i = 0; i < world.threats.length; i++) {
         const threat = world.threats[i] as Readonly<ThreatInstance>;
+        // One finger: while a Firmness is held, no other threat is pressed (it keeps its turn).
+        if (firmHold.isHolding) break;
         if (!isPressable(threat)) continue;
         const response = responseOf(setup.responses, threat.defId);
         if (response === undefined || !cycles.isNew(threat)) continue;
@@ -56,11 +61,7 @@ export function createHumanBot(setup: BotSetup): Bot {
         const reacted = threat.enteredAt + reactionMs;
         // `now` is a floor too: a command never goes into the past.
         const pressAt = Math.max(Math.round(Math.max(reacted, aim)), now);
-        scheduler.schedule({ type: 'PressThreat', t: asSimMs(pressAt), threatId: threat.id });
-        scheduler.schedule({
-          type: 'Release',
-          t: asSimMs(pressAt + holdMsFor(response, setup.settings.tapMs)),
-        });
+        schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
       }
       scheduler.flush(now, out);
     },

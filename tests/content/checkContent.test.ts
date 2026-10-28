@@ -513,6 +513,57 @@ describe('checkContent on threat files', () => {
     ]);
   });
 
+  describe('a Firmness (story 1.23)', () => {
+    const FIRM_FILE = 'content/threats/plug_firm.json';
+    const putFirm = async (change: (threat: Record<string, unknown>) => void) => {
+      const outlet = JSON.parse(await readFile(join(root, FILE), 'utf8'));
+      outlet.id = 'plug_firm';
+      outlet.response = 'firm';
+      change(outlet);
+      await put(FIRM_FILE, `${JSON.stringify(outlet, null, 2)}\n`);
+    };
+    const feelWindowMs = async () =>
+      (
+        JSON.parse(await readFile(join(root, 'content/feel.json'), 'utf8')).timing as {
+          windowMs: number;
+        }
+      ).windowMs;
+
+    it('accepts a hold that outlasts the feel window when the def takes the feel window', async () => {
+      const windowMs = await feelWindowMs();
+      await putFirm((threat) => {
+        threat.windowMs = null;
+        threat.holdUntilMs = windowMs + 1;
+      });
+      expect(await checkContent(root)).toEqual([]);
+    });
+
+    it('reports a hold that does not outlast the feel window, naming the file and the key', async () => {
+      const windowMs = await feelWindowMs();
+      await putFirm((threat) => {
+        threat.windowMs = null;
+        threat.holdUntilMs = windowMs;
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FIRM_FILE,
+          jsonPath: 'holdUntilMs',
+          message: expect.stringContaining('holdUntilMs'),
+        }),
+      ]);
+    });
+
+    it("reports a hold that does not outlast the def's own window", async () => {
+      await putFirm((threat) => {
+        threat.windowMs = 900;
+        threat.holdUntilMs = 800;
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({ file: FIRM_FILE, jsonPath: 'holdUntilMs' }),
+      ]);
+    });
+  });
+
   it('reports a gag the sim does not know', async () => {
     await mutateJson(FILE, (threat) => {
       threat.gag = 'outlet_hairs';

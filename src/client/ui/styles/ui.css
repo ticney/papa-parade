@@ -1014,6 +1014,30 @@ body {
     inset 0 0 0 2px var(--pp-color-ink);
 }
 
+/*
+  The hold-ring (story 1.23; DESIGN.md › hold-ring): a disc a few px wider than the icon, under it, so
+  that only its band shows. A conic fill (`--pp-hold-progress`, whole percent, written by
+  `threatMarkers.ts` from the sim's pending press) of paper over the ring-track; the 2px ink outline is
+  hard spread. Their sizes (the `inset` of the band, the `box-shadow` of the outline) are set inline
+  by `threatMarkers.ts` from `constants.ts`, which `holdRingSpec.test.ts` checks against DESIGN.md.
+  Never threat-coloured. Once the sim says the press was held that long (`--closed`) it is solid
+  paper, with a pop.
+*/
+.pp-threat-hold {
+  --pp-hold-progress: 0;
+  position: absolute;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--pp-color-paper) calc(var(--pp-hold-progress) * 1%),
+    var(--pp-color-ring-track) 0
+  );
+}
+
+.pp-threat-hold--closed {
+  background: var(--pp-color-paper);
+  animation: pp-hold-pop 200ms ease-out both;
+}
+
 .pp-threat-chevron {
   position: absolute;
   left: 50%;
@@ -1054,6 +1078,20 @@ body {
   color: var(--pp-color-ink);
   box-shadow: var(--pp-lift);
   white-space: nowrap;
+}
+
+@keyframes pp-hold-pop {
+  0% {
+    transform: scale(1);
+  }
+
+  55% {
+    transform: scale(1.22);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 @keyframes pp-threat-pulse {
@@ -1136,6 +1174,11 @@ body {
   .pp-threat-chevron,
   .pp-object-urgent .pp-object-halo {
     animation: none;
+  }
+
+  /* The ring just fades to solid paper: no scale, no overshoot (the haptic stays). */
+  .pp-threat-hold--closed {
+    animation: pp-fade-in 150ms linear both;
   }
 }
 
