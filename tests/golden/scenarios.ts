@@ -4,7 +4,14 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
-import { COFFEE_TABLE, createTestLevel, OUTLET, STAIRS, testWave } from '../support/testContent.ts';
+import {
+  COFFEE_TABLE,
+  createTestContent,
+  createTestLevel,
+  OUTLET,
+  STAIRS,
+  testWave,
+} from '../support/testContent.ts';
 
 /** A recorded live game: commands are enqueued at given steps, as the client would. */
 export interface Scenario {
@@ -50,6 +57,19 @@ const pushProp = (t: number, propId: string, impulseXNs: number): SimCommand => 
   impulseYNs: 0,
   impulseZNs: 0,
 });
+
+const setFeel = (
+  t: number,
+  patch: Extract<SimCommand, { type: 'SetFeel' }>['patch'],
+): SimCommand => ({
+  type: 'SetFeel',
+  t: asSimMs(t),
+  patch,
+});
+
+/** The frozen feel's window: the scenario below widens it, then puts it back, relative to this. */
+const { windowMs: testWindowMs } = createTestContent().feel.timing;
+const WIDER_MS = 200;
 
 export const SCENARIOS: readonly Scenario[] = [
   {
@@ -137,6 +157,35 @@ export const SCENARIOS: readonly Scenario[] = [
     seed: 42,
     untilSimMs: 3000,
     actions: [{ atStep: 10, command: pushProp(100, 'mug_01', 0.72) }],
+  },
+  {
+    // The feel tuned while playing (story 2.1): the outlet over two cycles, with a `SetFeel` before
+    // each telegraph. Cycle 1: the window is widened by 200 ms at 1500 ms, so the window frozen at
+    // the telegraph (2000) is 200 ms longer and its centre 100 ms later; a press at the OLD centre
+    // is then 100 ms early of the new one, a `success` and not the `perfect` it would be with the
+    // unchanged feel. Cycle 2: the window is put back, and `earlyPress` goes to `guard`, so a press
+    // far too early (9600) is ignored (no gag) and the next one, at the centre (10760), is a `perfect`.
+    name: 'feel_change',
+    level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
+    seed: 11,
+    untilSimMs: 20000,
+    actions: [
+      { atStep: 150, command: setFeel(1500, { timing: { windowMs: testWindowMs + WIDER_MS } }) },
+      { atStep: 200, command: pressOutlet(3350) },
+      { atStep: 200, command: release(3400) },
+      {
+        atStep: 500,
+        command: setFeel(5000, {
+          timing: { windowMs: testWindowMs },
+          input: { earlyPress: 'guard' },
+        }),
+      },
+      // The second telegraph is at 9410, the window opens at 10610 and its centre is 10760.
+      { atStep: 960, command: pressOutlet(9600) },
+      { atStep: 960, command: release(9650) },
+      { atStep: 1076, command: pressOutlet(10760) },
+      { atStep: 1076, command: release(10810) },
+    ],
   },
   {
     // The three threats of the prototype, planned together in one wave from 0 ms (outlet, stairs,

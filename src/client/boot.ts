@@ -1200,6 +1200,13 @@ export async function boot(): Promise<void> {
     } catch (cause) {
       log.warn('boot', 'window.__PP__ is not available: the test API module did not load', cause);
     }
+    // The debug overlay (F1 or three fingers), hidden until toggled: same gate as the test API.
+    try {
+      const { installDebugOverlay } = await import('@debug/debugOverlay');
+      installDebugOverlay(testHost);
+    } catch (cause) {
+      log.warn('boot', 'no debug overlay: its module did not load', cause);
+    }
   }
 
   log.info(

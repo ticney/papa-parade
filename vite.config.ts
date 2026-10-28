@@ -1,9 +1,12 @@
 import { defineConfig } from 'vite';
+import { feelWriterPlugin } from './tools/vite/feelWriterPlugin.ts';
 
-// The `feel-writer` dev plugin arrives in story 2.1.
 // Aliases come from tsconfig.json `paths`: it is the single source (no resolve.alias).
+// `feel-writer` (story 2.1) is `apply: 'serve'`: the dev server writes `content/feel.json` for the
+// feel panel, and no build contains it.
 export default defineConfig({
   base: './',
+  plugins: [feelWriterPlugin()],
   resolve: { tsconfigPaths: true },
   server: { host: true },
   // `dist/.vite/manifest.json` lists the entry and dynamic-entry chunks with their source module

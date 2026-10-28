@@ -4,7 +4,7 @@ baseline_commit: 516b463eb33099f1dba6c6e5ee4d9ad2bfd61b81
 
 # Story 2.1: Debug overlay, timing timeline and feel panel
 
-Status: in-progress
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 2.1 « Overlay de debug, timeline de timing et panneau de feeling » (L1222-1244). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -94,25 +94,25 @@ Sim tests use the frozen fixtures (`tests/support/testContent.ts`, `tests/suppor
 - [x] **T4: Hooks the overlay needs** (AC 10, 12)
   - [x] `src/client/loop.ts`: optional `measure?: () => number` clock; when given, `LoopStats` gains `simMsLastFrame`, `renderMsLastFrame`, `frameMsLastFrame` (no allocation per frame). Tests in `loop.test.ts`.
   - [x] `src/client/app/testHost.ts` (+ `tests/support/fakeTestHost.ts`): add what the overlay reads and nothing more: `renderStats()`, `loopStats()`, `levelGeometry()` (kept on the active level), `debugGroup()` (a `THREE.Group` in the level scene, emptied at level start), `threatScreenPoints()` (the icon points the hit test uses), and a way to turn loop measuring on. Keep `TestHost` read-only towards the sim.
-- [ ] **T5: The overlay** (AC 9-13)
-  - [ ] `src/debug/debugOverlay.ts` (`createDebugOverlay(host)`: root element, toggle by F1/3 fingers, show/hide, owns the panels), `perfPanel.ts`, `stateInspector.ts`, `navDebugView.ts` (grid, path, colliders, anchors, zones, touch radii), `cheats.ts`, `debugOverlay.css` (`pp-debug-` classes; above the HUD and game overlays; `pointer-events` only on its panels). Architecture names (L529-530) are the file names, except the entry, which is `debugOverlay.ts` (D12).
-  - [ ] Keyboard and pointer events inside the overlay root stop propagation so they never reach game input or the Result screen's Enter/Space skip.
-  - [ ] `src/client/boot.ts`: the guarded literal dynamic import, try/catch + `warn` (1.13 review pattern).
-  - [ ] Constants in `src/shared/constants.ts`: `DEBUG_PANEL_REFRESH_MS`, `DEBUG_TIMELINE_ROWS`, `DEBUG_SKIP_CHUNK_STEPS`, `DEBUG_THREE_FINGER_COUNT`, `FEEL_WRITER_ENDPOINT`, `FEEL_WRITER_MAX_BODY_BYTES`.
-- [ ] **T6: Timing timeline** (AC 14)
-  - [ ] `src/debug/timingTimeline.ts`: pure `timelineRow(event): TimelineRow` (percent positions of tolerance band, window, perfect window, marker; signed label; quality label) + the DOM view with 10 preallocated rows. Tests on `timelineRow` (early, late, perfect, `null` offset, `nothing` response, a widened window).
-- [ ] **T7: Feel panel** (AC 15-17)
-  - [ ] `src/debug/feelControls.ts`: pure `describeFeelControls(jsonSchema)` → a tree of folder/binding descriptors (path, kind, min, max, step, options, hint, `isNextLevel`). Tests: every leaf of `FeelSchema` has a descriptor; bounds match the schema; enums become lists; integers get `step: 1`.
-  - [ ] `src/debug/feelPanel.ts`: builds the Tweakpane `Pane` from the descriptors, binds a working copy of `world.feel`, sends `SetFeel` on `ev.last`, reverts on refusal, tracks the changed leaves for « Enregistrer » (dev only), refreshes at level start.
-- [ ] **T8: `feel-writer`** (AC 18)
-  - [ ] `tools/vite/feelWriterPlugin.ts`: `feelWriterPlugin({ root })` + an exported pure-ish `handleFeelWrite(request, fs)` for tests; formatting through the project's Biome (D14); HMR self-write suppression. `vite.config.ts`: register it, remove the « arrives in story 2.1 » comment. `tools/vite/feelWriterPlugin.test.ts` with a temp directory (never the real `content/feel.json`).
-  - [ ] Check Vitest still starts (it merges `vite.config.ts`).
-- [ ] **T9: E2E, goldens, finish** (AC 19-21)
-  - [ ] `tests/e2e/debugOverlay.spec.ts` as in AC 20; `collectProblems` in every test, no `waitForTimeout`, `freeze`/`advance` for timing.
-  - [ ] New golden scenario with a `SetFeel` (D13); `npm run golden:update`, deliberately; say so in Completion Notes with the hashes that moved.
-  - [ ] `npm run build`, then `grep -rl "tweakpane\|debugOverlay\|feel-writer" dist/` returns nothing; record it in the Debug Log.
-  - [ ] Manual check in `npm run dev`: open with F1, change `timing.windowMs`, play a parry, see the row; « Enregistrer » writes `content/feel.json`, `git diff` shows only that key, then restore the file. Record it.
-  - [ ] `(unset VITE_DEBUG_ALLOWED; npm run ci)` green; update `deferred-work.md` (close L31, L95, L114, L133, L221, L398, L411 where done; add what this story defers). File List, Completion Notes. Tick only what you ran.
+- [x] **T5: The overlay** (AC 9-13)
+  - [x] `src/debug/debugOverlay.ts` (`createDebugOverlay(host)`: root element, toggle by F1/3 fingers, show/hide, owns the panels), `perfPanel.ts`, `stateInspector.ts`, `navDebugView.ts` (grid, path, colliders, anchors, zones, touch radii), `cheats.ts`, `debugOverlay.css` (`pp-debug-` classes; above the HUD and game overlays; `pointer-events` only on its panels). Architecture names (L529-530) are the file names, except the entry, which is `debugOverlay.ts` (D12).
+  - [x] Keyboard and pointer events inside the overlay root stop propagation so they never reach game input or the Result screen's Enter/Space skip.
+  - [x] `src/client/boot.ts`: the guarded literal dynamic import, try/catch + `warn` (1.13 review pattern).
+  - [x] Constants in `src/shared/constants.ts`: `DEBUG_PANEL_REFRESH_MS`, `DEBUG_TIMELINE_ROWS`, `DEBUG_SKIP_CHUNK_STEPS`, `DEBUG_THREE_FINGER_COUNT`, `FEEL_WRITER_ENDPOINT`, `FEEL_WRITER_MAX_BODY_BYTES`.
+- [x] **T6: Timing timeline** (AC 14)
+  - [x] `src/debug/timingTimeline.ts`: pure `timelineRow(event): TimelineRow` (percent positions of tolerance band, window, perfect window, marker; signed label; quality label) + the DOM view with 10 preallocated rows. Tests on `timelineRow` (early, late, perfect, `null` offset, `nothing` response, a widened window).
+- [x] **T7: Feel panel** (AC 15-17)
+  - [x] `src/debug/feelControls.ts`: pure `describeFeelControls(jsonSchema)` → a tree of folder/binding descriptors (path, kind, min, max, step, options, hint, `isNextLevel`). Tests: every leaf of `FeelSchema` has a descriptor; bounds match the schema; enums become lists; integers get `step: 1`.
+  - [x] `src/debug/feelPanel.ts`: builds the Tweakpane `Pane` from the descriptors, binds a working copy of `world.feel`, sends `SetFeel` on `ev.last`, reverts on refusal, tracks the changed leaves for « Enregistrer » (dev only), refreshes at level start.
+- [x] **T8: `feel-writer`** (AC 18)
+  - [x] `tools/vite/feelWriterPlugin.ts`: `feelWriterPlugin({ root })` + an exported pure-ish `handleFeelWrite(request, fs)` for tests; formatting through the project's Biome (D14); HMR self-write suppression. `vite.config.ts`: register it, remove the « arrives in story 2.1 » comment. `tools/vite/feelWriterPlugin.test.ts` with a temp directory (never the real `content/feel.json`).
+  - [x] Check Vitest still starts (it merges `vite.config.ts`).
+- [x] **T9: E2E, goldens, finish** (AC 19-21)
+  - [x] `tests/e2e/debugOverlay.spec.ts` as in AC 20; `collectProblems` in every test, no `waitForTimeout`, `freeze`/`advance` for timing.
+  - [x] New golden scenario with a `SetFeel` (D13); `npm run golden:update`, deliberately; say so in Completion Notes with the hashes that moved.
+  - [x] `npm run build`, then `grep -rl "tweakpane\|debugOverlay\|feel-writer" dist/` returns nothing; record it in the Debug Log.
+  - [x] Manual check in `npm run dev`: open with F1, change `timing.windowMs`, play a parry, see the row; « Enregistrer » writes `content/feel.json`, `git diff` shows only that key, then restore the file. Record it.
+  - [x] `(unset VITE_DEBUG_ALLOWED; npm run ci)` green; update `deferred-work.md` (close L31, L95, L114, L133, L221, L398, L411 where done; add what this story defers). File List, Completion Notes. Tick only what you ran.
 
 ## Dev Notes
 
@@ -235,16 +235,60 @@ Changed (expected): `src/sim/commands.ts`, `commands.test.ts`, `commandQueue.ts`
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), run through `gds-dev-story` on 2026-10-28, in the worktree `.claude/worktrees/2-1-overlay-de-debug-timeline-de-timing-et-panneau-de-feeling`.
+
 ### Implementation Plan
+
+- **Sim first (T1, T2).** `SetFeel{t, patch}` is a normal journaled command. `src/sim/feel/applyFeelPatch.ts` is the sim's own proto-safe, shape-only merge (an unknown key, another leaf type or another array length returns `null`). `applyCommands` applies the `SetFeel`s of a step first, so every later system of that step reads the new feel; an ended level ignores them. The effective feel moved to `world.feel` (`createWorld` clones it); `ctx.feel` is a getter on the current world, so no call site changed and `restore()` is safe. Snapshot version 12 with `feelShapeProblem` (same keys, leaf types and array lengths as the feel the sim was created with; ranges are the sender's job, D3). `feelHash` stays the initial feel's. `ResponseResolved` carries the judged window (see Completion Notes for the name).
+- **Client (T3, T4).** `levelFeel()` and the hold ring read `sim.world.feel`. `__PP__.setFeel` validates against the sim's effective feel with `applyFeelPatch`, enqueues `SetFeel` at the current sim time and calls the new `levelSession.rememberFeel` so a restart keeps the value. The loop takes an optional `measure` clock (zero cost without it) and `levelSession` exposes `loopStats`, `setLoopMeasure` and the level's `geometry`; `TestHost` gained `debugGroup()` and `threatScreenPoints()` only (the render stats come from the `onRenderedFrame` that story 1.24 added).
+- **Overlay (T5-T7).** Pure, unit-tested parts: `timingTimeline.ts` (`timelineRow`), `feelControls.ts` (descriptors from `z.toJSONSchema(FeelSchema)` and the current feel, `leafPatch`, `mergePatch`), `cheats.ts` (cheat list as data, `createSkipToEnd` with an injected frame scheduler), the pure helpers of `navDebugView.ts`, `perfPanel.ts` and `stateInspector.ts`. DOM parts are covered by `tests/e2e/debugOverlay.spec.ts`. `feelPanel.ts` binds Tweakpane to a working copy, sends the one-leaf patch on `ev.last` after `applyFeelPatch` accepts it against the feel as Geo set it so far, reverts and says why otherwise.
+- **feel-writer (T8).** `tools/vite/feelWrite.ts` is the pure handler (injected read/write/validate/format), `feelWriterPlugin.ts` the `apply: 'serve'` wiring, `feelValidator.ts` loads through `ssrLoadModule` because `vite.config.ts` has no aliases when it loads. A small scanner (`stringifyLike`) writes the file back with the objects the original wrote on one line still on one line: a save changes only the edited key (checked on the live file: one-line diff).
+- **T9.** Scenario `feel_change` and its pin test, goldens regenerated, manual checks, deferred-work, CI.
 
 ### Debug Log References
 
+- **T0 baseline (before the first edit):** `env | grep VITE_` showed `VITE_DEBUG_ALLOWED=false`; `(unset VITE_DEBUG_ALLOWED; npm run ci)` green with **198 test files / 3394 unit tests** and **274 e2e** (chromium + webkit). Nothing was edited while it ran.
+- **The branch was cut before story 1.24 was merged** (`516b463`; `public/_headers`, the FPS counter, `onRenderedFrame` and `levelSession`/`loop` changes were all missing). I committed the work so far and merged `main` (conflicts in `loop.ts`, `testHost.ts`, `fakeTestHost.ts`, all trivial: `render(alpha, atReal)` and the two `TestHost` additions). The overlay builds its own `perfMeter`, as `__PP__.perf()` does.
+- **Final CI:** `(unset VITE_DEBUG_ALLOWED; npm run ci)` green: **215 files / 3729 unit tests** (+17 files, +335 tests), `src/sim` coverage 98.06 % statements / 99.39 % lines, **328 e2e** (+54: the 22 tests of `debugOverlay.spec.ts` on two engines, and the `setFeel` ones of `testApi.spec.ts`), `e2e:dist` green, `dist OK (playtest)` and `dist OK (prod)`. A first run failed on one lint error in my own test (`noUnsafeOptionalChaining`), a second on `ui.spec.ts` « every button is 44 × 44 » (it counts every `<button>` of the page and found the hidden overlay's): the overlay's DOM is now built at its first opening (see Completion Notes), the test is unchanged.
+- **Goldens, deliberately regenerated** (`npm run golden:update`): the six existing `*.expected.json` moved, their journals did not. `core_basic`, `papa_walk`, `baby_wander`, `prop_fall`: `worldHash` only (`world.feel` is now in the world). `outlet_parry`, `threat_trio`: `worldHash` and `eventsHash` (and `ResponseResolved` carries `responseWindow`). New: `feel_change.json` and `feel_change.expected.json`, pinned by `tests/golden/feelChange.test.ts` (first response is a `success` with offset −100 against a 500 ms window where the unchanged feel gives a `perfect` with offset 0; second cycle `perfect` with the window put back; an early press ignored once `earlyPress` is `guard`). `src/sim/director/directorSystem.test.ts` keeps its « baseline trace » hash by hashing the events without `responseWindow`.
+- **Manual check in `npm run dev` (T9):** with the real dev server and a Playwright script: F1, `timing` folder, `hitstopMs` 80 → 93, « Enregistrer »: status « saved content/feel.json », **0 page loads** after the save, `git diff content/feel.json` showed exactly one line (`"hitstopMs": 93`), the file was then restored with `git checkout`. An unchecked copy of the same run after the save showed the live world keeps its queued value until the next step, as designed.
+- **Production bundle (T9):** `npm run build` then `grep -rli "tweakpane\|debugOverlay\|feel-writer\|pp-debug-overlay" dist/` printed **nothing**; `npm run dist:check -- --flavor prod` OK. The playtest build has a `debugOverlay-*.js` chunk of 167 kB (38 kB gzip) loaded only when the page is a dev run or `?debug=1`.
+- **Playtest CSP, on `npm run serve:dist` with the real `_headers`:** the overlay and the feel panel open, are styled and work in Chromium (no violation reported) and WebKit (panel edits, `SetFeel` sent, world updated). WebKit reports **four non-blocking `style-src-attr` violations** when the overlay opens, from Tweakpane's own inline style writes (Chromium: none; nothing in the overlay's own code, checked by opening it step by step). The CSP was not widened. Tweakpane's one `<style>` element is intercepted and applied as an adopted stylesheet (`feelPanel.createStyledPane`), which the CSP does not restrict.
+- Tweakpane 4.0.5's typings import `@tweakpane/core`, which the package does not install: `src/debug/tweakpaneTypes.ts` types the subset used.
+
 ### Completion Notes List
 
+- ✅ AC 1-5 (`SetFeel`, world, snapshot 12, replay, once-read values): `commands.test.ts`, `applyFeelPatch.test.ts`, `setFeel.test.ts` (apply at the next step before any system, late command, journaled hash kept, several patches, shape refusal strict and non-strict, ended level, replay to the same hash and events, snapshot/restore, damaged snapshot feel), `snapshot.test.ts`, `golden/feel_change`. `tools/sim` validates each `SetFeel` of a loaded journal with `FeelSchema` (`checkFeelPatches`, `tests/tools/sim/replaySim.test.ts`).
+- ⚠️ **AC 6 deviates in the field's name: `ResponseResolved.responseWindow`, not `window`.** The sim-purity scanner (`tests/architecture/scanners.ts`) bans the bare identifier `window` anywhere in `src/sim`, property names included, and a guardrail is not to be weakened. The value is what the AC says (a copy of the window the threat was frozen with, at both emission sites `resolveThreat` and `gagThreat`). A hidden silence that timed out was never judged against a window: it carries its def's window with no modifier. Noted in `deferred-work.md`.
+- ✅ AC 7, 8: `levelFeel()` reads `sim.world.feel` (e2e: a `SetFeel` on `input.touchRadiusPx` makes a tap just outside the new radius miss the threat and the same tap hit again once it is put back); `__PP__.setFeel` sends the command, no restart, no `input` warning, and the value survives a restart. `result.spec.ts` needed only a comment change.
+- ✅ AC 9-13: F1 and three touch pointers (a mouse never counts, two do not, a lifted finger does not), hidden at boot, performance panel (loop clock only while open), world inspector (summary and one collapsible JSON block per slice, not a nested tree; read-only), views (grid, Papa's path, colliders, anchors, zones, touch radii; all off at each level, removed when the overlay hides), time controls and cheats (pause/resume, step, timeScale and « 1 », launch threat, set fatigue hidden without the gauge, skip to the end in chunks of `DEBUG_SKIP_CHUNK_STEPS`, restart with a seed). The grid view draws the geometry's walkable cells, not the eroded open mask of `ctx.nav`.
+- **The overlay's DOM is built at its first opening**, not at boot: a hidden overlay then adds nothing to the page (`ui.spec.ts` counts every `<button>`, and the boot screenshots are untouched). Responses that come before it opens are kept (the last ten, as copies) and fill the timeline when it is first built.
+- ✅ AC 14: `timelineRow` (unit-tested: early, late, perfect, no press, clamped marker, a widened window, a zero-width window) and the ten preallocated rows; e2e: a press shifted by 20 ms gives `+20 ms · perfect`/`success`, the newest on top, `no press · fail (late)` with no marker, always ten rows.
+- ✅ AC 15-17: `describeFeelControls` has a descriptor for every leaf of the feel (one folder per section, nested folders down to each `physics.kinds` entry, a slider only with both bounds, `step: 1` for integers, `MAX_SAFE_INTEGER` taken as « no bound », lists for enums, one control per item of `starThresholdPoints`, the description as the hint, « next level » and « level override » marks). Changes go through `applyFeelPatch` (cross-field refines included), are sent on `ev.last`, and a refused value goes back with the schema's message and a `warn`. « Enregistrer » exists only under `import.meta.env.DEV`.
+- ✅ AC 18: the plugin is in `tools/vite/` (`apply: 'serve'`, absent from any build); its tests are in `tests/tools/vite/feelWriter.test.ts` (Vitest only collects `src/**` and `tests/**`): accepted merge byte for byte, `"$schema"` first and key order kept, one-line objects and arrays kept, output stable under Biome, refusals (method, 12 file paths, unsafe keys, invalid values with the paths, oversize body counted in bytes, malformed requests, read/format/write failures) leave the file byte-identical.
+- ✅ AC 19-21: see Debug Log. One reading of AC 20: a `SetFeel` is a command, not a sim event, so `__PP__.events` cannot show it and the journal is not exposed to the page; the spec asserts what the AC is for: the panel's status line, `world.feel` unchanged until the next step and then changed, the sim time not restarted, the other leaves untouched.
+- Open points for Geo (from the story, unchanged): the « changer la graine » cheat is in; keys with no upper bound get a plain number field; a changed leaf that the level also overrides is saved as set (and marked with a star); the layout is a first pass. New items are in `deferred-work.md`.
+
 ### File List
+
+New:
+- `src/sim/feel/applyFeelPatch.ts`, `applyFeelPatch.test.ts`, `setFeel.test.ts`
+- `src/debug/debugOverlay.ts`, `debugOverlay.css`, `perfPanel.ts`, `stateInspector.ts`, `navDebugView.ts`, `cheats.ts`, `cheats.test.ts`, `timingTimeline.ts`, `timingTimeline.test.ts`, `feelControls.ts`, `feelControls.test.ts`, `feelPanel.ts`, `tweakpaneTypes.ts`, `debugViews.test.ts`
+- `tools/vite/feelWrite.ts`, `feelWriterPlugin.ts`, `feelValidator.ts`
+- `tests/tools/vite/feelWriter.test.ts`, `tests/support/fakeDom.ts`
+- `tests/e2e/debugOverlay.spec.ts`
+- `tests/golden/feelChange.test.ts`, `tests/golden/journals/feel_change.json`, `feel_change.expected.json`
+
+Changed:
+- Sim: `src/sim/commands.ts`, `commands.test.ts`, `commandQueue.ts`, `createSim.ts`, `world.ts`, `snapshot.ts`, `snapshot.test.ts`, `events.ts`, `index.ts`, `threats/threatFsm.ts` (+ `threatFsm.test.ts`, `threatSystem.test.ts`, `firmness.test.ts`), `director/directorSystem.test.ts`, `time/slowMo.test.ts`, `physics/propsSystem.test.ts`, `scoring/mamaScore.test.ts`, `src/shared/invariant.ts`, `src/shared/constants.ts`
+- Client and debug: `src/client/loop.ts`, `loop.test.ts`, `app/levelSession.ts`, `levelSession.test.ts`, `app/testHost.ts`, `boot.ts`, `feedback/responseChoreography.test.ts`, `feedback/threatFeedback.test.ts`, `src/debug/testApi.ts`, `testApi.test.ts`, `feelPatch.ts`
+- Tools and config: `tools/sim/replaySim.ts`, `vite.config.ts`
+- Tests: `tests/support/testContent.ts`, `fakeTestHost.ts`, `tests/tools/sim/replaySim.test.ts`, `tests/tools/sim/simReport.test.ts`, `tests/golden/scenarios.ts`, the six `tests/golden/journals/*.expected.json`, `tests/e2e/testApi.spec.ts`, `result.spec.ts`, `support/game.ts`
+- Docs: `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, `_bmad-output/project-context.md`, this story
 
 ### Change Log
 
 - 2026-10-28: story created (gds-create-story).
+- 2026-10-28: implemented (gds-dev-story): `SetFeel` and `world.feel` (snapshot 12), `ResponseResolved.responseWindow`, live feel in the client and journaled `__PP__.setFeel`, the debug overlay (performance, timing timeline, inspector, views, cheats, feel panel generated from `FeelSchema`) and the dev-only `feel-writer`; goldens regenerated and `feel_change` added; `main` merged for story 1.24. Status: review.
 
 ### Review Findings

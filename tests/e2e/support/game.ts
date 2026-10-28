@@ -40,9 +40,20 @@ export function hapticPatternOf(event: string): number[] | null {
 }
 
 export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
-  timing: { telegraphDelayDefaultMs: number; windowMs: number; toleranceMs: number };
+  timing: {
+    telegraphDelayDefaultMs: number;
+    windowMs: number;
+    perfectMs: number;
+    toleranceMs: number;
+    hitstopMs: number;
+  };
   movement: { walkSpeedMps: number };
-  input: { contextReachM: number; autoTargetConeDeg: number; holdMinMs: number };
+  input: {
+    contextReachM: number;
+    autoTargetConeDeg: number;
+    holdMinMs: number;
+    touchRadiusPx: number;
+  };
   baby: {
     crawlSpeedMps: number;
     babbleMinMs: number;
