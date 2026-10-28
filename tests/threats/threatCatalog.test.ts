@@ -3,7 +3,12 @@ import { fileURLToPath } from 'node:url';
 import type { LevelContent } from '@content/contentBundle';
 import { parseContentFile } from '@content/parseContentFile';
 import { LevelSchema } from '@content/schemas/level';
-import { type ThreatDef, ThreatDefSchema, type ThreatResponse } from '@content/schemas/threat';
+import {
+  type ThreatDef,
+  ThreatDefSchema,
+  ThreatGagIds,
+  type ThreatResponse,
+} from '@content/schemas/threat';
 import { asSimMs } from '@shared/time';
 import { createSim, GAG_IDS, type Sim, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
@@ -76,7 +81,7 @@ function anchorOf(def: ThreatDef): string {
  * `contentFor` makes it due at once.
  */
 function levelPlanning(tested: ThreatDef): LevelContent {
-  const anchored = defs.filter((def) => def.target === 'anchor');
+  const anchored = defs.filter((def) => def.target !== 'papa');
   const planned = (def: ThreatDef) => ({ def: def.id, anchor: anchorOf(def) });
   if (tested.target === 'papa') {
     return {
@@ -136,6 +141,27 @@ function contentFor(def: ThreatDef) {
   };
 }
 
+/**
+ * Plays a hidden-zone threat up to its telegraph: the director hides it at the first step, the baby
+ * goes quiet and the silence starts, then the player taps the baby (story 1.21). Bounded: a silence
+ * that never starts fails the test rather than hanging it.
+ */
+function findTheBaby(sim: Sim): void {
+  const events: SimEvent[] = [];
+  const stepUntil = (isDone: () => boolean): void => {
+    for (let i = 0; i < 2000 && !isDone(); i++) {
+      sim.step();
+      for (const event of sim.drainEvents()) events.push(event);
+    }
+  };
+  stepUntil(() => sim.world.silence.startedAt !== null);
+  expect(events.some((event) => event.type === 'ThreatHidden')).toBe(true);
+  expect(sim.world.silence.startedAt).not.toBeNull();
+  sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) });
+  stepUntil(() => events.some((event) => event.type === 'ThreatTelegraphed'));
+  expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
+}
+
 /** A sim stopped on the step that telegraphed the threat, with the times its window gives. */
 async function telegraphed(def: ThreatDef) {
   const sim = await createSim({
@@ -144,9 +170,13 @@ async function telegraphed(def: ThreatDef) {
     level: levelPlanning(def),
     seed: 1,
   });
-  sim.step();
-  const events = [...sim.drainEvents()];
-  expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
+  if (def.target === 'hiddenZone') {
+    findTheBaby(sim);
+  } else {
+    sim.step();
+    const events = [...sim.drainEvents()];
+    expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
+  }
   const threat = sim.world.threats.find((candidate) => candidate.defId === def.id);
   if (threat === undefined || threat.responseWindow === null) throw new Error('not telegraphed');
   const { windowOpenAt, responseWindow } = threat;
@@ -179,7 +209,9 @@ describe('the threat catalogue', () => {
   });
 
   it('only names gags the sim knows', () => {
-    for (const def of defs) expect(GAG_IDS as readonly string[]).toContain(def.gag);
+    for (const def of defs) {
+      for (const gag of ThreatGagIds(def)) expect(GAG_IDS as readonly string[]).toContain(gag);
+    }
   });
 
   it.each(defs.map((def) => [def.id, def.target] as const))(
@@ -223,9 +255,8 @@ describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def)
     expect(results(events)).toEqual([
       expect.objectContaining({ quality: 'fail', reason: 'early', offsetMs: t - center }),
     ]);
-    expect(gags(events)).toEqual([
-      expect.objectContaining({ gag: def.gag, reason: 'early', threatId }),
-    ]);
+    expect(gags(events)).toEqual([expect.objectContaining({ reason: 'early', threatId })]);
+    expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
   });
 
   it('is a gag when not answered in time', async () => {
@@ -234,8 +265,7 @@ describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def)
     expect(results(events)).toEqual([
       expect.objectContaining({ quality: 'fail', reason: 'late', offsetMs: null }),
     ]);
-    expect(gags(events)).toEqual([
-      expect.objectContaining({ gag: def.gag, reason: 'late', threatId }),
-    ]);
+    expect(gags(events)).toEqual([expect.objectContaining({ reason: 'late', threatId })]);
+    expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
   });
 });

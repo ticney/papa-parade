@@ -70,7 +70,7 @@ export interface BabySlice {
   pathIndex: number;
   /** Sim time at which a babbling baby sets off again; only read in `babble`. */
   wanderAt: SimMs;
-  /** True while the baby makes its babble: wander and babble. Only a silent mischief clears it. */
+  /** True while the baby makes its babble. Only a silent mischief clears it, from its arrival in the hidden zone to the find (story 1.21). */
   babbling: boolean;
   /** The threat it locked on, from `targetLocked` to the end of the threat (`runBaby`'s own memory). */
   targetThreatId: number | null;
@@ -162,12 +162,29 @@ export interface PropSlice {
   lastImpactAt: SimMs | null;
 }
 
-/** The mess the props made, for Mama's sigh (story 1.22): recounted by `runPhysics` every step. */
+/**
+ * The mess, for Mama's sigh (story 1.22). `propsOnFloor` and `propsBroken` are recounted by
+ * `runPhysics` every step; `mischiefs` is not: it is cumulative, written only by the surprise gags.
+ */
 export interface MessSlice {
   /** Unbroken props that spawned above the floor and now lie on it. */
   propsOnFloor: number;
   /** Broken props. */
   propsBroken: number;
+  /** Surprise mischiefs the baby got away with (story 1.21): never decreases, not recounted. */
+  mischiefs: number;
+}
+
+/**
+ * The suspicious silence (story 1.21), owned by `runSilence` inside `runBaby`. All null while no
+ * silence is under way. `threatId` is the `hidden` (then `telegraph`, once found) threat the baby
+ * took; `zoneEnteredAt` is when it arrived in the zone (its babble stops then); `startedAt` is when
+ * `SilenceStarted` was emitted: the music cut and the bubble follow it.
+ */
+export interface SilenceSlice {
+  threatId: number | null;
+  zoneEnteredAt: SimMs | null;
+  startedAt: SimMs | null;
 }
 
 /** The wave director's memory (story 1.18): the wave entered last, and when the next telegraph is due. */
@@ -251,6 +268,8 @@ export interface World {
   /** One per prop of the level's geometry, index-aligned with `geometry.props` (their bodies live in Rapier, beside `World`). */
   props: PropSlice[];
   mess: MessSlice;
+  /** The suspicious silence under way, if any (story 1.21). */
+  silence: SilenceSlice;
 }
 
 export interface WorldOptions {
@@ -343,7 +362,8 @@ export function createWorld({
       isBroken: false,
       lastImpactAt: null,
     })),
-    mess: { propsOnFloor: 0, propsBroken: 0 },
+    mess: { propsOnFloor: 0, propsBroken: 0, mischiefs: 0 },
+    silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
   };
 }
 

@@ -60,6 +60,13 @@ export interface AudioEngine {
   stopLevelLoops(): void;
   /** Edge-triggered: the babble starts when `isOn` turns `true` and fades out when it turns `false`. Cheap enough for every frame. */
   setBabbling(isOn: boolean): void;
+  /**
+   * Edge-triggered like {@link setBabbling}, for every frame: while `isMuted` the music loop is
+   * faded out (the suspicious silence, story 1.21), and it restarts when `isMuted` turns `false`
+   * if the level loops are on. A level start (`startLevelLoops`) and its end (`stopLevelLoops`)
+   * clear the mute.
+   */
+  setMusicMuted(isMuted: boolean): void;
 }
 
 interface LoopHandle {
@@ -96,6 +103,8 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
   let hasWarnedNoContext = false;
 
   let areLoopsActive = false;
+  // The suspicious silence cuts the music (story 1.21); set by `setMusicMuted`, cleared with the level loops.
+  let isMusicMuted = false;
   const loops: Record<LoopName, LoopHandle | null> = { babble: null, music: null };
   // A loop whose clip is not decoded is skipped once, not retried every frame; a preload clears it.
   const skippedLoops = new Set<LoopName>();
@@ -334,10 +343,12 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
     startLevelLoops() {
       if (areLoopsActive) return;
       areLoopsActive = true;
+      isMusicMuted = false;
       startLoop('music');
     },
     stopLevelLoops() {
       areLoopsActive = false;
+      isMusicMuted = false;
       stopLoop('music');
       stopLoop('babble');
     },
@@ -349,6 +360,13 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       } else {
         stopLoop('babble');
       }
+    },
+    setMusicMuted(isMuted) {
+      // Called every frame: the common case is a boolean compare and nothing else.
+      if (isMuted === isMusicMuted) return;
+      isMusicMuted = isMuted;
+      if (isMuted) stopLoop('music');
+      else if (areLoopsActive) startLoop('music');
     },
   };
 }

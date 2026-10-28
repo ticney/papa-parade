@@ -928,3 +928,102 @@ body {
 [hidden] {
   display: none;
 }
+
+/* The silence bubble (story 1.21, UX `silence-bubble`): a « … » speech bubble at the screen edge on
+   the side of the zone the baby hides in, below the HUD row and above the bottom third. Screen-anchored
+   and non-diegetic; it takes no input. Alert fill, ink glyph and outline (the mockup's state C), the
+   tail pointing out to the edge (mirrored on the left). It blinks at 2 Hz, under the 3 Hz ceiling;
+   with reduced motion it pulses at 1 Hz, with no on/off flash. */
+.pp-silence-bubble {
+  position: absolute;
+  z-index: 35;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 58px;
+  padding-bottom: 12px;
+  background: var(--pp-color-alert);
+  border: var(--pp-outline);
+  border-radius: 20px;
+  box-shadow: var(--pp-lift);
+  color: var(--pp-color-ink);
+  font-family: var(--pp-font-display-family);
+  font-weight: var(--pp-font-display-weight);
+  font-size: 40px;
+  line-height: 1;
+  pointer-events: none;
+  animation: pp-silence-blink 500ms steps(1, end) infinite;
+}
+
+.pp-silence-bubble[hidden] {
+  display: none;
+}
+
+.pp-silence-bubble-right {
+  right: calc(var(--pp-spacing-hud-inset-right) + 14px);
+}
+
+.pp-silence-bubble-left {
+  left: calc(var(--pp-spacing-hud-inset-left) + 14px);
+}
+
+.pp-silence-bubble::before,
+.pp-silence-bubble::after {
+  content: "";
+  position: absolute;
+  border: solid transparent;
+}
+
+/* Ink tail, then the alert tail on top of it: the outline of the tail. */
+.pp-silence-bubble-right::after {
+  right: -14px;
+  top: 18px;
+  border-width: 10px;
+  border-left: 14px solid var(--pp-color-ink);
+}
+
+.pp-silence-bubble-right::before {
+  right: -8px;
+  top: 21px;
+  z-index: 1;
+  border-width: 7px;
+  border-left: 10px solid var(--pp-color-alert);
+}
+
+.pp-silence-bubble-left::after {
+  left: -14px;
+  top: 18px;
+  border-width: 10px;
+  border-right: 14px solid var(--pp-color-ink);
+}
+
+.pp-silence-bubble-left::before {
+  left: -8px;
+  top: 21px;
+  z-index: 1;
+  border-width: 7px;
+  border-right: 10px solid var(--pp-color-alert);
+}
+
+@keyframes pp-silence-blink {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes pp-silence-pulse {
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-silence-bubble {
+    animation: pp-silence-pulse 1000ms ease-in-out infinite;
+  }
+}

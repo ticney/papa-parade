@@ -19,6 +19,18 @@ export type SimCommand =
    * state, or an index the level does not have, is ignored with no event (story 1.20).
    */
   | { type: 'StartDisruption'; t: SimMs; index: number }
+  /**
+   * Debug / test command, journaled like `StartDisruption`: the director picks the idle threat
+   * `threatId` now, through the helper a draw uses (a `hidden` silence, or a telegraph), ignoring
+   * gaps, `maxSimultaneous` and the lull. Ignored with no event when the threat is unknown, not
+   * `idle`, on Papa, or a hidden-zone threat while the baby is not free (story 1.21).
+   */
+  | { type: 'ForceThreat'; t: SimMs; threatId: number }
+  /**
+   * A tap on the baby. During a started silence it finds him; otherwise Papa walks to where the baby
+   * is, as `TapFloor` there would (story 1.21; story 4.1 turns this into « take the baby »).
+   */
+  | { type: 'TapBaby'; t: SimMs }
   /** Walk to this point of the floor (metres); an unreachable point means the nearest reachable one. */
   | { type: 'TapFloor'; t: SimMs; xM: number; zM: number }
   /**
@@ -53,6 +65,8 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetTimeScale',
   'SetFatigue',
   'StartDisruption',
+  'ForceThreat',
+  'TapBaby',
   'TapFloor',
   'TapObject',
   'Move',
@@ -87,6 +101,11 @@ export function commandProblem(value: unknown): string | null {
   if (command.type === 'StartDisruption') {
     if (!Number.isInteger(command.index) || (command.index as number) < 0) {
       return 'StartDisruption: index must be a non-negative integer';
+    }
+  }
+  if (command.type === 'ForceThreat') {
+    if (!Number.isInteger(command.threatId) || (command.threatId as number) < 1) {
+      return 'ForceThreat: threatId must be an integer of at least 1';
     }
   }
   if (command.type === 'TapFloor') {

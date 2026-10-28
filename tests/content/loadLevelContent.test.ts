@@ -121,7 +121,7 @@ describe('loadLevelContent', () => {
     expect(result).toMatchObject({ ok: true });
     if (!result.ok) return;
     expect(Object.keys(result.value.threats)).toEqual(['outlet']);
-    expect(result.value.threats.outlet?.gag).toBe('outlet_hair');
+    expect(result.value.threats.outlet).toMatchObject({ target: 'anchor', gag: 'outlet_hair' });
     expect(result.value.level.waves.flatMap((wave) => wave.threats)).toHaveLength(2);
   });
 
@@ -144,7 +144,9 @@ describe('loadLevelContent', () => {
       'threats/missing.json': null,
       'threats/bogus.json': '{ "id": "bogus" }',
     });
-    expect(problems.length).toBeGreaterThan(2);
+    // One for the missing file and, since the threat def is a union on `target` (story 1.21), one
+    // for the def that names none: a union reports a bad discriminator once, not once per missing key.
+    expect(problems.length).toBeGreaterThanOrEqual(2);
     expect(problems.map((problem) => problem.file)).toContain('content/threats/bogus.json');
     expect(problems.map((problem) => problem.jsonPath)).toContain('waves[1].threats[0].def');
   });

@@ -1,6 +1,7 @@
 import type { ObjectKind } from '@content/schemas/level';
 import { STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
+import { isBabyFoundNow } from '../baby/silence.ts';
 import type { SimObjectSpec, StepContext } from '../context.ts';
 import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
@@ -135,7 +136,7 @@ function move(world: World, ctx: StepContext, dirX: number, dirZ: number): void 
  * `pointerdown`, before any judgement, and the two must not contradict. That includes a press this very step gagged
  * (too early or too late), and a later press on a threat that is resolved or gagged and waits out its cooldown (a new
  * press replans the glide: it is where Papa goes, not a judgement). A press on an unknown threat, or on one that is
- * idle (not telegraphed yet, or already re-armed), does nothing.
+ * idle (not telegraphed yet, or already re-armed) or hidden (a silence not found yet), does nothing.
  */
 function pressThreat(world: World, ctx: StepContext, threatId: number): void {
   for (let i = 0; i < world.threats.length; i++) {
@@ -144,7 +145,8 @@ function pressThreat(world: World, ctx: StepContext, threatId: number): void {
     // A threat on Papa himself (the micro-sleep, story 1.19 D9) has nowhere to glide to: he stays
     // where he is, and keeps walking if he was. The response is still judged on the press.
     if (ctx.level.threats[i]?.def.target === 'papa') return;
-    if (threat.state !== 'idle') startGlide(world, ctx, threat);
+    // A silence nobody has found yet is hidden: there is nothing to glide to (story 1.21).
+    if (threat.state !== 'idle' && threat.state !== 'hidden') startGlide(world, ctx, threat);
     return;
   }
 }
@@ -162,7 +164,7 @@ function moveStop(world: World, ctx: StepContext): void {
 /**
  * System: Papa. Remembers where he stood (for the view's interpolation), ends a coffee, a nap or a
  * call whose time is up (`busyUntil`; only a coffee has something to finish, the others go back to
- * idle), handles this step's `TapFloor` / `TapObject` / `Move` / `MoveStop` /
+ * idle), handles this step's `TapFloor` / `TapObject` / `TapBaby` (a walk to where the baby is, until story 4.1 takes him) / `Move` / `MoveStop` /
  * `PressThreat` in order (none while he is busy, D6: he drinks, sleeps or talks and answers nothing), then
  * moves him once for one step: by `walkSpeedMps`, or by the speed of his glide. The speed is read
  * each step, so a changed feel applies at once.
@@ -187,7 +189,10 @@ export function runPapa(world: World, ctx: StepContext): void {
     if (isPapaBusy(papa)) break;
     if (command.type === 'TapFloor') tapFloor(world, ctx, command.xM, command.zM);
     else if (command.type === 'TapObject') tapObject(world, ctx, command.objectId);
-    else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
+    else if (command.type === 'TapBaby') {
+      // The tap that found the baby is spent: Papa stays where he is for the parry.
+      if (!isBabyFoundNow(world, ctx)) tapFloor(world, ctx, world.baby.xM, world.baby.zM);
+    } else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
     else if (command.type === 'MoveStop') moveStop(world, ctx);
     else if (command.type === 'PressThreat') pressThreat(world, ctx, command.threatId);
   }

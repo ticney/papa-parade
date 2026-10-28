@@ -422,6 +422,60 @@ describe('playOneShot', () => {
   });
 });
 
+describe('the music mute of the suspicious silence (story 1.21)', () => {
+  it('fades the music out on the mute and restarts it on the unmute, once per edge', async () => {
+    const s = await ready();
+    const before = s.fake.sources.length;
+    s.engine.startLevelLoops();
+    s.engine.setMusicMuted(true);
+    s.engine.setMusicMuted(true);
+    s.engine.setMusicMuted(true);
+    expect(s.loopChanges).toEqual([
+      ['music', true],
+      ['music', false],
+    ]);
+    s.engine.setMusicMuted(false);
+    s.engine.setMusicMuted(false);
+    expect(s.fake.sources.length - before).toBe(2);
+    expect(s.loopChanges.at(-1)).toEqual(['music', true]);
+  });
+
+  it('leaves the babble alone', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    s.engine.setBabbling(true);
+    s.engine.setMusicMuted(true);
+    expect(s.loopChanges).toContainEqual(['babble', true]);
+    expect(s.loopChanges).not.toContainEqual(['babble', false]);
+  });
+
+  it('with no level loops active, a mute starts nothing and an unmute starts nothing', async () => {
+    const s = await ready();
+    const before = s.fake.sources.length;
+    s.engine.setMusicMuted(true);
+    s.engine.setMusicMuted(false);
+    expect(s.fake.sources.length).toBe(before);
+    expect(s.loopChanges).toEqual([]);
+  });
+
+  it('a level start unmutes: the music plays again after the loops were stopped while muted', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    s.engine.setMusicMuted(true);
+    s.engine.stopLevelLoops();
+    s.engine.startLevelLoops();
+    expect(s.loopChanges.at(-1)).toEqual(['music', true]);
+  });
+
+  it('does nothing when the context is not there', () => {
+    const s = setup();
+    expect(() => {
+      s.engine.setMusicMuted(true);
+      s.engine.setMusicMuted(false);
+    }).not.toThrow();
+  });
+});
+
 describe('level loops', () => {
   it('starts one music source and, with a babbling baby, one babble source, however often it is asked', async () => {
     const s = await ready();

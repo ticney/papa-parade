@@ -37,7 +37,7 @@ test.describe('props', () => {
     const before = await ppWorld(page);
     const mugBefore = before.props.find((prop) => prop.id === 'mug_01');
     expect(mugBefore).toBeDefined();
-    expect(before.mess).toEqual({ propsOnFloor: 0, propsBroken: 0 });
+    expect(before.mess).toEqual({ propsOnFloor: 0, propsBroken: 0, mischiefs: 0 });
 
     await ppSend(page, {
       type: 'PushProp',
@@ -82,7 +82,7 @@ test.describe('props', () => {
     await ppAdvance(page, 1000);
     const events = await ppEvents(page);
     expect(events.filter((event) => event.type.startsWith('Prop'))).toEqual([]);
-    expect((await ppWorld(page)).mess).toEqual({ propsOnFloor: 0, propsBroken: 0 });
+    expect((await ppWorld(page)).mess).toEqual({ propsOnFloor: 0, propsBroken: 0, mischiefs: 0 });
     expect(problems).toEqual([]);
   });
 });

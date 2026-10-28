@@ -46,6 +46,14 @@ export interface RunSummary {
   phoneAnswers: number;
   /** The seconds of ringing (`PhoneRinging`: one event is one `PHONE_RINGING_EVERY_MS`). */
   phoneRingingSeconds: number;
+  /** The suspicious silences announced (`SilenceStarted`, story 1.21). */
+  silences: number;
+  /** The silences the baby was found in (`SilenceEnded{found}`). */
+  silencesFound: number;
+  /** The silences nobody found (`SilenceEnded{timedOut}`): the surprise mischief came. */
+  silencesTimedOut: number;
+  /** The silences the level ended in (`SilenceEnded{levelEnded}`): neither found nor timed out. */
+  silencesCutOff: number;
   commands: number;
   threats: Record<string, ThreatTally>;
   byGag: Record<string, number>;
@@ -104,6 +112,13 @@ export function createRunRecorder(
   let phoneRings = 0;
   let phoneAnswers = 0;
   let phoneRingingSeconds = 0;
+  let silences = 0;
+  let silencesFound = 0;
+  let silencesTimedOut = 0;
+  let silencesCutOff = 0;
+  // A silence is picked (`ThreatHidden`), then telegraphed only if the baby is found: the pick is
+  // what counts against the wave, and the later telegraph of the same threat is not a second one.
+  const hiddenThreatIds = new Set<number>();
   // The threats no wave planned (the micro-sleep): they are in no wave's tally and never count
   // against a wave's limit, so their results must not move the active count either.
   const systemThreatIds = new Set<number>();
@@ -117,7 +132,19 @@ export function createRunRecorder(
   let isEnded = false;
   return {
     onEvent(event) {
-      if (event.type === 'ThreatTelegraphed' && event.waveIndex < 0) {
+      if (event.type === 'ThreatTelegraphed' && hiddenThreatIds.delete(event.threatId)) {
+        // The reveal of a silence picked earlier: already counted at its `ThreatHidden`.
+      } else if (event.type === 'ThreatHidden') {
+        hiddenThreatIds.add(event.threatId);
+        activeCount++;
+        const wave = waveTallies[event.waveIndex];
+        if (wave !== undefined) {
+          wave.telegraphs++;
+          if (activeCount > wave.peakSimultaneous) wave.peakSimultaneous = activeCount;
+          const limit = waves[event.waveIndex]?.maxSimultaneous ?? Number.POSITIVE_INFINITY;
+          if (activeCount > limit) wave.isOverLimit = true;
+        }
+      } else if (event.type === 'ThreatTelegraphed' && event.waveIndex < 0) {
         microSleeps++;
         systemThreatIds.add(event.threatId);
       } else if (event.type === 'ThreatTelegraphed') {
@@ -159,6 +186,12 @@ export function createRunRecorder(
         phoneAnswers++;
       } else if (event.type === 'PhoneRinging') {
         phoneRingingSeconds++;
+      } else if (event.type === 'SilenceStarted') {
+        silences++;
+      } else if (event.type === 'SilenceEnded') {
+        if (event.reason === 'found') silencesFound++;
+        else if (event.reason === 'timedOut') silencesTimedOut++;
+        else silencesCutOff++;
       }
     },
     finish() {
@@ -174,6 +207,10 @@ export function createRunRecorder(
         phoneRings,
         phoneAnswers,
         phoneRingingSeconds,
+        silences,
+        silencesFound,
+        silencesTimedOut,
+        silencesCutOff,
         commands: sim.journal().entries.length,
         threats,
         byGag,
@@ -245,6 +282,14 @@ export interface SimReport {
   phoneAnswers: number;
   /** The seconds of ringing, over the runs: what story 3.1 turns into noise. */
   phoneRingingSeconds: number;
+  /** The suspicious silences announced, over the runs (story 1.21). */
+  silences: number;
+  /** The silences the baby was found in, over the runs. */
+  silencesFound: number;
+  /** The silences nobody found, over the runs: each ended in the surprise mischief. */
+  silencesTimedOut: number;
+  /** The silences the level ended in, over the runs. */
+  silencesCutOff: number;
   runList: {
     seed: number;
     worldHash: string;
@@ -292,6 +337,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let phoneRings = 0;
   let phoneAnswers = 0;
   let phoneRingingSeconds = 0;
+  let silences = 0;
+  let silencesFound = 0;
+  let silencesTimedOut = 0;
+  let silencesCutOff = 0;
   const waves: WaveReport[] = input.waves.map((wave) => ({
     fromMs: wave.fromMs,
     maxSimultaneous: wave.maxSimultaneous,
@@ -316,6 +365,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     phoneRings += run.phoneRings;
     phoneAnswers += run.phoneAnswers;
     phoneRingingSeconds += run.phoneRingingSeconds;
+    silences += run.silences;
+    silencesFound += run.silencesFound;
+    silencesTimedOut += run.silencesTimedOut;
+    silencesCutOff += run.silencesCutOff;
     for (const gag of Object.keys(run.byGag)) {
       byGag[gag] = countOf(byGag, gag) + countOf(run.byGag, gag);
     }
@@ -379,6 +432,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     phoneRings,
     phoneAnswers,
     phoneRingingSeconds,
+    silences,
+    silencesFound,
+    silencesTimedOut,
+    silencesCutOff,
     runList: runs.map((run) => ({
       seed: run.seed,
       worldHash: run.worldHash,

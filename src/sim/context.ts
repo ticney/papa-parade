@@ -52,8 +52,21 @@ export interface SimLevel {
  */
 export interface SimPlannedThreat {
   readonly def: ThreatDef;
+  /** The anchor, or for a hidden-zone threat the id of its `ZONE_hidden_*`. */
   readonly anchorId: string;
   readonly firstWaveIndex: number;
+  /** The box of the hidden zone; non-null exactly for a `hiddenZone` def (story 1.21). */
+  readonly zone: SimHiddenZone | null;
+}
+
+/** A `ZONE_hidden_*` of the room as a floor rectangle: where a hidden baby is out of sight. */
+export interface SimHiddenZone {
+  readonly id: string;
+  readonly centerXM: number;
+  readonly centerZM: number;
+  /** Half the size of the box along x and z, in metres. */
+  readonly halfXM: number;
+  readonly halfZM: number;
 }
 
 /** One planned disruption: what, at which object, when, and the wave that planned it. */

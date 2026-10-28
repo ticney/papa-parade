@@ -40,6 +40,8 @@
   "hud.pause_button": "Pause",
   "hud.timer_variant_nap": "Sieste",
   "hud.gauges": "Jauges",
+  "hud.silence_bubble": "…",
+  "hud.silence_bubble_label": "Silence",
   "pause.title": "Pause",
   "pause.resume": "Reprendre",
   "pause.restart": "Recommencer",

@@ -1,4 +1,4 @@
-import type { ThreatInstance } from '@sim';
+import type { SilenceSlice, ThreatInstance } from '@sim';
 import type { BotResponse } from './bot.ts';
 
 /** The middle of a threat's response window, in sim ms: where a press is `perfect`. */
@@ -54,6 +54,26 @@ export function createCycleMemory(): CycleMemory {
     isNew(threat) {
       if (plannedWindowOpenAt.get(threat.id) === threat.windowOpenAt) return false;
       plannedWindowOpenAt.set(threat.id, threat.windowOpenAt);
+      return true;
+    },
+  };
+}
+
+/**
+ * Remembers the suspicious silences (story 1.21) a bot has planned to find. A silence is named by
+ * its `startedAt`, which differs in every silence. A bot taps the baby once per silence.
+ */
+export interface SilenceMemory {
+  /** True the first time it is asked about a started silence, false after and while none has started. */
+  isNew(silence: Readonly<SilenceSlice>): boolean;
+}
+
+export function createSilenceMemory(): SilenceMemory {
+  let lastStartedAt: number | null = null;
+  return {
+    isNew(silence) {
+      if (silence.startedAt === null || silence.startedAt === lastStartedAt) return false;
+      lastStartedAt = silence.startedAt;
       return true;
     },
   };

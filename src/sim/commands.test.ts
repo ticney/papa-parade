@@ -25,6 +25,7 @@ describe('commandProblem', () => {
 
   it('knows every command type it accepts', () => {
     expect([...COMMAND_TYPES].sort()).toEqual([
+      'ForceThreat',
       'Move',
       'MoveStop',
       'PressThreat',
@@ -33,6 +34,7 @@ describe('commandProblem', () => {
       'SetFatigue',
       'SetTimeScale',
       'StartDisruption',
+      'TapBaby',
       'TapFloor',
       'TapObject',
     ]);

@@ -101,7 +101,7 @@ describe('golden scenario threat_trio covers what it is there for', () => {
     expect(replay.ok).toBe(true);
     if (!replay.ok) return;
     const { world } = replay.value.sim;
-    expect(world.mess).toEqual({ propsOnFloor: 1, propsBroken: 1 });
+    expect(world.mess).toEqual({ propsOnFloor: 1, propsBroken: 1, mischiefs: 0 });
     expect(world.props.map((prop) => [prop.id, prop.isBroken, prop.isOnFloor])).toEqual([
       ['mug_01', false, true],
       ['vase_01', true, true],
