@@ -50,9 +50,9 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
        "propImpact": { "minPct": 5, "maxPct": 15, "minImpulseNs": 0.3, "maxImpulseNs": 2, "samePropCooldownMs": 1000 },
        "phoneRinging": { "perSec": 2 },
        "babyCrying": { "perSec": 2 },
-       "floorCreak": { "pct": 3 },
-       "breathReleased": { "pct": 5 },
-       "sniff": { "pct": 3 }
+       "floorCreak": { "noisePct": 3 },
+       "breathReleased": { "noisePct": 5 },
+       "sniff": { "noisePct": 3 }
      }
    }
    ```
@@ -374,7 +374,7 @@ claude-sonnet-5-5
 
 ### Debug Log References
 
-- Bare `pct` is now allowed by the feel unit-suffix test (`noise.sources.sniff.pct` and the other one-shot rows, as the story's JSON writes them), beside the `perSec` exception.
+- (Superseded by the code review: the one-shot rows are `noisePct`, and the unit-suffix test no longer allows a bare `pct`.)
 - `golden:update` moved only `worldHash` / `feelHash` in the six existing journals (one line each, no `NoiseChanged` in any of them: their level has no noise). The optional golden `prop_fall_noise` was added.
 - A first `npm run ci` had 3 failures: the two `autoplay-frozen` screenshots (the pill now holds a second gauge, expected) and `pauseResume.spec.ts` in chromium under 7 workers; the latter passes alone in both browsers, and the whole suite is green with `--workers=4` (286 passed).
 
@@ -477,3 +477,19 @@ claude-sonnet-5-5
 ### Change Log
 
 - 2026-10-28: Story 3.1 implemented: the noise gauge (feel table, level opt-in, `addNoise` / `runNoise`, `NoiseChanged`, `SetNoise`), the crying baby (`gagCryMs`, `BabyCrying`), snapshot v12, the HUD gauge with the 80 % alert (haptic + shake), the sim report's noise fields, the `prop_fall_noise` golden, `noise.spec.ts`, and the docs (`project-context.md`, `deferred-work.md`). Goldens regenerated (hashes only), darwin screenshot references refreshed, Linux ones pending.
+
+### Review Findings
+
+Code review of 2026-10-28 (Blind Hunter, Edge Case Hunter, Acceptance Auditor). 2 `decision_needed` (1 resolved, 1 waiting for Geo), 8 `patch` (all applied), 0 `defer`, 12 dismissed.
+
+- [ ] [Review][Decision] The two Linux screenshot references are stale — `autoplay-frozen-{chromium,webkit}-linux.png` were not refreshed (Docker is not installed on the dev machine), while the pill now holds a second gauge: the Linux CI run of `autoplay.spec.ts` will fail. AC 16 asks for both platforms and T8 is ticked. Options: (a) Geo regenerates them with the Docker command of story 1.13 before the merge; (b) merge now and fix the Linux references in a follow-up commit on `main` (CI red until then). [tests/e2e/__screenshots__/autoplay.spec.ts/]
+- [x] [Review][Decision] **Resolved (a), applied:** the three keys are `noisePct` (feel.json, schema, generated JSON Schema, tests, goldens' `feelHash`), the regex is back to its old form. `UNIT_SUFFIX` now accepts a bare `pct` key — `floorCreak.pct`, `sniff.pct`, `breathReleased.pct` (spec JSON) forced the guardrail in `feelSchema.test.ts` to allow `^pct$`; CLAUDE.md says a guardrail is never weakened. Options: (a) rename the three keys `noisePct` (feel.json, schema, generated JSON Schema, tests) and restore the old regex; (b) keep `pct` as a deliberate exception. [tests/content/feelSchema.test.ts:21]
+- [x] [Review][Patch] `runBabyCry` emits a phantom `BabyCrying` when a cry starts in the same step, before `runBabyCry` (`ticksBefore = floor(-10 / 1000) = -1`): clamp `ticksBefore` at 0. Latent today (every gag runs after `runBaby`), nothing enforces the order. Add a unit test that calls `startBabyCry` before `runBabyCry`. [src/sim/baby/cry.ts:34-37]
+- [x] [Review][Patch] Snapshot v12 does not tie `cryStartedAt` and `propNoiseAt[i]` to the clock: a value after `clock.sim` restores without error and desynchronises the cry grid / the prop cooldown. Add `≤ clock.sim` checks and their refusal tests. [src/sim/snapshot.ts:245-251, 333-338]
+- [x] [Review][Patch] The test « emits nothing once the level has ended, and leaves the cry as it was » is vacuous: it never asserts that a cry was in progress at `LevelEnded` nor that `cryStartedAt` / `cryEndsAt` are unchanged afterwards. [src/sim/baby/cry.test.ts:147]
+- [x] [Review][Patch] The test « a pushed prop makes noise once for one fall … through its bounces » has no upper bound (`>=`): it would pass if the cooldown were broken. Assert the exact number of `NoiseChanged` (with `source: 'propImpact'`) for the fall. [src/sim/gauges/noiseSystem.test.ts:261]
+- [x] [Review][Patch] `gagCryMs` of 1 to 999 passes the schema and gives zero `BabyCrying` (a cry shorter than one period is invisible): require `≥ BABY_CRYING_EVERY_MS`, regenerate `content/_schemas`, add a schema test. [src/content/schemas/threat.ts:76]
+- [x] [Review][Patch] The alert restart (`alert()` removes the class, `frame()` puts it back in the same rAF) may not replay the CSS animation without a style flush: force a reflow between the two writes, or restart through the `animation` property. [src/client/ui/hud/gaugesHud.ts:222-243]
+- [x] [Review][Patch] `deferred-work.md` L354 says « Resolved in story 3.1 » for the `busyUntil` / `fatigue` renames but explains that nothing was renamed: reword to « Still deferred (not resolved by 3.1) ». [_bmad-output/implementation-artifacts/deferred-work.md:354]
+
+Dismissed (12): `runNoise` event scan « any event with `t ≠ now` hides impacts » (every event is stamped `now`, `ctx.events` is monotone, checked by the Edge Case Hunter); prop-on-prop hit counted twice (spec D8 decision, Open point 3 for Geo, pinned by the `prop_fall_noise` golden); `isNoiseAlertCrossing` float drift (`before` is recovered exactly) and `alertPct = 100` never firing; NaN impulse not guarded in `addNoise` (no normal input produces it); `decayNoise` sign guard; `addNoise` not the only writer (`decayNoise` is the deliberate silent twin, `project-context.md` says so); the « 3 cries in 10 s » test is deterministic; unused `_ctx` in `startBabyCry`; `ALERT_HOLD_MS` mirrors the CSS 600 ms (documented); `SetNoise` accepted from any journal (same exposure as `SetFatigue`); per-run `noiseBySourcePct` not rounded (cosmetic); AC 17 « CI not run in one go » (the `on_complete` CI run covers it).

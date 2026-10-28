@@ -96,9 +96,9 @@
           "description": "Time spent resolved or in gag before the threat is idle again, in sim ms (0 = at once)."
         },
         "gagCryMs": {
-          "description": "When a miss ends in the gag, the baby cries for this long, in sim ms (story 3.1: one `BabyCrying` per second, +2 % noise each). Absent: the gag does not make him cry.",
+          "description": "When a miss ends in the gag, the baby cries for this long, in sim ms, at least 1000 (story 3.1: one `BabyCrying` per second, +2 % noise each; a shorter cry would be silent). Absent: the gag does not make him cry.",
           "type": "integer",
-          "exclusiveMinimum": 0,
+          "minimum": 1000,
           "maximum": 9007199254740991
         },
         "target": {
@@ -224,9 +224,9 @@
           "description": "Time spent resolved or in gag before the threat is idle again, in sim ms (0 = at once)."
         },
         "gagCryMs": {
-          "description": "When a miss ends in the gag, the baby cries for this long, in sim ms (story 3.1: one `BabyCrying` per second, +2 % noise each). Absent: the gag does not make him cry.",
+          "description": "When a miss ends in the gag, the baby cries for this long, in sim ms, at least 1000 (story 3.1: one `BabyCrying` per second, +2 % noise each; a shorter cry would be silent). Absent: the gag does not make him cry.",
           "type": "integer",
-          "exclusiveMinimum": 0,
+          "minimum": 1000,
           "maximum": 9007199254740991
         },
         "target": {

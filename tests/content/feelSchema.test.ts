@@ -16,10 +16,9 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // bare `M` does not pass.
 // Story 1.15 adds `Kg`, `Ns` (newton-seconds) and `Mps2`, and the dimensionless physics ratios
 // `friction` and `restitution` (a coefficient has no unit; the key says what it is).
-// Story 3.1 adds the bare `pct` of the one-shot noise sources (`noise.sources.sniff.pct`), beside `perSec`.
 // Story 1.17 adds `ReachM` (`contextReachM`: a length in metres, spelled out like `RadiusM`).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|Kg|Ns)$|^(?:perSec|pct|friction|restitution)$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|Kg|Ns)$|^(?:perSec|friction|restitution)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -345,8 +344,12 @@ describe('feel.noise (story 3.1)', () => {
     ],
     ['an alertPct above 100', [['noise.alertPct', 101]], ['noise.alertPct']],
     ['a negative decayPerSec', [['noise.decayPerSec', -1]], ['noise.decayPerSec']],
-    ['a pct above 100', [[`${SOURCES}.sniff.pct`, 101]], [`${SOURCES}.sniff.pct`]],
-    ['a negative pct', [[`${SOURCES}.floorCreak.pct`, -1]], [`${SOURCES}.floorCreak.pct`]],
+    ['a pct above 100', [[`${SOURCES}.sniff.noisePct`, 101]], [`${SOURCES}.sniff.noisePct`]],
+    [
+      'a negative pct',
+      [[`${SOURCES}.floorCreak.noisePct`, -1]],
+      [`${SOURCES}.floorCreak.noisePct`],
+    ],
     ['a maxPct above 100', [[`${impact}.maxPct`, 101]], [`${impact}.maxPct`]],
     [
       'a negative samePropCooldownMs',
@@ -355,7 +358,7 @@ describe('feel.noise (story 3.1)', () => {
     ],
     ['a missing noise block', [['noise', undefined]], ['noise']],
     ['a missing source', [[`${SOURCES}.sniff`, undefined]], [`${SOURCES}.sniff`]],
-    ['an unknown source', [[`${SOURCES}.bogus`, { pct: 1 }]], [`${SOURCES}.bogus`]],
+    ['an unknown source', [[`${SOURCES}.bogus`, { noisePct: 1 }]], [`${SOURCES}.bogus`]],
     [
       'an unknown key in a source',
       [[`${SOURCES}.sniff.bogusPct`, 1]],

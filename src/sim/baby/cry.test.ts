@@ -79,6 +79,14 @@ describe('runBabyCry', () => {
     expect(world.baby.cryEndsAt).toBeNull();
   });
 
+  it('gives no BabyCrying in the step the cry starts, even when it starts before runBabyCry', () => {
+    const { world, ctx, events } = setup(2000);
+    startBabyCry(world, ctx, CRY_MS);
+    runBabyCry(world, ctx);
+    expect(events).toEqual([]);
+    expect(world.baby.cryStartedAt).toBe(2000);
+  });
+
   it('emits the tick due at cryEndsAt itself (included) and then ends the cry in the same step', () => {
     const { world, ctx, events } = setup(0);
     startBabyCry(world, ctx, 3000);
@@ -151,6 +159,14 @@ describe('a crying baby through a real sim', () => {
     const endedAt = events.find((event) => event.type === 'LevelEnded')?.t as number;
     const late = events.filter((event) => event.type === 'BabyCrying' && event.t > endedAt);
     expect(late).toEqual([]);
+    // The cry was in progress when the level ended, and it is left exactly as it was.
+    const cryStartedAt = sim.world.baby.cryStartedAt;
+    const cryEndsAt = sim.world.baby.cryEndsAt;
+    expect(cryStartedAt).not.toBeNull();
+    expect(cryEndsAt).not.toBeNull();
+    run(sim, 300);
+    expect(sim.world.baby.cryStartedAt).toBe(cryStartedAt);
+    expect(sim.world.baby.cryEndsAt).toBe(cryEndsAt);
   });
 
   it('round-trips a snapshot taken mid-cry to the same end state', async () => {

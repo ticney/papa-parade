@@ -1978,6 +1978,19 @@ describe('snapshot / restore of the noise and the cry (story 3.1)', () => {
       ],
       ['a negative cryStartedAt', (w) => (baby(w).cryStartedAt = -2), /world\.baby\.cryStartedAt/],
       [
+        'a cryStartedAt in the future',
+        (w) => {
+          baby(w).cryStartedAt = 1e9;
+          baby(w).cryEndsAt = 2e9;
+        },
+        /world\.baby\.cryStartedAt/,
+      ],
+      [
+        'a propNoiseAt entry in the future',
+        (w) => (gauges(w).propNoiseAt = [1e9, null]),
+        /world\.gauges\.propNoiseAt/,
+      ],
+      [
         'a NaN cryStartedAt',
         (w) => (baby(w).cryStartedAt = Number.NaN),
         /world\.baby\.cryStartedAt/,

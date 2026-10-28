@@ -167,7 +167,11 @@ function isUnitVector(x: unknown, z: unknown): boolean {
   return Math.abs(Math.sqrt(x * x + z * z) - 1) <= 1e-6;
 }
 
-function babyProblem(baby: unknown, threats: readonly { id: number }[]): string | null {
+function babyProblem(
+  baby: unknown,
+  threats: readonly { id: number }[],
+  nowMs: number,
+): string | null {
   if (typeof baby !== 'object' || baby === null) return 'world.baby is missing';
   const slice = baby as Record<string, unknown>;
   if (!BABY_STATES.includes(slice.state)) return 'world.baby.state';
@@ -241,12 +245,18 @@ function babyProblem(baby: unknown, threats: readonly { id: number }[]): string 
   }
   if (!isUnitVector(slice.headingX, slice.headingZ)) return 'world.baby.heading';
   if (!isUnitVector(slice.gazeX, slice.gazeZ)) return 'world.baby.gaze';
-  // A cry (story 3.1) has both its instants or neither, and ends no earlier than it started.
+  // A cry (story 3.1) has both its instants or neither, started no later than now, and ends no
+  // earlier than it started.
   const { cryStartedAt, cryEndsAt } = slice;
   if ((cryStartedAt === null) !== (cryEndsAt === null)) return 'world.baby.cryEndsAt';
   if (cryStartedAt !== null) {
-    if (!isFiniteNumber(cryStartedAt) || (cryStartedAt as number) < 0)
+    if (
+      !isFiniteNumber(cryStartedAt) ||
+      (cryStartedAt as number) < 0 ||
+      (cryStartedAt as number) > nowMs
+    ) {
       return 'world.baby.cryStartedAt';
+    }
     if (!isFiniteNumber(cryEndsAt) || (cryEndsAt as number) < (cryStartedAt as number)) {
       return 'world.baby.cryEndsAt';
     }
@@ -301,6 +311,7 @@ function gaugesProblem(
   hasFatigue: boolean,
   hasNoise: boolean,
   propCount: number,
+  nowMs: number,
 ): string | null {
   if (typeof gauges !== 'object' || gauges === null) return 'world.gauges is missing';
   const slice = gauges as Record<string, unknown>;
@@ -333,7 +344,8 @@ function gaugesProblem(
   const noiseAt = slice.propNoiseAt;
   if (!Array.isArray(noiseAt) || noiseAt.length !== propCount) return 'world.gauges.propNoiseAt';
   for (const at of noiseAt) {
-    if (at !== null && (!isFiniteNumber(at) || (at as number) < 0))
+    // A noise instant is in the past (or now): a later one would mute the prop until the clock caught up.
+    if (at !== null && (!isFiniteNumber(at) || (at as number) < 0 || (at as number) > nowMs))
       return 'world.gauges.propNoiseAt';
   }
   return null;
@@ -720,12 +732,18 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
     disruptionsProblem(disruptions, planned.disruptions, clock.sim as number) ??
     onPhoneProblem(papa, disruptions as readonly { state: unknown }[]) ??
     flowProblem(flow, clock.sim as number, planned.durationMs) ??
-    gaugesProblem(gauges, planned.microSleepIndex >= 0, planned.hasNoise, planned.props.length) ??
+    gaugesProblem(
+      gauges,
+      planned.microSleepIndex >= 0,
+      planned.hasNoise,
+      planned.props.length,
+      clock.sim as number,
+    ) ??
     papaProblem(
       papa,
       planned.objects.map((object) => object.id),
     ) ??
-    babyProblem(baby, threats as readonly ThreatInstance[]) ??
+    babyProblem(baby, threats as readonly ThreatInstance[], clock.sim as number) ??
     silenceProblem(
       silence,
       baby,

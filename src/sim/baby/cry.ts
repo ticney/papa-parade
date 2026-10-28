@@ -32,8 +32,13 @@ export function runBabyCry(world: World, ctx: StepContext): void {
   const ticksNow = Math.floor(
     Math.min(sinceStartMs, baby.cryEndsAt - baby.cryStartedAt) / BABY_CRYING_EVERY_MS,
   );
-  const ticksBefore = Math.floor(
-    Math.min(sinceStartMs - STEP_MS, baby.cryEndsAt - baby.cryStartedAt) / BABY_CRYING_EVERY_MS,
+  // Clamped at 0: a cry that starts in this very step (`sinceStartMs` is 0) has no earlier tick, so a
+  // gag fired before `runBabyCry` in a step cannot give a phantom `BabyCrying` (k ≥ 1 above).
+  const ticksBefore = Math.max(
+    0,
+    Math.floor(
+      Math.min(sinceStartMs - STEP_MS, baby.cryEndsAt - baby.cryStartedAt) / BABY_CRYING_EVERY_MS,
+    ),
   );
   for (let k = ticksBefore; k < ticksNow; k++) {
     ctx.events.push({ type: 'BabyCrying', t: now });

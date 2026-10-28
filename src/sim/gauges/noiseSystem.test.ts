@@ -278,8 +278,21 @@ describe('the noise through a real sim', () => {
     const fall = events.filter(
       (event) => event.type === 'NoiseChanged' && event.source === 'propImpact',
     );
-    expect(impacts.length).toBeGreaterThanOrEqual(fall.length);
-    expect(fall.length).toBeGreaterThanOrEqual(1);
+    // The expected count, from the impacts alone: per prop, one noise for the first impact and one
+    // for each later impact at least `samePropCooldownMs` after the last one that counted.
+    const lastCountedAt = new Map<string, number>();
+    let expectedCount = 0;
+    for (const event of impacts) {
+      if (event.type !== 'PropImpact') continue;
+      const last = lastCountedAt.get(event.propId);
+      if (last !== undefined && event.t - last < impact.samePropCooldownMs) continue;
+      lastCountedAt.set(event.propId, event.t);
+      expectedCount++;
+    }
+    expect(fall).toHaveLength(expectedCount);
+    expect(expectedCount).toBeGreaterThanOrEqual(1);
+    // The cooldown has something to do: the fall bounces, so there are more impacts than noises.
+    expect(impacts.length).toBeGreaterThan(fall.length);
     for (const event of fall) {
       if (event.type !== 'NoiseChanged') continue;
       expect(event.deltaPct).toBeGreaterThanOrEqual(impact.minPct - 1e-9);

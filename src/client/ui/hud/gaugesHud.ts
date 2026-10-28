@@ -223,7 +223,8 @@ export function createGaugesHud(doc: Doc, options: GaugesHudOptions): GaugesHud 
       const gauge = stateOf(id);
       if (gauge === undefined) return;
       if (gauge.isAlert) {
-        // Off now, on at the next frame: the browser restarts the animation on the new class.
+        // Off now, on at the next frame, with a style flush in between (see `frame`): the browser
+        // restarts the animation on the new class.
         gauge.isAlert = false;
         gauge.isAlertRestarting = true;
       } else {
@@ -236,6 +237,9 @@ export function createGaugesHud(doc: Doc, options: GaugesHudOptions): GaugesHud 
       for (let i = 0; i < gauges.length; i++) {
         const gauge = gauges[i] as GaugeState;
         if (gauge.isAlertRestarting) {
+          // The class went off in `alert`, possibly in this very frame: reading a layout property
+          // flushes the style, so the browser really sees « off » before « on » and replays the shake.
+          void gauge.element.offsetWidth;
           gauge.isAlertRestarting = false;
           gauge.isAlert = true;
           gauge.alertedAtReal = now;

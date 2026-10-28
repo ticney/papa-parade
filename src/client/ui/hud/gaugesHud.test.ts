@@ -12,6 +12,8 @@ class FakeNode {
   children: FakeNode[] = [];
   classWrites = 0;
   styleWrites = 0;
+  /** The class name seen by each read of `offsetWidth`, i.e. by each style flush. */
+  flushedClasses: string[] = [];
   readonly tag: string;
   constructor(tag: string) {
     this.tag = tag;
@@ -35,6 +37,10 @@ class FakeNode {
         return true;
       },
     });
+  }
+  get offsetWidth(): number {
+    this.flushedClasses.push(this.className);
+    return 0;
   }
   setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
@@ -248,7 +254,11 @@ describe('createGaugesHud', () => {
       clock.now += 300;
       hud.alert('noise');
       expect(gaugeOf(0).className).not.toContain(ALERT);
+      expect(gaugeOf(0).flushedClasses).toEqual([]);
       hud.frame(clock.now);
+      // A style flush with the class off sits between « off » and « on », so the shake replays.
+      expect(gaugeOf(0).flushedClasses).toHaveLength(1);
+      expect(gaugeOf(0).flushedClasses[0]).not.toContain(ALERT);
       expect(gaugeOf(0).className).toContain(ALERT);
       hud.frame(clock.now + 599);
       expect(gaugeOf(0).className).toContain(ALERT);

@@ -234,7 +234,7 @@ const FatigueSchema = z
 
 const noisePctSource = (description: string) =>
   z
-    .strictObject({ pct: pct('Noise added once per occurrence, in % of the gauge.') })
+    .strictObject({ noisePct: pct('Noise added once per occurrence, in % of the gauge.') })
     .describe(description);
 
 const NoiseSourcesSchema = z

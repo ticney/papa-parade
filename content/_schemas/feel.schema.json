@@ -443,7 +443,7 @@
             "floorCreak": {
               "type": "object",
               "properties": {
-                "pct": {
+                "noisePct": {
                   "type": "number",
                   "minimum": 0,
                   "maximum": 100,
@@ -451,7 +451,7 @@
                 }
               },
               "required": [
-                "pct"
+                "noisePct"
               ],
               "additionalProperties": false,
               "description": "A creaking floorboard (story 4.9): GDD +3 %."
@@ -459,7 +459,7 @@
             "breathReleased": {
               "type": "object",
               "properties": {
-                "pct": {
+                "noisePct": {
                   "type": "number",
                   "minimum": 0,
                   "maximum": 100,
@@ -467,7 +467,7 @@
                 }
               },
               "required": [
-                "pct"
+                "noisePct"
               ],
               "additionalProperties": false,
               "description": "Breath released too early (story 4.9): GDD +5 %."
@@ -475,7 +475,7 @@
             "sniff": {
               "type": "object",
               "properties": {
-                "pct": {
+                "noisePct": {
                   "type": "number",
                   "minimum": 0,
                   "maximum": 100,
@@ -483,7 +483,7 @@
                 }
               },
               "required": [
-                "pct"
+                "noisePct"
               ],
               "additionalProperties": false,
               "description": "Sniffing (story 5.3): GDD +3 %."

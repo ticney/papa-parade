@@ -63,9 +63,9 @@
       },
       "phoneRinging": { "perSec": 2 },
       "babyCrying": { "perSec": 2 },
-      "floorCreak": { "pct": 3 },
-      "breathReleased": { "pct": 5 },
-      "sniff": { "pct": 3 }
+      "floorCreak": { "noisePct": 3 },
+      "breathReleased": { "noisePct": 5 },
+      "sniff": { "noisePct": 3 }
     }
   },
   "instinct": {
