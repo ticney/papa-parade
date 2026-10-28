@@ -4,7 +4,7 @@ baseline_commit: 516b463eb33099f1dba6c6e5ee4d9ad2bfd61b81
 
 # Story 3.1: Noise gauge
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 3.1 « Jauge de bruit » (L1534-1561). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -480,9 +480,9 @@ claude-sonnet-5-5
 
 ### Review Findings
 
-Code review of 2026-10-28 (Blind Hunter, Edge Case Hunter, Acceptance Auditor). 2 `decision_needed` (1 resolved, 1 waiting for Geo), 8 `patch` (all applied), 0 `defer`, 12 dismissed.
+Code review of 2026-10-28 (Blind Hunter, Edge Case Hunter, Acceptance Auditor). 2 `decision_needed` (both resolved), 8 `patch` (all applied), 0 `defer`, 12 dismissed.
 
-- [ ] [Review][Decision] The two Linux screenshot references are stale — `autoplay-frozen-{chromium,webkit}-linux.png` were not refreshed (Docker is not installed on the dev machine), while the pill now holds a second gauge: the Linux CI run of `autoplay.spec.ts` will fail. AC 16 asks for both platforms and T8 is ticked. Options: (a) Geo regenerates them with the Docker command of story 1.13 before the merge; (b) merge now and fix the Linux references in a follow-up commit on `main` (CI red until then). [tests/e2e/__screenshots__/autoplay.spec.ts/]
+- [x] [Review][Decision] **Resolved by Geo (2026-10-28): merge without the Linux references**; the visual test seems not worth the upkeep (see `deferred-work.md`). The two Linux screenshot references are stale — `autoplay-frozen-{chromium,webkit}-linux.png` were not refreshed (Docker is not installed on the dev machine), while the pill now holds a second gauge: the Linux CI run of `autoplay.spec.ts` will fail. AC 16 asks for both platforms and T8 is ticked. Options: (a) Geo regenerates them with the Docker command of story 1.13 before the merge; (b) merge now and fix the Linux references in a follow-up commit on `main` (CI red until then). [tests/e2e/__screenshots__/autoplay.spec.ts/]
 - [x] [Review][Decision] **Resolved (a), applied:** the three keys are `noisePct` (feel.json, schema, generated JSON Schema, tests, goldens' `feelHash`), the regex is back to its old form. `UNIT_SUFFIX` now accepts a bare `pct` key — `floorCreak.pct`, `sniff.pct`, `breathReleased.pct` (spec JSON) forced the guardrail in `feelSchema.test.ts` to allow `^pct$`; CLAUDE.md says a guardrail is never weakened. Options: (a) rename the three keys `noisePct` (feel.json, schema, generated JSON Schema, tests) and restore the old regex; (b) keep `pct` as a deliberate exception. [tests/content/feelSchema.test.ts:21]
 - [x] [Review][Patch] `runBabyCry` emits a phantom `BabyCrying` when a cry starts in the same step, before `runBabyCry` (`ticksBefore = floor(-10 / 1000) = -1`): clamp `ticksBefore` at 0. Latent today (every gag runs after `runBaby`), nothing enforces the order. Add a unit test that calls `startBabyCry` before `runBabyCry`. [src/sim/baby/cry.ts:34-37]
 - [x] [Review][Patch] Snapshot v12 does not tie `cryStartedAt` and `propNoiseAt[i]` to the clock: a value after `clock.sim` restores without error and desynchronises the cry grid / the prop cooldown. Add `≤ clock.sim` checks and their refusal tests. [src/sim/snapshot.ts:245-251, 333-338]

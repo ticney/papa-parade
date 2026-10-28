@@ -429,3 +429,7 @@
 - **Open point 4, the look of the 80 % alert** (the shake, its reduced-motion ring, the `medium` vibration) is an `[ASSUMPTION]` to judge in play. There is no sound on purpose.
 - **`BabyCrying` is the baby's only cry for now.** E5's typed cries (5.4) start a cry through `startBabyCry`; the noise needs no change.
 - **A cry in progress when the level ends** keeps `cryStartedAt` / `cryEndsAt` in the frozen world (the baby system no longer runs). Harmless; the snapshot check accepts it.
+
+## Deferred from: code review of story-3.1 (2026-10-28)
+
+- **The Linux screenshot references are stale** (`autoplay-frozen-{chromium,webkit}-linux.png`): story 3.1 added a gauge to the HUD pill and only the darwin ones were refreshed (no Docker on the dev machine). Geo chose to merge without them: the CI run of `autoplay.spec.ts` on ubuntu fails until they are regenerated with the Docker command of story 1.13. Geo also finds this visual test not worth the upkeep: decide whether to drop it or to regenerate the Linux references.
