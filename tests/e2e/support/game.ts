@@ -7,7 +7,7 @@ import { feedbackClips } from '../../../src/content/feedbackClips.ts';
 import type { FeedbackTable } from '../../../src/content/schemas/feedback.ts';
 import type { LevelGeometry } from '../../../src/content/schemas/levelGeometry.ts';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../../src/shared/constants.ts';
-import { ppAdvance, ppEvents } from './testApi.ts';
+import { ppAdvance, ppEvents, ppWorld } from './testApi.ts';
 
 // The live room and feel, read here and never copied: Geo re-exports the room and retunes the feel freely.
 const liveGeometry = JSON.parse(
@@ -23,6 +23,7 @@ export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'ut
   loops: { babble: { clip: string }; music: { clip: string } };
   cues: Record<string, { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' }>;
   events: Record<string, string>;
+  resultScreen: { inputGraceMs: number };
 };
 
 /** How many distinct clips the live feedback table names: what the preload must have decoded. */
@@ -49,6 +50,12 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     wanderMaxDistM: number;
     silenceAlertMs: number;
     sneakSpeedMps: number;
+  };
+  mama: {
+    laughMaxPoints: number;
+    babyStateMaxPoints: number;
+    sighMaxPoints: number;
+    screamMaxPoints: number;
   };
 };
 
@@ -756,4 +763,21 @@ export function areCountdownsSilent(countdowns: string[][]): boolean {
     if (firstSuspended < 0) return values.length === 0;
     return values.slice(firstSuspended).every((value) => value === 'suspended');
   });
+}
+
+/** One `advance` call at most this long: a whole level in one call would block the page for long. */
+export const CHUNK_STEPS = 3000;
+
+/**
+ * Steps a frozen level, in chunks, to its last step: the one that ends it (`LevelEnded`, then Mama's
+ * `LevelScored`, story 1.22). The app then enters `result` and its loop stops, so no step is asked
+ * for after that one (an `advance` would throw: no level is running).
+ */
+export async function advanceToEnd(page: Page): Promise<void> {
+  let remaining = Math.ceil((LEVEL_DURATION_MS - (await ppWorld(page)).time.sim) / STEP_MS);
+  while (remaining > 0) {
+    const chunk = Math.min(CHUNK_STEPS, remaining);
+    await ppAdvance(page, chunk);
+    remaining -= chunk;
+  }
 }

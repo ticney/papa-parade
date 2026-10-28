@@ -84,12 +84,38 @@ describe('content/feel.json', () => {
     ],
     [
       'a fixed baby state above its maximum',
-      [
-        ['mama.babyStateMaxPoints', 10],
-        ['mama.babyStateFixedPoints', 20],
-      ],
+      // The maximum stays as it is: the maxima must still add up to 100 (story 1.22).
+      [['mama.babyStateFixedPoints', (real.mama?.babyStateMaxPoints as number) + 1]],
       ['mama.babyStateFixedPoints'],
     ],
+    ...(
+      [
+        'laughPerPerfectPoints',
+        'sighPerPropOnFloorPoints',
+        'sighPerBrokenPropPoints',
+        'sighPerMischiefPoints',
+        'screamPerNearMissPoints',
+      ] as const
+    ).flatMap((key): [string, [string, unknown][], string[]][] => [
+      [`a missing mama.${key}`, [[`mama.${key}`, undefined]], [`mama.${key}`]],
+      [`a negative mama.${key}`, [[`mama.${key}`, -1]], [`mama.${key}`]],
+    ]),
+    [
+      'maxima of the note that do not add up to 100 (story 1.22)',
+      [['mama.laughMaxPoints', (real.mama?.laughMaxPoints as number) + 1]],
+      ['mama.laughMaxPoints'],
+    ],
+    [
+      'a base score that is not the sigh and scream maxima (story 1.22 D3)',
+      [['mama.baseScorePoints', (real.mama?.baseScorePoints as number) + 1]],
+      ['mama.baseScorePoints'],
+    ],
+    [
+      'a fractional fixed baby state: the rows are whole numbers that add up to the score',
+      [['mama.babyStateFixedPoints', 20.5]],
+      ['mama.babyStateFixedPoints'],
+    ],
+    ['a fractional sigh maximum', [['mama.sighMaxPoints', 15.5]], ['mama.sighMaxPoints']],
     ['an unknown earlyPress value', [['input.earlyPress', 'maybe']], ['input.earlyPress']],
     ['a time scale of 0', [['instinct.timeScale', 0]], ['instinct.timeScale']],
     ['a time scale above 1', [['instinct.timeScale', 1.5]], ['instinct.timeScale']],

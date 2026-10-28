@@ -91,6 +91,19 @@ describe('applyGag', () => {
     expect(impulses).toEqual([]);
   });
 
+  it.each(GAG_IDS)(
+    '%s adds to world.score.nearMisses exactly as many as the NearMiss it pushes (story 1.22)',
+    async (gag) => {
+      const { defId } = OWN_THREAT[gag];
+      const { world, ctx, events, threatOf } = await setup();
+      applyGag(world, ctx, threatOf(defId), gag);
+      const nearMisses = events.filter((event) => event.type === 'NearMiss').length;
+      expect(world.score.nearMisses).toBe(nearMisses);
+      expect(world.score.nearMisses).toBe(gag === 'stairs_slide' ? 1 : 0);
+      expect(world.score.perfects).toBe(0);
+    },
+  );
+
   it.each(GAG_IDS)('%s does what its row says on its own threat', async (gag) => {
     const { defId, eventCount, pushCount } = OWN_THREAT[gag];
     const { world, ctx, events, impulses, threatOf } = await setup();

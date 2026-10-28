@@ -8,7 +8,7 @@ import { MAX_TIMER_DELAY_MS, MS_PER_S } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
-import { isPapaBusy, type Sim, type SimEvent, type SimObjectSpec } from '@sim';
+import { isPapaBusy, type MamaScore, type Sim, type SimEvent, type SimObjectSpec } from '@sim';
 import { Color, Scene, Vector3 } from 'three';
 import { createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
@@ -52,6 +52,7 @@ import { createLoadingScreen } from './ui/screens/loadingScreen.ts';
 import { createOopsScreen } from './ui/screens/oopsScreen.ts';
 import { createPauseScreen } from './ui/screens/pauseScreen.ts';
 import { createPortraitOverlay } from './ui/screens/portraitOverlay.ts';
+import { createResultScreen } from './ui/screens/resultScreen.ts';
 import { createStartScreen } from './ui/screens/startScreen.ts';
 import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
@@ -63,6 +64,15 @@ const TIMER_SLOT = 0;
 const gaugeSlotOf = (id: GaugeId): number => GAUGE_IDS.indexOf(id) + 1;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
 const NO_SIM_OBJECTS: readonly SimObjectSpec[] = [];
+/** What the Result screen shows if it ever has no note (a bug, warned about): all zero. */
+const NO_SCORE: MamaScore = {
+  laughPoints: 0,
+  babyStatePoints: 0,
+  sighPoints: 0,
+  screamPoints: 0,
+  scorePoints: 0,
+  stars: 0,
+};
 
 function logSimEvent(event: SimEvent): void {
   if (event.type === 'InvariantViolated') {
@@ -227,7 +237,10 @@ export async function boot(): Promise<void> {
       | 'ppSilence'
       | 'ppBabyPx'
       | 'ppObjectPx'
-      | 'ppTarget',
+      | 'ppTarget'
+      | 'ppScore'
+      | 'ppStars'
+      | 'ppResult',
     value: string,
   ): void => {
     if (document.documentElement.dataset[name] !== value) {
@@ -400,6 +413,9 @@ export async function boot(): Promise<void> {
       'ppPhone',
       'ppSilence',
       'ppBabyPx',
+      'ppScore',
+      'ppStars',
+      'ppResult',
     ] as const) {
       delete document.documentElement.dataset[name];
     }
@@ -511,6 +527,11 @@ export async function boot(): Promise<void> {
   const simEventListeners: ((event: SimEvent) => void)[] = [];
   let isGameInputBlocked = false;
   let hasLoggedSilentStart = false;
+  // Mama's note of the level that ended (story 1.22), and whether its Result sequence has started: a
+  // screen rebuilt after the portrait overlay, whatever phase it was in, then shows its end at once.
+  // Both cleared when a level loads.
+  let resultScore: MamaScore | null = null;
+  let hasResultStarted = false;
 
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
@@ -691,7 +712,6 @@ export async function boot(): Promise<void> {
         }
       }
       if (isMirrored) {
-        // Story 1.22 shows the result screen; for now the frozen level stays on screen.
         if (event.type === 'LevelEnded') mirror('ppFlow', 'ended');
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);
@@ -718,6 +738,20 @@ export async function boot(): Promise<void> {
       }
       // The debug modules last: they see the event after the app has handled it.
       for (let i = 0; i < simEventListeners.length; i++) simEventListeners[i]?.(event);
+      // Mama's note ends the level (story 1.22): the loop stops on the frozen room, which stays
+      // drawn behind the Result screen; the world stays readable until the next start.
+      if (event.type === 'LevelScored') {
+        const { type: _type, t: _t, ...score } = event;
+        resultScore = score;
+        hasResultStarted = false;
+        if (isMirrored) {
+          mirror('ppScore', String(score.scorePoints));
+          mirror('ppStars', String(score.stars));
+        }
+        levelSession.finish();
+        appFsm.enter('result');
+        drawStatic();
+      }
     },
     canResumeNow: () => !shell.isPortrait && document.visibilityState !== 'hidden',
     waitForForeground: () => waitForForeground(document),
@@ -786,6 +820,35 @@ export async function boot(): Promise<void> {
     portrait: () => createPortraitOverlay({ t }),
     loading: () => createLoadingScreen({ t }),
     oops: () => createOopsScreen({ t, onRetry: () => void levelSession.start() }),
+    result: () => {
+      if (resultScore === null) {
+        // `LevelScored` stores it before the app enters `result`: this is a bug, not a game.
+        log.warn('boot', 'the Result screen has no note to show: showing an empty one');
+      }
+      const { mama } = levelFeel();
+      return createResultScreen({
+        t,
+        score: resultScore ?? NO_SCORE,
+        maxima: mama,
+        timings: feedbackTable.resultScreen,
+        // Rebuilt after the portrait overlay: the stars do not stamp (nor sound) twice.
+        isDone: hasResultStarted,
+        scheduler: {
+          schedule: (run, delayMs) => window.setTimeout(run, delayMs),
+          cancel: (handle) => window.clearTimeout(handle),
+        },
+        now: () => performance.now(),
+        keyTarget: window,
+        onStar: (isLast) =>
+          director.handle(isLast ? 'ResultLastStarStamped' : 'ResultStarStamped', null),
+        onPhase: (phase) => {
+          hasResultStarted = true;
+          if (isMirrored) mirror('ppResult', phase);
+        },
+        // Same level, same feel, a new seed (`?seed=` keeps its own): through loading and the countdown.
+        onReplay: () => void levelSession.start(),
+      });
+    },
   });
   const shell = createUiShell({ events, appFsm, pause, hud, hudBatch, overlayHost });
   shell.bindKeys(window);
@@ -912,8 +975,9 @@ export async function boot(): Promise<void> {
   // poll now. Nothing reads `event.gamepad`: the poll is the truth, and a second pad cannot pause.
   window.addEventListener('gamepadconnected', () => inputMapper.pollGamepad());
   window.addEventListener('gamepaddisconnected', () => inputMapper.pollGamepad());
-  // Outside a level (start, « Oups ») nothing else polls: a light frame loop reads the pad so that
-  // A or Start can start the game and A can retry. It runs only in those two states.
+  // Outside a level (start, « Oups », the Result screen) nothing else polls: a light frame loop
+  // reads the pad so that A or Start can start the game, A can retry, skip the Result sequence or
+  // replay. It runs only in those states and while a level loads.
   let menuPollHandle: number | null = null;
   const menuPoll = (): void => {
     inputMapper.pollGamepad();
@@ -921,7 +985,7 @@ export async function boot(): Promise<void> {
   };
   events.on('AppStateChanged', ({ to }) => {
     // « loading » too: a button pressed or let go while the level loads is no new edge in its first frame.
-    const wantsPoll = to === 'start' || to === 'oops' || to === 'loading';
+    const wantsPoll = to === 'start' || to === 'oops' || to === 'loading' || to === 'result';
     if (wantsPoll && menuPollHandle === null) {
       menuPollHandle = requestAnimationFrame(menuPoll);
     } else if (!wantsPoll && menuPollHandle !== null) {
@@ -954,6 +1018,18 @@ export async function boot(): Promise<void> {
     highlightedThreatId = null;
     // A pad lost in that level does not follow the player into the next one (the line is for the pause).
     shell.setPadDisconnected(false);
+  });
+  events.on('AppStateChanged', ({ to }) => {
+    if (to !== 'loading') return;
+    resultScore = null;
+    hasResultStarted = false;
+    // The previous game's note must not be read as the next one's while it loads (`mirrorNewLevel`
+    // clears them only once the level has started).
+    if (isMirrored) {
+      for (const name of ['ppScore', 'ppStars', 'ppResult'] as const) {
+        delete document.documentElement.dataset[name];
+      }
+    }
   });
   events.on('AppStateChanged', ({ to }) => {
     if (to !== 'level') return;

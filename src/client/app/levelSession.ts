@@ -146,6 +146,12 @@ export interface LevelSession {
    * resumes after `stop()` (or after a newer start) does nothing more and leaves nothing behind.
    */
   stop(): void;
+  /**
+   * The level is over (story 1.22): stops its frame loop and nothing else. `active` and its sim stay,
+   * so the frozen world can still be read (`__PP__.state()`, the Result screen); the next `start()`
+   * disposes them as usual. A no-op with no active level.
+   */
+  finish(): void;
 }
 
 /**
@@ -232,6 +238,10 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
       // The loop validates `steps` first and stays as it was when it throws.
       loop.advance(steps);
       isFrozenWish = true;
+    },
+    finish() {
+      if (active === null) return;
+      stopLoop();
     },
     stop() {
       generation++;

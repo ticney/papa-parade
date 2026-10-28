@@ -9,6 +9,8 @@ import {
   testWave,
 } from '../../../tests/support/testContent.ts';
 import { createSim } from '../createSim.ts';
+import type { SimEvent } from '../events.ts';
+import { computeMamaScore } from '../scoring/mamaScore.ts';
 import { enterFlowState, FLOW_STATES, FLOW_STATES_ARE_COMPLETE } from './flowFsm.ts';
 
 const DURATION_MS = 1000;
@@ -71,6 +73,46 @@ describe('runFlow', () => {
     stepN(sim, DURATION_MS / STEP_MS + 50);
     expect(sim.world.flow.state).toBe('ended');
     expect(sim.world.time.sim).toBe(DURATION_MS + 50 * STEP_MS);
+  });
+
+  it('gives Mama’s note in the ending step: LevelScored right after LevelEnded, same t, and once (story 1.22)', async () => {
+    const sim = await newSim(true);
+    const seen: SimEvent[] = [];
+    for (let i = 0; i < DURATION_MS / STEP_MS - 1; i++) {
+      sim.step();
+      seen.push(...sim.drainEvents());
+    }
+    // None while playing.
+    expect(seen.some((event) => event.type === 'LevelScored')).toBe(false);
+    expect(sim.world.score.final).toBeNull();
+    sim.step();
+    const last = sim.drainEvents();
+    const ended = last.findIndex((event) => event.type === 'LevelEnded');
+    expect(ended).toBeGreaterThanOrEqual(0);
+    expect(last[ended + 1]).toEqual({
+      type: 'LevelScored',
+      t: DURATION_MS,
+      ...computeMamaScore(
+        {
+          perfects: sim.world.score.perfects,
+          nearMisses: sim.world.score.nearMisses,
+          propsOnFloor: sim.world.mess.propsOnFloor,
+          propsBroken: sim.world.mess.propsBroken,
+          mischiefs: sim.world.mess.mischiefs,
+        },
+        createTestContent().feel.mama,
+      ),
+    });
+    expect(last.filter((event) => event.type === 'LevelScored')).toHaveLength(1);
+    const {
+      type: _type,
+      t: _t,
+      ...note
+    } = last[ended + 1] as Extract<SimEvent, { type: 'LevelScored' }>;
+    expect(sim.world.score.final).toEqual(note);
+    // None after: the ended steps run only the clock and the commands.
+    stepN(sim, 300);
+    expect(sim.drainEvents().some((event) => event.type === 'LevelScored')).toBe(false);
   });
 
   it('is the same step for a duration that is off the step grid', async () => {

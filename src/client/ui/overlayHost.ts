@@ -9,6 +9,8 @@ export interface OverlayBuilders {
   portrait(): OverlayScreen;
   loading(): OverlayScreen;
   oops(): OverlayScreen;
+  /** Mama's note (story 1.22); rebuilt after the portrait overlay, so it must not replay its sequence. */
+  result(): OverlayScreen;
 }
 
 export interface OverlayHost {
@@ -45,6 +47,8 @@ export function createOverlayHost(root: HTMLElement, builders: OverlayBuilders):
         return { screen: builders.portrait(), pause: null };
       case 'oops':
         return { screen: builders.oops(), pause: null };
+      case 'result':
+        return { screen: builders.result(), pause: null };
       case 'loading':
         return { screen: builders.loading(), pause: null };
       case 'pause': {

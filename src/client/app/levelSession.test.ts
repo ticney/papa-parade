@@ -492,6 +492,43 @@ describe('createLevelSession', () => {
     expect(scheduler.pending).toBe(false);
   });
 
+  describe('finish() (story 1.22)', () => {
+    it('stops the loop but keeps the level active, its sim readable and alive', async () => {
+      const { session, scheduler, scenes } = setup();
+      await session.start();
+      const active = session.active;
+      expect(active).not.toBeNull();
+      session.finish();
+      expect(scheduler.pending).toBe(false);
+      expect(session.active).toBe(active);
+      // The sim is not disposed: its world still reads, and it can still step.
+      expect(() => active?.sim.step()).not.toThrow();
+      expect(scenes[0]?.disposed).toBe(false);
+      expect(() => session.advance(1)).toThrow(/no level is running/);
+    });
+
+    it('is a no-op with no active level, and twice in a row', async () => {
+      const { session } = setup();
+      expect(() => session.finish()).not.toThrow();
+      await session.start();
+      session.finish();
+      expect(() => session.finish()).not.toThrow();
+    });
+
+    it('lets the next start() dispose the finished level and play a new one', async () => {
+      const { session, scheduler, appFsm, scenes, sims } = setup();
+      await session.start();
+      const finished = session.active;
+      session.finish();
+      expect(await session.start()).toBe('started');
+      expect(session.active).not.toBe(finished);
+      expect(appFsm.state).toBe('level');
+      expect(scheduler.pending).toBe(true);
+      expect(sims()).toBe(2);
+      expect(scenes[0]?.disposed).toBe(true);
+    });
+  });
+
   it('only ever walks the allowed app transitions', async () => {
     const { session, trace } = setup();
     const states: AppState[] = [];

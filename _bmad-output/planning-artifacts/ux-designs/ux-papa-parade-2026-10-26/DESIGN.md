@@ -107,6 +107,7 @@ spacing:
   touch-target-min: 44pt
   focus-ring-width: 4px
   focus-ring-offset: 3px
+  text-min: 16px
 components:
   button-primary:
     backgroundColor: '{colors.primary}'

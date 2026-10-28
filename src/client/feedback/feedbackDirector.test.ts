@@ -36,6 +36,14 @@ const TABLE: FeedbackTable = {
     ui: { gainPct: 80 },
   },
   haptics: { light: { patternMs: [15] }, medium: { patternMs: [30] }, heavy: { patternMs: [60] } },
+  resultScreen: {
+    rowCountUpMs: 600,
+    rowStaggerMs: 200,
+    starsDelayMs: 300,
+    starIntervalMs: 450,
+    actionsDelayMs: 400,
+    inputGraceMs: 0,
+  },
   loops: {
     babble: { clip: 'baby_babble_loop', bus: 'voice', gainPct: 100, fadeMs: 80 },
     music: { clip: 'music_crawler_calm', bus: 'music', gainPct: 100, fadeMs: 400 },
@@ -63,8 +71,18 @@ const TABLE: FeedbackTable = {
       visual: { kind: 'soundWave', anchor: 'baby', maxRadiusM: 1, durationMs: 500 },
       haptic: 'light',
     },
+    star: {
+      audio: { clip: 'ui_star_stamp', bus: 'ui', gainPct: 90 },
+      visual: { kind: 'uiElement' },
+      haptic: 'heavy',
+    },
   },
-  events: { PapaBlocked: 'full', CountdownTicked: 'tick', BabyStateChanged: 'babyRing' },
+  events: {
+    PapaBlocked: 'full',
+    CountdownTicked: 'tick',
+    BabyStateChanged: 'babyRing',
+    ResultLastStarStamped: 'star',
+  },
 };
 
 const OBJECTS: readonly SimObjectSpec[] = [
@@ -224,6 +242,15 @@ describe('feedbackDirector', () => {
     const noWorld = setup();
     noWorld.director.handle('PapaBlocked', null);
     expect(noWorld.trace).toEqual(['audio:papa_bump,sfx,70', 'haptic:medium', 'cue:full']);
+  });
+
+  it('draws nothing for a uiElement visual, with or without a world, and plays the sound and the vibration without a warning (story 1.22)', () => {
+    for (const from of [null, world]) {
+      const { director, trace, newWarnings } = setup();
+      director.handle('ResultLastStarStamped', from);
+      expect(trace).toEqual(['audio:ui_star_stamp,ui,90', 'haptic:heavy', 'cue:star']);
+      expect(newWarnings()).toEqual([]);
+    }
   });
 
   it('skips the camera under reduced motion and keeps the rest', () => {

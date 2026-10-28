@@ -132,13 +132,16 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
       const kind = cue.haptic;
       attempt(name, 'vibration', undefined, () => haptics.pulse(kind));
     }
-    // The visuals need a world to read and a scene to draw on (neither exists for a client event
-    // like the countdown tick: `content:check` refuses a visual on such a cue).
-    if (world !== null && (cue.visual !== undefined || cue.camera !== undefined)) {
+    // A `uiElement` visual is the screen element that fired the event (a stamped star, story 1.22
+    // D6): it is already on screen, so there is nothing to draw here, and nothing to warn about.
+    const worldVisual = cue.visual?.kind === 'soundWave' ? cue.visual : undefined;
+    // The world visuals need a world to read and a scene to draw on (neither exists for a client
+    // event like the countdown tick: `content:check` refuses a world visual on such a cue).
+    if (world !== null && (worldVisual !== undefined || cue.camera !== undefined)) {
       const scene = attempt(name, 'scene lookup', null, deps.getScene);
       if (scene !== null) {
-        if (cue.visual !== undefined) {
-          const { anchor, maxRadiusM, durationMs } = cue.visual;
+        if (worldVisual !== undefined) {
+          const { anchor, maxRadiusM, durationMs } = worldVisual;
           const at = anchorOf(anchor, world, threatId, objectId, name);
           if (at !== null) {
             attempt(name, 'ring', undefined, () =>

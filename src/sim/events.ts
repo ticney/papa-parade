@@ -142,8 +142,23 @@ export type SimEvent =
   | { type: 'PropImpact'; t: SimMs; propId: string; impulseNs: number; otherPropId: string | null }
   /** A breakable prop took a hit of `impulseNs` or more, once; it stays in the world, broken. */
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
-  /** The level is over, once: from here the sim only keeps its clock (story 1.22 shows the result). */
+  /** The level is over, once: from here the sim only keeps its clock (the client shows the result). */
   | { type: 'LevelEnded'; t: SimMs; reason: LevelEndReason }
+  /**
+   * Mama's note (story 1.22), right after `LevelEnded` and at the same `t`, once per level: the
+   * four rows (`sighPoints` and `screamPoints` are what she takes off), the score out of 100 and the
+   * stars. The same values are in `world.score.final`.
+   */
+  | {
+      type: 'LevelScored';
+      t: SimMs;
+      laughPoints: number;
+      babyStatePoints: number;
+      sighPoints: number;
+      screamPoints: number;
+      scorePoints: number;
+      stars: number;
+    }
   | InvariantViolation;
 
 /**
@@ -159,6 +174,7 @@ export const SIM_EVENT_TYPES = [
   'GagTriggered',
   'InvariantViolated',
   'LevelEnded',
+  'LevelScored',
   'NearMiss',
   'ObjectTapped',
   'PapaArrived',

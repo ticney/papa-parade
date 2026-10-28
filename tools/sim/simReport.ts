@@ -1,3 +1,4 @@
+import { STAR_COUNT_MAX } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { PAPA_ASLEEP_GAG_ID, type Sim, type SimEvent } from '@sim';
 
@@ -32,7 +33,7 @@ export interface RunSummary {
   worldHash: string;
   responses: number;
   gags: number;
-  /** The `NearMiss` events: what Mama's « Hurlement » will count (story 1.22). */
+  /** The `NearMiss` events: what Mama's « Hurlement » counts (story 1.22). */
   nearMisses: number;
   /** The micro-sleeps telegraphed (`ThreatTelegraphed` of no wave, story 1.19). */
   microSleeps: number;
@@ -61,6 +62,9 @@ export interface RunSummary {
   waves: WaveTally[];
   /** Whether the run saw `LevelEnded`. */
   isEnded: boolean;
+  /** Mama's score and stars (`LevelScored`, story 1.22); null for a run cut before the end. */
+  scorePoints: number | null;
+  stars: number | null;
 }
 
 export interface RunRecorder {
@@ -130,6 +134,7 @@ export function createRunRecorder(
   // Each telegraph ends in exactly one `ResponseResolved`: +1 and −1 give the threats at once.
   let activeCount = 0;
   let isEnded = false;
+  let scored: { scorePoints: number; stars: number } | null = null;
   return {
     onEvent(event) {
       if (event.type === 'ThreatTelegraphed' && hiddenThreatIds.delete(event.threatId)) {
@@ -158,6 +163,8 @@ export function createRunRecorder(
         }
       } else if (event.type === 'LevelEnded') {
         isEnded = true;
+      } else if (event.type === 'LevelScored') {
+        scored = { scorePoints: event.scorePoints, stars: event.stars };
       } else if (event.type === 'ResponseResolved') {
         if (!systemThreatIds.has(event.threatId)) activeCount--;
         responses++;
@@ -216,6 +223,8 @@ export function createRunRecorder(
         byGag,
         waves: waveTallies.map((wave) => ({ ...wave })),
         isEnded,
+        scorePoints: scored?.scorePoints ?? null,
+        stars: scored?.stars ?? null,
       };
     },
   };
@@ -255,9 +264,12 @@ export interface SimReport {
   /** The runs that saw `LevelEnded`. */
   endedRuns: number;
   hashes: { feel: string; geometry: string; level: string; bots: string };
-  /** Mama's score arrives with story 1.22. */
-  meanScore: null;
-  scoreNote: string;
+  /** Mean of Mama's score over the runs that ended, one decimal; null when none ended. */
+  meanScore: number | null;
+  /** Mean of Mama's stars over the runs that ended, one decimal; null when none ended. */
+  meanStars: number | null;
+  /** Runs per number of stars, from 0 to 5 (index = stars); they add up to `endedRuns`. */
+  starCounts: number[];
   /** `null` when no response was seen (no threat, or a game too short for one): not 0 %. */
   meanSuccessPct: number | null;
   threats: Record<string, ThreatReport>;
@@ -296,10 +308,11 @@ export interface SimReport {
     responses: number;
     gags: number;
     commands: number;
+    /** Null for a run cut by `--until-ms` before the level ended. */
+    scorePoints: number | null;
+    stars: number | null;
   }[];
 }
-
-export const SCORE_NOTE = "Mama's score arrives with story 1.22";
 
 const round = (value: number, decimals: number): number => {
   const factor = 10 ** decimals;
@@ -341,6 +354,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let silencesFound = 0;
   let silencesTimedOut = 0;
   let silencesCutOff = 0;
+  let scoredRuns = 0;
+  let scoreSum = 0;
+  let starSum = 0;
+  const starCounts: number[] = Array.from({ length: STAR_COUNT_MAX + 1 }, () => 0);
   const waves: WaveReport[] = input.waves.map((wave) => ({
     fromMs: wave.fromMs,
     maxSimultaneous: wave.maxSimultaneous,
@@ -350,6 +367,12 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   }));
   for (const run of runs) {
     if (run.isEnded) endedRuns++;
+    if (run.scorePoints !== null && run.stars !== null) {
+      scoredRuns++;
+      scoreSum += run.scorePoints;
+      starSum += run.stars;
+      starCounts[run.stars] = (starCounts[run.stars] ?? 0) + 1;
+    }
     run.waves.forEach((tally, index) => {
       const into = waves[index];
       if (into === undefined) return;
@@ -415,8 +438,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     untilSimMs: input.untilSimMs,
     endedRuns,
     hashes: input.hashes,
-    meanScore: null,
-    scoreNote: SCORE_NOTE,
+    meanScore: scoredRuns === 0 ? null : round(scoreSum / scoredRuns, 1),
+    meanStars: scoredRuns === 0 ? null : round(starSum / scoredRuns, 1),
+    starCounts,
     meanSuccessPct: responses === 0 ? null : pct(good, responses),
     threats,
     waves,
@@ -442,6 +466,8 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       responses: run.responses,
       gags: run.gags,
       commands: run.commands,
+      scorePoints: run.scorePoints,
+      stars: run.stars,
     })),
   };
 }

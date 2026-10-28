@@ -483,33 +483,39 @@
       "type": "object",
       "properties": {
         "laughMaxPoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Most points the baby laughs can give, in points."
         },
         "babyStateMaxPoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Most points the baby state can give, in points."
         },
         "babyStateFixedPoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Baby-state points used by the prototype instead of the real computation, in points."
         },
         "baseScorePoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Base points added to every score, in points."
         },
         "sighMaxPoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Most points a sigh can take off, in points."
         },
         "screamMaxPoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Most points a scream can take off, in points."
         },
         "starThresholdPoints": {
@@ -528,6 +534,31 @@
           "minimum": 0,
           "maximum": 9007199254740991,
           "description": "Stars taken off when Mama wakes early, in stars."
+        },
+        "laughPerPerfectPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Laugh points each perfect response gives (held to `laughMaxPoints`), in points per perfect."
+        },
+        "sighPerPropOnFloorPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Sigh points each unbroken prop lying on the floor at the end takes off, in points per prop."
+        },
+        "sighPerBrokenPropPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Sigh points each broken prop takes off, in points per prop."
+        },
+        "sighPerMischiefPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Sigh points each surprise mischief the baby got away with takes off, in points per mischief."
+        },
+        "screamPerNearMissPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Scream points each near miss takes off (held to `screamMaxPoints`), in points per near miss."
         }
       },
       "required": [
@@ -538,7 +569,12 @@
         "sighMaxPoints",
         "screamMaxPoints",
         "starThresholdPoints",
-        "earlyWakePenaltyStars"
+        "earlyWakePenaltyStars",
+        "laughPerPerfectPoints",
+        "sighPerPropOnFloorPoints",
+        "sighPerBrokenPropPoints",
+        "sighPerMischiefPoints",
+        "screamPerNearMissPoints"
       ],
       "additionalProperties": false,
       "description": "Mama's note (GDD, economy › Mama's note)."

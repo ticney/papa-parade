@@ -252,6 +252,15 @@ export const GAUGE_CHANGE_HOLD_MS = 1500;
 /** Every gauge runs from 0 to this many points (story 1.19: fatigue; noise and need follow). */
 export const GAUGE_MAX_POINTS = 100;
 
+/** Mama's note is out of this many points (GDD › economy, story 1.22); `MamaSchema` makes its four maxima add up to it. */
+export const MAMA_SCORE_MAX_POINTS = 100;
+
+/** Mama gives at most this many stars: one per `feel.mama.starThresholdPoints` (story 1.22). */
+export const STAR_COUNT_MAX = 5;
+
+/** How often a count-up of the Result screen redraws its number, in real ms (about one frame). */
+export const COUNT_UP_FRAME_MS = 16;
+
 /**
  * A ringing phone emits one `PhoneRinging` every this many sim ms (story 1.20 D5), counted from the
  * start of the ring without drift. A contract, not a feel: story 3.1 adds « +2 % par seconde de

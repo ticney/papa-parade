@@ -218,6 +218,47 @@ describe('content/feedback.json', () => {
     expect(failed.some((path) => path.endsWith(field))).toBe(true);
   });
 
+  it('accepts a uiElement visual, and refuses one with another key (story 1.22 D6)', () => {
+    expect(mutated(['cues.papa_bump.visual', { kind: 'uiElement' }])).toMatchObject({ ok: true });
+    expect(
+      failedPaths(mutated(['cues.papa_bump.visual', { kind: 'uiElement', anchor: 'papa' }])),
+    ).toEqual(['cues.papa_bump.visual.anchor']);
+  });
+
+  it.each<[string, [string, unknown][], string]>([
+    ['a missing resultScreen', [['resultScreen', undefined]], 'resultScreen'],
+    ['an unknown key in resultScreen', [['resultScreen.bogusMs', 1]], 'resultScreen.bogusMs'],
+    ['a count-up of 0 ms', [['resultScreen.rowCountUpMs', 0]], 'resultScreen.rowCountUpMs'],
+    ['a negative row stagger', [['resultScreen.rowStaggerMs', -1]], 'resultScreen.rowStaggerMs'],
+    [
+      'a star interval of 0 ms',
+      [['resultScreen.starIntervalMs', 0]],
+      'resultScreen.starIntervalMs',
+    ],
+    ['a fractional stars delay', [['resultScreen.starsDelayMs', 1.5]], 'resultScreen.starsDelayMs'],
+    ['a negative input grace', [['resultScreen.inputGraceMs', -1]], 'resultScreen.inputGraceMs'],
+    [
+      'a missing input grace',
+      [['resultScreen.inputGraceMs', undefined]],
+      'resultScreen.inputGraceMs',
+    ],
+    [
+      'a missing actions delay',
+      [['resultScreen.actionsDelayMs', undefined]],
+      'resultScreen.actionsDelayMs',
+    ],
+  ])('refuses %s (the Result screen timings are strict)', (_name, changes, path) => {
+    expect(failedPaths(mutated(...changes))).toEqual([path]);
+  });
+
+  it('accepts a row stagger of 0 ms: the rows then count up together', () => {
+    expect(mutated(['resultScreen.rowStaggerMs', 0])).toMatchObject({ ok: true });
+  });
+
+  it('accepts an input grace of 0 ms: the screen then takes every press', () => {
+    expect(mutated(['resultScreen.inputGraceMs', 0])).toMatchObject({ ok: true });
+  });
+
   it('accepts the table the tests build by hand: it cannot drift from the schema', () => {
     expect(parse(createTestFeedback())).toMatchObject({ ok: true });
   });

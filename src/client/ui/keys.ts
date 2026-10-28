@@ -86,7 +86,8 @@ export interface PadInput {
 /**
  * What a pad button does outside the sim (story 1.17, UX-DR5, UX-DR7). `pause` and `resume` are
  * what Escape does (`escapeAction`); `ArrowUp` and the like move the focus of the pause panel;
- * `activate` presses the focused button (the panel) or the screen's own action (start, « Oups »);
+ * `activate` presses the focused button (the panel) or the screen's own action (start, « Oups »,
+ * the Result screen);
  * `back` is B on the panel: it resumes. A button in play that is not Start is the mapper's or
  * nothing: B never pauses (it will dodge, story 5.1). Portrait, the loading screen and a
  * countdown take nothing, except Start, which cancels the countdown like Escape.
@@ -113,6 +114,8 @@ export function padAction(input: PadInput): PadAction {
   const { appState, pauseState, overlay, button } = input;
   if (overlay === 'start') return button === 'confirm' || button === 'start' ? 'activate' : null;
   if (overlay === 'oops') return button === 'confirm' ? 'activate' : null;
+  // A skips the Result sequence, then presses « Rejouer » (the screen's own `activate`).
+  if (overlay === 'result') return button === 'confirm' ? 'activate' : null;
   if (appState !== 'level') return null;
   if (button === 'start') {
     if (overlay !== null && overlay !== 'pause') return null;

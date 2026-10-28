@@ -23,9 +23,10 @@ describe('SIM_EVENT_TYPES', () => {
     expect(names.indexOf('WindowOpened')).toBe(names.indexOf('WaveStarted') + 1);
   });
 
-  it('lists NearMiss (story 1.16) and ObjectTapped (story 1.17), between LevelEnded and PapaArrived', () => {
+  it('lists LevelScored (story 1.22), NearMiss (story 1.16) and ObjectTapped (story 1.17), between LevelEnded and PapaArrived', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
-    expect(names.indexOf('NearMiss')).toBe(names.indexOf('LevelEnded') + 1);
+    expect(names.indexOf('LevelScored')).toBe(names.indexOf('LevelEnded') + 1);
+    expect(names.indexOf('NearMiss')).toBe(names.indexOf('LevelScored') + 1);
     expect(names.indexOf('ObjectTapped')).toBe(names.indexOf('NearMiss') + 1);
     expect(names.indexOf('PapaArrived')).toBe(names.indexOf('ObjectTapped') + 1);
   });

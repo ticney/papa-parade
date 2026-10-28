@@ -25,3 +25,29 @@ export function createTranslator(
     return key;
   };
 }
+
+const PLACEHOLDER = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+/** `text|name` pairs already warned about: a screen rebuilt each frame must not flood the log. */
+const reportedPlaceholders = new Set<string>();
+
+/**
+ * Fills the `{name}` placeholders of a translated `text` (`« {count} sur {max} étoiles »`). A
+ * placeholder with no value is a bug in the caller: it warns once per text and name and stays in
+ * the text as it is, so the problem shows instead of an empty hole.
+ */
+export function formatString(
+  text: string,
+  values: Readonly<Record<string, string | number>>,
+  logger: Pick<Logger, 'warn'> = log,
+): string {
+  return text.replace(PLACEHOLDER, (placeholder, name: string) => {
+    // `hasOwn`: `{constructor}` is no value.
+    if (Object.hasOwn(values, name)) return String(values[name]);
+    const key = `${text}|${name}`;
+    if (!reportedPlaceholders.has(key)) {
+      reportedPlaceholders.add(key);
+      logger.warn('boot', `no value for the placeholder {${name}}`, { text });
+    }
+    return placeholder;
+  });
+}

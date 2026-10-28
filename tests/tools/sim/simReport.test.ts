@@ -47,6 +47,8 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     byGag: {},
     waves: [],
     isEnded: false,
+    scorePoints: null,
+    stars: null,
     ...overrides,
   };
 }
@@ -102,11 +104,42 @@ describe('summarizeRuns', () => {
       byGag: { outlet_hair: 1 },
       nearMisses: 1,
     });
+    // No run ended: no score, and no star count.
     expect(report.meanScore).toBeNull();
-    expect(report.scoreNote).toContain('1.22');
+    expect(report.meanStars).toBeNull();
+    expect(report.starCounts).toEqual([0, 0, 0, 0, 0, 0]);
     expect(report.runList).toEqual([
-      { seed: 5, worldHash: 'hash5', responses: 3, gags: 1, commands: 6 },
+      {
+        seed: 5,
+        worldHash: 'hash5',
+        responses: 3,
+        gags: 1,
+        commands: 6,
+        scorePoints: null,
+        stars: null,
+      },
     ]);
+  });
+
+  it('gives Mama’s mean score and stars over the runs that ended, and counts the runs per star (story 1.22)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { isEnded: true, scorePoints: 73, stars: 3 }),
+      run(2, { isEnded: true, scorePoints: 90, stars: 5 }),
+      run(3, { isEnded: true, scorePoints: 61, stars: 3 }),
+      // Cut by `--until-ms`: no note, left out of the means.
+      run(4, {}),
+    ]);
+    expect(report.meanScore).toBe(74.7);
+    expect(report.meanStars).toBe(3.7);
+    expect(report.starCounts).toEqual([0, 0, 0, 2, 0, 1]);
+    expect(report.starCounts.reduce((sum, count) => sum + count, 0)).toBe(report.endedRuns);
+    expect(report.runList.map(({ scorePoints, stars }) => [scorePoints, stars])).toEqual([
+      [73, 3],
+      [90, 5],
+      [61, 3],
+      [null, null],
+    ]);
+    expect(report).not.toHaveProperty('scoreNote');
   });
 
   it('folds the waves: telegraphs summed, the peak is the max, the over-limit runs counted', () => {
@@ -308,6 +341,30 @@ describe('createRunRecorder', () => {
       offsetCount: 1,
     });
     expect(summary.worldHash).toMatch(/^[0-9a-f]{14}$/);
+    // No `LevelScored`: a run cut before the end has no note.
+    expect(summary).toMatchObject({ isEnded: false, scorePoints: null, stars: null });
+  });
+
+  it('keeps the score and stars of LevelScored (story 1.22)', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 1,
+    });
+    const recorder = createRunRecorder(sim, 1);
+    recorder.onEvent({ type: 'LevelEnded', t: asSimMs(0), reason: 'timer' });
+    recorder.onEvent({
+      type: 'LevelScored',
+      t: asSimMs(0),
+      laughPoints: 30,
+      babyStatePoints: 20,
+      sighPoints: 5,
+      screamPoints: 3,
+      scorePoints: 72,
+      stars: 3,
+    });
+    expect(recorder.finish()).toMatchObject({ isEnded: true, scorePoints: 72, stars: 3 });
   });
 
   describe('the waves', () => {
