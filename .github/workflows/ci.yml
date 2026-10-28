@@ -10,7 +10,7 @@ permissions:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     env:
       CI: true
     steps:
@@ -34,3 +34,11 @@ jobs:
         run: npm run e2e
       - name: build:playtest
         run: npm run build:playtest
+      - name: dist:check (playtest)
+        run: npm run dist:check -- --flavor playtest
+      - name: e2e:dist
+        run: npm run e2e:dist
+      - name: build
+        run: npm run build
+      - name: dist:check (prod)
+        run: npm run dist:check -- --flavor prod

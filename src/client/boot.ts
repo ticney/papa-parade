@@ -36,11 +36,12 @@ import { bindKeyboard, createHeldKeys } from './input/keyboardInput.ts';
 import { keyGlyph, loadKeyboardLayoutMap, padConfirmGlyph } from './input/keyGlyphs.ts';
 import { createMoveIntent } from './input/moveIntent.ts';
 import { bindPointer } from './input/pointerInput.ts';
+import { createAdaptivePixelRatio } from './render/adaptivePixelRatio.ts';
 import { slideDirection } from './render/gags.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
 import type { LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
-import { createRenderer } from './render/renderer.ts';
+import { createRenderer, type RenderStats } from './render/renderer.ts';
 import { loadFonts } from './ui/fonts.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
@@ -214,6 +215,7 @@ export async function boot(): Promise<void> {
       | 'ppTriangles'
       | 'ppGeometries'
       | 'ppTextures'
+      | 'ppPixelRatio'
       | 'ppPapaState'
       | 'ppPapaAt'
       | 'ppBabyState'
@@ -525,6 +527,18 @@ export async function boot(): Promise<void> {
   let stepHook: ((sim: Sim) => void) | null = null;
   const levelStartedListeners: ((started: StartedLevel) => void)[] = [];
   const simEventListeners: ((event: SimEvent) => void)[] = [];
+  const renderedFrameListeners: ((frameAtReal: number, stats: Readonly<RenderStats>) => void)[] =
+    [];
+  // The adaptive pixel ratio (story 1.24): fed in every build, with the real interval between two
+  // level frames. A level start and a resume start a clean window (`resetFramePacing`).
+  const pixelPacing = createAdaptivePixelRatio(window.devicePixelRatio);
+  let previousLevelFrameAtReal = -1;
+  const resetFramePacing = (): void => {
+    previousLevelFrameAtReal = -1;
+    pixelPacing.resetWindow();
+  };
+  events.on('GameResumed', resetFramePacing);
+  document.addEventListener('visibilitychange', resetFramePacing);
   let isGameInputBlocked = false;
   let hasLoggedSilentStart = false;
   // Mama's note of the level that ended (story 1.22), and whether its Result sequence has started: a
@@ -555,6 +569,7 @@ export async function boot(): Promise<void> {
       worldUi.mountObjects(started.sim.objects);
       // The full duration at once, so a restart never shows the last level's `0:00`.
       hudBatch.set(TIMER_SLOT, Math.ceil(started.level.level.durationMs / MS_PER_S));
+      resetFramePacing();
       for (const listener of levelStartedListeners) listener(started);
     },
     onSeed: (seed) => {
@@ -571,7 +586,7 @@ export async function boot(): Promise<void> {
       fitViewToCanvas();
       if (isMirrored) mirror('ppLevel', level.id);
     },
-    onLevelFrame: (alpha) => {
+    onLevelFrame: (alpha, frameAtReal) => {
       // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
       // Once the level has ended the sim is frozen with `babbling` as it was: silence it.
       const babbleWorld = levelSession.active?.sim.world;
@@ -652,6 +667,45 @@ export async function boot(): Promise<void> {
         mirror('ppTriangles', String(triangles));
         mirror('ppGeometries', String(geometries));
         mirror('ppTextures', String(textures));
+        mirror('ppPixelRatio', String(renderer.stats().pixelRatio));
+      }
+      // Last, after the level and the world UI are drawn: the display frame's timestamp, for the
+      // adaptive pixel ratio and for the debug meters. No allocation: an indexed loop, no closure.
+      // Only a running game is measured: a pause, its countdown and a hidden tab are not frames of
+      // play. A repeated timestamp is an `advance` render, not a frame.
+      if (pause.state !== 'running' || frameAtReal <= previousLevelFrameAtReal) {
+        if (pause.state !== 'running') resetFramePacing();
+        return;
+      }
+      if (previousLevelFrameAtReal >= 0) {
+        const fromCap = pixelPacing.cap;
+        const toCap = pixelPacing.frame(frameAtReal - previousLevelFrameAtReal);
+        if (toCap !== fromCap) {
+          try {
+            renderer.setPixelRatioCap(toCap);
+            log.info('render', 'pixel ratio stepped down', {
+              fromCap,
+              toCap,
+              meanFrameMs: Math.round(pixelPacing.lastWindowMeanMs * 10) / 10,
+            });
+            if (isMirrored) mirror('ppPixelRatio', String(renderer.stats().pixelRatio));
+          } catch (cause) {
+            log.warn('render', 'cannot lower the pixel ratio', { toCap, error: cause });
+          }
+        }
+      }
+      previousLevelFrameAtReal = frameAtReal;
+      if (renderedFrameListeners.length > 0) {
+        const stats = renderer.stats();
+        for (let i = 0; i < renderedFrameListeners.length; i++) {
+          try {
+            renderedFrameListeners[i]?.(frameAtReal, stats);
+          } catch (cause) {
+            // A debug listener must never stop the game loop (fail-stop): drop it, say so once.
+            log.warn('debug', 'a rendered-frame listener threw and was removed', { error: cause });
+            renderedFrameListeners.splice(i--, 1);
+          }
+        }
       }
     },
     loadLevelContent: async (id) => {
@@ -1072,6 +1126,7 @@ export async function boot(): Promise<void> {
       onLevelStarted: (listener) => subscribe(levelStartedListeners, listener),
       onSimEvent: (listener) => subscribe(simEventListeners, listener),
       onGameResumed: (listener) => events.on('GameResumed', listener),
+      onRenderedFrame: (listener) => subscribe(renderedFrameListeners, listener),
       setGameInputBlocked: (isBlocked) => {
         isGameInputBlocked = isBlocked;
       },
@@ -1085,6 +1140,16 @@ export async function boot(): Promise<void> {
       } catch (cause) {
         // A broken debug module must not take the game down: the normal start screen follows.
         log.warn('boot', 'ignoring ?autoplay: the autoplay module did not load', cause);
+      }
+    }
+    // The FPS counter, for `?debug=1` only (a plain dev run and the screenshot specs do not see it).
+    if (params.isDebug) {
+      try {
+        const { installPerfHud } = await import('@debug/perfHud');
+        // Not in #pp-ui: the overlay host empties that layer at each screen change.
+        installPerfHud(testHost, document.body);
+      } catch (cause) {
+        log.warn('boot', 'no FPS counter: the perf HUD module did not load', cause);
       }
     }
   }

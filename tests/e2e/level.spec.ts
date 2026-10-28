@@ -1,5 +1,10 @@
 import { expect, type Page, test } from '@playwright/test';
-import { LOADING_LINE_INTERVAL_MS, RESUME_COUNTDOWN_MS } from '../../src/shared/constants.ts';
+import {
+  DRAW_CALLS_MAX,
+  LOADING_LINE_INTERVAL_MS,
+  RESUME_COUNTDOWN_MS,
+  TRIANGLES_MAX,
+} from '../../src/shared/constants.ts';
 import {
   appHistory,
   collectConsoleErrors,
@@ -31,8 +36,6 @@ const LOADING_LINES = [
   STRINGS['loading.line_toys'],
   STRINGS['loading.line_keys'],
 ];
-const DRAW_CALLS_MAX = 100;
-const TRIANGLES_MAX = 100_000;
 /** Frames the page gets to prove that nothing moves on: a bound, not a wait. */
 const FRAMES_TO_PROVE_STILL = 60;
 /** The level starts through the countdown, which only ends after this much real time. */

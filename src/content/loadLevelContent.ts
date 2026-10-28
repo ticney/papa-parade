@@ -1,3 +1,4 @@
+import './zodConfig.ts';
 import { err, ok, type Result } from '@shared/result';
 import type { LevelContent } from './contentBundle.ts';
 import { type ContentError, type ContentProblem, createContentError } from './contentError.ts';

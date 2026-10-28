@@ -225,7 +225,10 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   });
   actions.append(replay);
   let unbindCopy: (() => void) | null = null;
-  if (options.copyLog !== undefined) {
+  // Debug builds only, by the literal comparison so that Vite folds it and the store bundle holds
+  // no `copyLog` (story 1.24). Story 3.3 wires `copyLog` from the debug block of `boot.ts`; this
+  // gate keeps the store build clean whatever it passes.
+  if (import.meta.env.VITE_DEBUG_ALLOWED === 'true' && options.copyLog !== undefined) {
     const copy = make('button', 'pp-button pp-button-secondary', t('result.copy_log'));
     copy.type = 'button';
     copy.setAttribute('aria-label', t('result.copy_log'));
