@@ -4,7 +4,7 @@ baseline_commit: 516b463eb33099f1dba6c6e5ee4d9ad2bfd61b81
 
 # Story 3.1: Noise gauge
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 3.1 « Jauge de bruit » (L1534-1561). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -156,42 +156,42 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Content and schemas** (AC 1, 2, 5)
-  - [ ] `src/content/schemas/feel.ts`: `NoiseSchema` and its sources (D3). Use `pct()` / `durationMs()` / `delayMs()` / `points()` style helpers. Add the two refines, and add `noise` to `FeelSchema` after `fatigue`. Export `NOISE_SOURCE_IDS` (the keys, in file order) for the sim and the report.
-  - [ ] `src/content/schemas/level.ts`: `noise` in `LevelGaugesSchema`. Update the header comment and the `GAUGE_IDS` doc (« only `fatigue` has a level schema entry so far »).
-  - [ ] `src/content/schemas/threat.ts`: `gagCryMs` in `baseShape`, optional, `z.int().positive()`, described in sim ms.
-  - [ ] `content/feel.json`, `tests/support/testFeel.json`, `content/levels/salon_crawler.json`.
-  - [ ] `npm run content:schemas`, then `npm run content:check`. Add a `content:check` rule only if one is needed; none is expected.
-- [ ] **T2. Sim: the noise** (AC 3, 4, 6, 7)
-  - [ ] `src/shared/constants.ts`: `BABY_CRYING_EVERY_MS = 1000`, documented like `PHONE_RINGING_EVERY_MS`.
-  - [ ] `src/sim/events.ts`: `NoiseChanged`, `BabyCrying`, `SIM_EVENT_TYPES`. Rewrite the `PropImpact` / `PhoneRinging` docs only if a word is wrong (they already announce 3.1). Those are comments in `events.ts`, not 1.15 / 1.20 code.
-  - [ ] `src/sim/commands.ts`: `SetNoise`, in `COMMAND_TYPES` and `commandProblem`.
-  - [ ] `src/sim/context.ts` (`SimLevel.hasNoise`) and `src/sim/createSim.ts` (sets it from `level.gauges.noise !== undefined`).
-  - [ ] `src/sim/world.ts`: the `GaugesSlice` and `BabySlice` fields, with docs. `createWorld` sets `noisePct: 0` and `propNoiseAt` to one `null` per prop.
-  - [ ] `src/sim/gauges/noise.ts` (`addNoise`, the impulse lerp as a pure exported helper `propImpactNoisePct(feel, impulseNs)`) and `src/sim/gauges/noiseSystem.ts` (`runNoise`). They are split like fatigue / fatigueSystem only if needed; otherwise one file, `noise.ts`, as the architecture names it.
-  - [ ] `src/sim/gauges/gaugesSystem.ts`: `SetNoise` in the command loop, then `runFatigue`, then `runNoise`. Update its doc and `step.ts`'s header comment (« noise joins it in 3.1 » becomes a fact).
-- [ ] **T3. Sim: the cry** (AC 5)
-  - [ ] `src/sim/baby/cry.ts`: `startBabyCry` and `runBabyCry` (the ticks). `runBaby` calls `runBabyCry` first, before `runSilence`.
-  - [ ] `src/sim/threats/threatFsm.ts` › `gagThreat`: after `applyGag`, `if (def.gagCryMs !== undefined) startBabyCry(...)`. Do not put it in `gags.ts`'s `GAG_CONSEQUENCES`: the cry belongs to the def, not to the gag id (D9).
-- [ ] **T4. Snapshot v12** (AC 8)
-  - [ ] `src/sim/snapshot.ts`: version 12 (the type, the literal, the `invariant`); `gaugesProblem` gets the level's `hasNoise` and prop count; the baby check gets the cry pair. Update the snapshot tests and the `version` fixtures.
-- [ ] **T5. Client** (AC 9, 10, 12)
-  - [ ] `src/client/boot.ts`: noise start value, per-frame `hudBatch.set`, the `ppNoise` mirror, the crossing test on drained `NoiseChanged` → `director.handle('NoiseAlertReached', null)` + `gaugesHud.alert('noise')`. The crossing test is a pure helper with a unit test, e.g. `src/client/feedback/noiseAlert.ts` › `isNoiseAlertCrossing(event, alertPct)`.
-  - [ ] `src/client/feedback/feedbackEvents.ts`: `'NoiseAlertReached'` in `FEEDBACK_CLIENT_EVENTS`.
-  - [ ] `src/client/ui/hud/gaugesHud.ts`: `alert(id)` restarts the one-shot class (remove it, force a reflow-free restart with `animationend` cleanup or a toggle on the next frame, no per-frame allocation). Add tests in `gaugesHud.test.ts`.
-  - [ ] `src/client/ui/styles/ui.css`: `.pp-hud-gauge-alert` keyframes (transform only) and the `prefers-reduced-motion` variant, using tokens only (no hex).
-  - [ ] `content/feedback.json`: the `noise_alert` cue and the `NoiseAlertReached` event; `npm run content:check`.
-- [ ] **T6. Report** (AC 13)
-  - [ ] `tools/sim/simReport.ts` (+ `tests/tools/sim/simReport.test.ts`, `runSim` `--help`).
-- [ ] **T7. Tests and goldens** (AC 14, 15)
-  - [ ] Unit tests listed in AC 14. `tests/support/testContent.ts`: frozen test threats can take `gagCryMs` (add one, e.g. `testCrying.threat.json`, or an override helper).
-  - [ ] `npm run golden:update`; check the journals diff (hashes only).
-- [ ] **T8. End to end** (AC 11, 16)
-  - [ ] `tests/e2e/noise.spec.ts`. Run the whole e2e suite: `fatigue.spec.ts` asserts a single gauge in the pill (`GAUGE` locator, `aria-label` « Fatigue 0 % »), so update its locators to target the fatigue gauge by position or label, without weakening what it checks.
-- [ ] **T9. Docs**
-  - [ ] `_bmad-output/project-context.md` L40: `runGauges` is fatigue then noise. A level opts into noise with `gauges.noise`, and `addNoise` is the only writer of `noisePct`. L41: say that `runNoise` reads **this step's** `PropImpact` / `PhoneRinging` / `BabyCrying` (like `isBabyFoundNow`), the one gauge built on events (epics AC 3).
-  - [ ] `deferred-work.md`: close L262, L346 (with the measured count), L360, L365, L370. Add a « Deferred from: story 3.1 » section with the open points that stay open and the sources with no row (dog, wrong remedy, snore).
-- [ ] **T10. CI** (AC 17): `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
+- [x] **T1. Content and schemas** (AC 1, 2, 5)
+  - [x] `src/content/schemas/feel.ts`: `NoiseSchema` and its sources (D3). Use `pct()` / `durationMs()` / `delayMs()` / `points()` style helpers. Add the two refines, and add `noise` to `FeelSchema` after `fatigue`. Export `NOISE_SOURCE_IDS` (the keys, in file order) for the sim and the report.
+  - [x] `src/content/schemas/level.ts`: `noise` in `LevelGaugesSchema`. Update the header comment and the `GAUGE_IDS` doc (« only `fatigue` has a level schema entry so far »).
+  - [x] `src/content/schemas/threat.ts`: `gagCryMs` in `baseShape`, optional, `z.int().positive()`, described in sim ms.
+  - [x] `content/feel.json`, `tests/support/testFeel.json`, `content/levels/salon_crawler.json`.
+  - [x] `npm run content:schemas`, then `npm run content:check`. Add a `content:check` rule only if one is needed; none is expected.
+- [x] **T2. Sim: the noise** (AC 3, 4, 6, 7)
+  - [x] `src/shared/constants.ts`: `BABY_CRYING_EVERY_MS = 1000`, documented like `PHONE_RINGING_EVERY_MS`.
+  - [x] `src/sim/events.ts`: `NoiseChanged`, `BabyCrying`, `SIM_EVENT_TYPES`. Rewrite the `PropImpact` / `PhoneRinging` docs only if a word is wrong (they already announce 3.1). Those are comments in `events.ts`, not 1.15 / 1.20 code.
+  - [x] `src/sim/commands.ts`: `SetNoise`, in `COMMAND_TYPES` and `commandProblem`.
+  - [x] `src/sim/context.ts` (`SimLevel.hasNoise`) and `src/sim/createSim.ts` (sets it from `level.gauges.noise !== undefined`).
+  - [x] `src/sim/world.ts`: the `GaugesSlice` and `BabySlice` fields, with docs. `createWorld` sets `noisePct: 0` and `propNoiseAt` to one `null` per prop.
+  - [x] `src/sim/gauges/noise.ts` (`addNoise`, the impulse lerp as a pure exported helper `propImpactNoisePct(feel, impulseNs)`) and `src/sim/gauges/noiseSystem.ts` (`runNoise`). They are split like fatigue / fatigueSystem only if needed; otherwise one file, `noise.ts`, as the architecture names it.
+  - [x] `src/sim/gauges/gaugesSystem.ts`: `SetNoise` in the command loop, then `runFatigue`, then `runNoise`. Update its doc and `step.ts`'s header comment (« noise joins it in 3.1 » becomes a fact).
+- [x] **T3. Sim: the cry** (AC 5)
+  - [x] `src/sim/baby/cry.ts`: `startBabyCry` and `runBabyCry` (the ticks). `runBaby` calls `runBabyCry` first, before `runSilence`.
+  - [x] `src/sim/threats/threatFsm.ts` › `gagThreat`: after `applyGag`, `if (def.gagCryMs !== undefined) startBabyCry(...)`. Do not put it in `gags.ts`'s `GAG_CONSEQUENCES`: the cry belongs to the def, not to the gag id (D9).
+- [x] **T4. Snapshot v12** (AC 8)
+  - [x] `src/sim/snapshot.ts`: version 12 (the type, the literal, the `invariant`); `gaugesProblem` gets the level's `hasNoise` and prop count; the baby check gets the cry pair. Update the snapshot tests and the `version` fixtures.
+- [x] **T5. Client** (AC 9, 10, 12)
+  - [x] `src/client/boot.ts`: noise start value, per-frame `hudBatch.set`, the `ppNoise` mirror, the crossing test on drained `NoiseChanged` → `director.handle('NoiseAlertReached', null)` + `gaugesHud.alert('noise')`. The crossing test is a pure helper with a unit test, e.g. `src/client/feedback/noiseAlert.ts` › `isNoiseAlertCrossing(event, alertPct)`.
+  - [x] `src/client/feedback/feedbackEvents.ts`: `'NoiseAlertReached'` in `FEEDBACK_CLIENT_EVENTS`.
+  - [x] `src/client/ui/hud/gaugesHud.ts`: `alert(id)` restarts the one-shot class (remove it, force a reflow-free restart with `animationend` cleanup or a toggle on the next frame, no per-frame allocation). Add tests in `gaugesHud.test.ts`.
+  - [x] `src/client/ui/styles/ui.css`: `.pp-hud-gauge-alert` keyframes (transform only) and the `prefers-reduced-motion` variant, using tokens only (no hex).
+  - [x] `content/feedback.json`: the `noise_alert` cue and the `NoiseAlertReached` event; `npm run content:check`.
+- [x] **T6. Report** (AC 13)
+  - [x] `tools/sim/simReport.ts` (+ `tests/tools/sim/simReport.test.ts`, `runSim` `--help`).
+- [x] **T7. Tests and goldens** (AC 14, 15)
+  - [x] Unit tests listed in AC 14. `tests/support/testContent.ts`: frozen test threats can take `gagCryMs` (add one, e.g. `testCrying.threat.json`, or an override helper).
+  - [x] `npm run golden:update`; check the journals diff (hashes only).
+- [x] **T8. End to end** (AC 11, 16)
+  - [x] `tests/e2e/noise.spec.ts`. Run the whole e2e suite: `fatigue.spec.ts` asserts a single gauge in the pill (`GAUGE` locator, `aria-label` « Fatigue 0 % »), so update its locators to target the fatigue gauge by position or label, without weakening what it checks.
+- [x] **T9. Docs**
+  - [x] `_bmad-output/project-context.md` L40: `runGauges` is fatigue then noise. A level opts into noise with `gauges.noise`, and `addNoise` is the only writer of `noisePct`. L41: say that `runNoise` reads **this step's** `PropImpact` / `PhoneRinging` / `BabyCrying` (like `isBabyFoundNow`), the one gauge built on events (epics AC 3).
+  - [x] `deferred-work.md`: close L262, L346 (with the measured count), L360, L365, L370. Add a « Deferred from: story 3.1 » section with the open points that stay open and the sources with no row (dog, wrong remedy, snore).
+- [x] **T10. CI** (AC 17): `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
 
 ## Dev Notes
 
@@ -362,14 +362,118 @@ Updated:
 
 ### Agent Model Used
 
+claude-sonnet-5-5
+
 ### Implementation Plan
+
+- **Content first (T1).** `NoiseSchema` in `feel.ts` (strict, no defaults, two refines, `NOISE_SOURCE_IDS`), `gauges.noise: {}` in `LevelGaugesSchema`, `gagCryMs` in the threat `baseShape`. `feel.json`, `testFeel.json` and `salon_crawler.json` updated, `content:schemas` regenerated.
+- **Sim (T2-T4).** `addNoise` (event + silent clamp) and `decayNoise` (silent) are the two writers of `noisePct`, both in `gauges/noise.ts`; `runNoise` is in `gauges/noiseSystem.ts` (split like fatigue). It scans this step's events backwards (D7), so no allocation and no double count when the caller has not drained. `baby/cry.ts` keeps the cry stateless between steps: the tick grid is `cryStartedAt` plus the step size, so the snapshot only needs the two instants. `gagThreat` calls `startBabyCry` after `applyGag`. Snapshot v12 with checks for `noisePct`, `propNoiseAt` and the cry pair.
+- **Client (T5).** Pure helper `isNoiseAlertCrossing`; `boot.ts` sets the start value, writes the value per frame through `hudBatch`, mirrors `data-pp-noise` on `NoiseChanged` and level start only, and on an upward crossing plays the client event `NoiseAlertReached` (cue `noise_alert`, haptic `medium`, no audio) and `gaugesHud.alert('noise')`. The alert class is taken off by `frame()` after 600 ms (not by `animationend`, which the reduced-motion flash has no animation to fire); a second alert restarts it on the next frame. CSS is `transform` only, tokens only; reduced motion swaps the shake for the 3 px → 5 px ring.
+- **Report (T6).** `noisePeakPct`, `noiseFinalPct`, `noiseBySourcePct` per run; mean / max of the peak, mean final and summed per source in the aggregate; `--help` mentions them.
+- **Decisions kept from the story:** D1-D10 as written. D11 holds: no rename of `fatigue` / `busyUntil`.
 
 ### Debug Log References
 
+- Bare `pct` is now allowed by the feel unit-suffix test (`noise.sources.sniff.pct` and the other one-shot rows, as the story's JSON writes them), beside the `perSec` exception.
+- `golden:update` moved only `worldHash` / `feelHash` in the six existing journals (one line each, no `NoiseChanged` in any of them: their level has no noise). The optional golden `prop_fall_noise` was added.
+- A first `npm run ci` had 3 failures: the two `autoplay-frozen` screenshots (the pill now holds a second gauge, expected) and `pauseResume.spec.ts` in chromium under 7 workers; the latter passes alone in both browsers, and the whole suite is green with `--workers=4` (286 passed).
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- Implemented all 17 ACs. `npm run typecheck`, `lint`, `content:check`, `test:coverage` (202 files, 3496 tests; `src/sim` 98.08 % statements / 96.78 % branches, thresholds are 90 %) and `build:playtest` are green. The e2e suite is green (286 passed) with `--workers=4`; with the default 7 workers `pauseResume.spec.ts` (chromium) failed once under load and passes alone and on rerun. **The e2e was run in the local checkout, not through `npm run ci` in one go, after the screenshot refresh.**
+- **Goldens regenerated deliberately** (`npm run golden:update`): the new `testFeel.json` keys move `feelHash`, the new world fields move `worldHash`; journals are otherwise identical (`git diff -U0 tests/golden`: hash lines only). New scenario `prop_fall_noise`.
+- **Screenshot references:** both `autoplay-frozen-*-darwin.png` refreshed (looked at: Bruit and Fatigue side by side in the pill, nothing else moved). **The two `*-linux.png` references are NOT refreshed**: Docker is not installed in this environment. Geo has to run the story 1.13 Docker command (with `-v pp-node-modules:/work/node_modules`) before CI on ubuntu can pass.
+- **HUD budget:** with Bruit and Fatigue on `salon_crawler`, `#pp-hud` has **30** nodes (limit 40). Checked in `noise.spec.ts` and `fatigue.spec.ts`. The need gauge (epic 4) will add about 8.
+- **Open point 3, one fall:** the `prop_fall_noise` golden: the mug off the coffee table onto the vase is two `PropImpact` of 0.40 N·s (one per side), 2 × 5.59 % = **11.2 %**. The later impacts (vase on the floor at +100 ms, mug at +350 ms) fall inside `samePropCooldownMs` and add nothing.
+- **Open point 2, will 3.2 end games?** `npm run sim` on `salon_crawler` (the phone is the one big source, +30 % over its 15 s ring, minus 15 % decay):
+
+  | bot | runs | peak mean / max | final mean | propImpact | phoneRinging |
+  |---|---|---|---|---|---|
+  | random | 100 | 16 % / 16 % | 0 % | 1117.3 | 3000 |
+  | idle | 20 | 16 % / 16 % | 0 % | 223.5 | 600 |
+  | perfect | 20 | 16 % / 16 % | 0 % | 0 | 600 |
+  | human | 20 | 16 % / 16 % | 0 % | 0 | 600 |
+
+  (`babyCrying` is 0 everywhere: no live def has `gagCryMs`.) **No bot gets near 100 %, so 3.2 would end no game with the current content.** Geo has to decide between tuning `sources` / `decayPerSec`, a live `gagCryMs`, or more sources, before 3.2.
+- **1.15 / 1.20 untouched:** `git diff --stat main -- src/sim/physics src/sim/disruptions src/sim/papa/phoneCall.ts` is empty; no event shape of 1.15 / 1.20 changed.
+- **Not done on purpose:** no `MamaWoke` (3.2); no emitter for floor creak, breath and sniff; no sound; no live `gagCryMs` (Open point 1); no renames (D11).
+- Commit on `story/3-1-jauge-de-bruit` only; nothing merged to `main`.
 
 ### File List
 
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/project-context.md`
+- `content/_schemas/feel.schema.json`
+- `content/_schemas/level.schema.json`
+- `content/_schemas/threat.schema.json`
+- `content/feedback.json`
+- `content/feel.json`
+- `content/levels/salon_crawler.json`
+- `src/client/boot.ts`
+- `src/client/feedback/feedbackEvents.ts`
+- `src/client/feedback/noiseAlert.test.ts`
+- `src/client/feedback/noiseAlert.ts`
+- `src/client/render/views/babyView.test.ts`
+- `src/client/ui/hud/gaugesHud.test.ts`
+- `src/client/ui/hud/gaugesHud.ts`
+- `src/client/ui/styles/ui.css`
+- `src/content/schemas/feel.ts`
+- `src/content/schemas/level.ts`
+- `src/content/schemas/threat.ts`
+- `src/shared/constants.ts`
+- `src/sim/baby/approach.test.ts`
+- `src/sim/baby/babySystem.ts`
+- `src/sim/baby/cry.test.ts`
+- `src/sim/baby/cry.ts`
+- `src/sim/baby/wander.test.ts`
+- `src/sim/commands.test.ts`
+- `src/sim/commands.ts`
+- `src/sim/context.ts`
+- `src/sim/createSim.ts`
+- `src/sim/events.test.ts`
+- `src/sim/events.ts`
+- `src/sim/gauges/gaugesSystem.ts`
+- `src/sim/gauges/noise.test.ts`
+- `src/sim/gauges/noise.ts`
+- `src/sim/gauges/noiseSystem.test.ts`
+- `src/sim/gauges/noiseSystem.ts`
+- `src/sim/index.ts`
+- `src/sim/snapshot.test.ts`
+- `src/sim/snapshot.ts`
+- `src/sim/step.ts`
+- `src/sim/threats/gags.ts`
+- `src/sim/threats/threatFsm.ts`
+- `src/sim/world.ts`
+- `tests/content/feelSchema.test.ts`
+- `tests/content/levelSchema.test.ts`
+- `tests/content/threatSchema.test.ts`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-chromium-darwin.png`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-webkit-darwin.png`
+- `tests/e2e/fatigue.spec.ts`
+- `tests/e2e/noise.spec.ts`
+- `tests/golden/journals/baby_wander.expected.json`
+- `tests/golden/journals/baby_wander.json`
+- `tests/golden/journals/core_basic.expected.json`
+- `tests/golden/journals/core_basic.json`
+- `tests/golden/journals/outlet_parry.expected.json`
+- `tests/golden/journals/outlet_parry.json`
+- `tests/golden/journals/papa_walk.expected.json`
+- `tests/golden/journals/papa_walk.json`
+- `tests/golden/journals/prop_fall.expected.json`
+- `tests/golden/journals/prop_fall.json`
+- `tests/golden/journals/prop_fall_noise.expected.json`
+- `tests/golden/journals/prop_fall_noise.json`
+- `tests/golden/journals/threat_trio.expected.json`
+- `tests/golden/journals/threat_trio.json`
+- `tests/golden/scenarios.ts`
+- `tests/support/testContent.ts`
+- `tests/support/testCrying.threat.json`
+- `tests/support/testFeel.json`
+- `tests/tools/sim/simReport.test.ts`
+- `tools/sim/simArgs.ts`
+- `tools/sim/simReport.ts`
+
 ### Change Log
+
+- 2026-10-28: Story 3.1 implemented: the noise gauge (feel table, level opt-in, `addNoise` / `runNoise`, `NoiseChanged`, `SetNoise`), the crying baby (`gagCryMs`, `BabyCrying`), snapshot v12, the HUD gauge with the 80 % alert (haptic + shake), the sim report's noise fields, the `prop_fall_noise` golden, `noise.spec.ts`, and the docs (`project-context.md`, `deferred-work.md`). Goldens regenerated (hashes only), darwin screenshot references refreshed, Linux ones pending.

@@ -232,6 +232,74 @@ const FatigueSchema = z
   })
   .describe("Papa's fatigue (GDD §6).");
 
+const noisePctSource = (description: string) =>
+  z
+    .strictObject({ pct: pct('Noise added once per occurrence, in % of the gauge.') })
+    .describe(description);
+
+const NoiseSourcesSchema = z
+  .strictObject({
+    propImpact: z
+      .strictObject({
+        minPct: pct('Noise of a falling object at `minImpulseNs`, in % of the gauge.'),
+        maxPct: pct('Noise of a falling object at `maxImpulseNs` and above, in % of the gauge.'),
+        minImpulseNs: z
+          .number()
+          .min(0)
+          .describe('Impact impulse that makes `minPct`, in newton-seconds.'),
+        maxImpulseNs: z
+          .number()
+          .min(0)
+          .describe('Impact impulse that makes `maxPct`, in newton-seconds.'),
+        samePropCooldownMs: delayMs(
+          'A prop that already made noise is silent for this long (a bounce is one fall), in sim ms; 0 = no window.',
+        ),
+      })
+      .refine((source) => source.minPct <= source.maxPct, {
+        path: ['minPct'],
+        error: 'minPct must not exceed maxPct',
+      })
+      .refine((source) => source.minImpulseNs < source.maxImpulseNs, {
+        path: ['minImpulseNs'],
+        error: 'minImpulseNs must be below maxImpulseNs',
+      })
+      .describe(
+        'A prop hitting something (`PropImpact`): +minPct…maxPct by impulse (GDD: +5 to +15 %).',
+      ),
+    phoneRinging: z
+      .strictObject({
+        perSec: points('Noise per second of ringing, in % of the gauge per second.'),
+      })
+      .describe('A ringing phone (`PhoneRinging`, one per second): GDD +2 %/s.'),
+    babyCrying: z
+      .strictObject({ perSec: points('Noise per second of crying, in % of the gauge per second.') })
+      .describe('The baby crying (`BabyCrying`, one per second): GDD +2 %/s.'),
+    floorCreak: noisePctSource('A creaking floorboard (story 4.9): GDD +3 %.'),
+    breathReleased: noisePctSource('Breath released too early (story 4.9): GDD +5 %.'),
+    sniff: noisePctSource('Sniffing (story 5.3): GDD +3 %.'),
+  })
+  .describe('What makes noise: one row per source of `NoiseChanged`.');
+
+/** The keys of `feel.noise.sources`, in file order: the sim\'s `NoiseSource` (plus `debug`) and the sim report use them. */
+export const NOISE_SOURCE_IDS = [
+  'propImpact',
+  'phoneRinging',
+  'babyCrying',
+  'floorCreak',
+  'breathReleased',
+  'sniff',
+] as const;
+
+const NoiseSchema = z
+  .strictObject({
+    decayPerSec: points('Noise lost per second, in % of the gauge per second (GDD: 1 %/s).'),
+    alertPct: pct(
+      'Above this noise the client plays the alert (haptic + shake), in % of the gauge.',
+    ),
+    sources: NoiseSourcesSchema,
+  })
+  .describe('The noise gauge of the Sieste levels (FR18, GDD rule 7).');
+
 const InstinctSchema = z
   .strictObject({
     timeScale: timeScale('Sim speed while Fatherly Instinct is active (1 = normal).'),
@@ -393,6 +461,7 @@ export const FeelSchema = z
     movement: MovementSchema,
     baby: BabySchema,
     fatigue: FatigueSchema,
+    noise: NoiseSchema,
     instinct: InstinctSchema,
     difficulty: DifficultySchema,
     mama: MamaSchema,

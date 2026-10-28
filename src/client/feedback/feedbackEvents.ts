@@ -6,6 +6,7 @@ import type { SimEvent } from '@sim';
  */
 export const FEEDBACK_CLIENT_EVENTS = [
   'CountdownTicked',
+  'NoiseAlertReached',
   'ResultStarStamped',
   'ResultLastStarStamped',
 ] as const;

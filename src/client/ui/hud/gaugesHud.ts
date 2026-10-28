@@ -18,7 +18,13 @@ export interface GaugesHud {
    * integer changes, so at most every 2 s at 0.5 points per second. A gauge the level lacks is ignored.
    */
   setValue(id: GaugeId, percent: number): void;
-  /** Once per frame: ends the « changing » hold of a gauge. Allocation-free. */
+  /**
+   * Plays the 80 % alert on a gauge once (story 3.1): `pp-hud-gauge-alert` for `ALERT_HOLD_MS`, a
+   * shake (a plain flash under reduced motion). A second call while it plays restarts it, on the
+   * next `frame`. A gauge the level lacks is ignored.
+   */
+  alert(id: GaugeId): void;
+  /** Once per frame: ends the « changing » hold and the alert of a gauge. Allocation-free. */
   frame(nowAtReal: number): void;
 }
 
@@ -37,6 +43,8 @@ const JUMP_POINTS = 5;
 /** The bar has ten segments: a boundary is crossed every 10 points. */
 const SEGMENT_POINTS = 10;
 const PERCENT_MAX = 100;
+/** How long the alert class stays on, in real ms: the length of the CSS shake (`pp-gauge-shake`, a look, not a feel). */
+const ALERT_HOLD_MS = 600;
 
 // Literal keys on purpose: the architecture test checks every key against the strings file.
 const LABEL_KEYS: Readonly<Record<GaugeId, string>> = {
@@ -102,6 +110,13 @@ interface GaugeState {
   isChanging: boolean;
   isWarn: boolean;
   isIdle: boolean;
+  /** Whether the alert class is on (story 3.1). */
+  isAlert: boolean;
+  /** The alert state the element's classes were last written for. */
+  isAlertOnElement: boolean;
+  /** A second alert came while one played: the class goes off now and on again at the next frame. */
+  isAlertRestarting: boolean;
+  alertedAtReal: number;
 }
 
 /**
@@ -112,7 +127,8 @@ interface GaugeState {
  * rings and pulses, so the state never relies on hue alone). A gauge is dimmed (`pp-hud-gauge-idle`) while
  * under 50 % and not changing; « changing » means it crossed a 10-point segment boundary or jumped
  * by 5 points or more within the last `GAUGE_CHANGE_HOLD_MS` (D11). Class toggles and style writes
- * happen only when something changed; nothing is allocated per frame.
+ * happen only when something changed; nothing is allocated per frame. `alert` (story 3.1) adds a
+ * one-shot class for the 80 % noise cue, taken off by `frame` after `ALERT_HOLD_MS`.
  */
 export function createGaugesHud(doc: Doc, options: GaugesHudOptions): GaugesHud {
   const { t, nowAtReal } = options;
@@ -133,10 +149,14 @@ export function createGaugesHud(doc: Doc, options: GaugesHudOptions): GaugesHud 
   const applyClasses = (gauge: GaugeState): void => {
     const isIdle = gauge.percent < DIM_BELOW_PCT && !gauge.isChanging;
     const isWarn = gauge.percent >= WARN_FROM_PCT;
-    if (isIdle === gauge.isIdle && isWarn === gauge.isWarn) return;
+    const { isAlert } = gauge;
+    if (isIdle === gauge.isIdle && isWarn === gauge.isWarn && isAlert === gauge.isAlertOnElement) {
+      return;
+    }
     gauge.isIdle = isIdle;
     gauge.isWarn = isWarn;
-    gauge.element.className = `pp-hud-gauge${isIdle ? ' pp-hud-gauge-idle' : ''}${isWarn ? ' pp-hud-gauge-warn' : ''}`;
+    gauge.isAlertOnElement = isAlert;
+    gauge.element.className = `pp-hud-gauge${isIdle ? ' pp-hud-gauge-idle' : ''}${isWarn ? ' pp-hud-gauge-warn' : ''}${isAlert ? ' pp-hud-gauge-alert' : ''}`;
   };
 
   const build = (id: GaugeId): GaugeState => {
@@ -164,6 +184,10 @@ export function createGaugesHud(doc: Doc, options: GaugesHudOptions): GaugesHud 
       isChanging: false,
       isWarn: false,
       isIdle: true,
+      isAlert: false,
+      isAlertOnElement: false,
+      isAlertRestarting: false,
+      alertedAtReal: 0,
     };
   };
 
@@ -195,9 +219,31 @@ export function createGaugesHud(doc: Doc, options: GaugesHudOptions): GaugesHud 
       gauge.element.setAttribute('aria-label', `${gauge.label} ${next} %`);
       applyClasses(gauge);
     },
+    alert(id) {
+      const gauge = stateOf(id);
+      if (gauge === undefined) return;
+      if (gauge.isAlert) {
+        // Off now, on at the next frame: the browser restarts the animation on the new class.
+        gauge.isAlert = false;
+        gauge.isAlertRestarting = true;
+      } else {
+        gauge.isAlert = true;
+        gauge.alertedAtReal = nowAtReal();
+      }
+      applyClasses(gauge);
+    },
     frame(now) {
       for (let i = 0; i < gauges.length; i++) {
         const gauge = gauges[i] as GaugeState;
+        if (gauge.isAlertRestarting) {
+          gauge.isAlertRestarting = false;
+          gauge.isAlert = true;
+          gauge.alertedAtReal = now;
+          applyClasses(gauge);
+        } else if (gauge.isAlert && now - gauge.alertedAtReal >= ALERT_HOLD_MS) {
+          gauge.isAlert = false;
+          applyClasses(gauge);
+        }
         if (!gauge.isChanging || now - gauge.changedAtReal < GAUGE_CHANGE_HOLD_MS) continue;
         gauge.isChanging = false;
         applyClasses(gauge);

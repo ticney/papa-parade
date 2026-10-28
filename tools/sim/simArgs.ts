@@ -34,6 +34,9 @@ export const SIM_HELP = `Usage: npm run sim -- --bot <id> [options]
   --out <file>       write the JSON report there (default: stdout)
   --journals <dir>   write one recorded game per run there, for \`npm run sim:replay\`
   --help             print this
+
+The report also holds the noise gauge of the level (story 3.1): the mean and max of each game's peak,
+the mean final value and the noise per source, all in % of the gauge (0 in a level with no noise).
 `;
 
 const DIGITS = /^\d+$/;

@@ -73,6 +73,13 @@ const baseShape = {
     .describe(
       'Time spent resolved or in gag before the threat is idle again, in sim ms (0 = at once).',
     ),
+  gagCryMs: z
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'When a miss ends in the gag, the baby cries for this long, in sim ms (story 3.1: one `BabyCrying` per second, +2 % noise each). Absent: the gag does not make him cry.',
+    ),
 };
 
 const AnchoredThreatDefSchema = z

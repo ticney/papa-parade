@@ -41,6 +41,7 @@
       "haptic": "heavy"
     },
     "silence_started": { "haptic": "light" },
+    "noise_alert": { "visual": { "kind": "uiElement" }, "haptic": "medium" },
     "hold_closed": { "haptic": "medium" },
     "tel_silence_found": {
       "audio": { "clip": "tel_silence_found", "bus": "sfx", "gainPct": 90 },
@@ -118,6 +119,7 @@
     "CountdownTicked": "countdown_tick",
     "SilenceStarted": "silence_started",
     "ResponseHeld": "hold_closed",
+    "NoiseAlertReached": "noise_alert",
     "ResultStarStamped": "result_star",
     "ResultLastStarStamped": "result_star_last"
   }

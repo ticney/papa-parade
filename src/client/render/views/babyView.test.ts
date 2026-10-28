@@ -25,6 +25,8 @@ function baby(patch: Partial<BabySlice> = {}): BabySlice {
     babbling: true,
     targetThreatId: null,
     approachSpeedMps: 0,
+    cryStartedAt: null,
+    cryEndsAt: null,
     ...patch,
   };
 }

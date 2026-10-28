@@ -76,6 +76,13 @@ export interface BabySlice {
   targetThreatId: number | null;
   /** Speed of the current approach, in metres per second; 0 outside `approach`. */
   approachSpeedMps: number;
+  /**
+   * When the current cry started (story 3.1), in sim time; null while the baby is not crying. A
+   * parallel timer, not a `BabyState`: he can cry while he wanders. Null exactly when `cryEndsAt` is.
+   */
+  cryStartedAt: SimMs | null;
+  /** When the current cry ends, in sim time (a gag during a cry pushes it); null while not crying. */
+  cryEndsAt: SimMs | null;
 }
 
 /** A response that was judged `perfect` or `success` and waits to be classified (Parry or Firmness). */
@@ -230,8 +237,8 @@ export interface DirectorSlice {
 }
 
 /**
- * The gauges of the level (story 1.19; noise joins in 3.1). `fatigue` is held in `[0, 100]` and
- * written only by `addFatigue`.
+ * The gauges of the level (story 1.19: fatigue, 3.1: noise). `fatigue` is held in `[0, 100]` and
+ * written only by `addFatigue`; `noisePct` likewise, by `addNoise`.
  */
 export interface GaugesSlice {
   fatigue: number;
@@ -239,6 +246,13 @@ export interface GaugesSlice {
   isFatigueAbove: boolean;
   /** When the next micro-sleep is due, in sim time; null while Papa is not above the threshold. */
   microSleepAt: SimMs | null;
+  /** The noise, in % of the gauge (0-100); stays 0 in a level with no noise gauge (story 3.1). */
+  noisePct: number;
+  /**
+   * Sim time at which each prop last made noise, index-aligned with `world.props`; null before the
+   * first. It keeps a bouncing prop from counting twice (`feel.noise.sources.propImpact.samePropCooldownMs`).
+   */
+  propNoiseAt: (SimMs | null)[];
 }
 
 /** The level's flow: playing until the clock reaches the level's duration, then ended. */
@@ -371,12 +385,20 @@ export function createWorld({
       babbling: true,
       targetThreatId: null,
       approachSpeedMps: 0,
+      cryStartedAt: null,
+      cryEndsAt: null,
     },
     threats: [],
     director: { waveIndex: -1, nextAt: asSimMs(0) },
     disruptions: [],
     flow: { state: 'playing', enteredAt: asSimMs(0) },
-    gauges: { fatigue: fatiguePoints, isFatigueAbove: false, microSleepAt: null },
+    gauges: {
+      fatigue: fatiguePoints,
+      isFatigueAbove: false,
+      microSleepAt: null,
+      noisePct: 0,
+      propNoiseAt: props.map(() => null),
+    },
     props: props.map(({ id, kind, centerM: [xM, yM, zM] }) => ({
       id,
       kind,

@@ -408,9 +408,45 @@ body {
   }
 }
 
+/* The 80 % noise alert (story 3.1): a short shake of the whole gauge, one run (the client takes the
+   class off after the same 600 ms). `transform` only. */
+.pp-hud-gauge-alert {
+  animation: pp-gauge-shake 600ms ease-in-out 1;
+}
+
+@keyframes pp-gauge-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-4px);
+  }
+  35% {
+    transform: translateX(4px);
+  }
+  55% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pp-hud-gauge-warn svg {
     animation: none;
+  }
+
+  /* No movement: the icon chip's ring goes from 3 px to 5 px for the same 600 ms. */
+  .pp-hud-gauge-alert {
+    animation: none;
+  }
+
+  .pp-hud-gauge-alert svg {
+    box-shadow:
+      0 0 0 5px var(--pp-color-gauge-warn),
+      0 0 0 7px var(--pp-color-ink);
   }
 }
 

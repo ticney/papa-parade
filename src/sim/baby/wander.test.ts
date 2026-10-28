@@ -27,6 +27,8 @@ function babyAt(xM: number, zM: number): BabySlice {
     babbling: true,
     targetThreatId: null,
     approachSpeedMps: 0,
+    cryStartedAt: null,
+    cryEndsAt: null,
   };
 }
 

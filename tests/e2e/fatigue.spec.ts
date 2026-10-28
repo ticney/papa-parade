@@ -27,7 +27,9 @@ import {
 const LEVEL = 'salon_crawler';
 const SEED = 42;
 const PILL = '[data-pp-zone="gauges"] > .pp-hud-gauges';
-const GAUGE = `${PILL} > .pp-hud-gauge`;
+// The pill holds Bruit then Fatigue since story 3.1: the fatigue gauge is picked by its label, so a
+// gauge added before or after it can never silently become the one these tests read.
+const GAUGE = `${PILL} > .pp-hud-gauge[aria-label^="${STRINGS['gauge.fatigue']} "]`;
 const FATIGUE_FEEL = (liveFeel as unknown as { fatigue: Record<string, number> }).fatigue;
 const COFFEE_REDUCTION = FATIGUE_FEEL.coffeeReductionPoints as number;
 const COFFEE_STEPS = Math.ceil((FATIGUE_FEEL.coffeeDurationMs as number) / STEP_MS);
@@ -67,7 +69,7 @@ async function advanceUntilEvent(
 }
 
 test.describe('the gauge pill', () => {
-  test('shows one idle fatigue gauge at 0 %, the fill a scaleX under a ten-segment mask', async ({
+  test('shows the idle fatigue gauge at 0 %, after Bruit, the fill a scaleX under a ten-segment mask', async ({
     page,
   }) => {
     const problems = collectProblems(page);
@@ -75,6 +77,12 @@ test.describe('the gauge pill', () => {
     await expect(page.locator(PILL)).toHaveCount(1);
     await expect(page.locator(PILL)).toHaveAttribute('role', 'group');
     await expect(page.locator(PILL)).toHaveAttribute('aria-label', STRINGS['hud.gauges'] ?? '');
+    // Bruit first, then Fatigue (UX-DR4): the noise gauge is pinned in `noise.spec.ts`.
+    await expect(page.locator(`${PILL} > .pp-hud-gauge`)).toHaveCount(2);
+    await expect(page.locator(`${PILL} > .pp-hud-gauge`).nth(1)).toHaveAttribute(
+      'aria-label',
+      `${STRINGS['gauge.fatigue']} 0 %`,
+    );
     await expect(page.locator(GAUGE)).toHaveCount(1);
     await expect(page.locator(GAUGE)).toHaveAttribute(
       'aria-label',

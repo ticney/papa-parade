@@ -57,15 +57,24 @@ describe('content/levels/salon_crawler.json', () => {
     expect(parsed.value.feelOverrides).toEqual({});
   });
 
-  it('gives the live level a fatigue gauge with the micro-sleep, and each object its kind', () => {
+  it('gives the live level the noise and fatigue gauges (the micro-sleep), and each object its kind', () => {
     const parsed = parse(real);
     expect(parsed.ok && parsed.value.gauges).toEqual({
+      noise: {},
       fatigue: { microSleepDef: 'papa_microsleep' },
     });
     expect(parsed.ok && parsed.value.objects.map((object) => object.kind)).toEqual([
       'coffee_machine',
       'phone',
     ]);
+  });
+
+  it('accepts a level with the noise gauge and no fatigue, and one with neither', () => {
+    const noiseOnly = parse({ ...real, gauges: { noise: {} } });
+    expect(noiseOnly.ok && noiseOnly.value.gauges).toEqual({ noise: {} });
+    const { gauges: _gauges, ...withoutGauges } = real;
+    const bare = parse(withoutGauges);
+    expect(bare.ok && bare.value.gauges.noise).toBeUndefined();
   });
 
   it('has no gauge when the key is absent (a level opts into fatigue, D1)', () => {
@@ -171,8 +180,13 @@ describe('content/levels/salon_crawler.json', () => {
     ],
     [
       'a gauges entry that is not a known gauge',
-      { ...real, gauges: { noise: {} } },
-      ['gauges.noise'],
+      { ...real, gauges: { need: {} } },
+      ['gauges.need'],
+    ],
+    [
+      'a noise gauge with a key (it opts in with an empty object, story 3.1)',
+      { ...real, gauges: { noise: { startPct: 10 } } },
+      ['gauges.noise.startPct'],
     ],
     [
       'a fatigue gauge with no micro-sleep def',

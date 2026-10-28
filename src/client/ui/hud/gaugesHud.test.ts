@@ -224,4 +224,67 @@ describe('createGaugesHud', () => {
     expect(gaugeOf(0).attributes.get('aria-label')).toBe('Fatigue 0 %');
     expect(gaugeOf(0).className).toBe('pp-hud-gauge pp-hud-gauge-idle');
   });
+  describe('the 80 % alert (story 3.1)', () => {
+    const ALERT = 'pp-hud-gauge-alert';
+
+    it('puts the alert class on the gauge, keeping its warn state, and takes it off after 600 ms', () => {
+      const { hud, gaugeOf, clock } = build();
+      hud.setGauges(['noise', 'fatigue']);
+      hud.setValue('noise', 85);
+      hud.alert('noise');
+      expect(gaugeOf(0).className).toBe(`pp-hud-gauge pp-hud-gauge-warn ${ALERT}`);
+      expect(gaugeOf(1).className).not.toContain(ALERT);
+      hud.frame(clock.now + 599);
+      expect(gaugeOf(0).className).toContain(ALERT);
+      hud.frame(clock.now + 600);
+      expect(gaugeOf(0).className).toBe('pp-hud-gauge pp-hud-gauge-warn');
+    });
+
+    it('restarts a running alert: off now, on again at the next frame, for another 600 ms', () => {
+      const { hud, gaugeOf, clock } = build();
+      hud.setGauges(['noise']);
+      hud.setValue('noise', 85);
+      hud.alert('noise');
+      clock.now += 300;
+      hud.alert('noise');
+      expect(gaugeOf(0).className).not.toContain(ALERT);
+      hud.frame(clock.now);
+      expect(gaugeOf(0).className).toContain(ALERT);
+      hud.frame(clock.now + 599);
+      expect(gaugeOf(0).className).toContain(ALERT);
+      hud.frame(clock.now + 600);
+      expect(gaugeOf(0).className).not.toContain(ALERT);
+    });
+
+    it('survives a change of the idle or warn state while it plays', () => {
+      const { hud, gaugeOf } = build();
+      hud.setGauges(['noise']);
+      hud.setValue('noise', 85);
+      hud.alert('noise');
+      hud.setValue('noise', 60);
+      expect(gaugeOf(0).className).toBe(`pp-hud-gauge ${ALERT}`);
+    });
+
+    it('ignores a gauge the level lacks, and a new level starts without one', () => {
+      const { hud, gaugeOf } = build();
+      hud.setGauges(['fatigue']);
+      hud.alert('noise');
+      expect(gaugeOf(0).className).not.toContain(ALERT);
+      hud.setGauges(['noise']);
+      hud.alert('noise');
+      hud.setGauges(['noise']);
+      expect(gaugeOf(0).className).toBe('pp-hud-gauge pp-hud-gauge-idle');
+    });
+
+    it('writes no class on a quiet frame', () => {
+      const { hud, gaugeOf, clock } = build();
+      hud.setGauges(['noise']);
+      hud.setValue('noise', 85);
+      hud.alert('noise');
+      hud.frame(clock.now + 700);
+      const writes = gaugeOf(0).classWrites;
+      for (let i = 0; i < 100; i++) hud.frame(clock.now + 800 + i);
+      expect(gaugeOf(0).classWrites).toBe(writes);
+    });
+  });
 });
