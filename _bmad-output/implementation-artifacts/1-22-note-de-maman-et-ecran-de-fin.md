@@ -1,6 +1,10 @@
+---
+baseline_commit: 428e7e389864bae22fd31d888f1f4408e06cedd9
+---
+
 # Story 1.22: Mama's Note and the End Screen
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.22 « Note de Maman et écran de fin » (L1118-1151). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -225,59 +229,59 @@ so that I want to play again and do better.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 — Precondition** (§ Precondition): 1.21 merged, `git merge main`, baseline CI, counts in the Debug Log.
-- [ ] **T1 — Content** (AC 1, 10, 11, 13)
-  - [ ] `src/content/schemas/feel.ts` › `MamaSchema`: the five weights, described with their unit; the two refines (sum of maxima = 100; base = sigh max + scream max), each with a `path`.
-  - [ ] `content/feel.json` and `tests/support/testFeel.json`: the five keys.
-  - [ ] `src/content/schemas/feedback.ts`:
+- [x] **T0 — Precondition** (§ Precondition): 1.21 merged, `git merge main`, baseline CI, counts in the Debug Log.
+- [x] **T1 — Content** (AC 1, 10, 11, 13)
+  - [x] `src/content/schemas/feel.ts` › `MamaSchema`: the five weights, described with their unit; the two refines (sum of maxima = 100; base = sigh max + scream max), each with a `path`.
+  - [x] `content/feel.json` and `tests/support/testFeel.json`: the five keys.
+  - [x] `src/content/schemas/feedback.ts`:
     - `UiElementSchema` (`kind: z.literal('uiElement')`, strict) joins the visual `discriminatedUnion`;
     - add a strict `ResultScreenSchema` (the five timings, ints > 0 except `rowStaggerMs` ≥ 0, each described « real ms ») as `resultScreen` in the feedback table schema.
-  - [ ] `content/feedback.json`: the two cues, the two events and `resultScreen`.
-  - [ ] `src/client/feedback/feedbackEvents.ts`: `FEEDBACK_CLIENT_EVENTS` gains `ResultStarStamped` and `ResultLastStarStamped`.
-  - [ ] `content/strings.fr.json`: `result.title` « Note de Maman », `result.score_label` « Score », `result.stars_label` « {count} étoiles sur {max} ». Before adding the key, check `strings.ts` (no failure words, tutoiement).
-  - [ ] `src/client/ui/strings.ts`: a `formatString(text, values)` that replaces `{name}` placeholders. A missing value warns once and leaves the placeholder. Test it.
-  - [ ] `tools/content/contentChecks.ts`: the two `uiElement` rules of AC 11.
-  - [ ] `DESIGN.md` frontmatter `spacing.text-min: 16px` and `tokens.css` `--pp-spacing-text-min: 16px` (AC 13).
-  - [ ] `npm run content:schemas`; `npm run content:check` is clean.
-- [ ] **T2 — Sim** (AC 2-5)
-  - [ ] `src/sim/world.ts`: `ScoreSlice`, `MamaScore`, `World.score`, the default in `createWorld`.
-  - [ ] `src/sim/scoring/stars.ts` (`starsForScore`) and `src/sim/scoring/mamaScore.ts` (`computeMamaScore`, `scoreLevel`), with their tests.
-  - [ ] `src/sim/threats/threatFsm.ts` › `resolveThreat`: `world.score.perfects += 1` on `perfect`. `src/sim/threats/gags.ts`: `world.score.nearMisses += 1` next to the `NearMiss` push.
-  - [ ] `src/sim/flow/flowSystem.ts`: call `scoreLevel(world, ctx)` right after the `LevelEnded` push.
-  - [ ] `src/sim/events.ts`: `LevelScored`, `SIM_EVENT_TYPES` (sorted).
-  - [ ] `src/sim/snapshot.ts`: the version bump, its line in the doc comment's history, and `scoreProblem` wired into `worldProblem`.
-  - [ ] `src/sim/index.ts`: export `MamaScore`, `ScoreSlice` and `starsForScore` (the client and the tests may need it; bots must not compute the score).
-  - [ ] Check the import graph: `scoring/*.ts` imports only `world.ts`, `context.ts` types and `@shared`. Nothing in `threatFsm`'s chain imports `flowSystem.ts`.
-- [ ] **T3 — CLI** (AC 6, 7)
-  - [ ] `tools/sim/simReport.ts`: per-run `scorePoints` / `stars` from `LevelScored` (or `sim.world.score.final` in `finish()`), `meanScore`, `meanStars`, `starCounts`; remove `scoreNote` / `SCORE_NOTE`.
-  - [ ] `tests/tools/sim/simReport.test.ts`; new `tests/tools/sim/mamaScore.test.ts` (AC 7, 120 s timeouts like the other live tests).
-- [ ] **T4 — Client flow** (AC 8, 12, 15, 16)
-  - [ ] `src/client/app/levelSession.ts`: `finish()`. It stops the loop and keeps `active` and the sim. It is a no-op with no active level. `start()` and `stop()` are unchanged. Test it.
-  - [ ] `src/client/app/overlay.ts`: `'result'` kind and its place in `chooseOverlay`. `src/client/ui/overlayHost.ts`: `result` builder. `src/client/ui/keys.ts`: `padAction` for `result`.
-  - [ ] `src/client/boot.ts`:
+  - [x] `content/feedback.json`: the two cues, the two events and `resultScreen`.
+  - [x] `src/client/feedback/feedbackEvents.ts`: `FEEDBACK_CLIENT_EVENTS` gains `ResultStarStamped` and `ResultLastStarStamped`.
+  - [x] `content/strings.fr.json`: `result.title` « Note de Maman », `result.score_label` « Score », `result.stars_label` « {count} étoiles sur {max} ». Before adding the key, check `strings.ts` (no failure words, tutoiement).
+  - [x] `src/client/ui/strings.ts`: a `formatString(text, values)` that replaces `{name}` placeholders. A missing value warns once and leaves the placeholder. Test it.
+  - [x] `tools/content/contentChecks.ts`: the two `uiElement` rules of AC 11.
+  - [x] `DESIGN.md` frontmatter `spacing.text-min: 16px` and `tokens.css` `--pp-spacing-text-min: 16px` (AC 13).
+  - [x] `npm run content:schemas`; `npm run content:check` is clean.
+- [x] **T2 — Sim** (AC 2-5)
+  - [x] `src/sim/world.ts`: `ScoreSlice`, `MamaScore`, `World.score`, the default in `createWorld`.
+  - [x] `src/sim/scoring/stars.ts` (`starsForScore`) and `src/sim/scoring/mamaScore.ts` (`computeMamaScore`, `scoreLevel`), with their tests.
+  - [x] `src/sim/threats/threatFsm.ts` › `resolveThreat`: `world.score.perfects += 1` on `perfect`. `src/sim/threats/gags.ts`: `world.score.nearMisses += 1` next to the `NearMiss` push.
+  - [x] `src/sim/flow/flowSystem.ts`: call `scoreLevel(world, ctx)` right after the `LevelEnded` push.
+  - [x] `src/sim/events.ts`: `LevelScored`, `SIM_EVENT_TYPES` (sorted).
+  - [x] `src/sim/snapshot.ts`: the version bump, its line in the doc comment's history, and `scoreProblem` wired into `worldProblem`.
+  - [x] `src/sim/index.ts`: export `MamaScore`, `ScoreSlice` and `starsForScore` (the client and the tests may need it; bots must not compute the score).
+  - [x] Check the import graph: `scoring/*.ts` imports only `world.ts`, `context.ts` types and `@shared`. Nothing in `threatFsm`'s chain imports `flowSystem.ts`.
+- [x] **T3 — CLI** (AC 6, 7)
+  - [x] `tools/sim/simReport.ts`: per-run `scorePoints` / `stars` from `LevelScored` (or `sim.world.score.final` in `finish()`), `meanScore`, `meanStars`, `starCounts`; remove `scoreNote` / `SCORE_NOTE`.
+  - [x] `tests/tools/sim/simReport.test.ts`; new `tests/tools/sim/mamaScore.test.ts` (AC 7, 120 s timeouts like the other live tests).
+- [x] **T4 — Client flow** (AC 8, 12, 15, 16)
+  - [x] `src/client/app/levelSession.ts`: `finish()`. It stops the loop and keeps `active` and the sim. It is a no-op with no active level. `start()` and `stop()` are unchanged. Test it.
+  - [x] `src/client/app/overlay.ts`: `'result'` kind and its place in `chooseOverlay`. `src/client/ui/overlayHost.ts`: `result` builder. `src/client/ui/keys.ts`: `padAction` for `result`.
+  - [x] `src/client/boot.ts`:
     - on `LevelScored`: store the note, set the mirrors, `levelSession.finish()`, `appFsm.enter('result')`;
     - the `result` builder (note, feel `mama` maxima, `feedback.resultScreen`, `isMotionReduced`, the « sequence done » flag, `onReplay: () => void levelSession.start()`, and `onStar(isLast)` → `director.handle('ResultStarStamped' | 'ResultLastStarStamped', null)`);
     - `menuPoll` in `result`;
     - clear the note and the flag on `AppStateChanged` to `loading`;
     - remove the « Story 1.22 » comment.
-  - [ ] `src/client/feedback/feedbackDirector.ts`: a `uiElement` visual is skipped on purpose, with a comment and no log.
-  - [ ] Check the pause gates in `result` (AC 12).
-- [ ] **T5 — Result screen** (AC 9-14)
-  - [ ] `src/client/ui/screens/resultScreen.ts` (+ `resultScreen.test.ts`, happy-dom or the same DOM setup as `pauseScreen.test.ts`), with:
+  - [x] `src/client/feedback/feedbackDirector.ts`: a `uiElement` visual is skipped on purpose, with a comment and no log.
+  - [x] Check the pause gates in `result` (AC 12).
+- [x] **T5 — Result screen** (AC 9-14)
+  - [x] `src/client/ui/screens/resultScreen.ts` (+ `resultScreen.test.ts`, happy-dom or the same DOM setup as `pauseScreen.test.ts`), with:
     - an injected scheduler `{ schedule(fn, ms): handle; cancel(handle) }` and a `now()` for the count-up;
     - `dispose()` cancels every pending timer.
-  - [ ] The star SVG through `svgElement` (`svg.ts`), shaped like the mockup's `star-on` / `star-off`, with the stroke from `var(--pp-color-ink)`.
-  - [ ] `src/client/ui/styles/ui.css`:
+  - [x] The star SVG through `svgElement` (`svg.ts`), shaped like the mockup's `star-on` / `star-off`, with the stroke from `var(--pp-color-ink)`.
+  - [x] `src/client/ui/styles/ui.css`:
     - `.pp-result-screen`, `.pp-result-panel`, `.pp-score-card`, `.pp-score-row` (+ chip accents), `.pp-score-total`, `.pp-stars`, `.pp-star-*` and `.pp-result-actions`;
     - the stamp keyframes (transform and opacity only, about 200 ms) and their reduced-motion fade;
     - tokens only, no literal colour, no layout property animated (designTokens test).
-- [ ] **T6 — Audio** (AC 11): add `ui_star_stamp` and `ui_star_stamp_last` to `PLACEHOLDER_CLIPS` (a short bright blip; the last one longer and lower). Run `npm run assets:audio`, keep the two new files and restore the rest. Update `makePlaceholderAudio.test.ts` if it counts clips.
-- [ ] **T7 — e2e** (AC 8-17): new `tests/e2e/result.spec.ts` (§ Testing), update `timer.spec.ts`, and add helpers to `tests/e2e/support/game.ts` (`advanceToEnd(page)` from `LEVEL_DURATION_MS` and `CHUNK_STEPS`).
-- [ ] **T8 — Goldens, docs, CI** (AC 17)
-  - [ ] `npm run golden:update` (say so).
-  - [ ] `_bmad-output/project-context.md`: the `World` line gains `score`, and add one bullet on Mama's note (counters at source, `scoreLevel` in `runFlow`'s ending step, `LevelScored`).
-  - [ ] `deferred-work.md`: close or annotate items L202, L277, L288 and L336 (see § Previous story intelligence), and 1.21's « 1.22 counts mischiefs ».
-  - [ ] `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
+- [x] **T6 — Audio** (AC 11): add `ui_star_stamp` and `ui_star_stamp_last` to `PLACEHOLDER_CLIPS` (a short bright blip; the last one longer and lower). Run `npm run assets:audio`, keep the two new files and restore the rest. Update `makePlaceholderAudio.test.ts` if it counts clips.
+- [x] **T7 — e2e** (AC 8-17): new `tests/e2e/result.spec.ts` (§ Testing), update `timer.spec.ts`, and add helpers to `tests/e2e/support/game.ts` (`advanceToEnd(page)` from `LEVEL_DURATION_MS` and `CHUNK_STEPS`).
+- [x] **T8 — Goldens, docs, CI** (AC 17)
+  - [x] `npm run golden:update` (say so).
+  - [x] `_bmad-output/project-context.md`: the `World` line gains `score`, and add one bullet on Mama's note (counters at source, `scoreLevel` in `runFlow`'s ending step, `LevelScored`).
+  - [x] `deferred-work.md`: close or annotate items L202, L277, L288 and L336 (see § Previous story intelligence), and 1.21's « 1.22 counts mischiefs ».
+  - [x] `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
 
 ## Dev Notes
 
@@ -521,14 +525,61 @@ Every bound comes from the live content via `support/game.ts`. No pinned score: 
 
 ### Agent Model Used
 
+Claude (Claude Code, gds-dev-story)
+
 ### Debug Log References
+
+- T0: 1.21 is `done` on `main`; merged `main` into the branch (428e7e3), only the `sprint-status.yaml` status lines conflicted. Baseline `(unset VITE_DEBUG_ALLOWED; npm run ci)` green before the first edit: 190 files / 3194 unit tests, 244 e2e (chromium + webkit).
+- T3: `npm run sim -- --runs 5` on the live level (seed 1): `perfect` 90 every run (★5, `starCounts` [0,0,0,0,0,5]), `human` mean 84.6 (83 to 89, ★4 every run), `idle` 20 every run (★1). As D4 predicted.
+- T6: `npm run assets:audio` rewrote every `.m4a`; only `ui_star_stamp.m4a` and `ui_star_stamp_last.m4a` kept, the 17 others restored from the repository.
+- T7: the first run of `result.spec.ts` failed on my own mistake (`recordAppStates` called before the page loaded, in the skip test); fixed, then 16/16 on chromium and webkit. A throwaway screenshot spec (deleted) showed the screen at 844 × 390 and 750 × 340: it fits, the room is drawn dimmed under the scrim.
+- T8: `npm run golden:update` (deliberate): in the 6 golden journals only `worldHash` (the new `score` slice) and `feelHash` (the five new keys) moved; `eventTypes`, `eventsHash` and `levelHash` are identical, as AC 17 predicted. The screenshot references did not move.
+- Final `(unset VITE_DEBUG_ALLOWED; npm run ci)` green: 194 files / 3303 unit tests, 260 e2e (chromium + webkit), `src/sim` coverage 97.75 % statements / 97.19 % branches. No `--maxWorkers` / `--workers` override was needed.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Content (AC 1, 10, 11, 13).** `feel.mama` gains the five weights (1 / 5 / 8 / 3 / 3) and two refines (maxima add up to 100, on `laughMaxPoints`; base = sigh max + scream max, on `baseScorePoints`). `feedback.json` gains `resultScreen` (strict, real ms), the cues `result_star` (light) and `result_star_last` (heavy) on the `ui` bus with a `uiElement` visual, and the two client events. `content:check` refuses a world visual (or a camera) on a client event, a `uiElement` on a sim event (path `cues.<id>.visual.kind`), and also a `uiElement` cue named by a threat or a disruption def (their cues play for sim events: one more case of the same rule). `formatString` fills `{name}` placeholders and warns once per text and name. `--pp-spacing-text-min: 16px` is in `DESIGN.md` and `tokens.css`. The existing feel test « a fixed baby state above its maximum » lowered the maximum, which now breaks the sum-to-100 refine too: it raises the fixed value instead.
+- **Sim (AC 2-5).** `World.score { perfects, nearMisses, final }`; `perfects` +1 in `resolveThreat` on `perfect` (the micro-sleep's too), `nearMisses` +1 in the stairs gag beside its `NearMiss`. `sim/scoring/stars.ts` and `sim/scoring/mamaScore.ts` (`computeMamaScore` pure, `scoreLevel` writes `final` and pushes `LevelScored`), called by `runFlow` right after `LevelEnded`. Snapshot v10 with `scoreProblem` (counts, `final` null while playing, a whole `MamaScore` once ended, score ≤ 100, stars ≤ 5). `@sim` exports `MamaScore`, `ScoreSlice` and `starsForScore`. `MAMA_SCORE_MAX_POINTS` (100), `STAR_COUNT_MAX` (5) and `COUNT_UP_FRAME_MS` (16) are new constants in `shared/constants.ts`. The `scoring/` files import only `world.ts` / `context.ts` types, `@content` types and `@shared`.
+- **CLI (AC 6, 7).** `meanScore`, `meanStars`, `starCounts`, per-run `scorePoints` / `stars`; `scoreNote` / `SCORE_NOTE` removed. `tests/tools/sim/mamaScore.test.ts` plays the live level to the end on seeds 1-3 with `perfect` and `idle` (each run played once and cached between the tests).
+- **Client (AC 8, 12, 15, 16).** `levelSession.finish()` stops the loop and keeps `active` (a no-op without one). On `LevelScored`, `boot.ts` stores the note, mirrors `ppScore` / `ppStars`, calls `finish()`, enters `result` and redraws the static frame (the stopped loop's `resetFx` cleared the rings). The `result` overlay goes after `portrait` and `oops`, before `pause`, so a page hidden on the Result screen leaves no veil (checked in `chooseOverlay` and its test). `menuPoll` runs in `result`; `padAction` maps A to `activate`. The director skips a `uiElement` visual silently. The note and the « done » flag are cleared on `loading`; « Rejouer » calls `levelSession.start()`.
+- **Result screen (AC 9-14).** `resultScreen.ts` builds the dialog, the score card (four rows with chips, labels, values, maxima from the feel), the total out of the summed maxima, five star slots and « Rejouer ». The sequence runs on an injected scheduler and `now()`; the total follows the rows as they count. A skip (press on the screen, Enter / Space / NumpadEnter, pad A) completes silently; a key that skipped is ignored by « Rejouer » until it is let go (Space activates a button on keyup). `isDone` builds the end state with no callback. The screen takes a `doc` (like `svgElement`) so that its unit test runs on a small fake DOM: the repository has no DOM library and the story allows no new dependency. Reduced motion is CSS only (the stamp becomes `pp-fade-in`), so the screen takes no `isMotionReduced` option, unlike the builder list in T4 suggested.
+- **Audio (AC 11).** Two synths, `synthStarStamp` (120 ms bright blip) and `synthStarStampLast` (400 ms lower chord).
+- **e2e (AC 8-17).** `result.spec.ts`: the end (rows from `LevelScored` and the live feel, sum, stars, ink stroke, focus, 44 × 44, no « Copier le journal », every text ≥ `--pp-spacing-text-min`), the stamps (a feel patch makes every game reach five stars; chromium checks light × 4 then heavy, both browsers check the cue count), the skip, « Rejouer » by touch, Enter and pad, reduced motion and 750 × 340. `timer.spec.ts`'s end test now asserts `result`, the hidden HUD, the mirrored score and a stopped loop. `advanceToEnd` steps exactly to the last step: once the level has ended the loop is gone, so a further `advance` would throw.
+- **Open points for Geo** are unchanged from the story (★1 floor at 20 points, the micro-sleep's perfect counts, the D4 weights, the sequence timings, no header). The CLI confirms them: `idle` gets 20 (★1), `perfect` 90 (★5).
 
 ### File List
+
+New:
+- `src/sim/scoring/mamaScore.ts`, `src/sim/scoring/mamaScore.test.ts`
+- `src/sim/scoring/stars.ts`, `src/sim/scoring/stars.test.ts`
+- `src/client/ui/screens/resultScreen.ts`, `src/client/ui/screens/resultScreen.test.ts`
+- `public/assets/audio/ui_star_stamp.m4a`, `public/assets/audio/ui_star_stamp_last.m4a`
+- `tests/e2e/result.spec.ts`
+- `tests/tools/sim/mamaScore.test.ts`
+
+Updated:
+- `src/sim/world.ts`, `src/sim/events.ts`, `src/sim/events.test.ts`, `src/sim/snapshot.ts`, `src/sim/snapshot.test.ts`, `src/sim/index.ts`, `src/sim/step.ts`
+- `src/sim/flow/flowSystem.ts`, `src/sim/flow/flowSystem.test.ts`
+- `src/sim/threats/threatFsm.ts`, `src/sim/threats/threatFsm.test.ts`, `src/sim/threats/gags.ts`, `src/sim/threats/gags.test.ts`
+- `src/shared/constants.ts`
+- `src/content/schemas/feel.ts`, `src/content/schemas/feedback.ts`
+- `content/feel.json`, `content/feedback.json`, `content/strings.fr.json`, `content/_schemas/feel.schema.json`, `content/_schemas/feedback.schema.json`
+- `src/client/boot.ts`
+- `src/client/app/levelSession.ts`, `src/client/app/levelSession.test.ts`, `src/client/app/overlay.ts`, `src/client/app/overlay.test.ts`
+- `src/client/ui/overlayHost.ts`, `src/client/ui/keys.ts`, `src/client/ui/keys.test.ts`, `src/client/ui/strings.ts`, `src/client/ui/strings.test.ts`
+- `src/client/ui/styles/ui.css`, `src/client/ui/styles/tokens.css`
+- `src/client/feedback/feedbackEvents.ts`, `src/client/feedback/feedbackDirector.ts`, `src/client/feedback/feedbackDirector.test.ts`
+- `tools/content/contentChecks.ts`, `tools/sim/simReport.ts`, `tools/audio/makePlaceholderAudio.ts`
+- `tests/content/feelSchema.test.ts`, `tests/content/feedbackSchema.test.ts`, `tests/content/checkContent.test.ts`
+- `tests/support/testFeel.json`, `tests/support/testContent.ts`
+- `tests/tools/sim/simReport.test.ts`, `tests/tools/audio/makePlaceholderAudio.test.ts`
+- `tests/e2e/timer.spec.ts`, `tests/e2e/support/game.ts`
+- `tests/golden/journals/{baby_wander,core_basic,outlet_parry,papa_walk,prop_fall,threat_trio}{.json,.expected.json}` (regenerated)
+- `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/DESIGN.md` (frontmatter `spacing.text-min`)
+- `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
 ### Change Log
 
 - 2026-10-28: story created (ready-for-dev).
+- 2026-10-28: implemented (Mama's note in the sim, the CLI and the Result screen); goldens regenerated (`worldHash`, `feelHash` only); status review.

@@ -144,6 +144,16 @@ describe('padAction (story 1.17)', () => {
     }
   });
 
+  it('skips or presses « Rejouer » on A from the Result screen, and ignores the rest (story 1.22)', () => {
+    for (const pauseState of ['running', 'paused'] as const) {
+      for (const button of BUTTONS) {
+        expect(act('result', pauseState, 'result', button), button).toBe(
+          button === 'confirm' ? 'activate' : null,
+        );
+      }
+    }
+  });
+
   it('moves the focus of the pause panel with the D-pad, activates with A, goes back with B', () => {
     expect(act('level', 'paused', 'pause', 'up')).toBe('ArrowUp');
     expect(act('level', 'paused', 'pause', 'down')).toBe('ArrowDown');

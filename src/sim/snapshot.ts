@@ -1,9 +1,11 @@
 import { decodeBase64, encodeBase64 } from '@shared/base64';
 import {
   GAUGE_MAX_POINTS,
+  MAMA_SCORE_MAX_POINTS,
   MIN_TIME_SCALE,
   PHONE_RINGING_EVERY_MS,
   QUATERNION_LENGTH_TOLERANCE,
+  STAR_COUNT_MAX,
 } from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
@@ -26,14 +28,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 9;
+  version: 10;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -52,7 +54,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 9,
+    version: 10,
     seed,
     feelHash,
     geometryHash,
@@ -591,6 +593,40 @@ function propsProblem(
   return null;
 }
 
+const isCount = (value: unknown): boolean => Number.isInteger(value) && (value as number) >= 0;
+
+const MAMA_SCORE_KEYS = [
+  'laughPoints',
+  'babyStatePoints',
+  'sighPoints',
+  'screamPoints',
+  'scorePoints',
+  'stars',
+] as const;
+
+/**
+ * Mama's counters are non-negative integers; her note (story 1.22) is `null` while the level plays
+ * and a whole `MamaScore` once it has ended (`runFlow` gives it in the ending step), with a score of
+ * at most `MAMA_SCORE_MAX_POINTS` and at most five stars.
+ */
+function scoreProblem(score: unknown, isEnded: boolean): string | null {
+  if (typeof score !== 'object' || score === null) return 'world.score is missing';
+  const slice = score as Record<string, unknown>;
+  if (!isCount(slice.perfects)) return 'world.score.perfects';
+  if (!isCount(slice.nearMisses)) return 'world.score.nearMisses';
+  const { final } = slice;
+  if (!isEnded) return final === null ? null : 'world.score.final';
+  if (typeof final !== 'object' || final === null) return 'world.score.final';
+  const note = final as Record<string, unknown>;
+  if (Object.keys(note).length !== MAMA_SCORE_KEYS.length) return 'world.score.final';
+  for (const key of MAMA_SCORE_KEYS) {
+    if (!isCount(note[key])) return `world.score.final.${key}`;
+  }
+  if ((note.scorePoints as number) > MAMA_SCORE_MAX_POINTS) return 'world.score.final.scorePoints';
+  if ((note.stars as number) > STAR_COUNT_MAX) return 'world.score.final.stars';
+  return null;
+}
+
 function worldProblem(world: unknown, planned: PlannedLevel): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
   const {
@@ -607,6 +643,7 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
     gauges,
     disruptions,
     silence,
+    score,
   } = world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
   if (typeof clock !== 'object' || clock === null) return 'world.time is missing';
@@ -659,7 +696,8 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
       clock.sim as number,
       (flow as { state: unknown }).state === 'ended',
     ) ??
-    propsProblem(props, mess, planned.props)
+    propsProblem(props, mess, planned.props) ??
+    scoreProblem(score, (flow as { state: unknown }).state === 'ended')
   );
 }
 
@@ -681,7 +719,7 @@ export function worldFromSnapshot(
   levelHash: string,
   planned: PlannedLevel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 9, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 10, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

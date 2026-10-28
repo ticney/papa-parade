@@ -15,6 +15,13 @@
     "babble": { "clip": "baby_babble_loop", "bus": "voice", "gainPct": 100, "fadeMs": 80 },
     "music": { "clip": "music_crawler_calm", "bus": "music", "gainPct": 100, "fadeMs": 400 }
   },
+  "resultScreen": {
+    "rowCountUpMs": 600,
+    "rowStaggerMs": 200,
+    "starsDelayMs": 300,
+    "starIntervalMs": 450,
+    "actionsDelayMs": 400
+  },
   "cues": {
     "papa_bump": {
       "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
@@ -22,6 +29,16 @@
       "haptic": "light"
     },
     "countdown_tick": { "haptic": "light" },
+    "result_star": {
+      "audio": { "clip": "ui_star_stamp", "bus": "ui", "gainPct": 90 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "light"
+    },
+    "result_star_last": {
+      "audio": { "clip": "ui_star_stamp_last", "bus": "ui", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "heavy"
+    },
     "silence_started": { "haptic": "light" },
     "tel_silence_found": {
       "audio": { "clip": "tel_silence_found", "bus": "sfx", "gainPct": 90 },
@@ -97,6 +114,8 @@
   "events": {
     "PapaBlocked": "papa_bump",
     "CountdownTicked": "countdown_tick",
-    "SilenceStarted": "silence_started"
+    "SilenceStarted": "silence_started",
+    "ResultStarStamped": "result_star",
+    "ResultLastStarStamped": "result_star_last"
   }
 }

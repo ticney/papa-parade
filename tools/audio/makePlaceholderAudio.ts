@@ -181,6 +181,20 @@ const GAG_SILENCE_RUSTLE_HZ = 18;
 const GAG_SILENCE_SMOOTHING_PCT = 70;
 const GAG_SILENCE_RELEASE_MS = 120;
 
+/** A star stamped on the Result screen (story 1.22): a short bright blip, two partials. */
+const STAR_LENGTH_MS = 120;
+const STAR_PITCH_HZ = 1318.5;
+const STAR_OVERTONE_GAIN = 0.35;
+const STAR_ATTACK_MS = 2;
+const STAR_DECAY_S = 0.035;
+const STAR_RELEASE_MS = 10;
+/** The last star: lower and longer, a chord that rings out (« vibration marquée » in sound). */
+const STAR_LAST_LENGTH_MS = 400;
+const STAR_LAST_PITCHES_HZ = [523.25, 659.25, 783.99];
+const STAR_LAST_ATTACK_MS = 4;
+const STAR_LAST_DECAY_S = 0.14;
+const STAR_LAST_RELEASE_MS = 40;
+
 /** A thump's ramp-up, in ms, and the level under which its tail is cut (a share of full scale). */
 const THUMP_ATTACK_MS = 2;
 const THUMP_AUDIBLE_FLOOR = 0.001;
@@ -648,6 +662,58 @@ export function synthGagSilence(): Float32Array {
   return out;
 }
 
+/** A struck chord of `pitchesHz`, decaying from a short attack, with a release to zero. */
+function strike(
+  lengthMs: number,
+  pitchesHz: readonly { frequencyHz: number; gain: number }[],
+  attackMs: number,
+  decayS: number,
+  releaseMs: number,
+): Float32Array {
+  const out = new Float32Array(samplesOf(lengthMs));
+  const attack = samplesOf(attackMs);
+  const release = samplesOf(releaseMs);
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    let tone = 0;
+    for (const { frequencyHz, gain } of pitchesHz) {
+      tone += gain * Math.sin(2 * Math.PI * frequencyHz * seconds);
+    }
+    const envelope =
+      Math.exp(-seconds / decayS) * Math.min(1, i / attack, (out.length - i) / release);
+    out[i] = tone * envelope;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A star stamped on the Result screen: a short bright blip (cue `result_star`). */
+export function synthStarStamp(): Float32Array {
+  return strike(
+    STAR_LENGTH_MS,
+    [
+      { frequencyHz: STAR_PITCH_HZ, gain: 1 },
+      { frequencyHz: STAR_PITCH_HZ * 2, gain: STAR_OVERTONE_GAIN },
+    ],
+    STAR_ATTACK_MS,
+    STAR_DECAY_S,
+    STAR_RELEASE_MS,
+  );
+}
+
+/** The last star stamped: a lower, longer chord (cue `result_star_last`). */
+export function synthStarStampLast(): Float32Array {
+  return strike(
+    STAR_LAST_LENGTH_MS,
+    STAR_LAST_PITCHES_HZ.map((frequencyHz) => ({ frequencyHz, gain: 1 })),
+    STAR_LAST_ATTACK_MS,
+    STAR_LAST_DECAY_S,
+    STAR_LAST_RELEASE_MS,
+  );
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -689,6 +755,8 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'papa_phone_answer', synth: synthPhoneAnswer },
   { clip: 'tel_silence_found', synth: synthTelegraphSilence },
   { clip: 'gag_silence_mischief', synth: synthGagSilence },
+  { clip: 'ui_star_stamp', synth: synthStarStamp },
+  { clip: 'ui_star_stamp_last', synth: synthStarStampLast },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

@@ -102,6 +102,16 @@ const SoundWaveSchema = z
   })
   .describe('The visual twin of a sound.');
 
+const UiElementSchema = z
+  .strictObject({
+    kind: z
+      .literal('uiElement')
+      .describe(
+        'The UI element that fired the event is the visual twin (a stamped star): the director draws nothing. Only for a client event.',
+      ),
+  })
+  .describe('The visual twin of a sound that a screen element already shows.');
+
 const ShakeSchema = z
   .strictObject({
     kind: z.literal('shake').describe('The scene shakes.'),
@@ -114,9 +124,11 @@ const CueSchema = z
   .strictObject({
     audio: AudioCueSchema.optional(),
     visual: z
-      .discriminatedUnion('kind', [SoundWaveSchema])
+      .discriminatedUnion('kind', [SoundWaveSchema, UiElementSchema])
       .optional()
-      .describe('A diegetic effect in the 3D world, the visual twin of the sound.'),
+      .describe(
+        'The visual twin of the sound: a diegetic effect in the 3D world, or the UI element that fired the event.',
+      ),
     haptic: z
       .enum(HAPTIC_KINDS)
       .optional()
@@ -138,11 +150,31 @@ const CueSchema = z
     'What the player hears, sees and feels for one signal. Every audio has a visual and a haptic.',
   );
 
+const realMs = (description: string) => z.int().positive().describe(description);
+
+const ResultScreenSchema = z
+  .strictObject({
+    rowCountUpMs: realMs('How long one score row counts up from 0 to its total, in real ms.'),
+    rowStaggerMs: z
+      .int()
+      .min(0)
+      .describe('Delay between the start of one score row and the next, in real ms.'),
+    starsDelayMs: realMs('Pause between the last row landing and the first star, in real ms.'),
+    starIntervalMs: realMs('Delay between two stamped stars, in real ms.'),
+    actionsDelayMs: realMs(
+      'Pause between the last star (or the last row, with no star) and the buttons, in real ms.',
+    ),
+  })
+  .describe(
+    'The sequence of the Result screen (story 1.22): rows, then stars, then buttons. Real time: the sim never reads it.',
+  );
+
 export const FeedbackTableSchema = z
   .strictObject({
     buses: BusesSchema,
     haptics: HapticsSchema,
     loops: LoopsSchema,
+    resultScreen: ResultScreenSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),
@@ -170,5 +202,6 @@ export const FeedbackTableSchema = z
 
 export type FeedbackTable = z.infer<typeof FeedbackTableSchema>;
 export type FeedbackCue = z.infer<typeof CueSchema>;
+export type ResultScreenTimings = z.infer<typeof ResultScreenSchema>;
 export type AudioBus = (typeof AUDIO_BUSES)[number];
 export type HapticKind = (typeof HAPTIC_KINDS)[number];

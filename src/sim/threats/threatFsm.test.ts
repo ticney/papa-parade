@@ -5,6 +5,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestMicroSleep,
   OUTLET,
   SILENCE,
   STAIRS,
@@ -142,6 +143,24 @@ describe('threat FSM', () => {
     ]);
     expect(events.map((event) => event.type)).toEqual(['ResponseResolved', 'TimeScaleChanged']);
     expect(world.time.scale).toBe(timeScale);
+  });
+
+  it('counts a perfect for Mama’s laughs, and not a success or a fail (story 1.22)', async () => {
+    const { world, ctx, threat } = await setup();
+    resolveThreat(world, ctx, threat, def, 'success', 30);
+    expect(world.score.perfects).toBe(0);
+    gagThreat(world, ctx, threat, def, 'late', null);
+    expect(world.score.perfects).toBe(0);
+    resolveThreat(world, ctx, threat, def, 'perfect', 0);
+    resolveThreat(world, ctx, threat, def, 'perfect', 5);
+    expect(world.score.perfects).toBe(2);
+    expect(world.score.nearMisses).toBe(0);
+  });
+
+  it('counts the micro-sleep’s perfect too: a perfect is a perfect (story 1.22, open point 2)', async () => {
+    const { world, ctx, threat } = await setup();
+    resolveThreat(world, ctx, threat, createTestMicroSleep(), 'perfect', 0);
+    expect(world.score.perfects).toBe(1);
   });
 
   it('gagThreat emits the failed response, then the gag, and asks for no time effect', async () => {

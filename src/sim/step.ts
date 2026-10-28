@@ -24,6 +24,9 @@ import type { World } from './world.ts';
  * later story inserts its system at its slot, edits the pinned order test and, if behaviour
  * changes, regenerates the golden references and says so.
  * Systems never call each other: they read and write `World` and push to `ctx.events`.
+ * Mama's note (story 1.22) needs no system: its counters are written where their events are made,
+ * and `runFlow` gives the note (`scoreLevel`) in the step it ends the level. `runScoring` stays
+ * reserved for live scoring (combos, E4).
  *
  * Once the level has ended (`world.flow.state === 'ended'`, story 1.18) a step runs only
  * {@link ENDED_SYSTEMS}: commands are drained and ignored, the clock keeps going (every

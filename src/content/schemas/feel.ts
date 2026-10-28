@@ -1,5 +1,6 @@
 import {
   GAUGE_MAX_POINTS,
+  MAMA_SCORE_MAX_POINTS,
   MAX_BABY_RADIUS_M,
   MAX_CRAWL_SPEED_MPS,
   MAX_PAPA_RADIUS_M,
@@ -275,10 +276,38 @@ const MamaSchema = z
       )
       .describe('Score needed for 1, 2, 3, 4 and 5 stars, in points (0 to 100, ascending).'),
     earlyWakePenaltyStars: count('Stars taken off when Mama wakes early, in stars.'),
+    laughPerPerfectPoints: points(
+      'Laugh points each perfect response gives (held to `laughMaxPoints`), in points per perfect.',
+    ),
+    sighPerPropOnFloorPoints: points(
+      'Sigh points each unbroken prop lying on the floor at the end takes off, in points per prop.',
+    ),
+    sighPerBrokenPropPoints: points('Sigh points each broken prop takes off, in points per prop.'),
+    sighPerMischiefPoints: points(
+      'Sigh points each surprise mischief the baby got away with takes off, in points per mischief.',
+    ),
+    screamPerNearMissPoints: points(
+      'Scream points each near miss takes off (held to `screamMaxPoints`), in points per near miss.',
+    ),
   })
   .refine((mama) => mama.babyStateFixedPoints <= mama.babyStateMaxPoints, {
     path: ['babyStateFixedPoints'],
     error: 'babyStateFixedPoints must not exceed babyStateMaxPoints',
+  })
+  .refine(
+    (mama) =>
+      mama.laughMaxPoints + mama.babyStateMaxPoints + mama.sighMaxPoints + mama.screamMaxPoints ===
+      MAMA_SCORE_MAX_POINTS,
+    {
+      path: ['laughMaxPoints'],
+      error:
+        'laughMaxPoints + babyStateMaxPoints + sighMaxPoints + screamMaxPoints must be 100: the note is out of 100',
+    },
+  )
+  .refine((mama) => mama.baseScorePoints === mama.sighMaxPoints + mama.screamMaxPoints, {
+    path: ['baseScorePoints'],
+    error:
+      'baseScorePoints must equal sighMaxPoints + screamMaxPoints, so that the four rows add up to the score',
   })
   .describe("Mama's note (GDD, economy › Mama's note).");
 

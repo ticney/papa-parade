@@ -1,6 +1,6 @@
 import type { LogChannel } from '@shared/log';
 import { describe, expect, it } from 'vitest';
-import { createTranslator } from './strings.ts';
+import { createTranslator, formatString } from './strings.ts';
 
 function setup() {
   const warnings: string[] = [];
@@ -48,5 +48,35 @@ describe('createTranslator', () => {
     ta('x.y');
     expect(a.warnings).toHaveLength(1);
     expect(b.warnings).toHaveLength(0);
+  });
+});
+
+describe('formatString', () => {
+  it('replaces every {name} with its value, numbers included', () => {
+    const { warnings, logger } = setup();
+    expect(formatString('{count} étoiles sur {max}', { count: 3, max: 5 }, logger)).toBe(
+      '3 étoiles sur 5',
+    );
+    expect(formatString('{a} et {a}', { a: 'x' }, logger)).toBe('x et x');
+    expect(warnings).toEqual([]);
+  });
+
+  it('leaves a text with no placeholder as it is', () => {
+    const { warnings, logger } = setup();
+    expect(formatString('Rejouer', { count: 1 }, logger)).toBe('Rejouer');
+    expect(warnings).toEqual([]);
+  });
+
+  it('keeps a placeholder with no value, and warns once per text and name', () => {
+    const { warnings, logger } = setup();
+    expect(formatString('{count} sur {nope}', { count: 2 }, logger)).toBe('2 sur {nope}');
+    expect(formatString('{count} sur {nope}', { count: 4 }, logger)).toBe('4 sur {nope}');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('nope');
+  });
+
+  it('does not take a member of Object.prototype for a value', () => {
+    const { logger } = setup();
+    expect(formatString('{constructor}', {}, logger)).toBe('{constructor}');
   });
 });

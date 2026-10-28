@@ -21,7 +21,7 @@ import { renderContentJsonSchema } from '@content/jsonSchema';
 import { parseContentFile } from '@content/parseContentFile';
 import type { BotSettings } from '@content/schemas/bots';
 import type { DisruptionDef } from '@content/schemas/disruption';
-import type { FeedbackTable } from '@content/schemas/feedback';
+import type { FeedbackCue, FeedbackTable } from '@content/schemas/feedback';
 import type { Feel } from '@content/schemas/feel';
 import type { Level } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
@@ -122,6 +122,10 @@ async function checkSourceReferences(
   return problems;
 }
 
+/** Where a cue's world visual starts from, or undefined for no visual or a `uiElement` one. */
+const visualAnchorOf = (cue: FeedbackCue | undefined): string | undefined =>
+  cue?.visual?.kind === 'soundWave' ? cue.visual.anchor : undefined;
+
 const exists = (path: string): Promise<boolean> =>
   access(path).then(
     () => true,
@@ -151,22 +155,32 @@ async function checkFeedbackReferences(
       });
     }
     // A client event has no sim world to read: its cue cannot draw a ring or shake the room (the
-    // director would skip them without a word). The schema has already checked that the cue exists.
+    // director would skip them without a word). Its only visual is the UI element that fired it
+    // (`uiElement`, story 1.22 D6). The schema has already checked that the cue exists.
     const cue = Object.hasOwn(table.cues, cueId) ? table.cues[cueId] : undefined;
     const isClientEvent = (FEEDBACK_CLIENT_EVENTS as readonly string[]).includes(name);
+    const visual = cue?.visual;
     if (
       isClientEvent &&
       cue !== undefined &&
-      (cue.visual !== undefined || cue.camera !== undefined)
+      ((visual !== undefined && visual.kind !== 'uiElement') || cue.camera !== undefined)
     ) {
       problems.push({
         file,
         jsonPath: formatJsonPath(['events', name]),
-        message: `"${name}" is a client event with no world: its cue "${cueId}" cannot have a visual or a camera`,
+        message: `"${name}" is a client event with no world: its cue "${cueId}" cannot have a world visual or a camera (only a \`uiElement\` visual)`,
+      });
+    }
+    // And the reverse: a sim event is no UI element, so a `uiElement` visual would be no twin at all.
+    if (!isClientEvent && visual?.kind === 'uiElement') {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['cues', cueId, 'visual', 'kind']),
+        message: `the cue "${cueId}" is played by the sim event "${name}": its visual cannot be a \`uiElement\` (no UI element fired it)`,
       });
     }
     // A generic event names no threat: a ring anchored on one has nowhere to start from.
-    if (cue?.visual?.anchor === 'threat') {
+    if (visual?.kind === 'soundWave' && visual.anchor === 'threat') {
       problems.push({
         file,
         jsonPath: formatJsonPath(['cues', cueId, 'visual', 'anchor']),
@@ -174,7 +188,7 @@ async function checkFeedbackReferences(
       });
     }
     // Nor does it name an object (story 1.20): only a disruption def points at an `object` cue.
-    if (cue?.visual?.anchor === 'object') {
+    if (visual?.kind === 'soundWave' && visual.anchor === 'object') {
       problems.push({
         file,
         jsonPath: formatJsonPath(['cues', cueId, 'visual', 'anchor']),
@@ -274,12 +288,18 @@ function checkThreatReferences(
           jsonPath: formatJsonPath(['feedback', role]),
           message: `"${cueId}" is not a cue of content/${FEEDBACK_FILE.file} › cues`,
         });
-      } else if (feedback.cues[cueId]?.visual?.anchor === 'object') {
+      } else if (visualAnchorOf(feedback.cues[cueId]) === 'object') {
         // A threat event names a threat, never an object (story 1.20).
         problems.push({
           file,
           jsonPath: formatJsonPath(['feedback', role]),
           message: `the cue "${cueId}" is anchored on an object, but a threat event names no object`,
+        });
+      } else if (feedback.cues[cueId]?.visual?.kind === 'uiElement') {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['feedback', role]),
+          message: `the cue "${cueId}" has a \`uiElement\` visual, but a threat's cues are played for sim events`,
         });
       }
     }
@@ -307,11 +327,17 @@ function checkDisruptionReferences(
           jsonPath: formatJsonPath(['feedback', role]),
           message: `"${cueId}" is not a cue of content/${FEEDBACK_FILE.file} › cues`,
         });
-      } else if (feedback.cues[cueId]?.visual?.anchor === 'threat') {
+      } else if (visualAnchorOf(feedback.cues[cueId]) === 'threat') {
         problems.push({
           file,
           jsonPath: formatJsonPath(['feedback', role]),
           message: `the cue "${cueId}" is anchored on a threat, but a disruption event names no threat`,
+        });
+      } else if (feedback.cues[cueId]?.visual?.kind === 'uiElement') {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['feedback', role]),
+          message: `the cue "${cueId}" has a \`uiElement\` visual, but a disruption's cues are played for sim events`,
         });
       }
     }

@@ -8,7 +8,7 @@ import type { ThreatInstance, World } from '../world.ts';
  * Every gag a threat can end in, as data. A gag is a harmless, comic consequence (NFR9). The sim
  * applies the consequences that need the sim (`applyGag`: a near miss, a pushed prop); the rest
  * comes from the events and from `World` (noise from `PropImpact`, story 3.1; Mama's sigh from
- * `world.mess` and her scream from `NearMiss`, story 1.22). The presentation is the client's
+ * `world.mess` and her scream from `world.score.nearMisses`, story 1.22). The presentation is the client's
  * (`client/render/gags.ts`). `content:check` checks a threat's `gag` (or `surpriseGags`) against this
  * list. The surprise mischiefs of the suspicious silence (story 1.21) add to `world.mess.mischiefs`.
  */
@@ -44,6 +44,8 @@ function outletHair(): void {}
 
 /** The baby slides down the stairs, delighted: a near accident, never an injury (NFR9). */
 function stairsSlide(world: World, ctx: StepContext, threat: ThreatInstance): void {
+  // Mama's « Hurlement » counts it (story 1.22): the one writer, beside the one `NearMiss`.
+  world.score.nearMisses += 1;
   ctx.events.push({
     type: 'NearMiss',
     t: world.time.sim,
@@ -89,7 +91,7 @@ function papaAsleep(world: World, ctx: StepContext): void {
 
 /**
  * A surprise mischief of the suspicious silence (story 1.21 D11): mess, not a near accident. It
- * adds one to the cumulative `mess.mischiefs` (story 1.22 may count it in the Sigh) and emits no
+ * adds one to the cumulative `mess.mischiefs` (story 1.22 counts it in the Sigh) and emits no
  * `NearMiss`. The gag cue is its whole presentation until E7.
  */
 function addMischief(world: World): void {

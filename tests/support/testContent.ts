@@ -39,6 +39,13 @@ export function createTestFeedback(): FeedbackTable {
       medium: { patternMs: [30] },
       heavy: { patternMs: [60] },
     },
+    resultScreen: {
+      rowCountUpMs: 600,
+      rowStaggerMs: 200,
+      starsDelayMs: 300,
+      starIntervalMs: 450,
+      actionsDelayMs: 400,
+    },
     loops: {
       babble: { clip: 'baby_babble_loop', bus: 'voice', gainPct: 100, fadeMs: 80 },
       music: { clip: 'music_crawler_calm', bus: 'music', gainPct: 100, fadeMs: 400 },

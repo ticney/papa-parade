@@ -187,6 +187,38 @@ export interface SilenceSlice {
   startedAt: SimMs | null;
 }
 
+/**
+ * Mama's note (story 1.22, GDD › economy): four integer rows and their sum, out of 100. The rows
+ * always add up: `scorePoints = laugh + babyState + (sighMax − sigh) + (screamMax − scream)`.
+ */
+export interface MamaScore {
+  /** Rire: the perfect responses, held to `laughMaxPoints`. */
+  laughPoints: number;
+  /** État du bébé: `babyStateFixedPoints` until E5 computes it. */
+  babyStatePoints: number;
+  /** Soupir, taken off: props on the floor, broken props and mischiefs, held to `sighMaxPoints`. */
+  sighPoints: number;
+  /** Hurlement, taken off: the near misses, held to `screamMaxPoints`. */
+  screamPoints: number;
+  scorePoints: number;
+  /** 0 to 5: how many `starThresholdPoints` the score reaches. */
+  stars: number;
+}
+
+/**
+ * What feeds Mama's note (story 1.22). The counters are written where their event is produced
+ * (`resolveThreat`, the stairs gag); `final` is written once, by `scoreLevel`, at the step the
+ * level ends.
+ */
+export interface ScoreSlice {
+  /** `ResponseResolved{perfect}`, the micro-sleep's included. */
+  perfects: number;
+  /** `NearMiss` events. */
+  nearMisses: number;
+  /** The note, from the step the level ended; null while it plays. */
+  final: MamaScore | null;
+}
+
 /** The wave director's memory (story 1.18): the wave entered last, and when the next telegraph is due. */
 export interface DirectorSlice {
   /** The last wave entered; -1 before the first. */
@@ -270,6 +302,8 @@ export interface World {
   mess: MessSlice;
   /** The suspicious silence under way, if any (story 1.21). */
   silence: SilenceSlice;
+  /** What feeds Mama's note, and the note once the level has ended (story 1.22). */
+  score: ScoreSlice;
 }
 
 export interface WorldOptions {
@@ -364,6 +398,7 @@ export function createWorld({
     })),
     mess: { propsOnFloor: 0, propsBroken: 0, mischiefs: 0 },
     silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
+    score: { perfects: 0, nearMisses: 0, final: null },
   };
 }
 

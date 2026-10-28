@@ -215,7 +215,10 @@ describe('checkContent on feedback.json references', () => {
   const SIM_EVENT = SIM_EVENT_TYPES[0];
   const CLIENT_EVENT = FEEDBACK_CLIENT_EVENTS[0];
   const cueWithAudio = Object.entries(live.cues).find(([, cue]) => cue.audio !== undefined);
-  const cueWithVisual = Object.entries(live.cues).find(([, cue]) => cue.visual !== undefined);
+  // A world visual: the `uiElement` ones (story 1.22) are allowed on a client event.
+  const cueWithSoundWave = Object.entries(live.cues).find(
+    ([, cue]) => (cue.visual as { kind?: string } | undefined)?.kind === 'soundWave',
+  );
 
   it('reports an event name that no event has, with its JSON path', async () => {
     await mutateJson('content/feedback.json', (feedback) => {
@@ -249,10 +252,10 @@ describe('checkContent on feedback.json references', () => {
   });
 
   it('reports a client event whose cue has a visual: the director has no world to draw it in', async () => {
-    expect(cueWithVisual).toBeDefined();
+    expect(cueWithSoundWave).toBeDefined();
     await mutateJson('content/feedback.json', (feedback) => {
       (feedback.events as Record<string, string>)[CLIENT_EVENT] = (
-        cueWithVisual as [string, unknown]
+        cueWithSoundWave as [string, unknown]
       )[0];
     });
     const problems = await checkContent(root);
@@ -262,8 +265,45 @@ describe('checkContent on feedback.json references', () => {
     expect(problems[0]?.message).toContain('client event');
   });
 
+  it('accepts a client event whose cue has a uiElement visual (story 1.22 D6)', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      (feedback.cues as Record<string, unknown>).ui_twin = {
+        audio: (cueWithAudio as [string, { audio: unknown }])[1].audio,
+        visual: { kind: 'uiElement' },
+        haptic: 'light',
+      };
+      (feedback.events as Record<string, string>)[CLIENT_EVENT] = 'ui_twin';
+    });
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('reports a client event whose cue has a world visual, even beside the uiElement ones', async () => {
+    const [cueId] = cueWithSoundWave as [string, unknown];
+    await mutateJson('content/feedback.json', (feedback) => {
+      (feedback.events as Record<string, string>)[CLIENT_EVENT] = cueId;
+    });
+    const problems = await checkContent(root);
+    expect(problems).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: `events.${CLIENT_EVENT}` }),
+    ]);
+    expect(problems[0]?.message).toContain(cueId);
+  });
+
+  it('reports a sim event whose cue has a uiElement visual, with the path of the kind', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      (feedback.cues as Record<string, unknown>).ui_twin = { visual: { kind: 'uiElement' } };
+      (feedback.events as Record<string, string>)[SIM_EVENT] = 'ui_twin';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'cues.ui_twin.visual.kind' }),
+    ]);
+    expect(problems[0]?.message).toContain(SIM_EVENT);
+    expect(problems[0]?.message).toContain('uiElement');
+  });
+
   it('reports a threat-anchored visual on a cue that an event points at, with the path of the anchor', async () => {
-    const [cueId, cue] = cueWithVisual as [string, { visual: { anchor: string } }];
+    const [cueId, cue] = cueWithSoundWave as [string, { visual: { anchor: string } }];
     const eventName = Object.entries(live.events).find(([, id]) => id === cueId)?.[0];
     expect(eventName).toBeDefined();
     await mutateJson('content/feedback.json', (feedback) => {
@@ -964,6 +1004,32 @@ describe('checkContent on disruptions (story 1.20)', () => {
         message: expect.stringContaining('anchored on an object'),
       }),
     ]);
+  });
+
+  it('refuses a uiElement cue that a threat or a disruption def names: their cues play for sim events (story 1.22)', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      (feedback.cues as Record<string, unknown>).ui_twin = { visual: { kind: 'uiElement' } };
+    });
+    await mutateJson('content/threats/outlet.json', (threat) => {
+      (threat.feedback as Record<string, string>).telegraph = 'ui_twin';
+    });
+    await mutateJson(PHONE, (phone) => {
+      (phone.feedback as Record<string, string>).ring = 'ui_twin';
+    });
+    expect(await checkContent(root)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          file: 'content/threats/outlet.json',
+          jsonPath: 'feedback.telegraph',
+          message: expect.stringContaining('uiElement'),
+        }),
+        expect.objectContaining({
+          file: PHONE,
+          jsonPath: 'feedback.ring',
+          message: expect.stringContaining('uiElement'),
+        }),
+      ]),
+    );
   });
 
   it('reports a disruption file whose id is not its file name, or that breaks its schema', async () => {

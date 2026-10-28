@@ -138,6 +138,8 @@ export function resolveThreat(
     quality,
     offsetMs,
   });
+  // Mama's « Rire » counts every perfect, the micro-sleep's included (story 1.22).
+  if (quality === 'perfect') world.score.perfects += 1;
   ctx.requestFreezeRealMs(ctx.feel.timing.hitstopMs);
   if (quality === 'perfect') startSlowMo(world, ctx, 'perfect', ctx.feel.timing.slowMoPerfect);
   if (isLastOfWave(world, ctx, threat)) {

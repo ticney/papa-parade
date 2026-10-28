@@ -247,6 +247,50 @@
       "additionalProperties": false,
       "description": "Sounds driven by a state, not by an event: they are not cues."
     },
+    "resultScreen": {
+      "type": "object",
+      "properties": {
+        "rowCountUpMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long one score row counts up from 0 to its total, in real ms."
+        },
+        "rowStaggerMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Delay between the start of one score row and the next, in real ms."
+        },
+        "starsDelayMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Pause between the last row landing and the first star, in real ms."
+        },
+        "starIntervalMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Delay between two stamped stars, in real ms."
+        },
+        "actionsDelayMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Pause between the last star (or the last row, with no star) and the buttons, in real ms."
+        }
+      },
+      "required": [
+        "rowCountUpMs",
+        "rowStaggerMs",
+        "starsDelayMs",
+        "starIntervalMs",
+        "actionsDelayMs"
+      ],
+      "additionalProperties": false,
+      "description": "The sequence of the Result screen (story 1.22): rows, then stars, then buttons. Real time: the sim never reads it."
+    },
     "cues": {
       "type": "object",
       "propertyNames": {
@@ -290,7 +334,7 @@
             "description": "The sound of a cue, played once."
           },
           "visual": {
-            "description": "A diegetic effect in the 3D world, the visual twin of the sound.",
+            "description": "The visual twin of the sound: a diegetic effect in the 3D world, or the UI element that fired the event.",
             "oneOf": [
               {
                 "type": "object",
@@ -330,6 +374,21 @@
                 ],
                 "additionalProperties": false,
                 "description": "The visual twin of a sound."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "uiElement",
+                    "description": "The UI element that fired the event is the visual twin (a stamped star): the director draws nothing. Only for a client event."
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false,
+                "description": "The visual twin of a sound that a screen element already shows."
               }
             ]
           },
@@ -398,6 +457,7 @@
     "buses",
     "haptics",
     "loops",
+    "resultScreen",
     "cues",
     "events"
   ],

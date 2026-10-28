@@ -1,16 +1,11 @@
 import { expect, type Page, test } from '@playwright/test';
+import { HUD_MAX_DOM_NODES, MS_PER_S, STEP_MS } from '../../src/shared/constants.ts';
 import {
-  HUD_MAX_DOM_NODES,
-  MS_PER_S,
-  RESUME_COUNTDOWN_MS,
-  STEP_MS,
-} from '../../src/shared/constants.ts';
-import {
-  canvasPoint,
+  CHUNK_STEPS,
   collectProblems,
   html,
   LEVEL_DURATION_MS,
-  OVERRUN_MARGIN_MS,
+  waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
 import {
@@ -31,8 +26,6 @@ const LEVEL = 'salon_crawler';
 const SEED = 42;
 const TIMER = '[data-pp-zone="timer"] .pp-hud-timer';
 const STEPS_PER_S = MS_PER_S / STEP_MS;
-/** One `advance` call at most this long: a whole level in one call would block the page for long. */
-const CHUNK_STEPS = 3000;
 
 /** The clock as the level's duration makes it: `m:ss`, from whole seconds. */
 const clock = (seconds: number): string =>
@@ -113,44 +106,36 @@ test.describe('the level timer', () => {
     await expect(page.locator(TIMER)).toHaveText(clock(startSeconds - 1));
   });
 
-  test('ends the level at the duration: 0:00, one LevelEnded, the flow mirrored, and no input reaches the sim', async ({
+  test('ends the level at the duration: one LevelEnded, the flow mirrored, then the Result screen with the HUD hidden and the loop stopped', async ({
     page,
   }) => {
     const problems = collectProblems(page);
     await openFrozen(page);
     await expect(html(page)).toHaveAttribute('data-pp-flow', 'playing');
-    // Past the resume countdown, so that a tap is live; the control tap proves it plans a path.
-    await expect(html(page)).toHaveAttribute('data-pp-state', 'running', {
-      timeout: RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS,
-    });
-    const point = await canvasPoint(page, 0.5, 0.35);
-    await page.touchscreen.tap(point.x, point.y);
-    await ppAdvance(page, 1);
-    expect(
-      (await ppEvents(page)).filter((event) => event.type === 'PapaPathPlanned'),
-    ).not.toHaveLength(0);
     await advanceTo(page, LEVEL_DURATION_MS - STEP_MS);
     await expect(page.locator(TIMER)).toHaveText('0:01');
     await expect(html(page)).toHaveAttribute('data-pp-flow', 'playing');
     await ppAdvance(page, 1);
 
-    await expect(page.locator(TIMER)).toHaveText('0:00');
     await expect(html(page)).toHaveAttribute('data-pp-flow', 'ended');
-    const ended = (await ppEvents(page)).filter((event) => event.type === 'LevelEnded');
+    const events = await ppEvents(page);
+    const ended = events.filter((event) => event.type === 'LevelEnded');
     expect(ended).toEqual([{ type: 'LevelEnded', t: LEVEL_DURATION_MS, reason: 'timer' }]);
-
-    // A tap on the floor after the end sends nothing: Papa plans no path, whatever the steps.
-    const plannedBefore = (await ppEvents(page)).filter(
-      (event) => event.type === 'PapaPathPlanned',
-    ).length;
-    await page.touchscreen.tap(point.x, point.y);
-    await ppAdvance(page, 2 * STEPS_PER_S);
-    const after = await ppEvents(page);
-    expect(after.filter((event) => event.type === 'PapaPathPlanned')).toHaveLength(plannedBefore);
-    expect(after.filter((event) => event.type === 'LevelEnded')).toHaveLength(1);
-    // The frozen level stays on screen with the timer at 0:00.
-    await expect(page.locator(TIMER)).toHaveText('0:00');
-    await expect(page.locator(TIMER)).toBeVisible();
+    // Story 1.22: Mama's note follows, the app shows it, and the HUD (timer included) is hidden.
+    const scored = events.find((event) => event.type === 'LevelScored');
+    expect(scored).toBeDefined();
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'result');
+    await expect(html(page)).toHaveAttribute(
+      'data-pp-score',
+      String((scored as { scorePoints: number }).scorePoints),
+    );
+    await expect(page.locator('#pp-hud')).toBeHidden();
+    await expect(page.locator(TIMER)).toBeHidden();
+    // The loop is stopped on the frozen world: no step runs any more, and it can still be read.
+    const timeAtEnd = (await ppWorld(page)).time.sim;
+    await waitFrames(page, 10);
+    expect((await ppWorld(page)).time.sim).toBe(timeAtEnd);
+    expect((await ppEvents(page)).filter((event) => event.type === 'LevelEnded')).toHaveLength(1);
     expect(problems).toEqual([]);
   });
 });

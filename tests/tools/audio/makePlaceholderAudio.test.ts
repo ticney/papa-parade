@@ -20,6 +20,8 @@ import {
   synthParry,
   synthParryPerfect,
   synthPhoneAnswer,
+  synthStarStamp,
+  synthStarStampLast,
   synthTelegraph,
   synthTelegraphCoffeeTable,
   synthTelegraphMicroSleep,
@@ -169,6 +171,20 @@ describe('placeholder audio', () => {
   it('lists the two silence clips by the names the feedback table uses', () => {
     const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
     for (const clip of ['tel_silence_found', 'gag_silence_mischief']) {
+      expect(names, clip).toContain(clip);
+    }
+  });
+
+  it('has the lengths of the star stamps: a short blip, and a longer last one', () => {
+    const ms = (samples: Float32Array): number => (samples.length / SAMPLE_RATE_HZ) * 1000;
+    expect(ms(synthStarStamp())).toBeCloseTo(120, 0);
+    expect(ms(synthStarStampLast())).toBeCloseTo(400, 0);
+    expect(synthStarStamp()).not.toEqual(synthStarStampLast().slice(0, synthStarStamp().length));
+  });
+
+  it('lists the two star stamps by the names the feedback table uses', () => {
+    const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+    for (const clip of ['ui_star_stamp', 'ui_star_stamp_last']) {
       expect(names, clip).toContain(clip);
     }
   });

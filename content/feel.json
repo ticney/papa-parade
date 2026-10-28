@@ -72,7 +72,12 @@
     "sighMaxPoints": 15,
     "screamMaxPoints": 15,
     "starThresholdPoints": [20, 40, 60, 75, 90],
-    "earlyWakePenaltyStars": 1
+    "earlyWakePenaltyStars": 1,
+    "laughPerPerfectPoints": 1,
+    "sighPerPropOnFloorPoints": 5,
+    "sighPerBrokenPropPoints": 8,
+    "sighPerMischiefPoints": 3,
+    "screamPerNearMissPoints": 3
   },
   "physics": {
     "gravityMps2": 9.81,
