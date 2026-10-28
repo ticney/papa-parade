@@ -1,0 +1,9 @@
+# Team override for gds-dev-story: one git branch per story (Geo, 2026-10-28).
+# See CLAUDE.md › Git workflow. Enforced for agents by .claude/hooks/guard-main-commit.sh.
+
+[workflow]
+
+persistent_facts = [
+  "The story is developed on its branch `story/<story_key>`. Once the story is identified and before the first edit (and before recording `baseline_commit`), run `git branch --show-current`: if it is not `story/<story_key>`, run `git switch story/<story_key>`; if that branch does not exist (a story created before this rule), create it from an up-to-date `main` with `git switch -c story/<story_key> main`. If the tree has uncommitted changes that are not this story's, stop and tell Geo.",
+  "Commit the implementation on the story branch only, with the message `Story <epic>.<story> : <titre de la story en minuscules>` (French, a space before the colon). Never commit on `main`, never merge into `main`, never push `main`: the merge happens after the code review, with Geo's OK.",
+]

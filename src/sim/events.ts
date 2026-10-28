@@ -11,8 +11,11 @@ export type ResponseQuality = 'perfect' | 'success' | 'fail';
 /** Why a response failed: pressed before the window, never pressed in it, or the wrong kind of press. */
 export type FailReason = 'early' | 'late' | 'wrongResponse';
 
-/** Why a ringing phone stopped: Papa picked up, or it rang `ringMaxMs` for nothing. */
-export type PhoneRingEndReason = 'answered' | 'timedOut';
+/**
+ * Why a ringing phone stopped: Papa picked up, it rang `ringMaxMs` for nothing, or the level ended
+ * while it was still ringing (so every `PhoneRingStarted` gets exactly one `PhoneRingEnded`).
+ */
+export type PhoneRingEndReason = 'answered' | 'timedOut' | 'levelEnded';
 
 /** Why a level ended. `'timer'` so far; the early end on noise (`MamaWoke`, story 3.x) adds one. */
 export type LevelEndReason = 'timer';
@@ -96,7 +99,7 @@ export type SimEvent =
    * tense: the epic and story 3.1 name it so.)
    */
   | { type: 'PhoneRinging'; t: SimMs; objectId: string }
-  /** The phone stopped ringing, for the `reason`; `timedOut` is a missed call. */
+  /** The phone stopped ringing, for the `reason`; `timedOut` and `levelEnded` are a missed call. */
   | { type: 'PhoneRingEnded'; t: SimMs; objectId: string; reason: PhoneRingEndReason }
   /**
    * Papa picked up (right after `PhoneRingEnded{answered}`): he is on the phone until `untilAt` and

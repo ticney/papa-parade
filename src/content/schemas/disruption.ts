@@ -1,3 +1,4 @@
+import { GAUGE_MAX_POINTS, PHONE_RINGING_EVERY_MS } from '@shared/constants';
 import { z } from 'zod';
 import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 
@@ -35,8 +36,10 @@ export const DisruptionDefSchema = z
     ringMaxMs: z
       .number()
       .int()
-      .positive()
-      .describe('How long it rings if nobody answers, in sim ms. Then it stops for good.'),
+      .min(PHONE_RINGING_EVERY_MS)
+      .describe(
+        'How long it rings if nobody answers, in sim ms, at least one `PHONE_RINGING_EVERY_MS` (1000): a shorter ring would never tick. Then it stops for good.',
+      ),
     answerBusyMs: z
       .number()
       .int()
@@ -47,6 +50,7 @@ export const DisruptionDefSchema = z
     answerFatiguePoints: z
       .number()
       .min(0)
+      .max(GAUGE_MAX_POINTS)
       .describe('Fatigue points Papa gains when he picks up, in points of the 0-100 gauge.'),
     feedback: DisruptionFeedbackSchema,
   })

@@ -1,0 +1,11 @@
+# Team override for gds-code-review: one git branch per story (Geo, 2026-10-28).
+# See CLAUDE.md › Git workflow. Enforced for agents by .claude/hooks/guard-main-commit.sh.
+
+[workflow]
+
+persistent_facts = [
+  "A story is reviewed on its branch `story/<story_key>`. Switch to it before reviewing (`git switch story/<story_key>`); the diff under review is `git diff main...story/<story_key>`. If the branch does not exist, stop and tell Geo.",
+  "Review fixes are committed on the story branch with the message `Story <epic>.<story> : corrections de la revue de code` (French, a space before the colon). Never commit on `main`.",
+]
+
+on_complete = "If the story is now `done`: on the story branch, run `env | grep VITE_` then `(unset VITE_DEBUG_ALLOWED; npm run ci)`. If it is red, stop and report: no merge. If it is green, commit any remaining story-branch changes, then ask Geo explicitly whether to merge `story/<story_key>` into `main` (show `git log --oneline main..story/<story_key>`). Only after a clear yes: `git switch main`, `git pull --ff-only origin main` if the remote is reachable, `git merge --no-ff story/<story_key> -m \"Story <epic>.<story> : merge de story/<story_key>\"`, then `git push origin main` (retry on network errors only) and `git branch -d story/<story_key>` (plus `git push origin --delete story/<story_key>` if it was pushed). On a merge conflict, stop and ask Geo. If Geo says no or does not answer, leave the branch as it is."

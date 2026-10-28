@@ -44,6 +44,12 @@ describe('content/disruptions/phone.json', () => {
     ['an unknown kind', { ...real, kind: 'dog' }, ['kind']],
     ['a ringMaxMs of 0', { ...real, ringMaxMs: 0 }, ['ringMaxMs']],
     ['a fractional ringMaxMs', { ...real, ringMaxMs: 1500.5 }, ['ringMaxMs']],
+    ['a ringMaxMs under one ring tick (999)', { ...real, ringMaxMs: 999 }, ['ringMaxMs']],
+    [
+      'more fatigue points than the gauge holds',
+      { ...real, answerFatiguePoints: 101 },
+      ['answerFatiguePoints'],
+    ],
     ['an answerBusyMs of 0', { ...real, answerBusyMs: 0 }, ['answerBusyMs']],
     ['negative fatigue points', { ...real, answerFatiguePoints: -1 }, ['answerFatiguePoints']],
     ['an id in camelCase', { ...real, id: 'phoneCall' }, ['id']],
@@ -60,6 +66,12 @@ describe('content/disruptions/phone.json', () => {
     ],
   ])('rejects %s', (_name, value, expected) => {
     expect(pathsOf(value)).toEqual(expected);
+  });
+
+  it('accepts the limits: one tick of ringing, and a call that fills the gauge', () => {
+    expect(parse({ ...real, ringMaxMs: 1000, answerFatiguePoints: 100 })).toMatchObject({
+      ok: true,
+    });
   });
 
   it('accepts free fatigue (0 points): answering costs nothing', () => {

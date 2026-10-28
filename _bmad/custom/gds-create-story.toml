@@ -1,0 +1,13 @@
+# Team override for gds-create-story: one git branch per story (Geo, 2026-10-28).
+# See CLAUDE.md › Git workflow. Enforced for agents by .claude/hooks/guard-main-commit.sh.
+
+[workflow]
+
+activation_steps_prepend = [
+  "Git pre-flight: run `git status --short` and `git branch --show-current`. If the tree has uncommitted changes outside `_bmad-output/`, stop and tell Geo (another story may be in flight). Otherwise run `git switch main` and, if `origin` is reachable, `git pull --ff-only origin main`.",
+]
+
+persistent_facts = [
+  "Every story lives on its own branch `story/<story_key>` (e.g. `story/1-21-le-silence-suspect`), from its creation to its merge. As soon as the story key is known (step 1), and before writing any file, run `git switch -c story/<story_key> main`, or `git switch story/<story_key>` if it already exists. Never write the story file or the sprint-status change on `main`.",
+  "At the end of the workflow, commit the story file and `sprint-status.yaml` on the story branch with the message `Story <epic>.<story> : création de la story` (French, a space before the colon). Do not merge and do not push.",
+]

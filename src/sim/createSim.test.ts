@@ -1,3 +1,4 @@
+import type { DisruptionDef } from '@content/schemas/disruption';
 import { cloneJson, hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
@@ -546,6 +547,40 @@ describe('the disruptions it plans (story 1.20)', () => {
     });
     await expect(createSim({ content, geometry, level: planned, seed: 1 })).rejects.toThrow(
       /the disruption "phone" has the kind "phone", but the object "phone" has the kind "coffee_machine"/,
+    );
+  });
+
+  it.each([
+    ['negative', -1, 0],
+    ['in the next wave', 60_000, 0],
+    ['before its wave', 59_999, 1],
+    ['past the end of the level', 10_000_000, 1],
+  ])('refuses an atMs that is %s, built without the schema', async (_name, atMs, waveIndex) => {
+    // Two waves (0 to 60 s, then 60 s to the end): the phone is planned in one of them.
+    const waves = [testWave([]), testWave([], { fromMs: 60_000 })];
+    waves[waveIndex] = testWave([], {
+      ...(waveIndex === 1 ? { fromMs: 60_000 } : {}),
+      disruptions: [testPhoneEntry(atMs)],
+    });
+    const planned = createTestLevel({ waves, objects: TEST_OBJECTS });
+    await expect(createSim({ content, geometry, level: planned, seed: 1 })).rejects.toThrow(
+      new RegExp(
+        `waves\\[${waveIndex}\\]\\.disruptions\\[0\\]: atMs \\(.*\\) must be inside its wave`,
+      ),
+    );
+  });
+
+  it('refuses a disruption whose kind the sim has no handler for', async () => {
+    const planned = createTestLevel({
+      waves: phoneWave(),
+      objects: [{ id: 'phone', kind: 'coffee_machine', anchor: 'phone' }],
+    });
+    const def = planned.disruptions.phone as DisruptionDef;
+    const odd = { ...planned, disruptions: { phone: { ...def, kind: 'coffee_machine' } } };
+    await expect(
+      createSim({ content, geometry, level: odd as unknown as typeof planned, seed: 1 }),
+    ).rejects.toThrow(
+      /the disruption "phone" has the kind "coffee_machine", which the sim does not know/,
     );
   });
 

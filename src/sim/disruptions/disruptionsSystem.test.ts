@@ -227,10 +227,38 @@ describe('runDisruptions (story 1.20)', () => {
     expect(ofType(events, 'LevelEnded')).toHaveLength(1);
     const lastTick = ofType(events, 'PhoneRinging').at(-1);
     expect(lastTick?.t ?? 0).toBeLessThanOrEqual(2000);
-    // Frozen mid-ring: no timeout, no more ticks, whatever the clock does.
-    expect(ofType(events, 'PhoneRingEnded')).toEqual([]);
+    // Closed with the level: one `PhoneRingEnded{levelEnded}`, before `LevelEnded`, in the same step,
+    // and nothing more, whatever the clock does.
+    const ended = ofType(events, 'PhoneRingEnded');
+    expect(ended).toEqual([
+      { type: 'PhoneRingEnded', t: 2000, objectId: 'phone', reason: 'levelEnded' },
+    ]);
+    const types = events.map((event) => event.type);
+    expect(types.indexOf('PhoneRingEnded')).toBeLessThan(types.indexOf('LevelEnded'));
     expect(phoneEvents(runUntil(ringing, 5000))).toEqual([]);
-    expect(ringing.world.disruptions[0]?.state).toBe('ringing');
+    expect(ringing.world.disruptions[0]).toMatchObject({
+      state: 'timedOut',
+      untilAt: 0,
+      nextRingingAt: 0,
+    });
+  });
+
+  it('gives a phone that rang out before the level ended no second end', async () => {
+    const sim = await newSim({ atMs: 100, durationMs: ringMaxMs + 2000 });
+    const events = runUntil(sim, ringMaxMs + 2500);
+    expect(ofType(events, 'PhoneRingEnded').map((event) => event.reason)).toEqual(['timedOut']);
+  });
+
+  it('gives an answered phone no end at the level end', async () => {
+    const sim = await newSim({ atMs: 100, durationMs: 4000 });
+    runUntil(sim, 1500);
+    sim.enqueue({
+      type: 'TapObject',
+      t: asSimMs(sim.world.time.sim),
+      objectId: 'phone',
+    } as SimCommand);
+    const events = runUntil(sim, 4500);
+    expect(ofType(events, 'PhoneRingEnded').map((event) => event.reason)).toEqual(['answered']);
   });
 });
 

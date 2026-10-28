@@ -8,6 +8,7 @@ import { asSimMs } from '@shared/time';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
 import type { SimLevel, SimObjectSpec, StepContext, System } from './context.ts';
+import { DISRUPTION_HANDLER_KINDS } from './disruptions/disruptionsSystem.ts';
 import type { SimEvent } from './events.ts';
 import {
   createJournal,
@@ -232,6 +233,17 @@ function simLevelOf(
     invariant(
       def.kind === object.kind,
       `${entry.where}: the disruption "${entry.def}" has the kind "${def.kind}", but the object "${entry.object}" has the kind "${object.kind}"`,
+    );
+    invariant(
+      (DISRUPTION_HANDLER_KINDS as readonly string[]).includes(def.kind),
+      `${entry.where}: the disruption "${entry.def}" has the kind "${def.kind}", which the sim does not know (${DISRUPTION_HANDLER_KINDS.join(', ')})`,
+    );
+    // A level built without the schema (a test, a tool) must not slip a start time that never comes or comes at once.
+    const wave = waves[entry.waveIndex] as (typeof waves)[number];
+    const waveEndMs = waves[entry.waveIndex + 1]?.fromMs ?? level.level.durationMs;
+    invariant(
+      Number.isFinite(entry.atMs) && entry.atMs >= wave.fromMs && entry.atMs < waveEndMs,
+      `${entry.where}: atMs (${entry.atMs}) must be inside its wave, from ${wave.fromMs} up to ${waveEndMs} ms`,
     );
     const earlier = disruptions.find((other) => other.objectId === entry.object);
     invariant(

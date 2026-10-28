@@ -1,6 +1,7 @@
 import type { ContentBundle } from '@content/contentBundle';
 import type { DisruptionDef } from '@content/schemas/disruption';
 import type { Feel } from '@content/schemas/feel';
+import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
@@ -344,5 +345,44 @@ describe('answering the phone (story 1.20)', () => {
     command(sim, { type: 'Release' });
     expect(() => runUntil(sim, sim.world.time.sim + 50)).not.toThrow();
     expect(sim.world.papa.state).toBe('onPhone');
+  });
+});
+
+describe('what answering does not decide (story 1.20 review)', () => {
+  it('answers only a walk to the phone: a floor tap, a direction or a glide onto it leaves it ringing', async () => {
+    const sim = await newSim();
+    command(sim, { type: 'StartDisruption', index: 0 });
+    const phone = sim.objects.find((object) => object.id === 'phone');
+    expect(phone).toBeDefined();
+    // A floor tap on the phone's own position: Papa walks there and stops, no object in the walk.
+    command(sim, { type: 'TapFloor', xM: phone?.xM as number, zM: phone?.zM as number });
+    const events = runUntilEvent(sim, 'PapaArrived');
+    expect(types(events)).not.toContain('PhoneAnswered');
+    runUntil(sim, sim.world.time.sim + 200);
+    expect(sim.world.papa.state).toBe('idle');
+    expect(sim.world.disruptions[0]?.state).toBe('ringing');
+    // The tap on the object, from where he stands, answers it: he is already there.
+    command(sim, { type: 'TapObject', objectId: 'phone' });
+    runUntilEvent(sim, 'PhoneAnswered', sim.world.time.sim + 2000);
+    expect(sim.world.papa.state).toBe('onPhone');
+  });
+
+  it('draws one number from world.rng when the call takes the fatigue above the threshold, and restores to the same hash', async () => {
+    const { thresholdPoints } = base.feel.fatigue;
+    const sim = await ringingAndTapped();
+    command(sim, { type: 'SetFatigue', points: thresholdPoints - answerFatiguePoints / 2 });
+    const rngBefore = JSON.stringify(sim.world.rng);
+    const events = runUntilEvent(sim, 'PhoneAnswered');
+    expect(ofType(events, 'FatigueThresholdCrossed')).toEqual([
+      expect.objectContaining({ isAbove: true }),
+    ]);
+    expect(JSON.stringify(sim.world.rng)).not.toBe(rngBefore);
+
+    // Mid-call, a snapshot restored into a twin runs on to the same world as the uninterrupted one.
+    const twin = await newSim();
+    twin.restore(sim.snapshot());
+    runUntil(sim, sim.world.time.sim + 8000);
+    runUntil(twin, twin.world.time.sim + 8000);
+    expect(hashJson(twin.world)).toBe(hashJson(sim.world));
   });
 });

@@ -20,9 +20,9 @@
     },
     "ringMaxMs": {
       "type": "integer",
-      "exclusiveMinimum": 0,
+      "minimum": 1000,
       "maximum": 9007199254740991,
-      "description": "How long it rings if nobody answers, in sim ms. Then it stops for good."
+      "description": "How long it rings if nobody answers, in sim ms, at least one `PHONE_RINGING_EVERY_MS` (1000): a shorter ring would never tick. Then it stops for good."
     },
     "answerBusyMs": {
       "type": "integer",
@@ -33,6 +33,7 @@
     "answerFatiguePoints": {
       "type": "number",
       "minimum": 0,
+      "maximum": 100,
       "description": "Fatigue points Papa gains when he picks up, in points of the 0-100 gauge."
     },
     "feedback": {

@@ -1,5 +1,10 @@
 import { decodeBase64, encodeBase64 } from '@shared/base64';
-import { GAUGE_MAX_POINTS, MIN_TIME_SCALE, QUATERNION_LENGTH_TOLERANCE } from '@shared/constants';
+import {
+  GAUGE_MAX_POINTS,
+  MIN_TIME_SCALE,
+  PHONE_RINGING_EVERY_MS,
+  QUATERNION_LENGTH_TOLERANCE,
+} from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
 import { DISRUPTION_STATES } from './disruptions/disruptionFsm.ts';
@@ -281,7 +286,12 @@ function gaugesProblem(gauges: unknown, hasFatigue: boolean): string | null {
   return null;
 }
 
-function disruptionProblem(disruption: unknown, index: number, nowMs: number): string | null {
+function disruptionProblem(
+  disruption: unknown,
+  index: number,
+  nowMs: number,
+  ringMaxMs: number,
+): string | null {
   const where = `world.disruptions[${index}]`;
   if (typeof disruption !== 'object' || disruption === null) return where;
   const instance = disruption as Record<string, unknown>;
@@ -298,6 +308,23 @@ function disruptionProblem(disruption: unknown, index: number, nowMs: number): s
   const isRinging = instance.state === 'ringing';
   if (isRinging !== (instance.untilAt !== 0)) return `${where}.untilAt`;
   if (isRinging !== (instance.nextRingingAt !== 0)) return `${where}.nextRingingAt`;
+  if (isRinging) {
+    // It rings from `enteredAt` to exactly `ringMaxMs` later, and its ticks fall on whole periods from
+    // there: anything else is a world `tickRinging` would loop on (a tiny `nextRingingAt` and a huge
+    // `untilAt` is a burst of ticks in one step).
+    const enteredAt = instance.enteredAt as number;
+    const untilAt = instance.untilAt as number;
+    const nextRingingAt = instance.nextRingingAt as number;
+    if (untilAt !== enteredAt + ringMaxMs || untilAt <= nowMs) return `${where}.untilAt`;
+    const sinceStartMs = nextRingingAt - enteredAt;
+    if (
+      sinceStartMs < PHONE_RINGING_EVERY_MS ||
+      sinceStartMs % PHONE_RINGING_EVERY_MS !== 0 ||
+      nextRingingAt > untilAt + PHONE_RINGING_EVERY_MS
+    ) {
+      return `${where}.nextRingingAt`;
+    }
+  }
   return null;
 }
 
@@ -310,8 +337,22 @@ function disruptionsProblem(
     return 'world.disruptions';
   }
   for (let i = 0; i < disruptions.length; i++) {
-    const problem = disruptionProblem(disruptions[i], i, nowMs);
+    const problem = disruptionProblem(
+      disruptions[i],
+      i,
+      nowMs,
+      (planned[i] as PlannedLevel['disruptions'][number]).def.ringMaxMs,
+    );
     if (problem !== null) return problem;
+  }
+  return null;
+}
+
+/** Papa is on the phone only after a pick-up: some disruption is `answered` (the call's own life). */
+function onPhoneProblem(papa: unknown, disruptions: readonly { state: unknown }[]): string | null {
+  const isOnPhone = (papa as Record<string, unknown> | null | undefined)?.state === 'onPhone';
+  if (isOnPhone && !disruptions.some((disruption) => disruption.state === 'answered')) {
+    return 'world.papa.state';
   }
   return null;
 }
@@ -372,7 +413,7 @@ export interface PlannedLevel {
   readonly durationMs: number;
   readonly threats: readonly { readonly def: { readonly id: string } }[];
   /** The planned disruptions: `world.disruptions` is index-aligned with them (story 1.20). */
-  readonly disruptions: readonly unknown[];
+  readonly disruptions: readonly { readonly def: { readonly ringMaxMs: number } }[];
   /** The index in `threats` of the micro-sleep, or -1 when the level has no fatigue. */
   readonly microSleepIndex: number;
   /** The level's interactive objects: Papa's `objectId` must be one of them. */
@@ -537,6 +578,7 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
   }
   return (
     disruptionsProblem(disruptions, planned.disruptions, clock.sim as number) ??
+    onPhoneProblem(papa, disruptions as readonly { state: unknown }[]) ??
     flowProblem(flow, clock.sim as number, planned.durationMs) ??
     gaugesProblem(gauges, planned.microSleepIndex >= 0) ??
     papaProblem(

@@ -63,6 +63,13 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 - **Tests:** unit tests next to the code (`foo.test.ts`), e2e in `tests/e2e`, architecture in `tests/architecture`. Import `describe/it/expect` from `vitest`.
 - Stack is pinned: do not add ESLint, Prettier, React or any UI/state/ECS library, and no Capacitor before E8.
 
+## Git workflow
+
+- **One branch per story, from creation to merge:** `story/<story-key>` (e.g. `story/1-21-le-silence-suspect`), cut from an up-to-date `main`. `create-story`, `dev-story` and `code-review` all work on it, with the usual commits (« Story X : création de la story », « Story X : <titre> », « Story X : corrections de la revue de code »).
+- **`main` only receives merges.** After the review, with a green `npm run ci` on the branch and Geo's explicit OK, the agent runs `git merge --no-ff story/<story-key>`, pushes `main` and deletes the branch. No OK, no merge.
+- An agent may commit on `main` only files under `_bmad-output/` (planning docs). `.claude/hooks/guard-main-commit.sh` (a `PreToolUse` hook in `.claude/settings.json`) blocks any other agent commit on `main`. Never weaken it to get a commit through.
+- The BMAD side lives in `_bmad/custom/gds-{create-story,dev-story,code-review}.toml`.
+
 ## Where to read more
 
 - Full agent rule set: [`_bmad-output/project-context.md`](_bmad-output/project-context.md)
