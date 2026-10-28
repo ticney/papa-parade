@@ -586,16 +586,19 @@ body {
    (a soft glow, no blur filter); the highlight is a solid ring with a chevron, so it differs from
    the halo by shape, not by colour. Nothing flashes: the halo pulses at about 0.7 Hz.
    --------------------------------------------------------------------------------------------- */
+:root {
+  --pp-threat-size: 64px; /* the icon's size: the glyph chip hangs from it too */
+}
+
+:root[data-pp-surface="compact"] {
+  --pp-threat-size: 56px;
+}
+
 .pp-threat {
-  --pp-threat-size: 64px;
   position: relative;
   width: var(--pp-threat-size);
   height: var(--pp-threat-size);
   pointer-events: none;
-}
-
-:root[data-pp-surface="compact"] .pp-threat {
-  --pp-threat-size: 56px;
 }
 
 .pp-threat-icon {
@@ -656,15 +659,10 @@ body {
   and is centred on the icon vertically. It never animates: it moves with its target.
 */
 .pp-glyph-chip-anchor {
-  --pp-threat-size: 64px;
   position: relative;
   width: 0;
   height: 0;
   pointer-events: none;
-}
-
-:root[data-pp-surface="compact"] .pp-glyph-chip-anchor {
-  --pp-threat-size: 56px;
 }
 
 .pp-glyph-chip {

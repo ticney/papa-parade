@@ -59,11 +59,11 @@ export type PadFamily = 'xbox' | 'playstation';
 
 /**
  * The family of a pad from its `Gamepad.id` (D11 of story 1.17): `054c` is Sony's USB vendor id
- * (Chrome writes `Vendor: 054c`, Firefox `054c-0ce6-…`). Anything else, an empty id included, is
+ * (Chrome writes `Vendor: 054c`, Firefox `054c-0ce6-…`); the same digits in a product id are no Sony. Anything else, an empty id included, is
  * Xbox-style.
  */
 export function padFamily(id: string): PadFamily {
-  return /054c|playstation|dualshock|dualsense/i.test(id) ? 'playstation' : 'xbox';
+  return /vendor:\s*054c|^054c-|playstation|dualshock|dualsense/i.test(id) ? 'playstation' : 'xbox';
 }
 
 /** What a poll saw of the selected pad, besides its stick. One object, reused: nothing allocates. */
@@ -129,6 +129,20 @@ export function createGamepadInput(
   let family: PadFamily = 'xbox';
   const warnedIds = new Set<string>();
 
+  // Turns every button still down on the previous poll into a release edge (a pad that went away,
+  // or a new pad taking over) and forgets it; the edge is stamped now, the pad has no stamp left.
+  const releaseHeld = (state: PadState | undefined): void => {
+    let hasReleased = false;
+    for (let b = 0; b < BUTTON_INDEX.length; b++) {
+      if (!wasDown[b]) continue;
+      wasDown[b] = false;
+      if (state === undefined) continue;
+      state.released[PAD_BUTTONS[b] as PadButton] = true;
+      hasReleased = true;
+    }
+    if (hasReleased && state !== undefined) state.stampAtReal = nowAtReal();
+  };
+
   return {
     poll(stick, state) {
       stick.x = 0;
@@ -161,7 +175,9 @@ export function createGamepadInput(
         }
       }
       if (fallback === null) {
-        // Nothing is held on a pad that is gone: the next one starts from scratch.
+        // Nothing is held on a pad that is gone: the next one starts from scratch. What it held
+        // is let go, so that a press is never left open.
+        releaseHeld(state);
         selectedIndex = -1;
         selectedId = null;
         return;
@@ -175,6 +191,8 @@ export function createGamepadInput(
       const id = fallback.id ?? '';
       const isNewSelection = fallbackIndex !== selectedIndex || id !== selectedId;
       if (isNewSelection) {
+        // The pad that was selected may have been let go of while held: its press ends here.
+        releaseHeld(state);
         selectedIndex = fallbackIndex;
         selectedId = id;
         family = padFamily(id);

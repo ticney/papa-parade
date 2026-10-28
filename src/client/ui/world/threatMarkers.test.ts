@@ -128,11 +128,12 @@ describe('createThreatMarkers', () => {
     const threats = [threat(4, 'telegraph'), threat(5, 'windowOpen')];
     expect(markers.update(threats, null, null)).toBe(false);
     expect([first?.hidden, second?.hidden]).toEqual([true, true]);
-    expect(markers.update(threats, null, 4)).toBe(true);
+    // A target ring is no press: it makes no latency mark.
+    expect(markers.update(threats, null, 4)).toBe(false);
     expect([first?.hidden, second?.hidden]).toEqual([false, true]);
     expect(markers.update(threats, null, 4)).toBe(false);
     // The target moves: one ring goes, the other appears.
-    expect(markers.update(threats, null, 5)).toBe(true);
+    expect(markers.update(threats, null, 5)).toBe(false);
     expect([first?.hidden, second?.hidden]).toEqual([true, false]);
     // Pressed 4 while 5 is the target: both are lit.
     expect(markers.update(threats, 4, 5)).toBe(true);
@@ -142,12 +143,13 @@ describe('createThreatMarkers', () => {
     expect([first?.hidden, second?.hidden]).toEqual([false, true]);
   });
 
-  it('does not make a ring appear twice when the pressed threat is already the target', () => {
+  it('marks the press even when the pressed threat is already the target, and only once', () => {
     const { markers, byClass } = build();
     markers.mount([ENTRY]);
     const [highlight] = byClass(THREAT_CLASSES.highlight);
-    expect(markers.update([threat(4, 'telegraph')], null, 4)).toBe(true);
-    // The press lands on the target whose ring is already up: nothing new became visible.
+    expect(markers.update([threat(4, 'telegraph')], null, 4)).toBe(false);
+    // The press lands on the target whose ring is already up: the press is the new thing.
+    expect(markers.update([threat(4, 'telegraph')], 4, 4)).toBe(true);
     expect(markers.update([threat(4, 'telegraph')], 4, 4)).toBe(false);
     expect(highlight?.hidden).toBe(false);
     // The press ends and the target goes: the ring goes with it.

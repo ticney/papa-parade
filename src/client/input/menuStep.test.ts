@@ -52,6 +52,15 @@ describe('stickToMenuStep', () => {
     expect(stickToMenuStep({ x: 0.25, y: 0 }, memory, DEADZONE_PCT)).toBe('right');
   });
 
+  it('steps again after a rest when the deadzone is 0', () => {
+    const memory = fresh();
+    expect(stickToMenuStep({ x: 0.05, y: 0 }, memory, 0)).toBe('right');
+    expect(stickToMenuStep({ x: 0.05, y: 0 }, memory, 0)).toBeNull();
+    expect(stickToMenuStep({ x: 0, y: 0 }, memory, 0)).toBeNull();
+    expect(memory.isActive).toBe(false);
+    expect(stickToMenuStep({ x: 0, y: 0.05 }, memory, 0)).toBe('down');
+  });
+
   it('treats a stick that is not a number as at rest', () => {
     const memory = fresh();
     expect(stickToMenuStep({ x: Number.NaN, y: 0 }, memory, DEADZONE_PCT)).toBeNull();

@@ -61,7 +61,7 @@ describe('pickAutoTarget: who is a candidate', () => {
     expect(pickAutoTarget([threat({ id: 1, state: 'windowOpen' })], 0, 0, null, CONE_DEG)).toBe(1);
   });
 
-  it('skips an active threat with no window, and says so once per threat id', () => {
+  it('skips an active threat with no window, and says so once per threat instance', () => {
     const before = log.buffer().length;
     const broken = threat({ id: 71, windowMs: null });
     expect(pickAutoTarget([broken], 0, 0, null, CONE_DEG)).toBeNull();
@@ -72,6 +72,17 @@ describe('pickAutoTarget: who is a candidate', () => {
       .filter((entry) => entry.level === 'warn' && entry.message.includes('no response window'));
     expect(warnings).toHaveLength(1);
     expect(warnings[0]?.data).toEqual({ threatId: 71 });
+  });
+
+  it('says so again for the same id in another sim (ids restart at 1)', () => {
+    const before = log.buffer().length;
+    expect(pickAutoTarget([threat({ id: 72, windowMs: null })], 0, 0, null, CONE_DEG)).toBeNull();
+    expect(pickAutoTarget([threat({ id: 72, windowMs: null })], 0, 0, null, CONE_DEG)).toBeNull();
+    const warnings = log
+      .buffer()
+      .slice(before)
+      .filter((entry) => entry.level === 'warn' && entry.message.includes('no response window'));
+    expect(warnings).toHaveLength(2);
   });
 });
 

@@ -28,8 +28,9 @@ export interface ThreatMarkers {
    * already resolved it: a quick tap is judged in the same frame as its press, and the highlight
    * must still be drawn once (the caller forgets `highlightedId` after that frame). `threats[i]` is the instance of
    * `entries[i]` (same order, built from `world.threats`). Writes the DOM only when a value
-   * changes and allocates nothing. Returns true when a highlight became visible in this call (one
-   * that was already up for the same threat as the target is not new).
+   * changes and allocates nothing. Returns true when a press began to show in this call (the
+   * latency mark): a target ring that appears with no press, or one already up when the press
+   * comes, does not make a new mark of its own before that press.
    */
   update(
     threats: readonly Readonly<ThreatInstance>[],
@@ -110,6 +111,8 @@ interface Marker {
   readonly chevron: Element;
   isShown: boolean;
   isHighlighted: boolean;
+  /** The press highlight is up for this marker (the return value of `update` follows its rising edge). */
+  isPressed: boolean;
 }
 
 type Doc = Pick<Document, 'createElement' | 'createElementNS'>;
@@ -174,7 +177,15 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
   const object = new CSS2DObject(element);
   object.position.set(entry.xM, entry.yM, entry.zM);
   object.visible = false;
-  return { object, element, highlight, chevron, isShown: false, isHighlighted: false };
+  return {
+    object,
+    element,
+    highlight,
+    chevron,
+    isShown: false,
+    isHighlighted: false,
+    isPressed: false,
+  };
 }
 
 /**
@@ -245,7 +256,12 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
           marker.highlight.hidden = !isHighlighted;
           if (isHighlighted) marker.chevron.removeAttribute('hidden');
           else marker.chevron.setAttribute('hidden', '');
-          if (isHighlighted) isHighlightShown = true;
+        }
+        // The return value is the press-to-highlight latency mark: a press, not a target ring that
+        // was already up before it.
+        if (isPressed !== marker.isPressed) {
+          marker.isPressed = isPressed;
+          if (isPressed) isHighlightShown = true;
         }
       }
       return isHighlightShown;

@@ -21,7 +21,10 @@ export function stickToMenuStep(
 ): MenuStep | null {
   const magnitude = Math.sqrt(axes.x * axes.x + axes.y * axes.y);
   if (memory.isActive) {
-    if (!(magnitude >= (deadzonePct * STICK_RELEASE_RATIO) / 100)) memory.isActive = false;
+    // A stick at rest always releases, even with a deadzone of 0 (the ratio would give a threshold of 0).
+    if (!(magnitude > 0) || !(magnitude >= (deadzonePct * STICK_RELEASE_RATIO) / 100)) {
+      memory.isActive = false;
+    }
     return null;
   }
   if (!(magnitude > 0) || magnitude < deadzonePct / 100) return null;

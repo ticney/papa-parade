@@ -801,6 +801,51 @@ describe('createInputMapper: Space and A (story 1.17)', () => {
       mapper.resync();
       expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
     });
+
+    it('stamps the edges read at a resume with the sim clock: the time map has no frame yet', () => {
+      const { mapper, sim, pad, commands } = setup();
+      sim.world.threats = [threatAt(1, 2, 0, 1000)];
+      pad.isPresent = true;
+      pad.stampAtReal = 1990; // would be 990 through the time map
+      pad.pressed = ['confirm'];
+      mapper.resync();
+      pad.stampAtReal = 2500;
+      pad.released = ['confirm'];
+      mapper.resync();
+      expect(commands).toEqual([
+        { type: 'PressThreat', t: 777, threatId: 1 },
+        { type: 'Release', t: 777 },
+      ]);
+    });
+
+    it('never dates a Release before the press it ends', () => {
+      const { mapper, sim, pad, commands } = setup();
+      sim.world.threats = [threatAt(1, 2, 0, 1000)];
+      pad.isPresent = true;
+      pad.stampAtReal = 2500; // sim 1500
+      pad.pressed = ['confirm'];
+      mapper.pollGamepad();
+      pad.stampAtReal = 2000; // a stale stamp: sim 1000
+      pad.released = ['confirm'];
+      mapper.pollGamepad();
+      expect(commands[1]).toEqual({ type: 'Release', t: 1500 });
+    });
+
+    it('does not hand the target back to the pad at every poll of a drifting stick', () => {
+      const { mapper, state, pad } = setup();
+      pad.isPresent = true;
+      state.stick = { x: 0.9, y: 0 };
+      mapper.pollGamepad();
+      expect(mapper.lastDevice).toBe('gamepad');
+      mapper.handlePointerDown(click(300, 200));
+      mapper.pollGamepad(); // the stick is still out of the deadzone: nothing new
+      expect(mapper.lastDevice).toBe('pointer');
+      state.stick = { x: 0, y: 0 };
+      mapper.pollGamepad();
+      state.stick = { x: 0.9, y: 0 };
+      mapper.pollGamepad(); // a new push
+      expect(mapper.lastDevice).toBe('gamepad');
+    });
   });
 
   describe('lastDevice (D8)', () => {
@@ -830,6 +875,18 @@ describe('createInputMapper: Space and A (story 1.17)', () => {
       state.stick = { x: 0.9, y: 0 };
       mapper.pollGamepad();
       expect(mapper.lastDevice).toBe('gamepad');
+    });
+
+    it('is the pointer for any pointer press, a right click or a second finger included', () => {
+      const { mapper, held } = setup();
+      held.add('KeyW');
+      mapper.onKeysChanged(1500);
+      mapper.handlePointerDown(click(300, 200, { button: 2 }));
+      expect(mapper.lastDevice).toBe('pointer');
+      held.add('KeyW');
+      mapper.onKeysChanged(1600);
+      mapper.handlePointerDown(click(300, 200, { isPrimary: false }));
+      expect(mapper.lastDevice).toBe('pointer');
     });
 
     it('does not take the release of a key for a keyboard input', () => {

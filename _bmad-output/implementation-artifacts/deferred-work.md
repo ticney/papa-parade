@@ -311,3 +311,10 @@
 - **The cone's choice between several threats is proved by unit tests only.** The minimal director (1.10) activates one threat at a time, so no e2e can have two threats active until the wave director (1.18). Add an e2e then (hold a direction toward the later-closing threat; the target follows).
 - **`gamepadconnected` / `gamepaddisconnected` only trigger an immediate poll.** The poll is the truth (a second pad cannot pause, a stale event cannot pause); a browser whose `getGamepads()` still lists a pad in the disconnect event is caught by the next frame instead.
 - **`feel.input.contextReachM`'s check against the real room**: Papa's nearest open cell to each anchor was measured by hand for 1.5 m (Debug Log of the story); the content check does not verify that an object is reachable from the nav grid.
+
+## Deferred from: code review of story 1-17-ciblage-automatique-au-clavier-et-a-la-manette (2026-10-27)
+
+- **No re-target e2e.** The cone's choice between several threats is proved by unit tests only; the minimal director activates one threat at a time. Add the e2e (hold a direction toward the later-closing threat, `data-pp-target` follows) with the wave director, story 1.18.
+- **The glyph chip never flips.** It sits to the right of the icon (`ui.css`), so a threat near the right wall or the HUD can clip it. Check on a real phone in a playtest before adding a `--flip` modifier.
+- **Two derivations of the object positions.** `contextObjectsOf` (client) and `simLevelOf` (sim) both read the anchors. Expose the objects from the sim's public API when 1.19 reads them, and drop the client copy.
+- **Pause note announcement.** The `role=status` line of the pause panel is created `hidden` and filled in the same task; some screen readers will not announce it. Keep a permanent live region, with the accessibility pass (E7).

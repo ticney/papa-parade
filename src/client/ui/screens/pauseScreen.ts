@@ -22,7 +22,7 @@ export interface PauseScreen extends OverlayScreen {
    */
   setPadDisconnected(isDisconnected: boolean): void;
   /**
-   * A on a pad: presses the focused button, or focuses the first one when none has focus. False
+   * A on a pad: presses the focused button, or the first one when none has focus. False
    * when the panel is not showing (the countdown), where there is nothing to press.
    */
   activateFocused(): boolean;
@@ -134,9 +134,10 @@ export function createPauseScreen(options: PauseScreenOptions): PauseScreen {
     },
     activateFocused() {
       if (mode !== 'panel') return false;
-      const focused = buttons.find((button) => button === document.activeElement);
-      if (focused === undefined) buttons[0]?.focus({ preventScroll: true });
-      else focused.click();
+      // The first button when none has focus (the panel focuses it when it shows, but a pointer press
+      // outside any button can take the focus away).
+      const focused = buttons.find((button) => button === document.activeElement) ?? buttons[0];
+      focused?.click();
       return true;
     },
     back() {

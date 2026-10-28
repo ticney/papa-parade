@@ -298,6 +298,8 @@ test.describe('the gamepad', () => {
     await startLevel(page, THREATS_OFF);
     await pad.setPadPresent(true);
     await waitFrames(page, 2);
+    await pad.tapButton(B); // the player plays with the pad (B acts on nothing in play)
+    await waitFrames(page, 2);
 
     await pad.setPadPresent(false);
     await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
@@ -323,6 +325,22 @@ test.describe('the gamepad', () => {
     await pad.tapButton(B);
     await expect(html(page)).toHaveAttribute('data-pp-state', 'resuming');
     await expect(html(page)).toHaveAttribute('data-pp-state', 'running', { timeout: RESUMED_MS });
+    expect(problems).toEqual([]);
+  });
+
+  test('a pad the player is not playing with can leave without pausing the game', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    const pad = await stubGamepad(page);
+    await startLevel(page, THREATS_OFF);
+    await pad.setPadPresent(true);
+    await waitFrames(page, 2);
+    await page.keyboard.press('KeyW'); // the last input is the keyboard
+    await pad.setPadPresent(false);
+    await waitFrames(page, 10);
+    await expect(html(page)).toHaveAttribute('data-pp-state', 'running');
+    await expect(page.locator('.pp-panel-note')).toHaveCount(0);
     expect(problems).toEqual([]);
   });
 

@@ -202,6 +202,17 @@ describe('TapObject (story 1.17)', () => {
     expect(papaOf(sim)).toEqual(papaOf(floor));
   });
 
+  it('says it again for a tap made at the anchor: every accepted tap is one ObjectTapped', async () => {
+    const sim = await newSim();
+    sim.enqueue(tapObject('phone'));
+    expect(types(run(sim, 900))).toContain('PapaArrived');
+    sim.enqueue(tapObject('phone'));
+    const again = run(sim, 20);
+    // Already there: a path of no length, then the arrival; the object still hears about the tap.
+    expect(types(again)).toContain('ObjectTapped');
+    expect(types(again)).toContain('PapaArrived');
+  });
+
   it('does nothing for an object the level does not have', async () => {
     const sim = await newSim();
     const before = hashJson(sim.world.papa);

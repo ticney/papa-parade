@@ -135,6 +135,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
   const picked: FloorPoint = { xM: 0, zM: 0 };
   let lastDevice: InputDevice | null = null;
   let wasPadPresent = false;
+  let wasStickPushed = false;
   const menuStick: MenuStickMemory = { isActive: false };
   let family: PadFamily = 'xbox';
   let boundSim: ActiveLevel['sim'] | null = null;
@@ -176,9 +177,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     );
   };
 
-  const handleAction = (
+  // A `Release` dated before the press it ends is not what the sim ends (it ends the presses made at
+  // or before its `t`): a late, older stamp is clamped to the press.
+  const releaseStamp = (t: SimMs): SimMs => (t < heldPressAt ? heldPressAt : t);
+
+  // `stampOf` gives the command's sim time: the event's own, or the sim clock after a resume.
+  const act = (
     phase: 'down' | 'up',
-    timeStampAtReal: number,
+    stampOf: (active: ActiveLevel) => SimMs,
     device: 'keyboard' | 'gamepad',
   ): void => {
     const pressId = device === 'keyboard' ? KEYBOARD_PRESS_ID : GAMEPAD_PRESS_ID;
@@ -188,10 +194,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (active === null || deps.appFsm.state !== 'level') return;
       bindTo(active);
       if (!press.released(pressId)) return;
-      active.sim.enqueue({
-        type: 'Release',
-        t: active.timeMap.realToSim(asRealMs(timeStampAtReal)),
-      });
+      active.sim.enqueue({ type: 'Release', t: releaseStamp(stampOf(active)) });
       return;
     }
     lastDevice = device;
@@ -200,7 +203,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       return;
     }
     bindTo(active);
-    const t = active.timeMap.realToSim(asRealMs(timeStampAtReal));
+    const t = stampOf(active);
     const threatId = targetNow(active);
     if (threatId !== null) {
       heldPressAt = t;
@@ -224,9 +227,24 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     active.sim.enqueue({ type: 'TapObject', t, objectId });
   };
 
+  const handleAction = (
+    phase: 'down' | 'up',
+    timeStampAtReal: number,
+    device: 'keyboard' | 'gamepad',
+  ): void => act(phase, (active) => active.timeMap.realToSim(asRealMs(timeStampAtReal)), device);
+
+  // The stamps of the pad's commands, as functions made once (the poll runs every frame).
+  const simClockStamp = (active: ActiveLevel): SimMs => active.sim.world.time.sim;
+  const nowStamp = (active: ActiveLevel): SimMs =>
+    active.timeMap.realToSim(asRealMs(deps.nowAtReal()));
+  const padEdgeStamp = (active: ActiveLevel): SimMs =>
+    active.timeMap.realToSim(asRealMs(padState.stampAtReal));
+
   // Reads the pad: its presence, its stick (into `stick`) and its button edges. Runs outside play
   // too (menus). In play the stick refreshes the walk, then A acts; everything else goes to the shell.
-  const readPad = (stampOf: (active: ActiveLevel) => SimMs): void => {
+  // After a resume the time map may have no frame yet: the walk and A's edges are then stamped with
+  // the sim clock (`isResync`), which is "now" for the sim.
+  const readPad = (isResync: boolean): void => {
     deps.gamepad.poll(stick, padState);
     family = padState.family;
     if (padState.isPresent !== wasPadPresent) {
@@ -234,43 +252,45 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       deps.onPadPresence?.(padState.isPresent, family);
     }
     const isLiveNow = isLive();
-    if (isLiveNow) refreshMove(stampOf);
-    if (padState.isPresent) {
-      if (Math.hypot(stick.x, stick.y) * 100 > deps.input.stickDeadzonePct) lastDevice = 'gamepad';
-    }
+    if (isLiveNow) refreshMove(isResync ? simClockStamp : nowStamp);
+    // The stick makes the pad "the device" when it is pushed out of the deadzone, not for as long as
+    // it stays there: a drifting pad must not take the target back after each tap or key.
+    const isStickPushed =
+      padState.isPresent && Math.hypot(stick.x, stick.y) * 100 > deps.input.stickDeadzonePct;
+    if (isStickPushed && !wasStickPushed) lastDevice = 'gamepad';
+    wasStickPushed = isStickPushed;
     // The stick also moves a menu's focus, one step per push; its memory follows it in play too, so
     // that a stick held while the game pauses does not step the moment the panel shows.
     const step = padState.isPresent
       ? stickToMenuStep(stick, menuStick, deps.input.stickDeadzonePct)
       : null;
     if (step !== null && !isLiveNow) deps.onPadButton?.(step);
+    const edgeStampOf = isResync ? simClockStamp : padEdgeStamp;
     for (let i = 0; i < PAD_BUTTONS.length; i++) {
       const button = PAD_BUTTONS[i] as PadButton;
       if (padState.released[button] && button === 'confirm') {
-        handleAction('up', padState.stampAtReal, 'gamepad');
+        act('up', edgeStampOf, 'gamepad');
       }
       if (!padState.pressed[button]) continue;
       lastDevice = 'gamepad';
-      if (button === 'confirm' && isLiveNow) handleAction('down', padState.stampAtReal, 'gamepad');
+      if (button === 'confirm' && isLiveNow) act('down', edgeStampOf, 'gamepad');
       else deps.onPadButton?.(button);
     }
   };
 
-  const pollAndRefresh = (): void =>
-    readPad((active) => active.timeMap.realToSim(asRealMs(deps.nowAtReal())));
+  const pollAndRefresh = (): void => readPad(false);
 
-  // After a resume or a new level the loop may not have recorded a frame yet, so the time map
-  // cannot be asked: the command is stamped with the sim clock, which is "now" for the sim.
   const resyncNow = (): void => {
     if (!isLive()) return;
-    readPad((active) => active.sim.world.time.sim);
+    readPad(true);
   };
 
   return {
     isLive,
     handlePointerDown(sample) {
-      if (!sample.isPrimary || sample.button !== 0) return;
+      // Any pointer press (a right click, a second finger) hands the target back to the pointer.
       lastDevice = 'pointer';
+      if (!sample.isPrimary || sample.button !== 0) return;
       const active = deps.getActive();
       if (active === null || !isLive()) {
         if (log.enabled('debug')) log.debug('input', 'tap dropped: no level is live');
@@ -316,7 +336,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (!press.released(sample.pointerId)) return;
       active.sim.enqueue({
         type: 'Release',
-        t: active.timeMap.realToSim(asRealMs(sample.timeStamp)),
+        t: releaseStamp(active.timeMap.realToSim(asRealMs(sample.timeStamp))),
       });
     },
     releaseHeld() {

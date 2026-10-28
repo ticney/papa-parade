@@ -119,6 +119,8 @@ describe('padFamily (D11 of story 1.17)', () => {
       'playstation',
     ],
     ['a pad in Firefox', '054c-0ce6-DualSense Wireless Controller', 'playstation'],
+    ['a non-Sony pad with 054c as its product id', 'Pad (Vendor: 045e Product: 054c)', 'xbox'],
+    ['a pad whose Firefox product id is 054c', '045e-054c-Generic Pad', 'xbox'],
     ['a DualShock by name', 'Wireless Controller DUALSHOCK 4', 'playstation'],
     ['a PlayStation pad by name', 'PlayStation(R)3 Controller', 'playstation'],
     ['an Xbox pad', 'Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)', 'xbox'],
@@ -230,6 +232,32 @@ describe('createGamepadInput: button edges (story 1.17)', () => {
     expect(pressedNow(run.poll())).toEqual([]);
     run.set([null, standardPad([], { id: 'Xbox One' })]);
     expect(releasedNow(run.poll())).toEqual(['confirm']);
+  });
+
+  it('releases what was held when the pad goes away, stamped now', () => {
+    const run = session([standardPad([0, 9])], 1000);
+    run.poll();
+    run.set([]);
+    run.setNow(1500);
+    const state = run.poll();
+    expect(releasedNow(state).sort()).toEqual(['confirm', 'start']);
+    expect(state.isPresent).toBe(false);
+    expect(state.stampAtReal).toBe(1500);
+    expect(releasedNow(run.poll())).toEqual([]); // once
+  });
+
+  it('releases what the old pad held when another pad takes over', () => {
+    const run = session([standardPad([0])]);
+    run.poll();
+    run.set([null, standardPad([], { id: 'Xbox One' })]);
+    expect(releasedNow(run.poll())).toEqual(['confirm']);
+  });
+
+  it('releases nothing when the pad goes away with nothing held', () => {
+    const run = session([standardPad([])]);
+    run.poll();
+    run.set([]);
+    expect(releasedNow(run.poll())).toEqual([]);
   });
 
   it('forgets the buttons of a pad that went away: a pad plugged in later starts from scratch', () => {

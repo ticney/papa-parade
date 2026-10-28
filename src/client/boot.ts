@@ -671,8 +671,13 @@ export async function boot(): Promise<void> {
         return;
       }
       // Only a pad lost while playing pauses the game (D13): the panel then shows the line. The
-      // pause is a no-op when the game is already paused for another reason.
+      // pause is a no-op when the game is already paused for another reason. A pad the player is
+      // not playing with (the last input was a key or a touch) may sleep or leave unnoticed.
       if (appFsm.state !== 'level') return;
+      if (inputMapper.lastDevice !== 'gamepad') {
+        log.info('input', 'an unused gamepad went away: no pause');
+        return;
+      }
       shell.setPadDisconnected(true);
       pause.requestPause('gamepadDisconnected');
     },
@@ -722,7 +727,8 @@ export async function boot(): Promise<void> {
     menuPollHandle = requestAnimationFrame(menuPoll);
   };
   events.on('AppStateChanged', ({ to }) => {
-    const wantsPoll = to === 'start' || to === 'oops';
+    // « loading » too: a button pressed or let go while the level loads is no new edge in its first frame.
+    const wantsPoll = to === 'start' || to === 'oops' || to === 'loading';
     if (wantsPoll && menuPollHandle === null) {
       menuPollHandle = requestAnimationFrame(menuPoll);
     } else if (!wantsPoll && menuPollHandle !== null) {
@@ -731,6 +737,21 @@ export async function boot(): Promise<void> {
     }
   });
   events.on('GameResumed', () => inputMapper.resync());
+  // A pad press is no browser user activation: a game started with A or Start can leave the audio
+  // context suspended. The first key or touch while playing resumes it, and says so once.
+  let isAudioRescueWarned = false;
+  const rescueAudio = (): void => {
+    if (audio.state !== 'suspended' || appFsm.state !== 'level' || pause.state !== 'running') {
+      return;
+    }
+    if (!isAudioRescueWarned) {
+      isAudioRescueWarned = true;
+      log.warn('audio', 'audio is still suspended in play (a pad start): resuming on this gesture');
+    }
+    audio.resume();
+  };
+  window.addEventListener('pointerdown', rescueAudio, { passive: true });
+  window.addEventListener('keydown', rescueAudio, { passive: true });
   // A restart or an error leaves the level: its threat icons must not stay up behind the next screen.
   events.on('AppStateChanged', ({ from }) => {
     if (from !== 'level') return;

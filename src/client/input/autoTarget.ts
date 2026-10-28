@@ -4,8 +4,9 @@ import type { ThreatInstance } from '@sim';
 import type { FloorDir } from './moveDirection.ts';
 
 // A threat that is active but has no frozen window cannot happen (the window is frozen at the
-// telegraph); it is skipped and said once per threat id.
-const warnedNoWindow = new Set<number>();
+// telegraph); it is skipped and said once per threat instance (ids restart at 1 in every sim, the
+// instances do not outlive theirs).
+const warnedNoWindow = new WeakSet<object>();
 
 /**
  * The threat Space or A parries (story 1.17, D1 to D4), or null when none is active. Candidates are
@@ -33,8 +34,8 @@ export function pickAutoTarget(
     const threat = threats[i] as Readonly<ThreatInstance>;
     if (threat.state !== 'telegraph' && threat.state !== 'windowOpen') continue;
     if (threat.responseWindow === null) {
-      if (!warnedNoWindow.has(threat.id)) {
-        warnedNoWindow.add(threat.id);
+      if (!warnedNoWindow.has(threat)) {
+        warnedNoWindow.add(threat);
         log.warn('input', 'an active threat has no response window: not auto-targeted', {
           threatId: threat.id,
         });

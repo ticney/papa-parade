@@ -19,8 +19,10 @@ export type SimEvent =
   | { type: 'PapaPathPlanned'; t: SimMs; targetXM: number; targetZM: number; waypointCount: number }
   | { type: 'PapaArrived'; t: SimMs; xM: number; zM: number }
   /**
-   * Papa set off to an interactive object the player asked for (`TapObject`). What happens when
-   * he gets there is the object's (stories 1.19, 1.20); nothing consumes this yet.
+   * Papa set off to an interactive object the player asked for (`TapObject`). Every accepted tap
+   * says it, one per command, also when Papa already stands at the anchor (a walk of no length, then
+   * `PapaArrived`) or is already walking there: the object (stories 1.19, 1.20) decides what a repeat
+   * means. Nothing consumes this yet.
    */
   | { type: 'ObjectTapped'; t: SimMs; objectId: string }
   /** A direction walk ran into an obstacle and cannot move at all (once per blockage). */

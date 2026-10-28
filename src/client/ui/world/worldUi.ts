@@ -19,7 +19,7 @@ export interface WorldUi {
   /**
    * Once per frame, before `render`: shows the icons of the active threats and highlights
    * `highlightedId` (pressed) and `targetedId` (auto-targeted, null on touch and mouse). True when
-   * a highlight became visible in this call.
+   * a press began to show in this call (a target ring alone is not one).
    */
   updateThreats(
     threats: readonly Readonly<ThreatInstance>[],

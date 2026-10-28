@@ -117,9 +117,11 @@ describe('createWorldUi, glyph chip (story 1.17)', () => {
     expect(object.element.style.transform).toBe('untouched');
   });
 
-  it('highlights the targeted threat through updateThreats', () => {
+  it('passes the target and the press through updateThreats: only a press is reported', () => {
     const { ui } = build();
     ui.mountThreats([entry]);
-    expect(ui.updateThreats([{ id: 1, state: 'telegraph' }] as never, null, 1)).toBe(true);
+    const threats = [{ id: 1, state: 'telegraph' }] as never;
+    expect(ui.updateThreats(threats, null, 1)).toBe(false);
+    expect(ui.updateThreats(threats, 1, 1)).toBe(true);
   });
 });
