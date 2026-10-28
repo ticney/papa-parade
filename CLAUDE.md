@@ -49,6 +49,7 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 | `npm run content:check` | Validate `content/**` against the Zod schemas, string references and generated JSON Schemas |
 | `npm run content:schemas` | Regenerate `content/_schemas/` (commit the result; never edit it by hand) |
 | `npm run ci` | Everything CI runs, in order, stopping at the first failure |
+| `npm run story:new -- <epic>-<story>` | Opens the story in its own worktree `../papa-parade-<story-key>` on `story/<story-key>` (from `main`, full key looked up in `sprint-status.yaml`) and runs `npm ci` there (`--skip-install` to skip it) |
 
 **Trap: check `VITE_DEBUG_ALLOWED` in your shell before `dev`, `e2e` or `ci`.** The agent shell may export `VITE_DEBUG_ALLOWED=false` (inherited from the parent process, set in no dotfile). A process env var beats `.env.development` in Vite, so the dev server has no `data-pp-*` mirrors and no `window.__PP__`, and almost every e2e spec times out on `data-pp-app="start"` (134 of 140 fail). It looks like « no WebGL » but is not. Run `env | grep VITE_` first; if it is set, run these as `(unset VITE_DEBUG_ALLOWED; npm run ci)` (same for `npx playwright test`, `npm run dev`). `npm run build` wants `false` and is fine either way.
 
@@ -69,6 +70,9 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 - **`main` only receives merges.** After the review, with a green `npm run ci` on the branch and Geo's explicit OK, the agent runs `git merge --no-ff story/<story-key>`, pushes `main` and deletes the branch. No OK, no merge.
 - An agent may commit on `main` only files under `_bmad-output/` (planning docs). `.claude/hooks/guard-main-commit.sh` (a `PreToolUse` hook in `.claude/settings.json`) blocks any other agent commit on `main`. Never weaken it to get a commit through.
 - The BMAD side lives in `_bmad/custom/gds-{create-story,dev-story,code-review}.toml`.
+- **Several stories at once: one worktree per story, never one folder for two agents.** Run `npm run story:new -- 2-3` from the main checkout, then `cd ../papa-parade-<story-key> && claude` and run the three workflows there. The main checkout stays on `main`: that is where merges land. A branch can be checked out in one worktree only, so two agents cannot grab the same story.
+- Each worktree has its own `node_modules` (no symlink: two dev servers must not share Vite's cache) and its own e2e port: 5179 in the main checkout, a port derived from the folder's path in a worktree, or `PP_E2E_PORT` (`playwright.config.ts`). The machine is shared, so two CI runs at once may time out under load: rerun with `--maxWorkers=5` / `--workers=4` and say so.
+- After a merge, remove the story's worktree from the main checkout: `git worktree remove ../papa-parade-<story-key> && git branch -d story/<story-key>`. Two stories that touch the same files (goldens, `content/_schemas`, `sprint-status.yaml`) conflict at the second merge: the agent stops and asks, except for status lines and appended doc sections.
 
 ## Where to read more
 

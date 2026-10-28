@@ -4,10 +4,10 @@
 [workflow]
 
 activation_steps_prepend = [
-  "Git pre-flight: run `git status --short` and `git branch --show-current`. If the tree has uncommitted changes outside `_bmad-output/`, stop and tell Geo (another story may be in flight). Otherwise run `git switch main` and, if `origin` is reachable, `git pull --ff-only origin main`.",
+  "Git pre-flight: run `git status --short` and `git branch --show-current`. If the tree has uncommitted changes outside `_bmad-output/`, stop and tell Geo (another story may be in flight). If the current branch is already a `story/<story_key>` branch (a story worktree opened with `npm run story:new`), stay on it: it names the story to create. Otherwise you are in the main checkout: run `git switch main` and, if `origin` is reachable, `git pull --ff-only origin main`.",
 ]
 
 persistent_facts = [
-  "Every story lives on its own branch `story/<story_key>` (e.g. `story/1-21-le-silence-suspect`), from its creation to its merge. As soon as the story key is known (step 1), and before writing any file, run `git switch -c story/<story_key> main`, or `git switch story/<story_key>` if it already exists. Never write the story file or the sprint-status change on `main`.",
+  "Every story lives on its own branch `story/<story_key>` (e.g. `story/1-21-le-silence-suspect`), from its creation to its merge. As soon as the story key is known (step 1), and before writing any file: if you are already on `story/<story_key>`, keep it; otherwise run `git switch -c story/<story_key> main`, or `git switch story/<story_key>` if it already exists. If git refuses because that branch is checked out in another worktree, stop and tell Geo to work there. Never write the story file or the sprint-status change on `main`.",
   "At the end of the workflow, commit the story file and `sprint-status.yaml` on the story branch with the message `Story <epic>.<story> : création de la story` (French, a space before the colon). Do not merge and do not push.",
 ]

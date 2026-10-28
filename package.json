@@ -26,6 +26,7 @@
     "assets:extract": "tsx tools/assets/extractLevelGeometry.ts",
     "assets:optimize": "tsx tools/assets/optimizeGlb.ts",
     "assets:audio": "tsx tools/audio/makePlaceholderAudio.ts",
+    "story:new": "bash tools/git/newStoryWorktree.sh",
     "ci": "npm run typecheck && npm run lint && npm run content:check && npm run test:coverage && npm run e2e && npm run build:playtest"
   },
   "dependencies": {
