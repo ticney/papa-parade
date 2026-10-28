@@ -1,6 +1,10 @@
+---
+baseline_commit: 8e1573caccd3497c0eae4bf0f881b1dc3de48401
+---
+
 # Story 1.21: The Suspicious Silence
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.21 « Le silence suspect » (L1088-1116). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
