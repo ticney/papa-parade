@@ -48,5 +48,11 @@ export function e2ePort(): number {
 export function e2eDistPort(): number {
   const forced = forcedPort('PP_E2E_DIST_PORT');
   if (forced !== null) return forced;
-  return e2ePort() + DIST_PORT_OFFSET;
+  const port = e2ePort() + DIST_PORT_OFFSET;
+  if (port > 65535) {
+    throw new Error(
+      `the dist port (the e2e port ${port - DIST_PORT_OFFSET} + ${DIST_PORT_OFFSET}) is above 65535: set PP_E2E_DIST_PORT, or a lower PP_E2E_PORT`,
+    );
+  }
+  return port;
 }

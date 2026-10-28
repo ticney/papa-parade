@@ -1,5 +1,11 @@
 import { LEVEL_PAYLOAD_MAX_BYTES } from '@shared/constants';
-import { cspDirectives, headersFor, parseHeaders } from '../serve/headers.ts';
+import {
+  cspDirectives,
+  headersFor,
+  parseHeaders,
+  sameSources,
+  weakSourcesOf,
+} from '../serve/headers.ts';
 
 export type DistFlavor = 'prod' | 'playtest';
 
@@ -49,16 +55,22 @@ export const REQUIRED_CSP_DIRECTIVES: readonly (readonly [name: string, sources:
   ['font-src', "'self'"],
 ];
 
-/** Names that only a debug build may hold: proof that a store bundle has no debug code. */
+/**
+ * Strings that only a debug build may hold (they survive minification: identifiers of the debug
+ * entry points, a CSS class of the FPS counter). The manifest lists entry and dynamic-entry chunks
+ * only, so a debug module merged into the main chunk is caught by these markers alone: the playtest
+ * check requires every one of them to be present, so that none is vacuous.
+ */
 export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   '__PP__',
   'installTestApi',
   'installAutoplay',
   'installPerfHud',
   'copyLog',
+  'pp-debug-perf',
 ];
 
-/** The modules a playtest build must hold, so that the prod markers are known to be real. */
+/** The debug entry modules a playtest build must hold in its manifest (renamed? the prod check is blind). */
 export const PLAYTEST_REQUIRED_SOURCES: readonly string[] = [
   'src/debug/testApi.ts',
   'src/debug/autoplay.ts',
@@ -92,19 +104,23 @@ function cspProblemsOf(headersText: string | null): string[] {
   if (!rules.ok) return [rules.error];
   const csp = headersFor(rules.value, '/')['content-security-policy'];
   if (csp === undefined) return ['_headers has no Content-Security-Policy for "/*"'];
+  if (csp.includes(',')) {
+    return ['CSP: several rules set a policy for "/": this check reads one policy, merge them'];
+  }
   const directives = cspDirectives(csp);
   const problems: string[] = [];
   for (const [name, sources] of REQUIRED_CSP_DIRECTIVES) {
     const actual = directives.get(name);
-    if (actual !== sources) {
+    if (actual === undefined || !sameSources(actual, sources)) {
       problems.push(
         `CSP: "${name}" must be "${sources}", got ${actual === undefined ? 'nothing' : `"${actual}"`}`,
       );
     }
   }
   for (const [name, sources] of directives) {
-    if (sources.includes("'unsafe-inline'") || sources.includes("'unsafe-eval'")) {
-      problems.push(`CSP: "${name}" must not allow unsafe-inline or unsafe-eval`);
+    const weak = weakSourcesOf(sources);
+    if (weak.length > 0) {
+      problems.push(`CSP: "${name}" must not allow ${weak.join(', ')}`);
     }
   }
   return problems;
@@ -127,11 +143,15 @@ function externalUrlsOf(indexHtml: string): string[] {
  * - both: the CSP of `_headers`; no cross-origin URL in `index.html`; each level's `.glb` plus all
  *   the audio within `LEVEL_PAYLOAD_MAX_BYTES`.
  * - `prod`: no debug or bot module in the manifest, no debug marker in any chunk.
- * - `playtest`: the debug modules are in the manifest and `__PP__` is in a chunk (so that the prod
- *   markers are proved real: a renamed module fails here first).
+ * - `playtest`: the debug modules are in the manifest and every prod marker is in a chunk (so that
+ *   the prod markers are proved real: a renamed module or identifier fails here first).
+ *
+ * The manifest lists the entry and dynamic-entry chunks only, not every source module: the prod
+ * check by `src` sees a debug module that Vite kept as its own chunk, the markers see one that was
+ * merged into another chunk.
  *
  * The first-load figure sums the gzip bytes of `index.html`, every chunk reached from the entry
- * (minus the debug and bot ones) and its CSS, the fonts, plus the raw level payload.
+ * (minus the debug and bot ones) and its CSS, the fonts, plus the level payload gzipped.
  */
 export function inspectDist(input: DistInput, flavor: DistFlavor): DistReport {
   const problems = cspProblemsOf(input.headersText);
@@ -141,20 +161,27 @@ export function inspectDist(input: DistInput, flavor: DistFlavor): DistReport {
   }
 
   if (input.levelIds.length === 0) problems.push('no level found in content/levels/');
-  const sizeOf = new Map(input.files.map((file) => [file.path, file.bytes]));
-  const audioBytes = input.files
-    .filter((file) => file.path.startsWith('assets/audio/'))
-    .reduce((sum, file) => sum + file.bytes, 0);
+  const fileAt = new Map(input.files.map((file) => [file.path, file]));
+  const audioFiles = input.files.filter((file) => file.path.startsWith('assets/audio/'));
+  const audioBytes = audioFiles.reduce((sum, file) => sum + file.bytes, 0);
+  if (audioFiles.length === 0) {
+    problems.push(
+      'no audio file under assets/audio/ in dist/ (moved? the audio budget would be vacuous)',
+    );
+  }
+  const audioGzipBytes = audioFiles.reduce((sum, file) => sum + file.gzipBytes, 0);
   let levelPayloadBytes = audioBytes;
+  let levelPayloadGzipBytes = audioGzipBytes;
   for (const id of input.levelIds) {
     const glbPath = `assets/levels/${id}.glb`;
-    const glbBytes = sizeOf.get(glbPath);
-    if (glbBytes === undefined) {
+    const glb = fileAt.get(glbPath);
+    if (glb === undefined) {
       problems.push(`level "${id}": ${glbPath} is missing from dist/`);
       continue;
     }
-    const payload = glbBytes + audioBytes;
+    const payload = glb.bytes + audioBytes;
     levelPayloadBytes = Math.max(levelPayloadBytes, payload);
+    levelPayloadGzipBytes = Math.max(levelPayloadGzipBytes, glb.gzipBytes + audioGzipBytes);
     if (payload > LEVEL_PAYLOAD_MAX_BYTES) {
       problems.push(
         `level "${id}": payload is ${payload} B (${glbPath} + all audio), over the ${LEVEL_PAYLOAD_MAX_BYTES} B budget`,
@@ -184,8 +211,14 @@ export function inspectDist(input: DistInput, flavor: DistFlavor): DistReport {
         );
       }
     }
-    const hasTestApi = [...input.jsText.values()].some((text) => text.includes('__PP__'));
-    if (!hasTestApi) problems.push('playtest bundle: no chunk contains "__PP__"');
+    for (const marker of PROD_FORBIDDEN_MARKERS) {
+      const isPresent = [...input.jsText.values()].some((text) => text.includes(marker));
+      if (!isPresent) {
+        problems.push(
+          `playtest bundle: no chunk contains "${marker}" (renamed? the prod check for it would be vacuous)`,
+        );
+      }
+    }
   }
 
   const gzipOf = new Map(input.files.map((file) => [file.path, file.gzipBytes]));
@@ -197,7 +230,7 @@ export function inspectDist(input: DistInput, flavor: DistFlavor): DistReport {
     firstLoadFiles.add(chunk.file);
     for (const css of chunk.css ?? []) firstLoadFiles.add(css);
   }
-  let firstLoadGzipBytes = levelPayloadBytes;
+  let firstLoadGzipBytes = levelPayloadGzipBytes;
   for (const path of firstLoadFiles) firstLoadGzipBytes += gzipOf.get(path) ?? 0;
   for (const file of input.files) {
     if (file.path.startsWith('fonts/')) firstLoadGzipBytes += file.gzipBytes;

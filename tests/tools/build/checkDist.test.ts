@@ -6,6 +6,7 @@ import {
   type DistInput,
   type DistManifest,
   inspectDist,
+  PROD_FORBIDDEN_MARKERS,
 } from '../../../tools/build/inspectDist.ts';
 
 const GOOD_CSP =
@@ -60,9 +61,9 @@ const FILES: DistFile[] = [
   file('assets/testApi-a.js', 3000, 1400),
   file('assets/autoplay-a.js', 5000, 2400),
   file('assets/perfHud-a.js', 2000, 900),
-  file('assets/levels/salon_crawler.glb', 21_000),
-  file('assets/audio/pop.m4a', 100_000),
-  file('assets/audio/laugh.m4a', 150_000),
+  file('assets/levels/salon_crawler.glb', 21_000, 9000),
+  file('assets/audio/pop.m4a', 100_000, 98_000),
+  file('assets/audio/laugh.m4a', 150_000, 148_000),
   file('fonts/baloo.woff2', 30_000),
 ];
 
@@ -74,7 +75,7 @@ const JS_PLAYTEST = new Map([
   ...JS_PROD,
   ['assets/testApi-a.js', 'window.__PP__ = api; installTestApi'],
   ['assets/autoplay-a.js', 'installAutoplay'],
-  ['assets/perfHud-a.js', 'installPerfHud'],
+  ['assets/perfHud-a.js', 'installPerfHud pp-debug-perf copyLog'],
 ]);
 
 const prodInput = (over: Partial<DistInput> = {}): DistInput => ({
@@ -105,9 +106,9 @@ describe('inspectDist: both flavours', () => {
   it('reports the level payload (glb + all audio) and the first-load gzip total', () => {
     const report = inspectDist(prodInput(), 'prod');
     expect(report.levelPayloadBytes).toBe(21_000 + 100_000 + 150_000);
-    // index.html + entry + css + rapier + gltf (gzip) + the font (gzip) + the raw payload.
+    // index.html + entry + css + rapier + gltf + the font + the level payload, all gzipped.
     expect(report.firstLoadGzipBytes).toBe(
-      480 + 240_000 + 4500 + 1_600_000 + 20_000 + 30_000 + 271_000,
+      480 + 240_000 + 4500 + 1_600_000 + 20_000 + 30_000 + (9000 + 98_000 + 148_000),
     );
   });
 
@@ -150,7 +151,40 @@ describe('inspectDist: both flavours', () => {
   it("fails a CSP that allows 'unsafe-inline' or 'unsafe-eval'", () => {
     const unsafe = headers(`${GOOD_CSP}; style-src 'self' 'unsafe-inline'`);
     const { problems } = inspectDist(prodInput({ headersText: unsafe }), 'prod');
-    expect(problems).toEqual(['CSP: "style-src" must not allow unsafe-inline or unsafe-eval']);
+    expect(problems).toEqual(['CSP: "style-src" must not allow \'unsafe-inline\'']);
+  });
+
+  it.each(['*', 'https:', 'http:'])('fails a CSP that opens connect-src to %s', (source) => {
+    const open = headers(`${GOOD_CSP}; connect-src 'self' ${source}`);
+    const { problems } = inspectDist(prodInput({ headersText: open }), 'prod');
+    expect(problems).toEqual([`CSP: "connect-src" must not allow ${source}`]);
+  });
+
+  it('reads the sources whatever their order, and the first of a directive written twice', () => {
+    const reordered = headers(
+      "default-src 'self'; script-src 'wasm-unsafe-eval' 'self'; font-src 'self'",
+    );
+    expect(inspectDist(prodInput({ headersText: reordered }), 'prod').problems).toEqual([]);
+    const twice = headers(
+      "default-src 'self'; script-src 'self'; script-src 'self' 'wasm-unsafe-eval'; font-src 'self'",
+    );
+    const { problems } = inspectDist(prodInput({ headersText: twice }), 'prod');
+    expect(problems.some((problem) => problem.includes('script-src" must be'))).toBe(true);
+  });
+
+  it('fails when two rules both set a policy for /', () => {
+    const two = `/*\n  Content-Security-Policy: ${GOOD_CSP}\n/\n  Content-Security-Policy: ${GOOD_CSP}\n`;
+    const { problems } = inspectDist(prodInput({ headersText: two }), 'prod');
+    expect(problems).toEqual([
+      'CSP: several rules set a policy for "/": this check reads one policy, merge them',
+    ]);
+  });
+
+  it('fails a tree with no audio file (the audio budget would be vacuous)', () => {
+    const files = FILES.filter((f) => !f.path.startsWith('assets/audio/'));
+    const { problems } = inspectDist(prodInput({ files }), 'prod');
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('no audio file under assets/audio/');
   });
 
   it.each([
@@ -186,14 +220,18 @@ describe('inspectDist: both flavours', () => {
 });
 
 describe('inspectDist: prod', () => {
-  it.each(['__PP__', 'installTestApi', 'installAutoplay', 'installPerfHud', 'copyLog'])(
-    'fails a chunk that contains %s',
-    (marker) => {
-      const jsText = new Map(JS_PROD).set('assets/index-a.js', `x.${marker}=1`);
-      const { problems } = inspectDist(prodInput({ jsText }), 'prod');
-      expect(problems).toEqual([`prod bundle: assets/index-a.js contains "${marker}"`]);
-    },
-  );
+  it.each([
+    '__PP__',
+    'installTestApi',
+    'installAutoplay',
+    'installPerfHud',
+    'copyLog',
+    'pp-debug-perf',
+  ])('fails a chunk that contains %s', (marker) => {
+    const jsText = new Map(JS_PROD).set('assets/index-a.js', `x.${marker}=1`);
+    const { problems } = inspectDist(prodInput({ jsText }), 'prod');
+    expect(problems).toEqual([`prod bundle: assets/index-a.js contains "${marker}"`]);
+  });
 
   it.each([
     'src/debug/testApi.ts',
@@ -215,10 +253,13 @@ describe('inspectDist: playtest', () => {
     expect(problems[0]).toContain('playtest bundle lacks src/debug/testApi.ts');
   });
 
-  it('fails a tree where no chunk contains __PP__', () => {
-    const jsText = new Map(JS_PLAYTEST).set('assets/testApi-a.js', 'installTestApi');
+  it.each(PROD_FORBIDDEN_MARKERS)('fails a tree where no chunk contains %s', (marker) => {
+    const jsText = new Map(
+      [...JS_PLAYTEST].map(([path, text]) => [path, text.split(marker).join('')]),
+    );
     const { problems } = inspectDist(playtestInput({ jsText }), 'playtest');
-    expect(problems).toEqual(['playtest bundle: no chunk contains "__PP__"']);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain(`no chunk contains "${marker}"`);
   });
 
   it('does not apply the prod markers to a playtest tree', () => {

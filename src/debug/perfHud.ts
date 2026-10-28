@@ -26,8 +26,8 @@ export function formatPerfHud(report: Readonly<PerfReport>, pixelRatio: number):
  * Shows a small FPS counter in `root` (`<body>`: `#pp-ui` is emptied at each screen change), bottom left: the frames of the last
  * second, their mean interval, the level's p95 so far, and the renderer's pixel ratio. Debug only,
  * and only with `?debug=1` (boot decides). It rewrites its text at most every `PERF_HUD_REFRESH_MS`
- * and only when it changed; it stays up, frozen, on the Result screen, where Geo reads the level's
- * p95 for `docs/playtest/device-measurements.md`. Returns what removes it.
+ * and only when it changed (and once more when the level ends); it stays up, frozen, on the Result
+ * screen, where Geo reads the level's p95 for `docs/playtest/device-measurements.md`. Returns what removes it.
  */
 export function installPerfHud(host: TestHost, root: PerfHudRoot): () => void {
   const element = root.ownerDocument.createElement('div');
@@ -38,19 +38,30 @@ export function installPerfHud(host: TestHost, root: PerfHudRoot): () => void {
   const meter = createPerfMeter();
   let lastWriteAtReal = Number.NEGATIVE_INFINITY;
   let lastText = '';
-  const offFeed = feedPerfMeter(host, meter, root.ownerDocument);
-  const offFrame = host.onRenderedFrame((frameAtReal, stats) => {
-    if (frameAtReal - lastWriteAtReal < PERF_HUD_REFRESH_MS) return;
-    lastWriteAtReal = frameAtReal;
-    const text = formatPerfHud(meter.report(), stats.pixelRatio);
+  let lastPixelRatio = 1;
+  const write = (pixelRatio: number): void => {
+    const text = formatPerfHud(meter.report(), pixelRatio);
     if (text === lastText) return;
     lastText = text;
     element.textContent = text;
+  };
+  const offFeed = feedPerfMeter(host, meter, root.ownerDocument);
+  const offFrame = host.onRenderedFrame((frameAtReal, stats) => {
+    lastPixelRatio = stats.pixelRatio;
+    if (frameAtReal - lastWriteAtReal < PERF_HUD_REFRESH_MS) return;
+    lastWriteAtReal = frameAtReal;
+    write(stats.pixelRatio);
+  });
+  // The Result screen draws no level frame: write the level's final figures when it ends, not up
+  // to a refresh period before.
+  const offEvents = host.onSimEvent((event) => {
+    if (event.type === 'LevelEnded') write(lastPixelRatio);
   });
   log.info('debug', 'FPS counter ready');
   return () => {
     offFeed();
     offFrame();
+    offEvents();
     element.remove();
   };
 }

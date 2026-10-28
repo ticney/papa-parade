@@ -1,7 +1,8 @@
 import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
-import { extname, join, resolve, sep } from 'node:path';
+import { extname, join, posix, resolve, sep } from 'node:path';
+import { pipeline } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
@@ -27,7 +28,7 @@ const MIME_TYPES: Readonly<Record<string, string>> = {
 };
 
 /** The files a host never publishes: the `_headers` rules are for the host, not for the visitor. */
-const HOST_ONLY_FILES: ReadonlySet<string> = new Set(['/_headers', '/_redirects']);
+const HOST_ONLY_FILES: readonly string[] = ['_headers', '_redirects'];
 
 export function mimeTypeFor(path: string): string {
   return MIME_TYPES[extname(path).toLowerCase()] ?? 'application/octet-stream';
@@ -54,8 +55,8 @@ export function parseServeArgs(argv: readonly string[]): Result<ServeArgs, strin
       if (arg === '--dir') {
         args.dir = value;
       } else {
-        const port = Number(value);
-        if (!Number.isInteger(port) || port < 0 || port > 65535) {
+        const port = /^\d+$/.test(value) ? Number(value) : Number.NaN;
+        if (!Number.isInteger(port) || port > 65535) {
           return err(`--port must be an integer in [0, 65535], got "${value}". ${USAGE}`);
         }
         args.port = port;
@@ -68,10 +69,11 @@ export function parseServeArgs(argv: readonly string[]): Result<ServeArgs, strin
 }
 
 /**
- * The file `urlPath` names inside `root`, or `null` when it would leave it (a `..` segment, a NUL
- * byte, a malformed escape). `/` is `index.html`. Pure: the disk is not touched.
+ * `urlPath` decoded and normalised once (`//a`, `/./a` and `/%61` all read `/a`), the form that the
+ * header rules, the host-only guard and the file lookup all use; `null` for a malformed escape, a
+ * NUL byte, a backslash or a `..` segment. Pure.
  */
-export function fileForUrlPath(root: string, urlPath: string): string | null {
+export function normalizeUrlPath(urlPath: string): string | null {
   let decoded: string;
   try {
     decoded = decodeURIComponent(urlPath);
@@ -80,10 +82,29 @@ export function fileForUrlPath(root: string, urlPath: string): string | null {
   }
   if (decoded.includes('\0') || decoded.includes('\\')) return null;
   if (decoded.split('/').includes('..')) return null;
+  const normalized = posix.normalize(decoded);
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+}
+
+/**
+ * The file `urlPath` names inside `root`, or `null` when it would leave it (a `..` segment, a NUL
+ * byte, a malformed escape). `/` is `index.html`. Pure: the disk is not touched.
+ */
+export function fileForUrlPath(root: string, urlPath: string): string | null {
+  const decoded = normalizeUrlPath(urlPath);
+  if (decoded === null) return null;
   const relative = decoded === '/' ? '/index.html' : decoded;
   const absoluteRoot = resolve(root);
   const file = resolve(absoluteRoot, `.${relative}`);
   return file.startsWith(absoluteRoot + sep) ? file : null;
+}
+
+/** True when `file` is one of the host-only files of `root` (compared case-insensitively: macOS disks are). */
+function isHostOnly(root: string, file: string): boolean {
+  const absoluteRoot = resolve(root);
+  return HOST_ONLY_FILES.some(
+    (name) => file.toLowerCase() === resolve(absoluteRoot, name).toLowerCase(),
+  );
 }
 
 /**
@@ -94,7 +115,8 @@ export function fileForUrlPath(root: string, urlPath: string): string | null {
  */
 export function createDistServer(root: string, rules: readonly HeaderRule[]): Server {
   return createServer((request, response) => {
-    const urlPath = (request.url ?? '/').split('?')[0]?.split('#')[0] ?? '/';
+    const rawPath = (request.url ?? '/').split('?')[0]?.split('#')[0] ?? '/';
+    const urlPath = normalizeUrlPath(rawPath) ?? rawPath;
     const send = (status: number, extra: Record<string, string | number> = {}, body?: string) => {
       response.writeHead(status, { ...headersFor(rules, urlPath), ...extra });
       response.end(request.method === 'HEAD' ? undefined : body);
@@ -103,12 +125,12 @@ export function createDistServer(root: string, rules: readonly HeaderRule[]): Se
       send(405, { allow: 'GET, HEAD' });
       return;
     }
-    const file = HOST_ONLY_FILES.has(urlPath) ? undefined : fileForUrlPath(root, urlPath);
+    const file = fileForUrlPath(root, rawPath);
     if (file === null) {
       send(403, { 'content-type': 'text/plain; charset=utf-8' }, 'Forbidden');
       return;
     }
-    if (file === undefined) {
+    if (isHostOnly(root, file)) {
       send(404, { 'content-type': 'text/plain; charset=utf-8' }, 'Not found');
       return;
     }
@@ -128,14 +150,19 @@ export function createDistServer(root: string, rules: readonly HeaderRule[]): Se
           response.end();
           return;
         }
-        const stream = createReadStream(file);
-        stream.on('error', (cause) => {
-          log.warn('assets', `cannot read ${file}`, cause);
-          response.destroy(cause);
+        // `pipeline` destroys the file stream when the client aborts, so no descriptor lingers.
+        pipeline(createReadStream(file), response, (cause) => {
+          if (cause && cause.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+            log.warn('assets', `cannot send ${file}`, cause);
+          }
         });
-        stream.pipe(response);
       },
-      () => send(404, { 'content-type': 'text/plain; charset=utf-8' }, 'Not found'),
+      (cause: NodeJS.ErrnoException) => {
+        if (cause.code !== 'ENOENT' && cause.code !== 'ENOTDIR') {
+          log.warn('assets', `cannot stat ${file}`, cause);
+        }
+        send(404, { 'content-type': 'text/plain; charset=utf-8' }, 'Not found');
+      },
     );
   });
 }

@@ -4,7 +4,7 @@ baseline_commit: 659150d
 
 # Story 1.24: Shareable Playtest Build and Performance Budget
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.24 « Build de playtest partageable et budget de performance » (L1184-1216). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -70,7 +70,7 @@ so that I can start the prototype's playtests.
    - `"build": "VITE_DEBUG_ALLOWED=false vite build"`.
    - `"build:playtest": "VITE_DEBUG_ALLOWED=true vite build --mode playtest"`.
    - A process env var beats `.env*` in Vite, so an exported shell value can no longer flip a build (D2).
-   - `vite.config.ts` gains `build: { manifest: true }`. `dist/.vite/manifest.json` then lists every source module of every chunk; the dist check reads it (AC 4).
+   - `vite.config.ts` gains `build: { manifest: true }`. `dist/.vite/manifest.json` then lists the entry and dynamic-entry chunks with their source module (not every module, see Completion Notes; amended by the code review); the dist check reads it (AC 4), and the text markers cover the rest.
 2. **`public/_headers` holds the security headers, for every path** (D1). It is the single source: the hosts read it from the published folder (Cloudflare Pages and Netlify use the same format), and the local server of AC 5 applies it.
    ```
    /*
@@ -145,7 +145,7 @@ so that I can start the prototype's playtests.
 
 9. **`src/debug/perfHud.ts`: `installPerfHud(host, root)`** shows a small counter. It is shown only when `?debug=1` is in the URL (`params.isDebug`), in any debug-allowed build, so plain dev and the screenshot specs do not see it (D5).
    - **Loading:** boot loads it in the existing `VITE_DEBUG_ALLOWED === 'true'` block, by the literal `await import('@debug/perfHud')`, inside `try/catch` with a `log.warn` (like autoplay). The R7 architecture rule allows a literal dynamic import in `boot.ts` only; do not touch the rule.
-   - **DOM:** `div.pp-debug-perf[aria-hidden=true]`, a child of `#pp-ui`, fixed at the bottom-left inside the safe area. `pointer-events: none`, so it never steals a tap. Text at `var(--pp-spacing-text-min)`, `ink` on `paper`, the sticker outline.
+   - **DOM:** `div.pp-debug-perf[aria-hidden=true]`, a child of `<body>` (amended by the code review: `overlayHost` empties `#pp-ui` at each screen change), fixed at the bottom-left inside the safe area. `pointer-events: none`, so it never steals a tap. Text at `var(--pp-spacing-text-min)`, `ink` on `paper`, the sticker outline.
    - **Style:** in `src/debug/perfHud.css`, imported by `perfHud.ts`. Vite emits it in the debug chunk; no inline style (CSP).
    - **Text:** `60 FPS · 16.7 ms · p95 17.0 ms · DPR 2`:
      - FPS is the frame count of the last full second;
@@ -236,7 +236,7 @@ so that I can start the prototype's playtests.
       - FPS p95, as `1000 / p95` from the counter, and p95 ms;
       - DPR at the end;
       - the 10+ latencies, with mean and max;
-      - verdicts NFR1 (p95 ≤ 16.7 ms, i.e. 60 FPS stable), NFR2 (every tap ≤ 50 ms), NFR3 (< 5 s);
+      - verdicts NFR1 (p95 ≤ 20 ms, amended by the code review and decided by Geo: the 16.7 ms of a 60 Hz screen plus the jitter of the measure), NFR2 (every tap ≤ 50 ms), NFR3 (< 5 s);
       - notes.
     - **The gate:** the playtest starts only if NFR1 and NFR2 pass on both devices. Otherwise note the gap there, and the next create-story run adds a correction story (Geo decides its number).
     - The tables are left empty, with `—`. **The dev agent does not fill in measurements it did not take.** Geo, or an agent that drives a real device, fills them in.
@@ -376,7 +376,7 @@ so that I can start the prototype's playtests.
 
 - Layers:
   - `tools/**` is Node only and never imported by `src/`;
-  - `tests/e2e-dist` imports `tests/e2e/support/*` and `@shared` only;
+  - `tests/e2e-dist` imports `tests/e2e/support/*`, `@shared` and (amended by the code review) `tools/serve/headers.ts` and `tools/deploy/checkDeployment.ts` for the CSP rules, plus a relative `src/shared/constants.ts`;
   - `src/debug` may import anything;
   - `src/client` reaches it only through `boot.ts`.
 - No `console.*`: tools use `log` from `@shared/log` like the other tools (check `tools/sim/runSim.ts` for the pattern of printing a report and exit codes).
@@ -574,3 +574,34 @@ Changed:
 ### Change Log
 
 - 2026-10-28: Story 1.24 implemented. Playtest and prod builds pinned and checked (`dist:check`), CSP in `public/_headers`, `copyLog` gated, local server and dist e2e (dist specs and a full-level perf spec), debug FPS counter, `__PP__.perf()`, adaptive pixel ratio, deploy check, docs, CI stages. Zod set to `jitless` to keep the CSP free of `eval`. Live deploy and device pass left to Geo.
+
+### Review Findings
+
+Code review 2026-10-28 (Blind Hunter, Edge Case Hunter, Acceptance Auditor; `main...story/1-24-…`).
+
+- [x] [Review][Patch] (decided by Geo: verdict becomes « p95 ≤ 20 ms », same as the CI budget; also feed the rAF timestamp, see below) NFR1 device verdict « p95 ≤ 16,7 ms » is probably unreachable — the meter takes `performance.now()` at the end of the frame callback (`boot.ts`), so each interval carries the callback-duration jitter; Safari coarsens the clock to ~1 ms; `p95Ms()` returns a bucket's upper edge. A healthy 60 Hz phone can read `KO`; the desktop p95 is already 18,2 ms. Options: (a) keep 16,7; (b) « p95 ≤ 20 ms » (same as the CI budget); (c) a share of frames above 16,7 ms (e.g. ≤ 5 %). Whatever the choice, the rAF timestamp should feed the meter (patch below). Same item as the deferred note of the dev. [`docs/playtest/device-measurements.md`, `src/client/boot.ts`, `src/debug/perfMeter.ts`]
+- [x] [Review][Patch] (decided by Geo: a step needs two consecutive slow windows) The adaptive pixel ratio steps down for good on one hitch or a throttled phone — the window judges `mean = 2000 ms / frames > 18 ms`, so one 170 ms hitch in a perfect 60 Hz window (2000/109 = 18,3) steps 2 → 1,5 and it never comes back; a phone capped at 30 fps (Low Power Mode, battery saver) loses resolution though its GPU is idle; the first window of a level holds shader compile / upload. Options: (a) a step needs two consecutive slow windows; (b) judge a median or trimmed mean; (c) lower the stall threshold to ~250 ms; (d) allow a step back up. [`src/client/render/adaptivePixelRatio.ts`]
+- [x] [Review][Dismiss] (decided by Geo: keep it blocking, read the first GitHub run, open point 2 stands) `perf.spec.ts` asserts timing (p95 ≤ 20 ms, ~5 min) in the GitHub CI — headless Chromium on `ubuntu-latest` renders in software; the 1.8 ms margin may not hold, and the « never loosen a budget » note would turn a runner flake into a code-fix request. The green run in the Debug Log is local. Options: (a) keep it blocking and see the first run (open point 2); (b) run it in CI but non-blocking (`continue-on-error`) with the number printed; (c) local only (`npm run ci`), not in `ci.yml`. [`.github/workflows/ci.yml`, `tests/e2e-dist/perf.spec.ts`]
+- [x] [Review][Dismiss] (decided by Geo: keep them as constants) The pixel-ratio tunables (`PIXEL_RATIO_STEPS`, `PIXEL_RATIO_WINDOW_MS`, `PIXEL_RATIO_SLOW_FRAME_MS`) live in `shared/constants.ts`, not in `content/feel.json`. The architecture names them, but the golden rule says anything Geo may tweak is data. Keep as constants, or move to `feel.json`? [`src/shared/constants.ts`]
+- [x] [Review][Patch] The `dist/.vite/manifest.json` « lists every source module of every chunk » premise is wrong (it lists entries and dynamic entries only: 4 keys in the prod build); `vite.config.ts` and the `CLAUDE.md` `dist:check` row still claim the prod check « proves no `src/debug` / `src/bots` module is in the bundle ». Correct both texts, add `createHumanBot`, `tweakpane` and a perf-only string that survives minification (e.g. the `pp-debug-perf` class) to `PROD_FORBIDDEN_MARKERS`, and make the playtest check require each marker to be present, so that « absent in prod » is never vacuous. [`vite.config.ts`, `CLAUDE.md`, `tools/build/inspectDist.ts`]
+- [x] [Review][Patch] `serveDist` serves `_headers` / `_redirects` through `//_headers`, `/./_headers`, `/%5Fheaders` (and `/_HEADERS` on a case-insensitive disk): the host-only guard and `headersFor` use the raw path while the lookup decodes it. Decode and normalise once; apply the guard to the resolved file against `resolve(root, '_headers')`, case-insensitively; test the bypasses. [`tools/serve/serveDist.ts:97-106`, `tools/serve/serveDist.test.ts`]
+- [x] [Review][Patch] `serveDist`: `stream.pipe(response)` leaks the file descriptor when a client aborts (use `pipeline`, or destroy the stream on `response` close); every `stat` rejection (EACCES, ELOOP) becomes a silent 404 — `log.warn` the non-ENOENT ones. `--port ""`, `0x10`, `1e3` are accepted (require `/^\d+$/`). [`tools/serve/serveDist.ts`]
+- [x] [Review][Patch] `e2eDistPort()` adds 1000 without a range check (`PP_E2E_PORT=65000` → 66000, rejected by `serveDist` with a message that blames the wrong variable). Validate the sum. [`tests/e2e/support/e2ePort.ts`]
+- [x] [Review][Patch] Reset the pixel-ratio window and the perf meter on every pause gap: `visibilitychange` does not reset `pixelPacing` (the window can close on a 0,2-1,9 s hidden-tab interval before `GameResumed`), paused frames keep feeding it, and `feedPerfMeter` ignores `onGameResumed` so a pause lands in `frameMsMax` and the histogram. Skip the next interval on `visibilitychange` and on pause/resume in both. [`src/client/boot.ts`, `src/debug/perfFeed.ts`]
+- [x] [Review][Patch] Feed the meter and the pacing with the rAF timestamp instead of `performance.now()` at the end of the callback (`onLevelFrame(alpha, frameAtReal)`). [`src/client/boot.ts`, `src/client/app/loop.ts`]
+- [x] [Review][Patch] A pixel-ratio step on a device whose DPR is already at or under the new cap does nothing, yet burns a 2 s window and logs « stepped down » (DPR 1 or 1,25: 2 → 1,5). Skip to the first step that changes `min(devicePixelRatio, cap)` and log only a real change. [`src/client/render/renderer.ts:849`, `src/client/boot.ts:431-440`]
+- [x] [Review][Patch] `setPixelRatioCap` resizes the backing store after `renderer.render()` in the same task: the cleared canvas can be presented for one frame. Re-render right after the resize, or apply the cap before the render of the next frame. [`src/client/render/renderer.ts:846-854`]
+- [x] [Review][Patch] A throwing `renderedFrameListeners` entry (or `setPixelRatioCap`) stops the game loop (fail-stop). Wrap the listener loop in a try/catch with a `log.warn`. [`src/client/boot.ts:688-693`]
+- [x] [Review][Patch] CSP checks disagree: `dist.spec.ts` demands the exact string while `deploy:check` accepts extra directives (`upgrade-insecure-requests`), so `deploy:check` can pass and `PP_DIST_URL=… e2e:dist` fail on the same host. Reuse `cspProblems` in the spec. [`tests/e2e-dist/dist.spec.ts`]
+- [x] [Review][Patch] `cspDirectives` keeps the last duplicate (browsers keep the first), compares source lists in order (`'wasm-unsafe-eval' 'self'` is a false positive) and only rejects `unsafe-inline` / `unsafe-eval`. Keep the first duplicate (or reject duplicates), compare as sets, reject `*`, `https:`, `data:` sources; `headersFor` joining two rules with « , » must not feed this parser. Add tests. [`tools/serve/headers.ts`, `tools/build/inspectDist.ts`]
+- [x] [Review][Patch] `checkDeployment`: `fetch` has no timeout (use `AbortSignal.timeout`), and redirects are followed silently so a `301` to another host passes the « 200 » check (`redirect: 'manual'` or compare the final origin). [`tools/deploy/checkDeployment.ts`]
+- [x] [Review][Patch] `inspectDist`: the audio budget passes with zero audio bytes if Vite relocates `assets/audio/` (add a « no audio found » problem); `firstLoadGzipBytes` starts from the raw level payload, so the figure labelled gzip is a hybrid (gzip it, or label it). [`tools/build/inspectDist.ts`]
+- [x] [Review][Patch] `runDistE2e`: a spawn failure (`run.error`, ENOENT) is not logged — the message « stopped at … » has no cause. [`tools/build/runDistE2e.ts`]
+- [x] [Review][Patch] Flush the HUD text on `LevelEnded` (up to 250 ms stale on the Result screen, where Geo reads the p95). [`src/debug/perfHud.ts`]
+- [x] [Review][Patch] The test « does nothing when the ratio would not change » never asserts its second case (same cap twice). Assert it. [`src/client/render/renderer.test.ts`]
+- [x] [Review][Patch] With `?debug=1` the start screen waits for the `perfHud` and `testApi` chunks, so the NFR3 load time measured by the device protocol includes fetches a tester will not pay. Say so in the protocol, or measure NFR3 without `?debug=1`. [`docs/playtest/device-measurements.md`]
+- [x] [Review][Patch] Amend the story text where the code deviates on purpose: AC 9 (HUD child of `<body>`, not `#pp-ui`; Completion Note 3), the architecture-compliance line « `tests/e2e-dist` imports `tests/e2e/support/*` and `@shared` only » (it imports `tools/serve/headers.ts` and a relative `src/shared/constants.ts`), and the AC 4 manifest premise. [this file]
+- [x] [Review][Defer] `PP_DIST_URL` drops a deployment sub-path (`page.goto('/…')` resolves against the origin) [`playwright.dist.config.ts`] — deferred, Pages / Netlify deploy at the root of their origin
+- [x] [Review][Defer] The CSP has no `blob:` / `data:` in `img-src` / `connect-src`; the current `salon_crawler.glb` has no embedded texture, so the dist e2e passes, but a level with textures would be blocked in the store build only [`public/_headers`] — deferred, decide with the first textured level
+- [x] [Review][Defer] `dist/.vite/manifest.json` ships in the deployed folder and exposes source module paths [`vite.config.ts`] — deferred, harmless for a prototype; move it out of `dist/` before a public release
+- [x] [Review][Defer] `externalUrlsOf` is a narrow regex (unquoted attributes, `srcset`, CSS `url()`, `data-src`) [`tools/build/inspectDist.ts`] — deferred, a heuristic on a one-page `index.html`

@@ -40,6 +40,9 @@ function main(): void {
   for (const step of steps) {
     log.info('assets', `e2e:dist › ${step.label}`);
     const run = spawnSync(step.command, step.args, { stdio: 'inherit' });
+    if (run.error !== undefined) {
+      log.error('assets', `e2e:dist cannot start "${step.label}"`, run.error);
+    }
     if (run.status !== 0) {
       log.error('assets', `e2e:dist stopped at "${step.label}"`);
       process.exitCode = run.status ?? 1;

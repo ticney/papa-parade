@@ -17,12 +17,13 @@ Avant de commencer : récupérer l'URL du build de playtest déployé (CLAUDE.md
 
 1. **Chargement (NFR3, moins de 5 s).**
    - Passer en **4G**, pas en Wi-Fi.
-   - Ouvrir `<url>/?debug=1`.
+   - Ouvrir `<url>/`, **sans** `?debug=1` : avec lui, l'écran de départ attend aussi les deux modules de debug (le compteur et l'API de test), deux téléchargements en plus que les testeurs ne feront pas, et le temps mesuré serait trop long.
+   - Pour lire le compteur plus bas (étape 2), recharger ensuite avec `<url>/?debug=1`.
    - Noter le temps entre le tap sur le lien et l'écran de départ, au chronomètre ou sur une vidéo à 240 i/s.
 2. **Un niveau complet à la main.**
    - Jouer un niveau en entier (environ 5 minutes réelles).
    - Sur l'écran de résultat, lire le compteur en bas à gauche : `p95` et `DPR`. Le compteur reste figé sur l'écran de résultat exprès.
-   - FPS p95 = `1000 / p95`.
+   - FPS p95 = `1000 / p95`. Le compteur mesure l'intervalle entre deux images affichées (l'horodatage du navigateur) et arrondit au dixième de milliseconde au-dessus : un écran à 60 Hz qui tient donne un p95 de 16,7 à 17 ms, et la gigue de l'écran peut le pousser un peu plus haut.
 3. **Latence du tap (NFR2, au plus 50 ms).**
    - Filmer à **240 i/s** (iPhone : « Ralenti » 240 i/s), le doigt **et** l'écran dans le cadre.
    - Au moins **10 taps** sur des icônes de menace.
@@ -38,7 +39,7 @@ Si le compteur affiche un `DPR` plus bas que prévu à la fin du niveau, c'est l
 
 | Exigence | Seuil | Verdict |
 |---|---|---|
-| NFR1 : 60 FPS stable sur un niveau complet | p95 ≤ 16,7 ms | `OK` si le seuil tient, sinon `KO` |
+| NFR1 : 60 FPS stable sur un niveau complet | p95 ≤ 20 ms (le budget du CI : les 16,7 ms d'un écran à 60 Hz plus la gigue de la mesure) | `OK` si le seuil tient, sinon `KO` |
 | NFR2 : du tap au retour visuel | chaque tap ≤ 50 ms | `OK` si les 10+ taps tiennent, sinon `KO` |
 | NFR3 : un niveau charge en moins de 5 s en 4G | < 5 s | `OK` si le seuil tient, sinon `KO` |
 

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { RESUME_COUNTDOWN_MS } from '../../src/shared/constants.ts';
+import { cspProblems } from '../../tools/deploy/checkDeployment.ts';
 import { headersFor, parseHeaders } from '../../tools/serve/headers.ts';
 import {
   audioState,
@@ -59,7 +60,10 @@ test.describe('the built playtest bundle', () => {
 
     const response = await page.goto(`/?autoplay=perfect&seed=1&speed=${SPEED}&debug=1`);
     // The host (or our server) sends the policy of `public/_headers`, and the type sniffing guard.
-    expect(response?.headers()['content-security-policy']).toBe(expectedCsp());
+    // Same rule as `deploy:check`: the promised directives, a host may add its own.
+    expect(
+      cspProblems(expectedCsp(), response?.headers()['content-security-policy'] ?? null),
+    ).toEqual([]);
     expect(response?.headers()['x-content-type-options']).toBe('nosniff');
 
     await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {

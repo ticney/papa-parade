@@ -35,7 +35,8 @@ export interface GameRenderer {
   resize(): number | null;
   /**
    * Lowers (or raises) the ceiling of the pixel ratio, and redraws the backing store at the new
-   * ratio and the current size. Does nothing when the ratio would not change.
+   * ratio and the current size, then draws the last frame again (resizing clears the canvas, which
+   * would otherwise be presented blank). Does nothing when the ratio would not change.
    */
   setPixelRatioCap(cap: number): void;
   render(scene: Scene, camera: Camera): void;
@@ -86,6 +87,9 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
   };
   // The adaptive cap (story 1.24); the resize path reads it too, so a resize never undoes a step.
   let pixelRatioCap: number = MAX_PIXEL_RATIO;
+  // The last frame's scene and camera, to draw it again right after the backing store is resized.
+  let lastScene: Scene | null = null;
+  let lastCamera: Camera | null = null;
 
   return ok({
     resize() {
@@ -103,9 +107,14 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
       renderer.setPixelRatio(ratio);
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
-      if (width > 0 && height > 0) renderer.setSize(width, height, false);
+      if (width > 0 && height > 0) {
+        renderer.setSize(width, height, false);
+        if (lastScene !== null && lastCamera !== null) renderer.render(lastScene, lastCamera);
+      }
     },
     render(scene, camera) {
+      lastScene = scene;
+      lastCamera = camera;
       renderer.render(scene, camera);
     },
     stats() {
@@ -119,6 +128,8 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
     dispose() {
       canvas.removeEventListener('webglcontextlost', onContextLost);
       canvas.removeEventListener('webglcontextrestored', onContextRestored);
+      lastScene = null;
+      lastCamera = null;
       renderer.dispose();
     },
   });

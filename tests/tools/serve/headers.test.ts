@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { cspDirectives, headersFor, parseHeaders } from '../../../tools/serve/headers.ts';
+import {
+  cspDirectives,
+  headersFor,
+  parseHeaders,
+  sameSources,
+  weakSourcesOf,
+} from '../../../tools/serve/headers.ts';
 
 const parsed = (text: string) => {
   const result = parseHeaders(text);
@@ -87,6 +93,11 @@ describe('headersFor', () => {
 });
 
 describe('cspDirectives', () => {
+  it('keeps the first of a directive written twice, as a browser does', () => {
+    const directives = cspDirectives("script-src 'self'; script-src 'self' 'unsafe-eval'");
+    expect([...directives]).toEqual([['script-src', "'self'"]]);
+  });
+
   it('splits a policy into directives with their sources, whitespace collapsed', () => {
     const directives = cspDirectives(
       "default-src 'self';  script-src 'self'   'wasm-unsafe-eval' ;",
@@ -99,5 +110,23 @@ describe('cspDirectives', () => {
 
   it('is empty for an empty policy', () => {
     expect(cspDirectives('').size).toBe(0);
+  });
+});
+
+describe('sameSources', () => {
+  it('ignores order and spacing', () => {
+    expect(sameSources("'self'  'wasm-unsafe-eval'", "'wasm-unsafe-eval' 'self'")).toBe(true);
+    expect(sameSources("'self'", "'self' 'unsafe-eval'")).toBe(false);
+  });
+});
+
+describe('weakSourcesOf', () => {
+  it('lists the sources that open a policy', () => {
+    expect(weakSourcesOf("'self' https: * 'unsafe-inline'")).toEqual([
+      'https:',
+      '*',
+      "'unsafe-inline'",
+    ]);
+    expect(weakSourcesOf("'self' 'wasm-unsafe-eval'")).toEqual([]);
   });
 });

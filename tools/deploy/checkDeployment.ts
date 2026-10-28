@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { DEPLOY_FETCH_TIMEOUT_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
-import { cspDirectives, headersFor, parseHeaders } from '../serve/headers.ts';
+import { cspDirectives, headersFor, parseHeaders, sameSources } from '../serve/headers.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const USAGE = 'usage: npm run deploy:check -- <https url>';
@@ -22,7 +23,7 @@ export function cspProblems(expected: string, actual: string | null): string[] {
   const problems: string[] = [];
   for (const [name, sources] of cspDirectives(expected)) {
     const got = sent.get(name);
-    if (got !== sources) {
+    if (got === undefined || !sameSources(got, sources)) {
       problems.push(
         `CSP "${name}" should be "${sources}", got ${got === undefined ? 'nothing' : `"${got}"`}`,
       );
@@ -140,7 +141,11 @@ async function main(): Promise<void> {
   if (!url.ok) return fail(url.error);
   const csp = await readExpectedCsp();
   if (!csp.ok) return fail(csp.error);
-  const problems = await checkDeployment(url.value, csp.value, (target) => fetch(target));
+  const problems = await checkDeployment(url.value, csp.value, (target) =>
+    // A redirect is a problem to report (a `301` to another host must not read as a 200), and a
+    // host that never answers must not hang the check.
+    fetch(target, { redirect: 'manual', signal: AbortSignal.timeout(DEPLOY_FETCH_TIMEOUT_MS) }),
+  );
   for (const problem of problems) log.error('assets', problem);
   if (problems.length > 0) return fail(`${problems.length} deployment problem(s) at ${url.value}`);
   log.info('assets', 'deployment OK', { url: url.value });

@@ -140,6 +140,32 @@ describe('installPerfHud', () => {
     expect(element.textWrites.at(-1)).toMatch(/p95 50\.\d ms/);
   });
 
+  it('a resume after a pause adds no long frame to the p95', () => {
+    const host = createFakeTestHost();
+    const { root, created } = createRoot();
+    installPerfHud(host, root);
+    const element = created[0] as FakeNode;
+    const end = frames(host, 0, 2000);
+    // The app sends no frame while paused, then the game resumes 20 s later.
+    host.fireGameResumed();
+    frames(host, end + 20_000, 2000);
+    expect(element.textWrites.at(-1)).toMatch(/p95 1[67]\.\d ms/);
+  });
+
+  it('writes the final figures when the level ends, even inside a refresh slot', () => {
+    const host = createFakeTestHost();
+    const { root, created } = createRoot();
+    installPerfHud(host, root);
+    const element = created[0] as FakeNode;
+    host.fireRenderedFrame(0, { pixelRatio: 1.5 });
+    host.fireRenderedFrame(16.7, { pixelRatio: 1.5 });
+    // 16.7 ms into the slot: the frame wrote nothing, the level end does.
+    const before = element.textWrites.length;
+    host.fireSimEvent({ type: 'LevelEnded', t: 0, reason: 'timer' } as never);
+    expect(element.textWrites.length).toBe(before + 1);
+    expect(element.textWrites.at(-1)).toMatch(/DPR 1\.5$/);
+  });
+
   it('removes the element and its listeners when told to', () => {
     const host = createFakeTestHost();
     const { root, created, listeners } = createRoot();
@@ -148,6 +174,7 @@ describe('installPerfHud', () => {
     expect(created[0]?.isRemoved).toBe(true);
     expect(listeners.get('visibilitychange')?.size).toBe(0);
     host.fireRenderedFrame(0);
+    host.fireSimEvent({ type: 'LevelEnded', t: 0, reason: 'timer' } as never);
     expect(created[0]?.textWrites).toEqual([]);
   });
 

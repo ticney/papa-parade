@@ -22,6 +22,18 @@ describe('cspProblems', () => {
     expect(cspProblems(CSP, `${CSP}; upgrade-insecure-requests`)).toEqual([]);
   });
 
+  it('accepts the same sources in another order', () => {
+    const reordered = CSP.replace("'self' 'wasm-unsafe-eval'", "'wasm-unsafe-eval' 'self'");
+    expect(cspProblems(CSP, reordered)).toEqual([]);
+  });
+
+  it('judges a directive written twice by its first occurrence, as a browser does', () => {
+    const weakFirst = `script-src 'self' 'unsafe-eval'; ${CSP}`;
+    expect(cspProblems(CSP, weakFirst)).toEqual([
+      `CSP "script-src" should be "'self' 'wasm-unsafe-eval'", got "'self' 'unsafe-eval'"`,
+    ]);
+  });
+
   it('fails a missing header', () => {
     expect(cspProblems(CSP, null)).toEqual(['no Content-Security-Policy header']);
   });
@@ -88,6 +100,15 @@ describe('checkDeployment', () => {
     const routes = { '/': new Response('Boom', { status: 503, headers: HEADERS }) };
     expect(await checkDeployment(BASE, CSP, fakeHost(routes))).toEqual([
       `GET ${BASE} answered 503, not 200`,
+    ]);
+  });
+
+  it('fails a page that redirects (a 301 to another host is not a 200)', async () => {
+    const routes = {
+      '/': new Response(null, { status: 301, headers: { location: 'https://elsewhere.dev/' } }),
+    };
+    expect(await checkDeployment(BASE, CSP, fakeHost(routes))).toEqual([
+      `GET ${BASE} answered 301, not 200`,
     ]);
   });
 

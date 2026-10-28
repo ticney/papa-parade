@@ -69,7 +69,10 @@ export function headersFor(rules: readonly HeaderRule[], urlPath: string): Recor
   return merged;
 }
 
-/** A Content-Security-Policy as `directive name → its value` (the sources, whitespace collapsed). */
+/**
+ * A Content-Security-Policy as `directive name → its value` (the sources, whitespace collapsed).
+ * A directive written twice counts once, the first time: that is the one a browser enforces.
+ */
 export function cspDirectives(csp: string): Map<string, string> {
   const directives = new Map<string, string>();
   for (const part of csp.split(';')) {
@@ -78,7 +81,34 @@ export function cspDirectives(csp: string): Map<string, string> {
       .split(/\s+/)
       .filter((word) => word !== '');
     const [name, ...sources] = words;
-    if (name !== undefined) directives.set(name.toLowerCase(), sources.join(' '));
+    if (name !== undefined && !directives.has(name.toLowerCase())) {
+      directives.set(name.toLowerCase(), sources.join(' '));
+    }
   }
   return directives;
+}
+
+/** True when two source lists hold the same sources, whatever their order (`'self' 'wasm-unsafe-eval'`). */
+export function sameSources(a: string, b: string): boolean {
+  const sorted = (sources: string): string =>
+    sources
+      .split(/\s+/)
+      .filter((source) => source !== '')
+      .sort()
+      .join(' ');
+  return sorted(a) === sorted(b);
+}
+
+/** Sources that open a policy to the whole web or to unsafe code: never acceptable in this game's CSP. */
+const WEAK_SOURCES: readonly string[] = [
+  "'unsafe-inline'",
+  "'unsafe-eval'",
+  '*',
+  'http:',
+  'https:',
+];
+
+/** The weak sources a CSP value (one directive's sources) holds. */
+export function weakSourcesOf(sources: string): string[] {
+  return sources.split(/\s+/).filter((source) => WEAK_SOURCES.includes(source));
 }

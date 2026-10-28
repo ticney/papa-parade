@@ -49,8 +49,14 @@ export const MAX_PIXEL_RATIO = PIXEL_RATIO_STEPS[0];
 /** Real time over which the adaptive pixel ratio averages the frame interval, in ms. */
 export const PIXEL_RATIO_WINDOW_MS = 2000;
 
-/** A window whose mean frame interval is above this steps the pixel ratio down one cap, in ms. */
+/** A window whose mean frame interval is above this is slow, in ms. */
 export const PIXEL_RATIO_SLOW_FRAME_MS = 18;
+
+/**
+ * Slow windows in a row that step the pixel ratio down one cap: one hitch (a garbage collection, a
+ * shader compile) must not cost the picture its sharpness for good.
+ */
+export const PIXEL_RATIO_SLOW_WINDOWS = 2;
 
 /** Budget: at most this many draw calls in a frame (architecture › Performance). */
 export const DRAW_CALLS_MAX = 100;
@@ -75,6 +81,9 @@ export const PERF_HUD_REFRESH_MS = 250;
 
 /** The dist e2e server's port is the dev e2e port plus this, so the two never collide. */
 export const DIST_PORT_OFFSET = 1000;
+
+/** `npm run deploy:check` gives up on a host that has not answered a request after this long. */
+export const DEPLOY_FETCH_TIMEOUT_MS = 15_000;
 
 /** Horizontal angle of the isometric camera around the vertical axis, in degrees. */
 export const ISO_YAW_DEG = 45;

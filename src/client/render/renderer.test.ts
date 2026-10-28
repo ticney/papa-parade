@@ -6,6 +6,7 @@ const gl = vi.hoisted(() => ({
   ratio: 1,
   setPixelRatio: vi.fn(),
   setSize: vi.fn(),
+  render: vi.fn(),
 }));
 vi.mock('three', () => ({
   WebGLRenderer: class {
@@ -16,7 +17,7 @@ vi.mock('three', () => ({
       gl.setPixelRatio(ratio);
     };
     setSize = gl.setSize;
-    render = vi.fn();
+    render = gl.render;
     dispose = vi.fn();
   },
 }));
@@ -69,6 +70,7 @@ describe('the renderer pixel-ratio cap', () => {
     gl.ratio = 1;
     gl.setPixelRatio.mockClear();
     gl.setSize.mockClear();
+    gl.render.mockClear();
     vi.stubGlobal('window', { devicePixelRatio: 3 });
   });
   afterEach(() => vi.unstubAllGlobals());
@@ -92,6 +94,20 @@ describe('the renderer pixel-ratio cap', () => {
     expect(renderer.stats().pixelRatio).toBe(PIXEL_RATIO_STEPS[1]);
   });
 
+  it('draws the last frame again after resizing the backing store (a resize clears the canvas)', () => {
+    const renderer = make();
+    const scene = {} as never;
+    const camera = {} as never;
+    renderer.resize();
+    renderer.setPixelRatioCap(PIXEL_RATIO_STEPS[1]);
+    // No frame drawn yet: nothing to draw again.
+    expect(gl.render).not.toHaveBeenCalled();
+    renderer.render(scene, camera);
+    gl.render.mockClear();
+    renderer.setPixelRatioCap(PIXEL_RATIO_STEPS[2]);
+    expect(gl.render).toHaveBeenCalledExactlyOnceWith(scene, camera);
+  });
+
   it('does nothing when the ratio would not change', () => {
     const renderer = make();
     renderer.resize();
@@ -99,6 +115,9 @@ describe('the renderer pixel-ratio cap', () => {
     gl.setPixelRatio.mockClear();
     gl.setSize.mockClear();
     renderer.setPixelRatioCap(PIXEL_RATIO_STEPS[1]);
+    // The same cap twice: the second call changes nothing.
+    expect(gl.setPixelRatio).not.toHaveBeenCalled();
+    expect(gl.setSize).not.toHaveBeenCalled();
     // A device at ratio 1 sees no difference between any two caps.
     vi.stubGlobal('window', { devicePixelRatio: 1 });
     renderer.resize();

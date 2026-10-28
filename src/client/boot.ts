@@ -531,13 +531,14 @@ export async function boot(): Promise<void> {
     [];
   // The adaptive pixel ratio (story 1.24): fed in every build, with the real interval between two
   // level frames. A level start and a resume start a clean window (`resetFramePacing`).
-  const pixelPacing = createAdaptivePixelRatio();
+  const pixelPacing = createAdaptivePixelRatio(window.devicePixelRatio);
   let previousLevelFrameAtReal = -1;
   const resetFramePacing = (): void => {
     previousLevelFrameAtReal = -1;
     pixelPacing.resetWindow();
   };
   events.on('GameResumed', resetFramePacing);
+  document.addEventListener('visibilitychange', resetFramePacing);
   let isGameInputBlocked = false;
   let hasLoggedSilentStart = false;
   // Mama's note of the level that ended (story 1.22), and whether its Result sequence has started: a
@@ -585,7 +586,7 @@ export async function boot(): Promise<void> {
       fitViewToCanvas();
       if (isMirrored) mirror('ppLevel', level.id);
     },
-    onLevelFrame: (alpha) => {
+    onLevelFrame: (alpha, frameAtReal) => {
       // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
       // Once the level has ended the sim is frozen with `babbling` as it was: silence it.
       const babbleWorld = levelSession.active?.sim.world;
@@ -668,27 +669,42 @@ export async function boot(): Promise<void> {
         mirror('ppTextures', String(textures));
         mirror('ppPixelRatio', String(renderer.stats().pixelRatio));
       }
-      // Last, after the level and the world UI are drawn: the frame's real time, for the adaptive
-      // pixel ratio and for the debug meters. No allocation: an indexed loop, no closure.
-      const frameAtReal = performance.now();
+      // Last, after the level and the world UI are drawn: the display frame's timestamp, for the
+      // adaptive pixel ratio and for the debug meters. No allocation: an indexed loop, no closure.
+      // Only a running game is measured: a pause, its countdown and a hidden tab are not frames of
+      // play. A repeated timestamp is an `advance` render, not a frame.
+      if (pause.state !== 'running' || frameAtReal <= previousLevelFrameAtReal) {
+        if (pause.state !== 'running') resetFramePacing();
+        return;
+      }
       if (previousLevelFrameAtReal >= 0) {
         const fromCap = pixelPacing.cap;
         const toCap = pixelPacing.frame(frameAtReal - previousLevelFrameAtReal);
         if (toCap !== fromCap) {
-          renderer.setPixelRatioCap(toCap);
-          log.info('render', 'pixel ratio stepped down', {
-            fromCap,
-            toCap,
-            meanFrameMs: Math.round(pixelPacing.lastWindowMeanMs * 10) / 10,
-          });
-          if (isMirrored) mirror('ppPixelRatio', String(renderer.stats().pixelRatio));
+          try {
+            renderer.setPixelRatioCap(toCap);
+            log.info('render', 'pixel ratio stepped down', {
+              fromCap,
+              toCap,
+              meanFrameMs: Math.round(pixelPacing.lastWindowMeanMs * 10) / 10,
+            });
+            if (isMirrored) mirror('ppPixelRatio', String(renderer.stats().pixelRatio));
+          } catch (cause) {
+            log.warn('render', 'cannot lower the pixel ratio', { toCap, error: cause });
+          }
         }
       }
       previousLevelFrameAtReal = frameAtReal;
       if (renderedFrameListeners.length > 0) {
         const stats = renderer.stats();
         for (let i = 0; i < renderedFrameListeners.length; i++) {
-          renderedFrameListeners[i]?.(frameAtReal, stats);
+          try {
+            renderedFrameListeners[i]?.(frameAtReal, stats);
+          } catch (cause) {
+            // A debug listener must never stop the game loop (fail-stop): drop it, say so once.
+            log.warn('debug', 'a rendered-frame listener threw and was removed', { error: cause });
+            renderedFrameListeners.splice(i--, 1);
+          }
         }
       }
     },

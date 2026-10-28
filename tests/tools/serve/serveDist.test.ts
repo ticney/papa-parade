@@ -9,6 +9,7 @@ import {
   createDistServer,
   fileForUrlPath,
   mimeTypeFor,
+  normalizeUrlPath,
   parseServeArgs,
   readHeaderRules,
 } from '../../../tools/serve/serveDist.ts';
@@ -33,6 +34,11 @@ describe('parseServeArgs', () => {
     [['--port', 'abc']],
     [['--port', '70000']],
     [['--port', '1.5']],
+    [['--port', '']],
+    [['--port', ' ']],
+    [['--port', '0x10']],
+    [['--port', '1e3']],
+    [['--port', '-1']],
     [['--dir']],
     [['--nope']],
   ])('rejects %j', (argv) => {
@@ -74,6 +80,23 @@ describe('fileForUrlPath', () => {
     ['/%zz'],
   ])('refuses %s', (path) => {
     expect(fileForUrlPath(root, path)).toBeNull();
+  });
+});
+
+describe('normalizeUrlPath', () => {
+  it.each([
+    ['/a', '/a'],
+    ['//a', '/a'],
+    ['/./a', '/a'],
+    ['/%61', '/a'],
+    ['/a//b/./c', '/a/b/c'],
+    ['/', '/'],
+  ])('%s reads %s', (path, expected) => {
+    expect(normalizeUrlPath(path)).toBe(expected);
+  });
+
+  it.each([['/../a'], ['/a%00'], ['/%zz'], ['/a%5cb']])('refuses %s', (path) => {
+    expect(normalizeUrlPath(path)).toBeNull();
   });
 });
 
@@ -154,8 +177,24 @@ describe('the server', () => {
     expect((await get('/assets')).status).toBe(404);
   });
 
-  it('never serves _headers itself', async () => {
-    expect((await get('/_headers')).status).toBe(404);
+  it('never serves _headers itself, however the path is written', async () => {
+    await writeFile(join(dir, '_redirects'), '/a /b 302\n');
+    for (const path of [
+      '/_headers',
+      '//_headers',
+      '/./_headers',
+      '/%5Fheaders',
+      '/_HEADERS',
+      '/_redirects',
+      '/assets/../_headers',
+    ]) {
+      const status = (await get(path)).status;
+      expect(status === 404 || status === 403, path).toBe(true);
+    }
+  });
+
+  it('matches the header rules on the normalised path', async () => {
+    expect((await get('/%61ssets/a.js')).headers['x-assets']).toBe('yes');
   });
 
   it('refuses a path that escapes the folder', async () => {
