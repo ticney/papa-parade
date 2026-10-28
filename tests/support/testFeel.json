@@ -34,7 +34,9 @@
     "wanderMaxDistM": 3.5,
     "lockMs": 300,
     "approachSpeedMps": 1.5,
-    "actMs": 1500
+    "actMs": 1500,
+    "silenceAlertMs": 2000,
+    "sneakSpeedMps": 1.2
   },
   "fatigue": {
     "startPoints": 0,

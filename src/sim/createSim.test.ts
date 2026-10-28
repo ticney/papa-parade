@@ -8,6 +8,7 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
+  SILENCE,
   stepN,
   TEST_OBJECTS,
   testPhoneEntry,
@@ -258,7 +259,7 @@ describe('the level it plans', () => {
   it('refuses a gag the sim does not know', async () => {
     const odd = { ...planning, threats: { outlet: { ...defOf(), gag: 'outlet_hairs' } } };
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
-      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall, papa_asleep\)/,
+      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall, papa_asleep, tissues_everywhere, crayon_scribbles\)/,
     );
   });
 
@@ -352,7 +353,7 @@ describe('physics (story 1.15)', () => {
       isBroken: false,
       lastImpactAt: null,
     });
-    expect(sim.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0 });
+    expect(sim.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0, mischiefs: 0 });
     sim.dispose();
   });
 
@@ -595,5 +596,114 @@ describe('the disruptions it plans (story 1.20)', () => {
     await expect(createSim({ content, geometry, level: twice, seed: 1 })).rejects.toThrow(
       /waves\[1\]\.disruptions\[0\]: the object "phone" is already planned by another disruption/,
     );
+  });
+});
+
+describe('the hidden-zone threat the level plans (story 1.21)', () => {
+  const silenceLevel = createTestLevel({ waves: [testWave([SILENCE])] });
+
+  it('stands the silence on the open baby cell of its zone nearest the centre, inside the box', async () => {
+    const sim = await createSim({ content, geometry, level: silenceLevel, seed: 1 });
+    const threat = sim.world.threats[0];
+    const zone = geometry.zones.find((candidate) => candidate.id === 'behind_sofa');
+    if (zone === undefined || threat === undefined) throw new Error('no zone or threat');
+    expect(threat).toMatchObject({ defId: 'silence_mischief', anchorId: 'behind_sofa' });
+    expect(Math.abs(threat.xM - zone.centerM[0])).toBeLessThanOrEqual(zone.halfExtentsM[0]);
+    expect(Math.abs(threat.zM - zone.centerM[2])).toBeLessThanOrEqual(zone.halfExtentsM[2]);
+  });
+
+  it('refuses a hidden-zone threat planned at an anchor, naming the level, the entry and the def', async () => {
+    const wrong = createTestLevel({
+      waves: [testWave([{ def: 'silence_mischief', anchor: 'outlet_01' }])],
+    });
+    await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
+      /salon_crawler.*waves\[0\]\.threats\[0\].*"silence_mischief".*"outlet_01" must be a hidden zone/,
+    );
+  });
+
+  it('refuses an anchored threat planned at a zone: a zone is not an anchor', async () => {
+    const wrong = createTestLevel({
+      waves: [testWave([{ def: 'outlet', anchor: 'behind_sofa' }])],
+    });
+    await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
+      /salon_crawler.*waves\[0\]\.threats\[0\].*outlet.*behind_sofa.*does not have/,
+    );
+  });
+
+  it('refuses a zone that is not hidden', async () => {
+    const odd = cloneJson(geometry);
+    for (const zone of odd.zones) zone.kind = 'safe';
+    await expect(
+      createSim({ content, geometry: odd, level: silenceLevel, seed: 1 }),
+    ).rejects.toThrow(/behind_sofa.*must be a hidden zone/);
+  });
+
+  it('refuses a surprise gag the sim does not know, or papa_asleep, in the wording of content:check', async () => {
+    const def = silenceLevel.threats.silence_mischief;
+    if (def?.target !== 'hiddenZone') throw new Error('no silence');
+    const unknown = {
+      ...silenceLevel,
+      threats: { silence_mischief: { ...def, surpriseGags: ['tissues_everywhere', 'glitter'] } },
+    };
+    await expect(createSim({ content, geometry, level: unknown, seed: 1 })).rejects.toThrow(
+      /the threat "silence_mischief" has the gag "glitter", which the sim does not know/,
+    );
+    const sleepy = {
+      ...silenceLevel,
+      threats: { silence_mischief: { ...def, surpriseGags: ['papa_asleep'] } },
+    };
+    await expect(createSim({ content, geometry, level: sleepy, seed: 1 })).rejects.toThrow(
+      /the threat "silence_mischief" has the gag "papa_asleep": only the micro-sleep/,
+    );
+  });
+
+  it('refuses a zone where the baby has no open cell, or Papa has none', async () => {
+    const zone = geometry.zones.find((candidate) => candidate.id === 'behind_sofa');
+    if (zone === undefined) throw new Error('no zone');
+    const closeBox = (walled: typeof geometry) => {
+      const rows = walled.nav.rows.map((row) => row.split(''));
+      for (let r = 0; r < rows.length; r++) {
+        for (let c = 0; c < (rows[r] as string[]).length; c++) {
+          const x = walled.nav.originM[0] + (c + 0.5) * walled.cellM;
+          const z = walled.nav.originM[1] + (r + 0.5) * walled.cellM;
+          if (
+            Math.abs(x - zone.centerM[0]) <= zone.halfExtentsM[0] + 0.5 &&
+            Math.abs(z - zone.centerM[2]) <= zone.halfExtentsM[2] + 0.5
+          ) {
+            (rows[r] as string[])[c] = '0';
+          }
+        }
+      }
+      walled.nav.rows = rows.map((row) => row.join(''));
+      return walled;
+    };
+    await expect(
+      createSim({ content, geometry: closeBox(cloneJson(geometry)), level: silenceLevel, seed: 1 }),
+    ).rejects.toThrow(/hidden zone behind_sofa, where the baby has no open cell/);
+    // A baby that fits where a fat Papa does not: the zone is a narrow gap behind the sofa, so a
+    // Papa wide enough has no cell in it while the baby still has one.
+    const messages: string[] = [];
+    for (const papaRadiusM of [0.3, 0.4, 0.5, 0.6, 0.8]) {
+      const fat = {
+        ...content,
+        feel: { ...content.feel, movement: { ...content.feel.movement, papaRadiusM } },
+      };
+      try {
+        await createSim({ content: fat, geometry, level: silenceLevel, seed: 1 });
+      } catch (cause) {
+        messages.push(String(cause));
+      }
+    }
+    expect(
+      messages.some((message) =>
+        /hidden zone behind_sofa, where Papa has no open cell/.test(message),
+      ),
+    ).toBe(true);
+  });
+
+  it('plans nothing it cannot hold when the level has no silence: the same world slices at creation', async () => {
+    const sim = await createSim({ content, geometry, level, seed: 1 });
+    expect(sim.world.silence).toEqual({ threatId: null, zoneEnteredAt: null, startedAt: null });
+    expect(sim.world.mess.mischiefs).toBe(0);
   });
 });

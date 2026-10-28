@@ -49,6 +49,15 @@ describe('GAG_PRESENTATIONS', () => {
   });
 });
 
+describe('the surprise mischiefs of the silence (story 1.21)', () => {
+  it.each(['tissues_everywhere', 'crayon_scribbles'] as const)(
+    '%s shows nothing of its own: the gag cue is the show until E7',
+    (gag) => {
+      expect(GAG_PRESENTATIONS[gag]).toEqual({ lightsOff: false, hair: false, babySlide: false });
+    },
+  );
+});
+
 describe('lightsFactorAt', () => {
   it('is 1 before the gag and once it is over', () => {
     expect(lightsFactorAt(-50)).toBe(1);

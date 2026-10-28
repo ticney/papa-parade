@@ -142,6 +142,11 @@ export function createTestMicroSleep(): ThreatDef {
   return readThreatFixture('testMicroSleep.threat.json');
 }
 
+/** The suspicious silence, frozen like the outlet (`testSilence.threat.json`): the threat in a hidden zone. */
+export function createTestSilence(): ThreatDef {
+  return readThreatFixture('testSilence.threat.json');
+}
+
 /**
  * The phone, frozen like the threats (`testPhone.disruption.json`, same values as
  * `content/disruptions/phone.json`; only its `$schema` path differs), never from the live file.
@@ -159,13 +164,14 @@ export function createTestPhone(): DisruptionDef {
   return parsed.value;
 }
 
-/** The four frozen threats, by id. */
+/** The five frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
     createTestOutlet(),
     createTestStairs(),
     createTestCoffeeTableObject(),
     createTestMicroSleep(),
+    createTestSilence(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
@@ -184,6 +190,9 @@ export const STAIRS: LevelWaveThreat = { def: 'stairs', anchor: 'stairs_top' };
 
 /** The object on the coffee table at the frozen room's `coffee_table` anchor. */
 export const COFFEE_TABLE: LevelWaveThreat = { def: 'coffee_table_object', anchor: 'coffee_table' };
+
+/** The suspicious silence in the frozen room's `behind_sofa` hidden zone. */
+export const SILENCE: LevelWaveThreat = { def: 'silence_mischief', anchor: 'behind_sofa' };
 
 /** The phone of the live level, planned at `atMs` on the object `phone` (the one of `TEST_OBJECTS`). */
 export function testPhoneEntry(atMs: number): LevelWaveDisruption {

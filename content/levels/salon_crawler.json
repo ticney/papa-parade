@@ -21,7 +21,10 @@
       "gapMinMs": 1000,
       "gapMaxMs": 3000,
       "lullMs": 3000,
-      "threats": [{ "def": "coffee_table_object", "anchor": "coffee_table" }]
+      "threats": [
+        { "def": "coffee_table_object", "anchor": "coffee_table" },
+        { "def": "silence_mischief", "anchor": "behind_sofa" }
+      ]
     },
     {
       "fromMs": 120000,

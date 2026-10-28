@@ -38,6 +38,9 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     phoneRings: 0,
     phoneAnswers: 0,
     phoneRingingSeconds: 0,
+    silences: 0,
+    silencesFound: 0,
+    silencesTimedOut: 0,
     commands: 0,
     threats: {},
     byGag: {},
@@ -178,6 +181,20 @@ describe('summarizeRuns', () => {
       phoneRings: 0,
       phoneAnswers: 0,
       phoneRingingSeconds: 0,
+    });
+  });
+
+  it('adds the silences, the ones found and the ones nobody found up over the runs (story 1.21)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(5, { silences: 2, silencesFound: 1, silencesTimedOut: 1 }),
+      run(6, { silences: 1, silencesFound: 0, silencesTimedOut: 1 }),
+      run(7, {}),
+    ]);
+    expect(report).toMatchObject({ silences: 3, silencesFound: 1, silencesTimedOut: 2 });
+    expect(summarizeRuns(INPUT, [])).toMatchObject({
+      silences: 0,
+      silencesFound: 0,
+      silencesTimedOut: 0,
     });
   });
 
@@ -401,6 +418,45 @@ describe('createRunRecorder', () => {
         phoneAnswers: 1,
         phoneRingingSeconds: 4,
       });
+    });
+
+    it('counts the silences, found or not, from their events (story 1.21)', async () => {
+      const recorder = await recorderOf([]);
+      const silence = { threatId: 4, t: asSimMs(0) };
+      recorder.onEvent({ type: 'SilenceStarted', ...silence });
+      recorder.onEvent({ type: 'SilenceEnded', reason: 'found', ...silence });
+      recorder.onEvent({ type: 'SilenceStarted', ...silence });
+      recorder.onEvent({ type: 'SilenceEnded', reason: 'timedOut', ...silence });
+      recorder.onEvent({ type: 'SilenceStarted', ...silence });
+      expect(recorder.finish()).toMatchObject({
+        silences: 3,
+        silencesFound: 1,
+        silencesTimedOut: 1,
+      });
+    });
+
+    it('counts a silence as one pick of its wave, found or not: a result with no telegraph before it keeps the active count right', async () => {
+      const recorder = await recorderOf([{ maxSimultaneous: 1 }]);
+      const hidden = (threatId: number): SimEvent => ({
+        type: 'ThreatHidden',
+        t: asSimMs(0),
+        threatId,
+        kind: 'silence_mischief',
+        anchorId: 'behind_sofa',
+        waveIndex: 0,
+      });
+      // Picked, never found: hidden, then a result with no telegraph in between.
+      recorder.onEvent(hidden(7));
+      recorder.onEvent(resolved(7));
+      // Picked, found: hidden, then the reveal (not a second pick), then the result.
+      recorder.onEvent(hidden(7));
+      recorder.onEvent(telegraph(7, 0));
+      recorder.onEvent(resolved(7));
+      // A plain threat afterwards: the count is back to zero, so it is not over the limit.
+      recorder.onEvent(telegraph(8, 0));
+      recorder.onEvent(resolved(8));
+      const [wave] = recorder.finish().waves;
+      expect(wave).toEqual({ telegraphs: 3, peakSimultaneous: 1, isOverLimit: false });
     });
 
     it('knows whether the level ended', async () => {

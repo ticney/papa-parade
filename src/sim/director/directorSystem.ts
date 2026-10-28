@@ -1,7 +1,8 @@
 import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
+import { isBabyFree } from '../baby/babyFsm.ts';
 import type { StepContext } from '../context.ts';
-import { telegraphThreat } from '../threats/threatFsm.ts';
+import { hideThreat, telegraphThreat } from '../threats/threatFsm.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { isThreatActive } from './waveState.ts';
 
@@ -14,6 +15,11 @@ import { isThreatActive } from './waveState.ts';
  * among the idle ones of the waves entered so far (waves are cumulative). The draws depend only on
  * the game, never on the tuning: one `nextFloat` per gap and one per pick, even with a single
  * candidate. A level with no wave draws nothing. Allocation-free: counting loops only.
+ *
+ * A `hiddenZone` threat (the suspicious silence, story 1.21) is drawn like any other, but is a
+ * candidate only while the baby is free, and picking it does not telegraph it: it is hidden until
+ * the baby is found ({@link startThreat}). This step's `ForceThreat` debug commands run first, through
+ * the same helper; they ignore the gaps, `maxSimultaneous` and the lull, and draw nothing.
  */
 export function runDirector(world: World, ctx: StepContext): void {
   const { waves } = ctx.level;
@@ -36,6 +42,11 @@ export function runDirector(world: World, ctx: StepContext): void {
     }
   }
 
+  for (let c = 0; c < ctx.commands.length; c++) {
+    const command = ctx.commands[c];
+    if (command?.type === 'ForceThreat') forceThreat(world, ctx, command.threatId);
+  }
+
   const waveIndex = director.waveIndex;
   if (waveIndex < 0) return;
   const wave = waves[waveIndex];
@@ -51,23 +62,60 @@ export function runDirector(world: World, ctx: StepContext): void {
     // The micro-sleep (no wave plans it) never counts against `maxSimultaneous` (deferred L326).
     if (isThreatActive(threat)) {
       if ((ctx.level.threats[i]?.firstWaveIndex ?? -1) >= 0) activeCount++;
-    } else if (threat.state === 'idle' && isInPool(ctx, i, waveIndex)) candidateCount++;
+    } else if (isCandidate(world, ctx, i, waveIndex)) candidateCount++;
   }
   if (activeCount >= wave.maxSimultaneous || candidateCount === 0) return;
 
   let pick = Math.min(candidateCount - 1, Math.floor(nextFloat(world.rng) * candidateCount));
   for (let i = 0; i < threats.length; i++) {
-    const threat = threats[i] as ThreatInstance;
-    if (threat.state !== 'idle' || !isInPool(ctx, i, waveIndex)) continue;
+    if (!isCandidate(world, ctx, i, waveIndex)) continue;
     if (pick > 0) {
       pick--;
       continue;
     }
-    const planned = ctx.level.threats[i];
-    if (planned === undefined) return;
-    telegraphThreat(world, ctx, threat, planned.def, waveIndex);
+    startThreat(world, ctx, i, waveIndex);
     const gapMs = wave.gapMinMs + nextFloat(world.rng) * (wave.gapMaxMs - wave.gapMinMs);
     director.nextAt = asSimMs(now + gapMs);
+    return;
+  }
+}
+
+/**
+ * Whether the idle threat at `index` can be drawn by wave `waveIndex` now: it is in the pool and, if
+ * it is a silence, the baby is free to go and hide.
+ */
+function isCandidate(world: World, ctx: StepContext, index: number, waveIndex: number): boolean {
+  const threat = world.threats[index];
+  if (threat === undefined || threat.state !== 'idle' || !isInPool(ctx, index, waveIndex)) {
+    return false;
+  }
+  return ctx.level.threats[index]?.def.target !== 'hiddenZone' || isBabyFree(world);
+}
+
+/**
+ * Starts the idle threat at `index`: a silence goes `idle → hidden`, any other threat is telegraphed.
+ * The one place a draw and `ForceThreat` share.
+ */
+function startThreat(world: World, ctx: StepContext, index: number, waveIndex: number): void {
+  const threat = world.threats[index];
+  const planned = ctx.level.threats[index];
+  if (threat === undefined || planned === undefined) return;
+  if (planned.def.target === 'hiddenZone') hideThreat(world, ctx, threat, waveIndex);
+  else telegraphThreat(world, ctx, threat, planned.def, waveIndex);
+}
+
+/**
+ * `ForceThreat` (debug): starts the idle threat `threatId` now. Ignored, with no event, when it is
+ * unknown, not idle, on Papa, or a silence while the baby is not free.
+ */
+function forceThreat(world: World, ctx: StepContext, threatId: number): void {
+  for (let i = 0; i < world.threats.length; i++) {
+    const threat = world.threats[i] as ThreatInstance;
+    if (threat.id !== threatId) continue;
+    const target = ctx.level.threats[i]?.def.target;
+    if (threat.state !== 'idle' || target === 'papa') return;
+    if (target === 'hiddenZone' && !isBabyFree(world)) return;
+    startThreat(world, ctx, i, world.director.waveIndex);
     return;
   }
 }

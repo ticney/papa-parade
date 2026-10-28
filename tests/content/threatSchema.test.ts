@@ -47,7 +47,7 @@ describe('content/threats/outlet.json', () => {
     expect(parsed.value.id).toBe('outlet');
     expect(parsed.value.response).toBe('parry');
     expect(parsed.value.windowMs).toBeNull();
-    expect(parsed.value.gag).toBe('outlet_hair');
+    expect(parsed.value).toMatchObject({ target: 'anchor', gag: 'outlet_hair' });
   });
 
   it.each<[string, [string, unknown][], string[]]>([
@@ -113,5 +113,67 @@ describe('content/threats/papa_microsleep.json (story 1.19)', () => {
 
   it('keeps the outlet on an anchor', () => {
     expect(real.target).toBe('anchor');
+  });
+});
+
+describe('content/threats/silence_mischief.json (story 1.21)', () => {
+  const FILE_SILENCE = 'content/threats/silence_mischief.json';
+  const silence = JSON.parse(
+    readFileSync(new URL('../../content/threats/silence_mischief.json', import.meta.url), 'utf8'),
+  ) as Record<string, unknown>;
+  const parseSilence = (value: unknown) =>
+    parseContentFile(FILE_SILENCE, JSON.stringify(value), ThreatDefSchema);
+  const withChanges = (...changes: [key: string, value: unknown][]) => {
+    const copy = { ...silence };
+    for (const [key, value] of changes) {
+      if (value === undefined) delete copy[key];
+      else copy[key] = value;
+    }
+    return parseSilence(copy);
+  };
+  const paths = (result: ReturnType<typeof parseSilence>) =>
+    result.ok ? [] : result.error.map((problem) => problem.jsonPath);
+
+  it('parses as the hidden-zone variant: a Parry, a list of surprise gags, a time to find the baby', () => {
+    const parsed = parseSilence(silence);
+    if (!parsed.ok) throw new Error('expected the silence to parse');
+    expect(parsed.value).toMatchObject({
+      id: 'silence_mischief',
+      target: 'hiddenZone',
+      response: 'parry',
+      icon: 'dots',
+    });
+    if (parsed.value.target !== 'hiddenZone') throw new Error('expected a hidden-zone def');
+    expect(parsed.value.findMaxMs).toBeGreaterThan(0);
+    expect(parsed.value.surpriseGags.length).toBeGreaterThan(0);
+  });
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a hidden-zone def with a single gag', [['gag', 'outlet_hair']], ['gag']],
+    ['a missing findMaxMs', [['findMaxMs', undefined]], ['findMaxMs']],
+    ['a findMaxMs of 0', [['findMaxMs', 0]], ['findMaxMs']],
+    ['a missing surpriseGags', [['surpriseGags', undefined]], ['surpriseGags']],
+    ['an empty surpriseGags', [['surpriseGags', []]], ['surpriseGags']],
+    [
+      'a surprise gag id in camelCase',
+      [['surpriseGags', ['tissuesEverywhere']]],
+      ['surpriseGags[0]'],
+    ],
+  ])('rejects %s', (_name, changes, expected) => {
+    expect(paths(withChanges(...changes))).toEqual(expected);
+  });
+
+  it('refuses surpriseGags and findMaxMs on an anchor def: they belong to a hidden zone', () => {
+    const outletWithSurprises = { ...real, surpriseGags: ['outlet_hair'], findMaxMs: 1000 };
+    const result = parse(outletWithSurprises);
+    expect(result.ok).toBe(false);
+    expect(failedPaths(result).sort()).toEqual(['findMaxMs', 'surpriseGags']);
+  });
+
+  it('gives every numeric key of the file a unit suffix', () => {
+    const keys = Object.entries(silence)
+      .filter(([, value]) => typeof value === 'number')
+      .map(([key]) => key);
+    expect(keys.filter((key) => !UNIT_SUFFIX.test(key))).toEqual([]);
   });
 });

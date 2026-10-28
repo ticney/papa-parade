@@ -9,6 +9,7 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
+  SILENCE,
   STAIRS,
   stepN,
   testWave,
@@ -28,7 +29,7 @@ async function setup(feel: Feel = content.feel) {
     content: { ...content, feel },
     geometry: createTestGeometry(),
     level: createTestLevel({
-      waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])],
+      waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE])],
       gauges: FATIGUE_GAUGES,
     }),
     seed: 1,
@@ -67,6 +68,9 @@ const OWN_THREAT: Record<GagId, { defId: string; eventCount: number; pushCount: 
   table_object_fall: { defId: 'coffee_table_object', eventCount: 0, pushCount: 1 },
   // One `PapaStateChanged`: he falls asleep, nothing else (no near miss, no prop).
   papa_asleep: { defId: 'papa_microsleep', eventCount: 1, pushCount: 0 },
+  // The surprise mischiefs of the silence: mess only, no near miss (story 1.21 D11).
+  tissues_everywhere: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
+  crayon_scribbles: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
 };
 
 describe('applyGag', () => {
@@ -105,6 +109,21 @@ describe('papa_asleep', () => {
     expect(events.map((event) => event.type)).toEqual(['PapaStateChanged']);
     expect(impulses).toEqual([]);
   });
+});
+
+describe('the surprise mischiefs (story 1.21)', () => {
+  it.each(['tissues_everywhere', 'crayon_scribbles'] as const)(
+    '%s adds one to mess.mischiefs, once per gag, and emits no NearMiss',
+    async (gag) => {
+      const { world, ctx, events, impulses, threatOf } = await setup();
+      expect(world.mess.mischiefs).toBe(0);
+      applyGag(world, ctx, threatOf('silence_mischief'), gag);
+      applyGag(world, ctx, threatOf('silence_mischief'), gag);
+      expect(world.mess.mischiefs).toBe(2);
+      expect(events.some((event) => event.type === 'NearMiss')).toBe(false);
+      expect(impulses).toEqual([]);
+    },
+  );
 });
 
 describe('table_object_fall (a scripted port)', () => {

@@ -7,6 +7,7 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
+  SILENCE,
   stepN,
   TEST_OBJECTS,
   testPhoneEntry,
@@ -392,17 +393,19 @@ describe('snapshot / restore', () => {
   it('refuses an unknown snapshot version', async () => {
     const sim = await createSim({ content, geometry, level, seed: 5 });
     const snapshot = sim.snapshot();
-    expect(() => sim.restore({ ...snapshot, version: 1 as 8 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 1 as 9 })).toThrow(/version/);
     // Version 3 predates the base scale and the slow-mos (story 1.14).
-    expect(() => sim.restore({ ...snapshot, version: 3 as 8 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 3 as 9 })).toThrow(/version/);
     // Version 4 has no Rapier world (story 1.15).
-    expect(() => sim.restore({ ...snapshot, version: 4 as 8 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...snapshot, version: 4 as 9 })).toThrow(/version 4/);
     // Version 5 has no director, flow or wave index (story 1.18).
-    expect(() => sim.restore({ ...snapshot, version: 5 as 8 })).toThrow(/version 5/);
+    expect(() => sim.restore({ ...snapshot, version: 5 as 9 })).toThrow(/version 5/);
     // Version 6 has no gauges, no Papa busy state and no `objectId` (story 1.19).
-    expect(() => sim.restore({ ...snapshot, version: 6 as 8 })).toThrow(/version 6/);
+    expect(() => sim.restore({ ...snapshot, version: 6 as 9 })).toThrow(/version 6/);
     // Version 7 has no disruptions and no `onPhone` state (story 1.20).
-    expect(() => sim.restore({ ...snapshot, version: 7 as 8 })).toThrow(/version 7/);
+    expect(() => sim.restore({ ...snapshot, version: 7 as 9 })).toThrow(/version 7/);
+    // Version 8 has no silence, no `mischiefs` and no hidden state (story 1.21).
+    expect(() => sim.restore({ ...snapshot, version: 8 as 9 })).toThrow(/version 8/);
   });
 
   it('refuses a snapshot of another level', async () => {
@@ -469,7 +472,8 @@ describe('snapshot / restore with a threat', () => {
       expect(JSON.parse(JSON.stringify(answered.world))).toEqual(answered.world);
       states.add(answered.world.threats[0]?.state ?? '');
     }
-    expect([...states].sort()).toEqual([...THREAT_STATES].sort());
+    // The outlet is never hidden: only a silence is (see the silence tests below).
+    expect([...states].sort()).toEqual([...THREAT_STATES].filter((s) => s !== 'hidden').sort());
   });
 
   it('refuses a snapshot whose threats are malformed', async () => {
@@ -928,7 +932,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
   it('is taken while a prop moves, and carries the Rapier world as base64', async () => {
     const sim = await midFall();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(8);
+    expect(snapshot.version).toBe(9);
     expect(snapshot.physics).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
     expect(snapshot.world.props[0]?.xM).toBeGreaterThan(0.7);
     expect(snapshot.world.props[0]?.yM).toBeLessThan(0.5);
@@ -979,7 +983,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
 
   it('refuses a snapshot from before the Rapier world (version 4)', async () => {
     const sim = await newSim();
-    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 8 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 9 })).toThrow(/version 4/);
   });
 
   describe('refuses a malformed props slice, with its path', () => {
@@ -1092,11 +1096,11 @@ describe('snapshot / restore of the director and the flow (story 1.18)', () => {
   const threat0 = (w: Record<string, unknown>) =>
     (w.threats as Record<string, unknown>[])[0] as Record<string, unknown>;
 
-  it('is version 8, and carries the director, the flow and the wave index of each threat', async () => {
+  it('is version 9, and carries the director, the flow and the wave index of each threat', async () => {
     const sim = await newSim();
     stepN(sim, 60); // 600 ms: wave 0 entered, the outlet telegraphed
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(8);
+    expect(snapshot.version).toBe(9);
     expect(snapshot.world.director.waveIndex).toBe(0);
     expect(snapshot.world.flow).toEqual({ state: 'playing', enteredAt: 0 });
     expect(snapshot.world.threats[0]).toMatchObject({ state: 'telegraph', waveIndex: 0 });
@@ -1353,10 +1357,10 @@ describe('snapshot / restore of the disruptions and the phone call (story 1.20)'
     return sim;
   }
 
-  it('is version 8, and carries a pending disruption as it was created', async () => {
+  it('is version 9, and carries a pending disruption as it was created', async () => {
     const sim = await newPhone();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(8);
+    expect(snapshot.version).toBe(9);
     expect(snapshot.world.disruptions).toEqual([
       { state: 'pending', enteredAt: 0, untilAt: 0, nextRingingAt: 0 },
     ]);
@@ -1533,6 +1537,155 @@ describe('snapshot / restore of the disruptions and the phone call (story 1.20)'
       damage(snapshot.world as unknown as Record<string, unknown>);
       const target = await newPhone();
       expect(() => target.restore(snapshot)).toThrow(expected);
+    });
+  });
+});
+
+describe('snapshot / restore of the suspicious silence (story 1.21)', () => {
+  const planned = createTestLevel({ waves: [testWave([SILENCE])] });
+  const newSim = () => createSim({ content, geometry, level: planned, seed: 5 });
+
+  /** Steps until `isDone`, bounded. */
+  async function until(isDone: (world: Awaited<ReturnType<typeof newSim>>['world']) => boolean) {
+    const sim = await newSim();
+    for (let i = 0; i < 3000 && !isDone(sim.world); i++) sim.step();
+    expect(isDone(sim.world)).toBe(true);
+    return sim;
+  }
+
+  it('carries a hidden silence on its way to the zone, and restores to the uninterrupted hash', async () => {
+    const live = await until((world) => world.baby.state === 'mischiefSilent');
+    stepN(live, 5);
+    const snapshot = live.snapshot();
+    expect(snapshot.world.threats[0]).toMatchObject({
+      state: 'hidden',
+      responseWindow: null,
+      windowOpenAt: 0,
+    });
+    expect(snapshot.world.silence).toEqual({ threatId: 1, zoneEnteredAt: null, startedAt: null });
+    stepN(live, 900);
+    const restored = await newSim();
+    restored.restore(snapshot);
+    stepN(restored, 900);
+    expect(hashJson(restored.world)).toBe(hashJson(live.world));
+  });
+
+  it('carries a started silence, and the deadline gag comes the same after a restore', async () => {
+    const live = await until((world) => world.silence.startedAt !== null);
+    const snapshot = live.snapshot();
+    expect(snapshot.world.baby).toMatchObject({ state: 'mischiefSilent', babbling: false });
+    stepN(live, 700);
+    const liveEvents = [...live.drainEvents()];
+    const restored = await newSim();
+    restored.restore(snapshot);
+    restored.drainEvents();
+    stepN(restored, 700);
+    expect(restored.world).toEqual(live.world);
+    expect(restored.world.mess.mischiefs).toBe(1);
+    expect(liveEvents.map((event) => event.type)).toContain('SilenceEnded');
+  });
+
+  it('goes through every threat state once the silence is played, hidden included', async () => {
+    const states = new Set<string>();
+    const sim = await newSim();
+    for (let i = 0; i < 2000; i++) {
+      sim.step();
+      states.add(sim.world.threats[0]?.state ?? '');
+      expect(JSON.parse(JSON.stringify(sim.world))).toEqual(sim.world);
+    }
+    expect(states.has('hidden')).toBe(true);
+    expect(states.has('gag')).toBe(true);
+  });
+
+  describe('refuses a damaged silence slice, with its path', () => {
+    const firstThreat = (w: Record<string, unknown>) =>
+      (w.threats as Record<string, unknown>[])[0] as Record<string, unknown>;
+    const broken: [string, (world: Record<string, unknown>) => void, RegExp][] = [
+      ['no silence at all', (w) => delete w.silence, /world\.silence is missing/],
+      [
+        'a threat that is not hidden',
+        (w) => {
+          firstThreat(w).state = 'idle';
+          firstThreat(w).waveIndex = -1;
+        },
+        /world\.silence\.threatId/,
+      ],
+      [
+        'an unknown threat id',
+        (w) => {
+          (w.silence as Record<string, unknown>).threatId = 99;
+        },
+        /world\.silence\.threatId/,
+      ],
+      [
+        'a zone entry with no threat',
+        (w) => {
+          (w.silence as Record<string, unknown>).threatId = null;
+          (w.baby as Record<string, unknown>).state = 'babble';
+          (w.baby as Record<string, unknown>).targetThreatId = null;
+          firstThreat(w).state = 'idle';
+          firstThreat(w).waveIndex = -1;
+        },
+        /world\.silence\.zoneEnteredAt/,
+      ],
+      [
+        'a start with no zone entry',
+        (w) => {
+          (w.silence as Record<string, unknown>).zoneEnteredAt = null;
+          (w.silence as Record<string, unknown>).startedAt = 1000;
+        },
+        /world\.silence\.startedAt/,
+      ],
+      [
+        'a start before the zone entry',
+        (w) => {
+          (w.silence as Record<string, unknown>).startedAt = 1;
+        },
+        /world\.silence\.startedAt/,
+      ],
+      [
+        'a baby that is not hiding while a silence is under way',
+        (w) => {
+          (w.baby as Record<string, unknown>).state = 'babble';
+        },
+        /world\.baby\.targetThreatId|world\.silence\.threatId/,
+      ],
+      [
+        'a babbling baby in his zone',
+        (w) => {
+          (w.baby as Record<string, unknown>).babbling = true;
+        },
+        /world\.silence\.zoneEnteredAt/,
+      ],
+      [
+        'a negative mischief count',
+        (w) => {
+          (w.mess as Record<string, unknown>).mischiefs = -1;
+        },
+        /world\.mess\.mischiefs/,
+      ],
+      [
+        'a fractional mischief count',
+        (w) => {
+          (w.mess as Record<string, unknown>).mischiefs = 0.5;
+        },
+        /world\.mess\.mischiefs/,
+      ],
+    ];
+    it.each(broken)('%s', async (_name, damage, pattern) => {
+      const live = await until((world) => world.silence.startedAt !== null);
+      const snapshot = JSON.parse(JSON.stringify(live.snapshot()));
+      damage(snapshot.world);
+      const target = await newSim();
+      expect(() => target.restore(snapshot)).toThrow(pattern);
+    });
+
+    it('a hidden threat with a window', async () => {
+      const live = await until((world) => world.silence.startedAt !== null);
+      const snapshot = JSON.parse(JSON.stringify(live.snapshot()));
+      snapshot.world.threats[0].windowOpenAt = 5;
+      const target = await newSim();
+      expect(() => target.restore(snapshot)).toThrow(/world\.threats\[0\]\.windowOpenAt/);
     });
   });
 });

@@ -47,6 +47,8 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     babbleMinMs: number;
     babbleMaxMs: number;
     wanderMaxDistM: number;
+    silenceAlertMs: number;
+    sneakSpeedMps: number;
   };
 };
 
@@ -62,6 +64,22 @@ const liveLevel = JSON.parse(readFileSync('content/levels/salon_crawler.json', '
     threats: { def: string; anchor: string }[];
   }[];
 };
+/**
+ * What the specs read of the live suspicious silence (`content/threats/silence_mischief.json`),
+ * never copied: Geo retunes it freely (story 1.21).
+ */
+export interface LiveSilenceDef {
+  id: string;
+  telegraphDelayMs: number | null;
+  windowMs: number | null;
+  findMaxMs: number;
+  surpriseGags: string[];
+  feedback: { telegraph: string; success: string; perfect: string; gag: string };
+}
+export const liveSilence = JSON.parse(
+  readFileSync('content/threats/silence_mischief.json', 'utf8'),
+) as LiveSilenceDef;
+
 /** What the specs read of the live phone (`content/disruptions/phone.json`), never copied: Geo retunes it freely. */
 export interface LivePhoneDef {
   ringMaxMs: number;

@@ -17,6 +17,12 @@ export type FailReason = 'early' | 'late' | 'wrongResponse';
  */
 export type PhoneRingEndReason = 'answered' | 'timedOut' | 'levelEnded';
 
+/**
+ * Why a suspicious silence ended: Papa found the baby, or `findMaxMs` ran out and the surprise
+ * mischief came.
+ */
+export type SilenceEndReason = 'found' | 'timedOut';
+
 /** Why a level ended. `'timer'` so far; the early end on noise (`MamaWoke`, story 3.x) adds one. */
 export type LevelEndReason = 'timer';
 
@@ -60,6 +66,28 @@ export type SimEvent =
       anchorId: string;
       waveIndex: number;
     }
+  /**
+   * The director picked a suspicious silence (story 1.21): the threat is `hidden`, not telegraphed.
+   * Same fields as `ThreatTelegraphed`.
+   */
+  | {
+      type: 'ThreatHidden';
+      t: SimMs;
+      threatId: number;
+      kind: string;
+      anchorId: string;
+      waveIndex: number;
+    }
+  /**
+   * The hidden baby has been quiet in his zone for `feel.baby.silenceAlertMs`: the music cuts, the
+   * « … » bubble shows and the device vibrates (the client follows `world.silence.startedAt`).
+   */
+  | { type: 'SilenceStarted'; t: SimMs; threatId: number }
+  /**
+   * The silence is over, for the `reason`. `found` is followed by the threat's `ThreatTelegraphed`;
+   * `timedOut` by its `ResponseResolved{fail}` and `GagTriggered` (the surprise mischief).
+   */
+  | { type: 'SilenceEnded'; t: SimMs; threatId: number; reason: SilenceEndReason }
   | { type: 'WindowOpened'; t: SimMs; threatId: number }
   /**
    * The threat was answered. `response` is what it asks for; `offsetMs` is the press's distance from
@@ -145,6 +173,9 @@ export const SIM_EVENT_TYPES = [
   'PropBroken',
   'PropImpact',
   'ResponseResolved',
+  'SilenceEnded',
+  'SilenceStarted',
+  'ThreatHidden',
   'ThreatRearmed',
   'ThreatTelegraphed',
   'TimeScaleChanged',

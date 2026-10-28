@@ -55,6 +55,11 @@ export interface InputMapperDeps {
    * read at each use so that a changed feel applies at once.
    */
   input: Pick<Feel['input'], 'autoTargetConeDeg' | 'contextReachM' | 'stickDeadzonePct'>;
+  /**
+   * `feel.baby.bodyRadiusM`: the baby's centre is this high above the floor, for the touch hit test
+   * (story 1.21). Read at each tap.
+   */
+  babyBodyRadiusM: number;
   /** The interactive objects of the level being played (`sim.objects`), or an empty list. */
   getObjects(): readonly ObjectTarget[];
   /**
@@ -76,6 +81,7 @@ export interface InputMapper {
   isLive(): boolean;
   /**
    * `pointerdown` on the canvas: a press on a threat's icon (within `touchRadiusPx`), else a tap on
+   * the baby (within `objectTouchRadiusPx` of his centre, `TapBaby`, story 1.21), else a tap on
    * an object (within `objectTouchRadiusPx`), else a tap on the floor. A press on a threat or an
    * object is never also a floor tap. Dropped while Papa is busy (drinking or asleep).
    */
@@ -236,16 +242,25 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       deps.onThreatPressed?.(threatId);
       return;
     }
-    // No threat is active (D6): the context action, on the nearest object in reach.
-    const { papa } = active.sim.world;
-    const objectId = pickContextObject(
-      deps.getObjects(),
-      papa.xM,
-      papa.zM,
-      deps.input.contextReachM,
-    );
+    // No threat is active (D6): the context action, on the nearer of the baby and the nearest
+    // object, both in reach (story 1.21: ties go to the baby).
+    const { papa, baby } = active.sim.world;
+    const { contextReachM } = deps.input;
+    const objects = deps.getObjects();
+    const objectId = pickContextObject(objects, papa.xM, papa.zM, contextReachM);
+    const babyDistSq = (baby.xM - papa.xM) ** 2 + (baby.zM - papa.zM) ** 2;
+    const isBabyInReach = babyDistSq <= contextReachM * contextReachM;
+    const object = objectId === null ? undefined : objects.find((o) => o.id === objectId);
+    const objectDistSq =
+      object === undefined
+        ? Number.POSITIVE_INFINITY
+        : (object.xM - papa.xM) ** 2 + (object.zM - papa.zM) ** 2;
+    if (isBabyInReach && babyDistSq <= objectDistSq) {
+      active.sim.enqueue({ type: 'TapBaby', t });
+      return;
+    }
     if (objectId === null) {
-      if (log.enabled('debug')) log.debug('input', 'action: no threat and no object in reach');
+      if (log.enabled('debug')) log.debug('input', 'action: no threat, baby or object in reach');
       return;
     }
     active.sim.enqueue({ type: 'TapObject', t, objectId });
@@ -345,7 +360,27 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
         deps.onThreatPressed?.(threatId);
         return;
       }
-      // (Story 1.21: the baby slots in here, between the threats and the objects.)
+      // The baby comes between the threats and the objects (story 1.21): a finger aims at him as
+      // it aims at an object. The marker shows where Papa will walk: the baby's floor point.
+      const { baby } = active.sim.world;
+      if (
+        deps.hitTester.pickBaby(
+          sample.clientX,
+          sample.clientY,
+          rect,
+          baby,
+          deps.babyBodyRadiusM,
+          deps.objectTouchRadiusPx,
+        )
+      ) {
+        active.sim.enqueue({
+          type: 'TapBaby',
+          t: active.timeMap.realToSim(asRealMs(sample.timeStamp)),
+        });
+        deps.showTapMarker(baby.xM, baby.zM);
+        deps.onTap?.(baby.xM, baby.zM);
+        return;
+      }
       const objects = deps.getObjects();
       const objectId =
         objects.length === 0

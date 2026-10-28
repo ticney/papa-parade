@@ -2,11 +2,13 @@ import { MAX_CRAWL_SPEED_MPS, MS_PER_S, STEP_MS } from '@shared/constants';
 import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
+import { isThreatActive } from '../director/waveState.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
 import { remainingPathLengthM } from '../nav/pathLength.ts';
 import type { ThreatInstance, World } from '../world.ts';
-import { gazeAt, planApproach } from './approach.ts';
+import { ensureOnOpenCell, gazeAt, planApproach, stopCrawling } from './approach.ts';
 import { enterBabyState } from './babyFsm.ts';
+import { runSilence } from './silence.ts';
 import { pickWanderCell, planWander } from './wander.ts';
 
 /**
@@ -18,35 +20,12 @@ function drawBabbleMs(world: World, ctx: StepContext): number {
   return babbleMinMs + nextFloat(world.rng) * (babbleMaxMs - babbleMinMs);
 }
 
-/** Moves a baby that stands in a closed cell to the nearest open cell of any region (no event). */
-function ensureOnOpenCell(world: World, ctx: StepContext): void {
-  const { baby } = world;
-  const grid = ctx.nav.baby;
-  if (grid.isOpenAt(baby.xM, baby.zM)) return;
-  const cell = grid.nearestOpenCell(baby.xM, baby.zM, -1);
-  if (cell < 0) return;
-  baby.xM = grid.centerXM(cell);
-  baby.zM = grid.centerZM(cell);
-}
-
-function isActive(threat: ThreatInstance): boolean {
-  return threat.state === 'telegraph' || threat.state === 'windowOpen';
-}
-
 function findThreat(world: World, id: number): ThreatInstance | undefined {
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
     if (threat.id === id) return threat;
   }
   return undefined;
-}
-
-/** Drops the path and the speed of an approach (or of a wander it interrupts). */
-function stopCrawling(world: World): void {
-  const { baby } = world;
-  baby.path.length = 0;
-  baby.pathIndex = 0;
-  baby.approachSpeedMps = 0;
 }
 
 /**
@@ -66,7 +45,7 @@ function releaseTarget(world: World, ctx: StepContext): void {
   const { baby } = world;
   if (baby.targetThreatId === null) return;
   const threat = findThreat(world, baby.targetThreatId);
-  if (threat !== undefined && isActive(threat)) return;
+  if (threat !== undefined && isThreatActive(threat)) return;
   // A mischief is played out to its end (rule 5), even if a short cooldown has rearmed the threat.
   if (baby.state === 'act') return;
   if (threat !== undefined && threat.state === 'gag') {
@@ -87,9 +66,11 @@ function lockOnThreat(world: World, ctx: StepContext): void {
   if (baby.state !== 'wander' && baby.state !== 'babble') return;
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
-    if (!isActive(threat)) continue;
-    // A threat on Papa (the micro-sleep, story 1.19) is not the baby's business.
-    if (ctx.level.threats[i]?.def.target === 'papa') continue;
+    if (!isThreatActive(threat) || threat.state === 'hidden') continue;
+    // A threat on Papa (the micro-sleep, story 1.19) is not the baby's business, and a silence is
+    // taken by `runSilence`, not locked on (story 1.21).
+    const target = ctx.level.threats[i]?.def.target;
+    if (target === 'papa' || target === 'hiddenZone') continue;
     baby.targetThreatId = threat.id;
     stopCrawling(world);
     gazeAt(baby, threat.xM, threat.zM);
@@ -100,7 +81,7 @@ function lockOnThreat(world: World, ctx: StepContext): void {
 
 /**
  * System: the baby. Remembers where it sat (for the view's interpolation), then, in this order:
- * lets go of a target that is over, locks on a newly active threat, sets off to its target once it
+ * runs the suspicious silence (`runSilence`, story 1.21), lets go of a target that is over, locks on a newly active threat, sets off to its target once it
  * has stared for `lockMs`, crawls to it, ends its mischief after `actMs`; and, when it is free,
  * does what it did before threats existed: when its babble is over (`wanderAt`) draws a
  * destination and sets off, or, if none can be planned, babbles on for another draw; while
@@ -113,6 +94,7 @@ export function runBaby(world: World, ctx: StepContext): void {
   baby.prevXM = baby.xM;
   baby.prevZM = baby.zM;
 
+  runSilence(world, ctx);
   releaseTarget(world, ctx);
   lockOnThreat(world, ctx);
 

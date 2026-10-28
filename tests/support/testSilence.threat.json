@@ -1,0 +1,18 @@
+{
+  "$schema": "../../content/_schemas/threat.schema.json",
+  "id": "silence_mischief",
+  "target": "hiddenZone",
+  "response": "parry",
+  "telegraphDelayMs": 800,
+  "windowMs": null,
+  "findMaxMs": 5000,
+  "surpriseGags": ["tissues_everywhere", "crayon_scribbles"],
+  "icon": "dots",
+  "feedback": {
+    "telegraph": "tel_silence_found",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_silence_mischief"
+  },
+  "cooldownMs": 6000
+}

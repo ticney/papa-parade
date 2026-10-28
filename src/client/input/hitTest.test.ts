@@ -221,3 +221,45 @@ describe('pickObject (story 1.19)', () => {
     expect(tester.pickObject(10, Number.POSITIVE_INFINITY, RECT, [COFFEE], RADIUS)).toBeNull();
   });
 });
+
+describe('pickBaby (story 1.21)', () => {
+  const RECT = { left: 100, top: 50, width: 800, height: 400 };
+  const RADIUS = 64;
+  const BABY = { xM: -1, zM: 0.5 };
+  const HEIGHT_M = 0.2;
+  const camera = createIsoCamera();
+  fitIsoCamera(camera, ROOM, RECT.width / RECT.height);
+  const tester = createHitTester(camera);
+  const pxAt = (yM: number) => {
+    const v = new Vector3(BABY.xM, yM, BABY.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+
+  it('is true within the radius of his centre, inclusive, and false just outside', () => {
+    const at = pxAt(HEIGHT_M);
+    expect(tester.pickBaby(at.x, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBe(true);
+    expect(tester.pickBaby(at.x + RADIUS, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBe(true);
+    expect(tester.pickBaby(at.x + RADIUS + 1, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBe(false);
+  });
+
+  it('projects his centre at the given height, not his floor point', () => {
+    const centre = pxAt(HEIGHT_M);
+    const floor = pxAt(0);
+    expect(Math.hypot(centre.x - floor.x, centre.y - floor.y)).toBeGreaterThan(3);
+    expect(tester.pickBaby(centre.x, centre.y, RECT, BABY, HEIGHT_M, 1)).toBe(true);
+    expect(tester.pickBaby(floor.x, floor.y, RECT, BABY, HEIGHT_M, 1)).toBe(false);
+  });
+
+  it('is false for a point that is not a number, a negative radius, or a baby behind the camera', () => {
+    const at = pxAt(HEIGHT_M);
+    expect(tester.pickBaby(Number.NaN, at.y, RECT, BABY, HEIGHT_M, RADIUS)).toBe(false);
+    expect(tester.pickBaby(at.x, Number.POSITIVE_INFINITY, RECT, BABY, HEIGHT_M, RADIUS)).toBe(
+      false,
+    );
+    expect(tester.pickBaby(at.x, at.y, RECT, BABY, HEIGHT_M, -1)).toBe(false);
+    expect(tester.pickBaby(at.x, at.y, RECT, { xM: 1e6, zM: 1e6 }, HEIGHT_M, RADIUS)).toBe(false);
+  });
+});

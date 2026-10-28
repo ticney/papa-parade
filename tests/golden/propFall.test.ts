@@ -68,7 +68,7 @@ describe('golden scenario prop_fall covers the chain accident it is there for', 
     expect(replay.ok).toBe(true);
     if (!replay.ok) return;
     const { world } = replay.value.sim;
-    expect(world.mess).toEqual({ propsOnFloor: 1, propsBroken: 1 });
+    expect(world.mess).toEqual({ propsOnFloor: 1, propsBroken: 1, mischiefs: 0 });
     expect(world.props.map((prop) => [prop.id, prop.isBroken])).toEqual([
       ['mug_01', false],
       ['vase_01', true],

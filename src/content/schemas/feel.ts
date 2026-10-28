@@ -176,6 +176,19 @@ const BabySchema = z
     actMs: delayMs(
       'How long the baby plays its mischief after a gag (`act`) before it babbles again, in ms.',
     ),
+    silenceAlertMs: z
+      .number()
+      .positive()
+      .describe(
+        'How long the hidden baby stays quiet in its zone before the silence is announced (`SilenceStarted`), in ms.',
+      ),
+    sneakSpeedMps: z
+      .number()
+      .positive()
+      .max(MAX_CRAWL_SPEED_MPS)
+      .describe(
+        'How fast the baby crawls to the hidden zone of a suspicious silence, in metres per second.',
+      ),
   })
   .refine((baby) => baby.babbleMinMs <= baby.babbleMaxMs, {
     path: ['babbleMinMs'],

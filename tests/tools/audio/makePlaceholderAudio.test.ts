@@ -14,6 +14,7 @@ import {
   synthGagCoffeeTable,
   synthGagOutlet,
   synthGagPapaAsleep,
+  synthGagSilence,
   synthGagStairs,
   synthMusic,
   synthParry,
@@ -23,6 +24,7 @@ import {
   synthTelegraphCoffeeTable,
   synthTelegraphMicroSleep,
   synthTelegraphPhone,
+  synthTelegraphSilence,
   synthTelegraphStairs,
 } from '../../../tools/audio/makePlaceholderAudio.ts';
 
@@ -158,6 +160,19 @@ describe('placeholder audio', () => {
     }
   });
 
+  it('has the lengths of the silence clips: a 300 ms chirp and a 500 ms rustle', () => {
+    const ms = (samples: Float32Array): number => (samples.length / SAMPLE_RATE_HZ) * 1000;
+    expect(ms(synthTelegraphSilence())).toBeCloseTo(300, 0);
+    expect(ms(synthGagSilence())).toBeCloseTo(500, 0);
+  });
+
+  it('lists the two silence clips by the names the feedback table uses', () => {
+    const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+    for (const clip of ['tel_silence_found', 'gag_silence_mischief']) {
+      expect(names, clip).toContain(clip);
+    }
+  });
+
   it('makes each telegraph and each gag sound unlike the others (no two clips are alike)', () => {
     // The largest normalised dot product between two clips, over their common length and for every
     // shift of one against the other up to `LAG_MAX_MS`: a clip that sounded like another, or like
@@ -175,6 +190,8 @@ describe('placeholder audio', () => {
         'tel_papa_microsleep',
         'gag_papa_asleep',
         'tel_phone_ring',
+        'tel_silence_found',
+        'gag_silence_mischief',
       ]),
     );
     for (const [index, first] of clips.entries()) {
@@ -186,7 +203,7 @@ describe('placeholder audio', () => {
         expect(best, `${first.clip} / ${second.clip}`).toBeLessThan(CORRELATION_MAX);
       }
     }
-  });
+  }, 30_000);
 
   it('never gives a NaN, in any clip', () => {
     for (const { clip, synth } of PLACEHOLDER_CLIPS) {

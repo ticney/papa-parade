@@ -1,13 +1,14 @@
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { Feel } from '@content/schemas/feel';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import { ThreatGagIds } from '@content/schemas/threat';
 import { PAPA_TARGET_ANCHOR_ID, PROP_ON_FLOOR_TOLERANCE_M } from '@shared/constants';
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
-import type { SimLevel, SimObjectSpec, StepContext, System } from './context.ts';
+import type { SimHiddenZone, SimLevel, SimObjectSpec, StepContext, System } from './context.ts';
 import { DISRUPTION_HANDLER_KINDS } from './disruptions/disruptionsSystem.ts';
 import type { SimEvent } from './events.ts';
 import {
@@ -174,29 +175,49 @@ function simLevelOf(
   const threats: SimLevel['threats'][number][] = planned.map((entry, index) => {
     const def = Object.hasOwn(level.threats, entry.def) ? level.threats[entry.def] : undefined;
     invariant(def !== undefined, `${entry.where}: the threat ${entry.def} is not loaded`);
-    invariant(
-      geometry.anchors.some((anchor) => anchor.id === entry.anchor),
-      `${entry.where}: threat ${entry.def} is planned at ${entry.anchor}, which ${geometry.id} does not have`,
-    );
+    let zone: SimHiddenZone | null = null;
+    if (def.target === 'hiddenZone') {
+      const found = geometry.zones.find((candidate) => candidate.id === entry.anchor);
+      invariant(
+        found !== undefined && found.kind === 'hidden',
+        `${entry.where}: the threat "${entry.def}" has target "hiddenZone", so "${entry.anchor}" must be a hidden zone, which ${geometry.id} does not have`,
+      );
+      zone = {
+        id: found.id,
+        centerXM: found.centerM[0],
+        centerZM: found.centerM[2],
+        halfXM: found.halfExtentsM[0],
+        halfZM: found.halfExtentsM[2],
+      };
+    } else {
+      invariant(
+        geometry.anchors.some((anchor) => anchor.id === entry.anchor),
+        `${entry.where}: threat ${entry.def} is planned at ${entry.anchor}, which ${geometry.id} does not have`,
+      );
+    }
     // The wording of these is the one `content:check` and the schema use.
-    invariant(
-      (GAG_IDS as readonly string[]).includes(def.gag),
-      `${entry.where}: the threat "${entry.def}" has the gag "${def.gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
-    );
+    for (const gag of ThreatGagIds(def)) {
+      invariant(
+        (GAG_IDS as readonly string[]).includes(gag),
+        `${entry.where}: the threat "${entry.def}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+      );
+    }
     invariant(
       def.target !== 'papa',
       `${entry.where}: the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef), a wave cannot plan it`,
     );
-    invariant(
-      def.gag !== PAPA_ASLEEP_GAG_ID,
-      `${entry.where}: the threat "${entry.def}" has the gag "${PAPA_ASLEEP_GAG_ID}": only the micro-sleep (target "papa") may end in it`,
-    );
+    for (const gag of ThreatGagIds(def)) {
+      invariant(
+        gag !== PAPA_ASLEEP_GAG_ID,
+        `${entry.where}: the threat "${entry.def}" has the gag "${PAPA_ASLEEP_GAG_ID}": only the micro-sleep (target "papa") may end in it`,
+      );
+    }
     const first = planned.findIndex((other) => other.anchor === entry.anchor);
     invariant(
       first === index,
       `${entry.where}: the anchor "${entry.anchor}" is already planned by ${(planned[first] as { where: string }).where}`,
     );
-    return { def, anchorId: entry.anchor, firstWaveIndex: entry.waveIndex };
+    return { def, anchorId: entry.anchor, firstWaveIndex: entry.waveIndex, zone };
   });
   if (microSleepDef !== undefined) {
     const where = `level ${level.level.id} › gauges.fatigue.microSleepDef`;
@@ -208,15 +229,17 @@ function simLevelOf(
       def.target === 'papa',
       `${where}: the threat "${microSleepDef}" has target "${def.target}", but a micro-sleep must have target "papa"`,
     );
-    invariant(
-      (GAG_IDS as readonly string[]).includes(def.gag),
-      `${where}: the threat "${microSleepDef}" has the gag "${def.gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
-    );
-    invariant(
-      def.gag === PAPA_ASLEEP_GAG_ID,
-      `${where}: the threat "${microSleepDef}" has the gag "${def.gag}", but a micro-sleep must have the gag "${PAPA_ASLEEP_GAG_ID}"`,
-    );
-    threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1 });
+    for (const gag of ThreatGagIds(def)) {
+      invariant(
+        (GAG_IDS as readonly string[]).includes(gag),
+        `${where}: the threat "${microSleepDef}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+      );
+      invariant(
+        gag === PAPA_ASLEEP_GAG_ID,
+        `${where}: the threat "${microSleepDef}" has the gag "${gag}", but a micro-sleep must have the gag "${PAPA_ASLEEP_GAG_ID}"`,
+      );
+    }
+    threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1, zone: null });
   }
   const disruptions: SimLevel['disruptions'][number][] = [];
   for (const entry of plannedDisruptionsOf(level)) {
@@ -309,21 +332,68 @@ function simLevelOf(
 }
 
 /**
- * Every planned threat anchor must be somewhere the baby can crawl to from where it starts: its
+ * The open cell of `grid` inside a hidden zone's box (x and z) nearest the box's centre, in
+ * `region` (-1: any); ties go to the lower cell index. -1 when none: the agent cannot stand there.
+ */
+function zoneCellOf(grid: NavGrid, zone: SimHiddenZone, region: number): number {
+  const total = grid.cols * grid.rows;
+  let best = -1;
+  let bestSq = Number.POSITIVE_INFINITY;
+  for (let cell = 0; cell < total; cell++) {
+    if (grid.open[cell] !== 1) continue;
+    if (region >= 0 && grid.region[cell] !== region) continue;
+    const dx = grid.centerXM(cell) - zone.centerXM;
+    const dz = grid.centerZM(cell) - zone.centerZM;
+    if (Math.abs(dx) > zone.halfXM || Math.abs(dz) > zone.halfZM) continue;
+    const distanceSq = dx * dx + dz * dz;
+    if (distanceSq < bestSq) {
+      bestSq = distanceSq;
+      best = cell;
+    }
+  }
+  return best;
+}
+
+/** The region of the cell a spawn point stands in, or -1 when it is off the grid. */
+function spawnRegionOf(grid: NavGrid, agent: { xM: number; zM: number }): number {
+  const cell = grid.cellAt(agent.xM, agent.zM);
+  return cell >= 0 ? (grid.region[cell] as number) : -1;
+}
+
+/**
+ * Every planned threat must be somewhere the baby can crawl to from where it starts: its anchor's
  * nearest open cell has to be in the region of the baby's spawn cell (a threat the baby can never
- * reach would lock it up for ever). `content:check` builds no nav grid, so this is the sim's check.
+ * reach would lock it up for ever). A hidden zone needs, more: an open cell of the baby's grid
+ * inside its box, in the baby's spawn region (where it hides), and one of Papa's grid inside it, in
+ * Papa's spawn region (« Papa walks in » must be possible). `content:check` builds no nav grid, so
+ * this is the sim's check.
  */
 function checkReachable(
   level: LevelContent,
   geometry: LevelGeometry,
-  grid: NavGrid,
-  baby: { xM: number; zM: number },
+  grids: { baby: NavGrid; papa: NavGrid },
+  spawns: { baby: { xM: number; zM: number }; papa: { xM: number; zM: number } },
+  simLevel: SimLevel,
 ): void {
-  const spawnCell = grid.cellAt(baby.xM, baby.zM);
-  const spawnRegion = spawnCell >= 0 ? grid.region[spawnCell] : -1;
-  for (const entry of plannedEntriesOf(level)) {
+  const grid = grids.baby;
+  const spawnCell = grid.cellAt(spawns.baby.xM, spawns.baby.zM);
+  const spawnRegion = spawnCell >= 0 ? (grid.region[spawnCell] as number) : -1;
+  const papaRegion = spawnRegionOf(grids.papa, spawns.papa);
+  plannedEntriesOf(level).forEach((entry, index) => {
+    const zone = simLevel.threats[index]?.zone ?? null;
+    if (zone !== null) {
+      invariant(
+        zoneCellOf(grid, zone, spawnRegion) >= 0,
+        `${entry.where}: threat ${entry.def} is planned in the hidden zone ${entry.anchor}, where the baby has no open cell it can reach from where it starts`,
+      );
+      invariant(
+        zoneCellOf(grids.papa, zone, papaRegion) >= 0,
+        `${entry.where}: threat ${entry.def} is planned in the hidden zone ${entry.anchor}, where Papa has no open cell he can reach from where he starts`,
+      );
+      return;
+    }
     const anchor = geometry.anchors.find((candidate) => candidate.id === entry.anchor);
-    if (anchor === undefined) continue; // `simLevelOf` has refused it
+    if (anchor === undefined) return; // `simLevelOf` has refused it
     invariant(
       spawnCell >= 0,
       `${entry.where}: the baby's spawn point is outside the navigation grid, so threat ${entry.def} at ${entry.anchor} cannot be checked for reach`,
@@ -333,7 +403,7 @@ function checkReachable(
       cell >= 0 && grid.region[cell] === spawnRegion,
       `${entry.where}: threat ${entry.def} is planned at ${entry.anchor}, which the baby cannot reach from where it starts`,
     );
-  }
+  });
 }
 
 /** Internal factory: tests inject extra systems here. The public API is {@link createSim}. */
@@ -357,20 +427,35 @@ export async function createSimWithSystems(
     fatiguePoints: simLevel.microSleepIndex < 0 ? 0 : content.feel.fatigue.startPoints,
     props: geometry.props,
   });
-  checkReachable(level, geometry, babyGrid, world.baby);
+  checkReachable(
+    level,
+    geometry,
+    { baby: babyGrid, papa: papaGrid },
+    { baby: world.baby, papa: world.papa },
+    simLevel,
+  );
+  const babyRegion = spawnRegionOf(babyGrid, world.baby);
   simLevel.threats.forEach((planned) => {
-    // The micro-sleep stands on Papa; every other threat on its anchor.
-    const anchor =
-      planned.def.target === 'papa'
-        ? { positionM: [world.papa.xM, 0, world.papa.zM] }
-        : geometry.anchors.find((candidate) => candidate.id === planned.anchorId);
-    invariant(anchor !== undefined, 'a planned threat has an anchor');
+    // The micro-sleep stands on Papa; a silence on the open cell of its zone nearest the centre
+    // (`checkReachable` proved there is one); every other threat on its anchor.
+    let point: { xM: number; zM: number } | undefined;
+    if (planned.def.target === 'papa') {
+      point = { xM: world.papa.xM, zM: world.papa.zM };
+    } else if (planned.zone !== null) {
+      const cell = zoneCellOf(babyGrid, planned.zone, babyRegion);
+      invariant(cell >= 0, 'a planned hidden zone has an open cell');
+      point = { xM: babyGrid.centerXM(cell), zM: babyGrid.centerZM(cell) };
+    } else {
+      const anchor = geometry.anchors.find((candidate) => candidate.id === planned.anchorId);
+      if (anchor !== undefined) point = { xM: anchor.positionM[0], zM: anchor.positionM[2] };
+    }
+    invariant(point !== undefined, 'a planned threat has an anchor');
     world.threats.push({
       id: allocateId(world),
       defId: planned.def.id,
       anchorId: planned.anchorId,
-      xM: anchor.positionM[0],
-      zM: anchor.positionM[2],
+      xM: point.xM,
+      zM: point.zM,
       state: 'idle',
       enteredAt: asSimMs(0),
       windowOpenAt: asSimMs(0),

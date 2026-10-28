@@ -45,6 +45,7 @@ import { loadFonts } from './ui/fonts.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
+import { createSilenceBubble } from './ui/hud/silenceBubble.ts';
 import { createTimerHud } from './ui/hud/timerHud.ts';
 import { createOverlayHost } from './ui/overlayHost.ts';
 import { createLoadingScreen } from './ui/screens/loadingScreen.ts';
@@ -223,6 +224,8 @@ export async function boot(): Promise<void> {
       | 'ppPress'
       | 'ppFatigue'
       | 'ppPhone'
+      | 'ppSilence'
+      | 'ppBabyPx'
       | 'ppObjectPx'
       | 'ppTarget',
     value: string,
@@ -395,9 +398,29 @@ export async function boot(): Promise<void> {
       'ppPress',
       'ppTarget',
       'ppPhone',
+      'ppSilence',
+      'ppBabyPx',
     ] as const) {
       delete document.documentElement.dataset[name];
     }
+  };
+  // The suspicious silence, on its events only (story 1.21): `on` at `SilenceStarted`, then `found`
+  // or `timedOut`; and where the baby is on the page then, in px, for a Playwright tap on him.
+  const mirrorSilenceEvent = (event: SimEvent): void => {
+    if (event.type === 'SilenceEnded') {
+      mirror('ppSilence', event.reason);
+      return;
+    }
+    if (event.type !== 'SilenceStarted') return;
+    mirror('ppSilence', 'on');
+    const active = levelSession.active;
+    if (active === null) return;
+    const { baby } = active.sim.world;
+    const rect = canvas.getBoundingClientRect();
+    iconPoint.set(baby.xM, levelFeel().baby.bodyRadiusM, baby.zM).project(camera);
+    const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
+    const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
+    mirror('ppBabyPx', `${x.toFixed(1)},${y.toFixed(1)}`);
   };
   // The phone, on its events only: ringing, then answered or timedOut (never per frame).
   const mirrorPhoneEvent = (event: SimEvent): void => {
@@ -536,6 +559,16 @@ export async function boot(): Promise<void> {
           babbleWorld.flow.state === 'playing' &&
           babbleWorld.baby.babbling,
       );
+      // The suspicious silence (story 1.21): the music stays off, and the « … » bubble stays up,
+      // while the sim says a silence has started. State, not events, so that a pause, a restart or
+      // the end of the level can never leave the music off. The bubble also waits for a running
+      // game: a pause veil or a countdown has the screen.
+      const isSilent =
+        babbleWorld !== undefined &&
+        babbleWorld.flow.state === 'playing' &&
+        babbleWorld.silence.startedAt !== null;
+      audio.setMusicMuted(isSilent);
+      silenceBubble.update(isSilent && pause.state === 'running', babbleWorld);
       // The timer counts sim time, rounded up to the second (`0:00` exactly when the level ends);
       // `hudBatch` writes the DOM only when the second changes. Before `shell.frame()` flushes it.
       const running = levelSession.active;
@@ -664,6 +697,7 @@ export async function boot(): Promise<void> {
         mirrorBabyEvent(event);
         mirrorThreatEvent(event);
         mirrorPhoneEvent(event);
+        mirrorSilenceEvent(event);
       }
       // A key still held after a tap's path ends walks again, and so after a coffee or a nap.
       if (event.type === 'PapaArrived') inputMapper.resumeHeld();
@@ -703,12 +737,29 @@ export async function boot(): Promise<void> {
     (seconds) => timerHud.setRemainingS(seconds),
     ...GAUGE_IDS.map((id) => (percent: number) => gaugesHud.setValue(id, percent)),
   ]);
+  // The silence bubble is screen-anchored, in the HUD root beside the row (UX `silence-bubble`).
+  const bubblePoint = new Vector3();
+  const silenceBubble = createSilenceBubble(document, {
+    t,
+    project: (xM, yM, zM, out) => {
+      if (room === null) return false;
+      const rect = canvas.getBoundingClientRect();
+      bubblePoint.set(xM, yM, zM).project(camera);
+      out.x = rect.left + ((bubblePoint.x + 1) / 2) * rect.width;
+      out.y = rect.top + ((1 - bubblePoint.y) / 2) * rect.height;
+      return true;
+    },
+    viewport: () => ({ width: hudRoot.clientWidth, height: hudRoot.clientHeight }),
+    hudBottomPx: () => hudRoot.querySelector('.pp-hud-row')?.getBoundingClientRect().bottom ?? 0,
+  });
+  window.addEventListener('resize', () => silenceBubble.relayout());
   const hud = createHudLayer(hudRoot, {
     t,
     onPausePress: () => pause.requestPause('user'),
     gauges: gaugesHud.element,
     timer: timerHud.element,
   });
+  hudRoot.append(silenceBubble.element);
   const overlayHost = createOverlayHost(uiRoot, {
     start: () =>
       createStartScreen({
@@ -795,6 +846,9 @@ export async function boot(): Promise<void> {
     },
     get objectTouchRadiusPx() {
       return levelFeel().input.objectTouchRadiusPx;
+    },
+    get babyBodyRadiusM() {
+      return levelFeel().baby.bodyRadiusM;
     },
     get input() {
       return levelFeel().input;

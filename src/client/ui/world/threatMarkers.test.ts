@@ -407,3 +407,34 @@ describe('a marker that follows Papa (story 1.19)', () => {
     expect(THREAT_ICON_PATHS.eyelids).toMatch(/^M/);
   });
 });
+
+describe('a silence in a hidden zone (story 1.21)', () => {
+  it('builds its entry on the point the sim chose for it, at the baby height, with no anchor lookup and no warn', () => {
+    const seen = log.buffer().length;
+    const silence = {
+      ...threat(11, 'hidden'),
+      defId: 'silence_mischief',
+      anchorId: 'behind_sofa',
+      xM: 0.5,
+      zM: -2.6,
+    } as Readonly<ThreatInstance>;
+    const entries = threatMarkerEntries([silence], [], {
+      silence_mischief: { icon: 'dots', target: 'hiddenZone' },
+    });
+    expect(entries).toEqual([
+      { threatId: 11, xM: 0.5, yM: expect.any(Number), zM: -2.6, icon: 'dots', followsPapa: false },
+    ]);
+    expect(entries[0]?.yM).toBeGreaterThan(0);
+    expect(
+      log
+        .buffer()
+        .slice(seen)
+        .filter((entry) => entry.level === 'warn'),
+    ).toEqual([]);
+  });
+
+  it('draws three dots', () => {
+    expect(THREAT_ICON_PATHS.dots).toMatch(/^M/);
+    expect(THREAT_ICON_PATHS.dots.match(/a2\.2/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+});

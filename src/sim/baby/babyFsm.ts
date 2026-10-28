@@ -4,11 +4,18 @@ import type { World } from '../world.ts';
 /**
  * `wander`: crawling to a destination. `babble`: sitting still and babbling until `wanderAt`.
  * `targetLocked`: staring, still, at the threat the director targeted (the telegraph). `approach`:
- * crawling to it. `act`: playing its mischief after a gag. Later stories add `mischiefSilent`
- * (1.21), `carried` (4.1) and `gagRecovery`: each adds its state here, to `BABY_STATES` in
+ * crawling to it. `act`: playing its mischief after a gag. `mischiefSilent` (story 1.21): off to,
+ * then hidden in, the zone of a suspicious silence, until Papa finds it or the mischief comes. Later
+ * stories add `carried` (4.1) and `gagRecovery`: each adds its state here, to `BABY_STATES` in
  * `snapshot.ts` and to the system.
  */
-export type BabyState = 'wander' | 'babble' | 'targetLocked' | 'approach' | 'act';
+export type BabyState =
+  | 'wander'
+  | 'babble'
+  | 'targetLocked'
+  | 'approach'
+  | 'act'
+  | 'mischiefSilent';
 
 /**
  * The only way to change `world.baby.state` (same pattern as `enterPapaState`): does nothing when
@@ -21,4 +28,17 @@ export function enterBabyState(world: World, ctx: StepContext, next: BabyState):
   baby.state = next;
   baby.enteredAt = world.time.sim;
   ctx.events.push({ type: 'BabyStateChanged', t: world.time.sim, from, to: next });
+}
+
+/**
+ * Whether the baby is free to take a new errand: wandering or babbling, locked on no threat, in no
+ * silence. Pure. The director draws a suspicious silence only then (story 1.21).
+ */
+export function isBabyFree(world: World): boolean {
+  const { baby } = world;
+  return (
+    (baby.state === 'wander' || baby.state === 'babble') &&
+    baby.targetThreatId === null &&
+    world.silence.threatId === null
+  );
 }

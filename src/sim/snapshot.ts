@@ -26,13 +26,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
+   * 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 8;
+  version: 9;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -51,7 +52,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 8,
+    version: 9,
     seed,
     feelHash,
     geometryHash,
@@ -150,7 +151,14 @@ function papaProblem(papa: unknown, objectIds: readonly string[]): string | null
   return null;
 }
 
-const BABY_STATES: readonly unknown[] = ['wander', 'babble', 'targetLocked', 'approach', 'act'];
+const BABY_STATES: readonly unknown[] = [
+  'wander',
+  'babble',
+  'targetLocked',
+  'approach',
+  'act',
+  'mischiefSilent',
+];
 
 function isUnitVector(x: unknown, z: unknown): boolean {
   if (typeof x !== 'number' || typeof z !== 'number') return false;
@@ -207,12 +215,15 @@ function babyProblem(baby: unknown, threats: readonly { id: number }[]): string 
     if (path.length === 0 || (slice.pathIndex as number) * 2 >= path.length) {
       return 'world.baby.path';
     }
-  } else if (slice.state !== 'approach' && path.length !== 0) {
+  } else if (slice.state !== 'approach' && slice.state !== 'mischiefSilent' && path.length !== 0) {
     return 'world.baby.path';
   }
   // The baby stares at, crawls to or plays out a target: it has one.
   const needsTarget =
-    slice.state === 'targetLocked' || slice.state === 'approach' || slice.state === 'act';
+    slice.state === 'targetLocked' ||
+    slice.state === 'approach' ||
+    slice.state === 'act' ||
+    slice.state === 'mischiefSilent';
   if (needsTarget !== (slice.targetThreatId !== null)) return 'world.baby.targetThreatId';
   if (slice.targetThreatId !== null && !threats.some((t) => t.id === slice.targetThreatId)) {
     return 'world.baby.targetThreatId';
@@ -394,9 +405,14 @@ function threatProblem(threat: unknown, index: number, waveCount: number): strin
   }
   // The state and the data it carries must agree.
   const isActive = instance.state === 'telegraph' || instance.state === 'windowOpen';
-  if (instance.state === 'idle' && instance.responseWindow !== null) {
+  if (
+    (instance.state === 'idle' || instance.state === 'hidden') &&
+    instance.responseWindow !== null
+  ) {
     return `${where}.responseWindow`;
   }
+  // A hidden silence has no window yet: nothing to open.
+  if (instance.state === 'hidden' && instance.windowOpenAt !== 0) return `${where}.windowOpenAt`;
   if (isActive && instance.responseWindow === null) return `${where}.responseWindow`;
   if (!isActive && instance.press !== null) return `${where}.press`;
   // The wave that telegraphed it, or -1 (idle, or no wave planned it); an idle threat has none.
@@ -494,6 +510,40 @@ function propProblem(prop: unknown, index: number, planned: PlannedLevel['props'
   return null;
 }
 
+/**
+ * The suspicious silence (story 1.21) and the world agree: it names a threat that is `hidden` (or
+ * `telegraph`), its instants come in order, and the baby is `mischiefSilent` on that threat exactly
+ * while there is one and babbles exactly until it has entered the zone.
+ */
+function silenceProblem(
+  silence: unknown,
+  baby: unknown,
+  threats: readonly { id: number; state: unknown }[],
+): string | null {
+  if (typeof silence !== 'object' || silence === null) return 'world.silence is missing';
+  const slice = silence as Record<string, unknown>;
+  const { threatId, zoneEnteredAt, startedAt } = slice;
+  if (threatId !== null) {
+    if (!Number.isInteger(threatId)) return 'world.silence.threatId';
+    const threat = threats.find((candidate) => candidate.id === threatId);
+    if (threat === undefined || (threat.state !== 'hidden' && threat.state !== 'telegraph')) {
+      return 'world.silence.threatId';
+    }
+  }
+  if (zoneEnteredAt !== null && (!isFiniteNumber(zoneEnteredAt) || threatId === null)) {
+    return 'world.silence.zoneEnteredAt';
+  }
+  if (startedAt !== null) {
+    if (!isFiniteNumber(startedAt) || zoneEnteredAt === null) return 'world.silence.startedAt';
+    if ((startedAt as number) < (zoneEnteredAt as number)) return 'world.silence.startedAt';
+  }
+  const slept = baby as Record<string, unknown>;
+  if ((slept.state === 'mischiefSilent') !== (threatId !== null)) return 'world.silence.threatId';
+  if (threatId !== null && slept.targetThreatId !== threatId) return 'world.silence.threatId';
+  if (slept.babbling !== (zoneEnteredAt === null)) return 'world.silence.zoneEnteredAt';
+  return null;
+}
+
 function propsProblem(
   props: unknown,
   mess: unknown,
@@ -506,7 +556,7 @@ function propsProblem(
   }
   if (typeof mess !== 'object' || mess === null) return 'world.mess is missing';
   const counts = mess as Record<string, unknown>;
-  for (const key of ['propsOnFloor', 'propsBroken']) {
+  for (const key of ['propsOnFloor', 'propsBroken', 'mischiefs']) {
     if (!Number.isInteger(counts[key]) || (counts[key] as number) < 0) return `world.mess.${key}`;
   }
   // The counts are a function of the props: a snapshot that disagrees with itself is damaged.
@@ -541,6 +591,7 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
     flow,
     gauges,
     disruptions,
+    silence,
   } = world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
   if (typeof clock !== 'object' || clock === null) return 'world.time is missing';
@@ -586,6 +637,7 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
       planned.objects.map((object) => object.id),
     ) ??
     babyProblem(baby, threats as readonly ThreatInstance[]) ??
+    silenceProblem(silence, baby, threats as readonly ThreatInstance[]) ??
     propsProblem(props, mess, planned.props)
   );
 }
@@ -608,7 +660,7 @@ export function worldFromSnapshot(
   levelHash: string,
   planned: PlannedLevel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 8, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 9, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

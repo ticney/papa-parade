@@ -6,6 +6,12 @@ import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
 import { svgElement } from '../svg.ts';
 
+/**
+ * A silence's icon floats this high above the floor, in metres: the baby's height plus the marker
+ * offset. (The baby's radius is not known here; this is the provisional cube's size, E7 redraws it.)
+ */
+const BABY_MARKER_HEIGHT_M = 0.7;
+
 /** An icon that follows Papa floats this far above the top of his cube, in metres. */
 const PAPA_MARKER_OFFSET_M = 0.3;
 
@@ -92,6 +98,17 @@ export function threatMarkerEntries(
         followsPapa: true,
       };
     }
+    // A silence stands on the open cell of its hidden zone, which the sim chose: the baby's height.
+    if (def?.target === 'hiddenZone') {
+      return {
+        threatId: threat.id,
+        xM: threat.xM,
+        yM: BABY_MARKER_HEIGHT_M,
+        zM: threat.zM,
+        icon,
+        followsPapa: false,
+      };
+    }
     const anchor = anchors.find((candidate) => candidate.id === threat.anchorId);
     if (anchor === undefined) {
       log.warn(
@@ -127,6 +144,8 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   mug: 'M3.5 6.5h13v9.5a4 4 0 0 1-4 4h-5a4 4 0 0 1-4-4z M16.5 9h2.5a3 3 0 0 1 0 6h-2.5v-2.2h2.5a.8.8 0 0 0 0-1.6h-2.5z',
   eyelids:
     'M2.5 11c3.5 6 15.5 6 19 0c-3.5-3-15.5-3-19 0z M5 15.5L3 19 M9.5 17.3l-.8 3.4 M14.5 17.3l.8 3.4 M19 15.5l2 3.5',
+  // Three dots: the « … » of the suspicious silence (story 1.21).
+  dots: 'M6 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M18 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0',
 };
 /** The chevron: a down-pointing triangle above the icon (12 × 8 view box). */
 const CHEVRON_PATH = 'M1 1h10L6 7z';

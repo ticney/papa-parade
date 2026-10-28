@@ -1,5 +1,7 @@
 import type { LevelContent } from '@content/contentBundle';
 import { STEP_MS } from '@shared/constants';
+import { hashJson } from '@shared/hash';
+import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
   COFFEE_TABLE,
@@ -8,9 +10,11 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
+  SILENCE,
   STAIRS,
   testWave,
 } from '../../../tests/support/testContent.ts';
+import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 
@@ -342,5 +346,154 @@ describe('the micro-sleep and the director (story 1.19)', () => {
     ]);
     // Fatigue stays under the threshold for 140 s: the gauge changes nothing the director draws.
     expect(b).toEqual(a);
+  });
+});
+
+describe('the suspicious silence and the director (story 1.21)', () => {
+  const silenceLevel = (
+    overrides: Parameters<typeof testWave>[1] = {},
+    extra = [] as (typeof OUTLET)[],
+  ) => createTestLevel({ waves: [testWave([SILENCE, ...extra], overrides)] });
+  const hidden = (events: readonly SimEvent[]) =>
+    events.filter((event) => event.type === 'ThreatHidden');
+
+  it('hides the silence instead of telegraphing it, in the same pool and with the same draws', async () => {
+    const sim = await newSim(silenceLevel());
+    const events = runTo(sim, 2 * STEP_MS);
+    expect(hidden(events)).toEqual([
+      expect.objectContaining({ kind: 'silence_mischief', waveIndex: 0 }),
+    ]);
+    expect(telegraphs(events)).toEqual([]);
+    expect(sim.world.threats[0]).toMatchObject({ state: 'hidden', responseWindow: null });
+  });
+
+  it.each(['targetLocked', 'approach', 'act', 'mischiefSilent'] as const)(
+    'does not draw a silence while the baby is %s',
+    async (state) => {
+      const sim = await newSim(silenceLevel());
+      sim.world.baby.state = state;
+      sim.world.baby.targetThreatId = 999;
+      sim.step();
+      expect(hidden(sim.drainEvents())).toEqual([]);
+      expect(sim.world.threats[0]?.state).toBe('idle');
+    },
+  );
+
+  it('does not draw a silence while one is under way, even with room in the wave', async () => {
+    const sim = await newSim(silenceLevel({ maxSimultaneous: 3 }));
+    sim.world.silence.threatId = 999;
+    sim.step();
+    expect(hidden(sim.drainEvents())).toEqual([]);
+  });
+
+  it('counts a hidden silence against maxSimultaneous: nothing else is telegraphed meanwhile', async () => {
+    const sim = await newSim(silenceLevel({ maxSimultaneous: 1 }, [OUTLET]));
+    const events = runTo(sim, 12 * STEP_MS);
+    // Either was drawn first; the other waits for the first to be over.
+    const first = hidden(events).length + telegraphs(events).length;
+    expect(first).toBe(1);
+    if (hidden(events).length === 1)
+      expect(sim.world.threats.filter((t) => t.state === 'telegraph')).toEqual([]);
+  });
+
+  it('keeps the draws of a level with no silence exactly as before (the baseline trace)', async () => {
+    // Captured on the commit before story 1.21: same rng state and same events, to the byte.
+    const sim = await createSim({
+      content,
+      geometry,
+      level: createTestLevel({
+        waves: [
+          testWave([OUTLET, STAIRS, COFFEE_TABLE], {
+            maxSimultaneous: 2,
+            gapMinMs: 1000,
+            gapMaxMs: 3000,
+            lullMs: 1000,
+          }),
+        ],
+        gauges: FATIGUE_GAUGES,
+      }),
+      seed: 7,
+    });
+    const events = runTo(sim, 60_000);
+    expect(sim.world.rng).toEqual({ a: 1581132668, b: 1663718832, c: 1567227279, d: 81 });
+    expect(events).toHaveLength(183);
+    expect(hashJson(events)).toBe('01c85cbbfc3da3');
+  });
+
+  describe('ForceThreat', () => {
+    const force = (sim: Sim, threatId: number) =>
+      sim.enqueue({ type: 'ForceThreat', t: asSimMs(sim.world.time.sim), threatId } as SimCommand);
+
+    it('starts an idle threat now through the same helper: a telegraph, a hidden silence', async () => {
+      const sim = await newSim(
+        createTestLevel({ waves: [testWave([OUTLET, SILENCE], { fromMs: 60_000 })] }),
+      );
+      const [outlet, silence] = sim.world.threats;
+      force(sim, (silence as { id: number }).id);
+      const forcedSilence = runTo(sim, 2 * STEP_MS);
+      expect(hidden(forcedSilence)).toHaveLength(1);
+      force(sim, (outlet as { id: number }).id);
+      const forcedOutlet = runTo(sim, 4 * STEP_MS);
+      expect(telegraphs(forcedOutlet)).toEqual([expect.objectContaining({ kind: 'outlet' })]);
+      // The wave index is the director's: no wave has started yet.
+      expect(sim.world.threats[0]?.waveIndex).toBe(-1);
+    });
+
+    it('draws nothing from the rng and leaves the director gap alone', async () => {
+      const sim = await newSim(
+        createTestLevel({ waves: [testWave([OUTLET], { fromMs: 60_000 })] }),
+      );
+      const rng = structuredClone(sim.world.rng);
+      const nextAt = sim.world.director.nextAt;
+      force(sim, (sim.world.threats[0] as { id: number }).id);
+      runTo(sim, 2 * STEP_MS);
+      expect(sim.world.rng).toEqual(rng);
+      expect(sim.world.director.nextAt).toBe(nextAt);
+    });
+
+    it.each([
+      ['an unknown id', () => 9999],
+      ['a threat that is not idle', (sim: Sim) => (sim.world.threats[0] as { id: number }).id],
+    ])('is ignored, with no event, for %s', async (_name, pick) => {
+      const sim = await newSim(
+        createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 0, gapMaxMs: 0 })] }),
+      );
+      runTo(sim, 2 * STEP_MS); // the outlet is telegraphed by the wave
+      const before = JSON.stringify(sim.world.threats);
+      force(sim, pick(sim));
+      const events = runTo(sim, 4 * STEP_MS);
+      expect(
+        events.filter((e) => e.type === 'ThreatTelegraphed' || e.type === 'ThreatHidden'),
+      ).toEqual([]);
+      expect(JSON.stringify(sim.world.threats)).toBe(before);
+    });
+
+    it('is ignored for the threat on Papa', async () => {
+      const sim = await createSim({
+        content,
+        geometry,
+        level: createTestLevel({
+          waves: [testWave([OUTLET], { fromMs: 60_000 })],
+          gauges: FATIGUE_GAUGES,
+        }),
+        seed: 1,
+      });
+      const microSleep = sim.world.threats.at(-1) as { id: number };
+      force(sim, microSleep.id);
+      const events = runTo(sim, 3 * STEP_MS);
+      expect(telegraphs(events)).toEqual([]);
+    });
+
+    it('is ignored for a silence while the baby is not free', async () => {
+      const sim = await newSim(
+        createTestLevel({ waves: [testWave([SILENCE], { fromMs: 60_000 })] }),
+      );
+      sim.world.baby.state = 'approach';
+      sim.world.baby.targetThreatId = 999;
+      force(sim, (sim.world.threats[0] as { id: number }).id);
+      sim.step();
+      expect(hidden(sim.drainEvents())).toEqual([]);
+      expect(sim.world.threats[0]?.state).toBe('idle');
+    });
   });
 });

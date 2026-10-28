@@ -8,9 +8,10 @@ import { type AppError, err, ok, type Result } from '@shared/result';
 import { createRng, nextFloat, type RngState } from '@shared/rng';
 import { ROOT } from '../assets/paths.ts';
 
-// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19 and 1.20 (the outlet's four cues, then the
+// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20 and 1.21 (the outlet's four cues, then the
 // stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled swell and
-// Papa's snore, then the phone's ring and Papa's pick-up click), synthesized so that the whole audio pipeline
+// Papa's snore, then the phone's ring and Papa's pick-up click, then the silence's « ah-ha » chirp
+// and the baby's paper rustle), synthesized so that the whole audio pipeline
 // works end to end with no human (golden rule). Real sounds replace the `.m4a` files under the same
 // names (stories 2.3 and 7.5). The tool is macOS only (`afconvert`) and CI never runs it.
 
@@ -162,6 +163,23 @@ const PAPA_PHONE_ANSWER_TICK_HZ = 900;
 const PAPA_PHONE_ANSWER_TICK_AT_MS = 70;
 const PAPA_PHONE_ANSWER_TICK_DECAY_S = 0.012;
 const PAPA_PHONE_ANSWER_TICK_GAIN = 0.8;
+
+// Silence found: a short rising « ah-ha » (two chirps, the second higher).
+const TEL_SILENCE_LENGTH_MS = 300;
+const TEL_SILENCE_CHIRP_MS = 120;
+const TEL_SILENCE_CHIRP_GAP_MS = 20;
+const TEL_SILENCE_PITCHES_HZ = [
+  { from: 420, to: 560 },
+  { from: 560, to: 760 },
+] as const;
+const TEL_SILENCE_ATTACK_MS = 8;
+const TEL_SILENCE_RELEASE_MS = 40;
+
+// The surprise mischief: a paper rustle, bursts of noise rattling at about 18 Hz that fade away.
+const GAG_SILENCE_LENGTH_MS = 500;
+const GAG_SILENCE_RUSTLE_HZ = 18;
+const GAG_SILENCE_SMOOTHING_PCT = 70;
+const GAG_SILENCE_RELEASE_MS = 120;
 
 /** A thump's ramp-up, in ms, and the level under which its tail is cut (a share of full scale). */
 const THUMP_ATTACK_MS = 2;
@@ -590,6 +608,46 @@ export function synthPhoneAnswer(): Float32Array {
   return out;
 }
 
+/** The silence is found: a short rising « ah-ha », two sine chirps (the silence's telegraph). */
+export function synthTelegraphSilence(): Float32Array {
+  const out = new Float32Array(samplesOf(TEL_SILENCE_LENGTH_MS));
+  const chirp = samplesOf(TEL_SILENCE_CHIRP_MS);
+  const gap = samplesOf(TEL_SILENCE_CHIRP_GAP_MS);
+  const attack = samplesOf(TEL_SILENCE_ATTACK_MS);
+  const release = samplesOf(TEL_SILENCE_RELEASE_MS);
+  TEL_SILENCE_PITCHES_HZ.forEach((pitch, c) => {
+    const start = c * (chirp + gap);
+    let phase = 0;
+    for (let i = 0; i < chirp && start + i < out.length; i++) {
+      const frequencyHz = pitch.from + (pitch.to - pitch.from) * (i / chirp);
+      phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+      out[start + i] = Math.sin(phase) * Math.min(1, i / attack, (chirp - i) / release);
+    }
+  });
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A paper rustle: smoothed noise chopped by a fast rattle, then fading (the surprise mischief's gag). */
+export function synthGagSilence(): Float32Array {
+  const rng = createRng(SEED + 7);
+  const out = new Float32Array(samplesOf(GAG_SILENCE_LENGTH_MS));
+  const release = samplesOf(GAG_SILENCE_RELEASE_MS);
+  let noise = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    noise += ((100 - GAG_SILENCE_SMOOTHING_PCT) / 100) * (nextFloat(rng) * 2 - 1 - noise);
+    const rattle = 0.5 + 0.5 * Math.sin(2 * Math.PI * GAG_SILENCE_RUSTLE_HZ * seconds);
+    out[i] = noise * rattle * Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -629,6 +687,8 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'gag_papa_asleep', synth: synthGagPapaAsleep },
   { clip: 'tel_phone_ring', synth: synthTelegraphPhone },
   { clip: 'papa_phone_answer', synth: synthPhoneAnswer },
+  { clip: 'tel_silence_found', synth: synthTelegraphSilence },
+  { clip: 'gag_silence_mischief', synth: synthGagSilence },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

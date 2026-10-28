@@ -4,7 +4,7 @@ baseline_commit: 8e1573caccd3497c0eae4bf0f881b1dc3de48401
 
 # Story 1.21: The Suspicious Silence
 
-Status: in-progress
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.21 « Le silence suspect » (L1088-1116). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -219,34 +219,34 @@ so that I go and find him before the mischief.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 — Precondition** (§ Precondition). Record the baseline CI and the counts in the Debug Log.
-- [ ] **T1 — Content** (AC 1, 2, 5)
-  - [ ] `src/content/schemas/threat.ts`:
+- [x] **T0 — Precondition** (§ Precondition). Record the baseline CI and the counts in the Debug Log.
+- [x] **T1 — Content** (AC 1, 2, 5)
+  - [x] `src/content/schemas/threat.ts`:
     - `THREAT_TARGETS` gains `'hiddenZone'`; `THREAT_ICONS` gains `'dots'`.
     - Split `ThreatDefSchema` into a shared base and two strict variants: `target: z.enum(['anchor', 'papa'])` with `gag`, and `target: z.literal('hiddenZone')` with `findMaxMs` (> 0, « from `SilenceStarted` to the surprise mischief, in sim ms ») and `surpriseGags` (`z.array(idSchema).min(1)`).
     - Join them with `z.discriminatedUnion('target', …)`. If Zod 4 refuses an enum discriminator, use three variants (one per target).
     - Export `ThreatDef` (the union), plus `HiddenZoneThreatDef` and `ThreatGagIds(def)` → `readonly string[]` (`[def.gag]` or `def.surpriseGags`), so that callers stop reading `def.gag` directly.
     - `.describe` everything with its unit.
-  - [ ] `src/content/schemas/feel.ts` › `BabySchema`: `silenceAlertMs` (int > 0) and `sneakSpeedMps` (> 0, ≤ `MAX_CRAWL_SPEED_MPS` if the other speeds are bounded so), both described. `content/feel.json`: 2000 and 1.2.
-  - [ ] `content/threats/silence_mischief.json` (AC 1); `content/levels/salon_crawler.json` wave 2 (AC 2).
-  - [ ] `content/feedback.json`, cues:
+  - [x] `src/content/schemas/feel.ts` › `BabySchema`: `silenceAlertMs` (int > 0) and `sneakSpeedMps` (> 0, ≤ `MAX_CRAWL_SPEED_MPS` if the other speeds are bounded so), both described. `content/feel.json`: 2000 and 1.2.
+  - [x] `content/threats/silence_mischief.json` (AC 1); `content/levels/salon_crawler.json` wave 2 (AC 2).
+  - [x] `content/feedback.json`, cues:
     - `silence_started`: `{ "haptic": "light" }` only, mapped in `events` as `"SilenceStarted": "silence_started"`;
     - `tel_silence_found`: audio sfx, `soundWave` `threat` about 0.8 m / 400 ms, `light`;
     - `gag_silence_mischief`: audio sfx, `soundWave` `threat` 1.0 m / 500 ms, `heavy`.
-  - [ ] `content/strings.fr.json`: `hud.silence_bubble` « … » and `hud.silence_bubble_label` « Silence » (the aria label; `EXPERIENCE.md` L163). Match the existing `hud.*` keys.
-  - [ ] `tools/content/contentChecks.ts`:
+  - [x] `content/strings.fr.json`: `hud.silence_bubble` « … » and `hud.silence_bubble_label` « Silence » (the aria label; `EXPERIENCE.md` L163). Match the existing `hud.*` keys.
+  - [x] `tools/content/contentChecks.ts`:
     - `checkThreatReferences` checks each id of `ThreatGagIds(def)` against `GAG_IDS`, and refuses `papa_asleep` in `surpriseGags`;
     - `checkLevelReferences`: a `hiddenZone` entry's `anchor` must be a `geometry.zones` entry of kind `hidden`; any other entry's `anchor` must be a `geometry.anchors` entry (today's message);
     - tests in `tests/content/checkContent.test.ts` and `tests/content/threatSchema.test.ts` (or the existing threat-schema test file).
-  - [ ] `npm run content:schemas`; commit `content/_schemas/{threat,feel,feedback}.schema.json` (and `level` if it moves).
-- [ ] **T2 — Sim: plan, world, snapshot** (AC 2-4)
-  - [ ] `src/sim/context.ts` › `SimPlannedThreat` gains `zone: SimHiddenZone | null`. `SimHiddenZone` is `{ id; centerXM; centerZM; halfXM; halfZM }` from the geometry box; non-null exactly for a `hiddenZone` def.
-  - [ ] `src/sim/createSim.ts`:
+  - [x] `npm run content:schemas`; commit `content/_schemas/{threat,feel,feedback}.schema.json` (and `level` if it moves).
+- [x] **T2 — Sim: plan, world, snapshot** (AC 2-4)
+  - [x] `src/sim/context.ts` › `SimPlannedThreat` gains `zone: SimHiddenZone | null`. `SimHiddenZone` is `{ id; centerXM; centerZM; halfXM; halfZM }` from the geometry box; non-null exactly for a `hiddenZone` def.
+  - [x] `src/sim/createSim.ts`:
     - `simLevelOf` resolves a `hiddenZone` entry against `geometry.zones` (kind `hidden`), not `anchors`. It keeps the duplicate rule (a zone planned twice is refused like an anchor). It uses the gag wording of `content:check` for every id of `ThreatGagIds`.
     - The threat instance's `xM` / `zM` is the **centre of the open baby cell inside the zone box nearest the zone's centre**, in the baby's spawn region. None means an invariant.
     - Papa's grid needs one open cell inside the box, in Papa's spawn region. None means an invariant too: « papa entre dans la zone » must be possible.
     - Extend `checkReachable` and use the same wording in `content:check` where it can be checked statically. The nav grid cannot be checked there; the sim checks it (story 1.18 D12).
-  - [ ] `src/sim/threats/threatFsm.ts`:
+  - [x] `src/sim/threats/threatFsm.ts`:
     - `ThreatState` gains `'hidden'` (and `THREAT_STATES`). Update the doc: « `hidden`: a silent mischief picked by the director; no window until the baby is found ».
     - `hideThreat(world, ctx, threat, waveIndex)`:
       - `idle → hidden`;
@@ -254,12 +254,12 @@ so that I go and find him before the mischief.
       - sets `waveIndex`;
       - emits `ThreatHidden`.
     - `gagThreat` draws the gag through `gagOf(world, def)`. A `hiddenZone` def does one `nextFloat`, then `surpriseGags[min(len − 1, floor(f × len))]` through `gagIdOf`. Any other def does no draw: `gagIdOf(def.gag)`.
-  - [ ] `src/sim/director/waveState.ts` › `isThreatActive` includes `hidden`.
-  - [ ] `src/sim/world.ts`:
+  - [x] `src/sim/director/waveState.ts` › `isThreatActive` includes `hidden`.
+  - [x] `src/sim/world.ts`:
     - `SilenceSlice { threatId: number | null; zoneEnteredAt: SimMs | null; startedAt: SimMs | null }` and `World.silence` (all null at creation);
     - `MessSlice.mischiefs: number` (0 at creation; cumulative, **not** recounted by `runPhysics`; say so in its doc and check `propsSystem.ts` does not reset it).
-  - [ ] `src/sim/baby/babyFsm.ts`: `BabyState` gains `'mischiefSilent'`. Update the doc, since it lists the states still to come.
-  - [ ] `src/sim/snapshot.ts`:
+  - [x] `src/sim/baby/babyFsm.ts`: `BabyState` gains `'mischiefSilent'`. Update the doc, since it lists the states still to come.
+  - [x] `src/sim/snapshot.ts`:
     - `version: 9`, with a comment.
     - `BABY_STATES` gains `mischiefSilent`.
     - `silenceProblem`:
@@ -270,13 +270,13 @@ so that I go and find him before the mischief.
     - `mess.mischiefs` is a non-negative integer.
     - The threat check accepts `hidden`, with `responseWindow === null` and `windowOpenAt === 0` there.
     - Tests.
-- [ ] **T3 — Sim: the silence** (AC 3-4, 7-10)
-  - [ ] `src/sim/director/directorSystem.ts`:
+- [x] **T3 — Sim: the silence** (AC 3-4, 7-10)
+  - [x] `src/sim/director/directorSystem.ts`:
     - In the candidate count and the pick, a `hiddenZone` threat is a candidate only when the baby is free (AC 3). Use a pure helper. Keep « one `nextFloat` per gap and one per pick ».
     - The pick calls a local `startThreat(world, ctx, index, waveIndex)`: `hideThreat` for a `hiddenZone` def, `telegraphThreat` otherwise.
     - Apply this step's `ForceThreat` commands first, through the same `startThreat` (AC 10). They draw nothing.
     - Update the doc comment.
-  - [ ] `src/sim/baby/silence.ts` (new; architecture L942 calls it `babble.ts`, see Project Structure Notes): `runSilence(world, ctx)`, called **first** in `runBaby`, before `releaseTarget`. It does, in order:
+  - [x] `src/sim/baby/silence.ts` (new; architecture L942 calls it `babble.ts`, see Project Structure Notes): `runSilence(world, ctx)`, called **first** in `runBaby`, before `releaseTarget`. It does, in order:
     1. **Take:** a `hidden` threat while `world.silence.threatId === null`. Plan the path with `planApproach`; no path means an invariant (`createSim` checked it).
     2. **Sneak:** crawl `sneakSpeedMps` along the path; on arrival in the box, the zone entry of AC 4.
     3. **Alert:** at the first step where `now ≥ zoneEnteredAt + silenceAlertMs`, `SilenceStarted`.
@@ -284,71 +284,71 @@ so that I go and find him before the mischief.
     5. **Deadline:** AC 9.
 
     It writes the baby only through `enterBabyState` and its own fields, and the threat only through `threatFsm` helpers (`telegraphThreat`, `gagThreat`). Allocation-free (the path array is the only allocation, as in `planApproach`).
-  - [ ] `src/sim/baby/babySystem.ts`:
+  - [x] `src/sim/baby/babySystem.ts`:
     - call `runSilence` first;
     - `lockOnThreat` skips `hidden` threats and `hiddenZone` defs;
     - the local `isActive` becomes `isThreatActive` (so `releaseTarget` keeps a `hidden` target);
     - wander and babble do nothing while `mischiefSilent`.
-  - [ ] `src/sim/threats/gags.ts`:
+  - [x] `src/sim/threats/gags.ts`:
     - `GAG_IDS` gains `tissues_everywhere` and `crayon_scribbles`;
     - their consequence is `addMischief(world)`, `mess.mischiefs += 1`, a helper in `propsSystem.ts` beside the mess, or in `gags.ts`; there is no `NearMiss`.
     - Update the header comment.
-  - [ ] `src/sim/papa/papaSystem.ts`:
+  - [x] `src/sim/papa/papaSystem.ts`:
     - `TapBaby` → `tapFloor(world, ctx, baby.xM, baby.zM)` (AC 7), inside the busy `break` like the others;
     - `pressThreat` does not glide to a `hidden` threat;
     - update the header doc.
-  - [ ] `src/sim/events.ts`:
+  - [x] `src/sim/events.ts`:
     - `ThreatHidden`, `SilenceStarted{t, threatId}` and `SilenceEnded{t, threatId, reason: SilenceEndReason}`, with doc comments;
     - `SilenceEndReason = 'found' | 'timedOut'`;
     - `SIM_EVENT_TYPES` stays sorted.
-  - [ ] `src/sim/commands.ts`: `TapBaby{t}` (gameplay) and `ForceThreat{t, threatId}` (debug), in `COMMAND_TYPES` and `commandProblem`.
-  - [ ] `src/sim/index.ts`: export `SilenceSlice`, `SilenceEndReason` and anything the client, bots or tools need.
-  - [ ] Tests: `silence.test.ts`, `babySystem.test.ts`, `directorSystem.test.ts`, `threatFsm.test.ts`, `threatSystem.test.ts`, `gags.test.ts`, `papaSystem.test.ts`, `snapshot.test.ts`, `commands.test.ts`, `events.test.ts` and `createSim.test.ts`. See § Testing.
-- [ ] **T4 — Client** (AC 5, 6)
-  - [ ] `src/client/audio/audioEngine.ts`:
+  - [x] `src/sim/commands.ts`: `TapBaby{t}` (gameplay) and `ForceThreat{t, threatId}` (debug), in `COMMAND_TYPES` and `commandProblem`.
+  - [x] `src/sim/index.ts`: export `SilenceSlice`, `SilenceEndReason` and anything the client, bots or tools need.
+  - [x] Tests: `silence.test.ts`, `babySystem.test.ts`, `directorSystem.test.ts`, `threatFsm.test.ts`, `threatSystem.test.ts`, `gags.test.ts`, `papaSystem.test.ts`, `snapshot.test.ts`, `commands.test.ts`, `events.test.ts` and `createSim.test.ts`. See § Testing.
+- [x] **T4 — Client** (AC 5, 6)
+  - [x] `src/client/audio/audioEngine.ts`:
     - `setMusicMuted(isMuted)`, edge-triggered and cheap per frame;
     - muting fades the music loop out (`stopLoop('music')`);
     - unmuting restarts it if `areLoopsActive`;
     - `stopLevelLoops` / `startLevelLoops` stay as they are (a level start unmutes).
     - Tests in `audioEngine.test.ts`.
-  - [ ] `src/client/boot.ts` › `onLevelFrame`, next to `setBabbling`: `audio.setMusicMuted(isSilent)` and `silenceBubble.update(isSilent, world)`. `isSilent` is `flow === 'playing' && world.silence.startedAt !== null`.
-  - [ ] `src/client/ui/hud/silenceBubble.ts` (new; `createSilenceBubble`):
+  - [x] `src/client/boot.ts` › `onLevelFrame`, next to `setBabbling`: `audio.setMusicMuted(isSilent)` and `silenceBubble.update(isSilent, world)`. `isSilent` is `flow === 'playing' && world.silence.startedAt !== null`.
+  - [x] `src/client/ui/hud/silenceBubble.ts` (new; `createSilenceBubble`):
     - one element, mounted in the HUD root, `pp-silence-bubble` classes, `aria-label` from `t()`;
     - `update(isSilent, world)` writes the DOM only on a change;
     - the side and the vertical position are computed **when it shows and on resize**, from the threat's point projected with the iso camera (a preallocated `Vector3`), never per frame.
     - CSS in `ui.css`: the mockup's shape and tail, mirrored for the left edge; the blink as a `steps()` opacity animation at 2 Hz; a `prefers-reduced-motion` 1 Hz pulse. Use tokens only (`--pp-color-alert`, `--pp-color-ink`, `--pp-spacing-hud-inset-*`).
     - A test (`silenceBubble.test.ts`).
-  - [ ] `src/client/input/hitTest.ts`: `pickBaby(clientX, clientY, rect, baby, yM, radiusPx): boolean`, allocation-free, beside `pickObject`. Update the header doc (« the baby comes with story 1.21 »).
-  - [ ] `src/client/input/inputMapper.ts`:
+  - [x] `src/client/input/hitTest.ts`: `pickBaby(clientX, clientY, rect, baby, yM, radiusPx): boolean`, allocation-free, beside `pickObject`. Update the header doc (« the baby comes with story 1.21 »).
+  - [x] `src/client/input/inputMapper.ts`:
     - the pointer path tries the baby where the comment says it slots in;
     - the action path (Space / A) compares the baby with `pickContextObject`;
     - tests.
-  - [ ] `src/client/ui/world/threatMarkers.ts`:
+  - [x] `src/client/ui/world/threatMarkers.ts`:
     - `threatMarkerEntries` places a `hiddenZone` threat's marker at its `xM` / `zM`, at the baby's height plus the usual offset (no anchor lookup, no warning);
     - `THREAT_ICON_PATHS.dots` (three dots), with tests.
-  - [ ] `src/client/render/gags.ts`: `GAG_PRESENTATIONS` entries for the two new gags. All flags false, with a comment: « the gag cue's ring and sound are the show until E7; the mess is `world.mess.mischiefs` ».
-  - [ ] Mirrors (`boot.ts`), written on events only:
+  - [x] `src/client/render/gags.ts`: `GAG_PRESENTATIONS` entries for the two new gags. All flags false, with a comment: « the gag cue's ring and sound are the show until E7; the mess is `world.mess.mischiefs` ».
+  - [x] Mirrors (`boot.ts`), written on events only:
     - `ppSilence` (`on` on `SilenceStarted`, `found` / `timedOut` on `SilenceEnded`);
     - `ppBabyPx` (the baby's projected screen point, written on `SilenceStarted`, for the e2e tap);
     - delete both at level start.
-  - [ ] `tools/audio/makePlaceholderAudio.ts`:
+  - [x] `tools/audio/makePlaceholderAudio.ts`:
     - `tel_silence_found`: a short rising « ah-ha » chirp of about 300 ms;
     - `gag_silence_mischief`: a paper-rustle noise burst of about 500 ms;
     - next `SEED + n`; update the header and the test.
     - Run `npm run assets:audio` (macOS) and **keep only the two new `.m4a`**; restore the others from git.
-- [ ] **T5 — Bots and CLI** (AC 11-13)
-  - [ ] `src/bots/perfectBot.ts`, `src/bots/humanBot.ts` (AC 11). Remember the last `startedAt` tapped, so that each silence is tapped once. Tests.
-  - [ ] `tools/sim/simReport.ts` (AC 13) and its tests. Check how per-def stats count a result with no `ThreatTelegraphed` before it, and count `ThreatHidden` as the pick of a silence if needed.
-  - [ ] `tests/tools/sim/silence.test.ts` (AC 12).
-- [ ] **T6 — Tests to migrate**
-  - [ ] `tests/support/testContent.ts`:
+- [x] **T5 — Bots and CLI** (AC 11-13)
+  - [x] `src/bots/perfectBot.ts`, `src/bots/humanBot.ts` (AC 11). Remember the last `startedAt` tapped, so that each silence is tapped once. Tests.
+  - [x] `tools/sim/simReport.ts` (AC 13) and its tests. Check how per-def stats count a result with no `ThreatTelegraphed` before it, and count `ThreatHidden` as the pick of a silence if needed.
+  - [x] `tests/tools/sim/silence.test.ts` (AC 12).
+- [x] **T6 — Tests to migrate**
+  - [x] `tests/support/testContent.ts`:
     - a frozen `testSilence.threat.json` (`createTestSilence()`), a `SILENCE` wave entry on `behind_sofa`, and `createTestThreats` including it;
     - check that the test geometry's `behind_sofa` is reachable by both grids. If not, fix the **test geometry**, never the invariant.
-  - [ ] Every place that read `def.gag` now reads `ThreatGagIds(def)` or narrows on `target`: `tsc` lists them.
-  - [ ] Every test that builds a `World` or a `MessSlice` literal gains `silence` / `mischiefs`.
-  - [ ] Never delete a test to go green. Rewrite one whose premise changed, and say so. For example, a test that says « every result follows a telegraph » is false for a silence that was never found.
-- [ ] **T7 — e2e** (AC 5, 6, 8, 9)
-  - [ ] New `tests/e2e/silence.spec.ts`: chromium + webkit, frozen with `ppLoadLevel('salon_crawler', 42)`, helpers local to the spec. The silence threat's id comes from `__PP__` state (the instance whose `defId` is `silence_mischief`), never a literal.
+  - [x] Every place that read `def.gag` now reads `ThreatGagIds(def)` or narrows on `target`: `tsc` lists them.
+  - [x] Every test that builds a `World` or a `MessSlice` literal gains `silence` / `mischiefs`.
+  - [x] Never delete a test to go green. Rewrite one whose premise changed, and say so. For example, a test that says « every result follows a telegraph » is false for a silence that was never found.
+- [x] **T7 — e2e** (AC 5, 6, 8, 9)
+  - [x] New `tests/e2e/silence.spec.ts`: chromium + webkit, frozen with `ppLoadLevel('salon_crawler', 42)`, helpers local to the spec. The silence threat's id comes from `__PP__` state (the instance whose `defId` is `silence_mischief`), never a literal.
     - **Silence:**
       - `ppSend ForceThreat{threatId}`, then advance until `SilenceStarted`;
       - expect `ThreatHidden`, `BabyStateChanged → mischiefSilent`, `ppBabble = off`, `ppMusic = off`, `ppSilence = on`;
@@ -362,20 +362,20 @@ so that I go and find him before the mischief.
     - **Not found:** `ForceThreat`, then advance `(silenceAlertMs + findMaxMs) / STEP_MS` steps past the zone entry; expect `SilenceEnded{timedOut}` and a `GagTriggered` with a `gag` from `surpriseGags`.
     - **Reduced motion** (`page.emulateMedia({ reducedMotion: 'reduce' })`): the bubble's animation is the slow pulse.
     - Every bound comes from the live content (`content/threats/silence_mischief.json` and `feel.json`, read in `support/game.ts` beside `livePhone`).
-  - [ ] Check the long-running specs (`threats`, `timer`, `fatigue`, `phone`, `autoplay`, `perf`). The silence now happens in wave 2 of a live run: no assertion may assume that every threat is telegraphed when picked, that every result follows a `ThreatTelegraphed`, or that only three kinds exist.
-- [ ] **T8 — Goldens** (AC 14): `npm run golden:update`, then `git diff tests/golden/journals`. Only `worldHash` may move. If `eventTypes`, `eventsHash` or `levelHash` move, a system emits, draws or reshapes something on a level without silence: fix that, never the references.
-- [ ] **T9 — Docs and deferred work**
-  - [ ] `deferred-work.md`:
+  - [x] Check the long-running specs (`threats`, `timer`, `fatigue`, `phone`, `autoplay`, `perf`). The silence now happens in wave 2 of a live run: no assertion may assume that every threat is telegraphed when picked, that every result follows a `ThreatTelegraphed`, or that only three kinds exist.
+- [x] **T8 — Goldens** (AC 14): `npm run golden:update`, then `git diff tests/golden/journals`. Only `worldHash` may move. If `eventTypes`, `eventsHash` or `levelHash` move, a system emits, draws or reshapes something on a level without silence: fix that, never the references.
+- [x] **T9 — Docs and deferred work**
+  - [x] `deferred-work.md`:
     - mark L93 (zones) and L115 (the baby in the hit test) resolved with « (story 1.21) »;
     - mark L131 resolved: wander may still cross hidden zones, since a babbling baby is heard and the silence needs `mischiefSilent`.
     - Add a « Deferred from: implementation of story 1-21 » section: the placeholder sounds (2.3), the music stems (2.6), a real mischief animation and a visible mess (E7), `TapBaby` walking instead of taking (4.1), the fixed `findMaxMs`, and the silence's `telegraphDelayMs` after the find.
-  - [ ] `_bmad-output/project-context.md`:
+  - [x] `_bmad-output/project-context.md`:
     - the `hidden` state and `hiddenZone` target;
     - a silence counts as active;
     - hit-test priority threat > baby > object > floor;
     - `TapBaby`;
     - the music and the bubble follow `world.silence.startedAt`.
-  - [ ] `sprint-status.yaml` when done.
+  - [x] `sprint-status.yaml` when done.
 
 ## Dev Notes
 
@@ -601,10 +601,37 @@ so that I go and find him before the mischief.
 
 ### Agent Model Used
 
+Claude Sonnet 5.5
+
 ### Debug Log References
+
+- Baseline (T0), `(unset VITE_DEBUG_ALLOWED; npm run ci)` on `8e1573c` before the first edit: green. 186 unit files / 3046 tests, 234 e2e tests (chromium + webkit). 1.20 is `done`, the tree was clean.
+- `VITE_DEBUG_ALLOWED=false` was exported by the shell; every run above is under `unset`.
+- Final: typecheck, lint, `content:check` clean; `test:coverage` 190 files / 3172 tests, `src/sim` at 98.0 % lines / 96.6 % branches; e2e 244 passed (chromium + webkit); `build:playtest` OK.
+- The machine was under heavy load (load average 24-31, other processes) during the last full `npm run ci`: 14 timeouts, none an assertion. I re-ran the steps with `--maxWorkers=5` and `--workers=4` (as 1.20 did) and they pass. The earlier full run under normal load had passed every unit test and every e2e but `threats.spec.ts` (see below).
+- Proof that a level with no silence is untouched: a trace of the 3-threat level (seed 7, 6000 steps) gives the same final rng state and the same events hash on `8e1573c` and on this branch; it is pinned in `directorSystem.test.ts`. The goldens' `eventsHash` and `levelHash` did not move.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Implemented all of AC 1-14.** A `hiddenZone` threat def (union on `target`), `silence_mischief.json`, two feel keys, the wave entry on `behind_sofa`; `hideThreat` / `ThreatHidden`; `runSilence` inside `runBaby`; `world.silence`; `SilenceStarted` / `SilenceEnded`; `TapBaby` and `ForceThreat`; two surprise gags; music mute and `silence-bubble` following `world.silence.startedAt`; `pickBaby`; bots; CLI counters.
+- **Deviation D4, as the story asked me to say:** a found silence is revealed by `telegraphThreat` (`hidden → telegraph`, a window `telegraphDelayMs` = 800 ms later), not `windowOpen` at once as the epic reads. Open point 1 asks Geo.
+- **Variance from the architecture file names:** `src/sim/baby/silence.ts` (not `babble.ts`) and `src/client/ui/hud/silenceBubble.ts` (not `ui/world/`), as the story prescribes.
+- **Zod accepted an enum discriminator,** so two variants (`anchor | papa` and `hiddenZone`) are enough. A def with no `target` now gives one error instead of one per missing key; `loadLevelContent.test.ts` « collects every problem » was rewritten for that (`>= 2` problems instead of `> 2`), its point (several files reported at once) is unchanged.
+- **Snapshot v9.** `silenceProblem` checks every field of the slice; the old « threat in every state » test now excludes `hidden` for the outlet, and a new silence test covers `hidden`.
+- **Edge cases I met and did not change (not ACs), listed in `deferred-work.md`:**
+  - A `TapBaby` that finds the baby also walks Papa to him: the silence is cleared before `runPapa` runs, so the tap falls into the « outside a silence » branch.
+  - Papa standing in the zone after a parry finds the next silence at the very step it is announced (seen in the bot tests: the second silence of a run starts and ends in one step).
+  - The bubble is also hidden during a pause veil or the resume countdown (`pause.state !== 'running'`), not only when the level has ended; the music mute is not: it follows the flow only, so a pause cannot bring the music back mid-silence.
+- **Tests I rewrote because their premise changed** (none deleted): `threatCatalog.test.ts` (a hidden-zone def is telegraphed after a find, its gag is one of a list), `threats.spec.ts` (the live level now plans `silence_mischief` between the coffee table and the micro-sleep), the mess `toEqual`s (`mischiefs: 0`), `snapshot.test.ts` version tests, `makePlaceholderAudio.test.ts` « no two clips alike » (same assertion, 30 s timeout: it grows with the number of clips and went over 5 s under load).
+- **Placeholder audio:** `npm run assets:audio` rewrote every `.m4a`; I restored the others from git and kept only `tel_silence_found.m4a` and `gag_silence_mischief.m4a`.
+- **Goldens regenerated deliberately** (`npm run golden:update`): only `worldHash` (new `silence` and `mischiefs` slices) and `feelHash` (the frozen test feel gained `silenceAlertMs` and `sneakSpeedMps`) moved; `eventTypes`, `eventsHash` and `levelHash` are identical. The screenshot references did not move.
+- **Not run:** nothing played by hand in a real browser or on a device (no feel check of the bubble's look, the crawl or the cut of the music): Geo's to play. The e2e proves the DOM state, the colour token, the blink period, the side, the vibration and the mirrors on a frozen level.
+- **Open points for Geo** are those of the story (1-6); the Papa-in-the-zone edge above is a seventh.
 
 ### File List
+
+content/_schemas/feel.schema.json, content/_schemas/threat.schema.json, content/feedback.json, content/feel.json, content/levels/salon_crawler.json, content/strings.fr.json, content/threats/silence_mischief.json (new), public/assets/audio/gag_silence_mischief.m4a (new), public/assets/audio/tel_silence_found.m4a (new), src/bots/{humanBot,perfectBot,threatTiming}.ts, src/client/audio/audioEngine.ts (+test), src/client/boot.ts, src/client/input/{hitTest,inputMapper}.ts (+tests), src/client/render/gags.ts (+test), src/client/ui/hud/silenceBubble.ts (new, +test), src/client/ui/styles/ui.css, src/client/ui/world/threatMarkers.ts (+test), src/content/schemas/{feel,threat}.ts, src/sim/baby/{approach,babyFsm,babySystem}.ts (+babySystem.test.ts), src/sim/baby/silence.ts (new, +test), src/sim/{commands,context,createSim,events,index,snapshot,world}.ts (+commands, createSim, snapshot tests), src/sim/director/{directorSystem,waveState}.ts (+directorSystem.test.ts), src/sim/papa/papaSystem.ts (+test), src/sim/physics/propsSystem.test.ts, src/sim/threats/{gags,threatFsm}.ts (+tests), tests/bots/silenceBots.test.ts (new), tests/content/{levelSchema,loadLevelContent,threatSchema}.test.ts, tests/e2e/{props.spec,threats.spec}.ts, tests/e2e/silence.spec.ts (new), tests/e2e/support/game.ts, tests/golden/journals/*.json (12 files, regenerated), tests/golden/{propFall,threatTrio}.test.ts, tests/support/{testContent.ts,testFeel.json,testSilence.threat.json (new)}, tests/threats/threatCatalog.test.ts, tests/tools/audio/makePlaceholderAudio.test.ts, tests/tools/sim/{silence.test.ts (new),simReport.test.ts}, tools/audio/makePlaceholderAudio.ts, tools/content/contentChecks.ts, tools/sim/simReport.ts, _bmad-output/implementation-artifacts/{deferred-work.md,sprint-status.yaml}, _bmad-output/project-context.md.
+
+### Change Log
+
+- 2026-10-28: story 1.21 implemented (the suspicious silence): content, sim, client, bots, CLI report, tests, goldens regenerated; status → review.
