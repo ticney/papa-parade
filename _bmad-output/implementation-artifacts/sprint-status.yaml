@@ -75,8 +75,8 @@ development_status:
   1-24-build-de-playtest-partageable-et-budget-de-performance: backlog
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-overlay-de-debug-timeline-de-timing-et-panneau-de-feeling: backlog
+  epic-2: in-progress
+  2-1-overlay-de-debug-timeline-de-timing-et-panneau-de-feeling: ready-for-dev
   2-2-verbe-affiche-et-icones-couleur-forme: backlog
   2-3-sons-cultes-rire-du-bebe-et-telegraphes-distincts: backlog
   2-4-equivalents-visuels-et-haptiques-complets: backlog
