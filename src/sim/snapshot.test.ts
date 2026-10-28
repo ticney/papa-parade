@@ -1472,8 +1472,50 @@ describe('snapshot / restore of the disruptions and the phone call (story 1.20)'
         /disruptions\[0\]\.nextRingingAt/,
       ],
       [
+        'a ringing phone whose end is not ringMaxMs after its start (a huge untilAt: a burst of ticks)',
+        (w) => {
+          set(slice(w), 'state', 'ringing');
+          set(slice(w), 'enteredAt', 0);
+          set(slice(w), 'nextRingingAt', 1000);
+          set(slice(w), 'untilAt', 1e15);
+        },
+        /disruptions\[0\]\.untilAt/,
+      ],
+      [
+        'a ringing phone whose next tick is off the whole periods from its start',
+        (w) => {
+          set(slice(w), 'state', 'ringing');
+          set(slice(w), 'enteredAt', 0);
+          set(slice(w), 'untilAt', 15_000);
+          set(slice(w), 'nextRingingAt', 1);
+        },
+        /disruptions\[0\]\.nextRingingAt/,
+      ],
+      [
+        'a ringing phone whose end has passed',
+        (w) => {
+          set(slice(w), 'state', 'ringing');
+          set(slice(w), 'enteredAt', 0);
+          set(slice(w), 'untilAt', 15_000);
+          set(slice(w), 'nextRingingAt', 1000);
+          set(w.time as Record<string, unknown>, 'sim', 15_000);
+        },
+        /disruptions\[0\]\.untilAt/,
+      ],
+      [
+        'a Papa on the phone while no disruption was answered',
+        (w) => {
+          set(w.papa as Record<string, unknown>, 'state', 'onPhone');
+          set(w.papa as Record<string, unknown>, 'busyUntil', 9000);
+        },
+        /world\.papa\.state/,
+      ],
+      [
         'an onPhone Papa with no end',
-        (w) => set(w.papa as Record<string, unknown>, 'state', 'onPhone'),
+        (w) => {
+          set(slice(w), 'state', 'answered');
+          set(w.papa as Record<string, unknown>, 'state', 'onPhone');
+        },
         /world\.papa\.busyUntil/,
       ],
       [

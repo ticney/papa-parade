@@ -5,6 +5,7 @@ import {
   cueCount,
   hapticPatternOfCue,
   html,
+  liveFeel,
   livePhone,
   objectIconPoint,
   recordVibrations,
@@ -31,6 +32,9 @@ const TICK_STEPS = PHONE_RINGING_EVERY_MS / STEP_MS;
 const RING_STEPS = Math.ceil(livePhone.ringMaxMs / STEP_MS);
 const CALL_STEPS = Math.ceil(livePhone.answerBusyMs / STEP_MS);
 const CHUNK_STEPS = 25;
+const FATIGUE_FEEL = (
+  liveFeel as unknown as { fatigue: { perSec: number; carriedMultiplier: number } }
+).fatigue;
 const hasVibrate = (): boolean => test.info().project.name === 'chromium';
 
 async function openFrozen(page: Page): Promise<void> {
@@ -141,7 +145,9 @@ test.describe('the phone is answered', () => {
     await ppSend(page, { type: 'StartDisruption', index: 0 });
     await ppAdvance(page, 1);
     await expect(html(page)).toHaveAttribute('data-pp-phone', 'ringing');
-    const fatigueBefore = (await ppWorld(page)).gauges.fatigue;
+    const before = await ppWorld(page);
+    const fatigueBefore = before.gauges.fatigue;
+    const timeBefore = before.time.sim;
 
     const point = await objectIconPoint(page, 'phone');
     await page.touchscreen.tap(point.x, point.y);
@@ -154,9 +160,14 @@ test.describe('the phone is answered', () => {
     const ended = events.find((event) => event.type === 'PhoneRingEnded');
     expect(ended).toMatchObject({ reason: 'answered', objectId: 'phone', t: answered.t });
     expect(answered.untilAt).toBe(answered.t + livePhone.answerBusyMs);
-    // The cost is the def's, on top of what the gauge was just before the step of the answer.
+    // The cost is the def's, on top of what the gauge was before the walk plus what it grew by since
+    // (at most `perSec`, at the carried rate, for the sim time that went by: from the live feel).
+    const growthMax =
+      ((answered.t - timeBefore) / 1000) * FATIGUE_FEEL.perSec * FATIGUE_FEEL.carriedMultiplier;
     expect(answered.fatigue).toBeGreaterThanOrEqual(fatigueBefore + livePhone.answerFatiguePoints);
-    expect(answered.fatigue).toBeLessThan(fatigueBefore + livePhone.answerFatiguePoints + 5);
+    expect(answered.fatigue).toBeLessThanOrEqual(
+      fatigueBefore + livePhone.answerFatiguePoints + growthMax,
+    );
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'onPhone');
     await expect(html(page)).toHaveAttribute('data-pp-phone', 'answered');
     await expect(html(page)).toHaveAttribute(

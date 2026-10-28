@@ -1,6 +1,6 @@
 import { asSimMs } from '@shared/time';
 import type { PapaSlice } from '@sim';
-import { Mesh, type Object3D, Scene, Vector3 } from 'three';
+import { type Box3, Mesh, type Object3D, Scene, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { createBlobKit } from '../blobShadow.ts';
 import { PALETTE } from '../materials/palette.ts';
@@ -220,6 +220,20 @@ describe('the nap and the coffee (story 1.19)', () => {
     expect(isShown(named('papa_handset'))).toBe(true);
     view.setOnPhone(false);
     expect(isShown(named('papa_handset'))).toBe(false);
+  });
+
+  it('holds the handset against the side of his head: touching the cube, and not above it', () => {
+    const { named } = build();
+    const cube = named('papa') as Mesh;
+    const handset = named('papa_handset') as Mesh;
+    cube.geometry.computeBoundingBox();
+    handset.geometry.computeBoundingBox();
+    const head = cube.geometry.boundingBox as Box3;
+    const held = (handset.geometry.boundingBox as Box3).clone().translate(handset.position);
+    // Float32 vertex data: a tenth of a millimetre is plenty.
+    expect(held.max.x).toBeCloseTo(head.min.x, 4);
+    expect(held.max.y).toBeLessThanOrEqual(head.max.y + 1e-4);
+    expect(held.min.y).toBeGreaterThanOrEqual(head.min.y - 1e-4);
   });
 
   it('exposes the pose it drew, interpolated', () => {

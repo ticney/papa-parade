@@ -372,3 +372,12 @@
 - **A `?threats=off` run has no phone** (`withoutThreats` empties the waves, and the disruptions with them): the quiet room stays quiet. `StartDisruption` has nothing to start there.
 - **The sim does not check the disruption's feedback cues** (they live in `feedback.json`, which the sim ignores): `content:check` does, like for the threats. `createSim` checks the def, the object and the kind.
 
+
+## Deferred from: code review of story 1-20-le-telephone-qui-sonne (2026-10-28)
+
+- **The ring cue vibrates once per second, up to 15 in a row, with no persistent « ringing » marker on the phone.** Already disclosed above; stories 2.3 and 2.4 replace the placeholders under the same ids.
+- **No bot answers the phone, and no golden journal contains a `PhoneAnswered` or `onPhone` path.** A phone-answering bot and a golden journal that plans, answers and runs through the call are a later need (1.24?).
+- **`disruptionCueOf` finds the cue by object, not by instance.** It relies on « an object is planned once » (schema rule). If E6 allows two phones, add the planned index or def id to `PhoneRingStarted`, `PhoneRinging` and `PhoneAnswered`.
+- **The generated `content/_schemas/level.schema.json` lists `disruptions` as required on every wave.** Zod emits a defaulted field as required (`objects` and `gauges` already do), while `salon_crawler.json` waves 0 and 1 omit it. Generate the JSON Schemas with `io: 'input'` when the tool is next touched.
+- **Two test gaps:** a phone call ending in the same step as a micro-sleep gag, and a phone `answered` while a second phone object is still ringing (the E6 shape).
+- **A real ring clip's length is not tied to `PHONE_RINGING_EVERY_MS`.** The 850 ms placeholder is pinned under the 1000 ms tick in `makePlaceholderAudio.test.ts`; `content:check` cannot read the length of an `.m4a`. Check the real clips when stories 2.3 and 7.5 replace the placeholders.

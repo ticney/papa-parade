@@ -18,12 +18,16 @@ const HANDLERS: Readonly<Record<DisruptionKind, DisruptionHandler>> = {
   phone: { start: startRinging, tick: tickRinging },
 };
 
+/** Every disruption kind the sim has a handler for (`createSim` refuses a def of another kind). */
+export const DISRUPTION_HANDLER_KINDS = Object.keys(HANDLERS) as readonly DisruptionKind[];
+
 /**
  * System: the disruptions (story 1.20), right after the director (D4). First this step's debug
  * `StartDisruption` commands (a `pending` instance starts now, anything else is ignored), then each
  * instance in level order: `pending` and `now ≥ atMs` starts, and `ringing` steps. Nothing happens
- * once the level has ended. A disruption fires at most once, draws nothing from `world.rng` and is
- * never a threat: the director neither counts nor draws it. Allocation-free.
+ * once the level has ended (`runFlow` closes a phone still ringing then). A disruption fires at most once, draws
+ * nothing from `world.rng` itself (answering can, through the fatigue it adds, see `startCall`) and is never a
+ * threat: the director neither counts nor draws it. Allocation-free.
  */
 export function runDisruptions(world: World, ctx: StepContext): void {
   const planned = ctx.level.disruptions;

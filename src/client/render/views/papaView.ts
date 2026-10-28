@@ -173,9 +173,13 @@ export function createPapaView(
   );
   const handset = new Mesh(handsetGeometry, toon.get(new Color(PAPA_HANDSET_COLOR)));
   handset.name = 'papa_handset';
+  // Flush against his side, and no higher than the top of the head (the cube is centred on its origin).
   handset.position.set(
-    -(widthM / 2 + PAPA_HANDSET_THICKNESS_M),
-    (PAPA_HEIGHT_M * PAPA_HANDSET_HEIGHT_PCT) / 100,
+    -(widthM / 2 + PAPA_HANDSET_THICKNESS_M / 2),
+    Math.min(
+      (PAPA_HEIGHT_M * PAPA_HANDSET_HEIGHT_PCT) / 100,
+      (PAPA_HEIGHT_M - PAPA_HANDSET_LENGTH_M) / 2,
+    ),
     0,
   );
   handset.visible = false;

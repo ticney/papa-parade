@@ -90,3 +90,25 @@ export function answerPhone(world: World, ctx: StepContext, index: number): void
     reason: 'answered',
   });
 }
+
+/**
+ * The level ends while phones still ring: each goes `ringing → timedOut` (a missed call) and gets its
+ * `PhoneRingEnded{levelEnded}`, so every `PhoneRingStarted` has its end and a ringing instance never
+ * outlives the level. `runFlow` calls it in the step it ends the level, before `LevelEnded`.
+ */
+export function endRingingPhones(world: World, ctx: StepContext): void {
+  const planned = ctx.level.disruptions;
+  for (let i = 0; i < planned.length; i++) {
+    const instance = world.disruptions[i] as DisruptionInstance;
+    if (instance.state !== 'ringing') continue;
+    enterDisruptionState(world, instance, 'timedOut');
+    instance.untilAt = asSimMs(0);
+    instance.nextRingingAt = asSimMs(0);
+    ctx.events.push({
+      type: 'PhoneRingEnded',
+      t: world.time.sim,
+      objectId: (planned[i] as SimPlannedDisruption).objectId,
+      reason: 'levelEnded',
+    });
+  }
+}

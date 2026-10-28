@@ -8,7 +8,7 @@ import { MAX_TIMER_DELAY_MS, MS_PER_S } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
-import { isPapaBusy, type Sim, type SimEvent } from '@sim';
+import { isPapaBusy, type Sim, type SimEvent, type SimObjectSpec } from '@sim';
 import { Color, Scene, Vector3 } from 'three';
 import { createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
@@ -61,6 +61,7 @@ const TIMER_SLOT = 0;
 /** One slot per gauge after the timer's: the batch writes a gauge's integer percent when it changes. */
 const gaugeSlotOf = (id: GaugeId): number => GAUGE_IDS.indexOf(id) + 1;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
+const NO_SIM_OBJECTS: readonly SimObjectSpec[] = [];
 
 function logSimEvent(event: SimEvent): void {
   if (event.type === 'InvariantViolated') {
@@ -275,7 +276,7 @@ export async function boot(): Promise<void> {
     // Only while a level is on: a scene behind the loading screen must not play for a dead sim.
     getScene: () => (appFsm.state === 'level' ? (currentLevel?.fx ?? null) : null),
     // Where an `object`-anchored ring (the phone's) starts from.
-    getObjects: () => levelSession.active?.sim.objects ?? [],
+    getObjects: () => levelSession.active?.sim.objects ?? NO_SIM_OBJECTS,
     prefersReducedMotion,
     onCue: (cueId) => {
       cuesPlayedCount++;

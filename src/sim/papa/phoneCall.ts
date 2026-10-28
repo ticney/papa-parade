@@ -11,7 +11,8 @@ import { enterPapaState } from './papaFsm.ts';
  * talks and a nap that cuts the call cannot cancel it. A micro-sleep that was already up when he
  * arrived can still gag during the call: Papa then falls `asleep`, which replaces `onPhone` and ends
  * the call (`putPapaToSleep`), and the fatigue added here stays. `PhoneAnswered` carries the gauge
- * after the add (unchanged in a level without fatigue).
+ * after the add (unchanged in a level without fatigue). Answering can draw from `world.rng`: when the
+ * add takes the fatigue above its threshold, `addFatigue` draws when the next micro-sleep is due.
  */
 export function startCall(world: World, ctx: StepContext, index: number): void {
   const { papa } = world;
