@@ -50,7 +50,7 @@ interface Scored {
   stars: number;
 }
 
-/** Opens the game on a frozen level, optionally with a feel patch, and steps it to its end. */
+/** Opens the game on a frozen level, optionally with a feel patch (a journaled `SetFeel`, applied at the first step), and steps it to its end. */
 async function openResult(page: Page, patch?: Parameters<typeof ppSetFeel>[1]): Promise<Scored> {
   await page.goto('/');
   await waitForTestApi(page);

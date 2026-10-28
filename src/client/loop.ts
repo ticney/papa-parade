@@ -31,6 +31,12 @@ export interface GameLoopOptions {
   readonly speed?: number;
   /** Called before every `sim.step()` this loop runs, frames and `advance` alike. */
   readonly beforeStep?: (sim: Sim) => void;
+  /**
+   * A real-time clock in ms (`performance.now`), given only when the debug overlay is up: with it
+   * the loop times its frames into `stats` (story 2.1). Without one it reads no clock at all.
+   * `setMeasure` changes it later.
+   */
+  readonly measure?: () => number;
 }
 
 export interface LoopStats {
@@ -38,6 +44,14 @@ export interface LoopStats {
   /** Sim ms thrown away because a frame owed more than `MAX_STEPS_PER_FRAME` steps. */
   droppedBacklogMs: number;
   frames: number;
+  /**
+   * With a `measure` clock only, else 0 (story 2.1): the real ms the last frame spent in all its
+   * `sim.step()` calls, in `render`, and in total (from the start of the frame to the end of its
+   * render; the browser's own work between two frames is not in it).
+   */
+  simMsLastFrame: number;
+  renderMsLastFrame: number;
+  frameMsLastFrame: number;
 }
 
 export interface GameLoop {
@@ -54,6 +68,8 @@ export interface GameLoop {
    * no elapsed time for the next frame: no catch-up.
    */
   setFrozen(isFrozen: boolean): void;
+  /** Starts timing frames with this clock into `stats`, or stops with `null` (and zeroes the three timings). Idempotent. */
+  setMeasure(measure: (() => number) | null): void;
   /**
    * Freezes the loop, then runs exactly `steps` steps now (hook, step, drain, events, as in a frame;
    * the pause state and a pending hitstop are ignored, and the hitstop is not consumed) and renders
@@ -99,7 +115,18 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
   const maxStepsPerFrame = Math.ceil(MAX_STEPS_PER_FRAME * speed);
   invariant(Number.isFinite(speed) && speed > 0, 'the loop speed must be a finite number above 0');
   const scheduler = options.scheduler ?? rafScheduler;
-  const stats: LoopStats = { stepsLastFrame: 0, droppedBacklogMs: 0, frames: 0 };
+  const stats: LoopStats = {
+    stepsLastFrame: 0,
+    droppedBacklogMs: 0,
+    frames: 0,
+    simMsLastFrame: 0,
+    renderMsLastFrame: 0,
+    frameMsLastFrame: 0,
+  };
+  /** The clock of `measure`, or null: nothing is read then, so the overlay costs nothing when absent. */
+  let clock: (() => number) | null = options.measure ?? null;
+  /** The real ms the `sim.step()` calls of the current frame took so far. */
+  let simMsInFrame = 0;
 
   let isRunning = false; // between start() and stop()
   /** Counts the `stop()` calls: a step hook or event listener that stops the loop cuts the steps still owed. */
@@ -118,7 +145,13 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
   /** One step as a frame runs it, and as `advance` does: the hook, the step, then its events. */
   const runStep = (): void => {
     beforeStep?.(sim);
-    sim.step();
+    if (clock === null) {
+      sim.step();
+    } else {
+      const startedAt = clock();
+      sim.step();
+      simMsInFrame += clock() - startedAt;
+    }
     const events = sim.drainEvents();
     for (let i = 0; i < events.length; i++) onSimEvent(events[i] as SimEvent);
   };
@@ -130,7 +163,19 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
     hasLastRunning = false;
   };
 
+  const setMeasure = (next: (() => number) | null): void => {
+    clock = next;
+    if (next !== null) return;
+    stats.simMsLastFrame = 0;
+    stats.renderMsLastFrame = 0;
+    stats.frameMsLastFrame = 0;
+  };
+
   const onFrame = (frameAtReal: number): void => {
+    // Read once: a hook that turns the measure off mid-frame must not leave a half timing.
+    const frameClock = clock;
+    const frameStartedAt = frameClock === null ? 0 : frameClock();
+    simMsInFrame = 0;
     isPending = false;
     stats.frames++;
     const stopCountAtFrame = stopCount;
@@ -209,7 +254,16 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
     timeMap.record(asRealMs(atReal), asSimMs(clockMs), simPerRealMs);
 
     // Owed whole steps (held back by a freeze) must not push the view past the last step.
-    render(Math.min(accumulatorMs / STEP_MS, 1));
+    if (frameClock === null) {
+      render(Math.min(accumulatorMs / STEP_MS, 1));
+    } else {
+      const renderStartedAt = frameClock();
+      render(Math.min(accumulatorMs / STEP_MS, 1));
+      const endedAt = frameClock();
+      stats.simMsLastFrame = simMsInFrame;
+      stats.renderMsLastFrame = endedAt - renderStartedAt;
+      stats.frameMsLastFrame = endedAt - frameStartedAt;
+    }
 
     // Only a frame that went through asks for the next (fail-stop), and not after a stop().
     // A start() made from inside this frame has already requested one: never two chains.
@@ -225,6 +279,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
       return isFrozen;
     },
     setFrozen,
+    setMeasure,
     advance(steps) {
       invariant(
         Number.isInteger(steps) && steps >= 0 && steps <= ADVANCE_MAX_STEPS,

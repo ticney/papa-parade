@@ -1228,3 +1228,59 @@ describe('createLevelSession › freeze, advance, speed and the step hook', () =
     expect(seen).toEqual([0, STEP_MS, 2 * STEP_MS]);
   });
 });
+
+describe('createLevelSession › what the debug overlay hangs on (story 2.1)', () => {
+  const tunedFeel = () => {
+    const feel = createTestContent().feel;
+    return {
+      ...feel,
+      movement: { ...feel.movement, walkSpeedMps: feel.movement.walkSpeedMps + 1 },
+    };
+  };
+
+  it('keeps the geometry of the level on the active level', async () => {
+    const { session } = setup();
+    expect(session.active).toBeNull();
+    await session.start();
+    expect(session.active?.geometry.id).toBe('salon_crawler');
+    expect(session.active?.geometry.anchors.length).toBeGreaterThan(0);
+  });
+
+  it('rememberFeel() sets the base feel of the next start, and leaves the running level alone', async () => {
+    const { session } = setup();
+    await session.start();
+    const running = structuredClone(session.active?.sim.world.feel);
+    const tuned = tunedFeel();
+    session.rememberFeel(tuned);
+    expect(session.current.feel).toBe(tuned);
+    expect(session.active?.sim.world.feel).toEqual(running);
+    await session.start();
+    expect(session.active?.sim.world.feel.movement.walkSpeedMps).toBe(tuned.movement.walkSpeedMps);
+    expect(session.current.feel).toBe(tuned);
+  });
+
+  it('has no loopStats before a level, and the loop’s stats during one', async () => {
+    const { session } = setup();
+    expect(session.loopStats).toBeNull();
+    await session.start();
+    expect(session.loopStats).toMatchObject({ frames: 0, simMsLastFrame: 0 });
+  });
+
+  it('times the frames of the running loop and of the next one once setLoopMeasure() is on, and stops with null', async () => {
+    const { session, scheduler } = setup();
+    const clock = { now: 0 };
+    session.setLoopMeasure(() => (clock.now += 2));
+    await session.start();
+    scheduler.tick(0);
+    expect(session.loopStats?.frameMsLastFrame).toBeGreaterThan(0);
+    // The wish is kept across levels.
+    await session.start();
+    scheduler.tick(0);
+    expect(session.loopStats?.renderMsLastFrame).toBeGreaterThan(0);
+    session.setLoopMeasure(null);
+    expect(session.loopStats).toMatchObject({ frameMsLastFrame: 0, renderMsLastFrame: 0 });
+    const readsBefore = clock.now;
+    scheduler.tick(10);
+    expect(clock.now).toBe(readsBefore);
+  });
+});

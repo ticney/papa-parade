@@ -4,6 +4,7 @@ import type { SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
 import type { PapaState } from './papa/papaFsm.ts';
 import type { GagId } from './threats/gags.ts';
+import type { EffectiveWindow } from './timing/effectiveWindow.ts';
 
 /** How a response ended: `fail` is a gag. */
 export type ResponseQuality = 'perfect' | 'success' | 'fail';
@@ -100,6 +101,9 @@ export type SimEvent =
   /**
    * The threat was answered. `response` is what it asks for; `offsetMs` is the press's distance from
    * the window's centre, `null` when the window ran out with no press. `reason` only on a `fail`.
+   * `responseWindow` is the effective window the threat was judged against (a copy of its `responseWindow`
+   * as frozen at the telegraph, story 2.1): a silence nobody found had none, and gets the window its
+   * def would have had with no modifier.
    */
   | {
       type: 'ResponseResolved';
@@ -109,6 +113,7 @@ export type SimEvent =
       quality: ResponseQuality;
       reason?: FailReason;
       offsetMs: number | null;
+      responseWindow: EffectiveWindow;
     }
   /** A failed response ends in a gag: a harmless comic consequence, never an injury (NFR9). */
   | { type: 'GagTriggered'; t: SimMs; threatId: number; gag: GagId; reason: FailReason }

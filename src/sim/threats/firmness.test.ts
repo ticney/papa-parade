@@ -91,6 +91,7 @@ describe('a Firmness', () => {
     'is %s when the finger stays down to the end of the attack, with no release',
     async (quality, shift) => {
       const { sim, openAt, center } = await telegraphed('firm');
+      const window = { ...threatOf(sim).responseWindow };
       sim.enqueue(press(center + shift));
       const events = runTo(sim, openAt + HOLD_UNTIL_MS + STEP_MS);
       expect(only(events, 'ResponseResolved')).toEqual([
@@ -101,6 +102,7 @@ describe('a Firmness', () => {
           response: 'firm',
           quality,
           offsetMs: shift,
+          responseWindow: window,
         },
       ]);
       expect(only(events, 'GagTriggered')).toEqual([]);

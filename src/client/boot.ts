@@ -9,7 +9,7 @@ import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
 import { isPapaBusy, type MamaScore, type Sim, type SimEvent, type SimObjectSpec } from '@sim';
-import { Color, Scene, Vector3 } from 'three';
+import { Color, Group, Scene, Vector3 } from 'three';
 import { createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
 import { isTestApiEnabled, readDebugParams } from './app/debugParams.ts';
@@ -172,6 +172,8 @@ export async function boot(): Promise<void> {
   const backdrop = new Scene();
   backdrop.background = new Color(PALETTE.ink);
   let currentLevel: LevelScene | null = null;
+  /** The debug views' group in the level scene, made on demand (a debug build only asks); null per new scene. */
+  let debugGroup: Group | null = null;
   let room: RoomSize | null = null;
   const events = createEmitter<ClientEvents>();
   const appFsm = createAppFsm({ events });
@@ -563,6 +565,7 @@ export async function boot(): Promise<void> {
     onLevelReady: (level, threatEntries) => {
       // The room is only known now: fit the camera and show it behind the loading screen.
       currentLevel = level;
+      debugGroup = null; // the previous scene (and so its group) is gone
       worldUi.mountThreats(threatEntries);
       highlightedThreatId = null;
       choreography.reset();
@@ -623,7 +626,7 @@ export async function boot(): Promise<void> {
           // The sim time as drawn (the views interpolate from the previous step by `alpha`): the
           // hold-ring fills against it, so a slow-mo or a hitstop slows it as it slows the judgement.
           world.time.sim - STEP_MS * (1 - alpha),
-          levelSession.active?.feel.input.holdMinMs ?? 0,
+          levelSession.active?.sim.world.feel.input.holdMinMs ?? 0,
         );
       worldUi.updateObjects(world?.gauges.isFatigueAbove ?? false);
       showGlyphChip(world, targetedId, device);
@@ -857,7 +860,9 @@ export async function boot(): Promise<void> {
   const shell = createUiShell({ events, appFsm, pause, hud, hudBatch, overlayHost });
   shell.bindKeys(window);
 
-  const levelFeel = (): Feel => levelSession.active?.feel ?? content.value.feel;
+  // The live feel (story 2.1): the sim's effective one, so a `SetFeel` reaches the hit test, the
+  // hold ring and the body radius on the next frame. `ActiveLevel.feel` is the feel at the start.
+  const levelFeel = (): Feel => levelSession.active?.sim.world.feel ?? content.value.feel;
 
   // Input: raw events become typed, timestamped commands in the mapper, and only while a level is
   // live. Keys and stick are tracked outside that gate so that a resume can send what is held.
@@ -1074,6 +1079,27 @@ export async function boot(): Promise<void> {
       onGameResumed: (listener) => events.on('GameResumed', listener),
       setGameInputBlocked: (isBlocked) => {
         isGameInputBlocked = isBlocked;
+      },
+      renderStats: () => renderer.stats(),
+      debugGroup: () => {
+        if (currentLevel === null) return null;
+        if (debugGroup === null) {
+          debugGroup = new Group();
+          debugGroup.name = 'pp-debug';
+          currentLevel.scene.add(debugGroup);
+        }
+        return debugGroup;
+      },
+      threatScreenPoints: () => {
+        const rect = canvas.getBoundingClientRect();
+        return worldUi.threatEntries.map((entry) => {
+          iconPoint.set(entry.xM, entry.yM, entry.zM).project(camera);
+          return {
+            threatId: entry.threatId,
+            xPx: rect.left + ((iconPoint.x + 1) / 2) * rect.width,
+            yPx: rect.top + ((1 - iconPoint.y) / 2) * rect.height,
+          };
+        });
       },
     };
     if (params.autoplay !== null) {

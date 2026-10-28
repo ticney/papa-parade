@@ -425,6 +425,7 @@ export async function createSimWithSystems(
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
   let world = createWorld({
     seed,
+    feel: content.feel,
     papaSpawn: spawnOf(geometry, papaGrid, 'papa_spawn', 'Papa'),
     babySpawn: spawnOf(geometry, babyGrid, 'baby_spawn', 'the baby'),
     firstWanderAt: asSimMs(content.feel.baby.babbleMinMs),
@@ -501,7 +502,9 @@ export async function createSimWithSystems(
   const drained: SimEvent[] = [];
 
   const ctx: StepContext = {
-    feel: content.feel,
+    get feel() {
+      return world.feel;
+    },
     events,
     queue,
     commands: [],
@@ -574,6 +577,7 @@ export async function createSimWithSystems(
         geometryHash,
         levelHash,
         ctx.level,
+        content.feel,
       );
       for (const entry of tail) {
         const problem = entryProblem(entry);

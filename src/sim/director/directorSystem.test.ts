@@ -448,7 +448,13 @@ describe('the suspicious silence and the director (story 1.21)', () => {
     const events = runTo(sim, 60_000);
     expect(sim.world.rng).toEqual({ a: 1581132668, b: 1663718832, c: 1567227279, d: 81 });
     expect(events).toHaveLength(183);
-    expect(hashJson(events)).toBe('01c85cbbfc3da3');
+    // Story 2.1 added `responseWindow` to `ResponseResolved`: the trace is compared as it was captured, without it.
+    const asCaptured = events.map((event) => {
+      if (event.type !== 'ResponseResolved') return event;
+      const { responseWindow: _responseWindow, ...rest } = event;
+      return rest;
+    });
+    expect(hashJson(asCaptured)).toBe('01c85cbbfc3da3');
   });
 
   describe('ForceThreat', () => {

@@ -31,6 +31,13 @@ import {
 const content = createTestContent();
 const def = createTestLevel({ waves: [testWave([OUTLET])] }).threats.outlet;
 if (def === undefined) throw new Error('no outlet');
+/** What a threat with no frozen window (never telegraphed) is reported against: the plain window of its def. */
+const nominalWindow = {
+  windowMs: def.windowMs ?? content.feel.timing.windowMs,
+  perfectMs: Math.min(content.feel.timing.perfectMs, def.windowMs ?? content.feel.timing.windowMs),
+  toleranceMs: content.feel.timing.toleranceMs,
+  bufferMs: content.feel.timing.bufferMs,
+};
 
 /** A world with its one planned threat and a context that only collects events. */
 async function setup() {
@@ -135,8 +142,36 @@ describe('threat FSM', () => {
         response: 'parry',
         quality: 'success',
         offsetMs: -20,
+        responseWindow: nominalWindow,
       },
     ]);
+  });
+
+  it('puts on ResponseResolved a copy of the window the threat was frozen with at its telegraph (story 2.1)', async () => {
+    const { world, ctx, events, threat } = await setup();
+    telegraphThreat(world, ctx, threat, def, -1);
+    const frozen = structuredClone(threat.responseWindow);
+    expect(frozen).not.toBeNull();
+    events.length = 0;
+    resolveThreat(world, ctx, threat, def, 'success', 5);
+    const resolved = events.find((event) => event.type === 'ResponseResolved');
+    expect(resolved).toMatchObject({ responseWindow: frozen });
+    if (resolved?.type !== 'ResponseResolved') return;
+    expect(resolved.responseWindow).not.toBe(threat.responseWindow);
+    // The event is its own object: rewriting it does not rewrite the threat.
+    resolved.responseWindow.windowMs = 0;
+    expect(threat.responseWindow).toEqual(frozen);
+  });
+
+  it('puts the frozen window on a gag too, whatever the reason (early press, wrong response, late)', async () => {
+    for (const reason of ['early', 'wrongResponse', 'late'] as const) {
+      const { world, ctx, events, threat } = await setup();
+      telegraphThreat(world, ctx, threat, def, -1);
+      const frozen = structuredClone(threat.responseWindow);
+      events.length = 0;
+      gagThreat(world, ctx, threat, def, reason, reason === 'late' ? null : -12);
+      expect(events[0]).toMatchObject({ type: 'ResponseResolved', reason, responseWindow: frozen });
+    }
   });
 
   it('resolveThreat on a perfect also starts the perfect slow-mo, after the event', async () => {
@@ -327,6 +362,25 @@ describe('the hidden state and the surprise gag (story 1.21)', () => {
     expect(gag).toMatchObject({ gag: surpriseGags[index] });
     expect(world.rng).toEqual(expected);
     expect(world.mess.mischiefs).toBe(1);
+  });
+
+  it('a silence nobody found is reported against its def’s plain window, as it was never judged (story 2.1)', async () => {
+    const { world, ctx, events, threat, silenceDef } = await silenceSetup();
+    hideThreat(world, ctx, threat, 0);
+    events.length = 0;
+    gagThreat(world, ctx, threat, silenceDef, 'late', null);
+    const timing = content.feel.timing;
+    const windowMs = silenceDef.windowMs ?? timing.windowMs;
+    expect(events[0]).toMatchObject({
+      type: 'ResponseResolved',
+      offsetMs: null,
+      responseWindow: {
+        windowMs,
+        perfectMs: Math.min(timing.perfectMs, windowMs),
+        toleranceMs: timing.toleranceMs,
+        bufferMs: timing.bufferMs,
+      },
+    });
   });
 
   it('gagThreat on any other def draws nothing', async () => {

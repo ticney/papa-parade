@@ -1,3 +1,4 @@
+import type { Feel } from '@content/schemas/feel';
 import { decodeBase64, encodeBase64 } from '@shared/base64';
 import {
   GAUGE_MAX_POINTS,
@@ -10,6 +11,7 @@ import {
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
 import { DISRUPTION_STATES } from './disruptions/disruptionFsm.ts';
+import { feelShapeProblem } from './feel/applyFeelPatch.ts';
 import { FLOW_STATES, type FlowState } from './flow/flowFsm.ts';
 import { isPapaBusy, PAPA_STATES, type PapaState } from './papa/papaFsm.ts';
 import { THREAT_STATES } from './threats/threatFsm.ts';
@@ -28,14 +30,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 12 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 11;
+  version: 12;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -54,7 +56,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 11,
+    version: 12,
     seed,
     feelHash,
     geometryHash,
@@ -632,7 +634,16 @@ function scoreProblem(score: unknown, isEnded: boolean): string | null {
   return null;
 }
 
-function worldProblem(world: unknown, planned: PlannedLevel): string | null {
+/**
+ * The effective feel (story 2.1) has the shape of the feel the sim was created with: the same keys,
+ * leaf types and array lengths. Ranges are the sender's job (the sim cannot run `FeelSchema`).
+ */
+function feelProblem(feel: unknown, initial: Feel): string | null {
+  if (typeof feel !== 'object' || feel === null) return 'world.feel is missing';
+  return feelShapeProblem(initial, feel, 'world.feel');
+}
+
+function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
   const {
     time,
@@ -649,6 +660,7 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
     disruptions,
     silence,
     score,
+    feel,
   } = world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
   if (typeof clock !== 'object' || clock === null) return 'world.time is missing';
@@ -702,7 +714,8 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
       (flow as { state: unknown }).state === 'ended',
     ) ??
     propsProblem(props, mess, planned.props) ??
-    scoreProblem(score, (flow as { state: unknown }).state === 'ended')
+    scoreProblem(score, (flow as { state: unknown }).state === 'ended') ??
+    feelProblem(feel, initialFeel)
   );
 }
 
@@ -723,8 +736,9 @@ export function worldFromSnapshot(
   geometryHash: string,
   levelHash: string,
   planned: PlannedLevel,
+  initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 11, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 12, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(
@@ -732,7 +746,7 @@ export function worldFromSnapshot(
     'the snapshot was taken by a sim with another level geometry',
   );
   invariant(snapshot.levelHash === levelHash, 'the snapshot was taken by a sim with another level');
-  const problem = worldProblem(snapshot.world, planned);
+  const problem = worldProblem(snapshot.world, planned, initialFeel);
   invariant(problem === null, `invalid snapshot world: ${String(problem)}`);
   invariant(typeof snapshot.physics === 'string', 'invalid snapshot physics: not a string');
   const bytes = decodeBase64(snapshot.physics);

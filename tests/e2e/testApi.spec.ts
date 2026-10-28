@@ -153,36 +153,50 @@ test.describe('window.__PP__', () => {
     expect(problems).toEqual([]);
   });
 
-  test('setFeel() restarts the level with the patched feel: twice the walking speed, twice the way in the same steps', async ({
+  test('setFeel() sends the journaled SetFeel: no restart, the new value in the world after one step, and Papa walks faster', async ({
     page,
   }) => {
     const problems = collectProblems(page);
     await openFrozenLevel(page);
-    // How many steps Papa can walk at the doubled speed and still be on his way to the far point.
+    await ppAdvance(page, 5);
+    const before = await ppWorld(page);
+    const fasterMps = 2 * liveFeel.movement.walkSpeedMps;
+    await ppSetFeel(page, { movement: { walkSpeedMps: fasterMps } });
+    // Same level, same clock: nothing restarted, and the command waits for the next step.
+    const queued = await ppWorld(page);
+    expect(queued.time.sim).toBe(5 * STEP_MS);
+    expect(queued.nextId).toBe(before.nextId);
+    expect(queued.feel.movement.walkSpeedMps).toBe(liveFeel.movement.walkSpeedMps);
+    await ppAdvance(page, 1);
+    expect((await ppWorld(page)).feel.movement.walkSpeedMps).toBe(fasterMps);
+
+    // A walk after the change covers about twice the way the old speed would in the same steps.
     const spawn = (await ppWorld(page)).papa;
     const distanceM = Math.hypot(FAR.x - spawn.xM, FAR.z - spawn.zM);
-    const steps = Math.floor((0.8 * distanceM) / (2 * liveFeel.movement.walkSpeedMps * SIM_STEP_S));
+    const steps = Math.floor((0.8 * distanceM) / (fasterMps * SIM_STEP_S));
     expect(steps).toBeGreaterThan(10);
-
-    // The same walk at the live speed, twice as many steps.
-    await ppSend(page, { type: 'TapFloor', xM: FAR.x, zM: FAR.z });
-    await ppAdvance(page, 2 * steps);
-    const slow = (await ppWorld(page)).papa;
-
-    await ppSetFeel(page, { movement: { walkSpeedMps: 2 * liveFeel.movement.walkSpeedMps } });
-    // Same seed, a new level, still frozen at sim time 0.
-    expect((await ppWorld(page)).time.sim).toBe(0);
     await ppSend(page, { type: 'TapFloor', xM: FAR.x, zM: FAR.z });
     await ppAdvance(page, steps);
-    const fast = (await ppWorld(page)).papa;
-
-    const oneStepM = 2 * liveFeel.movement.walkSpeedMps * SIM_STEP_S;
-    expect(Math.hypot(fast.xM - slow.xM, fast.zM - slow.zM)).toBeLessThanOrEqual(oneStepM);
-    expect(fast.state).toBe('walkPath');
+    const after = (await ppWorld(page)).papa;
+    const walkedM = Math.hypot(after.xM - spawn.xM, after.zM - spawn.zM);
+    expect(after.state).toBe('walkPath');
+    expect(walkedM).toBeGreaterThan(1.5 * steps * liveFeel.movement.walkSpeedMps * SIM_STEP_S);
+    expect(walkedM).toBeLessThanOrEqual(steps * fasterMps * SIM_STEP_S + 1e-6);
     expect(problems).toEqual([]);
   });
 
-  test('setFeel() with an invalid patch rejects, naming the path, and restarts nothing', async ({
+  test('a restart keeps the value tuned with setFeel()', async ({ page }) => {
+    const problems = collectProblems(page);
+    await openFrozenLevel(page);
+    const tunedMs = liveFeel.timing.windowMs + 40;
+    await ppSetFeel(page, { timing: { windowMs: tunedMs } });
+    await ppAdvance(page, 1);
+    await ppLoadLevel(page, LEVEL, SEED);
+    expect((await ppWorld(page)).feel.timing.windowMs).toBe(tunedMs);
+    expect(problems).toEqual([]);
+  });
+
+  test('setFeel() with an invalid patch rejects, naming the path, and sends nothing', async ({
     page,
   }) => {
     const problems = collectProblems(page);
@@ -192,6 +206,8 @@ test.describe('window.__PP__', () => {
       /__PP__\.setFeel.*timing\.windowMs/,
     );
     expect((await ppWorld(page)).time.sim).toBe(5 * STEP_MS);
+    await ppAdvance(page, 1);
+    expect((await ppWorld(page)).feel.timing.windowMs).toBe(liveFeel.timing.windowMs);
     expect(problems).toEqual([]);
   });
 

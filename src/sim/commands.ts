@@ -1,4 +1,5 @@
 import type { SimMs } from '@shared/time';
+import { type FeelPatch, UNSAFE_PATCH_KEYS } from './feel/applyFeelPatch.ts';
 
 /**
  * Everything the outside world may ask of the sim. Every command carries `t`, its own timestamp
@@ -8,6 +9,12 @@ import type { SimMs } from '@shared/time';
 export type SimCommand =
   /** Debug / test command, journaled. Story 2.1's "forced timeScale" reuses it. */
   | { type: 'SetTimeScale'; t: SimMs; scale: number }
+  /**
+   * Debug / test command, journaled (story 2.1): lays `patch` over the effective feel
+   * (`world.feel`) at the step that applies it, before any system of that step runs. A patch that
+   * does not fit the feel's shape is ignored with an `InvariantViolated`; ranges are the sender's job.
+   */
+  | { type: 'SetFeel'; t: SimMs; patch: FeelPatch }
   /**
    * Debug / test command, journaled like `SetTimeScale`: sets Papa's fatigue to `points` (held in
    * `[0, 100]`) through `addFatigue`, so the threshold logic runs. Ignored in a level with no fatigue.
@@ -63,6 +70,7 @@ export type SimCommand =
 /** Every `type` a {@link SimCommand} can have; a journal from outside is checked against it. */
 export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetTimeScale',
+  'SetFeel',
   'SetFatigue',
   'StartDisruption',
   'ForceThreat',
@@ -75,6 +83,45 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'Release',
   'PushProp',
 ];
+
+const isPlainObject = (value: object): boolean => {
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
+/**
+ * Why `value` cannot be part of a `SetFeel` patch, or `null`: only plain objects, finite numbers,
+ * strings and arrays of those, with no key that reaches the prototype. Depth is bounded by the
+ * JSON a caller can build, and a cycle is refused by the depth cap.
+ */
+function patchValueProblem(value: unknown, path: string, depth: number): string | null {
+  if (depth > PATCH_MAX_DEPTH) return `${path} is nested too deep`;
+  if (typeof value === 'number') return Number.isFinite(value) ? null : `${path} must be finite`;
+  if (typeof value === 'string' || typeof value === 'boolean') return null;
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const problem = patchValueProblem(value[i], `${path}[${i}]`, depth + 1);
+      if (problem !== null) return problem;
+    }
+    return null;
+  }
+  if (typeof value !== 'object' || value === null || !isPlainObject(value)) {
+    return `${path} must be a plain object, a finite number, a string or an array`;
+  }
+  for (const key of Object.keys(value)) {
+    if (UNSAFE_PATCH_KEYS.includes(key)) return `${path} has the forbidden key ${key}`;
+    const problem = patchValueProblem(
+      (value as Record<string, unknown>)[key],
+      `${path}.${key}`,
+      depth + 1,
+    );
+    if (problem !== null) return problem;
+  }
+  return null;
+}
+
+/** A feel is a few levels deep; this only stops a runaway or cyclic patch. */
+const PATCH_MAX_DEPTH = 8;
 
 /**
  * Runtime shape check of a command that comes from outside the type system (a bot, the debug
@@ -92,6 +139,14 @@ export function commandProblem(value: unknown): string | null {
   }
   if (command.type === 'SetTimeScale' && typeof command.scale !== 'number') {
     return 'SetTimeScale: scale must be a number';
+  }
+  if (command.type === 'SetFeel') {
+    const patch = command.patch;
+    if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
+      return 'SetFeel: patch must be a plain object';
+    }
+    const problem = patchValueProblem(patch, 'patch', 0);
+    if (problem !== null) return `SetFeel: ${problem}`;
   }
   if (command.type === 'SetFatigue') {
     if (typeof command.points !== 'number' || !Number.isFinite(command.points)) {

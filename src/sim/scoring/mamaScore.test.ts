@@ -123,6 +123,7 @@ describe('scoreLevel', () => {
   it('writes world.score.final and pushes one LevelScored with the same fields, at the world’s t', () => {
     const world = createWorld({
       seed: 1,
+      feel: createTestContent().feel,
       papaSpawn: { xM: 0, zM: 0 },
       babySpawn: { xM: 1, zM: 1 },
       firstWanderAt: asSimMs(0),

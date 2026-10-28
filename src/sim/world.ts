@@ -1,3 +1,5 @@
+import type { Feel } from '@content/schemas/feel';
+import { cloneJson } from '@shared/hash';
 import { createRng, type RngState } from '@shared/rng';
 import { asSimMs, type SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
@@ -306,10 +308,19 @@ export interface World {
   silence: SilenceSlice;
   /** What feeds Mama's note, and the note once the level has ended (story 1.22). */
   score: ScoreSlice;
+  /**
+   * The effective feel (story 2.1): the feel given to `createSim`, with every `SetFeel` laid over
+   * it. A `SetFeel` replaces this object at the head of a step; systems read it through `ctx.feel`,
+   * so it is in the snapshot and survives `restore()`. Values the sim reads only when it is
+   * created (nav radii, `physics`, the first wander, the start fatigue) keep doing so.
+   */
+  feel: Feel;
 }
 
 export interface WorldOptions {
   seed: number;
+  /** The effective feel at the start; the world keeps a copy. */
+  feel: Feel;
   papaSpawn: { xM: number; zM: number };
   babySpawn: { xM: number; zM: number };
   /** When the baby first sets off, in sim ms. */
@@ -326,6 +337,7 @@ export interface WorldOptions {
 
 export function createWorld({
   seed,
+  feel,
   papaSpawn,
   babySpawn,
   firstWanderAt,
@@ -401,6 +413,7 @@ export function createWorld({
     mess: { propsOnFloor: 0, propsBroken: 0, mischiefs: 0 },
     silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
     score: { perfects: 0, nearMisses: 0, final: null },
+    feel: cloneJson(feel),
   };
 }
 

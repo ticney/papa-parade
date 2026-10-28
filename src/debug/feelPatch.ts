@@ -27,8 +27,8 @@ function merge(base: unknown, patch: unknown): unknown {
 /**
  * The feel with `patch` laid over it, checked by `FeelSchema` (strict: an unknown key, a value out
  * of range or a wrong type is refused). An `err` lists the paths the schema objects to; nothing is
- * applied then. Used by the test API's `setFeel` until story 2.1 brings the journaled `SetFeel`
- * command.
+ * applied then. The test API's `setFeel` and the feel panel check a patch with it before they send
+ * the journaled `SetFeel` command (the sim only checks the shape).
  */
 export function applyFeelPatch(feel: Feel, patch: unknown): Result<Feel, AppError> {
   if (!isPlainObject(patch)) {

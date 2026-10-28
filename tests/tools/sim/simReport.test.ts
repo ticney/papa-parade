@@ -9,7 +9,11 @@ import {
   summarizeRuns,
 } from '../../../tools/sim/simReport.ts';
 import { botTestLevel } from '../../support/botSupport.ts';
-import { createTestContent, createTestGeometry } from '../../support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestResponseWindow,
+} from '../../support/testContent.ts';
 
 const INPUT = {
   level: 'salon_crawler',
@@ -312,6 +316,7 @@ describe('createRunRecorder', () => {
       quality: 'fail',
       reason: 'released',
       offsetMs: 0,
+      responseWindow: createTestResponseWindow(),
     });
     const tallies = Object.values(recorder.finish().threats);
     expect(tallies).toHaveLength(1);
@@ -335,6 +340,7 @@ describe('createRunRecorder', () => {
       quality,
       ...(quality === 'fail' ? { reason: 'late' as const } : {}),
       offsetMs,
+      responseWindow: createTestResponseWindow(),
     });
     recorder.onEvent(resolved('perfect', -20));
     recorder.onEvent(resolved('fail', null));
@@ -415,6 +421,7 @@ describe('createRunRecorder', () => {
       response: 'parry',
       quality: 'success',
       offsetMs: 0,
+      responseWindow: createTestResponseWindow(),
     });
 
     it('counts the telegraphs of each wave and the most threats at once', async () => {

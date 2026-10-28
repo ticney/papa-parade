@@ -2,13 +2,14 @@ import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { ContentError } from '@content/contentError';
 import { mergeFeel } from '@content/feelMerge';
 import type { Feel } from '@content/schemas/feel';
+import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { DEFAULT_LEVEL_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
 import { type CreateSimOptions, createSim, type Sim, type SimEvent } from '@sim';
 import type { OrthographicCamera } from 'three';
 import { type LevelAssets, loadLevelAssets } from '../assets/loadLevelAssets.ts';
-import { createGameLoop, type FrameScheduler, type GameLoop } from '../loop.ts';
+import { createGameLoop, type FrameScheduler, type GameLoop, type LoopStats } from '../loop.ts';
 import { createLevelScene, type LevelScene, type SceneBodies } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import { createTimeMap, type TimeMap } from '../timeMap.ts';
@@ -87,6 +88,12 @@ export interface ActiveLevel {
   readonly sim: Sim;
   readonly timeMap: TimeMap;
   readonly level: LevelContent;
+  /** The level's geometry (grid, colliders, anchors, zones): what the debug views draw. */
+  readonly geometry: LevelGeometry;
+  /**
+   * The effective feel at the start. A `SetFeel` changes the sim's (`sim.world.feel`) and not this:
+   * read the live one from there.
+   */
   readonly feel: Feel;
 }
 
@@ -115,7 +122,7 @@ export interface StartedLevel {
   readonly levelId: string;
   readonly seed: number;
   readonly level: LevelContent;
-  /** The effective feel: the one asked for, with the level's `feelOverrides` merged over it. */
+  /** The effective feel at the start: the one asked for, with the level's `feelOverrides` merged over it. */
   readonly feel: Feel;
 }
 
@@ -138,6 +145,19 @@ export interface LevelSession {
    * last began (`null` before the first). A failed or stale start leaves it as it was.
    */
   readonly current: { readonly levelId: string; readonly seed: number | null; readonly feel: Feel };
+  /**
+   * Makes `feel` the base feel the next start without a `feel` option uses (story 2.1), so values
+   * tuned while playing survive « Recommencer ». It does not touch the level being played (that is
+   * `SetFeel`'s job). The level's `feelOverrides` are merged over it again at that start.
+   */
+  rememberFeel(feel: Feel): void;
+  /** The timings of the running level's last frame (story 2.1), or `null` without a loop. Zeros unless a measure clock is on. */
+  readonly loopStats: Readonly<LoopStats> | null;
+  /**
+   * Times the frames of the current and of every later level with this real-time clock, or stops
+   * with `null`. The debug overlay turns it on while it is open: with none, the loop reads no clock.
+   */
+  setLoopMeasure(measure: (() => number) | null): void;
   /** Whether the loop of the current and of every later level is frozen (the wish is kept across levels). */
   readonly isFrozen: boolean;
   /** Freezes or unfreezes the loop: it renders on but runs no step. Applies to every later level too. */
@@ -201,6 +221,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     feel: deps.content.feel,
   };
   let isFrozenWish = false;
+  let measureWish: (() => number) | null = null;
   let loop: GameLoop | null = null;
   let current: LevelScene | null = null;
   let isStarting = false;
@@ -228,6 +249,16 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     },
     get current() {
       return { levelId: requested.levelId, seed: requested.seed, feel: requested.feel };
+    },
+    rememberFeel(feel) {
+      requested.feel = feel;
+    },
+    get loopStats() {
+      return loop?.stats ?? null;
+    },
+    setLoopMeasure(measure) {
+      measureWish = measure;
+      loop?.setMeasure(measure);
     },
     get isFrozen() {
       return isFrozenWish;
@@ -404,6 +435,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           beforeStep: deps.beforeStep,
         });
         loop.setFrozen(isFrozenWish);
+        loop.setMeasure(measureWish);
         try {
           deps.onLevelStarted?.({ sim, levelId, seed, level: levelPlan, feel: effective });
         } catch (cause) {
@@ -424,7 +456,13 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         // sees is « 3 ».
         pause.requestPause('levelStart');
         if (deps.canResumeNow()) pause.requestResume();
-        active = { sim, timeMap, level: levelPlan, feel: effective };
+        active = {
+          sim,
+          timeMap,
+          level: levelPlan,
+          geometry: levelAssets.geometry,
+          feel: effective,
+        };
         appFsm.enter('level');
         loop.start();
         return 'started';

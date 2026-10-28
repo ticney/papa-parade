@@ -4,7 +4,7 @@ baseline_commit: 516b463eb33099f1dba6c6e5ee4d9ad2bfd61b81
 
 # Story 2.1: Debug overlay, timing timeline and feel panel
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 2.1 « Overlay de debug, timeline de timing et panneau de feeling » (L1222-1244). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -77,23 +77,23 @@ Sim tests use the frozen fixtures (`tests/support/testContent.ts`, `tests/suppor
 
 ## Tasks / Subtasks
 
-- [ ] **T0: Baseline** (all)
-  - [ ] `env | grep VITE_`; then `(unset VITE_DEBUG_ALLOWED; npm run ci)` before the first edit. Write the counts (unit, e2e) in the Debug Log. Do not edit files while it runs (1.23 got 36 false e2e failures that way).
-- [ ] **T1: `SetFeel` and the feel in the world** (AC 1-5)
-  - [ ] `src/sim/commands.ts`: add `SetFeel` to the union, `COMMAND_TYPES`, `commandProblem` (it has no feel, so it checks only the value kinds listed in AC 1; the shape check against the current feel runs in the apply function, D3). Update `commands.test.ts`.
-  - [ ] New `src/sim/feel/applyFeelPatch.ts` (the sim's own merge: the sim may not value-import `@content`): pure, proto-safe (`__proto__`, `constructor`, `prototype` keys refused), returns the merged feel or `null` when the patch does not fit the shape. Unit tests next to it.
-  - [ ] `src/sim/world.ts`: `feel: Feel` slice; `createWorld` takes the initial feel (cloned). `src/sim/context.ts` / `createSim.ts`: `ctx.feel` becomes a getter on the current `world.feel` (mind `restore()` replacing the world object). Apply due `SetFeel`s in `applyCommands` (or a dedicated step at the head of `step.ts`, before `advanceTime`).
-  - [ ] `src/sim/snapshot.ts`: version 12, `feel` field with its `…Problem` validator; tests in `snapshot.test.ts`.
-  - [ ] `src/sim/journal.ts` stays version 3 unless the shape check needs a bump (it should not: a new command type is additive); `feelHash` stays the initial feel's.
-  - [ ] `tools/sim`: validate each `SetFeel` of a loaded journal with `FeelSchema` (merged in order onto the level's feel); clear refusal message.
-- [ ] **T2: `ResponseResolved.window`** (AC 6)
-  - [ ] `src/sim/events.ts` and every emission site in `src/sim/threats/threatFsm.ts` (and any other emitter: grep `type: 'ResponseResolved'`). Update the tests that build or match this event (`grep -rn ResponseResolved src tests`), including bots and client handlers that destructure it.
-- [ ] **T3: Client live feel and `__PP__.setFeel`** (AC 7, 8)
-  - [ ] `src/client/boot.ts` `levelFeel()` and its readers read `active.sim.world.feel`; keep `ActiveLevel.feel` only where the start feel is meant.
-  - [ ] `src/debug/testApi.ts` `setFeel`: validate, enqueue `SetFeel`, update `levelSession.current.feel` (D7); remove the restart and the `input` warn; rewrite the doc comment. Update `src/debug/testApi.test.ts`, `tests/e2e/testApi.spec.ts` (« setFeel() sends SetFeel… »: same `time.sim` order of magnitude, no restart, `world.feel` changed after one `advance`), `tests/e2e/result.spec.ts`.
-- [ ] **T4: Hooks the overlay needs** (AC 10, 12)
-  - [ ] `src/client/loop.ts`: optional `measure?: () => number` clock; when given, `LoopStats` gains `simMsLastFrame`, `renderMsLastFrame`, `frameMsLastFrame` (no allocation per frame). Tests in `loop.test.ts`.
-  - [ ] `src/client/app/testHost.ts` (+ `tests/support/fakeTestHost.ts`): add what the overlay reads and nothing more: `renderStats()`, `loopStats()`, `levelGeometry()` (kept on the active level), `debugGroup()` (a `THREE.Group` in the level scene, emptied at level start), `threatScreenPoints()` (the icon points the hit test uses), and a way to turn loop measuring on. Keep `TestHost` read-only towards the sim.
+- [x] **T0: Baseline** (all)
+  - [x] `env | grep VITE_`; then `(unset VITE_DEBUG_ALLOWED; npm run ci)` before the first edit. Write the counts (unit, e2e) in the Debug Log. Do not edit files while it runs (1.23 got 36 false e2e failures that way).
+- [x] **T1: `SetFeel` and the feel in the world** (AC 1-5)
+  - [x] `src/sim/commands.ts`: add `SetFeel` to the union, `COMMAND_TYPES`, `commandProblem` (it has no feel, so it checks only the value kinds listed in AC 1; the shape check against the current feel runs in the apply function, D3). Update `commands.test.ts`.
+  - [x] New `src/sim/feel/applyFeelPatch.ts` (the sim's own merge: the sim may not value-import `@content`): pure, proto-safe (`__proto__`, `constructor`, `prototype` keys refused), returns the merged feel or `null` when the patch does not fit the shape. Unit tests next to it.
+  - [x] `src/sim/world.ts`: `feel: Feel` slice; `createWorld` takes the initial feel (cloned). `src/sim/context.ts` / `createSim.ts`: `ctx.feel` becomes a getter on the current `world.feel` (mind `restore()` replacing the world object). Apply due `SetFeel`s in `applyCommands` (or a dedicated step at the head of `step.ts`, before `advanceTime`).
+  - [x] `src/sim/snapshot.ts`: version 12, `feel` field with its `…Problem` validator; tests in `snapshot.test.ts`.
+  - [x] `src/sim/journal.ts` stays version 3 unless the shape check needs a bump (it should not: a new command type is additive); `feelHash` stays the initial feel's.
+  - [x] `tools/sim`: validate each `SetFeel` of a loaded journal with `FeelSchema` (merged in order onto the level's feel); clear refusal message.
+- [x] **T2: `ResponseResolved.window`** (AC 6)
+  - [x] `src/sim/events.ts` and every emission site in `src/sim/threats/threatFsm.ts` (and any other emitter: grep `type: 'ResponseResolved'`). Update the tests that build or match this event (`grep -rn ResponseResolved src tests`), including bots and client handlers that destructure it.
+- [x] **T3: Client live feel and `__PP__.setFeel`** (AC 7, 8)
+  - [x] `src/client/boot.ts` `levelFeel()` and its readers read `active.sim.world.feel`; keep `ActiveLevel.feel` only where the start feel is meant.
+  - [x] `src/debug/testApi.ts` `setFeel`: validate, enqueue `SetFeel`, update `levelSession.current.feel` (D7); remove the restart and the `input` warn; rewrite the doc comment. Update `src/debug/testApi.test.ts`, `tests/e2e/testApi.spec.ts` (« setFeel() sends SetFeel… »: same `time.sim` order of magnitude, no restart, `world.feel` changed after one `advance`), `tests/e2e/result.spec.ts`.
+- [x] **T4: Hooks the overlay needs** (AC 10, 12)
+  - [x] `src/client/loop.ts`: optional `measure?: () => number` clock; when given, `LoopStats` gains `simMsLastFrame`, `renderMsLastFrame`, `frameMsLastFrame` (no allocation per frame). Tests in `loop.test.ts`.
+  - [x] `src/client/app/testHost.ts` (+ `tests/support/fakeTestHost.ts`): add what the overlay reads and nothing more: `renderStats()`, `loopStats()`, `levelGeometry()` (kept on the active level), `debugGroup()` (a `THREE.Group` in the level scene, emptied at level start), `threatScreenPoints()` (the icon points the hit test uses), and a way to turn loop measuring on. Keep `TestHost` read-only towards the sim.
 - [ ] **T5: The overlay** (AC 9-13)
   - [ ] `src/debug/debugOverlay.ts` (`createDebugOverlay(host)`: root element, toggle by F1/3 fingers, show/hide, owns the panels), `perfPanel.ts`, `stateInspector.ts`, `navDebugView.ts` (grid, path, colliders, anchors, zones, touch radii), `cheats.ts`, `debugOverlay.css` (`pp-debug-` classes; above the HUD and game overlays; `pointer-events` only on its panels). Architecture names (L529-530) are the file names, except the entry, which is `debugOverlay.ts` (D12).
   - [ ] Keyboard and pointer events inside the overlay root stop propagation so they never reach game input or the Result screen's Enter/Space skip.

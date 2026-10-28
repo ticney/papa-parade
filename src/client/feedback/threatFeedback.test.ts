@@ -7,6 +7,7 @@ import {
   createTestLevel,
   createTestMicroSleep,
   createTestOutlet,
+  createTestResponseWindow,
   FATIGUE_GAUGES,
   OUTLET,
   testWave,
@@ -33,6 +34,7 @@ const resolved = (quality: 'perfect' | 'success' | 'fail', id = threatId): SimEv
   response: 'parry',
   quality,
   offsetMs: quality === 'fail' ? null : 0,
+  responseWindow: createTestResponseWindow(),
 });
 
 describe('threatCueOf', () => {

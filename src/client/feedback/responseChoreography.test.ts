@@ -6,6 +6,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestResponseWindow,
   OUTLET,
   testWave,
 } from '../../../tests/support/testContent.ts';
@@ -20,6 +21,7 @@ const resolved = (quality: 'perfect' | 'success' | 'fail', threatId = 1): SimEve
   response: 'parry',
   quality,
   offsetMs: 0,
+  responseWindow: createTestResponseWindow(),
 });
 
 /** A world slice with just what the choreography reads. */

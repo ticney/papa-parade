@@ -117,7 +117,10 @@ export interface SimPropSpec {
 }
 
 export interface StepContext extends InvariantContext {
-  /** The effective feel as given to `createSim` (callers pass the already merged feel). */
+  /**
+   * The effective feel: `world.feel` of the current world (a getter, so `restore()` and a
+   * `SetFeel` are seen at once). Read it each time; never keep the object across steps.
+   */
   readonly feel: Feel;
   /** Systems push here; the sim drains it. */
   readonly events: SimEvent[];
