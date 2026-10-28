@@ -82,8 +82,11 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
   let clock = '';
 
   const refreshLabel = (): void => {
-    const name = variant === null ? '' : `${t(VARIANT_KEYS[variant])}, `;
-    element.setAttribute('aria-label', `${name}${clock}`);
+    const name = variant === null ? '' : t(VARIANT_KEYS[variant]);
+    element.setAttribute(
+      'aria-label',
+      name !== '' && clock !== '' ? `${name}, ${clock}` : `${name}${clock}`,
+    );
   };
 
   return {

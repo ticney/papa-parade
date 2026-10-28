@@ -458,6 +458,8 @@ export async function boot(): Promise<void> {
     beforeStep: isMirrored ? (sim) => stepHook?.(sim) : undefined,
     onLevelStarted: (started) => {
       timerHud.setVariant(started.level.level.variant);
+      // The full duration at once, so a restart never shows the last level's `0:00`.
+      hudBatch.set(TIMER_SLOT, Math.ceil(started.level.level.durationMs / MS_PER_S));
       for (const listener of levelStartedListeners) listener(started);
     },
     onSeed: (seed) => {
@@ -477,7 +479,13 @@ export async function boot(): Promise<void> {
     },
     onLevelFrame: () => {
       // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
-      audio.setBabbling(levelSession.active?.sim.world.baby.babbling ?? false);
+      // Once the level has ended the sim is frozen with `babbling` as it was: silence it.
+      const babbleWorld = levelSession.active?.sim.world;
+      audio.setBabbling(
+        babbleWorld !== undefined &&
+          babbleWorld.flow.state === 'playing' &&
+          babbleWorld.baby.babbling,
+      );
       // The timer counts sim time, rounded up to the second (`0:00` exactly when the level ends);
       // `hudBatch` writes the DOM only when the second changes. Before `shell.frame()` flushes it.
       const running = levelSession.active;

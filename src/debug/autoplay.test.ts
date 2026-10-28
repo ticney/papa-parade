@@ -9,7 +9,13 @@ import { createSim, type Sim } from '@sim';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { botSetup, botTestLevel } from '../../tests/support/botSupport.ts';
 import { createFakeTestHost } from '../../tests/support/fakeTestHost.ts';
-import { createTestContent, createTestGeometry } from '../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+  OUTLET,
+  testWave,
+} from '../../tests/support/testContent.ts';
 import { installAutoplay } from './autoplay.ts';
 
 beforeAll(() => {
@@ -65,6 +71,36 @@ describe('installAutoplay', () => {
       expect(hashJson(hooked.world)).toBe(hashJson(reference.world));
     });
   }
+
+  it('asks the bot for nothing once the level has ended (the sim would ignore it, the journal would grow)', async () => {
+    const host = createFakeTestHost();
+    expect(installAutoplay(host, 'random').ok).toBe(true);
+    const seed = 3;
+    const shortLevel = () => createTestLevel({ waves: [testWave([OUTLET])], durationMs: 2000 });
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: shortLevel(),
+      seed,
+      strictInvariants: true,
+    });
+    host.fireLevelStarted({ ...startedOf(sim, seed), level: shortLevel() });
+    const hook = host.stepHook;
+    for (let i = 0; i < 300; i++) {
+      hook?.(sim);
+      sim.step();
+      sim.drainEvents();
+    }
+    expect(sim.world.flow.state).toBe('ended');
+    const before = sim.journal().entries.length;
+    expect(before).toBeGreaterThan(0);
+    for (let i = 0; i < 300; i++) {
+      hook?.(sim);
+      sim.step();
+      sim.drainEvents();
+    }
+    expect(sim.journal().entries.length).toBe(before);
+  });
 
   it('blocks the game input as soon as it is installed', () => {
     const host = createFakeTestHost();

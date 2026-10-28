@@ -17,6 +17,7 @@ function setup() {
   const pause = createPauseController({ events, countdownMs: 3000 });
   const calls: string[] = [];
   let kind: OverlayKind | null = null;
+  let isHudVisible = false;
   const pauseScreen = {
     setMode: (mode: string) => calls.push(`setMode:${mode}`),
     setPadDisconnected: (is: boolean) => calls.push(`padDisconnected:${is}`),
@@ -44,7 +45,12 @@ function setup() {
     events,
     appFsm,
     pause,
-    hud: { setVisible: () => undefined, setInteractive: () => undefined },
+    hud: {
+      setVisible: (is: boolean) => {
+        isHudVisible = is;
+      },
+      setInteractive: () => undefined,
+    },
     hudBatch: { flush: () => undefined } as never,
     overlayHost,
   });
@@ -58,8 +64,35 @@ function setup() {
     calls.length = 0;
     shell.handlePadButton(button);
   };
-  return { appFsm, pause, shell, calls, press, toLevel, getKind: () => kind };
+  return {
+    appFsm,
+    pause,
+    shell,
+    calls,
+    press,
+    toLevel,
+    getKind: () => kind,
+    isHudVisible: () => isHudVisible,
+  };
 }
+
+describe('createUiShell: the HUD, and so the level timer (story 1.18)', () => {
+  it('shows the HUD in a level only, and hides it on the other screens', () => {
+    const { appFsm, shell, isHudVisible } = setup();
+    appFsm.enter('start');
+    shell.refresh();
+    expect(isHudVisible()).toBe(false);
+    appFsm.enter('loading');
+    shell.refresh();
+    expect(isHudVisible()).toBe(false);
+    appFsm.enter('level');
+    shell.refresh();
+    expect(isHudVisible()).toBe(true);
+    appFsm.enter('result');
+    shell.refresh();
+    expect(isHudVisible()).toBe(false);
+  });
+});
 
 describe('createUiShell: handlePadButton (story 1.17)', () => {
   it('pauses on Start in play, and B and the D-pad do nothing there', () => {

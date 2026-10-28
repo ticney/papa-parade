@@ -160,13 +160,15 @@ function simLevelOf(
         geometry.anchors.some((anchor) => anchor.id === entry.anchor),
         `${entry.where}: threat ${entry.def} is planned at ${entry.anchor}, which ${geometry.id} does not have`,
       );
+      // The wording of these two is the one `content:check` and the schema use.
       invariant(
         (GAG_IDS as readonly string[]).includes(def.gag),
-        `${entry.where}: threat ${entry.def} has an unknown gag ${def.gag}`,
+        `${entry.where}: the threat "${entry.def}" has the gag "${def.gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
       );
+      const first = planned.findIndex((other) => other.anchor === entry.anchor);
       invariant(
-        planned.findIndex((other) => other.anchor === entry.anchor) === index,
-        `${entry.where}: the anchor ${entry.anchor} is planned twice`,
+        first === index,
+        `${entry.where}: the anchor "${entry.anchor}" is already planned by ${(planned[first] as { where: string }).where}`,
       );
       return { def, anchorId: entry.anchor, firstWaveIndex: entry.waveIndex };
     }),
@@ -216,6 +218,10 @@ function checkReachable(
   for (const entry of plannedEntriesOf(level)) {
     const anchor = geometry.anchors.find((candidate) => candidate.id === entry.anchor);
     if (anchor === undefined) continue; // `simLevelOf` has refused it
+    invariant(
+      spawnCell >= 0,
+      `${entry.where}: the baby's spawn point is outside the navigation grid, so threat ${entry.def} at ${entry.anchor} cannot be checked for reach`,
+    );
     const cell = grid.nearestOpenCell(anchor.positionM[0], anchor.positionM[2], -1);
     invariant(
       cell >= 0 && grid.region[cell] === spawnRegion,

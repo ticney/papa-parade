@@ -157,6 +157,25 @@ describe('runSim on the live content', () => {
     expect(result.value.endedRuns).toBe(0);
   });
 
+  it('draws another first telegraph on another seed (AC 4)', async () => {
+    const loaded = await load();
+    const firsts = new Set<number>();
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const sim = await createSim({ ...loaded, seed, strictInvariants: true });
+      let first: number | null = null;
+      for (let i = 0; i < 20_000 && first === null; i++) {
+        sim.step();
+        for (const event of sim.drainEvents()) {
+          if (first === null && event.type === 'ThreatTelegraphed') first = event.threatId;
+        }
+      }
+      sim.dispose();
+      if (first === null) throw new Error(`seed ${seed}: no threat was ever telegraphed`);
+      firsts.add(first);
+    }
+    expect(firsts.size).toBeGreaterThan(1);
+  }, 120_000);
+
   it('shows the last-threat slow-mo (×0.2, slower than the perfect one) in some perfect game', async () => {
     const loaded = await load();
     const { feel } = loaded.content;

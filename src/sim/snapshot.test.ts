@@ -1149,6 +1149,21 @@ describe('snapshot / restore of the director and the flow (story 1.18)', () => {
         /world\.threats\[0\]\.waveIndex/,
       ],
       [
+        'a threat from a wave the director has not entered',
+        (w) => set(director(w), 'waveIndex', -1),
+        /world\.threats\[0\]\.waveIndex/,
+      ],
+      [
+        'a flow that ended before the level time is up',
+        (w) => set(flow(w), 'state', 'ended'),
+        /world\.flow\.state/,
+      ],
+      [
+        'a flow entered after the current sim time',
+        (w) => set(flow(w), 'enteredAt', 700),
+        /world\.flow\.enteredAt/,
+      ],
+      [
         'an idle threat that names a wave',
         (w) => {
           set(threat0(w), 'state', 'idle');

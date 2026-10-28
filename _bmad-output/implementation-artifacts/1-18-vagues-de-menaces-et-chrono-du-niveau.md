@@ -4,7 +4,7 @@ baseline_commit: 64f4da9debc44dbe0ec356b26722d28d4a3c0d1e
 
 # Story 1.18: Threat Waves and the Level Timer
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.18 « Vagues de menaces et chrono du niveau » (L1001-1031). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -111,7 +111,7 @@ so that the game goes from calm to chaos.
    After that, a `step()` runs only `applyCommands` and `advanceTime` (D8). The clock keeps going, so every `while (time < until)` loop still ends. No baby, threat, Papa or physics change happens, and no further event comes except `TimeScaleChanged` from a slow-mo that winds down.
 8. **The HUD timer.** In a level, `[data-pp-zone="timer"]` holds one `hud-timer`.
    - **Look.** It is a `{colors.paper}` pill with an ink outline, `{rounded.full}` and `{spacing.2}` padding. The digits are `{typography.numeric}` in `{colors.ink}` with tabular figures. The sleeping-Mama icon for `nap` comes before them (mockup L63-65, L160, L183).
-   - **Value.** It shows the remaining sim time as `m:ss`, rounded **up** to the second, from the level's `durationMs`. It reads `3:00` at the start, `2:59` from the first step, and `0:00` exactly when `LevelEnded` comes.
+   - **Value.** It shows the remaining sim time as `m:ss`, rounded **up** to the second, from the level's `durationMs`. It reads `3:00` at the start and keeps reading it until the first full second of sim time has passed (`2:59` from 1000 ms), and `0:00` exactly when `LevelEnded` comes. (Review of 2026-10-28, decision: the ceil is kept; the first draft said `2:59` from the first step, which « rounded up » cannot give.)
    - **Writes.** The digits go through `hudBatch` (one slot), so the DOM is written only when the second changes. The pill has `role="timer"` and `aria-label` « Sieste, 2:47 » (`t('hud.timer_variant_nap')` + `, ` + the digits).
    - **Freezes.** It freezes during pause and the countdown. It slows with the sim during slow-mo (sim time, ADR-002), and the HUD stays visible then.
    - **Budgets.** The HUD stays within `HUD_MAX_DOM_NODES` (40) and the 12 % band.
@@ -211,7 +211,7 @@ so that the game goes from calm to chaos.
     - An `err` goes to the content error screen, through the path a broken level already takes.
   - [x] `tools/sim/loadSimLevel.ts`: the same merge. An `err` fails with the formatted problems. `SimLevel.content.feel` is the merged feel.
   - [x] Tests for both. Write a client unit test with an override of `timing.windowMs`, and check that the sim's `ctx.feel` (through a threat's `responseWindow`) uses it.
-- [x] **T7 — CLI and report** (AC 9)
+- [x] **T7 — CLI and report** (AC 9) (deviation: see Debug Log; the perfect-run slow-mo test counts `TimeScaleChanged` events over seeds 1 to 3 instead of 5 runs through the recorder)
   - [x] `tools/sim/simArgs.ts`: `untilSimMs: number | null` (null = the level's duration), and update `SIM_HELP`. Remove `SIM_CLI_DEFAULT_UNTIL_MS` from `shared/constants.ts`, or keep it only if something else needs it (it should not). Keep `SIM_CLI_MAX_UNTIL_MS` as the cap's upper bound.
   - [x] `tools/sim/runSim.ts`: `const untilSimMs = args.untilSimMs ?? level.level.durationMs`. Record it in the report and in each `RunFile`, so that `sim:replay` replays to the same time.
   - [x] `tools/sim/simReport.ts`:
@@ -242,7 +242,7 @@ so that the game goes from calm to chaos.
     - In `onLevelFrame`, before `shell.frame()`, when a level is active: `hudBatch.set(TIMER_SLOT, Math.ceil(Math.max(0, durationMs − world.time.sim) / MS_PER_S))`. Read `durationMs` from the active level plan; never write it as a literal.
     - It allocates nothing per frame. The string write happens only when the second changes.
   - [x] Unit tests: `timerHud.test.ts` (structure, aria-label, the variant icon present, `formatClock`) and `hudLayer` (the timer is in the zone).
-- [x] **T9 — Client end of level** (AC 10)
+- [x] **T9 — Client end of level** (AC 10) (deviation: see Debug Log; the `LevelEnded` log uses the channel `'sim'`, since `LogChannel` has no `level`)
   - [x] `boot.ts` › `onSimEvent`:
     - `LevelEnded` → `mirror('ppFlow', 'ended')` and `log.info('level', 'level ended', { reason, t })`.
     - At each level start, `mirror('ppFlow', 'playing')`.
@@ -250,7 +250,7 @@ so that the game goes from calm to chaos.
   - [x] `logSimEvent` handles the two new events at the level its siblings use.
   - [x] Nothing enters `result`. Leave a one-line comment at the `LevelEnded` case: « story 1.22 shows the result screen ».
 - [x] **T10 — Tests to migrate** (AC 12). `createTestLevel` changes shape (D11). Migrate every caller (§ Testing lists them) and keep each test's intent. Never delete a test to make the suite pass; if a test's premise no longer holds (for example « the director waits for a free baby »), rewrite it to the new rule and say so in the Debug Log.
-- [x] **T11 — e2e** (AC 8, 10, 12)
+- [x] **T11 — e2e** (AC 8, 10, 12) (deviation: see Debug Log and the review decision; the timer reads `3:00` after the first step)
   - [x] `tests/e2e/support/game.ts`:
     - Remove `FIRST_TELEGRAPH_MS`, which assumed a fixed first telegraph.
     - Add `stepToFirstTelegraph(page)`: frozen, advance in chunks until `__PP__.events()` holds a `ThreatTelegraphed`, and return it (`t`, `threatId`, `kind`).
@@ -262,7 +262,7 @@ so that the game goes from calm to chaos.
     - `threats.spec.ts`: the coffee table first appears from 60 s (wave 2). Advance past `waves[1].fromMs` and read the bound from the level; do not hard-code 60000.
   - [x] New `tests/e2e/timer.spec.ts` (chromium + webkit):
     - After `ppLoadLevel('salon_crawler', 42)` frozen, the timer reads `3:00` and its `aria-label` starts with « Sieste ».
-    - After `ppAdvance` of 1 step it reads `2:59`. After `1000 / STEP_MS` more, `2:58`.
+    - After `ppAdvance` of 1 step it still reads `3:00` (ceil). After 1000 ms of sim time it reads `2:59`, after 2000 ms `2:58`.
     - It sits in `[data-pp-zone="timer"]`, centred (the existing zone test still passes), and the HUD stays within the node budget.
     - Advancing to `durationMs` gives `0:00`, one `LevelEnded` in the events and `data-pp-flow="ended"`. A tap on the floor after that adds no command to the journal (`__PP__` or the events: no `PapaPathPlanned`).
     - To advance 18 000 steps, use `ppAdvance` in chunks (see how `threats.spec.ts` chunks) and keep the test under the default timeout. If it is too slow on WebKit, say so in the Debug Log rather than raising timeouts blindly.
@@ -288,6 +288,26 @@ so that the game goes from calm to chaos.
     - the per-level audio manifest (story 2.3).
   - [x] Add a « Deferred from: implementation of story 1-18 » section for anything new.
   - [x] `CLAUDE.md` › Commands: the `npm run sim` line says that a run lasts the level's duration unless `--until-ms` caps it.
+
+### Review Findings
+
+Code review of 2026-10-28 (Blind Hunter, Edge Case Hunter, Acceptance Auditor). Diff `64f4da9..6ff5ffb` (the story's `baseline_commit` to the implementation commit; goldens, screenshots, `content/_schemas` and `_bmad-output` left out of the diff). 14 findings dismissed as noise or as already decided (D5, D7, D9, 1.14 D2).
+
+- [x] [Review][Decision] **Resolved: (a)** — the ceil is kept; AC 8 and T11 now say `3:00` until the first full second has passed. Timer value at the first step: AC 8 contradicts itself. AC 8 says « rounded up » and « `2:59` from the first step »; the code shows `3:00` after step 1 (`Math.ceil(remainingMs / MS_PER_S)`) and `2:59` after 1000 ms, which is what « rounded up » gives, and `timer.spec.ts` pins it. T11 is ticked without a deviation marker. Options: (a) keep the ceil, which gives `0:00` exactly at `LevelEnded`, and amend AC 8 / T11 to « `3:00` until the first full second has passed »; (b) floor, so `2:59` shows at step 1 but `0:00` appears one second before the end. [`src/client/boot.ts:489`, `tests/e2e/timer.spec.ts`]
+- [x] [Review][Patch] **The baby's babble loop plays forever after `LevelEnded`.** `ENDED_SYSTEMS` stops `runBaby`, so `baby.babbling` stays `true`. Use `audio.setBabbling(sim.world.flow.state === 'playing' && sim.world.baby.babbling)`, and add a test. [`src/client/boot.ts:480`, `src/sim/step.ts:39`]
+- [x] [Review][Patch] **Browser autoplay keeps asking the bot and enqueuing commands after the end.** Every step journals a command the sim ignores, so a browser run and a headless run (`playGame` stops at the end) diverge. Return early from `stepHookOf` when `sim.world.flow.state !== 'playing'`. [`src/debug/autoplay.ts:57`]
+- [x] [Review][Patch] **Wave effectiveness is not validated.** A wave whose `gapMinMs` cannot land before `closesAtMs` (or whose first gap lands past it) never telegraphs, and `content:check` passes. Add a `superRefine` rule that names the wave (« no telegraph can land: … ») and a test. [`src/content/schemas/level.ts` superRefine]
+- [x] [Review][Patch] **`restoreSnapshot` accepts incoherent flow and director state.** `flow.state === 'ended'` with `time.sim < durationMs`, `flow.enteredAt > time.sim`, or a threat whose `waveIndex > director.waveIndex` all pass. Reject them in `flowProblem` / `directorProblem`, with tests. [`src/sim/snapshot.ts` flowProblem, directorProblem]
+- [x] [Review][Patch] **Timer pill before the first frame.** `setVariant` runs with `clock === ''`, so the `aria-label` reads « Sieste, » with a trailing comma, and after « Recommencer » the previous `0:00` stays until the first frame. In `onLevelStarted`, call `timerHud.setRemainingS(ceil(durationMs / 1000))` right after `setVariant`; in `refreshLabel`, add the comma only when `clock !== ''`. [`src/client/boot.ts:459`, `src/client/ui/hud/timerHud.ts:84`]
+- [x] [Review][Patch] **`checkReachable` reports a missing baby spawn cell as « cannot reach ».** With `spawnCell < 0` the region is `-1` and every anchor fails with a misleading message. Give it its own invariant message (« baby spawn outside the nav grid »). [`src/sim/createSim.ts` checkReachable]
+- [x] [Review][Patch] **AC 4: no test of two seeds on the live level.** The only test uses a crafted level (`directorSystem.test.ts`). Add one on `salon_crawler` (two seeds, different first telegraph), for example in `runSim.test.ts`.
+- [x] [Review][Patch] **No unit test that the timer is visible in a level and hidden outside one** (Testing section: `hudLayer` / `uiShell`). Add it. [`src/client/ui/hud/hudLayer.test.ts`]
+- [x] [Review][Patch] **AC 3: `content:check` and `createSim` do not use the same wording** (unknown gag, duplicate anchor). Align the two messages (file, path and culprit are already named in both). [`tools/content/contentChecks.ts`, `src/sim/createSim.ts`, `src/content/schemas/level.ts`]
+- [x] [Review][Patch] **Ticked tasks that deviate from the spec carry no marker.** T7 (the perfect-run slow-mo test uses seeds 1-3 and counts `TimeScaleChanged` events instead of 5 runs through the recorder), T9 (the `LevelEnded` log uses the channel `'sim'`, not `'level'`) and T11 (the timer value, see the decision above). Add « (deviation: see Debug Log) » as the « Previous story intelligence » section asks.
+- [x] [Review][Defer] **`checkReachable` only checks the baby's region.** It does not check Papa's region, the object anchors, or a planned anchor that `nearestOpenCell` snaps across a wall into the baby's region. [`src/sim/createSim.ts` checkReachable] — deferred, D12 scoped it to planned threat anchors; harden with the level validation (1.21).
+- [x] [Review][Defer] **After `LevelEnded` the world is frozen as it was**: threat icons and halos of a `telegraph` / `windowOpen` threat stay up, and Papa stays mid-glide. [`src/sim/step.ts` ENDED_SYSTEMS, `src/client/boot.ts`] — deferred, D8 / D9 freeze the world on purpose; story 1.22's result screen replaces the frozen level.
+- [x] [Review][Defer] **Live-content tests pin tuning values** (`durationMs === 180000`, `maxSimultaneous` `[1, 2, 3]`, `wave.telegraphs > 0` for 5 idle runs, `lastThreatSlowMos ≥ 1` on seeds 1-3), and three 120 s-timeout tests play full 180 s games. [`tests/content/levelSchema.test.ts`, `tests/tools/sim/runSim.test.ts`] — deferred, the AC asks for the pins; revisit when Geo first retunes the waves (1.24), and cover the slow-mo on the frozen test level if CI time or flakes show.
+- [x] [Review][Defer] **`feelOverrides` is `z.record(z.string(), z.unknown())`**, so the generated JSON Schema gives no editor hints; a typo shows only in `mergeFeel` / `content:check`. [`src/content/schemas/level.ts`] — deferred, a deep-partial of `FeelSchema` is a tooling nicety.
 
 ## Dev Notes
 
@@ -599,3 +619,4 @@ claude-sonnet-5-5
 ### Change Log
 
 - 2026-10-28: Story 1.18 implemented: waves, wave director, last-threat slow-mo, level timer and end, `feelOverrides`, CLI to `LevelEnded`, HUD timer; goldens and screenshot references regenerated on purpose.
+- 2026-10-28: Code review of story 1.18 and its fixes: AC 8 / T11 reworded for the ceil; babble silenced and autoplay stopped after `LevelEnded`; the level schema rejects a wave whose first gap cannot land; snapshots reject incoherent flow, director and wave state; the timer pill starts with the full duration and a clean `aria-label`; `createSim` names a spawn outside the nav grid and shares the schema's wording; tests for AC 4 on the live level, the HUD visible only in a level, and the new snapshot / autoplay rules. The babble silencing in `boot.ts` has no automated test (the glue is not unit-testable). Four items deferred.

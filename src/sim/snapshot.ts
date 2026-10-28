@@ -240,13 +240,16 @@ function directorProblem(director: unknown, waveCount: number): string | null {
   return null;
 }
 
-function flowProblem(flow: unknown): string | null {
+function flowProblem(flow: unknown, nowMs: number, durationMs: number): string | null {
   if (typeof flow !== 'object' || flow === null) return 'world.flow is missing';
   const slice = flow as Record<string, unknown>;
   if (!FLOW_STATES.includes(slice.state as FlowState)) return 'world.flow.state';
   if (!isFiniteNumber(slice.enteredAt) || (slice.enteredAt as number) < 0) {
     return 'world.flow.enteredAt';
   }
+  // A state is entered in the past, and the level only ends once its time is up.
+  if ((slice.enteredAt as number) > nowMs) return 'world.flow.enteredAt';
+  if (slice.state === 'ended' && nowMs < durationMs) return 'world.flow.state';
   return null;
 }
 
@@ -289,6 +292,8 @@ function threatProblem(threat: unknown, index: number, waveCount: number): strin
 export interface PlannedLevel {
   /** Only the count is needed: it bounds the wave indices. */
   readonly waves: readonly unknown[];
+  /** How long the level lasts, in sim ms: a level that has ended cannot be earlier than this. */
+  readonly durationMs: number;
   readonly threats: readonly { readonly def: { readonly id: string } }[];
   readonly props: readonly {
     readonly id: string;
@@ -430,9 +435,16 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
     if (ids.has(threat.id) || threat.id >= (nextId as number)) return `world.threats[${i}].id`;
     ids.add(threat.id);
   }
+  const waveProblem = directorProblem(director, planned.waves.length);
+  if (waveProblem !== null) return waveProblem;
+  // A threat cannot come from a wave the director has not entered.
+  const enteredWave = (director as { waveIndex: number }).waveIndex;
+  for (let i = 0; i < threats.length; i++) {
+    if ((threats[i] as ThreatInstance).waveIndex > enteredWave)
+      return `world.threats[${i}].waveIndex`;
+  }
   return (
-    directorProblem(director, planned.waves.length) ??
-    flowProblem(flow) ??
+    flowProblem(flow, clock.sim as number, planned.durationMs) ??
     papaProblem(papa) ??
     babyProblem(baby, threats as readonly ThreatInstance[]) ??
     propsProblem(props, mess, planned.props)

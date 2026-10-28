@@ -127,6 +127,14 @@ describe('createTimerHud', () => {
     expect(root.attributes.get('aria-label')).toBe('Sieste, 3:00');
   });
 
+  it('says only the variant, with no trailing comma, before the first time is set', () => {
+    const { hud, root } = build();
+    hud.setVariant('nap');
+    expect(root.attributes.get('aria-label')).toBe('Sieste');
+    hud.setRemainingS(180);
+    expect(root.attributes.get('aria-label')).toBe('Sieste, 3:00');
+  });
+
   it('stays small: the pill, its icon and its digits are well within the HUD node budget', () => {
     const { hud, root } = build();
     hud.setVariant('nap');

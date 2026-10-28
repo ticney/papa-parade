@@ -56,6 +56,8 @@ function setupFor(
 /** Before a step: asks the bot, enqueues what it says. One reused array, no allocation per step. */
 function stepHookOf(bot: Bot, out: SimCommand[]): (sim: Sim) => void {
   return (sim) => {
+    // The level is over: the sim ignores commands, so do not journal any (headless `playGame` stops here too).
+    if (sim.world.flow.state !== 'playing') return;
     out.length = 0;
     bot.act(sim.world, out);
     for (let i = 0; i < out.length; i++) sim.enqueue(out[i] as SimCommand);

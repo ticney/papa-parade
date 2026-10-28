@@ -329,3 +329,10 @@
 - **Per-level `feel.input` is read through getters in `boot.ts`** (`levelFeel()`): the input mapper and the move intent now follow the active level's merged feel. The camera and the scene read the radii once per level; nothing else reads the base feel for a level.
 - **Local runs under heavy load fail on the 5 s vitest timeout** (`makePlaceholderAudio › is deterministic`, `botContract`, `humanBot`; a load average above 15 on 15 cores): they pass alone and with `--maxWorkers=5`. Not a code failure; raise those tests' timeout or cap the workers in `vitest.config.ts` if CI shows it.
 
+
+## Deferred from: code review of story 1-18-vagues-de-menaces-et-chrono-du-niveau (2026-10-28)
+
+- **`checkReachable` only checks the baby's region** (`createSim.ts`): not Papa's region, not the object anchors, and not a planned anchor that `nearestOpenCell` snaps across a wall into the baby's region. Reason: D12 scoped the check to planned threat anchors; harden it with the level validation, story 1.21.
+- **After `LevelEnded` the world stays as it was**: the icon and halo of a `telegraph` / `windowOpen` threat stay up and Papa stays mid-glide (`ENDED_SYSTEMS`). Reason: D8 / D9 freeze the world on purpose; story 1.22's result screen replaces the frozen level.
+- **Live-content tests pin tuning values** (`durationMs === 180000`, `maxSimultaneous` `[1, 2, 3]`, `telegraphs > 0` per wave over 5 idle runs, `lastThreatSlowMos ≥ 1`), and three tests with 120 s timeouts play full 180 s games. Reason: the AC asks for the pins; revisit when Geo first retunes the waves (1.24), and cover the slow-mo on the frozen test level if CI time or flakes show.
+- **`feelOverrides` is `z.record(z.string(), z.unknown())`**, so `content/_schemas` gives no editor hints for it. Reason: a deep-partial of `FeelSchema` is a tooling nicety; do it if a bad override bites.

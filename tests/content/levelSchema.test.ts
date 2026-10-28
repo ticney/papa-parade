@@ -189,6 +189,18 @@ describe('content/levels/salon_crawler.json', () => {
         /waves\[1\]: lullMs \(120000\) must be below the wave's length \(120000 ms\)/,
       ],
       [
+        'a first gap that cannot land before the lull',
+        level([{ ...wave, gapMinMs: 59500, gapMaxMs: 59500, lullMs: 500 }, second]),
+        'waves[0].gapMinMs',
+        /waves\[0\]: no telegraph can land: gapMinMs \(59500\) must be below the wave's length \(60000 ms\) minus its lullMs \(500\)/,
+      ],
+      [
+        'a gap as long as the last wave',
+        level([wave, { ...second, gapMinMs: 120000, gapMaxMs: 120000, lullMs: 0 }]),
+        'waves[1].gapMinMs',
+        /waves\[1\]: no telegraph can land/,
+      ],
+      [
         'an anchor planned twice, across waves',
         level([wave, { ...second, threats: [{ def: 'stairs', anchor: 'outlet_01' }] }]),
         'waves[1].threats[0].anchor',
@@ -214,7 +226,13 @@ describe('content/levels/salon_crawler.json', () => {
     });
 
     it('accepts a lull just below the wave length, and waves in order', () => {
-      expect(parse(level([{ ...wave, lullMs: 59999 }, second]))).toMatchObject({ ok: true });
+      const open = { ...wave, gapMinMs: 0, gapMaxMs: 0 };
+      expect(parse(level([{ ...open, lullMs: 59999 }, second]))).toMatchObject({ ok: true });
+    });
+
+    it('accepts a first gap that lands just before the lull', () => {
+      const edge = { ...wave, gapMinMs: 59499, gapMaxMs: 59499, lullMs: 500 };
+      expect(parse(level([edge, second]))).toMatchObject({ ok: true });
     });
   });
 

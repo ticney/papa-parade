@@ -126,6 +126,14 @@ export const LevelSchema = z
           message: `${where}: lullMs (${wave.lullMs}) must be below the wave's length (${spanMs} ms)`,
         });
       }
+      // The first telegraph comes `gapMinMs` or more after `fromMs`; it must land before the lull.
+      if (wave.lullMs < spanMs && wave.gapMinMs >= spanMs - wave.lullMs) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['waves', w, 'gapMinMs'],
+          message: `${where}: no telegraph can land: gapMinMs (${wave.gapMinMs}) must be below the wave's length (${spanMs} ms) minus its lullMs (${wave.lullMs})`,
+        });
+      }
       wave.threats.forEach((threat, i) => {
         const earlier = planned.get(threat.anchor);
         if (earlier !== undefined) {

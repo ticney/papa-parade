@@ -253,7 +253,7 @@ describe('the level it plans', () => {
   it('refuses a gag the sim does not know', async () => {
     const odd = { ...planning, threats: { outlet: { ...defOf(), gag: 'outlet_hairs' } } };
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
-      /unknown gag outlet_hairs/,
+      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall\)/,
     );
   });
 
@@ -265,7 +265,7 @@ describe('the level it plans', () => {
       ],
     });
     await expect(createSim({ content, geometry, level: twice, seed: 1 })).rejects.toThrow(
-      /salon_crawler.*waves\[1\]\.threats\[0\].*outlet_01 is planned twice/,
+      /salon_crawler.*waves\[1\]\.threats\[0\].*the anchor "outlet_01" is already planned by .*waves\[0\]\.threats\[0\]/,
     );
   });
 
