@@ -402,3 +402,11 @@
 
 - **A timed-out silence is reported as `ResponseResolved{fail, late}` with `offsetMs: null` and no window.** Whether story 1.22 counts it in Mama's Sigh is its own decision (Open point 4); give the gag a dedicated reason if scoring needs it. *Story 1.22 counts the mischief it leaves (`mess.mischiefs`), not the failed response: no dedicated reason was needed.*
 - **`loadLevelContent.test.ts` « collects every problem » was weakened from `> 2` to `>= 2`** (a def with no `target` is now one error, not one per missing key). Disclosed by the story; revisit if the schema reports per key again.
+
+## Deferred from: code review of story 1-22-note-de-maman-et-ecran-de-fin (2026-10-28)
+
+- **Audio stays suspended on the Result screen after the page was hidden.** `PauseRequested` suspends the audio and `rescueAudio` only runs in `level`, so the remaining star stamps are silent (haptics still fire) until the next start. Belongs with the audio/pause rescue work; « Rejouer » restarts audio.
+- **Accessibility of the Result screen.** `role="table"` on `div`s with no `rowgroup`/headers, total and `/100` unlabelled, no `inert` on the canvas behind `aria-modal`, count-up not announced. For the accessibility pass (EXPERIENCE.md › accessibility floor).
+- **Pointer skip edges on the Result screen:** no `pointercancel`, `pointerup` does not re-check `isPrimary`, a second finger overwrites `pressedPointer`. Minor, no reported failure.
+- **The window-level Enter/Space skip handler fires from a focused debug text field** (playtest builds only).
+- **New live-content tests are brittle and partly tautological** (`tests/tools/sim/mamaScore.test.ts` strict `<` idle vs perfect on `salon_crawler`; `flowSystem.test.ts` expected payload built with `computeMamaScore`). They fail only when Geo retunes the content; revisit if they become noise.

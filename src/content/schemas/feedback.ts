@@ -164,6 +164,12 @@ const ResultScreenSchema = z
     actionsDelayMs: realMs(
       'Pause between the last star (or the last row, with no star) and the buttons, in real ms.',
     ),
+    inputGraceMs: z
+      .int()
+      .min(0)
+      .describe(
+        'After the screen comes up, and again after the buttons come up, presses that start within this many real ms skip nothing and press nothing, so that taps still mashing for the last parry do not skip the note or hit « Rejouer »; 0 turns it off.',
+      ),
   })
   .describe(
     'The sequence of the Result screen (story 1.22): rows, then stars, then buttons. Real time: the sim never reads it.',

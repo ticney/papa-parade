@@ -236,6 +236,12 @@ describe('content/feedback.json', () => {
       'resultScreen.starIntervalMs',
     ],
     ['a fractional stars delay', [['resultScreen.starsDelayMs', 1.5]], 'resultScreen.starsDelayMs'],
+    ['a negative input grace', [['resultScreen.inputGraceMs', -1]], 'resultScreen.inputGraceMs'],
+    [
+      'a missing input grace',
+      [['resultScreen.inputGraceMs', undefined]],
+      'resultScreen.inputGraceMs',
+    ],
     [
       'a missing actions delay',
       [['resultScreen.actionsDelayMs', undefined]],
@@ -247,6 +253,10 @@ describe('content/feedback.json', () => {
 
   it('accepts a row stagger of 0 ms: the rows then count up together', () => {
     expect(mutated(['resultScreen.rowStaggerMs', 0])).toMatchObject({ ok: true });
+  });
+
+  it('accepts an input grace of 0 ms: the screen then takes every press', () => {
+    expect(mutated(['resultScreen.inputGraceMs', 0])).toMatchObject({ ok: true });
   });
 
   it('accepts the table the tests build by hand: it cannot drift from the schema', () => {

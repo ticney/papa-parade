@@ -110,6 +110,12 @@ describe('content/feel.json', () => {
       [['mama.baseScorePoints', (real.mama?.baseScorePoints as number) + 1]],
       ['mama.baseScorePoints'],
     ],
+    [
+      'a fractional fixed baby state: the rows are whole numbers that add up to the score',
+      [['mama.babyStateFixedPoints', 20.5]],
+      ['mama.babyStateFixedPoints'],
+    ],
+    ['a fractional sigh maximum', [['mama.sighMaxPoints', 15.5]], ['mama.sighMaxPoints']],
     ['an unknown earlyPress value', [['input.earlyPress', 'maybe']], ['input.earlyPress']],
     ['a time scale of 0', [['instinct.timeScale', 0]], ['instinct.timeScale']],
     ['a time scale above 1', [['instinct.timeScale', 1.5]], ['instinct.timeScale']],

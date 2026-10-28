@@ -31,7 +31,7 @@ const PLACEHOLDER = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
 const reportedPlaceholders = new Set<string>();
 
 /**
- * Fills the `{name}` placeholders of a translated `text` (`« {count} étoiles sur {max} »`). A
+ * Fills the `{name}` placeholders of a translated `text` (`« {count} sur {max} étoiles »`). A
  * placeholder with no value is a bug in the caller: it warns once per text and name and stays in
  * the text as it is, so the problem shows instead of an empty hole.
  */

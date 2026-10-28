@@ -483,33 +483,39 @@
       "type": "object",
       "properties": {
         "laughMaxPoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Most points the baby laughs can give, in points."
         },
         "babyStateMaxPoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Most points the baby state can give, in points."
         },
         "babyStateFixedPoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Baby-state points used by the prototype instead of the real computation, in points."
         },
         "baseScorePoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Base points added to every score, in points."
         },
         "sighMaxPoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Most points a sigh can take off, in points."
         },
         "screamMaxPoints": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
+          "maximum": 9007199254740991,
           "description": "Most points a scream can take off, in points."
         },
         "starThresholdPoints": {

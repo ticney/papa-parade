@@ -138,4 +138,24 @@ test.describe('the level timer', () => {
     expect((await ppEvents(page)).filter((event) => event.type === 'LevelEnded')).toHaveLength(1);
     expect(problems).toEqual([]);
   });
+
+  test('ends on the real loop too: the last steps run in a live frame, then the loop stops for good', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozen(page);
+    // Everything but the last steps by hand, then the loop is let go: it runs the ending step itself.
+    await advanceTo(page, LEVEL_DURATION_MS - 5 * STEP_MS);
+    await ppFreeze(page, false);
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'result');
+    const events = await ppEvents(page);
+    expect(events.filter((event) => event.type === 'LevelEnded')).toHaveLength(1);
+    expect(events.filter((event) => event.type === 'LevelScored')).toHaveLength(1);
+    const timeAtEnd = (await ppWorld(page)).time.sim;
+    expect(timeAtEnd).toBe(LEVEL_DURATION_MS);
+    await waitFrames(page, 10);
+    expect((await ppWorld(page)).time.sim).toBe(timeAtEnd);
+    expect((await ppEvents(page)).filter((event) => event.type === 'LevelEnded')).toHaveLength(1);
+    expect(problems).toEqual([]);
+  });
 });

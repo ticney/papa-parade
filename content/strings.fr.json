@@ -53,7 +53,7 @@
   "countdown.step_1": "1",
   "result.title": "Note de Maman",
   "result.score_label": "Score",
-  "result.stars_label": "{count} étoiles sur {max}",
+  "result.stars_label": "{count} sur {max} étoiles",
   "result.mama_woke": "Maman s'est réveillée !",
   "result.next_age_unlocked": "Nouvel âge débloqué !",
   "result.score_laughs": "Rires",

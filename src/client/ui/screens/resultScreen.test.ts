@@ -269,12 +269,24 @@ describe('createResultScreen', () => {
     expect(total()).toBe(SCORE.scorePoints);
   });
 
-  it('shows 0 at once for a row whose total is 0', () => {
+  it('shows 0 at once for a row whose total is 0, and schedules no count-up frame for it', () => {
+    // Four rows at 0: laugh 0, baby 0, and the sigh and scream rows have lost their whole maximum.
     const { clock, values } = build({
-      score: { ...SCORE, laughPoints: 0, scorePoints: 41, stars: 2 },
+      score: {
+        laughPoints: 0,
+        babyStatePoints: 0,
+        sighPoints: maxima.sighMaxPoints,
+        screamPoints: maxima.screamMaxPoints,
+        scorePoints: 30,
+        stars: 1,
+      },
     });
+    expect(values()).toEqual([0, 0, 0, 0]);
+    // Left: the three rows still to start and the stars. A count-up frame would make it five.
+    clock.advance(1);
+    expect(clock.pending).toBe(4);
     clock.advance(COUNT_UP_FRAME_MS);
-    expect(values()[0]).toBe(0);
+    expect(values()).toEqual([0, 0, 0, 0]);
   });
 
   it('stamps the earned stars starsDelayMs after the rows, starIntervalMs apart, the last one marked', () => {
@@ -388,6 +400,88 @@ describe('createResultScreen', () => {
     expect(actions.hidden).toBe(false);
     expect(calls).toEqual([]);
     screen.activate?.();
+    expect(calls).toEqual(['replay']);
+  });
+
+  describe('with an input grace', () => {
+    const GRACE_MS = 300;
+    const graced = { ...timings, inputGraceMs: GRACE_MS };
+    const press = (root: FakeElement, pointerId: number) => {
+      root.dispatch('pointerdown', { pointerId, isPrimary: true });
+      root.dispatch('pointerup', { pointerId });
+    };
+
+    it('ignores a press that starts within the grace, and skips one that starts after it', () => {
+      const { root, clock, actions } = build({ timings: graced });
+      clock.advance(GRACE_MS - 1);
+      press(root, 1);
+      expect(actions.hidden).toBe(true);
+      // Down within the grace, up after it: still a press that began too early.
+      root.dispatch('pointerdown', { pointerId: 2, isPrimary: true });
+      clock.advance(2);
+      root.dispatch('pointerup', { pointerId: 2 });
+      expect(actions.hidden).toBe(true);
+      press(root, 3);
+      expect(actions.hidden).toBe(false);
+    });
+
+    it('ignores Enter and the pad A within the grace (Enter is still kept from its default), then skips', () => {
+      const { screen, keys, clock, actions } = build({ timings: graced });
+      let isPrevented = false;
+      keys.dispatch('keydown', {
+        code: 'Enter',
+        repeat: false,
+        preventDefault: () => (isPrevented = true),
+      });
+      screen.activate?.();
+      expect(isPrevented).toBe(true);
+      expect(actions.hidden).toBe(true);
+      clock.advance(GRACE_MS);
+      screen.activate?.();
+      expect(actions.hidden).toBe(false);
+    });
+
+    it('keeps « Rejouer » shut for the grace after the buttons come up, whoever skipped', () => {
+      const { root, screen, replay, clock, calls } = build({ timings: graced });
+      clock.advance(GRACE_MS);
+      press(root, 1);
+      // The third stray tap lands on the button that just came up.
+      replay.click();
+      screen.activate?.();
+      expect(calls).toEqual([]);
+      clock.advance(GRACE_MS);
+      replay.click();
+      expect(calls).toEqual(['replay']);
+    });
+
+    it('keeps « Rejouer » shut for the grace after the buttons come up on their own', () => {
+      const { replay, clock, calls, actions } = build({ timings: graced });
+      clock.advance(ROWS_END_MS + timings.starsDelayMs + 2 * timings.starIntervalMs);
+      clock.advance(timings.actionsDelayMs);
+      expect(actions.hidden).toBe(false);
+      const stamps = [...calls];
+      replay.click();
+      expect(calls).toEqual(stamps);
+      clock.advance(GRACE_MS);
+      replay.click();
+      expect(calls).toEqual([...stamps, 'replay']);
+    });
+
+    it('takes presses at once on a rebuilt, finished screen', () => {
+      const { replay, calls } = build({ timings: graced, isDone: true });
+      replay.click();
+      expect(calls).toEqual(['replay']);
+    });
+  });
+
+  it('forgets a held skip key when the window loses focus: « Rejouer » answers again', () => {
+    const { keys, replay, calls } = build();
+    keys.dispatch('keydown', { code: 'Space', repeat: false, preventDefault: () => undefined });
+    replay.click();
+    expect(calls).toEqual([]);
+    // Alt-Tab: the keyup never reaches the window.
+    keys.dispatch('blur', {});
+    replay.click();
     expect(calls).toEqual(['replay']);
   });
 

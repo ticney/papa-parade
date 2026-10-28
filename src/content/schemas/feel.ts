@@ -6,6 +6,7 @@ import {
   MAX_PAPA_RADIUS_M,
   MAX_WALK_SPEED_MPS,
   MIN_TIME_SCALE,
+  STAR_COUNT_MAX,
 } from '@shared/constants';
 import { z } from 'zod';
 import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
@@ -20,6 +21,8 @@ const pct = (description: string) => z.number().min(0).max(100).describe(descrip
 const points = (description: string) => z.number().min(0).describe(description);
 const multiplier = (description: string) => z.number().min(0).describe(description);
 const count = (description: string) => z.int().min(0).describe(description);
+/** Points of Mama's note that are shown and summed as they are: whole, so the four rows add up to the score. */
+const wholePoints = (description: string) => z.int().min(0).describe(description);
 const timeScale = (description: string) => z.number().gt(0).max(1).describe(description);
 
 const slowMo = (description: string) =>
@@ -254,17 +257,17 @@ const DifficultySchema = z
 
 const MamaSchema = z
   .strictObject({
-    laughMaxPoints: points('Most points the baby laughs can give, in points.'),
-    babyStateMaxPoints: points('Most points the baby state can give, in points.'),
-    babyStateFixedPoints: points(
+    laughMaxPoints: wholePoints('Most points the baby laughs can give, in points.'),
+    babyStateMaxPoints: wholePoints('Most points the baby state can give, in points.'),
+    babyStateFixedPoints: wholePoints(
       'Baby-state points used by the prototype instead of the real computation, in points.',
     ),
-    baseScorePoints: points('Base points added to every score, in points.'),
-    sighMaxPoints: points('Most points a sigh can take off, in points.'),
-    screamMaxPoints: points('Most points a scream can take off, in points.'),
+    baseScorePoints: wholePoints('Base points added to every score, in points.'),
+    sighMaxPoints: wholePoints('Most points a sigh can take off, in points.'),
+    screamMaxPoints: wholePoints('Most points a scream can take off, in points.'),
     starThresholdPoints: z
       .array(z.number().min(0).max(100))
-      .length(5)
+      .length(STAR_COUNT_MAX)
       .refine(
         (thresholds) =>
           thresholds.every(

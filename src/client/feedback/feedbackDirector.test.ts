@@ -42,6 +42,7 @@ const TABLE: FeedbackTable = {
     starsDelayMs: 300,
     starIntervalMs: 450,
     actionsDelayMs: 400,
+    inputGraceMs: 0,
   },
   loops: {
     babble: { clip: 'baby_babble_loop', bus: 'voice', gainPct: 100, fadeMs: 80 },

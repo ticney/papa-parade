@@ -20,7 +20,8 @@
     "rowStaggerMs": 200,
     "starsDelayMs": 300,
     "starIntervalMs": 450,
-    "actionsDelayMs": 400
+    "actionsDelayMs": 400,
+    "inputGraceMs": 350
   },
   "cues": {
     "papa_bump": {

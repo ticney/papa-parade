@@ -23,6 +23,7 @@ export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'ut
   loops: { babble: { clip: string }; music: { clip: string } };
   cues: Record<string, { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' }>;
   events: Record<string, string>;
+  resultScreen: { inputGraceMs: number };
 };
 
 /** How many distinct clips the live feedback table names: what the preload must have decoded. */

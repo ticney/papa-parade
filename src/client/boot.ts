@@ -527,10 +527,11 @@ export async function boot(): Promise<void> {
   const simEventListeners: ((event: SimEvent) => void)[] = [];
   let isGameInputBlocked = false;
   let hasLoggedSilentStart = false;
-  // Mama's note of the level that ended (story 1.22), and whether its Result sequence has run: a
-  // screen rebuilt after the portrait overlay then shows its end. Both cleared when a level loads.
+  // Mama's note of the level that ended (story 1.22), and whether its Result sequence has started: a
+  // screen rebuilt after the portrait overlay, whatever phase it was in, then shows its end at once.
+  // Both cleared when a level loads.
   let resultScore: MamaScore | null = null;
-  let isResultDone = false;
+  let hasResultStarted = false;
 
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
@@ -742,7 +743,7 @@ export async function boot(): Promise<void> {
       if (event.type === 'LevelScored') {
         const { type: _type, t: _t, ...score } = event;
         resultScore = score;
-        isResultDone = false;
+        hasResultStarted = false;
         if (isMirrored) {
           mirror('ppScore', String(score.scorePoints));
           mirror('ppStars', String(score.stars));
@@ -831,7 +832,7 @@ export async function boot(): Promise<void> {
         maxima: mama,
         timings: feedbackTable.resultScreen,
         // Rebuilt after the portrait overlay: the stars do not stamp (nor sound) twice.
-        isDone: isResultDone,
+        isDone: hasResultStarted,
         scheduler: {
           schedule: (run, delayMs) => window.setTimeout(run, delayMs),
           cancel: (handle) => window.clearTimeout(handle),
@@ -841,7 +842,7 @@ export async function boot(): Promise<void> {
         onStar: (isLast) =>
           director.handle(isLast ? 'ResultLastStarStamped' : 'ResultStarStamped', null),
         onPhase: (phase) => {
-          if (phase === 'actions') isResultDone = true;
+          hasResultStarted = true;
           if (isMirrored) mirror('ppResult', phase);
         },
         // Same level, same feel, a new seed (`?seed=` keeps its own): through loading and the countdown.
@@ -1021,7 +1022,14 @@ export async function boot(): Promise<void> {
   events.on('AppStateChanged', ({ to }) => {
     if (to !== 'loading') return;
     resultScore = null;
-    isResultDone = false;
+    hasResultStarted = false;
+    // The previous game's note must not be read as the next one's while it loads (`mirrorNewLevel`
+    // clears them only once the level has started).
+    if (isMirrored) {
+      for (const name of ['ppScore', 'ppStars', 'ppResult'] as const) {
+        delete document.documentElement.dataset[name];
+      }
+    }
   });
   events.on('AppStateChanged', ({ to }) => {
     if (to !== 'level') return;

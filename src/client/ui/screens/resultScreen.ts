@@ -15,10 +15,15 @@ export interface ResultScheduler {
   cancel(handle: number): void;
 }
 
-/** Where Enter and Space are heard while the sequence runs (the window in the app). */
+/**
+ * Where Enter and Space are heard while the sequence runs (the window in the app). `blur`: a
+ * window that loses focus swallows the keyup of a key still down.
+ */
 export interface ResultKeyTarget {
   addEventListener(type: 'keydown' | 'keyup', listener: (event: KeyboardEvent) => void): void;
+  addEventListener(type: 'blur', listener: () => void): void;
   removeEventListener(type: 'keydown' | 'keyup', listener: (event: KeyboardEvent) => void): void;
+  removeEventListener(type: 'blur', listener: () => void): void;
 }
 
 /** The maxima of the four rows, from `feel.mama`: never written in code. */
@@ -95,7 +100,8 @@ interface Row {
  * follows them, the earned stars stamp one by one, then « Rejouer » comes up and takes focus. The
  * timings are `feedback.json › resultScreen`, in real ms. A press on the screen, Enter, Space or a
  * pad's A skips to the end (rows at their totals, stars placed silently, buttons up) without
- * pressing « Rejouer ». The photo (3.6), Mama's lines (3.7) and the 3.11 buttons come later.
+ * pressing « Rejouer ». A press that starts within `inputGraceMs` of the screen coming up, or of the
+ * buttons coming up, does neither: it is a tap still meant for the game. The photo (3.6), Mama's lines (3.7) and the 3.11 buttons come later.
  */
 export function createResultScreen(options: ResultScreenOptions): OverlayScreen {
   const { t, score, maxima, timings, scheduler, doc = document } = options;
@@ -211,8 +217,11 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   // A key that skipped the sequence and is still held must not press « Rejouer » once it has
   // focus (Space activates a button on keyup): it is ignored until that key is let go.
   let heldSkipKey: string | null = null;
+  // Real ms from which a press counts (D-grace): a rebuilt, finished screen takes presses at once.
+  let pressesOpenAtReal = options.isDone ? 0 : options.now() + timings.inputGraceMs;
+  const isGraceOver = (): boolean => options.now() >= pressesOpenAtReal;
   const unbindReplay = bindPressButton(replay, () => {
-    if (heldSkipKey === null) options.onReplay();
+    if (heldSkipKey === null && isGraceOver()) options.onReplay();
   });
   actions.append(replay);
   let unbindCopy: (() => void) | null = null;
@@ -268,6 +277,8 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const showActions = (): void => {
     cancelAll();
     actions.hidden = false;
+    // The finger that skipped, or that was mashing, must not land on « Rejouer » as it appears.
+    pressesOpenAtReal = options.now() + timings.inputGraceMs;
     enter('actions');
     replay.focus({ preventScroll: true });
   };
@@ -319,7 +330,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   // hidden under it and only acts on a press that began on itself.
   let pressedPointer: number | null = null;
   const onPointerDown = (event: PointerEvent): void => {
-    if (phase !== 'actions' && event.isPrimary) pressedPointer = event.pointerId;
+    if (phase !== 'actions' && event.isPrimary && isGraceOver()) pressedPointer = event.pointerId;
   };
   const onPointerUp = (event: PointerEvent): void => {
     if (event.pointerId !== pressedPointer) return;
@@ -329,16 +340,22 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (phase === 'actions' || event.repeat || !SKIP_KEYS.has(event.code)) return;
     event.preventDefault();
+    if (!isGraceOver()) return;
     heldSkipKey = event.code;
     complete();
   };
   const onKeyUp = (event: KeyboardEvent): void => {
     if (event.code === heldSkipKey) heldSkipKey = null;
   };
+  // The keyup of a key still down never comes once the window lost focus: do not keep « Rejouer » dead.
+  const onBlur = (): void => {
+    heldSkipKey = null;
+  };
   element.addEventListener('pointerdown', onPointerDown);
   element.addEventListener('pointerup', onPointerUp);
   options.keyTarget.addEventListener('keydown', onKeyDown);
   options.keyTarget.addEventListener('keyup', onKeyUp);
+  options.keyTarget.addEventListener('blur', onBlur);
 
   if (options.isDone) {
     showTotals();
@@ -358,6 +375,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     initialFocus: options.isDone ? replay : panel,
     // A pad's A: skips while the sequence runs, then presses « Rejouer ».
     activate: () => {
+      if (!isGraceOver()) return;
       if (phase === 'actions') replay.click();
       else complete();
     },
@@ -367,6 +385,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
       element.removeEventListener('pointerup', onPointerUp);
       options.keyTarget.removeEventListener('keydown', onKeyDown);
       options.keyTarget.removeEventListener('keyup', onKeyUp);
+      options.keyTarget.removeEventListener('blur', onBlur);
       unbindReplay();
       unbindCopy?.();
     },
