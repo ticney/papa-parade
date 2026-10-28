@@ -4,7 +4,7 @@ baseline_commit: 4edc4304bead2ee48984f1aca7f4b647784258ee
 
 # Story 1.19: Fatigue, Coffee and Micro-Sleeps
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.19 « Fatigue, café et micro-siestes » (L1033-1064). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
