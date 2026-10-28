@@ -386,6 +386,19 @@ describe('the suspicious silence and the director (story 1.21)', () => {
     expect(hidden(sim.drainEvents())).toEqual([]);
   });
 
+  it('does not draw a silence while Papa stands in its zone: he would find the baby at once', async () => {
+    const sim = await newSim(silenceLevel());
+    const zoneThreat = sim.world.threats[0];
+    (sim.world.papa as { xM: number; zM: number }).xM = zoneThreat?.xM ?? 0;
+    (sim.world.papa as { xM: number; zM: number }).zM = zoneThreat?.zM ?? 0;
+    const events = runTo(sim, 5 * STEP_MS);
+    expect(hidden(events)).toEqual([]);
+    expect(sim.world.threats[0]?.state).toBe('idle');
+    // He walks out: the silence is drawn.
+    (sim.world.papa as { xM: number; zM: number }).zM = (zoneThreat?.zM ?? 0) + 3;
+    expect(hidden(runTo(sim, 8 * STEP_MS))).toHaveLength(1);
+  });
+
   it('counts a hidden silence against maxSimultaneous: nothing else is telegraphed meanwhile', async () => {
     const sim = await newSim(silenceLevel({ maxSimultaneous: 1 }, [OUTLET]));
     const events = runTo(sim, 12 * STEP_MS);

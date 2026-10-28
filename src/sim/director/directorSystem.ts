@@ -1,6 +1,7 @@
 import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { isBabyFree } from '../baby/babyFsm.ts';
+import { isInZone } from '../baby/silence.ts';
 import type { StepContext } from '../context.ts';
 import { hideThreat, telegraphThreat } from '../threats/threatFsm.ts';
 import type { ThreatInstance, World } from '../world.ts';
@@ -17,7 +18,7 @@ import { isThreatActive } from './waveState.ts';
  * candidate. A level with no wave draws nothing. Allocation-free: counting loops only.
  *
  * A `hiddenZone` threat (the suspicious silence, story 1.21) is drawn like any other, but is a
- * candidate only while the baby is free, and picking it does not telegraph it: it is hidden until
+ * candidate only while the baby is free and Papa is outside its zone, and picking it does not telegraph it: it is hidden until
  * the baby is found ({@link startThreat}). This step's `ForceThreat` debug commands run first, through
  * the same helper; they ignore the gaps, `maxSimultaneous` and the lull, and draw nothing.
  */
@@ -82,14 +83,18 @@ export function runDirector(world: World, ctx: StepContext): void {
 
 /**
  * Whether the idle threat at `index` can be drawn by wave `waveIndex` now: it is in the pool and, if
- * it is a silence, the baby is free to go and hide.
+ * it is a silence, the baby is free to go and hide and Papa does not already stand in the zone (he
+ * would find the baby the very step the silence is announced: no silence at all).
  */
 function isCandidate(world: World, ctx: StepContext, index: number, waveIndex: number): boolean {
   const threat = world.threats[index];
   if (threat === undefined || threat.state !== 'idle' || !isInPool(ctx, index, waveIndex)) {
     return false;
   }
-  return ctx.level.threats[index]?.def.target !== 'hiddenZone' || isBabyFree(world);
+  const planned = ctx.level.threats[index];
+  if (planned?.def.target !== 'hiddenZone') return true;
+  if (!isBabyFree(world)) return false;
+  return planned.zone === null || !isInZone(planned.zone, world.papa.xM, world.papa.zM);
 }
 
 /**

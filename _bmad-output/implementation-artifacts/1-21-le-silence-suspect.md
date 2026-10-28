@@ -579,14 +579,14 @@ so that I go and find him before the mischief.
 - Zero allocation in hot paths. Goldens are regenerated deliberately.
 - No `enum`, no constructor parameter properties, no new library.
 
-### Open points for Geo (do not block on them; implement the decisions above)
+### Open points for Geo (decided by the developer on Geo's delegation, 2026-10-28; all are data or one-line changes, tune after playing)
 
-1. **After the find**, the parry window opens `telegraphDelayMs` (800 ms) later, with a marker on the zone (D4). Is that how you want « trouver le bébé, puis Parer »? Or should finding be the whole response (no parry)?
-2. **`findMaxMs` = 5 s** after `SilenceStarted`, so about 7 s of quiet in total, plus the crawl. Too generous for wave 2?
-3. **A tap on the baby outside a silence walks Papa to him** (D9), instead of doing nothing until 4.1.
-4. **Surprise mischiefs** (D11): two placeholders (`tissues_everywhere`, `crayon_scribbles`), shown only by their cue until E7. Which mischiefs do you want? Should 1.22 count them in Mama's Sigh?
-5. **The silence is drawn only while the baby is free** (AC 3), so wave 2's other threats delay it. Should it be planned at a fixed time instead, like the phone?
-6. **The bubble blinks at 2 Hz** (the token allows up to 3 Hz).
+1. **After the find**, the parry window opens `telegraphDelayMs` (800 ms) later, with a marker on the zone (D4). **Kept:** « trouver, puis parer » stays two beats, and it is the only way the silence has a marker, a telegraph cue and a normal window.
+2. **`findMaxMs` = 5 s.** **Kept** (about 7 s of quiet plus the crawl, GDD's « Délai 2 s » being `silenceAlertMs`). One number in `silence_mischief.json` to lower after wave 2 is played.
+3. **A tap on the baby outside a silence walks Papa to him** (D9). **Kept:** it is today's feel and what 4.1 starts from.
+4. **Surprise mischiefs:** the two placeholders stay until E7. **Decided:** story 1.22 should count `world.mess.mischiefs` in Mama's Sigh (a mischief is mess); it is 1.22's AC to wire, noted in `deferred-work.md`.
+5. **The silence is drawn only while the baby is free,** like any threat of the pool (no fixed time). **Kept.** **Added (7th point, a behaviour change):** it is also not drawn while Papa stands in its zone box, or he would find the baby at the very step it is announced (seen after a parry at the zone). The check is a candidate filter in the director: no extra draw, goldens unchanged.
+6. **The bubble blinks at 2 Hz** (the token allows 3 Hz). **Kept.**
 
 ### References
 
@@ -620,13 +620,13 @@ Claude Sonnet 5.5
 - **Snapshot v9.** `silenceProblem` checks every field of the slice; the old « threat in every state » test now excludes `hidden` for the outlet, and a new silence test covers `hidden`.
 - **Edge cases I met and did not change (not ACs), listed in `deferred-work.md`:**
   - A `TapBaby` that finds the baby also walks Papa to him: the silence is cleared before `runPapa` runs, so the tap falls into the « outside a silence » branch.
-  - Papa standing in the zone after a parry finds the next silence at the very step it is announced (seen in the bot tests: the second silence of a run starts and ends in one step).
+  - Papa standing in the zone after a parry used to find the next silence at the very step it was announced (seen in the bot tests). Fixed after the first review pass on Geo's delegation: the director does not draw a silence while Papa stands in its zone (`isCandidate`, test in `directorSystem.test.ts`).
   - The bubble is also hidden during a pause veil or the resume countdown (`pause.state !== 'running'`), not only when the level has ended; the music mute is not: it follows the flow only, so a pause cannot bring the music back mid-silence.
 - **Tests I rewrote because their premise changed** (none deleted): `threatCatalog.test.ts` (a hidden-zone def is telegraphed after a find, its gag is one of a list), `threats.spec.ts` (the live level now plans `silence_mischief` between the coffee table and the micro-sleep), the mess `toEqual`s (`mischiefs: 0`), `snapshot.test.ts` version tests, `makePlaceholderAudio.test.ts` « no two clips alike » (same assertion, 30 s timeout: it grows with the number of clips and went over 5 s under load).
 - **Placeholder audio:** `npm run assets:audio` rewrote every `.m4a`; I restored the others from git and kept only `tel_silence_found.m4a` and `gag_silence_mischief.m4a`.
 - **Goldens regenerated deliberately** (`npm run golden:update`): only `worldHash` (new `silence` and `mischiefs` slices) and `feelHash` (the frozen test feel gained `silenceAlertMs` and `sneakSpeedMps`) moved; `eventTypes`, `eventsHash` and `levelHash` are identical. The screenshot references did not move.
 - **Not run:** nothing played by hand in a real browser or on a device (no feel check of the bubble's look, the crawl or the cut of the music): Geo's to play. The e2e proves the DOM state, the colour token, the blink period, the side, the vibration and the mirrors on a frozen level.
-- **Open points for Geo** are those of the story (1-6); the Papa-in-the-zone edge above is a seventh.
+- **Open points:** decided on Geo's delegation (see § Open points); only the Papa-in-the-zone one changed behaviour (the director skips a silence while Papa stands in its zone).
 
 ### File List
 

@@ -390,10 +390,10 @@
 
 - **The silence's sounds are placeholders** (`tel_silence_found`, `gag_silence_mischief`, and the `silence_started` cue, which has no sound on purpose): story 2.3 gives the silence its own `tel_*` sound under the same ids, no code change.
 - **The music cut is a fade of the one music loop** (`audio.setMusicMuted`). Story 2.6's stems keep reading `world.silence.startedAt` and replace the loop; the bubble and the cut already follow the state, not the event.
-- **No mischief is drawn yet.** The two surprise gags (`tissues_everywhere`, `crayon_scribbles`) add to `world.mess.mischiefs` and play a ring and a sound: a real animation and a visible mess are E7. Story 1.22 decides whether `mischiefs` joins Mama's Sigh (Open point 4).
+- **No mischief is drawn yet.** The two surprise gags (`tissues_everywhere`, `crayon_scribbles`) add to `world.mess.mischiefs` and play a ring and a sound: a real animation and a visible mess are E7. Decided: story 1.22 counts `mischiefs` in Mama's Sigh (a mischief is mess); its AC wires it.
 - **`TapBaby` outside a silence only walks Papa to the baby** (D9). Story 4.1 replaces that branch with « take the baby ».
-- **`findMaxMs` is one fixed number per def** (5 s), and the silence reveals the threat with the normal `telegraphDelayMs` (800 ms) after the find (D4, which deviates from the epic's « windowOpen at once »). Both are Geo's to tune once he has played wave 2 (Open points 1 and 2).
-- **A Papa still standing in the zone after a parry finds the next silence at the very step it is announced.** The rule is « Papa's point inside the box », so the second silence of a run (the threat rearms after its cooldown) can start and end in the same step: the vibration plays, the music does not even cut for a frame. The director could skip a silence while Papa stands in the zone; not an AC, Geo to say.
-- **The silence is drawn only while the baby is free,** so wave 2's other threats delay it (Open point 5). A fixed `atMs` like the phone's is the alternative.
+- **`findMaxMs` is one fixed number per def** (5 s), and the silence reveals the threat with the normal `telegraphDelayMs` (800 ms) after the find (D4, which deviates from the epic's « windowOpen at once »). Both kept on Geo's delegation; tune after playing wave 2.
+- **Papa standing in the zone after a parry** would find the next silence at the step it is announced: the director now skips a silence while Papa is in its zone box (decided on Geo's delegation).
+- **The silence is drawn only while the baby is free,** so wave 2's other threats delay it (Open point 5). Kept on Geo's delegation; a fixed `atMs` like the phone's is the alternative.
 - **`ForceThreat` is generic** (any idle threat but the micro-sleep): the e2e and Geo use it; a debug-panel button is story 2.1's.
 - **`content:check` reports a threat def with no `target` once** (a union on `target` gives one bad-discriminator error, not one per missing key).
