@@ -32,15 +32,18 @@ describe('the micro-sleeps of the live salon_crawler, with the idle bot', () => 
       settings: content.bots,
     });
     const events: SimEvent[] = [];
-    playGame(sim, bot, level.level.durationMs, (event) => events.push({ ...event }));
-    sim.dispose();
-    return { events, feel: content.feel.fatigue, levelId };
+    try {
+      playGame(sim, bot, level.level.durationMs, (event) => events.push({ ...event }));
+    } finally {
+      sim.dispose();
+    }
+    return { events, feel: content.feel.fatigue, levelId, durationMs: level.level.durationMs };
   }
 
   it.each(SEEDS)(
     'seed %i: none before the threshold, then one every 8 to 12 s',
     async (seed) => {
-      const { events, feel } = await play(seed);
+      const { events, feel, durationMs } = await play(seed);
       const crossing = events.find(
         (event) => event.type === 'FatigueThresholdCrossed' && event.isAbove,
       );
@@ -53,6 +56,10 @@ describe('the micro-sleeps of the live salon_crawler, with the idle bot', () => 
 
       // None before the crossing, at least one overall, and each one is a threat no wave planned.
       expect(microSleeps.length).toBeGreaterThanOrEqual(1);
+      // When two of them (the slowest draws) fit in the rest of the level, the gap loop below runs.
+      if (crossedAt + 2 * feel.microSleepMaxMs + STEP_MS < durationMs) {
+        expect(microSleeps.length).toBeGreaterThanOrEqual(2);
+      }
       for (const microSleep of microSleeps) {
         expect(microSleep.t).toBeGreaterThan(crossedAt);
         expect(microSleep.waveIndex).toBe(-1);
@@ -88,16 +95,21 @@ describe('the perfect bot and the micro-sleeps', () => {
     });
     const bot = makeBot('perfect', botSetup(seed));
     const events: SimEvent[] = [];
-    playGame(sim, bot, 70_000, (event) => events.push({ ...event }));
+    try {
+      playGame(sim, bot, 70_000, (event) => events.push({ ...event }));
+    } finally {
+      sim.dispose();
+    }
     const telegraphs = events.filter(
       (event) => event.type === 'ThreatTelegraphed' && event.kind === 'papa_microsleep',
     );
+    // 70 s of an exhausted Papa: at least five of the 8-12 s micro-sleeps, the last one resolved
+    // before the cutoff (each takes at most about 2 s, far under the 8 s minimum gap).
     expect(telegraphs.length).toBeGreaterThanOrEqual(5);
     const resolved = responses(events);
     expect(resolved).toHaveLength(telegraphs.length);
     expect(resolved.every((event) => event.quality === 'perfect')).toBe(true);
     expect(events.some((event) => event.type === 'GagTriggered')).toBe(false);
     expect(sim.world.papa.state).not.toBe('asleep');
-    sim.dispose();
   }, 60_000);
 });

@@ -1,4 +1,5 @@
 import {
+  GAUGE_MAX_POINTS,
   MAX_BABY_RADIUS_M,
   MAX_CRAWL_SPEED_MPS,
   MAX_PAPA_RADIUS_M,
@@ -193,7 +194,7 @@ const FatigueSchema = z
     startPoints: z
       .number()
       .min(0)
-      .max(100)
+      .max(GAUGE_MAX_POINTS)
       .describe('Fatigue at the start of a level that has the fatigue gauge, in points (0-100).'),
     perSec: z.number().min(0).describe('Fatigue gained per second, in points per second.'),
     carriedMultiplier: multiplier('Fatigue gain multiplier while carrying the baby.'),

@@ -135,7 +135,7 @@ const TEL_SLEEP_SMOOTHING_PCT = 3;
 const TEL_SLEEP_NOISE_GAIN = 6;
 const TEL_SLEEP_RELEASE_MS = 120;
 
-// Papa's snore (the gag of a missed micro-sleep): two cycles of a low saw with a slow tremolo.
+// Papa's snore (the gag of a missed micro-sleep): two cycles of a low saw with a fast tremolo (a rattle, 28 Hz).
 const GAG_SLEEP_CYCLE_MS = 600;
 const GAG_SLEEP_CYCLES = 2;
 const GAG_SLEEP_PITCH_HZ = { from: 70, to: 95 };

@@ -1,3 +1,4 @@
+import { MS_PER_S, STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
@@ -31,12 +32,15 @@ describe('runGauges', () => {
     });
     sim.enqueue({ type: 'SetFatigue', t: asSimMs(0), points: 85 });
     stepN(sim, 1);
-    expect(sim.world.gauges.fatigue).toBeCloseTo(85 + 0.005, 9);
+    expect(sim.world.gauges.fatigue).toBeCloseTo(
+      85 + (content.feel.fatigue.perSec * STEP_MS) / MS_PER_S,
+      9,
+    );
     expect(sim.world.gauges.isFatigueAbove).toBe(true);
     expect(sim.world.gauges.microSleepAt).not.toBeNull();
     expect(sim.drainEvents()).toContainEqual({
       type: 'FatigueThresholdCrossed',
-      t: 10,
+      t: STEP_MS,
       isAbove: true,
     });
   });

@@ -448,6 +448,43 @@ describe('the level’s fatigue and objects (story 1.19)', () => {
     );
   });
 
+  it('refuses a geometry with an anchor named like the threat that stands on Papa', async () => {
+    const odd = {
+      ...geometry,
+      anchors: [
+        ...geometry.anchors,
+        { id: 'papa', positionM: [0, 0, 0] as [number, number, number] },
+      ],
+    } as typeof geometry;
+    await expect(
+      createSim({ content, geometry: odd, level: createTestLevel(), seed: 1 }),
+    ).rejects.toThrow(/an anchor named "papa", which the sim reserves/);
+  });
+
+  it('refuses a micro-sleep def whose gag is not papa_asleep', async () => {
+    const level = createTestLevel({ gauges: FATIGUE_GAUGES });
+    const wrong = {
+      ...level,
+      threats: { papa_microsleep: { ...level.threats.papa_microsleep, gag: 'outlet_hair' } },
+    } as typeof level;
+    await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
+      /gauges\.fatigue\.microSleepDef: the threat "papa_microsleep" has the gag "outlet_hair", but a micro-sleep must have the gag "papa_asleep"/,
+    );
+  });
+
+  it('refuses a wave that plans a threat whose gag is papa_asleep', async () => {
+    const level = createTestLevel({
+      waves: [testWave([{ def: 'outlet', anchor: 'outlet_01' }])],
+    });
+    const wrong = {
+      ...level,
+      threats: { outlet: { ...level.threats.outlet, gag: 'papa_asleep' } },
+    } as typeof level;
+    await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
+      /waves\[0\]\.threats\[0\]: the threat "outlet" has the gag "papa_asleep": only the micro-sleep/,
+    );
+  });
+
   it('refuses an object kind the sim has no action for', async () => {
     const odd = createTestLevel({
       objects: [{ id: 'kettle', kind: 'kettle' as never, anchor: 'phone' }],

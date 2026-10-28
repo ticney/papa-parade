@@ -58,7 +58,7 @@ import { createWorldUi } from './ui/world/worldUi.ts';
 /** The timer's slot in the HUD batch. */
 const TIMER_SLOT = 0;
 /** One slot per gauge after the timer's: the batch writes a gauge's integer percent when it changes. */
-const GAUGE_SLOTS: Readonly<Record<GaugeId, number>> = { noise: 1, fatigue: 2, need: 3 };
+const gaugeSlotOf = (id: GaugeId): number => GAUGE_IDS.indexOf(id) + 1;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
 
 function logSimEvent(event: SimEvent): void {
@@ -535,7 +535,7 @@ export async function boot(): Promise<void> {
         hudBatch.set(TIMER_SLOT, Math.ceil(remainingMs / MS_PER_S));
         // Fatigue in whole percent: the batch writes it when the integer changes (about every 2 s).
         if (running.level.level.gauges.fatigue !== undefined) {
-          hudBatch.set(GAUGE_SLOTS.fatigue, Math.round(running.sim.world.gauges.fatigue));
+          hudBatch.set(gaugeSlotOf('fatigue'), Math.round(running.sim.world.gauges.fatigue));
         }
       }
       shell.frame();
@@ -677,7 +677,7 @@ export async function boot(): Promise<void> {
 
   const timerHud = createTimerHud(document, { t });
   const gaugesHud = createGaugesHud(document, { t, nowAtReal: () => performance.now() });
-  // Slot 0 is the timer's; then one per gauge in `GAUGE_IDS` order, matching `GAUGE_SLOTS`.
+  // Slot 0 is the timer's; then one per gauge in `GAUGE_IDS` order, matching `gaugeSlotOf`.
   const hudBatch = createHudBatch([
     (seconds) => timerHud.setRemainingS(seconds),
     ...GAUGE_IDS.map((id) => (percent: number) => gaugesHud.setValue(id, percent)),

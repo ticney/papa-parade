@@ -17,8 +17,9 @@ import type { World } from './world.ts';
  *   runGauges, runInstinct, runScoring, runFlow
  *
  * applyCommands, advanceTime, runDirector, runBaby, runThreats, runPapa, runPhysics, runGauges and
- * runFlow exist so far (`runGauges` is the fatigue since story 1.19; noise joins it in 3.1). Each later story inserts its system at its slot, edits the pinned order test and,
- * if behaviour changes, regenerates the golden references and says so.
+ * runFlow exist so far (`runGauges` is the fatigue since story 1.19; noise joins it in 3.1). Each
+ * later story inserts its system at its slot, edits the pinned order test and, if behaviour
+ * changes, regenerates the golden references and says so.
  * Systems never call each other: they read and write `World` and push to `ctx.events`.
  *
  * Once the level has ended (`world.flow.state === 'ended'`, story 1.18) a step runs only

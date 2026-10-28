@@ -19,7 +19,8 @@ export function readThreatsOff(search: string): boolean {
  * The same level with no wave and no wave def: still a valid `LevelContent` for `createSim`. The
  * duration stays, so the timer still runs and the level still ends. The level's gauges stay, and
  * the micro-sleep def with them (story 1.19: `createSim` refuses a fatigue gauge whose def is not
- * loaded); the first micro-sleep comes minutes in, so a quiet room stays quiet.
+ * loaded). So a run of more than about 150 s (fatigue crosses its threshold at 140 s) still sees
+ * micro-sleeps: the switch is quiet for the short runs the tests make, not for a whole level.
  */
 export function withoutThreats(content: LevelContent): LevelContent {
   const microSleepDef = content.level.gauges.fatigue?.microSleepDef;
@@ -27,5 +28,8 @@ export function withoutThreats(content: LevelContent): LevelContent {
     microSleepDef !== undefined && Object.hasOwn(content.threats, microSleepDef)
       ? { [microSleepDef]: content.threats[microSleepDef] as ThreatDef }
       : {};
+  if (microSleepDef !== undefined && !Object.hasOwn(content.threats, microSleepDef)) {
+    log.warn('boot', `?threats=off: the micro-sleep def "${microSleepDef}" is not loaded`);
+  }
   return { level: { ...content.level, waves: [] }, threats: microSleep };
 }

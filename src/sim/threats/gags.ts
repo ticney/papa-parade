@@ -15,6 +15,9 @@ export const GAG_IDS = ['outlet_hair', 'stairs_slide', 'table_object_fall', 'pap
 
 export type GagId = (typeof GAG_IDS)[number];
 
+/** The gag of the micro-sleep, and only of it: `createSim` and `content:check` pair it with `target: "papa"`. */
+export const PAPA_ASLEEP_GAG_ID: GagId = 'papa_asleep';
+
 /** The gag a threat def names, as a `GagId`. `createSim` has already refused a def with another, so this guards a bug, not content. */
 export function gagIdOf(gag: string): GagId {
   const known = (GAG_IDS as readonly string[]).includes(gag);

@@ -1,3 +1,4 @@
+import { PAPA_TARGET_ANCHOR_ID } from '@shared/constants';
 import type { SimEvent, World } from '@sim';
 import type { LevelFx } from '../render/levelScene.ts';
 
@@ -16,6 +17,15 @@ export interface ResponseChoreography {
   reset(): void;
 }
 
+/** Whether the threat stands on Papa (the micro-sleep), not on an anchor of the room. */
+function isOnPapa(world: Readonly<World>, threatId: number): boolean {
+  for (let i = 0; i < world.threats.length; i++) {
+    const threat = world.threats[i] as World['threats'][number];
+    if (threat.id === threatId) return threat.anchorId === PAPA_TARGET_ANCHOR_ID;
+  }
+  return false;
+}
+
 export function createResponseChoreography(): ResponseChoreography {
   let queuedThreatId: number | null = null;
   return {
@@ -23,6 +33,8 @@ export function createResponseChoreography(): ResponseChoreography {
       switch (event.type) {
         case 'ResponseResolved': {
           if (event.quality === 'fail') return;
+          // The micro-sleep is Papa's own business (a threat that stands on him): no baby to lift.
+          if (isOnPapa(world, event.threatId)) return;
           // Papa is on his way to this threat: the pose waits for him. Otherwise it plays now.
           if (world.papa.state === 'glide' && world.papa.glide?.threatId === event.threatId) {
             queuedThreatId = event.threatId;

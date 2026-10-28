@@ -13,7 +13,8 @@ import { addFatigue, drawMicroSleepMs, isBabyCarried } from './fatigue.ts';
  * A level with no fatigue gauge does nothing. Otherwise: add the step's gain (`perSec`, times
  * `carriedMultiplier` while carrying the baby); keep the micro-sleep instance on Papa; and, when
  * a micro-sleep is due, telegraph it at the first step where the instance is `idle`, Papa is not busy
- * (`drink` / `asleep`) and the flow is `playing`. The next one is due `microSleepMinMs…MaxMs` after
+ * (`drink` / `asleep`) and the flow is `playing`, and not so late that it could not be judged before
+ * the level ends (its delay, window and tolerance). The next one is due `microSleepMinMs…MaxMs` after
  * that **telegraph** (one draw). Allocation-free.
  */
 export function runFatigue(world: World, ctx: StepContext): void {
@@ -34,6 +35,14 @@ export function runFatigue(world: World, ctx: StepContext): void {
   const now = world.time.sim;
   if (gauges.microSleepAt === null || now < gauges.microSleepAt) return;
   if (threat.state !== 'idle' || isPapaBusy(papa) || world.flow.state !== 'playing') return;
+  // One that could not be judged before the end would show a telegraph that never resolves.
+  const { timing, difficulty } = ctx.feel;
+  const judgedByMs =
+    now +
+    (planned.def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs) +
+    (planned.def.windowMs ?? timing.windowMs) * difficulty.normal.windowMultiplier +
+    timing.toleranceMs;
+  if (judgedByMs > ctx.level.durationMs) return;
   telegraphThreat(world, ctx, threat, planned.def, -1);
   gauges.microSleepAt = asSimMs(now + drawMicroSleepMs(world, ctx));
 }

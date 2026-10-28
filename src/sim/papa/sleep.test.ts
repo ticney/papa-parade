@@ -108,7 +108,9 @@ describe('a missed micro-sleep', () => {
     const open = sim.world.threats.find((threat) => threat.defId === 'outlet');
     if (open === undefined) throw new Error('no outlet');
     // Still asleep while the outlet is up (telegraphed at 2 s, open at 3.2 s).
-    while (open.state !== 'windowOpen') runUntil(sim, sim.world.time.sim + 10);
+    for (let i = 0; i < 1000 && open.state !== 'windowOpen'; i++)
+      runUntil(sim, sim.world.time.sim + 10);
+    expect(open.state).toBe('windowOpen');
     const center = open.windowOpenAt + (open.responseWindow?.windowMs ?? 0) / 2;
     expect(sim.world.papa.state).toBe('asleep');
     sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId: open.id });
@@ -116,6 +118,70 @@ describe('a missed micro-sleep', () => {
     const late = runUntil(sim, center + 800);
     expect(late).toContainEqual(
       expect.objectContaining({ type: 'ResponseResolved', quality: 'fail', reason: 'late' }),
+    );
+  });
+
+  it('finishes a coffee that ends in the very step Papa falls asleep (no −40 lost)', async () => {
+    const sim = await createSim({
+      content: {
+        ...base,
+        feel: { ...base.feel, fatigue: { ...base.feel.fatigue, coffeeDurationMs: 1000 } },
+      },
+      geometry,
+      level: createTestLevel({ objects: TEST_OBJECTS, gauges: FATIGUE_GAUGES }),
+      seed: 1,
+    });
+    sim.enqueue({ type: 'TapObject', t: asSimMs(0), objectId: 'coffee_machine' });
+    for (let i = 0; i < 5000 && sim.world.papa.state !== 'drink'; i++) sim.step();
+    expect(sim.world.papa.state).toBe('drink');
+    sim.drainEvents();
+    // The micro-sleep goes unanswered and gags `late` at the step where the coffee is over.
+    const endsAt = sim.world.papa.busyUntil;
+    const microSleep = sim.world.threats[0];
+    if (microSleep === undefined) throw new Error('no micro-sleep instance');
+    const { toleranceMs } = base.feel.timing;
+    microSleep.state = 'windowOpen';
+    microSleep.press = null;
+    microSleep.responseWindow = { windowMs: 100, perfectMs: 50, toleranceMs, bufferMs: 0 };
+    microSleep.windowOpenAt = asSimMs(endsAt - 100 - toleranceMs - 1);
+    sim.world.gauges.microSleepAt = null;
+    const fatigueBefore = sim.world.gauges.fatigue;
+    const events = runUntil(sim, endsAt);
+    expect(types(events)).toContain('CoffeeDrunk');
+    expect(types(events)).toContain('GagTriggered');
+    expect(sim.world.papa.state).toBe('asleep');
+    expect(sim.world.gauges.fatigue).toBeLessThan(fatigueBefore);
+  });
+
+  it('judges a press at the step Papa wakes up, and glides him (the busy test uses busyUntil)', async () => {
+    const sim = await createSim({
+      content: base,
+      geometry,
+      level: createTestLevel({
+        waves: [testWave([OUTLET], { gapMinMs: 0, gapMaxMs: 0 })],
+        objects: TEST_OBJECTS,
+      }),
+      seed: 1,
+    });
+    sim.step();
+    sim.drainEvents();
+    const outlet = sim.world.threats.find((threat) => threat.defId === 'outlet');
+    if (outlet === undefined) throw new Error('no outlet');
+    // Asleep until 50 ms into the outlet's window.
+    const wakesAt = asSimMs(outlet.windowOpenAt + 50);
+    sim.world.papa.state = 'asleep';
+    sim.world.papa.busyUntil = wakesAt;
+    runUntil(sim, wakesAt - 10);
+    expect(sim.world.papa.state).toBe('asleep');
+    sim.enqueue({ type: 'PressThreat', t: wakesAt, threatId: outlet.id });
+    sim.enqueue({ type: 'Release', t: asSimMs(wakesAt + 50) });
+    const events = runUntil(sim, wakesAt + 300);
+    expect(types(events)).toContain('PapaGlideStarted');
+    expect(events).not.toContainEqual(
+      expect.objectContaining({ type: 'ResponseResolved', reason: 'late' }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'ResponseResolved', response: 'parry' }),
     );
   });
 });

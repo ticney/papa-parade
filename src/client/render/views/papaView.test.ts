@@ -164,7 +164,7 @@ describe('the nap and the coffee (story 1.19)', () => {
     return { scene, view, named: (name: string) => scene.getObjectByName(name) as Object3D };
   }
 
-  it('draws nothing of it by default: no eyelids, no « Z », no mug (no draw call at rest)', () => {
+  it('draws nothing of it by default: no eyelids, no « Z », no mug (they are hidden at rest)', () => {
     const { named } = build();
     for (const name of ['papa_eyelids', 'papa_z', 'papa_mug']) {
       expect(isShown(named(name)), name).toBe(false);

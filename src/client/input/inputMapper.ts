@@ -175,7 +175,10 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     if (active === null || !isLive()) return;
     bindTo(active);
     if (isBusy(active)) {
-      if (log.enabled('debug')) log.debug('input', 'move dropped: Papa is busy');
+      // Only a move that was asked for is worth a line: this runs every frame.
+      if (log.enabled('debug') && (deps.held.size > 0 || stick.x !== 0 || stick.y !== 0)) {
+        log.debug('input', 'move dropped: Papa is busy');
+      }
       return;
     }
     deps.moveIntent.update(deps.held, stick, () => stampOf(active));

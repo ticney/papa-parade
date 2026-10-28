@@ -997,6 +997,20 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       },
     );
 
+    it('control: the same inputs with Papa idle do send commands (so the drops above are the busy gate)', () => {
+      const { mapper, sim, commands, held, camera, setObjects, setTargets } = setup();
+      setObjects([COFFEE]);
+      setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+      sim.world.papa.state = 'idle';
+      const at = pxOf(camera, COFFEE);
+      mapper.handlePointerDown(click(at.x, at.y));
+      mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+      held.add('KeyD');
+      mapper.onKeysChanged(1500);
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands.length).toBeGreaterThan(0);
+    });
+
     it('shows no target while busy', () => {
       const { mapper, sim } = setup();
       sim.world.threats = [

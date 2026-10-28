@@ -243,7 +243,9 @@ export const PAPA_TARGET_ANCHOR_ID = 'papa';
 
 /**
  * How long a HUD gauge stays at full opacity after it changed, in real ms (story 1.19 D11): a
- * value that crossed a 10-point segment boundary or jumped by 5 points or more. Geo tunes it.
+ * value that crossed a 10-point segment boundary or jumped by 5 points or more. A feel to tune: it
+ * lives here, not in `feel.json`, until the HUD has a `feel.hud` block (the segment and jump sizes
+ * and the 50 % / 70 % display thresholds in `gaugesHud.ts` are the same kind of value).
  */
 export const GAUGE_CHANGE_HOLD_MS = 1500;
 

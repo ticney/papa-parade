@@ -555,19 +555,20 @@ describe('with a threat to watch', () => {
 });
 
 describe('the micro-sleep (story 1.19)', () => {
-  it('is not the baby’s business: it never locks on a threat that stands on Papa', async () => {
-    const tired: ContentBundle = {
-      ...content,
-      feel: {
-        ...content.feel,
-        fatigue: {
-          ...content.feel.fatigue,
-          startPoints: 90,
-          microSleepMinMs: 0,
-          microSleepMaxMs: 0,
-        },
+  const tired: ContentBundle = {
+    ...content,
+    feel: {
+      ...content.feel,
+      fatigue: {
+        ...content.feel.fatigue,
+        startPoints: 90,
+        microSleepMinMs: 0,
+        microSleepMaxMs: 0,
       },
-    };
+    },
+  };
+
+  it('is not the baby’s business: it never locks on a threat that stands on Papa', async () => {
     const sim = await newSim({
       content: tired,
       level: createTestLevel({ gauges: FATIGUE_GAUGES }),
@@ -576,5 +577,20 @@ describe('the micro-sleep (story 1.19)', () => {
     expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
     expect(babyEvents(events).map((event) => event.to)).not.toContain('targetLocked');
     expect(babyOf(sim).targetThreatId).toBeNull();
+  });
+
+  it('control: in the same setup, the baby does lock on a wave threat (and not on the micro-sleep)', async () => {
+    const sim = await newSim({
+      content: tired,
+      level: createTestLevel({
+        waves: [testWave([OUTLET], { gapMinMs: 0, gapMaxMs: 0 })],
+        gauges: FATIGUE_GAUGES,
+      }),
+    });
+    const events = run(sim, 200);
+    expect(babyEvents(events).map((event) => event.to)).toContain('targetLocked');
+    const microSleep = sim.world.threats.find((threat) => threat.defId === 'papa_microsleep');
+    expect(microSleep?.state).not.toBe('idle');
+    expect(babyOf(sim).targetThreatId).not.toBe(microSleep?.id);
   });
 });

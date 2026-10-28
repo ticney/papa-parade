@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { parseContentFile } from '@content/parseContentFile';
-import { LEVEL_VARIANTS, LevelSchema } from '@content/schemas/level';
+import { LEVEL_VARIANTS, LevelSchema, OBJECT_KINDS } from '@content/schemas/level';
+import { OBJECT_ACTION_KINDS } from '@sim';
 import { describe, expect, it } from 'vitest';
 
 const FILE = 'content/levels/salon_crawler.json';
@@ -32,6 +33,12 @@ const level = (waves: unknown[], extra: Record<string, unknown> = {}) => ({
 function problemsOf(result: ReturnType<typeof parse>): { jsonPath: string; message: string }[] {
   return result.ok ? [] : result.error.map(({ jsonPath, message }) => ({ jsonPath, message }));
 }
+
+describe('the object kinds', () => {
+  it('are the ones the sim has an action for (content:check and createSim guard a drift)', () => {
+    expect([...OBJECT_KINDS].sort()).toEqual([...OBJECT_ACTION_KINDS].sort());
+  });
+});
 
 describe('content/levels/salon_crawler.json', () => {
   it('parses against LevelSchema, as a 3-minute Sieste of three waves', () => {

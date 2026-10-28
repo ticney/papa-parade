@@ -1,5 +1,5 @@
 import { hashJson } from '@shared/hash';
-import type { Sim, SimEvent } from '@sim';
+import { PAPA_ASLEEP_GAG_ID, type Sim, type SimEvent } from '@sim';
 
 const FAIL_REASONS = ['early', 'late', 'wrongResponse'] as const;
 type FailReasonKey = (typeof FAIL_REASONS)[number];
@@ -139,7 +139,7 @@ export function createRunRecorder(
       } else if (event.type === 'GagTriggered') {
         gags++;
         byGag[event.gag] = countOf(byGag, event.gag) + 1;
-        if (event.gag === 'papa_asleep') asleepGags++;
+        if (event.gag === PAPA_ASLEEP_GAG_ID) asleepGags++;
       } else if (event.type === 'NearMiss') {
         nearMisses++;
       } else if (event.type === 'CoffeeDrunk') {

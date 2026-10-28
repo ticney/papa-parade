@@ -32,6 +32,11 @@ const FATIGUE_FEEL = (liveFeel as unknown as { fatigue: Record<string, number> }
 const COFFEE_REDUCTION = FATIGUE_FEEL.coffeeReductionPoints as number;
 const COFFEE_STEPS = Math.ceil((FATIGUE_FEEL.coffeeDurationMs as number) / STEP_MS);
 const MICRO_SLEEP_MAX_MS = FATIGUE_FEEL.microSleepMaxMs as number;
+const ASLEEP_MS = FATIGUE_FEEL.asleepMs as number;
+/** Upper bound of what a micro-sleep needs to be judged once telegraphed: delay + window + tolerance, rounded up. */
+const MICRO_SLEEP_JUDGE_MS = 2000;
+/** A floor point of the live level in the test viewport (a tap on it plans a walk; the first test of this spec shows it). */
+const FLOOR_TAP = { x: 300, y: 200 };
 const CHUNK_STEPS = 25;
 /** A marker is « near Papa » within this many px of his drawn head. */
 const NEAR_PAPA_PX = 90;
@@ -237,23 +242,41 @@ test.describe('the micro-sleep', () => {
     expect(problems).toEqual([]);
   });
 
-  test('unanswered, it puts Papa to sleep for asleepMs: he answers no tap meanwhile', async ({
+  test('unanswered, it puts Papa to sleep for asleepMs: he answers no tap meanwhile, then wakes', async ({
     page,
   }) => {
     await openFrozen(page);
+    // Control: the same tap, with Papa awake, plans a walk (so the pixel is a floor point).
+    const planCount = async () =>
+      (await ppEvents(page)).filter((event) => event.type === 'PapaPathPlanned').length;
+    await page.touchscreen.tap(FLOOR_TAP.x, FLOOR_TAP.y);
+    await ppAdvance(page, 5);
+    expect(await planCount()).toBeGreaterThan(0);
+
     await ppSend(page, { type: 'SetFatigue', points: 90 });
-    await advanceUntilEvent(
+    const fell = await advanceUntilEvent(
       page,
       'the nap',
-      MICRO_SLEEP_MAX_MS + 6000,
+      MICRO_SLEEP_MAX_MS + MICRO_SLEEP_JUDGE_MS,
       (event) => event.type === 'PapaStateChanged' && event.to === 'asleep',
     );
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'asleep');
-    const plans = (await ppEvents(page)).filter((event) => event.type === 'PapaPathPlanned').length;
-    await page.touchscreen.tap(300, 200);
+    const events = (await ppEvents(page)).map((event) => event.type);
+    expect(events).toContain('GagTriggered');
+    expect(events).not.toContain('NearMiss');
+
+    const plans = await planCount();
+    await page.touchscreen.tap(FLOOR_TAP.x, FLOOR_TAP.y);
     await ppAdvance(page, 5);
-    expect((await ppEvents(page)).filter((event) => event.type === 'PapaPathPlanned')).toHaveLength(
-      plans,
-    );
+    expect(await planCount()).toBe(plans);
+
+    // Still asleep two steps before `asleepMs` is over, awake two steps after.
+    const wakesAt = fell.t + ASLEEP_MS;
+    let nowMs = (await ppWorld(page)).time.sim;
+    await ppAdvance(page, Math.floor((wakesAt - 2 * STEP_MS - nowMs) / STEP_MS));
+    expect((await ppWorld(page)).papa.state).toBe('asleep');
+    nowMs = (await ppWorld(page)).time.sim;
+    await ppAdvance(page, Math.ceil((wakesAt + 2 * STEP_MS - nowMs) / STEP_MS));
+    expect((await ppWorld(page)).papa.state).toBe('idle');
   });
 });

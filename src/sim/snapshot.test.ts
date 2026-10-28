@@ -398,6 +398,8 @@ describe('snapshot / restore', () => {
     expect(() => sim.restore({ ...snapshot, version: 4 as 7 })).toThrow(/version 4/);
     // Version 5 has no director, flow or wave index (story 1.18).
     expect(() => sim.restore({ ...snapshot, version: 5 as 7 })).toThrow(/version 5/);
+    // Version 6 has no gauges, no Papa busy state and no `objectId` (story 1.19).
+    expect(() => sim.restore({ ...snapshot, version: 6 as 7 })).toThrow(/version 6/);
   });
 
   it('refuses a snapshot of another level', async () => {
@@ -1203,7 +1205,8 @@ describe('snapshot / restore of the gauges and the busy Papa (story 1.19)', () =
   async function drinking() {
     const sim = await newTired();
     sim.enqueue({ type: 'TapObject', t: asSimMs(0), objectId: 'coffee_machine' });
-    while (sim.world.papa.state !== 'drink') sim.step();
+    for (let i = 0; i < 5000 && sim.world.papa.state !== 'drink'; i++) sim.step();
+    expect(sim.world.papa.state).toBe('drink');
     return sim;
   }
 

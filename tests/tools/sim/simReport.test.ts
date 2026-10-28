@@ -345,6 +345,19 @@ describe('createRunRecorder', () => {
       expect(summary.microSleeps).toBe(1);
     });
 
+    it('does not let the result of a threat no wave planned free a slot of the active count', async () => {
+      // Without the guard the micro-sleep's result would drop the count to 0 while the wave's
+      // threat 1 is still up, and the second wave threat would not be seen over the limit of 1.
+      const recorder = await recorderOf([{ maxSimultaneous: 1 }]);
+      recorder.onEvent(telegraph(1, 0));
+      recorder.onEvent(telegraph(9, -1));
+      recorder.onEvent(resolved(9));
+      recorder.onEvent(telegraph(2, 0));
+      expect(recorder.finish().waves).toEqual([
+        { telegraphs: 2, peakSimultaneous: 2, isOverLimit: true },
+      ]);
+    });
+
     it('counts the coffees and the papa_asleep gags', async () => {
       const recorder = await recorderOf([]);
       recorder.onEvent({ type: 'CoffeeDrunk', t: asSimMs(0), fatigue: 30 });

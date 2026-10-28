@@ -26,7 +26,7 @@ import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import type { ThreatDef } from '@content/schemas/threat';
 import { checkStringReferences } from '@content/stringRefs';
 import { MS_PER_S, PHYSICS_BOUNDS_WALL_THICKNESS_M, STEP_MS } from '@shared/constants';
-import { GAG_IDS, OBJECT_ACTION_KINDS, SIM_EVENT_TYPES } from '@sim';
+import { GAG_IDS, OBJECT_ACTION_KINDS, PAPA_ASLEEP_GAG_ID, SIM_EVENT_TYPES } from '@sim';
 
 const SCHEMAS_DIR = '_schemas';
 const AUDIO_DIR = ['public', 'assets', 'audio'];
@@ -310,6 +310,12 @@ function checkLevelReferences(
             jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
             message: `the threat "${entry.def}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
           });
+        } else if (gag === PAPA_ASLEEP_GAG_ID) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
+            message: `the threat "${entry.def}" has the gag "${PAPA_ASLEEP_GAG_ID}": only the micro-sleep (target "papa") may end in it`,
+          });
         }
       });
     });
@@ -329,6 +335,12 @@ function checkLevelReferences(
           file,
           jsonPath: path,
           message: `the threat "${microSleepDef}" has target "${microSleep.target}", but a micro-sleep must have target "papa"`,
+        });
+      } else if (microSleep !== undefined && microSleep.gag !== PAPA_ASLEEP_GAG_ID) {
+        problems.push({
+          file,
+          jsonPath: path,
+          message: `the threat "${microSleepDef}" has the gag "${microSleep.gag}", but a micro-sleep must have the gag "${PAPA_ASLEEP_GAG_ID}"`,
         });
       }
     }
@@ -360,6 +372,13 @@ function checkLevelReferences(
           file,
           jsonPath: formatJsonPath(['objects', index, 'kind']),
           message: `level ${id}: the object "${object.id}" has the kind "${object.kind}", which the sim has no action for (${OBJECT_ACTION_KINDS.join(', ')})`,
+        });
+      }
+      if (object.kind === 'coffee_machine' && level.gauges.fatigue === undefined) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['objects', index, 'kind']),
+          message: `level ${id}: the object "${object.id}" is a coffee_machine, but the level has no gauges.fatigue (a coffee would only make Papa wait)`,
         });
       }
       if (

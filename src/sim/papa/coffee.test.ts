@@ -48,7 +48,7 @@ type DistributiveOmit<T, K extends string> = T extends unknown ? Omit<T, K> : ne
 const command = (sim: Sim, cmd: DistributiveOmit<SimCommand, 't'>): void =>
   sim.enqueue({ ...cmd, t: asSimMs(sim.world.time.sim) } as SimCommand);
 
-/** Steps until `untilSimMs`, calling `each(events, fatigueBeforeTheStep)` after each step. */
+/** Steps until `untilSimMs` and returns the events they emitted. */
 function runUntil(sim: Sim, untilSimMs: number): SimEvent[] {
   const events: SimEvent[] = [];
   while (sim.world.time.sim < untilSimMs) {
@@ -127,7 +127,7 @@ describe('the coffee', () => {
     expect(events.find((event) => event.type === 'CoffeeDrunk')).toMatchObject({ fatigue: 0 });
   });
 
-  it('is cancelled by a TapFloor, a Move or a press that glides, before arrival', async () => {
+  it('is cancelled by a TapFloor or a Move before arrival', async () => {
     const cancel: Record<string, (sim: Sim) => void> = {
       TapFloor: (sim) => command(sim, { type: 'TapFloor', xM: 0, zM: 0 }),
       Move: (sim) => command(sim, { type: 'Move', dirX: 0, dirZ: 1 }),
@@ -212,7 +212,9 @@ describe('the coffee', () => {
     expect(types(events)).not.toContain('ObjectTapped');
     expect(sim.world.papa).toMatchObject({ state: 'drink', xM, zM });
     // The outlet opens meanwhile; a press on it is ignored, so it ends in its gag.
-    while (outlet?.state !== 'windowOpen') runUntil(sim, sim.world.time.sim + 10);
+    for (let i = 0; i < 3000 && outlet?.state !== 'windowOpen'; i++)
+      runUntil(sim, sim.world.time.sim + 10);
+    if (outlet?.state !== 'windowOpen') throw new Error('the outlet never opened');
     const center = outlet.windowOpenAt + (outlet.responseWindow?.windowMs ?? 0) / 2;
     sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId: outlet.id });
     sim.enqueue({ type: 'Release', t: asSimMs(center + 100) });
@@ -251,10 +253,10 @@ describe('the coffee', () => {
     expect(sim.world.papa.state).toBe('idle');
   });
 
-  it('leaves fatigue alone in a level with no fatigue gauge, and says so in CoffeeDrunk', async () => {
+  it('leaves fatigue at 0 in a level with no fatigue gauge, and says so in CoffeeDrunk', async () => {
     const sim = await newSim({ hasFatigue: false, fatigue: { startPoints: 60 } });
     command(sim, { type: 'TapObject', objectId: 'coffee_machine' });
     const { events } = runUntilEvent(sim, 'CoffeeDrunk');
-    expect(events.find((event) => event.type === 'CoffeeDrunk')).toMatchObject({ fatigue: 60 });
+    expect(events.find((event) => event.type === 'CoffeeDrunk')).toMatchObject({ fatigue: 0 });
   });
 });

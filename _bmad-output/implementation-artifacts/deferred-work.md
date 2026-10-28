@@ -346,3 +346,16 @@
 - **The HUD node budget will be tight with three gauges**: one gauge is about 8 nodes, three about 20, and the pill, timer and pause button about 19 more, against `HUD_MAX_DOM_NODES` = 40. Check it when story 3.1 adds the noise gauge and epic 4 the need.
 - **The strings `gauge.*` already existed** (`gauge.fatigue`, `gauge.noise`, `gauge.urge`): the pill reuses them, plus the new `hud.gauges`. The story named `hud.gauge_fatigue`; nothing else reads it.
 - **`withoutThreats` (`?threats=off`) keeps the micro-sleep def** so that `createSim` accepts the level; a debug run of more than 140 s on that switch still sees micro-sleeps.
+
+## Deferred from: code review of story 1-19-fatigue-cafe-et-micro-siestes (2026-10-28)
+
+- **`SetFatigue` passes `commandProblem` from any journal** (`commands.ts`): a crafted replay can set fatigue in a production build. Reason: gating a debug command by build is the client's job (`boot.ts`); revisit with the other debug commands.
+- **`gaugesProblem` accepts an `isFatigueAbove` / `microSleepAt` pair that disagrees with `fatigue`** (`snapshot.ts`). Reason: only corrupt input reaches it, and `startPoints > threshold` is legitimately inconsistent at step 0 until `runGauges` runs.
+- **`busyUntil` and `fatigue` do not follow the unit rule** (`…At` for a sim time, a `…Points` suffix): the spec chose the names. Reason: renaming changes snapshot v7, the events and the goldens' `worldHash`; do it with the next snapshot version bump.
+- **A press judged in the step where a gag puts Papa to sleep gets no glide** (`runThreats` before `runPapa`). Reason: one step wide, needs a press and a gag in the same step; the parry is still judged on its `t`.
+- **The HUD's display thresholds and sizes are constants** (`gaugesHud.ts`: 70 %, 50 %, 5 and 10 points; `GAUGE_CHANGE_HOLD_MS`). Reason: D11 / D12 chose them; a `feel.hud` block moves `feelHash` and every golden reference, so do it when Geo tunes the HUD.
+- **The debug mirrors go stale** (`data-pp-threat-px` for the micro-sleep, `data-pp-fatigue` between two events, `data-pp-object-px` after a resize). Reason: test hooks only; the specs read bounding boxes.
+- **AC 9 test debt in the browser:** idle opacity 0.7, the ten-segment mask pitch, the warn ring and the pulse, reduced motion (the « Z » bob ignores it too), the inert pill; « the marker follows Papa » is checked at one instant; the e2e bounds read `feel.json`, not the level's `feelOverrides`. Reason: covered at unit level; add with the first visual pass (1.24).
+- **The fatigue schema accepts degenerate tunings** (`microSleepMinMs` = `MaxMs` = 0, `thresholdPoints` ≥ 100, `objectTouchRadiusPx` under 44 pt) and the new feel keys have no rejection tests. Reason: tighten with `windowPenaltyPct` when Geo retunes the fatigue.
+- **Noise and need gauges would show but never move** if a level declared them. Reason: `LevelGaugesSchema` only takes `fatigue`; story 3.1 wires noise.
+- **One e2e flake seen:** the micro-sleep parry spec ended `asleep` once on a cold first run, then passed 7 times. Reason: not reproduced; if CI shows it, send the press with the stepped sim's `t` instead of a DOM position.

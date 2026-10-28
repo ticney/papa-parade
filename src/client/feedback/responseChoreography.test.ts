@@ -1,3 +1,4 @@
+import { PAPA_TARGET_ANCHOR_ID } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { createSim, type SimEvent, type World } from '@sim';
 import { describe, expect, it } from 'vitest';
@@ -26,9 +27,11 @@ const worldWith = (
   papaState: string,
   glideThreatId: number | null,
   simMs = 1000,
+  threats: readonly { id: number; anchorId: string }[] = [],
 ): Readonly<World> =>
   ({
     time: { sim: t(simMs) },
+    threats,
     papa: {
       state: papaState,
       glide: glideThreatId === null ? null : { threatId: glideThreatId },
@@ -49,6 +52,18 @@ describe('createResponseChoreography', () => {
     const { choreography, fx, lifts } = setup();
     choreography.onEvent(resolved('success'), worldWith('idle', null, 1234), fx);
     expect(lifts).toEqual([1234]);
+  });
+
+  it('plays nothing for the micro-sleep: a threat that stands on Papa has no baby to lift', () => {
+    const { choreography, fx, lifts } = setup();
+    const world = worldWith('idle', null, 1000, [
+      { id: 1, anchorId: 'outlet_01' },
+      { id: 2, anchorId: PAPA_TARGET_ANCHOR_ID },
+    ]);
+    choreography.onEvent(resolved('perfect', 2), world, fx);
+    expect(lifts).toEqual([]);
+    choreography.onEvent(resolved('perfect', 1), world, fx);
+    expect(lifts).toEqual([1000]);
   });
 
   it('plays it at once when Papa glides to another threat', () => {

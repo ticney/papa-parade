@@ -39,9 +39,13 @@ export function addFatigue(world: World, ctx: StepContext, points: number): void
 
 /**
  * The fatigue factor of a window (`base × tier × fatigue × instinct`): `1 − windowPenaltyPct / 100`
- * while Papa is strictly above the threshold, else 1. A pure reader of the value itself, so a threat
- * telegraphed in the very step of the crossing gets it too; the window is frozen at the telegraph
- * (1.10 D8), so a crossing later never moves one.
+ * while Papa is strictly above the threshold, else 1. A pure reader of the value itself, not of
+ * `isFatigueAbove`, and the window is frozen at the telegraph (1.10 D8), so a crossing later never
+ * moves one. Which value a threat sees depends on the system order: the micro-sleep is telegraphed
+ * by `runFatigue`, after this step's gain, so it gets the shrunk window in the very step of the
+ * crossing; a wave threat is telegraphed by `runDirector`, before `runGauges`, so it sees the
+ * previous step's value. With `startPoints` above the threshold, the first threat therefore gets
+ * the shrunk window before `FatigueThresholdCrossed` is emitted (at the end of step 1).
  */
 export function fatigueWindowModifier(world: World, ctx: StepContext): number {
   if (ctx.level.microSleepIndex < 0) return NEUTRAL_WINDOW_MODIFIER;

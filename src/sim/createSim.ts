@@ -21,7 +21,7 @@ import { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 import { createRapierPhysics } from './physics/rapierPhysics.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
-import { GAG_IDS } from './threats/gags.ts';
+import { GAG_IDS, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
 import { consumeFreeze, createFreezeState, requestFreeze } from './time/hitstop.ts';
 import { allocateId, createWorld, type World } from './world.ts';
 
@@ -141,6 +141,10 @@ function simLevelOf(
     level.level.id === geometry.id,
     `level ${level.level.id} was given the geometry of ${geometry.id}`,
   );
+  invariant(
+    !geometry.anchors.some((anchor) => anchor.id === PAPA_TARGET_ANCHOR_ID),
+    `level ${level.level.id}: the geometry has an anchor named "${PAPA_TARGET_ANCHOR_ID}", which the sim reserves for the threat that stands on Papa`,
+  );
   const planned = plannedEntriesOf(level);
   const waves = level.level.waves;
   const microSleepDef = level.level.gauges.fatigue?.microSleepDef;
@@ -159,6 +163,10 @@ function simLevelOf(
     invariant(
       def.target !== 'papa',
       `${entry.where}: the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef), a wave cannot plan it`,
+    );
+    invariant(
+      def.gag !== PAPA_ASLEEP_GAG_ID,
+      `${entry.where}: the threat "${entry.def}" has the gag "${PAPA_ASLEEP_GAG_ID}": only the micro-sleep (target "papa") may end in it`,
     );
     const first = planned.findIndex((other) => other.anchor === entry.anchor);
     invariant(
@@ -180,6 +188,10 @@ function simLevelOf(
     invariant(
       (GAG_IDS as readonly string[]).includes(def.gag),
       `${where}: the threat "${microSleepDef}" has the gag "${def.gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+    );
+    invariant(
+      def.gag === PAPA_ASLEEP_GAG_ID,
+      `${where}: the threat "${microSleepDef}" has the gag "${def.gag}", but a micro-sleep must have the gag "${PAPA_ASLEEP_GAG_ID}"`,
     );
     threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1 });
   }
@@ -283,7 +295,8 @@ export async function createSimWithSystems(
     papaSpawn: spawnOf(geometry, papaGrid, 'papa_spawn', 'Papa'),
     babySpawn: spawnOf(geometry, babyGrid, 'baby_spawn', 'the baby'),
     firstWanderAt: asSimMs(content.feel.baby.babbleMinMs),
-    fatiguePoints: content.feel.fatigue.startPoints,
+    // A level with no fatigue gauge does not carry the feel's start value around in its world.
+    fatiguePoints: simLevel.microSleepIndex < 0 ? 0 : content.feel.fatigue.startPoints,
     props: geometry.props,
   });
   checkReachable(level, geometry, babyGrid, world.baby);

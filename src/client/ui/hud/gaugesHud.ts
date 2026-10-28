@@ -150,6 +150,8 @@ export function createGaugesHud(doc: Doc, options: GaugesHudOptions): GaugesHud 
     gauge.append(ICONS[id](doc), bar);
     const label = t(LABEL_KEYS[id]);
     gauge.className = 'pp-hud-gauge pp-hud-gauge-idle';
+    // An image with a name: a bare `div` cannot carry an `aria-label` that assistive tech reads.
+    gauge.setAttribute('role', 'img');
     gauge.setAttribute('aria-label', `${label} 0 %`);
     return {
       id,

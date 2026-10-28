@@ -685,7 +685,50 @@ describe('checkContent on level files', () => {
     );
   });
 
-  it('names an object of an unknown kind (the schema refuses it; the sim-side check guards a kind added to the schema first)', async () => {
+  it('names the wave threat whose def has the gag "papa_asleep"', async () => {
+    await mutateJson('content/threats/outlet.json', (threat) => {
+      threat.gag = 'papa_asleep';
+    });
+    await plan([entry]);
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'waves[0].threats[0].def',
+        message: expect.stringMatching(/"outlet".*gag "papa_asleep".*only the micro-sleep/),
+      }),
+    );
+  });
+
+  it('names the micro-sleep def whose gag is not "papa_asleep"', async () => {
+    await mutateJson('content/threats/papa_microsleep.json', (threat) => {
+      threat.gag = 'outlet_hair';
+    });
+    await mutateJson(FILE, (level) => {
+      level.gauges = { fatigue: { microSleepDef: 'papa_microsleep' } };
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'gauges.fatigue.microSleepDef',
+        message: expect.stringMatching(/"papa_microsleep".*gag "outlet_hair".*gag "papa_asleep"/),
+      }),
+    );
+  });
+
+  it('names a coffee machine in a level with no fatigue gauge', async () => {
+    await mutateJson(FILE, (level) => {
+      level.gauges = {};
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'objects[0].kind',
+        message: expect.stringMatching(/"coffee_machine".*coffee_machine.*no gauges\.fatigue/),
+      }),
+    );
+  });
+
+  it('names an object of an unknown kind (the schema refuses it; the drift with the sim is pinned in levelSchema.test.ts)', async () => {
     await mutateJson(FILE, (level) => {
       level.objects = [{ id: 'kettle', kind: 'kettle', anchor: 'phone' }];
     });

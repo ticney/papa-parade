@@ -118,7 +118,7 @@ export function resolveThreat(
 
 /**
  * `→ gag`: a failed response. `ResponseResolved{fail}`, `GagTriggered`, then the gag's own
- * consequences (`applyGag`: a `NearMiss`, a pushed prop; NFR9: never an injury), with no hitstop
+ * consequences (`applyGag`: a `NearMiss`, a pushed prop, or Papa falling asleep; NFR9: never an injury), with no hitstop
  * and no slow-mo. `offsetMs` is `null` when no press ever came.
  */
 export function gagThreat(

@@ -59,4 +59,11 @@ describe('withoutThreats', () => {
     expect(stripped.level.gauges).toEqual(FATIGUE_GAUGES);
     expect(Object.keys(stripped.threats)).toEqual(['papa_microsleep']);
   });
+
+  it('warns, and keeps nothing, when the micro-sleep def is not loaded', () => {
+    const level = createTestLevel({ gauges: FATIGUE_GAUGES });
+    const stripped = withoutThreats({ ...level, threats: {} });
+    expect(stripped.threats).toEqual({});
+    expect(warnSpy).toHaveBeenCalledWith('boot', expect.stringContaining('papa_microsleep'));
+  });
 });

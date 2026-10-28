@@ -100,7 +100,7 @@ describe('the fatigue gauge', () => {
     expect((await newSim({ fatigue: { startPoints: 30 } })).world.gauges.fatigue).toBe(30);
   });
 
-  it('rises by perSec × STEP_MS / 1000 at each step, in every Papa state', async () => {
+  it('rises by perSec × STEP_MS / 1000 at each step, idle and walking', async () => {
     const sim = await newSim();
     stepN(sim, 100);
     expect(sim.world.gauges.fatigue).toBeCloseTo(100 * GAIN_PER_STEP, 9);
@@ -122,12 +122,12 @@ describe('the fatigue gauge', () => {
     expect(sim.world.gauges.fatigue).toBeCloseTo(GAIN_PER_STEP, 9);
   });
 
-  it('does nothing in a level with no fatigue gauge: no draw, no event, the value stays at its start', async () => {
+  it('does nothing in a level with no fatigue gauge: no draw, no event, the value stays at 0 whatever the feel starts at', async () => {
     const withStart = await newSim({ hasFatigue: false, fatigue: { startPoints: 90 } });
     const plain = await newSim({ hasFatigue: false });
     const events = runUntil(withStart, 10_000);
     runUntil(plain, 10_000);
-    expect(withStart.world.gauges.fatigue).toBe(90);
+    expect(withStart.world.gauges.fatigue).toBe(0);
     expect(withStart.world.gauges.isFatigueAbove).toBe(false);
     expect(withStart.world.gauges.microSleepAt).toBeNull();
     expect(crossings(events)).toEqual([]);
@@ -161,7 +161,10 @@ describe('the fatigue gauge', () => {
 describe('the threshold', () => {
   it('crosses up once, and draws the first micro-sleep once, between min and max after the crossing', async () => {
     const sim = await newSim();
-    stepN(sim, 5); // before the baby's first draw (babbleMinMs)
+    // The baby draws first at babbleMinMs: the crossing below must come before it, or the "one draw"
+    // assertion would count the baby's.
+    expect(base.feel.baby.babbleMinMs).toBeGreaterThan(8 * STEP_MS);
+    stepN(sim, 5);
     const before = { ...sim.world.rng };
     setFatigue(sim, 71);
     const events = runUntil(sim, sim.world.time.sim + 300);
@@ -333,6 +336,15 @@ describe('the micro-sleeps', () => {
       );
       expect(rearmedBefore.length).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  it('are not telegraphed when they could not be judged before the level ends', async () => {
+    const tired = { startPoints: 90, microSleepMinMs: 0, microSleepMaxMs: 0 };
+    // Delay 1200 + window 300 + tolerance 60: 1560 ms are needed, and the level lasts 1000.
+    const short = await newSim({ fatigue: tired, durationMs: 1000 });
+    expect(microSleeps(runUntil(short, 1000))).toEqual([]);
+    const long = await newSim({ fatigue: tired, durationMs: 2000 });
+    expect(microSleeps(runUntil(long, 100))).toHaveLength(1);
   });
 
   it('are never telegraphed once the level has ended', async () => {

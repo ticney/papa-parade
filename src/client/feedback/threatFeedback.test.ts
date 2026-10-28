@@ -87,7 +87,7 @@ describe('threatCueOf', () => {
 });
 
 describe('threatCueOf for the micro-sleep (story 1.19)', () => {
-  it('takes the cues of its own def: a muffled swell, the parry cues, then a snore', async () => {
+  it('takes the cues of its own def: the micro-sleep telegraph, the parry cues, then the papa_asleep gag', async () => {
     const microSleep = createTestMicroSleep();
     const microWorld = (
       await createSim({
