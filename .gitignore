@@ -33,3 +33,6 @@ blob-report/
 # Blender backups
 *.blend1
 *.blend@
+
+# Claude Code worktrees (`claude --worktree`); story worktrees live beside the repo
+.claude/worktrees/

@@ -4,6 +4,7 @@
 [workflow]
 
 persistent_facts = [
-  "The story is developed on its branch `story/<story_key>`. Once the story is identified and before the first edit (and before recording `baseline_commit`), run `git branch --show-current`: if it is not `story/<story_key>`, run `git switch story/<story_key>`; if that branch does not exist (a story created before this rule), create it from an up-to-date `main` with `git switch -c story/<story_key> main`. If the tree has uncommitted changes that are not this story's, stop and tell Geo.",
+  "The story is developed on its branch `story/<story_key>`. Once the story is identified and before the first edit (and before recording `baseline_commit`), run `git branch --show-current`: if it is not `story/<story_key>`, run `git switch story/<story_key>`; if that branch does not exist (a story created before this rule), create it from an up-to-date `main` with `git switch -c story/<story_key> main`. If git refuses because the branch is checked out in another worktree, stop and tell Geo to run the story there. If the tree has uncommitted changes that are not this story's, stop and tell Geo.",
+  "Never switch branches in a worktree another agent may be using: one worktree, one story. Other stories run in parallel in their own worktrees (`npm run story:new`); their e2e ports differ (playwright.config.ts), but the machine is shared: if the CI times out under load, rerun with `--maxWorkers=5` / `--workers=4` and say so.",
   "Commit the implementation on the story branch only, with the message `Story <epic>.<story> : <titre de la story en minuscules>` (French, a space before the colon). Never commit on `main`, never merge into `main`, never push `main`: the merge happens after the code review, with Geo's OK.",
 ]
