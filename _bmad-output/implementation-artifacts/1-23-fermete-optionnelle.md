@@ -4,7 +4,7 @@ baseline_commit: 9b4bfeb3f33eee2961ef390532ae6223b8c27966
 
 # Story 1.23: Firmness (optional)
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.23 « Fermeté (optionnelle) » (L1153-1182). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -406,3 +406,21 @@ Changed:
 
 - 2026-10-28: story created (gds-create-story).
 - 2026-10-28: story implemented (gds-dev-story): Firmness judged in the sim (`holdUntilMs`, `released`, `ResponseHeld`, snapshot v11), hold-ring in the threat markers with the `hold_closed` haptic cue, bots hold a Firmness, `released` in the CLI report, the fixture `test_firm` in the generated catalogue, `holdRing.spec.ts`. Goldens unchanged; `npm run ci` green.
+
+### Review Findings
+
+Code review of 2026-10-28 (Blind Hunter, Edge Case Hunter, Acceptance Auditor). 2 decision (both: keep as is), 4 patch (all applied), 5 defer, 11 dismissed.
+
+Applied: `FirmHold.tapUntil` / `noteTap` make a Firmness wait for the `Release` of a tap already planned (unit tests in `threatTiming.test.ts`, Parry-first integration test in `firmBots.test.ts`); `TapBaby` is not gated (it is a command, not a `Release`: the sim does not end a press on it). `invariant` on `holdUntilMs` in `threatSystem.ts` with a test; the Space e2e now runs on the outlet served as `firm`; snapshot test titles / comment and the `ui.css` comment tidied.
+
+- [x] [Review][Decision] *Resolved: (a), kept as is (Geo delegated; one rule, the finger did come up).* A pause while a Firmness is held gags it as `released` — `PauseRequested` calls `inputMapper.releaseHeld()` (`boot.ts:965`), which sends `Release` at the sim clock, and `threatSystem.ts` judges it as a lift before the end of the attack. Same for a hidden tab or portrait. Options: (a) keep, one rule, the finger did come up (the open point already flagged in the Dev Notes); (b) do not send the `Release` for a pending Firmness when the pause is automatic (hidden, portrait), so the player is not punished for the phone's doing. [Edge Case Hunter]
+- [x] [Review][Decision] *Resolved: (a), kept as is (UX-DR14 draws the ring around any pressed threat).* The ring and the medium haptic also fire on a Parry threat (a tap held 400 ms rings, pops, then gags `wrongResponse`), and a quick tap flashes the ring on every Parry — `threatMarkers.ts` `updateHoldRing`, `threatSystem.ts` `ResponseHeld`. The dev flagged it as an open point. Options: (a) keep, UX-DR14 draws the ring around any pressed threat and it teaches the hold; (b) show the ring and emit the haptic only for `def.response === 'firm'`. [Blind Hunter, Dev Notes]
+- [x] [Review][Patch] AC 10: a bot can press, or tap, while its finger is busy — a Parry tap already scheduled (its `Release` names no threat) ends a Firmness planned after it, and a `TapBaby` planned during a hold ends it too. `isHolding` is only true once `schedulePress` has run. Track a « finger busy until » (tap: `pressAt + tapMs`; hold: until released), delay or skip a press that starts inside it, gate `TapBaby` on `!firmHold.isHolding`; add the reverse-order test (Parry listed before the Firmness) to `tests/bots/firmBots.test.ts` [src/bots/threatTiming.ts, src/bots/perfectBot.ts, src/bots/humanBot.ts]
+- [x] [Review][Patch] `def.holdUntilMs ?? 0` silently turns a `firm` def without `holdUntilMs` (content that bypassed the Zod schema) into a Firmness that ends at `press.t + holdMinMs`; replace by an `invariant` (`@shared/invariant`) and a test [src/sim/threats/threatSystem.ts:~101]
+- [x] [Review][Patch] AC 13: the « Space held » e2e is titled « closes the ring too » but only checks `ResponseHeld` on the Parry outlet; run it on the outlet re-served as `firm` (`serveOutletAsFirm`) and assert `pp-threat-hold--closed` [tests/e2e/holdRing.spec.ts:253]
+- [x] [Review][Patch] Cosmetic residue: tests still titled « is version 10 » while asserting 11 (`snapshot.test.ts:1137`, `:1398`, `:1809`, check each), the version-10 comment duplicated near `snapshot.test.ts:410`, a stray line break in the `ui.css` hold-ring comment (`ui.css:~1023`)
+- [x] [Review][Defer] `Release` names no threat, so any other finger-up ends a held Firmness (multi-touch) [src/sim/threats/threatSystem.ts:44] — deferred, pre-existing (the multi-touch item of 1.11 / 1.18, re-deferred to story 1.24)
+- [x] [Review][Defer] The `human` bot never lifts a Firmness early, so its reports show 100 % Firmness success [src/bots/humanBot.ts] — deferred: an error model with its own data belongs to the playtest indicators (story 3.4)
+- [x] [Review][Defer] `response: 'firm'` is accepted on a `hiddenZone` def, and `content:check` only compares `holdUntilMs` with the base window (no check against `holdMinMs`, tier / fatigue widening, or the wave spacing) [src/content/schemas/threat.ts, tools/content/contentChecks.ts] — deferred: no live Firmness yet; tighten with the first live Firmness threat (E5) and the sniff (4.9)
+- [x] [Review][Defer] A hold that began before Papa fell asleep or drank still succeeds (`isPapaBusy` is only checked on `PressThreat`) [src/sim/threats/threatSystem.ts] — deferred: no live Firmness, rule to settle with the busy states (E4/E5)
+- [x] [Review][Defer] Stuck-input paths mid-hold (`pointercancel`, `blur`) are not covered by a Firmness test [src/client/input] — deferred: the mapper's pause release covers hidden and blur today; cover it with the first live Firmness

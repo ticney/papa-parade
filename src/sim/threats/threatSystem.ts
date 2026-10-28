@@ -1,3 +1,4 @@
+import { invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
@@ -100,7 +101,9 @@ export function runThreats(world: World, ctx: StepContext): void {
       if (kind !== null && threat.state === 'windowOpen') {
         if (def.response === 'firm' && kind === 'firm') {
           // A Firmness is held to the end of the attack: the hold alone resolves it, no release needed.
-          const endAt = holdEndAt(press.t, threat.windowOpenAt, def.holdUntilMs ?? 0, holdMinMs);
+          // The schema ties `holdUntilMs` to `response: 'firm'`; a def that skipped it must not play.
+          invariant(def.holdUntilMs !== undefined, `firm threat ${def.id} has no holdUntilMs`);
+          const endAt = holdEndAt(press.t, threat.windowOpenAt, def.holdUntilMs, holdMinMs);
           const outcome = firmHoldOutcome(press.t, press.releasedAt, endAt, now);
           if (outcome === 'held') {
             resolveThreat(world, ctx, threat, def, press.quality, press.offsetMs);

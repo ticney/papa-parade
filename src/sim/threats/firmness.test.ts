@@ -64,6 +64,25 @@ async function telegraphed(response: 'firm' | 'parry', holdUntilMs = HOLD_UNTIL_
   return { sim, level, openAt: windowOpenAt, center: windowOpenAt + responseWindow.windowMs / 2 };
 }
 
+describe('a firm def without holdUntilMs', () => {
+  it('is refused when it is pressed, not played as a hold of holdMinMs', async () => {
+    const { level, center } = await telegraphed('firm');
+    const outlet = level.threats.outlet;
+    if (outlet === undefined) throw new Error('no outlet in the test level');
+    // Content that skipped the Zod schema: the def asks for a Firmness and says no end.
+    const { holdUntilMs: _skipped, ...bare } = outlet;
+    const broken = await createSim({
+      content,
+      geometry,
+      level: { ...level, threats: { ...level.threats, outlet: bare as typeof outlet } },
+      seed: 1,
+    });
+    broken.step();
+    broken.enqueue(press(center));
+    expect(() => runTo(broken, center + input.holdMinMs + STEP_MS)).toThrow(/holdUntilMs/);
+  });
+});
+
 describe('a Firmness', () => {
   it.each([
     ['perfect', 0],

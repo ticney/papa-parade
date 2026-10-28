@@ -158,6 +158,35 @@ describe('schedulePress', () => {
     expect(scheduler.size).toBe(1);
     expect(hold.isHolding).toBe(true);
   });
+
+  it('remembers when a tap lets go, and makes a Firmness wait for it', () => {
+    const scheduler = createCommandScheduler();
+    const hold = createFirmHold();
+    schedulePress(scheduler, hold, threat({ id: 1 }), 'parry', 2350, 80);
+    expect(hold.tapUntil).toBe(2430);
+    // The Firmness would be pressed inside the tap: its press moves to the tap's release.
+    schedulePress(scheduler, hold, threat({ id: 2 }), 'firm', 2380, 80);
+    const out: SimCommand[] = [];
+    scheduler.flush(2350, out);
+    scheduler.flush(2430, out);
+    expect(out).toEqual([
+      { type: 'PressThreat', t: 2350, threatId: 1 },
+      { type: 'Release', t: 2430 },
+      { type: 'PressThreat', t: 2430, threatId: 2 },
+    ]);
+    expect(hold.isHolding).toBe(true);
+  });
+
+  it('does not delay a Firmness pressed after the tap has let go', () => {
+    const scheduler = createCommandScheduler();
+    const hold = createFirmHold();
+    schedulePress(scheduler, hold, threat({ id: 1 }), 'parry', 2350, 80);
+    schedulePress(scheduler, hold, threat({ id: 2 }), 'firm', 2600, 80);
+    const out: SimCommand[] = [];
+    scheduler.flush(2350, out);
+    scheduler.flush(2600, out);
+    expect(out.at(-1)).toEqual({ type: 'PressThreat', t: 2600, threatId: 2 });
+  });
 });
 
 describe('createCycleMemory', () => {

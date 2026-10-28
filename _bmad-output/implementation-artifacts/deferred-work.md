@@ -410,3 +410,11 @@
 - **Pointer skip edges on the Result screen:** no `pointercancel`, `pointerup` does not re-check `isPrimary`, a second finger overwrites `pressedPointer`. Minor, no reported failure.
 - **The window-level Enter/Space skip handler fires from a focused debug text field** (playtest builds only).
 - **New live-content tests are brittle and partly tautological** (`tests/tools/sim/mamaScore.test.ts` strict `<` idle vs perfect on `salon_crawler`; `flowSystem.test.ts` expected payload built with `computeMamaScore`). They fail only when Geo retunes the content; revisit if they become noise.
+
+## Deferred from: code review of 1-23-fermete-optionnelle (2026-10-28)
+
+- **Multi-touch and a `Release` that names no threat**: any finger-up ends a held Firmness (spurious `released` gag). Pre-existing item of 1.11 / 1.18, still for the playtest (story 1.24).
+- **The `human` bot never lifts a Firmness early**: its reports show 100 % success on a Firmness. Add an early-release model (as data) with the playtest indicators, story 3.4.
+- **`firm` on a `hiddenZone` def, and thin `holdUntilMs` checks**: the schema accepts `response: 'firm'` on the silence, and `content:check` only requires `holdUntilMs > windowMs` (nothing against `holdMinMs`, the tier / fatigue widening or the wave spacing). Tighten with the first live Firmness threat (E5) and the sniff (4.9).
+- **A Firmness hold keeps succeeding when Papa becomes busy mid-hold** (`isPapaBusy` is only checked on `PressThreat`). Settle with the busy states of E4 / E5.
+- **No Firmness test for `pointercancel` / `blur` mid-hold**: the pause release covers them today. Add one with the first live Firmness.

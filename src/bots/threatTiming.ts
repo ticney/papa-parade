@@ -41,11 +41,16 @@ export function fingerPlanFor(response: BotResponse, tapMs: number): FingerPlan 
 
 /**
  * The one finger of a bot while it holds a Firmness (story 1.23 D7). `Release` names no threat, so
- * any other tap would end the hold: while one is under way the bot presses nothing else.
+ * any other tap would end the hold: while one is under way the bot presses nothing else, and a
+ * Firmness is never pressed before the `Release` of a tap already planned.
  */
 export interface FirmHold {
   /** True from the moment a Firmness press is planned until its `Release` has been sent. */
   readonly isHolding: boolean;
+  /** Sim ms when the last tap planned so far lets go (0 if none): the finger is free from then on. */
+  readonly tapUntil: number;
+  /** The bot has planned a tap whose `Release` falls at `releaseAt`. */
+  noteTap(releaseAt: number): void;
   /** The bot has planned a press on this threat that it will hold. */
   begin(threatId: number): void;
   /**
@@ -60,9 +65,16 @@ export function createFirmHold(): FirmHold {
   let threatId: number | null = null;
   // False until the sim has taken the press: the press is planned ahead of its step.
   let isPressed = false;
+  let tapUntil = 0;
   return {
     get isHolding() {
       return threatId !== null;
+    },
+    get tapUntil() {
+      return tapUntil;
+    },
+    noteTap(releaseAt) {
+      tapUntil = Math.max(tapUntil, releaseAt);
     },
     begin(id) {
       threatId = id;
@@ -84,7 +96,8 @@ export function createFirmHold(): FirmHold {
 
 /**
  * Plans the press of `threat` at `pressAt`: a tap (press, then release `tapMs` later), or the press
- * of a Firmness, which `hold` keeps down until the threat is answered.
+ * of a Firmness, which `hold` keeps down until the threat is answered. A Firmness waits for the
+ * `Release` of a tap already planned (`Release` names no threat: it would end the hold).
  */
 export function schedulePress(
   scheduler: CommandScheduler,
@@ -94,10 +107,12 @@ export function schedulePress(
   pressAt: number,
   tapMs: number,
 ): void {
-  scheduler.schedule({ type: 'PressThreat', t: asSimMs(pressAt), threatId: threat.id });
   const plan = fingerPlanFor(response, tapMs);
+  const at = plan.kind === 'tap' ? pressAt : Math.max(pressAt, hold.tapUntil);
+  scheduler.schedule({ type: 'PressThreat', t: asSimMs(at), threatId: threat.id });
   if (plan.kind === 'tap') {
-    scheduler.schedule({ type: 'Release', t: asSimMs(pressAt + plan.holdMs) });
+    scheduler.schedule({ type: 'Release', t: asSimMs(at + plan.holdMs) });
+    hold.noteTap(at + plan.holdMs);
   } else {
     hold.begin(threat.id);
   }

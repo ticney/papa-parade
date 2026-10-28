@@ -251,6 +251,8 @@ test.describe('the hold-ring', () => {
   });
 
   test('Space held on the auto-targeted threat closes the ring too', async ({ page }) => {
+    // The live level has no Firmness: the outlet is served as one, so the ring can close and stay.
+    await serveOutletAsFirm(page);
     const problems = collectProblems(page);
     await openFrozenSilent(page);
     const threatId = await outletInWindow(page);
@@ -267,8 +269,20 @@ test.describe('the hold-ring', () => {
     await expect(ring(page)).not.toHaveClass(/pp-threat-hold--closed/);
 
     const eventsBefore = (await ppEvents(page)).length;
-    await ppAdvance(page, HOLD_STEPS);
+    // Up to the step the sim says the press was held `holdMinMs`, then the ring is closed.
+    let heldFor: number | null = null;
+    for (let i = 0; i < HOLD_STEPS * 2 && heldFor === null; i++) {
+      await ppAdvance(page, 1);
+      await waitFrames(page, 1);
+      const press = (await ppWorld(page)).threats.find((threat) => threat.id === threatId)?.press;
+      if (press?.heldAt !== null && press?.heldAt !== undefined) heldFor = press.heldAt - press.t;
+    }
+    expect(heldFor).not.toBeNull();
+    expect(heldFor).toBeGreaterThanOrEqual(holdMinMs);
+    await waitFrames(page, 2);
     expect(await eventTypes(page, eventsBefore)).toContain('ResponseHeld');
+    await expect(ring(page)).toHaveClass(/pp-threat-hold--closed/);
+    expect(await progressOf(page)).toBe(100);
     await page.keyboard.up('Space');
     expect(problems).toEqual([]);
   });

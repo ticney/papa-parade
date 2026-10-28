@@ -1020,8 +1020,8 @@ body {
   `threatMarkers.ts` from the sim's pending press) of paper over the ring-track; the 2px ink outline is
   hard spread. Their sizes (the `inset` of the band, the `box-shadow` of the outline) are set inline
   by `threatMarkers.ts` from `constants.ts`, which `holdRingSpec.test.ts` checks against DESIGN.md.
-  Never threat-coloured. Once
-  the sim says the press was held that long (`--closed`) it is solid paper, with a pop.
+  Never threat-coloured. Once the sim says the press was held that long (`--closed`) it is solid
+  paper, with a pop.
 */
 .pp-threat-hold {
   --pp-hold-progress: 0;

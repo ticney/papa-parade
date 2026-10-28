@@ -98,20 +98,25 @@ describe('random bot on a Firmness', () => {
 });
 
 describe('the one finger of a bot holding a Firmness', () => {
-  it('presses no other threat while it holds', async () => {
-    // Two threats at once: the outlet (a Firmness) and the stairs (a Parry), both planned from 0 ms.
-    const base = createTestLevel({
-      waves: [testWave([OUTLET, STAIRS], { maxSimultaneous: 2 })],
-    });
+  // Two threats at once: the outlet (a Firmness) and the stairs (a Parry), both planned from 0 ms.
+  // `order` is the order they are listed in, so the bot looks at one before the other.
+  function twoThreatsLevel(
+    order: readonly [typeof OUTLET, typeof STAIRS] | readonly [typeof STAIRS, typeof OUTLET],
+  ) {
+    const base = createTestLevel({ waves: [testWave(order, { maxSimultaneous: 2 })] });
     const outlet = base.threats.outlet;
     if (outlet === undefined) throw new Error('no outlet in the test level');
-    const level = {
+    return {
       ...base,
       threats: {
         ...base.threats,
         outlet: { ...outlet, response: 'firm' as const, holdUntilMs: 2500 },
       },
     };
+  }
+
+  it('presses no other threat while it holds', async () => {
+    const level = twoThreatsLevel([OUTLET, STAIRS]);
     const sim = await createSim({
       content,
       geometry: createTestGeometry(),
@@ -144,4 +149,24 @@ describe('the one finger of a bot holding a Firmness', () => {
     // The test is only worth something if both kinds of threat were answered in the game.
     expect([...pressedDefs].sort()).toEqual(['outlet', 'stairs']);
   });
+
+  // The Parry comes first in the level: its tap is planned before the Firmness, and its `Release`
+  // (which names no threat) must not land inside the hold.
+  it.each(['perfect', 'human'] as const)(
+    'a Parry tap planned before the Firmness does not end it (%s, Parry listed first)',
+    async (botId) => {
+      const settings = { human: { reactionMs: 0, aimOffsetMs: 0, jitterSdMs: 0 } };
+      const { events } = await playBotGame(botId, 1, {
+        level: twoThreatsLevel([STAIRS, OUTLET]),
+        settings,
+      });
+      const outlet = events.filter(
+        (event) =>
+          event.type === 'GagTriggered' &&
+          (event.reason === 'released' || event.reason === 'wrongResponse'),
+      );
+      expect(outlet).toEqual([]);
+      expect(responses(events).some((response) => response.response === 'firm')).toBe(true);
+    },
+  );
 });
