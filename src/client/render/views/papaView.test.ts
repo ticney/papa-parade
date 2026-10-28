@@ -23,6 +23,8 @@ function papa(patch: Partial<PapaSlice> = {}): PapaSlice {
     dirZ: 0,
     isBlocked: false,
     glide: null,
+    objectId: null,
+    busyUntil: asSimMs(0),
     ...patch,
   };
 }
@@ -94,7 +96,7 @@ describe('createPapaView', () => {
     expect((cube.material as unknown as { color: { getHex(): number } }).color.getHex()).toBe(
       PALETTE.primary,
     );
-    expect(toon.size).toBe(2); // the cube and the ink of the hair
+    expect(toon.size).toBe(3); // the cube, the ink (hair, eyelids, « Z ») and the paper of the mug
   });
 
   it('puts the cube on the floor at the interpolated position, turned toward where he walks', () => {
@@ -152,5 +154,68 @@ describe('createPapaView', () => {
     expect(scene.getObjectByName('papa')).toBeDefined();
     view.dispose();
     expect(scene.getObjectByName('papa')).toBeUndefined();
+  });
+});
+
+describe('the nap and the coffee (story 1.19)', () => {
+  function build() {
+    const scene = new Scene();
+    const view = createPapaView(scene, createToonMaterialCache(), createBlobKit(), 0.25);
+    return { scene, view, named: (name: string) => scene.getObjectByName(name) as Object3D };
+  }
+
+  it('draws nothing of it by default: no eyelids, no « Z », no mug (no draw call at rest)', () => {
+    const { named } = build();
+    for (const name of ['papa_eyelids', 'papa_z', 'papa_mug']) {
+      expect(isShown(named(name)), name).toBe(false);
+    }
+  });
+
+  it('lowers the eyelids with the amount: hidden at 0, scaled down from the top, clamped', () => {
+    const { view, named } = build();
+    view.setEyelids(0.5);
+    expect(isShown(named('papa_eyelids'))).toBe(true);
+    expect(named('papa_eyelids').scale.y).toBe(0.5);
+    view.setEyelids(7);
+    expect(named('papa_eyelids').scale.y).toBe(1);
+    view.setEyelids(-1);
+    expect(isShown(named('papa_eyelids'))).toBe(false);
+  });
+
+  it('puts the eyelids on the cube, so they turn with his heading', () => {
+    const { scene, view, named } = build();
+    view.update(papa({ headingX: 1, headingZ: 0 }), 1);
+    const cube = scene.getObjectByName('papa') as Mesh;
+    expect(named('papa_eyelids').parent).toBe(cube);
+    expect(named('papa_mug').parent).toBe(cube);
+  });
+
+  it('shuts the eyelids and floats a « Z » while he sleeps, and puts them away when he wakes', () => {
+    const { view, named } = build();
+    view.setEyelids(0.2);
+    view.setAsleep(true, 0);
+    expect(isShown(named('papa_z'))).toBe(true);
+    expect(named('papa_eyelids').scale.y).toBe(1);
+    const restY = named('papa_z').position.y;
+    view.setAsleep(true, 300);
+    expect(named('papa_z').position.y).not.toBe(restY);
+    view.setAsleep(false, 600);
+    expect(isShown(named('papa_z'))).toBe(false);
+    // Back to what the telegraph asks for: the amount set before.
+    expect(named('papa_eyelids').scale.y).toBe(0.2);
+  });
+
+  it('shows the mug while he drinks', () => {
+    const { view, named } = build();
+    view.setDrinking(true);
+    expect(isShown(named('papa_mug'))).toBe(true);
+    view.setDrinking(false);
+    expect(isShown(named('papa_mug'))).toBe(false);
+  });
+
+  it('exposes the pose it drew, interpolated', () => {
+    const { view } = build();
+    view.update(papa(), 0.5);
+    expect([view.pose.xM, view.pose.zM]).toEqual([1.5, 1]);
   });
 });

@@ -69,6 +69,8 @@ describe('content/threats/outlet.json', () => {
     ['an unknown icon', [['icon', 'anvil']], ['icon']],
     ['a missing icon', [['icon', undefined]], ['icon']],
     ['a missing cue', [['feedback.gag', undefined]], ['feedback.gag']],
+    ['a missing target (no default)', [['target', undefined]], ['target']],
+    ['an unknown target', [['target', 'baby']], ['target']],
   ])('rejects %s', (_name, changes, expected) => {
     expect(failedPaths(mutated(...changes))).toEqual(expected);
   });
@@ -85,5 +87,31 @@ describe('content/threats/outlet.json', () => {
       .map(([key]) => key);
     expect(keys.length).toBeGreaterThan(0);
     expect(keys.filter((key) => !UNIT_SUFFIX.test(key))).toEqual([]);
+  });
+});
+
+describe('content/threats/papa_microsleep.json (story 1.19)', () => {
+  const micro = JSON.parse(
+    readFileSync(new URL('../../content/threats/papa_microsleep.json', import.meta.url), 'utf8'),
+  ) as Record<string, unknown>;
+
+  it('parses, stands on Papa, is parried and ends in the nap gag with the closed-eye glyph', () => {
+    const parsed = parseContentFile(
+      'content/threats/papa_microsleep.json',
+      JSON.stringify(micro),
+      ThreatDefSchema,
+    );
+    if (!parsed.ok) throw new Error('expected the micro-sleep to parse');
+    expect(parsed.value).toMatchObject({
+      id: 'papa_microsleep',
+      target: 'papa',
+      response: 'parry',
+      gag: 'papa_asleep',
+      icon: 'eyelids',
+    });
+  });
+
+  it('keeps the outlet on an anchor', () => {
+    expect(real.target).toBe('anchor');
   });
 });

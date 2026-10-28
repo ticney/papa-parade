@@ -73,8 +73,22 @@ describe('pickThreat', () => {
   const camera = createIsoCamera();
   fitIsoCamera(camera, ROOM, RECT.width / RECT.height);
   const tester = createHitTester(camera);
-  const entryA = { threatId: 1, xM: -3, yM: 0.3, zM: 0.5, icon: 'bolt' as const };
-  const entryB = { threatId: 2, xM: -2.6, yM: 0.3, zM: 0.5, icon: 'bolt' as const };
+  const entryA = {
+    threatId: 1,
+    xM: -3,
+    yM: 0.3,
+    zM: 0.5,
+    icon: 'bolt' as const,
+    followsPapa: false,
+  };
+  const entryB = {
+    threatId: 2,
+    xM: -2.6,
+    yM: 0.3,
+    zM: 0.5,
+    icon: 'bolt' as const,
+    followsPapa: false,
+  };
   const pxOf = (entry: { xM: number; yM: number; zM: number }) => {
     const v = new Vector3(entry.xM, entry.yM, entry.zM).project(camera);
     return {
@@ -128,7 +142,14 @@ describe('pickThreat', () => {
   });
 
   it('ignores an icon outside the frustum, and a point that is not a number', () => {
-    const far = { threatId: 3, xM: -3, yM: 0.3, zM: 0.5, icon: 'bolt' as const };
+    const far = {
+      threatId: 3,
+      xM: -3,
+      yM: 0.3,
+      zM: 0.5,
+      icon: 'bolt' as const,
+      followsPapa: false,
+    };
     const farCamera = createIsoCamera();
     fitIsoCamera(farCamera, ROOM, 2);
     farCamera.position.set(0, 0, 1000);
@@ -144,5 +165,59 @@ describe('pickThreat', () => {
 
   it('returns null for a level with no threat', () => {
     expect(tester.pickThreat(300, 200, RECT, { threats: [], entries: [] }, RADIUS)).toBeNull();
+  });
+});
+
+describe('pickObject (story 1.19)', () => {
+  const RECT = { left: 100, top: 50, width: 800, height: 400 };
+  const RADIUS = 64;
+  const camera = createIsoCamera();
+  fitIsoCamera(camera, ROOM, RECT.width / RECT.height);
+  const tester = createHitTester(camera);
+  const COFFEE = { id: 'coffee_machine', xM: -3.6, yM: 1.05, zM: -2 };
+  const PHONE = { id: 'phone', xM: -1.3, yM: 0.65, zM: -1.2 };
+  const pxOf = (object: { xM: number; yM: number; zM: number }) => {
+    const v = new Vector3(object.xM, object.yM, object.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+
+  it('picks the object whose icon point (at the height of its anchor) is within the radius, none outside', () => {
+    const at = pxOf(COFFEE);
+    expect(tester.pickObject(at.x, at.y, RECT, [COFFEE, PHONE], RADIUS)).toBe('coffee_machine');
+    expect(tester.pickObject(at.x + RADIUS, at.y, RECT, [COFFEE, PHONE], RADIUS)).toBe(
+      'coffee_machine',
+    );
+    expect(tester.pickObject(at.x + RADIUS + 1, at.y, RECT, [COFFEE], RADIUS)).toBeNull();
+  });
+
+  it('projects the height of the anchor: the floor point under the object is not its icon point', () => {
+    const floor = pxOf({ ...PHONE, yM: 0 });
+    const icon = pxOf(PHONE);
+    expect(Math.hypot(floor.x - icon.x, floor.y - icon.y)).toBeGreaterThan(5);
+    expect(tester.pickObject(icon.x, icon.y, RECT, [PHONE], 2)).toBe('phone');
+    expect(tester.pickObject(floor.x, floor.y, RECT, [PHONE], 2)).toBeNull();
+  });
+
+  it('picks the nearest of two, the earlier on an exact tie, and none from an empty list', () => {
+    const a = pxOf(COFFEE);
+    const b = pxOf(PHONE);
+    const midway = { x: (a.x + b.x) / 2 + 1, y: (a.y + b.y) / 2 };
+    const wide = 10_000;
+    const nearest =
+      Math.hypot(midway.x - b.x, midway.y - b.y) < Math.hypot(midway.x - a.x, midway.y - a.y)
+        ? 'phone'
+        : 'coffee_machine';
+    expect(tester.pickObject(midway.x, midway.y, RECT, [COFFEE, PHONE], wide)).toBe(nearest);
+    const twin = { ...COFFEE, id: 'twin' };
+    expect(tester.pickObject(a.x, a.y, RECT, [COFFEE, twin], RADIUS)).toBe('coffee_machine');
+    expect(tester.pickObject(a.x, a.y, RECT, [], RADIUS)).toBeNull();
+  });
+
+  it('refuses a point that is not a number', () => {
+    expect(tester.pickObject(Number.NaN, 10, RECT, [COFFEE], RADIUS)).toBeNull();
+    expect(tester.pickObject(10, Number.POSITIVE_INFINITY, RECT, [COFFEE], RADIUS)).toBeNull();
   });
 });

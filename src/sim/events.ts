@@ -77,6 +77,15 @@ export type SimEvent =
   | { type: 'NearMiss'; t: SimMs; threatId: number; gag: GagId }
   | { type: 'ThreatRearmed'; t: SimMs; threatId: number }
   /**
+   * Papa's fatigue crossed the threshold (strictly above it: `isAbove`), once per crossing, in each
+   * direction. Above it, windows shrink and micro-sleeps come (story 1.19).
+   */
+  | { type: 'FatigueThresholdCrossed'; t: SimMs; isAbove: boolean }
+  /** Papa arrived at a coffee machine and starts drinking; he is busy until `untilAt`. */
+  | { type: 'CoffeeStarted'; t: SimMs; objectId: string; untilAt: SimMs }
+  /** Papa finished his coffee: the fatigue it left (`fatigue`, in points) and he is idle again. */
+  | { type: 'CoffeeDrunk'; t: SimMs; fatigue: number }
+  /**
    * A prop took a hit of `impulseNs` (N·s) or more, at most once per `feel.physics.impactCooldownMs`.
    * `otherPropId` is the prop it hit, null for the floor, a wall or furniture; a hit between two
    * props gives one event for each. The noise gauge (3.1) reads only this event.
@@ -95,6 +104,9 @@ export type SimEvent =
  */
 export const SIM_EVENT_TYPES = [
   'BabyStateChanged',
+  'CoffeeDrunk',
+  'CoffeeStarted',
+  'FatigueThresholdCrossed',
   'GagTriggered',
   'InvariantViolated',
   'LevelEnded',

@@ -4,9 +4,8 @@ import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import { createIsoCamera, fitIsoCamera } from '../render/isoCamera.ts';
-import type { ContextObject } from './contextObject.ts';
 import type { PadButton, PadFamily, PadState, StickAxes } from './gamepadInput.ts';
-import { createHitTester, type ThreatTargets } from './hitTest.ts';
+import { createHitTester, type ObjectTarget, type ThreatTargets } from './hitTest.ts';
 import { createInputMapper } from './inputMapper.ts';
 import { createMoveIntent } from './moveIntent.ts';
 import type { PointerSample } from './pointerInput.ts';
@@ -21,6 +20,7 @@ const ROOM = {
 };
 const RECT = { left: 100, top: 50, width: 800, height: 400 };
 const TOUCH_RADIUS_PX = 48;
+const OBJECT_TOUCH_RADIUS_PX = 64;
 
 const click = (
   clientX: number,
@@ -50,7 +50,7 @@ function setup() {
   };
   const padButtons: PadButton[] = [];
   const padPresence: [boolean, PadFamily][] = [];
-  let objects: ContextObject[] = [];
+  let objects: ObjectTarget[] = [];
   const commands: SimCommand[] = [];
   const clock = { realToSim: (ms: number) => asSimMs(ms - 1000) };
   const sim = {
@@ -58,7 +58,7 @@ function setup() {
     world: {
       time: { sim: asSimMs(777) },
       flow: { state: 'playing' as 'playing' | 'ended' },
-      papa: { xM: 0, zM: 0 },
+      papa: { xM: 0, zM: 0, state: 'idle' as string },
       threats: [] as unknown[],
     },
   };
@@ -111,6 +111,7 @@ function setup() {
     moveIntent,
     getThreatTargets: () => targets,
     touchRadiusPx: TOUCH_RADIUS_PX,
+    objectTouchRadiusPx: OBJECT_TOUCH_RADIUS_PX,
     onThreatPressed: (id) => pressedIds.push(id),
     showTapMarker: (x, z) => markers.push([x, z]),
     onTap: (x, z) => taps.push([x, z]),
@@ -122,7 +123,7 @@ function setup() {
     pad,
     padButtons,
     padPresence,
-    setObjects: (next: ContextObject[]) => (objects = next),
+    setObjects: (next: ObjectTarget[]) => (objects = next),
     state,
     commands,
     held,
@@ -135,7 +136,11 @@ function setup() {
     newSim: () => {
       const other = {
         enqueue: (command: SimCommand) => commands.push(command),
-        world: { time: { sim: asSimMs(888) }, flow: { state: 'playing' } },
+        world: {
+          time: { sim: asSimMs(888) },
+          flow: { state: 'playing' },
+          papa: { xM: 0, zM: 0, state: 'idle' },
+        },
       };
       return { sim: other, timeMap: clock } as unknown as ActiveLevel;
     },
@@ -281,7 +286,11 @@ describe('createInputMapper: movement', () => {
     setActive({
       sim: {
         enqueue: (c: SimCommand) => commands.push(c),
-        world: { time: { sim: asSimMs(0) }, flow: { state: 'playing' } },
+        world: {
+          time: { sim: asSimMs(0) },
+          flow: { state: 'playing' },
+          papa: { xM: 0, zM: 0, state: 'idle' },
+        },
       },
       timeMap: {
         realToSim: (ms: number) => {
@@ -353,7 +362,7 @@ describe('createInputMapper: movement', () => {
 
 describe('createInputMapper: threats', () => {
   /** An outlet-like icon at (-3, 0.3, 0.5): where it lands on screen with the test camera. */
-  const ICON = { threatId: 4, xM: -3, yM: 0.3, zM: 0.5, icon: 'bolt' as const };
+  const ICON = { threatId: 4, xM: -3, yM: 0.3, zM: 0.5, icon: 'bolt' as const, followsPapa: false };
   const threat = (state: string, id = 4) => ({ id, state }) as never;
 
   function withThreat(state = 'windowOpen') {
@@ -645,8 +654,8 @@ describe('createInputMapper: Space and A (story 1.17)', () => {
   });
 
   describe('the context action (D6)', () => {
-    const COFFEE = { id: 'coffee_machine', xM: -3.6, zM: -2 };
-    const PHONE = { id: 'phone', xM: -1.3, zM: -1.2 };
+    const COFFEE = { id: 'coffee_machine', xM: -3.6, yM: 1.05, zM: -2 };
+    const PHONE = { id: 'phone', xM: -1.3, yM: 0.65, zM: -1.2 };
 
     it('walks to the nearest object in reach when no threat is active', () => {
       const { mapper, sim, commands, setObjects } = setup();
@@ -920,6 +929,100 @@ describe('createInputMapper: Space and A (story 1.17)', () => {
       state.pause = 'paused';
       mapper.handleAction('down', 1500, 'keyboard');
       expect(mapper.lastDevice).toBe('keyboard');
+    });
+  });
+});
+
+describe('createInputMapper: touching an object (story 1.19)', () => {
+  const COFFEE = { id: 'coffee_machine', xM: -3.6, yM: 1.05, zM: -2 };
+  const ICON = {
+    threatId: 4,
+    xM: -3.6,
+    yM: 1.05,
+    zM: -2,
+    icon: 'bolt' as const,
+    followsPapa: false,
+  };
+  const pxOf = (camera: Parameters<typeof Vector3.prototype.project>[0], o: typeof COFFEE) => {
+    const v = new Vector3(o.xM, o.yM, o.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+
+  it('sends TapObject for a press within objectTouchRadiusPx of the icon point, not a TapFloor', () => {
+    const { mapper, commands, markers, taps, camera, setObjects } = setup();
+    setObjects([COFFEE]);
+    const at = pxOf(camera, COFFEE);
+    mapper.handlePointerDown(click(at.x + OBJECT_TOUCH_RADIUS_PX - 2, at.y));
+    expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'coffee_machine' }]);
+    // The marker shows where Papa will stand: the object's floor point.
+    expect(markers).toEqual([[COFFEE.xM, COFFEE.zM]]);
+    expect(taps).toEqual([[COFFEE.xM, COFFEE.zM]]);
+  });
+
+  it('falls back to the floor beyond the radius', () => {
+    const { mapper, commands, camera, setObjects } = setup();
+    setObjects([COFFEE]);
+    const at = pxOf(camera, COFFEE);
+    mapper.handlePointerDown(click(at.x + OBJECT_TOUCH_RADIUS_PX + 4, at.y));
+    expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
+  });
+
+  it('prefers a threat to an object (threat > object > floor)', () => {
+    const { mapper, commands, camera, setObjects, setTargets } = setup();
+    setObjects([COFFEE]);
+    setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+    const at = pxOf(camera, COFFEE); // the threat's icon is drawn on the object
+    mapper.handlePointerDown(click(at.x, at.y));
+    expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+  });
+
+  describe('while Papa is busy (drinking or asleep)', () => {
+    it.each(['drink', 'asleep'])(
+      'drops a press, an object tap, a floor tap and a Move (%s)',
+      (state) => {
+        const { mapper, sim, commands, held, camera, setObjects, setTargets } = setup();
+        setObjects([COFFEE]);
+        setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+        sim.world.papa.state = state;
+        const at = pxOf(camera, COFFEE);
+        mapper.handlePointerDown(click(at.x, at.y)); // a threat and an object
+        mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10)); // the floor
+        held.add('KeyD');
+        mapper.onKeysChanged(1500);
+        mapper.handleAction('down', 1500, 'keyboard');
+        expect(commands).toEqual([]);
+      },
+    );
+
+    it('shows no target while busy', () => {
+      const { mapper, sim } = setup();
+      sim.world.threats = [
+        {
+          id: 1,
+          state: 'windowOpen',
+          xM: 1,
+          zM: 1,
+          windowOpenAt: 1000,
+          responseWindow: { windowMs: 600, perfectMs: 100, toleranceMs: 30, bufferMs: 100 },
+        },
+      ];
+      expect(mapper.targetedThreatId()).toBe(1);
+      sim.world.papa.state = 'asleep';
+      expect(mapper.targetedThreatId()).toBeNull();
+    });
+
+    it('walks again from a held key once he is idle (resumeHeld)', () => {
+      const { mapper, sim, commands, held } = setup();
+      sim.world.papa.state = 'asleep';
+      held.add('KeyD');
+      mapper.onKeysChanged(1500);
+      expect(commands).toEqual([]);
+      sim.world.papa.state = 'idle';
+      mapper.resumeHeld();
+      expect(commands.map((c) => c.type)).toEqual(['Move']);
     });
   });
 });

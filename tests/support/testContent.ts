@@ -6,7 +6,13 @@ import { parseContentFile } from '@content/parseContentFile';
 import type { BotSettings } from '@content/schemas/bots';
 import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
-import type { LevelObject, LevelVariant, LevelWave, LevelWaveThreat } from '@content/schemas/level';
+import type {
+  LevelGauges,
+  LevelObject,
+  LevelVariant,
+  LevelWave,
+  LevelWaveThreat,
+} from '@content/schemas/level';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
 import { type ThreatDef, ThreatDefSchema } from '@content/schemas/threat';
 import type { Sim } from '@sim';
@@ -129,9 +135,19 @@ export function createTestCoffeeTableObject(): ThreatDef {
   return readThreatFixture('testCoffeeTableObject.threat.json');
 }
 
-/** The three frozen threats, by id. */
+/** The micro-sleep, frozen like the outlet (`testMicroSleep.threat.json`): the threat on Papa. */
+export function createTestMicroSleep(): ThreatDef {
+  return readThreatFixture('testMicroSleep.threat.json');
+}
+
+/** The four frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
-  const defs = [createTestOutlet(), createTestStairs(), createTestCoffeeTableObject()];
+  const defs = [
+    createTestOutlet(),
+    createTestStairs(),
+    createTestCoffeeTableObject(),
+    createTestMicroSleep(),
+  ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
 
@@ -173,6 +189,8 @@ export function testWave(
 export interface TestLevelOptions {
   waves?: readonly LevelWave[];
   objects?: readonly LevelObject[];
+  /** The level's gauges; none by default (golden and most test levels have no fatigue). */
+  gauges?: LevelGauges;
   durationMs?: number;
   variant?: LevelVariant;
   feelOverrides?: Record<string, unknown>;
@@ -186,6 +204,7 @@ export interface TestLevelOptions {
 export function createTestLevel({
   waves = [],
   objects = [],
+  gauges = {},
   durationMs = TEST_LEVEL_DURATION_MS,
   variant = 'nap',
   feelOverrides = {},
@@ -199,6 +218,12 @@ export function createTestLevel({
       threats[def.id] = def;
     }
   }
+  const microSleepDef = gauges.fatigue?.microSleepDef;
+  if (microSleepDef !== undefined) {
+    const def = all[microSleepDef];
+    if (def === undefined) throw new Error(`no frozen threat "${microSleepDef}" in tests/support`);
+    threats[def.id] = def;
+  }
   return {
     level: {
       id: 'salon_crawler',
@@ -206,6 +231,7 @@ export function createTestLevel({
       durationMs,
       waves: waves.map((wave) => ({ ...wave, threats: [...wave.threats] })),
       objects: [...objects],
+      gauges: structuredClone(gauges),
       feelOverrides: { ...feelOverrides },
     },
     threats,
@@ -214,9 +240,12 @@ export function createTestLevel({
 
 /** The coffee machine and the phone of the live level, at the frozen room's anchors of the same names. */
 export const TEST_OBJECTS: readonly LevelObject[] = [
-  { id: 'coffee_machine', anchor: 'coffee_machine' },
-  { id: 'phone', anchor: 'phone' },
+  { id: 'coffee_machine', kind: 'coffee_machine', anchor: 'coffee_machine' },
+  { id: 'phone', kind: 'phone', anchor: 'phone' },
 ];
+
+/** A level with fatigue: the frozen micro-sleep (`TestLevelOptions.gauges`). */
+export const FATIGUE_GAUGES: LevelGauges = { fatigue: { microSleepDef: 'papa_microsleep' } };
 
 /** Runs `n` steps: time in tests is counted in steps (`stepN(sim, 120)` = 1200 ms of sim time). */
 export function stepN(sim: Sim, n: number): void {

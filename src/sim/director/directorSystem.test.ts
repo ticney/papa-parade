@@ -6,6 +6,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  FATIGUE_GAUGES,
   OUTLET,
   STAIRS,
   testWave,
@@ -282,5 +283,64 @@ describe('runDirector', () => {
       expect(await draws(0)).toBe(true);
       expect(await draws(500)).toBe(true);
     });
+  });
+});
+
+describe('the micro-sleep and the director (story 1.19)', () => {
+  const tiredContent = {
+    ...content,
+    feel: {
+      ...content.feel,
+      fatigue: { ...content.feel.fatigue, startPoints: 90, microSleepMinMs: 0, microSleepMaxMs: 0 },
+    },
+  };
+
+  it('does not count against maxSimultaneous: a wave of one still telegraphs its own threat', async () => {
+    const sim = await createSim({
+      content: tiredContent,
+      geometry,
+      level: createTestLevel({
+        waves: [testWave([OUTLET], { gapMinMs: 1000, gapMaxMs: 1000 })],
+        gauges: FATIGUE_GAUGES,
+      }),
+      seed: 1,
+    });
+    const events = runTo(sim, 1100);
+    const all = telegraphs(events);
+    const microSleep = all.find((event) => event.kind === 'papa_microsleep');
+    const outlet = all.find((event) => event.kind === 'outlet');
+    expect(microSleep).toMatchObject({ waveIndex: -1 });
+    // The micro-sleep is announced (and still up) when the outlet's gap ends: the outlet comes on time.
+    expect(microSleep?.t).toBeLessThan(1000);
+    expect(outlet).toMatchObject({ t: 1000, waveIndex: 0 });
+  });
+
+  it('never draws the micro-sleep: a wave with nothing to draw plans nothing, whatever the fatigue', async () => {
+    const sim = await createSim({
+      content, // not tired: the system never spawns it
+      geometry,
+      level: createTestLevel({ waves: [testWave([])], gauges: FATIGUE_GAUGES }),
+      seed: 1,
+    });
+    const events = runTo(sim, 20_000);
+    expect(telegraphs(events)).toEqual([]);
+  });
+
+  it('keeps the draws of a level with no fatigue exactly as before (same pick, same instants)', async () => {
+    const plain = createTestLevel({ waves: [testWave([OUTLET, STAIRS])] });
+    const withGauge = createTestLevel({
+      waves: [testWave([OUTLET, STAIRS])],
+      gauges: FATIGUE_GAUGES,
+    });
+    const a = telegraphs(runTo(await newSim(plain, 3), 30_000)).map((event) => [
+      event.t,
+      event.kind,
+    ]);
+    const b = telegraphs(runTo(await newSim(withGauge, 3), 30_000)).map((event) => [
+      event.t,
+      event.kind,
+    ]);
+    // Fatigue stays under the threshold for 140 s: the gauge changes nothing the director draws.
+    expect(b).toEqual(a);
   });
 });

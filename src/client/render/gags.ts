@@ -42,6 +42,9 @@ export const GAG_PRESENTATIONS: Readonly<Record<GagId, GagPresentation>> = {
   stairs_slide: { lightsOff: false, hair: false, babySlide: true },
   // The falling prop is its show (the sim pushes it): the stage has nothing to add.
   table_object_fall: { lightsOff: false, hair: false, babySlide: false },
+  // Papa nodding off is drawn from the world (`papa.state === 'asleep'`: shut eyelids and a « Z »,
+  // story 1.19), not played as an effect: the stage has nothing to add.
+  papa_asleep: { lightsOff: false, hair: false, babySlide: false },
 };
 
 /** Total time the lights are off the full level, in sim ms. */

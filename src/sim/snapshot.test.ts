@@ -5,8 +5,10 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  FATIGUE_GAUGES,
   OUTLET,
   stepN,
+  TEST_OBJECTS,
   testWave,
 } from '../../tests/support/testContent.ts';
 import { PARRY_RELEASE_AFTER_MS } from '../../tests/support/timeEffects.ts';
@@ -389,13 +391,13 @@ describe('snapshot / restore', () => {
   it('refuses an unknown snapshot version', async () => {
     const sim = await createSim({ content, geometry, level, seed: 5 });
     const snapshot = sim.snapshot();
-    expect(() => sim.restore({ ...snapshot, version: 1 as 6 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 1 as 7 })).toThrow(/version/);
     // Version 3 predates the base scale and the slow-mos (story 1.14).
-    expect(() => sim.restore({ ...snapshot, version: 3 as 6 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 3 as 7 })).toThrow(/version/);
     // Version 4 has no Rapier world (story 1.15).
-    expect(() => sim.restore({ ...snapshot, version: 4 as 6 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...snapshot, version: 4 as 7 })).toThrow(/version 4/);
     // Version 5 has no director, flow or wave index (story 1.18).
-    expect(() => sim.restore({ ...snapshot, version: 5 as 6 })).toThrow(/version 5/);
+    expect(() => sim.restore({ ...snapshot, version: 5 as 7 })).toThrow(/version 5/);
   });
 
   it('refuses a snapshot of another level', async () => {
@@ -921,7 +923,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
   it('is taken while a prop moves, and carries the Rapier world as base64', async () => {
     const sim = await midFall();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(6);
+    expect(snapshot.version).toBe(7);
     expect(snapshot.physics).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
     expect(snapshot.world.props[0]?.xM).toBeGreaterThan(0.7);
     expect(snapshot.world.props[0]?.yM).toBeLessThan(0.5);
@@ -972,7 +974,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
 
   it('refuses a snapshot from before the Rapier world (version 4)', async () => {
     const sim = await newSim();
-    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 6 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 7 })).toThrow(/version 4/);
   });
 
   describe('refuses a malformed props slice, with its path', () => {
@@ -1085,11 +1087,11 @@ describe('snapshot / restore of the director and the flow (story 1.18)', () => {
   const threat0 = (w: Record<string, unknown>) =>
     (w.threats as Record<string, unknown>[])[0] as Record<string, unknown>;
 
-  it('is version 6, and carries the director, the flow and the wave index of each threat', async () => {
+  it('is version 7, and carries the director, the flow and the wave index of each threat', async () => {
     const sim = await newSim();
     stepN(sim, 60); // 600 ms: wave 0 entered, the outlet telegraphed
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(6);
+    expect(snapshot.version).toBe(7);
     expect(snapshot.world.director.waveIndex).toBe(0);
     expect(snapshot.world.flow).toEqual({ state: 'playing', enteredAt: 0 });
     expect(snapshot.world.threats[0]).toMatchObject({ state: 'telegraph', waveIndex: 0 });
@@ -1183,5 +1185,139 @@ describe('snapshot / restore of the director and the flow (story 1.18)', () => {
       const target = await newSim();
       expect(() => target.restore(snapshot)).toThrow(expected);
     });
+  });
+});
+
+describe('snapshot / restore of the gauges and the busy Papa (story 1.19)', () => {
+  const tired = {
+    ...content,
+    feel: {
+      ...content.feel,
+      fatigue: { ...content.feel.fatigue, startPoints: 90, coffeeDurationMs: 20_000 },
+    },
+  };
+  const fatigueLevel = createTestLevel({ objects: TEST_OBJECTS, gauges: FATIGUE_GAUGES });
+  const newTired = () => createSim({ content: tired, geometry, level: fatigueLevel, seed: 9 });
+
+  /** Steps until Papa is drinking (a coffee of 20 s). */
+  async function drinking() {
+    const sim = await newTired();
+    sim.enqueue({ type: 'TapObject', t: asSimMs(0), objectId: 'coffee_machine' });
+    while (sim.world.papa.state !== 'drink') sim.step();
+    return sim;
+  }
+
+  it('carries the gauges slice, the walk to an object and the end of a busy state', async () => {
+    const sim = await newTired();
+    sim.enqueue({ type: 'TapObject', t: asSimMs(0), objectId: 'coffee_machine' });
+    stepN(sim, 5);
+    const walking = sim.snapshot().world;
+    expect(walking.papa).toMatchObject({
+      state: 'walkPath',
+      objectId: 'coffee_machine',
+      busyUntil: 0,
+    });
+    expect(walking.gauges).toMatchObject({ isFatigueAbove: true });
+    expect(walking.gauges.microSleepAt).toBeGreaterThan(0);
+    const busy = (await drinking()).snapshot().world;
+    expect(busy.papa).toMatchObject({ state: 'drink', objectId: null });
+    expect(busy.papa.busyUntil).toBeGreaterThan(0);
+    expect(busy.papa.path).toEqual([]);
+    expect(busy.papa.glide).toBeNull();
+  });
+
+  it('restores a coffee mid-drink to the uninterrupted hash', async () => {
+    const live = await drinking();
+    const snapshot = live.snapshot();
+    const copy = await newTired();
+    copy.restore(snapshot);
+    stepN(live, 300);
+    stepN(copy, 300);
+    expect(hashJson(copy.world)).toBe(hashJson(live.world));
+  });
+
+  describe('refuses a damaged slice, naming the field', () => {
+    const papa = (w: Record<string, unknown>) => w.papa as Record<string, unknown>;
+    const gauges = (w: Record<string, unknown>) => w.gauges as Record<string, unknown>;
+    const set = (target: Record<string, unknown>, key: string, value: unknown): void => {
+      target[key] = value;
+    };
+    const broken: [string, (w: Record<string, unknown>) => void, RegExp][] = [
+      ['no gauges', (w) => delete w.gauges, /world\.gauges is missing/],
+      ['a fatigue above 100', (w) => set(gauges(w), 'fatigue', 100.5), /world\.gauges\.fatigue/],
+      ['a negative fatigue', (w) => set(gauges(w), 'fatigue', -1), /world\.gauges\.fatigue/],
+      ['a NaN fatigue', (w) => set(gauges(w), 'fatigue', Number.NaN), /world\.gauges\.fatigue/],
+      [
+        'a non-boolean isFatigueAbove',
+        (w) => set(gauges(w), 'isFatigueAbove', 1),
+        /isFatigueAbove/,
+      ],
+      [
+        'a negative microSleepAt',
+        (w) => set(gauges(w), 'microSleepAt', -5),
+        /world\.gauges\.microSleepAt/,
+      ],
+      [
+        'a micro-sleep pending while not above the threshold',
+        (w) => set(gauges(w), 'isFatigueAbove', false),
+        /world\.gauges\.microSleepAt/,
+      ],
+      [
+        'above the threshold with no micro-sleep pending',
+        (w) => set(gauges(w), 'microSleepAt', null),
+        /world\.gauges\.microSleepAt/,
+      ],
+      [
+        'an object id that is a number',
+        (w) => set(papa(w), 'objectId', 3),
+        /world\.papa\.objectId/,
+      ],
+      [
+        'an object the level lacks',
+        (w) => set(papa(w), 'objectId', 'kettle'),
+        /world\.papa\.objectId/,
+      ],
+      ['an object while idle', (w) => set(papa(w), 'objectId', 'phone'), /world\.papa\.objectId/],
+      ['a NaN busyUntil', (w) => set(papa(w), 'busyUntil', Number.NaN), /world\.papa\.busyUntil/],
+      ['a busy end while idle', (w) => set(papa(w), 'busyUntil', 500), /world\.papa\.busyUntil/],
+      [
+        'a drink with no end',
+        (w) => {
+          set(papa(w), 'state', 'drink');
+          set(papa(w), 'busyUntil', 0);
+        },
+        /world\.papa\.busyUntil/,
+      ],
+      [
+        'a sleeping Papa that still walks',
+        (w) => {
+          set(papa(w), 'state', 'asleep');
+          set(papa(w), 'busyUntil', 5000);
+          set(papa(w), 'path', [1, 1]);
+        },
+        /world\.papa\.path/,
+      ],
+    ];
+    it.each(broken)('%s', async (_name, damage, expected) => {
+      const live = await newTired();
+      stepN(live, 5);
+      const snapshot = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<
+        typeof live.snapshot
+      >;
+      damage(snapshot.world as unknown as Record<string, unknown>);
+      const target = await newTired();
+      expect(() => target.restore(snapshot)).toThrow(expected);
+    });
+  });
+
+  it('refuses fatigue above the threshold in a level that has no fatigue gauge', async () => {
+    const live = await createSim({ content, geometry, level, seed: 9 });
+    stepN(live, 5);
+    const snapshot = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<
+      typeof live.snapshot
+    >;
+    Object.assign(snapshot.world.gauges, { isFatigueAbove: true, microSleepAt: 500 });
+    const target = await createSim({ content, geometry, level, seed: 9 });
+    expect(() => target.restore(snapshot)).toThrow(/world\.gauges\.isFatigueAbove/);
   });
 });

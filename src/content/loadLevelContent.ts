@@ -38,8 +38,8 @@ function checkId(file: string, id: string, expected: string): ContentProblem[] {
 }
 
 /**
- * Reads `levels/<levelId>.json`, then each distinct `threats/<def>.json` its waves plan, in order of
- * first reference, through the same source and the same parser as `loadContent`. It collects every
+ * Reads `levels/<levelId>.json`, then each distinct `threats/<def>.json` its waves plan (and its
+ * `gauges.fatigue.microSleepDef`, last), in order of first reference, through the same source and the same parser as `loadContent`. It collects every
  * problem (a missing def file names the level's JSON path, `waves[1].threats[0].def`). It checks no anchor
  * and no gag id: it has no geometry and must not know the sim (`createSim` and `content:check` do).
  * Never throws and never logs: the caller logs.
@@ -62,6 +62,11 @@ export async function loadLevelContent(
   const planned = level.waves.flatMap((wave, w) =>
     wave.threats.map((entry, i) => ({ defId: entry.def, path: ['waves', w, 'threats', i, 'def'] })),
   );
+  // The micro-sleep of a level with fatigue is loaded after the wave defs (story 1.19).
+  const microSleepDef = level.gauges.fatigue?.microSleepDef;
+  if (microSleepDef !== undefined) {
+    planned.push({ defId: microSleepDef, path: ['gauges', 'fatigue', 'microSleepDef'] });
+  }
   for (const { defId, path } of planned) {
     if (Object.hasOwn(threats, defId) || failed.has(defId)) continue;
     const defFile = `${THREAT_DEF_PATTERN.dir}/${defId}${THREAT_DEF_PATTERN.suffix}`;

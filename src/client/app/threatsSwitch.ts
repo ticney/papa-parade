@@ -1,4 +1,5 @@
 import type { LevelContent } from '@content/contentBundle';
+import type { ThreatDef } from '@content/schemas/threat';
 import { log } from '@shared/log';
 
 /**
@@ -15,9 +16,16 @@ export function readThreatsOff(search: string): boolean {
 }
 
 /**
- * The same level with no wave and no def: still a valid `LevelContent` for `createSim`. The
- * duration stays, so the timer still runs and the level still ends.
+ * The same level with no wave and no wave def: still a valid `LevelContent` for `createSim`. The
+ * duration stays, so the timer still runs and the level still ends. The level's gauges stay, and
+ * the micro-sleep def with them (story 1.19: `createSim` refuses a fatigue gauge whose def is not
+ * loaded); the first micro-sleep comes minutes in, so a quiet room stays quiet.
  */
 export function withoutThreats(content: LevelContent): LevelContent {
-  return { level: { ...content.level, waves: [] }, threats: {} };
+  const microSleepDef = content.level.gauges.fatigue?.microSleepDef;
+  const microSleep =
+    microSleepDef !== undefined && Object.hasOwn(content.threats, microSleepDef)
+      ? { [microSleepDef]: content.threats[microSleepDef] as ThreatDef }
+      : {};
+  return { level: { ...content.level, waves: [] }, threats: microSleep };
 }

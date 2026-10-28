@@ -14,6 +14,7 @@
     "holdMinMs": 400,
     "earlyPress": "fail",
     "touchRadiusPx": 48,
+    "objectTouchRadiusPx": 64,
     "autoTargetConeDeg": 60,
     "contextReachM": 1.5,
     "stickDeadzonePct": 20,
@@ -36,6 +37,7 @@
     "actMs": 1500
   },
   "fatigue": {
+    "startPoints": 0,
     "perSec": 0.5,
     "carriedMultiplier": 2,
     "thresholdPoints": 70,
@@ -43,7 +45,8 @@
     "microSleepMinMs": 8000,
     "microSleepMaxMs": 12000,
     "coffeeReductionPoints": 40,
-    "coffeeDurationMs": 3000
+    "coffeeDurationMs": 3000,
+    "asleepMs": 3000
   },
   "instinct": {
     "timeScale": 0.8,

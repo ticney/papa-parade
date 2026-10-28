@@ -29,6 +29,7 @@ describe('commandProblem', () => {
       'PressThreat',
       'PushProp',
       'Release',
+      'SetFatigue',
       'SetTimeScale',
       'TapFloor',
       'TapObject',
@@ -104,5 +105,22 @@ describe('commandProblem', () => {
     ['a non-object', 42, /object/],
   ])('refuses %s', (_name, command, message) => {
     expect(commandProblem(command)).toMatch(message);
+  });
+});
+
+describe('SetFatigue (story 1.19)', () => {
+  it('accepts a finite number of points, whatever its value (the sim holds it in [0, 100])', () => {
+    for (const points of [0, 80, -5, 250]) {
+      expect(commandProblem({ type: 'SetFatigue', t: 0, points })).toBeNull();
+    }
+  });
+
+  it.each([
+    ['no points', { type: 'SetFatigue', t: 0 }],
+    ['NaN points', { type: 'SetFatigue', t: 0, points: Number.NaN }],
+    ['Infinity points', { type: 'SetFatigue', t: 0, points: Number.POSITIVE_INFINITY }],
+    ['a string', { type: 'SetFatigue', t: 0, points: '80' }],
+  ])('refuses %s', (_name, command) => {
+    expect(commandProblem(command)).toMatch(/SetFatigue: points must be a finite number/);
   });
 });

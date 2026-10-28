@@ -107,6 +107,14 @@
             "pattern": "^[a-z][a-z0-9_]*$",
             "description": "The object id, the `objectId` of `TapObject`; unique in the level."
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "coffee_machine",
+              "phone"
+            ],
+            "description": "What the object is: it decides what Papa does on arriving at it."
+          },
           "anchor": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9_]*$",
@@ -115,11 +123,35 @@
         },
         "required": [
           "id",
+          "kind",
           "anchor"
         ],
         "additionalProperties": false,
         "description": "One interactive object: what Space or A can walk Papa to, and where it stands."
       }
+    },
+    "gauges": {
+      "default": {},
+      "description": "The gauges of the level (story 1.19); none by default.",
+      "type": "object",
+      "properties": {
+        "fatigue": {
+          "description": "Papa gets tired in this level. Absent: no fatigue, no gauge, no micro-sleep.",
+          "type": "object",
+          "properties": {
+            "microSleepDef": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "description": "The id of the `content/threats/<def>.json` Papa falls into when he is tired (`target: \"papa\"`)."
+            }
+          },
+          "required": [
+            "microSleepDef"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     },
     "feelOverrides": {
       "default": {},
@@ -137,6 +169,7 @@
     "durationMs",
     "waves",
     "objects",
+    "gauges",
     "feelOverrides"
   ],
   "additionalProperties": false,

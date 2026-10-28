@@ -30,6 +30,10 @@ export interface PapaSlice {
   isBlocked: boolean;
   /** The glide towards a threat that was pressed; non-null exactly in `glide`. Choreography only (P3). */
   glide: PapaGlide | null;
+  /** The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19). */
+  objectId: string | null;
+  /** When `drink` / `asleep` ends, in sim time; 0 in any other state. */
+  busyUntil: SimMs;
 }
 
 /** Papa's glide to a pressed threat: it ends by `arriveAt` and never decides a judgement. */
@@ -85,7 +89,8 @@ export interface PendingPress {
 /**
  * One planned threat (story 1.10 D5): created at `createSim`, one per planned anchor of the level,
  * and re-armed after each result. The def, the anchor and the first wave stay in `ctx.level`,
- * index-aligned with `world.threats`.
+ * index-aligned with `world.threats`. A papa-target instance (the micro-sleep, story 1.19) stands
+ * on Papa: its `xM` / `zM` follow him at every step.
  */
 export interface ThreatInstance {
   id: number;
@@ -154,6 +159,18 @@ export interface DirectorSlice {
   nextAt: SimMs;
 }
 
+/**
+ * The gauges of the level (story 1.19; noise joins in 3.1). `fatigue` is held in `[0, 100]` and
+ * written only by `addFatigue`.
+ */
+export interface GaugesSlice {
+  fatigue: number;
+  /** Whether `fatigue` is strictly above the threshold: the sim's rules apply then (the crossing is an event). */
+  isFatigueAbove: boolean;
+  /** When the next micro-sleep is due, in sim time; null while Papa is not above the threshold. */
+  microSleepAt: SimMs | null;
+}
+
 /** The level's flow: playing until the clock reaches the level's duration, then ended. */
 export interface FlowSlice {
   state: FlowState;
@@ -209,6 +226,7 @@ export interface World {
   threats: ThreatInstance[];
   director: DirectorSlice;
   flow: FlowSlice;
+  gauges: GaugesSlice;
   /** One per prop of the level's geometry, index-aligned with `geometry.props` (their bodies live in Rapier, beside `World`). */
   props: PropSlice[];
   mess: MessSlice;
@@ -220,6 +238,8 @@ export interface WorldOptions {
   babySpawn: { xM: number; zM: number };
   /** When the baby first sets off, in sim ms. */
   firstWanderAt: SimMs;
+  /** The fatigue gauge at the start (`feel.fatigue.startPoints`); 0 by default. */
+  fatiguePoints?: number;
   /** The level's props (`geometry.props`): they start at their `centerM`, upright and at rest. */
   props?: readonly {
     readonly id: string;
@@ -233,6 +253,7 @@ export function createWorld({
   papaSpawn,
   babySpawn,
   firstWanderAt,
+  fatiguePoints = 0,
   props = [],
 }: WorldOptions): World {
   return {
@@ -254,6 +275,8 @@ export function createWorld({
       dirZ: 0,
       isBlocked: false,
       glide: null,
+      objectId: null,
+      busyUntil: asSimMs(0),
     },
     baby: {
       state: 'babble',
@@ -276,6 +299,7 @@ export function createWorld({
     threats: [],
     director: { waveIndex: -1, nextAt: asSimMs(0) },
     flow: { state: 'playing', enteredAt: asSimMs(0) },
+    gauges: { fatigue: fatiguePoints, isFatigueAbove: false, microSleepAt: null },
     props: props.map(({ id, kind, centerM: [xM, yM, zM] }) => ({
       id,
       kind,

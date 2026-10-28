@@ -32,6 +32,9 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     responses: 0,
     gags: 0,
     nearMisses: 0,
+    microSleeps: 0,
+    coffees: 0,
+    asleepGags: 0,
     commands: 0,
     threats: {},
     byGag: {},
@@ -149,6 +152,16 @@ describe('summarizeRuns', () => {
     ]);
     expect(report.gags.nearMisses).toBe(3);
     expect(summarizeRuns(INPUT, []).gags.nearMisses).toBe(0);
+  });
+
+  it('adds the micro-sleeps and the coffees up, and counts the runs where Papa fell asleep', () => {
+    const report = summarizeRuns(INPUT, [
+      run(5, { microSleeps: 3, coffees: 1, asleepGags: 2 }),
+      run(6, { microSleeps: 4, coffees: 0, asleepGags: 0 }),
+      run(7, { microSleeps: 1, coffees: 2, asleepGags: 1 }),
+    ]);
+    expect(report).toMatchObject({ microSleeps: 8, coffees: 3, asleepRuns: 2 });
+    expect(summarizeRuns(INPUT, [])).toMatchObject({ microSleeps: 0, coffees: 0, asleepRuns: 0 });
   });
 
   it('never gives NaN: no response at all has no success rate, and the mean offset is null', () => {
@@ -316,6 +329,34 @@ describe('createRunRecorder', () => {
       expect(recorder.finish().waves).toEqual([
         { telegraphs: 0, peakSimultaneous: 0, isOverLimit: false },
       ]);
+    });
+
+    it('ignores the telegraphs and the results of a threat no wave planned in the active count (story 1.19)', async () => {
+      const recorder = await recorderOf([{ maxSimultaneous: 1 }]);
+      // A micro-sleep is up while a wave's threat is telegraphed: the wave is not over its limit.
+      recorder.onEvent(telegraph(9, -1));
+      recorder.onEvent(telegraph(1, 0));
+      recorder.onEvent(resolved(9));
+      recorder.onEvent(resolved(1));
+      recorder.onEvent(telegraph(2, 0));
+      recorder.onEvent(resolved(2));
+      const summary = recorder.finish();
+      expect(summary.waves).toEqual([{ telegraphs: 2, peakSimultaneous: 1, isOverLimit: false }]);
+      expect(summary.microSleeps).toBe(1);
+    });
+
+    it('counts the coffees and the papa_asleep gags', async () => {
+      const recorder = await recorderOf([]);
+      recorder.onEvent({ type: 'CoffeeDrunk', t: asSimMs(0), fatigue: 30 });
+      recorder.onEvent({ type: 'CoffeeDrunk', t: asSimMs(0), fatigue: 10 });
+      recorder.onEvent({
+        type: 'GagTriggered',
+        t: asSimMs(0),
+        threatId: 9,
+        gag: 'papa_asleep',
+        reason: 'late',
+      });
+      expect(recorder.finish()).toMatchObject({ coffees: 2, asleepGags: 1 });
     });
 
     it('knows whether the level ended', async () => {

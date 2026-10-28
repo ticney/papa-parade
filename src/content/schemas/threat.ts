@@ -20,8 +20,15 @@ export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
  * `Record<ThreatIcon, …>`: a missing glyph is a type error). Story 2.2 adds the verb, shape and
  * colour to the def in the same way.
  */
-export const THREAT_ICONS = ['bolt', 'stairs', 'mug'] as const;
+export const THREAT_ICONS = ['bolt', 'stairs', 'mug', 'eyelids'] as const;
 export type ThreatIcon = (typeof THREAT_ICONS)[number];
+
+/**
+ * Where a threat stands: on a planned anchor of the level (a wave plans it), or on Papa himself
+ * (the sim spawns it: the micro-sleep of story 1.19, which follows him wherever he walks).
+ */
+export const THREAT_TARGETS = ['anchor', 'papa'] as const;
+export type ThreatTarget = (typeof THREAT_TARGETS)[number];
 
 const FeedbackCuesSchema = z
   .strictObject({
@@ -35,6 +42,11 @@ const FeedbackCuesSchema = z
 export const ThreatDefSchema = z
   .strictObject({
     id: idSchema('The threat id; equals the file name.'),
+    target: z
+      .enum(THREAT_TARGETS)
+      .describe(
+        'Where the threat stands: a planned anchor, or on Papa (system-spawned, story 1.19).',
+      ),
     response: z.enum(THREAT_RESPONSES).describe('The response the threat asks for.'),
     telegraphDelayMs: z
       .number()

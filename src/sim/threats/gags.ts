@@ -1,5 +1,6 @@
 import { invariant } from '@shared/invariant';
 import type { StepContext } from '../context.ts';
+import { putPapaToSleep } from '../papa/sleep.ts';
 import { pushProp } from '../physics/propsSystem.ts';
 import type { ThreatInstance, World } from '../world.ts';
 
@@ -10,7 +11,7 @@ import type { ThreatInstance, World } from '../world.ts';
  * `world.mess` and her scream from `NearMiss`, story 1.22). The presentation is the client's
  * (`client/render/gags.ts`). `content:check` checks a threat's `gag` against this list.
  */
-export const GAG_IDS = ['outlet_hair', 'stairs_slide', 'table_object_fall'] as const;
+export const GAG_IDS = ['outlet_hair', 'stairs_slide', 'table_object_fall', 'papa_asleep'] as const;
 
 export type GagId = (typeof GAG_IDS)[number];
 
@@ -21,7 +22,10 @@ export function gagIdOf(gag: string): GagId {
   return gag as GagId;
 }
 
-/** What a gag does to the world, at the step its threat is failed. It writes no slice: it emits events and pushes props. */
+/**
+ * What a gag does to the world, at the step its threat is failed. It never writes a slice
+ * directly: it emits events and goes through helpers (`pushProp`, `putPapaToSleep`).
+ */
 type GagConsequence = (world: World, ctx: StepContext, threat: ThreatInstance) => void;
 
 /** Cartoon jolt, lights and hair: all client-side (D3: not a near miss). */
@@ -67,11 +71,17 @@ function tableObjectFall(world: World, ctx: StepContext, threat: ThreatInstance)
   pushProp(world, ctx, nearestIndex, awayX * pushImpulseNs, 0, awayZ * pushImpulseNs);
 }
 
+/** Papa nods off for a few seconds (story 1.19 D10): no near miss, no snore noise yet (E4's `stay_awake`). */
+function papaAsleep(world: World, ctx: StepContext): void {
+  putPapaToSleep(world, ctx);
+}
+
 /** One entry per `GagId`, defined once at module scope: a new gag without a consequence is a type error. */
 const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   outlet_hair: outletHair,
   stairs_slide: stairsSlide,
   table_object_fall: tableObjectFall,
+  papa_asleep: papaAsleep,
 };
 
 /**

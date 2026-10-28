@@ -46,6 +46,7 @@ const entry = (threatId: number, xM: number, yM: number, zM: number) => ({
   yM,
   zM,
   icon: 'bolt' as const,
+  followsPapa: false,
 });
 
 describe('createGlyphChip', () => {

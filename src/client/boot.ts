@@ -2,6 +2,7 @@ import { feedbackClips } from '@content/feedbackClips';
 import { loadContent } from '@content/loadContent';
 import { loadLevelContent } from '@content/loadLevelContent';
 import type { Feel } from '@content/schemas/feel';
+import { GAUGE_IDS, type GaugeId } from '@content/schemas/level';
 import { createPlatform } from '@platform/createPlatform';
 import { MAX_TIMER_DELAY_MS, MS_PER_S } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
@@ -27,9 +28,8 @@ import { createAudioEngine } from './audio/audioEngine.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
 import { createResponseChoreography } from './feedback/responseChoreography.ts';
 import { threatCueOf } from './feedback/threatFeedback.ts';
-import type { ContextObject } from './input/contextObject.ts';
 import { createGamepadInput } from './input/gamepadInput.ts';
-import { createHitTester, type ThreatTargets } from './input/hitTest.ts';
+import { createHitTester, type ObjectTarget, type ThreatTargets } from './input/hitTest.ts';
 import { createInputMapper } from './input/inputMapper.ts';
 import { bindKeyboard, createHeldKeys } from './input/keyboardInput.ts';
 import { keyGlyph, loadKeyboardLayoutMap, padConfirmGlyph } from './input/keyGlyphs.ts';
@@ -41,6 +41,7 @@ import type { LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
 import { createRenderer } from './render/renderer.ts';
 import { loadFonts } from './ui/fonts.ts';
+import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
 import { createTimerHud } from './ui/hud/timerHud.ts';
@@ -56,6 +57,9 @@ import { createWorldUi } from './ui/world/worldUi.ts';
 
 /** The timer's slot in the HUD batch. */
 const TIMER_SLOT = 0;
+/** One slot per gauge after the timer's: the batch writes a gauge's integer percent when it changes. */
+const GAUGE_SLOTS: Readonly<Record<GaugeId, number>> = { noise: 1, fatigue: 2, need: 3 };
+const NO_OBJECTS: readonly ObjectTarget[] = [];
 
 function logSimEvent(event: SimEvent): void {
   if (event.type === 'InvariantViolated') {
@@ -215,6 +219,8 @@ export async function boot(): Promise<void> {
       | 'ppResponse'
       | 'ppGag'
       | 'ppPress'
+      | 'ppFatigue'
+      | 'ppObjectPx'
       | 'ppTarget',
     value: string,
   ): void => {
@@ -297,8 +303,6 @@ export async function boot(): Promise<void> {
   // The threat the player pressed last, until it is no longer active: the world UI highlights it
   // from the next frame (D8), before the sim has applied the press.
   let highlightedThreatId: number | null = null;
-  // The level's interactive objects at their floor points (Space or A walks Papa to one).
-  let levelObjects: readonly ContextObject[] = [];
   // The names the browser gives the keys of the layout in use; null until loaded, or where it cannot.
   let keyboardLayoutMap: ReadonlyMap<string, string> | null = null;
   // The chip's text, recomputed only when what it depends on changes (no string built per frame).
@@ -341,6 +345,33 @@ export async function boot(): Promise<void> {
     mirror('ppBabyState', event.to);
     mirrorBabyAt();
   };
+  // Papa's fatigue, rounded: on `FatigueThresholdCrossed` and `CoffeeDrunk` only, never per frame.
+  const mirrorFatigue = (): void => {
+    const active = levelSession.active;
+    if (active === null || active.level.level.gauges.fatigue === undefined) {
+      delete document.documentElement.dataset.ppFatigue;
+      return;
+    }
+    mirror('ppFatigue', String(Math.round(active.sim.world.gauges.fatigue)));
+  };
+  // Where each interactive object's icon point is on the page, in px: `coffee_machine:x,y;phone:x,y`.
+  // Written once per level (the camera is fitted by then), for a Playwright tap on an object.
+  const mirrorObjectPoints = (): void => {
+    const objects = levelSession.active?.sim.objects;
+    if (objects === undefined) return;
+    const rect = canvas.getBoundingClientRect();
+    mirror(
+      'ppObjectPx',
+      objects
+        .map((object) => {
+          iconPoint.set(object.xM, object.yM, object.zM).project(camera);
+          const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
+          const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
+          return `${object.id}:${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(';'),
+    );
+  };
   // A new level begins at the spawn, idle, and has had no tap yet.
   const mirrorNewLevel = (): void => {
     mirror('ppFlow', 'playing');
@@ -348,6 +379,8 @@ export async function boot(): Promise<void> {
     mirrorPapaAt();
     mirror('ppBabyState', levelSession.active?.sim.world.baby.state ?? 'babble');
     mirrorBabyAt();
+    mirrorFatigue();
+    mirrorObjectPoints();
     delete document.documentElement.dataset.ppTap;
     for (const name of [
       'ppThreat',
@@ -458,6 +491,12 @@ export async function boot(): Promise<void> {
     beforeStep: isMirrored ? (sim) => stepHook?.(sim) : undefined,
     onLevelStarted: (started) => {
       timerHud.setVariant(started.level.level.variant);
+      // The gauges this level has, each at its start value (a restart never shows the last level's).
+      const { gauges } = started.level.level;
+      gaugesHud.setGauges(GAUGE_IDS.filter((id) => id in gauges));
+      if (gauges.fatigue !== undefined) {
+        gaugesHud.setValue('fatigue', Math.round(started.sim.world.gauges.fatigue));
+      }
       // The full duration at once, so a restart never shows the last level's `0:00`.
       hudBatch.set(TIMER_SLOT, Math.ceil(started.level.level.durationMs / MS_PER_S));
       for (const listener of levelStartedListeners) listener(started);
@@ -465,10 +504,9 @@ export async function boot(): Promise<void> {
     onSeed: (seed) => {
       if (isMirrored) document.documentElement.dataset.ppSeed = String(seed);
     },
-    onLevelReady: (level, threatEntries, objects) => {
+    onLevelReady: (level, threatEntries) => {
       // The room is only known now: fit the camera and show it behind the loading screen.
       currentLevel = level;
-      levelObjects = objects;
       worldUi.mountThreats(threatEntries);
       highlightedThreatId = null;
       choreography.reset();
@@ -495,8 +533,13 @@ export async function boot(): Promise<void> {
           running.level.level.durationMs - running.sim.world.time.sim,
         );
         hudBatch.set(TIMER_SLOT, Math.ceil(remainingMs / MS_PER_S));
+        // Fatigue in whole percent: the batch writes it when the integer changes (about every 2 s).
+        if (running.level.level.gauges.fatigue !== undefined) {
+          hudBatch.set(GAUGE_SLOTS.fatigue, Math.round(running.sim.world.gauges.fatigue));
+        }
       }
       shell.frame();
+      gaugesHud.frame(performance.now());
       inputMapper.pollGamepad();
       const world = levelSession.active?.sim.world;
       // The auto-target shows for the keyboard and the gamepad only, never after a touch or a click
@@ -506,7 +549,12 @@ export async function boot(): Promise<void> {
         device === 'keyboard' || device === 'gamepad' ? inputMapper.targetedThreatId() : null;
       const isHighlightShown =
         world !== undefined &&
-        worldUi.updateThreats(world.threats, highlightedThreatId, targetedId);
+        worldUi.updateThreats(
+          world.threats,
+          highlightedThreatId,
+          targetedId,
+          currentLevel?.papaPose ?? null,
+        );
       showGlyphChip(world, targetedId, device);
       if (isMirrored) mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
       worldUi.render(camera);
@@ -598,8 +646,21 @@ export async function boot(): Promise<void> {
         mirrorBabyEvent(event);
         mirrorThreatEvent(event);
       }
-      // A key still held after a tap's path ends walks again.
+      // A key still held after a tap's path ends walks again, and so after a coffee or a nap.
       if (event.type === 'PapaArrived') inputMapper.resumeHeld();
+      if (
+        event.type === 'PapaStateChanged' &&
+        event.to === 'idle' &&
+        (event.from === 'drink' || event.from === 'asleep')
+      ) {
+        inputMapper.resumeHeld();
+      }
+      if (
+        isMirrored &&
+        (event.type === 'FatigueThresholdCrossed' || event.type === 'CoffeeDrunk')
+      ) {
+        mirrorFatigue();
+      }
       // The debug modules last: they see the event after the app has handled it.
       for (let i = 0; i < simEventListeners.length; i++) simEventListeners[i]?.(event);
     },
@@ -615,10 +676,16 @@ export async function boot(): Promise<void> {
   };
 
   const timerHud = createTimerHud(document, { t });
-  const hudBatch = createHudBatch([(seconds) => timerHud.setRemainingS(seconds)]);
+  const gaugesHud = createGaugesHud(document, { t, nowAtReal: () => performance.now() });
+  // Slot 0 is the timer's; then one per gauge in `GAUGE_IDS` order, matching `GAUGE_SLOTS`.
+  const hudBatch = createHudBatch([
+    (seconds) => timerHud.setRemainingS(seconds),
+    ...GAUGE_IDS.map((id) => (percent: number) => gaugesHud.setValue(id, percent)),
+  ]);
   const hud = createHudLayer(hudRoot, {
     t,
     onPausePress: () => pause.requestPause('user'),
+    gauges: gaugesHud.element,
     timer: timerHud.element,
   });
   const overlayHost = createOverlayHost(uiRoot, {
@@ -705,10 +772,13 @@ export async function boot(): Promise<void> {
     get touchRadiusPx() {
       return levelFeel().input.touchRadiusPx;
     },
+    get objectTouchRadiusPx() {
+      return levelFeel().input.objectTouchRadiusPx;
+    },
     get input() {
       return levelFeel().input;
     },
-    getObjects: () => levelObjects,
+    getObjects: () => levelSession.active?.sim.objects ?? NO_OBJECTS,
     onPadButton: (button) => shell.handlePadButton(button),
     onPadPresence: (isPresent, family) => {
       log.info('input', isPresent ? 'gamepad connected' : 'gamepad gone', { family });
@@ -804,7 +874,6 @@ export async function boot(): Promise<void> {
     worldUi.unmountThreats();
     worldUi.glyphChip.hide();
     highlightedThreatId = null;
-    levelObjects = [];
     // A pad lost in that level does not follow the player into the next one (the line is for the pause).
     shell.setPadDisconnected(false);
   });

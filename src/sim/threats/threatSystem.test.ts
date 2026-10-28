@@ -14,6 +14,8 @@ import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import type { ThreatInstance } from '../world.ts';
 
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+
 const content = createTestContent();
 const geometry = createTestGeometry();
 const { timing, input } = content.feel;
@@ -548,5 +550,41 @@ describe('two threats active at once', () => {
     expect(resolved.map((event) => event.threatId)).toEqual([first, second]);
     expect(resolved.every((event) => event.quality !== 'fail')).toBe(true);
     expect(only(later, 'GagTriggered')).toEqual([]);
+  });
+});
+
+describe('a busy Papa (story 1.19 D6)', () => {
+  const makeBusy = (sim: Sim): void => {
+    const papa = sim.world.papa as Mutable<typeof sim.world.papa>;
+    papa.state = 'asleep';
+    papa.busyUntil = asSimMs(60_000);
+  };
+
+  it('ignores PressThreat: the threat opens, then ends in its gag (late)', async () => {
+    const sim = await newSim();
+    runTo(sim, 500);
+    makeBusy(sim);
+    const t = threatOf(sim).windowOpenAt + (threatOf(sim).responseWindow?.windowMs ?? 0) / 2;
+    sim.enqueue(press(t));
+    sim.enqueue(release(t + 50));
+    const events = runTo(sim, t + 800);
+    expect(only(events, 'ResponseResolved')).toEqual([
+      expect.objectContaining({ quality: 'fail', reason: 'late', offsetMs: null }),
+    ]);
+  });
+
+  it('still processes Release: a press made before the nap ends as it should', async () => {
+    const sim = await newSim();
+    runTo(sim, 500);
+    const t = threatOf(sim).windowOpenAt + (threatOf(sim).responseWindow?.windowMs ?? 0) / 2;
+    sim.enqueue(press(t));
+    runTo(sim, t + STEP_MS);
+    expect(threatOf(sim).press).not.toBeNull();
+    makeBusy(sim);
+    sim.enqueue(release(t + 100));
+    const events = runTo(sim, t + 800);
+    expect(only(events, 'ResponseResolved')).toEqual([
+      expect.objectContaining({ quality: 'perfect' }),
+    ]);
   });
 });

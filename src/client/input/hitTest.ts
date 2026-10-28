@@ -25,12 +25,24 @@ export interface ThreatTargets {
   entries: readonly ThreatMarkerEntry[];
 }
 
+/**
+ * An interactive object a touch can aim at: its id and the point its icon is drawn at (the anchor's
+ * x and z, at the anchor's height). The sim hands them over (`Sim.objects`, story 1.19).
+ */
+export interface ObjectTarget {
+  readonly id: string;
+  readonly xM: number;
+  readonly yM: number;
+  readonly zM: number;
+}
+
 export interface HitTester {
   /**
    * Projects a screen point (normalised device coordinates, x right and y up, both in `[-1, 1]`)
    * onto the floor plane y = 0 and writes where it lands into `out`. False when the point is not a
-   * finite number or the ray never meets the plane. The threats are tried before it (threat >
-   * baby > object > floor; the baby comes with story 1.21 and the objects, for touch, with stories 1.19 and 1.20; Space and A reach objects since 1.17 through `TapObject`).
+   * finite number or the ray never meets the plane. The threats are tried before it, then the
+   * objects (threat > baby > object > floor; the baby comes with story 1.21; Space and A reach
+   * objects through `TapObject` too, since 1.17).
    */
   pickFloor(ndcX: number, ndcY: number, out: FloorPoint): boolean;
   /**
@@ -45,6 +57,18 @@ export interface HitTester {
     targets: ThreatTargets,
     radiusPx: number,
   ): number | null;
+  /**
+   * The id of the object whose icon point is nearest to the pointer, within `radiusPx` CSS px of it
+   * (inclusive), or null; ties go to the earlier object. Projected like a threat's icon, with the
+   * object's own height. Allocation-free.
+   */
+  pickObject(
+    clientX: number,
+    clientY: number,
+    rect: ScreenRect,
+    objects: readonly ObjectTarget[],
+    radiusPx: number,
+  ): string | null;
 }
 
 /**
@@ -76,6 +100,24 @@ export function createHitTester(camera: OrthographicCamera): HitTester {
         if (distanceSq <= nearestSq) {
           nearestSq = distanceSq;
           nearestId = threat.id;
+        }
+      }
+      return nearestId;
+    },
+    pickObject(clientX, clientY, rect, objects, radiusPx) {
+      if (!(Number.isFinite(clientX) && Number.isFinite(clientY) && radiusPx >= 0)) return null;
+      let nearestId: string | null = null;
+      let nearestSq = radiusPx * radiusPx;
+      for (let i = 0; i < objects.length; i++) {
+        const object = objects[i] as ObjectTarget;
+        icon.set(object.xM, object.yM, object.zM).project(camera);
+        if (!(icon.z >= -1 && icon.z <= 1)) continue;
+        const dx = rect.left + ((icon.x + 1) / 2) * rect.width - clientX;
+        const dy = rect.top + ((1 - icon.y) / 2) * rect.height - clientY;
+        const distanceSq = dx * dx + dy * dy;
+        if (distanceSq < nearestSq || (nearestId === null && distanceSq <= nearestSq)) {
+          nearestSq = distanceSq;
+          nearestId = object.id;
         }
       }
       return nearestId;

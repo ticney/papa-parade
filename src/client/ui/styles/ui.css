@@ -301,6 +301,119 @@ body {
   justify-content: center;
 }
 
+/* The gauges (story 1.19, UX-DR4): one paper pill with an ink outline, one gauge per system of the
+   level (an icon and a bar of ten segments). 40 px tall inside the 44 px row; it takes no input.
+   A hidden pill (a level with no gauge) shows nothing at all. */
+.pp-hud-gauges {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pp-spacing-3);
+  height: 40px;
+  padding: 0 var(--pp-spacing-2);
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+  box-shadow: var(--pp-lift);
+  color: var(--pp-color-ink);
+}
+
+.pp-hud-gauges[hidden] {
+  display: none;
+}
+
+.pp-hud-gauge {
+  display: flex;
+  align-items: center;
+  gap: var(--pp-spacing-1);
+}
+
+/* Under 50 % and not changing: dimmed. Full otherwise (opacity is the one thing the client toggles). */
+.pp-hud-gauge-idle {
+  opacity: 0.7;
+}
+
+.pp-hud-gauge svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+
+.pp-hud-gauge-ink {
+  fill: var(--pp-color-ink);
+}
+
+.pp-hud-gauge-line {
+  fill: none;
+  stroke: var(--pp-color-ink);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.pp-hud-gauge-drop {
+  fill: none;
+  stroke: var(--pp-color-paper);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+/* 60 x 16: a 2 px ink outline around a 56 x 12 inner box. The fill is ONE element scaled from the
+   left (only `transform` changes); the mask over it draws ten ink-separated segments, 5.6 px each
+   over the 56 px inner width (the mockup's 5.8 px gives 9.7: DESIGN wins). */
+.pp-hud-gauge-bar {
+  position: relative;
+  box-sizing: border-box;
+  width: 60px;
+  height: 16px;
+  overflow: hidden;
+  border: 2px solid var(--pp-color-ink);
+  border-radius: 3px;
+  background: var(--pp-color-gauge-track);
+}
+
+.pp-hud-gauge-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--pp-color-gauge-calm);
+  transform-origin: left center;
+}
+
+.pp-hud-gauge-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 3.6px,
+    var(--pp-color-ink) 3.6px 5.6px
+  );
+}
+
+/* From 70 %: warn fill, and the icon chip rings and pulses so that the state never rests on hue alone. */
+.pp-hud-gauge-warn .pp-hud-gauge-fill {
+  background: var(--pp-color-gauge-warn);
+}
+
+.pp-hud-gauge-warn svg {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px var(--pp-color-gauge-warn),
+    0 0 0 5px var(--pp-color-ink);
+  animation: pp-gauge-pulse 1s ease-in-out infinite;
+}
+
+@keyframes pp-gauge-pulse {
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-hud-gauge-warn svg {
+    animation: none;
+  }
+}
+
 /* The timer (story 1.18): a paper pill with an ink outline, the variant's icon, then the digits.
    40 px tall inside the 44 px row; it takes no input. */
 .pp-hud-timer {

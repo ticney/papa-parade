@@ -1,0 +1,17 @@
+{
+  "$schema": "../_schemas/threat.schema.json",
+  "id": "papa_microsleep",
+  "target": "papa",
+  "response": "parry",
+  "telegraphDelayMs": 1200,
+  "windowMs": null,
+  "gag": "papa_asleep",
+  "icon": "eyelids",
+  "feedback": {
+    "telegraph": "tel_papa_microsleep",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_papa_asleep"
+  },
+  "cooldownMs": 1000
+}

@@ -2,11 +2,12 @@ import type { Feel } from '@content/schemas/feel';
 import { GAMEPAD_PRESS_ID, KEYBOARD_PRESS_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type SimMs } from '@shared/time';
+import { isPapaBusy } from '@sim';
 import type { AppFsm } from '../app/appFsm.ts';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import type { PauseController } from '../app/pauseController.ts';
 import { pickAutoTarget } from './autoTarget.ts';
-import { type ContextObject, pickContextObject } from './contextObject.ts';
+import { pickContextObject } from './contextObject.ts';
 import {
   createPadState,
   type GamepadInput,
@@ -15,7 +16,7 @@ import {
   type PadFamily,
   type StickAxes,
 } from './gamepadInput.ts';
-import type { FloorPoint, HitTester, ThreatTargets } from './hitTest.ts';
+import type { FloorPoint, HitTester, ObjectTarget, ThreatTargets } from './hitTest.ts';
 import { type MenuStickMemory, stickToMenuStep } from './menuStep.ts';
 import type { FloorDir } from './moveDirection.ts';
 import type { MoveIntent } from './moveIntent.ts';
@@ -42,6 +43,8 @@ export interface InputMapperDeps {
   getThreatTargets(): ThreatTargets | null;
   /** `feel.input.touchRadiusPx`: how far from a threat's icon a press still counts, in CSS px. */
   touchRadiusPx: number;
+  /** `feel.input.objectTouchRadiusPx`: how far from an object's icon point a press still counts, in CSS px. */
+  objectTouchRadiusPx: number;
   /**
    * Told about each press on a threat, in the handler: the client highlights it before the next
    * frame (and the debug build marks the press for the latency check).
@@ -52,8 +55,8 @@ export interface InputMapperDeps {
    * read at each use so that a changed feel applies at once.
    */
   input: Pick<Feel['input'], 'autoTargetConeDeg' | 'contextReachM' | 'stickDeadzonePct'>;
-  /** The interactive objects of the level being played at their floor points, or an empty list. */
-  getObjects(): readonly ContextObject[];
+  /** The interactive objects of the level being played (`sim.objects`), or an empty list. */
+  getObjects(): readonly ObjectTarget[];
   /**
    * A button of the pad went down that the mapper does not act on: any button outside play, and in
    * play every one but A (Start, B, the D-pad). The UI shell routes it (pause, menus).
@@ -72,8 +75,9 @@ export interface InputMapper {
   /** Whether input reaches the sim: a level is running, not paused, not counting down. */
   isLive(): boolean;
   /**
-   * `pointerdown` on the canvas: a press on a threat's icon (within `touchRadiusPx`), else a tap
-   * on the floor. A press on a threat is never also a floor tap.
+   * `pointerdown` on the canvas: a press on a threat's icon (within `touchRadiusPx`), else a tap on
+   * an object (within `objectTouchRadiusPx`), else a tap on the floor. A press on a threat or an
+   * object is never also a floor tap. Dropped while Papa is busy (drinking or asleep).
    */
   handlePointerDown(sample: PointerSample): void;
   /**
@@ -151,6 +155,11 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     return active !== null && active.sim.world.flow.state === 'playing';
   };
 
+  // Papa drinks or sleeps (story 1.19 D6): the sim ignores every move and press meanwhile, so the
+  // client sends none either. A key held through it walks again on `PapaStateChanged → idle`
+  // (boot calls `resumeHeld`).
+  const isBusy = (active: ActiveLevel): boolean => isPapaBusy(active.sim.world.papa);
+
   // A new level begins with nothing sent and no finger down on a threat of the old one.
   const bindTo = (active: ActiveLevel): void => {
     if (active.sim === boundSim) return;
@@ -165,6 +174,10 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     const active = deps.getActive();
     if (active === null || !isLive()) return;
     bindTo(active);
+    if (isBusy(active)) {
+      if (log.enabled('debug')) log.debug('input', 'move dropped: Papa is busy');
+      return;
+    }
     deps.moveIntent.update(deps.held, stick, () => stampOf(active));
   };
 
@@ -207,6 +220,10 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       return;
     }
     bindTo(active);
+    if (isBusy(active)) {
+      if (log.enabled('debug')) log.debug('input', 'action dropped: Papa is busy');
+      return;
+    }
     const t = stampOf(active);
     const threatId = targetNow(active);
     if (threatId !== null) {
@@ -303,6 +320,10 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       const rect = deps.canvasRect();
       if (!(rect.width > 0 && rect.height > 0)) return;
       bindTo(active);
+      if (isBusy(active)) {
+        if (log.enabled('debug')) log.debug('input', 'tap dropped: Papa is busy');
+        return;
+      }
       const targets = deps.getThreatTargets();
       const threatId =
         targets === null
@@ -319,6 +340,32 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
         active.sim.enqueue({ type: 'PressThreat', t: heldPressAt, threatId });
         press.pressed(sample.pointerId, threatId);
         deps.onThreatPressed?.(threatId);
+        return;
+      }
+      // (Story 1.21: the baby slots in here, between the threats and the objects.)
+      const objects = deps.getObjects();
+      const objectId =
+        objects.length === 0
+          ? null
+          : deps.hitTester.pickObject(
+              sample.clientX,
+              sample.clientY,
+              rect,
+              objects,
+              deps.objectTouchRadiusPx,
+            );
+      if (objectId !== null) {
+        const object = objects.find((candidate) => candidate.id === objectId);
+        active.sim.enqueue({
+          type: 'TapObject',
+          t: active.timeMap.realToSim(asRealMs(sample.timeStamp)),
+          objectId,
+        });
+        // The marker shows where Papa will stand: the object's floor point.
+        if (object !== undefined) {
+          deps.showTapMarker(object.xM, object.zM);
+          deps.onTap?.(object.xM, object.zM);
+        }
         return;
       }
       const ndcX = ((sample.clientX - rect.left) / rect.width) * 2 - 1;
@@ -362,7 +409,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     },
     targetedThreatId() {
       const active = deps.getActive();
-      if (active === null || !isLive()) return null;
+      if (active === null || !isLive() || isBusy(active)) return null;
       return targetNow(active);
     },
     get padFamily() {

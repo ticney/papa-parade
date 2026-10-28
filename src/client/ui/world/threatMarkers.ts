@@ -3,16 +3,26 @@ import { log } from '@shared/log';
 import type { ThreatInstance } from '@sim';
 import type { Scene } from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
 import { svgElement } from '../svg.ts';
 
-/** The icon point of one threat: where its marker stands and where the hit test aims, in metres. */
+/** An icon that follows Papa floats this far above the top of his cube, in metres. */
+const PAPA_MARKER_OFFSET_M = 0.3;
+
+/**
+ * The icon point of one threat: where its marker stands and where the hit test aims, in metres.
+ * `xM` and `yM` and `zM` are written only for an entry that `followsPapa` (story 1.19: the
+ * micro-sleep stands on him), by `ThreatMarkers.update`, each frame; `hitTest` reads them as they are.
+ */
 export interface ThreatMarkerEntry {
   readonly threatId: number;
-  readonly xM: number;
+  xM: number;
   readonly yM: number;
-  readonly zM: number;
+  zM: number;
   /** The glyph its marker draws: the threat def's `icon`. */
   readonly icon: ThreatIcon;
+  /** The threat stands on Papa (its def's `target` is `papa`): the marker follows his pose. */
+  readonly followsPapa: boolean;
 }
 
 export interface ThreatMarkers {
@@ -30,12 +40,15 @@ export interface ThreatMarkers {
    * `entries[i]` (same order, built from `world.threats`). Writes the DOM only when a value
    * changes and allocates nothing. Returns true when a press began to show in this call (the
    * latency mark): a target ring that appears with no press, or one already up when the press
-   * comes, does not make a new mark of its own before that press.
+   * comes, does not make a new mark of its own before that press. `papa` is his pose as drawn
+   * (interpolated): the markers that follow him move to it, so their icon point (and the hit test) is
+   * where he is drawn; null leaves them where they were.
    */
   update(
     threats: readonly Readonly<ThreatInstance>[],
     highlightedId: number | null,
     targetedId: number | null,
+    papa?: Readonly<{ xM: number; zM: number }> | null,
   ): boolean;
   /** True while at least one marker is shown: the layer must be rendered. */
   readonly isAnyVisible: boolean;
@@ -57,7 +70,7 @@ const FALLBACK_ICON: ThreatIcon = 'bolt';
 export function threatMarkerEntries(
   threats: readonly Readonly<ThreatInstance>[],
   anchors: readonly { id: string; positionM: readonly [number, number, number] }[],
-  defs: Readonly<Record<string, Pick<ThreatDef, 'icon'>>>,
+  defs: Readonly<Record<string, Pick<ThreatDef, 'icon' | 'target'>>>,
 ): ThreatMarkerEntry[] {
   return threats.map((threat) => {
     const def = defs[threat.defId];
@@ -68,16 +81,27 @@ export function threatMarkerEntries(
       );
     }
     const icon = def?.icon ?? FALLBACK_ICON;
+    // A threat on Papa has no anchor to look up: its marker starts at him and follows him.
+    if (def?.target === 'papa') {
+      return {
+        threatId: threat.id,
+        xM: threat.xM,
+        yM: PAPA_HEIGHT_M + PAPA_MARKER_OFFSET_M,
+        zM: threat.zM,
+        icon,
+        followsPapa: true,
+      };
+    }
     const anchor = anchors.find((candidate) => candidate.id === threat.anchorId);
     if (anchor === undefined) {
       log.warn(
         'render',
         `threat ${threat.id} names the anchor ${threat.anchorId}, which the room lacks`,
       );
-      return { threatId: threat.id, xM: threat.xM, yM: 0, zM: threat.zM, icon };
+      return { threatId: threat.id, xM: threat.xM, yM: 0, zM: threat.zM, icon, followsPapa: false };
     }
     const [xM, yM, zM] = anchor.positionM;
-    return { threatId: threat.id, xM, yM, zM, icon };
+    return { threatId: threat.id, xM, yM, zM, icon, followsPapa: false };
   });
 }
 
@@ -93,13 +117,16 @@ export const THREAT_CLASSES = {
 /**
  * The glyph of each `ThreatIcon` (24 × 24 view box), drawn in the paper fill with an ink outline:
  * a `Record`, so that an icon of the schema with no glyph is a type error. `bolt` is the mockup's
- * `i-bolt`. `stairs` is three steps rising to the right; `mug` is a cup with its handle. Provisional
+ * `i-bolt`. `stairs` is three steps rising to the right; `mug` is a cup with its handle; `eyelids` is
+ * a closed eye with its lashes (the micro-sleep, story 1.19). Provisional
  * placeholders (E7 draws the final ones).
  */
 export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   bolt: 'M14 1.5L4.5 14h6.5l-1.5 8.5L19.5 10H13z',
   stairs: 'M2.5 21.5V16h5.5v-5.5h5.5V5h8v16.5z',
   mug: 'M3.5 6.5h13v9.5a4 4 0 0 1-4 4h-5a4 4 0 0 1-4-4z M16.5 9h2.5a3 3 0 0 1 0 6h-2.5v-2.2h2.5a.8.8 0 0 0 0-1.6h-2.5z',
+  eyelids:
+    'M2.5 11c3.5 6 15.5 6 19 0c-3.5-3-15.5-3-19 0z M5 15.5L3 19 M9.5 17.3l-.8 3.4 M14.5 17.3l.8 3.4 M19 15.5l2 3.5',
 };
 /** The chevron: a down-pointing triangle above the icon (12 × 8 view box). */
 const CHEVRON_PATH = 'M1 1h10L6 7z';
@@ -219,7 +246,7 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
       for (const marker of markers) scene.add(marker.object);
     },
     unmount,
-    update(threats, highlightedId, targetedId) {
+    update(threats, highlightedId, targetedId, papa = null) {
       let isHighlightShown = false;
       for (let i = 0; i < markers.length; i++) {
         const marker = markers[i] as Marker;
@@ -249,6 +276,13 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
           // The renderer writes `display` only when it runs, and it is skipped once nothing shows.
           if (!isActive) marker.element.style.display = 'none';
           shownCount += isActive ? 1 : -1;
+        }
+        // A marker that follows Papa goes where he is drawn (the hit test reads the same entry).
+        const entry = mounted[i] as ThreatMarkerEntry;
+        if (isActive && entry.followsPapa && papa !== null) {
+          entry.xM = papa.xM;
+          entry.zM = papa.zM;
+          marker.object.position.set(entry.xM, entry.yM, entry.zM);
         }
         const isHighlighted = isPressed || (threat !== undefined && threat.id === targetedId);
         if (isHighlighted !== marker.isHighlighted) {

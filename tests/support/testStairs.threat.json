@@ -1,6 +1,7 @@
 {
   "$schema": "../../content/_schemas/threat.schema.json",
   "id": "stairs",
+  "target": "anchor",
   "response": "parry",
   "telegraphDelayMs": 1000,
   "windowMs": null,

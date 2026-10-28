@@ -24,6 +24,7 @@ describe('system order', () => {
       'runThreats',
       'runPapa',
       'runPhysics',
+      'runGauges',
       'runFlow',
     ]);
   });

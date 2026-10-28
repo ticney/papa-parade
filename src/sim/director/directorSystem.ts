@@ -48,8 +48,10 @@ export function runDirector(world: World, ctx: StepContext): void {
   let candidateCount = 0;
   for (let i = 0; i < threats.length; i++) {
     const threat = threats[i] as ThreatInstance;
-    if (isThreatActive(threat)) activeCount++;
-    else if (threat.state === 'idle' && isInPool(ctx, i, waveIndex)) candidateCount++;
+    // The micro-sleep (no wave plans it) never counts against `maxSimultaneous` (deferred L326).
+    if (isThreatActive(threat)) {
+      if ((ctx.level.threats[i]?.firstWaveIndex ?? -1) >= 0) activeCount++;
+    } else if (threat.state === 'idle' && isInPool(ctx, i, waveIndex)) candidateCount++;
   }
   if (activeCount >= wave.maxSimultaneous || candidateCount === 0) return;
 
@@ -70,10 +72,15 @@ export function runDirector(world: World, ctx: StepContext): void {
   }
 }
 
-/** Whether the threat at `index` can be drawn by wave `waveIndex` (it was added by that wave or an earlier one). */
+/**
+ * Whether the threat at `index` can be drawn by wave `waveIndex` (it was added by that wave or an
+ * earlier one). A threat the sim spawns itself (`firstWaveIndex` -1, the micro-sleep) is in no pool.
+ */
 function isInPool(ctx: StepContext, index: number, waveIndex: number): boolean {
   const planned = ctx.level.threats[index];
-  return planned !== undefined && planned.firstWaveIndex <= waveIndex;
+  return (
+    planned !== undefined && planned.firstWaveIndex >= 0 && planned.firstWaveIndex <= waveIndex
+  );
 }
 
 /** Whether wave `waveIndex` has any threat in its pool at all (idle or not). */

@@ -12,12 +12,14 @@ import {
   synthBump,
   synthGagCoffeeTable,
   synthGagOutlet,
+  synthGagPapaAsleep,
   synthGagStairs,
   synthMusic,
   synthParry,
   synthParryPerfect,
   synthTelegraph,
   synthTelegraphCoffeeTable,
+  synthTelegraphMicroSleep,
   synthTelegraphStairs,
 } from '../../../tools/audio/makePlaceholderAudio.ts';
 
@@ -125,6 +127,19 @@ describe('placeholder audio', () => {
     }
   });
 
+  it('has the lengths of the micro-sleep clips: 600 ms and two 600 ms snores', () => {
+    const ms = (samples: Float32Array): number => (samples.length / SAMPLE_RATE_HZ) * 1000;
+    expect(ms(synthTelegraphMicroSleep())).toBeCloseTo(600, 0);
+    expect(ms(synthGagPapaAsleep())).toBeCloseTo(1200, 0);
+  });
+
+  it('lists the two micro-sleep clips by the names the feedback table uses', () => {
+    const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+    for (const clip of ['tel_papa_microsleep', 'gag_papa_asleep']) {
+      expect(names, clip).toContain(clip);
+    }
+  });
+
   it('makes each telegraph and each gag sound unlike the others (no two clips are alike)', () => {
     // The largest normalised dot product between two clips, over their common length and for every
     // shift of one against the other up to `LAG_MAX_MS`: a clip that sounded like another, or like
@@ -134,7 +149,14 @@ describe('placeholder audio', () => {
       ({ clip, synth }) => ({ clip, samples: synth() }),
     );
     expect(clips.map(({ clip }) => clip)).toEqual(
-      expect.arrayContaining(['tel_stairs', 'gag_stairs', 'tel_coffee_table', 'gag_coffee_table']),
+      expect.arrayContaining([
+        'tel_stairs',
+        'gag_stairs',
+        'tel_coffee_table',
+        'gag_coffee_table',
+        'tel_papa_microsleep',
+        'gag_papa_asleep',
+      ]),
     );
     for (const [index, first] of clips.entries()) {
       for (const second of clips.slice(index + 1)) {

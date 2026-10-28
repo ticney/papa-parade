@@ -7,6 +7,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  FATIGUE_GAUGES,
   OUTLET,
   STAIRS,
   stepN,
@@ -26,7 +27,10 @@ async function setup(feel: Feel = content.feel) {
   const sim = await createSim({
     content: { ...content, feel },
     geometry: createTestGeometry(),
-    level: createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])] }),
+    level: createTestLevel({
+      waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])],
+      gauges: FATIGUE_GAUGES,
+    }),
     seed: 1,
   });
   const world = sim.world as World;
@@ -61,6 +65,8 @@ const OWN_THREAT: Record<GagId, { defId: string; eventCount: number; pushCount: 
   outlet_hair: { defId: 'outlet', eventCount: 0, pushCount: 0 },
   stairs_slide: { defId: 'stairs', eventCount: 1, pushCount: 0 },
   table_object_fall: { defId: 'coffee_table_object', eventCount: 0, pushCount: 1 },
+  // One `PapaStateChanged`: he falls asleep, nothing else (no near miss, no prop).
+  papa_asleep: { defId: 'papa_microsleep', eventCount: 1, pushCount: 0 },
 };
 
 describe('applyGag', () => {
@@ -87,6 +93,17 @@ describe('applyGag', () => {
     applyGag(world, ctx, threatOf(defId), gag);
     expect(events).toHaveLength(eventCount);
     expect(impulses).toHaveLength(pushCount);
+  });
+});
+
+describe('papa_asleep', () => {
+  it('puts Papa to sleep for feel.fatigue.asleepMs, with no near miss and no prop pushed', async () => {
+    const { world, ctx, events, impulses, threatOf } = await setup();
+    applyGag(world, ctx, threatOf('papa_microsleep'), 'papa_asleep');
+    expect(world.papa.state).toBe('asleep');
+    expect(world.papa.busyUntil).toBe(world.time.sim + content.feel.fatigue.asleepMs);
+    expect(events.map((event) => event.type)).toEqual(['PapaStateChanged']);
+    expect(impulses).toEqual([]);
   });
 });
 

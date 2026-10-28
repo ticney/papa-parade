@@ -3,6 +3,7 @@ import { applyCommands } from './commandQueue.ts';
 import type { StepContext, System } from './context.ts';
 import { runDirector } from './director/directorSystem.ts';
 import { runFlow } from './flow/flowSystem.ts';
+import { runGauges } from './gauges/gaugesSystem.ts';
 import { runPapa } from './papa/papaSystem.ts';
 import { runPhysics } from './physics/propsSystem.ts';
 import { runThreats } from './threats/threatSystem.ts';
@@ -15,8 +16,8 @@ import type { World } from './world.ts';
  *   applyCommands, advanceTime, runDirector, runBaby, runThreats, runPapa, runPhysics,
  *   runGauges, runInstinct, runScoring, runFlow
  *
- * applyCommands, advanceTime, runDirector, runBaby, runThreats, runPapa, runPhysics and runFlow
- * exist so far. Each later story inserts its system at its slot, edits the pinned order test and,
+ * applyCommands, advanceTime, runDirector, runBaby, runThreats, runPapa, runPhysics, runGauges and
+ * runFlow exist so far (`runGauges` is the fatigue since story 1.19; noise joins it in 3.1). Each later story inserts its system at its slot, edits the pinned order test and,
  * if behaviour changes, regenerates the golden references and says so.
  * Systems never call each other: they read and write `World` and push to `ctx.events`.
  *
@@ -32,6 +33,7 @@ export const SYSTEMS: readonly System[] = [
   runThreats,
   runPapa,
   runPhysics,
+  runGauges,
   runFlow,
 ];
 

@@ -20,6 +20,8 @@ function papaAt(xM: number, zM: number, patch: Partial<PapaSlice> = {}): PapaSli
     dirZ: 0,
     isBlocked: false,
     glide: null,
+    objectId: null,
+    busyUntil: asSimMs(0),
     ...patch,
   };
 }

@@ -3,6 +3,7 @@ import { asSimMs } from '@shared/time';
 import type { ThreatInstance, ThreatState } from '@sim';
 import { Scene } from 'three';
 import { describe, expect, it } from 'vitest';
+import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
 import {
   createThreatMarkers,
   THREAT_CLASSES,
@@ -59,7 +60,14 @@ const threat = (id: number, state: ThreatState): Readonly<ThreatInstance> =>
     enteredAt: asSimMs(0),
   }) as Readonly<ThreatInstance>;
 
-const ENTRY = { threatId: 4, xM: -3.95, yM: 0.3, zM: 0.5, icon: 'bolt' as const };
+const ENTRY = {
+  threatId: 4,
+  xM: -3.95,
+  yM: 0.3,
+  zM: 0.5,
+  icon: 'bolt' as const,
+  followsPapa: false,
+};
 
 describe('createThreatMarkers', () => {
   it('mounts one hidden marker per entry, at the anchor position, hidden from assistive tech', () => {
@@ -268,9 +276,10 @@ describe('the glyph of a marker', () => {
 
 describe('threatMarkerEntries', () => {
   const defs = {
-    outlet: { icon: 'bolt' },
-    stairs: { icon: 'stairs' },
-    coffee_table_object: { icon: 'mug' },
+    outlet: { icon: 'bolt', target: 'anchor' },
+    stairs: { icon: 'stairs', target: 'anchor' },
+    coffee_table_object: { icon: 'mug', target: 'anchor' },
+    papa_microsleep: { icon: 'eyelids', target: 'papa' },
   } as const;
   const anchors = [
     { id: 'door', positionM: [1, 0, 2] as const },
@@ -287,8 +296,8 @@ describe('threatMarkerEntries', () => {
       defs,
     );
     expect(entries).toEqual([
-      { threatId: 7, xM: -3.95, yM: 0.3, zM: 0.5, icon: 'bolt' },
-      { threatId: 8, xM: 1, yM: 0, zM: 2, icon: 'bolt' },
+      { threatId: 7, xM: -3.95, yM: 0.3, zM: 0.5, icon: 'bolt', followsPapa: false },
+      { threatId: 8, xM: 1, yM: 0, zM: 2, icon: 'bolt', followsPapa: false },
     ]);
   });
 
@@ -331,6 +340,70 @@ describe('threatMarkerEntries', () => {
       anchors,
       defs,
     );
-    expect(entries).toEqual([{ threatId: 7, xM: 2, yM: 0, zM: 3, icon: 'bolt' }]);
+    expect(entries).toEqual([
+      { threatId: 7, xM: 2, yM: 0, zM: 3, icon: 'bolt', followsPapa: false },
+    ]);
+  });
+});
+
+describe('a marker that follows Papa (story 1.19)', () => {
+  const FOLLOWING = {
+    threatId: 9,
+    xM: 1,
+    yM: 1.2,
+    zM: 1,
+    icon: 'eyelids' as const,
+    followsPapa: true,
+  };
+  const microSleep = (state: ThreatState): Readonly<ThreatInstance> =>
+    ({
+      ...threat(9, state),
+      defId: 'papa_microsleep',
+      anchorId: 'papa',
+    }) as Readonly<ThreatInstance>;
+
+  it('builds its entry on Papa, at the height of his head, with no anchor lookup and no warn', () => {
+    const seen = log.buffer().length;
+    const entries = threatMarkerEntries([{ ...microSleep('idle'), xM: 2, zM: 3 }], [], {
+      papa_microsleep: { icon: 'eyelids', target: 'papa' },
+    });
+    expect(entries).toEqual([
+      expect.objectContaining({ threatId: 9, xM: 2, zM: 3, icon: 'eyelids', followsPapa: true }),
+    ]);
+    expect(entries[0]?.yM).toBeGreaterThan(PAPA_HEIGHT_M);
+    expect(
+      log
+        .buffer()
+        .slice(seen)
+        .filter((entry) => entry.level === 'warn'),
+    ).toEqual([]);
+  });
+
+  it('moves with the pose it is given, its entry (the hit test reads it) and its object together', () => {
+    const { markers, scene } = build();
+    const entry = { ...FOLLOWING };
+    markers.mount([entry]);
+    markers.update([microSleep('telegraph')], null, null, { xM: 4, zM: -2 });
+    expect([entry.xM, entry.zM]).toEqual([4, -2]);
+    expect(scene.children[0]?.position.toArray()).toEqual([4, 1.2, -2]);
+    markers.update([microSleep('windowOpen')], null, null, { xM: 5, zM: -2.5 });
+    expect([entry.xM, entry.zM]).toEqual([5, -2.5]);
+    expect(markers.entries[0]).toBe(entry);
+  });
+
+  it('stays where it was with no pose, and an anchored marker never moves', () => {
+    const { markers, scene } = build();
+    const following = { ...FOLLOWING };
+    const anchored = { ...ENTRY };
+    markers.mount([following, anchored]);
+    markers.update([microSleep('telegraph'), threat(4, 'telegraph')], null, null, null);
+    expect([following.xM, following.zM]).toEqual([1, 1]);
+    markers.update([microSleep('telegraph'), threat(4, 'telegraph')], null, null, { xM: 9, zM: 9 });
+    expect([anchored.xM, anchored.zM]).toEqual([ENTRY.xM, ENTRY.zM]);
+    expect(scene.children[1]?.position.x).toBe(ENTRY.xM);
+  });
+
+  it('draws the closed eye glyph', () => {
+    expect(THREAT_ICON_PATHS.eyelids).toMatch(/^M/);
   });
 });

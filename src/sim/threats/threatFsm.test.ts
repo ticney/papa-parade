@@ -45,6 +45,8 @@ async function setup() {
     events,
     strictInvariants: true,
     t: world.time.sim,
+    // A level with no fatigue: the window modifier is neutral.
+    level: { microSleepIndex: -1 },
     requestFreezeRealMs: (ms: number) => freezes.push(ms),
   } as unknown as StepContext;
   const threat = world.threats[0] as World['threats'][number];
@@ -201,8 +203,13 @@ describe('threat FSM', () => {
 });
 
 describe('gags', () => {
-  it('lists the three gags of the prototype', () => {
-    expect([...GAG_IDS]).toEqual(['outlet_hair', 'stairs_slide', 'table_object_fall']);
+  it('lists the gags of the prototype', () => {
+    expect([...GAG_IDS]).toEqual([
+      'outlet_hair',
+      'stairs_slide',
+      'table_object_fall',
+      'papa_asleep',
+    ]);
   });
 
   it('gagIdOf accepts a known gag and refuses another', () => {

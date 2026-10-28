@@ -122,6 +122,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
         scene: record.scene,
         room: { widthM: 8, depthM: 6, heightM: 2.5 },
         fx: NO_FX,
+        papaPose: { xM: 0, zM: 0, yawRad: 0 },
         resetFx: () => {
           record.resets++;
         },
@@ -226,6 +227,7 @@ describe('createLevelSession', () => {
           scene: new Scene(),
           room: { widthM: 8, depthM: 6, heightM: 2.5 },
           fx: NO_FX,
+          papaPose: { xM: 0, zM: 0, yawRad: 0 },
           resetFx: () => {},
           update: () => {},
           dispose: () => {},
@@ -263,6 +265,7 @@ describe('createLevelSession', () => {
             scene: new Scene(),
             room: { widthM: 8, depthM: 6, heightM: 2.5 },
             fx: NO_FX,
+            papaPose: { xM: 0, zM: 0, yawRad: 0 },
             resetFx: () => {},
             update: () => {},
             dispose: () => {},
@@ -378,7 +381,14 @@ describe('createLevelSession', () => {
     const [xM, yM, zM] = anchor?.positionM ?? [Number.NaN, 0, 0];
     expect(readyEntries).toHaveLength(1);
     expect(readyEntries[0]).toEqual([
-      { threatId: session.active?.sim.world.threats[0]?.id, xM, yM, zM, icon: 'bolt' },
+      {
+        threatId: session.active?.sim.world.threats[0]?.id,
+        xM,
+        yM,
+        zM,
+        icon: 'bolt',
+        followsPapa: false,
+      },
     ]);
   });
 
@@ -724,6 +734,7 @@ describe('createLevelSession', () => {
             scene: new Scene(),
             room: { widthM: 8, depthM: 6, heightM: 2.5 },
             fx: NO_FX,
+            papaPose: { xM: 0, zM: 0, yawRad: 0 },
             resetFx: () => {},
             update: () => {},
             dispose: () => {},
@@ -959,6 +970,7 @@ describe('createLevelSession › start options and outcomes', () => {
           scene: new Scene(),
           room: { widthM: 8, depthM: 6, heightM: 2.5 },
           fx: NO_FX,
+          papaPose: { xM: 0, zM: 0, yawRad: 0 },
           resetFx: () => {},
           update: () => {},
           dispose: () => {},

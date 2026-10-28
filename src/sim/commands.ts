@@ -8,6 +8,11 @@ import type { SimMs } from '@shared/time';
 export type SimCommand =
   /** Debug / test command, journaled. Story 2.1's "forced timeScale" reuses it. */
   | { type: 'SetTimeScale'; t: SimMs; scale: number }
+  /**
+   * Debug / test command, journaled like `SetTimeScale`: sets Papa's fatigue to `points` (held in
+   * `[0, 100]`) through `addFatigue`, so the threshold logic runs. Ignored in a level with no fatigue.
+   */
+  | { type: 'SetFatigue'; t: SimMs; points: number }
   /** Walk to this point of the floor (metres); an unreachable point means the nearest reachable one. */
   | { type: 'TapFloor'; t: SimMs; xM: number; zM: number }
   /**
@@ -40,6 +45,7 @@ export type SimCommand =
 /** Every `type` a {@link SimCommand} can have; a journal from outside is checked against it. */
 export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetTimeScale',
+  'SetFatigue',
   'TapFloor',
   'TapObject',
   'Move',
@@ -65,6 +71,11 @@ export function commandProblem(value: unknown): string | null {
   }
   if (command.type === 'SetTimeScale' && typeof command.scale !== 'number') {
     return 'SetTimeScale: scale must be a number';
+  }
+  if (command.type === 'SetFatigue') {
+    if (typeof command.points !== 'number' || !Number.isFinite(command.points)) {
+      return 'SetFatigue: points must be a finite number';
+    }
   }
   if (command.type === 'TapFloor') {
     for (const key of ['xM', 'zM']) {

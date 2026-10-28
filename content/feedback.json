@@ -42,6 +42,16 @@
       "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 500 },
       "haptic": "heavy"
     },
+    "tel_papa_microsleep": {
+      "audio": { "clip": "tel_papa_microsleep", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.6, "durationMs": 400 },
+      "haptic": "light"
+    },
+    "gag_papa_asleep": {
+      "audio": { "clip": "gag_papa_asleep", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "heavy"
+    },
     "tel_stairs": {
       "audio": { "clip": "tel_stairs", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.6, "durationMs": 400 },

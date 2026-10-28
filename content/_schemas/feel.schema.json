@@ -130,6 +130,11 @@
           "exclusiveMinimum": 0,
           "description": "Generous touch radius around a threat, in screen px (targets stay >= 44 pt)."
         },
+        "objectTouchRadiusPx": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Touch radius around an interactive object's icon point (coffee machine, phone), in screen px."
+        },
         "autoTargetConeDeg": {
           "type": "number",
           "exclusiveMinimum": 0,
@@ -158,6 +163,7 @@
         "holdMinMs",
         "earlyPress",
         "touchRadiusPx",
+        "objectTouchRadiusPx",
         "autoTargetConeDeg",
         "contextReachM",
         "stickDeadzonePct",
@@ -264,6 +270,12 @@
     "fatigue": {
       "type": "object",
       "properties": {
+        "startPoints": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Fatigue at the start of a level that has the fatigue gauge, in points (0-100)."
+        },
         "perSec": {
           "type": "number",
           "minimum": 0,
@@ -304,9 +316,15 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "Time Papa spends drinking a coffee, in ms."
+        },
+        "asleepMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How long Papa sleeps after a missed micro-sleep, in ms."
         }
       },
       "required": [
+        "startPoints",
         "perSec",
         "carriedMultiplier",
         "thresholdPoints",
@@ -314,7 +332,8 @@
         "microSleepMinMs",
         "microSleepMaxMs",
         "coffeeReductionPoints",
-        "coffeeDurationMs"
+        "coffeeDurationMs",
+        "asleepMs"
       ],
       "additionalProperties": false,
       "description": "Papa's fatigue (GDD §6)."

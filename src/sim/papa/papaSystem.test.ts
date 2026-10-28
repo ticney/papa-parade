@@ -179,8 +179,9 @@ describe('TapFloor on open floor', () => {
 describe('TapObject (story 1.17)', () => {
   it('walks to the anchor of the object like a tap there, then says it was tapped', async () => {
     const sim = await newSim();
-    const [x, , z] = anchor('coffee_machine');
-    sim.enqueue(tapObject('coffee_machine'));
+    // The phone only walks (the coffee machine drinks: see the coffee tests).
+    const [x, , z] = anchor('phone');
+    sim.enqueue(tapObject('phone'));
     const events = run(sim, 600);
     // `ObjectTapped` follows the plan and Papa setting off, in the step the command is applied.
     expect(types(events).slice(0, 3)).toEqual([
@@ -191,7 +192,7 @@ describe('TapObject (story 1.17)', () => {
     expect(events[2]).toEqual({
       type: 'ObjectTapped',
       t: (events[0] as { t: number }).t,
-      objectId: 'coffee_machine',
+      objectId: 'phone',
     });
     expect(types(events)).toContain('PapaArrived');
 

@@ -8,6 +8,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  FATIGUE_GAUGES,
   OUTLET,
   testWave,
 } from '../../../tests/support/testContent.ts';
@@ -550,5 +551,30 @@ describe('with a threat to watch', () => {
     const empty = await newSim({ seed: 9, level: createTestLevel() });
     expect(run(plain, stepsFor(20000))).toEqual(run(empty, stepsFor(20000)));
     expect(hashJson(plain.world)).toBe(hashJson(empty.world));
+  });
+});
+
+describe('the micro-sleep (story 1.19)', () => {
+  it('is not the baby’s business: it never locks on a threat that stands on Papa', async () => {
+    const tired: ContentBundle = {
+      ...content,
+      feel: {
+        ...content.feel,
+        fatigue: {
+          ...content.feel.fatigue,
+          startPoints: 90,
+          microSleepMinMs: 0,
+          microSleepMaxMs: 0,
+        },
+      },
+    };
+    const sim = await newSim({
+      content: tired,
+      level: createTestLevel({ gauges: FATIGUE_GAUGES }),
+    });
+    const events = run(sim, 200);
+    expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
+    expect(babyEvents(events).map((event) => event.to)).not.toContain('targetLocked');
+    expect(babyOf(sim).targetThreatId).toBeNull();
   });
 });

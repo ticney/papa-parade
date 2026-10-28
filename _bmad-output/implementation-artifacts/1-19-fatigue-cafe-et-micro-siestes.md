@@ -1,6 +1,10 @@
+---
+baseline_commit: 4edc4304bead2ee48984f1aca7f4b647784258ee
+---
+
 # Story 1.19: Fatigue, Coffee and Micro-Sleeps
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.19 « Fatigue, café et micro-siestes » (L1033-1064). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -161,58 +165,58 @@ so that I manage my own pace in the middle of the chaos.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 — Precondition** (§ Precondition). Record the baseline CI and the counts in the Debug Log.
-- [ ] **T1 — Content** (AC 4, 6, 9, 12, 15)
-  - [ ] `src/content/schemas/threat.ts`:
+- [x] **T0 — Precondition** (§ Precondition). Record the baseline CI and the counts in the Debug Log.
+- [x] **T1 — Content** (AC 4, 6, 9, 12, 15)
+  - [x] `src/content/schemas/threat.ts`:
     - `THREAT_TARGETS = ['anchor', 'papa'] as const`, and a required `target` field described « where the threat stands: a planned anchor, or on Papa (system-spawned, story 1.19) ».
     - `THREAT_ICONS` gains `'eyelids'`.
     - Add `"target": "anchor"` to the three existing threat files.
-  - [ ] `content/threats/papa_microsleep.json`:
+  - [x] `content/threats/papa_microsleep.json`:
     - `target: "papa"`, `response: "parry"`, `telegraphDelayMs: 1200`, `windowMs: null`, `gag: "papa_asleep"`, `icon: "eyelids"`, `cooldownMs: 1000`;
     - feedback `tel_papa_microsleep` / `resp_parry` / `resp_parry_perfect` / `gag_papa_asleep`.
     - The cooldown must stay below `microSleepMinMs − telegraphDelay − window − asleepMs`, or the gap test of AC 13 breaks. Note that in the Dev Notes; nothing enforces it.
-  - [ ] `src/content/schemas/level.ts`:
+  - [x] `src/content/schemas/level.ts`:
     - `GAUGE_IDS = ['noise', 'fatigue', 'need'] as const` (the pill order; only `fatigue` has a schema entry now), `GaugeId`.
     - `LevelSchema.gauges: z.strictObject({ fatigue: z.strictObject({ microSleepDef: idSchema(…) }).optional() }).default({})`. Absent means the level has no fatigue (D1).
     - `OBJECT_KINDS = ['coffee_machine', 'phone'] as const`. `LevelObjectSchema` gains a required `kind: z.enum(OBJECT_KINDS)` (D7).
     - Update the header comment (1.19 added `gauges` and the object `kind`).
-  - [ ] `content/levels/salon_crawler.json`: `"gauges": { "fatigue": { "microSleepDef": "papa_microsleep" } }`, and a `kind` on both objects.
-  - [ ] `src/content/schemas/feel.ts` and `content/feel.json`:
+  - [x] `content/levels/salon_crawler.json`: `"gauges": { "fatigue": { "microSleepDef": "papa_microsleep" } }`, and a `kind` on both objects.
+  - [x] `src/content/schemas/feel.ts` and `content/feel.json`:
     - `fatigue.startPoints` (0, `points`);
     - `fatigue.asleepMs` (3000, `durationMs`, « how long Papa sleeps after a missed micro-sleep »);
     - `input.objectTouchRadiusPx` (64).
     - Keep the existing `.refine`.
-  - [ ] `src/content/loadLevelContent.ts`: also load `gauges.fatigue.microSleepDef` into `LevelContent.threats`, after the wave defs. A missing file names `gauges.fatigue.microSleepDef`. Then the bots' `botResponsesOf` and the client's `threatCueOf` see it with no change.
-  - [ ] `tools/content/contentChecks.ts` (AC 15) and tests in `tests/content/checkContent.test.ts`, `levelSchema.test.ts`, `threatSchema` (wherever its cases live) and `loadLevelContent.test.ts`.
-  - [ ] `npm run content:schemas`; commit `content/_schemas/{threat,level,feel}.schema.json`.
-  - [ ] `content/strings.fr.json`: `"hud.gauges": "Jauges"`, `"hud.gauge_fatigue": "Fatigue"` (EXPERIENCE L164). Pass the keys as literals.
-- [ ] **T2 — World, level plan and snapshot** (AC 1, 4, 6)
-  - [ ] `src/sim/world.ts`:
+  - [x] `src/content/loadLevelContent.ts`: also load `gauges.fatigue.microSleepDef` into `LevelContent.threats`, after the wave defs. A missing file names `gauges.fatigue.microSleepDef`. Then the bots' `botResponsesOf` and the client's `threatCueOf` see it with no change.
+  - [x] `tools/content/contentChecks.ts` (AC 15) and tests in `tests/content/checkContent.test.ts`, `levelSchema.test.ts`, `threatSchema` (wherever its cases live) and `loadLevelContent.test.ts`.
+  - [x] `npm run content:schemas`; commit `content/_schemas/{threat,level,feel}.schema.json`.
+  - [x] `content/strings.fr.json`: `"hud.gauges": "Jauges"`, `"hud.gauge_fatigue": "Fatigue"` (EXPERIENCE L164). Pass the keys as literals.
+- [x] **T2 — World, level plan and snapshot** (AC 1, 4, 6)
+  - [x] `src/sim/world.ts`:
     - `GaugesSlice = { fatigue: number; isFatigueAbove: boolean; microSleepAt: SimMs | null }` and `World.gauges` (architecture L229). The initial `fatigue` is `startPoints`, so `createWorld` takes `fatiguePoints` in its options. `isFatigueAbove` starts `false`: the first `runGauges` step emits the crossing if `startPoints` is already above.
     - `PapaSlice` gains:
       - `objectId: string | null`, the object the current walk goes to;
       - `busyUntil: SimMs`, 0 unless `drink` / `asleep`.
     - Update the `ThreatInstance` doc: a papa-target instance's `xM` / `zM` follow Papa.
-  - [ ] `src/sim/papa/papaFsm.ts`: `PapaState` adds `'drink' | 'asleep'`. Export `PAPA_STATES` with an `…_ARE_COMPLETE` proof (the `THREAT_STATES` pattern) and `isPapaBusy(papa)`. Snapshot's local `PAPA_STATES` goes away in favour of the export.
-  - [ ] `src/sim/context.ts`:
+  - [x] `src/sim/papa/papaFsm.ts`: `PapaState` adds `'drink' | 'asleep'`. Export `PAPA_STATES` with an `…_ARE_COMPLETE` proof (the `THREAT_STATES` pattern) and `isPapaBusy(papa)`. Snapshot's local `PAPA_STATES` goes away in favour of the export.
+  - [x] `src/sim/context.ts`:
     - `SimPlannedThreat.firstWaveIndex` is `-1` for a system-spawned threat. Doc it.
     - `SimLevel` gains `microSleepIndex: number`, the index in `threats` / `world.threats` of the micro-sleep, or `-1` when the level has no fatigue.
     - `SimLevel.objects` entries gain `kind` and `yM`.
-  - [ ] `src/sim/createSim.ts` › `simLevelOf`:
+  - [x] `src/sim/createSim.ts` › `simLevelOf`:
     - with `gauges.fatigue`, append one planned threat `{ def, anchorId: 'papa', firstWaveIndex: -1 }` after the wave ones;
     - check the def is loaded and `target === 'papa'`, check no wave def has `target: 'papa'`, and check each object kind;
     - the instance's `xM` / `zM` start at Papa's spawn;
     - skip it in `checkReachable` (it is not an anchor).
     - `PAPA_TARGET_ANCHOR_ID = 'papa'` goes in `shared/constants.ts`.
-  - [ ] `Sim.objects: readonly SimObjectSpec[]` (D8), and export the type from `@sim`.
-  - [ ] `src/sim/snapshot.ts`:
+  - [x] `Sim.objects: readonly SimObjectSpec[]` (D8), and export the type from `@sim`.
+  - [x] `src/sim/snapshot.ts`:
     - `version: 7`, with a comment;
     - check `gauges` (fatigue finite in `[0, 100]`, the boolean, `microSleepAt` null or finite ≥ 0);
     - check `papa.objectId` (null or a string) and `papa.busyUntil` (finite ≥ 0, and > 0 exactly when busy);
     - busy states have no path and no glide;
     - add tests.
-- [ ] **T3 — Fatigue system** (AC 1-4)
-  - [ ] `src/sim/gauges/fatigue.ts`:
+- [x] **T3 — Fatigue system** (AC 1-4)
+  - [x] `src/sim/gauges/fatigue.ts`:
     - `addFatigue(world, ctx, points)`: the only writer of `gauges.fatigue`. It clamps with `Math.min` / `Math.max`: saturation is a rule, not an `InvariantViolated`. Then it updates `isFatigueAbove` and emits `FatigueThresholdCrossed` on a change, and sets or clears `microSleepAt` (one draw on the way up).
     - `fatigueWindowModifier(world, ctx)`.
     - `isBabyCarried(world)` returns `false` with a comment: « E4 reads `world.papa.carrying` ».
@@ -221,15 +225,15 @@ so that I manage my own pace in the middle of the chaos.
       - put the micro-sleep instance on Papa;
       - the spawn rule of AC 4, calling `telegraphThreat(…, waveIndex -1)` and then drawing the next.
     - Allocation-free.
-  - [ ] `src/sim/gauges/gaugesSystem.ts` › `runGauges(world, ctx)` calls `runFatigue`. It is one system, so that 3.1's noise joins it. Add it to `SYSTEMS` before `runFlow`, and update the header comment and the pinned order test.
-  - [ ] `threatFsm.ts` › `telegraphThreat`: `fatigue: fatigueWindowModifier(world, ctx)` (it is a pure reader). Remove the « fatigue does not exist yet » comment.
-  - [ ] Tests: `fatigue.test.ts` and `gaugesSystem.test.ts`. See § Testing.
-- [ ] **T4 — Papa: coffee, sleep, busy** (AC 5-7)
-  - [ ] `src/sim/papa/coffee.ts`:
+  - [x] `src/sim/gauges/gaugesSystem.ts` › `runGauges(world, ctx)` calls `runFatigue`. It is one system, so that 3.1's noise joins it. Add it to `SYSTEMS` before `runFlow`, and update the header comment and the pinned order test.
+  - [x] `threatFsm.ts` › `telegraphThreat`: `fatigue: fatigueWindowModifier(world, ctx)` (it is a pure reader). Remove the « fatigue does not exist yet » comment.
+  - [x] Tests: `fatigue.test.ts` and `gaugesSystem.test.ts`. See § Testing.
+- [x] **T4 — Papa: coffee, sleep, busy** (AC 5-7)
+  - [x] `src/sim/papa/coffee.ts`:
     - `startCoffee(world, ctx, objectId)`: `drink`, `busyUntil`, `CoffeeStarted`.
     - `finishCoffee(world, ctx)`: `addFatigue(−coffeeReductionPoints)`, `CoffeeDrunk{fatigue}`, `idle`.
-  - [ ] `src/sim/papa/sleep.ts` › `putPapaToSleep(world, ctx)`: it drops the path, the glide, `dir` and `objectId`, then sets `asleep` and `busyUntil = now + asleepMs`. It cancels a coffee: no `CoffeeDrunk`.
-  - [ ] `papaSystem.ts`:
+  - [x] `src/sim/papa/sleep.ts` › `putPapaToSleep(world, ctx)`: it drops the path, the glide, `dir` and `objectId`, then sets `asleep` and `busyUntil = now + asleepMs`. It cancels a coffee: no `CoffeeDrunk`.
+  - [x] `papaSystem.ts`:
     - `tapObject` records `papa.objectId` after a successful plan;
     - `tapFloor`, `move` and the glide clear it;
     - on `PapaArrived` of a `walkPath` with `objectId` set, run the object action. It is a `Record<ObjectKind, …>` like `GAG_CONSEQUENCES`: `coffee_machine → startCoffee`, `phone → nothing (story 1.20)`.
@@ -237,36 +241,36 @@ so that I manage my own pace in the middle of the chaos.
     - `drink` / `asleep` end at `now ≥ busyUntil`.
     - `pressThreat` does not glide for a threat whose planned def has `target: 'papa'`.
     - Update the doc comments.
-  - [ ] `threatSystem.ts`: `PressThreat` is ignored while `isPapaBusy(world.papa)`, with a comment (AC 7). `Release` is unchanged.
-  - [ ] `gags.ts`:
+  - [x] `threatSystem.ts`: `PressThreat` is ignored while `isPapaBusy(world.papa)`, with a comment (AC 7). `Release` is unchanged.
+  - [x] `gags.ts`:
     - `GAG_IDS` gains `'papa_asleep'`; its consequence calls `putPapaToSleep`.
     - Update the header: a gag consequence writes through helpers (`pushProp`, `putPapaToSleep`), never a slice directly.
-  - [ ] `directorSystem.ts`:
+  - [x] `directorSystem.ts`:
     - `isInPool` requires `firstWaveIndex >= 0`;
     - the active count skips instances whose planned `firstWaveIndex < 0`. This resolves deferred L326.
-  - [ ] `babySystem.ts` › `lockOnThreat`: skip papa-target threats (index-aligned `ctx.level.threats[i].def.target`).
-  - [ ] `events.ts`:
+  - [x] `babySystem.ts` › `lockOnThreat`: skip papa-target threats (index-aligned `ctx.level.threats[i].def.target`).
+  - [x] `events.ts`:
     - `FatigueThresholdCrossed{t, isAbove}`, `CoffeeStarted{t, objectId, untilAt}` and `CoffeeDrunk{t, fatigue}`, with doc comments;
     - `SIM_EVENT_TYPES` stays sorted.
-  - [ ] `commands.ts`: `SetFatigue{t, points}`, a debug / test command, journaled like `SetTimeScale`. `applyCommands`, or `runGauges`, applies it through `addFatigue(points − current)`, so the crossing logic runs. `commandProblem` requires a finite number. e2e and Geo use it.
-  - [ ] `src/sim/index.ts`: export `PAPA_STATES` (if the client needs it), `GaugesSlice`, `SimObjectSpec` and `isPapaBusy` (a pure helper; or duplicate the two-state test in the client, your call, and say so).
-  - [ ] Tests: `coffee.test.ts`, `sleep.test.ts`, `papaSystem.test.ts`, `threatSystem.test.ts`, `directorSystem.test.ts`, `babySystem.test.ts`, `gags.test.ts`, `events.test.ts` and `commands.test.ts`.
-- [ ] **T5 — Client input** (AC 8, 11)
-  - [ ] `hitTest.ts` › `pickObject(clientX, clientY, rect, objects, radiusPx)`: the same projection as `pickThreat`, at `(xM, yM, zM)` of each object, nearest within the radius, `null` otherwise. Allocation-free. Update the `pickFloor` comment.
-  - [ ] `inputMapper.ts`:
+  - [x] `commands.ts`: `SetFatigue{t, points}`, a debug / test command, journaled like `SetTimeScale`. `applyCommands`, or `runGauges`, applies it through `addFatigue(points − current)`, so the crossing logic runs. `commandProblem` requires a finite number. e2e and Geo use it.
+  - [x] `src/sim/index.ts`: export `PAPA_STATES` (if the client needs it), `GaugesSlice`, `SimObjectSpec` and `isPapaBusy` (a pure helper; or duplicate the two-state test in the client, your call, and say so).
+  - [x] Tests: `coffee.test.ts`, `sleep.test.ts`, `papaSystem.test.ts`, `threatSystem.test.ts`, `directorSystem.test.ts`, `babySystem.test.ts`, `gags.test.ts`, `events.test.ts` and `commands.test.ts`.
+- [x] **T5 — Client input** (AC 8, 11)
+  - [x] `hitTest.ts` › `pickObject(clientX, clientY, rect, objects, radiusPx)`: the same projection as `pickThreat`, at `(xM, yM, zM)` of each object, nearest within the radius, `null` otherwise. Allocation-free. Update the `pickFloor` comment.
+  - [x] `inputMapper.ts`:
     - `handlePointerDown`: threat, then **(baby: story 1.21)**, then object (`TapObject`, `showTapMarker` at its floor point), then floor;
     - the busy gate (AC 11);
     - `getObjects()` returns `sim.objects`.
-  - [ ] `boot.ts`:
+  - [x] `boot.ts`:
     - drop `contextObjectsOf` and `levelObjects` and read `levelSession.active.sim.objects`;
     - `objectTouchRadiusPx` from `levelFeel()`;
     - on `PapaStateChanged` to `idle` from a busy state, `inputMapper.resumeHeld()`.
-  - [ ] Delete `contextObject.ts`'s `contextObjectsOf` and keep `pickContextObject`. Migrate its test and `levelSession` (`onLevelReady` no longer passes objects).
-- [ ] **T6 — Client HUD gauge** (AC 9)
-  - [ ] `src/client/ui/hud/gaugesHud.ts` › `createGaugesHud(doc, { t, nowAtReal })` → `{ element, setGauges(ids: readonly GaugeId[]), setValue(id, percent), frame(nowAtReal) }`. `frame` ends the « changing » hold without allocating.
+  - [x] Delete `contextObject.ts`'s `contextObjectsOf` and keep `pickContextObject`. Migrate its test and `levelSession` (`onLevelReady` no longer passes objects).
+- [x] **T6 — Client HUD gauge** (AC 9)
+  - [x] `src/client/ui/hud/gaugesHud.ts` › `createGaugesHud(doc, { t, nowAtReal })` → `{ element, setGauges(ids: readonly GaugeId[]), setValue(id, percent), frame(nowAtReal) }`. `frame` ends the « changing » hold without allocating.
     - The icons are a `Readonly<Record<GaugeId, (doc) => SVGSVGElement>>`, from the mockup's `#i-bruit`, `#i-fatigue` and `#i-envie` (L156-159), with fills from CSS classes using tokens (no hex). The labels are a `Record<GaugeId, string>` of literal keys. Only `fatigue` is shown in 1.19, but all three icons exist so 3.1 / E4 only add their system.
     - Structure per gauge: `div.pp-hud-gauge` > `svg` + `div.pp-hud-gauge-bar` > `div.pp-hud-gauge-fill`. The pill is `div.pp-hud-gauges[role=group]`. Count the nodes; the e2e checks the total.
-  - [ ] `ui.css`:
+  - [x] `ui.css`:
     - `.pp-hud-gauges`: mockup L54, with tokens (`--pp-outline`, `--pp-lift`, `--pp-rounded-full`, `--pp-spacing-3` gap, `--pp-spacing-2` padding, 40 px tall).
     - `.pp-hud-gauge`, `.is-idle` (`opacity: .7`), `.is-warn` (fill `--pp-color-gauge-warn`, and an icon ring `box-shadow: 0 0 0 3px var(--pp-color-gauge-warn)` plus the pulse keyframe at ≤ 1 Hz).
     - The bar is 60 × 16, `border: 2px solid var(--pp-color-ink)`, track `--pp-color-gauge-track`.
@@ -274,39 +278,39 @@ so that I manage my own pace in the middle of the chaos.
     - The mask is `repeating-linear-gradient(90deg, transparent 0 3.6px, var(--pp-color-ink) 3.6px 5.6px)`: **5.6 px per segment over the 56 px inner width = 10 segments**. The mockup's 5.8 px gives 9.7; DESIGN wins, epics L213.
     - `@media (prefers-reduced-motion: reduce)`: no animation.
     - No transition on layout properties.
-  - [ ] `hudLayer.ts`: accept `gauges: HTMLElement` and append it to the `gauges` zone. Update the doc comment.
-  - [ ] `boot.ts`:
+  - [x] `hudLayer.ts`: accept `gauges: HTMLElement` and append it to the `gauges` zone. Update the doc comment.
+  - [x] `boot.ts`:
     - the batch gets one slot per `GaugeId` (`GAUGE_SLOTS`, a `Record<GaugeId, number>` after `TIMER_SLOT`);
     - at level start, `gaugesHud.setGauges(ids present in the level)`;
     - in `onLevelFrame`, `hudBatch.set(slot, Math.round(world.gauges.fatigue))` and `gaugesHud.frame(now)`.
-  - [ ] Unit tests: `gaugesHud.test.ts` (structure, order, aria, the idle / warn / changing classes at 49 / 50 / 69 / 70, the hold ending, no fatigue → hidden) and `hudLayer.test.ts`.
-- [ ] **T7 — Client world feedback** (AC 10, 12)
-  - [ ] `threatMarkers.ts`:
+  - [x] Unit tests: `gaugesHud.test.ts` (structure, order, aria, the idle / warn / changing classes at 49 / 50 / 69 / 70, the hold ending, no fatigue → hidden) and `hudLayer.test.ts`.
+- [x] **T7 — Client world feedback** (AC 10, 12)
+  - [x] `threatMarkers.ts`:
     - `ThreatMarkerEntry` gains `followsPapa: boolean`, and its `xM` / `yM` / `zM` become writable for those entries only. Document that `hitTest` reads them.
     - `threatMarkerEntries` builds a papa-target entry with no anchor lookup and no warn.
     - `update(…)` takes Papa's interpolated pose and moves the following markers (object position and entry), at a height of `PAPA_HEIGHT_M` + the icon offset.
     - `THREAT_ICON_PATHS.eyelids` is a closed eye with lashes (24 × 24, provisional).
-  - [ ] `papaView.ts`:
+  - [x] `papaView.ts`:
     - `setEyelids(amount)`: an ink box over the top of the front face, scaled down from 0 to 1;
     - `setAsleep(isAsleep)`: eyelids 1 and a floating « Z » sprite or mesh;
     - `setDrinking(isDrinking)`: a small mug cube.
     - Each is driven from `world` every frame in `levelScene` / `viewRegistry`, with no allocation. The eyelid amount is the telegraph progress `(now − enteredAt) / (windowOpenAt − enteredAt)`, clamped, while the micro-sleep is active.
-  - [ ] `render/gags.ts`: `GAG_PRESENTATIONS.papa_asleep` (a new flag if needed). The `Record` forces it.
-  - [ ] `content/feedback.json`: the two cues of AC 12. `tools/audio/makePlaceholderAudio.ts` gains `tel_papa_microsleep` (lowpassed noise swelling over about 600 ms) and `gag_papa_asleep` (two snore cycles, a low saw with a slow tremolo, about 1.2 s). Run `npm run assets:audio` (macOS) and commit the `.m4a`. Update the tool's header and its test.
-  - [ ] `boot.ts` mirrors: `data-pp-papa` already mirrors the state; check that the new states pass. Add `mirror('ppFatigue', …)`, rounded and written on `FatigueThresholdCrossed` and `CoffeeDrunk` only, never per frame.
-- [ ] **T8 — Bots and CLI** (AC 13, 14)
-  - [ ] Bots need no code: the micro-sleep def is in `LevelContent.threats`, so `botResponsesOf` gives it `parry`. Prove it with one `perfectBot` test: on a level with `startPoints` above the threshold, every micro-sleep is resolved and no `papa_asleep` gag happens.
-  - [ ] `tools/sim/simReport.ts` (AC 14) and its tests.
-  - [ ] `tests/tools/sim/microSleep.test.ts` (AC 13).
-- [ ] **T9 — Tests to migrate**
-  - [ ] `TEST_OBJECTS` gains `kind`.
-  - [ ] `createTestLevel` gains `gauges` (default `{}`) and resolves `gauges.fatigue.microSleepDef` from the frozen threats. `createTestThreats` gains `createTestMicroSleep()`.
-  - [ ] Frozen threats gain `target: 'anchor'`.
-  - [ ] `createTestContent().feel` gains the three new keys.
-  - [ ] `threatCatalog.test.ts`: a papa-target def gets its four cases through a level with `gauges.fatigue`, `feelOverrides` `{ fatigue: { startPoints: 100, microSleepMinMs: 0, microSleepMaxMs: 0 } }` (or the frozen feel patched the same way), and no waves. It must stay name-free: branch on `def.target`, never on the id.
-  - [ ] Never delete a test to go green. Rewrite one whose premise changed and say so.
-- [ ] **T10 — e2e** (AC 8-11, 16)
-  - [ ] New `tests/e2e/fatigue.spec.ts` (chromium + webkit, frozen with `ppLoadLevel('salon_crawler', 42)`):
+  - [x] `render/gags.ts`: `GAG_PRESENTATIONS.papa_asleep` (a new flag if needed). The `Record` forces it.
+  - [x] `content/feedback.json`: the two cues of AC 12. `tools/audio/makePlaceholderAudio.ts` gains `tel_papa_microsleep` (lowpassed noise swelling over about 600 ms) and `gag_papa_asleep` (two snore cycles, a low saw with a slow tremolo, about 1.2 s). Run `npm run assets:audio` (macOS) and commit the `.m4a`. Update the tool's header and its test.
+  - [x] `boot.ts` mirrors: `data-pp-papa` already mirrors the state; check that the new states pass. Add `mirror('ppFatigue', …)`, rounded and written on `FatigueThresholdCrossed` and `CoffeeDrunk` only, never per frame.
+- [x] **T8 — Bots and CLI** (AC 13, 14)
+  - [x] Bots need no code: the micro-sleep def is in `LevelContent.threats`, so `botResponsesOf` gives it `parry`. Prove it with one `perfectBot` test: on a level with `startPoints` above the threshold, every micro-sleep is resolved and no `papa_asleep` gag happens.
+  - [x] `tools/sim/simReport.ts` (AC 14) and its tests.
+  - [x] `tests/tools/sim/microSleep.test.ts` (AC 13).
+- [x] **T9 — Tests to migrate**
+  - [x] `TEST_OBJECTS` gains `kind`.
+  - [x] `createTestLevel` gains `gauges` (default `{}`) and resolves `gauges.fatigue.microSleepDef` from the frozen threats. `createTestThreats` gains `createTestMicroSleep()`.
+  - [x] Frozen threats gain `target: 'anchor'`.
+  - [x] `createTestContent().feel` gains the three new keys.
+  - [x] `threatCatalog.test.ts`: a papa-target def gets its four cases through a level with `gauges.fatigue`, `feelOverrides` `{ fatigue: { startPoints: 100, microSleepMinMs: 0, microSleepMaxMs: 0 } }` (or the frozen feel patched the same way), and no waves. It must stay name-free: branch on `def.target`, never on the id.
+  - [x] Never delete a test to go green. Rewrite one whose premise changed and say so.
+- [x] **T10 — e2e** (AC 8-11, 16)
+  - [x] New `tests/e2e/fatigue.spec.ts` (chromium + webkit, frozen with `ppLoadLevel('salon_crawler', 42)`):
     - The pill is in `[data-pp-zone="gauges"]` with one gauge, `aria-label` « Fatigue 0 % », class idle. The fill's computed transform is a `scaleX` matrix, and no other style animates.
     - After `SetFatigue{points: 80}` and a few steps, it has the warn class, full opacity and an `aria-label` starting « Fatigue 8 ».
     - The HUD node count stays ≤ `HUD_MAX_DOM_NODES`.
@@ -316,18 +320,18 @@ so that I manage my own pace in the middle of the chaos.
       - expect `CoffeeDrunk` with `fatigue === 80 − coffeeReductionPoints` (± one step's gain, from the live feel) and `data-pp-papa` back to `idle`.
       - During `drink`, a floor tap adds no `PapaPathPlanned`.
     - **Micro-sleep:** `SetFatigue{points: 90}`, then advance until a `ThreatTelegraphed` of kind `papa_microsleep`, with a timeout from `microSleepMaxMs`. Its marker is visible near Papa's screen point. Clicking it resolves it, and Papa's position is unchanged by the press (no glide).
-  - [ ] `threats.spec.ts`, `timer.spec.ts` and the other long runs: micro-sleeps now appear after about 140 s. Check that no assertion counts every `ThreatTelegraphed` as a wave threat (filter on `waveIndex >= 0` where needed).
-  - [ ] Screenshots: regenerate darwin and linux (`CLAUDE.md`; memory « story-1-13-screenshot-refs »). Look at each PNG: the pill is top-left with one idle gauge, the timer and pause button are unchanged. Say so.
-- [ ] **T11 — Goldens** (AC 16): `npm run golden:update`, then `git diff tests/golden/journals`. Only `worldHash` may move. If `eventTypes` or `eventsHash` move, a system emits or draws on a level without gauges: fix that, never the references.
-- [ ] **T12 — Docs and deferred work**
-  - [ ] `deferred-work.md`: mark resolved with « (story 1.19) »: L67 (gauge pill), L303 (touch tap on objects), L304 (`ObjectTapped` consumer, for the coffee), L319 (object positions) and L326 (`maxSimultaneous`).
-  - [ ] Add a « Deferred from: implementation of story 1-19 » section with:
+  - [x] `threats.spec.ts`, `timer.spec.ts` and the other long runs: micro-sleeps now appear after about 140 s. Check that no assertion counts every `ThreatTelegraphed` as a wave threat (filter on `waveIndex >= 0` where needed).
+  - [x] Screenshots: regenerate darwin and linux (`CLAUDE.md`; memory « story-1-13-screenshot-refs »). Look at each PNG: the pill is top-left with one idle gauge, the timer and pause button are unchanged. Say so.
+- [x] **T11 — Goldens** (AC 16): `npm run golden:update`, then `git diff tests/golden/journals`. Only `worldHash` may move. If `eventTypes` or `eventsHash` move, a system emits or draws on a level without gauges: fix that, never the references.
+- [x] **T12 — Docs and deferred work**
+  - [x] `deferred-work.md`: mark resolved with « (story 1.19) »: L67 (gauge pill), L303 (touch tap on objects), L304 (`ObjectTapped` consumer, for the coffee), L319 (object positions) and L326 (`maxSimultaneous`).
+  - [x] Add a « Deferred from: implementation of story 1-19 » section with:
     - the busy feedback and the coffee cue (no UX spec);
     - the snore, +15 % noise and the woken baby (E3 / E4);
     - the gauge pulse rate (an assumption);
     - the « changing » hold (D11);
     - L25's loose `windowPenaltyPct`, now read by the sim (tighten to < 100?).
-  - [ ] `_bmad-output/project-context.md`: the system order now includes `runGauges`. Add the busy rule and the papa-target threat rule.
+  - [x] `_bmad-output/project-context.md`: the system order now includes `runGauges`. Add the busy rule and the papa-target threat rule.
 
 ## Dev Notes
 
@@ -518,10 +522,70 @@ The architecture's `runFatigue` (L906) stays as the fatigue function; `runGauges
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`).
+
 ### Debug Log References
+
+- **Baseline (T0).** `env | grep VITE_` showed `VITE_DEBUG_ALLOWED=false`; every `dev` / `e2e` / `ci` ran under `(unset VITE_DEBUG_ALLOWED; …)`. 1.18 was `done`, the tree was clean at `4edc430`.
+  - The first `npm run ci` baseline was **contaminated by me**: I started editing `content/` while its e2e phase ran, and 6 specs failed while the level was invalid. I did not count it. Unit part of that run: 174 files, 2730 tests, coverage green.
+  - Clean baseline: e2e re-run alone on a `git worktree` of `HEAD` (no edits possible): **210 passed**.
+  - No `--maxWorkers` was needed for the baseline; the final coverage run used `--maxWorkers=5` once, while Docker was running.
+- **Final state.** Unit: 180 files, 2884 tests (2730 before), `src/sim` coverage above 90 %. e2e: 222 passed (210 before: `fatigue.spec.ts` adds 6 specs × 2 browsers). Goldens: `eventTypes` and `eventsHash` of all six scenarios identical, only `worldHash`, `feelHash` and `levelHash` moved (the new slices, the new feel keys and the level's `gauges` / object `kind`).
+- **Deviations from the task text** (each also in the story's code comments):
+  1. **`runFatigue` lives in `gauges/fatigueSystem.ts`, not `fatigue.ts`.** `threatFsm.ts` reads `fatigueWindowModifier`, and `runFatigue` calls `telegraphThreat`: both in `fatigue.ts` made an import cycle. `fatigue.ts` keeps `addFatigue`, `fatigueWindowModifier`, `isBabyCarried` and `drawMicroSleepMs`; `fatigueSystem.ts` has the system; `gaugesSystem.ts` calls it. The architecture's `runFatigue` name is kept.
+  2. **Strings.** `content/strings.fr.json` already had `gauge.fatigue`, `gauge.noise` and `gauge.urge` (« Fatigue », « Bruit », « Envie »): the pill reuses them (`noise → gauge.noise`, `fatigue → gauge.fatigue`, `need → gauge.urge`) and only `hud.gauges` is new. No `hud.gauge_fatigue`.
+  3. **State classes.** The architecture test (`designTokens`) requires every CSS selector to start with `pp-`: the idle and warn classes are `pp-hud-gauge-idle` and `pp-hud-gauge-warn`, not `.is-idle` / `.is-warn`.
+  4. **`SetFatigue` is applied by `runGauges`**, not by `applyCommands` (so a level that has ended ignores it, and a level with no fatigue gauge too).
+  5. **A press that does not glide cancels nothing.** AC 6 says a `PressThreat` before arrival cancels the coffee. It is the **glide** that clears `papa.objectId` (`startGlide`): a press on the micro-sleep (D9, no glide) keeps Papa walking to the machine (tested: `coffee.test.ts`).
+  6. **`pickObject` tie rule** (the story left it open): the strictly nearer object wins, the earlier one wins an exact tie.
+  7. **`withoutThreats` (`?threats=off`) now keeps the micro-sleep def**: with the level's `gauges` kept and the def dropped, `createSim` refuses the level (invariant). A quiet room stays quiet: the first micro-sleep comes at about 148 s.
+  8. **New debug mirrors:** `data-pp-fatigue` (rounded, written on `FatigueThresholdCrossed`, `CoffeeDrunk` and at level start) and `data-pp-object-px` (`coffee_machine:x,y;phone:x,y`, once per level), so that a spec can tap an object like it taps a threat icon. `data-pp-papa-state` already carried the new states.
+  9. **`threats.spec.ts` premise changed**: the planned instances are now `outlet, stairs, coffee_table_object, papa_microsleep`; the assertion lists the micro-sleep last. `threatCatalog.test.ts` and `papaSystem.test.ts` (the `TapObject` equivalence now uses the `phone`, which only walks) were rewritten for the same reason. No test was deleted.
+- **Cooldown rule (T1).** `papa_microsleep.cooldownMs` (1000) must stay below `microSleepMinMs − telegraphDelay − window − asleepMs`, or the gap test of AC 13 breaks. Nothing enforces it.
+- **Audio.** `npm run assets:audio` rewrites *every* `.m4a` (AAC encoding is not byte-stable). Only the two new clips were kept (`tel_papa_microsleep.m4a`, `gag_papa_asleep.m4a`); the other eleven were restored from git.
+- **Screenshots.** `autoplay-frozen-{chromium,webkit}-{darwin,linux}.png` regenerated (darwin: `--update-snapshots`; linux: the story 1.13 Docker command with the `pp-node-modules` volume). I looked at all four: the pill is top-left with one dimmed fatigue gauge (an eye icon and an empty ten-segment bar), the timer is top-centre and the pause button top-right, unchanged.
+- **Architecture note.** The architecture's `runFatigue` (L906) is the fatigue function; `runGauges` is the system in `SYSTEMS`.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- ✅ **Fatigue in the sim.** `world.gauges` (`fatigue`, `isFatigueAbove`, `microSleepAt`); `addFatigue` is the only writer (clamps silently, emits `FatigueThresholdCrossed` once per crossing, draws the first micro-sleep on the way up and clears it on the way down); the rules apply strictly above `thresholdPoints`; a level opts in through `gauges.fatigue.microSleepDef`, with no draw and no event otherwise.
+- ✅ **Micro-sleeps.** One pre-created instance, planned last with `anchorId: 'papa'` and `firstWaveIndex: -1`, standing on Papa at every step; due `microSleepMinMs…MaxMs` after the crossing and after each telegraph; waits while the instance is not idle, Papa is busy or the flow is not `playing`. Never counts against `maxSimultaneous`, never drawn by the director, never locked on by the baby. A press does not glide Papa; a miss is the `papa_asleep` gag (a 3 s nap, no `NearMiss`).
+- ✅ **Coffee and busy.** `TapObject` on a `coffee_machine` walks Papa there; on arrival `drink` for `coffeeDurationMs`, then `−coffeeReductionPoints` (held at 0) and `CoffeeDrunk`. `drink` and `asleep` ignore every move and press (`Release` passes); falling asleep cancels a coffee. The arrival action is a `Record<ObjectKind, …>`.
+- ✅ **Content and checks.** `target` on every threat def, `gauges` and object `kind` on the level, three feel keys, `papa_microsleep.json`; `content:check` and `createSim` refuse, in the same words, a micro-sleep def with no file or with another target, a wave threat with `target: "papa"` and an object kind without an action. `Sim.objects` replaces the client's copy (`contextObjectsOf` is gone).
+- ✅ **Client.** `pickObject` and the touch tap on an object (threat > object > floor, with a slot noted for the baby); the busy gate; the `hud-gauge` pill (`gaugesHud.ts`: ten-segment mask, one scaled fill, idle / warn / changing classes, pulse at 1 Hz, reduced motion), written through `hudBatch`; the micro-sleep marker follows Papa's drawn pose; Papa's eyelids, « Z » and mug are drawn from the world every frame (no overlay).
+- ✅ **Bots and CLI.** No bot code: the micro-sleep def is in `LevelContent.threats`. `tests/tools/sim/microSleep.test.ts` plays the live `salon_crawler` with the idle bot over 5 seeds (every bound read from the live feel) and the perfect bot on an exhausted Papa. `simReport` ignores `waveIndex: -1` in the wave tallies and the active count, and gains `microSleeps`, `coffees` and `asleepRuns`.
+- ✅ **Goldens, schemas, audio, screenshots** regenerated deliberately (see the Debug Log) and committed with the code.
+- **Not verified here:** nothing on a real phone (the pulse rate, the dimming and the 1.5 s « changing » hold are assumptions; see Open points 2 and 4 and `deferred-work.md`).
 
 ### File List
+
+**Content and schemas**
+- `content/threats/papa_microsleep.json` (new); `content/threats/{outlet,stairs,coffee_table_object}.json`; `content/levels/salon_crawler.json`; `content/feel.json`; `content/feedback.json`; `content/strings.fr.json`; `content/_schemas/{feel,level,threat}.schema.json`
+- `src/content/schemas/{threat,level,feel}.ts`; `src/content/loadLevelContent.ts`; `tools/content/contentChecks.ts`
+
+**Sim**
+- New: `src/sim/gauges/{fatigue,fatigueSystem,gaugesSystem}.ts` (+ `fatigue.test.ts`, `gaugesSystem.test.ts`); `src/sim/papa/{coffee,sleep}.ts` (+ tests)
+- Updated: `src/sim/{world,context,createSim,snapshot,step,events,commands,index}.ts`; `src/sim/papa/{papaFsm,papaSystem,glide}.ts`; `src/sim/threats/{threatFsm,threatSystem,gags}.ts`; `src/sim/director/directorSystem.ts`; `src/sim/baby/babySystem.ts`; `src/shared/constants.ts`
+- Tests updated: `src/sim/{createSim,snapshot,step,commands,events}.test.ts`; `src/sim/papa/{papaSystem,glide,walk}.test.ts`; `src/sim/threats/{threatFsm,threatSystem,gags}.test.ts`; `src/sim/director/directorSystem.test.ts`; `src/sim/baby/babySystem.test.ts`
+
+**Client**
+- New: `src/client/ui/hud/gaugesHud.ts` (+ test)
+- Updated: `src/client/boot.ts`; `src/client/app/{levelSession,threatsSwitch}.ts`; `src/client/input/{hitTest,inputMapper,contextObject}.ts`; `src/client/render/{levelScene,gags}.ts`; `src/client/render/views/papaView.ts`; `src/client/ui/hud/hudLayer.ts`; `src/client/ui/world/{threatMarkers,worldUi}.ts`; `src/client/ui/styles/ui.css`
+- Tests updated: `src/client/app/{levelSession,threatsSwitch}.test.ts`; `src/client/feedback/threatFeedback.test.ts`; `src/client/input/{hitTest,inputMapper,contextObject}.test.ts`; `src/client/loop.test.ts`; `src/client/render/levelScene.test.ts`; `src/client/render/views/papaView.test.ts`; `src/client/ui/hud/hudLayer.test.ts`; `src/client/ui/world/{threatMarkers,glyphChip,worldUi}.test.ts`
+
+**Audio, bots, CLI, tests, e2e**
+- `tools/audio/makePlaceholderAudio.ts`; `public/assets/audio/{tel_papa_microsleep,gag_papa_asleep}.m4a` (new); `tests/tools/audio/makePlaceholderAudio.test.ts`
+- `tools/sim/simReport.ts`; `tests/tools/sim/{simReport,microSleep}.test.ts` (`microSleep.test.ts` is new)
+- `tests/support/{testContent.ts,testFeel.json,testOutlet.threat.json,testStairs.threat.json,testCoffeeTableObject.threat.json,testMicroSleep.threat.json}` (the last is new)
+- `tests/threats/threatCatalog.test.ts`; `tests/content/{checkContent,levelSchema,loadLevelContent,threatSchema}.test.ts`
+- `tests/e2e/fatigue.spec.ts` (new); `tests/e2e/threats.spec.ts`; `tests/e2e/support/game.ts`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-{chromium,webkit}-{darwin,linux}.png`
+- `tests/golden/journals/*.json` (12 files; `worldHash`, `feelHash`, `levelHash` only)
+
+**Docs and status**
+- `_bmad-output/implementation-artifacts/{deferred-work.md,sprint-status.yaml,1-19-fatigue-cafe-et-micro-siestes.md}`; `_bmad-output/project-context.md`
+
+### Change Log
+
+- 2026-10-28: Story 1.19 implemented. Fatigue (0.5/s, strict threshold at 70, windows × 0.8), telegraphed micro-sleeps on Papa with the `papa_asleep` nap, the coffee on a machine tap, the busy state, the touch tap on an object, the gauge pill, Papa's eyelids / « Z » / mug, two placeholder sounds, `SetFatigue`, snapshot version 7, CLI report counts, content checks. Goldens (`worldHash`, `feelHash`, `levelHash` only), JSON Schemas, audio and screenshot references regenerated. Status → review.

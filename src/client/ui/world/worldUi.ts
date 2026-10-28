@@ -18,13 +18,15 @@ export interface WorldUi {
   unmountThreats(): void;
   /**
    * Once per frame, before `render`: shows the icons of the active threats and highlights
-   * `highlightedId` (pressed) and `targetedId` (auto-targeted, null on touch and mouse). True when
-   * a press began to show in this call (a target ring alone is not one).
+   * `highlightedId` (pressed) and `targetedId` (auto-targeted, null on touch and mouse). The icons
+   * that follow Papa (the micro-sleep) move to `papa`, his drawn pose. True when a press began to
+   * show in this call (a target ring alone is not one).
    */
   updateThreats(
     threats: readonly Readonly<ThreatInstance>[],
     highlightedId: number | null,
     targetedId: number | null,
+    papa?: Readonly<{ xM: number; zM: number }> | null,
   ): boolean;
   /** The icon points of the mounted level, for the hit test. */
   readonly threatEntries: readonly ThreatMarkerEntry[];

@@ -26,7 +26,7 @@ import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import type { ThreatDef } from '@content/schemas/threat';
 import { checkStringReferences } from '@content/stringRefs';
 import { MS_PER_S, PHYSICS_BOUNDS_WALL_THICKNESS_M, STEP_MS } from '@shared/constants';
-import { GAG_IDS, SIM_EVENT_TYPES } from '@sim';
+import { GAG_IDS, OBJECT_ACTION_KINDS, SIM_EVENT_TYPES } from '@sim';
 
 const SCHEMAS_DIR = '_schemas';
 const AUDIO_DIR = ['public', 'assets', 'audio'];
@@ -296,6 +296,13 @@ function checkLevelReferences(
             message: `"${entry.anchor}" is not an anchor of content/${geometryFile}`,
           });
         }
+        if (families.threats.get(entry.def)?.target === 'papa') {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
+            message: `the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef), a wave cannot plan it`,
+          });
+        }
         const gag = families.threats.get(entry.def)?.gag;
         if (gag !== undefined && !(GAG_IDS as readonly string[]).includes(gag)) {
           problems.push({
@@ -306,6 +313,25 @@ function checkLevelReferences(
         }
       });
     });
+    const microSleepDef = level.gauges.fatigue?.microSleepDef;
+    if (microSleepDef !== undefined) {
+      const defFile = `${THREAT_DEF_PATTERN.dir}/${microSleepDef}${THREAT_DEF_PATTERN.suffix}`;
+      const microSleep = families.threats.get(microSleepDef);
+      const path = formatJsonPath(['gauges', 'fatigue', 'microSleepDef']);
+      if (microSleep === undefined && !present.has(defFile)) {
+        problems.push({
+          file,
+          jsonPath: path,
+          message: `no threat "${microSleepDef}" (content/${defFile} does not exist)`,
+        });
+      } else if (microSleep !== undefined && microSleep.target !== 'papa') {
+        problems.push({
+          file,
+          jsonPath: path,
+          message: `the threat "${microSleepDef}" has target "${microSleep.target}", but a micro-sleep must have target "papa"`,
+        });
+      }
+    }
     if (feel !== undefined) {
       const merged = mergeFeel(feel, level.feelOverrides, file);
       if (!merged.ok) {
@@ -329,6 +355,13 @@ function checkLevelReferences(
         });
       }
       seenObjects.add(object.id);
+      if (!(OBJECT_ACTION_KINDS as readonly string[]).includes(object.kind)) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['objects', index, 'kind']),
+          message: `level ${id}: the object "${object.id}" has the kind "${object.kind}", which the sim has no action for (${OBJECT_ACTION_KINDS.join(', ')})`,
+        });
+      }
       if (
         geometry !== undefined &&
         !geometry.anchors.some((anchor) => anchor.id === object.anchor)

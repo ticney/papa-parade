@@ -64,7 +64,7 @@ describe('createWorldUi', () => {
 });
 
 describe('createWorldUi, threat icons', () => {
-  const entry = { threatId: 1, xM: 0, yM: 0, zM: 0, icon: 'bolt' as const };
+  const entry = { threatId: 1, xM: 0, yM: 0, zM: 0, icon: 'bolt' as const, followsPapa: false };
   const threat = (state: string) => [{ id: 1, state }] as never;
 
   it('renders the layer while a threat icon shows, though no tap marker does', () => {
@@ -101,7 +101,7 @@ describe('createWorldUi, threat icons', () => {
 });
 
 describe('createWorldUi, glyph chip (story 1.17)', () => {
-  const entry = { threatId: 1, xM: 0, yM: 0, zM: 0, icon: 'bolt' as const };
+  const entry = { threatId: 1, xM: 0, yM: 0, zM: 0, icon: 'bolt' as const, followsPapa: false };
 
   it('renders the layer while the chip shows, and stops once it is hidden', () => {
     const { ui, camera, container } = build();

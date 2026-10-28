@@ -8,7 +8,6 @@ import { type AppError, err, ok, type Result } from '@shared/result';
 import { type CreateSimOptions, createSim, type Sim, type SimEvent } from '@sim';
 import type { OrthographicCamera } from 'three';
 import { type LevelAssets, loadLevelAssets } from '../assets/loadLevelAssets.ts';
-import { type ContextObject, contextObjectsOf } from '../input/contextObject.ts';
 import { createGameLoop, type FrameScheduler, type GameLoop } from '../loop.ts';
 import { createLevelScene, type LevelScene, type SceneBodies } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
@@ -31,13 +30,9 @@ export interface LevelSessionDeps {
    * The level's scene is up (its room is known): fit the camera, show it behind the loading screen.
    * Called before the previous level's scene is disposed. `threatEntries` are the icon points of the
    * level's threats (one per `world.threats` entry, same order), for the world UI and the hit test.
-   * `objects` are the level's interactive objects at their floor points, for Space and A.
+   * The level's objects are `sim.objects`.
    */
-  onLevelReady(
-    level: LevelScene,
-    threatEntries: readonly ThreatMarkerEntry[],
-    objects: readonly ContextObject[],
-  ): void;
+  onLevelReady(level: LevelScene, threatEntries: readonly ThreatMarkerEntry[]): void;
   /** Once per rendered frame, paused or not (the UI follows the countdown there). */
   onLevelFrame(): void;
   onSimEvent(event: SimEvent): void;
@@ -356,7 +351,6 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           deps.onLevelReady(
             level,
             threatMarkerEntries(sim.world.threats, levelAssets.geometry.anchors, levelPlan.threats),
-            contextObjectsOf(levelPlan.level.objects, levelAssets.geometry.anchors),
           );
         } catch (cause) {
           // The new scene never became current: free it, and keep the previous one as it was.

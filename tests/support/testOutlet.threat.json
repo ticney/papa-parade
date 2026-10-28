@@ -1,6 +1,7 @@
 {
   "$schema": "../../content/_schemas/threat.schema.json",
   "id": "outlet",
+  "target": "anchor",
   "response": "parry",
   "telegraphDelayMs": 1200,
   "windowMs": null,

@@ -33,8 +33,9 @@
     }
   ],
   "objects": [
-    { "id": "coffee_machine", "anchor": "coffee_machine" },
-    { "id": "phone", "anchor": "phone" }
+    { "id": "coffee_machine", "kind": "coffee_machine", "anchor": "coffee_machine" },
+    { "id": "phone", "kind": "phone", "anchor": "phone" }
   ],
+  "gauges": { "fatigue": { "microSleepDef": "papa_microsleep" } },
   "feelOverrides": {}
 }

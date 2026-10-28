@@ -1,6 +1,7 @@
 {
   "$schema": "../_schemas/threat.schema.json",
   "id": "coffee_table_object",
+  "target": "anchor",
   "response": "parry",
   "telegraphDelayMs": 1500,
   "windowMs": null,

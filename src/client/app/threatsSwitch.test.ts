@@ -1,6 +1,11 @@
 import { log } from '@shared/log';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createTestLevel, OUTLET, testWave } from '../../../tests/support/testContent.ts';
+import {
+  createTestLevel,
+  FATIGUE_GAUGES,
+  OUTLET,
+  testWave,
+} from '../../../tests/support/testContent.ts';
 import { readThreatsOff, withoutThreats } from './threatsSwitch.ts';
 
 const warnSpy = vi.spyOn(log, 'warn').mockImplementation(() => {});
@@ -42,5 +47,16 @@ describe('withoutThreats', () => {
     expect(stripped.level.variant).toBe(planned.level.variant);
     expect(stripped.threats).toEqual({});
     expect(planned.level.waves).toHaveLength(1); // the original is untouched
+  });
+
+  it('keeps the fatigue gauge and the micro-sleep def it needs (createSim refuses one without)', () => {
+    const planned = createTestLevel({
+      waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })],
+      gauges: FATIGUE_GAUGES,
+    });
+    const stripped = withoutThreats(planned);
+    expect(stripped.level.waves).toEqual([]);
+    expect(stripped.level.gauges).toEqual(FATIGUE_GAUGES);
+    expect(Object.keys(stripped.threats)).toEqual(['papa_microsleep']);
   });
 });

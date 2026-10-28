@@ -37,3 +37,13 @@ describe('SIM_EVENT_TYPES', () => {
     expect(SIM_EVENT_TYPES_ARE_COMPLETE).toBe(true);
   });
 });
+
+describe('the fatigue events (story 1.19)', () => {
+  it('lists CoffeeDrunk, CoffeeStarted and FatigueThresholdCrossed in their alphabetical places', () => {
+    const names: readonly string[] = SIM_EVENT_TYPES;
+    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('BabyStateChanged') + 1);
+    expect(names.indexOf('CoffeeStarted')).toBe(names.indexOf('CoffeeDrunk') + 1);
+    expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('CoffeeStarted') + 1);
+    expect(names.indexOf('GagTriggered')).toBe(names.indexOf('FatigueThresholdCrossed') + 1);
+  });
+});

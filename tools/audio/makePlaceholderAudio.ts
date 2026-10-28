@@ -8,8 +8,9 @@ import { type AppError, err, ok, type Result } from '@shared/result';
 import { createRng, nextFloat, type RngState } from '@shared/rng';
 import { ROOT } from '../assets/paths.ts';
 
-// The provisional sounds of stories 1.9, 1.11 and 1.16 (the outlet's four cues, then the stairs'
-// and the coffee table's telegraph and gag clips), synthesized so that the whole audio pipeline
+// The provisional sounds of stories 1.9, 1.11, 1.16 and 1.19 (the outlet's four cues, then the
+// stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled swell and
+// Papa's snore), synthesized so that the whole audio pipeline
 // works end to end with no human (golden rule). Real sounds replace the `.m4a` files under the same
 // names (stories 2.3 and 7.5). The tool is macOS only (`afconvert`) and CI never runs it.
 
@@ -124,6 +125,24 @@ const GAG_TABLE_LENGTH_MS = 350;
 const GAG_TABLE_PITCH_HZ = { from: 1200, to: 400 };
 const GAG_TABLE_ATTACK_MS = 10;
 const GAG_TABLE_RELEASE_MS = 40;
+
+// Micro-sleep telegraph: a muffled swell, low-passed noise over a soft low hum, as if the room went cottony.
+const TEL_SLEEP_LENGTH_MS = 600;
+const TEL_SLEEP_HUM_HZ = 110;
+const TEL_SLEEP_HUM_GAIN = 0.6;
+/** One-pole smoothing of the swell's noise: the share of the new sample, in percent (heavy: muffled). */
+const TEL_SLEEP_SMOOTHING_PCT = 3;
+const TEL_SLEEP_NOISE_GAIN = 6;
+const TEL_SLEEP_RELEASE_MS = 120;
+
+// Papa's snore (the gag of a missed micro-sleep): two cycles of a low saw with a slow tremolo.
+const GAG_SLEEP_CYCLE_MS = 600;
+const GAG_SLEEP_CYCLES = 2;
+const GAG_SLEEP_PITCH_HZ = { from: 70, to: 95 };
+const GAG_SLEEP_TREMOLO_HZ = 28;
+const GAG_SLEEP_TREMOLO_DEPTH = 0.6;
+/** Share of each cycle spent breathing in (swelling); the rest breathes out. */
+const GAG_SLEEP_INHALE_PCT = 55;
 
 /** A thump's ramp-up, in ms, and the level under which its tail is cut (a share of full scale). */
 const THUMP_ATTACK_MS = 2;
@@ -451,6 +470,56 @@ export function synthGagCoffeeTable(): Float32Array {
   return out;
 }
 
+/** A muffled swell: heavily low-passed noise and a low hum that rise slowly, then fade (the micro-sleep's telegraph). */
+export function synthTelegraphMicroSleep(): Float32Array {
+  const rng = createRng(SEED + 5);
+  const out = new Float32Array(samplesOf(TEL_SLEEP_LENGTH_MS));
+  const release = samplesOf(TEL_SLEEP_RELEASE_MS);
+  let noise = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const progress = i / out.length;
+    noise += (TEL_SLEEP_SMOOTHING_PCT / 100) * (nextFloat(rng) * 2 - 1 - noise);
+    const hum = Math.sin(2 * Math.PI * TEL_SLEEP_HUM_HZ * seconds);
+    // Slow rise (a sine quarter wave), then the release.
+    const swell = Math.sin((Math.PI / 2) * progress);
+    out[i] =
+      (TEL_SLEEP_NOISE_GAIN * noise + TEL_SLEEP_HUM_GAIN * hum) *
+      swell *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A snore: two breaths of a low sawtooth with a slow tremolo, swelling in then falling out (Papa's gag). */
+export function synthGagPapaAsleep(): Float32Array {
+  const cycle = samplesOf(GAG_SLEEP_CYCLE_MS);
+  const out = new Float32Array(cycle * GAG_SLEEP_CYCLES);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const within = (i % cycle) / cycle;
+    const inhale = GAG_SLEEP_INHALE_PCT / 100;
+    const breath = within < inhale ? within / inhale : (1 - within) / (1 - inhale);
+    const frequencyHz =
+      GAG_SLEEP_PITCH_HZ.from + (GAG_SLEEP_PITCH_HZ.to - GAG_SLEEP_PITCH_HZ.from) * breath;
+    phase += frequencyHz / SAMPLE_RATE_HZ;
+    const saw = 2 * (phase - Math.floor(phase)) - 1;
+    const tremolo =
+      1 -
+      GAG_SLEEP_TREMOLO_DEPTH *
+        (0.5 + 0.5 * Math.sin(2 * Math.PI * GAG_SLEEP_TREMOLO_HZ * seconds));
+    out[i] = saw * tremolo * breath * breath;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -486,6 +555,8 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'gag_stairs', synth: synthGagStairs },
   { clip: 'tel_coffee_table', synth: synthTelegraphCoffeeTable },
   { clip: 'gag_coffee_table', synth: synthGagCoffeeTable },
+  { clip: 'tel_papa_microsleep', synth: synthTelegraphMicroSleep },
+  { clip: 'gag_papa_asleep', synth: synthGagPapaAsleep },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

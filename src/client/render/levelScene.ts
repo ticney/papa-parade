@@ -1,6 +1,6 @@
 import { looksLikeGameplayNode, parseNodeName } from '@content/levelNodeNames';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
-import { STEP_MS } from '@shared/constants';
+import { PAPA_TARGET_ANCHOR_ID, STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import type { SimMs } from '@shared/time';
 import type { GagId, PropSlice, World } from '@sim';
@@ -25,7 +25,7 @@ import { createLiftFx } from './vfx/liftHop.ts';
 import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
 import { createBabyView } from './views/babyView.ts';
-import { createPapaView } from './views/papaView.ts';
+import { createPapaView, type PapaPose } from './views/papaView.ts';
 import { createPropView, type PropView } from './views/propView.ts';
 import { createViewPool, type ViewPool } from './views/viewPool.ts';
 import { createViewRegistry } from './views/viewRegistry.ts';
@@ -82,6 +82,8 @@ export interface LevelScene {
    * last step to the next; then the effects, on the interpolated sim clock.
    */
   update(world: Readonly<World>, alpha: number): void;
+  /** Where Papa was last drawn (interpolated), for the markers that follow him. */
+  readonly papaPose: Readonly<PapaPose>;
   /**
    * Ends the effects under way (rings hidden, shake offset back to zero, lights back, hair down,
    * baby on the floor). Effects advance only
@@ -91,6 +93,25 @@ export interface LevelScene {
   resetFx(): void;
   /** Frees geometries, materials and textures. Call it when a new level replaces this one. */
   dispose(): void;
+}
+
+/**
+ * How shut Papa's eyelids are, 0 to 1: while the micro-sleep (the threat that stands on him) is
+ * announced they lower with the telegraph's progress, from its entry to the opening of the window,
+ * and they stay shut while the window is open. Read from the world each frame (story 1.19), so a
+ * pause or a slow-mo freezes it. Allocation-free.
+ */
+export function eyelidsAmountAt(world: Readonly<World>, clockMs: number): number {
+  for (let i = 0; i < world.threats.length; i++) {
+    const threat = world.threats[i] as World['threats'][number];
+    if (threat.anchorId !== PAPA_TARGET_ANCHOR_ID) continue;
+    if (threat.state === 'windowOpen') return 1;
+    if (threat.state !== 'telegraph') return 0;
+    const spanMs = threat.windowOpenAt - threat.enteredAt;
+    if (!(spanMs > 0)) return 1;
+    return Math.min(1, Math.max(0, (clockMs - threat.enteredAt) / spanMs));
+  }
+  return 0;
 }
 
 /**
@@ -292,11 +313,18 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     scene,
     room,
     fx,
+    get papaPose() {
+      return papa.pose;
+    },
     update(world, alpha) {
       papa.update(world.papa, alpha);
       baby.update(world.baby, alpha);
       props.sync(world.props, alpha);
       const clockMs = world.time.sim + alpha * STEP_MS;
+      // Papa's nap and coffee, from the world every frame (story 1.19; diegetic, no overlay).
+      papa.setEyelids(eyelidsAmountAt(world, clockMs));
+      papa.setAsleep(world.papa.state === 'asleep', clockMs);
+      papa.setDrinking(world.papa.state === 'drink');
       waves.update(clockMs);
       shake.update(clockMs);
       gags.update(clockMs);

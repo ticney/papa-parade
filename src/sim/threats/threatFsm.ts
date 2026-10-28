@@ -4,6 +4,7 @@ import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import { isLastOfWave } from '../director/waveState.ts';
 import type { FailReason, ResponseQuality } from '../events.ts';
+import { fatigueWindowModifier } from '../gauges/fatigue.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import { effectiveWindow } from '../timing/effectiveWindow.ts';
 import type { ThreatInstance, World } from '../world.ts';
@@ -56,9 +57,9 @@ export function telegraphThreat(
 ): void {
   const { timing, difficulty } = ctx.feel;
   threat.responseWindow = effectiveWindow(timing, def.windowMs ?? timing.windowMs, {
-    // The default tier until story 2.8 lets the player pick; fatigue and instinct do not exist yet.
+    // The default tier until story 2.8 lets the player pick; instinct does not exist yet.
     tier: difficulty.normal.windowMultiplier,
-    fatigue: NEUTRAL_WINDOW_MODIFIER,
+    fatigue: fatigueWindowModifier(world, ctx),
     instinct: NEUTRAL_WINDOW_MODIFIER,
   });
   threat.windowOpenAt = asSimMs(

@@ -44,6 +44,23 @@ describe('content/levels/salon_crawler.json', () => {
     expect(parsed.value.feelOverrides).toEqual({});
   });
 
+  it('gives the live level a fatigue gauge with the micro-sleep, and each object its kind', () => {
+    const parsed = parse(real);
+    expect(parsed.ok && parsed.value.gauges).toEqual({
+      fatigue: { microSleepDef: 'papa_microsleep' },
+    });
+    expect(parsed.ok && parsed.value.objects.map((object) => object.kind)).toEqual([
+      'coffee_machine',
+      'phone',
+    ]);
+  });
+
+  it('has no gauge when the key is absent (a level opts into fatigue, D1)', () => {
+    const { gauges: _gauges, ...withoutGauges } = real;
+    const parsed = parse(withoutGauges);
+    expect(parsed.ok && parsed.value.gauges).toEqual({});
+  });
+
   it('plans the outlet, the stairs and the coffee table, once each, and no top-level threats', () => {
     const parsed = parse(real);
     expect(parsed.ok && parsed.value.waves.flatMap((w) => w.threats)).toEqual([
@@ -115,18 +132,43 @@ describe('content/levels/salon_crawler.json', () => {
     ],
     [
       'an object with an unknown key',
-      { ...real, objects: [{ id: 'phone', anchor: 'phone', bogus: 1 }] },
+      { ...real, objects: [{ id: 'phone', kind: 'phone', anchor: 'phone', bogus: 1 }] },
       ['objects[0].bogus'],
     ],
     [
       'an object id in camelCase',
-      { ...real, objects: [{ id: 'coffeeMachine', anchor: 'phone' }] },
+      { ...real, objects: [{ id: 'coffeeMachine', kind: 'phone', anchor: 'phone' }] },
       ['objects[0].id'],
     ],
     [
       'an object anchor with its prefix',
-      { ...real, objects: [{ id: 'phone', anchor: 'ANCHOR_phone' }] },
+      { ...real, objects: [{ id: 'phone', kind: 'phone', anchor: 'ANCHOR_phone' }] },
       ['objects[0].anchor'],
+    ],
+    [
+      'an object with no kind',
+      { ...real, objects: [{ id: 'phone', anchor: 'phone' }] },
+      ['objects[0].kind'],
+    ],
+    [
+      'an object of an unknown kind',
+      { ...real, objects: [{ id: 'phone', kind: 'kettle', anchor: 'phone' }] },
+      ['objects[0].kind'],
+    ],
+    [
+      'a gauges entry that is not a known gauge',
+      { ...real, gauges: { noise: {} } },
+      ['gauges.noise'],
+    ],
+    [
+      'a fatigue gauge with no micro-sleep def',
+      { ...real, gauges: { fatigue: {} } },
+      ['gauges.fatigue.microSleepDef'],
+    ],
+    [
+      'a micro-sleep def in camelCase',
+      { ...real, gauges: { fatigue: { microSleepDef: 'papaMicrosleep' } } },
+      ['gauges.fatigue.microSleepDef'],
     ],
     ['a negative fromMs', level([{ ...wave, fromMs: -1 }]), ['waves[0].fromMs']],
     [

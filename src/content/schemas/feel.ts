@@ -78,6 +78,12 @@ const InputSchema = z
       .number()
       .positive()
       .describe('Generous touch radius around a threat, in screen px (targets stay >= 44 pt).'),
+    objectTouchRadiusPx: z
+      .number()
+      .positive()
+      .describe(
+        "Touch radius around an interactive object's icon point (coffee machine, phone), in screen px.",
+      ),
     autoTargetConeDeg: z
       .number()
       .gt(0)
@@ -184,6 +190,11 @@ const BabySchema = z
 
 const FatigueSchema = z
   .strictObject({
+    startPoints: z
+      .number()
+      .min(0)
+      .max(100)
+      .describe('Fatigue at the start of a level that has the fatigue gauge, in points (0-100).'),
     perSec: z.number().min(0).describe('Fatigue gained per second, in points per second.'),
     carriedMultiplier: multiplier('Fatigue gain multiplier while carrying the baby.'),
     thresholdPoints: points(
@@ -194,6 +205,7 @@ const FatigueSchema = z
     microSleepMaxMs: delayMs('Longest delay between two micro-sleeps above the threshold, in ms.'),
     coffeeReductionPoints: points('Fatigue removed by a coffee, in points.'),
     coffeeDurationMs: durationMs('Time Papa spends drinking a coffee, in ms.'),
+    asleepMs: durationMs('How long Papa sleeps after a missed micro-sleep, in ms.'),
   })
   .refine((fatigue) => fatigue.microSleepMinMs <= fatigue.microSleepMaxMs, {
     path: ['microSleepMinMs'],

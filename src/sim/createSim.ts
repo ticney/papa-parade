@@ -1,13 +1,13 @@
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { Feel } from '@content/schemas/feel';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
-import { PROP_ON_FLOOR_TOLERANCE_M } from '@shared/constants';
+import { PAPA_TARGET_ANCHOR_ID, PROP_ON_FLOOR_TOLERANCE_M } from '@shared/constants';
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
-import type { SimLevel, StepContext, System } from './context.ts';
+import type { SimLevel, SimObjectSpec, StepContext, System } from './context.ts';
 import type { SimEvent } from './events.ts';
 import {
   createJournal,
@@ -17,6 +17,7 @@ import {
   journalProblem,
 } from './journal.ts';
 import { createNavGrid, type NavGrid } from './nav/navGrid.ts';
+import { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 import { createRapierPhysics } from './physics/rapierPhysics.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
@@ -55,6 +56,8 @@ export interface Sim {
    * next call, copy what you keep. Nothing drains automatically.
    */
   drainEvents(): readonly SimEvent[];
+  /** The level's interactive objects (constant): the client projects them for its touch hit test. */
+  readonly objects: readonly SimObjectSpec[];
   /** The current world (a different object after `restore`). */
   readonly world: Readonly<World>;
   readonly timeScale: number;
@@ -140,7 +143,48 @@ function simLevelOf(
   );
   const planned = plannedEntriesOf(level);
   const waves = level.level.waves;
+  const microSleepDef = level.level.gauges.fatigue?.microSleepDef;
+  const threats: SimLevel['threats'][number][] = planned.map((entry, index) => {
+    const def = Object.hasOwn(level.threats, entry.def) ? level.threats[entry.def] : undefined;
+    invariant(def !== undefined, `${entry.where}: the threat ${entry.def} is not loaded`);
+    invariant(
+      geometry.anchors.some((anchor) => anchor.id === entry.anchor),
+      `${entry.where}: threat ${entry.def} is planned at ${entry.anchor}, which ${geometry.id} does not have`,
+    );
+    // The wording of these is the one `content:check` and the schema use.
+    invariant(
+      (GAG_IDS as readonly string[]).includes(def.gag),
+      `${entry.where}: the threat "${entry.def}" has the gag "${def.gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+    );
+    invariant(
+      def.target !== 'papa',
+      `${entry.where}: the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef), a wave cannot plan it`,
+    );
+    const first = planned.findIndex((other) => other.anchor === entry.anchor);
+    invariant(
+      first === index,
+      `${entry.where}: the anchor "${entry.anchor}" is already planned by ${(planned[first] as { where: string }).where}`,
+    );
+    return { def, anchorId: entry.anchor, firstWaveIndex: entry.waveIndex };
+  });
+  if (microSleepDef !== undefined) {
+    const where = `level ${level.level.id} › gauges.fatigue.microSleepDef`;
+    const def = Object.hasOwn(level.threats, microSleepDef)
+      ? level.threats[microSleepDef]
+      : undefined;
+    invariant(def !== undefined, `${where}: the threat ${microSleepDef} is not loaded`);
+    invariant(
+      def.target === 'papa',
+      `${where}: the threat "${microSleepDef}" has target "${def.target}", but a micro-sleep must have target "papa"`,
+    );
+    invariant(
+      (GAG_IDS as readonly string[]).includes(def.gag),
+      `${where}: the threat "${microSleepDef}" has the gag "${def.gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+    );
+    threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1 });
+  }
   return {
+    microSleepIndex: microSleepDef === undefined ? -1 : threats.length - 1,
     durationMs: level.level.durationMs,
     waves: waves.map((wave, w) => {
       const endMs = waves[w + 1]?.fromMs ?? level.level.durationMs;
@@ -153,25 +197,7 @@ function simLevelOf(
         gapMaxMs: wave.gapMaxMs,
       };
     }),
-    threats: planned.map((entry, index) => {
-      const def = Object.hasOwn(level.threats, entry.def) ? level.threats[entry.def] : undefined;
-      invariant(def !== undefined, `${entry.where}: the threat ${entry.def} is not loaded`);
-      invariant(
-        geometry.anchors.some((anchor) => anchor.id === entry.anchor),
-        `${entry.where}: threat ${entry.def} is planned at ${entry.anchor}, which ${geometry.id} does not have`,
-      );
-      // The wording of these two is the one `content:check` and the schema use.
-      invariant(
-        (GAG_IDS as readonly string[]).includes(def.gag),
-        `${entry.where}: the threat "${entry.def}" has the gag "${def.gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
-      );
-      const first = planned.findIndex((other) => other.anchor === entry.anchor);
-      invariant(
-        first === index,
-        `${entry.where}: the anchor "${entry.anchor}" is already planned by ${(planned[first] as { where: string }).where}`,
-      );
-      return { def, anchorId: entry.anchor, firstWaveIndex: entry.waveIndex };
-    }),
+    threats,
     objects: level.level.objects.map((object, index) => {
       const where = `level ${level.level.id} › objects[${index}]`;
       invariant(
@@ -183,7 +209,17 @@ function simLevelOf(
         anchor !== undefined,
         `${where}: the object "${object.id}" is at ${object.anchor}, which ${geometry.id} does not have`,
       );
-      return { id: object.id, xM: anchor.positionM[0], zM: anchor.positionM[2] };
+      invariant(
+        (OBJECT_ACTION_KINDS as readonly string[]).includes(object.kind),
+        `${where}: the object "${object.id}" has the kind "${object.kind}", which the sim has no action for (${OBJECT_ACTION_KINDS.join(', ')})`,
+      );
+      return {
+        id: object.id,
+        kind: object.kind,
+        xM: anchor.positionM[0],
+        zM: anchor.positionM[2],
+        yM: anchor.positionM[1],
+      };
     }),
     props: geometry.props.map((prop, index) => {
       const kind = Object.hasOwn(physics.kinds, prop.kind) ? physics.kinds[prop.kind] : undefined;
@@ -247,11 +283,16 @@ export async function createSimWithSystems(
     papaSpawn: spawnOf(geometry, papaGrid, 'papa_spawn', 'Papa'),
     babySpawn: spawnOf(geometry, babyGrid, 'baby_spawn', 'the baby'),
     firstWanderAt: asSimMs(content.feel.baby.babbleMinMs),
+    fatiguePoints: content.feel.fatigue.startPoints,
     props: geometry.props,
   });
   checkReachable(level, geometry, babyGrid, world.baby);
   simLevel.threats.forEach((planned) => {
-    const anchor = geometry.anchors.find((candidate) => candidate.id === planned.anchorId);
+    // The micro-sleep stands on Papa; every other threat on its anchor.
+    const anchor =
+      planned.def.target === 'papa'
+        ? { positionM: [world.papa.xM, 0, world.papa.zM] }
+        : geometry.anchors.find((candidate) => candidate.id === planned.anchorId);
     invariant(anchor !== undefined, 'a planned threat has an anchor');
     world.threats.push({
       id: allocateId(world),
@@ -337,6 +378,7 @@ export async function createSimWithSystems(
       events.length = 0;
       return drained;
     },
+    objects: simLevel.objects,
     get world() {
       return world;
     },

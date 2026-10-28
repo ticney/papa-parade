@@ -105,11 +105,13 @@ test.describe('the three threats', () => {
     await ppLoadLevel(page, LEVEL, SEED);
 
     // The live level plans all three: the instances are in order of first appearance in the waves.
+    // Since story 1.19 the level's micro-sleep (the threat on Papa, planned by no wave) comes last.
     const planned = await ppWorld(page);
     expect(planned.threats.map((threat) => threat.defId)).toEqual([
       'outlet',
       'stairs',
       'coffee_table_object',
+      'papa_microsleep',
     ]);
 
     // Each threat is telegraphed with its own glyph (the def's icon), at its own anchor: the one

@@ -26,6 +26,25 @@ const PAPA_HAIR_SPOTS_PCT: readonly (readonly [number, number])[] = [
 ];
 const PAPA_HAIR_COLOR = PALETTE.ink;
 
+// The micro-sleep and the coffee (story 1.19, provisional until E7). Diegetic: 3D, never a DOM overlay.
+/** The eyelids: an ink band that lowers over the top of the cube's front face, this tall when closed, in metres. */
+const PAPA_EYELIDS_BAND_M = 0.3;
+/** ...starting this far below the top of the cube, in metres. */
+const PAPA_EYELIDS_TOP_GAP_M = 0.12;
+const PAPA_EYELIDS_COLOR = PALETTE.ink;
+/** The « Z » of a sleeping Papa floats this far above his head, in metres... */
+const PAPA_Z_HEIGHT_M = 0.45;
+/** ...bobs by this much, in metres... */
+const PAPA_Z_BOB_M = 0.06;
+/** ...once per this long, in sim ms. */
+const PAPA_Z_BOB_PERIOD_MS = 1200;
+/** Each bar of the « Z » is this long, in metres, and this thick. */
+const PAPA_Z_SIZE_M = 0.2;
+const PAPA_Z_THICKNESS_M = 0.04;
+/** The mug in Papa's hand: a small cube this big, in metres, held to his right and in front. */
+const PAPA_MUG_SIZE_M = 0.14;
+const PAPA_MUG_COLOR = PALETTE.paper;
+
 /** Where Papa is drawn and which way he faces. */
 export interface PapaPose extends PointXZ {
   /** Rotation about the vertical axis, in radians: 0 faces +z, a positive angle turns toward +x. */
@@ -43,8 +62,21 @@ export function papaPoseAt(papa: Readonly<PapaSlice>, alpha: number, out: PapaPo
 }
 
 export interface PapaView {
+  /** Where Papa was last drawn (interpolated): what a marker that follows him reads. */
+  readonly pose: Readonly<PapaPose>;
   /** Moves the cube and its shadow. Allocates nothing. */
   update(papa: Readonly<PapaSlice>, alpha: number): void;
+  /**
+   * Lowers the ink eyelids over his face: 0 is open (hidden), 1 is shut. Clamped. Allocates nothing.
+   */
+  setEyelids(amount01: number): void;
+  /**
+   * A sleeping Papa: eyelids shut and a « Z » floating above his head, bobbing on `clockMs` (sim
+   * ms). Off, it hides the « Z » and leaves the eyelids to `setEyelids`. Allocates nothing.
+   */
+  setAsleep(isAsleep: boolean, clockMs: number): void;
+  /** A small mug at his hand while he drinks. Allocates nothing. */
+  setDrinking(isDrinking: boolean): void;
   /**
    * Stands Papa's hair on end: 0 is flat (the spikes are hidden), 1 is fully up. A value outside
    * 0..1 is clamped. Allocates nothing.
@@ -89,19 +121,86 @@ export function createPapaView(
     spike.position.set((widthM / 2) * (xPct / 100), 0, (widthM / 2) * (zPct / 100));
     hair.add(spike);
   }
+  // The eyelids hang from just under the top of the cube and lower by scaling down from there.
+  const eyelidsGeometry = new BoxGeometry(widthM * 1.04, PAPA_EYELIDS_BAND_M, widthM * 0.08);
+  eyelidsGeometry.translate(0, -PAPA_EYELIDS_BAND_M / 2, 0);
+  const eyelids = new Mesh(eyelidsGeometry, toon.get(new Color(PAPA_EYELIDS_COLOR)));
+  eyelids.name = 'papa_eyelids';
+  eyelids.position.set(0, PAPA_HEIGHT_M / 2 - PAPA_EYELIDS_TOP_GAP_M, widthM / 2);
+  eyelids.visible = false;
+  cube.add(eyelids);
+  // The « Z »: two bars and a diagonal, in ink, above the head.
+  const zBarGeometry = new BoxGeometry(PAPA_Z_SIZE_M, PAPA_Z_THICKNESS_M, PAPA_Z_THICKNESS_M);
+  const zDiagonalGeometry = new BoxGeometry(
+    PAPA_Z_SIZE_M * Math.SQRT2,
+    PAPA_Z_THICKNESS_M,
+    PAPA_Z_THICKNESS_M,
+  );
+  const zMaterial = toon.get(new Color(PAPA_EYELIDS_COLOR));
+  const zSign = new Group();
+  zSign.name = 'papa_z';
+  const zTop = new Mesh(zBarGeometry, zMaterial);
+  zTop.position.y = PAPA_Z_SIZE_M / 2;
+  const zBottom = new Mesh(zBarGeometry, zMaterial);
+  zBottom.position.y = -PAPA_Z_SIZE_M / 2;
+  const zDiagonal = new Mesh(zDiagonalGeometry, zMaterial);
+  zDiagonal.rotation.z = Math.PI / 4;
+  zSign.add(zTop, zBottom, zDiagonal);
+  zSign.visible = false;
+  // The mug, held out to his right and in front of him; it turns with the cube.
+  const mugGeometry = new BoxGeometry(PAPA_MUG_SIZE_M, PAPA_MUG_SIZE_M, PAPA_MUG_SIZE_M);
+  const mug = new Mesh(mugGeometry, toon.get(new Color(PAPA_MUG_COLOR)));
+  mug.name = 'papa_mug';
+  mug.position.set(widthM * 0.7, 0, widthM * 0.6);
+  mug.visible = false;
+  cube.add(mug);
   const group = new Group();
   group.name = 'papa_group';
-  group.add(cube, shadow, hair);
+  group.add(cube, shadow, hair, zSign);
   scene.add(group);
   const pose: PapaPose = { xM: 0, zM: 0, yawRad: 0 };
 
+  let asleepAmount = 0;
+  let wantedEyelids = 0;
+  const applyEyelids = (): void => {
+    const amount = Math.max(wantedEyelids, asleepAmount);
+    const isOpen = amount <= 0;
+    eyelids.visible = !isOpen;
+    eyelids.scale.y = isOpen ? 1 : amount;
+  };
+
   return {
+    get pose() {
+      return pose;
+    },
     update(papa, alpha) {
       papaPoseAt(papa, alpha, pose);
       // The group sits on the floor under him; only the cube turns (a round shadow looks the same
       // from every side).
       group.position.set(pose.xM, 0, pose.zM);
       cube.rotation.y = pose.yawRad;
+    },
+    setEyelids(amount01) {
+      const amount = Math.min(1, Math.max(0, amount01));
+      if (amount === wantedEyelids) return;
+      wantedEyelids = amount;
+      applyEyelids();
+    },
+    setAsleep(isAsleep, clockMs) {
+      zSign.visible = isAsleep;
+      if (isAsleep) {
+        zSign.position.y =
+          PAPA_HEIGHT_M +
+          PAPA_Z_HEIGHT_M +
+          PAPA_Z_BOB_M * Math.sin((2 * Math.PI * clockMs) / PAPA_Z_BOB_PERIOD_MS);
+      }
+      const next = isAsleep ? 1 : 0;
+      if (next === asleepAmount) return;
+      asleepAmount = next;
+      applyEyelids();
+    },
+    setDrinking(isDrinking) {
+      mug.visible = isDrinking;
     },
     setHair(amount01) {
       const amount = Math.min(1, Math.max(0, amount01));
@@ -111,6 +210,10 @@ export function createPapaView(
     dispose() {
       geometry.dispose();
       hairGeometry.dispose();
+      eyelidsGeometry.dispose();
+      zBarGeometry.dispose();
+      zDiagonalGeometry.dispose();
+      mugGeometry.dispose();
       scene.remove(group);
     },
   };

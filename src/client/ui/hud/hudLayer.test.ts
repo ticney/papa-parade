@@ -20,23 +20,25 @@ class FakeElement {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('createHudLayer', () => {
-  it('puts the timer in the timer zone, the pause button in the pause zone, and nothing in the gauges', () => {
+  it('puts the gauges in the gauges zone, the timer in the timer zone and the pause button in the pause zone', () => {
     vi.stubGlobal('document', {
       createElement: () => new FakeElement(),
       createElementNS: () => new FakeElement(),
     });
     const root = new FakeElement();
     const timer = new FakeElement();
+    const gauges = new FakeElement();
     createHudLayer(root as unknown as HTMLElement, {
       t: (key) => key,
       onPausePress: () => {},
+      gauges: gauges as unknown as HTMLElement,
       timer: timer as unknown as HTMLElement,
     });
     const row = root.children[0] as FakeElement;
     const zones = Object.fromEntries(row.children.map((zone) => [zone.dataset.ppZone, zone]));
     expect(Object.keys(zones)).toEqual(['gauges', 'timer', 'pause']);
     expect(zones.timer?.children).toEqual([timer]);
-    expect(zones.gauges?.children).toEqual([]);
+    expect(zones.gauges?.children).toEqual([gauges]);
     expect(zones.pause?.children).toHaveLength(1);
   });
 });

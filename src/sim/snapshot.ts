@@ -1,8 +1,9 @@
 import { decodeBase64, encodeBase64 } from '@shared/base64';
-import { MIN_TIME_SCALE, QUATERNION_LENGTH_TOLERANCE } from '@shared/constants';
+import { GAUGE_MAX_POINTS, MIN_TIME_SCALE, QUATERNION_LENGTH_TOLERANCE } from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
 import { FLOW_STATES, type FlowState } from './flow/flowFsm.ts';
+import { PAPA_STATES } from './papa/papaFsm.ts';
 import { THREAT_STATES } from './threats/threatFsm.ts';
 import {
   type PropSlice,
@@ -19,11 +20,12 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 6 since story 1.18: `director`, `flow` and `ThreatInstance.waveIndex`. 5 added the Rapier world,
-   * base64 (4 carried the base scale and the slow-mos in
-   * `World.time`, since story 1.14; 3 named the level).
+   * 7 since story 1.19: `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
+   * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
+   * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
+   * 1.14; 3 named the level).
    */
-  version: 6;
+  version: 7;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -42,7 +44,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 6,
+    version: 7,
     seed,
     feelHash,
     geometryHash,
@@ -52,12 +54,12 @@ export function takeSnapshot(
   };
 }
 
-const PAPA_STATES: readonly unknown[] = ['idle', 'walkPath', 'walkDir', 'glide'];
-
-function papaProblem(papa: unknown): string | null {
+function papaProblem(papa: unknown, objectIds: readonly string[]): string | null {
   if (typeof papa !== 'object' || papa === null) return 'world.papa is missing';
   const slice = papa as Record<string, unknown>;
-  if (!PAPA_STATES.includes(slice.state)) return 'world.papa.state';
+  if (!PAPA_STATES.includes(slice.state as (typeof PAPA_STATES)[number])) {
+    return 'world.papa.state';
+  }
   for (const key of [
     'enteredAt',
     'xM',
@@ -86,6 +88,20 @@ function papaProblem(papa: unknown): string | null {
     return 'world.papa.pathIndex';
   }
   if (typeof slice.isBlocked !== 'boolean') return 'world.papa.isBlocked';
+  // The object of the current walk: only a tapped path goes to one, and the level has it.
+  if (slice.objectId !== null) {
+    if (typeof slice.objectId !== 'string' || !objectIds.includes(slice.objectId)) {
+      return 'world.papa.objectId';
+    }
+    if (slice.state !== 'walkPath') return 'world.papa.objectId';
+  }
+  // A busy Papa has an end (`busyUntil` > 0); any other state has none. Busy states have no path,
+  // no direction and no glide: the checks below hold them to it.
+  if (!isFiniteNumber(slice.busyUntil) || (slice.busyUntil as number) < 0) {
+    return 'world.papa.busyUntil';
+  }
+  const isBusy = slice.state === 'drink' || slice.state === 'asleep';
+  if (isBusy !== (slice.busyUntil !== 0)) return 'world.papa.busyUntil';
 
   // The state and the data it walks on must agree.
   const dirLength = Math.sqrt((slice.dirX as number) ** 2 + (slice.dirZ as number) ** 2);
@@ -240,6 +256,29 @@ function directorProblem(director: unknown, waveCount: number): string | null {
   return null;
 }
 
+function gaugesProblem(gauges: unknown, hasFatigue: boolean): string | null {
+  if (typeof gauges !== 'object' || gauges === null) return 'world.gauges is missing';
+  const slice = gauges as Record<string, unknown>;
+  if (
+    !isFiniteNumber(slice.fatigue) ||
+    (slice.fatigue as number) < 0 ||
+    (slice.fatigue as number) > GAUGE_MAX_POINTS
+  ) {
+    return 'world.gauges.fatigue';
+  }
+  if (typeof slice.isFatigueAbove !== 'boolean') return 'world.gauges.isFatigueAbove';
+  if (
+    slice.microSleepAt !== null &&
+    (!isFiniteNumber(slice.microSleepAt) || (slice.microSleepAt as number) < 0)
+  ) {
+    return 'world.gauges.microSleepAt';
+  }
+  // A micro-sleep is pending exactly while Papa is above the threshold, and only in a level with fatigue.
+  if (!hasFatigue && slice.isFatigueAbove) return 'world.gauges.isFatigueAbove';
+  if ((slice.microSleepAt !== null) !== slice.isFatigueAbove) return 'world.gauges.microSleepAt';
+  return null;
+}
+
 function flowProblem(flow: unknown, nowMs: number, durationMs: number): string | null {
   if (typeof flow !== 'object' || flow === null) return 'world.flow is missing';
   const slice = flow as Record<string, unknown>;
@@ -295,6 +334,10 @@ export interface PlannedLevel {
   /** How long the level lasts, in sim ms: a level that has ended cannot be earlier than this. */
   readonly durationMs: number;
   readonly threats: readonly { readonly def: { readonly id: string } }[];
+  /** The index in `threats` of the micro-sleep, or -1 when the level has no fatigue. */
+  readonly microSleepIndex: number;
+  /** The level's interactive objects: Papa's `objectId` must be one of them. */
+  readonly objects: readonly { readonly id: string }[];
   readonly props: readonly {
     readonly id: string;
     readonly kind: string;
@@ -405,10 +448,8 @@ function propsProblem(
 
 function worldProblem(world: unknown, planned: PlannedLevel): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
-  const { time, rng, nextId, papa, baby, threats, props, mess, director, flow } = world as Record<
-    string,
-    unknown
-  >;
+  const { time, rng, nextId, papa, baby, threats, props, mess, director, flow, gauges } =
+    world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
   if (typeof clock !== 'object' || clock === null) return 'world.time is missing';
   const clockProblem = timeProblem(clock);
@@ -445,7 +486,11 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
   }
   return (
     flowProblem(flow, clock.sim as number, planned.durationMs) ??
-    papaProblem(papa) ??
+    gaugesProblem(gauges, planned.microSleepIndex >= 0) ??
+    papaProblem(
+      papa,
+      planned.objects.map((object) => object.id),
+    ) ??
     babyProblem(baby, threats as readonly ThreatInstance[]) ??
     propsProblem(props, mess, planned.props)
   );
@@ -469,7 +514,7 @@ export function worldFromSnapshot(
   levelHash: string,
   planned: PlannedLevel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 6, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 7, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

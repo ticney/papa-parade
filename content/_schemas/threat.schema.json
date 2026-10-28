@@ -11,6 +11,14 @@
       "pattern": "^[a-z][a-z0-9_]*$",
       "description": "The threat id; equals the file name."
     },
+    "target": {
+      "type": "string",
+      "enum": [
+        "anchor",
+        "papa"
+      ],
+      "description": "Where the threat stands: a planned anchor, or on Papa (system-spawned, story 1.19)."
+    },
     "response": {
       "type": "string",
       "enum": [
@@ -52,7 +60,8 @@
       "enum": [
         "bolt",
         "stairs",
-        "mug"
+        "mug",
+        "eyelids"
       ],
       "description": "Glyph drawn in the threat's marker (the client has one per entry)."
     },
@@ -97,6 +106,7 @@
   },
   "required": [
     "id",
+    "target",
     "response",
     "telegraphDelayMs",
     "windowMs",

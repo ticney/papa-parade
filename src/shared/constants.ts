@@ -143,7 +143,7 @@ export const TIME_MAP_MAX_EXTRAPOLATION_MS = 100;
 /** Sound-wave rings the level scene can show at once; a fifth wave reuses the oldest (they cost no draw call at rest). */
 export const SOUND_WAVE_POOL_SIZE = 4;
 
-/** A window modifier that changes nothing: fatigue and instinct (stories 1.19 and 2.9) stay at it until their systems exist. */
+/** A window modifier that changes nothing: fatigue's, when Papa is not tired, and instinct's until story 2.9 builds it. */
 export const NEUTRAL_WINDOW_MODIFIER = 1;
 
 /**
@@ -234,3 +234,18 @@ export const PAD_BUTTON_DPAD_UP = 12;
 export const PAD_BUTTON_DPAD_DOWN = 13;
 export const PAD_BUTTON_DPAD_LEFT = 14;
 export const PAD_BUTTON_DPAD_RIGHT = 15;
+
+/**
+ * The `anchorId` of the threat the sim spawns on Papa himself (the micro-sleep, story 1.19): it is
+ * no anchor of the level geometry, it follows him.
+ */
+export const PAPA_TARGET_ANCHOR_ID = 'papa';
+
+/**
+ * How long a HUD gauge stays at full opacity after it changed, in real ms (story 1.19 D11): a
+ * value that crossed a 10-point segment boundary or jumped by 5 points or more. Geo tunes it.
+ */
+export const GAUGE_CHANGE_HOLD_MS = 1500;
+
+/** Every gauge runs from 0 to this many points (story 1.19: fatigue; noise and need follow). */
+export const GAUGE_MAX_POINTS = 100;

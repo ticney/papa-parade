@@ -1,9 +1,12 @@
+import type { ObjectKind } from '@content/schemas/level';
 import { STEP_MS } from '@shared/constants';
+import { asSimMs } from '@shared/time';
 import type { SimObjectSpec, StepContext } from '../context.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
 import type { ThreatInstance, World } from '../world.ts';
+import { finishCoffee, startCoffee } from './coffee.ts';
 import { startGlide } from './glide.ts';
-import { enterPapaState } from './papaFsm.ts';
+import { enterPapaState, isPapaBusy } from './papaFsm.ts';
 import { planWalkTo } from './planWalk.ts';
 import { stepInDirection } from './walk.ts';
 
@@ -19,6 +22,8 @@ function tapFloor(world: World, ctx: StepContext, tapXM: number, tapZM: number):
   papa.dirZ = 0;
   papa.isBlocked = false;
   papa.glide = null;
+  // A walk to the floor is not a walk to an object; `tapObject` sets it again after a successful plan.
+  papa.objectId = null;
   ctx.events.push({
     type: 'PapaPathPlanned',
     t: world.time.sim,
@@ -31,8 +36,48 @@ function tapFloor(world: World, ctx: StepContext, tapXM: number, tapZM: number):
 }
 
 /**
+ * What Papa does on arriving at an object, by kind (story 1.19 D7): true when the action took over
+ * his state, false when he is simply idle there. One entry per `ObjectKind`, defined once at module
+ * scope: a kind with no action is a type error, and `content:check` refuses it through
+ * {@link OBJECT_ACTION_KINDS}.
+ */
+type ObjectAction = (world: World, ctx: StepContext, object: SimObjectSpec) => boolean;
+
+const OBJECT_ACTIONS: Readonly<Record<ObjectKind, ObjectAction>> = {
+  coffee_machine: (world, ctx, object) => {
+    startCoffee(world, ctx, object.id);
+    return true;
+  },
+  // The phone rings and busies Papa in story 1.20; until then it is somewhere to walk to.
+  phone: () => false,
+};
+
+/** Every object kind the sim has an action for. */
+export const OBJECT_ACTION_KINDS = Object.keys(OBJECT_ACTIONS) as readonly ObjectKind[];
+
+/** The end of a walk to a point: `PapaArrived`, then the action of the object the walk went to, else idle. */
+function arrive(world: World, ctx: StepContext): void {
+  const { papa } = world;
+  papa.path.length = 0;
+  papa.pathIndex = 0;
+  papa.glide = null;
+  ctx.events.push({ type: 'PapaArrived', t: world.time.sim, xM: papa.xM, zM: papa.zM });
+  const objectId = papa.objectId;
+  papa.objectId = null;
+  if (objectId !== null) {
+    const objects = ctx.level.objects;
+    for (let i = 0; i < objects.length; i++) {
+      const object = objects[i] as SimObjectSpec;
+      if (object.id === objectId && OBJECT_ACTIONS[object.kind](world, ctx, object)) return;
+    }
+  }
+  enterPapaState(world, ctx, 'idle');
+}
+
+/**
  * Walks to an interactive object of the level exactly as a tap on its anchor does, then says so.
- * What Papa does on arrival is the object's (stories 1.19, 1.20). An unknown id does nothing.
+ * The walk remembers the object (`papa.objectId`): arriving runs its action. An unknown id does
+ * nothing.
  */
 function tapObject(world: World, ctx: StepContext, objectId: string): void {
   const objects = ctx.level.objects;
@@ -40,6 +85,7 @@ function tapObject(world: World, ctx: StepContext, objectId: string): void {
     const object = objects[i] as SimObjectSpec;
     if (object.id !== objectId) continue;
     if (tapFloor(world, ctx, object.xM, object.zM)) {
+      world.papa.objectId = objectId;
       ctx.events.push({ type: 'ObjectTapped', t: world.time.sim, objectId });
     }
     return;
@@ -70,6 +116,7 @@ function move(world: World, ctx: StepContext, dirX: number, dirZ: number): void 
     papa.pathIndex = 0;
   }
   papa.glide = null;
+  papa.objectId = null;
   enterPapaState(world, ctx, 'walkDir');
 }
 
@@ -84,6 +131,9 @@ function pressThreat(world: World, ctx: StepContext, threatId: number): void {
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
     if (threat.id !== threatId) continue;
+    // A threat on Papa himself (the micro-sleep, story 1.19 D9) has nowhere to glide to: he stays
+    // where he is, and keeps walking if he was. The response is still judged on the press.
+    if (ctx.level.threats[i]?.def.target === 'papa') return;
     if (threat.state !== 'idle') startGlide(world, ctx, threat);
     return;
   }
@@ -100,19 +150,30 @@ function moveStop(world: World, ctx: StepContext): void {
 }
 
 /**
- * System: Papa. Remembers where he stood (for the view's interpolation), handles this step's
- * `TapFloor` / `TapObject` / `Move` / `MoveStop` / `PressThreat` in order, then moves him once for one step: by
- * `walkSpeedMps`, or by the speed of his glide. The speed is read each step, so a changed feel
- * applies at once.
+ * System: Papa. Remembers where he stood (for the view's interpolation), ends a coffee or a nap
+ * whose time is up (`busyUntil`), handles this step's `TapFloor` / `TapObject` / `Move` / `MoveStop` /
+ * `PressThreat` in order (none while he is busy, D6: he drinks or sleeps and answers nothing), then
+ * moves him once for one step: by `walkSpeedMps`, or by the speed of his glide. The speed is read
+ * each step, so a changed feel applies at once.
  */
 export function runPapa(world: World, ctx: StepContext): void {
   const { papa } = world;
   papa.prevXM = papa.xM;
   papa.prevZM = papa.zM;
 
+  if (isPapaBusy(papa) && world.time.sim >= papa.busyUntil) {
+    if (papa.state === 'drink') {
+      finishCoffee(world, ctx);
+    } else {
+      papa.busyUntil = asSimMs(0);
+      enterPapaState(world, ctx, 'idle');
+    }
+  }
+
   for (let i = 0; i < ctx.commands.length; i++) {
     const command = ctx.commands[i];
     if (command === undefined) continue;
+    if (isPapaBusy(papa)) break;
     if (command.type === 'TapFloor') tapFloor(world, ctx, command.xM, command.zM);
     else if (command.type === 'TapObject') tapObject(world, ctx, command.objectId);
     else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
@@ -122,20 +183,9 @@ export function runPapa(world: World, ctx: StepContext): void {
 
   const budgetM = (ctx.feel.movement.walkSpeedMps * STEP_MS) / 1000;
   if (papa.state === 'walkPath') {
-    if (advanceAlongPath(papa, budgetM)) {
-      papa.path.length = 0;
-      papa.pathIndex = 0;
-      ctx.events.push({ type: 'PapaArrived', t: world.time.sim, xM: papa.xM, zM: papa.zM });
-      enterPapaState(world, ctx, 'idle');
-    }
+    if (advanceAlongPath(papa, budgetM)) arrive(world, ctx);
   } else if (papa.state === 'glide' && papa.glide !== null) {
-    if (advanceAlongPath(papa, (papa.glide.speedMps * STEP_MS) / 1000)) {
-      papa.path.length = 0;
-      papa.pathIndex = 0;
-      papa.glide = null;
-      ctx.events.push({ type: 'PapaArrived', t: world.time.sim, xM: papa.xM, zM: papa.zM });
-      enterPapaState(world, ctx, 'idle');
-    }
+    if (advanceAlongPath(papa, (papa.glide.speedMps * STEP_MS) / 1000)) arrive(world, ctx);
   } else if (papa.state === 'walkDir') {
     if (stepInDirection(papa, ctx.nav.papa, budgetM)) {
       papa.isBlocked = false;

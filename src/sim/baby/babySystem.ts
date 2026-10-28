@@ -88,6 +88,8 @@ function lockOnThreat(world: World, ctx: StepContext): void {
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
     if (!isActive(threat)) continue;
+    // A threat on Papa (the micro-sleep, story 1.19) is not the baby's business.
+    if (ctx.level.threats[i]?.def.target === 'papa') continue;
     baby.targetThreatId = threat.id;
     stopCrawling(world);
     gazeAt(baby, threat.xM, threat.zM);

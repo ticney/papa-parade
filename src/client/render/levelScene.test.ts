@@ -28,7 +28,7 @@ import {
   GAG_SLIDE_OUT_MS,
   GAG_SLIDE_TOTAL_MS,
 } from './gags.ts';
-import { createLevelScene, roomOf } from './levelScene.ts';
+import { createLevelScene, eyelidsAmountAt, roomOf } from './levelScene.ts';
 import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
 
 const BODIES = { papaRadiusM: 0.25, babyRadiusM: 0.2 };
@@ -564,5 +564,32 @@ describe('createLevelScene', () => {
     dispose();
     expect(disposed).toBeGreaterThan(0);
     expect(scene.children).toHaveLength(0);
+  });
+});
+
+describe('eyelidsAmountAt (story 1.19)', () => {
+  const micro = (state: string, enteredAt = 1000, windowOpenAt = 2200) =>
+    ({ state, enteredAt, windowOpenAt, anchorId: 'papa' }) as never;
+  const worldOf = (...threats: unknown[]) => ({ threats }) as never;
+
+  it('lowers with the progress of the telegraph, from its entry to the opening of the window', () => {
+    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 1000)).toBe(0);
+    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 1600)).toBeCloseTo(0.5, 12);
+    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 2200)).toBe(1);
+    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 9999)).toBe(1);
+    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 0)).toBe(0);
+  });
+
+  it('stays shut while the window is open, and open in any other state', () => {
+    expect(eyelidsAmountAt(worldOf(micro('windowOpen')), 3000)).toBe(1);
+    for (const state of ['idle', 'resolved', 'gag']) {
+      expect(eyelidsAmountAt(worldOf(micro(state)), 3000), state).toBe(0);
+    }
+  });
+
+  it('ignores the threats that stand on an anchor, and a level with no micro-sleep', () => {
+    const outlet = { state: 'windowOpen', enteredAt: 0, windowOpenAt: 1, anchorId: 'outlet_01' };
+    expect(eyelidsAmountAt(worldOf(outlet), 5)).toBe(0);
+    expect(eyelidsAmountAt(worldOf(), 5)).toBe(0);
   });
 });

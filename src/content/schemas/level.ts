@@ -4,12 +4,27 @@ import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 // `content/levels/<id>.json`: what a level plans, beside `<id>.geometry.json` (its room) and
 // `assets/levels/<id>.glb` (its look). Story 1.18 replaced the flat `threats` list with waves and
 // added the variant, the duration and the feel overrides; story 1.17 added `objects`, the
-// interactive things (coffee machine, phone) Space or A can walk Papa to. Story 1.20 adds
+// interactive things (coffee machine, phone) Space or A can walk Papa to. Story 1.19 added
+// `gauges` (the fatigue system a level opts into) and the `kind` of an object. Story 1.20 adds
 // `disruptions` to a wave.
 
 /** The level variants the game has. Each one has its own timer icon (`client/ui/hud/timerHud.ts`). */
 export const LEVEL_VARIANTS = ['nap'] as const;
 export type LevelVariant = (typeof LEVEL_VARIANTS)[number];
+
+/**
+ * The gauges of the HUD pill, in the order they are drawn: Bruit · Fatigue · Envie (UX-DR4). Only
+ * `fatigue` has a level schema entry so far; story 3.1 adds `noise` and epic 4 `need`.
+ */
+export const GAUGE_IDS = ['noise', 'fatigue', 'need'] as const;
+export type GaugeId = (typeof GAUGE_IDS)[number];
+
+/**
+ * What an interactive object is, hence what Papa does on arriving at it: the sim has one action per
+ * kind (a `Record<ObjectKind, …>`, so a kind with no action does not compile). The phone's is story 1.20.
+ */
+export const OBJECT_KINDS = ['coffee_machine', 'phone'] as const;
+export type ObjectKind = (typeof OBJECT_KINDS)[number];
 
 const idSchema = (description: string) =>
   z.string().regex(SNAKE_ID_PATTERN, 'an id is lower_snake_case').describe(description);
@@ -64,9 +79,25 @@ const LevelWaveSchema = z
 const LevelObjectSchema = z
   .strictObject({
     id: idSchema('The object id, the `objectId` of `TapObject`; unique in the level.'),
+    kind: z
+      .enum(OBJECT_KINDS)
+      .describe('What the object is: it decides what Papa does on arriving at it.'),
     anchor: idSchema('An anchor of the level geometry, without the `ANCHOR_` prefix.'),
   })
   .describe('One interactive object: what Space or A can walk Papa to, and where it stands.');
+
+const LevelGaugesSchema = z
+  .strictObject({
+    fatigue: z
+      .strictObject({
+        microSleepDef: idSchema(
+          'The id of the `content/threats/<def>.json` Papa falls into when he is tired (`target: "papa"`).',
+        ),
+      })
+      .optional()
+      .describe('Papa gets tired in this level. Absent: no fatigue, no gauge, no micro-sleep.'),
+  })
+  .describe('The gauges this level has: a gauge exists only if its system is in the level.');
 
 export const LevelSchema = z
   .strictObject({
@@ -86,6 +117,9 @@ export const LevelSchema = z
       .array(LevelObjectSchema)
       .default([])
       .describe('The interactive objects of the level (story 1.17); none by default.'),
+    gauges: LevelGaugesSchema.default({}).describe(
+      'The gauges of the level (story 1.19); none by default.',
+    ),
     feelOverrides: z
       .record(z.string(), z.unknown())
       .default({})
@@ -155,3 +189,4 @@ export type Level = z.infer<typeof LevelSchema>;
 export type LevelWave = z.infer<typeof LevelWaveSchema>;
 export type LevelWaveThreat = z.infer<typeof LevelWaveThreatSchema>;
 export type LevelObject = z.infer<typeof LevelObjectSchema>;
+export type LevelGauges = z.infer<typeof LevelGaugesSchema>;

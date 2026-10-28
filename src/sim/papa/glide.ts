@@ -32,6 +32,8 @@ export function startGlide(world: World, ctx: StepContext, threat: ThreatInstanc
   papa.dirX = 0;
   papa.dirZ = 0;
   papa.isBlocked = false;
+  // The glide is no walk to an object any more: a coffee on the way is cancelled.
+  papa.objectId = null;
   ctx.events.push({
     type: 'PapaGlideStarted',
     t: now,

@@ -49,7 +49,24 @@ describe('loadLevelContent', () => {
     expect(result.value.level.id).toBe('salon_crawler');
     const planned = result.value.level.waves.flatMap((wave) => wave.threats.map((t) => t.def));
     expect(planned).toContain('outlet');
-    expect(Object.keys(result.value.threats)).toEqual([...new Set(planned)]);
+    // The waves' defs in order of first reference, then the micro-sleep of its fatigue gauge.
+    expect(Object.keys(result.value.threats)).toEqual([...new Set(planned), 'papa_microsleep']);
+    expect(result.value.threats.papa_microsleep?.target).toBe('papa');
+  });
+
+  it('names gauges.fatigue.microSleepDef when its threat file cannot be read', async () => {
+    const live = JSON.parse(readReal('levels/salon_crawler.json'));
+    const problems = await problemsOf({
+      'levels/salon_crawler.json': JSON.stringify(live),
+      'threats/papa_microsleep.json': null,
+    });
+    expect(problems).toEqual([
+      expect.objectContaining({
+        file: 'content/levels/salon_crawler.json',
+        jsonPath: 'gauges.fatigue.microSleepDef',
+        message: expect.stringContaining('papa_microsleep'),
+      }),
+    ]);
   });
 
   it('loads exactly the defs a level plans, once each, in order of first reference', async () => {

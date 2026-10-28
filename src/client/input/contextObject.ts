@@ -1,37 +1,8 @@
-import { log } from '@shared/log';
-
-/** An interactive object of the level at its floor point: what `pickContextObject` chooses among. */
+/** An interactive object of the level at its floor point: what `pickContextObject` chooses among (`Sim.objects` fits). */
 export interface ContextObject {
   readonly id: string;
   readonly xM: number;
   readonly zM: number;
-}
-
-/**
- * The level's objects at their floor points (the x and z of their anchors in `anchors`, the
- * geometry's), in the level's order. An anchor the geometry lacks cannot happen (`createSim`
- * refuses it); if it does the object is left out, with a `warn`. Built once per level.
- */
-export function contextObjectsOf(
-  objects: readonly { readonly id: string; readonly anchor: string }[],
-  anchors: readonly {
-    readonly id: string;
-    readonly positionM: readonly [number, number, number];
-  }[],
-): ContextObject[] {
-  const resolved: ContextObject[] = [];
-  for (const object of objects) {
-    const anchor = anchors.find((candidate) => candidate.id === object.anchor);
-    if (anchor === undefined) {
-      log.warn(
-        'render',
-        `object ${object.id} names the anchor ${object.anchor}, which the room lacks`,
-      );
-      continue;
-    }
-    resolved.push({ id: object.id, xM: anchor.positionM[0], zM: anchor.positionM[2] });
-  }
-  return resolved;
 }
 
 /**

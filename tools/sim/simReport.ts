@@ -34,6 +34,12 @@ export interface RunSummary {
   gags: number;
   /** The `NearMiss` events: what Mama's « Hurlement » will count (story 1.22). */
   nearMisses: number;
+  /** The micro-sleeps telegraphed (`ThreatTelegraphed` of no wave, story 1.19). */
+  microSleeps: number;
+  /** The coffees drunk (`CoffeeDrunk`). */
+  coffees: number;
+  /** The `papa_asleep` gags: a missed micro-sleep. */
+  asleepGags: number;
   commands: number;
   threats: Record<string, ThreatTally>;
   byGag: Record<string, number>;
@@ -86,6 +92,12 @@ export function createRunRecorder(
   let responses = 0;
   let gags = 0;
   let nearMisses = 0;
+  let microSleeps = 0;
+  let coffees = 0;
+  let asleepGags = 0;
+  // The threats no wave planned (the micro-sleep): they are in no wave's tally and never count
+  // against a wave's limit, so their results must not move the active count either.
+  const systemThreatIds = new Set<number>();
   const waveTallies: WaveTally[] = waves.map(() => ({
     telegraphs: 0,
     peakSimultaneous: 0,
@@ -96,7 +108,10 @@ export function createRunRecorder(
   let isEnded = false;
   return {
     onEvent(event) {
-      if (event.type === 'ThreatTelegraphed') {
+      if (event.type === 'ThreatTelegraphed' && event.waveIndex < 0) {
+        microSleeps++;
+        systemThreatIds.add(event.threatId);
+      } else if (event.type === 'ThreatTelegraphed') {
         activeCount++;
         const wave = waveTallies[event.waveIndex];
         if (wave !== undefined) {
@@ -108,7 +123,7 @@ export function createRunRecorder(
       } else if (event.type === 'LevelEnded') {
         isEnded = true;
       } else if (event.type === 'ResponseResolved') {
-        activeCount--;
+        if (!systemThreatIds.has(event.threatId)) activeCount--;
         responses++;
         const defId = defIdOf.get(event.threatId) ?? `threat_${event.threatId}`;
         const tally = tallyOf(threats, defId);
@@ -124,8 +139,11 @@ export function createRunRecorder(
       } else if (event.type === 'GagTriggered') {
         gags++;
         byGag[event.gag] = countOf(byGag, event.gag) + 1;
+        if (event.gag === 'papa_asleep') asleepGags++;
       } else if (event.type === 'NearMiss') {
         nearMisses++;
+      } else if (event.type === 'CoffeeDrunk') {
+        coffees++;
       }
     },
     finish() {
@@ -135,6 +153,9 @@ export function createRunRecorder(
         responses,
         gags,
         nearMisses,
+        microSleeps,
+        coffees,
+        asleepGags,
         commands: sim.journal().entries.length,
         threats,
         byGag,
@@ -194,6 +215,12 @@ export interface SimReport {
     /** Total `NearMiss` events over the runs (the stairs' gags today). */
     nearMisses: number;
   };
+  /** The micro-sleeps telegraphed, over the runs (story 1.19). */
+  microSleeps: number;
+  /** The coffees drunk, over the runs. */
+  coffees: number;
+  /** The runs where Papa fell asleep at least once (a missed micro-sleep). */
+  asleepRuns: number;
   runList: {
     seed: number;
     worldHash: string;
@@ -235,6 +262,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let gags = 0;
   let nearMisses = 0;
   let endedRuns = 0;
+  let microSleeps = 0;
+  let coffees = 0;
+  let asleepRuns = 0;
   const waves: WaveReport[] = input.waves.map((wave) => ({
     fromMs: wave.fromMs,
     maxSimultaneous: wave.maxSimultaneous,
@@ -253,6 +283,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     });
     gags += run.gags;
     nearMisses += run.nearMisses;
+    microSleeps += run.microSleeps;
+    coffees += run.coffees;
+    if (run.asleepGags > 0) asleepRuns++;
     for (const gag of Object.keys(run.byGag)) {
       byGag[gag] = countOf(byGag, gag) + countOf(run.byGag, gag);
     }
@@ -310,6 +343,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       byGag: sortedByGag,
       nearMisses,
     },
+    microSleeps,
+    coffees,
+    asleepRuns,
     runList: runs.map((run) => ({
       seed: run.seed,
       worldHash: run.worldHash,

@@ -34,6 +34,8 @@ const defs: ThreatDef[] = readdirSync(THREATS_DIR)
 
 /** The anchor of the first entry of a live level that plans each def (`*.geometry.json` are not levels). */
 const anchors = new Map<string, string>();
+/** The defs a live level spawns on Papa (`gauges.fatigue.microSleepDef`): they have no anchor. */
+const spawnedOnPapa = new Set<string>();
 for (const name of readdirSync(LEVELS_DIR).sort()) {
   if (!name.endsWith('.json') || name.endsWith('.geometry.json')) continue;
   const text = readFileSync(`${LEVELS_DIR}${name}`, 'utf8');
@@ -42,6 +44,8 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
   for (const entry of parsed.value.waves.flatMap((wave) => wave.threats)) {
     if (!anchors.has(entry.def)) anchors.set(entry.def, entry.anchor);
   }
+  const microSleepDef = parsed.value.gauges.fatigue?.microSleepDef;
+  if (microSleepDef !== undefined) spawnedOnPapa.add(microSleepDef);
 }
 
 const content = createTestContent();
@@ -66,9 +70,28 @@ function anchorOf(def: ThreatDef): string {
   return anchor;
 }
 
-/** The frozen room planning every def at its live anchor: `tested` from 0 ms, the others much later. */
+/**
+ * The frozen room planning every anchored def at its live anchor: `tested` from 0 ms, the others
+ * much later. A def spawned on Papa has no anchor and no wave: it is the level's micro-sleep, and
+ * `contentFor` makes it due at once.
+ */
 function levelPlanning(tested: ThreatDef): LevelContent {
+  const anchored = defs.filter((def) => def.target === 'anchor');
   const planned = (def: ThreatDef) => ({ def: def.id, anchor: anchorOf(def) });
+  if (tested.target === 'papa') {
+    return {
+      level: {
+        id: 'salon_crawler',
+        variant: 'nap' as const,
+        durationMs: CATALOG_OTHERS_FROM_MS,
+        objects: [],
+        gauges: { fatigue: { microSleepDef: tested.id } },
+        feelOverrides: {},
+        waves: [],
+      },
+      threats: Object.fromEntries(defs.map((def) => [def.id, def])),
+    };
+  }
   const wave = { maxSimultaneous: 1, gapMinMs: 0, gapMaxMs: 0, lullMs: 0 };
   return {
     level: {
@@ -76,13 +99,14 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       variant: 'nap' as const,
       durationMs: CATALOG_OTHERS_FROM_MS + CATALOG_OTHERS_FROM_MS,
       objects: [],
+      gauges: {},
       feelOverrides: {},
       waves: [
         { ...wave, fromMs: 0, threats: [planned(tested)] },
         {
           ...wave,
           fromMs: CATALOG_OTHERS_FROM_MS,
-          threats: defs.filter((def) => def !== tested).map(planned),
+          threats: anchored.filter((def) => def !== tested).map(planned),
         },
       ],
     },
@@ -90,9 +114,34 @@ function levelPlanning(tested: ThreatDef): LevelContent {
   };
 }
 
+/**
+ * The content a def is tested with. A def spawned on Papa is due at the first step: he starts
+ * exhausted and the delay between micro-sleeps is nil.
+ */
+function contentFor(def: ThreatDef) {
+  if (def.target !== 'papa') return content;
+  return {
+    ...content,
+    feel: {
+      ...content.feel,
+      fatigue: {
+        ...content.feel.fatigue,
+        startPoints: 100,
+        microSleepMinMs: 0,
+        microSleepMaxMs: 0,
+      },
+    },
+  };
+}
+
 /** A sim stopped on the step that telegraphed the threat, with the times its window gives. */
 async function telegraphed(def: ThreatDef) {
-  const sim = await createSim({ content, geometry, level: levelPlanning(def), seed: 1 });
+  const sim = await createSim({
+    content: contentFor(def),
+    geometry,
+    level: levelPlanning(def),
+    seed: 1,
+  });
   sim.step();
   const events = [...sim.drainEvents()];
   expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
@@ -131,9 +180,13 @@ describe('the threat catalogue', () => {
     for (const def of defs) expect(GAG_IDS as readonly string[]).toContain(def.gag);
   });
 
-  it.each(defs.map((def) => [def.id] as const))('"%s" is planned by a live level', (id) => {
-    expect(anchors.has(id), `"${id}" is planned by no level`).toBe(true);
-  });
+  it.each(defs.map((def) => [def.id, def.target] as const))(
+    '"%s" is planned by a live level',
+    (id, target) => {
+      const planned = target === 'papa' ? spawnedOnPapa.has(id) : anchors.has(id);
+      expect(planned, `"${id}" is planned by no level`).toBe(true);
+    },
+  );
 });
 
 describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def) => {

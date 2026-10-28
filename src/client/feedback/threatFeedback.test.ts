@@ -5,7 +5,9 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestMicroSleep,
   createTestOutlet,
+  FATIGUE_GAUGES,
   OUTLET,
   testWave,
 } from '../../../tests/support/testContent.ts';
@@ -81,5 +83,40 @@ describe('threatCueOf', () => {
     };
     const swapped = { ...world, threats: [{ ...world.threats[0], defId: 'toaster' }] } as World;
     expect(threatCueOf(resolved('perfect'), swapped, { toaster: other })).toBe('c');
+  });
+});
+
+describe('threatCueOf for the micro-sleep (story 1.19)', () => {
+  it('takes the cues of its own def: a muffled swell, the parry cues, then a snore', async () => {
+    const microSleep = createTestMicroSleep();
+    const microWorld = (
+      await createSim({
+        content: createTestContent(),
+        geometry: createTestGeometry(),
+        level: createTestLevel({ gauges: FATIGUE_GAUGES }),
+        seed: 1,
+      })
+    ).world;
+    const id = (microWorld.threats[0] as { id: number }).id;
+    const microDefs = { [microSleep.id]: microSleep };
+    const telegraph: SimEvent = {
+      type: 'ThreatTelegraphed',
+      t,
+      threatId: id,
+      kind: 'papa_microsleep',
+      anchorId: 'papa',
+      waveIndex: -1,
+    };
+    expect(threatCueOf(telegraph, microWorld, microDefs)).toBe('tel_papa_microsleep');
+    expect(threatCueOf(resolved('success', id), microWorld, microDefs)).toBe('resp_parry');
+    expect(threatCueOf(resolved('perfect', id), microWorld, microDefs)).toBe('resp_parry_perfect');
+    const gag: SimEvent = {
+      type: 'GagTriggered',
+      t,
+      threatId: id,
+      gag: 'papa_asleep',
+      reason: 'late',
+    };
+    expect(threatCueOf(gag, microWorld, microDefs)).toBe('gag_papa_asleep');
   });
 });

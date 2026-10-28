@@ -1,5 +1,6 @@
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
+import { isPapaBusy } from '../papa/papaFsm.ts';
 import { classifyPress } from '../timing/classifyPress.ts';
 import { judgePress } from '../timing/judge.ts';
 import type { ThreatInstance, World } from '../world.ts';
@@ -62,6 +63,9 @@ export function runThreats(world: World, ctx: StepContext): void {
     const command = ctx.commands[i];
     if (command === undefined) continue;
     if (command.type === 'PressThreat') {
+      // Busy Papa (`drink` / `asleep`, story 1.19 D6) answers nothing: a threat that opens meanwhile
+      // ends in its gag (`late`), which is the cost of the coffee. `Release` still passes below.
+      if (isPapaBusy(world.papa)) continue;
       for (let j = 0; j < threats.length; j++) {
         const threat = threats[j] as ThreatInstance;
         if (threat.id === command.threatId) pressThreat(world, ctx, threat, j, command.t);

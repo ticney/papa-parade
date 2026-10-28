@@ -273,6 +273,8 @@ describe('planWalkTo', () => {
       dirZ: 0,
       isBlocked: false,
       glide: null,
+      objectId: null,
+      busyUntil: asSimMs(0),
     };
   }
 

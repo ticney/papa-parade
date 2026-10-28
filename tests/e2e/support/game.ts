@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { Vector3 } from 'three';
+import { createIsoCamera, fitIsoCamera } from '../../../src/client/render/isoCamera.ts';
+import { roomOf } from '../../../src/client/render/levelScene.ts';
 import { feedbackClips } from '../../../src/content/feedbackClips.ts';
 import type { FeedbackTable } from '../../../src/content/schemas/feedback.ts';
+import type { LevelGeometry } from '../../../src/content/schemas/levelGeometry.ts';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../../src/shared/constants.ts';
 import { ppAdvance, ppEvents } from './testApi.ts';
 
@@ -215,6 +219,46 @@ export async function threatIconPoint(page: Page): Promise<{ x: number; y: numbe
   const match = /^(-?\d+\.\d),(-?\d+\.\d)$/.exec(value ?? '');
   if (match === null) throw new Error(`data-pp-threat-px is "${String(value)}", not "x,y"`);
   return { x: Number(match[1]), y: Number(match[2]) };
+}
+
+/**
+ * The centre of an object's icon in page coordinates, as the app mirrors it once per level
+ * (`data-pp-object-px`: `coffee_machine:x,y;phone:x,y`).
+ */
+export async function objectIconPoint(
+  page: Page,
+  objectId: string,
+): Promise<{ x: number; y: number }> {
+  const value = await html(page).getAttribute('data-pp-object-px');
+  for (const entry of (value ?? '').split(';')) {
+    const match = /^([a-z0-9_]+):(-?\d+\.\d),(-?\d+\.\d)$/.exec(entry);
+    if (match?.[1] === objectId) return { x: Number(match[2]), y: Number(match[3]) };
+  }
+  throw new Error(`data-pp-object-px is "${String(value)}": no point for "${objectId}"`);
+}
+
+/**
+ * Where a point of the live room (metres) is on the page, in px: the game's own iso camera, fitted
+ * to the live room and to the canvas box. For checking where something is drawn.
+ */
+export async function pagePointOf(
+  page: Page,
+  xM: number,
+  yM: number,
+  zM: number,
+): Promise<{ x: number; y: number }> {
+  const box = await page.locator('#pp-canvas').boundingBox();
+  if (box === null) throw new Error('the canvas has no box');
+  const geometry = JSON.parse(
+    readFileSync('content/levels/salon_crawler.geometry.json', 'utf8'),
+  ) as LevelGeometry;
+  const camera = createIsoCamera();
+  fitIsoCamera(camera, roomOf(geometry), box.width / box.height);
+  const projected = new Vector3(xM, yM, zM).project(camera);
+  return {
+    x: box.x + ((projected.x + 1) / 2) * box.width,
+    y: box.y + ((1 - projected.y) / 2) * box.height,
+  };
 }
 
 /** The audio context state the app mirrors: `none` before the first gesture, then the context's own. */

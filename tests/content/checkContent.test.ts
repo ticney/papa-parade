@@ -621,7 +621,7 @@ describe('checkContent on level files', () => {
 
   it('names the level, the object and the anchor when an object stands at an anchor the geometry lacks', async () => {
     await mutateJson(FILE, (level) => {
-      level.objects = [{ id: 'kettle', anchor: 'kettle_spot' }];
+      level.objects = [{ id: 'kettle', kind: 'coffee_machine', anchor: 'kettle_spot' }];
     });
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({
@@ -635,8 +635,8 @@ describe('checkContent on level files', () => {
   it('names the object listed twice', async () => {
     await mutateJson(FILE, (level) => {
       level.objects = [
-        { id: 'phone', anchor: 'phone' },
-        { id: 'phone', anchor: 'coffee_machine' },
+        { id: 'phone', kind: 'phone', anchor: 'phone' },
+        { id: 'phone', kind: 'phone', anchor: 'coffee_machine' },
       ];
     });
     expect(await checkContent(root)).toEqual([
@@ -646,6 +646,53 @@ describe('checkContent on level files', () => {
         message: expect.stringContaining('phone'),
       }),
     ]);
+  });
+
+  it('names the level file, the path and the culprit of a micro-sleep def that has no threat file', async () => {
+    await mutateJson(FILE, (level) => {
+      level.gauges = { fatigue: { microSleepDef: 'papa_snooze' } };
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'gauges.fatigue.microSleepDef',
+        message: expect.stringContaining('papa_snooze'),
+      }),
+    ]);
+  });
+
+  it('names the micro-sleep def whose target is not "papa"', async () => {
+    await mutateJson(FILE, (level) => {
+      level.gauges = { fatigue: { microSleepDef: 'outlet' } };
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'gauges.fatigue.microSleepDef',
+        message: expect.stringMatching(/"outlet".*target "anchor".*must have target "papa"/),
+      }),
+    ]);
+  });
+
+  it('names the wave threat whose def has target "papa"', async () => {
+    await plan([entry], [{ def: 'papa_microsleep', anchor: 'stairs_top' }]);
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'waves[1].threats[0].def',
+        message: expect.stringContaining('papa_microsleep'),
+      }),
+    );
+  });
+
+  it('names an object of an unknown kind (the schema refuses it; the sim-side check guards a kind added to the schema first)', async () => {
+    await mutateJson(FILE, (level) => {
+      level.objects = [{ id: 'kettle', kind: 'kettle', anchor: 'phone' }];
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({ file: FILE, jsonPath: 'objects[0].kind' }),
+    );
   });
 
   it('accepts a level with no objects key at all (it defaults to none)', async () => {

@@ -64,7 +64,7 @@
 
 ## Deferred from: implementation of story 1-5-fondations-de-l-ui-tokens-ecran-de-demarrage-hud-et-panneau-de-pause (2026-10-27)
 
-- **Gauge pill and timer content.** The HUD has the three zones and the pause button; the gauge and timer zones are reserved and empty. Stories 1.19 and 1.18 fill them, and add their own e2e (live values, the 40-node budget with content, `scaleX`-only fills). *Timer built by story 1.18 (`hud-timer`, e2e `timer.spec.ts`, node budget kept); the gauge pill stays reserved for story 1.19.*
+- **Gauge pill and timer content.** The HUD has the three zones and the pause button; the gauge and timer zones are reserved and empty. Stories 1.19 and 1.18 fill them, and add their own e2e (live values, the 40-node budget with content, `scaleX`-only fills). *Timer built by story 1.18 (`hud-timer`, e2e `timer.spec.ts`, node budget kept); the gauge pill stays reserved for story 1.19.* *Resolved (story 1.19): the gauge pill (`gaugesHud.ts`, e2e `fatigue.spec.ts`, 40-node budget and `scaleX`-only fill checked).*
 - **Loading screen, « Oups » screen, `oops → loading`, « level waits for the foreground ».** `loading` has no screen and `oops` has no builder (the overlay host warns once). A failed `createSim` already goes to `oops` and logs an error. Story 1.6. **Resolved in story 1.6:** the loading screen, the « Oups » screen, `oops → loading` and the wait for the foreground exist and are covered by `tests/e2e/level.spec.ts`.
 - **Countdown tick sound and vibration, audio unlock.** `CountdownTicked` and `StartGestureReceived` are emitted and have no subscriber. The unlock must happen synchronously inside the start gesture (iOS). Story 1.9, which also has to check on a real iPhone that `pointerup` and `keydown` count as unlocking gestures. **Resolved in story 1.9** for the unlock (synchronously in the start gesture, before `StartGestureReceived`) and the vibration (`countdown_tick`, a light haptic per digit). The tick **sound** stays open (the countdown is silent; see « Deferred by story 1.9 »), and so does the real-iPhone check that `pointerup` and `keydown` unlock.
 - **Settings, « Réduire les animations », « Grands verbes », « Quitter vers le frigo ».** Reduced motion is the OS `prefers-reduced-motion` query only; the panel lists its actions in code (`pauseScreen.ts`). Stories 2.8, 2.10, 3.11.
@@ -300,8 +300,8 @@
 
 ## Deferred from: implementation of story 1-17-ciblage-automatique-au-clavier-et-a-la-manette (2026-10-27)
 
-- **The touch tap on an interactive object** (hit-test threat > object > floor, a generous radius around the object's anchor): story 1.19 (coffee), reused by 1.20. `createHitTester` still picks threats and the floor only.
-- **What happens on arrival at an object**: `ObjectTapped` has no consumer yet (busy time, fatigue): stories 1.19 and 1.20.
+- **The touch tap on an interactive object** (hit-test threat > object > floor, a generous radius around the object's anchor): story 1.19 (coffee), reused by 1.20. `createHitTester` still picks threats and the floor only.  *Resolved (story 1.19): `pickObject` in `hitTest.ts`, `TapObject` in the input mapper.*
+- **What happens on arrival at an object**: `ObjectTapped` has no consumer yet (busy time, fatigue): stories 1.19 and 1.20.  *Resolved for the coffee (story 1.19): the arrival action by `ObjectKind`; the phone's is story 1.20.*
 - **A pad-only start can be silent** (D14): browsers do not count a gamepad button as a user activation, so `audio.unlock()` from A on the start screen may leave the audio context suspended until a key or a tap. The existing unlock path logs a `warn` if it stays suspended. Device pass (1.24), or a « press a key » hint if playtesters hit it.
 - **D-pad as movement in play, and analog stick speed** (1.7's item): not asked; the left stick walks, at one speed.
 - **Menu auto-repeat on a held stick or D-pad**: not needed for two buttons; the Fridge (3.11) and Settings (2.8) may want it.
@@ -316,14 +316,14 @@
 
 - **No re-target e2e.** The cone's choice between several threats is proved by unit tests only; the minimal director activates one threat at a time. Add the e2e (hold a direction toward the later-closing threat, `data-pp-target` follows) with the wave director, story 1.18. *Still open after story 1.18, same target.*
 - **The glyph chip never flips.** It sits to the right of the icon (`ui.css`), so a threat near the right wall or the HUD can clip it. Check on a real phone in a playtest before adding a `--flip` modifier.
-- **Two derivations of the object positions.** `contextObjectsOf` (client) and `simLevelOf` (sim) both read the anchors. Expose the objects from the sim's public API when 1.19 reads them, and drop the client copy.
+- **Two derivations of the object positions.** `contextObjectsOf` (client) and `simLevelOf` (sim) both read the anchors. Expose the objects from the sim's public API when 1.19 reads them, and drop the client copy.  *Resolved (story 1.19): `Sim.objects`, and `contextObjectsOf` is gone.*
 - **Pause note announcement.** The `role=status` line of the pause panel is created `hidden` and filled in the same task; some screen readers will not announce it. Keep a permanent live region, with the accessibility pass (E7).
 
 ## Deferred from: implementation of story 1-18-vagues-de-menaces-et-chrono-du-niveau (2026-10-28)
 
 - **The wave values of `salon_crawler.json` are starting points** (D2): the gaps, the limits and the 3 s lull are to tune while playing, then check with `npm run sim -- --bot human --runs 50` (the report now has `waves[]`). Story 1.24 (playtest).
 - **The disruption of wave 3 (the phone)** is story 1.20 (D10): `disruptions: [{ def, atMs }]` joins `LevelWaveSchema` there. Until then wave 3 is three threats at once and no phone.
-- **`maxSimultaneous` counts every active threat**, including one a system spawns outside the waves (`waveIndex` -1). Story 1.19 adds the rule that `papa_microsleep` does not count against it (D5).
+- **`maxSimultaneous` counts every active threat**, including one a system spawns outside the waves (`waveIndex` -1). Story 1.19 adds the rule that `papa_microsleep` does not count against it (D5).  *Resolved (story 1.19): the director skips instances whose planned `firstWaveIndex` is -1, in the count and in the pool.*
 - **The timer is sim time** (ADR-002): it slows with a slow-mo, so a 3:00 level lasts a little longer in real time. A real-time display would be a client-only change (Open point 2 of the story).
 - **The first threat of a game is random** (D4): a scripted first threat (the tutorial effect of FR52) would be a small `first` field on wave 0, in a later story.
 - **Per-level `feel.input` is read through getters in `boot.ts`** (`levelFeel()`): the input mapper and the move intent now follow the active level's merged feel. The camera and the scene read the radii once per level; nothing else reads the base feel for a level.
@@ -336,3 +336,13 @@
 - **After `LevelEnded` the world stays as it was**: the icon and halo of a `telegraph` / `windowOpen` threat stay up and Papa stays mid-glide (`ENDED_SYSTEMS`). Reason: D8 / D9 freeze the world on purpose; story 1.22's result screen replaces the frozen level.
 - **Live-content tests pin tuning values** (`durationMs === 180000`, `maxSimultaneous` `[1, 2, 3]`, `telegraphs > 0` per wave over 5 idle runs, `lastThreatSlowMos ≥ 1`), and three tests with 120 s timeouts play full 180 s games. Reason: the AC asks for the pins; revisit when Geo first retunes the waves (1.24), and cover the slow-mo on the frozen test level if CI time or flakes show.
 - **`feelOverrides` is `z.record(z.string(), z.unknown())`**, so `content/_schemas` gives no editor hints for it. Reason: a deep-partial of `FeelSchema` is a tooling nicety; do it if a bad override bites.
+
+## Deferred from: implementation of story 1-19-fatigue-cafe-et-micro-siestes (2026-10-28)
+
+- **No spec for the busy feedback or the coffee cue.** While Papa drinks or sleeps, the player sees a mug cube or shut eyelids and a « Z » (provisional, 3D) and nothing else: no progress ring, no sound for the coffee (UX has no spec). Reason: D10 / open point 4; sound is 2.x, the final drawing is E7.
+- **The snore, the woken baby and +15 % noise** of a missed micro-sleep belong to E3 / E4 (`stay_awake`, GDD L258) and to the noise gauge (story 3.1). Today a miss is a 3 s nap and nothing else.
+- **The gauge pulse rate is an assumption**: the warn icon pulses once per second (1 Hz, the ceiling); DESIGN gives no rate. The `GAUGE_CHANGE_HOLD_MS` of 1500 real ms (D11) and the 50 % dimming are assumptions of EXPERIENCE L207 too (`[ASSUMPTION]`); Geo tunes both after a playtest.
+- **`windowPenaltyPct` is still loose (0-100)** and the sim now reads it: 100 gives a window of 0 ms and an unwinnable threat. Tighten it to below 100 in `feel.ts` when Geo retunes the fatigue. (Was L25.)
+- **The HUD node budget will be tight with three gauges**: one gauge is about 8 nodes, three about 20, and the pill, timer and pause button about 19 more, against `HUD_MAX_DOM_NODES` = 40. Check it when story 3.1 adds the noise gauge and epic 4 the need.
+- **The strings `gauge.*` already existed** (`gauge.fatigue`, `gauge.noise`, `gauge.urge`): the pill reuses them, plus the new `hud.gauges`. The story named `hud.gauge_fatigue`; nothing else reads it.
+- **`withoutThreats` (`?threats=off`) keeps the micro-sleep def** so that `createSim` accepts the level; a debug run of more than 140 s on that switch still sees micro-sleeps.

@@ -70,6 +70,7 @@ function createSimDouble(real: Sim) {
       calls.push('drain');
       return real.drainEvents();
     },
+    objects: real.objects,
     get world() {
       return real.world;
     },

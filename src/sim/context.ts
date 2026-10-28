@@ -1,4 +1,5 @@
 import type { Feel } from '@content/schemas/feel';
+import type { ObjectKind } from '@content/schemas/level';
 import type { ThreatDef } from '@content/schemas/threat';
 import type { InvariantContext } from '@shared/invariant';
 import type { CommandQueue } from './commandQueue.ts';
@@ -31,9 +32,18 @@ export interface SimLevel {
   readonly props: readonly SimPropSpec[];
   /** The level's interactive objects, each at the floor point of its anchor (story 1.17). */
   readonly objects: readonly SimObjectSpec[];
+  /**
+   * The index, in `threats` and `world.threats`, of the micro-sleep (`gauges.fatigue`, story 1.19),
+   * or -1 when the level has no fatigue. It is the last entry, after the wave ones.
+   */
+  readonly microSleepIndex: number;
 }
 
-/** One planned threat: what, where, and from which wave the director may draw it (waves are cumulative). */
+/**
+ * One planned threat: what, where, and from which wave the director may draw it (waves are
+ * cumulative). `firstWaveIndex` is -1 for a threat the sim spawns itself (the micro-sleep): no wave
+ * draws it, and its `anchorId` is `PAPA_TARGET_ANCHOR_ID`.
+ */
 export interface SimPlannedThreat {
   readonly def: ThreatDef;
   readonly anchorId: string;
@@ -53,12 +63,16 @@ export interface SimWave {
   readonly gapMaxMs: number;
 }
 
-/** An interactive object of the level: constant data, no runtime state yet (stories 1.19, 1.20). */
+/** An interactive object of the level: constant data (`Sim.objects` hands it to the client). */
 export interface SimObjectSpec {
   readonly id: string;
+  /** What it is: the action Papa runs on arriving (story 1.19, D7). */
+  readonly kind: ObjectKind;
   /** Where Papa walks to, on the floor (the anchor's x and z), in metres. */
   readonly xM: number;
   readonly zM: number;
+  /** The anchor's height, in metres: the client projects the object's icon point from it. */
+  readonly yM: number;
 }
 
 /** What a prop is, apart from where it is: constant data, built once from the geometry and the feel. */
