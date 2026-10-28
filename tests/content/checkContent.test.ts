@@ -477,11 +477,19 @@ describe('checkContent on threat files', () => {
     await mutateJson(FILE, (threat) => {
       threat.gag = 'outlet_hairs';
     });
-    expect(await checkContent(root)).toEqual([
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
       expect.objectContaining({
         file: FILE,
         jsonPath: 'gag',
         message: expect.stringContaining('outlet_hairs'),
+      }),
+    );
+    // The live level plans the outlet: it reports the gag too, at the wave entry that plans it.
+    expect(problems.filter((problem) => problem.file !== FILE)).toEqual([
+      expect.objectContaining({
+        file: 'content/levels/salon_crawler.json',
+        jsonPath: 'waves[0].threats[0].def',
       }),
     ]);
   });
@@ -521,14 +529,23 @@ describe('checkContent on threat files', () => {
 
 describe('checkContent on level files', () => {
   const FILE = 'content/levels/salon_crawler.json';
-  const entry = { def: 'outlet', anchor: 'outlet_01', fromMs: 2000 };
-  const plan = (...threats: Record<string, unknown>[]) =>
+  const entry = { def: 'outlet', anchor: 'outlet_01' };
+  const wave = (threats: Record<string, unknown>[], fromMs = 0) => ({
+    fromMs,
+    maxSimultaneous: 1,
+    gapMinMs: 1000,
+    gapMaxMs: 2000,
+    lullMs: 500,
+    threats,
+  });
+  /** One wave per argument, the nth from n minutes (inside the level's 3). */
+  const plan = (...waves: Record<string, unknown>[][]) =>
     mutateJson(FILE, (level) => {
-      level.threats = threats;
+      level.waves = waves.map((threats, index) => wave(threats, index * 60000));
     });
 
   it('accepts a level that plans the outlet at an anchor of its geometry', async () => {
-    await plan(entry, { ...entry, fromMs: 9000 });
+    await plan([entry], [{ def: 'stairs', anchor: 'stairs_top' }]);
     expect(await checkContent(root)).toEqual([]);
   });
 
@@ -541,26 +558,65 @@ describe('checkContent on level files', () => {
     ]);
   });
 
-  it('names the planned threat that does not exist, with its index', async () => {
-    await plan(entry, { ...entry, def: 'outlett' });
+  it('names the planned threat that does not exist, with its wave and index', async () => {
+    await plan([entry], [{ ...entry, def: 'outlett', anchor: 'stairs_top' }]);
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({
         file: FILE,
-        jsonPath: 'threats[1].def',
+        jsonPath: 'waves[1].threats[0].def',
         message: expect.stringContaining('outlett'),
       }),
     ]);
   });
 
   it('names the anchor the geometry lacks', async () => {
-    await plan({ ...entry, anchor: 'outlet_02' });
+    await plan([{ ...entry, anchor: 'outlet_02' }]);
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({
         file: FILE,
-        jsonPath: 'threats[0].anchor',
+        jsonPath: 'waves[0].threats[0].anchor',
         message: expect.stringContaining('outlet_02'),
       }),
     ]);
+  });
+
+  it('names the level, the path and the gag when a planned def has a gag the sim does not know', async () => {
+    await mutateJson('content/threats/outlet.json', (threat) => {
+      threat.gag = 'tickle';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'waves[0].threats[0].def',
+        message: expect.stringMatching(/outlet.*tickle/),
+      }),
+    );
+  });
+
+  it('names feelOverrides that do not merge into a valid feel, with the path inside it', async () => {
+    await mutateJson(FILE, (level) => {
+      level.feelOverrides = { timing: { windowMs: -5 } };
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({ file: FILE, jsonPath: 'feelOverrides.timing.windowMs' }),
+    );
+  });
+
+  it('names a feelOverrides key the feel does not have', async () => {
+    await mutateJson(FILE, (level) => {
+      level.feelOverrides = { bogus: 1 };
+    });
+    const problems = await checkContent(root);
+    expect(problems).toEqual([expect.objectContaining({ file: FILE })]);
+    expect(problems[0]?.jsonPath).toContain('feelOverrides');
+  });
+
+  it('accepts feelOverrides that merge into a valid feel', async () => {
+    await mutateJson(FILE, (level) => {
+      level.feelOverrides = { timing: { windowMs: 250 } };
+    });
+    expect(await checkContent(root)).toEqual([]);
   });
 
   it('names the level, the object and the anchor when an object stands at an anchor the geometry lacks', async () => {
@@ -600,7 +656,10 @@ describe('checkContent on level files', () => {
   });
 
   it('reports a level that has no geometry file', async () => {
-    await put('content/levels/test_room.json', '{ "id": "test_room", "threats": [] }\n');
+    await put(
+      'content/levels/test_room.json',
+      '{ "id": "test_room", "variant": "nap", "durationMs": 1000, "waves": [] }\n',
+    );
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({
         file: 'content/levels/test_room.json',
@@ -611,14 +670,16 @@ describe('checkContent on level files', () => {
   });
 
   it('reports a level file that breaks its schema, with the JSON path', async () => {
-    await plan({ ...entry, fromMs: -1 });
+    await mutateJson(FILE, (level) => {
+      level.waves = [wave([entry], -1)];
+    });
     expect(await checkContent(root)).toEqual([
-      expect.objectContaining({ file: FILE, jsonPath: 'threats[0].fromMs' }),
+      expect.objectContaining({ file: FILE, jsonPath: 'waves[0].fromMs' }),
     ]);
   });
 
   it('does not report a level twice for a threat file that is broken (it is reported on its own)', async () => {
-    await plan(entry);
+    await plan([entry]);
     await mutateJson('content/threats/outlet.json', (threat) => {
       threat.cooldownMs = -1;
     });

@@ -1,15 +1,16 @@
-import { hashJson } from '@shared/hash';
+import { cloneJson, hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
+  OUTLET,
   stepN,
   TEST_OBJECTS,
+  testWave,
 } from '../../tests/support/testContent.ts';
-import type { System } from './context.ts';
+import type { StepContext, System } from './context.ts';
 import { createSim, createSimWithSystems } from './createSim.ts';
 import { SYSTEMS } from './step.ts';
 
@@ -161,14 +162,20 @@ describe('journal()', () => {
 });
 
 describe('the level it plans', () => {
-  const planning = createTestLevel([outletEntry(2000), outletEntry(9000)]);
+  const SECOND_OUTLET = { def: 'outlet', anchor: 'phone' };
+  const planning = createTestLevel({
+    waves: [
+      testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 }),
+      testWave([SECOND_OUTLET], { fromMs: 9000, gapMinMs: 500, gapMaxMs: 500 }),
+    ],
+  });
   const defOf = () => {
     const def = planning.threats.outlet;
     if (def === undefined) throw new Error('no outlet');
     return def;
   };
 
-  it('creates one idle instance per entry, in level order, with ids from the world and the anchor’s position', async () => {
+  it('creates one idle instance per planned anchor, in order of first appearance, with ids from the world and the anchor’s position', async () => {
     const sim = await createSim({ content, geometry, level: planning, seed: 1 });
     const outlet = geometry.anchors.find((anchor) => anchor.id === 'outlet_01');
     expect(sim.world.threats).toEqual([
@@ -183,8 +190,9 @@ describe('the level it plans', () => {
         windowOpenAt: 0,
         responseWindow: null,
         press: null,
+        waveIndex: -1,
       },
-      expect.objectContaining({ id: 2, defId: 'outlet', state: 'idle' }),
+      expect.objectContaining({ id: 2, defId: 'outlet', anchorId: 'phone', state: 'idle' }),
     ]);
     expect(sim.world.nextId).toBe(3);
   });
@@ -205,39 +213,38 @@ describe('the level it plans', () => {
   it('refuses a planned threat whose def is not loaded', async () => {
     const missing = { ...planning, threats: {} };
     await expect(createSim({ content, geometry, level: missing, seed: 1 })).rejects.toThrow(
-      /threats\[0\].*outlet is not loaded/,
+      /waves\[0\]\.threats\[0\].*outlet is not loaded/,
     );
   });
 
   it('refuses an anchor the room does not have, naming the level, the def and the anchor', async () => {
-    const wrong = createTestLevel([{ ...outletEntry(0), anchor: 'outlet_02' }]);
+    const wrong = createTestLevel({ waves: [testWave([{ def: 'outlet', anchor: 'outlet_02' }])] });
     await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
-      /salon_crawler.*threats\[0\].*outlet.*outlet_02/,
+      /salon_crawler.*waves\[0\]\.threats\[0\].*outlet.*outlet_02/,
     );
   });
 
   it('refuses an object whose anchor the room does not have, naming the level, the object and the anchor', async () => {
-    const wrong = createTestLevel([], [{ id: 'kettle', anchor: 'kettle_spot' }]);
+    const wrong = createTestLevel({ objects: [{ id: 'kettle', anchor: 'kettle_spot' }] });
     await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
       /salon_crawler.*objects\[0\].*kettle.*kettle_spot/,
     );
   });
 
   it('refuses an object id listed twice', async () => {
-    const twice = createTestLevel(
-      [],
-      [
+    const twice = createTestLevel({
+      objects: [
         { id: 'phone', anchor: 'phone' },
         { id: 'phone', anchor: 'coffee_machine' },
       ],
-    );
+    });
     await expect(createSim({ content, geometry, level: twice, seed: 1 })).rejects.toThrow(
       /objects\[1\].*"phone" is listed twice/,
     );
   });
 
   it('accepts a level with objects, and hashes them into the journal', async () => {
-    const withObjects = createTestLevel([], TEST_OBJECTS);
+    const withObjects = createTestLevel({ objects: TEST_OBJECTS });
     const sim = await createSim({ content, geometry, level: withObjects, seed: 1 });
     expect(sim.journal().levelHash).toBe(hashJson(withObjects));
     expect(sim.journal().levelHash).not.toBe(hashJson(level));
@@ -248,6 +255,73 @@ describe('the level it plans', () => {
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
       /unknown gag outlet_hairs/,
     );
+  });
+
+  it('refuses an anchor that is planned twice, naming the level and the entry', async () => {
+    const twice = createTestLevel({
+      waves: [
+        testWave([OUTLET]),
+        testWave([{ def: 'stairs', anchor: 'outlet_01' }], { fromMs: 9000 }),
+      ],
+    });
+    await expect(createSim({ content, geometry, level: twice, seed: 1 })).rejects.toThrow(
+      /salon_crawler.*waves\[1\]\.threats\[0\].*outlet_01 is planned twice/,
+    );
+  });
+
+  it('refuses a planned anchor the baby cannot reach from where it starts (D12)', async () => {
+    // A closed pocket in the floor (a ring of blocked cells) with an anchor in it.
+    const walled = cloneJson(geometry);
+    const rows = walled.nav.rows.map((row) => row.split(''));
+    for (let r = 14; r <= 20; r++) {
+      for (let c = 2; c <= 8; c++) {
+        const isRing = r === 14 || r === 20 || c === 2 || c === 8;
+        (rows[r] as string[])[c] = isRing ? '0' : '1';
+      }
+    }
+    walled.nav.rows = rows.map((row) => row.join(''));
+    walled.anchors.push({ id: 'pocket', positionM: [-2.625, 0, 1.375] });
+    const level = createTestLevel({ waves: [testWave([{ def: 'outlet', anchor: 'pocket' }])] });
+    await expect(createSim({ content, geometry: walled, level, seed: 1 })).rejects.toThrow(
+      /salon_crawler.*waves\[0\]\.threats\[0\].*outlet.*pocket.*cannot reach/,
+    );
+    // The same level on the open room is fine.
+    const open = createTestLevel({ waves: [testWave([OUTLET])] });
+    await expect(createSim({ content, geometry, level: open, seed: 1 })).resolves.toBeDefined();
+  });
+
+  it('builds the wave plan: the end of each wave, when it closes, and the level duration', async () => {
+    const plan = createTestLevel({
+      durationMs: 100_000,
+      waves: [
+        testWave([OUTLET], { maxSimultaneous: 2, gapMinMs: 100, gapMaxMs: 300, lullMs: 3000 }),
+        testWave([], { fromMs: 60_000, lullMs: 5000 }),
+      ],
+    });
+    const sim = await createSim({ content, geometry, level: plan, seed: 1 });
+    const probe: { level?: StepContext['level'] } = {};
+    const spy: System = (_world, ctx) => {
+      probe.level = ctx.level;
+    };
+    const spied = await createSimWithSystems({ content, geometry, level: plan, seed: 1 }, [spy]);
+    spied.step();
+    expect(probe.level).toMatchObject({
+      durationMs: 100_000,
+      waves: [
+        {
+          fromMs: 0,
+          endMs: 60_000,
+          closesAtMs: 57_000,
+          maxSimultaneous: 2,
+          gapMinMs: 100,
+          gapMaxMs: 300,
+        },
+        { fromMs: 60_000, endMs: 100_000, closesAtMs: 95_000 },
+      ],
+      threats: [{ anchorId: 'outlet_01', firstWaveIndex: 0 }],
+    });
+    expect(sim.world.director).toEqual({ waveIndex: -1, nextAt: 0 });
+    expect(sim.world.flow).toEqual({ state: 'playing', enteredAt: 0 });
   });
 
   it('hashes the level into the journal and the snapshot', async () => {

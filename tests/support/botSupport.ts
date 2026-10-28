@@ -5,25 +5,27 @@ import { playGame } from '@bots/playGame';
 import type { LevelContent } from '@content/contentBundle';
 import { createSim, type Sim, type SimEvent } from '@sim';
 import {
-  coffeeTableEntry,
+  COFFEE_TABLE,
   createTestBots,
   createTestContent,
   createTestGeometry,
   createTestLevel,
   createTestThreats,
-  outletEntry,
-  stairsEntry,
+  OUTLET,
+  STAIRS,
+  testWave,
 } from './testContent.ts';
 
 /** Sim ms the bot tests play unless they say otherwise. */
 export const BOT_TEST_UNTIL_MS = 60_000;
 
 /** The frozen level with the outlet planned from 4 s, as the live one does. */
-export const botTestLevel = () => createTestLevel([outletEntry(4000)]);
+export const botTestLevel = () =>
+  createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 4000, gapMaxMs: 4000 })] });
 
 /** The frozen level with the three threats of the prototype, all planned from 0 ms in the live order. */
 export const botTrioLevel = () =>
-  createTestLevel([outletEntry(0), stairsEntry(0), coffeeTableEntry(0)]);
+  createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])] });
 
 export function botSetup(seed: number, settings: Partial<BotOptions> = {}): BotSetup {
   const content = createTestContent();

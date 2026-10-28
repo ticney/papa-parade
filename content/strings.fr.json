@@ -38,6 +38,7 @@
   "key.pad_back_xbox": "B",
   "key.pad_back_playstation": "○",
   "hud.pause_button": "Pause",
+  "hud.timer_variant_nap": "Sieste",
   "pause.title": "Pause",
   "pause.resume": "Reprendre",
   "pause.restart": "Recommencer",

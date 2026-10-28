@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { feedbackClips } from '../../../src/content/feedbackClips.ts';
 import type { FeedbackTable } from '../../../src/content/schemas/feedback.ts';
-import { RESUME_COUNTDOWN_MS } from '../../../src/shared/constants.ts';
+import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../../src/shared/constants.ts';
+import { ppAdvance, ppEvents } from './testApi.ts';
 
 // The live room and feel, read here and never copied: Geo re-exports the room and retunes the feel freely.
 const liveGeometry = JSON.parse(
@@ -45,24 +46,100 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
   };
 };
 
-/** The live level's plan and the outlet def, read here and never copied: Geo retunes both freely. */
+/** The live level's waves, read here and never copied: Geo retunes them freely. */
 const liveLevel = JSON.parse(readFileSync('content/levels/salon_crawler.json', 'utf8')) as {
-  threats: { def: string; anchor: string; fromMs: number }[];
+  durationMs: number;
+  waves: {
+    fromMs: number;
+    maxSimultaneous: number;
+    gapMinMs: number;
+    gapMaxMs: number;
+    lullMs: number;
+    threats: { def: string; anchor: string }[];
+  }[];
 };
-export const liveOutlet = JSON.parse(readFileSync('content/threats/outlet.json', 'utf8')) as {
+/** The live level's length, in sim ms: the timer reads it at the start and ends the level there. */
+export const LEVEL_DURATION_MS = liveLevel.durationMs;
+export const liveWaves = liveLevel.waves;
+const firstWave = liveWaves[0];
+if (firstWave === undefined) throw new Error('the live level has no wave');
+
+/** What the specs read of a threat def (`content/threats/<def>.json`). */
+export interface LiveThreatDef {
+  id: string;
   telegraphDelayMs: number | null;
   windowMs: number | null;
   cooldownMs: number;
+  gag: string;
   feedback: { telegraph: string; success: string; perfect: string; gag: string };
-};
-/** Sim ms from the start of the level to the first telegraph of the live plan. */
-export const FIRST_TELEGRAPH_MS = Math.min(...liveLevel.threats.map((entry) => entry.fromMs));
-/** Sim ms from a telegraph to the opening of the window. */
-export const TELEGRAPH_DELAY_MS =
-  liveOutlet.telegraphDelayMs ?? liveFeel.timing.telegraphDelayDefaultMs;
-/** Sim ms a window stays open for a press, tolerance included. */
-export const WINDOW_OPEN_MS =
-  (liveOutlet.windowMs ?? liveFeel.timing.windowMs) + liveFeel.timing.toleranceMs;
+}
+const liveThreatCache = new Map<string, LiveThreatDef>();
+/** A live threat def, read here and never copied. */
+export function liveThreat(defId: string): LiveThreatDef {
+  const cached = liveThreatCache.get(defId);
+  if (cached !== undefined) return cached;
+  const def = JSON.parse(readFileSync(`content/threats/${defId}.json`, 'utf8')) as LiveThreatDef;
+  liveThreatCache.set(defId, def);
+  return def;
+}
+/** Sim ms from a telegraph to the opening of the window of `def`. */
+export const telegraphDelayMsOf = (def: LiveThreatDef): number =>
+  def.telegraphDelayMs ?? liveFeel.timing.telegraphDelayDefaultMs;
+/** Sim ms a window of `def` stays open for a press, tolerance included. */
+export const windowOpenMsOf = (def: LiveThreatDef): number =>
+  (def.windowMs ?? liveFeel.timing.windowMs) + liveFeel.timing.toleranceMs;
+
+/**
+ * The latest sim ms of the first telegraph of the live plan: the first wave's start plus its
+ * longest gap, plus a step for the grid. The first threat is drawn by the PRNG: a bound, not a time.
+ */
+export const FIRST_TELEGRAPH_MAX_MS = firstWave.fromMs + firstWave.gapMaxMs + STEP_MS;
+/** The longest a threat of the first wave takes from its telegraph to the end of its window. */
+export const FIRST_WAVE_RESPONSE_MAX_MS = Math.max(
+  ...firstWave.threats.map(
+    ({ def }) => telegraphDelayMsOf(liveThreat(def)) + windowOpenMsOf(liveThreat(def)),
+  ),
+);
+
+/** A telegraph the sim announced: when, which threat, and its def. */
+export interface TelegraphedThreat {
+  t: number;
+  threatId: number;
+  kind: string;
+  def: LiveThreatDef;
+}
+
+/** The latest `ThreatTelegraphed` of the running level (needs the test API); fails if there is none. */
+export async function lastTelegraph(page: Page): Promise<TelegraphedThreat> {
+  const events = await ppEvents(page);
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i];
+    if (event?.type === 'ThreatTelegraphed') {
+      return {
+        t: event.t,
+        threatId: event.threatId,
+        kind: event.kind,
+        def: liveThreat(event.kind),
+      };
+    }
+  }
+  throw new Error('no ThreatTelegraphed yet');
+}
+
+/**
+ * On a frozen, freshly loaded level: advances in small chunks until the first threat is
+ * telegraphed, and returns it. Bounded by the live plan, never by a timeout.
+ */
+export async function stepToFirstTelegraph(page: Page): Promise<TelegraphedThreat> {
+  const chunkSteps = 10;
+  const maxChunks = Math.ceil(FIRST_TELEGRAPH_MAX_MS / (STEP_MS * chunkSteps)) + 1;
+  for (let i = 0; i < maxChunks; i++) {
+    await ppAdvance(page, chunkSteps);
+    const events = await ppEvents(page);
+    if (events.some((event) => event.type === 'ThreatTelegraphed')) return lastTelegraph(page);
+  }
+  throw new Error(`no threat was telegraphed within ${FIRST_TELEGRAPH_MAX_MS} ms of sim time`);
+}
 
 /** The vibration pattern the live table gives a cue (`cues` -> `haptic` -> `haptics`), or `null`. */
 export function hapticPatternOfCue(cueId: string): number[] | null {

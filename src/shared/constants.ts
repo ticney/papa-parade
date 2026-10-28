@@ -4,6 +4,9 @@ export const LOG_BUFFER_SIZE = 200;
 /** Milliseconds in a second: converts a duration in ms to a speed in m/s. */
 export const MS_PER_S = 1000;
 
+/** Seconds in a minute: the timer shows `m:ss`. */
+export const SECONDS_PER_MINUTE = 60;
+
 /** Length of one simulation step, in sim ms. Every `sim.step()` advances exactly this much. */
 export const STEP_MS = 10;
 
@@ -148,9 +151,6 @@ export const NEUTRAL_WINDOW_MODIFIER = 1;
  * change the game it plays, and the same seed must not give the bot the world's sfc32 stream.
  */
 export const BOT_SEED_SALT = 0xb07b07b0;
-
-/** How long `npm run sim` plays a game by default, in sim ms: the GDD's 3-minute level (until a level has its own duration). */
-export const SIM_CLI_DEFAULT_UNTIL_MS = 180_000;
 
 /** The longest game `npm run sim --until-ms` accepts, in sim ms (one hour): a larger value is a typo, not a test. */
 export const SIM_CLI_MAX_UNTIL_MS = 3_600_000;

@@ -44,6 +44,8 @@ export async function runSim(
 ): Promise<Result<SimReport, string>> {
   const { content, geometry, level } = loaded;
   const responses = botResponsesOf(level.threats);
+  // A game lasts the level's duration unless a cap says less (or more: the flow ends it anyway).
+  const untilSimMs = args.untilSimMs ?? level.level.durationMs;
   const summaries: RunSummary[] = [];
   for (let index = 0; index < args.runs; index++) {
     const seed = (args.seed + index) % UINT32_RANGE;
@@ -59,14 +61,16 @@ export async function runSim(
     let sim: Sim | null = null;
     try {
       sim = await createSim({ content, geometry, level, seed, strictInvariants: true });
-      const recorder = createRunRecorder(sim, seed);
-      playGame(sim, bot.value, args.untilSimMs, recorder.onEvent);
+      const recorder = createRunRecorder(sim, seed, level.level.waves);
+      playGame(sim, bot.value, untilSimMs, recorder.onEvent);
       const summary = recorder.finish();
       summaries.push(summary);
       game = toRunFile({
         levelId: loaded.levelId,
         bot: args.botId,
-        untilSimMs: args.untilSimMs,
+        // Where the game really stopped (the level may have ended before the cap), so that a
+        // replay to this time ends in the same world.
+        untilSimMs: sim.world.time.sim,
         worldHash: summary.worldHash,
         journal: sim.journal(),
       });
@@ -90,7 +94,8 @@ export async function runSim(
         level: loaded.levelId,
         bot: args.botId,
         seed: args.seed,
-        untilSimMs: args.untilSimMs,
+        untilSimMs,
+        waves: level.level.waves,
         hashes: {
           feel: hashJson(content.feel),
           geometry: hashJson(geometry),

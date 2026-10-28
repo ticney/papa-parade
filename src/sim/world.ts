@@ -1,6 +1,7 @@
 import { createRng, type RngState } from '@shared/rng';
 import { asSimMs, type SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
+import type { FlowState } from './flow/flowFsm.ts';
 import type { PapaState } from './papa/papaFsm.ts';
 import type { ThreatState } from './threats/threatFsm.ts';
 import type { EffectiveWindow } from './timing/effectiveWindow.ts';
@@ -82,9 +83,9 @@ export interface PendingPress {
 }
 
 /**
- * One planned threat (story 1.10 D5): created at `createSim`, one per entry of the level, and
- * re-armed after each result. The def and `fromMs` stay in `ctx.level`, index-aligned with
- * `world.threats`.
+ * One planned threat (story 1.10 D5): created at `createSim`, one per planned anchor of the level,
+ * and re-armed after each result. The def, the anchor and the first wave stay in `ctx.level`,
+ * index-aligned with `world.threats`.
  */
 export interface ThreatInstance {
   id: number;
@@ -101,6 +102,11 @@ export interface ThreatInstance {
   /** Frozen when the threat is telegraphed (a window that moves while read would be unfair); null when idle. */
   responseWindow: EffectiveWindow | null;
   press: PendingPress | null;
+  /**
+   * The wave that telegraphed it, kept through `resolved` and `gag` (the last-threat rule reads it)
+   * and reset at re-arm. -1 while `idle`, and for a threat no wave planned (story 1.19's micro-sleep).
+   */
+  waveIndex: number;
 }
 
 /** A free object (`PROP_*`): its pose mirrors its Rapier body at the end of each step (story 1.15). */
@@ -140,6 +146,21 @@ export interface MessSlice {
   propsBroken: number;
 }
 
+/** The wave director's memory (story 1.18): the wave entered last, and when the next telegraph is due. */
+export interface DirectorSlice {
+  /** The last wave entered; -1 before the first. */
+  waveIndex: number;
+  /** The next telegraph is not due before this sim time. */
+  nextAt: SimMs;
+}
+
+/** The level's flow: playing until the clock reaches the level's duration, then ended. */
+export interface FlowSlice {
+  state: FlowState;
+  /** Sim time of the last state change. */
+  enteredAt: SimMs;
+}
+
 /** What started a slow-mo. Story 1.18 triggers `lastThreat`; story 2.9 adds `instinct`. */
 export type SlowMoSource = 'perfect' | 'lastThreat';
 
@@ -166,7 +187,7 @@ export interface SlowMo {
 
 /**
  * The whole simulated state: plain serializable data (no classes, functions, Map/Set, Three or
- * Rapier handles). Later stories add their slice (baby, threats…).
+ * Rapier handles). Later stories add their slice (baby, threats, director, flow…).
  */
 export interface World {
   time: {
@@ -186,6 +207,8 @@ export interface World {
   baby: BabySlice;
   /** One per planned threat, in the level's order. */
   threats: ThreatInstance[];
+  director: DirectorSlice;
+  flow: FlowSlice;
   /** One per prop of the level's geometry, index-aligned with `geometry.props` (their bodies live in Rapier, beside `World`). */
   props: PropSlice[];
   mess: MessSlice;
@@ -251,6 +274,8 @@ export function createWorld({
       approachSpeedMps: 0,
     },
     threats: [],
+    director: { waveIndex: -1, nextAt: asSimMs(0) },
+    flow: { state: 'playing', enteredAt: asSimMs(0) },
     props: props.map(({ id, kind, centerM: [xM, yM, zM] }) => ({
       id,
       kind,

@@ -11,6 +11,9 @@ export type ResponseQuality = 'perfect' | 'success' | 'fail';
 /** Why a response failed: pressed before the window, never pressed in it, or the wrong kind of press. */
 export type FailReason = 'early' | 'late' | 'wrongResponse';
 
+/** Why a level ended. `'timer'` so far; the early end on noise (`MamaWoke`, story 3.x) adds one. */
+export type LevelEndReason = 'timer';
+
 /** Domain events pushed by the systems into `ctx.events`; `t` is sim time. */
 export type SimEvent =
   | { type: 'TimeScaleChanged'; t: SimMs; from: number; to: number }
@@ -37,8 +40,20 @@ export type SimEvent =
       toZM: number;
       arriveAt: SimMs;
     }
-  /** The director targeted a threat: its window opens `telegraphDelayMs` later. `kind` is the def id. */
-  | { type: 'ThreatTelegraphed'; t: SimMs; threatId: number; kind: string; anchorId: string }
+  /** The director entered a wave (the first at its `fromMs`, the next ones as their time comes). */
+  | { type: 'WaveStarted'; t: SimMs; waveIndex: number }
+  /**
+   * The director targeted a threat: its window opens `telegraphDelayMs` later. `kind` is the def id;
+   * `waveIndex` the wave that drew it, -1 for a threat no wave planned.
+   */
+  | {
+      type: 'ThreatTelegraphed';
+      t: SimMs;
+      threatId: number;
+      kind: string;
+      anchorId: string;
+      waveIndex: number;
+    }
   | { type: 'WindowOpened'; t: SimMs; threatId: number }
   /**
    * The threat was answered. `response` is what it asks for; `offsetMs` is the press's distance from
@@ -69,6 +84,8 @@ export type SimEvent =
   | { type: 'PropImpact'; t: SimMs; propId: string; impulseNs: number; otherPropId: string | null }
   /** A breakable prop took a hit of `impulseNs` or more, once; it stays in the world, broken. */
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
+  /** The level is over, once: from here the sim only keeps its clock (story 1.22 shows the result). */
+  | { type: 'LevelEnded'; t: SimMs; reason: LevelEndReason }
   | InvariantViolation;
 
 /**
@@ -80,6 +97,7 @@ export const SIM_EVENT_TYPES = [
   'BabyStateChanged',
   'GagTriggered',
   'InvariantViolated',
+  'LevelEnded',
   'NearMiss',
   'ObjectTapped',
   'PapaArrived',
@@ -93,6 +111,7 @@ export const SIM_EVENT_TYPES = [
   'ThreatRearmed',
   'ThreatTelegraphed',
   'TimeScaleChanged',
+  'WaveStarted',
   'WindowOpened',
 ] as const satisfies readonly SimEvent['type'][];
 

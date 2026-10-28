@@ -52,7 +52,7 @@ describe('replayRunFile', () => {
   it('is an err when the level changed since the recording', async () => {
     const file = await recorded();
     const loaded = createTestSimLevel();
-    loaded.level = { ...loaded.level, level: { ...loaded.level.level, threats: [] } };
+    loaded.level = { ...loaded.level, level: { ...loaded.level.level, waves: [] } };
     const replay = await replayRunFile(file, loaded);
     expect(replay.ok).toBe(false);
     if (!replay.ok) expect(replay.error).toContain('another level');

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import { formatContentProblem } from '@content/contentError';
 import { LEVEL_GEOMETRY_PATTERN, LEVEL_PATTERN } from '@content/contentFiles';
+import { mergeFeel } from '@content/feelMerge';
 import { SNAKE_ID_PATTERN } from '@content/levelNodeNames';
 import { loadContent } from '@content/loadContent';
 import { loadLevelContent } from '@content/loadLevelContent';
@@ -61,6 +62,18 @@ export async function loadSimLevel(
   const level = await loadLevelContent(source, levelId);
   if (!level.ok) return err(level.error.problems.map(formatContentProblem).join('\n'));
 
+  // The level's own feel: `content.feel` is the merged one, so the sim, the bots and the hashes see it.
+  let bundle = content.value;
+  if (Object.keys(level.value.level.feelOverrides).length > 0) {
+    const merged = mergeFeel(
+      content.value.feel,
+      level.value.level.feelOverrides,
+      `content/${LEVEL_PATTERN.dir}/${levelId}${LEVEL_PATTERN.suffix} › feelOverrides`,
+    );
+    if (!merged.ok) return err(merged.error.problems.map(formatContentProblem).join('\n'));
+    bundle = { ...content.value, feel: merged.value };
+  }
+
   const geometryFile = `${LEVEL_GEOMETRY_PATTERN.dir}/${levelId}${LEVEL_GEOMETRY_PATTERN.suffix}`;
   let text: string;
   try {
@@ -75,7 +88,7 @@ export async function loadSimLevel(
   if (!geometry.ok) return err(geometry.error.map(formatContentProblem).join('\n'));
   return ok({
     levelId,
-    content: content.value,
+    content: bundle,
     level: level.value,
     geometry: geometry.value,
   });

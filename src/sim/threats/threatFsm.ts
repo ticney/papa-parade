@@ -2,6 +2,7 @@ import type { ThreatDef } from '@content/schemas/threat';
 import { NEUTRAL_WINDOW_MODIFIER } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
+import { isLastOfWave } from '../director/waveState.ts';
 import type { FailReason, ResponseQuality } from '../events.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import { effectiveWindow } from '../timing/effectiveWindow.ts';
@@ -44,12 +45,14 @@ export function enterThreatState(world: World, threat: ThreatInstance, next: Thr
 /**
  * `idle → telegraph`. Freezes the window (D8: a buffered press is judged before the window opens, and a
  * window that moves while the player reads it would be unfair) and fixes the instant it opens.
+ * `waveIndex` is the wave that drew the threat, -1 for a threat no wave planned.
  */
 export function telegraphThreat(
   world: World,
   ctx: StepContext,
   threat: ThreatInstance,
   def: ThreatDef,
+  waveIndex: number,
 ): void {
   const { timing, difficulty } = ctx.feel;
   threat.responseWindow = effectiveWindow(timing, def.windowMs ?? timing.windowMs, {
@@ -62,6 +65,7 @@ export function telegraphThreat(
     world.time.sim + (def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs),
   );
   threat.press = null;
+  threat.waveIndex = waveIndex;
   enterThreatState(world, threat, 'telegraph');
   ctx.events.push({
     type: 'ThreatTelegraphed',
@@ -69,6 +73,7 @@ export function telegraphThreat(
     threatId: threat.id,
     kind: threat.defId,
     anchorId: threat.anchorId,
+    waveIndex,
   });
 }
 
@@ -81,7 +86,9 @@ export function openWindow(world: World, ctx: StepContext, threat: ThreatInstanc
 /**
  * `→ resolved`: a perfect or successful response of the right kind. It also owns the time effects
  * of a success (story 1.14, decided here from `feel.json`): a hitstop, and for a perfect the
- * slow-mo, both at the step that emits `ResponseResolved`.
+ * slow-mo, both at the step that emits `ResponseResolved`; and, when it was the last threat of its
+ * wave (story 1.18), the `lastThreat` slow-mo after the perfect one (the slowest scale wins, each
+ * keeps its own timer).
  */
 export function resolveThreat(
   world: World,
@@ -103,6 +110,9 @@ export function resolveThreat(
   });
   ctx.requestFreezeRealMs(ctx.feel.timing.hitstopMs);
   if (quality === 'perfect') startSlowMo(world, ctx, 'perfect', ctx.feel.timing.slowMoPerfect);
+  if (isLastOfWave(world, ctx, threat)) {
+    startSlowMo(world, ctx, 'lastThreat', ctx.feel.timing.slowMoLastThreat);
+  }
 }
 
 /**
@@ -141,6 +151,7 @@ export function rearmThreat(world: World, ctx: StepContext, threat: ThreatInstan
   threat.press = null;
   threat.responseWindow = null;
   threat.windowOpenAt = asSimMs(0);
+  threat.waveIndex = -1;
   enterThreatState(world, threat, 'idle');
   ctx.events.push({ type: 'ThreatRearmed', t: world.time.sim, threatId: threat.id });
 }

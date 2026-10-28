@@ -1,6 +1,6 @@
 import { log } from '@shared/log';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createTestLevel, outletEntry } from '../../../tests/support/testContent.ts';
+import { createTestLevel, OUTLET, testWave } from '../../../tests/support/testContent.ts';
 import { readThreatsOff, withoutThreats } from './threatsSwitch.ts';
 
 const warnSpy = vi.spyOn(log, 'warn').mockImplementation(() => {});
@@ -29,13 +29,18 @@ describe('readThreatsOff', () => {
 });
 
 describe('withoutThreats', () => {
-  it('keeps the level id and drops the plan and the defs', () => {
-    const planned = createTestLevel([outletEntry(2000)]);
+  it('keeps the level id and the duration, and drops the waves and the defs', () => {
+    const planned = createTestLevel({
+      waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })],
+      durationMs: 90_000,
+    });
     expect(Object.keys(planned.threats)).toEqual(['outlet']);
     const stripped = withoutThreats(planned);
     expect(stripped.level.id).toBe(planned.level.id);
-    expect(stripped.level.threats).toEqual([]);
+    expect(stripped.level.waves).toEqual([]);
+    expect(stripped.level.durationMs).toBe(90_000);
+    expect(stripped.level.variant).toBe(planned.level.variant);
     expect(stripped.threats).toEqual({});
-    expect(planned.level.threats).toHaveLength(1); // the original is untouched
+    expect(planned.level.waves).toHaveLength(1); // the original is untouched
   });
 });

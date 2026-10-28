@@ -5,9 +5,10 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
+  OUTLET,
   stepN,
   TEST_OBJECTS,
+  testWave,
 } from '../../tests/support/testContent.ts';
 import { createSim } from './createSim.ts';
 import type { SimEvent } from './events.ts';
@@ -278,7 +279,7 @@ describe('replayJournal', () => {
 
   it('returns an error for another level, naming it, without throwing', async () => {
     const journal = (await liveGame()).sim.journal();
-    const planning = createTestLevel([outletEntry(0)]);
+    const planning = createTestLevel({ waves: [testWave([OUTLET])] });
     const result = await replayJournal({
       content,
       geometry,
@@ -291,6 +292,25 @@ describe('replayJournal', () => {
       error: { kind: 'journal', message: expect.stringContaining('another level') },
     });
     expect(!result.ok && result.error.message).toContain('salon_crawler');
+  });
+
+  it('refuses a journal recorded on the level of before story 1.18 (flat threats): its levelHash differs', async () => {
+    const journal = (await liveGame()).sim.journal();
+    // The old shape: no variant, duration, waves or feelOverrides, a flat `threats` list.
+    const old = createTestLevel() as { level: Record<string, unknown> };
+    const { variant: _v, durationMs: _d, waves: _w, feelOverrides: _f, ...rest } = old.level;
+    const oldLevel = { ...old, level: { ...rest, threats: [] } };
+    const result = await replayJournal({
+      content,
+      geometry,
+      level: oldLevel as never,
+      journal,
+      untilSimMs: 100,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: 'journal', message: expect.stringContaining('another level') },
+    });
   });
 
   it('says that a version 2 journal was recorded before the sim read the level', async () => {
@@ -309,7 +329,7 @@ describe('replayJournal', () => {
   });
 
   it('reproduces a game with threats, a pressed outlet included', async () => {
-    const planning = createTestLevel([outletEntry(0)]);
+    const planning = createTestLevel({ waves: [testWave([OUTLET])] });
     const sim = await createSim({ content, geometry, level: planning, seed: 3 });
     sim.enqueue({ type: 'PressThreat', t: asSimMs(1360), threatId: 1 });
     sim.enqueue({ type: 'Release', t: asSimMs(1390) });
@@ -331,7 +351,7 @@ describe('replayJournal', () => {
   });
 
   it('reproduces a game that taps an object (story 1.17)', async () => {
-    const planning = createTestLevel([], TEST_OBJECTS);
+    const planning = createTestLevel({ objects: TEST_OBJECTS });
     const sim = await createSim({ content, geometry, level: planning, seed: 5 });
     sim.enqueue({ type: 'TapObject', t: asSimMs(200), objectId: 'coffee_machine' });
     sim.enqueue({ type: 'TapObject', t: asSimMs(2000), objectId: 'phone' });

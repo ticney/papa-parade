@@ -3,12 +3,13 @@ import { nextFloat, nextInt } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
-  coffeeTableEntry,
+  COFFEE_TABLE,
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
-  stairsEntry,
+  OUTLET,
+  STAIRS,
+  testWave,
 } from '../../tests/support/testContent.ts';
 import type { System } from './context.ts';
 import { createSimWithSystems, type Sim } from './createSim.ts';
@@ -138,7 +139,7 @@ async function playThreatTrio(seed: number): Promise<{ sim: Sim; events: SimEven
     {
       content: createTestContent(),
       geometry: createTestGeometry(),
-      level: createTestLevel([outletEntry(0), stairsEntry(0), coffeeTableEntry(0)]),
+      level: createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])] }),
       seed,
     },
     SYSTEMS,

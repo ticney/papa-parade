@@ -2,32 +2,31 @@ import { expect, test } from '@playwright/test';
 import {
   canvasPoint,
   collectProblems,
-  FIRST_TELEGRAPH_MS,
+  FIRST_TELEGRAPH_MAX_MS,
   hapticPatternOfCue,
   html,
-  liveOutlet,
+  lastTelegraph,
   mirrorWrites,
   OVERRUN_MARGIN_MS,
   recordMirrorWrites,
   recordVibrations,
   startLevel,
-  TELEGRAPH_DELAY_MS,
   THREATS_OFF,
+  telegraphDelayMsOf,
   threatIconPoint,
   vibrations,
-  WINDOW_OPEN_MS,
   waitForThreat,
+  windowOpenMsOf,
 } from './support/game.ts';
+import { waitForTestApi } from './support/testApi.ts';
 
-// The live level plans the outlet (story 1.11): after the countdown the baby locks on it, the
-// threat is telegraphed, and the player parries it with a tap on its icon or watches the gag. Every
-// bound is derived from the live plan, def and feel; nothing waits on a fixed delay.
+// The live level's first wave draws its first threat (story 1.18: by the PRNG, not always the
+// outlet): after the countdown the baby locks on it, the threat is telegraphed, and the player
+// parries it with a tap on its icon or watches the gag. The threat that came is read from the
+// sim's events; every bound is derived from the live plan, def and feel; nothing waits on a fixed delay.
 
-const TELEGRAPH_TIMEOUT_MS = FIRST_TELEGRAPH_MS + OVERRUN_MARGIN_MS;
-const WINDOW_TIMEOUT_MS = TELEGRAPH_DELAY_MS + OVERRUN_MARGIN_MS;
-const GAG_TIMEOUT_MS = TELEGRAPH_DELAY_MS + WINDOW_OPEN_MS + OVERRUN_MARGIN_MS;
+const TELEGRAPH_TIMEOUT_MS = FIRST_TELEGRAPH_MAX_MS + OVERRUN_MARGIN_MS;
 const hasVibrate = (): boolean => test.info().project.name === 'chromium';
-const cues = liveOutlet.feedback;
 
 const valuesOf = async (
   page: Parameters<typeof mirrorWrites>[0],
@@ -35,18 +34,20 @@ const valuesOf = async (
 ): Promise<string[]> =>
   (await mirrorWrites(page)).filter((write) => write.name === name).map((write) => write.value);
 
-test.describe('the outlet threat on the live level', () => {
-  test('is telegraphed: the icon and its halo appear on the outlet and the telegraph cue plays', async ({
+test.describe('the first threat of the live level', () => {
+  test('is telegraphed: the icon and its halo appear on its anchor and its telegraph cue plays', async ({
     page,
   }) => {
     const problems = collectProblems(page);
     await recordVibrations(page);
     await startLevel(page);
     await waitForThreat(page, 'telegraph', TELEGRAPH_TIMEOUT_MS);
+    await waitForTestApi(page);
+    const { def } = await lastTelegraph(page);
     await expect(page.locator('.pp-threat-icon')).toBeVisible();
     await expect(page.locator('.pp-threat-halo')).toBeVisible();
-    await expect(html(page)).toHaveAttribute('data-pp-cue', cues.telegraph);
-    const pattern = hapticPatternOfCue(cues.telegraph);
+    await expect(html(page)).toHaveAttribute('data-pp-cue', def.feedback.telegraph);
+    const pattern = hapticPatternOfCue(def.feedback.telegraph);
     if (hasVibrate() && pattern !== null) expect(await vibrations(page)).toContainEqual(pattern);
     // The icon stands where the app says it does, inside the canvas.
     const icon = await threatIconPoint(page);
@@ -63,8 +64,11 @@ test.describe('the outlet threat on the live level', () => {
     await recordMirrorWrites(page, ['data-pp-papa-state', 'data-pp-cue', 'data-pp-response']);
     await startLevel(page);
     await waitForThreat(page, 'telegraph', TELEGRAPH_TIMEOUT_MS);
+    await waitForTestApi(page);
+    const { def } = await lastTelegraph(page);
+    const cues = def.feedback;
     const icon = await threatIconPoint(page);
-    await waitForThreat(page, 'windowOpen', WINDOW_TIMEOUT_MS);
+    await waitForThreat(page, 'windowOpen', telegraphDelayMsOf(def) + OVERRUN_MARGIN_MS);
     await page.touchscreen.tap(icon.x, icon.y);
 
     await expect(html(page)).toHaveAttribute('data-pp-response', /^(perfect|success)$/);
@@ -76,7 +80,7 @@ test.describe('the outlet threat on the live level', () => {
       () => performance.getEntriesByName('highlightRendered').length,
     );
     expect(highlightMarks).toBe(1);
-    // Papa glided to the outlet, and the result sounded at the judgement with the def's cue.
+    // Papa glided to the threat, and the result sounded at the judgement with the def's cue.
     expect(await valuesOf(page, 'data-pp-papa-state')).toContain('glide');
     const playedCues = await valuesOf(page, 'data-pp-cue');
     expect([cues.success, cues.perfect]).toContain(playedCues.at(-1));
@@ -94,9 +98,16 @@ test.describe('the outlet threat on the live level', () => {
     await recordMirrorWrites(page, ['data-pp-cue']);
     await startLevel(page);
     await waitForThreat(page, 'telegraph', TELEGRAPH_TIMEOUT_MS);
-    await waitForThreat(page, 'gag', GAG_TIMEOUT_MS);
+    await waitForTestApi(page);
+    const { def } = await lastTelegraph(page);
+    const cues = def.feedback;
+    await waitForThreat(
+      page,
+      'gag',
+      telegraphDelayMsOf(def) + windowOpenMsOf(def) + OVERRUN_MARGIN_MS,
+    );
     await expect(html(page)).toHaveAttribute('data-pp-response', 'fail');
-    await expect(html(page)).toHaveAttribute('data-pp-gag', 'outlet_hair');
+    await expect(html(page)).toHaveAttribute('data-pp-gag', def.gag);
     await expect(html(page)).toHaveAttribute('data-pp-cue', cues.gag);
     const playedCues = await valuesOf(page, 'data-pp-cue');
     expect(playedCues.filter((cue) => cue === cues.gag)).toHaveLength(1);
@@ -130,9 +141,7 @@ test.describe('the outlet threat on the live level', () => {
     const problems = collectProblems(page);
     await startLevel(page, THREATS_OFF);
     // The plan would have fired by now (sim time runs one for one in a test).
-    await expect(
-      waitForThreat(page, 'telegraph', FIRST_TELEGRAPH_MS + OVERRUN_MARGIN_MS),
-    ).rejects.toThrow(/Timeout/);
+    await expect(waitForThreat(page, 'telegraph', TELEGRAPH_TIMEOUT_MS)).rejects.toThrow(/Timeout/);
     expect(await html(page).getAttribute('data-pp-threat')).toBeNull();
     await expect(page.locator('.pp-threat-icon')).toHaveCount(0);
     expect(problems).toEqual([]);

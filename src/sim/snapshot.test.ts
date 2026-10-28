@@ -5,8 +5,9 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
+  OUTLET,
   stepN,
+  testWave,
 } from '../../tests/support/testContent.ts';
 import { PARRY_RELEASE_AFTER_MS } from '../../tests/support/timeEffects.ts';
 import type { System } from './context.ts';
@@ -388,11 +389,13 @@ describe('snapshot / restore', () => {
   it('refuses an unknown snapshot version', async () => {
     const sim = await createSim({ content, geometry, level, seed: 5 });
     const snapshot = sim.snapshot();
-    expect(() => sim.restore({ ...snapshot, version: 1 as 5 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 1 as 6 })).toThrow(/version/);
     // Version 3 predates the base scale and the slow-mos (story 1.14).
-    expect(() => sim.restore({ ...snapshot, version: 3 as 5 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 3 as 6 })).toThrow(/version/);
     // Version 4 has no Rapier world (story 1.15).
-    expect(() => sim.restore({ ...snapshot, version: 4 as 5 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...snapshot, version: 4 as 6 })).toThrow(/version 4/);
+    // Version 5 has no director, flow or wave index (story 1.18).
+    expect(() => sim.restore({ ...snapshot, version: 5 as 6 })).toThrow(/version 5/);
   });
 
   it('refuses a snapshot of another level', async () => {
@@ -401,7 +404,7 @@ describe('snapshot / restore', () => {
     const planning = await createSim({
       content,
       geometry,
-      level: createTestLevel([outletEntry(0)]),
+      level: createTestLevel({ waves: [testWave([OUTLET])] }),
       seed: 5,
     });
     expect(() => sim.restore(planning.snapshot())).toThrow(/another level$/);
@@ -409,7 +412,7 @@ describe('snapshot / restore', () => {
 });
 
 describe('snapshot / restore with a threat', () => {
-  const planned = createTestLevel([outletEntry(0)]);
+  const planned = createTestLevel({ waves: [testWave([OUTLET])] });
   const newSim = () => createSim({ content, geometry, level: planned, seed: 5 });
   const press = (t: number) => ({ type: 'PressThreat', t: asSimMs(t), threatId: 1 }) as const;
 
@@ -785,7 +788,7 @@ describe('snapshot / restore with a threat', () => {
 });
 
 describe('snapshot / restore under a slow-mo', () => {
-  const planned = createTestLevel([outletEntry(0)]);
+  const planned = createTestLevel({ waves: [testWave([OUTLET])] });
   const newSim = () => createSim({ content, geometry, level: planned, seed: 5 });
   const { slowMoPerfect } = content.feel.timing;
 
@@ -918,7 +921,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
   it('is taken while a prop moves, and carries the Rapier world as base64', async () => {
     const sim = await midFall();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(5);
+    expect(snapshot.version).toBe(6);
     expect(snapshot.physics).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
     expect(snapshot.world.props[0]?.xM).toBeGreaterThan(0.7);
     expect(snapshot.world.props[0]?.yM).toBeLessThan(0.5);
@@ -969,7 +972,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
 
   it('refuses a snapshot from before the Rapier world (version 4)', async () => {
     const sim = await newSim();
-    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 5 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 6 })).toThrow(/version 4/);
   });
 
   describe('refuses a malformed props slice, with its path', () => {
@@ -1070,6 +1073,100 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
       expect(() => sim.restore({ ...snapshot, physics: other.snapshot().physics })).toThrow(
         /does not fit/,
       );
+    });
+  });
+});
+
+describe('snapshot / restore of the director and the flow (story 1.18)', () => {
+  const planned = createTestLevel({
+    waves: [testWave([OUTLET], { gapMinMs: 500, gapMaxMs: 500 }), testWave([], { fromMs: 5000 })],
+  });
+  const newSim = () => createSim({ content, geometry, level: planned, seed: 5 });
+  const threat0 = (w: Record<string, unknown>) =>
+    (w.threats as Record<string, unknown>[])[0] as Record<string, unknown>;
+
+  it('is version 6, and carries the director, the flow and the wave index of each threat', async () => {
+    const sim = await newSim();
+    stepN(sim, 60); // 600 ms: wave 0 entered, the outlet telegraphed
+    const snapshot = sim.snapshot();
+    expect(snapshot.version).toBe(6);
+    expect(snapshot.world.director.waveIndex).toBe(0);
+    expect(snapshot.world.flow).toEqual({ state: 'playing', enteredAt: 0 });
+    expect(snapshot.world.threats[0]).toMatchObject({ state: 'telegraph', waveIndex: 0 });
+  });
+
+  it('restores mid-wave to the uninterrupted hash', async () => {
+    const live = await newSim();
+    stepN(live, 80);
+    const snapshot = live.snapshot();
+    stepN(live, 400);
+    const restored = await newSim();
+    restored.restore(snapshot);
+    stepN(restored, 400);
+    expect(hashJson(restored.world)).toBe(hashJson(live.world));
+  });
+
+  describe('refuses a damaged slice, naming the field', () => {
+    const director = (w: Record<string, unknown>) => w.director as Record<string, unknown>;
+    const flow = (w: Record<string, unknown>) => w.flow as Record<string, unknown>;
+    const set = (target: Record<string, unknown>, key: string, value: unknown): void => {
+      target[key] = value;
+    };
+    const broken: [string, (w: Record<string, unknown>) => void, RegExp][] = [
+      ['no director', (w) => delete w.director, /world\.director is missing/],
+      [
+        'a fractional wave index',
+        (w) => set(director(w), 'waveIndex', 0.5),
+        /world\.director\.waveIndex/,
+      ],
+      [
+        'a wave index past the last wave',
+        (w) => set(director(w), 'waveIndex', 2),
+        /world\.director\.waveIndex/,
+      ],
+      [
+        'a wave index below -1',
+        (w) => set(director(w), 'waveIndex', -2),
+        /world\.director\.waveIndex/,
+      ],
+      ['a NaN nextAt', (w) => set(director(w), 'nextAt', Number.NaN), /world\.director\.nextAt/],
+      ['a negative nextAt', (w) => set(director(w), 'nextAt', -1), /world\.director\.nextAt/],
+      ['no flow', (w) => delete w.flow, /world\.flow is missing/],
+      ['an unknown flow state', (w) => set(flow(w), 'state', 'paused'), /world\.flow\.state/],
+      [
+        'a non-finite flow enteredAt',
+        (w) => set(flow(w), 'enteredAt', 'x'),
+        /world\.flow\.enteredAt/,
+      ],
+      [
+        'a threat wave index past the last wave',
+        (w) => set(threat0(w), 'waveIndex', 2),
+        /world\.threats\[0\]\.waveIndex/,
+      ],
+      [
+        'a threat wave index that is a string',
+        (w) => set(threat0(w), 'waveIndex', '0'),
+        /world\.threats\[0\]\.waveIndex/,
+      ],
+      [
+        'an idle threat that names a wave',
+        (w) => {
+          set(threat0(w), 'state', 'idle');
+          set(threat0(w), 'responseWindow', null);
+          set(threat0(w), 'waveIndex', 0);
+        },
+        /world\.threats\[0\]\.waveIndex/,
+      ],
+    ];
+    it.each(broken)('%s', async (_name, damage, expected) => {
+      const live = await newSim();
+      stepN(live, 60);
+      const snapshot = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<
+        typeof live.snapshot
+      >;
+      damage(snapshot.world as unknown as Record<string, unknown>);
+      const target = await newSim();
+      expect(() => target.restore(snapshot)).toThrow(expected);
     });
   });
 });

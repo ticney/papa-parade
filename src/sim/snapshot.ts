@@ -2,6 +2,7 @@ import { decodeBase64, encodeBase64 } from '@shared/base64';
 import { MIN_TIME_SCALE, QUATERNION_LENGTH_TOLERANCE } from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
+import { FLOW_STATES, type FlowState } from './flow/flowFsm.ts';
 import { THREAT_STATES } from './threats/threatFsm.ts';
 import {
   type PropSlice,
@@ -18,10 +19,11 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 5 since story 1.15: the Rapier world, base64 (4 carried the base scale and the slow-mos in
+   * 6 since story 1.18: `director`, `flow` and `ThreatInstance.waveIndex`. 5 added the Rapier world,
+   * base64 (4 carried the base scale and the slow-mos in
    * `World.time`, since story 1.14; 3 named the level).
    */
-  version: 5;
+  version: 6;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -40,7 +42,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 5,
+    version: 6,
     seed,
     feelHash,
     geometryHash,
@@ -225,7 +227,30 @@ function pressProblem(press: unknown, where: string): string | null {
   return null;
 }
 
-function threatProblem(threat: unknown, index: number): string | null {
+/** An integer in `[-1, waveCount − 1]`: -1 is « no wave ». */
+function isWaveIndex(value: unknown, waveCount: number): boolean {
+  return Number.isInteger(value) && (value as number) >= -1 && (value as number) < waveCount;
+}
+
+function directorProblem(director: unknown, waveCount: number): string | null {
+  if (typeof director !== 'object' || director === null) return 'world.director is missing';
+  const slice = director as Record<string, unknown>;
+  if (!isWaveIndex(slice.waveIndex, waveCount)) return 'world.director.waveIndex';
+  if (!isFiniteNumber(slice.nextAt) || (slice.nextAt as number) < 0) return 'world.director.nextAt';
+  return null;
+}
+
+function flowProblem(flow: unknown): string | null {
+  if (typeof flow !== 'object' || flow === null) return 'world.flow is missing';
+  const slice = flow as Record<string, unknown>;
+  if (!FLOW_STATES.includes(slice.state as FlowState)) return 'world.flow.state';
+  if (!isFiniteNumber(slice.enteredAt) || (slice.enteredAt as number) < 0) {
+    return 'world.flow.enteredAt';
+  }
+  return null;
+}
+
+function threatProblem(threat: unknown, index: number, waveCount: number): string | null {
   const where = `world.threats[${index}]`;
   if (typeof threat !== 'object' || threat === null) return where;
   const instance = threat as Record<string, unknown>;
@@ -254,11 +279,16 @@ function threatProblem(threat: unknown, index: number): string | null {
   }
   if (isActive && instance.responseWindow === null) return `${where}.responseWindow`;
   if (!isActive && instance.press !== null) return `${where}.press`;
+  // The wave that telegraphed it, or -1 (idle, or no wave planned it); an idle threat has none.
+  if (!isWaveIndex(instance.waveIndex, waveCount)) return `${where}.waveIndex`;
+  if (instance.state === 'idle' && instance.waveIndex !== -1) return `${where}.waveIndex`;
   return null;
 }
 
-/** What `worldProblem` needs of the level: the defs it plans and its props, in order (both are index-aligned with the world's). */
+/** What `worldProblem` needs of the level: its waves, and the defs it plans and its props, in order (both are index-aligned with the world's). */
 export interface PlannedLevel {
+  /** Only the count is needed: it bounds the wave indices. */
+  readonly waves: readonly unknown[];
   readonly threats: readonly { readonly def: { readonly id: string } }[];
   readonly props: readonly {
     readonly id: string;
@@ -370,7 +400,10 @@ function propsProblem(
 
 function worldProblem(world: unknown, planned: PlannedLevel): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
-  const { time, rng, nextId, papa, baby, threats, props, mess } = world as Record<string, unknown>;
+  const { time, rng, nextId, papa, baby, threats, props, mess, director, flow } = world as Record<
+    string,
+    unknown
+  >;
   const clock = time as Record<string, unknown> | null | undefined;
   if (typeof clock !== 'object' || clock === null) return 'world.time is missing';
   const clockProblem = timeProblem(clock);
@@ -383,7 +416,7 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
   if (!Number.isInteger(nextId)) return 'world.nextId';
   if (!Array.isArray(threats)) return 'world.threats';
   for (let i = 0; i < threats.length; i++) {
-    const problem = threatProblem(threats[i], i);
+    const problem = threatProblem(threats[i], i, planned.waves.length);
     if (problem !== null) return problem;
   }
   // `runThreats` and the director index the level's threats by the instances' index.
@@ -398,6 +431,8 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
     ids.add(threat.id);
   }
   return (
+    directorProblem(director, planned.waves.length) ??
+    flowProblem(flow) ??
     papaProblem(papa) ??
     babyProblem(baby, threats as readonly ThreatInstance[]) ??
     propsProblem(props, mess, planned.props)
@@ -422,7 +457,7 @@ export function worldFromSnapshot(
   levelHash: string,
   planned: PlannedLevel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 5, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 6, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

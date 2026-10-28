@@ -5,7 +5,8 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
+  OUTLET,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import { createResponseChoreography } from './responseChoreography.ts';
 
@@ -151,7 +152,7 @@ describe('createResponseChoreography', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
-      level: createTestLevel([outletEntry(0)]),
+      level: createTestLevel({ waves: [testWave([OUTLET])] }),
       seed: 1,
     });
     const { choreography, fx, lifts } = setup();

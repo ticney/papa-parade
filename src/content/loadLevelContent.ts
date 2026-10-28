@@ -38,9 +38,9 @@ function checkId(file: string, id: string, expected: string): ContentProblem[] {
 }
 
 /**
- * Reads `levels/<levelId>.json`, then each distinct `threats/<def>.json` it plans, in order of
+ * Reads `levels/<levelId>.json`, then each distinct `threats/<def>.json` its waves plan, in order of
  * first reference, through the same source and the same parser as `loadContent`. It collects every
- * problem (a missing def file names the level's JSON path, `threats[2].def`). It checks no anchor
+ * problem (a missing def file names the level's JSON path, `waves[1].threats[0].def`). It checks no anchor
  * and no gag id: it has no geometry and must not know the sim (`createSim` and `content:check` do).
  * Never throws and never logs: the caller logs.
  */
@@ -59,8 +59,10 @@ export async function loadLevelContent(
   const problems = checkId(levelDisplay, level.id, levelId);
   const threats: Record<string, ThreatDef> = {};
   const failed = new Set<string>();
-  for (const [index, entry] of level.threats.entries()) {
-    const defId = entry.def;
+  const planned = level.waves.flatMap((wave, w) =>
+    wave.threats.map((entry, i) => ({ defId: entry.def, path: ['waves', w, 'threats', i, 'def'] })),
+  );
+  for (const { defId, path } of planned) {
     if (Object.hasOwn(threats, defId) || failed.has(defId)) continue;
     const defFile = `${THREAT_DEF_PATTERN.dir}/${defId}${THREAT_DEF_PATTERN.suffix}`;
     const defDisplay = `content/${defFile}`;
@@ -70,7 +72,7 @@ export async function loadLevelContent(
       // The level names a file that cannot be read: point at the line of the level that asked for it.
       problems.push({
         file: levelDisplay,
-        jsonPath: formatJsonPath(['threats', index, 'def']),
+        jsonPath: formatJsonPath(path),
         message: `cannot load the threat "${defId}": ${defText.error[0]?.message ?? 'unreadable'}`,
       });
       continue;

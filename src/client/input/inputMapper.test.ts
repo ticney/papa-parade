@@ -57,6 +57,7 @@ function setup() {
     enqueue: (command: SimCommand) => commands.push(command),
     world: {
       time: { sim: asSimMs(777) },
+      flow: { state: 'playing' as 'playing' | 'ended' },
       papa: { xM: 0, zM: 0 },
       threats: [] as unknown[],
     },
@@ -134,7 +135,7 @@ function setup() {
     newSim: () => {
       const other = {
         enqueue: (command: SimCommand) => commands.push(command),
-        world: { time: { sim: asSimMs(888) } },
+        world: { time: { sim: asSimMs(888) }, flow: { state: 'playing' } },
       };
       return { sim: other, timeMap: clock } as unknown as ActiveLevel;
     },
@@ -213,6 +214,20 @@ describe('createInputMapper: taps', () => {
     state.app = 'loading';
     expect(mapper.isLive()).toBe(false);
   });
+
+  it('is not live once the level has ended (story 1.18): no pointer, key or pad input reaches the sim', () => {
+    const { mapper, sim, commands, held } = setup();
+    sim.world.flow.state = 'ended';
+    expect(mapper.isLive()).toBe(false);
+    expect(mapper.targetedThreatId()).toBeNull();
+    mapper.handlePointerDown(click(300, 200));
+    held.add('KeyD');
+    mapper.onKeysChanged(1500);
+    mapper.handleAction('down', 1600, 'keyboard');
+    expect(commands).toEqual([]);
+    sim.world.flow.state = 'playing';
+    expect(mapper.isLive()).toBe(true);
+  });
 });
 
 describe('createInputMapper: movement', () => {
@@ -264,7 +279,10 @@ describe('createInputMapper: movement', () => {
     const { mapper, state, commands, setActive } = setup();
     let reads = 0;
     setActive({
-      sim: { enqueue: (c: SimCommand) => commands.push(c), world: { time: { sim: asSimMs(0) } } },
+      sim: {
+        enqueue: (c: SimCommand) => commands.push(c),
+        world: { time: { sim: asSimMs(0) }, flow: { state: 'playing' } },
+      },
       timeMap: {
         realToSim: (ms: number) => {
           reads++;

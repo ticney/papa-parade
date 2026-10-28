@@ -16,7 +16,8 @@ import {
   createTestGeometry,
   createTestLevel,
   createTestOutlet,
-  outletEntry,
+  OUTLET,
+  testWave,
 } from '../../tests/support/testContent.ts';
 import {
   PARRY_RELEASE_AFTER_MS,
@@ -958,7 +959,7 @@ async function createRealRig(withContent = createTestContent()) {
   const sim = await createSim({
     content: withContent,
     geometry: createTestGeometry(),
-    level: createTestLevel([outletEntry(0)]),
+    level: createTestLevel({ waves: [testWave([OUTLET])] }),
     seed: 1,
   });
   const scheduler = createFakeScheduler();

@@ -1,9 +1,4 @@
-import {
-  DEFAULT_LEVEL_ID,
-  SIM_CLI_DEFAULT_UNTIL_MS,
-  SIM_CLI_MAX_RUNS,
-  SIM_CLI_MAX_UNTIL_MS,
-} from '@shared/constants';
+import { DEFAULT_LEVEL_ID, SIM_CLI_MAX_RUNS, SIM_CLI_MAX_UNTIL_MS } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import { parseSimArgs, SIM_HELP } from '../../../tools/sim/simArgs.ts';
 
@@ -35,7 +30,7 @@ describe('parseSimArgs', () => {
         botId: 'perfect',
         seed: 1,
         runs: 1,
-        untilSimMs: SIM_CLI_DEFAULT_UNTIL_MS,
+        untilSimMs: null,
         outPath: null,
         journalsDir: null,
         help: false,
@@ -113,6 +108,12 @@ describe('parseSimArgs', () => {
     expect(messageOf(['--bot', 'perfect', 'extra'])).toContain('extra');
     expect(messageOf(['--bot'])).toContain('--bot');
     expect(messageOf(['--bot', 'perfect', '--seed', '-1'])).toContain('--seed');
+  });
+
+  it('has no cap by default: a game lasts the level’s duration', () => {
+    const parsed = parseSimArgs(['--bot', 'idle']);
+    expect(parsed.ok && parsed.value.untilSimMs).toBeNull();
+    expect(SIM_HELP).toContain("level's duration");
   });
 
   it('answers --help without a bot', () => {

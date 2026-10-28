@@ -41,7 +41,7 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 | `npm test` | Vitest: unit, golden and architecture tests |
 | `npm run test:coverage` | Vitest with the `src/sim` ≥ 90 % coverage thresholds; this is what CI runs instead of `npm test` |
 | `npm run golden:update` | Regenerate the golden journals and references (deliberate: say so in the story) |
-| `npm run sim -- --bot <id> …` | Plays headless games with a bot (`perfect`, `human`, `random`, `idle`) and writes a JSON report (`--level`, `--seed`, `--runs`, `--until-ms`, `--out`, `--journals`); `--help` lists them |
+| `npm run sim -- --bot <id> …` | Plays headless games with a bot (`perfect`, `human`, `random`, `idle`) and writes a JSON report (`--level`, `--seed`, `--runs`, `--until-ms`, `--out`, `--journals`); a run lasts the level's `durationMs` (until `LevelEnded`) unless `--until-ms` caps it; `--help` lists them |
 | `npm run sim:replay -- <file>` | Replays a game recorded by `npm run sim --journals` and checks it ends in the same state (exit 0 if so) |
 | `npm run e2e` | Playwright, chromium + webkit, landscape phone viewport |
 | `/?autoplay=<bot>&seed=<n>&speed=<x>` | A bot (`perfect`, `human`, `random`, `idle`) plays in the browser, silent, `speed` ≤ 4 (dev and playtest builds); `window.__PP__` (dev, or `?debug=1`) drives the game from Playwright |

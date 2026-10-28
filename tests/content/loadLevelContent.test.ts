@@ -19,10 +19,20 @@ function memorySource(overrides: Record<string, string | null> = {}): ContentSou
   };
 }
 
-const planning = (...defs: string[]): string =>
+/** A level of two waves: the first plans `first`, the second the rest (each at its own anchor). */
+const planning = (first: string[], ...rest: string[]): string =>
   JSON.stringify({
     id: 'salon_crawler',
-    threats: defs.map((def, index) => ({ def, anchor: 'outlet_01', fromMs: index * 1000 })),
+    variant: 'nap',
+    durationMs: 180000,
+    waves: [first, rest].map((defs, w) => ({
+      fromMs: w * 60000,
+      maxSimultaneous: 1,
+      gapMinMs: 1000,
+      gapMaxMs: 2000,
+      lullMs: 500,
+      threats: defs.map((def, index) => ({ def, anchor: `anchor_${w}_${index}` })),
+    })),
   });
 
 async function problemsOf(overrides: Record<string, string | null>, levelId = 'salon_crawler') {
@@ -37,44 +47,45 @@ describe('loadLevelContent', () => {
     expect(result).toMatchObject({ ok: true });
     if (!result.ok) return;
     expect(result.value.level.id).toBe('salon_crawler');
-    expect(result.value.level.threats.map((entry) => entry.def)).toContain('outlet');
-    expect(Object.keys(result.value.threats)).toContain('outlet');
+    const planned = result.value.level.waves.flatMap((wave) => wave.threats.map((t) => t.def));
+    expect(planned).toContain('outlet');
+    expect(Object.keys(result.value.threats)).toEqual([...new Set(planned)]);
   });
 
   it('loads exactly the defs a level plans, once each, in order of first reference', async () => {
     const result = await loadLevelContent(
-      memorySource({ 'levels/salon_crawler.json': planning('outlet', 'outlet') }),
+      memorySource({ 'levels/salon_crawler.json': planning(['outlet'], 'outlet') }),
       'salon_crawler',
     );
     expect(result).toMatchObject({ ok: true });
     if (!result.ok) return;
     expect(Object.keys(result.value.threats)).toEqual(['outlet']);
     expect(result.value.threats.outlet?.gag).toBe('outlet_hair');
-    expect(result.value.level.threats).toHaveLength(2);
+    expect(result.value.level.waves.flatMap((wave) => wave.threats)).toHaveLength(2);
   });
 
   it('names the level and the path of a def whose file does not exist', async () => {
     const problems = await problemsOf({
-      'levels/salon_crawler.json': planning('outlet', 'missing'),
+      'levels/salon_crawler.json': planning(['outlet'], 'missing'),
       'threats/missing.json': null,
     });
     expect(problems).toEqual([
       expect.objectContaining({
         file: 'content/levels/salon_crawler.json',
-        jsonPath: 'threats[1].def',
+        jsonPath: 'waves[1].threats[0].def',
       }),
     ]);
   });
 
   it('collects every problem instead of stopping at the first', async () => {
     const problems = await problemsOf({
-      'levels/salon_crawler.json': planning('outlet', 'missing', 'bogus'),
+      'levels/salon_crawler.json': planning(['outlet'], 'missing', 'bogus'),
       'threats/missing.json': null,
       'threats/bogus.json': '{ "id": "bogus" }',
     });
     expect(problems.length).toBeGreaterThan(2);
     expect(problems.map((problem) => problem.file)).toContain('content/threats/bogus.json');
-    expect(problems.map((problem) => problem.jsonPath)).toContain('threats[1].def');
+    expect(problems.map((problem) => problem.jsonPath)).toContain('waves[1].threats[0].def');
   });
 
   it('reports a level file that cannot be read, or that is not valid', async () => {
@@ -93,7 +104,7 @@ describe('loadLevelContent', () => {
     const renamed = JSON.stringify({ ...JSON.parse(readReal('threats/outlet.json')), id: 'plug' });
     expect(
       await problemsOf({
-        'levels/salon_crawler.json': planning('outlet'),
+        'levels/salon_crawler.json': planning(['outlet']),
         'threats/outlet.json': renamed,
       }),
     ).toEqual([expect.objectContaining({ file: 'content/threats/outlet.json', jsonPath: 'id' })]);

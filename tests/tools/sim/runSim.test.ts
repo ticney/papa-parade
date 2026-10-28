@@ -1,5 +1,12 @@
+import { fileURLToPath } from 'node:url';
+import { botResponsesOf } from '@bots/botResponses';
+import { createBot } from '@bots/createBot';
+import { playGame } from '@bots/playGame';
 import { UINT32_RANGE } from '@shared/constants';
+import { createSim, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
+import { loadSimLevel } from '../../../tools/sim/loadSimLevel.ts';
+import { replayRunFile } from '../../../tools/sim/replaySim.ts';
 import type { RunFile } from '../../../tools/sim/runFile.ts';
 import { runSim } from '../../../tools/sim/runSim.ts';
 import { renderReport } from '../../../tools/sim/simReport.ts';
@@ -78,7 +85,16 @@ describe('runSim', () => {
       ...loaded.level,
       level: {
         ...loaded.level.level,
-        threats: [{ def: 'outlet', anchor: 'no_such_anchor', fromMs: 0 }],
+        waves: [
+          {
+            fromMs: 0,
+            maxSimultaneous: 1,
+            gapMinMs: 0,
+            gapMaxMs: 0,
+            lullMs: 0,
+            threats: [{ def: 'outlet', anchor: 'no_such_anchor' }],
+          },
+        ],
       },
     };
     const result = await runSim(simArgs({ seed: 9 }), loaded);
@@ -93,4 +109,80 @@ describe('runSim', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain('tapMs');
   });
+});
+
+// Story 1.18: the CLI plays the live level to its end.
+describe('runSim on the live content', () => {
+  const CONTENT_DIR = fileURLToPath(new URL('../../../content', import.meta.url));
+  const load = async () => {
+    const loaded = await loadSimLevel(CONTENT_DIR, 'salon_crawler');
+    if (!loaded.ok) throw new Error(loaded.error);
+    return loaded.value;
+  };
+
+  it('plays each idle game to LevelEnded: every wave telegraphs, none goes over its limit', async () => {
+    const loaded = await load();
+    const result = await runSim(simArgs({ botId: 'idle', runs: 5, untilSimMs: null }), loaded);
+    if (!result.ok) throw new Error(result.error);
+    const report = result.value;
+    expect(report.untilSimMs).toBe(loaded.level.level.durationMs);
+    expect(report.endedRuns).toBe(report.runs);
+    expect(report.waves.map((wave) => wave.fromMs)).toEqual(
+      loaded.level.level.waves.map((wave) => wave.fromMs),
+    );
+    for (const wave of report.waves) {
+      expect(wave.telegraphs).toBeGreaterThan(0);
+      expect(wave.overLimitRuns).toBe(0);
+      expect(wave.peakSimultaneous).toBeLessThanOrEqual(wave.maxSimultaneous);
+    }
+  }, 120_000);
+
+  it('records where a game stopped, so that it replays to the same world', async () => {
+    const loaded = await load();
+    const games: RunFile[] = [];
+    const result = await runSim(simArgs({ botId: 'human', untilSimMs: null }), loaded, {
+      onGame: (_name, game) => games.push(game),
+    });
+    expect(result.ok).toBe(true);
+    expect(games[0]?.untilSimMs).toBe(loaded.level.level.durationMs);
+    const replayed = await replayRunFile(games[0] as RunFile, loaded);
+    expect(replayed.ok).toBe(true);
+  }, 120_000);
+
+  it('stops at --until-ms when that is sooner, and the game has not ended', async () => {
+    const loaded = await load();
+    const result = await runSim(simArgs({ botId: 'idle', untilSimMs: 5000 }), loaded);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.value.untilSimMs).toBe(5000);
+    expect(result.value.endedRuns).toBe(0);
+  });
+
+  it('shows the last-threat slow-mo (×0.2, slower than the perfect one) in some perfect game', async () => {
+    const loaded = await load();
+    const { feel } = loaded.content;
+    expect(feel.timing.slowMoLastThreat.timeScale).toBeLessThan(
+      feel.timing.slowMoPerfect.timeScale,
+    );
+    let lastThreatSlowMos = 0;
+    for (const seed of [1, 2, 3]) {
+      const bot = createBot('perfect', {
+        seed,
+        holdMinMs: feel.input.holdMinMs,
+        responses: botResponsesOf(loaded.level.threats),
+        settings: loaded.content.bots,
+      });
+      if (!bot.ok) throw new Error(bot.error.message);
+      const sim = await createSim({ ...loaded, seed, strictInvariants: true });
+      playGame(sim, bot.value, loaded.level.level.durationMs, (event: SimEvent) => {
+        if (
+          event.type === 'TimeScaleChanged' &&
+          event.to === feel.timing.slowMoLastThreat.timeScale
+        ) {
+          lastThreatSlowMos++;
+        }
+      });
+      sim.dispose();
+    }
+    expect(lastThreatSlowMos).toBeGreaterThanOrEqual(1);
+  }, 120_000);
 });

@@ -18,14 +18,39 @@ export interface NavContext {
 
 /**
  * What the level plans, built once by `createSim`, outside `World` (it is constant data). `threats`
- * is index-aligned with `world.threats`: entry `i` is the def and the start time of instance `i`.
+ * is index-aligned with `world.threats`: entry `i` is the def, the anchor and the first wave that
+ * can draw instance `i` (one instance per planned anchor, in order of first appearance across the waves).
  */
 export interface SimLevel {
-  readonly threats: readonly { readonly def: ThreatDef; readonly fromMs: number }[];
+  readonly threats: readonly SimPlannedThreat[];
+  /** The waves, in order. Empty: the level plans nothing. */
+  readonly waves: readonly SimWave[];
+  /** How long the level lasts, in sim ms: the flow ends it then. */
+  readonly durationMs: number;
   /** Index-aligned with `world.props`. */
   readonly props: readonly SimPropSpec[];
   /** The level's interactive objects, each at the floor point of its anchor (story 1.17). */
   readonly objects: readonly SimObjectSpec[];
+}
+
+/** One planned threat: what, where, and from which wave the director may draw it (waves are cumulative). */
+export interface SimPlannedThreat {
+  readonly def: ThreatDef;
+  readonly anchorId: string;
+  readonly firstWaveIndex: number;
+}
+
+/**
+ * A wave as the director reads it. `endMs` is the next wave's `fromMs`, or the level's `durationMs`
+ * for the last wave; `closesAtMs` is `endMs − lullMs`: from then on, no new telegraph.
+ */
+export interface SimWave {
+  readonly fromMs: number;
+  readonly endMs: number;
+  readonly closesAtMs: number;
+  readonly maxSimultaneous: number;
+  readonly gapMinMs: number;
+  readonly gapMaxMs: number;
 }
 
 /** An interactive object of the level: constant data, no runtime state yet (stories 1.19, 1.20). */

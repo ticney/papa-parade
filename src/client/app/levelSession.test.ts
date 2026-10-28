@@ -12,7 +12,8 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
+  OUTLET,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
@@ -181,7 +182,10 @@ describe('createLevelSession', () => {
   it('loads the level in parallel with the assets and gives it to the sim', async () => {
     const order: string[] = [];
     let simLevel: LevelContent | undefined;
-    const loaded = levelOf('salon_crawler', createTestLevel([outletEntry(2000)]));
+    const loaded = levelOf(
+      'salon_crawler',
+      createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
+    );
     const levelGate = deferred<void>();
     const { session, appFsm } = setup({
       loadAssets: async (id) => {
@@ -235,6 +239,75 @@ describe('createLevelSession', () => {
         babyRadiusM: content.feel.baby.bodyRadiusM,
       },
     ]);
+  });
+
+  describe('the level’s feelOverrides (story 1.18)', () => {
+    const planned = (feelOverrides: Record<string, unknown>) =>
+      levelOf('salon_crawler', createTestLevel({ feelOverrides }));
+
+    it('merges them over the feel the sim, the scene and the active level use', async () => {
+      const content = createTestContent();
+      const seen: { windowMs?: number; bodyRadiusM?: number } = {};
+      const { session } = setup({
+        content,
+        loadLevelContent: async () =>
+          ok(planned({ timing: { windowMs: 250 }, baby: { bodyRadiusM: 0.2 } })),
+        createSim: (options) => {
+          seen.windowMs = options.content.feel.timing.windowMs;
+          return createSim(options);
+        },
+        createScene: (assets, bodies) => {
+          seen.bodyRadiusM = bodies.babyRadiusM;
+          return {
+            id: assets.id,
+            scene: new Scene(),
+            room: { widthM: 8, depthM: 6, heightM: 2.5 },
+            fx: NO_FX,
+            resetFx: () => {},
+            update: () => {},
+            dispose: () => {},
+          };
+        },
+      });
+      await session.start();
+      expect(seen).toEqual({ windowMs: 250, bodyRadiusM: 0.2 });
+      expect(session.active?.feel.timing.windowMs).toBe(250);
+      // The sim's own threats judge with the merged window.
+      expect(session.active?.feel.timing.toleranceMs).toBe(content.feel.timing.toleranceMs);
+      // « Recommencer » re-merges over the base feel: the request keeps the base one.
+      expect(session.current.feel.timing.windowMs).toBe(content.feel.timing.windowMs);
+    });
+
+    it('freezes a threat’s window from the merged feel', async () => {
+      const level = createTestLevel({
+        feelOverrides: { timing: { windowMs: 250 } },
+        waves: [testWave([OUTLET])],
+      });
+      const { session } = setup({
+        loadLevelContent: async () => ok(levelOf('salon_crawler', level)),
+      });
+      await session.start();
+      const sim = session.active?.sim;
+      sim?.step();
+      expect(sim?.world.threats[0]?.responseWindow?.windowMs).toBe(250);
+    });
+
+    it('hands the very same feel over when the level overrides nothing', async () => {
+      const content = createTestContent();
+      const { session } = setup({ content });
+      await session.start();
+      expect(session.active?.feel).toBe(content.feel);
+    });
+
+    it('goes to « Oups » with a warning when an override breaks the feel', async () => {
+      const { session, appFsm } = setup({
+        loadLevelContent: async () => ok(planned({ timing: { windowMs: -5 } })),
+      });
+      const outcome = await session.start();
+      expect(outcome).toBe('failed');
+      expect(appFsm.state).toBe('oops');
+      expect(session.active).toBeNull();
+    });
   });
 
   it('exposes the active sim and time map once the level is entered, and nothing before or after', async () => {
@@ -292,7 +365,13 @@ describe('createLevelSession', () => {
 
   it('hands onLevelReady the icon points of the planned threats, from the anchors of the geometry', async () => {
     const { session, readyEntries } = setup({
-      loadLevelContent: async (id) => ok(levelOf(id, createTestLevel([outletEntry(2000)]))),
+      loadLevelContent: async (id) =>
+        ok(
+          levelOf(
+            id,
+            createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
+          ),
+        ),
     });
     await session.start();
     const anchor = createTestGeometry().anchors.find((a) => a.id === 'outlet_01');

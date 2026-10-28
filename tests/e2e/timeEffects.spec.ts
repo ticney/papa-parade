@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { STEP_MS } from '../../src/shared/constants.ts';
 import { PARRY_RELEASE_AFTER_MS } from '../support/timeEffects.ts';
-import { collectProblems, FIRST_TELEGRAPH_MS, OVERRUN_MARGIN_MS } from './support/game.ts';
+import { collectProblems, stepToFirstTelegraph } from './support/game.ts';
 import {
   ppAdvance,
   ppEvents,
@@ -25,9 +25,6 @@ const { timing } = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
 };
 const { slowMoPerfect } = timing;
 
-/** Steps per poll while waiting for the telegraph: it lands before the window, which is much longer. */
-const TELEGRAPH_POLL_STEPS = 5;
-
 const stepsTo = (fromMs: number, toMs: number): number => Math.ceil((toMs - fromMs) / STEP_MS);
 
 test.describe('slow-mo on a perfect response', () => {
@@ -38,23 +35,16 @@ test.describe('slow-mo on a perfect response', () => {
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);
 
-    // Up to the first telegraph of the live plan (a few steps more if the baby is busy), then to
-    // the opening of its window.
-    await ppAdvance(page, stepsTo(0, FIRST_TELEGRAPH_MS));
-    await expect
-      .poll(
-        async () => {
-          await ppAdvance(page, TELEGRAPH_POLL_STEPS);
-          return (await ppWorld(page)).threats[0]?.state;
-        },
-        { timeout: OVERRUN_MARGIN_MS },
-      )
-      .toBe('telegraph');
+    // Up to the first telegraph of the live plan (the PRNG draws which threat), then to the
+    // opening of its window.
+    const first = await stepToFirstTelegraph(page);
     const telegraphed = await ppWorld(page);
-    const outlet = telegraphed.threats[0];
+    const outlet = telegraphed.threats.find((threat) => threat.id === first.threatId);
     if (outlet === undefined || outlet.responseWindow === null) throw new Error('no window');
+    expect(outlet.state).toBe('telegraph');
     await ppAdvance(page, stepsTo(telegraphed.time.sim, outlet.windowOpenAt));
-    expect((await ppWorld(page)).threats[0]?.state).toBe('windowOpen');
+    const open = (await ppWorld(page)).threats.find((threat) => threat.id === first.threatId);
+    expect(open?.state).toBe('windowOpen');
 
     // A perfect Parry: the press at the centre of the window, the release shortly after.
     const centerMs = outlet.windowOpenAt + outlet.responseWindow.windowMs / 2;

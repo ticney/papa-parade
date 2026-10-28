@@ -22,26 +22,27 @@ const gags = events.filter((event) => event.type === 'GagTriggered');
 const { breakImpulseNs } = content.feel.physics.kinds.vase as { breakImpulseNs: number };
 
 describe('golden scenario threat_trio covers what it is there for', () => {
-  it('telegraphs the three defs in the level order, then cycles', () => {
-    expect(telegraphs.slice(0, 3).map((event) => event.kind)).toEqual([
-      'outlet',
-      'stairs',
-      'coffee_table_object',
-    ]);
-    expect(telegraphs.slice(0, 3).map((event) => event.anchorId)).toEqual([
-      'outlet_01',
-      'stairs_top',
-      'coffee_table',
-    ]);
+  it('telegraphs the three defs, each at its own anchor, and cycles (picked by the PRNG, in no fixed order)', () => {
+    const anchorOf = new Map(telegraphs.map((event) => [event.kind, event.anchorId]));
+    expect(Object.fromEntries(anchorOf)).toEqual({
+      outlet: 'outlet_01',
+      stairs: 'stairs_top',
+      coffee_table_object: 'coffee_table',
+    });
+    expect(new Set(telegraphs.slice(0, 3).map((event) => event.waveIndex))).toEqual(new Set([0]));
     expect(telegraphs.length).toBeGreaterThan(3);
   });
 
-  it('ends the first three threats in their own gags', () => {
-    expect(gags.slice(0, 3).map((event) => event.gag)).toEqual([
-      'outlet_hair',
-      'stairs_slide',
-      'table_object_fall',
-    ]);
+  it('ends each threat in its own gag', () => {
+    const kindOf = new Map(telegraphs.map((event) => [event.threatId, event.kind]));
+    const gagOf: Record<string, string> = {
+      outlet: 'outlet_hair',
+      stairs: 'stairs_slide',
+      coffee_table_object: 'table_object_fall',
+    };
+    expect(gags.length).toBeGreaterThanOrEqual(3);
+    for (const event of gags) expect(event.gag).toBe(gagOf[kindOf.get(event.threatId) ?? '']);
+    expect(new Set(gags.map((event) => event.gag))).toEqual(new Set(Object.values(gagOf)));
   });
 
   it('emits a NearMiss for the stairs gag only, right after its GagTriggered, at the same time', () => {

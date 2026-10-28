@@ -6,7 +6,8 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
+  OUTLET,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
@@ -19,7 +20,7 @@ const { timing, input } = content.feel;
 const OUTLET_ID = 1;
 
 async function newSim(
-  level: LevelContent = createTestLevel([outletEntry(0)]),
+  level: LevelContent = createTestLevel({ waves: [testWave([OUTLET])] }),
   withContent: ContentBundle = content,
 ): Promise<Sim> {
   return createSim({ content: withContent, geometry, level, seed: 1 });
@@ -65,7 +66,7 @@ const threatEvents = (events: readonly SimEvent[]): SimEvent[] =>
 
 /** A sim stopped on the step that telegraphed the outlet. */
 async function telegraphed(withContent: ContentBundle = content) {
-  const sim = await newSim(createTestLevel([outletEntry(0)]), withContent);
+  const sim = await newSim(createTestLevel({ waves: [testWave([OUTLET])] }), withContent);
   sim.step();
   sim.drainEvents();
   const { windowOpenAt, responseWindow } = threatOf(sim);
@@ -76,13 +77,22 @@ async function telegraphed(withContent: ContentBundle = content) {
 
 describe('telegraph', () => {
   it('is announced at the first step at or after fromMs, with the delay of its def', async () => {
-    const sim = await newSim(createTestLevel([outletEntry(95)]));
+    const sim = await newSim(
+      createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 95, gapMaxMs: 95 })] }),
+    );
     const quiet = run(sim, 9);
     expect(threatEvents(quiet)).toEqual([]);
     expect(threatOf(sim).state).toBe('idle');
     const events = run(sim, 1);
     expect(only(events, 'ThreatTelegraphed')).toEqual([
-      { type: 'ThreatTelegraphed', t: 100, threatId: 1, kind: 'outlet', anchorId: 'outlet_01' },
+      {
+        type: 'ThreatTelegraphed',
+        t: 100,
+        threatId: 1,
+        kind: 'outlet',
+        anchorId: 'outlet_01',
+        waveIndex: 0,
+      },
     ]);
     expect(threatOf(sim)).toMatchObject({ state: 'telegraph', enteredAt: 100, windowOpenAt: 1300 });
   });
@@ -118,7 +128,7 @@ describe('telegraph', () => {
 
   it('opens at the first step after an off-grid instant (a delay of 1205 ms)', async () => {
     const odd = createTestContent();
-    const level = createTestLevel([outletEntry(0)]);
+    const level = createTestLevel({ waves: [testWave([OUTLET])] });
     const def = level.threats.outlet;
     if (def === undefined) throw new Error('no outlet');
     const sim = await newSim(
@@ -132,7 +142,7 @@ describe('telegraph', () => {
   });
 
   it('takes the feel defaults when the def says null', async () => {
-    const level = createTestLevel([outletEntry(0)]);
+    const level = createTestLevel({ waves: [testWave([OUTLET])] });
     const def = level.threats.outlet;
     if (def === undefined) throw new Error('no outlet');
     const feel = createTestContent();
@@ -430,7 +440,9 @@ describe('commands that do nothing', () => {
   });
 
   it('a press on a threat that is idle', async () => {
-    const sim = await newSim(createTestLevel([outletEntry(5000)]));
+    const sim = await newSim(
+      createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 5000, gapMaxMs: 5000 })] }),
+    );
     sim.enqueue(press(1000));
     sim.enqueue(release(1050));
     const events = runTo(sim, 1200);
@@ -494,16 +506,47 @@ describe('the cycle', () => {
 });
 
 describe('several threats', () => {
-  it('targets one at a time, in level order, and each command names its threat', async () => {
-    const level = createTestLevel([outletEntry(0), outletEntry(0)]);
+  it('targets one at a time (the wave allows one), and each command names its threat', async () => {
+    const level = createTestLevel({
+      waves: [testWave([OUTLET, { def: 'outlet', anchor: 'phone' }])],
+    });
     const sim = await newSim(level);
     const first = run(sim, 1);
-    expect(only(first, 'ThreatTelegraphed').map((event) => event.threatId)).toEqual([1]);
-    expect(sim.world.threats.map((threat) => threat.state)).toEqual(['telegraph', 'idle']);
+    const telegraphed = only(first, 'ThreatTelegraphed').map((event) => event.threatId);
+    expect(telegraphed).toHaveLength(1);
+    // The director picks one of the two with the PRNG; the other stays idle.
+    const idleId = telegraphed[0] === 1 ? 2 : 1;
     expect(sim.world.threats.map((threat) => threat.id)).toEqual([1, 2]);
-    // A press on the idle second one does nothing.
-    sim.enqueue(press(1200, 2));
+    expect(sim.world.threats.find((threat) => threat.id === idleId)?.state).toBe('idle');
+    // A press on the idle one does nothing.
+    sim.enqueue(press(1200, idleId));
     const events = runTo(sim, 1250);
     expect(only(events, 'ResponseResolved')).toEqual([]);
+  });
+});
+
+// Story 1.18 D13: two threats at once resolve one after the other with sequential taps (press,
+// release, press, release); each press is classified on its own release.
+describe('two threats active at once', () => {
+  it('resolves both when they are tapped one after the other, each by its own id', async () => {
+    const level = createTestLevel({
+      waves: [testWave([OUTLET, { def: 'outlet', anchor: 'phone' }], { maxSimultaneous: 2 })],
+    });
+    const sim = await newSim(level);
+    const events = run(sim, 3);
+    const telegraphed = only(events, 'ThreatTelegraphed').map((event) => event.threatId);
+    expect(telegraphed).toHaveLength(2);
+    const [first, second] = telegraphed as [number, number];
+    const openAt = Math.max(...sim.world.threats.map((threat) => threat.windowOpenAt));
+    // Both windows are open by `openAt`; tap the first, then the second, inside both.
+    sim.enqueue(press(openAt + 60, first));
+    sim.enqueue(release(openAt + 100));
+    sim.enqueue(press(openAt + 140, second));
+    sim.enqueue(release(openAt + 180));
+    const later = runTo(sim, openAt + 400);
+    const resolved = only(later, 'ResponseResolved');
+    expect(resolved.map((event) => event.threatId)).toEqual([first, second]);
+    expect(resolved.every((event) => event.quality !== 'fail')).toBe(true);
+    expect(only(later, 'GagTriggered')).toEqual([]);
   });
 });

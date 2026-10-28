@@ -6,7 +6,7 @@ import { parseContentFile } from '@content/parseContentFile';
 import type { BotSettings } from '@content/schemas/bots';
 import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
-import type { LevelObject, LevelThreatEntry } from '@content/schemas/level';
+import type { LevelObject, LevelVariant, LevelWave, LevelWaveThreat } from '@content/schemas/level';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
 import { type ThreatDef, ThreatDefSchema } from '@content/schemas/threat';
 import type { Sim } from '@sim';
@@ -136,21 +136,80 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
 }
 
 /**
- * The level of the frozen living room that plans `entries` (none: it plans nothing, as the live one
- * does today). Each entry's def is resolved from the frozen threats; an unknown one throws.
+ * A test level lasts longer than any test, so that `ended` stays out of the tests that are not
+ * about it (10 minutes of sim time).
  */
-export function createTestLevel(
-  entries: readonly LevelThreatEntry[] = [],
-  objects: readonly LevelObject[] = [],
-): LevelContent {
+export const TEST_LEVEL_DURATION_MS = 600_000;
+
+/** The outlet at the frozen room's `outlet_01` anchor, as a wave adds it. */
+export const OUTLET: LevelWaveThreat = { def: 'outlet', anchor: 'outlet_01' };
+
+/** The stairs at the frozen room's `stairs_top` anchor. */
+export const STAIRS: LevelWaveThreat = { def: 'stairs', anchor: 'stairs_top' };
+
+/** The object on the coffee table at the frozen room's `coffee_table` anchor. */
+export const COFFEE_TABLE: LevelWaveThreat = { def: 'coffee_table_object', anchor: 'coffee_table' };
+
+/**
+ * A wave of `threats`: from 0 ms, one at a time, no gap and no lull unless `overrides` says so. A
+ * test that used `outletEntry(2000)` uses `testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })`:
+ * its first telegraph lands at the first step at or after 2000 ms.
+ */
+export function testWave(
+  threats: readonly LevelWaveThreat[],
+  overrides: Partial<Omit<LevelWave, 'threats'>> = {},
+): LevelWave {
+  return {
+    fromMs: 0,
+    maxSimultaneous: 1,
+    gapMinMs: 0,
+    gapMaxMs: 0,
+    lullMs: 0,
+    ...overrides,
+    threats: [...threats],
+  };
+}
+
+export interface TestLevelOptions {
+  waves?: readonly LevelWave[];
+  objects?: readonly LevelObject[];
+  durationMs?: number;
+  variant?: LevelVariant;
+  feelOverrides?: Record<string, unknown>;
+}
+
+/**
+ * The level of the frozen living room that plans `waves` (none: it plans nothing, as the golden
+ * scenarios without threats). Each planned def is resolved from the frozen threats, once, in order
+ * of first reference; an unknown one throws.
+ */
+export function createTestLevel({
+  waves = [],
+  objects = [],
+  durationMs = TEST_LEVEL_DURATION_MS,
+  variant = 'nap',
+  feelOverrides = {},
+}: TestLevelOptions = {}): LevelContent {
   const all = createTestThreats();
   const threats: Record<string, ThreatDef> = {};
-  for (const entry of entries) {
-    const def = all[entry.def];
-    if (def === undefined) throw new Error(`no frozen threat "${entry.def}" in tests/support`);
-    threats[def.id] = def;
+  for (const wave of waves) {
+    for (const entry of wave.threats) {
+      const def = all[entry.def];
+      if (def === undefined) throw new Error(`no frozen threat "${entry.def}" in tests/support`);
+      threats[def.id] = def;
+    }
   }
-  return { level: { id: 'salon_crawler', threats: [...entries], objects: [...objects] }, threats };
+  return {
+    level: {
+      id: 'salon_crawler',
+      variant,
+      durationMs,
+      waves: waves.map((wave) => ({ ...wave, threats: [...wave.threats] })),
+      objects: [...objects],
+      feelOverrides: { ...feelOverrides },
+    },
+    threats,
+  };
 }
 
 /** The coffee machine and the phone of the live level, at the frozen room's anchors of the same names. */
@@ -158,21 +217,6 @@ export const TEST_OBJECTS: readonly LevelObject[] = [
   { id: 'coffee_machine', anchor: 'coffee_machine' },
   { id: 'phone', anchor: 'phone' },
 ];
-
-/** A plan for the outlet at the frozen room's `outlet_01` anchor, from `fromMs` of sim time. */
-export function outletEntry(fromMs: number): LevelThreatEntry {
-  return { def: 'outlet', anchor: 'outlet_01', fromMs };
-}
-
-/** A plan for the stairs at the frozen room's `stairs_top` anchor. */
-export function stairsEntry(fromMs: number): LevelThreatEntry {
-  return { def: 'stairs', anchor: 'stairs_top', fromMs };
-}
-
-/** A plan for the object on the coffee table at the frozen room's `coffee_table` anchor. */
-export function coffeeTableEntry(fromMs: number): LevelThreatEntry {
-  return { def: 'coffee_table_object', anchor: 'coffee_table', fromMs };
-}
 
 /** Runs `n` steps: time in tests is counted in steps (`stepN(sim, 120)` = 1200 ms of sim time). */
 export function stepN(sim: Sim, n: number): void {

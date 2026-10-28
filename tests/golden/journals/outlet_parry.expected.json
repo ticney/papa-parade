@@ -1,7 +1,8 @@
 {
   "untilSimMs": 30000,
-  "worldHash": "167a3b8155f28a",
+  "worldHash": "12021cb50b87f7",
   "eventTypes": [
+    "WaveStarted",
     "BabyStateChanged",
     "ThreatTelegraphed",
     "BabyStateChanged",
@@ -72,7 +73,6 @@
     "PapaArrived",
     "PapaStateChanged",
     "BabyStateChanged",
-    "BabyStateChanged",
     "ThreatRearmed",
     "ThreatTelegraphed",
     "BabyStateChanged",
@@ -115,9 +115,9 @@
     "TimeScaleChanged",
     "TimeScaleChanged",
     "TimeScaleChanged",
+    "BabyStateChanged",
     "PapaArrived",
-    "PapaStateChanged",
-    "BabyStateChanged"
+    "PapaStateChanged"
   ],
-  "eventsHash": "010aee2b3e844b"
+  "eventsHash": "1633803b6a6db3"
 }

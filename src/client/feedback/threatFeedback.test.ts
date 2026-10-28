@@ -6,7 +6,8 @@ import {
   createTestGeometry,
   createTestLevel,
   createTestOutlet,
-  outletEntry,
+  OUTLET,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import { threatCueOf } from './threatFeedback.ts';
 
@@ -16,7 +17,7 @@ const world: World = (
   await createSim({
     content: createTestContent(),
     geometry: createTestGeometry(),
-    level: createTestLevel([outletEntry(0)]),
+    level: createTestLevel({ waves: [testWave([OUTLET])] }),
     seed: 1,
   })
 ).world;
@@ -40,6 +41,7 @@ describe('threatCueOf', () => {
       threatId,
       kind: 'outlet',
       anchorId: 'outlet_01',
+      waveIndex: 0,
     };
     expect(threatCueOf(event, world, defs)).toBe(outlet.feedback.telegraph);
   });

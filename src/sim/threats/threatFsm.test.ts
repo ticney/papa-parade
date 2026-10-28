@@ -4,8 +4,9 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
-  stairsEntry,
+  OUTLET,
+  STAIRS,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import type { StepContext } from '../context.ts';
 import { createSim } from '../createSim.ts';
@@ -24,7 +25,7 @@ import {
 } from './threatFsm.ts';
 
 const content = createTestContent();
-const def = createTestLevel([outletEntry(0)]).threats.outlet;
+const def = createTestLevel({ waves: [testWave([OUTLET])] }).threats.outlet;
 if (def === undefined) throw new Error('no outlet');
 
 /** A world with its one planned threat and a context that only collects events. */
@@ -32,7 +33,7 @@ async function setup() {
   const sim = await createSim({
     content,
     geometry: createTestGeometry(),
-    level: createTestLevel([outletEntry(0)]),
+    level: createTestLevel({ waves: [testWave([OUTLET])] }),
     seed: 1,
   });
   const world = sim.world as World;
@@ -66,7 +67,7 @@ describe('threat FSM', () => {
   it('telegraphThreat freezes the window, fixes the opening instant and announces the threat', async () => {
     const { world, ctx, events, threat } = await setup();
     threat.press = { t: asSimMs(1), quality: 'perfect', offsetMs: 0, releasedAt: null };
-    telegraphThreat(world, ctx, threat, def);
+    telegraphThreat(world, ctx, threat, def, 0);
     expect(threat).toMatchObject({
       state: 'telegraph',
       enteredAt: 500,
@@ -75,7 +76,14 @@ describe('threat FSM', () => {
       responseWindow: { windowMs: content.feel.timing.windowMs },
     });
     expect(events).toEqual([
-      { type: 'ThreatTelegraphed', t: 500, threatId: 1, kind: 'outlet', anchorId: 'outlet_01' },
+      {
+        type: 'ThreatTelegraphed',
+        t: 500,
+        threatId: 1,
+        kind: 'outlet',
+        anchorId: 'outlet_01',
+        waveIndex: 0,
+      },
     ]);
   });
 
@@ -144,7 +152,7 @@ describe('threat FSM', () => {
     const sim = await createSim({
       content,
       geometry: createTestGeometry(),
-      level: createTestLevel([stairsEntry(0)]),
+      level: createTestLevel({ waves: [testWave([STAIRS])] }),
       seed: 1,
     });
     const world = sim.world as World;
@@ -156,7 +164,7 @@ describe('threat FSM', () => {
       strictInvariants: true,
       t: world.time.sim,
     } as unknown as StepContext;
-    const stairs = createTestLevel([stairsEntry(0)]).threats.stairs;
+    const stairs = createTestLevel({ waves: [testWave([STAIRS])] }).threats.stairs;
     if (stairs === undefined) throw new Error('no stairs');
     gagThreat(world, ctx, world.threats[0] as World['threats'][number], stairs, 'late', null);
     expect(events.map((event) => event.type)).toEqual([
@@ -176,7 +184,7 @@ describe('threat FSM', () => {
 
   it('rearmThreat puts the threat back to idle with nothing left of the cycle', async () => {
     const { world, ctx, events, threat } = await setup();
-    telegraphThreat(world, ctx, threat, def);
+    telegraphThreat(world, ctx, threat, def, 0);
     events.length = 0;
     world.time.sim = asSimMs(9000);
     rearmThreat(world, ctx, threat);
@@ -186,6 +194,7 @@ describe('threat FSM', () => {
       windowOpenAt: 0,
       responseWindow: null,
       press: null,
+      waveIndex: -1,
     });
     expect(events).toEqual([{ type: 'ThreatRearmed', t: 9000, threatId: 1 }]);
   });

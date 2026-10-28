@@ -1,6 +1,10 @@
+---
+baseline_commit: 64f4da9debc44dbe0ec356b26722d28d4a3c0d1e
+---
+
 # Story 1.18: Threat Waves and the Level Timer
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.18 « Vagues de menaces et chrono du niveau » (L1001-1031). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -134,9 +138,9 @@ so that the game goes from calm to chaos.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 — Precondition** (§ Precondition). Record the baseline CI and the counts in the Debug Log.
-- [ ] **T1 — Content schema** (AC 1, 2, 11)
-  - [ ] `src/content/schemas/level.ts`:
+- [x] **T0 — Precondition** (§ Precondition). Record the baseline CI and the counts in the Debug Log.
+- [x] **T1 — Content schema** (AC 1, 2, 11)
+  - [x] `src/content/schemas/level.ts`:
     - `LEVEL_VARIANTS = ['nap'] as const` and `LevelVariant`.
     - `LevelWaveThreatSchema = strictObject({ def, anchor })` (the old entry without `fromMs`).
     - `LevelWaveSchema = strictObject({ fromMs, maxSimultaneous, gapMinMs, gapMaxMs, lullMs, threats: z.array(LevelWaveThreatSchema).default([]) })`. Write a `.describe()` text for every field, in sim ms, with units (D2).
@@ -144,132 +148,132 @@ so that the game goes from calm to chaos.
     - Add a `superRefine` for AC 2. Each issue's `path` points at the wave, field or entry, so that `jsonPath` names `waves[1].gapMinMs`.
     - Rewrite the header comment: 1.18 replaced `threats` with waves, and 1.20 adds `disruptions`.
     - Export `Level`, `LevelWave`, `LevelWaveThreat`, `LevelVariant` and `LevelObject`. Remove `LevelThreatEntry`, and fix every importer.
-  - [ ] `content/levels/salon_crawler.json`: the values of D2.
-  - [ ] `npm run content:schemas`; commit `content/_schemas/level.schema.json`.
-  - [ ] `tests/content/levelSchema.test.ts`: one case per rule of AC 2, plus empty `waves` accepted, `feelOverrides` defaulting to `{}`, an unknown variant rejected and a non-integer `maxSimultaneous` rejected.
-  - [ ] Check the unit-suffix architecture test for the new keys (`fromMs`, `gapMinMs`, `gapMaxMs`, `lullMs`, `durationMs`). `maxSimultaneous` is a count. If the test asks for a suffix there, the test has an allow list for counts: use it, and do not weaken the rule.
-- [ ] **T2 — Loading and checks** (AC 3, 11)
-  - [ ] `src/content/loadLevelContent.ts`: read the defs from `level.waves[w].threats[i]`, in order of first reference. A def file that cannot be read names `waves[w].threats[i].def`. Update the doc comment.
-  - [ ] `tools/content/contentChecks.ts`: the level reference checks walk the waves (def file, anchor in the geometry, known gag). They add `mergeFeel(feel, level.feelOverrides, 'content/levels/<id>.json')`, and map its problems to `feelOverrides.<path>`. Keep 1.17's object checks. Add tests.
-  - [ ] `tests/content/loadLevelContent.test.ts`: migrate it to waves, and add a missing def in wave 2 (its JSON path).
-  - [ ] `src/client/app/threatsSwitch.ts`: `withoutThreats` returns `waves: []` and keeps everything else (`durationMs` included). Migrate its test.
-- [ ] **T3 — Sim level plan and world slices** (AC 4, 6, 7)
-  - [ ] `src/sim/context.ts` › `SimLevel`:
+  - [x] `content/levels/salon_crawler.json`: the values of D2.
+  - [x] `npm run content:schemas`; commit `content/_schemas/level.schema.json`.
+  - [x] `tests/content/levelSchema.test.ts`: one case per rule of AC 2, plus empty `waves` accepted, `feelOverrides` defaulting to `{}`, an unknown variant rejected and a non-integer `maxSimultaneous` rejected.
+  - [x] Check the unit-suffix architecture test for the new keys (`fromMs`, `gapMinMs`, `gapMaxMs`, `lullMs`, `durationMs`). `maxSimultaneous` is a count. If the test asks for a suffix there, the test has an allow list for counts: use it, and do not weaken the rule.
+- [x] **T2 — Loading and checks** (AC 3, 11)
+  - [x] `src/content/loadLevelContent.ts`: read the defs from `level.waves[w].threats[i]`, in order of first reference. A def file that cannot be read names `waves[w].threats[i].def`. Update the doc comment.
+  - [x] `tools/content/contentChecks.ts`: the level reference checks walk the waves (def file, anchor in the geometry, known gag). They add `mergeFeel(feel, level.feelOverrides, 'content/levels/<id>.json')`, and map its problems to `feelOverrides.<path>`. Keep 1.17's object checks. Add tests.
+  - [x] `tests/content/loadLevelContent.test.ts`: migrate it to waves, and add a missing def in wave 2 (its JSON path).
+  - [x] `src/client/app/threatsSwitch.ts`: `withoutThreats` returns `waves: []` and keeps everything else (`durationMs` included). Migrate its test.
+- [x] **T3 — Sim level plan and world slices** (AC 4, 6, 7)
+  - [x] `src/sim/context.ts` › `SimLevel`:
     - `threats: readonly { def: ThreatDef; firstWaveIndex: number }[]`, index-aligned with `world.threats`. One instance per planned `(def, anchor)`, in order of first appearance across the waves. In the salon, that is outlet, stairs, coffee table: the same order as today, which `threats.spec.ts` relies on.
     - `waves: readonly SimWave[]`, where `SimWave = { fromMs, endMs, closesAtMs, maxSimultaneous, gapMinMs, gapMaxMs }`. `endMs` is the next `fromMs`, or `durationMs` for the last wave. `closesAtMs = endMs − lullMs`.
     - `durationMs: number`.
     - Write doc comments in the style of the file.
-  - [ ] `src/sim/world.ts`:
+  - [x] `src/sim/world.ts`:
     - `ThreatInstance.waveIndex: number`: the wave that telegraphed it; `-1` while `idle` or when no wave planned it (1.19).
     - `DirectorSlice = { waveIndex: number; nextAt: SimMs }`, starting at `{ waveIndex: -1, nextAt: 0 }`.
     - `FlowSlice = { state: FlowState; enteredAt: SimMs }`, starting at `{ state: 'playing', enteredAt: 0 }`.
     - `World` gains `director` and `flow`. Update the `World` doc comment.
-  - [ ] `src/sim/flow/flowFsm.ts`: `FlowState = 'playing' | 'ended'`, `FLOW_STATES` with its `…_ARE_COMPLETE` proof (copy the `THREAT_STATES` pattern), and `enterFlowState(world, next)`, the only writer of `flow.state` and `enteredAt`.
-  - [ ] `src/sim/createSim.ts` › `simLevelOf`:
+  - [x] `src/sim/flow/flowFsm.ts`: `FlowState = 'playing' | 'ended'`, `FLOW_STATES` with its `…_ARE_COMPLETE` proof (copy the `THREAT_STATES` pattern), and `enterFlowState(world, next)`, the only writer of `flow.state` and `enteredAt`.
+  - [x] `src/sim/createSim.ts` › `simLevelOf`:
     - build `threats` and `waves` from `level.level.waves`;
     - check, with an `invariant` each and the `content:check` wording: the def is loaded, the anchor exists, the gag is known, no anchor is planned twice (a test level bypasses the schema), and every planned anchor is reachable by the baby (D12);
     - create the instances from `simLevel.threats` with `waveIndex: -1`.
-  - [ ] `src/sim/snapshot.ts`:
+  - [x] `src/sim/snapshot.ts`:
     - `version: 6`, with a comment that 6 adds `director`, `flow` and `ThreatInstance.waveIndex`.
     - `worldProblem` checks `director.waveIndex` (an integer in `[-1, waves.length − 1]`) and `director.nextAt` (finite, ≥ 0).
     - It checks `flow.state ∈ FLOW_STATES` and `flow.enteredAt`.
     - It checks each threat's `waveIndex`: an integer in `[-1, waves.length − 1]`, and `-1` when `idle` (D6).
     - `PlannedLevel` gains `waves: readonly unknown[]` (only the count is needed).
     - Add tests: a snapshot of each kind is refused with the field's name.
-  - [ ] Journal: no version bump. `levelHash` already refuses a journal of the old level shape. Check that `replay.test.ts` says so.
-- [ ] **T4 — The wave director** (AC 4, 5)
-  - [ ] Rewrite `src/sim/director/directorSystem.ts` › `runDirector`, following D3-D5. Keep the file name and the export, and call it « the wave director » in its doc comment.
-  - [ ] It allocates nothing per step: count the active threats and the candidates in a loop. Pick the `k`-th candidate in a second loop, with `k = Math.min(n − 1, Math.floor(nextFloat(world.rng) · n))`. Use no array.
-  - [ ] `src/sim/threats/threatFsm.ts`:
+  - [x] Journal: no version bump. `levelHash` already refuses a journal of the old level shape. Check that `replay.test.ts` says so.
+- [x] **T4 — The wave director** (AC 4, 5)
+  - [x] Rewrite `src/sim/director/directorSystem.ts` › `runDirector`, following D3-D5. Keep the file name and the export, and call it « the wave director » in its doc comment.
+  - [x] It allocates nothing per step: count the active threats and the candidates in a loop. Pick the `k`-th candidate in a second loop, with `k = Math.min(n − 1, Math.floor(nextFloat(world.rng) · n))`. Use no array.
+  - [x] `src/sim/threats/threatFsm.ts`:
     - `telegraphThreat(world, ctx, threat, def, waveIndex)` sets `threat.waveIndex`, and `ThreatTelegraphed` gains `waveIndex`.
     - `rearmThreat` resets `waveIndex` to `-1`.
     - `resolveThreat` calls `isLastOfWave(world, ctx, threat)` (D7). If it is true, it calls `startSlowMo(world, ctx, 'lastThreat', ctx.feel.timing.slowMoLastThreat)` after the perfect one.
     - Put `isLastOfWave` in `src/sim/director/waveState.ts`. It is a pure reader of `World` and `ctx.level`, with no event and no write; a system calling a pure reader is fine, a system calling a system is not.
-  - [ ] `src/sim/events.ts`:
+  - [x] `src/sim/events.ts`:
     - `WaveStarted{t, waveIndex}` and `LevelEnded{t, reason: LevelEndReason}`, with `LevelEndReason = 'timer'` exported and doc comments.
     - `ThreatTelegraphed.waveIndex`.
     - `SIM_EVENT_TYPES` stays **sorted**: `LevelEnded` goes after `InvariantViolated`, and `WaveStarted` after `TimeScaleChanged` and before `WindowOpened`.
     - Neither event gets a `feedback.json` entry. 2.x may add a wave jingle.
-  - [ ] `src/sim/index.ts`: export `FlowState`, `LevelEndReason`, `DirectorSlice` and `FlowSlice`.
-  - [ ] Tests in `directorSystem.test.ts` (rewrite the old policy's tests): see § Testing.
-- [ ] **T5 — Flow and the ended step** (AC 7)
-  - [ ] `src/sim/flow/flowSystem.ts` › `runFlow`: the `playing → ended` transition of AC 7.
-  - [ ] `src/sim/step.ts`:
+  - [x] `src/sim/index.ts`: export `FlowState`, `LevelEndReason`, `DirectorSlice` and `FlowSlice`.
+  - [x] Tests in `directorSystem.test.ts` (rewrite the old policy's tests): see § Testing.
+- [x] **T5 — Flow and the ended step** (AC 7)
+  - [x] `src/sim/flow/flowSystem.ts` › `runFlow`: the `playing → ended` transition of AC 7.
+  - [x] `src/sim/step.ts`:
     - `SYSTEMS` gains `runFlow` last.
     - Export `ENDED_SYSTEMS = [applyCommands, advanceTime]`. `step()` runs `ENDED_SYSTEMS` instead of `systems` when `world.flow.state === 'ended'`, injected systems included.
     - Update the header comment: the order and the ended rule.
     - Update the pinned-order test.
-  - [ ] `src/bots/playGame.ts`: it stops at `untilSimMs` **or** at `flow.state === 'ended'`, whichever comes first. Update its doc comment. `replay.ts` keeps its loop, which ends because the clock still runs.
-  - [ ] Tests: `flowSystem.test.ts`, `step.test.ts` (after the end, a `TapFloor` does not move Papa and the baby does not move, `time.sim` still advances, and no second `LevelEnded` comes), and `playGame` (stops at the end).
-- [ ] **T6 — Feel overrides at the two call sites** (AC 11)
-  - [ ] `src/client/app/levelSession.ts`: after the level loads, `mergeFeel(content.feel, levelPlan.level.feelOverrides, 'content/levels/<id>.json › feelOverrides')`.
+  - [x] `src/bots/playGame.ts`: it stops at `untilSimMs` **or** at `flow.state === 'ended'`, whichever comes first. Update its doc comment. `replay.ts` keeps its loop, which ends because the clock still runs.
+  - [x] Tests: `flowSystem.test.ts`, `step.test.ts` (after the end, a `TapFloor` does not move Papa and the baby does not move, `time.sim` still advances, and no second `LevelEnded` comes), and `playGame` (stops at the end).
+- [x] **T6 — Feel overrides at the two call sites** (AC 11)
+  - [x] `src/client/app/levelSession.ts`: after the level loads, `mergeFeel(content.feel, levelPlan.level.feelOverrides, 'content/levels/<id>.json › feelOverrides')`.
     - Pass `{ ...content, feel: merged }` to `createSim`, and to everything that reads the feel for this level: the bots' `holdMinMs` in autoplay, and the client's `feel.input`. Find these readers (`grep -n "content.feel\|\.feel\b" src/client src/debug`) and list them in the Debug Log.
     - An `err` goes to the content error screen, through the path a broken level already takes.
-  - [ ] `tools/sim/loadSimLevel.ts`: the same merge. An `err` fails with the formatted problems. `SimLevel.content.feel` is the merged feel.
-  - [ ] Tests for both. Write a client unit test with an override of `timing.windowMs`, and check that the sim's `ctx.feel` (through a threat's `responseWindow`) uses it.
-- [ ] **T7 — CLI and report** (AC 9)
-  - [ ] `tools/sim/simArgs.ts`: `untilSimMs: number | null` (null = the level's duration), and update `SIM_HELP`. Remove `SIM_CLI_DEFAULT_UNTIL_MS` from `shared/constants.ts`, or keep it only if something else needs it (it should not). Keep `SIM_CLI_MAX_UNTIL_MS` as the cap's upper bound.
-  - [ ] `tools/sim/runSim.ts`: `const untilSimMs = args.untilSimMs ?? level.level.durationMs`. Record it in the report and in each `RunFile`, so that `sim:replay` replays to the same time.
-  - [ ] `tools/sim/simReport.ts`:
+  - [x] `tools/sim/loadSimLevel.ts`: the same merge. An `err` fails with the formatted problems. `SimLevel.content.feel` is the merged feel.
+  - [x] Tests for both. Write a client unit test with an override of `timing.windowMs`, and check that the sim's `ctx.feel` (through a threat's `responseWindow`) uses it.
+- [x] **T7 — CLI and report** (AC 9)
+  - [x] `tools/sim/simArgs.ts`: `untilSimMs: number | null` (null = the level's duration), and update `SIM_HELP`. Remove `SIM_CLI_DEFAULT_UNTIL_MS` from `shared/constants.ts`, or keep it only if something else needs it (it should not). Keep `SIM_CLI_MAX_UNTIL_MS` as the cap's upper bound.
+  - [x] `tools/sim/runSim.ts`: `const untilSimMs = args.untilSimMs ?? level.level.durationMs`. Record it in the report and in each `RunFile`, so that `sim:replay` replays to the same time.
+  - [x] `tools/sim/simReport.ts`:
     - The recorder tracks waves from `WaveStarted` and `ThreatTelegraphed.waveIndex`.
     - It keeps an active counter: +1 on `ThreatTelegraphed`, −1 on `ResponseResolved` (each telegraph ends in exactly one).
     - At each telegraph of wave `w`, it updates the wave's `peakSimultaneous` and flags the run if the count exceeds the wave's `maxSimultaneous`. It reads the limits from the level, passed to `createRunRecorder`.
     - `summarizeRuns` folds them into `waves[]` and counts `endedRuns`.
     - `renderReport` prints one line per wave.
     - Update `SimReport`'s type and its tests.
-  - [ ] `tests/tools/sim/runSim.test.ts`: the live-content idle test of AC 9, and a `perfect` run that shows a `lastThreat` slow-mo in some run, through a recorder hook or the events. Assert `≥ 1` over 5 runs. If this proves flaky on the live tuning, move it to the crafted test level and say so.
-- [ ] **T8 — HUD timer** (AC 8)
-  - [ ] `src/client/ui/hud/timerHud.ts` › `createTimerHud(doc, { t })` → `{ element, setVariant(variant: LevelVariant), setRemainingS(seconds: number) }`:
+  - [x] `tests/tools/sim/runSim.test.ts`: the live-content idle test of AC 9, and a `perfect` run that shows a `lastThreat` slow-mo in some run, through a recorder hook or the events. Assert `≥ 1` over 5 runs. If this proves flaky on the live tuning, move it to the crafted test level and say so.
+- [x] **T8 — HUD timer** (AC 8)
+  - [x] `src/client/ui/hud/timerHud.ts` › `createTimerHud(doc, { t })` → `{ element, setVariant(variant: LevelVariant), setRemainingS(seconds: number) }`:
     - `<div class="pp-hud-timer" role="timer">` holding the icon `<svg aria-hidden="true" focusable="false">` and `<span class="pp-hud-timer-digits pp-type-numeric">`.
     - `setRemainingS` writes `textContent` (`formatClock(s)` = `m:ss`) and the `aria-label`. `boot` calls it only through `hudBatch`, so once per second.
     - Export `formatClock(seconds)` and test it (0 → `0:00`, 59 → `0:59`, 60 → `1:00`, 180 → `3:00`, 600 → `10:00`).
     - The icons are a `Readonly<Record<LevelVariant, (doc) => SVGSVGElement>>`, so that adding `'return'` without its icon is a type error.
     - The sleeping-Mama icon is built with `svgElement`, from the mockup's `#i-mama-sleep` (L160): a head, a hair bun, two closed eyes and a « Z ». Fill and stroke come from CSS classes that use the tokens: the face in `--pp-color-paper` and the lines in `--pp-color-ink`. No hex in TS or CSS. The mockup's `#F3C9A6` has no token; do not add one (DESIGN.md owns the tokens, and `designTokens.test.ts` checks the mirror).
-  - [ ] `ui.css` › `.pp-hud-timer`:
+  - [x] `ui.css` › `.pp-hud-timer`:
     - background `--pp-color-paper`, ink outline (use the same outline width as `.pp-button-icon` or the HUD pills), `--pp-rounded-full`, padding `0 var(--pp-spacing-4, …) 0 var(--pp-spacing-2)` (mockup L63; use the existing spacing tokens), `gap: var(--pp-spacing-2)`, height 40 px (inside the 44 px row), the sticker lift if `.pp-button-icon` has one;
     - icon 28 px;
     - digits in `--pp-color-ink` with `font-variant-numeric: tabular-nums` (already in `.pp-type-numeric`);
     - no layout transitions.
-  - [ ] `src/client/ui/hud/hudLayer.ts`: accept `timer: HTMLElement` in its options and append it to the `timer` zone. Update the doc comment (« timer top-centre (story 1.18) » is now built).
-  - [ ] `content/strings.fr.json`: `"hud.timer_variant_nap": "Sieste"`. Pass the key as a literal, as `countdown.ts` does: the architecture test checks every key.
-  - [ ] `src/client/boot.ts`:
+  - [x] `src/client/ui/hud/hudLayer.ts`: accept `timer: HTMLElement` in its options and append it to the `timer` zone. Update the doc comment (« timer top-centre (story 1.18) » is now built).
+  - [x] `content/strings.fr.json`: `"hud.timer_variant_nap": "Sieste"`. Pass the key as a literal, as `countdown.ts` does: the architecture test checks every key.
+  - [x] `src/client/boot.ts`:
     - `createHudBatch([(s) => timerHud.setRemainingS(s)])` and a local `const TIMER_SLOT = 0`.
     - At level start: `timerHud.setVariant(levelPlan.level.variant)`.
     - In `onLevelFrame`, before `shell.frame()`, when a level is active: `hudBatch.set(TIMER_SLOT, Math.ceil(Math.max(0, durationMs − world.time.sim) / MS_PER_S))`. Read `durationMs` from the active level plan; never write it as a literal.
     - It allocates nothing per frame. The string write happens only when the second changes.
-  - [ ] Unit tests: `timerHud.test.ts` (structure, aria-label, the variant icon present, `formatClock`) and `hudLayer` (the timer is in the zone).
-- [ ] **T9 — Client end of level** (AC 10)
-  - [ ] `boot.ts` › `onSimEvent`:
+  - [x] Unit tests: `timerHud.test.ts` (structure, aria-label, the variant icon present, `formatClock`) and `hudLayer` (the timer is in the zone).
+- [x] **T9 — Client end of level** (AC 10)
+  - [x] `boot.ts` › `onSimEvent`:
     - `LevelEnded` → `mirror('ppFlow', 'ended')` and `log.info('level', 'level ended', { reason, t })`.
     - At each level start, `mirror('ppFlow', 'playing')`.
-  - [ ] The `isLive()` gate, shared by the pointer, keyboard and pad paths since 1.17, also requires `active.sim.world.flow.state === 'playing'`. Check that the 1.17 auto-target highlight and glyph chip go away at the end: the target is `null` when not live.
-  - [ ] `logSimEvent` handles the two new events at the level its siblings use.
-  - [ ] Nothing enters `result`. Leave a one-line comment at the `LevelEnded` case: « story 1.22 shows the result screen ».
-- [ ] **T10 — Tests to migrate** (AC 12). `createTestLevel` changes shape (D11). Migrate every caller (§ Testing lists them) and keep each test's intent. Never delete a test to make the suite pass; if a test's premise no longer holds (for example « the director waits for a free baby »), rewrite it to the new rule and say so in the Debug Log.
-- [ ] **T11 — e2e** (AC 8, 10, 12)
-  - [ ] `tests/e2e/support/game.ts`:
+  - [x] The `isLive()` gate, shared by the pointer, keyboard and pad paths since 1.17, also requires `active.sim.world.flow.state === 'playing'`. Check that the 1.17 auto-target highlight and glyph chip go away at the end: the target is `null` when not live.
+  - [x] `logSimEvent` handles the two new events at the level its siblings use.
+  - [x] Nothing enters `result`. Leave a one-line comment at the `LevelEnded` case: « story 1.22 shows the result screen ».
+- [x] **T10 — Tests to migrate** (AC 12). `createTestLevel` changes shape (D11). Migrate every caller (§ Testing lists them) and keep each test's intent. Never delete a test to make the suite pass; if a test's premise no longer holds (for example « the director waits for a free baby »), rewrite it to the new rule and say so in the Debug Log.
+- [x] **T11 — e2e** (AC 8, 10, 12)
+  - [x] `tests/e2e/support/game.ts`:
     - Remove `FIRST_TELEGRAPH_MS`, which assumed a fixed first telegraph.
     - Add `stepToFirstTelegraph(page)`: frozen, advance in chunks until `__PP__.events()` holds a `ThreatTelegraphed`, and return it (`t`, `threatId`, `kind`).
     - Add a bound from the data: `FIRST_TELEGRAPH_MAX_MS = waves[0].fromMs + waves[0].gapMaxMs` (+ one step) for timeouts.
     - Update `liveLevel`'s type to the wave shape.
-  - [ ] Migrate:
+  - [x] Migrate:
     - `autoplay.spec.ts`: `SHOT_STEPS` comes from the first telegraph found plus half of **its** def's `telegraphDelayMs`.
     - `threat.spec.ts`, `tapLatency.spec.ts` and `timeEffects.spec.ts`: use the threat that was telegraphed first, not `threats[0]`.
     - `threats.spec.ts`: the coffee table first appears from 60 s (wave 2). Advance past `waves[1].fromMs` and read the bound from the level; do not hard-code 60000.
-  - [ ] New `tests/e2e/timer.spec.ts` (chromium + webkit):
+  - [x] New `tests/e2e/timer.spec.ts` (chromium + webkit):
     - After `ppLoadLevel('salon_crawler', 42)` frozen, the timer reads `3:00` and its `aria-label` starts with « Sieste ».
     - After `ppAdvance` of 1 step it reads `2:59`. After `1000 / STEP_MS` more, `2:58`.
     - It sits in `[data-pp-zone="timer"]`, centred (the existing zone test still passes), and the HUD stays within the node budget.
     - Advancing to `durationMs` gives `0:00`, one `LevelEnded` in the events and `data-pp-flow="ended"`. A tap on the floor after that adds no command to the journal (`__PP__` or the events: no `PapaPathPlanned`).
     - To advance 18 000 steps, use `ppAdvance` in chunks (see how `threats.spec.ts` chunks) and keep the test under the default timeout. If it is too slow on WebKit, say so in the Debug Log rather than raising timeouts blindly.
-  - [ ] Screenshots: the timer pill is now in `autoplay-frozen.png`. Regenerate the darwin references (`npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots`) and the linux ones (Docker command, `CLAUDE.md` and memory « story-1-13-screenshot-refs »). Look at each PNG: the pill is top-centre, the digits read the time of `SHOT_STEPS`, and the scene is otherwise as before. Say so in the Completion Notes.
-- [ ] **T12 — Goldens** (AC 12)
-  - [ ] Migrate `tests/golden/scenarios.ts` to `createTestLevel` (D11).
+  - [x] Screenshots: the timer pill is now in `autoplay-frozen.png`. Regenerate the darwin references (`npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots`) and the linux ones (Docker command, `CLAUDE.md` and memory « story-1-13-screenshot-refs »). Look at each PNG: the pill is top-centre, the digits read the time of `SHOT_STEPS`, and the scene is otherwise as before. Say so in the Completion Notes.
+- [x] **T12 — Goldens** (AC 12)
+  - [x] Migrate `tests/golden/scenarios.ts` to `createTestLevel` (D11).
     - `outlet_parry`: one wave, `gapMinMs = gapMaxMs = 2000` (its old `fromMs`).
     - `threat_trio`: one wave with the three threats, `maxSimultaneous: 1`, gap 0. Update its comment: picks are now by PRNG. Fix `threatTrio.test.ts` to the new order: assert on defs and events, not on array order.
-  - [ ] `npm run golden:update`, then `git diff tests/golden/journals`. For the four no-threat scenarios, `eventTypes` and `eventsHash` must not move (AC 12). If they move, the director or the flow emits or draws when it should not: fix that, never the references.
-- [ ] **T13 — Docs and deferred work**
-  - [ ] `_bmad-output/implementation-artifacts/deferred-work.md`: mark these resolved, with « (story 1.18) »:
+  - [x] `npm run golden:update`, then `git diff tests/golden/journals`. For the four no-threat scenarios, `eventTypes` and `eventsHash` must not move (AC 12). If they move, the director or the flow emits or draws when it should not: fix that, never the references.
+- [x] **T13 — Docs and deferred work**
+  - [x] `_bmad-output/implementation-artifacts/deferred-work.md`: mark these resolved, with « (story 1.18) »:
     - `feelOverrides`;
     - the CLI duration;
     - `slowMoLastThreat` never triggered;
@@ -277,13 +281,13 @@ so that the game goes from calm to chaos.
     - the director in array order with no gap;
     - two entries sharing an anchor (AC 2);
     - spawn region and reachability (D12).
-  - [ ] Re-defer, with the new target and the reason:
+  - [x] Re-defer, with the new target and the reason:
     - multi-touch and `Release` naming no threat (D13: playtest 1.24);
     - `responseChoreography`'s single queue (D13);
     - the coffee-table threat with no object left (story 2.x or 1.22, when a dud threat shows in the score);
     - the per-level audio manifest (story 2.3).
-  - [ ] Add a « Deferred from: implementation of story 1-18 » section for anything new.
-  - [ ] `CLAUDE.md` › Commands: the `npm run sim` line says that a run lasts the level's duration unless `--until-ms` caps it.
+  - [x] Add a « Deferred from: implementation of story 1-18 » section for anything new.
+  - [x] `CLAUDE.md` › Commands: the `npm run sim` line says that a run lasts the level's duration unless `--until-ms` caps it.
 
 ## Dev Notes
 
@@ -471,10 +475,127 @@ Do not create `src/sim/director/waveDirector.ts`. The architecture tree names on
 
 ### Agent Model Used
 
+claude-sonnet-5-5
+
 ### Debug Log References
+
+- **T0, baseline.** `VITE_DEBUG_ALLOWED=false` was exported in the shell; every run used `(unset VITE_DEBUG_ALLOWED; …)`. The first three `npm run ci` runs were red for load only: the Mac ran at a load average of 15 to 21 on 15 cores (Chrome in the background) and one run crossed a machine sleep (11 181 s). The failures were 5 s vitest timeouts (`makePlaceholderAudio › is deterministic`, `botContract`, `humanBot`) and a CLI test cut by the sleep; each passes alone in under a second. The reference I kept: same chain with `vitest --maxWorkers=5`: **168 files / 2596 unit tests green; 200 e2e, one load flake** (`ui.spec.ts:102`, a countdown digit missed), which passes alone. Final run, same chain: **174 files / 2720 unit tests, 210 e2e, `build:playtest` green**, `src/sim` coverage well above 90 % (all files 97.9 % statements).
+- **Timer rounding vs the AC text.** AC 8 says « rounded **up** » and « 2:59 from the first step » and « 0:00 exactly when `LevelEnded` comes ». They cannot all hold: after one step 179.99 s remain, and rounded up that is 3:00. I kept « rounded up » and « 0:00 at `LevelEnded` » (the standard countdown: 3:00 shows for the first full second, 2:59 for the second one). `timer.spec.ts` therefore checks: 3:00 at the start and after 1 step, 2:59 after 100 steps, 2:58 after 200, `0:01` one step before the end, `0:00` at it. Tell me if you want « floor » (2:59 from the first step, but then `0:00` shows for the last second before the end).
+- **Log channel.** The AC asks for `log.info('level', …)`; `LogChannel` has no `level`, so the `LevelEnded` line goes to `sim` (`boot.ts › logSimEvent`).
+- **`ActiveLevel.feel` and the readers of the feel (T6).** `grep -n "content.feel\|\.feel\b" src/client src/debug` found: `levelSession.ts` (the sim bundle and the scene radii; now the merged feel), `boot.ts` (`createMoveIntent({input})`, and the input mapper's `touchRadiusPx` and `input`; now getters over `levelFeel()` = the active level's merged feel, the base one outside a level), `debug/autoplay.ts` (reads `started.feel`, now the merged one). `ActiveLevel` gained `feel`.
+- **Level check duplicates a gag problem.** `content:check` reports an unknown gag both at the threat file (`gag`) and, as AC 3 asks, at the level (`waves[w].threats[i].def`). The existing threat-file test now expects both.
+- **Deviations from the written plan.**
+  - `SimLevel.threats[i]` also carries `anchorId` (the instance needs it; the old code read it from the level file).
+  - D12 (reachability) is a separate function, `checkReachable`, run once the baby's spawn is known; it uses the wave entry's path in its message.
+  - A `RunFile` records `untilSimMs` = where the game really stopped (`sim.world.time.sim`), not the cap, so a replay of a game that ended early ends in the same world; the report's `untilSimMs` is the cap or the level's duration.
+  - `renderReport` prints each wave on one line (a placeholder swapped after `JSON.stringify`); the output is still valid JSON.
+  - I did not create `waveDirector.ts`: `directorSystem.ts` keeps the name (`<domain>System.ts`, as the story says).
+  - `createRunRecorder(sim, seed, waves = [])`: the limits are the third argument.
+- **Calibrations.** `outlet_parry`: the new director gives the same telegraph instants as before (2000, 9410, 16320, 23900), so the script and its pin test (`outletParry.test.ts`) are unchanged. `threat_trio`: picks are by PRNG now; the first gag of the run is the coffee table. `threatTrio.test.ts` asserts on defs and gags, not on order. The `perfect` bot shows a `lastThreat` slow-mo (`TimeScaleChanged` to ×0.2) on the **live** content over seeds 1 to 3 (no need to move it to the crafted level).
+- **Balance snapshot (starting values).** `npm run sim -- --bot human --runs 20`: 20/20 ended at 180 000; telegraphs per wave 194 / 440 / 455; `peakSimultaneous` 1 / 2 / **2**, `overLimitRuns` 0. The `human` bot never has three at once in wave 3 (it answers fast); `idle` reaches the limits (checked in `runSim.test.ts`).
+- **Not done by hand.** « Play wave 3 once on the keyboard » (1.17 note): I cannot play; the auto-target is covered by unit tests and `autoTarget.spec.ts`, which still pass with the new director. Please play it.
+- **Screenshots.** darwin refs regenerated with `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots`; linux refs with the story 1.13 Docker command (`~/.docker/bin/docker`, `linux/amd64`, `pp-node-modules` volume; Mac `node_modules` untouched). I looked at all four PNGs: the timer pill (sleeping Mama + « 2:54 ») is at the top centre, the pause button is where it was, and the scene is as before.
+- **Goldens.** Regenerated on purpose (`npm run golden:update`). For `core_basic`, `baby_wander`, `papa_walk` and `prop_fall` only `worldHash` (and the journals' `levelHash`) moved; `eventTypes` and `eventsHash` are identical (AC 12). `outlet_parry` gains a `WaveStarted` event; `threat_trio` changes with the PRNG picks.
+- **Tests I rewrote because their premise changed:** `directorSystem.test.ts` (policy), the « several threats » test of `threatSystem.test.ts` (one at a time, but which one is drawn), `babySystem.test.ts` first-step events (`WaveStarted` first), `threats.spec.ts` (no fixed order; the coffee table comes from wave 2), `threat.spec.ts` / `timeEffects.spec.ts` / `autoplay.spec.ts` (the threat that came first, read from the events).
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- ✅ Level as data: `LevelSchema` has `variant`, `durationMs`, `waves[]` (cumulative, with `maxSimultaneous`, gap, lull) and `feelOverrides`; `salon_crawler.json` holds the three waves of D2 and the objects of 1.17. The schema rules of AC 2 name their wave; `content:check` and `createSim` refuse the bad references (def, anchor, gag, `feelOverrides`, duplicate anchor, anchor the baby cannot reach).
+- ✅ Wave director (`runDirector`, no allocation): `WaveStarted`, at most one telegraph per step, limit by `maxSimultaneous`, uniform PRNG pick, gap counted from the last telegraph, lull before the end of the wave; `ThreatTelegraphed.waveIndex`.
+- ✅ Last threat of a wave: `isLastOfWave` (pure) and `lastThreat` slow-mo in `resolveThreat`, on top of the perfect one.
+- ✅ Flow: `World.flow`, `runFlow` last in `SYSTEMS`, `LevelEnded{timer}` once, `ENDED_SYSTEMS` after it; snapshot v6; `playGame` stops at the end.
+- ✅ CLI plays to the end (`--until-ms` is a cap); the report has `waves[]` and `endedRuns`.
+- ✅ Client: `hud-timer` (paper pill, ink outline, sleeping-Mama icon, `m:ss` via `hudBatch`, `role="timer"`, « Sieste, m:ss »), `data-pp-flow`, `isLive()` false after the end, one `info` log. `feelOverrides` merged in `levelSession.ts` and `loadSimLevel.ts`.
+- ✅ Goldens and screenshots regenerated on purpose (see Debug Log); deferred work updated.
+- ⚠️ Open: the timer rounding question and the hand playtest of wave 3 on the keyboard (Debug Log). Open points 1 to 4 of the story stand.
 
 ### File List
+
+- `CLAUDE.md`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/project-context.md`
+- `content/_schemas/level.schema.json`
+- `content/levels/salon_crawler.json`
+- `content/strings.fr.json`
+- `src/bots/playGame.ts`
+- `src/bots/threatTiming.test.ts`
+- `src/client/app/levelSession.test.ts`
+- `src/client/app/levelSession.ts`
+- `src/client/app/threatsSwitch.test.ts`
+- `src/client/app/threatsSwitch.ts`
+- `src/client/boot.ts`
+- `src/client/feedback/responseChoreography.test.ts`
+- `src/client/feedback/threatFeedback.test.ts`
+- `src/client/input/autoTarget.test.ts`
+- `src/client/input/inputMapper.test.ts`
+- `src/client/input/inputMapper.ts`
+- `src/client/loop.test.ts`
+- `src/client/ui/hud/hudLayer.ts`
+- `src/client/ui/hud/hudLayer.test.ts`  (new)
+- `src/client/ui/hud/timerHud.ts`  (new)
+- `src/client/ui/hud/timerHud.test.ts`  (new)
+- `src/client/ui/styles/ui.css`
+- `src/content/loadLevelContent.ts`
+- `src/content/schemas/level.ts`
+- `src/debug/testApi.test.ts`
+- `src/shared/constants.ts`
+- `src/sim/baby/babySystem.test.ts`
+- `src/sim/context.ts`
+- `src/sim/createSim.ts`
+- `src/sim/createSim.test.ts`
+- `src/sim/determinism.test.ts`
+- `src/sim/director/directorSystem.ts`
+- `src/sim/director/directorSystem.test.ts`
+- `src/sim/director/waveState.ts`  (new)
+- `src/sim/director/waveState.test.ts`  (new)
+- `src/sim/events.ts`
+- `src/sim/events.test.ts`
+- `src/sim/flow/flowFsm.ts`  (new)
+- `src/sim/flow/flowSystem.ts`  (new)
+- `src/sim/flow/flowSystem.test.ts`  (new)
+- `src/sim/index.ts`
+- `src/sim/papa/glide.test.ts`
+- `src/sim/papa/papaSystem.test.ts`
+- `src/sim/replay.test.ts`
+- `src/sim/snapshot.ts`
+- `src/sim/snapshot.test.ts`
+- `src/sim/step.ts`
+- `src/sim/step.test.ts`
+- `src/sim/threats/gags.test.ts`
+- `src/sim/threats/threatFsm.ts`
+- `src/sim/threats/threatFsm.test.ts`
+- `src/sim/threats/threatSystem.test.ts`
+- `src/sim/threats/timeEffects.test.ts`
+- `src/sim/world.ts`
+- `tests/bots/playGame.test.ts`  (new)
+- `tests/content/checkContent.test.ts`
+- `tests/content/levelSchema.test.ts`
+- `tests/content/loadLevelContent.test.ts`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-{chromium,webkit}-{darwin,linux}.png`  (regenerated)
+- `tests/e2e/autoplay.spec.ts`
+- `tests/e2e/support/game.ts`
+- `tests/e2e/tapLatency.spec.ts`
+- `tests/e2e/threat.spec.ts`
+- `tests/e2e/threats.spec.ts`
+- `tests/e2e/timeEffects.spec.ts`
+- `tests/e2e/timer.spec.ts`  (new)
+- `tests/golden/journals/*.json`  (regenerated, 12 files)
+- `tests/golden/scenarios.ts`
+- `tests/golden/threatTrio.test.ts`
+- `tests/support/botSupport.ts`
+- `tests/support/testContent.ts`
+- `tests/threats/threatCatalog.test.ts`
+- `tests/tools/sim/loadSimLevel.test.ts`  (new)
+- `tests/tools/sim/replaySim.test.ts`
+- `tests/tools/sim/runSim.test.ts`
+- `tests/tools/sim/simArgs.test.ts`
+- `tests/tools/sim/simReport.test.ts`
+- `tools/content/contentChecks.ts`
+- `tools/sim/loadSimLevel.ts`
+- `tools/sim/runSim.ts`
+- `tools/sim/simArgs.ts`
+- `tools/sim/simReport.ts`
+
+### Change Log
+
+- 2026-10-28: Story 1.18 implemented: waves, wave director, last-threat slow-mo, level timer and end, `feelOverrides`, CLI to `LevelEnded`, HUD timer; goldens and screenshot references regenerated on purpose.

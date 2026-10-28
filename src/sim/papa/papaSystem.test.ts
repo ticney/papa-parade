@@ -8,8 +8,9 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
+  OUTLET,
   TEST_OBJECTS,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
@@ -47,7 +48,7 @@ async function newSim(
   return createSim({
     content: options.content ?? content,
     geometry: options.geometry ?? geometry,
-    level: createTestLevel([], TEST_OBJECTS),
+    level: createTestLevel({ objects: TEST_OBJECTS }),
     seed: options.seed ?? 1,
   });
 }
@@ -249,7 +250,7 @@ describe('TapObject (story 1.17)', () => {
 
   it('cancels a glide, as a TapFloor does', async () => {
     const content2 = createTestContent();
-    const planning = createTestLevel([outletEntry(0)], TEST_OBJECTS);
+    const planning = createTestLevel({ waves: [testWave([OUTLET])], objects: TEST_OBJECTS });
     const sim = await createSim({ content: content2, geometry, level: planning, seed: 1 });
     // Telegraph the outlet, press it: Papa glides.
     for (let i = 0; i < 400 && sim.world.threats[0]?.state === 'idle'; i++) sim.step();

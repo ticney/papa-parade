@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   collectProblems,
-  FIRST_TELEGRAPH_MS,
+  FIRST_TELEGRAPH_MAX_MS,
   OVERRUN_MARGIN_MS,
   startLevel,
   threatIconPoint,
@@ -18,7 +18,7 @@ const BUDGET_MS = 50;
 test('a tap on a telegraphed threat draws its highlight within 50 ms', async ({ page }) => {
   const problems = collectProblems(page);
   await startLevel(page);
-  await waitForThreat(page, 'telegraph', FIRST_TELEGRAPH_MS + OVERRUN_MARGIN_MS);
+  await waitForThreat(page, 'telegraph', FIRST_TELEGRAPH_MAX_MS + OVERRUN_MARGIN_MS);
   const icon = await threatIconPoint(page);
   await page.touchscreen.tap(icon.x, icon.y);
   await page.waitForFunction(

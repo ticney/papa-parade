@@ -3,13 +3,14 @@ import { MS_PER_S, STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
-  coffeeTableEntry,
+  COFFEE_TABLE,
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
-  stairsEntry,
+  OUTLET,
+  STAIRS,
   stepN,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import type { StepContext } from '../context.ts';
 import { createSim } from '../createSim.ts';
@@ -25,7 +26,7 @@ async function setup(feel: Feel = content.feel) {
   const sim = await createSim({
     content: { ...content, feel },
     geometry: createTestGeometry(),
-    level: createTestLevel([outletEntry(0), stairsEntry(0), coffeeTableEntry(0)]),
+    level: createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])] }),
     seed: 1,
   });
   const world = sim.world as World;
@@ -183,7 +184,7 @@ describe('table_object_fall (real Rapier, through createSim)', () => {
     const sim = await createSim({
       content,
       geometry: createTestGeometry(),
-      level: createTestLevel([coffeeTableEntry(0)]),
+      level: createTestLevel({ waves: [testWave([COFFEE_TABLE])] }),
       seed: 1,
     });
     const world = sim.world as World;

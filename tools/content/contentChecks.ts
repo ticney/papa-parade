@@ -14,6 +14,7 @@ import {
   STRINGS_FILE,
   THREAT_DEF_PATTERN,
 } from '@content/contentFiles';
+import { mergeFeel } from '@content/feelMerge';
 import { formatJsonPath } from '@content/jsonPath';
 import { renderContentJsonSchema } from '@content/jsonSchema';
 import { parseContentFile } from '@content/parseContentFile';
@@ -253,13 +254,15 @@ function checkThreatReferences(
 }
 
 /**
- * The references a level file makes: it has its geometry beside it, each planned threat is a threat
- * file, each anchor (of a threat or an object) is an anchor of that geometry, and object ids are unique. A file that exists but did not parse was
- * already reported on its own: it is not reported again here.
+ * The references a level file makes: it has its geometry beside it, each threat of each wave is a
+ * threat file whose gag the sim knows, each anchor (of a threat or an object) is an anchor of that
+ * geometry, object ids are unique, and its `feelOverrides` merge into a valid feel. A file that
+ * exists but did not parse was already reported on its own: it is not reported again here.
  */
 function checkLevelReferences(
   families: ParsedFamilies,
   present: ReadonlySet<string>,
+  feel: Feel | undefined,
 ): ContentProblem[] {
   const problems: ContentProblem[] = [];
   for (const [id, level] of families.levels) {
@@ -273,26 +276,49 @@ function checkLevelReferences(
         message: `the level has no content/${geometryFile} (\`npm run assets:extract\` writes it)`,
       });
     }
-    level.threats.forEach((entry, index) => {
-      const defFile = `${THREAT_DEF_PATTERN.dir}/${entry.def}${THREAT_DEF_PATTERN.suffix}`;
-      if (!families.threats.has(entry.def) && !present.has(defFile)) {
-        problems.push({
-          file,
-          jsonPath: formatJsonPath(['threats', index, 'def']),
-          message: `no threat "${entry.def}" (content/${defFile} does not exist)`,
-        });
-      }
-      if (
-        geometry !== undefined &&
-        !geometry.anchors.some((anchor) => anchor.id === entry.anchor)
-      ) {
-        problems.push({
-          file,
-          jsonPath: formatJsonPath(['threats', index, 'anchor']),
-          message: `"${entry.anchor}" is not an anchor of content/${geometryFile}`,
-        });
-      }
+    level.waves.forEach((wave, w) => {
+      wave.threats.forEach((entry, i) => {
+        const defFile = `${THREAT_DEF_PATTERN.dir}/${entry.def}${THREAT_DEF_PATTERN.suffix}`;
+        if (!families.threats.has(entry.def) && !present.has(defFile)) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
+            message: `no threat "${entry.def}" (content/${defFile} does not exist)`,
+          });
+        }
+        if (
+          geometry !== undefined &&
+          !geometry.anchors.some((anchor) => anchor.id === entry.anchor)
+        ) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'anchor']),
+            message: `"${entry.anchor}" is not an anchor of content/${geometryFile}`,
+          });
+        }
+        const gag = families.threats.get(entry.def)?.gag;
+        if (gag !== undefined && !(GAG_IDS as readonly string[]).includes(gag)) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
+            message: `the threat "${entry.def}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+          });
+        }
+      });
     });
+    if (feel !== undefined) {
+      const merged = mergeFeel(feel, level.feelOverrides, file);
+      if (!merged.ok) {
+        for (const problem of merged.error.problems) {
+          problems.push({
+            ...problem,
+            file,
+            jsonPath:
+              problem.jsonPath === '' ? 'feelOverrides' : `feelOverrides.${problem.jsonPath}`,
+          });
+        }
+      }
+    }
     const seenObjects = new Set<string>();
     level.objects.forEach((object, index) => {
       if (seenObjects.has(object.id)) {
@@ -501,7 +527,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   }
 
   problems.push(...checkThreatReferences(families.threats, feedback));
-  problems.push(...checkLevelReferences(families, present));
+  problems.push(...checkLevelReferences(families, present, feel));
 
   if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));
   if (feel !== undefined) {

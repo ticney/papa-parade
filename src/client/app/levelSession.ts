@@ -1,5 +1,6 @@
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { ContentError } from '@content/contentError';
+import { mergeFeel } from '@content/feelMerge';
 import type { Feel } from '@content/schemas/feel';
 import { DEFAULT_LEVEL_ID } from '@shared/constants';
 import { log } from '@shared/log';
@@ -81,12 +82,14 @@ export interface LevelSessionDeps {
 
 /**
  * What the client needs of the running level: the sim to send commands to, its real → sim clock,
- * and the level's content (the threat defs the feedback director plays the cues of).
+ * the level's content (the threat defs the feedback director plays the cues of) and the feel it
+ * plays with: the one asked for with the level's `feelOverrides` merged over it.
  */
 export interface ActiveLevel {
   readonly sim: Sim;
   readonly timeMap: TimeMap;
   readonly level: LevelContent;
+  readonly feel: Feel;
 }
 
 /** What `start()` may be told; every field that is absent keeps its rule. */
@@ -95,7 +98,10 @@ export interface LevelStartOptions {
   levelId?: string;
   /** An integer in `[0, 2**32)`. Default: `deps.newSeed()`. */
   seed?: number;
-  /** The feel the sim and the scene use. Default: the one last asked for (initially `content.feel`). */
+  /**
+   * The base feel the sim and the scene use (the level's `feelOverrides` are merged over it).
+   * Default: the one last asked for (initially `content.feel`).
+   */
   feel?: Feel;
 }
 
@@ -111,6 +117,7 @@ export interface StartedLevel {
   readonly levelId: string;
   readonly seed: number;
   readonly level: LevelContent;
+  /** The effective feel: the one asked for, with the level's `feelOverrides` merged over it. */
   readonly feel: Feel;
 }
 
@@ -144,6 +151,23 @@ export interface LevelSession {
    * resumes after `stop()` (or after a newer start) does nothing more and leaves nothing behind.
    */
   stop(): void;
+}
+
+/**
+ * The feel a level plays with: `feel` with the level's `feelOverrides` merged over it, or `feel`
+ * itself when the level overrides nothing. An override that breaks the feel is a content error.
+ */
+function effectiveFeel(
+  feel: Feel,
+  plan: LevelContent,
+  levelId: string,
+): Result<Feel, ContentError> {
+  if (Object.keys(plan.level.feelOverrides).length === 0) return ok(feel);
+  return mergeFeel(
+    feel,
+    plan.level.feelOverrides,
+    `content/levels/${levelId}.json › feelOverrides`,
+  );
 }
 
 async function settle<T>(work: () => Promise<T>): Promise<Result<T, unknown>> {
@@ -228,8 +252,9 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
       }
       const levelId = options.levelId ?? requested.levelId;
       const feel = options.feel ?? requested.feel;
-      // The bundle the sim sees: the content as is, unless a feel was asked for.
-      const content: ContentBundle =
+      // The bundle the sim sees once the level is known: the content as is, unless a feel was
+      // asked for or the level overrides some of it.
+      const baseContent: ContentBundle =
         feel === deps.content.feel ? deps.content : { ...deps.content, feel };
       isStarting = true;
       const mine = ++generation;
@@ -280,6 +305,18 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         // The sim needs the level's geometry (Papa's navigation grid), so it comes after the assets.
         const levelAssets = assets.value.value;
         const levelPlan = levelContent.value.value;
+        const merged = effectiveFeel(feel, levelPlan, levelId);
+        if (!merged.ok) {
+          log.warn('content', 'cannot merge the level feel overrides', {
+            id: levelId,
+            problems: merged.error.problems,
+          });
+          appFsm.enter('oops');
+          return 'failed';
+        }
+        const effective = merged.value;
+        const content: ContentBundle =
+          effective === feel ? baseContent : { ...baseContent, feel: effective };
         const seed = options.seed ?? deps.newSeed();
         const simResult = await settle(() =>
           makeSim({
@@ -306,8 +343,8 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         let level: LevelScene;
         try {
           level = makeScene(levelAssets, {
-            papaRadiusM: feel.movement.papaRadiusM,
-            babyRadiusM: feel.baby.bodyRadiusM,
+            papaRadiusM: effective.movement.papaRadiusM,
+            babyRadiusM: effective.baby.bodyRadiusM,
           });
         } catch (cause) {
           log.error('render', 'cannot build the level scene', { id: levelId, error: cause });
@@ -356,7 +393,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         });
         loop.setFrozen(isFrozenWish);
         try {
-          deps.onLevelStarted?.({ sim, levelId, seed, level: levelPlan, feel });
+          deps.onLevelStarted?.({ sim, levelId, seed, level: levelPlan, feel: effective });
         } catch (cause) {
           stopLoop();
           releaseSim();
@@ -375,7 +412,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         // sees is « 3 ».
         pause.requestPause('levelStart');
         if (deps.canResumeNow()) pause.requestResume();
-        active = { sim, timeMap, level: levelPlan };
+        active = { sim, timeMap, level: levelPlan, feel: effective };
         appFsm.enter('level');
         loop.start();
         return 'started';

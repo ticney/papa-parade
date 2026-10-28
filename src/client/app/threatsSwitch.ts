@@ -14,7 +14,10 @@ export function readThreatsOff(search: string): boolean {
   return false;
 }
 
-/** The same level with no planned threat and no def: still a valid `LevelContent` for `createSim`. */
+/**
+ * The same level with no wave and no def: still a valid `LevelContent` for `createSim`. The
+ * duration stays, so the timer still runs and the level still ends.
+ */
 export function withoutThreats(content: LevelContent): LevelContent {
-  return { level: { ...content.level, threats: [] }, threats: {} };
+  return { level: { ...content.level, waves: [] }, threats: {} };
 }

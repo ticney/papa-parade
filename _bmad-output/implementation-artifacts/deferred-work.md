@@ -64,7 +64,7 @@
 
 ## Deferred from: implementation of story 1-5-fondations-de-l-ui-tokens-ecran-de-demarrage-hud-et-panneau-de-pause (2026-10-27)
 
-- **Gauge pill and timer content.** The HUD has the three zones and the pause button; the gauge and timer zones are reserved and empty. Stories 1.19 and 1.18 fill them, and add their own e2e (live values, the 40-node budget with content, `scaleX`-only fills).
+- **Gauge pill and timer content.** The HUD has the three zones and the pause button; the gauge and timer zones are reserved and empty. Stories 1.19 and 1.18 fill them, and add their own e2e (live values, the 40-node budget with content, `scaleX`-only fills). *Timer built by story 1.18 (`hud-timer`, e2e `timer.spec.ts`, node budget kept); the gauge pill stays reserved for story 1.19.*
 - **Loading screen, « Oups » screen, `oops → loading`, « level waits for the foreground ».** `loading` has no screen and `oops` has no builder (the overlay host warns once). A failed `createSim` already goes to `oops` and logs an error. Story 1.6. **Resolved in story 1.6:** the loading screen, the « Oups » screen, `oops → loading` and the wait for the foreground exist and are covered by `tests/e2e/level.spec.ts`.
 - **Countdown tick sound and vibration, audio unlock.** `CountdownTicked` and `StartGestureReceived` are emitted and have no subscriber. The unlock must happen synchronously inside the start gesture (iOS). Story 1.9, which also has to check on a real iPhone that `pointerup` and `keydown` count as unlocking gestures. **Resolved in story 1.9** for the unlock (synchronously in the start gesture, before `StartGestureReceived`) and the vibration (`countdown_tick`, a light haptic per digit). The tick **sound** stays open (the countdown is silent; see « Deferred by story 1.9 »), and so does the real-iPhone check that `pointerup` and `keydown` unlock.
 - **Settings, « Réduire les animations », « Grands verbes », « Quitter vers le frigo ».** Reduced motion is the OS `prefers-reduced-motion` query only; the panel lists its actions in code (`pauseScreen.ts`). Stories 2.8, 2.10, 3.11.
@@ -122,7 +122,7 @@
 - **Tap marker and `prefers-reduced-motion` / pause.** The marker animates regardless and keeps fading behind the pause panel. Reason: accessibility pass, story 2.10.
 - **Papa's yaw has no smoothing** (shortest-arc turn, turn rate in `feel.json`). Reason: Papa is a provisional cube, art pass E7.
 - **E2E brittleness.** Taps are chosen by screen share and tied to the level art, `startWalking` walks only a few seconds (a `walkPath` assertion can race), the pause-gate tests are trivially true. Reason: resolve taps from the sim's nav grid when the e2e suite is reworked.
-- **Spawn in a tiny region.** `papaSpawnOf` takes the nearest open cell whatever its region. Reason: the current level is fine; add a « spawn region is the main region » check with the level validation, stories 1.10 / 1.21. *Moved to story 1.18 (story 1.10 does not touch it): the first level with real content can also require every planned anchor to be reachable from the baby's spawn region.*
+- **Spawn in a tiny region.** `papaSpawnOf` takes the nearest open cell whatever its region. Reason: the current level is fine; add a « spawn region is the main region » check with the level validation, stories 1.10 / 1.21. *Moved to story 1.18 (story 1.10 does not touch it): the first level with real content can also require every planned anchor to be reachable from the baby's spawn region.* *Resolved (story 1.18): `createSim` refuses a planned threat anchor whose nearest open cell is not in the baby's spawn region (D12). The spawn cell itself is still taken whatever its region.*
 
 ## Deferred from: implementation of story 1-8-le-bebe-vit-dans-le-salon (2026-10-27)
 
@@ -135,7 +135,7 @@
 
 ## Deferred from: code review of story 1-8-le-bebe-vit-dans-le-salon (2026-10-27)
 
-- **Agent spawned in a tiny region or walled in never moves, and nothing reports it.** `spawnOf` takes the nearest open cell whatever its region; the baby's failed plan retries a pause forever (D3) with no event. Reason: the retry is the specified behaviour and the sim never logs; the « spawn is in the main region » check belongs to the level validation, stories 1.10 / 1.21 (same item as the Papa entry of story 1.7). *Moved to story 1.18, with the check above.*
+- **Agent spawned in a tiny region or walled in never moves, and nothing reports it.** `spawnOf` takes the nearest open cell whatever its region; the baby's failed plan retries a pause forever (D3) with no event. Reason: the retry is the specified behaviour and the sim never logs; the « spawn is in the main region » check belongs to the level validation, stories 1.10 / 1.21 (same item as the Papa entry of story 1.7). *Moved to story 1.18, with the check above.* *Resolved for planned anchors (story 1.18, D12); a baby spawned in a tiny region is still not reported.*
 - **`Math.random` is not in Biome's `noRestrictedGlobals` for `src/sim`.** Only `tests/architecture/simPurity.test.ts` catches it, while CLAUDE.md says Biome enforces the sim purity rules. Reason: adding a restricted global strengthens a guardrail, Geo's call.
 
 ## Deferred by story 1-9-retours-de-base (2026-10-27)
@@ -146,7 +146,7 @@
 - **Volumes and the « Vibrations » toggle** (`save.settings.volumes`, `settings.haptics`): story 2.8. The bus gains of `feedback.json` are the mix; the player's volumes will multiply them.
 - **More visual and camera kinds** (`flash`, `bubble`, `zoom`) and the full twins: stories 2.4, 2.5. The in-game reduced-motion setting: story 2.10 (today the OS query only).
 - **Sound waves as final art**, waves anchored on threats or props (`anchor` gains values with 1.11 / 1.15): E7 and those stories. **Partly resolved in story 1.11:** `anchor: 'threat'` (the threat an event names, for the cues a threat def points at); props stay with 1.15. Today's ring is small on screen (0.6 m in an 8 m room, ink on cream) and starts hidden under Papa's body; Geo tunes `maxRadiusM` / `durationMs` in `feedback.json` and the ring's thickness constant in `soundWaves.ts`.
-- **Per-level audio manifest** (only the clips a level uses): with `LevelSchema`, story 1.10 or later. Today every clip of `feedback.json` is preloaded. *Still open after story 1.10: with story 1.11 (the first threat cues with sounds) or 1.18.* *Still open after story 1.11 (four tiny clips added, every clip is still preloaded): moved to story 1.18.*
+- **Per-level audio manifest** (only the clips a level uses): with `LevelSchema`, story 1.10 or later. Today every clip of `feedback.json` is preloaded. *Still open after story 1.10: with story 1.11 (the first threat cues with sounds) or 1.18.* *Still open after story 1.11 (four tiny clips added, every clip is still preloaded): moved to story 1.18.* *Still open after story 1.18 (it adds no clip): moved to story 2.3.*
 - **Real sounds.** The three `.m4a` files are synthesized beeps (`npm run assets:audio`, macOS only); replace them under the same names (stories 2.3, 7.5). Nobody has listened to them yet: see the Completion Notes of story 1.9.
 
 
@@ -162,18 +162,18 @@
 
 - **A press enqueued after its window expired** (a client whose time map lags by more than one step at the window's end) is lost: the threat already gagged `late`. Commands run before the expiry in a step, which covers a same-step arrival; anything later is story 1.11's input pipeline to watch (`tapLatency`), or a small expiry grace in the feel if the playtest shows it. *Watched, not changed, in story 1.11: `tapLatency` measures the visual side only; the window side needs a lagging time map to show up. Keep open for the playtest (1.24).*
 - **`targeted` state and a reach gate** (P1): only if a later threat needs the baby in reach before its telegraph.
-- **Several simultaneous threats and one baby**: the baby locks on the first active threat; story 1.18 decides how waves share it.
+- **Several simultaneous threats and one baby**: the baby locks on the first active threat; story 1.18 decides how waves share it. *Resolved (story 1.18, D5): the director no longer waits for a free baby, only for `act`; the baby locks on one active threat and the others run without its gaze. Watch it in the playtest (1.24).*
 - **Gag consequences** (noise, mess, near miss, score) and the **gag presentation**: E3, 1.15, 1.16, 1.22 and 1.11. *Presentation resolved in story 1.11 (provisional: the lights dim, Papa's hair stands up); consequences stay with E3, 1.15, 1.16, 1.22.* *Near miss and the pushed prop resolved in story 1.16 (`NearMiss`, `applyGag` in `sim/threats/gags.ts`); noise (3.1) and Mama's score (1.22) read the events and `world.mess`.*
-- **`feelOverrides` in `LevelSchema`** and the client merge (`mergeFeel` is ready): the first level that needs one, story 1.18 at the latest.
+- **`feelOverrides` in `LevelSchema`** and the client merge (`mergeFeel` is ready): the first level that needs one, story 1.18 at the latest. *Resolved (story 1.18): `LevelSchema.feelOverrides`, merged in `levelSession.ts` and `tools/sim/loadSimLevel.ts`, checked by `content:check`.*
 - **A threat's `window` is called `responseWindow`.** `tests/architecture/simPurity` forbids the identifier `window` in `src/sim` (any declaration, parameter or key), so the story's `ThreatInstance.window` became `responseWindow`. Keep the name; do not weaken the scanner.
 - **The baby never abandons an `act`.** Story 1.10's rule 1 would send it back to `babble` as soon as a short cooldown re-arms the threat; `act` is now played out for `actMs` whatever the threat does (a cooldown shorter than `actMs` is the only way to see the difference). Confirmed in the code review of 2026-10-27: kept (the spec's rule 1 was amended).
 
 
 ## Deferred from: code review of story 1-10-premiere-menace-jugee-en-headless-la-prise-electrique (2026-10-27)
 
-- **The director targets the first idle due threat in array order**, not the one with the smallest `fromMs`, and adds no gap between threats (`directorSystem.ts`; pinned by a test). Reason: story 1.18's wave director replaces this policy.
+- **The director targets the first idle due threat in array order**, not the one with the smallest `fromMs`, and adds no gap between threats (`directorSystem.ts`; pinned by a test). Reason: story 1.18's wave director replaces this policy. *Resolved (story 1.18): the wave director draws among idle threats with `world.rng`, with a gap between telegraphs.*
 - **`cooldownMs: 0` gags and re-arms in the same step** (`threatSystem.ts`): the baby never sees the gag and Papa's glide is skipped. Reason: legal by schema but no content uses it; decide with the first threat that needs a zero cooldown.
-- **Anchor checks only test existence** (`contentChecks.ts`, `createSim.ts`): a threat can be planned on `baby_spawn` / `papa_spawn`, and two entries can share an anchor. Reason: needs anchor kinds in the geometry; stories 1.16 / 1.18.
+- **Anchor checks only test existence** (`contentChecks.ts`, `createSim.ts`): a threat can be planned on `baby_spawn` / `papa_spawn`, and two entries can share an anchor. Reason: needs anchor kinds in the geometry; stories 1.16 / 1.18. *Two entries sharing an anchor: resolved (story 1.18, schema rule + `createSim` invariant). A threat planned on `baby_spawn` / `papa_spawn` and anchor kinds: still open.*
 - **A degenerate `glideMaxMs` (0 or tiny) gives a wrong `arriveAt` or a huge `speedMps`** (`glide.ts`). Reason: enforce a floor in the feel schema when story 1.14 tunes the glide.
 - **`threatCatalog.test.ts` hard-codes anchor `outlet_01` and a Parry release for every def.** Reason: story 1.16 (second threat) is the first to break it; derive both from the def then. **Resolved in story 1.16:** the catalogue derives each def's anchor from the live levels and its release from its `response` (an exhaustive `switch`), and plans all the defs in one level.
 - **`loadLevelContent` does not check `levelId` against `SNAKE_ID_PATTERN`**, and a non-snake file name under `levels/` or `threats/` reports "no schema registered" instead of "id must be lower_snake_case". Reason: the level id is a code constant today.
@@ -181,7 +181,7 @@
 ## Deferred from: implementation of story 1-11-parer-la-prise-electrique-au-tap (2026-10-27)
 
 - **Glide start under slow-mo or hitstop** (D2): the glide starts with the step that applies the press, so at ×1 Papa moves on the next frame that runs a step, but under the perfect slow-mo or a hitstop it can start a frame or two later. The highlight is always drawn the frame after `pointerdown`. Resolved by story 1.14: the glide is sim-time choreography that plays out under the slow-mo, the client does not predict it.
-- **Multi-touch on several threats** (D6): `Release` names no threat and ends every pending press, so only the primary pointer presses a threat. Reason: story 1.16 or 1.18, the first time two threats are active together.
+- **Multi-touch on several threats** (D6): `Release` names no threat and ends every pending press, so only the primary pointer presses a threat. Reason: story 1.16 or 1.18, the first time two threats are active together. *Re-deferred (story 1.18, D13) to the playtest, story 1.24: a tap is press + release within 400 ms and each press is classified on its own release, so sequential taps on two threats resolve correctly (unit test); two fingers at once is the rare case.*
 - **A real lamp in the room and real gag / lift animations** (D9, D10): the room's lights are « the lamp » and the lift is a hop of the baby sphere. Reason: E7 (or a Blender pass if Geo wants the lamp sooner).
 - **The halo and chevron animations run on real time**, so they keep moving behind the pause panel (like the tap marker). Reason: accessibility pass, story 2.10.
 - **`?threats=off` is a test switch** (debug builds only). Remove it if story 1.13's `window.__PP__.loadLevel()` makes it redundant.
@@ -192,15 +192,15 @@
 
 - **The e2e suite does not cover the gag's lights and hair, the baby lift, nor the `boot.ts` glue with the outlet live** (restart while a threat is telegraphed, pause with a finger held, error-screen exit). Reason: no debug mirror to read yet; add with story 1.13 (`window.__PP__`).
 - **`threat.spec.ts` taps inside a window of a few hundred ms in real time** (CDP round trip), a possible flake on a loaded runner or in WebKit. Reason: green on the full suite now; make deterministic with story 1.13.
-- **Only the primary pointer presses a threat**: a thumb resting on the screen makes every other touch non-primary. Reason: D6 / Open point 2 (`Release` names no threat); decide with the first multi-threat story (1.16 / 1.18) or on the first phone playtest.
+- **Only the primary pointer presses a threat**: a thumb resting on the screen makes every other touch non-primary. Reason: D6 / Open point 2 (`Release` names no threat); decide with the first multi-threat story (1.16 / 1.18) or on the first phone playtest. *Re-deferred (story 1.18, D13) to the playtest, story 1.24.*
 - **The pressed threat's highlight is optimistic**: a press the sim ignores keeps the ring and chevron up while the threat stays `telegraph` / `windowOpen`. Reason: same family as the 1.10 « press enqueued after its window expired » item; watch in the playtest (1.24).
 - **`tapLatency` marks are JS-side** (handler, right after `worldUi.render`): compositor and vsync presentation are not measured. Reason: AC 6 defines these marks; a trace-based check belongs to the performance pass (1.24).
 
 ## Deferred from: implementation of story 1-12-bots-et-simulation-en-masse (2026-10-27)
 
-- **Run duration is a CLI default** (`SIM_CLI_DEFAULT_UNTIL_MS`, 3 min, D10). Story 1.18 gives the level a `durationMs`; the CLI should then default to it.
+- **Run duration is a CLI default** (`SIM_CLI_DEFAULT_UNTIL_MS`, 3 min, D10). Story 1.18 gives the level a `durationMs`; the CLI should then default to it. *Resolved (story 1.18): the CLI plays to `LevelEnded`; `--until-ms` is an optional cap; `SIM_CLI_DEFAULT_UNTIL_MS` is gone.*
 - **`meanScore` is `null`** in the report (D9). Story 1.22 fills it from Mama's score; 3.4 adds the playtest indicators.
-- **Overlapping presses**: a bot's `Release` ends every pending press (the sim's rule), fine while one threat is active at a time. Stories 1.16 / 1.18 (two threats at once), with the multi-touch item of 1.11.
+- **Overlapping presses**: a bot's `Release` ends every pending press (the sim's rule), fine while one threat is active at a time. Stories 1.16 / 1.18 (two threats at once), with the multi-touch item of 1.11. *Re-deferred (story 1.18, D13) to the playtest, story 1.24.*
 - **Bots know only Parry** (`BotResponse` = `'parry'`): `holdMsFor` is an exhaustive `switch`, so story 1.23 (Firmness) fails to typecheck until the bots learn it; 4.6 / 4.9 (`wait`, `nothing`) likewise.
 - **The human bot's reaction floor reads `threat.enteredAt`**, the entry of the *current* state: a bot created while a window is already open measures its reaction from the window's opening, not from the telegraph. Only matters for a bot created mid-window (1.13's autoplay started late); fix with a telegraph time on `ThreatInstance` if it ever does.
 - **`sim:replay` is always strict** (D13). Still open from 1.3, « Invariant strictness follows the build »: a playtest journal recorded with clamping on may diverge in `sim:replay`.
@@ -241,7 +241,7 @@
 
 ## Deferred from: implementation of story 1-14-hitstop-et-ralentis (2026-10-27)
 
-- **`slowMoLastThreat` exists but nothing triggers it**: story 1.18 calls `startSlowMo(world, ctx, 'lastThreat', feel.timing.slowMoLastThreat)` on the last threat of a wave.
+- **`slowMoLastThreat` exists but nothing triggers it**: story 1.18 calls `startSlowMo(world, ctx, 'lastThreat', feel.timing.slowMoLastThreat)` on the last threat of a wave. *Resolved (story 1.18): `resolveThreat` starts `lastThreat` on the last success of a closed wave.*
 - **Instinct (2.9)** adds `'instinct'` to `SlowMoSource` (and `SLOW_MO_SOURCES`), and its window bonus separately; the overlap test of 2.9 builds on `slowMo.test.ts`.
 - **Camera and music under slow-mo** (2.5, 2.6): start on `ResponseResolved{perfect}`, end when `timeScale` returns to its base (D10).
 - **Easing curve is fixed (smoothstep)**: an easing key in `feel.json` if Geo asks for another shape.
@@ -285,9 +285,9 @@
 - **« Papa retire l'objet »**: a success leaves the prop in place (D5). An E7 animation, or a `PhysicsPort.setPose` if a later gag needs it.
 - **The stairs slide is a view offset** (D6), with no height and no `ANCHOR_stairs_bottom`. E7.
 - **`outlet_hair` is not a near miss** (D3). Geo decides (Open points of the story): one line in `GAG_CONSEQUENCES`.
-- **The coffee-table threat is still targeted when no object is left on the table** (the mug fell): its gag then pushes nothing (the golden `threat_trio` shows it from its second cycle). Story 1.18's wave director may skip a threat whose gag has no target.
+- **The coffee-table threat is still targeted when no object is left on the table** (the mug fell): its gag then pushes nothing (the golden `threat_trio` shows it from its second cycle). Story 1.18's wave director may skip a threat whose gag has no target. *Still open after story 1.18 (the wave director does not look at gag targets): story 2.x, or 1.22 when a dud threat shows in Mama's score.*
 - **Distinct haptics and visuals per telegraph** beyond the icon: story 2.4. The four new sounds and the two glyphs are placeholders.
-- **Still open from 1.10 to 1.12:** multi-touch, overlapping presses, `responseChoreography`'s single queue, anchor kinds. They need two simultaneous threats: story 1.18.
+- **Still open from 1.10 to 1.12:** multi-touch, overlapping presses, `responseChoreography`'s single queue, anchor kinds. They need two simultaneous threats: story 1.18. *Story 1.18 (D13): multi-touch, overlapping presses and `responseChoreography`'s single queue are re-deferred to the playtest, story 1.24; anchor kinds stay open.*
 - **`npm run assets:audio` is not reproducible byte for byte.** `afconvert` writes a creation time in the `.m4a` header (12 bytes at offset 51), and the decoded audio of the two long clips (`baby_babble_loop`, `music_crawler_calm`) differs from one run to the next (about 200 and 2000 bytes of PCM out of 500 000 and 700 000). The synthesis itself is deterministic (`makePlaceholderAudio.test.ts`). Story 1.16 added its four clips alone and kept the seven existing files from git. A run of the tool rewrites all eleven: commit only the clips you meant to change.
 - ~~The sim report shows gags per `GagId`, not `NearMiss` as such~~ (`tools/sim`): closed by the code review of story 1.16, the report now has `gags.nearMisses`. Mama's score itself stays with 1.22.
 
@@ -295,7 +295,7 @@
 
 - **The stairs slide direction is computed at drain time, not at the event's `t`** (`src/client/boot.ts`): at speed × 4 or after a hitstop the baby may have moved since the gag, so the direction can vary with the frame rate. D6 makes the slide client-only and provisional; E7's animation replaces it. The alternative is to carry the direction in `GagTriggered`.
 - **`tableObjectFall` selects its prop by horizontal distance only** (`src/sim/threats/gags.ts`): a prop in flight or on a higher shelf within `propReachDistM` would be pushed instead of the mug. This is D4 as specified; add a height tolerance to `feel.gags.tableObjectFall` when a level has a second off-floor prop.
-- **The coffee-table threat stays targetable once the mug is on the floor** (gag pushes nothing): already listed above by the implementation; story 1.18's wave director may skip a threat whose gag has no target.
+- **The coffee-table threat stays targetable once the mug is on the floor** (gag pushes nothing): already listed above by the implementation; story 1.18's wave director may skip a threat whose gag has no target. *Still open after story 1.18: story 2.x, or 1.22.*
 - **The four new cues copy the outlet's visuals and haptics** (`content/feedback.json`): placeholders; distinct haptics and visuals per telegraph are story 2.4.
 
 ## Deferred from: implementation of story 1-17-ciblage-automatique-au-clavier-et-a-la-manette (2026-10-27)
@@ -308,13 +308,24 @@
 - **Several pads**: only the selected one counts (first standard pad, else the first with two axes). A second pad's buttons and its disconnect are ignored.
 - **The chip shows « Espace » everywhere** (D10): `getLayoutMap()` never names Space, it maps writing-system keys only. The lookup (`keyGlyph`) is ready for letter keys (4.9's E, remapping). It logs one `warn` where `navigator.keyboard` is absent or refused (Safari, Firefox, iframes).
 - **Nintendo pads read as Xbox** (D11): « A » is printed where the Switch's A is on the right. Fine for the prototype.
-- **The cone's choice between several threats is proved by unit tests only.** The minimal director (1.10) activates one threat at a time, so no e2e can have two threats active until the wave director (1.18). Add an e2e then (hold a direction toward the later-closing threat; the target follows).
+- **The cone's choice between several threats is proved by unit tests only.** The minimal director (1.10) activates one threat at a time, so no e2e can have two threats active until the wave director (1.18). Add an e2e then (hold a direction toward the later-closing threat; the target follows). *Two threats can now be active together (waves 2 and 3 of the salon): still no e2e of the re-target, move it to story 1.24 or the first story that scripts two threats.*
 - **`gamepadconnected` / `gamepaddisconnected` only trigger an immediate poll.** The poll is the truth (a second pad cannot pause, a stale event cannot pause); a browser whose `getGamepads()` still lists a pad in the disconnect event is caught by the next frame instead.
 - **`feel.input.contextReachM`'s check against the real room**: Papa's nearest open cell to each anchor was measured by hand for 1.5 m (Debug Log of the story); the content check does not verify that an object is reachable from the nav grid.
 
 ## Deferred from: code review of story 1-17-ciblage-automatique-au-clavier-et-a-la-manette (2026-10-27)
 
-- **No re-target e2e.** The cone's choice between several threats is proved by unit tests only; the minimal director activates one threat at a time. Add the e2e (hold a direction toward the later-closing threat, `data-pp-target` follows) with the wave director, story 1.18.
+- **No re-target e2e.** The cone's choice between several threats is proved by unit tests only; the minimal director activates one threat at a time. Add the e2e (hold a direction toward the later-closing threat, `data-pp-target` follows) with the wave director, story 1.18. *Still open after story 1.18, same target.*
 - **The glyph chip never flips.** It sits to the right of the icon (`ui.css`), so a threat near the right wall or the HUD can clip it. Check on a real phone in a playtest before adding a `--flip` modifier.
 - **Two derivations of the object positions.** `contextObjectsOf` (client) and `simLevelOf` (sim) both read the anchors. Expose the objects from the sim's public API when 1.19 reads them, and drop the client copy.
 - **Pause note announcement.** The `role=status` line of the pause panel is created `hidden` and filled in the same task; some screen readers will not announce it. Keep a permanent live region, with the accessibility pass (E7).
+
+## Deferred from: implementation of story 1-18-vagues-de-menaces-et-chrono-du-niveau (2026-10-28)
+
+- **The wave values of `salon_crawler.json` are starting points** (D2): the gaps, the limits and the 3 s lull are to tune while playing, then check with `npm run sim -- --bot human --runs 50` (the report now has `waves[]`). Story 1.24 (playtest).
+- **The disruption of wave 3 (the phone)** is story 1.20 (D10): `disruptions: [{ def, atMs }]` joins `LevelWaveSchema` there. Until then wave 3 is three threats at once and no phone.
+- **`maxSimultaneous` counts every active threat**, including one a system spawns outside the waves (`waveIndex` -1). Story 1.19 adds the rule that `papa_microsleep` does not count against it (D5).
+- **The timer is sim time** (ADR-002): it slows with a slow-mo, so a 3:00 level lasts a little longer in real time. A real-time display would be a client-only change (Open point 2 of the story).
+- **The first threat of a game is random** (D4): a scripted first threat (the tutorial effect of FR52) would be a small `first` field on wave 0, in a later story.
+- **Per-level `feel.input` is read through getters in `boot.ts`** (`levelFeel()`): the input mapper and the move intent now follow the active level's merged feel. The camera and the scene read the radii once per level; nothing else reads the base feel for a level.
+- **Local runs under heavy load fail on the 5 s vitest timeout** (`makePlaceholderAudio › is deterministic`, `botContract`, `humanBot`; a load average above 15 on 15 cores): they pass alone and with `--maxWorkers=5`. Not a code failure; raise those tests' timeout or cap the workers in `vitest.config.ts` if CI shows it.
+

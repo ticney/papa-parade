@@ -6,7 +6,8 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
+  OUTLET,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import { createTestNavGrid } from '../../../tests/support/testNav.ts';
 import type { SimCommand } from '../commands.ts';
@@ -35,7 +36,7 @@ async function newSim(options: { geometry?: LevelGeometry } = {}): Promise<Sim> 
   return createSim({
     content,
     geometry: options.geometry ?? geometry,
-    level: createTestLevel([outletEntry(0)]),
+    level: createTestLevel({ waves: [testWave([OUTLET])] }),
     seed: 1,
   });
 }
@@ -163,7 +164,7 @@ describe('the glide to a pressed threat', () => {
     const idle = await createSim({
       content,
       geometry,
-      level: createTestLevel([outletEntry(5000)]),
+      level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 5000, gapMaxMs: 5000 })] }),
       seed: 1,
     });
     idle.enqueue(press(100));

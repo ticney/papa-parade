@@ -7,7 +7,8 @@ import {
   createTestGeometry,
   createTestLevel,
   createTestOutlet,
-  outletEntry,
+  OUTLET,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import {
   PARRY_RELEASE_AFTER_MS,
@@ -35,7 +36,7 @@ async function newSim(withContent: ContentBundle = content): Promise<Sim> {
   return createSim({
     content: withContent,
     geometry: createTestGeometry(),
-    level: createTestLevel([outletEntry(0)]),
+    level: createTestLevel({ waves: [testWave([OUTLET])] }),
     seed: 1,
   });
 }
@@ -275,5 +276,84 @@ describe('windows stay in sim time (ADR-002, AC 4)', () => {
     expect(openToClose(withSlowMo)).toBeLessThanOrEqual(
       gridCeil(timing.windowMs + timing.toleranceMs) + STEP_MS,
     );
+  });
+});
+
+// Story 1.18: the last threat of a wave, answered well, also slows time (FR8: ×0.2 for 1.5 s).
+describe('the last threat of a wave', () => {
+  const { slowMoLastThreat } = timing;
+
+  /**
+   * A level whose only wave closes to new telegraphs at 1000 ms (a 6 s level with a 5 s lull), so
+   * that the outlet telegraphed at 10 ms and answered around 1.3 s is the last threat of its wave.
+   * `lullMs: 0` gives the same level without that rule: the wave never closes.
+   */
+  async function lastLevel(lullMs: number) {
+    const sim = await createSim({
+      content,
+      geometry: createTestGeometry(),
+      level: createTestLevel({ durationMs: 6000, waves: [testWave([OUTLET], { lullMs })] }),
+      seed: 1,
+    });
+    sim.step();
+    sim.drainEvents();
+    const threat = sim.world.threats[0];
+    if (threat === undefined || threat.responseWindow === null) throw new Error('not telegraphed');
+    const { windowOpenAt, responseWindow } = threat;
+    return { sim, openAt: windowOpenAt, center: windowOpenAt + responseWindow.windowMs / 2 };
+  }
+
+  it('starts the lastThreat slow-mo on a success: ×0.2 for 1500 ms of sim time', async () => {
+    expect(slowMoLastThreat).toMatchObject({ timeScale: 0.2, durationMs: 1500 });
+    const { sim, openAt } = await lastLevel(5000);
+    sim.enqueue(press(openAt));
+    sim.enqueue(release(openAt + SUCCESS_RELEASE_AFTER_MS));
+    const frames = runTo(sim, openAt + SETTLE_MS);
+    const resolving = frames.find((f) => only(f.events, 'ResponseResolved').length > 0);
+    expect(only(resolving?.events ?? [], 'ResponseResolved')[0]?.quality).toBe('success');
+    expect(only(resolving?.events ?? [], 'TimeScaleChanged')).toEqual([
+      { type: 'TimeScaleChanged', t: resolving?.t, from: 1, to: slowMoLastThreat.timeScale },
+    ]);
+    expect(sim.world.time.slowMos).toEqual([
+      expect.objectContaining({
+        source: 'lastThreat',
+        scale: slowMoLastThreat.timeScale,
+        startedAt: resolving?.t,
+        holdUntil: (resolving?.t ?? 0) + slowMoLastThreat.durationMs,
+      }),
+    ]);
+    expect(resolving?.freezeRealMs).toBe(timing.hitstopMs);
+  });
+
+  it('adds it to the perfect slow-mo: both entries, and the scale is the slowest', async () => {
+    const { sim, center } = await lastLevel(5000);
+    sim.enqueue(press(center));
+    sim.enqueue(release(center + PARRY_RELEASE_AFTER_MS));
+    runTo(sim, center + SETTLE_MS);
+    expect(sim.world.time.slowMos.map((slowMo) => slowMo.source).sort()).toEqual([
+      'lastThreat',
+      'perfect',
+    ]);
+    expect(sim.world.time.scale).toBe(
+      Math.min(slowMoLastThreat.timeScale, timing.slowMoPerfect.timeScale),
+    );
+  });
+
+  it('starts nothing on a gag', async () => {
+    const { sim, openAt } = await lastLevel(5000);
+    const frames = runTo(sim, openAt + timing.windowMs + timing.toleranceMs + 2 * STEP_MS);
+    expect(only(eventsOf(frames), 'GagTriggered')).toHaveLength(1);
+    expect(only(eventsOf(frames), 'TimeScaleChanged')).toEqual([]);
+    expect(sim.world.time.slowMos).toEqual([]);
+  });
+
+  it('starts nothing when the wave is still open (not the last threat)', async () => {
+    const { sim, openAt } = await lastLevel(0);
+    sim.enqueue(press(openAt));
+    sim.enqueue(release(openAt + SUCCESS_RELEASE_AFTER_MS));
+    const frames = runTo(sim, openAt + SETTLE_MS);
+    expect(only(eventsOf(frames), 'ResponseResolved')[0]?.quality).toBe('success');
+    expect(only(eventsOf(frames), 'TimeScaleChanged')).toEqual([]);
+    expect(sim.world.time.slowMos).toEqual([]);
   });
 });

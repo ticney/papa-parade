@@ -39,7 +39,7 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
   const text = readFileSync(`${LEVELS_DIR}${name}`, 'utf8');
   const parsed = parseContentFile(`content/levels/${name}`, text, LevelSchema);
   if (!parsed.ok) throw new Error(`${name} is invalid: ${JSON.stringify(parsed.error)}`);
-  for (const entry of parsed.value.threats) {
+  for (const entry of parsed.value.waves.flatMap((wave) => wave.threats)) {
     if (!anchors.has(entry.def)) anchors.set(entry.def, entry.anchor);
   }
 }
@@ -68,15 +68,23 @@ function anchorOf(def: ThreatDef): string {
 
 /** The frozen room planning every def at its live anchor: `tested` from 0 ms, the others much later. */
 function levelPlanning(tested: ThreatDef): LevelContent {
+  const planned = (def: ThreatDef) => ({ def: def.id, anchor: anchorOf(def) });
+  const wave = { maxSimultaneous: 1, gapMinMs: 0, gapMaxMs: 0, lullMs: 0 };
   return {
     level: {
       id: 'salon_crawler',
+      variant: 'nap' as const,
+      durationMs: CATALOG_OTHERS_FROM_MS + CATALOG_OTHERS_FROM_MS,
       objects: [],
-      threats: defs.map((def) => ({
-        def: def.id,
-        anchor: anchorOf(def),
-        fromMs: def === tested ? 0 : CATALOG_OTHERS_FROM_MS,
-      })),
+      feelOverrides: {},
+      waves: [
+        { ...wave, fromMs: 0, threats: [planned(tested)] },
+        {
+          ...wave,
+          fromMs: CATALOG_OTHERS_FROM_MS,
+          threats: defs.filter((def) => def !== tested).map(planned),
+        },
+      ],
     },
     threats: Object.fromEntries(defs.map((def) => [def.id, def])),
   };

@@ -4,13 +4,14 @@ import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { hashJson } from '../../src/shared/hash.ts';
 import {
   collectProblems,
-  FIRST_TELEGRAPH_MS,
+  FIRST_TELEGRAPH_MAX_MS,
+  FIRST_WAVE_RESPONSE_MAX_MS,
   html,
   mirrorWrites,
   OVERRUN_MARGIN_MS,
   recordMirrorWrites,
-  TELEGRAPH_DELAY_MS,
-  WINDOW_OPEN_MS,
+  stepToFirstTelegraph,
+  telegraphDelayMsOf,
   waitFrames,
 } from './support/game.ts';
 import {
@@ -28,19 +29,17 @@ import {
 
 const AUTOPLAY = '/?autoplay=perfect&seed=42&speed=4';
 const SPEED = 4;
-/** Real ms for the level to be running, then for the first outlet to be answered at `speed`. */
+/** Real ms for the level to be running, then for the first threat to be answered at `speed`. */
 const FIRST_RESPONSE_TIMEOUT_MS =
   RESUME_COUNTDOWN_MS +
-  (FIRST_TELEGRAPH_MS + TELEGRAPH_DELAY_MS + WINDOW_OPEN_MS) / SPEED +
+  (FIRST_TELEGRAPH_MAX_MS + FIRST_WAVE_RESPONSE_MAX_MS) / SPEED +
   2 * OVERRUN_MARGIN_MS;
-/** Steps that land while the first outlet is telegraphed. */
-const SHOT_STEPS = Math.round((FIRST_TELEGRAPH_MS + TELEGRAPH_DELAY_MS / 2) / STEP_MS);
 
 const isGood = (event: { type: string; quality?: string }): boolean =>
   event.type === 'ResponseResolved' && (event.quality === 'perfect' || event.quality === 'success');
 
 test.describe('autoplay', () => {
-  test('starts the level by itself and the perfect bot parries the first outlet, with no problem', async ({
+  test('starts the level by itself and the perfect bot parries the first threat, with no problem', async ({
     page,
   }) => {
     const problems = collectProblems(page);
@@ -99,7 +98,7 @@ test.describe('autoplay', () => {
     expect(hashJson(world)).toBe(report.runList[0]?.worldHash);
   });
 
-  test('a frozen frame of the first outlet, telegraphed, looks the same every time', async ({
+  test('a frozen frame of the first threat, telegraphed, looks the same every time', async ({
     page,
   }) => {
     const problems = collectProblems(page);
@@ -110,7 +109,11 @@ test.describe('autoplay', () => {
     await expect.poll(() => ppState(page), { timeout: OVERRUN_MARGIN_MS * 3 }).not.toBeNull();
     await ppFreeze(page, true);
     await ppLoadLevel(page, 'salon_crawler', 42);
-    await ppAdvance(page, SHOT_STEPS);
+    // The first threat is drawn by the PRNG: find it, then land half-way through its telegraph.
+    const first = await stepToFirstTelegraph(page);
+    const halfDelaySteps = Math.round(telegraphDelayMsOf(first.def) / 2 / STEP_MS);
+    const elapsedSteps = Math.round(((await ppWorld(page)).time.sim - first.t) / STEP_MS);
+    await ppAdvance(page, Math.max(0, halfDelaySteps - elapsedSteps));
 
     const world = await ppWorld(page);
     const live = world.threats.filter(
@@ -118,7 +121,7 @@ test.describe('autoplay', () => {
     );
     expect(
       live,
-      `no outlet is telegraphed at ${world.time.sim} ms: ${JSON.stringify(world.threats)}`,
+      `no threat is telegraphed at ${world.time.sim} ms: ${JSON.stringify(world.threats)}`,
     ).toHaveLength(1);
     // The world UI follows the frozen world: wait for the icon, then for a few settled frames.
     await expect(page.locator('.pp-threat-icon')).toBeVisible();

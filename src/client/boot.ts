@@ -1,8 +1,9 @@
 import { feedbackClips } from '@content/feedbackClips';
 import { loadContent } from '@content/loadContent';
 import { loadLevelContent } from '@content/loadLevelContent';
+import type { Feel } from '@content/schemas/feel';
 import { createPlatform } from '@platform/createPlatform';
-import { MAX_TIMER_DELAY_MS } from '@shared/constants';
+import { MAX_TIMER_DELAY_MS, MS_PER_S } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
@@ -42,6 +43,7 @@ import { createRenderer } from './render/renderer.ts';
 import { loadFonts } from './ui/fonts.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
+import { createTimerHud } from './ui/hud/timerHud.ts';
 import { createOverlayHost } from './ui/overlayHost.ts';
 import { createLoadingScreen } from './ui/screens/loadingScreen.ts';
 import { createOopsScreen } from './ui/screens/oopsScreen.ts';
@@ -52,9 +54,16 @@ import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
 import { createWorldUi } from './ui/world/worldUi.ts';
 
+/** The timer's slot in the HUD batch. */
+const TIMER_SLOT = 0;
+
 function logSimEvent(event: SimEvent): void {
   if (event.type === 'InvariantViolated') {
     log.warn('sim', `invariant violated: ${event.name}`, event);
+    return;
+  }
+  if (event.type === 'LevelEnded') {
+    log.info('sim', 'level ended', { reason: event.reason, t: event.t });
     return;
   }
   // Everything else is for the feedback director (it plays what `content/feedback.json` lists).
@@ -199,6 +208,7 @@ export async function boot(): Promise<void> {
       | 'ppMusic'
       | 'ppHaptics'
       | 'ppCue'
+      | 'ppFlow'
       | 'ppCueCount'
       | 'ppThreat'
       | 'ppThreatPx'
@@ -333,6 +343,7 @@ export async function boot(): Promise<void> {
   };
   // A new level begins at the spawn, idle, and has had no tap yet.
   const mirrorNewLevel = (): void => {
+    mirror('ppFlow', 'playing');
     mirror('ppPapaState', levelSession.active?.sim.world.papa.state ?? 'idle');
     mirrorPapaAt();
     mirror('ppBabyState', levelSession.active?.sim.world.baby.state ?? 'babble');
@@ -446,6 +457,7 @@ export async function boot(): Promise<void> {
     speed: params.speed ?? undefined,
     beforeStep: isMirrored ? (sim) => stepHook?.(sim) : undefined,
     onLevelStarted: (started) => {
+      timerHud.setVariant(started.level.level.variant);
       for (const listener of levelStartedListeners) listener(started);
     },
     onSeed: (seed) => {
@@ -466,6 +478,16 @@ export async function boot(): Promise<void> {
     onLevelFrame: () => {
       // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
       audio.setBabbling(levelSession.active?.sim.world.baby.babbling ?? false);
+      // The timer counts sim time, rounded up to the second (`0:00` exactly when the level ends);
+      // `hudBatch` writes the DOM only when the second changes. Before `shell.frame()` flushes it.
+      const running = levelSession.active;
+      if (running !== null) {
+        const remainingMs = Math.max(
+          0,
+          running.level.level.durationMs - running.sim.world.time.sim,
+        );
+        hudBatch.set(TIMER_SLOT, Math.ceil(remainingMs / MS_PER_S));
+      }
       shell.frame();
       inputMapper.pollGamepad();
       const world = levelSession.active?.sim.world;
@@ -562,6 +584,8 @@ export async function boot(): Promise<void> {
         }
       }
       if (isMirrored) {
+        // Story 1.22 shows the result screen; for now the frozen level stays on screen.
+        if (event.type === 'LevelEnded') mirror('ppFlow', 'ended');
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);
         mirrorThreatEvent(event);
@@ -582,8 +606,13 @@ export async function boot(): Promise<void> {
     appFsm.enter('oops');
   };
 
-  const hudBatch = createHudBatch([]);
-  const hud = createHudLayer(hudRoot, { t, onPausePress: () => pause.requestPause('user') });
+  const timerHud = createTimerHud(document, { t });
+  const hudBatch = createHudBatch([(seconds) => timerHud.setRemainingS(seconds)]);
+  const hud = createHudLayer(hudRoot, {
+    t,
+    onPausePress: () => pause.requestPause('user'),
+    timer: timerHud.element,
+  });
   const overlayHost = createOverlayHost(uiRoot, {
     start: () =>
       createStartScreen({
@@ -611,6 +640,8 @@ export async function boot(): Promise<void> {
   });
   const shell = createUiShell({ events, appFsm, pause, hud, hudBatch, overlayHost });
   shell.bindKeys(window);
+
+  const levelFeel = (): Feel => levelSession.active?.feel ?? content.value.feel;
 
   // Input: raw events become typed, timestamped commands in the mapper, and only while a level is
   // live. Keys and stick are tracked outside that gate so that a resume can send what is held.
@@ -646,7 +677,10 @@ export async function boot(): Promise<void> {
     gamepad: createGamepadInput(readGamepads),
     moveIntent: createMoveIntent({
       camera,
-      input: content.value.feel.input,
+      // The feel of the level being played (its `feelOverrides` merged), the base one outside a level.
+      get input() {
+        return levelFeel().input;
+      },
       send: (command) => {
         if (!isGameInputBlocked) levelSession.active?.sim.enqueue(command);
       },
@@ -660,8 +694,12 @@ export async function boot(): Promise<void> {
       };
       return targets;
     },
-    touchRadiusPx: content.value.feel.input.touchRadiusPx,
-    input: content.value.feel.input,
+    get touchRadiusPx() {
+      return levelFeel().input.touchRadiusPx;
+    },
+    get input() {
+      return levelFeel().input;
+    },
     getObjects: () => levelObjects,
     onPadButton: (button) => shell.handlePadButton(button),
     onPadPresence: (isPresent, family) => {

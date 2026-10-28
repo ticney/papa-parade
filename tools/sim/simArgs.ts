@@ -2,7 +2,6 @@ import { parseArgs } from 'node:util';
 import { BOT_IDS, type BotId } from '@bots/bot';
 import {
   DEFAULT_LEVEL_ID,
-  SIM_CLI_DEFAULT_UNTIL_MS,
   SIM_CLI_MAX_RUNS,
   SIM_CLI_MAX_UNTIL_MS,
   STEP_MS,
@@ -16,8 +15,8 @@ export interface SimArgs {
   /** The seed of run 0; run `i` uses `(seed + i) % 2**32`. */
   seed: number;
   runs: number;
-  /** Rounded up to the step grid. */
-  untilSimMs: number;
+  /** A cap on the sim time of a game, rounded up to the step grid; `null` = the level's own duration. */
+  untilSimMs: number | null;
   /** Where the report goes; `null` = stdout. */
   outPath: string | null;
   /** Where the recorded games go; `null` = nowhere. */
@@ -31,7 +30,7 @@ export const SIM_HELP = `Usage: npm run sim -- --bot <id> [options]
   --bot <id>         ${BOT_IDS.join(', ')} (required)
   --seed <n>         seed of the first run, an integer in [0, 2**32) (default 1)
   --runs <n>         number of games, an integer in [1, ${SIM_CLI_MAX_RUNS}] (default 1); run i uses seed + i
-  --until-ms <n>     sim time of a game, in ms, rounded up to ${STEP_MS}, at most ${SIM_CLI_MAX_UNTIL_MS} (default ${SIM_CLI_DEFAULT_UNTIL_MS})
+  --until-ms <n>     cap the sim time of a game, in ms, rounded up to ${STEP_MS}, at most ${SIM_CLI_MAX_UNTIL_MS} (default: no cap, a game lasts the level's duration)
   --out <file>       write the JSON report there (default: stdout)
   --journals <dir>   write one recorded game per run there, for \`npm run sim:replay\`
   --help             print this
@@ -99,7 +98,7 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
     return err(`--runs must be between 1 and ${SIM_CLI_MAX_RUNS}, got ${runs.value}`);
   }
 
-  let untilSimMs = SIM_CLI_DEFAULT_UNTIL_MS;
+  let untilSimMs: number | null = null;
   const untilText = text('until-ms');
   if (untilText !== undefined) {
     const parsed = DECIMAL.test(untilText) ? Number(untilText) : Number.NaN;

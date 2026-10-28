@@ -4,12 +4,7 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
-import {
-  coffeeTableEntry,
-  createTestLevel,
-  outletEntry,
-  stairsEntry,
-} from '../support/testContent.ts';
+import { COFFEE_TABLE, createTestLevel, OUTLET, STAIRS, testWave } from '../support/testContent.ts';
 
 /** A recorded live game: commands are enqueued at given steps, as the client would. */
 export interface Scenario {
@@ -119,7 +114,7 @@ export const SCENARIOS: readonly Scenario[] = [
     //  4. a perfect Parry whose press reaches the sim 150 ms after its own `t` (late enqueue: judged
     //     on `t`), then a TapFloor in the middle of the glide, which cancels it.
     name: 'outlet_parry',
-    level: createTestLevel([outletEntry(2000)]),
+    level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
     seed: 11,
     untilSimMs: 30000,
     actions: [
@@ -144,13 +139,13 @@ export const SCENARIOS: readonly Scenario[] = [
     actions: [{ atStep: 10, command: pushProp(100, 'mug_01', 0.72) }],
   },
   {
-    // The three threats of the prototype, planned together from 0 ms in the live order (outlet,
-    // stairs, coffee table), none of them answered: the director cycles through the defs, and each
-    // ends in its gag. The stairs gag adds a `NearMiss`; the coffee-table gag pushes the mug off the
+    // The three threats of the prototype, planned together in one wave from 0 ms (outlet, stairs,
+    // coffee table; one at a time, no gap), none of them answered: the director picks them with the
+    // PRNG (story 1.18, no longer in array order), and each ends in its gag. The stairs gag adds a `NearMiss`; the coffee-table gag pushes the mug off the
     // table onto the vase (a `PropImpact` for the mug, the vase's `PropBroken`, and the mess).
     // No command at all: `threatTrio.test.ts` pins what it covers.
     name: 'threat_trio',
-    level: createTestLevel([outletEntry(0), stairsEntry(0), coffeeTableEntry(0)]),
+    level: createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])] }),
     seed: 42,
     untilSimMs: 40000,
     actions: [],

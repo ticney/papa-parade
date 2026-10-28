@@ -17,7 +17,13 @@ const INPUT = {
   seed: 5,
   untilSimMs: 1000,
   hashes: { feel: 'f', geometry: 'g', level: 'l', bots: 'b' },
+  waves: [] as { fromMs: number; maxSimultaneous: number }[],
 };
+
+const WAVES = [
+  { fromMs: 0, maxSimultaneous: 1 },
+  { fromMs: 60000, maxSimultaneous: 2 },
+];
 
 function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
   return {
@@ -29,6 +35,8 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     commands: 0,
     threats: {},
     byGag: {},
+    waves: [],
+    isEnded: false,
     ...overrides,
   };
 }
@@ -89,6 +97,38 @@ describe('summarizeRuns', () => {
     expect(report.runList).toEqual([
       { seed: 5, worldHash: 'hash5', responses: 3, gags: 1, commands: 6 },
     ]);
+  });
+
+  it('folds the waves: telegraphs summed, the peak is the max, the over-limit runs counted', () => {
+    const report = summarizeRuns({ ...INPUT, waves: WAVES }, [
+      run(1, {
+        isEnded: true,
+        waves: [
+          { telegraphs: 4, peakSimultaneous: 1, isOverLimit: false },
+          { telegraphs: 2, peakSimultaneous: 2, isOverLimit: false },
+        ],
+      }),
+      run(2, {
+        isEnded: true,
+        waves: [
+          { telegraphs: 3, peakSimultaneous: 1, isOverLimit: false },
+          { telegraphs: 5, peakSimultaneous: 3, isOverLimit: true },
+        ],
+      }),
+      run(3, {
+        waves: [
+          { telegraphs: 0, peakSimultaneous: 0, isOverLimit: false },
+          { telegraphs: 0, peakSimultaneous: 0, isOverLimit: false },
+        ],
+      }),
+    ]);
+    expect(report.waves).toEqual([
+      { fromMs: 0, maxSimultaneous: 1, telegraphs: 7, peakSimultaneous: 1, overLimitRuns: 0 },
+      { fromMs: 60000, maxSimultaneous: 2, telegraphs: 7, peakSimultaneous: 3, overLimitRuns: 1 },
+    ]);
+    expect(report.endedRuns).toBe(2);
+    expect(summarizeRuns(INPUT, []).waves).toEqual([]);
+    expect(summarizeRuns({ ...INPUT, waves: WAVES }, []).waves[1]?.telegraphs).toBe(0);
   });
 
   it('adds the runs up', () => {
@@ -156,6 +196,15 @@ describe('summarizeRuns', () => {
     expect(text.endsWith('}\n')).toBe(true);
     expect(text).toContain('\n  "level"');
   });
+
+  it('prints one line per wave, and stays valid JSON', () => {
+    const report = summarizeRuns({ ...INPUT, waves: WAVES }, [run(5)]);
+    const text = renderReport(report);
+    const waveLines = text.split('\n').filter((line) => line.includes('"fromMs"'));
+    expect(waveLines).toHaveLength(2);
+    expect(JSON.parse(text)).toEqual(report);
+    expect(JSON.parse(renderReport(summarizeRuns(INPUT, [])))).toMatchObject({ waves: [] });
+  });
 });
 
 describe('createRunRecorder', () => {
@@ -167,7 +216,7 @@ describe('createRunRecorder', () => {
       seed: 1,
     });
     const threatId = sim.world.threats[0]?.id ?? 0;
-    const recorder = createRunRecorder(sim, 1);
+    const recorder = createRunRecorder(sim, 1, [{ maxSimultaneous: 1 }]);
     const resolved = (quality: 'perfect' | 'fail', offsetMs: number | null): SimEvent => ({
       type: 'ResponseResolved',
       t: asSimMs(0),
@@ -205,5 +254,75 @@ describe('createRunRecorder', () => {
       offsetCount: 1,
     });
     expect(summary.worldHash).toMatch(/^[0-9a-f]{14}$/);
+  });
+
+  describe('the waves', () => {
+    async function recorderOf(limits: { maxSimultaneous: number }[]) {
+      const sim = await createSim({
+        content: createTestContent(),
+        geometry: createTestGeometry(),
+        level: botTestLevel(),
+        seed: 1,
+      });
+      return createRunRecorder(sim, 1, limits);
+    }
+    const telegraph = (threatId: number, waveIndex: number): SimEvent => ({
+      type: 'ThreatTelegraphed',
+      t: asSimMs(0),
+      threatId,
+      kind: 'outlet',
+      anchorId: 'outlet_01',
+      waveIndex,
+    });
+    const resolved = (threatId: number): SimEvent => ({
+      type: 'ResponseResolved',
+      t: asSimMs(0),
+      threatId,
+      response: 'parry',
+      quality: 'success',
+      offsetMs: 0,
+    });
+
+    it('counts the telegraphs of each wave and the most threats at once', async () => {
+      const recorder = await recorderOf([{ maxSimultaneous: 2 }, { maxSimultaneous: 3 }]);
+      for (const event of [
+        telegraph(1, 0),
+        telegraph(2, 0),
+        resolved(1),
+        resolved(2),
+        telegraph(3, 1),
+        resolved(3),
+      ]) {
+        recorder.onEvent(event);
+      }
+      expect(recorder.finish().waves).toEqual([
+        { telegraphs: 2, peakSimultaneous: 2, isOverLimit: false },
+        { telegraphs: 1, peakSimultaneous: 1, isOverLimit: false },
+      ]);
+    });
+
+    it('flags a run that went above the limit of the wave', async () => {
+      const recorder = await recorderOf([{ maxSimultaneous: 1 }]);
+      recorder.onEvent(telegraph(1, 0));
+      recorder.onEvent(telegraph(2, 0));
+      expect(recorder.finish().waves).toEqual([
+        { telegraphs: 2, peakSimultaneous: 2, isOverLimit: true },
+      ]);
+    });
+
+    it('ignores a telegraph of no known wave (a threat no wave planned)', async () => {
+      const recorder = await recorderOf([{ maxSimultaneous: 1 }]);
+      recorder.onEvent(telegraph(1, -1));
+      expect(recorder.finish().waves).toEqual([
+        { telegraphs: 0, peakSimultaneous: 0, isOverLimit: false },
+      ]);
+    });
+
+    it('knows whether the level ended', async () => {
+      const recorder = await recorderOf([]);
+      expect(recorder.finish().isEnded).toBe(false);
+      recorder.onEvent({ type: 'LevelEnded', t: asSimMs(0), reason: 'timer' });
+      expect(recorder.finish().isEnded).toBe(true);
+    });
   });
 });

@@ -8,7 +8,8 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
+  OUTLET,
+  testWave,
 } from '../../tests/support/testContent.ts';
 import { createTestApi, installTestApi, type PPTestApi } from './testApi.ts';
 
@@ -23,7 +24,7 @@ async function newSim(seed = 1): Promise<Sim> {
   return createSim({
     content: createTestContent(),
     geometry: createTestGeometry(),
-    level: createTestLevel([outletEntry(2000)]),
+    level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
     seed,
     strictInvariants: true,
   });
@@ -57,7 +58,11 @@ async function createRig(options: { eventLogMax?: number } = {}): Promise<Rig> {
   // The fake: the host and the session know each other through these closures.
   const holder: { host?: FakeTestHost } = {};
   const session = {
-    active: { sim, level: createTestLevel([outletEntry(2000)]), timeMap: {} as never },
+    active: {
+      sim,
+      level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
+      timeMap: {} as never,
+    },
     current: { levelId: 'salon_crawler', seed: 1 as number | null, feel: content.feel },
     isFrozen: false,
     startCalls: [] as unknown[],
@@ -89,14 +94,15 @@ async function createRig(options: { eventLogMax?: number } = {}): Promise<Rig> {
     const next = await newSim(seed);
     session.active = {
       sim: next,
-      level: createTestLevel([outletEntry(2000)]),
+      level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
       timeMap: {} as never,
+      feel: content.feel,
     };
     host.fireLevelStarted({
       sim: next,
       levelId: 'salon_crawler',
       seed,
-      level: createTestLevel([outletEntry(2000)]),
+      level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
       feel: content.feel,
     });
     return next;
@@ -105,7 +111,7 @@ async function createRig(options: { eventLogMax?: number } = {}): Promise<Rig> {
     sim,
     levelId: 'salon_crawler',
     seed: 1,
-    level: createTestLevel([outletEntry(2000)]),
+    level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
     feel: content.feel,
   });
   return { api, host, session, sim, startLevel };

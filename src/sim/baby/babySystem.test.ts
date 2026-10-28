@@ -8,7 +8,8 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
-  outletEntry,
+  OUTLET,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
@@ -350,7 +351,10 @@ describe('when no destination can be planned', () => {
 describe('with a threat to watch', () => {
   const OUTLET_ID = 1;
   const { lockMs, actMs, approachSpeedMps } = FEEL;
-  const outletLevel = (fromMs = 0) => createTestLevel([outletEntry(fromMs)]);
+  const outletLevel = (fromMs = 0) =>
+    createTestLevel({
+      waves: [testWave([OUTLET], { gapMinMs: fromMs, gapMaxMs: fromMs })],
+    });
   const outlet = anchor('outlet_01');
   const dist = (x: number, z: number) => Math.hypot(outlet[0] - x, outlet[2] - z);
   const threatOf = (sim: Sim) => sim.world.threats[0];
@@ -364,7 +368,11 @@ describe('with a threat to watch', () => {
   it('locks on the telegraphed threat in the very step it is telegraphed, gaze first', async () => {
     const sim = await withOutlet(0);
     const events = run(sim, 1);
-    expect(events.map((event) => event.type)).toEqual(['ThreatTelegraphed', 'BabyStateChanged']);
+    expect(events.map((event) => event.type)).toEqual([
+      'WaveStarted',
+      'ThreatTelegraphed',
+      'BabyStateChanged',
+    ]);
     expect(babyEvents(events)).toEqual([
       { type: 'BabyStateChanged', t: 10, from: 'babble', to: 'targetLocked' },
     ]);

@@ -1,7 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import { THREAT_ICON_PATHS } from '../../src/client/ui/world/threatMarkers.ts';
 import { STEP_MS } from '../../src/shared/constants.ts';
-import { collectProblems } from './support/game.ts';
+import { collectProblems, liveWaves } from './support/game.ts';
 import {
   ppAdvance,
   ppEvents,
@@ -14,14 +14,21 @@ import {
 // The three threats of the prototype (story 1.16) on the live level, driven by the test API on a
 // frozen level: steps by hand, then what the world, the DOM and the events say. Nothing answers, so
 // every threat ends in its gag. Chromium and WebKit both run it. No screenshot, no `waitForTimeout`.
+// Since story 1.18 the outlet and the stairs come in the first wave in the order the PRNG draws,
+// and the coffee table only from the second wave: every bound comes from the live waves.
 
 const LEVEL = 'salon_crawler';
 const SEED = 42;
 const DRAW_CALLS_MAX = 100;
 /** One chunk of the wait loops: 250 ms of sim time. */
 const CHUNK_STEPS = 25;
-/** A wait loop gives up after 40 s of sim time: the live level plans all three within 20 s. */
-const CHUNKS_MAX = 160;
+const CHUNK_MS = CHUNK_STEPS * STEP_MS;
+/** The second wave is where the coffee table joins the pool (waves are cumulative). */
+const secondWave = liveWaves[1];
+if (secondWave === undefined) throw new Error('the live level has no second wave');
+/** A wait loop gives up this far past the start of the second wave: a few gaps and cooldowns. */
+const WAIT_SLACK_MS = 40_000;
+const CHUNKS_MAX = Math.ceil((secondWave.fromMs + WAIT_SLACK_MS) / CHUNK_MS);
 /** The object that falls must hit something within this long of its gag, in sim ms. */
 const FALL_WITHIN_MS = 1000;
 /** Two markers at different anchors are at least this far apart on the screen, in px. */
@@ -62,16 +69,25 @@ const shownMarkers = (page: Page): Promise<ShownMarker[]> =>
       }),
   );
 
-/** Advances to the telegraph of `defId` and returns the one marker then shown. */
-async function markerWhenTelegraphed(page: Page, defId: string): Promise<ShownMarker> {
+/**
+ * Advances to the telegraph of `defId` and returns its marker: the one shown with its glyph (in
+ * the second wave two threats may be on screen at once).
+ */
+async function markerWhenTelegraphed(
+  page: Page,
+  defId: string,
+  glyph: string,
+): Promise<ShownMarker> {
   await advanceUntil(page, `${defId} is telegraphed`, (world) => {
     const threat = world.threats.find((candidate) => candidate.defId === defId);
     return threat?.state === 'telegraph' || threat?.state === 'windowOpen';
   });
   // The marker is drawn on the next rendered frame (the frozen level renders on).
-  await expect.poll(async () => (await shownMarkers(page)).length).toBe(1);
-  const [marker] = await shownMarkers(page);
-  if (marker === undefined || marker.glyph === null) throw new Error(`no glyph shown for ${defId}`);
+  await expect
+    .poll(async () => (await shownMarkers(page)).filter((m) => m.glyph === glyph).length)
+    .toBe(1);
+  const marker = (await shownMarkers(page)).find((candidate) => candidate.glyph === glyph);
+  if (marker === undefined) throw new Error(`no glyph shown for ${defId}`);
   return marker;
 }
 
@@ -88,7 +104,7 @@ test.describe('the three threats', () => {
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);
 
-    // The live level plans all three, the outlet first.
+    // The live level plans all three: the instances are in order of first appearance in the waves.
     const planned = await ppWorld(page);
     expect(planned.threats.map((threat) => threat.defId)).toEqual([
       'outlet',
@@ -98,10 +114,8 @@ test.describe('the three threats', () => {
 
     // Each threat is telegraphed with its own glyph (the def's icon), at its own anchor: the one
     // marker shown draws the path of its icon, and the markers are not on the same spot.
-    const outletMarker = await markerWhenTelegraphed(page, 'outlet');
-    const stairsMarker = await markerWhenTelegraphed(page, 'stairs');
-    expect(outletMarker.glyph).toBe(THREAT_ICON_PATHS.bolt);
-    expect(stairsMarker.glyph).toBe(THREAT_ICON_PATHS.stairs);
+    const outletMarker = await markerWhenTelegraphed(page, 'outlet', THREAT_ICON_PATHS.bolt);
+    const stairsMarker = await markerWhenTelegraphed(page, 'stairs', THREAT_ICON_PATHS.stairs);
     expect(
       Math.hypot(stairsMarker.xPx - outletMarker.xPx, stairsMarker.yPx - outletMarker.yPx),
     ).toBeGreaterThan(MARKERS_APART_PX);
@@ -129,7 +143,11 @@ test.describe('the three threats', () => {
     await expect(page.locator('html')).toHaveAttribute('data-pp-gag', 'stairs_slide');
 
     // The coffee-table object: telegraphed with the mug, then it falls (the mug hits something within a second).
-    const mugMarker = await markerWhenTelegraphed(page, 'coffee_table_object');
+    const mugMarker = await markerWhenTelegraphed(
+      page,
+      'coffee_table_object',
+      THREAT_ICON_PATHS.mug,
+    );
     expect(mugMarker.glyph).toBe(THREAT_ICON_PATHS.mug);
     await advanceUntil(
       page,

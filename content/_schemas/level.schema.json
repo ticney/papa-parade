@@ -11,36 +11,89 @@
       "pattern": "^[a-z][a-z0-9_]*$",
       "description": "The level id; equals the file name and the id of its geometry."
     },
-    "threats": {
+    "variant": {
+      "type": "string",
+      "enum": [
+        "nap"
+      ],
+      "description": "The kind of level: it picks the timer icon and name."
+    },
+    "durationMs": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "description": "The level lasts this long, in sim ms; the timer ends it."
+    },
+    "waves": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "def": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "description": "The id of a `content/threats/<def>.json`."
-          },
-          "anchor": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "description": "An anchor of the level geometry, without the `ANCHOR_` prefix."
-          },
           "fromMs": {
             "type": "number",
             "minimum": 0,
-            "description": "The director may target this threat from this sim time on, in sim ms."
+            "description": "The wave starts at this sim time, in sim ms. Strictly increasing from wave to wave."
+          },
+          "maxSimultaneous": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "At most this many threats announced or open at once, a count of at least 1."
+          },
+          "gapMinMs": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Shortest sim time between two telegraphs of this wave, in sim ms."
+          },
+          "gapMaxMs": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Longest sim time between two telegraphs of this wave, in sim ms; at least `gapMinMs`."
+          },
+          "lullMs": {
+            "type": "number",
+            "minimum": 0,
+            "description": "No new telegraph in the last stretch of the wave, in sim ms, so that it ends visibly. Below the wave length."
+          },
+          "threats": {
+            "default": [],
+            "description": "The threats this wave adds to the pool. Waves are cumulative: wave `w` draws from waves `0..w`.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "def": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "The id of a `content/threats/<def>.json`."
+                },
+                "anchor": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "An anchor of the level geometry, without the `ANCHOR_` prefix."
+                }
+              },
+              "required": [
+                "def",
+                "anchor"
+              ],
+              "additionalProperties": false,
+              "description": "One threat a wave adds: what, and where. An anchor is planned once in the level."
+            }
           }
         },
         "required": [
-          "def",
-          "anchor",
-          "fromMs"
+          "fromMs",
+          "maxSimultaneous",
+          "gapMinMs",
+          "gapMaxMs",
+          "lullMs",
+          "threats"
         ],
         "additionalProperties": false,
-        "description": "One planned threat: what, where, and from when."
+        "description": "One wave of the escalation: from when, how many threats at once, how often, and what it adds."
       },
-      "description": "The threats the level plans, in order."
+      "description": "The waves of the level, in order. None: the level plans no threat."
     },
     "objects": {
       "default": [],
@@ -67,13 +120,25 @@
         "additionalProperties": false,
         "description": "One interactive object: what Space or A can walk Papa to, and where it stands."
       }
+    },
+    "feelOverrides": {
+      "default": {},
+      "description": "A partial `feel.json` merged over the base feel for this level only.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
     }
   },
   "required": [
     "id",
-    "threats",
-    "objects"
+    "variant",
+    "durationMs",
+    "waves",
+    "objects",
+    "feelOverrides"
   ],
   "additionalProperties": false,
-  "description": "A level: the threats it plans and the objects it offers."
+  "description": "A level: its variant, its length, the waves of threats it plans and the objects it offers."
 }

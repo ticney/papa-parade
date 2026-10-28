@@ -15,6 +15,7 @@ function threat(overrides: Partial<ThreatInstance> = {}): ThreatInstance {
     windowOpenAt: asSimMs(2200),
     responseWindow: { windowMs: 300, perfectMs: 100, toleranceMs: 60, bufferMs: 100 },
     press: null,
+    waveIndex: 0,
     ...overrides,
   };
 }

@@ -103,11 +103,31 @@ function spawnOf(
   return { xM: grid.centerXM(cell), zM: grid.centerZM(cell) };
 }
 
+/** One threat entry of a wave, flattened: where it sits in the level file (for the messages) and what it names. */
+interface PlannedEntry {
+  readonly where: string;
+  readonly def: string;
+  readonly anchor: string;
+  readonly waveIndex: number;
+}
+
+function plannedEntriesOf(level: LevelContent): PlannedEntry[] {
+  return level.level.waves.flatMap((wave, w) =>
+    wave.threats.map((entry, i) => ({
+      where: `level ${level.level.id} › waves[${w}].threats[${i}]`,
+      def: entry.def,
+      anchor: entry.anchor,
+      waveIndex: w,
+    })),
+  );
+}
+
 /**
  * What the level plans, checked against the room: it is the level of this geometry, every planned
- * def is loaded, every anchor exists (an object's too, and object ids are unique) and every gag is
- * one the sim knows. A level that breaks one is a
- * broken level (`content:check` catches it statically).
+ * def is loaded, every anchor exists (an object's too, and object ids are unique), no anchor is
+ * planned twice and every gag is one the sim knows. A level that breaks one is a
+ * broken level (`content:check` catches it statically). One instance per planned anchor, in order
+ * of first appearance across the waves.
  */
 function simLevelOf(
   level: LevelContent,
@@ -118,20 +138,37 @@ function simLevelOf(
     level.level.id === geometry.id,
     `level ${level.level.id} was given the geometry of ${geometry.id}`,
   );
+  const planned = plannedEntriesOf(level);
+  const waves = level.level.waves;
   return {
-    threats: level.level.threats.map((entry, index) => {
-      const where = `level ${level.level.id} › threats[${index}]`;
+    durationMs: level.level.durationMs,
+    waves: waves.map((wave, w) => {
+      const endMs = waves[w + 1]?.fromMs ?? level.level.durationMs;
+      return {
+        fromMs: wave.fromMs,
+        endMs,
+        closesAtMs: endMs - wave.lullMs,
+        maxSimultaneous: wave.maxSimultaneous,
+        gapMinMs: wave.gapMinMs,
+        gapMaxMs: wave.gapMaxMs,
+      };
+    }),
+    threats: planned.map((entry, index) => {
       const def = Object.hasOwn(level.threats, entry.def) ? level.threats[entry.def] : undefined;
-      invariant(def !== undefined, `${where}: the threat ${entry.def} is not loaded`);
+      invariant(def !== undefined, `${entry.where}: the threat ${entry.def} is not loaded`);
       invariant(
         geometry.anchors.some((anchor) => anchor.id === entry.anchor),
-        `${where}: threat ${entry.def} is planned at ${entry.anchor}, which ${geometry.id} does not have`,
+        `${entry.where}: threat ${entry.def} is planned at ${entry.anchor}, which ${geometry.id} does not have`,
       );
       invariant(
         (GAG_IDS as readonly string[]).includes(def.gag),
-        `${where}: threat ${entry.def} has an unknown gag ${def.gag}`,
+        `${entry.where}: threat ${entry.def} has an unknown gag ${def.gag}`,
       );
-      return { def, fromMs: entry.fromMs };
+      invariant(
+        planned.findIndex((other) => other.anchor === entry.anchor) === index,
+        `${entry.where}: the anchor ${entry.anchor} is planned twice`,
+      );
+      return { def, anchorId: entry.anchor, firstWaveIndex: entry.waveIndex };
     }),
     objects: level.level.objects.map((object, index) => {
       const where = `level ${level.level.id} › objects[${index}]`;
@@ -163,6 +200,30 @@ function simLevelOf(
   };
 }
 
+/**
+ * Every planned threat anchor must be somewhere the baby can crawl to from where it starts: its
+ * nearest open cell has to be in the region of the baby's spawn cell (a threat the baby can never
+ * reach would lock it up for ever). `content:check` builds no nav grid, so this is the sim's check.
+ */
+function checkReachable(
+  level: LevelContent,
+  geometry: LevelGeometry,
+  grid: NavGrid,
+  baby: { xM: number; zM: number },
+): void {
+  const spawnCell = grid.cellAt(baby.xM, baby.zM);
+  const spawnRegion = spawnCell >= 0 ? grid.region[spawnCell] : -1;
+  for (const entry of plannedEntriesOf(level)) {
+    const anchor = geometry.anchors.find((candidate) => candidate.id === entry.anchor);
+    if (anchor === undefined) continue; // `simLevelOf` has refused it
+    const cell = grid.nearestOpenCell(anchor.positionM[0], anchor.positionM[2], -1);
+    invariant(
+      cell >= 0 && grid.region[cell] === spawnRegion,
+      `${entry.where}: threat ${entry.def} is planned at ${entry.anchor}, which the baby cannot reach from where it starts`,
+    );
+  }
+}
+
 /** Internal factory: tests inject extra systems here. The public API is {@link createSim}. */
 export async function createSimWithSystems(
   options: CreateSimOptions,
@@ -182,14 +243,14 @@ export async function createSimWithSystems(
     firstWanderAt: asSimMs(content.feel.baby.babbleMinMs),
     props: geometry.props,
   });
-  simLevel.threats.forEach((planned, index) => {
-    const entry = level.level.threats[index];
-    const anchor = geometry.anchors.find((candidate) => candidate.id === entry?.anchor);
-    invariant(entry !== undefined && anchor !== undefined, 'a planned threat has an anchor');
+  checkReachable(level, geometry, babyGrid, world.baby);
+  simLevel.threats.forEach((planned) => {
+    const anchor = geometry.anchors.find((candidate) => candidate.id === planned.anchorId);
+    invariant(anchor !== undefined, 'a planned threat has an anchor');
     world.threats.push({
       id: allocateId(world),
       defId: planned.def.id,
-      anchorId: entry.anchor,
+      anchorId: planned.anchorId,
       xM: anchor.positionM[0],
       zM: anchor.positionM[2],
       state: 'idle',
@@ -197,6 +258,7 @@ export async function createSimWithSystems(
       windowOpenAt: asSimMs(0),
       responseWindow: null,
       press: null,
+      waveIndex: -1,
     });
   });
   if (source) {

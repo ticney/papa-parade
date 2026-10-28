@@ -144,8 +144,12 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
   // ends only the presses made at or before its `t`).
   let heldPressAt: SimMs = asSimMs(0);
 
-  const isLive = (): boolean =>
-    deps.appFsm.state === 'level' && deps.pause.state === 'running' && deps.getActive() !== null;
+  // Live: in a level, running, and the level still playing (a level that has ended takes no input).
+  const isLive = (): boolean => {
+    if (deps.appFsm.state !== 'level' || deps.pause.state !== 'running') return false;
+    const active = deps.getActive();
+    return active !== null && active.sim.world.flow.state === 'playing';
+  };
 
   // A new level begins with nothing sent and no finger down on a threat of the old one.
   const bindTo = (active: ActiveLevel): void => {

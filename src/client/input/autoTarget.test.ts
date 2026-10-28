@@ -35,6 +35,7 @@ function threat(spec: Spec): ThreatInstance {
         ? null
         : { windowMs: spec.windowMs ?? 600, perfectMs: 100, toleranceMs: 30, bufferMs: 100 },
     press: null,
+    waveIndex: -1,
   };
 }
 

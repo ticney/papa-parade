@@ -301,6 +301,48 @@ body {
   justify-content: center;
 }
 
+/* The timer (story 1.18): a paper pill with an ink outline, the variant's icon, then the digits.
+   40 px tall inside the 44 px row; it takes no input. */
+.pp-hud-timer {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pp-spacing-2);
+  height: 40px;
+  padding: 0 var(--pp-spacing-4) 0 var(--pp-spacing-2);
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+  box-shadow: var(--pp-lift);
+  color: var(--pp-color-ink);
+}
+
+.pp-hud-timer svg {
+  width: 28px;
+  height: 28px;
+}
+
+.pp-hud-timer-digits {
+  color: var(--pp-color-ink);
+}
+
+.pp-hud-timer-face {
+  fill: var(--pp-color-paper);
+  stroke: var(--pp-color-ink);
+}
+
+.pp-hud-timer-bun {
+  fill: var(--pp-color-ink);
+}
+
+.pp-hud-timer-line {
+  fill: none;
+  stroke: var(--pp-color-ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .pp-hud-zone[data-pp-zone="pause"] {
   justify-content: flex-end;
 }
