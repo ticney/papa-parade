@@ -49,7 +49,7 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 | `npm run content:check` | Validate `content/**` against the Zod schemas, string references and generated JSON Schemas |
 | `npm run content:schemas` | Regenerate `content/_schemas/` (commit the result; never edit it by hand) |
 | `npm run ci` | Everything CI runs, in order, stopping at the first failure |
-| `npm run story:new -- <epic>-<story>` | Agents run it themselves (see Git workflow): gives the story its worktree `../papa-parade-<story-key>` on `story/<story-key>` (from `main`, full key looked up in `sprint-status.yaml`, `npm ci` there unless `--skip-install`), or finds the one that already holds the branch; last line `WORKTREE=<path>` |
+| `npm run story:new -- <epic>-<story>` | Agents run it themselves (see Git workflow): gives the story its worktree `.claude/worktrees/<story-key>` (inside the repo, git-ignored) on `story/<story-key>` (from `main`, full key looked up in `sprint-status.yaml`, `npm ci` there unless `--skip-install`), or finds the one that already holds the branch; last line `WORKTREE=<path>` |
 
 **Trap: check `VITE_DEBUG_ALLOWED` in your shell before `dev`, `e2e` or `ci`.** The agent shell may export `VITE_DEBUG_ALLOWED=false` (inherited from the parent process, set in no dotfile). A process env var beats `.env.development` in Vite, so the dev server has no `data-pp-*` mirrors and no `window.__PP__`, and almost every e2e spec times out on `data-pp-app="start"` (134 of 140 fail). It looks like « no WebGL » but is not. Run `env | grep VITE_` first; if it is set, run these as `(unset VITE_DEBUG_ALLOWED; npm run ci)` (same for `npx playwright test`, `npm run dev`). `npm run build` wants `false` and is fine either way.
 
