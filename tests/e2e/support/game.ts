@@ -62,6 +62,16 @@ const liveLevel = JSON.parse(readFileSync('content/levels/salon_crawler.json', '
     threats: { def: string; anchor: string }[];
   }[];
 };
+/** What the specs read of the live phone (`content/disruptions/phone.json`), never copied: Geo retunes it freely. */
+export interface LivePhoneDef {
+  ringMaxMs: number;
+  answerBusyMs: number;
+  answerFatiguePoints: number;
+  feedback: { ring: string; answer: string };
+}
+export const livePhone = JSON.parse(
+  readFileSync('content/disruptions/phone.json', 'utf8'),
+) as LivePhoneDef;
 /** The live level's length, in sim ms: the timer reads it at the start and ends the level there. */
 export const LEVEL_DURATION_MS = liveLevel.durationMs;
 export const liveWaves = liveLevel.waves;

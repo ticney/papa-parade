@@ -9,6 +9,7 @@ import {
   OUTLET,
   stepN,
   TEST_OBJECTS,
+  testPhoneEntry,
   testWave,
 } from '../../tests/support/testContent.ts';
 import type { StepContext, System } from './context.ts';
@@ -491,6 +492,73 @@ describe('the level’s fatigue and objects (story 1.19)', () => {
     });
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
       /objects\[0\]: the object "kettle" has the kind "kettle", which the sim has no action for \(coffee_machine, phone\)/,
+    );
+  });
+});
+
+describe('the disruptions it plans (story 1.20)', () => {
+  const phoneWave = (atMs = 125_000) => [testWave([], { disruptions: [testPhoneEntry(atMs)] })];
+
+  it('plans one pending instance per wave entry, index-aligned with the level, in wave order', async () => {
+    const planned = createTestLevel({
+      waves: [
+        testWave([OUTLET]),
+        testWave([], { fromMs: 60_000, disruptions: [testPhoneEntry(61_000)] }),
+      ],
+      objects: TEST_OBJECTS,
+    });
+    const sim = await createSim({ content, geometry, level: planned, seed: 1 });
+    expect(sim.world.disruptions).toEqual([
+      { state: 'pending', enteredAt: 0, untilAt: 0, nextRingingAt: 0 },
+    ]);
+  });
+
+  it('plans none for a level that plans none, and hashes the disruptions into the journal', async () => {
+    const quiet = await createSim({ content, geometry, level, seed: 1 });
+    expect(quiet.world.disruptions).toEqual([]);
+    const planned = createTestLevel({ waves: phoneWave(), objects: TEST_OBJECTS });
+    const sim = await createSim({ content, geometry, level: planned, seed: 1 });
+    expect(sim.journal().levelHash).toBe(hashJson(planned));
+    expect(sim.journal().levelHash).not.toBe(
+      hashJson(createTestLevel({ waves: [testWave([])], objects: TEST_OBJECTS })),
+    );
+  });
+
+  it('refuses a disruption whose def is not loaded, naming the level and the entry', async () => {
+    const planned = createTestLevel({ waves: phoneWave(), objects: TEST_OBJECTS });
+    const unloaded = { ...planned, disruptions: {} };
+    await expect(createSim({ content, geometry, level: unloaded, seed: 1 })).rejects.toThrow(
+      /salon_crawler › waves\[0\]\.disruptions\[0\]: the disruption phone is not loaded/,
+    );
+  });
+
+  it('refuses a disruption at an object the level does not have', async () => {
+    const planned = createTestLevel({ waves: phoneWave() });
+    await expect(createSim({ content, geometry, level: planned, seed: 1 })).rejects.toThrow(
+      /waves\[0\]\.disruptions\[0\]: the object "phone" is not in the level objects/,
+    );
+  });
+
+  it('refuses a def whose kind is not the kind of its object, naming both', async () => {
+    const planned = createTestLevel({
+      waves: phoneWave(),
+      objects: [{ id: 'phone', kind: 'coffee_machine', anchor: 'phone' }],
+    });
+    await expect(createSim({ content, geometry, level: planned, seed: 1 })).rejects.toThrow(
+      /the disruption "phone" has the kind "phone", but the object "phone" has the kind "coffee_machine"/,
+    );
+  });
+
+  it('refuses an object planned by two disruptions', async () => {
+    const twice = createTestLevel({
+      waves: [
+        testWave([], { disruptions: [testPhoneEntry(1000)] }),
+        testWave([], { fromMs: 60_000, disruptions: [testPhoneEntry(61_000)] }),
+      ],
+      objects: TEST_OBJECTS,
+    });
+    await expect(createSim({ content, geometry, level: twice, seed: 1 })).rejects.toThrow(
+      /waves\[1\]\.disruptions\[0\]: the object "phone" is already planned by another disruption/,
     );
   });
 });

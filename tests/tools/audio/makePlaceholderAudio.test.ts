@@ -1,6 +1,7 @@
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PHONE_RINGING_EVERY_MS } from '@shared/constants';
 import { err, ok } from '@shared/result';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -17,9 +18,11 @@ import {
   synthMusic,
   synthParry,
   synthParryPerfect,
+  synthPhoneAnswer,
   synthTelegraph,
   synthTelegraphCoffeeTable,
   synthTelegraphMicroSleep,
+  synthTelegraphPhone,
   synthTelegraphStairs,
 } from '../../../tools/audio/makePlaceholderAudio.ts';
 
@@ -140,6 +143,21 @@ describe('placeholder audio', () => {
     }
   });
 
+  it('has the lengths of the phone clips: a ring under 1000 ms (two never overlap) and a 150 ms click', () => {
+    const ms = (samples: Float32Array): number => (samples.length / SAMPLE_RATE_HZ) * 1000;
+    // PHONE_RINGING_EVERY_MS is one second: a ring of that length or more would overlap the next.
+    expect(ms(synthTelegraphPhone())).toBeCloseTo(850, 0);
+    expect(ms(synthTelegraphPhone())).toBeLessThan(PHONE_RINGING_EVERY_MS);
+    expect(ms(synthPhoneAnswer())).toBeCloseTo(150, 0);
+  });
+
+  it('lists the two phone clips by the names the feedback table uses', () => {
+    const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+    for (const clip of ['tel_phone_ring', 'papa_phone_answer']) {
+      expect(names, clip).toContain(clip);
+    }
+  });
+
   it('makes each telegraph and each gag sound unlike the others (no two clips are alike)', () => {
     // The largest normalised dot product between two clips, over their common length and for every
     // shift of one against the other up to `LAG_MAX_MS`: a clip that sounded like another, or like
@@ -156,6 +174,7 @@ describe('placeholder audio', () => {
         'gag_coffee_table',
         'tel_papa_microsleep',
         'gag_papa_asleep',
+        'tel_phone_ring',
       ]),
     );
     for (const [index, first] of clips.entries()) {

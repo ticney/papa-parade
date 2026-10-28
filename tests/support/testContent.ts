@@ -4,6 +4,7 @@ import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import { formatContentProblem } from '@content/contentError';
 import { parseContentFile } from '@content/parseContentFile';
 import type { BotSettings } from '@content/schemas/bots';
+import { type DisruptionDef, DisruptionDefSchema } from '@content/schemas/disruption';
 import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
 import type {
@@ -11,6 +12,7 @@ import type {
   LevelObject,
   LevelVariant,
   LevelWave,
+  LevelWaveDisruption,
   LevelWaveThreat,
 } from '@content/schemas/level';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
@@ -140,6 +142,23 @@ export function createTestMicroSleep(): ThreatDef {
   return readThreatFixture('testMicroSleep.threat.json');
 }
 
+/**
+ * The phone, frozen like the threats (`testPhone.disruption.json`, same values as
+ * `content/disruptions/phone.json`; only its `$schema` path differs), never from the live file.
+ */
+export function createTestPhone(): DisruptionDef {
+  const path = 'tests/support/testPhone.disruption.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testPhone.disruption.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, DisruptionDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
 /** The four frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
@@ -166,8 +185,13 @@ export const STAIRS: LevelWaveThreat = { def: 'stairs', anchor: 'stairs_top' };
 /** The object on the coffee table at the frozen room's `coffee_table` anchor. */
 export const COFFEE_TABLE: LevelWaveThreat = { def: 'coffee_table_object', anchor: 'coffee_table' };
 
+/** The phone of the live level, planned at `atMs` on the object `phone` (the one of `TEST_OBJECTS`). */
+export function testPhoneEntry(atMs: number): LevelWaveDisruption {
+  return { def: 'phone', object: 'phone', atMs };
+}
+
 /**
- * A wave of `threats`: from 0 ms, one at a time, no gap and no lull unless `overrides` says so. A
+ * A wave of `threats`: from 0 ms, one at a time, no gap and no lull, no disruption unless `overrides` says so. A
  * test that used `outletEntry(2000)` uses `testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })`:
  * its first telegraph lands at the first step at or after 2000 ms.
  */
@@ -183,6 +207,7 @@ export function testWave(
     lullMs: 0,
     ...overrides,
     threats: [...threats],
+    disruptions: [...(overrides.disruptions ?? [])],
   };
 }
 
@@ -224,17 +249,32 @@ export function createTestLevel({
     if (def === undefined) throw new Error(`no frozen threat "${microSleepDef}" in tests/support`);
     threats[def.id] = def;
   }
+  const disruptions: Record<string, DisruptionDef> = {};
+  for (const wave of waves) {
+    for (const entry of wave.disruptions) {
+      const def = createTestPhone();
+      if (def.id !== entry.def) {
+        throw new Error(`no frozen disruption "${entry.def}" in tests/support`);
+      }
+      disruptions[def.id] = def;
+    }
+  }
   return {
     level: {
       id: 'salon_crawler',
       variant,
       durationMs,
-      waves: waves.map((wave) => ({ ...wave, threats: [...wave.threats] })),
+      waves: waves.map((wave) => ({
+        ...wave,
+        threats: [...wave.threats],
+        disruptions: wave.disruptions.map((entry) => ({ ...entry })),
+      })),
       objects: [...objects],
       gauges: structuredClone(gauges),
       feelOverrides: { ...feelOverrides },
     },
     threats,
+    disruptions,
   };
 }
 

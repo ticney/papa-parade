@@ -60,13 +60,23 @@ function runToSleep(sim: Sim): { events: SimEvent[]; fellAt: number } {
 
 describe('Papa states (story 1.19)', () => {
   it('lists every state, and is proved complete at compile time', () => {
-    expect([...PAPA_STATES]).toEqual(['idle', 'walkPath', 'walkDir', 'glide', 'drink', 'asleep']);
+    expect([...PAPA_STATES]).toEqual([
+      'idle',
+      'walkPath',
+      'walkDir',
+      'glide',
+      'drink',
+      'asleep',
+      'onPhone',
+    ]);
     expect(PAPA_STATES_ARE_COMPLETE).toBe(true);
   });
 
-  it('is busy exactly when drinking or asleep', () => {
+  it('is busy exactly when drinking, asleep or on the phone (story 1.20)', () => {
     for (const state of PAPA_STATES) {
-      expect(isPapaBusy({ state }), state).toBe(state === 'drink' || state === 'asleep');
+      expect(isPapaBusy({ state }), state).toBe(
+        state === 'drink' || state === 'asleep' || state === 'onPhone',
+      );
     }
   });
 });

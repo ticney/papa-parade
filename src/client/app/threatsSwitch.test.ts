@@ -4,6 +4,8 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
+  TEST_OBJECTS,
+  testPhoneEntry,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import { readThreatsOff, withoutThreats } from './threatsSwitch.ts';
@@ -47,6 +49,20 @@ describe('withoutThreats', () => {
     expect(stripped.level.variant).toBe(planned.level.variant);
     expect(stripped.threats).toEqual({});
     expect(planned.level.waves).toHaveLength(1); // the original is untouched
+  });
+
+  it('drops the disruptions with the waves that plan them: no phone rings, and no def is kept', () => {
+    const planned = createTestLevel({
+      waves: [testWave([OUTLET], { disruptions: [testPhoneEntry(5000)] })],
+      objects: TEST_OBJECTS,
+    });
+    expect(Object.keys(planned.disruptions)).toEqual(['phone']);
+    const stripped = withoutThreats(planned);
+    expect(stripped.level.waves).toEqual([]);
+    expect(stripped.disruptions).toEqual({});
+    // The objects stay: the coffee machine and the phone are still there to walk to.
+    expect(stripped.level.objects).toEqual(planned.level.objects);
+    expect(Object.keys(planned.disruptions)).toEqual(['phone']); // the original is untouched
   });
 
   it('keeps the fatigue gauge and the micro-sleep def it needs (createSim refuses one without)', () => {

@@ -4,10 +4,10 @@ import type { World } from '../world.ts';
 /**
  * `walkPath`: following the waypoints of a tap. `walkDir`: pushed in a direction by keys or stick.
  * `glide`: sliding to a pressed threat (P3: choreography, the response was judged at the press).
- * `drink` (a coffee) and `asleep` (a missed micro-sleep) are the busy states (story 1.19 D6): Papa
- * answers nothing until `busyUntil`.
+ * `drink` (a coffee), `asleep` (a missed micro-sleep) and `onPhone` (a call, story 1.20) are the
+ * busy states (story 1.19 D6): Papa answers nothing until `busyUntil`.
  */
-export type PapaState = 'idle' | 'walkPath' | 'walkDir' | 'glide' | 'drink' | 'asleep';
+export type PapaState = 'idle' | 'walkPath' | 'walkDir' | 'glide' | 'drink' | 'asleep' | 'onPhone';
 
 /** Every `PapaState`, as data: a snapshot is checked against it. */
 export const PAPA_STATES = [
@@ -17,6 +17,7 @@ export const PAPA_STATES = [
   'glide',
   'drink',
   'asleep',
+  'onPhone',
 ] as const satisfies readonly PapaState[];
 
 type UnlistedPapaState = Exclude<PapaState, (typeof PAPA_STATES)[number]>;
@@ -26,9 +27,9 @@ export const PAPA_STATES_ARE_COMPLETE: [UnlistedPapaState] extends [never]
   ? true
   : UnlistedPapaState = true;
 
-/** Whether Papa is busy (`drink` or `asleep`): he ignores movement commands and presses until `busyUntil`. */
+/** Whether Papa is busy (`drink`, `asleep` or `onPhone`): he ignores movement commands and presses until `busyUntil`. */
 export function isPapaBusy(papa: { readonly state: PapaState }): boolean {
-  return papa.state === 'drink' || papa.state === 'asleep';
+  return papa.state === 'drink' || papa.state === 'asleep' || papa.state === 'onPhone';
 }
 
 /**

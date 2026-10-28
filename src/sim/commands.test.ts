@@ -10,6 +10,7 @@ describe('commandProblem', () => {
     expect(commandProblem({ type: 'MoveStop', t: 10 })).toBeNull();
     expect(commandProblem({ type: 'PressThreat', t: 10, threatId: 1 })).toBeNull();
     expect(commandProblem({ type: 'Release', t: 10 })).toBeNull();
+    expect(commandProblem({ type: 'StartDisruption', t: 10, index: 0 })).toBeNull();
     expect(
       commandProblem({
         type: 'PushProp',
@@ -31,6 +32,7 @@ describe('commandProblem', () => {
       'Release',
       'SetFatigue',
       'SetTimeScale',
+      'StartDisruption',
       'TapFloor',
       'TapObject',
     ]);
@@ -52,6 +54,10 @@ describe('commandProblem', () => {
     ['a PressThreat on threat 0', { type: 'PressThreat', t: 0, threatId: 0 }, /threatId/],
     ['a fractional threatId', { type: 'PressThreat', t: 0, threatId: 1.5 }, /threatId/],
     ['a string threatId', { type: 'PressThreat', t: 0, threatId: '1' }, /threatId/],
+    ['a StartDisruption with no index', { type: 'StartDisruption', t: 0 }, /index/],
+    ['a negative StartDisruption index', { type: 'StartDisruption', t: 0, index: -1 }, /index/],
+    ['a fractional StartDisruption index', { type: 'StartDisruption', t: 0, index: 0.5 }, /index/],
+    ['a string StartDisruption index', { type: 'StartDisruption', t: 0, index: '0' }, /index/],
     ['a Release with a NaN t', { type: 'Release', t: Number.NaN }, /finite/],
     ['a non-finite t', { type: 'MoveStop', t: Number.NaN }, /finite/],
     [

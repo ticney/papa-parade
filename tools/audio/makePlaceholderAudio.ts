@@ -8,9 +8,9 @@ import { type AppError, err, ok, type Result } from '@shared/result';
 import { createRng, nextFloat, type RngState } from '@shared/rng';
 import { ROOT } from '../assets/paths.ts';
 
-// The provisional sounds of stories 1.9, 1.11, 1.16 and 1.19 (the outlet's four cues, then the
+// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19 and 1.20 (the outlet's four cues, then the
 // stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled swell and
-// Papa's snore), synthesized so that the whole audio pipeline
+// Papa's snore, then the phone's ring and Papa's pick-up click), synthesized so that the whole audio pipeline
 // works end to end with no human (golden rule). Real sounds replace the `.m4a` files under the same
 // names (stories 2.3 and 7.5). The tool is macOS only (`afconvert`) and CI never runs it.
 
@@ -143,6 +143,25 @@ const GAG_SLEEP_TREMOLO_HZ = 28;
 const GAG_SLEEP_TREMOLO_DEPTH = 0.6;
 /** Share of each cycle spent breathing in (swelling); the rest breathes out. */
 const GAG_SLEEP_INHALE_PCT = 55;
+
+// Phone ring: two bursts of a 440 + 480 Hz pair (the classic ring tone) with a fast tremolo. The
+// whole clip stays under 1000 ms, so that two rings one second apart (PHONE_RINGING_EVERY_MS) never overlap.
+const TEL_PHONE_BURST_MS = 350;
+const TEL_PHONE_BURST_GAP_MS = 150;
+const TEL_PHONE_BURSTS = 2;
+const TEL_PHONE_PITCHES_HZ: readonly number[] = [440, 480];
+const TEL_PHONE_TREMOLO_HZ = 25;
+const TEL_PHONE_TREMOLO_DEPTH = 0.4;
+const TEL_PHONE_ATTACK_MS = 8;
+const TEL_PHONE_RELEASE_MS = 30;
+
+// Pick-up click: a few ms of noise and a short low tick, like a handset leaving its cradle.
+const PAPA_PHONE_ANSWER_LENGTH_MS = 150;
+const PAPA_PHONE_ANSWER_NOISE_MS = 6;
+const PAPA_PHONE_ANSWER_TICK_HZ = 900;
+const PAPA_PHONE_ANSWER_TICK_AT_MS = 70;
+const PAPA_PHONE_ANSWER_TICK_DECAY_S = 0.012;
+const PAPA_PHONE_ANSWER_TICK_GAIN = 0.8;
 
 /** A thump's ramp-up, in ms, and the level under which its tail is cut (a share of full scale). */
 const THUMP_ATTACK_MS = 2;
@@ -520,6 +539,57 @@ export function synthGagPapaAsleep(): Float32Array {
   return out;
 }
 
+/** The phone's ring: two bursts of a 440 + 480 Hz pair with a fast tremolo (the disruption's `feedback.ring`). */
+export function synthTelegraphPhone(): Float32Array {
+  const burst = samplesOf(TEL_PHONE_BURST_MS);
+  const gap = samplesOf(TEL_PHONE_BURST_GAP_MS);
+  const out = new Float32Array((burst + gap) * TEL_PHONE_BURSTS - gap);
+  const attack = samplesOf(TEL_PHONE_ATTACK_MS);
+  const release = samplesOf(TEL_PHONE_RELEASE_MS);
+  for (let b = 0; b < TEL_PHONE_BURSTS; b++) {
+    const start = b * (burst + gap);
+    for (let i = 0; i < burst; i++) {
+      const seconds = i / SAMPLE_RATE_HZ;
+      let tone = 0;
+      for (const frequencyHz of TEL_PHONE_PITCHES_HZ) {
+        tone += Math.sin(2 * Math.PI * frequencyHz * seconds);
+      }
+      const tremolo =
+        1 -
+        TEL_PHONE_TREMOLO_DEPTH *
+          (0.5 + 0.5 * Math.sin(2 * Math.PI * TEL_PHONE_TREMOLO_HZ * seconds));
+      out[start + i] = tone * tremolo * Math.min(1, i / attack, (burst - i) / release);
+    }
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** The pick-up: a click of noise, then a short tick (the disruption's `feedback.answer`). */
+export function synthPhoneAnswer(): Float32Array {
+  const rng = createRng(SEED + 6);
+  const out = new Float32Array(samplesOf(PAPA_PHONE_ANSWER_LENGTH_MS));
+  const noiseLength = samplesOf(PAPA_PHONE_ANSWER_NOISE_MS);
+  const tickAt = samplesOf(PAPA_PHONE_ANSWER_TICK_AT_MS);
+  for (let i = 0; i < out.length; i++) {
+    const noise = i < noiseLength ? (nextFloat(rng) * 2 - 1) * (1 - i / noiseLength) : 0;
+    const sinceTick = (i - tickAt) / SAMPLE_RATE_HZ;
+    const tick =
+      sinceTick < 0
+        ? 0
+        : PAPA_PHONE_ANSWER_TICK_GAIN *
+          Math.sin(2 * Math.PI * PAPA_PHONE_ANSWER_TICK_HZ * sinceTick) *
+          Math.exp(-sinceTick / PAPA_PHONE_ANSWER_TICK_DECAY_S);
+    out[i] = noise + tick;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -557,6 +627,8 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'gag_coffee_table', synth: synthGagCoffeeTable },
   { clip: 'tel_papa_microsleep', synth: synthTelegraphMicroSleep },
   { clip: 'gag_papa_asleep', synth: synthGagPapaAsleep },
+  { clip: 'tel_phone_ring', synth: synthTelegraphPhone },
+  { clip: 'papa_phone_answer', synth: synthPhoneAnswer },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

@@ -244,7 +244,7 @@ describe('the coffee', () => {
     expect(sim.world.papa.objectId).toBeNull();
   });
 
-  it('only walks to a phone, until story 1.20', async () => {
+  it('only walks to a phone that is not ringing (a ringing one is answered: see the phone call tests)', async () => {
     const sim = await newSim();
     command(sim, { type: 'TapObject', objectId: 'phone' });
     const events = runUntil(sim, 20_000);

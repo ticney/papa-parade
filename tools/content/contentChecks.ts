@@ -6,6 +6,7 @@ import {
   BOTS_FILE,
   CONTENT_FILES,
   CONTENT_SCHEMAS,
+  DISRUPTION_DEF_PATTERN,
   FEEDBACK_FILE,
   FEEL_FILE,
   LEVEL_GEOMETRY_PATTERN,
@@ -19,6 +20,7 @@ import { formatJsonPath } from '@content/jsonPath';
 import { renderContentJsonSchema } from '@content/jsonSchema';
 import { parseContentFile } from '@content/parseContentFile';
 import type { BotSettings } from '@content/schemas/bots';
+import type { DisruptionDef } from '@content/schemas/disruption';
 import type { FeedbackTable } from '@content/schemas/feedback';
 import type { Feel } from '@content/schemas/feel';
 import type { Level } from '@content/schemas/level';
@@ -171,6 +173,14 @@ async function checkFeedbackReferences(
         message: `the cue "${cueId}" is played by the event "${name}", which names no threat: its visual cannot be anchored on a threat`,
       });
     }
+    // Nor does it name an object (story 1.20): only a disruption def points at an `object` cue.
+    if (cue?.visual?.anchor === 'object') {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['cues', cueId, 'visual', 'anchor']),
+        message: `the cue "${cueId}" is played by the event "${name}", which names no object: its visual cannot be anchored on an object`,
+      });
+    }
   }
   const clipPaths: { clip: string; path: (string | number)[] }[] = [
     { clip: table.loops.babble.clip, path: ['loops', 'babble', 'clip'] },
@@ -218,6 +228,7 @@ function checkBotReferences(bots: BotSettings, feel: Feel): ContentProblem[] {
 /** What the cross-reference checks need of the files that parsed, by id. */
 interface ParsedFamilies {
   threats: Map<string, ThreatDef>;
+  disruptions: Map<string, DisruptionDef>;
   levels: Map<string, Level>;
   geometries: Map<string, LevelGeometry>;
 }
@@ -242,12 +253,52 @@ function checkThreatReferences(
     }
     if (feedback === undefined) continue;
     for (const [role, cueId] of Object.entries(threat.feedback)) {
-      if (Object.hasOwn(feedback.cues, cueId)) continue;
-      problems.push({
-        file,
-        jsonPath: formatJsonPath(['feedback', role]),
-        message: `"${cueId}" is not a cue of content/${FEEDBACK_FILE.file} › cues`,
-      });
+      if (!Object.hasOwn(feedback.cues, cueId)) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['feedback', role]),
+          message: `"${cueId}" is not a cue of content/${FEEDBACK_FILE.file} › cues`,
+        });
+      } else if (feedback.cues[cueId]?.visual?.anchor === 'object') {
+        // A threat event names a threat, never an object (story 1.20).
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['feedback', role]),
+          message: `the cue "${cueId}" is anchored on an object, but a threat event names no object`,
+        });
+      }
+    }
+  }
+  return problems;
+}
+
+/**
+ * The references a disruption file makes that its schema cannot see: each of its feedback cues is a
+ * cue of `feedback.json`, and none is anchored on a threat (a disruption event names an object, not
+ * a threat).
+ */
+function checkDisruptionReferences(
+  disruptions: ReadonlyMap<string, DisruptionDef>,
+  feedback: FeedbackTable | undefined,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  if (feedback === undefined) return problems;
+  for (const [id, disruption] of disruptions) {
+    const file = `content/${DISRUPTION_DEF_PATTERN.dir}/${id}${DISRUPTION_DEF_PATTERN.suffix}`;
+    for (const [role, cueId] of Object.entries(disruption.feedback)) {
+      if (!Object.hasOwn(feedback.cues, cueId)) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['feedback', role]),
+          message: `"${cueId}" is not a cue of content/${FEEDBACK_FILE.file} › cues`,
+        });
+      } else if (feedback.cues[cueId]?.visual?.anchor === 'threat') {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['feedback', role]),
+          message: `the cue "${cueId}" is anchored on a threat, but a disruption event names no threat`,
+        });
+      }
     }
   }
   return problems;
@@ -315,6 +366,30 @@ function checkLevelReferences(
             file,
             jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
             message: `the threat "${entry.def}" has the gag "${PAPA_ASLEEP_GAG_ID}": only the micro-sleep (target "papa") may end in it`,
+          });
+        }
+      });
+    });
+    level.waves.forEach((wave, w) => {
+      wave.disruptions.forEach((entry, i) => {
+        const defFile = `${DISRUPTION_DEF_PATTERN.dir}/${entry.def}${DISRUPTION_DEF_PATTERN.suffix}`;
+        const disruption = families.disruptions.get(entry.def);
+        if (disruption === undefined) {
+          if (!present.has(defFile)) {
+            problems.push({
+              file,
+              jsonPath: formatJsonPath(['waves', w, 'disruptions', i, 'def']),
+              message: `no disruption "${entry.def}" (content/${defFile} does not exist)`,
+            });
+          }
+          return;
+        }
+        const object = level.objects.find((candidate) => candidate.id === entry.object);
+        if (object !== undefined && object.kind !== disruption.kind) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['waves', w, 'disruptions', i, 'object']),
+            message: `the disruption "${entry.def}" has the kind "${disruption.kind}", but the object "${entry.object}" has the kind "${object.kind}"`,
           });
         }
       });
@@ -486,6 +561,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   let bots: BotSettings | undefined;
   const families: ParsedFamilies = {
     threats: new Map(),
+    disruptions: new Map(),
     levels: new Map(),
     geometries: new Map(),
   };
@@ -515,6 +591,8 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
       parsed.push({ file: display, value: result.value });
       if (matched.pattern === THREAT_DEF_PATTERN) {
         families.threats.set(matched.id, result.value as ThreatDef);
+      } else if (matched.pattern === DISRUPTION_DEF_PATTERN) {
+        families.disruptions.set(matched.id, result.value as DisruptionDef);
       } else if (matched.pattern === LEVEL_PATTERN) {
         families.levels.set(matched.id, result.value as Level);
       } else if (matched.pattern === LEVEL_GEOMETRY_PATTERN) {
@@ -579,6 +657,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   }
 
   problems.push(...checkThreatReferences(families.threats, feedback));
+  problems.push(...checkDisruptionReferences(families.disruptions, feedback));
   problems.push(...checkLevelReferences(families, present, feel));
 
   if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));

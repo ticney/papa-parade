@@ -80,6 +80,38 @@
               "additionalProperties": false,
               "description": "One threat a wave adds: what, and where. An anchor is planned once in the level."
             }
+          },
+          "disruptions": {
+            "default": [],
+            "description": "The disruptions this wave plans, each at a fixed time (story 1.20). Not threats: the director never draws them.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "def": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "The id of a `content/disruptions/<def>.json`."
+                },
+                "object": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "The id of an entry of the level `objects` it rings at; its `kind` must equal the def `kind`."
+                },
+                "atMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "It starts at the first step at or after this sim time, in sim ms. Inside the wave: from its `fromMs` up to (not including) the next wave, or the end of the level."
+                }
+              },
+              "required": [
+                "def",
+                "object",
+                "atMs"
+              ],
+              "additionalProperties": false,
+              "description": "One disruption a wave plans: what, where, and when. An object is planned once."
+            }
           }
         },
         "required": [
@@ -88,7 +120,8 @@
           "gapMinMs",
           "gapMaxMs",
           "lullMs",
-          "threats"
+          "threats",
+          "disruptions"
         ],
         "additionalProperties": false,
         "description": "One wave of the escalation: from when, how many threats at once, how often, and what it adds."

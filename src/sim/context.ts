@@ -1,3 +1,4 @@
+import type { DisruptionDef } from '@content/schemas/disruption';
 import type { Feel } from '@content/schemas/feel';
 import type { ObjectKind } from '@content/schemas/level';
 import type { ThreatDef } from '@content/schemas/threat';
@@ -24,6 +25,11 @@ export interface NavContext {
  */
 export interface SimLevel {
   readonly threats: readonly SimPlannedThreat[];
+  /**
+   * The planned disruptions (story 1.20), the waves' flattened in wave order, index-aligned with
+   * `world.disruptions`. Empty: the level plans none.
+   */
+  readonly disruptions: readonly SimPlannedDisruption[];
   /** The waves, in order. Empty: the level plans nothing. */
   readonly waves: readonly SimWave[];
   /** How long the level lasts, in sim ms: the flow ends it then. */
@@ -48,6 +54,16 @@ export interface SimPlannedThreat {
   readonly def: ThreatDef;
   readonly anchorId: string;
   readonly firstWaveIndex: number;
+}
+
+/** One planned disruption: what, at which object, when, and the wave that planned it. */
+export interface SimPlannedDisruption {
+  readonly def: DisruptionDef;
+  /** The `id` of the level object it rings at (an entry of `SimLevel.objects`). */
+  readonly objectId: string;
+  /** It starts at the first step at or after this sim time, in sim ms. */
+  readonly atMs: number;
+  readonly waveIndex: number;
 }
 
 /**

@@ -5,8 +5,8 @@ import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 // `assets/levels/<id>.glb` (its look). Story 1.18 replaced the flat `threats` list with waves and
 // added the variant, the duration and the feel overrides; story 1.17 added `objects`, the
 // interactive things (coffee machine, phone) Space or A can walk Papa to. Story 1.19 added
-// `gauges` (the fatigue system a level opts into) and the `kind` of an object. Story 1.20 adds
-// `disruptions` to a wave.
+// `gauges` (the fatigue system a level opts into) and the `kind` of an object. Story 1.20 added
+// `disruptions` to a wave: the phone that rings at a fixed time, on an object of the level.
 
 /** The level variants the game has. Each one has its own timer icon (`client/ui/hud/timerHud.ts`). */
 export const LEVEL_VARIANTS = ['nap'] as const;
@@ -35,6 +35,21 @@ const LevelWaveThreatSchema = z
     anchor: idSchema('An anchor of the level geometry, without the `ANCHOR_` prefix.'),
   })
   .describe('One threat a wave adds: what, and where. An anchor is planned once in the level.');
+
+const LevelWaveDisruptionSchema = z
+  .strictObject({
+    def: idSchema('The id of a `content/disruptions/<def>.json`.'),
+    object: idSchema(
+      'The id of an entry of the level `objects` it rings at; its `kind` must equal the def `kind`.',
+    ),
+    atMs: z
+      .number()
+      .min(0)
+      .describe(
+        'It starts at the first step at or after this sim time, in sim ms. Inside the wave: from its `fromMs` up to (not including) the next wave, or the end of the level.',
+      ),
+  })
+  .describe('One disruption a wave plans: what, where, and when. An object is planned once.');
 
 const LevelWaveSchema = z
   .strictObject({
@@ -70,6 +85,12 @@ const LevelWaveSchema = z
       .default([])
       .describe(
         'The threats this wave adds to the pool. Waves are cumulative: wave `w` draws from waves `0..w`.',
+      ),
+    disruptions: z
+      .array(LevelWaveDisruptionSchema)
+      .default([])
+      .describe(
+        'The disruptions this wave plans, each at a fixed time (story 1.20). Not threats: the director never draws them.',
       ),
   })
   .describe(
@@ -127,6 +148,7 @@ export const LevelSchema = z
   })
   .superRefine((level, ctx) => {
     const planned = new Map<string, string>();
+    const disrupted = new Map<string, string>();
     level.waves.forEach((wave, w) => {
       const where = `waves[${w}]`;
       const next = level.waves[w + 1];
@@ -179,6 +201,33 @@ export const LevelSchema = z
         }
         planned.set(threat.anchor, `${where}.threats[${i}]`);
       });
+      wave.disruptions.forEach((disruption, i) => {
+        const at = `${where}.disruptions[${i}]`;
+        const endMs = next?.fromMs ?? level.durationMs;
+        if (disruption.atMs < wave.fromMs || disruption.atMs >= endMs) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['waves', w, 'disruptions', i, 'atMs'],
+            message: `${at}: atMs (${disruption.atMs}) must be inside the wave, from ${wave.fromMs} up to (not including) ${endMs}`,
+          });
+        }
+        if (!level.objects.some((object) => object.id === disruption.object)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['waves', w, 'disruptions', i, 'object'],
+            message: `${at}: the object "${disruption.object}" is not in the level objects`,
+          });
+        }
+        const earlier = disrupted.get(disruption.object);
+        if (earlier !== undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['waves', w, 'disruptions', i, 'object'],
+            message: `${at}: the object "${disruption.object}" is already planned by ${earlier}`,
+          });
+        }
+        disrupted.set(disruption.object, at);
+      });
     });
   })
   .describe(
@@ -188,5 +237,6 @@ export const LevelSchema = z
 export type Level = z.infer<typeof LevelSchema>;
 export type LevelWave = z.infer<typeof LevelWaveSchema>;
 export type LevelWaveThreat = z.infer<typeof LevelWaveThreatSchema>;
+export type LevelWaveDisruption = z.infer<typeof LevelWaveDisruptionSchema>;
 export type LevelObject = z.infer<typeof LevelObjectSchema>;
 export type LevelGauges = z.infer<typeof LevelGaugesSchema>;

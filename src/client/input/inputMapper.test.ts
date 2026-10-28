@@ -979,8 +979,8 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
     expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
   });
 
-  describe('while Papa is busy (drinking or asleep)', () => {
-    it.each(['drink', 'asleep'])(
+  describe('while Papa is busy (drinking, asleep or on the phone)', () => {
+    it.each(['drink', 'asleep', 'onPhone'])(
       'drops a press, an object tap, a floor tap and a Move (%s)',
       (state) => {
         const { mapper, sim, commands, held, camera, setObjects, setTargets } = setup();

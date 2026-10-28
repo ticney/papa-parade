@@ -1,7 +1,7 @@
 import type { FeedbackTable } from '@content/schemas/feedback';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
-import { createSim, type World } from '@sim';
+import { createSim, type SimObjectSpec, type World } from '@sim';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   createTestContent,
@@ -53,6 +53,11 @@ const TABLE: FeedbackTable = {
       visual: { kind: 'soundWave', anchor: 'threat', maxRadiusM: 0.8, durationMs: 350 },
       haptic: 'medium',
     },
+    objectRing: {
+      audio: { clip: 'tel_phone_ring', bus: 'sfx', gainPct: 90 },
+      visual: { kind: 'soundWave', anchor: 'object', maxRadiusM: 0.8, durationMs: 900 },
+      haptic: 'light',
+    },
     babyRing: {
       audio: { clip: 'baby_babble_loop', bus: 'voice', gainPct: 100 },
       visual: { kind: 'soundWave', anchor: 'baby', maxRadiusM: 1, durationMs: 500 },
@@ -62,7 +67,14 @@ const TABLE: FeedbackTable = {
   events: { PapaBlocked: 'full', CountdownTicked: 'tick', BabyStateChanged: 'babyRing' },
 };
 
-function setup(options: { reducedMotion?: boolean; hasScene?: boolean } = {}) {
+const OBJECTS: readonly SimObjectSpec[] = [
+  { id: 'coffee_machine', kind: 'coffee_machine', xM: -2, zM: 1.5, yM: 1 },
+  { id: 'phone', kind: 'phone', xM: 3.25, zM: -0.75, yM: 0.8 },
+];
+
+function setup(
+  options: { reducedMotion?: boolean; hasScene?: boolean; hasObjects?: boolean } = {},
+) {
   const trace: string[] = [];
   const fx: LevelFx = {
     soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
@@ -94,6 +106,7 @@ function setup(options: { reducedMotion?: boolean; hasScene?: boolean } = {}) {
         trace.push(`haptic:${kind}`);
       },
     },
+    getObjects: () => (options.hasObjects === false ? [] : OBJECTS),
     getScene: () => {
       if (state.throwOnGetScene) throw new Error('no scene today');
       if (options.hasScene === false) return null;
@@ -125,6 +138,52 @@ function setup(options: { reducedMotion?: boolean; hasScene?: boolean } = {}) {
   const start = warnings().length;
   return { director, trace, state, newWarnings: () => warnings().slice(start) };
 }
+
+describe('feedbackDirector: a cue anchored on an object (story 1.20)', () => {
+  it('starts the ring at the x and z of the object the event names, and plays the rest', () => {
+    const { director, trace, newWarnings } = setup();
+    director.playCue('objectRing', world, null, 'phone');
+    expect(trace).toEqual([
+      'audio:tel_phone_ring,sfx,90',
+      'haptic:light',
+      'wave:3.25,-0.75,0.8,900,4200',
+      'cue:objectRing',
+    ]);
+    expect(newWarnings()).toEqual([]);
+  });
+
+  it('warns and skips only the ring for an object the level does not have, or none at all', () => {
+    for (const objectId of ['kettle', null, undefined]) {
+      const { director, trace, newWarnings } = setup();
+      director.playCue('objectRing', world, null, objectId);
+      expect(trace, String(objectId)).toEqual([
+        'audio:tel_phone_ring,sfx,90',
+        'haptic:light',
+        'cue:objectRing',
+      ]);
+      expect(newWarnings(), String(objectId)).toEqual([
+        expect.stringContaining('ring for cue objectRing skipped: no object'),
+      ]);
+    }
+  });
+
+  it('skips the ring, with a warning, when the director was given no objects', () => {
+    const { director, trace, newWarnings } = setup({ hasObjects: false });
+    director.playCue('objectRing', world, null, 'phone');
+    expect(trace.some((line) => line.startsWith('wave:'))).toBe(false);
+    expect(newWarnings()).toHaveLength(1);
+  });
+
+  it('ignores the threat id for an object cue, and the object id for a threat cue', () => {
+    const { director, trace } = setup();
+    director.playCue('objectRing', world, 99, 'phone');
+    expect(trace).toContain('wave:3.25,-0.75,0.8,900,4200');
+    const threat = setup();
+    threat.director.playCue('threatPop', world, null, 'phone');
+    expect(threat.trace.some((line) => line.startsWith('wave:'))).toBe(false);
+    expect(threat.newWarnings()).toEqual([expect.stringContaining('no threat')]);
+  });
+});
 
 describe('feedbackDirector', () => {
   it('plays the audio, the haptic, the visual and the camera of a listed event, in that order, in one call', () => {

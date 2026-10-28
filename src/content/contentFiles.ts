@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import { SNAKE_ID_PATTERN } from './levelNodeNames.ts';
 import { type BotSettings, BotsSchema } from './schemas/bots.ts';
+import { type DisruptionDef, DisruptionDefSchema } from './schemas/disruption.ts';
 import { type FeedbackTable, FeedbackTableSchema } from './schemas/feedback.ts';
 import { type Feel, FeelSchema } from './schemas/feel.ts';
 import { type Level, LevelSchema } from './schemas/level.ts';
@@ -79,6 +80,13 @@ export const THREAT_DEF_PATTERN: ContentPattern<ThreatDef> = {
   schema: ThreatDefSchema,
 };
 
+export const DISRUPTION_DEF_PATTERN: ContentPattern<DisruptionDef> = {
+  dir: 'disruptions',
+  suffix: '.json',
+  schemaName: 'disruption',
+  schema: DisruptionDefSchema,
+};
+
 export const LEVEL_PATTERN: ContentPattern<Level> = {
   dir: 'levels',
   suffix: '.json',
@@ -90,6 +98,7 @@ export const LEVEL_PATTERN: ContentPattern<Level> = {
 export const CONTENT_PATTERNS: readonly ContentPattern<unknown>[] = [
   LEVEL_GEOMETRY_PATTERN,
   THREAT_DEF_PATTERN,
+  DISRUPTION_DEF_PATTERN,
   LEVEL_PATTERN,
 ];
 

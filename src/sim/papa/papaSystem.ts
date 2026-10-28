@@ -2,11 +2,13 @@ import type { ObjectKind } from '@content/schemas/level';
 import { STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import type { SimObjectSpec, StepContext } from '../context.ts';
+import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { finishCoffee, startCoffee } from './coffee.ts';
 import { startGlide } from './glide.ts';
 import { enterPapaState, isPapaBusy } from './papaFsm.ts';
+import { startCall } from './phoneCall.ts';
 import { planWalkTo } from './planWalk.ts';
 import { stepInDirection } from './walk.ts';
 
@@ -48,8 +50,16 @@ const OBJECT_ACTIONS: Readonly<Record<ObjectKind, ObjectAction>> = {
     startCoffee(world, ctx, object.id);
     return true;
   },
-  // The phone rings and busies Papa in story 1.20; until then it is somewhere to walk to.
-  phone: () => false,
+  // A ringing phone is answered (story 1.20 D7: decided on arrival, like the coffee); one that does
+  // not ring, yet or any more (`runDisruptions` runs first, so one that timed out this very step is
+  // already silent), is only somewhere to walk to.
+  phone: (world, ctx, object) => {
+    const index = ringingDisruptionAt(world, ctx, object.id);
+    if (index < 0) return false;
+    answerPhone(world, ctx, index);
+    startCall(world, ctx, index);
+    return true;
+  },
 };
 
 /** Every object kind the sim has an action for. */
@@ -150,9 +160,10 @@ function moveStop(world: World, ctx: StepContext): void {
 }
 
 /**
- * System: Papa. Remembers where he stood (for the view's interpolation), ends a coffee or a nap
- * whose time is up (`busyUntil`), handles this step's `TapFloor` / `TapObject` / `Move` / `MoveStop` /
- * `PressThreat` in order (none while he is busy, D6: he drinks or sleeps and answers nothing), then
+ * System: Papa. Remembers where he stood (for the view's interpolation), ends a coffee, a nap or a
+ * call whose time is up (`busyUntil`; only a coffee has something to finish, the others go back to
+ * idle), handles this step's `TapFloor` / `TapObject` / `Move` / `MoveStop` /
+ * `PressThreat` in order (none while he is busy, D6: he drinks, sleeps or talks and answers nothing), then
  * moves him once for one step: by `walkSpeedMps`, or by the speed of his glide. The speed is read
  * each step, so a changed feel applies at once.
  */

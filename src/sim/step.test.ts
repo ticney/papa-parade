@@ -20,6 +20,7 @@ describe('system order', () => {
       'applyCommands',
       'advanceTime',
       'runDirector',
+      'runDisruptions',
       'runBaby',
       'runThreats',
       'runPapa',

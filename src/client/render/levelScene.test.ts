@@ -351,6 +351,31 @@ describe('createLevelScene', () => {
     expect(floor?.position.toArray()).toEqual(floorBefore);
   });
 
+  it("shows Papa's handset exactly while the world says he is on the phone (story 1.20)", () => {
+    const { scene, update } = build();
+    const handset = scene.getObjectByName('papa_handset');
+    const mug = scene.getObjectByName('papa_mug');
+    const world = fakeWorldAt(0);
+    const state = world.papa.state;
+    try {
+      update(world, 0);
+      expect(handset?.visible).toBe(false);
+      world.papa.state = 'onPhone';
+      update(world, 0);
+      expect(handset?.visible).toBe(true);
+      expect(mug?.visible).toBe(false);
+      world.papa.state = 'drink';
+      update(world, 0);
+      expect(handset?.visible).toBe(false);
+      expect(mug?.visible).toBe(true);
+      world.papa.state = 'idle';
+      update(world, 0);
+      expect(handset?.visible).toBe(false);
+    } finally {
+      world.papa.state = state;
+    }
+  });
+
   it('draws the baby where the sim has it, interpolated, looking where it crawls', async () => {
     const { scene, update } = build();
     const group = scene.getObjectByName('baby_group');

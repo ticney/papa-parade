@@ -251,3 +251,11 @@ export const GAUGE_CHANGE_HOLD_MS = 1500;
 
 /** Every gauge runs from 0 to this many points (story 1.19: fatigue; noise and need follow). */
 export const GAUGE_MAX_POINTS = 100;
+
+/**
+ * A ringing phone emits one `PhoneRinging` every this many sim ms (story 1.20 D5), counted from the
+ * start of the ring without drift. A contract, not a feel: story 3.1 adds « +2 % par seconde de
+ * sonnerie » per event, and that +2 lives in `feel.noise`. Making the period tunable would silently
+ * change the noise rate, so it is a constant.
+ */
+export const PHONE_RINGING_EVERY_MS = 1000;

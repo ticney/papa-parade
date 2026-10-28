@@ -179,7 +179,7 @@ describe('TapFloor on open floor', () => {
 describe('TapObject (story 1.17)', () => {
   it('walks to the anchor of the object like a tap there, then says it was tapped', async () => {
     const sim = await newSim();
-    // The phone only walks (the coffee machine drinks: see the coffee tests).
+    // A quiet phone only walks (the coffee machine drinks, a ringing phone is answered: see the coffee and phone call tests).
     const [x, , z] = anchor('phone');
     sim.enqueue(tapObject('phone'));
     const events = run(sim, 600);

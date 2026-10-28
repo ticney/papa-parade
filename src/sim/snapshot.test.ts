@@ -9,6 +9,7 @@ import {
   OUTLET,
   stepN,
   TEST_OBJECTS,
+  testPhoneEntry,
   testWave,
 } from '../../tests/support/testContent.ts';
 import { PARRY_RELEASE_AFTER_MS } from '../../tests/support/timeEffects.ts';
@@ -391,15 +392,17 @@ describe('snapshot / restore', () => {
   it('refuses an unknown snapshot version', async () => {
     const sim = await createSim({ content, geometry, level, seed: 5 });
     const snapshot = sim.snapshot();
-    expect(() => sim.restore({ ...snapshot, version: 1 as 7 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 1 as 8 })).toThrow(/version/);
     // Version 3 predates the base scale and the slow-mos (story 1.14).
-    expect(() => sim.restore({ ...snapshot, version: 3 as 7 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 3 as 8 })).toThrow(/version/);
     // Version 4 has no Rapier world (story 1.15).
-    expect(() => sim.restore({ ...snapshot, version: 4 as 7 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...snapshot, version: 4 as 8 })).toThrow(/version 4/);
     // Version 5 has no director, flow or wave index (story 1.18).
-    expect(() => sim.restore({ ...snapshot, version: 5 as 7 })).toThrow(/version 5/);
+    expect(() => sim.restore({ ...snapshot, version: 5 as 8 })).toThrow(/version 5/);
     // Version 6 has no gauges, no Papa busy state and no `objectId` (story 1.19).
-    expect(() => sim.restore({ ...snapshot, version: 6 as 7 })).toThrow(/version 6/);
+    expect(() => sim.restore({ ...snapshot, version: 6 as 8 })).toThrow(/version 6/);
+    // Version 7 has no disruptions and no `onPhone` state (story 1.20).
+    expect(() => sim.restore({ ...snapshot, version: 7 as 8 })).toThrow(/version 7/);
   });
 
   it('refuses a snapshot of another level', async () => {
@@ -925,7 +928,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
   it('is taken while a prop moves, and carries the Rapier world as base64', async () => {
     const sim = await midFall();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(7);
+    expect(snapshot.version).toBe(8);
     expect(snapshot.physics).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
     expect(snapshot.world.props[0]?.xM).toBeGreaterThan(0.7);
     expect(snapshot.world.props[0]?.yM).toBeLessThan(0.5);
@@ -976,7 +979,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
 
   it('refuses a snapshot from before the Rapier world (version 4)', async () => {
     const sim = await newSim();
-    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 7 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 8 })).toThrow(/version 4/);
   });
 
   describe('refuses a malformed props slice, with its path', () => {
@@ -1089,11 +1092,11 @@ describe('snapshot / restore of the director and the flow (story 1.18)', () => {
   const threat0 = (w: Record<string, unknown>) =>
     (w.threats as Record<string, unknown>[])[0] as Record<string, unknown>;
 
-  it('is version 7, and carries the director, the flow and the wave index of each threat', async () => {
+  it('is version 8, and carries the director, the flow and the wave index of each threat', async () => {
     const sim = await newSim();
     stepN(sim, 60); // 600 ms: wave 0 entered, the outlet telegraphed
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(7);
+    expect(snapshot.version).toBe(8);
     expect(snapshot.world.director.waveIndex).toBe(0);
     expect(snapshot.world.flow).toEqual({ state: 'playing', enteredAt: 0 });
     expect(snapshot.world.threats[0]).toMatchObject({ state: 'telegraph', waveIndex: 0 });
@@ -1322,5 +1325,172 @@ describe('snapshot / restore of the gauges and the busy Papa (story 1.19)', () =
     Object.assign(snapshot.world.gauges, { isFatigueAbove: true, microSleepAt: 500 });
     const target = await createSim({ content, geometry, level, seed: 9 });
     expect(() => target.restore(snapshot)).toThrow(/world\.gauges\.isFatigueAbove/);
+  });
+});
+
+describe('snapshot / restore of the disruptions and the phone call (story 1.20)', () => {
+  const phoneLevel = createTestLevel({
+    waves: [testWave([], { disruptions: [testPhoneEntry(100_000)] })],
+    objects: TEST_OBJECTS,
+    gauges: FATIGUE_GAUGES,
+  });
+  const newPhone = () => createSim({ content, geometry, level: phoneLevel, seed: 9 });
+
+  /** A sim whose phone rings and Papa has set off to answer it. */
+  async function ringing() {
+    const sim = await newPhone();
+    sim.enqueue({ type: 'StartDisruption', t: asSimMs(0), index: 0 });
+    sim.enqueue({ type: 'TapObject', t: asSimMs(0), objectId: 'phone' });
+    stepN(sim, 50);
+    return sim;
+  }
+
+  /** Steps until Papa is on the phone. */
+  async function onPhone() {
+    const sim = await ringing();
+    for (let i = 0; i < 5000 && sim.world.papa.state !== 'onPhone'; i++) sim.step();
+    expect(sim.world.papa.state).toBe('onPhone');
+    return sim;
+  }
+
+  it('is version 8, and carries a pending disruption as it was created', async () => {
+    const sim = await newPhone();
+    const snapshot = sim.snapshot();
+    expect(snapshot.version).toBe(8);
+    expect(snapshot.world.disruptions).toEqual([
+      { state: 'pending', enteredAt: 0, untilAt: 0, nextRingingAt: 0 },
+    ]);
+  });
+
+  it('carries a ringing phone with its two instants, and restores to the uninterrupted hash', async () => {
+    const live = await ringing();
+    const snapshot = live.snapshot();
+    expect(snapshot.world.disruptions[0]).toMatchObject({ state: 'ringing' });
+    expect(snapshot.world.disruptions[0]?.untilAt).toBeGreaterThan(0);
+    expect(snapshot.world.disruptions[0]?.nextRingingAt).toBeGreaterThan(0);
+    const copy = await newPhone();
+    copy.restore(snapshot);
+    stepN(live, 400);
+    stepN(copy, 400);
+    expect(hashJson(copy.world)).toBe(hashJson(live.world));
+    expect(copy.world.disruptions[0]).toEqual(live.world.disruptions[0]);
+  });
+
+  it('restores a call mid-way to the uninterrupted hash: onPhone, its end, and what follows', async () => {
+    const live = await onPhone();
+    const snapshot = live.snapshot();
+    expect(snapshot.world.papa).toMatchObject({ state: 'onPhone', objectId: null });
+    expect(snapshot.world.papa.busyUntil).toBeGreaterThan(live.world.time.sim);
+    expect(snapshot.world.disruptions[0]).toMatchObject({
+      state: 'answered',
+      untilAt: 0,
+      nextRingingAt: 0,
+    });
+    const copy = await newPhone();
+    copy.restore(snapshot);
+    stepN(live, 700);
+    stepN(copy, 700);
+    expect(copy.world.papa.state).toBe('idle');
+    expect(hashJson(copy.world)).toBe(hashJson(live.world));
+  });
+
+  it('refuses a snapshot taken by a level that plans another number of disruptions', async () => {
+    const live = await newPhone();
+    const snapshot = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<
+      typeof live.snapshot
+    >;
+    const none = await createSim({
+      content,
+      geometry,
+      level: createTestLevel({ objects: TEST_OBJECTS, gauges: FATIGUE_GAUGES }),
+      seed: 9,
+    });
+    expect(() => none.restore(snapshot)).toThrow(/world\.disruptions|another level/);
+    // Same level hash needed for the length check: damage the list of the right level instead.
+    snapshot.world.disruptions.push(snapshot.world.disruptions[0] as never);
+    const target = await newPhone();
+    expect(() => target.restore(snapshot)).toThrow(/world\.disruptions/);
+  });
+
+  describe('refuses a damaged slice, naming the field', () => {
+    const slice = (w: Record<string, unknown>) =>
+      (w.disruptions as Record<string, unknown>[])[0] as Record<string, unknown>;
+    const set = (target: Record<string, unknown>, key: string, value: unknown): void => {
+      target[key] = value;
+    };
+    const broken: [string, (w: Record<string, unknown>) => void, RegExp][] = [
+      ['no disruptions', (w) => delete w.disruptions, /world\.disruptions/],
+      [
+        'a disruption that is not an object',
+        (w) => set(w, 'disruptions', [3]),
+        /world\.disruptions\[0\]/,
+      ],
+      [
+        'an unknown state',
+        (w) => set(slice(w), 'state', 'snoozing'),
+        /world\.disruptions\[0\]\.state/,
+      ],
+      [
+        'a NaN enteredAt',
+        (w) => set(slice(w), 'enteredAt', Number.NaN),
+        /disruptions\[0\]\.enteredAt/,
+      ],
+      ['a negative untilAt', (w) => set(slice(w), 'untilAt', -1), /disruptions\[0\]\.untilAt/],
+      [
+        'a negative nextRingingAt',
+        (w) => set(slice(w), 'nextRingingAt', -1),
+        /disruptions\[0\]\.nextRingingAt/,
+      ],
+      ['an enteredAt in the future', (w) => set(slice(w), 'enteredAt', 99_999_999), /enteredAt/],
+      [
+        'a pending phone that has an end',
+        (w) => set(slice(w), 'untilAt', 5000),
+        /disruptions\[0\]\.untilAt/,
+      ],
+      [
+        'a ringing phone with no end',
+        (w) => {
+          set(slice(w), 'state', 'ringing');
+          set(slice(w), 'nextRingingAt', 500);
+        },
+        /disruptions\[0\]\.untilAt/,
+      ],
+      [
+        'a ringing phone with no next tick',
+        (w) => {
+          set(slice(w), 'state', 'ringing');
+          set(slice(w), 'untilAt', 500);
+        },
+        /disruptions\[0\]\.nextRingingAt/,
+      ],
+      [
+        'a timed-out phone that still has a next tick',
+        (w) => {
+          set(slice(w), 'state', 'timedOut');
+          set(slice(w), 'nextRingingAt', 500);
+        },
+        /disruptions\[0\]\.nextRingingAt/,
+      ],
+      [
+        'an onPhone Papa with no end',
+        (w) => set(w.papa as Record<string, unknown>, 'state', 'onPhone'),
+        /world\.papa\.busyUntil/,
+      ],
+      [
+        'a Papa who walks but has a busy end',
+        (w) => set(w.papa as Record<string, unknown>, 'busyUntil', 9000),
+        /world\.papa\.busyUntil/,
+      ],
+    ];
+    it.each(broken)('%s', async (_name, damage, expected) => {
+      const live = await newPhone();
+      stepN(live, 5);
+      const snapshot = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<
+        typeof live.snapshot
+      >;
+      damage(snapshot.world as unknown as Record<string, unknown>);
+      const target = await newPhone();
+      expect(() => target.restore(snapshot)).toThrow(expected);
+    });
   });
 });

@@ -93,6 +93,7 @@ describe('runSim', () => {
             gapMaxMs: 0,
             lullMs: 0,
             threats: [{ def: 'outlet', anchor: 'no_such_anchor' }],
+            disruptions: [],
           },
         ],
       },

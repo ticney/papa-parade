@@ -125,10 +125,32 @@ function plannedEntriesOf(level: LevelContent): PlannedEntry[] {
   );
 }
 
+/** One disruption entry of a wave, flattened: where it sits in the level file (for the messages) and what it names. */
+interface PlannedDisruptionEntry {
+  readonly where: string;
+  readonly def: string;
+  readonly object: string;
+  readonly atMs: number;
+  readonly waveIndex: number;
+}
+
+function plannedDisruptionsOf(level: LevelContent): PlannedDisruptionEntry[] {
+  return level.level.waves.flatMap((wave, w) =>
+    wave.disruptions.map((entry, i) => ({
+      where: `level ${level.level.id} › waves[${w}].disruptions[${i}]`,
+      def: entry.def,
+      object: entry.object,
+      atMs: entry.atMs,
+      waveIndex: w,
+    })),
+  );
+}
+
 /**
  * What the level plans, checked against the room: it is the level of this geometry, every planned
  * def is loaded, every anchor exists (an object's too, and object ids are unique), no anchor is
- * planned twice and every gag is one the sim knows. A level that breaks one is a
+ * planned twice and every gag is one the sim knows. Every planned disruption has its def loaded, rings
+ * at an object of the level, of the same kind, and an object is planned once (story 1.20). A level that breaks one is a
  * broken level (`content:check` catches it statically). One instance per planned anchor, in order
  * of first appearance across the waves.
  */
@@ -195,6 +217,29 @@ function simLevelOf(
     );
     threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1 });
   }
+  const disruptions: SimLevel['disruptions'][number][] = [];
+  for (const entry of plannedDisruptionsOf(level)) {
+    // The wording of these is the one `content:check` and the schema use.
+    const def = Object.hasOwn(level.disruptions, entry.def)
+      ? level.disruptions[entry.def]
+      : undefined;
+    invariant(def !== undefined, `${entry.where}: the disruption ${entry.def} is not loaded`);
+    const object = level.level.objects.find((candidate) => candidate.id === entry.object);
+    invariant(
+      object !== undefined,
+      `${entry.where}: the object "${entry.object}" is not in the level objects`,
+    );
+    invariant(
+      def.kind === object.kind,
+      `${entry.where}: the disruption "${entry.def}" has the kind "${def.kind}", but the object "${entry.object}" has the kind "${object.kind}"`,
+    );
+    const earlier = disruptions.find((other) => other.objectId === entry.object);
+    invariant(
+      earlier === undefined,
+      `${entry.where}: the object "${entry.object}" is already planned by another disruption`,
+    );
+    disruptions.push({ def, objectId: entry.object, atMs: entry.atMs, waveIndex: entry.waveIndex });
+  }
   return {
     microSleepIndex: microSleepDef === undefined ? -1 : threats.length - 1,
     durationMs: level.level.durationMs,
@@ -210,6 +255,7 @@ function simLevelOf(
       };
     }),
     threats,
+    disruptions,
     objects: level.level.objects.map((object, index) => {
       const where = `level ${level.level.id} › objects[${index}]`;
       invariant(
@@ -319,6 +365,14 @@ export async function createSimWithSystems(
       responseWindow: null,
       press: null,
       waveIndex: -1,
+    });
+  });
+  simLevel.disruptions.forEach(() => {
+    world.disruptions.push({
+      state: 'pending',
+      enteredAt: asSimMs(0),
+      untilAt: asSimMs(0),
+      nextRingingAt: asSimMs(0),
     });
   });
   if (source) {

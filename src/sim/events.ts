@@ -11,6 +11,9 @@ export type ResponseQuality = 'perfect' | 'success' | 'fail';
 /** Why a response failed: pressed before the window, never pressed in it, or the wrong kind of press. */
 export type FailReason = 'early' | 'late' | 'wrongResponse';
 
+/** Why a ringing phone stopped: Papa picked up, or it rang `ringMaxMs` for nothing. */
+export type PhoneRingEndReason = 'answered' | 'timedOut';
+
 /** Why a level ended. `'timer'` so far; the early end on noise (`MamaWoke`, story 3.x) adds one. */
 export type LevelEndReason = 'timer';
 
@@ -85,6 +88,21 @@ export type SimEvent =
   | { type: 'CoffeeStarted'; t: SimMs; objectId: string; untilAt: SimMs }
   /** Papa finished his coffee: the fatigue it left (`fatigue`, in points) and he is idle again. */
   | { type: 'CoffeeDrunk'; t: SimMs; fatigue: number }
+  /** A planned phone started to ring at this object; it gives up at `untilAt` if nobody answers. */
+  | { type: 'PhoneRingStarted'; t: SimMs; objectId: string; untilAt: SimMs }
+  /**
+   * The phone rang for one more `PHONE_RINGING_EVERY_MS`: one event, one second of ringing, counted
+   * from the start without drift. Story 3.1 adds « +2 % de bruit par seconde » for each. (Not past
+   * tense: the epic and story 3.1 name it so.)
+   */
+  | { type: 'PhoneRinging'; t: SimMs; objectId: string }
+  /** The phone stopped ringing, for the `reason`; `timedOut` is a missed call. */
+  | { type: 'PhoneRingEnded'; t: SimMs; objectId: string; reason: PhoneRingEndReason }
+  /**
+   * Papa picked up (right after `PhoneRingEnded{answered}`): he is on the phone until `untilAt` and
+   * his fatigue is now `fatigue`, in points, after the call's cost.
+   */
+  | { type: 'PhoneAnswered'; t: SimMs; objectId: string; untilAt: SimMs; fatigue: number }
   /**
    * A prop took a hit of `impulseNs` (N·s) or more, at most once per `feel.physics.impactCooldownMs`.
    * `otherPropId` is the prop it hit, null for the floor, a wall or furniture; a hit between two
@@ -117,6 +135,10 @@ export const SIM_EVENT_TYPES = [
   'PapaGlideStarted',
   'PapaPathPlanned',
   'PapaStateChanged',
+  'PhoneAnswered',
+  'PhoneRingEnded',
+  'PhoneRingStarted',
+  'PhoneRinging',
   'PropBroken',
   'PropImpact',
   'ResponseResolved',

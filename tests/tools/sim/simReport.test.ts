@@ -35,6 +35,9 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     microSleeps: 0,
     coffees: 0,
     asleepGags: 0,
+    phoneRings: 0,
+    phoneAnswers: 0,
+    phoneRingingSeconds: 0,
     commands: 0,
     threats: {},
     byGag: {},
@@ -162,6 +165,20 @@ describe('summarizeRuns', () => {
     ]);
     expect(report).toMatchObject({ microSleeps: 8, coffees: 3, asleepRuns: 2 });
     expect(summarizeRuns(INPUT, [])).toMatchObject({ microSleeps: 0, coffees: 0, asleepRuns: 0 });
+  });
+
+  it('adds the phone rings, answers and seconds of ringing up over the runs (story 1.20)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(5, { phoneRings: 1, phoneAnswers: 0, phoneRingingSeconds: 15 }),
+      run(6, { phoneRings: 1, phoneAnswers: 1, phoneRingingSeconds: 4 }),
+      run(7, { phoneRings: 0, phoneAnswers: 0, phoneRingingSeconds: 0 }),
+    ]);
+    expect(report).toMatchObject({ phoneRings: 2, phoneAnswers: 1, phoneRingingSeconds: 19 });
+    expect(summarizeRuns(INPUT, [])).toMatchObject({
+      phoneRings: 0,
+      phoneAnswers: 0,
+      phoneRingingSeconds: 0,
+    });
   });
 
   it('never gives NaN: no response at all has no success rate, and the mean offset is null', () => {
@@ -370,6 +387,20 @@ describe('createRunRecorder', () => {
         reason: 'late',
       });
       expect(recorder.finish()).toMatchObject({ coffees: 2, asleepGags: 1 });
+    });
+
+    it('counts the phone rings, the answers and each second of ringing (story 1.20)', async () => {
+      const recorder = await recorderOf([]);
+      const phone = { objectId: 'phone', t: asSimMs(0) };
+      recorder.onEvent({ type: 'PhoneRingStarted', untilAt: asSimMs(15_000), ...phone });
+      for (let i = 0; i < 4; i++) recorder.onEvent({ type: 'PhoneRinging', ...phone });
+      recorder.onEvent({ type: 'PhoneRingEnded', reason: 'answered', ...phone });
+      recorder.onEvent({ type: 'PhoneAnswered', untilAt: asSimMs(5000), fatigue: 20, ...phone });
+      expect(recorder.finish()).toMatchObject({
+        phoneRings: 1,
+        phoneAnswers: 1,
+        phoneRingingSeconds: 4,
+      });
     });
 
     it('knows whether the level ended', async () => {

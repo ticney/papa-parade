@@ -13,6 +13,12 @@ export type SimCommand =
    * `[0, 100]`) through `addFatigue`, so the threshold logic runs. Ignored in a level with no fatigue.
    */
   | { type: 'SetFatigue'; t: SimMs; points: number }
+  /**
+   * Debug / test command, journaled like `SetFatigue`: starts the planned disruption number `index`
+   * (the waves' `disruptions` flattened in wave order) now, if it is still `pending`; any other
+   * state, or an index the level does not have, is ignored with no event (story 1.20).
+   */
+  | { type: 'StartDisruption'; t: SimMs; index: number }
   /** Walk to this point of the floor (metres); an unreachable point means the nearest reachable one. */
   | { type: 'TapFloor'; t: SimMs; xM: number; zM: number }
   /**
@@ -46,6 +52,7 @@ export type SimCommand =
 export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetTimeScale',
   'SetFatigue',
+  'StartDisruption',
   'TapFloor',
   'TapObject',
   'Move',
@@ -75,6 +82,11 @@ export function commandProblem(value: unknown): string | null {
   if (command.type === 'SetFatigue') {
     if (typeof command.points !== 'number' || !Number.isFinite(command.points)) {
       return 'SetFatigue: points must be a finite number';
+    }
+  }
+  if (command.type === 'StartDisruption') {
+    if (!Number.isInteger(command.index) || (command.index as number) < 0) {
+      return 'StartDisruption: index must be a non-negative integer';
     }
   }
   if (command.type === 'TapFloor') {

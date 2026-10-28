@@ -8,7 +8,7 @@ import { MAX_TIMER_DELAY_MS, MS_PER_S } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
-import type { Sim, SimEvent } from '@sim';
+import { isPapaBusy, type Sim, type SimEvent } from '@sim';
 import { Color, Scene, Vector3 } from 'three';
 import { createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
@@ -25,6 +25,7 @@ import { readThreatsOff, withoutThreats } from './app/threatsSwitch.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
 import { createAudioEngine } from './audio/audioEngine.ts';
+import { disruptionCueOf } from './feedback/disruptionFeedback.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
 import { createResponseChoreography } from './feedback/responseChoreography.ts';
 import { threatCueOf } from './feedback/threatFeedback.ts';
@@ -220,6 +221,7 @@ export async function boot(): Promise<void> {
       | 'ppGag'
       | 'ppPress'
       | 'ppFatigue'
+      | 'ppPhone'
       | 'ppObjectPx'
       | 'ppTarget',
     value: string,
@@ -272,6 +274,8 @@ export async function boot(): Promise<void> {
     haptics: platform.haptics,
     // Only while a level is on: a scene behind the loading screen must not play for a dead sim.
     getScene: () => (appFsm.state === 'level' ? (currentLevel?.fx ?? null) : null),
+    // Where an `object`-anchored ring (the phone's) starts from.
+    getObjects: () => levelSession.active?.sim.objects ?? [],
     prefersReducedMotion,
     onCue: (cueId) => {
       cuesPlayedCount++;
@@ -389,9 +393,15 @@ export async function boot(): Promise<void> {
       'ppGag',
       'ppPress',
       'ppTarget',
+      'ppPhone',
     ] as const) {
       delete document.documentElement.dataset[name];
     }
+  };
+  // The phone, on its events only: ringing, then answered or timedOut (never per frame).
+  const mirrorPhoneEvent = (event: SimEvent): void => {
+    if (event.type === 'PhoneRingStarted') mirror('ppPhone', 'ringing');
+    else if (event.type === 'PhoneRingEnded') mirror('ppPhone', event.reason);
   };
   // The threats, on their events only: the state of the threat, where its icon is on the page
   // (CSS px, for a test to tap), the last response and the last gag.
@@ -610,6 +620,11 @@ export async function boot(): Promise<void> {
         if (cue !== null && 'threatId' in event) {
           director.playCue(cue, active.sim.world, event.threatId);
         }
+        // A disruption's cues come from its def too (story 1.20 D10), anchored on its object.
+        const disruptionCue = disruptionCueOf(event, active.level.level, active.level.disruptions);
+        if (disruptionCue !== null && 'objectId' in event) {
+          director.playCue(disruptionCue, active.sim.world, null, event.objectId);
+        }
         if (currentLevel !== null) {
           // Reduced motion: no hop of the baby, no snap of Papa's hair (the lights carry the gag).
           const isMotionReduced = prefersReducedMotion();
@@ -645,19 +660,22 @@ export async function boot(): Promise<void> {
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);
         mirrorThreatEvent(event);
+        mirrorPhoneEvent(event);
       }
       // A key still held after a tap's path ends walks again, and so after a coffee or a nap.
       if (event.type === 'PapaArrived') inputMapper.resumeHeld();
       if (
         event.type === 'PapaStateChanged' &&
         event.to === 'idle' &&
-        (event.from === 'drink' || event.from === 'asleep')
+        isPapaBusy({ state: event.from })
       ) {
         inputMapper.resumeHeld();
       }
       if (
         isMirrored &&
-        (event.type === 'FatigueThresholdCrossed' || event.type === 'CoffeeDrunk')
+        (event.type === 'FatigueThresholdCrossed' ||
+          event.type === 'CoffeeDrunk' ||
+          event.type === 'PhoneAnswered')
       ) {
         mirrorFatigue();
       }

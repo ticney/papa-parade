@@ -554,24 +554,27 @@ describe('two threats active at once', () => {
 });
 
 describe('a busy Papa (story 1.19 D6)', () => {
-  const makeBusy = (sim: Sim): void => {
+  const makeBusy = (sim: Sim, state: 'asleep' | 'drink' | 'onPhone' = 'asleep'): void => {
     const papa = sim.world.papa as Mutable<typeof sim.world.papa>;
-    papa.state = 'asleep';
+    papa.state = state;
     papa.busyUntil = asSimMs(60_000);
   };
 
-  it('ignores PressThreat: the threat opens, then ends in its gag (late)', async () => {
-    const sim = await newSim();
-    runTo(sim, 500);
-    makeBusy(sim);
-    const t = threatOf(sim).windowOpenAt + (threatOf(sim).responseWindow?.windowMs ?? 0) / 2;
-    sim.enqueue(press(t));
-    sim.enqueue(release(t + 50));
-    const events = runTo(sim, t + 800);
-    expect(only(events, 'ResponseResolved')).toEqual([
-      expect.objectContaining({ quality: 'fail', reason: 'late', offsetMs: null }),
-    ]);
-  });
+  it.each(['asleep', 'drink', 'onPhone'] as const)(
+    'ignores PressThreat while %s: the threat opens, then ends in its gag (late)',
+    async (state) => {
+      const sim = await newSim();
+      runTo(sim, 500);
+      makeBusy(sim, state);
+      const t = threatOf(sim).windowOpenAt + (threatOf(sim).responseWindow?.windowMs ?? 0) / 2;
+      sim.enqueue(press(t));
+      sim.enqueue(release(t + 50));
+      const events = runTo(sim, t + 800);
+      expect(only(events, 'ResponseResolved')).toEqual([
+        expect.objectContaining({ quality: 'fail', reason: 'late', offsetMs: null }),
+      ]);
+    },
+  );
 
   it('still processes Release: a press made before the nap ends as it should', async () => {
     const sim = await newSim();

@@ -54,6 +54,50 @@ describe('loadLevelContent', () => {
     expect(result.value.threats.papa_microsleep?.target).toBe('papa');
   });
 
+  it('loads the disruption def the live level plans, once, beside the threat defs', async () => {
+    const result = await loadLevelContent(memorySource(), 'salon_crawler');
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    const planned = result.value.level.waves.flatMap((wave) => wave.disruptions.map((d) => d.def));
+    expect(planned.length).toBeGreaterThan(0);
+    expect(Object.keys(result.value.disruptions)).toEqual([...new Set(planned)]);
+    expect(result.value.disruptions.phone?.kind).toBe('phone');
+  });
+
+  it('loads no disruption for a level that plans none', async () => {
+    const result = await loadLevelContent(
+      memorySource({ 'levels/salon_crawler.json': planning(['outlet']) }),
+      'salon_crawler',
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) expect(result.value.disruptions).toEqual({});
+  });
+
+  it('names the level and the path of a disruption whose file cannot be read', async () => {
+    const problems = await problemsOf({ 'disruptions/phone.json': null });
+    expect(problems).toEqual([
+      expect.objectContaining({
+        file: 'content/levels/salon_crawler.json',
+        jsonPath: 'waves[2].disruptions[0].def',
+        message: expect.stringContaining('disruption "phone"'),
+      }),
+    ]);
+  });
+
+  it('names a disruption file that breaks its schema or whose id is not its file name', async () => {
+    const phone = JSON.parse(readReal('disruptions/phone.json'));
+    expect(
+      await problemsOf({ 'disruptions/phone.json': JSON.stringify({ ...phone, ringMaxMs: -1 }) }),
+    ).toEqual([
+      expect.objectContaining({ file: 'content/disruptions/phone.json', jsonPath: 'ringMaxMs' }),
+    ]);
+    expect(
+      await problemsOf({ 'disruptions/phone.json': JSON.stringify({ ...phone, id: 'ring' }) }),
+    ).toEqual([
+      expect.objectContaining({ file: 'content/disruptions/phone.json', jsonPath: 'id' }),
+    ]);
+  });
+
   it('names gauges.fatigue.microSleepDef when its threat file cannot be read', async () => {
     const live = JSON.parse(readReal('levels/salon_crawler.json'));
     const problems = await problemsOf({

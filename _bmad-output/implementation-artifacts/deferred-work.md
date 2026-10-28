@@ -301,7 +301,7 @@
 ## Deferred from: implementation of story 1-17-ciblage-automatique-au-clavier-et-a-la-manette (2026-10-27)
 
 - **The touch tap on an interactive object** (hit-test threat > object > floor, a generous radius around the object's anchor): story 1.19 (coffee), reused by 1.20. `createHitTester` still picks threats and the floor only.  *Resolved (story 1.19): `pickObject` in `hitTest.ts`, `TapObject` in the input mapper.*
-- **What happens on arrival at an object**: `ObjectTapped` has no consumer yet (busy time, fatigue): stories 1.19 and 1.20.  *Resolved for the coffee (story 1.19): the arrival action by `ObjectKind`; the phone's is story 1.20.*
+- **What happens on arrival at an object**: `ObjectTapped` has no consumer yet (busy time, fatigue): stories 1.19 and 1.20.  *Resolved for the coffee (story 1.19): the arrival action by `ObjectKind`; the phone's is story 1.20.* *Resolved for the phone (story 1.20): `OBJECT_ACTIONS.phone` answers a ringing phone on arrival.*
 - **A pad-only start can be silent** (D14): browsers do not count a gamepad button as a user activation, so `audio.unlock()` from A on the start screen may leave the audio context suspended until a key or a tap. The existing unlock path logs a `warn` if it stays suspended. Device pass (1.24), or a « press a key » hint if playtesters hit it.
 - **D-pad as movement in play, and analog stick speed** (1.7's item): not asked; the left stick walks, at one speed.
 - **Menu auto-repeat on a held stick or D-pad**: not needed for two buttons; the Fridge (3.11) and Settings (2.8) may want it.
@@ -322,7 +322,7 @@
 ## Deferred from: implementation of story 1-18-vagues-de-menaces-et-chrono-du-niveau (2026-10-28)
 
 - **The wave values of `salon_crawler.json` are starting points** (D2): the gaps, the limits and the 3 s lull are to tune while playing, then check with `npm run sim -- --bot human --runs 50` (the report now has `waves[]`). Story 1.24 (playtest).
-- **The disruption of wave 3 (the phone)** is story 1.20 (D10): `disruptions: [{ def, atMs }]` joins `LevelWaveSchema` there. Until then wave 3 is three threats at once and no phone.
+- **The disruption of wave 3 (the phone)** is story 1.20 (D10): `disruptions: [{ def, atMs }]` joins `LevelWaveSchema` there. Until then wave 3 is three threats at once and no phone. *Resolved (story 1.20): `disruptions: [{ def, object, atMs }]` on wave 3, the phone at 125 s.*
 - **`maxSimultaneous` counts every active threat**, including one a system spawns outside the waves (`waveIndex` -1). Story 1.19 adds the rule that `papa_microsleep` does not count against it (D5).  *Resolved (story 1.19): the director skips instances whose planned `firstWaveIndex` is -1, in the count and in the pool.*
 - **The timer is sim time** (ADR-002): it slows with a slow-mo, so a 3:00 level lasts a little longer in real time. A real-time display would be a client-only change (Open point 2 of the story).
 - **The first threat of a game is random** (D4): a scripted first threat (the tutorial effect of FR52) would be a small `first` field on wave 0, in a later story.
@@ -359,3 +359,16 @@
 - **The fatigue schema accepts degenerate tunings** (`microSleepMinMs` = `MaxMs` = 0, `thresholdPoints` ≥ 100, `objectTouchRadiusPx` under 44 pt) and the new feel keys have no rejection tests. Reason: tighten with `windowPenaltyPct` when Geo retunes the fatigue.
 - **Noise and need gauges would show but never move** if a level declared them. Reason: `LevelGaugesSchema` only takes `fatigue`; story 3.1 wires noise.
 - **One e2e flake seen:** the micro-sleep parry spec ended `asleep` once on a cold first run, then passed 7 times. Reason: not reproduced; if CI shows it, send the press with the stepped sim's `t` instead of a DOM position.
+
+## Deferred from: implementation of story 1-20-le-telephone-qui-sonne (2026-10-28)
+
+- **The noise half of the phone** (« +2 % de bruit par seconde tant qu'il sonne », FR29) is story 3.1: it reads `PhoneRinging` only (one event is one second of ringing, `PHONE_RINGING_EVERY_MS`). Today an ignored phone costs nothing: `phoneRingingSeconds` in the CLI report is the number 3.1 will turn into noise.
+- **The attention gauge** (−5 per second while Papa sees to himself, a coffee or the phone, GDD L366) is an E6 rule for the later ages. `onPhone` is only a busy state here.
+- **The ring and the pick-up are placeholders** (`tel_phone_ring`, `papa_phone_answer`, and the cues' ring and vibration in `feedback.json`): stories 2.3 (sounds) and 2.4 (visual and haptic twins) replace them under the same ids. One vibration per ring is up to 15 in a row.
+- **No persistent « ringing » marker on the phone** beyond the ring on the floor every second. The threats have an icon; the phone does not. Geo to say if the playtest wants one (Open point 4 of the story).
+- **The phone rings at a fixed `atMs`** (125 s, 5 s into wave 3, D1), not at a random time inside the wave. A random `atMinMs` / `atMaxMs` is a later tuning call, with one `nextFloat` per disruption.
+- **`ringMaxMs` is 15 s**, so an ignored phone will be +30 % noise once 3.1 lands (Open point 2). To tune with `npm run sim -- --bot human`.
+- **No bot answers the phone**: `perfect`, `human`, `random` and `idle` never send `TapObject`, so every run shows the phone ringing out (`phoneAnswers` stays 0). A phone-answering bot is a later need (1.24 playtest metrics?).
+- **A `?threats=off` run has no phone** (`withoutThreats` empties the waves, and the disruptions with them): the quiet room stays quiet. `StartDisruption` has nothing to start there.
+- **The sim does not check the disruption's feedback cues** (they live in `feedback.json`, which the sim ignores): `content:check` does, like for the threats. `createSim` checks the def, the object and the kind.
+

@@ -213,6 +213,15 @@ describe('the nap and the coffee (story 1.19)', () => {
     expect(isShown(named('papa_mug'))).toBe(false);
   });
 
+  it('shows the handset while he is on the phone', () => {
+    const { view, named } = build();
+    expect(isShown(named('papa_handset'))).toBe(false);
+    view.setOnPhone(true);
+    expect(isShown(named('papa_handset'))).toBe(true);
+    view.setOnPhone(false);
+    expect(isShown(named('papa_handset'))).toBe(false);
+  });
+
   it('exposes the pose it drew, interpolated', () => {
     const { view } = build();
     view.update(papa(), 0.5);

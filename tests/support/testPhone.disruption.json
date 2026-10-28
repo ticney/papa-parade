@@ -1,0 +1,12 @@
+{
+  "$schema": "../../content/_schemas/disruption.schema.json",
+  "id": "phone",
+  "kind": "phone",
+  "ringMaxMs": 15000,
+  "answerBusyMs": 5000,
+  "answerFatiguePoints": 10,
+  "feedback": {
+    "ring": "tel_phone_ring",
+    "answer": "papa_phone_answer"
+  }
+}

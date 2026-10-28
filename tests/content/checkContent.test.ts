@@ -622,6 +622,7 @@ describe('checkContent on level files', () => {
   it('names the level, the object and the anchor when an object stands at an anchor the geometry lacks', async () => {
     await mutateJson(FILE, (level) => {
       level.objects = [{ id: 'kettle', kind: 'coffee_machine', anchor: 'kettle_spot' }];
+      for (const wave of level.waves as Record<string, unknown>[]) wave.disruptions = [];
     });
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({
@@ -738,9 +739,10 @@ describe('checkContent on level files', () => {
     );
   });
 
-  it('accepts a level with no objects key at all (it defaults to none)', async () => {
+  it('accepts a level with no objects key at all (it defaults to none), once no disruption rings at one', async () => {
     await mutateJson(FILE, (level) => {
       delete level.objects;
+      for (const wave of level.waves as Record<string, unknown>[]) wave.disruptions = [];
     });
     expect(await checkContent(root)).toEqual([]);
   });
@@ -781,6 +783,129 @@ describe('checkContent on level files', () => {
     await writeFile(join(root, 'content/_schemas/level.schema.json'), '{}\n');
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({ file: 'content/_schemas/level.schema.json' }),
+    ]);
+  });
+});
+
+describe('checkContent on disruptions (story 1.20)', () => {
+  const LEVEL = 'content/levels/salon_crawler.json';
+  const PHONE = 'content/disruptions/phone.json';
+  const FEEDBACK = 'content/feedback.json';
+
+  it('accepts the live phone: a def, an object of its kind and cues that exist', async () => {
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('names the level, the path and the file of a wave disruption whose def has no file', async () => {
+    await rm(join(root, PHONE));
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: LEVEL,
+        jsonPath: 'waves[2].disruptions[0].def',
+        message: expect.stringMatching(/no disruption "phone".*disruptions\/phone\.json/),
+      }),
+    );
+  });
+
+  it('names the object, the def and both kinds when the def kind is not the object kind', async () => {
+    await mutateJson(LEVEL, (level) => {
+      level.objects = [
+        { id: 'coffee_machine', kind: 'coffee_machine', anchor: 'coffee_machine' },
+        { id: 'phone', kind: 'coffee_machine', anchor: 'phone' },
+      ];
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: LEVEL,
+        jsonPath: 'waves[2].disruptions[0].object',
+        message: expect.stringMatching(/"phone".*kind "phone".*"phone".*kind "coffee_machine"/),
+      }),
+    );
+  });
+
+  it('names the file, the path and the cue of a disruption feedback cue that is not in feedback.json', async () => {
+    await mutateJson(PHONE, (phone) => {
+      (phone.feedback as Record<string, string>).ring = 'tel_no_such_ring';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: PHONE,
+        jsonPath: 'feedback.ring',
+        message: expect.stringContaining('tel_no_such_ring'),
+      }),
+    ]);
+  });
+
+  it('refuses a disruption cue anchored on a threat: its events name an object', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const cues = feedback.cues as Record<string, { visual: { anchor: string } }>;
+      (cues.tel_phone_ring as { visual: { anchor: string } }).visual.anchor = 'threat';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: PHONE,
+        jsonPath: 'feedback.ring',
+        message: expect.stringContaining('anchored on a threat'),
+      }),
+    ]);
+  });
+
+  it('accepts an object-anchored cue the phone points at (the live ring is one)', async () => {
+    const feedback = JSON.parse(await readFile(join(root, FEEDBACK), 'utf8')) as {
+      cues: Record<string, { visual?: { anchor: string } }>;
+    };
+    expect(feedback.cues.tel_phone_ring?.visual?.anchor).toBe('object');
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('refuses an object-anchored cue that a generic event plays: it names no object', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      (feedback.events as Record<string, string>).PapaBlocked = 'tel_phone_ring';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toEqual([
+      expect.objectContaining({
+        file: FEEDBACK,
+        jsonPath: 'cues.tel_phone_ring.visual.anchor',
+        message: expect.stringContaining('PapaBlocked'),
+      }),
+    ]);
+  });
+
+  it('refuses an object-anchored cue that a threat def names: a threat event names no object', async () => {
+    await mutateJson('content/threats/outlet.json', (threat) => {
+      (threat.feedback as Record<string, string>).telegraph = 'tel_phone_ring';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: 'content/threats/outlet.json',
+        jsonPath: 'feedback.telegraph',
+        message: expect.stringContaining('anchored on an object'),
+      }),
+    ]);
+  });
+
+  it('reports a disruption file whose id is not its file name, or that breaks its schema', async () => {
+    await mutateJson(PHONE, (phone) => {
+      phone.id = 'ring';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: PHONE, jsonPath: 'id' }),
+    ]);
+    await mutateJson(PHONE, (phone) => {
+      phone.id = 'phone';
+      phone.ringMaxMs = 0;
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: PHONE, jsonPath: 'ringMaxMs' }),
+    ]);
+  });
+
+  it('reports a stale disruption schema', async () => {
+    await writeFile(join(root, 'content/_schemas/disruption.schema.json'), '{}\n');
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({ file: 'content/_schemas/disruption.schema.json' }),
     ]);
   });
 });

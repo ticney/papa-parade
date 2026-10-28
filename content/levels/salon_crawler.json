@@ -29,7 +29,8 @@
       "gapMinMs": 500,
       "gapMaxMs": 2000,
       "lullMs": 3000,
-      "threats": []
+      "threats": [],
+      "disruptions": [{ "def": "phone", "object": "phone", "atMs": 125000 }]
     }
   ],
   "objects": [

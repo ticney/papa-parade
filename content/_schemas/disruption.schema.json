@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "The disruption id; equals the file name."
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "phone"
+      ],
+      "description": "What it is: it must equal the `kind` of the object it rings at."
+    },
+    "ringMaxMs": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "description": "How long it rings if nobody answers, in sim ms. Then it stops for good."
+    },
+    "answerBusyMs": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "description": "How long Papa is on the phone once he picks up (« attention détournée »), in sim ms."
+    },
+    "answerFatiguePoints": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Fatigue points Papa gains when he picks up, in points of the 0-100 gauge."
+    },
+    "feedback": {
+      "type": "object",
+      "properties": {
+        "ring": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when the phone starts ringing and at each second it goes on ringing."
+        },
+        "answer": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when Papa picks up."
+        }
+      },
+      "required": [
+        "ring",
+        "answer"
+      ],
+      "additionalProperties": false,
+      "description": "Cues of `feedback.json` › `cues` the client plays for this disruption."
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "ringMaxMs",
+    "answerBusyMs",
+    "answerFatiguePoints",
+    "feedback"
+  ],
+  "additionalProperties": false,
+  "description": "A kind of disruption: how long it lasts and what answering it costs (GDD › Perturbations)."
+}

@@ -4,7 +4,7 @@ baseline_commit: ef78496150fabb923b8311fab734aea9e8a3f64f
 
 # Story 1.20: The Phone That Rings
 
-Status: in-progress
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.20 « Le téléphone qui sonne » (L1066-1086). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -138,105 +138,105 @@ so that I decide what to deal with in the middle of the chaos.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 — Precondition** (§ Precondition). Record the baseline CI and the counts in the Debug Log.
-- [ ] **T1 — Content** (AC 1-3, 8)
-  - [ ] `src/content/schemas/disruption.ts`:
+- [x] **T0 — Precondition** (§ Precondition). Record the baseline CI and the counts in the Debug Log.
+- [x] **T1 — Content** (AC 1-3, 8)
+  - [x] `src/content/schemas/disruption.ts`:
     - `DISRUPTION_KINDS = ['phone'] as const`, `DisruptionKind`;
     - `DisruptionDefSchema` (`z.strictObject`, every field `.describe`d with its unit; `ringMaxMs`, `answerBusyMs` int > 0; `answerFatiguePoints` ≥ 0; `feedback: z.strictObject({ ring, answer })` of cue ids);
     - `DisruptionDef` type.
-  - [ ] `src/content/contentFiles.ts`: `DISRUPTION_DEF_PATTERN` (`dir: 'disruptions'`, `suffix: '.json'`, `schemaName: 'disruption'`), added to `CONTENT_PATTERNS`.
-  - [ ] `src/content/schemas/level.ts`:
+  - [x] `src/content/contentFiles.ts`: `DISRUPTION_DEF_PATTERN` (`dir: 'disruptions'`, `suffix: '.json'`, `schemaName: 'disruption'`), added to `CONTENT_PATTERNS`.
+  - [x] `src/content/schemas/level.ts`:
     - `LevelWaveDisruptionSchema` (`def`, `object`, `atMs` ≥ 0);
     - `disruptions` on `LevelWaveSchema` with `.default([])`;
     - the refine rules of AC 2, in the existing message style (`waves[2].disruptions[0]: …`);
     - export `LevelWaveDisruption`, and update the header comment (it already announces 1.20).
-  - [ ] `content/disruptions/phone.json` (`$schema: ../_schemas/disruption.schema.json`) and `salon_crawler.json` wave 3 (AC 2).
-  - [ ] `src/content/contentBundle.ts`: `LevelContent.disruptions: Readonly<Record<string, DisruptionDef>>`.
-  - [ ] `src/content/loadLevelContent.ts`: after the threat defs, load each distinct wave disruption def through the same source and parser. A missing file names `waves[w].disruptions[i].def`. Update its doc comment.
-  - [ ] `src/client/app/threatsSwitch.ts` › `withoutThreats`: return `disruptions: {}` (the waves are emptied, so nothing plans one). Update its comment.
-  - [ ] `tools/content/contentChecks.ts`:
+  - [x] `content/disruptions/phone.json` (`$schema: ../_schemas/disruption.schema.json`) and `salon_crawler.json` wave 3 (AC 2).
+  - [x] `src/content/contentBundle.ts`: `LevelContent.disruptions: Readonly<Record<string, DisruptionDef>>`.
+  - [x] `src/content/loadLevelContent.ts`: after the threat defs, load each distinct wave disruption def through the same source and parser. A missing file names `waves[w].disruptions[i].def`. Update its doc comment.
+  - [x] `src/client/app/threatsSwitch.ts` › `withoutThreats`: return `disruptions: {}` (the waves are emptied, so nothing plans one). Update its comment.
+  - [x] `tools/content/contentChecks.ts`:
     - parse the `disruptions` family;
     - `checkDisruptionReferences` (each `feedback` cue exists);
     - in `checkLevelReferences`, a missing def file and a kind mismatch (AC 3).
     - Tests in `tests/content/checkContent.test.ts`, `levelSchema.test.ts`, `loadLevelContent.test.ts` and a new `disruptionSchema.test.ts`.
-  - [ ] `src/content/schemas/feedback.ts`: `SoundWaveSchema.anchor` gains `'object'`, described « the object the event names (`objectId`); only for cues a disruption def points at ». `contentChecks` refuses an `object` anchor on a cue mapped through `events` or named by a threat def, as it does for `threat`.
-  - [ ] `content/feedback.json`: cues `tel_phone_ring` (audio sfx, `soundWave` `object` about 0.8 m / 900 ms, `light`) and `papa_phone_answer` (audio sfx, `soundWave` `papa`, `light`). Nothing in `events`: the def points at them.
-  - [ ] `npm run content:schemas`; commit `content/_schemas/{disruption,level,feedback}.schema.json`.
-- [ ] **T2 — Sim: plan, world, snapshot** (AC 2-4)
-  - [ ] `src/shared/constants.ts`: `PHONE_RINGING_EVERY_MS = 1000`, with the D5 comment (a contract with 3.1, not feel).
-  - [ ] `src/sim/context.ts`:
+  - [x] `src/content/schemas/feedback.ts`: `SoundWaveSchema.anchor` gains `'object'`, described « the object the event names (`objectId`); only for cues a disruption def points at ». `contentChecks` refuses an `object` anchor on a cue mapped through `events` or named by a threat def, as it does for `threat`.
+  - [x] `content/feedback.json`: cues `tel_phone_ring` (audio sfx, `soundWave` `object` about 0.8 m / 900 ms, `light`) and `papa_phone_answer` (audio sfx, `soundWave` `papa`, `light`). Nothing in `events`: the def points at them.
+  - [x] `npm run content:schemas`; commit `content/_schemas/{disruption,level,feedback}.schema.json`.
+- [x] **T2 — Sim: plan, world, snapshot** (AC 2-4)
+  - [x] `src/shared/constants.ts`: `PHONE_RINGING_EVERY_MS = 1000`, with the D5 comment (a contract with 3.1, not feel).
+  - [x] `src/sim/context.ts`:
     - `SimPlannedDisruption { def: DisruptionDef; objectId: string; atMs: number; waveIndex: number }`;
     - `SimLevel.disruptions: readonly SimPlannedDisruption[]`, index-aligned with `world.disruptions`, in wave order.
-  - [ ] `src/sim/createSim.ts` › `simLevelOf`:
+  - [x] `src/sim/createSim.ts` › `simLevelOf`:
     - flatten the waves' `disruptions`;
     - invariants: def loaded, object in `objects`, `def.kind === object.kind`, in the wording of `content:check`.
     - `createWorld` gets one `pending` instance per planned disruption.
-  - [ ] `src/sim/disruptions/disruptionFsm.ts`:
+  - [x] `src/sim/disruptions/disruptionFsm.ts`:
     - `DisruptionState = 'pending' | 'ringing' | 'answered' | 'timedOut'`;
     - `DISRUPTION_STATES` with its `…_ARE_COMPLETE` proof;
     - `enterDisruptionState(world, instance, next)`: the only writer of `state` / `enteredAt`. It emits nothing: the phone helpers emit, as `enterFlowState` does.
-  - [ ] `src/sim/world.ts`:
+  - [x] `src/sim/world.ts`:
     - `DisruptionInstance { state; enteredAt: SimMs; untilAt: SimMs; nextRingingAt: SimMs }` (both instants 0 unless `ringing`);
     - `World.disruptions: DisruptionInstance[]`;
     - `PapaSlice.busyUntil` doc: « `drink` / `asleep` / `onPhone` ».
-  - [ ] `src/sim/snapshot.ts`:
+  - [x] `src/sim/snapshot.ts`:
     - `version: 8`, with a comment;
     - check `disruptions`: the length equals the plan, a known state, finite instants ≥ 0, and > 0 exactly when `ringing`;
     - the papa busy check uses `isPapaBusy` (today it hard-codes `drink` / `asleep`);
     - tests.
-- [ ] **T3 — Sim: the phone** (AC 4-7, 10)
-  - [ ] `src/sim/disruptions/phone.ts`:
+- [x] **T3 — Sim: the phone** (AC 4-7, 10)
+  - [x] `src/sim/disruptions/phone.ts`:
     - `startRinging(world, ctx, index)`;
     - `tickRinging(world, ctx, index)`: the ticks, then the timeout, in that order;
     - `ringingDisruptionAt(world, ctx, objectId): number`, the index or -1;
     - `answerPhone(world, ctx, index)`: `answered` and `PhoneRingEnded{answered}`.
     - Allocation-free.
-  - [ ] `src/sim/disruptions/disruptionsSystem.ts` › `runDisruptions(world, ctx)`:
+  - [x] `src/sim/disruptions/disruptionsSystem.ts` › `runDisruptions(world, ctx)`:
     - apply `StartDisruption` commands;
     - for each instance, `pending` and `now ≥ atMs` → start, then `ringing` → tick.
     - Dispatch by `def.kind` through a `Readonly<Record<DisruptionKind, …>>` (D3), even with one kind.
     - Add it to `SYSTEMS` right after `runDirector` (D4). Update the `step.ts` header, the pinned order test and `project-context.md` L40.
-  - [ ] `src/sim/papa/papaFsm.ts`: `PapaState` gains `'onPhone'`, in `PAPA_STATES` too, and `isPapaBusy` includes it. Update the doc.
-  - [ ] `src/sim/papa/phoneCall.ts` › `startCall(world, ctx, objectId)`: `busyUntil`, `onPhone`, `addFatigue`, then `PhoneAnswered{fatigue}` (the value after the add).
-  - [ ] `papaSystem.ts`:
+  - [x] `src/sim/papa/papaFsm.ts`: `PapaState` gains `'onPhone'`, in `PAPA_STATES` too, and `isPapaBusy` includes it. Update the doc.
+  - [x] `src/sim/papa/phoneCall.ts` › `startCall(world, ctx, objectId)`: `busyUntil`, `onPhone`, `addFatigue`, then `PhoneAnswered{fatigue}` (the value after the add).
+  - [x] `papaSystem.ts`:
     - `OBJECT_ACTIONS.phone`: `ringingDisruptionAt`; if ≥ 0, `answerPhone` then `startCall` and return true; else false.
     - The busy end already goes to `idle` for any state but `drink`: check it and say so in the comment.
-  - [ ] `events.ts`:
+  - [x] `events.ts`:
     - `PhoneRingStarted{t, objectId, untilAt}`, `PhoneRinging{t, objectId}`, `PhoneRingEnded{t, objectId, reason: PhoneRingEndReason}` and `PhoneAnswered{t, objectId, untilAt, fatigue}`, with doc comments;
     - `PhoneRingEndReason = 'answered' | 'timedOut'`;
     - `SIM_EVENT_TYPES` stays sorted.
     - `PhoneRinging` is not past tense: the epic and story 3.1 name it. Say so in its doc.
-  - [ ] `commands.ts`: `StartDisruption{t, index}` (AC 10), in the command list and `commandProblem`.
-  - [ ] `src/sim/index.ts`: export `DisruptionInstance`, `DisruptionState` and `PhoneRingEndReason` if the client or tools need them.
-  - [ ] Tests: `phone.test.ts`, `disruptionsSystem.test.ts`, `phoneCall.test.ts`, `papaSystem.test.ts` (rewrite « the phone only walks »: it now walks when quiet, answers when ringing), `threatSystem.test.ts` (press ignored `onPhone`), `snapshot.test.ts`, `step.test.ts`, `commands.test.ts`, `events.test.ts` and `createSim.test.ts`. See § Testing.
-- [ ] **T4 — Client** (AC 6, 8, 9)
-  - [ ] `feedbackDirector.ts`:
+  - [x] `commands.ts`: `StartDisruption{t, index}` (AC 10), in the command list and `commandProblem`.
+  - [x] `src/sim/index.ts`: export `DisruptionInstance`, `DisruptionState` and `PhoneRingEndReason` if the client or tools need them.
+  - [x] Tests: `phone.test.ts`, `disruptionsSystem.test.ts`, `phoneCall.test.ts`, `papaSystem.test.ts` (rewrite « the phone only walks »: it now walks when quiet, answers when ringing), `threatSystem.test.ts` (press ignored `onPhone`), `snapshot.test.ts`, `step.test.ts`, `commands.test.ts`, `events.test.ts` and `createSim.test.ts`. See § Testing.
+- [x] **T4 — Client** (AC 6, 8, 9)
+  - [x] `feedbackDirector.ts`:
     - `anchorOf` gains `object`: the position of `sim.objects` entry `objectId`. Pass the objects through the deps (`getObjects()`), or resolve by id on the event.
     - An unknown id warns and skips the ring, like `threat`.
     - `playCue` takes the event's `objectId` (or `null`) beside the `threatId`.
-  - [ ] `src/client/feedback/disruptionFeedback.ts` › `disruptionCueOf(event, disruptions)`: the def's `feedback.ring` for `PhoneRingStarted` and `PhoneRinging`, `feedback.answer` for `PhoneAnswered`, else `null`. The def is found through the planned disruption of that object (level content). It is the twin of `threatCueOf`; wire it in `boot.ts` › `onSimEvent` next to it. Add a test.
-  - [ ] `levelScene.ts` / `papaView.ts`: `setOnPhone(isOnPhone)`, a small `PALETTE` toon cube at the side of the head, disposed with the view, and driven in `update` (`world.papa.state === 'onPhone'`).
-  - [ ] `boot.ts`:
+  - [x] `src/client/feedback/disruptionFeedback.ts` › `disruptionCueOf(event, disruptions)`: the def's `feedback.ring` for `PhoneRingStarted` and `PhoneRinging`, `feedback.answer` for `PhoneAnswered`, else `null`. The def is found through the planned disruption of that object (level content). It is the twin of `threatCueOf`; wire it in `boot.ts` › `onSimEvent` next to it. Add a test.
+  - [x] `levelScene.ts` / `papaView.ts`: `setOnPhone(isOnPhone)`, a small `PALETTE` toon cube at the side of the head, disposed with the view, and driven in `update` (`world.papa.state === 'onPhone'`).
+  - [x] `boot.ts`:
     - the `resumeHeld` busy test (AC 6);
     - mirror `ppPhone` (the last phone event: `ringing` / `answered` / `timedOut`), written on the phone events only, never per frame;
     - delete the mirror at level start.
-  - [ ] `tools/audio/makePlaceholderAudio.ts`:
+  - [x] `tools/audio/makePlaceholderAudio.ts`:
     - `tel_phone_ring`: two bursts of about 350 ms of a 440 + 480 Hz pair with a fast tremolo, under 1000 ms in total;
     - `papa_phone_answer`: a short click, about 150 ms;
     - next `SEED + n`; update the header and the test.
     - Run `npm run assets:audio` (macOS) and **keep only the two new `.m4a`**: restore the others from git (1.19 Debug Log: AAC is not byte-stable).
-- [ ] **T5 — Bots and CLI** (AC 11, 12)
-  - [ ] Bots need no code: they never send `TapObject`, so the phone always rings out under every bot. Say so in the Completion Notes. A phone-answering bot is not asked.
-  - [ ] `tools/sim/simReport.ts` (AC 12) and its tests.
-  - [ ] `tests/tools/sim/phone.test.ts` (AC 11).
-- [ ] **T6 — Tests to migrate**
-  - [ ] `tests/support/testContent.ts`:
+- [x] **T5 — Bots and CLI** (AC 11, 12)
+  - [x] Bots need no code: they never send `TapObject`, so the phone always rings out under every bot. Say so in the Completion Notes. A phone-answering bot is not asked.
+  - [x] `tools/sim/simReport.ts` (AC 12) and its tests.
+  - [x] `tests/tools/sim/phone.test.ts` (AC 11).
+- [x] **T6 — Tests to migrate**
+  - [x] `tests/support/testContent.ts`:
     - `createTestLevel` gains `disruptions` per wave (default `[]`) and resolves them from a frozen `testPhone.disruption.json`;
     - `LevelContent` fixtures gain `disruptions: {}`.
-  - [ ] Every `LevelContent` literal in the tests gains `disruptions`: `tsc` lists them.
-  - [ ] Never delete a test to go green. Rewrite one whose premise changed, and say so.
-- [ ] **T7 — e2e** (AC 5, 6, 8, 9)
-  - [ ] New `tests/e2e/phone.spec.ts` (chromium + webkit, frozen with `ppLoadLevel('salon_crawler', 42)`; helpers local to the spec, like `fatigue.spec.ts`).
+  - [x] Every `LevelContent` literal in the tests gains `disruptions`: `tsc` lists them.
+  - [x] Never delete a test to go green. Rewrite one whose premise changed, and say so.
+- [x] **T7 — e2e** (AC 5, 6, 8, 9)
+  - [x] New `tests/e2e/phone.spec.ts` (chromium + webkit, frozen with `ppLoadLevel('salon_crawler', 42)`; helpers local to the spec, like `fatigue.spec.ts`).
     - **Ring:**
       - `ppSend StartDisruption{index: 0}`, then advance;
       - expect `PhoneRingStarted`, then `PhoneRinging` every `PHONE_RINGING_EVERY_MS / STEP_MS` steps;
@@ -250,17 +250,17 @@ so that I decide what to deal with in the middle of the chaos.
       - after `answerBusyMs / STEP_MS` steps, `idle`.
     - **Ring out:** `StartDisruption`, then advance `ringMaxMs / STEP_MS` steps; expect `PhoneRingEnded{timedOut}` and exactly `floor(ringMaxMs / PHONE_RINGING_EVERY_MS)` `PhoneRinging`.
     - Every bound comes from the live content (`content/disruptions/phone.json`, read in `support/game.ts` beside `liveThreat`).
-  - [ ] Check the long-running specs (`threats`, `timer`, `fatigue`): the phone now rings at 125 s in a live run. No assertion may count every cue or every vibration as a threat's.
-- [ ] **T8 — Goldens** (AC 13): `npm run golden:update`, then `git diff tests/golden/journals`. Only `worldHash` and `levelHash` may move. If `eventTypes` or `eventsHash` move, a system emits or draws on a level without disruptions: fix that, never the references.
-- [ ] **T9 — Docs and deferred work**
-  - [ ] `deferred-work.md`:
+  - [x] Check the long-running specs (`threats`, `timer`, `fatigue`): the phone now rings at 125 s in a live run. No assertion may count every cue or every vibration as a threat's.
+- [x] **T8 — Goldens** (AC 13): `npm run golden:update`, then `git diff tests/golden/journals`. Only `worldHash` and `levelHash` may move. If `eventTypes` or `eventsHash` move, a system emits or draws on a level without disruptions: fix that, never the references.
+- [x] **T9 — Docs and deferred work**
+  - [x] `deferred-work.md`:
     - mark L304 (the phone's arrival action) and L325 (the wave 3 disruption) resolved with « (story 1.20) »;
     - add a « Deferred from: implementation of story 1-20 » section: the noise (3.1), the attention gauge (E6), the ring and vibration placeholders (2.3 / 2.4), no persistent « ringing » marker on the phone, the fixed `atMs`, and the 15 s `ringMaxMs`.
-  - [ ] `_bmad-output/project-context.md`:
+  - [x] `_bmad-output/project-context.md`:
     - the system order gains `runDisruptions` after the director;
     - the busy rule gains `onPhone`;
     - a disruption is planned by a wave (`disruptions: [{ def, object, atMs }]`) and never counts as a threat.
-  - [ ] `sprint-status.yaml` when done.
+  - [x] `sprint-status.yaml` when done.
 
 ## Dev Notes
 
@@ -449,10 +449,78 @@ so that I decide what to deal with in the middle of the chaos.
 
 ### Agent Model Used
 
+Claude Sonnet 5.5
+
 ### Debug Log References
+
+- **Baseline (T0), before the first code edit:** `(unset VITE_DEBUG_ALLOWED; npm run ci)` green, exit 0. Typecheck, lint and `content:check` clean; Vitest 180 files / 2899 tests with coverage; Playwright 222 passed (chromium + webkit); `build:playtest` built. `env | grep VITE_` showed `VITE_DEBUG_ALLOWED=false`, unset for every CI, dev and e2e command below. 1.19 was `done`, with `git status` clean outside `_bmad-output/`.
+- While the baseline ran, Geo committed `ef37359` (« Story 1.19 : terminée ; Story 1.20 : création de la story »), which carried my `baseline_commit` and `in-progress` edits to this story file and the sprint status (docs only). A stray untracked `tests/e2e/tmp-mug.spec.ts` (not mine) appeared at 10:57 and was gone before the final run. `baseline_commit` stays `ef78496`.
+- **Final:** `npm run typecheck`, `npm run lint`, `npm run content:check` and `npm run build:playtest` green. Vitest **185 files / 3023 tests** with the `src/sim` coverage thresholds met (Statements 98.02 %, Branches 96.62 %, Functions 100 %, Lines 99.27 %). Playwright **230 passed** (222 + the 8 of `phone.spec.ts`).
+- **Load, said plainly.** The machine was under a load average of 20 to 30 (an iOS simulator and other processes, partly my own CI). The first full `npm run ci` failed only on two `makePlaceholderAudio` tests timing out at 5 s (7.4 s and 7.6 s under coverage; 1.4 s alone). I re-ran `npm run test:coverage -- --maxWorkers=5` (green, 185 / 3023). The first `npm run e2e` lost its dev server under load (`ERR_CONNECTION_REFUSED`, 28 passed, the two `autoplay` failures in it passed alone straight after). I re-ran the whole suite with `npx playwright test --workers=4`: 230 passed. So the green CI is two commands (`--maxWorkers=5`, `--workers=4`) and not one plain `npm run ci`; no test or timeout was changed for it.
+- **Goldens (T8):** `npm run golden:update`. In the six `*.expected.json` only `worldHash` moved (the new `disruptions` slice); in the six journals only `levelHash` moved (`LevelContent.disruptions`, the waves' `disruptions: []`). `eventTypes` and `eventsHash` are identical in all six. The screenshot references did not move (the first-threat shot is unchanged).
+- **Audio:** `npm run assets:audio` rewrote every `.m4a`; I restored the thirteen others from git and kept `tel_phone_ring.m4a` (850 ms) and `papa_phone_answer.m4a` (150 ms).
+
+### Implementation Plan
+
+- **Content.** `DisruptionDefSchema` (`ringMaxMs`, `answerBusyMs`, `answerFatiguePoints`, `feedback.{ring,answer}`), a `disruptions/` `ContentPattern`, `LevelWaveDisruptionSchema` on the waves with the three refine rules, `LevelContent.disruptions`, loaded by `loadLevelContent` after the threat defs. `content:check` names the file, the path and the culprit for a missing def file, a def/object kind mismatch and a cue that is not in `feedback.json`; it also refuses an `object` anchor on an `events`-mapped cue or on a threat def's cue, and a `threat` anchor on a disruption cue.
+- **Sim.** `world.disruptions` (`pending → ringing → answered / timedOut`, `enterDisruptionState` the only writer), `SimLevel.disruptions` index-aligned, snapshot v8 with `disruptionsProblem`, `runDisruptions` right after `runDirector` with a `Record<DisruptionKind, handler>`, the phone helpers (`startRinging`, `tickRinging`, `ringingDisruptionAt`, `answerPhone`), `onPhone` as a third busy state, `startCall` (`busyUntil`, `addFatigue`, `PhoneAnswered`), the four events, the `StartDisruption` debug command. The ticks are due from the start (`nextRingingAt` advances by exactly `PHONE_RINGING_EVERY_MS`), so they never drift, and a tick due in the timeout step comes first.
+- **Client.** `disruptionCueOf` (twin of `threatCueOf`), the director's `object` anchor read from `getObjects()`, `playCue(..., objectId)`, `papaView.setOnPhone` driven by `levelScene.update`, `ppPhone` mirror on the phone events only, `resumeHeld` on every busy state, `ppFatigue` refreshed on `PhoneAnswered`.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- ✅ All nine tasks and every acceptance criterion done; the headless check (AC 11) plays the live `salon_crawler` with the `idle` bot over 3 seeds and reads every bound from the live content and `STEP_MS`.
+- ✅ The Dev Notes' decisions D1-D10 are implemented as written. Deviations and additions, all small:
+  - `startCall(world, ctx, index)` takes the planned disruption's **index**, not the `objectId`: once `answerPhone` has run, the instance is `answered`, so `ringingDisruptionAt` could not find it again, and the index gives the def and the object without a second lookup.
+  - `createSim` refuses a def that is not loaded, an object that is not in the level, a kind mismatch and an object planned twice, in the wording of `content:check`. It does **not** check the def's feedback cues: they live in `feedback.json`, which the sim ignores by design (like the threats' cues). `content:check` does (AC 3's third item).
+  - `playCue` keeps `threatId` as its third parameter and gets an optional fourth, `objectId`, so no existing call changed. `FeedbackDirectorDeps.getObjects` is optional for the same reason.
+  - No separate `src/sim/disruptions/phone.test.ts`: the phone helpers are covered through `disruptionsSystem.test.ts` (starts, ticks, drift, timeout, `StartDisruption`, rng, director, ended level) and `phoneCall.test.ts` (answer, busy, late gag, nap, no fatigue gauge, timeout during the walk) and `snapshot.test.ts` (v8, a ringing phone and a call mid-way).
+  - An extra content rule beyond the story: a disruption cue anchored on a `threat` is refused (its events name an object), as is an `object`-anchored cue on a threat def.
+  - `?threats=off` has no phone (the waves are emptied, so are the disruptions). Said in `deferred-work.md`.
+- ✅ **Tests rewritten because their premise changed (none deleted):** `papaSystem.test.ts` / `coffee.test.ts` « the phone only walks » now say it only walks when it is **not ringing**; the `levelSchema` and `checkContent` tests that replace the level's `objects` first drop the phone's disruption (it needs its object); `sleep.test.ts` (`isPapaBusy` now includes `onPhone`); `threatSystem.test.ts` (the busy-press test runs for `asleep`, `drink` and `onPhone`); `inputMapper.test.ts` (the client busy gate for `onPhone`).
+- ✅ **Bots need no code.** They never send `TapObject`, so the phone rings out under every bot, `phoneAnswers` stays 0 in the CLI report. A phone-answering bot is not asked (Open point 5).
+- ✅ The phone is not a threat: the director is untouched, and `disruptionsSystem.test.ts` proves wave 3 telegraphs the same three threats, at the same steps, with and without a ringing phone, and that 20 000 steps leave `world.rng` and `nextId` identical.
+- ✅ The Open points for Geo (fixed 125 s, 15 s ring, a vibration every ring, no marker on the phone, bots never answer) are implemented as the decisions say and listed in `deferred-work.md`.
+- ⚠️ **Not verified by me:** how the ring and the handset look and feel on a real phone (the vibration is recorded by Playwright in chromium only; WebKit has no `vibrate`). No screenshot of the handset was taken: the frozen shot does not show a call.
 
 ### File List
+
+**New**
+- `content/disruptions/phone.json`
+- `content/_schemas/disruption.schema.json`
+- `public/assets/audio/tel_phone_ring.m4a`
+- `public/assets/audio/papa_phone_answer.m4a`
+- `src/content/schemas/disruption.ts`
+- `src/sim/disruptions/disruptionFsm.ts`
+- `src/sim/disruptions/phone.ts`
+- `src/sim/disruptions/disruptionsSystem.ts`
+- `src/sim/disruptions/disruptionsSystem.test.ts`
+- `src/sim/papa/phoneCall.ts`
+- `src/sim/papa/phoneCall.test.ts`
+- `src/client/feedback/disruptionFeedback.ts`
+- `src/client/feedback/disruptionFeedback.test.ts`
+- `tests/content/disruptionSchema.test.ts`
+- `tests/support/testPhone.disruption.json`
+- `tests/tools/sim/phone.test.ts`
+- `tests/e2e/phone.spec.ts`
+
+**Modified**
+- `content/feedback.json`, `content/levels/salon_crawler.json`
+- `content/_schemas/feedback.schema.json`, `content/_schemas/level.schema.json`
+- `src/shared/constants.ts`
+- `src/content/contentBundle.ts`, `src/content/contentFiles.ts`, `src/content/loadLevelContent.ts`
+- `src/content/schemas/feedback.ts`, `src/content/schemas/level.ts`
+- `src/sim/commands.ts`, `src/sim/context.ts`, `src/sim/createSim.ts`, `src/sim/events.ts`, `src/sim/index.ts`, `src/sim/snapshot.ts`, `src/sim/step.ts`, `src/sim/world.ts`
+- `src/sim/papa/papaFsm.ts`, `src/sim/papa/papaSystem.ts`
+- `src/client/boot.ts`
+- `src/client/app/threatsSwitch.ts`
+- `src/client/feedback/feedbackDirector.ts`
+- `src/client/input/inputMapper.ts`
+- `src/client/render/levelScene.ts`, `src/client/render/views/papaView.ts`
+- `tools/audio/makePlaceholderAudio.ts`, `tools/content/contentChecks.ts`, `tools/sim/simReport.ts`
+- Tests: `src/sim/commands.test.ts`, `src/sim/createSim.test.ts`, `src/sim/events.test.ts`, `src/sim/snapshot.test.ts`, `src/sim/step.test.ts`, `src/sim/papa/coffee.test.ts`, `src/sim/papa/papaSystem.test.ts`, `src/sim/papa/sleep.test.ts`, `src/sim/threats/threatSystem.test.ts`, `src/client/app/threatsSwitch.test.ts`, `src/client/feedback/feedbackDirector.test.ts`, `src/client/input/inputMapper.test.ts`, `src/client/render/levelScene.test.ts`, `src/client/render/views/papaView.test.ts`, `tests/content/checkContent.test.ts`, `tests/content/levelSchema.test.ts`, `tests/content/loadLevelContent.test.ts`, `tests/support/testContent.ts`, `tests/threats/threatCatalog.test.ts`, `tests/tools/audio/makePlaceholderAudio.test.ts`, `tests/tools/sim/runSim.test.ts`, `tests/tools/sim/simReport.test.ts`, `tests/e2e/support/game.ts`
+- Goldens (regenerated, `worldHash` and `levelHash` only): `tests/golden/journals/{baby_wander,core_basic,outlet_parry,papa_walk,prop_fall,threat_trio}.json` and `….expected.json`
+- Docs: `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
+
+### Change Log
+
+- 2026-10-28: Story 1.20 implemented. A phone planned by wave 3 (`disruptions: [{ def, object, atMs }]`, `content/disruptions/phone.json`) rings at 125 s with `PhoneRingStarted`, one `PhoneRinging` per second and a timeout after `ringMaxMs`; a `TapObject` that arrives while it rings answers it (`+answerFatiguePoints`, `onPhone` for `answerBusyMs`, a new busy state). `runDisruptions` joins the system order after the director; snapshot v8; `StartDisruption` debug command; the ring and the pick-up are placeholder cues anchored on the object (new `object` soundWave anchor); a handset cube on Papa's head during the call; `ppPhone` mirror; CLI counters `phoneRings`, `phoneAnswers`, `phoneRingingSeconds`. Goldens regenerated deliberately (`worldHash`, `levelHash` only).

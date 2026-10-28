@@ -90,9 +90,10 @@ function levelPlanning(tested: ThreatDef): LevelContent {
         waves: [],
       },
       threats: Object.fromEntries(defs.map((def) => [def.id, def])),
+      disruptions: {},
     };
   }
-  const wave = { maxSimultaneous: 1, gapMinMs: 0, gapMaxMs: 0, lullMs: 0 };
+  const wave = { maxSimultaneous: 1, gapMinMs: 0, gapMaxMs: 0, lullMs: 0, disruptions: [] };
   return {
     level: {
       id: 'salon_crawler',
@@ -111,6 +112,7 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       ],
     },
     threats: Object.fromEntries(defs.map((def) => [def.id, def])),
+    disruptions: {},
   };
 }
 

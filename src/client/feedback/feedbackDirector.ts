@@ -1,7 +1,7 @@
 import type { AudioBus, FeedbackCue, FeedbackTable } from '@content/schemas/feedback';
 import type { Haptics } from '@platform/platform';
 import { log } from '@shared/log';
-import type { World } from '@sim';
+import type { SimObjectSpec, World } from '@sim';
 import type { LevelFx } from '../render/levelScene.ts';
 import type { FeedbackEventName } from './feedbackEvents.ts';
 
@@ -9,6 +9,8 @@ export interface FeedbackDirectorDeps {
   table: FeedbackTable;
   audio: { playOneShot(clip: string, bus: AudioBus, gainPct: number): void };
   haptics: Haptics;
+  /** The level's interactive objects (constant): where an `object`-anchored ring starts from (story 1.20). */
+  getObjects?(): readonly SimObjectSpec[];
   /** The current level's effects, `null` outside a level (a scene behind the loading screen is not played on). */
   getScene(): LevelFx | null;
   /** `matchMedia('(prefers-reduced-motion: reduce)').matches` in boot. */
@@ -27,12 +29,18 @@ export interface FeedbackDirector {
   handle(name: FeedbackEventName, world: Readonly<World> | null): void;
   /**
    * Plays a cue by its id, the way `handle` plays an event's: a threat's def names its cues
-   * (`feedback.telegraph`...), not the `events` table (D3 of story 1.11). `threatId` is the threat
-   * the cue is about, where a `threat`-anchored ring starts from; with none (or one the world does
-   * not know) the ring is skipped with a `warn` and the rest still plays. An unknown id is a
-   * `warn` and plays nothing.
+   * (`feedback.telegraph`...), not the `events` table (D3 of story 1.11), and so does a
+   * disruption's (`feedback.ring`, story 1.20 D10). `threatId` is the threat the cue is about, where
+   * a `threat`-anchored ring starts from; `objectId` is the object, for an `object`-anchored one.
+   * With none (or one the world does not know) the ring is skipped with a `warn` and the rest still
+   * plays. An unknown id is a `warn` and plays nothing.
    */
-  playCue(cueId: string, world: Readonly<World> | null, threatId: number | null): void;
+  playCue(
+    cueId: string,
+    world: Readonly<World> | null,
+    threatId: number | null,
+    objectId?: string | null,
+  ): void;
 }
 
 interface ResolvedCue {
@@ -76,15 +84,27 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
   };
 
   // Where a ring starts from. A `threat` anchor is the threat the event names, read from the world
-  // by id; with none the ring is skipped (the sound and the vibration still play).
+  // by id; an `object` anchor is the object it names, read from the level's objects by id; with
+  // none the ring is skipped (the sound and the vibration still play).
   const anchorOf = (
-    anchor: 'papa' | 'baby' | 'threat',
+    anchor: 'papa' | 'baby' | 'threat' | 'object',
     world: Readonly<World>,
     threatId: number | null,
+    objectId: string | null,
     name: string,
   ): { xM: number; zM: number } | null => {
     if (anchor === 'papa') return world.papa;
     if (anchor === 'baby') return world.baby;
+    if (anchor === 'object') {
+      if (objectId !== null) {
+        const objects = deps.getObjects?.() ?? [];
+        for (const object of objects) if (object.id === objectId) return object;
+      }
+      log.warn('feedback', `feedback ring for ${name} skipped: no object to anchor it on`, {
+        objectId,
+      });
+      return null;
+    }
     if (threatId !== null) {
       for (const threat of world.threats) if (threat.id === threatId) return threat;
     }
@@ -102,6 +122,7 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
     cue: FeedbackCue,
     world: Readonly<World> | null,
     threatId: number | null,
+    objectId: string | null,
   ): void => {
     if (cue.audio !== undefined) {
       const { clip, bus, gainPct } = cue.audio;
@@ -118,7 +139,7 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
       if (scene !== null) {
         if (cue.visual !== undefined) {
           const { anchor, maxRadiusM, durationMs } = cue.visual;
-          const at = anchorOf(anchor, world, threatId, name);
+          const at = anchorOf(anchor, world, threatId, objectId, name);
           if (at !== null) {
             attempt(name, 'ring', undefined, () =>
               scene.soundWave(at.xM, at.zM, maxRadiusM, durationMs, world.time.sim),
@@ -145,15 +166,15 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
     handle(name, world) {
       const resolved = byEvent.get(name);
       if (resolved === undefined) return;
-      play(name, resolved.id, resolved.cue, world, null);
+      play(name, resolved.id, resolved.cue, world, null, null);
     },
-    playCue(cueId, world, threatId) {
+    playCue(cueId, world, threatId, objectId = null) {
       const cue = Object.hasOwn(table.cues, cueId) ? table.cues[cueId] : undefined;
       if (cue === undefined) {
         log.warn('feedback', `cue ${cueId} is not in the feedback table: it plays nothing`);
         return;
       }
-      play(`cue ${cueId}`, cueId, cue, world, threatId);
+      play(`cue ${cueId}`, cueId, cue, world, threatId, objectId);
     },
   };
 }

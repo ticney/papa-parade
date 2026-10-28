@@ -1,10 +1,11 @@
 import { err, ok, type Result } from '@shared/result';
 import type { LevelContent } from './contentBundle.ts';
 import { type ContentError, type ContentProblem, createContentError } from './contentError.ts';
-import { LEVEL_PATTERN, THREAT_DEF_PATTERN } from './contentFiles.ts';
+import { DISRUPTION_DEF_PATTERN, LEVEL_PATTERN, THREAT_DEF_PATTERN } from './contentFiles.ts';
 import type { ContentSource } from './contentSource.ts';
 import { formatJsonPath } from './jsonPath.ts';
 import { parseContentFile } from './parseContentFile.ts';
+import type { DisruptionDef } from './schemas/disruption.ts';
 import type { ThreatDef } from './schemas/threat.ts';
 
 async function readText(
@@ -39,9 +40,11 @@ function checkId(file: string, id: string, expected: string): ContentProblem[] {
 
 /**
  * Reads `levels/<levelId>.json`, then each distinct `threats/<def>.json` its waves plan (and its
- * `gauges.fatigue.microSleepDef`, last), in order of first reference, through the same source and the same parser as `loadContent`. It collects every
- * problem (a missing def file names the level's JSON path, `waves[1].threats[0].def`). It checks no anchor
- * and no gag id: it has no geometry and must not know the sim (`createSim` and `content:check` do).
+ * `gauges.fatigue.microSleepDef`, last), in order of first reference, then each distinct
+ * `disruptions/<def>.json` its waves plan (story 1.20), through the same source and the same parser as
+ * `loadContent`. It collects every problem (a missing def file names the level's JSON path,
+ * `waves[1].threats[0].def` or `waves[2].disruptions[0].def`). It checks no anchor, no gag id and no
+ * object kind: it has no geometry and must not know the sim (`createSim` and `content:check` do).
  * Never throws and never logs: the caller logs.
  */
 export async function loadLevelContent(
@@ -92,6 +95,38 @@ export async function loadLevelContent(
     threats[defId] = def.value;
   }
 
+  const disruptions: Record<string, DisruptionDef> = {};
+  const failedDisruptions = new Set<string>();
+  const plannedDisruptions = level.waves.flatMap((wave, w) =>
+    wave.disruptions.map((entry, i) => ({
+      defId: entry.def,
+      path: ['waves', w, 'disruptions', i, 'def'],
+    })),
+  );
+  for (const { defId, path } of plannedDisruptions) {
+    if (Object.hasOwn(disruptions, defId) || failedDisruptions.has(defId)) continue;
+    const defFile = `${DISRUPTION_DEF_PATTERN.dir}/${defId}${DISRUPTION_DEF_PATTERN.suffix}`;
+    const defDisplay = `content/${defFile}`;
+    const defText = await readText(source, defFile);
+    if (!defText.ok) {
+      failedDisruptions.add(defId);
+      problems.push({
+        file: levelDisplay,
+        jsonPath: formatJsonPath(path),
+        message: `cannot load the disruption "${defId}": ${defText.error[0]?.message ?? 'unreadable'}`,
+      });
+      continue;
+    }
+    const def = parseContentFile(defDisplay, defText.value, DISRUPTION_DEF_PATTERN.schema);
+    if (!def.ok) {
+      failedDisruptions.add(defId);
+      problems.push(...def.error);
+      continue;
+    }
+    problems.push(...checkId(defDisplay, def.value.id, defId));
+    disruptions[defId] = def.value;
+  }
+
   if (problems.length > 0) return err(createContentError(problems));
-  return ok({ level, threats });
+  return ok({ level, threats, disruptions });
 }

@@ -45,6 +45,15 @@ const PAPA_Z_THICKNESS_M = 0.04;
 const PAPA_MUG_SIZE_M = 0.14;
 const PAPA_MUG_COLOR = PALETTE.paper;
 
+// The phone call (story 1.20, provisional until E7). Diegetic: a handset at the side of his head.
+/** The handset: a thin box this long (along the head, up), this wide and this thick, in metres. */
+const PAPA_HANDSET_LENGTH_M = 0.32;
+const PAPA_HANDSET_WIDTH_M = 0.1;
+const PAPA_HANDSET_THICKNESS_M = 0.06;
+/** ...held this far above the middle of the cube, as a share of its height, in percent. */
+const PAPA_HANDSET_HEIGHT_PCT = 40;
+const PAPA_HANDSET_COLOR = PALETTE.ink;
+
 /** Where Papa is drawn and which way he faces. */
 export interface PapaPose extends PointXZ {
   /** Rotation about the vertical axis, in radians: 0 faces +z, a positive angle turns toward +x. */
@@ -77,6 +86,8 @@ export interface PapaView {
   setAsleep(isAsleep: boolean, clockMs: number): void;
   /** A small mug at his hand while he drinks. Allocates nothing. */
   setDrinking(isDrinking: boolean): void;
+  /** A handset at the side of his head while he is on the phone. Allocates nothing. */
+  setOnPhone(isOnPhone: boolean): void;
   /**
    * Stands Papa's hair on end: 0 is flat (the spikes are hidden), 1 is fully up. A value outside
    * 0..1 is clamped. Allocates nothing.
@@ -154,6 +165,21 @@ export function createPapaView(
   mug.position.set(widthM * 0.7, 0, widthM * 0.6);
   mug.visible = false;
   cube.add(mug);
+  // The handset, at the side of his head (his left); it turns with the cube.
+  const handsetGeometry = new BoxGeometry(
+    PAPA_HANDSET_THICKNESS_M,
+    PAPA_HANDSET_LENGTH_M,
+    PAPA_HANDSET_WIDTH_M,
+  );
+  const handset = new Mesh(handsetGeometry, toon.get(new Color(PAPA_HANDSET_COLOR)));
+  handset.name = 'papa_handset';
+  handset.position.set(
+    -(widthM / 2 + PAPA_HANDSET_THICKNESS_M),
+    (PAPA_HEIGHT_M * PAPA_HANDSET_HEIGHT_PCT) / 100,
+    0,
+  );
+  handset.visible = false;
+  cube.add(handset);
   const group = new Group();
   group.name = 'papa_group';
   group.add(cube, shadow, hair, zSign);
@@ -202,6 +228,9 @@ export function createPapaView(
     setDrinking(isDrinking) {
       mug.visible = isDrinking;
     },
+    setOnPhone(isOnPhone) {
+      handset.visible = isOnPhone;
+    },
     setHair(amount01) {
       const amount = Math.min(1, Math.max(0, amount01));
       hair.visible = amount > 0;
@@ -214,6 +243,7 @@ export function createPapaView(
       zBarGeometry.dispose();
       zDiagonalGeometry.dispose();
       mugGeometry.dispose();
+      handsetGeometry.dispose();
       scene.remove(group);
     },
   };

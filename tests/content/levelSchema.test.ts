@@ -11,6 +11,12 @@ const real: Record<string, unknown> = JSON.parse(
 
 const UNIT_SUFFIX = /Ms$/;
 
+/** The live level with no disruption planned: for the tests that change its objects (a phone that rings needs its object). */
+const quiet: Record<string, unknown> = {
+  ...real,
+  waves: (real.waves as Record<string, unknown>[]).map((wave) => ({ ...wave, disruptions: [] })),
+};
+
 function parse(value: unknown) {
   return parseContentFile(FILE, JSON.stringify(value), LevelSchema);
 }
@@ -84,7 +90,7 @@ describe('content/levels/salon_crawler.json', () => {
       'coffee_machine',
       'phone',
     ]);
-    const { objects: _objects, ...withoutObjects } = real;
+    const { objects: _objects, ...withoutObjects } = quiet;
     const bare = parse(withoutObjects);
     expect(bare.ok && bare.value.objects).toEqual([]);
   });
@@ -139,27 +145,27 @@ describe('content/levels/salon_crawler.json', () => {
     ],
     [
       'an object with an unknown key',
-      { ...real, objects: [{ id: 'phone', kind: 'phone', anchor: 'phone', bogus: 1 }] },
+      { ...quiet, objects: [{ id: 'phone', kind: 'phone', anchor: 'phone', bogus: 1 }] },
       ['objects[0].bogus'],
     ],
     [
       'an object id in camelCase',
-      { ...real, objects: [{ id: 'coffeeMachine', kind: 'phone', anchor: 'phone' }] },
+      { ...quiet, objects: [{ id: 'coffeeMachine', kind: 'phone', anchor: 'phone' }] },
       ['objects[0].id'],
     ],
     [
       'an object anchor with its prefix',
-      { ...real, objects: [{ id: 'phone', kind: 'phone', anchor: 'ANCHOR_phone' }] },
+      { ...quiet, objects: [{ id: 'phone', kind: 'phone', anchor: 'ANCHOR_phone' }] },
       ['objects[0].anchor'],
     ],
     [
       'an object with no kind',
-      { ...real, objects: [{ id: 'phone', anchor: 'phone' }] },
+      { ...quiet, objects: [{ id: 'phone', anchor: 'phone' }] },
       ['objects[0].kind'],
     ],
     [
       'an object of an unknown kind',
-      { ...real, objects: [{ id: 'phone', kind: 'kettle', anchor: 'phone' }] },
+      { ...quiet, objects: [{ id: 'phone', kind: 'kettle', anchor: 'phone' }] },
       ['objects[0].kind'],
     ],
     [
@@ -191,6 +197,96 @@ describe('content/levels/salon_crawler.json', () => {
     ['feelOverrides that is not an object', { ...real, feelOverrides: [] }, ['feelOverrides']],
   ])('rejects %s', (_name, value, expected) => {
     expect(problemsOf(parse(value)).map((problem) => problem.jsonPath)).toEqual(expected);
+  });
+
+  describe('the disruptions of a wave (story 1.20)', () => {
+    const objects = [{ id: 'phone', kind: 'phone', anchor: 'phone' }];
+    const phoneAt = (atMs: number) => ({ def: 'phone', object: 'phone', atMs });
+    const withDisruptions = (first: unknown[], second: unknown[] = []) =>
+      level(
+        [
+          { ...wave, disruptions: first },
+          { ...second0, disruptions: second },
+        ],
+        { objects, durationMs: 180000 },
+      );
+    const second0 = { ...wave, fromMs: 60000, threats: [] };
+
+    it('plans the live phone inside wave 3, on the object `phone`', () => {
+      const parsed = parse(real);
+      expect(parsed.ok && parsed.value.waves.map((w) => w.disruptions.length)).toEqual([0, 0, 1]);
+      const [entry] = parsed.ok ? (parsed.value.waves[2]?.disruptions ?? []) : [];
+      expect(entry).toMatchObject({ def: 'phone', object: 'phone' });
+      const wave3 = parsed.ok ? parsed.value.waves[2] : undefined;
+      expect(entry?.atMs).toBeGreaterThanOrEqual(wave3?.fromMs ?? Number.POSITIVE_INFINITY);
+      expect(entry?.atMs).toBeLessThan(parsed.ok ? parsed.value.durationMs : 0);
+    });
+
+    it('defaults to no disruption', () => {
+      const { disruptions: _disruptions, ...bare } = wave as Record<string, unknown>;
+      const parsed = parse(level([bare]));
+      expect(parsed.ok && parsed.value.waves[0]?.disruptions).toEqual([]);
+    });
+
+    it('accepts a disruption at the very start of its wave, and one just before the next wave', () => {
+      expect(parse(withDisruptions([phoneAt(0)]))).toMatchObject({ ok: true });
+      expect(parse(withDisruptions([phoneAt(59999)]))).toMatchObject({ ok: true });
+      expect(parse(withDisruptions([], [phoneAt(60000)]))).toMatchObject({ ok: true });
+      expect(parse(withDisruptions([], [phoneAt(179999)]))).toMatchObject({ ok: true });
+    });
+
+    it.each<[string, () => unknown, string, RegExp]>([
+      [
+        'an atMs before its wave',
+        () => withDisruptions([], [phoneAt(59999)]),
+        'waves[1].disruptions[0].atMs',
+        /waves\[1\]\.disruptions\[0\]: atMs \(59999\).*from 60000/,
+      ],
+      [
+        'an atMs on the next wave (the end of a wave is excluded)',
+        () => withDisruptions([phoneAt(60000)]),
+        'waves[0].disruptions[0].atMs',
+        /atMs \(60000\).*up to \(not including\) 60000/,
+      ],
+      [
+        'an atMs at the end of the level',
+        () => withDisruptions([], [phoneAt(180000)]),
+        'waves[1].disruptions[0].atMs',
+        /atMs \(180000\).*not including\) 180000/,
+      ],
+      [
+        'an object that is not in the level',
+        () => withDisruptions([{ def: 'phone', object: 'kettle', atMs: 10 }]),
+        'waves[0].disruptions[0].object',
+        /the object "kettle" is not in the level objects/,
+      ],
+      [
+        'an object planned by two disruptions',
+        () => withDisruptions([phoneAt(10)], [phoneAt(70000)]),
+        'waves[1].disruptions[0].object',
+        /already planned by waves\[0\]\.disruptions\[0\]/,
+      ],
+      [
+        'an object planned twice in the same wave',
+        () => withDisruptions([phoneAt(10), phoneAt(20)]),
+        'waves[0].disruptions[1].object',
+        /already planned by waves\[0\]\.disruptions\[0\]/,
+      ],
+    ])('rejects %s, naming the wave and the entry', (_name, build, path, message) => {
+      const problems = problemsOf(parse(build()));
+      expect(problems.map((problem) => problem.jsonPath)).toContain(path);
+      expect(problems.find((problem) => problem.jsonPath === path)?.message).toMatch(message);
+    });
+
+    it.each<[string, Record<string, unknown>, string]>([
+      ['a def that is not an id', { def: 'Phone', object: 'phone', atMs: 10 }, 'def'],
+      ['a negative atMs', { def: 'phone', object: 'phone', atMs: -1 }, 'atMs'],
+      ['a stray key', { def: 'phone', object: 'phone', atMs: 10, loud: true }, 'loud'],
+      ['no object', { def: 'phone', atMs: 10 }, 'object'],
+    ])('rejects %s', (_name, entry, key) => {
+      const paths = problemsOf(parse(withDisruptions([entry]))).map((problem) => problem.jsonPath);
+      expect(paths.some((path) => path.endsWith(key))).toBe(true);
+    });
   });
 
   describe('the rules of the waves, each naming its wave', () => {

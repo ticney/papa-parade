@@ -2,8 +2,9 @@ import { decodeBase64, encodeBase64 } from '@shared/base64';
 import { GAUGE_MAX_POINTS, MIN_TIME_SCALE, QUATERNION_LENGTH_TOLERANCE } from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
+import { DISRUPTION_STATES } from './disruptions/disruptionFsm.ts';
 import { FLOW_STATES, type FlowState } from './flow/flowFsm.ts';
-import { PAPA_STATES } from './papa/papaFsm.ts';
+import { isPapaBusy, PAPA_STATES, type PapaState } from './papa/papaFsm.ts';
 import { THREAT_STATES } from './threats/threatFsm.ts';
 import {
   type PropSlice,
@@ -20,12 +21,13 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 7 since story 1.19: `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
+   * 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
+   * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 7;
+  version: 8;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -44,7 +46,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 7,
+    version: 8,
     seed,
     feelHash,
     geometryHash,
@@ -100,7 +102,7 @@ function papaProblem(papa: unknown, objectIds: readonly string[]): string | null
   if (!isFiniteNumber(slice.busyUntil) || (slice.busyUntil as number) < 0) {
     return 'world.papa.busyUntil';
   }
-  const isBusy = slice.state === 'drink' || slice.state === 'asleep';
+  const isBusy = isPapaBusy({ state: slice.state as PapaState });
   if (isBusy !== (slice.busyUntil !== 0)) return 'world.papa.busyUntil';
 
   // The state and the data it walks on must agree.
@@ -279,6 +281,41 @@ function gaugesProblem(gauges: unknown, hasFatigue: boolean): string | null {
   return null;
 }
 
+function disruptionProblem(disruption: unknown, index: number, nowMs: number): string | null {
+  const where = `world.disruptions[${index}]`;
+  if (typeof disruption !== 'object' || disruption === null) return where;
+  const instance = disruption as Record<string, unknown>;
+  if (!DISRUPTION_STATES.includes(instance.state as (typeof DISRUPTION_STATES)[number])) {
+    return `${where}.state`;
+  }
+  for (const key of ['enteredAt', 'untilAt', 'nextRingingAt']) {
+    if (!isFiniteNumber(instance[key]) || (instance[key] as number) < 0) return `${where}.${key}`;
+  }
+  // A state is entered in the past; a disruption that never started was never entered.
+  if ((instance.enteredAt as number) > nowMs) return `${where}.enteredAt`;
+  if (instance.state === 'pending' && instance.enteredAt !== 0) return `${where}.enteredAt`;
+  // The two instants mean something only while it rings, and are then both in the future of its start.
+  const isRinging = instance.state === 'ringing';
+  if (isRinging !== (instance.untilAt !== 0)) return `${where}.untilAt`;
+  if (isRinging !== (instance.nextRingingAt !== 0)) return `${where}.nextRingingAt`;
+  return null;
+}
+
+function disruptionsProblem(
+  disruptions: unknown,
+  planned: PlannedLevel['disruptions'],
+  nowMs: number,
+): string | null {
+  if (!Array.isArray(disruptions) || disruptions.length !== planned.length) {
+    return 'world.disruptions';
+  }
+  for (let i = 0; i < disruptions.length; i++) {
+    const problem = disruptionProblem(disruptions[i], i, nowMs);
+    if (problem !== null) return problem;
+  }
+  return null;
+}
+
 function flowProblem(flow: unknown, nowMs: number, durationMs: number): string | null {
   if (typeof flow !== 'object' || flow === null) return 'world.flow is missing';
   const slice = flow as Record<string, unknown>;
@@ -334,6 +371,8 @@ export interface PlannedLevel {
   /** How long the level lasts, in sim ms: a level that has ended cannot be earlier than this. */
   readonly durationMs: number;
   readonly threats: readonly { readonly def: { readonly id: string } }[];
+  /** The planned disruptions: `world.disruptions` is index-aligned with them (story 1.20). */
+  readonly disruptions: readonly unknown[];
   /** The index in `threats` of the micro-sleep, or -1 when the level has no fatigue. */
   readonly microSleepIndex: number;
   /** The level's interactive objects: Papa's `objectId` must be one of them. */
@@ -448,8 +487,20 @@ function propsProblem(
 
 function worldProblem(world: unknown, planned: PlannedLevel): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
-  const { time, rng, nextId, papa, baby, threats, props, mess, director, flow, gauges } =
-    world as Record<string, unknown>;
+  const {
+    time,
+    rng,
+    nextId,
+    papa,
+    baby,
+    threats,
+    props,
+    mess,
+    director,
+    flow,
+    gauges,
+    disruptions,
+  } = world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
   if (typeof clock !== 'object' || clock === null) return 'world.time is missing';
   const clockProblem = timeProblem(clock);
@@ -485,6 +536,7 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
       return `world.threats[${i}].waveIndex`;
   }
   return (
+    disruptionsProblem(disruptions, planned.disruptions, clock.sim as number) ??
     flowProblem(flow, clock.sim as number, planned.durationMs) ??
     gaugesProblem(gauges, planned.microSleepIndex >= 0) ??
     papaProblem(
@@ -514,7 +566,7 @@ export function worldFromSnapshot(
   levelHash: string,
   planned: PlannedLevel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 7, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 8, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

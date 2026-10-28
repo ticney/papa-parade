@@ -1,6 +1,7 @@
 import { createRng, type RngState } from '@shared/rng';
 import { asSimMs, type SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
+import type { DisruptionState } from './disruptions/disruptionFsm.ts';
 import type { FlowState } from './flow/flowFsm.ts';
 import type { PapaState } from './papa/papaFsm.ts';
 import type { ThreatState } from './threats/threatFsm.ts';
@@ -32,7 +33,7 @@ export interface PapaSlice {
   glide: PapaGlide | null;
   /** The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19). */
   objectId: string | null;
-  /** When `drink` / `asleep` ends, in sim time; 0 in any other state. */
+  /** When `drink` / `asleep` / `onPhone` ends, in sim time; 0 in any other state. */
   busyUntil: SimMs;
 }
 
@@ -112,6 +113,24 @@ export interface ThreatInstance {
    * and reset at re-arm. -1 while `idle`, and for a threat no wave planned (story 1.19's micro-sleep).
    */
   waveIndex: number;
+}
+
+/**
+ * One planned disruption (story 1.20): created at `createSim`, one per entry of the waves'
+ * `disruptions`, in wave order. The def, the object and `atMs` stay in `ctx.level.disruptions`,
+ * index-aligned with `world.disruptions`. It fires at most once per level.
+ */
+export interface DisruptionInstance {
+  state: DisruptionState;
+  /** Sim time of the last state change; 0 while `pending`. */
+  enteredAt: SimMs;
+  /** When a ringing phone gives up, in sim time (the ring's start plus `ringMaxMs`); 0 unless `ringing`. */
+  untilAt: SimMs;
+  /**
+   * When the next `PhoneRinging` is due, in sim time: the start plus a whole number of
+   * `PHONE_RINGING_EVERY_MS`, never the step it was emitted in (no drift); 0 unless `ringing`.
+   */
+  nextRingingAt: SimMs;
 }
 
 /** A free object (`PROP_*`): its pose mirrors its Rapier body at the end of each step (story 1.15). */
@@ -225,6 +244,8 @@ export interface World {
   /** One per planned threat, in the level's order. */
   threats: ThreatInstance[];
   director: DirectorSlice;
+  /** One per planned disruption, in the level's order (the waves', flattened). */
+  disruptions: DisruptionInstance[];
   flow: FlowSlice;
   gauges: GaugesSlice;
   /** One per prop of the level's geometry, index-aligned with `geometry.props` (their bodies live in Rapier, beside `World`). */
@@ -298,6 +319,7 @@ export function createWorld({
     },
     threats: [],
     director: { waveIndex: -1, nextAt: asSimMs(0) },
+    disruptions: [],
     flow: { state: 'playing', enteredAt: asSimMs(0) },
     gauges: { fatigue: fatiguePoints, isFatigueAbove: false, microSleepAt: null },
     props: props.map(({ id, kind, centerM: [xM, yM, zM] }) => ({

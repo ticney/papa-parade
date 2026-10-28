@@ -155,8 +155,8 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     return active !== null && active.sim.world.flow.state === 'playing';
   };
 
-  // Papa drinks or sleeps (story 1.19 D6): the sim ignores every move and press meanwhile, so the
-  // client sends none either. A key held through it walks again on `PapaStateChanged → idle`
+  // Papa drinks, sleeps or is on the phone (stories 1.19 D6, 1.20): the sim ignores every move and
+  // press meanwhile, so the client sends none either. A key held through it walks again on `PapaStateChanged → idle`
   // (boot calls `resumeHeld`).
   const isBusy = (active: ActiveLevel): boolean => isPapaBusy(active.sim.world.papa);
 

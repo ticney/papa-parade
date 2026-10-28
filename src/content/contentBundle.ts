@@ -1,4 +1,5 @@
 import type { BotSettings } from './schemas/bots.ts';
+import type { DisruptionDef } from './schemas/disruption.ts';
 import type { FeedbackTable } from './schemas/feedback.ts';
 import type { Feel } from './schemas/feel.ts';
 import type { Level } from './schemas/level.ts';
@@ -16,10 +17,13 @@ export interface ContentBundle {
 }
 
 /**
- * What one level plans, validated: the level file and exactly the threat defs it names, keyed by
- * id in order of first reference. `loadLevelContent` builds it; `createSim` receives it.
+ * What one level plans, validated: the level file, exactly the threat defs it names and exactly the
+ * disruption defs its waves plan, each keyed by id in order of first reference. `loadLevelContent`
+ * builds it; `createSim` receives it.
  */
 export interface LevelContent {
   level: Level;
   threats: Readonly<Record<string, ThreatDef>>;
+  /** Story 1.20. Empty when no wave plans a disruption. */
+  disruptions: Readonly<Record<string, DisruptionDef>>;
 }

@@ -40,6 +40,12 @@ export interface RunSummary {
   coffees: number;
   /** The `papa_asleep` gags: a missed micro-sleep. */
   asleepGags: number;
+  /** The phones that started to ring (`PhoneRingStarted`, story 1.20). */
+  phoneRings: number;
+  /** The phones Papa picked up (`PhoneAnswered`). */
+  phoneAnswers: number;
+  /** The seconds of ringing (`PhoneRinging`: one event is one `PHONE_RINGING_EVERY_MS`). */
+  phoneRingingSeconds: number;
   commands: number;
   threats: Record<string, ThreatTally>;
   byGag: Record<string, number>;
@@ -95,6 +101,9 @@ export function createRunRecorder(
   let microSleeps = 0;
   let coffees = 0;
   let asleepGags = 0;
+  let phoneRings = 0;
+  let phoneAnswers = 0;
+  let phoneRingingSeconds = 0;
   // The threats no wave planned (the micro-sleep): they are in no wave's tally and never count
   // against a wave's limit, so their results must not move the active count either.
   const systemThreatIds = new Set<number>();
@@ -144,6 +153,12 @@ export function createRunRecorder(
         nearMisses++;
       } else if (event.type === 'CoffeeDrunk') {
         coffees++;
+      } else if (event.type === 'PhoneRingStarted') {
+        phoneRings++;
+      } else if (event.type === 'PhoneAnswered') {
+        phoneAnswers++;
+      } else if (event.type === 'PhoneRinging') {
+        phoneRingingSeconds++;
       }
     },
     finish() {
@@ -156,6 +171,9 @@ export function createRunRecorder(
         microSleeps,
         coffees,
         asleepGags,
+        phoneRings,
+        phoneAnswers,
+        phoneRingingSeconds,
         commands: sim.journal().entries.length,
         threats,
         byGag,
@@ -221,6 +239,12 @@ export interface SimReport {
   coffees: number;
   /** The runs where Papa fell asleep at least once (a missed micro-sleep). */
   asleepRuns: number;
+  /** The phones that started to ring, over the runs (story 1.20). */
+  phoneRings: number;
+  /** The phones Papa picked up, over the runs. */
+  phoneAnswers: number;
+  /** The seconds of ringing, over the runs: what story 3.1 turns into noise. */
+  phoneRingingSeconds: number;
   runList: {
     seed: number;
     worldHash: string;
@@ -265,6 +289,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let microSleeps = 0;
   let coffees = 0;
   let asleepRuns = 0;
+  let phoneRings = 0;
+  let phoneAnswers = 0;
+  let phoneRingingSeconds = 0;
   const waves: WaveReport[] = input.waves.map((wave) => ({
     fromMs: wave.fromMs,
     maxSimultaneous: wave.maxSimultaneous,
@@ -286,6 +313,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     microSleeps += run.microSleeps;
     coffees += run.coffees;
     if (run.asleepGags > 0) asleepRuns++;
+    phoneRings += run.phoneRings;
+    phoneAnswers += run.phoneAnswers;
+    phoneRingingSeconds += run.phoneRingingSeconds;
     for (const gag of Object.keys(run.byGag)) {
       byGag[gag] = countOf(byGag, gag) + countOf(run.byGag, gag);
     }
@@ -346,6 +376,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     microSleeps,
     coffees,
     asleepRuns,
+    phoneRings,
+    phoneAnswers,
+    phoneRingingSeconds,
     runList: runs.map((run) => ({
       seed: run.seed,
       worldHash: run.worldHash,
