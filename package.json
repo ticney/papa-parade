@@ -8,9 +8,12 @@
   },
   "scripts": {
     "dev": "vite --host",
-    "build": "vite build",
-    "build:playtest": "vite build --mode playtest",
+    "build": "VITE_DEBUG_ALLOWED=false vite build",
+    "build:playtest": "VITE_DEBUG_ALLOWED=true vite build --mode playtest",
     "preview": "vite preview",
+    "dist:check": "tsx tools/build/checkDist.ts",
+    "serve:dist": "tsx tools/serve/serveDist.ts",
+    "deploy:check": "tsx tools/deploy/checkDeployment.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
@@ -18,6 +21,7 @@
     "test:coverage": "vitest run --coverage",
     "golden:update": "GOLDEN_UPDATE=1 vitest run tests/golden",
     "e2e": "playwright test",
+    "e2e:dist": "tsx tools/build/runDistE2e.ts",
     "content:check": "tsx tools/content/checkContent.ts",
     "content:schemas": "tsx tools/content/emitSchemas.ts",
     "sim": "tsx tools/sim/runSim.ts",
@@ -27,7 +31,7 @@
     "assets:optimize": "tsx tools/assets/optimizeGlb.ts",
     "assets:audio": "tsx tools/audio/makePlaceholderAudio.ts",
     "story:new": "bash tools/git/newStoryWorktree.sh",
-    "ci": "npm run typecheck && npm run lint && npm run content:check && npm run test:coverage && npm run e2e && npm run build:playtest"
+    "ci": "npm run typecheck && npm run lint && npm run content:check && npm run test:coverage && npm run e2e && npm run build:playtest && npm run dist:check -- --flavor playtest && npm run e2e:dist && npm run build && npm run dist:check -- --flavor prod"
   },
   "dependencies": {
     "@dimforge/rapier3d-deterministic-compat": "0.21.0",

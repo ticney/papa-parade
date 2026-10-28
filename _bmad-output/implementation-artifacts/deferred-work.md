@@ -418,3 +418,11 @@
 - **`firm` on a `hiddenZone` def, and thin `holdUntilMs` checks**: the schema accepts `response: 'firm'` on the silence, and `content:check` only requires `holdUntilMs > windowMs` (nothing against `holdMinMs`, the tier / fatigue widening or the wave spacing). Tighten with the first live Firmness threat (E5) and the sniff (4.9).
 - **A Firmness hold keeps succeeding when Papa becomes busy mid-hold** (`isPapaBusy` is only checked on `PressThreat`). Settle with the busy states of E4 / E5.
 - **No Firmness test for `pointercancel` / `blur` mid-hold**: the pause release covers them today. Add one with the first live Firmness.
+
+## Deferred from: implementation of story 1-24-build-de-playtest-partageable-et-budget-de-performance (2026-10-28)
+
+- **NFR1 threshold on devices.** The device gate says « p95 <= 16.7 ms », but v-sync jitter puts the p95 of a 60 Hz screen above it (18.2 ms on a desktop with a 16.68 ms mean), and the meter reports a bucket's upper edge. Decide whether the verdict is « p95 <= 20 ms » or a share of frames above 16.7 ms, before the device pass. Reason: a product call for Geo.
+- **First-load budget** (about 2.2 MB gzip, Rapier 1.68 MB) is printed by `dist:check`, not asserted (open point 3). Make it a budget if Geo wants one.
+- **WebKit speed is not measured by CI** (`perf.spec.ts` is chromium only; WebKit on Linux is software-rendered). Real Safari speed comes from the iPhone pass.
+- **GitHub runner and the perf budget** (open point 2): the first CI run on GitHub may show a p95 above 20 ms under software rendering. If so, stop and ask (larger runner, local-only perf, or a separate software-rendering budget).
+- **Live deploy** (T9) waits for Geo's host choice and login.

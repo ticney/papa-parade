@@ -4,7 +4,7 @@ baseline_commit: 659150d
 
 # Story 1.24: Shareable Playtest Build and Performance Budget
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.24 « Build de playtest partageable et budget de performance » (L1184-1216). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -263,36 +263,36 @@ so that I can start the prototype's playtests.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Baseline** (Precondition).
-- [ ] **T1 Builds** (AC 1, 2, 3):
-  - [ ] Pin the flag in both build scripts. Add `build.manifest: true`.
-  - [ ] Add `public/_headers`.
-  - [ ] Gate `copyLog` in `resultScreen.ts` and update its test (`vi.stubEnv`).
-  - [ ] Build both flavors by hand. `grep -c copyLog` in the prod chunk must be 0.
-- [ ] **T2 Dist check** (AC 4):
-  - [ ] Write `tools/build/checkDist.ts` and its tests.
-  - [ ] Add the script `dist:check`.
-  - [ ] Run it on both real builds and paste the printed payload and first-load figures in the Debug Log.
-- [ ] **T3 Perf meter and HUD** (AC 9, 10):
-  - [ ] `src/debug/perfMeter.ts` and its tests.
-  - [ ] `src/debug/perfHud.ts`, `src/debug/perfHud.css` and their test (happy-dom is not used here: check how `testApi.test.ts` fakes the DOM and do the same, or test only the text formatting as a pure function).
-  - [ ] `TestHost.onRenderedFrame`; boot wiring.
-  - [ ] `__PP__.perf()`, and `testApi.test.ts` / `testApi.spec.ts` updated.
-- [ ] **T4 Adaptive pixel ratio** (AC 11):
-  - [ ] `adaptivePixelRatio.ts` and its tests.
-  - [ ] Renderer `setPixelRatioCap`, `RendererStats.pixelRatio`, and the boot wiring.
-- [ ] **T5 Serve and dist e2e** (AC 5-8):
-  - [ ] `tools/serve/serveDist.ts` and its tests.
-  - [ ] `tests/e2e/support/e2ePort.ts`.
-  - [ ] `playwright.dist.config.ts`, `tests/e2e-dist/dist.spec.ts`, `tests/e2e-dist/perf.spec.ts`.
-  - [ ] Budgets to `shared/constants.ts`; the three specs import them.
-  - [ ] Run `e2e:dist` and paste the perf report.
-- [ ] **T6 Deploy tooling and docs** (AC 12, 13):
-  - [ ] `tools/deploy/checkDeployment.ts` and its tests.
-  - [ ] The CLAUDE.md section and rows.
-  - [ ] `docs/playtest/device-measurements.md`.
-- [ ] **T7 CI** (AC 14): `package.json` `ci`, `.github/workflows/ci.yml`, the Vitest exclude.
-- [ ] **T8 Full run:** `(unset VITE_DEBUG_ALLOWED; npm run ci)` green. Paste the counts.
+- [x] **T0 Baseline** (Precondition).
+- [x] **T1 Builds** (AC 1, 2, 3):
+  - [x] Pin the flag in both build scripts. Add `build.manifest: true`.
+  - [x] Add `public/_headers`.
+  - [x] Gate `copyLog` in `resultScreen.ts` and update its test (`vi.stubEnv`).
+  - [x] Build both flavors by hand. `grep -c copyLog` in the prod chunk must be 0.
+- [x] **T2 Dist check** (AC 4):
+  - [x] Write `tools/build/checkDist.ts` and its tests.
+  - [x] Add the script `dist:check`.
+  - [x] Run it on both real builds and paste the printed payload and first-load figures in the Debug Log.
+- [x] **T3 Perf meter and HUD** (AC 9, 10):
+  - [x] `src/debug/perfMeter.ts` and its tests.
+  - [x] `src/debug/perfHud.ts`, `src/debug/perfHud.css` and their test (happy-dom is not used here: check how `testApi.test.ts` fakes the DOM and do the same, or test only the text formatting as a pure function).
+  - [x] `TestHost.onRenderedFrame`; boot wiring.
+  - [x] `__PP__.perf()`, and `testApi.test.ts` / `testApi.spec.ts` updated.
+- [x] **T4 Adaptive pixel ratio** (AC 11):
+  - [x] `adaptivePixelRatio.ts` and its tests.
+  - [x] Renderer `setPixelRatioCap`, `RendererStats.pixelRatio`, and the boot wiring.
+- [x] **T5 Serve and dist e2e** (AC 5-8):
+  - [x] `tools/serve/serveDist.ts` and its tests.
+  - [x] `tests/e2e/support/e2ePort.ts`.
+  - [x] `playwright.dist.config.ts`, `tests/e2e-dist/dist.spec.ts`, `tests/e2e-dist/perf.spec.ts`.
+  - [x] Budgets to `shared/constants.ts`; the three specs import them.
+  - [x] Run `e2e:dist` and paste the perf report.
+- [x] **T6 Deploy tooling and docs** (AC 12, 13):
+  - [x] `tools/deploy/checkDeployment.ts` and its tests.
+  - [x] The CLAUDE.md section and rows.
+  - [x] `docs/playtest/device-measurements.md`.
+- [x] **T7 CI** (AC 14): `package.json` `ci`, `.github/workflows/ci.yml`, the Vitest exclude.
+- [x] **T8 Full run:** `(unset VITE_DEBUG_ALLOWED; npm run ci)` green. Paste the counts.
 - [ ] **T9 [Geo] Live deploy:** host choice, login, deploy, `deploy:check`, `PP_DIST_URL=… npm run e2e:dist`. Leave unchecked if not done, and say so.
 - [ ] **T10 [Geo] Device pass:** fill in `device-measurements.md`. This happens after the merge, before the playtest. It is not part of dev-story.
 
@@ -500,8 +500,77 @@ Changed:
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (claude-sonnet-5-5)
+
 ### Debug Log References
+
+**Baseline (T0, before the first edit, `main` merged in).** `main` was merged into the branch first (story 1.23 had landed: only a `sprint-status.yaml` status-line conflict, resolved by hand). Then `(unset VITE_DEBUG_ALLOWED; npm run ci)`: 198 files / 3394 unit tests, 274 e2e (3.4 min), green.
+
+**T1/T2, real builds** (the shell exports `VITE_DEBUG_ALLOWED=false`, which proves D2: `build:playtest` still holds `__PP__`):
+- Prod: `grep -c copyLog dist/assets/*.js` is 0 everywhere. `dist:check --flavor prod`: level payload 228.9 KiB, first-load gzip 2205.1 KiB, OK.
+- Playtest: level payload 228.9 KiB, first-load gzip 2208.2 KiB, OK. The prod flavor run on the playtest `dist/` fails with 9 problems, as it should.
+- The manifest lists only the **entry module of each chunk**, not every module (the story said « every source module »). A debug module bundled into the entry chunk would not show there: the marker grep over the chunks is the proof that holds, the manifest check is the second line.
+
+**T5, `e2e:dist` on the built playtest bundle** (both browsers, 8 specs, 1.4 min). `perf.spec.ts` (chromium, speed 1, alone), pasted from the first run and from the green CI run:
+```
+perf: 17287 frames, p95 18.2 ms (mean 16.68, max 155.7), draw calls max 34, triangles max 890
+perf: 17291 frames, p95 18.2 ms (mean 16.68, max 158.3), draw calls max 34, triangles max 890
+```
+Both 4.8 min. Budgets: p95 <= 20 ms, <= 100 draw calls, <= 100 000 triangles. No budget was loosened.
+
+**T8, full run** `(unset VITE_DEBUG_ALLOWED; npm run ci)`: typecheck, lint, content:check, 207 files / 3544 unit tests (src/sim coverage unchanged: 98.09 % statements), 282 e2e (274 + 8 new), build:playtest, dist:check playtest, e2e:dist (8 dist specs + perf), build, dist:check prod. All green, no rerun, no load flags needed. Golden files unchanged.
 
 ### Completion Notes List
 
+**What was built.** The two builds with a pinned flag, `public/_headers`, the `copyLog` gate, `dist:check`, `serve:dist`, `e2e:dist` (own Playwright config), the debug FPS counter and `__PP__.perf()` over a pure allocation-free `perfMeter`, the adaptive pixel ratio (2, 1.5, 1; down only), `deploy:check`, the CLAUDE.md deployment section and rows, `docs/playtest/device-measurements.md` (empty tables: nothing was measured by the agent), and the CI stages.
+
+**Findings and deviations (read these).**
+1. **Zod tripped the CSP.** The first dist run failed with `securitypolicyviolation: script-src eval` at the entry chunk: Zod 4 probes `Function('')` (`allowsEval`), caught but still reported by the browser. Fix without touching the CSP: `src/content/zodConfig.ts` sets `config({ jitless: true })`, imported by `loadContent.ts` and `loadLevelContent.ts`. Its test fails without the config (checked).
+2. **A level takes about 5 real minutes, not 3.** The 180 s is sim time; the parries' slow-motion and hitstops slow it to about 0.6 sim-s per real s (measured at speed 1 and 4). The story's « durationMs / 4 » and « about 4 min » bounds were too short: `LEVEL_REAL_TIME_FACTOR_MAX = 2.5` in `tests/e2e/support/game.ts` bounds both dist specs. The perf spec takes 4.8 min.
+3. **The counter is a child of `<body>`, not `#pp-ui`:** `overlayHost` empties `#pp-ui` on each screen change and would wipe it. `position: fixed`, z-index above the layers.
+4. **Extra modules, same logic as the story:** `tools/serve/headers.ts` (`parseHeaders`, `headersFor`, `cspDirectives`: shared by the server, `dist:check` and `deploy:check`, so none imports a CLI), `tools/build/inspectDist.ts` (the pure part of `checkDist.ts`), `tools/build/runDistE2e.ts` (the three-step `e2e:dist` sequence, and live mode), `src/debug/perfFeed.ts` (wires a meter to the host frames, new levels and `visibilitychange`; used by the HUD and `__PP__`).
+5. **Names:** the renderer's stats type is `RenderStats` (not `RendererStats`); it gained `pixelRatio`. `GameRenderer.setPixelRatioCap` and `pixelRatioFor(dpr, cap)` as specified. `MAX_PIXEL_RATIO` stays (= `PIXEL_RATIO_STEPS[0]`): `boot.spec.ts` reads it.
+6. **Two small additions to the adaptive ratio:** an interval as long as a whole window is dropped as a stall (a throttled tab would otherwise step the ratio down on one 30 s « frame »), and `lastWindowMeanMs` feeds the `meanFrameMs` of the step-down log.
+7. **Open point 2 (NFR1 on devices) needs a look.** On this 60 Hz desktop the p95 is 18.2 ms with a 16.68 ms mean: v-sync jitter alone puts the p95 above 16.7. The device gate « p95 <= 16.7 ms » of `device-measurements.md` (NFR1, from the story) may be unreachable on any 60 Hz phone with this meter. The CI budget (20 ms) passes with 1.8 ms to spare. Geo may want the device verdict to be « p95 <= 20 ms » or a share of frames above 16.7 ms.
+8. **The 155-158 ms max** of both perf runs is one frame (the first frame of a level, or a GC); it does not touch the p95.
+9. `public/_headers` is not scanned by Biome (`public` is excluded), and the CI step « upload test-results » was skipped (not a one-liner).
+10. The versions pinned in CLAUDE.md come from `npm view` on 2026-10-28 (wrangler 4.154.0, netlify-cli 27.15.0); neither was run.
+
+**Not done, on purpose.**
+- **T9 (live deploy) is unchecked:** it needs Geo to pick the host (open point 1; the docs are written for Cloudflare Pages) and to log in. After it: `npm run deploy:check -- <url>` and `PP_DIST_URL=<url> npm run e2e:dist`, results into this Debug Log. It does not block the review; it blocks the playtest (AC 13).
+- **T10 (device pass) is Geo's,** after the merge.
+- Open points 3 (first-load budget: printed, 2.2 MB gzip, not asserted) and 4 (counter only with `?debug=1`) kept their story defaults.
+
 ### File List
+
+New:
+- `public/_headers`
+- `tools/serve/headers.ts`, `tools/serve/serveDist.ts`
+- `tools/build/inspectDist.ts`, `tools/build/checkDist.ts`, `tools/build/runDistE2e.ts`
+- `tools/deploy/checkDeployment.ts`
+- `tests/tools/serve/headers.test.ts`, `tests/tools/serve/serveDist.test.ts`
+- `tests/tools/build/checkDist.test.ts`, `tests/tools/build/runDistE2e.test.ts`
+- `tests/tools/deploy/checkDeployment.test.ts`
+- `src/debug/perfMeter.ts` (+ `.test.ts`), `src/debug/perfFeed.ts`, `src/debug/perfHud.ts` (+ `.test.ts`), `src/debug/perfHud.css`
+- `src/client/render/adaptivePixelRatio.ts` (+ `.test.ts`)
+- `src/content/zodConfig.ts` (+ `.test.ts`)
+- `playwright.dist.config.ts`
+- `tests/e2e/support/e2ePort.ts`, `tests/e2e/perfHud.spec.ts`
+- `tests/e2e-dist/dist.spec.ts`, `tests/e2e-dist/perf.spec.ts`
+- `docs/playtest/device-measurements.md`
+
+Changed:
+- `package.json`, `vite.config.ts`, `vitest.config.ts`, `playwright.config.ts`, `.github/workflows/ci.yml`, `CLAUDE.md`
+- `src/shared/constants.ts`
+- `src/client/boot.ts`, `src/client/app/testHost.ts`, `src/client/app/levelSession.test.ts`
+- `src/client/render/renderer.ts`, `src/client/render/renderer.test.ts`
+- `src/client/ui/screens/resultScreen.ts`, `src/client/ui/screens/resultScreen.test.ts`
+- `src/content/loadContent.ts`, `src/content/loadLevelContent.ts`
+- `src/debug/testApi.ts`, `src/debug/testApi.test.ts`
+- `tests/support/fakeTestHost.ts`
+- `tests/e2e/support/testApi.ts`, `tests/e2e/support/game.ts`, `tests/e2e/testApi.spec.ts`, `tests/e2e/level.spec.ts`, `tests/e2e/props.spec.ts`, `tests/e2e/threats.spec.ts`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`, `_bmad-output/implementation-artifacts/deferred-work.md`
+
+### Change Log
+
+- 2026-10-28: Story 1.24 implemented. Playtest and prod builds pinned and checked (`dist:check`), CSP in `public/_headers`, `copyLog` gated, local server and dist e2e (dist specs and a full-level perf spec), debug FPS counter, `__PP__.perf()`, adaptive pixel ratio, deploy check, docs, CI stages. Zod set to `jitless` to keep the CSP free of `eval`. Live deploy and device pass left to Geo.

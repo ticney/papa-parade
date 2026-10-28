@@ -37,8 +37,44 @@ export const TIME_MAP_HISTORY_MS = 2000;
 /** Records the `timeMap` ring holds; far above what `TIME_MAP_HISTORY_MS` needs at 240 Hz. */
 export const TIME_MAP_CAPACITY = 1024;
 
-/** Ceiling of the renderer's pixel ratio: `min(devicePixelRatio, MAX_PIXEL_RATIO)`. */
-export const MAX_PIXEL_RATIO = 2;
+/**
+ * The caps the renderer's pixel ratio steps down through, widest first: the ratio is
+ * `min(devicePixelRatio, cap)` and starts at the first cap (architecture › Performance).
+ */
+export const PIXEL_RATIO_STEPS = [2, 1.5, 1] as const;
+
+/** The first (widest) cap of the pixel ratio: `min(devicePixelRatio, MAX_PIXEL_RATIO)` at boot. */
+export const MAX_PIXEL_RATIO = PIXEL_RATIO_STEPS[0];
+
+/** Real time over which the adaptive pixel ratio averages the frame interval, in ms. */
+export const PIXEL_RATIO_WINDOW_MS = 2000;
+
+/** A window whose mean frame interval is above this steps the pixel ratio down one cap, in ms. */
+export const PIXEL_RATIO_SLOW_FRAME_MS = 18;
+
+/** Budget: at most this many draw calls in a frame (architecture › Performance). */
+export const DRAW_CALLS_MAX = 100;
+
+/** Budget: at most this many triangles in a frame (architecture › Performance). */
+export const TRIANGLES_MAX = 100_000;
+
+/** Budget: the p95 frame interval of a full level on the CI machine, in ms (`perf.spec.ts`). */
+export const FRAME_P95_MAX_MS = 20;
+
+/** `perf.spec.ts` checks that the measure really ran: at least this many frames per second of level. */
+export const PERF_MIN_FPS_SAMPLED = 30;
+
+/** Width of one bucket of the frame-interval histogram (`perfMeter`), in ms: its p95 is exact to this. */
+export const PERF_BUCKET_MS = 0.1;
+
+/** Frame intervals above this fall in the histogram's overflow bucket, in ms. */
+export const PERF_HISTOGRAM_MAX_MS = 250;
+
+/** The FPS counter rewrites its text at most this often, in real ms. */
+export const PERF_HUD_REFRESH_MS = 250;
+
+/** The dist e2e server's port is the dev e2e port plus this, so the two never collide. */
+export const DIST_PORT_OFFSET = 1000;
 
 /** Horizontal angle of the isometric camera around the vertical axis, in degrees. */
 export const ISO_YAW_DEG = 45;

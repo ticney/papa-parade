@@ -355,6 +355,42 @@ describe('setFeel(patch)', () => {
   });
 });
 
+describe('perf()', () => {
+  it('is all zeros before a frame, then measures the frames the app draws', async () => {
+    const { api, host } = await createRig();
+    expect(api.perf().frames).toBe(0);
+    for (let i = 0; i < 100; i++) host.fireRenderedFrame(i * 20, { drawCalls: 12 + (i % 5) });
+    const report = api.perf();
+    expect(report.frames).toBe(100);
+    expect(report.frameMsP95).toBe(20);
+    expect(report.frameMsMax).toBeCloseTo(20, 6);
+    expect(report.drawCallsMax).toBe(16);
+    expect(report.trianglesMax).toBe(1000);
+    expect(Math.round(report.fpsLastSecond)).toBe(50);
+  });
+
+  it('starts over at each new level', async () => {
+    const { api, host, startLevel } = await createRig();
+    for (let i = 0; i < 10; i++) host.fireRenderedFrame(i * 20);
+    await startLevel(2);
+    expect(api.perf().frames).toBe(0);
+    host.fireRenderedFrame(5000);
+    expect(api.perf().frames).toBe(1);
+  });
+
+  it('returns a copy: changing it changes nothing, and a later call sees the newer frames', async () => {
+    const { api, host } = await createRig();
+    host.fireRenderedFrame(0);
+    const first = api.perf();
+    first.frames = 999;
+    host.fireRenderedFrame(20);
+    const second = api.perf();
+    expect(second).not.toBe(first);
+    expect(second.frames).toBe(2);
+    expect(first.frames).toBe(999);
+  });
+});
+
 describe('installTestApi', () => {
   it('sets __PP__ once, and a second call is a no-op with a warning', async () => {
     const host = createFakeTestHost();
@@ -363,7 +399,7 @@ describe('installTestApi', () => {
     const first = target.__PP__;
     expect(first).toBeDefined();
     expect(Object.keys(first ?? {}).sort()).toEqual(
-      ['advance', 'events', 'freeze', 'loadLevel', 'send', 'setFeel', 'state'].sort(),
+      ['advance', 'events', 'freeze', 'loadLevel', 'perf', 'send', 'setFeel', 'state'].sort(),
     );
     installTestApi(target, host);
     expect(target.__PP__).toBe(first);
