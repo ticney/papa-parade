@@ -11,6 +11,7 @@ class FakeElement {
   hidden = false;
   setAttribute(): void {}
   removeAttribute(): void {}
+  remove(): void {}
   append(): void {}
   appendChild(child: FakeElement): void {
     child.parentNode = this;
@@ -49,6 +50,17 @@ describe('createWorldUi', () => {
     ui.render(camera);
     ui.render(camera);
     expect(Object.keys(container.style)).not.toContain('transform');
+  });
+
+  it('renders once an object icon is mounted, even with no tap marker or threat', () => {
+    const { ui, camera } = build();
+    ui.setSize(800, 400);
+    ui.mountObjects([{ id: 'coffee_machine', kind: 'coffee_machine', xM: 0, yM: 0, zM: 0 }]);
+    ui.render(camera);
+    // The object icon is the last thing added to the layer's scene.
+    const element = ui.scene.children.at(-1) as unknown as { element: FakeElement };
+    expect(Object.keys(element.element.style)).toContain('transform');
+    ui.unmountObjects();
   });
 
   it('places the marker element when it is visible, and sorts nothing', () => {

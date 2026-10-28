@@ -861,12 +861,62 @@ body {
 }
 
 /*
+  An interactive object's icon (the coffee machine, story 1.19): a paper disc smaller than a threat
+  icon, so that it is never taken for one. While Papa is tired enough for the coffee to matter
+  (`pp-object-urgent`) it turns warm and a halo pulses around it.
+*/
+.pp-object {
+  position: relative;
+  width: calc(var(--pp-threat-size) * 0.7);
+  height: calc(var(--pp-threat-size) * 0.7);
+  pointer-events: none;
+}
+
+.pp-object-icon {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 3px solid var(--pp-color-ink);
+  border-radius: 50%;
+  background: var(--pp-color-paper);
+  display: grid;
+  place-items: center;
+}
+
+.pp-object-icon svg {
+  width: 58%;
+  height: 58%;
+}
+
+.pp-object-halo {
+  position: absolute;
+  inset: -40%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--pp-color-alert) 70%, transparent) 0 40%,
+    transparent 70%
+  );
+  opacity: 0;
+}
+
+.pp-object-urgent .pp-object-icon {
+  background: var(--pp-color-alert);
+}
+
+.pp-object-urgent .pp-object-halo {
+  opacity: 1;
+  animation: pp-threat-pulse 1400ms ease-in-out infinite;
+}
+
+/*
   After the base rules on purpose: same selector, same specificity, so the later rule wins. The
   halo glows steady and the chevron stands still.
 */
 @media (prefers-reduced-motion: reduce) {
   .pp-threat-halo,
-  .pp-threat-chevron {
+  .pp-threat-chevron,
+  .pp-object-urgent .pp-object-halo {
     animation: none;
   }
 }

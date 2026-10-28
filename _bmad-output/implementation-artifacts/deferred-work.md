@@ -359,3 +359,9 @@
 - **The fatigue schema accepts degenerate tunings** (`microSleepMinMs` = `MaxMs` = 0, `thresholdPoints` ≥ 100, `objectTouchRadiusPx` under 44 pt) and the new feel keys have no rejection tests. Reason: tighten with `windowPenaltyPct` when Geo retunes the fatigue.
 - **Noise and need gauges would show but never move** if a level declared them. Reason: `LevelGaugesSchema` only takes `fatigue`; story 3.1 wires noise.
 - **One e2e flake seen:** the micro-sleep parry spec ended `asleep` once on a cold first run, then passed 7 times. Reason: not reproduced; if CI shows it, send the press with the stepped sim's `t` instead of a DOM position.
+
+## Added: coffee machine icon (branch feat/coffee-machine-marker, 2026-10-28)
+
+- **A provisional icon now marks the coffee machine** (`ui/world/objectMarkers.ts`): a paper disc with the mug glyph at the object's icon point (the point the touch hit test aims at), smaller than a threat icon, warm yellow with a pulsing halo while the fatigue is above its threshold. Found by Geo while playing: nothing said where the machine was. The phone draws nothing until story 1.20 (`OBJECT_ICON_PATHS.phone` is `null`). Reason: provisional like the other glyphs (E7 draws the final ones); UX still has no spec for it (DESIGN / EXPERIENCE), so this is the point to give it one.
+- **The mug Papa holds while he drinks is nearly invisible** (`papaView.ts`): a 14 cm white cube at his right and in front, so it hides behind his body when he faces the machine, and white on the beige floor. Reason: not part of the icon change; move it above his head like the « Z » (and in ink) with the same pass that gives the busy feedback its UX spec.
+

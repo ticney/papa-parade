@@ -3,6 +3,7 @@ import type { Camera, Scene } from 'three';
 import { Scene as ThreeScene } from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
+import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
 import { createThreatMarkers, type ThreatMarkerEntry } from './threatMarkers.ts';
 
@@ -28,13 +29,19 @@ export interface WorldUi {
     targetedId: number | null,
     papa?: Readonly<{ xM: number; zM: number }> | null,
   ): boolean;
+  /** Mounts the icons of the level's interactive objects (the coffee machine), replacing the previous level's. */
+  mountObjects(objects: readonly ObjectMarkerSpec[]): void;
+  /** Removes the object icons. */
+  unmountObjects(): void;
+  /** Once per frame, before `render`: `isUrgent` is the fatigue being above its threshold. */
+  updateObjects(isUrgent: boolean): void;
   /** The icon points of the mounted level, for the hit test. */
   readonly threatEntries: readonly ThreatMarkerEntry[];
   /** Sizes the layer like the canvas, in CSS px; a marker would drift from its point otherwise. */
   setSize(widthPx: number, heightPx: number): void;
   /**
    * Places the elements for this frame's camera. Returns at once, without calling the DOM
-   * renderer, while nothing in the layer is visible (no tap marker, no threat icon, no chip).
+   * renderer, while nothing in the layer is visible (no tap marker, no threat icon, no object icon, no chip).
    */
   render(camera: Camera): void;
   dispose(): void;
@@ -56,6 +63,7 @@ export function createWorldUi(
   const tapMarker = createTapMarker(scene, doc);
   const threats = createThreatMarkers(scene, doc);
   const glyphChip = createGlyphChip(scene, doc);
+  const objects = createObjectMarkers(scene, doc);
   return {
     scene,
     tapMarker,
@@ -63,6 +71,9 @@ export function createWorldUi(
     mountThreats: threats.mount,
     unmountThreats: threats.unmount,
     updateThreats: threats.update,
+    mountObjects: objects.mount,
+    unmountObjects: objects.unmount,
+    updateObjects: objects.update,
     get threatEntries() {
       return threats.entries;
     },
@@ -70,13 +81,23 @@ export function createWorldUi(
       renderer.setSize(widthPx, heightPx);
     },
     render(camera) {
-      if (!(tapMarker.isVisible || threats.isAnyVisible || glyphChip.isVisible)) return;
+      if (
+        !(
+          tapMarker.isVisible ||
+          threats.isAnyVisible ||
+          objects.isAnyVisible ||
+          glyphChip.isVisible
+        )
+      ) {
+        return;
+      }
       renderer.render(scene, camera);
     },
     dispose() {
       tapMarker.dispose();
       glyphChip.dispose();
       threats.dispose();
+      objects.dispose();
     },
   };
 }
