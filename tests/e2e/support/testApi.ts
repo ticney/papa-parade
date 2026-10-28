@@ -44,3 +44,10 @@ export const ppLoadLevel = (page: Page, id: string, seed: number): Promise<void>
     id,
     seed,
   ] as const);
+
+/** What the level's frames measured so far (`__PP__.perf()`); fails the test if the API is not there. */
+export async function ppPerf(page: Page): Promise<ReturnType<PPTestApi['perf']>> {
+  const report = await page.evaluate(() => window.__PP__?.perf() ?? null);
+  if (report === null) throw new Error('window.__PP__ is not installed');
+  return report;
+}

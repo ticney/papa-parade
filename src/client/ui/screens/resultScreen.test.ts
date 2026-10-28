@@ -498,12 +498,27 @@ describe('createResultScreen', () => {
   });
 
   it('renders no « Copier le journal » without a copyLog action, and one with it', () => {
-    expect(build().actions.children).toHaveLength(1);
-    const withCopy = build({ copyLog: () => undefined });
-    expect(withCopy.actions.children.map((node) => node.textContent)).toEqual([
-      'result.replay_button',
-      'result.copy_log',
-    ]);
+    vi.stubEnv('VITE_DEBUG_ALLOWED', 'true');
+    try {
+      expect(build().actions.children).toHaveLength(1);
+      const withCopy = build({ copyLog: () => undefined });
+      expect(withCopy.actions.children.map((node) => node.textContent)).toEqual([
+        'result.replay_button',
+        'result.copy_log',
+      ]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('renders no « Copier le journal » in a build where debug is not allowed, copyLog or not', () => {
+    vi.stubEnv('VITE_DEBUG_ALLOWED', 'false');
+    try {
+      const { actions } = build({ copyLog: () => undefined });
+      expect(actions.children.map((node) => node.textContent)).toEqual(['result.replay_button']);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('dispose() cancels every timer and unbinds the keys', () => {

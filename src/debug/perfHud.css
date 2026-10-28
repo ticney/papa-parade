@@ -1,0 +1,25 @@
+/*
+  The debug FPS counter (story 1.24, `?debug=1` only). It lives in the debug chunk, not in ui.css:
+  a store build ships none of it. Same tokens as the UI; no inline style (CSP).
+*/
+.pp-debug-perf {
+  position: fixed;
+  left: var(--pp-spacing-hud-inset-left);
+  bottom: var(--pp-spacing-hud-inset-bottom);
+  z-index: 100;
+  padding: 2px 8px;
+  pointer-events: none;
+  font-family: var(--pp-font-label-family), var(--pp-fallback-body);
+  font-size: var(--pp-spacing-text-min);
+  font-weight: var(--pp-font-label-weight);
+  line-height: var(--pp-font-label-line-height);
+  color: var(--pp-color-ink);
+  background: var(--pp-color-paper);
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  white-space: nowrap;
+}
+
+.pp-debug-perf:empty {
+  display: none;
+}

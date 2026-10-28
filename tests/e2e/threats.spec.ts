@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
 import { THREAT_ICON_PATHS } from '../../src/client/ui/world/threatMarkers.ts';
-import { STEP_MS } from '../../src/shared/constants.ts';
+import { DRAW_CALLS_MAX, STEP_MS } from '../../src/shared/constants.ts';
 import { collectProblems, liveWaves } from './support/game.ts';
 import {
   ppAdvance,
@@ -19,7 +19,6 @@ import {
 
 const LEVEL = 'salon_crawler';
 const SEED = 42;
-const DRAW_CALLS_MAX = 100;
 /** One chunk of the wait loops: 250 ms of sim time. */
 const CHUNK_STEPS = 25;
 const CHUNK_MS = CHUNK_STEPS * STEP_MS;
