@@ -201,7 +201,7 @@
 - **Run duration is a CLI default** (`SIM_CLI_DEFAULT_UNTIL_MS`, 3 min, D10). Story 1.18 gives the level a `durationMs`; the CLI should then default to it. *Resolved (story 1.18): the CLI plays to `LevelEnded`; `--until-ms` is an optional cap; `SIM_CLI_DEFAULT_UNTIL_MS` is gone.*
 - ~~**`meanScore` is `null`** in the report (D9).~~ *Closed by story 1.22: `meanScore`, `meanStars`, `starCounts` and the per-run score; 3.4 adds the playtest indicators.*
 - **Overlapping presses**: a bot's `Release` ends every pending press (the sim's rule), fine while one threat is active at a time. Stories 1.16 / 1.18 (two threats at once), with the multi-touch item of 1.11. *Re-deferred (story 1.18, D13) to the playtest, story 1.24.*
-- **Bots know only Parry** (`BotResponse` = `'parry'`): `holdMsFor` is an exhaustive `switch`, so story 1.23 (Firmness) fails to typecheck until the bots learn it; 4.6 / 4.9 (`wait`, `nothing`) likewise.
+- **Bots know only Parry and Firmness** (`BotResponse`): `fingerPlanFor` is an exhaustive `switch`, so 4.6 / 4.9 (`wait`, `nothing`) fail to typecheck until the bots learn them. *Firmness closed by story 1.23: `perfect` and `human` hold it until the threat is answered, then `Release`; a Firmness planned during another hold waits for the finger.*
 - **The human bot's reaction floor reads `threat.enteredAt`**, the entry of the *current* state: a bot created while a window is already open measures its reaction from the window's opening, not from the telegraph. Only matters for a bot created mid-window (1.13's autoplay started late); fix with a telegraph time on `ThreatInstance` if it ever does.
 - **`sim:replay` is always strict** (D13). Still open from 1.3, « Invariant strictness follows the build »: a playtest journal recorded with clamping on may diverge in `sim:replay`.
 - **Still open (1.3), « `JournalSchema`, `contentVersion` / `levelId` in the journal »** (story 3.3): the recorded-game wrapper (`tools/sim/runFile.ts`, D12) carries `levelId`, `untilSimMs` and `worldHash` for the CLI only; 3.3 may absorb it.
@@ -410,3 +410,11 @@
 - **Pointer skip edges on the Result screen:** no `pointercancel`, `pointerup` does not re-check `isPrimary`, a second finger overwrites `pressedPointer`. Minor, no reported failure.
 - **The window-level Enter/Space skip handler fires from a focused debug text field** (playtest builds only).
 - **New live-content tests are brittle and partly tautological** (`tests/tools/sim/mamaScore.test.ts` strict `<` idle vs perfect on `salon_crawler`; `flowSystem.test.ts` expected payload built with `computeMamaScore`). They fail only when Geo retunes the content; revisit if they become noise.
+
+## Deferred from: code review of 1-23-fermete-optionnelle (2026-10-28)
+
+- **Multi-touch and a `Release` that names no threat**: any finger-up ends a held Firmness (spurious `released` gag). Pre-existing item of 1.11 / 1.18, still for the playtest (story 1.24).
+- **The `human` bot never lifts a Firmness early**: its reports show 100 % success on a Firmness. Add an early-release model (as data) with the playtest indicators, story 3.4.
+- **`firm` on a `hiddenZone` def, and thin `holdUntilMs` checks**: the schema accepts `response: 'firm'` on the silence, and `content:check` only requires `holdUntilMs > windowMs` (nothing against `holdMinMs`, the tier / fatigue widening or the wave spacing). Tighten with the first live Firmness threat (E5) and the sniff (4.9).
+- **A Firmness hold keeps succeeding when Papa becomes busy mid-hold** (`isPapaBusy` is only checked on `PressThreat`). Settle with the busy states of E4 / E5.
+- **No Firmness test for `pointercancel` / `blur` mid-hold**: the pause release covers them today. Add one with the first live Firmness.

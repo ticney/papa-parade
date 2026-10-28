@@ -33,8 +33,11 @@ export interface LevelSessionDeps {
    * The level's objects are `sim.objects`.
    */
   onLevelReady(level: LevelScene, threatEntries: readonly ThreatMarkerEntry[]): void;
-  /** Once per rendered frame, paused or not (the UI follows the countdown there). */
-  onLevelFrame(): void;
+  /**
+   * Once per rendered frame, paused or not (the UI follows the countdown there). `alpha` is the
+   * loop's, in `[0, 1]`: how far the next step is under way, which the drawn sim time follows.
+   */
+  onLevelFrame(alpha: number): void;
   onSimEvent(event: SimEvent): void;
   /**
    * False while the device is in portrait or the page is hidden: the level then starts paused and
@@ -387,7 +390,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         const render = (alpha: number): void => {
           level.update(sim.world, alpha);
           renderer.render(level.scene, camera);
-          deps.onLevelFrame();
+          deps.onLevelFrame(alpha);
         };
         const timeMap = createTimeMap();
         loop = createGameLoop({

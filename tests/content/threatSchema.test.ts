@@ -53,7 +53,17 @@ describe('content/threats/outlet.json', () => {
   it.each<[string, [string, unknown][], string[]]>([
     ['an unknown key', [['bogusMs', 1]], ['bogusMs']],
     ['an unknown key in the feedback', [['feedback.bogus', 'x']], ['feedback.bogus']],
-    ['a Firmness (not judged yet)', [['response', 'firm']], ['response']],
+    ['a Firmness without holdUntilMs', [['response', 'firm']], ['holdUntilMs']],
+    ['a Parry with holdUntilMs', [['holdUntilMs', 1500]], ['holdUntilMs']],
+    [
+      'a Firmness with a non-positive holdUntilMs',
+      [
+        ['response', 'firm'],
+        ['holdUntilMs', 0],
+      ],
+      ['holdUntilMs'],
+    ],
+    ['a response the sim cannot judge yet', [['response', 'wait']], ['response']],
     ['a telegraph delay of 0', [['telegraphDelayMs', 0]], ['telegraphDelayMs']],
     ['a negative telegraph delay', [['telegraphDelayMs', -1]], ['telegraphDelayMs']],
     [
@@ -73,6 +83,13 @@ describe('content/threats/outlet.json', () => {
     ['an unknown target', [['target', 'baby']], ['target']],
   ])('rejects %s', (_name, changes, expected) => {
     expect(failedPaths(mutated(...changes))).toEqual(expected);
+  });
+
+  it('accepts a Firmness that carries holdUntilMs, on an anchor or on Papa', () => {
+    expect(mutated(['response', 'firm'], ['holdUntilMs', 1500])).toMatchObject({ ok: true });
+    expect(mutated(['response', 'firm'], ['holdUntilMs', 1500], ['target', 'papa'])).toMatchObject({
+      ok: true,
+    });
   });
 
   it('accepts a threat that takes the feel defaults and no cooldown', () => {

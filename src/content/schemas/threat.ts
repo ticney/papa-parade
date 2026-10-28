@@ -9,10 +9,10 @@ const idSchema = (description: string) =>
   z.string().regex(SNAKE_ID_PATTERN, 'an id is lower_snake_case').describe(description);
 
 /**
- * The responses the sim judges today. `firm` (story 1.23), `wait` (4.6), `nothing` (4.9) and
+ * The responses the sim judges today. `firm` joined in story 1.23; `wait` (4.6), `nothing` (4.9) and
  * `dodge` (5.1) each join with their story: the schema accepts only what the sim can judge.
  */
-export const THREAT_RESPONSES = ['parry'] as const;
+export const THREAT_RESPONSES = ['parry', 'firm'] as const;
 export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
 
 /**
@@ -56,6 +56,13 @@ const baseShape = {
     .positive()
     .nullable()
     .describe('Base response window, in sim ms; `null` = `feel.timing.windowMs`.'),
+  holdUntilMs: z
+    .number()
+    .positive()
+    .optional()
+    .describe(
+      'Only on a `firm` threat (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).',
+    ),
   icon: z
     .enum(THREAT_ICONS)
     .describe("Glyph drawn in the threat's marker (the client has one per entry)."),
@@ -103,6 +110,23 @@ const HiddenZoneThreatDefSchema = z
 
 export const ThreatDefSchema = z
   .discriminatedUnion('target', [AnchoredThreatDefSchema, HiddenZoneThreatDefSchema])
+  .superRefine((def, ctx) => {
+    // `holdUntilMs` is variant-specific, like `findMaxMs`: a `parry` file does not carry a `null` for it.
+    if (def.response === 'firm' && def.holdUntilMs === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['holdUntilMs'],
+        message:
+          'a threat with response "firm" needs `holdUntilMs` (sim ms from the window opening)',
+      });
+    } else if (def.response !== 'firm' && def.holdUntilMs !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['holdUntilMs'],
+        message: `\`holdUntilMs\` is only for a threat with response "firm", not "${def.response}"`,
+      });
+    }
+  })
   .describe('A kind of threat: how it is telegraphed, answered and how it ends (GDD › Catalogue).');
 
 export type ThreatDef = z.infer<typeof ThreatDefSchema>;

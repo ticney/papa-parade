@@ -12,7 +12,8 @@
         "response": {
           "type": "string",
           "enum": [
-            "parry"
+            "parry",
+            "firm"
           ],
           "description": "The response the threat asks for."
         },
@@ -39,6 +40,11 @@
             }
           ],
           "description": "Base response window, in sim ms; `null` = `feel.timing.windowMs`."
+        },
+        "holdUntilMs": {
+          "description": "Only on a `firm` threat (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).",
+          "type": "number",
+          "exclusiveMinimum": 0
         },
         "icon": {
           "type": "string",
@@ -128,7 +134,8 @@
         "response": {
           "type": "string",
           "enum": [
-            "parry"
+            "parry",
+            "firm"
           ],
           "description": "The response the threat asks for."
         },
@@ -155,6 +162,11 @@
             }
           ],
           "description": "Base response window, in sim ms; `null` = `feel.timing.windowMs`."
+        },
+        "holdUntilMs": {
+          "description": "Only on a `firm` threat (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).",
+          "type": "number",
+          "exclusiveMinimum": 0
         },
         "icon": {
           "type": "string",

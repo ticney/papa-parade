@@ -1,3 +1,4 @@
+import { HOLD_RING_OUTLINE_PX, HOLD_RING_STROKE_PX } from '@shared/constants';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import type { ThreatInstance, ThreatState } from '@sim';
@@ -17,7 +18,21 @@ class FakeElement {
   parentNode: unknown = null;
   className = '';
   hidden = false;
-  style: Record<string, string> = {};
+  /** Custom properties written with `style.setProperty` (the hold-ring's progress and sizes). */
+  vars = new Map<string, string>();
+  style: Record<string, unknown> = {
+    setProperty: (name: string, value: string) => {
+      this.vars.set(name, value);
+    },
+  };
+  classes = new Set<string>();
+  classList = {
+    toggle: (name: string, force: boolean) => {
+      if (force) this.classes.add(name);
+      else this.classes.delete(name);
+      return force;
+    },
+  };
   attributes = new Map<string, string>();
   children: FakeElement[] = [];
   setAttribute(name: string, value: string): void {
@@ -84,18 +99,20 @@ describe('createThreatMarkers', () => {
     expect(markers.entries).toHaveLength(2);
   });
 
-  it('holds a halo, a highlight, a chevron and an icon in each marker, the highlight and chevron hidden', () => {
+  it('holds a halo, a hold-ring, a highlight, a chevron and an icon in each marker, the ring, highlight and chevron hidden', () => {
     const { markers, byClass } = build();
     markers.mount([ENTRY]);
     const [root] = byClass(THREAT_CLASSES.root);
     expect(root?.children.map((child) => child.className || 'svg')).toEqual([
       THREAT_CLASSES.halo,
+      THREAT_CLASSES.hold,
       THREAT_CLASSES.highlight,
       'svg',
       THREAT_CLASSES.icon,
     ]);
     expect(byClass(THREAT_CLASSES.highlight)[0]?.hidden).toBe(true);
-    expect(root?.children[2]?.attributes.has('hidden')).toBe(true);
+    expect(byClass(THREAT_CLASSES.hold)[0]?.hidden).toBe(true);
+    expect(root?.children[3]?.attributes.has('hidden')).toBe(true);
   });
 
   it('shows the marker while the threat is in telegraph or windowOpen, and only then', () => {
@@ -447,5 +464,114 @@ describe('a silence in a hidden zone (story 1.21)', () => {
   it('draws three dots', () => {
     expect(THREAT_ICON_PATHS.dots).toMatch(/^M/);
     expect(THREAT_ICON_PATHS.dots.match(/a2\.2/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('the hold-ring (story 1.23)', () => {
+  const HOLD_MIN_MS = 400;
+  const PRESS_T = 2000;
+
+  /** A threat with a pending press made at `PRESS_T`. */
+  const pressed = (
+    overrides: Partial<NonNullable<ThreatInstance['press']>> = {},
+    state: ThreatState = 'windowOpen',
+  ): Readonly<ThreatInstance> =>
+    ({
+      ...threat(4, state),
+      press: {
+        t: asSimMs(PRESS_T),
+        quality: 'perfect',
+        offsetMs: 0,
+        releasedAt: null,
+        heldAt: null,
+        ...overrides,
+      },
+    }) as Readonly<ThreatInstance>;
+
+  const setup = () => {
+    const built = build();
+    built.markers.mount([ENTRY]);
+    const ring = built.byClass(THREAT_CLASSES.hold)[0] as FakeElement;
+    const update = (t: Readonly<ThreatInstance>, renderSimMs: number | null) =>
+      built.markers.update([t], null, null, null, renderSimMs, HOLD_MIN_MS);
+    return { ...built, ring, update };
+  };
+
+  it('is built from the constants of DESIGN.md: a band wider than the icon, an ink outline', () => {
+    const { ring } = setup();
+    expect(ring.style.inset).toBe(`-${HOLD_RING_STROKE_PX}px`);
+    expect(ring.style.boxShadow).toBe(`0 0 0 ${HOLD_RING_OUTLINE_PX}px var(--pp-color-ink)`);
+  });
+
+  it('is hidden while there is no press, or no render time', () => {
+    const { ring, update } = setup();
+    update(threat(4, 'windowOpen'), PRESS_T + 100);
+    expect(ring.hidden).toBe(true);
+    update(pressed(), null);
+    expect(ring.hidden).toBe(true);
+  });
+
+  it('fills with the sim time since the press, over holdMinMs', () => {
+    const { ring, update } = setup();
+    update(pressed(), PRESS_T);
+    expect(ring.hidden).toBe(false);
+    expect(ring.vars.get('--pp-hold-progress')).toBe('0');
+    update(pressed(), PRESS_T + HOLD_MIN_MS / 2);
+    expect(ring.vars.get('--pp-hold-progress')).toBe('50');
+    update(pressed(), PRESS_T + HOLD_MIN_MS * 0.999);
+    expect(ring.vars.get('--pp-hold-progress')).toBe('99');
+    expect(ring.classes.has(THREAT_CLASSES.holdClosed)).toBe(false);
+  });
+
+  it('never reads past full before the sim has closed it, nor below empty', () => {
+    const { ring, update } = setup();
+    update(pressed(), PRESS_T + HOLD_MIN_MS * 3);
+    expect(ring.vars.get('--pp-hold-progress')).toBe('99');
+    update(pressed(), PRESS_T - 100);
+    expect(ring.vars.get('--pp-hold-progress')).toBe('0');
+  });
+
+  it('closes solid when the sim says the press was held, whatever the render time', () => {
+    const { ring, update } = setup();
+    update(pressed({ heldAt: asSimMs(PRESS_T + HOLD_MIN_MS) }), PRESS_T + HOLD_MIN_MS - 20);
+    expect(ring.vars.get('--pp-hold-progress')).toBe('100');
+    expect(ring.classes.has(THREAT_CLASSES.holdClosed)).toBe(true);
+  });
+
+  it('goes when the finger is released before it closes (a Parry)', () => {
+    const { ring, update } = setup();
+    update(pressed(), PRESS_T + 100);
+    expect(ring.hidden).toBe(false);
+    update(pressed({ releasedAt: asSimMs(PRESS_T + 120) }), PRESS_T + 120);
+    expect(ring.hidden).toBe(true);
+  });
+
+  it('goes with the press when the threat resolves, and starts again, open, on the next press', () => {
+    const { ring, update } = setup();
+    update(pressed({ heldAt: asSimMs(PRESS_T + HOLD_MIN_MS) }), PRESS_T + HOLD_MIN_MS);
+    expect(ring.classes.has(THREAT_CLASSES.holdClosed)).toBe(true);
+    update(threat(4, 'resolved'), PRESS_T + HOLD_MIN_MS + 10);
+    expect(ring.hidden).toBe(true);
+    expect(ring.classes.has(THREAT_CLASSES.holdClosed)).toBe(false);
+    update(pressed(), PRESS_T + 10);
+    expect(ring.hidden).toBe(false);
+    expect(ring.classes.has(THREAT_CLASSES.holdClosed)).toBe(false);
+  });
+
+  it('writes the DOM only when the whole percent, the closed state or the visibility changes', () => {
+    const { ring, update } = setup();
+    let writes = 0;
+    const base = ring.vars;
+    ring.vars = new Map(base);
+    ring.vars.set = (name: string, value: string) => {
+      writes++;
+      return Map.prototype.set.call(ring.vars, name, value);
+    };
+    update(pressed(), PRESS_T + 100);
+    update(pressed(), PRESS_T + 100);
+    update(pressed(), PRESS_T + 100.4);
+    expect(writes).toBe(1);
+    update(pressed(), PRESS_T + 120);
+    expect(writes).toBe(2);
   });
 });

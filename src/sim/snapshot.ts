@@ -28,14 +28,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 10;
+  version: 11;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -54,7 +54,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 10,
+    version: 11,
     seed,
     feelHash,
     geometryHash,
@@ -265,6 +265,11 @@ function pressProblem(press: unknown, where: string): string | null {
   if (!isFiniteNumber(fields.offsetMs)) return `${where}.offsetMs`;
   if (fields.releasedAt !== null && !isFiniteNumber(fields.releasedAt))
     return `${where}.releasedAt`;
+  // The ring closed no earlier than the press (the sim also holds it to `holdMinMs`, which the
+  // snapshot does not know: only the feel's hash travels with it).
+  const { heldAt } = fields;
+  if (heldAt !== null && !(isFiniteNumber(heldAt) && (heldAt as number) >= (fields.t as number)))
+    return `${where}.heldAt`;
   return null;
 }
 
@@ -719,7 +724,7 @@ export function worldFromSnapshot(
   levelHash: string,
   planned: PlannedLevel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 10, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 11, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

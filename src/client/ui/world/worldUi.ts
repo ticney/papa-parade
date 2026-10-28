@@ -21,13 +21,17 @@ export interface WorldUi {
    * Once per frame, before `render`: shows the icons of the active threats and highlights
    * `highlightedId` (pressed) and `targetedId` (auto-targeted, null on touch and mouse). The icons
    * that follow Papa (the micro-sleep) move to `papa`, his drawn pose. True when a press began to
-   * show in this call (a target ring alone is not one).
+   * show in this call (a target ring alone is not one). `renderSimMs` is the sim time as drawn and
+   * `holdMinMs` the feel's: the hold-ring (story 1.23) fills over the one, from the press (see
+   * `ThreatMarkers.update`).
    */
   updateThreats(
     threats: readonly Readonly<ThreatInstance>[],
     highlightedId: number | null,
     targetedId: number | null,
     papa?: Readonly<{ xM: number; zM: number }> | null,
+    renderSimMs?: number | null,
+    holdMinMs?: number,
   ): boolean;
   /** Mounts the icons of the level's interactive objects (the coffee machine), replacing the previous level's. */
   mountObjects(objects: readonly ObjectMarkerSpec[]): void;

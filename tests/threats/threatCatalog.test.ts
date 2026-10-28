@@ -9,6 +9,7 @@ import {
   ThreatGagIds,
   type ThreatResponse,
 } from '@content/schemas/threat';
+import { STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { createSim, GAG_IDS, type Sim, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
@@ -16,6 +17,8 @@ import { createTestContent, createTestGeometry } from '../support/testContent.ts
 
 // One "perfect / success / too early / too late" set per file of content/threats/, generated from
 // the JSON: adding a threat adds its four tests, and nothing in this file knows a threat by name.
+// The test-only defs of tests/threats/fixtures/ (story 1.23: a Firmness, which no live level asks for
+// yet) run the same set, and each response adds its own cases (a Firmness released early, a Parry held).
 // Each case plays on the frozen room with EVERY def planned, at the anchor a live level plans it,
 // so that the three threats share one level. The frozen feel and geometry are used, so that
 // retuning feel.json cannot move a result; the threats and the levels are the live files, since
@@ -23,19 +26,34 @@ import { createTestContent, createTestGeometry } from '../support/testContent.ts
 
 const THREATS_DIR = fileURLToPath(new URL('../../content/threats/', import.meta.url));
 const LEVELS_DIR = fileURLToPath(new URL('../../content/levels/', import.meta.url));
+const FIXTURES_DIR = fileURLToPath(new URL('./fixtures/', import.meta.url));
+
+/** An anchor of the frozen room that no live def uses: where the fixture defs are planned. */
+const FIXTURE_ANCHOR = 'door';
 
 /** A release time beyond every case's horizon: the other defs stay idle while one is tested. */
 const CATALOG_OTHERS_FROM_MS = 600_000;
 
-const defs: ThreatDef[] = readdirSync(THREATS_DIR)
-  .filter((name) => name.endsWith('.json'))
-  .sort()
-  .map((name) => {
-    const text = readFileSync(`${THREATS_DIR}${name}`, 'utf8');
-    const parsed = parseContentFile(`content/threats/${name}`, text, ThreatDefSchema);
-    if (!parsed.ok) throw new Error(`${name} is invalid: ${JSON.stringify(parsed.error)}`);
-    return parsed.value;
-  });
+function readDefs(dir: string, shown: string): ThreatDef[] {
+  return readdirSync(dir)
+    .filter((name) => name.endsWith('.json'))
+    .sort()
+    .map((name) => {
+      const text = readFileSync(`${dir}${name}`, 'utf8');
+      const parsed = parseContentFile(`${shown}${name}`, text, ThreatDefSchema);
+      if (!parsed.ok) throw new Error(`${name} is invalid: ${JSON.stringify(parsed.error)}`);
+      return parsed.value;
+    });
+}
+
+const liveDefs = readDefs(THREATS_DIR, 'content/threats/');
+/**
+ * Test-only defs (story 1.23 D5): a response no live level asks for yet (the Firmness) is proved on
+ * a fixture. They are planned at `FIXTURE_ANCHOR`, never by a live level.
+ */
+const fixtureDefs = readDefs(FIXTURES_DIR, 'tests/threats/fixtures/');
+const fixtureIds = new Set(fixtureDefs.map((def) => def.id));
+const defs: ThreatDef[] = [...liveDefs, ...fixtureDefs];
 
 /** The anchor of the first entry of a live level that plans each def (`*.geometry.json` are not levels). */
 const anchors = new Map<string, string>();
@@ -57,19 +75,43 @@ const content = createTestContent();
 const geometry = createTestGeometry();
 const { holdMinMs } = content.feel.input;
 
+/** How a right answer is given: when the finger comes up (null: it stays down), and when it is over. */
+interface Answer {
+  releaseAt: number | null;
+  settledAt: number;
+}
+
 /**
- * How long a Parry is held before it is released: half the minimum hold. An exhaustive `switch`: a
- * new response breaks the typecheck until the catalogue knows how to answer it.
+ * The right answer to a press at `pressT` on a threat whose window opens at `openAt`: a Parry is
+ * released at half the minimum hold; a Firmness is held to the end of the attack, with no release.
+ * An exhaustive `switch`: a new response breaks the typecheck until the catalogue knows how to answer it.
  */
-function releaseOffsetMs(response: ThreatResponse): number {
+function answerOf(def: ThreatDef, pressT: number, openAt: number): Answer {
+  const response: ThreatResponse = def.response;
   switch (response) {
     case 'parry':
-      return holdMinMs / 2;
+      return { releaseAt: pressT + holdMinMs / 2, settledAt: pressT + holdMinMs };
+    case 'firm': {
+      if (def.holdUntilMs === undefined) throw new Error(`"${def.id}" is firm with no holdUntilMs`);
+      return {
+        releaseAt: null,
+        settledAt: Math.max(pressT + holdMinMs, openAt + def.holdUntilMs) + STEP_MS,
+      };
+    }
   }
 }
 
-/** The anchor a live level plans `def` at; a def no level plans fails here, with its name. */
+/** Presses `def` at `t` and answers it as it asks. */
+function answer(sim: Sim, def: ThreatDef, threatId: number, t: number, openAt: number): Answer {
+  const given = answerOf(def, t, openAt);
+  sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
+  if (given.releaseAt !== null) sim.enqueue({ type: 'Release', t: asSimMs(given.releaseAt) });
+  return given;
+}
+
+/** The anchor `def` is planned at: a fixture's own, else a live level's; a def no level plans fails here, with its name. */
 function anchorOf(def: ThreatDef): string {
+  if (fixtureIds.has(def.id)) return FIXTURE_ANCHOR;
   const anchor = anchors.get(def.id);
   if (anchor === undefined) throw new Error(`"${def.id}" is planned by no level`);
   return anchor;
@@ -214,21 +256,32 @@ describe('the threat catalogue', () => {
     }
   });
 
-  it.each(defs.map((def) => [def.id, def.target] as const))(
+  it.each(liveDefs.map((def) => [def.id, def.target] as const))(
     '"%s" is planned by a live level',
     (id, target) => {
       const planned = target === 'papa' ? spawnedOnPapa.has(id) : anchors.has(id);
       expect(planned, `"${id}" is planned by no level`).toBe(true);
     },
   );
+
+  it('keeps the fixture anchor free of live defs, and fixtures out of the live folder', () => {
+    expect([...anchors.values()]).not.toContain(FIXTURE_ANCHOR);
+    for (const def of fixtureDefs) {
+      expect(liveDefs.map((live) => live.id)).not.toContain(def.id);
+      expect(def.target).toBe('anchor');
+    }
+  });
+
+  it('proves both responses: the live defs and the fixtures between them cover parry and firm', () => {
+    expect(new Set(defs.map((def) => def.response))).toEqual(new Set(['parry', 'firm']));
+  });
 });
 
 describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def) => {
   it('is perfect when answered at the centre of the window', async () => {
-    const { sim, center, threatId } = await telegraphed(def);
-    sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId });
-    sim.enqueue({ type: 'Release', t: asSimMs(center + releaseOffsetMs(def.response)) });
-    const events = runUntil(sim, center + holdMinMs);
+    const { sim, center, openAt, threatId } = await telegraphed(def);
+    const { settledAt } = answer(sim, def, threatId, center, openAt);
+    const events = runUntil(sim, settledAt);
     expect(results(events)).toEqual([
       expect.objectContaining({ response: def.response, quality: 'perfect', offsetMs: 0 }),
     ]);
@@ -238,9 +291,8 @@ describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def)
   it('is a success when answered as the window opens, tolerance included', async () => {
     const { sim, center, openAt, window, threatId } = await telegraphed(def);
     const t = openAt - window.toleranceMs;
-    sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
-    sim.enqueue({ type: 'Release', t: asSimMs(t + releaseOffsetMs(def.response)) });
-    const events = runUntil(sim, center + holdMinMs);
+    const { settledAt } = answer(sim, def, threatId, t, openAt);
+    const events = runUntil(sim, Math.max(settledAt, center + holdMinMs));
     expect(results(events)).toEqual([
       expect.objectContaining({ quality: 'success', offsetMs: t - center }),
     ]);
@@ -268,4 +320,57 @@ describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def)
     expect(gags(events)).toEqual([expect.objectContaining({ reason: 'late', threatId })]);
     expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
   });
+
+  if (def.response === 'firm') {
+    it('is a wrongResponse gag when released before holdMinMs (a Parry)', async () => {
+      const { sim, center, threatId } = await telegraphed(def);
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId });
+      sim.enqueue({ type: 'Release', t: asSimMs(center + holdMinMs - 1) });
+      const events = runUntil(sim, center + holdMinMs + STEP_MS);
+      expect(results(events)).toEqual([
+        expect.objectContaining({ quality: 'fail', reason: 'wrongResponse', offsetMs: 0 }),
+      ]);
+      expect(gags(events)).toEqual([
+        expect.objectContaining({ reason: 'wrongResponse', threatId }),
+      ]);
+      expect(events.filter((event) => event.type === 'ResponseHeld')).toEqual([]);
+    });
+
+    it('is a "released" gag when released between holdMinMs and the end of the attack', async () => {
+      const { sim, center, openAt, threatId } = await telegraphed(def);
+      const releaseAt = center + holdMinMs;
+      expect(releaseAt).toBeLessThan(openAt + (def.holdUntilMs ?? 0));
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId });
+      sim.enqueue({ type: 'Release', t: asSimMs(releaseAt) });
+      const events = runUntil(sim, releaseAt + STEP_MS);
+      expect(results(events)).toEqual([
+        expect.objectContaining({ quality: 'fail', reason: 'released', offsetMs: 0 }),
+      ]);
+      expect(gags(events)).toEqual([expect.objectContaining({ reason: 'released', threatId })]);
+      expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
+    });
+  }
+
+  if (def.response === 'parry') {
+    it('is a wrongResponse gag when held holdMinMs, the ring having closed first', async () => {
+      const { sim, center, threatId } = await telegraphed(def);
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId });
+      const events = runUntil(sim, center + holdMinMs + STEP_MS);
+      const tail = events.filter(
+        (event) => event.type === 'ResponseHeld' || event.type === 'ResponseResolved',
+      );
+      expect(tail).toEqual([
+        { type: 'ResponseHeld', t: center + holdMinMs, threatId },
+        expect.objectContaining({
+          type: 'ResponseResolved',
+          quality: 'fail',
+          reason: 'wrongResponse',
+          t: center + holdMinMs,
+        }),
+      ]);
+      expect(gags(events)).toEqual([
+        expect.objectContaining({ reason: 'wrongResponse', threatId }),
+      ]);
+    });
+  }
 });
