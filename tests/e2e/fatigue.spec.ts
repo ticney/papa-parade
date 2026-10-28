@@ -125,6 +125,41 @@ test.describe('the gauge pill', () => {
   });
 });
 
+test.describe('the coffee machine icon', () => {
+  const ICON = '.pp-object[data-pp-object="coffee_machine"]';
+
+  test('shows where the machine is, on the point a tap on it aims at, and none for the phone', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozen(page);
+    await ppAdvance(page, 2);
+    await expect(page.locator(ICON)).toHaveCount(1);
+    await expect(page.locator('.pp-object')).toHaveCount(1);
+    const point = await objectIconPoint(page, 'coffee_machine');
+    const box = await page.locator(ICON).boundingBox();
+    if (box === null) throw new Error('the icon has no box');
+    expect(
+      Math.hypot(box.x + box.width / 2 - point.x, box.y + box.height / 2 - point.y),
+    ).toBeLessThan(2);
+    expect(problems).toEqual([]);
+  });
+
+  test('is calm at the start and turns warm once Papa is above the fatigue threshold', async ({
+    page,
+  }) => {
+    await openFrozen(page);
+    await ppAdvance(page, 2);
+    await expect(page.locator(ICON)).not.toHaveClass(/pp-object-urgent/);
+    await ppSend(page, {
+      type: 'SetFatigue',
+      points: (FATIGUE_FEEL.thresholdPoints as number) + 5,
+    });
+    await ppAdvance(page, 2);
+    await expect(page.locator(ICON)).toHaveClass(/pp-object-urgent/);
+  });
+});
+
 test.describe('the coffee', () => {
   test('a tap on the machine walks Papa there, he drinks for coffeeDurationMs, then fatigue drops', async ({
     page,

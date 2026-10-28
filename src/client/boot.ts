@@ -507,6 +507,7 @@ export async function boot(): Promise<void> {
       if (gauges.fatigue !== undefined) {
         gaugesHud.setValue('fatigue', Math.round(started.sim.world.gauges.fatigue));
       }
+      worldUi.mountObjects(started.sim.objects);
       // The full duration at once, so a restart never shows the last level's `0:00`.
       hudBatch.set(TIMER_SLOT, Math.ceil(started.level.level.durationMs / MS_PER_S));
       for (const listener of levelStartedListeners) listener(started);
@@ -565,6 +566,7 @@ export async function boot(): Promise<void> {
           targetedId,
           currentLevel?.papaPose ?? null,
         );
+      worldUi.updateObjects(world?.gauges.isFatigueAbove ?? false);
       showGlyphChip(world, targetedId, device);
       if (isMirrored) mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
       worldUi.render(camera);
@@ -890,6 +892,7 @@ export async function boot(): Promise<void> {
   events.on('AppStateChanged', ({ from }) => {
     if (from !== 'level') return;
     worldUi.unmountThreats();
+    worldUi.unmountObjects();
     worldUi.glyphChip.hide();
     highlightedThreatId = null;
     // A pad lost in that level does not follow the player into the next one (the line is for the pause).

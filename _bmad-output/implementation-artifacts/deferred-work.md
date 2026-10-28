@@ -372,3 +372,8 @@
 - **A `?threats=off` run has no phone** (`withoutThreats` empties the waves, and the disruptions with them): the quiet room stays quiet. `StartDisruption` has nothing to start there.
 - **The sim does not check the disruption's feedback cues** (they live in `feedback.json`, which the sim ignores): `content:check` does, like for the threats. `createSim` checks the def, the object and the kind.
 
+## Added: coffee machine icon (branch feat/coffee-machine-marker, 2026-10-28)
+
+- **A provisional icon now marks the coffee machine** (`ui/world/objectMarkers.ts`): a paper disc with the mug glyph at the object's icon point (the point the touch hit test aims at), smaller than a threat icon, warm yellow with a pulsing halo while the fatigue is above its threshold. Found by Geo while playing: nothing said where the machine was. The phone draws nothing until story 1.20 (`OBJECT_ICON_PATHS.phone` is `null`). Reason: provisional like the other glyphs (E7 draws the final ones); UX still has no spec for it (DESIGN / EXPERIENCE), so this is the point to give it one.
+- **The mug Papa holds while he drinks is nearly invisible** (`papaView.ts`): a 14 cm white cube at his right and in front, so it hides behind his body when he faces the machine, and white on the beige floor. Reason: not part of the icon change; move it above his head like the « Z » (and in ink) with the same pass that gives the busy feedback its UX spec.
+
