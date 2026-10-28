@@ -8,9 +8,11 @@
 # The full key is looked up in sprint-status.yaml from its `<epic>-<story>` prefix (`2-3` →
 # `2-3-sons-cultes-…`). If a worktree already has `story/<story-key>` checked out (the dev agent
 # opened it, the review agent comes back to it), nothing is created: its path is printed.
-# Otherwise `../papa-parade-<story-key>` is created on `story/<story-key>` (the existing branch, or
-# a new one cut from `main`), and `npm ci` installs its own node_modules (never shared: two dev
-# servers must not share Vite's cache). Its e2e port is derived from its path (playwright.config.ts).
+# Otherwise `.claude/worktrees/<story-key>` is created on `story/<story-key>` (the existing branch, or
+# a new one cut from `main`): inside the main checkout and ignored by git, because Claude Code lets
+# a session enter a worktree there without the safety prompt it shows for a folder outside the
+# project. Then `npm ci` installs its own node_modules (never shared: two dev servers must not share
+# Vite's cache). Its e2e port is derived from its path (playwright.config.ts).
 #
 # The last line of a successful run is always `WORKTREE=<absolute path>`.
 set -euo pipefail
@@ -56,7 +58,7 @@ if [ "$status" = "done" ]; then
   exit 1
 fi
 
-dir="$(dirname "$main_root")/$(basename "$main_root")-$key"
+dir="$main_root/.claude/worktrees/$key"
 if [ -e "$dir" ]; then
   echo "$dir exists but is not a worktree of $branch: look at it, then remove or rename it" >&2
   exit 1
@@ -73,6 +75,7 @@ if git -C "$main_root" remote get-url origin >/dev/null 2>&1; then
   fi
 fi
 
+mkdir -p "$(dirname "$dir")"
 if git -C "$main_root" show-ref --verify --quiet "refs/heads/$branch"; then
   git -C "$main_root" worktree add "$dir" "$branch"
 else
