@@ -74,12 +74,13 @@ describe('content/levels/salon_crawler.json', () => {
     expect(parsed.ok && parsed.value.gauges).toEqual({});
   });
 
-  it('plans the outlet, the stairs and the coffee table, once each, and no top-level threats', () => {
+  it('plans the outlet, the stairs, the coffee table and the silence, once each, and no top-level threats', () => {
     const parsed = parse(real);
     expect(parsed.ok && parsed.value.waves.flatMap((w) => w.threats)).toEqual([
       { def: 'outlet', anchor: 'outlet_01' },
       { def: 'stairs', anchor: 'stairs_top' },
       { def: 'coffee_table_object', anchor: 'coffee_table' },
+      { def: 'silence_mischief', anchor: 'behind_sofa' },
     ]);
     expect(real).not.toHaveProperty('threats');
   });

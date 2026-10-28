@@ -7,6 +7,7 @@ import {
   createTestGeometry,
   createTestLevel,
   OUTLET,
+  SILENCE,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { SimCommand } from '../commands.ts';
@@ -451,6 +452,19 @@ describe('commands that do nothing', () => {
     expect(threatEvents(events)).toEqual([]);
     expect(only(events, 'PapaGlideStarted')).toEqual([]);
     expect(threatOf(sim).state).toBe('idle');
+  });
+
+  it('a press on a silence nobody has found yet (hidden): no pending press, no early gag, no glide', async () => {
+    const sim = await newSim(createTestLevel({ waves: [testWave([SILENCE])] }));
+    run(sim, 2);
+    expect(threatOf(sim).state).toBe('hidden');
+    sim.enqueue(press(sim.world.time.sim, threatOf(sim).id));
+    sim.enqueue(release(sim.world.time.sim + 50));
+    const events = run(sim, 5);
+    expect(only(events, 'ResponseResolved')).toEqual([]);
+    expect(only(events, 'GagTriggered')).toEqual([]);
+    expect(only(events, 'PapaGlideStarted')).toEqual([]);
+    expect(threatOf(sim)).toMatchObject({ state: 'hidden', press: null });
   });
 
   it('a Release before the press it would end', async () => {

@@ -1,3 +1,4 @@
+import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
@@ -5,6 +6,7 @@ import {
   createTestGeometry,
   createTestLevel,
   OUTLET,
+  SILENCE,
   STAIRS,
   testWave,
 } from '../../../tests/support/testContent.ts';
@@ -16,6 +18,7 @@ import { GAG_IDS, gagIdOf } from './gags.ts';
 import {
   enterThreatState,
   gagThreat,
+  hideThreat,
   openWindow,
   rearmThreat,
   resolveThreat,
@@ -55,7 +58,14 @@ async function setup() {
 
 describe('threat FSM', () => {
   it('lists every state, and is proved complete at compile time', () => {
-    expect([...THREAT_STATES]).toEqual(['idle', 'telegraph', 'windowOpen', 'resolved', 'gag']);
+    expect([...THREAT_STATES]).toEqual([
+      'idle',
+      'hidden',
+      'telegraph',
+      'windowOpen',
+      'resolved',
+      'gag',
+    ]);
     expect(THREAT_STATES_ARE_COMPLETE).toBe(true);
   });
 
@@ -209,11 +219,89 @@ describe('gags', () => {
       'stairs_slide',
       'table_object_fall',
       'papa_asleep',
+      'tissues_everywhere',
+      'crayon_scribbles',
     ]);
   });
 
   it('gagIdOf accepts a known gag and refuses another', () => {
     expect(gagIdOf('outlet_hair')).toBe('outlet_hair');
     expect(() => gagIdOf('outlet_hairs')).toThrow(/unknown gag outlet_hairs/);
+  });
+});
+
+describe('the hidden state and the surprise gag (story 1.21)', () => {
+  async function silenceSetup() {
+    const level = createTestLevel({ waves: [testWave([SILENCE])] });
+    const sim = await createSim({ content, geometry: createTestGeometry(), level, seed: 4 });
+    const world = sim.world as World;
+    world.time.sim = asSimMs(500);
+    const events: SimEvent[] = [];
+    const ctx = {
+      feel: content.feel,
+      events,
+      strictInvariants: true,
+      t: world.time.sim,
+      level: { microSleepIndex: -1 },
+      requestFreezeRealMs: () => {},
+    } as unknown as StepContext;
+    const silenceDef = level.threats.silence_mischief;
+    if (silenceDef === undefined) throw new Error('no silence');
+    return { world, ctx, events, threat: world.threats[0] as World['threats'][number], silenceDef };
+  }
+
+  it('hideThreat goes idle → hidden with no window and no press, and says which wave drew it', async () => {
+    const { world, ctx, events, threat } = await silenceSetup();
+    hideThreat(world, ctx, threat, 2);
+    expect(threat).toMatchObject({
+      state: 'hidden',
+      enteredAt: 500,
+      windowOpenAt: 0,
+      responseWindow: null,
+      press: null,
+      waveIndex: 2,
+    });
+    expect(events).toEqual([
+      {
+        type: 'ThreatHidden',
+        t: 500,
+        threatId: threat.id,
+        kind: 'silence_mischief',
+        anchorId: 'behind_sofa',
+        waveIndex: 2,
+      },
+    ]);
+  });
+
+  it('a hidden threat is revealed by telegraphThreat like an idle one', async () => {
+    const { world, ctx, events, threat, silenceDef } = await silenceSetup();
+    hideThreat(world, ctx, threat, 0);
+    events.length = 0;
+    world.time.sim = asSimMs(900);
+    telegraphThreat(world, ctx, threat, silenceDef, 0);
+    expect(threat).toMatchObject({ state: 'telegraph', windowOpenAt: 900 + 800 });
+    expect(events.map((event) => event.type)).toEqual(['ThreatTelegraphed']);
+  });
+
+  it('gagThreat draws the surprise gag from the list with exactly one nextFloat', async () => {
+    const { world, ctx, events, threat, silenceDef } = await silenceSetup();
+    if (silenceDef.target !== 'hiddenZone') throw new Error('expected a hidden-zone def');
+    const expected = structuredClone(world.rng);
+    const draw = nextFloat(expected);
+    gagThreat(world, ctx, threat, silenceDef, 'late', null);
+    const gag = events.find((event) => event.type === 'GagTriggered');
+    expect(gag).toBeDefined();
+    const { surpriseGags } = silenceDef;
+    const index = Math.min(surpriseGags.length - 1, Math.floor(draw * surpriseGags.length));
+    expect(gag).toMatchObject({ gag: surpriseGags[index] });
+    expect(world.rng).toEqual(expected);
+    expect(world.mess.mischiefs).toBe(1);
+  });
+
+  it('gagThreat on any other def draws nothing', async () => {
+    const { world, ctx, threat } = await setup();
+    const before = structuredClone(world.rng);
+    gagThreat(world, ctx, threat, def, 'late', null);
+    expect(world.rng).toEqual(before);
   });
 });

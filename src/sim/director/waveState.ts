@@ -1,9 +1,12 @@
 import type { StepContext } from '../context.ts';
 import type { ThreatInstance, World } from '../world.ts';
 
-/** Whether a threat is announced or open for a response: the states that count against a wave's limit. */
+/**
+ * Whether a threat is announced, open for a response or hidden (a silence not yet found): the states
+ * that count against a wave's limit.
+ */
 export function isThreatActive(threat: ThreatInstance): boolean {
-  return threat.state === 'telegraph' || threat.state === 'windowOpen';
+  return threat.state === 'hidden' || threat.state === 'telegraph' || threat.state === 'windowOpen';
 }
 
 /**

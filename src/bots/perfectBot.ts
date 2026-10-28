@@ -2,7 +2,14 @@ import { asSimMs } from '@shared/time';
 import type { SimCommand, ThreatInstance, World } from '@sim';
 import type { Bot, BotSetup } from './bot.ts';
 import { createCommandScheduler } from './commandScheduler.ts';
-import { centreOf, createCycleMemory, holdMsFor, isPressable, responseOf } from './threatTiming.ts';
+import {
+  centreOf,
+  createCycleMemory,
+  createSilenceMemory,
+  holdMsFor,
+  isPressable,
+  responseOf,
+} from './threatTiming.ts';
 
 /**
  * Presses every threat at the centre of its window (offset 0, so `perfect` whatever the feel's
@@ -11,10 +18,12 @@ import { centreOf, createCycleMemory, holdMsFor, isPressable, responseOf } from 
 export function createPerfectBot(setup: BotSetup): Bot {
   const scheduler = createCommandScheduler();
   const cycles = createCycleMemory();
+  const silences = createSilenceMemory();
   return {
     id: 'perfect',
     act(world: Readonly<World>, out: SimCommand[]) {
       const now = world.time.sim;
+      if (silences.isNew(world.silence)) scheduler.schedule({ type: 'TapBaby', t: asSimMs(now) });
       for (let i = 0; i < world.threats.length; i++) {
         const threat = world.threats[i] as Readonly<ThreatInstance>;
         if (!isPressable(threat)) continue;

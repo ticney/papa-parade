@@ -9,9 +9,17 @@ import type { ThreatInstance, World } from '../world.ts';
  * applies the consequences that need the sim (`applyGag`: a near miss, a pushed prop); the rest
  * comes from the events and from `World` (noise from `PropImpact`, story 3.1; Mama's sigh from
  * `world.mess` and her scream from `NearMiss`, story 1.22). The presentation is the client's
- * (`client/render/gags.ts`). `content:check` checks a threat's `gag` against this list.
+ * (`client/render/gags.ts`). `content:check` checks a threat's `gag` (or `surpriseGags`) against this
+ * list. The surprise mischiefs of the suspicious silence (story 1.21) add to `world.mess.mischiefs`.
  */
-export const GAG_IDS = ['outlet_hair', 'stairs_slide', 'table_object_fall', 'papa_asleep'] as const;
+export const GAG_IDS = [
+  'outlet_hair',
+  'stairs_slide',
+  'table_object_fall',
+  'papa_asleep',
+  'tissues_everywhere',
+  'crayon_scribbles',
+] as const;
 
 export type GagId = (typeof GAG_IDS)[number];
 
@@ -79,12 +87,23 @@ function papaAsleep(world: World, ctx: StepContext): void {
   putPapaToSleep(world, ctx);
 }
 
+/**
+ * A surprise mischief of the suspicious silence (story 1.21 D11): mess, not a near accident. It
+ * adds one to the cumulative `mess.mischiefs` (story 1.22 may count it in the Sigh) and emits no
+ * `NearMiss`. The gag cue is its whole presentation until E7.
+ */
+function addMischief(world: World): void {
+  world.mess.mischiefs += 1;
+}
+
 /** One entry per `GagId`, defined once at module scope: a new gag without a consequence is a type error. */
 const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   outlet_hair: outletHair,
   stairs_slide: stairsSlide,
   table_object_fall: tableObjectFall,
   papa_asleep: papaAsleep,
+  tissues_everywhere: addMischief,
+  crayon_scribbles: addMischief,
 };
 
 /**

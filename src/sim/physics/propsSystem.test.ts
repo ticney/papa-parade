@@ -131,7 +131,7 @@ describe('runPhysics (scripted port)', () => {
     } as unknown as StepContext;
     runPhysics(world, ctx);
     expect(calls).toEqual([]);
-    expect(world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0 });
+    expect(world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0, mischiefs: 0 });
   });
 
   it('steps the engine once, after the pushes and before the impacts are read', () => {
@@ -377,7 +377,7 @@ describe('runPhysics (scripted port)', () => {
       const s = scripted();
       runAt(s, 10);
       expect(s.world.props[1]?.isOnFloor).toBe(true);
-      expect(s.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0 });
+      expect(s.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0, mischiefs: 0 });
     });
 
     it('counts a prop that fell to the floor, and not one still on the table', () => {
@@ -387,7 +387,7 @@ describe('runPhysics (scripted port)', () => {
       s.poses[0] = pose(0.05, 1.5);
       runAt(s, 20);
       expect(s.world.props[0]?.isOnFloor).toBe(true);
-      expect(s.world.mess).toEqual({ propsOnFloor: 1, propsBroken: 0 });
+      expect(s.world.mess).toEqual({ propsOnFloor: 1, propsBroken: 0, mischiefs: 0 });
     });
 
     it('moves a broken prop from the floor count to the broken count', () => {
@@ -401,7 +401,7 @@ describe('runPhysics (scripted port)', () => {
         impulseNs: (physics.kinds.mug?.breakImpulseNs ?? 0) + 1,
       });
       runAt(s, 20);
-      expect(s.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 1 });
+      expect(s.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 1, mischiefs: 0 });
     });
 
     it('takes a tipped prop to lie on its largest half extent', () => {
@@ -486,10 +486,10 @@ describe('runPhysics (real engine)', () => {
       { id: 'mug_01', kind: 'mug', centerM: at(0.6) },
       { id: 'mug_02', kind: 'mug', centerM: at(0.05, [3, 0, 2]) },
     ]);
-    expect(sim.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0 });
+    expect(sim.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0, mischiefs: 0 });
     run(300);
     expect(sim.world.props.map((prop) => prop.isOnFloor)).toEqual([true, true]);
-    expect(sim.world.mess).toEqual({ propsOnFloor: 1, propsBroken: 0 });
+    expect(sim.world.mess).toEqual({ propsOnFloor: 1, propsBroken: 0, mischiefs: 0 });
     sim.dispose();
   });
 
@@ -499,7 +499,7 @@ describe('runPhysics (real engine)', () => {
       { id: 'vase_01', kind: 'vase', centerM: at(0.15, [1.3, 0, -0.6]), halfM: 0.15 },
     ]);
     expect(run(500)).toEqual([]);
-    expect(sim.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0 });
+    expect(sim.world.mess).toEqual({ propsOnFloor: 0, propsBroken: 0, mischiefs: 0 });
     sim.dispose();
   });
 

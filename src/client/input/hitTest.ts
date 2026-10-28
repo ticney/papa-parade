@@ -41,8 +41,8 @@ export interface HitTester {
    * Projects a screen point (normalised device coordinates, x right and y up, both in `[-1, 1]`)
    * onto the floor plane y = 0 and writes where it lands into `out`. False when the point is not a
    * finite number or the ray never meets the plane. The threats are tried before it, then the
-   * objects (threat > baby > object > floor; the baby comes with story 1.21; Space and A reach
-   * objects through `TapObject` too, since 1.17).
+   * baby (story 1.21), then the objects (threat > baby / object, the nearer > floor; Space and A reach
+   * objects through `TapObject` too, since 1.17, and the baby through `TapBaby`).
    */
   pickFloor(ndcX: number, ndcY: number, out: FloorPoint): boolean;
   /**
@@ -55,6 +55,20 @@ export interface HitTester {
     clientY: number,
     rect: ScreenRect,
     targets: ThreatTargets,
+    radiusPx: number,
+  ): number | null;
+  /**
+   * How far the pointer is from the baby, in CSS px squared, when within `radiusPx` CSS px
+   * (inclusive) of him: his centre, `yM` metres above the floor point (`baby.xM`, `baby.zM`),
+   * projected like an icon. Null when he is out of range, outside the view frustum or the point is
+   * not a finite number. The distance lets the caller weigh him against an object. Allocation-free.
+   */
+  pickBaby(
+    clientX: number,
+    clientY: number,
+    rect: ScreenRect,
+    baby: Readonly<{ xM: number; zM: number }>,
+    yM: number,
     radiusPx: number,
   ): number | null;
   /**
@@ -121,6 +135,15 @@ export function createHitTester(camera: OrthographicCamera): HitTester {
         }
       }
       return nearestId;
+    },
+    pickBaby(clientX, clientY, rect, baby, yM, radiusPx) {
+      if (!(Number.isFinite(clientX) && Number.isFinite(clientY) && radiusPx >= 0)) return null;
+      icon.set(baby.xM, yM, baby.zM).project(camera);
+      if (!(icon.z >= -1 && icon.z <= 1)) return null;
+      const dx = rect.left + ((icon.x + 1) / 2) * rect.width - clientX;
+      const dy = rect.top + ((1 - icon.y) / 2) * rect.height - clientY;
+      const distanceSq = dx * dx + dy * dy;
+      return distanceSq <= radiusPx * radiusPx ? distanceSq : null;
     },
     pickFloor(ndcX, ndcY, out) {
       if (!(Number.isFinite(ndcX) && Number.isFinite(ndcY))) return false;

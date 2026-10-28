@@ -9,6 +9,7 @@ import {
   createTestGeometry,
   createTestLevel,
   OUTLET,
+  SILENCE,
   TEST_OBJECTS,
   testWave,
 } from '../../../tests/support/testContent.ts';
@@ -622,5 +623,52 @@ describe('interpolation and determinism', () => {
       sim.step();
       expect(JSON.parse(JSON.stringify(sim.world))).toEqual(sim.world);
     }
+  });
+});
+
+describe('TapBaby (story 1.21)', () => {
+  const tapBaby = (t = 0): SimCommand => ({ type: 'TapBaby', t: asSimMs(t) });
+
+  it('walks Papa to where the baby is, exactly as a TapFloor there would', async () => {
+    const viaBaby = await newSim();
+    const viaFloor = await newSim();
+    const { xM, zM } = viaBaby.world.baby;
+    viaBaby.enqueue(tapBaby());
+    viaFloor.enqueue(tap(xM, zM));
+    const babyEvents = run(viaBaby, 30).filter((event) => event.type === 'PapaPathPlanned');
+    const floorEvents = run(viaFloor, 30).filter((event) => event.type === 'PapaPathPlanned');
+    expect(babyEvents).toHaveLength(1);
+    expect(babyEvents).toEqual(floorEvents);
+    expect(papaOf(viaBaby)).toEqual(papaOf(viaFloor));
+  });
+
+  it('is ignored while Papa is busy, like every other command', async () => {
+    const sim = await newSim();
+    const papa = sim.world.papa as typeof sim.world.papa & { state: string };
+    papa.state = 'drink';
+    papa.busyUntil = asSimMs(60_000);
+    sim.enqueue(tapBaby());
+    const events = run(sim, 10);
+    expect(types(events)).not.toContain('PapaPathPlanned');
+    expect(sim.world.papa.state).toBe('drink');
+  });
+});
+
+describe('a press on a hidden threat (story 1.21)', () => {
+  it('does not glide Papa to a silence nobody has found yet', async () => {
+    const sim = await createSim({
+      content,
+      geometry,
+      level: createTestLevel({ waves: [testWave([SILENCE])] }),
+      seed: 1,
+    });
+    sim.step(); // the director hides it
+    const threat = sim.world.threats[0];
+    expect(threat?.state).toBe('hidden');
+    sim.enqueue({ type: 'PressThreat', t: asSimMs(sim.world.time.sim), threatId: threat?.id ?? 0 });
+    const events = run(sim, 5);
+    expect(types(events)).not.toContain('PapaGlideStarted');
+    expect(sim.world.papa.state).toBe('idle');
+    expect(threat?.state).toBe('hidden');
   });
 });

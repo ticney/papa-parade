@@ -251,6 +251,18 @@
           "type": "number",
           "minimum": 0,
           "description": "How long the baby plays its mischief after a gag (`act`) before it babbles again, in ms."
+        },
+        "silenceAlertMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long the hidden baby stays quiet in its zone before the silence is announced (`SilenceStarted`), in ms."
+        },
+        "sneakSpeedMps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 12.5,
+          "description": "How fast the baby crawls to the hidden zone of a suspicious silence, in metres per second."
         }
       },
       "required": [
@@ -262,7 +274,9 @@
         "wanderMaxDistM",
         "lockMs",
         "approachSpeedMps",
-        "actMs"
+        "actMs",
+        "silenceAlertMs",
+        "sneakSpeedMps"
       ],
       "additionalProperties": false,
       "description": "The baby exploring the room on its own (FR15, GDD › Micro-boucle: it wanders and babbles until it spots a danger)."

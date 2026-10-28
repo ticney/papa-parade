@@ -11,6 +11,7 @@ export {
   type PhoneRingEndReason,
   type ResponseQuality,
   SIM_EVENT_TYPES,
+  type SilenceEndReason,
   type SimEvent,
 } from './events.ts';
 export type { FlowState } from './flow/flowFsm.ts';
@@ -32,6 +33,7 @@ export type {
   PapaSlice,
   PendingPress,
   PropSlice,
+  SilenceSlice,
   SlowMo,
   SlowMoSource,
   ThreatInstance,

@@ -1,5 +1,6 @@
 import type { ThreatDef } from '@content/schemas/threat';
 import { NEUTRAL_WINDOW_MODIFIER } from '@shared/constants';
+import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import { isLastOfWave } from '../director/waveState.ts';
@@ -8,19 +9,21 @@ import { fatigueWindowModifier } from '../gauges/fatigue.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import { effectiveWindow } from '../timing/effectiveWindow.ts';
 import type { ThreatInstance, World } from '../world.ts';
-import { applyGag, gagIdOf } from './gags.ts';
+import { applyGag, type GagId, gagIdOf } from './gags.ts';
 
 /**
- * `idle`: waiting for the director. `telegraph`: announced, the window opens `telegraphDelayMs`
+ * `idle`: waiting for the director. `hidden`: a silent mischief picked by the director; no window
+ * and no marker until the baby is found (story 1.21). `telegraph`: announced, the window opens `telegraphDelayMs`
  * later. `windowOpen`: the response is judged. `resolved` and `gag`: the result, until the cooldown
  * ends and the threat is `idle` again. (The architecture's `targeted` is not here: nothing enters
  * it; a threat that needs the baby in reach adds it.)
  */
-export type ThreatState = 'idle' | 'telegraph' | 'windowOpen' | 'resolved' | 'gag';
+export type ThreatState = 'idle' | 'hidden' | 'telegraph' | 'windowOpen' | 'resolved' | 'gag';
 
 /** Every `ThreatState`, as data: a snapshot is checked against it. */
 export const THREAT_STATES = [
   'idle',
+  'hidden',
   'telegraph',
   'windowOpen',
   'resolved',
@@ -78,6 +81,32 @@ export function telegraphThreat(
   });
 }
 
+/**
+ * `idle → hidden`: the director picked a suspicious silence (story 1.21). It has no window, no press
+ * and no marker; the baby takes it (`runSilence`), and finding him reveals it with
+ * {@link telegraphThreat}. `waveIndex` is the wave that drew it.
+ */
+export function hideThreat(
+  world: World,
+  ctx: StepContext,
+  threat: ThreatInstance,
+  waveIndex: number,
+): void {
+  threat.press = null;
+  threat.responseWindow = null;
+  threat.windowOpenAt = asSimMs(0);
+  threat.waveIndex = waveIndex;
+  enterThreatState(world, threat, 'hidden');
+  ctx.events.push({
+    type: 'ThreatHidden',
+    t: world.time.sim,
+    threatId: threat.id,
+    kind: threat.defId,
+    anchorId: threat.anchorId,
+    waveIndex,
+  });
+}
+
 /** `telegraph → windowOpen`. */
 export function openWindow(world: World, ctx: StepContext, threat: ThreatInstance): void {
   enterThreatState(world, threat, 'windowOpen');
@@ -117,6 +146,21 @@ export function resolveThreat(
 }
 
 /**
+ * The gag a failed threat ends in. A hidden-zone def draws one of its `surpriseGags` with exactly one
+ * `nextFloat` (story 1.21 D5: the number of draws never depends on the tuning); any other def
+ * draws nothing, so levels without a silence keep their rng.
+ */
+function gagOf(world: World, def: ThreatDef): GagId {
+  if (def.target !== 'hiddenZone') return gagIdOf(def.gag);
+  const { surpriseGags } = def;
+  const index = Math.min(
+    surpriseGags.length - 1,
+    Math.floor(nextFloat(world.rng) * surpriseGags.length),
+  );
+  return gagIdOf(surpriseGags[index] as string);
+}
+
+/**
  * `→ gag`: a failed response. `ResponseResolved{fail}`, `GagTriggered`, then the gag's own
  * consequences (`applyGag`: a `NearMiss`, a pushed prop, or Papa falling asleep; NFR9: never an injury), with no hitstop
  * and no slow-mo. `offsetMs` is `null` when no press ever came.
@@ -131,7 +175,7 @@ export function gagThreat(
 ): void {
   threat.press = null;
   enterThreatState(world, threat, 'gag');
-  const gag = gagIdOf(def.gag);
+  const gag = gagOf(world, def);
   ctx.events.push(
     {
       type: 'ResponseResolved',

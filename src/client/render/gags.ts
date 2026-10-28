@@ -45,6 +45,10 @@ export const GAG_PRESENTATIONS: Readonly<Record<GagId, GagPresentation>> = {
   // Papa nodding off is drawn from the world (`papa.state === 'asleep'`: shut eyelids and a « Z »,
   // story 1.19), not played as an effect: the stage has nothing to add.
   papa_asleep: { lightsOff: false, hair: false, babySlide: false },
+  // The surprise mischiefs of the suspicious silence (story 1.21): the gag cue's ring and sound are
+  // the show until E7; the mess is `world.mess.mischiefs`.
+  tissues_everywhere: { lightsOff: false, hair: false, babySlide: false },
+  crayon_scribbles: { lightsOff: false, hair: false, babySlide: false },
 };
 
 /** Total time the lights are off the full level, in sim ms. */

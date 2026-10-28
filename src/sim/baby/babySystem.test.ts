@@ -10,6 +10,7 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
+  SILENCE,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { SimCommand } from '../commands.ts';
@@ -592,5 +593,48 @@ describe('the micro-sleep (story 1.19)', () => {
     const microSleep = sim.world.threats.find((threat) => threat.defId === 'papa_microsleep');
     expect(microSleep?.state).not.toBe('idle');
     expect(babyOf(sim).targetThreatId).not.toBe(microSleep?.id);
+  });
+});
+
+describe('the baby and the suspicious silence (story 1.21)', () => {
+  const silenceLevel = () => createTestLevel({ waves: [testWave([SILENCE])] });
+
+  it('does not lock on a hidden silence: it takes it', async () => {
+    const sim = await newSim({ level: silenceLevel() });
+    const events = run(sim, 1);
+    expect(babyEvents(events).map((event) => event.to)).toEqual(['mischiefSilent']);
+    expect(babyOf(sim).targetThreatId).toBe(sim.world.threats[0]?.id);
+  });
+
+  it('keeps a hidden target while it hides: releaseTarget does not let go of it', async () => {
+    const sim = await newSim({ level: silenceLevel() });
+    run(sim, 200);
+    expect(sim.world.threats[0]?.state).toBe('hidden');
+    expect(babyOf(sim)).toMatchObject({ state: 'mischiefSilent' });
+    expect(babyOf(sim).targetThreatId).toBe(sim.world.threats[0]?.id);
+  });
+
+  it('wanders and babbles no more while it hides: the babble clock is not read', async () => {
+    const sim = await newSim({ level: silenceLevel() });
+    const events = run(sim, 600);
+    expect(babyEvents(events).map((event) => event.to)).toEqual(['mischiefSilent']);
+  });
+
+  it('after a found silence parried in its window, the baby babbles again', async () => {
+    const sim = await newSim({ level: silenceLevel() });
+    while (sim.world.silence.startedAt === null) run(sim, 1);
+    sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) });
+    while (sim.world.threats[0]?.state !== 'telegraph') run(sim, 1);
+    const threat = sim.world.threats[0];
+    if (threat === undefined || threat.responseWindow === null) throw new Error('not telegraphed');
+    const centre = threat.windowOpenAt + threat.responseWindow.windowMs / 2;
+    sim.enqueue({ type: 'PressThreat', t: asSimMs(centre), threatId: threat.id });
+    sim.enqueue({ type: 'Release', t: asSimMs(centre + content.feel.input.holdMinMs / 2) });
+    const events: SimEvent[] = [];
+    while (sim.world.time.sim < centre + 1000) events.push(...run(sim, 1));
+    expect(events.some((e) => e.type === 'ResponseResolved' && e.quality !== 'fail')).toBe(true);
+    expect(babyOf(sim).state).toBe('babble');
+    expect(babyOf(sim).targetThreatId).toBeNull();
+    expect(babyOf(sim).babbling).toBe(true);
   });
 });

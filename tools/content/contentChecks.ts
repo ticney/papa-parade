@@ -25,7 +25,7 @@ import type { FeedbackTable } from '@content/schemas/feedback';
 import type { Feel } from '@content/schemas/feel';
 import type { Level } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
-import type { ThreatDef } from '@content/schemas/threat';
+import { type ThreatDef, ThreatGagIds } from '@content/schemas/threat';
 import { checkStringReferences } from '@content/stringRefs';
 import { MS_PER_S, PHYSICS_BOUNDS_WALL_THICKNESS_M, STEP_MS } from '@shared/constants';
 import { GAG_IDS, OBJECT_ACTION_KINDS, PAPA_ASLEEP_GAG_ID, SIM_EVENT_TYPES } from '@sim';
@@ -244,12 +244,27 @@ function checkThreatReferences(
   const problems: ContentProblem[] = [];
   for (const [id, threat] of threats) {
     const file = `content/${THREAT_DEF_PATTERN.dir}/${id}${THREAT_DEF_PATTERN.suffix}`;
-    if (!(GAG_IDS as readonly string[]).includes(threat.gag)) {
-      problems.push({
-        file,
-        jsonPath: 'gag',
-        message: `"${threat.gag}" is not a gag of the sim (${GAG_IDS.join(', ')}; a new gag is added to GAG_IDS in src/sim/threats/gags.ts)`,
-      });
+    const gagPaths =
+      threat.target === 'hiddenZone'
+        ? threat.surpriseGags.map((gag, i) => ({
+            gag,
+            jsonPath: formatJsonPath(['surpriseGags', i]),
+          }))
+        : [{ gag: threat.gag, jsonPath: 'gag' }];
+    for (const { gag, jsonPath } of gagPaths) {
+      if (!(GAG_IDS as readonly string[]).includes(gag)) {
+        problems.push({
+          file,
+          jsonPath,
+          message: `"${gag}" is not a gag of the sim (${GAG_IDS.join(', ')}; a new gag is added to GAG_IDS in src/sim/threats/gags.ts)`,
+        });
+      } else if (threat.target === 'hiddenZone' && gag === PAPA_ASLEEP_GAG_ID) {
+        problems.push({
+          file,
+          jsonPath,
+          message: `"${PAPA_ASLEEP_GAG_ID}" is the micro-sleep's gag: only a threat with target "papa" may end in it`,
+        });
+      }
     }
     if (feedback === undefined) continue;
     for (const [role, cueId] of Object.entries(threat.feedback)) {
@@ -337,36 +352,47 @@ function checkLevelReferences(
             message: `no threat "${entry.def}" (content/${defFile} does not exist)`,
           });
         }
-        if (
-          geometry !== undefined &&
-          !geometry.anchors.some((anchor) => anchor.id === entry.anchor)
-        ) {
-          problems.push({
-            file,
-            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'anchor']),
-            message: `"${entry.anchor}" is not an anchor of content/${geometryFile}`,
-          });
+        const threatDef = families.threats.get(entry.def);
+        if (geometry !== undefined) {
+          if (threatDef?.target === 'hiddenZone') {
+            // A hidden-zone threat names a `ZONE_hidden_*` of the room, not an anchor (story 1.21 D3).
+            const zone = geometry.zones.find((candidate) => candidate.id === entry.anchor);
+            if (zone === undefined || zone.kind !== 'hidden') {
+              problems.push({
+                file,
+                jsonPath: formatJsonPath(['waves', w, 'threats', i, 'anchor']),
+                message: `the threat "${entry.def}" has target "hiddenZone", so "${entry.anchor}" must be a hidden zone, which content/${geometryFile} does not have`,
+              });
+            }
+          } else if (!geometry.anchors.some((anchor) => anchor.id === entry.anchor)) {
+            problems.push({
+              file,
+              jsonPath: formatJsonPath(['waves', w, 'threats', i, 'anchor']),
+              message: `"${entry.anchor}" is not an anchor of content/${geometryFile}`,
+            });
+          }
         }
-        if (families.threats.get(entry.def)?.target === 'papa') {
+        if (threatDef?.target === 'papa') {
           problems.push({
             file,
             jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
             message: `the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef), a wave cannot plan it`,
           });
         }
-        const gag = families.threats.get(entry.def)?.gag;
-        if (gag !== undefined && !(GAG_IDS as readonly string[]).includes(gag)) {
-          problems.push({
-            file,
-            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
-            message: `the threat "${entry.def}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
-          });
-        } else if (gag === PAPA_ASLEEP_GAG_ID) {
-          problems.push({
-            file,
-            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
-            message: `the threat "${entry.def}" has the gag "${PAPA_ASLEEP_GAG_ID}": only the micro-sleep (target "papa") may end in it`,
-          });
+        for (const gag of threatDef === undefined ? [] : ThreatGagIds(threatDef)) {
+          if (!(GAG_IDS as readonly string[]).includes(gag)) {
+            problems.push({
+              file,
+              jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
+              message: `the threat "${entry.def}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+            });
+          } else if (gag === PAPA_ASLEEP_GAG_ID) {
+            problems.push({
+              file,
+              jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
+              message: `the threat "${entry.def}" has the gag "${PAPA_ASLEEP_GAG_ID}": only the micro-sleep (target "papa") may end in it`,
+            });
+          }
         }
       });
     });
