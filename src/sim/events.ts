@@ -8,8 +8,11 @@ import type { GagId } from './threats/gags.ts';
 /** How a response ended: `fail` is a gag. */
 export type ResponseQuality = 'perfect' | 'success' | 'fail';
 
-/** Why a response failed: pressed before the window, never pressed in it, or the wrong kind of press. */
-export type FailReason = 'early' | 'late' | 'wrongResponse';
+/**
+ * Why a response failed: pressed before the window, never pressed in it, the wrong kind of press,
+ * or (a Firmness) the finger came up before the end of the attack.
+ */
+export type FailReason = 'early' | 'late' | 'wrongResponse' | 'released';
 
 /**
  * Why a ringing phone stopped: Papa picked up, it rang `ringMaxMs` for nothing, or the level ended
@@ -89,6 +92,11 @@ export type SimEvent =
    */
   | { type: 'SilenceEnded'; t: SimMs; threatId: number; reason: SilenceEndReason }
   | { type: 'WindowOpened'; t: SimMs; threatId: number }
+  /**
+   * A press on the threat has been held `feel.input.holdMinMs` (story 1.23): the hold-ring closes.
+   * Once per press, on a Parry threat too (its `wrongResponse` follows in the same step).
+   */
+  | { type: 'ResponseHeld'; t: SimMs; threatId: number }
   /**
    * The threat was answered. `response` is what it asks for; `offsetMs` is the press's distance from
    * the window's centre, `null` when the window ran out with no press. `reason` only on a `fail`.
@@ -188,6 +196,7 @@ export const SIM_EVENT_TYPES = [
   'PhoneRinging',
   'PropBroken',
   'PropImpact',
+  'ResponseHeld',
   'ResponseResolved',
   'SilenceEnded',
   'SilenceStarted',

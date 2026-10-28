@@ -2,6 +2,7 @@ import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
 import { classifyPress } from '../timing/classifyPress.ts';
+import { firmHoldOutcome, holdEndAt } from '../timing/holdEnd.ts';
 import { judgePress } from '../timing/judge.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { gagThreat, openWindow, rearmThreat, resolveThreat } from './threatFsm.ts';
@@ -36,6 +37,7 @@ function pressThreat(
     quality: judgement.quality,
     offsetMs: judgement.offsetMs,
     releasedAt: null,
+    heldAt: null,
   };
 }
 
@@ -50,7 +52,8 @@ function releasePresses(world: World, t: number): void {
 /**
  * System: the threats. First this step's `PressThreat` and `Release` commands, in order; then each
  * instance in level order: the window opens at `windowOpenAt`, a press whose type is known is
- * resolved (or is a gag if it is the wrong one), a window nobody answered closes after the
+ * resolved (or is a gag if it is the wrong one; a Firmness waits for the end of the attack, and a
+ * press that reaches `holdMinMs` emits `ResponseHeld` once), a window nobody answered closes after the
  * tolerance, and a result is rearmed when its cooldown is over. Commands run before the expiry, so
  * a press at the very end of the tolerance, applied at the step that would expire the window, is
  * still judged on its `t`. A threat with a pending press never expires. Allocates only for a press.
@@ -87,9 +90,24 @@ export function runThreats(world: World, ctx: StepContext): void {
 
     const { press, responseWindow } = threat;
     if (press !== null) {
-      const kind = classifyPress(press.t, press.releasedAt, now, ctx.feel.input.holdMinMs);
+      const { holdMinMs } = ctx.feel.input;
+      const kind = classifyPress(press.t, press.releasedAt, now, holdMinMs);
+      // The ring closes once per press, as soon as it has been held `holdMinMs`, before any result.
+      if (kind === 'firm' && press.heldAt === null) {
+        press.heldAt = asSimMs(now);
+        ctx.events.push({ type: 'ResponseHeld', t: asSimMs(now), threatId: threat.id });
+      }
       if (kind !== null && threat.state === 'windowOpen') {
-        if (kind === def.response) {
+        if (def.response === 'firm' && kind === 'firm') {
+          // A Firmness is held to the end of the attack: the hold alone resolves it, no release needed.
+          const endAt = holdEndAt(press.t, threat.windowOpenAt, def.holdUntilMs ?? 0, holdMinMs);
+          const outcome = firmHoldOutcome(press.t, press.releasedAt, endAt, now);
+          if (outcome === 'held') {
+            resolveThreat(world, ctx, threat, def, press.quality, press.offsetMs);
+          } else if (outcome === 'released') {
+            gagThreat(world, ctx, threat, def, 'released', press.offsetMs);
+          }
+        } else if (kind === def.response) {
           resolveThreat(world, ctx, threat, def, press.quality, press.offsetMs);
         } else {
           gagThreat(world, ctx, threat, def, 'wrongResponse', press.offsetMs);

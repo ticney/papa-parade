@@ -1,7 +1,16 @@
 import { asSimMs } from '@shared/time';
-import type { ThreatInstance } from '@sim';
+import type { SimCommand, ThreatInstance } from '@sim';
 import { describe, expect, it } from 'vitest';
-import { centreOf, createCycleMemory, holdMsFor, isPressable, responseOf } from './threatTiming.ts';
+import { createCommandScheduler } from './commandScheduler.ts';
+import {
+  centreOf,
+  createCycleMemory,
+  createFirmHold,
+  fingerPlanFor,
+  isPressable,
+  responseOf,
+  schedulePress,
+} from './threatTiming.ts';
 
 function threat(overrides: Partial<ThreatInstance> = {}): ThreatInstance {
   return {
@@ -39,21 +48,115 @@ describe('isPressable', () => {
     expect(isPressable(threat({ responseWindow: null }))).toBe(false);
     expect(
       isPressable(
-        threat({ press: { t: asSimMs(2300), quality: 'perfect', offsetMs: 0, releasedAt: null } }),
+        threat({
+          press: {
+            t: asSimMs(2300),
+            quality: 'perfect',
+            offsetMs: 0,
+            releasedAt: null,
+            heldAt: null,
+          },
+        }),
       ),
     ).toBe(false);
   });
 });
 
-describe('holdMsFor / responseOf', () => {
+describe('fingerPlanFor / responseOf', () => {
   it('holds a Parry for the tap', () => {
-    expect(holdMsFor('parry', 80)).toBe(80);
+    expect(fingerPlanFor('parry', 80)).toEqual({ kind: 'tap', holdMs: 80 });
+  });
+
+  it('holds a Firmness until the threat is answered, whatever the tap', () => {
+    expect(fingerPlanFor('firm', 80)).toEqual({ kind: 'untilAnswered' });
   });
 
   it('knows only the defs it was given, and no prototype key', () => {
     expect(responseOf({ outlet: 'parry' }, 'outlet')).toBe('parry');
     expect(responseOf({ outlet: 'parry' }, 'lamp')).toBeUndefined();
     expect(responseOf({}, 'constructor')).toBeUndefined();
+  });
+});
+
+describe('createFirmHold', () => {
+  const pressed = {
+    t: asSimMs(2300),
+    quality: 'perfect',
+    offsetMs: 0,
+    releasedAt: null,
+    heldAt: null,
+  } as const;
+
+  it('holds from begin(), and waits while the sim has not taken the press yet', () => {
+    const hold = createFirmHold();
+    const out: SimCommand[] = [];
+    expect(hold.isHolding).toBe(false);
+    hold.begin(1);
+    expect(hold.isHolding).toBe(true);
+    hold.update([threat({ state: 'telegraph' })], 2000, out);
+    expect(out).toEqual([]);
+    expect(hold.isHolding).toBe(true);
+  });
+
+  it('keeps the finger down while the threat holds the press, then releases at the next step', () => {
+    const hold = createFirmHold();
+    const out: SimCommand[] = [];
+    hold.begin(1);
+    hold.update([threat({ state: 'windowOpen', press: pressed })], 2400, out);
+    hold.update([threat({ state: 'windowOpen', press: pressed })], 3400, out);
+    expect(out).toEqual([]);
+    hold.update([threat({ state: 'resolved', press: null })], 3800, out);
+    expect(out).toEqual([{ type: 'Release', t: 3800 }]);
+    expect(hold.isHolding).toBe(false);
+    hold.update([threat({ state: 'resolved', press: null })], 3810, out);
+    expect(out).toHaveLength(1);
+  });
+
+  it('lets go when the press never took: the threat gagged on an early or late press', () => {
+    const hold = createFirmHold();
+    const out: SimCommand[] = [];
+    hold.begin(1);
+    hold.update([threat({ state: 'gag', press: null })], 2000, out);
+    expect(out).toEqual([{ type: 'Release', t: 2000 }]);
+    expect(hold.isHolding).toBe(false);
+  });
+
+  it('lets go when the threat has gone altogether', () => {
+    const hold = createFirmHold();
+    const out: SimCommand[] = [];
+    hold.begin(7);
+    hold.update([threat({ id: 1 })], 2000, out);
+    expect(out).toEqual([{ type: 'Release', t: 2000 }]);
+  });
+
+  it('does nothing when nothing is held', () => {
+    const out: SimCommand[] = [];
+    createFirmHold().update([threat()], 2000, out);
+    expect(out).toEqual([]);
+  });
+});
+
+describe('schedulePress', () => {
+  it('plans a press and its release for a Parry, and no hold', () => {
+    const scheduler = createCommandScheduler();
+    const hold = createFirmHold();
+    schedulePress(scheduler, hold, threat(), 'parry', 2350, 80);
+    const out: SimCommand[] = [];
+    scheduler.flush(2350, out);
+    scheduler.flush(2430, out);
+    expect(out).toEqual([
+      { type: 'PressThreat', t: 2350, threatId: 1 },
+      { type: 'Release', t: 2430 },
+    ]);
+    expect(hold.isHolding).toBe(false);
+  });
+
+  it('plans only the press for a Firmness, and starts the hold', () => {
+    const scheduler = createCommandScheduler();
+    const hold = createFirmHold();
+    schedulePress(scheduler, hold, threat(), 'firm', 2350, 80);
+    expect(scheduler.size).toBe(1);
+    expect(hold.isHolding).toBe(true);
   });
 });
 

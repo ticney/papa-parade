@@ -133,6 +133,12 @@ export const TAP_MARKER_SCALE_FROM = 0.6;
 /** ...and has grown to this scale when it is gone (DESIGN.md › tap-marker `scale: 0.6 → 1.2`). */
 export const TAP_MARKER_SCALE_TO = 1.2;
 
+/** The hold-ring's progress band is this wide, in CSS px (DESIGN.md › hold-ring `strokeWidth`). */
+export const HOLD_RING_STROKE_PX = 5;
+
+/** ...and its outer ink outline is this wide, in CSS px (DESIGN.md › hold-ring `outerOutline`). */
+export const HOLD_RING_OUTLINE_PX = 2;
+
 /**
  * `timeMap.realToSim` extrapolates at most this far past its newest record, in real ms: a hidden
  * tab leaves a rate-1 record behind, and an input before the next frame could otherwise land

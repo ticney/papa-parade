@@ -79,7 +79,13 @@ describe('threat FSM', () => {
 
   it('telegraphThreat freezes the window, fixes the opening instant and announces the threat', async () => {
     const { world, ctx, events, threat } = await setup();
-    threat.press = { t: asSimMs(1), quality: 'perfect', offsetMs: 0, releasedAt: null };
+    threat.press = {
+      t: asSimMs(1),
+      quality: 'perfect',
+      offsetMs: 0,
+      releasedAt: null,
+      heldAt: null,
+    };
     telegraphThreat(world, ctx, threat, def, 0);
     expect(threat).toMatchObject({
       state: 'telegraph',
@@ -109,7 +115,13 @@ describe('threat FSM', () => {
 
   it('resolveThreat emits the quality and clears the press', async () => {
     const { world, ctx, events, threat, freezes } = await setup();
-    threat.press = { t: asSimMs(400), quality: 'success', offsetMs: -20, releasedAt: null };
+    threat.press = {
+      t: asSimMs(400),
+      quality: 'success',
+      offsetMs: -20,
+      releasedAt: null,
+      heldAt: null,
+    };
     resolveThreat(world, ctx, threat, def, 'success', -20);
     expect(threat).toMatchObject({ state: 'resolved', press: null });
     // A success freezes for the hitstop, with no slow-mo.

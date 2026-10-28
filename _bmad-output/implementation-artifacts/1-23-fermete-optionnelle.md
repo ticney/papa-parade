@@ -1,6 +1,10 @@
+---
+baseline_commit: 9b4bfeb3f33eee2961ef390532ae6223b8c27966
+---
+
 # Story 1.23: Firmness (optional)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 1.23 « Fermeté (optionnelle) » (L1153-1182). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -103,27 +107,27 @@ Numbers in `feel.json` and the threat JSON are the live starting values. Tests u
 
 ## Tasks / Subtasks
 
-- [ ] **T0: Baseline** (AC 14)
-  - [ ] `env | grep VITE_`; run `(unset VITE_DEBUG_ALLOWED; npm run ci)` on the fresh branch before the first edit, and write the counts in the Debug Log.
-- [ ] **T1: Content** (AC 1)
-  - [ ] `src/content/schemas/threat.ts`: `THREAT_RESPONSES = ['parry', 'firm']`. Add `holdUntilMs` (positive, sim ms, with a `.describe`) as an optional key of `baseShape`, then a `superRefine` (or `.check`) on the union: required iff `response === 'firm'`, with the path `['holdUntilMs']`. Update the doc comment on `THREAT_RESPONSES` (firm joined in 1.23).
-  - [ ] `tools/content/contentChecks.ts`: `holdUntilMs > (def.windowMs ?? feel.timing.windowMs)` for every `firm` def, message naming file and key; test in `tests/content/checkContent.test.ts`.
-  - [ ] `tests/content/threatSchema.test.ts`: firm with / without `holdUntilMs`, parry with it, non-positive value.
-  - [ ] `npm run content:schemas`, then commit `content/_schemas/threat.schema.json`.
-- [ ] **T2: Sim judgement** (AC 2-6)
-  - [ ] `src/sim/events.ts`: `FailReason` adds `'released'`. Add `ResponseHeld{t, threatId}` to `SimEvent`, `SIM_EVENT_TYPES` (alphabetical order as the list keeps) and `events.test.ts`.
-  - [ ] `src/sim/world.ts`: `PendingPress.heldAt: SimMs | null`. Set `heldAt: null` where presses are created (`pressThreat`).
-  - [ ] `src/sim/timing/holdEnd.ts` (new, pure, with its test): `firmHoldOutcome(press, holdEndAt, now)`, which returns `'held' | 'released' | null`, where `holdEndAt = max(press.t + holdMinMs, windowOpenAt + holdUntilMs)`. The name is free, but it stays in `sim/timing/` (architecture L578).
-  - [ ] `src/sim/threats/threatSystem.ts`, the per-threat loop (D4 order):
+- [x] **T0: Baseline** (AC 14)
+  - [x] `env | grep VITE_`; run `(unset VITE_DEBUG_ALLOWED; npm run ci)` on the fresh branch before the first edit, and write the counts in the Debug Log.
+- [x] **T1: Content** (AC 1)
+  - [x] `src/content/schemas/threat.ts`: `THREAT_RESPONSES = ['parry', 'firm']`. Add `holdUntilMs` (positive, sim ms, with a `.describe`) as an optional key of `baseShape`, then a `superRefine` (or `.check`) on the union: required iff `response === 'firm'`, with the path `['holdUntilMs']`. Update the doc comment on `THREAT_RESPONSES` (firm joined in 1.23).
+  - [x] `tools/content/contentChecks.ts`: `holdUntilMs > (def.windowMs ?? feel.timing.windowMs)` for every `firm` def, message naming file and key; test in `tests/content/checkContent.test.ts`.
+  - [x] `tests/content/threatSchema.test.ts`: firm with / without `holdUntilMs`, parry with it, non-positive value.
+  - [x] `npm run content:schemas`, then commit `content/_schemas/threat.schema.json`.
+- [x] **T2: Sim judgement** (AC 2-6)
+  - [x] `src/sim/events.ts`: `FailReason` adds `'released'`. Add `ResponseHeld{t, threatId}` to `SimEvent`, `SIM_EVENT_TYPES` (alphabetical order as the list keeps) and `events.test.ts`.
+  - [x] `src/sim/world.ts`: `PendingPress.heldAt: SimMs | null`. Set `heldAt: null` where presses are created (`pressThreat`).
+  - [x] `src/sim/timing/holdEnd.ts` (new, pure, with its test): `firmHoldOutcome(press, holdEndAt, now)`, which returns `'held' | 'released' | null`, where `holdEndAt = max(press.t + holdMinMs, windowOpenAt + holdUntilMs)`. The name is free, but it stays in `sim/timing/` (architecture L578).
+  - [x] `src/sim/threats/threatSystem.ts`, the per-threat loop (D4 order):
     1. `kind = classifyPress(...)`.
     2. If `kind === 'firm'` and `heldAt === null`, set `heldAt = now` and emit `ResponseHeld`, in any active state.
     3. Only in `windowOpen`:
        - `parry` def: today's code.
        - `firm` def: a `parry` kind is `wrongResponse`; a `firm` kind goes to `firmHoldOutcome`, where `held` resolves with `press.quality` / `press.offsetMs`, `released` gags with `'released'`, and `null` waits.
-  - [ ] Keep « a threat with a pending press never expires ».
-  - [ ] `src/sim/snapshot.ts`: v11, and `pressProblem` checks `heldAt`. Update the v10 fixtures and tests in `snapshot.test.ts` (search `version: 10`).
-  - [ ] `src/sim/index.ts`: export anything new the client or bots need.
-  - [ ] Unit tests in `threatSystem.test.ts` with an inline `firm` def (a test content variant). Cover:
+  - [x] Keep « a threat with a pending press never expires ».
+  - [x] `src/sim/snapshot.ts`: v11, and `pressProblem` checks `heldAt`. Update the v10 fixtures and tests in `snapshot.test.ts` (search `version: 10`).
+  - [x] `src/sim/index.ts`: export anything new the client or bots need.
+  - [x] Unit tests in `threatSystem.test.ts` with an inline `firm` def (a test content variant). Cover:
     - held to the end (perfect and success), by the hold alone and by a release after the end;
     - released < `holdMinMs` (`wrongResponse`) and released in [`holdMinMs`, end) (`released`);
     - a late press (after `windowOpenAt + holdUntilMs - holdMinMs`), whose end is `press.t + holdMinMs`;
@@ -131,38 +135,38 @@ Numbers in `feel.json` and the threat JSON are the live starting values. Tests u
     - `ResponseHeld` once, before the result, on both kinds;
     - a busy Papa, whose `Release` still passes;
     - hitstop and slow-mo at the resolving step (`timeEffects.test.ts`).
-  - [ ] Run `npm test -- tests/golden`: it must pass unchanged (AC 6).
-- [ ] **T3: Bots and CLI** (AC 10, 11)
-  - [ ] `src/bots/threatTiming.ts`: replace `holdMsFor` with what a firm hold needs, keeping an exhaustive `switch` on `BotResponse` (a `never` default).
-  - [ ] `perfectBot.ts` / `humanBot.ts`: hold a firm until the threat is no longer pressed, then `Release` at the next step, and press nothing else meanwhile.
-  - [ ] Unit tests in `threatTiming.test.ts`, `tests/bots/perfectBot.test.ts` and `humanBot.test.ts`, on a test level with the fixture def.
-  - [ ] `tools/sim/simReport.ts`: `FAIL_REASONS` adds `'released'`. Update `tests/tools/sim/simReport.test.ts`.
-  - [ ] `deferred-work.md` L204: mark it closed by 1.23 (Firmness learned; `wait` / `nothing` still open).
-- [ ] **T4: Generated tests** (AC 12)
-  - [ ] `tests/threats/fixtures/test_firm.json`:
+  - [x] Run `npm test -- tests/golden`: it must pass unchanged (AC 6).
+- [x] **T3: Bots and CLI** (AC 10, 11)
+  - [x] `src/bots/threatTiming.ts`: replace `holdMsFor` with what a firm hold needs, keeping an exhaustive `switch` on `BotResponse` (a `never` default).
+  - [x] `perfectBot.ts` / `humanBot.ts`: hold a firm until the threat is no longer pressed, then `Release` at the next step, and press nothing else meanwhile.
+  - [x] Unit tests in `threatTiming.test.ts`, `tests/bots/perfectBot.test.ts` and `humanBot.test.ts`, on a test level with the fixture def.
+  - [x] `tools/sim/simReport.ts`: `FAIL_REASONS` adds `'released'`. Update `tests/tools/sim/simReport.test.ts`.
+  - [x] `deferred-work.md` L204: mark it closed by 1.23 (Firmness learned; `wait` / `nothing` still open).
+- [x] **T4: Generated tests** (AC 12)
+  - [x] `tests/threats/fixtures/test_firm.json`:
     - `target: "anchor"`, `response: "firm"`, `holdUntilMs` e.g. 1500;
     - reuse the outlet's gag (`outlet_hair`), icon (`bolt`) and cue ids;
     - `"$schema": "../../../content/_schemas/threat.schema.json"`.
-  - [ ] Extend `threatCatalog.test.ts` (fixture defs, the anchor map, the new cases, the exhaustive `releaseOffsetMs` → maybe `answer(def)` returning press / release times).
-- [ ] **T5: Hold-ring** (AC 7-9)
-  - [ ] `DESIGN.md` is unchanged (it already specifies the ring). `HOLD_RING_STROKE_PX = 5` and `HOLD_RING_OUTLINE_PX = 2` go in `shared/constants.ts`. Add `tests/architecture/holdRingSpec.test.ts`, modelled on `tapMarkerSpec.test.ts`.
-  - [ ] `src/client/ui/world/threatMarkers.ts`: one SVG ring per marker, built at `mount` (outline circle, track circle, progress circle with `stroke-dasharray` / `stroke-dashoffset`). Then extend `update`:
+  - [x] Extend `threatCatalog.test.ts` (fixture defs, the anchor map, the new cases, the exhaustive `releaseOffsetMs` → maybe `answer(def)` returning press / release times).
+- [x] **T5: Hold-ring** (AC 7-9)
+  - [x] `DESIGN.md` is unchanged (it already specifies the ring). `HOLD_RING_STROKE_PX = 5` and `HOLD_RING_OUTLINE_PX = 2` go in `shared/constants.ts`. Add `tests/architecture/holdRingSpec.test.ts`, modelled on `tapMarkerSpec.test.ts`.
+  - [x] `src/client/ui/world/threatMarkers.ts`: one SVG ring per marker, built at `mount` (outline circle, track circle, progress circle with `stroke-dasharray` / `stroke-dashoffset`). Then extend `update`:
     - pass it the render sim time and `holdMinMs` (a new parameter, or a mount option for `holdMinMs`);
     - a progress per marker, from the instance's `press`: shown when `press !== null && press.releasedAt === null`;
     - `pp-threat-hold--closed` when `press.heldAt !== null`;
     - written only on change.
-  - [ ] Unit tests in `threatMarkers.test.ts`.
-  - [ ] `src/client/ui/styles/ui.css`: `.pp-threat-hold` (above the icon, below the highlight chevron), the closed state, and a `pp-hold-pop` keyframe (≤ 220 ms, overshoot). Under `prefers-reduced-motion` / the app's reduced-motion class, use the fade the 1.22 star stamps use. Colours only via `var(--pp-color-paper)`, `var(--pp-color-ring-track)`, `var(--pp-color-ink)`: `designTokens.test.ts` refuses literals.
-  - [ ] `content/feedback.json`: cue `hold_closed` `{ "haptic": "medium" }` (a haptic-only cue is legal, see the `haptic-only.json` fixture), and `events.ResponseHeld: "hold_closed"`. Run `npm run content:check`.
-  - [ ] Wire the call site in `levelSession.ts` / `loop.ts`: the markers' `update` is called with what it now needs. Check how `boot.ts` passes `feel`.
-- [ ] **T6: e2e** (AC 13)
-  - [ ] `tests/e2e/holdRing.spec.ts`: short tap, hold (touch or mouse), Space hold.
-  - [ ] Mirror the ring's state if a class is not enough (`data-pp-hold="filling|closed"` on the marker, debug builds only, the 1.21 `ppSilence` pattern).
-  - [ ] No new screenshot reference unless you decide one is needed. If you add one, look at it, say so, and do the Linux one too (story 1.13 › Screenshots).
-- [ ] **T7: Finish** (AC 14)
-  - [ ] `npm run sim -- --bot perfect --runs 3` and `--bot human --runs 3` on the live level: the scores are unchanged from 1.22 (perfect 90, human ≈ 84.6 mean on seed 1). Write them in the Debug Log.
-  - [ ] Run the full `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
-  - [ ] Update the File List and the Completion Notes. Tick only what you ran.
+  - [x] Unit tests in `threatMarkers.test.ts`.
+  - [x] `src/client/ui/styles/ui.css`: `.pp-threat-hold` (above the icon, below the highlight chevron), the closed state, and a `pp-hold-pop` keyframe (≤ 220 ms, overshoot). Under `prefers-reduced-motion` / the app's reduced-motion class, use the fade the 1.22 star stamps use. Colours only via `var(--pp-color-paper)`, `var(--pp-color-ring-track)`, `var(--pp-color-ink)`: `designTokens.test.ts` refuses literals.
+  - [x] `content/feedback.json`: cue `hold_closed` `{ "haptic": "medium" }` (a haptic-only cue is legal, see the `haptic-only.json` fixture), and `events.ResponseHeld: "hold_closed"`. Run `npm run content:check`.
+  - [x] Wire the call site in `levelSession.ts` / `loop.ts`: the markers' `update` is called with what it now needs. Check how `boot.ts` passes `feel`.
+- [x] **T6: e2e** (AC 13)
+  - [x] `tests/e2e/holdRing.spec.ts`: short tap, hold (touch or mouse), Space hold.
+  - [x] Mirror the ring's state if a class is not enough (`data-pp-hold="filling|closed"` on the marker, debug builds only, the 1.21 `ppSilence` pattern).
+  - [x] No new screenshot reference unless you decide one is needed. If you add one, look at it, say so, and do the Linux one too (story 1.13 › Screenshots).
+- [x] **T7: Finish** (AC 14)
+  - [x] `npm run sim -- --bot perfect --runs 3` and `--bot human --runs 3` on the live level: the scores are unchanged from 1.22 (perfect 90, human ≈ 84.6 mean on seed 1). Write them in the Debug Log.
+  - [x] Run the full `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
+  - [x] Update the File List and the Completion Notes. Tick only what you ran.
 
 ## Dev Notes
 
@@ -346,14 +350,59 @@ Changed (expected):
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), via `/gds-dev-story 1-23`, in the worktree `.claude/worktrees/1-23-fermete-optionnelle`.
+
+### Implementation Plan
+
+- **Content.** `THREAT_RESPONSES = ['parry', 'firm']`; `holdUntilMs` is an optional key of `baseShape` and a `superRefine` on the union makes it required for `firm` and refused otherwise (D2). `checkThreatReferences` (now given the feel) refuses `holdUntilMs <= windowMs ?? feel.timing.windowMs`, naming file and key.
+- **Sim.** `holdEnd.ts` (pure): `holdEndAt` = `max(press.t + holdMinMs, windowOpenAt + holdUntilMs)` (D1) and `firmHoldOutcome(pressT, releasedAt, endAt, now)` → `'held' | 'released' | null`. `threatSystem` keeps its shape: `classifyPress`, then `ResponseHeld` once (`press.heldAt`), then, in `windowOpen`, a `firm` def with a `firm` press goes through `firmHoldOutcome`, anything else through today's code (`kind === def.response` or `wrongResponse`). Snapshot v11.
+- **Bots.** `holdMsFor` became `fingerPlanFor` (exhaustive, `tap` | `untilAnswered`). `createFirmHold` is the one finger: `begin` when a Firmness press is planned, `update` (before anything is planned, each `act`) sends `Release` at `now` once the held threat is no longer `telegraph` / `windowOpen` with a pending press. While it holds, the perfect and human bots plan nothing else (the threat keeps its cycle, so it is answered once the finger is free). `schedulePress` is shared by both bots.
+- **Generated tests.** `tests/threats/fixtures/test_firm.json` (anchor `door`, free in the frozen room and in every live level; `createSim` accepts it) joins the catalogue; `answerOf(def, pressT, openAt)` is the exhaustive `switch` that says how a right answer is given.
+- **Ring.** Plain DOM in the existing CSS2D marker (not SVG): a disc 5 px wider than the icon, under it, with a `conic-gradient` of `paper` over `ring-track` driven by `--pp-hold-progress` (whole percent, strings built once) and a 2 px ink `box-shadow`. The two sizes come from `constants.ts` and are set inline (`designTokens.test.ts` wants every `var()` declared in CSS, so they are not custom properties). Drawn against the sim's `press` and the interpolated sim time `world.time.sim - STEP_MS * (1 - alpha)`: `onLevelFrame` now receives the loop's `alpha`.
+
 ### Debug Log References
+
+- **T0 baseline.** `env | grep VITE_` printed `VITE_DEBUG_ALLOWED=false`, so every run was `(unset VITE_DEBUG_ALLOWED; …)`. Typecheck, lint, `content:check` and the unit stage were green before the first edit: 194 files, 3314 tests. **The baseline e2e is not a clean reference**: it ran in the background while I started editing (the schema, then the sim), and ended with 36 failed / 230 passed on specs that have nothing to do with this story (feedback, baby, move, result…). I did not re-run it on an untouched tree; the final run below is the gate.
+- **Final `npm run ci`:** typecheck, lint, `content:check` (12 files), `test:coverage` **198 files, 3389 tests** (`src/sim` statements 97.76 %, branches 97.21 %, functions 100 %), e2e **274 passed** (chromium + webkit, 266 before + the 8 of `holdRing.spec.ts`), `build:playtest` OK. No `--maxWorkers` / `--workers` reduction was needed.
+- **Goldens:** `npm test -- tests/golden` passes untouched (6 files, 49 tests); `npm run golden:update` was not run.
+- **CLI, live level, seed 1:** `perfect --runs 3` = 90 on every run (★5); `human --runs 3` = 83, 82, 87 (mean 84.0). With `--runs 5` like the 1.22 note: `perfect` 90 (★5 × 5), `human` mean **84.6** (83, 82, 87, 82, 89; ★4 × 5), the same as story 1.22. `failReasons` carries `released: 0` everywhere.
+- **Wrong turn, fixed:** my first e2e asserted the ring closed on the outlet (a Parry threat). A Parry threat gags in the very step that sets `heldAt` (AC 5), so the press is already cleared and the ring can never be seen closed there. The closed state is therefore proved on a Firmness: the spec serves `content/threats/outlet.json` as a `firm` def through a Playwright route on Vite's content module (as `contentError.spec.ts` does for `feel.json`). The Parry hold test proves the fill, `ResponseHeld` before `wrongResponse`, and the medium haptic.
+- The frozen e2e clock stamps a press a little ahead of the sim (real time passes while the sim is stopped), so the e2e reads `heldAt - press.t` from the world and allows `2 × holdMinMs` of steps instead of assuming `press.t` is the time of the last step.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- **AC 1-6 (sim):** done as in the Implementation Plan. A held Firmness resolves at `max(press.t + holdMinMs, windowOpenAt + holdUntilMs)` with no release; a release before `holdMinMs` is `wrongResponse`, a release in [`holdMinMs`, end) is `released`; `ResponseHeld` comes once per press, before the result, on both kinds of threat. `threatSystem.test.ts` is untouched and passes; the new cases are in `src/sim/threats/firmness.test.ts` (17 tests, including the replay of a held press and the hitstop / perfect slow-mo at the resolving step) and `src/sim/timing/holdEnd.test.ts`.
+- **AC 7-9 (ring):** done; `tests/architecture/holdRingSpec.test.ts` checks `HOLD_RING_STROKE_PX` / `HOLD_RING_OUTLINE_PX` and the paper / ring-track colours against DESIGN.md, and DESIGN's `durationMs` against the frozen `testFeel.json` `holdMinMs`. Reduced motion is CSS only (the pop becomes the `pp-fade-in` of the star stamps).
+- **AC 10-12 (bots, CLI, generated tests):** done. `random` is unchanged. `deferred-work.md` L204 now says Firmness is closed and names `fingerPlanFor` as the next exhaustive switch.
+- **AC 13 (e2e):** short tap, Parry hold (fill, `ResponseHeld`, gag, medium haptic on chromium), Firmness (closed class, progress 100, stays closed to the end of the attack, resolves `firm`), Space hold. Every bound comes from the live feel and the live outlet def. No screenshot was added.
+- **Deviations to know about:**
+  1. `pressProblem` checks `heldAt` as `null` or a finite number ≥ `press.t`, not ≥ `press.t + holdMinMs` as the AC says: the snapshot validator has no access to the feel (only its hash travels with the snapshot). The sim itself never sets `heldAt` earlier than `press.t + holdMinMs`.
+  2. The ring is a CSS conic-gradient disc, not an SVG with `stroke-dashoffset` as the task suggested (no new `svg` helper, no `r` as CSS property on WebKit); same look and the same inputs.
+  3. No `data-pp-hold` mirror: the `pp-threat-hold--closed` class was enough for the e2e.
+  4. A bot that is holding a Firmness cannot be stopped from sending a tap it planned before the hold began (a Parry planned for another threat whose press lands inside the hold would end the Firmness). No live level can do this yet (no live Firmness); it joins the multi-threat items already deferred to the playtest.
+  5. `src/sim/index.ts` needed no new export.
+- **Open points for Geo** (unchanged from the Dev Notes, none decided here): where « the end of the attack » counts from (D1, one line in `holdEnd.ts`); no live Firmness threat in E1; a pause releases a held Firmness; the ring shows on every press, a quick tap included; the medium haptic fires on a held Parry threat too, just before its `wrongResponse` gag.
 
 ### File List
+
+New:
+- `src/sim/timing/holdEnd.ts`, `src/sim/timing/holdEnd.test.ts`
+- `src/sim/threats/firmness.test.ts`
+- `tests/threats/fixtures/test_firm.json`
+- `tests/bots/firmBots.test.ts`
+- `tests/architecture/holdRingSpec.test.ts`
+- `tests/e2e/holdRing.spec.ts`
+
+Changed:
+- `src/content/schemas/threat.ts`, `content/_schemas/threat.schema.json` (generated), `tools/content/contentChecks.ts`, `content/feedback.json`
+- `src/sim/events.ts`, `src/sim/world.ts`, `src/sim/threats/threatSystem.ts`, `src/sim/snapshot.ts`
+- `src/bots/threatTiming.ts`, `src/bots/perfectBot.ts`, `src/bots/humanBot.ts`, `tools/sim/simReport.ts`
+- `src/client/ui/world/threatMarkers.ts`, `src/client/ui/world/worldUi.ts`, `src/client/app/levelSession.ts`, `src/client/boot.ts`, `src/client/ui/styles/ui.css`, `src/shared/constants.ts`
+- Tests: `src/sim/snapshot.test.ts`, `src/sim/threats/threatFsm.test.ts`, `src/bots/threatTiming.test.ts`, `src/client/ui/world/threatMarkers.test.ts`, `src/client/ui/world/worldUi.test.ts`, `tests/content/checkContent.test.ts`, `tests/content/threatSchema.test.ts`, `tests/support/botSupport.ts`, `tests/threats/threatCatalog.test.ts`, `tests/tools/sim/simReport.test.ts`, `tests/e2e/support/game.ts`
+- `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
 
 ### Change Log
 
 - 2026-10-28: story created (gds-create-story).
+- 2026-10-28: story implemented (gds-dev-story): Firmness judged in the sim (`holdUntilMs`, `released`, `ResponseHeld`, snapshot v11), hold-ring in the threat markers with the `hold_closed` haptic cue, bots hold a Firmness, `released` in the CLI report, the fixture `test_firm` in the generated catalogue, `holdRing.spec.ts`. Goldens unchanged; `npm run ci` green.

@@ -2,7 +2,7 @@ import { STAR_COUNT_MAX } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { PAPA_ASLEEP_GAG_ID, type Sim, type SimEvent } from '@sim';
 
-const FAIL_REASONS = ['early', 'late', 'wrongResponse'] as const;
+const FAIL_REASONS = ['early', 'late', 'wrongResponse', 'released'] as const;
 type FailReasonKey = (typeof FAIL_REASONS)[number];
 
 /** What one run saw of one threat def. */
@@ -87,7 +87,7 @@ const emptyTally = (): ThreatTally => ({
   perfect: 0,
   success: 0,
   fail: 0,
-  failReasons: { early: 0, late: 0, wrongResponse: 0 },
+  failReasons: { early: 0, late: 0, wrongResponse: 0, released: 0 },
   absOffsetSumMs: 0,
   offsetCount: 0,
 });

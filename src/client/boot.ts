@@ -4,7 +4,7 @@ import { loadLevelContent } from '@content/loadLevelContent';
 import type { Feel } from '@content/schemas/feel';
 import { GAUGE_IDS, type GaugeId } from '@content/schemas/level';
 import { createPlatform } from '@platform/createPlatform';
-import { MAX_TIMER_DELAY_MS, MS_PER_S } from '@shared/constants';
+import { MAX_TIMER_DELAY_MS, MS_PER_S, STEP_MS } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
@@ -571,7 +571,7 @@ export async function boot(): Promise<void> {
       fitViewToCanvas();
       if (isMirrored) mirror('ppLevel', level.id);
     },
-    onLevelFrame: () => {
+    onLevelFrame: (alpha) => {
       // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
       // Once the level has ended the sim is frozen with `babbling` as it was: silence it.
       const babbleWorld = levelSession.active?.sim.world;
@@ -620,6 +620,10 @@ export async function boot(): Promise<void> {
           highlightedThreatId,
           targetedId,
           currentLevel?.papaPose ?? null,
+          // The sim time as drawn (the views interpolate from the previous step by `alpha`): the
+          // hold-ring fills against it, so a slow-mo or a hitstop slows it as it slows the judgement.
+          world.time.sim - STEP_MS * (1 - alpha),
+          levelSession.active?.feel.input.holdMinMs ?? 0,
         );
       worldUi.updateObjects(world?.gauges.isFatigueAbove ?? false);
       showGlyphChip(world, targetedId, device);

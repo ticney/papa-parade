@@ -1,4 +1,5 @@
 import type { ThreatDef, ThreatIcon } from '@content/schemas/threat';
+import { HOLD_RING_OUTLINE_PX, HOLD_RING_STROKE_PX } from '@shared/constants';
 import { log } from '@shared/log';
 import type { ThreatInstance } from '@sim';
 import type { Scene } from 'three';
@@ -43,12 +44,19 @@ export interface ThreatMarkers {
    * comes, does not make a new mark of its own before that press. `papa` is his pose as drawn
    * (interpolated): the markers that follow him move to it, so their icon point (and the hit test) is
    * where he is drawn; null leaves them where they were.
+   *
+   * The hold-ring (story 1.23) is drawn from the sim's pending press, in sim time: `renderSimMs` is the
+   * sim time as drawn (interpolated by the caller) and `holdMinMs` the feel's fill duration. A ring
+   * fills while a press is down, closes when the sim says the press was held that long (`heldAt`), and
+   * goes with the press. With `renderSimMs` null no ring is drawn.
    */
   update(
     threats: readonly Readonly<ThreatInstance>[],
     highlightedId: number | null,
     targetedId: number | null,
     papa?: Readonly<{ xM: number; zM: number }> | null,
+    renderSimMs?: number | null,
+    holdMinMs?: number,
   ): boolean;
   /** True while at least one marker is shown: the layer must be rendered. */
   readonly isAnyVisible: boolean;
@@ -125,7 +133,16 @@ export const THREAT_CLASSES = {
   highlight: 'pp-threat-highlight',
   chevron: 'pp-threat-chevron',
   icon: 'pp-threat-icon',
+  /** The hold-ring (story 1.23); `--closed` once the press has been held `holdMinMs`. */
+  hold: 'pp-threat-hold',
+  holdClosed: 'pp-threat-hold--closed',
 } as const;
+
+/** The ring's progress in whole percent, as the strings the CSS variable takes (built once: no per-frame concatenation). */
+const HOLD_PROGRESS_PCT: readonly string[] = Array.from({ length: 101 }, (_, pct) => String(pct));
+
+/** Nothing shown: the ring has no press to follow. */
+const HOLD_HIDDEN = -1;
 
 /**
  * The glyph of each `ThreatIcon` (24 × 24 view box), drawn in the paper fill with an ink outline:
@@ -151,6 +168,11 @@ interface Marker {
   readonly element: HTMLElement;
   readonly highlight: HTMLElement;
   readonly chevron: Element;
+  /** The hold-ring: a disc under the icon whose conic fill is `--pp-hold-progress` percent. */
+  readonly hold: HTMLElement;
+  /** The ring's progress as drawn, in whole percent; `HOLD_HIDDEN` while it is hidden. */
+  holdPct: number;
+  isHoldClosed: boolean;
   isShown: boolean;
   isHighlighted: boolean;
   /** The press highlight is up for this marker (the return value of `update` follows its rising edge). */
@@ -189,6 +211,13 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
     doc,
   );
   chevron.setAttribute('hidden', '');
+  const hold = doc.createElement('div');
+  hold.className = THREAT_CLASSES.hold;
+  hold.hidden = true;
+  // DESIGN.md's pixel sizes come from the constants, not from CSS literals (`holdRingSpec.test.ts`):
+  // the disc is the band wider than the icon on every side, with the ink outline spread around it.
+  hold.style.inset = `-${HOLD_RING_STROKE_PX}px`;
+  hold.style.boxShadow = `0 0 0 ${HOLD_RING_OUTLINE_PX}px var(--pp-color-ink)`;
   const icon = doc.createElement('div');
   icon.className = THREAT_CLASSES.icon;
   icon.append(
@@ -212,7 +241,7 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
       doc,
     ),
   );
-  element.append(halo, highlight, chevron, icon);
+  element.append(halo, hold, highlight, chevron, icon);
   // Hidden until its threat is active: the CSS2D renderer only writes `display` when it runs.
   element.style.display = 'none';
 
@@ -224,10 +253,46 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
     element,
     highlight,
     chevron,
+    hold,
+    holdPct: HOLD_HIDDEN,
+    isHoldClosed: false,
     isShown: false,
     isHighlighted: false,
     isPressed: false,
   };
+}
+
+/**
+ * The hold-ring of one marker, from the sim's pending press (D6): shown while the finger is down,
+ * filled over `holdMinMs` of sim time since the press, solid once the sim has set `heldAt`. The DOM is
+ * written only when the whole percent, the closed state or the visibility changes; nothing allocates.
+ */
+function updateHoldRing(
+  marker: Marker,
+  threat: Readonly<ThreatInstance> | undefined,
+  renderSimMs: number | null,
+  holdMinMs: number,
+): void {
+  const press = threat?.press ?? null;
+  let pct = HOLD_HIDDEN;
+  let isClosed = false;
+  if (press !== null && press.releasedAt === null && renderSimMs !== null && holdMinMs > 0) {
+    isClosed = press.heldAt !== null;
+    const progress = (renderSimMs - press.t) / holdMinMs;
+    pct = isClosed ? 100 : Math.min(99, Math.max(0, Math.floor(progress * 100)));
+  }
+  if (pct !== marker.holdPct) {
+    if (pct === HOLD_HIDDEN) marker.hold.hidden = true;
+    else {
+      if (marker.holdPct === HOLD_HIDDEN) marker.hold.hidden = false;
+      marker.hold.style.setProperty('--pp-hold-progress', HOLD_PROGRESS_PCT[pct] as string);
+    }
+    marker.holdPct = pct;
+  }
+  if (isClosed !== marker.isHoldClosed) {
+    marker.isHoldClosed = isClosed;
+    marker.hold.classList.toggle(THREAT_CLASSES.holdClosed, isClosed);
+  }
 }
 
 /**
@@ -261,7 +326,7 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
       for (const marker of markers) scene.add(marker.object);
     },
     unmount,
-    update(threats, highlightedId, targetedId, papa = null) {
+    update(threats, highlightedId, targetedId, papa = null, renderSimMs = null, holdMinMs = 0) {
       let isHighlightShown = false;
       for (let i = 0; i < markers.length; i++) {
         const marker = markers[i] as Marker;
@@ -299,6 +364,7 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
           entry.zM = papa.zM;
           marker.object.position.set(entry.xM, entry.yM, entry.zM);
         }
+        updateHoldRing(marker, threat, renderSimMs, holdMinMs);
         const isHighlighted = isPressed || (threat !== undefined && threat.id === targetedId);
         if (isHighlighted !== marker.isHighlighted) {
           marker.isHighlighted = isHighlighted;

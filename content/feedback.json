@@ -41,6 +41,7 @@
       "haptic": "heavy"
     },
     "silence_started": { "haptic": "light" },
+    "hold_closed": { "haptic": "medium" },
     "tel_silence_found": {
       "audio": { "clip": "tel_silence_found", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.8, "durationMs": 400 },
@@ -116,6 +117,7 @@
     "PapaBlocked": "papa_bump",
     "CountdownTicked": "countdown_tick",
     "SilenceStarted": "silence_started",
+    "ResponseHeld": "hold_closed",
     "ResultStarStamped": "result_star",
     "ResultLastStarStamped": "result_star_last"
   }

@@ -5,7 +5,8 @@ import { createWorldUi } from './worldUi.ts';
 class FakeElement {
   ownerDocument = { defaultView: { Element: FakeElement } };
   className = '';
-  style: Record<string, string> = {};
+  style: Record<string, unknown> = { setProperty() {} };
+  classList = { toggle: () => false };
   parentNode: unknown = null;
   appended: FakeElement[] = [];
   hidden = false;

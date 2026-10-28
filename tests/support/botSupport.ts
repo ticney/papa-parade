@@ -27,13 +27,31 @@ export const botTestLevel = () =>
 export const botTrioLevel = () =>
   createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])] });
 
-export function botSetup(seed: number, settings: Partial<BotOptions> = {}): BotSetup {
+/** The firm hold of `firmBotLevel`, in sim ms from the opening of the window (above the window). */
+export const FIRM_HOLD_UNTIL_MS = 1500;
+
+/** The outlet asking for a Firmness, planned from 4 s like `botTestLevel`. */
+export function firmBotLevel(holdUntilMs = FIRM_HOLD_UNTIL_MS): LevelContent {
+  const base = botTestLevel();
+  const outlet = base.threats.outlet;
+  if (outlet === undefined) throw new Error('no outlet in the bot test level');
+  return {
+    ...base,
+    threats: { ...base.threats, outlet: { ...outlet, response: 'firm', holdUntilMs } },
+  };
+}
+
+export function botSetup(
+  seed: number,
+  settings: Partial<BotOptions> = {},
+  level?: LevelContent,
+): BotSetup {
   const content = createTestContent();
   return {
     seed,
     holdMinMs: content.feel.input.holdMinMs,
     // What every frozen def asks for (a bot is only told about the defs it can answer).
-    responses: botResponsesOf(createTestThreats()),
+    responses: botResponsesOf(level?.threats ?? createTestThreats()),
     settings: { ...createTestBots(), ...settings },
   };
 }
@@ -69,7 +87,7 @@ export async function playBotGame(
   const events: SimEvent[] = [];
   playGame(
     sim,
-    makeBot(id, botSetup(seed, options.settings)),
+    makeBot(id, botSetup(seed, options.settings, options.level)),
     options.untilSimMs ?? BOT_TEST_UNTIL_MS,
     (event) => events.push(event),
   );

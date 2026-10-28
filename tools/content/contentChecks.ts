@@ -248,16 +248,28 @@ interface ParsedFamilies {
 }
 
 /**
- * The references a threat file makes that its schema cannot see: its gag is one the sim knows, and
- * each of its feedback cues is a cue of `feedback.json`.
+ * The references a threat file makes that its schema cannot see: its gag is one the sim knows, each
+ * of its feedback cues is a cue of `feedback.json`, and a Firmness is held longer than its window
+ * is open (`holdUntilMs` against `windowMs`, or the `feel.json` window when it is `null`).
  */
 function checkThreatReferences(
   threats: ReadonlyMap<string, ThreatDef>,
   feedback: FeedbackTable | undefined,
+  feel: Feel | undefined,
 ): ContentProblem[] {
   const problems: ContentProblem[] = [];
   for (const [id, threat] of threats) {
     const file = `content/${THREAT_DEF_PATTERN.dir}/${id}${THREAT_DEF_PATTERN.suffix}`;
+    if (threat.response === 'firm' && threat.holdUntilMs !== undefined && feel !== undefined) {
+      const baseWindowMs = threat.windowMs ?? feel.timing.windowMs;
+      if (threat.holdUntilMs <= baseWindowMs) {
+        problems.push({
+          file,
+          jsonPath: 'holdUntilMs',
+          message: `holdUntilMs (${threat.holdUntilMs}) must be above the base window (${baseWindowMs}), or the attack would end before the window does`,
+        });
+      }
+    }
     const gagPaths =
       threat.target === 'hiddenZone'
         ? threat.surpriseGags.map((gag, i) => ({
@@ -708,7 +720,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
     }
   }
 
-  problems.push(...checkThreatReferences(families.threats, feedback));
+  problems.push(...checkThreatReferences(families.threats, feedback, feel));
   problems.push(...checkDisruptionReferences(families.disruptions, feedback));
   problems.push(...checkLevelReferences(families, present, feel));
 

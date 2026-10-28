@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../content/_schemas/threat.schema.json",
+  "id": "test_firm",
+  "target": "anchor",
+  "response": "firm",
+  "holdUntilMs": 1500,
+  "telegraphDelayMs": 1200,
+  "windowMs": null,
+  "gag": "outlet_hair",
+  "icon": "bolt",
+  "feedback": {
+    "telegraph": "tel_outlet",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_outlet"
+  },
+  "cooldownMs": 6000
+}

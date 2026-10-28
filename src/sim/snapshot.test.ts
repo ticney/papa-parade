@@ -394,21 +394,23 @@ describe('snapshot / restore', () => {
   it('refuses an unknown snapshot version', async () => {
     const sim = await createSim({ content, geometry, level, seed: 5 });
     const snapshot = sim.snapshot();
-    expect(() => sim.restore({ ...snapshot, version: 1 as 10 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 1 as 11 })).toThrow(/version/);
     // Version 3 predates the base scale and the slow-mos (story 1.14).
-    expect(() => sim.restore({ ...snapshot, version: 3 as 10 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 3 as 11 })).toThrow(/version/);
     // Version 4 has no Rapier world (story 1.15).
-    expect(() => sim.restore({ ...snapshot, version: 4 as 10 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...snapshot, version: 4 as 11 })).toThrow(/version 4/);
     // Version 5 has no director, flow or wave index (story 1.18).
-    expect(() => sim.restore({ ...snapshot, version: 5 as 10 })).toThrow(/version 5/);
+    expect(() => sim.restore({ ...snapshot, version: 5 as 11 })).toThrow(/version 5/);
     // Version 6 has no gauges, no Papa busy state and no `objectId` (story 1.19).
-    expect(() => sim.restore({ ...snapshot, version: 6 as 10 })).toThrow(/version 6/);
+    expect(() => sim.restore({ ...snapshot, version: 6 as 11 })).toThrow(/version 6/);
     // Version 7 has no disruptions and no `onPhone` state (story 1.20).
-    expect(() => sim.restore({ ...snapshot, version: 7 as 10 })).toThrow(/version 7/);
+    expect(() => sim.restore({ ...snapshot, version: 7 as 11 })).toThrow(/version 7/);
     // Version 8 has no silence, no `mischiefs` and no hidden state (story 1.21).
-    expect(() => sim.restore({ ...snapshot, version: 8 as 10 })).toThrow(/version 8/);
-    // Version 9 has no score (story 1.22).
-    expect(() => sim.restore({ ...snapshot, version: 9 as 10 })).toThrow(/version 9/);
+    expect(() => sim.restore({ ...snapshot, version: 8 as 11 })).toThrow(/version 8/);
+    // Version 9 has no score (story 1.22); version 10 has no `heldAt` on a press (story 1.23).
+    expect(() => sim.restore({ ...snapshot, version: 9 as 11 })).toThrow(/version 9/);
+    // Version 10 has no `heldAt` on a press (story 1.23).
+    expect(() => sim.restore({ ...snapshot, version: 10 as 11 })).toThrow(/version 10/);
   });
 
   it('refuses a snapshot of another level', async () => {
@@ -552,37 +554,70 @@ describe('snapshot / restore with a threat', () => {
         'a press on a threat that has none to carry',
         (threat) => {
           threat.state = 'resolved';
-          threat.press = { t: 1, quality: 'perfect', offsetMs: 0, releasedAt: null };
+          threat.press = { t: 1, quality: 'perfect', offsetMs: 0, releasedAt: null, heldAt: null };
         },
         /world\.threats\[0\]\.press/,
       ],
       [
         'a press quality',
         (threat) => {
-          threat.press = { t: 1, quality: 'fail', offsetMs: 0, releasedAt: null };
+          threat.press = { t: 1, quality: 'fail', offsetMs: 0, releasedAt: null, heldAt: null };
         },
         /press\.quality/,
       ],
       [
         'a press time',
         (threat) => {
-          threat.press = { t: 'x', quality: 'perfect', offsetMs: 0, releasedAt: null };
+          threat.press = {
+            t: 'x',
+            quality: 'perfect',
+            offsetMs: 0,
+            releasedAt: null,
+            heldAt: null,
+          };
         },
         /press\.t/,
       ],
       [
         'a press offset',
         (threat) => {
-          threat.press = { t: 1, quality: 'perfect', offsetMs: null, releasedAt: null };
+          threat.press = {
+            t: 1,
+            quality: 'perfect',
+            offsetMs: null,
+            releasedAt: null,
+            heldAt: null,
+          };
         },
         /press\.offsetMs/,
       ],
       [
         'a press release',
         (threat) => {
-          threat.press = { t: 1, quality: 'perfect', offsetMs: 0, releasedAt: 'x' };
+          threat.press = { t: 1, quality: 'perfect', offsetMs: 0, releasedAt: 'x', heldAt: null };
         },
         /press\.releasedAt/,
+      ],
+      [
+        'a press hold that is not a number',
+        (threat) => {
+          threat.press = { t: 1, quality: 'perfect', offsetMs: 0, releasedAt: null, heldAt: 'x' };
+        },
+        /press\.heldAt/,
+      ],
+      [
+        'a press hold that is missing (a version-10 press)',
+        (threat) => {
+          threat.press = { t: 1, quality: 'perfect', offsetMs: 0, releasedAt: null };
+        },
+        /press\.heldAt/,
+      ],
+      [
+        'a press that closed its ring before it was made',
+        (threat) => {
+          threat.press = { t: 500, quality: 'perfect', offsetMs: 0, releasedAt: null, heldAt: 499 };
+        },
+        /press\.heldAt/,
       ],
       [
         'a press that is not an object',
@@ -935,7 +970,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
   it('is taken while a prop moves, and carries the Rapier world as base64', async () => {
     const sim = await midFall();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(10);
+    expect(snapshot.version).toBe(11);
     expect(snapshot.physics).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
     expect(snapshot.world.props[0]?.xM).toBeGreaterThan(0.7);
     expect(snapshot.world.props[0]?.yM).toBeLessThan(0.5);
@@ -986,7 +1021,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
 
   it('refuses a snapshot from before the Rapier world (version 4)', async () => {
     const sim = await newSim();
-    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 10 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 11 })).toThrow(/version 4/);
   });
 
   describe('refuses a malformed props slice, with its path', () => {
@@ -1103,7 +1138,7 @@ describe('snapshot / restore of the director and the flow (story 1.18)', () => {
     const sim = await newSim();
     stepN(sim, 60); // 600 ms: wave 0 entered, the outlet telegraphed
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(10);
+    expect(snapshot.version).toBe(11);
     expect(snapshot.world.director.waveIndex).toBe(0);
     expect(snapshot.world.flow).toEqual({ state: 'playing', enteredAt: 0 });
     expect(snapshot.world.threats[0]).toMatchObject({ state: 'telegraph', waveIndex: 0 });
@@ -1363,7 +1398,7 @@ describe('snapshot / restore of the disruptions and the phone call (story 1.20)'
   it('is version 10, and carries a pending disruption as it was created', async () => {
     const sim = await newPhone();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(10);
+    expect(snapshot.version).toBe(11);
     expect(snapshot.world.disruptions).toEqual([
       { state: 'pending', enteredAt: 0, untilAt: 0, nextRingingAt: 0 },
     ]);
@@ -1775,7 +1810,7 @@ describe('snapshot / restore of Mama’s score (story 1.22)', () => {
     const playing = await newSim();
     stepN(playing, 10);
     const early = playing.snapshot();
-    expect(early.version).toBe(10);
+    expect(early.version).toBe(11);
     expect(early.world.score).toEqual({ perfects: 0, nearMisses: 0, final: null });
 
     const live = await ended();
