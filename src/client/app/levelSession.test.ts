@@ -75,7 +75,8 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
       drawn.renders++;
       drawn.scenes.push(scene);
     },
-    stats: () => ({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0 }),
+    setPixelRatioCap: () => {},
+    stats: () => ({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, pixelRatio: 1 }),
     dispose: () => {},
   };
   let simsCreated = 0;

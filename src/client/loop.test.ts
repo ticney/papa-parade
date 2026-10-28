@@ -126,14 +126,16 @@ async function createRig(
     logger: { warn: (_channel, message) => options.warnings?.push(message) },
   });
   const alphas: number[] = [];
+  const frameTimes: number[] = [];
   const simEvents: SimEvent[] = [];
   const loop = createGameLoop({
     sim: double.sim,
     timeMap,
     pause,
     scheduler,
-    render: (alpha) => {
+    render: (alpha, frameAtReal) => {
       alphas.push(alpha);
+      frameTimes.push(frameAtReal);
       double.calls.push('render');
       options.onRender?.();
     },
@@ -162,6 +164,7 @@ async function createRig(
     timeMap,
     loop,
     alphas,
+    frameTimes,
     simEvents,
     simMs: () => double.sim.world.time.sim as number,
     tick: (frameAtReal: number) => scheduler.tick(frameAtReal),
@@ -884,6 +887,24 @@ describe('createGameLoop › frozen', () => {
     rig.loop.setFrozen(false);
     rig.loop.setFrozen(false);
     expect(rig.loop.isFrozen).toBe(false);
+  });
+});
+
+describe('createGameLoop › frame timestamp', () => {
+  it('hands render the display frame timestamp, and an advance render repeats the last one', async () => {
+    const rig = await createRig();
+    rig.tick(1000);
+    rig.tick(1016.7);
+    expect(rig.frameTimes).toEqual([1000, 1016.7]);
+    rig.loop.advance(1);
+    expect(rig.frameTimes.at(-1)).toBe(1016.7);
+  });
+
+  it('replaces a bad timestamp by the last good one', async () => {
+    const rig = await createRig({ warnings: [] });
+    rig.tick(1000);
+    rig.tick(Number.NaN);
+    expect(rig.frameTimes).toEqual([1000, 1000]);
   });
 });
 

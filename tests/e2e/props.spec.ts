@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { DRAW_CALLS_MAX } from '../../src/shared/constants.ts';
 import { collectProblems } from './support/game.ts';
 import {
   ppAdvance,
@@ -18,7 +19,6 @@ import {
 
 const LEVEL = 'salon_crawler';
 const SEED = 42;
-const DRAW_CALLS_MAX = 100;
 /** The push of the golden scenario: along +x, off the coffee table. */
 const PUSH_NS = 0.72;
 /** Three seconds of sim time: the mug has left the table and come to the floor. */

@@ -23,8 +23,12 @@ export interface GameLoopOptions {
   readonly pause: PauseController;
   /** Default: `requestAnimationFrame` / `cancelAnimationFrame`. */
   readonly scheduler?: FrameScheduler;
-  /** Called every frame, paused or not. `alpha` is in `[0, 1]`: how far the next step is under way. */
-  render(alpha: number): void;
+  /**
+   * Called every frame, paused or not. `alpha` is in `[0, 1]`: how far the next step is under way.
+   * `frameAtReal` is the display frame's timestamp (a bad one is replaced by the last good one); an
+   * `advance` render repeats the last frame's.
+   */
+  render(alpha: number, frameAtReal: number): void;
   /** Called synchronously for each sim event, right after the step that produced it. Do not keep the event. */
   onSimEvent(event: SimEvent): void;
   /** Real-time multiplier for the level (`?speed`). Default 1. A finite number above 0. */
@@ -255,10 +259,10 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
 
     // Owed whole steps (held back by a freeze) must not push the view past the last step.
     if (frameClock === null) {
-      render(Math.min(accumulatorMs / STEP_MS, 1));
+      render(Math.min(accumulatorMs / STEP_MS, 1), atReal);
     } else {
       const renderStartedAt = frameClock();
-      render(Math.min(accumulatorMs / STEP_MS, 1));
+      render(Math.min(accumulatorMs / STEP_MS, 1), atReal);
       const endedAt = frameClock();
       stats.simMsLastFrame = simMsInFrame;
       stats.renderMsLastFrame = endedAt - renderStartedAt;
@@ -288,7 +292,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
       setFrozen(true);
       const stopCountAtCall = stopCount;
       for (let i = 0; i < steps && stopCount === stopCountAtCall; i++) runStep();
-      render(Math.min(accumulatorMs / STEP_MS, 1));
+      render(Math.min(accumulatorMs / STEP_MS, 1), lastSeenAtReal);
     },
     start() {
       // After a fail-stop (a frame threw) `isRunning` is still true but nothing is pending: restart.

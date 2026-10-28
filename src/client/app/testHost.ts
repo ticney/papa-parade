@@ -28,16 +28,21 @@ export interface TestHost {
   /** Told each event after the app has handled it (feedback, choreography, mirrors). Do not keep the event. */
   onSimEvent(listener: (event: SimEvent) => void): () => void;
   onGameResumed(listener: () => void): () => void;
+  /**
+   * Told after each level frame is drawn (the world UI included), with the real time of the frame
+   * (`performance.now()`) and the renderer's stats. Level frames only: the start and Result
+   * screens draw no level frame. The stats object is reused by the next frame: do not keep it.
+   */
+  onRenderedFrame(
+    listener: (frameAtReal: number, stats: Readonly<RenderStats>) => void,
+  ): () => void;
   /** Set by autoplay: the input mapper sends nothing to the sim while true. */
   setGameInputBlocked(isBlocked: boolean): void;
   /**
-   * What the debug overlay reads (story 2.1; the loop's timings and the level's geometry come from
-   * `levelSession.loopStats` and `levelSession.active.geometry`). Read-only towards the sim.
+   * What the debug overlay reads besides `onRenderedFrame` (story 2.1; the loop's timings and the
+   * level's geometry come from `levelSession.loopStats` and `levelSession.active.geometry`).
+   * Read-only towards the sim.
    *
-   * The last frame's draw calls and triangles (`renderer.info`).
-   */
-  renderStats(): Readonly<RenderStats>;
-  /**
    * A group in the running level's scene for the debug views to draw in, or `null` without a level.
    * It is part of the level's scene, so it goes with it: a new level has a new, empty one.
    */

@@ -212,6 +212,14 @@ export const WALK_BOUND_MS =
 /** Slack on top of a countdown, for a loaded CI machine: it only catches a countdown that never ends. */
 export const OVERRUN_MARGIN_MS = 2000;
 
+/**
+ * How much longer than `durationMs / speed` a whole level may take in real time, as a bound. The
+ * slow-motion and the hitstops of the parries slow the sim: measured on 2026-10-28 (story 1.24), a
+ * bot-played level runs at about 0.6 sim-seconds per real second at speed 1, about 1.7 times its
+ * duration. 2.5 leaves headroom; it only catches a level that never ends, never a time to wait for.
+ */
+export const LEVEL_REAL_TIME_FACTOR_MAX = 2.5;
+
 export function html(page: Page): Locator {
   return page.locator('html');
 }

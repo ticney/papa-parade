@@ -1,6 +1,7 @@
 import type { LevelSession, StartedLevel } from '../../src/client/app/levelSession.ts';
 import type { PauseState } from '../../src/client/app/pauseController.ts';
 import type { TestHost } from '../../src/client/app/testHost.ts';
+import type { RenderStats } from '../../src/client/render/renderer.ts';
 import type { ContentBundle } from '../../src/content/contentBundle.ts';
 import type { Sim, SimEvent } from '../../src/sim/index.ts';
 import { createTestContent } from './testContent.ts';
@@ -15,6 +16,8 @@ export interface FakeTestHost extends TestHost {
   fireLevelStarted(started: StartedLevel): void;
   fireSimEvent(event: SimEvent): void;
   fireGameResumed(): void;
+  /** One drawn level frame; the stats default to a small quiet scene at pixel ratio 2. */
+  fireRenderedFrame(frameAtReal: number, stats?: Partial<RenderStats>): void;
   setPause(state: PauseState): void;
 }
 
@@ -28,6 +31,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
   const levelListeners = new Set<(started: StartedLevel) => void>();
   const eventListeners = new Set<(event: SimEvent) => void>();
   const resumedListeners = new Set<() => void>();
+  const frameListeners = new Set<(frameAtReal: number, stats: Readonly<RenderStats>) => void>();
   const calls: string[] = [];
   let stepHook: ((sim: Sim) => void) | null = null;
   let isBlocked = false;
@@ -61,7 +65,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     onLevelStarted: (listener) => subscribe(levelListeners, listener),
     onSimEvent: (listener) => subscribe(eventListeners, listener),
     onGameResumed: (listener) => subscribe(resumedListeners, listener),
-    renderStats: () => ({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0 }),
+    onRenderedFrame: (listener) => subscribe(frameListeners, listener),
     debugGroup: () => null,
     threatScreenPoints: () => [],
     setGameInputBlocked(next) {
@@ -83,6 +87,17 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     },
     fireGameResumed: () => {
       for (const listener of [...resumedListeners]) listener();
+    },
+    fireRenderedFrame: (frameAtReal, stats = {}) => {
+      const full: RenderStats = {
+        drawCalls: 10,
+        triangles: 1000,
+        geometries: 5,
+        textures: 1,
+        pixelRatio: 2,
+        ...stats,
+      };
+      for (const listener of [...frameListeners]) listener(frameAtReal, full);
     },
     setPause: (state) => {
       pause = state;

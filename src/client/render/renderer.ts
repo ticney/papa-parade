@@ -5,12 +5,12 @@ import type { Camera, Scene } from 'three';
 import { WebGLRenderer } from 'three';
 
 /**
- * `min(devicePixelRatio, MAX_PIXEL_RATIO)`. A value that is not a positive finite number (some
- * embedded browsers report 0 or NaN) gives 1: this never throws.
+ * `min(devicePixelRatio, cap)`. A value that is not a positive finite number (some embedded
+ * browsers report 0 or NaN) gives 1: this never throws.
  */
-export function pixelRatioFor(devicePixelRatio: number): number {
+export function pixelRatioFor(devicePixelRatio: number, cap: number): number {
   if (!Number.isFinite(devicePixelRatio) || devicePixelRatio <= 0) return 1;
-  return Math.min(devicePixelRatio, MAX_PIXEL_RATIO);
+  return Math.min(devicePixelRatio, cap);
 }
 
 /**
@@ -23,6 +23,8 @@ export interface RenderStats {
   triangles: number;
   geometries: number;
   textures: number;
+  /** The pixel ratio in force (`min(devicePixelRatio, cap)`): the adaptive cap may have lowered it. */
+  pixelRatio: number;
 }
 
 export interface GameRenderer {
@@ -31,6 +33,12 @@ export interface GameRenderer {
    * the new aspect ratio (width / height), or `null` while the canvas has no size (hidden).
    */
   resize(): number | null;
+  /**
+   * Lowers (or raises) the ceiling of the pixel ratio, and redraws the backing store at the new
+   * ratio and the current size, then draws the last frame again (resizing clears the canvas, which
+   * would otherwise be presented blank). Does nothing when the ratio would not change.
+   */
+  setPixelRatioCap(cap: number): void;
   render(scene: Scene, camera: Camera): void;
   /** The last frame's draw calls and triangles, and the GPU memory held: one object, rewritten by each call (no allocation). */
   stats(): Readonly<RenderStats>;
@@ -70,18 +78,43 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
   canvas.addEventListener('webglcontextlost', onContextLost);
   canvas.addEventListener('webglcontextrestored', onContextRestored);
 
-  const stats: RenderStats = { drawCalls: 0, triangles: 0, geometries: 0, textures: 0 };
+  const stats: RenderStats = {
+    drawCalls: 0,
+    triangles: 0,
+    geometries: 0,
+    textures: 0,
+    pixelRatio: 1,
+  };
+  // The adaptive cap (story 1.24); the resize path reads it too, so a resize never undoes a step.
+  let pixelRatioCap: number = MAX_PIXEL_RATIO;
+  // The last frame's scene and camera, to draw it again right after the backing store is resized.
+  let lastScene: Scene | null = null;
+  let lastCamera: Camera | null = null;
 
   return ok({
     resize() {
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
       if (width === 0 || height === 0) return null;
-      renderer.setPixelRatio(pixelRatioFor(window.devicePixelRatio));
+      renderer.setPixelRatio(pixelRatioFor(window.devicePixelRatio, pixelRatioCap));
       renderer.setSize(width, height, false);
       return width / height;
     },
+    setPixelRatioCap(cap) {
+      pixelRatioCap = cap;
+      const ratio = pixelRatioFor(window.devicePixelRatio, cap);
+      if (ratio === renderer.getPixelRatio()) return;
+      renderer.setPixelRatio(ratio);
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (width > 0 && height > 0) {
+        renderer.setSize(width, height, false);
+        if (lastScene !== null && lastCamera !== null) renderer.render(lastScene, lastCamera);
+      }
+    },
     render(scene, camera) {
+      lastScene = scene;
+      lastCamera = camera;
       renderer.render(scene, camera);
     },
     stats() {
@@ -89,11 +122,14 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
       stats.triangles = renderer.info.render.triangles;
       stats.geometries = renderer.info.memory.geometries;
       stats.textures = renderer.info.memory.textures;
+      stats.pixelRatio = renderer.getPixelRatio();
       return stats;
     },
     dispose() {
       canvas.removeEventListener('webglcontextlost', onContextLost);
       canvas.removeEventListener('webglcontextrestored', onContextRestored);
+      lastScene = null;
+      lastCamera = null;
       renderer.dispose();
     },
   });

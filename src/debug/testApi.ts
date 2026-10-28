@@ -6,8 +6,11 @@ import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import type { SimCommand, SimEvent, World } from '@sim';
 import { applyFeelPatch, type FeelPatch } from './feelPatch.ts';
+import { feedPerfMeter } from './perfFeed.ts';
+import { createPerfMeter, type PerfReport } from './perfMeter.ts';
 
 export type { FeelPatch } from './feelPatch.ts';
+export type { PerfReport } from './perfMeter.ts';
 
 /** A {@link SimCommand} whose `t` may be left out: it then applies at the next step. */
 export type TestCommand = SimCommand extends infer C
@@ -45,6 +48,8 @@ export interface PPTestApi {
   setFeel(patch: FeelPatch): Promise<void>;
   /** Starts a level; resolves once it runs (its countdown over). */
   loadLevel(id: string, seed: number): Promise<void>;
+  /** A copy of what the level's frames measured so far: frame intervals (real ms), draw calls, triangles. */
+  perf(): PerfReport;
 }
 
 declare global {
@@ -85,6 +90,10 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
       log.warn('debug', `__PP__.events keeps ${logMax} events: the oldest are dropped`);
     }
   });
+
+  // Its own meter, fed by the same frames as the FPS counter's (story 1.24 D7).
+  const perfMeter = createPerfMeter();
+  feedPerfMeter(host, perfMeter);
 
   const requireActive = (method: string) => {
     const active = host.levelSession.active;
@@ -181,6 +190,10 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
         );
       }
       await startAndWait('loadLevel', { levelId: id, seed });
+    },
+
+    perf() {
+      return { ...perfMeter.report() };
     },
   };
 }
