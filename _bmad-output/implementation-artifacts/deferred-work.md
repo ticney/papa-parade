@@ -219,7 +219,7 @@
 ## Deferred from: implementation of story 1-13-autoplay-et-api-de-test-dans-le-navigateur (2026-10-27)
 
 - **`__PP__.setFeel` restarts the level** (D16): story 2.1 replaces it with the journaled `SetFeel` command, applied at the next step with no restart; the patched feel then also reaches the input mapper (which keeps the boot feel's `touchRadiusPx` and stick values until then). Still open from 1.3, « Effective feel in `World` » (2.1). **Resolved in story 2.1:** `setFeel` validates the patch against the sim's effective feel, enqueues the journaled `SetFeel` at the current sim time (no restart) and keeps the value for the next restart (`levelSession.rememberFeel`); `levelFeel()` in `boot.ts` reads `sim.world.feel`, so an `input` patch reaches the hit test on the next pointer event.
-- **Screenshot references are per OS** (`darwin` from the Mac, `linux` from Docker `linux/amd64`): any content or art change means refreshing both, with `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` and the Docker command of story 1.13 › Screenshots. A script wrapping the Docker command is not worth it yet; add one if refreshing becomes frequent.
+- **Screenshot references are per OS** (`darwin` from the Mac): any content or art change means refreshing them with `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots`. **Resolved (maintenance, 2026-10-29):** Geo dropped the Linux references and the Docker command; the screenshot assertion only runs on macOS.
 - **Autoplay is silent** (D12): a « play with sound » option would need a gesture; not needed for agents. In debug builds a level started with no gesture (autoplay, `__PP__.loadLevel` from the start screen) skips the sound preload and logs one `info`.
 - **Existing specs still read the `data-pp-*` mirrors**; migrate them to `__PP__` when the e2e suite is reworked (with the 1.9 « E2E brittleness » item), not one by one.
 - **`__PP__` in a playtest build without `?debug=1`, and in production, is not e2e-tested** (e2e runs on the dev server): the predicate is unit-tested (`isTestApiEnabled`) and `dist/` is grepped by hand; story 1.24 (bundle inspection, perf spec on the build).
@@ -432,7 +432,7 @@
 
 ## Deferred from: code review of story-3.1 (2026-10-28)
 
-- **The Linux screenshot references are stale** (`autoplay-frozen-{chromium,webkit}-linux.png`): story 3.1 added a gauge to the HUD pill and only the darwin ones were refreshed (no Docker on the dev machine). Geo chose to merge without them: the CI run of `autoplay.spec.ts` on ubuntu fails until they are regenerated with the Docker command of story 1.13. Geo also finds this visual test not worth the upkeep: decide whether to drop it or to regenerate the Linux references.
+- **The Linux screenshot references are stale** (`autoplay-frozen-{chromium,webkit}-linux.png`): story 3.1 added a gauge to the HUD pill and only the darwin ones were refreshed. **Resolved (maintenance, 2026-10-29):** Geo dropped the Linux references; the screenshot assertion of `autoplay.spec.ts` now runs on macOS only, so the ubuntu CI no longer fails on it.
 
 ## Deferred from: implementation of story 1-24-build-de-playtest-partageable-et-budget-de-performance (2026-10-28)
 

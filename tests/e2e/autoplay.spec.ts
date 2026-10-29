@@ -126,7 +126,9 @@ test.describe('autoplay', () => {
     // The world UI follows the frozen world: wait for the icon, then for a few settled frames.
     await expect(page.locator('.pp-threat-icon')).toBeVisible();
     await waitFrames(page, 10);
-    await expect(page).toHaveScreenshot('autoplay-frozen.png');
+    // The screenshot references are macOS only (Geo's call: no Linux references to keep up); the
+    // rest of the test (a frozen world, one telegraphed threat, an icon on screen) runs everywhere.
+    if (process.platform === 'darwin') await expect(page).toHaveScreenshot('autoplay-frozen.png');
     expect(problems).toEqual([]);
   });
 
