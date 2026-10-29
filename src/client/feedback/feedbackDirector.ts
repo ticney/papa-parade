@@ -21,8 +21,8 @@ export interface FeedbackDirectorDeps {
 
 export interface FeedbackDirector {
   /**
-   * Plays what the table says for `name`: the sound, the vibration, the ring and the camera
-   * effect of its cue, in that order, in this very call (response sound and haptic fire at
+   * Plays what the table says for `name`: the sound, its layers, the vibration, the ring and the
+   * camera effect of its cue, in that order, in this very call (response sound and haptic fire at
    * judgement, never deferred). An event the table does not list does nothing. A part that cannot
    * play is skipped and the others still play. `world` is read, never written.
    */
@@ -114,8 +114,8 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
     return null;
   };
 
-  // Plays the parts of one cue: the sound, the vibration, the ring, the camera effect, in that
-  // order. `name` is only what a warning calls it by (an event name, or `cue <id>`).
+  // Plays the parts of one cue: the sound, its layers, the vibration, the ring, the camera effect,
+  // in that order. `name` is only what a warning calls it by (an event name, or `cue <id>`).
   const play = (
     name: string,
     id: string,
@@ -127,6 +127,13 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
     if (cue.audio !== undefined) {
       const { clip, bus, gainPct } = cue.audio;
       attempt(name, 'sound', undefined, () => audio.playOneShot(clip, bus, gainPct));
+    }
+    // Layers are part of the cue's sound (the baby's laugh on a perfect): same call, array order,
+    // each guarded alone. Not cues of their own: no ring, vibration or report.
+    for (const layer of cue.layers ?? []) {
+      attempt(name, 'sound layer', undefined, () =>
+        audio.playOneShot(layer.clip, layer.bus, layer.gainPct),
+      );
     }
     if (cue.haptic !== undefined) {
       const kind = cue.haptic;

@@ -146,8 +146,8 @@
 - **Volumes and the « Vibrations » toggle** (`save.settings.volumes`, `settings.haptics`): story 2.8. The bus gains of `feedback.json` are the mix; the player's volumes will multiply them.
 - **More visual and camera kinds** (`flash`, `bubble`, `zoom`) and the full twins: stories 2.4, 2.5. The in-game reduced-motion setting: story 2.10 (today the OS query only).
 - **Sound waves as final art**, waves anchored on threats or props (`anchor` gains values with 1.11 / 1.15): E7 and those stories. **Partly resolved in story 1.11:** `anchor: 'threat'` (the threat an event names, for the cues a threat def points at); props stay with 1.15. Today's ring is small on screen (0.6 m in an 8 m room, ink on cream) and starts hidden under Papa's body; Geo tunes `maxRadiusM` / `durationMs` in `feedback.json` and the ring's thickness constant in `soundWaves.ts`.
-- **Per-level audio manifest** (only the clips a level uses): with `LevelSchema`, story 1.10 or later. Today every clip of `feedback.json` is preloaded. *Still open after story 1.10: with story 1.11 (the first threat cues with sounds) or 1.18.* *Still open after story 1.11 (four tiny clips added, every clip is still preloaded): moved to story 1.18.* *Still open after story 1.18 (it adds no clip): moved to story 2.3.*
-- **Real sounds.** The three `.m4a` files are synthesized beeps (`npm run assets:audio`, macOS only); replace them under the same names (stories 2.3, 7.5). Nobody has listened to them yet: see the Completion Notes of story 1.9.
+- **Per-level audio manifest** (only the clips a level uses): with `LevelSchema`, story 1.10 or later. Today every clip of `feedback.json` is preloaded. *Still open after story 1.10: with story 1.11 (the first threat cues with sounds) or 1.18.* *Still open after story 1.11 (four tiny clips added, every clip is still preloaded): moved to story 1.18.* *Still open after story 1.18 (it adds no clip): moved to story 2.3.* *Story 2.3 (2026-10-29), D6: not done. One level, about 20 clips, about 220 KB: preloading the whole table is the same as a per-level list. Moved to story 7.5 (several ages, several libraries), where it starts to matter.*
+- **Real sounds.** The three `.m4a` files are synthesized beeps (`npm run assets:audio`, macOS only); replace them under the same names (stories 2.3, 7.5). Nobody has listened to them yet: see the Completion Notes of story 1.9. **Story 2.3 (2026-10-29):** the parry is now a toy squeak, the Firmness has a cupboard clack and a perfect adds a baby's laugh (`resp_parry`, `resp_firm`, `baby_laugh_perfect`), still synthesized (`tools/audio/cultSounds.ts`) and, again, not heard by the agent that wrote them; Geo listens through the debug overlay's « Sons » folder. Real recordings (or the 7.5 library) replace any clip under the same name, and `npm run assets:audio -- --only …` leaves a recorded file alone.
 
 
 ## Deferred from: code review of story 1-9-retours-de-base (2026-10-27)
@@ -185,7 +185,7 @@
 - **A real lamp in the room and real gag / lift animations** (D9, D10): the room's lights are « the lamp » and the lift is a hop of the baby sphere. Reason: E7 (or a Blender pass if Geo wants the lamp sooner).
 - **The halo and chevron animations run on real time**, so they keep moving behind the pause panel (like the tap marker). Reason: accessibility pass, story 2.10.
 - **`?threats=off` is a test switch** (debug builds only). Remove it if story 1.13's `window.__PP__.loadLevel()` makes it redundant.
-- **Placeholder sounds and ring sizes** of the four outlet cues (`tel_outlet`, `resp_parry`, `resp_parry_perfect`, `gag_outlet`) are synthesized and unheard by the dev; volumes and radii in `feedback.json` are starting values. Reason: Geo tunes them; stories 2.3 and 7.5 replace the clips under the same names.
+- **Placeholder sounds and ring sizes** of the four outlet cues (`tel_outlet`, `resp_parry`, `resp_parry_perfect`, `gag_outlet`) are synthesized and unheard by the dev; volumes and radii in `feedback.json` are starting values. Reason: Geo tunes them; stories 2.3 and 7.5 replace the clips under the same names. **Story 2.3 (2026-10-29):** `resp_parry` is a new clip and `resp_parry_perfect.m4a` is gone (the perfect cue plays `resp_parry` plus the laugh, same cue id); `tel_outlet` and `gag_outlet` are unchanged placeholders. The rest moves to story 7.5.
 - **A press that resolves its threat in the frame it is pressed** keeps the icon and highlight up for one more frame (the highlight must be drawn once). Reason: by design of the NFR2 budget; revisit if it reads as a flicker in the playtest.
 
 ## Deferred from: code review of story 1-11-parer-la-prise-electrique-au-tap (2026-10-27)
@@ -258,7 +258,7 @@
 
 ## Deferred from: implementation of story 1-15-physique-legere-des-objets (2026-10-27)
 
-- **No sound, haptic or feedback ring for `PropImpact` and `PropBroken`.** `content/feedback.json` lists neither event, so they are harmless today. Sounds and haptics arrive with stories 2.3 and 2.5 (the « ring anchored on props » item moves there).
+- **No sound, haptic or feedback ring for `PropImpact` and `PropBroken`.** `content/feedback.json` lists neither event, so they are harmless today. Sounds and haptics arrive with stories 2.3 and 2.5 (the « ring anchored on props » item moves there). **Story 2.3 (2026-10-29), D6: not done.** A prop sound needs a world visual anchored on a prop, an anchor kind the schema lacks (`papa | baby | threat | object`). Moved to story 2.5 (« effets de feeling »), with the « ring anchored on props » item.
 - **Noise and mess are read, not consumed.** The noise gauge (3.1) reads only `PropImpact`; Mama's sigh (1.22) reads `world.mess`. Neither exists yet. **Resolved in story 3.1:** `runNoise` reads `PropImpact` (with `PhoneRinging` and `BabyCrying`) of this step; the mess stays 1.22's.
 - **Papa and the baby do not collide with props, and props are not nav obstacles.** They walk through a fallen mug. Revisit when a gag or E6's dog needs it.
 - **A broken prop keeps its body and has no shards.** It is drawn squashed (`BROKEN_SCALE_Y`) and still collides. Shards and a removed body are E7 art.
@@ -388,7 +388,7 @@
 
 ## Deferred from: implementation of story 1-21-le-silence-suspect (2026-10-28)
 
-- **The silence's sounds are placeholders** (`tel_silence_found`, `gag_silence_mischief`, and the `silence_started` cue, which has no sound on purpose): story 2.3 gives the silence its own `tel_*` sound under the same ids, no code change.
+- **The silence's sounds are placeholders** (`tel_silence_found`, `gag_silence_mischief`, and the `silence_started` cue, which has no sound on purpose): story 2.3 gives the silence its own `tel_*` sound under the same ids, no code change. **Story 2.3 (2026-10-29), D6:** the silence already has its own `tel_silence_found` (distinct from the five other telegraphs, now enforced by `content:check` and the « no two clips are alike » test); the clips themselves stay placeholders that Geo judges in the « Sons » folder and asks to redo clip by clip (story 7.5 for the final ones). `silence_started` stays haptic-only on purpose.
 - **The music cut is a fade of the one music loop** (`audio.setMusicMuted`). Story 2.6's stems keep reading `world.silence.startedAt` and replace the loop; the bubble and the cut already follow the state, not the event.
 - **No mischief is drawn yet.** The two surprise gags (`tissues_everywhere`, `crayon_scribbles`) add to `world.mess.mischiefs` and play a ring and a sound: a real animation and a visible mess are E7. Decided: story 1.22 counts `mischiefs` in Mama's Sigh (a mischief is mess); its AC wires it. *Done in story 1.22: `sighPerMischiefPoints` per mischief.*
 - **`TapBaby` outside a silence only walks Papa to the baby** (D9). Story 4.1 replaces that branch with « take the baby ».
@@ -496,3 +496,25 @@
 - **Nothing ties `verbKey` to the response, and the `dodge` default verb is written twice** (the schema's null rule and `DEFAULT_VERB_KEYS` in `threatMarkers.ts`). Reason: only reachable once story 5.1 adds the `dodge` response; derive both from one constant then.
 - **A change of `--pp-verb-scale` does not refit by itself.** Only the surface key is watched per frame, and the CSS size of `.pp-threat-verb` does not read the scale. Reason: story 2.10 flips the variable and must call `refitVerbs` (and may want `calc(... * var(--pp-verb-scale))`).
 - **The verb's 10 px `-webkit-text-stroke` has miter joins and there is no `forced-colors` rule.** Accented capitals (« RÉVEILLE-TOI ! ») may show spikes. Reason: visual, check in Geo's device pass.
+
+
+## Deferred from: story 2-3-sons-cultes-rire-du-bebe-et-telegraphes-distincts (2026-10-29)
+
+- **The three new clips were never heard by the agent that wrote them.** Squeak, clack and laugh are synthesized (`tools/audio/cultSounds.ts`); the laugh is the weakest. Reason: Geo judges the sound through the debug overlay's « Sons » folder; the constants at the top of the file are the knobs, and a recording replaces any clip under the same name (`--only` protects the others).
+- **The laugh plays on every perfect** (no cooldown). Reason: a « not twice in 5 s » rule would be a `feel.json` value and a client rule; decide after playing.
+- **A layer has no delay or own gain curve** (only `gainPct` and its bus, played at the same moment as `audio`). Reason: nothing needs it yet; a `delayMs` on the layer is the natural extension if the laugh should follow the squeak by a beat.
+- **`resp_<response>` is a naming rule, not a table.** A new response type (`wait`, `nothing`, `dodge`, stories 4.6, 4.9, 5.1) needs its own `resp_*` clip and `PLACEHOLDER_CLIPS` entry before `content:check` accepts a def. Reason: intended, the rule is « one cult sound per response type ».
+- **`TestHost.auditionCue` returns a boolean** (the story's sketch said `void`) so the overlay can say that the audio is not running. Reason: the debug module must not import the engine.
+- **`afconvert` output is still not byte-reproducible**: regenerating all clips changes every `.m4a`. Reason: `--only` is the workaround (this story committed three clips and one deletion).
+
+## Deferred from: code review of story-2-3-sons-cultes-rire-du-bebe-et-telegraphes-distincts (2026-10-29)
+
+- **Layers are ignored by the telegraph and gag sound rules** (`checkThreatSounds`, `checkTelegraphClips` read `audio.clip` only). Reason: nothing layers a telegraph or a gag yet.
+- **The disruption `answer` cue has no sound rule, and a `uiElement`-anchored telegraph can be reported twice by the clash check.** Reason: only content already reported as invalid; minor.
+- **The sound board reports « played X » when the clip is not decoded** (`playOneShot` skips silently before the first preload). Reason: it needs a decoded-clip check or a boolean from the audio engine; AC 14 only asks for the « not running » case.
+- **The sound board is built once from `feedback.json` and goes stale on a hot reload.** Reason: dev-only; the feel panel's rebuild-on-change is the model if it matters.
+
+## Deferred from: story 2-3 D6 items completed by the code review (2026-10-29)
+
+- **Telegraph and gag clips are unchanged placeholders.** Reason: they are already distinct (the tests and `content:check` prove it); Geo listens through the « Sons » board and asks for changes clip by clip.
+- **The catastrophe gauge's alert sound and the chrono-ring's last-arc vibration** (GDD v2.2) are not in `epics.md` yet. Reason: out of scope for 2.3; they arrive through `gds-correct-course`.

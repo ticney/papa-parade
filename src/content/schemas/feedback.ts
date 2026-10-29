@@ -123,6 +123,14 @@ const ShakeSchema = z
 const CueSchema = z
   .strictObject({
     audio: AudioCueSchema.optional(),
+    layers: z
+      .array(AudioCueSchema)
+      .min(1)
+      .max(3)
+      .optional()
+      .describe(
+        'Extra sounds played at the same moment as `audio`, in order (the baby laughs on a perfect). A cue with layers needs an `audio`; a layer has no ring, vibration or cue of its own.',
+      ),
     visual: z
       .discriminatedUnion('kind', [SoundWaveSchema, UiElementSchema])
       .optional()
@@ -146,6 +154,10 @@ const CueSchema = z
       cue.camera !== undefined,
     { error: 'a cue needs at least one of audio, visual, haptic, camera' },
   )
+  .refine((cue) => cue.layers === undefined || cue.audio !== undefined, {
+    error: 'a cue with layers needs an audio: the layers play right after it',
+    path: ['layers'],
+  })
   .describe(
     'What the player hears, sees and feels for one signal. Every audio has a visual and a haptic.',
   );

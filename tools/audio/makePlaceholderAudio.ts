@@ -7,22 +7,24 @@ import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
 import { createRng, nextFloat, type RngState } from '@shared/rng';
 import { ROOT } from '../assets/paths.ts';
+import { synthBabyLaugh, synthFirm, synthParry } from './cultSounds.ts';
+import { normalize, PEAK_LOUD, SAMPLE_RATE_HZ, SEED, samplesOf } from './synthKit.ts';
 
-// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21 and 3.2 (the outlet's four cues, then the
-// stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled swell and
-// Papa's snore, then the phone's ring and Papa's pick-up click, then the silence's « ah-ha » chirp
-// and the baby's paper rustle), synthesized so that the whole audio pipeline
-// works end to end with no human (golden rule). Real sounds replace the `.m4a` files under the same
-// names (stories 2.3 and 7.5). The tool is macOS only (`afconvert`) and CI never runs it.
+// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3 and 3.2 (the outlet's cues,
+// then the stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled
+// swell and Papa's snore, then the phone's ring and Papa's pick-up click, then the silence's « ah-ha »
+// chirp and the baby's paper rustle; story 2.3 replaced the parry's pop by a toy squeak, dropped the
+// perfect's chime and added the Firmness's cupboard clack and the baby's laugh, in `cultSounds.ts`; story 3.2 added Mama's door slam and the lost star's cue),
+// synthesized so that the whole audio pipeline works end to end with no human (golden rule). Real
+// sounds replace the `.m4a` files under the same names (story 7.5, or Geo's recordings; `--only`
+// regenerates some clips and leaves a recorded one alone). The tool is macOS only (`afconvert`) and
+// CI never runs it.
 
-export const SAMPLE_RATE_HZ = 44_100;
+export { SAMPLE_RATE_HZ, synthBabyLaugh, synthFirm, synthParry };
 export const AAC_BITRATE_BPS = 64_000;
-const SEED = 0x9a9a;
 
 /** Fade at both ends of a loop so the loop point does not click, in ms. */
 const LOOP_FADE_MS = 5;
-/** Loudest sample of the babble and the bump, as a share of full scale (-6 dBFS is 0.501). */
-const PEAK_LOUD = 0.45;
 /** Loudest sample of the music: around -12 dBFS. */
 const PEAK_MUSIC = 0.25;
 
@@ -59,20 +61,6 @@ const TEL_BUZZ_HZ = 55;
 const TEL_BUZZ_DEPTH = 0.5;
 const TEL_ATTACK_MS = 8;
 const TEL_RELEASE_MS = 40;
-
-const PARRY_LENGTH_MS = 150;
-const PARRY_PITCH_HZ = { from: 520, to: 780 };
-const PARRY_ATTACK_MS = 2;
-const PARRY_DECAY_S = 0.04;
-const PARRY_RELEASE_MS = 10;
-
-const PERFECT_LENGTH_MS = 350;
-/** The chime rings after the pop: two sines a fifth apart. */
-const PERFECT_CHIME_HZ = [1046.5, 1568];
-const PERFECT_CHIME_DELAY_MS = 60;
-const PERFECT_CHIME_DECAY_S = 0.09;
-const PERFECT_CHIME_GAIN = 0.7;
-const PERFECT_RELEASE_MS = 25;
 
 const GAG_LENGTH_MS = 500;
 const GAG_CRACKLE_MS = 160;
@@ -217,18 +205,8 @@ const STAR_LOST_RELEASE_MS = 20;
 const THUMP_ATTACK_MS = 2;
 const THUMP_AUDIBLE_FLOOR = 0.001;
 
-const samplesOf = (ms: number): number => Math.round((ms / 1000) * SAMPLE_RATE_HZ);
 const between = (rng: RngState, range: { min: number; max: number }): number =>
   range.min + nextFloat(rng) * (range.max - range.min);
-
-/** Scales `samples` so that the loudest one is `peak`. */
-function normalize(samples: Float32Array, peak: number): void {
-  let loudest = 0;
-  for (const value of samples) loudest = Math.max(loudest, Math.abs(value));
-  if (loudest === 0) return;
-  const gain = peak / loudest;
-  for (let i = 0; i < samples.length; i++) samples[i] = (samples[i] as number) * gain;
-}
 
 /** Linear fade in over the first and out over the last `fadeMs`: the buffer starts and ends at zero. */
 function fadeEnds(samples: Float32Array, fadeMs: number): void {
@@ -342,49 +320,6 @@ export function synthTelegraph(): Float32Array {
   }
   out[0] = 0;
   out[out.length - 1] = 0;
-  normalize(out, PEAK_LOUD);
-  return out;
-}
-
-/** A bright « pop »: a sine that jumps up in pitch and dies fast. */
-export function synthParry(): Float32Array {
-  const out = new Float32Array(samplesOf(PARRY_LENGTH_MS));
-  const attack = samplesOf(PARRY_ATTACK_MS);
-  const release = samplesOf(PARRY_RELEASE_MS);
-  let phase = 0;
-  for (let i = 0; i < out.length; i++) {
-    const seconds = i / SAMPLE_RATE_HZ;
-    const frequencyHz =
-      PARRY_PITCH_HZ.to -
-      (PARRY_PITCH_HZ.to - PARRY_PITCH_HZ.from) * Math.exp(-seconds / PARRY_DECAY_S);
-    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
-    const envelope =
-      Math.min(1, i / attack, (out.length - i) / release) * Math.exp(-seconds / PARRY_DECAY_S);
-    out[i] = Math.sin(phase) * envelope;
-  }
-  out[0] = 0;
-  out[out.length - 1] = 0;
-  normalize(out, PEAK_LOUD);
-  return out;
-}
-
-/** The pop plus a higher chime that rings after it. */
-export function synthParryPerfect(): Float32Array {
-  const out = new Float32Array(samplesOf(PERFECT_LENGTH_MS));
-  const pop = synthParry();
-  out.set(pop.subarray(0, Math.min(pop.length, out.length)));
-  const start = samplesOf(PERFECT_CHIME_DELAY_MS);
-  for (let i = start; i < out.length; i++) {
-    const seconds = (i - start) / SAMPLE_RATE_HZ;
-    let chime = 0;
-    for (const frequencyHz of PERFECT_CHIME_HZ)
-      chime += Math.sin(2 * Math.PI * frequencyHz * seconds);
-    const attack = Math.min(1, (i - start) / samplesOf(PARRY_ATTACK_MS));
-    out[i] =
-      (out[i] as number) +
-      PERFECT_CHIME_GAIN * attack * chime * Math.exp(-seconds / PERFECT_CHIME_DECAY_S);
-  }
-  fadeEnds(out, PERFECT_RELEASE_MS);
   normalize(out, PEAK_LOUD);
   return out;
 }
@@ -810,7 +745,8 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'papa_bump', synth: synthBump },
   { clip: 'tel_outlet', synth: synthTelegraph },
   { clip: 'resp_parry', synth: synthParry },
-  { clip: 'resp_parry_perfect', synth: synthParryPerfect },
+  { clip: 'resp_firm', synth: synthFirm },
+  { clip: 'baby_laugh_perfect', synth: synthBabyLaugh },
   { clip: 'gag_outlet', synth: synthGagOutlet },
   { clip: 'tel_stairs', synth: synthTelegraphStairs },
   { clip: 'gag_stairs', synth: synthGagStairs },
@@ -864,19 +800,73 @@ const afconvert: ConvertWav = async (wavPath, m4aPath) => {
   });
 };
 
+const KNOWN_CLIPS: readonly string[] = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+
+const unknownClips = (
+  names: readonly string[],
+  known: readonly string[],
+): Result<null, AppError> => {
+  const unknown = names.filter((name) => !known.includes(name));
+  if (unknown.length === 0) return ok(null);
+  return err({
+    kind: 'assets',
+    message: `unknown clip${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')}; the known clips are ${known.join(', ')}`,
+  });
+};
+
 /**
- * Synthesizes every placeholder clip and writes the `.m4a` files into `outDir`, all or none: each
- * clip is converted into a temporary directory first, and `outDir` is touched only when every
- * conversion has succeeded, so a failure never leaves a mix of fresh, stale and truncated files
- * (which `content:check` would accept, since it only looks that a file exists).
+ * Reads `--only a,b,c` (or `--only=a,b,c`) from `argv`: the clips to regenerate. `null` when the
+ * flag is absent (every clip, as before). A missing value, an empty name or a name that is not in
+ * `known` is an `err` that lists the known names.
+ */
+export function parseOnly(
+  argv: readonly string[],
+  known: readonly string[],
+): Result<string[] | null, AppError> {
+  let value: string | undefined;
+  let isGiven = false;
+  for (const [index, arg] of argv.entries()) {
+    if (arg === '--only') {
+      isGiven = true;
+      value = argv[index + 1];
+    } else if (arg.startsWith('--only=')) {
+      isGiven = true;
+      value = arg.slice('--only='.length);
+    }
+  }
+  if (!isGiven) return ok(null);
+  const names = value?.split(',') ?? [];
+  if (value === undefined || value.startsWith('--') || names.some((name) => name === '')) {
+    return err({
+      kind: 'assets',
+      message: `--only needs a comma-separated list of clips, without empty names; the known clips are ${known.join(', ')}`,
+    });
+  }
+  const checked = unknownClips(names, known);
+  return checked.ok ? ok(names) : checked;
+}
+
+/**
+ * Synthesizes the placeholder clips (all of them, or the `only` ones) and writes the `.m4a` files
+ * into `outDir`, all or none of the selected clips: each clip is converted into a temporary
+ * directory first, and `outDir` is touched only when every conversion has succeeded, so a failure
+ * never leaves a mix of fresh, stale and truncated files (which `content:check` would accept, since
+ * it only looks that a file exists). A clip outside `only` is never touched: a recorded file stays.
  */
 export async function generatePlaceholderClips(
   outDir: string,
   convert: ConvertWav = afconvert,
+  only: readonly string[] | null = null,
 ): Promise<Result<string[], AppError>> {
+  if (only !== null) {
+    const checked = unknownClips(only, KNOWN_CLIPS);
+    if (!checked.ok) return checked;
+  }
+  const selected =
+    only === null ? PLACEHOLDER_CLIPS : PLACEHOLDER_CLIPS.filter(({ clip }) => only.includes(clip));
   const work = await mkdtemp(join(tmpdir(), 'pp-audio-'));
   try {
-    for (const { clip, synth } of PLACEHOLDER_CLIPS) {
+    for (const { clip, synth } of selected) {
       const wavPath = join(work, `${clip}.wav`);
       await writeFile(wavPath, encodeWav(synth()));
       const converted = await convert(wavPath, join(work, `${clip}.m4a`));
@@ -886,7 +876,7 @@ export async function generatePlaceholderClips(
     }
     await mkdir(outDir, { recursive: true });
     const written: string[] = [];
-    for (const { clip } of PLACEHOLDER_CLIPS) {
+    for (const { clip } of selected) {
       const target = join(outDir, `${clip}.m4a`);
       await copyFile(join(work, `${clip}.m4a`), target);
       written.push(target);
@@ -898,7 +888,17 @@ export async function generatePlaceholderClips(
 }
 
 async function main(): Promise<void> {
-  const result = await generatePlaceholderClips(join(ROOT, 'public', 'assets', 'audio'));
+  const only = parseOnly(process.argv.slice(2), KNOWN_CLIPS);
+  if (!only.ok) {
+    log.error('assets', only.error.message);
+    process.exitCode = 1;
+    return;
+  }
+  const result = await generatePlaceholderClips(
+    join(ROOT, 'public', 'assets', 'audio'),
+    afconvert,
+    only.value,
+  );
   if (!result.ok) {
     log.error('assets', result.error.message);
     process.exitCode = 1;

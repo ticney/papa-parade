@@ -19,4 +19,24 @@ describe('feedbackClips', () => {
     };
     expect(feedbackClips(table)).toEqual(['baby_babble_loop', 'music_crawler_calm', 'papa_bump']);
   });
+
+  it("lists the clips of a cue's layers, once, sorted", () => {
+    const table = createTestFeedback();
+    table.cues.cheer = {
+      audio: { clip: 'papa_bump', bus: 'sfx', gainPct: 100 },
+      layers: [
+        { clip: 'baby_laugh_perfect', bus: 'voice', gainPct: 100 },
+        { clip: 'baby_laugh_perfect', bus: 'voice', gainPct: 50 },
+        { clip: 'env_applause', bus: 'sfx', gainPct: 100 },
+      ],
+      haptic: 'light',
+    };
+    expect(feedbackClips(table)).toEqual([
+      'baby_babble_loop',
+      'baby_laugh_perfect',
+      'env_applause',
+      'music_crawler_calm',
+      'papa_bump',
+    ]);
+  });
 });

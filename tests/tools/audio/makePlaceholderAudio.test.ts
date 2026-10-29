@@ -8,10 +8,13 @@ import {
   encodeWav,
   generatePlaceholderClips,
   PLACEHOLDER_CLIPS,
+  parseOnly,
   SAMPLE_RATE_HZ,
   synthBabble,
+  synthBabyLaugh,
   synthBump,
   synthDoorSlam,
+  synthFirm,
   synthGagCoffeeTable,
   synthGagOutlet,
   synthGagPapaAsleep,
@@ -19,7 +22,6 @@ import {
   synthGagStairs,
   synthMusic,
   synthParry,
-  synthParryPerfect,
   synthPhoneAnswer,
   synthStarLost,
   synthStarStamp,
@@ -106,19 +108,91 @@ describe('placeholder audio', () => {
     expect(longestSilenceS(doubled)).toBeLessThan(0.4);
   });
 
-  it('has the lengths of the outlet clips: 300, 150, 350 and 500 ms', () => {
+  it('has the lengths of the outlet clips: 300 and 500 ms', () => {
     const ms = (samples: Float32Array): number => (samples.length / SAMPLE_RATE_HZ) * 1000;
     expect(ms(synthTelegraph())).toBeCloseTo(300, 0);
-    expect(ms(synthParry())).toBeCloseTo(150, 0);
-    expect(ms(synthParryPerfect())).toBeCloseTo(350, 0);
     expect(ms(synthGagOutlet())).toBeCloseTo(500, 0);
   });
 
-  it('lists the four outlet clips by the names the feedback table uses', () => {
+  it('lists the outlet clips and the cult sounds by the names the feedback table uses', () => {
     const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
-    for (const clip of ['tel_outlet', 'resp_parry', 'resp_parry_perfect', 'gag_outlet']) {
+    for (const clip of [
+      'tel_outlet',
+      'gag_outlet',
+      'resp_parry',
+      'resp_firm',
+      'baby_laugh_perfect',
+    ]) {
       expect(names, clip).toContain(clip);
     }
+    // Story 2.3 D2: the perfect plays the success's clip, its sparkle chime is gone.
+    expect(names).not.toContain('resp_parry_perfect');
+  });
+
+  describe('the cult sounds (story 2.3)', () => {
+    const ms = (samples: Float32Array): number => (samples.length / SAMPLE_RATE_HZ) * 1000;
+
+    it('has the lengths of the recipes: a 200-260 ms squeak, a 100-160 ms clack, a 700-900 ms laugh', () => {
+      expect(ms(synthParry())).toBeGreaterThanOrEqual(200);
+      expect(ms(synthParry())).toBeLessThanOrEqual(260);
+      expect(ms(synthFirm())).toBeGreaterThanOrEqual(100);
+      expect(ms(synthFirm())).toBeLessThanOrEqual(160);
+      expect(ms(synthBabyLaugh())).toBeGreaterThanOrEqual(700);
+      expect(ms(synthBabyLaugh())).toBeLessThanOrEqual(900);
+    });
+
+    it('makes the squeak rise then fall: it spends more time above 2 kHz-ish pitch in the middle than at the ends', () => {
+      // Zero crossings per window are a cheap pitch meter: the squeak turns at about a third of its length.
+      const samples = synthParry();
+      const rate = (from: number, to: number): number => {
+        let crossings = 0;
+        for (let i = Math.max(1, from); i < to; i++) {
+          if ((samples[i - 1] as number) < 0 !== (samples[i] as number) < 0) crossings++;
+        }
+        return crossings / ((to - from) / SAMPLE_RATE_HZ) / 2;
+      };
+      const window = Math.round(0.03 * SAMPLE_RATE_HZ);
+      const start = rate(
+        Math.round(0.01 * SAMPLE_RATE_HZ),
+        Math.round(0.01 * SAMPLE_RATE_HZ) + window,
+      );
+      const turn = rate(
+        Math.round(0.07 * SAMPLE_RATE_HZ),
+        Math.round(0.07 * SAMPLE_RATE_HZ) + window,
+      );
+      const end = rate(
+        samples.length - Math.round(0.06 * SAMPLE_RATE_HZ),
+        samples.length - Math.round(0.03 * SAMPLE_RATE_HZ),
+      );
+      expect(turn).toBeGreaterThan(start);
+      expect(turn).toBeGreaterThan(end);
+    });
+
+    it('laughs in 4 to 6 syllables: bursts of energy over a 10 ms RMS envelope', () => {
+      const samples = synthBabyLaugh();
+      const window = Math.round(0.01 * SAMPLE_RATE_HZ);
+      const rms: number[] = [];
+      for (let from = 0; from + window <= samples.length; from += window) {
+        let sum = 0;
+        for (let i = from; i < from + window; i++) sum += (samples[i] as number) ** 2;
+        rms.push(Math.sqrt(sum / window));
+      }
+      const loudest = Math.max(...rms);
+      // A burst starts when the envelope rises above 35 % of the loudest window and ends under 15 %,
+      // so the breathy inhale at the end (a fifth of the voice) and ripples inside a syllable do not count.
+      let bursts = 0;
+      let isLoud = false;
+      for (const value of rms) {
+        if (!isLoud && value > 0.35 * loudest) {
+          isLoud = true;
+          bursts++;
+        } else if (isLoud && value < 0.15 * loudest) {
+          isLoud = false;
+        }
+      }
+      expect(bursts).toBeGreaterThanOrEqual(4);
+      expect(bursts).toBeLessThanOrEqual(6);
+    });
   });
 
   it('has the lengths of the stairs and coffee-table clips: 400, 500, 600 and 350 ms', () => {
@@ -210,11 +284,16 @@ describe('placeholder audio', () => {
     // shift of one against the other up to `LAG_MAX_MS`: a clip that sounded like another, or like
     // a copy of it started a little later, would correlate with it. Two unrelated sounds stay far from 1.
     const lagMax = Math.round((LAG_MAX_MS * SAMPLE_RATE_HZ) / 1000);
-    const clips = PLACEHOLDER_CLIPS.filter(({ clip }) => /^(tel|gag)_/.test(clip)).map(
-      ({ clip, synth }) => ({ clip, samples: synth() }),
-    );
+    // Story 2.3: the responses and the laugh too (the squeak and the clack must not correlate). The
+    // babble loop is 6 s long and is no cue sound: it would make the sweep slow for nothing.
+    const clips = PLACEHOLDER_CLIPS.filter(
+      ({ clip }) => /^(tel|gag|resp|baby)_/.test(clip) && !clip.endsWith('_loop'),
+    ).map(({ clip, synth }) => ({ clip, samples: synth() }));
     expect(clips.map(({ clip }) => clip)).toEqual(
       expect.arrayContaining([
+        'resp_parry',
+        'resp_firm',
+        'baby_laugh_perfect',
         'tel_stairs',
         'gag_stairs',
         'tel_coffee_table',
@@ -257,6 +336,40 @@ describe('placeholder audio', () => {
   });
 });
 
+describe('parseOnly', () => {
+  const known = ['resp_parry', 'resp_firm', 'baby_laugh_perfect'];
+
+  it('returns null when there is no --only: today\'s "all or none" behaviour', () => {
+    expect(parseOnly(['node', 'makePlaceholderAudio.ts'], known)).toEqual(ok(null));
+  });
+
+  it('reads a comma-separated list, as `--only a,b` or `--only=a,b`', () => {
+    expect(parseOnly(['node', 'x', '--only', 'resp_parry,resp_firm'], known)).toEqual(
+      ok(['resp_parry', 'resp_firm']),
+    );
+    expect(parseOnly(['node', 'x', '--only=baby_laugh_perfect'], known)).toEqual(
+      ok(['baby_laugh_perfect']),
+    );
+  });
+
+  it('refuses an unknown name and lists the known ones', () => {
+    const result = parseOnly(['node', 'x', '--only', 'resp_parry,resp_nope'], known);
+    expect(result).toMatchObject({
+      ok: false,
+      error: { message: expect.stringContaining('resp_nope') },
+    });
+    if (!result.ok) for (const name of known) expect(result.error.message).toContain(name);
+  });
+
+  it.each([
+    ['no value', ['node', 'x', '--only']],
+    ['an empty value', ['node', 'x', '--only=']],
+    ['an empty name', ['node', 'x', '--only', 'resp_parry,,resp_firm']],
+  ])('refuses %s', (_name, argv) => {
+    expect(parseOnly(argv, known).ok).toBe(false);
+  });
+});
+
 describe('generatePlaceholderClips', () => {
   const dirs: string[] = [];
   const tempDir = async (): Promise<string> => {
@@ -284,6 +397,31 @@ describe('generatePlaceholderClips', () => {
     expect((await readdir(out)).sort()).toEqual(
       PLACEHOLDER_CLIPS.map(({ clip }) => `${clip}.m4a`).sort(),
     );
+  });
+
+  it('writes only the clips it is asked for with `only`, and leaves the others alone (story 2.3 AC 15)', async () => {
+    const out = await tempDir();
+    const other = join(out, 'tel_outlet.m4a');
+    await writeFile(other, 'recorded by Geo');
+    const result = await generatePlaceholderClips(out, converter(), ['resp_parry', 'resp_firm']);
+    expect(result.ok).toBe(true);
+    expect((await readdir(out)).sort()).toEqual([
+      'resp_firm.m4a',
+      'resp_parry.m4a',
+      'tel_outlet.m4a',
+    ]);
+    expect(await readFile(other, 'utf8')).toBe('recorded by Geo');
+  });
+
+  it('refuses an unknown clip name in `only`, lists the known ones and writes nothing', async () => {
+    const out = await tempDir();
+    const result = await generatePlaceholderClips(out, converter(), ['resp_parry', 'resp_nope']);
+    expect(result).toMatchObject({
+      ok: false,
+      error: { message: expect.stringContaining('resp_nope') },
+    });
+    if (!result.ok) expect(result.error.message).toContain('baby_laugh_perfect');
+    expect(await readdir(out)).toEqual([]);
   });
 
   it('touches nothing in the output directory when a conversion fails, and names the clip', async () => {
