@@ -359,6 +359,20 @@ describe('checkContent on feedback.json references', () => {
     expect(problems[0]?.message).toContain('npm run assets:audio');
   });
 
+  it('reports a layer clip with no file, at the path of the layer', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      const cues = feedback.cues as Record<string, { layers: { clip: string }[] }>;
+      for (const layer of cues.resp_parry_perfect?.layers ?? []) layer.clip = 'baby_laugh_oops';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'cues.resp_parry_perfect.layers[0].clip',
+        message: expect.stringContaining('npm run assets:audio'),
+      }),
+    ]);
+  });
+
   it('reports a loop clip with no file', async () => {
     await rm(join(root, `public/assets/audio/${live.loops.music.clip}.m4a`));
     expect(await checkContent(root)).toEqual([
@@ -548,24 +562,46 @@ describe('checkContent on threat files', () => {
       ]);
     });
 
-    it.each(['success', 'perfect'])(
-      "reports a parry whose %s plays another response's cult sound",
-      async (role) => {
-        await point(role, 'resp_firm');
-        expect(await checkContent(root)).toEqual([
-          expect.objectContaining({
-            file: FILE,
-            jsonPath: `feedback.${role}`,
-            message: expect.stringMatching(/"resp_firm".*"resp_parry"/),
-          }),
-        ]);
-      },
-    );
+    it.each([
+      ['success', 'resp_firm'],
+      ['perfect', 'resp_firm_perfect'],
+    ])("reports a parry whose %s plays another response's cult sound", async (role, cueId) => {
+      await point(role, cueId);
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: `feedback.${role}`,
+          message: expect.stringMatching(/"resp_firm".*"resp_parry"/),
+        }),
+      ]);
+    });
 
     it('accepts a perfect cue that shares the success clip: the type of response is what you hear', async () => {
       const live = JSON.parse(await readFile(join(root, FEEDBACK), 'utf8'));
       expect(live.cues.resp_parry_perfect.audio.clip).toBe(live.cues.resp_parry.audio.clip);
       expect(await checkContent(root)).toEqual([]);
+    });
+
+    it('reports a perfect cue with no layers: only the laugh tells it from the success', async () => {
+      await point('perfect', 'resp_parry');
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'feedback.perfect',
+          message: expect.stringMatching(/"resp_parry".*no layers.*laugh/),
+        }),
+      ]);
+    });
+
+    it("reports a success cue that carries layers: the laugh is the perfect's", async () => {
+      await point('success', 'resp_parry_perfect');
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'feedback.success',
+          message: expect.stringMatching(/"resp_parry_perfect".*layers.*only a perfect/),
+        }),
+      ]);
     });
 
     it('reports a telegraph cue with no audio', async () => {

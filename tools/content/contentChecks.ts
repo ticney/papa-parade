@@ -199,11 +199,15 @@ async function checkFeedbackReferences(
   const clipPaths: { clip: string; path: (string | number)[] }[] = [
     { clip: table.loops.babble.clip, path: ['loops', 'babble', 'clip'] },
     { clip: table.loops.music.clip, path: ['loops', 'music', 'clip'] },
-    ...Object.entries(table.cues).flatMap(([id, cue]) =>
-      cue.audio === undefined
+    ...Object.entries(table.cues).flatMap(([id, cue]) => [
+      ...(cue.audio === undefined
         ? []
-        : [{ clip: cue.audio.clip, path: ['cues', id, 'audio', 'clip'] }],
-    ),
+        : [{ clip: cue.audio.clip, path: ['cues', id, 'audio', 'clip'] }]),
+      ...(cue.layers ?? []).map((layer, index) => ({
+        clip: layer.clip,
+        path: ['cues', id, 'layers', index, 'clip'],
+      })),
+    ]),
   ];
   for (const { clip, path } of clipPaths) {
     if (await exists(join(rootDir, ...AUDIO_DIR, `${clip}.m4a`))) continue;
@@ -343,6 +347,21 @@ function checkThreatSounds(
     if (!Object.hasOwn(feedback.cues, cueId)) continue;
     const clip = feedback.cues[cueId]?.audio?.clip;
     const jsonPath = formatJsonPath(['feedback', role]);
+    const layerCount = feedback.cues[cueId]?.layers?.length ?? 0;
+    // The response type is what you hear; only the perfect is told apart, by the laugh layered on it.
+    if (clip !== undefined && role === 'perfect' && layerCount === 0) {
+      problems.push({
+        file,
+        jsonPath,
+        message: `the cue "${cueId}" has no layers, but a perfect is told apart from a success by the baby's laugh layered on its sound`,
+      });
+    } else if (role === 'success' && layerCount > 0) {
+      problems.push({
+        file,
+        jsonPath,
+        message: `the cue "${cueId}" has layers, but only a perfect adds a sound (the baby's laugh) to the response sound`,
+      });
+    }
     if (clip === undefined) {
       problems.push({
         file,

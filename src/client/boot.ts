@@ -1168,13 +1168,20 @@ export async function boot(): Promise<void> {
         return debugGroup;
       },
       auditionCue: (cueId) => {
+        // A tap on the pane is a user gesture: a suspended context (a pause, the Result screen) is
+        // resumed here. It starts asynchronously, so this tap plays nothing and the next one does.
+        if (audio.state === 'suspended') audio.resume();
         if (audio.state !== 'running') return false;
         const cue = Object.hasOwn(feedbackTable.cues, cueId)
           ? feedbackTable.cues[cueId]
           : undefined;
         if (cue?.audio === undefined) return false;
         for (const part of [cue.audio, ...(cue.layers ?? [])]) {
-          audio.playOneShot(part.clip, part.bus, part.gainPct);
+          try {
+            audio.playOneShot(part.clip, part.bus, part.gainPct);
+          } catch (cause) {
+            log.warn('audio', `sound board: "${part.clip}" could not play`, cause);
+          }
         }
         return true;
       },

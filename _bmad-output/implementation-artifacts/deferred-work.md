@@ -491,3 +491,15 @@
 - **`resp_<response>` is a naming rule, not a table.** A new response type (`wait`, `nothing`, `dodge`, stories 4.6, 4.9, 5.1) needs its own `resp_*` clip and `PLACEHOLDER_CLIPS` entry before `content:check` accepts a def. Reason: intended, the rule is « one cult sound per response type ».
 - **`TestHost.auditionCue` returns a boolean** (the story's sketch said `void`) so the overlay can say that the audio is not running. Reason: the debug module must not import the engine.
 - **`afconvert` output is still not byte-reproducible**: regenerating all clips changes every `.m4a`. Reason: `--only` is the workaround (this story committed three clips and one deletion).
+
+## Deferred from: code review of story-2-3-sons-cultes-rire-du-bebe-et-telegraphes-distincts (2026-10-29)
+
+- **Layers are ignored by the telegraph and gag sound rules** (`checkThreatSounds`, `checkTelegraphClips` read `audio.clip` only). Reason: nothing layers a telegraph or a gag yet.
+- **The disruption `answer` cue has no sound rule, and a `uiElement`-anchored telegraph can be reported twice by the clash check.** Reason: only content already reported as invalid; minor.
+- **The sound board reports « played X » when the clip is not decoded** (`playOneShot` skips silently before the first preload). Reason: it needs a decoded-clip check or a boolean from the audio engine; AC 14 only asks for the « not running » case.
+- **The sound board is built once from `feedback.json` and goes stale on a hot reload.** Reason: dev-only; the feel panel's rebuild-on-change is the model if it matters.
+
+## Deferred from: story 2-3 D6 items completed by the code review (2026-10-29)
+
+- **Telegraph and gag clips are unchanged placeholders.** Reason: they are already distinct (the tests and `content:check` prove it); Geo listens through the « Sons » board and asks for changes clip by clip.
+- **The catastrophe gauge's alert sound and the chrono-ring's last-arc vibration** (GDD v2.2) are not in `epics.md` yet. Reason: out of scope for 2.3; they arrive through `gds-correct-course`.

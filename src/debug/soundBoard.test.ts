@@ -76,6 +76,29 @@ describe('the sound board (story 2.3 AC 14)', () => {
     expect(status()).toMatch(/touch|tap/i);
   });
 
+  it('leaves the container as it was when the build throws, and the pane is disposed', () => {
+    const host = createFakeTestHost({ content: createTestContent() });
+    const broken = Object.create(host, {
+      content: {
+        get() {
+          throw new Error('no content');
+        },
+      },
+    }) as typeof host;
+    const container = new FakeNode('div', new FakeDocument());
+    const before = container.children.length;
+    expect(() =>
+      createSoundBoard({ host: broken, container: container as unknown as HTMLElement }),
+    ).toThrow('no content');
+    expect(container.children.length).toBe(before);
+    expect(container.findAll('pp-debug-sound-status')).toEqual([]);
+    expect(FakePane.instances.length).toBeGreaterThan(0);
+    expect(FakePane.instances.every((pane) => pane.isDisposed)).toBe(true);
+    // A second attempt on the same container mounts exactly one board.
+    createSoundBoard({ host, container: container as unknown as HTMLElement });
+    expect(container.findAll('pp-debug-sound-status')).toHaveLength(1);
+  });
+
   it('disposes its pane and its status line', () => {
     const { board, pane, container } = createRig();
     board.dispose();

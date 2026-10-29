@@ -52,8 +52,9 @@ export interface TestHost {
   /**
    * Plays the sound of the cue `cueId` of `feedback.json` once, its `audio` then its `layers`, and
    * nothing else: no ring, vibration or `onCue` (story 2.3 AC 14, the sound board). Returns `false`
-   * and plays nothing when the audio context is not running (no gesture yet), or the cue is unknown
-   * or has no sound; the caller says so.
+   * and plays nothing when the audio context is not running (no gesture yet: a suspended one is
+   * resumed by this call, so the next call plays), or the cue is unknown or has no sound; the
+   * caller says so. A part that throws is a `warn` and the others still play.
    */
   auditionCue(cueId: string): boolean;
 }

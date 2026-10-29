@@ -14,7 +14,7 @@ export interface PaneFactory {
  * (each pane appends it again if the page has none), which the playtest's CSP
  * (`default-src 'self'`) refuses; the CSP is not widened for a debug tool. So the `<style>` the
  * library appends is caught before it is inserted, for every pane, and its text is applied through
- * the CSSOM (`adoptedStyleSheets`), which the CSP does not restrict: one sheet per document, kept
+ * the CSSOM (`adoptedStyleSheets`), which the CSP does not restrict: one sheet per factory (so per panel), kept
  * until `dispose`. Where that API is missing the library does what it always does.
  */
 export function createPaneFactory(doc: Document): PaneFactory {
