@@ -46,6 +46,7 @@ describe('Mama’s note of the live salon_crawler', () => {
             mischiefs: world.mess.mischiefs,
           },
           content.feel.mama,
+          false,
         ),
       };
     } finally {

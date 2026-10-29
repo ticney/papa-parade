@@ -37,6 +37,9 @@ export const SIM_HELP = `Usage: npm run sim -- --bot <id> [options]
 
 The report also holds the noise gauge of the level (story 3.1): the mean and max of each game's peak,
 the mean final value and the noise per source, all in % of the gauge (0 in a level with no noise).
+It also tells how the games ended (story 3.2): \`endsByReason\` counts the ended runs per reason
+(\`timer\`, \`mamaWoke\`), \`mamaWokeMeanAtMs\` is the mean sim time Mama woke at, and each run has its
+\`endReason\` and \`lostStars\`.
 `;
 
 const DIGITS = /^\d+$/;

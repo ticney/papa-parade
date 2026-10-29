@@ -702,13 +702,17 @@ body {
 }
 
 .pp-stars {
+  --pp-star-width: 30px;
+  --pp-star-gap: 2px;
+
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--pp-star-gap);
 }
 
 .pp-star {
-  width: 30px;
+  width: var(--pp-star-width);
   height: 32px;
   overflow: visible;
   stroke-linejoin: round;
@@ -763,6 +767,44 @@ body {
   --pp-star-tilt: -7deg;
 }
 
+/* The star a woken Mama took off (story 3.2, mockup `star-lost`): the same shape, dashed, no fill and
+   no shadow, so it reads as a gag, not a failure. It stamps like the earned ones, with their tilt. */
+.pp-star-lost {
+  transform: rotate(var(--pp-star-tilt));
+}
+
+.pp-star-lost .pp-star-shadow {
+  display: none;
+}
+
+.pp-star-lost .pp-star-shape {
+  fill: none;
+  stroke: var(--pp-color-ink-soft);
+  stroke-width: 2.6;
+  stroke-dasharray: 3.2 2.4;
+}
+
+/* The « −1 » chip of a lost slot (mockup `.minus`): a sibling after the five slots, hung off the
+   slot's lower right corner. It is placed from the right edge of the row, by the number of slots
+   behind its own (`--pp-lost-from-end`), so that it never runs past the panel's padding. */
+.pp-star-lost-chip {
+  /* Set per chip by the screen (inline); the last slot when it says nothing. */
+  --pp-lost-from-end: 0;
+
+  position: absolute;
+  right: calc(var(--pp-lost-from-end) * (var(--pp-star-width) + var(--pp-star-gap)) - 6px);
+  bottom: -10px;
+  z-index: 2;
+  padding: 0 var(--pp-spacing-1);
+  border: 2.5px solid var(--pp-color-ink);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-mama-scream);
+  color: var(--pp-color-ink);
+  font-weight: 900;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
 /* A stamp: in from large and transparent, down to its tilt. A placed (skipped) star does not move. */
 .pp-star-stamped {
   animation: pp-star-stamp 200ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
@@ -777,6 +819,42 @@ body {
   to {
     opacity: 1;
     transform: scale(1) rotate(var(--pp-star-tilt));
+  }
+}
+
+/* « Maman s'est réveillée ! » (story 3.2): the header of a woken Mama. The underline is always there,
+   reduced motion or not, so the cue never relies on the slam alone. */
+.pp-result-reason {
+  margin: 0;
+  padding-bottom: var(--pp-spacing-1);
+  box-shadow: 0 3px 0 var(--pp-color-mama-scream);
+  color: var(--pp-color-ink);
+  text-align: center;
+}
+
+/* One slam when the header comes up: in from large and tilted, down to rest. `transform` only. */
+.pp-result-reason-slam {
+  animation: pp-result-slam 300ms cubic-bezier(0.2, 0.9, 0.3, 1.3) 1 both;
+}
+
+@keyframes pp-result-slam {
+  from {
+    opacity: 0;
+    transform: scale(1.5) rotate(-4deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* On a short landscape phone the header costs about 40px that the 750 × 340 layout of story 1.22 does
+   not have: a woken Mama's panel tightens its padding and gaps (the text keeps its size). */
+@media (max-height: 360px) {
+  .pp-result-panel-woken {
+    gap: var(--pp-spacing-1);
+    padding-block: var(--pp-spacing-2);
   }
 }
 
@@ -946,7 +1024,8 @@ body {
 
   .pp-countdown-digit,
   .pp-start-prompt,
-  .pp-portrait-icon {
+  .pp-portrait-icon,
+  .pp-result-reason-slam {
     animation: none;
   }
 

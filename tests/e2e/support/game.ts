@@ -56,6 +56,7 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     babyStateMaxPoints: number;
     sighMaxPoints: number;
     screamMaxPoints: number;
+    earlyWakePenaltyStars: number;
   };
 };
 

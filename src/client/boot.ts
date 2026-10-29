@@ -8,7 +8,14 @@ import { MAX_TIMER_DELAY_MS, MS_PER_S, STEP_MS } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
-import { isPapaBusy, type MamaScore, type Sim, type SimEvent, type SimObjectSpec } from '@sim';
+import {
+  isPapaBusy,
+  type LevelEndReason,
+  type MamaScore,
+  type Sim,
+  type SimEvent,
+  type SimObjectSpec,
+} from '@sim';
 import { Color, Scene, Vector3 } from 'three';
 import { createAppFsm } from './app/appFsm.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
@@ -74,6 +81,7 @@ const NO_SCORE: MamaScore = {
   screamPoints: 0,
   scorePoints: 0,
   stars: 0,
+  lostStars: 0,
 };
 
 function logSimEvent(event: SimEvent): void {
@@ -244,6 +252,8 @@ export async function boot(): Promise<void> {
       | 'ppTarget'
       | 'ppScore'
       | 'ppStars'
+      | 'ppLostStars'
+      | 'ppEndReason'
       | 'ppResult',
     value: string,
   ): void => {
@@ -430,6 +440,8 @@ export async function boot(): Promise<void> {
       'ppBabyPx',
       'ppScore',
       'ppStars',
+      'ppLostStars',
+      'ppEndReason',
       'ppResult',
     ] as const) {
       delete document.documentElement.dataset[name];
@@ -558,6 +570,8 @@ export async function boot(): Promise<void> {
   // screen rebuilt after the portrait overlay, whatever phase it was in, then shows its end at once.
   // Both cleared when a level loads.
   let resultScore: MamaScore | null = null;
+  // Why it ended (story 3.2): a woken Mama puts a header on the Result screen. Cleared with the note.
+  let resultEndReason: LevelEndReason = 'timer';
   let hasResultStarted = false;
 
   // The level is made later; the screens below only need it when a button is pressed.
@@ -796,7 +810,10 @@ export async function boot(): Promise<void> {
       }
       if (isMirrored) {
         if (event.type === 'NoiseChanged') mirrorNoise();
-        if (event.type === 'LevelEnded') mirror('ppFlow', 'ended');
+        if (event.type === 'LevelEnded') {
+          mirror('ppFlow', 'ended');
+          mirror('ppEndReason', event.reason);
+        }
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);
         mirrorThreatEvent(event);
@@ -822,6 +839,7 @@ export async function boot(): Promise<void> {
       }
       // The debug modules last: they see the event after the app has handled it.
       for (let i = 0; i < simEventListeners.length; i++) simEventListeners[i]?.(event);
+      if (event.type === 'LevelEnded') resultEndReason = event.reason;
       // Mama's note ends the level (story 1.22): the loop stops on the frozen room, which stays
       // drawn behind the Result screen; the world stays readable until the next start.
       if (event.type === 'LevelScored') {
@@ -831,6 +849,7 @@ export async function boot(): Promise<void> {
         if (isMirrored) {
           mirror('ppScore', String(score.scorePoints));
           mirror('ppStars', String(score.stars));
+          mirror('ppLostStars', String(score.lostStars));
         }
         levelSession.finish();
         appFsm.enter('result');
@@ -913,6 +932,7 @@ export async function boot(): Promise<void> {
       return createResultScreen({
         t,
         score: resultScore ?? NO_SCORE,
+        endReason: resultEndReason,
         maxima: mama,
         timings: feedbackTable.resultScreen,
         // Rebuilt after the portrait overlay: the stars do not stamp (nor sound) twice.
@@ -925,6 +945,9 @@ export async function boot(): Promise<void> {
         keyTarget: window,
         onStar: (isLast) =>
           director.handle(isLast ? 'ResultLastStarStamped' : 'ResultStarStamped', null),
+        // The header of a woken Mama and the star she took off have their own cues (story 3.2 D4, D5).
+        onMamaWoke: () => director.handle('ResultMamaWokeShown', null),
+        onStarLost: () => director.handle('ResultStarLost', null),
         onPhase: (phase) => {
           hasResultStarted = true;
           if (isMirrored) mirror('ppResult', phase);
@@ -1106,11 +1129,18 @@ export async function boot(): Promise<void> {
   events.on('AppStateChanged', ({ to }) => {
     if (to !== 'loading') return;
     resultScore = null;
+    resultEndReason = 'timer';
     hasResultStarted = false;
     // The previous game's note must not be read as the next one's while it loads (`mirrorNewLevel`
     // clears them only once the level has started).
     if (isMirrored) {
-      for (const name of ['ppScore', 'ppStars', 'ppResult'] as const) {
+      for (const name of [
+        'ppScore',
+        'ppStars',
+        'ppLostStars',
+        'ppEndReason',
+        'ppResult',
+      ] as const) {
         delete document.documentElement.dataset[name];
       }
     }

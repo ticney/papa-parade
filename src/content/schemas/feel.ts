@@ -20,7 +20,7 @@ const delayMs = (description: string) => z.number().min(0).describe(description)
 const pct = (description: string) => z.number().min(0).max(100).describe(description);
 const points = (description: string) => z.number().min(0).describe(description);
 const multiplier = (description: string) => z.number().min(0).describe(description);
-const count = (description: string) => z.int().min(0).describe(description);
+
 /** Points of Mama's note that are shown and summed as they are: whole, so the four rows add up to the score. */
 const wholePoints = (description: string) => z.int().min(0).describe(description);
 const timeScale = (description: string) => z.number().gt(0).max(1).describe(description);
@@ -346,7 +346,13 @@ const MamaSchema = z
         },
       )
       .describe('Score needed for 1, 2, 3, 4 and 5 stars, in points (0 to 100, ascending).'),
-    earlyWakePenaltyStars: count('Stars taken off when Mama wakes early, in stars.'),
+    earlyWakePenaltyStars: z
+      .int()
+      .min(0)
+      .max(STAR_COUNT_MAX)
+      .describe(
+        "Stars taken off Mama's note when the noise wakes her early (Sieste), 0 to 5, in stars.",
+      ),
     laughPerPerfectPoints: points(
       'Laugh points each perfect response gives (held to `laughMaxPoints`), in points per perfect.',
     ),

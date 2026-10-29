@@ -116,6 +116,11 @@ describe('content/feel.json', () => {
       ['mama.babyStateFixedPoints'],
     ],
     ['a fractional sigh maximum', [['mama.sighMaxPoints', 15.5]], ['mama.sighMaxPoints']],
+    [
+      'a wake penalty above the five stars (story 3.2)',
+      [['mama.earlyWakePenaltyStars', 6]],
+      ['mama.earlyWakePenaltyStars'],
+    ],
     ['an unknown earlyPress value', [['input.earlyPress', 'maybe']], ['input.earlyPress']],
     ['a time scale of 0', [['instinct.timeScale', 0]], ['instinct.timeScale']],
     ['a time scale above 1', [['instinct.timeScale', 1.5]], ['instinct.timeScale']],

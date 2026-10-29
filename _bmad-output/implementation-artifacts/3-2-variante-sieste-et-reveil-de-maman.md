@@ -1,6 +1,10 @@
+---
+baseline_commit: b6a2693e57d2fd61a903f3f9863131c7243f9cea
+---
+
 # Story 3.2: Sieste variant and Mama waking up
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 3.2 « Variante Sieste et réveil de Maman » (L1563-1588). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -136,32 +140,32 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Content** (AC 6, 9, 10)
-  - [ ] `src/content/schemas/feel.ts`: `earlyWakePenaltyStars` `.max(STAR_COUNT_MAX)` with its new description; a rejection test in `tests/content/feelSchema.test.ts`; `npm run content:schemas`.
-  - [ ] `content/feedback.json`: cues `mama_woke` and `result_star_lost`, events `ResultMamaWokeShown` and `ResultStarLost`.
-  - [ ] `content/strings.fr.json`: `result.stars_lost_label`. `result.mama_woke` and `result.star_lost` already exist.
-  - [ ] `npm run content:check`.
-- [ ] **T2. Sim: events and flow** (AC 1-4)
-  - [ ] `src/sim/events.ts`: `LevelEndReason`, `LEVEL_END_REASONS` (+ proof), `MamaWoke`, `SIM_EVENT_TYPES`. Export the const from `src/sim/index.ts`.
-  - [ ] `src/sim/flow/flowSystem.ts`: one private `endLevel(world, ctx, reason)` that does the shared part (phones, silence, `enterFlowState`, `LevelEnded`, `scoreLevel`), with the `MamaWoke` push before it for the noise end. The noise test goes first (D2). Update the file's doc.
-  - [ ] `src/sim/flow/flowFsm.ts`: its doc (the Retour states are 3.5 / 3.10, unchanged).
-- [ ] **T3. Sim: score and snapshot** (AC 5, 7)
-  - [ ] `src/sim/world.ts` (`MamaScore.lostStars`), `src/sim/scoring/mamaScore.ts` (`computeMamaScore` third parameter, `scoreLevel` reason), `src/sim/events.ts` (`LevelScored.lostStars`).
-  - [ ] `src/sim/snapshot.ts`: v13, `MAMA_SCORE_KEYS`, the stars + lost check.
-  - [ ] `boot.ts` › `NO_SCORE` gains `lostStars: 0`.
-- [ ] **T4. Client** (AC 8-11)
-  - [ ] `src/client/ui/screens/resultScreen.ts`: options `endReason`, `onMamaWoke`, `onStarLost`; the header, the lost slots and the chip, the sequence step after the earned stars, the skip and `isDone` paths, the `aria-label`. Update the screen's doc comment.
-  - [ ] `src/client/ui/styles/ui.css`: `.pp-result-reason`, `.pp-result-reason-slam` (+ keyframes, reduced motion), `.pp-star-lost`, the chip. Tokens only, no hex; keep the `.pp-star` tilt rules right.
-  - [ ] `src/client/feedback/feedbackEvents.ts`: `'ResultMamaWokeShown'`, `'ResultStarLost'`.
-  - [ ] `src/client/boot.ts`: store `resultEndReason` from `LevelEnded` (reset on level start), pass it and the two callbacks, mirrors `ppEndReason` / `ppLostStars`. `logSimEvent` already logs the reason.
-- [ ] **T5. Audio** (AC 12): the two placeholder clips; `npm run assets:audio`; keep only the two new files.
-- [ ] **T6. Report** (AC 13): `simReport.ts`, `simArgs.ts` help, `simReport.test.ts`; run the three bots and note `endsByReason`.
-- [ ] **T7. Tests and goldens** (AC 14, 15): the unit tests; the `mama_woke` scenario in `tests/golden/scenarios.ts` (+ its test file, like `propFall.test.ts`); `npm run golden:update`; check that the diff of the existing journals is empty.
-- [ ] **T8. End to end** (AC 16).
-- [ ] **T9. Docs**
-  - [ ] `_bmad-output/project-context.md`: where `runFlow` is described, say that it has two ways in. The timer gives `LevelEnded{timer}`. Noise at 100 in a level with noise gives `MamaWoke`, then `LevelEnded{mamaWoke}`, and the note loses `earlyWakePenaltyStars` (never below 0, `MamaScore.lostStars`).
-  - [ ] `deferred-work.md`: close the `earlyWakePenaltyStars` clause of L25. Update the 3.1 Open point 2 entry (L427) with the bots' `endsByReason`. Add a « Deferred from: story 3.2 » section with Open points 1-3.
-- [ ] **T10. CI** (AC 17): `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
+- [x] **T1. Content** (AC 6, 9, 10)
+  - [x] `src/content/schemas/feel.ts`: `earlyWakePenaltyStars` `.max(STAR_COUNT_MAX)` with its new description; a rejection test in `tests/content/feelSchema.test.ts`; `npm run content:schemas`.
+  - [x] `content/feedback.json`: cues `mama_woke` and `result_star_lost`, events `ResultMamaWokeShown` and `ResultStarLost`.
+  - [x] `content/strings.fr.json`: `result.stars_lost_label`. `result.mama_woke` and `result.star_lost` already exist.
+  - [x] `npm run content:check`.
+- [x] **T2. Sim: events and flow** (AC 1-4)
+  - [x] `src/sim/events.ts`: `LevelEndReason`, `LEVEL_END_REASONS` (+ proof), `MamaWoke`, `SIM_EVENT_TYPES`. Export the const from `src/sim/index.ts`.
+  - [x] `src/sim/flow/flowSystem.ts`: one private `endLevel(world, ctx, reason)` that does the shared part (phones, silence, `enterFlowState`, `LevelEnded`, `scoreLevel`), with the `MamaWoke` push before it for the noise end. The noise test goes first (D2). Update the file's doc.
+  - [x] `src/sim/flow/flowFsm.ts`: its doc (the Retour states are 3.5 / 3.10, unchanged).
+- [x] **T3. Sim: score and snapshot** (AC 5, 7)
+  - [x] `src/sim/world.ts` (`MamaScore.lostStars`), `src/sim/scoring/mamaScore.ts` (`computeMamaScore` third parameter, `scoreLevel` reason), `src/sim/events.ts` (`LevelScored.lostStars`).
+  - [x] `src/sim/snapshot.ts`: v13, `MAMA_SCORE_KEYS`, the stars + lost check.
+  - [x] `boot.ts` › `NO_SCORE` gains `lostStars: 0`.
+- [x] **T4. Client** (AC 8-11)
+  - [x] `src/client/ui/screens/resultScreen.ts`: options `endReason`, `onMamaWoke`, `onStarLost`; the header, the lost slots and the chip, the sequence step after the earned stars, the skip and `isDone` paths, the `aria-label`. Update the screen's doc comment.
+  - [x] `src/client/ui/styles/ui.css`: `.pp-result-reason`, `.pp-result-reason-slam` (+ keyframes, reduced motion), `.pp-star-lost`, the chip. Tokens only, no hex; keep the `.pp-star` tilt rules right.
+  - [x] `src/client/feedback/feedbackEvents.ts`: `'ResultMamaWokeShown'`, `'ResultStarLost'`.
+  - [x] `src/client/boot.ts`: store `resultEndReason` from `LevelEnded` (reset on level start), pass it and the two callbacks, mirrors `ppEndReason` / `ppLostStars`. `logSimEvent` already logs the reason.
+- [x] **T5. Audio** (AC 12): the two placeholder clips; `npm run assets:audio`; keep only the two new files.
+- [x] **T6. Report** (AC 13): `simReport.ts`, `simArgs.ts` help, `simReport.test.ts`; run the three bots and note `endsByReason`.
+- [x] **T7. Tests and goldens** (AC 14, 15): the unit tests; the `mama_woke` scenario in `tests/golden/scenarios.ts` (+ its test file, like `propFall.test.ts`); `npm run golden:update`; check that the diff of the existing journals is empty.
+- [x] **T8. End to end** (AC 16).
+- [x] **T9. Docs**
+  - [x] `_bmad-output/project-context.md`: where `runFlow` is described, say that it has two ways in. The timer gives `LevelEnded{timer}`. Noise at 100 in a level with noise gives `MamaWoke`, then `LevelEnded{mamaWoke}`, and the note loses `earlyWakePenaltyStars` (never below 0, `MamaScore.lostStars`).
+  - [x] `deferred-work.md`: close the `earlyWakePenaltyStars` clause of L25. Update the 3.1 Open point 2 entry (L427) with the bots' `endsByReason`. Add a « Deferred from: story 3.2 » section with Open points 1-3.
+- [x] **T10. CI** (AC 17): `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
 
 ## Dev Notes
 
@@ -308,10 +312,45 @@ Updated:
 
 ### Agent Model Used
 
+claude-sonnet-5-5
+
 ### Debug Log References
+
+- **`SetNoise{pct: 100}` could not wake Mama (found while writing the first snapshot test).** The story (D1, AC 1) assumes `runNoise` decays *before* the sources, so that after `runGauges` the value is the step's final one. That holds for event sources (decay, then add, then clamp to exactly 100) but not for `SetNoise`: `runGauges` applied it first and `runNoise` then decayed it, so the step ended at 99.99 and `noisePct >= 100` never held. `SetNoise` is the command AC 1, the golden and the e2e tests rely on. Fix: `runGauges` now applies `SetNoise` after `runNoise` (commanded value = the step's final value). Two expectations of the 3.1 test `noiseSystem.test.ts` (`90 − decay` → `90`, `100 − decay` → `100`) moved; the clamp-to-250 case now ends the level, so the `-40` case runs first. No golden moved (none sends `SetNoise` before this story).
+- **Snapshot refused an `ended` world before `durationMs`.** `flowProblem` refused `ended` when `nowMs < durationMs`, true until now. It now accepts it only for a level with the noise gauge whose `noisePct` is exactly 100 (a woken Mama); other cases still name `world.flow.state`.
+- **`content:check` refused two literals of the story.** `mama_door_slam`: `mama` is not an audio category (`tel, resp, gag, baby, papa, env, ui, music`), so the clip is `env_door_slam`. « {count} sur {max} étoiles, {lost} perdue »: failure words are banned from player strings, so it reads « …, {lost} en moins ». The guardrails stayed as they are.
+- **Chip placement.** The first version placed the `−1` chip from the slot's left edge; on the fifth slot it ran 1 px past the panel in WebKit. It is now placed from the row's right edge (`--pp-lost-from-end`, set by the screen from `STAR_COUNT_MAX`).
+- **750 × 340.** The header costs about 40 px the 1.22 layout does not have. A woken Mama's panel (`pp-result-panel-woken`) tightens its padding and gaps under `@media (max-height: 360px)`; the text keeps its size and the timer end is untouched.
+- **Lint:** the import order of `mamaScore.ts` (caught by `npm run ci` on the first run, fixed with `biome check --write`).
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Sim.** `runFlow` has two ways in, through one private `endLevel(world, ctx, reason)`: noise at `GAUGE_MAX_POINTS` in a level with `gauges.noise` (checked first, so a tie at `durationMs` goes to Mama) gives `MamaWoke` → `LevelEnded{mamaWoke}` → `LevelScored`, same `t`, after the phone and the silence are closed; the timer is unchanged. `LEVEL_END_REASONS` (+ compile-time proof) is exported from `@sim`. `computeMamaScore(tally, mama, isMamaWoke)` takes `min(earlyWakePenaltyStars, baseStars)` off the stars only; `MamaScore.lostStars` and `LevelScored.lostStars` carry it. `earlyWakePenaltyStars` is capped at 5 in `MamaSchema` (deferred-work L25 clause closed). Snapshot v13.
+- **Client.** The Result screen takes `endReason`, `onMamaWoke`, `onStarLost`. After a woken Mama: header `h2.pp-result-reason.pp-type-heading` (slam once, static `mama-scream` underline, reduced motion = no movement), the lost slots (`pp-star-lost`, dashed `ink-soft`, no fill) stamp after the earned ones with a `−1` chip placed as a sibling after the five slots (so the `.pp-star` tilt rules are untouched). Cues: `mama_woke` (`env_door_slam`, sfx, `heavy`) on the client event `ResultMamaWokeShown` and `result_star_lost` (`ui_star_lost`, ui, `light`) on `ResultStarLost`. A skip and an `isDone` rebuild place the lost star silently. Mirrors `data-pp-end-reason` and `data-pp-lost-stars`; both cleared at each level start.
+- **Audio.** `synthDoorSlam` (400 ms) and `synthStarLost` (180 ms) in `makePlaceholderAudio.ts`; `npm run assets:audio`, only the two new `.m4a` files kept (the other 19 restored from git).
+- **Report.** `endReason` and `lostStars` per run, `endsByReason` (every `LEVEL_END_REASONS` key, summing to `endedRuns`) and `mamaWokeMeanAtMs` in the aggregate, `--help` updated.
+- **`endsByReason` on `salon_crawler` (100 runs each, `npm run sim -- --bot <b> --runs 100`):** `random` `{ timer: 100, mamaWoke: 0 }`, `idle` `{ timer: 100, mamaWoke: 0 }`, `perfect` `{ timer: 100, mamaWoke: 0 }`; the noise peaks at 16 % in every run. **With today's content Mama never wakes**, as the story expected; no content was tuned (Open point 1, Geo's call).
+- **Goldens.** One scenario added, `mama_woke` (`createTestLevel({ gauges: NOISE_GAUGES })`, `SetNoise{pct: 100}` at 1000 ms, 2000 ms in all), generated with `npm run golden:update`. Its test (`tests/golden/mamaWoke.test.ts`) pins `MamaWoke`, `LevelEnded{mamaWoke}` and `LevelScored{lostStars: 1}`. **No existing journal or hash moved** (`git status` shows only the two new files in `tests/golden/journals`).
+- **Tests.** Unit: `flowSystem.test.ts` (end order, freeze after, 99.9 %, a real source reaching 100, phone and silence closed first, no gauge, tie, timer end unchanged, lost star), `mamaScore.test.ts` (0 for a timer end, 1 woken, never below 0, penalty 2 with 1 star, penalty 0, same points, `scoreLevel` reason), `events.test.ts`, `snapshot.test.ts` (v13, `lostStars` refusals, an ended-early world round-trips and is refused without a full gauge), `resultScreen.test.ts` (13 tests for the woken screen), `feelSchema.test.ts`, `simReport.test.ts`, `simArgs.test.ts`, `makePlaceholderAudio.test.ts`. E2E (`tests/e2e/mamaWoke.spec.ts`, chromium + webkit, 9 tests each; `result.spec.ts` extended): the end, the header, the lost slot after the earned ones, the cue count, the vibrations in order (chromium), a skip, reduced motion, the dashed star, 844 × 390 and 750 × 340, a timer end without header, the mirrors cleared by « Rejouer ».
+- **Deviations from the story, all flagged above:** `SetNoise` ordering in `runGauges` (a 3.1 file), `env_door_slam`, « en moins », the right-anchored chip, the woken panel's tightening on short screens, the snapshot's `flowProblem` relaxation.
+- **Open points for Geo** are in `deferred-work.md › Deferred from: story 3-2` (Mama never wakes with today's content; the look and sound of the header; the lost star's own cue).
 
 ### File List
+
+New:
+- `public/assets/audio/env_door_slam.m4a`, `public/assets/audio/ui_star_lost.m4a`
+- `tests/golden/journals/mama_woke.json`, `tests/golden/journals/mama_woke.expected.json`, `tests/golden/mamaWoke.test.ts`
+- `tests/e2e/mamaWoke.spec.ts`
+
+Modified:
+- `_bmad-output/implementation-artifacts/3-2-variante-sieste-et-reveil-de-maman.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/project-context.md`
+- `content/_schemas/feel.schema.json` (generated), `content/feedback.json`, `content/strings.fr.json`
+- `src/content/schemas/feel.ts`
+- `src/sim/events.ts`, `src/sim/index.ts`, `src/sim/world.ts`, `src/sim/snapshot.ts`, `src/sim/flow/flowSystem.ts`, `src/sim/flow/flowFsm.ts`, `src/sim/gauges/gaugesSystem.ts`, `src/sim/scoring/mamaScore.ts`
+- `src/client/boot.ts`, `src/client/feedback/feedbackEvents.ts`, `src/client/ui/screens/resultScreen.ts`, `src/client/ui/styles/ui.css`
+- `tools/audio/makePlaceholderAudio.ts`, `tools/sim/simReport.ts`, `tools/sim/simArgs.ts`
+- Tests: `src/sim/events.test.ts`, `src/sim/flow/flowSystem.test.ts`, `src/sim/gauges/noiseSystem.test.ts`, `src/sim/scoring/mamaScore.test.ts`, `src/sim/snapshot.test.ts`, `src/client/ui/screens/resultScreen.test.ts`, `tests/content/feelSchema.test.ts`, `tests/golden/scenarios.ts`, `tests/tools/audio/makePlaceholderAudio.test.ts`, `tests/tools/sim/mamaScore.test.ts`, `tests/tools/sim/simArgs.test.ts`, `tests/tools/sim/simReport.test.ts`, `tests/e2e/result.spec.ts`, `tests/e2e/support/game.ts`
+
+### Change Log
+
+- 2026-10-29: Story 3.2 implemented. Sieste end on noise (`MamaWoke`, `LevelEnded{mamaWoke}`), the lost star in Mama's note (`lostStars`, snapshot v13), the Result header and lost-star stamp with their cues, two placeholder clips, the report's `endsByReason`, the `mama_woke` golden, e2e coverage. `SetNoise` now lands after the step's decay (a 3.1 change, see the Debug Log).

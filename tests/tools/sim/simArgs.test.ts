@@ -114,6 +114,10 @@ describe('parseSimArgs', () => {
     const parsed = parseSimArgs(['--bot', 'idle']);
     expect(parsed.ok && parsed.value.untilSimMs).toBeNull();
     expect(SIM_HELP).toContain("level's duration");
+    // The ends of the games (story 3.2).
+    for (const word of ['endsByReason', 'mamaWokeMeanAtMs', 'endReason', 'lostStars']) {
+      expect(SIM_HELP).toContain(word);
+    }
   });
 
   it('answers --help without a bot', () => {

@@ -210,8 +210,13 @@ export interface MamaScore {
   /** Hurlement, taken off: the near misses, held to `screamMaxPoints`. */
   screamPoints: number;
   scorePoints: number;
-  /** 0 to 5: how many `starThresholdPoints` the score reaches. */
+  /** 0 to 5: how many `starThresholdPoints` the score reaches, minus `lostStars`. */
   stars: number;
+  /**
+   * Stars Mama took off because she was woken early (story 3.2), already subtracted from `stars`;
+   * 0 for a timer end.
+   */
+  lostStars: number;
 }
 
 /**

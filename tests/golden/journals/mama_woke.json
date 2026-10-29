@@ -1,0 +1,18 @@
+{
+  "version": 3,
+  "seed": 42,
+  "feelHash": "0553c11c3efcf8",
+  "geometryHash": "15e699e93a8b63",
+  "levelHash": "138f85a56af518",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 1010,
+      "command": {
+        "pct": 100,
+        "t": 1000,
+        "type": "SetNoise"
+      }
+    }
+  ]
+}

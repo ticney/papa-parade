@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { SIM_EVENT_TYPES, SIM_EVENT_TYPES_ARE_COMPLETE } from './events.ts';
+import {
+  LEVEL_END_REASONS,
+  LEVEL_END_REASONS_ARE_COMPLETE,
+  SIM_EVENT_TYPES,
+  SIM_EVENT_TYPES_ARE_COMPLETE,
+} from './events.ts';
 
 // Completeness is the compiler's (see the last test); what is checked at runtime is the rest: the
 // list is sorted, has no duplicate, and every name follows the event naming.
@@ -23,10 +28,11 @@ describe('SIM_EVENT_TYPES', () => {
     expect(names.indexOf('WindowOpened')).toBe(names.indexOf('WaveStarted') + 1);
   });
 
-  it('lists LevelScored (story 1.22), NearMiss (story 1.16), NoiseChanged (story 3.1) and ObjectTapped (story 1.17), between LevelEnded and PapaArrived', () => {
+  it('lists LevelScored (story 1.22), MamaWoke (story 3.2), NearMiss (story 1.16), NoiseChanged (story 3.1) and ObjectTapped (story 1.17), between LevelEnded and PapaArrived', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
     expect(names.indexOf('LevelScored')).toBe(names.indexOf('LevelEnded') + 1);
-    expect(names.indexOf('NearMiss')).toBe(names.indexOf('LevelScored') + 1);
+    expect(names.indexOf('MamaWoke')).toBe(names.indexOf('LevelScored') + 1);
+    expect(names.indexOf('NearMiss')).toBe(names.indexOf('MamaWoke') + 1);
     expect(names.indexOf('NoiseChanged')).toBe(names.indexOf('NearMiss') + 1);
     expect(names.indexOf('ObjectTapped')).toBe(names.indexOf('NoiseChanged') + 1);
     expect(names.indexOf('PapaArrived')).toBe(names.indexOf('ObjectTapped') + 1);
@@ -55,5 +61,17 @@ describe('the fatigue events (story 1.19)', () => {
     expect(names.indexOf('CoffeeStarted')).toBe(names.indexOf('CoffeeDrunk') + 1);
     expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('CoffeeStarted') + 1);
     expect(names.indexOf('GagTriggered')).toBe(names.indexOf('FatigueThresholdCrossed') + 1);
+  });
+});
+
+describe('LEVEL_END_REASONS (story 3.2)', () => {
+  it('lists the two ways a level ends', () => {
+    expect([...LEVEL_END_REASONS]).toEqual(['timer', 'mamaWoke']);
+    expect(new Set(LEVEL_END_REASONS).size).toBe(LEVEL_END_REASONS.length);
+  });
+
+  // Like `SIM_EVENT_TYPES_ARE_COMPLETE`, the proof is that this file typechecks.
+  it('is proved complete at compile time, by typecheck', () => {
+    expect(LEVEL_END_REASONS_ARE_COMPLETE).toBe(true);
   });
 });

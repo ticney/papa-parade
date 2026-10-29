@@ -14,6 +14,9 @@ import {
   createTestGeometry,
   createTestLevel,
   NOISE_GAUGES,
+  TEST_OBJECTS,
+  testPhoneEntry,
+  testWave,
 } from '../../support/testContent.ts';
 
 const INPUT = {
@@ -65,8 +68,11 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     byGag: {},
     waves: [],
     isEnded: false,
+    endReason: null,
+    mamaWokeAtMs: null,
     scorePoints: null,
     stars: null,
+    lostStars: null,
     ...overrides,
   };
 }
@@ -135,6 +141,8 @@ describe('summarizeRuns', () => {
         commands: 6,
         scorePoints: null,
         stars: null,
+        endReason: null,
+        lostStars: null,
       },
     ]);
   });
@@ -158,6 +166,50 @@ describe('summarizeRuns', () => {
       [null, null],
     ]);
     expect(report).not.toHaveProperty('scoreNote');
+  });
+
+  it('counts how the games ended, every reason present, and the mean time Mama woke at (story 3.2)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { isEnded: true, endReason: 'timer', scorePoints: 73, stars: 3, lostStars: 0 }),
+      run(2, {
+        isEnded: true,
+        endReason: 'mamaWoke',
+        mamaWokeAtMs: 40_000,
+        scorePoints: 73,
+        stars: 2,
+        lostStars: 1,
+      }),
+      run(3, {
+        isEnded: true,
+        endReason: 'mamaWoke',
+        mamaWokeAtMs: 50_001,
+        scorePoints: 73,
+        stars: 2,
+        lostStars: 1,
+      }),
+      // Cut by `--until-ms`: ended for nobody.
+      run(4, {}),
+    ]);
+    expect(report.endsByReason).toEqual({ timer: 1, mamaWoke: 2 });
+    expect(Object.values(report.endsByReason).reduce((sum, count) => sum + count, 0)).toBe(
+      report.endedRuns,
+    );
+    expect(report.mamaWokeMeanAtMs).toBe(45_000.5);
+    expect(report.runList.map(({ endReason, lostStars }) => [endReason, lostStars])).toEqual([
+      ['timer', 0],
+      ['mamaWoke', 1],
+      ['mamaWoke', 1],
+      [null, null],
+    ]);
+  });
+
+  it('keeps every endsByReason key at 0 when nothing ended, and no mean time when Mama never woke', () => {
+    const none = summarizeRuns(INPUT, [run(1, {})]);
+    expect(none.endsByReason).toEqual({ timer: 0, mamaWoke: 0 });
+    expect(none.mamaWokeMeanAtMs).toBeNull();
+    const timerOnly = summarizeRuns(INPUT, [run(1, { isEnded: true, endReason: 'timer' })]);
+    expect(timerOnly.endsByReason).toEqual({ timer: 1, mamaWoke: 0 });
+    expect(timerOnly.mamaWokeMeanAtMs).toBeNull();
   });
 
   it('folds the waves: telegraphs summed, the peak is the max, the over-limit runs counted', () => {
@@ -418,7 +470,14 @@ describe('createRunRecorder', () => {
     });
     expect(summary.worldHash).toMatch(/^[0-9a-f]{14}$/);
     // No `LevelScored`: a run cut before the end has no note.
-    expect(summary).toMatchObject({ isEnded: false, scorePoints: null, stars: null });
+    expect(summary).toMatchObject({
+      isEnded: false,
+      endReason: null,
+      mamaWokeAtMs: null,
+      scorePoints: null,
+      stars: null,
+      lostStars: null,
+    });
   });
 
   it('keeps the score and stars of LevelScored (story 1.22)', async () => {
@@ -439,8 +498,48 @@ describe('createRunRecorder', () => {
       screamPoints: 3,
       scorePoints: 72,
       stars: 3,
+      lostStars: 0,
     });
-    expect(recorder.finish()).toMatchObject({ isEnded: true, scorePoints: 72, stars: 3 });
+    expect(recorder.finish()).toMatchObject({
+      isEnded: true,
+      endReason: 'timer',
+      mamaWokeAtMs: null,
+      scorePoints: 72,
+      stars: 3,
+      lostStars: 0,
+    });
+  });
+
+  it('keeps the reason, the MamaWoke time and the lost stars of a woken Mama (story 3.2)', async () => {
+    const content = createTestContent();
+    // A phone loud enough that its first ring tick fills the gauge: Mama really wakes, no SetNoise.
+    content.feel.noise.sources.phoneRinging.perSec = 200;
+    const sim = await createSim({
+      content,
+      geometry: createTestGeometry(),
+      level: createTestLevel({
+        durationMs: 60_000,
+        waves: [testWave([], { disruptions: [testPhoneEntry(0)] })],
+        objects: TEST_OBJECTS,
+        gauges: NOISE_GAUGES,
+      }),
+      seed: 1,
+    });
+    const recorder = createRunRecorder(sim, 1);
+    for (let i = 0; i < 1000 && sim.world.flow.state === 'playing'; i++) {
+      sim.step();
+      for (const event of sim.drainEvents()) recorder.onEvent(event);
+    }
+    const summary = recorder.finish();
+    expect(sim.world.flow.state).toBe('ended');
+    expect(summary).toMatchObject({
+      isEnded: true,
+      endReason: 'mamaWoke',
+      mamaWokeAtMs: sim.world.flow.enteredAt,
+      lostStars: sim.world.score.final?.lostStars,
+    });
+    expect(summary.lostStars).toBeGreaterThanOrEqual(1);
+    expect(summary.mamaWokeAtMs).toBeLessThan(60_000);
   });
 
   describe('the waves', () => {
