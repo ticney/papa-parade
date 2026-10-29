@@ -202,6 +202,24 @@ export const HOLD_RING_STROKE_PX = 5;
 /** ...and its outer ink outline is this wide, in CSS px (DESIGN.md › hold-ring `outerOutline`). */
 export const HOLD_RING_OUTLINE_PX = 2;
 
+/** A threat's verb never shrinks under this font size, in CSS px (DESIGN.md › verb-label `minFontSize`). */
+export const VERB_MIN_FONT_PX = 28;
+
+/** The verb's visible ink outline is this wide, in CSS px (DESIGN.md › verb-label `strokeWidth`). */
+export const VERB_STROKE_PX = 5;
+
+/**
+ * A verb is at most this share of the world layer's width, in percent; a longer one shrinks to fit
+ * (down to `VERB_MIN_FONT_PX`). `[ASSUMPTION]`: neither DESIGN nor EXPERIENCE gives one; tune after the playtest.
+ */
+export const VERB_MAX_WIDTH_PCT = 45;
+
+/**
+ * The gap kept between two stacked verbs, in CSS px, when the verbs of simultaneous threats would overlap.
+ * `[ASSUMPTION]`: tune after the playtest.
+ */
+export const VERB_STACK_GAP_PX = 4;
+
 /**
  * `timeMap.realToSim` extrapolates at most this far past its newest record, in real ms: a hidden
  * tab leaves a rate-1 record behind, and an input before the next frame could otherwise land

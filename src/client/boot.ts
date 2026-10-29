@@ -196,6 +196,9 @@ export async function boot(): Promise<void> {
     drawStatic();
   };
   fitViewToCanvas();
+  // `loadFonts` gives up after a timeout and the game starts on the fallback font: a verb measured on it
+  // is refitted when the display font does arrive (story 2.2, AC 6).
+  void document.fonts.ready.then(() => worldUi.refitVerbs());
   new ResizeObserver(fitViewToCanvas).observe(canvas);
   window.addEventListener('resize', fitViewToCanvas);
   bindSurface(window, document.documentElement);
@@ -565,6 +568,7 @@ export async function boot(): Promise<void> {
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
     content: content.value,
+    t,
     appFsm,
     pause,
     renderer,

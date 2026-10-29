@@ -6,7 +6,10 @@
   "telegraphDelayMs": 1500,
   "windowMs": null,
   "gag": "table_object_fall",
+  "verbKey": "verb.remove",
   "icon": "mug",
+  "iconShape": "circle",
+  "color": "parry",
   "feedback": {
     "telegraph": "tel_coffee_table",
     "success": "resp_parry",

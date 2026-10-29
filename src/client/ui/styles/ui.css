@@ -997,6 +997,8 @@ body {
    --------------------------------------------------------------------------------------------- */
 :root {
   --pp-threat-size: 64px; /* the icon's size: the glyph chip hangs from it too */
+  /* From the icon's edge to the verb's bottom edge: clear of the highlight ring (0.3 of the size). */
+  --pp-verb-gap: calc(var(--pp-threat-size) * 0.3 + 2px);
 }
 
 :root[data-pp-surface="compact"] {
@@ -1004,26 +1006,56 @@ body {
 }
 
 .pp-threat {
+  /* The def's `color`, set inline by `threatMarkers.ts`. */
+  --pp-threat-color: var(--pp-color-parry);
   position: relative;
   width: var(--pp-threat-size);
   height: var(--pp-threat-size);
   pointer-events: none;
 }
 
+/*
+  The icon's colour and shape come from the threat's def (story 2.2): `--pp-threat-color` is set on the
+  marker by `threatMarkers.ts` from the def's `color` (a DESIGN token name). A circle is the parry blue;
+  the triangle (`dodge`, story 5.1 will use it) is an SVG polygon, because a CSS `border` cannot follow a
+  `clip-path`, with the ink outline and the hard ink shadow of the mockup's `icon-dodge`.
+*/
 .pp-threat-icon {
   position: absolute;
   inset: 0;
   box-sizing: border-box;
   border: 3px solid var(--pp-color-ink);
   border-radius: 50%;
-  background: var(--pp-color-parry);
+  background: var(--pp-threat-color);
   display: grid;
   place-items: center;
 }
 
-.pp-threat-icon svg {
+.pp-threat-glyph {
   width: 54%;
   height: 54%;
+}
+
+.pp-threat-icon--triangle {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  place-items: end center;
+}
+
+.pp-threat-icon--triangle .pp-threat-triangle {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.pp-threat-icon--triangle .pp-threat-glyph {
+  position: relative;
+  width: 40%;
+  height: 40%;
+  margin-bottom: 14%;
 }
 
 .pp-threat-halo {
@@ -1074,25 +1106,76 @@ body {
   animation: pp-hold-pop 200ms ease-out both;
 }
 
-.pp-threat-chevron {
+/*
+  The verb stack (story 2.2; DESIGN.md › verb-label, target-highlight; mockup key-hud-level.html `.verb`,
+  `.verb-stack`): the chevron over the verb, bottom-anchored above the icon, so the verb stays where it
+  is whether the chevron shows or not. `threatMarkers.ts` pushes the whole stack up (`--pp-verb-offset`,
+  whole px) when verbs of simultaneous threats would overlap. It takes no pointer events (the marker's).
+*/
+.pp-threat-verb-stack {
+  /* Pushed up by `threatMarkers.ts` when verbs overlap. */
+  --pp-verb-offset: 0px;
   position: absolute;
   left: 50%;
-  bottom: calc(100% + var(--pp-threat-size) * 0.3 + 2px);
+  bottom: calc(100% + var(--pp-verb-gap));
+  transform: translate(-50%, calc(var(--pp-verb-offset) * -1));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  row-gap: 2px;
+  white-space: nowrap;
+}
+
+/*
+  The verb: paper letters with a visible ink outline of DESIGN's 5 px. `paint-order: stroke fill` paints
+  the stroke under the fill, which hides its inner half, so the stroke is twice as wide (set inline from
+  `VERB_STROKE_PX`), and a hard ink shadow. Its size is the surface's `typography.verb` (or
+  `verb-compact`) until `threatMarkers.ts` sets the fitted one inline. Never wraps, never cut: no
+  `overflow`, no `text-overflow`. No animation, so nothing to stop under reduced motion.
+*/
+.pp-threat-verb {
+  font-family: var(--pp-font-verb-family), var(--pp-fallback-rounded);
+  font-size: var(--pp-font-verb-size);
+  font-weight: var(--pp-font-verb-weight);
+  line-height: var(--pp-font-verb-line-height);
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--pp-color-paper);
+  paint-order: stroke fill;
+  text-shadow: var(--pp-lift);
+}
+
+:root[data-pp-surface="compact"] .pp-threat-verb {
+  font-family: var(--pp-font-verb-compact-family), var(--pp-fallback-rounded);
+  font-size: var(--pp-font-verb-compact-size);
+  font-weight: var(--pp-font-verb-compact-weight);
+  line-height: var(--pp-font-verb-compact-line-height);
+}
+
+.pp-threat-chevron {
+  display: block;
+  flex: none;
   width: 24px;
   height: 16px;
-  margin-left: -12px;
   color: var(--pp-color-alert);
   animation: pp-threat-bounce 500ms ease-in-out infinite;
 }
 
 /*
   The glyph chip (DESIGN.md › glyph-chip; mockup key-hud-level.html state B): a paper pill with the
-  ink outline and the sticker shadow, to the right of the targeted icon. The anchor is a point (the
-  CSS2DRenderer centres it on the icon); the chip hangs from it by the icon's half size plus a gap
-  and is centred on the icon vertically. It never animates: it moves with its target.
+  ink outline and the sticker shadow, to the right of the targeted threat's verb (story 2.2). The anchor
+  is a point (the CSS2DRenderer centres it on the icon); with a verb (`--beside-verb`) the chip hangs
+  from it by half the verb's width plus a gap, and rises to the verb's centre (`--pp-chip-half` and
+  `--pp-chip-rise`, written by `glyphChip.ts` from the verb's laid-out box). With no verb it hangs from
+  the icon's half size, centred on the icon, as before. It never animates: it moves with its target.
 */
 .pp-glyph-chip-anchor {
+  /* By default beside the icon; `glyphChip.ts` writes both from the verb's box when there is one. */
+  --pp-chip-half: calc(var(--pp-threat-size) / 2);
+  --pp-chip-rise: 0px;
   position: relative;
+  /* Above every threat marker: they take 1..(shown threats) from `threatMarkers.layout`. */
+  z-index: 50;
   width: 0;
   height: 0;
   pointer-events: none;
@@ -1100,7 +1183,7 @@ body {
 
 .pp-glyph-chip {
   position: absolute;
-  left: calc(var(--pp-threat-size) / 2 + var(--pp-spacing-2));
+  left: calc(var(--pp-chip-half) + var(--pp-spacing-2));
   top: 0;
   transform: translateY(-50%);
   box-sizing: border-box;
@@ -1114,6 +1197,10 @@ body {
   color: var(--pp-color-ink);
   box-shadow: var(--pp-lift);
   white-space: nowrap;
+}
+
+.pp-glyph-chip-anchor--beside-verb .pp-glyph-chip {
+  top: calc(-1 * (var(--pp-threat-size) / 2 + var(--pp-verb-gap) + var(--pp-chip-rise)));
 }
 
 @keyframes pp-hold-pop {

@@ -1,11 +1,20 @@
 import { OrthographicCamera } from 'three';
 import { describe, expect, it } from 'vitest';
+import type { VerbMetrics } from './verbMetrics.ts';
 import { createWorldUi } from './worldUi.ts';
 
 class FakeElement {
   ownerDocument = { defaultView: { Element: FakeElement } };
   className = '';
-  style: Record<string, unknown> = { setProperty() {} };
+  vars = new Map<string, string>();
+  style: Record<string, unknown> = {
+    setProperty: (name: string, value: string) => {
+      this.vars.set(name, value);
+    },
+    removeProperty: (name: string) => {
+      this.vars.delete(name);
+    },
+  };
   classList = { toggle: () => false };
   parentNode: unknown = null;
   appended: FakeElement[] = [];
@@ -23,13 +32,13 @@ class FakeElement {
   }
 }
 
-function build() {
+function build(metrics?: VerbMetrics) {
   const container = new FakeElement();
   const doc = {
     createElement: () => new FakeElement(),
     createElementNS: () => new FakeElement(),
   } as unknown as Pick<Document, 'createElement' | 'createElementNS'>;
-  const ui = createWorldUi(container as unknown as HTMLElement, doc);
+  const ui = createWorldUi(container as unknown as HTMLElement, doc, metrics);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
   camera.position.set(0, 5, 5);
   camera.lookAt(0, 0, 0);
@@ -77,8 +86,22 @@ describe('createWorldUi', () => {
 });
 
 describe('createWorldUi, threat icons', () => {
-  const entry = { threatId: 1, xM: 0, yM: 0, zM: 0, icon: 'bolt' as const, followsPapa: false };
-  const threat = (state: string) => [{ id: 1, state }] as never;
+  const entry = {
+    threatId: 1,
+    xM: 0,
+    yM: 0,
+    zM: 0,
+    icon: 'bolt' as const,
+    followsPapa: false,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
+  };
+  const threat = (state: string) =>
+    [{ id: 1, state, windowOpenAt: 0, responseWindow: null }] as never;
 
   it('renders the layer while a threat icon shows, though no tap marker does', () => {
     const { ui, camera, container } = build();
@@ -114,7 +137,20 @@ describe('createWorldUi, threat icons', () => {
 });
 
 describe('createWorldUi, glyph chip (story 1.17)', () => {
-  const entry = { threatId: 1, xM: 0, yM: 0, zM: 0, icon: 'bolt' as const, followsPapa: false };
+  const entry = {
+    threatId: 1,
+    xM: 0,
+    yM: 0,
+    zM: 0,
+    icon: 'bolt' as const,
+    followsPapa: false,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
+  };
 
   it('renders the layer while the chip shows, and stops once it is hidden', () => {
     const { ui, camera, container } = build();
@@ -133,8 +169,90 @@ describe('createWorldUi, glyph chip (story 1.17)', () => {
   it('passes the target and the press through updateThreats: only a press is reported', () => {
     const { ui } = build();
     ui.mountThreats([entry]);
-    const threats = [{ id: 1, state: 'telegraph' }] as never;
+    const threats = [{ id: 1, state: 'telegraph', windowOpenAt: 0, responseWindow: null }] as never;
     expect(ui.updateThreats(threats, null, 1)).toBe(false);
     expect(ui.updateThreats(threats, 1, 1)).toBe(true);
+  });
+});
+
+describe('createWorldUi, verbs (story 2.2)', () => {
+  /** Every character is half the font size wide. */
+  const metrics: VerbMetrics = {
+    surfaceKey: () => 'regular',
+    basePx: () => 40,
+    lineHeight: () => 1,
+    scale: () => 1,
+    widthPx: (text, fontPx) => text.length * fontPx * 0.5,
+  };
+  const base = {
+    icon: 'bolt' as const,
+    followsPapa: false,
+    verb: 'RETIRE !',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
+  };
+  const closing = (id: number, closeAt: number) => ({
+    id,
+    state: 'telegraph',
+    windowOpenAt: closeAt - 600,
+    responseWindow: { windowMs: 600 },
+  });
+
+  it('lays the verbs out inside render, before the DOM renderer, from the camera', () => {
+    const { ui, camera } = build(metrics);
+    ui.setSize(800, 400);
+    // The same point: the two verbs overlap whatever the camera.
+    ui.mountThreats([
+      { ...base, threatId: 1, xM: 0, yM: 0, zM: 0 },
+      { ...base, threatId: 2, xM: 0, yM: 0, zM: 0 },
+    ]);
+    ui.updateThreats([closing(1, 5000), closing(2, 6000)] as never, null, null);
+    expect(ui.threatEntries.map((e) => e.verbOffsetPx)).toEqual([0, 0]);
+    ui.render(camera);
+    expect(ui.threatEntries[0]?.verbOffsetPx).toBe(0);
+    expect(ui.threatEntries[1]?.verbOffsetPx).toBeGreaterThan(0);
+    // The renderer ran after the layout: both markers have their transform.
+    const objects = ui.scene.children.slice(2, 4) as unknown as { element: FakeElement }[];
+    for (const object of objects) expect(object.element.style.transform).toBeDefined();
+  });
+
+  it('moves the chip with the verb it hangs from, in the same render', () => {
+    const { ui, camera } = build(metrics);
+    ui.setSize(800, 400);
+    ui.mountThreats([
+      { ...base, threatId: 1, xM: 0, yM: 0, zM: 0 },
+      { ...base, threatId: 2, xM: 0, yM: 0, zM: 0 },
+    ]);
+    ui.updateThreats([closing(1, 5000), closing(2, 6000)] as never, null, null);
+    const lower = ui.threatEntries[1];
+    if (lower === undefined) throw new Error('expected two entries');
+    // `showAt` comes before `render` in the frame, so it sees the previous layout: no offset yet.
+    ui.glyphChip.showAt(lower, 'Espace');
+    // The scene holds the tap marker, then the chip (made first), then the markers mounted later.
+    const chip = ui.scene.children[1] as unknown as { element: FakeElement };
+    const riseBefore = chip.element.vars.get('--pp-chip-rise');
+    ui.render(camera);
+    expect(lower.verbOffsetPx).toBeGreaterThan(0);
+    expect(chip.element.vars.get('--pp-chip-rise')).not.toBe(riseBefore);
+    expect(Number.parseFloat(chip.element.vars.get('--pp-chip-rise') ?? '')).toBe(
+      lower.verbOffsetPx + lower.verbHeightPx / 2,
+    );
+  });
+
+  it('fits the verbs to the layer when it is sized, and again on refitVerbs', () => {
+    const { ui } = build(metrics);
+    ui.mountThreats([{ ...base, threatId: 1, xM: 0, yM: 0, zM: 0 }]);
+    // Nothing to fit against yet.
+    expect(ui.threatEntries[0]?.verbWidthPx).toBe(0);
+    ui.setSize(800, 400);
+    expect(ui.threatEntries[0]?.verbWidthPx).toBe(8 * 40 * 0.5 + 10);
+    const entry = ui.threatEntries[0];
+    if (entry === undefined) throw new Error('expected an entry');
+    entry.verbWidthPx = 0;
+    ui.refitVerbs();
+    expect(entry.verbWidthPx).toBe(8 * 40 * 0.5 + 10);
   });
 });

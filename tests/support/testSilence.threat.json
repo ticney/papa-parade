@@ -7,7 +7,10 @@
   "windowMs": null,
   "findMaxMs": 5000,
   "surpriseGags": ["tissues_everywhere", "crayon_scribbles"],
+  "verbKey": "verb.lift",
   "icon": "dots",
+  "iconShape": "circle",
+  "color": "parry",
   "feedback": {
     "telegraph": "tel_silence_found",
     "success": "resp_parry",

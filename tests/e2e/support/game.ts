@@ -153,6 +153,10 @@ export interface LiveThreatDef {
   windowMs: number | null;
   cooldownMs: number;
   gag: string;
+  /** The key of `strings.fr.json` of the verb shown above the threat (story 2.2). */
+  verbKey: string | null;
+  iconShape: 'circle' | 'triangle';
+  color: 'parry' | 'dodge';
   feedback: { telegraph: string; success: string; perfect: string; gag: string };
 }
 const liveThreatCache = new Map<string, LiveThreatDef>();

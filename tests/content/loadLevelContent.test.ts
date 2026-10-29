@@ -125,6 +125,30 @@ describe('loadLevelContent', () => {
     expect(result.value.level.waves.flatMap((wave) => wave.threats)).toHaveLength(2);
   });
 
+  it('names the file and the key of a threat def that lacks its verbKey, iconShape or color (story 2.2)', async () => {
+    for (const key of ['verbKey', 'iconShape', 'color']) {
+      const outlet = JSON.parse(readReal('threats/outlet.json'));
+      delete outlet[key];
+      const problems = await problemsOf({
+        'levels/salon_crawler.json': planning(['outlet']),
+        'threats/outlet.json': JSON.stringify(outlet),
+      });
+      expect(problems).toEqual([
+        expect.objectContaining({ file: 'content/threats/outlet.json', jsonPath: key }),
+      ]);
+    }
+  });
+
+  it('hands the verb, shape and colour of each def to the level content (story 2.2)', async () => {
+    const result = await loadLevelContent(memorySource(), 'salon_crawler');
+    if (!result.ok) throw new Error('expected the live level to load');
+    for (const def of Object.values(result.value.threats)) {
+      expect(def.verbKey).toMatch(/^verb\./);
+      expect(def.iconShape).toBe('circle');
+      expect(def.color).toBe('parry');
+    }
+  });
+
   it('names the level and the path of a def whose file does not exist', async () => {
     const problems = await problemsOf({
       'levels/salon_crawler.json': planning(['outlet'], 'missing'),

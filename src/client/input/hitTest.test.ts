@@ -80,6 +80,12 @@ describe('pickThreat', () => {
     zM: 0.5,
     icon: 'bolt' as const,
     followsPapa: false,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
   };
   const entryB = {
     threatId: 2,
@@ -88,6 +94,12 @@ describe('pickThreat', () => {
     zM: 0.5,
     icon: 'bolt' as const,
     followsPapa: false,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
   };
   const pxOf = (entry: { xM: number; yM: number; zM: number }) => {
     const v = new Vector3(entry.xM, entry.yM, entry.zM).project(camera);
@@ -149,6 +161,12 @@ describe('pickThreat', () => {
       zM: 0.5,
       icon: 'bolt' as const,
       followsPapa: false,
+      verb: '',
+      iconShape: 'circle' as const,
+      color: 'parry' as const,
+      verbWidthPx: 0,
+      verbHeightPx: 0,
+      verbOffsetPx: 0,
     };
     const farCamera = createIsoCamera();
     fitIsoCamera(farCamera, ROOM, 2);

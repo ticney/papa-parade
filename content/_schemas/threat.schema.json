@@ -46,6 +46,18 @@
           "type": "number",
           "exclusiveMinimum": 0
         },
+        "verbKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^verb\\.[a-z0-9_]+$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Key of `strings.fr.json` (`verb.` group) of the verb shown above the threat (« SOULÈVE ! »). `null` = the default verb of the response, only for a `dodge` response (story 5.1)."
+        },
         "icon": {
           "type": "string",
           "enum": [
@@ -56,6 +68,22 @@
             "dots"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
+        },
+        "iconShape": {
+          "type": "string",
+          "enum": [
+            "circle",
+            "triangle"
+          ],
+          "description": "Shape of the threat's marker: `circle` goes with `parry`, `triangle` with `dodge` (the pair is the signal, NFR8)."
+        },
+        "color": {
+          "type": "string",
+          "enum": [
+            "parry",
+            "dodge"
+          ],
+          "description": "Colour of the threat's marker, by DESIGN.md token name (`parry` or `dodge`)."
         },
         "feedback": {
           "type": "object",
@@ -120,7 +148,10 @@
         "response",
         "telegraphDelayMs",
         "windowMs",
+        "verbKey",
         "icon",
+        "iconShape",
+        "color",
         "feedback",
         "cooldownMs",
         "target",
@@ -174,6 +205,18 @@
           "type": "number",
           "exclusiveMinimum": 0
         },
+        "verbKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^verb\\.[a-z0-9_]+$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Key of `strings.fr.json` (`verb.` group) of the verb shown above the threat (« SOULÈVE ! »). `null` = the default verb of the response, only for a `dodge` response (story 5.1)."
+        },
         "icon": {
           "type": "string",
           "enum": [
@@ -184,6 +227,22 @@
             "dots"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
+        },
+        "iconShape": {
+          "type": "string",
+          "enum": [
+            "circle",
+            "triangle"
+          ],
+          "description": "Shape of the threat's marker: `circle` goes with `parry`, `triangle` with `dodge` (the pair is the signal, NFR8)."
+        },
+        "color": {
+          "type": "string",
+          "enum": [
+            "parry",
+            "dodge"
+          ],
+          "description": "Colour of the threat's marker, by DESIGN.md token name (`parry` or `dodge`)."
         },
         "feedback": {
           "type": "object",
@@ -255,7 +314,10 @@
         "response",
         "telegraphDelayMs",
         "windowMs",
+        "verbKey",
         "icon",
+        "iconShape",
+        "color",
         "feedback",
         "cooldownMs",
         "target",

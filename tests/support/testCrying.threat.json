@@ -6,7 +6,10 @@
   "telegraphDelayMs": 1200,
   "windowMs": null,
   "gag": "outlet_hair",
+  "verbKey": "verb.lift",
   "icon": "bolt",
+  "iconShape": "circle",
+  "color": "parry",
   "feedback": {
     "telegraph": "tel_outlet",
     "success": "resp_parry",
