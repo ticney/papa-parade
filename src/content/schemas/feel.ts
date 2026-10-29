@@ -1,4 +1,5 @@
 import {
+  EPIC_STAMP_MAX_MS,
   GAUGE_MAX_POINTS,
   MAMA_SCORE_MAX_POINTS,
   MAX_BABY_RADIUS_M,
@@ -6,6 +7,7 @@ import {
   MAX_PAPA_RADIUS_M,
   MAX_WALK_SPEED_MPS,
   MIN_TIME_SCALE,
+  PARTICLE_MAX_PER_BURST,
   STAR_COUNT_MAX,
 } from '@shared/constants';
 import { z } from 'zod';
@@ -460,6 +462,95 @@ const GagsSchema = z
     'Tunables of the gags whose consequence the sim applies (`sim/threats/gags.ts`); a gag with nothing to tune has no key.',
   );
 
+/** The juice presets a feedback cue may name (`CueSchema.fx`); each has a block in `feel.fx`. */
+export const FX_PRESET_IDS = ['success', 'perfect', 'gag'] as const;
+export type FxPresetId = (typeof FX_PRESET_IDS)[number];
+
+const FxShakeSchema = z
+  .strictObject({
+    amplitudeM: z
+      .number()
+      .min(0)
+      .max(0.1)
+      .describe('Largest offset of the shake, in metres (0 = no shake).'),
+    durationMs: z
+      .number()
+      .min(0)
+      .max(400)
+      .describe('How long the shake lasts, in **real** ms (it plays during the hitstop).'),
+  })
+  .describe('The screen shake of the preset.');
+
+const FxParticlesSchema = z
+  .strictObject({
+    style: z
+      .enum(['spark', 'puff'])
+      .describe(
+        '`spark`: fast, with gravity, shrinks; `puff`: slow, no gravity, grows then fades.',
+      ),
+    count: z
+      .int()
+      .min(0)
+      .max(PARTICLE_MAX_PER_BURST)
+      .describe('Particles in one burst (0 = none); a perf limit bounds it.'),
+    speedMps: z
+      .number()
+      .min(0)
+      .max(6)
+      .describe('Initial speed of a particle, in metres per second.'),
+    lifeMs: z.int().min(50).max(1000).describe('Life of a particle, in **real** ms.'),
+    sizeM: z.number().min(0.01).max(0.3).describe('Edge of a particle at its largest, in metres.'),
+  })
+  .describe('The particle burst of the preset, from the cue ring anchor.');
+
+const fxPreset = (description: string) =>
+  z.strictObject({ shake: FxShakeSchema, particles: FxParticlesSchema }).describe(description);
+
+const FxSchema = z
+  .strictObject({
+    shakeFrequencyHz: z
+      .number()
+      .min(4)
+      .max(30)
+      .describe('Wobble frequency of every shake, in hertz (whatever its duration).'),
+    success: fxPreset('Juice of a successful response (story 2.5).'),
+    perfect: z
+      .strictObject({
+        shake: FxShakeSchema,
+        particles: FxParticlesSchema,
+        stampMs: z
+          .int()
+          .min(0)
+          .max(EPIC_STAMP_MAX_MS)
+          .describe('How long the « PARADE PARFAITE » stamp shows, in **real** ms (0 = no stamp).'),
+      })
+      .describe('Juice of a perfect response: shake, sparks and the stamp.'),
+    gag: fxPreset('Juice of a gag: the « pouf ».'),
+    perfectCamera: z
+      .strictObject({
+        zoomPct: z.number().min(0).max(40).describe('Extra zoom at the peak of the slow-mo, in %.'),
+        yawDeg: z
+          .number()
+          .min(0)
+          .max(12)
+          .describe('Camera rotation around the vertical at the peak, in degrees.'),
+        focusPct: z
+          .number()
+          .min(0)
+          .max(60)
+          .describe('How far the view centre moves toward the action at the peak, in %.'),
+        zoomInMs: z
+          .int()
+          .min(0)
+          .max(500)
+          .describe('Time to reach the peak after the slow-mo starts, in **sim** ms.'),
+      })
+      .describe('The camera move of a perfect response, driven by its slow-mo.'),
+  })
+  .describe(
+    'On-screen juice (story 2.5): shake, particles, stamp and the perfect camera. Client only.',
+  );
+
 export const FeelSchema = z
   .strictObject({
     timing: TimingSchema,
@@ -473,6 +564,7 @@ export const FeelSchema = z
     mama: MamaSchema,
     physics: PhysicsSchema,
     gags: GagsSchema,
+    fx: FxSchema,
   })
   .describe('Every feel value of the game, tuned by hand or from the feel panel.');
 

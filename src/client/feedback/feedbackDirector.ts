@@ -1,10 +1,15 @@
 import type { AudioBus, FeedbackCue, FeedbackTable } from '@content/schemas/feedback';
+import type { Feel } from '@content/schemas/feel';
 import type { Haptics } from '@platform/platform';
+import { REDUCED_MOTION_PARTICLE_KEEP_PCT } from '@shared/constants';
 import { log } from '@shared/log';
-import { asSimMs } from '@shared/time';
+import { asRealMs, asSimMs } from '@shared/time';
 import type { SimObjectSpec, World } from '@sim';
 import type { LevelFx } from '../render/levelScene.ts';
 import type { FeedbackEventName } from './feedbackEvents.ts';
+
+/** The visual parts a cue reports through `onVisual`. */
+export type VisualKind = 'soundWave' | 'flash' | 'uiElement' | 'shake' | 'particles' | 'stamp';
 
 export interface FeedbackDirectorDeps {
   table: FeedbackTable;
@@ -22,11 +27,26 @@ export interface FeedbackDirectorDeps {
    */
   flash?(peakOpacityPct: number, durationMs: number, isMotionReduced: boolean): boolean;
   /**
+   * The live `feel.fx` (boot passes the current level feel, so a change in the feel panel applies to
+   * the next cue), `null` when there is none. Read when a cue with an `fx` is played.
+   */
+  getFx(): Feel['fx'] | null;
+  /** Real time now, in ms: where the shake and the particles of a cue start from (story 2.5). */
+  nowReal(): number;
+  /**
+   * Shows the « PARADE PARFAITE » stamp for `durationMs` real ms and says whether it did.
+   * `isMotionReduced` asks for a plain fade.
+   */
+  stamp?(durationMs: number, isMotionReduced: boolean): boolean;
+  /**
    * Told each visual part that actually ran, once per part: `soundWave` after the ring (once for
    * all the pulses of a wave), `flash` after a flash that was drawn, `uiElement` for the screen
-   * element that stands in for the sound. A skipped ring or flash is not reported. Called before `onCue`.
+   * element that stands in for the sound, then `shake`, `particles` and `stamp` for the `fx`
+   * preset. A skipped part (a ring with no anchor, a flash held back by the 3 Hz rule, a shake
+   * under reduced motion, a burst of 0, a stamp that returned false) is not reported. Called
+   * before `onCue`.
    */
-  onVisual?(cueId: string, kind: 'soundWave' | 'flash' | 'uiElement'): void;
+  onVisual?(cueId: string, kind: VisualKind): void;
   /** Told the id of each cue played, after all its parts (the debug mirror). */
   onCue?(cueId: string): void;
 }
@@ -34,9 +54,10 @@ export interface FeedbackDirectorDeps {
 export interface FeedbackDirector {
   /**
    * Plays what the table says for `name`: the sound, its layers, the vibration, the ring (its
-   * pulses start from the same call), the screen flash and the camera effect of its cue, in that
-   * order, in this very call (response sound and haptic fire at judgement, never deferred). An event the table does not list does nothing. A part that cannot
-   * play is skipped and the others still play. `world` is read, never written.
+   * pulses start from the same call), the screen flash and the `fx` preset (shake, particles, the
+   * perfect's stamp) of its cue, in that order, in this very call (response sound and haptic fire
+   * at judgement, never deferred). An event the table does not list does nothing. A part that
+   * cannot play is skipped and the others still play. `world` is read, never written.
    */
   handle(name: FeedbackEventName, world: Readonly<World> | null): void;
   /**
@@ -127,7 +148,7 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
   };
 
   // Plays the parts of one cue: the sound, its layers, the vibration, the ring, the flash, the
-  // camera effect, in that order. `name` is only what a warning calls it by (an event name, or `cue <id>`).
+  // `fx` preset (shake, particles, stamp), in that order. `name` is only what a warning calls it by (an event name, or `cue <id>`).
   const play = (
     name: string,
     id: string,
@@ -151,7 +172,7 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
       const kind = cue.haptic;
       attempt(name, 'vibration', undefined, () => haptics.pulse(kind));
     }
-    const reportVisual = (kind: 'soundWave' | 'flash' | 'uiElement'): void => {
+    const reportVisual = (kind: VisualKind): void => {
       const { onVisual } = deps;
       if (onVisual !== undefined)
         attempt(name, 'visual report', undefined, () => onVisual(id, kind));
@@ -163,12 +184,15 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
     // The world visuals need a world to read and a scene to draw on (neither exists for a client
     // event like the countdown tick: `content:check` refuses a world visual on such a cue).
     const scene =
-      world !== null && (worldVisual !== undefined || cue.camera !== undefined)
+      world !== null && (worldVisual !== undefined || cue.fx !== undefined)
         ? attempt(name, 'scene lookup', null, deps.getScene)
         : null;
+    // Where the ring starts, and so the particles of the cue's `fx`: looked up once, one warning.
+    let ringAt: { xM: number; zM: number } | null = null;
     if (world !== null && scene !== null && worldVisual !== undefined) {
       const { anchor, maxRadiusM, durationMs, pulses = 1, pulseIntervalMs = 0 } = worldVisual;
       const at = anchorOf(anchor, world, threatId, objectId, name);
+      ringAt = at;
       if (at !== null) {
         // The pulses are rings queued on the sim clock: a pause freezes them, a slow-mo slows them.
         // Each pulse is guarded on its own: one that throws does not hide the ones already queued.
@@ -187,7 +211,7 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
     // The flash is a screen effect on real time: no world, no scene. The cue's author decides where
     // it belongs. A failing motion query counts as reduced motion (the glow): the safe side.
     const { flash: drawFlash } = deps;
-    // Asked once per cue, and only if the flash or the camera needs it.
+    // Asked once per cue, and only if the flash or the fx needs it.
     let isMotionReducedMemo: boolean | undefined;
     const isMotionReducedNow = (): boolean =>
       (isMotionReducedMemo ??= attempt(name, 'motion query', true, deps.prefersReducedMotion));
@@ -199,13 +223,50 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
       );
       if (isDrawn) reportVisual('flash');
     }
-    if (world !== null && scene !== null && cue.camera !== undefined) {
-      // A failing motion query counts as reduced motion: the safe side.
-      if (!isMotionReducedNow()) {
-        const { amplitudeM, durationMs } = cue.camera;
-        attempt(name, 'camera effect', undefined, () =>
-          scene.shake(amplitudeM, durationMs, world.time.sim),
-        );
+    if (cue.fx !== undefined) {
+      const preset = cue.fx;
+      const feelFx = attempt(name, 'fx lookup', null, deps.getFx);
+      if (feelFx !== null) {
+        // A failing motion query counts as reduced motion: the safe side.
+        const isMotionReduced = isMotionReducedNow();
+        const { shake, particles } = feelFx[preset];
+        const startAtReal = asRealMs(attempt(name, 'real clock', 0, deps.nowReal));
+        if (world !== null && scene !== null) {
+          if (!isMotionReduced && shake.amplitudeM > 0 && shake.durationMs > 0) {
+            const isShaking = attempt(name, 'shake', false, () => {
+              scene.shake(shake.amplitudeM, shake.durationMs, feelFx.shakeFrequencyHz, startAtReal);
+              return true;
+            });
+            if (isShaking) reportVisual('shake');
+          }
+          const count = isMotionReduced
+            ? Math.round((particles.count * REDUCED_MOTION_PARTICLE_KEEP_PCT) / 100)
+            : particles.count;
+          if (ringAt !== null && count > 0) {
+            const at = ringAt;
+            const isBursting = attempt(name, 'particles', false, () => {
+              scene.particles(
+                particles.style,
+                count,
+                particles.speedMps,
+                particles.lifeMs,
+                particles.sizeM,
+                at.xM,
+                at.zM,
+                startAtReal,
+              );
+              return true;
+            });
+            if (isBursting) reportVisual('particles');
+          }
+        }
+        // The stamp is a screen overlay like the flash: it needs no world.
+        const { stamp } = deps;
+        const stampMs = preset === 'perfect' ? feelFx.perfect.stampMs : 0;
+        if (stampMs > 0 && stamp !== undefined) {
+          const isStamped = attempt(name, 'stamp', false, () => stamp(stampMs, isMotionReduced));
+          if (isStamped) reportVisual('stamp');
+        }
       }
     }
     const { onCue } = deps;

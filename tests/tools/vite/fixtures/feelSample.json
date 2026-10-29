@@ -123,5 +123,22 @@
   },
   "gags": {
     "tableObjectFall": { "pushImpulseNs": 0.72, "propReachDistM": 0.5 }
+  },
+  "fx": {
+    "shakeFrequencyHz": 14,
+    "success": {
+      "shake": { "amplitudeM": 0.025, "durationMs": 120 },
+      "particles": { "style": "spark", "count": 10, "speedMps": 2.5, "lifeMs": 350, "sizeM": 0.05 }
+    },
+    "perfect": {
+      "shake": { "amplitudeM": 0.05, "durationMs": 200 },
+      "particles": { "style": "spark", "count": 24, "speedMps": 3.5, "lifeMs": 500, "sizeM": 0.06 },
+      "stampMs": 800
+    },
+    "gag": {
+      "shake": { "amplitudeM": 0.04, "durationMs": 250 },
+      "particles": { "style": "puff", "count": 12, "speedMps": 0.8, "lifeMs": 650, "sizeM": 0.12 }
+    },
+    "perfectCamera": { "zoomPct": 18, "yawDeg": 6, "focusPct": 35, "zoomInMs": 150 }
   }
 }

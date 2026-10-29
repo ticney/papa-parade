@@ -1,5 +1,5 @@
 import type { LevelStartOptions } from '@client/app/levelSession';
-import type { CuePlayedRecord, TestHost } from '@client/app/testHost';
+import type { CuePlayedRecord, FxState, TestHost } from '@client/app/testHost';
 import {
   ADVANCE_MAX_STEPS,
   TEST_API_CUE_LOG_MAX,
@@ -62,6 +62,12 @@ export interface PPTestApi {
    * misses nothing).
    */
   cueLog(): CuePlayedRecord[];
+  /**
+   * What the screen effects are doing right now (story 2.5), read at call time: the camera's zoom
+   * (1 = the iso framing) and turn in degrees, the shake's offset in metres, the live particles and
+   * the stamps shown so far. Reduced motion shows as a turn of 0 and an offset of 0.
+   */
+  fx(): FxState;
   /** A copy of what the level's frames measured so far: frame intervals (real ms), draw calls, triangles. */
   perf(): PerfReport;
 }
@@ -223,6 +229,10 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
 
     cueLog() {
       return cues.map((record) => ({ ...record, visuals: [...record.visuals] }));
+    },
+
+    fx() {
+      return host.fxState();
     },
 
     perf() {

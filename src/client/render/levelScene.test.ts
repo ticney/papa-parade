@@ -1,5 +1,5 @@
 import { log } from '@shared/log';
-import { asSimMs } from '@shared/time';
+import { asRealMs, asSimMs, type RealMs } from '@shared/time';
 import { createSim, type World } from '@sim';
 import {
   BoxGeometry,
@@ -59,9 +59,13 @@ function buildModel(): Group {
 
 function build() {
   const geometry = createTestLevelGeometry('test_room');
+  const level = createLevelScene({ id: 'test_room', geometry, model: buildModel() }, BODIES);
   return {
     geometry,
-    ...createLevelScene({ id: 'test_room', geometry, model: buildModel() }, BODIES),
+    ...level,
+    // Most tests do not care about the real clock: it stays at 0 unless they pass one.
+    update: (world: World, alpha: number, nowReal: RealMs = asRealMs(0)) =>
+      level.update(world, alpha, nowReal),
   };
 }
 
@@ -433,19 +437,47 @@ describe('createLevelScene', () => {
     expect(wave().visible).toBe(false);
   });
 
-  it('draws the effects from the sim clock alone, so a clock that stands still (pause) draws one picture', () => {
+  it('draws the rings from the sim clock alone, so a clock that stands still (pause) draws one picture', () => {
     const { scene, fx, update } = build();
     fx.soundWave(0, 0, 1, 1000, asSimMs(0));
-    fx.shake(0.1, 1000, asSimMs(0));
     update(fakeWorldAt(300), 0);
     const wave = scene.getObjectsByProperty('name', 'sound_wave')[0] as Mesh;
-    const root = scene.getObjectByName('content_root');
-    const frozen = [wave.scale.x, root?.position.x, root?.position.z];
+    const frozen = wave.scale.x;
     for (let frame = 0; frame < 5; frame++) update(fakeWorldAt(300), 0);
-    expect([wave.scale.x, root?.position.x, root?.position.z]).toEqual(frozen);
+    expect(wave.scale.x).toBe(frozen);
     // And it moves only when the clock does.
     update(fakeWorldAt(400), 0);
-    expect(wave.scale.x).toBeGreaterThan(frozen[0] as number);
+    expect(wave.scale.x).toBeGreaterThan(frozen);
+  });
+
+  it('shakes and bursts on the real clock: they move while the sim clock stands still (hitstop)', () => {
+    const { scene, fx, update, realFxState } = build();
+    const root = scene.getObjectByName('content_root');
+    const world = fakeWorldAt(300);
+    fx.shake(0.1, 200, 14, asRealMs(1000));
+    fx.particles('spark', 6, 2, 300, 0.05, 1, 1, asRealMs(1000));
+    update(world, 0, asRealMs(1020));
+    const first = root?.position.x;
+    expect(first).not.toBe(0);
+    expect(realFxState().particlesAlive).toBe(6);
+    // The sim clock has not moved (a hitstop frame): the shake still has.
+    update(world, 0, asRealMs(1060));
+    expect(root?.position.x).not.toBe(first);
+    expect(realFxState().shakeOffsetXM).toBe(root?.position.x);
+    // Over: back to exactly zero, no particle left.
+    update(world, 0, asRealMs(1400));
+    expect(root?.position.toArray()).toEqual([0, 0, 0]);
+    expect(realFxState()).toEqual({ shakeOffsetXM: 0, shakeOffsetZM: 0, particlesAlive: 0 });
+  });
+
+  it('puts the particles under the content root and frees them with the scene', () => {
+    const { scene, fx, update, resetFx, realFxState } = build();
+    expect(scene.getObjectByName('content_root')?.getObjectByName('particles')).toBeDefined();
+    fx.particles('puff', 4, 1, 500, 0.1, 0, 0, asRealMs(0));
+    update(fakeWorldAt(0), 0, asRealMs(10));
+    expect(realFxState().particlesAlive).toBe(4);
+    resetFx();
+    expect(realFxState().particlesAlive).toBe(0);
   });
 
   describe('the gag and the lift', () => {
@@ -538,8 +570,8 @@ describe('createLevelScene', () => {
   it('resetFx ends the rings and the shake under way', () => {
     const { scene, fx, update, resetFx } = build();
     fx.soundWave(0, 0, 1, 1000, asSimMs(0));
-    fx.shake(0.1, 1000, asSimMs(0));
-    update(fakeWorldAt(300), 0);
+    fx.shake(0.1, 1000, 14, asRealMs(0));
+    update(fakeWorldAt(300), 0, asRealMs(300));
     const root = scene.getObjectByName('content_root');
     expect([root?.position.x, root?.position.z]).not.toEqual([0, 0]);
     resetFx();
@@ -554,13 +586,13 @@ describe('createLevelScene', () => {
     const root = scene.getObjectByName('content_root');
     const light = scene.children.find((child) => 'isDirectionalLight' in child);
     const lightAt = light?.position.toArray();
-    fx.shake(0.1, 400, asSimMs(1000));
-    update(fakeWorldAt(1000), 0);
+    fx.shake(0.1, 400, 14, asRealMs(1000));
+    update(fakeWorldAt(1000), 0, asRealMs(1000));
     expect(root?.position.toArray()).toEqual([0, 0, 0]);
-    update(fakeWorldAt(1100), 0);
+    update(fakeWorldAt(1000), 0, asRealMs(1100));
     expect([root?.position.x, root?.position.z]).not.toEqual([0, 0]);
     expect(light?.position.toArray()).toEqual(lightAt);
-    update(fakeWorldAt(1400), 0);
+    update(fakeWorldAt(1000), 0, asRealMs(1400));
     expect(root?.position.toArray()).toEqual([0, 0, 0]);
   });
 

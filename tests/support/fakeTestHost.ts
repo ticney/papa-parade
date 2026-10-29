@@ -1,10 +1,18 @@
 import type { LevelSession, StartedLevel } from '../../src/client/app/levelSession.ts';
 import type { PauseState } from '../../src/client/app/pauseController.ts';
-import type { CuePlayedRecord, TestHost } from '../../src/client/app/testHost.ts';
+import type { CuePlayedRecord, FxState, TestHost } from '../../src/client/app/testHost.ts';
 import type { RenderStats } from '../../src/client/render/renderer.ts';
 import type { ContentBundle } from '../../src/content/contentBundle.ts';
 import type { Sim, SimEvent } from '../../src/sim/index.ts';
 import { createTestContent } from './testContent.ts';
+
+const NO_FX_STATE: FxState = {
+  cameraZoom: 1,
+  cameraYawDeg: 0,
+  shakeOffsetM: 0,
+  particlesAlive: 0,
+  stampCount: 0,
+};
 
 /** A `TestHost` for the debug modules' tests, with handles to fire what the app would. */
 export interface FakeTestHost extends TestHost {
@@ -26,6 +34,8 @@ export interface FakeTestHostOptions {
   content?: ContentBundle;
   /** The session the host exposes, whole. Default: one that does nothing. */
   levelSession?: LevelSession;
+  /** What `fxState` answers. Default: no effect under way. */
+  fxState?: FxState;
   /** What `auditionCue` answers: whether the audio context is running. Default: true. */
   isAudioRunning?: boolean;
 }
@@ -72,6 +82,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     onCuePlayed: (listener) => subscribe(cueListeners, listener),
     onRenderedFrame: (listener) => subscribe(frameListeners, listener),
     debugGroup: () => null,
+    fxState: () => options.fxState ?? NO_FX_STATE,
     threatScreenPoints: () => [],
     auditionCue(cueId) {
       calls.push(`audition:${cueId}`);

@@ -190,33 +190,22 @@ describe('content/feedback.json', () => {
     expect(mutated(...changes)).toMatchObject({ ok: true });
   });
 
-  it('accepts a shake camera effect and a cue with only a camera', () => {
-    const result = mutated([
-      'cues.countdown_tick',
-      { camera: { kind: 'shake', amplitudeM: 0.05, durationMs: 200 } },
-    ]);
-    expect(result).toMatchObject({ ok: true });
+  it.each(['success', 'perfect', 'gag'])('accepts the %s fx preset, alone in a cue', (preset) => {
+    expect(mutated(['cues.countdown_tick', { fx: preset }])).toMatchObject({ ok: true });
   });
 
   it.each([
-    ['a shake of amplitude 0', { kind: 'shake', amplitudeM: 0, durationMs: 100 }, 'amplitudeM'],
-    [
-      'a shake wider than half a metre',
-      { kind: 'shake', amplitudeM: 0.6, durationMs: 100 },
-      'amplitudeM',
-    ],
-    ['a shake of duration 0', { kind: 'shake', amplitudeM: 0.1, durationMs: 0 }, 'durationMs'],
-    [
-      'an unknown key in a shake',
-      { kind: 'shake', amplitudeM: 0.1, durationMs: 100, bogusM: 1 },
-      'bogusM',
-    ],
-    ['an unknown camera kind', { kind: 'zoom', amplitudeM: 0.1, durationMs: 100 }, 'kind'],
-  ])('refuses %s, on that field', (_name, camera, field) => {
+    ['an unknown preset', 'boom'],
+    ['an object where a preset name is expected', { kind: 'shake', amplitudeM: 0.1 }],
+  ])('refuses %s, on the fx field', (_name, fx) => {
+    const failed = failedPaths(mutated(['cues.countdown_tick', { fx }]));
+    expect(failed).toContain('cues.countdown_tick.fx');
+  });
+
+  it('refuses the removed camera member', () => {
+    const camera = { kind: 'shake', amplitudeM: 0.1, durationMs: 100 };
     const failed = failedPaths(mutated(['cues.countdown_tick', { camera }]));
-    expect(failed.length).toBeGreaterThan(0);
-    expect(failed.every((path) => path.startsWith('cues.countdown_tick.camera'))).toBe(true);
-    expect(failed.some((path) => path.endsWith(field))).toBe(true);
+    expect(failed.some((path) => path.startsWith('cues.countdown_tick'))).toBe(true);
   });
 
   describe('pulsing sound waves (story 2.4)', () => {

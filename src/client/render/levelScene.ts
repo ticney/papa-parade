@@ -2,7 +2,7 @@ import { looksLikeGameplayNode, parseNodeName } from '@content/levelNodeNames';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { PAPA_TARGET_ANCHOR_ID, STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
-import type { SimMs } from '@shared/time';
+import type { RealMs, SimMs } from '@shared/time';
 import type { GagId, PropSlice, World } from '@sim';
 import {
   AmbientLight,
@@ -22,6 +22,7 @@ import type { RoomSize } from './isoCamera.ts';
 import { PALETTE } from './materials/palette.ts';
 import { createToonMaterialCache } from './materials/toonMaterial.ts';
 import { createLiftFx } from './vfx/liftHop.ts';
+import { createParticles, type ParticleStyle } from './vfx/particles.ts';
 import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
 import { createBabyView } from './views/babyView.ts';
@@ -45,14 +46,30 @@ export interface SceneBodies {
 }
 
 /**
- * What the feedback director plays in the 3D world, on the sim clock: a pause freezes it, a
- * slow-mo slows it and a restart frees it. Times are sim ms.
+ * What the feedback director plays in the 3D world. The rings, the gags and the hop run on the
+ * sim clock (a pause freezes them, a slow-mo slows them, a restart frees them; times are sim ms);
+ * the shake and the particles run on **real** time (`startAtReal`), so they play during the
+ * hitstop, when the sim clock stands still.
  */
 export interface LevelFx {
   /** An ink ring on the floor at (`xM`, `zM`) that grows to `maxRadiusM` and fades over `durationMs`. */
   soundWave(xM: number, zM: number, maxRadiusM: number, durationMs: number, startAt: SimMs): void;
-  /** Shakes the room (not the camera) by up to `amplitudeM` for `durationMs`. */
-  shake(amplitudeM: number, durationMs: number, startAt: SimMs): void;
+  /**
+   * Shakes the room (not the camera) by up to `amplitudeM` for `durationMs` real ms, wobbling at
+   * `frequencyHz`.
+   */
+  shake(amplitudeM: number, durationMs: number, frequencyHz: number, startAtReal: RealMs): void;
+  /** A burst of `count` particles from the floor point (`xM`, `zM`), for `lifeMs` real ms. */
+  particles(
+    style: ParticleStyle,
+    count: number,
+    speedMps: number,
+    lifeMs: number,
+    sizeM: number,
+    xM: number,
+    zM: number,
+    startAtReal: RealMs,
+  ): void;
   /**
    * Presents a gag (`GAG_PRESENTATIONS`): the lights go out and come back, Papa's hair stands up,
    * the baby slides along (`slideDirX`, `slideDirZ`) and back. With `isMotionReduced` the hair
@@ -79,9 +96,13 @@ export interface LevelScene {
   readonly fx: LevelFx;
   /**
    * Moves what the world moves: Papa, the baby and the props, drawn `alpha` of the way from the
-   * last step to the next; then the effects, on the interpolated sim clock.
+   * last step to the next; then the sim-clocked effects on the interpolated sim clock, and the
+   * real-time ones (shake, particles) at `nowReal`, the frame's timestamp: they move on every
+   * rendered frame, frozen by a hitstop or not.
    */
-  update(world: Readonly<World>, alpha: number): void;
+  update(world: Readonly<World>, alpha: number, nowReal: RealMs): void;
+  /** What the real-time effects are doing right now, read at call time (the debug `fx()`). */
+  realFxState(): { shakeOffsetXM: number; shakeOffsetZM: number; particlesAlive: number };
   /** Where Papa was last drawn (interpolated), for the markers that follow him. */
   readonly papaPose: Readonly<PapaPose>;
   /**
@@ -288,6 +309,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const baby = createBabyView(content, toon, shadows.kit, bodies.babyRadiusM);
   const waves = createSoundWaves(content, PALETTE.ink);
   const shake = createShake(content);
+  const particles = createParticles(content);
   // The gags move the lights (the room's lights are « the lamp » until E7), Papa's hair and the
   // baby's slide; the hop moves the baby too. Both on the sim clock.
   const gags = createGagFx({
@@ -302,7 +324,10 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const fx: LevelFx = {
     soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
       waves.play(xM, zM, maxRadiusM, durationMs, startAt),
-    shake: (amplitudeM, durationMs, startAt) => shake.start(amplitudeM, durationMs, startAt),
+    shake: (amplitudeM, durationMs, frequencyHz, startAtReal) =>
+      shake.start(amplitudeM, durationMs, frequencyHz, startAtReal),
+    particles: (style, count, speedMps, lifeMs, sizeM, xM, zM, startAtReal) =>
+      particles.burst(style, count, speedMps, lifeMs, sizeM, xM, zM, startAtReal),
     gag: (gag, startAt, isMotionReduced, slideDirX, slideDirZ) =>
       gags.start(gag, startAt, isMotionReduced, slideDirX, slideDirZ),
     liftBaby: (startAt) => lift.start(startAt),
@@ -316,7 +341,14 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     get papaPose() {
       return papa.pose;
     },
-    update(world, alpha) {
+    realFxState() {
+      return {
+        shakeOffsetXM: shake.offsetM.x,
+        shakeOffsetZM: shake.offsetM.z,
+        particlesAlive: particles.aliveCount,
+      };
+    },
+    update(world, alpha, nowReal) {
       papa.update(world.papa, alpha);
       baby.update(world.baby, alpha);
       props.sync(world.props, alpha);
@@ -327,19 +359,22 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       papa.setDrinking(world.papa.state === 'drink');
       papa.setOnPhone(world.papa.state === 'onPhone');
       waves.update(clockMs);
-      shake.update(clockMs);
+      shake.update(nowReal);
+      particles.update(nowReal);
       gags.update(clockMs);
       lift.update(clockMs);
     },
     resetFx() {
       waves.reset();
       shake.reset();
+      particles.reset();
       gags.reset();
       lift.reset();
     },
     dispose() {
       props.dispose();
       waves.dispose();
+      particles.dispose();
       disposeObject(scene);
       // The templates are not in the scene any more: free their geometry too (the materials are the toon cache's).
       for (const node of propNodes) {

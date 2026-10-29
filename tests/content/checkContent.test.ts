@@ -539,10 +539,11 @@ describe('checkContent on threat files', () => {
 
   describe('the sounds of a threat (story 2.3)', () => {
     const FEEDBACK = 'content/feedback.json';
-    /** The problems about sounds: the cues these tests point at break the haptic and flash rules of story 2.4 too, which have tests of their own. */
+    /** The problems about sounds: the cues these tests point at break the haptic, flash and fx rules of stories 2.4 and 2.5 too, which have tests of their own. */
     const soundProblems = async () =>
       (await checkContent(root)).filter(
-        (problem) => !/^the cue "[^"]+" (vibrates "|has (a|no) `flash`)/.test(problem.message),
+        (problem) =>
+          !/^the cue "[^"]+" (vibrates "|has (a|no) `flash`|has fx ")/.test(problem.message),
       );
     /** Adds cues to the temp `feedback.json` and points one role of the outlet at one of them. */
     const point = async (role: string, cueId: string, cue?: Record<string, unknown>) => {
@@ -1549,5 +1550,94 @@ describe('stripComments', () => {
 
   it('keeps line numbers across block comments', () => {
     expect(stripComments('a /* x\ny */ b').split('\n')).toHaveLength(2);
+  });
+});
+
+describe('checkContent on the fx presets (story 2.5)', () => {
+  const OUTLET = 'content/threats/outlet.json';
+  const FEEDBACK = 'content/feedback.json';
+
+  type Cue = Record<string, unknown>;
+  const pointOutlet = async (role: string, from: string, change: (cue: Cue) => void) => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const cues = feedback.cues as Record<string, Cue>;
+      const copy = structuredClone(cues[from]) as Cue;
+      change(copy);
+      cues.fx_test = copy;
+    });
+    await mutateJson(OUTLET, (threat) => {
+      (threat.feedback as Record<string, string>)[role] = 'fx_test';
+    });
+  };
+
+  it.each([
+    ['success', 'resp_parry', 'perfect'],
+    ['perfect', 'resp_parry_perfect', 'gag'],
+    ['gag', 'gag_outlet', 'success'],
+  ])('reports a %s cue that plays another preset', async (role, from, wrong) => {
+    await pointOutlet(role, from, (cue) => {
+      cue.fx = wrong;
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: OUTLET,
+        jsonPath: `feedback.${role}`,
+        message: expect.stringMatching(new RegExp(`"fx_test".*"${wrong}".*\`${role}\``)),
+      }),
+    ]);
+  });
+
+  it.each([
+    ['success', 'resp_parry'],
+    ['perfect', 'resp_parry_perfect'],
+    ['gag', 'gag_outlet'],
+  ])('reports a %s cue with no fx', async (role, from) => {
+    await pointOutlet(role, from, (cue) => {
+      delete cue.fx;
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: OUTLET,
+        jsonPath: `feedback.${role}`,
+        message: expect.stringMatching(/"fx_test".*"none"/),
+      }),
+    ]);
+  });
+
+  it('accepts the live threat cues, each on its preset', async () => {
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('reports a cue with an fx and no soundWave, at the path of the fx', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const cues = feedback.cues as Record<string, Cue>;
+      delete (cues.resp_parry as Cue).visual;
+      // The twin rules want a visual twin of the sound elsewhere; the flash is not it for a success.
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: FEEDBACK,
+        jsonPath: 'cues.resp_parry.fx',
+        message: expect.stringContaining('soundWave'),
+      }),
+    );
+  });
+
+  it('reports a client event whose cue has an fx: it has no world to shake or burst in', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const cues = feedback.cues as Record<string, Cue>;
+      cues.client_fx = { haptic: 'light', fx: 'success' };
+      (feedback.events as Record<string, string>)[FEEDBACK_CLIENT_EVENTS[0] as string] =
+        'client_fx';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: FEEDBACK,
+        jsonPath: `events.${FEEDBACK_CLIENT_EVENTS[0]}`,
+        message: expect.stringContaining('`fx`'),
+      }),
+    );
   });
 });

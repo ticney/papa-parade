@@ -40,7 +40,7 @@ async function openFrozenLevel(page: Parameters<typeof waitForTestApi>[0], seed 
 const FAR = anchorMirror('phone');
 
 test.describe('window.__PP__', () => {
-  test('exists in dev without ?debug=1, with its nine methods', async ({ page }) => {
+  test('exists in dev without ?debug=1, with its ten methods', async ({ page }) => {
     const problems = collectProblems(page);
     await page.goto('/');
     await waitForTestApi(page);
@@ -50,6 +50,7 @@ test.describe('window.__PP__', () => {
       'cueLog',
       'events',
       'freeze',
+      'fx',
       'loadLevel',
       'perf',
       'send',
