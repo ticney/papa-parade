@@ -5,7 +5,7 @@ import { cloneJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import type { SimCommand, SimEvent, World } from '@sim';
-import { applyFeelPatch, type FeelPatch } from './feelPatch.ts';
+import { applyFeelPatch, effectiveFeel, type FeelPatch } from './feelPatch.ts';
 import { feedPerfMeter } from './perfFeed.ts';
 import { createPerfMeter, type PerfReport } from './perfMeter.ts';
 
@@ -40,8 +40,10 @@ export interface PPTestApi {
   /** Freezes or unfreezes the level loop: it renders on but runs no step. */
   freeze(on: boolean): void;
   /**
-   * Lays `patch` over the running level's effective feel: it checks the result with `FeelSchema`
-   * (an invalid patch rejects, naming the paths, and nothing is sent), then enqueues the journaled
+   * Lays `patch` over the running level's effective feel (the sim's `world.feel` with the
+   * `SetFeel`s it still holds, so patches sent back to back build on each other): it checks the
+   * result with `FeelSchema` and the sim's shape rule (an invalid patch rejects, naming the paths,
+   * and nothing is sent), then enqueues the journaled
    * `SetFeel` command at the current sim time, so it applies at the next step and the level goes on
    * (story 2.1). It also becomes the feel the next start or restart uses. Resolves once enqueued.
    */
@@ -167,7 +169,9 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
     async setFeel(patch) {
       const active = requireActive('setFeel');
       const { world } = active.sim;
-      const merged = applyFeelPatch(world.feel, patch);
+      // Against the feel the sim will have once the commands it holds are applied (`world.feel`
+      // only changes at the next step): two patches sent back to back are checked in order.
+      const merged = applyFeelPatch(effectiveFeel(active.sim), patch);
       if (!merged.ok) throw new Error(`__PP__.setFeel: ${merged.error.message}`);
       active.sim.enqueue({ type: 'SetFeel', t: world.time.sim, patch });
       // A restart keeps what was tuned (the level's own overrides are merged over it again there).

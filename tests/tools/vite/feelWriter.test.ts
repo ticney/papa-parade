@@ -14,10 +14,15 @@ import {
 } from '../../../tools/vite/feelWrite.ts';
 import { createBiomeFormatter } from '../../../tools/vite/feelWriterPlugin.ts';
 
-// The real `content/feel.json` is only read here, as a model of the layout to keep; every write
-// goes to a temp directory.
+// The fixture is a literal sample (`fixtures/feelSample.json`, laid out the way Biome writes it:
+// one-line objects, one-line scalar arrays), not the live `content/feel.json`, which Geo reshapes
+// freely. Every write goes to a temp directory. Only one « live file » test reads the real
+// one, read-only. The HTTP layer is in `feelWriterHttp.test.ts`.
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const liveFeelText = await readFile(join(repoRoot, FEEL_FILE), 'utf8');
+const sampleText = await readFile(
+  join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'feelSample.json'),
+  'utf8',
+);
 
 let root: string;
 let target: string;
@@ -26,7 +31,7 @@ beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'pp-feel-writer-'));
   target = join(root, FEEL_FILE);
   await mkdir(dirname(target), { recursive: true });
-  await writeFile(target, liveFeelText, 'utf8');
+  await writeFile(target, sampleText, 'utf8');
 });
 
 afterEach(async () => {
@@ -48,24 +53,24 @@ const post = (body: unknown, method = 'POST') => ({
   bodyText: typeof body === 'string' ? body : JSON.stringify(body),
 });
 const onDisk = (): Promise<string> => readFile(target, 'utf8');
-const liveFeel = JSON.parse(liveFeelText) as {
+const sampleFeel = JSON.parse(sampleText) as {
   timing: { windowMs: number; perfectMs: number };
 };
 
 describe('handleFeelWrite › an accepted write', () => {
   it('merges the patch into the file and changes nothing else, byte for byte', async () => {
-    const windowMs = liveFeel.timing.windowMs + 25;
+    const windowMs = sampleFeel.timing.windowMs + 25;
     const response = await handleFeelWrite(
       post({ file: FEEL_FILE, patch: { timing: { windowMs } } }),
       deps(),
     );
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ ok: true, changed: ['timing.windowMs'] });
-    const expected = liveFeelText.replace(
-      `"windowMs": ${liveFeel.timing.windowMs},`,
+    const expected = sampleText.replace(
+      `"windowMs": ${sampleFeel.timing.windowMs},`,
       `"windowMs": ${windowMs},`,
     );
-    expect(expected).not.toBe(liveFeelText);
+    expect(expected).not.toBe(sampleText);
     expect(await onDisk()).toBe(expected);
   });
 
@@ -82,7 +87,7 @@ describe('handleFeelWrite › an accepted write', () => {
     );
     const text = await onDisk();
     const after = JSON.parse(text) as Record<string, unknown>;
-    expect(Object.keys(after)).toEqual(Object.keys(JSON.parse(liveFeelText)));
+    expect(Object.keys(after)).toEqual(Object.keys(JSON.parse(sampleText)));
     expect(Object.keys(after)[0]).toBe('$schema');
     expect(text).toMatch(
       /"slowMoPerfect": \{ "timeScale": 0\.35, "durationMs": \d+, "returnMs": \d+ \}/,
@@ -90,13 +95,17 @@ describe('handleFeelWrite › an accepted write', () => {
     expect(text).toContain('"starThresholdPoints": [10, 20, 30, 40, 50],');
   });
 
-  it('writes text the project’s formatter would leave as it is (biome check passes)', async () => {
+  it('writes text that Biome leaves as it is: formatting the output again is a no-op', async () => {
     await handleFeelWrite(
       post({ file: FEEL_FILE, patch: { movement: { walkSpeedMps: 3.5 } } }),
       deps(),
     );
     const text = await onDisk();
+    // Idempotence of the formatter on what was written, and the stringifier already agreed with it
+    // (Biome had nothing to change in what stringifyLike produced).
     expect(await createBiomeFormatter(repoRoot)(text)).toBe(text);
+    expect(text).toBe(stringifyLike(sampleText, JSON.parse(text)));
+    expect(JSON.parse(text).movement.walkSpeedMps).toBe(3.5);
   });
 
   it('merges into the file, not into an effective feel: a patch of one leaf touches that leaf only', async () => {
@@ -106,7 +115,7 @@ describe('handleFeelWrite › an accepted write', () => {
       deps(),
     );
     const after = JSON.parse(await onDisk()) as { input: Record<string, unknown> };
-    const before = JSON.parse(liveFeelText) as { input: Record<string, unknown> };
+    const before = JSON.parse(sampleText) as { input: Record<string, unknown> };
     expect(after.input.earlyPress).toBe('guard');
     expect({ ...after.input, earlyPress: before.input.earlyPress }).toEqual(before.input);
   });
@@ -121,11 +130,11 @@ describe('handleFeelWrite › an accepted write', () => {
 
   it('accepts a patch that keeps the file as it is, and rewrites it identically', async () => {
     const response = await handleFeelWrite(
-      post({ file: FEEL_FILE, patch: { timing: { windowMs: liveFeel.timing.windowMs } } }),
+      post({ file: FEEL_FILE, patch: { timing: { windowMs: sampleFeel.timing.windowMs } } }),
       deps(),
     );
     expect(response.status).toBe(200);
-    expect(await onDisk()).toBe(liveFeelText);
+    expect(await onDisk()).toBe(sampleText);
   });
 });
 
@@ -135,7 +144,7 @@ describe('handleFeelWrite › refusals leave the file byte for byte as it was', 
     expect(response.status).toBe(status);
     expect(response.body.ok).toBe(false);
     if (message !== undefined) expect(response.body.message).toMatch(message);
-    expect(await onDisk()).toBe(liveFeelText);
+    expect(await onDisk()).toBe(sampleText);
   }
 
   it('refuses any method but POST', async () => {
@@ -247,13 +256,46 @@ describe('handleFeelWrite › refusals leave the file byte for byte as it was', 
     );
     expect(unwritten.status).toBe(500);
     expect(unwritten.body.message).toContain('disk full');
-    expect(await onDisk()).toBe(liveFeelText);
+    expect(await onDisk()).toBe(sampleText);
+  });
+
+  it('writes nothing when the formatter returns an empty, garbled or different text', async () => {
+    const request = post({ file: FEEL_FILE, patch: { timing: { windowMs: 400 } } });
+    const outputs: [string, RegExp][] = [
+      ['', /not JSON/],
+      ['{ "timing": ', /not JSON/],
+      ['{}', /invalid feel/],
+      // Valid for the schema, but not the feel that was validated.
+      [
+        JSON.stringify({ ...sampleFeel, timing: { ...sampleFeel.timing, windowMs: 401 } }),
+        /differs from the merge/,
+      ],
+    ];
+    for (const [output, message] of outputs) {
+      const writes: string[] = [];
+      const response = await handleFeelWrite(
+        request,
+        deps({
+          format: async () => output,
+          writeText: async (_path, text) => void writes.push(text),
+        }),
+      );
+      expect(response.status).toBe(500);
+      expect(response.body.message).toMatch(message);
+      expect(writes).toEqual([]);
+    }
+    expect(await onDisk()).toBe(sampleText);
   });
 });
 
 describe('stringifyLike', () => {
-  it('gives the real feel.json back byte for byte', () => {
-    expect(stringifyLike(liveFeelText, JSON.parse(liveFeelText))).toBe(liveFeelText);
+  it('gives the sample feel.json back byte for byte', () => {
+    expect(stringifyLike(sampleText, JSON.parse(sampleText))).toBe(sampleText);
+  });
+
+  it('gives the live content/feel.json back byte for byte (read only)', async () => {
+    const live = await readFile(join(repoRoot, FEEL_FILE), 'utf8');
+    expect(stringifyLike(live, JSON.parse(live))).toBe(live);
   });
 
   it('expands an object the original wrote expanded, and collapses one it wrote on a line', () => {

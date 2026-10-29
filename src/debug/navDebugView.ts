@@ -126,6 +126,16 @@ function disposeTree(object: Object3D): void {
   });
 }
 
+/** How many vertices (points, for the anchors) an object and everything under it hold: what was actually built. */
+function vertexCount(object: Object3D): number {
+  let count = 0;
+  object.traverse((node) => {
+    const geometry = (node as Partial<Mesh>).geometry;
+    count += geometry?.getAttribute('position')?.count ?? 0;
+  });
+  return count;
+}
+
 export interface DebugViews {
   isOn(view: DebugView): boolean;
   setView(view: DebugView, isOn: boolean): void;
@@ -135,6 +145,8 @@ export interface DebugViews {
   refresh(): void;
   /** The views drawn in the scene now (a debug aid: the overlay mirrors it for the e2e specs). */
   drawn(): DebugView[];
+  /** What each drawn scene view holds, in vertices (anchors: points): the overlay mirrors it too, so a spec checks what was built, not only that something was. */
+  sizes(): Partial<Record<DebugView, number>>;
   dispose(): void;
 }
 
@@ -306,6 +318,14 @@ export function createDebugViews(host: TestHost, doc: Document): DebugViews {
     },
     refresh,
     drawn: () => DEBUG_VIEWS.filter((view) => built[view] !== undefined),
+    sizes() {
+      const sizes: Partial<Record<DebugView, number>> = {};
+      for (const view of DEBUG_VIEWS) {
+        const object = built[view];
+        if (object !== undefined) sizes[view] = vertexCount(object);
+      }
+      return sizes;
+    },
     dispose() {
       offStarted();
       for (const view of DEBUG_VIEWS) remove(view);

@@ -337,3 +337,12 @@ export const COUNT_UP_FRAME_MS = 16;
  * change the noise rate, so it is a constant.
  */
 export const PHONE_RINGING_EVERY_MS = 1000;
+
+/** A feel is a few levels deep; a `SetFeel` patch nested deeper than this is refused (it stops a runaway or cyclic patch). */
+export const PATCH_MAX_DEPTH = 8;
+
+/** The custom header the debug panel sends with a feel save and the dev-only feel-writer requires (CSRF guard). */
+export const FEEL_WRITER_HEADER = 'x-pp-feel-writer';
+
+/** The value `FEEL_WRITER_HEADER` must carry. */
+export const FEEL_WRITER_HEADER_VALUE = '1';

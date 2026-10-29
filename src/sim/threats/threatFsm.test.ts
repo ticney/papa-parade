@@ -31,13 +31,19 @@ import {
 const content = createTestContent();
 const def = createTestLevel({ waves: [testWave([OUTLET])] }).threats.outlet;
 if (def === undefined) throw new Error('no outlet');
+// The test feel (tests/support/testContent.ts) has timing windowMs 300, perfectMs 100, toleranceMs
+// 60, bufferMs 100, and the outlet def sets no windowMs of its own. Literals on purpose: the
+// expectation must not be computed with the production formula (min(perfectMs, windowMs), the
+// feel's window as the fallback).
+expect(content.feel.timing).toMatchObject({
+  windowMs: 300,
+  perfectMs: 100,
+  toleranceMs: 60,
+  bufferMs: 100,
+});
+expect(def.windowMs ?? null).toBeNull();
 /** What a threat with no frozen window (never telegraphed) is reported against: the plain window of its def. */
-const nominalWindow = {
-  windowMs: def.windowMs ?? content.feel.timing.windowMs,
-  perfectMs: Math.min(content.feel.timing.perfectMs, def.windowMs ?? content.feel.timing.windowMs),
-  toleranceMs: content.feel.timing.toleranceMs,
-  bufferMs: content.feel.timing.bufferMs,
-};
+const nominalWindow = { windowMs: 300, perfectMs: 100, toleranceMs: 60, bufferMs: 100 };
 
 /** A world with its one planned threat and a context that only collects events. */
 async function setup() {
@@ -369,17 +375,22 @@ describe('the hidden state and the surprise gag (story 1.21)', () => {
     hideThreat(world, ctx, threat, 0);
     events.length = 0;
     gagThreat(world, ctx, threat, silenceDef, 'late', null);
-    const timing = content.feel.timing;
-    const windowMs = silenceDef.windowMs ?? timing.windowMs;
+    expect(silenceDef.windowMs ?? null).toBeNull();
     expect(events[0]).toMatchObject({
       type: 'ResponseResolved',
       offsetMs: null,
-      responseWindow: {
-        windowMs,
-        perfectMs: Math.min(timing.perfectMs, windowMs),
-        toleranceMs: timing.toleranceMs,
-        bufferMs: timing.bufferMs,
-      },
+      responseWindow: { windowMs: 300, perfectMs: 100, toleranceMs: 60, bufferMs: 100 },
+    });
+  });
+
+  it('a silence whose def has a window shorter than perfectMs is reported with that window, and perfectMs capped to it', async () => {
+    const { world, ctx, events, threat, silenceDef } = await silenceSetup();
+    hideThreat(world, ctx, threat, 0);
+    events.length = 0;
+    gagThreat(world, ctx, threat, { ...silenceDef, windowMs: 80 }, 'late', null);
+    expect(events[0]).toMatchObject({
+      type: 'ResponseResolved',
+      responseWindow: { windowMs: 80, perfectMs: 80, toleranceMs: 60, bufferMs: 100 },
     });
   });
 

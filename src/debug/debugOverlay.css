@@ -2,7 +2,9 @@
   The debug overlay (story 2.1): a developer tool, never a player screen. It lives in the debug
   chunk, so a store build ships none of it. `pp-debug-` classes only, the UI tokens for colour and
   type, no inline style attribute (CSP): positions and sizes set from code go through the CSSOM.
-  Above the HUD and the game's overlays; the root does not catch the pointer, only its panels do.
+  Above the HUD and the game's overlays. The root is a full-height column up to 58vw wide and it
+  does catch the pointer (`pointer-events: auto`): a tap on it never reaches the game, by design.
+  Only the debug views' DOM layer (`.pp-debug-radii`) lets the pointer through.
 */
 .pp-debug-overlay {
   position: fixed;
@@ -61,6 +63,16 @@
 }
 
 .pp-debug-row[hidden] {
+  display: none;
+}
+
+/* What the last control did or refused (« the level has ended », a bad seed…). */
+.pp-debug-status {
+  min-height: 1lh;
+  overflow-wrap: anywhere;
+}
+
+.pp-debug-status:empty {
   display: none;
 }
 

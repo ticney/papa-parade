@@ -1,5 +1,5 @@
 # generated: 2026-10-26
-# last_updated: 2026-10-28
+# last_updated: 2026-10-29
 # project: papa-parade
 # project_key: NOKEY
 # tracking_system: file-system
@@ -41,7 +41,7 @@
 # - epic-3 reste 'in-progress' entre 3.4 et 3.5 : ne pas le passer à 'done' après 3.4.
 
 generated: 2026-10-26
-last_updated: 2026-10-28
+last_updated: 2026-10-29
 project: papa-parade
 project_key: NOKEY
 tracking_system: file-system
@@ -76,7 +76,7 @@ development_status:
   epic-1-retrospective: optional
 
   epic-2: in-progress
-  2-1-overlay-de-debug-timeline-de-timing-et-panneau-de-feeling: review
+  2-1-overlay-de-debug-timeline-de-timing-et-panneau-de-feeling: done
   2-2-verbe-affiche-et-icones-couleur-forme: backlog
   2-3-sons-cultes-rire-du-bebe-et-telegraphes-distincts: backlog
   2-4-equivalents-visuels-et-haptiques-complets: backlog

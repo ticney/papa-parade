@@ -149,12 +149,13 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
   /** One step as a frame runs it, and as `advance` does: the hook, the step, then its events. */
   const runStep = (): void => {
     beforeStep?.(sim);
-    if (clock === null) {
+    const stepClock = clock;
+    if (stepClock === null) {
       sim.step();
     } else {
-      const startedAt = clock();
+      const startedAt = stepClock();
       sim.step();
-      simMsInFrame += clock() - startedAt;
+      simMsInFrame += stepClock() - startedAt;
     }
     const events = sim.drainEvents();
     for (let i = 0; i < events.length; i++) onSimEvent(events[i] as SimEvent);
@@ -264,9 +265,13 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
       const renderStartedAt = frameClock();
       render(Math.min(accumulatorMs / STEP_MS, 1), atReal);
       const endedAt = frameClock();
-      stats.simMsLastFrame = simMsInFrame;
-      stats.renderMsLastFrame = endedAt - renderStartedAt;
-      stats.frameMsLastFrame = endedAt - frameStartedAt;
+      // A listener or a hook may have turned the measure off (or swapped it) during the frame:
+      // `setMeasure(null)` has zeroed the stats and they must stay zero, not get half a timing.
+      if (clock === frameClock) {
+        stats.simMsLastFrame = simMsInFrame;
+        stats.renderMsLastFrame = endedAt - renderStartedAt;
+        stats.frameMsLastFrame = endedAt - frameStartedAt;
+      }
     }
 
     // Only a frame that went through asks for the next (fail-stop), and not after a stop().

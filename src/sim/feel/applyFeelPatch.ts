@@ -14,7 +14,8 @@ export type FeelPatch = DeepPartial<Feel>;
 /** Keys that could reach `Object.prototype` through a careless merge. */
 export const UNSAFE_PATCH_KEYS: readonly string[] = ['__proto__', 'constructor', 'prototype'];
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+/** A plain object: not an array, not a class instance (prototype `Object.prototype` or `null`). */
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;

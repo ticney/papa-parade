@@ -1,5 +1,6 @@
+import { PATCH_MAX_DEPTH } from '@shared/constants';
 import type { SimMs } from '@shared/time';
-import { type FeelPatch, UNSAFE_PATCH_KEYS } from './feel/applyFeelPatch.ts';
+import { type FeelPatch, isPlainObject, UNSAFE_PATCH_KEYS } from './feel/applyFeelPatch.ts';
 
 /**
  * Everything the outside world may ask of the sim. Every command carries `t`, its own timestamp
@@ -84,11 +85,6 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'PushProp',
 ];
 
-const isPlainObject = (value: object): boolean => {
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-};
-
 /**
  * Why `value` cannot be part of a `SetFeel` patch, or `null`: only plain objects, finite numbers,
  * strings and arrays of those, with no key that reaches the prototype. Depth is bounded by the
@@ -119,9 +115,6 @@ function patchValueProblem(value: unknown, path: string, depth: number): string 
   }
   return null;
 }
-
-/** A feel is a few levels deep; this only stops a runaway or cyclic patch. */
-const PATCH_MAX_DEPTH = 8;
 
 /**
  * Runtime shape check of a command that comes from outside the type system (a bot, the debug

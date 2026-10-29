@@ -59,7 +59,7 @@ Pinned versions (verified on npm 2026-10-26). Do NOT upgrade or swap without an 
 
 **Content & feel**
 - No GDD number hard-coded anywhere. Tunables live in `content/feel.json` (per-level `feelOverrides`), content in `content/**.json`, all validated by Zod schemas in `src/content/schemas/` (types via `z.infer` — don't hand-write duplicate types).
-- Only `loadContent()` reads content JSON; the sim gets a `ContentBundle` in `createSim()` and the effective `Feel` in `ctx.feel`. Never `import x from '../../content/…json'`.
+- Only `loadContent()` reads content JSON; the sim gets a `ContentBundle` in `createSim()` and the effective `Feel` lives in `world.feel` (snapshotted, snapshot version 12; `ctx.feel` is a getter onto it). Never `import x from '../../content/…json'`.
 - `null` in a threat def (e.g. `windowMs: null`) means "use the `feel.json` default".
 - Live tuning goes through the `SetFeel{patch, t}` command (journaled), never by mutating `ctx.feel` directly.
 - New threat = new JSON (+ maybe a gag), never a new class. Cross-references (threat→anchor, threat→feedback key, gag ids) must pass `content:check`.

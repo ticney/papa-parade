@@ -30,9 +30,14 @@ describe('SetFeel in the sim', () => {
     const probe: System = (_world, ctx) => {
       seen.push(ctx.feel.timing.windowMs);
     };
+    // Right behind applyCommands and ahead of every other system: were the feel swapped in later
+    // in the step, this probe would still read the old one.
+    const [applyCommands, ...others] = SYSTEMS;
+    expect(applyCommands).toBeDefined();
     const sim = await createSimWithSystems({ content, geometry, level, seed: 1 }, [
-      ...SYSTEMS,
+      applyCommands as System,
       probe,
+      ...others,
     ]);
     sim.enqueue(setWindow(0, windowMs + 77)); // applyAt 10: the first step ends at 10
     stepN(sim, 2);
@@ -105,32 +110,68 @@ describe('SetFeel in the sim', () => {
     sim.dispose();
   });
 
-  it('ignores a patch that does not fit the shape of the feel, and reports it (non strict)', async () => {
-    const sim = await createSim({ content, geometry, level, seed: 1, strictInvariants: false });
-    const before = structuredClone(sim.world.feel);
-    sim.enqueue({ type: 'SetFeel', t: asSimMs(0), patch: { timing: { nothingMs: 1 } } as never });
-    stepN(sim, 1);
-    expect(sim.world.feel).toEqual(before);
-    const events: SimEvent[] = [...sim.drainEvents()];
-    expect(events).toContainEqual({
-      type: 'InvariantViolated',
-      t: expect.any(Number),
-      name: 'SetFeel.patch',
-      value: 'shape',
-    });
-    sim.dispose();
-  });
+  it.each([
+    ['an unknown key', { timing: { nothingMs: 1 } }],
+    ['a new key in a record', { physics: { kinds: { new_kind: { massKg: 1 } } } }],
+    ['a leaf of another type', { timing: { windowMs: 'x' } }],
+    ['an array of another length', { mama: { starThresholdPoints: [1] } }],
+  ])(
+    'refuses at enqueue a patch with %s, and leaves the journal and the other commands alone',
+    async (_name, patch) => {
+      const sim = await createSim({ content, geometry, level, seed: 1, strictInvariants: true });
+      sim.enqueue(setWindow(0, 111));
+      expect(() => sim.enqueue({ type: 'SetFeel', t: asSimMs(0), patch: patch as never })).toThrow(
+        /invalid command: SetFeel: the patch does not fit the shape of the feel/,
+      );
+      expect(sim.journal().entries).toHaveLength(1);
+      stepN(sim, 2); // the step does not throw and the valid patch is applied
+      expect(sim.world.feel.timing.windowMs).toBe(111);
+      sim.dispose();
+    },
+  );
 
-  it('throws on a patch that does not fit the shape in strict mode', async () => {
-    const sim = await createSim({ content, geometry, level, seed: 1, strictInvariants: true });
-    sim.enqueue({ type: 'SetFeel', t: asSimMs(0), patch: { timing: { windowMs: 'x' } } as never });
-    expect(() => stepN(sim, 1)).toThrow(/SetFeel patch does not fit/);
-    sim.dispose();
+  describe('a journal with a SetFeel that does not fit (apply-time guard)', () => {
+    // `enqueue` refuses such a patch, so it can only come from a journal file.
+    async function withBadEntry(strictInvariants: boolean) {
+      const live = await createSim({ content, geometry, level, seed: 1 });
+      const journal = live.journal();
+      live.dispose();
+      journal.entries.push({
+        applyAt: asSimMs(10),
+        command: { type: 'SetFeel', t: asSimMs(10), patch: { timing: { nothingMs: 1 } } as never },
+      });
+      journal.entries.push({ applyAt: asSimMs(10), command: setWindow(10, 222) });
+      return createSim({ content, geometry, level, seed: 1, journal, strictInvariants });
+    }
+
+    it('ignores the patch and reports it (non strict), the next command still applies', async () => {
+      const sim = await withBadEntry(false);
+      stepN(sim, 1);
+      expect(sim.world.feel.timing.windowMs).toBe(222);
+      expect(sim.drainEvents()).toContainEqual({
+        type: 'InvariantViolated',
+        t: expect.any(Number),
+        name: 'SetFeel.patch',
+        value: 'shape',
+      });
+      sim.dispose();
+    });
+
+    it('throws in strict mode', async () => {
+      const sim = await withBadEntry(true);
+      expect(() => stepN(sim, 1)).toThrow(/SetFeel patch does not fit/);
+      sim.dispose();
+    });
   });
 
   it('refuses a malformed patch at enqueue', async () => {
     const sim = await createSim({ content, geometry, level, seed: 1 });
     expect(() => sim.enqueue(setWindow(0, Number.NaN))).toThrow(/invalid command/);
+    // A prototype key is stopped by commandProblem, before the merge ever sees it.
+    const polluted = JSON.parse('{"__proto__":{"isAdmin":true}}');
+    expect(() => sim.enqueue({ type: 'SetFeel', t: asSimMs(0), patch: polluted })).toThrow(
+      /forbidden key __proto__/,
+    );
     sim.dispose();
   });
 
@@ -220,5 +261,102 @@ describe('SetFeel in the sim', () => {
     );
     expect(() => sim.restore(good)).not.toThrow();
     sim.dispose();
+  });
+  it('restores a snapshot with a tail that holds a SetFeel, and applies it at its step', async () => {
+    const live = await createSim({ content, geometry, level: planned, seed: 3 });
+    stepN(live, 50);
+    const snapshot = live.snapshot();
+    const tail = [
+      {
+        applyAt: asSimMs(600),
+        command: setWindow(600, windowMs + 60),
+      },
+    ];
+    live.restore(snapshot, tail);
+    expect(live.journal().startSimMs).toBe(500);
+    stepN(live, 9);
+    expect(live.world.feel.timing.windowMs).toBe(windowMs); // 590: not yet
+    stepN(live, 1);
+    expect(live.world.feel.timing.windowMs).toBe(windowMs + 60);
+
+    // Another sim restored the same way ends in the same world.
+    const other = await createSim({ content, geometry, level: planned, seed: 3 });
+    other.restore(snapshot, tail);
+    stepN(other, 10);
+    stepN(live, 40);
+    stepN(other, 40);
+    expect(hashJson(other.world)).toBe(hashJson(live.world));
+    expect(other.journal().entries).toEqual(tail);
+    live.dispose();
+    other.dispose();
+  });
+
+  it('replays two SetFeel that share an applyAt in their journal order, the later one winning', async () => {
+    const live = await createSim({ content, geometry, level: planned, seed: 3 });
+    live.enqueue({
+      type: 'SetFeel',
+      t: asSimMs(200),
+      patch: { timing: { windowMs: windowMs + 10 }, input: { earlyPress: 'guard' } },
+    });
+    live.enqueue(setWindow(200, windowMs + 90));
+    expect(live.journal().entries.map((entry) => entry.applyAt)).toEqual([200, 200]);
+    stepN(live, 40);
+    expect(live.world.feel.timing.windowMs).toBe(windowMs + 90);
+    expect(live.world.feel.input.earlyPress).toBe('guard');
+
+    const replay = await replayJournal({
+      content,
+      geometry,
+      level: planned,
+      journal: live.journal(),
+      untilSimMs: live.world.time.sim,
+    });
+    expect(replay.ok).toBe(true);
+    if (!replay.ok) return;
+    expect(replay.value.sim.world.feel.timing.windowMs).toBe(windowMs + 90);
+    expect(replay.value.sim.world.feel.input.earlyPress).toBe('guard');
+    expect(hashJson(replay.value.sim.world)).toBe(hashJson(live.world));
+    replay.value.sim.dispose();
+    live.dispose();
+  });
+
+  it('applies a SetFeel before the press and release due on the same tick, live and in the replay', async () => {
+    const live = await createSim({ content, geometry, level: planned, seed: 3 });
+    stepN(live, 1);
+    const threat = live.world.threats[0];
+    if (threat === undefined || threat.responseWindow === null) throw new Error('no threat');
+    const tick = Math.ceil((threat.windowOpenAt + 100) / 10) * 10;
+    // One tick: a 4 ms press is a Parry with the feel's holdMinMs, a Firmness (so a wrongResponse
+    // gag on this Parry threat) with the SetFeel's 2 ms. The SetFeel is enqueued between the two.
+    live.enqueue({ type: 'PressThreat', t: asSimMs(tick - 5), threatId: threat.id });
+    live.enqueue({ type: 'SetFeel', t: asSimMs(tick - 3), patch: { input: { holdMinMs: 2 } } });
+    live.enqueue({ type: 'Release', t: asSimMs(tick - 1) });
+    const applyAts = live.journal().entries.map((entry) => entry.applyAt);
+    expect(new Set(applyAts)).toEqual(new Set([tick]));
+    const events: SimEvent[] = [];
+    while (live.world.time.sim < tick + 50) {
+      live.step();
+      events.push(...live.drainEvents());
+    }
+    expect(live.world.feel.input.holdMinMs).toBe(2);
+    expect(events.filter((event) => event.type === 'ResponseResolved')).toEqual([
+      expect.objectContaining({ quality: 'fail', reason: 'wrongResponse' }),
+    ]);
+
+    const replay = await replayJournal({
+      content,
+      geometry,
+      level: planned,
+      journal: live.journal(),
+      untilSimMs: live.world.time.sim,
+    });
+    expect(replay.ok).toBe(true);
+    if (!replay.ok) return;
+    expect(replay.value.events.filter((event) => event.type === 'ResponseResolved')).toEqual(
+      events.filter((event) => event.type === 'ResponseResolved'),
+    );
+    expect(hashJson(replay.value.sim.world)).toBe(hashJson(live.world));
+    replay.value.sim.dispose();
+    live.dispose();
   });
 });

@@ -1,3 +1,4 @@
+import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import { createTestContent, createTestGeometry } from '../support/testContent.ts';
 import { recordScenario, SCENARIOS } from './scenarios.ts';
@@ -53,12 +54,30 @@ describe('golden scenario feel_change covers the cases it is there for', () => {
     expect(gags.some((event) => event.reason === 'early')).toBe(false);
   });
 
-  it('gets the effective feel in the world hash: a replay of a journal without them differs', async () => {
-    const without = await recordScenario(content, geometry, {
+  it('puts the effective feel in the world hash: a SetFeel on a leaf nothing reads changes the hash alone', async () => {
+    const withoutChanges = {
       ...scenario,
       actions: scenario.actions.filter((action) => action.command.type !== 'SetFeel'),
-    });
-    const withChanges = await recordScenario(content, geometry, scenario);
-    expect(without.worldHash).not.toBe(withChanges.worldHash);
+    };
+    // `fatigue.startPoints` is read when the sim is created only, and this level has no fatigue
+    // gauge: the run cannot tell the difference, except through the feel the world carries.
+    const inert = {
+      ...withoutChanges,
+      actions: [
+        {
+          atStep: 10,
+          command: {
+            type: 'SetFeel',
+            t: asSimMs(100),
+            patch: { fatigue: { startPoints: content.feel.fatigue.startPoints + 1 } },
+          },
+        } as const,
+        ...withoutChanges.actions,
+      ],
+    };
+    const baseline = await recordScenario(content, geometry, withoutChanges);
+    const tweaked = await recordScenario(content, geometry, inert);
+    expect(tweaked.events).toEqual(baseline.events);
+    expect(tweaked.worldHash).not.toBe(baseline.worldHash);
   });
 });

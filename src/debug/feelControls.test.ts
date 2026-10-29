@@ -1,9 +1,17 @@
 import { type Feel, FeelSchema } from '@content/schemas/feel';
+import { createSim } from '@sim';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createTestContent } from '../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  createTestLevel,
+  OUTLET,
+  testWave,
+} from '../../tests/support/testContent.ts';
 import {
   type ControlDescriptor,
+  cleanNumber,
   describeFeelControls,
   type FolderDescriptor,
   getAtPath,
@@ -17,6 +25,7 @@ import {
   overrideLeafKeys,
   type PathStep,
   pathKeyOf,
+  subtractPatch,
 } from './feelControls.ts';
 import { applyFeelPatch } from './feelPatch.ts';
 
@@ -125,12 +134,22 @@ describe('describeFeelControls', () => {
     expect(marked).toContain('baby.bodyRadiusM');
     expect(marked).toContain('baby.babbleMinMs');
     expect(marked).toContain('fatigue.startPoints');
-    expect(marked.filter((key) => key.startsWith('physics.')).length).toBe(
-      leaves.filter((leaf) => leaf.pathKey.startsWith('physics.')).length,
-    );
     expect(find('timing.windowMs').isNextLevel).toBe(false);
     expect(find('baby.babbleMaxMs').isNextLevel).toBe(false);
     expect(isNextLevelKey('physics')).toBe(false);
+  });
+
+  it('marks the physics keys Rapier is given at creation, and not the ones the sim reads live', () => {
+    const physicsKeys = leaves.filter((leaf) => leaf.pathKey.startsWith('physics.'));
+    const live = physicsKeys.filter((leaf) => !leaf.isNextLevel).map((leaf) => leaf.pathKey);
+    // Read at each use (`propsSystem.ts`): a change shows at once.
+    expect(live.sort()).toEqual(['physics.impactCooldownMs', 'physics.maxPushImpulseNs']);
+    // Gravity and the threshold are given to Rapier when the level is created; the kinds too.
+    expect(find('physics.gravityMps2').isNextLevel).toBe(true);
+    expect(find('physics.impactMinImpulseNs').isNextLevel).toBe(true);
+    const kinds = physicsKeys.filter((leaf) => leaf.pathKey.startsWith('physics.kinds.'));
+    expect(kinds.length).toBeGreaterThan(0);
+    expect(kinds.every((leaf) => leaf.isNextLevel)).toBe(true);
   });
 
   it('shows a new key of the schema with no change here (a schema invented for the test)', () => {
@@ -196,13 +215,131 @@ describe('leafPatch', () => {
     expect(feel.mama.starThresholdPoints[2]).not.toBe(77);
   });
 
-  it('produces a patch the sim’s own check and the schema both accept', () => {
-    for (const leaf of leaves) {
-      const value = getAtPath(feel, leaf.path);
-      const patch = leafPatch(feel, leaf.path, value);
-      const merged = applyFeelPatch(feel as Feel, patch);
-      expect(merged.ok, leaf.pathKey).toBe(true);
+  it('builds the array from the feel it is given, not from another: the other items are that feel’s', () => {
+    // The level overrides the thresholds; the file does not.
+    const onDisk = feel.mama.starThresholdPoints;
+    const effective = onDisk.map((points) => points + 1);
+    const forSim = leafPatch(
+      { mama: { starThresholdPoints: effective } },
+      ['mama', 'starThresholdPoints', 1],
+      50,
+    ) as { mama: { starThresholdPoints: number[] } };
+    const forFile = leafPatch(feel, ['mama', 'starThresholdPoints', 1], 50) as {
+      mama: { starThresholdPoints: number[] };
+    };
+    expect(forSim.mama.starThresholdPoints).toEqual(effective.map((p, i) => (i === 1 ? 50 : p)));
+    expect(forFile.mama.starThresholdPoints).toEqual(onDisk.map((p, i) => (i === 1 ? 50 : p)));
+  });
+
+  it('merges a field into an array item instead of replacing the item with the scalar', () => {
+    const base = {
+      list: [
+        { a: 1, b: 2 },
+        { a: 3, b: 4 },
+      ],
+      other: 1,
+    };
+    const patch = leafPatch(base, ['list', 1, 'b'], 9);
+    expect(patch).toEqual({
+      list: [
+        { a: 1, b: 2 },
+        { a: 3, b: 9 },
+      ],
+    });
+    // The base is not touched, and an item that is missing is made.
+    expect(base.list[1]).toEqual({ a: 3, b: 4 });
+    expect(leafPatch({ list: [] }, ['list', 0, 'a'], 5)).toEqual({ list: [{ a: 5 }] });
+  });
+
+  it('rounds a number to the schema step and drops float noise', () => {
+    const noisy = 0.1 + 0.2;
+    expect(noisy).not.toBe(0.3);
+    expect(leafPatch(feel, ['timing', 'slowMoPerfect', 'timeScale'], noisy)).toEqual({
+      timing: { slowMoPerfect: { timeScale: 0.3 } },
+    });
+    expect(leafPatch(feel, ['baby', 'silenceAlertMs'], 1234.6, 1)).toEqual({
+      baby: { silenceAlertMs: 1235 },
+    });
+    expect(leafPatch(feel, ['timing', 'windowMs'], 250, 0.05)).toEqual({
+      timing: { windowMs: 250 },
+    });
+    const items = leafPatch(feel, ['mama', 'starThresholdPoints', 0], 10.0000000001, 1) as {
+      mama: { starThresholdPoints: number[] };
+    };
+    expect(items.mama.starThresholdPoints[0]).toBe(10);
+  });
+
+  it('leaves a value that is not a number as it is', () => {
+    expect(leafPatch(feel, ['input', 'earlyPress'], 'guard')).toEqual({
+      input: { earlyPress: 'guard' },
+    });
+    expect(leafPatch(feel, ['difficulty', 'normal', 'hasInstinct'], true)).toEqual({
+      difficulty: { normal: { hasInstinct: true } },
+    });
+  });
+
+  it('produces a patch the schema accepts, and the sim’s own merge accepts too (a real sim, strict)', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: createTestLevel({ waves: [testWave([OUTLET])] }),
+      seed: 1,
+      strictInvariants: true,
+    });
+    try {
+      for (const leaf of leaves) {
+        const value = getAtPath(feel, leaf.path);
+        const step = leaf.kind === 'number' ? leaf.step : undefined;
+        const patch = leafPatch(feel, leaf.path, value, step);
+        expect(applyFeelPatch(feel as Feel, patch).ok, leaf.pathKey).toBe(true);
+        // The sim's `SetFeel` merge (shape only) throws under strict invariants if the patch misfits.
+        sim.enqueue({ type: 'SetFeel', t: sim.world.time.sim, patch: patch as never });
+        sim.step();
+      }
+      // Every patch sets the leaf to the value it already had: the sim's feel is unchanged.
+      expect(sim.world.feel).toEqual(feel);
+    } finally {
+      sim.dispose();
     }
+  });
+});
+
+describe('cleanNumber', () => {
+  it('rounds to the step, then to twelve significant digits', () => {
+    expect(cleanNumber(0.1 + 0.2)).toBe(0.3);
+    expect(cleanNumber(0.30000000000000004, 0.05)).toBe(0.3);
+    expect(cleanNumber(7.4, 1)).toBe(7);
+    expect(cleanNumber(1234.5678)).toBe(1234.5678);
+  });
+
+  it('leaves a number that is not finite alone', () => {
+    expect(cleanNumber(Number.NaN)).toBeNaN();
+    expect(cleanNumber(Number.POSITIVE_INFINITY)).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
+describe('subtractPatch', () => {
+  it('removes the leaves that were sent with the same value, and the objects left empty', () => {
+    const patch = { a: { b: 1, c: 2 }, d: { e: 5 }, list: [1, 2] };
+    expect(subtractPatch(patch, { a: { b: 1 }, d: { e: 5 }, list: [1, 2] })).toEqual({
+      a: { c: 2 },
+    });
+  });
+
+  it('keeps a leaf that changed again since (a newer value), and an array that differs', () => {
+    expect(subtractPatch({ a: { b: 2 }, list: [1, 3] }, { a: { b: 1 }, list: [1, 2] })).toEqual({
+      a: { b: 2 },
+      list: [1, 3],
+    });
+  });
+
+  it('changes neither argument, and shares nothing with the patch', () => {
+    const patch = { a: { b: 2 }, list: [1] };
+    const sent = { a: { b: 1 } };
+    const left = subtractPatch(patch, sent);
+    expect(patch).toEqual({ a: { b: 2 }, list: [1] });
+    expect(sent).toEqual({ a: { b: 1 } });
+    expect(left.list).not.toBe(patch.list);
   });
 });
 

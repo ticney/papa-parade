@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
-import { STEP_MS } from '../../src/shared/constants.ts';
+import { DEBUG_TIMELINE_ROWS, RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import {
   collectProblems,
   html,
   liveFeedback,
   liveFeel,
+  OVERRUN_MARGIN_MS,
+  shiftedFeelValue,
   stepToFirstTelegraph,
   threatIconPoint,
   waitFrames,
@@ -17,6 +19,7 @@ import {
   ppLoadLevel,
   ppSend,
   ppSetFeel,
+  ppState,
   ppWorld,
   waitForTestApi,
 } from './support/testApi.ts';
@@ -31,6 +34,8 @@ const LEVEL = 'salon_crawler';
 const SEED = 42;
 const OVERLAY = '.pp-debug-overlay';
 const FRAME_MS_UPPER = 20;
+/** `skipToEnd` plays a whole level in chunks of steps, one per display frame: far more than the default 5 s on a loaded browser. */
+const SKIP_TIMEOUT_MS = 60_000;
 
 const levelHasFatigue =
   (
@@ -38,6 +43,18 @@ const levelHasFatigue =
       gauges?: { fatigue?: unknown };
     }
   ).gauges?.fatigue !== undefined;
+
+/** The live room, read here and never copied: what the scene views must have built from. */
+const liveRoom = JSON.parse(readFileSync(`content/levels/${LEVEL}.geometry.json`, 'utf8')) as {
+  colliders: unknown[];
+  zones: unknown[];
+  anchors: unknown[];
+  nav: { rows: string[] };
+};
+/** Vertices of a box drawn as edges: 12 edges of 2 points. */
+const BOX_EDGE_VERTICES = 24;
+/** Vertices of a walkable grid cell: 2 triangles. */
+const CELL_VERTICES = 6;
 
 /** Opens the app with the test API and starts the level frozen at sim time 0. */
 async function openFrozenLevel(page: Page, seed = SEED): Promise<void> {
@@ -52,6 +69,17 @@ const section = (page: Page, id: string) => page.locator(`[data-debug-section="$
 async function openSection(page: Page, id: string): Promise<void> {
   const details = section(page, id);
   if ((await details.getAttribute('open')) === null) await details.locator('> summary').click();
+}
+
+async function openFeelField(page: Page, folder: string, label: string) {
+  await openSection(page, 'feel');
+  const pane = section(page, 'feel');
+  const title = pane.locator('.tp-fldv_t', { hasText: new RegExp(`^${folder}$`) }).first();
+  const root = title.locator('xpath=ancestor::div[contains(@class,"tp-fldv")][1]');
+  if ((await root.getAttribute('class'))?.includes('tp-fldv-expanded') !== true) {
+    await title.click();
+  }
+  return root.locator('.tp-lblv', { hasText: new RegExp(`^${label}`) }).first();
 }
 
 test.describe('the debug overlay › opening', () => {
@@ -71,6 +99,31 @@ test.describe('the debug overlay › opening', () => {
   test('F1 toggles it, and the close button hides it', async ({ page }) => {
     const problems = collectProblems(page);
     await openFrozenLevel(page);
+    // The browser's own F1 (help) is cancelled, whether the overlay opens, closes or ignores a repeat.
+    const f1 = (repeat: boolean) =>
+      page.evaluate((isRepeat) => {
+        const event = new KeyboardEvent('keydown', {
+          code: 'F1',
+          repeat: isRepeat,
+          bubbles: true,
+          cancelable: true,
+        });
+        document.body.dispatchEvent(event);
+        return event.defaultPrevented;
+      }, repeat);
+    expect(await f1(false)).toBe(true);
+    await expect(page.locator(OVERLAY)).toBeVisible();
+    // A held key repeats keydown: it must not flicker the overlay shut.
+    expect(await f1(true)).toBe(true);
+    await expect(page.locator(OVERLAY)).toBeVisible();
+    expect(await f1(false)).toBe(true);
+    await expect(page.locator(OVERLAY)).toBeHidden();
+    // Toggling sent no command to the game: Papa has not moved, nothing is pressed.
+    await ppAdvance(page, 2);
+    const world = await ppWorld(page);
+    expect(world.time.sim).toBe(2 * STEP_MS);
+    expect(world.papa.state).toBe('idle');
+    expect(world.threats.every((threat) => threat.press === null)).toBe(true);
     await page.keyboard.press('F1');
     await expect(page.locator(OVERLAY)).toBeVisible();
     await expect(page.locator(OVERLAY)).toHaveAttribute('data-debug-overlay', 'open');
@@ -88,21 +141,22 @@ test.describe('the debug overlay › opening', () => {
   }) => {
     const problems = collectProblems(page);
     await openFrozenLevel(page);
-    const touch = (type: 'pointerdown' | 'pointerup', pointerId: number) =>
+    const touch = (type: 'pointerdown' | 'pointerup', pointerId: number, isPrimary = false) =>
       page.evaluate(
-        ([kind, id]) => {
+        ([kind, id, primary]) => {
           document.querySelector('canvas')?.dispatchEvent(
             new PointerEvent(kind as string, {
               pointerType: 'touch',
               pointerId: id as number,
+              isPrimary: primary as boolean,
               bubbles: true,
               cancelable: true,
             }),
           );
         },
-        [type, pointerId] as const,
+        [type, pointerId, isPrimary] as const,
       );
-    await touch('pointerdown', 11);
+    await touch('pointerdown', 11, true);
     await touch('pointerdown', 12);
     await expect(page.locator(OVERLAY)).toBeHidden();
     await touch('pointerup', 12);
@@ -114,6 +168,42 @@ test.describe('the debug overlay › opening', () => {
     for (const id of [11, 13, 14]) await touch('pointerup', id);
     for (const id of [21, 22, 23]) await touch('pointerdown', id);
     await expect(page.locator(OVERLAY)).toBeHidden();
+    expect(problems).toEqual([]);
+  });
+
+  test('a lost pointerup does not count: a new gesture starts the count again, and a fourth finger does not toggle', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozenLevel(page);
+    const touch = (id: number, isPrimary: boolean) =>
+      page.evaluate(
+        ([pointerId, primary]) => {
+          document.querySelector('canvas')?.dispatchEvent(
+            new PointerEvent('pointerdown', {
+              pointerType: 'touch',
+              pointerId: pointerId as number,
+              isPrimary: primary as boolean,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        },
+        [id, isPrimary] as const,
+      );
+    // Two fingers whose pointerup never came ...
+    await touch(31, true);
+    await touch(32, false);
+    // ... then a new gesture: its first finger is a primary one, the count starts at one.
+    await touch(41, true);
+    await touch(42, false);
+    await expect(page.locator(OVERLAY)).toBeHidden();
+    await touch(43, false);
+    await expect(page.locator(OVERLAY)).toBeVisible();
+    // A fourth finger and the same finger again are not a new « three at once ».
+    await touch(44, false);
+    await touch(43, false);
+    await expect(page.locator(OVERLAY)).toBeVisible();
     expect(problems).toEqual([]);
   });
 
@@ -145,9 +235,9 @@ test.describe('the debug overlay › performance and views', () => {
     await expect(text).toContainText(/\d+ FPS/);
     await expect(text).toContainText(/work \d+\.\d ms = sim \d+\.\d+ ms \+ render \d+\.\d ms/);
     await expect(text).toContainText(/[1-9]\d* draw calls · [1-9]\d* triangles/);
-    // The numbers are real: a frame's work is less than a frame.
+    // The numbers are numbers (the budget of a frame is perf.spec.ts's, on a built level).
     const work = Number(/work (\d+\.\d) ms/.exec((await text.textContent()) ?? '')?.[1]);
-    expect(work).toBeLessThan(10 * FRAME_MS_UPPER);
+    expect(Number.isFinite(work)).toBe(true);
     expect(problems).toEqual([]);
   });
 
@@ -173,6 +263,22 @@ test.describe('the debug overlay › performance and views', () => {
     await box('grid').check();
     await box('anchors').check();
     expect(await drawn()).toEqual(['anchors', 'colliders', 'grid', 'zones']);
+    // What was built is what the room holds, not just « something »: vertices per view.
+    const sizes = async (): Promise<Record<string, number>> =>
+      Object.fromEntries(
+        (((await page.locator(OVERLAY).getAttribute('data-debug-view-sizes')) ?? '') || 'none:0')
+          .split(',')
+          .map((entry) => entry.split(':') as [string, string])
+          .map(([name, count]) => [name, Number(count)]),
+      );
+    const walkableCells = liveRoom.nav.rows.join('').split('1').length - 1;
+    expect(walkableCells).toBeGreaterThan(0);
+    expect(await sizes()).toEqual({
+      anchors: liveRoom.anchors.length,
+      colliders: liveRoom.colliders.length * BOX_EDGE_VERTICES,
+      grid: walkableCells * CELL_VERTICES,
+      zones: liveRoom.zones.length * BOX_EDGE_VERTICES,
+    });
     await expect(page.locator('.pp-debug-radii')).toBeHidden();
     await box('touchRadii').check();
     await expect(page.locator('.pp-debug-radii')).toBeVisible();
@@ -218,8 +324,9 @@ test.describe('the debug overlay › the timing timeline', () => {
     if (threat === undefined || threat.responseWindow === null) throw new Error('no window');
     const stepsTo = (toMs: number): number => Math.ceil((toMs - telegraphed.time.sim) / STEP_MS);
     await ppAdvance(page, stepsTo(threat.windowOpenAt));
-    // A press at the centre of the window, shifted by a known 20 ms, released at once.
-    const shiftMs = 20;
+    // A press at the centre of the window, shifted by a known offset inside the live perfect zone
+    // (a quarter of it: the zone is centred, so half of it is allowed on each side), released at once.
+    const shiftMs = Math.max(1, Math.floor(liveFeel.timing.perfectMs / 4));
     const pressAt = threat.windowOpenAt + threat.responseWindow.windowMs / 2 + shiftMs;
     await ppSend(page, { type: 'PressThreat', t: pressAt as never, threatId: threat.id });
     await ppSend(page, { type: 'Release', t: (pressAt + 50) as never });
@@ -229,6 +336,7 @@ test.describe('the debug overlay › the timing timeline', () => {
     const resolved = (await ppEvents(page)).find((event) => event.type === 'ResponseResolved');
     if (resolved?.type !== 'ResponseResolved') throw new Error('no ResponseResolved');
     expect(resolved.offsetMs).toBe(shiftMs);
+    expect(resolved.quality).toBe('perfect');
     const row = page.locator('.pp-debug-tl-row:not([hidden])').first();
     await expect(row).toHaveAttribute('data-quality', resolved.quality);
     await expect(row).toHaveAttribute('data-offset', `+${shiftMs} ms`);
@@ -252,16 +360,26 @@ test.describe('the debug overlay › the timing timeline', () => {
     await openFrozenLevel(page);
     await page.keyboard.press('F1');
     await stepToFirstTelegraph(page);
-    // Let the level run unanswered: threats time out one after another.
-    for (let i = 0; i < 80; i++) await ppAdvance(page, 100);
+    // Let the level run unanswered: threats time out one after another, past ten responses.
+    const resolutions = async (): Promise<number> =>
+      (await ppEvents(page)).filter((event) => event.type === 'ResponseResolved').length;
+    let resolved = 0;
+    for (let i = 0; i < 400 && resolved <= DEBUG_TIMELINE_ROWS; i++) {
+      await ppAdvance(page, 100);
+      resolved = await resolutions();
+    }
+    expect(resolved, 'the level resolves more responses than the timeline holds').toBeGreaterThan(
+      DEBUG_TIMELINE_ROWS,
+    );
     const rows = page.locator('.pp-debug-tl-row:not([hidden])');
     await expect(rows.first()).toHaveAttribute('data-quality', 'fail');
     await expect(rows.first().locator('.pp-debug-tl-label')).toHaveText(
       /^no press · fail \(late\)/,
     );
     await expect(rows.first().locator('.pp-debug-tl-marker')).toBeHidden();
-    expect(await rows.count()).toBeLessThanOrEqual(10);
-    expect(await page.locator('.pp-debug-tl-row').count()).toBe(10);
+    // Exactly the last ten are shown (not fewer, not more), in the ten rows built once.
+    await expect(rows).toHaveCount(Math.min(resolved, DEBUG_TIMELINE_ROWS));
+    await expect(page.locator('.pp-debug-tl-row')).toHaveCount(DEBUG_TIMELINE_ROWS);
     expect(problems).toEqual([]);
   });
 });
@@ -287,6 +405,56 @@ test.describe('the debug overlay › time controls and cheats', () => {
     await expect
       .poll(async () => (await ppWorld(page)).time.sim)
       .toBeGreaterThan(frozenAt + STEP_MS);
+    expect(problems).toEqual([]);
+  });
+
+  test('closing the overlay puts the pause back as it was when it opened, not frozen by a Step', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await page.goto('/');
+    await waitForTestApi(page);
+    await ppLoadLevel(page, LEVEL, SEED);
+    await page.keyboard.press('F1');
+    await openSection(page, 'controls');
+    await page.locator('[data-debug="step"]').click();
+    const frozenAt = (await ppWorld(page)).time.sim;
+    await waitFrames(page, 10);
+    expect((await ppWorld(page)).time.sim).toBe(frozenAt);
+    // Shut: the level was running when the overlay opened, so it runs again.
+    await page.keyboard.press('F1');
+    await expect(page.locator(OVERLAY)).toBeHidden();
+    await expect.poll(async () => (await ppWorld(page)).time.sim).toBeGreaterThan(frozenAt);
+    expect(problems).toEqual([]);
+  });
+
+  test('closing the overlay puts the timeScale back too, and a new level has the slider at its own scale', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozenLevel(page);
+    await page.keyboard.press('F1');
+    await openSection(page, 'controls');
+    const slider = page.locator('[data-debug="timeScale"]');
+    await slider.evaluate((node: HTMLInputElement) => {
+      node.value = '0.5';
+      node.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await ppAdvance(page, 1);
+    expect((await ppWorld(page)).time.baseScale).toBe(0.5);
+    await page.keyboard.press('F1');
+    await expect(page.locator(OVERLAY)).toBeHidden();
+    await ppAdvance(page, 1);
+    expect((await ppWorld(page)).time.baseScale).toBe(1);
+    // A scale set again, then a new level: the slider shows the new sim's scale (1).
+    await page.keyboard.press('F1');
+    await slider.evaluate((node: HTMLInputElement) => {
+      node.value = '0.3';
+      node.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(slider).toHaveValue('0.3');
+    await ppLoadLevel(page, LEVEL, SEED + 1);
+    await expect(slider).toHaveValue('1');
     expect(problems).toEqual([]);
   });
 
@@ -339,8 +507,42 @@ test.describe('the debug overlay › time controls and cheats', () => {
     expect(problems).toEqual([]);
   });
 
+  test('keeps the picked threat while the list follows the threats’ states', async ({ page }) => {
+    const problems = collectProblems(page);
+    await openFrozenLevel(page);
+    await page.keyboard.press('F1');
+    await openSection(page, 'controls');
+    const select = page.locator('[data-debug="threatSelect"]');
+    const options = select.locator('option');
+    await expect(options.first()).toBeAttached();
+    const count = await options.count();
+    expect(count, 'the live level plans at least two threats').toBeGreaterThan(1);
+    const ids = await options.evaluateAll((nodes) =>
+      nodes.map((node) => (node as HTMLOptionElement).value),
+    );
+    const picked = ids[1] as string;
+    await select.selectOption(picked);
+    // The first threat changes state: its option’s text follows, the pick stays on the second.
+    await ppSend(page, { type: 'ForceThreat', threatId: Number(ids[0]) });
+    await ppAdvance(page, 2);
+    await expect(options.first()).toContainText('(telegraph)');
+    await expect(select).toHaveValue(picked);
+    await expect(options).toHaveCount(count);
+    // « Launch » therefore fires the picked one.
+    await page.locator('[data-debug="launchThreat"]').click();
+    await ppAdvance(page, 2);
+    const forced = (await ppEvents(page)).find(
+      (event) =>
+        (event.type === 'ThreatTelegraphed' || event.type === 'ThreatHidden') &&
+        event.threatId === Number(picked),
+    );
+    expect(forced).toBeDefined();
+    expect(problems).toEqual([]);
+  });
+
   test('sets the fatigue with a SetFatigue, in a level that has the gauge', async ({ page }) => {
-    test.skip(!levelHasFatigue, 'the live level has no fatigue gauge');
+    // Not a skip: a level without the gauge would silently drop the check.
+    expect(levelHasFatigue, `${LEVEL} must have a fatigue gauge for this check`).toBe(true);
     const problems = collectProblems(page);
     await openFrozenLevel(page);
     await page.keyboard.press('F1');
@@ -352,6 +554,18 @@ test.describe('the debug overlay › time controls and cheats', () => {
     await row.locator('button').click();
     await ppAdvance(page, 1);
     expect((await ppWorld(page)).gauges.fatigue).toBeCloseTo(target, 0);
+    // A blank field is refused, not read as 0; a value past the gauge is held at its maximum.
+    const status = page.locator('[data-debug="status"]');
+    await row.locator('input').fill('');
+    await row.locator('button').click();
+    await expect(status).toContainText('empty');
+    await ppAdvance(page, 1);
+    expect((await ppWorld(page)).gauges.fatigue).toBeCloseTo(target, 0);
+    await row.locator('input').fill('250');
+    await row.locator('button').click();
+    await expect(row.locator('input')).toHaveValue('100');
+    await ppAdvance(page, 1);
+    expect((await ppWorld(page)).gauges.fatigue).toBeCloseTo(100, 0);
     expect(problems).toEqual([]);
   });
 
@@ -363,11 +577,63 @@ test.describe('the debug overlay › time controls and cheats', () => {
     await page.keyboard.press('F1');
     await openSection(page, 'controls');
     await page.locator('[data-debug="skipToEnd"]').click();
-    await expect(html(page)).toHaveAttribute('data-pp-app', 'result');
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {
+      timeout: SKIP_TIMEOUT_MS,
+    });
     const types = (await ppEvents(page)).map((event) => event.type);
     expect(types).toContain('LevelEnded');
     expect(types).toContain('LevelScored');
     expect((await ppWorld(page)).flow.state).toBe('ended');
+    // The level is over: a cheat says so instead of reporting « sent ».
+    const status = page.locator('[data-debug="status"]');
+    await page.locator('[data-debug="timeScaleReset"]').click();
+    await expect(status).toContainText('the level has ended');
+    await page.locator('[data-debug="step"]').click();
+    await expect(status).toContainText('Step: the level has ended');
+    expect(problems).toEqual([]);
+  });
+
+  test('a skip leaves nothing frozen: the next level runs', async ({ page }) => {
+    test.setTimeout(SKIP_TIMEOUT_MS + RESUME_COUNTDOWN_MS + 30_000);
+    const problems = collectProblems(page);
+    await page.goto('/');
+    await waitForTestApi(page);
+    await ppLoadLevel(page, LEVEL, SEED);
+    await page.keyboard.press('F1');
+    await openSection(page, 'controls');
+    await page.locator('[data-debug="skipToEnd"]').click();
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {
+      timeout: SKIP_TIMEOUT_MS,
+    });
+    await page.locator('[data-debug="seed"]').fill('5');
+    await page.locator('[data-debug="restartSeed"]').click();
+    await expect(html(page)).toHaveAttribute('data-pp-seed', '5');
+    await expect
+      .poll(async () => (await ppState(page))?.time.sim ?? 0, {
+        timeout: RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS + 10_000,
+      })
+      .toBeGreaterThan(0);
+    const sim = (await ppWorld(page)).time.sim;
+    await expect.poll(async () => (await ppWorld(page)).time.sim).toBeGreaterThan(sim);
+    expect(problems).toEqual([]);
+  });
+
+  test('a new level in the middle of a skip stops it: the new level is not fast-forwarded', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozenLevel(page);
+    await page.keyboard.press('F1');
+    await openSection(page, 'controls');
+    await page.locator('[data-debug="skipToEnd"]').click();
+    // Not the overlay's own restart button (which cancels the skip itself): a start from anywhere.
+    await ppLoadLevel(page, LEVEL, 6);
+    await expect(html(page)).toHaveAttribute('data-pp-seed', '6');
+    // The new level is frozen (the wish was kept) at sim time 0, and nothing runs it on.
+    await waitFrames(page, 20);
+    const world = await ppWorld(page);
+    expect(world.flow.state).toBe('playing');
+    expect(world.time.sim).toBe(0);
     expect(problems).toEqual([]);
   });
 
@@ -376,7 +642,18 @@ test.describe('the debug overlay › time controls and cheats', () => {
     await openFrozenLevel(page);
     await page.keyboard.press('F1');
     await openSection(page, 'controls');
-    await page.locator('[data-debug="seed"]').fill('9');
+    const seed = page.locator('[data-debug="seed"]');
+    const status = page.locator('[data-debug="status"]');
+    // A blank field is not the seed 0, and a seed the generator cannot take is refused with a
+    // message, not sent (it would send the app to its error screen).
+    await seed.fill('');
+    await page.locator('[data-debug="restartSeed"]').click();
+    await expect(status).toContainText('empty');
+    await seed.fill('4294967296');
+    await page.locator('[data-debug="restartSeed"]').click();
+    await expect(status).toContainText('whole number');
+    await expect(html(page)).toHaveAttribute('data-pp-seed', String(SEED));
+    await seed.fill('9');
     await page.locator('[data-debug="restartSeed"]').click();
     await expect(html(page)).toHaveAttribute('data-pp-seed', '9');
     expect(problems).toEqual([]);
@@ -407,17 +684,6 @@ test.describe('the debug overlay › the world inspector', () => {
 });
 
 test.describe('the debug overlay › the feel panel', () => {
-  async function openFeelField(page: Page, folder: string, label: string) {
-    await openSection(page, 'feel');
-    const pane = section(page, 'feel');
-    const title = pane.locator('.tp-fldv_t', { hasText: new RegExp(`^${folder}$`) }).first();
-    const root = title.locator('xpath=ancestor::div[contains(@class,"tp-fldv")][1]');
-    if ((await root.getAttribute('class'))?.includes('tp-fldv-expanded') !== true) {
-      await title.click();
-    }
-    return root.locator('.tp-lblv', { hasText: new RegExp(`^${label}`) }).first();
-  }
-
   test('changing timing.windowMs sends a SetFeel: the world has it at the next step, the level goes on', async ({
     page,
   }) => {
@@ -426,7 +692,7 @@ test.describe('the debug overlay › the feel panel', () => {
     await ppAdvance(page, 5);
     await page.keyboard.press('F1');
     const field = await openFeelField(page, 'timing', 'windowMs');
-    const widenedMs = liveFeel.timing.windowMs + 120;
+    const widenedMs = shiftedFeelValue(['timing', 'windowMs'], 120);
     const input = field.locator('input').first();
     await input.fill(String(widenedMs));
     await input.press('Enter');
@@ -463,7 +729,7 @@ test.describe('the debug overlay › the feel panel', () => {
     expect(problems).toEqual([]);
   });
 
-  test('marks the keys the sim reads at the next level, and has no « Enregistrer » outside dev only when built so', async ({
+  test('marks the keys the sim reads at the next level, and offers « Enregistrer » on the dev server', async ({
     page,
   }) => {
     const problems = collectProblems(page);
@@ -473,7 +739,8 @@ test.describe('the debug overlay › the feel panel', () => {
     await expect(radius).toContainText('⏭');
     const speed = await openFeelField(page, 'movement', 'walkSpeedMps');
     await expect(speed).not.toContainText('⏭');
-    // The dev server has the writer: the button is there (the unit tests cover what it sends).
+    // The dev server has the writer: the button is there (the unit tests cover what it sends, and
+    // the build checks keep it out of the store build).
     await expect(section(page, 'feel').getByRole('button', { name: 'Enregistrer' })).toBeVisible();
     expect(problems).toEqual([]);
   });
@@ -483,16 +750,48 @@ test.describe('the debug overlay › the feel panel', () => {
     await openFrozenLevel(page);
     await page.keyboard.press('F1');
     const field = await openFeelField(page, 'timing', 'hitstopMs');
-    const hitstopMs = liveFeel.timing.hitstopMs + 11;
+    const hitstopMs = shiftedFeelValue(['timing', 'hitstopMs'], 11);
     const input = field.locator('input').first();
     await input.fill(String(hitstopMs));
     await input.press('Enter');
     await ppLoadLevel(page, LEVEL, SEED + 3);
+    // The restart lays the tuned value over the feel on disk as a SetFeel at t = 0: one step applies it.
+    await ppAdvance(page, 1);
     expect((await ppWorld(page)).feel.timing.hitstopMs).toBe(hitstopMs);
     const again = await openFeelField(page, 'timing', 'hitstopMs');
     await expect
       .poll(async () => Number(await again.locator('input').first().inputValue()))
       .toBe(hitstopMs);
+    expect(problems).toEqual([]);
+  });
+});
+
+test.describe('the debug overlay › the level’s feel overrides', () => {
+  test('marks a key the level overrides with a star, and no other', async ({ page }) => {
+    const problems = collectProblems(page);
+    // The level file served with an override of the touch radius (Vite serves each content file
+    // as a module in dev); the star must come from what the level declares.
+    const level = JSON.parse(readFileSync(`content/levels/${LEVEL}.json`, 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    const overridden = {
+      ...level,
+      feelOverrides: { input: { touchRadiusPx: liveFeel.input.touchRadiusPx + 10 } },
+    };
+    await page.route(new RegExp(`/content/levels/${LEVEL}\\.json\\?`), (route) =>
+      route.fulfill({
+        contentType: 'text/javascript',
+        body: `export default ${JSON.stringify(JSON.stringify(overridden))};`,
+      }),
+    );
+    await openFrozenLevel(page);
+    expect((await ppWorld(page)).feel.input.touchRadiusPx).toBe(liveFeel.input.touchRadiusPx + 10);
+    await page.keyboard.press('F1');
+    const starred = await openFeelField(page, 'input', 'touchRadiusPx');
+    await expect(starred).toContainText('★');
+    const plain = await openFeelField(page, 'input', 'contextReachM');
+    await expect(plain).not.toContainText('★');
     expect(problems).toEqual([]);
   });
 });
@@ -571,13 +870,64 @@ test.describe('the debug overlay › keeps its fields away from the game', () =>
     expect(problems).toEqual([]);
   });
 
+  test('typing in a Tweakpane number field of the feel pane never moves Papa nor changes the feel', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozenLevel(page);
+    await page.keyboard.press('F1');
+    const field = await openFeelField(page, 'timing', 'windowMs');
+    const before = await ppWorld(page);
+    const input = field.locator('input').first();
+    await input.focus();
+    await expect(input).toBeFocused();
+    // Movement keys, then Space, typed into the field (Up and Down are left out: Tweakpane steps its value with them).
+    await page.keyboard.type('wasdzq');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('Space');
+    await input.evaluate((node: HTMLInputElement) => node.blur());
+    await ppAdvance(page, 20);
+    const after = await ppWorld(page);
+    expect(after.papa.state).toBe('idle');
+    expect(after.papa.xM).toBe(before.papa.xM);
+    expect(after.papa.zM).toBe(before.papa.zM);
+    expect(after.feel).toEqual(before.feel);
+    expect(problems).toEqual([]);
+  });
+
+  test('a key released over the panel still reaches the game: Papa does not keep walking', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozenLevel(page);
+    await page.keyboard.press('F1');
+    await openSection(page, 'controls');
+    const start = await ppWorld(page);
+    await page.keyboard.down('ArrowRight');
+    await ppAdvance(page, 10);
+    const walking = await ppWorld(page);
+    expect(walking.papa.xM).not.toBe(start.papa.xM);
+    // The focus moves into a field while the key is held, and the key is let go there.
+    await page.locator('[data-debug="seed"]').focus();
+    await page.keyboard.up('ArrowRight');
+    await ppAdvance(page, 2);
+    const stopped = await ppWorld(page);
+    await ppAdvance(page, 30);
+    const later = await ppWorld(page);
+    expect(later.papa.xM).toBe(stopped.papa.xM);
+    expect(problems).toEqual([]);
+  });
+
   test('Enter and Space typed in a field do not skip the Result screen', async ({ page }) => {
     const problems = collectProblems(page);
     await openFrozenLevel(page);
     await page.keyboard.press('F1');
     await openSection(page, 'controls');
     await page.locator('[data-debug="skipToEnd"]').click();
-    await expect(html(page)).toHaveAttribute('data-pp-app', 'result');
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {
+      timeout: SKIP_TIMEOUT_MS,
+    });
     await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
     // Past the screen's input grace, when a key would skip the sequence for real.
     await waitFrames(page, Math.ceil(liveFeedback.resultScreen.inputGraceMs / FRAME_MS_UPPER) + 10);

@@ -1189,14 +1189,72 @@ describe('createGameLoop › measuring (story 2.1)', () => {
   it('reads no clock and leaves the timings at zero without a measure', async () => {
     const { rig: pending, clock } = measuredRig({ isMeasured: false });
     const rig = await pending;
-    rig.tick(0);
-    rig.tick(3 * FRAME_MS);
+    // Rapier reads `performance.now` inside a step, so the spies record who asked: only a read that
+    // comes from loop.ts itself is a leak (the loop has no clock of its own to fall back on).
+    const readers: string[] = [];
+    const realPerformanceNow = performance.now.bind(performance);
+    const realDateNow = Date.now.bind(Date);
+    const performanceNow = vi.spyOn(performance, 'now').mockImplementation(() => {
+      readers.push(String(new Error().stack));
+      return realPerformanceNow();
+    });
+    const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => {
+      readers.push(String(new Error().stack));
+      return realDateNow();
+    });
+    try {
+      rig.tick(0);
+      rig.tick(3 * FRAME_MS);
+      rig.loop.advance(2);
+      expect(rig.loop.stats.stepsLastFrame).toBe(3);
+    } finally {
+      performanceNow.mockRestore();
+      dateNow.mockRestore();
+    }
+    expect(readers.filter((stack) => /client[\\/]loop\.ts/.test(stack))).toEqual([]);
     expect(clock.reads).toBe(0);
     expect(rig.loop.stats).toMatchObject({
       simMsLastFrame: 0,
       renderMsLastFrame: 0,
       frameMsLastFrame: 0,
     });
+  });
+
+  it('reads the clock it was given (the control of the test above)', async () => {
+    const { rig: pending, clock } = measuredRig();
+    const rig = await pending;
+    rig.tick(0);
+    expect(clock.reads).toBeGreaterThan(0);
+  });
+
+  it('keeps the timings at zero when a listener turns the measure off during the frame', async () => {
+    let turnOff: (() => void) | null = null;
+    const clock = { now: 1000 };
+    const rig = await createRig({
+      measure: () => clock.now,
+      onRender: () => {
+        clock.now += 3;
+        turnOff?.();
+      },
+    });
+    rig.hooks.step = () => {
+      clock.now += 0.5;
+    };
+    rig.tick(0); // measured: the control that the timings are not zero without the switch-off
+    expect(rig.loop.stats.renderMsLastFrame).toBeGreaterThan(0);
+    turnOff = () => rig.loop.setMeasure(null);
+    rig.tick(3 * FRAME_MS);
+    expect(rig.loop.stats.stepsLastFrame).toBe(3);
+    expect(rig.loop.stats).toMatchObject({
+      simMsLastFrame: 0,
+      renderMsLastFrame: 0,
+      frameMsLastFrame: 0,
+    });
+    // Nothing is read once the measure is off.
+    const before = clock.now;
+    rig.tick(4 * FRAME_MS);
+    expect(rig.loop.stats.frameMsLastFrame).toBe(0);
+    expect(clock.now).toBeGreaterThanOrEqual(before);
   });
 
   it('starts and stops measuring with setMeasure, zeroing the timings when it stops', async () => {

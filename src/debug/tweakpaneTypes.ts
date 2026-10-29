@@ -16,6 +16,8 @@ export interface ButtonLike {
 }
 
 export interface FolderLike {
+  /** The folder's (or pane's) root element. */
+  readonly element: HTMLElement;
   addFolder(params: { title: string; expanded?: boolean }): FolderLike;
   addBinding(target: object, key: string, params?: Record<string, unknown>): BindingLike;
   addButton(params: { title: string }): ButtonLike;

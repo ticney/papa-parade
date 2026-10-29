@@ -167,13 +167,17 @@ describe('createTimingTimeline', () => {
     expect(labels()).toEqual(['+23 ms · success', '−41 ms · perfect']);
   });
 
-  it('keeps DEBUG_TIMELINE_ROWS responses, dropping the oldest', () => {
+  it('shows as many rows as there are responses, up to DEBUG_TIMELINE_ROWS, dropping the oldest', () => {
     const { timeline, labels, rows } = setup();
-    for (let i = 0; i < DEBUG_TIMELINE_ROWS + 3; i++) timeline.add(resolved({ offsetMs: i }));
-    expect(timeline.size).toBe(DEBUG_TIMELINE_ROWS);
+    const visible = (): number => rows().filter((row) => !row.hidden).length;
+    for (let count = 1; count <= DEBUG_TIMELINE_ROWS + 3; count++) {
+      timeline.add(resolved({ offsetMs: count }));
+      expect(visible(), `after ${count} responses`).toBe(Math.min(count, DEBUG_TIMELINE_ROWS));
+      expect(timeline.size).toBe(Math.min(count, DEBUG_TIMELINE_ROWS));
+    }
     expect(labels()).toHaveLength(DEBUG_TIMELINE_ROWS);
-    expect(labels()[0]).toContain(`+${DEBUG_TIMELINE_ROWS + 2} ms`);
-    expect(labels().at(-1)).toContain('+3 ms');
+    expect(labels()[0]).toContain(`+${DEBUG_TIMELINE_ROWS + 3} ms`);
+    expect(labels().at(-1)).toContain('+4 ms');
     expect(rows()).toHaveLength(DEBUG_TIMELINE_ROWS);
   });
 
@@ -186,8 +190,11 @@ describe('createTimingTimeline', () => {
       'no press · fail (late)',
     );
     const windowBar = row.findAll('pp-debug-tl-window')[0] as FakeElement;
-    expect(windowBar.style.left).toMatch(/%$/);
-    expect(windowBar.style.width).toMatch(/%$/);
+    // A real percentage: a NaN or Infinity would still end in « % ».
+    for (const value of [windowBar.style.left, windowBar.style.width]) {
+      expect(value).toMatch(/%$/);
+      expect(Number.isFinite(Number.parseFloat(value as string))).toBe(true);
+    }
     expect(row.dataset.quality).toBe('fail');
   });
 

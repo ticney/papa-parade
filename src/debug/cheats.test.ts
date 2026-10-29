@@ -1,4 +1,9 @@
-import { DEBUG_SKIP_CHUNK_STEPS, GAUGE_MAX_POINTS, MIN_TIME_SCALE } from '@shared/constants';
+import {
+  DEBUG_SKIP_CHUNK_STEPS,
+  GAUGE_MAX_POINTS,
+  MIN_TIME_SCALE,
+  UINT32_RANGE,
+} from '@shared/constants';
 import { log } from '@shared/log';
 import { createSim, type Sim } from '@sim';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -19,6 +24,10 @@ import {
   createSkipToEnd,
   launchableThreats,
   launchThreat,
+  levelHasFatigue,
+  parseCheatNumber,
+  parseSeed,
+  refusalReason,
 } from './cheats.ts';
 
 beforeAll(() => {
@@ -27,7 +36,7 @@ beforeAll(() => {
 
 const LEVEL_DURATION_MS = 3000;
 
-async function rig(options: { isActive?: boolean; hasFatigue?: boolean } = {}) {
+async function rig(options: { isActive?: boolean; hasFatigue?: boolean; isFrozen?: boolean } = {}) {
   const level = createTestLevel({
     waves: [testWave([OUTLET, STAIRS])],
     durationMs: LEVEL_DURATION_MS,
@@ -40,12 +49,18 @@ async function rig(options: { isActive?: boolean; hasFatigue?: boolean } = {}) {
     seed: 3,
   });
   const advanced: number[] = [];
+  /** Like the real session: `advance` freezes the level, `freeze` sets the wish. */
   const session = {
     active: options.isActive === false ? null : { sim, level, geometry: createTestGeometry() },
+    isFrozen: options.isFrozen === true,
+    freeze(isFrozen: boolean) {
+      session.isFrozen = isFrozen;
+    },
     advance(steps: number) {
       if (session.active === null) throw new Error('no level is running');
       advanced.push(steps);
       for (let i = 0; i < steps; i++) sim.step();
+      session.isFrozen = true;
     },
   };
   const host = createFakeTestHost({ levelSession: session as never });
@@ -79,6 +94,20 @@ describe('createCheatContext', () => {
     expect(createCheatContext(host).send({ type: 'SetTimeScale', scale: 0.5 })).toBe(false);
   });
 
+  it('refuses, with a warning, when the level has ended: the sim would drop the command', async () => {
+    const { host, sim } = await rig();
+    while (sim.world.flow.state !== 'ended') sim.step();
+    const entries = sim.journal().entries.length;
+    expect(createCheatContext(host).send({ type: 'SetFatigue', points: 30 })).toBe(false);
+    expect(sim.journal().entries).toHaveLength(entries);
+    const warning = log
+      .buffer()
+      .reverse()
+      .find((entry) => entry.message.startsWith('cheat refused'));
+    expect(warning?.level).toBe('warn');
+    expect(warning?.message).toContain('the level has ended');
+  });
+
   it('never writes the world: a cheat reaches it only through the next step', async () => {
     const { host, sim } = await rig({ hasFatigue: true });
     const before = structuredClone(sim.world);
@@ -89,6 +118,65 @@ describe('createCheatContext', () => {
     // The gauge keeps filling during the step that sets it, by a few thousandths.
     expect(sim.world.gauges.fatigue).toBeCloseTo(99, 1);
     expect(sim.world.time.baseScale).toBe(0.3);
+  });
+});
+
+describe('refusalReason', () => {
+  it('says why a command would be lost, and nothing while the level plays', async () => {
+    const playing = await rig();
+    expect(refusalReason(playing.host)).toBeNull();
+    const none = await rig({ isActive: false });
+    expect(refusalReason(none.host)).toBe('no level is running');
+    const over = await rig();
+    while (over.sim.world.flow.state !== 'ended') over.sim.step();
+    expect(refusalReason(over.host)).toBe('the level has ended');
+  });
+});
+
+describe('parseSeed', () => {
+  it('takes a whole number from 0 to 2**32 - 1', () => {
+    expect(parseSeed('0')).toEqual({ ok: true, value: 0 });
+    expect(parseSeed('42')).toEqual({ ok: true, value: 42 });
+    expect(parseSeed(String(UINT32_RANGE - 1))).toEqual({ ok: true, value: UINT32_RANGE - 1 });
+  });
+
+  it('refuses a blank field (not a 0), a fraction, a negative, a text and a seed createRng would throw on', () => {
+    for (const text of [
+      '',
+      '   ',
+      '1.5',
+      '-1',
+      'abc',
+      '1e400',
+      String(UINT32_RANGE),
+      '99999999999',
+    ]) {
+      expect(parseSeed(text).ok, `"${text}"`).toBe(false);
+    }
+  });
+});
+
+describe('parseCheatNumber', () => {
+  const input = { min: 0, max: GAUGE_MAX_POINTS };
+
+  it('holds the number in the cheat’s own range', () => {
+    expect(parseCheatNumber('64', input)).toEqual({ ok: true, value: 64 });
+    expect(parseCheatNumber('250', input)).toEqual({ ok: true, value: GAUGE_MAX_POINTS });
+    expect(parseCheatNumber('-5', input)).toEqual({ ok: true, value: 0 });
+  });
+
+  it('refuses a blank or non-numeric field instead of reading it as 0', () => {
+    expect(parseCheatNumber('', input).ok).toBe(false);
+    expect(parseCheatNumber('  ', input).ok).toBe(false);
+    expect(parseCheatNumber('abc', input).ok).toBe(false);
+    expect(parseCheatNumber('Infinity', input).ok).toBe(false);
+  });
+});
+
+describe('levelHasFatigue', () => {
+  it('is true for a level with the fatigue gauge, false for one without', () => {
+    expect(levelHasFatigue(createTestLevel({ gauges: FATIGUE_GAUGES }))).toBe(true);
+    expect(levelHasFatigue(createTestLevel())).toBe(false);
   });
 });
 
@@ -123,8 +211,13 @@ describe('the cheat list', () => {
     const cheat = CHEATS.find((candidate) => candidate.id === 'setFatigue');
     expect(cheat).toBeDefined();
     expect(cheat?.input).toMatchObject({ min: 0, max: GAUGE_MAX_POINTS });
-    expect(cheat?.isAvailable(withGauge.sim.world, true)).toBe(true);
-    expect(cheat?.isAvailable(without.sim.world, false)).toBe(false);
+    // The answer is derived from the level, the way the overlay does it.
+    const available = (r: typeof withGauge): boolean | undefined =>
+      r.session.active === null
+        ? undefined
+        : cheat?.isAvailable(r.sim.world, levelHasFatigue(r.session.active.level));
+    expect(available(withGauge)).toBe(true);
+    expect(available(without)).toBe(false);
   });
 
   it('runs « set fatigue » through a SetFatigue command', async () => {
@@ -220,6 +313,78 @@ describe('createSkipToEnd', () => {
     expect(skip.isRunning).toBe(false);
     expect(advanced).toHaveLength(1);
     expect(scheduler.pending).toBe(0);
+    const warning = log
+      .buffer()
+      .reverse()
+      .find((entry) => entry.message.startsWith('skip to the end stopped: no level'));
+    expect(warning?.level).toBe('warn');
+  });
+
+  it('a cancelled run that left a callback queued does not feed a later run: one chunk per frame', async () => {
+    const { host, advanced } = await rig();
+    const scheduler = frames();
+    const skip = createSkipToEnd(host, scheduler.request);
+    skip.start();
+    skip.cancel();
+    skip.start();
+    // Two callbacks are queued (the stale one and the live one): the frame advances once.
+    expect(scheduler.pending).toBe(2);
+    scheduler.run(2);
+    expect(advanced).toEqual([DEBUG_SKIP_CHUNK_STEPS]);
+    expect(scheduler.pending).toBe(1);
+    scheduler.run(1);
+    expect(advanced).toEqual([DEBUG_SKIP_CHUNK_STEPS, DEBUG_SKIP_CHUNK_STEPS]);
+  });
+
+  it('puts the freeze back as it was when the level ends (a skip leaves nothing frozen)', async () => {
+    const { host, session } = await rig();
+    const scheduler = frames();
+    const skip = createSkipToEnd(host, scheduler.request);
+    skip.start();
+    scheduler.run();
+    // `advance` froze the level while the skip runs.
+    expect(session.isFrozen).toBe(true);
+    let guard = 0;
+    while (skip.isRunning && guard++ < 100) scheduler.run();
+    expect(session.isFrozen).toBe(false);
+  });
+
+  it('keeps a freeze that was on before the skip, on the end and on a cancel', async () => {
+    const first = await rig({ isFrozen: true });
+    const scheduler = frames();
+    const skip = createSkipToEnd(first.host, scheduler.request);
+    skip.start();
+    scheduler.run();
+    skip.cancel();
+    expect(first.session.isFrozen).toBe(true);
+
+    const second = await rig({ isFrozen: true });
+    const other = frames();
+    const again = createSkipToEnd(second.host, other.request);
+    again.start();
+    let guard = 0;
+    while (again.isRunning && guard++ < 100) other.run();
+    expect(second.session.isFrozen).toBe(true);
+  });
+
+  it('puts the freeze back when it is cancelled, and when advancing throws', async () => {
+    const { host, session } = await rig();
+    const scheduler = frames();
+    const skip = createSkipToEnd(host, scheduler.request);
+    skip.start();
+    scheduler.run();
+    expect(session.isFrozen).toBe(true);
+    skip.cancel();
+    expect(session.isFrozen).toBe(false);
+
+    session.advance = () => {
+      throw new Error('no level is running');
+    };
+    session.isFrozen = false;
+    skip.start();
+    scheduler.run(2);
+    expect(session.isFrozen).toBe(false);
+    expect(skip.isRunning).toBe(false);
   });
 
   it('stops when advancing throws (the loop is gone), and logs it', async () => {

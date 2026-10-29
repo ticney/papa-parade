@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTestContent } from '../../../tests/support/testContent.ts';
-import { applyFeelPatch } from './applyFeelPatch.ts';
+import { commandProblem } from '../commands.ts';
+import { applyFeelPatch, isPlainObject, UNSAFE_PATCH_KEYS } from './applyFeelPatch.ts';
 
 const feel = createTestContent().feel;
 const firstKind = Object.keys(feel.physics.kinds)[0] as string;
@@ -64,11 +65,36 @@ describe('applyFeelPatch (the sim’s own merge)', () => {
     expect(applyFeelPatch(feel, [])).toBeNull();
   });
 
-  it('refuses the keys that reach the prototype, and the patch changes nothing then', () => {
+  // `__proto__`, `constructor` and `prototype` are no key of the feel, so the unknown-key rule alone
+  // refuses them here, with or without `UNSAFE_PATCH_KEYS`; the guard that keeps them out of the sim
+  // is `commandProblem` (see commands.test.ts and the enqueue test below), which runs first.
+  it('refuses __proto__, constructor and prototype as keys the feel does not have, and pollutes nothing', () => {
     const polluted = JSON.parse('{"__proto__":{"isAdmin":true}}');
     expect(applyFeelPatch(feel, polluted)).toBeNull();
     expect(applyFeelPatch(feel, { timing: { constructor: 1 } })).toBeNull();
     expect(applyFeelPatch(feel, { timing: { prototype: 1 } })).toBeNull();
     expect(({} as Record<string, unknown>).isAdmin).toBeUndefined();
+  });
+});
+
+describe('the guard against prototype keys lives in commandProblem', () => {
+  const send = (patch: unknown) => commandProblem({ type: 'SetFeel', t: 0, patch });
+
+  it('names the forbidden keys, so a SetFeel that carries one never reaches the merge', () => {
+    expect(UNSAFE_PATCH_KEYS).toEqual(['__proto__', 'constructor', 'prototype']);
+    expect(send(JSON.parse('{"__proto__":{"isAdmin":true}}'))).toMatch(/forbidden key __proto__/);
+    expect(send({ timing: { constructor: 1 } })).toMatch(/forbidden key constructor/);
+    expect(send({ timing: { prototype: 1 } })).toMatch(/forbidden key prototype/);
+  });
+});
+
+describe('isPlainObject', () => {
+  it('is true for objects made by literals or with no prototype, false for arrays, null and class instances', () => {
+    class Foo {}
+    expect(isPlainObject({})).toBe(true);
+    expect(isPlainObject(Object.create(null))).toBe(true);
+    for (const value of [[], null, undefined, 1, 'a', new Foo(), new Map()]) {
+      expect(isPlainObject(value)).toBe(false);
+    }
   });
 });

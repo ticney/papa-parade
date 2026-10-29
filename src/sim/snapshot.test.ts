@@ -1136,7 +1136,7 @@ describe('snapshot / restore of the director and the flow (story 1.18)', () => {
   const threat0 = (w: Record<string, unknown>) =>
     (w.threats as Record<string, unknown>[])[0] as Record<string, unknown>;
 
-  it('is the current version (11), and carries the director, the flow and the wave index of each threat', async () => {
+  it('is the current version (12), and carries the director, the flow and the wave index of each threat', async () => {
     const sim = await newSim();
     stepN(sim, 60); // 600 ms: wave 0 entered, the outlet telegraphed
     const snapshot = sim.snapshot();
@@ -1397,7 +1397,7 @@ describe('snapshot / restore of the disruptions and the phone call (story 1.20)'
     return sim;
   }
 
-  it('is the current version (11), and carries a pending disruption as it was created', async () => {
+  it('is the current version (12), and carries a pending disruption as it was created', async () => {
     const sim = await newPhone();
     const snapshot = sim.snapshot();
     expect(snapshot.version).toBe(12);

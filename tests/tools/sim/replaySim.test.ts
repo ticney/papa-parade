@@ -1,4 +1,6 @@
+import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
+import { createSim } from '@sim';
 import { describe, expect, it } from 'vitest';
 import { checkFeelPatches, replayRunFile } from '../../../tools/sim/replaySim.ts';
 import type { RunFile } from '../../../tools/sim/runFile.ts';
@@ -127,5 +129,54 @@ describe('SetFeel in a recorded game (story 2.1)', () => {
     const refused = await replayRunFile(withInvalid, createTestSimLevel());
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.error).toContain('invalid SetFeel');
+  });
+  /** A game played live with a `SetFeel` in the middle, then recorded the way the CLI does. */
+  async function recordedWithSetFeel(patch: unknown): Promise<RunFile> {
+    const loaded = createTestSimLevel();
+    const untilSimMs = 3000;
+    const sim = await createSim({
+      content: loaded.content,
+      geometry: loaded.geometry,
+      level: loaded.level,
+      seed: 4,
+    });
+    while (sim.world.time.sim < untilSimMs) {
+      if (sim.world.time.sim === 1000) {
+        sim.enqueue({ type: 'SetFeel', t: asSimMs(1000), patch: patch as never });
+      }
+      sim.step();
+    }
+    const file: RunFile = {
+      kind: 'papa-parade.run',
+      version: 1,
+      levelId: loaded.levelId,
+      bot: 'human',
+      untilSimMs,
+      worldHash: hashJson(sim.world),
+      journal: sim.journal(),
+    };
+    sim.dispose();
+    return file;
+  }
+
+  it('replays a game whose SetFeel is applied mid-run to the recorded hash, and the SetFeel changes that hash', async () => {
+    const windowMs = createTestSimLevel().content.feel.timing.windowMs;
+    const file = await recordedWithSetFeel({ timing: { windowMs: windowMs + 30 } });
+    const midRun = file.journal.entries.find((entry) => entry.command.type === 'SetFeel');
+    expect(midRun?.applyAt).toBeLessThan(file.untilSimMs);
+    expect(midRun?.applyAt).toBeGreaterThan(0);
+    expect(await replayRunFile(file, createTestSimLevel())).toEqual({
+      ok: true,
+      value: { worldHash: file.worldHash },
+    });
+
+    // Without the SetFeel the replay ends in another world: the tool does apply it.
+    const without: RunFile = {
+      ...file,
+      journal: { ...file.journal, entries: [] },
+    };
+    const refused = await replayRunFile(without, createTestSimLevel());
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error).toContain('another state');
   });
 });

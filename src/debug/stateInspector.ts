@@ -1,6 +1,7 @@
 import type { TestHost } from '@client/app/testHost';
 import { DEBUG_PANEL_REFRESH_MS } from '@shared/constants';
 import type { World } from '@sim';
+import { guarded } from './guard.ts';
 
 /**
  * The one-glance summary of a world: sim time, time scale, flow, Papa, baby, fatigue and each
@@ -18,7 +19,7 @@ export function summarizeWorld(world: Readonly<World>): string[] {
   return lines;
 }
 
-/** The slices of the world the tree lists, in this order. `feel` is the effective feel. */
+/** The slices of the world the blocks list, in this order. `feel` is the effective feel; `rng` and `nextId` are what a replay depends on. */
 const SLICES = [
   'time',
   'papa',
@@ -32,6 +33,8 @@ const SLICES = [
   'mess',
   'silence',
   'score',
+  'rng',
+  'nextId',
   'feel',
 ] as const satisfies readonly (keyof World)[];
 
@@ -50,7 +53,10 @@ export interface InspectorRoot {
  * A read-only view of `sim.world`: the summary, then one collapsible block of JSON per slice. It
  * reads the world through the running sim at each refresh and holds no reference to it between
  * two (a string is all it keeps), so it cannot write through anything. A slice's JSON is made
- * only when its block is open. Refreshes at the panel rate on level frames, only while active.
+ * only when its block is open. Refreshes at the panel rate on level frames, only while active. A
+ * new level shows its own world at once (from the `StartedLevel`, since `levelSession.active` is
+ * still the old one while the listeners run). A throw while refreshing is logged and goes no
+ * further.
  */
 export function createStateInspector(host: TestHost, root: InspectorRoot): StateInspector {
   const doc = root.ownerDocument;
@@ -73,8 +79,8 @@ export function createStateInspector(host: TestHost, root: InspectorRoot): State
 
   let isActive = false;
   let lastRefreshAtReal = Number.NEGATIVE_INFINITY;
-  const refresh = (): void => {
-    const world = host.levelSession.active?.sim.world;
+  const refresh = (known?: Readonly<World>): void => {
+    const world = known ?? host.levelSession.active?.sim.world;
     if (world === undefined) {
       summary.textContent = 'no level is running';
       for (const block of blocks) block.body.textContent = '';
@@ -85,24 +91,33 @@ export function createStateInspector(host: TestHost, root: InspectorRoot): State
       if (block.details.open) block.body.textContent = JSON.stringify(world[block.name], null, 1);
     }
   };
-  const offFrame = host.onRenderedFrame((frameAtReal) => {
-    if (!isActive || frameAtReal - lastRefreshAtReal < DEBUG_PANEL_REFRESH_MS) return;
-    lastRefreshAtReal = frameAtReal;
-    refresh();
-  });
+  const offFrame = host.onRenderedFrame(
+    guarded('state inspector: refresh', (frameAtReal) => {
+      if (!isActive || frameAtReal - lastRefreshAtReal < DEBUG_PANEL_REFRESH_MS) return;
+      lastRefreshAtReal = frameAtReal;
+      refresh();
+    }),
+  );
   // A new level, or the end of one (no frame is drawn on the Result screen): show it at once.
-  const offStarted = host.onLevelStarted(() => {
-    if (isActive) refresh();
-  });
-  const offEvents = host.onSimEvent((event) => {
-    if (isActive && event.type === 'LevelEnded') refresh();
-  });
+  const offStarted = host.onLevelStarted(
+    guarded('state inspector: refresh on a new level', (started) => {
+      if (isActive) refresh(started.sim.world);
+    }),
+  );
+  const offEvents = host.onSimEvent(
+    guarded('state inspector: refresh on the end of the level', (event) => {
+      if (isActive && event.type === 'LevelEnded') refresh();
+    }),
+  );
 
   return {
-    setActive(next) {
+    setActive: guarded('state inspector: opening', (next: boolean) => {
       isActive = next;
-      if (next) refresh();
-    },
+      if (next) {
+        lastRefreshAtReal = Number.NEGATIVE_INFINITY;
+        refresh();
+      }
+    }),
     dispose() {
       offFrame();
       offStarted();

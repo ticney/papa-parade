@@ -437,7 +437,7 @@ export async function boot(): Promise<void> {
     if (active === null) return;
     const { baby } = active.sim.world;
     const rect = canvas.getBoundingClientRect();
-    iconPoint.set(baby.xM, levelFeel().baby.bodyRadiusM, baby.zM).project(camera);
+    iconPoint.set(baby.xM, startFeel().baby.bodyRadiusM, baby.zM).project(camera);
     const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
     const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
     mirror('ppBabyPx', `${x.toFixed(1)},${y.toFixed(1)}`);
@@ -846,7 +846,7 @@ export async function boot(): Promise<void> {
       return true;
     },
     viewport: () => ({ width: hudRoot.clientWidth, height: hudRoot.clientHeight }),
-    targetHeightM: () => levelFeel().baby.bodyRadiusM,
+    targetHeightM: () => startFeel().baby.bodyRadiusM,
     hudBottomPx: () => hudRoot.querySelector('.pp-hud-row')?.getBoundingClientRect().bottom ?? 0,
   });
   window.addEventListener('resize', () => silenceBubble.relayout());
@@ -914,9 +914,12 @@ export async function boot(): Promise<void> {
   const shell = createUiShell({ events, appFsm, pause, hud, hudBatch, overlayHost });
   shell.bindKeys(window);
 
-  // The live feel (story 2.1): the sim's effective one, so a `SetFeel` reaches the hit test, the
-  // hold ring and the body radius on the next frame. `ActiveLevel.feel` is the feel at the start.
+  // The live feel (story 2.1): the sim's effective one, so a `SetFeel` reaches the hit test and the
+  // hold ring on the next frame. `ActiveLevel.feel` is the feel at the start.
   const levelFeel = (): Feel => levelSession.active?.sim.world.feel ?? content.value.feel;
+  // `baby.bodyRadiusM` is read when the level starts (the baby mesh, the nav grid and the threat
+  // icons keep it), so everything drawn or hit-tested on the baby's body uses the start value too.
+  const startFeel = (): Feel => levelSession.active?.feel ?? content.value.feel;
 
   // Input: raw events become typed, timestamped commands in the mapper, and only while a level is
   // live. Keys and stick are tracked outside that gate so that a resume can send what is held.
@@ -976,7 +979,7 @@ export async function boot(): Promise<void> {
       return levelFeel().input.objectTouchRadiusPx;
     },
     get babyBodyRadiusM() {
-      return levelFeel().baby.bodyRadiusM;
+      return startFeel().baby.bodyRadiusM;
     },
     get input() {
       return levelFeel().input;

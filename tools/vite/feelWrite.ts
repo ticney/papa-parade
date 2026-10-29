@@ -21,7 +21,7 @@ export interface FeelWriteDeps {
   writeText(path: string, text: string): Promise<void>;
   /** The paths and messages `FeelSchema` objects to in this feel, or `[]` when it is valid. */
   validate(feel: unknown): string[];
-  /** The text as the project's formatter writes it (Biome), or a rejection. */
+  /** The text as the project's formatter writes it (Biome), or a rejection. It is re-parsed and re-validated before it is written. */
   format(text: string): Promise<string>;
 }
 
@@ -156,6 +156,25 @@ export function stringifyLike(original: string, value: unknown): string {
   return `${stringifyAs(value, '', 0, collapsedObjectPaths(original))}\n`;
 }
 
+/** Why the formatted text cannot be written (not JSON, invalid, or not the merged feel), or null. */
+function problemWithFormatted(
+  text: string,
+  merged: unknown,
+  validate: FeelWriteDeps['validate'],
+): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return 'text that is not JSON';
+  }
+  const problems = validate(parsed);
+  if (problems.length > 0) return `an invalid feel: ${problems.join('; ')}`;
+  if (JSON.stringify(parsed) !== JSON.stringify(merged))
+    return 'a feel that differs from the merge';
+  return null;
+}
+
 /**
  * What the dev server answers to a `POST` on the `feel-writer` endpoint (story 2.1, architecture
  * P6 and its security note: the dev server may be open to the LAN). The request is `{ file, patch }`:
@@ -206,6 +225,12 @@ export async function handleFeelWrite(
   }
   try {
     const text = await deps.format(stringifyLike(originalText, merged));
+    // The formatter's output is what lands in the file: it must still be the feel that was
+    // validated (an empty or garbled output from a failing Biome must never become the file).
+    const problem = problemWithFormatted(text, merged, deps.validate);
+    if (problem !== null) {
+      return refuse(500, `cannot write ${FEEL_FILE}: the formatter returned ${problem}`);
+    }
     await deps.writeText(target, text);
   } catch (cause) {
     return refuse(

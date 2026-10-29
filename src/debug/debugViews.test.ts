@@ -4,6 +4,9 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  OUTLET,
+  STAIRS,
+  testWave,
 } from '../../tests/support/testContent.ts';
 import {
   boxEdgeSegments,
@@ -137,14 +140,36 @@ describe('summarizeWorld', () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry,
-      level: createTestLevel(),
+      level: createTestLevel({ waves: [testWave([OUTLET, STAIRS])] }),
       seed: 1,
     });
     const lines = summarizeWorld(sim.world);
     expect(lines[0]).toBe('t 0 ms · timeScale 1.00 (base 1.00, 0 slow-mo)');
     expect(lines[1]).toBe('flow playing · papa idle · baby babble');
     expect(lines[2]).toBe('fatigue 0.0');
-    expect(lines).toHaveLength(3 + sim.world.threats.length);
+    expect(sim.world.threats.length).toBeGreaterThan(0);
+    // One line per threat, with its id, def, anchor and state.
+    expect(lines.slice(3)).toEqual(
+      sim.world.threats.map(
+        (threat) => `#${threat.id} ${threat.defId} @ ${threat.anchorId}: ${threat.state}`,
+      ),
+    );
+    sim.dispose();
+  });
+
+  it('marks the fatigue that is above its threshold, and only then', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry,
+      level: createTestLevel(),
+      seed: 1,
+    });
+    const world = structuredClone(sim.world);
+    world.gauges.fatigue = 42.5;
+    world.gauges.isFatigueAbove = false;
+    expect(summarizeWorld(world)[2]).toBe('fatigue 42.5');
+    world.gauges.isFatigueAbove = true;
+    expect(summarizeWorld(world)[2]).toBe('fatigue 42.5 (above threshold)');
     sim.dispose();
   });
 

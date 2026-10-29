@@ -67,13 +67,21 @@ export type ControlDescriptor =
  * the start fatigue): changing them mid-level changes nothing until the next one (story 2.1 D5). A
  * trailing `.` is a whole section. Data, not a list of the feel's shape: a key missing here is just
  * not marked.
+ *
+ * Of `physics`, only `maxPushImpulseNs` and `impactCooldownMs` are read live (`propsSystem.ts`).
+ * `gravityMps2` and the kinds' shape, mass, friction and restitution are given to Rapier when the
+ * level is created, and `breakable` / `breakImpulseNs` are copied into the level's props then.
+ * `impactMinImpulseNs` is checked live too, but Rapier filters the contacts at the threshold it was
+ * created with: lowering it mid-level changes nothing, so it is a next-level key.
  */
 export const NEXT_LEVEL_FEEL_KEYS: readonly string[] = [
   'movement.papaRadiusM',
   'baby.bodyRadiusM',
   'baby.babbleMinMs',
   'fatigue.startPoints',
-  'physics.',
+  'physics.gravityMps2',
+  'physics.impactMinImpulseNs',
+  'physics.kinds.',
 ];
 
 export const isNextLevelKey = (pathKey: string): boolean =>
@@ -224,24 +232,72 @@ export function getAtPath(root: unknown, path: readonly PathStep[]): unknown {
 }
 
 /**
- * The one-leaf `SetFeel` patch that sets `path` to `value` on `feel`. Arrays are given whole, so
- * a patch for an array item holds the current array with that item replaced.
+ * `value` without float noise: rounded to `step` when the schema gives one (an integer's is 1),
+ * then to 12 significant digits, which removes what a slider's arithmetic adds (`0.30000000000000004`).
+ */
+export function cleanNumber(value: number, step?: number): number {
+  if (!Number.isFinite(value)) return value;
+  const stepped = step !== undefined && step > 0 ? Math.round(value / step) * step : value;
+  return Number(stepped.toPrecision(12));
+}
+
+/** `node` with `value` set at `steps`, copying along the way: an object or array item is merged into, never replaced by the scalar. */
+function withValue(node: unknown, steps: readonly PathStep[], value: unknown): unknown {
+  const [step, ...rest] = steps;
+  if (step === undefined) return value;
+  if (typeof step === 'number') {
+    const items: unknown[] = Array.isArray(node) ? structuredClone(node) : [];
+    items[step] = withValue(items[step], rest, value);
+    return items;
+  }
+  const copy: Record<string, unknown> = isRecord(node) ? structuredClone(node) : {};
+  copy[step] = withValue(copy[step], rest, value);
+  return copy;
+}
+
+/**
+ * `patch` without the leaves `sent` holds with the same value (arrays compared whole): what is left
+ * to save after `sent` was saved. A leaf changed again since keeps its newer value. Empty objects
+ * are dropped. Neither argument is changed.
+ */
+export function subtractPatch(
+  patch: Record<string, unknown>,
+  sent: Record<string, unknown>,
+): Record<string, unknown> {
+  const left: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    const was = sent[key];
+    if (isRecord(value) && isRecord(was)) {
+      const rest = subtractPatch(value, was);
+      if (Object.keys(rest).length > 0) left[key] = rest;
+    } else if (JSON.stringify(value) !== JSON.stringify(was)) {
+      left[key] = structuredClone(value);
+    }
+  }
+  return left;
+}
+
+/**
+ * The one-leaf `SetFeel` patch that sets `path` to `value`. Arrays are given whole: `feel` is the
+ * feel the patch is laid over, and the patch holds its array with that item (or the field of that
+ * item) replaced, the other items kept as they are in `feel`. Pass the feel the patch is for: the
+ * effective one for the sim, the saved one (without a level's overrides) for `feel.json`. A number
+ * goes through {@link cleanNumber} with the control's `step`.
  */
 export function leafPatch(
   feel: unknown,
   path: readonly PathStep[],
   value: unknown,
+  step?: number,
 ): Record<string, unknown> {
-  const arrayAt = path.findIndex((step) => typeof step === 'number');
+  const arrayAt = path.findIndex((s) => typeof s === 'number');
   const end = arrayAt < 0 ? path.length : arrayAt;
-  let leaf: unknown = value;
-  if (arrayAt >= 0) {
-    const current = getAtPath(feel, path.slice(0, arrayAt));
-    const copy = Array.isArray(current) ? [...current] : [];
-    // An array of arrays is not in the feel: only the first index matters.
-    copy[path[arrayAt] as number] = value;
-    leaf = copy;
-  }
+  if (end === 0) return {};
+  const clean = typeof value === 'number' ? cleanNumber(value, step) : value;
+  const leaf =
+    arrayAt < 0
+      ? clean
+      : withValue(getAtPath(feel, path.slice(0, arrayAt)), path.slice(arrayAt), clean);
   const patch: Record<string, unknown> = {};
   let node = patch;
   for (let i = 0; i < end; i++) {

@@ -312,7 +312,10 @@ export interface World {
    * The effective feel (story 2.1): the feel given to `createSim`, with every `SetFeel` laid over
    * it. A `SetFeel` replaces this object at the head of a step; systems read it through `ctx.feel`,
    * so it is in the snapshot and survives `restore()`. Values the sim reads only when it is
-   * created (nav radii, `physics`, the first wander, the start fatigue) keep doing so.
+   * created (nav radii, the first wander, the start fatigue, the physics world's own settings)
+   * keep doing so. In `physics`, `maxPushImpulseNs` and `impactCooldownMs` are read live, whereas
+   * `impactMinImpulseNs` is a mix: the sim's check is live, but Rapier filters contact events at
+   * the threshold it was created with, so a change takes effect with the next level.
    */
   feel: Feel;
 }

@@ -193,6 +193,9 @@ test.describe('window.__PP__', () => {
     await ppSetFeel(page, { timing: { windowMs: tunedMs } });
     await ppAdvance(page, 1);
     await ppLoadLevel(page, LEVEL, SEED);
+    // The restarted sim is made with the feel on disk; the remembered tweak is a journaled
+    // `SetFeel` at t=0, which lands at the head of the first step.
+    await ppAdvance(page, 1);
     expect((await ppWorld(page)).feel.timing.windowMs).toBe(tunedMs);
     expect(problems).toEqual([]);
   });

@@ -342,6 +342,58 @@ describe('setFeel(patch)', () => {
     expect(sim.world.feel.movement.walkSpeedMps).toBe(3);
   });
 
+  it('checks a patch against the SetFeels still queued: back to back, the second sees the first', async () => {
+    const { api, sim } = await createRig();
+    const { windowMs, perfectMs } = sim.world.feel.timing;
+    // Alone, each is valid against the feel in force; together they would leave perfectMs > windowMs.
+    const narrowedWindowMs = perfectMs + 50;
+    const widenedPerfectMs = narrowedWindowMs + 25;
+    expect(widenedPerfectMs).toBeLessThanOrEqual(windowMs);
+    await api.setFeel({ timing: { windowMs: narrowedWindowMs } });
+    await expect(api.setFeel({ timing: { perfectMs: widenedPerfectMs } })).rejects.toThrow(
+      /__PP__\.setFeel.*perfectMs/,
+    );
+    // No step ran in between, and the refused patch was not queued.
+    expect(sim.journal().entries).toHaveLength(1);
+    sim.step();
+    expect(sim.world.feel.timing.windowMs).toBe(narrowedWindowMs);
+    expect(sim.world.feel.timing.perfectMs).toBe(perfectMs);
+  });
+
+  it('accepts, in the reverse order, what the queue makes valid: no step needed in between', async () => {
+    const { api, sim } = await createRig();
+    const { windowMs, perfectMs } = sim.world.feel.timing;
+    const loweredPerfectMs = perfectMs - 40;
+    const loweredWindowMs = perfectMs - 20;
+    // Against `world.feel` alone the second would be refused: perfectMs (still the old one) > windowMs.
+    expect(loweredWindowMs).toBeLessThan(perfectMs);
+    expect(loweredWindowMs).toBeLessThan(windowMs);
+    await api.setFeel({ timing: { perfectMs: loweredPerfectMs } });
+    await api.setFeel({ timing: { windowMs: loweredWindowMs } });
+    expect(sim.journal().entries).toHaveLength(2);
+    sim.step();
+    expect(sim.world.feel.timing.perfectMs).toBe(loweredPerfectMs);
+    expect(sim.world.feel.timing.windowMs).toBe(loweredWindowMs);
+  });
+
+  it('stops folding a SetFeel once the sim has applied it (its effect is in world.feel)', async () => {
+    const { api, sim } = await createRig();
+    await api.setFeel({ timing: { windowMs: 200 } });
+    sim.step();
+    // 150 <= 200 is valid on the applied feel; 250 is not (the applied window is 200, not the old 300).
+    await api.setFeel({ timing: { perfectMs: 150 } });
+    await expect(api.setFeel({ timing: { perfectMs: 250 } })).rejects.toThrow(/perfectMs/);
+  });
+
+  it('refuses a new key of a record (physics.kinds.new_kind): the sim would drop it', async () => {
+    const { api, sim } = await createRig();
+    const kind = Object.values(sim.world.feel.physics.kinds)[0];
+    await expect(api.setFeel({ physics: { kinds: { new_kind: kind } } } as never)).rejects.toThrow(
+      /__PP__\.setFeel.*physics\.kinds\.new_kind/,
+    );
+    expect(sim.journal().entries).toEqual([]);
+  });
+
   it('becomes the feel a restart uses, with the earlier tuning kept', async () => {
     const { api, session } = await createRig();
     await api.setFeel({ timing: { windowMs: 500 } });

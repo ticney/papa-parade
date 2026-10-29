@@ -214,6 +214,28 @@ describe('a Firmness', () => {
     expect(threatOf(sim).press).toMatchObject({ heldAt: center + input.holdMinMs });
   });
 
+  it('stays a Firmness once the ring has closed, whatever holdMinMs becomes (a SetFeel)', async () => {
+    const { sim, openAt, center } = await telegraphed('firm');
+    sim.enqueue(press(center));
+    runTo(sim, center + input.holdMinMs + STEP_MS);
+    expect(threatOf(sim).press).toMatchObject({ heldAt: center + input.holdMinMs });
+    // The finger has been down for longer than the old holdMinMs; the new one is longer than it.
+    const raised = input.holdMinMs + 400;
+    sim.enqueue({ type: 'SetFeel', t: asSimMs(0), patch: { input: { holdMinMs: raised } } });
+    const releaseAt = center + input.holdMinMs + 4 * STEP_MS;
+    expect(releaseAt - center).toBeLessThan(raised);
+    sim.enqueue(release(releaseAt));
+    const events = runTo(sim, openAt + HOLD_UNTIL_MS + STEP_MS);
+    expect(sim.world.feel.input.holdMinMs).toBe(raised);
+    // A Firmness released too soon, not a Parry on a Firmness threat.
+    expect(only(events, 'GagTriggered')).toEqual([
+      expect.objectContaining({ reason: 'released', t: gridCeil(releaseAt) }),
+    ]);
+    expect(only(events, 'ResponseResolved')).toEqual([
+      expect.objectContaining({ quality: 'fail', reason: 'released' }),
+    ]);
+  });
+
   it('closes the ring on a release at holdMinMs too, then gags in the same step, in that order', async () => {
     const { sim, center } = await telegraphed('firm');
     sim.enqueue(press(center));
