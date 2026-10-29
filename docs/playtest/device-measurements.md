@@ -31,6 +31,7 @@ Avant de commencer : récupérer l'URL du build de playtest déployé (CLAUDE.md
 4. **À noter aussi.**
    - Le son marche après le premier tap (iOS : interrupteur silencieux désactivé).
    - La vibration (Android).
+   - « Copier le journal » sur l'écran de résultat (story 3.3), sans `?debug=1` : le bouton doit passer à « Journal copié ! » (sinon à « Télécharger le journal », et un fichier `.json` arrive dans Fichiers ou Téléchargements). Coller le texte quelque part, ou récupérer le fichier, et le rejouer avec `npm run sim:replay -- <fichier>`. Le test de Playwright sur WebKit de bureau ne prouve pas ce que Safari sur iPhone accepte : c'est ce contrôle-là qui le prouve.
    - Un démarrage à la manette seule, si une manette est sous la main (`deferred-work.md` : la manette demande HTTPS, donc l'URL déployée, pas le serveur local).
 
 Si le compteur affiche un `DPR` plus bas que prévu à la fin du niveau, c'est le pixel ratio adaptatif qui est descendu (2 → 1,5 → 1) : à noter, c'est une information sur la charge du téléphone.
@@ -62,6 +63,7 @@ Si le compteur affiche un `DPR` plus bas que prévu à la fin du niveau, c'est l
 | Verdict NFR2 | — |
 | Verdict NFR3 | — |
 | Son après le premier tap | — |
+| « Copier le journal » (copié ou téléchargé) | — |
 | Démarrage à la manette seule | — |
 | Notes | — |
 
@@ -84,6 +86,7 @@ Si le compteur affiche un `DPR` plus bas que prévu à la fin du niveau, c'est l
 | Verdict NFR2 | — |
 | Verdict NFR3 | — |
 | Son après le premier tap | — |
+| « Copier le journal » (copié ou téléchargé) | — |
 | Vibration | — |
 | Démarrage à la manette seule | — |
 | Notes | — |

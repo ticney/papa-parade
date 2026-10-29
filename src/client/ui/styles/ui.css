@@ -884,6 +884,16 @@ body {
   flex: 1;
 }
 
+/* « Copier le journal » / « Télécharger le journal » (story 3.3, playtest builds): the label is longer
+   than half of the 360px panel, and a second line would make the row 60px instead of 44px and push a
+   woken Mama's panel (750 × 340) into a scroll. The button keeps its own width, on one line, beside
+   « Rejouer », which takes the rest of the row. */
+.pp-result-actions .pp-button-secondary {
+  flex: 0 1 auto;
+  padding-inline: var(--pp-spacing-3);
+  white-space: nowrap;
+}
+
 .pp-countdown {
   display: flex;
   align-items: center;

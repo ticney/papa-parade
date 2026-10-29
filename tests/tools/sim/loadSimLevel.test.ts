@@ -49,6 +49,19 @@ describe('loadSimLevel and the level’s feelOverrides (story 1.18)', () => {
     expect(hashJson(merged.value.content.feel)).not.toBe(hashJson(live.value.content.feel));
   });
 
+  it('hashes the base content before the overrides are merged, as an exported journal does (story 3.3)', async () => {
+    const live = await loadSimLevel(LIVE_DIR, 'salon_crawler');
+    const merged = await loadSimLevel(
+      withOverrides({ timing: { windowMs: 250 } }),
+      'salon_crawler',
+    );
+    if (!live.ok || !merged.ok) throw new Error('load failed');
+    expect(merged.value.contentHash).toBe(live.value.contentHash);
+    // Not the hash of what the sim sees: the overrides are in `content`, not in `contentHash`.
+    expect(hashJson(merged.value.content)).not.toBe(merged.value.contentHash);
+    expect(hashJson(live.value.content)).toBe(live.value.contentHash);
+  });
+
   it('fails with the problems when an override breaks the feel', async () => {
     const dir = withOverrides({ timing: { windowMs: -5 } });
     const result = await loadSimLevel(dir, 'salon_crawler');

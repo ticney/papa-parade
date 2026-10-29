@@ -381,3 +381,24 @@ export const FEEL_WRITER_HEADER = 'x-pp-feel-writer';
 
 /** The value `FEEL_WRITER_HEADER` must carry. */
 export const FEEL_WRITER_HEADER_VALUE = '1';
+
+/**
+ * A touch device whose shorter screen side is under this many CSS px is a phone, else a tablet
+ * (story 3.3). A classification bound for the exported journal's `device.type`, not a feel value.
+ */
+export const JOURNAL_PHONE_MAX_SHORT_SIDE_PX = 600;
+
+/** A string of the exported journal's logs longer than this many chars is cut with `…` (story 3.3). */
+export const JOURNAL_LOG_STRING_MAX_CHARS = 500;
+
+/** A log entry's `data` whose JSON is longer than this many chars is replaced by `"[truncated]"` in the exported journal (story 3.3). */
+export const JOURNAL_LOG_DATA_MAX_CHARS = 2000;
+
+/** A log entry's `data` nested deeper than this is replaced by `"[truncated]"` in the exported journal (story 3.3). */
+export const JOURNAL_LOG_DATA_MAX_DEPTH = 6;
+
+/** The exported journal's blob URL is revoked this many real ms after the download click (story 3.3). */
+export const JOURNAL_DOWNLOAD_REVOKE_DELAY_MS = 10_000;
+
+/** A copy that has not settled after this many real ms counts as `'failed'` and frees the button (story 3.3). */
+export const JOURNAL_COPY_TIMEOUT_MS = 5000;

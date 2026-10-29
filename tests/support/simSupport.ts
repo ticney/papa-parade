@@ -1,3 +1,4 @@
+import { hashJson } from '@shared/hash';
 import type { SimLevel } from '../../tools/sim/loadSimLevel.ts';
 import type { SimArgs } from '../../tools/sim/simArgs.ts';
 import { botTestLevel } from './botSupport.ts';
@@ -5,9 +6,11 @@ import { createTestContent, createTestGeometry } from './testContent.ts';
 
 /** The frozen living room with the outlet, loaded as the CLI would. */
 export function createTestSimLevel(): SimLevel {
+  const content = createTestContent();
   return {
     levelId: 'salon_crawler',
-    content: createTestContent(),
+    contentHash: hashJson(content),
+    content,
     level: botTestLevel(),
     geometry: createTestGeometry(),
   };

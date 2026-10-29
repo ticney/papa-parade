@@ -1,6 +1,7 @@
 import type { LevelSession, StartedLevel } from '../../src/client/app/levelSession.ts';
 import type { PauseState } from '../../src/client/app/pauseController.ts';
 import type { CuePlayedRecord, TestHost } from '../../src/client/app/testHost.ts';
+import type { InputDevice } from '../../src/client/input/inputMapper.ts';
 import type { RenderStats } from '../../src/client/render/renderer.ts';
 import type { ContentBundle } from '../../src/content/contentBundle.ts';
 import type { Sim, SimEvent } from '../../src/sim/index.ts';
@@ -16,6 +17,8 @@ export interface FakeTestHost extends TestHost {
   fireLevelStarted(started: StartedLevel): void;
   fireSimEvent(event: SimEvent): void;
   fireGameResumed(): void;
+  /** What `lastInputDevice()` answers from now on (default `null`: no input yet). */
+  setLastInputDevice(device: InputDevice | null): void;
   fireCuePlayed(record: CuePlayedRecord): void;
   /** One drawn level frame; the stats default to a small quiet scene at pixel ratio 2. */
   fireRenderedFrame(frameAtReal: number, stats?: Partial<RenderStats>): void;
@@ -39,6 +42,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
   const calls: string[] = [];
   let stepHook: ((sim: Sim) => void) | null = null;
   let isBlocked = false;
+  let lastInput: InputDevice | null = null;
   let pause: PauseState = 'running';
 
   const subscribe = <T>(listeners: Set<T>, listener: T): (() => void) => {
@@ -73,6 +77,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     onRenderedFrame: (listener) => subscribe(frameListeners, listener),
     debugGroup: () => null,
     threatScreenPoints: () => [],
+    lastInputDevice: () => lastInput,
     auditionCue(cueId) {
       calls.push(`audition:${cueId}`);
       return options.isAudioRunning ?? true;
@@ -110,6 +115,9 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
         ...stats,
       };
       for (const listener of [...frameListeners]) listener(frameAtReal, full);
+    },
+    setLastInputDevice: (device) => {
+      lastInput = device;
     },
     setPause: (state) => {
       pause = state;

@@ -821,6 +821,26 @@ export function areCountdownsSilent(countdowns: string[][]): boolean {
   });
 }
 
+/** The longest the Result sequence takes on a loaded machine; a spec never waits this long on success. */
+const RESULT_SEQUENCE_TIMEOUT_MS = 15_000;
+/** Real ms past the input grace of the live content, for a press that must count. */
+const RESULT_GRACE_MARGIN_MS = 60;
+
+/**
+ * Waits until the Result screen's buttons are up and their input grace is over, so that the next
+ * press counts. The grace is real time: it waits for the page's own clock, never a fixed delay.
+ */
+export async function waitForResultActions(page: Page): Promise<void> {
+  await expect(html(page)).toHaveAttribute('data-pp-result', 'actions', {
+    timeout: RESULT_SEQUENCE_TIMEOUT_MS,
+  });
+  const untilMs = await page.evaluate(
+    (graceMs) => performance.now() + graceMs,
+    liveFeedback.resultScreen.inputGraceMs + RESULT_GRACE_MARGIN_MS,
+  );
+  await page.waitForFunction((target) => performance.now() >= target, untilMs);
+}
+
 /** One `advance` call at most this long: a whole level in one call would block the page for long. */
 export const CHUNK_STEPS = 3000;
 
