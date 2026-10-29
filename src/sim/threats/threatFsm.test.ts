@@ -31,6 +31,19 @@ import {
 const content = createTestContent();
 const def = createTestLevel({ waves: [testWave([OUTLET])] }).threats.outlet;
 if (def === undefined) throw new Error('no outlet');
+// The test feel (tests/support/testContent.ts) has timing windowMs 300, perfectMs 100, toleranceMs
+// 60, bufferMs 100, and the outlet def sets no windowMs of its own. Literals on purpose: the
+// expectation must not be computed with the production formula (min(perfectMs, windowMs), the
+// feel's window as the fallback).
+expect(content.feel.timing).toMatchObject({
+  windowMs: 300,
+  perfectMs: 100,
+  toleranceMs: 60,
+  bufferMs: 100,
+});
+expect(def.windowMs ?? null).toBeNull();
+/** What a threat with no frozen window (never telegraphed) is reported against: the plain window of its def. */
+const nominalWindow = { windowMs: 300, perfectMs: 100, toleranceMs: 60, bufferMs: 100 };
 
 /** A world with its one planned threat and a context that only collects events. */
 async function setup() {
@@ -135,8 +148,36 @@ describe('threat FSM', () => {
         response: 'parry',
         quality: 'success',
         offsetMs: -20,
+        responseWindow: nominalWindow,
       },
     ]);
+  });
+
+  it('puts on ResponseResolved a copy of the window the threat was frozen with at its telegraph (story 2.1)', async () => {
+    const { world, ctx, events, threat } = await setup();
+    telegraphThreat(world, ctx, threat, def, -1);
+    const frozen = structuredClone(threat.responseWindow);
+    expect(frozen).not.toBeNull();
+    events.length = 0;
+    resolveThreat(world, ctx, threat, def, 'success', 5);
+    const resolved = events.find((event) => event.type === 'ResponseResolved');
+    expect(resolved).toMatchObject({ responseWindow: frozen });
+    if (resolved?.type !== 'ResponseResolved') return;
+    expect(resolved.responseWindow).not.toBe(threat.responseWindow);
+    // The event is its own object: rewriting it does not rewrite the threat.
+    resolved.responseWindow.windowMs = 0;
+    expect(threat.responseWindow).toEqual(frozen);
+  });
+
+  it('puts the frozen window on a gag too, whatever the reason (early press, wrong response, late)', async () => {
+    for (const reason of ['early', 'wrongResponse', 'late'] as const) {
+      const { world, ctx, events, threat } = await setup();
+      telegraphThreat(world, ctx, threat, def, -1);
+      const frozen = structuredClone(threat.responseWindow);
+      events.length = 0;
+      gagThreat(world, ctx, threat, def, reason, reason === 'late' ? null : -12);
+      expect(events[0]).toMatchObject({ type: 'ResponseResolved', reason, responseWindow: frozen });
+    }
   });
 
   it('resolveThreat on a perfect also starts the perfect slow-mo, after the event', async () => {
@@ -327,6 +368,30 @@ describe('the hidden state and the surprise gag (story 1.21)', () => {
     expect(gag).toMatchObject({ gag: surpriseGags[index] });
     expect(world.rng).toEqual(expected);
     expect(world.mess.mischiefs).toBe(1);
+  });
+
+  it('a silence nobody found is reported against its def’s plain window, as it was never judged (story 2.1)', async () => {
+    const { world, ctx, events, threat, silenceDef } = await silenceSetup();
+    hideThreat(world, ctx, threat, 0);
+    events.length = 0;
+    gagThreat(world, ctx, threat, silenceDef, 'late', null);
+    expect(silenceDef.windowMs ?? null).toBeNull();
+    expect(events[0]).toMatchObject({
+      type: 'ResponseResolved',
+      offsetMs: null,
+      responseWindow: { windowMs: 300, perfectMs: 100, toleranceMs: 60, bufferMs: 100 },
+    });
+  });
+
+  it('a silence whose def has a window shorter than perfectMs is reported with that window, and perfectMs capped to it', async () => {
+    const { world, ctx, events, threat, silenceDef } = await silenceSetup();
+    hideThreat(world, ctx, threat, 0);
+    events.length = 0;
+    gagThreat(world, ctx, threat, { ...silenceDef, windowMs: 80 }, 'late', null);
+    expect(events[0]).toMatchObject({
+      type: 'ResponseResolved',
+      responseWindow: { windowMs: 80, perfectMs: 80, toleranceMs: 60, bufferMs: 100 },
+    });
   });
 
   it('gagThreat on any other def draws nothing', async () => {

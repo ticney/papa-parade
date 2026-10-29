@@ -56,3 +56,17 @@ export function clampInvariant(
   if (typeof value !== 'number' || Number.isNaN(value)) return min;
   return value < min ? min : max;
 }
+
+/**
+ * Reports a violation that has no number to clamp (a rejected input): in strict mode it throws with
+ * `message`; otherwise it emits `InvariantViolated{name, value}` and the caller ignores the input.
+ */
+export function rejectInvariant(
+  ctx: InvariantContext,
+  name: string,
+  value: number | string,
+  message: string,
+): void {
+  if (ctx.strictInvariants) throw new Error(`Invariant violated: ${message}`);
+  ctx.events.push({ type: 'InvariantViolated', t: ctx.t, name, value: describeValue(value) });
+}

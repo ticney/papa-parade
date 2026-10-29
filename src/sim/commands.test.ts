@@ -12,6 +12,9 @@ describe('commandProblem', () => {
     expect(commandProblem({ type: 'Release', t: 10 })).toBeNull();
     expect(commandProblem({ type: 'StartDisruption', t: 10, index: 0 })).toBeNull();
     expect(
+      commandProblem({ type: 'SetFeel', t: 10, patch: { timing: { windowMs: 320 } } }),
+    ).toBeNull();
+    expect(
       commandProblem({
         type: 'PushProp',
         t: 10,
@@ -32,6 +35,7 @@ describe('commandProblem', () => {
       'PushProp',
       'Release',
       'SetFatigue',
+      'SetFeel',
       'SetNoise',
       'SetTimeScale',
       'StartDisruption',
@@ -131,5 +135,49 @@ describe('SetFatigue (story 1.19)', () => {
     ['a string', { type: 'SetFatigue', t: 0, points: '80' }],
   ])('refuses %s', (_name, command) => {
     expect(commandProblem(command)).toMatch(/SetFatigue: points must be a finite number/);
+  });
+});
+
+describe('commandProblem › SetFeel', () => {
+  class Foo {
+    readonly a = 1;
+  }
+  const send = (patch: unknown) => commandProblem({ type: 'SetFeel', t: 0, patch });
+
+  it('accepts nested objects of numbers, strings, booleans and arrays', () => {
+    expect(send({})).toBeNull();
+    expect(send({ input: { earlyPress: 'guard', touchRadiusPx: 60 } })).toBeNull();
+    expect(send({ mama: { starThresholdPoints: [10, 20, 30] } })).toBeNull();
+    expect(send({ a: { b: { c: true } } })).toBeNull();
+  });
+
+  it('refuses a patch that is not a plain object', () => {
+    for (const patch of [undefined, null, 5, 'timing', [], [{ a: 1 }], new Foo(), new Map()]) {
+      expect(send(patch)).toMatch(/^SetFeel: /);
+    }
+  });
+
+  it('refuses a non-finite number at any depth', () => {
+    expect(send({ timing: { windowMs: Number.NaN } })).toMatch(/must be finite/);
+    expect(send({ timing: { windowMs: Number.POSITIVE_INFINITY } })).toMatch(/must be finite/);
+    expect(send({ mama: { starThresholdPoints: [1, Number.NaN] } })).toMatch(
+      /starThresholdPoints\[1\]/,
+    );
+  });
+
+  it('refuses the keys that reach the prototype, at any depth', () => {
+    expect(send(JSON.parse('{"__proto__":{"x":1}}'))).toMatch(/forbidden key __proto__/);
+    expect(send({ timing: { constructor: { x: 1 } } })).toMatch(/forbidden key constructor/);
+    expect(send({ prototype: 1 })).toMatch(/forbidden key prototype/);
+  });
+
+  it('refuses values that are not data: null, undefined, functions, class instances, a cycle', () => {
+    expect(send({ timing: { windowMs: null } })).toMatch(/plain object/);
+    expect(send({ timing: { windowMs: undefined } })).toMatch(/plain object/);
+    expect(send({ timing: { windowMs: () => 1 } })).toMatch(/plain object/);
+    expect(send({ timing: new Foo() })).toMatch(/plain object/);
+    const cycle: Record<string, unknown> = {};
+    cycle.self = cycle;
+    expect(send(cycle)).toMatch(/nested too deep/);
   });
 });

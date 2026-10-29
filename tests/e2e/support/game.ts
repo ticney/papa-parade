@@ -40,9 +40,20 @@ export function hapticPatternOf(event: string): number[] | null {
 }
 
 export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
-  timing: { telegraphDelayDefaultMs: number; windowMs: number; toleranceMs: number };
+  timing: {
+    telegraphDelayDefaultMs: number;
+    windowMs: number;
+    perfectMs: number;
+    toleranceMs: number;
+    hitstopMs: number;
+  };
   movement: { walkSpeedMps: number };
-  input: { contextReachM: number; autoTargetConeDeg: number; holdMinMs: number };
+  input: {
+    contextReachM: number;
+    autoTargetConeDeg: number;
+    holdMinMs: number;
+    touchRadiusPx: number;
+  };
   baby: {
     crawlSpeedMps: number;
     babbleMinMs: number;
@@ -58,6 +69,38 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     screamMaxPoints: number;
   };
 };
+
+const feelSchema = JSON.parse(readFileSync('content/_schemas/feel.schema.json', 'utf8')) as unknown;
+
+/**
+ * A value `delta` above the live feel's `path` (e.g. `['timing', 'windowMs']`), kept inside the
+ * schema's own `[minimum, maximum]` (`content/_schemas/feel.schema.json`, read here, never copied):
+ * Geo retunes `feel.json` freely, and a spec that adds a constant to a live value must not walk out
+ * of the range the schema allows. Above the maximum it goes below the live value instead. Always
+ * different from the live value, so a spec can tell that it was sent.
+ */
+export function shiftedFeelValue(path: readonly string[], delta: number): number {
+  const at = (root: unknown): Record<string, unknown> | undefined => {
+    let node = root as Record<string, unknown> | undefined;
+    for (const key of path)
+      node = (node?.[key] ?? undefined) as Record<string, unknown> | undefined;
+    return node;
+  };
+  const live = at(liveFeel) as unknown as number;
+  const schemaNode = (): { minimum?: number; maximum?: number } => {
+    let node = feelSchema as { properties?: Record<string, unknown> };
+    for (const key of path) node = (node.properties?.[key] ?? {}) as typeof node;
+    return node as { minimum?: number; maximum?: number };
+  };
+  const { minimum = Number.NEGATIVE_INFINITY, maximum = Number.POSITIVE_INFINITY } = schemaNode();
+  const up = live + delta;
+  if (up <= maximum) return up;
+  const down = live - delta;
+  if (down >= minimum && down !== live) return down;
+  throw new Error(
+    `no room to shift ${path.join('.')} (${live}) by ${delta} in [${minimum}, ${maximum}]`,
+  );
+}
 
 /** The live level's waves, read here and never copied: Geo retunes them freely. */
 const liveLevel = JSON.parse(readFileSync('content/levels/salon_crawler.json', 'utf8')) as {

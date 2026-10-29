@@ -11,6 +11,7 @@ import { commandProblem, type SimCommand } from './commands.ts';
 import type { SimHiddenZone, SimLevel, SimObjectSpec, StepContext, System } from './context.ts';
 import { DISRUPTION_HANDLER_KINDS } from './disruptions/disruptionsSystem.ts';
 import type { SimEvent } from './events.ts';
+import { applyFeelPatch } from './feel/applyFeelPatch.ts';
 import {
   createJournal,
   entryProblem,
@@ -426,6 +427,7 @@ export async function createSimWithSystems(
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
   let world = createWorld({
     seed,
+    feel: content.feel,
     papaSpawn: spawnOf(geometry, papaGrid, 'papa_spawn', 'Papa'),
     babySpawn: spawnOf(geometry, babyGrid, 'baby_spawn', 'the baby'),
     firstWanderAt: asSimMs(content.feel.baby.babbleMinMs),
@@ -502,7 +504,9 @@ export async function createSimWithSystems(
   const drained: SimEvent[] = [];
 
   const ctx: StepContext = {
-    feel: content.feel,
+    get feel() {
+      return world.feel;
+    },
     events,
     queue,
     commands: [],
@@ -536,6 +540,12 @@ export async function createSimWithSystems(
     enqueue(cmd) {
       const problem = commandProblem(cmd);
       invariant(problem === null, `invalid command: ${String(problem)}`);
+      // The shape of the feel never changes (a patch cannot add a key or change a length), so a
+      // patch checked now fits the feel it meets when it is applied, whatever is queued before it.
+      invariant(
+        cmd.type !== 'SetFeel' || applyFeelPatch(world.feel, cmd.patch) !== null,
+        'invalid command: SetFeel: the patch does not fit the shape of the feel (unknown key, other type or length)',
+      );
       record({ applyAt: computeApplyAt(cmd.t, world.time.sim), command: cmd });
     },
     step() {
@@ -575,6 +585,7 @@ export async function createSimWithSystems(
         geometryHash,
         levelHash,
         ctx.level,
+        content.feel,
       );
       for (const entry of tail) {
         const problem = entryProblem(entry);

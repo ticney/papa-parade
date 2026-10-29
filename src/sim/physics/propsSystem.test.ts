@@ -85,6 +85,7 @@ function scripted(overrides: Partial<Feel['physics']> = {}) {
   const fake = createFakePort([pose(0.5, 0.7), pose(0.15, 1.3)]);
   const world = createWorld({
     seed: 1,
+    feel: feel,
     papaSpawn: { xM: 0, zM: 0 },
     babySpawn: { xM: 0, zM: 0 },
     firstWanderAt: asSimMs(0),
@@ -120,6 +121,7 @@ describe('runPhysics (scripted port)', () => {
     const calls: string[] = [];
     const world = createWorld({
       seed: 1,
+      feel: feel,
       papaSpawn: { xM: 0, zM: 0 },
       babySpawn: { xM: 0, zM: 0 },
       firstWanderAt: asSimMs(0),

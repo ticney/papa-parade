@@ -6,6 +6,7 @@ import {
   type DistInput,
   type DistManifest,
   inspectDist,
+  NEVER_SHIPPED_MARKERS,
   PROD_FORBIDDEN_MARKERS,
 } from '../../../tools/build/inspectDist.ts';
 
@@ -45,11 +46,16 @@ const PLAYTEST_MANIFEST: DistManifest = {
       'src/debug/testApi.ts',
       'src/debug/autoplay.ts',
       'src/debug/perfHud.ts',
+      'src/debug/debugOverlay.ts',
     ],
   },
   'src/debug/testApi.ts': { file: 'assets/testApi-a.js', src: 'src/debug/testApi.ts' },
   'src/debug/autoplay.ts': { file: 'assets/autoplay-a.js', src: 'src/debug/autoplay.ts' },
   'src/debug/perfHud.ts': { file: 'assets/perfHud-a.js', src: 'src/debug/perfHud.ts' },
+  'src/debug/debugOverlay.ts': {
+    file: 'assets/debugOverlay-a.js',
+    src: 'src/debug/debugOverlay.ts',
+  },
 };
 
 const FILES: DistFile[] = [
@@ -61,6 +67,7 @@ const FILES: DistFile[] = [
   file('assets/testApi-a.js', 3000, 1400),
   file('assets/autoplay-a.js', 5000, 2400),
   file('assets/perfHud-a.js', 2000, 900),
+  file('assets/debugOverlay-a.js', 60_000, 18_000),
   file('assets/levels/salon_crawler.glb', 21_000, 9000),
   file('assets/audio/pop.m4a', 100_000, 98_000),
   file('assets/audio/laugh.m4a', 150_000, 148_000),
@@ -76,6 +83,10 @@ const JS_PLAYTEST = new Map([
   ['assets/testApi-a.js', 'window.__PP__ = api; installTestApi'],
   ['assets/autoplay-a.js', 'installAutoplay'],
   ['assets/perfHud-a.js', 'installPerfHud pp-debug-perf copyLog'],
+  [
+    'assets/debugOverlay-a.js',
+    'className = "pp-debug-overlay"; el.setAttribute("data-tp-style", "")',
+  ],
 ]);
 
 const prodInput = (over: Partial<DistInput> = {}): DistInput => ({
@@ -220,21 +231,29 @@ describe('inspectDist: both flavours', () => {
 });
 
 describe('inspectDist: prod', () => {
-  it.each([
-    '__PP__',
-    'installTestApi',
-    'installAutoplay',
-    'installPerfHud',
-    'copyLog',
-    'pp-debug-perf',
-  ])('fails a chunk that contains %s', (marker) => {
+  it.each(PROD_FORBIDDEN_MARKERS)('fails a chunk that contains %s', (marker) => {
     const jsText = new Map(JS_PROD).set('assets/index-a.js', `x.${marker}=1`);
     const { problems } = inspectDist(prodInput({ jsText }), 'prod');
     expect(problems).toEqual([`prod bundle: assets/index-a.js contains "${marker}"`]);
   });
 
+  it('forbids the story 2.1 overlay markers', () => {
+    expect(PROD_FORBIDDEN_MARKERS).toEqual(
+      expect.arrayContaining(['pp-debug-overlay', 'data-tp-style']),
+    );
+  });
+
+  it.each(NEVER_SHIPPED_MARKERS)('fails a chunk that contains the dev-only %s', (marker) => {
+    const jsText = new Map(JS_PROD).set('assets/index-a.js', `fetch("/${marker}")`);
+    const { problems } = inspectDist(prodInput({ jsText }), 'prod');
+    expect(problems).toEqual([
+      `prod bundle: assets/index-a.js contains "${marker}" (dev-server code)`,
+    ]);
+  });
+
   it.each([
     'src/debug/testApi.ts',
+    'src/debug/debugOverlay.ts',
     'src/bots/perfectBot.ts',
     'node_modules/tweakpane/dist/tweakpane.js',
   ])('fails a manifest module %s', (src) => {
@@ -260,6 +279,22 @@ describe('inspectDist: playtest', () => {
     const { problems } = inspectDist(playtestInput({ jsText }), 'playtest');
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain(`no chunk contains "${marker}"`);
+  });
+
+  it('fails a tree that lacks the debug overlay module', () => {
+    const manifest = { ...PLAYTEST_MANIFEST };
+    delete manifest['src/debug/debugOverlay.ts'];
+    const { problems } = inspectDist(playtestInput({ manifest }), 'playtest');
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('playtest bundle lacks src/debug/debugOverlay.ts');
+  });
+
+  it.each(NEVER_SHIPPED_MARKERS)('fails a tree that ships the dev-only %s', (marker) => {
+    const jsText = new Map(JS_PLAYTEST).set('assets/index-a.js', `fetch("/${marker}")`);
+    const { problems } = inspectDist(playtestInput({ jsText }), 'playtest');
+    expect(problems).toEqual([
+      `playtest bundle: assets/index-a.js contains "${marker}" (dev-server code)`,
+    ]);
   });
 
   it('does not apply the prod markers to a playtest tree', () => {

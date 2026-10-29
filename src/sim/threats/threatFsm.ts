@@ -8,7 +8,7 @@ import { isLastOfWave } from '../director/waveState.ts';
 import type { FailReason, ResponseQuality } from '../events.ts';
 import { fatigueWindowModifier } from '../gauges/fatigue.ts';
 import { startSlowMo } from '../time/slowMo.ts';
-import { effectiveWindow } from '../timing/effectiveWindow.ts';
+import { type EffectiveWindow, effectiveWindow } from '../timing/effectiveWindow.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { applyGag, type GagId, gagIdOf } from './gags.ts';
 
@@ -115,6 +115,21 @@ export function openWindow(world: World, ctx: StepContext, threat: ThreatInstanc
 }
 
 /**
+ * The window to put on a `ResponseResolved`: a copy of the one the threat was judged against. A
+ * hidden silence that timed out was never judged, so it gets its def's window with no modifier.
+ */
+function judgedWindow(ctx: StepContext, threat: ThreatInstance, def: ThreatDef): EffectiveWindow {
+  const { responseWindow } = threat;
+  if (responseWindow !== null) return { ...responseWindow };
+  const { timing } = ctx.feel;
+  return effectiveWindow(timing, def.windowMs ?? timing.windowMs, {
+    tier: NEUTRAL_WINDOW_MODIFIER,
+    fatigue: NEUTRAL_WINDOW_MODIFIER,
+    instinct: NEUTRAL_WINDOW_MODIFIER,
+  });
+}
+
+/**
  * `→ resolved`: a perfect or successful response of the right kind. It also owns the time effects
  * of a success (story 1.14, decided here from `feel.json`): a hitstop, and for a perfect the
  * slow-mo, both at the step that emits `ResponseResolved`; and, when it was the last threat of its
@@ -129,6 +144,7 @@ export function resolveThreat(
   quality: Exclude<ResponseQuality, 'fail'>,
   offsetMs: number,
 ): void {
+  const judged = judgedWindow(ctx, threat, def);
   threat.press = null;
   enterThreatState(world, threat, 'resolved');
   ctx.events.push({
@@ -138,6 +154,7 @@ export function resolveThreat(
     response: def.response,
     quality,
     offsetMs,
+    responseWindow: judged,
   });
   // Mama's « Rire » counts every perfect, the micro-sleep's included (story 1.22).
   if (quality === 'perfect') world.score.perfects += 1;
@@ -176,6 +193,7 @@ export function gagThreat(
   reason: FailReason,
   offsetMs: number | null,
 ): void {
+  const judged = judgedWindow(ctx, threat, def);
   threat.press = null;
   enterThreatState(world, threat, 'gag');
   const gag = gagOf(world, def);
@@ -188,6 +206,7 @@ export function gagThreat(
       quality: 'fail',
       reason,
       offsetMs,
+      responseWindow: judged,
     },
     { type: 'GagTriggered', t: world.time.sim, threatId: threat.id, gag, reason },
   );

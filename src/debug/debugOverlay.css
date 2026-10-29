@@ -1,0 +1,214 @@
+/*
+  The debug overlay (story 2.1): a developer tool, never a player screen. It lives in the debug
+  chunk, so a store build ships none of it. `pp-debug-` classes only, the UI tokens for colour and
+  type, no inline style attribute (CSP): positions and sizes set from code go through the CSSOM.
+  Above the HUD and the game's overlays. The root is a full-height column up to 58vw wide and it
+  does catch the pointer (`pointer-events: auto`): a tap on it never reaches the game, by design.
+  Only the debug views' DOM layer (`.pp-debug-radii`) lets the pointer through.
+*/
+.pp-debug-overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 300;
+  width: min(380px, 58vw);
+  max-height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding: 4px;
+  font-family: var(--pp-font-label-family), var(--pp-fallback-body);
+  font-size: var(--pp-spacing-text-min);
+  line-height: var(--pp-font-label-line-height);
+  color: var(--pp-color-ink);
+  background: color-mix(in srgb, var(--pp-color-paper) 88%, transparent);
+  border-left: var(--pp-outline);
+  pointer-events: auto;
+  touch-action: pan-y;
+  user-select: text;
+}
+
+.pp-debug-overlay[hidden] {
+  display: none;
+}
+
+.pp-debug-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pp-debug-section {
+  margin-top: 4px;
+  border-top: 1px solid currentcolor;
+}
+
+.pp-debug-summary {
+  cursor: pointer;
+  padding: 2px 0;
+  font-weight: var(--pp-font-label-weight);
+}
+
+.pp-debug-body {
+  padding: 2px 0 4px;
+}
+
+.pp-debug-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.pp-debug-row[hidden] {
+  display: none;
+}
+
+/* What the last control did or refused (« the level has ended », a bad seed…). */
+.pp-debug-status {
+  min-height: 1lh;
+  overflow-wrap: anywhere;
+}
+
+.pp-debug-status:empty {
+  display: none;
+}
+
+.pp-debug-button,
+.pp-debug-select,
+.pp-debug-number {
+  min-height: 28px;
+  font: inherit;
+  color: inherit;
+  background: var(--pp-color-paper);
+  border: var(--pp-outline);
+  border-radius: 6px;
+  padding: 0 8px;
+}
+
+.pp-debug-button {
+  cursor: pointer;
+}
+
+.pp-debug-number {
+  width: 6em;
+}
+
+.pp-debug-range {
+  flex: 1 1 8em;
+  min-width: 6em;
+}
+
+.pp-debug-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+}
+
+.pp-debug-perf-panel,
+.pp-debug-inspector-summary {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: ui-monospace, monospace;
+}
+
+.pp-debug-slice > pre {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  font-family: ui-monospace, monospace;
+}
+
+/* The timing timeline: one row per response, the newest on top. */
+.pp-debug-tl-row {
+  margin-bottom: 4px;
+}
+
+.pp-debug-tl-row[hidden] {
+  display: none;
+}
+
+.pp-debug-tl-axis {
+  position: relative;
+  height: 14px;
+  background: color-mix(in srgb, currentcolor 8%, transparent);
+  border-radius: 3px;
+}
+
+.pp-debug-tl-tolerance,
+.pp-debug-tl-window,
+.pp-debug-tl-perfect {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.pp-debug-tl-tolerance {
+  background: color-mix(in srgb, #ffb000 35%, transparent);
+}
+
+.pp-debug-tl-window {
+  background: color-mix(in srgb, #2ca02c 45%, transparent);
+}
+
+.pp-debug-tl-perfect {
+  background: color-mix(in srgb, #1f77b4 70%, transparent);
+}
+
+.pp-debug-tl-marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  margin-left: -1px;
+  background: currentcolor;
+}
+
+.pp-debug-tl-marker[hidden] {
+  display: none;
+}
+
+.pp-debug-tl-marker[data-clamped="true"] {
+  background: #d62728;
+}
+
+.pp-debug-tl-label {
+  font-family: ui-monospace, monospace;
+}
+
+.pp-debug-tl-row[data-quality="fail"] .pp-debug-tl-label {
+  color: #d62728;
+}
+
+/* The feel panel: Tweakpane draws itself; this only gives it room and the message line. */
+.pp-debug-feel-legend,
+.pp-debug-feel-status {
+  font-size: var(--pp-spacing-text-min);
+  padding: 2px 0;
+}
+
+.pp-debug-feel-status:empty {
+  display: none;
+}
+
+/* The touch radius of each threat's icon, around its icon point. */
+.pp-debug-radii {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  pointer-events: none;
+}
+
+.pp-debug-radii[hidden] {
+  display: none;
+}
+
+.pp-debug-radius {
+  position: fixed;
+  box-sizing: border-box;
+  border: 2px dashed #ff3355;
+  border-radius: 50%;
+}

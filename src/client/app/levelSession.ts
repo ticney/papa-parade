@@ -2,13 +2,16 @@ import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { ContentError } from '@content/contentError';
 import { mergeFeel } from '@content/feelMerge';
 import type { Feel } from '@content/schemas/feel';
+import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { DEFAULT_LEVEL_ID } from '@shared/constants';
+import { canonicalJson, cloneJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
-import { type CreateSimOptions, createSim, type Sim, type SimEvent } from '@sim';
+import { asSimMs } from '@shared/time';
+import { type CreateSimOptions, createSim, type FeelPatch, type Sim, type SimEvent } from '@sim';
 import type { OrthographicCamera } from 'three';
 import { type LevelAssets, loadLevelAssets } from '../assets/loadLevelAssets.ts';
-import { createGameLoop, type FrameScheduler, type GameLoop } from '../loop.ts';
+import { createGameLoop, type FrameScheduler, type GameLoop, type LoopStats } from '../loop.ts';
 import { createLevelScene, type LevelScene, type SceneBodies } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import { createTimeMap, type TimeMap } from '../timeMap.ts';
@@ -88,6 +91,15 @@ export interface ActiveLevel {
   readonly sim: Sim;
   readonly timeMap: TimeMap;
   readonly level: LevelContent;
+  /** The level's geometry (grid, colliders, anchors, zones): what the debug views draw. */
+  readonly geometry: LevelGeometry;
+  /**
+   * The effective feel at the start: feel.json, the level's `feelOverrides` over it, then the
+   * remembered tweaks (`rememberFeel`) over those. The sim itself is created with feel.json and the
+   * overrides only and gets the tweaks as a `SetFeel` at its first step, so until then (the
+   * countdown) its `world.feel` lacks them. A later `SetFeel` changes the sim's feel and not this:
+   * read the live one from `sim.world.feel`.
+   */
   readonly feel: Feel;
 }
 
@@ -98,8 +110,9 @@ export interface LevelStartOptions {
   /** An integer in `[0, 2**32)`. Default: `deps.newSeed()`. */
   seed?: number;
   /**
-   * The base feel the sim and the scene use (the level's `feelOverrides` are merged over it).
-   * Default: the one last asked for (initially `content.feel`).
+   * The tuned feel to play (a whole feel, as `rememberFeel` takes): what differs from `content.feel`
+   * is laid over the level's feel as a `SetFeel` at the first step. Default: the one last asked for
+   * (initially `content.feel`, so nothing to lay).
    */
   feel?: Feel;
 }
@@ -116,7 +129,7 @@ export interface StartedLevel {
   readonly levelId: string;
   readonly seed: number;
   readonly level: LevelContent;
-  /** The effective feel: the one asked for, with the level's `feelOverrides` merged over it. */
+  /** The effective feel at the start (see `ActiveLevel.feel`): `feelOverrides` merged over feel.json, the remembered tweaks over those. */
   readonly feel: Feel;
 }
 
@@ -136,9 +149,30 @@ export interface LevelSession {
   start(options?: LevelStartOptions): Promise<LevelStartOutcome>;
   /**
    * What a start without options would load: the level, the feel and the seed of the level that
-   * last began (`null` before the first). A failed or stale start leaves it as it was.
+   * last began (`null` before the first). A failed or stale start leaves it as it was. `feel` is
+   * the tuned base feel (`rememberFeel`), without the level's `feelOverrides`.
    */
   readonly current: { readonly levelId: string; readonly seed: number | null; readonly feel: Feel };
+  /**
+   * Remembers `feel` (a copy of it) as the tuned feel the next start without a `feel` option plays
+   * (story 2.1), so values tuned while playing survive « Recommencer ». It does not touch the level
+   * being played (that is `SetFeel`'s job).
+   *
+   * The next sim is created with feel.json and the level's `feelOverrides` merged over it, so that
+   * its journal replays against the content (`feelHash`); what `feel` changes from feel.json
+   * (the tweaks) is then enqueued as one `SetFeel` at t = 0, which wins over an override of the
+   * same key. Keys the sim reads only when it is created (nav radii, `baby.babbleMinMs`,
+   * `fatigue.startPoints`, the physics world) therefore keep feel.json's value after a restart: to
+   * change those for good, save them to feel.json.
+   */
+  rememberFeel(feel: Feel): void;
+  /** The timings of the running level's last frame (story 2.1), or `null` without a loop. Zeros unless a measure clock is on. */
+  readonly loopStats: Readonly<LoopStats> | null;
+  /**
+   * Times the frames of the current and of every later level with this real-time clock, or stops
+   * with `null`. The debug overlay turns it on while it is open: with none, the loop reads no clock.
+   */
+  setLoopMeasure(measure: (() => number) | null): void;
   /** Whether the loop of the current and of every later level is frozen (the wish is kept across levels). */
   readonly isFrozen: boolean;
   /** Freezes or unfreezes the loop: it renders on but runs no step. Applies to every later level too. */
@@ -175,6 +209,25 @@ function effectiveFeel(
   );
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * What `next` changes in `base` (two feels of the same shape), as a `SetFeel` patch: the leaves that
+ * differ, an array whole, nothing for what is equal. `undefined` when they are equal.
+ */
+function diffFeel(base: unknown, next: unknown): unknown {
+  if (isRecord(base) && isRecord(next)) {
+    const patch: Record<string, unknown> = {};
+    for (const key of Object.keys(next)) {
+      const part = Object.hasOwn(base, key) ? diffFeel(base[key], next[key]) : cloneJson(next[key]);
+      if (part !== undefined) patch[key] = part;
+    }
+    return Object.keys(patch).length === 0 ? undefined : patch;
+  }
+  return canonicalJson(base) === canonicalJson(next) ? undefined : cloneJson(next);
+}
+
 async function settle<T>(work: () => Promise<T>): Promise<Result<T, unknown>> {
   try {
     return ok(await work());
@@ -202,6 +255,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     feel: deps.content.feel,
   };
   let isFrozenWish = false;
+  let measureWish: (() => number) | null = null;
   let loop: GameLoop | null = null;
   let current: LevelScene | null = null;
   let isStarting = false;
@@ -229,6 +283,17 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     },
     get current() {
       return { levelId: requested.levelId, seed: requested.seed, feel: requested.feel };
+    },
+    rememberFeel(feel) {
+      // A copy: the caller (the debug panel) goes on using its own object.
+      requested.feel = cloneJson(feel);
+    },
+    get loopStats() {
+      return loop?.stats ?? null;
+    },
+    setLoopMeasure(measure) {
+      measureWish = measure;
+      loop?.setMeasure(measure);
     },
     get isFrozen() {
       return isFrozenWish;
@@ -261,10 +326,6 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
       }
       const levelId = options.levelId ?? requested.levelId;
       const feel = options.feel ?? requested.feel;
-      // The bundle the sim sees once the level is known: the content as is, unless a feel was
-      // asked for or the level overrides some of it.
-      const baseContent: ContentBundle =
-        feel === deps.content.feel ? deps.content : { ...deps.content, feel };
       isStarting = true;
       const mine = ++generation;
       const isStale = (): boolean => mine !== generation;
@@ -314,7 +375,9 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         // The sim needs the level's geometry (Papa's navigation grid), so it comes after the assets.
         const levelAssets = assets.value.value;
         const levelPlan = levelContent.value.value;
-        const merged = effectiveFeel(feel, levelPlan, levelId);
+        // The sim gets feel.json with the level's overrides (what a journal replays against); the
+        // tuned feel is laid over that as a `SetFeel` once the sim exists.
+        const merged = effectiveFeel(deps.content.feel, levelPlan, levelId);
         if (!merged.ok) {
           log.warn('content', 'cannot merge the level feel overrides', {
             id: levelId,
@@ -323,9 +386,25 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           appFsm.enter('oops');
           return 'failed';
         }
-        const effective = merged.value;
+        const simFeel = merged.value;
+        let effective = simFeel;
+        let tweaks: FeelPatch | null = null;
+        const tuning = diffFeel(deps.content.feel, feel) as FeelPatch | undefined;
+        if (tuning !== undefined) {
+          const tuned = mergeFeel(simFeel, tuning, 'the remembered feel tweaks');
+          if (tuned.ok) {
+            effective = tuned.value;
+            tweaks = tuning;
+          } else {
+            // E.g. a tweak that breaks a cross-field rule against this level's overrides.
+            log.warn('content', 'the remembered feel tweaks do not fit this level: not applied', {
+              id: levelId,
+              problems: tuned.error.problems,
+            });
+          }
+        }
         const content: ContentBundle =
-          effective === feel ? baseContent : { ...baseContent, feel: effective };
+          simFeel === deps.content.feel ? deps.content : { ...deps.content, feel: simFeel };
         const seed = options.seed ?? deps.newSeed();
         const simResult = await settle(() =>
           makeSim({
@@ -346,6 +425,18 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         }
         const sim = simResult.value;
         liveSim = sim;
+        if (tweaks !== null) {
+          try {
+            // Journaled like any command, at t = 0: it applies at the head of the first step.
+            sim.enqueue({ type: 'SetFeel', t: asSimMs(0), patch: tweaks });
+          } catch (cause) {
+            effective = simFeel;
+            log.warn('boot', 'the sim refused the remembered feel tweaks: not applied', {
+              id: levelId,
+              error: cause,
+            });
+          }
+        }
         log.info('boot', 'sim ready', { seed });
         deps.onSeed(seed);
 
@@ -405,6 +496,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           beforeStep: deps.beforeStep,
         });
         loop.setFrozen(isFrozenWish);
+        loop.setMeasure(measureWish);
         try {
           deps.onLevelStarted?.({ sim, levelId, seed, level: levelPlan, feel: effective });
         } catch (cause) {
@@ -418,14 +510,20 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         // « Recommencer » and the Oops retry on the last level that did start.
         requested.levelId = levelId;
         requested.seed = seed;
-        requested.feel = feel;
+        if (options.feel !== undefined) requested.feel = cloneJson(options.feel);
 
         // Paused then resumed in the same tick, before the app enters `level`: the pause screen is
         // then built straight as the countdown (no panel, no focus), and the first thing the player
         // sees is « 3 ».
         pause.requestPause('levelStart');
         if (deps.canResumeNow()) pause.requestResume();
-        active = { sim, timeMap, level: levelPlan, feel: effective };
+        active = {
+          sim,
+          timeMap,
+          level: levelPlan,
+          geometry: levelAssets.geometry,
+          feel: effective,
+        };
         appFsm.enter('level');
         loop.start();
         return 'started';

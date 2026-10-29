@@ -92,7 +92,10 @@ export function runThreats(world: World, ctx: StepContext): void {
     const { press, responseWindow } = threat;
     if (press !== null) {
       const { holdMinMs } = ctx.feel.input;
-      const kind = classifyPress(press.t, press.releasedAt, now, holdMinMs);
+      // Once the ring has closed (`heldAt`), the press is a Firmness for good: raising `holdMinMs`
+      // meanwhile (a `SetFeel`) must not turn its release into a Parry.
+      const kind =
+        press.heldAt !== null ? 'firm' : classifyPress(press.t, press.releasedAt, now, holdMinMs);
       // The ring closes once per press, as soon as it has been held `holdMinMs`, before any result.
       if (kind === 'firm' && press.heldAt === null) {
         press.heldAt = asSimMs(now);
