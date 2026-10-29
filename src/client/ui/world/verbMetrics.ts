@@ -42,13 +42,27 @@ const ESTIMATED_GLYPH_EM = 0.6;
 
 export function createVerbMetrics(source: VerbMetricsSource): VerbMetrics {
   let isEstimateWarned = false;
+  const warnedTokens = new Set<string>();
+  /** A token the design must declare: an unreadable one falls back, with one `warn` per token. */
+  const requiredNumber = (name: string, fallback: number): number => {
+    const raw = source.cssVar(name);
+    const value = Number.parseFloat(raw);
+    if (Number.isFinite(value) && value > 0) return value;
+    if (!warnedTokens.has(name)) {
+      warnedTokens.add(name);
+      log.warn(
+        'render',
+        `cannot read the token ${name} (${JSON.stringify(raw)}): using ${fallback}`,
+      );
+    }
+    return fallback;
+  };
   const group = (): 'verb-compact' | 'verb' =>
     source.surface() === 'compact' ? 'verb-compact' : 'verb';
   return {
     surfaceKey: () => source.surface(),
-    basePx: () => numberOf(source.cssVar(`--pp-font-${group()}-size`), FALLBACK_BASE_PX),
-    lineHeight: () =>
-      numberOf(source.cssVar(`--pp-font-${group()}-line-height`), FALLBACK_LINE_HEIGHT),
+    basePx: () => requiredNumber(`--pp-font-${group()}-size`, FALLBACK_BASE_PX),
+    lineHeight: () => requiredNumber(`--pp-font-${group()}-line-height`, FALLBACK_LINE_HEIGHT),
     scale: () => numberOf(source.cssVar('--pp-verb-scale'), 1),
     widthPx(text, fontPx) {
       const family = source.cssVar(`--pp-font-${group()}-family`);

@@ -69,6 +69,20 @@ describe('createVerbMetrics', () => {
     );
   });
 
+  it('falls back, and says so once per token, when the size or the line height cannot be read', () => {
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => undefined);
+    const metrics = createVerbMetrics(
+      source('regular', { '--pp-font-verb-size': '', '--pp-font-verb-line-height': 'normal' }),
+    );
+    expect(metrics.basePx()).toBe(40);
+    expect(metrics.basePx()).toBe(40);
+    expect(metrics.lineHeight()).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(metrics.scale()).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+
   it('estimates the width, and says so once, when nothing can measure', () => {
     const warn = vi.spyOn(log, 'warn').mockImplementation(() => undefined);
     const metrics = createVerbMetrics(source('regular', {}, () => null));

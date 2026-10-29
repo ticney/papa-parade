@@ -132,6 +132,17 @@ export interface ThreatMarkerDef {
 }
 
 /**
+ * The text of a verb key. A translator gives a missing key back as it is, which must never become
+ * the loudest text on screen (« verb.catch » in 40 px letters): it warns and shows no verb.
+ */
+function translateVerb(verbKey: string, threatId: number, t: Translator): string {
+  const text = t(verbKey);
+  if (text !== verbKey) return text;
+  log.warn('render', `threat ${threatId}: the verb string ${verbKey} is missing, no verb is shown`);
+  return '';
+}
+
+/**
  * The marker entries of a level: one per threat of `threats`, in the same order, at the position
  * of its anchor (`anchors` are the level geometry's), with the glyph, verb, shape and colour of its
  * def (`defs` is the level's `LevelContent.threats`; the verb is `t(def.verbKey)`, or the default verb
@@ -159,7 +170,7 @@ export function threatMarkerEntries(
       def === undefined ? null : (def.verbKey ?? DEFAULT_VERB_KEYS[def.response] ?? null);
     const look = {
       icon,
-      verb: verbKey === null ? '' : t(verbKey),
+      verb: verbKey === null ? '' : translateVerb(verbKey, threat.id, t),
       iconShape: def?.iconShape ?? FALLBACK_SHAPE,
       color: def?.color ?? FALLBACK_COLOR,
       verbWidthPx: 0,
@@ -221,6 +232,8 @@ export const THREAT_CLASSES = {
   icon: 'pp-threat-icon',
   /** The icon of a `dodge` threat: a triangle, drawn as an SVG polygon (a CSS `border` cannot follow a `clip-path`). */
   iconTriangle: 'pp-threat-icon--triangle',
+  /** The SVG of that triangle. */
+  triangle: 'pp-threat-triangle',
   /** The glyph inside the icon, whatever its shape. */
   glyph: 'pp-threat-glyph',
   /** The hold-ring (story 1.23); `--closed` once the press has been held `holdMinMs`. */
@@ -373,7 +386,7 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
     icon.append(
       svgElement(
         'svg',
-        { class: 'pp-threat-triangle', viewBox: '0 0 52 48' },
+        { class: THREAT_CLASSES.triangle, viewBox: '0 0 52 48' },
         [
           svgElement(
             'polygon',
@@ -585,8 +598,9 @@ export function createThreatMarkers(
           entry.verbOffsetPx = offsetPx;
           marker.verbStack.style.setProperty('--pp-verb-offset', `${offsetPx}px`);
         }
-        // The most urgent in front: rank 0 gets the highest z-index.
-        const zRank = markers.length - (stack.rank[k] as number);
+        // The most urgent in front: rank 0 gets the highest z-index. Counted over the shown markers, so
+        // the ranks stay small and the chip (`.pp-glyph-chip-anchor`, a fixed higher z-index) is above all.
+        const zRank = count - (stack.rank[k] as number);
         if (zRank !== marker.zRank) {
           marker.zRank = zRank;
           marker.element.style.zIndex = zStrings[zRank] as string;

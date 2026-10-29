@@ -97,6 +97,9 @@ export function stackVerbs(stack: VerbStack, count: number, gapPx: number): void
   for (let r = 0; r < count; r++) {
     const i = order[r] as number;
     rank[i] = r;
+    offsetPx[i] = 0;
+    // A box with no text takes no room: it is never pushed.
+    if ((widthPx[i] as number) <= 0 || (heightPx[i] as number) <= 0) continue;
     let pushPx = 0;
     // Each push clears one placed box and only ever grows, so a few passes settle it.
     let isMoved = true;
@@ -106,6 +109,8 @@ export function stackVerbs(stack: VerbStack, count: number, gapPx: number): void
       const topI = bottomI - (heightPx[i] as number);
       for (let q = 0; q < r; q++) {
         const p = order[q] as number;
+        // ... and it blocks no one.
+        if ((widthPx[p] as number) <= 0 || (heightPx[p] as number) <= 0) continue;
         const isBeside =
           Math.abs((centerXPx[i] as number) - (centerXPx[p] as number)) >=
           ((widthPx[i] as number) + (widthPx[p] as number)) / 2;

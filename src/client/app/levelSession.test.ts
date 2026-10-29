@@ -93,7 +93,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
   const readyEntries: (readonly ThreatMarkerEntry[])[] = [];
   const deps: LevelSessionDeps = {
     content: createTestContent(),
-    t: (key) => key,
+    t: (key) => `<${key}>`,
     appFsm,
     pause,
     renderer,
@@ -392,8 +392,8 @@ describe('createLevelSession', () => {
         zM,
         icon: 'bolt',
         followsPapa: false,
-        // `t` echoes the key: the frozen outlet writes `verb.lift`.
-        verb: 'verb.lift',
+        // `t` wraps the key: the frozen outlet writes `verb.lift`.
+        verb: '<verb.lift>',
         iconShape: 'circle' as const,
         color: 'parry' as const,
         verbWidthPx: 0,

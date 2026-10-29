@@ -4,7 +4,7 @@ baseline_commit: ec0a36b1bf7f0b94ba613d58562849b153d3a03f
 
 # Story 2.2: Verb label and colour + shape icons
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -296,3 +296,21 @@ New files: `src/client/input/urgency.ts` (+ test), `src/client/ui/world/verbLayo
 
 - 2026-10-29: Story created (ready-for-dev).
 - 2026-10-29: Status review; `npm run ci` green. Implemented: `verbKey` / `iconShape` / `color` on threat defs, the verb label (fit, stacking, urgency shared with the auto-target), the circle / triangle icon, the chip beside the verb; goldens' `levelHash` refreshed on purpose (no sim change); darwin screenshots refreshed.
+
+### Review Findings
+
+Code review of 2026-10-29 (Blind Hunter, Edge Case Hunter, Acceptance Auditor; full diff `main...story/2-2-verbe-affiche-et-icones-couleur-forme`).
+
+- [x] [Review][Decision] A threat's verb key is not checked outside CI (AC 4, `loadContent` half) — **resolved (Geo delegated; option a, narrowed): `threatMarkerEntries` warns and shows no verb when `t()` gives the key back; the CI check stays the first line.** — `t(verbKey)` for a key missing from `strings.fr.json` warns once and returns the key itself, so a bad content drop (playtest) shows « verb.catch » in 40 px paper letters as the main instruction. The test through `loadContent` could not be written (it loads no threat file), and the `deferred-work.md` item is marked resolved while that gap stays open. Options: (a) check the threat string keys at level load in the client (`levelSession` / `loadLevelContent` with the strings bundle), warn and show no verb; (b) keep it CI-only and reopen the deferred item. [`src/client/ui/world/threatMarkers.ts` `threatMarkerEntries`, `deferred-work.md`]
+- [x] [Review][Decision] The golden `levelHash` moved — **resolved (Geo delegated; option a): accepted, a deliberate refresh as CLAUDE.md allows, said in the story and in `deferred-work.md`.** and `golden:update` was run (AC 14 says « stop and find out why »; AC 3 forces it) — investigated by the dev: only the three `levelHash` lines moved, `feelHash`, `geometryHash`, world hashes and events are identical, `src/sim` untouched. Open question: accept (CLAUDE.md allows a deliberate refresh, said in the story), or hash a projection of the defs without the presentation keys (`verbKey`, `iconShape`, `color`) so that a verb tweak never invalidates a journal. [`tests/golden/journals/*.json`]
+- [x] [Review][Patch] A zero-size verb box (no verb text) is pushed by, and pushes, real verbs: the doc says « it never overlaps » but a 0×0 box inside another box passes the overlap test, and a 0-height placed box moves a verb that straddles its line [`src/client/ui/world/verbLayout.ts` `stackVerbs`]
+- [x] [Review][Patch] The glyph chip can be painted under another threat's marker: `layout` writes z-index 1..N on every marker root while `.pp-glyph-chip-anchor` stays `auto` [`src/client/ui/world/threatMarkers.ts` `layout`, `src/client/ui/styles/ui.css`]
+- [x] [Review][Patch] The triangle SVG class `'pp-threat-triangle'` is a literal in `createMarker`, not in `THREAT_CLASSES` (T5) [`src/client/ui/world/threatMarkers.ts:376`]
+- [x] [Review][Patch] `verbMetrics` falls back silently to `FALLBACK_BASE_PX` / `FALLBACK_LINE_HEIGHT` / scale 1 when a token is unreadable: every fallback logs a `warn` (CLAUDE.md) [`src/client/ui/world/verbMetrics.ts` `numberOf`]
+- [x] [Review][Defer] The chip's vertical centre sits about `VERB_STROKE_PX` (5 px) above the verb's text centre (`rise` uses the box height with its outline, the DOM box has none) [`src/client/ui/world/glyphChip.ts` `place`] — deferred, cosmetic: look at it in Geo's device pass
+- [x] [Review][Defer] Nothing ties `verbKey` to the response (`verb.dodge` on a `parry` def passes `content:check`), and the default verb of `dodge` lives twice (schema rule and `DEFAULT_VERB_KEYS`) [`src/content/schemas/threat.ts`, `src/client/ui/world/threatMarkers.ts`] — deferred, only reachable once story 5.1 adds `dodge` and the verb set grows
+- [x] [Review][Defer] A change of `--pp-verb-scale` does not refit by itself (only the surface key is watched per frame; the CSS size ignores the scale before the first fit) [`src/client/ui/world/threatMarkers.ts` `layout`] — deferred to story 2.10, which flips the variable and must call `refitVerbs`
+- [x] [Review][Defer] The 10 px `-webkit-text-stroke` has miter joins (spikes on accented capitals are possible) and no `forced-colors` rule exists [`src/client/ui/styles/ui.css`, `threatMarkers.ts`] — deferred: visual, Geo's device pass
+
+Dismissed as noise or already tracked (14): the fit reduced by `2 × VERB_STROKE_PX` (faithful to AC 6's intent, in the Debug Log), `document.fonts.ready` (the boot already awaits `loadFonts` before), `parseFloat` of a token with a unit, non-finite projection, the cost of `refit` on resize, the urgency rank of a pressed marker (the pressed threat is the one being acted on), verbs over icons and edge clamping (already in `deferred-work.md`), the triangle without content (already in `deferred-work.md`), pairing without a leader line (D6), halo over a verb, test entry factory, e2e overlap fragility, `fitVerbFontPx` edge cases, accessibility (markers are `aria-hidden`).
+- 2026-10-29: Code review done (Blind Hunter, Edge Case Hunter, Acceptance Auditor): 2 decisions resolved (missing verb string shows no verb; golden levelHash refresh accepted), 4 patches applied, 4 deferred. Status done; `npm run ci` green.

@@ -227,6 +227,16 @@ describe('stackVerbs', () => {
     expect(ranks(stack, 2)).toEqual([0, 1]);
   });
 
+  it('leaves a box with no text alone even when it sits inside a verb, whichever is more urgent', () => {
+    // Zero-size point at (100, 180): inside the verb's span (x 50..150, y 160..200).
+    const behind = stackOf([100, 180, 0, 0, 5000, 1], [100, 200, 100, 40, 4000, 2]);
+    stackVerbs(behind, 2, GAP);
+    expect(offsets(behind, 2)).toEqual([0, 0]);
+    const inFront = stackOf([100, 180, 0, 0, 4000, 1], [100, 200, 100, 40, 5000, 2]);
+    stackVerbs(inFront, 2, GAP);
+    expect(offsets(inFront, 2)).toEqual([0, 0]);
+  });
+
   it('whole pixels: a fractional box rounds the push up, so the gap is never eaten', () => {
     const stack = stackOf([100, 200, 100, 40.4, 5000, 1], [100, 200, 100, 40.4, 6000, 2]);
     stackVerbs(stack, 2, GAP);

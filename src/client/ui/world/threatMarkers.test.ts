@@ -736,6 +736,23 @@ describe('threatMarkerEntries: verb, shape and colour (story 2.2)', () => {
     expect(entry?.verb).toBe('');
   });
 
+  it('shows no verb, and warns, when the translator gives the key back (a string the level lacks)', () => {
+    const seen = log.buffer().length;
+    const [entry] = threatMarkerEntries(
+      [threat(7, 'idle')],
+      anchors,
+      { outlet: circleDef },
+      0.2,
+      (key) => key,
+    );
+    expect(entry?.verb).toBe('');
+    const warns = log
+      .buffer()
+      .slice(seen)
+      .filter((record) => record.level === 'warn' && /verb\.lift/.test(record.message));
+    expect(warns).toHaveLength(1);
+  });
+
   it('starts every entry with no laid-out verb box', () => {
     const [entry] = build1(circleDef);
     expect([entry?.verbWidthPx, entry?.verbHeightPx, entry?.verbOffsetPx]).toEqual([0, 0, 0]);
@@ -852,7 +869,7 @@ describe('the verb and shape of a marker (story 2.2)', () => {
     const icon = created.find((element) => element.className.startsWith(THREAT_CLASSES.icon));
     expect(icon?.className).toBe(`${THREAT_CLASSES.icon} ${THREAT_CLASSES.iconTriangle}`);
     const [triangle, glyph] = icon?.children ?? [];
-    expect(triangle?.attributes.get('class')).toBe('pp-threat-triangle');
+    expect(triangle?.attributes.get('class')).toBe(THREAT_CLASSES.triangle);
     expect(glyph?.attributes.get('class')).toBe(THREAT_CLASSES.glyph);
     // The hard ink shadow, then the coloured, outlined polygon.
     const [shadow, body] = triangle?.children ?? [];
@@ -1141,6 +1158,19 @@ describe('the verb fit and layout of the markers (story 2.2)', () => {
       markers.update([closing(1, 5000), threat(2, 'idle')], null, null);
       markers.layout(camera());
       expect(markers.entries.map((entry) => entry.verbOffsetPx)).toEqual([0, 0]);
+    });
+
+    it('ranks the z-index over the shown markers only, so the glyph chip stays above them all', () => {
+      const { markers, byClass } = setup([
+        entryAt(1, 'RETIRE !', 400, 200),
+        entryAt(2, 'RETIRE !', 400, 200),
+        entryAt(3, 'RETIRE !', 400, 200),
+      ]);
+      markers.update([closing(1, 5000), closing(2, 6000), threat(3, 'idle')], null, null);
+      markers.layout(camera());
+      const zs = byClass(THREAT_CLASSES.root).map((root) => Number(root.style.zIndex));
+      expect(zs[0]).toBe(2);
+      expect(zs[1]).toBe(1);
     });
 
     it('lets go of the offset once the overlap is gone', () => {

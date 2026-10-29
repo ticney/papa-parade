@@ -1174,6 +1174,8 @@ body {
   --pp-chip-half: calc(var(--pp-threat-size) / 2);
   --pp-chip-rise: 0px;
   position: relative;
+  /* Above every threat marker: they take 1..(shown threats) from `threatMarkers.layout`. */
+  z-index: 50;
   width: 0;
   height: 0;
   pointer-events: none;
