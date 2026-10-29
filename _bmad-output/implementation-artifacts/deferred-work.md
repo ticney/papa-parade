@@ -471,7 +471,7 @@
 - **A verb can be drawn over an object icon.** On the first frame of the live level, the outlet's verb is next to the coffee machine's icon (the verb is in front). Reason: object icons are not part of the layout; a room-composition question.
 - **The triangle has no content to use it yet.** `triangle` / `dodge` is built and unit-tested (and looked at in a real browser by hand-swapping the DOM), but the schema refuses it until the `dodge` response exists (story 5.1: add `dodge` to `THREAT_RESPONSES`, relax the `superRefine` rule of `threat.ts`, add a content test, and check the real-browser look).
 - **The verb set is a proposal** (« RATTRAPE ! », « RETIRE ! », « RÉVEILLE-TOI ! », « SOULÈVE ! » for the silence found): strings only, change `strings.fr.json`.
-- **The Linux screenshot references are still stale** (`autoplay-frozen-{chromium,webkit}-linux.png`, since story 3.1, and now also by the verb): no Docker here, so only the darwin ones were refreshed. Geo's call on the visual test's upkeep is still pending (L435).
+- **The Linux screenshot references are still stale** (`autoplay-frozen-{chromium,webkit}-linux.png`, since story 3.1, and now also by the verb). **Resolved (maintenance, 2026-10-29):** Geo dropped the Linux references; the screenshot assertion of `autoplay.spec.ts` runs on macOS only.
 - **The `levelHash` of the three golden journals moved** because `LevelContent` embeds the threat defs and the frozen test defs gained `verbKey` / `iconShape` / `color` (AC 3 requires it). Reason: the journal stores `hashJson(level)`; the world hashes and event lists did not move. Regenerated on purpose with `golden:update`, and checked: only the three `levelHash` lines differ.
 
 
