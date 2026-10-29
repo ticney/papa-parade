@@ -25,11 +25,10 @@ import { readThreatsOff, withoutThreats } from './app/threatsSwitch.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
 import { createAudioEngine } from './audio/audioEngine.ts';
-import { disruptionCueOf } from './feedback/disruptionFeedback.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
 import { isNoiseAlertCrossing } from './feedback/noiseAlert.ts';
 import { createResponseChoreography } from './feedback/responseChoreography.ts';
-import { threatCueOf } from './feedback/threatFeedback.ts';
+import { playSimEventFeedback } from './feedback/simEventFeedback.ts';
 import { createGamepadInput } from './input/gamepadInput.ts';
 import { createHitTester, type ObjectTarget, type ThreatTargets } from './input/hitTest.ts';
 import { createInputMapper } from './input/inputMapper.ts';
@@ -754,18 +753,9 @@ export async function boot(): Promise<void> {
     onSimEvent: (event) => {
       logSimEvent(event);
       const active = levelSession.active;
-      director.handle(event.type, active?.sim.world ?? null);
+      // The sounds fire in this very call: judgement, not arrival (story 2.3 D5).
+      playSimEventFeedback(event, active, director);
       if (active !== null) {
-        // A threat's cues come from its def, not from the `events` table (D3).
-        const cue = threatCueOf(event, active.sim.world, active.level.threats);
-        if (cue !== null && 'threatId' in event) {
-          director.playCue(cue, active.sim.world, event.threatId);
-        }
-        // A disruption's cues come from its def too (story 1.20 D10), anchored on its object.
-        const disruptionCue = disruptionCueOf(event, active.level.level, active.level.disruptions);
-        if (disruptionCue !== null && 'objectId' in event) {
-          director.playCue(disruptionCue, active.sim.world, null, event.objectId);
-        }
         if (currentLevel !== null) {
           // Reduced motion: no hop of the baby, no snap of Papa's hair (the lights carry the gag).
           const isMotionReduced = prefersReducedMotion();
@@ -1176,6 +1166,17 @@ export async function boot(): Promise<void> {
           currentLevel.scene.add(debugGroup);
         }
         return debugGroup;
+      },
+      auditionCue: (cueId) => {
+        if (audio.state !== 'running') return false;
+        const cue = Object.hasOwn(feedbackTable.cues, cueId)
+          ? feedbackTable.cues[cueId]
+          : undefined;
+        if (cue?.audio === undefined) return false;
+        for (const part of [cue.audio, ...(cue.layers ?? [])]) {
+          audio.playOneShot(part.clip, part.bus, part.gainPct);
+        }
+        return true;
       },
       threatScreenPoints: () => {
         const rect = canvas.getBoundingClientRect();

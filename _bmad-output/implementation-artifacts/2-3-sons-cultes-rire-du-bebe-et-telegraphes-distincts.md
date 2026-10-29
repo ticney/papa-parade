@@ -4,7 +4,7 @@ baseline_commit: fc3e43757d00311eec4d4bec521722dcd7a5837e
 
 # Story 2.3: Cult sounds, the baby's laugh and distinct telegraphs
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -73,23 +73,23 @@ Stories 1.9 to 1.21 built the whole pipeline. Today each threat def names its fo
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Schema and clips list** (AC 2, 12)
-  - [ ] `src/content/schemas/feedback.ts`: `layers` on `CueSchema` (`z.array(AudioCueSchema).min(1).max(3).optional()`, `.describe(...)`), and a second `.refine` (or extend the existing one into a `superRefine`) « a cue with `layers` needs an `audio` ». Keep `.strictObject`, no `.default()`/`.transform()` (the file's header rule).
-  - [ ] `src/content/feedbackClips.ts`: add the layer clips; update its doc comment.
-  - [ ] `npm run content:schemas`; schema tests; `feedbackClips.test.ts`.
-- [ ] **T2. Director** (AC 3, 12): in `feedbackDirector.ts › play`, after the `audio` block: `for (const layer of cue.layers ?? [])` → `attempt(name, 'sound layer', …, () => audio.playOneShot(layer.clip, layer.bus, layer.gainPct))`. Update the `handle` doc comment (« the sound, its layers, the vibration… »). Tests.
-- [ ] **T3. Sounds** (AC 4-7, 15) in `tools/audio/makePlaceholderAudio.ts` (or a new sibling `tools/audio/cultSounds.ts` exporting the three synths, imported by it: the file is 856 lines, a split is welcome):
-  - [ ] `synthParry` rewritten as a toy squeak (recipe in Dev Notes › Sound recipes); `synthFirm` (cupboard clack); `synthBabyLaugh`.
-  - [ ] `PLACEHOLDER_CLIPS`: drop `resp_parry_perfect`, add `resp_firm`, `baby_laugh_perfect`. Delete `synthParryPerfect` and its constants, and `public/assets/audio/resp_parry_perfect.m4a` (`git rm`).
-  - [ ] `--only <a,b,…>` in `main()` (`process.argv`, through a small exported `parseOnly(argv, known)` returning a `Result`), and `generatePlaceholderClips(outDir, convert, only?)`.
-  - [ ] Tests: lengths of the three clips (squeak 200–260 ms, clack 100–160 ms, laugh 700–900 ms), peak ≤ −6 dBFS, zero ends, no NaN, determinism; extend « no two clips are alike » to `/^(tel|gag|resp|baby)_/` (the squeak and the clack must not correlate); the laugh has 4 to 6 syllables (count energy bursts over a 10 ms RMS envelope); `--only` writes only the named clips and refuses an unknown one.
+- [x] **T1. Schema and clips list** (AC 2, 12)
+  - [x] `src/content/schemas/feedback.ts`: `layers` on `CueSchema` (`z.array(AudioCueSchema).min(1).max(3).optional()`, `.describe(...)`), and a second `.refine` (or extend the existing one into a `superRefine`) « a cue with `layers` needs an `audio` ». Keep `.strictObject`, no `.default()`/`.transform()` (the file's header rule).
+  - [x] `src/content/feedbackClips.ts`: add the layer clips; update its doc comment.
+  - [x] `npm run content:schemas`; schema tests; `feedbackClips.test.ts`.
+- [x] **T2. Director** (AC 3, 12): in `feedbackDirector.ts › play`, after the `audio` block: `for (const layer of cue.layers ?? [])` → `attempt(name, 'sound layer', …, () => audio.playOneShot(layer.clip, layer.bus, layer.gainPct))`. Update the `handle` doc comment (« the sound, its layers, the vibration… »). Tests.
+- [x] **T3. Sounds** (AC 4-7, 15) in `tools/audio/makePlaceholderAudio.ts` (or a new sibling `tools/audio/cultSounds.ts` exporting the three synths, imported by it: the file is 856 lines, a split is welcome):
+  - [x] `synthParry` rewritten as a toy squeak (recipe in Dev Notes › Sound recipes); `synthFirm` (cupboard clack); `synthBabyLaugh`.
+  - [x] `PLACEHOLDER_CLIPS`: drop `resp_parry_perfect`, add `resp_firm`, `baby_laugh_perfect`. Delete `synthParryPerfect` and its constants, and `public/assets/audio/resp_parry_perfect.m4a` (`git rm`).
+  - [x] `--only <a,b,…>` in `main()` (`process.argv`, through a small exported `parseOnly(argv, known)` returning a `Result`), and `generatePlaceholderClips(outDir, convert, only?)`.
+  - [x] Tests: lengths of the three clips (squeak 200–260 ms, clack 100–160 ms, laugh 700–900 ms), peak ≤ −6 dBFS, zero ends, no NaN, determinism; extend « no two clips are alike » to `/^(tel|gag|resp|baby)_/` (the squeak and the clack must not correlate); the laugh has 4 to 6 syllables (count energy bursts over a 10 ms RMS envelope); `--only` writes only the named clips and refuses an unknown one.
   - [ ] Run `npm run assets:audio -- --only resp_parry,resp_firm,baby_laugh_perfect` (macOS, `afconvert`), **listen to the three clips** (`afplay public/assets/audio/<clip>.m4a`) and describe what you heard in the Completion Notes; adjust the recipe until the squeak reads as a dog toy and the laugh as a baby, not as a beep.
-- [ ] **T4. Content** (AC 4-6): `feedback.json`: `resp_parry_perfect.audio.clip` → `resp_parry`, plus its `layers`; new cues `resp_firm`, `resp_firm_perfect`. `tests/threats/fixtures/test_firm.json` → `resp_firm` / `resp_firm_perfect`. Check `tests/support/testFeel.json`-style frozen copies of `feedback.json` if any test loads one (`grep -rn resp_parry_perfect tests src`), and update them.
-- [ ] **T5. Content checks** (AC 9): the four rules in `checkThreatReferences` (and the ring-vs-telegraph clip clash with `checkDisruptionReferences`' data: compute the set of telegraph clips across threats and disruptions once in `checkContent`), with tests in `tests/content/checkContent.test.ts`.
-- [ ] **T6. Event routing** (AC 10, 11): `src/client/feedback/simEventFeedback.ts` + test; `boot.ts › onSimEvent` calls it. The `choreography`, gag fx, noise alert and mirrors stay in `boot.ts`.
-- [ ] **T7. Sound board** (AC 14): `TestHost.auditionCue`, a « Sons » folder in the debug overlay's Tweakpane (see how `feelPanel.ts` builds folders), test with `fakePane.ts`.
-- [ ] **T8. Docs** (AC 16): `deferred-work.md`; the header comment of `makePlaceholderAudio.ts` (« story 2.3 replaced the parry, added the firm clack and the laugh »); `project-context.md` › Feedback gains one line: « a cue may `layers` extra sounds (the baby's laugh on a perfect); a threat's success/perfect clip is `resp_<response>` (content:check) ».
-- [ ] **T9. CI** (AC 17, 18): `env | grep VITE_` first, then `(unset VITE_DEBUG_ALLOWED; npm run ci)`. On a loaded machine rerun with `--maxWorkers=5` / `--workers=4` and say so.
+- [x] **T4. Content** (AC 4-6): `feedback.json`: `resp_parry_perfect.audio.clip` → `resp_parry`, plus its `layers`; new cues `resp_firm`, `resp_firm_perfect`. `tests/threats/fixtures/test_firm.json` → `resp_firm` / `resp_firm_perfect`. Check `tests/support/testFeel.json`-style frozen copies of `feedback.json` if any test loads one (`grep -rn resp_parry_perfect tests src`), and update them.
+- [x] **T5. Content checks** (AC 9): the four rules in `checkThreatReferences` (and the ring-vs-telegraph clip clash with `checkDisruptionReferences`' data: compute the set of telegraph clips across threats and disruptions once in `checkContent`), with tests in `tests/content/checkContent.test.ts`.
+- [x] **T6. Event routing** (AC 10, 11): `src/client/feedback/simEventFeedback.ts` + test; `boot.ts › onSimEvent` calls it. The `choreography`, gag fx, noise alert and mirrors stay in `boot.ts`.
+- [x] **T7. Sound board** (AC 14): `TestHost.auditionCue`, a « Sons » folder in the debug overlay's Tweakpane (see how `feelPanel.ts` builds folders), test with `fakePane.ts`.
+- [x] **T8. Docs** (AC 16): `deferred-work.md`; the header comment of `makePlaceholderAudio.ts` (« story 2.3 replaced the parry, added the firm clack and the laugh »); `project-context.md` › Feedback gains one line: « a cue may `layers` extra sounds (the baby's laugh on a perfect); a threat's success/perfect clip is `resp_<response>` (content:check) ».
+- [x] **T9. CI** (AC 17, 18): `env | grep VITE_` first, then `(unset VITE_DEBUG_ALLOWED; npm run ci)`. On a loaded machine rerun with `--maxWorkers=5` / `--workers=4` and say so.
 
 ## Dev Notes
 
@@ -227,14 +227,53 @@ Recent commits: `Story 2.2 : …` (verb labels, threat schema keys, `contentChec
 
 ### Agent Model Used
 
+claude-sonnet-5-5
+
 ### Implementation Plan
+
+Followed T1 → T9 in order. Tests first for T1-T5; T6 extracted the routing first and tested it after (so that test was green on its first run, not red). `layers` is a plain optional array on the cue (D1); the director plays it in `play` right after `audio`, each part under `attempt`. The three synths live in `tools/audio/cultSounds.ts`, the shared helpers (rate, seed, peak, `normalize`, the resonator) in `tools/audio/synthKit.ts`. The pane factory of the feel panel moved to `src/debug/paneFactory.ts` so the sound board reuses the CSP-safe Tweakpane creation.
 
 ### Debug Log References
 
+- First CI run stopped at `lint`: one string quote in `checkContent.test.ts` (`biome check --write .` fixed it). Second run: `EXIT=0`.
+- « no two clips are alike » failed once with the new clack (0.78 correlation with `tel_stairs`: both are a low knock). Fixed by moving the clack's body thump up and making it quieter (see Completion Notes).
+- Two existing `checkContent` tests reacted to the new uniqueness rule (a copy of `outlet` in a temp tree; a cue anchored on the wrong kind reported twice). The first got `giveOwnTelegraph` (the story's instruction); the second is handled in the check itself (a wrongly anchored cue is not counted as a second telegraph), so that test is unchanged.
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **AC 1, 8 (telegraphs, gags): verified.** `simEventFeedback.test.ts` plays each live threat's `ThreatTelegraphed` through the real director and the real `feedback.json`: one `tel_*` clip each, all different; the phone's `PhoneRingStarted` plays `tel_phone_ring`; a fail plays nothing and its `GagTriggered` plays the `gag_*` once. `content:check` enforces uniqueness (AC 9).
+- **AC 2, 3, 12 (layers): verified.** `layers` (1-3 `AudioCueSchema`, needs an `audio`) in the schema, `feedbackClips` lists them, JSON Schema regenerated. Director tests: order audio → layers → haptic → ring → `onCue`; a throwing layer is one `sound layer` warn and the rest still plays.
+- **AC 4-6 (content): verified.** `resp_parry_perfect` plays `resp_parry` + `baby_laugh_perfect` (voice); new `resp_firm` / `resp_firm_perfect`; `test_firm.json` points at them. `resp_parry_perfect.m4a` deleted.
+- **AC 7, 15 (sounds, generator): verified by tests, NOT by ear.** Lengths (squeak 230 ms, clack 130 ms, laugh about 860 ms), peak ≤ -6 dBFS, zero ends, no NaN, determinism, no two clips alike; a pitch meter shows the squeak rising then falling; an RMS envelope counts 5 laugh syllables (4-6 accepted). `--only` and `parseOnly` tested, and run for real: only `resp_parry`, `resp_firm` and `baby_laugh_perfect` changed on disk. **I cannot hear audio, so the subtask « listen to the three clips and describe what you heard » is left unchecked on purpose.** Whether the squeak reads as a dog toy, the clack as a cupboard and the laugh as a baby is Geo's call (the laugh is the weakest, as D3 warned). The tuning knobs are the named constants at the top of `tools/audio/cultSounds.ts`; rerun with `npm run assets:audio -- --only resp_parry,resp_firm,baby_laugh_perfect`.
+- **Departure from the recipe:** the clack's body thump is 160 → 120 Hz, decay 20 ms, gain 0.35 (recipe: 110 → 80 Hz, 40 ms, 0.6) because the recipe version correlated 0.78 with the stairs' knock and failed the « no two clips alike » test. Wood resonator Q is 12.
+- **AC 9 (content checks): verified.** `checkThreatSounds` (success/perfect clip is exactly `resp_<response>`, telegraph `tel_*`, gag `gag_*`, each with an audio) and `checkTelegraphClips` (threats then disruptions, each by id; reports the later def and names the first). Failing and passing cases in `tests/content/checkContent.test.ts`; the live content passes. Copies of live defs in temp trees now get their own telegraph (`giveOwnTelegraph`).
+- **AC 10, 11 (latency): verified at unit level.** `playSimEventFeedback` extracted from `boot.ts` with no behaviour change; the tests assert `playOneShot('resp_parry', 'sfx', …)` was called before it returned, with Papa still in `glide` and no `PapaArrived`. Real-device latency stays with 2.7 / 8.2 (D5).
+- **AC 14 (sound board): verified with fakes, not seen in a browser.** « Sons » section in the debug overlay, one button per cue with a sound (`id +N` when it has N layers), through `TestHost.auditionCue(cueId): boolean` (returns `false` when the audio context is not running, and the status line says so in English). The story suggested `void`; a boolean was needed so the debug module can tell the user without importing the engine. Built once, on the first opening.
+- **AC 13, 17, 18: verified by CI.** `(unset VITE_DEBUG_ALLOWED; npm run ci)` exit 0: 4164 unit tests in 230 files, `src/sim` coverage above thresholds, 372 e2e (chromium + webkit, the new clips decode in both with no audio/director warning), `dist:check` playtest and prod, `e2e:dist` including `perf.spec.ts` (p95 16.7 ms, 34 draw calls max, 890 triangles max). Level payload 241 KiB (≤ 3 MiB). No golden, snapshot or sim file changed; `golden:update` was never run. The CI ran on one machine without load problems, no reduced workers.
+- **AC 16 (docs): done.** `deferred-work.md` has a dated 2.3 line on the four items (manifest and props moved to 7.5 and 2.5) and new open points at the end; `project-context.md` › Feedback gained one line.
+- **Heads-up for the merge:** this branch was cut before `main` received story 3.2 (`ba93bfe`), which touched `content/feedback.json` and `src/client/boot.ts` too. The review/merge step may need a merge of `main` into the branch first.
 
 ### File List
 
+New:
+- `src/client/feedback/simEventFeedback.ts`, `src/client/feedback/simEventFeedback.test.ts`
+- `src/debug/soundBoard.ts`, `src/debug/soundBoard.test.ts`, `src/debug/paneFactory.ts`
+- `tools/audio/cultSounds.ts`, `tools/audio/synthKit.ts`
+- `public/assets/audio/resp_firm.m4a`, `public/assets/audio/baby_laugh_perfect.m4a`
+
+Modified:
+- `src/content/schemas/feedback.ts`, `src/content/feedbackClips.ts`, `src/content/feedbackClips.test.ts`, `content/_schemas/feedback.schema.json`
+- `content/feedback.json`, `tests/threats/fixtures/test_firm.json`
+- `src/client/feedback/feedbackDirector.ts`, `src/client/feedback/feedbackDirector.test.ts`, `src/client/boot.ts`, `src/client/app/testHost.ts`
+- `src/debug/debugOverlay.ts`, `src/debug/feelPanel.ts`, `tests/support/fakeTestHost.ts`
+- `tools/audio/makePlaceholderAudio.ts`, `tests/tools/audio/makePlaceholderAudio.test.ts`
+- `tools/content/contentChecks.ts`, `tests/content/checkContent.test.ts`, `tests/content/feedbackSchema.test.ts`
+- `public/assets/audio/resp_parry.m4a` (regenerated)
+- `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, `_bmad-output/project-context.md`
+
+Deleted:
+- `public/assets/audio/resp_parry_perfect.m4a`
+
 ### Change Log
+
+- 2026-10-29: Story 2.3 implemented: cue `layers`, the toy squeak, the cupboard clack and the baby's laugh, content checks for one cult sound per response and distinct telegraphs, the extracted sim-event routing with its latency tests, the debug « Sons » board, `--only` for the audio generator.

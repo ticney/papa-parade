@@ -13,8 +13,8 @@
   "color": "parry",
   "feedback": {
     "telegraph": "tel_outlet",
-    "success": "resp_parry",
-    "perfect": "resp_parry_perfect",
+    "success": "resp_firm",
+    "perfect": "resp_firm_perfect",
     "gag": "gag_outlet"
   },
   "cooldownMs": 6000

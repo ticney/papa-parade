@@ -26,6 +26,24 @@ async function mutateJson(relativePath: string, change: (json: Record<string, un
   await writeFile(path, `${JSON.stringify(json, null, 2)}\n`);
 }
 
+/**
+ * Makes `threat` (a copy of a live def, about to be put in the temp tree) point at a telegraph cue
+ * of its own: a new cue `tel_<name>` in the temp `feedback.json`, with a copy of the outlet's clip
+ * under a new name. Two defs of one content tree may not share a telegraph sound (story 2.3), so
+ * a copy of a live def gets its own rather than the rule being relaxed.
+ */
+async function giveOwnTelegraph(threat: Record<string, unknown>, name: string): Promise<void> {
+  const audioDir = join(root, 'public', 'assets', 'audio');
+  await cp(join(audioDir, 'tel_outlet.m4a'), join(audioDir, `tel_${name}.m4a`));
+  await mutateJson('content/feedback.json', (feedback) => {
+    const cues = feedback.cues as Record<string, { audio: { clip: string } }>;
+    const copy = structuredClone(cues.tel_outlet) as { audio: { clip: string } };
+    copy.audio.clip = `tel_${name}`;
+    cues[`tel_${name}`] = copy;
+  });
+  (threat.feedback as Record<string, string>).telegraph = `tel_${name}`;
+}
+
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'pp-content-'));
   await cp(join(REPO, 'content'), join(root, 'content'), { recursive: true });
@@ -498,10 +516,138 @@ describe('checkContent on threat files', () => {
   const FILE = 'content/threats/outlet.json';
 
   it('accepts a second threat file named after its id', async () => {
-    await mutateJson('content/threats/outlet.json', () => {});
-    const outlet = await readFile(join(root, FILE), 'utf8');
-    await put('content/threats/plug.json', outlet.replace('"id": "outlet"', '"id": "plug"'));
+    const outlet = JSON.parse(await readFile(join(root, FILE), 'utf8'));
+    outlet.id = 'plug';
+    await giveOwnTelegraph(outlet, 'plug');
+    await put('content/threats/plug.json', `${JSON.stringify(outlet, null, 2)}\n`);
     expect(await checkContent(root)).toEqual([]);
+  });
+
+  describe('the sounds of a threat (story 2.3)', () => {
+    const FEEDBACK = 'content/feedback.json';
+    /** Adds cues to the temp `feedback.json` and points one role of the outlet at one of them. */
+    const point = async (role: string, cueId: string, cue?: Record<string, unknown>) => {
+      if (cue !== undefined) {
+        await mutateJson(FEEDBACK, (feedback) => {
+          (feedback.cues as Record<string, unknown>)[cueId] = cue;
+        });
+      }
+      await mutateJson(FILE, (threat) => {
+        (threat.feedback as Record<string, string>)[role] = cueId;
+      });
+    };
+
+    it.each(['success', 'perfect'])('reports a %s cue with no audio', async (role) => {
+      await point(role, 'quiet_response', { haptic: 'light' });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: `feedback.${role}`,
+          message: expect.stringContaining('audio'),
+        }),
+      ]);
+    });
+
+    it.each(['success', 'perfect'])(
+      "reports a parry whose %s plays another response's cult sound",
+      async (role) => {
+        await point(role, 'resp_firm');
+        expect(await checkContent(root)).toEqual([
+          expect.objectContaining({
+            file: FILE,
+            jsonPath: `feedback.${role}`,
+            message: expect.stringMatching(/"resp_firm".*"resp_parry"/),
+          }),
+        ]);
+      },
+    );
+
+    it('accepts a perfect cue that shares the success clip: the type of response is what you hear', async () => {
+      const live = JSON.parse(await readFile(join(root, FEEDBACK), 'utf8'));
+      expect(live.cues.resp_parry_perfect.audio.clip).toBe(live.cues.resp_parry.audio.clip);
+      expect(await checkContent(root)).toEqual([]);
+    });
+
+    it('reports a telegraph cue with no audio', async () => {
+      await point('telegraph', 'quiet_telegraph', { haptic: 'light' });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'feedback.telegraph',
+          message: expect.stringContaining('audio'),
+        }),
+      ]);
+    });
+
+    it('reports a telegraph whose clip is not a tel_ clip', async () => {
+      await point('telegraph', 'gag_outlet');
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'feedback.telegraph',
+          message: expect.stringMatching(/"gag_outlet".*tel_/),
+        }),
+      ]);
+    });
+
+    it('reports a gag cue with no audio', async () => {
+      await point('gag', 'quiet_gag', { haptic: 'light' });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'feedback.gag',
+          message: expect.stringContaining('audio'),
+        }),
+      ]);
+    });
+
+    it('reports a gag whose clip is not a gag_ clip', async () => {
+      await point('gag', 'tel_outlet');
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'feedback.gag',
+          message: expect.stringMatching(/"tel_outlet".*gag_/),
+        }),
+      ]);
+    });
+
+    it('reports a second threat that reuses a telegraph sound, naming the first, and accepts one of its own', async () => {
+      const outlet = JSON.parse(await readFile(join(root, FILE), 'utf8'));
+      outlet.id = 'plug';
+      await put('content/threats/plug.json', `${JSON.stringify(outlet, null, 2)}\n`);
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: 'content/threats/plug.json',
+          jsonPath: 'feedback.telegraph',
+          message: expect.stringMatching(/"tel_outlet".*content\/threats\/outlet\.json/),
+        }),
+      ]);
+      await giveOwnTelegraph(outlet, 'plug');
+      await put('content/threats/plug.json', `${JSON.stringify(outlet, null, 2)}\n`);
+      expect(await checkContent(root)).toEqual([]);
+    });
+
+    it("reports a disruption's ring that sounds like a threat's telegraph", async () => {
+      const PHONE = 'content/disruptions/phone.json';
+      // A ring cue of its own (anchored on an object, as a disruption's must be) that plays the outlet's clip.
+      await mutateJson(FEEDBACK, (feedback) => {
+        const cues = feedback.cues as Record<string, { audio: { clip: string }; visual: object }>;
+        const clash = structuredClone(cues.tel_phone_ring) as (typeof cues)[string];
+        clash.audio.clip = 'tel_outlet';
+        cues.ring_clash = clash;
+      });
+      await mutateJson(PHONE, (phone) => {
+        (phone.feedback as Record<string, string>).ring = 'ring_clash';
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: PHONE,
+          jsonPath: 'feedback.ring',
+          message: expect.stringMatching(/"tel_outlet".*content\/threats\/outlet\.json/),
+        }),
+      ]);
+    });
   });
 
   it('reports an id that differs from the file name', async () => {
@@ -519,6 +665,10 @@ describe('checkContent on threat files', () => {
       const outlet = JSON.parse(await readFile(join(root, FILE), 'utf8'));
       outlet.id = 'plug_firm';
       outlet.response = 'firm';
+      // The Firmness has its own cult sound, and its own telegraph (story 2.3).
+      outlet.feedback.success = 'resp_firm';
+      outlet.feedback.perfect = 'resp_firm_perfect';
+      await giveOwnTelegraph(outlet, 'plug_firm');
       change(outlet);
       await put(FIRM_FILE, `${JSON.stringify(outlet, null, 2)}\n`);
     };

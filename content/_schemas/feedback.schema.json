@@ -340,6 +340,45 @@
             "additionalProperties": false,
             "description": "The sound of a cue, played once."
           },
+          "layers": {
+            "description": "Extra sounds played at the same moment as `audio`, in order (the baby laughs on a perfect). A cue with layers needs an `audio`; a layer has no ring, vibration or cue of its own.",
+            "minItems": 1,
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "clip": {
+                  "type": "string",
+                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                  "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
+                },
+                "bus": {
+                  "type": "string",
+                  "enum": [
+                    "music",
+                    "sfx",
+                    "voice",
+                    "ui"
+                  ],
+                  "description": "Bus the sound goes through."
+                },
+                "gainPct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Cue volume on its bus, in percent."
+                }
+              },
+              "required": [
+                "clip",
+                "bus",
+                "gainPct"
+              ],
+              "additionalProperties": false,
+              "description": "The sound of a cue, played once."
+            }
+          },
           "visual": {
             "description": "The visual twin of the sound: a diegetic effect in the 3D world, or the UI element that fired the event.",
             "oneOf": [

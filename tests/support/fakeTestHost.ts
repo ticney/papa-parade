@@ -25,6 +25,8 @@ export interface FakeTestHostOptions {
   content?: ContentBundle;
   /** The session the host exposes, whole. Default: one that does nothing. */
   levelSession?: LevelSession;
+  /** What `auditionCue` answers: whether the audio context is running. Default: true. */
+  isAudioRunning?: boolean;
 }
 
 export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestHost {
@@ -68,6 +70,10 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     onRenderedFrame: (listener) => subscribe(frameListeners, listener),
     debugGroup: () => null,
     threatScreenPoints: () => [],
+    auditionCue(cueId) {
+      calls.push(`audition:${cueId}`);
+      return options.isAudioRunning ?? true;
+    },
     setGameInputBlocked(next) {
       calls.push(`blocked:${next}`);
       isBlocked = next;

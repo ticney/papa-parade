@@ -49,4 +49,11 @@ export interface TestHost {
   debugGroup(): Group | null;
   /** The icon points of the running level's threats as they are on the page now (a new array per call). */
   threatScreenPoints(): readonly ThreatScreenPoint[];
+  /**
+   * Plays the sound of the cue `cueId` of `feedback.json` once, its `audio` then its `layers`, and
+   * nothing else: no ring, vibration or `onCue` (story 2.3 AC 14, the sound board). Returns `false`
+   * and plays nothing when the audio context is not running (no gesture yet), or the cue is unknown
+   * or has no sound; the caller says so.
+   */
+  auditionCue(cueId: string): boolean;
 }

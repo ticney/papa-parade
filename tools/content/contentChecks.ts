@@ -315,6 +315,100 @@ function checkThreatReferences(
         });
       }
     }
+    problems.push(...checkThreatSounds(file, threat, feedback));
+  }
+  return problems;
+}
+
+/**
+ * The sound rules of story 2.3 for one threat file: « one cult sound per response type » (the clip
+ * of its `success` and `perfect` cues is exactly `resp_<response>`; the two share it, the perfect
+ * being told apart by the baby's laugh layered on its cue), a telegraph plays a `tel_*` clip and a
+ * gag a `gag_*` clip. A cue that is not in `feedback.json` was reported already.
+ */
+function checkThreatSounds(
+  file: string,
+  threat: ThreatDef,
+  feedback: FeedbackTable,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const rules = [
+    { role: 'success', clip: `resp_${threat.response}`, isExact: true },
+    { role: 'perfect', clip: `resp_${threat.response}`, isExact: true },
+    { role: 'telegraph', clip: 'tel_', isExact: false },
+    { role: 'gag', clip: 'gag_', isExact: false },
+  ] as const;
+  for (const { role, clip: expected, isExact } of rules) {
+    const cueId = threat.feedback[role];
+    if (!Object.hasOwn(feedback.cues, cueId)) continue;
+    const clip = feedback.cues[cueId]?.audio?.clip;
+    const jsonPath = formatJsonPath(['feedback', role]);
+    if (clip === undefined) {
+      problems.push({
+        file,
+        jsonPath,
+        message: `the cue "${cueId}" has no audio, but the ${role} of a threat is heard (${isExact ? expected : `${expected}*`} clip)`,
+      });
+    } else if (isExact ? clip !== expected : !clip.startsWith(expected)) {
+      problems.push({
+        file,
+        jsonPath,
+        message: isExact
+          ? `the cue "${cueId}" plays the clip "${clip}", but a "${threat.response}" response plays "${expected}" (one cult sound per response type)`
+          : `the cue "${cueId}" plays the clip "${clip}", but a ${role} plays a ${expected}* clip`,
+      });
+    }
+  }
+  return problems;
+}
+
+/**
+ * Epic 2.3 AC 1: no two telegraphs sound alike. Every threat's `telegraph` cue and every
+ * disruption's `ring` cue of the content tree must play a clip of its own; the second one to use a
+ * clip (threats first, then disruptions, each by id) is reported, naming the first.
+ */
+function checkTelegraphClips(
+  threats: ReadonlyMap<string, ThreatDef>,
+  disruptions: ReadonlyMap<string, DisruptionDef>,
+  feedback: FeedbackTable | undefined,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  if (feedback === undefined) return problems;
+  const owners = new Map<string, string>();
+  const entries = [
+    ...[...threats]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, threat]) => ({
+        file: `content/${THREAT_DEF_PATTERN.dir}/${id}${THREAT_DEF_PATTERN.suffix}`,
+        cueId: threat.feedback.telegraph,
+        role: 'telegraph',
+      })),
+    ...[...disruptions]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, disruption]) => ({
+        file: `content/${DISRUPTION_DEF_PATTERN.dir}/${id}${DISRUPTION_DEF_PATTERN.suffix}`,
+        cueId: disruption.feedback.ring,
+        role: 'ring',
+      })),
+  ];
+  for (const { file, cueId, role } of entries) {
+    if (!Object.hasOwn(feedback.cues, cueId)) continue;
+    // A cue anchored the wrong way round (a threat's on an object, a disruption's on a threat) was
+    // reported already, by its own reference check: it is not a second telegraph here.
+    const anchor = visualAnchorOf(feedback.cues[cueId]);
+    if (role === 'telegraph' ? anchor === 'object' : anchor === 'threat') continue;
+    const clip = feedback.cues[cueId]?.audio?.clip;
+    if (clip === undefined) continue;
+    const owner = owners.get(clip);
+    if (owner === undefined) {
+      owners.set(clip, file);
+    } else {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['feedback', role]),
+        message: `the clip "${clip}" is already the telegraph sound of ${owner}: each telegraph has a sound of its own`,
+      });
+    }
   }
   return problems;
 }
@@ -722,6 +816,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
 
   problems.push(...checkThreatReferences(families.threats, feedback, feel));
   problems.push(...checkDisruptionReferences(families.disruptions, feedback));
+  problems.push(...checkTelegraphClips(families.threats, families.disruptions, feedback));
   problems.push(...checkLevelReferences(families, present, feel));
 
   if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));

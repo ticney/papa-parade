@@ -56,6 +56,15 @@ const TABLE: FeedbackTable = {
       camera: { kind: 'shake', amplitudeM: 0.05, durationMs: 200 },
     },
     tick: { haptic: 'light' },
+    layered: {
+      audio: { clip: 'resp_parry', bus: 'sfx', gainPct: 100 },
+      layers: [
+        { clip: 'baby_laugh_perfect', bus: 'voice', gainPct: 90 },
+        { clip: 'env_applause', bus: 'sfx', gainPct: 40 },
+      ],
+      visual: { kind: 'soundWave', anchor: 'threat', maxRadiusM: 1.2, durationMs: 450 },
+      haptic: 'heavy',
+    },
     threatPop: {
       audio: { clip: 'resp_parry', bus: 'sfx', gainPct: 80 },
       visual: { kind: 'soundWave', anchor: 'threat', maxRadiusM: 0.8, durationMs: 350 },
@@ -104,6 +113,7 @@ function setup(
   };
   const state = {
     throwOnAudio: false,
+    throwOnClip: null as string | null,
     throwOnHaptic: false,
     throwOnScene: false,
     throwOnGetScene: false,
@@ -114,7 +124,7 @@ function setup(
     table: TABLE,
     audio: {
       playOneShot: (clip, bus, gainPct) => {
-        if (state.throwOnAudio) throw new Error('speaker on fire');
+        if (state.throwOnAudio || state.throwOnClip === clip) throw new Error('speaker on fire');
         trace.push(`audio:${clip},${bus},${gainPct}`);
       },
     },
@@ -357,6 +367,33 @@ describe('feedbackDirector', () => {
         expect(trace, id).toEqual([]);
         expect(newWarnings(), id).toEqual([expect.stringContaining(id)]);
       }
+    });
+
+    it("plays a cue's layers right after its audio and before the haptic, in order, with one cue report (story 2.3)", () => {
+      const { director, trace } = setup();
+      director.playCue('layered', withThreat(), 7);
+      expect(trace).toEqual([
+        'audio:resp_parry,sfx,100',
+        'audio:baby_laugh_perfect,voice,90',
+        'audio:env_applause,sfx,40',
+        'haptic:heavy',
+        'wave:-3.95,0.5,1.2,450,4200',
+        'cue:layered',
+      ]);
+    });
+
+    it('warns once for a layer that throws, and the next layer, the haptic and the ring still play', () => {
+      const { director, trace, state, newWarnings } = setup();
+      state.throwOnClip = 'baby_laugh_perfect';
+      expect(() => director.playCue('layered', withThreat(), 7)).not.toThrow();
+      expect(trace).toEqual([
+        'audio:resp_parry,sfx,100',
+        'audio:env_applause,sfx,40',
+        'haptic:heavy',
+        'wave:-3.95,0.5,1.2,450,4200',
+        'cue:layered',
+      ]);
+      expect(newWarnings()).toEqual([expect.stringContaining('sound layer')]);
     });
 
     it('guards each part like handle does', () => {

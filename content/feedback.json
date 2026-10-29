@@ -64,7 +64,19 @@
       "haptic": "medium"
     },
     "resp_parry_perfect": {
-      "audio": { "clip": "resp_parry_perfect", "bus": "sfx", "gainPct": 100 },
+      "audio": { "clip": "resp_parry", "bus": "sfx", "gainPct": 100 },
+      "layers": [{ "clip": "baby_laugh_perfect", "bus": "voice", "gainPct": 100 }],
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.2, "durationMs": 450 },
+      "haptic": "heavy"
+    },
+    "resp_firm": {
+      "audio": { "clip": "resp_firm", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.8, "durationMs": 350 },
+      "haptic": "medium"
+    },
+    "resp_firm_perfect": {
+      "audio": { "clip": "resp_firm", "bus": "sfx", "gainPct": 100 },
+      "layers": [{ "clip": "baby_laugh_perfect", "bus": "voice", "gainPct": 100 }],
       "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.2, "durationMs": 450 },
       "haptic": "heavy"
     },
