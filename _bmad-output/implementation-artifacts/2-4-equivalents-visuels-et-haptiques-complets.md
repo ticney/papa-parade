@@ -1,6 +1,10 @@
+---
+baseline_commit: be2d38103bfccc582490082a681ec21a9c8e7350
+---
+
 # Story 2.4: Complete visual and haptic twins
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -71,19 +75,19 @@ Stories 1.9 to 2.3 built most of pillar 3. `content/feedback.json` gives each cu
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Schema** (AC 1, 3, 4)
-  - [ ] `src/content/schemas/feedback.ts`: `pulses` + `pulseIntervalMs` on `SoundWaveSchema` (both or neither); `FlashSchema` and `flash` on `CueSchema`; extend the « at least one » refine. Keep `.strictObject`, no `.default()`/`.transform()` (header rule). Export `FeedbackFlash` type if the client needs it.
-  - [ ] `npm run content:schemas`; `tests/content/feedbackSchema.test.ts`: pulses accepted (2, 3), refused (1, 4, without interval, interval without pulses); flash accepted, refused (opacity 0 or 61, duration 0, unknown key); a cue with only a `flash` is valid.
-- [ ] **T2. Equivalence test** (AC 1): `isVisualTwin = isPresent(cue.visual) || isPresent(cue.flash)`; message unchanged (« has an audio but no visual twin »); two new fixtures and the declared list.
-- [ ] **T3. Screen flash** (AC 5): `src/client/ui/hud/screenFlash.ts` + test (jsdom/happy-dom as the other HUD tests do; stub `animate` if the DOM lib lacks it): peak and duration passed to `animate`, glow class under reduced motion, 334 ms rule with an injected clock, `pointer-events: none`, one element whatever the number of flashes. CSS in `src/client/ui/styles/ui.css` with tokens only (no hex in CSS outside `tokens.css`).
-- [ ] **T4. Director** (AC 3, 6, 8): pulses loop, `flash` part, `onVisual`; order sound → layers → haptic → ring(s) → flash → camera → `onCue`. Update the `handle` doc comment. Tests in `feedbackDirector.test.ts`: pulse start times, one haptic for a pulsing telegraph, a throwing flash is one `warn` and the camera and `onCue` still run, a skipped flash is not reported, `onVisual` once per pulsing ring.
-- [ ] **T5. Content** (AC 3, 6): `feedback.json` telegraph waves (starting values of AC 3) and the two perfect flashes. `SOUND_WAVE_POOL_SIZE` → 8.
-- [ ] **T6. Content checks** (AC 7) + tests.
-- [ ] **T7. Wiring** (AC 5, 8, 9): `boot.ts` creates the flash in the HUD root and passes `flash` and `onVisual` to the director; `TestHost.onCuePlayed`; `testApi.ts › cueLog`; `tests/support/fakeTestHost.ts`.
-- [ ] **T8. Twins test** (AC 2, 3): `src/client/feedback/feedbackTwins.test.ts`.
-- [ ] **T9. e2e** (AC 10): `tests/e2e/mute.spec.ts`; helpers in `tests/e2e/support/testApi.ts` (`ppCueLog`).
-- [ ] **T10. Docs** (AC 13): `deferred-work.md`; `project-context.md` › Feedback gains one line: « a cue may `flash` the screen (the perfect's mark; real time, glow under reduced motion, ≤ 3 Hz); a wave may `pulses`; telegraph cues vibrate `light`, perfect cues `heavy` (content:check) ».
-- [ ] **T11. CI** (AC 11, 12, 14): `env | grep VITE_` first, then `(unset VITE_DEBUG_ALLOWED; npm run ci)`. On a loaded machine rerun with `--maxWorkers=5` / `--workers=4` and say so.
+- [x] **T1. Schema** (AC 1, 3, 4)
+  - [x] `src/content/schemas/feedback.ts`: `pulses` + `pulseIntervalMs` on `SoundWaveSchema` (both or neither); `FlashSchema` and `flash` on `CueSchema`; extend the « at least one » refine. Keep `.strictObject`, no `.default()`/`.transform()` (header rule). Export `FeedbackFlash` type if the client needs it.
+  - [x] `npm run content:schemas`; `tests/content/feedbackSchema.test.ts`: pulses accepted (2, 3), refused (1, 4, without interval, interval without pulses); flash accepted, refused (opacity 0 or 61, duration 0, unknown key); a cue with only a `flash` is valid.
+- [x] **T2. Equivalence test** (AC 1): `isVisualTwin = isPresent(cue.visual) || isPresent(cue.flash)`; message unchanged (« has an audio but no visual twin »); two new fixtures and the declared list.
+- [x] **T3. Screen flash** (AC 5): `src/client/ui/hud/screenFlash.ts` + test (jsdom/happy-dom as the other HUD tests do; stub `animate` if the DOM lib lacks it): peak and duration passed to `animate`, glow class under reduced motion, 334 ms rule with an injected clock, `pointer-events: none`, one element whatever the number of flashes. CSS in `src/client/ui/styles/ui.css` with tokens only (no hex in CSS outside `tokens.css`).
+- [x] **T4. Director** (AC 3, 6, 8): pulses loop, `flash` part, `onVisual`; order sound → layers → haptic → ring(s) → flash → camera → `onCue`. Update the `handle` doc comment. Tests in `feedbackDirector.test.ts`: pulse start times, one haptic for a pulsing telegraph, a throwing flash is one `warn` and the camera and `onCue` still run, a skipped flash is not reported, `onVisual` once per pulsing ring.
+- [x] **T5. Content** (AC 3, 6): `feedback.json` telegraph waves (starting values of AC 3) and the two perfect flashes. `SOUND_WAVE_POOL_SIZE` → 8.
+- [x] **T6. Content checks** (AC 7) + tests.
+- [x] **T7. Wiring** (AC 5, 8, 9): `boot.ts` creates the flash in the HUD root and passes `flash` and `onVisual` to the director; `TestHost.onCuePlayed`; `testApi.ts › cueLog`; `tests/support/fakeTestHost.ts`.
+- [x] **T8. Twins test** (AC 2, 3): `src/client/feedback/feedbackTwins.test.ts`.
+- [x] **T9. e2e** (AC 10): `tests/e2e/mute.spec.ts`; helpers in `tests/e2e/support/testApi.ts` (`ppCueLog`).
+- [x] **T10. Docs** (AC 13): `deferred-work.md`; `project-context.md` › Feedback gains one line: « a cue may `flash` the screen (the perfect's mark; real time, glow under reduced motion, ≤ 3 Hz); a wave may `pulses`; telegraph cues vibrate `light`, perfect cues `heavy` (content:check) ».
+- [x] **T11. CI** (AC 11, 12, 14): `env | grep VITE_` first, then `(unset VITE_DEBUG_ALLOWED; npm run ci)`. On a loaded machine rerun with `--maxWorkers=5` / `--workers=4` and say so.
 
 ## Dev Notes
 
@@ -201,8 +205,44 @@ Recent commits: `Story 2.3 : sons cultes…` (layers, cult sounds, `checkThreatS
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (claude-sonnet-5-5)
+
 ### Debug Log References
+
+- Adding `onVisual` to the shared test setup put `visual:` lines in the trace of the story 1.20-2.3 director tests; the setup now keeps them in a `visuals` array and puts them in the trace only with `traceVisuals`.
+- `ui.css`: `designTokens.test.ts` refuses a blurred `box-shadow` (sticker depth is hard), so the reduced-motion glow is a hard inset frame (`inset 0 0 0 20px`), not a blurred glow.
+- The older story 2.3 sound tests of `checkContent.test.ts` point a role at cues that now break the haptic/flash rules too; they read `soundProblems()` (the problems about sounds), and the new `describe` covers the new rules.
+- `ui.spec.ts` (HUD node budget, free bottom third) counted the full-screen flash overlay as a HUD element; the measure now skips `.pp-screen-flash`. `testApi.spec.ts` lists `cueLog` (nine methods).
+- `checkDist.test.ts`: the fake playtest bundle carries the `cueLog` marker (the check is not vacuous).
 
 ### Completion Notes List
 
+- **AC 1** (triple equivalence in the test): `feedbackEquivalence.test.ts` counts `visual` or `flash` as the visual twin; fixtures `audio-with-flash-only.json` (passes) and `audio-with-null-flash.json` (fails on the visual) added and declared. Verified by the test run.
+- **AC 2** (proof by enumeration through the real director): `feedbackTwins.test.ts` plays every cue of the live `feedback.json` that has an audio with recording fakes: at least one drawn visual, exactly one `haptics.pulse` of the cue's kind, no warning. A cue added later is covered with no change. Verified.
+- **AC 3** (telegraphs): `SoundWaveSchema` has `pulses` (2-3) and `pulseIntervalMs` (both or neither, `path: ['pulses']`); the director draws the pulses at `world.time.sim + i × pulseIntervalMs` through `scene.soundWave`. The six telegraph waves of the story are in `feedback.json` as starting values; the twins test checks each telegraph ring is drawn at its anchor (threat or phone object), not at Papa, with one `light` pulse; another test checks that no two telegraphs share pulses, radius, duration and interval. `SOUND_WAVE_POOL_SIZE` is 8. `perf.spec.ts` (built playtest, whole level at speed 1): p95 16.7 ms, **40 draw calls max**, 1466 triangles max.
+- **AC 4-6** (flash): `CueSchema.flash` (`peakOpacityPct` 1-60, `durationMs`), counted by the « at least one » refine; `content/_schemas/feedback.schema.json` regenerated with `npm run content:schemas`. `src/client/ui/hud/screenFlash.ts` is the DOM module (one `div.pp-screen-flash` in `#pp-hud`, Web Animations API, real time via an injected `nowReal`, border-glow class under reduced motion, `SCREEN_FLASH_MIN_INTERVAL_MS = 334` in `constants.ts`, `pointer-events: none` in `ui.css`, tested through the CSS text and a fake element). The director plays it after the ring and before the camera, with or without a world, a throwing flash is one `warn`. `resp_parry_perfect` and `resp_firm_perfect` flash 35 % / 180 ms and keep the 1.2 m ring and `heavy`.
+- **AC 7** (content rules): `checkThreatTwins` and `checkDisruptionRing` in `tools/content/contentChecks.ts`: telegraph and ring `light`, perfect `heavy` with a `flash`, success without `flash`, ring waves ending within `PHONE_RINGING_EVERY_MS`. A failing and a passing case each in `tests/content/checkContent.test.ts` (the boundary 1000 ms passes, 1200 ms fails). The live content passes; no frozen test def needed a change.
+- **AC 8-9** (visual report): `onVisual` once per part that ran (once for all pulses of a wave; a skipped ring, a skipped flash and a failed ring are not reported); `TestHost.onCuePlayed` fed by `boot.ts`; `__PP__.cueLog()` keeps the last 200 records (unit-tested with `fakeTestHost`). No `recordMirrorWrites` on `data-pp-cue`.
+- **AC 10** (muted e2e): `tests/e2e/mute.spec.ts`, **chromium and webkit both pass**: `?autoplay=perfect`, no gesture (`data-pp-audio="none"`, `data-pp-audio-clips="0"`), run until the log holds the telegraph of every def of the first two waves and a perfect; every cue with an audio drew something of the live kinds; the perfect flashes. A poll of `getAnimations()` would miss a 180 ms fade at speed 4, so I added a `data-pp-flash-count` mirror (`ppFlashCount`) and the spec compares it with the number of records that include `flash`, and checks the overlay exists and has `pointer-events: none`. Chromium: the `light`/`heavy` patterns of the live table were recorded for each record; WebKit: `data-pp-haptics="false"`. The second test (`?autoplay=idle`) checks the first gag's cue has a `soundWave` visual and a `heavy` pattern. The 3 Hz rule can skip a flash at speed 4 (two perfects close in real time): the spec allows a flash-less perfect only after a flash that happened.
+- **AC 11**: no sim file, event, golden, bot or `npm run sim` result changed (`git status` shows none; the goldens ran green with no update).
+- **AC 12**: no screenshot reference moved (the darwin screenshot specs passed unchanged).
+- **AC 13-14**: `deferred-work.md` has a dated 2.4 section; `project-context.md` › Feedback has the new line; `cueLog` is in the debug-marker list of `tools/build/inspectDist.ts`. `(unset VITE_DEBUG_ALLOWED; npm run ci)` is green end to end (4303 unit tests, `src/sim` coverage thresholds, e2e chromium + webkit, `dist:check` for both flavours, `e2e:dist` including `perf.spec.ts`).
+- **What I could not verify**: the agent cannot feel a vibration or judge the flash's strength; the haptic proof is that `navigator.vibrate` was called with the live pattern (Chromium) and that the visuals carry the signal elsewhere. The 35 % / 180 ms flash and the six telegraph waves are starting values for Geo to tune (Open points 1-2 of the story).
+
 ### File List
+
+- `src/content/schemas/feedback.ts`, `content/_schemas/feedback.schema.json` (generated), `content/feedback.json`
+- `src/client/feedback/feedbackDirector.ts`, `src/client/feedback/feedbackDirector.test.ts`, `src/client/feedback/feedbackTwins.test.ts` (new)
+- `src/client/ui/hud/screenFlash.ts` (new), `src/client/ui/hud/screenFlash.test.ts` (new), `src/client/ui/styles/ui.css`
+- `src/client/boot.ts`, `src/client/app/testHost.ts`, `src/client/render/vfx/soundWaves.test.ts`
+- `src/shared/constants.ts`
+- `src/debug/testApi.ts`, `src/debug/testApi.test.ts`, `tests/support/fakeTestHost.ts`
+- `tools/content/contentChecks.ts`, `tools/build/inspectDist.ts`
+- `tests/architecture/feedbackEquivalence.test.ts`, `tests/architecture/fixtures/feedback/audio-with-flash-only.json` (new), `tests/architecture/fixtures/feedback/audio-with-null-flash.json` (new)
+- `tests/content/feedbackSchema.test.ts`, `tests/content/checkContent.test.ts`, `tests/tools/build/checkDist.test.ts`
+- `tests/e2e/mute.spec.ts` (new), `tests/e2e/support/testApi.ts`, `tests/e2e/testApi.spec.ts`, `tests/e2e/ui.spec.ts`
+- `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
+
+### Change Log
+
+- 2026-10-29: Story 2.4 implemented: cue `flash` and wave `pulses` in the schema and content, the `screenFlash` HUD module (real time, glow under reduced motion, 3 Hz rule), director flash and `onVisual`, `__PP__.cueLog()`, content rules for haptics and flashes, per-telegraph waves, twins test and muted e2e. Status: review.

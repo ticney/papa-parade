@@ -14,7 +14,8 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // Every numeric key of the file carries its unit: a percentage, a duration or a length in metres.
 // The suffixes are spelled out, as in `feelSchema.test.ts`: a bare `M` would accept `gamM`. A new
 // unit gets a deliberate, commented entry here.
-const UNIT_SUFFIX = /(?:Pct|Ms|RadiusM|AmplitudeM)$/;
+// `pulses` is a count of rings, not a quantity: it has no unit.
+const UNIT_SUFFIX = /(?:Pct|Ms|RadiusM|AmplitudeM|^pulses)$/;
 
 type Json = Record<string, unknown>;
 
@@ -216,6 +217,67 @@ describe('content/feedback.json', () => {
     expect(failed.length).toBeGreaterThan(0);
     expect(failed.every((path) => path.startsWith('cues.countdown_tick.camera'))).toBe(true);
     expect(failed.some((path) => path.endsWith(field))).toBe(true);
+  });
+
+  describe('pulsing sound waves (story 2.4)', () => {
+    const wave = (extra: Json) => ({
+      kind: 'soundWave',
+      anchor: 'threat',
+      maxRadiusM: 0.6,
+      durationMs: 300,
+      ...extra,
+    });
+
+    it.each([2, 3])('accepts %i pulses with an interval', (pulses) => {
+      const result = mutated(['cues.papa_bump.visual', wave({ pulses, pulseIntervalMs: 120 })]);
+      expect(result).toMatchObject({ ok: true });
+    });
+
+    it.each<[string, Json]>([
+      ['1 pulse', { pulses: 1, pulseIntervalMs: 100 }],
+      ['4 pulses', { pulses: 4, pulseIntervalMs: 100 }],
+      ['a fractional pulse count', { pulses: 2.5, pulseIntervalMs: 100 }],
+      ['an interval of 0 ms', { pulses: 2, pulseIntervalMs: 0 }],
+    ])('refuses %s', (_name, extra) => {
+      const failed = failedPaths(mutated(['cues.papa_bump.visual', wave(extra)]));
+      expect(failed.length).toBeGreaterThan(0);
+      expect(failed.every((path) => path.startsWith('cues.papa_bump.visual'))).toBe(true);
+    });
+
+    it('refuses pulses without an interval, and an interval without pulses', () => {
+      expect(failedPaths(mutated(['cues.papa_bump.visual', wave({ pulses: 2 })]))).toEqual([
+        'cues.papa_bump.visual.pulses',
+      ]);
+      expect(
+        failedPaths(mutated(['cues.papa_bump.visual', wave({ pulseIntervalMs: 100 })])),
+      ).toEqual(['cues.papa_bump.visual.pulses']);
+    });
+  });
+
+  describe('screen flash (story 2.4)', () => {
+    it('accepts a flash, and a cue with only a flash', () => {
+      const flash = { peakOpacityPct: 35, durationMs: 180 };
+      expect(mutated(['cues.papa_bump.flash', flash])).toMatchObject({ ok: true });
+      expect(mutated(['cues.countdown_tick', { flash }])).toMatchObject({ ok: true });
+    });
+
+    it.each<[string, Json, string]>([
+      ['an opacity of 0', { peakOpacityPct: 0, durationMs: 180 }, 'peakOpacityPct'],
+      ['an opacity of 61', { peakOpacityPct: 61, durationMs: 180 }, 'peakOpacityPct'],
+      ['a duration of 0', { peakOpacityPct: 35, durationMs: 0 }, 'durationMs'],
+      ['an unknown key', { peakOpacityPct: 35, durationMs: 180, bogusMs: 1 }, 'bogusMs'],
+    ])('refuses %s, on that field', (_name, flash, field) => {
+      expect(failedPaths(mutated(['cues.papa_bump.flash', flash]))).toEqual([
+        `cues.papa_bump.flash.${field}`,
+      ]);
+    });
+
+    it('accepts the bounds 1 % and 60 %', () => {
+      for (const peakOpacityPct of [1, 60]) {
+        const flash = { peakOpacityPct, durationMs: 180 };
+        expect(mutated(['cues.papa_bump.flash', flash])).toMatchObject({ ok: true });
+      }
+    });
   });
 
   it('accepts a uiElement visual, and refuses one with another key (story 1.22 D6)', () => {
