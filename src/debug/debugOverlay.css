@@ -185,7 +185,8 @@
 
 /* The feel panel: Tweakpane draws itself; this only gives it room and the message line. */
 .pp-debug-feel-legend,
-.pp-debug-feel-status {
+.pp-debug-feel-status,
+.pp-debug-sound-status {
   font-size: var(--pp-spacing-text-min);
   padding: 2px 0;
 }

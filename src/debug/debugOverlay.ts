@@ -25,6 +25,7 @@ import { createFeelPanel, type FeelPanel } from './feelPanel.ts';
 import { guarded } from './guard.ts';
 import { createDebugViews, DEBUG_VIEWS, type DebugView } from './navDebugView.ts';
 import { createPerfPanel } from './perfPanel.ts';
+import { createSoundBoard, type SoundBoard } from './soundBoard.ts';
 import { createStateInspector } from './stateInspector.ts';
 import { createTimingTimeline, type ResolvedEvent, type TimingTimeline } from './timingTimeline.ts';
 
@@ -352,6 +353,8 @@ export function createDebugOverlay(
     const inspector = createStateInspector(host, section('inspector', 'World', false));
     const feelBody = section('feel', 'Feel', false);
     let feelPanel: FeelPanel | null = null;
+    const soundsBody = section('sounds', 'Sons', false);
+    let soundBoard: SoundBoard | null = null;
 
     // A new level: the views switch themselves off (the old scene is gone: so do the boxes), a skip
     // in progress stops (it must not fast-forward the new level), and the time scale is the new
@@ -457,6 +460,14 @@ export function createDebugOverlay(
             log.warn('debug', 'overlay: the feel panel could not be rebuilt', cause);
           }
         }
+        if (soundBoard === null) {
+          try {
+            // The cues never change while the page lives: built once, on the first opening.
+            soundBoard = createSoundBoard({ host, container: soundsBody });
+          } catch (cause) {
+            log.warn('debug', 'overlay: the sound board could not be built', cause);
+          }
+        }
         syncControls();
       },
       hide() {
@@ -490,6 +501,7 @@ export function createDebugOverlay(
         inspector.dispose();
         views.dispose();
         feelPanel?.dispose();
+        soundBoard?.dispose();
         root.remove();
       },
     };

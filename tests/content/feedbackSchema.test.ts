@@ -259,6 +259,51 @@ describe('content/feedback.json', () => {
     expect(mutated(['resultScreen.inputGraceMs', 0])).toMatchObject({ ok: true });
   });
 
+  describe('layers (story 2.3 D1)', () => {
+    const layer = { clip: 'baby_laugh_perfect', bus: 'voice', gainPct: 100 };
+
+    it.each([1, 2, 3])('accepts %i layer(s) on a cue with an audio', (count) => {
+      const layers = Array.from({ length: count }, () => layer);
+      expect(mutated(['cues.papa_bump.layers', layers])).toMatchObject({ ok: true });
+    });
+
+    it.each<[string, unknown, string[]]>([
+      ['no layer at all', [], ['cues.papa_bump.layers']],
+      ['four layers', [layer, layer, layer, layer], ['cues.papa_bump.layers']],
+      [
+        'a layer with a bad clip name',
+        [{ ...layer, clip: 'laugh' }],
+        ['cues.papa_bump.layers[0].clip'],
+      ],
+      [
+        'a layer with an unknown bus',
+        [{ ...layer, bus: 'radio' }],
+        ['cues.papa_bump.layers[0].bus'],
+      ],
+      [
+        'a layer with a gain of 101',
+        [{ ...layer, gainPct: 101 }],
+        ['cues.papa_bump.layers[0].gainPct'],
+      ],
+      [
+        'an unknown key in a layer',
+        [{ ...layer, bogusPct: 1 }],
+        ['cues.papa_bump.layers[0].bogusPct'],
+      ],
+    ])('refuses %s, and only that', (_name, layers, expected) => {
+      expect([...new Set(failedPaths(mutated(['cues.papa_bump.layers', layers])))]).toEqual(
+        expected,
+      );
+    });
+
+    it('refuses layers on a cue with no audio', () => {
+      const failed = failedPaths(
+        mutated(['cues.countdown_tick', { haptic: 'light', layers: [layer] }]),
+      );
+      expect(failed).toEqual(['cues.countdown_tick.layers']);
+    });
+  });
+
   it('accepts the table the tests build by hand: it cannot drift from the schema', () => {
     expect(parse(createTestFeedback())).toMatchObject({ ok: true });
   });
