@@ -27,7 +27,12 @@ import type { Level } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { type ThreatDef, ThreatGagIds } from '@content/schemas/threat';
 import { checkStringReferences } from '@content/stringRefs';
-import { MS_PER_S, PHYSICS_BOUNDS_WALL_THICKNESS_M, STEP_MS } from '@shared/constants';
+import {
+  MS_PER_S,
+  PHONE_RINGING_EVERY_MS,
+  PHYSICS_BOUNDS_WALL_THICKNESS_M,
+  STEP_MS,
+} from '@shared/constants';
 import { GAG_IDS, OBJECT_ACTION_KINDS, PAPA_ASLEEP_GAG_ID, SIM_EVENT_TYPES } from '@sim';
 
 const SCHEMAS_DIR = '_schemas';
@@ -320,6 +325,7 @@ function checkThreatReferences(
       }
     }
     problems.push(...checkThreatSounds(file, threat, feedback));
+    problems.push(...checkThreatTwins(file, threat, feedback));
   }
   return problems;
 }
@@ -375,6 +381,69 @@ function checkThreatSounds(
         message: isExact
           ? `the cue "${cueId}" plays the clip "${clip}", but a "${threat.response}" response plays "${expected}" (one cult sound per response type)`
           : `the cue "${cueId}" plays the clip "${clip}", but a ${role} plays a ${expected}* clip`,
+      });
+    }
+  }
+  return problems;
+}
+
+/**
+ * The haptic and flash rules of story 2.4 for one threat file (pillar 3): a telegraph vibrates
+ * `light`, a gag and a perfect vibrate `heavy`, a perfect flashes the screen and no other cue does
+ * (the flash is the perfect's mark). A cue that is not in `feedback.json` was reported already.
+ */
+function checkThreatTwins(
+  file: string,
+  threat: ThreatDef,
+  feedback: FeedbackTable,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const cueOf = (role: 'telegraph' | 'success' | 'perfect' | 'gag') => {
+    const cueId = threat.feedback[role];
+    return Object.hasOwn(feedback.cues, cueId) ? { cueId, cue: feedback.cues[cueId] } : undefined;
+  };
+  const telegraph = cueOf('telegraph');
+  if (telegraph !== undefined && telegraph.cue?.haptic !== 'light') {
+    problems.push({
+      file,
+      jsonPath: formatJsonPath(['feedback', 'telegraph']),
+      message: `the cue "${telegraph.cueId}" vibrates "${telegraph.cue?.haptic ?? 'never'}", but a telegraph is a short \`light\` vibration`,
+    });
+  }
+  const perfect = cueOf('perfect');
+  if (perfect !== undefined) {
+    if (perfect.cue?.haptic !== 'heavy') {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['feedback', 'perfect']),
+        message: `the cue "${perfect.cueId}" vibrates "${perfect.cue?.haptic ?? 'never'}", but a perfect is a \`heavy\` vibration`,
+      });
+    }
+    if (perfect.cue?.flash === undefined) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['feedback', 'perfect']),
+        message: `the cue "${perfect.cueId}" has no \`flash\`, but a perfect flashes the screen`,
+      });
+    }
+  }
+  const gag = cueOf('gag');
+  if (gag !== undefined && gag.cue?.haptic !== 'heavy') {
+    problems.push({
+      file,
+      jsonPath: formatJsonPath(['feedback', 'gag']),
+      message: `the cue "${gag.cueId}" vibrates "${gag.cue?.haptic ?? 'never'}", but a gag is a \`heavy\` vibration`,
+    });
+  }
+  // A telegraph or a gag told by a flash alone would be silent and invisible when the 3 Hz rule
+  // skips the flash: only the perfect flashes, the others keep their ring.
+  for (const role of ['telegraph', 'success', 'gag'] as const) {
+    const other = cueOf(role);
+    if (other?.cue?.flash !== undefined) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['feedback', role]),
+        message: `the cue "${other.cueId}" has a \`flash\`, but the flash is the perfect's mark`,
       });
     }
   }
@@ -465,6 +534,43 @@ function checkDisruptionReferences(
           message: `the cue "${cueId}" has a \`uiElement\` visual, but a disruption's cues are played for sim events`,
         });
       }
+    }
+    problems.push(...checkDisruptionRing(file, disruption, feedback));
+  }
+  return problems;
+}
+
+/**
+ * The ring of a disruption (story 2.4): it vibrates `light`, and its waves end before the next ring
+ * of the tick (`PHONE_RINGING_EVERY_MS`), or two rings would overlap. A cue that is not in
+ * `feedback.json` was reported already.
+ */
+function checkDisruptionRing(
+  file: string,
+  disruption: DisruptionDef,
+  feedback: FeedbackTable,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const cueId = disruption.feedback.ring;
+  if (!Object.hasOwn(feedback.cues, cueId)) return problems;
+  const cue = feedback.cues[cueId];
+  const jsonPath = formatJsonPath(['feedback', 'ring']);
+  if (cue?.haptic !== 'light') {
+    problems.push({
+      file,
+      jsonPath,
+      message: `the cue "${cueId}" vibrates "${cue?.haptic ?? 'never'}", but a ring is a short \`light\` vibration`,
+    });
+  }
+  const wave = cue?.visual?.kind === 'soundWave' ? cue.visual : undefined;
+  if (wave !== undefined) {
+    const outlastMs = ((wave.pulses ?? 1) - 1) * (wave.pulseIntervalMs ?? 0) + wave.durationMs;
+    if (outlastMs > PHONE_RINGING_EVERY_MS) {
+      problems.push({
+        file,
+        jsonPath,
+        message: `the waves of the cue "${cueId}" last ${outlastMs} ms, longer than the ${PHONE_RINGING_EVERY_MS} ms between two rings`,
+      });
     }
   }
   return problems;

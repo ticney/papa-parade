@@ -1,6 +1,11 @@
 import type { LevelStartOptions } from '@client/app/levelSession';
-import type { TestHost } from '@client/app/testHost';
-import { ADVANCE_MAX_STEPS, TEST_API_EVENT_LOG_MAX, UINT32_RANGE } from '@shared/constants';
+import type { CuePlayedRecord, TestHost } from '@client/app/testHost';
+import {
+  ADVANCE_MAX_STEPS,
+  TEST_API_CUE_LOG_MAX,
+  TEST_API_EVENT_LOG_MAX,
+  UINT32_RANGE,
+} from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
@@ -9,6 +14,7 @@ import { applyFeelPatch, effectiveFeel, type FeelPatch } from './feelPatch.ts';
 import { feedPerfMeter } from './perfFeed.ts';
 import { createPerfMeter, type PerfReport } from './perfMeter.ts';
 
+export type { CuePlayedRecord } from '@client/app/testHost';
 export type { FeelPatch } from './feelPatch.ts';
 export type { PerfReport } from './perfMeter.ts';
 
@@ -50,6 +56,12 @@ export interface PPTestApi {
   setFeel(patch: FeelPatch): Promise<void>;
   /** Starts a level; resolves once it runs (its countdown over). */
   loadLevel(id: string, seed: number): Promise<void>;
+  /**
+   * A copy of the last `TEST_API_CUE_LOG_MAX` cues the feedback director played, oldest first, with
+   * the visuals each one drew and the vibration it asked for (story 2.4: proof that a muted player
+   * misses nothing).
+   */
+  cueLog(): CuePlayedRecord[];
   /** A copy of what the level's frames measured so far: frame intervals (real ms), draw calls, triangles. */
   perf(): PerfReport;
 }
@@ -91,6 +103,19 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
       hasWarnedCap = true;
       log.warn('debug', `__PP__.events keeps ${logMax} events: the oldest are dropped`);
     }
+  });
+
+  // The cues played, last `TEST_API_CUE_LOG_MAX`: a copy of each record (the app reuses nothing,
+  // but be safe).
+  const cues: CuePlayedRecord[] = [];
+  host.onCuePlayed((record) => {
+    cues.push({
+      cueId: record.cueId,
+      visuals: [...record.visuals],
+      haptic: record.haptic,
+      atReal: record.atReal,
+    });
+    if (cues.length > TEST_API_CUE_LOG_MAX) cues.shift();
   });
 
   // Its own meter, fed by the same frames as the FPS counter's (story 1.24 D7).
@@ -194,6 +219,10 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
         );
       }
       await startAndWait('loadLevel', { levelId: id, seed });
+    },
+
+    cueLog() {
+      return cues.map((record) => ({ ...record, visuals: [...record.visuals] }));
     },
 
     perf() {

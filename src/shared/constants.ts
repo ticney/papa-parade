@@ -227,8 +227,15 @@ export const VERB_STACK_GAP_PX = 4;
  */
 export const TIME_MAP_MAX_EXTRAPOLATION_MS = 100;
 
-/** Sound-wave rings the level scene can show at once; a fifth wave reuses the oldest (they cost no draw call at rest). */
-export const SOUND_WAVE_POOL_SIZE = 4;
+/** Sound-wave rings the level scene can show at once; one more reuses the oldest (they cost no draw call at rest). Room for a 3-pulse telegraph and a response a moment later. */
+export const SOUND_WAVE_POOL_SIZE = 8;
+
+/**
+ * The shortest time between the start of two screen flashes, in real ms: a flash asked for sooner
+ * is skipped, so nothing flashes faster than 3 Hz (EXPERIENCE.md › Reduced motion, DESIGN.md
+ * `maxFlashHz: 3`). An accessibility rule, not a feel value: it is not in `feel.json`.
+ */
+export const SCREEN_FLASH_MIN_INTERVAL_MS = 334;
 
 /** A window modifier that changes nothing: fatigue's, when Papa is not tired, and instinct's until story 2.9 builds it. */
 export const NEUTRAL_WINDOW_MODIFIER = 1;
@@ -257,6 +264,9 @@ export const ADVANCE_MAX_STEPS = 360_000;
 
 /** The test API keeps this many sim events of the current level; beyond, the oldest are dropped (with a warning). */
 export const TEST_API_EVENT_LOG_MAX = 50_000;
+
+/** The test API keeps this many played cues (`__PP__.cueLog()`, story 2.4); beyond, the oldest are dropped. */
+export const TEST_API_CUE_LOG_MAX = 200;
 
 /** A prop whose lowest point is within this of the floor (y = 0) lies on it, in metres (`World.mess`, story 1.15). */
 export const PROP_ON_FLOOR_TOLERANCE_M = 0.02;

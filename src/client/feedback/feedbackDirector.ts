@@ -1,6 +1,7 @@
 import type { AudioBus, FeedbackCue, FeedbackTable } from '@content/schemas/feedback';
 import type { Haptics } from '@platform/platform';
 import { log } from '@shared/log';
+import { asSimMs } from '@shared/time';
 import type { SimObjectSpec, World } from '@sim';
 import type { LevelFx } from '../render/levelScene.ts';
 import type { FeedbackEventName } from './feedbackEvents.ts';
@@ -15,15 +16,26 @@ export interface FeedbackDirectorDeps {
   getScene(): LevelFx | null;
   /** `matchMedia('(prefers-reduced-motion: reduce)').matches` in boot. */
   prefersReducedMotion(): boolean;
-  /** Told the id of each cue played (the debug mirror). */
+  /**
+   * Draws the cue's screen flash (`pp-screen-flash`, real time) and says whether it did: false when
+   * the 3 Hz rule skipped it. `isMotionReduced` asks for the border glow instead.
+   */
+  flash?(peakOpacityPct: number, durationMs: number, isMotionReduced: boolean): boolean;
+  /**
+   * Told each visual part that actually ran, once per part: `soundWave` after the ring (once for
+   * all the pulses of a wave), `flash` after a flash that was drawn, `uiElement` for the screen
+   * element that stands in for the sound. A skipped ring or flash is not reported. Called before `onCue`.
+   */
+  onVisual?(cueId: string, kind: 'soundWave' | 'flash' | 'uiElement'): void;
+  /** Told the id of each cue played, after all its parts (the debug mirror). */
   onCue?(cueId: string): void;
 }
 
 export interface FeedbackDirector {
   /**
-   * Plays what the table says for `name`: the sound, its layers, the vibration, the ring and the
-   * camera effect of its cue, in that order, in this very call (response sound and haptic fire at
-   * judgement, never deferred). An event the table does not list does nothing. A part that cannot
+   * Plays what the table says for `name`: the sound, its layers, the vibration, the ring (its
+   * pulses start from the same call), the screen flash and the camera effect of its cue, in that
+   * order, in this very call (response sound and haptic fire at judgement, never deferred). An event the table does not list does nothing. A part that cannot
    * play is skipped and the others still play. `world` is read, never written.
    */
   handle(name: FeedbackEventName, world: Readonly<World> | null): void;
@@ -114,8 +126,8 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
     return null;
   };
 
-  // Plays the parts of one cue: the sound, its layers, the vibration, the ring, the camera effect,
-  // in that order. `name` is only what a warning calls it by (an event name, or `cue <id>`).
+  // Plays the parts of one cue: the sound, its layers, the vibration, the ring, the flash, the
+  // camera effect, in that order. `name` is only what a warning calls it by (an event name, or `cue <id>`).
   const play = (
     name: string,
     id: string,
@@ -139,33 +151,61 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
       const kind = cue.haptic;
       attempt(name, 'vibration', undefined, () => haptics.pulse(kind));
     }
+    const reportVisual = (kind: 'soundWave' | 'flash' | 'uiElement'): void => {
+      const { onVisual } = deps;
+      if (onVisual !== undefined)
+        attempt(name, 'visual report', undefined, () => onVisual(id, kind));
+    };
     // A `uiElement` visual is the screen element that fired the event (a stamped star, story 1.22
     // D6): it is already on screen, so there is nothing to draw here, and nothing to warn about.
+    if (cue.visual?.kind === 'uiElement') reportVisual('uiElement');
     const worldVisual = cue.visual?.kind === 'soundWave' ? cue.visual : undefined;
     // The world visuals need a world to read and a scene to draw on (neither exists for a client
     // event like the countdown tick: `content:check` refuses a world visual on such a cue).
-    if (world !== null && (worldVisual !== undefined || cue.camera !== undefined)) {
-      const scene = attempt(name, 'scene lookup', null, deps.getScene);
-      if (scene !== null) {
-        if (worldVisual !== undefined) {
-          const { anchor, maxRadiusM, durationMs } = worldVisual;
-          const at = anchorOf(anchor, world, threatId, objectId, name);
-          if (at !== null) {
-            attempt(name, 'ring', undefined, () =>
-              scene.soundWave(at.xM, at.zM, maxRadiusM, durationMs, world.time.sim),
-            );
-          }
+    const scene =
+      world !== null && (worldVisual !== undefined || cue.camera !== undefined)
+        ? attempt(name, 'scene lookup', null, deps.getScene)
+        : null;
+    if (world !== null && scene !== null && worldVisual !== undefined) {
+      const { anchor, maxRadiusM, durationMs, pulses = 1, pulseIntervalMs = 0 } = worldVisual;
+      const at = anchorOf(anchor, world, threatId, objectId, name);
+      if (at !== null) {
+        // The pulses are rings queued on the sim clock: a pause freezes them, a slow-mo slows them.
+        // Each pulse is guarded on its own: one that throws does not hide the ones already queued.
+        let isDrawn = false;
+        for (let pulse = 0; pulse < pulses; pulse++) {
+          const startAt = asSimMs(world.time.sim + pulse * pulseIntervalMs);
+          const isQueued = attempt(name, 'ring', false, () => {
+            scene.soundWave(at.xM, at.zM, maxRadiusM, durationMs, startAt);
+            return true;
+          });
+          isDrawn ||= isQueued;
         }
-        // A failing motion query counts as reduced motion: the safe side.
-        if (
-          cue.camera !== undefined &&
-          !attempt(name, 'motion query', true, deps.prefersReducedMotion)
-        ) {
-          const { amplitudeM, durationMs } = cue.camera;
-          attempt(name, 'camera effect', undefined, () =>
-            scene.shake(amplitudeM, durationMs, world.time.sim),
-          );
-        }
+        if (isDrawn) reportVisual('soundWave');
+      }
+    }
+    // The flash is a screen effect on real time: no world, no scene. The cue's author decides where
+    // it belongs. A failing motion query counts as reduced motion (the glow): the safe side.
+    const { flash: drawFlash } = deps;
+    // Asked once per cue, and only if the flash or the camera needs it.
+    let isMotionReducedMemo: boolean | undefined;
+    const isMotionReducedNow = (): boolean =>
+      (isMotionReducedMemo ??= attempt(name, 'motion query', true, deps.prefersReducedMotion));
+    if (cue.flash !== undefined && drawFlash !== undefined) {
+      const { peakOpacityPct, durationMs } = cue.flash;
+      const isMotionReduced = isMotionReducedNow();
+      const isDrawn = attempt(name, 'flash', false, () =>
+        drawFlash(peakOpacityPct, durationMs, isMotionReduced),
+      );
+      if (isDrawn) reportVisual('flash');
+    }
+    if (world !== null && scene !== null && cue.camera !== undefined) {
+      // A failing motion query counts as reduced motion: the safe side.
+      if (!isMotionReducedNow()) {
+        const { amplitudeM, durationMs } = cue.camera;
+        attempt(name, 'camera effect', undefined, () =>
+          scene.shake(amplitudeM, durationMs, world.time.sim),
+        );
       }
     }
     const { onCue } = deps;

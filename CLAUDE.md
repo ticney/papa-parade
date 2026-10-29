@@ -52,8 +52,15 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 | `npm run deploy:check -- <https url>` | Checks a deployed build: 200, `_headers` not published, the entry script, the CSP of `public/_headers` and `nosniff` on each response |
 | `npm run content:check` | Validate `content/**` against the Zod schemas, string references and generated JSON Schemas |
 | `npm run content:schemas` | Regenerate `content/_schemas/` (commit the result; never edit it by hand) |
+| `npm run ci:fast` | The quick loop (a few seconds, no browser): `typecheck`, `lint`, `content:check`, `test`. Run it after every task while developing |
 | `npm run ci` | Everything CI runs, in order, stopping at the first failure: `typecheck`, `lint`, `content:check`, `test:coverage`, `e2e`, `build:playtest`, `dist:check --flavor playtest`, `e2e:dist`, `build`, `dist:check --flavor prod`. `dist/` holds the **prod** build afterwards |
 | `npm run story:new -- <epic>-<story>` | Agents run it themselves (see Git workflow): gives the story its worktree `.claude/worktrees/<story-key>` (inside the repo, git-ignored) on `story/<story-key>` (from `main`, full key looked up in `sprint-status.yaml`, `npm ci` there unless `--skip-install`), or finds the one that already holds the branch; last line `WORKTREE=<path>` |
+
+**Which check, when (the full CI takes over 10 minutes; do not burn it on every change).**
+- *While developing a story*: after each task, `npm run ci:fast`, plus only the e2e specs the change can touch, on Chromium alone: `npx playwright test <spec files> --project=chromium`. A change to a shared contract (the `__PP__` API, the HUD, the director, content schemas) means running the specs that pin it (`testApi.spec.ts`, `ui.spec.ts`, `feedback.spec.ts`…), not the whole suite.
+- *Once per story, before the review*: one `npm run ci` on the branch, started only when `ci:fast` and the touched specs are already green. A red full CI is fixed with the failing spec alone, then the full CI is rerun once.
+- *Not rerun after a review fix that touches only docs or tests already run green*: rerun what the fix touches, and the full CI once before the merge.
+- `e2e:dist` and its `perf.spec.ts` (about 5 minutes of real time, one whole level at speed 1) are part of the full CI and of every playtest build; do not run them in the loop.
 
 **Trap: check `VITE_DEBUG_ALLOWED` in your shell before `dev`, `e2e` or `ci`.** The agent shell may export `VITE_DEBUG_ALLOWED=false` (inherited from the parent process, set in no dotfile). A process env var beats `.env.development` in Vite, so the dev server has no `data-pp-*` mirrors and no `window.__PP__`, and almost every e2e spec times out on `data-pp-app="start"` (134 of 140 fail). It looks like « no WebGL » but is not. Run `env | grep VITE_` first; if it is set, run these as `(unset VITE_DEBUG_ALLOWED; npm run ci)` (same for `npx playwright test`, `npm run dev`). `npm run build`, `build:playtest` and `e2e:dist` pin or ignore the flag and are fine either way.
 

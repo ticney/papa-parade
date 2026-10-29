@@ -1,0 +1,9 @@
+{
+  "cues": {
+    "resp_parry_perfect": {
+      "audio": { "clip": "resp_parry_perfect", "bus": "sfx", "gainPct": 100 },
+      "flash": null,
+      "haptic": "heavy"
+    }
+  }
+}

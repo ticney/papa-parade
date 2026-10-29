@@ -55,7 +55,14 @@
     "hold_closed": { "haptic": "medium" },
     "tel_silence_found": {
       "audio": { "clip": "tel_silence_found", "bus": "sfx", "gainPct": 90 },
-      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.8, "durationMs": 400 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.8,
+        "durationMs": 400,
+        "pulses": 2,
+        "pulseIntervalMs": 150
+      },
       "haptic": "light"
     },
     "gag_silence_mischief": {
@@ -65,7 +72,14 @@
     },
     "tel_outlet": {
       "audio": { "clip": "tel_outlet", "bus": "sfx", "gainPct": 90 },
-      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.6, "durationMs": 400 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.6,
+        "durationMs": 300,
+        "pulses": 3,
+        "pulseIntervalMs": 120
+      },
       "haptic": "light"
     },
     "resp_parry": {
@@ -77,6 +91,7 @@
       "audio": { "clip": "resp_parry", "bus": "sfx", "gainPct": 100 },
       "layers": [{ "clip": "baby_laugh_perfect", "bus": "voice", "gainPct": 100 }],
       "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.2, "durationMs": 450 },
+      "flash": { "peakOpacityPct": 35, "durationMs": 180 },
       "haptic": "heavy"
     },
     "resp_firm": {
@@ -88,6 +103,7 @@
       "audio": { "clip": "resp_firm", "bus": "sfx", "gainPct": 100 },
       "layers": [{ "clip": "baby_laugh_perfect", "bus": "voice", "gainPct": 100 }],
       "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.2, "durationMs": 450 },
+      "flash": { "peakOpacityPct": 35, "durationMs": 180 },
       "haptic": "heavy"
     },
     "gag_outlet": {
@@ -97,7 +113,7 @@
     },
     "tel_papa_microsleep": {
       "audio": { "clip": "tel_papa_microsleep", "bus": "sfx", "gainPct": 90 },
-      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.6, "durationMs": 400 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 900 },
       "haptic": "light"
     },
     "gag_papa_asleep": {
@@ -107,7 +123,14 @@
     },
     "tel_stairs": {
       "audio": { "clip": "tel_stairs", "bus": "sfx", "gainPct": 90 },
-      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.6, "durationMs": 400 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.8,
+        "durationMs": 450,
+        "pulses": 2,
+        "pulseIntervalMs": 200
+      },
       "haptic": "light"
     },
     "gag_stairs": {
@@ -117,7 +140,7 @@
     },
     "tel_coffee_table": {
       "audio": { "clip": "tel_coffee_table", "bus": "sfx", "gainPct": 90 },
-      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.6, "durationMs": 400 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.7, "durationMs": 500 },
       "haptic": "light"
     },
     "gag_coffee_table": {
@@ -127,7 +150,14 @@
     },
     "tel_phone_ring": {
       "audio": { "clip": "tel_phone_ring", "bus": "sfx", "gainPct": 90 },
-      "visual": { "kind": "soundWave", "anchor": "object", "maxRadiusM": 0.8, "durationMs": 900 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "object",
+        "maxRadiusM": 0.8,
+        "durationMs": 400,
+        "pulses": 2,
+        "pulseIntervalMs": 250
+      },
       "haptic": "light"
     },
     "papa_phone_answer": {

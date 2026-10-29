@@ -24,11 +24,14 @@ function audioCues(table: unknown): [string, Json][] {
   return Object.entries(cues as Record<string, Json>).filter(([, cue]) => isPresent(cue.audio));
 }
 
+/** A visual twin is a `visual` (ring or screen element) or a `flash`: a flash alone is something to see. */
+const hasVisualTwin = (cue: Json): boolean => isPresent(cue.visual) || isPresent(cue.flash);
+
 /** The cues of a feedback file that have an `audio` and lack a `visual` or a `haptic`, one message each. */
 function untwinnedCues(table: unknown): string[] {
   const problems: string[] = [];
   for (const [id, cue] of audioCues(table)) {
-    if (!isPresent(cue.visual)) problems.push(`cue "${id}" has an audio but no visual twin`);
+    if (!hasVisualTwin(cue)) problems.push(`cue "${id}" has an audio but no visual twin`);
     if (!isPresent(cue.haptic)) problems.push(`cue "${id}" has an audio but no haptic twin`);
   }
   return problems;
@@ -53,8 +56,14 @@ describe('feedbackEquivalence', () => {
     'audio-without-haptic.json': ['papa_bump:haptic'],
     'audio-without-either.json': ['papa_bump:visual', 'papa_bump:haptic'],
     'audio-with-null-twins.json': ['papa_bump:visual', 'papa_bump:haptic'],
+    'audio-with-null-flash.json': ['resp_parry_perfect:visual'],
   };
-  const MUST_PASS = ['haptic-only.json', 'visual-only.json', 'audio-with-both-twins.json'];
+  const MUST_PASS = [
+    'haptic-only.json',
+    'visual-only.json',
+    'audio-with-both-twins.json',
+    'audio-with-flash-only.json',
+  ];
 
   it('has exactly the fixtures this test declares', () => {
     expect(readdirSync(FIXTURES).sort()).toEqual([...Object.keys(MUST_FAIL), ...MUST_PASS].sort());

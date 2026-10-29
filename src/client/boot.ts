@@ -27,7 +27,7 @@ import { createLevelSession, type StartedLevel } from './app/levelSession.ts';
 import { bindOrientation } from './app/orientation.ts';
 import { createPauseController } from './app/pauseController.ts';
 import { bindSurface } from './app/surface.ts';
-import type { TestHost } from './app/testHost.ts';
+import type { CuePlayedRecord, TestHost } from './app/testHost.ts';
 import { readThreatsOff, withoutThreats } from './app/threatsSwitch.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
@@ -53,6 +53,7 @@ import { loadFonts } from './ui/fonts.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
+import { createScreenFlash } from './ui/hud/screenFlash.ts';
 import { createSilenceBubble } from './ui/hud/silenceBubble.ts';
 import { createTimerHud } from './ui/hud/timerHud.ts';
 import { createOverlayHost } from './ui/overlayHost.ts';
@@ -242,6 +243,7 @@ export async function boot(): Promise<void> {
       | 'ppCue'
       | 'ppFlow'
       | 'ppCueCount'
+      | 'ppFlashCount'
       | 'ppThreat'
       | 'ppThreatPx'
       | 'ppResponse'
@@ -300,6 +302,14 @@ export async function boot(): Promise<void> {
     },
   });
   let cuesPlayedCount = 0;
+  let flashesDrawnCount = 0;
+  // The full-screen flash of a perfect (story 2.4): one overlay in the HUD root, on real time.
+  const screenFlash = createScreenFlash(document, { nowReal: () => performance.now() });
+  hudRoot.append(screenFlash.element);
+  // The visuals the cue being played drew (`onVisual`), handed to the test host with `onCue`, which
+  // the director calls last. Debug builds only listen; an empty array otherwise.
+  const visualsOfCue: string[] = [];
+  const cuePlayedListeners: ((record: CuePlayedRecord) => void)[] = [];
   // One query, read live: the player can change the setting while the page is open.
   const reducedMotionQuery = matchMedia('(prefers-reduced-motion: reduce)');
   const prefersReducedMotion = (): boolean => reducedMotionQuery.matches;
@@ -312,8 +322,34 @@ export async function boot(): Promise<void> {
     // Where an `object`-anchored ring (the phone's) starts from.
     getObjects: () => levelSession.active?.sim.objects ?? NO_SIM_OBJECTS,
     prefersReducedMotion,
+    flash: (peakOpacityPct, durationMs, isMotionReduced) =>
+      screenFlash.flash(peakOpacityPct, durationMs, isMotionReduced),
+    onVisual: (_cueId, kind) => {
+      if (!isMirrored) return;
+      visualsOfCue.push(kind);
+      if (kind === 'flash') mirror('ppFlashCount', String(++flashesDrawnCount));
+    },
     onCue: (cueId) => {
       cuesPlayedCount++;
+      if (isMirrored) {
+        const record: CuePlayedRecord = {
+          cueId,
+          visuals: [...visualsOfCue],
+          atReal: performance.now(),
+          haptic: Object.hasOwn(feedbackTable.cues, cueId)
+            ? (feedbackTable.cues[cueId]?.haptic ?? null)
+            : null,
+        };
+        visualsOfCue.length = 0;
+        // A copy: a listener may unsubscribe while it runs. A throwing one does not stop the others.
+        for (const listener of [...cuePlayedListeners]) {
+          try {
+            listener(record);
+          } catch (error) {
+            log.warn('boot', 'a cue listener threw', { cueId, error: String(error) });
+          }
+        }
+      }
       if (isMirrored) {
         mirror('ppCue', cueId);
         mirror('ppCueCount', String(cuesPlayedCount));
@@ -327,6 +363,7 @@ export async function boot(): Promise<void> {
     mirror('ppMusic', 'off');
     mirror('ppHaptics', String(platform.capabilities.haptics));
     mirror('ppCueCount', '0');
+    mirror('ppFlashCount', '0');
   }
   // The context is suspended with every pause, the countdown's included, and resumed only when the
   // countdown is over; the loops follow the level. None of these throws: the engine logs its own.
@@ -1191,6 +1228,7 @@ export async function boot(): Promise<void> {
       },
       onLevelStarted: (listener) => subscribe(levelStartedListeners, listener),
       onSimEvent: (listener) => subscribe(simEventListeners, listener),
+      onCuePlayed: (listener) => subscribe(cuePlayedListeners, listener),
       onGameResumed: (listener) => events.on('GameResumed', listener),
       onRenderedFrame: (listener) => subscribe(renderedFrameListeners, listener),
       setGameInputBlocked: (isBlocked) => {

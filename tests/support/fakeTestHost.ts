@@ -1,6 +1,6 @@
 import type { LevelSession, StartedLevel } from '../../src/client/app/levelSession.ts';
 import type { PauseState } from '../../src/client/app/pauseController.ts';
-import type { TestHost } from '../../src/client/app/testHost.ts';
+import type { CuePlayedRecord, TestHost } from '../../src/client/app/testHost.ts';
 import type { InputDevice } from '../../src/client/input/inputMapper.ts';
 import type { RenderStats } from '../../src/client/render/renderer.ts';
 import type { ContentBundle } from '../../src/content/contentBundle.ts';
@@ -19,6 +19,7 @@ export interface FakeTestHost extends TestHost {
   fireGameResumed(): void;
   /** What `lastInputDevice()` answers from now on (default `null`: no input yet). */
   setLastInputDevice(device: InputDevice | null): void;
+  fireCuePlayed(record: CuePlayedRecord): void;
   /** One drawn level frame; the stats default to a small quiet scene at pixel ratio 2. */
   fireRenderedFrame(frameAtReal: number, stats?: Partial<RenderStats>): void;
   setPause(state: PauseState): void;
@@ -36,6 +37,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
   const levelListeners = new Set<(started: StartedLevel) => void>();
   const eventListeners = new Set<(event: SimEvent) => void>();
   const resumedListeners = new Set<() => void>();
+  const cueListeners = new Set<(record: CuePlayedRecord) => void>();
   const frameListeners = new Set<(frameAtReal: number, stats: Readonly<RenderStats>) => void>();
   const calls: string[] = [];
   let stepHook: ((sim: Sim) => void) | null = null;
@@ -71,6 +73,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     onLevelStarted: (listener) => subscribe(levelListeners, listener),
     onSimEvent: (listener) => subscribe(eventListeners, listener),
     onGameResumed: (listener) => subscribe(resumedListeners, listener),
+    onCuePlayed: (listener) => subscribe(cueListeners, listener),
     onRenderedFrame: (listener) => subscribe(frameListeners, listener),
     debugGroup: () => null,
     threatScreenPoints: () => [],
@@ -95,6 +98,9 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     },
     fireSimEvent: (event) => {
       for (const listener of [...eventListeners]) listener(event);
+    },
+    fireCuePlayed: (record) => {
+      for (const listener of [...cueListeners]) listener(record);
     },
     fireGameResumed: () => {
       for (const listener of [...resumedListeners]) listener();

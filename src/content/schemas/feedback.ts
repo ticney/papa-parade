@@ -1,3 +1,4 @@
+import { SCREEN_FLASH_MIN_INTERVAL_MS } from '@shared/constants';
 import { z } from 'zod';
 
 // Every key of content/feedback.json lives here (ADR-006, architecture › Retours multimodaux): the
@@ -99,6 +100,23 @@ const SoundWaveSchema = z
       .number()
       .positive()
       .describe('How long the ring takes to grow and fade, in sim ms.'),
+    pulses: z
+      .int()
+      .min(2)
+      .max(3)
+      .optional()
+      .describe('Rings sent one after the other (2 or 3); absent means one ring.'),
+    pulseIntervalMs: z
+      .number()
+      .positive()
+      .optional()
+      .describe(
+        'Delay between the start of two pulses, in sim ms. Needs `pulses`, and the reverse.',
+      ),
+  })
+  .refine((wave) => (wave.pulses === undefined) === (wave.pulseIntervalMs === undefined), {
+    error: 'pulses and pulseIntervalMs go together: give both or neither',
+    path: ['pulses'],
   })
   .describe('The visual twin of a sound.');
 
@@ -119,6 +137,25 @@ const ShakeSchema = z
     durationMs: z.number().positive().describe('How long the shake lasts, in sim ms.'),
   })
   .describe('A camera effect. Skipped under reduced motion.');
+
+const FlashSchema = z
+  .strictObject({
+    peakOpacityPct: z
+      .int()
+      .min(1)
+      .max(60)
+      .describe('Opacity of the flash at its start, in percent.'),
+    durationMs: z
+      .int()
+      .positive()
+      .max(SCREEN_FLASH_MIN_INTERVAL_MS)
+      .describe(
+        'How long the flash takes to fade out, in real ms. At most the 3 Hz interval, so a flash never restarts on itself.',
+      ),
+  })
+  .describe(
+    'A full-screen paper-white flash that fades, in real ms; under reduced motion a border glow instead; never more often than 3 Hz.',
+  );
 
 const CueSchema = z
   .strictObject({
@@ -141,6 +178,9 @@ const CueSchema = z
       .enum(HAPTIC_KINDS)
       .optional()
       .describe('Vibration played with the cue, one of `haptics`.'),
+    flash: FlashSchema.optional().describe(
+      'A screen flash, the mark of a perfect response. It also counts as a visual twin of the sound.',
+    ),
     camera: z
       .discriminatedUnion('kind', [ShakeSchema])
       .optional()
@@ -151,8 +191,9 @@ const CueSchema = z
       cue.audio !== undefined ||
       cue.visual !== undefined ||
       cue.haptic !== undefined ||
+      cue.flash !== undefined ||
       cue.camera !== undefined,
-    { error: 'a cue needs at least one of audio, visual, haptic, camera' },
+    { error: 'a cue needs at least one of audio, visual, haptic, flash, camera' },
   )
   .refine((cue) => cue.layers === undefined || cue.audio !== undefined, {
     error: 'a cue with layers needs an audio: the layers play right after it',
@@ -220,6 +261,7 @@ export const FeedbackTableSchema = z
 
 export type FeedbackTable = z.infer<typeof FeedbackTableSchema>;
 export type FeedbackCue = z.infer<typeof CueSchema>;
+export type FeedbackFlash = z.infer<typeof FlashSchema>;
 export type ResultScreenTimings = z.infer<typeof ResultScreenSchema>;
 export type AudioBus = (typeof AUDIO_BUSES)[number];
 export type HapticKind = (typeof HAPTIC_KINDS)[number];

@@ -71,6 +71,7 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   // that holds it is imported by the debug chunk only). Both live in the playtest bundle.
   'installPlaytestJournal',
   'papa-parade.journal',
+  'cueLog',
   'pp-debug-perf',
   // Story 2.1: the debug overlay's root CSS class, and the attribute Tweakpane's style sheet
   // carries (the feel panel's CSP workaround looks for it). Both live in the playtest bundle.

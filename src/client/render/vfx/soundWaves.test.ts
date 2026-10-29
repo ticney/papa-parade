@@ -81,14 +81,27 @@ describe('createSoundWaves', () => {
     expect(opacities[1]).toBeCloseTo(0.75, 9);
   });
 
-  it('shows at most the pool size, and a fifth wave reuses the oldest mesh', () => {
+  it('shows at most the pool size, and one more wave reuses the oldest mesh', () => {
     const { waves, meshes } = build();
     for (let i = 0; i < SOUND_WAVE_POOL_SIZE; i++) waves.play(i, 0, 1, 10_000, 100 * i);
     waves.update(2000);
     expect(meshes.filter((mesh) => mesh.visible)).toHaveLength(SOUND_WAVE_POOL_SIZE);
     waves.play(99, 0, 1, 10_000, 1500);
-    expect(meshes.map((mesh) => mesh.position.x)).toEqual([99, 1, 2, 3]);
+    expect(meshes.map((mesh) => mesh.position.x)).toEqual([
+      99,
+      ...Array.from({ length: SOUND_WAVE_POOL_SIZE - 1 }, (_, i) => i + 1),
+    ]);
     expect(meshes).toHaveLength(SOUND_WAVE_POOL_SIZE);
+  });
+
+  it('never overwrites a pulse still waiting to start: when all are queued, the new ring is dropped', () => {
+    const { waves, meshes } = build();
+    waves.update(0);
+    for (let i = 0; i < SOUND_WAVE_POOL_SIZE; i++) waves.play(i, 0, 1, 1000, 500 + 100 * i);
+    waves.play(99, 0, 1, 1000, 0);
+    expect(meshes.map((mesh) => mesh.position.x)).toEqual(
+      Array.from({ length: SOUND_WAVE_POOL_SIZE }, (_, i) => i),
+    );
   });
 
   it('takes a free slot before it reuses a live one', () => {

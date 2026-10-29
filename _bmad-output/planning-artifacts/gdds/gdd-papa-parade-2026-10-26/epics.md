@@ -2,7 +2,7 @@
 title: Papa Parade — Epics de développement
 gdd: gdd.md
 created: 2026-10-26
-updated: 2026-10-26
+updated: 2026-10-29
 ---
 
 # Papa Parade — Epics de développement
@@ -37,6 +37,7 @@ Détail des epics résumés dans `gdd.md`. Les stories sont de haut niveau ; ell
 - Un son culte par type de réponse, rire du bébé sur réponse parfaite.
 - Verbe d'un mot affiché sur chaque menace.
 - Code couleur et forme : bleu / cercle = parable, rouge / triangle = esquive.
+- Anneau-chrono autour de l'icône de menace : il se remplit du télégraphe à la fin de la fenêtre, le dernier arc marque la fenêtre de réponse. *(GDD v2.2, prototype)*
 - Retour haptique sur mobile.
 - Équivalents visuels de chaque signal sonore.
 - Calibration de la latence au premier lancement.
@@ -47,6 +48,7 @@ Détail des epics résumés dans `gdd.md`. Les stories sont de haut niveau ; ell
 **Objectif :** relier tous les systèmes par la jauge de bruit et rendre la fin de niveau mémorable.
 
 - Jauge de bruit et variante Sieste (fin anticipée au réveil de Maman). *(prototype)*
+- Séquelles des gags et jauge de catastrophe : pleine, Maman rentre et le niveau est perdu (0 étoile, photo du chaos, rejouer). *(GDD v2.2, prototype)*
 - Porte qui s'ouvre, rush final, photo de fin figée.
 - Réactions de Maman (rire, soupir, hurlement) converties en étoiles ; dégaine de papa.
 - Replay des meilleurs moments.

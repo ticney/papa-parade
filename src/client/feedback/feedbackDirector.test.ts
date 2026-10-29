@@ -80,6 +80,26 @@ const TABLE: FeedbackTable = {
       visual: { kind: 'soundWave', anchor: 'baby', maxRadiusM: 1, durationMs: 500 },
       haptic: 'light',
     },
+    pulsing: {
+      audio: { clip: 'tel_outlet', bus: 'sfx', gainPct: 80 },
+      visual: {
+        kind: 'soundWave',
+        anchor: 'threat',
+        maxRadiusM: 0.6,
+        durationMs: 300,
+        pulses: 3,
+        pulseIntervalMs: 120,
+      },
+      haptic: 'light',
+    },
+    flashy: {
+      audio: { clip: 'resp_parry', bus: 'sfx', gainPct: 100 },
+      visual: { kind: 'soundWave', anchor: 'papa', maxRadiusM: 1.2, durationMs: 450 },
+      flash: { peakOpacityPct: 35, durationMs: 180 },
+      haptic: 'heavy',
+      camera: { kind: 'shake', amplitudeM: 0.05, durationMs: 200 },
+    },
+    flashOnly: { flash: { peakOpacityPct: 20, durationMs: 100 } },
     star: {
       audio: { clip: 'ui_star_stamp', bus: 'ui', gainPct: 90 },
       visual: { kind: 'uiElement' },
@@ -88,6 +108,7 @@ const TABLE: FeedbackTable = {
   },
   events: {
     PapaBlocked: 'full',
+    NoiseAlertReached: 'flashOnly',
     CountdownTicked: 'tick',
     BabyStateChanged: 'babyRing',
     ResultLastStarStamped: 'star',
@@ -100,12 +121,25 @@ const OBJECTS: readonly SimObjectSpec[] = [
 ];
 
 function setup(
-  options: { reducedMotion?: boolean; hasScene?: boolean; hasObjects?: boolean } = {},
+  options: {
+    reducedMotion?: boolean;
+    hasScene?: boolean;
+    hasObjects?: boolean;
+    /** The 3 Hz rule skipped the flash. */
+    flashSkipped?: boolean;
+    hasFlash?: boolean;
+    /** Puts the visual reports in the trace, in order with the other parts. */
+    traceVisuals?: boolean;
+  } = {},
 ) {
   const trace: string[] = [];
+  const visuals: string[] = [];
+  let waveCount = 0;
   const fx: LevelFx = {
-    soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
-      trace.push(`wave:${xM},${zM},${maxRadiusM},${durationMs},${startAt}`),
+    soundWave: (xM, zM, maxRadiusM, durationMs, startAt) => {
+      if (state.throwOnWaveNumber === ++waveCount) throw new Error('ring on fire');
+      trace.push(`wave:${xM},${zM},${maxRadiusM},${durationMs},${startAt}`);
+    },
     shake: (amplitudeM, durationMs, startAt) =>
       trace.push(`shake:${amplitudeM},${durationMs},${startAt}`),
     gag: () => {},
@@ -119,6 +153,10 @@ function setup(
     throwOnGetScene: false,
     throwOnMotionQuery: false,
     throwOnCue: false,
+    throwOnFlash: false,
+    throwOnVisual: false,
+    /** The nth `soundWave` call (1-based) throws. */
+    throwOnWaveNumber: null as number | null,
   };
   const director = createFeedbackDirector({
     table: TABLE,
@@ -156,6 +194,20 @@ function setup(
       if (state.throwOnMotionQuery) throw new Error('no matchMedia');
       return options.reducedMotion ?? false;
     },
+    flash:
+      options.hasFlash === false
+        ? undefined
+        : (peakOpacityPct, durationMs, isMotionReduced) => {
+            if (state.throwOnFlash) throw new Error('screen on fire');
+            if (options.flashSkipped) return false;
+            trace.push(`flash:${peakOpacityPct},${durationMs},${isMotionReduced}`);
+            return true;
+          },
+    onVisual: (id, kind) => {
+      if (state.throwOnVisual) throw new Error('log on fire');
+      if (options.traceVisuals) trace.push(`visual:${id},${kind}`);
+      visuals.push(`${id},${kind}`);
+    },
     onCue: (id) => {
       if (state.throwOnCue) throw new Error('mirror on fire');
       trace.push(`cue:${id}`);
@@ -164,7 +216,7 @@ function setup(
   const warnings = (): string[] =>
     warnSpy.mock.calls.filter(([channel]) => channel === 'feedback').map(([, message]) => message);
   const start = warnings().length;
-  return { director, trace, state, newWarnings: () => warnings().slice(start) };
+  return { director, trace, visuals, state, newWarnings: () => warnings().slice(start) };
 }
 
 describe('feedbackDirector: a cue anchored on an object (story 1.20)', () => {
@@ -453,5 +505,144 @@ describe('feedbackDirector', () => {
         expect(newWarnings()).toEqual([expect.stringContaining(id)]);
       },
     );
+  });
+});
+
+describe('feedbackDirector: pulses, flash and the visual report (story 2.4)', () => {
+  const withThreat = (): World =>
+    ({ ...world, threats: [{ id: 7, xM: -3.95, zM: 0.5 }] }) as unknown as World;
+
+  it('queues the pulses of a wave on the sim clock, one haptic for all of them', () => {
+    const { director, trace, newWarnings } = setup({ traceVisuals: true });
+    const threat = { id: 7, xM: -3.95, zM: 0.5 };
+    director.playCue('pulsing', withThreat(), threat.id);
+    expect(trace).toEqual([
+      'audio:tel_outlet,sfx,80',
+      'haptic:light',
+      `wave:${threat.xM},${threat.zM},0.6,300,4200`,
+      `wave:${threat.xM},${threat.zM},0.6,300,4320`,
+      `wave:${threat.xM},${threat.zM},0.6,300,4440`,
+      'visual:pulsing,soundWave',
+      'cue:pulsing',
+    ]);
+    expect(newWarnings()).toEqual([]);
+  });
+
+  it('reports a pulsing wave once, not once per pulse', () => {
+    const { director, trace } = setup({ traceVisuals: true });
+    director.playCue('pulsing', withThreat(), 7);
+    expect(trace.filter((line) => line.startsWith('visual:'))).toEqual([
+      'visual:pulsing,soundWave',
+    ]);
+  });
+
+  it('plays the ring, then the flash, then the camera, then reports the cue', () => {
+    const { director, trace } = setup({ traceVisuals: true });
+    director.playCue('flashy', world, null);
+    expect(trace).toEqual([
+      'audio:resp_parry,sfx,100',
+      'haptic:heavy',
+      `wave:${world.papa.xM},${world.papa.zM},1.2,450,4200`,
+      'visual:flashy,soundWave',
+      'flash:35,180,false',
+      'visual:flashy,flash',
+      'shake:0.05,200,4200',
+      'cue:flashy',
+    ]);
+  });
+
+  it('asks for the border glow under reduced motion, and plays no camera effect', () => {
+    const { director, trace } = setup({ reducedMotion: true, traceVisuals: true });
+    director.playCue('flashy', world, null);
+    expect(trace).toContain('flash:35,180,true');
+    expect(trace.some((line) => line.startsWith('shake:'))).toBe(false);
+  });
+
+  it('flashes with no world: a client event may flash', () => {
+    const { director, trace } = setup({ traceVisuals: true });
+    director.handle('NoiseAlertReached', null);
+    expect(trace).toEqual(['flash:20,100,false', 'visual:flashOnly,flash', 'cue:flashOnly']);
+  });
+
+  it('does not report a flash that the 3 Hz rule skipped, and still reports the cue', () => {
+    const { director, trace, newWarnings } = setup({ flashSkipped: true, traceVisuals: true });
+    director.playCue('flashy', world, null);
+    expect(trace).not.toContain('visual:flashy,flash');
+    expect(trace).toContain('visual:flashy,soundWave');
+    expect(trace).toContain('shake:0.05,200,4200');
+    expect(trace.at(-1)).toBe('cue:flashy');
+    expect(newWarnings()).toEqual([]);
+  });
+
+  it('skips a flash when the director was given no flash dep, without a warning', () => {
+    const { director, trace, newWarnings } = setup({ hasFlash: false, traceVisuals: true });
+    director.playCue('flashy', world, null);
+    expect(trace.some((line) => line.startsWith('flash:'))).toBe(false);
+    expect(trace).not.toContain('visual:flashy,flash');
+    expect(newWarnings()).toEqual([]);
+  });
+
+  it('warns once for a flash that throws, and the camera and the cue still run', () => {
+    const { director, trace, state, newWarnings } = setup({ traceVisuals: true });
+    state.throwOnFlash = true;
+    director.playCue('flashy', world, null);
+    expect(newWarnings()).toEqual([expect.stringContaining('flash for cue flashy failed')]);
+    expect(trace).not.toContain('visual:flashy,flash');
+    expect(trace).toContain('shake:0.05,200,4200');
+    expect(trace.at(-1)).toBe('cue:flashy');
+  });
+
+  it('counts a failing motion query as reduced motion for the flash', () => {
+    const { director, trace, state } = setup({ traceVisuals: true });
+    state.throwOnMotionQuery = true;
+    director.playCue('flashy', world, null);
+    expect(trace).toContain('flash:35,180,true');
+  });
+
+  it('reports a uiElement visual once, and draws nothing', () => {
+    const { director, trace, newWarnings } = setup({ traceVisuals: true });
+    director.handle('ResultLastStarStamped', null);
+    expect(trace).toEqual([
+      'audio:ui_star_stamp,ui,90',
+      'haptic:heavy',
+      'visual:star,uiElement',
+      'cue:star',
+    ]);
+    expect(newWarnings()).toEqual([]);
+  });
+
+  it('does not report a ring that was skipped for a missing anchor, nor one that throws', () => {
+    const skipped = setup({ traceVisuals: true });
+    skipped.director.playCue('pulsing', world, null);
+    expect(skipped.trace.some((line) => line.startsWith('visual:'))).toBe(false);
+    const thrown = setup({ traceVisuals: true });
+    thrown.state.throwOnScene = true;
+    thrown.director.playCue('flashy', world, null);
+    expect(thrown.trace).not.toContain('visual:flashy,soundWave');
+    expect(thrown.trace).toContain('visual:flashy,flash');
+  });
+
+  it('keeps the pulses that were queued and reports the ring when a later pulse throws', () => {
+    const { director, trace, state, newWarnings } = setup({ traceVisuals: true });
+    state.throwOnWaveNumber = 2;
+    director.playCue('pulsing', withThreat(), 7);
+    expect(trace.filter((line) => line.startsWith('wave:'))).toHaveLength(2);
+    expect(trace).toContain('visual:pulsing,soundWave');
+    expect(newWarnings()).toEqual([expect.stringContaining('ring for cue pulsing failed')]);
+  });
+
+  it('asks the motion query once for a cue with a flash and a camera effect', () => {
+    const { director, state, newWarnings } = setup();
+    state.throwOnMotionQuery = true;
+    director.playCue('flashy', world, null);
+    expect(newWarnings()).toEqual([expect.stringContaining('motion query')]);
+  });
+
+  it('warns for the flash and for the other visual report that throws, and the cue is still reported', () => {
+    const { director, trace, state, newWarnings } = setup({ traceVisuals: true });
+    state.throwOnVisual = true;
+    director.playCue('flashy', world, null);
+    expect(newWarnings().filter((line) => line.includes('visual report'))).toHaveLength(2);
+    expect(trace.at(-1)).toBe('cue:flashy');
   });
 });

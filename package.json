@@ -31,6 +31,7 @@
     "assets:optimize": "tsx tools/assets/optimizeGlb.ts",
     "assets:audio": "tsx tools/audio/makePlaceholderAudio.ts",
     "story:new": "bash tools/git/newStoryWorktree.sh",
+    "ci:fast": "npm run typecheck && npm run lint && npm run content:check && npm run test",
     "ci": "npm run typecheck && npm run lint && npm run content:check && npm run test:coverage && npm run e2e && npm run build:playtest && npm run dist:check -- --flavor playtest && npm run e2e:dist && npm run build && npm run dist:check -- --flavor prod"
   },
   "dependencies": {
