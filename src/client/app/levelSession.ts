@@ -15,12 +15,15 @@ import { createGameLoop, type FrameScheduler, type GameLoop, type LoopStats } fr
 import { createLevelScene, type LevelScene, type SceneBodies } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import { createTimeMap, type TimeMap } from '../timeMap.ts';
+import type { Translator } from '../ui/strings.ts';
 import { type ThreatMarkerEntry, threatMarkerEntries } from '../ui/world/threatMarkers.ts';
 import type { AppFsm } from './appFsm.ts';
 import type { PauseController } from './pauseController.ts';
 
 export interface LevelSessionDeps {
   content: ContentBundle;
+  /** Translates the verb of each threat's marker, once per level (story 2.2). */
+  t: Translator;
   appFsm: AppFsm;
   pause: PauseController;
   renderer: GameRenderer;
@@ -460,6 +463,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
               levelAssets.geometry.anchors,
               levelPlan.threats,
               effective.baby.bodyRadiusM,
+              deps.t,
             ),
           );
         } catch (cause) {

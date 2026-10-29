@@ -1,6 +1,10 @@
+---
+baseline_commit: ec0a36b1bf7f0b94ba613d58562849b153d3a03f
+---
+
 # Story 2.2: Verb label and colour + shape icons
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -57,23 +61,23 @@ so that I understand without a tutorial, even if I am colour-blind.
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Content and schemas** (AC 1-4)
-  - [ ] `threat.ts`: `THREAT_ICON_SHAPES`, `THREAT_COLORS` (`as const` + types, like `THREAT_ICONS`), `verbKey`, `iconShape`, `color` in `baseShape` with `.describe(...)`; the `superRefine` rules of AC 1 next to the `holdUntilMs` one. Update the doc comment that says « Story 2.2 adds the verb, shape and colour ».
-  - [ ] `strings.fr.json`: `verb.catch`, `verb.remove`, `verb.wake_up`.
-  - [ ] The five `content/threats/*.json`, the frozen copies in `tests/`, inline test defs; `npm run content:schemas`.
-  - [ ] Schema tests (missing key ×3, wrong regex, null on a parry def, mismatched pair, triangle refused today) and the end-to-end missing-string tests in `loadContent.test.ts` and `checkContent.test.ts`; close the two `deferred-work.md` items.
-- [ ] **T2. Constants** (AC 6, 9, 11): in `src/shared/constants.ts`: `VERB_MIN_FONT_PX = 28`, `VERB_STROKE_PX = 5`, `VERB_MAX_WIDTH_PCT = 45`, `VERB_STACK_GAP_PX = 4`, each with a one-line doc saying where it comes from (DESIGN, or `[ASSUMPTION]` tuned after playtest). `verbLabelSpec.test.ts`.
-- [ ] **T3. Urgency helper** (AC 9): move the « closes first, ties to lower id » rule out of `pickAutoTarget` into one exported function (e.g. `compareUrgency(a, b)` / `threatCloseAt(threat)` in `src/client/input/urgency.ts`), used by both. `autoTarget.test.ts` unchanged and green.
-- [ ] **T4. Entries** (AC 5, 7, 12): `ThreatMarkerEntry` gains `readonly verb: string` (translated once at build; `''` when unknown), `readonly iconShape`, `readonly color`. `threatMarkerEntries` takes the defs' `verbKey | iconShape | color | response` and a `Translator`; `levelSession.ts` passes `t` (add it to its deps if it lacks it). Fallbacks: unknown def → `verb: ''`, `circle`, `parry`, with the existing single `warn`.
-- [ ] **T5. Marker DOM and CSS** (AC 5, 7, 8)
-  - [ ] `threatMarkers.ts`: a verb stack (chevron + `.pp-threat-verb`) above the icon; the icon's shape and colour from the entry (modifier classes, e.g. `pp-threat-icon--triangle`, and `--pp-threat-color: var(--pp-color-dodge)`); the triangle drawn as an SVG polygon with the ink stroke (a CSS `border` cannot follow a `clip-path`). Add the new classes to `THREAT_CLASSES`.
-  - [ ] `ui.css`: `.pp-threat-verb` (the `pp-type-verb` family; compact size under `:root[data-pp-surface="compact"]`; `white-space: nowrap`; `text-transform: uppercase`; `color: var(--pp-color-paper)`; `paint-order: stroke fill`; `text-shadow` hard ink like the mockup), `font-size: calc(var(--pp-verb-fit-px) * var(--pp-verb-scale, 1))`-style hook (D9); chevron moved; no `overflow`/`text-overflow` on the label. The stroke width is set inline from `VERB_STROKE_PX` (`-webkit-text-stroke: 2 × 5 px`, since `paint-order` hides the inner half), like the hold-ring takes its sizes from constants.
-- [ ] **T6. Fit and layout** (AC 6, 9): a pure, allocation-free `src/client/ui/world/verbLayout.ts` (`fitVerbFontPx(naturalWidthPx, basePx, maxWidthPx)` and a stacker over preallocated rect arrays); `ThreatMarkers` gains a `layout(camera, widthPx, heightPx)` (or equivalent) called from `worldUi.render` before `renderer.render`, and a refit on `setSize`, on the surface change, and after fonts load. Measure text widths with a single offscreen canvas `measureText` (font string per surface, built at refit, not per frame) rather than `offsetWidth` (the markers are `display: none` until shown).
-- [ ] **T7. Glyph chip** (AC 8): `showAt` places the chip beside the verb of the targeted marker (its offset and width), or beside the icon when the marker has no verb. Update `glyphChip.test.ts` and the `boot.ts` call.
-- [ ] **T8. Unit tests** (AC 10) in `threatMarkers.test.ts`, `verbLayout.test.ts`, `glyphChip.test.ts`, `worldUi.test.ts`, `levelSession.test.ts`, `urgency.test.ts`.
-- [ ] **T9. e2e** (AC 12, 13): extend `tests/e2e/threats.spec.ts`; refresh the darwin screenshots of `autoplay.spec.ts` and look at them.
-- [ ] **T10. Docs**: `deferred-work.md` (closed items, new open points: verb positions near the room edge, the chip's flip, the verb set), `project-context.md` only if a new rule emerges.
-- [ ] **T11. CI** (AC 15): `env | grep VITE_` first, then `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
+- [x] **T1. Content and schemas** (AC 1-4)
+  - [x] `threat.ts`: `THREAT_ICON_SHAPES`, `THREAT_COLORS` (`as const` + types, like `THREAT_ICONS`), `verbKey`, `iconShape`, `color` in `baseShape` with `.describe(...)`; the `superRefine` rules of AC 1 next to the `holdUntilMs` one. Update the doc comment that says « Story 2.2 adds the verb, shape and colour ».
+  - [x] `strings.fr.json`: `verb.catch`, `verb.remove`, `verb.wake_up`.
+  - [x] The five `content/threats/*.json`, the frozen copies in `tests/`, inline test defs; `npm run content:schemas`.
+  - [x] Schema tests (missing key ×3, wrong regex, null on a parry def, mismatched pair, triangle refused today) and the end-to-end missing-string tests in `loadContent.test.ts` and `checkContent.test.ts`; close the two `deferred-work.md` items.
+- [x] **T2. Constants** (AC 6, 9, 11): in `src/shared/constants.ts`: `VERB_MIN_FONT_PX = 28`, `VERB_STROKE_PX = 5`, `VERB_MAX_WIDTH_PCT = 45`, `VERB_STACK_GAP_PX = 4`, each with a one-line doc saying where it comes from (DESIGN, or `[ASSUMPTION]` tuned after playtest). `verbLabelSpec.test.ts`.
+- [x] **T3. Urgency helper** (AC 9): move the « closes first, ties to lower id » rule out of `pickAutoTarget` into one exported function (e.g. `compareUrgency(a, b)` / `threatCloseAt(threat)` in `src/client/input/urgency.ts`), used by both. `autoTarget.test.ts` unchanged and green.
+- [x] **T4. Entries** (AC 5, 7, 12): `ThreatMarkerEntry` gains `readonly verb: string` (translated once at build; `''` when unknown), `readonly iconShape`, `readonly color`. `threatMarkerEntries` takes the defs' `verbKey | iconShape | color | response` and a `Translator`; `levelSession.ts` passes `t` (add it to its deps if it lacks it). Fallbacks: unknown def → `verb: ''`, `circle`, `parry`, with the existing single `warn`.
+- [x] **T5. Marker DOM and CSS** (AC 5, 7, 8)
+  - [x] `threatMarkers.ts`: a verb stack (chevron + `.pp-threat-verb`) above the icon; the icon's shape and colour from the entry (modifier classes, e.g. `pp-threat-icon--triangle`, and `--pp-threat-color: var(--pp-color-dodge)`); the triangle drawn as an SVG polygon with the ink stroke (a CSS `border` cannot follow a `clip-path`). Add the new classes to `THREAT_CLASSES`.
+  - [x] `ui.css`: `.pp-threat-verb` (the `pp-type-verb` family; compact size under `:root[data-pp-surface="compact"]`; `white-space: nowrap`; `text-transform: uppercase`; `color: var(--pp-color-paper)`; `paint-order: stroke fill`; `text-shadow` hard ink like the mockup), `font-size: calc(var(--pp-verb-fit-px) * var(--pp-verb-scale, 1))`-style hook (D9); chevron moved; no `overflow`/`text-overflow` on the label. The stroke width is set inline from `VERB_STROKE_PX` (`-webkit-text-stroke: 2 × 5 px`, since `paint-order` hides the inner half), like the hold-ring takes its sizes from constants.
+- [x] **T6. Fit and layout** (AC 6, 9): a pure, allocation-free `src/client/ui/world/verbLayout.ts` (`fitVerbFontPx(naturalWidthPx, basePx, maxWidthPx)` and a stacker over preallocated rect arrays); `ThreatMarkers` gains a `layout(camera, widthPx, heightPx)` (or equivalent) called from `worldUi.render` before `renderer.render`, and a refit on `setSize`, on the surface change, and after fonts load. Measure text widths with a single offscreen canvas `measureText` (font string per surface, built at refit, not per frame) rather than `offsetWidth` (the markers are `display: none` until shown).
+- [x] **T7. Glyph chip** (AC 8): `showAt` places the chip beside the verb of the targeted marker (its offset and width), or beside the icon when the marker has no verb. Update `glyphChip.test.ts` and the `boot.ts` call.
+- [x] **T8. Unit tests** (AC 10) in `threatMarkers.test.ts`, `verbLayout.test.ts`, `glyphChip.test.ts`, `worldUi.test.ts`, `levelSession.test.ts`, `urgency.test.ts`.
+- [x] **T9. e2e** (AC 12, 13): extend `tests/e2e/threats.spec.ts`; refresh the darwin screenshots of `autoplay.spec.ts` and look at them.
+- [x] **T10. Docs**: `deferred-work.md` (closed items, new open points: verb positions near the room edge, the chip's flip, the verb set), `project-context.md` only if a new rule emerges.
+- [x] **T11. CI** (AC 15): `env | grep VITE_` first, then `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
 
 ## Dev Notes
 
@@ -201,14 +205,94 @@ Recent work on `main`: story 2.1 (debug overlay, `SetFeel`, feel-writer plugin, 
 
 ### Agent Model Used
 
+Claude Sonnet 5.5
+
 ### Implementation Plan
+
+- **T1, content.** `threat.ts` gains `verbKey` / `iconShape` / `color` in `baseShape` and one `superRefine` block: a `null` verb key is refused (only a `dodge` response has a default verb and none exists), a broken shape/colour pair is reported alone on `color`, and a `triangle` / `dodge` marker on a `parry` or `firm` def is reported on `iconShape` with a message pointing to story 5.1 (at most one issue per path). `THREAT_SHAPE_COLORS` is exported: the DESIGN drift test and the schema share it.
+- **T2, constants.** The four `VERB_*` constants in `constants.ts`; `verbLabelSpec.test.ts` ties `VERB_MIN_FONT_PX` / `VERB_STROKE_PX` to DESIGN and checks the pairs.
+- **T3, urgency.** `client/input/urgency.ts`: `threatCloseAt`, `compareUrgency`, `isMoreUrgent`. `pickAutoTarget` uses them (its tests are untouched and green).
+- **T4, entries.** `ThreatMarkerEntry` gains `verb`, `iconShape`, `color` and three mutable layout fields (`verbWidthPx`, `verbHeightPx`, `verbOffsetPx`) the chip reads. `threatMarkerEntries` takes a `Translator` (`levelSession` gets `t` as a dep, `boot` passes it) and a `ThreatMarkerDef` (`response: string`, so a hand-made `dodge` def can be tested).
+- **T5, marker DOM and CSS.** The chevron moved into a `pp-threat-verb-stack` (chevron over the verb, bottom-anchored above the icon); the triangle is an SVG polygon with an ink shadow polygon; `--pp-threat-color` is set inline from the def's `color`. `ui.css` has `.pp-threat-verb` (paper, `paint-order: stroke fill`, `-webkit-text-stroke` set inline to `2 × VERB_STROKE_PX`, `text-shadow: var(--pp-lift)`, no overflow / ellipsis / wrap).
+- **T6, fit and layout.** `verbLayout.ts` (pure: `fitVerbFontPx`, and a struct-of-arrays `VerbStack` with an insertion sort by urgency and a greedy push-up, allocation-free). `verbMetrics.ts` reads the typography (base size per surface, line height, `--pp-verb-scale`) from the CSS variables and measures with one offscreen canvas; it is injected, so tests need no DOM. `ThreatMarkers` gains `setSize` / `refit` / `layout(camera)`; `worldUi.render` runs `layout` and `glyphChip.refresh()` before the `CSS2DRenderer`; `setSize` and `document.fonts.ready` (in `boot.ts`) refit; `layout` refits when the surface key changes (no ordering assumption with `bindSurface`).
+- **T7, chip.** `showAt` hangs the chip from half the verb width and the verb's centre height through `--pp-chip-half` / `--pp-chip-rise` (a `--beside-verb` class), and beside the icon when there is no verb. `refresh()` re-places it after the layout, in the same frame.
 
 ### Debug Log References
 
+- **The fit counts the outline once.** First version fitted `advance + 2 × stroke` against the maximum; the stroke does not shrink with the font, so a shrunk verb's box came out 2 px over the maximum (found by a unit test). The text is now fitted against `max − 2 × stroke`, so the box with its outline is at most the maximum.
+- **Golden `levelHash` moved (AC 14).** `LevelContent` embeds the threat defs, so the frozen test defs gaining their keys (AC 3) changes `hashJson(level)`, which the journals store. Investigated before touching anything: `feelHash` and `geometryHash` did not move; after `golden:update`, `git diff tests/golden` shows **only the three `levelHash` lines** (`feel_change`, `outlet_parry`, `threat_trio`), and every `*.expected.json` (world hash + events) is byte-identical. So no sim behaviour changed; the refresh is a deliberate one, not a way to hide a change.
+- **`designTokens.test.ts` wants every `var(--x)` declared in the stylesheet**: the four custom properties the TS writes at run time (`--pp-threat-color`, `--pp-verb-offset`, `--pp-chip-half`, `--pp-chip-rise`) have a CSS default, which also removed the `var()` fallbacks.
+- **e2e: an anchor is planned once**, so two threats cannot share one anchor; the overlap test serves the live geometry with the stairs' anchor 20 cm from the outlet's (`page.route`). `ForceThreat` ignores a threat on Papa, so the micro-sleep test uses `SetFatigue` like `fatigue.spec.ts`.
+- `VITE_DEBUG_ALLOWED=false` was exported in the shell: every e2e / CI run was `(unset VITE_DEBUG_ALLOWED; …)`.
+
 ### Completion Notes List
 
+- ✅ **AC 1-3.** The three keys, the pair and response rules, the three new strings, the five content files, the seven frozen test defs and the regenerated `threat.schema.json`.
+- ✅ **AC 4, with one part that cannot be done as worded.** The missing-string test goes through the whole `checkContent` run (and a missing `verbKey` / `iconShape` / `color` through `loadLevelContent`). **`loadContent` cannot take that test**: it loads feel, feedback, bots and strings only, never a threat file, and `loadLevelContent` has no strings. A threat's string key is checked by `content:check` (CI) and, at run time, by `t()`. Both `deferred-work.md` items are marked: the « narrow detection » one resolved for `verbKey` (arrays and `hotKey`-style false positives stay open), the « end to end » one resolved for `checkContent` with the `loadContent` limit written down. Geo: say if you want the level's threat strings checked in the client's level loading.
+- ✅ **AC 5-9.** Verb above the icon, fitted (never under 28 px, never cut), circle / triangle from the def, chevron above the verb, chip beside it, overlap stacking with the most urgent in front, one shared urgency rule. Looked at in a real browser: stacking, chevron, chip and the triangle (the triangle by swapping the DOM by hand, since the schema refuses it until story 5.1).
+- ✅ **AC 10-12.** 80+ new unit tests (fit, stacking, entries, marker DOM, refit, layout, chip, `worldUi`, urgency, metrics), `verbLabelSpec.test.ts`, and in `threats.spec.ts` (chromium + webkit): each of the three threats shows its verb whole, ≥ 28 px, on a circle; the verb leaves with its icon; the micro-sleep's verb follows Papa; two overlapping verbs are offset, none intersects, the most urgent is in front; far-apart verbs are not touched.
+- ✅ **AC 13, screenshots.** `autoplay-frozen-{chromium,webkit}-darwin.png` refreshed on purpose and **looked at**: « SOULÈVE ! » in paper letters with the ink outline above the outlet's blue disc, the same in both browsers. The **linux ones are still stale** (since story 3.1, and now by the verb too): no Docker here, not regenerated, reported again in `deferred-work.md`.
+- ✅ **AC 14.** No sim change; the goldens' `levelHash` (not the world hash or the events) moved, see the Debug Log. This is the point to look at if you want to challenge a « no golden regeneration » reading of AC 14.
+- ✅ **AC 15.** `(unset VITE_DEBUG_ALLOWED; npm run ci)` is green (exit 0): typecheck, lint, `content:check`, 4110 unit tests with the `src/sim` coverage thresholds, 372 e2e (chromium + webkit), `dist:check` for both flavours, 8 `e2e:dist` specs and `perf.spec.ts` within budget (p95 16.7 ms, 34 draw calls at most, 890 triangles at most). No load-related rerun was needed.
+- **Design notes for review.** The layout works in screen space and only needs the verb sizes, not the icon's pixel size (the gap between icon and verb is common to all verbs and cancels). The verb's box is `fontPx × lineHeight + 2 × stroke` high. A verb is one DOM node per marker; `layout` allocates nothing (one `Vector3`, typed arrays sized at `mount`, strings for the z-index precomputed).
+- **Open points for Geo** (unchanged from the story): the verbs, `VERB_MAX_WIDTH_PCT` (45 %), `VERB_STACK_GAP_PX` (4 px), and how the verb behaves near the top or a side of the screen on a phone. New: on the first frame of the live level the outlet's verb sits next to the coffee machine's icon (deferred-work).
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/project-context.md`
+- `content/_schemas/threat.schema.json`
+- `content/strings.fr.json`
+- `content/threats/coffee_table_object.json`
+- `content/threats/outlet.json`
+- `content/threats/papa_microsleep.json`
+- `content/threats/silence_mischief.json`
+- `content/threats/stairs.json`
+- `src/client/app/levelSession.test.ts`
+- `src/client/app/levelSession.ts`
+- `src/client/boot.ts`
+- `src/client/input/autoTarget.ts`
+- `src/client/input/hitTest.test.ts`
+- `src/client/input/inputMapper.test.ts`
+- `src/client/input/urgency.test.ts`
+- `src/client/input/urgency.ts`
+- `src/client/ui/styles/ui.css`
+- `src/client/ui/world/glyphChip.test.ts`
+- `src/client/ui/world/glyphChip.ts`
+- `src/client/ui/world/threatMarkers.test.ts`
+- `src/client/ui/world/threatMarkers.ts`
+- `src/client/ui/world/verbLayout.test.ts`
+- `src/client/ui/world/verbLayout.ts`
+- `src/client/ui/world/verbMetrics.test.ts`
+- `src/client/ui/world/verbMetrics.ts`
+- `src/client/ui/world/worldUi.test.ts`
+- `src/client/ui/world/worldUi.ts`
+- `src/content/schemas/threat.ts`
+- `src/shared/constants.ts`
+- `tests/architecture/verbLabelSpec.test.ts`
+- `tests/content/checkContent.test.ts`
+- `tests/content/loadLevelContent.test.ts`
+- `tests/content/threatSchema.test.ts`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-chromium-darwin.png`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-webkit-darwin.png`
+- `tests/e2e/support/game.ts`
+- `tests/e2e/threats.spec.ts`
+- `tests/golden/journals/feel_change.json`
+- `tests/golden/journals/outlet_parry.json`
+- `tests/golden/journals/threat_trio.json`
+- `tests/support/testCoffeeTableObject.threat.json`
+- `tests/support/testCrying.threat.json`
+- `tests/support/testMicroSleep.threat.json`
+- `tests/support/testOutlet.threat.json`
+- `tests/support/testSilence.threat.json`
+- `tests/support/testStairs.threat.json`
+- `tests/threats/fixtures/test_firm.json`
+- `_bmad-output/implementation-artifacts/2-2-verbe-affiche-et-icones-couleur-forme.md`
+
+New files: `src/client/input/urgency.ts` (+ test), `src/client/ui/world/verbLayout.ts` (+ test), `src/client/ui/world/verbMetrics.ts` (+ test, not in the story's file table: the typography / canvas measure behind an injectable interface), `tests/architecture/verbLabelSpec.test.ts`.
 
 ### Change Log
 
 - 2026-10-29: Story created (ready-for-dev).
+- 2026-10-29: Status review; `npm run ci` green. Implemented: `verbKey` / `iconShape` / `color` on threat defs, the verb label (fit, stacking, urgency shared with the auto-target), the circle / triangle icon, the chip beside the verb; goldens' `levelHash` refreshed on purpose (no sim change); darwin screenshots refreshed.

@@ -367,7 +367,20 @@ describe('createInputMapper: movement', () => {
 
 describe('createInputMapper: threats', () => {
   /** An outlet-like icon at (-3, 0.3, 0.5): where it lands on screen with the test camera. */
-  const ICON = { threatId: 4, xM: -3, yM: 0.3, zM: 0.5, icon: 'bolt' as const, followsPapa: false };
+  const ICON = {
+    threatId: 4,
+    xM: -3,
+    yM: 0.3,
+    zM: 0.5,
+    icon: 'bolt' as const,
+    followsPapa: false,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
+  };
   const threat = (state: string, id = 4) => ({ id, state }) as never;
 
   function withThreat(state = 'windowOpen') {
@@ -947,6 +960,12 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
     zM: -2,
     icon: 'bolt' as const,
     followsPapa: false,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
   };
   const pxOf = (camera: Parameters<typeof Vector3.prototype.project>[0], o: typeof COFFEE) => {
     const v = new Vector3(o.xM, o.yM, o.zM).project(camera);

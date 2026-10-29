@@ -6,7 +6,24 @@ class FakeElement {
   ownerDocument = { defaultView: { Element: FakeElement } };
   parentNode: unknown = null;
   className = '';
-  style: Record<string, string> = {};
+  style: Record<string, unknown> = {
+    setProperty: (name: string, value: string) => {
+      this.vars.set(name, value);
+    },
+    removeProperty: (name: string) => {
+      this.vars.delete(name);
+    },
+  };
+  /** The custom properties written with `style.setProperty`. */
+  vars = new Map<string, string>();
+  classes = new Set<string>();
+  classList = {
+    toggle: (name: string, force: boolean) => {
+      if (force) this.classes.add(name);
+      else this.classes.delete(name);
+      return force;
+    },
+  };
   attributes = new Map<string, string>();
   children: FakeElement[] = [];
   private text = '';
@@ -47,6 +64,12 @@ const entry = (threatId: number, xM: number, yM: number, zM: number) => ({
   zM,
   icon: 'bolt' as const,
   followsPapa: false,
+  verb: '',
+  iconShape: 'circle' as const,
+  color: 'parry' as const,
+  verbWidthPx: 0,
+  verbHeightPx: 0,
+  verbOffsetPx: 0,
 });
 
 describe('createGlyphChip', () => {
@@ -110,5 +133,86 @@ describe('createGlyphChip', () => {
     chip.dispose();
     expect(scene.children).toHaveLength(0);
     expect(chip.isVisible).toBe(false);
+  });
+});
+
+describe('createGlyphChip beside the verb (story 2.2)', () => {
+  const BESIDE = 'pp-glyph-chip-anchor--beside-verb';
+  /** An entry whose verb box has been laid out: 200 px wide, 50 high, pushed up by 54 px. */
+  const withVerb = (offsetPx = 0) => ({
+    ...entry(1, 0, 0.3, 0),
+    verb: 'SOULÈVE !',
+    verbWidthPx: 200,
+    verbHeightPx: 50,
+    verbOffsetPx: offsetPx,
+  });
+
+  it('hangs from half the verb width and rises to the middle of the verb', () => {
+    const { chip, created } = build();
+    const anchor = created[0] as FakeElement;
+    chip.showAt(withVerb(), 'Espace');
+    expect(anchor.classes.has(BESIDE)).toBe(true);
+    expect(anchor.vars.get('--pp-chip-half')).toBe('100px');
+    expect(anchor.vars.get('--pp-chip-rise')).toBe('25px');
+  });
+
+  it('follows the verb when it is pushed up by the layout', () => {
+    const { chip, created } = build();
+    const anchor = created[0] as FakeElement;
+    const target = withVerb(0);
+    chip.showAt(target, 'Espace');
+    target.verbOffsetPx = 54;
+    // The layout runs after `showAt`, in `worldUi.render`: `refresh` moves the chip in the same frame.
+    chip.refresh();
+    expect(anchor.vars.get('--pp-chip-rise')).toBe('79px');
+  });
+
+  it('stays beside the icon for an entry with no verb, and leaves no variable behind', () => {
+    const { chip, created } = build();
+    const anchor = created[0] as FakeElement;
+    chip.showAt(withVerb(), 'Espace');
+    chip.showAt(entry(2, 1, 0.3, 1), 'Espace');
+    expect(anchor.classes.has(BESIDE)).toBe(false);
+    expect(anchor.vars.has('--pp-chip-half')).toBe(false);
+    expect(anchor.vars.has('--pp-chip-rise')).toBe(false);
+  });
+
+  it('writes a variable only when the verb box changes', () => {
+    const { chip, created } = build();
+    const anchor = created[0] as FakeElement;
+    let writes = 0;
+    const setProperty = anchor.style.setProperty as (name: string, value: string) => void;
+    anchor.style.setProperty = (name: string, value: string) => {
+      writes++;
+      setProperty(name, value);
+    };
+    const target = withVerb(0);
+    chip.showAt(target, 'Espace');
+    expect(writes).toBe(2);
+    for (let frame = 0; frame < 5; frame++) {
+      chip.showAt(target, 'Espace');
+      chip.refresh();
+    }
+    expect(writes).toBe(2);
+  });
+
+  it('refresh does nothing while hidden, and nothing after hide', () => {
+    const { chip, created } = build();
+    const anchor = created[0] as FakeElement;
+    const target = withVerb(0);
+    chip.refresh();
+    expect(anchor.vars.size).toBe(0);
+    chip.showAt(target, 'Espace');
+    chip.hide();
+    target.verbOffsetPx = 80;
+    chip.refresh();
+    expect(anchor.vars.get('--pp-chip-rise')).toBe('25px');
+    expect(chip.isVisible).toBe(false);
+  });
+
+  it('still moves to the point of the target', () => {
+    const { chip, scene } = build();
+    chip.showAt(withVerb(), 'Espace');
+    expect(scene.children[0]?.position.toArray()).toEqual([0, 0.3, 0]);
   });
 });

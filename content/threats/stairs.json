@@ -6,7 +6,10 @@
   "telegraphDelayMs": 1000,
   "windowMs": null,
   "gag": "stairs_slide",
+  "verbKey": "verb.catch",
   "icon": "stairs",
+  "iconShape": "circle",
+  "color": "parry",
   "feedback": {
     "telegraph": "tel_stairs",
     "success": "resp_parry",

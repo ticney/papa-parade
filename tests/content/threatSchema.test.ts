@@ -95,6 +95,88 @@ describe('content/threats/outlet.json', () => {
     expect(failedPaths(mutated(...changes))).toEqual(expected);
   });
 
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a missing verbKey (null is written, not omitted)', [['verbKey', undefined]], ['verbKey']],
+    ['a missing iconShape', [['iconShape', undefined]], ['iconShape']],
+    ['a missing color', [['color', undefined]], ['color']],
+    ['a verbKey outside the verb. group', [['verbKey', 'age.adult']], ['verbKey']],
+    ['a verbKey in camelCase', [['verbKey', 'verb.liftIt']], ['verbKey']],
+    ['a verbKey with nothing after the dot', [['verbKey', 'verb.']], ['verbKey']],
+    ['a verbKey that is a plain French word', [['verbKey', 'SOULÈVE !']], ['verbKey']],
+    [
+      'a null verbKey on a parry def (only a dodge has a default verb)',
+      [['verbKey', null]],
+      ['verbKey'],
+    ],
+    [
+      'a null verbKey on a firm def',
+      [
+        ['response', 'firm'],
+        ['holdUntilMs', 1500],
+        ['verbKey', null],
+      ],
+      ['verbKey'],
+    ],
+    ['an unknown iconShape', [['iconShape', 'square']], ['iconShape']],
+    ['an unknown color', [['color', 'green']], ['color']],
+    ['a circle that is not parry-coloured', [['color', 'dodge']], ['color']],
+    [
+      'a triangle with the parry colour (the pair is the signal)',
+      [['iconShape', 'triangle']],
+      ['color'],
+    ],
+    [
+      'a triangle / dodge marker on a parry def, until the dodge response exists',
+      [
+        ['iconShape', 'triangle'],
+        ['color', 'dodge'],
+      ],
+      ['iconShape'],
+    ],
+    [
+      'a triangle / dodge marker on a firm def',
+      [
+        ['response', 'firm'],
+        ['holdUntilMs', 1500],
+        ['iconShape', 'triangle'],
+        ['color', 'dodge'],
+      ],
+      ['iconShape'],
+    ],
+  ])('rejects %s (story 2.2)', (_name, changes, expected) => {
+    expect(failedPaths(mutated(...changes))).toEqual(expected);
+  });
+
+  it('tells that the triangle joins with the dodge response (story 5.1)', () => {
+    const result = mutated(['iconShape', 'triangle'], ['color', 'dodge']);
+    if (result.ok) throw new Error('expected a failure');
+    expect(result.error[0]?.message).toMatch(/dodge response \(story 5\.1\)/);
+  });
+
+  it('reports a broken pair alone, not once more as a response problem', () => {
+    const result = mutated(['iconShape', 'triangle']);
+    if (result.ok) throw new Error('expected a failure');
+    expect(result.error).toHaveLength(1);
+    expect(result.error[0]?.message).toMatch(/pair/);
+  });
+
+  it('accepts a circle + parry marker with a verb key, on an anchor, on Papa and on a firm def', () => {
+    expect(parse(real)).toMatchObject({ ok: true });
+    expect(mutated(['target', 'papa'])).toMatchObject({ ok: true });
+    expect(mutated(['response', 'firm'], ['holdUntilMs', 1500])).toMatchObject({ ok: true });
+    expect(mutated(['verbKey', 'verb.firm'])).toMatchObject({ ok: true });
+  });
+
+  it('copies the three keys into the parsed def', () => {
+    const parsed = parse(real);
+    if (!parsed.ok) throw new Error('expected the outlet to parse');
+    expect(parsed.value).toMatchObject({
+      verbKey: 'verb.lift',
+      iconShape: 'circle',
+      color: 'parry',
+    });
+  });
+
   it('accepts a gagCryMs (a whole number of sim ms) on an anchor threat, and no gagCryMs at all', () => {
     expect(mutated(['gagCryMs', 3000])).toMatchObject({ ok: true });
     expect(mutated(['gagCryMs', 1000])).toMatchObject({ ok: true });
@@ -194,6 +276,15 @@ describe('content/threats/silence_mischief.json (story 1.21)', () => {
       ['surpriseGags[0]'],
     ],
   ])('rejects %s', (_name, changes, expected) => {
+    expect(paths(withChanges(...changes))).toEqual(expected);
+  });
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a missing verbKey', [['verbKey', undefined]], ['verbKey']],
+    ['a missing iconShape', [['iconShape', undefined]], ['iconShape']],
+    ['a missing color', [['color', undefined]], ['color']],
+    ['a mismatched pair', [['color', 'dodge']], ['color']],
+  ])('rejects %s (story 2.2)', (_name, changes, expected) => {
     expect(paths(withChanges(...changes))).toEqual(expected);
   });
 

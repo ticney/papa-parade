@@ -2,6 +2,7 @@ import { AUTO_TARGET_EDGE_EPSILON_M, AUTO_TARGET_ON_PAPA_M } from '@shared/const
 import { log } from '@shared/log';
 import type { ThreatInstance } from '@sim';
 import type { FloorDir } from './moveDirection.ts';
+import { isMoreUrgent, threatCloseAt } from './urgency.ts';
 
 // A threat that is active but has no frozen window cannot happen (the window is frozen at the
 // telegraph); it is skipped and said once per threat instance (ids restart at 1 in every sim, the
@@ -33,7 +34,8 @@ export function pickAutoTarget(
   for (let i = 0; i < threats.length; i++) {
     const threat = threats[i] as Readonly<ThreatInstance>;
     if (threat.state !== 'telegraph' && threat.state !== 'windowOpen') continue;
-    if (threat.responseWindow === null) {
+    const closeAt = threatCloseAt(threat);
+    if (closeAt === null) {
       if (!warnedNoWindow.has(threat)) {
         warnedNoWindow.add(threat);
         log.warn('input', 'an active threat has no response window: not auto-targeted', {
@@ -42,10 +44,7 @@ export function pickAutoTarget(
       }
       continue;
     }
-    const closeAt = threat.windowOpenAt + threat.responseWindow.windowMs;
-    const isMoreUrgentAnywhere =
-      closeAt < anyCloseAt || (closeAt === anyCloseAt && threat.id < anyId);
-    if (isMoreUrgentAnywhere) {
+    if (isMoreUrgent(closeAt, threat.id, anyCloseAt, anyId)) {
       anyId = threat.id;
       anyCloseAt = closeAt;
     }
@@ -56,7 +55,7 @@ export function pickAutoTarget(
     const isInCone =
       distance <= AUTO_TARGET_ON_PAPA_M ||
       dx * aim.x + dz * aim.z >= cosHalf * distance - AUTO_TARGET_EDGE_EPSILON_M;
-    if (isInCone && (closeAt < bestCloseAt || (closeAt === bestCloseAt && threat.id < bestId))) {
+    if (isInCone && isMoreUrgent(closeAt, threat.id, bestCloseAt, bestId)) {
       bestId = threat.id;
       bestCloseAt = closeAt;
     }
