@@ -12,7 +12,9 @@ const SOUND_WAVE_LIFT_M = 0.006;
 export interface SoundWaves {
   /**
    * A ring on the floor at (`xM`, `zM`) that grows to `maxRadiusM` and fades over `durationMs`,
-   * counted from `startAt` (sim ms). It takes a free slot, or the oldest wave's.
+   * counted from `startAt` (sim ms). It takes a free slot, else the oldest wave that has started;
+   * when every slot is a pulse still waiting to start, the new ring is dropped (a queued pulse is
+   * never overwritten).
    */
   play(xM: number, zM: number, maxRadiusM: number, durationMs: number, startAt: number): void;
   /** Draws every wave at `clockMs` (sim ms): scale, opacity, and hidden once it is over. Allocates nothing. */
@@ -57,11 +59,15 @@ export function createSoundWaves(parent: Object3D, color: number): SoundWaves {
     waves.push({ mesh, material, isActive: false, startAt: 0, durationMs: 1, maxRadiusM: 1 });
   }
 
-  const pick = (): Wave => {
-    let oldest = waves[0] as Wave;
+  // The clock of the last `update`: what tells a started wave from a queued pulse.
+  let clockMs = 0;
+  const pick = (): Wave | null => {
+    let oldest: Wave | null = null;
     for (const wave of waves) {
       if (!wave.isActive) return wave;
-      if (wave.startAt < oldest.startAt) oldest = wave;
+      if (wave.startAt <= clockMs && (oldest === null || wave.startAt < oldest.startAt)) {
+        oldest = wave;
+      }
     }
     return oldest;
   };
@@ -69,6 +75,7 @@ export function createSoundWaves(parent: Object3D, color: number): SoundWaves {
   return {
     play(xM, zM, maxRadiusM, durationMs, startAt) {
       const wave = pick();
+      if (wave === null) return;
       wave.isActive = true;
       wave.startAt = startAt;
       wave.durationMs = durationMs;
@@ -76,7 +83,8 @@ export function createSoundWaves(parent: Object3D, color: number): SoundWaves {
       wave.mesh.position.x = xM;
       wave.mesh.position.z = zM;
     },
-    update(clockMs) {
+    update(nowMs) {
+      clockMs = nowMs;
       for (const wave of waves) {
         if (!wave.isActive) continue;
         const elapsedMs = clockMs - wave.startAt;
@@ -96,6 +104,7 @@ export function createSoundWaves(parent: Object3D, color: number): SoundWaves {
       }
     },
     reset() {
+      clockMs = 0;
       for (const wave of waves) {
         wave.isActive = false;
         wave.mesh.visible = false;

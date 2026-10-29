@@ -435,7 +435,11 @@ test.describe('HUD', () => {
           };
         };
         const hud = document.querySelector('#pp-hud') as HTMLElement;
-        const elements = [...hud.querySelectorAll<HTMLElement>('*')]; // #pp-hud itself is the whole screen
+        // #pp-hud itself is the whole screen; so is the screen flash (story 2.4), an overlay that
+        // draws nothing at rest and is no HUD zone.
+        const elements = [...hud.querySelectorAll<HTMLElement>('*')].filter(
+          (element) => !element.classList.contains('pp-screen-flash'),
+        );
         return {
           viewport: { width: innerWidth, height: innerHeight },
           row: box('.pp-hud-row'),

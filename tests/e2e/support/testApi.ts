@@ -51,3 +51,7 @@ export async function ppPerf(page: Page): Promise<ReturnType<PPTestApi['perf']>>
   if (report === null) throw new Error('window.__PP__ is not installed');
   return report;
 }
+
+/** The cues the director played, oldest first, with the visuals each drew (`__PP__.cueLog()`, story 2.4). */
+export const ppCueLog = (page: Page): Promise<ReturnType<PPTestApi['cueLog']>> =>
+  page.evaluate(() => window.__PP__?.cueLog() ?? []);

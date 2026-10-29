@@ -80,7 +80,7 @@ const JS_PROD = new Map([
 ]);
 const JS_PLAYTEST = new Map([
   ...JS_PROD,
-  ['assets/testApi-a.js', 'window.__PP__ = api; installTestApi'],
+  ['assets/testApi-a.js', 'window.__PP__ = api; installTestApi; cueLog'],
   ['assets/autoplay-a.js', 'installAutoplay'],
   ['assets/perfHud-a.js', 'installPerfHud pp-debug-perf copyLog'],
   [

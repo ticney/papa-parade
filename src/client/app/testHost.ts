@@ -12,6 +12,17 @@ export interface ThreatScreenPoint {
   readonly yPx: number;
 }
 
+/** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */
+export interface CuePlayedRecord {
+  readonly cueId: string;
+  /** The visual parts that actually ran, in order: `soundWave`, `flash`, `uiElement`. A skipped ring or flash is absent. */
+  readonly visuals: readonly string[];
+  /** The vibration kind the cue asks for, or `null`. */
+  readonly haptic: string | null;
+  /** When it was played, in real ms (`performance.now`): the 3 Hz rule of the flash is measured on it. */
+  readonly atReal: number;
+}
+
 /**
  * What the debug code (autoplay, `window.__PP__`) may do to the app. Built by `boot.ts` only, in
  * debug builds only. The debug modules receive it and never reach into `boot.ts`; a test passes a
@@ -28,6 +39,8 @@ export interface TestHost {
   /** Told each event after the app has handled it (feedback, choreography, mirrors). Do not keep the event. */
   onSimEvent(listener: (event: SimEvent) => void): () => void;
   onGameResumed(listener: () => void): () => void;
+  /** Told each cue the feedback director has played, after all its parts (`onCue`). Do not keep the record. */
+  onCuePlayed(listener: (record: CuePlayedRecord) => void): () => void;
   /**
    * Told after each level frame is drawn (the world UI included), with the real time of the frame
    * (`performance.now()`) and the renderer's stats. Level frames only: the start and Result

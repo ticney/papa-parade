@@ -410,6 +410,17 @@
                     "type": "number",
                     "exclusiveMinimum": 0,
                     "description": "How long the ring takes to grow and fade, in sim ms."
+                  },
+                  "pulses": {
+                    "description": "Rings sent one after the other (2 or 3); absent means one ring.",
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 3
+                  },
+                  "pulseIntervalMs": {
+                    "description": "Delay between the start of two pulses, in sim ms. Needs `pulses`, and the reverse.",
+                    "type": "number",
+                    "exclusiveMinimum": 0
                   }
                 },
                 "required": [
@@ -446,6 +457,29 @@
               "medium",
               "heavy"
             ]
+          },
+          "flash": {
+            "description": "A screen flash, the mark of a perfect response. It also counts as a visual twin of the sound.",
+            "type": "object",
+            "properties": {
+              "peakOpacityPct": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60,
+                "description": "Opacity of the flash at its start, in percent."
+              },
+              "durationMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 334,
+                "description": "How long the flash takes to fade out, in real ms. At most the 3 Hz interval, so a flash never restarts on itself."
+              }
+            },
+            "required": [
+              "peakOpacityPct",
+              "durationMs"
+            ],
+            "additionalProperties": false
           },
           "camera": {
             "description": "A camera effect, skipped under reduced motion.",

@@ -257,6 +257,23 @@ body {
   pointer-events: none;
 }
 
+/* The screen flash (story 2.4): the mark of a perfect response, in the HUD root so that it sits above
+   the world UI and below the pause panel (`#pp-ui`). It never takes a tap or focus. `screenFlash.ts`
+   animates its opacity in real ms; with reduced motion the same call shows a border glow instead. */
+.pp-screen-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--pp-color-paper);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pp-screen-flash--glow {
+  background: transparent;
+  box-shadow: inset 0 0 0 20px var(--pp-color-paper);
+}
+
 #pp-ui {
   position: fixed;
   inset: 0;

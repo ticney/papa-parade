@@ -539,6 +539,11 @@ describe('checkContent on threat files', () => {
 
   describe('the sounds of a threat (story 2.3)', () => {
     const FEEDBACK = 'content/feedback.json';
+    /** The problems about sounds: the cues these tests point at break the haptic and flash rules of story 2.4 too, which have tests of their own. */
+    const soundProblems = async () =>
+      (await checkContent(root)).filter(
+        (problem) => !/^the cue "[^"]+" (vibrates "|has (a|no) `flash`)/.test(problem.message),
+      );
     /** Adds cues to the temp `feedback.json` and points one role of the outlet at one of them. */
     const point = async (role: string, cueId: string, cue?: Record<string, unknown>) => {
       if (cue !== undefined) {
@@ -553,7 +558,7 @@ describe('checkContent on threat files', () => {
 
     it.each(['success', 'perfect'])('reports a %s cue with no audio', async (role) => {
       await point(role, 'quiet_response', { haptic: 'light' });
-      expect(await checkContent(root)).toEqual([
+      expect(await soundProblems()).toEqual([
         expect.objectContaining({
           file: FILE,
           jsonPath: `feedback.${role}`,
@@ -567,7 +572,7 @@ describe('checkContent on threat files', () => {
       ['perfect', 'resp_firm_perfect'],
     ])("reports a parry whose %s plays another response's cult sound", async (role, cueId) => {
       await point(role, cueId);
-      expect(await checkContent(root)).toEqual([
+      expect(await soundProblems()).toEqual([
         expect.objectContaining({
           file: FILE,
           jsonPath: `feedback.${role}`,
@@ -579,12 +584,12 @@ describe('checkContent on threat files', () => {
     it('accepts a perfect cue that shares the success clip: the type of response is what you hear', async () => {
       const live = JSON.parse(await readFile(join(root, FEEDBACK), 'utf8'));
       expect(live.cues.resp_parry_perfect.audio.clip).toBe(live.cues.resp_parry.audio.clip);
-      expect(await checkContent(root)).toEqual([]);
+      expect(await soundProblems()).toEqual([]);
     });
 
     it('reports a perfect cue with no layers: only the laugh tells it from the success', async () => {
       await point('perfect', 'resp_parry');
-      expect(await checkContent(root)).toEqual([
+      expect(await soundProblems()).toEqual([
         expect.objectContaining({
           file: FILE,
           jsonPath: 'feedback.perfect',
@@ -595,7 +600,7 @@ describe('checkContent on threat files', () => {
 
     it("reports a success cue that carries layers: the laugh is the perfect's", async () => {
       await point('success', 'resp_parry_perfect');
-      expect(await checkContent(root)).toEqual([
+      expect(await soundProblems()).toEqual([
         expect.objectContaining({
           file: FILE,
           jsonPath: 'feedback.success',
@@ -606,7 +611,7 @@ describe('checkContent on threat files', () => {
 
     it('reports a telegraph cue with no audio', async () => {
       await point('telegraph', 'quiet_telegraph', { haptic: 'light' });
-      expect(await checkContent(root)).toEqual([
+      expect(await soundProblems()).toEqual([
         expect.objectContaining({
           file: FILE,
           jsonPath: 'feedback.telegraph',
@@ -617,7 +622,7 @@ describe('checkContent on threat files', () => {
 
     it('reports a telegraph whose clip is not a tel_ clip', async () => {
       await point('telegraph', 'gag_outlet');
-      expect(await checkContent(root)).toEqual([
+      expect(await soundProblems()).toEqual([
         expect.objectContaining({
           file: FILE,
           jsonPath: 'feedback.telegraph',
@@ -628,7 +633,7 @@ describe('checkContent on threat files', () => {
 
     it('reports a gag cue with no audio', async () => {
       await point('gag', 'quiet_gag', { haptic: 'light' });
-      expect(await checkContent(root)).toEqual([
+      expect(await soundProblems()).toEqual([
         expect.objectContaining({
           file: FILE,
           jsonPath: 'feedback.gag',
@@ -639,7 +644,7 @@ describe('checkContent on threat files', () => {
 
     it('reports a gag whose clip is not a gag_ clip', async () => {
       await point('gag', 'tel_outlet');
-      expect(await checkContent(root)).toEqual([
+      expect(await soundProblems()).toEqual([
         expect.objectContaining({
           file: FILE,
           jsonPath: 'feedback.gag',
@@ -652,7 +657,7 @@ describe('checkContent on threat files', () => {
       const outlet = JSON.parse(await readFile(join(root, FILE), 'utf8'));
       outlet.id = 'plug';
       await put('content/threats/plug.json', `${JSON.stringify(outlet, null, 2)}\n`);
-      expect(await checkContent(root)).toEqual([
+      expect(await soundProblems()).toEqual([
         expect.objectContaining({
           file: 'content/threats/plug.json',
           jsonPath: 'feedback.telegraph',
@@ -661,7 +666,7 @@ describe('checkContent on threat files', () => {
       ]);
       await giveOwnTelegraph(outlet, 'plug');
       await put('content/threats/plug.json', `${JSON.stringify(outlet, null, 2)}\n`);
-      expect(await checkContent(root)).toEqual([]);
+      expect(await soundProblems()).toEqual([]);
     });
 
     it("reports a disruption's ring that sounds like a threat's telegraph", async () => {
@@ -676,7 +681,7 @@ describe('checkContent on threat files', () => {
       await mutateJson(PHONE, (phone) => {
         (phone.feedback as Record<string, string>).ring = 'ring_clash';
       });
-      expect(await checkContent(root)).toEqual([
+      expect(await soundProblems()).toEqual([
         expect.objectContaining({
           file: PHONE,
           jsonPath: 'feedback.ring',
@@ -857,6 +862,187 @@ describe('checkContent on threat files', () => {
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({ file: 'content/_schemas/threat.schema.json' }),
     ]);
+  });
+});
+
+describe('checkContent on the haptic and visual twins (story 2.4)', () => {
+  const OUTLET = 'content/threats/outlet.json';
+  const PHONE = 'content/disruptions/phone.json';
+  const FEEDBACK = 'content/feedback.json';
+
+  type Cue = Record<string, unknown>;
+  /** Adds a copy of the live cue `from`, changed by `change`, and points one role of the outlet at it. */
+  const pointOutlet = async (role: string, from: string, change: (cue: Cue) => void) => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const cues = feedback.cues as Record<string, Cue>;
+      const copy = structuredClone(cues[from]) as Cue;
+      change(copy);
+      cues.twin_test = copy;
+    });
+    await mutateJson(OUTLET, (threat) => {
+      (threat.feedback as Record<string, string>)[role] = 'twin_test';
+    });
+  };
+  const changeCue = (cueId: string, change: (cue: Cue) => void) =>
+    mutateJson(FEEDBACK, (feedback) =>
+      change((feedback.cues as Record<string, Cue>)[cueId] as Cue),
+    );
+
+  it.each([
+    ['medium', 'medium'],
+    ['none', undefined],
+  ])(
+    'reports a telegraph that vibrates %s: it is a short `light` vibration',
+    async (_name, haptic) => {
+      await changeCue('tel_outlet', (cue) => {
+        cue.haptic = haptic;
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: OUTLET,
+          jsonPath: 'feedback.telegraph',
+          message: expect.stringMatching(/"tel_outlet".*`light`/),
+        }),
+      ]);
+    },
+  );
+
+  it('reports a perfect that does not vibrate heavy', async () => {
+    await pointOutlet('perfect', 'resp_parry_perfect', (cue) => {
+      cue.haptic = 'medium';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: OUTLET,
+        jsonPath: 'feedback.perfect',
+        message: expect.stringMatching(/"twin_test".*"medium".*`heavy`/),
+      }),
+    ]);
+  });
+
+  it('reports a perfect that does not flash the screen', async () => {
+    await pointOutlet('perfect', 'resp_parry_perfect', (cue) => {
+      delete cue.flash;
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: OUTLET,
+        jsonPath: 'feedback.perfect',
+        message: expect.stringMatching(/"twin_test".*no `flash`/),
+      }),
+    ]);
+  });
+
+  it("reports a success that flashes: the flash is the perfect's mark", async () => {
+    await pointOutlet('success', 'resp_parry', (cue) => {
+      cue.flash = { peakOpacityPct: 35, durationMs: 180 };
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: OUTLET,
+        jsonPath: 'feedback.success',
+        message: expect.stringMatching(/"twin_test".*`flash`.*perfect/),
+      }),
+    ]);
+  });
+
+  it('reports a gag that does not vibrate heavy', async () => {
+    await pointOutlet('gag', 'gag_outlet', (cue) => {
+      cue.haptic = 'light';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: OUTLET,
+        jsonPath: 'feedback.gag',
+        message: expect.stringMatching(/"twin_test".*"light".*`heavy`/),
+      }),
+    ]);
+  });
+
+  it.each([
+    ['telegraph', 'tel_outlet'],
+    ['gag', 'gag_outlet'],
+  ])(
+    "reports a %s that flashes: the flash is the perfect's mark, the others keep their ring",
+    async (role, from) => {
+      await pointOutlet(role, from, (cue) => {
+        cue.flash = { peakOpacityPct: 35, durationMs: 180 };
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: OUTLET,
+          jsonPath: `feedback.${role}`,
+          message: expect.stringMatching(/"twin_test".*`flash`.*perfect/),
+        }),
+      ]);
+    },
+  );
+
+  it('accepts a flash on the cue of a client event (it needs no world)', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const cues = feedback.cues as Record<string, Cue>;
+      cues.client_flash = { haptic: 'light', flash: { peakOpacityPct: 35, durationMs: 180 } };
+      (feedback.events as Record<string, string>).CountdownTicked = 'client_flash';
+    });
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('reports a flash longer than the 3 Hz interval: it would restart on itself', async () => {
+    await pointOutlet('perfect', 'resp_parry_perfect', (cue) => {
+      cue.flash = { peakOpacityPct: 35, durationMs: 335 };
+    });
+    expect(await checkContent(root)).not.toEqual([]);
+  });
+
+  it('accepts the live cues: light telegraphs, heavy and flashing perfects, silent successes', async () => {
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('reports a disruption ring that does not vibrate light', async () => {
+    await changeCue('tel_phone_ring', (cue) => {
+      cue.haptic = 'heavy';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: PHONE,
+        jsonPath: 'feedback.ring',
+        message: expect.stringMatching(/"tel_phone_ring".*"heavy".*`light`/),
+      }),
+    ]);
+  });
+
+  it('reports ring waves that outlast the 1000 ms between two rings', async () => {
+    await changeCue('tel_phone_ring', (cue) => {
+      cue.visual = {
+        kind: 'soundWave',
+        anchor: 'object',
+        maxRadiusM: 0.8,
+        durationMs: 400,
+        pulses: 3,
+        pulseIntervalMs: 400,
+      };
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: PHONE,
+        jsonPath: 'feedback.ring',
+        message: expect.stringMatching(/"tel_phone_ring".*1200 ms.*1000 ms/),
+      }),
+    ]);
+  });
+
+  it('accepts ring waves that end exactly when the next ring starts', async () => {
+    await changeCue('tel_phone_ring', (cue) => {
+      cue.visual = {
+        kind: 'soundWave',
+        anchor: 'object',
+        maxRadiusM: 0.8,
+        durationMs: 400,
+        pulses: 2,
+        pulseIntervalMs: 600,
+      };
+    });
+    expect(await checkContent(root)).toEqual([]);
   });
 });
 

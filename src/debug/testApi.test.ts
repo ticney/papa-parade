@@ -1,5 +1,5 @@
 import type { ActiveLevel, LevelSession, LevelStartOutcome } from '@client/app/levelSession';
-import { ADVANCE_MAX_STEPS, STEP_MS, UINT32_RANGE } from '@shared/constants';
+import { ADVANCE_MAX_STEPS, STEP_MS, TEST_API_CUE_LOG_MAX, UINT32_RANGE } from '@shared/constants';
 import { log } from '@shared/log';
 import { createSim, type Sim, type SimEvent } from '@sim';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -486,10 +486,74 @@ describe('installTestApi', () => {
     const first = target.__PP__;
     expect(first).toBeDefined();
     expect(Object.keys(first ?? {}).sort()).toEqual(
-      ['advance', 'events', 'freeze', 'loadLevel', 'perf', 'send', 'setFeel', 'state'].sort(),
+      [
+        'advance',
+        'cueLog',
+        'events',
+        'freeze',
+        'loadLevel',
+        'perf',
+        'send',
+        'setFeel',
+        'state',
+      ].sort(),
     );
     installTestApi(target, host);
     expect(target.__PP__).toBe(first);
     expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('cueLog (story 2.4)', () => {
+  it('lists the cues played, oldest first, with the visuals each drew and its vibration', async () => {
+    const { api, host } = await createRig();
+    expect(api.cueLog()).toEqual([]);
+    host.fireCuePlayed({ cueId: 'tel_outlet', visuals: ['soundWave'], atReal: 0, haptic: 'light' });
+    host.fireCuePlayed({
+      cueId: 'resp_parry_perfect',
+      visuals: ['soundWave', 'flash'],
+      atReal: 0,
+      haptic: 'heavy',
+    });
+    host.fireCuePlayed({ cueId: 'silence_started', visuals: [], atReal: 0, haptic: null });
+    expect(api.cueLog()).toEqual([
+      { cueId: 'tel_outlet', visuals: ['soundWave'], atReal: 0, haptic: 'light' },
+      { cueId: 'resp_parry_perfect', visuals: ['soundWave', 'flash'], atReal: 0, haptic: 'heavy' },
+      { cueId: 'silence_started', visuals: [], atReal: 0, haptic: null },
+    ]);
+  });
+
+  it('hands out a copy: rewriting it does not rewrite the log', async () => {
+    const { api, host } = await createRig();
+    host.fireCuePlayed({ cueId: 'tel_outlet', visuals: ['soundWave'], atReal: 0, haptic: 'light' });
+    const first = api.cueLog();
+    expect(api.cueLog()).not.toBe(first);
+    const [record] = first;
+    if (record === undefined) throw new Error('the log is empty');
+    (record.visuals as string[]).push('flash');
+    first.length = 0;
+    expect(api.cueLog()).toEqual([
+      { cueId: 'tel_outlet', visuals: ['soundWave'], atReal: 0, haptic: 'light' },
+    ]);
+  });
+
+  it('keeps a copy of each record, whatever the app does with its own', async () => {
+    const { api, host } = await createRig();
+    const visuals = ['soundWave'];
+    host.fireCuePlayed({ cueId: 'tel_outlet', visuals, atReal: 0, haptic: 'light' });
+    visuals.length = 0;
+    expect(api.cueLog()[0]?.visuals).toEqual(['soundWave']);
+  });
+
+  it('keeps the last 200 records', async () => {
+    const { api, host } = await createRig();
+    for (let i = 0; i < 230; i++) {
+      host.fireCuePlayed({ cueId: `cue_${i}`, visuals: [], atReal: 0, haptic: null });
+    }
+    const kept = api.cueLog();
+    expect(TEST_API_CUE_LOG_MAX).toBe(200);
+    expect(kept).toHaveLength(TEST_API_CUE_LOG_MAX);
+    expect(kept[0]?.cueId).toBe('cue_30');
+    expect(kept.at(-1)?.cueId).toBe('cue_229');
   });
 });

@@ -518,3 +518,21 @@
 
 - **Telegraph and gag clips are unchanged placeholders.** Reason: they are already distinct (the tests and `content:check` prove it); Geo listens through the « Sons » board and asks for changes clip by clip.
 - **The catastrophe gauge's alert sound and the chrono-ring's last-arc vibration** (GDD v2.2) are not in `epics.md` yet. Reason: out of scope for 2.3; they arrive through `gds-correct-course`.
+
+## Story 2-4-equivalents-visuels-et-haptiques-complets (2026-10-29)
+
+- **More visual and camera kinds** (`flash`, `bubble`, `zoom`; the lines above): *story 2.4 (2026-10-29): `flash` is done, as a member of its own on the cue (D1), not a new `visual` kind. `bubble` is not needed: the silence's bubble is a HUD element (story 1.21). `zoom` stays with story 2.5.*
+- **Distinct haptics and visuals per telegraph** (the lines above, and « the four new cues copy the outlet's visuals »): *story 2.4 (2026-10-29): the visuals are distinct, by pulses, radius and duration (`feedback.json`, D2). The haptics stay `light` for every telegraph: FR57 asks for a short vibration, Safari iOS has none, and phones render short patterns too coarsely to tell apart. `content:check` pins the kinds.*
+- **The phone's ring twins** (« one vibration per ring is up to 15 in a row », « no persistent ringing marker »): *story 2.4 (2026-10-29): each ring sends two pulses (they end before the next ring, `content:check`) and one light vibration per second is kept. A vibration on the first ring only, or a persistent marker on the phone, is Geo's call after playing (Open point 3 of the story).*
+- **The « Vibrations » toggle and the volumes**: story 2.8. **Native haptics** (`@capacitor/haptics`): E8; the `Haptics` interface already isolates it.
+- **The epic stamp « PARADE PARFAITE », shake, particles, zoom**: story 2.5 (it sits above the flash, both non-blocking).
+- **The reduced-motion setting in the game**: story 2.10 (the flash reads the OS query through `prefersReducedMotion()`, as the director does; the in-game setting will feed the same function).
+- **The chrono-ring's last-arc vibration and the catastrophe gauge's alert** (GDD v2.2): out of scope, they arrive through `gds-correct-course`. `pulses` and `flash` will serve them.
+- **The 3 Hz rule skips a flash silently** (`SCREEN_FLASH_MIN_INTERVAL_MS`): two perfects less than 334 real ms apart flash once. Reason: it is the accessibility rule; a speed-4 autoplay run hits it, and `mute.spec.ts` allows it after a first flash. No counter of skipped flashes.
+- **The cue log keeps the last 200 cues** (`__PP__.cueLog()`), across levels (it is not reset at a level start). Reason: the muted spec reads one level; a longer session sees only its tail.
+
+## Deferred from: code review of story 2-4-equivalents-visuels-et-haptiques-complets (2026-10-29)
+
+- **The flash is not cancelled at level end, pause or result.** Reason: a fade is ≤ 180 ms and the HUD has no level-end hook yet; cancel it in `screenFlash` when one exists.
+- **The telegraph waves differ by only 50-100 ms of pulse timing** (same radius, 2 pulses for silence, stairs, phone). Reason: Geo tunes them after playing (story Open points); `content:check` pins only a different tuple.
+- **The glow thickness, `ease-out` easing and `z-index` of the screen flash are hard-coded** (`ui.css`, `screenFlash.ts`). Reason: only `peakOpacityPct` and `durationMs` are required in data; move them to `feedback.json` if Geo wants to tune the glow.
