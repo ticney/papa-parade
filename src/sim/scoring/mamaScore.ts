@@ -1,6 +1,7 @@
 import type { Feel } from '@content/schemas/feel';
 import { MAMA_SCORE_MAX_POINTS } from '@shared/constants';
 import type { StepContext } from '../context.ts';
+import type { LevelEndReason } from '../events.ts';
 import type { MamaScore, World } from '../world.ts';
 import { starsForScore } from './stars.ts';
 
@@ -21,9 +22,15 @@ const row = (value: number, maxPoints: number): number =>
  * Mama's note (GDD › economy, story 1.22): Rire + État du bébé + base − Soupir − Hurlement, each
  * component held to its range and rounded, the sum held to `[0, 100]`. With the refines of
  * `MamaSchema` (the maxima add up to 100, the base is the sigh and scream maxima) the rows always
- * add up to the score. Pure: it reads values and returns one.
+ * add up to the score. A woken Mama (story 3.2, D3) changes the stars only: she takes off
+ * `earlyWakePenaltyStars` of them (never below 0, `lostStars`), the four rows and the points stay
+ * those of a timer end. Pure: it reads values and returns one.
  */
-export function computeMamaScore(tally: ScoreTally, mama: Feel['mama']): MamaScore {
+export function computeMamaScore(
+  tally: ScoreTally,
+  mama: Feel['mama'],
+  isMamaWoke: boolean,
+): MamaScore {
   const laughPoints = row(tally.perfects * mama.laughPerPerfectPoints, mama.laughMaxPoints);
   const babyStatePoints = row(mama.babyStateFixedPoints, mama.babyStateMaxPoints);
   const sighPoints = row(
@@ -37,13 +44,16 @@ export function computeMamaScore(tally: ScoreTally, mama: Feel['mama']): MamaSco
     Math.max(laughPoints + babyStatePoints + mama.baseScorePoints - sighPoints - screamPoints, 0),
     MAMA_SCORE_MAX_POINTS,
   );
+  const baseStars = starsForScore(scorePoints, mama.starThresholdPoints);
+  const lostStars = isMamaWoke ? Math.min(mama.earlyWakePenaltyStars, baseStars) : 0;
   return {
     laughPoints,
     babyStatePoints,
     sighPoints,
     screamPoints,
     scorePoints,
-    stars: starsForScore(scorePoints, mama.starThresholdPoints),
+    stars: baseStars - lostStars,
+    lostStars,
   };
 }
 
@@ -51,14 +61,15 @@ export function computeMamaScore(tally: ScoreTally, mama: Feel['mama']): MamaSco
  * Gives the note, once, at the step the level ends (`runFlow`, right after `LevelEnded`; D1): reads
  * the counters and the mess of the frozen room (D5), writes `world.score.final` and emits
  * `LevelScored` at the same `t`. A helper, not a system: `runScoring` stays reserved for live
- * scoring (combos, E4).
+ * scoring (combos, E4). `reason` is why the level ended: a woken Mama costs stars.
  */
-export function scoreLevel(world: World, ctx: StepContext): void {
+export function scoreLevel(world: World, ctx: StepContext, reason: LevelEndReason): void {
   const { perfects, nearMisses } = world.score;
   const { propsOnFloor, propsBroken, mischiefs } = world.mess;
   const score = computeMamaScore(
     { perfects, nearMisses, propsOnFloor, propsBroken, mischiefs },
     ctx.feel.mama,
+    reason === 'mamaWoke',
   );
   world.score.final = score;
   ctx.events.push({ type: 'LevelScored', t: world.time.sim, ...score });

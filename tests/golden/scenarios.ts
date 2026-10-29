@@ -59,6 +59,12 @@ const pushProp = (t: number, propId: string, impulseXNs: number): SimCommand => 
   impulseZNs: 0,
 });
 
+const setNoise = (t: number, pct: number): SimCommand => ({
+  type: 'SetNoise',
+  t: asSimMs(t),
+  pct,
+});
+
 const setFeel = (
   t: number,
   patch: Extract<SimCommand, { type: 'SetFeel' }>['patch'],
@@ -197,6 +203,17 @@ export const SCENARIOS: readonly Scenario[] = [
     seed: 42,
     untilSimMs: 3000,
     actions: [{ atStep: 10, command: pushProp(100, 'mug_01', 0.72) }],
+  },
+  {
+    // Mama wakes (story 3.2): a level with the noise gauge, quiet until a debug `SetNoise` takes it to
+    // 100 % at 1 s. The next step ends the level: `MamaWoke`, `LevelEnded{mamaWoke}` and `LevelScored`
+    // with one lost star (a quiet start has stars to lose), then 1 s of a frozen world. The level lasts
+    // much longer than this: the early end is what pins the golden. `mamaWoke.test.ts` pins what it covers.
+    name: 'mama_woke',
+    level: createTestLevel({ gauges: NOISE_GAUGES }),
+    seed: 42,
+    untilSimMs: 2000,
+    actions: [{ atStep: 100, command: setNoise(1000, 100) }],
   },
   {
     // The three threats of the prototype, planned together in one wave from 0 ms (outlet, stairs,

@@ -30,14 +30,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 13;
+  version: 14;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -56,7 +56,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 13,
+    version: 14,
     seed,
     feelHash,
     geometryHash,
@@ -424,16 +424,29 @@ function onPhoneProblem(papa: unknown, disruptions: readonly { state: unknown }[
   return null;
 }
 
-function flowProblem(flow: unknown, nowMs: number, durationMs: number): string | null {
+/**
+ * `ended` before the level's time is up is only a woken Mama (story 3.2): the level has the noise
+ * gauge and it stands at 100 %, frozen there by the end.
+ */
+function flowProblem(
+  flow: unknown,
+  nowMs: number,
+  durationMs: number,
+  hasNoise: boolean,
+  gauges: unknown,
+): string | null {
   if (typeof flow !== 'object' || flow === null) return 'world.flow is missing';
   const slice = flow as Record<string, unknown>;
   if (!FLOW_STATES.includes(slice.state as FlowState)) return 'world.flow.state';
   if (!isFiniteNumber(slice.enteredAt) || (slice.enteredAt as number) < 0) {
     return 'world.flow.enteredAt';
   }
-  // A state is entered in the past, and the level only ends once its time is up.
+  // A state is entered in the past, and the level only ends once its time is up, or the noise is full.
   if ((slice.enteredAt as number) > nowMs) return 'world.flow.enteredAt';
-  if (slice.state === 'ended' && nowMs < durationMs) return 'world.flow.state';
+  if (slice.state === 'ended' && nowMs < durationMs) {
+    const noisePct = (gauges as Record<string, unknown> | null | undefined)?.noisePct;
+    if (!hasNoise || noisePct !== GAUGE_MAX_POINTS) return 'world.flow.state';
+  }
   return null;
 }
 
@@ -653,12 +666,13 @@ const MAMA_SCORE_KEYS = [
   'screamPoints',
   'scorePoints',
   'stars',
+  'lostStars',
 ] as const;
 
 /**
  * Mama's counters are non-negative integers; her note (story 1.22) is `null` while the level plays
  * and a whole `MamaScore` once it has ended (`runFlow` gives it in the ending step), with a score of
- * at most `MAMA_SCORE_MAX_POINTS` and at most five stars.
+ * at most `MAMA_SCORE_MAX_POINTS`, and at most five stars, the lost ones included.
  */
 function scoreProblem(score: unknown, isEnded: boolean): string | null {
   if (typeof score !== 'object' || score === null) return 'world.score is missing';
@@ -675,6 +689,9 @@ function scoreProblem(score: unknown, isEnded: boolean): string | null {
   }
   if ((note.scorePoints as number) > MAMA_SCORE_MAX_POINTS) return 'world.score.final.scorePoints';
   if ((note.stars as number) > STAR_COUNT_MAX) return 'world.score.final.stars';
+  if ((note.stars as number) + (note.lostStars as number) > STAR_COUNT_MAX) {
+    return 'world.score.final.lostStars';
+  }
   return null;
 }
 
@@ -743,7 +760,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
   return (
     disruptionsProblem(disruptions, planned.disruptions, clock.sim as number) ??
     onPhoneProblem(papa, disruptions as readonly { state: unknown }[]) ??
-    flowProblem(flow, clock.sim as number, planned.durationMs) ??
+    flowProblem(flow, clock.sim as number, planned.durationMs, planned.hasNoise, gauges) ??
     gaugesProblem(
       gauges,
       planned.microSleepIndex >= 0,
@@ -788,7 +805,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 13, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 14, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

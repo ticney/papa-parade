@@ -115,6 +115,11 @@ test.describe('the Result screen', () => {
     );
 
     await expect(page.locator(`${PANEL} .pp-star-earned`)).toHaveCount(scored.stars);
+    // A timer end (story 3.2): no header of a woken Mama, no lost slot, no « −1 ».
+    await expect(html(page)).toHaveAttribute('data-pp-end-reason', 'timer');
+    await expect(page.locator(`${PANEL} .pp-result-reason`)).toHaveCount(0);
+    await expect(page.locator(`${PANEL} .pp-star-lost`)).toHaveCount(0);
+    await expect(page.locator(`${PANEL} .pp-star-lost-chip`)).toHaveCount(0);
 
     const replay = page.locator(REPLAY);
     await expect(replay).toBeFocused();

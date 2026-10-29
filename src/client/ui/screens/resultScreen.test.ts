@@ -14,6 +14,8 @@ class FakeElement {
   type = '';
   tabIndex = 0;
   children: FakeElement[] = [];
+  readonly style = { setProperty: (name: string, value: string) => this.styles.set(name, value) };
+  styles = new Map<string, string>();
   attributes = new Map<string, string>();
   listeners = new Map<string, Set<Listener>>();
   readonly tag: string;
@@ -130,6 +132,7 @@ const SCORE: MamaScore = {
   screamPoints: 3,
   scorePoints: 73,
   stars: 3,
+  lostStars: 0,
 };
 const ROW_TOTALS = [32, 20, 9, 12];
 /** When the last row lands, from the build. */
@@ -143,6 +146,7 @@ function build(overrides: Partial<ResultScreenOptions> = {}) {
   const screen = createResultScreen({
     t: (key) => key,
     score: SCORE,
+    endReason: 'timer',
     maxima,
     timings,
     isDone: false,
@@ -150,6 +154,8 @@ function build(overrides: Partial<ResultScreenOptions> = {}) {
     now: clock.now,
     keyTarget: keys as never,
     onStar: (isLast) => calls.push(isLast ? 'last star' : 'star'),
+    onMamaWoke: () => calls.push('mama woke'),
+    onStarLost: () => calls.push('star lost'),
     onPhase: (phase) => phases.push(phase),
     onReplay: () => calls.push('replay'),
     doc: doc as never,
@@ -159,6 +165,7 @@ function build(overrides: Partial<ResultScreenOptions> = {}) {
   const panel = root.children[0] as FakeElement;
   const values = () => root.find('pp-score-value').map((node) => Number(node.textContent));
   const earned = () => root.find('pp-star-earned').length;
+  const lost = () => root.find('pp-star-lost').length;
   const stamped = () => root.find('pp-star-stamped').length;
   const actions = root.find('pp-result-actions')[0] as FakeElement;
   const replay = actions.children[0] as FakeElement;
@@ -173,6 +180,7 @@ function build(overrides: Partial<ResultScreenOptions> = {}) {
     keys,
     values,
     earned,
+    lost,
     stamped,
     actions,
     replay,
@@ -279,6 +287,7 @@ describe('createResultScreen', () => {
         screamPoints: maxima.screamMaxPoints,
         scorePoints: 30,
         stars: 1,
+        lostStars: 0,
       },
     });
     expect(values()).toEqual([0, 0, 0, 0]);
@@ -530,5 +539,196 @@ describe('createResultScreen', () => {
     expect(calls).toEqual([]);
     keys.dispatch('keydown', { code: 'Enter', repeat: false, preventDefault: () => undefined });
     expect(actions.hidden).toBe(true);
+  });
+});
+
+describe('createResultScreen: a woken Mama (story 3.2)', () => {
+  beforeEach(() => {
+    focused = null;
+  });
+
+  /** The mockup's state B, with its numbers: 2 base stars, 1 lost, 1 left. */
+  const WOKEN: MamaScore = { ...SCORE, scorePoints: 44, stars: 1, lostStars: 1 };
+  const woken = (overrides: Partial<ResultScreenOptions> = {}) =>
+    build({ endReason: 'mamaWoke', score: WOKEN, ...overrides });
+  /** When the last earned star of `WOKEN` (the only one) stamps. */
+  const FIRST_STAMP_MS = ROWS_END_MS + timings.starsDelayMs;
+
+  it('puts the header « result.mama_woke » over the card after a mamaWoke end, and none after a timer end', () => {
+    const { root, panel } = woken();
+    const header = root.find('pp-result-reason')[0] as FakeElement;
+    expect(header.tag).toBe('h2');
+    expect(header.textContent).toBe('result.mama_woke');
+    expect(header.classList.contains('pp-type-heading')).toBe(true);
+    expect(header.classList.contains('pp-result-reason-slam')).toBe(true);
+    expect(panel.children[0]).toBe(header);
+    expect(panel.classList.contains('pp-result-panel-woken')).toBe(true);
+    expect(build().panel.classList.contains('pp-result-panel-woken')).toBe(false);
+    expect(panel.children[1]?.classList.contains('pp-score-card')).toBe(true);
+    const timer = build();
+    expect(timer.root.find('pp-result-reason')).toHaveLength(0);
+    expect(timer.root.all().some((node) => node.tag === 'h2')).toBe(false);
+  });
+
+  it('calls onMamaWoke once, when the sequence starts, and never for a timer end', () => {
+    const { clock, calls } = woken();
+    expect(calls).toEqual(['mama woke']);
+    clock.advance(20_000);
+    expect(calls.filter((call) => call === 'mama woke')).toHaveLength(1);
+    expect(build().calls).toEqual([]);
+  });
+
+  it('shows the header at rest on a done build: no slam class, no onMamaWoke', () => {
+    const { root, calls } = woken({ isDone: true });
+    const header = root.find('pp-result-reason')[0] as FakeElement;
+    expect(header.textContent).toBe('result.mama_woke');
+    expect(header.classList.contains('pp-result-reason-slam')).toBe(false);
+    expect(calls).toEqual([]);
+  });
+
+  it('makes the slots after the earned ones lost slots, with a « −1 » chip, once the lost star stamps', () => {
+    const { root, clock, earned, lost } = woken();
+    clock.advance(FIRST_STAMP_MS);
+    expect(earned()).toBe(1);
+    expect(lost()).toBe(0);
+    expect(root.find('pp-star-lost-chip')).toHaveLength(0);
+    clock.advance(timings.starIntervalMs);
+    expect(lost()).toBe(1);
+    const slots = root.find('pp-stars')[0]?.children.filter((node) => node.tag === 'svg') ?? [];
+    expect(slots).toHaveLength(STAR_COUNT_MAX);
+    expect(slots.map((slot) => slot.classList.contains('pp-star-earned'))).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(slots.map((slot) => slot.classList.contains('pp-star-lost'))).toEqual([
+      false,
+      true,
+      false,
+      false,
+      false,
+    ]);
+    // A lost slot is never an earned one, and it stamps (the animation carries the tilt).
+    expect(slots[1]?.classList.contains('pp-star-stamped')).toBe(true);
+    expect(slots[1]?.classList.contains('pp-star-empty')).toBe(false);
+    const chips = root.find('pp-star-lost-chip');
+    expect(chips).toHaveLength(1);
+    expect(chips[0]?.textContent).toBe('result.star_lost');
+    expect(chips[0]?.styles.get('--pp-lost-from-end')).toBe('3');
+    // After the five slots: they stay the only `svg` children, the chip comes behind them.
+    const stars = root.find('pp-stars')[0] as FakeElement;
+    expect(stars.children.slice(0, STAR_COUNT_MAX).every((node) => node.tag === 'svg')).toBe(true);
+    expect(stars.children.slice(STAR_COUNT_MAX)).toEqual(chips);
+  });
+
+  it('stamps the lost star starIntervalMs after the last earned one, then brings the actions up after actionsDelayMs', () => {
+    const { clock, calls, actions, phases } = woken();
+    clock.advance(FIRST_STAMP_MS);
+    expect(calls).toEqual(['mama woke', 'last star']);
+    clock.advance(timings.starIntervalMs - 1);
+    expect(calls).toEqual(['mama woke', 'last star']);
+    clock.advance(1);
+    expect(calls).toEqual(['mama woke', 'last star', 'star lost']);
+    // The actions are after the lost star, not after the last earned one.
+    clock.advance(timings.actionsDelayMs - 1);
+    expect(actions.hidden).toBe(true);
+    clock.advance(1);
+    expect(actions.hidden).toBe(false);
+    expect(phases).toEqual(['rows', 'stars', 'actions']);
+    clock.advance(10_000);
+    expect(calls).toEqual(['mama woke', 'last star', 'star lost']);
+  });
+
+  it('calls onStarLost after the last onStar(true) and before the actions phase', () => {
+    const order: string[] = [];
+    const { clock } = woken({
+      onStar: (isLast) => order.push(isLast ? 'last star' : 'star'),
+      onStarLost: () => order.push('star lost'),
+      onPhase: (phase) => order.push(`phase ${phase}`),
+    });
+    clock.advance(20_000);
+    expect(order).toEqual(['phase rows', 'phase stars', 'last star', 'star lost', 'phase actions']);
+  });
+
+  it('with 0 earned stars and 1 lost, the lost star stamps right after starsDelayMs', () => {
+    const { clock, calls, lost, phases, root } = woken({
+      score: { ...WOKEN, scorePoints: 10, stars: 0, lostStars: 1 },
+    });
+    clock.advance(FIRST_STAMP_MS - 1);
+    expect(lost()).toBe(0);
+    clock.advance(1);
+    expect(phases).toEqual(['rows', 'stars']);
+    expect(lost()).toBe(1);
+    expect(calls).toEqual(['mama woke', 'star lost']);
+    expect(root.find('pp-star-lost-chip')[0]?.styles.get('--pp-lost-from-end')).toBe('4');
+    clock.advance(timings.actionsDelayMs);
+    expect(phases).toEqual(['rows', 'stars', 'actions']);
+  });
+
+  it('stamps several lost stars one after the other, starIntervalMs apart', () => {
+    const { clock, calls, lost, root } = woken({
+      score: { ...WOKEN, stars: 1, lostStars: 2 },
+    });
+    clock.advance(FIRST_STAMP_MS + timings.starIntervalMs);
+    expect(lost()).toBe(1);
+    clock.advance(timings.starIntervalMs);
+    expect(lost()).toBe(2);
+    expect(calls.filter((call) => call === 'star lost')).toHaveLength(2);
+    expect(
+      root.find('pp-star-lost-chip').map((chip) => chip.styles.get('--pp-lost-from-end')),
+    ).toEqual(['3', '2']);
+  });
+
+  it('places the lost star silently on a skip: no onStarLost, chip there', () => {
+    const { root, clock, calls, lost, earned, stamped, actions } = woken();
+    clock.advance(timings.rowCountUpMs / 3);
+    root.dispatch('pointerdown', { pointerId: 7, isPrimary: true });
+    root.dispatch('pointerup', { pointerId: 7 });
+    expect(earned()).toBe(1);
+    expect(lost()).toBe(1);
+    expect(stamped()).toBe(0);
+    expect(root.find('pp-star-lost-chip')).toHaveLength(1);
+    expect(actions.hidden).toBe(false);
+    clock.advance(10_000);
+    expect(calls).toEqual(['mama woke']);
+  });
+
+  it('places the lost star silently on a done build', () => {
+    const { root, calls, lost, earned, clock } = woken({ isDone: true });
+    expect(earned()).toBe(1);
+    expect(lost()).toBe(1);
+    expect(root.find('pp-star-lost-chip')).toHaveLength(1);
+    expect(clock.pending).toBe(0);
+    expect(calls).toEqual([]);
+  });
+
+  it('labels the stars with the lost one when there is one, and with the plain label otherwise', () => {
+    const t = (key: string): string =>
+      key === 'result.stars_lost_label'
+        ? '{count} sur {max}, {lost} en moins'
+        : key === 'result.stars_label'
+          ? '{count} sur {max}'
+          : key;
+    expect(woken({ t }).root.find('pp-stars')[0]?.attributes.get('aria-label')).toBe(
+      `1 sur ${STAR_COUNT_MAX}, 1 en moins`,
+    );
+    expect(build({ t }).root.find('pp-stars')[0]?.attributes.get('aria-label')).toBe(
+      `3 sur ${STAR_COUNT_MAX}`,
+    );
+  });
+
+  it('never makes more lost slots than there are slots after the earned ones', () => {
+    const { lost } = woken({ score: { ...WOKEN, stars: 4, lostStars: 3 }, isDone: true });
+    expect(lost()).toBe(1);
+  });
+
+  it('keeps a timer end exactly as before: no lost slot, no chip, no onStarLost', () => {
+    const { clock, root, calls, lost } = build();
+    clock.advance(20_000);
+    expect(lost()).toBe(0);
+    expect(root.find('pp-star-lost-chip')).toHaveLength(0);
+    expect(calls).toEqual(['star', 'star', 'last star']);
   });
 });

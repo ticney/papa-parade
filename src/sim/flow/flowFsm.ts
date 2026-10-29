@@ -1,8 +1,9 @@
 import type { World } from '../world.ts';
 
 /**
- * The level's flow: `playing` until the level's clock runs out, then `ended`. (Story E3's Retour
- * variant adds states between the two: the door, the final rush.)
+ * The level's flow: `playing` until the level's clock runs out or the noise wakes Mama (story 3.2),
+ * then `ended`. (Story E3's Retour variant adds states between the two: the door, the final rush,
+ * stories 3.5 and 3.10.)
  */
 export type FlowState = 'playing' | 'ended';
 

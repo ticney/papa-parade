@@ -11,6 +11,7 @@ import {
   SAMPLE_RATE_HZ,
   synthBabble,
   synthBump,
+  synthDoorSlam,
   synthGagCoffeeTable,
   synthGagOutlet,
   synthGagPapaAsleep,
@@ -20,6 +21,7 @@ import {
   synthParry,
   synthParryPerfect,
   synthPhoneAnswer,
+  synthStarLost,
   synthStarStamp,
   synthStarStampLast,
   synthTelegraph,
@@ -185,6 +187,20 @@ describe('placeholder audio', () => {
   it('lists the two star stamps by the names the feedback table uses', () => {
     const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
     for (const clip of ['ui_star_stamp', 'ui_star_stamp_last']) {
+      expect(names, clip).toContain(clip);
+    }
+  });
+
+  it('has the lengths of the Mama-woke clips: a 400 ms door slam and a 180 ms falling blip', () => {
+    const ms = (samples: Float32Array): number => (samples.length / SAMPLE_RATE_HZ) * 1000;
+    expect(ms(synthDoorSlam())).toBeCloseTo(400, 0);
+    expect(ms(synthStarLost())).toBeCloseTo(180, 0);
+    expect(synthStarLost()).not.toEqual(synthStarStamp());
+  });
+
+  it('lists the two Mama-woke clips by the names the feedback table uses', () => {
+    const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+    for (const clip of ['env_door_slam', 'ui_star_lost']) {
       expect(names, clip).toContain(clip);
     }
   });

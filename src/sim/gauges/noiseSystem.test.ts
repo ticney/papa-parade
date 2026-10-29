@@ -234,20 +234,24 @@ describe('the noise through a real sim', () => {
     return from.filter((event) => event.type === 'NoiseChanged');
   };
 
+  // Story 3.2: SetNoise lands after the step's decay, so the commanded value is the one the step
+  // ends on (before, `SetNoise{pct: 100}` ended the step at 99.99 and could never wake Mama).
   it('SetNoise puts the value there through addNoise with the source debug, and clamps', async () => {
     const sim = await newSim();
     sim.enqueue({ type: 'SetNoise', t: asSimMs(sim.world.time.sim), pct: 90 });
     stepN(sim, 1);
-    expect(sim.world.gauges.noisePct).toBeCloseTo(90 - DECAY_PER_STEP, 9);
+    expect(sim.world.gauges.noisePct).toBe(90);
     expect(noiseEvents(sim)).toEqual([
       expect.objectContaining({ source: 'debug', deltaPct: 90, noisePct: 90 }),
     ]);
-    sim.enqueue({ type: 'SetNoise', t: asSimMs(sim.world.time.sim), pct: 250 });
-    stepN(sim, 1);
-    expect(sim.world.gauges.noisePct).toBeCloseTo(100 - DECAY_PER_STEP, 9);
     sim.enqueue({ type: 'SetNoise', t: asSimMs(sim.world.time.sim), pct: -40 });
     stepN(sim, 1);
     expect(sim.world.gauges.noisePct).toBe(0);
+    // Above the top it clamps to exactly 100, which wakes Mama (story 3.2): the level ends there.
+    sim.enqueue({ type: 'SetNoise', t: asSimMs(sim.world.time.sim), pct: 250 });
+    stepN(sim, 1);
+    expect(sim.world.gauges.noisePct).toBe(100);
+    expect(sim.world.flow.state).toBe('ended');
   });
 
   it('ignores SetNoise in a level with no noise gauge', async () => {
