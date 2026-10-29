@@ -47,7 +47,12 @@ const PLAYTEST_MANIFEST: DistManifest = {
       'src/debug/autoplay.ts',
       'src/debug/perfHud.ts',
       'src/debug/debugOverlay.ts',
+      'src/debug/playtestJournal.ts',
     ],
+  },
+  'src/debug/playtestJournal.ts': {
+    file: 'assets/playtestJournal-a.js',
+    src: 'src/debug/playtestJournal.ts',
   },
   'src/debug/testApi.ts': { file: 'assets/testApi-a.js', src: 'src/debug/testApi.ts' },
   'src/debug/autoplay.ts': { file: 'assets/autoplay-a.js', src: 'src/debug/autoplay.ts' },
@@ -68,6 +73,7 @@ const FILES: DistFile[] = [
   file('assets/autoplay-a.js', 5000, 2400),
   file('assets/perfHud-a.js', 2000, 900),
   file('assets/debugOverlay-a.js', 60_000, 18_000),
+  file('assets/playtestJournal-a.js', 40_000, 12_000),
   file('assets/levels/salon_crawler.glb', 21_000, 9000),
   file('assets/audio/pop.m4a', 100_000, 98_000),
   file('assets/audio/laugh.m4a', 150_000, 148_000),
@@ -87,11 +93,15 @@ const JS_PLAYTEST = new Map([
     'assets/debugOverlay-a.js',
     'className = "pp-debug-overlay"; el.setAttribute("data-tp-style", "")',
   ],
+  [
+    'assets/playtestJournal-a.js',
+    'export { installPlaytestJournal }; z.literal("papa-parade.journal"); copyLog() {}',
+  ],
 ]);
 
 const prodInput = (over: Partial<DistInput> = {}): DistInput => ({
   manifest: PROD_MANIFEST,
-  files: FILES.filter((f) => !/testApi|autoplay|perfHud/.test(f.path)),
+  files: FILES.filter((f) => !/testApi|autoplay|perfHud|debugOverlay|playtestJournal/.test(f.path)),
   jsText: JS_PROD,
   indexHtml:
     '<script type="module" src="./assets/index-a.js"></script><link href="./assets/index-a.css">',
@@ -254,6 +264,7 @@ describe('inspectDist: prod', () => {
   it.each([
     'src/debug/testApi.ts',
     'src/debug/debugOverlay.ts',
+    'src/debug/playtestJournal.ts',
     'src/bots/perfectBot.ts',
     'node_modules/tweakpane/dist/tweakpane.js',
   ])('fails a manifest module %s', (src) => {
@@ -287,6 +298,20 @@ describe('inspectDist: playtest', () => {
     const { problems } = inspectDist(playtestInput({ manifest }), 'playtest');
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain('playtest bundle lacks src/debug/debugOverlay.ts');
+  });
+
+  it('fails a tree that lacks the playtest journal module (story 3.3)', () => {
+    const manifest = { ...PLAYTEST_MANIFEST };
+    delete manifest['src/debug/playtestJournal.ts'];
+    const { problems } = inspectDist(playtestInput({ manifest }), 'playtest');
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('playtest bundle lacks src/debug/playtestJournal.ts');
+  });
+
+  it('forbids the story 3.3 journal markers in a store build', () => {
+    expect(PROD_FORBIDDEN_MARKERS).toEqual(
+      expect.arrayContaining(['copyLog', 'installPlaytestJournal', 'papa-parade.journal']),
+    );
   });
 
   it.each(NEVER_SHIPPED_MARKERS)('fails a tree that ships the dev-only %s', (marker) => {

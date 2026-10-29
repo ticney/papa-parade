@@ -61,7 +61,7 @@ import { createLoadingScreen } from './ui/screens/loadingScreen.ts';
 import { createOopsScreen } from './ui/screens/oopsScreen.ts';
 import { createPauseScreen } from './ui/screens/pauseScreen.ts';
 import { createPortraitOverlay } from './ui/screens/portraitOverlay.ts';
-import { createResultScreen } from './ui/screens/resultScreen.ts';
+import { type CopyLogOutcome, createResultScreen } from './ui/screens/resultScreen.ts';
 import { createStartScreen } from './ui/screens/startScreen.ts';
 import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
@@ -578,6 +578,9 @@ export async function boot(): Promise<void> {
   // Why it ended (story 3.2): a woken Mama puts a header on the Result screen. Cleared with the note.
   let resultEndReason: LevelEndReason = 'timer';
   let hasResultStarted = false;
+  // The action behind « Copier le journal » (story 3.3): set at boot by the debug block, in
+  // playtest builds only, and read when the Result screen is built.
+  let playtestCopyLog: (() => Promise<CopyLogOutcome>) | null = null;
 
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
@@ -961,6 +964,11 @@ export async function boot(): Promise<void> {
         },
         // Same level, same feel, a new seed (`?seed=` keeps its own): through loading and the countdown.
         onReplay: () => void levelSession.start(),
+        // Playtest builds only (story 3.3). The literal comparison is folded by Vite, so a store
+        // build holds no `copyLog` here (story 1.24); the screen has its own gate besides.
+        ...(import.meta.env.VITE_DEBUG_ALLOWED === 'true' && playtestCopyLog !== null
+          ? { copyLog: playtestCopyLog }
+          : {}),
       });
     },
   });
@@ -1198,6 +1206,7 @@ export async function boot(): Promise<void> {
       setGameInputBlocked: (isBlocked) => {
         isGameInputBlocked = isBlocked;
       },
+      lastInputDevice: () => inputMapper.lastDevice,
       debugGroup: () => {
         if (currentLevel === null) return null;
         if (debugGroup === null) {
@@ -1239,6 +1248,20 @@ export async function boot(): Promise<void> {
       } catch (cause) {
         log.warn('boot', 'no FPS counter: the perf HUD module did not load', cause);
       }
+    }
+    // « Copier le journal » (story 3.3), for every playtest build: testers open the plain URL, so
+    // it is not behind `?debug=1`. Installed now, not on the first press, so that a press never
+    // waits for a chunk and the journal follows the very first level. A module that does not load
+    // only costs the button: the game goes on.
+    try {
+      const { installPlaytestJournal } = await import('@debug/playtestJournal');
+      const journal = installPlaytestJournal(testHost, {
+        target: platform.capabilities.target,
+        autoplay: isAutoplaying ? params.autoplay : null,
+      });
+      playtestCopyLog = () => journal.copyLog();
+    } catch (cause) {
+      log.warn('boot', 'no « Copier le journal »: the playtest journal module did not load', cause);
     }
   }
 

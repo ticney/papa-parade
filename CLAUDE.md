@@ -42,7 +42,7 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 | `npm run test:coverage` | Vitest with the `src/sim` ≥ 90 % coverage thresholds; this is what CI runs instead of `npm test` |
 | `npm run golden:update` | Regenerate the golden journals and references (deliberate: say so in the story) |
 | `npm run sim -- --bot <id> …` | Plays headless games with a bot (`perfect`, `human`, `random`, `idle`) and writes a JSON report (`--level`, `--seed`, `--runs`, `--until-ms`, `--out`, `--journals`); a run lasts the level's `durationMs` (until `LevelEnded`) unless `--until-ms` caps it; `--help` lists them |
-| `npm run sim:replay -- <file>` | Replays a game recorded by `npm run sim --journals` and checks it ends in the same state (exit 0 if so) |
+| `npm run sim:replay -- <file>` | Replays a game recorded by `npm run sim --journals` (`papa-parade.run`, strict invariants), or a journal a tester exported from the Result screen of a playtest build (`papa-parade.journal`, replayed in the invariant mode it was played in), and checks it ends in the same state (exit 0 if so). A different content hash is a warning, not a failure |
 | `npm run e2e` | Playwright, chromium + webkit, landscape phone viewport |
 | `/?autoplay=<bot>&seed=<n>&speed=<x>` | A bot (`perfect`, `human`, `random`, `idle`) plays in the browser, silent, `speed` ≤ 4 (dev and playtest builds); `window.__PP__` (dev, or `?debug=1`) drives the game from Playwright |
 | `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` | Regenerate the macOS screenshot references (deliberate: look at them, say so in the story). They are macOS only: the screenshot assertion is skipped on Linux (CI), which has no references |
@@ -86,7 +86,7 @@ The playtest is a static build, one URL per version, sent to testers as a link (
 2. Deploy `dist/`. Cloudflare Pages direct upload: `npx wrangler@4.154.0 pages deploy dist --project-name papa-parade --branch playtest` (Netlify alternative: `npx netlify-cli@27.15.0 deploy --dir dist --prod`). Both versions were the latest on npm on 2026-10-28; neither is a dependency of the repo. Each upload gets its own URL.
 3. **Geo does the account login the first time (`npx wrangler@4.154.0 login`).** An agent never handles his credentials.
 4. `npm run deploy:check -- <url>`, then `PP_DIST_URL=<url> npm run e2e:dist`.
-5. Send the URL. Testers open it as is; `?debug=1` (FPS counter, `window.__PP__`) is for Geo's device pass (`docs/playtest/device-measurements.md`), which gates the playtest.
+5. Send the URL. Testers open it as is; `?debug=1` (FPS counter, `window.__PP__`) is for Geo's device pass (`docs/playtest/device-measurements.md`), which gates the playtest. After a game, a tester sends the journal of the Result screen's « Copier le journal » button (or, if the clipboard refuses, the `.json` file it downloads instead: « Télécharger le journal »). It holds no personal data (no user-agent, no date). Geo replays it with `npm run sim:replay -- <file>`.
 
 ## Where to read more
 

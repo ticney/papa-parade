@@ -1,6 +1,7 @@
 import type { ContentBundle } from '@content/contentBundle';
 import type { Sim, SimEvent } from '@sim';
 import type { Group } from 'three';
+import type { InputDevice } from '../input/inputMapper.ts';
 import type { RenderStats } from '../render/renderer.ts';
 import type { LevelSession, StartedLevel } from './levelSession.ts';
 import type { PauseState } from './pauseController.ts';
@@ -38,6 +39,11 @@ export interface TestHost {
   ): () => void;
   /** Set by autoplay: the input mapper sends nothing to the sim while true. */
   setGameInputBlocked(isBlocked: boolean): void;
+  /**
+   * The device of the player's last input (the input mapper's `lastDevice`), `null` before any.
+   * Read-only: the playtest journal credits a response to it (story 3.3).
+   */
+  lastInputDevice(): InputDevice | null;
   /**
    * What the debug overlay reads besides `onRenderedFrame` (story 2.1; the loop's timings and the
    * level's geometry come from `levelSession.loopStats` and `levelSession.active.geometry`).

@@ -4,7 +4,7 @@ baseline_commit: ba93bfe
 
 # Story 3.3: Exportable game journal
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 3.3 « Journal de partie exportable » (L1590-1612). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -169,31 +169,31 @@ The journal is a playtest tool. Every new runtime file under `src/` is reached o
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Schema and constants** (AC 1, 2, 4, 5)
-  - [ ] `src/shared/constants.ts`: `JOURNAL_PHONE_MAX_SHORT_SIDE_PX` (600), `JOURNAL_LOG_STRING_MAX_CHARS` (500), `JOURNAL_LOG_DATA_MAX_CHARS` (2000), each with a one-line doc.
-  - [ ] `src/content/schemas/journal.ts`: `JOURNAL_FILE_KIND`, `JOURNAL_FILE_VERSION`, `JournalSchema` (strict objects; enums for quality, device, type, platform; `endReason` as a string here, checked against `LEVEL_END_REASONS` in the client test, because content cannot import `@sim`), `JournalFile`. Use the project's Zod setup (`zodConfig.ts`, `jitless`: no `eval`, because of the CSP).
-  - [ ] `src/content/schemas/journal.test.ts`: a valid file passes; an unknown key, a wrong kind or version, an off-grid `applyAt`, a seed ≥ 2**32 and a device with an extra key all fail with a path.
-- [ ] **T2. Pure telemetry** (AC 2-5) in `src/client/telemetry/`:
-  - [ ] `describeDevice.ts` (+ test: iPhone, iPad as a Mac with touch, Android phone and tablet, Windows, macOS, Linux, unknown, and « the JSON has no part of the UA »).
-  - [ ] `toJsonSafe.ts` (+ test for each rule of AC 5).
-  - [ ] `gameSummary.ts`: `createGameSummary({ sessionId, gameIndexInSession, autoplay })` with `onEvent(event, device)` and `onInput(device)`, plus `summary()`. It is a pure recorder; the device is passed in. (+ test: def id from `kind`, fallback `threat_<id>`, tie rule of `dominantDevice`, `'none'` with no input, score from `LevelScored`.)
-  - [ ] `buildJournalFile.ts`: `buildJournalFile({ sim, levelId, baseContent, strictInvariants, summary, device, target, logs })` returns a `JournalFile`. It reads `sim.world`, `sim.journal()` and `hashJson`, and draws no real time and no randomness. (+ test with a real `createSim` on `createTestLevel`: the result passes `JournalSchema`, `worldHash` equals `hashJson(sim.world)`, and the compile-time `Journal` ↔ schema proof of AC 2.)
-- [ ] **T3. Debug installer** (AC 6-8) `src/debug/playtestJournal.ts`: `installPlaytestJournal(host, deps)`, where `deps` holds the clipboard, a download function, the `crypto` source, the device probe, `log.buffer` and `defaultStrictInvariants`. All are injectable for the unit test, with browser defaults.
-  - [ ] It draws the `sessionId` once.
-  - [ ] It subscribes to `host.onLevelStarted` (new recorder, `gameIndexInSession++`) and `host.onSimEvent` (feed the recorder with `host.lastInputDevice()`, split by the last `pointerType`).
-  - [ ] It listens to `pointerdown` on `window` (capture, passive) for the `pointerType`.
-  - [ ] `copyLog()` follows AC 7 and 8, with the « download from now on » flag.
-  - [ ] Test `src/debug/playtestJournal.test.ts`: copy ok; copy rejects → download, then a second press downloads without the clipboard; download throws → `failed`; no active level → `failed`; the file name; `writeText` is called before any `await` (assert it is called synchronously inside `copyLog()`, before the returned promise settles).
-- [ ] **T4. Client wiring** (AC 6, 9)
-  - [ ] `src/client/app/testHost.ts`: add `lastInputDevice(): InputDevice | null`, documented as read-only. Update the fakes in the debug tests that build a `TestHost`.
-  - [ ] `src/client/boot.ts`: implement it from `inputMapper.lastDevice`. In the flagged block, load and install the journal at boot (try/catch → `warn`). Hold the result in a `let playtestJournal` that the `result:` factory reads (`copyLog: playtestJournal?.copyLog`).
-  - [ ] `src/client/ui/screens/resultScreen.ts`: the `copyLog` signature, `CopyLogOutcome`, the label update, the pending guard, the dispose guard. Update the doc comment and the 1.24 note (« Story 3.3 wires… ») to say it is done.
-  - [ ] `resultScreen.test.ts`: the label after each outcome, a press while pending is ignored, an outcome after dispose changes nothing, the grace still applies to the copy button, focus is still on « Rejouer ».
-- [ ] **T5. Replay CLI** (AC 10): `tools/sim/replaySim.ts` (two kinds, the recorded strictness, the `contentHash` warn, the help text) and `tools/sim/loadSimLevel.ts` (`contentHash` of the base bundle). Tests in `tests/tools/sim/` (AC 11, Node part).
-- [ ] **T6. e2e** (AC 11): `tests/e2e/journal.spec.ts` (copy and replay, fallback download, counter). Reuse `tests/e2e/support` helpers (`openResult`-style, `advanceToEnd`, `ppEvents`). Never `waitForTimeout`.
-- [ ] **T7. Build guardrails** (AC 12): `inspectDist.ts`, `checkDist.test.ts`, `dist.spec.ts` (copy button without `?debug=1`).
-- [ ] **T8. Docs** (AC 13): CLAUDE.md (2 places), `project-context.md`, `deferred-work.md` (close 5 items, add a « Deferred from: story 3.3 » section if anything is left).
-- [ ] **T9. CI:** `env | grep VITE_`, then `(unset VITE_DEBUG_ALLOWED; npm run ci)`. Then `npm run build:playtest` and copy a real journal by hand once in `npm run preview` (or `serve:dist`), and replay it. Put the output in the Debug Log.
+- [x] **T1. Schema and constants** (AC 1, 2, 4, 5)
+  - [x] `src/shared/constants.ts`: `JOURNAL_PHONE_MAX_SHORT_SIDE_PX` (600), `JOURNAL_LOG_STRING_MAX_CHARS` (500), `JOURNAL_LOG_DATA_MAX_CHARS` (2000), each with a one-line doc.
+  - [x] `src/content/schemas/journal.ts`: `JOURNAL_FILE_KIND`, `JOURNAL_FILE_VERSION`, `JournalSchema` (strict objects; enums for quality, device, type, platform; `endReason` as a string here, checked against `LEVEL_END_REASONS` in the client test, because content cannot import `@sim`), `JournalFile`. Use the project's Zod setup (`zodConfig.ts`, `jitless`: no `eval`, because of the CSP).
+  - [x] `src/content/schemas/journal.test.ts`: a valid file passes; an unknown key, a wrong kind or version, an off-grid `applyAt`, a seed ≥ 2**32 and a device with an extra key all fail with a path.
+- [x] **T2. Pure telemetry** (AC 2-5) in `src/client/telemetry/`:
+  - [x] `describeDevice.ts` (+ test: iPhone, iPad as a Mac with touch, Android phone and tablet, Windows, macOS, Linux, unknown, and « the JSON has no part of the UA »).
+  - [x] `toJsonSafe.ts` (+ test for each rule of AC 5).
+  - [x] `gameSummary.ts`: `createGameSummary({ sessionId, gameIndexInSession, autoplay })` with `onEvent(event, device)` and `onInput(device)`, plus `summary()`. It is a pure recorder; the device is passed in. (+ test: def id from `kind`, fallback `threat_<id>`, tie rule of `dominantDevice`, `'none'` with no input, score from `LevelScored`.)
+  - [x] `buildJournalFile.ts`: `buildJournalFile({ sim, levelId, baseContent, strictInvariants, summary, device, target, logs })` returns a `JournalFile`. It reads `sim.world`, `sim.journal()` and `hashJson`, and draws no real time and no randomness. (+ test with a real `createSim` on `createTestLevel`: the result passes `JournalSchema`, `worldHash` equals `hashJson(sim.world)`, and the compile-time `Journal` ↔ schema proof of AC 2.)
+- [x] **T3. Debug installer** (AC 6-8) `src/debug/playtestJournal.ts`: `installPlaytestJournal(host, deps)`, where `deps` holds the clipboard, a download function, the `crypto` source, the device probe, `log.buffer` and `defaultStrictInvariants`. All are injectable for the unit test, with browser defaults.
+  - [x] It draws the `sessionId` once.
+  - [x] It subscribes to `host.onLevelStarted` (new recorder, `gameIndexInSession++`) and `host.onSimEvent` (feed the recorder with `host.lastInputDevice()`, split by the last `pointerType`).
+  - [x] It listens to `pointerdown` on `window` (capture, passive) for the `pointerType`.
+  - [x] `copyLog()` follows AC 7 and 8, with the « download from now on » flag.
+  - [x] Test `src/debug/playtestJournal.test.ts`: copy ok; copy rejects → download, then a second press downloads without the clipboard; download throws → `failed`; no active level → `failed`; the file name; `writeText` is called before any `await` (assert it is called synchronously inside `copyLog()`, before the returned promise settles).
+- [x] **T4. Client wiring** (AC 6, 9)
+  - [x] `src/client/app/testHost.ts`: add `lastInputDevice(): InputDevice | null`, documented as read-only. Update the fakes in the debug tests that build a `TestHost`.
+  - [x] `src/client/boot.ts`: implement it from `inputMapper.lastDevice`. In the flagged block, load and install the journal at boot (try/catch → `warn`). Hold the result in a `let playtestJournal` that the `result:` factory reads (`copyLog: playtestJournal?.copyLog`).
+  - [x] `src/client/ui/screens/resultScreen.ts`: the `copyLog` signature, `CopyLogOutcome`, the label update, the pending guard, the dispose guard. Update the doc comment and the 1.24 note (« Story 3.3 wires… ») to say it is done.
+  - [x] `resultScreen.test.ts`: the label after each outcome, a press while pending is ignored, an outcome after dispose changes nothing, the grace still applies to the copy button, focus is still on « Rejouer ».
+- [x] **T5. Replay CLI** (AC 10): `tools/sim/replaySim.ts` (two kinds, the recorded strictness, the `contentHash` warn, the help text) and `tools/sim/loadSimLevel.ts` (`contentHash` of the base bundle). Tests in `tests/tools/sim/` (AC 11, Node part).
+- [x] **T6. e2e** (AC 11): `tests/e2e/journal.spec.ts` (copy and replay, fallback download, counter). Reuse `tests/e2e/support` helpers (`openResult`-style, `advanceToEnd`, `ppEvents`). Never `waitForTimeout`.
+- [x] **T7. Build guardrails** (AC 12): `inspectDist.ts`, `checkDist.test.ts`, `dist.spec.ts` (copy button without `?debug=1`).
+- [x] **T8. Docs** (AC 13): CLAUDE.md (2 places), `project-context.md`, `deferred-work.md` (close 5 items, add a « Deferred from: story 3.3 » section if anything is left).
+- [x] **T9. CI:** `env | grep VITE_`, then `(unset VITE_DEBUG_ALLOWED; npm run ci)`. Then `npm run build:playtest` and copy a real journal by hand once in `npm run preview` (or `serve:dist`), and replay it. Put the output in the Debug Log.
 
 ## Dev Notes
 
@@ -343,14 +343,66 @@ Updated:
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), in the story's worktree on `story/3-3-journal-de-partie-exportable`.
+
 ### Debug Log References
+
+- **First full CI run: red at the e2e step (4 failures, 2 specs, chromium and webkit). Two different causes.**
+  - `result.spec.ts` asserted `getByText('Copier le journal')` has count 0. True before this story, false now: a debug build (dev, playtest) shows the button. Replaced by "the button is there, never focused, at least 44 × 44". That the store build has none is `dist:check`'s job.
+  - `mamaWoke.spec.ts › fits 750 × 340 with the header, without scrolling`: the panel overflowed by 11 px. Cause (measured): the 360 px panel gives each of the two buttons 157 px, so « Copier le journal » wrapped on two lines and the actions row went from 44 px to 60 px. Fix in `ui.css` only: `.pp-result-actions .pp-button-secondary { flex: 0 1 auto; padding-inline: var(--pp-spacing-3); white-space: nowrap; }`. Measured after the change at 750 × 340 and 844 × 390, woken and timer end, for both labels (« Copier le journal » 158 | 156 px, « Télécharger le journal » 118 | 196 px): row 44 px, no vertical or horizontal overflow. `journal.spec.ts` now pins it (both viewports, both labels, one line, no scroll).
+- **Second full CI run: green.** `typecheck`, `lint`, `content:check`; `test:coverage` 236 files / 4285 tests (`src/sim` 97.83 % statements, 99.27 % lines: the sim did not change); `e2e` 400 passed (chromium + webkit, 4.8 min); `build:playtest` + `dist:check --flavor playtest`; `e2e:dist` 10 passed (1.5 min) and `perf` 1 passed (`17117 frames, p95 16.7 ms, draw calls max 34, triangles max 890`); `build` + `dist:check --flavor prod` OK. No timeout, so no `--maxWorkers` / `--workers` override was needed.
+- **T9, the built playtest bundle (not hand-clicked on a device).** `npm run build:playtest`, `dist:check` OK, `npm run serve:dist -- --port 5890`, then a throwaway Playwright script (kept in the session scratchpad, not in the repo) opened `/?autoplay=human&seed=7&speed=4` with **no `?debug=1`**, waited for the Result screen and its input grace, pressed « Copier le journal » and read the real clipboard (chromium, `clipboard-read` granted):
+  - button `Copier le journal` → `Journal copié !`; 29 404 bytes; score 83, 4 stars.
+  - the file: `kind papa-parade.journal`, `version 1`, top-level keys `kind, version, replay, summary, device, diagnostics`; `levelId salon_crawler`, **`strictInvariants false`** (a `vite build`, `PROD`), `endSimMs 180000`, `worldHash 08f8c21aa4eebb`, `contentHash 1de98e49815fec`, 108 journal entries, `autoplay human`, `endReason timer`, `gameIndexInSession 1`, `byQuality {perfect 33, success 16, fail 0}`, 7 log entries, `device {type phone, platform macos, target web}` (the script emulates touch on a Mac).
+  - `npm run sim:replay -- real-journal.json` → `[sim] replay matches { worldHash: '08f8c21aa4eebb' }`, exit 0, no content warning. This is the one run where the browser's sim ran in the non-strict mode a tester's does, and Node replayed it non-strict.
+- The first Node/test run of each new unit and the e2e spec passed at once except: `toJsonSafe` at-the-limit test (my fixture was cut by the 500-char string limit first: rebuilt with strings under it); the e2e fallback test (the second download's `diagnostics` legitimately holds the first refusal's `warn`, and webkit adds a pre-existing `input` warn from `setPointerCapture`: compare the file without `diagnostics`, and look at the `debug` channel only).
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed: comprehensive developer guide created (story created 2026-10-29).
+**What is done (all 13 ACs, T1-T9).**
+
+- **File and schema (AC 1-5).** `JournalSchema` (`src/content/schemas/journal.ts`, `z.strictObject` at every level, imports `../zodConfig.ts` so it parses without `eval` under the CSP) and `JournalFile`. `kind: papa-parade.journal`, `version: 1`; `replay`, `summary`, `device`, `diagnostics`. Not a content file (no `contentFiles.ts` entry, no JSON Schema). `src/client/telemetry/`: `describeDevice` (type and platform only; iPadOS-as-Mac handled), `toJsonSafe` (every rule of AC 5), `createGameSummary` (pure recorder; `summary()` is `null` until `LevelEnded` and `LevelScored` are in), `buildJournalFile` (pure; reads `sim.world`, `sim.journal()`, `hashJson`). Constants in `shared/constants.ts`: `JOURNAL_PHONE_MAX_SHORT_SIDE_PX` 600, `JOURNAL_LOG_STRING_MAX_CHARS` 500, `JOURNAL_LOG_DATA_MAX_CHARS` 2000.
+- **Installer and wiring (AC 6-9).** `src/debug/playtestJournal.ts` (`installPlaytestJournal(host, deps)` → `{ copyLog, dispose }`; every browser read is an injectable default). `boot.ts` loads it at boot in the flagged block (after the autoplay install, before `appFsm.enter('start')`, behind a `try/catch` that logs a `warn`), and passes `copyLog` to the Result screen only through `import.meta.env.VITE_DEBUG_ALLOWED === 'true' && playtestCopyLog !== null ? { copyLog } : {}`, so the literal folds in a store build. `TestHost.lastInputDevice()` (read-only) added; `fakeTestHost` has `setLastInputDevice`. `resultScreen.ts`: `copyLog: () => Promise<CopyLogOutcome>`, `CopyLogOutcome`, the label and `aria-label` from the outcome, a pending guard, a dispose guard, the same grace and held-skip-key rules as « Rejouer », a rejection or a synchronous throw counts as `failed` (with a `warn`).
+- **Replay (AC 10-11).** `tools/sim/replaySim.ts` reads both kinds: `parseJournalFile`, `journalFileToRunFile` (`bot` = `summary.autoplay ?? 'player'`), `replayJournalFile` (recorded strictness, a `warn` naming both hashes when the content hash differs, a refusal above `SIM_CLI_MAX_UNTIL_MS`). `replayRunFile` gained an optional `{ strictInvariants }` defaulting to `true`: run files and `cli.test.ts` are untouched. `loadSimLevel` exposes `contentHash` (hash of the base bundle, before the overrides). `--help` names both kinds.
+- **Guardrails and docs (AC 12-13).** `inspectDist.ts`: `src/debug/playtestJournal.ts` required in playtest; `installPlaytestJournal` and `papa-parade.journal` forbidden in prod (both present in the playtest bundle: checked by the real build). `dist.spec.ts` gained a test that reaches the Result screen on the plain URL (no `?debug=1`), checks the button, forces the download fallback and asserts no CSP violation. `CLAUDE.md` (2 places), `project-context.md`, `deferred-work.md` (5 items closed, each saying how), `docs/playtest/device-measurements.md` (Open point 2).
+
+**Verified, not assumed.**
+
+- **Open point 1 (browser → Node determinism) is settled for now:** a chromium game and a webkit game (JavaScriptCore), both exported through the real button, replay in Node to the same world hash (`journal.spec.ts`, 2 engines), and so does the built non-strict playtest bundle (above). Nothing loosened.
+- **Privacy audit (AC 5).** `grep` over `src` for a `log.error|warn|info` call that mentions `userAgent`, `navigator.(user|platform|language)`, `window.location`, `location.(href|search|origin)`, `.href` or `referrer`: no match. The only `navigator.userAgent` read in `src` is the probe in `src/debug/playtestJournal.ts`, whose only consumer is `describeDevice`. No `Date`, `Intl` or time-zone read under `src/client`, `src/platform` or `src/debug`. `buildJournalFile.test.ts` serialises a file built from a probe with a recognisable user-agent and a 391 px side and asserts none of its parts is in the JSON; `playtestJournal.test.ts` asserts no date pattern.
+- **Nothing in the sim moved.** `src/sim/**` and `tests/golden/**` are untouched; `npm run golden:update` was not run.
+
+**Deviations and choices the review should look at.**
+
+1. **AC 2, compile-time proof is one-way for the entries.** The command is opaque in Zod (the content layer cannot import `@sim`) and `SimMs` is branded, so `JournalFile['replay']['journal']` and `Journal` cannot be assignable both ways. `buildJournalFile.test.ts` proves: the envelope (`Omit<…, 'entries'>`) mutually assignable, the entry keys identical, and `Journal['entries']` assignable to the schema's. A field added to `Journal` fails to typecheck there; a change in a command's shape does not (that is `commandProblem` at replay).
+2. **AC 3, the recorder's `onInput` is fed with the current device on every sim event** (the story gave no other input hook for keyboard and gamepad), so « the device of the last input of the level » is the device in use at the last event. Only matters for a level with no response at all.
+3. **AC 3, `pointer` with no `pointerdown` seen is `none`**, not `touch` or `mouse` (cannot happen once installed at boot; it avoids inflating either).
+4. **AC 8, the clipboard-rejection fallback runs after a microtask**, not strictly inside the press: only a missing or synchronously throwing `navigator.clipboard` downloads inside the gesture. Transient activation outlasts a microtask in every engine the e2e covers.
+5. **Result screen CSS (not in the story's task list, forced by the first CI run).** The secondary button no longer shares the row in equal halves (see the Debug Log). It changes the playtest builds' Result layout by a few px of button width and nothing in a store build.
+6. **`result.spec.ts` assertion reversed** (no button → button present), and **`prodInput` in `checkDist.test.ts` also filters `debugOverlay` / `playtestJournal` files** (the old filter left the overlay chunk in the prod fixture; harmless, now accurate).
+7. **`waitForResultActions`** added to `tests/e2e/support/game.ts` (waits on the page's own clock for the input grace, no `waitForTimeout`) and used by `journal.spec.ts` and `dist.spec.ts`. `result.spec.ts` and `mamaWoke.spec.ts` keep their own `waitForTimeout` helper, untouched.
+8. `dist.spec.ts` does **not** replay the downloaded file: `PP_DIST_URL` also checks a deployed build, and a checkout that moved on from that build would fail the replay for the wrong reason.
+
+**Left for Geo (Open points 2-3 of the story).** The iPhone Safari gesture check is a line and two table rows in `docs/playtest/device-measurements.md`, empty on purpose (the document says an agent never fills it). The confirmation stays on the button, with no timer.
 
 ### File List
+
+New:
+- `src/content/schemas/journal.ts`, `src/content/schemas/journal.test.ts`
+- `src/client/telemetry/describeDevice.ts`, `describeDevice.test.ts`, `toJsonSafe.ts`, `toJsonSafe.test.ts`, `gameSummary.ts`, `gameSummary.test.ts`, `buildJournalFile.ts`, `buildJournalFile.test.ts`
+- `src/debug/playtestJournal.ts`, `src/debug/playtestJournal.test.ts`
+- `tests/tools/sim/journalReplay.test.ts`
+- `tests/e2e/journal.spec.ts`
+
+Modified:
+- `src/shared/constants.ts`
+- `src/client/boot.ts`, `src/client/app/testHost.ts`, `src/client/ui/screens/resultScreen.ts`, `src/client/ui/screens/resultScreen.test.ts`, `src/client/ui/styles/ui.css`
+- `tools/sim/replaySim.ts`, `tools/sim/loadSimLevel.ts`, `tools/build/inspectDist.ts`
+- `tests/support/fakeTestHost.ts`, `tests/support/simSupport.ts`, `tests/tools/sim/loadSimLevel.test.ts`, `tests/tools/build/checkDist.test.ts`
+- `tests/e2e/result.spec.ts`, `tests/e2e/support/game.ts`, `tests/e2e-dist/dist.spec.ts`
+- `CLAUDE.md`, `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, `docs/playtest/device-measurements.md`
 
 ### Change Log
 
 - 2026-10-29: Story created (ready-for-dev).
+- 2026-10-29: Story implemented (T1-T9): exportable `papa-parade.journal` with `JournalSchema`, the pure telemetry builders, the playtest installer wired from `boot.ts`, « Copier le journal » / « Télécharger le journal » on the Result screen, `sim:replay` reading both kinds, dist guardrails, docs. Full `npm run ci` green. Status → review.

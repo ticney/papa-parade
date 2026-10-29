@@ -1,5 +1,6 @@
 import type { ResultScreenTimings } from '@content/schemas/feedback';
 import { COUNT_UP_FRAME_MS, STAR_COUNT_MAX } from '@shared/constants';
+import { log } from '@shared/log';
 import type { LevelEndReason, MamaScore } from '@sim';
 import type { OverlayScreen } from '../overlayScreen.ts';
 import { bindPressButton } from '../pressButton.ts';
@@ -8,6 +9,12 @@ import { svgElement } from '../svg.ts';
 
 /** Where the sequence is: the rows count up, then the stars stamp (the lost ones last), then the buttons are up. */
 export type ResultPhase = 'rows' | 'stars' | 'actions';
+
+/**
+ * What the copy action did (story 3.3): `copied` to the clipboard, `downloaded` as a file (the
+ * clipboard refused), or `failed` (nothing left the page).
+ */
+export type CopyLogOutcome = 'copied' | 'downloaded' | 'failed';
 
 /** Real-time timers (`setTimeout` in the app, a fake in tests): the sequence never reads sim time. */
 export interface ResultScheduler {
@@ -57,8 +64,12 @@ export interface ResultScreenOptions {
   onPhase(phase: ResultPhase): void;
   /** « Rejouer ». */
   onReplay(): void;
-  /** « Copier le journal » (story 3.3, debug builds only): no button without it. */
-  copyLog?: () => void;
+  /**
+   * « Copier le journal » (story 3.3, playtest builds only): no button without it. It runs inside the
+   * press (iOS only grants the clipboard to a gesture) and says what it did; it should not reject,
+   * and a rejection counts as `'failed'`.
+   */
+  copyLog?: () => Promise<CopyLogOutcome>;
   /** Makes the elements (the browser's `document`; a double in tests). */
   doc?: Pick<Document, 'createElement' | 'createElementNS'>;
 }
@@ -254,14 +265,46 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   });
   actions.append(replay);
   let unbindCopy: (() => void) | null = null;
+  let isDisposed = false;
   // Debug builds only, by the literal comparison so that Vite folds it and the store bundle holds
-  // no `copyLog` (story 1.24). Story 3.3 wires `copyLog` from the debug block of `boot.ts`; this
-  // gate keeps the store build clean whatever it passes.
+  // no `copyLog` (story 1.24). The playtest journal (story 3.3) passes `copyLog` from the debug
+  // block of `boot.ts`; this gate keeps the store build clean whatever it passes.
   if (import.meta.env.VITE_DEBUG_ALLOWED === 'true' && options.copyLog !== undefined) {
+    const copyLog = options.copyLog;
     const copy = make('button', 'pp-button pp-button-secondary', t('result.copy_log'));
     copy.type = 'button';
     copy.setAttribute('aria-label', t('result.copy_log'));
-    unbindCopy = bindPressButton(copy, options.copyLog);
+    const setCopyLabel = (key: 'result.log_copied' | 'result.download_log'): void => {
+      copy.textContent = t(key);
+      copy.setAttribute('aria-label', t(key));
+    };
+    // A press while the action is pending is ignored: one gesture, one copy.
+    let isCopyPending = false;
+    unbindCopy = bindPressButton(copy, () => {
+      // The same rules as « Rejouer »: a skip, or a finger that is still mashing, never presses it.
+      if (heldSkipKey !== null || !isGraceOver() || isCopyPending) return;
+      isCopyPending = true;
+      const settle = (outcome: CopyLogOutcome): void => {
+        isCopyPending = false;
+        // A screen rebuilt after the portrait overlay starts again at « Copier le journal ».
+        if (isDisposed) return;
+        if (outcome === 'copied') setCopyLabel('result.log_copied');
+        else if (outcome === 'downloaded') setCopyLabel('result.download_log');
+      };
+      // Called here, synchronously: the clipboard is only granted inside the gesture.
+      let pending: Promise<CopyLogOutcome>;
+      try {
+        pending = copyLog();
+      } catch (cause) {
+        log.warn('debug', 'the copy action threw', cause);
+        settle('failed');
+        return;
+      }
+      pending.then(settle, (cause: unknown) => {
+        log.warn('debug', 'the copy action rejected', cause);
+        settle('failed');
+      });
+    });
     actions.append(copy);
   }
 
@@ -440,6 +483,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
       else complete();
     },
     dispose: () => {
+      isDisposed = true;
       cancelAll();
       element.removeEventListener('pointerdown', onPointerDown);
       element.removeEventListener('pointerup', onPointerUp);
