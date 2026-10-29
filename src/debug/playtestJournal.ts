@@ -10,6 +10,7 @@ import {
 import type { CopyLogOutcome } from '@client/ui/screens/resultScreen';
 import { JournalSchema } from '@content/schemas/journal';
 import type { PlatformTarget } from '@platform/platform';
+import { JOURNAL_DOWNLOAD_REVOKE_DELAY_MS } from '@shared/constants';
 import { defaultStrictInvariants } from '@shared/invariant';
 import { type LogEntry, log } from '@shared/log';
 
@@ -79,8 +80,8 @@ function downloadText(fileName: string, text: string): void {
     link.click();
   } finally {
     link.remove();
-    // On the next task: WebKit reads the URL after the click returns.
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    // Later, not on the next task: Firefox and iOS may still be reading the blob.
+    setTimeout(() => URL.revokeObjectURL(url), JOURNAL_DOWNLOAD_REVOKE_DELAY_MS);
   }
 }
 
@@ -234,11 +235,13 @@ export function installPlaytestJournal(host: TestHost, deps: PlaytestJournalDeps
     exported: { text: string; fileName: string },
     cause: unknown,
   ): CopyLogOutcome {
-    isDownloadOnly = true;
     log.warn('debug', 'the clipboard refused the journal: downloading it instead', {
       error: failureName(cause),
     });
-    return downloadExport(exported);
+    const outcome = downloadExport(exported);
+    // Download-only from now on, but only once a download is known to work.
+    if (outcome === 'downloaded') isDownloadOnly = true;
+    return outcome;
   }
 
   return {

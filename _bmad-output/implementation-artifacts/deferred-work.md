@@ -496,3 +496,12 @@
 - **Nothing ties `verbKey` to the response, and the `dodge` default verb is written twice** (the schema's null rule and `DEFAULT_VERB_KEYS` in `threatMarkers.ts`). Reason: only reachable once story 5.1 adds the `dodge` response; derive both from one constant then.
 - **A change of `--pp-verb-scale` does not refit by itself.** Only the surface key is watched per frame, and the CSS size of `.pp-threat-verb` does not read the scale. Reason: story 2.10 flips the variable and must call `refitVerbs` (and may want `calc(... * var(--pp-verb-scale))`).
 - **The verb's 10 px `-webkit-text-stroke` has miter joins and there is no `forced-colors` rule.** Accented capitals (« RÉVEILLE-TOI ! ») may show spikes. Reason: visual, check in Geo's device pass.
+
+## Deferred from: code review of story 3-3-journal-de-partie-exportable (2026-10-29)
+
+- **The clipboard-rejection fallback download runs after a microtask, not in the press (AC 8).** Reason: declared; the iPhone gesture check is Geo's (`docs/playtest/device-measurements.md`).
+- **`dominantDevice` and the per-device fail count are approximate.** `onInput` is fed on every sim event, a timeout fail is credited to the last device used, and `lastPointerType` is never reset between games. Reason: story 3.4 decides what it needs.
+- **The log ring buffer is not scoped to the game.** Reason: the third replay of a session also exports the logs of games 1 and 2; harmless for the analysis.
+- **`JournalEnvelopeSchema` hard-codes `version: 3`, nothing ties it to the sim's `Journal.version`.** Reason: add an architecture test when the sim bumps it.
+- **`autoplay` is fixed at boot; an iPad with a keyboard is typed `desktop`.** Reason: test-API and device-type edge cases only.
+- **The compile-time proof of the journal's `commands` is one-way (AC 2, deviation 1).** Reason: the branded `SimMs` and the opaque command; a shape change is caught at replay time.

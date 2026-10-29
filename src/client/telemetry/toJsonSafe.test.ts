@@ -1,4 +1,8 @@
-import { JOURNAL_LOG_DATA_MAX_CHARS, JOURNAL_LOG_STRING_MAX_CHARS } from '@shared/constants';
+import {
+  JOURNAL_LOG_DATA_MAX_CHARS,
+  JOURNAL_LOG_DATA_MAX_DEPTH,
+  JOURNAL_LOG_STRING_MAX_CHARS,
+} from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import { toJsonSafe } from './toJsonSafe.ts';
 
@@ -119,5 +123,37 @@ describe('toJsonSafe (story 3.3)', () => {
     toJsonSafe(input);
     expect(input.e).toBeInstanceOf(Error);
     expect(input.list).toEqual([1, undefined]);
+  });
+
+  it('keeps an own "__proto__" key as a key', () => {
+    const parsed = JSON.parse('{"__proto__":{"x":1},"a":2}') as unknown;
+    const safe = toJsonSafe(parsed) as Record<string, unknown>;
+    expect(Object.keys(safe)).toEqual(['__proto__', 'a']);
+    expect(JSON.stringify(safe)).toBe('{"__proto__":{"x":1},"a":2}');
+  });
+
+  it('a value nested deeper than the depth cap becomes "[truncated]", not a stack overflow', () => {
+    let deep: unknown = 'bottom';
+    for (let level = 0; level < JOURNAL_LOG_DATA_MAX_DEPTH + 3; level++) deep = { next: deep };
+    expect(JSON.stringify(toJsonSafe(deep))).toContain('"[truncated]"');
+    let huge: unknown = 1;
+    for (let level = 0; level < 100_000; level++) huge = [huge];
+    expect(() => toJsonSafe(huge)).not.toThrow();
+  });
+
+  it('a getter that throws costs its key only', () => {
+    const value = {
+      ok: 1,
+      get bad(): number {
+        throw new Error('nope');
+      },
+    };
+    expect(toJsonSafe(value)).toEqual({ ok: 1, bad: '[unserializable]' });
+  });
+
+  it('never throws: a revoked proxy gives "[unserializable]"', () => {
+    const { proxy, revoke } = Proxy.revocable({}, {});
+    revoke();
+    expect(toJsonSafe(proxy)).toBe('[unserializable]');
   });
 });

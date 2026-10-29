@@ -4,7 +4,7 @@ baseline_commit: ba93bfe
 
 # Story 3.3: Exportable game journal
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 3.3 « Journal de partie exportable » (L1590-1612). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -406,3 +406,21 @@ Modified:
 
 - 2026-10-29: Story created (ready-for-dev).
 - 2026-10-29: Story implemented (T1-T9): exportable `papa-parade.journal` with `JournalSchema`, the pure telemetry builders, the playtest installer wired from `boot.ts`, « Copier le journal » / « Télécharger le journal » on the Result screen, `sim:replay` reading both kinds, dist guardrails, docs. Full `npm run ci` green. Status → review.
+
+### Review Findings
+
+Code review 2026-10-29 (Blind Hunter, Edge Case Hunter, Acceptance Auditor). The sim and the goldens are untouched; every AC has code and tests behind it.
+
+- [x] [Review][Decision] Silent failure on the copy button: on `'failed'` the label does not change (the spec asks for it), so a tester whose build or download failed sees nothing. After a `'copied'` the label also stays « Journal copié ! » on a later failed press, and a rebuilt Result screen (portrait overlay) resets it to « Copier le journal » while `isDownloadOnly` is set (pinned by the e2e). Options: keep the spec, or show a short failure label, or reset the label after a delay. [resultScreen.ts:287] **Resolved (Geo): keep the spec, the label does not change on failure. Dismissed.**
+- [x] [Review][Patch] A `writeText` that never settles (iOS Safari Paste bubble, unfocused document) keeps `isCopyPending` set: add a real-time timeout that settles the press as `'failed'` (decision resolved by Geo: no download fallback). [resultScreen.ts:283, playtestJournal.ts:258]
+- [x] [Review][Patch] `toJsonSafe` can throw (unbounded recursion, throwing getter, revoked Proxy): one bad log `data` makes `buildExport` return `null` and the whole journal is lost, against D4. Guard each entry and substitute `"[unserializable]"`; cap the depth. [toJsonSafe.ts:48]
+- [x] [Review][Patch] An own `__proto__` key is dropped from log data (`copy[key] = item` sets the prototype): use `Object.defineProperty` or a null-prototype copy. [toJsonSafe.ts:50]
+- [x] [Review][Patch] `isDownloadOnly` is set on any clipboard rejection, even a transient `NotAllowedError`, and before the download is known to work. Set it only after a download that succeeded. [playtestJournal.ts:237]
+- [x] [Review][Patch] `URL.revokeObjectURL` on `setTimeout(0)` can cancel or truncate the blob download on Firefox and iOS: revoke after a few seconds. [playtestJournal.ts, `downloadText`]
+- [x] [Review][Patch] Log `message` and `channel` are copied verbatim, unbounded (e.g. `ignoring ?autoplay=<query>` in `boot.ts:1236`): cap their length like `data`. [buildJournalFile.ts:32]
+- [x] [Review][Defer] AC 8: the clipboard-rejection fallback download runs after a microtask, not in the press (declared, Completion Note deviation 4); the iPhone gesture check is left to Geo in `device-measurements.md` — deferred, needs a real device.
+- [x] [Review][Defer] `recorder.onInput` is fed on every sim event, so `dominantDevice` for a game with no response is the device at the last event; `lastPointerType` / `lastInputDevice()` are never reset between games; a timeout fail is credited to the last device used (bias for 3.4's touch vs keyboard ratio) — deferred, declared (deviation 2), settle with story 3.4.
+- [x] [Review][Defer] The log ring buffer is not scoped to the game: the third replay of a session exports logs of games 1 and 2 — deferred, harmless for the analysis.
+- [x] [Review][Defer] The schema hard-codes `version: 3` and nothing ties it to the sim's `Journal.version` — deferred, add an architecture test when the sim bumps it.
+- [x] [Review][Defer] `autoplay` is fixed at boot (`autoplay: null` for a bot started later through `__PP__`); `describeDevice` types an iPad with a keyboard as `desktop` — deferred, test-API only.
+- [x] [Review][Defer] AC 2: the compile-time proof of `JournalFile['replay']['journal']` is one-way for commands (declared, deviation 1) — deferred, a command-shape change is caught at replay time.

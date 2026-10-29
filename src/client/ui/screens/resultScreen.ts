@@ -1,5 +1,5 @@
 import type { ResultScreenTimings } from '@content/schemas/feedback';
-import { COUNT_UP_FRAME_MS, STAR_COUNT_MAX } from '@shared/constants';
+import { COUNT_UP_FRAME_MS, JOURNAL_COPY_TIMEOUT_MS, STAR_COUNT_MAX } from '@shared/constants';
 import { log } from '@shared/log';
 import type { LevelEndReason, MamaScore } from '@sim';
 import type { OverlayScreen } from '../overlayScreen.ts';
@@ -284,13 +284,25 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
       // The same rules as « Rejouer »: a skip, or a finger that is still mashing, never presses it.
       if (heldSkipKey !== null || !isGraceOver() || isCopyPending) return;
       isCopyPending = true;
+      let isSettled = false;
+      let timeoutHandle: number | null = null;
       const settle = (outcome: CopyLogOutcome): void => {
+        // A press settles once: the timeout and a late answer of the clipboard do not both count.
+        if (isSettled) return;
+        isSettled = true;
+        if (timeoutHandle !== null) options.scheduler.cancel(timeoutHandle);
         isCopyPending = false;
         // A screen rebuilt after the portrait overlay starts again at « Copier le journal ».
         if (isDisposed) return;
         if (outcome === 'copied') setCopyLabel('result.log_copied');
         else if (outcome === 'downloaded') setCopyLabel('result.download_log');
       };
+      // A clipboard that never answers (iOS Safari behind its paste bubble) must not kill the button.
+      timeoutHandle = options.scheduler.schedule(() => {
+        timeoutHandle = null;
+        log.warn('debug', 'the copy action did not settle in time');
+        settle('failed');
+      }, JOURNAL_COPY_TIMEOUT_MS);
       // Called here, synchronously: the clipboard is only granted inside the gesture.
       let pending: Promise<CopyLogOutcome>;
       try {

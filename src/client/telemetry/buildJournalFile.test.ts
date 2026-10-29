@@ -1,4 +1,5 @@
 import { type JournalFile, JournalSchema } from '@content/schemas/journal';
+import { JOURNAL_LOG_STRING_MAX_CHARS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import type { LogEntry } from '@shared/log';
 import type { Journal, JournalEntry } from '@sim';
@@ -209,5 +210,31 @@ describe('buildJournalFile (story 3.3)', () => {
     const worldBefore = hashJson(sim.world);
     expect(buildJournalFile(input)).toEqual(buildJournalFile(input));
     expect(hashJson(sim.world)).toBe(worldBefore);
+  });
+
+  it('cuts a log message and channel longer than the string cap', async () => {
+    const { sim, summary } = await playFinishedGame();
+    disposables.push(sim);
+    if (summary === null) throw new Error('the game did not finish');
+    const long = 'x'.repeat(JOURNAL_LOG_STRING_MAX_CHARS + 50);
+    const file = buildJournalFile({
+      sim,
+      levelId: 'salon_crawler',
+      baseContent: createTestContent(),
+      strictInvariants: true,
+      summary,
+      device: describeDevice({
+        userAgent: IPHONE_UA,
+        uaDataPlatform: null,
+        maxTouchPoints: 5,
+        isCoarsePointer: true,
+        shortSidePx: 390,
+      }),
+      target: 'web',
+      logs: [{ atReal: 1, level: 'info', channel: long as LogEntry['channel'], message: long }],
+    });
+    const [entry] = file.diagnostics.logs;
+    expect(entry?.message).toBe(`${'x'.repeat(JOURNAL_LOG_STRING_MAX_CHARS)}…`);
+    expect(entry?.channel).toBe(`${'x'.repeat(JOURNAL_LOG_STRING_MAX_CHARS)}…`);
   });
 });

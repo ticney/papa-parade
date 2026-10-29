@@ -259,7 +259,7 @@ describe('installPlaytestJournal (story 3.3)', () => {
       expect(download).toHaveBeenCalledTimes(1);
     });
 
-    it('answers failed, and warns, when the download throws; the label of a later press can still be downloaded', async () => {
+    it('answers failed, and warns, when the download throws; the clipboard is tried again on the next press', async () => {
       const { journal, writeText, download, play } = await setup();
       writeText.mockRejectedValue(new Error('denied'));
       download.mockImplementationOnce(() => {
@@ -268,8 +268,12 @@ describe('installPlaytestJournal (story 3.3)', () => {
       play();
       await expect(journal.copyLog()).resolves.toBe('failed');
       expect(log.warn).toHaveBeenCalledTimes(2);
+      writeText.mockRejectedValue(new Error('denied'));
       await expect(journal.copyLog()).resolves.toBe('downloaded');
-      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText).toHaveBeenCalledTimes(2);
+      // The download worked: from now on the clipboard is not tried.
+      await expect(journal.copyLog()).resolves.toBe('downloaded');
+      expect(writeText).toHaveBeenCalledTimes(2);
     });
 
     it('answers failed when there is no clipboard and the download throws', async () => {

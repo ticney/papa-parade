@@ -4,6 +4,7 @@ import {
   JOURNAL_FILE_VERSION,
   type JournalFile,
 } from '@content/schemas/journal';
+import { JOURNAL_LOG_STRING_MAX_CHARS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import type { LogEntry } from '@shared/log';
 import type { Sim } from '@sim';
@@ -27,13 +28,19 @@ export interface BuildJournalFileInput {
   logs: readonly LogEntry[];
 }
 
+function capped(text: string): string {
+  return text.length > JOURNAL_LOG_STRING_MAX_CHARS
+    ? `${text.slice(0, JOURNAL_LOG_STRING_MAX_CHARS)}…`
+    : text;
+}
+
 function logOf(entry: LogEntry): JournalFile['diagnostics']['logs'][number] {
   const data = toJsonSafe(entry.data);
   const base = {
     atReal: entry.atReal,
     level: entry.level,
-    channel: entry.channel,
-    message: entry.message,
+    channel: capped(entry.channel),
+    message: capped(entry.message),
   };
   return data === undefined ? base : { ...base, data };
 }

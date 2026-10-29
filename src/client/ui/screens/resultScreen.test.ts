@@ -1,4 +1,4 @@
-import { COUNT_UP_FRAME_MS, STAR_COUNT_MAX } from '@shared/constants';
+import { COUNT_UP_FRAME_MS, JOURNAL_COPY_TIMEOUT_MS, STAR_COUNT_MAX } from '@shared/constants';
 import type { MamaScore } from '@sim';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestFeedback } from '../../../../tests/support/testContent.ts';
@@ -788,6 +788,33 @@ describe('createResultScreen: the copy button (story 3.3)', () => {
     const { copy, presses } = buildCopy();
     copy.click();
     expect(presses()).toBe(1);
+  });
+
+  it('a copy that never settles is given up after the timeout: the button works again', async () => {
+    const never = new Promise<CopyLogOutcome>(() => undefined);
+    let answers: Promise<CopyLogOutcome> = never;
+    const { copy, presses, clock } = buildCopy(() => answers);
+    copy.click();
+    copy.click();
+    expect(presses()).toBe(1);
+    clock.advance(JOURNAL_COPY_TIMEOUT_MS);
+    await settle();
+    expect(copy.textContent).toBe('result.copy_log');
+    answers = Promise.resolve('copied');
+    copy.click();
+    expect(presses()).toBe(2);
+    await settle();
+    expect(copy.textContent).toBe('result.log_copied');
+  });
+
+  it('a late answer after the timeout changes nothing', async () => {
+    const answer = deferred();
+    const { copy, clock } = buildCopy(() => answer.promise);
+    copy.click();
+    clock.advance(JOURNAL_COPY_TIMEOUT_MS);
+    answer.resolve('copied');
+    await settle();
+    expect(copy.textContent).toBe('result.copy_log');
   });
 
   it('says « Journal copié ! » once the text is on the clipboard', async () => {
