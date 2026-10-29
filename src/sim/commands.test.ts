@@ -36,6 +36,7 @@ describe('commandProblem', () => {
       'Release',
       'SetFatigue',
       'SetFeel',
+      'SetNoise',
       'SetTimeScale',
       'StartDisruption',
       'TapBaby',

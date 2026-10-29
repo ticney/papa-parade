@@ -50,6 +50,24 @@
     "coffeeDurationMs": 3000,
     "asleepMs": 3000
   },
+  "noise": {
+    "decayPerSec": 1,
+    "alertPct": 80,
+    "sources": {
+      "propImpact": {
+        "minPct": 5,
+        "maxPct": 15,
+        "minImpulseNs": 0.3,
+        "maxImpulseNs": 2,
+        "samePropCooldownMs": 1000
+      },
+      "phoneRinging": { "perSec": 2 },
+      "babyCrying": { "perSec": 2 },
+      "floorCreak": { "noisePct": 3 },
+      "breathReleased": { "noisePct": 5 },
+      "sniff": { "noisePct": 3 }
+    }
+  },
   "instinct": {
     "timeScale": 0.8,
     "windowBonusPct": 30,

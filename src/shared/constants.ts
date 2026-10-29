@@ -338,6 +338,13 @@ export const COUNT_UP_FRAME_MS = 16;
  */
 export const PHONE_RINGING_EVERY_MS = 1000;
 
+/**
+ * A crying baby emits one `BabyCrying` every this many sim ms (story 3.1 D9), counted from the start
+ * of the cry without drift. A contract, not a feel: « +2 % par seconde de pleurs » is `feel.noise`'s
+ * per event, so making the period tunable would silently change the noise rate.
+ */
+export const BABY_CRYING_EVERY_MS = 1000;
+
 /** A feel is a few levels deep; a `SetFeel` patch nested deeper than this is refused (it stops a runaway or cyclic patch). */
 export const PATCH_MAX_DEPTH = 8;
 

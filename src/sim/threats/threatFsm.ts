@@ -2,6 +2,7 @@ import type { ThreatDef } from '@content/schemas/threat';
 import { NEUTRAL_WINDOW_MODIFIER } from '@shared/constants';
 import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
+import { startBabyCry } from '../baby/cry.ts';
 import type { StepContext } from '../context.ts';
 import { isLastOfWave } from '../director/waveState.ts';
 import type { FailReason, ResponseQuality } from '../events.ts';
@@ -210,6 +211,8 @@ export function gagThreat(
     { type: 'GagTriggered', t: world.time.sim, threatId: threat.id, gag, reason },
   );
   applyGag(world, ctx, threat, gag);
+  // The cry belongs to the def, not to the gag id: many defs share a gag (story 3.1 D9).
+  if (def.gagCryMs !== undefined) startBabyCry(world, ctx, def.gagCryMs);
 }
 
 /** `resolved | gag → idle`, once the cooldown is over. */

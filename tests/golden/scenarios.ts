@@ -8,6 +8,7 @@ import {
   COFFEE_TABLE,
   createTestContent,
   createTestLevel,
+  NOISE_GAUGES,
   OUTLET,
   STAIRS,
   testWave,
@@ -186,6 +187,16 @@ export const SCENARIOS: readonly Scenario[] = [
       { atStep: 1076, command: pressOutlet(10760) },
       { atStep: 1076, command: release(10810) },
     ],
+  },
+  {
+    // `prop_fall` in a level with the noise gauge (story 3.1): pins how much noise the fall of the mug
+    // off the coffee table, onto the vase and the floor, makes in all (Open point 3 of the story).
+    // Same seed, same push: the physics is the same, only the `NoiseChanged` events are new.
+    name: 'prop_fall_noise',
+    level: createTestLevel({ gauges: NOISE_GAUGES }),
+    seed: 42,
+    untilSimMs: 3000,
+    actions: [{ atStep: 10, command: pushProp(100, 'mug_01', 0.72) }],
   },
   {
     // The three threats of the prototype, planned together in one wave from 0 ms (outlet, stairs,

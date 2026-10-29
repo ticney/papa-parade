@@ -183,7 +183,15 @@ export function createTestPhone(): DisruptionDef {
   return parsed.value;
 }
 
-/** The five frozen threats, by id. */
+/**
+ * A frozen threat whose gag makes the baby cry for 3500 ms (`testCrying.threat.json`, story 3.1):
+ * the outlet with a `gagCryMs`. No live threat declares one yet.
+ */
+export function createTestCryingOutlet(): ThreatDef {
+  return readThreatFixture('testCrying.threat.json');
+}
+
+/** The six frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
     createTestOutlet(),
@@ -191,6 +199,7 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
     createTestCoffeeTableObject(),
     createTestMicroSleep(),
     createTestSilence(),
+    createTestCryingOutlet(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
@@ -209,6 +218,9 @@ export const STAIRS: LevelWaveThreat = { def: 'stairs', anchor: 'stairs_top' };
 
 /** The object on the coffee table at the frozen room's `coffee_table` anchor. */
 export const COFFEE_TABLE: LevelWaveThreat = { def: 'coffee_table_object', anchor: 'coffee_table' };
+
+/** The crying outlet (`createTestCryingOutlet`) at the frozen room's `outlet_01` anchor. */
+export const CRYING_OUTLET: LevelWaveThreat = { def: 'crying_outlet', anchor: 'outlet_01' };
 
 /** The suspicious silence in the frozen room's `behind_sofa` hidden zone. */
 export const SILENCE: LevelWaveThreat = { def: 'silence_mischief', anchor: 'behind_sofa' };
@@ -314,6 +326,9 @@ export const TEST_OBJECTS: readonly LevelObject[] = [
 
 /** A level with fatigue: the frozen micro-sleep (`TestLevelOptions.gauges`). */
 export const FATIGUE_GAUGES: LevelGauges = { fatigue: { microSleepDef: 'papa_microsleep' } };
+
+/** A level with the noise gauge (`gauges.noise`, story 3.1). */
+export const NOISE_GAUGES: LevelGauges = { noise: {} };
 
 /** Runs `n` steps: time in tests is counted in steps (`stepN(sim, 120)` = 1200 ms of sim time). */
 export function stepN(sim: Sim, n: number): void {

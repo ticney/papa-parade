@@ -27,6 +27,7 @@ import { createBrowserContentSource } from './assets/browserContentSource.ts';
 import { createAudioEngine } from './audio/audioEngine.ts';
 import { disruptionCueOf } from './feedback/disruptionFeedback.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
+import { isNoiseAlertCrossing } from './feedback/noiseAlert.ts';
 import { createResponseChoreography } from './feedback/responseChoreography.ts';
 import { threatCueOf } from './feedback/threatFeedback.ts';
 import { createGamepadInput } from './input/gamepadInput.ts';
@@ -237,6 +238,7 @@ export async function boot(): Promise<void> {
       | 'ppGag'
       | 'ppPress'
       | 'ppFatigue'
+      | 'ppNoise'
       | 'ppPhone'
       | 'ppSilence'
       | 'ppBabyPx'
@@ -379,6 +381,16 @@ export async function boot(): Promise<void> {
     }
     mirror('ppFatigue', String(Math.round(active.sim.world.gauges.fatigue)));
   };
+  // The noise, rounded: at the level start and on each `NoiseChanged`, never per frame (the decay is
+  // silent: a test reads `__PP__` for exact values). Removed in a level with no noise gauge.
+  const mirrorNoise = (): void => {
+    const active = levelSession.active;
+    if (active === null || active.level.level.gauges.noise === undefined) {
+      delete document.documentElement.dataset.ppNoise;
+      return;
+    }
+    mirror('ppNoise', String(Math.round(active.sim.world.gauges.noisePct)));
+  };
   // Where each interactive object's icon point is on the page, in px: `coffee_machine:x,y;phone:x,y`.
   // Written once per level (the camera is fitted by then), for a Playwright tap on an object.
   const mirrorObjectPoints = (): void => {
@@ -405,6 +417,7 @@ export async function boot(): Promise<void> {
     mirror('ppBabyState', levelSession.active?.sim.world.baby.state ?? 'babble');
     mirrorBabyAt();
     mirrorFatigue();
+    mirrorNoise();
     mirrorObjectPoints();
     delete document.documentElement.dataset.ppTap;
     for (const name of [
@@ -565,6 +578,9 @@ export async function boot(): Promise<void> {
       // The gauges this level has, each at its start value (a restart never shows the last level's).
       const { gauges } = started.level.level;
       gaugesHud.setGauges(GAUGE_IDS.filter((id) => id in gauges));
+      if (gauges.noise !== undefined) {
+        gaugesHud.setValue('noise', Math.round(started.sim.world.gauges.noisePct));
+      }
       if (gauges.fatigue !== undefined) {
         gaugesHud.setValue('fatigue', Math.round(started.sim.world.gauges.fatigue));
       }
@@ -617,7 +633,10 @@ export async function boot(): Promise<void> {
           running.level.level.durationMs - running.sim.world.time.sim,
         );
         hudBatch.set(TIMER_SLOT, Math.ceil(remainingMs / MS_PER_S));
-        // Fatigue in whole percent: the batch writes it when the integer changes (about every 2 s).
+        // Noise and fatigue in whole percent: the batch writes each when its integer changes.
+        if (running.level.level.gauges.noise !== undefined) {
+          hudBatch.set(gaugeSlotOf('noise'), Math.round(running.sim.world.gauges.noisePct));
+        }
         if (running.level.level.gauges.fatigue !== undefined) {
           hudBatch.set(gaugeSlotOf('fatigue'), Math.round(running.sim.world.gauges.fatigue));
         }
@@ -772,7 +791,14 @@ export async function boot(): Promise<void> {
           }
         }
       }
+      // The noise crossed the alert threshold upwards (story 3.1 D10): the haptic cue and its visual
+      // twin, the shake of the gauge. A client feedback event, like the star stamps.
+      if (isNoiseAlertCrossing(event, levelFeel().noise.alertPct)) {
+        director.handle('NoiseAlertReached', null);
+        gaugesHud.alert('noise');
+      }
       if (isMirrored) {
+        if (event.type === 'NoiseChanged') mirrorNoise();
         if (event.type === 'LevelEnded') mirror('ppFlow', 'ended');
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);

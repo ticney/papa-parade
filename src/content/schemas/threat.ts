@@ -1,3 +1,4 @@
+import { BABY_CRYING_EVERY_MS } from '@shared/constants';
 import { z } from 'zod';
 import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 
@@ -72,6 +73,13 @@ const baseShape = {
     .min(0)
     .describe(
       'Time spent resolved or in gag before the threat is idle again, in sim ms (0 = at once).',
+    ),
+  gagCryMs: z
+    .int()
+    .min(BABY_CRYING_EVERY_MS)
+    .optional()
+    .describe(
+      'When a miss ends in the gag, the baby cries for this long, in sim ms, at least 1000 (story 3.1: one `BabyCrying` per second, +2 % noise each; a shorter cry would be silent). Absent: the gag does not make him cry.',
     ),
 };
 

@@ -18,7 +18,7 @@ import type { World } from './world.ts';
  *   runPhysics, runGauges, runInstinct, runScoring, runFlow
  *
  * applyCommands, advanceTime, runDirector, runDisruptions, runBaby, runThreats, runPapa, runPhysics,
- * runGauges and runFlow exist so far (`runGauges` is the fatigue since story 1.19; noise joins it in
+ * runGauges and runFlow exist so far (`runGauges` is the fatigue since story 1.19 and the noise since
  * 3.1; `runDisruptions`, story 1.20, ticks the phone right after the director so that a ring that
  * times out in the step Papa arrives is already over when `runPapa` looks). Each
  * later story inserts its system at its slot, edits the pinned order test and, if behaviour

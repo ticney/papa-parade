@@ -1,3 +1,4 @@
+import type { Feel } from '@content/schemas/feel';
 import type { ThreatResponse } from '@content/schemas/threat';
 import type { InvariantViolation } from '@shared/invariant';
 import type { SimMs } from '@shared/time';
@@ -5,6 +6,12 @@ import type { BabyState } from './baby/babyFsm.ts';
 import type { PapaState } from './papa/papaFsm.ts';
 import type { GagId } from './threats/gags.ts';
 import type { EffectiveWindow } from './timing/effectiveWindow.ts';
+
+/**
+ * What made noise: a row of `feel.noise.sources` (typed from the schema, so a new row cannot be
+ * forgotten here), or `debug` for the `SetNoise` command (story 3.1).
+ */
+export type NoiseSource = keyof Feel['noise']['sources'] | 'debug';
 
 /** How a response ended: `fail` is a gag. */
 export type ResponseQuality = 'perfect' | 'success' | 'fail';
@@ -140,6 +147,12 @@ export type SimEvent =
    * tense: the epic and story 3.1 name it so.)
    */
   | { type: 'PhoneRinging'; t: SimMs; objectId: string }
+  /**
+   * The baby cried for one more `BABY_CRYING_EVERY_MS` (story 3.1): one event, one second of crying,
+   * counted from the start of the cry without drift, like `PhoneRinging`. Each is +`feel.noise`'s
+   * `babyCrying.perSec` noise. (Not past tense: the epic names it so.)
+   */
+  | { type: 'BabyCrying'; t: SimMs }
   /** The phone stopped ringing, for the `reason`; `timedOut` and `levelEnded` are a missed call. */
   | { type: 'PhoneRingEnded'; t: SimMs; objectId: string; reason: PhoneRingEndReason }
   /**
@@ -153,6 +166,13 @@ export type SimEvent =
    * props gives one event for each. The noise gauge (3.1) reads only this event.
    */
   | { type: 'PropImpact'; t: SimMs; propId: string; impulseNs: number; otherPropId: string | null }
+  /**
+   * The noise gauge moved by a source event (story 3.1): `deltaPct` is the change after the clamp
+   * (never 0) and `noisePct` the value after it, in % of the gauge. The decay is silent: read
+   * `world.gauges.noisePct` for the exact value. `source` is a row of `feel.noise.sources`, or
+   * `debug` for `SetNoise`.
+   */
+  | { type: 'NoiseChanged'; t: SimMs; source: NoiseSource; noisePct: number; deltaPct: number }
   /** A breakable prop took a hit of `impulseNs` or more, once; it stays in the world, broken. */
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
   /** The level is over, once: from here the sim only keeps its clock (the client shows the result). */
@@ -180,6 +200,7 @@ export type SimEvent =
  * `content/feedback.json` against it. No system reads it, so no golden moves.
  */
 export const SIM_EVENT_TYPES = [
+  'BabyCrying',
   'BabyStateChanged',
   'CoffeeDrunk',
   'CoffeeStarted',
@@ -189,6 +210,7 @@ export const SIM_EVENT_TYPES = [
   'LevelEnded',
   'LevelScored',
   'NearMiss',
+  'NoiseChanged',
   'ObjectTapped',
   'PapaArrived',
   'PapaBlocked',

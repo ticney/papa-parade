@@ -22,6 +22,11 @@ export type SimCommand =
    */
   | { type: 'SetFatigue'; t: SimMs; points: number }
   /**
+   * Debug / test command, journaled like `SetFatigue`: sets the noise to `pct` (held in `[0, 100]`)
+   * through `addNoise`, source `debug`. Ignored in a level with no noise gauge (story 3.1).
+   */
+  | { type: 'SetNoise'; t: SimMs; pct: number }
+  /**
    * Debug / test command, journaled like `SetFatigue`: starts the planned disruption number `index`
    * (the waves' `disruptions` flattened in wave order) now, if it is still `pending`; any other
    * state, or an index the level does not have, is ignored with no event (story 1.20).
@@ -73,6 +78,7 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetTimeScale',
   'SetFeel',
   'SetFatigue',
+  'SetNoise',
   'StartDisruption',
   'ForceThreat',
   'TapBaby',
@@ -144,6 +150,11 @@ export function commandProblem(value: unknown): string | null {
   if (command.type === 'SetFatigue') {
     if (typeof command.points !== 'number' || !Number.isFinite(command.points)) {
       return 'SetFatigue: points must be a finite number';
+    }
+  }
+  if (command.type === 'SetNoise') {
+    if (typeof command.pct !== 'number' || !Number.isFinite(command.pct)) {
+      return 'SetNoise: pct must be a finite number';
     }
   }
   if (command.type === 'StartDisruption') {

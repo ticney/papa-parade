@@ -352,6 +352,163 @@
       "additionalProperties": false,
       "description": "Papa's fatigue (GDD §6)."
     },
+    "noise": {
+      "type": "object",
+      "properties": {
+        "decayPerSec": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Noise lost per second, in % of the gauge per second (GDD: 1 %/s)."
+        },
+        "alertPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Above this noise the client plays the alert (haptic + shake), in % of the gauge."
+        },
+        "sources": {
+          "type": "object",
+          "properties": {
+            "propImpact": {
+              "type": "object",
+              "properties": {
+                "minPct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Noise of a falling object at `minImpulseNs`, in % of the gauge."
+                },
+                "maxPct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Noise of a falling object at `maxImpulseNs` and above, in % of the gauge."
+                },
+                "minImpulseNs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Impact impulse that makes `minPct`, in newton-seconds."
+                },
+                "maxImpulseNs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Impact impulse that makes `maxPct`, in newton-seconds."
+                },
+                "samePropCooldownMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "A prop that already made noise is silent for this long (a bounce is one fall), in sim ms; 0 = no window."
+                }
+              },
+              "required": [
+                "minPct",
+                "maxPct",
+                "minImpulseNs",
+                "maxImpulseNs",
+                "samePropCooldownMs"
+              ],
+              "additionalProperties": false,
+              "description": "A prop hitting something (`PropImpact`): +minPct…maxPct by impulse (GDD: +5 to +15 %)."
+            },
+            "phoneRinging": {
+              "type": "object",
+              "properties": {
+                "perSec": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Noise per second of ringing, in % of the gauge per second."
+                }
+              },
+              "required": [
+                "perSec"
+              ],
+              "additionalProperties": false,
+              "description": "A ringing phone (`PhoneRinging`, one per second): GDD +2 %/s."
+            },
+            "babyCrying": {
+              "type": "object",
+              "properties": {
+                "perSec": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Noise per second of crying, in % of the gauge per second."
+                }
+              },
+              "required": [
+                "perSec"
+              ],
+              "additionalProperties": false,
+              "description": "The baby crying (`BabyCrying`, one per second): GDD +2 %/s."
+            },
+            "floorCreak": {
+              "type": "object",
+              "properties": {
+                "noisePct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Noise added once per occurrence, in % of the gauge."
+                }
+              },
+              "required": [
+                "noisePct"
+              ],
+              "additionalProperties": false,
+              "description": "A creaking floorboard (story 4.9): GDD +3 %."
+            },
+            "breathReleased": {
+              "type": "object",
+              "properties": {
+                "noisePct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Noise added once per occurrence, in % of the gauge."
+                }
+              },
+              "required": [
+                "noisePct"
+              ],
+              "additionalProperties": false,
+              "description": "Breath released too early (story 4.9): GDD +5 %."
+            },
+            "sniff": {
+              "type": "object",
+              "properties": {
+                "noisePct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Noise added once per occurrence, in % of the gauge."
+                }
+              },
+              "required": [
+                "noisePct"
+              ],
+              "additionalProperties": false,
+              "description": "Sniffing (story 5.3): GDD +3 %."
+            }
+          },
+          "required": [
+            "propImpact",
+            "phoneRinging",
+            "babyCrying",
+            "floorCreak",
+            "breathReleased",
+            "sniff"
+          ],
+          "additionalProperties": false,
+          "description": "What makes noise: one row per source of `NoiseChanged`."
+        }
+      },
+      "required": [
+        "decayPerSec",
+        "alertPct",
+        "sources"
+      ],
+      "additionalProperties": false,
+      "description": "The noise gauge of the Sieste levels (FR18, GDD rule 7)."
+    },
     "instinct": {
       "type": "object",
       "properties": {
@@ -708,6 +865,7 @@
     "movement",
     "baby",
     "fatigue",
+    "noise",
     "instinct",
     "difficulty",
     "mama",

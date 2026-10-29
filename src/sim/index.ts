@@ -8,6 +8,7 @@ export { DISRUPTION_STATES, type DisruptionState } from './disruptions/disruptio
 export {
   type FailReason,
   type LevelEndReason,
+  type NoiseSource,
   type PhoneRingEndReason,
   type ResponseQuality,
   SIM_EVENT_TYPES,

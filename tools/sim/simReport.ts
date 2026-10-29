@@ -1,6 +1,13 @@
+import { NOISE_SOURCE_IDS } from '@content/schemas/feel';
 import { STAR_COUNT_MAX } from '@shared/constants';
 import { hashJson } from '@shared/hash';
-import { PAPA_ASLEEP_GAG_ID, type Sim, type SimEvent } from '@sim';
+import { type NoiseSource, PAPA_ASLEEP_GAG_ID, type Sim, type SimEvent } from '@sim';
+
+/** Every `NoiseSource` the report counts, in file order, `debug` last (a bot never sends `SetNoise`, so it stays 0). */
+const NOISE_SOURCES: readonly NoiseSource[] = [...NOISE_SOURCE_IDS, 'debug'];
+
+const emptyNoiseBySource = (): Record<NoiseSource, number> =>
+  Object.fromEntries(NOISE_SOURCES.map((source) => [source, 0])) as Record<NoiseSource, number>;
 
 const FAIL_REASONS = ['early', 'late', 'wrongResponse', 'released'] as const;
 type FailReasonKey = (typeof FAIL_REASONS)[number];
@@ -45,7 +52,7 @@ export interface RunSummary {
   phoneRings: number;
   /** The phones Papa picked up (`PhoneAnswered`). */
   phoneAnswers: number;
-  /** The seconds of ringing (`PhoneRinging`: one event is one `PHONE_RINGING_EVERY_MS`). */
+  /** The seconds of ringing (`PhoneRinging`: one event is one `PHONE_RINGING_EVERY_MS`; the noise gauge reads the same event). */
   phoneRingingSeconds: number;
   /** The suspicious silences announced (`SilenceStarted`, story 1.21). */
   silences: number;
@@ -55,6 +62,12 @@ export interface RunSummary {
   silencesTimedOut: number;
   /** The silences the level ended in (`SilenceEnded{levelEnded}`): neither found nor timed out. */
   silencesCutOff: number;
+  /** The highest `NoiseChanged.noisePct` of the run, in %; 0 if none (a level with no noise gauge, story 3.1). */
+  noisePeakPct: number;
+  /** The final world's noise, in %, rounded to 0.1 (the decay is silent: the events cannot give it). */
+  noiseFinalPct: number;
+  /** The sum of the positive `NoiseChanged.deltaPct` per source, in %. */
+  noiseBySourcePct: Record<NoiseSource, number>;
   commands: number;
   threats: Record<string, ThreatTally>;
   byGag: Record<string, number>;
@@ -120,6 +133,8 @@ export function createRunRecorder(
   let silencesFound = 0;
   let silencesTimedOut = 0;
   let silencesCutOff = 0;
+  let noisePeakPct = 0;
+  const noiseBySourcePct = emptyNoiseBySource();
   // A silence is picked (`ThreatHidden`), then telegraphed only if the baby is found: the pick is
   // what counts against the wave, and the later telegraph of the same threat is not a second one.
   const hiddenThreatIds = new Set<number>();
@@ -193,6 +208,9 @@ export function createRunRecorder(
         phoneAnswers++;
       } else if (event.type === 'PhoneRinging') {
         phoneRingingSeconds++;
+      } else if (event.type === 'NoiseChanged') {
+        noisePeakPct = Math.max(noisePeakPct, event.noisePct);
+        if (event.deltaPct > 0) noiseBySourcePct[event.source] += event.deltaPct;
       } else if (event.type === 'SilenceStarted') {
         silences++;
       } else if (event.type === 'SilenceEnded') {
@@ -218,6 +236,9 @@ export function createRunRecorder(
         silencesFound,
         silencesTimedOut,
         silencesCutOff,
+        noisePeakPct,
+        noiseFinalPct: round(sim.world.gauges.noisePct, 1),
+        noiseBySourcePct: { ...noiseBySourcePct },
         commands: sim.journal().entries.length,
         threats,
         byGag,
@@ -292,7 +313,7 @@ export interface SimReport {
   phoneRings: number;
   /** The phones Papa picked up, over the runs. */
   phoneAnswers: number;
-  /** The seconds of ringing, over the runs: what story 3.1 turns into noise. */
+  /** The seconds of ringing, over the runs (the noise it makes is in `noiseBySourcePct`). */
   phoneRingingSeconds: number;
   /** The suspicious silences announced, over the runs (story 1.21). */
   silences: number;
@@ -302,6 +323,14 @@ export interface SimReport {
   silencesTimedOut: number;
   /** The silences the level ended in, over the runs. */
   silencesCutOff: number;
+  /** Mean of the runs' highest noise, in % to one decimal: does 3.2 end games (story 3.1 open point 2)? */
+  noisePeakMeanPct: number;
+  /** The highest noise of any run, in %. */
+  noisePeakMaxPct: number;
+  /** Mean of the final noise of the runs, in % to one decimal. */
+  noiseFinalMeanPct: number;
+  /** The positive noise per source, summed over the runs, in % to one decimal. */
+  noiseBySourcePct: Record<NoiseSource, number>;
   runList: {
     seed: number;
     worldHash: string;
@@ -354,6 +383,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let silencesFound = 0;
   let silencesTimedOut = 0;
   let silencesCutOff = 0;
+  let noisePeakSumPct = 0;
+  let noisePeakMaxPct = 0;
+  let noiseFinalSumPct = 0;
+  const noiseBySourcePct = emptyNoiseBySource();
   let scoredRuns = 0;
   let scoreSum = 0;
   let starSum = 0;
@@ -392,6 +425,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     silencesFound += run.silencesFound;
     silencesTimedOut += run.silencesTimedOut;
     silencesCutOff += run.silencesCutOff;
+    noisePeakSumPct += run.noisePeakPct;
+    noisePeakMaxPct = Math.max(noisePeakMaxPct, run.noisePeakPct);
+    noiseFinalSumPct += run.noiseFinalPct;
+    for (const source of NOISE_SOURCES) noiseBySourcePct[source] += run.noiseBySourcePct[source];
     for (const gag of Object.keys(run.byGag)) {
       byGag[gag] = countOf(byGag, gag) + countOf(run.byGag, gag);
     }
@@ -460,6 +497,12 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     silencesFound,
     silencesTimedOut,
     silencesCutOff,
+    noisePeakMeanPct: runs.length === 0 ? 0 : round(noisePeakSumPct / runs.length, 1),
+    noisePeakMaxPct: round(noisePeakMaxPct, 1),
+    noiseFinalMeanPct: runs.length === 0 ? 0 : round(noiseFinalSumPct / runs.length, 1),
+    noiseBySourcePct: Object.fromEntries(
+      NOISE_SOURCES.map((source) => [source, round(noiseBySourcePct[source], 1)]),
+    ) as Record<NoiseSource, number>,
     runList: runs.map((run) => ({
       seed: run.seed,
       worldHash: run.worldHash,

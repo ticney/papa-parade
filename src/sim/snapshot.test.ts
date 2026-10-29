@@ -3,10 +3,12 @@ import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
+  CRYING_OUTLET,
   createTestContent,
   createTestGeometry,
   createTestLevel,
   FATIGUE_GAUGES,
+  NOISE_GAUGES,
   OUTLET,
   SILENCE,
   stepN,
@@ -394,25 +396,27 @@ describe('snapshot / restore', () => {
   it('refuses an unknown snapshot version', async () => {
     const sim = await createSim({ content, geometry, level, seed: 5 });
     const snapshot = sim.snapshot();
-    expect(() => sim.restore({ ...snapshot, version: 1 as 12 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 1 as 13 })).toThrow(/version/);
     // Version 3 predates the base scale and the slow-mos (story 1.14).
-    expect(() => sim.restore({ ...snapshot, version: 3 as 12 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 3 as 13 })).toThrow(/version/);
     // Version 4 has no Rapier world (story 1.15).
-    expect(() => sim.restore({ ...snapshot, version: 4 as 12 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...snapshot, version: 4 as 13 })).toThrow(/version 4/);
     // Version 5 has no director, flow or wave index (story 1.18).
-    expect(() => sim.restore({ ...snapshot, version: 5 as 12 })).toThrow(/version 5/);
+    expect(() => sim.restore({ ...snapshot, version: 5 as 13 })).toThrow(/version 5/);
     // Version 6 has no gauges, no Papa busy state and no `objectId` (story 1.19).
-    expect(() => sim.restore({ ...snapshot, version: 6 as 12 })).toThrow(/version 6/);
+    expect(() => sim.restore({ ...snapshot, version: 6 as 13 })).toThrow(/version 6/);
     // Version 7 has no disruptions and no `onPhone` state (story 1.20).
-    expect(() => sim.restore({ ...snapshot, version: 7 as 12 })).toThrow(/version 7/);
+    expect(() => sim.restore({ ...snapshot, version: 7 as 13 })).toThrow(/version 7/);
     // Version 8 has no silence, no `mischiefs` and no hidden state (story 1.21).
-    expect(() => sim.restore({ ...snapshot, version: 8 as 12 })).toThrow(/version 8/);
+    expect(() => sim.restore({ ...snapshot, version: 8 as 13 })).toThrow(/version 8/);
     // Version 9 has no score (story 1.22).
-    expect(() => sim.restore({ ...snapshot, version: 9 as 12 })).toThrow(/version 9/);
+    expect(() => sim.restore({ ...snapshot, version: 9 as 13 })).toThrow(/version 9/);
     // Version 10 has no `heldAt` on a press (story 1.23).
-    expect(() => sim.restore({ ...snapshot, version: 10 as 12 })).toThrow(/version 10/);
-    // Version 11 has no effective feel (story 2.1).
-    expect(() => sim.restore({ ...snapshot, version: 11 as 12 })).toThrow(/version 11/);
+    expect(() => sim.restore({ ...snapshot, version: 10 as 13 })).toThrow(/version 10/);
+    // Version 11 has no noise state and no cry (story 3.1).
+    expect(() => sim.restore({ ...snapshot, version: 11 as 13 })).toThrow(/version 11/);
+    // Version 12 has no effective feel (story 2.1).
+    expect(() => sim.restore({ ...snapshot, version: 12 as 13 })).toThrow(/version 12/);
   });
 
   it('refuses a snapshot of another level', async () => {
@@ -972,7 +976,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
   it('is taken while a prop moves, and carries the Rapier world as base64', async () => {
     const sim = await midFall();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(12);
+    expect(snapshot.version).toBe(13);
     expect(snapshot.physics).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
     expect(snapshot.world.props[0]?.xM).toBeGreaterThan(0.7);
     expect(snapshot.world.props[0]?.yM).toBeLessThan(0.5);
@@ -1023,7 +1027,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
 
   it('refuses a snapshot from before the Rapier world (version 4)', async () => {
     const sim = await newSim();
-    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 12 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 13 })).toThrow(/version 4/);
   });
 
   describe('refuses a malformed props slice, with its path', () => {
@@ -1136,11 +1140,11 @@ describe('snapshot / restore of the director and the flow (story 1.18)', () => {
   const threat0 = (w: Record<string, unknown>) =>
     (w.threats as Record<string, unknown>[])[0] as Record<string, unknown>;
 
-  it('is the current version (12), and carries the director, the flow and the wave index of each threat', async () => {
+  it('is the current version (13), and carries the director, the flow and the wave index of each threat', async () => {
     const sim = await newSim();
     stepN(sim, 60); // 600 ms: wave 0 entered, the outlet telegraphed
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(12);
+    expect(snapshot.version).toBe(13);
     expect(snapshot.world.director.waveIndex).toBe(0);
     expect(snapshot.world.flow).toEqual({ state: 'playing', enteredAt: 0 });
     expect(snapshot.world.threats[0]).toMatchObject({ state: 'telegraph', waveIndex: 0 });
@@ -1397,10 +1401,10 @@ describe('snapshot / restore of the disruptions and the phone call (story 1.20)'
     return sim;
   }
 
-  it('is the current version (12), and carries a pending disruption as it was created', async () => {
+  it('is the current version (13), and carries a pending disruption as it was created', async () => {
     const sim = await newPhone();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(12);
+    expect(snapshot.version).toBe(13);
     expect(snapshot.world.disruptions).toEqual([
       { state: 'pending', enteredAt: 0, untilAt: 0, nextRingingAt: 0 },
     ]);
@@ -1808,11 +1812,11 @@ describe('snapshot / restore of Mama’s score (story 1.22)', () => {
     return sim;
   }
 
-  it('is the current version (12), carries the counters while playing and the note once ended, and round-trips', async () => {
+  it('is the current version (13), carries the counters while playing and the note once ended, and round-trips', async () => {
     const playing = await newSim();
     stepN(playing, 10);
     const early = playing.snapshot();
-    expect(early.version).toBe(12);
+    expect(early.version).toBe(13);
     expect(early.world.score).toEqual({ perfects: 0, nearMisses: 0, final: null });
 
     const live = await ended();
@@ -1871,5 +1875,148 @@ describe('snapshot / restore of Mama’s score (story 1.22)', () => {
     damage(snapshot.world);
     const target = await newSim();
     expect(() => target.restore(snapshot)).toThrow(pattern);
+  });
+});
+
+describe('snapshot / restore of the noise and the cry (story 3.1)', () => {
+  const noisyLevel = createTestLevel({
+    waves: [testWave([CRYING_OUTLET], { disruptions: [testPhoneEntry(500)] })],
+    objects: TEST_OBJECTS,
+    gauges: NOISE_GAUGES,
+  });
+  const newNoisy = () => createSim({ content, geometry, level: noisyLevel, seed: 5 });
+
+  /** Steps until the baby cries (the crying outlet missed), with the noise already moved by the phone. */
+  async function crying() {
+    const sim = await newNoisy();
+    for (let i = 0; i < 5000 && sim.world.baby.cryStartedAt === null; i++) sim.step();
+    expect(sim.world.baby.cryStartedAt).not.toBeNull();
+    return sim;
+  }
+
+  it('carries noisePct, propNoiseAt (one per prop, null at the start) and the cry pair', async () => {
+    const fresh = (await newNoisy()).snapshot().world;
+    expect(fresh.gauges.noisePct).toBe(0);
+    expect(fresh.gauges.propNoiseAt).toEqual(fresh.props.map(() => null));
+    expect(fresh.baby).toMatchObject({ cryStartedAt: null, cryEndsAt: null });
+    const mid = (await crying()).snapshot().world;
+    expect(mid.baby.cryStartedAt).not.toBeNull();
+    expect(mid.baby.cryEndsAt).toBeGreaterThan(mid.baby.cryStartedAt as number);
+    expect(mid.gauges.noisePct).toBeGreaterThan(0);
+  });
+
+  it('restores a game taken mid-cry to the uninterrupted hash and journal', async () => {
+    const live = await crying();
+    const snapshot = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<
+      typeof live.snapshot
+    >;
+    const copy = await newNoisy();
+    copy.restore(snapshot);
+    stepN(live, 600);
+    stepN(copy, 600);
+    expect(hashJson(copy.world)).toBe(hashJson(live.world));
+    expect(copy.world.baby.cryStartedAt).toBeNull();
+  });
+
+  it('is deterministic: the same seed gives the same worldHash with the noise on', async () => {
+    const run = async () => {
+      const sim = await newNoisy();
+      stepN(sim, 1500);
+      return hashJson(sim.world);
+    };
+    expect(await run()).toBe(await run());
+  });
+
+  describe('refuses a damaged field, naming it', () => {
+    type Damage = (w: Record<string, Record<string, unknown>>) => void;
+    const gauges = (w: Record<string, Record<string, unknown>>) =>
+      w.gauges as Record<string, unknown>;
+    const baby = (w: Record<string, Record<string, unknown>>) => w.baby as Record<string, unknown>;
+    const broken: [string, Damage, RegExp][] = [
+      ['a noise above 100', (w) => (gauges(w).noisePct = 100.5), /world\.gauges\.noisePct/],
+      ['a negative noise', (w) => (gauges(w).noisePct = -1), /world\.gauges\.noisePct/],
+      ['a NaN noise', (w) => (gauges(w).noisePct = Number.NaN), /world\.gauges\.noisePct/],
+      ['a noise that is a string', (w) => (gauges(w).noisePct = '5'), /world\.gauges\.noisePct/],
+      ['no propNoiseAt', (w) => delete gauges(w).propNoiseAt, /world\.gauges\.propNoiseAt/],
+      [
+        'a propNoiseAt that is too short',
+        (w) => (gauges(w).propNoiseAt = [null]),
+        /world\.gauges\.propNoiseAt/,
+      ],
+      [
+        'a propNoiseAt of the wrong length',
+        (w) => (gauges(w).propNoiseAt = [null, null, null]),
+        /world\.gauges\.propNoiseAt/,
+      ],
+      [
+        'a negative propNoiseAt entry',
+        (w) => (gauges(w).propNoiseAt = [-5, null]),
+        /world\.gauges\.propNoiseAt/,
+      ],
+      [
+        'a NaN propNoiseAt entry',
+        (w) => (gauges(w).propNoiseAt = [null, Number.NaN]),
+        /world\.gauges\.propNoiseAt/,
+      ],
+      [
+        'a string propNoiseAt entry',
+        (w) => (gauges(w).propNoiseAt = ['5', null]),
+        /world\.gauges\.propNoiseAt/,
+      ],
+      [
+        'a cry that starts and never ends',
+        (w) => (baby(w).cryEndsAt = null),
+        /world\.baby\.cryEndsAt/,
+      ],
+      [
+        'a cry that ends and never started',
+        (w) => {
+          baby(w).cryStartedAt = null;
+        },
+        /world\.baby\.cryEndsAt/,
+      ],
+      [
+        'a cry that ends before it started',
+        (w) => (baby(w).cryEndsAt = -1),
+        /world\.baby\.cryEndsAt/,
+      ],
+      ['a negative cryStartedAt', (w) => (baby(w).cryStartedAt = -2), /world\.baby\.cryStartedAt/],
+      [
+        'a cryStartedAt in the future',
+        (w) => {
+          baby(w).cryStartedAt = 1e9;
+          baby(w).cryEndsAt = 2e9;
+        },
+        /world\.baby\.cryStartedAt/,
+      ],
+      [
+        'a propNoiseAt entry in the future',
+        (w) => (gauges(w).propNoiseAt = [1e9, null]),
+        /world\.gauges\.propNoiseAt/,
+      ],
+      [
+        'a NaN cryStartedAt',
+        (w) => (baby(w).cryStartedAt = Number.NaN),
+        /world\.baby\.cryStartedAt/,
+      ],
+    ];
+
+    it.each(broken)('%s', async (_name, damage, expected) => {
+      const live = await crying();
+      const snapshot = JSON.parse(JSON.stringify(live.snapshot()));
+      damage(snapshot.world);
+      const target = await newNoisy();
+      expect(() => target.restore(snapshot)).toThrow(expected);
+    });
+  });
+
+  it('refuses a noise other than 0 in a level with no noise gauge', async () => {
+    const plain = createTestLevel();
+    const live = await createSim({ content, geometry, level: plain, seed: 9 });
+    stepN(live, 5);
+    const snapshot = JSON.parse(JSON.stringify(live.snapshot()));
+    snapshot.world.gauges.noisePct = 12;
+    const target = await createSim({ content, geometry, level: plain, seed: 9 });
+    expect(() => target.restore(snapshot)).toThrow(/world\.gauges\.noisePct/);
   });
 });

@@ -12,7 +12,9 @@ import { botTestLevel } from '../../support/botSupport.ts';
 import {
   createTestContent,
   createTestGeometry,
+  createTestLevel,
   createTestResponseWindow,
+  NOISE_GAUGES,
 } from '../../support/testContent.ts';
 
 const INPUT = {
@@ -28,6 +30,16 @@ const WAVES = [
   { fromMs: 0, maxSimultaneous: 1 },
   { fromMs: 60000, maxSimultaneous: 2 },
 ];
+
+const NO_NOISE: RunSummary['noiseBySourcePct'] = {
+  propImpact: 0,
+  phoneRinging: 0,
+  babyCrying: 0,
+  floorCreak: 0,
+  breathReleased: 0,
+  sniff: 0,
+  debug: 0,
+};
 
 function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
   return {
@@ -46,6 +58,9 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     silencesFound: 0,
     silencesTimedOut: 0,
     silencesCutOff: 0,
+    noisePeakPct: 0,
+    noiseFinalPct: 0,
+    noiseBySourcePct: NO_NOISE,
     commands: 0,
     threats: {},
     byGag: {},
@@ -219,6 +234,41 @@ describe('summarizeRuns', () => {
       phoneRings: 0,
       phoneAnswers: 0,
       phoneRingingSeconds: 0,
+    });
+  });
+
+  it('reports the mean and max of the noise peaks, the mean final noise and the noise per source (story 3.1)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(5, {
+        noisePeakPct: 40,
+        noiseFinalPct: 10.5,
+        noiseBySourcePct: { ...NO_NOISE, propImpact: 20.04, phoneRinging: 30 },
+      }),
+      run(6, {
+        noisePeakPct: 100,
+        noiseFinalPct: 30,
+        noiseBySourcePct: { ...NO_NOISE, propImpact: 10, babyCrying: 6 },
+      }),
+      run(7, {}),
+    ]);
+    expect(report).toMatchObject({
+      noisePeakMeanPct: 46.7,
+      noisePeakMaxPct: 100,
+      noiseFinalMeanPct: 13.5,
+      noiseBySourcePct: { ...NO_NOISE, propImpact: 30, phoneRinging: 30, babyCrying: 6 },
+    });
+  });
+
+  it('reports no noise for no run, and for a level with none', () => {
+    expect(summarizeRuns(INPUT, [])).toMatchObject({
+      noisePeakMeanPct: 0,
+      noisePeakMaxPct: 0,
+      noiseFinalMeanPct: 0,
+      noiseBySourcePct: NO_NOISE,
+    });
+    expect(summarizeRuns(INPUT, [run(5)])).toMatchObject({
+      noisePeakMeanPct: 0,
+      noiseFinalMeanPct: 0,
     });
   });
 
@@ -512,6 +562,42 @@ describe('createRunRecorder', () => {
         phoneAnswers: 1,
         phoneRingingSeconds: 4,
       });
+    });
+
+    it('keeps the peak and sums the positive change per source from NoiseChanged (story 3.1)', async () => {
+      const recorder = await recorderOf([]);
+      const changed = (
+        source: 'propImpact' | 'phoneRinging' | 'debug',
+        noisePct: number,
+        deltaPct: number,
+      ) => recorder.onEvent({ type: 'NoiseChanged', t: asSimMs(0), source, noisePct, deltaPct });
+      changed('propImpact', 12, 12);
+      changed('phoneRinging', 14, 2);
+      changed('propImpact', 29, 15);
+      changed('debug', 5, -24); // a fall: not noise made, the peak stays
+      expect(recorder.finish()).toMatchObject({
+        noisePeakPct: 29,
+        noiseBySourcePct: { ...NO_NOISE, propImpact: 27, phoneRinging: 2 },
+      });
+    });
+
+    it('reports the final noise of the world, to 0.1, and 0 for a level with no noise gauge', async () => {
+      const recorder = await recorderOf([]);
+      expect(recorder.finish()).toMatchObject({
+        noisePeakPct: 0,
+        noiseFinalPct: 0,
+        noiseBySourcePct: NO_NOISE,
+      });
+      const sim = await createSim({
+        content: createTestContent(),
+        geometry: createTestGeometry(),
+        level: createTestLevel({ gauges: NOISE_GAUGES }),
+        seed: 1,
+      });
+      sim.enqueue({ type: 'SetNoise', t: asSimMs(0), pct: 33.37 });
+      for (let i = 0; i < 100; i++) sim.step();
+      // 33.37 − 1 % over one second of decay = 32.37, to one decimal.
+      expect(createRunRecorder(sim, 1).finish().noiseFinalPct).toBe(32.4);
     });
 
     it('counts the silences, found or not, from their events (story 1.21)', async () => {

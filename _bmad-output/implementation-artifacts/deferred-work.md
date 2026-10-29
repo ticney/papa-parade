@@ -259,7 +259,7 @@
 ## Deferred from: implementation of story 1-15-physique-legere-des-objets (2026-10-27)
 
 - **No sound, haptic or feedback ring for `PropImpact` and `PropBroken`.** `content/feedback.json` lists neither event, so they are harmless today. Sounds and haptics arrive with stories 2.3 and 2.5 (the « ring anchored on props » item moves there).
-- **Noise and mess are read, not consumed.** The noise gauge (3.1) reads only `PropImpact`; Mama's sigh (1.22) reads `world.mess`. Neither exists yet.
+- **Noise and mess are read, not consumed.** The noise gauge (3.1) reads only `PropImpact`; Mama's sigh (1.22) reads `world.mess`. Neither exists yet. **Resolved in story 3.1:** `runNoise` reads `PropImpact` (with `PhoneRinging` and `BabyCrying`) of this step; the mess stays 1.22's.
 - **Papa and the baby do not collide with props, and props are not nav obstacles.** They walk through a fallen mug. Revisit when a gag or E6's dog needs it.
 - **A broken prop keeps its body and has no shards.** It is drawn squashed (`BROKEN_SCALE_Y`) and still collides. Shards and a removed body are E7 art.
 - **Instanced prop meshes** once a room has about 10 props. Each prop is two draw calls today (body and blob shadow).
@@ -340,10 +340,10 @@
 ## Deferred from: implementation of story 1-19-fatigue-cafe-et-micro-siestes (2026-10-28)
 
 - **No spec for the busy feedback or the coffee cue.** While Papa drinks or sleeps, the player sees a mug cube or shut eyelids and a « Z » (provisional, 3D) and nothing else: no progress ring, no sound for the coffee (UX has no spec). Reason: D10 / open point 4; sound is 2.x, the final drawing is E7.
-- **The snore, the woken baby and +15 % noise** of a missed micro-sleep belong to E3 / E4 (`stay_awake`, GDD L258) and to the noise gauge (story 3.1). Today a miss is a 3 s nap and nothing else.
+- **The snore, the woken baby and +15 % noise** of a missed micro-sleep belong to E3 / E4 (`stay_awake`, GDD L258) and to the noise gauge (story 3.1). Today a miss is a 3 s nap and nothing else. **Resolved in story 3.1:** the noise gauge exists, but the snore is not one of its sources yet: its row (`snore`, +15 %) is added by story 4.4.
 - **The gauge pulse rate is an assumption**: the warn icon pulses once per second (1 Hz, the ceiling); DESIGN gives no rate. The `GAUGE_CHANGE_HOLD_MS` of 1500 real ms (D11) and the 50 % dimming are assumptions of EXPERIENCE L207 too (`[ASSUMPTION]`); Geo tunes both after a playtest.
 - **`windowPenaltyPct` is still loose (0-100)** and the sim now reads it: 100 gives a window of 0 ms and an unwinnable threat. Tighten it to below 100 in `feel.ts` when Geo retunes the fatigue. (Was L25.)
-- **The HUD node budget will be tight with three gauges**: one gauge is about 8 nodes, three about 20, and the pill, timer and pause button about 19 more, against `HUD_MAX_DOM_NODES` = 40. Check it when story 3.1 adds the noise gauge and epic 4 the need.
+- **The HUD node budget will be tight with three gauges**: one gauge is about 8 nodes, three about 20, and the pill, timer and pause button about 19 more, against `HUD_MAX_DOM_NODES` = 40. Check it when story 3.1 adds the noise gauge and epic 4 the need. **Resolved in story 3.1:** measured with Bruit and Fatigue in the pill on `salon_crawler`: the HUD stays within `HUD_MAX_DOM_NODES` (40), checked in `noise.spec.ts` and `fatigue.spec.ts` (the count is in the story's Completion Notes). The need gauge (epic 4) must check it again.
 - **The strings `gauge.*` already existed** (`gauge.fatigue`, `gauge.noise`, `gauge.urge`): the pill reuses them, plus the new `hud.gauges`. The story named `hud.gauge_fatigue`; nothing else reads it.
 - **`withoutThreats` (`?threats=off`) keeps the micro-sleep def** so that `createSim` accepts the level; a debug run of more than 140 s on that switch still sees micro-sleeps.
 
@@ -351,23 +351,23 @@
 
 - **`SetFatigue` passes `commandProblem` from any journal** (`commands.ts`): a crafted replay can set fatigue in a production build. Reason: gating a debug command by build is the client's job (`boot.ts`); revisit with the other debug commands.
 - **`gaugesProblem` accepts an `isFatigueAbove` / `microSleepAt` pair that disagrees with `fatigue`** (`snapshot.ts`). Reason: only corrupt input reaches it, and `startPoints > threshold` is legitimately inconsistent at step 0 until `runGauges` runs.
-- **`busyUntil` and `fatigue` do not follow the unit rule** (`…At` for a sim time, a `…Points` suffix): the spec chose the names. Reason: renaming changes snapshot v7, the events and the goldens' `worldHash`; do it with the next snapshot version bump.
+- **`busyUntil` and `fatigue` do not follow the unit rule** (`…At` for a sim time, a `…Points` suffix): the spec chose the names. Reason: renaming changes snapshot v7, the events and the goldens' `worldHash`; do it with the next snapshot version bump. **Still deferred (story 3.1 did not resolve it):** not renamed with 3.1: its AC forbids touching 1.20's code (`PhoneAnswered.fatigue`), and a partial rename would leave the names inconsistent. The new fields (`noisePct`, `deltaPct`, `propNoiseAt`, `cryStartedAt`, `cryEndsAt`) follow the rule. Do it with the next bump that may touch 1.20.
 - **A press judged in the step where a gag puts Papa to sleep gets no glide** (`runThreats` before `runPapa`). Reason: one step wide, needs a press and a gag in the same step; the parry is still judged on its `t`.
 - **The HUD's display thresholds and sizes are constants** (`gaugesHud.ts`: 70 %, 50 %, 5 and 10 points; `GAUGE_CHANGE_HOLD_MS`). Reason: D11 / D12 chose them; a `feel.hud` block moves `feelHash` and every golden reference, so do it when Geo tunes the HUD.
 - **The debug mirrors go stale** (`data-pp-threat-px` for the micro-sleep, `data-pp-fatigue` between two events, `data-pp-object-px` after a resize). Reason: test hooks only; the specs read bounding boxes.
 - **AC 9 test debt in the browser:** idle opacity 0.7, the ten-segment mask pitch, the warn ring and the pulse, reduced motion (the « Z » bob ignores it too), the inert pill; « the marker follows Papa » is checked at one instant; the e2e bounds read `feel.json`, not the level's `feelOverrides`. Reason: covered at unit level; add with the first visual pass (1.24).
 - **The fatigue schema accepts degenerate tunings** (`microSleepMinMs` = `MaxMs` = 0, `thresholdPoints` ≥ 100, `objectTouchRadiusPx` under 44 pt) and the new feel keys have no rejection tests. Reason: tighten with `windowPenaltyPct` when Geo retunes the fatigue.
-- **Noise and need gauges would show but never move** if a level declared them. Reason: `LevelGaugesSchema` only takes `fatigue`; story 3.1 wires noise.
+- **Noise and need gauges would show but never move** if a level declared them. Reason: `LevelGaugesSchema` only takes `fatigue`; story 3.1 wires noise. **Resolved in story 3.1:** `LevelGaugesSchema` takes `noise: {}` and `salon_crawler` declares it; only the need gauge (epic 4) is still unwired.
 - **One e2e flake seen:** the micro-sleep parry spec ended `asleep` once on a cold first run, then passed 7 times. Reason: not reproduced; if CI shows it, send the press with the stepped sim's `t` instead of a DOM position.
 
 ## Deferred from: implementation of story 1-20-le-telephone-qui-sonne (2026-10-28)
 
-- **The noise half of the phone** (« +2 % de bruit par seconde tant qu'il sonne », FR29) is story 3.1: it reads `PhoneRinging` only (one event is one second of ringing, `PHONE_RINGING_EVERY_MS`). Today an ignored phone costs nothing: `phoneRingingSeconds` in the CLI report is the number 3.1 will turn into noise.
+- **The noise half of the phone** (« +2 % de bruit par seconde tant qu'il sonne », FR29) is story 3.1: it reads `PhoneRinging` only (one event is one second of ringing, `PHONE_RINGING_EVERY_MS`). Today an ignored phone costs nothing: `phoneRingingSeconds` in the CLI report is the number 3.1 will turn into noise. **Resolved in story 3.1:** `runNoise` turns each `PhoneRinging` into `feel.noise.sources.phoneRinging.perSec` (+2 %); `phoneRingingSeconds` stays in the CLI report beside `noiseBySourcePct`.
 - **The attention gauge** (−5 per second while Papa sees to himself, a coffee or the phone, GDD L366) is an E6 rule for the later ages. `onPhone` is only a busy state here.
 - **The ring and the pick-up are placeholders** (`tel_phone_ring`, `papa_phone_answer`, and the cues' ring and vibration in `feedback.json`): stories 2.3 (sounds) and 2.4 (visual and haptic twins) replace them under the same ids. One vibration per ring is up to 15 in a row.
 - **No persistent « ringing » marker on the phone** beyond the ring on the floor every second. The threats have an icon; the phone does not. Geo to say if the playtest wants one (Open point 4 of the story).
 - **The phone rings at a fixed `atMs`** (125 s, 5 s into wave 3, D1), not at a random time inside the wave. A random `atMinMs` / `atMaxMs` is a later tuning call, with one `nextFloat` per disruption.
-- **`ringMaxMs` is 15 s**, so an ignored phone will be +30 % noise once 3.1 lands (Open point 2). To tune with `npm run sim -- --bot human`.
+- **`ringMaxMs` is 15 s**, so an ignored phone will be +30 % noise once 3.1 lands (Open point 2). To tune with `npm run sim -- --bot human`. **Resolved in story 3.1:** measured with `npm run sim`: an ignored phone is +30 % over its ring and the 1 %/s decay takes 15 back, so the noise peaks at about 16 % in every run of every bot (Completion Notes of story 3.1). Still to tune before 3.2.
 - **No bot answers the phone**: `perfect`, `human`, `random` and `idle` never send `TapObject`, so every run shows the phone ringing out (`phoneAnswers` stays 0). A phone-answering bot is a later need (1.24 playtest metrics?).
 - **A `?threats=off` run has no phone** (`withoutThreats` empties the waves, and the disruptions with them): the quiet room stays quiet. `StartDisruption` has nothing to start there.
 - **The sim does not check the disruption's feedback cues** (they live in `feedback.json`, which the sim ignores): `content:check` does, like for the threats. `createSim` checks the def, the object and the kind.
@@ -418,6 +418,21 @@
 - **`firm` on a `hiddenZone` def, and thin `holdUntilMs` checks**: the schema accepts `response: 'firm'` on the silence, and `content:check` only requires `holdUntilMs > windowMs` (nothing against `holdMinMs`, the tier / fatigue widening or the wave spacing). Tighten with the first live Firmness threat (E5) and the sniff (4.9).
 - **A Firmness hold keeps succeeding when Papa becomes busy mid-hold** (`isPapaBusy` is only checked on `PressThreat`). Settle with the busy states of E4 / E5.
 - **No Firmness test for `pointercancel` / `blur` mid-hold**: the pause release covers them today. Add one with the first live Firmness.
+
+## Deferred from: story 3-1-jauge-de-bruit (2026-10-28)
+
+- **Sources with a row and no emitter:** `floorCreak` (+3 %) and `breathReleased` (+5 %) wait for story 4.9, `sniff` (+3 %) for story 5.3. They are typed into `NoiseSource` and sit in `feel.noise.sources`; their stories only emit through `addNoise`.
+- **Sources with no row yet:** the dog bark (+10 %, 6.1), the wrong remedy (+5 %, 5.4) and the snore (+15 %, 4.4). Each story adds its own row to `NoiseSchema` and to `testFeel.json` (a strict schema must not hold keys nobody asked for).
+- **Open point 1, which gag makes the baby cry?** No live def declares `gagCryMs`; the mechanism is built and tested on a frozen threat (`testCrying.threat.json`). Geo decides which gag, and for how long (3000 ms = +6 %).
+- **Open point 2, will 3.2 end games?** Not with this content: the peak is about 16 % for every bot (the phone's 15 s ring is the largest source, and a mug falling off the table costs about 11 %). Tune `sources` / `decayPerSec` or add sources before 3.2 so that Mama can wake.
+- **Open point 3, the cost of a fall.** The `prop_fall_noise` golden pins it: the mug off the coffee table onto the vase is two `PropImpact` of 0.40 N·s (one per side), 2 × 5.6 % = 11.2 %. The later bounces fall inside `samePropCooldownMs`.
+- **Open point 4, the look of the 80 % alert** (the shake, its reduced-motion ring, the `medium` vibration) is an `[ASSUMPTION]` to judge in play. There is no sound on purpose.
+- **`BabyCrying` is the baby's only cry for now.** E5's typed cries (5.4) start a cry through `startBabyCry`; the noise needs no change.
+- **A cry in progress when the level ends** keeps `cryStartedAt` / `cryEndsAt` in the frozen world (the baby system no longer runs). Harmless; the snapshot check accepts it.
+
+## Deferred from: code review of story-3.1 (2026-10-28)
+
+- **The Linux screenshot references are stale** (`autoplay-frozen-{chromium,webkit}-linux.png`): story 3.1 added a gauge to the HUD pill and only the darwin ones were refreshed (no Docker on the dev machine). Geo chose to merge without them: the CI run of `autoplay.spec.ts` on ubuntu fails until they are regenerated with the Docker command of story 1.13. Geo also finds this visual test not worth the upkeep: decide whether to drop it or to regenerate the Linux references.
 
 ## Deferred from: implementation of story 1-24-build-de-playtest-partageable-et-budget-de-performance (2026-10-28)
 
