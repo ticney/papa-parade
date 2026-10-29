@@ -5,7 +5,7 @@ import { cloneJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import type { SimCommand, SimEvent, World } from '@sim';
-import { applyFeelPatch, type FeelPatch } from './feelPatch.ts';
+import { applyFeelPatch, effectiveFeel, type FeelPatch } from './feelPatch.ts';
 import { feedPerfMeter } from './perfFeed.ts';
 import { createPerfMeter, type PerfReport } from './perfMeter.ts';
 
@@ -25,8 +25,8 @@ export type TestCommand = SimCommand extends infer C
  * Every method throws an `Error` that names it (a rejected `page.evaluate` carries the message).
  *
  * Variances from the architecture contract, stated in story 1.13: `state()` may be `null` and is a
- * copy; `events` returns a copy; `send` accepts a missing `t`; `setFeel` returns a promise and
- * restarts the level (until story 2.1 brings the journaled `SetFeel` command).
+ * copy; `events` returns a copy; `send` accepts a missing `t`; `setFeel` returns a promise (it
+ * rejects on an invalid patch).
  */
 export interface PPTestApi {
   /** A copy of the running level's world, or `null` when no level is running. */
@@ -39,7 +39,14 @@ export interface PPTestApi {
   advance(steps: number): void;
   /** Freezes or unfreezes the level loop: it renders on but runs no step. */
   freeze(on: boolean): void;
-  /** Lays `patch` over the current feel and restarts the level (same id and seed); resolves once it runs. */
+  /**
+   * Lays `patch` over the running level's effective feel (the sim's `world.feel` with the
+   * `SetFeel`s it still holds, so patches sent back to back build on each other): it checks the
+   * result with `FeelSchema` and the sim's shape rule (an invalid patch rejects, naming the paths,
+   * and nothing is sent), then enqueues the journaled
+   * `SetFeel` command at the current sim time, so it applies at the next step and the level goes on
+   * (story 2.1). It also becomes the feel the next start or restart uses. Resolves once enqueued.
+   */
   setFeel(patch: FeelPatch): Promise<void>;
   /** Starts a level; resolves once it runs (its countdown over). */
   loadLevel(id: string, seed: number): Promise<void>;
@@ -160,22 +167,21 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
     },
 
     async setFeel(patch) {
-      requireActive('setFeel');
-      const { levelId, seed, feel } = host.levelSession.current;
-      const merged = applyFeelPatch(feel, patch);
+      const active = requireActive('setFeel');
+      const { world } = active.sim;
+      // Against the feel the sim will have once the commands it holds are applied (`world.feel`
+      // only changes at the next step): two patches sent back to back are checked in order.
+      const merged = applyFeelPatch(effectiveFeel(active.sim), patch);
       if (!merged.ok) throw new Error(`__PP__.setFeel: ${merged.error.message}`);
-      if (typeof patch === 'object' && patch !== null && 'input' in patch) {
-        // The sim and the bot see the new input section, the player's input mapper keeps the boot one.
-        log.warn(
-          'debug',
-          '__PP__.setFeel: the client input keeps the boot feel until story 2.1 (the sim and the bot use the patch)',
-        );
+      active.sim.enqueue({ type: 'SetFeel', t: world.time.sim, patch });
+      // A restart keeps what was tuned (the level's own overrides are merged over it again there).
+      const remembered = applyFeelPatch(host.levelSession.current.feel, patch);
+      if (remembered.ok) host.levelSession.rememberFeel(remembered.value);
+      else {
+        log.warn('debug', '__PP__.setFeel: not kept for a restart', {
+          reason: remembered.error.message,
+        });
       }
-      await startAndWait('setFeel', {
-        levelId,
-        ...(seed === null ? {} : { seed }),
-        feel: merged.value,
-      });
     },
 
     async loadLevel(id, seed) {

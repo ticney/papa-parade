@@ -96,6 +96,17 @@ export function createTestContent(): ContentBundle {
   };
 }
 
+/** The window of the frozen feel with no modifier: what a `ResponseResolved` of a hand-made event carries. */
+export function createTestResponseWindow(): {
+  windowMs: number;
+  perfectMs: number;
+  toleranceMs: number;
+  bufferMs: number;
+} {
+  const { windowMs, perfectMs, toleranceMs, bufferMs } = createTestContent().feel.timing;
+  return { windowMs, perfectMs, toleranceMs, bufferMs };
+}
+
 /**
  * The geometry of the living room for sim and golden tests, from a FROZEN byte copy of
  * `content/levels/salon_crawler.geometry.json` (`testLevel.geometry.json`), never from the live

@@ -16,6 +16,7 @@ export {
   type SilenceEndReason,
   type SimEvent,
 } from './events.ts';
+export type { FeelPatch } from './feel/applyFeelPatch.ts';
 export type { FlowState } from './flow/flowFsm.ts';
 export type { Journal, JournalEntry } from './journal.ts';
 export { isPapaBusy, PAPA_STATES, type PapaState } from './papa/papaFsm.ts';

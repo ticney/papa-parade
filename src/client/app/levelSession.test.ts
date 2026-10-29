@@ -1,10 +1,12 @@
 import type { LevelContent } from '@content/contentBundle';
 import { createContentError } from '@content/contentError';
+import { mergeFeel } from '@content/feelMerge';
 import { STEP_MS } from '@shared/constants';
 import { createEmitter } from '@shared/emitter';
+import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
-import { type CreateSimOptions, createSim } from '@sim';
+import { type CreateSimOptions, createSim, replayJournal } from '@sim';
 import { Group, Scene } from 'three';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createFakeScheduler } from '../../../tests/support/fakeScheduler.ts';
@@ -91,6 +93,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
   const readyEntries: (readonly ThreatMarkerEntry[])[] = [];
   const deps: LevelSessionDeps = {
     content: createTestContent(),
+    t: (key) => `<${key}>`,
     appFsm,
     pause,
     renderer,
@@ -389,6 +392,13 @@ describe('createLevelSession', () => {
         zM,
         icon: 'bolt',
         followsPapa: false,
+        // `t` wraps the key: the frozen outlet writes `verb.lift`.
+        verb: '<verb.lift>',
+        iconShape: 'circle' as const,
+        color: 'parry' as const,
+        verbWidthPx: 0,
+        verbHeightPx: 0,
+        verbOffsetPx: 0,
       },
     ]);
   });
@@ -1020,8 +1030,16 @@ describe('createLevelSession › start options and outcomes', () => {
     expect(assetIds).toEqual(['other_room']);
     expect(contentIds).toEqual(['other_room']);
     expect(simOptions[0]?.seed).toBe(7);
-    expect(simOptions[0]?.content).toEqual({ ...content, feel });
+    // The sim is created with feel.json as is; the tuned feel reaches it as a SetFeel at t = 0.
+    expect(simOptions[0]?.content).toBe(content);
     expect(bodies).toEqual([{ papaRadiusM: 0.42, babyRadiusM: content.feel.baby.bodyRadiusM }]);
+    expect(session.active?.feel.movement.papaRadiusM).toBe(0.42);
+    expect(session.active?.sim.journal().entries).toEqual([
+      {
+        applyAt: STEP_MS,
+        command: { type: 'SetFeel', t: 0, patch: { movement: { papaRadiusM: 0.42 } } },
+      },
+    ]);
   });
 
   it("keeps today's behaviour for a plain start(): the default level, the fresh seed, the content as is", async () => {
@@ -1050,6 +1068,7 @@ describe('createLevelSession › start options and outcomes', () => {
     const feel = patchedFeel();
     await session.start({ levelId: 'other_room', seed: 9, feel });
     expect(session.current).toEqual({ levelId: 'other_room', seed: 9, feel });
+    expect(session.current.feel).not.toBe(feel);
   });
 
   it('keeps `current` on the last level that started when a later start fails (the retry reloads it)', async () => {
@@ -1094,7 +1113,9 @@ describe('createLevelSession › start options and outcomes', () => {
     await session.start();
     expect(simOptions.map((options) => options.seed)).toEqual([9, 111]);
     expect(simOptions[1]?.level.level.id).toBe('other_room');
-    expect(simOptions[1]?.content.feel).toEqual(feel);
+    expect(simOptions[1]?.content.feel).toEqual(createTestContent().feel);
+    session.active?.sim.step();
+    expect(session.active?.sim.world.feel).toEqual(feel);
     expect(session.current.seed).toBe(111);
   });
 
@@ -1227,5 +1248,264 @@ describe('createLevelSession › freeze, advance, speed and the step hook', () =
     session.advance(3);
     scheduler.tick(0);
     expect(seen).toEqual([0, STEP_MS, 2 * STEP_MS]);
+  });
+});
+
+describe('createLevelSession › what the debug overlay hangs on (story 2.1)', () => {
+  const tunedFeel = () => {
+    const feel = createTestContent().feel;
+    return {
+      ...feel,
+      movement: { ...feel.movement, walkSpeedMps: feel.movement.walkSpeedMps + 1 },
+    };
+  };
+
+  it('keeps the geometry of the level on the active level', async () => {
+    const { session } = setup();
+    expect(session.active).toBeNull();
+    await session.start();
+    expect(session.active?.geometry.id).toBe('salon_crawler');
+    expect(session.active?.geometry.anchors.length).toBeGreaterThan(0);
+  });
+
+  it('rememberFeel() remembers a copy of the tuned feel for the next start, and leaves the running level alone', async () => {
+    const { session } = setup();
+    await session.start();
+    const running = structuredClone(session.active?.sim.world.feel);
+    const tuned = tunedFeel();
+    session.rememberFeel(tuned);
+    expect(session.current.feel).toEqual(tuned);
+    expect(session.current.feel).not.toBe(tuned);
+    // The caller keeps using its object: changing it does not change what is remembered.
+    const remembered = tuned.movement.walkSpeedMps;
+    tuned.movement.walkSpeedMps += 100;
+    expect(session.current.feel.movement.walkSpeedMps).toBe(remembered);
+    tuned.movement.walkSpeedMps = remembered;
+    expect(session.active?.sim.world.feel).toEqual(running);
+    await session.start();
+    expect(session.active?.feel.movement.walkSpeedMps).toBe(remembered);
+    session.active?.sim.step();
+    expect(session.active?.sim.world.feel.movement.walkSpeedMps).toBe(remembered);
+    expect(session.current.feel).toEqual(tuned);
+  });
+
+  it('has no loopStats before a level, and the loop’s stats during one', async () => {
+    const { session } = setup();
+    expect(session.loopStats).toBeNull();
+    await session.start();
+    expect(session.loopStats).toMatchObject({ frames: 0, simMsLastFrame: 0 });
+  });
+
+  it('times the frames of the running loop and of the next one once setLoopMeasure() is on, and stops with null', async () => {
+    const { session, scheduler } = setup();
+    const clock = { now: 0 };
+    session.setLoopMeasure(() => (clock.now += 2));
+    await session.start();
+    scheduler.tick(0);
+    expect(session.loopStats?.frameMsLastFrame).toBeGreaterThan(0);
+    // The wish is kept across levels.
+    await session.start();
+    scheduler.tick(0);
+    expect(session.loopStats?.renderMsLastFrame).toBeGreaterThan(0);
+    session.setLoopMeasure(null);
+    expect(session.loopStats).toMatchObject({ frameMsLastFrame: 0, renderMsLastFrame: 0 });
+    const readsBefore = clock.now;
+    scheduler.tick(10);
+    expect(clock.now).toBe(readsBefore);
+  });
+});
+
+describe('createLevelSession › the remembered feel replays as a SetFeel at t = 0 (story 2.1)', () => {
+  const content = createTestContent();
+  const tuned = () => {
+    const feel = createTestContent().feel;
+    return {
+      ...feel,
+      movement: { ...feel.movement, walkSpeedMps: feel.movement.walkSpeedMps + 1 },
+      timing: { ...feel.timing, windowMs: feel.timing.windowMs + 40 },
+    };
+  };
+  const planned = (feelOverrides: Record<string, unknown>) =>
+    levelOf('salon_crawler', createTestLevel({ feelOverrides }));
+
+  it('creates the sim with feel.json, so the journal keeps the on-disk feelHash', async () => {
+    const simOptions: CreateSimOptions[] = [];
+    const { session } = setup({
+      content,
+      createSim: (options) => {
+        simOptions.push(options);
+        return createSim(options);
+      },
+    });
+    session.rememberFeel(tuned());
+    await session.start();
+    expect(simOptions[0]?.content.feel).toBe(content.feel);
+    const journal = session.active?.sim.journal();
+    expect(journal?.feelHash).toBe(hashJson(content.feel));
+    expect(journal?.entries).toEqual([
+      {
+        applyAt: STEP_MS,
+        command: {
+          type: 'SetFeel',
+          t: 0,
+          patch: {
+            movement: { walkSpeedMps: content.feel.movement.walkSpeedMps + 1 },
+            timing: { windowMs: content.feel.timing.windowMs + 40 },
+          },
+        },
+      },
+    ]);
+  });
+
+  it('enqueues nothing when the remembered feel equals feel.json', async () => {
+    const { session } = setup({ content });
+    session.rememberFeel(structuredClone(content.feel));
+    await session.start();
+    expect(session.active?.sim.journal().entries).toEqual([]);
+    expect(session.active?.feel).toBe(content.feel);
+  });
+
+  it('gives the tuned values to the sim at the first step and to active.feel at once', async () => {
+    const { session } = setup({ content });
+    session.rememberFeel(tuned());
+    await session.start();
+    expect(session.active?.feel).toEqual(tuned());
+    const sim = session.active?.sim;
+    expect(sim?.world.feel.timing.windowMs).toBe(content.feel.timing.windowMs);
+    sim?.step();
+    expect(sim?.world.feel).toEqual(tuned());
+  });
+
+  it('plays a restarted game whose journal replays against the content feel', async () => {
+    const { session } = setup({
+      content,
+      loadLevelContent: async (id) =>
+        ok(
+          levelOf(
+            id,
+            createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
+          ),
+        ),
+    });
+    await session.start();
+    session.rememberFeel(tuned());
+    await session.start(); // « Recommencer »
+    const active = session.active;
+    if (active === null) throw new Error('no level');
+    for (let i = 0; i < 400; i++) active.sim.step();
+    const replay = await replayJournal({
+      content,
+      geometry: active.geometry,
+      level: active.level,
+      journal: active.sim.journal(),
+      untilSimMs: active.sim.world.time.sim,
+    });
+    expect(replay.ok).toBe(true);
+    if (!replay.ok) return;
+    expect(hashJson(replay.value.sim.world)).toBe(hashJson(active.sim.world));
+    expect(replay.value.sim.world.feel.timing.windowMs).toBe(content.feel.timing.windowMs + 40);
+    replay.value.sim.dispose();
+  });
+
+  describe('with the level’s feelOverrides', () => {
+    it('merges the overrides first and lays the tweaks over them; the journal replays against feel.json with the overrides', async () => {
+      const level = planned({ timing: { windowMs: 250 } });
+      const simOptions: CreateSimOptions[] = [];
+      const { session } = setup({
+        content,
+        loadLevelContent: async () => ok(level),
+        createSim: (options) => {
+          simOptions.push(options);
+          return createSim(options);
+        },
+      });
+      const feel = createTestContent().feel;
+      // Only walkSpeedMps is tuned; the window is the on-disk one, so the override stays.
+      session.rememberFeel({ ...feel, movement: { ...feel.movement, walkSpeedMps: 9 } });
+      await session.start();
+      expect(simOptions[0]?.content.feel.timing.windowMs).toBe(250);
+      expect(simOptions[0]?.content.feel.movement.walkSpeedMps).toBe(feel.movement.walkSpeedMps);
+      expect(session.active?.feel.timing.windowMs).toBe(250);
+      expect(session.active?.feel.movement.walkSpeedMps).toBe(9);
+      const active = session.active;
+      if (active === null) throw new Error('no level');
+      for (let i = 0; i < 20; i++) active.sim.step();
+      expect(active.sim.world.feel).toEqual(active.feel);
+
+      const merged = mergeFeel(content.feel, level.level.feelOverrides);
+      if (!merged.ok) throw new Error('bad overrides');
+      const replay = await replayJournal({
+        content: { ...content, feel: merged.value },
+        geometry: active.geometry,
+        level: active.level,
+        journal: active.sim.journal(),
+        untilSimMs: active.sim.world.time.sim,
+      });
+      expect(replay.ok).toBe(true);
+      if (replay.ok) {
+        expect(hashJson(replay.value.sim.world)).toBe(hashJson(active.sim.world));
+        replay.value.sim.dispose();
+      }
+    });
+
+    it('lets a tweak win over an override of the same key', async () => {
+      const { session } = setup({
+        content,
+        loadLevelContent: async () => ok(planned({ timing: { windowMs: 250 } })),
+      });
+      const feel = createTestContent().feel;
+      session.rememberFeel({ ...feel, timing: { ...feel.timing, windowMs: 280 } });
+      await session.start();
+      expect(session.active?.feel.timing.windowMs).toBe(280);
+      session.active?.sim.step();
+      expect(session.active?.sim.world.feel.timing.windowMs).toBe(280);
+    });
+
+    it('drops the tweaks with a warning when they do not fit the level’s overrides, and still starts', async () => {
+      log.setLevel('warn');
+      const before = log.buffer().length;
+      const { session } = setup({
+        content,
+        loadLevelContent: async () => ok(planned({ timing: { windowMs: 200 } })),
+      });
+      const feel = createTestContent().feel;
+      // perfectMs above the level's window breaks the cross-field rule of the schema.
+      session.rememberFeel({ ...feel, timing: { ...feel.timing, perfectMs: 250 } });
+      const outcome = await session.start();
+      log.setLevel('error');
+      expect(outcome).toBe('started');
+      expect(session.active?.feel.timing).toMatchObject({
+        windowMs: 200,
+        perfectMs: feel.timing.perfectMs,
+      });
+      expect(session.active?.sim.journal().entries).toEqual([]);
+      const warned = log
+        .buffer()
+        .slice(before)
+        .filter((entry) => entry.level === 'warn' && /remembered feel tweaks/.test(entry.message));
+      expect(warned).toHaveLength(1);
+    });
+  });
+
+  it('keeps the plain feel and warns when the sim refuses the SetFeel', async () => {
+    const { session } = setup({
+      content,
+      createSim: async (options) => {
+        const real = await createSim(options);
+        return new Proxy(real, {
+          get(target, key) {
+            if (key === 'enqueue') {
+              return () => {
+                throw new Error('invalid command');
+              };
+            }
+            return Reflect.get(target, key, target);
+          },
+        });
+      },
+    });
+    session.rememberFeel(tuned());
+    expect(await session.start()).toBe('started');
+    expect(session.active?.feel).toBe(content.feel);
   });
 });

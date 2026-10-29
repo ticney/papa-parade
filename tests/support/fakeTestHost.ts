@@ -49,6 +49,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     isFrozen: false,
     start: async () => 'started',
     stop: () => {},
+    rememberFeel: () => {},
     freeze: () => {},
     advance: () => {},
   }) as LevelSession;
@@ -65,6 +66,8 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     onSimEvent: (listener) => subscribe(eventListeners, listener),
     onGameResumed: (listener) => subscribe(resumedListeners, listener),
     onRenderedFrame: (listener) => subscribe(frameListeners, listener),
+    debugGroup: () => null,
+    threatScreenPoints: () => [],
     setGameInputBlocked(next) {
       calls.push(`blocked:${next}`);
       isBlocked = next;

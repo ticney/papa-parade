@@ -79,6 +79,24 @@ export const PERF_HISTOGRAM_MAX_MS = 250;
 /** The FPS counter rewrites its text at most this often, in real ms. */
 export const PERF_HUD_REFRESH_MS = 250;
 
+/** The debug overlay's panels (performance, world inspector) rewrite their text at most this often, in real ms (story 2.1). */
+export const DEBUG_PANEL_REFRESH_MS = 250;
+
+/** The debug timing timeline keeps this many responses, the newest on top (story 2.1). */
+export const DEBUG_TIMELINE_ROWS = 10;
+
+/** « Skip to the end » runs this many sim steps per frame, so the page stays responsive (story 2.1). */
+export const DEBUG_SKIP_CHUNK_STEPS = 200;
+
+/** This many touch pointers down at once toggle the debug overlay on a phone (story 2.1). */
+export const DEBUG_THREE_FINGER_COUNT = 3;
+
+/** The dev server's `feel-writer` endpoint: the only path the plugin answers (story 2.1). */
+export const FEEL_WRITER_ENDPOINT = '/__pp/feel-writer';
+
+/** The biggest body the `feel-writer` accepts, in bytes: a feel patch is a few hundred, this is a typo guard. */
+export const FEEL_WRITER_MAX_BODY_BYTES = 65_536;
+
 /** The dist e2e server's port is the dev e2e port plus this, so the two never collide. */
 export const DIST_PORT_OFFSET = 1000;
 
@@ -183,6 +201,24 @@ export const HOLD_RING_STROKE_PX = 5;
 
 /** ...and its outer ink outline is this wide, in CSS px (DESIGN.md › hold-ring `outerOutline`). */
 export const HOLD_RING_OUTLINE_PX = 2;
+
+/** A threat's verb never shrinks under this font size, in CSS px (DESIGN.md › verb-label `minFontSize`). */
+export const VERB_MIN_FONT_PX = 28;
+
+/** The verb's visible ink outline is this wide, in CSS px (DESIGN.md › verb-label `strokeWidth`). */
+export const VERB_STROKE_PX = 5;
+
+/**
+ * A verb is at most this share of the world layer's width, in percent; a longer one shrinks to fit
+ * (down to `VERB_MIN_FONT_PX`). `[ASSUMPTION]`: neither DESIGN nor EXPERIENCE gives one; tune after the playtest.
+ */
+export const VERB_MAX_WIDTH_PCT = 45;
+
+/**
+ * The gap kept between two stacked verbs, in CSS px, when the verbs of simultaneous threats would overlap.
+ * `[ASSUMPTION]`: tune after the playtest.
+ */
+export const VERB_STACK_GAP_PX = 4;
 
 /**
  * `timeMap.realToSim` extrapolates at most this far past its newest record, in real ms: a hidden
@@ -326,3 +362,12 @@ export const PHONE_RINGING_EVERY_MS = 1000;
  * per event, so making the period tunable would silently change the noise rate.
  */
 export const BABY_CRYING_EVERY_MS = 1000;
+
+/** A feel is a few levels deep; a `SetFeel` patch nested deeper than this is refused (it stops a runaway or cyclic patch). */
+export const PATCH_MAX_DEPTH = 8;
+
+/** The custom header the debug panel sends with a feel save and the dev-only feel-writer requires (CSRF guard). */
+export const FEEL_WRITER_HEADER = 'x-pp-feel-writer';
+
+/** The value `FEEL_WRITER_HEADER` must carry. */
+export const FEEL_WRITER_HEADER_VALUE = '1';

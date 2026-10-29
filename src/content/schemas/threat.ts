@@ -18,11 +18,34 @@ export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
 
 /**
  * The glyphs a threat's marker can draw, as data (the client has one per entry, as a
- * `Record<ThreatIcon, …>`: a missing glyph is a type error). Story 2.2 adds the verb, shape and
- * colour to the def in the same way.
+ * `Record<ThreatIcon, …>`: a missing glyph is a type error). The marker's shape and colour are
+ * separate keys (`THREAT_ICON_SHAPES`, `THREAT_COLORS`, story 2.2).
  */
 export const THREAT_ICONS = ['bolt', 'stairs', 'mug', 'eyelids', 'dots'] as const;
 export type ThreatIcon = (typeof THREAT_ICONS)[number];
+
+/**
+ * The shape of a threat's marker (story 2.2). Shape and colour are a pair, so that the response is
+ * readable without the colour (NFR8): a `circle` is blue (`parry`), a `triangle` is orange (`dodge`).
+ */
+export const THREAT_ICON_SHAPES = ['circle', 'triangle'] as const;
+export type ThreatIconShape = (typeof THREAT_ICON_SHAPES)[number];
+
+/** The colour of a threat's marker, by DESIGN.md token name (`--pp-color-<color>` in `tokens.css`). */
+export const THREAT_COLORS = ['parry', 'dodge'] as const;
+export type ThreatColor = (typeof THREAT_COLORS)[number];
+
+/** The pair each shape goes with: the signal is the pair (NFR8). */
+export const THREAT_SHAPE_COLORS: Readonly<Record<ThreatIconShape, ThreatColor>> = {
+  circle: 'parry',
+  triangle: 'dodge',
+};
+
+/** `^verb\.[a-z0-9_]+$`: a key of the `verb.` group of `strings.fr.json`. */
+const VERB_KEY_PATTERN = /^verb\.[a-z0-9_]+$/;
+
+/** Only a `dodge` response has a default verb of its own (`verb.dodge`, « ESQUIVE ! »). */
+const hasDefaultVerb = (response: string): boolean => response === 'dodge';
 
 /**
  * Where a threat stands: on a planned anchor of the level (a wave plans it), on Papa himself
@@ -64,9 +87,24 @@ const baseShape = {
     .describe(
       'Only on a `firm` threat (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).',
     ),
+  verbKey: z
+    .string()
+    .regex(VERB_KEY_PATTERN, 'a verbKey is a `verb.<name>` key of strings.fr.json')
+    .nullable()
+    .describe(
+      'Key of `strings.fr.json` (`verb.` group) of the verb shown above the threat (« SOULÈVE ! »). `null` = the default verb of the response, only for a `dodge` response (story 5.1).',
+    ),
   icon: z
     .enum(THREAT_ICONS)
     .describe("Glyph drawn in the threat's marker (the client has one per entry)."),
+  iconShape: z
+    .enum(THREAT_ICON_SHAPES)
+    .describe(
+      "Shape of the threat's marker: `circle` goes with `parry`, `triangle` with `dodge` (the pair is the signal, NFR8).",
+    ),
+  color: z
+    .enum(THREAT_COLORS)
+    .describe("Colour of the threat's marker, by DESIGN.md token name (`parry` or `dodge`)."),
   feedback: FeedbackCuesSchema,
   cooldownMs: z
     .number()
@@ -132,6 +170,28 @@ export const ThreatDefSchema = z
         code: 'custom',
         path: ['holdUntilMs'],
         message: `\`holdUntilMs\` is only for a threat with response "firm", not "${def.response}"`,
+      });
+    }
+    if (def.verbKey === null && !hasDefaultVerb(def.response)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['verbKey'],
+        message: `a \`null\` verbKey (the default verb of the response) is only for a "dodge" response, not "${def.response}": write the \`verb.\` key`,
+      });
+    }
+    // One issue at most per path: a broken pair is reported alone, then the response rule.
+    if (THREAT_SHAPE_COLORS[def.iconShape] !== def.color) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['color'],
+        message: `shape and colour are a pair: "${def.iconShape}" goes with "${THREAT_SHAPE_COLORS[def.iconShape]}", not "${def.color}"`,
+      });
+    } else if (def.iconShape !== 'circle') {
+      // `parry` and `firm` are the only responses the sim judges: both are a blue circle.
+      ctx.addIssue({
+        code: 'custom',
+        path: ['iconShape'],
+        message: `a "${def.response}" threat is a "circle" + "parry" marker: the "${def.iconShape}" / "${def.color}" marker joins with the dodge response (story 5.1)`,
       });
     }
   })

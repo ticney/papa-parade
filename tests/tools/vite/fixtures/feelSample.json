@@ -1,0 +1,127 @@
+{
+  "$schema": "./_schemas/feel.schema.json",
+  "timing": {
+    "telegraphDelayDefaultMs": 1200,
+    "windowMs": 300,
+    "perfectMs": 100,
+    "toleranceMs": 60,
+    "bufferMs": 100,
+    "hitstopMs": 80,
+    "slowMoPerfect": { "timeScale": 0.3, "durationMs": 1200, "returnMs": 300 },
+    "slowMoLastThreat": { "timeScale": 0.2, "durationMs": 1500, "returnMs": 300 }
+  },
+  "input": {
+    "holdMinMs": 400,
+    "earlyPress": "fail",
+    "touchRadiusPx": 48,
+    "objectTouchRadiusPx": 64,
+    "autoTargetConeDeg": 60,
+    "contextReachM": 1.5,
+    "stickDeadzonePct": 20,
+    "stickAngleStepDeg": 5
+  },
+  "movement": {
+    "glideMaxMs": 600,
+    "walkSpeedMps": 3,
+    "papaRadiusM": 0.25
+  },
+  "baby": {
+    "crawlSpeedMps": 0.6,
+    "bodyRadiusM": 0.2,
+    "babbleMinMs": 1500,
+    "babbleMaxMs": 4000,
+    "wanderMinDistM": 1,
+    "wanderMaxDistM": 3.5,
+    "lockMs": 300,
+    "approachSpeedMps": 1.5,
+    "actMs": 1500,
+    "silenceAlertMs": 2000,
+    "sneakSpeedMps": 1.2
+  },
+  "fatigue": {
+    "startPoints": 0,
+    "perSec": 0.5,
+    "carriedMultiplier": 2,
+    "thresholdPoints": 70,
+    "windowPenaltyPct": 20,
+    "microSleepMinMs": 8000,
+    "microSleepMaxMs": 12000,
+    "coffeeReductionPoints": 40,
+    "coffeeDurationMs": 3000,
+    "asleepMs": 3000
+  },
+  "noise": {
+    "decayPerSec": 1,
+    "alertPct": 80,
+    "sources": {
+      "propImpact": {
+        "minPct": 5,
+        "maxPct": 15,
+        "minImpulseNs": 0.3,
+        "maxImpulseNs": 2,
+        "samePropCooldownMs": 1000
+      },
+      "phoneRinging": { "perSec": 2 },
+      "babyCrying": { "perSec": 2 },
+      "floorCreak": { "noisePct": 3 },
+      "breathReleased": { "noisePct": 5 },
+      "sniff": { "noisePct": 3 }
+    }
+  },
+  "instinct": {
+    "timeScale": 0.8,
+    "windowBonusPct": 30,
+    "durationMs": 4000,
+    "cooldownMs": 30000,
+    "minActiveThreatsCount": 3,
+    "missesCount": 2,
+    "missesWithinMs": 10000
+  },
+  "difficulty": {
+    "assistance": { "windowMultiplier": 1.5, "hasInstinct": true },
+    "normal": { "windowMultiplier": 1, "hasInstinct": true },
+    "experienced": { "windowMultiplier": 0.75, "hasInstinct": false }
+  },
+  "mama": {
+    "laughMaxPoints": 40,
+    "babyStateMaxPoints": 30,
+    "babyStateFixedPoints": 20,
+    "baseScorePoints": 30,
+    "sighMaxPoints": 15,
+    "screamMaxPoints": 15,
+    "starThresholdPoints": [20, 40, 60, 75, 90],
+    "earlyWakePenaltyStars": 1,
+    "laughPerPerfectPoints": 1,
+    "sighPerPropOnFloorPoints": 5,
+    "sighPerBrokenPropPoints": 8,
+    "sighPerMischiefPoints": 3,
+    "screamPerNearMissPoints": 3
+  },
+  "physics": {
+    "gravityMps2": 9.81,
+    "impactMinImpulseNs": 0.3,
+    "impactCooldownMs": 100,
+    "maxPushImpulseNs": 3,
+    "kinds": {
+      "mug": {
+        "shape": "cylinder",
+        "massKg": 0.3,
+        "friction": 0.6,
+        "restitution": 0.3,
+        "breakable": true,
+        "breakImpulseNs": 2.5
+      },
+      "vase": {
+        "shape": "cylinder",
+        "massKg": 0.8,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "breakable": true,
+        "breakImpulseNs": 0.35
+      }
+    }
+  },
+  "gags": {
+    "tableObjectFall": { "pushImpulseNs": 0.72, "propReachDistM": 0.5 }
+  }
+}

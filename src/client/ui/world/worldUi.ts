@@ -6,6 +6,7 @@ import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
 import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
 import { createThreatMarkers, type ThreatMarkerEntry } from './threatMarkers.ts';
+import type { VerbMetrics } from './verbMetrics.ts';
 
 export interface WorldUi {
   /** The small scene that holds the world-anchored elements (the tap marker, the threat icons and the glyph chip). */
@@ -41,11 +42,21 @@ export interface WorldUi {
   updateObjects(isUrgent: boolean): void;
   /** The icon points of the mounted level, for the hit test. */
   readonly threatEntries: readonly ThreatMarkerEntry[];
-  /** Sizes the layer like the canvas, in CSS px; a marker would drift from its point otherwise. */
+  /**
+   * Sizes the layer like the canvas, in CSS px; a marker would drift from its point otherwise. The
+   * verbs are fitted to a share of this width (story 2.2), so they are fitted again.
+   */
   setSize(widthPx: number, heightPx: number): void;
   /**
-   * Places the elements for this frame's camera. Returns at once, without calling the DOM
-   * renderer, while nothing in the layer is visible (no tap marker, no threat icon, no object icon, no chip).
+   * Fits the threat verbs again, from the current surface, `--pp-verb-scale` and loaded fonts: after the
+   * fonts have loaded, and when the « Grands verbes » setting changes (story 2.10).
+   */
+  refitVerbs(): void;
+  /**
+   * Places the elements for this frame's camera: first the verb layout (the verbs that would overlap
+   * are offset, the most urgent threat is in front) and the chip beside its verb, then the DOM renderer.
+   * Returns at once, without calling the DOM renderer, while nothing in the layer is visible (no tap
+   * marker, no threat icon, no object icon, no chip).
    */
   render(camera: Camera): void;
   dispose(): void;
@@ -55,17 +66,19 @@ export interface WorldUi {
  * The world-anchored UI layer (`#pp-world`, between the canvas and the HUD): one `CSS2DRenderer`
  * with its own scene. `sortObjects` is off: the renderer's z-sort allocates arrays every frame,
  * and a few markers have nothing to sort. `doc` makes the elements (the browser's `document`; a double
- * in tests).
+ * in tests). `metrics` reads the typography the verb fit needs (default: the page's, read when a level
+ * has a verb).
  */
 export function createWorldUi(
   container: HTMLElement,
   doc: Pick<Document, 'createElement' | 'createElementNS'> = document,
+  metrics?: VerbMetrics,
 ): WorldUi {
   const renderer = new CSS2DRenderer({ element: container });
   renderer.sortObjects = false;
   const scene = new ThreeScene();
   const tapMarker = createTapMarker(scene, doc);
-  const threats = createThreatMarkers(scene, doc);
+  const threats = createThreatMarkers(scene, doc, metrics);
   const glyphChip = createGlyphChip(scene, doc);
   const objects = createObjectMarkers(scene, doc);
   return {
@@ -83,7 +96,9 @@ export function createWorldUi(
     },
     setSize(widthPx, heightPx) {
       renderer.setSize(widthPx, heightPx);
+      threats.setSize(widthPx, heightPx);
     },
+    refitVerbs: threats.refit,
     render(camera) {
       if (
         !(
@@ -95,6 +110,9 @@ export function createWorldUi(
       ) {
         return;
       }
+      // Before the DOM renderer: the layout writes the offsets and the z-indices it places.
+      threats.layout(camera);
+      glyphChip.refresh();
       renderer.render(scene, camera);
     },
     dispose() {

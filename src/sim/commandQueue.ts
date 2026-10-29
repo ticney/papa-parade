@@ -1,7 +1,9 @@
 import { STEP_MS } from '@shared/constants';
+import { rejectInvariant } from '@shared/invariant';
 import { asSimMs, type SimMs } from '@shared/time';
 import type { SimCommand } from './commands.ts';
 import type { StepContext } from './context.ts';
+import { applyFeelPatch } from './feel/applyFeelPatch.ts';
 import type { JournalEntry } from './journal.ts';
 import type { World } from './world.ts';
 
@@ -51,8 +53,29 @@ export function createCommandQueue(): CommandQueue {
   };
 }
 
-/** System: moves the commands due at this step (the one ending at `sim + STEP_MS`) into `ctx.commands`. */
+/**
+ * System: moves the commands due at this step (the one ending at `sim + STEP_MS`) into
+ * `ctx.commands`, and applies the `SetFeel`s among them (story 2.1) right here, first of the step,
+ * so every system after it reads the new feel. A `SetFeel` that reaches an ended level is ignored
+ * like any command; one that does not fit the feel's shape is ignored and reported.
+ */
 export function applyCommands(world: World, ctx: StepContext): void {
   ctx.commands.length = 0;
   ctx.queue.drainDue(world.time.sim + STEP_MS, ctx.commands);
+  if (world.flow.state === 'ended') return;
+  for (let i = 0; i < ctx.commands.length; i++) {
+    const command = ctx.commands[i] as SimCommand;
+    if (command.type !== 'SetFeel') continue;
+    const next = applyFeelPatch(world.feel, command.patch);
+    if (next === null) {
+      rejectInvariant(
+        ctx,
+        'SetFeel.patch',
+        'shape',
+        'a SetFeel patch does not fit the shape of the feel (unknown key, other type or length)',
+      );
+      continue;
+    }
+    world.feel = next;
+  }
 }

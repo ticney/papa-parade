@@ -12,6 +12,7 @@ const { slowMoPerfect, slowMoLastThreat } = createTestContent().feel.timing;
 function newWorld(): World {
   return createWorld({
     seed: 1,
+    feel: createTestContent().feel,
     papaSpawn: { xM: 0, zM: 0 },
     babySpawn: { xM: 0, zM: 0 },
     firstWanderAt: asSimMs(0),

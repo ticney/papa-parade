@@ -1,0 +1,82 @@
+{
+  "version": 3,
+  "seed": 11,
+  "feelHash": "0553c11c3efcf8",
+  "geometryHash": "15e699e93a8b63",
+  "levelHash": "1fd730dbbceb64",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 1510,
+      "command": {
+        "patch": {
+          "timing": {
+            "windowMs": 500
+          }
+        },
+        "t": 1500,
+        "type": "SetFeel"
+      }
+    },
+    {
+      "applyAt": 3350,
+      "command": {
+        "t": 3350,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 3400,
+      "command": {
+        "t": 3400,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 5010,
+      "command": {
+        "patch": {
+          "input": {
+            "earlyPress": "guard"
+          },
+          "timing": {
+            "windowMs": 300
+          }
+        },
+        "t": 5000,
+        "type": "SetFeel"
+      }
+    },
+    {
+      "applyAt": 9610,
+      "command": {
+        "t": 9600,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 9650,
+      "command": {
+        "t": 9650,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 10770,
+      "command": {
+        "t": 10760,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 10810,
+      "command": {
+        "t": 10810,
+        "type": "Release"
+      }
+    }
+  ]
+}

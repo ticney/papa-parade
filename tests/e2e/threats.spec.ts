@@ -1,15 +1,29 @@
+import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { THREAT_ICON_PATHS } from '../../src/client/ui/world/threatMarkers.ts';
-import { DRAW_CALLS_MAX, STEP_MS } from '../../src/shared/constants.ts';
-import { collectProblems, liveWaves } from './support/game.ts';
+import { DRAW_CALLS_MAX, STEP_MS, VERB_MIN_FONT_PX } from '../../src/shared/constants.ts';
+import {
+  collectProblems,
+  GEOMETRY_URL,
+  liveThreat,
+  liveWaves,
+  waitFrames,
+} from './support/game.ts';
 import {
   ppAdvance,
   ppEvents,
   ppFreeze,
   ppLoadLevel,
+  ppSend,
   ppWorld,
   waitForTestApi,
 } from './support/testApi.ts';
+
+/** The player-facing strings, read from the file (a verb is never hard-coded in a spec). */
+const STRINGS = JSON.parse(readFileSync('content/strings.fr.json', 'utf8')) as Record<
+  string,
+  string
+>;
 
 // The three threats of the prototype (story 1.16) on the live level, driven by the test API on a
 // frozen level: steps by hand, then what the world, the DOM and the events say. Nothing answers, so
@@ -186,5 +200,226 @@ test.describe('the three threats', () => {
     expect(drawCalls).toBeLessThanOrEqual(DRAW_CALLS_MAX);
 
     expect(problems).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Story 2.2: the verb above each threat, the shape and colour of its icon, the overlap of verbs.
+// ---------------------------------------------------------------------------------------------
+
+/** What a shown marker draws of its verb and icon, as the browser computed it. */
+interface ShownVerb {
+  glyph: string | null;
+  text: string | null;
+  fontPx: number;
+  textOverflow: string;
+  overflow: string;
+  whiteSpace: string;
+  isTriangle: boolean;
+  iconRadius: string;
+  zIndex: number;
+  /** The offset the layout wrote on the verb stack (`--pp-verb-offset`); empty while it never pushed it. */
+  offset: string;
+  iconCenterXPx: number;
+  verb: { x: number; y: number; width: number; height: number } | null;
+}
+
+/** The markers that are shown, with their verb's box and computed style. */
+const shownVerbs = (page: Page): Promise<ShownVerb[]> =>
+  page.locator('.pp-threat').evaluateAll((elements) =>
+    elements
+      .filter((element) => getComputedStyle(element).display !== 'none')
+      .map((element) => {
+        const verb = element.querySelector('.pp-threat-verb');
+        const icon = element.querySelector('.pp-threat-icon') as Element;
+        const style = verb === null ? null : getComputedStyle(verb);
+        const rect = verb?.getBoundingClientRect() ?? null;
+        const iconRect = icon.getBoundingClientRect();
+        return {
+          glyph: icon.querySelector('path')?.getAttribute('d') ?? null,
+          text: verb?.textContent ?? null,
+          fontPx: Number.parseFloat(style?.fontSize ?? '0'),
+          textOverflow: style?.textOverflow ?? '',
+          overflow: style?.overflow ?? '',
+          whiteSpace: style?.whiteSpace ?? '',
+          isTriangle: icon.classList.contains('pp-threat-icon--triangle'),
+          iconRadius: getComputedStyle(icon).borderRadius,
+          zIndex: Number(getComputedStyle(element).zIndex),
+          offset: (
+            element.querySelector('.pp-threat-verb-stack') as HTMLElement
+          ).style.getPropertyValue('--pp-verb-offset'),
+          iconCenterXPx: iconRect.x + iconRect.width / 2,
+          verb:
+            rect === null ? null : { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        };
+      }),
+  );
+
+/** Opens a frozen level with no start gesture: silent, as an agent's run is. */
+async function openFrozen(page: Page): Promise<void> {
+  await page.goto('/');
+  await waitForTestApi(page);
+  await ppFreeze(page, true);
+  await ppLoadLevel(page, LEVEL, SEED);
+}
+
+/** Starts the idle instance of `defId` now and steps once: it is telegraphed, and drawn a frame later. */
+async function forceThreat(page: Page, defId: string): Promise<number> {
+  const threat = threatOf(await ppWorld(page), defId);
+  if (threat === undefined) throw new Error(`the level does not plan ${defId}`);
+  await ppSend(page, { type: 'ForceThreat', threatId: threat.id });
+  await ppAdvance(page, 1);
+  return threat.id;
+}
+
+test.describe('the verb and the icon of a threat (story 2.2)', () => {
+  for (const defId of ['outlet', 'stairs', 'coffee_table_object']) {
+    test(`${defId}: its verb is shown whole, at 28 px or more, above a circle icon`, async ({
+      page,
+    }) => {
+      const problems = collectProblems(page);
+      await openFrozen(page);
+      const def = liveThreat(defId);
+      if (def.verbKey === null) throw new Error(`${defId} has no verbKey`);
+      const expected = STRINGS[def.verbKey];
+      expect(expected, `${def.verbKey} is in strings.fr.json`).toBeTruthy();
+      await forceThreat(page, defId);
+      await waitFrames(page, 2);
+      const [shown, ...others] = await shownVerbs(page);
+      expect(others).toEqual([]);
+      expect(shown?.text).toBe(expected);
+      expect(shown?.fontPx).toBeGreaterThanOrEqual(VERB_MIN_FONT_PX);
+      // A circle: no triangle modifier, a round border.
+      expect(shown?.isTriangle).toBe(false);
+      expect(shown?.iconRadius).toMatch(/50%/);
+      // Shown whole: no ellipsis, no clipping, no wrapping inside the label.
+      expect(shown?.textOverflow).not.toBe('ellipsis');
+      expect(shown?.overflow).not.toBe('hidden');
+      expect(shown?.whiteSpace).toBe('nowrap');
+      expect(problems).toEqual([]);
+    });
+  }
+
+  test('the verb goes with its icon: it is gone once the threat is not active', async ({
+    page,
+  }) => {
+    await openFrozen(page);
+    const id = await forceThreat(page, 'outlet');
+    await waitFrames(page, 2);
+    expect(await shownVerbs(page)).toHaveLength(1);
+    // Nothing answers: the threat ends, and the marker (verb included) is hidden with it.
+    for (let i = 0; i < CHUNKS_MAX; i++) {
+      const threat = (await ppWorld(page)).threats.find((candidate) => candidate.id === id);
+      if (threat?.state === 'gag' || threat?.state === 'resolved') break;
+      await ppAdvance(page, CHUNK_STEPS);
+    }
+    await waitFrames(page, 2);
+    expect(await shownVerbs(page)).toEqual([]);
+  });
+
+  test('the micro-sleep verb follows Papa like its icon', async ({ page }) => {
+    await openFrozen(page);
+    // The sim spawns it above the fatigue threshold (`ForceThreat` ignores a threat on Papa).
+    await ppSend(page, { type: 'SetFatigue', points: 90 });
+    for (let i = 0; i < CHUNKS_MAX; i++) {
+      const events = await ppEvents(page);
+      if (events.some((e) => e.type === 'ThreatTelegraphed' && e.kind === 'papa_microsleep')) break;
+      await ppAdvance(page, CHUNK_STEPS);
+    }
+    await ppAdvance(page, 1);
+    await waitFrames(page, 2);
+    const [before] = await shownVerbs(page);
+    expect(before?.text).toBe(STRINGS[liveThreat('papa_microsleep').verbKey ?? '']);
+    if (before?.verb === null || before === undefined) throw new Error('no verb shown');
+    // The verb is centred over the icon.
+    expect(Math.abs(before.verb.x + before.verb.width / 2 - before.iconCenterXPx)).toBeLessThan(2);
+    // Papa walks away: the icon moves, and the verb with it.
+    const papa = (await ppWorld(page)).papa;
+    await ppSend(page, { type: 'TapFloor', xM: papa.xM - 3, zM: papa.zM - 1 });
+    await ppAdvance(page, 60);
+    await waitFrames(page, 2);
+    const [after] = await shownVerbs(page);
+    if (after?.verb === null || after === undefined) throw new Error('no verb shown');
+    expect(Math.abs(after.iconCenterXPx - before.iconCenterXPx)).toBeGreaterThan(20);
+    expect(Math.abs(after.verb.x + after.verb.width / 2 - after.iconCenterXPx)).toBeLessThan(2);
+  });
+});
+
+test.describe('verbs of simultaneous threats (story 2.2)', () => {
+  /**
+   * The live geometry with the stairs' anchor moved 20 cm from the outlet's (an anchor is planned once, so
+   * two threats cannot share one): the two icons, and their verbs, overlap on screen.
+   */
+  async function serveStairsNextToTheOutlet(page: Page): Promise<void> {
+    const geometry = JSON.parse(
+      readFileSync('content/levels/salon_crawler.geometry.json', 'utf8'),
+    ) as { anchors: { id: string; positionM: [number, number, number] }[] };
+    const outlet = geometry.anchors.find((anchor) => anchor.id === 'outlet_01');
+    const stairs = geometry.anchors.find((anchor) => anchor.id === 'stairs_top');
+    if (outlet === undefined || stairs === undefined) throw new Error('the anchors moved');
+    stairs.positionM = [outlet.positionM[0] + 0.2, outlet.positionM[1], outlet.positionM[2]];
+    await page.route(GEOMETRY_URL, (route) =>
+      route.fulfill({
+        contentType: 'text/javascript',
+        body: `export default ${JSON.stringify(JSON.stringify(geometry))};`,
+      }),
+    );
+  }
+
+  test('overlapping verbs are offset so none covers another, and the most urgent is in front', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await serveStairsNextToTheOutlet(page);
+    await openFrozen(page);
+    await forceThreat(page, 'outlet');
+    await forceThreat(page, 'stairs');
+    await waitFrames(page, 3);
+
+    // The most urgent threat is the one whose window closes first, ties to the lower id.
+    const world = await ppWorld(page);
+    const closeAt = (defId: string): number => {
+      const threat = threatOf(world, defId);
+      if (threat?.responseWindow == null) throw new Error(`${defId} has no window`);
+      return threat.windowOpenAt + threat.responseWindow.windowMs;
+    };
+    const outletId = threatOf(world, 'outlet')?.id ?? 0;
+    const stairsId = threatOf(world, 'stairs')?.id ?? 0;
+    const isOutletFirst =
+      closeAt('outlet') < closeAt('stairs') ||
+      (closeAt('outlet') === closeAt('stairs') && outletId < stairsId);
+
+    const shown = await shownVerbs(page);
+    expect(shown).toHaveLength(2);
+    const outlet = shown.find((marker) => marker.glyph === THREAT_ICON_PATHS.bolt);
+    const stairs = shown.find((marker) => marker.glyph === THREAT_ICON_PATHS.stairs);
+    if (outlet?.verb == null || stairs?.verb == null) throw new Error('a verb is missing');
+    const [urgent, other] = isOutletFirst ? [outlet, stairs] : [stairs, outlet];
+    if (urgent.verb === null || other.verb === null) throw new Error('a verb is missing');
+
+    // No overlap: the boxes do not intersect.
+    const a = urgent.verb;
+    const b = other.verb;
+    const isOverlapping =
+      a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+    expect(isOverlapping).toBe(false);
+    // The less urgent verb was pushed up, never down.
+    expect(b.y + b.height).toBeLessThanOrEqual(a.y);
+    // The most urgent marker is in front, and stayed where it was; the other one went up.
+    expect(urgent.zIndex).toBeGreaterThan(other.zIndex);
+    expect(urgent.offset).toBe('');
+    expect(Number.parseFloat(other.offset)).toBeGreaterThan(0);
+    expect(problems).toEqual([]);
+  });
+
+  test('verbs of threats far apart on screen are left where they are', async ({ page }) => {
+    await openFrozen(page);
+    await forceThreat(page, 'outlet');
+    await forceThreat(page, 'stairs');
+    await waitFrames(page, 3);
+    const shown = await shownVerbs(page);
+    expect(shown).toHaveLength(2);
+    // Nothing overlaps, so the layout never pushed either of them.
+    expect(shown.map((marker) => marker.offset)).toEqual(['', '']);
   });
 });

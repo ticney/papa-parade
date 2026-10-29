@@ -171,7 +171,7 @@ describe('telegraph', () => {
 
 describe('a perfect or successful Parry', () => {
   it('is perfect at the centre of the window and resolves at the release', async () => {
-    const { sim, center } = await telegraphed();
+    const { sim, center, window } = await telegraphed();
     sim.enqueue(press(center));
     sim.enqueue(release(center + 50));
     const events = runTo(sim, 1500);
@@ -183,6 +183,7 @@ describe('a perfect or successful Parry', () => {
         response: 'parry',
         quality: 'perfect',
         offsetMs: 0,
+        responseWindow: window,
       },
     ]);
     expect(only(events, 'GagTriggered')).toEqual([]);
@@ -258,7 +259,7 @@ describe('a perfect or successful Parry', () => {
 
 describe('a gag', () => {
   it('is an early press: ResponseResolved{fail, early} then GagTriggered, at the press step', async () => {
-    const { sim, openAt, center } = await telegraphed();
+    const { sim, openAt, center, window } = await telegraphed();
     const t = openAt - timing.toleranceMs - timing.bufferMs - 1;
     sim.enqueue(press(t));
     const events = runTo(sim, openAt);
@@ -271,6 +272,7 @@ describe('a gag', () => {
         quality: 'fail',
         reason: 'early',
         offsetMs: t - center,
+        responseWindow: window,
       },
       { type: 'GagTriggered', t: 1050, threatId: 1, gag: 'outlet_hair', reason: 'early' },
     ]);
@@ -295,6 +297,7 @@ describe('a gag', () => {
         quality: 'fail',
         reason: 'late',
         offsetMs: null,
+        responseWindow: window,
       },
       {
         type: 'GagTriggered',

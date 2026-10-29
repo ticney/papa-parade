@@ -1,11 +1,26 @@
-import type { ThreatDef, ThreatIcon } from '@content/schemas/threat';
-import { HOLD_RING_OUTLINE_PX, HOLD_RING_STROKE_PX } from '@shared/constants';
+import type {
+  ThreatColor,
+  ThreatIcon,
+  ThreatIconShape,
+  ThreatTarget,
+} from '@content/schemas/threat';
+import {
+  HOLD_RING_OUTLINE_PX,
+  HOLD_RING_STROKE_PX,
+  VERB_MAX_WIDTH_PCT,
+  VERB_STACK_GAP_PX,
+  VERB_STROKE_PX,
+} from '@shared/constants';
 import { log } from '@shared/log';
 import type { ThreatInstance } from '@sim';
-import type { Scene } from 'three';
+import { type Camera, type Scene, Vector3 } from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { threatCloseAt } from '../../input/urgency.ts';
 import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
+import type { Translator } from '../strings.ts';
 import { svgElement } from '../svg.ts';
+import { createVerbStack, fitVerbFontPx, stackVerbs, type VerbStack } from './verbLayout.ts';
+import { createBrowserVerbMetrics, type VerbMetrics } from './verbMetrics.ts';
 
 /** An icon floats this far above the top of the body it marks (Papa's cube, the baby's), in metres. */
 const PAPA_MARKER_OFFSET_M = 0.3;
@@ -24,6 +39,19 @@ export interface ThreatMarkerEntry {
   readonly icon: ThreatIcon;
   /** The threat stands on Papa (its def's `target` is `papa`): the marker follows his pose. */
   readonly followsPapa: boolean;
+  /** The verb shown above the icon, translated once at build (story 2.2); `''` for no verb (an unknown def). */
+  readonly verb: string;
+  /** The marker's shape and colour, copied from the def (the pair is the signal, NFR8). */
+  readonly iconShape: ThreatIconShape;
+  readonly color: ThreatColor;
+  /**
+   * The verb's box as laid out, in CSS px, for the glyph chip: written by `ThreatMarkers.setSize`
+   * (width and height, with the outline) and `ThreatMarkers.layout` (how far it is pushed up, 0 when
+   * it overlaps nothing). 0 while nothing has been laid out or when there is no verb.
+   */
+  verbWidthPx: number;
+  verbHeightPx: number;
+  verbOffsetPx: number;
 }
 
 export interface ThreatMarkers {
@@ -58,6 +86,23 @@ export interface ThreatMarkers {
     renderSimMs?: number | null,
     holdMinMs?: number,
   ): boolean;
+  /**
+   * The layer's size, in CSS px (the verbs' maximum width is a share of it): refits every verb. Called
+   * on every resize; a size that is not positive leaves the verbs at their CSS size.
+   */
+  setSize(widthPx: number, heightPx: number): void;
+  /**
+   * Fits the verbs again: their font size, from the current surface, `--pp-verb-scale` and the font
+   * that is loaded now (a fallback font measures differently). Called when the fonts have loaded and by
+   * the « Grands verbes » setting (story 2.10); `layout` also calls it when the surface changes.
+   */
+  refit(): void;
+  /**
+   * Once per frame, after `update` and before the DOM renderer: offsets the verbs of the shown markers
+   * that would overlap on screen (the most urgent stays, the next ones go up), and puts the most urgent
+   * marker in front (`z-index`). Allocates nothing; writes the DOM only when an offset or a rank changes.
+   */
+  layout(camera: Camera): void;
   /** True while at least one marker is shown: the layer must be rendered. */
   readonly isAnyVisible: boolean;
   /** The icon points of the mounted level, for the hit test (the same objects, never copied). */
@@ -65,21 +110,52 @@ export interface ThreatMarkers {
   dispose(): void;
 }
 
-/** The glyph a marker falls back to when the threat's def is unknown. */
+/** What a marker falls back to when the threat's def is unknown: a bolt, in the parry circle, with no verb. */
 const FALLBACK_ICON: ThreatIcon = 'bolt';
+const FALLBACK_SHAPE: ThreatIconShape = 'circle';
+const FALLBACK_COLOR: ThreatColor = 'parry';
+
+/**
+ * The verb a response shows when its def writes `verbKey: null` (« the default of the response », story
+ * 2.2 D1): only `dodge` has one, and no def can be a `dodge` before story 5.1.
+ */
+const DEFAULT_VERB_KEYS: Readonly<Record<string, string>> = { dodge: 'verb.dodge' };
+
+/** The slice of a `ThreatDef` that a marker reads; a `ThreatDef` is one. */
+export interface ThreatMarkerDef {
+  readonly icon: ThreatIcon;
+  readonly target: ThreatTarget;
+  readonly verbKey: string | null;
+  readonly iconShape: ThreatIconShape;
+  readonly color: ThreatColor;
+  readonly response: string;
+}
+
+/**
+ * The text of a verb key. A translator gives a missing key back as it is, which must never become
+ * the loudest text on screen (« verb.catch » in 40 px letters): it warns and shows no verb.
+ */
+function translateVerb(verbKey: string, threatId: number, t: Translator): string {
+  const text = t(verbKey);
+  if (text !== verbKey) return text;
+  log.warn('render', `threat ${threatId}: the verb string ${verbKey} is missing, no verb is shown`);
+  return '';
+}
 
 /**
  * The marker entries of a level: one per threat of `threats`, in the same order, at the position
- * of its anchor (`anchors` are the level geometry's), with the glyph of its def (`defs` is the
- * level's `LevelContent.threats`). An anchor the geometry lacks, or a def the level lacks, cannot
- * happen (`createSim` refuses both); if it does the icon goes to the threat's floor point, or
- * draws a bolt, with a `warn`. Built once per level, never per frame.
+ * of its anchor (`anchors` are the level geometry's), with the glyph, verb, shape and colour of its
+ * def (`defs` is the level's `LevelContent.threats`; the verb is `t(def.verbKey)`, or the default verb
+ * of its response for a `null` key). An anchor the geometry lacks, or a def the level lacks, cannot
+ * happen (`createSim` refuses both); if it does the icon goes to the threat's floor point, or draws a
+ * bolt in a parry circle with no verb, with a `warn`. Built once per level, never per frame.
  */
 export function threatMarkerEntries(
   threats: readonly Readonly<ThreatInstance>[],
   anchors: readonly { id: string; positionM: readonly [number, number, number] }[],
-  defs: Readonly<Record<string, Pick<ThreatDef, 'icon' | 'target'>>>,
+  defs: Readonly<Record<string, ThreatMarkerDef>>,
   babyBodyRadiusM: number,
+  t: Translator,
 ): ThreatMarkerEntry[] {
   return threats.map((threat) => {
     const def = defs[threat.defId];
@@ -90,6 +166,17 @@ export function threatMarkerEntries(
       );
     }
     const icon = def?.icon ?? FALLBACK_ICON;
+    const verbKey =
+      def === undefined ? null : (def.verbKey ?? DEFAULT_VERB_KEYS[def.response] ?? null);
+    const look = {
+      icon,
+      verb: verbKey === null ? '' : translateVerb(verbKey, threat.id, t),
+      iconShape: def?.iconShape ?? FALLBACK_SHAPE,
+      color: def?.color ?? FALLBACK_COLOR,
+      verbWidthPx: 0,
+      verbHeightPx: 0,
+      verbOffsetPx: 0,
+    };
     // A threat on Papa has no anchor to look up: its marker starts at him and follows him.
     if (def?.target === 'papa') {
       return {
@@ -97,8 +184,8 @@ export function threatMarkerEntries(
         xM: threat.xM,
         yM: PAPA_HEIGHT_M + PAPA_MARKER_OFFSET_M,
         zM: threat.zM,
-        icon,
         followsPapa: true,
+        ...look,
       };
     }
     // A silence stands on the open cell of its hidden zone, which the sim chose: above the baby
@@ -109,8 +196,8 @@ export function threatMarkerEntries(
         xM: threat.xM,
         yM: babyBodyRadiusM * 2 + PAPA_MARKER_OFFSET_M,
         zM: threat.zM,
-        icon,
         followsPapa: false,
+        ...look,
       };
     }
     const anchor = anchors.find((candidate) => candidate.id === threat.anchorId);
@@ -119,10 +206,17 @@ export function threatMarkerEntries(
         'render',
         `threat ${threat.id} names the anchor ${threat.anchorId}, which the room lacks`,
       );
-      return { threatId: threat.id, xM: threat.xM, yM: 0, zM: threat.zM, icon, followsPapa: false };
+      return {
+        threatId: threat.id,
+        xM: threat.xM,
+        yM: 0,
+        zM: threat.zM,
+        followsPapa: false,
+        ...look,
+      };
     }
     const [xM, yM, zM] = anchor.positionM;
-    return { threatId: threat.id, xM, yM, zM, icon, followsPapa: false };
+    return { threatId: threat.id, xM, yM, zM, followsPapa: false, ...look };
   });
 }
 
@@ -132,7 +226,16 @@ export const THREAT_CLASSES = {
   halo: 'pp-threat-halo',
   highlight: 'pp-threat-highlight',
   chevron: 'pp-threat-chevron',
+  /** The verb stack: the chevron over the verb, above the icon (story 2.2). */
+  verbStack: 'pp-threat-verb-stack',
+  verb: 'pp-threat-verb',
   icon: 'pp-threat-icon',
+  /** The icon of a `dodge` threat: a triangle, drawn as an SVG polygon (a CSS `border` cannot follow a `clip-path`). */
+  iconTriangle: 'pp-threat-icon--triangle',
+  /** The SVG of that triangle. */
+  triangle: 'pp-threat-triangle',
+  /** The glyph inside the icon, whatever its shape. */
+  glyph: 'pp-threat-glyph',
   /** The hold-ring (story 1.23); `--closed` once the press has been held `holdMinMs`. */
   hold: 'pp-threat-hold',
   holdClosed: 'pp-threat-hold--closed',
@@ -160,14 +263,30 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   // Three dots: the « … » of the suspicious silence (story 1.21).
   dots: 'M6 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M18 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0',
 };
-/** The chevron: a down-pointing triangle above the icon (12 × 8 view box). */
+/** The chevron: a down-pointing triangle above the verb (12 × 8 view box). */
 const CHEVRON_PATH = 'M1 1h10L6 7z';
+
+/** The dodge triangle (mockup `icon-dodge`, 52 × 48 view box): the hard ink shadow is the same polygon 4 units down. */
+const TRIANGLE_POINTS = '26,4 49,43 3,43';
+const TRIANGLE_SHADOW_DROP = 4;
 
 interface Marker {
   readonly object: CSS2DObject;
   readonly element: HTMLElement;
   readonly highlight: HTMLElement;
   readonly chevron: Element;
+  /** The chevron over the verb: the stack the layout pushes up (`--pp-verb-offset`). */
+  readonly verbStack: HTMLElement;
+  /** The verb's text node holder; null for an entry with no verb. */
+  readonly verb: HTMLElement | null;
+  /** The verb's font size as drawn, in px; 0 until the first fit. */
+  verbFontPx: number;
+  /** How far the verb stack is pushed up as drawn, in whole px. */
+  verbOffsetPx: number;
+  /** The window's closing, in sim ms (`Infinity` while there is none): the urgency of the layout. */
+  closeAt: number;
+  /** The z-index as drawn: a rank counted from the least urgent (0 = not set). */
+  zRank: number;
   /** The hold-ring: a disc under the icon whose conic fill is `--pp-hold-progress` percent. */
   readonly hold: HTMLElement;
   /** The ring's progress as drawn, in whole percent; `HOLD_HIDDEN` while it is hidden. */
@@ -218,30 +337,82 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
   // the disc is the band wider than the icon on every side, with the ink outline spread around it.
   hold.style.inset = `-${HOLD_RING_STROKE_PX}px`;
   hold.style.boxShadow = `0 0 0 ${HOLD_RING_OUTLINE_PX}px var(--pp-color-ink)`;
+  // The verb stack: the chevron over the verb, bottom-anchored above the icon, so that the verb stays
+  // where it is whether the chevron shows or not. The layout pushes the whole stack up.
+  const verbStack = doc.createElement('div');
+  verbStack.className = THREAT_CLASSES.verbStack;
+  let verb: HTMLElement | null = null;
+  if (entry.verb !== '') {
+    verb = doc.createElement('span');
+    verb.className = THREAT_CLASSES.verb;
+    verb.textContent = entry.verb;
+    // DESIGN.md's outline comes from the constant (`verbLabelSpec.test.ts`): `paint-order: stroke` hides
+    // the inner half of a text stroke, so the visible outline is half of the stroke's width.
+    verb.style.setProperty('-webkit-text-stroke', `${VERB_STROKE_PX * 2}px var(--pp-color-ink)`);
+    verbStack.append(chevron, verb);
+  } else {
+    verbStack.append(chevron);
+  }
   const icon = doc.createElement('div');
   icon.className = THREAT_CLASSES.icon;
-  icon.append(
-    svgElement(
-      'svg',
-      { viewBox: '0 0 24 24' },
-      [
-        svgElement(
-          'path',
-          {
-            d: THREAT_ICON_PATHS[entry.icon],
-            fill: 'var(--pp-color-paper)',
-            stroke: 'var(--pp-color-ink)',
-            'stroke-width': '2',
-            'stroke-linejoin': 'round',
-          },
-          [],
-          doc,
-        ),
-      ],
-      doc,
-    ),
+  const glyph = svgElement(
+    'svg',
+    { class: THREAT_CLASSES.glyph, viewBox: '0 0 24 24' },
+    [
+      svgElement(
+        'path',
+        {
+          d: THREAT_ICON_PATHS[entry.icon],
+          fill: 'var(--pp-color-paper)',
+          stroke: 'var(--pp-color-ink)',
+          'stroke-width': '2',
+          'stroke-linejoin': 'round',
+        },
+        [],
+        doc,
+      ),
+    ],
+    doc,
   );
-  element.append(halo, hold, highlight, chevron, icon);
+  // The colour is the def's, by its DESIGN token name; the circle fills with it in CSS, the triangle below.
+  element.style.setProperty('--pp-threat-color', `var(--pp-color-${entry.color})`);
+  if (entry.iconShape === 'triangle') {
+    icon.className = `${THREAT_CLASSES.icon} ${THREAT_CLASSES.iconTriangle}`;
+    const outline = {
+      'stroke-linejoin': 'round',
+      stroke: 'var(--pp-color-ink)',
+      'stroke-width': '3',
+    };
+    icon.append(
+      svgElement(
+        'svg',
+        { class: THREAT_CLASSES.triangle, viewBox: '0 0 52 48' },
+        [
+          svgElement(
+            'polygon',
+            {
+              points: TRIANGLE_POINTS,
+              fill: 'var(--pp-color-ink)',
+              transform: `translate(0,${TRIANGLE_SHADOW_DROP})`,
+            },
+            [],
+            doc,
+          ),
+          svgElement(
+            'polygon',
+            { points: TRIANGLE_POINTS, fill: 'var(--pp-threat-color)', ...outline },
+            [],
+            doc,
+          ),
+        ],
+        doc,
+      ),
+      glyph,
+    );
+  } else {
+    icon.append(glyph);
+  }
+  element.append(halo, hold, highlight, verbStack, icon);
   // Hidden until its threat is active: the CSS2D renderer only writes `display` when it runs.
   element.style.display = 'none';
 
@@ -253,6 +424,12 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
     element,
     highlight,
     chevron,
+    verbStack,
+    verb,
+    verbFontPx: 0,
+    verbOffsetPx: 0,
+    closeAt: Number.POSITIVE_INFINITY,
+    zRank: 0,
     hold,
     holdPct: HOLD_HIDDEN,
     isHoldClosed: false,
@@ -299,13 +476,36 @@ function updateHoldRing(
  * The threat icons of a level, world-anchored in the `CSS2DRenderer` layer: a `{colors.parry}`
  * circle with the threat's glyph (`THREAT_ICON_PATHS`) and a pulsing `{colors.alert}` halo while the threat is `telegraph` or
  * `windowOpen`, and the `target-highlight` (a solid ring and a bouncing chevron) on the pressed
- * one and on the auto-targeted one. Reconciled from the world every frame (D8), not from events. `doc` makes the elements
- * (the browser's `document`; a double in tests).
+ * one and on the auto-targeted one. Reconciled from the world every frame (D8), not from events. A `dodge`
+ * def is a `{colors.dodge}` triangle instead. The verb (story 2.2) is part of the marker, above the icon:
+ * it shows and hides with it, fits `VERB_MAX_WIDTH_PCT` of the layer (`refit`), and is pushed up when verbs
+ * overlap (`layout`). `doc` makes the elements (the browser's `document`; a double in tests); `metrics` reads the typography
+ * the fit needs (default: the page's, read lazily).
  */
-export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMarkers {
+export function createThreatMarkers(
+  scene: Scene,
+  doc: Doc = document,
+  metrics?: VerbMetrics,
+): ThreatMarkers {
   let markers: Marker[] = [];
   let mounted: readonly ThreatMarkerEntry[] = [];
   let shownCount = 0;
+  let layerWidthPx = 0;
+  let layerHeightPx = 0;
+  /** The surface the verbs were last fitted for: a change makes `layout` refit. */
+  let fittedSurface = '';
+  // One Vector3 and arrays sized at mount: the per-frame layout allocates nothing.
+  const projected = new Vector3();
+  let stack: VerbStack = createVerbStack(0);
+  let stackSource = new Int32Array(0);
+  let zStrings: readonly string[] = [];
+  /** Some marker of the level has a verb: only then is the page's typography read at all. */
+  let hasVerbs = false;
+  let fontMetrics = metrics;
+  const getMetrics = (): VerbMetrics => {
+    fontMetrics ??= createBrowserVerbMetrics();
+    return fontMetrics;
+  };
   // `threats[i]` must be the instance of `entries[i]` (same order, built from `world.threats`): a
   // pair that is not is skipped, and said once per mount.
   let isMisalignedWarned = false;
@@ -316,6 +516,37 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
     mounted = [];
     shownCount = 0;
     isMisalignedWarned = false;
+    stack = createVerbStack(0);
+    stackSource = new Int32Array(0);
+    zStrings = [];
+    hasVerbs = false;
+  };
+
+  const refit = (): void => {
+    // Nothing to fit against before the first size: the CSS size shows until `setSize`.
+    if (layerWidthPx <= 0 || !hasVerbs) return;
+    const typography = getMetrics();
+    fittedSurface = typography.surfaceKey();
+    const basePx = typography.basePx();
+    const scale = typography.scale();
+    const scaledBasePx = basePx * scale;
+    const maxWidthPx = (layerWidthPx * VERB_MAX_WIDTH_PCT) / 100;
+    const lineHeight = typography.lineHeight();
+    for (let i = 0; i < markers.length; i++) {
+      const marker = markers[i] as Marker;
+      const entry = mounted[i] as ThreatMarkerEntry;
+      if (marker.verb === null) continue;
+      const advancePx = typography.widthPx(entry.verb.toUpperCase(), scaledBasePx);
+      // The outline adds `VERB_STROKE_PX` on each side and does not shrink with the font: fit the text
+      // into what is left of the maximum, so that the box with its outline is at most the maximum.
+      const fontPx = fitVerbFontPx(advancePx, basePx, maxWidthPx - 2 * VERB_STROKE_PX, scale);
+      if (fontPx !== marker.verbFontPx) {
+        marker.verbFontPx = fontPx;
+        marker.verb.style.fontSize = `${fontPx}px`;
+      }
+      entry.verbWidthPx = (advancePx * fontPx) / scaledBasePx + 2 * VERB_STROKE_PX;
+      entry.verbHeightPx = fontPx * lineHeight + 2 * VERB_STROKE_PX;
+    }
   };
 
   return {
@@ -324,8 +555,58 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
       mounted = entries;
       markers = entries.map((entry) => createMarker(entry, doc));
       for (const marker of markers) scene.add(marker.object);
+      stack = createVerbStack(markers.length);
+      stackSource = new Int32Array(markers.length);
+      zStrings = Array.from({ length: markers.length + 1 }, (_, rank) => String(rank));
+      hasVerbs = markers.some((marker) => marker.verb !== null);
+      refit();
     },
     unmount,
+    setSize(widthPx, heightPx) {
+      layerWidthPx = widthPx;
+      layerHeightPx = heightPx;
+      refit();
+    },
+    refit,
+    layout(camera) {
+      if (shownCount === 0 || layerWidthPx <= 0 || layerHeightPx <= 0) return;
+      // A surface change (a resize across `COMPACT_SURFACE_MAX_PX`) changes the verb's base size.
+      if (hasVerbs && getMetrics().surfaceKey() !== fittedSurface) refit();
+      camera.updateMatrixWorld();
+      let count = 0;
+      for (let i = 0; i < markers.length; i++) {
+        const marker = markers[i] as Marker;
+        if (!marker.isShown) continue;
+        const entry = mounted[i] as ThreatMarkerEntry;
+        projected.set(entry.xM, entry.yM, entry.zM).project(camera);
+        stack.centerXPx[count] = (projected.x * 0.5 + 0.5) * layerWidthPx;
+        stack.bottomPx[count] = (-projected.y * 0.5 + 0.5) * layerHeightPx;
+        stack.widthPx[count] = entry.verbWidthPx;
+        stack.heightPx[count] = entry.verbHeightPx;
+        stack.closeAt[count] = marker.closeAt;
+        stack.ids[count] = entry.threatId;
+        stackSource[count] = i;
+        count++;
+      }
+      stackVerbs(stack, count, VERB_STACK_GAP_PX);
+      for (let k = 0; k < count; k++) {
+        const marker = markers[stackSource[k] as number] as Marker;
+        const entry = mounted[stackSource[k] as number] as ThreatMarkerEntry;
+        const offsetPx = stack.offsetPx[k] as number;
+        if (offsetPx !== marker.verbOffsetPx) {
+          marker.verbOffsetPx = offsetPx;
+          entry.verbOffsetPx = offsetPx;
+          marker.verbStack.style.setProperty('--pp-verb-offset', `${offsetPx}px`);
+        }
+        // The most urgent in front: rank 0 gets the highest z-index. Counted over the shown markers, so
+        // the ranks stay small and the chip (`.pp-glyph-chip-anchor`, a fixed higher z-index) is above all.
+        const zRank = count - (stack.rank[k] as number);
+        if (zRank !== marker.zRank) {
+          marker.zRank = zRank;
+          marker.element.style.zIndex = zStrings[zRank] as string;
+        }
+      }
+    },
     update(threats, highlightedId, targetedId, papa = null, renderSimMs = null, holdMinMs = 0) {
       let isHighlightShown = false;
       for (let i = 0; i < markers.length; i++) {
@@ -346,6 +627,8 @@ export function createThreatMarkers(scene: Scene, doc: Doc = document): ThreatMa
             },
           );
         }
+        marker.closeAt =
+          (threat === undefined ? null : threatCloseAt(threat)) ?? Number.POSITIVE_INFINITY;
         const isPressed = threat !== undefined && threat.id === highlightedId;
         const isActive =
           threat !== undefined &&

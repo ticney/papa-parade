@@ -103,7 +103,13 @@ function createSimDouble(real: Sim) {
 }
 
 async function createRig(
-  options: { warnings?: string[]; speed?: number; beforeStep?: (sim: Sim) => void } = {},
+  options: {
+    warnings?: string[];
+    speed?: number;
+    beforeStep?: (sim: Sim) => void;
+    measure?: () => number;
+    onRender?: () => void;
+  } = {},
 ) {
   const double = createSimDouble(
     await createSim({
@@ -131,6 +137,7 @@ async function createRig(
       alphas.push(alpha);
       frameTimes.push(frameAtReal);
       double.calls.push('render');
+      options.onRender?.();
     },
     onSimEvent: (event) => {
       simEvents.push({ ...event });
@@ -138,6 +145,7 @@ async function createRig(
     },
     speed: options.speed,
     beforeStep: options.beforeStep,
+    measure: options.measure,
   });
   loop.start();
   return {
@@ -1114,5 +1122,155 @@ describe('createGameLoop › real sim: hitstop and slow-mo (story 1.14)', () => 
     // Real time: the same sim time at ×timeScale, within one frame (no hitstop after a gag).
     const realMs = gagged.atReal - opened.atReal;
     expect(Math.abs(realMs - simMs / timing.slowMoPerfect.timeScale)).toBeLessThanOrEqual(FRAME_MS);
+  });
+});
+
+describe('createGameLoop › measuring (story 2.1)', () => {
+  /** A fake clock the steps and the render move by fixed amounts, so each timing is exact. */
+  function measuredRig(options: { isMeasured?: boolean } = {}) {
+    const clock = { now: 1000, reads: 0 };
+    const STEP_COST_MS = 0.5;
+    const RENDER_COST_MS = 3;
+    const read = (): number => {
+      clock.reads++;
+      return clock.now;
+    };
+    return {
+      clock,
+      STEP_COST_MS,
+      RENDER_COST_MS,
+      rig: createRig({
+        measure: options.isMeasured === false ? undefined : read,
+        onRender: () => {
+          clock.now += RENDER_COST_MS;
+        },
+      }).then((rig) => {
+        rig.hooks.step = () => {
+          clock.now += STEP_COST_MS;
+        };
+        return rig;
+      }),
+    };
+  }
+
+  it('times the steps, the render and the whole frame of the last frame', async () => {
+    const { rig: pending, STEP_COST_MS, RENDER_COST_MS } = measuredRig();
+    const rig = await pending;
+    rig.tick(0);
+    rig.tick(3 * FRAME_MS); // three steps owed
+    expect(rig.loop.stats.stepsLastFrame).toBe(3);
+    expect(rig.loop.stats.simMsLastFrame).toBeCloseTo(3 * STEP_COST_MS, 9);
+    expect(rig.loop.stats.renderMsLastFrame).toBeCloseTo(RENDER_COST_MS, 9);
+    expect(rig.loop.stats.frameMsLastFrame).toBeCloseTo(3 * STEP_COST_MS + RENDER_COST_MS, 9);
+  });
+
+  it('keeps a frame with no step at zero sim time', async () => {
+    const { rig: pending, RENDER_COST_MS } = measuredRig();
+    const rig = await pending;
+    rig.tick(0);
+    expect(rig.loop.stats.simMsLastFrame).toBe(0);
+    expect(rig.loop.stats.renderMsLastFrame).toBeCloseTo(RENDER_COST_MS, 9);
+  });
+
+  it('does not count the steps of an advance() in the next frame', async () => {
+    const { rig: pending, STEP_COST_MS } = measuredRig();
+    const rig = await pending;
+    rig.tick(0);
+    rig.loop.advance(5);
+    rig.loop.setFrozen(false);
+    rig.tick(FRAME_MS);
+    rig.tick(2 * FRAME_MS);
+    expect(rig.loop.stats.simMsLastFrame).toBeCloseTo(
+      rig.loop.stats.stepsLastFrame * STEP_COST_MS,
+      9,
+    );
+  });
+
+  it('reads no clock and leaves the timings at zero without a measure', async () => {
+    const { rig: pending, clock } = measuredRig({ isMeasured: false });
+    const rig = await pending;
+    // Rapier reads `performance.now` inside a step, so the spies record who asked: only a read that
+    // comes from loop.ts itself is a leak (the loop has no clock of its own to fall back on).
+    const readers: string[] = [];
+    const realPerformanceNow = performance.now.bind(performance);
+    const realDateNow = Date.now.bind(Date);
+    const performanceNow = vi.spyOn(performance, 'now').mockImplementation(() => {
+      readers.push(String(new Error().stack));
+      return realPerformanceNow();
+    });
+    const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => {
+      readers.push(String(new Error().stack));
+      return realDateNow();
+    });
+    try {
+      rig.tick(0);
+      rig.tick(3 * FRAME_MS);
+      rig.loop.advance(2);
+      expect(rig.loop.stats.stepsLastFrame).toBe(3);
+    } finally {
+      performanceNow.mockRestore();
+      dateNow.mockRestore();
+    }
+    expect(readers.filter((stack) => /client[\\/]loop\.ts/.test(stack))).toEqual([]);
+    expect(clock.reads).toBe(0);
+    expect(rig.loop.stats).toMatchObject({
+      simMsLastFrame: 0,
+      renderMsLastFrame: 0,
+      frameMsLastFrame: 0,
+    });
+  });
+
+  it('reads the clock it was given (the control of the test above)', async () => {
+    const { rig: pending, clock } = measuredRig();
+    const rig = await pending;
+    rig.tick(0);
+    expect(clock.reads).toBeGreaterThan(0);
+  });
+
+  it('keeps the timings at zero when a listener turns the measure off during the frame', async () => {
+    let turnOff: (() => void) | null = null;
+    const clock = { now: 1000 };
+    const rig = await createRig({
+      measure: () => clock.now,
+      onRender: () => {
+        clock.now += 3;
+        turnOff?.();
+      },
+    });
+    rig.hooks.step = () => {
+      clock.now += 0.5;
+    };
+    rig.tick(0); // measured: the control that the timings are not zero without the switch-off
+    expect(rig.loop.stats.renderMsLastFrame).toBeGreaterThan(0);
+    turnOff = () => rig.loop.setMeasure(null);
+    rig.tick(3 * FRAME_MS);
+    expect(rig.loop.stats.stepsLastFrame).toBe(3);
+    expect(rig.loop.stats).toMatchObject({
+      simMsLastFrame: 0,
+      renderMsLastFrame: 0,
+      frameMsLastFrame: 0,
+    });
+    // Nothing is read once the measure is off.
+    const before = clock.now;
+    rig.tick(4 * FRAME_MS);
+    expect(rig.loop.stats.frameMsLastFrame).toBe(0);
+    expect(clock.now).toBeGreaterThanOrEqual(before);
+  });
+
+  it('starts and stops measuring with setMeasure, zeroing the timings when it stops', async () => {
+    const { rig: pending, clock, RENDER_COST_MS } = measuredRig({ isMeasured: false });
+    const rig = await pending;
+    rig.tick(0);
+    rig.loop.setMeasure(() => clock.now);
+    rig.tick(FRAME_MS);
+    expect(rig.loop.stats.renderMsLastFrame).toBeCloseTo(RENDER_COST_MS, 9);
+    rig.loop.setMeasure(null);
+    expect(rig.loop.stats).toMatchObject({
+      simMsLastFrame: 0,
+      renderMsLastFrame: 0,
+      frameMsLastFrame: 0,
+    });
+    rig.tick(2 * FRAME_MS);
+    expect(rig.loop.stats.renderMsLastFrame).toBe(0);
   });
 });

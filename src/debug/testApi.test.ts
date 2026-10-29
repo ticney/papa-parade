@@ -73,6 +73,9 @@ async function createRig(options: { eventLogMax?: number } = {}): Promise<Rig> {
       return session.outcome;
     },
     stop: () => {},
+    rememberFeel(feel: unknown) {
+      session.current = { ...session.current, feel: feel as FakeSession['current']['feel'] };
+    },
     freeze(next: boolean) {
       session.freezeCalls.push(next);
       session.isFrozen = next;
@@ -96,6 +99,7 @@ async function createRig(options: { eventLogMax?: number } = {}): Promise<Rig> {
       sim: next,
       level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
       timeMap: {} as never,
+      geometry: createTestGeometry(),
       feel: content.feel,
     };
     host.fireLevelStarted({
@@ -308,38 +312,121 @@ describe('loadLevel(id, seed)', () => {
 });
 
 describe('setFeel(patch)', () => {
-  it('restarts the current level with the same seed and the patch merged onto the current feel', async () => {
-    const { api, host, session } = await createRig();
-    host.setPause('running');
-    const base = session.current.feel;
+  it('enqueues the journaled SetFeel at the current sim time, and restarts nothing', async () => {
+    const { api, session, sim } = await createRig();
+    const base = sim.world.feel;
+    for (let i = 0; i < 7; i++) sim.step();
     await api.setFeel({ movement: { walkSpeedMps: 2 * base.movement.walkSpeedMps } });
-    expect(session.startCalls).toHaveLength(1);
-    const call = session.startCalls[0] as { levelId: string; seed: number; feel: typeof base };
-    expect(call.levelId).toBe('salon_crawler');
-    expect(call.seed).toBe(1);
-    expect(call.feel.movement.walkSpeedMps).toBe(2 * base.movement.walkSpeedMps);
-    expect(call.feel.timing).toEqual(base.timing);
+    expect(session.startCalls).toEqual([]);
+    const entries = sim.journal().entries;
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.command).toEqual({
+      type: 'SetFeel',
+      t: sim.world.time.sim,
+      patch: { movement: { walkSpeedMps: 2 * base.movement.walkSpeedMps } },
+    });
+    // Applied at the next step, not before.
+    expect(sim.world.feel.movement.walkSpeedMps).toBe(base.movement.walkSpeedMps);
+    sim.step();
+    expect(sim.world.feel.movement.walkSpeedMps).toBe(2 * base.movement.walkSpeedMps);
+    expect(sim.world.feel.timing).toEqual(base.timing);
   });
 
-  it('merges onto the override already in force, not onto the boot feel', async () => {
-    const { api, host, session } = await createRig();
-    host.setPause('running');
-    const base = session.current.feel;
-    const patched = { ...base, movement: { ...base.movement, walkSpeedMps: 3 } };
-    session.current = { ...session.current, feel: patched };
+  it('lays the patch over the feel in force in the sim, so two patches add up', async () => {
+    const { api, sim } = await createRig();
     await api.setFeel({ timing: { windowMs: 500 } });
-    const call = session.startCalls[0] as { feel: typeof base };
-    expect(call.feel.movement.walkSpeedMps).toBe(3);
-    expect(call.feel.timing.windowMs).toBe(500);
+    sim.step();
+    await api.setFeel({ movement: { walkSpeedMps: 3 } });
+    sim.step();
+    expect(sim.world.feel.timing.windowMs).toBe(500);
+    expect(sim.world.feel.movement.walkSpeedMps).toBe(3);
   });
 
-  it('rejects an invalid patch with the paths, and restarts nothing', async () => {
+  it('checks a patch against the SetFeels still queued: back to back, the second sees the first', async () => {
+    const { api, sim } = await createRig();
+    const { windowMs, perfectMs } = sim.world.feel.timing;
+    // Alone, each is valid against the feel in force; together they would leave perfectMs > windowMs.
+    const narrowedWindowMs = perfectMs + 50;
+    const widenedPerfectMs = narrowedWindowMs + 25;
+    expect(widenedPerfectMs).toBeLessThanOrEqual(windowMs);
+    await api.setFeel({ timing: { windowMs: narrowedWindowMs } });
+    await expect(api.setFeel({ timing: { perfectMs: widenedPerfectMs } })).rejects.toThrow(
+      /__PP__\.setFeel.*perfectMs/,
+    );
+    // No step ran in between, and the refused patch was not queued.
+    expect(sim.journal().entries).toHaveLength(1);
+    sim.step();
+    expect(sim.world.feel.timing.windowMs).toBe(narrowedWindowMs);
+    expect(sim.world.feel.timing.perfectMs).toBe(perfectMs);
+  });
+
+  it('accepts, in the reverse order, what the queue makes valid: no step needed in between', async () => {
+    const { api, sim } = await createRig();
+    const { windowMs, perfectMs } = sim.world.feel.timing;
+    const loweredPerfectMs = perfectMs - 40;
+    const loweredWindowMs = perfectMs - 20;
+    // Against `world.feel` alone the second would be refused: perfectMs (still the old one) > windowMs.
+    expect(loweredWindowMs).toBeLessThan(perfectMs);
+    expect(loweredWindowMs).toBeLessThan(windowMs);
+    await api.setFeel({ timing: { perfectMs: loweredPerfectMs } });
+    await api.setFeel({ timing: { windowMs: loweredWindowMs } });
+    expect(sim.journal().entries).toHaveLength(2);
+    sim.step();
+    expect(sim.world.feel.timing.perfectMs).toBe(loweredPerfectMs);
+    expect(sim.world.feel.timing.windowMs).toBe(loweredWindowMs);
+  });
+
+  it('stops folding a SetFeel once the sim has applied it (its effect is in world.feel)', async () => {
+    const { api, sim } = await createRig();
+    await api.setFeel({ timing: { windowMs: 200 } });
+    sim.step();
+    // 150 <= 200 is valid on the applied feel; 250 is not (the applied window is 200, not the old 300).
+    await api.setFeel({ timing: { perfectMs: 150 } });
+    await expect(api.setFeel({ timing: { perfectMs: 250 } })).rejects.toThrow(/perfectMs/);
+  });
+
+  it('refuses a new key of a record (physics.kinds.new_kind): the sim would drop it', async () => {
+    const { api, sim } = await createRig();
+    const kind = Object.values(sim.world.feel.physics.kinds)[0];
+    await expect(api.setFeel({ physics: { kinds: { new_kind: kind } } } as never)).rejects.toThrow(
+      /__PP__\.setFeel.*physics\.kinds\.new_kind/,
+    );
+    expect(sim.journal().entries).toEqual([]);
+  });
+
+  it('becomes the feel a restart uses, with the earlier tuning kept', async () => {
     const { api, session } = await createRig();
+    await api.setFeel({ timing: { windowMs: 500 } });
+    await api.setFeel({ movement: { walkSpeedMps: 3 } });
+    expect(session.current.feel.timing.windowMs).toBe(500);
+    expect(session.current.feel.movement.walkSpeedMps).toBe(3);
+  });
+
+  it('warns and goes on when the patch cannot be kept for a restart', async () => {
+    const { api, session, sim } = await createRig();
+    // The restart base is already tuned so that this patch would break `perfectMs <= windowMs` there.
+    const tuned = session.current.feel;
+    session.current = {
+      ...session.current,
+      feel: { ...tuned, timing: { ...tuned.timing, perfectMs: tuned.timing.windowMs + 10 } },
+    };
+    await api.setFeel({ timing: { windowMs: tuned.timing.windowMs + 5 } });
+    expect(sim.journal().entries).toHaveLength(1);
+    expect(warnSpy).toHaveBeenCalledWith('debug', expect.stringContaining('not kept'), {
+      reason: expect.any(String),
+    });
+  });
+
+  it('rejects an invalid patch with the paths, and sends nothing', async () => {
+    const { api, session, sim } = await createRig();
     await expect(api.setFeel({ timing: { windowMs: -1 } } as never)).rejects.toThrow(
       /__PP__\.setFeel.*timing\.windowMs/,
     );
     await expect(api.setFeel({ nope: 1 } as never)).rejects.toThrow('__PP__.setFeel');
+    // The cross-field rule is checked too: the perfect window may not exceed the window.
+    await expect(api.setFeel({ timing: { perfectMs: 1e6 } } as never)).rejects.toThrow(/perfectMs/);
     expect(session.startCalls).toEqual([]);
+    expect(sim.journal().entries).toEqual([]);
   });
 
   it('rejects when no level is running', async () => {
@@ -348,10 +435,10 @@ describe('setFeel(patch)', () => {
     await expect(api.setFeel({})).rejects.toThrow('__PP__.setFeel: no level is running');
   });
 
-  it('rejects when the restart fails', async () => {
-    const { api, session } = await createRig();
-    session.outcome = 'failed';
-    await expect(api.setFeel({})).rejects.toThrow('__PP__.setFeel');
+  it('no longer warns about an input patch: the client reads the live feel', async () => {
+    const { api } = await createRig();
+    await api.setFeel({ input: { touchRadiusPx: 99 } });
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
 

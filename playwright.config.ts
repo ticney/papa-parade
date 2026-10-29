@@ -9,9 +9,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? 'github' : 'list',
-  // Screenshot references are per browser and per OS: `darwin` made on the Mac, `linux` made in
-  // Docker for CI. The ratio is a guard against GPU dithering, never a slack for real changes: a
-  // frame that needs more than 0.2 % is not deterministic, and that is the bug.
+  // Screenshot references are per browser and made on the Mac (`darwin`); there are none for Linux,
+  // so `autoplay.spec.ts` only compares the frame on macOS. The ratio is a guard against GPU
+  // dithering, never a slack for real changes: a frame that needs more than 0.2 % is not
+  // deterministic, and that is the bug.
   snapshotPathTemplate:
     '{testDir}/__screenshots__/{testFilePath}/{arg}-{projectName}-{platform}{ext}',
   expect: {

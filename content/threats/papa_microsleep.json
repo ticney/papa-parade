@@ -6,7 +6,10 @@
   "telegraphDelayMs": 1200,
   "windowMs": null,
   "gag": "papa_asleep",
+  "verbKey": "verb.wake_up",
   "icon": "eyelids",
+  "iconShape": "circle",
+  "color": "parry",
   "feedback": {
     "telegraph": "tel_papa_microsleep",
     "success": "resp_parry",

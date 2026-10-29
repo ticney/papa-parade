@@ -68,13 +68,27 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   'installPerfHud',
   'copyLog',
   'pp-debug-perf',
+  // Story 2.1: the debug overlay's root CSS class, and the attribute Tweakpane's style sheet
+  // carries (the feel panel's CSP workaround looks for it). Both live in the playtest bundle.
+  'pp-debug-overlay',
+  'data-tp-style',
 ];
+
+/**
+ * Strings that must be in no build at all, `playtest` included: they belong to code that only the
+ * dev server runs (`import.meta.env.DEV`). The `feel-writer` endpoint is the case (story 2.1): the
+ * panel's « Enregistrer » button, and so the string, is compiled out of the playtest build, so it
+ * cannot be a {@link PROD_FORBIDDEN_MARKERS} entry (the playtest check requires those to be
+ * present) but a build that does contain it would ship a button that posts to a dev-only endpoint.
+ */
+export const NEVER_SHIPPED_MARKERS: readonly string[] = ['__pp/feel-writer'];
 
 /** The debug entry modules a playtest build must hold in its manifest (renamed? the prod check is blind). */
 export const PLAYTEST_REQUIRED_SOURCES: readonly string[] = [
   'src/debug/testApi.ts',
   'src/debug/autoplay.ts',
   'src/debug/perfHud.ts',
+  'src/debug/debugOverlay.ts',
 ];
 
 const isDebugOnlySource = (src: string): boolean =>
@@ -142,6 +156,7 @@ function externalUrlsOf(indexHtml: string): string[] {
  *
  * - both: the CSP of `_headers`; no cross-origin URL in `index.html`; each level's `.glb` plus all
  *   the audio within `LEVEL_PAYLOAD_MAX_BYTES`.
+ * - both: no {@link NEVER_SHIPPED_MARKERS} (dev-server-only code) in any chunk.
  * - `prod`: no debug or bot module in the manifest, no debug marker in any chunk.
  * - `playtest`: the debug modules are in the manifest and every prod marker is in a chunk (so that
  *   the prod markers are proved real: a renamed module or identifier fails here first).
@@ -217,6 +232,14 @@ export function inspectDist(input: DistInput, flavor: DistFlavor): DistReport {
         problems.push(
           `playtest bundle: no chunk contains "${marker}" (renamed? the prod check for it would be vacuous)`,
         );
+      }
+    }
+  }
+
+  for (const [path, text] of input.jsText) {
+    for (const marker of NEVER_SHIPPED_MARKERS) {
+      if (text.includes(marker)) {
+        problems.push(`${flavor} bundle: ${path} contains "${marker}" (dev-server code)`);
       }
     }
   }

@@ -601,6 +601,62 @@ describe('checkContent on threat files', () => {
     },
   );
 
+  describe('the verb, shape and colour of a threat (story 2.2)', () => {
+    it.each(['verbKey', 'iconShape', 'color'])('reports a threat file with no %s', async (key) => {
+      await mutateJson(FILE, (threat) => {
+        delete threat[key];
+      });
+      expect(await checkContent(root)).toContainEqual(
+        expect.objectContaining({ file: FILE, jsonPath: key }),
+      );
+    });
+
+    it('reports a verbKey the strings file lacks, naming the key and the strings file', async () => {
+      await mutateJson(FILE, (threat) => {
+        threat.verbKey = 'verb.no_such_verb';
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'verbKey',
+          message: expect.stringContaining('"verb.no_such_verb" is not in content/strings.fr.json'),
+        }),
+      ]);
+    });
+
+    it('reports a verbKey outside the verb. group, as a schema problem', async () => {
+      await mutateJson(FILE, (threat) => {
+        threat.verbKey = 'age.adult';
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({ file: FILE, jsonPath: 'verbKey' }),
+      ]);
+    });
+
+    it('reports a mismatched shape and colour pair', async () => {
+      await mutateJson(FILE, (threat) => {
+        threat.color = 'dodge';
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({ file: FILE, jsonPath: 'color' }),
+      ]);
+    });
+
+    it('reports a triangle / dodge marker until the dodge response exists (story 5.1)', async () => {
+      await mutateJson(FILE, (threat) => {
+        threat.iconShape = 'triangle';
+        threat.color = 'dodge';
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'iconShape',
+          message: expect.stringContaining('story 5.1'),
+        }),
+      ]);
+    });
+  });
+
   it('reports a threat file that breaks its schema, with the JSON path', async () => {
     await mutateJson(FILE, (threat) => {
       threat.cooldownMs = -1;
