@@ -335,12 +335,20 @@ export async function boot(): Promise<void> {
         const record: CuePlayedRecord = {
           cueId,
           visuals: [...visualsOfCue],
+          atReal: performance.now(),
           haptic: Object.hasOwn(feedbackTable.cues, cueId)
             ? (feedbackTable.cues[cueId]?.haptic ?? null)
             : null,
         };
         visualsOfCue.length = 0;
-        for (let i = 0; i < cuePlayedListeners.length; i++) cuePlayedListeners[i]?.(record);
+        // A copy: a listener may unsubscribe while it runs. A throwing one does not stop the others.
+        for (const listener of [...cuePlayedListeners]) {
+          try {
+            listener(record);
+          } catch (error) {
+            log.warn('boot', 'a cue listener threw', { cueId, error: String(error) });
+          }
+        }
       }
       if (isMirrored) {
         mirror('ppCue', cueId);

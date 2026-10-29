@@ -1,3 +1,4 @@
+import { SCREEN_FLASH_MIN_INTERVAL_MS } from '@shared/constants';
 import { z } from 'zod';
 
 // Every key of content/feedback.json lives here (ADR-006, architecture › Retours multimodaux): the
@@ -144,7 +145,13 @@ const FlashSchema = z
       .min(1)
       .max(60)
       .describe('Opacity of the flash at its start, in percent.'),
-    durationMs: z.int().positive().describe('How long the flash takes to fade out, in real ms.'),
+    durationMs: z
+      .int()
+      .positive()
+      .max(SCREEN_FLASH_MIN_INTERVAL_MS)
+      .describe(
+        'How long the flash takes to fade out, in real ms. At most the 3 Hz interval, so a flash never restarts on itself.',
+      ),
   })
   .describe(
     'A full-screen paper-white flash that fades, in real ms; under reduced motion a border glow instead; never more often than 3 Hz.',

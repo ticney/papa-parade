@@ -4,7 +4,7 @@ baseline_commit: be2d38103bfccc582490082a681ec21a9c8e7350
 
 # Story 2.4: Complete visual and haptic twins
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -246,3 +246,24 @@ Claude Sonnet 5.5 (claude-sonnet-5-5)
 ### Change Log
 
 - 2026-10-29: Story 2.4 implemented: cue `flash` and wave `pulses` in the schema and content, the `screenFlash` HUD module (real time, glow under reduced motion, 3 Hz rule), director flash and `onVisual`, `__PP__.cueLog()`, content rules for haptics and flashes, per-telegraph waves, twins test and muted e2e. Status: review.
+
+### Review Findings
+
+Code review of 2026-10-29 (Blind Hunter, Edge Case Hunter, Acceptance Auditor). 2 `decision_needed`, 10 `patch`, 3 `defer`, 11 dismissed as noise.
+
+- [x] [Review][Decision] (resolved: option 2, `pick` never evicts a queued pulse, the new ring is dropped; test in `soundWaves.test.ts`) Sound-wave pool of 8 can evict a pulse still queued or on screen — 3 overlapping 3-pulse telegraphs, or two telegraphs + a gag ring + a perfect ring, exceed 8 and `pick` overwrites the oldest `startAt`. Options: (1) raise `SOUND_WAVE_POOL_SIZE` (AC says 8) and add a `content:check` bound `max(pulses) × concurrent cues`; (2) keep 8 and make `pick` never evict a not-yet-started pulse (drop the new one instead); (3) accept it (rare, cosmetic). [`src/shared/constants.ts:231`, `src/client/render/vfx/soundWaves.ts:60`]
+- [x] [Review][Decision] (resolved: `content:check` now pins a `heavy` gag and refuses a `flash` on any cue but the perfect, so a telegraph or gag keeps its ring; telegraph pulse overlap is by design, not checked) Content rules leave gaps — a cue with `audio` + `flash` only (no `visual`) passes the visual-twin rule, so a telegraph/gag can be silent AND invisible when its flash is skipped by the 3 Hz rule; `flash` is forbidden only on success cues but not checked on gag/telegraph; the gag cue is expected `heavy` by the e2e but nothing in `checkThreatTwins` validates it; pulse overlap (`(pulses-1)*pulseIntervalMs + durationMs`) is only checked for disruption rings, not threat telegraphs. Which of these to pin? [`tools/content/contentChecks.ts`, `tests/architecture/feedbackEquivalence.test.ts:27`]
+- [x] [Review][Patch] `FlashSchema.durationMs` has no upper bound (JSON schema max 2^53-1); a flash longer than `SCREEN_FLASH_MIN_INTERVAL_MS` restarts at peak at ~3 Hz. Bound it by the constant, regenerate `content:schemas` [`src/content/schemas/feedback.ts:147`]
+- [x] [Review][Patch] Flaky flash-count assertion: `cueLog()` is read once, then `data-pp-flash-count` is asserted against that snapshot while autoplay runs; the log is capped at 200 while the mirror counts every flash. Compare on one consistent read (pause/stop autoplay first, or assert `>=` the snapshot) [`tests/e2e/mute.spec.ts` flash-count block]
+- [x] [Review][Patch] Muted e2e proofs are loose: the « skipped flash is excused » check only needs some earlier flash (not one within 334 real ms), `expect(SCREEN_FLASH_MIN_INTERVAL_MS).toBe(334)` restates the constant, and the vibration check matches the global `vibrations` list instead of one pattern per record. Tighten or drop the tautology [`tests/e2e/mute.spec.ts`]
+- [x] [Review][Patch] `scene.soundWave` throwing on pulse 2 or 3 makes `attempt` return false, so `soundWave` is not reported although pulse 1 was queued; guard per pulse and report if any drew, with a director test [`src/client/feedback/feedbackDirector.ts` pulse loop]
+- [x] [Review][Patch] `prefersReducedMotion` is queried twice for a cue with both `flash` and `camera` (a throwing query warns twice); query once per cue [`src/client/feedback/feedbackDirector.ts:609`]
+- [x] [Review][Patch] `cuePlayedListeners` is iterated by index (an unsubscribe mid-loop skips one) and a throwing listener stops the later ones; iterate a copy and guard each [`src/client/boot.ts:224`]
+- [x] [Review][Patch] Test title « warns once when the visual report throws » asserts `toHaveLength(2)` [`src/client/feedback/feedbackDirector.test.ts:489`]
+- [x] [Review][Patch] `soundProblems()` drops any message matching `/vibrates|`flash`/`, so unrelated sound problems containing « vibrates » vanish; match the exact new messages [`tests/content/checkContent.test.ts:1401`]
+- [x] [Review][Patch] « Draws something » twins test counts any reported visual (a `uiElement`-only cue passes) and has a dead `cue.haptic === undefined ? [] : …` branch; also no test pins that `content:check` accepts a `flash` on a client-event cue [`src/client/feedback/feedbackTwins.test.ts:754`, `tests/content/checkContent.test.ts`]
+- [x] [Review][Patch] Comment lines over 100 columns in `feedbackDirector.ts` (`handle` doc comment) and `src/debug/testApi.ts` (cue log doc)
+- [x] [Review][Defer] The flash is not cancelled at level end / pause / result; a fade started on the last perfect can play over the Result screen — deferred, ≤ 180 ms and needs a level-end hook the HUD does not have yet
+- [x] [Review][Defer] Telegraph waves differ by only 50-100 ms of pulse timing (same radius 0.8, 2 pulses) — deferred, Geo's call after playing (Open points); `content:check` only pins « different tuple »
+- [x] [Review][Defer] Glow thickness (`inset 0 0 0 20px`), `easing: 'ease-out'` and `z-index: 60` are hard-coded in `ui.css` / `screenFlash.ts` — deferred, move to `feedback.json` if Geo wants to tune the glow
+- 2026-10-29: Story 2.4 code review: 2 decisions resolved, 10 patches applied (flash duration bound, per-pulse ring guard, queued pulses never evicted, gag/flash content rules, `atReal` on cue records, tighter muted e2e), 3 deferred. Status: done.

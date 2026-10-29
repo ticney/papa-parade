@@ -530,3 +530,9 @@
 - **The chrono-ring's last-arc vibration and the catastrophe gauge's alert** (GDD v2.2): out of scope, they arrive through `gds-correct-course`. `pulses` and `flash` will serve them.
 - **The 3 Hz rule skips a flash silently** (`SCREEN_FLASH_MIN_INTERVAL_MS`): two perfects less than 334 real ms apart flash once. Reason: it is the accessibility rule; a speed-4 autoplay run hits it, and `mute.spec.ts` allows it after a first flash. No counter of skipped flashes.
 - **The cue log keeps the last 200 cues** (`__PP__.cueLog()`), across levels (it is not reset at a level start). Reason: the muted spec reads one level; a longer session sees only its tail.
+
+## Deferred from: code review of story 2-4-equivalents-visuels-et-haptiques-complets (2026-10-29)
+
+- **The flash is not cancelled at level end, pause or result.** Reason: a fade is ≤ 180 ms and the HUD has no level-end hook yet; cancel it in `screenFlash` when one exists.
+- **The telegraph waves differ by only 50-100 ms of pulse timing** (same radius, 2 pulses for silence, stairs, phone). Reason: Geo tunes them after playing (story Open points); `content:check` pins only a different tuple.
+- **The glow thickness, `ease-out` easing and `z-index` of the screen flash are hard-coded** (`ui.css`, `screenFlash.ts`). Reason: only `peakOpacityPct` and `durationMs` are required in data; move them to `feedback.json` if Geo wants to tune the glow.

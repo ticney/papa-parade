@@ -134,9 +134,12 @@ function setup(
 ) {
   const trace: string[] = [];
   const visuals: string[] = [];
+  let waveCount = 0;
   const fx: LevelFx = {
-    soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
-      trace.push(`wave:${xM},${zM},${maxRadiusM},${durationMs},${startAt}`),
+    soundWave: (xM, zM, maxRadiusM, durationMs, startAt) => {
+      if (state.throwOnWaveNumber === ++waveCount) throw new Error('ring on fire');
+      trace.push(`wave:${xM},${zM},${maxRadiusM},${durationMs},${startAt}`);
+    },
     shake: (amplitudeM, durationMs, startAt) =>
       trace.push(`shake:${amplitudeM},${durationMs},${startAt}`),
     gag: () => {},
@@ -152,6 +155,8 @@ function setup(
     throwOnCue: false,
     throwOnFlash: false,
     throwOnVisual: false,
+    /** The nth `soundWave` call (1-based) throws. */
+    throwOnWaveNumber: null as number | null,
   };
   const director = createFeedbackDirector({
     table: TABLE,
@@ -617,7 +622,23 @@ describe('feedbackDirector: pulses, flash and the visual report (story 2.4)', ()
     expect(thrown.trace).toContain('visual:flashy,flash');
   });
 
-  it('warns once when the visual report throws, and the cue is still reported', () => {
+  it('keeps the pulses that were queued and reports the ring when a later pulse throws', () => {
+    const { director, trace, state, newWarnings } = setup({ traceVisuals: true });
+    state.throwOnWaveNumber = 2;
+    director.playCue('pulsing', withThreat(), 7);
+    expect(trace.filter((line) => line.startsWith('wave:'))).toHaveLength(2);
+    expect(trace).toContain('visual:pulsing,soundWave');
+    expect(newWarnings()).toEqual([expect.stringContaining('ring for cue pulsing failed')]);
+  });
+
+  it('asks the motion query once for a cue with a flash and a camera effect', () => {
+    const { director, state, newWarnings } = setup();
+    state.throwOnMotionQuery = true;
+    director.playCue('flashy', world, null);
+    expect(newWarnings()).toEqual([expect.stringContaining('motion query')]);
+  });
+
+  it('warns for the flash and for the other visual report that throws, and the cue is still reported', () => {
     const { director, trace, state, newWarnings } = setup({ traceVisuals: true });
     state.throwOnVisual = true;
     director.playCue('flashy', world, null);

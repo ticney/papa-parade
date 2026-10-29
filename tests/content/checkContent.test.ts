@@ -541,7 +541,9 @@ describe('checkContent on threat files', () => {
     const FEEDBACK = 'content/feedback.json';
     /** The problems about sounds: the cues these tests point at break the haptic and flash rules of story 2.4 too, which have tests of their own. */
     const soundProblems = async () =>
-      (await checkContent(root)).filter((problem) => !/vibrates|`flash`/.test(problem.message));
+      (await checkContent(root)).filter(
+        (problem) => !/^the cue "[^"]+" (vibrates "|has (a|no) `flash`)/.test(problem.message),
+      );
     /** Adds cues to the temp `feedback.json` and points one role of the outlet at one of them. */
     const point = async (role: string, cueId: string, cue?: Record<string, unknown>) => {
       if (cue !== undefined) {
@@ -942,6 +944,54 @@ describe('checkContent on the haptic and visual twins (story 2.4)', () => {
         message: expect.stringMatching(/"twin_test".*`flash`.*perfect/),
       }),
     ]);
+  });
+
+  it('reports a gag that does not vibrate heavy', async () => {
+    await pointOutlet('gag', 'gag_outlet', (cue) => {
+      cue.haptic = 'light';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: OUTLET,
+        jsonPath: 'feedback.gag',
+        message: expect.stringMatching(/"twin_test".*"light".*`heavy`/),
+      }),
+    ]);
+  });
+
+  it.each([
+    ['telegraph', 'tel_outlet'],
+    ['gag', 'gag_outlet'],
+  ])(
+    "reports a %s that flashes: the flash is the perfect's mark, the others keep their ring",
+    async (role, from) => {
+      await pointOutlet(role, from, (cue) => {
+        cue.flash = { peakOpacityPct: 35, durationMs: 180 };
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: OUTLET,
+          jsonPath: `feedback.${role}`,
+          message: expect.stringMatching(/"twin_test".*`flash`.*perfect/),
+        }),
+      ]);
+    },
+  );
+
+  it('accepts a flash on the cue of a client event (it needs no world)', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const cues = feedback.cues as Record<string, Cue>;
+      cues.client_flash = { haptic: 'light', flash: { peakOpacityPct: 35, durationMs: 180 } };
+      (feedback.events as Record<string, string>).CountdownTicked = 'client_flash';
+    });
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('reports a flash longer than the 3 Hz interval: it would restart on itself', async () => {
+    await pointOutlet('perfect', 'resp_parry_perfect', (cue) => {
+      cue.flash = { peakOpacityPct: 35, durationMs: 335 };
+    });
+    expect(await checkContent(root)).not.toEqual([]);
   });
 
   it('accepts the live cues: light telegraphs, heavy and flashing perfects, silent successes', async () => {

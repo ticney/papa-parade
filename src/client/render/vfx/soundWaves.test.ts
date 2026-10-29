@@ -94,6 +94,16 @@ describe('createSoundWaves', () => {
     expect(meshes).toHaveLength(SOUND_WAVE_POOL_SIZE);
   });
 
+  it('never overwrites a pulse still waiting to start: when all are queued, the new ring is dropped', () => {
+    const { waves, meshes } = build();
+    waves.update(0);
+    for (let i = 0; i < SOUND_WAVE_POOL_SIZE; i++) waves.play(i, 0, 1, 1000, 500 + 100 * i);
+    waves.play(99, 0, 1, 1000, 0);
+    expect(meshes.map((mesh) => mesh.position.x)).toEqual(
+      Array.from({ length: SOUND_WAVE_POOL_SIZE }, (_, i) => i),
+    );
+  });
+
   it('takes a free slot before it reuses a live one', () => {
     const { waves, meshes } = build();
     waves.play(1, 0, 1, 100, 0);

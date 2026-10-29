@@ -57,8 +57,9 @@ export interface PPTestApi {
   /** Starts a level; resolves once it runs (its countdown over). */
   loadLevel(id: string, seed: number): Promise<void>;
   /**
-   * A copy of the last `TEST_API_CUE_LOG_MAX` cues the feedback director played, oldest first, with the
-   * visuals each one drew and the vibration it asked for (story 2.4: proof that a muted player misses nothing).
+   * A copy of the last `TEST_API_CUE_LOG_MAX` cues the feedback director played, oldest first, with
+   * the visuals each one drew and the vibration it asked for (story 2.4: proof that a muted player
+   * misses nothing).
    */
   cueLog(): CuePlayedRecord[];
   /** A copy of what the level's frames measured so far: frame intervals (real ms), draw calls, triangles. */
@@ -104,10 +105,16 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
     }
   });
 
-  // The cues played, last `TEST_API_CUE_LOG_MAX`: a copy of each record, the app reuses nothing but be safe.
+  // The cues played, last `TEST_API_CUE_LOG_MAX`: a copy of each record (the app reuses nothing,
+  // but be safe).
   const cues: CuePlayedRecord[] = [];
   host.onCuePlayed((record) => {
-    cues.push({ cueId: record.cueId, visuals: [...record.visuals], haptic: record.haptic });
+    cues.push({
+      cueId: record.cueId,
+      visuals: [...record.visuals],
+      haptic: record.haptic,
+      atReal: record.atReal,
+    });
     if (cues.length > TEST_API_CUE_LOG_MAX) cues.shift();
   });
 

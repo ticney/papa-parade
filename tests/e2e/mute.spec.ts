@@ -75,12 +75,22 @@ test.describe('a muted game (story 2.4)', () => {
       )
       .toEqual([]);
 
-    const log = await ppCueLog(page);
+    // One synchronous read of the log and of the mirrors: the game keeps playing (autoplay), a second
+    // read could see one more cue than the first.
+    const { log, flashCount, cueCount } = await page.evaluate(() => ({
+      log: window.__PP__?.cueLog() ?? [],
+      flashCount: Number(document.documentElement.dataset.ppFlashCount),
+      cueCount: Number(document.documentElement.dataset.ppCueCount),
+    }));
     const heard = log.filter((record) => liveFeedback.cues[record.cueId]?.audio !== undefined);
     expect(heard.length).toBeGreaterThan(0);
 
     // Every cue with a sound drew something to see, of the kinds the live cue asks for.
-    const flashed: boolean[] = [];
+    // The 3 Hz rule: a flash comes at least `SCREEN_FLASH_MIN_INTERVAL_MS` real ms after the previous
+    // one, and a flash is skipped only when the previous one is that close (a speed-4 run puts two
+    // perfects close in real time). `atReal` is read a few ms after the flash itself: a small slack.
+    const SLACK_MS = 10;
+    let lastFlashAtReal: number | null = null;
     for (const record of log) {
       const cue = liveFeedback.cues[record.cueId] as
         | { audio?: unknown; visual?: { kind: string }; flash?: unknown }
@@ -89,40 +99,50 @@ test.describe('a muted game (story 2.4)', () => {
       expect(record.visuals, `${record.cueId} drew nothing`).not.toEqual([]);
       if (cue.visual?.kind === 'soundWave') expect(record.visuals).toContain('soundWave');
       if (cue.visual?.kind === 'uiElement') expect(record.visuals).toContain('uiElement');
-      if (cue.flash !== undefined) {
-        // The 3 Hz rule may skip a flash that comes less than `SCREEN_FLASH_MIN_INTERVAL_MS` real ms
-        // after the previous one (a speed-4 run puts two perfects close in real time): only a flash
-        // that has already happened excuses it.
-        if (!record.visuals.includes('flash')) {
-          expect(flashed.some(Boolean), `${record.cueId}: a skipped flash with none before`).toBe(
-            true,
-          );
-        }
-        flashed.push(record.visuals.includes('flash'));
+      if (cue.flash === undefined) continue;
+      const sinceLastMs: number =
+        lastFlashAtReal === null ? Infinity : record.atReal - lastFlashAtReal;
+      if (record.visuals.includes('flash')) {
+        expect(sinceLastMs, `${record.cueId}: flashed faster than 3 Hz`).toBeGreaterThanOrEqual(
+          SCREEN_FLASH_MIN_INTERVAL_MS - SLACK_MS,
+        );
+        lastFlashAtReal = record.atReal;
+      } else {
+        expect(sinceLastMs, `${record.cueId}: a flash skipped without a close one`).toBeLessThan(
+          SCREEN_FLASH_MIN_INTERVAL_MS + SLACK_MS,
+        );
       }
     }
-    expect(SCREEN_FLASH_MIN_INTERVAL_MS).toBe(334);
 
     // The perfect: a flash, drawn by the overlay that exists and takes no tap.
     const perfects = log.filter((record) => record.cueId === perfectCue);
     expect(perfects.length).toBeGreaterThan(0);
-    expect(perfects[0]?.visuals).toContain('flash');
+    // Unless the log has dropped its oldest cues (it keeps 200), its first perfect is the game's first.
+    if (cueCount === log.length) expect(perfects[0]?.visuals).toContain('flash');
     // The mirror `data-pp-flash-count` counts the flashes drawn: a poll of `getAnimations()` could
-    // miss a 180 ms fade at speed 4.
-    const flashCount = log.filter((record) => record.visuals.includes('flash')).length;
-    await expect(html(page)).toHaveAttribute('data-pp-flash-count', String(flashCount));
+    // miss a 180 ms fade at speed 4. It counts every flash, the log only its last cues.
+    const loggedFlashes = log.filter((record) => record.visuals.includes('flash')).length;
+    if (cueCount === log.length) expect(flashCount).toBe(loggedFlashes);
+    else expect(flashCount).toBeGreaterThanOrEqual(loggedFlashes);
     const overlay = page.locator('.pp-screen-flash');
     await expect(overlay).toHaveCount(1);
     await expect(overlay).toHaveCSS('pointer-events', 'none');
 
     // The vibrations: Chromium records `navigator.vibrate`; WebKit has none, the visuals carry it.
+    // Each cue that vibrated left one entry: a pattern appears at least as often as the cues of its kind.
     if (browserName === 'chromium') {
       const patterns = (await vibrations(page)).map((pattern) => JSON.stringify(pattern));
+      const wanted = new Map<string, number>();
       for (const record of log) {
         if (record.haptic === null) continue;
         const pattern = hapticPatternOfCue(record.cueId);
         expect(pattern, `${record.cueId} has a haptic kind but no pattern`).not.toBeNull();
-        expect(patterns, `${record.cueId} did not vibrate`).toContain(JSON.stringify(pattern));
+        const key = JSON.stringify(pattern);
+        wanted.set(key, (wanted.get(key) ?? 0) + 1);
+      }
+      for (const [key, count] of wanted) {
+        const recordedCount = patterns.filter((pattern) => pattern === key).length;
+        expect(recordedCount, `vibrations ${key}`).toBeGreaterThanOrEqual(count);
       }
       for (const cueId of [...telegraphCues, perfectCue]) {
         expect(log.find((record) => record.cueId === cueId)?.haptic).not.toBeNull();

@@ -19,6 +19,8 @@ export interface CuePlayedRecord {
   readonly visuals: readonly string[];
   /** The vibration kind the cue asks for, or `null`. */
   readonly haptic: string | null;
+  /** When it was played, in real ms (`performance.now`): the 3 Hz rule of the flash is measured on it. */
+  readonly atReal: number;
 }
 
 /**

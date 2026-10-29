@@ -34,8 +34,8 @@ export interface FeedbackDirectorDeps {
 export interface FeedbackDirector {
   /**
    * Plays what the table says for `name`: the sound, its layers, the vibration, the ring (its
-   * pulses start from the same call), the screen flash and the camera effect of its cue, in that order, in this very call (response sound and haptic fire at
-   * judgement, never deferred). An event the table does not list does nothing. A part that cannot
+   * pulses start from the same call), the screen flash and the camera effect of its cue, in that
+   * order, in this very call (response sound and haptic fire at judgement, never deferred). An event the table does not list does nothing. A part that cannot
    * play is skipped and the others still play. `world` is read, never written.
    */
   handle(name: FeedbackEventName, world: Readonly<World> | null): void;
@@ -171,22 +171,29 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
       const at = anchorOf(anchor, world, threatId, objectId, name);
       if (at !== null) {
         // The pulses are rings queued on the sim clock: a pause freezes them, a slow-mo slows them.
-        const isDrawn = attempt(name, 'ring', false, () => {
-          for (let pulse = 0; pulse < pulses; pulse++) {
-            const startAt = asSimMs(world.time.sim + pulse * pulseIntervalMs);
+        // Each pulse is guarded on its own: one that throws does not hide the ones already queued.
+        let isDrawn = false;
+        for (let pulse = 0; pulse < pulses; pulse++) {
+          const startAt = asSimMs(world.time.sim + pulse * pulseIntervalMs);
+          const isQueued = attempt(name, 'ring', false, () => {
             scene.soundWave(at.xM, at.zM, maxRadiusM, durationMs, startAt);
-          }
-          return true;
-        });
+            return true;
+          });
+          isDrawn ||= isQueued;
+        }
         if (isDrawn) reportVisual('soundWave');
       }
     }
     // The flash is a screen effect on real time: no world, no scene. The cue's author decides where
     // it belongs. A failing motion query counts as reduced motion (the glow): the safe side.
     const { flash: drawFlash } = deps;
+    // Asked once per cue, and only if the flash or the camera needs it.
+    let isMotionReducedMemo: boolean | undefined;
+    const isMotionReducedNow = (): boolean =>
+      (isMotionReducedMemo ??= attempt(name, 'motion query', true, deps.prefersReducedMotion));
     if (cue.flash !== undefined && drawFlash !== undefined) {
       const { peakOpacityPct, durationMs } = cue.flash;
-      const isMotionReduced = attempt(name, 'motion query', true, deps.prefersReducedMotion);
+      const isMotionReduced = isMotionReducedNow();
       const isDrawn = attempt(name, 'flash', false, () =>
         drawFlash(peakOpacityPct, durationMs, isMotionReduced),
       );
@@ -194,7 +201,7 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
     }
     if (world !== null && scene !== null && cue.camera !== undefined) {
       // A failing motion query counts as reduced motion: the safe side.
-      if (!attempt(name, 'motion query', true, deps.prefersReducedMotion)) {
+      if (!isMotionReducedNow()) {
         const { amplitudeM, durationMs } = cue.camera;
         attempt(name, 'camera effect', undefined, () =>
           scene.shake(amplitudeM, durationMs, world.time.sim),

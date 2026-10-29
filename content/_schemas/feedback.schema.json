@@ -471,8 +471,8 @@
               "durationMs": {
                 "type": "integer",
                 "exclusiveMinimum": 0,
-                "maximum": 9007199254740991,
-                "description": "How long the flash takes to fade out, in real ms."
+                "maximum": 334,
+                "description": "How long the flash takes to fade out, in real ms. At most the 3 Hz interval, so a flash never restarts on itself."
               }
             },
             "required": [

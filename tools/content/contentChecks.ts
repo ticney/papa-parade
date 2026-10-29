@@ -389,7 +389,7 @@ function checkThreatSounds(
 
 /**
  * The haptic and flash rules of story 2.4 for one threat file (pillar 3): a telegraph vibrates
- * `light`, a perfect vibrates `heavy` and flashes the screen, and a plain success does not flash
+ * `light`, a gag and a perfect vibrate `heavy`, a perfect flashes the screen and no other cue does
  * (the flash is the perfect's mark). A cue that is not in `feedback.json` was reported already.
  */
 function checkThreatTwins(
@@ -398,7 +398,7 @@ function checkThreatTwins(
   feedback: FeedbackTable,
 ): ContentProblem[] {
   const problems: ContentProblem[] = [];
-  const cueOf = (role: 'telegraph' | 'success' | 'perfect') => {
+  const cueOf = (role: 'telegraph' | 'success' | 'perfect' | 'gag') => {
     const cueId = threat.feedback[role];
     return Object.hasOwn(feedback.cues, cueId) ? { cueId, cue: feedback.cues[cueId] } : undefined;
   };
@@ -427,13 +427,25 @@ function checkThreatTwins(
       });
     }
   }
-  const success = cueOf('success');
-  if (success?.cue?.flash !== undefined) {
+  const gag = cueOf('gag');
+  if (gag !== undefined && gag.cue?.haptic !== 'heavy') {
     problems.push({
       file,
-      jsonPath: formatJsonPath(['feedback', 'success']),
-      message: `the cue "${success.cueId}" has a \`flash\`, but the flash is the perfect's mark`,
+      jsonPath: formatJsonPath(['feedback', 'gag']),
+      message: `the cue "${gag.cueId}" vibrates "${gag.cue?.haptic ?? 'never'}", but a gag is a \`heavy\` vibration`,
     });
+  }
+  // A telegraph or a gag told by a flash alone would be silent and invisible when the 3 Hz rule
+  // skips the flash: only the perfect flashes, the others keep their ring.
+  for (const role of ['telegraph', 'success', 'gag'] as const) {
+    const other = cueOf(role);
+    if (other?.cue?.flash !== undefined) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['feedback', role]),
+        message: `the cue "${other.cueId}" has a \`flash\`, but the flash is the perfect's mark`,
+      });
+    }
   }
   return problems;
 }

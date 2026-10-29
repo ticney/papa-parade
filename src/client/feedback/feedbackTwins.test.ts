@@ -121,14 +121,17 @@ describe('every cue with a sound has a visual and a haptic twin (story 2.4, AC 2
 
   it.each(audioCues)('%s draws something and vibrates its kind, once', (cueId, cue) => {
     const played = play(cueId, cue.visual?.kind === 'soundWave' ? phoneObjectId() : null);
-    const drawnCount = played.rings.length + played.flashes.length + played.visuals.length;
+    // A ring or a flash was drawn here; a `uiElement` is drawn by the HUD, the director only reports
+    // it, so it counts only when the cue declares one.
+    const hasUiElement = cue.visual?.kind === 'uiElement' && played.visuals.includes('uiElement');
+    const drawnCount = played.rings.length + played.flashes.length + (hasUiElement ? 1 : 0);
     expect(drawnCount, `${cueId} drew nothing`).toBeGreaterThan(0);
     // What was drawn is what was reported, once per part.
     expect(played.visuals.filter((kind) => kind === 'soundWave')).toHaveLength(
       played.rings.length > 0 ? 1 : 0,
     );
-    expect(played.pulses).toEqual(cue.haptic === undefined ? [] : [cue.haptic]);
     expect(cue.haptic, `${cueId} has an audio but no haptic`).toBeDefined();
+    expect(played.pulses).toEqual([cue.haptic]);
     expect(played.cues).toEqual([cueId]);
     expect(played.newWarnings).toEqual([]);
   });
