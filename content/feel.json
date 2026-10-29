@@ -61,7 +61,7 @@
         "maxImpulseNs": 2,
         "samePropCooldownMs": 1000
       },
-      "phoneRinging": { "perSec": 2 },
+      "phoneRinging": { "perSec": 7 },
       "babyCrying": { "perSec": 2 },
       "floorCreak": { "noisePct": 3 },
       "breathReleased": { "noisePct": 5 },
