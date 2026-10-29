@@ -414,6 +414,7 @@ describe('snapshot / restore', () => {
     // Version 10 has no `heldAt` on a press (story 1.23).
     expect(() => sim.restore({ ...snapshot, version: 10 as 13 })).toThrow(/version 10/);
     // Versions 11 and 12 have no `lostStars` in the note (stories 3.1 and 3.2).
+    expect(() => sim.restore({ ...snapshot, version: 11 as 13 })).toThrow(/version 11/);
     expect(() => sim.restore({ ...snapshot, version: 12 as 13 })).toThrow(/version 12/);
   });
 

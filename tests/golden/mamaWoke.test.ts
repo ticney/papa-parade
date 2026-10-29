@@ -1,3 +1,4 @@
+import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { replayJournal } from '@sim';
 import { describe, expect, it } from 'vitest';
@@ -19,7 +20,7 @@ const COMMAND_AT_MS = 1000;
 
 describe('golden scenario mama_woke covers the early end it is there for', () => {
   it('ends the level the step after the command: MamaWoke, LevelEnded{mamaWoke}, LevelScored, one t', () => {
-    const endAt = COMMAND_AT_MS + 10;
+    const endAt = COMMAND_AT_MS + STEP_MS;
     const ending = events.filter((event) => event.t === endAt).map((event) => event.type);
     expect(ending).toEqual(['NoiseChanged', 'MamaWoke', 'LevelEnded', 'LevelScored']);
     expect(events.filter((event) => event.type === 'LevelEnded')).toEqual([

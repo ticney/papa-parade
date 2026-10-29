@@ -4,7 +4,7 @@ baseline_commit: b6a2693e57d2fd61a903f3f9863131c7243f9cea
 
 # Story 3.2: Sieste variant and Mama waking up
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 3.2 « Variante Sieste et réveil de Maman » (L1563-1588). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -23,7 +23,7 @@ so that the noise is a real stake up to the last second.
 - **No photo, no polaroid, no Mama line, no `mum-bubble`.** State B of the mockup shows them, but they are stories 3.6, 3.7 and 3.8. This story adds only the header, the lost star and the cue to the 1.22 Result screen.
 - **No result actions table.** « Âge suivant », « Frigo », the locked button and the « 2 étoiles pour débloquer » hint are story 3.11. « Rejouer » stays the only primary action, plus « Copier le journal » in debug builds.
 - **No door, no final rush.** The door opening (`ANCHOR_door`, `FinalRushStarted`) is 3.5 and the `return` variant is 3.10. The `FlowState` stays `'playing' | 'ended'`.
-- **No content tuning.** With today's content the noise peaks at about 16 % for every bot (story 3.1, Completion Notes), so no game will end on `mamaWoke`. Tuning `feel.noise` or adding a live `gagCryMs` is Geo's call (Open point 1). The mechanism is proven on frozen tests and with the debug command `SetNoise`.
+- **No content tuning in this story's own commit.** With the content of story 3.1 the noise peaks at about 16 % for every bot, so no game ends on `mamaWoke`. Tuning `feel.noise` or adding a live `gagCryMs` is Geo's call (Open point 1). *Review 2026-10-29:* Geo then asked for a first tuning, commit `2566148`: `feel.noise.sources.phoneRinging.perSec` 2 → 7, so a ringing phone left alone now fills the gauge (an ignored ring peaks at about 91 %, `deferred-work.md`). The mechanism is proven on frozen tests and with the debug command `SetNoise`.
 - **No change to the noise gauge.** `addNoise`, `runNoise`, `NoiseChanged`, the 80 % alert and the HUD gauge of story 3.1 stay as they are. This story only reads `world.gauges.noisePct`.
 
 **Sources:**
@@ -87,7 +87,7 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
 9. **The cue of the header** (D4). When a `mamaWoke` Result screen is built and its sequence starts (not on an `isDone` rebuild), it calls a new option `onMamaWoke()` once. `boot.ts` maps it to `director.handle('ResultMamaWokeShown', null)`.
    - `'ResultMamaWokeShown'` joins `FEEDBACK_CLIENT_EVENTS`.
    - `content/feedback.json` › `events.ResultMamaWokeShown` is `"mama_woke"`.
-   - The cue `mama_woke` is `{ "audio": { "clip": "mama_door_slam", "bus": "sfx", "gainPct": 100 }, "visual": { "kind": "uiElement" }, "haptic": "heavy" }`.
+   - The cue `mama_woke` is `{ "audio": { "clip": "env_door_slam", "bus": "sfx", "gainPct": 100 }, "visual": { "kind": "uiElement" }, "haptic": "heavy" }`.
    - The visual twin: the header has `pp-result-reason-slam` for one run of a short slam animation (about 300 ms; a CSS `transform` only, scale and rotate, tokens only). Under `prefers-reduced-motion` there is no movement: the header shows its final state at once, with a static `mama-scream` underline (a `border-bottom` or a `box-shadow`, tokens only) that is always there, reduced motion or not. So the visual twin never relies on motion alone.
    - `feedbackEquivalence.test.ts` passes with no change to the test (the cue has audio, a visual and a haptic).
 
@@ -98,14 +98,14 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
     - `onStarLost()` maps to `director.handle('ResultStarLost', null)`: a new client event, a cue `result_star_lost` with `{ "audio": { "clip": "ui_star_lost", "bus": "ui", "gainPct": 90 }, "visual": { "kind": "uiElement" }, "haptic": "light" }`.
     - A skip (tap, Enter, Space, pad A) or an `isDone` rebuild places the lost star(s) silently, like the earned ones.
     - The chip must not break the `nth-child` tilt rules of `.pp-star` (`ui.css` L746-763): keep the five slots as the only `svg` children, and position the chip either inside a wrapper used for **every** slot or as an absolutely positioned sibling **after** the five slots (then switch the tilt rules to `:nth-of-type` if needed). Do not change how earned stars look.
-    - The stars' `aria-label`: with `lostStars > 0` it is `result.stars_lost_label` (new string, « {count} sur {max} étoiles, {lost} perdue ») filled by `formatString`, otherwise the existing `result.stars_label`.
+    - The stars' `aria-label`: with `lostStars > 0` it is `result.stars_lost_label` (new string, « {count} sur {max} étoiles, {lost} en moins ») filled by `formatString`, otherwise the existing `result.stars_label`.
 
 11. **Mirrors.** In mirrored builds (dev, `?debug=1`):
     - `data-pp-end-reason` is set from `LevelEnded.reason` and removed at the next level start.
     - `data-pp-stars` stays the stars after the penalty.
     - New: `data-pp-lost-stars`, from `LevelScored.lostStars`.
 
-12. **Audio placeholders.** `tools/audio/makePlaceholderAudio.ts` gains `mama_door_slam` (a short, loud, low burst: a noise thump with a fast decay, about 400 ms) and `ui_star_lost` (a dull, falling blip, lower than `ui_star_stamp`). Run `npm run assets:audio` (macOS), commit only the two new `.m4a` files and restore the others from git (1.22 T6). `makePlaceholderAudio.test.ts` is updated if it counts clips. Check that `npm run dist:check` still passes: the level's `.glb` + audio stays at or under 3 MiB.
+12. **Audio placeholders.** `tools/audio/makePlaceholderAudio.ts` gains `env_door_slam` (a short, loud, low burst: a noise thump with a fast decay, about 400 ms) and `ui_star_lost` (a dull, falling blip, lower than `ui_star_stamp`). Run `npm run assets:audio` (macOS), commit only the two new `.m4a` files and restore the others from git (1.22 T6). `makePlaceholderAudio.test.ts` is updated if it counts clips. Check that `npm run dist:check` still passes: the level's `.glb` + audio stays at or under 3 MiB.
 
 ### Bots, CLI and tests
 
@@ -167,6 +167,20 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
   - [x] `deferred-work.md`: close the `earlyWakePenaltyStars` clause of L25. Update the 3.1 Open point 2 entry (L427) with the bots' `endsByReason`. Add a « Deferred from: story 3.2 » section with Open points 1-3.
 - [x] **T10. CI** (AC 17): `(unset VITE_DEBUG_ALLOWED; npm run ci)`.
 
+### Review Findings
+
+Code review of 2026-10-29 (Blind Hunter, Edge Case Hunter, Acceptance Auditor; no layer failed). 1 `decision_needed`, 5 `patch`, 3 `defer`, 9 dismissed as noise.
+
+- [x] [Review][Decision] *Accepted by Geo 2026-10-29 (option 1: keep the change, recorded in the Completion Notes).* `SetNoise` now lands after the decay: a change to story 3.1's debug command, against « Must not change: the noise gauge ». Needed for `SetNoise{100}` to wake Mama (the story assumed the decay came first), disclosed in the Debug Log and `deferred-work.md`, and the 3.1 test pinning `90 − decay` was changed to `90`. Two points to settle: accept the deviation as it stands (then record it in D-notes), or revert and wake Mama another way. Side effect: `SetFatigue` is still applied before `runFatigue` (opposite order for a sibling command), and a `--journals` file recorded before this story that contains a `SetNoise` replays to another hash (journal `version` is still 3; the only committed journal with `SetNoise` is the new `mama_woke`).
+- [x] [Review][Patch] The story file contradicts the commits: `content/feel.json` `phoneRinging.perSec` 2 → 7 (commit `2566148`, asked for by Geo) while D6, « What this story is not » and the Completion Notes still say « no content tuning » and « noise peaks at 16 %, Mama never wakes »; AC 9 / AC 12 / the file list still say `mama_door_slam` and « perdue » where the code has `env_door_slam` and « en moins ». Reconcile D6, Open point 1, Completion Notes and the two literals [3-2-variante-sieste-et-reveil-de-maman.md:26, 291, 332, 336]
+- [x] [Review][Patch] `synthDoorSlam` reuses `createRng(SEED + 3)`, the seed of `synthTelegraphStairs`: two clips share a noise stream. Use the next free seed, `SEED + 8` [tools/audio/makePlaceholderAudio.ts:737]
+- [x] [Review][Patch] Dead `seen` array (pushed, never read) in the « closes a ringing phone before it » test [src/sim/flow/flowSystem.test.ts:253-257]
+- [x] [Review][Patch] The comment says « Versions 11 and 12 » but only 12 is asserted (version 11 is refused by the same check): assert both or fix the comment [src/sim/snapshot.test.ts:416]
+- [x] [Review][Patch] The golden test hard-codes `STEP_MS` as `COMMAND_AT_MS + 10`: import `STEP_MS` from `@shared/constants` like `babyWander.test.ts` [tests/golden/mamaWoke.test.ts:22]
+- [x] [Review][Defer] The snapshot validator does not cross-check the end against `lostStars` (a timer end with `lostStars > 0`, a woken end with 0, `lostStars` above `earlyWakePenaltyStars`), nor that an early `ended` was a `mamaWoke`; the Result screen shows lost slots from `lostStars` alone, not `endReason`. The sim cannot produce these states: corrupt input only [src/sim/snapshot.ts:433-450, 690; src/client/ui/screens/resultScreen.ts:553] — deferred, not reachable in play
+- [x] [Review][Defer] The sim report has `lostStars` per run but no mean or total, and `starCounts` / `meanStars` mix both end reasons; a balance read must recompute the penalty [tools/sim/simReport.ts:~440-455] — deferred, no wrong number
+- [x] [Review][Defer] Live-content e2e: `mamaWoke.spec.ts` builds `Array.from({ length: scored.stars - 1 })`, which is empty (fine) but expects the `heavy` entry even with 0 earned stars, and `ResultStarStamped` / `ResultStarLost` are both `light` so the vibration sequence cannot tell them apart. Breaks only if `earlyWakePenaltyStars` is tuned to 5 [tests/e2e/mamaWoke.spec.ts:150-162] — deferred, depends on a future tuning
+
 ## Dev Notes
 
 ### Decisions (D1-D6)
@@ -178,7 +192,7 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
 | D3 | **The points stay, the stars drop: `lostStars` is in `MamaScore`.** The penalty is `min(earlyWakePenaltyStars, baseStars)` on the stars, never on the rows. | GDD L107: « la note perd une étoile ». The mockup's state B shows it: 44 points earn 2 stars, minus 1 leaves 1, and the rows still add up to the total. Storing `lostStars` (and not working it out again in the client) keeps the Result screen a pure reader of `LevelScored`. It also lets the report and the journal (3.3) see it. `earlyWakePenaltyStars` already exists in `feel.mama` (story 1.2), with no reader until now. |
 | D4 | **The door-slam cue is a client event played by the Result header** (`ResultMamaWokeShown`). `MamaWoke` itself is not mapped in `feedback.json`. | `LevelScored` comes in the same drain as `MamaWoke`, and `boot.ts` then stops the loop and enters `result` (L827-837): a world visual on `MamaWoke` would never be drawn. A sim cue plus a header cue would play the slam twice. The epics put the cue with the header (« l'en-tête … s'affiche avec un indice dédié »). This is the 1.22 pattern (`ResultStarStamped`): a `uiElement` visual, legal only on a client event (`contentChecks.ts` L159-180). The sfx bus (not ui) because a door is a sound of the house. |
 | D5 | **The lost star stamps after the earned ones, with its own light cue** (`ResultStarLost`). The heavy « last star » stays on the last earned star. | `EXPERIENCE.md` L224: « A lost star (Mama woke) stamps last ». The heavy vibration means « that is your result », and the lost star is a gag on top of it (L560, « reads as a gag, not a failure »). A distinct, duller clip keeps it from sounding like a win. |
-| D6 | **No content tuning in this story.** | Story 3.1 measured a peak of about 16 % for every bot. Whether the prototype should end games on noise, and how often, is a feel decision: Geo plays and tunes (golden rule). The AC « le rapport distingue les fins » holds with 0 `mamaWoke` on live content and a real count on the frozen test. |
+| D6 | **No content tuning in this story's own implementation.** (Review: Geo's first tuning of `phoneRinging.perSec` came after, in `2566148`.) | Story 3.1 measured a peak of about 16 % for every bot. Whether the prototype should end games on noise, and how often, is a feel decision: Geo plays and tunes (golden rule). The AC « le rapport distingue les fins » holds with 0 `mamaWoke` on live content and a real count on the frozen test. |
 
 ### Current state of the files this story changes (read before editing)
 
@@ -238,7 +252,7 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
 ### File structure
 
 New:
-- `public/assets/audio/mama_door_slam.m4a`, `public/assets/audio/ui_star_lost.m4a`
+- `public/assets/audio/env_door_slam.m4a`, `public/assets/audio/ui_star_lost.m4a`
 - `tests/golden/journals/mama_woke.json`, `mama_woke.expected.json`, and its test (e.g. `tests/golden/mamaWoke.test.ts`, like `propFall.test.ts`)
 - optionally `tests/e2e/mamaWoke.spec.ts`
 
@@ -290,7 +304,7 @@ Updated:
 
 ### Open points for Geo (tune or decide after playing)
 
-1. **Should the prototype actually wake Mama?** With today's content, no game reaches 100 % (peak about 16 %, story 3.1). If the Sieste stake should be felt in the playtest, pick one or more: lower `noise.decayPerSec`, raise `phoneRinging.perSec` or the `propImpact` range, give a live gag a `gagCryMs`, or add a second phone. Use `npm run sim -- --bot human --runs 100` and look at `endsByReason` before and after.
+1. **Should the prototype actually wake Mama?** With the content of story 3.1, no game reached 100 % (peak about 16 %); since `2566148` (`phoneRinging.perSec` 7) an ignored ring can. If the Sieste stake should be felt in the playtest, pick one or more: lower `noise.decayPerSec`, raise `phoneRinging.perSec` or the `propImpact` range, give a live gag a `gagCryMs`, or add a second phone. Use `npm run sim -- --bot human --runs 100` and look at `endsByReason` before and after.
 2. **The look and sound of « Maman s'est réveillée ! »**: the slam animation, the static `mama-scream` underline, the placeholder door slam on `sfx` at 100 % and the `heavy` vibration are `[ASSUMPTION]`s to judge in play (story 2.3 replaces the clips).
 3. **The lost star's own cue** (a dull blip, `light`) is an addition to the epics' wording, from `EXPERIENCE.md` L224 (« stamps last »). Drop it if it is too much (remove the event from `feedback.json`: the stamp animation stays as the visual).
 
@@ -318,7 +332,7 @@ claude-sonnet-5-5
 
 - **`SetNoise{pct: 100}` could not wake Mama (found while writing the first snapshot test).** The story (D1, AC 1) assumes `runNoise` decays *before* the sources, so that after `runGauges` the value is the step's final one. That holds for event sources (decay, then add, then clamp to exactly 100) but not for `SetNoise`: `runGauges` applied it first and `runNoise` then decayed it, so the step ended at 99.99 and `noisePct >= 100` never held. `SetNoise` is the command AC 1, the golden and the e2e tests rely on. Fix: `runGauges` now applies `SetNoise` after `runNoise` (commanded value = the step's final value). Two expectations of the 3.1 test `noiseSystem.test.ts` (`90 − decay` → `90`, `100 − decay` → `100`) moved; the clamp-to-250 case now ends the level, so the `-40` case runs first. No golden moved (none sends `SetNoise` before this story).
 - **Snapshot refused an `ended` world before `durationMs`.** `flowProblem` refused `ended` when `nowMs < durationMs`, true until now. It now accepts it only for a level with the noise gauge whose `noisePct` is exactly 100 (a woken Mama); other cases still name `world.flow.state`.
-- **`content:check` refused two literals of the story.** `mama_door_slam`: `mama` is not an audio category (`tel, resp, gag, baby, papa, env, ui, music`), so the clip is `env_door_slam`. « {count} sur {max} étoiles, {lost} perdue »: failure words are banned from player strings, so it reads « …, {lost} en moins ». The guardrails stayed as they are.
+- **`content:check` refused two literals of the story** (AC 9, AC 12 and the file list now carry the final names). `mama_door_slam`: `mama` is not an audio category (`tel, resp, gag, baby, papa, env, ui, music`), so the clip is `env_door_slam`. « {count} sur {max} étoiles, {lost} en moins »: failure words are banned from player strings, so it reads « …, {lost} en moins ». The guardrails stayed as they are.
 - **Chip placement.** The first version placed the `−1` chip from the slot's left edge; on the fifth slot it ran 1 px past the panel in WebKit. It is now placed from the row's right edge (`--pp-lost-from-end`, set by the screen from `STAR_COUNT_MAX`).
 - **750 × 340.** The header costs about 40 px the 1.22 layout does not have. A woken Mama's panel (`pp-result-panel-woken`) tightens its padding and gaps under `@media (max-height: 360px)`; the text keeps its size and the timer end is untouched.
 - **Lint:** the import order of `mamaScore.ts` (caught by `npm run ci` on the first run, fixed with `biome check --write`).
@@ -329,7 +343,7 @@ claude-sonnet-5-5
 - **Client.** The Result screen takes `endReason`, `onMamaWoke`, `onStarLost`. After a woken Mama: header `h2.pp-result-reason.pp-type-heading` (slam once, static `mama-scream` underline, reduced motion = no movement), the lost slots (`pp-star-lost`, dashed `ink-soft`, no fill) stamp after the earned ones with a `−1` chip placed as a sibling after the five slots (so the `.pp-star` tilt rules are untouched). Cues: `mama_woke` (`env_door_slam`, sfx, `heavy`) on the client event `ResultMamaWokeShown` and `result_star_lost` (`ui_star_lost`, ui, `light`) on `ResultStarLost`. A skip and an `isDone` rebuild place the lost star silently. Mirrors `data-pp-end-reason` and `data-pp-lost-stars`; both cleared at each level start.
 - **Audio.** `synthDoorSlam` (400 ms) and `synthStarLost` (180 ms) in `makePlaceholderAudio.ts`; `npm run assets:audio`, only the two new `.m4a` files kept (the other 19 restored from git).
 - **Report.** `endReason` and `lostStars` per run, `endsByReason` (every `LEVEL_END_REASONS` key, summing to `endedRuns`) and `mamaWokeMeanAtMs` in the aggregate, `--help` updated.
-- **`endsByReason` on `salon_crawler` (100 runs each, `npm run sim -- --bot <b> --runs 100`):** `random` `{ timer: 100, mamaWoke: 0 }`, `idle` `{ timer: 100, mamaWoke: 0 }`, `perfect` `{ timer: 100, mamaWoke: 0 }`; the noise peaks at 16 % in every run. **With today's content Mama never wakes**, as the story expected; no content was tuned (Open point 1, Geo's call).
+- **`endsByReason` on `salon_crawler` (100 runs each, `npm run sim -- --bot <b> --runs 100`):** `random` `{ timer: 100, mamaWoke: 0 }`, `idle` `{ timer: 100, mamaWoke: 0 }`, `perfect` `{ timer: 100, mamaWoke: 0 }`; the noise peaks at 16 % in every run. **With the content as it was then, Mama never woke**; no content was tuned by this story (Open point 1, Geo's call). Commit `2566148` (`phoneRinging.perSec` 2 → 7) came after these runs, so the 16 % peak no longer describes the live content.
 - **Goldens.** One scenario added, `mama_woke` (`createTestLevel({ gauges: NOISE_GAUGES })`, `SetNoise{pct: 100}` at 1000 ms, 2000 ms in all), generated with `npm run golden:update`. Its test (`tests/golden/mamaWoke.test.ts`) pins `MamaWoke`, `LevelEnded{mamaWoke}` and `LevelScored{lostStars: 1}`. **No existing journal or hash moved** (`git status` shows only the two new files in `tests/golden/journals`).
 - **Tests.** Unit: `flowSystem.test.ts` (end order, freeze after, 99.9 %, a real source reaching 100, phone and silence closed first, no gauge, tie, timer end unchanged, lost star), `mamaScore.test.ts` (0 for a timer end, 1 woken, never below 0, penalty 2 with 1 star, penalty 0, same points, `scoreLevel` reason), `events.test.ts`, `snapshot.test.ts` (v13, `lostStars` refusals, an ended-early world round-trips and is refused without a full gauge), `resultScreen.test.ts` (13 tests for the woken screen), `feelSchema.test.ts`, `simReport.test.ts`, `simArgs.test.ts`, `makePlaceholderAudio.test.ts`. E2E (`tests/e2e/mamaWoke.spec.ts`, chromium + webkit, 9 tests each; `result.spec.ts` extended): the end, the header, the lost slot after the earned ones, the cue count, the vibrations in order (chromium), a skip, reduced motion, the dashed star, 844 × 390 and 750 × 340, a timer end without header, the mirrors cleared by « Rejouer ».
 - **Deviations from the story, all flagged above:** `SetNoise` ordering in `runGauges` (a 3.1 file), `env_door_slam`, « en moins », the right-anchored chip, the woken panel's tightening on short screens, the snapshot's `flowProblem` relaxation.
@@ -354,3 +368,4 @@ Modified:
 ### Change Log
 
 - 2026-10-29: Story 3.2 implemented. Sieste end on noise (`MamaWoke`, `LevelEnded{mamaWoke}`), the lost star in Mama's note (`lostStars`, snapshot v13), the Result header and lost-star stamp with their cues, two placeholder clips, the report's `endsByReason`, the `mama_woke` golden, e2e coverage. `SetNoise` now lands after the step's decay (a 3.1 change, see the Debug Log).
+- 2026-10-29: Code review. D1 accepted (`SetNoise` after the decay stays). Patches: story text reconciled with commit `2566148` and the final literals (`env_door_slam`, « en moins »); `synthDoorSlam` on its own seed (`SEED + 8`, clip regenerated, other clips untouched); dead `seen`, a wrong comment and a hard-coded step in three tests. `tests/e2e-dist/dist.spec.ts` now allows Chromium's « Blocked call to navigator.vibrate » line: since `phoneRinging.perSec` 7 the `perfect` bot (it never answers the phone) reaches the 80 % alert, and an autoplay run has no tap. `perf.spec.ts` failed twice under a machine load of 12-20 and passed alone (p95 16.8 ms); the final `npm run ci` is green.

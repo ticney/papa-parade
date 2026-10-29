@@ -734,7 +734,7 @@ export function synthStarStampLast(): Float32Array {
 
 /** A door slammed: a low thump with a dull noise crack on top, loud and gone in 400 ms (cue `mama_woke`). */
 export function synthDoorSlam(): Float32Array {
-  const rng = createRng(SEED + 3);
+  const rng = createRng(SEED + 8);
   const out = new Float32Array(samplesOf(DOOR_SLAM_LENGTH_MS));
   const attack = samplesOf(DOOR_SLAM_ATTACK_MS);
   const release = samplesOf(DOOR_SLAM_RELEASE_MS);

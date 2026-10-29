@@ -251,10 +251,9 @@ describe('runFlow: Mama wakes (story 3.2)', () => {
 
   it('closes a ringing phone before it: PhoneRingEnded{levelEnded} comes before MamaWoke', async () => {
     const sim = await noisySim({ phoneAtMs: 500 });
-    const seen: SimEvent[] = [];
     for (let i = 0; i < 2000 && sim.world.disruptions[0]?.state !== 'ringing'; i++) {
       sim.step();
-      seen.push(...sim.drainEvents());
+      sim.drainEvents();
     }
     expect(sim.world.disruptions[0]?.state).toBe('ringing');
     setNoise(sim, 100);

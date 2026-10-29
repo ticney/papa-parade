@@ -458,3 +458,9 @@
 - **`SetNoise` now lands after the step's decay** (`runGauges`), a change to story 3.1's debug command: before, `SetNoise{pct: 100}` ended the step at 99.99 % and could never wake Mama (the story assumed the decay came first). The commanded value is now the value the step ends on. The 3.1 test that pinned `90 − decay` was updated; no golden moved.
 - **Two literals of the story changed to pass the content guardrails:** the clip is `env_door_slam` (not `mama_door_slam`: `mama` is not an audio category, a door is a sound of the house), and the lost-star label is « {count} sur {max} étoiles, {lost} en moins » (not « perdue »: `content:check` bans failure words from player-facing strings).
 - **A woken Mama's panel tightens on short screens** (`@media (max-height: 360px)`, class `pp-result-panel-woken`): the 1.22 layout has no room for the header at 750 × 340. The timer end is untouched.
+
+## Deferred from: code review of story-3-2-variante-sieste-et-reveil-de-maman (2026-10-29)
+
+- The snapshot validator (`flowProblem`, `scoreProblem`) does not cross-check `lostStars` against how the level ended, nor that an early `ended` was a `mamaWoke`; the Result screen draws lost slots from `lostStars` alone. Only a corrupt or hand-made snapshot gets there.
+- `tools/sim/simReport.ts` keeps `lostStars` per run but gives no mean or total, and `starCounts` / `meanStars` mix both end reasons. Add a `meanLostStars` when Geo starts balancing `earlyWakePenaltyStars`.
+- `tests/e2e/mamaWoke.spec.ts` vibration sequence: `ResultStarStamped` and `ResultStarLost` are both `light`, and the `heavy` entry is expected even with 0 earned stars. Revisit if `earlyWakePenaltyStars` is tuned up to 5.
