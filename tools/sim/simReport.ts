@@ -1,13 +1,27 @@
 import { NOISE_SOURCE_IDS } from '@content/schemas/feel';
 import { STAR_COUNT_MAX } from '@shared/constants';
 import { hashJson } from '@shared/hash';
-import { type NoiseSource, PAPA_ASLEEP_GAG_ID, type Sim, type SimEvent } from '@sim';
+import {
+  LEVEL_END_REASONS,
+  type LevelEndReason,
+  type NoiseSource,
+  PAPA_ASLEEP_GAG_ID,
+  type Sim,
+  type SimEvent,
+} from '@sim';
 
 /** Every `NoiseSource` the report counts, in file order, `debug` last (a bot never sends `SetNoise`, so it stays 0). */
 const NOISE_SOURCES: readonly NoiseSource[] = [...NOISE_SOURCE_IDS, 'debug'];
 
 const emptyNoiseBySource = (): Record<NoiseSource, number> =>
   Object.fromEntries(NOISE_SOURCES.map((source) => [source, 0])) as Record<NoiseSource, number>;
+
+/** Every `LevelEndReason` at 0: the report has all its keys, whether or not a run ended that way. */
+const emptyEndsByReason = (): Record<LevelEndReason, number> =>
+  Object.fromEntries(LEVEL_END_REASONS.map((reason) => [reason, 0])) as Record<
+    LevelEndReason,
+    number
+  >;
 
 const FAIL_REASONS = ['early', 'late', 'wrongResponse', 'released'] as const;
 type FailReasonKey = (typeof FAIL_REASONS)[number];
@@ -75,9 +89,15 @@ export interface RunSummary {
   waves: WaveTally[];
   /** Whether the run saw `LevelEnded`. */
   isEnded: boolean;
+  /** Why the level ended (`LevelEnded.reason`, story 3.2); null for a run cut before the end. */
+  endReason: LevelEndReason | null;
+  /** The sim time of `MamaWoke`, in ms; null if Mama did not wake in this run. */
+  mamaWokeAtMs: number | null;
   /** Mama's score and stars (`LevelScored`, story 1.22); null for a run cut before the end. */
   scorePoints: number | null;
   stars: number | null;
+  /** The stars Mama took off because she woke (`LevelScored.lostStars`); null for a run cut before the end. */
+  lostStars: number | null;
 }
 
 export interface RunRecorder {
@@ -149,7 +169,9 @@ export function createRunRecorder(
   // Each telegraph ends in exactly one `ResponseResolved`: +1 and −1 give the threats at once.
   let activeCount = 0;
   let isEnded = false;
-  let scored: { scorePoints: number; stars: number } | null = null;
+  let endReason: LevelEndReason | null = null;
+  let mamaWokeAtMs: number | null = null;
+  let scored: { scorePoints: number; stars: number; lostStars: number } | null = null;
   return {
     onEvent(event) {
       if (event.type === 'ThreatTelegraphed' && hiddenThreatIds.delete(event.threatId)) {
@@ -178,8 +200,15 @@ export function createRunRecorder(
         }
       } else if (event.type === 'LevelEnded') {
         isEnded = true;
+        endReason = event.reason;
+      } else if (event.type === 'MamaWoke') {
+        mamaWokeAtMs = event.t;
       } else if (event.type === 'LevelScored') {
-        scored = { scorePoints: event.scorePoints, stars: event.stars };
+        scored = {
+          scorePoints: event.scorePoints,
+          stars: event.stars,
+          lostStars: event.lostStars,
+        };
       } else if (event.type === 'ResponseResolved') {
         if (!systemThreatIds.has(event.threatId)) activeCount--;
         responses++;
@@ -244,8 +273,11 @@ export function createRunRecorder(
         byGag,
         waves: waveTallies.map((wave) => ({ ...wave })),
         isEnded,
+        endReason,
+        mamaWokeAtMs,
         scorePoints: scored?.scorePoints ?? null,
         stars: scored?.stars ?? null,
+        lostStars: scored?.lostStars ?? null,
       };
     },
   };
@@ -284,6 +316,10 @@ export interface SimReport {
   untilSimMs: number;
   /** The runs that saw `LevelEnded`. */
   endedRuns: number;
+  /** The ended runs per `LevelEndReason`, every key present (0 when none); they add up to `endedRuns` (story 3.2). */
+  endsByReason: Record<LevelEndReason, number>;
+  /** Mean sim time of `MamaWoke` over the runs it happened in, in ms to one decimal; null if Mama never woke. */
+  mamaWokeMeanAtMs: number | null;
   hashes: { feel: string; geometry: string; level: string; bots: string };
   /** Mean of Mama's score over the runs that ended, one decimal; null when none ended. */
   meanScore: number | null;
@@ -340,6 +376,9 @@ export interface SimReport {
     /** Null for a run cut by `--until-ms` before the level ended. */
     scorePoints: number | null;
     stars: number | null;
+    /** Null for a run cut before the end (story 3.2). */
+    endReason: LevelEndReason | null;
+    lostStars: number | null;
   }[];
 }
 
@@ -373,6 +412,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let gags = 0;
   let nearMisses = 0;
   let endedRuns = 0;
+  const endsByReason = emptyEndsByReason();
+  let mamaWokeCount = 0;
+  let mamaWokeSumAtMs = 0;
   let microSleeps = 0;
   let coffees = 0;
   let asleepRuns = 0;
@@ -400,6 +442,11 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   }));
   for (const run of runs) {
     if (run.isEnded) endedRuns++;
+    if (run.endReason !== null) endsByReason[run.endReason]++;
+    if (run.mamaWokeAtMs !== null) {
+      mamaWokeCount++;
+      mamaWokeSumAtMs += run.mamaWokeAtMs;
+    }
     if (run.scorePoints !== null && run.stars !== null) {
       scoredRuns++;
       scoreSum += run.scorePoints;
@@ -474,6 +521,8 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     runs: runs.length,
     untilSimMs: input.untilSimMs,
     endedRuns,
+    endsByReason,
+    mamaWokeMeanAtMs: mamaWokeCount === 0 ? null : round(mamaWokeSumAtMs / mamaWokeCount, 1),
     hashes: input.hashes,
     meanScore: scoredRuns === 0 ? null : round(scoreSum / scoredRuns, 1),
     meanStars: scoredRuns === 0 ? null : round(starSum / scoredRuns, 1),
@@ -511,6 +560,8 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       commands: run.commands,
       scorePoints: run.scorePoints,
       stars: run.stars,
+      endReason: run.endReason,
+      lostStars: run.lostStars,
     })),
   };
 }

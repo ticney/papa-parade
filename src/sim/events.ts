@@ -34,8 +34,21 @@ export type PhoneRingEndReason = 'answered' | 'timedOut' | 'levelEnded';
  */
 export type SilenceEndReason = 'found' | 'timedOut' | 'levelEnded';
 
-/** Why a level ended. `'timer'` so far; the early end on noise (`MamaWoke`, story 3.x) adds one. */
-export type LevelEndReason = 'timer';
+/**
+ * Why a level ended: the clock reached the level's `durationMs` (`timer`), or the noise reached 100 %
+ * in a Sieste level and woke Mama (`mamaWoke`, story 3.2).
+ */
+export type LevelEndReason = 'timer' | 'mamaWoke';
+
+/** Every `LevelEndReason`, as data: the report and the client key their records by it. */
+export const LEVEL_END_REASONS = ['timer', 'mamaWoke'] as const satisfies readonly LevelEndReason[];
+
+type UnlistedLevelEndReason = Exclude<LevelEndReason, (typeof LEVEL_END_REASONS)[number]>;
+
+/** Compile-time proof that `LEVEL_END_REASONS` holds every member of the union (see `FLOW_STATES_ARE_COMPLETE`). */
+export const LEVEL_END_REASONS_ARE_COMPLETE: [UnlistedLevelEndReason] extends [never]
+  ? true
+  : UnlistedLevelEndReason = true;
 
 /** Domain events pushed by the systems into `ctx.events`; `t` is sim time. */
 export type SimEvent =
@@ -175,12 +188,18 @@ export type SimEvent =
   | { type: 'NoiseChanged'; t: SimMs; source: NoiseSource; noisePct: number; deltaPct: number }
   /** A breakable prop took a hit of `impulseNs` or more, once; it stays in the world, broken. */
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
+  /**
+   * Mama was woken by the noise (story 3.2): the noise reached 100 % in a Sieste level. Right before
+   * `LevelEnded{mamaWoke}`, at the same `t`.
+   */
+  | { type: 'MamaWoke'; t: SimMs }
   /** The level is over, once: from here the sim only keeps its clock (the client shows the result). */
   | { type: 'LevelEnded'; t: SimMs; reason: LevelEndReason }
   /**
    * Mama's note (story 1.22), right after `LevelEnded` and at the same `t`, once per level: the
    * four rows (`sighPoints` and `screamPoints` are what she takes off), the score out of 100 and the
-   * stars. The same values are in `world.score.final`.
+   * stars (after the `lostStars` she took off for being woken, story 3.2). The same values are in
+   * `world.score.final`.
    */
   | {
       type: 'LevelScored';
@@ -191,6 +210,7 @@ export type SimEvent =
       screamPoints: number;
       scorePoints: number;
       stars: number;
+      lostStars: number;
     }
   | InvariantViolation;
 
@@ -209,6 +229,7 @@ export const SIM_EVENT_TYPES = [
   'InvariantViolated',
   'LevelEnded',
   'LevelScored',
+  'MamaWoke',
   'NearMiss',
   'NoiseChanged',
   'ObjectTapped',

@@ -1,12 +1,12 @@
 import type { ResultScreenTimings } from '@content/schemas/feedback';
 import { COUNT_UP_FRAME_MS, STAR_COUNT_MAX } from '@shared/constants';
-import type { MamaScore } from '@sim';
+import type { LevelEndReason, MamaScore } from '@sim';
 import type { OverlayScreen } from '../overlayScreen.ts';
 import { bindPressButton } from '../pressButton.ts';
 import { formatString, type Translator } from '../strings.ts';
 import { svgElement } from '../svg.ts';
 
-/** Where the sequence is: the rows count up, then the stars stamp, then the buttons are up. */
+/** Where the sequence is: the rows count up, then the stars stamp (the lost ones last), then the buttons are up. */
 export type ResultPhase = 'rows' | 'stars' | 'actions';
 
 /** Real-time timers (`setTimeout` in the app, a fake in tests): the sequence never reads sim time. */
@@ -37,6 +37,8 @@ export interface ResultMaxima {
 export interface ResultScreenOptions {
   t: Translator;
   score: MamaScore;
+  /** Why the level ended: `mamaWoke` adds the header « Maman s'est réveillée ! » (story 3.2). */
+  endReason: LevelEndReason;
   maxima: ResultMaxima;
   timings: ResultScreenTimings;
   /** The sequence already ran (a screen rebuilt after the portrait overlay): show its end, silently. */
@@ -47,6 +49,10 @@ export interface ResultScreenOptions {
   keyTarget: ResultKeyTarget;
   /** A star is stamped; `isLast` for the last earned one. Never called for a skipped or done star. */
   onStar(isLast: boolean): void;
+  /** The header of a woken Mama comes up, once, when the sequence starts (never on a rebuild). */
+  onMamaWoke(): void;
+  /** A lost star is stamped (after the earned ones). Never called for a skipped or done one. */
+  onStarLost(): void;
   /** The phase changed (also once at build). `actions` means the sequence is done. */
   onPhase(phase: ResultPhase): void;
   /** « Rejouer ». */
@@ -97,7 +103,9 @@ interface Row {
 
 /**
  * The Result screen (story 1.22, UX-DR13): Mama's four rows count up one after the other, the total
- * follows them, the earned stars stamp one by one, then « Rejouer » comes up and takes focus. The
+ * follows them, the earned stars stamp one by one, then the stars a woken Mama took off (dashed,
+ * with a « −1 », story 3.2), then « Rejouer » comes up and takes focus. A woken Mama also puts a
+ * header over the card, with its own cue. The
  * timings are `feedback.json › resultScreen`, in real ms. A press on the screen, Enter, Space or a
  * pad's A skips to the end (rows at their totals, stars placed silently, buttons up) without
  * pressing « Rejouer ». A press that starts within `inputGraceMs` of the screen coming up, or of the
@@ -145,12 +153,25 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   };
 
   const element = make('div', 'pp-overlay pp-result-screen');
-  const panel = make('section', 'pp-panel pp-result-panel');
+  const panel = make(
+    'section',
+    `pp-panel pp-result-panel${options.endReason === 'mamaWoke' ? ' pp-result-panel-woken' : ''}`,
+  );
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-modal', 'true');
   panel.setAttribute('aria-label', t('result.title'));
   // Focusable while the sequence runs: Enter and Space are heard on the panel, not on a button.
   panel.tabIndex = -1;
+
+  const isMamaWoke = options.endReason === 'mamaWoke';
+  // The slam is one run of an animation: a rebuilt, finished screen shows the header at rest.
+  const header = isMamaWoke
+    ? make(
+        'h2',
+        `pp-result-reason pp-type-heading${options.isDone ? '' : ' pp-result-reason-slam'}`,
+        t('result.mama_woke'),
+      )
+    : null;
 
   const card = make('div', 'pp-score-card');
   card.setAttribute('role', 'table');
@@ -189,9 +210,17 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   totalScore.append(totalValue, totalMax);
   const stars = make('div', 'pp-stars');
   stars.setAttribute('role', 'img');
+  // Never more lost slots than there are slots after the earned ones (the snapshot checks it too).
+  const lostCount = Math.max(0, Math.min(score.lostStars, STAR_COUNT_MAX - score.stars));
   stars.setAttribute(
     'aria-label',
-    formatString(t('result.stars_label'), { count: score.stars, max: STAR_COUNT_MAX }),
+    lostCount > 0
+      ? formatString(t('result.stars_lost_label'), {
+          count: score.stars,
+          max: STAR_COUNT_MAX,
+          lost: lostCount,
+        })
+      : formatString(t('result.stars_label'), { count: score.stars, max: STAR_COUNT_MAX }),
   );
   const slots: SVGElement[] = [];
   for (let i = 0; i < STAR_COUNT_MAX; i++) {
@@ -236,6 +265,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     actions.append(copy);
   }
 
+  if (header !== null) panel.append(header);
   panel.append(card, total, actions);
   element.append(panel);
 
@@ -277,6 +307,21 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     if (isStamped) slot.classList.add('pp-star-stamped');
     earned++;
   };
+  let lost = 0;
+  /** The next slot after the earned ones becomes a lost one: dashed, with its « −1 » chip. */
+  const lose = (isStamped: boolean): void => {
+    const index = score.stars + lost;
+    const slot = slots[index] as SVGElement;
+    slot.classList.remove('pp-star-empty');
+    slot.classList.add('pp-star-lost');
+    if (isStamped) slot.classList.add('pp-star-stamped');
+    // After the five slots, so that they stay the only `svg` children and keep their tilt rules.
+    const chip = make('span', 'pp-star-lost-chip pp-type-label', t('result.star_lost'));
+    chip.style.setProperty('--pp-lost-from-end', String(STAR_COUNT_MAX - 1 - index));
+    chip.setAttribute('aria-hidden', 'true');
+    stars.append(chip);
+    lost++;
+  };
   const showActions = (): void => {
     cancelAll();
     actions.hidden = false;
@@ -291,6 +336,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     cancelAll();
     showTotals();
     while (earned < score.stars) earn(false);
+    while (lost < lostCount) lose(false);
     showActions();
   };
 
@@ -308,23 +354,32 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     };
     tick();
   };
+  /** The stars a woken Mama took off stamp last, after the earned ones (EXPERIENCE: « stamps last »). */
+  const stampLost = (): void => {
+    lose(true);
+    options.onStarLost();
+    if (lost < lostCount) later(stampLost, timings.starIntervalMs);
+    else later(showActions, timings.actionsDelayMs);
+  };
   const stamp = (index: number): void => {
     earn(true);
     const isLast = index === score.stars - 1;
     options.onStar(isLast);
-    if (isLast) later(showActions, timings.actionsDelayMs);
-    else later(() => stamp(index + 1), timings.starIntervalMs);
+    if (!isLast) later(() => stamp(index + 1), timings.starIntervalMs);
+    else if (lostCount > 0) later(stampLost, timings.starIntervalMs);
+    else later(showActions, timings.actionsDelayMs);
   };
   const startStars = (): void => {
     // The last row has landed whatever the frames did: its total is on screen.
     showTotals();
-    if (score.stars <= 0) {
+    if (score.stars <= 0 && lostCount <= 0) {
       later(showActions, timings.actionsDelayMs);
       return;
     }
     later(() => {
       enter('stars');
-      stamp(0);
+      if (score.stars > 0) stamp(0);
+      else stampLost();
     }, timings.starsDelayMs);
   };
 
@@ -363,10 +418,12 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   if (options.isDone) {
     showTotals();
     while (earned < score.stars) earn(false);
+    while (lost < lostCount) lose(false);
     actions.hidden = false;
     enter('actions');
   } else {
     enter('rows');
+    if (isMamaWoke) options.onMamaWoke();
     for (let index = 0; index < rows.length; index++) {
       later(() => countUp(index), index * timings.rowStaggerMs);
     }

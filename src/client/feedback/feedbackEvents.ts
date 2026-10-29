@@ -9,6 +9,8 @@ export const FEEDBACK_CLIENT_EVENTS = [
   'NoiseAlertReached',
   'ResultStarStamped',
   'ResultLastStarStamped',
+  'ResultMamaWokeShown',
+  'ResultStarLost',
 ] as const;
 
 /** Every name the director's `handle` takes. */

@@ -7,6 +7,7 @@ export { type CreateSimOptions, createSim, type Sim } from './createSim.ts';
 export { DISRUPTION_STATES, type DisruptionState } from './disruptions/disruptionFsm.ts';
 export {
   type FailReason,
+  LEVEL_END_REASONS,
   type LevelEndReason,
   type NoiseSource,
   type PhoneRingEndReason,

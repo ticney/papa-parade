@@ -22,6 +22,12 @@ import { ppEvents } from '../e2e/support/testApi.ts';
 // job of `tests/e2e`; here only what a tester's browser gets.
 
 const SPEED = 4;
+/**
+ * Chromium's own line when a pulse comes before any tap. An autoplay run has no gesture, and the
+ * perfect bot lets the phone ring (noise past the 80 % alert, story 3.2's tuning), so the alert's
+ * haptic is refused: `webHaptics` already treats that as a one-time `warn`, not a game error.
+ */
+const VIBRATE_WITHOUT_TAP = /Blocked call to navigator\.vibrate/;
 /** Slack for a cold network start (the host, 4G): the level fetch, Rapier's wasm, the audio decode. */
 const LOAD_MARGIN_MS = 30_000;
 
@@ -44,7 +50,7 @@ test.describe('the built playtest bundle', () => {
       RESUME_COUNTDOWN_MS +
       OVERRUN_MARGIN_MS;
     test.setTimeout(levelMs + LOAD_MARGIN_MS + 30_000);
-    const problems = collectProblems(page);
+    const problems = collectProblems(page, { allowedErrors: VIBRATE_WITHOUT_TAP });
     // Records what the browser blocks: an empty list is the proof that the CSP lets the game run.
     await page.addInitScript(() => {
       const violations: string[] = [];

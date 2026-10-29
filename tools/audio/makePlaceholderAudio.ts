@@ -10,11 +10,11 @@ import { ROOT } from '../assets/paths.ts';
 import { synthBabyLaugh, synthFirm, synthParry } from './cultSounds.ts';
 import { normalize, PEAK_LOUD, SAMPLE_RATE_HZ, SEED, samplesOf } from './synthKit.ts';
 
-// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21 and 2.3 (the outlet's cues,
+// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3 and 3.2 (the outlet's cues,
 // then the stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled
 // swell and Papa's snore, then the phone's ring and Papa's pick-up click, then the silence's « ah-ha »
 // chirp and the baby's paper rustle; story 2.3 replaced the parry's pop by a toy squeak, dropped the
-// perfect's chime and added the Firmness's cupboard clack and the baby's laugh, in `cultSounds.ts`),
+// perfect's chime and added the Firmness's cupboard clack and the baby's laugh, in `cultSounds.ts`; story 3.2 added Mama's door slam and the lost star's cue),
 // synthesized so that the whole audio pipeline works end to end with no human (golden rule). Real
 // sounds replace the `.m4a` files under the same names (story 7.5, or Geo's recordings; `--only`
 // regenerates some clips and leaves a recorded one alone). The tool is macOS only (`afconvert`) and
@@ -182,6 +182,24 @@ const STAR_LAST_PITCHES_HZ = [523.25, 659.25, 783.99];
 const STAR_LAST_ATTACK_MS = 4;
 const STAR_LAST_DECAY_S = 0.14;
 const STAR_LAST_RELEASE_MS = 40;
+
+// Story 3.2: the door Mama slams when the noise wakes her, and the star she takes off.
+const DOOR_SLAM_LENGTH_MS = 400;
+const DOOR_SLAM_THUMP_HZ = { from: 110, to: 45 };
+const DOOR_SLAM_THUMP_DECAY_S = 0.08;
+/** The noise part of the slam: white noise through a one-pole low-pass, so it is a dull crack. */
+const DOOR_SLAM_NOISE_SMOOTHING = 0.12;
+const DOOR_SLAM_NOISE_DECAY_S = 0.04;
+const DOOR_SLAM_NOISE_GAIN = 0.8;
+const DOOR_SLAM_ATTACK_MS = 1;
+const DOOR_SLAM_RELEASE_MS = 30;
+
+const STAR_LOST_LENGTH_MS = 180;
+const STAR_LOST_PITCH_HZ = { from: 440, to: 220 };
+const STAR_LOST_SWEEP_S = 0.06;
+const STAR_LOST_DECAY_S = 0.05;
+const STAR_LOST_ATTACK_MS = 3;
+const STAR_LOST_RELEASE_MS = 20;
 
 /** A thump's ramp-up, in ms, and the level under which its tail is cut (a share of full scale). */
 const THUMP_ATTACK_MS = 2;
@@ -649,6 +667,55 @@ export function synthStarStampLast(): Float32Array {
   );
 }
 
+/** A door slammed: a low thump with a dull noise crack on top, loud and gone in 400 ms (cue `mama_woke`). */
+export function synthDoorSlam(): Float32Array {
+  const rng = createRng(SEED + 8);
+  const out = new Float32Array(samplesOf(DOOR_SLAM_LENGTH_MS));
+  const attack = samplesOf(DOOR_SLAM_ATTACK_MS);
+  const release = samplesOf(DOOR_SLAM_RELEASE_MS);
+  let phase = 0;
+  let smoothed = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const frequencyHz =
+      DOOR_SLAM_THUMP_HZ.to +
+      (DOOR_SLAM_THUMP_HZ.from - DOOR_SLAM_THUMP_HZ.to) *
+        Math.exp(-seconds / DOOR_SLAM_THUMP_DECAY_S);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    smoothed += DOOR_SLAM_NOISE_SMOOTHING * (nextFloat(rng) * 2 - 1 - smoothed);
+    const thump = Math.sin(phase) * Math.exp(-seconds / DOOR_SLAM_THUMP_DECAY_S);
+    const crack = smoothed * DOOR_SLAM_NOISE_GAIN * Math.exp(-seconds / DOOR_SLAM_NOISE_DECAY_S);
+    out[i] = (thump + crack) * Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** The star Mama takes off: a dull blip that falls, lower than the stamp (cue `result_star_lost`). */
+export function synthStarLost(): Float32Array {
+  const out = new Float32Array(samplesOf(STAR_LOST_LENGTH_MS));
+  const attack = samplesOf(STAR_LOST_ATTACK_MS);
+  const release = samplesOf(STAR_LOST_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const frequencyHz =
+      STAR_LOST_PITCH_HZ.to +
+      (STAR_LOST_PITCH_HZ.from - STAR_LOST_PITCH_HZ.to) * Math.exp(-seconds / STAR_LOST_SWEEP_S);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    out[i] =
+      Math.sin(phase) *
+      Math.exp(-seconds / STAR_LOST_DECAY_S) *
+      Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -693,6 +760,8 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'gag_silence_mischief', synth: synthGagSilence },
   { clip: 'ui_star_stamp', synth: synthStarStamp },
   { clip: 'ui_star_stamp_last', synth: synthStarStampLast },
+  { clip: 'env_door_slam', synth: synthDoorSlam },
+  { clip: 'ui_star_lost', synth: synthStarLost },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

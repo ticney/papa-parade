@@ -30,7 +30,7 @@ const PARRY_DIP_HALF_WIDTH_MS = 25;
 
 /** A rubber toy squeak: « squee » up, « eek » down. */
 export function synthParry(): Float32Array {
-  const rng = createRng(SEED + 8);
+  const rng = createRng(SEED + 11);
   const out = new Float32Array(samplesOf(PARRY_LENGTH_MS));
   const turn = samplesOf(PARRY_TURN_MS);
   const attack = samplesOf(PARRY_ATTACK_MS);

@@ -40,6 +40,16 @@
       "visual": { "kind": "uiElement" },
       "haptic": "heavy"
     },
+    "mama_woke": {
+      "audio": { "clip": "env_door_slam", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "heavy"
+    },
+    "result_star_lost": {
+      "audio": { "clip": "ui_star_lost", "bus": "ui", "gainPct": 90 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "light"
+    },
     "silence_started": { "haptic": "light" },
     "noise_alert": { "visual": { "kind": "uiElement" }, "haptic": "medium" },
     "hold_closed": { "haptic": "medium" },
@@ -133,6 +143,8 @@
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
     "ResultStarStamped": "result_star",
-    "ResultLastStarStamped": "result_star_last"
+    "ResultLastStarStamped": "result_star_last",
+    "ResultMamaWokeShown": "mama_woke",
+    "ResultStarLost": "result_star_lost"
   }
 }
