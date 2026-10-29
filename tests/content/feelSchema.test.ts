@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { parseContentFile } from '../../src/content/parseContentFile.ts';
-import { FeelSchema } from '../../src/content/schemas/feel.ts';
+import { FeelSchema, NOISE_SOURCE_IDS } from '../../src/content/schemas/feel.ts';
 
 // Tunable values are never pinned here (golden rule: Geo tunes them). Structure, ranges and
 // cross-field rules only.
@@ -318,5 +318,58 @@ describe('FeelSchema as JSON Schema', () => {
 
   it('is strict at every level', () => {
     expect(emitted.additionalProperties).toBe(false);
+  });
+});
+
+describe('feel.noise (story 3.1)', () => {
+  const SOURCES = 'noise.sources';
+  const impact = `${SOURCES}.propImpact`;
+
+  it('has one row per source the sim and the sim report know, in file order', () => {
+    const sources = (real.noise as { sources: Record<string, unknown> }).sources;
+    expect(Object.keys(sources)).toEqual([...NOISE_SOURCE_IDS]);
+  });
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['minPct above maxPct', [[`${impact}.minPct`, 20]], [`noise.sources.propImpact.minPct`]],
+    [
+      'minImpulseNs equal to maxImpulseNs',
+      [[`${impact}.minImpulseNs`, 2]],
+      [`noise.sources.propImpact.minImpulseNs`],
+    ],
+    [
+      'minImpulseNs above maxImpulseNs',
+      [[`${impact}.minImpulseNs`, 3]],
+      [`noise.sources.propImpact.minImpulseNs`],
+    ],
+    ['an alertPct above 100', [['noise.alertPct', 101]], ['noise.alertPct']],
+    ['a negative decayPerSec', [['noise.decayPerSec', -1]], ['noise.decayPerSec']],
+    ['a pct above 100', [[`${SOURCES}.sniff.noisePct`, 101]], [`${SOURCES}.sniff.noisePct`]],
+    [
+      'a negative pct',
+      [[`${SOURCES}.floorCreak.noisePct`, -1]],
+      [`${SOURCES}.floorCreak.noisePct`],
+    ],
+    ['a maxPct above 100', [[`${impact}.maxPct`, 101]], [`${impact}.maxPct`]],
+    [
+      'a negative samePropCooldownMs',
+      [[`${impact}.samePropCooldownMs`, -1]],
+      [`${impact}.samePropCooldownMs`],
+    ],
+    ['a missing noise block', [['noise', undefined]], ['noise']],
+    ['a missing source', [[`${SOURCES}.sniff`, undefined]], [`${SOURCES}.sniff`]],
+    ['an unknown source', [[`${SOURCES}.bogus`, { noisePct: 1 }]], [`${SOURCES}.bogus`]],
+    [
+      'an unknown key in a source',
+      [[`${SOURCES}.sniff.bogusPct`, 1]],
+      [`${SOURCES}.sniff.bogusPct`],
+    ],
+  ])('refuses %s, at its path', (_name, changes, paths) => {
+    expect(failedPaths(mutated(...changes))).toEqual(paths);
+  });
+
+  it('accepts a samePropCooldownMs of 0 (no window) and minPct = maxPct', () => {
+    expect(mutated([`${impact}.samePropCooldownMs`, 0])).toMatchObject({ ok: true });
+    expect(mutated([`${impact}.minPct`, 15])).toMatchObject({ ok: true });
   });
 });

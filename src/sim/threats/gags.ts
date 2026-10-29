@@ -11,6 +11,8 @@ import type { ThreatInstance, World } from '../world.ts';
  * `world.mess` and her scream from `world.score.nearMisses`, story 1.22). The presentation is the client's
  * (`client/render/gags.ts`). `content:check` checks a threat's `gag` (or `surpriseGags`) against this
  * list. The surprise mischiefs of the suspicious silence (story 1.21) add to `world.mess.mischiefs`.
+ * A gag that makes the baby cry is not a gag id's business: the def says it with `gagCryMs`, and
+ * `gagThreat` starts the cry (story 3.1 D9).
  */
 export const GAG_IDS = [
   'outlet_hair',

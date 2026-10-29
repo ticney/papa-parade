@@ -4,7 +4,14 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
-import { COFFEE_TABLE, createTestLevel, OUTLET, STAIRS, testWave } from '../support/testContent.ts';
+import {
+  COFFEE_TABLE,
+  createTestLevel,
+  NOISE_GAUGES,
+  OUTLET,
+  STAIRS,
+  testWave,
+} from '../support/testContent.ts';
 
 /** A recorded live game: commands are enqueued at given steps, as the client would. */
 export interface Scenario {
@@ -134,6 +141,16 @@ export const SCENARIOS: readonly Scenario[] = [
     // The calibration and the measured impulses are in the story's Debug Log.
     name: 'prop_fall',
     level: createTestLevel(),
+    seed: 42,
+    untilSimMs: 3000,
+    actions: [{ atStep: 10, command: pushProp(100, 'mug_01', 0.72) }],
+  },
+  {
+    // `prop_fall` in a level with the noise gauge (story 3.1): pins how much noise the fall of the mug
+    // off the coffee table, onto the vase and the floor, makes in all (Open point 3 of the story).
+    // Same seed, same push: the physics is the same, only the `NoiseChanged` events are new.
+    name: 'prop_fall_noise',
+    level: createTestLevel({ gauges: NOISE_GAUGES }),
     seed: 42,
     untilSimMs: 3000,
     actions: [{ atStep: 10, command: pushProp(100, 'mug_01', 0.72) }],

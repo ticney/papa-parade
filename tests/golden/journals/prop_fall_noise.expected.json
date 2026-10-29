@@ -1,0 +1,15 @@
+{
+  "untilSimMs": 3000,
+  "worldHash": "17a8250c31ec30",
+  "eventTypes": [
+    "PropImpact",
+    "PropImpact",
+    "PropBroken",
+    "NoiseChanged",
+    "NoiseChanged",
+    "PropImpact",
+    "PropImpact",
+    "BabyStateChanged"
+  ],
+  "eventsHash": "15b7e9f725037b"
+}

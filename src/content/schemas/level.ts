@@ -5,7 +5,7 @@ import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 // `assets/levels/<id>.glb` (its look). Story 1.18 replaced the flat `threats` list with waves and
 // added the variant, the duration and the feel overrides; story 1.17 added `objects`, the
 // interactive things (coffee machine, phone) Space or A can walk Papa to. Story 1.19 added
-// `gauges` (the fatigue system a level opts into) and the `kind` of an object. Story 1.20 added
+// `gauges` (the fatigue system a level opts into) and the `kind` of an object; story 3.1 added `gauges.noise`. Story 1.20 added
 // `disruptions` to a wave: the phone that rings at a fixed time, on an object of the level.
 
 /** The level variants the game has. Each one has its own timer icon (`client/ui/hud/timerHud.ts`). */
@@ -14,7 +14,7 @@ export type LevelVariant = (typeof LEVEL_VARIANTS)[number];
 
 /**
  * The gauges of the HUD pill, in the order they are drawn: Bruit · Fatigue · Envie (UX-DR4). Only
- * `fatigue` has a level schema entry so far; story 3.1 adds `noise` and epic 4 `need`.
+ * `noise` and `fatigue` have a level schema entry so far; epic 4 adds `need`.
  */
 export const GAUGE_IDS = ['noise', 'fatigue', 'need'] as const;
 export type GaugeId = (typeof GAUGE_IDS)[number];
@@ -109,6 +109,12 @@ const LevelObjectSchema = z
 
 const LevelGaugesSchema = z
   .strictObject({
+    noise: z
+      .strictObject({})
+      .optional()
+      .describe(
+        'The level has the noise gauge (story 3.1). Absent: no noise, no gauge, no `NoiseChanged`.',
+      ),
     fatigue: z
       .strictObject({
         microSleepDef: idSchema(

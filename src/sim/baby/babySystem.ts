@@ -8,6 +8,7 @@ import { remainingPathLengthM } from '../nav/pathLength.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { ensureOnOpenCell, gazeAt, planApproach, stopCrawling } from './approach.ts';
 import { enterBabyState } from './babyFsm.ts';
+import { runBabyCry } from './cry.ts';
 import { runSilence } from './silence.ts';
 import { pickWanderCell, planWander } from './wander.ts';
 
@@ -81,7 +82,7 @@ function lockOnThreat(world: World, ctx: StepContext): void {
 
 /**
  * System: the baby. Remembers where it sat (for the view's interpolation), then, in this order:
- * runs the suspicious silence (`runSilence`, story 1.21), lets go of a target that is over, locks on a newly active threat, sets off to its target once it
+ * ticks its cry (`runBabyCry`, story 3.1), runs the suspicious silence (`runSilence`, story 1.21), lets go of a target that is over, locks on a newly active threat, sets off to its target once it
  * has stared for `lockMs`, crawls to it, ends its mischief after `actMs`; and, when it is free,
  * does what it did before threats existed: when its babble is over (`wanderAt`) draws a
  * destination and sets off, or, if none can be planned, babbles on for another draw; while
@@ -94,6 +95,7 @@ export function runBaby(world: World, ctx: StepContext): void {
   baby.prevXM = baby.xM;
   baby.prevZM = baby.zM;
 
+  runBabyCry(world, ctx);
   runSilence(world, ctx);
   releaseTarget(world, ctx);
   lockOnThreat(world, ctx);

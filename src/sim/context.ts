@@ -43,6 +43,8 @@ export interface SimLevel {
    * or -1 when the level has no fatigue. It is the last entry, after the wave ones.
    */
   readonly microSleepIndex: number;
+  /** Whether the level has the noise gauge (`gauges.noise`, story 3.1). Without it: no value, no event. */
+  readonly hasNoise: boolean;
 }
 
 /**

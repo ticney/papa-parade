@@ -85,6 +85,23 @@ describe('content/threats/outlet.json', () => {
     expect(failedPaths(mutated(...changes))).toEqual(expected);
   });
 
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a gagCryMs of 0', [['gagCryMs', 0]], ['gagCryMs']],
+    ['a gagCryMs shorter than one cry period', [['gagCryMs', 999]], ['gagCryMs']],
+    ['a negative gagCryMs', [['gagCryMs', -3000]], ['gagCryMs']],
+    ['a non-integer gagCryMs', [['gagCryMs', 1500.5]], ['gagCryMs']],
+    ['a gagCryMs that is a string', [['gagCryMs', '3000']], ['gagCryMs']],
+  ])('rejects %s (story 3.1)', (_name, changes, expected) => {
+    expect(failedPaths(mutated(...changes))).toEqual(expected);
+  });
+
+  it('accepts a gagCryMs (a whole number of sim ms) on an anchor threat, and no gagCryMs at all', () => {
+    expect(mutated(['gagCryMs', 3000])).toMatchObject({ ok: true });
+    expect(mutated(['gagCryMs', 1000])).toMatchObject({ ok: true });
+    expect(parse(real)).toMatchObject({ ok: true });
+    expect(real.gagCryMs).toBeUndefined();
+  });
+
   it('accepts a Firmness that carries holdUntilMs, on an anchor or on Papa', () => {
     expect(mutated(['response', 'firm'], ['holdUntilMs', 1500])).toMatchObject({ ok: true });
     expect(mutated(['response', 'firm'], ['holdUntilMs', 1500], ['target', 'papa'])).toMatchObject({

@@ -32,6 +32,7 @@ describe('commandProblem', () => {
       'PushProp',
       'Release',
       'SetFatigue',
+      'SetNoise',
       'SetTimeScale',
       'StartDisruption',
       'TapBaby',

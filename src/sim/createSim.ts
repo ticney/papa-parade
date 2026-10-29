@@ -277,6 +277,7 @@ function simLevelOf(
   }
   return {
     microSleepIndex: microSleepDef === undefined ? -1 : threats.length - 1,
+    hasNoise: level.level.gauges.noise !== undefined,
     durationMs: level.level.durationMs,
     waves: waves.map((wave, w) => {
       const endMs = waves[w + 1]?.fromMs ?? level.level.durationMs;

@@ -168,6 +168,12 @@
       "description": "The gauges of the level (story 1.19); none by default.",
       "type": "object",
       "properties": {
+        "noise": {
+          "description": "The level has the noise gauge (story 3.1). Absent: no noise, no gauge, no `NoiseChanged`.",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
         "fatigue": {
           "description": "Papa gets tired in this level. Absent: no fatigue, no gauge, no micro-sleep.",
           "type": "object",

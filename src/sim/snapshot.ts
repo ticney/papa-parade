@@ -28,14 +28,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 11;
+  version: 12;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -54,7 +54,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 11,
+    version: 12,
     seed,
     feelHash,
     geometryHash,
@@ -167,7 +167,11 @@ function isUnitVector(x: unknown, z: unknown): boolean {
   return Math.abs(Math.sqrt(x * x + z * z) - 1) <= 1e-6;
 }
 
-function babyProblem(baby: unknown, threats: readonly { id: number }[]): string | null {
+function babyProblem(
+  baby: unknown,
+  threats: readonly { id: number }[],
+  nowMs: number,
+): string | null {
   if (typeof baby !== 'object' || baby === null) return 'world.baby is missing';
   const slice = baby as Record<string, unknown>;
   if (!BABY_STATES.includes(slice.state)) return 'world.baby.state';
@@ -241,6 +245,22 @@ function babyProblem(baby: unknown, threats: readonly { id: number }[]): string 
   }
   if (!isUnitVector(slice.headingX, slice.headingZ)) return 'world.baby.heading';
   if (!isUnitVector(slice.gazeX, slice.gazeZ)) return 'world.baby.gaze';
+  // A cry (story 3.1) has both its instants or neither, started no later than now, and ends no
+  // earlier than it started.
+  const { cryStartedAt, cryEndsAt } = slice;
+  if ((cryStartedAt === null) !== (cryEndsAt === null)) return 'world.baby.cryEndsAt';
+  if (cryStartedAt !== null) {
+    if (
+      !isFiniteNumber(cryStartedAt) ||
+      (cryStartedAt as number) < 0 ||
+      (cryStartedAt as number) > nowMs
+    ) {
+      return 'world.baby.cryStartedAt';
+    }
+    if (!isFiniteNumber(cryEndsAt) || (cryEndsAt as number) < (cryStartedAt as number)) {
+      return 'world.baby.cryEndsAt';
+    }
+  }
   return null;
 }
 
@@ -286,7 +306,13 @@ function directorProblem(director: unknown, waveCount: number): string | null {
   return null;
 }
 
-function gaugesProblem(gauges: unknown, hasFatigue: boolean): string | null {
+function gaugesProblem(
+  gauges: unknown,
+  hasFatigue: boolean,
+  hasNoise: boolean,
+  propCount: number,
+  nowMs: number,
+): string | null {
   if (typeof gauges !== 'object' || gauges === null) return 'world.gauges is missing';
   const slice = gauges as Record<string, unknown>;
   if (
@@ -306,6 +332,22 @@ function gaugesProblem(gauges: unknown, hasFatigue: boolean): string | null {
   // A micro-sleep is pending exactly while Papa is above the threshold, and only in a level with fatigue.
   if (!hasFatigue && slice.isFatigueAbove) return 'world.gauges.isFatigueAbove';
   if ((slice.microSleepAt !== null) !== slice.isFatigueAbove) return 'world.gauges.microSleepAt';
+  // The noise (story 3.1) is held in [0, 100], and is 0 for good in a level without the gauge.
+  if (
+    !isFiniteNumber(slice.noisePct) ||
+    (slice.noisePct as number) < 0 ||
+    (slice.noisePct as number) > GAUGE_MAX_POINTS ||
+    (!hasNoise && slice.noisePct !== 0)
+  ) {
+    return 'world.gauges.noisePct';
+  }
+  const noiseAt = slice.propNoiseAt;
+  if (!Array.isArray(noiseAt) || noiseAt.length !== propCount) return 'world.gauges.propNoiseAt';
+  for (const at of noiseAt) {
+    // A noise instant is in the past (or now): a later one would mute the prop until the clock caught up.
+    if (at !== null && (!isFiniteNumber(at) || (at as number) < 0 || (at as number) > nowMs))
+      return 'world.gauges.propNoiseAt';
+  }
   return null;
 }
 
@@ -444,6 +486,8 @@ export interface PlannedLevel {
   readonly disruptions: readonly { readonly def: { readonly ringMaxMs: number } }[];
   /** The index in `threats` of the micro-sleep, or -1 when the level has no fatigue. */
   readonly microSleepIndex: number;
+  /** Whether the level has the noise gauge (`SimLevel.hasNoise`, story 3.1). */
+  readonly hasNoise: boolean;
   /** The level's interactive objects: Papa's `objectId` must be one of them. */
   readonly objects: readonly { readonly id: string }[];
   readonly props: readonly {
@@ -688,12 +732,18 @@ function worldProblem(world: unknown, planned: PlannedLevel): string | null {
     disruptionsProblem(disruptions, planned.disruptions, clock.sim as number) ??
     onPhoneProblem(papa, disruptions as readonly { state: unknown }[]) ??
     flowProblem(flow, clock.sim as number, planned.durationMs) ??
-    gaugesProblem(gauges, planned.microSleepIndex >= 0) ??
+    gaugesProblem(
+      gauges,
+      planned.microSleepIndex >= 0,
+      planned.hasNoise,
+      planned.props.length,
+      clock.sim as number,
+    ) ??
     papaProblem(
       papa,
       planned.objects.map((object) => object.id),
     ) ??
-    babyProblem(baby, threats as readonly ThreatInstance[]) ??
+    babyProblem(baby, threats as readonly ThreatInstance[], clock.sim as number) ??
     silenceProblem(
       silence,
       baby,
@@ -724,7 +774,7 @@ export function worldFromSnapshot(
   levelHash: string,
   planned: PlannedLevel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 11, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 12, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(
