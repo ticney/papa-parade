@@ -4,7 +4,7 @@ baseline_commit: fc3e43757d00311eec4d4bec521722dcd7a5837e
 
 # Story 2.3: Cult sounds, the baby's laugh and distinct telegraphs
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
