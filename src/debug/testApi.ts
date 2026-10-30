@@ -9,7 +9,7 @@ import {
 import { cloneJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
-import type { SimCommand, SimEvent, World } from '@sim';
+import type { Journal, SimCommand, SimEvent, World } from '@sim';
 import { applyFeelPatch, effectiveFeel, type FeelPatch } from './feelPatch.ts';
 import { feedPerfMeter } from './perfFeed.ts';
 import { createPerfMeter, type PerfReport } from './perfMeter.ts';
@@ -54,6 +54,12 @@ export interface PPTestApi {
    * (story 2.1). It also becomes the feel the next start or restart uses. Resolves once enqueued.
    */
   setFeel(patch: FeelPatch): Promise<void>;
+  /**
+   * A copy of the running level's journal (every command with the step that applies it), or `null`
+   * when no level is running (story 2.7: the specs read `SetInputLag` and the corrected `t` of a
+   * press there).
+   */
+  journal(): Journal | null;
   /** Starts a level; resolves once it runs (its countdown over). */
   loadLevel(id: string, seed: number): Promise<void>;
   /**
@@ -155,6 +161,11 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
     state() {
       const active = host.levelSession.active;
       return active === null ? null : cloneJson(active.sim.world as World);
+    },
+
+    journal() {
+      const active = host.levelSession.active;
+      return active === null ? null : cloneJson(active.sim.journal());
     },
 
     events(since = 0) {

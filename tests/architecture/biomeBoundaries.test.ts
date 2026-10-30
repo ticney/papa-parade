@@ -147,6 +147,12 @@ const SHOULD_FAIL: { name: string; rule: string; path: string; code: string }[] 
     code: 'export const l = localStorage.getItem("x");\n',
   },
   {
+    name: 'client uses localStorage (storage goes through Platform.storage)',
+    rule: 'noRestrictedGlobals',
+    path: 'src/client/x.ts',
+    code: 'export const l = localStorage.getItem("x");\n',
+  },
+  {
     name: 'sim imports @shared/log with its extension',
     rule: 'noRestrictedImports',
     path: 'src/sim/x.ts',
@@ -295,6 +301,11 @@ const SHOULD_PASS: { name: string; path: string; code: string }[] = [
     name: 'platform imports capacitor and shared',
     path: 'src/platform/x.ts',
     code: "import { Haptics } from '@capacitor/haptics';\nimport { a } from '@shared/a';\nexport const h = [Haptics, a];\n",
+  },
+  {
+    name: 'platform uses localStorage (the one place that may)',
+    path: 'src/platform/web/x.ts',
+    code: 'export const l = localStorage.getItem("x");\n',
   },
   {
     name: 'sim imports shared and content',

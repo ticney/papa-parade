@@ -1356,6 +1356,92 @@
       ],
       "additionalProperties": false,
       "description": "Adaptive music mix (story 2.6): the tense stem and the slow-mo effect. Client only."
+    },
+    "calibration": {
+      "type": "object",
+      "properties": {
+        "beatCount": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 16,
+          "description": "Beats in each phase (audio, then visual)."
+        },
+        "bpm": {
+          "type": "number",
+          "minimum": 40,
+          "maximum": 180,
+          "description": "Tempo of the beats, in beats per minute. At most 180 (3 Hz): a flash never goes faster than the flashing limit."
+        },
+        "outlierMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "A tap further than this from the median gap is thrown away before the final median, in ms."
+        },
+        "offsetMinMs": {
+          "type": "number",
+          "minimum": -1000,
+          "maximum": 0,
+          "description": "Lowest offset the calibration keeps, in ms (negative = the screen is early)."
+        },
+        "offsetMaxMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "Highest offset the calibration keeps, in ms (positive = the screen is late)."
+        },
+        "minValidTaps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "description": "Fewer valid taps than this and the phase starts over."
+        },
+        "leadInMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "Wait before the first beat of a phase, in ms."
+        },
+        "tailMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "A phase keeps listening this long after its last beat, in ms."
+        },
+        "audioWaitMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "How long the audio phase waits for the audio to be running before it is skipped, in ms."
+        },
+        "doneHoldMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "How long the « done » message stays up, in ms."
+        },
+        "pulseMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "How long the ring or the disc stays on at each beat, in real ms."
+        }
+      },
+      "required": [
+        "beatCount",
+        "bpm",
+        "outlierMs",
+        "offsetMinMs",
+        "offsetMaxMs",
+        "minValidTaps",
+        "leadInMs",
+        "tailMs",
+        "audioWaitMs",
+        "doneHoldMs",
+        "pulseMs"
+      ],
+      "additionalProperties": false,
+      "description": "Latency calibration (story 2.7): the beats, the maths bounds and the timings. Client only."
     }
   },
   "required": [
@@ -1373,7 +1459,8 @@
     "physics",
     "gags",
     "fx",
-    "music"
+    "music",
+    "calibration"
   ],
   "additionalProperties": false,
   "description": "Every feel value of the game, tuned by hand or from the feel panel."

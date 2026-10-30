@@ -9,6 +9,9 @@ import type { PadButton } from '../input/gamepadInput.ts';
 import type { OverlayHost } from './overlayHost.ts';
 import { createUiShell } from './uiShell.ts';
 
+/** The pad edge's own stamp, as the mapper passes it on. */
+const PAD_EDGE_AT_REAL = 1234.5;
+
 // What the shell tells the screens, recorded. The host derives its `kind` the way the real one is
 // synced: by the shell, through `sync`.
 function setup() {
@@ -26,7 +29,10 @@ function setup() {
     activateFocused: () => calls.push('activateFocused'),
     back: () => calls.push('back'),
   };
-  const screen = { activate: () => calls.push('screen.activate') };
+  const screen = {
+    activate: (atReal?: number) => calls.push(`screen.activate:${atReal}`),
+    skip: () => calls.push('screen.skip'),
+  };
   const overlayHost = {
     get kind() {
       return kind;
@@ -62,7 +68,7 @@ function setup() {
   };
   const press = (button: PadButton): void => {
     calls.length = 0;
-    shell.handlePadButton(button);
+    shell.handlePadButton(button, PAD_EDGE_AT_REAL);
   };
   return {
     appFsm,
@@ -103,7 +109,7 @@ describe('createUiShell: handlePadButton (story 1.17)', () => {
       expect(pause.state).toBe('running');
       expect(calls).toEqual([]);
     }
-    shell.handlePadButton('start');
+    shell.handlePadButton('start', PAD_EDGE_AT_REAL);
     expect(pause.state).toBe('paused');
   });
 
@@ -126,7 +132,7 @@ describe('createUiShell: handlePadButton (story 1.17)', () => {
     const { pause, shell, toLevel } = setup();
     toLevel();
     pause.requestPause('user');
-    shell.handlePadButton('start');
+    shell.handlePadButton('start', PAD_EDGE_AT_REAL);
     expect(pause.state).toBe('resuming');
   });
 
@@ -135,18 +141,41 @@ describe('createUiShell: handlePadButton (story 1.17)', () => {
     appFsm.enter('start');
     shell.refresh();
     press('confirm');
-    expect(calls).toEqual(['screen.activate']);
+    expect(calls).toEqual(['screen.activate:1234.5']);
     press('start');
-    expect(calls).toEqual(['screen.activate']);
+    expect(calls).toEqual(['screen.activate:1234.5']);
     press('back');
     expect(calls).toEqual([]);
     appFsm.enter('loading');
     appFsm.enter('oops');
     shell.refresh();
     press('confirm');
-    expect(calls).toEqual(['screen.activate']);
+    expect(calls).toEqual(['screen.activate:1234.5']);
     press('start');
     expect(calls).toEqual([]);
+  });
+
+  it('on the calibration screen A is a tap with its own edge stamp, B skips, Start and the D-pad do nothing', () => {
+    const { appFsm, shell, calls, press } = setup();
+    appFsm.enter('start');
+    appFsm.enter('calibration');
+    shell.refresh();
+    press('confirm');
+    expect(calls).toEqual(['screen.activate:1234.5']);
+    press('back');
+    expect(calls).toEqual(['screen.skip']);
+    for (const button of ['start', 'up', 'down', 'left', 'right'] as const) {
+      press(button);
+      expect(calls, button).toEqual([]);
+    }
+  });
+
+  it('shows no HUD on the calibration screen', () => {
+    const { appFsm, shell, isHudVisible } = setup();
+    appFsm.enter('start');
+    appFsm.enter('calibration');
+    shell.refresh();
+    expect(isHudVisible()).toBe(false);
   });
 
   it('ignores every button in portrait, Start included', () => {
@@ -181,7 +210,7 @@ describe('createUiShell: handlePadButton (story 1.17)', () => {
     press('back');
     expect(calls).toEqual([]);
     expect(pause.state).toBe('resuming');
-    shell.handlePadButton('start');
+    shell.handlePadButton('start', PAD_EDGE_AT_REAL);
     expect(pause.state).toBe('paused');
   });
 });

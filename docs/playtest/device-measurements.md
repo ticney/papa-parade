@@ -32,6 +32,7 @@ Avant de commencer : récupérer l'URL du build de playtest déployé (CLAUDE.md
    - Le son marche après le premier tap (iOS : interrupteur silencieux désactivé).
    - La vibration (Android).
    - « Copier le journal » sur l'écran de résultat (story 3.3), sans `?debug=1` : le bouton doit passer à « Journal copié ! » (sinon à « Télécharger le journal », et un fichier `.json` arrive dans Fichiers ou Téléchargements). Coller le texte quelque part, ou récupérer le fichier, et le rejouer avec `npm run sim:replay -- <fichier>`. Le test de Playwright sur WebKit de bureau ne prouve pas ce que Safari sur iPhone accepte : c'est ce contrôle-là qui le prouve.
+   - La calibration de la latence (story 2.7), au premier lancement (stockage vidé : navigation privée ou « Effacer les données du site ») : les deux phases se déroulent jusqu'à « Calé ! », puis le niveau charge. Relever les décalages mesurés (`localStorage['papa-parade.save']` : `visualOffsetMs`, `audioOffsetMs`, `audioSkipped`, lisibles avec l'inspecteur à distance) et les comparer à la latence filmée à l'étape 3. Aucun test ne prouve que ces décalages sont **justes** sur un vrai téléphone : c'est ce contrôle-là qui le prouve, et ce que « équitable » veut dire est ton appel. Avec une manette seule, la phase audio est sautée d'elle-même (`audioSkipped: true`, un avertissement `audio`).
    - Un démarrage à la manette seule, si une manette est sous la main (`deferred-work.md` : la manette demande HTTPS, donc l'URL déployée, pas le serveur local).
 
 Si le compteur affiche un `DPR` plus bas que prévu à la fin du niveau, c'est le pixel ratio adaptatif qui est descendu (2 → 1,5 → 1) : à noter, c'est une information sur la charge du téléphone.
@@ -64,6 +65,7 @@ Si le compteur affiche un `DPR` plus bas que prévu à la fin du niveau, c'est l
 | Verdict NFR3 | — |
 | Son après le premier tap | — |
 | « Copier le journal » (copié ou téléchargé) | — |
+| Calibration : décalage visuel / audio (ms), audio sautée ? | — / — / — |
 | Démarrage à la manette seule | — |
 | Notes | — |
 
@@ -88,6 +90,7 @@ Si le compteur affiche un `DPR` plus bas que prévu à la fin du niveau, c'est l
 | Son après le premier tap | — |
 | « Copier le journal » (copié ou téléchargé) | — |
 | Vibration | — |
+| Calibration : décalage visuel / audio (ms), audio sautée ? | — / — / — |
 | Démarrage à la manette seule | — |
 | Notes | — |
 

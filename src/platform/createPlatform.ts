@@ -1,6 +1,7 @@
 import { log } from '@shared/log';
 import type { HapticKind, Platform, PlatformTarget } from './platform.ts';
 import { createWebHaptics, type NavigatorLike } from './web/webHaptics.ts';
+import { createWebStorage, getLocalStorage, type StorageLike } from './web/webStorage.ts';
 
 export interface CreatePlatformOptions {
   /** `import.meta.env.VITE_TARGET`: `web`, `ios`, `android`, or unset (= `web`). */
@@ -9,6 +10,8 @@ export interface CreatePlatformOptions {
   hapticPatternsMs: Readonly<Record<HapticKind, readonly number[]>>;
   /** Default: `globalThis.navigator`. */
   nav?: NavigatorLike;
+  /** Default: the browser's `localStorage`, looked up at each access. */
+  getStorage?: () => StorageLike;
 }
 
 const NATIVE_TARGETS: readonly string[] = ['ios', 'android'] satisfies PlatformTarget[];
@@ -32,6 +35,7 @@ export function createPlatform(options: CreatePlatformOptions): Platform {
   const web = createWebHaptics(nav, hapticPatternsMs);
   return {
     haptics: web.haptics,
+    storage: createWebStorage(options.getStorage ?? getLocalStorage),
     capabilities: {
       touch: (nav.maxTouchPoints ?? 0) > 0,
       haptics: web.isSupported,

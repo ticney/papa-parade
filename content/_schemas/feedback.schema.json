@@ -314,6 +314,49 @@
       "additionalProperties": false,
       "description": "The sequence of the Result screen (story 1.22): rows, then stars, then buttons. Real time: the sim never reads it."
     },
+    "calibration": {
+      "type": "object",
+      "properties": {
+        "beep": {
+          "type": "object",
+          "properties": {
+            "clip": {
+              "type": "string",
+              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+              "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
+            },
+            "bus": {
+              "type": "string",
+              "enum": [
+                "music",
+                "sfx",
+                "voice",
+                "ui"
+              ],
+              "description": "Bus the sound goes through."
+            },
+            "gainPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Cue volume on its bus, in percent."
+            }
+          },
+          "required": [
+            "clip",
+            "bus",
+            "gainPct"
+          ],
+          "additionalProperties": false,
+          "description": "The beep of the audio phase. Not a cue: the ring and the flash are the visual measure, and calibration has no vibration (EXPERIENCE.md)."
+        }
+      },
+      "required": [
+        "beep"
+      ],
+      "additionalProperties": false,
+      "description": "The sounds of the latency calibration (story 2.7)."
+    },
     "comboBadge": {
       "type": "object",
       "properties": {
@@ -546,6 +589,7 @@
     "haptics",
     "loops",
     "resultScreen",
+    "calibration",
     "comboBadge",
     "cues",
     "events"

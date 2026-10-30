@@ -327,6 +327,17 @@ export interface SlowMo {
  * The whole simulated state: plain serializable data (no classes, functions, Map/Set, Three or
  * Rapier handles). Later stories add their slice (baby, threats, director, flow…).
  */
+/**
+ * The player's input latency as the client measured it (`SetInputLag`, story 2.7 D1). The client
+ * corrects every input stamp into the past by the screen latency; the sim, which decides on its own
+ * clock, waits this long (`lagMs`, ms, 0 by default) before it concludes from the absence of a
+ * command: `classifyPress` for a press with no release yet, the expiry of an unanswered window and
+ * the end of a held Firmness.
+ */
+export interface InputSlice {
+  lagMs: number;
+}
+
 export interface World {
   time: {
     /** Sim time, in ms. Advances by exactly `STEP_MS` per step, whatever `scale` is. */
@@ -361,6 +372,8 @@ export interface World {
   combo: ComboSlice;
   /** What feeds Mama's note, and the note once the level has ended (story 1.22). */
   score: ScoreSlice;
+  /** What the client has told the sim about the player's input (story 2.7). */
+  input: InputSlice;
   /**
    * The effective feel (story 2.1): the feel given to `createSim`, with every `SetFeel` laid over
    * it. A `SetFeel` replaces this object at the head of a step; systems read it through `ctx.feel`,
@@ -480,6 +493,7 @@ export function createWorld({
     carry: { armsCryAt: null },
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
     score: { perfects: 0, nearMisses: 0, comboPoints: 0, final: null },
+    input: { lagMs: 0 },
     feel: cloneJson(feel),
   };
 }

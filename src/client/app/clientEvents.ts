@@ -27,6 +27,11 @@ export interface ClientEvents {
   AppStateChanged: { from: AppState; to: AppState };
   /** The player's first gesture on the start screen. Story 1.9 unlocks the AudioContext here, synchronously. */
   StartGestureReceived: Record<string, never>;
+  /**
+   * The latency calibration ended and its result is in the save (story 2.7). The offsets are the
+   * ones now applied to every input; `audioOffsetMs` equals `visualOffsetMs` when the audio phase was skipped.
+   */
+  CalibrationDone: { visualOffsetMs: number; audioOffsetMs: number; audioSkipped: boolean };
   /** The digit of the resume countdown changed (including the first « 3 »). Story 1.9: tick sound and vibration. */
   CountdownTicked: { step: 3 | 2 | 1 };
 }

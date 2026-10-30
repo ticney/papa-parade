@@ -1,0 +1,42 @@
+import type { Save } from '../../../src/content/schemas/save.ts';
+
+// The save of a player who has been through the latency calibration (story 2.7), with offsets of 0:
+// the Playwright configs seed it into every context, so that no spec has to click through the
+// calibration and no timing moves (an offset of 0 corrects nothing and sends no `SetInputLag`).
+// `tests/content/calibratedSave.test.ts` parses it with `SaveSchema`, so it cannot rot.
+
+/** Key of the save in `localStorage` (the same as `SAVE_KEY`; `tests` cannot rely on the alias). */
+export const SAVE_STORAGE_KEY = 'papa-parade.save';
+
+/** A valid v1 save with a calibration; `overrides` change what a spec cares about. */
+export function calibratedSave(overrides: Partial<NonNullable<Save['calibration']>> = {}): Save {
+  return {
+    version: 1,
+    calibration: {
+      visualOffsetMs: 0,
+      audioOffsetMs: 0,
+      audioSkipped: true,
+      measuredAt: '2026-01-01T00:00:00.000Z',
+      device: 'web-touch',
+      ...overrides,
+    },
+  };
+}
+
+/** The `localStorage` value of {@link calibratedSave}. */
+export const calibratedSaveValue = (
+  overrides: Partial<NonNullable<Save['calibration']>> = {},
+): string => JSON.stringify(calibratedSave(overrides));
+
+/** A Playwright `storageState` that holds the calibrated save for the page served at `baseURL`. */
+export function calibratedStorageState(baseURL: string) {
+  return {
+    cookies: [],
+    origins: [
+      {
+        origin: new URL(baseURL).origin,
+        localStorage: [{ name: SAVE_STORAGE_KEY, value: calibratedSaveValue() }],
+      },
+    ],
+  };
+}

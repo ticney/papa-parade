@@ -38,10 +38,11 @@ export interface UiShell {
   setPadDisconnected(isDisconnected: boolean): void;
   /**
    * A gamepad button for the UI (the sim's A is the input mapper's): Start does what Escape does,
-   * the D-pad and A drive the pause panel, B goes back, A starts the game or retries. Nothing in
+   * the D-pad and A drive the pause panel, B goes back, A starts the game or retries. `atReal` is the
+   * edge's own stamp (the calibration's taps, story 2.7). Nothing in
    * portrait (the portrait overlay covers everything), and B never pauses in play.
    */
-  handlePadButton(button: PadButton): void;
+  handlePadButton(button: PadButton, atReal: number): void;
   /** Escape and the arrow keys. Returns the function that unbinds. */
   bindKeys(target: KeyTarget): () => void;
 }
@@ -90,7 +91,7 @@ export function createUiShell(options: UiShellOptions): UiShell {
       isPadDisconnected = next;
       overlayHost.pauseScreen?.setPadDisconnected(next);
     },
-    handlePadButton(button) {
+    handlePadButton(button, atReal) {
       const action = padAction({
         appState: appFsm.state,
         pauseState: pause.state,
@@ -108,7 +109,10 @@ export function createUiShell(options: UiShellOptions): UiShell {
           return;
         case 'activate':
           if (overlayHost.kind === 'pause') overlayHost.pauseScreen?.activateFocused();
-          else overlayHost.screen?.activate?.();
+          else overlayHost.screen?.activate?.(atReal);
+          return;
+        case 'skip':
+          overlayHost.screen?.skip?.();
           return;
         case 'back':
           overlayHost.pauseScreen?.back();

@@ -30,14 +30,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 17 since story 2.7 (merged after 4.2): `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 16;
+  version: 17;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -56,7 +56,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 16,
+    version: 17,
     seed,
     feelHash,
     geometryHash,
@@ -771,6 +771,14 @@ function feelProblem(feel: unknown, initial: Feel): string | null {
   return feelShapeProblem(initial, feel, 'world.feel');
 }
 
+/** The client's input latency: a finite number of ms, never negative (`SetInputLag`). */
+function inputProblem(input: unknown): string | null {
+  if (typeof input !== 'object' || input === null) return 'world.input is missing';
+  const { lagMs } = input as Record<string, unknown>;
+  if (!isFiniteNumber(lagMs) || (lagMs as number) < 0) return 'world.input.lagMs';
+  return null;
+}
+
 function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel): string | null {
   if (typeof world !== 'object' || world === null) return 'world must be an object';
   const {
@@ -790,6 +798,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     carry,
     combo,
     score,
+    input,
     feel,
   } = world as Record<string, unknown>;
   const clock = time as Record<string, unknown> | null | undefined;
@@ -854,6 +863,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     ) ??
     propsProblem(props, mess, planned.props) ??
     scoreProblem(score, (flow as { state: unknown }).state === 'ended') ??
+    inputProblem(input) ??
     feelProblem(feel, initialFeel)
   );
 }
@@ -877,7 +887,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 16, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 17, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

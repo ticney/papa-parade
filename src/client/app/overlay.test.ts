@@ -3,11 +3,20 @@ import type { AppState } from './appFsm.ts';
 import { chooseOverlay, type OverlayKind } from './overlay.ts';
 import type { PauseState } from './pauseController.ts';
 
-const APP_STATES: AppState[] = ['boot', 'start', 'loading', 'level', 'result', 'oops'];
+const APP_STATES: AppState[] = [
+  'boot',
+  'start',
+  'calibration',
+  'loading',
+  'level',
+  'result',
+  'oops',
+];
 const PAUSE_STATES: PauseState[] = ['running', 'paused', 'resuming'];
 
 /** The rule, written out as a table for the landscape case. */
 function expectedLandscape(appState: AppState, pauseState: PauseState): OverlayKind | null {
+  if (appState === 'calibration') return 'calibration';
   if (appState === 'oops') return 'oops';
   if (appState === 'result') return 'result';
   if (appState === 'loading') return 'loading';
@@ -56,5 +65,19 @@ describe('chooseOverlay', () => {
     expect(chooseOverlay({ appState: 'level', isPortrait: false, pauseState: 'paused' })).toBe(
       'pause',
     );
+  });
+
+  it('shows the calibration whatever the pause state: a hidden page leaves no veil on it (story 2.7)', () => {
+    for (const pauseState of PAUSE_STATES) {
+      expect(chooseOverlay({ appState: 'calibration', isPortrait: false, pauseState })).toBe(
+        'calibration',
+      );
+    }
+  });
+
+  it('puts the portrait overlay over the calibration, which comes back when the phone is turned', () => {
+    const calibrating = { appState: 'calibration', pauseState: 'running' } as const;
+    expect(chooseOverlay({ ...calibrating, isPortrait: true })).toBe('portrait');
+    expect(chooseOverlay({ ...calibrating, isPortrait: false })).toBe('calibration');
   });
 });

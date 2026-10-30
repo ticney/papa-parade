@@ -11,9 +11,10 @@ export function classifyPress(
   releasedAt: number | null,
   nowT: number,
   holdMinMs: number,
+  lagMs = 0,
 ): PressKind | null {
   if (releasedAt !== null && releasedAt >= pressT) {
     return releasedAt - pressT < holdMinMs ? 'parry' : 'firm';
   }
-  return nowT >= pressT + holdMinMs ? 'firm' : null;
+  return nowT >= pressT + holdMinMs + lagMs ? 'firm' : null;
 }

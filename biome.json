@@ -433,6 +433,14 @@
                   }
                 ]
               }
+            },
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "localStorage": "The client reaches storage through Platform.storage (src/platform/web/webStorage.ts), never `localStorage`."
+                }
+              }
             }
           }
         }

@@ -215,6 +215,7 @@ async function checkFeedbackReferences(
     { clip: table.loops.babble.clip, path: ['loops', 'babble', 'clip'] },
     { clip: table.loops.music.stems.calm, path: ['loops', 'music', 'stems', 'calm'] },
     { clip: table.loops.music.stems.tense, path: ['loops', 'music', 'stems', 'tense'] },
+    { clip: table.calibration.beep.clip, path: ['calibration', 'beep', 'clip'] },
     ...Object.entries(table.cues).flatMap(([id, cue]) => [
       ...(cue.audio === undefined
         ? []

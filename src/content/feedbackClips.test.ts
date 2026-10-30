@@ -9,6 +9,7 @@ describe('feedbackClips', () => {
       'music_crawler_calm',
       'music_crawler_tense',
       'papa_bump',
+      'ui_calibration_beep',
     ]);
   });
 
@@ -23,6 +24,7 @@ describe('feedbackClips', () => {
       'music_crawler_calm',
       'music_crawler_tense',
       'papa_bump',
+      'ui_calibration_beep',
     ]);
   });
 
@@ -44,6 +46,7 @@ describe('feedbackClips', () => {
       'music_crawler_calm',
       'music_crawler_tense',
       'papa_bump',
+      'ui_calibration_beep',
     ]);
   });
 });
