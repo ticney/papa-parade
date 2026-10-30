@@ -38,7 +38,7 @@ export function isInSafeZone(ctx: StepContext, xM: number, zM: number): boolean 
  * Papa stops where he is: no path, no glide, no direction, no object and no intent, and he is idle.
  * Taking and putting down the baby are done standing still.
  */
-function stopPapa(world: World, ctx: StepContext): void {
+export function stopPapa(world: World, ctx: StepContext): void {
   const { papa } = world;
   papa.path.length = 0;
   papa.pathIndex = 0;
@@ -137,7 +137,7 @@ export function runCarry(world: World, ctx: StepContext): void {
   const now = world.time.sim;
   if (armsCryAt === null || now < armsCryAt) return;
   if (threat.state !== 'idle' || isPapaBusy(papa) || world.flow.state !== 'playing') return;
-  if (!isJudgeableBeforeEnd(ctx, planned.def, now)) return;
+  if (!isJudgeableBeforeEnd(ctx, planned.def, now, ctx.level.durationMs)) return;
   telegraphThreat(world, ctx, threat, planned.def, -1);
   world.carry.armsCryAt = drawArmsCryAt(world, ctx);
 }

@@ -9,6 +9,15 @@ class FakeNode {
   attributes = new Map<string, string>();
   children: FakeNode[] = [];
   parent: FakeNode | null = null;
+  classWrites = 0;
+  readonly classes = new Set<string>();
+  readonly classList = {
+    toggle: (name: string, force: boolean): void => {
+      this.classWrites += 1;
+      if (force) this.classes.add(name);
+      else this.classes.delete(name);
+    },
+  };
   readonly tag: string;
   constructor(tag: string) {
     this.tag = tag;
@@ -149,5 +158,32 @@ describe('createTimerHud', () => {
       expect(node.attributes.has('stroke')).toBe(false);
       expect(node.attributes.has('style')).toBe(false);
     }
+  });
+});
+
+describe('setCompact (story 4.4)', () => {
+  it('puts the compact class on the pill and the compact digits in place of the numeric ones', () => {
+    const { hud, root } = build();
+    const digits = root.children.find((child) => child.tag === 'span') as FakeNode;
+    digits.classes.add('pp-type-numeric');
+    hud.setCompact(true);
+    expect(root.classes.has('pp-hud-timer--compact')).toBe(true);
+    expect(digits.classes.has('pp-type-numeric-compact')).toBe(true);
+    expect(digits.classes.has('pp-type-numeric')).toBe(false);
+    hud.setCompact(false);
+    expect(root.classes.has('pp-hud-timer--compact')).toBe(false);
+    expect(digits.classes.has('pp-type-numeric-compact')).toBe(false);
+    expect(digits.classes.has('pp-type-numeric')).toBe(true);
+  });
+
+  it('writes the DOM only on a change', () => {
+    const { hud, root } = build();
+    hud.setCompact(false);
+    expect(root.classWrites).toBe(0);
+    hud.setCompact(true);
+    const writes = root.classWrites;
+    hud.setCompact(true);
+    hud.setCompact(true);
+    expect(root.classWrites).toBe(writes);
   });
 });

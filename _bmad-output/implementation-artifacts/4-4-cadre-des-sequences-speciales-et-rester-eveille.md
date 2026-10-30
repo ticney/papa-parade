@@ -1,6 +1,10 @@
+---
+baseline_commit: 385b9d60b981057dea44158a59c95b95af8ce0ab
+---
+
 # Story 4.4: The special-sequence frame and « Stay awake »
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.4 « Cadre des séquences spéciales et « Rester éveillé » » (L1884-1908). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -208,26 +212,26 @@ Numbers in `content/feel.json` and `content/sequences/` are live starting values
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Content** (AC 1-5)
-  - [ ] T1.1 `SequenceDefSchema`, the pattern, `stay_awake.json`, `content:schemas`.
-  - [ ] T1.2 `sequences` in the level, `LevelContent`, `loadLevelContent`, test helpers and frozen def.
-  - [ ] T1.3 `content:check` rules with their tests; `feel` keys; strings.
-  - [ ] T1.4 Cues, `loops.sequenceMusic`, `sequenceBar`, six placeholder clips (commit only the new `.m4a`).
-- [ ] **T2. Sim** (AC 6-16)
-  - [ ] T2.1 `FlowState`, `isFlowLive`, **the classification of AC 6**; types, events, `StartSequence`, `SimLevel.sequences`, `createSim` invariants.
-  - [ ] T2.2 `runSequence`, start and refusal, the `microSleeps` step, success; `SYSTEMS`.
-  - [ ] T2.3 Suspensions: director, phone, Papa standing still.
-  - [ ] T2.4 `failSequenceOnGag`, `PapaSnored` in `runNoise`, the level-end close, `resumeAfterSequence`.
-  - [ ] T2.5 Snapshot v19; the sim tests of AC 25; the fuzz test.
-- [ ] **T3. Client** (AC 17-23)
-  - [ ] T3.1 Measure the HUD budget with a stub bar **first**; `timerHud.setCompact`, `sequenceBar.ts`, screenshot at 667 × 375.
-  - [ ] T3.2 `sequenceFeedback.ts`, `cameraFx` composition, `setSequenceMusic`.
-  - [ ] T3.3 `inputMapper` rules, `resumeHeld`, mirrors, the overlay row.
-- [ ] **T4. Tools and tests** (AC 24, 26, 27)
-  - [ ] T4.1 `--sequence`, the report; both comparison tables pasted.
-  - [ ] T4.2 Goldens (regenerate, diff, add the two scenarios).
-  - [ ] T4.3 `tests/e2e/sequence.spec.ts`; touched specs.
-- [ ] **T5. Docs and CI** (AC 28, 29)
+- [x] **T1. Content** (AC 1-5)
+  - [x] T1.1 `SequenceDefSchema`, the pattern, `stay_awake.json`, `content:schemas`.
+  - [x] T1.2 `sequences` in the level, `LevelContent`, `loadLevelContent`, test helpers and frozen def.
+  - [x] T1.3 `content:check` rules with their tests; `feel` keys; strings.
+  - [x] T1.4 Cues, `loops.sequenceMusic`, `sequenceBar`, six placeholder clips (commit only the new `.m4a`).
+- [x] **T2. Sim** (AC 6-16)
+  - [x] T2.1 `FlowState`, `isFlowLive`, **the classification of AC 6**; types, events, `StartSequence`, `SimLevel.sequences`, `createSim` invariants.
+  - [x] T2.2 `runSequence`, start and refusal, the `microSleeps` step, success; `SYSTEMS`.
+  - [x] T2.3 Suspensions: director, phone, Papa standing still.
+  - [x] T2.4 `failSequenceOnGag`, `PapaSnored` in `runNoise`, the level-end close, `resumeAfterSequence`.
+  - [x] T2.5 Snapshot v19; the sim tests of AC 25; the fuzz test.
+- [x] **T3. Client** (AC 17-23)
+  - [x] T3.1 Measure the HUD budget with a stub bar **first**; `timerHud.setCompact`, `sequenceBar.ts`, screenshot at 667 × 375.
+  - [x] T3.2 `sequenceFeedback.ts`, `cameraFx` composition, `setSequenceMusic`.
+  - [x] T3.3 `inputMapper` rules, `resumeHeld`, mirrors, the overlay row.
+- [x] **T4. Tools and tests** (AC 24, 26, 27)
+  - [x] T4.1 `--sequence`, the report; both comparison tables pasted.
+  - [x] T4.2 Goldens (regenerate, diff, add the two scenarios).
+  - [x] T4.3 `tests/e2e/sequence.spec.ts`; touched specs.
+- [x] **T5. Docs and CI** (AC 28, 29)
 
 ## Dev Notes
 
@@ -334,16 +338,58 @@ Paths follow the epic and the architecture (`src/sim/sequences/`, `content/seque
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), in the story's worktree `story/4-4-cadre-des-sequences-speciales-et-rester-eveille`.
+
 ### Debug Log References
+
+- `npm run ci:fast` green (typecheck, lint, content:check, 282 test files, 5493 tests).
+- `npx playwright test tests/e2e/sequence.spec.ts` green on chromium and webkit (13 tests each); the touched specs (`carry`, `fatigue`, `toilet`, `debugOverlay`, `testApi`, `feedback`, `autoplay`, `adaptiveMusic`, `phone`, `silence`) green on chromium, `timer` and `ui` on both. No screenshot reference moved.
+- The full `npm run ci` is green (exit 0). Its first run failed on three `botContract` tests (a 5 s timeout under coverage, machine load); `test:coverage` and the full CI were rerun once with `VITEST_MAX_WORKERS=5` and passed.
 
 ### Completion Notes List
 
+- **Content (T1).** `SequenceDefSchema` (`sequence.ts`, `sequenceDurationMs`), `content/sequences/stay_awake.json`, the level's `sequences`, `LevelContent.sequences`, `loadLevelContent` (a missing file names `sequences[0]`), the frozen `tests/support/testStayAwake.sequence.json` (3 x 5 s) and `createTestLevel({ sequences, sequenceDefs })`. `content:check` has the five rules of AC 3 (the same refusals in `simLevelOf`, same wording); `feel.noise.sources.snore` (15) and `feel.sequences.resumeGapMs` (2000); six placeholder clips (`SEED + 15` to `+ 20`; only the new `.m4a` are committed, the other 32 were restored from git).
+- **Sim (T2).** `FlowState` gains `sequence` and `isFlowLive`; **every reader of `flow.state` was classified** (the AC 6 table, then re-grepped: nothing left unclassified). New files `src/sim/sequences/{sequenceSystem,sequenceStart,sequenceSteps,sequenceEnd}.ts`; `SYSTEMS` is « commands, time, sequence, director... » (pinned in `step.test.ts`). The `microSleeps` step reuses the level's micro-sleep instance (D1) on its own cadence; failure is `failSequenceOnGag` (called last by `gagThreat`); `resumeAfterSequence` pushes the three clocks with no draw. Snapshot **v19** (`sequenceProblem`, cross-checked with the flow state).
+- **Client (T3).** `sequenceBar.ts`, `timerHud.setCompact`, `sequenceFeedback.ts`, the `cameraFx` composition (`sequenceFramingBlendAt`, `SequenceFraming`), `audio.setSequenceMusic`, the input rules (no floor, object or baby tap, no marker, no move; Space with no threat sends nothing; `resumeHeld` on `SequenceEnded`), the mirrors `data-pp-flow` / `-sequence` / `-sequence-outcome` / `-sequence-music`, and the overlay's sequence row (`launchableSequences`, `sequenceRefusalText`).
+- **HUD node budget: the bar was 4 nodes and went over (42 > 40), so I stopped and asked Geo.** Geo chose « Barre a 2 noeuds »: the label is the container's `::before` (`data-label`; the container carries `role="progressbar"` and the `aria-label`) and the fill is the track's background driven by `--pp-sequence-value`. `HUD_MAX_DOM_NODES` is unchanged; the e2e pins the count with the bar up (at most 40). `.pp-hud-zone[data-pp-zone="timer"]` now stretches to the row's height so that the bar (`top: calc(100% + 2px)`) never meets the gauges pill, in WebKit too. The 667 x 375 screenshot was looked at.
+- **Headless play (T4).** `npm run sim -- --sequence <id> --sequence-at-ms <n>` wraps the bot (`withSequenceStart`), journaled, so `sim:replay` agrees; `simReport` has `sequencesStarted`, `sequencesSucceeded`, `sequencesFailed` (per run and aggregate) and `snore` in the noise sources.
+- **Goldens: regenerated deliberately.** Every existing journal moved **only** in its hashes (`levelHash`: `LevelContent` gains `sequences`; `feelHash`: `feel` gains `sequences` and `snore`; `worldHash`: `World` gains `sequence`); I diffed all 24 files and `biome format`ted the JSON: nothing else changed. Two new scenarios, `stay_awake_held` (won: parried at 3860 and 6360, end at 8010, put-down at 8510, the outlet back at 10010) and `stay_awake_dozed` (late gag at 4080, snore, wake, +15 %, end, Papa wakes 3 s later), pinned by `tests/golden/stayAwake.test.ts` on a short def (2 x 4 s).
+- **`main` against the branch (no sequence), `salon_crawler`, seed 1, 20 runs, the four bots: the whole report is identical but for the hashes and the new keys.**
+
+| bot | stars | end reasons | success | score | gags |
+|---|---|---|---|---|---|
+| perfect (main) | 5 | timer 20 / mamaWoke 0 | 100 % | 90 | 0 |
+| perfect (branch) | 5 | timer 20 / mamaWoke 0 | 100 % | 90 | 0 |
+| human (main) | 4 | timer 20 / mamaWoke 0 | 99.9 % | 82.1 | 1 |
+| human (branch) | 4 | timer 20 / mamaWoke 0 | 99.9 % | 82.1 | 1 |
+| random (main) | 1 | timer 20 / mamaWoke 0 | 2.2 % | 20.3 | 759 |
+| random (branch) | 1 | timer 20 / mamaWoke 0 | 2.2 % | 20.3 | 759 |
+| idle (main) | 1 | timer 20 / mamaWoke 0 | 0 % | 20 | 762 |
+| idle (branch) | 1 | timer 20 / mamaWoke 0 | 0 % | 20 | 762 |
+
+- **With `--sequence stay_awake --sequence-at-ms 5000` (same level, seed 1, 20 runs):** `perfect` wins 20 of 20 and `idle` loses 20 of 20 (Mama wakes in all 20); `human` wins 20 of 20 (2 gags, 99.7 %); `random` loses 20 of 20 (Mama wakes in 16).
+
+| bot | started | succeeded | failed | success | gags | snore noise | end reasons | stars |
+|---|---|---|---|---|---|---|---|---|
+| perfect | 20 | 20 | 0 | 100 % | 0 | 0 | timer 20 / mamaWoke 0 | 4 |
+| human | 20 | 20 | 0 | 99.7 % | 2 | 0 | timer 20 / mamaWoke 0 | 3.2 |
+| random | 20 | 0 | 20 | 1.1 % | 528 | 300 | timer 4 / mamaWoke 16 | 0.9 |
+| idle | 20 | 0 | 20 | 0 % | 444 | 300 | timer 0 / mamaWoke 20 | 1 |
+
+  `tests/tools/sim/sequence.test.ts` pins `perfect` (wins) and `idle` (loses, with the snore) over the seeds 1 to 5. The stars of `perfect` fall from 5 to 4 with a sequence because the bots never put the baby down (the cycle bot is 4.10): the director stays silent for the rest of the level. Noted in `deferred-work.md`.
+- **Tests.** New: `sequenceSystem.test.ts` (41), `sequenceSnapshot.test.ts` (20), `sequenceLevel.test.ts`, `sequenceBar.test.ts`, `sequenceFeedback.test.ts`, `tests/content/{sequenceSchema,checkSequences}.test.ts`, `tests/tools/sim/sequence.test.ts`, `tests/golden/stayAwake.test.ts`, `tests/e2e/sequence.spec.ts` (13 tests, both browsers); additions to the flow, events, noise, commands, step, snapshot, audio engine, camera, timer, input mapper, feedback routing, cheats, autoplay, feel controls, level schema, loader and CLI tests; `carryFuzz` plays random `StartSequence`s (200 seeds) and checks `sequence.id` against the flow after every step.
+- **Deviations from the story text, all small.** (1) The story says `__PP__.fx().zoom`: the existing key is `cameraZoom`, which the e2e reads. (2) `isHeldInPlace(active)` is an internal helper of `createInputMapper`, not an export. (3) The sequence bar is two nodes, not four (Geo's choice, above). (4) The snore's noise delta is the difference of two floats, so the tests use `closeTo` (the existing `addNoise` behaviour). (5) No gamepad e2e was written: the mapper unit tests cover Space and A through the same `act`.
 - Ultimate context engine analysis completed - comprehensive developer guide created.
 
 ### File List
+
+**New:** `content/sequences/stay_awake.json`, `content/_schemas/sequence.schema.json`, `public/assets/audio/{music_stay_awake,papa_snore,baby_woke,env_sequence_started,env_sequence_succeeded,env_sequence_failed}.m4a`, `src/content/schemas/sequence.ts`, `src/sim/sequences/{sequenceSystem,sequenceStart,sequenceSteps,sequenceEnd}.ts` and `{sequenceSystem,sequenceSnapshot,sequenceLevel}.test.ts`, `src/client/ui/hud/sequenceBar.ts` (+ test), `src/client/feedback/sequenceFeedback.ts` (+ test), `tests/support/testStayAwake.sequence.json`, `tests/content/{sequenceSchema,checkSequences}.test.ts`, `tests/tools/sim/sequence.test.ts`, `tests/golden/stayAwake.test.ts`, `tests/golden/journals/stay_awake_{held,dozed}{,.expected}.json`, `tests/e2e/sequence.spec.ts`.
+
+**Modified:** `content/{feedback,feel,strings.fr}.json`, `content/levels/salon_crawler.json`, `content/_schemas/{feedback,feel,level}.schema.json`; `src/content/{contentBundle,contentFiles,feedbackClips,loadLevelContent}.ts` (+ `feedbackClips.test.ts`) and `schemas/{feedback,feel,level}.ts`; `src/sim/{commands,context,createSim,events,index,snapshot,step,world}.ts` and their tests, `flow/{flowFsm,flowSystem}.ts`, `director/directorSystem.ts`, `disruptions/disruptionsSystem.ts`, `gauges/{noiseSystem,fatigueSystem}.ts`, `papa/papaSystem.ts`, `baby/carry.ts`, `baby/carryFuzz.test.ts`, `threats/{threatFsm,gags,judgeable}.ts` and `threats/inputLag.test.ts`; `src/bots/playGame.ts`; `src/client/boot.ts`, `src/client/app/threatsSwitch.ts`, `audio/audioEngine.ts`, `input/inputMapper.ts`, `render/cameraFx.ts`, `feedback/simEventFeedback.ts`, `ui/hud/{timerHud,hudLayer}.ts`, `ui/styles/ui.css` (+ tests); `src/debug/{autoplay,cheats,debugOverlay,stateInspector}.ts` (+ tests); `tools/audio/makePlaceholderAudio.ts`, `tools/content/contentChecks.ts`, `tools/sim/{runSim,simArgs,simReport}.ts`; `tests/support/{testContent.ts,testFeel.json,simSupport.ts}`, `tests/tools/vite/fixtures/feelSample.json`, `tests/threats/threatCatalog.test.ts`, `tests/content/{levelSchema,loadLevelContent}.test.ts`, `tests/tools/sim/{simArgs,simReport}.test.ts`, `tests/golden/scenarios.ts` and the 12 existing golden journals (hashes only); `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/{deferred-work.md,sprint-status.yaml}`.
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-10-30 | Story created (`gds-create-story`), status `ready-for-dev`. |
+| 2026-10-30 | Implemented (`gds-dev-story`): content, sim, client, tools, goldens, e2e and docs. The sequence bar is two DOM nodes (Geo's choice for the HUD budget). |

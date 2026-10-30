@@ -342,6 +342,10 @@ body {
 }
 
 .pp-hud-zone[data-pp-zone="timer"] {
+  position: relative;
+  /* As tall as the row (not as its pill), so that the sequence bar's `top: 100%` is under the whole
+     row, whatever the timer's height: it never meets the gauges pill (story 4.4). */
+  align-self: stretch;
   justify-content: center;
 }
 
@@ -515,6 +519,16 @@ body {
   height: 28px;
 }
 
+/* While a sequence bar sits under it (story 4.4, UX-DR23): 32 px tall, the compact digits. */
+.pp-hud-timer--compact {
+  height: 32px;
+}
+
+.pp-hud-timer--compact svg {
+  width: 22px;
+  height: 22px;
+}
+
 .pp-hud-timer-digits {
   color: var(--pp-color-ink);
 }
@@ -534,6 +548,79 @@ body {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* The sequence bar (story 4.4, UX-DR23): directly under the timer, out of the grid (the gauges and
+   the pause button never move). A paper container with an ink outline, a label and a segmented
+   track; the fill is gauge-warn for an opponent's health, gauge-calm for a player resource. It
+   slides in and out (`translate` and opacity; under reduced motion it just appears). `--out` is the
+   slid-out state. The track's segments are those of `.pp-hud-gauge-bar::after`. */
+.pp-hud-sequence-bar {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pp-spacing-2);
+  width: max-content;
+  padding: 0 var(--pp-spacing-2);
+  height: 28px;
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+  box-shadow: var(--pp-lift);
+  color: var(--pp-color-ink);
+  translate: -50% 0;
+  /* The slide's length: `feedback.json › sequenceBar.slideMs`, set on the element by the client. */
+  --pp-sequence-slide-ms: 250ms;
+  --pp-sequence-value: 1;
+  --pp-sequence-fill: var(--pp-color-gauge-warn);
+  transition:
+    transform var(--pp-sequence-slide-ms) ease-out,
+    opacity var(--pp-sequence-slide-ms) ease-out;
+}
+
+.pp-hud-sequence-bar--out {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.pp-hud-sequence-track {
+  position: relative;
+  box-sizing: border-box;
+  width: 80px;
+  height: 14px;
+  overflow: hidden;
+  border: 2px solid var(--pp-color-ink);
+  border-radius: 3px;
+  /* The fill is the track's own background: `--pp-sequence-value` (0 to 1) is written by the bar. */
+  background: linear-gradient(
+    90deg,
+    var(--pp-sequence-fill) calc(var(--pp-sequence-value) * 100%),
+    var(--pp-color-gauge-track) 0
+  );
+}
+
+.pp-hud-sequence-bar--calm {
+  --pp-sequence-fill: var(--pp-color-gauge-calm);
+}
+
+.pp-hud-sequence-track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 6px, var(--pp-color-ink) 6px 8px);
+}
+
+.pp-hud-sequence-bar::before {
+  content: attr(data-label);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-hud-sequence-bar {
+    transition: none;
+  }
 }
 
 .pp-hud-zone[data-pp-zone="pause"] {

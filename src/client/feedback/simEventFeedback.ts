@@ -2,18 +2,20 @@ import type { LevelContent } from '@content/contentBundle';
 import type { SimEvent, World } from '@sim';
 import { disruptionCueOf } from './disruptionFeedback.ts';
 import type { FeedbackDirector } from './feedbackDirector.ts';
+import { sequenceCueOf } from './sequenceFeedback.ts';
 import { threatCueOf } from './threatFeedback.ts';
 
 /** What the routing reads of the level being played: its world and the defs that name the cues. */
 export interface FeedbackSource {
   readonly sim: { readonly world: Readonly<World> };
-  readonly level: Pick<LevelContent, 'threats' | 'level' | 'disruptions'>;
+  readonly level: Pick<LevelContent, 'threats' | 'level' | 'disruptions' | 'sequences'>;
 }
 
 /**
  * Turns one sim event into its sounds, vibrations and rings, in the very call that receives it:
  * the generic `events` table first, then the cue the threat's def names, then the one the
- * disruption's def names (D3 of story 1.11, D10 of story 1.20). Nothing is deferred to a frame or
+ * disruption's def names (D3 of story 1.11, D10 of story 1.20), then the one the special
+ * sequence's def names (story 4.4). Nothing is deferred to a frame or
  * to Papa's arrival: the response sound and haptic fire at judgement (architecture P3), which is
  * why this routing is a pure function the tests can call and measure (story 2.3 D5).
  *
@@ -37,4 +39,7 @@ export function playSimEventFeedback(
   if (disruptionCue !== null && 'objectId' in event) {
     director.playCue(disruptionCue, active.sim.world, null, event.objectId);
   }
+  // A special sequence's cues come from its def too (story 4.4), anchored on Papa (`content:check`).
+  const sequenceCue = sequenceCueOf(event, active.level.sequences);
+  if (sequenceCue !== null) director.playCue(sequenceCue, active.sim.world, null);
 }

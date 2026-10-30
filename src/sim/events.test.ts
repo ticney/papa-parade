@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   LEVEL_END_REASONS,
   LEVEL_END_REASONS_ARE_COMPLETE,
+  SEQUENCE_OUTCOMES,
+  SEQUENCE_OUTCOMES_ARE_COMPLETE,
   SIM_EVENT_TYPES,
   SIM_EVENT_TYPES_ARE_COMPLETE,
+  THREAT_CANCEL_REASONS,
 } from './events.ts';
 
 // Completeness is the compiler's (see the last test); what is checked at runtime is the rest: the
@@ -75,5 +78,26 @@ describe('LEVEL_END_REASONS (story 3.2)', () => {
   // Like `SIM_EVENT_TYPES_ARE_COMPLETE`, the proof is that this file typechecks.
   it('is proved complete at compile time, by typecheck', () => {
     expect(LEVEL_END_REASONS_ARE_COMPLETE).toBe(true);
+  });
+});
+
+describe('the special-sequence events (story 4.4)', () => {
+  it('lists the five events in their alphabetical places', () => {
+    const names: readonly string[] = SIM_EVENT_TYPES;
+    expect(names).toContain('BabyWoke');
+    expect(names).toContain('PapaSnored');
+    expect(names.indexOf('BabyWoke')).toBe(names.indexOf('BabyStateChanged') + 1);
+    expect(names.indexOf('PapaSnored')).toBe(names.indexOf('PapaPathPlanned') + 1);
+    expect(names.slice(names.indexOf('SequenceEnded'), names.indexOf('SilenceEnded'))).toEqual([
+      'SequenceEnded',
+      'SequenceStarted',
+      'SequenceStepStarted',
+    ]);
+  });
+
+  it('lists the three outcomes, proved complete at compile time, and the sequence cancel reason', () => {
+    expect([...SEQUENCE_OUTCOMES]).toEqual(['succeeded', 'failed', 'levelEnded']);
+    expect(SEQUENCE_OUTCOMES_ARE_COMPLETE).toBe(true);
+    expect([...THREAT_CANCEL_REASONS]).toContain('sequence');
   });
 });

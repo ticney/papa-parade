@@ -83,7 +83,8 @@
       "babyCrying": { "perSec": 2 },
       "floorCreak": { "noisePct": 3 },
       "breathReleased": { "noisePct": 5 },
-      "sniff": { "noisePct": 3 }
+      "sniff": { "noisePct": 3 },
+      "snore": { "noisePct": 15 }
     }
   },
   "bladder": {
@@ -94,6 +95,7 @@
     "urgentFromPct": 70,
     "toiletDurationMs": 5000
   },
+  "sequences": { "resumeGapMs": 2000 },
   "instinct": {
     "timeScale": 0.8,
     "windowBonusPct": 30,

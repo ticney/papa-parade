@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createHudLayer } from './hudLayer.ts';
+import type { SequenceBar } from './sequenceBar.ts';
 
 class FakeElement {
   className = '';
@@ -33,6 +34,7 @@ describe('createHudLayer', () => {
       onPausePress: () => {},
       gauges: gauges as unknown as HTMLElement,
       timer: timer as unknown as HTMLElement,
+      sequenceBar: { attachTo: () => {} } as unknown as SequenceBar,
     });
     const row = root.children[0] as FakeElement;
     const zones = Object.fromEntries(row.children.map((zone) => [zone.dataset.ppZone, zone]));

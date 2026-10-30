@@ -9,6 +9,9 @@ import {
 } from '@shared/constants';
 import { err, ok, type Result } from '@shared/result';
 
+/** When `--sequence` starts the sequence if `--sequence-at-ms` says nothing, in sim ms. */
+export const DEFAULT_SEQUENCE_AT_MS = 1000;
+
 export interface SimArgs {
   levelId: string;
   botId: BotId;
@@ -21,6 +24,10 @@ export interface SimArgs {
   outPath: string | null;
   /** Where the recorded games go; `null` = nowhere. */
   journalsDir: string | null;
+  /** The special sequence to start in every game (story 4.4); `null` = none. */
+  sequenceId: string | null;
+  /** When the sequence is started, in sim ms, rounded up to the step grid (default 1000). */
+  sequenceAtMs: number;
   help: boolean;
 }
 
@@ -33,6 +40,8 @@ export const SIM_HELP = `Usage: npm run sim -- --bot <id> [options]
   --until-ms <n>     cap the sim time of a game, in ms, rounded up to ${STEP_MS}, at most ${SIM_CLI_MAX_UNTIL_MS} (default: no cap, a game lasts the level's duration)
   --out <file>       write the JSON report there (default: stdout)
   --journals <dir>   write one recorded game per run there, for \`npm run sim:replay\`
+  --sequence <id>    start this special sequence of the level in every game (story 4.4), by \`StartSequence\`
+  --sequence-at-ms <n>  when to start it, in sim ms, rounded up to ${STEP_MS} (default ${DEFAULT_SEQUENCE_AT_MS}); needs --sequence
   --help             print this
 
 The report also holds the noise gauge of the level (story 3.1): the mean and max of each game's peak,
@@ -49,6 +58,9 @@ game reached (the highest of any game in the aggregate; 0 in a level with no \`c
 The pressing need (story 4.3) is counted per game and over the runs: \`toiletVisits\` (the finished
 visits; 0 for a bot, which never goes) and \`bladderPeakPct\`, the highest the need reached, in % to
 one decimal (the highest of any game in the aggregate; 0 in a level with no \`gauges.need\`).
+The special sequences (story 4.4) are counted per game and over the runs: \`sequencesStarted\`,
+\`sequencesSucceeded\` and \`sequencesFailed\`. Nothing starts one in a normal game: \`--sequence\` does.
+\`snore\` is a source of the noise per source.
 `;
 
 const DIGITS = /^\d+$/;
@@ -82,6 +94,8 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
         'until-ms': { type: 'string' },
         out: { type: 'string' },
         journals: { type: 'string' },
+        sequence: { type: 'string' },
+        'sequence-at-ms': { type: 'string' },
         help: { type: 'boolean' },
       },
     }).values;
@@ -131,6 +145,21 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
   const journalsDir = text('journals');
   if (journalsDir === '') return err('--journals needs a folder path, got an empty string');
 
+  const sequenceText = text('sequence');
+  if (sequenceText === '') return err('--sequence needs a sequence id, got an empty string');
+  const sequenceAt = integerOption(
+    'sequence-at-ms',
+    text('sequence-at-ms'),
+    DEFAULT_SEQUENCE_AT_MS,
+  );
+  if (!sequenceAt.ok) return sequenceAt;
+  if (sequenceAt.value > SIM_CLI_MAX_UNTIL_MS) {
+    return err(`--sequence-at-ms must be at most ${SIM_CLI_MAX_UNTIL_MS}, got ${sequenceAt.value}`);
+  }
+  if (sequenceText === undefined && text('sequence-at-ms') !== undefined) {
+    return err('--sequence-at-ms needs --sequence');
+  }
+
   return ok({
     levelId: text('level') ?? DEFAULT_LEVEL_ID,
     botId: (botText ?? 'idle') as BotId,
@@ -139,6 +168,8 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
     untilSimMs,
     outPath: outPath ?? null,
     journalsDir: journalsDir ?? null,
+    sequenceId: sequenceText ?? null,
+    sequenceAtMs: Math.ceil(sequenceAt.value / STEP_MS) * STEP_MS,
     help,
   });
 }

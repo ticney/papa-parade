@@ -1,6 +1,7 @@
 import type { DisruptionDef } from '@content/schemas/disruption';
 import type { Feel } from '@content/schemas/feel';
 import type { ObjectKind } from '@content/schemas/level';
+import type { SequenceDef } from '@content/schemas/sequence';
 import type { ThreatDef } from '@content/schemas/threat';
 import type { InvariantContext } from '@shared/invariant';
 import type { CommandQueue } from './commandQueue.ts';
@@ -30,6 +31,11 @@ export interface SimLevel {
    * `world.disruptions`. Empty: the level plans none.
    */
   readonly disruptions: readonly SimPlannedDisruption[];
+  /**
+   * The special sequences the level can run (story 4.4), in the level's order. Empty: it has none.
+   * Nothing schedules them: `StartSequence` does.
+   */
+  readonly sequences: readonly SimSequence[];
   /** The waves, in order. Empty: the level plans nothing. */
   readonly waves: readonly SimWave[];
   /** How long the level lasts, in sim ms: the flow ends it then. */
@@ -96,6 +102,12 @@ export interface SimPlannedDisruption {
   /** It starts at the first step at or after this sim time, in sim ms. */
   readonly atMs: number;
   readonly waveIndex: number;
+}
+
+/** One special sequence a level can run (story 4.4): its id and its def. */
+export interface SimSequence {
+  readonly id: string;
+  readonly def: SequenceDef;
 }
 
 /**

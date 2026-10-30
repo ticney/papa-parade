@@ -91,6 +91,15 @@ describe('describeFeelControls', () => {
     expect(root.children.map((child) => child.label)).toContain('bladder');
   });
 
+  it('shows the sequences section of the feel (story 4.4) and the snore row of the noise', () => {
+    const sequenceKeys = Object.keys(feel.sequences);
+    expect(sequenceKeys).toEqual(['resumeGapMs']);
+    const paths = leaves.map((leaf) => leaf.pathKey);
+    for (const key of sequenceKeys) expect(paths).toContain(`sequences.${key}`);
+    expect(paths).toContain('noise.sources.snore.noisePct');
+    expect(root.children.map((child) => child.label)).toContain('sequences');
+  });
+
   it('makes one folder per top-level section of the feel, in the schema’s order', () => {
     const titles = root.children.map((child) => child.label);
     expect(titles).toEqual(Object.keys(feel).filter((key) => key !== '$schema'));

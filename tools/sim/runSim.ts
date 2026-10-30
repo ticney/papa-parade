@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { BotSetup } from '@bots/bot';
+import type { Bot, BotSetup } from '@bots/bot';
 import { botResponsesOf } from '@bots/botResponses';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
@@ -9,6 +9,7 @@ import { UINT32_RANGE } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
+import { asSimMs } from '@shared/time';
 import { createSim, type Sim } from '@sim';
 import { outProblem, writeText } from '../outputFile.ts';
 import { loadSimLevel, type SimLevel } from './loadSimLevel.ts';
@@ -24,6 +25,25 @@ import {
 
 const CONTENT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'content');
 const PROGRESS_STEPS = 10;
+
+/**
+ * Wraps `bot` so that the same `StartSequence` is enqueued, once, at the first step at or after
+ * `atMs` (story 4.4): journaled like any command, so `sim:replay` agrees. Sent first, so that a
+ * command of the bot in the same step meets the sequence already running.
+ */
+export function withSequenceStart(bot: Bot, sequenceId: string, atMs: number): Bot {
+  let isSent = false;
+  return {
+    id: bot.id,
+    act(world, out) {
+      if (!isSent && world.time.sim >= atMs) {
+        isSent = true;
+        out.push({ type: 'StartSequence', t: asSimMs(world.time.sim), sequenceId });
+      }
+      bot.act(world, out);
+    },
+  };
+}
 
 export interface RunSimHooks {
   /** Called after each run with its recorded game (a copy of the journal: only asked for when `journalsDir` is set). */
@@ -68,7 +88,11 @@ export async function runSim(
         level.level.waves,
         level.level.carry?.armsCryDef ?? null,
       );
-      playGame(sim, bot.value, untilSimMs, recorder.onEvent);
+      const player =
+        args.sequenceId === null
+          ? bot.value
+          : withSequenceStart(bot.value, args.sequenceId, args.sequenceAtMs);
+      playGame(sim, player, untilSimMs, recorder.onEvent);
       const summary = recorder.finish();
       summaries.push(summary);
       game = toRunFile({

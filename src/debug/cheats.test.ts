@@ -9,6 +9,7 @@ import { createSim, type Sim } from '@sim';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createFakeTestHost } from '../../tests/support/fakeTestHost.ts';
 import {
+  CARRY,
   createTestContent,
   createTestGeometry,
   createTestLevel,
@@ -22,12 +23,15 @@ import {
   clampTimeScale,
   createCheatContext,
   createSkipToEnd,
+  launchableSequences,
   launchableThreats,
   launchThreat,
   levelHasFatigue,
   parseCheatNumber,
   parseSeed,
   refusalReason,
+  sequenceRefusalText,
+  startSequence,
 } from './cheats.ts';
 
 beforeAll(() => {
@@ -422,5 +426,58 @@ describe('createSkipToEnd', () => {
     scheduler.run();
     expect(advanced).toEqual([]);
     expect(skip.isRunning).toBe(false);
+  });
+});
+
+describe('the sequence launcher (story 4.4)', () => {
+  async function sequenceRig() {
+    const level = createTestLevel({
+      gauges: FATIGUE_GAUGES,
+      carry: CARRY,
+      sequences: ['stay_awake'],
+    });
+    const sim: Sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level,
+      seed: 3,
+    });
+    const session = { active: { sim, level, geometry: createTestGeometry() }, isFrozen: false };
+    return { sim, level, host: createFakeTestHost({ levelSession: session as never }) };
+  }
+
+  it('lists the ids of the level’s sequences, none for a level with none', async () => {
+    const { level } = await sequenceRig();
+    expect(launchableSequences(level)).toEqual(['stay_awake']);
+    expect(launchableSequences(createTestLevel())).toEqual([]);
+  });
+
+  it('sends a journaled StartSequence, and the sim starts it', async () => {
+    const { host, sim } = await sequenceRig();
+    expect(startSequence(createCheatContext(host), 'stay_awake')).toBe(true);
+    expect(sim.journal().entries.at(-1)?.command).toEqual({
+      type: 'StartSequence',
+      t: sim.world.time.sim,
+      sequenceId: 'stay_awake',
+    });
+    sim.step();
+    expect(sim.world.flow.state).toBe('sequence');
+  });
+
+  it('says in plain English why a start is refused, and nothing when it is not', async () => {
+    const { sim } = await sequenceRig();
+    expect(sequenceRefusalText(sim.world)).toBeNull();
+    sim.enqueue({ type: 'StartSequence', t: sim.world.time.sim, sequenceId: 'stay_awake' });
+    sim.step();
+    expect(sequenceRefusalText(sim.world)).toBe('a sequence is already running');
+    while (sim.world.flow.state !== 'ended') sim.step();
+    expect(sequenceRefusalText(sim.world)).toBe('the level has ended');
+  });
+
+  it('is refused by the overlay when the level has ended or no level runs', async () => {
+    const { host, sim } = await sequenceRig();
+    while (sim.world.flow.state !== 'ended') sim.step();
+    expect(refusalReason(host)).toBe('the level has ended');
+    expect(startSequence(createCheatContext(host), 'stay_awake')).toBe(false);
   });
 });

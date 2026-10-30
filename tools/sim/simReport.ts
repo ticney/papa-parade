@@ -94,6 +94,12 @@ export interface RunSummary {
   comboPeakMultiplier: number;
   /** The toilet visits finished (`ToiletFinished`, story 4.3). The bots never go, so 0 for a bot. */
   toiletVisits: number;
+  /** The special sequences started (`SequenceStarted`, story 4.4): 0 unless `--sequence` starts one. */
+  sequencesStarted: number;
+  /** The sequences won (`SequenceEnded{succeeded}`). */
+  sequencesSucceeded: number;
+  /** The sequences lost (`SequenceEnded{failed}`). */
+  sequencesFailed: number;
   /**
    * The highest the need reached in the run, in % to one decimal: the gauge rises silently, so it is
    * read from the world when a visit starts (it is frozen from then on), when it fills, and at the
@@ -189,6 +195,9 @@ export function createRunRecorder(
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
   let toiletVisits = 0;
+  let sequencesStarted = 0;
+  let sequencesSucceeded = 0;
+  let sequencesFailed = 0;
   let bladderPeakPct = 0;
   let noisePeakPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
@@ -248,6 +257,11 @@ export function createRunRecorder(
         if (event.safe) safePutDowns++;
       } else if (event.type === 'ToiletFinished') {
         toiletVisits++;
+      } else if (event.type === 'SequenceStarted') {
+        sequencesStarted++;
+      } else if (event.type === 'SequenceEnded') {
+        if (event.outcome === 'succeeded') sequencesSucceeded++;
+        else if (event.outcome === 'failed') sequencesFailed++;
       } else if (event.type === 'ToiletStarted' || event.type === 'BladderFilled') {
         // The need is frozen from a visit's start, and full from this event on: its peak so far.
         bladderPeakPct = Math.max(bladderPeakPct, sim.world.gauges.bladderPct);
@@ -332,6 +346,9 @@ export function createRunRecorder(
         comboPointsCashed,
         comboPeakMultiplier,
         toiletVisits,
+        sequencesStarted,
+        sequencesSucceeded,
+        sequencesFailed,
         bladderPeakPct: round(Math.max(bladderPeakPct, sim.world.gauges.bladderPct), 1),
         noisePeakPct,
         noiseFinalPct: round(sim.world.gauges.noisePct, 1),
@@ -445,6 +462,10 @@ export interface SimReport {
   comboPeakMultiplier: number;
   /** The toilet visits finished, over the runs (story 4.3). */
   toiletVisits: number;
+  /** The special sequences started, won and lost, over the runs (story 4.4). */
+  sequencesStarted: number;
+  sequencesSucceeded: number;
+  sequencesFailed: number;
   /** The highest need any run reached, in % to one decimal (0 in a level with no need gauge). */
   bladderPeakPct: number;
   /** Mean of the runs' highest noise, in % to one decimal: does 3.2 end games (story 3.1 open point 2)? */
@@ -467,6 +488,10 @@ export interface SimReport {
     /** Null for a run cut before the end (story 3.2). */
     endReason: LevelEndReason | null;
     lostStars: number | null;
+    /** The special sequences started, won and lost in this run (story 4.4). */
+    sequencesStarted: number;
+    sequencesSucceeded: number;
+    sequencesFailed: number;
   }[];
 }
 
@@ -522,6 +547,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
   let toiletVisits = 0;
+  let sequencesStarted = 0;
+  let sequencesSucceeded = 0;
+  let sequencesFailed = 0;
   let bladderPeakPct = 0;
   let noisePeakSumPct = 0;
   let noisePeakMaxPct = 0;
@@ -579,6 +607,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     comboPointsCashed += run.comboPointsCashed;
     comboPeakMultiplier = Math.max(comboPeakMultiplier, run.comboPeakMultiplier);
     toiletVisits += run.toiletVisits;
+    sequencesStarted += run.sequencesStarted;
+    sequencesSucceeded += run.sequencesSucceeded;
+    sequencesFailed += run.sequencesFailed;
     bladderPeakPct = Math.max(bladderPeakPct, run.bladderPeakPct);
     noisePeakSumPct += run.noisePeakPct;
     noisePeakMaxPct = Math.max(noisePeakMaxPct, run.noisePeakPct);
@@ -663,6 +694,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     comboPointsCashed,
     comboPeakMultiplier,
     toiletVisits,
+    sequencesStarted,
+    sequencesSucceeded,
+    sequencesFailed,
     bladderPeakPct: round(bladderPeakPct, 1),
     noisePeakMeanPct: runs.length === 0 ? 0 : round(noisePeakSumPct / runs.length, 1),
     noisePeakMaxPct: round(noisePeakMaxPct, 1),
@@ -680,6 +714,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       stars: run.stars,
       endReason: run.endReason,
       lostStars: run.lostStars,
+      sequencesStarted: run.sequencesStarted,
+      sequencesSucceeded: run.sequencesSucceeded,
+      sequencesFailed: run.sequencesFailed,
     })),
   };
 }

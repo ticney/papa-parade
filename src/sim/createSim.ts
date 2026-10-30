@@ -30,6 +30,7 @@ import {
 import { createNavGrid, type NavGrid } from './nav/navGrid.ts';
 import { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 import { createRapierPhysics } from './physics/rapierPhysics.ts';
+import { SEQUENCE_HANDLER_KINDS } from './sequences/sequenceSteps.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
 import { GAG_IDS, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
@@ -330,6 +331,32 @@ function simLevelOf(
     );
     disruptions.push({ def, objectId: entry.object, atMs: entry.atMs, waveIndex: entry.waveIndex });
   }
+  const sequences: SimLevel['sequences'][number][] = [];
+  level.level.sequences.forEach((id, i) => {
+    // The wording of these is the one `content:check` uses.
+    const where = `level ${level.level.id} › sequences[${i}]`;
+    const def = Object.hasOwn(level.sequences, id) ? level.sequences[id] : undefined;
+    invariant(def !== undefined, `${where}: the sequence ${id} is not loaded`);
+    invariant(
+      sequences.every((other) => other.id !== id),
+      `${where}: the sequence "${id}" is already listed`,
+    );
+    invariant(
+      !def.babyCarried || level.level.carry !== undefined,
+      `${where}: the sequence "${id}" carries the baby, but the level has no carry (nothing could take him)`,
+    );
+    for (const step of def.steps) {
+      invariant(
+        (SEQUENCE_HANDLER_KINDS as readonly string[]).includes(step.kind),
+        `${where}: the sequence "${id}" has a step of the kind "${step.kind}", which the sim does not know (${SEQUENCE_HANDLER_KINDS.join(', ')})`,
+      );
+      invariant(
+        step.kind !== 'microSleeps' || microSleepIndex >= 0,
+        `${where}: the sequence "${id}" has a microSleeps step, but the level has no gauges.fatigue.microSleepDef (no micro-sleep to start)`,
+      );
+    }
+    sequences.push({ id, def });
+  });
   return {
     microSleepIndex,
     armsCryIndex: armsCryDef === undefined ? -1 : threats.length - 1,
@@ -351,6 +378,7 @@ function simLevelOf(
     }),
     threats,
     disruptions,
+    sequences,
     objects: level.level.objects.map((object, index) => {
       const where = `level ${level.level.id} › objects[${index}]`;
       invariant(

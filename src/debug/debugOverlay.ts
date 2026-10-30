@@ -13,12 +13,15 @@ import {
   clampTimeScale,
   createCheatContext,
   createSkipToEnd,
+  launchableSequences,
   launchableThreats,
   launchThreat,
   levelHasFatigue,
   parseCheatNumber,
   parseSeed,
   refusalReason,
+  sequenceRefusalText,
+  startSequence,
 } from './cheats.ts';
 import './debugOverlay.css';
 import { createFeelPanel, type FeelPanel } from './feelPanel.ts';
@@ -248,6 +251,29 @@ export function createDebugOverlay(
       else say('Launch: pick a threat first');
     });
 
+    // The special sequences of the level (story 4.4): a list and a « Start ». Hidden with none.
+    const sequenceRow = row();
+    const sequenceSelect = el(doc, 'select', 'pp-debug-select');
+    sequenceSelect.dataset.debug = 'sequenceSelect';
+    sequenceRow.append(sequenceSelect);
+    button(sequenceRow, 'Start', 'startSequence', () => {
+      const reason = refusalReason(host);
+      if (reason !== null) {
+        say(`Start sequence: ${reason}`);
+        return;
+      }
+      const world = host.levelSession.active?.sim.world;
+      const why = world === undefined ? null : sequenceRefusalText(world);
+      if (why !== null) {
+        say(`Start sequence: ${why}`);
+        return;
+      }
+      const id = sequenceSelect.value;
+      if (id !== '' && startSequence(context, id)) say(`Start sequence: ${id} sent`);
+      else say('Start sequence: pick a sequence first');
+    });
+    sequenceRow.hidden = true;
+
     const cheatRows = CHEATS.map((cheat) => {
       const cheatRow = row();
       cheatRow.dataset.cheat = cheat.id;
@@ -382,6 +408,7 @@ export function createDebugOverlay(
         cheatRow.hidden = active === null || !cheat.isAvailable(active.sim.world, hasFatigue);
       }
       if (active !== null) syncThreatOptions(launchableThreats(active.sim.world));
+      syncSequenceOptions(active === null ? [] : launchableSequences(active.level));
       if (doc.activeElement !== seedInput) {
         seedInput.value = String(host.levelSession.current.seed ?? '');
       }
@@ -415,6 +442,23 @@ export function createDebugOverlay(
           option.textContent = threat.label;
         }
       }
+    }
+
+    /** The sequence list: the level's sequences, fixed for the level; a change of the set replaces the options. */
+    function syncSequenceOptions(ids: string[]): void {
+      sequenceRow.hidden = ids.length === 0;
+      const current = [...sequenceSelect.options].map((option) => option.value);
+      if (ids.length === current.length && ids.every((id, i) => id === current[i])) return;
+      const selected = sequenceSelect.value;
+      sequenceSelect.replaceChildren(
+        ...ids.map((id) => {
+          const option = el(doc, 'option', '');
+          option.value = id;
+          option.textContent = id;
+          return option;
+        }),
+      );
+      if (selected !== '' && ids.includes(selected)) sequenceSelect.value = selected;
     }
 
     let lastRefreshAtReal = Number.NEGATIVE_INFINITY;

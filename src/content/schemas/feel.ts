@@ -337,6 +337,9 @@ const NoiseSourcesSchema = z
     floorCreak: noisePctSource('A creaking floorboard (story 4.9): GDD +3 %.'),
     breathReleased: noisePctSource('Breath released too early (story 4.9): GDD +5 %.'),
     sniff: noisePctSource('Sniffing (story 5.3): GDD +3 %.'),
+    snore: noisePctSource(
+      'Papa snoring after a missed micro-sleep in a sequence (story 4.4): GDD +15 %.',
+    ),
   })
   .describe('What makes noise: one row per source of `NoiseChanged`.');
 
@@ -348,6 +351,7 @@ export const NOISE_SOURCE_IDS = [
   'floorCreak',
   'breathReleased',
   'sniff',
+  'snore',
 ] as const;
 
 const NoiseSchema = z
@@ -382,6 +386,14 @@ const BladderSchema = z
     ),
   })
   .describe("Papa's pressing need (FR17, story 4.3, GDD §6).");
+
+const SequencesSchema = z
+  .strictObject({
+    resumeGapMs: delayMs(
+      'After a sequence, the breath before the director, a due micro-sleep or a due cry in the arms can start again: each of their clocks is pushed to at least this far from the end, in sim ms.',
+    ),
+  })
+  .describe('The special sequences (story 4.4).');
 
 const InstinctSchema = z
   .strictObject({
@@ -778,6 +790,7 @@ export const FeelSchema = z
     combo: ComboSchema,
     noise: NoiseSchema,
     bladder: BladderSchema,
+    sequences: SequencesSchema,
     instinct: InstinctSchema,
     difficulty: DifficultySchema,
     mama: MamaSchema,

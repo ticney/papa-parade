@@ -46,5 +46,7 @@ export function withoutThreats(content: LevelContent): LevelContent {
     level: { ...content.level, waves: [] },
     threats: { ...microSleep, ...armsCry },
     disruptions: {},
+    // The level's sequences stay: a debug start still works with no wave (story 4.4).
+    sequences: content.sequences,
   };
 }

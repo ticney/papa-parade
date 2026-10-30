@@ -29,6 +29,8 @@ import type { World } from '../world.ts';
 // cashed in never fall, and the carry tick is due exactly while the baby is carried.
 // Story 4.3 adds the toilet: after every step `onToilet` never meets a carried baby, the need stays
 // in [0, 100] and a visit freezes it; random `SetBladder` commands keep the toilet visits coming.
+// Story 4.4 adds the special sequence: random `StartSequence` commands, and after every step `sequence.id` and
+// the flow agree, a sequence that carries the baby has him in the arms, and a carried baby never moves away from Papa.
 // The commands come from a seeded rng of the test (never `Math.random`); `ForceThreat` is left out
 // on purpose: it is the one way to announce a threat to a carried baby.
 
@@ -37,6 +39,8 @@ const STEP_COUNT = 3000;
 /** Every this many steps the world goes through a snapshot and back: the validator must accept it. */
 const SNAPSHOT_EVERY_STEPS = 500;
 const COMMAND_CHANCE = 0.05;
+/** A sequence start, drawn apart so that the mix of the other commands (and the coverage it was written for) does not move. */
+const SEQUENCE_CHANCE = 0.0004;
 
 // A short carry tick: random play seldom carries for ten seconds, and the cash-in must be exercised.
 const baseContent = createTestContent();
@@ -69,6 +73,7 @@ function newLevel() {
     objects: [...TEST_OBJECTS, TEST_TOILET],
     gauges: { ...NOISE_GAUGES, ...FATIGUE_GAUGES, ...NEED_GAUGES },
     carry: CARRY,
+    sequences: ['stay_awake'],
   });
 }
 
@@ -120,15 +125,26 @@ describe('carrying, played at random', () => {
     let cashIns = 0;
     let toiletVisits = 0;
     let refusals = 0;
+    let sequencesStarted = 0;
+    let sequencesSucceeded = 0;
+    let sequencesFailed = 0;
     for (let seed = 1; seed <= SEED_COUNT; seed++) {
       const sim = await createSim({ content, geometry, level: newLevel(), seed });
       const rng = createRng(seed * 7919);
+      const sequenceRng = createRng(seed * 104729);
       let previousComboPoints = 0;
       try {
         for (let step = 0; step < STEP_COUNT; step++) {
           // `restore` swaps the world for a copy: read it again at every step.
           const world = sim.world as World;
           if (nextFloat(rng) < COMMAND_CHANCE) sim.enqueue(randomCommand(sim, rng));
+          if (nextFloat(sequenceRng) < SEQUENCE_CHANCE) {
+            sim.enqueue({
+              type: 'StartSequence',
+              t: asSimMs(world.time.sim),
+              sequenceId: 'stay_awake',
+            });
+          }
           const wasCarried = world.baby.state === 'carried';
           sim.step();
           for (const event of sim.drainEvents()) {
@@ -139,6 +155,11 @@ describe('carrying, played at random', () => {
             if (event.type === 'ComboCashedIn') cashIns++;
             if (event.type === 'ToiletFinished') toiletVisits++;
             if (event.type === 'ToiletRefused') refusals++;
+            if (event.type === 'SequenceStarted') sequencesStarted++;
+            if (event.type === 'SequenceEnded' && event.outcome === 'succeeded') {
+              sequencesSucceeded++;
+            }
+            if (event.type === 'SequenceEnded' && event.outcome === 'failed') sequencesFailed++;
             if (event.type === 'ThreatTelegraphed' && event.kind === 'arms_cry') armsCries++;
             if (event.type === 'ThreatTelegraphed' && wasCarried) {
               expect(BABY_DEFS.has(event.kind), `seed ${seed} step ${step}: ${event.kind}`).toBe(
@@ -147,6 +168,14 @@ describe('carrying, played at random', () => {
             }
           }
           const isCarried = world.baby.state === 'carried';
+          // The sequence's id and the flow agree, and a running sequence has the baby in the arms.
+          expect(
+            world.sequence.id !== null,
+            `seed ${seed} step ${step}: sequence.id and the flow disagree`,
+          ).toBe(world.flow.state === 'sequence');
+          if (world.flow.state === 'sequence') {
+            expect(isCarried, `seed ${seed} step ${step}: a sequence with no baby`).toBe(true);
+          }
           expect(
             world.papa.state === 'onToilet' && isCarried,
             `seed ${seed} step ${step}: a carried baby on the toilet`,
@@ -200,5 +229,7 @@ describe('carrying, played at random', () => {
     expect(cashIns).toBeGreaterThan(0);
     expect(toiletVisits).toBeGreaterThan(SEED_COUNT / 4);
     expect(refusals).toBeGreaterThan(0);
+    expect(sequencesStarted).toBeGreaterThan(SEED_COUNT / 4);
+    expect(sequencesSucceeded + sequencesFailed).toBeGreaterThan(0);
   }, 120_000);
 });

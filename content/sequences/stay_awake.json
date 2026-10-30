@@ -1,0 +1,22 @@
+{
+  "$schema": "../_schemas/sequence.schema.json",
+  "id": "stay_awake",
+  "babyCarried": true,
+  "steps": [
+    { "kind": "microSleeps", "durationMs": 10000, "gapMinMs": 4500, "gapMaxMs": 6000 },
+    { "kind": "microSleeps", "durationMs": 10000, "gapMinMs": 3500, "gapMaxMs": 5000 },
+    { "kind": "microSleeps", "durationMs": 10000, "gapMinMs": 2800, "gapMaxMs": 4000 }
+  ],
+  "success": { "kind": "stepsDone" },
+  "failure": { "kind": "gag", "hasSnore": true },
+  "framing": {
+    "camera": { "zoomPct": 18, "focusPct": 60, "inMs": 900, "outMs": 700 },
+    "musicLoop": "stay_awake",
+    "bar": { "labelKey": "hud.sequence_stay_awake", "fill": "opponent", "value": "timeLeft" }
+  },
+  "feedback": {
+    "started": "sequence_started",
+    "succeeded": "sequence_succeeded",
+    "failed": "sequence_failed"
+  }
+}

@@ -7,6 +7,7 @@ import { type Feel, FeelSchema } from './schemas/feel.ts';
 import { type Level, LevelSchema } from './schemas/level.ts';
 import { type LevelGeometry, LevelGeometrySchema } from './schemas/levelGeometry.ts';
 import { PlaytestSchema, type PlaytestThresholds } from './schemas/playtest.ts';
+import { type SequenceDef, SequenceDefSchema } from './schemas/sequence.ts';
 import { type Strings, StringsSchema } from './schemas/strings.ts';
 import { type ThreatDef, ThreatDefSchema } from './schemas/threat.ts';
 
@@ -101,6 +102,13 @@ export const DISRUPTION_DEF_PATTERN: ContentPattern<DisruptionDef> = {
   schema: DisruptionDefSchema,
 };
 
+export const SEQUENCE_DEF_PATTERN: ContentPattern<SequenceDef> = {
+  dir: 'sequences',
+  suffix: '.json',
+  schemaName: 'sequence',
+  schema: SequenceDefSchema,
+};
+
 export const LEVEL_PATTERN: ContentPattern<Level> = {
   dir: 'levels',
   suffix: '.json',
@@ -113,6 +121,7 @@ export const CONTENT_PATTERNS: readonly ContentPattern<unknown>[] = [
   LEVEL_GEOMETRY_PATTERN,
   THREAT_DEF_PATTERN,
   DISRUPTION_DEF_PATTERN,
+  SEQUENCE_DEF_PATTERN,
   LEVEL_PATTERN,
 ];
 

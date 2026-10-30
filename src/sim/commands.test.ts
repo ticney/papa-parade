@@ -11,6 +11,7 @@ describe('commandProblem', () => {
     expect(commandProblem({ type: 'PressThreat', t: 10, threatId: 1 })).toBeNull();
     expect(commandProblem({ type: 'Release', t: 10 })).toBeNull();
     expect(commandProblem({ type: 'StartDisruption', t: 10, index: 0 })).toBeNull();
+    expect(commandProblem({ type: 'StartSequence', t: 10, sequenceId: 'stay_awake' })).toBeNull();
     expect(
       commandProblem({ type: 'SetFeel', t: 10, patch: { timing: { windowMs: 320 } } }),
     ).toBeNull();
@@ -41,6 +42,7 @@ describe('commandProblem', () => {
       'SetNoise',
       'SetTimeScale',
       'StartDisruption',
+      'StartSequence',
       'TapBaby',
       'TapFloor',
       'TapObject',
@@ -67,6 +69,17 @@ describe('commandProblem', () => {
     ['a negative StartDisruption index', { type: 'StartDisruption', t: 0, index: -1 }, /index/],
     ['a fractional StartDisruption index', { type: 'StartDisruption', t: 0, index: 0.5 }, /index/],
     ['a string StartDisruption index', { type: 'StartDisruption', t: 0, index: '0' }, /index/],
+    ['a StartSequence with no id', { type: 'StartSequence', t: 0 }, /sequenceId/],
+    [
+      'a StartSequence with an empty id',
+      { type: 'StartSequence', t: 0, sequenceId: '' },
+      /sequenceId/,
+    ],
+    [
+      'a StartSequence with a numeric id',
+      { type: 'StartSequence', t: 0, sequenceId: 3 },
+      /sequenceId/,
+    ],
     ['a Release with a NaN t', { type: 'Release', t: Number.NaN }, /finite/],
     ['a non-finite t', { type: 'MoveStop', t: Number.NaN }, /finite/],
     [

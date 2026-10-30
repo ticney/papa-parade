@@ -144,11 +144,13 @@ function levelPlanning(tested: ThreatDef): LevelContent {
         objects: [],
         gauges: {},
         carry: { armsCryDef: tested.id },
+        sequences: [],
         feelOverrides: {},
         waves: [],
       },
       threats: Object.fromEntries(defs.map((def) => [def.id, def])),
       disruptions: {},
+      sequences: {},
     };
   }
   if (tested.target === 'papa') {
@@ -159,11 +161,13 @@ function levelPlanning(tested: ThreatDef): LevelContent {
         durationMs: CATALOG_OTHERS_FROM_MS,
         objects: [],
         gauges: { fatigue: { microSleepDef: tested.id } },
+        sequences: [],
         feelOverrides: {},
         waves: [],
       },
       threats: Object.fromEntries(defs.map((def) => [def.id, def])),
       disruptions: {},
+      sequences: {},
     };
   }
   const wave = { maxSimultaneous: 1, gapMinMs: 0, gapMaxMs: 0, lullMs: 0, disruptions: [] };
@@ -174,6 +178,7 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       durationMs: CATALOG_OTHERS_FROM_MS + CATALOG_OTHERS_FROM_MS,
       objects: [],
       gauges: {},
+      sequences: [],
       feelOverrides: {},
       waves: [
         { ...wave, fromMs: 0, threats: [planned(tested)] },
@@ -186,6 +191,7 @@ function levelPlanning(tested: ThreatDef): LevelContent {
     },
     threats: Object.fromEntries(defs.map((def) => [def.id, def])),
     disruptions: {},
+    sequences: {},
   };
 }
 

@@ -9,7 +9,10 @@ import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import type { SimEvent, World } from '@sim';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { createTestResponseWindow } from '../../../tests/support/testContent.ts';
+import {
+  createTestResponseWindow,
+  createTestStayAwake,
+} from '../../../tests/support/testContent.ts';
 import { createFeedbackDirector } from './feedbackDirector.ts';
 import { type FeedbackSource, playSimEventFeedback } from './simEventFeedback.ts';
 
@@ -93,6 +96,7 @@ function sourceOf(world: World, threats: Record<string, ThreatDef> = liveThreats
     level: {
       threats,
       disruptions: { phone },
+      sequences: {},
       level: {
         waves: [{ disruptions: [{ def: 'phone', object: PHONE_OBJECT, atMs: 0 }] }],
       } as unknown as Level,
@@ -302,5 +306,62 @@ describe('playSimEventFeedback: the pressing need (story 4.3)', () => {
 
   it('reads how long the hint stays up from the table, in real ms', () => {
     expect(feedback.papaHint.holdMs).toBeGreaterThan(0);
+  });
+});
+
+describe('playSimEventFeedback: the special sequence (story 4.4)', () => {
+  const stayAwake = createTestStayAwake();
+  const withSequences = (world: World): FeedbackSource => ({
+    ...sourceOf(world),
+    level: { ...sourceOf(world).level, sequences: { stay_awake: stayAwake } },
+  });
+
+  it('plays the started, succeeded and failed cues the def names, anchored on Papa', () => {
+    const { sounds, pulses, director } = setup();
+    const world = worldWith('outlet', false);
+    const source = withSequences(world);
+    const t = asSimMs(1000);
+    playSimEventFeedback({ type: 'SequenceStarted', t, id: 'stay_awake' }, source, director);
+    playSimEventFeedback(
+      { type: 'SequenceEnded', t, id: 'stay_awake', outcome: 'succeeded' },
+      source,
+      director,
+    );
+    playSimEventFeedback(
+      { type: 'SequenceEnded', t, id: 'stay_awake', outcome: 'failed' },
+      source,
+      director,
+    );
+    expect(sounds).toEqual([
+      soundOf(stayAwake.feedback.started),
+      soundOf(stayAwake.feedback.succeeded),
+      soundOf(stayAwake.feedback.failed),
+    ]);
+    expect(pulses.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('plays nothing for a step, and nothing for a sequence the level ended', () => {
+    const { sounds, director } = setup();
+    const source = withSequences(worldWith('outlet', false));
+    const t = asSimMs(1000);
+    playSimEventFeedback(
+      { type: 'SequenceStepStarted', t, id: 'stay_awake', stepIndex: 1 },
+      source,
+      director,
+    );
+    playSimEventFeedback(
+      { type: 'SequenceEnded', t, id: 'stay_awake', outcome: 'levelEnded' },
+      source,
+      director,
+    );
+    expect(sounds).toEqual([]);
+  });
+
+  it('plays the snore and the wake from the table of events, like any generic event', () => {
+    const { sounds, director } = setup();
+    const source = withSequences(worldWith('outlet', false));
+    playSimEventFeedback({ type: 'PapaSnored', t: asSimMs(1000) }, source, director);
+    playSimEventFeedback({ type: 'BabyWoke', t: asSimMs(1000) }, source, director);
+    expect(sounds).toEqual([soundOf('papa_snored'), soundOf('baby_woke')]);
   });
 });

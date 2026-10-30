@@ -37,6 +37,7 @@ const TABLE: FeedbackTable = {
     ui: { gainPct: 80 },
   },
   haptics: { light: { patternMs: [15] }, medium: { patternMs: [30] }, heavy: { patternMs: [60] } },
+  sequenceBar: { slideMs: 250 },
   comboBadge: { cashInHoldMs: 900 },
   papaHint: { holdMs: 1200 },
   resultScreen: {
@@ -56,6 +57,7 @@ const TABLE: FeedbackTable = {
       gainPct: 100,
       fadeMs: 400,
     },
+    sequenceMusic: {},
   },
   cues: {
     full: {

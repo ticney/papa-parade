@@ -10,9 +10,11 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { botSetup, botTestLevel } from '../../tests/support/botSupport.ts';
 import { createFakeTestHost } from '../../tests/support/fakeTestHost.ts';
 import {
+  CARRY,
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  FATIGUE_GAUGES,
   OUTLET,
   testWave,
 } from '../../tests/support/testContent.ts';
@@ -100,6 +102,42 @@ describe('installAutoplay', () => {
       sim.drainEvents();
     }
     expect(sim.journal().entries.length).toBe(before);
+  });
+
+  it('keeps asking the bot while a special sequence runs: it is no end of the level (story 4.4)', async () => {
+    const host = createFakeTestHost();
+    expect(installAutoplay(host, 'perfect').ok).toBe(true);
+    const seed = 5;
+    const level = () =>
+      createTestLevel({
+        waves: [testWave([OUTLET])],
+        gauges: FATIGUE_GAUGES,
+        carry: CARRY,
+        sequences: ['stay_awake'],
+        durationMs: 30_000,
+      });
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: level(),
+      seed,
+      strictInvariants: true,
+    });
+    host.fireLevelStarted({ ...startedOf(sim, seed), level: level() });
+    const hook = host.stepHook;
+    sim.enqueue({ type: 'StartSequence', t: sim.world.time.sim, sequenceId: 'stay_awake' });
+    let answered = 0;
+    for (let i = 0; i < 1800; i++) {
+      hook?.(sim);
+      sim.step();
+      for (const event of sim.drainEvents()) {
+        if (event.type === 'ResponseResolved' && sim.world.flow.state === 'sequence') answered++;
+      }
+    }
+    expect(sim.world.sequence.lastId).toBe('stay_awake');
+    expect(sim.world.sequence.endedAt).not.toBeNull();
+    expect(answered + sim.world.score.perfects).toBeGreaterThan(0);
+    expect(sim.journal().entries.map((entry) => entry.command.type)).toContain('PressThreat');
   });
 
   it('blocks the game input as soon as it is installed', () => {

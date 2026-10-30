@@ -8,6 +8,7 @@ import { runGauges } from './gauges/gaugesSystem.ts';
 import { runPapa } from './papa/papaSystem.ts';
 import { runPhysics } from './physics/propsSystem.ts';
 import { runScoring } from './scoring/combo.ts';
+import { runSequence } from './sequences/sequenceSystem.ts';
 import { runThreats } from './threats/threatSystem.ts';
 import { advanceTime } from './time/clock.ts';
 import type { World } from './world.ts';
@@ -15,16 +16,19 @@ import type { World } from './world.ts';
 /**
  * Fixed order of the systems of one step (architecture, project-context):
  *
- *   applyCommands, advanceTime, runDirector, runDisruptions, runBaby, runThreats, runPapa,
- *   runPhysics, runGauges, runInstinct, runScoring, runFlow
+ *   applyCommands, advanceTime, runSequence, runDirector, runDisruptions, runBaby, runThreats,
+ *   runPapa, runPhysics, runGauges, runInstinct, runScoring, runFlow
  *
- * applyCommands, advanceTime, runDirector, runDisruptions, runBaby, runThreats, runPapa, runPhysics,
+ * applyCommands, advanceTime, runSequence, runDirector, runDisruptions, runBaby, runThreats, runPapa, runPhysics,
  * runGauges, runScoring and runFlow exist so far (`runGauges` is the fatigue since story 1.19 and the noise since
  * 3.1; `runDisruptions`, story 1.20, ticks the phone right after the director so that a ring that
  * times out in the step Papa arrives is already over when `runPapa` looks). Each
  * later story inserts its system at its slot, edits the pinned order test and, if behaviour
  * changes, regenerates the golden references and says so.
  * Systems never call each other: they read and write `World` and push to `ctx.events`.
+ * `runSequence` (story 4.4) sits right after the clock and before the director, so that on the step a
+ * special sequence starts the director already sees it (and returns early). It is a system, not a
+ * helper, because later sequences hang their step kinds there.
  * Mama's note (story 1.22) needs no system: its counters are written where their events are made,
  * and `runFlow` gives the note (`scoreLevel`) in the step it ends the level. `runScoring` (story 4.2)
  * holds the combo's carry tick only: the rest of the combo is written where its event is made.
@@ -36,6 +40,7 @@ import type { World } from './world.ts';
 export const SYSTEMS: readonly System[] = [
   applyCommands,
   advanceTime,
+  runSequence,
   runDirector,
   runDisruptions,
   runBaby,

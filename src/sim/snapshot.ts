@@ -30,14 +30,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 19 since story 4.4: `world.sequence` (the special sequence) and the `sequence` flow state. 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 18;
+  version: 19;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -56,7 +56,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 18,
+    version: 19,
     seed,
     feelHash,
     geometryHash,
@@ -550,6 +550,11 @@ export interface PlannedLevel {
   readonly hasNoise: boolean;
   /** Whether the level has the need gauge (`SimLevel.hasBladder`, story 4.3). */
   readonly hasBladder: boolean;
+  /** The special sequences the level can run, with the length of each one's steps (story 4.4). */
+  readonly sequences: readonly {
+    readonly id: string;
+    readonly def: { readonly steps: readonly unknown[] };
+  }[];
   /** The level's interactive objects: Papa's `objectId` must be one of them. */
   readonly objects: readonly { readonly id: string }[];
   readonly props: readonly {
@@ -712,6 +717,53 @@ function comboProblem(combo: unknown, baby: unknown): string | null {
   return null;
 }
 
+/**
+ * The special sequence (story 4.4): `id` and `lastId` are null or a planned sequence's id, the
+ * instants are finite and not in the future, `stepIndex` is a step of the sequence's def,
+ * `endedAt` is null while one runs, `nextMicroSleepAt` is null or finite, and the flow is in
+ * `sequence` exactly when `id` is not null (the level's own end closes the sequence first).
+ */
+function sequenceProblem(
+  sequence: unknown,
+  flow: unknown,
+  planned: PlannedLevel['sequences'],
+  nowMs: number,
+): string | null {
+  if (typeof sequence !== 'object' || sequence === null) return 'world.sequence is missing';
+  const slice = sequence as Record<string, unknown>;
+  const isPlanned = (id: unknown): boolean =>
+    id === null || (typeof id === 'string' && planned.some((entry) => entry.id === id));
+  if (!isPlanned(slice.id)) return 'world.sequence.id';
+  if (!isPlanned(slice.lastId)) return 'world.sequence.lastId';
+  if (slice.id !== null && slice.lastId !== slice.id) return 'world.sequence.lastId';
+  for (const key of ['startedAt', 'endsAt', 'stepEndsAt']) {
+    if (!isFiniteNumber(slice[key]) || (slice[key] as number) < 0) return `world.sequence.${key}`;
+  }
+  if ((slice.startedAt as number) > nowMs) return 'world.sequence.startedAt';
+  if (slice.endedAt !== null) {
+    if (!isFiniteNumber(slice.endedAt) || (slice.endedAt as number) < 0) {
+      return 'world.sequence.endedAt';
+    }
+    if (slice.id !== null || (slice.endedAt as number) > nowMs) return 'world.sequence.endedAt';
+  }
+  if (slice.nextMicroSleepAt !== null) {
+    if (!isFiniteNumber(slice.nextMicroSleepAt) || (slice.nextMicroSleepAt as number) < 0) {
+      return 'world.sequence.nextMicroSleepAt';
+    }
+  }
+  const def = planned.find((entry) => entry.id === (slice.id ?? slice.lastId));
+  if (!Number.isInteger(slice.stepIndex) || (slice.stepIndex as number) < 0) {
+    return 'world.sequence.stepIndex';
+  }
+  if ((slice.stepIndex as number) >= Math.max(1, def?.def.steps.length ?? 1)) {
+    return 'world.sequence.stepIndex';
+  }
+  if (((flow as { state: unknown }).state === 'sequence') !== (slice.id !== null)) {
+    return 'world.sequence.id';
+  }
+  return null;
+}
+
 function propsProblem(
   props: unknown,
   mess: unknown,
@@ -819,6 +871,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     disruptions,
     silence,
     carry,
+    sequence,
     combo,
     score,
     input,
@@ -879,6 +932,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     babyProblem(baby, papa, threats as readonly ThreatInstance[], clock.sim as number) ??
     carryProblem(carry, baby, planned.hasCarry, planned.armsCryIndex >= 0) ??
     comboProblem(combo, baby) ??
+    sequenceProblem(sequence, flow, planned.sequences, clock.sim as number) ??
     silenceProblem(
       silence,
       baby,
@@ -912,7 +966,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 18, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 19, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

@@ -8,7 +8,7 @@ import {
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
 import { asSimMs } from '@shared/time';
-import type { SimCommand, World } from '@sim';
+import { type SequenceRefusal, type SimCommand, sequenceRefusal, type World } from '@sim';
 
 /**
  * What a cheat may do: send a command to the running sim (stamped with its current time), or ask
@@ -24,7 +24,10 @@ export interface CheatContext {
 /** `Omit<T, 't'>` that keeps a union apart. */
 type DistributiveOmitT<T> = T extends { t: unknown } ? Omit<T, 't'> : never;
 
-/** One thing the overlay's cheat list offers. The list is data so that a story adds an entry (4.4: the sequence launcher). */
+/**
+ * One thing the overlay's cheat list offers. The list is data so that a story adds an entry (a
+ * launcher with a list of its own, such as the threats' and the sequences', has its own row).
+ */
 export interface Cheat {
   readonly id: string;
   readonly label: string;
@@ -84,7 +87,30 @@ export function launchableThreats(world: Readonly<World>): { id: number; label: 
   }));
 }
 
-/** The cheats that are not « launch a threat » (that one has a list: see {@link launchableThreats}). */
+/** The ids of the special sequences the level can run (story 4.4): what the overlay's « Start » picks from. */
+export function launchableSequences(level: { level: { sequences: readonly string[] } }): string[] {
+  return [...level.level.sequences];
+}
+
+/** Why a sequence cannot start now, in plain English for the overlay's status line, or `null`. */
+export function sequenceRefusalText(world: Readonly<World>): string | null {
+  const reason: SequenceRefusal | null = sequenceRefusal(world as World);
+  if (reason === null) return null;
+  const texts: Record<SequenceRefusal, string> = {
+    running: 'a sequence is already running',
+    ended: 'the level has ended',
+    papaBusy: 'Papa is busy (coffee, nap, call or toilet)',
+    silence: 'the baby is hiding (a silence is under way)',
+  };
+  return texts[reason];
+}
+
+/** Sends `StartSequence` for `sequenceId`: journaled, ignored by the sim with no event when it is refused. */
+export function startSequence(context: CheatContext, sequenceId: string): boolean {
+  return context.send({ type: 'StartSequence', sequenceId });
+}
+
+/** The cheats that are not « launch a threat » or « start a sequence » (those have a list: see {@link launchableThreats}). */
 export const CHEATS: readonly Cheat[] = [
   {
     id: 'setFatigue',

@@ -1036,6 +1036,148 @@ export function synthToiletFlush(): Float32Array {
   return out;
 }
 
+// Story 4.4: « Rester éveillé ». The music is a drone that sways (two close sines beat 0.5 Hz, with a
+// slow tremolo), short of the 8 s of the level's stems. Every other clip has its own seed.
+const SEQUENCE_MUSIC_LENGTH_S = 6;
+const SEQUENCE_MUSIC_HZ = [110, 110.5, 165];
+const SEQUENCE_MUSIC_SWAY_HZ = 0.5;
+const SEQUENCE_MUSIC_BREATH_GAIN = 0.05;
+const SNORE_CYCLE_MS = 700;
+const SNORE_CYCLES = 2;
+const SNORE_PITCH_HZ = { from: 60, to: 85 };
+const SNORE_RATTLE_GAIN = 0.5;
+const SNORE_INHALE_PCT = 50;
+const WOKE_LENGTH_MS = 700;
+const WOKE_PITCH_HZ = { from: 420, peak: 820, to: 600 };
+const WOKE_WOBBLE_HZ = 9;
+const WOKE_BREATH_GAIN = 0.25;
+const WOKE_ATTACK_MS = 20;
+const WOKE_RELEASE_MS = 200;
+const CHIME_ATTACK_MS = 6;
+const CHIME_DECAY_S = 0.18;
+const CHIME_RELEASE_MS = 40;
+const CHIME_BREATH_GAIN = 0.02;
+const SEQUENCE_STARTED_NOTES_HZ = [392, 523.25];
+const SEQUENCE_SUCCEEDED_NOTES_HZ = [523.25, 659.25, 783.99];
+const SEQUENCE_FAILED_NOTES_HZ = [392, 311.13, 233.08];
+const CHIME_NOTE_GAP_MS = 110;
+const CHIME_TAIL_MS = 260;
+
+/** The sequence's music: a low drone that sways, a loop with faded ends (loop `sequenceMusic.stay_awake`). */
+export function synthSequenceMusic(): Float32Array {
+  const rng = createRng(SEED + 15);
+  const out = new Float32Array(samplesOf(SEQUENCE_MUSIC_LENGTH_S * 1000));
+  let breath = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    let tone = 0;
+    for (const frequencyHz of SEQUENCE_MUSIC_HZ)
+      tone += Math.sin(2 * Math.PI * frequencyHz * seconds);
+    // Heavily smoothed noise: a sleepy breath under the drone.
+    breath += 0.002 * (nextFloat(rng) * 2 - 1 - breath);
+    const sway = 0.7 + 0.3 * Math.sin(2 * Math.PI * SEQUENCE_MUSIC_SWAY_HZ * seconds);
+    out[i] = (tone / SEQUENCE_MUSIC_HZ.length + breath * SEQUENCE_MUSIC_BREATH_GAIN * 20) * sway;
+  }
+  fadeEnds(out, LOOP_FADE_MS);
+  normalize(out, PEAK_MUSIC);
+  return out;
+}
+
+/** A loud snore: two breaths of a low saw under a rattle of noise, swelling in and falling out (cue `papa_snored`). */
+export function synthPapaSnore(): Float32Array {
+  const rng = createRng(SEED + 16);
+  const cycle = samplesOf(SNORE_CYCLE_MS);
+  const out = new Float32Array(cycle * SNORE_CYCLES);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const within = (i % cycle) / cycle;
+    const inhale = SNORE_INHALE_PCT / 100;
+    const breath = within < inhale ? within / inhale : (1 - within) / (1 - inhale);
+    const frequencyHz = SNORE_PITCH_HZ.from + (SNORE_PITCH_HZ.to - SNORE_PITCH_HZ.from) * breath;
+    phase += frequencyHz / SAMPLE_RATE_HZ;
+    const saw = 2 * (phase - Math.floor(phase)) - 1;
+    const rattle = (nextFloat(rng) * 2 - 1) * SNORE_RATTLE_GAIN;
+    out[i] = (saw + rattle) * breath * breath;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A startled whimper: a pitch that jumps up, wobbles and sags, with a breath of noise (cue `baby_woke`). */
+export function synthBabyWoke(): Float32Array {
+  const rng = createRng(SEED + 17);
+  const out = new Float32Array(samplesOf(WOKE_LENGTH_MS));
+  const attack = samplesOf(WOKE_ATTACK_MS);
+  const release = samplesOf(WOKE_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const frequencyHz =
+      progress < 0.3
+        ? WOKE_PITCH_HZ.from + (WOKE_PITCH_HZ.peak - WOKE_PITCH_HZ.from) * (progress / 0.3)
+        : WOKE_PITCH_HZ.peak + (WOKE_PITCH_HZ.to - WOKE_PITCH_HZ.peak) * ((progress - 0.3) / 0.7);
+    const wobble = 1 + 0.04 * Math.sin((2 * Math.PI * WOKE_WOBBLE_HZ * i) / SAMPLE_RATE_HZ);
+    phase += (2 * Math.PI * frequencyHz * wobble) / SAMPLE_RATE_HZ;
+    const breath = (nextFloat(rng) * 2 - 1) * WOKE_BREATH_GAIN;
+    out[i] =
+      (Math.sin(phase) + 0.3 * Math.sin(2 * phase) + breath) *
+      Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** Soft bell notes, one after the other, each dying inside the clip. */
+function synthChime(seed: number, notesHz: readonly number[]): Float32Array {
+  const rng = createRng(SEED + seed);
+  const gap = samplesOf(CHIME_NOTE_GAP_MS);
+  const out = new Float32Array(
+    gap * (notesHz.length - 1) + samplesOf(CHIME_NOTE_GAP_MS + CHIME_TAIL_MS),
+  );
+  const attack = samplesOf(CHIME_ATTACK_MS);
+  const release = samplesOf(CHIME_RELEASE_MS);
+  for (const [index, frequencyHz] of notesHz.entries()) {
+    const start = index * gap;
+    for (let i = 0; start + i < out.length; i++) {
+      const seconds = i / SAMPLE_RATE_HZ;
+      const tone =
+        Math.sin(2 * Math.PI * frequencyHz * seconds) +
+        0.4 * Math.sin(2 * Math.PI * frequencyHz * 2 * seconds);
+      out[start + i] =
+        (out[start + i] as number) +
+        (tone + (nextFloat(rng) * 2 - 1) * CHIME_BREATH_GAIN) *
+          Math.min(1, i / attack) *
+          Math.exp(-seconds / CHIME_DECAY_S);
+    }
+  }
+  for (let i = 0; i < release; i++) {
+    const index = out.length - 1 - i;
+    out[index] = (out[index] as number) * (i / release);
+  }
+  out[0] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** Two rising notes: the sequence begins (cue `sequence_started`). */
+export function synthSequenceStarted(): Float32Array {
+  return synthChime(18, SEQUENCE_STARTED_NOTES_HZ);
+}
+
+/** Three rising notes: the sequence is won (cue `sequence_succeeded`). */
+export function synthSequenceSucceeded(): Float32Array {
+  return synthChime(19, SEQUENCE_SUCCEEDED_NOTES_HZ);
+}
+
+/** Three falling notes: the sequence is lost (cue `sequence_failed`). */
+export function synthSequenceFailed(): Float32Array {
+  return synthChime(20, SEQUENCE_FAILED_NOTES_HZ);
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -1092,6 +1234,12 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'papa_toilet_door', synth: synthToiletDoor },
   { clip: 'env_toilet_flush', synth: synthToiletFlush },
   { clip: 'ui_calibration_beep', synth: synthCalibrationBeep },
+  { clip: 'music_stay_awake', synth: synthSequenceMusic },
+  { clip: 'papa_snore', synth: synthPapaSnore },
+  { clip: 'baby_woke', synth: synthBabyWoke },
+  { clip: 'env_sequence_started', synth: synthSequenceStarted },
+  { clip: 'env_sequence_succeeded', synth: synthSequenceSucceeded },
+  { clip: 'env_sequence_failed', synth: synthSequenceFailed },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

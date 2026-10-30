@@ -17,7 +17,7 @@ import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import { computeMamaScore } from '../scoring/mamaScore.ts';
 import type { World } from '../world.ts';
-import { enterFlowState, FLOW_STATES, FLOW_STATES_ARE_COMPLETE } from './flowFsm.ts';
+import { enterFlowState, FLOW_STATES, FLOW_STATES_ARE_COMPLETE, isFlowLive } from './flowFsm.ts';
 
 const DURATION_MS = 1000;
 
@@ -32,7 +32,7 @@ async function newSim(waves = false, durationMs = DURATION_MS) {
 
 describe('the flow FSM', () => {
   it('lists every state, and is proved complete at compile time', () => {
-    expect([...FLOW_STATES]).toEqual(['playing', 'ended']);
+    expect([...FLOW_STATES]).toEqual(['playing', 'sequence', 'ended']);
     expect(FLOW_STATES_ARE_COMPLETE).toBe(true);
   });
 
@@ -363,5 +363,31 @@ describe('runFlow: Mama wakes (story 3.2)', () => {
     expect(note.stars).toBe(timer.stars - note.lostStars);
     expect(note.scorePoints).toBe(timer.scorePoints);
     expect(note.lostStars).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('isFlowLive (story 4.4)', () => {
+  it('is true while playing and in a sequence, false once ended', async () => {
+    const sim = await newSim();
+    const world = sim.world as World;
+    expect(isFlowLive(world)).toBe(true);
+    enterFlowState(world, 'sequence');
+    expect(isFlowLive(world)).toBe(true);
+    enterFlowState(world, 'ended');
+    expect(isFlowLive(world)).toBe(false);
+  });
+
+  it('a level in a sequence still ends on its timer: runFlow returns only for ended', async () => {
+    const sim = await newSim(false, 500);
+    const world = sim.world as World;
+    enterFlowState(world, 'sequence');
+    stepN(sim, 50);
+    expect(world.flow.state).toBe('ended');
+    expect(
+      sim
+        .drainEvents()
+        .filter((event) => event.type === 'LevelEnded')
+        .map((event) => (event as Extract<SimEvent, { type: 'LevelEnded' }>).reason),
+    ).toEqual(['timer']);
   });
 });
