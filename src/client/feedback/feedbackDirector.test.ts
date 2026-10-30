@@ -45,6 +45,7 @@ const TABLE: FeedbackTable = {
     actionsDelayMs: 400,
     inputGraceMs: 0,
   },
+  calibration: { beep: { clip: 'ui_calibration_beep', bus: 'ui', gainPct: 100 } },
   loops: {
     babble: { clip: 'baby_babble_loop', bus: 'voice', gainPct: 100, fadeMs: 80 },
     music: {

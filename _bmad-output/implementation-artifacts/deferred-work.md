@@ -591,3 +591,15 @@
 
 - **The low-pass sweep (and the `playbackRate` ramp) of the music's slow-mo are linear.** Reason: the ear is logarithmic, so 20 kHz → 900 Hz may sound like a late snap; a feel call, `exponentialRampToValueAtTime` is a one-line change (the bounds guarantee a value > 0), to judge by playing.
 - **`content:check` does not compare the two music stems' lengths.** Reason: it only checks that both files exist and are `music_*`; the length is in the decoded `.m4a`, which Node cannot measure without a decoder. A mismatch is one runtime `warn` and a drift; judge on a device (stories 7.5, 8.2).
+
+## Story 2-7-calibration-de-la-latence (2026-10-30)
+
+- **The Recalibrate row of the settings screen** (`settings → calibration → settings`). Reason: story 2.8. `calibrationFlow.startRecalibration(returnTo)` already serves it with a table alone (the flow test uses an extended `APP_TRANSITIONS`); no settings row is built here.
+- **`audioOffsetMs` is stored but read by nobody** until E4 (the audio-judged mechanics). Reason: the epic stores it; a skipped audio phase borrows the visual offset.
+- **A player who cannot reach 5 valid taps in the visual phase has no way out** (the phase re-proposes itself indefinitely, as the epic says). Reason: open point 3 of the story; a « Plus tard » button is Geo's call, not built.
+- **The offsets are not in the exported playtest journal** (`papa-parade.journal`). Reason: a replay of a calibrated game cannot rebuild the corrected stamps, only the journaled `t` they produced (and `SetInputLag`); adding the offsets to the summary is a schema change for story 3.3's file.
+- **A device change does not re-trigger the calibration**: `device` (`<target>-<touch|desktop>`) is stored and read by nobody. Reason: not in the ACs; compare it with the current device at boot if a player ever changes screen.
+- **`SetInputLag` makes the `late` gag, and a Firmness's ring, come `lagMs` later on a calibrated device** (up to 250 ms), by design (D1, validated by Geo). Reason: open point 1; whether it feels fair is for a phone to say (`docs/playtest/device-measurements.md`). The micro-sleep is a normal threat and follows the same expiry; the sim reads a command's `t` for `PressThreat` and `Release` only, so no other system waits.
+- **Pad start: the audio phase is skipped on its own** (`audioSkipped: true`, one `warn` on `audio`), since a pad press is no user activation and the context stays suspended. Reason: open point 4; acceptable until E4 reads the audio offset.
+- **The beep is a synthesized placeholder** (`ui_calibration_beep.m4a`); story 7.5 replaces it. Whether 1 kHz for 90 ms is the right sound to align a tap to only Geo can judge.
+- **`leadInMs`, `tailMs`, `doneHoldMs` and `pulseMs` are guesses** (`feel.calibration`). Reason: open point 2; tune them by playing.

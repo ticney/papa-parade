@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
+import { calibratedStorageState } from './tests/e2e/support/calibratedSave.ts';
 import { e2ePort } from './tests/e2e/support/e2ePort.ts';
 
 const PORT = e2ePort();
+const BASE_URL = `http://localhost:${PORT}`;
 const landscapePhone = { viewport: { width: 844, height: 390 }, hasTouch: true };
 
 export default defineConfig({
@@ -23,14 +25,16 @@ export default defineConfig({
       maxDiffPixelRatio: 0.002,
     },
   },
-  use: { baseURL: `http://localhost:${PORT}` },
+  // Every spec plays as a returning player: a save that holds a calibration of 0 ms sends it straight
+  // to the level (story 2.7). `calibration.spec.ts` starts from an empty storage instead.
+  use: { baseURL: BASE_URL, storageState: calibratedStorageState(BASE_URL) },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'], ...landscapePhone } },
     { name: 'webkit', use: { ...devices['Desktop Safari'], ...landscapePhone } },
   ],
   webServer: {
     command: `npm run dev -- --port ${PORT} --strictPort`,
-    url: `http://localhost:${PORT}`,
+    url: BASE_URL,
     reuseExistingServer: !process.env.CI,
   },
 });

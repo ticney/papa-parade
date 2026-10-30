@@ -29,7 +29,13 @@ const M4A = new Uint8Array([
   0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x4d, 0x34, 0x41, 0x20, 1, 2, 3,
 ]);
 const HTML = new TextEncoder().encode('<!doctype html>');
-const CLIPS = ['baby_babble_loop', 'music_crawler_calm', 'music_crawler_tense', 'papa_bump'];
+const CLIPS = [
+  'baby_babble_loop',
+  'music_crawler_calm',
+  'music_crawler_tense',
+  'papa_bump',
+  'ui_calibration_beep',
+];
 const MUSIC_FEEL = testFeel.music;
 
 interface Setup {
@@ -453,6 +459,81 @@ describe('playOneShot', () => {
     expect(() => s.engine.playOneShot('papa_bump', 'sfx', 100)).not.toThrow();
     expect(s.newWarnings()).toEqual([
       expect.stringContaining('audio one-shot papa_bump failed: InvalidStateError'),
+    ]);
+  });
+});
+
+describe('playOneShotAt and currentTimeS (story 2.7)', () => {
+  it('reads the audio clock, and null until there is a context', async () => {
+    const s = setup();
+    expect(s.engine.currentTimeS).toBeNull();
+    s.engine.unlock();
+    s.fake.currentTime = 12.5;
+    expect(s.engine.currentTimeS).toBe(12.5);
+  });
+
+  it('schedules the clip on the audio clock, through the bus gain at the cue gain', async () => {
+    const s = await ready();
+    const handle = s.engine.playOneShotAt('ui_calibration_beep', 'ui', 70, 3.25);
+    expect(handle).not.toBeNull();
+    const source = s.fake.sources.at(-1);
+    const gain = s.fake.gains.at(-1);
+    expect(source?.startCalls).toEqual([3.25]);
+    expect(gain?.gain.value).toBe(0.7);
+    expect(gain?.connections).toEqual([s.fake.gains[4]]);
+    expect(source?.connections).toEqual([gain]);
+  });
+
+  it('cancels a beep that has not sounded: the source is stopped and disconnected', async () => {
+    const s = await ready();
+    const handle = s.engine.playOneShotAt('ui_calibration_beep', 'ui', 100, 5);
+    handle?.cancel();
+    const source = s.fake.sources.at(-1);
+    expect(source?.stopCalls).toEqual([undefined]);
+    expect(source?.isDisconnected).toBe(true);
+    expect(s.fake.gains.at(-1)?.isDisconnected).toBe(true);
+  });
+
+  it('cancels once: a second cancel does nothing, and neither warns', async () => {
+    const s = await ready();
+    const handle = s.engine.playOneShotAt('ui_calibration_beep', 'ui', 100, 5);
+    handle?.cancel();
+    handle?.cancel();
+    expect(s.fake.sources.at(-1)?.stopCalls).toHaveLength(1);
+    expect(s.newWarnings()).toEqual([]);
+  });
+
+  it('does not throw when stopping a source that already ended', async () => {
+    const s = await ready();
+    const handle = s.engine.playOneShotAt('ui_calibration_beep', 'ui', 100, 5);
+    // The fake throws, as a browser does, on a stop that comes before any start.
+    s.fake.sources.at(-1)?.startCalls.splice(0);
+    expect(() => handle?.cancel()).not.toThrow();
+    expect(s.newWarnings()).toEqual([]);
+  });
+
+  it('answers null, silently, with no context, an undecoded clip, or a context not running', async () => {
+    const none = setup();
+    expect(none.engine.playOneShotAt('ui_calibration_beep', 'ui', 100, 1)).toBeNull();
+    none.engine.unlock();
+    expect(none.engine.playOneShotAt('ui_calibration_beep', 'ui', 100, 1)).toBeNull();
+    const s = await ready();
+    expect(s.engine.playOneShotAt('papa_bump_unknown', 'sfx', 100, 1)).toBeNull();
+    const sources = s.fake.sources.length;
+    for (const state of ['suspended', 'interrupted', 'closed'] as const) {
+      s.fake.setState(state);
+      expect(s.engine.playOneShotAt('ui_calibration_beep', 'ui', 100, 1)).toBeNull();
+    }
+    expect(s.fake.sources).toHaveLength(sources);
+    expect(s.newWarnings()).toEqual([]);
+  });
+
+  it('warns and answers null, without throwing, when the context fails', async () => {
+    const s = await ready();
+    s.fake.failures.start = new Error('InvalidStateError');
+    expect(s.engine.playOneShotAt('ui_calibration_beep', 'ui', 100, 1)).toBeNull();
+    expect(s.newWarnings()).toEqual([
+      expect.stringContaining('audio one-shot ui_calibration_beep failed: InvalidStateError'),
     ]);
   });
 });

@@ -83,6 +83,27 @@ describe('createPlatform', () => {
     expect(newWarnings()).toEqual([expect.stringContaining('switch')]);
   });
 
+  it('offers the storage, over the storage it is given', async () => {
+    const items = new Map<string, string>();
+    const platform = createPlatform({
+      target: 'web',
+      hapticPatternsMs: PATTERNS,
+      nav: {},
+      getStorage: () => ({
+        getItem: (key) => items.get(key) ?? null,
+        setItem: (key, value) => {
+          items.set(key, value);
+        },
+        removeItem: (key) => {
+          items.delete(key);
+        },
+      }),
+    });
+    await platform.storage.set('k', { a: 1 });
+    expect(items.get('k')).toBe('{"a":1}');
+    expect(await platform.storage.get('k')).toEqual({ ok: true, value: { a: 1 } });
+  });
+
   it('falls back to an empty navigator where there is none (Node)', () => {
     const platform = createPlatform({ target: 'web', hapticPatternsMs: PATTERNS });
     expect(platform.capabilities.haptics).toBe(false);

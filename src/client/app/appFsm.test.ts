@@ -40,7 +40,7 @@ describe('createAppFsm', () => {
     expect(fsm.state).toBe('loading');
   });
 
-  it('reaches oops from loading and from level only', () => {
+  it('reaches oops from loading, level and the calibration only', () => {
     const fromLoading = setup();
     goTo(fromLoading.fsm, ['start', 'loading', 'oops']);
     expect(fromLoading.fsm.state).toBe('oops');
@@ -48,7 +48,7 @@ describe('createAppFsm', () => {
     goTo(fromLevel.fsm, ['start', 'loading', 'level', 'oops']);
     expect(fromLevel.fsm.state).toBe('oops');
     for (const state of STATES) {
-      const expected = state === 'loading' || state === 'level';
+      const expected = state === 'loading' || state === 'level' || state === 'calibration';
       expect(APP_TRANSITIONS[state].includes('oops'), state).toBe(expected);
     }
   });
@@ -96,6 +96,9 @@ describe('createAppFsm', () => {
       [
         'boot>start',
         'start>loading',
+        'start>calibration',
+        'calibration>loading',
+        'calibration>oops',
         'loading>level',
         'loading>oops',
         'level>loading',
@@ -107,19 +110,41 @@ describe('createAppFsm', () => {
     );
   });
 
-  it('accepts a table that adds states and keeps the edges (what story 2.7 will do)', () => {
+  it('goes through the calibration on a first launch, and straight to loading on a return', () => {
+    const first = setup();
+    goTo(first.fsm, ['start', 'calibration', 'loading', 'level']);
+    expect(first.fsm.state).toBe('level');
+    const returning = setup();
+    goTo(returning.fsm, ['start', 'loading']);
+    expect(returning.fsm.state).toBe('loading');
+  });
+
+  it('leaves the calibration for loading or oops only', () => {
+    for (const next of ['level', 'result', 'start'] as const) {
+      const { fsm } = setup();
+      goTo(fsm, ['start', 'calibration']);
+      expect(() => fsm.enter(next), next).toThrow(/cannot go/);
+    }
+    const { fsm } = setup();
+    goTo(fsm, ['start', 'calibration', 'oops']);
+    expect(fsm.state).toBe('oops');
+  });
+
+  it('accepts a table that adds the settings detour and keeps the edges (what story 2.8 will do)', () => {
     const extended: Record<string, readonly string[]> = {
       ...APP_TRANSITIONS,
-      start: [...APP_TRANSITIONS.start, 'calibration'],
-      calibration: ['loading'],
+      start: [...APP_TRANSITIONS.start, 'settings'],
+      settings: ['calibration', 'start'],
+      calibration: [...APP_TRANSITIONS.calibration, 'settings'],
     };
     const { fsm } = setup(extended);
     fsm.enter('start');
-    (fsm.enter as (next: string) => void)('calibration'); // the new path
-    fsm.enter('loading');
-    expect(fsm.state).toBe('loading');
-    const returning = setup(extended);
-    goTo(returning.fsm, ['start', 'loading']); // the returning-player path, unchanged
-    expect(returning.fsm.state).toBe('loading');
+    (fsm.enter as (next: string) => void)('settings');
+    (fsm.enter as (next: string) => void)('calibration');
+    (fsm.enter as (next: string) => void)('settings');
+    expect(fsm.state as string).toBe('settings');
+    const first = setup(extended);
+    goTo(first.fsm, ['start', 'calibration', 'loading']); // the first-launch path, unchanged
+    expect(first.fsm.state).toBe('loading');
   });
 });

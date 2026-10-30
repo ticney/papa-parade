@@ -62,6 +62,9 @@ function releasePresses(world: World, t: number): void {
 export function runThreats(world: World, ctx: StepContext): void {
   const now = world.time.sim;
   const { threats } = world;
+  // The client corrects every stamp into the past by this much (story 2.7 D1): what the sim decides
+  // from the absence of a command waits for it, so the late edge of a press can still arrive.
+  const { lagMs } = world.input;
 
   for (let i = 0; i < ctx.commands.length; i++) {
     const command = ctx.commands[i];
@@ -95,7 +98,9 @@ export function runThreats(world: World, ctx: StepContext): void {
       // Once the ring has closed (`heldAt`), the press is a Firmness for good: raising `holdMinMs`
       // meanwhile (a `SetFeel`) must not turn its release into a Parry.
       const kind =
-        press.heldAt !== null ? 'firm' : classifyPress(press.t, press.releasedAt, now, holdMinMs);
+        press.heldAt !== null
+          ? 'firm'
+          : classifyPress(press.t, press.releasedAt, now, holdMinMs, lagMs);
       // The ring closes once per press, as soon as it has been held `holdMinMs`, before any result.
       if (kind === 'firm' && press.heldAt === null) {
         press.heldAt = asSimMs(now);
@@ -107,7 +112,8 @@ export function runThreats(world: World, ctx: StepContext): void {
           // The schema ties `holdUntilMs` to `response: 'firm'`; a def that skipped it must not play.
           invariant(def.holdUntilMs !== undefined, `firm threat ${def.id} has no holdUntilMs`);
           const endAt = holdEndAt(press.t, threat.windowOpenAt, def.holdUntilMs, holdMinMs);
-          const outcome = firmHoldOutcome(press.t, press.releasedAt, endAt, now);
+          // With no release yet, the hold is kept only once the release could no longer arrive.
+          const outcome = firmHoldOutcome(press.t, press.releasedAt, endAt, now - lagMs);
           if (outcome === 'held') {
             resolveThreat(world, ctx, threat, def, press.quality, press.offsetMs);
           } else if (outcome === 'released') {
@@ -122,7 +128,7 @@ export function runThreats(world: World, ctx: StepContext): void {
     } else if (
       threat.state === 'windowOpen' &&
       responseWindow !== null &&
-      now > threat.windowOpenAt + responseWindow.windowMs + responseWindow.toleranceMs
+      now > threat.windowOpenAt + responseWindow.windowMs + responseWindow.toleranceMs + lagMs
     ) {
       gagThreat(world, ctx, threat, def, 'late', null);
     } else if (

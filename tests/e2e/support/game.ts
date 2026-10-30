@@ -24,6 +24,7 @@ export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'ut
   cues: Record<string, { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' }>;
   events: Record<string, string>;
   resultScreen: { inputGraceMs: number };
+  calibration: { beep: { clip: string } };
 };
 
 /** How many distinct clips the live feedback table names: what the preload must have decoded. */
@@ -70,6 +71,7 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     earlyWakePenaltyStars: number;
   };
   music: { slowMo: { belowScale: number } };
+  calibration: { offsetMinMs: number; offsetMaxMs: number; audioWaitMs: number };
 };
 
 const feelSchema = JSON.parse(readFileSync('content/_schemas/feel.schema.json', 'utf8')) as unknown;

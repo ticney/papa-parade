@@ -77,6 +77,9 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   // carries (the feel panel's CSP workaround looks for it). Both live in the playtest bundle.
   'pp-debug-overlay',
   'data-tp-style',
+  // Story 2.7: the calibration's debug mirrors (`data-pp-calibration`, `data-pp-calibration-beats`)
+  // sit in the main chunk behind `isMirrored`; the screen itself ships in every build.
+  'ppCalibration',
 ];
 
 /**

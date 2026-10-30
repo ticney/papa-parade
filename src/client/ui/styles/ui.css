@@ -994,6 +994,64 @@ body {
 }
 
 /* ---------------------------------------------------------------------------------------------
+   Latency calibration (story 2.7): an ink screen with a prompt, a ring that pops at each beep (audio
+   phase) or a disc that flashes at each beat (visual phase), and a skip button. The mark is on for
+   `pulseMs` with no transition: its onset is what the player taps to. Under reduced motion the ring
+   keeps its opacity pop and drops its scale: the beat is information, it never disappears.
+   --------------------------------------------------------------------------------------------- */
+.pp-calibration-screen {
+  z-index: 1;
+  flex-direction: column;
+  gap: var(--pp-spacing-5);
+  background: var(--pp-color-ink);
+  color: var(--pp-color-paper);
+  text-align: center;
+  outline: none;
+}
+
+.pp-calibration-prompt {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pp-calibration-ring,
+.pp-calibration-disc {
+  box-sizing: border-box;
+  width: 120px;
+  height: 120px;
+  border-radius: var(--pp-rounded-full);
+  opacity: 0.25;
+}
+
+.pp-calibration-ring {
+  border: 6px solid var(--pp-color-paper);
+}
+
+.pp-calibration-disc {
+  background: var(--pp-color-paper);
+  opacity: 0.1;
+}
+
+.pp-calibration-ring.pp-calibration-on {
+  opacity: 1;
+  transform: scale(1.3);
+}
+
+.pp-calibration-disc.pp-calibration-on {
+  opacity: 1;
+}
+
+.pp-calibration-reduced .pp-calibration-ring.pp-calibration-on {
+  transform: none;
+}
+
+.pp-calibration-skip {
+  position: absolute;
+  right: var(--pp-spacing-screen-margin-right);
+  bottom: var(--pp-spacing-screen-margin-bottom);
+}
+
+/* ---------------------------------------------------------------------------------------------
    Motion: transform and opacity only, nothing faster than 3Hz
    --------------------------------------------------------------------------------------------- */
 @keyframes pp-pop-in {

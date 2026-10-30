@@ -1,6 +1,10 @@
+---
+baseline_commit: 5842b72841d6a33bc2e5e6bf8cd933202f45f040
+---
+
 # Story 2.7: Latency calibration
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -91,17 +95,17 @@ so that my responses are judged fairly despite my screen's and my audio's latenc
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Content** (AC 18, 19): `feel.calibration`, `feedback.calibration`, beep clip, `content:schemas`, fixtures.
-- [ ] **T2. Platform and save** (AC 12, 13): `StoragePort`, `webStorage`, `SaveSchema`, `saveStore`, migrations, set-aside; tests.
-- [ ] **T3. Pure maths** (AC 5): `input/calibration.ts`; tests first.
-- [ ] **T4. Engine** (AC 6): `playOneShotAt`, `currentTimeS`, `fakeAudioContext`; tests.
-- [ ] **T5. Screen and flow** (AC 3, 4, 6-11, 14, 17): `calibrationScreen.ts`, `calibrationFlow.ts`, CSS; tests with an injected clock.
-- [ ] **T6. App wiring** (AC 1, 2, 4): `appFsm`, `overlay`, `overlayHost`, `keys.ts`, `uiShell`, pad stamp, `menuPoll`, `boot.ts`, mirrors.
-- [ ] **T7. Sim** (AC 16): `SetInputLag`, `World.input`, snapshot bump, `classifyPress`, expiry; tests.
-- [ ] **T8. Mapper** (AC 15, 16): `toSim`, `visualOffsetMs`, sending `SetInputLag`; `inputMapper.test.ts` with offsets 0 and 100, press and release.
-- [ ] **T9. e2e** (AC 20-22): `storageState`, `calibration.spec.ts`, pinned specs.
-- [ ] **T10. Goldens and docs** (AC 23-25).
-- [ ] **T11. CI** (AC 26).
+- [x] **T1. Content** (AC 18, 19): `feel.calibration`, `feedback.calibration`, beep clip, `content:schemas`, fixtures.
+- [x] **T2. Platform and save** (AC 12, 13): `StoragePort`, `webStorage`, `SaveSchema`, `saveStore`, migrations, set-aside; tests.
+- [x] **T3. Pure maths** (AC 5): `input/calibration.ts`; tests first.
+- [x] **T4. Engine** (AC 6): `playOneShotAt`, `currentTimeS`, `fakeAudioContext`; tests.
+- [x] **T5. Screen and flow** (AC 3, 4, 6-11, 14, 17): `calibrationScreen.ts`, `calibrationFlow.ts`, CSS; tests with an injected clock.
+- [x] **T6. App wiring** (AC 1, 2, 4): `appFsm`, `overlay`, `overlayHost`, `keys.ts`, `uiShell`, pad stamp, `menuPoll`, `boot.ts`, mirrors.
+- [x] **T7. Sim** (AC 16): `SetInputLag`, `World.input`, snapshot bump, `classifyPress`, expiry; tests.
+- [x] **T8. Mapper** (AC 15, 16): `toSim`, `visualOffsetMs`, sending `SetInputLag`; `inputMapper.test.ts` with offsets 0 and 100, press and release.
+- [x] **T9. e2e** (AC 20-22): `storageState`, `calibration.spec.ts`, pinned specs.
+- [x] **T10. Goldens and docs** (AC 23-25).
+- [x] **T11. CI** (AC 26).
 
 ## Dev Notes
 
@@ -166,10 +170,124 @@ Branch `story/2-7-calibration-de-la-latence` in `.claude/worktrees/2-7-calibrati
 
 ### Agent Model Used
 
+Claude Sonnet 5.5
+
 ### Debug Log References
+
+- `(unset VITE_DEBUG_ALLOWED; npm run ci)` green once on the branch (no `VITE_` variable was set in the shell): 4939 unit tests, 442 e2e (chromium + webkit), 10 dist specs, `perf.spec.ts`, prod `dist:check`.
+- `perf.spec.ts`, next to 2.6's (16.8 ms, 40 draw calls, 1466 triangles): **p95 16.8 ms (mean 16.77, max 133.3), draw calls max 40, triangles max 1466** over 17026 frames. Nothing moved.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed: comprehensive developer guide created.
+- **Content (T1).** `feel.calibration` (strict, bounded, `bpm` ≤ 180 so a flash never goes over 3 Hz; refines `minValidTaps ≤ beatCount` and `offsetMinMs < offsetMaxMs`), `feedback.calibration.beep` (in `feedbackClips` and `contentChecks`), the placeholder `ui_calibration_beep.m4a` (`npm run assets:audio -- --only`, only that file committed). The unit-suffix test of `feel.json` learns `Taps` and the exact key `bpm`.
+- **Platform and save (T2).** `StoragePort` + `webStorage` (the only `localStorage` user; a Biome rule now refuses it in `src/client`, with a failing and a passing fixture), `SaveSchema` v1, `saveStore` with the ordered migration table (empty, tested with a fake v0 and a fake v1→v2 table) and the set-aside under `papa-parade.save.invalid`. An unparsable text is kept as the raw string (`StorageError.raw`).
+- **Maths and engine (T3, T4).** `computePhaseOffset` (pure, 15 tests including 150/151 outliers, 4 vs 5 taps, double taps, taps before the first beat, `-0` never returned). `playOneShotAt` / `currentTimeS` share one `playClip` with `playOneShot`; the cancel handle stops and disconnects.
+- **Screen and flow (T5, T6).** The screen drives its timing through an injected frame scheduler and clock (rAF in the app): the audio beats' real times come from one reading of both clocks, the visual beat is the frame that turns the disc on. The flow keeps the stage and offsets outside the screen (a rebuilt screen restarts the stage only), resumes the audio and restarts the stage when the page comes back, and warns once on `audio` when the audio cannot play (the audio phase is then skipped). `appFsm` gains `calibration`, `overlay` / `overlayHost` / `keys.ts` / `uiShell` the pad routing (A = tap with its edge stamp, B = skip), `menuPoll` runs in `calibration`, `boot.ts` awaits `saveStore.load()` before the start screen.
+- **Sim (T7, D1).** `SetInputLag`, `World.input.lagMs`, snapshot version 15. `classifyPress` (no-release branch), the unanswered-window expiry and the end of a held Firmness (`firmHoldOutcome` fed `now - lagMs`) wait `lagMs`. Checked and justified: the sim reads a command's `t` for `PressThreat` and `Release` only (`grep command.t`), so no other system waits; the micro-sleep is a normal threat and follows the same expiry; `fatigueSystem`'s window read is a spawn gap, not an expiry; no `wait` / `nothing` response is resolved by absence in the sim today. `judgePress` untouched.
+- **Mapper (T8).** One `toSim(active, atReal)` replaces every `realToSim` of an input stamp (presses, releases, keys, action, pad edges, `nowStamp`); `simClockStamp` stays raw. `SetInputLag` is sent from `boot.ts` at each level start when the lag is > 0 (never to an autoplay sim) and re-sent, whatever its value, when a recalibration ends with a level active.
+- **E2E (T9).** The two Playwright configs seed a calibrated save (offsets 0) through `use.storageState`; no existing spec was edited. `calibration.spec.ts` (9 cases, chromium and webkit) covers the AC 21 list. I added `__PP__.journal()` (read-only copy) because the spec reads the journal and the API had no accessor; the two pinned key lists were updated. `dist:check` forbids the `ppCalibration` marker in a prod build (present in the playtest one).
+- **Goldens (T10).** `npm run golden:update`, deliberately: `feel.calibration` and `World.input` move `feelHash` and `worldHash`. The diff holds **only hash lines** (`feelHash`, `worldHash`), no event moved (`eventsHash` and `eventTypes` identical).
+- **What no spec checks: real latency on a real device.** The maths and the plumbing are proven; whether the measured offsets feel fair is Geo's call on a phone (`docs/playtest/device-measurements.md` has a line for it). The beep is a synthesized placeholder, and `leadInMs`, `tailMs`, `doneHoldMs`, `pulseMs` are guesses.
+- Deferred (AC 25) recorded in `deferred-work.md`.
 
 ### File List
+
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/project-context.md`
+- `biome.json`
+- `content/_schemas/feedback.schema.json`
+- `content/_schemas/feel.schema.json`
+- `content/feedback.json`
+- `content/feel.json`
+- `docs/playtest/device-measurements.md`
+- `playwright.config.ts`
+- `playwright.dist.config.ts`
+- `public/assets/audio/ui_calibration_beep.m4a`
+- `src/client/app/appFsm.test.ts`
+- `src/client/app/appFsm.ts`
+- `src/client/app/calibrationFlow.test.ts`
+- `src/client/app/calibrationFlow.ts`
+- `src/client/app/clientEvents.ts`
+- `src/client/app/overlay.test.ts`
+- `src/client/app/overlay.ts`
+- `src/client/audio/audioEngine.test.ts`
+- `src/client/audio/audioEngine.ts`
+- `src/client/boot.ts`
+- `src/client/feedback/feedbackDirector.test.ts`
+- `src/client/input/calibration.test.ts`
+- `src/client/input/calibration.ts`
+- `src/client/input/inputMapper.test.ts`
+- `src/client/input/inputMapper.ts`
+- `src/client/save/saveStore.test.ts`
+- `src/client/save/saveStore.ts`
+- `src/client/ui/keys.ts`
+- `src/client/ui/overlayHost.ts`
+- `src/client/ui/overlayScreen.ts`
+- `src/client/ui/screens/calibrationScreen.test.ts`
+- `src/client/ui/screens/calibrationScreen.ts`
+- `src/client/ui/styles/ui.css`
+- `src/client/ui/uiShell.test.ts`
+- `src/client/ui/uiShell.ts`
+- `src/content/feedbackClips.test.ts`
+- `src/content/feedbackClips.ts`
+- `src/content/schemas/feedback.ts`
+- `src/content/schemas/feel.ts`
+- `src/content/schemas/save.test.ts`
+- `src/content/schemas/save.ts`
+- `src/debug/testApi.test.ts`
+- `src/debug/testApi.ts`
+- `src/platform/createPlatform.test.ts`
+- `src/platform/createPlatform.ts`
+- `src/platform/platform.ts`
+- `src/platform/web/webStorage.test.ts`
+- `src/platform/web/webStorage.ts`
+- `src/shared/constants.ts`
+- `src/sim/commandQueue.ts`
+- `src/sim/commands.test.ts`
+- `src/sim/commands.ts`
+- `src/sim/snapshot.test.ts`
+- `src/sim/snapshot.ts`
+- `src/sim/threats/inputLag.test.ts`
+- `src/sim/threats/threatSystem.ts`
+- `src/sim/timing/classifyPress.test.ts`
+- `src/sim/timing/classifyPress.ts`
+- `src/sim/world.ts`
+- `tests/architecture/biomeBoundaries.test.ts`
+- `tests/content/calibratedSave.test.ts`
+- `tests/content/feedbackSchema.test.ts`
+- `tests/content/feelSchema.test.ts`
+- `tests/e2e/calibration.spec.ts`
+- `tests/e2e/support/calibratedSave.ts`
+- `tests/e2e/support/game.ts`
+- `tests/e2e/testApi.spec.ts`
+- `tests/golden/journals/baby_wander.expected.json`
+- `tests/golden/journals/baby_wander.json`
+- `tests/golden/journals/core_basic.expected.json`
+- `tests/golden/journals/core_basic.json`
+- `tests/golden/journals/feel_change.expected.json`
+- `tests/golden/journals/feel_change.json`
+- `tests/golden/journals/mama_woke.expected.json`
+- `tests/golden/journals/mama_woke.json`
+- `tests/golden/journals/outlet_parry.expected.json`
+- `tests/golden/journals/outlet_parry.json`
+- `tests/golden/journals/papa_walk.expected.json`
+- `tests/golden/journals/papa_walk.json`
+- `tests/golden/journals/prop_fall.expected.json`
+- `tests/golden/journals/prop_fall.json`
+- `tests/golden/journals/prop_fall_noise.expected.json`
+- `tests/golden/journals/prop_fall_noise.json`
+- `tests/golden/journals/threat_trio.expected.json`
+- `tests/golden/journals/threat_trio.json`
+- `tests/support/testContent.ts`
+- `tests/support/testFeel.json`
+- `tests/tools/audio/makePlaceholderAudio.test.ts`
+- `tests/tools/build/checkDist.test.ts`
+- `tests/tools/vite/fixtures/feelSample.json`
+- `tools/audio/makePlaceholderAudio.ts`
+- `tools/build/inspectDist.ts`
+- `tools/content/contentChecks.ts`
+
+### Change Log
+
+- 2026-10-30: Story 2.7 implemented: latency calibration (screen, flow, maths, save, `StoragePort`), the correction of every input stamp in the mapper, `SetInputLag` in the sim (snapshot v15), e2e seeded with a calibrated save, goldens regenerated (hashes only).

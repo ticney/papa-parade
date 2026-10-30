@@ -2,16 +2,18 @@ import type { Emitter } from '@shared/emitter';
 import { invariant } from '@shared/invariant';
 import type { ClientEvents } from './clientEvents.ts';
 
-export type AppState = 'boot' | 'start' | 'loading' | 'level' | 'result' | 'oops';
+export type AppState = 'boot' | 'start' | 'calibration' | 'loading' | 'level' | 'result' | 'oops';
 
 /**
- * Which screen may follow which. Data, not code: later stories add rows and entries
- * (`start → calibration`, `calibration → loading`, `settings`, `fridge`) and never
- * remove or change these. `start → loading` stays legal: it is the path of a returning player.
+ * Which screen may follow which. Data, not code: later stories add rows and entries (`settings`,
+ * `fridge`; story 2.8 adds `settings → calibration → settings`) and never remove or change these.
+ * `start → loading` stays legal: it is the path of a returning player, and the autoplay's.
+ * `calibration` (story 2.7) is the first launch's detour, and a recalibration's later.
  */
 export const APP_TRANSITIONS: Readonly<Record<AppState, readonly AppState[]>> = {
   boot: ['start'],
-  start: ['loading'],
+  start: ['loading', 'calibration'],
+  calibration: ['loading', 'oops'],
   loading: ['level', 'oops'],
   level: ['loading', 'result', 'oops'], // loading: « Recommencer »
   result: ['loading'],

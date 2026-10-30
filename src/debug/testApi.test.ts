@@ -1,6 +1,7 @@
 import type { ActiveLevel, LevelSession, LevelStartOutcome } from '@client/app/levelSession';
 import { ADVANCE_MAX_STEPS, STEP_MS, TEST_API_CUE_LOG_MAX, UINT32_RANGE } from '@shared/constants';
 import { log } from '@shared/log';
+import { asSimMs } from '@shared/time';
 import { createSim, type Sim, type SimEvent } from '@sim';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createFakeTestHost, type FakeTestHost } from '../../tests/support/fakeTestHost.ts';
@@ -143,6 +144,23 @@ describe('state()', () => {
     if (world !== null) world.time.sim = 999 as never;
     expect(sim.world.time.sim).toBe(0);
     expect(api.state()).not.toBe(api.state());
+  });
+});
+
+describe('journal() (story 2.7)', () => {
+  it('is null when no level is running', async () => {
+    const { api, session } = await createRig();
+    session.active = null;
+    expect(api.journal()).toBeNull();
+  });
+
+  it("is a copy of the running level's journal, SetInputLag included", async () => {
+    const { api, sim } = await createRig();
+    sim.enqueue({ type: 'SetInputLag', t: asSimMs(0), lagMs: 100 });
+    const journal = api.journal();
+    expect(journal?.entries.map((entry) => entry.command.type)).toEqual(['SetInputLag']);
+    journal?.entries.pop();
+    expect(sim.journal().entries).toHaveLength(1);
   });
 });
 
@@ -492,6 +510,7 @@ describe('installTestApi', () => {
         'events',
         'freeze',
         'fx',
+        'journal',
         'loadLevel',
         'perf',
         'send',

@@ -67,13 +67,20 @@ export interface InputMapperDeps {
   getObjects(): readonly ObjectTarget[];
   /**
    * A button of the pad went down that the mapper does not act on: any button outside play, and in
-   * play every one but A (Start, B, the D-pad). The UI shell routes it (pause, menus).
+   * play every one but A (Start, B, the D-pad). The UI shell routes it (pause, menus). `atReal` is
+   * the edge's own stamp (the calibration counts A as a tap, story 2.7).
    */
-  onPadButton?(button: PadButton): void;
+  onPadButton?(button: PadButton, atReal: number): void;
   /** The pad appeared (`true`) or went away (`false`), seen by the poll. */
   onPadPresence?(isPresent: boolean, family: PadFamily): void;
   /** Real time now, same base as `event.timeStamp`. */
   nowAtReal(): number;
+  /**
+   * The calibrated screen latency, in ms, subtracted from every input stamp (story 2.7): 0 for a
+   * player who has not calibrated, in which case no stamp moves. Read at each input, so a
+   * recalibration applies to the very next one.
+   */
+  visualOffsetMs(): number;
 }
 
 /** The device that gave the last input: it decides whether the auto-target is shown (D8). */
@@ -139,7 +146,9 @@ export interface InputMapper {
  * Turns raw input into typed, timestamped `SimCommand`s (the sim never sees an event). The gate
  * (D9): only while `appState === 'level'`, the game `running` and a level active. Keys and stick
  * are tracked outside it, so that a resume can send what is held. The calibration offset
- * (`visualOffsetMs`, story 2.7) will be subtracted from the real timestamps here, nowhere else.
+ * (`visualOffsetMs`, story 2.7) is subtracted from the real timestamps here, nowhere else, and from
+ * every one: a press, a release, a key, an action. A corrected press with a raw release would add
+ * the offset to every hold.
  */
 export function createInputMapper(deps: InputMapperDeps): InputMapper {
   const stick: StickAxes = { x: 0, y: 0 };
@@ -156,6 +165,12 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
   // The sim time of the press the tracker holds: a `Release` must not be dated before it (the sim
   // ends only the presses made at or before its `t`).
   let heldPressAt: SimMs = asSimMs(0);
+
+  // The one conversion of a real input stamp into the sim's time, corrected by the calibrated
+  // screen latency (ADR-003). `simClockStamp` (the sim's own clock, after a resume) is not an input
+  // stamp and stays uncorrected.
+  const toSim = (active: ActiveLevel, atReal: number): SimMs =>
+    active.timeMap.realToSim(asRealMs(atReal - deps.visualOffsetMs()));
 
   // Live: in a level, running, and the level still playing (a level that has ended takes no input).
   const isLive = (): boolean => {
@@ -273,14 +288,12 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     phase: 'down' | 'up',
     timeStampAtReal: number,
     device: 'keyboard' | 'gamepad',
-  ): void => act(phase, (active) => active.timeMap.realToSim(asRealMs(timeStampAtReal)), device);
+  ): void => act(phase, (active) => toSim(active, timeStampAtReal), device);
 
   // The stamps of the pad's commands, as functions made once (the poll runs every frame).
   const simClockStamp = (active: ActiveLevel): SimMs => active.sim.world.time.sim;
-  const nowStamp = (active: ActiveLevel): SimMs =>
-    active.timeMap.realToSim(asRealMs(deps.nowAtReal()));
-  const padEdgeStamp = (active: ActiveLevel): SimMs =>
-    active.timeMap.realToSim(asRealMs(padState.stampAtReal));
+  const nowStamp = (active: ActiveLevel): SimMs => toSim(active, deps.nowAtReal());
+  const padEdgeStamp = (active: ActiveLevel): SimMs => toSim(active, padState.stampAtReal);
 
   // Reads the pad: its presence, its stick (into `stick`) and its button edges. Runs outside play
   // too (menus). In play the stick refreshes the walk, then A acts; everything else goes to the shell.
@@ -306,7 +319,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     const step = padState.isPresent
       ? stickToMenuStep(stick, menuStick, deps.input.stickDeadzonePct)
       : null;
-    if (step !== null && !isLiveNow) deps.onPadButton?.(step);
+    if (step !== null && !isLiveNow) deps.onPadButton?.(step, deps.nowAtReal());
     const edgeStampOf = isResync ? simClockStamp : padEdgeStamp;
     for (let i = 0; i < PAD_BUTTONS.length; i++) {
       const button = PAD_BUTTONS[i] as PadButton;
@@ -316,7 +329,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (!padState.pressed[button]) continue;
       lastDevice = 'gamepad';
       if (button === 'confirm' && isLiveNow) act('down', edgeStampOf, 'gamepad');
-      else deps.onPadButton?.(button);
+      else deps.onPadButton?.(button, padState.stampAtReal);
     }
   };
 
@@ -357,7 +370,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
               deps.touchRadiusPx,
             );
       if (threatId !== null) {
-        heldPressAt = active.timeMap.realToSim(asRealMs(sample.timeStamp));
+        heldPressAt = toSim(active, sample.timeStamp);
         active.sim.enqueue({ type: 'PressThreat', t: heldPressAt, threatId });
         press.pressed(sample.pointerId, threatId);
         deps.onThreatPressed?.(threatId);
@@ -392,7 +405,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (babyDistSq !== null && objectId === null) {
         active.sim.enqueue({
           type: 'TapBaby',
-          t: active.timeMap.realToSim(asRealMs(sample.timeStamp)),
+          t: toSim(active, sample.timeStamp),
         });
         deps.showTapMarker(baby.xM, baby.zM);
         deps.onTap?.(baby.xM, baby.zM);
@@ -402,7 +415,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
         const object = objects.find((candidate) => candidate.id === objectId);
         active.sim.enqueue({
           type: 'TapObject',
-          t: active.timeMap.realToSim(asRealMs(sample.timeStamp)),
+          t: toSim(active, sample.timeStamp),
           objectId,
         });
         // The marker shows where Papa will stand: the object's floor point.
@@ -417,7 +430,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (!deps.hitTester.pickFloor(ndcX, ndcY, picked)) return;
       active.sim.enqueue({
         type: 'TapFloor',
-        t: active.timeMap.realToSim(asRealMs(sample.timeStamp)),
+        t: toSim(active, sample.timeStamp),
         xM: picked.xM,
         zM: picked.zM,
       });
@@ -431,7 +444,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (!press.released(sample.pointerId)) return;
       active.sim.enqueue({
         type: 'Release',
-        t: releaseStamp(active.timeMap.realToSim(asRealMs(sample.timeStamp))),
+        t: releaseStamp(toSim(active, sample.timeStamp)),
       });
     },
     releaseHeld() {
@@ -445,7 +458,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     },
     onKeysChanged(timeStampAtReal) {
       if (deps.held.size > 0) lastDevice = 'keyboard';
-      refreshMove((active) => active.timeMap.realToSim(asRealMs(timeStampAtReal)));
+      refreshMove((active) => toSim(active, timeStampAtReal));
     },
     handleAction,
     get lastDevice() {

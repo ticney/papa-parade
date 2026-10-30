@@ -213,5 +213,18 @@
       "inMs": 150,
       "outMs": 500
     }
+  },
+  "calibration": {
+    "beatCount": 8,
+    "bpm": 100,
+    "outlierMs": 150,
+    "offsetMinMs": -50,
+    "offsetMaxMs": 250,
+    "minValidTaps": 5,
+    "leadInMs": 1000,
+    "tailMs": 600,
+    "audioWaitMs": 1500,
+    "doneHoldMs": 1000,
+    "pulseMs": 150
   }
 }

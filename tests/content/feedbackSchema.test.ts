@@ -292,6 +292,19 @@ describe('content/feedback.json', () => {
   });
 
   it.each<[string, [string, unknown][], string]>([
+    ['a missing calibration block', [['calibration', undefined]], 'calibration'],
+    ['a missing calibration beep', [['calibration.beep', undefined]], 'calibration.beep'],
+    ['an unknown key in calibration', [['calibration.bogus', 1]], 'calibration.bogus'],
+    [
+      'a calibration beep with no category',
+      [['calibration.beep.clip', 'beep']],
+      'calibration.beep.clip',
+    ],
+    [
+      'a calibration beep above 100 %',
+      [['calibration.beep.gainPct', 101]],
+      'calibration.beep.gainPct',
+    ],
     ['a missing resultScreen', [['resultScreen', undefined]], 'resultScreen'],
     ['an unknown key in resultScreen', [['resultScreen.bogusMs', 1]], 'resultScreen.bogusMs'],
     ['a count-up of 0 ms', [['resultScreen.rowCountUpMs', 0]], 'resultScreen.rowCountUpMs'],

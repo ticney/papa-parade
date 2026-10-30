@@ -243,12 +243,21 @@ const ResultScreenSchema = z
     'The sequence of the Result screen (story 1.22): rows, then stars, then buttons. Real time: the sim never reads it.',
   );
 
+const CalibrationFeedbackSchema = z
+  .strictObject({
+    beep: AudioCueSchema.describe(
+      'The beep of the audio phase. Not a cue: the ring and the flash are the visual measure, and calibration has no vibration (EXPERIENCE.md).',
+    ),
+  })
+  .describe('The sounds of the latency calibration (story 2.7).');
+
 export const FeedbackTableSchema = z
   .strictObject({
     buses: BusesSchema,
     haptics: HapticsSchema,
     loops: LoopsSchema,
     resultScreen: ResultScreenSchema,
+    calibration: CalibrationFeedbackSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),

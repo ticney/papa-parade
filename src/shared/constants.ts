@@ -432,3 +432,12 @@ export const MUSIC_STEM_LENGTH_TOLERANCE_MS = 2;
 
 /** Cut-off of the music's low-pass when the slow-mo effect is off: wide open, under the Nyquist frequency of 44.1 kHz (story 2.6). */
 export const MUSIC_FILTER_OPEN_HZ = 20000;
+
+/** The one key of the versioned save in `StoragePort` (story 2.7; architecture › Persistance). */
+export const SAVE_KEY = 'papa-parade.save';
+
+/** A save that cannot be read is kept here, untouched, while the game runs on defaults (story 2.7). */
+export const SAVE_INVALID_KEY = 'papa-parade.save.invalid';
+
+/** The version of the save the game writes. Every bump adds a migration `v{n-1} → v{n}` (story 2.7). */
+export const SAVE_VERSION = 1;

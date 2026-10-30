@@ -64,6 +64,20 @@ export interface AudioEngine {
   preload(clips: readonly string[]): Promise<void>;
   /** Plays a decoded clip once, through `bus`, at the cue's gain times the bus's. */
   playOneShot(clip: string, bus: AudioBus, gainPct: number): void;
+  /**
+   * Like {@link playOneShot}, scheduled on the audio clock at `atS` (a time on `currentTimeS`'s
+   * scale; a time already past plays at once). `null` when nothing was scheduled: no context, a
+   * context that is not running, a clip not decoded, or a Web Audio failure (a `warn`). The
+   * handle's `cancel` silences a beep that has not sounded yet; never throws.
+   */
+  playOneShotAt(
+    clip: string,
+    bus: AudioBus,
+    gainPct: number,
+    atS: number,
+  ): { cancel(): void } | null;
+  /** The audio clock, in seconds; `null` while there is no context. */
+  readonly currentTimeS: number | null;
   /** The music plays from now until `stopLevelLoops()`, in the mood last set. Idempotent. */
   startLevelLoops(): void;
   /** Fades both loops out. Idempotent. */
@@ -259,6 +273,41 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
     return work;
   };
 
+  /** One decoded clip through `bus`, started at `whenS`. `null` when it could not be (see `playOneShotAt`). */
+  const playClip = (
+    clip: string,
+    bus: AudioBus,
+    gainPct: number,
+    whenS: number,
+  ): { source: BufferSourceLike; gain: GainNodeLike } | null => {
+    if (context === null || graph === null) return null;
+    // A frozen clock (paused, `interrupted`) never ends a source: cues would pile up and all sound
+    // at once on resume. A cue played while the context is not running is lost, like its moment.
+    if (context.state !== 'running') return null;
+    const buffer = buffers.get(clip);
+    if (buffer === undefined) {
+      if (log.enabled('debug')) log.debug('audio', `one-shot skipped: ${clip} not decoded`);
+      return null;
+    }
+    try {
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      const gain = context.createGain();
+      gain.gain.value = gainPct / 100;
+      source.connect(gain);
+      gain.connect(graph.gains[bus]);
+      source.onended = () => {
+        source.disconnect();
+        gain.disconnect();
+      };
+      source.start(whenS);
+      return { source, gain };
+    } catch (cause) {
+      warn(`audio one-shot ${clip} failed: ${reasonOf(cause)}`, cause);
+      return null;
+    }
+  };
+
   return {
     get state(): AudioStateName {
       return context === null ? 'none' : context.state;
@@ -361,31 +410,31 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       music?.clearSkipped();
       options.onClipsDecoded?.(buffers.size);
     },
+    get currentTimeS(): number | null {
+      return context === null ? null : context.currentTime;
+    },
     playOneShot(clip, bus, gainPct) {
-      if (context === null || graph === null) return;
-      // A frozen clock (paused, `interrupted`) never ends a source: cues would pile up and all sound
-      // at once on resume. A cue played while the context is not running is lost, like its moment.
-      if (context.state !== 'running') return;
-      const buffer = buffers.get(clip);
-      if (buffer === undefined) {
-        if (log.enabled('debug')) log.debug('audio', `one-shot skipped: ${clip} not decoded`);
-        return;
-      }
-      try {
-        const source = context.createBufferSource();
-        source.buffer = buffer;
-        const gain = context.createGain();
-        gain.gain.value = gainPct / 100;
-        source.connect(gain);
-        gain.connect(graph.gains[bus]);
-        source.onended = () => {
-          source.disconnect();
-          gain.disconnect();
-        };
-        source.start(0);
-      } catch (cause) {
-        warn(`audio one-shot ${clip} failed: ${reasonOf(cause)}`, cause);
-      }
+      playClip(clip, bus, gainPct, 0);
+    },
+    playOneShotAt(clip, bus, gainPct, atS) {
+      const handle = playClip(clip, bus, gainPct, atS);
+      if (handle === null) return null;
+      const { source, gain } = handle;
+      let isCancelled = false;
+      return {
+        cancel() {
+          if (isCancelled) return;
+          isCancelled = true;
+          try {
+            // Stopped before its start time, a source never sounds.
+            source.stop();
+          } catch (cause) {
+            // Already ended: nothing left to silence.
+            if (log.enabled('debug')) log.debug('audio', `beep cancel: ${reasonOf(cause)}`);
+          }
+          disconnectAll(source, gain);
+        },
+      };
     },
     startLevelLoops() {
       if (areLoopsActive) return;

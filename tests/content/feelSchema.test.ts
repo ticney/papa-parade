@@ -19,8 +19,10 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // Story 1.17 adds `ReachM` (`contextReachM`: a length in metres, spelled out like `RadiusM`).
 // Story 2.5 adds `Hz` and the exact keys `amplitudeM` and `sizeM` (lengths in metres of the fx
 // presets) and `count` (a particle count).
+// Story 2.7 adds `Taps` (`minValidTaps`: a count of taps) and the exact key `bpm` (a tempo; the unit
+// is the name).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|Kg|Ns|Hz)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count)$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -300,6 +302,9 @@ describe('feel unit suffixes', () => {
     expect(UNIT_SUFFIX.test('breakImpulseNs')).toBe(true);
     expect(UNIT_SUFFIX.test('gravityMps2')).toBe(true);
     expect(UNIT_SUFFIX.test('propReachDistM')).toBe(true);
+    expect(UNIT_SUFFIX.test('minValidTaps')).toBe(true);
+    expect(UNIT_SUFFIX.test('bpm')).toBe(true);
+    expect(UNIT_SUFFIX.test('taps')).toBe(false);
     expect(UNIT_SUFFIX.test('mass')).toBe(false);
     expect(UNIT_SUFFIX.test('impulse')).toBe(false);
   });
@@ -450,6 +455,79 @@ describe('feel.music (story 2.6)', () => {
     ['an unknown key in the tense stem', [[p('tense.bogusMs'), 1]], [p('tense.bogusMs')]],
   ])('refuses %s, at its path', (_name, changes, paths) => {
     expect(failedPaths(mutated(...changes))).toEqual(paths);
+  });
+});
+
+describe('feel.calibration (story 2.7)', () => {
+  const p = (path: string) => `calibration.${path}`;
+
+  it('accepts the bounds themselves', () => {
+    expect(
+      mutated(
+        [p('beatCount'), 3],
+        [p('bpm'), 40],
+        [p('outlierMs'), 0],
+        [p('offsetMinMs'), -1000],
+        [p('offsetMaxMs'), 1],
+        [p('minValidTaps'), 1],
+        [p('leadInMs'), 0],
+        [p('tailMs'), 0],
+        [p('audioWaitMs'), 0],
+        [p('doneHoldMs'), 0],
+        [p('pulseMs'), 1],
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      mutated(
+        [p('beatCount'), 16],
+        [p('bpm'), 180],
+        [p('outlierMs'), 1000],
+        [p('offsetMinMs'), 0],
+        [p('offsetMaxMs'), 1000],
+        [p('minValidTaps'), 16],
+        [p('leadInMs'), 5000],
+        [p('tailMs'), 5000],
+        [p('audioWaitMs'), 10000],
+        [p('doneHoldMs'), 5000],
+        [p('pulseMs'), 1000],
+      ),
+    ).toMatchObject({ ok: true });
+  });
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['too few beats', [[p('beatCount'), 2]], [p('beatCount'), p('minValidTaps')]],
+    ['too many beats', [[p('beatCount'), 17]], [p('beatCount')]],
+    ['a fractional beat count', [[p('beatCount'), 8.5]], [p('beatCount')]],
+    ['a tempo over 180 BPM (3 Hz flashing)', [[p('bpm'), 181]], [p('bpm')]],
+    ['a tempo under 40 BPM', [[p('bpm'), 39]], [p('bpm')]],
+    ['a negative outlier bound', [[p('outlierMs'), -1]], [p('outlierMs')]],
+    ['a positive minimum offset', [[p('offsetMinMs'), 1]], [p('offsetMinMs')]],
+    ['a minimum offset under -1000', [[p('offsetMinMs'), -1001]], [p('offsetMinMs')]],
+    ['a negative maximum offset', [[p('offsetMaxMs'), -1]], [p('offsetMaxMs')]],
+    ['a maximum offset over 1000', [[p('offsetMaxMs'), 1001]], [p('offsetMaxMs')]],
+    ['no valid tap needed', [[p('minValidTaps'), 0]], [p('minValidTaps')]],
+    ['more valid taps than beats', [[p('minValidTaps'), 9]], [p('minValidTaps')]],
+    ['a negative lead-in', [[p('leadInMs'), -1]], [p('leadInMs')]],
+    ['a negative tail', [[p('tailMs'), -1]], [p('tailMs')]],
+    ['a negative audio wait', [[p('audioWaitMs'), -1]], [p('audioWaitMs')]],
+    ['a negative done hold', [[p('doneHoldMs'), -1]], [p('doneHoldMs')]],
+    ['a pulse of 0 ms', [[p('pulseMs'), 0]], [p('pulseMs')]],
+    ['a missing calibration block', [['calibration', undefined]], ['calibration']],
+    ['an unknown key', [[p('bogus'), 1]], [p('bogus')]],
+  ])('refuses %s, at its path', (_name, changes, paths) => {
+    expect(failedPaths(mutated(...changes))).toEqual(paths);
+  });
+
+  it('refuses more valid taps than beats, even with both in bounds', () => {
+    expect(failedPaths(mutated([p('beatCount'), 4], [p('minValidTaps'), 5]))).toEqual([
+      p('minValidTaps'),
+    ]);
+  });
+
+  it('refuses a minimum offset that is not below the maximum', () => {
+    expect(failedPaths(mutated([p('offsetMinMs'), 0], [p('offsetMaxMs'), 0]))).toEqual([
+      p('offsetMinMs'),
+    ]);
   });
 });
 

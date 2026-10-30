@@ -51,6 +51,7 @@ test.describe('window.__PP__', () => {
       'events',
       'freeze',
       'fx',
+      'journal',
       'loadLevel',
       'perf',
       'send',

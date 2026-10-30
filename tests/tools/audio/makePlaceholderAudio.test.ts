@@ -13,6 +13,7 @@ import {
   synthBabble,
   synthBabyLaugh,
   synthBump,
+  synthCalibrationBeep,
   synthDoorSlam,
   synthFirm,
   synthGagCoffeeTable,
@@ -264,6 +265,27 @@ describe('placeholder audio', () => {
     for (const clip of ['ui_star_stamp', 'ui_star_stamp_last']) {
       expect(names, clip).toContain(clip);
     }
+  });
+
+  describe('the calibration beep (story 2.7)', () => {
+    it('is in the table once, by the name the feedback table uses', () => {
+      const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+      expect(names.filter((name) => name === 'ui_calibration_beep')).toHaveLength(1);
+    });
+
+    it('is short, and its onset is sharp: full level within 2 ms', () => {
+      const beep = synthCalibrationBeep();
+      expect((beep.length / SAMPLE_RATE_HZ) * 1000).toBeCloseTo(90, 0);
+      const early = beep.slice(0, Math.round((2 * SAMPLE_RATE_HZ) / 1000));
+      expect(peakOf(early)).toBeGreaterThan(0.6 * peakOf(beep));
+    });
+
+    it('starts and ends on silence, and gives the same bytes on two runs', () => {
+      const beep = synthCalibrationBeep();
+      expect(beep[0]).toBe(0);
+      expect(beep[beep.length - 1]).toBe(0);
+      expect(encodeWav(beep).equals(encodeWav(synthCalibrationBeep()))).toBe(true);
+    });
   });
 
   it('has the lengths of the Mama-woke clips: a 400 ms door slam and a 180 ms falling blip', () => {
