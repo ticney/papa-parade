@@ -382,6 +382,24 @@ export const FEEL_WRITER_HEADER = 'x-pp-feel-writer';
 /** The value `FEEL_WRITER_HEADER` must carry. */
 export const FEEL_WRITER_HEADER_VALUE = '1';
 
+/** Particle instances the pool draws at most (one `InstancedMesh`, one draw call): a perf limit, not a feel. */
+export const PARTICLE_POOL_SIZE = 64;
+
+/** Most particles one burst may ask for: bounds `feel.fx.<preset>.particles.count` (half the pool). */
+export const PARTICLE_MAX_PER_BURST = 32;
+
+/** Gravity on a spark, in metres per second squared: physics, not a feel. */
+export const PARTICLE_GRAVITY_MPS2 = 9.8;
+
+/** UX ceiling of the « PARADE PARFAITE » stamp, in real ms (UX-DR15): never longer, whatever `feel.fx` says. */
+export const EPIC_STAMP_MAX_MS = 900;
+
+/** Reduced motion keeps this share of a burst's particles (EXPERIENCE.md: « −60 % »). */
+export const REDUCED_MOTION_PARTICLE_KEEP_PCT = 40;
+
+/** Reduced motion caps the perfect's camera zoom and pan at this share of their feel value. */
+export const REDUCED_MOTION_ZOOM_CAP_PCT = 50;
+
 /**
  * A touch device whose shorter screen side is under this many CSS px is a phone, else a tablet
  * (story 3.3). A classification bound for the exported journal's `device.type`, not a feel value.

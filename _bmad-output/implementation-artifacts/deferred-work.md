@@ -544,3 +544,23 @@
 - **The flash is not cancelled at level end, pause or result.** Reason: a fade is ≤ 180 ms and the HUD has no level-end hook yet; cancel it in `screenFlash` when one exists.
 - **The telegraph waves differ by only 50-100 ms of pulse timing** (same radius, 2 pulses for silence, stairs, phone). Reason: Geo tunes them after playing (story Open points); `content:check` pins only a different tuple.
 - **The glow thickness, `ease-out` easing and `z-index` of the screen flash are hard-coded** (`ui.css`, `screenFlash.ts`). Reason: only `peakOpacityPct` and `durationMs` are required in data; move them to `feedback.json` if Geo wants to tune the glow.
+
+## Story 2-5-effets-de-feeling-a-l-ecran (2026-10-29)
+
+- **Zoom, stamp, shake, particles** (the lines on the epic stamp, the camera zoom and the shake above): *done (2026-10-29). `feel.fx` holds every intensity; `cameraFx.ts` is the perfect's move; `epicStamp.ts` the stamp; `vfx/particles.ts` the pooled burst; `vfx/shake.ts` is real-time.*
+- **The shake frequency depended on its duration** (4 cycles over the duration, so a 120 ms shake aliased): *done: `feel.fx.shakeFrequencyHz`, one frequency for every shake.*
+- **Taps during a shake** (hit-tests and the world UI work in unshaken space): *accepted, resolved by bound: the offset is at most `amplitudeM` (0.1 m by schema) for at most 400 ms, under the 44 pt tap radius.*
+- **The camera under the slow-mo**: *done (the perfect only; a `lastThreat` slow-mo moves nothing). Music under the slow-mo stays story 2.6.*
+- **Prop impact and break sounds, and a `prop` ring anchor**: *not done, D5 of story 2.5: it needs clips and a schema anchor kind. It belongs with the sound library (story 7.5) or a correct-course. Particles on `PropBroken` would be cheap with the pool: Geo decides after playing.*
+- **The Playwright position mirrors (`data-pp-object-px`, `-baby-px`, `-threat-px`) are valid at the base framing only**: they are written once per level or per telegraph, with the camera as fitted. During a perfect's slow-mo (≈ 4 s real) the camera is zoomed, panned and turned, so a spec that taps an icon from those mirrors would miss. No spec does today (`juice.spec.ts` freezes the level and taps the stamp, not an icon). Re-mirror per frame only if one needs it.
+- **The shake and the particles of a cue start at `deps.nowReal()` (`performance.now()` in boot), not at the frame that draws them** (a gap of at most one frame). Reason: same as the flash; no frame time reaches the director.
+- **The particles are provisional boxes starting from the ring's anchor**, lifted by `PARTICLE_ORIGIN_LIFT_M`: final art and the real response point are story 7.3 / E7.
+- **The stamp text is `stamp.perfect_parry`** (the key the strings file already had) rather than a new `stamp.perfect` key. `epicStamp.ts` takes its `text`, so the REPLAY banner (story 3.9) reuses it.
+- **Reduced-motion checklist for story 2.10**: see the Completion Notes of story 2.5. The in-game setting replaces the body of `prefersReducedMotion()` in `boot.ts` and nothing else.
+
+## Deferred from: code review of story-2-5-effets-de-feeling-a-l-ecran (2026-10-30)
+
+- **Shake, particles and stamp keep running during a pause while the camera and the sim-clocked rings hold.** Reason: by the real-time design of story 2.5 (a hitstop must not freeze the juice); Geo judges after playing whether a pause should hold them too.
+- **The camera blend clock (`sim − STEP_MS × (1 − alpha)`, `boot.ts`) runs 10 ms behind the rings and gags (`sim + alpha × STEP_MS`, `levelScene.ts`).** Reason: pre-existing, `updateThreats` in `boot.ts` uses the same formula; align both when the draw clock is unified.
+- **A shake that starts during another replaces it even when smaller (no max-merge).** Reason: documented as « replaces » in the shake contract; merge only if Geo feels a cut after playing.
+- **Art constants hard-coded: the stamp's scale-in share, fade-out start, tilt and entry scale (`epicStamp.ts`), `FOCUS_HEIGHT_M` (`cameraFx.ts`), `PARTICLE_ORIGIN_LIFT_M`, `PUFF_*`, `INK_EVERY` (`particles.ts`), `SHAKE_Z_RATIO`, the stamp's `top` and `z-index` (`ui.css`).** Reason: provisional art constants (Geo, 2026-10-30); move them into `feel.fx` if he retouches them after playing.

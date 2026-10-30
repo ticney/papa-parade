@@ -435,10 +435,12 @@ test.describe('HUD', () => {
           };
         };
         const hud = document.querySelector('#pp-hud') as HTMLElement;
-        // #pp-hud itself is the whole screen; so is the screen flash (story 2.4), an overlay that
-        // draws nothing at rest and is no HUD zone.
+        // #pp-hud itself is the whole screen; so are the screen flash (story 2.4) and the epic
+        // stamp (story 2.5), overlays that draw nothing at rest and are no HUD zone.
         const elements = [...hud.querySelectorAll<HTMLElement>('*')].filter(
-          (element) => !element.classList.contains('pp-screen-flash'),
+          (element) =>
+            !element.classList.contains('pp-screen-flash') &&
+            !element.classList.contains('pp-epic-stamp'),
         );
         return {
           viewport: { width: innerWidth, height: innerHeight },

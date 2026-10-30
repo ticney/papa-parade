@@ -481,37 +481,13 @@
             ],
             "additionalProperties": false
           },
-          "camera": {
-            "description": "A camera effect, skipped under reduced motion.",
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "shake",
-                    "description": "The scene shakes."
-                  },
-                  "amplitudeM": {
-                    "type": "number",
-                    "exclusiveMinimum": 0,
-                    "maximum": 0.5,
-                    "description": "Largest offset of the scene, in metres."
-                  },
-                  "durationMs": {
-                    "type": "number",
-                    "exclusiveMinimum": 0,
-                    "description": "How long the shake lasts, in sim ms."
-                  }
-                },
-                "required": [
-                  "kind",
-                  "amplitudeM",
-                  "durationMs"
-                ],
-                "additionalProperties": false,
-                "description": "A camera effect. Skipped under reduced motion."
-              }
+          "fx": {
+            "description": "Plays the `feel.fx.<preset>` juice: shake, particles and, for `perfect`, the stamp; at the cue ring anchor.",
+            "type": "string",
+            "enum": [
+              "success",
+              "perfect",
+              "gag"
             ]
           }
         },

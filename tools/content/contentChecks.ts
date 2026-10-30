@@ -140,7 +140,7 @@ const exists = (path: string): Promise<boolean> =>
 /**
  * The cross-references of `feedback.json` that its schema cannot see: an `events` key is the name
  * of a sim or client event (a typo is a cue that never plays), a client event's cue has neither
- * visual nor camera (they need a world), a cue an event points at has no `threat`-anchored visual
+ * visual nor fx (they need a world), a cue with an fx has a `soundWave` (its anchor), a cue an event points at has no `threat`-anchored visual
  * (a generic event names no threat), and every clip is a file under `public/assets/audio/`.
  * (That an `events` value is a cue of `cues` is the schema's own check.)
  */
@@ -168,12 +168,12 @@ async function checkFeedbackReferences(
     if (
       isClientEvent &&
       cue !== undefined &&
-      ((visual !== undefined && visual.kind !== 'uiElement') || cue.camera !== undefined)
+      ((visual !== undefined && visual.kind !== 'uiElement') || cue.fx !== undefined)
     ) {
       problems.push({
         file,
         jsonPath: formatJsonPath(['events', name]),
-        message: `"${name}" is a client event with no world: its cue "${cueId}" cannot have a world visual or a camera (only a \`uiElement\` visual)`,
+        message: `"${name}" is a client event with no world: its cue "${cueId}" cannot have a world visual or an \`fx\` (only a \`uiElement\` visual)`,
       });
     }
     // And the reverse: a sim event is no UI element, so a `uiElement` visual would be no twin at all.
@@ -198,6 +198,16 @@ async function checkFeedbackReferences(
         file,
         jsonPath: formatJsonPath(['cues', cueId, 'visual', 'anchor']),
         message: `the cue "${cueId}" is played by the event "${name}", which names no object: its visual cannot be anchored on an object`,
+      });
+    }
+  }
+  // The particles start from the ring's anchor (story 2.5): no `soundWave`, nowhere to start from.
+  for (const [cueId, cue] of Object.entries(table.cues)) {
+    if (cue.fx !== undefined && cue.visual?.kind !== 'soundWave') {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['cues', cueId, 'fx']),
+        message: `the cue "${cueId}" has an \`fx\` but no \`soundWave\` visual: its particles start from the ring's anchor`,
       });
     }
   }
@@ -434,6 +444,21 @@ function checkThreatTwins(
       jsonPath: formatJsonPath(['feedback', 'gag']),
       message: `the cue "${gag.cueId}" vibrates "${gag.cue?.haptic ?? 'never'}", but a gag is a \`heavy\` vibration`,
     });
+  }
+  // The juice of story 2.5: each response role plays the preset of its name.
+  for (const [role, preset] of [
+    ['success', 'success'],
+    ['perfect', 'perfect'],
+    ['gag', 'gag'],
+  ] as const) {
+    const juiced = cueOf(role);
+    if (juiced !== undefined && juiced.cue?.fx !== preset) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['feedback', role]),
+        message: `the cue "${juiced.cueId}" has fx "${juiced.cue?.fx ?? 'none'}", but the ${role} of a threat plays the \`${preset}\` fx preset`,
+      });
+    }
   }
   // A telegraph or a gag told by a flash alone would be silent and invisible when the 3 Hz rule
   // skips the flash: only the perfect flashes, the others keep their ring.

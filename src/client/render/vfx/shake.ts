@@ -1,58 +1,70 @@
 import type { Object3D } from 'three';
 
-/** Wobbles the shake makes on x over its duration; z wobbles `SHAKE_Z_RATIO` times as fast. */
-const SHAKE_CYCLES = 4;
+/** z wobbles this many times as fast as x, so the shake does not trace a straight line. */
 const SHAKE_Z_RATIO = 1.5;
+const MS_PER_S = 1000;
 
 export interface Shake {
-  /** Starts a shake from `startAt` (sim ms); a new one replaces the one under way. */
-  start(amplitudeM: number, durationMs: number, startAt: number): void;
-  /** Offsets the target for `clockMs` (sim ms), and back to exactly zero once the shake is over. */
-  update(clockMs: number): void;
+  /**
+   * Starts a shake from `startAtReal` (real ms) that wobbles at `frequencyHz`; a new one replaces
+   * the one under way.
+   */
+  start(amplitudeM: number, durationMs: number, frequencyHz: number, startAtReal: number): void;
+  /** Offsets the target for `nowReal` (real ms), and back to exactly zero once the shake is over. */
+  update(nowReal: number): void;
   /** Ends the shake at once and puts the target back: the level is over and the loop no longer runs to finish it. */
   reset(): void;
+  /** The current offset on x and z, in metres (the debug `fx()` reads it). */
+  readonly offsetM: { readonly x: number; readonly z: number };
 }
 
 /**
  * A decaying, deterministic wobble of `target`'s position on the floor plane (no random number:
  * the same shake looks the same twice). It moves the scene's content root and never the camera, so
- * the framing and the world UI layer stay where they are.
+ * the framing and the world UI layer stay where they are. It runs on **real** time: the shake plays
+ * during the hitstop, when the sim clock stands still (architecture L210).
  */
 export function createShake(target: Object3D): Shake {
   let isActive = false;
   let amplitudeM = 0;
   let durationMs = 1;
-  let startAt = 0;
+  let frequencyHz = 1;
+  let startAtReal = 0;
+  const set = (x: number, z: number) => {
+    target.position.x = x;
+    target.position.z = z;
+  };
   return {
-    start(amplitude, duration, at) {
+    start(amplitude, duration, frequency, at) {
       isActive = true;
       amplitudeM = amplitude;
       durationMs = duration;
-      startAt = at;
+      frequencyHz = frequency;
+      startAtReal = at;
     },
-    update(clockMs) {
+    update(nowReal) {
       if (!isActive) return;
-      const progress = (clockMs - startAt) / durationMs;
-      if (progress >= 1) {
+      const elapsedMs = nowReal - startAtReal;
+      if (elapsedMs >= durationMs) {
         isActive = false;
-        target.position.x = 0;
-        target.position.z = 0;
+        set(0, 0);
         return;
       }
-      if (progress < 0) {
+      if (elapsedMs < 0) {
         // Not started yet (or the clock went back): never leave the previous shake's offset on.
-        target.position.x = 0;
-        target.position.z = 0;
+        set(0, 0);
         return;
       }
-      const decay = amplitudeM * (1 - progress);
-      target.position.x = decay * Math.sin(progress * 2 * Math.PI * SHAKE_CYCLES);
-      target.position.z = decay * Math.sin(progress * 2 * Math.PI * SHAKE_CYCLES * SHAKE_Z_RATIO);
+      const decay = amplitudeM * (1 - elapsedMs / durationMs);
+      const phase = (2 * Math.PI * frequencyHz * elapsedMs) / MS_PER_S;
+      set(decay * Math.sin(phase), decay * Math.sin(phase * SHAKE_Z_RATIO));
     },
     reset() {
       isActive = false;
-      target.position.x = 0;
-      target.position.z = 0;
+      set(0, 0);
+    },
+    get offsetM() {
+      return target.position;
     },
   };
 }

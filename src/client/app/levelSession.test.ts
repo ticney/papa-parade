@@ -31,7 +31,14 @@ beforeAll(() => {
   log.setLevel('error');
 });
 
-const NO_FX: LevelFx = { soundWave: () => {}, shake: () => {}, gag: () => {}, liftBaby: () => {} };
+const NO_FX: LevelFx = {
+  soundWave: () => {},
+  shake: () => {},
+  particles: () => {},
+  gag: () => {},
+  liftBaby: () => {},
+};
+const NO_REAL_FX = () => ({ shakeOffsetXM: 0, shakeOffsetZM: 0, particlesAlive: 0 });
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -70,12 +77,18 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
   events.on('ResumeRequested', () => trace.push('resume'));
   const seeds = [111, 222, 333];
   const reportedSeeds: number[] = [];
-  const drawn = { renders: 0, frames: 0, scenes: [] as Scene[] };
+  const drawn = {
+    renders: 0,
+    frames: 0,
+    scenes: [] as Scene[],
+    onRender: null as (() => void) | null,
+  };
   const renderer: GameRenderer = {
     resize: () => 1,
     render: (scene) => {
       drawn.renders++;
       drawn.scenes.push(scene);
+      drawn.onRender?.();
     },
     setPixelRatioCap: () => {},
     stats: () => ({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, pixelRatio: 1 }),
@@ -127,6 +140,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
         room: { widthM: 8, depthM: 6, heightM: 2.5 },
         fx: NO_FX,
         papaPose: { xM: 0, zM: 0, yawRad: 0 },
+        realFxState: NO_REAL_FX,
         resetFx: () => {
           record.resets++;
         },
@@ -233,6 +247,7 @@ describe('createLevelSession', () => {
           fx: NO_FX,
           papaPose: { xM: 0, zM: 0, yawRad: 0 },
           resetFx: () => {},
+          realFxState: NO_REAL_FX,
           update: () => {},
           dispose: () => {},
         };
@@ -271,6 +286,7 @@ describe('createLevelSession', () => {
             fx: NO_FX,
             papaPose: { xM: 0, zM: 0, yawRad: 0 },
             resetFx: () => {},
+            realFxState: NO_REAL_FX,
             update: () => {},
             dispose: () => {},
           };
@@ -422,6 +438,70 @@ describe('createLevelSession', () => {
     expect(drawn.frames).toBe(2);
     expect(drawn.scenes.every((scene) => scene === scenes[0]?.scene)).toBe(true);
     expect(scenes[0]?.updates).toBe(2);
+  });
+
+  it('moves the camera before the draw and tells the frame after it, with the frame time (story 2.5)', async () => {
+    const calls: string[] = [];
+    const updates: number[] = [];
+    const { session, scheduler, trace, drawn } = setup({
+      beforeRender: (_alpha, frameAtReal) => calls.push(`before:${frameAtReal}`),
+      onLevelFrame: (_alpha, frameAtReal) => calls.push(`after:${frameAtReal}`),
+      onFxReset: () => trace.push('fx-reset'),
+      createScene: (assets) => ({
+        id: assets.id,
+        scene: new Scene(),
+        room: { widthM: 8, depthM: 6, heightM: 2.5 },
+        fx: NO_FX,
+        papaPose: { xM: 0, zM: 0, yawRad: 0 },
+        realFxState: NO_REAL_FX,
+        resetFx: () => {},
+        update: (_world, _alpha, nowReal) => {
+          calls.push('update');
+          updates.push(nowReal);
+        },
+        dispose: () => {},
+      }),
+    });
+    drawn.onRender = () => calls.push('draw');
+    await session.start();
+    scheduler.tick(0);
+    scheduler.tick(16);
+    // Per frame: the scene (real-time effects included) then the camera, then the draw, then the UI.
+    expect(calls.slice(0, 4)).toEqual(['update', 'before:0', 'draw', 'after:0']);
+    expect(calls.slice(4, 8)).toEqual(['update', 'before:16', 'draw', 'after:16']);
+    expect(updates).toEqual([0, 16]);
+    session.stop();
+    expect(trace).toContain('fx-reset');
+  });
+
+  it('does not move the camera again in the frame that ended the level (story 2.5)', async () => {
+    const calls: string[] = [];
+    let endNow = false;
+    let endLevel = (): void => {};
+    const { session, scheduler } = setup({
+      beforeRender: () => calls.push('before'),
+      createScene: (assets) => ({
+        id: assets.id,
+        scene: new Scene(),
+        room: { widthM: 8, depthM: 6, heightM: 2.5 },
+        fx: NO_FX,
+        papaPose: { xM: 0, zM: 0, yawRad: 0 },
+        realFxState: NO_REAL_FX,
+        resetFx: () => {},
+        // The level ends inside the frame (a step's LevelScored), before the camera is moved.
+        update: () => {
+          if (endNow) endLevel();
+        },
+        dispose: () => {},
+      }),
+    });
+    endLevel = () => session.finish();
+    await session.start();
+    scheduler.tick(0);
+    expect(calls).toEqual(['before']);
+    endNow = true;
+    scheduler.tick(16);
+    expect(calls).toEqual(['before']);
   });
 
   it('restarts from a level with a new seed, through loading, and stops the old loop', async () => {
@@ -784,6 +864,7 @@ describe('createLevelSession', () => {
             fx: NO_FX,
             papaPose: { xM: 0, zM: 0, yawRad: 0 },
             resetFx: () => {},
+            realFxState: NO_REAL_FX,
             update: () => {},
             dispose: () => {},
           };
@@ -1020,6 +1101,7 @@ describe('createLevelSession › start options and outcomes', () => {
           fx: NO_FX,
           papaPose: { xM: 0, zM: 0, yawRad: 0 },
           resetFx: () => {},
+          realFxState: NO_REAL_FX,
           update: () => {},
           dispose: () => {},
         };

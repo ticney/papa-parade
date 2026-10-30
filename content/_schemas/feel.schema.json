@@ -857,6 +857,317 @@
       ],
       "additionalProperties": false,
       "description": "Tunables of the gags whose consequence the sim applies (`sim/threats/gags.ts`); a gag with nothing to tune has no key."
+    },
+    "fx": {
+      "type": "object",
+      "properties": {
+        "shakeFrequencyHz": {
+          "type": "number",
+          "minimum": 4,
+          "maximum": 30,
+          "description": "Wobble frequency of every shake, in hertz (whatever its duration)."
+        },
+        "success": {
+          "type": "object",
+          "properties": {
+            "shake": {
+              "type": "object",
+              "properties": {
+                "amplitudeM": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.1,
+                  "description": "Largest offset of the shake, in metres (0 = no shake)."
+                },
+                "durationMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 400,
+                  "description": "How long the shake lasts, in **real** ms (it plays during the hitstop)."
+                }
+              },
+              "required": [
+                "amplitudeM",
+                "durationMs"
+              ],
+              "additionalProperties": false,
+              "description": "The screen shake of the preset."
+            },
+            "particles": {
+              "type": "object",
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "spark",
+                    "puff"
+                  ],
+                  "description": "`spark`: fast, with gravity, shrinks; `puff`: slow, no gravity, grows then fades."
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 32,
+                  "description": "Particles in one burst (0 = none); a perf limit bounds it."
+                },
+                "speedMps": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 6,
+                  "description": "Initial speed of a particle, in metres per second."
+                },
+                "lifeMs": {
+                  "type": "integer",
+                  "minimum": 50,
+                  "maximum": 1000,
+                  "description": "Life of a particle, in **real** ms."
+                },
+                "sizeM": {
+                  "type": "number",
+                  "minimum": 0.01,
+                  "maximum": 0.3,
+                  "description": "Edge of a particle at its largest, in metres."
+                }
+              },
+              "required": [
+                "style",
+                "count",
+                "speedMps",
+                "lifeMs",
+                "sizeM"
+              ],
+              "additionalProperties": false,
+              "description": "The particle burst of the preset, from the cue ring anchor."
+            }
+          },
+          "required": [
+            "shake",
+            "particles"
+          ],
+          "additionalProperties": false,
+          "description": "Juice of a successful response (story 2.5)."
+        },
+        "perfect": {
+          "type": "object",
+          "properties": {
+            "shake": {
+              "type": "object",
+              "properties": {
+                "amplitudeM": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.1,
+                  "description": "Largest offset of the shake, in metres (0 = no shake)."
+                },
+                "durationMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 400,
+                  "description": "How long the shake lasts, in **real** ms (it plays during the hitstop)."
+                }
+              },
+              "required": [
+                "amplitudeM",
+                "durationMs"
+              ],
+              "additionalProperties": false,
+              "description": "The screen shake of the preset."
+            },
+            "particles": {
+              "type": "object",
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "spark",
+                    "puff"
+                  ],
+                  "description": "`spark`: fast, with gravity, shrinks; `puff`: slow, no gravity, grows then fades."
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 32,
+                  "description": "Particles in one burst (0 = none); a perf limit bounds it."
+                },
+                "speedMps": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 6,
+                  "description": "Initial speed of a particle, in metres per second."
+                },
+                "lifeMs": {
+                  "type": "integer",
+                  "minimum": 50,
+                  "maximum": 1000,
+                  "description": "Life of a particle, in **real** ms."
+                },
+                "sizeM": {
+                  "type": "number",
+                  "minimum": 0.01,
+                  "maximum": 0.3,
+                  "description": "Edge of a particle at its largest, in metres."
+                }
+              },
+              "required": [
+                "style",
+                "count",
+                "speedMps",
+                "lifeMs",
+                "sizeM"
+              ],
+              "additionalProperties": false,
+              "description": "The particle burst of the preset, from the cue ring anchor."
+            },
+            "stampMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 900,
+              "description": "How long the « PARADE PARFAITE » stamp shows, in **real** ms (0 = no stamp)."
+            }
+          },
+          "required": [
+            "shake",
+            "particles",
+            "stampMs"
+          ],
+          "additionalProperties": false,
+          "description": "Juice of a perfect response: shake, sparks and the stamp."
+        },
+        "gag": {
+          "type": "object",
+          "properties": {
+            "shake": {
+              "type": "object",
+              "properties": {
+                "amplitudeM": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.1,
+                  "description": "Largest offset of the shake, in metres (0 = no shake)."
+                },
+                "durationMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 400,
+                  "description": "How long the shake lasts, in **real** ms (it plays during the hitstop)."
+                }
+              },
+              "required": [
+                "amplitudeM",
+                "durationMs"
+              ],
+              "additionalProperties": false,
+              "description": "The screen shake of the preset."
+            },
+            "particles": {
+              "type": "object",
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "spark",
+                    "puff"
+                  ],
+                  "description": "`spark`: fast, with gravity, shrinks; `puff`: slow, no gravity, grows then fades."
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 32,
+                  "description": "Particles in one burst (0 = none); a perf limit bounds it."
+                },
+                "speedMps": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 6,
+                  "description": "Initial speed of a particle, in metres per second."
+                },
+                "lifeMs": {
+                  "type": "integer",
+                  "minimum": 50,
+                  "maximum": 1000,
+                  "description": "Life of a particle, in **real** ms."
+                },
+                "sizeM": {
+                  "type": "number",
+                  "minimum": 0.01,
+                  "maximum": 0.3,
+                  "description": "Edge of a particle at its largest, in metres."
+                }
+              },
+              "required": [
+                "style",
+                "count",
+                "speedMps",
+                "lifeMs",
+                "sizeM"
+              ],
+              "additionalProperties": false,
+              "description": "The particle burst of the preset, from the cue ring anchor."
+            }
+          },
+          "required": [
+            "shake",
+            "particles"
+          ],
+          "additionalProperties": false,
+          "description": "Juice of a gag: the « pouf »."
+        },
+        "perfectCamera": {
+          "type": "object",
+          "properties": {
+            "zoomPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 40,
+              "description": "Extra zoom at the peak of the slow-mo, in %."
+            },
+            "yawDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 12,
+              "description": "Camera rotation around the vertical at the peak, in degrees."
+            },
+            "focusPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 60,
+              "description": "How far the view centre moves toward the action at the peak, in %."
+            },
+            "zoomInMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 500,
+              "description": "Time to reach the peak after the slow-mo starts, in **sim** ms."
+            },
+            "refocusMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 500,
+              "description": "Time the view takes to glide to the point of a new perfect while a move is under way, in **sim** ms (0 = a cut)."
+            }
+          },
+          "required": [
+            "zoomPct",
+            "yawDeg",
+            "focusPct",
+            "zoomInMs",
+            "refocusMs"
+          ],
+          "additionalProperties": false,
+          "description": "The camera move of a perfect response, driven by its slow-mo."
+        }
+      },
+      "required": [
+        "shakeFrequencyHz",
+        "success",
+        "perfect",
+        "gag",
+        "perfectCamera"
+      ],
+      "additionalProperties": false,
+      "description": "On-screen juice (story 2.5): shake, particles, stamp and the perfect camera. Client only."
     }
   },
   "required": [
@@ -870,7 +1181,8 @@
     "difficulty",
     "mama",
     "physics",
-    "gags"
+    "gags",
+    "fx"
   ],
   "additionalProperties": false,
   "description": "Every feel value of the game, tuned by hand or from the feel panel."

@@ -17,8 +17,10 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // Story 1.15 adds `Kg`, `Ns` (newton-seconds) and `Mps2`, and the dimensionless physics ratios
 // `friction` and `restitution` (a coefficient has no unit; the key says what it is).
 // Story 1.17 adds `ReachM` (`contextReachM`: a length in metres, spelled out like `RadiusM`).
+// Story 2.5 adds `Hz` and the exact keys `amplitudeM` and `sizeM` (lengths in metres of the fx
+// presets) and `count` (a particle count).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|Kg|Ns)$|^(?:perSec|friction|restitution)$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|Kg|Ns|Hz)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -323,6 +325,76 @@ describe('FeelSchema as JSON Schema', () => {
 
   it('is strict at every level', () => {
     expect(emitted.additionalProperties).toBe(false);
+  });
+});
+
+describe('feel.fx (story 2.5)', () => {
+  const p = (path: string) => `fx.${path}`;
+
+  it('accepts the bounds themselves', () => {
+    expect(
+      mutated(
+        [p('shakeFrequencyHz'), 4],
+        [p('success.shake.amplitudeM'), 0],
+        [p('success.particles.count'), 0],
+        [p('perfect.stampMs'), 0],
+        [p('perfectCamera.zoomInMs'), 0],
+        [p('perfectCamera.refocusMs'), 0],
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      mutated(
+        [p('shakeFrequencyHz'), 30],
+        [p('perfect.shake.amplitudeM'), 0.1],
+        [p('perfect.shake.durationMs'), 400],
+        [p('perfect.particles.count'), 32],
+        [p('perfect.stampMs'), 900],
+        [p('perfectCamera.zoomPct'), 40],
+      ),
+    ).toMatchObject({ ok: true });
+  });
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a frequency below 4 Hz', [[p('shakeFrequencyHz'), 3]], [p('shakeFrequencyHz')]],
+    ['a frequency above 30 Hz', [[p('shakeFrequencyHz'), 31]], [p('shakeFrequencyHz')]],
+    ['an amplitude above 0.1 m', [[p('gag.shake.amplitudeM'), 0.11]], [p('gag.shake.amplitudeM')]],
+    ['a negative amplitude', [[p('gag.shake.amplitudeM'), -0.01]], [p('gag.shake.amplitudeM')]],
+    [
+      'a shake over 400 ms',
+      [[p('success.shake.durationMs'), 401]],
+      [p('success.shake.durationMs')],
+    ],
+    ['an unknown style', [[p('success.particles.style'), 'blob']], [p('success.particles.style')]],
+    ['a burst over the cap', [[p('success.particles.count'), 33]], [p('success.particles.count')]],
+    ['a fractional count', [[p('success.particles.count'), 2.5]], [p('success.particles.count')]],
+    [
+      'a speed above 6 m/s',
+      [[p('success.particles.speedMps'), 7]],
+      [p('success.particles.speedMps')],
+    ],
+    ['a life under 50 ms', [[p('success.particles.lifeMs'), 49]], [p('success.particles.lifeMs')]],
+    [
+      'a life over 1000 ms',
+      [[p('success.particles.lifeMs'), 1001]],
+      [p('success.particles.lifeMs')],
+    ],
+    ['a size under 0.01 m', [[p('gag.particles.sizeM'), 0.005]], [p('gag.particles.sizeM')]],
+    ['a size over 0.3 m', [[p('gag.particles.sizeM'), 0.31]], [p('gag.particles.sizeM')]],
+    ['a stamp over the UX ceiling', [[p('perfect.stampMs'), 901]], [p('perfect.stampMs')]],
+    ['a zoom above 40 %', [[p('perfectCamera.zoomPct'), 41]], [p('perfectCamera.zoomPct')]],
+    ['a yaw above 12 degrees', [[p('perfectCamera.yawDeg'), 13]], [p('perfectCamera.yawDeg')]],
+    ['a focus above 60 %', [[p('perfectCamera.focusPct'), 61]], [p('perfectCamera.focusPct')]],
+    ['a zoom-in over 500 ms', [[p('perfectCamera.zoomInMs'), 501]], [p('perfectCamera.zoomInMs')]],
+    [
+      'a refocus over 500 ms',
+      [[p('perfectCamera.refocusMs'), 501]],
+      [p('perfectCamera.refocusMs')],
+    ],
+    ['a missing preset', [[p('perfect'), undefined]], [p('perfect')]],
+    ['a missing fx block', [['fx', undefined]], ['fx']],
+    ['an unknown preset', [[p('bogus'), {}]], [p('bogus')]],
+  ])('refuses %s, at its path', (_name, changes, paths) => {
+    expect(failedPaths(mutated(...changes))).toEqual(paths);
   });
 });
 

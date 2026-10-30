@@ -274,6 +274,27 @@ body {
   box-shadow: inset 0 0 0 20px var(--pp-color-paper);
 }
 
+/* The « PARADE PARFAITE » stamp (story 2.5, UX-DR15): the Epic register, paper fill and ink stroke
+   (`pp-type-epic pp-stroked` on the element), centred in the upper half so that the bottom third stays
+   free. In the HUD root: above the flash, below the pause panel (`#pp-ui`). It never takes a tap or
+   focus. `epicStamp.ts` animates its opacity (and, but under reduced motion, its scale and tilt) in
+   real ms; it is invisible when idle. Fitted to the width, never truncated. */
+.pp-epic-stamp {
+  position: fixed;
+  top: 22%;
+  left: 0;
+  right: 0;
+  z-index: 61;
+  box-sizing: border-box;
+  max-width: 90%;
+  margin: 0 auto;
+  text-align: center;
+  white-space: nowrap;
+  font-size: min(var(--pp-font-epic-size), 9vw);
+  opacity: 0;
+  pointer-events: none;
+}
+
 #pp-ui {
   position: fixed;
   inset: 0;

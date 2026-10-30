@@ -44,12 +44,14 @@ import { keyGlyph, loadKeyboardLayoutMap, padConfirmGlyph } from './input/keyGly
 import { createMoveIntent } from './input/moveIntent.ts';
 import { bindPointer } from './input/pointerInput.ts';
 import { createAdaptivePixelRatio } from './render/adaptivePixelRatio.ts';
+import { createCameraFx } from './render/cameraFx.ts';
 import { slideDirection } from './render/gags.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
 import type { LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
 import { createRenderer, type RenderStats } from './render/renderer.ts';
 import { loadFonts } from './ui/fonts.ts';
+import { createEpicStamp } from './ui/hud/epicStamp.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
@@ -178,6 +180,8 @@ export async function boot(): Promise<void> {
   const renderer = created.value;
 
   const camera = createIsoCamera();
+  // The perfect's zoom, pan and turn, around the framing `fitIsoCamera` computes (story 2.5).
+  const cameraFx = createCameraFx(camera);
   // Behind the start and « Oups » screens until a level has been loaded: an empty ink stage.
   const backdrop = new Scene();
   backdrop.background = new Color(PALETTE.ink);
@@ -199,7 +203,10 @@ export async function boot(): Promise<void> {
   const worldUi = createWorldUi(worldRoot);
   const fitViewToCanvas = (): void => {
     const aspect = renderer.resize();
-    if (aspect !== null && room !== null) fitIsoCamera(camera, room, aspect);
+    if (aspect !== null && room !== null) {
+      fitIsoCamera(camera, room, aspect);
+      cameraFx.captureBase();
+    }
     worldUi.setSize(canvas.clientWidth, canvas.clientHeight);
     drawStatic();
   };
@@ -244,6 +251,7 @@ export async function boot(): Promise<void> {
       | 'ppFlow'
       | 'ppCueCount'
       | 'ppFlashCount'
+      | 'ppStampCount'
       | 'ppThreat'
       | 'ppThreatPx'
       | 'ppResponse'
@@ -303,15 +311,21 @@ export async function boot(): Promise<void> {
   });
   let cuesPlayedCount = 0;
   let flashesDrawnCount = 0;
+  let stampsShownCount = 0;
   // The full-screen flash of a perfect (story 2.4): one overlay in the HUD root, on real time.
   const screenFlash = createScreenFlash(document, { nowReal: () => performance.now() });
   hudRoot.append(screenFlash.element);
+  // The « PARADE PARFAITE » stamp (story 2.5): one overlay above the flash, on real time.
+  const epicStamp = createEpicStamp(document, { text: t('stamp.perfect_parry') });
+  hudRoot.append(epicStamp.element);
   // The visuals the cue being played drew (`onVisual`), handed to the test host with `onCue`, which
   // the director calls last. Debug builds only listen; an empty array otherwise.
   const visualsOfCue: string[] = [];
   const cuePlayedListeners: ((record: CuePlayedRecord) => void)[] = [];
   // One query, read live: the player can change the setting while the page is open.
   const reducedMotionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+  // The one source of « motion reduced » for every effect of the screen (story 2.5): story 2.10
+  // makes it `save.settings.reducedMotion || reducedMotionQuery.matches` and nothing else changes.
   const prefersReducedMotion = (): boolean => reducedMotionQuery.matches;
   const director = createFeedbackDirector({
     table: feedbackTable,
@@ -324,10 +338,15 @@ export async function boot(): Promise<void> {
     prefersReducedMotion,
     flash: (peakOpacityPct, durationMs, isMotionReduced) =>
       screenFlash.flash(peakOpacityPct, durationMs, isMotionReduced),
+    // The live feel: a change in the debug panel applies to the next cue.
+    getFx: () => levelFeel().fx,
+    nowReal: () => performance.now(),
+    stamp: (durationMs, isMotionReduced) => epicStamp.show(durationMs, isMotionReduced),
     onVisual: (_cueId, kind) => {
       if (!isMirrored) return;
       visualsOfCue.push(kind);
       if (kind === 'flash') mirror('ppFlashCount', String(++flashesDrawnCount));
+      if (kind === 'stamp') mirror('ppStampCount', String(++stampsShownCount));
     },
     onCue: (cueId) => {
       cuesPlayedCount++;
@@ -364,6 +383,7 @@ export async function boot(): Promise<void> {
     mirror('ppHaptics', String(platform.capabilities.haptics));
     mirror('ppCueCount', '0');
     mirror('ppFlashCount', '0');
+    mirror('ppStampCount', '0');
   }
   // The context is suspended with every pause, the countdown's included, and resumed only when the
   // countdown is over; the loops follow the level. None of these throws: the engine logs its own.
@@ -662,6 +682,22 @@ export async function boot(): Promise<void> {
       fitViewToCanvas();
       if (isMirrored) mirror('ppLevel', level.id);
     },
+    beforeRender: (alpha) => {
+      // Before the draw (`onLevelFrame` runs after it): the camera of a perfect, on the sim clock as
+      // drawn, so the hitstop holds it back and a pause holds it (story 2.5).
+      const world = levelSession.active?.sim.world;
+      if (world === undefined) return;
+      cameraFx.update(
+        world,
+        world.time.sim - STEP_MS * (1 - alpha),
+        world.feel.fx.perfectCamera,
+        prefersReducedMotion(),
+      );
+    },
+    onFxReset: () => {
+      cameraFx.reset();
+      epicStamp.cancel();
+    },
     onLevelFrame: (alpha, frameAtReal) => {
       // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
       // Once the level has ended the sim is frozen with `babbling` as it was: silence it.
@@ -810,6 +846,11 @@ export async function boot(): Promise<void> {
       // The sounds fire in this very call: judgement, not arrival (story 2.3 D5).
       playSimEventFeedback(event, active, director);
       if (active !== null) {
+        // A perfect: the camera leans toward the threat that was just parried (state of the slow-mo).
+        if (event.type === 'ResponseResolved' && event.quality === 'perfect') {
+          const resolved = active.sim.world.threats.find((one) => one.id === event.threatId);
+          if (resolved !== undefined) cameraFx.focusOn(resolved.xM, resolved.zM);
+        }
         if (currentLevel !== null) {
           // Reduced motion: no hop of the baby, no snap of Papa's hair (the lights carry the gag).
           const isMotionReduced = prefersReducedMotion();
@@ -1261,6 +1302,16 @@ export async function boot(): Promise<void> {
           }
         }
         return true;
+      },
+      fxState: () => {
+        const real = currentLevel?.realFxState();
+        return {
+          cameraZoom: camera.zoom,
+          cameraYawDeg: cameraFx.yawDeg,
+          shakeOffsetM: Math.hypot(real?.shakeOffsetXM ?? 0, real?.shakeOffsetZM ?? 0),
+          particlesAlive: real?.particlesAlive ?? 0,
+          stampCount: stampsShownCount,
+        };
       },
       threatScreenPoints: () => {
         const rect = canvas.getBoundingClientRect();

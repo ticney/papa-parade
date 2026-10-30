@@ -1,5 +1,6 @@
 import { SCREEN_FLASH_MIN_INTERVAL_MS } from '@shared/constants';
 import { z } from 'zod';
+import { FX_PRESET_IDS } from './feel.ts';
 
 // Every key of content/feedback.json lives here (ADR-006, architecture › Retours multimodaux): the
 // one table that says which event plays which sound, ring, vibration and camera effect. Gains are
@@ -130,14 +131,6 @@ const UiElementSchema = z
   })
   .describe('The visual twin of a sound that a screen element already shows.');
 
-const ShakeSchema = z
-  .strictObject({
-    kind: z.literal('shake').describe('The scene shakes.'),
-    amplitudeM: z.number().gt(0).max(0.5).describe('Largest offset of the scene, in metres.'),
-    durationMs: z.number().positive().describe('How long the shake lasts, in sim ms.'),
-  })
-  .describe('A camera effect. Skipped under reduced motion.');
-
 const FlashSchema = z
   .strictObject({
     peakOpacityPct: z
@@ -181,10 +174,12 @@ const CueSchema = z
     flash: FlashSchema.optional().describe(
       'A screen flash, the mark of a perfect response. It also counts as a visual twin of the sound.',
     ),
-    camera: z
-      .discriminatedUnion('kind', [ShakeSchema])
+    fx: z
+      .enum(FX_PRESET_IDS)
       .optional()
-      .describe('A camera effect, skipped under reduced motion.'),
+      .describe(
+        'Plays the `feel.fx.<preset>` juice: shake, particles and, for `perfect`, the stamp; at the cue ring anchor.',
+      ),
   })
   .refine(
     (cue) =>
@@ -192,8 +187,8 @@ const CueSchema = z
       cue.visual !== undefined ||
       cue.haptic !== undefined ||
       cue.flash !== undefined ||
-      cue.camera !== undefined,
-    { error: 'a cue needs at least one of audio, visual, haptic, flash, camera' },
+      cue.fx !== undefined,
+    { error: 'a cue needs at least one of audio, visual, haptic, flash, fx' },
   )
   .refine((cue) => cue.layers === undefined || cue.audio !== undefined, {
     error: 'a cue with layers needs an audio: the layers play right after it',

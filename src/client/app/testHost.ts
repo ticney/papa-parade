@@ -13,10 +13,21 @@ export interface ThreatScreenPoint {
   readonly yPx: number;
 }
 
+/** What the screen effects are doing, for the debug `fx()` (story 2.5). */
+export interface FxState {
+  readonly cameraZoom: number;
+  /** The camera's turn from the iso framing around the vertical, in degrees. */
+  readonly cameraYawDeg: number;
+  /** How far the shake has moved the room, in metres. */
+  readonly shakeOffsetM: number;
+  readonly particlesAlive: number;
+  readonly stampCount: number;
+}
+
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */
 export interface CuePlayedRecord {
   readonly cueId: string;
-  /** The visual parts that actually ran, in order: `soundWave`, `flash`, `uiElement`. A skipped ring or flash is absent. */
+  /** The visual parts that actually ran, in order: `soundWave`, `flash`, `uiElement`, `shake`, `particles`, `stamp`. A skipped part is absent. */
   readonly visuals: readonly string[];
   /** The vibration kind the cue asks for, or `null`. */
   readonly haptic: string | null;
@@ -66,6 +77,12 @@ export interface TestHost {
    * It is part of the level's scene, so it goes with it: a new level has a new, empty one.
    */
   debugGroup(): Group | null;
+  /**
+   * What the screen effects are doing right now, read at call time (story 2.5; `__PP__.fx()`):
+   * the camera's zoom (1 = the iso framing) and turn, the shake's offset, the live particles, and
+   * how many stamps were shown.
+   */
+  fxState(): FxState;
   /** The icon points of the running level's threats as they are on the page now (a new array per call). */
   threatScreenPoints(): readonly ThreatScreenPoint[];
   /**

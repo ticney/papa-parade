@@ -1,5 +1,5 @@
 # generated: 2026-10-26
-# last_updated: 2026-10-29
+# last_updated: 2026-10-30
 # project: papa-parade
 # project_key: NOKEY
 # tracking_system: file-system
@@ -41,7 +41,7 @@
 # - epic-3 reste 'in-progress' entre 3.4 et 3.5 : ne pas le passer à 'done' après 3.4.
 
 generated: 2026-10-26
-last_updated: 2026-10-29
+last_updated: 2026-10-30
 project: papa-parade
 project_key: NOKEY
 tracking_system: file-system
@@ -80,7 +80,7 @@ development_status:
   2-2-verbe-affiche-et-icones-couleur-forme: done
   2-3-sons-cultes-rire-du-bebe-et-telegraphes-distincts: done
   2-4-equivalents-visuels-et-haptiques-complets: done
-  2-5-effets-de-feeling-a-l-ecran: backlog
+  2-5-effets-de-feeling-a-l-ecran: done
   2-6-musique-adaptative-de-base: backlog
   2-7-calibration-de-la-latence: backlog
   2-8-paliers-de-difficulte-et-reglages: backlog

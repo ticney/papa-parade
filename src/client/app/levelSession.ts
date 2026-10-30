@@ -7,7 +7,7 @@ import { DEFAULT_LEVEL_ID } from '@shared/constants';
 import { canonicalJson, cloneJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
-import { asSimMs } from '@shared/time';
+import { asRealMs, asSimMs } from '@shared/time';
 import { type CreateSimOptions, createSim, type FeelPatch, type Sim, type SimEvent } from '@sim';
 import type { OrthographicCamera } from 'three';
 import { type LevelAssets, loadLevelAssets } from '../assets/loadLevelAssets.ts';
@@ -45,6 +45,16 @@ export interface LevelSessionDeps {
    * `frameAtReal` is the display frame's timestamp (the loop's), the clock of the frame meters.
    */
   onLevelFrame(alpha: number, frameAtReal: number): void;
+  /**
+   * Once per rendered frame like `onLevelFrame`, but **before** the draw (paused, frozen or not):
+   * what must show in this frame, such as the perfect's camera move, is written here.
+   */
+  beforeRender?(alpha: number, frameAtReal: number): void;
+  /**
+   * The effects were ended at once (the loop stopped: level end, restart, loading, error): put back
+   * what lives outside the scene, such as the camera's framing. Called right after the scene's `resetFx`.
+   */
+  onFxReset?(): void;
   onSimEvent(event: SimEvent): void;
   /**
    * False while the device is in portrait or the page is hidden: the level then starts paused and
@@ -273,6 +283,8 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     // Effects advance only with the loop: end the ring and shake it froze mid-way, or `drawStatic`
     // shows them behind the loading and error screens (a failed restart keeps this scene for good).
     current?.resetFx();
+    // The camera too: a perfect's move must not stay on the frozen room (story 2.5).
+    deps.onFxReset?.();
   };
 
   const releaseSim = (): void => {
@@ -484,7 +496,11 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         if (isStale()) return 'stale';
 
         const render = (alpha: number, frameAtReal: number): void => {
-          level.update(sim.world, alpha);
+          level.update(sim.world, alpha, asRealMs(frameAtReal));
+          // Whatever moves the camera (story 2.5) goes here: `onLevelFrame` runs after the draw. Not
+          // once the loop is gone: a level that ended inside this very frame has just reset the
+          // camera, and the perfect slow-mo is still in its world.
+          if (loop !== null) deps.beforeRender?.(alpha, frameAtReal);
           renderer.render(level.scene, camera);
           deps.onLevelFrame(alpha, frameAtReal);
         };

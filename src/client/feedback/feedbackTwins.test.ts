@@ -8,6 +8,7 @@ import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import type { SimObjectSpec, World } from '@sim';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { createTestContent } from '../../../tests/support/testContent.ts';
 import type { LevelFx } from '../render/levelScene.ts';
 import { createFeedbackDirector } from './feedbackDirector.ts';
 
@@ -40,6 +41,7 @@ const levelObjects: { id: string; kind: SimObjectSpec['kind'] }[] = JSON.parse(
 ).objects;
 
 const NOW_MS = 1000;
+const testFeelFx = createTestContent().feel.fx;
 const THREAT_ID = 4;
 const THREAT_AT = { xM: 1.5, zM: -0.5 };
 const PAPA_AT = { xM: -2, zM: 0.25 };
@@ -77,6 +79,7 @@ function play(cueId: string, objectId: string | null = null) {
     soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
       void rings.push({ xM, zM, maxRadiusM, durationMs, startAt }),
     shake: () => {},
+    particles: () => {},
     gag: () => {},
     liftBaby: () => {},
   };
@@ -87,6 +90,9 @@ function play(cueId: string, objectId: string | null = null) {
     getObjects: () => OBJECTS,
     getScene: () => fx,
     prefersReducedMotion: () => false,
+    getFx: () => testFeelFx,
+    nowReal: () => 0,
+    stamp: () => true,
     flash: (peakOpacityPct, durationMs) => {
       flashes.push({ peakOpacityPct, durationMs });
       return true;
@@ -205,6 +211,7 @@ describe('a perfect flashes the screen and keeps its ring (story 2.4, AC 6)', ()
     expect(played.flashes).toEqual([cue?.flash]);
     expect(played.rings).toHaveLength(1);
     expect(played.pulses).toEqual(['heavy']);
-    expect(played.visuals).toEqual(['soundWave', 'flash']);
+    // The juice of story 2.5 rides on the same cue: shake, particles and the perfect's stamp.
+    expect(played.visuals).toEqual(['soundWave', 'flash', 'shake', 'particles', 'stamp']);
   });
 });

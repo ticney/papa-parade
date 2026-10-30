@@ -1,4 +1,5 @@
 import type { FeedbackTable } from '@content/schemas/feedback';
+import type { Feel } from '@content/schemas/feel';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import { createSim, type SimObjectSpec, type World } from '@sim';
@@ -53,7 +54,7 @@ const TABLE: FeedbackTable = {
       audio: { clip: 'papa_bump', bus: 'sfx', gainPct: 70 },
       visual: { kind: 'soundWave', anchor: 'papa', maxRadiusM: 0.6, durationMs: 350 },
       haptic: 'medium',
-      camera: { kind: 'shake', amplitudeM: 0.05, durationMs: 200 },
+      fx: 'success',
     },
     tick: { haptic: 'light' },
     layered: {
@@ -69,6 +70,12 @@ const TABLE: FeedbackTable = {
       audio: { clip: 'resp_parry', bus: 'sfx', gainPct: 80 },
       visual: { kind: 'soundWave', anchor: 'threat', maxRadiusM: 0.8, durationMs: 350 },
       haptic: 'medium',
+    },
+    threatFx: {
+      audio: { clip: 'resp_parry', bus: 'sfx', gainPct: 80 },
+      visual: { kind: 'soundWave', anchor: 'threat', maxRadiusM: 0.8, durationMs: 350 },
+      haptic: 'medium',
+      fx: 'success',
     },
     objectRing: {
       audio: { clip: 'tel_phone_ring', bus: 'sfx', gainPct: 90 },
@@ -97,7 +104,7 @@ const TABLE: FeedbackTable = {
       visual: { kind: 'soundWave', anchor: 'papa', maxRadiusM: 1.2, durationMs: 450 },
       flash: { peakOpacityPct: 35, durationMs: 180 },
       haptic: 'heavy',
-      camera: { kind: 'shake', amplitudeM: 0.05, durationMs: 200 },
+      fx: 'perfect',
     },
     flashOnly: { flash: { peakOpacityPct: 20, durationMs: 100 } },
     star: {
@@ -115,6 +122,32 @@ const TABLE: FeedbackTable = {
   },
 };
 
+const FX: Feel['fx'] = {
+  shakeFrequencyHz: 14,
+  success: {
+    shake: { amplitudeM: 0.025, durationMs: 120 },
+    particles: { style: 'spark', count: 10, speedMps: 2.5, lifeMs: 350, sizeM: 0.05 },
+  },
+  perfect: {
+    shake: { amplitudeM: 0.05, durationMs: 200 },
+    particles: { style: 'spark', count: 24, speedMps: 3.5, lifeMs: 500, sizeM: 0.06 },
+    stampMs: 800,
+  },
+  gag: {
+    shake: { amplitudeM: 0.04, durationMs: 250 },
+    particles: { style: 'puff', count: 12, speedMps: 0.8, lifeMs: 650, sizeM: 0.12 },
+  },
+  perfectCamera: { zoomPct: 18, yawDeg: 6, focusPct: 35, zoomInMs: 150, refocusMs: 200 },
+};
+
+const NOW_REAL = 5000;
+const SUCCESS_SHAKE = `shake:0.025,120,14,${NOW_REAL}`;
+const PERFECT_SHAKE = `shake:0.05,200,14,${NOW_REAL}`;
+const successBurst = (xM: number, zM: number) =>
+  `particles:spark,10,2.5,350,0.05,${xM},${zM},${NOW_REAL}`;
+const perfectBurst = (xM: number, zM: number) =>
+  `particles:spark,24,3.5,500,0.06,${xM},${zM},${NOW_REAL}`;
+
 const OBJECTS: readonly SimObjectSpec[] = [
   { id: 'coffee_machine', kind: 'coffee_machine', xM: -2, zM: 1.5, yM: 1 },
   { id: 'phone', kind: 'phone', xM: 3.25, zM: -0.75, yM: 0.8 },
@@ -130,6 +163,10 @@ function setup(
     hasFlash?: boolean;
     /** Puts the visual reports in the trace, in order with the other parts. */
     traceVisuals?: boolean;
+    /** The stamp is not wired (a director built without one). */
+    hasStamp?: boolean;
+    /** The live `feel.fx` the director reads; default: `FX`. */
+    fx?: Feel['fx'] | null;
   } = {},
 ) {
   const trace: string[] = [];
@@ -140,8 +177,16 @@ function setup(
       if (state.throwOnWaveNumber === ++waveCount) throw new Error('ring on fire');
       trace.push(`wave:${xM},${zM},${maxRadiusM},${durationMs},${startAt}`);
     },
-    shake: (amplitudeM, durationMs, startAt) =>
-      trace.push(`shake:${amplitudeM},${durationMs},${startAt}`),
+    shake: (amplitudeM, durationMs, frequencyHz, startAtReal) => {
+      if (state.throwOnShake) throw new Error('shaker on fire');
+      trace.push(`shake:${amplitudeM},${durationMs},${frequencyHz},${startAtReal}`);
+    },
+    particles: (style, count, speedMps, lifeMs, sizeM, xM, zM, startAtReal) => {
+      if (state.throwOnParticles) throw new Error('confetti on fire');
+      trace.push(
+        `particles:${style},${count},${speedMps},${lifeMs},${sizeM},${xM},${zM},${startAtReal}`,
+      );
+    },
     gag: () => {},
     liftBaby: () => {},
   };
@@ -155,6 +200,10 @@ function setup(
     throwOnCue: false,
     throwOnFlash: false,
     throwOnVisual: false,
+    throwOnShake: false,
+    throwOnParticles: false,
+    throwOnStamp: false,
+    throwOnGetFx: false,
     /** The nth `soundWave` call (1-based) throws. */
     throwOnWaveNumber: null as number | null,
   };
@@ -184,6 +233,9 @@ function setup(
           shake: () => {
             throw new Error('scene on fire');
           },
+          particles: () => {
+            throw new Error('scene on fire');
+          },
           gag: () => {},
           liftBaby: () => {},
         };
@@ -194,6 +246,19 @@ function setup(
       if (state.throwOnMotionQuery) throw new Error('no matchMedia');
       return options.reducedMotion ?? false;
     },
+    getFx: () => {
+      if (state.throwOnGetFx) throw new Error('no feel today');
+      return options.fx === undefined ? FX : options.fx;
+    },
+    nowReal: () => NOW_REAL,
+    stamp:
+      options.hasStamp === false
+        ? undefined
+        : (durationMs, isMotionReduced) => {
+            if (state.throwOnStamp) throw new Error('ink on fire');
+            trace.push(`stamp:${durationMs},${isMotionReduced}`);
+            return true;
+          },
     flash:
       options.hasFlash === false
         ? undefined
@@ -266,14 +331,15 @@ describe('feedbackDirector: a cue anchored on an object (story 1.20)', () => {
 });
 
 describe('feedbackDirector', () => {
-  it('plays the audio, the haptic, the visual and the camera of a listed event, in that order, in one call', () => {
+  it('plays the audio, the haptic, the visual and the fx of a listed event, in that order, in one call', () => {
     const { director, trace } = setup();
     director.handle('PapaBlocked', world);
     expect(trace).toEqual([
       'audio:papa_bump,sfx,70',
       'haptic:medium',
       `wave:${world.papa.xM},${world.papa.zM},0.6,350,4200`,
-      'shake:0.05,200,4200',
+      SUCCESS_SHAKE,
+      successBurst(world.papa.xM, world.papa.zM),
       'cue:full',
     ]);
   });
@@ -315,11 +381,14 @@ describe('feedbackDirector', () => {
     }
   });
 
-  it('skips the camera under reduced motion and keeps the rest', () => {
+  it('skips the shake under reduced motion, keeps 40 % of the particles and the rest', () => {
     const { director, trace } = setup({ reducedMotion: true });
     director.handle('PapaBlocked', world);
     expect(trace.some((line) => line.startsWith('shake:'))).toBe(false);
     expect(trace.some((line) => line.startsWith('wave:'))).toBe(true);
+    expect(trace).toContain(
+      `particles:spark,4,2.5,350,0.05,${world.papa.xM},${world.papa.zM},5000`,
+    );
   });
 
   it('plays the other parts, and warns, when the sound cannot play', () => {
@@ -329,7 +398,8 @@ describe('feedbackDirector', () => {
     expect(trace).toEqual([
       'haptic:medium',
       `wave:${world.papa.xM},${world.papa.zM},0.6,350,4200`,
-      'shake:0.05,200,4200',
+      SUCCESS_SHAKE,
+      successBurst(world.papa.xM, world.papa.zM),
       'cue:full',
     ]);
     expect(newWarnings()).toEqual([expect.stringContaining('sound for PapaBlocked failed')]);
@@ -351,7 +421,8 @@ describe('feedbackDirector', () => {
     expect(scene.trace).toEqual(['audio:papa_bump,sfx,70', 'haptic:medium', 'cue:full']);
     expect(scene.newWarnings()).toEqual([
       expect.stringContaining('ring for PapaBlocked failed'),
-      expect.stringContaining('camera effect for PapaBlocked failed'),
+      expect.stringContaining('shake for PapaBlocked failed'),
+      expect.stringContaining('particles for PapaBlocked failed'),
     ]);
   });
 
@@ -362,7 +433,7 @@ describe('feedbackDirector', () => {
     expect(lookup.trace).toEqual(['audio:papa_bump,sfx,70', 'haptic:medium', 'cue:full']);
     expect(lookup.newWarnings()).toEqual([expect.stringContaining('scene lookup')]);
 
-    // A motion query that fails counts as reduced motion: no shake, the ring still plays.
+    // A motion query that fails counts as reduced motion: no shake, 40 % of the particles, the ring plays.
     const motion = setup();
     motion.state.throwOnMotionQuery = true;
     expect(() => motion.director.handle('PapaBlocked', world)).not.toThrow();
@@ -475,6 +546,8 @@ describe('feedbackDirector', () => {
         haptics: { pulse: () => trace.push('haptic') },
         getScene: () => null,
         prefersReducedMotion: () => false,
+        getFx: () => FX,
+        nowReal: () => NOW_REAL,
         onCue: (id) => trace.push(`cue:${id}`),
       });
       return {
@@ -536,7 +609,7 @@ describe('feedbackDirector: pulses, flash and the visual report (story 2.4)', ()
     ]);
   });
 
-  it('plays the ring, then the flash, then the camera, then reports the cue', () => {
+  it('plays the ring, the flash, the shake, the particles and the stamp, in that order, then reports the cue', () => {
     const { director, trace } = setup({ traceVisuals: true });
     director.playCue('flashy', world, null);
     expect(trace).toEqual([
@@ -546,16 +619,27 @@ describe('feedbackDirector: pulses, flash and the visual report (story 2.4)', ()
       'visual:flashy,soundWave',
       'flash:35,180,false',
       'visual:flashy,flash',
-      'shake:0.05,200,4200',
+      PERFECT_SHAKE,
+      'visual:flashy,shake',
+      perfectBurst(world.papa.xM, world.papa.zM),
+      'visual:flashy,particles',
+      'stamp:800,false',
+      'visual:flashy,stamp',
       'cue:flashy',
     ]);
   });
 
-  it('asks for the border glow under reduced motion, and plays no camera effect', () => {
+  it('asks for the border glow under reduced motion, plays no shake, and keeps the stamp as a fade', () => {
     const { director, trace } = setup({ reducedMotion: true, traceVisuals: true });
     director.playCue('flashy', world, null);
     expect(trace).toContain('flash:35,180,true');
     expect(trace.some((line) => line.startsWith('shake:'))).toBe(false);
+    expect(trace).not.toContain('visual:flashy,shake');
+    // 24 particles x 40 % = 9.6, rounded.
+    expect(trace).toContain(
+      `particles:spark,10,3.5,500,0.06,${world.papa.xM},${world.papa.zM},5000`,
+    );
+    expect(trace).toContain('stamp:800,true');
   });
 
   it('flashes with no world: a client event may flash', () => {
@@ -569,7 +653,7 @@ describe('feedbackDirector: pulses, flash and the visual report (story 2.4)', ()
     director.playCue('flashy', world, null);
     expect(trace).not.toContain('visual:flashy,flash');
     expect(trace).toContain('visual:flashy,soundWave');
-    expect(trace).toContain('shake:0.05,200,4200');
+    expect(trace).toContain(PERFECT_SHAKE);
     expect(trace.at(-1)).toBe('cue:flashy');
     expect(newWarnings()).toEqual([]);
   });
@@ -582,13 +666,13 @@ describe('feedbackDirector: pulses, flash and the visual report (story 2.4)', ()
     expect(newWarnings()).toEqual([]);
   });
 
-  it('warns once for a flash that throws, and the camera and the cue still run', () => {
+  it('warns once for a flash that throws, and the fx and the cue still run', () => {
     const { director, trace, state, newWarnings } = setup({ traceVisuals: true });
     state.throwOnFlash = true;
     director.playCue('flashy', world, null);
     expect(newWarnings()).toEqual([expect.stringContaining('flash for cue flashy failed')]);
     expect(trace).not.toContain('visual:flashy,flash');
-    expect(trace).toContain('shake:0.05,200,4200');
+    expect(trace).toContain(PERFECT_SHAKE);
     expect(trace.at(-1)).toBe('cue:flashy');
   });
 
@@ -631,7 +715,137 @@ describe('feedbackDirector: pulses, flash and the visual report (story 2.4)', ()
     expect(newWarnings()).toEqual([expect.stringContaining('ring for cue pulsing failed')]);
   });
 
-  it('asks the motion query once for a cue with a flash and a camera effect', () => {
+  describe('the fx preset (story 2.5)', () => {
+    const fxLines = (trace: string[]) =>
+      trace.filter((line) => /^(shake|particles|stamp):/.test(line));
+
+    it('plays nothing of it for a cue without fx', () => {
+      const { director, trace } = setup({ traceVisuals: true });
+      director.playCue('threatPop', withThreat(), 7);
+      expect(fxLines(trace)).toEqual([]);
+    });
+
+    it('starts the particles at the ring anchor: a threat anchored cue bursts on the threat', () => {
+      const { director, trace } = setup();
+      const threatWorld = withThreat();
+      director.playCue('threatFx', threatWorld, 7);
+      const threat = threatWorld.threats[0] as World['threats'][number];
+      expect(trace).toContain(successBurst(threat.xM, threat.zM));
+    });
+
+    it('reads the live preset at play time: a retuned preset applies to the next cue', () => {
+      let live: Feel['fx'] = FX;
+      const trace: string[] = [];
+      const director = createFeedbackDirector({
+        table: TABLE,
+        audio: { playOneShot: () => {} },
+        haptics: { pulse: () => {} },
+        getScene: () => ({
+          soundWave: () => {},
+          shake: (amplitudeM, durationMs) => trace.push(`shake:${amplitudeM},${durationMs}`),
+          particles: () => {},
+          gag: () => {},
+          liftBaby: () => {},
+        }),
+        prefersReducedMotion: () => false,
+        getFx: () => live,
+        nowReal: () => NOW_REAL,
+      });
+      director.playCue('flashy', world, null);
+      live = { ...FX, perfect: { ...FX.perfect, shake: { amplitudeM: 0.09, durationMs: 300 } } };
+      director.playCue('flashy', world, null);
+      expect(trace).toEqual(['shake:0.05,200', 'shake:0.09,300']);
+    });
+
+    it('skips a shake of amplitude 0 and a burst of 0, without reporting them', () => {
+      const flat: Feel['fx'] = {
+        ...FX,
+        perfect: {
+          shake: { amplitudeM: 0, durationMs: 200 },
+          particles: { ...FX.perfect.particles, count: 0 },
+          stampMs: 0,
+        },
+      };
+      const { director, trace, newWarnings } = setup({ fx: flat, traceVisuals: true });
+      director.playCue('flashy', world, null);
+      expect(fxLines(trace)).toEqual([]);
+      expect(trace.some((line) => /^visual:flashy,(shake|particles|stamp)$/.test(line))).toBe(
+        false,
+      );
+      expect(trace.at(-1)).toBe('cue:flashy');
+      expect(newWarnings()).toEqual([]);
+    });
+
+    it('skips the particles of a burst that reduced motion rounds to 0', () => {
+      const thin: Feel['fx'] = {
+        ...FX,
+        success: { ...FX.success, particles: { ...FX.success.particles, count: 1 } },
+      };
+      const { director, trace } = setup({ fx: thin, reducedMotion: true });
+      director.handle('PapaBlocked', world);
+      expect(trace.some((line) => line.startsWith('particles:'))).toBe(false);
+    });
+
+    it('plays the stamp of a perfect with no world and no scene, and no stamp for another preset', () => {
+      const { director, trace } = setup({ hasScene: false });
+      director.playCue('flashy', null, null);
+      expect(fxLines(trace)).toEqual(['stamp:800,false']);
+      const success = setup();
+      success.director.handle('PapaBlocked', world);
+      expect(success.trace.some((line) => line.startsWith('stamp:'))).toBe(false);
+    });
+
+    it('plays on without a stamp when none is wired', () => {
+      const unwired = setup({ hasStamp: false, traceVisuals: true });
+      unwired.director.playCue('flashy', world, null);
+      expect(unwired.trace.some((line) => line.startsWith('stamp:'))).toBe(false);
+      expect(unwired.trace).not.toContain('visual:flashy,stamp');
+      expect(unwired.newWarnings()).toEqual([]);
+    });
+
+    it('skips each part alone when it throws: one warning, the rest plays', () => {
+      const shake = setup();
+      shake.state.throwOnShake = true;
+      shake.director.playCue('flashy', world, null);
+      expect(shake.newWarnings()).toEqual([expect.stringContaining('shake for cue flashy failed')]);
+      expect(fxLines(shake.trace)).toEqual([
+        perfectBurst(world.papa.xM, world.papa.zM),
+        'stamp:800,false',
+      ]);
+
+      const particles = setup();
+      particles.state.throwOnParticles = true;
+      particles.director.playCue('flashy', world, null);
+      expect(particles.newWarnings()).toEqual([
+        expect.stringContaining('particles for cue flashy failed'),
+      ]);
+      expect(fxLines(particles.trace)).toEqual([PERFECT_SHAKE, 'stamp:800,false']);
+
+      const stamp = setup();
+      stamp.state.throwOnStamp = true;
+      stamp.director.playCue('flashy', world, null);
+      expect(stamp.newWarnings()).toEqual([expect.stringContaining('stamp for cue flashy failed')]);
+      expect(fxLines(stamp.trace)).toEqual([
+        PERFECT_SHAKE,
+        perfectBurst(world.papa.xM, world.papa.zM),
+      ]);
+      expect(stamp.trace.at(-1)).toBe('cue:flashy');
+    });
+
+    it('plays no fx, with one warning, when the live feel cannot be read', () => {
+      const { director, trace, state, newWarnings } = setup();
+      state.throwOnGetFx = true;
+      director.playCue('flashy', world, null);
+      expect(newWarnings()).toEqual([expect.stringContaining('fx lookup')]);
+      expect(fxLines(trace)).toEqual([]);
+      expect(trace.at(-1)).toBe('cue:flashy');
+      const none = setup({ fx: null });
+      none.director.playCue('flashy', world, null);
+      expect(fxLines(none.trace)).toEqual([]);
+    });
+  });
+
+  it('asks the motion query once for a cue with a flash and an fx', () => {
     const { director, state, newWarnings } = setup();
     state.throwOnMotionQuery = true;
     director.playCue('flashy', world, null);
@@ -642,7 +856,8 @@ describe('feedbackDirector: pulses, flash and the visual report (story 2.4)', ()
     const { director, trace, state, newWarnings } = setup({ traceVisuals: true });
     state.throwOnVisual = true;
     director.playCue('flashy', world, null);
-    expect(newWarnings().filter((line) => line.includes('visual report'))).toHaveLength(2);
+    // The ring, the flash, the shake, the particles and the stamp each report once.
+    expect(newWarnings().filter((line) => line.includes('visual report'))).toHaveLength(5);
     expect(trace.at(-1)).toBe('cue:flashy');
   });
 });

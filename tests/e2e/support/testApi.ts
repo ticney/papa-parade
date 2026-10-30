@@ -52,6 +52,19 @@ export async function ppPerf(page: Page): Promise<ReturnType<PPTestApi['perf']>>
   return report;
 }
 
+/** What the screen effects are doing right now (`__PP__.fx()`, story 2.5). */
+export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
+  page.evaluate(
+    () =>
+      window.__PP__?.fx() ?? {
+        cameraZoom: 1,
+        cameraYawDeg: 0,
+        shakeOffsetM: 0,
+        particlesAlive: 0,
+        stampCount: 0,
+      },
+  );
+
 /** The cues the director played, oldest first, with the visuals each drew (`__PP__.cueLog()`, story 2.4). */
 export const ppCueLog = (page: Page): Promise<ReturnType<PPTestApi['cueLog']>> =>
   page.evaluate(() => window.__PP__?.cueLog() ?? []);

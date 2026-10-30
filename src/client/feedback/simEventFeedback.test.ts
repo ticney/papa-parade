@@ -57,6 +57,8 @@ function setup() {
     haptics,
     getScene: () => null,
     prefersReducedMotion: () => false,
+    getFx: () => null,
+    nowReal: () => 0,
   });
   return { sounds, pulses, director };
 }

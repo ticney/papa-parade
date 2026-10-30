@@ -491,6 +491,7 @@ describe('installTestApi', () => {
         'cueLog',
         'events',
         'freeze',
+        'fx',
         'loadLevel',
         'perf',
         'send',
@@ -501,6 +502,30 @@ describe('installTestApi', () => {
     installTestApi(target, host);
     expect(target.__PP__).toBe(first);
     expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('fx (story 2.5)', () => {
+  it('reads the host at call time, not from a copy taken at install', async () => {
+    let state = {
+      cameraZoom: 1,
+      cameraYawDeg: 0,
+      shakeOffsetM: 0,
+      particlesAlive: 0,
+      stampCount: 0,
+    };
+    const host = createFakeTestHost();
+    (host as { fxState: () => typeof state }).fxState = () => state;
+    const api = createTestApi(host);
+    expect(api.fx()).toEqual(state);
+    state = {
+      cameraZoom: 1.18,
+      cameraYawDeg: 6,
+      shakeOffsetM: 0.02,
+      particlesAlive: 9,
+      stampCount: 2,
+    };
+    expect(api.fx()).toEqual(state);
   });
 });
 

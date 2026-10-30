@@ -7,8 +7,16 @@
     "toleranceMs": 60,
     "bufferMs": 100,
     "hitstopMs": 80,
-    "slowMoPerfect": { "timeScale": 0.3, "durationMs": 1200, "returnMs": 300 },
-    "slowMoLastThreat": { "timeScale": 0.2, "durationMs": 1500, "returnMs": 300 }
+    "slowMoPerfect": {
+      "timeScale": 0.3,
+      "durationMs": 1200,
+      "returnMs": 300
+    },
+    "slowMoLastThreat": {
+      "timeScale": 0.2,
+      "durationMs": 1500,
+      "returnMs": 300
+    }
   },
   "input": {
     "holdMinMs": 400,
@@ -61,11 +69,21 @@
         "maxImpulseNs": 2,
         "samePropCooldownMs": 1000
       },
-      "phoneRinging": { "perSec": 2 },
-      "babyCrying": { "perSec": 2 },
-      "floorCreak": { "noisePct": 3 },
-      "breathReleased": { "noisePct": 5 },
-      "sniff": { "noisePct": 3 }
+      "phoneRinging": {
+        "perSec": 2
+      },
+      "babyCrying": {
+        "perSec": 2
+      },
+      "floorCreak": {
+        "noisePct": 3
+      },
+      "breathReleased": {
+        "noisePct": 5
+      },
+      "sniff": {
+        "noisePct": 3
+      }
     }
   },
   "instinct": {
@@ -78,9 +96,18 @@
     "missesWithinMs": 10000
   },
   "difficulty": {
-    "assistance": { "windowMultiplier": 1.5, "hasInstinct": true },
-    "normal": { "windowMultiplier": 1, "hasInstinct": true },
-    "experienced": { "windowMultiplier": 0.75, "hasInstinct": false }
+    "assistance": {
+      "windowMultiplier": 1.5,
+      "hasInstinct": true
+    },
+    "normal": {
+      "windowMultiplier": 1,
+      "hasInstinct": true
+    },
+    "experienced": {
+      "windowMultiplier": 0.75,
+      "hasInstinct": false
+    }
   },
   "mama": {
     "laughMaxPoints": 40,
@@ -122,6 +149,59 @@
     }
   },
   "gags": {
-    "tableObjectFall": { "pushImpulseNs": 0.72, "propReachDistM": 0.5 }
+    "tableObjectFall": {
+      "pushImpulseNs": 0.72,
+      "propReachDistM": 0.5
+    }
+  },
+  "fx": {
+    "shakeFrequencyHz": 14,
+    "success": {
+      "shake": {
+        "amplitudeM": 0.025,
+        "durationMs": 120
+      },
+      "particles": {
+        "style": "spark",
+        "count": 10,
+        "speedMps": 2.5,
+        "lifeMs": 350,
+        "sizeM": 0.05
+      }
+    },
+    "perfect": {
+      "shake": {
+        "amplitudeM": 0.05,
+        "durationMs": 200
+      },
+      "particles": {
+        "style": "spark",
+        "count": 24,
+        "speedMps": 3.5,
+        "lifeMs": 500,
+        "sizeM": 0.06
+      },
+      "stampMs": 800
+    },
+    "gag": {
+      "shake": {
+        "amplitudeM": 0.04,
+        "durationMs": 250
+      },
+      "particles": {
+        "style": "puff",
+        "count": 12,
+        "speedMps": 0.8,
+        "lifeMs": 650,
+        "sizeM": 0.12
+      }
+    },
+    "perfectCamera": {
+      "zoomPct": 18,
+      "yawDeg": 6,
+      "focusPct": 35,
+      "zoomInMs": 150,
+      "refocusMs": 200
+    }
   }
 }
