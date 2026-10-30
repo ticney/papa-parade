@@ -89,6 +89,11 @@ export interface PapaView {
   /** A handset at the side of his head while he is on the phone. Allocates nothing. */
   setOnPhone(isOnPhone: boolean): void;
   /**
+   * Papa is out of the room (the toilet, story 4.3): the whole of him, blob shadow included, is
+   * hidden, and drawn again with the next call that says he is back. Allocates nothing.
+   */
+  setAway(isAway: boolean): void;
+  /**
    * Stands Papa's hair on end: 0 is flat (the spikes are hidden), 1 is fully up. A value outside
    * 0..1 is clamped. Allocates nothing.
    */
@@ -234,6 +239,9 @@ export function createPapaView(
     },
     setOnPhone(isOnPhone) {
       handset.visible = isOnPhone;
+    },
+    setAway(isAway) {
+      group.visible = !isAway;
     },
     setHair(amount01) {
       const amount = Math.min(1, Math.max(0, amount01));

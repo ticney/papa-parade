@@ -38,6 +38,7 @@ const TABLE: FeedbackTable = {
   },
   haptics: { light: { patternMs: [15] }, medium: { patternMs: [30] }, heavy: { patternMs: [60] } },
   comboBadge: { cashInHoldMs: 900 },
+  papaHint: { holdMs: 1200 },
   resultScreen: {
     rowCountUpMs: 600,
     rowStaggerMs: 200,

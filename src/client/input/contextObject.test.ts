@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { type ContextObject, pickContextObject } from './contextObject.ts';
+import { type ContextObject, isKindInReach, pickContextObject } from './contextObject.ts';
 
-const COFFEE: ContextObject = { id: 'coffee_machine', xM: -3.6, zM: -2 };
-const PHONE: ContextObject = { id: 'phone', xM: -1.3, zM: -1.2 };
+const COFFEE: ContextObject = {
+  id: 'coffee_machine',
+  kind: 'coffee_machine' as const,
+  xM: -3.6,
+  zM: -2,
+};
+const PHONE: ContextObject = { id: 'phone', kind: 'phone' as const, xM: -1.3, zM: -1.2 };
 const REACH_M = 1.5;
 
 describe('pickContextObject', () => {
@@ -17,14 +22,14 @@ describe('pickContextObject', () => {
   });
 
   it('counts the reach as inclusive', () => {
-    const at = { id: 'x', xM: 1.5, zM: 0 };
+    const at = { id: 'x', kind: 'phone' as const, xM: 1.5, zM: 0 };
     expect(pickContextObject([at], 0, 0, 1.5)).toBe('x');
     expect(pickContextObject([at], 0, 0, 1.4999)).toBeNull();
   });
 
   it('gives an exact tie to the earlier entry', () => {
-    const a = { id: 'a', xM: 1, zM: 0 };
-    const b = { id: 'b', xM: -1, zM: 0 };
+    const a = { id: 'a', kind: 'phone' as const, xM: 1, zM: 0 };
+    const b = { id: 'b', kind: 'phone' as const, xM: -1, zM: 0 };
     expect(pickContextObject([a, b], 0, 0, REACH_M)).toBe('a');
     expect(pickContextObject([b, a], 0, 0, REACH_M)).toBe('b');
   });
@@ -35,5 +40,31 @@ describe('pickContextObject', () => {
 
   it('measures from Papa on the floor, so an object on Papa is picked', () => {
     expect(pickContextObject([PHONE], PHONE.xM, PHONE.zM, REACH_M)).toBe('phone');
+  });
+
+  it('skips the objects of the skipped kind (a toilet while the baby is carried, story 4.3)', () => {
+    const toilet: ContextObject = { id: 'toilet', kind: 'toilet', xM: -3, zM: -2 };
+    expect(pickContextObject([toilet, COFFEE], -3, -2, REACH_M)).toBe('toilet');
+    expect(pickContextObject([toilet, COFFEE], -3, -2, REACH_M, 'toilet')).toBe('coffee_machine');
+    expect(pickContextObject([toilet], -3, -2, REACH_M, 'toilet')).toBeNull();
+    expect(pickContextObject([toilet, COFFEE], -3, -2, REACH_M, null)).toBe('toilet');
+  });
+});
+
+describe('isKindInReach', () => {
+  const objects: ContextObject[] = [
+    { id: 'coffee', kind: 'coffee_machine', xM: 0.5, zM: 0 },
+    { id: 'door', kind: 'toilet', xM: 1.5, zM: 0 },
+  ];
+
+  it('asks every object of the kind, not the nearest object', () => {
+    expect(isKindInReach(objects, 'toilet', 0, 0, 1.5)).toBe(true);
+    expect(isKindInReach(objects, 'toilet', 0, 0, 1.49)).toBe(false);
+    expect(isKindInReach(objects, 'coffee_machine', 0, 0, 0.5)).toBe(true);
+  });
+
+  it('is false for a kind the level does not have', () => {
+    expect(isKindInReach(objects, 'phone', 0, 0, 10)).toBe(false);
+    expect(isKindInReach([], 'toilet', 0, 0, 10)).toBe(false);
   });
 });

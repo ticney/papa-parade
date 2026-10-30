@@ -358,6 +358,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       papa.setAsleep(world.papa.state === 'asleep', clockMs);
       papa.setDrinking(world.papa.state === 'drink');
       papa.setOnPhone(world.papa.state === 'onPhone');
+      // Out of the room, in the toilet (story 4.3): not him, not his shadow.
+      papa.setAway(world.papa.state === 'onToilet');
       waves.update(clockMs);
       shake.update(nowReal);
       particles.update(nowReal);

@@ -6,6 +6,7 @@ import { isBabyInReach, isInSafeZone, putDownBaby, takeBaby } from '../baby/carr
 import { isBabyFoundNow } from '../baby/silence.ts';
 import type { SimObjectSpec, StepContext } from '../context.ts';
 import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
+import { bladderSpeedFactor } from '../gauges/bladder.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { finishCoffee, startCoffee } from './coffee.ts';
@@ -13,6 +14,7 @@ import { startGlide } from './glide.ts';
 import { enterPapaState, isPapaBusy } from './papaFsm.ts';
 import { startCall } from './phoneCall.ts';
 import { planWalkTo } from './planWalk.ts';
+import { finishToilet, startToilet } from './toilet.ts';
 import { stepInDirection } from './walk.ts';
 
 /**
@@ -69,6 +71,11 @@ const OBJECT_ACTIONS: Readonly<Record<ObjectKind, ObjectAction>> = {
     if (index < 0) return false;
     answerPhone(world, ctx, index);
     startCall(world, ctx, index);
+    return true;
+  },
+  // The door of the toilet (story 4.3): Papa is out of the room for `toiletDurationMs`.
+  toilet: (world, ctx, object) => {
+    startToilet(world, ctx, object.id);
     return true;
   },
 };
@@ -164,6 +171,11 @@ function tapObject(world: World, ctx: StepContext, objectId: string): void {
   for (let i = 0; i < objects.length; i++) {
     const object = objects[i] as SimObjectSpec;
     if (object.id !== objectId) continue;
+    // The toilet is no place for a baby in the arms: refused at the tap, Papa goes nowhere (4.3 D4).
+    if (object.kind === 'toilet' && isBabyCarried(world)) {
+      ctx.events.push({ type: 'ToiletRefused', t: world.time.sim, objectId });
+      return;
+    }
     if (tapFloor(world, ctx, object.xM, object.zM) !== null) {
       world.papa.objectId = objectId;
       ctx.events.push({ type: 'ObjectTapped', t: world.time.sim, objectId });
@@ -232,10 +244,10 @@ function moveStop(world: World, ctx: StepContext): void {
 }
 
 /**
- * System: Papa. Remembers where he stood (for the view's interpolation), ends a coffee, a nap or a
- * call whose time is up (`busyUntil`; only a coffee has something to finish, the others go back to
- * idle), handles this step's `TapFloor` / `TapObject` / `TapBaby` (takes or puts down the baby, story 4.1, else a walk to where he is) / `Move` / `MoveStop` /
- * `PressThreat` in order (none while he is busy, D6: he drinks, sleeps or talks and answers nothing), then
+ * System: Papa. Remembers where he stood (for the view's interpolation), ends a coffee, a nap, a
+ * call or a toilet visit whose time is up (`busyUntil`; a coffee and a visit have something to
+ * finish, the others go back to idle), handles this step's `TapFloor` / `TapObject` / `TapBaby` (takes or puts down the baby, story 4.1, else a walk to where he is) / `Move` / `MoveStop` /
+ * `PressThreat` in order (none while he is busy, D6: he drinks, sleeps, talks or is in the toilet and answers nothing), then
  * moves him once for one step: by `walkSpeedMps`, or by the speed of his glide. The speed is read
  * each step, so a changed feel applies at once.
  */
@@ -247,6 +259,8 @@ export function runPapa(world: World, ctx: StepContext): void {
   if (isPapaBusy(papa) && world.time.sim >= papa.busyUntil) {
     if (papa.state === 'drink') {
       finishCoffee(world, ctx);
+    } else if (papa.state === 'onToilet') {
+      finishToilet(world, ctx);
     } else {
       papa.busyUntil = asSimMs(0);
       enterPapaState(world, ctx, 'idle');
@@ -267,7 +281,9 @@ export function runPapa(world: World, ctx: StepContext): void {
     else if (command.type === 'PressThreat') pressThreat(world, ctx, command.threatId);
   }
 
-  const budgetM = (ctx.feel.movement.walkSpeedMps * STEP_MS) / 1000;
+  // A full need slows the walks, not the glide (story 4.3 D3). The factor is the previous step's.
+  const budgetM =
+    (ctx.feel.movement.walkSpeedMps * STEP_MS * bladderSpeedFactor(world, ctx)) / 1000;
   if (papa.state === 'walkPath') {
     if (advanceAlongPath(papa, budgetM)) arrive(world, ctx);
   } else if (papa.state === 'glide' && papa.glide !== null) {

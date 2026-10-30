@@ -272,3 +272,35 @@ describe('playSimEventFeedback: the combo cash-in (story 4.2)', () => {
     expect(sounds.filter((sound) => sound === soundOf('baby_put_down'))).toHaveLength(1);
   });
 });
+
+describe('playSimEventFeedback: the pressing need (story 4.3)', () => {
+  const at = asSimMs(1000);
+  const cases: [SimEvent, string, string, string][] = [
+    [{ type: 'BladderFilled', t: at }, 'bladder_full', 'papa_bladder_full', 'medium'],
+    [
+      { type: 'ToiletStarted', t: at, objectId: 'toilet', untilAt: asSimMs(6000) },
+      'toilet_entered',
+      'papa_toilet_door',
+      'light',
+    ],
+    [{ type: 'ToiletFinished', t: at }, 'toilet_flushed', 'env_toilet_flush', 'medium'],
+    [{ type: 'ToiletRefused', t: at, objectId: 'toilet' }, 'toilet_refused', 'papa_bump', 'light'],
+  ];
+
+  it.each(cases)(
+    '%j plays its cue from the events table: sound, vibration and a ring on Papa',
+    (event, cue, clip, haptic) => {
+      const { sounds, pulses, director } = setup();
+      playSimEventFeedback(event, sourceOf(worldWith('outlet', false)), director);
+      expect(feedback.events[event.type]).toBe(cue);
+      expect(feedback.cues[cue]?.audio?.clip).toBe(clip);
+      expect(feedback.cues[cue]?.visual).toMatchObject({ kind: 'soundWave', anchor: 'papa' });
+      expect(sounds).toEqual([soundOf(cue)]);
+      expect(pulses).toEqual([haptic]);
+    },
+  );
+
+  it('reads how long the hint stays up from the table, in real ms', () => {
+    expect(feedback.papaHint.holdMs).toBeGreaterThan(0);
+  });
+});

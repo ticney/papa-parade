@@ -1193,7 +1193,7 @@ describe('checkContent on level files', () => {
 
   it('names the level file, the path and the culprit of a micro-sleep def that has no threat file', async () => {
     await mutateJson(FILE, (level) => {
-      level.gauges = { fatigue: { microSleepDef: 'papa_snooze' } };
+      level.gauges = { need: {}, fatigue: { microSleepDef: 'papa_snooze' } };
     });
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({
@@ -1206,7 +1206,7 @@ describe('checkContent on level files', () => {
 
   it('names the micro-sleep def whose target is not "papa"', async () => {
     await mutateJson(FILE, (level) => {
-      level.gauges = { fatigue: { microSleepDef: 'outlet' } };
+      level.gauges = { need: {}, fatigue: { microSleepDef: 'outlet' } };
     });
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({
@@ -1345,7 +1345,7 @@ describe('checkContent on level files', () => {
       threat.gag = 'outlet_hair';
     });
     await mutateJson(FILE, (level) => {
-      level.gauges = { fatigue: { microSleepDef: 'papa_microsleep' } };
+      level.gauges = { need: {}, fatigue: { microSleepDef: 'papa_microsleep' } };
     });
     expect(await checkContent(root)).toContainEqual(
       expect.objectContaining({
@@ -1447,6 +1447,38 @@ describe('checkContent on level files', () => {
         message: expect.stringMatching(/"coffee_machine".*coffee_machine.*no gauges\.fatigue/),
       }),
     );
+  });
+
+  it('names a toilet in a level with no need gauge (story 4.3)', async () => {
+    await mutateJson(FILE, (level) => {
+      level.gauges = { noise: {}, fatigue: { microSleepDef: 'papa_microsleep' } };
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'objects[2].kind',
+        message: expect.stringMatching(/"toilet".*toilet.*no gauges\.need/),
+      }),
+    ]);
+  });
+
+  it('names a toilet whose anchor stands inside a hidden zone (story 4.3)', async () => {
+    await mutateJson('content/levels/salon_crawler.geometry.json', (geometry) => {
+      const zones = geometry.zones as { kind: string; centerM: number[]; halfExtentsM: number[] }[];
+      const hidden = zones.find((zone) => zone.kind === 'hidden') as (typeof zones)[number];
+      hidden.centerM = [-2.2, 0.5, -2.85];
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'objects[2].anchor',
+        message: expect.stringMatching(/toilet "toilet".*"toilet".*behind_sofa/),
+      }),
+    );
+  });
+
+  it('accepts a toilet outside every hidden zone (the live level)', async () => {
+    expect(await checkContent(root)).toEqual([]);
   });
 
   it('names an object of an unknown kind (the schema refuses it; the drift with the sim is pinned in levelSchema.test.ts)', async () => {

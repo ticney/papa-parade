@@ -373,6 +373,22 @@
       "additionalProperties": false,
       "description": "The combo badge above Papa (story 4.2). Real time: the sim never reads it."
     },
+    "papaHint": {
+      "type": "object",
+      "properties": {
+        "holdMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long the hint above Papa (« POSE-LE D'ABORD ! » after a refused toilet) stays up, in real ms. A second refusal restarts it."
+        }
+      },
+      "required": [
+        "holdMs"
+      ],
+      "additionalProperties": false,
+      "description": "The hint above Papa (story 4.3). Real time: the sim never reads it."
+    },
     "cues": {
       "type": "object",
       "propertyNames": {
@@ -591,6 +607,7 @@
     "resultScreen",
     "calibration",
     "comboBadge",
+    "papaHint",
     "cues",
     "events"
   ],

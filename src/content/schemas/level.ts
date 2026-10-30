@@ -6,24 +6,26 @@ import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 // added the variant, the duration and the feel overrides; story 1.17 added `objects`, the
 // interactive things (coffee machine, phone) Space or A can walk Papa to. Story 1.19 added
 // `gauges` (the fatigue system a level opts into) and the `kind` of an object; story 3.1 added `gauges.noise`. Story 1.20 added
-// `disruptions` to a wave: the phone that rings at a fixed time, on an object of the level.
+// `disruptions` to a wave: the phone that rings at a fixed time, on an object of the level. Story 4.3 added
+// `gauges.need` (the pressing need) and the `toilet` object kind.
 
 /** The level variants the game has. Each one has its own timer icon (`client/ui/hud/timerHud.ts`). */
 export const LEVEL_VARIANTS = ['nap'] as const;
 export type LevelVariant = (typeof LEVEL_VARIANTS)[number];
 
 /**
- * The gauges of the HUD pill, in the order they are drawn: Bruit · Fatigue · Envie (UX-DR4). Only
- * `noise` and `fatigue` have a level schema entry so far; epic 4 adds `need`.
+ * The gauges of the HUD pill, in the order they are drawn: Bruit · Fatigue · Envie (UX-DR4). Each
+ * has a level schema entry (`need` is the pressing need, story 4.3; the sim calls it the bladder).
  */
 export const GAUGE_IDS = ['noise', 'fatigue', 'need'] as const;
 export type GaugeId = (typeof GAUGE_IDS)[number];
 
 /**
  * What an interactive object is, hence what Papa does on arriving at it: the sim has one action per
- * kind (a `Record<ObjectKind, …>`, so a kind with no action does not compile). The phone's is story 1.20.
+ * kind (a `Record<ObjectKind, …>`, so a kind with no action does not compile). The phone's is story 1.20,
+ * the toilet's story 4.3.
  */
-export const OBJECT_KINDS = ['coffee_machine', 'phone'] as const;
+export const OBJECT_KINDS = ['coffee_machine', 'phone', 'toilet'] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
 
 const idSchema = (description: string) =>
@@ -123,6 +125,12 @@ const LevelGaugesSchema = z
       })
       .optional()
       .describe('Papa gets tired in this level. Absent: no fatigue, no gauge, no micro-sleep.'),
+    need: z
+      .strictObject({})
+      .optional()
+      .describe(
+        'Papa has a pressing need in this level (story 4.3). Absent: no need, no gauge, no toilet.',
+      ),
   })
   .describe('The gauges this level has: a gauge exists only if its system is in the level.');
 

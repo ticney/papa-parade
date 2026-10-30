@@ -57,16 +57,28 @@ describe('content/levels/salon_crawler.json', () => {
     expect(parsed.value.feelOverrides).toEqual({});
   });
 
-  it('gives the live level the noise and fatigue gauges (the micro-sleep), and each object its kind', () => {
+  it('gives the live level the noise, fatigue (the micro-sleep) and need gauges, and each object its kind', () => {
     const parsed = parse(real);
     expect(parsed.ok && parsed.value.gauges).toEqual({
       noise: {},
       fatigue: { microSleepDef: 'papa_microsleep' },
+      need: {},
     });
     expect(parsed.ok && parsed.value.objects.map((object) => object.kind)).toEqual([
       'coffee_machine',
       'phone',
+      'toilet',
     ]);
+  });
+
+  it('accepts the need gauge as an empty object only, and a level without it (story 4.3)', () => {
+    const needOnly = parse({ ...real, gauges: { need: {} } });
+    expect(needOnly.ok && needOnly.value.gauges).toEqual({ need: {} });
+    const withKey = parse({ ...real, gauges: { need: { startPct: 10 } } });
+    expect(withKey.ok).toBe(false);
+    const { need: _need, ...withoutNeed } = (real as { gauges: Record<string, unknown> }).gauges;
+    const bare = parse({ ...real, gauges: withoutNeed });
+    expect(bare.ok && bare.value.gauges.need).toBeUndefined();
   });
 
   it('lets the live level carry the baby, with a cry in the arms (story 4.1)', () => {
@@ -107,11 +119,12 @@ describe('content/levels/salon_crawler.json', () => {
     expect(real).not.toHaveProperty('threats');
   });
 
-  it('lists the coffee machine and the phone, and defaults to no objects', () => {
+  it('lists the coffee machine, the phone and the toilet, and defaults to no objects', () => {
     const parsed = parse(real);
     expect(parsed.ok && parsed.value.objects.map((object) => object.id)).toEqual([
       'coffee_machine',
       'phone',
+      'toilet',
     ]);
     const { objects: _objects, ...withoutObjects } = quiet;
     const bare = parse(withoutObjects);
@@ -193,8 +206,8 @@ describe('content/levels/salon_crawler.json', () => {
     ],
     [
       'a gauges entry that is not a known gauge',
-      { ...real, gauges: { need: {} } },
-      ['gauges.need'],
+      { ...real, gauges: { thirst: {} } },
+      ['gauges.thirst'],
     ],
     [
       'a noise gauge with a key (it opts in with an empty object, story 3.1)',

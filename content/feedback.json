@@ -34,6 +34,9 @@
   "comboBadge": {
     "cashInHoldMs": 900
   },
+  "papaHint": {
+    "holdMs": 1200
+  },
   "cues": {
     "papa_bump": {
       "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
@@ -208,6 +211,26 @@
       },
       "haptic": "light"
     },
+    "bladder_full": {
+      "audio": { "clip": "papa_bladder_full", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.8, "durationMs": 450 },
+      "haptic": "medium"
+    },
+    "toilet_entered": {
+      "audio": { "clip": "papa_toilet_door", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
+    },
+    "toilet_flushed": {
+      "audio": { "clip": "env_toilet_flush", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.8, "durationMs": 450 },
+      "haptic": "medium"
+    },
+    "toilet_refused": {
+      "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
+    },
     "papa_phone_answer": {
       "audio": { "clip": "papa_phone_answer", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
@@ -221,6 +244,10 @@
     "BabyPickedUp": "baby_picked_up",
     "BabyPutDown": "baby_put_down",
     "ComboCashedIn": "combo_cashed_in",
+    "BladderFilled": "bladder_full",
+    "ToiletStarted": "toilet_entered",
+    "ToiletFinished": "toilet_flushed",
+    "ToiletRefused": "toilet_refused",
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
     "ResultStarStamped": "result_star",

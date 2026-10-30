@@ -13,7 +13,8 @@ export interface ComboBadge {
   readonly isVisible: boolean;
   /**
    * Once per frame, before `worldUi.render`: reads the combo and Papa's drawn pose. Visible iff
-   * `multiplier > minMultiplier` (or while a cash-in shows its points), above Papa's head, moved
+   * `multiplier > minMultiplier` (or while a cash-in shows its points), above Papa's head, hidden
+   * while he has no pose (`papa` null: out of the room, story 4.3), moved
    * `aside` while a threat stands on Papa (its verb is in the same spot). The text and the classes
    * are written only when they change; a rise pops the badge unless motion is reduced.
    * `nowAtReal` is the real time of this frame, in ms.
@@ -127,13 +128,15 @@ export function createComboBadge(
           setCashIn(false);
         }
       }
+      // A badge floating at an empty door is a bug: with no pose for Papa, nothing is drawn.
+      const isPapaThere = papa !== null;
       if (cashInUntilAtReal !== null) {
         setText(cashInText);
-        setVisible(true);
+        setVisible(isPapaThere);
       } else if (multiplier > minMultiplier) {
         setText(multiplierTextOf(multiplier));
-        setVisible(true);
-        if (isRise && !isMotionReduced()) {
+        setVisible(isPapaThere);
+        if (isRise && isPapaThere && !isMotionReduced()) {
           pop?.cancel();
           pop = text.animate(POP_KEYFRAMES, { duration: COMBO_BADGE_POP_MS, easing: 'ease-out' });
         }

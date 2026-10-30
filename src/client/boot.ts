@@ -273,6 +273,7 @@ export async function boot(): Promise<void> {
       | 'ppPress'
       | 'ppFatigue'
       | 'ppNoise'
+      | 'ppBladder'
       | 'ppPhone'
       | 'ppSilence'
       | 'ppBabyPx'
@@ -510,6 +511,16 @@ export async function boot(): Promise<void> {
     }
     mirror('ppNoise', String(Math.round(active.sim.world.gauges.noisePct)));
   };
+  // The need, rounded, like the noise (story 4.3): at the level start and on `BladderFilled`,
+  // `ToiletStarted` and `ToiletFinished`, never per frame. Removed in a level with no need gauge.
+  const mirrorBladder = (): void => {
+    const active = levelSession.active;
+    if (active === null || active.level.level.gauges.need === undefined) {
+      delete document.documentElement.dataset.ppBladder;
+      return;
+    }
+    mirror('ppBladder', String(Math.round(active.sim.world.gauges.bladderPct)));
+  };
   // Where each interactive object's icon point is on the page, in px: `coffee_machine:x,y;phone:x,y`.
   // Written once per level (the camera is fitted by then), for a Playwright tap on an object.
   const mirrorObjectPoints = (): void => {
@@ -537,6 +548,7 @@ export async function boot(): Promise<void> {
     mirrorBabyAt();
     mirrorFatigue();
     mirrorNoise();
+    mirrorBladder();
     mirrorObjectPoints();
     mirror('ppCombo', String(levelSession.active?.sim.world.combo.multiplier ?? 1));
     delete document.documentElement.dataset.ppTap;
@@ -728,6 +740,9 @@ export async function boot(): Promise<void> {
       if (gauges.fatigue !== undefined) {
         gaugesHud.setValue('fatigue', Math.round(started.sim.world.gauges.fatigue));
       }
+      if (gauges.need !== undefined) {
+        gaugesHud.setValue('need', Math.round(started.sim.world.gauges.bladderPct));
+      }
       worldUi.mountObjects(started.sim.objects);
       // The full duration at once, so a restart never shows the last level's `0:00`.
       hudBatch.set(TIMER_SLOT, Math.ceil(started.level.level.durationMs / MS_PER_S));
@@ -800,12 +815,15 @@ export async function boot(): Promise<void> {
           running.level.level.durationMs - running.sim.world.time.sim,
         );
         hudBatch.set(TIMER_SLOT, Math.ceil(remainingMs / MS_PER_S));
-        // Noise and fatigue in whole percent: the batch writes each when its integer changes.
+        // Noise, fatigue and need in whole percent: the batch writes each when its integer changes.
         if (running.level.level.gauges.noise !== undefined) {
           hudBatch.set(gaugeSlotOf('noise'), Math.round(running.sim.world.gauges.noisePct));
         }
         if (running.level.level.gauges.fatigue !== undefined) {
           hudBatch.set(gaugeSlotOf('fatigue'), Math.round(running.sim.world.gauges.fatigue));
+        }
+        if (running.level.level.gauges.need !== undefined) {
+          hudBatch.set(gaugeSlotOf('need'), Math.round(running.sim.world.gauges.bladderPct));
         }
       }
       shell.frame();
@@ -830,15 +848,24 @@ export async function boot(): Promise<void> {
           levelSession.active?.sim.world.feel.input.holdMinMs ?? 0,
           world.baby.state === 'carried',
         );
-      worldUi.updateObjects(world?.gauges.isFatigueAbove ?? false);
+      // One state per kind of object (story 4.3): the coffee follows the fatigue, the door the need.
+      worldUi.updateObjects(
+        world?.gauges.isFatigueAbove ?? false,
+        world !== undefined && world.gauges.bladderPct >= world.feel.bladder.urgentFromPct,
+        world?.papa.state === 'onToilet',
+      );
       if (world !== undefined) {
+        // Papa has no pose while he is out of the room: the badge and the hint hide with him.
+        const papaPose = world.papa.state === 'onToilet' ? null : (currentLevel?.papaPose ?? null);
+        const nowAtReal = performance.now();
         worldUi.updateCombo(
           world.combo,
           world.feel.combo.minMultiplier,
-          currentLevel?.papaPose ?? null,
+          papaPose,
           world.threats,
-          performance.now(),
+          nowAtReal,
         );
+        worldUi.updatePapaHint(papaPose, nowAtReal);
       }
       showGlyphChip(world, targetedId, device);
       if (isMirrored) mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
@@ -972,6 +999,13 @@ export async function boot(): Promise<void> {
       }
       if (isMirrored) {
         if (event.type === 'NoiseChanged') mirrorNoise();
+        if (
+          event.type === 'BladderFilled' ||
+          event.type === 'ToiletStarted' ||
+          event.type === 'ToiletFinished'
+        ) {
+          mirrorBladder();
+        }
         if (event.type === 'LevelEnded') {
           mirror('ppFlow', 'ended');
           mirror('ppEndReason', event.reason);
@@ -982,6 +1016,14 @@ export async function boot(): Promise<void> {
         mirrorThreatEvent(event);
         mirrorPhoneEvent(event);
         mirrorSilenceEvent(event);
+      }
+      // A refused toilet says why above Papa, for `holdMs` of real time (story 4.3).
+      if (event.type === 'ToiletRefused') {
+        worldUi.papaHint.show(feedbackTable.papaHint.holdMs, performance.now());
+      }
+      // It has said its piece once the baby is down or Papa is in.
+      if (event.type === 'BabyPutDown' || event.type === 'ToiletStarted') {
+        worldUi.papaHint.hide();
       }
       // The points of a cash-in show on the badge for `cashInHoldMs` of real time (story 4.2, D6).
       if (event.type === 'ComboCashedIn') {
@@ -1358,6 +1400,7 @@ export async function boot(): Promise<void> {
     worldUi.unmountObjects();
     worldUi.glyphChip.hide();
     worldUi.comboBadge.hide();
+    worldUi.papaHint.hide();
     highlightedThreatId = null;
     // A pad lost in that level does not follow the player into the next one (the line is for the pause).
     shell.setPadDisconnected(false);

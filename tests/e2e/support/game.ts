@@ -72,6 +72,14 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     earlyWakePenaltyStars: number;
   };
   music: { slowMo: { belowScale: number } };
+  bladder: {
+    startPct: number;
+    perSec: number;
+    slowFromPct: number;
+    slowdownPct: number;
+    urgentFromPct: number;
+    toiletDurationMs: number;
+  };
   calibration: { offsetMinMs: number; offsetMaxMs: number; audioWaitMs: number };
 };
 
@@ -582,12 +590,14 @@ export async function canvasPoint(
 }
 
 /**
- * Taps the canvas at 50 % of its width and 25 % of its height, a point of the floor far enough from
+ * Taps the canvas at 65 % of its width and 30 % of its height, a point of the floor far enough from
  * the spawn for a walk of a few seconds, and waits for Papa to follow the path. Tests that need the
  * scene to change over time (a pause, a countdown) use it instead of a provisional moving cube.
+ * The point is well clear of the toilet door's icon (story 4.3: at 50 % / 25 % it sat 6 px from it,
+ * so the tap walked Papa into the toilet for 5 s and `pauseResume` timed out on a slow run).
  */
 export async function startWalking(page: Page): Promise<void> {
-  const { x, y } = await canvasPoint(page, 0.5, 0.25);
+  const { x, y } = await canvasPoint(page, 0.65, 0.3);
   await page.touchscreen.tap(x, y);
   await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'walkPath');
 }

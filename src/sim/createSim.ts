@@ -336,6 +336,7 @@ function simLevelOf(
     hasCarry: level.level.carry !== undefined,
     safeZones,
     hasNoise: level.level.gauges.noise !== undefined,
+    hasBladder: level.level.gauges.need !== undefined,
     durationMs: level.level.durationMs,
     waves: waves.map((wave, w) => {
       const endMs = waves[w + 1]?.fromMs ?? level.level.durationMs;
@@ -501,6 +502,8 @@ export async function createSimWithSystems(
     firstWanderAt: asSimMs(content.feel.baby.babbleMinMs),
     // A level with no fatigue gauge does not carry the feel's start value around in its world.
     fatiguePoints: simLevel.microSleepIndex < 0 ? 0 : content.feel.fatigue.startPoints,
+    // Same for the need gauge.
+    bladderPct: simLevel.hasBladder ? content.feel.bladder.startPct : 0,
     props: geometry.props,
   });
   checkReachable(

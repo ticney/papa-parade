@@ -648,3 +648,17 @@ describe('feel.noise (story 3.1)', () => {
     expect(mutated([`${impact}.minPct`, 15])).toMatchObject({ ok: true });
   });
 });
+
+describe('feel.bladder (story 4.3)', () => {
+  it('refuses a slowdownPct of 100 or more: Papa must always arrive', () => {
+    expect(failedPaths(mutated(['bladder.slowdownPct', 100]))).toEqual(['bladder.slowdownPct']);
+    expect(failedPaths(mutated(['bladder.slowdownPct', 120]))).toEqual(['bladder.slowdownPct']);
+    expect(mutated(['bladder.slowdownPct', 99])).toMatchObject({ ok: true });
+    expect(mutated(['bladder.slowdownPct', 0])).toMatchObject({ ok: true });
+  });
+
+  it('refuses a missing group and an unknown key', () => {
+    expect(failedPaths(mutated(['bladder', undefined]))).toEqual(['bladder']);
+    expect(failedPaths(mutated(['bladder.bogusPct', 1]))).toEqual(['bladder.bogusPct']);
+  });
+});

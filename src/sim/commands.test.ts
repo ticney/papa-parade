@@ -34,6 +34,7 @@ describe('commandProblem', () => {
       'PressThreat',
       'PushProp',
       'Release',
+      'SetBladder',
       'SetFatigue',
       'SetFeel',
       'SetInputLag',
@@ -136,6 +137,23 @@ describe('SetFatigue (story 1.19)', () => {
     ['a string', { type: 'SetFatigue', t: 0, points: '80' }],
   ])('refuses %s', (_name, command) => {
     expect(commandProblem(command)).toMatch(/SetFatigue: points must be a finite number/);
+  });
+});
+
+describe('SetBladder (story 4.3)', () => {
+  it('accepts a finite number of percent, whatever its value (the sim holds it in [0, 100])', () => {
+    for (const pct of [0, 80, -5, 250]) {
+      expect(commandProblem({ type: 'SetBladder', t: 0, pct })).toBeNull();
+    }
+  });
+
+  it.each([
+    ['no pct', { type: 'SetBladder', t: 0 }],
+    ['NaN pct', { type: 'SetBladder', t: 0, pct: Number.NaN }],
+    ['Infinity pct', { type: 'SetBladder', t: 0, pct: Number.POSITIVE_INFINITY }],
+    ['a string', { type: 'SetBladder', t: 0, pct: '80' }],
+  ])('refuses %s', (_name, command) => {
+    expect(commandProblem(command)).toMatch(/SetBladder: pct must be a finite number/);
   });
 });
 

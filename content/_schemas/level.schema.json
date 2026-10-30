@@ -144,7 +144,8 @@
             "type": "string",
             "enum": [
               "coffee_machine",
-              "phone"
+              "phone",
+              "toilet"
             ],
             "description": "What the object is: it decides what Papa does on arriving at it."
           },
@@ -187,6 +188,12 @@
           "required": [
             "microSleepDef"
           ],
+          "additionalProperties": false
+        },
+        "need": {
+          "description": "Papa has a pressing need in this level (story 4.3). Absent: no need, no gauge, no toilet.",
+          "type": "object",
+          "properties": {},
           "additionalProperties": false
         }
       },

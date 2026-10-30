@@ -71,7 +71,7 @@ export function runThreats(world: World, ctx: StepContext): void {
     const command = ctx.commands[i];
     if (command === undefined) continue;
     if (command.type === 'PressThreat') {
-      // Busy Papa (`drink` / `asleep`, story 1.19 D6) answers nothing: a threat that opens meanwhile
+      // Busy Papa (`drink` / `asleep` / `onPhone` / `onToilet`, stories 1.19 D6, 4.3) answers nothing: a threat that opens meanwhile
       // ends in its gag (`late`), which is the cost of the coffee. `Release` still passes below.
       // At the step where `busyUntil` is reached he is awake already (`runPapa` only records it
       // later in the step), so a press then is judged, and it glides him.

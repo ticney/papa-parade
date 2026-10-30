@@ -8,6 +8,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  NEED_GAUGES,
   OUTLET,
   SILENCE,
   TEST_OBJECTS,
@@ -670,5 +671,79 @@ describe('a press on a hidden threat (story 1.21)', () => {
     expect(types(events)).not.toContain('PapaGlideStarted');
     expect(sim.world.papa.state).toBe('idle');
     expect(threat?.state).toBe('hidden');
+  });
+});
+
+describe('a full need slows the walks, not the glide (story 4.3)', () => {
+  const { slowdownPct } = content.feel.bladder;
+  const FACTOR = 1 - slowdownPct / 100;
+
+  /** A sim whose need is `pct`, set in the first step (the factor is read from the step before). */
+  async function simWithNeed(pct: number | null, waves = [] as ReturnType<typeof testWave>[]) {
+    const sim = await createSim({
+      content,
+      geometry,
+      level: createTestLevel({
+        waves,
+        objects: TEST_OBJECTS,
+        gauges: pct === null ? {} : NEED_GAUGES,
+      }),
+      seed: 1,
+    });
+    if (pct !== null) sim.enqueue({ type: 'SetBladder', t: asSimMs(0), pct });
+    sim.step();
+    sim.drainEvents();
+    return sim;
+  }
+
+  const walked = (sim: Sim, from: { xM: number; zM: number }) =>
+    Math.hypot(sim.world.papa.xM - from.xM, sim.world.papa.zM - from.zM);
+
+  it('covers 70 % of the distance on a walkDir at 100, and all of it below', async () => {
+    for (const [pct, factor] of [
+      [100, FACTOR],
+      [98, 1],
+      [0, 1],
+    ] as const) {
+      const sim = await simWithNeed(pct);
+      const from = { xM: papaOf(sim).xM, zM: papaOf(sim).zM };
+      sim.enqueue(move(-1, 0, sim.world.time.sim));
+      run(sim, 40);
+      expect(walked(sim, from), String(pct)).toBeCloseTo(40 * BUDGET_M * factor, 6);
+    }
+  });
+
+  it('covers 70 % of the distance on a walkPath at 100', async () => {
+    const full = await simWithNeed(100);
+    const rested = await simWithNeed(0);
+    const from = { xM: papaOf(full).xM, zM: papaOf(full).zM };
+    for (const sim of [full, rested]) sim.enqueue(tap(from.xM - 3, from.zM, sim.world.time.sim));
+    run(full, 60);
+    run(rested, 60);
+    expect(papaOf(full).state).toBe('walkPath');
+    expect(walked(full, from)).toBeCloseTo(walked(rested, from) * FACTOR, 6);
+  });
+
+  it('keeps the glide speed: a press glides Papa to the same instant full or not', async () => {
+    const arrivals: number[] = [];
+    for (const pct of [100, 0]) {
+      const sim = await simWithNeed(pct, [testWave([OUTLET])]);
+      for (let i = 0; i < 400 && sim.world.threats[0]?.state === 'idle'; i++) sim.step();
+      sim.enqueue({ type: 'PressThreat', t: sim.world.time.sim, threatId: 1 });
+      const events = run(sim, 200);
+      expect(types(events), String(pct)).toContain('PapaGlideStarted');
+      arrivals.push((events.find((event) => event.type === 'PapaArrived') as { t: number }).t);
+    }
+    expect(arrivals[0]).toBe(arrivals[1]);
+  });
+
+  it('leaves a level without the gauge on exactly the old budget', async () => {
+    const sim = await simWithNeed(null);
+    sim.enqueue({ type: 'SetBladder', t: sim.world.time.sim, pct: 100 });
+    const from = { xM: papaOf(sim).xM, zM: papaOf(sim).zM };
+    sim.enqueue(move(-1, 0, sim.world.time.sim));
+    run(sim, 40);
+    expect(sim.world.gauges.isBladderFull).toBe(false);
+    expect(walked(sim, from)).toBeCloseTo(40 * BUDGET_M, 9);
   });
 });

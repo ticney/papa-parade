@@ -360,6 +360,29 @@ const NoiseSchema = z
   })
   .describe('The noise gauge of the Sieste levels (FR18, GDD rule 7).');
 
+const BladderSchema = z
+  .strictObject({
+    startPct: pct('Need at the start of a level that has the need gauge, in % of the gauge.'),
+    perSec: points('Need gained per second, in % of the gauge per second (GDD: 0.4/s).'),
+    slowFromPct: pct(
+      "From this need Papa's walks are slower (the gauge is full), in % of the gauge (GDD: 100).",
+    ),
+    slowdownPct: z
+      .number()
+      .min(0)
+      .lt(100)
+      .describe(
+        'How much slower Papa walks while the need is full, in % of his speed (GDD: 30). Strictly below 100: Papa must always arrive. The glide keeps its speed.',
+      ),
+    urgentFromPct: pct(
+      "From this need the toilet door's marker turns warm, in % of the gauge (70 by default, where the HUD pill also turns orange; the pill's own threshold is fixed).",
+    ),
+    toiletDurationMs: durationMs(
+      'Time Papa spends out of the room in the toilet, in ms. The need only drops to 0 at the end (GDD: 5 s).',
+    ),
+  })
+  .describe("Papa's pressing need (FR17, story 4.3, GDD §6).");
+
 const InstinctSchema = z
   .strictObject({
     timeScale: timeScale('Sim speed while Fatherly Instinct is active (1 = normal).'),
@@ -754,6 +777,7 @@ export const FeelSchema = z
     carry: CarrySchema,
     combo: ComboSchema,
     noise: NoiseSchema,
+    bladder: BladderSchema,
     instinct: InstinctSchema,
     difficulty: DifficultySchema,
     mama: MamaSchema,
