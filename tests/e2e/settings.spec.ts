@@ -438,6 +438,8 @@ test.describe('Recalibrer', () => {
     const save = await readSave(page);
     expect(save?.calibration?.audioSkipped).toBe(false);
     await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
+    // The context is suspended again under the paused settings (D3): the panel is silent.
+    await expect(html(page)).toHaveAttribute('data-pp-audio', 'suspended');
     // Still stopped here: the loops restart from the top when the settings go back to the level.
     await expect(html(page)).toHaveAttribute('data-pp-music', 'off');
     await expect(radio(page, 'normal')).toBeFocused();

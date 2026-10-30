@@ -111,7 +111,7 @@ export function createSettingsScreen(options: SettingsScreenOptions): OverlayScr
 
   const radios = new Map<DifficultyTierId, HTMLButtonElement>();
 
-  /** Shows `tier` as the selected radio; true when it changed. Roving tabindex: only it is tabbable. */
+  /** Shows `tier` as the selected radio, and its hint. Roving tabindex: only it is tabbable. */
   const showTier = (tier: DifficultyTierId): void => {
     for (const [id, radio] of radios) {
       const isSelected = id === tier;

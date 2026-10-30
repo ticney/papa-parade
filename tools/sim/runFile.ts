@@ -31,9 +31,18 @@ export function toRunFile(fields: Omit<RunFile, 'kind' | 'version'>): RunFile {
   return { kind: RUN_FILE_KIND, version: RUN_FILE_VERSION, ...fields };
 }
 
-/** The file name of the recorded game of one run. */
-export function runFileName(levelId: string, bot: string, seed: number): string {
-  return `${levelId}_${bot}_${seed}.journal.json`;
+/**
+ * The file name of the recorded game of one run. A tier other than the default is in the name
+ * (story 2.8), so that the same seed played at two tiers into one folder does not overwrite itself.
+ */
+export function runFileName(
+  levelId: string,
+  bot: string,
+  seed: number,
+  tier: DifficultyTierId = DEFAULT_DIFFICULTY_TIER,
+): string {
+  const tierPart = tier === DEFAULT_DIFFICULTY_TIER ? '' : `_${tier}`;
+  return `${levelId}_${bot}_${seed}${tierPart}.journal.json`;
 }
 
 /**

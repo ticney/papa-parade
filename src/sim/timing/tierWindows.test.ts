@@ -21,18 +21,22 @@ const content = createTestContent();
 const def = createTestLevel({ waves: [testWave([OUTLET])] }).threats.outlet;
 if (def === undefined) throw new Error('no outlet');
 
-expect(content.feel.timing).toMatchObject({
-  windowMs: 300,
-  perfectMs: 100,
-  toleranceMs: 60,
-  bufferMs: 100,
+describe('the frozen feel these tests read (story 2.8)', () => {
+  it('holds the numbers the literals below are written against', () => {
+    expect(content.feel.timing).toMatchObject({
+      windowMs: 300,
+      perfectMs: 100,
+      toleranceMs: 60,
+      bufferMs: 100,
+    });
+    expect(content.feel.difficulty).toMatchObject({
+      assistance: { windowMultiplier: 1.5, hasInstinct: true },
+      normal: { windowMultiplier: 1, hasInstinct: true },
+      experienced: { windowMultiplier: 0.75, hasInstinct: false },
+    });
+    expect(content.feel.fatigue.windowPenaltyPct).toBe(20);
+  });
 });
-expect(content.feel.difficulty).toMatchObject({
-  assistance: { windowMultiplier: 1.5, hasInstinct: true },
-  normal: { windowMultiplier: 1, hasInstinct: true },
-  experienced: { windowMultiplier: 0.75, hasInstinct: false },
-});
-expect(content.feel.fatigue.windowPenaltyPct).toBe(20);
 
 async function setup(tier: DifficultyTierId, fatigued = false) {
   const sim = await createSim({

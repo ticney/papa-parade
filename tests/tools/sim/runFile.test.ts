@@ -26,6 +26,18 @@ describe('runFile', () => {
     expect(runFileName('salon_crawler', 'human', 42)).toBe('salon_crawler_human_42.journal.json');
   });
 
+  it('adds a tier other than normal to the name, so two tiers of one seed do not collide', () => {
+    expect(runFileName('salon_crawler', 'human', 42, 'normal')).toBe(
+      'salon_crawler_human_42.journal.json',
+    );
+    expect(runFileName('salon_crawler', 'human', 42, 'assistance')).toBe(
+      'salon_crawler_human_42_assistance.journal.json',
+    );
+    expect(runFileName('salon_crawler', 'human', 42, 'experienced')).toBe(
+      'salon_crawler_human_42_experienced.journal.json',
+    );
+  });
+
   it.each([
     ['null', null],
     ['an array', []],

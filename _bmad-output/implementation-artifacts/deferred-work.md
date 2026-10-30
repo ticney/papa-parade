@@ -657,3 +657,9 @@
 - **No way out of a recalibration started from the settings below 5 taps.** Reason: 2.7 kept « no way out » for the first launch; from the settings an accidental « Recalibrer » forces 8 + 8 beats (the audio phase can be skipped, the visual cannot). A « Retour » there is an easy add (open point 3).
 - **The tier is in the journal's commands but not in its `summary`**, so `playtest:metrics` does not split by tier. Reason: no indicator asks for it yet.
 - **« Interface » at 0 silences the calibration beep** (it is on the `ui` bus); the skip button stays, so nobody is blocked (open point 5).
+
+## Deferred from: code review of story 2-8-paliers-de-difficulte-et-reglages (2026-10-30)
+
+- **A save read that fails with `unavailable` does not make the session read-only**, so the next `setSettings` or `setCalibration` writes defaults plus the change over the real, unread save (`saveStore.ts` `load` / `write`). Reason: pre-existing for the calibration; sliders make it likelier (a write per tick). Only `future` is protected. Decide with the platform storage in E8 (`@capacitor/preferences`).
+- **Returning from Crédits or Recalibrer to the Settings loses the scroll and the focus** (the panel is rebuilt, `initialFocus` is the tier radio). Reason: a pad user goes down every row again; 2.10 reworks the rows.
+- **Journals exported before story 2.8 no longer replay** (`worldHash` includes `difficultyTier`; goldens were regenerated, hash lines only). Reason: expected for a world-slice addition and no tester journal exists yet; regenerate or discard any exported before the playtest.

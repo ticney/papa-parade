@@ -4,7 +4,7 @@ baseline_commit: 6cc2d885c134185cbff876e40213b19309ee2a49
 
 # Story 2.8: Difficulty tiers and settings
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -250,3 +250,16 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`)
 
 **Docs and tracking**
 - `CLAUDE.md`, `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
+
+### Review Findings
+
+Code review of 2026-10-30 (Blind Hunter, Edge Case Hunter, Acceptance Auditor on the whole diff). 0 `decision_needed`, 5 `patch`, 3 `defer`, 26 dismissed. No acceptance criterion is violated; `tsc` is clean and the client, snapshot, commands, tools and architecture unit tests are green.
+
+- [x] [Review][Patch] AC 16 / D3: the `audio.suspend()` on `calibration → settings` is never tested; the Recalibrer e2e does not read `data-pp-audio` [tests/e2e/settings.spec.ts:~419-456]
+- [x] [Review][Patch] `runFileName` ignores the tier: `--tier assistance` then `--tier experienced` with the same `--journals` dir overwrite each other [tools/sim/runFile.ts:35]
+- [x] [Review][Patch] `calibrationFlow.test.ts` adds a `start → settings` edge that `APP_TRANSITIONS` does not have, and casts `'settings' as AppState`; enter the settings the way production does (`level → settings`) [src/client/app/calibrationFlow.test.ts:22-26]
+- [x] [Review][Patch] Stale doc comments: `showTier` says « true when it changed » but returns `void`; the `createPauseScreen` doc has a clumsy re-flow [src/client/ui/screens/settingsScreen.ts:114, src/client/ui/screens/pauseScreen.ts:50-54]
+- [x] [Review][Patch] `tierWindows.test.ts` pins the frozen feel with module-level `expect(...)` outside any `it`: a retune fails the whole file at collection instead of a named test [src/sim/timing/tierWindows.test.ts:19-35]
+- [x] [Review][Defer] A read of the save that fails with `unavailable` leaves the session on defaults without read-only, so the next slider tick or calibration writes over the real save [src/client/save/saveStore.ts:179-188] — deferred, pre-existing (the calibration already did it); the storage decision waits for E8
+- [x] [Review][Defer] Returning from Crédits or Recalibrer rebuilds the Settings panel: focus goes back to the tier radio and the scroll to the top [src/client/ui/overlayHost.ts, src/client/boot.ts:~1182-1210] — deferred, UX comfort for a pad user; 2.10 reworks the Settings rows
+- [x] [Review][Defer] Journals exported before this story no longer replay: `World.difficultyTier` is in `hashJson(world)`, so the final `worldHash` differs [src/sim/world.ts, tools/sim/replaySim.ts] — deferred, expected for a world-slice addition; no playtest journal exists yet (the playtest is gated)

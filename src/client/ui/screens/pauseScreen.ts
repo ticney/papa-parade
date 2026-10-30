@@ -48,10 +48,10 @@ interface PauseAction {
 }
 
 /**
- * The veil and its two faces. The panel lists its actions in code, so later stories append rows
- * (« Quitter vers le frigo » in 3.11). Panel and countdown are both built
- * once and swapped with `hidden`, so the veil never flickers between them. « Réglages » (story 2.8)
- * comes after « Recommencer » (EXPERIENCE.md); the next row is « Quitter vers le frigo » (3.11).
+ * The veil and its two faces. The panel lists its actions in code, so later stories append rows:
+ * « Réglages » (story 2.8) comes after « Recommencer » (EXPERIENCE.md), « Quitter vers le frigo »
+ * (3.11) will come next. Panel and countdown are both built once and swapped with `hidden`, so the
+ * veil never flickers between them.
  */
 export function createPauseScreen(options: PauseScreenOptions): PauseScreen {
   const { t, events } = options;

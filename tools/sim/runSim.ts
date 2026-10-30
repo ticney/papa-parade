@@ -96,7 +96,7 @@ export async function runSim(
     }
     // Outside the `try`: a bug in the hook is not a crash of the sim.
     if (hooks.onGame !== undefined && game !== null) {
-      hooks.onGame(runFileName(loaded.levelId, args.botId, seed), game);
+      hooks.onGame(runFileName(loaded.levelId, args.botId, seed, args.tier), game);
     }
     hooks.onProgress?.(index + 1, args.runs);
   }
