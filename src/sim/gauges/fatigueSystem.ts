@@ -1,10 +1,12 @@
 import { MS_PER_S, STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
+import { isBabyCarried } from '../baby/babyFsm.ts';
 import type { StepContext } from '../context.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
+import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
 import { telegraphThreat } from '../threats/threatFsm.ts';
 import type { World } from '../world.ts';
-import { addFatigue, drawMicroSleepMs, isBabyCarried } from './fatigue.ts';
+import { addFatigue, drawMicroSleepMs } from './fatigue.ts';
 
 /**
  * Papa's fatigue for one step (story 1.19; architecture's `runFatigue`). It lives apart from
@@ -36,13 +38,7 @@ export function runFatigue(world: World, ctx: StepContext): void {
   if (gauges.microSleepAt === null || now < gauges.microSleepAt) return;
   if (threat.state !== 'idle' || isPapaBusy(papa) || world.flow.state !== 'playing') return;
   // One that could not be judged before the end would show a telegraph that never resolves.
-  const { timing, difficulty } = ctx.feel;
-  const judgedByMs =
-    now +
-    (planned.def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs) +
-    (planned.def.windowMs ?? timing.windowMs) * difficulty.normal.windowMultiplier +
-    timing.toleranceMs;
-  if (judgedByMs > ctx.level.durationMs) return;
+  if (!isJudgeableBeforeEnd(ctx, planned.def, now)) return;
   telegraphThreat(world, ctx, threat, planned.def, -1);
   gauges.microSleepAt = asSimMs(now + drawMicroSleepMs(world, ctx));
 }

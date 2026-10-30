@@ -59,6 +59,14 @@ describe('describeFeelControls', () => {
     expect(leaves.length).toBeGreaterThan(50);
   });
 
+  it('shows the carry section of the feel (story 4.1) with a control for each of its keys', () => {
+    const carryKeys = Object.keys(feel.carry);
+    expect(carryKeys.length).toBeGreaterThan(0);
+    const paths = leaves.map((leaf) => leaf.pathKey);
+    for (const key of carryKeys) expect(paths).toContain(`carry.${key}`);
+    expect(root.children.map((child) => child.label)).toContain('carry');
+  });
+
   it('makes one folder per top-level section of the feel, in the schema’s order', () => {
     const titles = root.children.map((child) => child.label);
     expect(titles).toEqual(Object.keys(feel).filter((key) => key !== '$schema'));

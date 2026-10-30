@@ -50,6 +50,12 @@
     "coffeeDurationMs": 3000,
     "asleepMs": 3000
   },
+  "carry": {
+    "reachM": 1.2,
+    "putDownOffsetM": 0.4,
+    "armsCryMinMs": 6000,
+    "armsCryMaxMs": 10000
+  },
   "noise": {
     "decayPerSec": 1,
     "alertPct": 80,

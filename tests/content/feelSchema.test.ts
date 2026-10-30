@@ -19,8 +19,9 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // Story 1.17 adds `ReachM` (`contextReachM`: a length in metres, spelled out like `RadiusM`).
 // Story 2.5 adds `Hz` and the exact keys `amplitudeM` and `sizeM` (lengths in metres of the fx
 // presets) and `count` (a particle count).
+// Story 4.1 adds `OffsetM` (`putDownOffsetM`) and the exact key `reachM` (lengths in metres, spelled out).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|Kg|Ns|Hz)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count)$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|OffsetM|Kg|Ns|Hz)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|reachM)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -84,6 +85,17 @@ describe('content/feel.json', () => {
       ],
       ['fatigue.microSleepMinMs'],
     ],
+    [
+      'cry-in-the-arms bounds in the wrong order (story 4.1)',
+      [
+        ['carry.armsCryMinMs', 9000],
+        ['carry.armsCryMaxMs', 1000],
+      ],
+      ['carry.armsCryMinMs'],
+    ],
+    ['a missing carry.reachM', [['carry.reachM', undefined]], ['carry.reachM']],
+    ['a reach of 0 (nothing would ever be in it)', [['carry.reachM', 0]], ['carry.reachM']],
+    ['a negative carry.putDownOffsetM', [['carry.putDownOffsetM', -1]], ['carry.putDownOffsetM']],
     [
       'a fixed baby state above its maximum',
       // The maximum stays as it is: the maxima must still add up to 100 (story 1.22).

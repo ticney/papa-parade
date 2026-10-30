@@ -51,6 +51,7 @@ import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera
 import type { LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
 import { createRenderer, type RenderStats } from './render/renderer.ts';
+import { BABY_CARRIED_FORWARD_M, BABY_CARRIED_HEIGHT_M } from './render/views/babyView.ts';
 import { loadFonts } from './ui/fonts.ts';
 import { createEpicStamp } from './ui/hud/epicStamp.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
@@ -241,6 +242,7 @@ export async function boot(): Promise<void> {
       | 'ppPapaState'
       | 'ppPapaAt'
       | 'ppBabyState'
+      | 'ppPutDown'
       | 'ppBabyAt'
       | 'ppTap'
       | 'ppAudio'
@@ -460,6 +462,11 @@ export async function boot(): Promise<void> {
     if (baby !== undefined) mirror('ppBabyAt', `${baby.xM.toFixed(2)},${baby.zM.toFixed(2)}`);
   };
   const mirrorBabyEvent = (event: SimEvent): void => {
+    // Where the baby was put down, on the event (story 4.1): `safe` in a safe zone, else `unsafe`.
+    if (event.type === 'BabyPutDown') {
+      mirror('ppPutDown', event.safe ? 'safe' : 'unsafe');
+      return;
+    }
     if (event.type !== 'BabyStateChanged') return;
     mirror('ppBabyState', event.to);
     mirrorBabyAt();
@@ -513,6 +520,7 @@ export async function boot(): Promise<void> {
     mirrorObjectPoints();
     delete document.documentElement.dataset.ppTap;
     for (const name of [
+      'ppPutDown',
       'ppThreat',
       'ppThreatPx',
       'ppResponse',
@@ -587,6 +595,7 @@ export async function boot(): Promise<void> {
         mirror('ppGag', event.gag);
         return;
       case 'ThreatRearmed':
+      case 'ThreatCancelled':
         mirror('ppThreat', `${event.threatId}:idle`);
         return;
       default:
@@ -784,6 +793,7 @@ export async function boot(): Promise<void> {
           // hold-ring fills against it, so a slow-mo or a hitstop slows it as it slows the judgement.
           world.time.sim - STEP_MS * (1 - alpha),
           levelSession.active?.sim.world.feel.input.holdMinMs ?? 0,
+          world.baby.state === 'carried',
         );
       worldUi.updateObjects(world?.gauges.isFatigueAbove ?? false);
       showGlyphChip(world, targetedId, device);
@@ -930,6 +940,9 @@ export async function boot(): Promise<void> {
       }
       // A key still held after a tap's path ends walks again, and so after a coffee or a nap.
       if (event.type === 'PapaArrived') inputMapper.resumeHeld();
+      // Taking or putting down the baby stops Papa where he stands (`walkDir` → idle): a direction
+      // still held walks again, with the baby in his arms or without.
+      if (event.type === 'BabyPickedUp' || event.type === 'BabyPutDown') inputMapper.resumeHeld();
       if (
         event.type === 'PapaStateChanged' &&
         event.to === 'idle' &&
@@ -1140,6 +1153,8 @@ export async function boot(): Promise<void> {
     get babyBodyRadiusM() {
       return startFeel().baby.bodyRadiusM;
     },
+    babyCarriedHeightM: BABY_CARRIED_HEIGHT_M,
+    babyCarriedForwardM: BABY_CARRIED_FORWARD_M,
     get input() {
       return levelFeel().input;
     },

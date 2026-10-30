@@ -27,6 +27,26 @@ export const PAPA_STATES_ARE_COMPLETE: [UnlistedPapaState] extends [never]
   ? true
   : UnlistedPapaState = true;
 
+/**
+ * What a tapped walk does on arrival besides an object's action (story 4.1): `takeBaby` takes the
+ * baby when he is then within reach, `putDownBaby` sets the carried baby down (in a safe zone).
+ */
+export type PapaIntent = 'none' | 'takeBaby' | 'putDownBaby';
+
+/** Every `PapaIntent`, as data: a snapshot is checked against it. */
+export const PAPA_INTENTS = [
+  'none',
+  'takeBaby',
+  'putDownBaby',
+] as const satisfies readonly PapaIntent[];
+
+type UnlistedPapaIntent = Exclude<PapaIntent, (typeof PAPA_INTENTS)[number]>;
+
+/** Compile-time proof that `PAPA_INTENTS` holds every member of the union (see `PAPA_STATES_ARE_COMPLETE`). */
+export const PAPA_INTENTS_ARE_COMPLETE: [UnlistedPapaIntent] extends [never]
+  ? true
+  : UnlistedPapaIntent = true;
+
 /** Whether Papa is busy (`drink`, `asleep` or `onPhone`): he ignores movement commands and presses until `busyUntil`. */
 export function isPapaBusy(papa: { readonly state: PapaState }): boolean {
   return papa.state === 'drink' || papa.state === 'asleep' || papa.state === 'onPhone';

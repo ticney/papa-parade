@@ -133,6 +133,27 @@
       "haptic": "heavy",
       "fx": "gag"
     },
+    "tel_arms_cry": {
+      "audio": { "clip": "tel_arms_cry", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.9, "durationMs": 700 },
+      "haptic": "light"
+    },
+    "gag_arms_wail": {
+      "audio": { "clip": "gag_arms_wail", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
+    "baby_picked_up": {
+      "audio": { "clip": "baby_pickup", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
+    },
+    "baby_put_down": {
+      "audio": { "clip": "baby_putdown", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "medium"
+    },
     "tel_stairs": {
       "audio": { "clip": "tel_stairs", "bus": "sfx", "gainPct": 90 },
       "visual": {
@@ -184,6 +205,8 @@
     "PapaBlocked": "papa_bump",
     "CountdownTicked": "countdown_tick",
     "SilenceStarted": "silence_started",
+    "BabyPickedUp": "baby_picked_up",
+    "BabyPutDown": "baby_put_down",
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
     "ResultStarStamped": "result_star",

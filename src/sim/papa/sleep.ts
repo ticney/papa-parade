@@ -22,6 +22,7 @@ export function putPapaToSleep(world: World, ctx: StepContext): void {
   papa.dirZ = 0;
   papa.isBlocked = false;
   papa.objectId = null;
+  papa.intent = 'none';
   papa.busyUntil = asSimMs(world.time.sim + ctx.feel.fatigue.asleepMs);
   enterPapaState(world, ctx, 'asleep');
 }

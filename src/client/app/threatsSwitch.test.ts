@@ -1,6 +1,7 @@
 import { log } from '@shared/log';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  CARRY,
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
@@ -81,5 +82,23 @@ describe('withoutThreats', () => {
     const stripped = withoutThreats({ ...level, threats: {} });
     expect(stripped.threats).toEqual({});
     expect(warnSpy).toHaveBeenCalledWith('boot', expect.stringContaining('papa_microsleep'));
+  });
+
+  it('keeps the carry and the cry in the arms it needs (story 4.1)', () => {
+    const planned = createTestLevel({
+      waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })],
+      gauges: FATIGUE_GAUGES,
+      carry: CARRY,
+    });
+    const stripped = withoutThreats(planned);
+    expect(stripped.level.carry).toEqual(CARRY);
+    expect(Object.keys(stripped.threats).sort()).toEqual(['arms_cry', 'papa_microsleep']);
+  });
+
+  it('warns when the cry in the arms is not loaded', () => {
+    const level = createTestLevel({ carry: CARRY });
+    const stripped = withoutThreats({ ...level, threats: {} });
+    expect(stripped.threats).toEqual({});
+    expect(warnSpy).toHaveBeenCalledWith('boot', expect.stringContaining('arms_cry'));
   });
 });

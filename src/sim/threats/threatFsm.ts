@@ -5,7 +5,7 @@ import { asSimMs } from '@shared/time';
 import { startBabyCry } from '../baby/cry.ts';
 import type { StepContext } from '../context.ts';
 import { isLastOfWave } from '../director/waveState.ts';
-import type { FailReason, ResponseQuality } from '../events.ts';
+import type { FailReason, ResponseQuality, ThreatCancelReason } from '../events.ts';
 import { fatigueWindowModifier } from '../gauges/fatigue.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import { type EffectiveWindow, effectiveWindow } from '../timing/effectiveWindow.ts';
@@ -223,4 +223,23 @@ export function rearmThreat(world: World, ctx: StepContext, threat: ThreatInstan
   threat.waveIndex = -1;
   enterThreatState(world, threat, 'idle');
   ctx.events.push({ type: 'ThreatRearmed', t: world.time.sim, threatId: threat.id });
+}
+
+/**
+ * `telegraph | windowOpen → idle` with no result (story 4.1): `ThreatCancelled`, and nothing else. No
+ * `ResponseResolved`, no gag, no `ThreatRearmed`, no slow-mo, no hitstop and no cooldown: it was
+ * never answered or missed. A pending press on it is dropped.
+ */
+export function cancelThreat(
+  world: World,
+  ctx: StepContext,
+  threat: ThreatInstance,
+  reason: ThreatCancelReason,
+): void {
+  threat.press = null;
+  threat.responseWindow = null;
+  threat.windowOpenAt = asSimMs(0);
+  threat.waveIndex = -1;
+  enterThreatState(world, threat, 'idle');
+  ctx.events.push({ type: 'ThreatCancelled', t: world.time.sim, threatId: threat.id, reason });
 }

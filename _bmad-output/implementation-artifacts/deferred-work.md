@@ -391,7 +391,7 @@
 - **The silence's sounds are placeholders** (`tel_silence_found`, `gag_silence_mischief`, and the `silence_started` cue, which has no sound on purpose): story 2.3 gives the silence its own `tel_*` sound under the same ids, no code change. **Story 2.3 (2026-10-29), D6:** the silence already has its own `tel_silence_found` (distinct from the five other telegraphs, now enforced by `content:check` and the « no two clips are alike » test); the clips themselves stay placeholders that Geo judges in the « Sons » folder and asks to redo clip by clip (story 7.5 for the final ones). `silence_started` stays haptic-only on purpose.
 - **The music cut is a fade of the one music loop** (`audio.setMusicMuted`). Story 2.6's stems keep reading `world.silence.startedAt` and replace the loop; the bubble and the cut already follow the state, not the event.
 - **No mischief is drawn yet.** The two surprise gags (`tissues_everywhere`, `crayon_scribbles`) add to `world.mess.mischiefs` and play a ring and a sound: a real animation and a visible mess are E7. Decided: story 1.22 counts `mischiefs` in Mama's Sigh (a mischief is mess); its AC wires it. *Done in story 1.22: `sighPerMischiefPoints` per mischief.*
-- **`TapBaby` outside a silence only walks Papa to the baby** (D9). Story 4.1 replaces that branch with « take the baby ».
+- **`TapBaby` outside a silence only walks Papa to the baby** (D9). Story 4.1 replaces that branch with « take the baby ». *Done in story 4.1 (2026-10-30): in a level with `carry`, `TapBaby` takes the baby (at once within `feel.carry.reachM`, else walk then take) or puts him down; a level without `carry`, and a hiding baby who is not found, keep the walk. `isBabyCarried`'s stub in `gauges/fatigue.ts` is gone: it reads `baby.state === 'carried'` (`baby/babyFsm.ts`).*
 - **`findMaxMs` is one fixed number per def** (5 s), and the silence reveals the threat with the normal `telegraphDelayMs` (800 ms) after the find (D4, which deviates from the epic's « windowOpen at once »). Both kept on Geo's delegation; tune after playing wave 2.
 - **Papa standing in the zone after a parry** would find the next silence at the step it is announced: the director now skips a silence while Papa is in its zone box (decided on Geo's delegation).
 - **The silence is drawn only while the baby is free,** so wave 2's other threats delay it (Open point 5). Kept on Geo's delegation; a fixed `atMs` like the phone's is the alternative.
@@ -574,6 +574,23 @@
 
 - **The observation sheet and the e2e test both hard-code the threat id list** (`outlet`, `stairs`, …). Reason: it can drift from `content/threats/*.json`; `parseObservations` already refuses an unknown threat id at run time.
 - **The touch vs keyboard ratio pools touch players and keyboard players, who are different people** (device confounded with skill; the per-tester ratio is usually null). Reason: it is the indicator as the GDD defines it; having the same testers play on both devices is a playtest-panel choice for Geo.
+
+## Deferred from: story 4-1-porter-le-bebe-bras-bebe (2026-10-30)
+
+- **Open point 3, a missed micro-sleep while carrying** is still a 3 s nap with the baby in the arms; waking him with a snore and +15 % noise is story 4.4. The busy-Papa edge cases of « Deferred from: code review of 1-23 » (a Firmness hold that keeps succeeding when Papa becomes busy mid-hold) are not settled by this story either: carrying makes a Firmness impossible, it does not touch the busy states.
+- **Open point 4, the playpen holds nobody.** It is a flat mat with a safe zone over it: the baby crawls off it after a put-down like anywhere else, and the player has no hint (ring, highlight) of where the safe place is except the mesh. A highlight of the safe zone while carrying is a possible next step (UX has none). Nothing scores the put-down yet: `BabyPutDown{safe}` is only said, the combo cash-in is story 4.2.
+- **Open point 5, the bots do not carry.** `perfect`, `human`, `random` and `idle` never send a `TapBaby` outside a silence, so the headless sim and `--autoplay` do not exercise the carry beyond the unit tests, the fuzz test, the `baby_carry` golden and `carry.spec.ts`. The cycle bot comes with 4.10. `random` picks a threat among `world.threats`, which now holds the cry in the arms, so its draws differ from before the story (it still never carries).
+- **Open point 2, carrying is almost free until 4.2-4.4.** The director draws nothing while the baby is carried; the price is fatigue ×2 (`fatigue.carriedMultiplier`), the micro-sleeps and the cry in the arms (`carry.armsCry*Ms`, `arms_cry.gagCryMs`). Tune after the playtest.
+- **The put-down gesture (open point 1, D2):** tap Papa's chest = put down here; tap the playpen = walk and put down; tap elsewhere = walk on with him. Geo judges on a phone whether a dedicated button is needed.
+- **`ThreatTelegraphed` then `ThreatCancelled` in the same step** (rule 10) when the director draws a threat in the step of the pick-up: the client sees both events in one drain, so a marker may never be drawn. Accepted; pinned by `carry.test.ts`.
+- **The architecture still reads `world.papa.carrying`** (`game-architecture.md` L905-911, L965). This story has no such field (D1: `baby.state` is the single source of truth). The architecture is not edited here; fold it in at the next architecture pass.
+
+## Deferred from: code review of story 4-1-porter-le-bebe-bras-bebe (2026-10-30)
+
+- **`BabyPutDown.safe` is judged at Papa's point, not the baby's** (the baby is placed `putDownOffsetM` ahead and `ensureOnOpenCell` accepts any region). Reason: decision D5; revisit when story 4.2 scores the drop.
+- **`papa.intent` is reset by hand next to every `papa.objectId = null`.** Reason: every exit was traced and the snapshot validator guards the pairing; fold it into `enterPapaState` at the next papa refactor.
+- **A walk to take a distant baby is aimed where he was; if he crawled on, Papa idles with no feedback**, and `isBabyInReach` ignores walls. Reason: feel question for the playtest.
+- **The Firmness-while-carried path (`carriedVerb` swap, `wrongResponse` branch) is unreachable in normal play** (no director threat while carried, no `firm` def). Reason: becomes live with stories 4.3-4.4.
 
 ## Story 2-6-musique-adaptative-de-base (2026-10-30)
 

@@ -352,6 +352,39 @@
       "additionalProperties": false,
       "description": "Papa's fatigue (GDD §6)."
     },
+    "carry": {
+      "type": "object",
+      "properties": {
+        "reachM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Papa takes the baby at once when he is within this distance of him, in metres."
+        },
+        "putDownOffsetM": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The baby is set down this far in front of Papa, along his heading, in metres."
+        },
+        "armsCryMinMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Shortest delay from picking the baby up (or from the last cry in the arms) to the next one, in ms."
+        },
+        "armsCryMaxMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Longest delay from picking the baby up (or from the last cry in the arms) to the next one, in ms."
+        }
+      },
+      "required": [
+        "reachM",
+        "putDownOffsetM",
+        "armsCryMinMs",
+        "armsCryMaxMs"
+      ],
+      "additionalProperties": false,
+      "description": "Carrying the baby in Papa's arms (FR22, story 4.1). The fatigue multiplier is `fatigue.carriedMultiplier`."
+    },
     "noise": {
       "type": "object",
       "properties": {
@@ -1261,6 +1294,7 @@
     "movement",
     "baby",
     "fatigue",
+    "carry",
     "noise",
     "instinct",
     "difficulty",

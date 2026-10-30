@@ -234,6 +234,31 @@ const FatigueSchema = z
   })
   .describe("Papa's fatigue (GDD §6).");
 
+const CarrySchema = z
+  .strictObject({
+    reachM: z
+      .number()
+      .positive()
+      .describe('Papa takes the baby at once when he is within this distance of him, in metres.'),
+    putDownOffsetM: z
+      .number()
+      .min(0)
+      .describe('The baby is set down this far in front of Papa, along his heading, in metres.'),
+    armsCryMinMs: delayMs(
+      'Shortest delay from picking the baby up (or from the last cry in the arms) to the next one, in ms.',
+    ),
+    armsCryMaxMs: delayMs(
+      'Longest delay from picking the baby up (or from the last cry in the arms) to the next one, in ms.',
+    ),
+  })
+  .refine((carry) => carry.armsCryMinMs <= carry.armsCryMaxMs, {
+    path: ['armsCryMinMs'],
+    error: 'armsCryMinMs must not exceed armsCryMaxMs',
+  })
+  .describe(
+    "Carrying the baby in Papa's arms (FR22, story 4.1). The fatigue multiplier is `fatigue.carriedMultiplier`.",
+  );
+
 const noisePctSource = (description: string) =>
   z
     .strictObject({ noisePct: pct('Noise added once per occurrence, in % of the gauge.') })
@@ -624,6 +649,7 @@ export const FeelSchema = z
     movement: MovementSchema,
     baby: BabySchema,
     fatigue: FatigueSchema,
+    carry: CarrySchema,
     noise: NoiseSchema,
     instinct: InstinctSchema,
     difficulty: DifficultySchema,

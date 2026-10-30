@@ -41,7 +41,7 @@ function checkId(file: string, id: string, expected: string): ContentProblem[] {
 
 /**
  * Reads `levels/<levelId>.json`, then each distinct `threats/<def>.json` its waves plan (and its
- * `gauges.fatigue.microSleepDef`, last), in order of first reference, then each distinct
+ * `gauges.fatigue.microSleepDef`, then its `carry.armsCryDef`, last), in order of first reference, then each distinct
  * `disruptions/<def>.json` its waves plan (story 1.20), through the same source and the same parser as
  * `loadContent`. It collects every problem (a missing def file names the level's JSON path,
  * `waves[1].threats[0].def` or `waves[2].disruptions[0].def`). It checks no anchor, no gag id and no
@@ -70,6 +70,11 @@ export async function loadLevelContent(
   const microSleepDef = level.gauges.fatigue?.microSleepDef;
   if (microSleepDef !== undefined) {
     planned.push({ defId: microSleepDef, path: ['gauges', 'fatigue', 'microSleepDef'] });
+  }
+  // The cry in the arms of a level that carries is loaded after the micro-sleep (story 4.1).
+  const armsCryDef = level.carry?.armsCryDef;
+  if (armsCryDef !== undefined) {
+    planned.push({ defId: armsCryDef, path: ['carry', 'armsCryDef'] });
   }
   for (const { defId, path } of planned) {
     if (Object.hasOwn(threats, defId) || failed.has(defId)) continue;

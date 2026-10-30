@@ -5,7 +5,7 @@ import { asSimMs, type SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
 import type { DisruptionState } from './disruptions/disruptionFsm.ts';
 import type { FlowState } from './flow/flowFsm.ts';
-import type { PapaState } from './papa/papaFsm.ts';
+import type { PapaIntent, PapaState } from './papa/papaFsm.ts';
 import type { ThreatState } from './threats/threatFsm.ts';
 import type { EffectiveWindow } from './timing/effectiveWindow.ts';
 
@@ -35,8 +35,19 @@ export interface PapaSlice {
   glide: PapaGlide | null;
   /** The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19). */
   objectId: string | null;
+  /**
+   * What the current tapped walk does on arrival besides `objectId` (story 4.1): take the baby, or
+   * put him down in a safe zone. `'none'` outside `walkPath`.
+   */
+  intent: PapaIntent;
   /** When `drink` / `asleep` / `onPhone` ends, in sim time; 0 in any other state. */
   busyUntil: SimMs;
+}
+
+/** Carrying the baby (story 4.1). */
+export interface CarrySlice {
+  /** When the next « cry in the arms » is due, in sim time; null while the baby is not carried. */
+  armsCryAt: SimMs | null;
 }
 
 /** Papa's glide to a pressed threat: it ends by `arriveAt` and never decides a judgement. */
@@ -325,6 +336,8 @@ export interface World {
   mess: MessSlice;
   /** The suspicious silence under way, if any (story 1.21). */
   silence: SilenceSlice;
+  /** Carrying the baby (story 4.1). */
+  carry: CarrySlice;
   /** What feeds Mama's note, and the note once the level has ended (story 1.22). */
   score: ScoreSlice;
   /**
@@ -386,6 +399,7 @@ export function createWorld({
       isBlocked: false,
       glide: null,
       objectId: null,
+      intent: 'none',
       busyUntil: asSimMs(0),
     },
     baby: {
@@ -442,6 +456,7 @@ export function createWorld({
     })),
     mess: { propsOnFloor: 0, propsBroken: 0, mischiefs: 0 },
     silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
+    carry: { armsCryAt: null },
     score: { perfects: 0, nearMisses: 0, final: null },
     feel: cloneJson(feel),
   };

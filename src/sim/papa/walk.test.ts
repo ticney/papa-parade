@@ -21,6 +21,7 @@ function papaAt(xM: number, zM: number, patch: Partial<PapaSlice> = {}): PapaSli
     isBlocked: false,
     glide: null,
     objectId: null,
+    intent: 'none',
     busyUntil: asSimMs(0),
     ...patch,
   };

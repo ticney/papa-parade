@@ -1279,3 +1279,98 @@ describe('the verb fit and layout of the markers (story 2.2)', () => {
     });
   });
 });
+
+describe('the verb of a Firmness while the baby is carried (story 4.1)', () => {
+  const anchors = [{ id: 'outlet_01', positionM: [1, 0, 2] as const }];
+  const defOf = (response: string) =>
+    ({
+      icon: 'bolt',
+      target: 'anchor',
+      verbKey: 'verb.lift',
+      iconShape: 'circle',
+      color: 'parry',
+      response,
+    }) as const;
+  const entriesFor = (response: string) =>
+    threatMarkerEntries([threat(7, 'idle')], anchors, { outlet: defOf(response) }, 0.2, t);
+
+  it("translates « POSE-LE D'ABORD ! » once at build, for a firm def only", () => {
+    expect(entriesFor('firm')[0]?.carriedVerb).toBe('<verb.put_down_first>');
+    expect(entriesFor('parry')[0]?.carriedVerb).toBeUndefined();
+  });
+
+  it('swaps the text with the carried flag, back and forth, and writes only when it changes', () => {
+    const { markers, byClass } = build();
+    const entry = {
+      ...ENTRY,
+      threatId: 4,
+      verb: 'FERME !',
+      carriedVerb: "POSE-LE D'ABORD !",
+    };
+    markers.mount([entry]);
+    const [verb] = byClass(THREAT_CLASSES.verb);
+    let writes = 0;
+    let text = verb?.textContent ?? '';
+    Object.defineProperty(verb, 'textContent', {
+      get: () => text,
+      set: (value: string) => {
+        writes++;
+        text = value;
+      },
+    });
+    const live = [threat(4, 'telegraph')];
+    markers.update(live, null, null, null, null, 0, false);
+    expect(text).toBe('FERME !');
+    expect(writes).toBe(0);
+    markers.update(live, null, null, null, null, 0, true);
+    expect(text).toBe("POSE-LE D'ABORD !");
+    markers.update(live, null, null, null, null, 0, true);
+    markers.update(live, null, null, null, null, 0, true);
+    expect(writes).toBe(1);
+    markers.update(live, null, null, null, null, 0, false);
+    expect(text).toBe('FERME !');
+    expect(writes).toBe(2);
+  });
+
+  it('never changes the verb of a marker with no carried text (a Parry)', () => {
+    const { markers, byClass } = build();
+    markers.mount([{ ...ENTRY, threatId: 4, verb: 'SOULÈVE !' }]);
+    const [verb] = byClass(THREAT_CLASSES.verb);
+    markers.update([threat(4, 'telegraph')], null, null, null, null, 0, true);
+    expect(verb?.textContent).toBe('SOULÈVE !');
+  });
+
+  it('fits the longer string again: the verb box of the carried text is measured', () => {
+    const measured: string[] = [];
+    const metrics: VerbMetrics = {
+      surfaceKey: () => 'regular',
+      basePx: () => 40,
+      lineHeight: () => 1,
+      scale: () => 1,
+      widthPx: (text, fontPx) => {
+        measured.push(text);
+        return text.length * fontPx * 0.5;
+      },
+    };
+    const created: FakeElement[] = [];
+    const make = (): FakeElement => {
+      const element = new FakeElement();
+      created.push(element);
+      return element;
+    };
+    const doc = { createElement: make, createElementNS: make } as unknown as Pick<
+      Document,
+      'createElement' | 'createElementNS'
+    >;
+    const markers = createThreatMarkers(new Scene(), doc, metrics);
+    const entry = { ...ENTRY, threatId: 4, verb: 'FERME !', carriedVerb: "POSE-LE D'ABORD !" };
+    markers.mount([entry]);
+    markers.setSize(800, 400);
+    const shortWidthPx = entry.verbWidthPx;
+    markers.update([threat(4, 'telegraph')], null, null, null, null, 0, true);
+    expect(measured).toContain("POSE-LE D'ABORD !");
+    expect(entry.verbWidthPx).toBeGreaterThan(shortWidthPx);
+    markers.update([threat(4, 'telegraph')], null, null, null, null, 0, false);
+    expect(entry.verbWidthPx).toBe(shortWidthPx);
+  });
+});

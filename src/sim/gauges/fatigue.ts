@@ -54,8 +54,3 @@ export function fatigueWindowModifier(world: World, ctx: StepContext): number {
     ? 1 - windowPenaltyPct / 100
     : NEUTRAL_WINDOW_MODIFIER;
 }
-
-/** Whether Papa carries the baby (fatigue grows faster then). E4 reads `world.papa.carrying`; until then, never. */
-export function isBabyCarried(_world: World): boolean {
-  return false;
-}

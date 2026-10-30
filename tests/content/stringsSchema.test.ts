@@ -31,6 +31,7 @@ const REQUIRED_KEYS = [
   'verb.firm',
   'verb.swap',
   'verb.put_down_first',
+  'verb.rock',
   'verb.dodge',
   'stamp.perfect_parry',
   'stamp.replay',

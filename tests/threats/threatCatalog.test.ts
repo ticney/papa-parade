@@ -57,8 +57,13 @@ const defs: ThreatDef[] = [...liveDefs, ...fixtureDefs];
 
 /** The anchor of the first entry of a live level that plans each def (`*.geometry.json` are not levels). */
 const anchors = new Map<string, string>();
-/** The defs a live level spawns on Papa (`gauges.fatigue.microSleepDef`): they have no anchor. */
+/**
+ * The defs a live level spawns on Papa (`gauges.fatigue.microSleepDef`, `carry.armsCryDef`): they
+ * have no anchor.
+ */
 const spawnedOnPapa = new Set<string>();
+/** The ones that are a cry in the arms (story 4.1): the baby must be carried for them to come. */
+const armsCryDefs = new Set<string>();
 for (const name of readdirSync(LEVELS_DIR).sort()) {
   if (!name.endsWith('.json') || name.endsWith('.geometry.json')) continue;
   const text = readFileSync(`${LEVELS_DIR}${name}`, 'utf8');
@@ -69,6 +74,11 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
   }
   const microSleepDef = parsed.value.gauges.fatigue?.microSleepDef;
   if (microSleepDef !== undefined) spawnedOnPapa.add(microSleepDef);
+  const armsCryDef = parsed.value.carry?.armsCryDef;
+  if (armsCryDef !== undefined) {
+    spawnedOnPapa.add(armsCryDef);
+    armsCryDefs.add(armsCryDef);
+  }
 }
 
 const content = createTestContent();
@@ -125,6 +135,22 @@ function anchorOf(def: ThreatDef): string {
 function levelPlanning(tested: ThreatDef): LevelContent {
   const anchored = defs.filter((def) => def.target !== 'papa');
   const planned = (def: ThreatDef) => ({ def: def.id, anchor: anchorOf(def) });
+  if (armsCryDefs.has(tested.id)) {
+    return {
+      level: {
+        id: 'salon_crawler',
+        variant: 'nap' as const,
+        durationMs: CATALOG_OTHERS_FROM_MS,
+        objects: [],
+        gauges: {},
+        carry: { armsCryDef: tested.id },
+        feelOverrides: {},
+        waves: [],
+      },
+      threats: Object.fromEntries(defs.map((def) => [def.id, def])),
+      disruptions: {},
+    };
+  }
   if (tested.target === 'papa') {
     return {
       level: {
@@ -165,9 +191,19 @@ function levelPlanning(tested: ThreatDef): LevelContent {
 
 /**
  * The content a def is tested with. A def spawned on Papa is due at the first step: he starts
- * exhausted and the delay between micro-sleeps is nil.
+ * exhausted and the delay between micro-sleeps is nil. A cry in the arms is due at the step after
+ * the baby is taken (its delay is nil, and the baby is always within reach).
  */
 function contentFor(def: ThreatDef) {
+  if (armsCryDefs.has(def.id)) {
+    return {
+      ...content,
+      feel: {
+        ...content.feel,
+        carry: { ...content.feel.carry, reachM: 100, armsCryMinMs: 0, armsCryMaxMs: 0 },
+      },
+    };
+  }
   if (def.target !== 'papa') return content;
   return {
     ...content,
@@ -214,6 +250,13 @@ async function telegraphed(def: ThreatDef) {
   });
   if (def.target === 'hiddenZone') {
     findTheBaby(sim);
+  } else if (armsCryDefs.has(def.id)) {
+    // Papa takes the baby (he is in reach); the cry in the arms is telegraphed at the next step.
+    sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) });
+    sim.step();
+    sim.step();
+    const events = [...sim.drainEvents()];
+    expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
   } else {
     sim.step();
     const events = [...sim.drainEvents()];
