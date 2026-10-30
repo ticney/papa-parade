@@ -6,6 +6,8 @@ export type { SimObjectSpec } from './context.ts';
 export { type CreateSimOptions, createSim, type Sim } from './createSim.ts';
 export { DISRUPTION_STATES, type DisruptionState } from './disruptions/disruptionFsm.ts';
 export {
+  BABY_STIR_REASONS,
+  type BabyStirReason,
   COMBO_CHANGE_REASONS,
   type ComboChangeReason,
   type FailReason,
@@ -29,12 +31,21 @@ export { isPapaBusy, PAPA_STATES, type PapaState } from './papa/papaFsm.ts';
 export { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 export { type ReplayOptions, type ReplayResult, replayJournal } from './replay.ts';
 export { starsForScore } from './scoring/stars.ts';
+export {
+  type BeatEntry,
+  type BeatEntryKind,
+  beatTimelineOf,
+  judgedBeatCountOf,
+  sequenceBeatProblems,
+} from './sequences/beatClock.ts';
+export { isBeatStepRunning } from './sequences/lullabyWalk.ts';
 export { type SequenceRefusal, sequenceRefusal } from './sequences/sequenceStart.ts';
 export type { SimSnapshot } from './snapshot.ts';
 export { GAG_IDS, type GagId, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
 export type { ThreatState } from './threats/threatFsm.ts';
 export type {
   BabySlice,
+  BeatSlice,
   ComboSlice,
   DirectorSlice,
   DisruptionInstance,

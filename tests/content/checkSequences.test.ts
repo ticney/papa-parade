@@ -218,3 +218,117 @@ describe('checkContent and the special sequences (story 4.4)', () => {
     );
   });
 });
+
+// `content:check` and the lullaby walk (story 4.5, AC 4): one failing test per rule, in the same
+// words `simLevelOf` uses (they share `sequenceBeatProblems`).
+const LULLABY = 'content/sequences/lullaby_walk.json';
+
+describe('checkContent and the beats steps (story 4.5)', () => {
+  async function beatsStep(change: (step: Record<string, unknown>) => void) {
+    await mutateJson(LULLABY, (sequence) => {
+      change((sequence.steps as Record<string, unknown>[])[0] as Record<string, unknown>);
+    });
+    return checkContent(root);
+  }
+
+  it('accepts the live level with « Les 100 pas en rythme »', async () => {
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('names a track that feedback.json › beatTracks does not have', async () => {
+    expect(
+      await beatsStep((step) => {
+        step.track = 'march';
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        file: LULLABY,
+        message: expect.stringMatching(
+          /"lullaby_walk" has a beats step with the track "march".*beatTracks/,
+        ),
+      }),
+    ]);
+  });
+
+  it('names a decoy with no next judged beat', async () => {
+    expect(
+      await beatsStep((step) => {
+        step.decoyBeats = [7, 500];
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        file: LULLABY,
+        message: expect.stringMatching(
+          /decoy after judged beat 500, which has no next judged beat/,
+        ),
+      }),
+    ]);
+  });
+
+  it('names a decoy after the very last judged beat', async () => {
+    const problems = await beatsStep((step) => {
+      step.decoyBeats = [7, 60];
+    });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]?.message).toMatch(/decoy after judged beat 60/);
+  });
+
+  it('names a window that is not below the shortest beat interval', async () => {
+    expect(
+      await beatsStep((step) => {
+        step.windowMs = 700;
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        file: LULLABY,
+        message: expect.stringMatching(
+          /windowMs of 700 ms, which is not below its shortest beat interval of 6\d\d ms/,
+        ),
+      }),
+    ]);
+  });
+
+  it('names a step with no judged beat at all: the sequence would be won by waiting', async () => {
+    const problems = await beatsStep((step) => {
+      step.countInBeats = 500;
+      step.decoyBeats = [];
+    });
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: LULLABY,
+        message: expect.stringMatching(/"lullaby_walk" has a beats step with no judged beat/),
+      }),
+    );
+  });
+
+  it('names a calmLeft bar on a sequence that has no babyAwake failure', async () => {
+    await mutateJson(SEQUENCE, (sequence) => {
+      ((sequence.framing as Record<string, unknown>).bar as Record<string, unknown>).value =
+        'calmLeft';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: SEQUENCE,
+        message: expect.stringMatching(
+          /"stay_awake" has a bar that shows calmLeft, but no "babyAwake" failure/,
+        ),
+      }),
+    ]);
+  });
+
+  it('names a beat event that is not a sim event, and a note clip that has no file', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const events = feedback.events as Record<string, string>;
+      events.BeatHitt = events.BeatHit as string;
+      const tracks = feedback.beatTracks as Record<string, { notes: string[] }>;
+      (tracks.lullaby as { notes: string[] }).notes[0] = 'music_lullaby_note_9';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({ file: FEEDBACK, jsonPath: 'events.BeatHitt' }),
+    );
+    expect(problems).toContainEqual(
+      expect.objectContaining({ message: expect.stringContaining('music_lullaby_note_9.m4a') }),
+    );
+  });
+});

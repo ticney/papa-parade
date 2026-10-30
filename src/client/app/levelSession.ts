@@ -182,6 +182,12 @@ export interface LevelSession {
   /** The timings of the running level's last frame (story 2.1), or `null` without a loop. Zeros unless a measure clock is on. */
   readonly loopStats: Readonly<LoopStats> | null;
   /**
+   * The running level's continuous game clock and its rate, as its loop last recorded them in the
+   * time map (story 4.5): the beat scheduler and the beat ring read them. `{ clockMs: 0,
+   * simPerRealMs: 0 }` without a loop. Read-only; it moves each frame, not in 10 ms stairs.
+   */
+  readonly loopClock: Readonly<{ clockMs: number; simPerRealMs: number }>;
+  /**
    * Times the frames of the current and of every later level with this real-time clock, or stops
    * with `null`. The debug overlay turns it on while it is open: with none, the loop reads no clock.
    */
@@ -270,6 +276,15 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
   let isFrozenWish = false;
   let measureWish: (() => number) | null = null;
   let loop: GameLoop | null = null;
+  // One object, read live through the getters of the loop: no allocation per frame.
+  const loopClock = {
+    get clockMs() {
+      return loop?.clockMs ?? 0;
+    },
+    get simPerRealMs() {
+      return loop?.simPerRealMs ?? 0;
+    },
+  };
   let current: LevelScene | null = null;
   let isStarting = false;
   let generation = 0;
@@ -305,6 +320,9 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     },
     get loopStats() {
       return loop?.stats ?? null;
+    },
+    get loopClock() {
+      return loopClock;
     },
     setLoopMeasure(measure) {
       measureWish = measure;

@@ -302,6 +302,30 @@ export interface FlowSlice {
 }
 
 /**
+ * The running `beats` step (story 4.5), owned by `sequences/lullabyWalk.ts`. All clear (`isRunning`
+ * false) outside one: `closeSequence` and every step change clear it, before the new step's `enter`.
+ * Both cursors are indices into the step's timeline (`beatTimelineOf`, rebuilt from content, never
+ * stored here): the cue cursor announces notes and the judge cursor settles beats, separately,
+ * because a beat that was tapped early has not been announced yet and still must be.
+ */
+export interface BeatSlice {
+  /** The current step is a `beats` step. */
+  isRunning: boolean;
+  /** The next timeline entry to announce (`BeatCued` / `DecoyCued`). */
+  cueIndex: number;
+  /** The next `beat` entry to settle, or the timeline's length when none is left. */
+  judgeIndex: number;
+  /** When the entry at `judgeIndex` falls, in sim time; null exactly when no judged beat is left. */
+  nextBeatAt: SimMs | null;
+  /** The decoy just before `judgeIndex` has been tapped: a second tap on it is a stray. */
+  isDecoySpent: boolean;
+  /** How awake the baby is, in `[0, 100]`: at 100 the sequence fails. */
+  wakePct: number;
+  /** The window of the beat at `judgeIndex`, `bufferMs` forced to 0, computed when the cursor advances. */
+  responseWindow: EffectiveWindow;
+}
+
+/**
  * The special sequence (story 4.4), owned by `runSequence` and its helpers (`sequences/`). `id` is
  * non-null exactly while `flow.state === 'sequence'`. `lastId`, `startedAt` and `endedAt` stay after
  * the end: the client's camera falls back from them. Times are sim time.
@@ -323,6 +347,35 @@ export interface SequenceSlice {
   stepEndsAt: SimMs;
   /** When the next micro-sleep of a `microSleeps` step is due, or null. */
   nextMicroSleepAt: SimMs | null;
+  /** The running `beats` step (story 4.5). */
+  beat: BeatSlice;
+}
+
+/** A `BeatSlice` at rest: no `beats` step runs. */
+export function createBeatSlice(): BeatSlice {
+  return {
+    isRunning: false,
+    cueIndex: 0,
+    judgeIndex: 0,
+    nextBeatAt: null,
+    isDecoySpent: false,
+    wakePct: 0,
+    responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+  };
+}
+
+/** Puts `beat` back at rest, in place (no allocation but the window object it already holds). */
+export function clearBeatSlice(beat: BeatSlice): void {
+  beat.isRunning = false;
+  beat.cueIndex = 0;
+  beat.judgeIndex = 0;
+  beat.nextBeatAt = null;
+  beat.isDecoySpent = false;
+  beat.wakePct = 0;
+  beat.responseWindow.windowMs = 0;
+  beat.responseWindow.perfectMs = 0;
+  beat.responseWindow.toleranceMs = 0;
+  beat.responseWindow.bufferMs = 0;
 }
 
 /** What started a slow-mo. Story 1.18 triggers `lastThreat`; story 2.9 adds `instinct`. */
@@ -542,6 +595,7 @@ export function createWorld({
       stepIndex: 0,
       stepEndsAt: asSimMs(0),
       nextMicroSleepAt: null,
+      beat: createBeatSlice(),
     },
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
     score: { perfects: 0, nearMisses: 0, comboPoints: 0, final: null },

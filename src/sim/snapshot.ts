@@ -31,14 +31,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 21 since story 4.5: `world.sequence.beat` (the running `beats` step: its cursors, the baby's wake and the beat's window). 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 20;
+  version: 21;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -57,7 +57,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 20,
+    version: 21,
     seed,
     feelHash,
     geometryHash,
@@ -554,7 +554,15 @@ export interface PlannedLevel {
   /** The special sequences the level can run, with the length of each one's steps (story 4.4). */
   readonly sequences: readonly {
     readonly id: string;
-    readonly def: { readonly steps: readonly unknown[]; readonly babyCarried: boolean };
+    readonly def: {
+      readonly steps: readonly { readonly durationMs: number }[];
+      readonly babyCarried: boolean;
+    };
+    /** The beat timeline of each step, null for a step that is not a `beats` step (story 4.5). */
+    readonly beatTimelines: readonly (
+      | readonly { readonly kind: string; readonly offsetMs: number }[]
+      | null
+    )[];
   }[];
   /** The level's interactive objects: Papa's `objectId` must be one of them. */
   readonly objects: readonly { readonly id: string }[];
@@ -783,6 +791,80 @@ function sequenceProblem(
   ) {
     return 'world.sequence.id';
   }
+  return beatProblem(slice, def);
+}
+
+/**
+ * The running `beats` step (story 4.5), `world.sequence.beat`: all clear when no sequence runs or
+ * the current step is not a `beats` step; in one, `isRunning`, both cursors inside the step's
+ * timeline (the judge cursor on a `beat` entry, or past the end), `nextBeatAt` null exactly when no
+ * judged beat is left and otherwise the beat's own instant, `wakePct` finite in `[0, 100]`, a spent
+ * decoy only right after a decoy, and a finite window.
+ */
+function beatProblem(
+  slice: Record<string, unknown>,
+  planned: PlannedLevel['sequences'][number] | undefined,
+): string | null {
+  const beat = slice.beat;
+  if (typeof beat !== 'object' || beat === null) return 'world.sequence.beat is missing';
+  const fields = beat as Record<string, unknown>;
+  const where = (key: string): string => `world.sequence.beat.${key}`;
+  const timeline =
+    slice.id === null ? null : (planned?.beatTimelines[slice.stepIndex as number] ?? null);
+  if (typeof fields.isRunning !== 'boolean') return where('isRunning');
+  if (fields.isRunning !== (timeline !== null)) return where('isRunning');
+  if (typeof fields.isDecoySpent !== 'boolean') return where('isDecoySpent');
+  if (
+    !isFiniteNumber(fields.wakePct) ||
+    (fields.wakePct as number) < 0 ||
+    (fields.wakePct as number) > 100
+  ) {
+    return where('wakePct');
+  }
+  const response = fields.responseWindow;
+  if (typeof response !== 'object' || response === null) return where('responseWindow');
+  for (const key of ['windowMs', 'perfectMs', 'toleranceMs', 'bufferMs']) {
+    const value = (response as Record<string, unknown>)[key];
+    if (!isFiniteNumber(value) || (value as number) < 0) return where(`responseWindow.${key}`);
+  }
+  if (timeline === null) {
+    // Clear: a stale cursor would leak into the next `beats` step.
+    if (fields.cueIndex !== 0) return where('cueIndex');
+    if (fields.judgeIndex !== 0) return where('judgeIndex');
+    if (fields.nextBeatAt !== null) return where('nextBeatAt');
+    if (fields.isDecoySpent || fields.wakePct !== 0) return where('wakePct');
+    return null;
+  }
+  const { cueIndex, judgeIndex } = fields;
+  if (
+    !Number.isInteger(cueIndex) ||
+    (cueIndex as number) < 0 ||
+    (cueIndex as number) > timeline.length
+  ) {
+    return where('cueIndex');
+  }
+  if (
+    !Number.isInteger(judgeIndex) ||
+    (judgeIndex as number) < 0 ||
+    (judgeIndex as number) > timeline.length ||
+    ((judgeIndex as number) < timeline.length && timeline[judgeIndex as number]?.kind !== 'beat')
+  ) {
+    return where('judgeIndex');
+  }
+  const entry = timeline[judgeIndex as number];
+  if (entry === undefined) {
+    if (fields.nextBeatAt !== null) return where('nextBeatAt');
+  } else {
+    const step = planned?.def.steps[slice.stepIndex as number];
+    if (
+      step === undefined ||
+      fields.nextBeatAt !== (slice.stepEndsAt as number) - step.durationMs + entry.offsetMs
+    ) {
+      return where('nextBeatAt');
+    }
+  }
+  const before = timeline[(judgeIndex as number) - 1];
+  if (fields.isDecoySpent === true && before?.kind !== 'decoy') return where('isDecoySpent');
   return null;
 }
 
@@ -997,7 +1079,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 20, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 21, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

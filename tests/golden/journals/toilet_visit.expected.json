@@ -1,6 +1,6 @@
 {
   "untilSimMs": 10000,
-  "worldHash": "1cc91e9ec6b9a7",
+  "worldHash": "09158e6a3f88d7",
   "eventTypes": [
     "WaveStarted",
     "BladderFilled",

@@ -1,4 +1,5 @@
 import type { Feel } from '@content/schemas/feel';
+import { MS_PER_MINUTE } from '@shared/constants';
 import { log } from '@shared/log';
 import { computePhaseOffset } from '../../input/calibration.ts';
 import type { OverlayScreen } from '../overlayScreen.ts';
@@ -76,8 +77,6 @@ export interface CalibrationScreen extends OverlayScreen {
   /** Starts the current stage over from its beginning, with no prompt. The page came back. */
   restart(): void;
 }
-
-const MS_PER_MINUTE = 60_000;
 
 type Mode = 'idle' | 'waiting' | 'running' | 'retry' | 'done' | 'ended';
 

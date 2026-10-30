@@ -1,4 +1,5 @@
 import type { Feel } from '@content/schemas/feel';
+import { MS_PER_MINUTE } from '@shared/constants';
 
 /** The rules of the maths: the part of `feel.calibration` it needs. */
 export type CalibrationRules = Pick<
@@ -9,8 +10,6 @@ export type CalibrationRules = Pick<
 export type PhaseOffset =
   | { isEnough: true; offsetMs: number; validCount: number }
   | { isEnough: false; validCount: number };
-
-const MS_PER_MINUTE = 60_000;
 
 function median(sorted: readonly number[]): number {
   const middle = sorted.length >> 1;

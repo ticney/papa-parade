@@ -41,6 +41,9 @@ const stayAwake = JSON.parse(readFileSync('content/sequences/stay_awake.json', '
   steps: { durationMs: number }[];
   framing: { camera: { zoomPct: number; focusPct: number; inMs: number; outMs: number } };
 };
+const levelSequences = (
+  JSON.parse(readFileSync('content/levels/salon_crawler.json', 'utf8')) as { sequences: string[] }
+).sequences;
 const SEQUENCE_MS = stayAwake.steps.reduce((total, step) => total + step.durationMs, 0);
 const { camera } = stayAwake.framing;
 const feedback = liveFeedback as unknown as {
@@ -71,8 +74,11 @@ async function openFrozen(page: Page): Promise<void> {
 async function startFromOverlay(page: Page): Promise<void> {
   await page.keyboard.press('F1');
   await expect(page.locator(OVERLAY)).toHaveAttribute('data-debug-overlay', 'open');
-  // The list is kept up to date while the overlay is open: the level's one sequence is in it.
-  await expect(page.locator('[data-debug="sequenceSelect"] option')).toHaveCount(1);
+  // The list is kept up to date while the overlay is open: the level's sequences are in it, in order,
+  // and « Rester éveillé » (the first) is the one selected.
+  await expect(page.locator('[data-debug="sequenceSelect"] option')).toHaveCount(
+    levelSequences.length,
+  );
   await page.locator('[data-debug="startSequence"]').click();
   await page.keyboard.press('F1');
   await ppAdvance(page, 2);

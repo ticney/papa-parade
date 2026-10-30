@@ -100,6 +100,14 @@ export interface RunSummary {
   sequencesSucceeded: number;
   /** The sequences lost (`SequenceEnded{failed}`). */
   sequencesFailed: number;
+  /** The judged beats tapped in time (`BeatHit`, story 4.5): 0 outside a lullaby walk. */
+  beatsHit: number;
+  /** The judged beats settled with no tap on them (`BeatMissed`). */
+  beatsMissed: number;
+  /** The taps on a decoy (`DecoyTapped`). */
+  decoysTapped: number;
+  /** The taps on no beat and no decoy (`BeatStrayTapped`). */
+  beatsStray: number;
   /**
    * The highest the need reached in the run, in % to one decimal: the gauge rises silently, so it is
    * read from the world when a visit starts (it is frozen from then on), when it fills, and at the
@@ -198,6 +206,10 @@ export function createRunRecorder(
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
+  let beatsHit = 0;
+  let beatsMissed = 0;
+  let decoysTapped = 0;
+  let beatsStray = 0;
   let bladderPeakPct = 0;
   let noisePeakPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
@@ -262,6 +274,14 @@ export function createRunRecorder(
       } else if (event.type === 'SequenceEnded') {
         if (event.outcome === 'succeeded') sequencesSucceeded++;
         else if (event.outcome === 'failed') sequencesFailed++;
+      } else if (event.type === 'BeatHit') {
+        beatsHit++;
+      } else if (event.type === 'BeatMissed') {
+        beatsMissed++;
+      } else if (event.type === 'DecoyTapped') {
+        decoysTapped++;
+      } else if (event.type === 'BeatStrayTapped') {
+        beatsStray++;
       } else if (event.type === 'ToiletStarted' || event.type === 'BladderFilled') {
         // The need is frozen from a visit's start, and full from this event on: its peak so far.
         bladderPeakPct = Math.max(bladderPeakPct, sim.world.gauges.bladderPct);
@@ -349,6 +369,10 @@ export function createRunRecorder(
         sequencesStarted,
         sequencesSucceeded,
         sequencesFailed,
+        beatsHit,
+        beatsMissed,
+        decoysTapped,
+        beatsStray,
         bladderPeakPct: round(Math.max(bladderPeakPct, sim.world.gauges.bladderPct), 1),
         noisePeakPct,
         noiseFinalPct: round(sim.world.gauges.noisePct, 1),
@@ -468,6 +492,11 @@ export interface SimReport {
   sequencesStarted: number;
   sequencesSucceeded: number;
   sequencesFailed: number;
+  /** The lullaby walk's beats over the runs (story 4.5): tapped in time, missed, decoys and stray taps. */
+  beatsHit: number;
+  beatsMissed: number;
+  decoysTapped: number;
+  beatsStray: number;
   /** The highest need any run reached, in % to one decimal (0 in a level with no need gauge). */
   bladderPeakPct: number;
   /** Mean of the runs' highest noise, in % to one decimal: does 3.2 end games (story 3.1 open point 2)? */
@@ -494,6 +523,11 @@ export interface SimReport {
     sequencesStarted: number;
     sequencesSucceeded: number;
     sequencesFailed: number;
+    /** The lullaby walk's beats in this run (story 4.5). */
+    beatsHit: number;
+    beatsMissed: number;
+    decoysTapped: number;
+    beatsStray: number;
   }[];
 }
 
@@ -553,6 +587,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
+  let beatsHit = 0;
+  let beatsMissed = 0;
+  let decoysTapped = 0;
+  let beatsStray = 0;
   let bladderPeakPct = 0;
   let noisePeakSumPct = 0;
   let noisePeakMaxPct = 0;
@@ -613,6 +651,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     sequencesStarted += run.sequencesStarted;
     sequencesSucceeded += run.sequencesSucceeded;
     sequencesFailed += run.sequencesFailed;
+    beatsHit += run.beatsHit;
+    beatsMissed += run.beatsMissed;
+    decoysTapped += run.decoysTapped;
+    beatsStray += run.beatsStray;
     bladderPeakPct = Math.max(bladderPeakPct, run.bladderPeakPct);
     noisePeakSumPct += run.noisePeakPct;
     noisePeakMaxPct = Math.max(noisePeakMaxPct, run.noisePeakPct);
@@ -701,6 +743,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     sequencesStarted,
     sequencesSucceeded,
     sequencesFailed,
+    beatsHit,
+    beatsMissed,
+    decoysTapped,
+    beatsStray,
     bladderPeakPct: round(bladderPeakPct, 1),
     noisePeakMeanPct: runs.length === 0 ? 0 : round(noisePeakSumPct / runs.length, 1),
     noisePeakMaxPct: round(noisePeakMaxPct, 1),
@@ -721,6 +767,10 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       sequencesStarted: run.sequencesStarted,
       sequencesSucceeded: run.sequencesSucceeded,
       sequencesFailed: run.sequencesFailed,
+      beatsHit: run.beatsHit,
+      beatsMissed: run.beatsMissed,
+      decoysTapped: run.decoysTapped,
+      beatsStray: run.beatsStray,
     })),
   };
 }

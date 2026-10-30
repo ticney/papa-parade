@@ -11,6 +11,8 @@ import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
 import {
+  type BeatEntry,
+  beatTimelineOf,
   isFlowLive,
   isPapaBusy,
   type LevelEndReason,
@@ -31,12 +33,17 @@ import { createLevelSession, type StartedLevel } from './app/levelSession.ts';
 import { bindOrientation } from './app/orientation.ts';
 import { createPauseController } from './app/pauseController.ts';
 import { bindSurface } from './app/surface.ts';
-import type { CuePlayedRecord, TestHost } from './app/testHost.ts';
+import type { BeatSampleRecord, CuePlayedRecord, TestHost } from './app/testHost.ts';
 import { readThreatsOff, withoutThreats } from './app/threatsSwitch.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
 import { isSlowMoActive, isTensionActive } from './audio/adaptiveMusic.ts';
 import { createAudioEngine } from './audio/audioEngine.ts';
+import {
+  type BeatSchedulerFrame,
+  createBeatScheduler,
+  type SoundedNote,
+} from './audio/beatScheduler.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
 import { createGatedHaptics } from './feedback/gatedHaptics.ts';
 import { isNoiseAlertCrossing } from './feedback/noiseAlert.ts';
@@ -280,6 +287,9 @@ export async function boot(): Promise<void> {
       | 'ppSequence'
       | 'ppSequenceOutcome'
       | 'ppSequenceMusic'
+      | 'ppBeatHits'
+      | 'ppBeatMisses'
+      | 'ppBabyWake'
       | 'ppCueCount'
       | 'ppFlashCount'
       | 'ppStampCount'
@@ -370,6 +380,26 @@ export async function boot(): Promise<void> {
       mirror(name, isOn ? 'on' : 'off');
     },
   });
+  const beatScheduler = createBeatScheduler({
+    audio,
+    scheduleAheadMs: feedbackTable.beatScheduler.scheduleAheadMs,
+    replanToleranceMs: feedbackTable.beatScheduler.replanToleranceMs,
+    onSounded: (note) => {
+      for (const listener of beatSoundedListeners) listener(note);
+    },
+  });
+  // The one frame object the scheduler reads, rewritten each frame (no allocation), and the beat
+  // timeline of every step of the level's sequences (derived from content at the level's start).
+  const beatFrame: BeatSchedulerFrame = {
+    timeline: null,
+    track: null,
+    stepStartAt: 0,
+    cueIndex: 0,
+    clockMs: 0,
+    simPerRealMs: 0,
+    leadMs: 0,
+  };
+  let currentBeatTimelines: Readonly<Record<string, readonly (readonly BeatEntry[] | null)[]>> = {};
   let cuesPlayedCount = 0;
   let flashesDrawnCount = 0;
   let stampsShownCount = 0;
@@ -383,6 +413,11 @@ export async function boot(): Promise<void> {
   // the director calls last. Debug builds only listen; an empty array otherwise.
   const visualsOfCue: string[] = [];
   const cuePlayedListeners: ((record: CuePlayedRecord) => void)[] = [];
+  // The notes of a rhythm step (story 4.5), planned one by one on the audio clock. The debug build
+  // listens to the notes that sounded and to the (audio, game) clock pairs, for `__PP__.beatLog()`.
+  const beatSoundedListeners: ((note: SoundedNote) => void)[] = [];
+  const beatSampleListeners: ((sample: BeatSampleRecord) => void)[] = [];
+  const beatSample: { audioNowS: number; clockMs: number } = { audioNowS: 0, clockMs: 0 };
   // One query, read live: the player can change the setting while the page is open.
   const reducedMotionQuery = matchMedia('(prefers-reduced-motion: reduce)');
   // The one source of « motion reduced » for every effect of the screen (story 2.5): story 2.10
@@ -616,9 +651,14 @@ export async function boot(): Promise<void> {
       'ppResult',
       'ppSequence',
       'ppSequenceOutcome',
+      'ppBeatHits',
+      'ppBeatMisses',
+      'ppBabyWake',
     ] as const) {
       delete document.documentElement.dataset[name];
     }
+    beatHitCount = 0;
+    beatMissCount = 0;
   };
   // The special sequence, on its events only (story 4.4): the flow state follows it and back, the id
   // is there while it runs, and the last outcome stays. `levelEnded` leaves the flow to `LevelEnded`.
@@ -630,6 +670,20 @@ export async function boot(): Promise<void> {
       delete document.documentElement.dataset.ppSequence;
       mirror('ppSequenceOutcome', event.outcome);
       if (event.outcome !== 'levelEnded') mirror('ppFlow', 'playing');
+    }
+  };
+  // The lullaby walk, on its events only (story 4.5): the hits and misses so far, and the baby's wake.
+  let beatHitCount = 0;
+  let beatMissCount = 0;
+  const mirrorBeatEvent = (event: SimEvent): void => {
+    if (event.type === 'BeatHit') {
+      beatHitCount += 1;
+      mirror('ppBeatHits', String(beatHitCount));
+    } else if (event.type === 'BeatMissed') {
+      beatMissCount += 1;
+      mirror('ppBeatMisses', String(beatMissCount));
+    } else if (event.type === 'BabyStirred') {
+      mirror('ppBabyWake', String(event.wakePct));
     }
   };
   // The suspicious silence, on its events only (story 1.21): `on` at `SilenceStarted`, then `found`
@@ -786,6 +840,29 @@ export async function boot(): Promise<void> {
     sim.enqueue({ type: 'SetDifficultyTier', t: sim.world.time.sim, tier });
   };
 
+  // Fills `beatFrame` from the world and the loop: the running `beats` step's timeline and track, or
+  // none. The notes lead by `audioOffsetMs − visualOffsetMs` (D1): the inputs keep `visualOffsetMs`
+  // alone, in the mapper, so the latency is corrected once.
+  const updateBeatFrame = (world: Sim['world'] | undefined): void => {
+    beatFrame.timeline = null;
+    beatFrame.track = null;
+    if (world === undefined || !world.sequence.beat.isRunning || world.sequence.id === null) return;
+    const step = currentSequences?.[world.sequence.id]?.steps[world.sequence.stepIndex];
+    if (step === undefined || step.kind !== 'beats') return;
+    const track = feedbackTable.beatTracks[step.track];
+    const timeline = currentBeatTimelines[world.sequence.id]?.[world.sequence.stepIndex] ?? null;
+    if (track === undefined || timeline === null) return;
+    const clock = levelSession.loopClock;
+    const calibration = saveStore.current().calibration;
+    beatFrame.timeline = timeline;
+    beatFrame.track = track;
+    beatFrame.stepStartAt = world.sequence.stepEndsAt - step.durationMs;
+    beatFrame.cueIndex = world.sequence.beat.cueIndex;
+    beatFrame.clockMs = clock.clockMs;
+    beatFrame.simPerRealMs = clock.simPerRealMs;
+    beatFrame.leadMs =
+      calibration === null ? 0 : calibration.audioOffsetMs - calibration.visualOffsetMs;
+  };
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
     content: content.value,
@@ -802,6 +879,13 @@ export async function boot(): Promise<void> {
       sendInputLag(started.sim, false);
       sendDifficultyTier(started.sim);
       currentSequences = started.level.sequences;
+      currentBeatTimelines = Object.fromEntries(
+        Object.entries(started.level.sequences).map(([id, def]) => [
+          id,
+          def.steps.map((step) => (step.kind === 'beats' ? beatTimelineOf(step) : null)),
+        ]),
+      );
+      beatScheduler.reset();
       sequenceBar.reset();
       timerHud.setCompact(false);
       timerHud.setVariant(started.level.level.variant);
@@ -901,6 +985,19 @@ export async function boot(): Promise<void> {
           : null;
       audio.setSequenceMusic(sequenceMusicId);
       audio.setMusicMuted(isSilent || isSequenceMusicOn);
+      // The notes of a rhythm step (story 4.5), planned on the audio clock from the loop's continuous
+      // clock: state, every frame, so a pause, a slow-mo, a restart or a level end needs no code.
+      const beatWorld = levelSession.active?.sim.world;
+      updateBeatFrame(beatWorld);
+      beatScheduler.update(beatFrame);
+      if (beatSampleListeners.length > 0 && beatFrame.timeline !== null) {
+        const nowS = audio.currentTimeS;
+        if (nowS !== null) {
+          beatSample.audioNowS = nowS;
+          beatSample.clockMs = beatFrame.clockMs;
+          for (const listener of beatSampleListeners) listener(beatSample);
+        }
+      }
       // The music follows the world's state too (story 2.6): tense while a threat is on, slowed
       // while the time scale is down. Allocation-free: a loop over a handful of threats.
       const isPlaying = babbleWorld !== undefined && isFlowLive(babbleWorld);
@@ -979,6 +1076,13 @@ export async function boot(): Promise<void> {
           nowAtReal,
         );
         worldUi.updatePapaHint(papaPose, nowAtReal);
+        worldUi.updateBeatRing(
+          beatFrame.timeline,
+          beatFrame.stepStartAt,
+          beatFrame.clockMs,
+          feedbackTable.beatRing.approachMs,
+          papaPose,
+        );
       }
       showGlyphChip(world, targetedId, device);
       if (isMirrored) mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
@@ -1130,6 +1234,7 @@ export async function boot(): Promise<void> {
         mirrorPhoneEvent(event);
         mirrorSilenceEvent(event);
         mirrorSequenceEvent(event);
+        mirrorBeatEvent(event);
       }
       // A refused toilet says why above Papa, for `holdMs` of real time (story 4.3).
       if (event.type === 'ToiletRefused') {
@@ -1629,6 +1734,8 @@ export async function boot(): Promise<void> {
       onLevelStarted: (listener) => subscribe(levelStartedListeners, listener),
       onSimEvent: (listener) => subscribe(simEventListeners, listener),
       onCuePlayed: (listener) => subscribe(cuePlayedListeners, listener),
+      onBeatSounded: (listener) => subscribe(beatSoundedListeners, listener),
+      onBeatSample: (listener) => subscribe(beatSampleListeners, listener),
       onGameResumed: (listener) => events.on('GameResumed', listener),
       onRenderedFrame: (listener) => subscribe(renderedFrameListeners, listener),
       setGameInputBlocked: (isBlocked) => {

@@ -311,6 +311,103 @@
       "additionalProperties": false,
       "description": "Sounds driven by a state, not by an event: they are not cues."
     },
+    "beatTracks": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+              "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
+            },
+            "description": "The notes, one per judged beat: the note of judged beat `n` is `notes[n % notes.length]`."
+          },
+          "countIn": {
+            "type": "string",
+            "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+            "description": "The tick of the count-in beats."
+          },
+          "decoy": {
+            "type": "string",
+            "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+            "description": "The sound of a decoy, between two beats."
+          },
+          "bus": {
+            "type": "string",
+            "enum": [
+              "music",
+              "sfx",
+              "voice",
+              "ui"
+            ],
+            "description": "Bus the sound goes through."
+          },
+          "gainPct": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Volume of the track on its bus, in percent."
+          }
+        },
+        "required": [
+          "notes",
+          "countIn",
+          "decoy",
+          "bus",
+          "gainPct"
+        ],
+        "additionalProperties": false,
+        "description": "The sounds of one rhythm track."
+      },
+      "description": "The rhythm tracks (story 4.5), by id, named by a `beats` step. The notes are planned one by one on the audio clock, not looped."
+    },
+    "beatScheduler": {
+      "type": "object",
+      "properties": {
+        "scheduleAheadMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How far ahead of the audio clock a note is planned, in real ms. A note late by more than this is dropped."
+        },
+        "replanToleranceMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "A planned note whose time moved by more than this, in real ms, is cancelled and planned again (slow-mo, hitstop, a debug time scale)."
+        }
+      },
+      "required": [
+        "scheduleAheadMs",
+        "replanToleranceMs"
+      ],
+      "additionalProperties": false,
+      "description": "How the client plans the notes on the audio clock (story 4.5). Real time."
+    },
+    "beatRing": {
+      "type": "object",
+      "properties": {
+        "approachMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long before a beat its ring starts closing on Papa, in sim ms."
+        }
+      },
+      "required": [
+        "approachMs"
+      ],
+      "additionalProperties": false,
+      "description": "The ring that closes on Papa at each beat (story 4.5). Sim time: a pause holds it."
+    },
     "resultScreen": {
       "type": "object",
       "properties": {
@@ -668,6 +765,9 @@
     "buses",
     "haptics",
     "loops",
+    "beatTracks",
+    "beatScheduler",
+    "beatRing",
     "resultScreen",
     "calibration",
     "sequenceBar",

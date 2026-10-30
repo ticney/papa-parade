@@ -22,7 +22,9 @@ import {
  * reaction time is a floor (nobody presses before having seen the telegraph), the jitter is the
  * spread around the instant it aims at. A press that lands outside the window is a gag, as for a
  * player. It finds the baby of a suspicious silence (story 1.21) `reactionMs` after the silence
- * started, once per silence.
+ * started, once per silence. In a lullaby walk (story 4.5) it plans one tap per judged beat at
+ * `nextBeatAt + aimOffsetMs + jitterSdMs × N(0, 1)`, with **no `reactionMs` floor**: a rhythm is
+ * anticipated, nobody reacts to a beat they can count; a plan whose beat is settled first is dropped.
  */
 export function createHumanBot(setup: BotSetup): Bot {
   const { reactionMs, aimOffsetMs, jitterSdMs } = setup.settings.human;
@@ -33,10 +35,24 @@ export function createHumanBot(setup: BotSetup): Bot {
   const firmHold = createFirmHold();
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
   let find: { startedAt: number; atMs: number } | null = null;
+  // The tap planned for the beat in play: dropped if the beat is settled before it is sent.
+  let beatTap: { beatAt: number; atMs: number } | null = null;
+  let lastBeatAt: number | null = null;
   return {
     id: 'human',
     act(world: Readonly<World>, out: SimCommand[]) {
       const now = world.time.sim;
+      const { beat } = world.sequence;
+      if (beatTap !== null && beat.nextBeatAt !== beatTap.beatAt) beatTap = null;
+      if (beat.isRunning && beat.nextBeatAt !== null && beat.nextBeatAt !== lastBeatAt) {
+        lastBeatAt = beat.nextBeatAt;
+        const aim = beat.nextBeatAt + aimOffsetMs + jitterSdMs * nextGaussian(rng);
+        beatTap = { beatAt: beat.nextBeatAt, atMs: Math.max(Math.round(aim), now) };
+      }
+      if (beatTap !== null && beatTap.atMs < now + STEP_MS) {
+        out.push({ type: 'TapBeat', t: asSimMs(beatTap.atMs) });
+        beatTap = null;
+      }
       const { startedAt } = world.silence;
       if (startedAt !== null && silences.isNew(world.silence)) {
         find = { startedAt, atMs: Math.max(startedAt + reactionMs, now) };

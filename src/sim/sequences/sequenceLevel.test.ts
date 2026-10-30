@@ -5,6 +5,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestLullabyWalk,
   createTestStayAwake,
   FATIGUE_GAUGES,
   NOISE_GAUGES,
@@ -124,5 +125,114 @@ describe('a level that lists a sequence but never starts one', () => {
       events.filter((event) => event.type === 'NoiseChanged' && event.source === 'snore'),
     ).toEqual([]);
     sim.dispose();
+  });
+});
+
+// The beats of a sequence (story 4.5, AC 4): `createSim` refuses them in the words of `content:check`.
+describe('createSim and the beats of a sequence (story 4.5)', () => {
+  const lullabyLevel = (
+    mutate: (def: ReturnType<typeof createTestLullabyWalk>) => void = () => {},
+  ) => {
+    const def = createTestLullabyWalk();
+    mutate(def);
+    return levelWith({ sequences: ['lullaby_walk'], sequenceDefs: { lullaby_walk: def } });
+  };
+  const beats = (def: ReturnType<typeof createTestLullabyWalk>) =>
+    def.steps[0] as Extract<(typeof def.steps)[number], { kind: 'beats' }>;
+
+  it('accepts the frozen lullaby walk in a level that carries the baby', async () => {
+    const sim = await createSim({ content, geometry, level: lullabyLevel(), seed: 1 });
+    sim.dispose();
+  });
+
+  it('refuses a track that feedback.json › beatTracks does not have', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: lullabyLevel((def) => {
+          beats(def).track = 'march';
+        }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(
+      /sequences\[0\]: the sequence "lullaby_walk" has a beats step with the track "march", which feedback\.json › beatTracks does not have/,
+    );
+  });
+
+  it('refuses a decoy with no next judged beat', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: lullabyLevel((def) => {
+          beats(def).decoyBeats = [500];
+        }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/decoy after judged beat 500, which has no next judged beat/);
+  });
+
+  it('refuses a window that is not below the shortest beat interval', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: lullabyLevel((def) => {
+          beats(def).windowMs = 700;
+        }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/windowMs of 700 ms, which is not below its shortest beat interval/);
+  });
+
+  it('refuses a step with no judged beat at all', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: lullabyLevel((def) => {
+          beats(def).countInBeats = 500;
+          beats(def).decoyBeats = [];
+        }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/has a beats step with no judged beat/);
+  });
+
+  it('refuses a calmLeft bar on a def that has no babyAwake failure', async () => {
+    const def = createTestStayAwake();
+    if (def.framing.bar !== null) def.framing.bar.value = 'calmLeft';
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: levelWith({ sequenceDefs: { stay_awake: def } }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/has a bar that shows calmLeft, but no "babyAwake" failure/);
+  });
+
+  it('refuses a beats step whose failure is not babyAwake, and the reverse', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: lullabyLevel((def) => {
+          def.failure = { kind: 'gag', hasSnore: false };
+        }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/has a beats step, so its failure must be "babyAwake", not "gag"/);
+    const stayAwake = createTestStayAwake();
+    stayAwake.failure = { kind: 'babyAwake', missWakePct: 1, decoyWakePct: 1, strayWakePct: 1 };
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: levelWith({ sequenceDefs: { stay_awake: stayAwake } }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/has a "babyAwake" failure, but no beats step/);
   });
 });

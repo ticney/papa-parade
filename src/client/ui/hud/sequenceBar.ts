@@ -9,8 +9,32 @@ export interface SequenceBarWorld {
     readonly id: string | null;
     readonly startedAt: number;
     readonly endsAt: number;
+    /** The running `beats` step: the baby's wake feeds the `calmLeft` bar (story 4.5). */
+    readonly beat: { readonly wakePct: number };
   };
   readonly time: { readonly sim: number };
+}
+
+type SequenceBarValue = NonNullable<SequenceDef['framing']['bar']>['value'];
+
+const PERCENT_MAX = 100;
+
+/**
+ * The whole percent a bar of `value` shows. A `switch` with no default and a return type of
+ * `number`: a new `SEQUENCE_BAR_VALUES` entry does not compile until it has its case here.
+ */
+function percentOf(value: SequenceBarValue, world: SequenceBarWorld): number {
+  const { sequence } = world;
+  switch (value) {
+    case 'timeLeft': {
+      const lengthMs = sequence.endsAt - sequence.startedAt;
+      const left = lengthMs > 0 ? (sequence.endsAt - world.time.sim) / lengthMs : 0;
+      return Math.round(Math.min(PERCENT_MAX, Math.max(0, left * PERCENT_MAX)));
+    }
+    case 'calmLeft':
+      // The baby's calm: what is left of him before he is awake (story 4.5).
+      return Math.round(Math.min(PERCENT_MAX, Math.max(0, PERCENT_MAX - sequence.beat.wakePct)));
+  }
 }
 
 export interface SequenceBar {
@@ -40,8 +64,6 @@ export interface SequenceBarOptions {
   /** How long the bar stays mounted after the end, to slide out, in real ms (`feedback.sequenceBar.slideMs`). */
   slideMs: number;
 }
-
-const PERCENT_MAX = 100;
 
 /**
  * The sequence bar (UX-DR23, story 4.4): a paper container with an ink outline under the timer, a
@@ -115,9 +137,7 @@ export function createSequenceBar(doc: Doc, options: SequenceBarOptions): Sequen
       }
       // Sliding out after an end: the fill keeps what it showed (a failed bar must not empty while it is still seen).
       if (!isWanted) return isMounted ? Math.max(0, shownPercent) : 0;
-      const lengthMs = sequence.endsAt - sequence.startedAt;
-      const left = lengthMs > 0 ? (sequence.endsAt - world.time.sim) / lengthMs : 0;
-      return Math.round(Math.min(PERCENT_MAX, Math.max(0, left * PERCENT_MAX)));
+      return percentOf(bar.value, world);
     },
     setPercent(percent) {
       if (percent === shownPercent) return;

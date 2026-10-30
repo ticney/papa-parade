@@ -80,6 +80,10 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     sequencesStarted: 0,
     sequencesSucceeded: 0,
     sequencesFailed: 0,
+    beatsHit: 0,
+    beatsMissed: 0,
+    decoysTapped: 0,
+    beatsStray: 0,
     bladderPeakPct: 0,
     noisePeakPct: 0,
     noiseFinalPct: 0,
@@ -167,6 +171,10 @@ describe('summarizeRuns', () => {
         sequencesStarted: 0,
         sequencesSucceeded: 0,
         sequencesFailed: 0,
+        beatsHit: 0,
+        beatsMissed: 0,
+        decoysTapped: 0,
+        beatsStray: 0,
       },
     ]);
   });

@@ -1538,6 +1538,77 @@ body {
 }
 
 /* ---------------------------------------------------------------------------------------------
+   The beat ring (story 4.5): a ring that closes on Papa before each beat of the lullaby walk, so the
+   tempo can be followed with the sound off. World-anchored by the CSS2DRenderer, which writes the
+   outer box's `transform`: the scale is on the inner disc. `--pp-beat-progress` (0 to 1) is written
+   every frame from the clock, never from events, so a pause holds the ring. It closes from 2.4 times
+   its size to 1. A decoy's ring is dashed and carries a ✕, a count-in beat's is fainter: shape and
+   opacity, never colour alone (NFR8). Reduced motion keeps an opacity pop and drops the scale. It
+   never takes a tap. Transform and opacity only.
+--------------------------------------------------------------------------------------------- */
+:root {
+  --pp-beat-ring-size: 112px;
+  --pp-beat-ring-from: 2.4;
+}
+
+.pp-beat-ring {
+  --pp-beat-progress: 0;
+  pointer-events: none;
+}
+
+.pp-beat-ring-disc {
+  box-sizing: border-box;
+  position: relative;
+  width: var(--pp-beat-ring-size);
+  height: var(--pp-beat-ring-size);
+  border: 7px solid var(--pp-color-paper);
+  border-radius: var(--pp-rounded-full);
+  box-shadow:
+    0 0 0 3px var(--pp-color-ink),
+    inset 0 0 0 3px var(--pp-color-ink);
+  opacity: calc(0.35 + 0.65 * var(--pp-beat-progress));
+  transform: scale(
+    calc(var(--pp-beat-ring-from) - (var(--pp-beat-ring-from) - 1) * var(--pp-beat-progress))
+  );
+}
+
+.pp-beat-ring--count-in .pp-beat-ring-disc {
+  opacity: calc(0.2 + 0.4 * var(--pp-beat-progress));
+}
+
+.pp-beat-ring--decoy .pp-beat-ring-disc {
+  border-style: dashed;
+  border-color: var(--pp-color-dodge);
+}
+
+.pp-beat-ring--decoy .pp-beat-ring-disc::after {
+  content: "✕";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pp-color-paper);
+  font-family: var(--pp-font-verb-family);
+  font-size: calc(var(--pp-beat-ring-size) * 0.4);
+  font-weight: var(--pp-font-verb-weight);
+  -webkit-text-stroke: 6px var(--pp-color-ink);
+  paint-order: stroke fill;
+}
+
+/* Reduced motion: no scale, the ring pops in opacity only (the calibration ring's rule). */
+.pp-beat-ring--reduced .pp-beat-ring-disc {
+  transform: none;
+  opacity: calc(0.2 + 0.8 * var(--pp-beat-progress));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-beat-ring-disc {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
    The threat icon (DESIGN.md › threat-icon, target-highlight; mockup key-hud-level.html state A).
    The outer box is the icon's size and is centred on the anchor by the CSS2DRenderer; the halo, the
    highlight and the chevron are placed around it from that size. The halo is a radial gradient

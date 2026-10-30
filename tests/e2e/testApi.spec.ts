@@ -40,13 +40,14 @@ async function openFrozenLevel(page: Parameters<typeof waitForTestApi>[0], seed 
 const FAR = anchorMirror('phone');
 
 test.describe('window.__PP__', () => {
-  test('exists in dev without ?debug=1, with its ten methods', async ({ page }) => {
+  test('exists in dev without ?debug=1, with its twelve methods', async ({ page }) => {
     const problems = collectProblems(page);
     await page.goto('/');
     await waitForTestApi(page);
     const methods = await page.evaluate(() => Object.keys(window.__PP__ ?? {}).sort());
     expect(methods).toEqual([
       'advance',
+      'beatLog',
       'cueLog',
       'events',
       'freeze',

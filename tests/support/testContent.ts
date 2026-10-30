@@ -63,8 +63,25 @@ export function createTestFeedback(): FeedbackTable {
       },
       sequenceMusic: {
         stay_awake: { clip: 'music_stay_awake', bus: 'music', gainPct: 100, fadeMs: 400 },
+        lullaby_walk: { clip: 'music_lullaby_pad', bus: 'music', gainPct: 100, fadeMs: 400 },
       },
     },
+    beatTracks: {
+      lullaby: {
+        notes: [
+          'music_lullaby_note_1',
+          'music_lullaby_note_2',
+          'music_lullaby_note_3',
+          'music_lullaby_note_4',
+        ],
+        countIn: 'music_lullaby_tick',
+        decoy: 'baby_lullaby_coo',
+        bus: 'music',
+        gainPct: 100,
+      },
+    },
+    beatScheduler: { scheduleAheadMs: 150, replanToleranceMs: 5 },
+    beatRing: { approachMs: 500 },
     cues: {
       papa_bump: {
         audio: { clip: 'papa_bump', bus: 'sfx', gainPct: 100 },
@@ -215,6 +232,30 @@ export function createTestStayAwake(): SequenceDef {
 }
 
 /**
+ * « Les 100 pas en rythme », frozen like « Rester éveillé » (`testLullaby.sequence.json`): the live
+ * def's shape, but a short one (10 s, a handful of beats and a decoy) so that a test and a golden
+ * scenario stay small, and costs of its own that a test can count on.
+ */
+export function createTestLullabyWalk(): SequenceDef {
+  const path = 'tests/support/testLullaby.sequence.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testLullaby.sequence.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, SequenceDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
+/** The frozen sequences, by id. */
+export function createTestSequences(): Readonly<Record<string, SequenceDef>> {
+  const defs = [createTestStayAwake(), createTestLullabyWalk()];
+  return Object.fromEntries(defs.map((def) => [def.id, def]));
+}
+
+/**
  * A frozen threat whose gag makes the baby cry for 3500 ms (`testCrying.threat.json`, story 3.1):
  * the outlet with a `gagCryMs`. No live threat declares one yet.
  */
@@ -353,8 +394,10 @@ export function createTestLevel({
   }
   const sequenceContent: Record<string, SequenceDef> = {};
   for (const id of sequences) {
-    const def = sequenceDefs[id] ?? createTestStayAwake();
-    if (def.id !== id) throw new Error(`no frozen sequence "${id}" in tests/support`);
+    const def = sequenceDefs[id] ?? createTestSequences()[id];
+    if (def === undefined || def.id !== id) {
+      throw new Error(`no frozen sequence "${id}" in tests/support`);
+    }
     sequenceContent[id] = def;
   }
   return {

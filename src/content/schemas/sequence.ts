@@ -12,7 +12,7 @@ const idSchema = (description: string) =>
   z.string().regex(SNAKE_ID_PATTERN, 'an id is lower_snake_case').describe(description);
 
 /** What a step is, hence how the sim runs it: one handler per kind (`Record<SequenceStepKind, …>`). */
-export const SEQUENCE_STEP_KINDS = ['microSleeps'] as const;
+export const SEQUENCE_STEP_KINDS = ['microSleeps', 'beats'] as const;
 export type SequenceStepKind = (typeof SEQUENCE_STEP_KINDS)[number];
 
 const MicroSleepsStepSchema = z
@@ -38,14 +38,67 @@ const MicroSleepsStepSchema = z
   })
   .describe('A stretch of the sequence where micro-sleeps come every gapMinMs to gapMaxMs.');
 
+const BeatsStepSchema = z
+  .strictObject({
+    kind: z
+      .literal('beats')
+      .describe('Papa walks to the beat of a track whose tempo changes (story 4.5).'),
+    durationMs: z
+      .number()
+      .int()
+      .positive()
+      .describe(
+        'How long the step lasts, in sim ms. The tempo goes from `bpmStart` to `bpmEnd` over it.',
+      ),
+    track: idSchema(
+      'Id of `feedback.json › beatTracks`: the notes, the count-in tick and the decoy sound.',
+    ),
+    bpmStart: z.number().positive().describe('Tempo of the first beat, in beats per minute.'),
+    bpmEnd: z
+      .number()
+      .positive()
+      .describe('Tempo reached at the end of the step, in beats per minute.'),
+    leadInMs: z
+      .number()
+      .int()
+      .min(0)
+      .describe(
+        'Wait before the first beat of the count-in, in sim ms from the start of the step.',
+      ),
+    countInBeats: z
+      .number()
+      .int()
+      .min(0)
+      .describe('Beats at the start that are only heard (a tap there is free), counted in beats.'),
+    windowMs: z
+      .number()
+      .int()
+      .positive()
+      .describe(
+        'Length of the window around each judged beat, in sim ms, before the tier and the fatigue.',
+      ),
+    decoyBeats: z
+      .array(z.number().int().min(0))
+      .describe(
+        'Judged-beat numbers (0-based, count-in excluded) after which an off-beat decoy sits halfway to the next beat. Strictly increasing.',
+      ),
+  })
+  .refine(
+    (step) => step.decoyBeats.every((beat, i) => i === 0 || beat > (step.decoyBeats[i - 1] ?? -1)),
+    { path: ['decoyBeats'], error: 'decoyBeats must be strictly increasing' },
+  )
+  .describe('A stretch of the sequence where Papa taps to a lullaby that slows down.');
+
 const SequenceStepSchema = z
-  .discriminatedUnion('kind', [MicroSleepsStepSchema])
+  .discriminatedUnion('kind', [MicroSleepsStepSchema, BeatsStepSchema])
   .describe('One step of a sequence.');
 
 /** What ends a sequence well: the sim judges each kind. */
 export const SEQUENCE_SUCCESS_KINDS = ['stepsDone'] as const;
 /** What ends a sequence badly: the sim judges each kind. */
-export const SEQUENCE_FAILURE_KINDS = ['gag'] as const;
+export const SEQUENCE_FAILURE_KINDS = ['gag', 'babyAwake'] as const;
+
+const wakePct = (description: string) => z.number().min(0).max(100).describe(description);
 
 const SuccessSchema = z
   .discriminatedUnion('kind', [
@@ -64,6 +117,18 @@ const FailureSchema = z
       hasSnore: z
         .boolean()
         .describe('Whether the failure makes Papa snore and wakes the baby (+noise).'),
+    }),
+    z.strictObject({
+      kind: z
+        .literal('babyAwake')
+        .describe(
+          'Every miss, decoy tap and stray tap wakes the baby a little; at 100 % he is up.',
+        ),
+      missWakePct: wakePct('Wake added by a judged beat nobody tapped, in % of the way to awake.'),
+      decoyWakePct: wakePct('Wake added by a tap on a decoy, in % of the way to awake.'),
+      strayWakePct: wakePct(
+        'Wake added by a tap that is on no beat and no decoy (a second tap in a window, a tap between windows), in % of the way to awake.',
+      ),
     }),
   ])
   .describe('How the sequence is lost.');
@@ -86,7 +151,7 @@ const CameraFramingSchema = z
   .describe('The light zoom on Papa while the sequence lasts (sim clock: a pause holds it).');
 
 export const SEQUENCE_BAR_FILLS = ['opponent', 'player'] as const;
-export const SEQUENCE_BAR_VALUES = ['timeLeft'] as const;
+export const SEQUENCE_BAR_VALUES = ['timeLeft', 'calmLeft'] as const;
 
 const BarSchema = z
   .strictObject({
@@ -97,7 +162,11 @@ const BarSchema = z
     fill: z
       .enum(SEQUENCE_BAR_FILLS)
       .describe('`opponent` fills in `gauge-warn` (a boss health bar), `player` in `gauge-calm`.'),
-    value: z.enum(SEQUENCE_BAR_VALUES).describe('What the bar shows; `timeLeft` is the time left.'),
+    value: z
+      .enum(SEQUENCE_BAR_VALUES)
+      .describe(
+        "What the bar shows; `timeLeft` is the time left, `calmLeft` the baby's calm left (100 − his wake, needs a `babyAwake` failure).",
+      ),
   })
   .describe('The sequence bar under the timer.');
 
@@ -138,10 +207,31 @@ export const SequenceDefSchema = z
     framing: FramingSchema,
     feedback: SequenceFeedbackSchema,
   })
-  .describe('A special sequence: its steps, how it ends and how it looks (story 4.4).');
+  .superRefine((def, ctx) => {
+    // A `beats` step is judged by the baby's wake and nothing else, and a wake is only moved by a
+    // `beats` step: the pair is one rule, so neither half can be left alone.
+    const hasBeats = def.steps.some((step) => step.kind === 'beats');
+    const isBabyAwake = def.failure.kind === 'babyAwake';
+    if (hasBeats && !isBabyAwake) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['failure', 'kind'],
+        message: 'a sequence with a beats step fails with the kind babyAwake',
+      });
+    }
+    if (isBabyAwake && !hasBeats) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['failure', 'kind'],
+        message: 'a babyAwake failure needs a beats step',
+      });
+    }
+  })
+  .describe('A special sequence: its steps, how it ends and how it looks (stories 4.4, 4.5).');
 
 export type SequenceDef = z.infer<typeof SequenceDefSchema>;
 export type SequenceStep = z.infer<typeof SequenceStepSchema>;
+export type BeatsStep = z.infer<typeof BeatsStepSchema>;
 
 /** The sequence's duration: the sum of its steps, never a second key that could disagree. */
 export function sequenceDurationMs(def: Pick<SequenceDef, 'steps'>): number {

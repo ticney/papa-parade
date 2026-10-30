@@ -1,6 +1,10 @@
+---
+baseline_commit: acc51534b71b04c6695a6debaa9e1b88c8625047
+---
+
 # Story 4.5: The hundred steps, in rhythm
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.5 « Les 100 pas en rythme » (L1910-1930). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -193,23 +197,23 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Content** (AC 1-4)
-  - [ ] T1.1 The `beats` kind, `babyAwake`, `calmLeft`, the pairing refine, the `failSequenceOnGag` narrowing, `lullaby_walk.json`, `content:schemas`.
-  - [ ] T1.2 `feedback.json` keys, cues, strings; placeholder clips (commit only the new `.m4a`).
-  - [ ] T1.3 `content:check` rules and `simLevelOf` invariants, with tests.
-- [ ] **T2. Sim** (AC 5-12)
-  - [ ] T2.1 `beatClock.ts` with its tests, `SimSequence.beatTimelines`.
-  - [ ] T2.2 The slice, `TapBeat`, the events, `isSettled`, `lullabyWalk.ts`.
-  - [ ] T2.3 `classifyTap`, the stir, the failure and the success.
-  - [ ] T2.4 Snapshot v21; the sim tests of AC 20; the fuzz test.
-- [ ] **T3. Client** (AC 13-18)
-  - [ ] T3.1 Loop getters, `beatScheduler.ts`, its deterministic sync tests **before any wiring**, D1's arithmetic test.
-  - [ ] T3.2 `inputMapper`, `beatRing.ts`, the bar, mirrors, `beatLog`.
-- [ ] **T4. Tools and tests** (AC 19, 21-23)
-  - [ ] T4.1 The bots and the report; both tables pasted.
-  - [ ] T4.2 Goldens (regenerate, diff, add the two scenarios).
-  - [ ] T4.3 `tests/e2e/lullaby.spec.ts`; touched specs.
-- [ ] **T5. Docs and CI** (AC 24, 25)
+- [x] **T1. Content** (AC 1-4)
+  - [x] T1.1 The `beats` kind, `babyAwake`, `calmLeft`, the pairing refine, the `failSequenceOnGag` narrowing, `lullaby_walk.json`, `content:schemas`.
+  - [x] T1.2 `feedback.json` keys, cues, strings; placeholder clips (commit only the new `.m4a`).
+  - [x] T1.3 `content:check` rules and `simLevelOf` invariants, with tests.
+- [x] **T2. Sim** (AC 5-12)
+  - [x] T2.1 `beatClock.ts` with its tests, `SimSequence.beatTimelines`.
+  - [x] T2.2 The slice, `TapBeat`, the events, `isSettled`, `lullabyWalk.ts`.
+  - [x] T2.3 `classifyTap`, the stir, the failure and the success.
+  - [x] T2.4 Snapshot v21; the sim tests of AC 20; the fuzz test.
+- [x] **T3. Client** (AC 13-18)
+  - [x] T3.1 Loop getters, `beatScheduler.ts`, its deterministic sync tests **before any wiring**, D1's arithmetic test.
+  - [x] T3.2 `inputMapper`, `beatRing.ts`, the bar, mirrors, `beatLog`.
+- [x] **T4. Tools and tests** (AC 19, 21-23)
+  - [x] T4.1 The bots and the report; both tables pasted.
+  - [x] T4.2 Goldens (regenerate, diff, add the two scenarios).
+  - [x] T4.3 `tests/e2e/lullaby.spec.ts`; touched specs.
+- [x] **T5. Docs and CI** (AC 24, 25)
 
 ## Dev Notes
 
@@ -309,16 +313,62 @@ Paths follow the epic and the architecture. No conflict. Variance: the bar's `ca
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), in the Claude desktop app (Code tab), on the story worktree `.claude/worktrees/4-5-les-100-pas-en-rythme`.
+
 ### Debug Log References
+
+- A first run of `lullabyWalk.test.ts` hung: `createSimWithSystems` **replaces** the system list, so the « gag » test advanced no time. Fixed with `[...SYSTEMS, spy]`.
+- The scheduler's deterministic test found a real bug before any wiring: a note planned for its old time, then pushed beyond `scheduleAheadMs` by a slow-mo, was never recomputed (the loop `break`s at the horizon). It is now cancelled (`cancelFrom`) and planned again when it comes back inside.
+- `simPurity` refuses the identifier `window`: the beat's window parameter is `response` in `beatClock.ts` and `lullabyWalk.ts`.
+- On WebKit a real Space tap was a stray: after `__PP__.advance` the loop's time map is flat only once a frame has recorded the new clock, so an input stamped before that is mapped between the old and the new clock. The spec waits 3 frames after each `advanceTo` (and `GameLoop.advance` now moves `clockMs`, so a frozen screenshot of the ring is right).
+- `botContract.test.ts` times out at 5 s on a loaded machine (known, 4.4); it passes alone.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Content (T1).** `beats` step kind, `babyAwake` failure, `calmLeft` bar value, a `superRefine` that pairs them, `failSequenceOnGag` narrowed to `gag` defs; `content/sequences/lullaby_walk.json`, the level lists it; `feedback.json` gains `beatTracks`, `beatScheduler`, `beatRing`, the pad loop and the four cues (`beat_hit`, `baby_stirred`, `beat_cued`, `decoy_cued`). Nine placeholder clips (seeds 21-26, none shared; only the new `.m4a` are in the change, the others untouched by `--only`). `sequenceBeatProblems` is the one function behind `content:check` and the `simLevelOf` invariants, so the words are the same; each rule has a failing test in `tests/content/checkSequences.test.ts` and in `sequenceLevel.test.ts`. `content:check` also looks for the track's clip files.
+- **Sim (T2).** `beatClock.ts` (`beatTimelineOf`, `classifyTap`, pure, no zod), the `beat` slice with its two cursors, `TapBeat`, seven events (`BABY_STIR_REASONS` with its completeness proof), `lullabyWalk.ts` (commands, misses, cues, in that order; no `nextFloat`), `StepHandler.isSettled` (the end test no longer names a kind), the shared `failSequence`. **Snapshot v21**, with each beat field validated against the step's timeline; round trips in a count-in, an open window and just after a decoy, each continued to the end and hashed. `MS_PER_MINUTE` moved to `@shared/constants`.
+- **Tempo, a precision of the spec.** « The first interval is 667 ms (90 BPM) » needs the tempo to be `bpmStart` at the **first note**, so `bpmAt` is linear from `leadInMs` (not from the step's start) to `durationMs`. Said in `beatClock.ts`.
+- **Client (T3).** `GameLoop.clockMs` / `simPerRealMs` getters (and `levelSession.loopClock`); `beatScheduler.ts` with the pure `audioAtS`, a fixed pool of 16, the re-plan rule, zero-rate cancellation, retry on `null`, drop when late; `inputMapper` sends `TapBeat` (touch anywhere, Space, A) after the threat check, no marker, no release; `beatRing.ts` (one pooled `CSS2DObject`, driven by the clock) and its CSS; the bar's `calmLeft` through a `switch` without default; mirrors `data-pp-beat-hits`, `data-pp-beat-misses`, `data-pp-baby-wake` (also in `PROD_FORBIDDEN_MARKERS`, with `beatLog`); `__PP__.beatLog()`.
+- **D1, `audioOffsetMs` once.** The notes lead by `audioOffsetMs − visualOffsetMs` (`boot.ts`, `updateBeatFrame`); the inputs keep `visualOffsetMs` in `toSim` alone, `SetInputLag` untouched. `beatScheduler.test.ts` proves the arithmetic with both offsets set (the tap reads exactly `beatAt`) and shows what the double correction would give (an error of a whole `audioOffsetMs`). **The architecture's L798 « Les séquences rythmiques (E4) utilisent `audioOffsetMs` » is met by D1**, as the story asked; the architecture and the GDD are untouched.
+- **Synchronisation (AC 22).** Deterministic tests (fake audio, fake frames at 16.67 ms and 33 ms): no change, a ×0.3 slow-mo on frame boundaries and inside a frame, a 10 s pause and its resume, a hitstop, both offsets, a ×4 pool check: every gap ≤ 10 ms, bar the one honest exception, which the test excludes and bounds. **Deviation to know:** the bound is `frame × |old − new| / new`, not `frame × (1 − scale)` (a note already out when the clock slows by ×0.3 is up to 39 ms off at 60 fps, 12 ms when it speeds up again); the story's formula is the second case only. In the browser (`lullaby.spec.ts`, real Web Audio on Chromium, through a ×0.3 slow-mo and a real 1.5 s pause): 23 notes, every gap between 0.1 and 5.1 ms; the context must reach `running` or the test fails.
+- **Bots and goldens (AC 19, 21), deliberate.** `npm run golden:update` was run and the diff checked: **the 14 existing journals moved in `worldHash` only** (one line each; the world gained the `beat` slice); `lullaby_walk_kept` and `lullaby_walk_woken` are new (frozen 10 s def, `tests/support/testLullaby.sequence.json`), pinned by `tests/golden/lullabyWalk.test.ts`.
+
+  `main` (`d8c93f3`) against the branch, `salon_crawler`, seed 1, 20 runs, the four bots: stars, end reasons, success rate, score and gags identical; only the hashes move.
+
+  | bot | source | stars (mean) | score (mean) | success % | gags | ends (timer/mamaWoke) |
+  |---|---|---|---|---|---|---|
+  | perfect | main | 5 | 90 | 100 | 0 | 20/0 |
+  | perfect | branch | 5 | 90 | 100 | 0 | 20/0 |
+  | human | main | 4 | 82.1 | 99.9 | 1 | 20/0 |
+  | human | branch | 4 | 82.1 | 99.9 | 1 | 20/0 |
+  | random | main | 1 | 20.3 | 2.2 | 759 | 20/0 |
+  | random | branch | 1 | 20.3 | 2.2 | 759 | 20/0 |
+  | idle | main | 1 | 20 | 0 | 762 | 20/0 |
+  | idle | branch | 1 | 20 | 0 | 762 | 20/0 |
+
+  `--sequence lullaby_walk --sequence-at-ms 5000`, same level, seed 1, 20 runs, the live 40 s def:
+
+  | bot | started | won | lost | beats hit | beats missed | decoys tapped | strays |
+  |---|---|---|---|---|---|---|---|
+  | perfect | 20 | 20 | 0 | 900 | 0 | 0 | 0 |
+  | human | 20 | 20 | 0 | 887 | 13 | 0 | 9 |
+  | random | 20 | 0 | 20 | 78 | 97 | 6 | 139 |
+  | idle | 20 | 0 | 20 | 0 | 180 | 0 | 0 |
+
+  `perfect` wins 20 of 20 with no miss, no decoy, no stray (45 judged beats a run); `idle` loses 20 of 20 on its 9th miss; `random` loses 20 of 20. **`human` wins 20 of 20** (13 misses and 9 strays in 900 beats, never enough to wake him): a finding for Geo, not tuned away (`deferred-work.md`). `tests/tools/sim/sequence.test.ts` pins `perfect` and `idle` over seeds 1 to 5 on the frozen def.
+- **Ring, looked at (667 × 375).** The ring around Papa is legible at 40 % progress; the decoy's is dashed red with a ✕ over Papa; under reduced motion it keeps its full size. No screenshot reference moved (none was added or regenerated).
+- **Not checked by me:** real audio on a phone and a device pass (`docs/playtest/device-measurements.md` is Geo's).
+- **Full CI (T5):** `(unset VITE_DEBUG_ALLOWED; npm run ci)` green once on the branch (e2e:dist perf: 17115 frames, p95 16.7 ms, 43 draw calls max, 1538 triangles max).
 
 ### File List
+
+New: `content/sequences/lullaby_walk.json`; `public/assets/audio/{baby_lullaby_coo,baby_stir,music_lullaby_note_1,music_lullaby_note_2,music_lullaby_note_3,music_lullaby_note_4,music_lullaby_pad,music_lullaby_tick,papa_lullaby_step}.m4a`; `src/sim/sequences/{beatClock,lullabyWalk}.ts` and `{beatClock,lullabyWalk,lullabySnapshot}.test.ts`; `src/client/audio/beatScheduler.ts` and its test; `src/client/ui/world/beatRing.ts` and its test; `tests/support/testLullaby.sequence.json`; `tests/bots/beatBots.test.ts`; `tests/e2e/lullaby.spec.ts`; `tests/golden/lullabyWalk.test.ts`; `tests/golden/journals/lullaby_walk_{kept,woken}{,.expected}.json`.
+
+Changed: `content/{feedback,strings.fr}.json`, `content/levels/salon_crawler.json`, `content/_schemas/{feedback,sequence}.schema.json`; `src/content/{feedbackClips,schemas/feedback,schemas/sequence}.ts` (+ `feedbackClips.test.ts`); `src/shared/constants.ts`; `src/sim/{world,events,commands,context,createSim,snapshot,index}.ts`, `src/sim/sequences/{sequenceSystem,sequenceSteps,sequenceStart,sequenceEnd}.ts` (+ the tests next to them: `commands`, `events`, `snapshot`, `inputLag`, `sequenceSystem`, `sequenceLevel`, `sequenceSnapshot`); `src/bots/{perfectBot,humanBot,randomBot,idleBot}.ts`; `src/client/{boot,loop}.ts` (+ `loop.test.ts`), `src/client/app/{levelSession,testHost}.ts`, `src/client/input/{inputMapper,calibration}.ts` (+ `inputMapper.test.ts`), `src/client/ui/hud/sequenceBar.ts` (+ test), `src/client/ui/screens/calibrationScreen.ts`, `src/client/ui/world/worldUi.ts` (+ test), `src/client/ui/styles/ui.css`, `src/client/feedback/feedbackDirector.test.ts`; `src/debug/testApi.ts` (+ test); `tools/audio/makePlaceholderAudio.ts`, `tools/content/contentChecks.ts`, `tools/build/inspectDist.ts`, `tools/sim/{simReport,simArgs}.ts`; `tests/support/{testContent,fakeTestHost}.ts`; `tests/content/{checkSequences,feedbackSchema,levelSchema,loadLevelContent,sequenceSchema}.test.ts`; `tests/bots/silenceBots.test.ts`; `tests/tools/{build/checkDist,sim/sequence,sim/simReport}.test.ts`; `tests/golden/scenarios.ts` and the 14 existing `tests/golden/journals/*.expected.json` (the `worldHash` line); `tests/e2e/{sequence,testApi}.spec.ts`; `_bmad-output/project-context.md`; `_bmad-output/implementation-artifacts/{deferred-work.md,sprint-status.yaml}`.
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-10-30 | Story created (`gds-create-story`), status `ready-for-dev`. |
+| 2026-10-30 | Implemented (`gds-dev-story`): content, sim, client, bots, goldens, e2e, docs. Snapshot v21; the 14 existing goldens move in `worldHash` only. `ci:fast`, the touched specs and the full `npm run ci` (typecheck, lint, content:check, coverage, e2e chromium + webkit, playtest build + dist checks + e2e:dist with perf, prod build) green. |

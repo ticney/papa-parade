@@ -6,7 +6,7 @@ import {
   sequenceDurationMs,
 } from '@content/schemas/sequence';
 import { describe, expect, it } from 'vitest';
-import { createTestStayAwake } from '../support/testContent.ts';
+import { createTestLullabyWalk, createTestStayAwake } from '../support/testContent.ts';
 
 const FILE = 'content/sequences/stay_awake.json';
 const real: Record<string, unknown> = JSON.parse(
@@ -39,7 +39,9 @@ describe('content/sequences/stay_awake.json (story 4.4)', () => {
     expect(parsed.value.babyCarried).toBe(true);
     expect(parsed.value.steps).toHaveLength(3);
     expect(sequenceDurationMs(parsed.value)).toBe(30_000);
-    const gaps = parsed.value.steps.map((entry) => entry.gapMaxMs);
+    const gaps = parsed.value.steps.map((entry) =>
+      entry.kind === 'microSleeps' ? entry.gapMaxMs : 0,
+    );
     expect(gaps).toEqual([...gaps].sort((a, b) => b - a));
   });
 
@@ -68,7 +70,7 @@ describe('content/sequences/stay_awake.json (story 4.4)', () => {
   });
 
   it('lists the step kinds the sim has a handler for', () => {
-    expect([...SEQUENCE_STEP_KINDS]).toEqual(['microSleeps']);
+    expect([...SEQUENCE_STEP_KINDS]).toEqual(['microSleeps', 'beats']);
   });
 
   it('accepts a bar and a music of null: no bar, no compact timer, no change of music', () => {
@@ -134,5 +136,103 @@ describe('content/sequences/stay_awake.json (story 4.4)', () => {
     ],
   ])('refuses %s', (_name, value, expected) => {
     expect(pathsOf(value)).toEqual(expected);
+  });
+});
+
+const LULLABY_FILE = 'content/sequences/lullaby_walk.json';
+const lullaby: Record<string, unknown> = JSON.parse(
+  readFileSync(new URL('../../content/sequences/lullaby_walk.json', import.meta.url), 'utf8'),
+);
+const lullabyStep = lullaby.steps as Record<string, unknown>[];
+
+function lullabyPaths(value: unknown): string[] {
+  const result = parseContentFile(LULLABY_FILE, JSON.stringify(value), SequenceDefSchema);
+  return result.ok ? [] : result.error.map((problem) => problem.jsonPath);
+}
+
+describe('content/sequences/lullaby_walk.json (story 4.5)', () => {
+  it('parses as a beats step with a babyAwake failure and a calmLeft bar', () => {
+    const parsed = parseContentFile(LULLABY_FILE, JSON.stringify(lullaby), SequenceDefSchema);
+    expect(parsed).toMatchObject({ ok: true });
+    if (!parsed.ok) return;
+    expect(parsed.value.id).toBe('lullaby_walk');
+    expect(parsed.value.steps.map((entry) => entry.kind)).toEqual(['beats']);
+    expect(parsed.value.failure.kind).toBe('babyAwake');
+    expect(parsed.value.framing.bar?.value).toBe('calmLeft');
+  });
+
+  it('keeps the frozen fixture a valid def of the same shape', () => {
+    expect(createTestLullabyWalk().steps[0]?.kind).toBe('beats');
+  });
+
+  it('keeps every number of the beats step and its failure with a unit suffix', () => {
+    const suffix = /(Ms|Pct|Beats|bpmStart|bpmEnd|decoyBeats)$/;
+    const step = lullabyStep[0] as Record<string, unknown>;
+    const failure = lullaby.failure as Record<string, unknown>;
+    for (const [key, value] of [...Object.entries(step), ...Object.entries(failure)]) {
+      if (typeof value === 'number') expect(key, key).toMatch(suffix);
+    }
+  });
+
+  it.each([
+    [
+      'decoys that do not strictly increase',
+      { ...lullaby, steps: [{ ...lullabyStep[0], decoyBeats: [7, 7] }] },
+      ['steps[0].decoyBeats'],
+    ],
+    [
+      'decoys out of order',
+      { ...lullaby, steps: [{ ...lullabyStep[0], decoyBeats: [15, 7] }] },
+      ['steps[0].decoyBeats'],
+    ],
+    [
+      'a negative decoy',
+      { ...lullaby, steps: [{ ...lullabyStep[0], decoyBeats: [-1] }] },
+      ['steps[0].decoyBeats[0]'],
+    ],
+    [
+      'a zero tempo',
+      { ...lullaby, steps: [{ ...lullabyStep[0], bpmStart: 0 }] },
+      ['steps[0].bpmStart'],
+    ],
+    [
+      'a window of 0 ms',
+      { ...lullaby, steps: [{ ...lullabyStep[0], windowMs: 0 }] },
+      ['steps[0].windowMs'],
+    ],
+    [
+      'a track that is not an id',
+      { ...lullaby, steps: [{ ...lullabyStep[0], track: 'Lullaby' }] },
+      ['steps[0].track'],
+    ],
+    [
+      'a wake cost above 100',
+      { ...lullaby, failure: { ...(lullaby.failure as object), missWakePct: 101 } },
+      ['failure.missWakePct'],
+    ],
+    [
+      'a failure with no strayWakePct',
+      {
+        ...lullaby,
+        failure: { kind: 'babyAwake', missWakePct: 12, decoyWakePct: 20 },
+      },
+      ['failure.strayWakePct'],
+    ],
+    [
+      'a beats step with a gag failure',
+      { ...lullaby, failure: { kind: 'gag', hasSnore: false } },
+      ['failure.kind'],
+    ],
+  ])('refuses %s', (_name, value, expected) => {
+    expect(lullabyPaths(value)).toEqual(expected);
+  });
+
+  it('refuses a babyAwake failure on a sequence with no beats step', () => {
+    expect(
+      pathsOf({
+        ...real,
+        failure: { kind: 'babyAwake', missWakePct: 1, decoyWakePct: 1, strayWakePct: 1 },
+      }),
+    ).toEqual(['failure.kind']);
   });
 });

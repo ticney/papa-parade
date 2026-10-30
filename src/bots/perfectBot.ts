@@ -21,10 +21,21 @@ export function createPerfectBot(setup: BotSetup): Bot {
   const cycles = createCycleMemory();
   const silences = createSilenceMemory();
   const firmHold = createFirmHold();
+  // The beat tapped last: `nextBeatAt` is unique per beat, so one tap per beat whatever the step.
+  let lastBeatAt: number | null = null;
   return {
     id: 'perfect',
     act(world: Readonly<World>, out: SimCommand[]) {
       const now = world.time.sim;
+      const { beat } = world.sequence;
+      if (beat.isRunning && beat.nextBeatAt !== null && beat.nextBeatAt !== lastBeatAt) {
+        lastBeatAt = beat.nextBeatAt;
+        // Whole ms, like a client's stamps.
+        scheduler.schedule({
+          type: 'TapBeat',
+          t: asSimMs(Math.max(Math.round(beat.nextBeatAt), now)),
+        });
+      }
       firmHold.update(world.threats, now, out);
       if (silences.isNew(world.silence)) scheduler.schedule({ type: 'TapBaby', t: asSimMs(now) });
       for (let i = 0; i < world.threats.length; i++) {

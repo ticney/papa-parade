@@ -13,7 +13,9 @@ const TWO_PI = 2 * Math.PI;
  * action drawn uniformly: tap the floor near Papa, push in a random direction, stop, or press a
  * threat of any state (the sim ignores one that is idle) and let go after a random hold, up to
  * `maxHoldMs`, which is above `holdMinMs` so that it also produces Firmness. At most one finger
- * down at a time. It exercises every command with strict invariants on; it does not try to win.
+ * down at a time. It exercises every command with strict invariants on; it does not try to win. In
+ * a beats step (story 4.5) it taps at the same rate and does nothing else; **outside one its draws
+ * are exactly what they were**, so the salon's report does not move.
  */
 export function createRandomBot(setup: BotSetup): Bot {
   const { actionsPerSec, floorReachM, maxHoldMs } = setup.settings.random;
@@ -24,6 +26,13 @@ export function createRandomBot(setup: BotSetup): Bot {
     id: 'random',
     act(world: Readonly<World>, out: SimCommand[]) {
       const now = world.time.sim;
+      if (world.sequence.beat.isRunning) {
+        if (nextFloat(rng) < chancePerStep) {
+          scheduler.schedule({ type: 'TapBeat', t: asSimMs(now + nextInt(rng, 0, STEP_MS)) });
+        }
+        scheduler.flush(now, out);
+        return;
+      }
       // A planned command means a finger is down (or about to be): nothing new until it is up.
       if (scheduler.size === 0 && nextFloat(rng) < chancePerStep) {
         const kind = nextInt(rng, 0, 4);

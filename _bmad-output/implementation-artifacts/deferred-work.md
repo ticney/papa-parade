@@ -699,3 +699,17 @@
 ## Deferred from: code review of story-4.4 (2026-10-30)
 
 - **The debug overlay's « Launch » threat button reports success during a sequence** although `runDirector` drops `ForceThreat` while `flow === 'sequence'`; `refusalReason` in `src/debug/cheats.ts` has no sequence case. Reason: debug tooling only, nothing in play depends on it; add the reason line when the overlay is next touched.
+
+## Story 4-5-les-100-pas-en-rythme (2026-10-30)
+
+- **Papa does not walk** (open point 1): « Les 100 pas » happen on the spot, a sound and a ring at each step, because 4.4's D3 holds Papa still until 4.9. Reason: moving that guard is 4.9's work; a small sway on each hit is cheap if it feels wrong.
+- **D1 chose between two documents** (open point 2): the notes lead by `audioOffsetMs − visualOffsetMs` and the taps keep their usual correction, where the epic corrects the planning and the architecture the judgement. Reason: doing both counts the latency twice; the felt result is the same for the judgement. Say if the sound should stay on the game's clock instead.
+- **A step earns nothing** (open point 3, D6): a won `lullaby_walk` pays only through the carry tick. A bonus at the end is Geo's call.
+- **The tolerance is a guess** (open point 4): about 46 judged beats, 9 misses or 5 decoys or 17 stray taps to wake him, no recovery on a hit. Tune `missWakePct`, `decoyWakePct`, `strayWakePct`. On `salon_crawler` seed 1, 20 runs: `perfect` wins 20 of 20, `idle` loses 20 of 20 (9 misses), `human` wins 20 of 20 (13 misses and 9 strays over 900 beats: the wake never reaches 100), `random` loses 20 of 20. `human` winning every time is a finding, not a bug: with a 60 ms jitter against a ±150 ms zone the walk is easy for an attentive player; tighten `windowMs` or raise the costs if that is not wanted.
+- **40 s and about 50 beats, not 100** (open point 5): the GDD caps a sequence at 60 s, about 75 beats at this tempo. Tune `durationMs`.
+- **The windows follow the tier and the fatigue** (open point 6), the usual rule: after `stay_awake` the fatigue may have shrunk 180 ms noticeably. Say if a rhythm window should ignore fatigue.
+- **A stray tap costs** (open point 7, D4). Rhythm Heaven forgives more; `strayWakePct: 0` is one edit.
+- **A decoy is a baby's coo on the off-beat, a dashed ring and a vibration identical to a beat's** (open point 8): if the vibration makes it unfair on a muted phone it can go (`decoy_cued` cue, haptic only).
+- **The sync bound is `frame × |old − new| / new`, not `frame × (1 − scale)`.** Reason: for a rate change `u` before a note already out, the gap is `(A − u)(old/new − 1)`: 39 ms at worst entering a ×0.3 slow-mo at 60 fps, 12 ms leaving it. The unit test pins it; the e2e measured 0.1 to 5 ms on every note, slow-mo and pause included.
+- **A frame that drops its backlog bends the clock for a frame** (`frame stall: dropped … ms of sim backlog`, seen under load): the game clock then slips behind the audio, and the next frame re-plans. Not a story-4.5 defect, but the only way a note can be late by more than the tolerance outside a rate change.
+- **`botContract.test.ts` times out at 5 s when the machine is loaded** (also noted by 4.4): it passes alone, in about 5.4 s.
