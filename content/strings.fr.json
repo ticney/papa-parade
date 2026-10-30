@@ -90,6 +90,8 @@
   "settings.reduced_motion": "Réduire les animations",
   "settings.large_verbs": "Grands verbes",
   "settings.recalibrate": "Recalibrer",
+  "combo.multiplier": "x{count}",
+  "combo.cash_in": "+{points}",
   "settings.credits": "Crédits",
   "oops.message": "Oups ! Quelque chose s'est renversé.",
   "oops.retry": "Réessayer",

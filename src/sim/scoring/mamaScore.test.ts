@@ -14,6 +14,7 @@ const mama = createTestContent().feel.mama;
 const NONE: ScoreTally = {
   perfects: 0,
   nearMisses: 0,
+  comboPoints: 0,
   propsOnFloor: 0,
   propsBroken: 0,
   mischiefs: 0,
@@ -47,6 +48,29 @@ describe('computeMamaScore', () => {
     expect(computeMamaScore(tally({ perfects: over }), mama, false).laughPoints).toBe(
       mama.laughMaxPoints,
     );
+  });
+
+  it('adds the points of the combos cashed in to the laughs (story 4.2), not rounded before the sum', () => {
+    const small = withMama({ laughPerPerfectPoints: 1, laughMaxPoints: 40 });
+    expect(computeMamaScore(tally({ perfects: 2, comboPoints: 6 }), small, false).laughPoints).toBe(
+      8,
+    );
+    // 0.4 + 0.4 + 0.4 cashed in: 1.2, shown as 1 (one rounding, at the end).
+    expect(computeMamaScore(tally({ comboPoints: 1.2 }), small, false).laughPoints).toBe(1);
+    expect(computeMamaScore(tally({ comboPoints: 28 }), small, false).laughPoints).toBe(28);
+  });
+
+  it('holds the laughs to their maximum with the combo points, and the four rows still add up', () => {
+    const score = computeMamaScore(
+      tally({ perfects: mama.laughMaxPoints, comboPoints: 500 }),
+      mama,
+      false,
+    );
+    expect(score.laughPoints).toBe(mama.laughMaxPoints);
+    expect(rowSum(score)).toBe(score.scorePoints);
+    const onlyCombo = computeMamaScore(tally({ comboPoints: 500 }), mama, false);
+    expect(onlyCombo.laughPoints).toBe(mama.laughMaxPoints);
+    expect(rowSum(onlyCombo)).toBe(onlyCombo.scorePoints);
   });
 
   it('adds the floor, the broken props and the mischiefs into the sigh, and holds it to its maximum', () => {
@@ -199,7 +223,7 @@ describe('scoreLevel', () => {
     scoreLevel(world, ctx, 'timer');
 
     const expected = computeMamaScore(
-      { perfects: 4, nearMisses: 1, propsOnFloor: 1, propsBroken: 0, mischiefs: 2 },
+      { perfects: 4, nearMisses: 1, comboPoints: 0, propsOnFloor: 1, propsBroken: 0, mischiefs: 2 },
       mama,
       false,
     );

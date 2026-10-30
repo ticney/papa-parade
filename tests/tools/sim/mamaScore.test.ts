@@ -41,6 +41,7 @@ describe('Mama’s note of the live salon_crawler', () => {
           {
             perfects: world.score.perfects,
             nearMisses: world.score.nearMisses,
+            comboPoints: world.score.comboPoints,
             propsOnFloor: world.mess.propsOnFloor,
             propsBroken: world.mess.propsBroken,
             mischiefs: world.mess.mischiefs,

@@ -59,7 +59,9 @@ describe('the fatigue events (story 1.19)', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
     expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('BabyStateChanged') + 1);
     expect(names.indexOf('CoffeeStarted')).toBe(names.indexOf('CoffeeDrunk') + 1);
-    expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('CoffeeStarted') + 1);
+    expect(names.indexOf('ComboCashedIn')).toBe(names.indexOf('CoffeeStarted') + 1);
+    expect(names.indexOf('ComboChanged')).toBe(names.indexOf('ComboCashedIn') + 1);
+    expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('ComboChanged') + 1);
     expect(names.indexOf('GagTriggered')).toBe(names.indexOf('FatigueThresholdCrossed') + 1);
   });
 });

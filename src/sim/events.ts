@@ -73,6 +73,27 @@ export const THREAT_CANCEL_REASONS_ARE_COMPLETE: [UnlistedThreatCancelReason] ex
   ? true
   : UnlistedThreatCancelReason = true;
 
+/**
+ * Why the combo's multiplier moved (story 4.2): a successful `response`, a `carryTick`, a `gag`
+ * that reset it, or a `cashIn` that banked it.
+ */
+export type ComboChangeReason = 'response' | 'carryTick' | 'gag' | 'cashIn';
+
+/** Every `ComboChangeReason`, as data: the client keys by it. */
+export const COMBO_CHANGE_REASONS = [
+  'response',
+  'carryTick',
+  'gag',
+  'cashIn',
+] as const satisfies readonly ComboChangeReason[];
+
+type UnlistedComboChangeReason = Exclude<ComboChangeReason, (typeof COMBO_CHANGE_REASONS)[number]>;
+
+/** Compile-time proof that `COMBO_CHANGE_REASONS` holds every member of the union (see `FLOW_STATES_ARE_COMPLETE`). */
+export const COMBO_CHANGE_REASONS_ARE_COMPLETE: [UnlistedComboChangeReason] extends [never]
+  ? true
+  : UnlistedComboChangeReason = true;
+
 /** Domain events pushed by the systems into `ctx.events`; `t` is sim time. */
 export type SimEvent =
   | { type: 'TimeScaleChanged'; t: SimMs; from: number; to: number }
@@ -94,9 +115,21 @@ export type SimEvent =
   | { type: 'BabyPickedUp'; t: SimMs }
   /**
    * Papa set the baby down (story 4.1). `safe` is whether Papa stood in a `kind: "safe"` zone;
-   * `BabyStateChanged{carried → babble}` comes first. Nothing scores it yet (story 4.2).
+   * `BabyStateChanged{carried → babble}` comes first. A `safe` put-down above the minimum
+   * multiplier then cashes the combo in (story 4.2): `ThreatCancelled` if any, `ComboCashedIn`, `ComboChanged{cashIn}`.
    */
   | { type: 'BabyPutDown'; t: SimMs; safe: boolean }
+  /**
+   * The combo's multiplier changed (story 4.2), only on a real change: `multiplier` is the new
+   * value and `reason` what moved it. Never emitted in a level with no `carry`.
+   */
+  | { type: 'ComboChanged'; t: SimMs; multiplier: number; reason: ComboChangeReason }
+  /**
+   * The combo was cashed in at a safe put-down (story 4.2): `points = multiplier * basePoints`, added
+   * to the Rire of Mama's note. It follows `BabyPutDown` (and `ThreatCancelled`) and precedes
+   * `ComboChanged{cashIn}`.
+   */
+  | { type: 'ComboCashedIn'; t: SimMs; multiplier: number; basePoints: number; points: number }
   /** Papa set off to a pressed threat; he arrives by `arriveAt` (choreography: no judgement waits for it). */
   | {
       type: 'PapaGlideStarted';
@@ -261,6 +294,8 @@ export const SIM_EVENT_TYPES = [
   'BabyStateChanged',
   'CoffeeDrunk',
   'CoffeeStarted',
+  'ComboCashedIn',
+  'ComboChanged',
   'FatigueThresholdCrossed',
   'GagTriggered',
   'InvariantViolated',

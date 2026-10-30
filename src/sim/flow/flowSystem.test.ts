@@ -16,6 +16,7 @@ import {
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import { computeMamaScore } from '../scoring/mamaScore.ts';
+import type { World } from '../world.ts';
 import { enterFlowState, FLOW_STATES, FLOW_STATES_ARE_COMPLETE } from './flowFsm.ts';
 
 const DURATION_MS = 1000;
@@ -64,6 +65,21 @@ describe('runFlow', () => {
     ]);
   });
 
+  it('gives the combo points cashed in to the Rire of the note, and loses the ones not cashed (story 4.2)', async () => {
+    const sim = await newSim();
+    const world = sim.world as World;
+    world.score.comboPoints = 12;
+    // A combo still running when the level ends is lost, with no event.
+    world.combo.multiplier = 5;
+    world.combo.basePoints = 3;
+    stepN(sim, DURATION_MS / STEP_MS);
+    const scored = sim.drainEvents().filter((event) => event.type === 'LevelScored');
+    expect(scored).toHaveLength(1);
+    expect(scored[0]).toMatchObject({ laughPoints: 12 });
+    expect(sim.world.score.final?.laughPoints).toBe(12);
+    expect(sim.world.score.comboPoints).toBe(12);
+  });
+
   it('emits it exactly once, however long the clock keeps going', async () => {
     const sim = await newSim();
     stepN(sim, DURATION_MS / STEP_MS);
@@ -101,6 +117,7 @@ describe('runFlow', () => {
         {
           perfects: sim.world.score.perfects,
           nearMisses: sim.world.score.nearMisses,
+          comboPoints: sim.world.score.comboPoints,
           propsOnFloor: sim.world.mess.propsOnFloor,
           propsBroken: sim.world.mess.propsBroken,
           mischiefs: sim.world.mess.mischiefs,

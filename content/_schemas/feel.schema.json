@@ -385,6 +385,76 @@
       "additionalProperties": false,
       "description": "Carrying the baby in Papa's arms (FR22, story 4.1). The fatigue multiplier is `fatigue.carriedMultiplier`."
     },
+    "combo": {
+      "type": "object",
+      "properties": {
+        "minMultiplier": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Multiplier at rest, and after a cash-in or a gag (the badge is hidden at this value)."
+        },
+        "maxMultiplier": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Highest multiplier; past it the multiplier stays and the base points still grow."
+        },
+        "carryTickMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "One more multiplier step per this much time carried without incident, in **sim** ms."
+        },
+        "basePerResponsePoints": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Base points added to the combo by each successful or perfect response."
+        },
+        "basePerCarryTickPoints": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Base points added to the combo by each carry tick."
+        },
+        "slowMoCashIn": {
+          "type": "object",
+          "properties": {
+            "timeScale": {
+              "type": "number",
+              "minimum": 0.05,
+              "maximum": 1,
+              "description": "Sim speed during the slow-mo (1 = normal, 0.3 = 30 % speed, never below 0.05)."
+            },
+            "durationMs": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "How long the slow-mo holds, in **sim** ms (ADR-002)."
+            },
+            "returnMs": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Return to the base scale after the slow-mo, in sim ms (0 = instant)."
+            }
+          },
+          "required": [
+            "timeScale",
+            "durationMs",
+            "returnMs"
+          ],
+          "additionalProperties": false,
+          "description": "Slow-mo played when the combo is cashed in at a safe drop."
+        }
+      },
+      "required": [
+        "minMultiplier",
+        "maxMultiplier",
+        "carryTickMs",
+        "basePerResponsePoints",
+        "basePerCarryTickPoints",
+        "slowMoCashIn"
+      ],
+      "additionalProperties": false,
+      "description": "The combo (FR23, story 4.2): a multiplier raised by responses and by carrying, cashed in at a safe drop."
+    },
     "noise": {
       "type": "object",
       "properties": {
@@ -1295,6 +1365,7 @@
     "baby",
     "fatigue",
     "carry",
+    "combo",
     "noise",
     "instinct",
     "difficulty",

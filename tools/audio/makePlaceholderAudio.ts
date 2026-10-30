@@ -89,6 +89,16 @@ const MUSIC_TENSE_SCALE_HZ = [
 const MUSIC_TENSE_SQUARE_GAIN = 0.6;
 const MUSIC_TENSE_DECAY_S = 0.12;
 
+// Combo cash-in (story 4.2): a bright rising arpeggio with a sparkle of noise on top.
+const CASH_IN_LENGTH_MS = 520;
+const CASH_IN_NOTES_HZ: readonly number[] = [523.25, 659.25, 783.99, 1046.5];
+const CASH_IN_NOTE_GAP_MS = 80;
+const CASH_IN_NOTE_DECAY_S = 0.14;
+const CASH_IN_ATTACK_MS = 4;
+const CASH_IN_RELEASE_MS = 120;
+const CASH_IN_SPARKLE_GAIN = 0.18;
+const CASH_IN_SPARKLE_DECAY_S = 0.18;
+
 const BUMP_LENGTH_MS = 150;
 const BUMP_PITCH_HZ = { from: 180, to: 80 };
 const BUMP_ATTACK_MS = 2;
@@ -891,6 +901,36 @@ export function synthBabyPutdown(): Float32Array {
   return out;
 }
 
+/** The combo cashed in at a safe drop: four rising notes and a sparkle of noise (cue `combo_cashed_in`). */
+export function synthComboCashIn(): Float32Array {
+  const rng = createRng(SEED + 10);
+  const out = new Float32Array(samplesOf(CASH_IN_LENGTH_MS));
+  const attack = samplesOf(CASH_IN_ATTACK_MS);
+  const release = samplesOf(CASH_IN_RELEASE_MS);
+  let sparkle = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    let tone = 0;
+    for (const [index, frequencyHz] of CASH_IN_NOTES_HZ.entries()) {
+      const sinceNoteS = seconds - (index * CASH_IN_NOTE_GAP_MS) / 1000;
+      if (sinceNoteS < 0) continue;
+      tone +=
+        Math.sin(2 * Math.PI * frequencyHz * sinceNoteS) *
+        Math.exp(-sinceNoteS / CASH_IN_NOTE_DECAY_S);
+    }
+    // First difference of white noise: the highs only, the glitter.
+    const white = nextFloat(rng) * 2 - 1;
+    const glitter = white - sparkle;
+    sparkle = white;
+    const air = glitter * CASH_IN_SPARKLE_GAIN * Math.exp(-seconds / CASH_IN_SPARKLE_DECAY_S);
+    out[i] = (tone + air) * Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -942,6 +982,7 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'gag_arms_wail', synth: synthGagArmsWail },
   { clip: 'baby_pickup', synth: synthBabyPickup },
   { clip: 'baby_putdown', synth: synthBabyPutdown },
+  { clip: 'ui_combo_cash_in', synth: synthComboCashIn },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

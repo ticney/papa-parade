@@ -40,6 +40,7 @@ export function createTestFeedback(): FeedbackTable {
       medium: { patternMs: [30] },
       heavy: { patternMs: [60] },
     },
+    comboBadge: { cashInHoldMs: 900 },
     resultScreen: {
       rowCountUpMs: 600,
       rowStaggerMs: 200,

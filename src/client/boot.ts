@@ -202,7 +202,10 @@ export async function boot(): Promise<void> {
   };
   // The layer of world-anchored UI (the tap marker): sized like the canvas, or the marker would
   // drift from the tapped point after a resize.
-  const worldUi = createWorldUi(worldRoot);
+  const worldUi = createWorldUi(worldRoot, document, undefined, {
+    translate: t,
+    isMotionReduced: () => prefersReducedMotion(),
+  });
   const fitViewToCanvas = (): void => {
     const aspect = renderer.resize();
     if (aspect !== null && room !== null) {
@@ -243,6 +246,8 @@ export async function boot(): Promise<void> {
       | 'ppPapaAt'
       | 'ppBabyState'
       | 'ppPutDown'
+      | 'ppCombo'
+      | 'ppComboCashed'
       | 'ppBabyAt'
       | 'ppTap'
       | 'ppAudio'
@@ -471,6 +476,11 @@ export async function boot(): Promise<void> {
     mirror('ppBabyState', event.to);
     mirrorBabyAt();
   };
+  // The combo (story 4.2), on its events: the multiplier on `ComboChanged`, the points on `ComboCashedIn`.
+  const mirrorComboEvent = (event: SimEvent): void => {
+    if (event.type === 'ComboChanged') mirror('ppCombo', String(event.multiplier));
+    else if (event.type === 'ComboCashedIn') mirror('ppComboCashed', String(event.points));
+  };
   // Papa's fatigue, rounded: on `FatigueThresholdCrossed` and `CoffeeDrunk` only, never per frame.
   const mirrorFatigue = (): void => {
     const active = levelSession.active;
@@ -518,9 +528,11 @@ export async function boot(): Promise<void> {
     mirrorFatigue();
     mirrorNoise();
     mirrorObjectPoints();
+    mirror('ppCombo', String(levelSession.active?.sim.world.combo.multiplier ?? 1));
     delete document.documentElement.dataset.ppTap;
     for (const name of [
       'ppPutDown',
+      'ppComboCashed',
       'ppThreat',
       'ppThreatPx',
       'ppResponse',
@@ -796,6 +808,15 @@ export async function boot(): Promise<void> {
           world.baby.state === 'carried',
         );
       worldUi.updateObjects(world?.gauges.isFatigueAbove ?? false);
+      if (world !== undefined) {
+        worldUi.updateCombo(
+          world.combo,
+          world.feel.combo.minMultiplier,
+          currentLevel?.papaPose ?? null,
+          world.threats,
+          performance.now(),
+        );
+      }
       showGlyphChip(world, targetedId, device);
       if (isMirrored) mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
       worldUi.render(camera);
@@ -934,9 +955,18 @@ export async function boot(): Promise<void> {
         }
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);
+        mirrorComboEvent(event);
         mirrorThreatEvent(event);
         mirrorPhoneEvent(event);
         mirrorSilenceEvent(event);
+      }
+      // The points of a cash-in show on the badge for `cashInHoldMs` of real time (story 4.2, D6).
+      if (event.type === 'ComboCashedIn') {
+        worldUi.comboBadge.showCashIn(
+          event.points,
+          feedbackTable.comboBadge.cashInHoldMs,
+          performance.now(),
+        );
       }
       // A key still held after a tap's path ends walks again, and so after a coffee or a nap.
       if (event.type === 'PapaArrived') inputMapper.resumeHeld();
@@ -1255,6 +1285,7 @@ export async function boot(): Promise<void> {
     worldUi.unmountThreats();
     worldUi.unmountObjects();
     worldUi.glyphChip.hide();
+    worldUi.comboBadge.hide();
     highlightedThreatId = null;
     // A pad lost in that level does not follow the player into the next one (the line is for the pause).
     shell.setPadDisconnected(false);

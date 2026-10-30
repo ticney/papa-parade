@@ -28,6 +28,9 @@
     "actionsDelayMs": 400,
     "inputGraceMs": 350
   },
+  "comboBadge": {
+    "cashInHoldMs": 900
+  },
   "cues": {
     "papa_bump": {
       "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
@@ -154,6 +157,13 @@
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
       "haptic": "medium"
     },
+    "combo_cashed_in": {
+      "audio": { "clip": "ui_combo_cash_in", "bus": "sfx", "gainPct": 100 },
+      "layers": [{ "clip": "baby_laugh_perfect", "bus": "voice", "gainPct": 100 }],
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 1.2, "durationMs": 500 },
+      "flash": { "peakOpacityPct": 35, "durationMs": 180 },
+      "haptic": "heavy"
+    },
     "tel_stairs": {
       "audio": { "clip": "tel_stairs", "bus": "sfx", "gainPct": 90 },
       "visual": {
@@ -207,6 +217,7 @@
     "SilenceStarted": "silence_started",
     "BabyPickedUp": "baby_picked_up",
     "BabyPutDown": "baby_put_down",
+    "ComboCashedIn": "combo_cashed_in",
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
     "ResultStarStamped": "result_star",

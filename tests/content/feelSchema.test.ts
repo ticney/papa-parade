@@ -93,6 +93,41 @@ describe('content/feel.json', () => {
       ],
       ['carry.armsCryMinMs'],
     ],
+    [
+      'a combo minimum at the maximum (story 4.2)',
+      [
+        ['combo.minMultiplier', 8],
+        ['combo.maxMultiplier', 8],
+      ],
+      ['combo.minMultiplier'],
+    ],
+    [
+      'a combo minimum above the maximum',
+      [
+        ['combo.minMultiplier', 5],
+        ['combo.maxMultiplier', 3],
+      ],
+      ['combo.minMultiplier'],
+    ],
+    ['a combo minimum of 0', [['combo.minMultiplier', 0]], ['combo.minMultiplier']],
+    ['a fractional combo maximum', [['combo.maxMultiplier', 4.5]], ['combo.maxMultiplier']],
+    ['a combo tick of 0 ms', [['combo.carryTickMs', 0]], ['combo.carryTickMs']],
+    [
+      'base points per response of 0 (a cash-in would be +0)',
+      [['combo.basePerResponsePoints', 0]],
+      ['combo.basePerResponsePoints'],
+    ],
+    [
+      'base points per tick of 0',
+      [['combo.basePerCarryTickPoints', 0]],
+      ['combo.basePerCarryTickPoints'],
+    ],
+    [
+      'a cash-in slow-mo below the minimum time scale',
+      [['combo.slowMoCashIn.timeScale', 0.01]],
+      ['combo.slowMoCashIn.timeScale'],
+    ],
+    ['a missing combo section', [['combo', undefined]], ['combo']],
     ['a missing carry.reachM', [['carry.reachM', undefined]], ['carry.reachM']],
     ['a reach of 0 (nothing would ever be in it)', [['carry.reachM', 0]], ['carry.reachM']],
     ['a negative carry.putDownOffsetM', [['carry.putDownOffsetM', -1]], ['carry.putDownOffsetM']],

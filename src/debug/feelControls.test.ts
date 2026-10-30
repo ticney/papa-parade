@@ -67,6 +67,22 @@ describe('describeFeelControls', () => {
     expect(root.children.map((child) => child.label)).toContain('carry');
   });
 
+  it('shows the combo section of the feel (story 4.2) with a control for each of its keys', () => {
+    const comboKeys = Object.keys(feel.combo);
+    expect(comboKeys.length).toBeGreaterThan(0);
+    const paths = leaves.map((leaf) => leaf.pathKey);
+    for (const key of comboKeys) {
+      if (key === 'slowMoCashIn') {
+        for (const sub of Object.keys(feel.combo.slowMoCashIn)) {
+          expect(paths).toContain(`combo.slowMoCashIn.${sub}`);
+        }
+      } else {
+        expect(paths).toContain(`combo.${key}`);
+      }
+    }
+    expect(root.children.map((child) => child.label)).toContain('combo');
+  });
+
   it('makes one folder per top-level section of the feel, in the schema’s order', () => {
     const titles = root.children.map((child) => child.label);
     expect(titles).toEqual(Object.keys(feel).filter((key) => key !== '$schema'));

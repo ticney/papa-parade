@@ -13,6 +13,7 @@ import {
   synthBabble,
   synthBabyLaugh,
   synthBump,
+  synthComboCashIn,
   synthDoorSlam,
   synthFirm,
   synthGagCoffeeTable,
@@ -278,6 +279,14 @@ describe('placeholder audio', () => {
     for (const clip of ['env_door_slam', 'ui_star_lost']) {
       expect(names, clip).toContain(clip);
     }
+  });
+
+  it('has a 520 ms combo cash-in clip, listed by the name the feedback table uses', () => {
+    expect(synthComboCashIn().length / SAMPLE_RATE_HZ).toBeCloseTo(0.52, 2);
+    expect(PLACEHOLDER_CLIPS.map(({ clip }) => clip)).toContain('ui_combo_cash_in');
+    expect(synthComboCashIn()).not.toEqual(
+      synthStarStampLast().slice(0, synthComboCashIn().length),
+    );
   });
 
   it('makes each telegraph and each gag sound unlike the others (no two clips are alike)', () => {

@@ -8,6 +8,7 @@ import { createWorld, type SlowMo, type World } from '../world.ts';
 import { slowMoFactorAt, startSlowMo, updateTimeScale } from './slowMo.ts';
 
 const { slowMoPerfect, slowMoLastThreat } = createTestContent().feel.timing;
+const { slowMoCashIn } = createTestContent().feel.combo;
 
 function newWorld(): World {
   return createWorld({
@@ -144,6 +145,30 @@ describe('startSlowMo and updateTimeScale', () => {
       previous = (change as { to: number }).to;
     }
     expect(previous).toBe(1);
+  });
+
+  describe('the combo cash-in source (story 4.2)', () => {
+    it('slows time down on its own and is gone at its end', () => {
+      const { world, ctx, run } = newRig();
+      startSlowMo(world, ctx, 'comboCashIn', slowMoCashIn);
+      expect(world.time.scale).toBe(slowMoCashIn.timeScale);
+      expect(world.time.slowMos.map((slowMo) => slowMo.source)).toEqual(['comboCashIn']);
+      run(slowMoCashIn.durationMs + slowMoCashIn.returnMs);
+      expect(world.time.slowMos).toEqual([]);
+      expect(world.time.scale).toBe(1);
+    });
+
+    it('during a perfect: the slowest scale wins and each keeps its own timer', () => {
+      const { world, ctx, run } = newRig();
+      startSlowMo(world, ctx, 'perfect', slowMoPerfect);
+      run(300);
+      startSlowMo(world, ctx, 'comboCashIn', slowMoCashIn);
+      expect(world.time.slowMos.map((slowMo) => slowMo.source)).toEqual(['perfect', 'comboCashIn']);
+      expect(world.time.scale).toBe(Math.min(slowMoPerfect.timeScale, slowMoCashIn.timeScale));
+      const [perfect, cashIn] = world.time.slowMos as [SlowMo, SlowMo];
+      expect(perfect.endsAt).toBe(slowMoPerfect.durationMs + slowMoPerfect.returnMs);
+      expect(cashIn.holdUntil).toBe(300 + slowMoCashIn.durationMs);
+    });
   });
 
   describe('overlap rule (AC 3)', () => {

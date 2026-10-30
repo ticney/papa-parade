@@ -50,6 +50,19 @@ export interface CarrySlice {
   armsCryAt: SimMs | null;
 }
 
+/**
+ * The combo (FR23, story 4.2). Every writer is in `scoring/combo.ts`, and all of them do nothing in a
+ * level with no `carry` (nowhere to cash in), so the slice stays at rest there.
+ */
+export interface ComboSlice {
+  /** From `feel.combo.minMultiplier`: +1 per successful response and per carry tick, back to the minimum on a gag or a cash-in. */
+  multiplier: number;
+  /** The base points the combo has piled up since it last reset; not whole. A cash-in is `multiplier * basePoints`. */
+  basePoints: number;
+  /** When the next carry tick is due, in sim time; null unless the baby is carried in a level with `carry`. */
+  carryTickAt: SimMs | null;
+}
+
 /** Papa's glide to a pressed threat: it ends by `arriveAt` and never decides a judgement. */
 export interface PapaGlide {
   threatId: number;
@@ -242,6 +255,8 @@ export interface ScoreSlice {
   perfects: number;
   /** `NearMiss` events. */
   nearMisses: number;
+  /** The sum of the points of every combo cashed in (story 4.2), not rounded; points not cashed when the level ends are lost. */
+  comboPoints: number;
   /** The note, from the step the level ended; null while it plays. */
   final: MamaScore | null;
 }
@@ -281,10 +296,14 @@ export interface FlowSlice {
 }
 
 /** What started a slow-mo. Story 1.18 triggers `lastThreat`; story 2.9 adds `instinct`. */
-export type SlowMoSource = 'perfect' | 'lastThreat';
+export type SlowMoSource = 'perfect' | 'lastThreat' | 'comboCashIn';
 
 /** Every `SlowMoSource`, as data: a snapshot is checked against it. */
-export const SLOW_MO_SOURCES = ['perfect', 'lastThreat'] as const satisfies readonly SlowMoSource[];
+export const SLOW_MO_SOURCES = [
+  'perfect',
+  'lastThreat',
+  'comboCashIn',
+] as const satisfies readonly SlowMoSource[];
 
 type UnlistedSlowMoSource = Exclude<SlowMoSource, (typeof SLOW_MO_SOURCES)[number]>;
 
@@ -338,6 +357,8 @@ export interface World {
   silence: SilenceSlice;
   /** Carrying the baby (story 4.1). */
   carry: CarrySlice;
+  /** The combo (story 4.2). */
+  combo: ComboSlice;
   /** What feeds Mama's note, and the note once the level has ended (story 1.22). */
   score: ScoreSlice;
   /**
@@ -457,7 +478,8 @@ export function createWorld({
     mess: { propsOnFloor: 0, propsBroken: 0, mischiefs: 0 },
     silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
     carry: { armsCryAt: null },
-    score: { perfects: 0, nearMisses: 0, final: null },
+    combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
+    score: { perfects: 0, nearMisses: 0, comboPoints: 0, final: null },
     feel: cloneJson(feel),
   };
 }

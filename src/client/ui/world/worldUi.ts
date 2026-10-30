@@ -1,7 +1,8 @@
-import type { ThreatInstance } from '@sim';
+import type { ComboSlice, ThreatInstance } from '@sim';
 import type { Camera, Scene } from 'three';
 import { Scene as ThreeScene } from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { type ComboBadge, type ComboBadgeOptions, createComboBadge } from './comboBadge.ts';
 import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
 import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
@@ -14,6 +15,8 @@ export interface WorldUi {
   readonly tapMarker: TapMarker;
   /** The one key or button glyph beside the auto-targeted threat (story 1.17). */
   readonly glyphChip: GlyphChip;
+  /** The multiplier above Papa, and the points of a cash-in (story 4.2). */
+  readonly comboBadge: ComboBadge;
   /** Mounts the threat icons of a level, replacing the previous level's (all hidden until a frame shows them). */
   mountThreats(entries: readonly ThreatMarkerEntry[]): void;
   /** Removes the threat icons (a restart hides the old ones before its countdown). */
@@ -35,6 +38,18 @@ export interface WorldUi {
     holdMinMs?: number,
     isBabyCarried?: boolean,
   ): boolean;
+  /**
+   * Once per frame, before `render`: the combo badge reads the combo and Papa's drawn pose. It moves
+   * aside while a threat that follows Papa (the micro-sleep, the cry in the arms) is up, so that its
+   * verb stays readable. `nowAtReal` is the real time of the frame, in ms. Allocation-free.
+   */
+  updateCombo(
+    combo: Readonly<ComboSlice>,
+    minMultiplier: number,
+    papa: Readonly<{ xM: number; zM: number }> | null,
+    threats: readonly Readonly<ThreatInstance>[],
+    nowAtReal: number,
+  ): void;
   /** Mounts the icons of the level's interactive objects (the coffee machine), replacing the previous level's. */
   mountObjects(objects: readonly ObjectMarkerSpec[]): void;
   /** Removes the object icons. */
@@ -57,7 +72,7 @@ export interface WorldUi {
    * Places the elements for this frame's camera: first the verb layout (the verbs that would overlap
    * are offset, the most urgent threat is in front) and the chip beside its verb, then the DOM renderer.
    * Returns at once, without calling the DOM renderer, while nothing in the layer is visible (no tap
-   * marker, no threat icon, no object icon, no chip).
+   * marker, no threat icon, no object icon, no chip, no combo badge).
    */
   render(camera: Camera): void;
   dispose(): void;
@@ -74,6 +89,7 @@ export function createWorldUi(
   container: HTMLElement,
   doc: Pick<Document, 'createElement' | 'createElementNS'> = document,
   metrics?: VerbMetrics,
+  comboOptions: ComboBadgeOptions = { translate: (key) => key, isMotionReduced: () => false },
 ): WorldUi {
   const renderer = new CSS2DRenderer({ element: container });
   renderer.sortObjects = false;
@@ -81,11 +97,26 @@ export function createWorldUi(
   const tapMarker = createTapMarker(scene, doc);
   const threats = createThreatMarkers(scene, doc, metrics);
   const glyphChip = createGlyphChip(scene, doc);
+  const comboBadge = createComboBadge(scene, doc, comboOptions);
   const objects = createObjectMarkers(scene, doc);
   return {
     scene,
     tapMarker,
     glyphChip,
+    comboBadge,
+    updateCombo(combo, minMultiplier, papa, threatInstances, nowAtReal) {
+      const entries = threats.entries;
+      let isAside = false;
+      for (let i = 0; i < entries.length; i++) {
+        if (!entries[i]?.followsPapa) continue;
+        const state = threatInstances[i]?.state;
+        if (state === 'telegraph' || state === 'windowOpen') {
+          isAside = true;
+          break;
+        }
+      }
+      comboBadge.update(combo.multiplier, minMultiplier, papa, isAside, nowAtReal);
+    },
     mountThreats: threats.mount,
     unmountThreats: threats.unmount,
     updateThreats: threats.update,
@@ -106,7 +137,8 @@ export function createWorldUi(
           tapMarker.isVisible ||
           threats.isAnyVisible ||
           objects.isAnyVisible ||
-          glyphChip.isVisible
+          glyphChip.isVisible ||
+          comboBadge.isVisible
         )
       ) {
         return;
@@ -119,6 +151,7 @@ export function createWorldUi(
     dispose() {
       tapMarker.dispose();
       glyphChip.dispose();
+      comboBadge.dispose();
       threats.dispose();
       objects.dispose();
     },
