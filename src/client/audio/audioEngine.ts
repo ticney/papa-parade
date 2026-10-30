@@ -297,6 +297,9 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
           cause,
         };
         warn(unlockError.message, cause);
+        // Nothing built on the closed context may be used: `music.start` has no context guard of its own.
+        graph = null;
+        music = null;
         closeContext(ctx);
         return err(unlockError);
       }

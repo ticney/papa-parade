@@ -228,6 +228,22 @@ describe('unlock', () => {
     expect(s.engine.state).toBe('none');
   });
 
+  it('keeps no music on that closed context when the unlock fails after the music was built', async () => {
+    const s = setup();
+    s.fake.addEventListener = () => {
+      throw new Error('no listeners');
+    };
+    expect(s.engine.unlock().ok).toBe(false);
+    // The unlock's own silent source is already there: no stem may join it.
+    const before = s.fake.sources.length;
+    await s.engine.preload(CLIPS);
+    s.engine.startLevelLoops();
+    s.engine.setMusicMuted(true);
+    s.engine.setMusicMuted(false);
+    expect(s.fake.sources).toHaveLength(before);
+    expect(s.loopChanges).toEqual([]);
+  });
+
   it('warns, and does not throw, when closing that context fails too', async () => {
     const s = setup();
     s.fake.failures.createGain = new Error('out of nodes');
@@ -529,6 +545,7 @@ describe('level loops', () => {
     expect(babbleGain?.connections).toEqual([s.fake.gains[3]]); // voice bus
     expect(musicFade?.gain.events).toEqual([
       { kind: 'set', value: 0, timeS: 2 },
+      { kind: 'set', value: 0, timeS: 2 + MUSIC_START_LEAD_MS / 1000 },
       {
         kind: 'ramp',
         value: table.loops.music.gainPct / 100,

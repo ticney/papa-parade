@@ -4,7 +4,7 @@ baseline_commit: d39a86c6431e8e74f59bc3e44e7dc48f6653e33e
 
 # Story 2.6: Basic adaptive music
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -100,6 +100,15 @@ so that I feel the threat coming and the slow-mo settling in.
 - [x] **T9. Goldens** (AC 12, 13): `npm run golden:update`; hashes only.
 - [x] **T10. Docs** (AC 14, 15): `deferred-work.md`, `project-context.md`.
 - [x] **T11. CI** (AC 16): `ci:fast` after each task; the full CI once at the end; report the perf numbers. On a loaded machine rerun with `--maxWorkers=5` / `--workers=4` and say so.
+
+### Review Findings
+
+Code review of 2026-10-30 (Blind Hunter, Edge Case Hunter, Acceptance Auditor). No `decision_needed`; 16 AC and 11 tasks confirmed implemented; the 9 golden pairs change only by `feelHash` / `worldHash`.
+
+- [x] [Review][Patch] The music's fade-in ramp starts at `now`, 50 ms before the stems: `setValueAtTime(0, now)` then a ramp ending at `startAtS + fadeMs`, so the audible fade is `fadeMs - 50` ms long and the music enters at about 11 % gain (a near-step with a shorter `fadeMs`). Pin the gain to 0 at `startAtS` before the ramp, and update the test that pins the old events [src/client/audio/adaptiveMusic.ts:203-206, src/client/audio/adaptiveMusic.test.ts:176]
+- [x] [Review][Patch] A failed unlock leaves `music` and `graph` set while `context` stays null: `startLevelLoops()` and `setMusicMuted(false)` then call `music.start` on a closed context (the old `startLoop` guarded on `context === null`), and `data-pp-music` mirrors `on` with no audio. Null `music` and `graph` in the unlock `catch`, and add a test [src/client/audio/audioEngine.ts:279-302, 391, 415]
+- [x] [Review][Defer] The low-pass sweep and the `playbackRate` ramp are linear in Hz; the ear is logarithmic, so the 900 Hz sweep may sound like a snap — deferred, a feel call the story already leaves to Geo (Dev Notes L144: `exponentialRampToValueAtTime` is a one-line change); judge it by playing
+- [x] [Review][Defer] `content:check` does not compare the two stems' lengths (it only checks that both files exist and are `music_*`); a real stem longer than the calm one makes the loops drift, with one runtime `warn` — deferred, the length lives in the decoded `.m4a`, which Node cannot measure without a decoder; judge on a device (story 7.5 / 8.2)
 
 ## Dev Notes
 
@@ -279,3 +288,4 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`)
 ### Change Log
 
 - 2026-10-30: Story 2.6 implemented. `loops.music.stems` (calm, tense) and `feel.music` (tense, slowMo) added; placeholder tense stem; `adaptiveMusic.ts` mixes the two synchronized stems from the world's state; engine `setMusicMood`; boot wiring and `data-pp-music-tense|slow` mirrors (+ counts); goldens regenerated (hashes only); e2e `adaptiveMusic.spec.ts`.
+- 2026-10-30: Code review. Two patches: the music's fade-in is pinned at 0 until the stems start (`adaptiveMusic.ts`), and a failed unlock clears `music` and `graph` so no music starts on a closed context (`audioEngine.ts`); tests updated and added. Two items deferred (linear filter sweep, stem length at content time). Status `done`.

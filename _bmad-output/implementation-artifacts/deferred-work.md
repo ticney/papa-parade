@@ -586,3 +586,8 @@
 - **One shared fade (`loops.music.fadeMs`)** covers the level start, the stop and the silence cut alike.
 - **The tense stem is a synthesized placeholder** (`music_crawler_tense.m4a`); the real one is story 7.5. How the mix sounds (80 % rate, 900 Hz, ducking to 60 %) only Geo can judge.
 - **A missing tense stem** plays the calm one alone: the tension does nothing, the slow-mo effect still applies to the calm stem.
+
+## Deferred from: code review of 2-6-musique-adaptative-de-base (2026-10-30)
+
+- **The low-pass sweep (and the `playbackRate` ramp) of the music's slow-mo are linear.** Reason: the ear is logarithmic, so 20 kHz → 900 Hz may sound like a late snap; a feel call, `exponentialRampToValueAtTime` is a one-line change (the bounds guarantee a value > 0), to judge by playing.
+- **`content:check` does not compare the two music stems' lengths.** Reason: it only checks that both files exist and are `music_*`; the length is in the decoded `.m4a`, which Node cannot measure without a decoder. A mismatch is one runtime `warn` and a drift; judge on a device (stories 7.5, 8.2).

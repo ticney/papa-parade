@@ -179,6 +179,7 @@ describe('createAdaptiveMusic, the start', () => {
     r.music.start(false, false);
     expect(r.fade().gain.events).toEqual([
       { kind: 'set', value: 0, timeS: 2 },
+      { kind: 'set', value: 0, timeS: 2 + MUSIC_START_LEAD_MS / 1000 },
       {
         kind: 'ramp',
         value: DEF.gainPct / 100,

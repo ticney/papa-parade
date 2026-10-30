@@ -200,9 +200,11 @@ export function createAdaptiveMusic(deps: AdaptiveMusicDeps): AdaptiveMusic {
         filter.connect(fade);
         fade.connect(graph.gains[def.bus]);
         const now = context.currentTime;
-        fade.gain.setValueAtTime(0, now);
         // The same `startAtS` for both stems: two `start(0)` calls could land in two render quanta.
         const startAtS = now + MUSIC_START_LEAD_MS / 1000;
+        // Pinned at 0 until the stems begin: the ramp must not spend `fadeMs` before anything plays.
+        fade.gain.setValueAtTime(0, now);
+        fade.gain.setValueAtTime(0, startAtS);
         fade.gain.linearRampToValueAtTime(def.gainPct / 100, startAtS + def.fadeMs / 1000);
         for (const source of sources) {
           source.start(startAtS);
