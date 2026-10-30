@@ -544,6 +544,13 @@ const FxSchema = z
           .min(0)
           .max(500)
           .describe('Time to reach the peak after the slow-mo starts, in **sim** ms.'),
+        refocusMs: z
+          .int()
+          .min(0)
+          .max(500)
+          .describe(
+            'Time the view takes to glide to the point of a new perfect while a move is under way, in **sim** ms (0 = a cut).',
+          ),
       })
       .describe('The camera move of a perfect response, driven by its slow-mo.'),
   })

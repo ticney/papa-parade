@@ -549,3 +549,10 @@
 - **The particles are provisional boxes starting from the ring's anchor**, lifted by `PARTICLE_ORIGIN_LIFT_M`: final art and the real response point are story 7.3 / E7.
 - **The stamp text is `stamp.perfect_parry`** (the key the strings file already had) rather than a new `stamp.perfect` key. `epicStamp.ts` takes its `text`, so the REPLAY banner (story 3.9) reuses it.
 - **Reduced-motion checklist for story 2.10**: see the Completion Notes of story 2.5. The in-game setting replaces the body of `prefersReducedMotion()` in `boot.ts` and nothing else.
+
+## Deferred from: code review of story-2-5-effets-de-feeling-a-l-ecran (2026-10-30)
+
+- **Shake, particles and stamp keep running during a pause while the camera and the sim-clocked rings hold.** Reason: by the real-time design of story 2.5 (a hitstop must not freeze the juice); Geo judges after playing whether a pause should hold them too.
+- **The camera blend clock (`sim − STEP_MS × (1 − alpha)`, `boot.ts`) runs 10 ms behind the rings and gags (`sim + alpha × STEP_MS`, `levelScene.ts`).** Reason: pre-existing, `updateThreats` in `boot.ts` uses the same formula; align both when the draw clock is unified.
+- **A shake that starts during another replaces it even when smaller (no max-merge).** Reason: documented as « replaces » in the shake contract; merge only if Geo feels a cut after playing.
+- **Art constants hard-coded: the stamp's scale-in share, fade-out start, tilt and entry scale (`epicStamp.ts`), `FOCUS_HEIGHT_M` (`cameraFx.ts`), `PARTICLE_ORIGIN_LIFT_M`, `PUFF_*`, `INK_EVERY` (`particles.ts`), `SHAKE_Z_RATIO`, the stamp's `top` and `z-index` (`ui.css`).** Reason: provisional art constants (Geo, 2026-10-30); move them into `feel.fx` if he retouches them after playing.

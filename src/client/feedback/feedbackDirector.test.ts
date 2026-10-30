@@ -137,7 +137,7 @@ const FX: Feel['fx'] = {
     shake: { amplitudeM: 0.04, durationMs: 250 },
     particles: { style: 'puff', count: 12, speedMps: 0.8, lifeMs: 650, sizeM: 0.12 },
   },
-  perfectCamera: { zoomPct: 18, yawDeg: 6, focusPct: 35, zoomInMs: 150 },
+  perfectCamera: { zoomPct: 18, yawDeg: 6, focusPct: 35, zoomInMs: 150, refocusMs: 200 },
 };
 
 const NOW_REAL = 5000;

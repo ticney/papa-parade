@@ -497,8 +497,10 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
 
         const render = (alpha: number, frameAtReal: number): void => {
           level.update(sim.world, alpha, asRealMs(frameAtReal));
-          // Whatever moves the camera (story 2.5) goes here: `onLevelFrame` runs after the draw.
-          deps.beforeRender?.(alpha, frameAtReal);
+          // Whatever moves the camera (story 2.5) goes here: `onLevelFrame` runs after the draw. Not
+          // once the loop is gone: a level that ended inside this very frame has just reset the
+          // camera, and the perfect slow-mo is still in its world.
+          if (loop !== null) deps.beforeRender?.(alpha, frameAtReal);
           renderer.render(level.scene, camera);
           deps.onLevelFrame(alpha, frameAtReal);
         };

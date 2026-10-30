@@ -339,6 +339,7 @@ describe('feel.fx (story 2.5)', () => {
         [p('success.particles.count'), 0],
         [p('perfect.stampMs'), 0],
         [p('perfectCamera.zoomInMs'), 0],
+        [p('perfectCamera.refocusMs'), 0],
       ),
     ).toMatchObject({ ok: true });
     expect(
@@ -384,6 +385,11 @@ describe('feel.fx (story 2.5)', () => {
     ['a yaw above 12 degrees', [[p('perfectCamera.yawDeg'), 13]], [p('perfectCamera.yawDeg')]],
     ['a focus above 60 %', [[p('perfectCamera.focusPct'), 61]], [p('perfectCamera.focusPct')]],
     ['a zoom-in over 500 ms', [[p('perfectCamera.zoomInMs'), 501]], [p('perfectCamera.zoomInMs')]],
+    [
+      'a refocus over 500 ms',
+      [[p('perfectCamera.refocusMs'), 501]],
+      [p('perfectCamera.refocusMs')],
+    ],
     ['a missing preset', [[p('perfect'), undefined]], [p('perfect')]],
     ['a missing fx block', [['fx', undefined]], ['fx']],
     ['an unknown preset', [[p('bogus'), {}]], [p('bogus')]],

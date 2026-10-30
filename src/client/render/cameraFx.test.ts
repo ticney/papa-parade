@@ -5,7 +5,6 @@ import { asSimMs } from '@shared/time';
 import type { World } from '@sim';
 import { type OrthographicCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createTestContent } from '../../../tests/support/testContent.ts';
 import { createCameraFx, perfectCameraBlendAt } from './cameraFx.ts';
 import { createIsoCamera, fitIsoCamera } from './isoCamera.ts';
 
@@ -14,6 +13,7 @@ const PERFECT_CAMERA: Feel['fx']['perfectCamera'] = {
   yawDeg: 8,
   focusPct: 50,
   zoomInMs: 100,
+  refocusMs: 100,
 };
 const ROOM = { widthM: 8, depthM: 6, heightM: 2.5 };
 
@@ -122,11 +122,10 @@ describe('createCameraFx', () => {
     fx.update(world, 2500, PERFECT_CAMERA, false);
     expect(snapshot(camera)).toEqual(before);
     expect(fx.yawDeg).toBe(0);
-    // Idle: a later frame writes nothing (the matrix version does not move).
-    const version = camera.matrixWorld.elements.slice();
-    camera.position.x += 0; // untouched on purpose
+    // Idle: a later frame writes nothing. A mark on the matrix would be erased by a rewrite.
+    camera.matrixWorld.elements[0] = 123;
     fx.update(world, 2600, PERFECT_CAMERA, false);
-    expect(camera.matrixWorld.elements).toEqual(version);
+    expect(camera.matrixWorld.elements[0]).toBe(123);
     expect(snapshot(camera)).toEqual(before);
   });
 
@@ -173,8 +172,11 @@ describe('createCameraFx', () => {
     // A resize: the camera is fitted again to another aspect, then the base is captured again.
     fitIsoCamera(camera, ROOM, 1);
     fx.captureBase();
-    const refit = snapshot(camera);
-    expect(refit.zoom).toBe(1);
+    // The expected base is a camera that never moved, fitted to the same aspect.
+    const reference = createIsoCamera();
+    fitIsoCamera(reference, ROOM, 1);
+    const refit = snapshot(reference);
+    expect(snapshot(camera)).toEqual(refit);
     fx.update(world, 2500, PERFECT_CAMERA, false);
     expect(snapshot(camera)).toEqual(refit);
     // And a new move starts from that new base.
@@ -191,16 +193,77 @@ describe('createCameraFx', () => {
     expect(snapshot(camera)).toEqual(before);
   });
 
-  it('follows the latest perfect: two in a row extend the slow-mo and move the focus', () => {
+  it('glides to the point of a second perfect over refocusMs instead of cutting', () => {
     const { camera, fx } = build();
+    const world = worldWith(slowMo(1000, 3000, 3300));
     fx.focusOn(2, -1);
-    const extended = worldWith(slowMo(1000, 3000, 3300));
-    fx.update(extended, 2500, PERFECT_CAMERA, false);
-    const first = camera.position.toArray();
+    fx.update(world, 2000, PERFECT_CAMERA, false);
+    const first = camera.position.clone();
     fx.focusOn(-3, 2);
-    fx.update(extended, 2500, PERFECT_CAMERA, false);
-    expect(camera.position.toArray()).not.toEqual(first);
+    // The frame of the second perfect: still where it was, no jump.
+    fx.update(world, 2000, PERFECT_CAMERA, false);
+    expect(camera.position.distanceTo(first)).toBeLessThan(1e-9);
+    // Half way: between the two (not yet there, no longer here).
+    fx.update(world, 2050, PERFECT_CAMERA, false);
+    const middle = camera.position.clone();
+    expect(middle.distanceTo(first)).toBeGreaterThan(1e-6);
+    // Done: the same pose as a camera that was leaning toward the second point from the start.
+    fx.update(world, 2100, PERFECT_CAMERA, false);
+    const arrived = camera.position.clone();
+    expect(arrived.distanceTo(middle)).toBeGreaterThan(1e-6);
+    const direct = build();
+    direct.fx.focusOn(-3, 2);
+    direct.fx.update(world, 2100, PERFECT_CAMERA, false);
+    expect(arrived.distanceTo(direct.camera.position)).toBeLessThan(1e-9);
+    // And it stays there: nothing moves any more.
+    fx.update(world, 2400, PERFECT_CAMERA, false);
+    expect(camera.position.distanceTo(arrived)).toBeLessThan(1e-9);
     expect(camera.zoom).toBeCloseTo(1.2, 12);
+  });
+
+  it('cuts to the new point with refocusMs 0, and starts on it when no move is under way', () => {
+    const { camera, fx } = build();
+    const world = worldWith(slowMo(1000, 3000, 3300));
+    const cut = { ...PERFECT_CAMERA, refocusMs: 0 };
+    fx.focusOn(2, -1);
+    fx.update(world, 2000, cut, false);
+    fx.focusOn(-3, 2);
+    fx.update(world, 2000, cut, false);
+    const direct = build();
+    direct.fx.focusOn(-3, 2);
+    direct.fx.update(world, 2000, cut, false);
+    expect(camera.position.distanceTo(direct.camera.position)).toBeLessThan(1e-9);
+    // A fresh move after the end of the last one does not glide from the old point.
+    fx.update(world, 4000, cut, false);
+    fx.focusOn(1, 1);
+    const later = worldWith(slowMo(5000, 7000, 7300));
+    fx.update(later, 5500, PERFECT_CAMERA, false);
+    const fresh = build();
+    fresh.fx.focusOn(1, 1);
+    fresh.fx.update(later, 5500, PERFECT_CAMERA, false);
+    expect(camera.position.distanceTo(fresh.camera.position)).toBeLessThan(1e-9);
+  });
+
+  it('forgets the focus on reset: a perfect with no point does not pan toward the last level', () => {
+    const { camera, fx } = build();
+    const base = camera.position.clone();
+    fx.focusOn(3, 2);
+    fx.update(worldWith(slowMo(1000, 2200, 2500)), 1500, { ...PERFECT_CAMERA, yawDeg: 0 }, false);
+    expect(camera.position.distanceTo(base)).toBeGreaterThan(1e-6);
+    fx.reset();
+    fx.update(worldWith(slowMo(1000, 2200, 2500)), 1500, { ...PERFECT_CAMERA, yawDeg: 0 }, false);
+    expect(camera.position.distanceTo(base)).toBeLessThan(1e-9);
+  });
+
+  it('applies a live change of the tuning while the move is held', () => {
+    const { camera, fx } = build();
+    const world = worldWith(slowMo(1000, 2200, 2500));
+    fx.update(world, 1500, PERFECT_CAMERA, false);
+    expect(camera.zoom).toBeCloseTo(1.2, 12);
+    fx.update(world, 1500, { ...PERFECT_CAMERA, zoomPct: 30 }, false);
+    expect(camera.zoom).toBeCloseTo(1.3, 12);
+    fx.update(world, 1500, { ...PERFECT_CAMERA, zoomPct: 30, yawDeg: 0 }, false);
+    expect(fx.yawDeg).toBe(0);
   });
 
   it('allocates nothing per frame: update has no `new` and no clone', () => {
@@ -211,10 +274,6 @@ describe('createCameraFx', () => {
     const body = source.slice(start, end);
     expect(body).not.toMatch(/\bnew \w/);
     expect(body).not.toMatch(/\.clone\(/);
-  });
-
-  it('reads its tuning from the shipped test feel (a valid block)', () => {
-    const { perfectCamera } = createTestContent().feel.fx;
-    expect(perfectCamera.zoomPct).toBeGreaterThanOrEqual(0);
+    expect(body).not.toMatch(/\.\.\./);
   });
 });

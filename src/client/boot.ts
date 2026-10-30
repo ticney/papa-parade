@@ -691,7 +691,10 @@ export async function boot(): Promise<void> {
         prefersReducedMotion(),
       );
     },
-    onFxReset: () => cameraFx.reset(),
+    onFxReset: () => {
+      cameraFx.reset();
+      epicStamp.cancel();
+    },
     onLevelFrame: (alpha, frameAtReal) => {
       // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
       // Once the level has ended the sim is frozen with `babbling` as it was: silence it.

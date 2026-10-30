@@ -14,6 +14,7 @@ import {
 import {
   ppAdvance,
   ppCueLog,
+  ppEvents,
   ppFreeze,
   ppFx,
   ppLoadLevel,
@@ -189,12 +190,17 @@ test.describe('the picture reacts (story 2.5)', () => {
         { capture: true },
       );
     });
+    const eventsBefore = (await ppEvents(page)).length;
     await page.mouse.click(centre.x, centre.y);
     const targets = await page.evaluate(
       () => (window as unknown as { __tapTargets: string[] }).__tapTargets,
     );
     expect(targets).toHaveLength(1);
     expect(targets[0]).not.toContain('pp-epic-stamp');
+    // The game got the tap: the level is frozen, so one step lets the sim take what was sent.
+    await ppAdvance(page, 2);
+    const fresh = (await ppEvents(page, eventsBefore)).map((event) => event.type);
+    expect(fresh).toEqual(expect.arrayContaining(['PapaPathPlanned']));
     expect(problems).toEqual([]);
   });
 });

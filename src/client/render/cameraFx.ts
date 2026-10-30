@@ -36,7 +36,11 @@ export function perfectCameraBlendAt(
 export interface CameraFx {
   /** Takes the camera's current pose as the framing to move around: call it after every `fitIsoCamera`. */
   captureBase(): void;
-  /** The floor point the next perfect move leans toward (the resolved threat). */
+  /**
+   * The floor point the move leans toward (the resolved threat). With a move under way the view
+   * glides to it over `refocusMs` of sim time (counted from the next `update`); otherwise it is
+   * there at once.
+   */
   focusOn(xM: number, zM: number): void;
   /**
    * Moves the camera for the sim time `clockMs`, around the captured framing. Call it every
@@ -69,12 +73,22 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
   const baseCentre = new Vector3();
   const baseQuaternion = new Quaternion();
   const centre = new Vector3();
+  // The focus the view leans toward now, the one it left and the one it goes to (a new perfect
+  // while a move is under way glides between them instead of cutting).
   const focus = new Vector3();
+  const focusFrom = new Vector3();
+  const focusTo = new Vector3();
   let isFocused = false;
+  let isRefocusPending = false;
+  let refocusStartMs = 0;
+  let isRefocusing = false;
   let isDisplaced = false;
   // The inputs of the last write: nothing is written again while they are the same.
   let appliedBlend = -1;
   let appliedReduced = false;
+  let appliedZoomPct = -1;
+  let appliedYawDeg = -1;
+  let appliedFocusPct = -1;
   let isDirty = true;
   let yawDeg = 0;
 
@@ -104,8 +118,8 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       isDirty = true;
     },
     focusOn(xM, zM) {
-      focus.set(xM, FOCUS_HEIGHT_M, zM);
-      isFocused = true;
+      focusTo.set(xM, FOCUS_HEIGHT_M, zM);
+      isRefocusPending = true;
       isDirty = true;
     },
     update(world, clockMs, perfectCamera, isMotionReduced) {
@@ -119,7 +133,38 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
         if (isDisplaced) restore();
         return;
       }
-      if (!isDirty && blend === appliedBlend && isMotionReduced === appliedReduced) return;
+      if (isRefocusPending) {
+        isRefocusPending = false;
+        // A move under way glides from where the view leans now; a fresh one starts on the point.
+        if (isDisplaced && isFocused && perfectCamera.refocusMs > 0) {
+          focusFrom.copy(focus);
+          refocusStartMs = clockMs;
+          isRefocusing = true;
+        } else {
+          focus.copy(focusTo);
+          isRefocusing = false;
+        }
+        isFocused = true;
+      }
+      if (isRefocusing) {
+        const glide = Math.min(
+          1,
+          Math.max(0, (clockMs - refocusStartMs) / perfectCamera.refocusMs),
+        );
+        focus.lerpVectors(focusFrom, focusTo, smoothstep(glide));
+        if (glide === 1) isRefocusing = false;
+        isDirty = true;
+      }
+      if (
+        !isDirty &&
+        blend === appliedBlend &&
+        isMotionReduced === appliedReduced &&
+        perfectCamera.zoomPct === appliedZoomPct &&
+        perfectCamera.yawDeg === appliedYawDeg &&
+        perfectCamera.focusPct === appliedFocusPct
+      ) {
+        return;
+      }
       const capPct = isMotionReduced ? REDUCED_MOTION_ZOOM_CAP_PCT / 100 : 1;
       const k = isFocused ? (perfectCamera.focusPct / 100) * capPct * blend : 0;
       // Pan: the view centre moves toward the focus point, the position with it (orthographic: the
@@ -146,10 +191,17 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       isDirty = false;
       appliedBlend = blend;
       appliedReduced = isMotionReduced;
+      appliedZoomPct = perfectCamera.zoomPct;
+      appliedYawDeg = perfectCamera.yawDeg;
+      appliedFocusPct = perfectCamera.focusPct;
       yawDeg = turnDeg;
     },
     reset() {
       if (isDisplaced) restore();
+      // The next move leans toward nothing until its own perfect says where: no stale point.
+      isFocused = false;
+      isRefocusPending = false;
+      isRefocusing = false;
       isDirty = true;
     },
     get zoom() {

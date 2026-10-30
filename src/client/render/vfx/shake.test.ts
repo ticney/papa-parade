@@ -47,9 +47,9 @@ describe('createShake (real time)', () => {
       }
       return count;
     };
-    // 250 ms at 14 Hz is 3.5 cycles: about 7 zero crossings, with a short and a long shake alike.
-    expect(Math.abs(crossings(400) - 7)).toBeLessThanOrEqual(1);
-    expect(Math.abs(crossings(1000) - 7)).toBeLessThanOrEqual(1);
+    // 250 ms at 14 Hz: a zero every 35.7 ms, the 7th would fall at 250 ms: 6 crossings, short or long.
+    expect(crossings(400)).toBe(6);
+    expect(crossings(1000)).toBe(6);
   });
 
   it('moves while the sim clock stands still: it is driven by the real clock alone', () => {

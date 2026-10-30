@@ -204,8 +204,11 @@ describe('content/feedback.json', () => {
 
   it('refuses the removed camera member', () => {
     const camera = { kind: 'shake', amplitudeM: 0.1, durationMs: 100 };
-    const failed = failedPaths(mutated(['cues.countdown_tick', { camera }]));
-    expect(failed.some((path) => path.startsWith('cues.countdown_tick'))).toBe(true);
+    // The real cue, untouched but for the old member: nothing else can be what fails.
+    const cue = (real as { cues: Record<string, Json> }).cues.countdown_tick as Json;
+    expect(parse(real)).toMatchObject({ ok: true });
+    const failed = failedPaths(mutated(['cues.countdown_tick', { ...cue, camera }]));
+    expect(failed).toEqual(['cues.countdown_tick.camera']);
   });
 
   describe('pulsing sound waves (story 2.4)', () => {

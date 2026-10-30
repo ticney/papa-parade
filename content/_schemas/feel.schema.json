@@ -1140,13 +1140,20 @@
               "minimum": 0,
               "maximum": 500,
               "description": "Time to reach the peak after the slow-mo starts, in **sim** ms."
+            },
+            "refocusMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 500,
+              "description": "Time the view takes to glide to the point of a new perfect while a move is under way, in **sim** ms (0 = a cut)."
             }
           },
           "required": [
             "zoomPct",
             "yawDeg",
             "focusPct",
-            "zoomInMs"
+            "zoomInMs",
+            "refocusMs"
           ],
           "additionalProperties": false,
           "description": "The camera move of a perfect response, driven by its slow-mo."

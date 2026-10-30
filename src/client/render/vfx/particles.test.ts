@@ -175,6 +175,8 @@ describe('createParticles', () => {
     const start = source.indexOf('    update(nowReal) {');
     const end = source.indexOf('    get aliveCount()');
     expect(start).toBeGreaterThan(0);
-    expect(source.slice(start, end)).not.toMatch(/\bnew \w/);
+    const body = source.slice(start, end);
+    expect(body).not.toMatch(/\bnew \w/);
+    expect(body).not.toMatch(/\.\.\.|=>|\.map\(|\.slice\(/);
   });
 });

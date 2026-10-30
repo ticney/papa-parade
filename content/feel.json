@@ -200,7 +200,8 @@
       "zoomPct": 18,
       "yawDeg": 6,
       "focusPct": 35,
-      "zoomInMs": 150
+      "zoomInMs": 150,
+      "refocusMs": 200
     }
   }
 }

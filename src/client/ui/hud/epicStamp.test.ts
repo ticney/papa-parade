@@ -63,6 +63,15 @@ describe('createEpicStamp', () => {
     expect(String(keyframes[0]?.transform)).toContain('rotate');
   });
 
+  it('keeps the offsets in time: the whole animation is linear, only the scale-in eases', () => {
+    const { stamp, element } = setup();
+    stamp.show(800, false);
+    const [animation] = element.animations;
+    expect(animation?.options.easing).toBe('linear');
+    expect(animation?.keyframes[0]?.easing).toBe('ease-out');
+    expect(animation?.keyframes.slice(1).every((frame) => frame.easing === undefined)).toBe(true);
+  });
+
   it('never lasts longer than the UX ceiling, whatever it is asked', () => {
     const { stamp, element } = setup();
     stamp.show(5000, false);
@@ -80,6 +89,15 @@ describe('createEpicStamp', () => {
     expect(element.animations[0]?.options.duration).toBe(800);
   });
 
+  it('cancel ends the stamp under way, and is harmless with none', () => {
+    const { stamp, element } = setup();
+    expect(() => stamp.cancel()).not.toThrow();
+    stamp.show(800, false);
+    stamp.cancel();
+    expect(element.animations[0]?.cancelled).toBe(true);
+    expect(() => stamp.cancel()).not.toThrow();
+  });
+
   it('restarts: the previous animation is cancelled, and there is still one element', () => {
     const { stamp, element, created } = setup();
     stamp.show(800, false);
@@ -94,7 +112,7 @@ describe('ui.css › .pp-epic-stamp', () => {
   const css = readFileSync(new URL('../styles/ui.css', import.meta.url), 'utf8');
   const rule = /\.pp-epic-stamp\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
 
-  it('never takes a tap or focus, hidden when idle, above the flash and below the panels', () => {
+  it('never takes a tap or focus, is hidden when idle, and sits above the flash', () => {
     expect(rule).toContain('pointer-events: none');
     expect(rule).toContain('opacity: 0');
     expect(rule).toContain('position: fixed');

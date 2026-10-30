@@ -17,6 +17,8 @@ export interface EpicStamp {
    * is always shown (the cue's author decides how often).
    */
   show(durationMs: number, isMotionReduced: boolean): boolean;
+  /** Ends the stamp under way at once (level end, restart, loading, error); nothing if there is none. */
+  cancel(): void;
 }
 
 export const EPIC_STAMP_CLASS = 'pp-epic-stamp';
@@ -61,6 +63,8 @@ export function createEpicStamp(doc: Doc, options: EpicStampOptions): EpicStamp 
               opacity: 0,
               transform: `scale(${STAMP_IN_SCALE}) rotate(${STAMP_IN_TILT_DEG}deg)`,
               offset: 0,
+              // Only the scale-in eases: an easing on the whole animation would warp the offsets below.
+              easing: 'ease-out',
             },
             { opacity: 1, transform: REST, offset: STAMP_IN_SHARE },
             { opacity: 1, transform: REST, offset: STAMP_OUT_FROM },
@@ -68,9 +72,13 @@ export function createEpicStamp(doc: Doc, options: EpicStampOptions): EpicStamp 
           ];
       running = element.animate(keyframes, {
         duration: Math.min(durationMs, EPIC_STAMP_MAX_MS),
-        easing: 'ease-out',
+        easing: 'linear',
       });
       return true;
+    },
+    cancel() {
+      running?.cancel();
+      running = null;
     },
   };
 }
