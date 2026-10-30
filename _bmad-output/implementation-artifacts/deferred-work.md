@@ -644,3 +644,25 @@
 - **The sim does not refuse a `toilet` object in a level without `gauges.need`.** Only `content:check` does, as for the coffee machine. Reason: same trust level as the coffee; harden both in `createSim` if a hand-built level ever skips `content:check`.
 - **A cash-in « +N » hold or a rise popping while Papa is `onToilet` elapses unseen** (the badge has no pose to follow). Reason: narrow (a cash-in needs a safe put-down, then the walk in); same real-time clock as the existing cash-in entry.
 - **`toilet.spec.ts › Papa is drawn again` compares two screenshots by inequality.** Any pixel change passes. Reason: assert the away state through a debug view probe when `__PP__` has one.
+
+## Story 2-7-calibration-de-la-latence (2026-10-30)
+
+- **The Recalibrate row of the settings screen** (`settings → calibration → settings`). Reason: story 2.8. `calibrationFlow.startRecalibration(returnTo)` already serves it with a table alone (the flow test uses an extended `APP_TRANSITIONS`); no settings row is built here.
+- **`audioOffsetMs` is stored but read by nobody** until E4 (the audio-judged mechanics). Reason: the epic stores it; a skipped audio phase borrows the visual offset.
+- **A player who cannot reach 5 valid taps in the visual phase has no way out** (the phase re-proposes itself indefinitely, as the epic says). Reason: open point 3 of the story; a « Plus tard » button is Geo's call, not built.
+- **The offsets are not in the exported playtest journal** (`papa-parade.journal`). Reason: a replay of a calibrated game cannot rebuild the corrected stamps, only the journaled `t` they produced (and `SetInputLag`); adding the offsets to the summary is a schema change for story 3.3's file.
+- **A device change does not re-trigger the calibration**: `device` (`<target>-<touch|desktop>`) is stored and read by nobody. Reason: not in the ACs; compare it with the current device at boot if a player ever changes screen.
+- **`SetInputLag` makes the `late` gag, and a Firmness's ring, come `lagMs` later on a calibrated device** (up to 250 ms), by design (D1, validated by Geo). Reason: open point 1; whether it feels fair is for a phone to say (`docs/playtest/device-measurements.md`). The micro-sleep is a normal threat and follows the same expiry; the sim reads a command's `t` for `PressThreat` and `Release` only, so no other system waits.
+- **Pad start: the audio phase is skipped on its own** (`audioSkipped: true`, one `warn` on `audio`), since a pad press is no user activation and the context stays suspended. Reason: open point 4; acceptable until E4 reads the audio offset.
+- **The beep is a synthesized placeholder** (`ui_calibration_beep.m4a`); story 7.5 replaces it. Whether 1 kHz for 90 ms is the right sound to align a tap to only Geo can judge.
+- **`leadInMs`, `tailMs`, `doneHoldMs` and `pulseMs` are guesses** (`feel.calibration`). Reason: open point 2; tune them by playing.
+
+## Deferred from: code review of story 2-7-calibration-de-la-latence (2026-10-30)
+
+- **The audio phase waits a fixed `audioWaitMs` for « ready »**, which covers both the beep's decode on a cold network and a suspended context (iOS `resume()`): either gives `audioSkipped: true` with a `warn`. Reason: `audioOffsetMs` is read by nobody until E4; split the two waits then.
+- **The audio context can leave `running` after the 8 beeps are scheduled** (a phone call, no `visibilitychange`): the beats go on in real time, the beeps freeze, a skewed offset is saved. Reason: rare, and the audio offset is unread until E4; check `audio.availability()` in `runAudioFrame` then.
+- **Any tap in the `retry` mode restarts the phase at once**, including a rhythm tap right after the tail. Reason: a feel call; add a short ignore window to `feel.calibration` if playtests show a loop.
+- **`lagMs` is read from `world.input` at each step and counted in sim ms**: a recalibration during a live level moves the expiry of an open window, and under slow-mo sim time runs slower than real time. Reason: a mid-level recalibration is story 2.8's; latch `lagMs` per threat at `windowOpen` and decide real versus sim ms there.
+- **With unusable storage (private window) the calibration lives in memory only and every launch repeats it.** Reason: accepted by AC 13 (the write only warns); a `sessionStorage` fallback is a platform decision for story 2.8 or the playtest tooling.
+- **`setAside` overwrites `papa-parade.save.invalid` on a second unusable save, and a save from a newer version is replaced by defaults after being set aside.** Reason: no second schema version exists yet; keep the first copy and run on in-memory defaults for a future version when story 2.8 adds v2.
+- **No way out of the visual phase on a first launch** (open point 3 of story 2.7): a player who cannot reach `minValidTaps` loops on « too few taps » for ever, and `onStart` sends every new device through it. Reason: Geo's call (2026-10-30), keep the epic's letter (no exit); revisit after the playtest, with a « Plus tard » button or offset 0 after N failed attempts (`feel.calibration.maxAttempts`).

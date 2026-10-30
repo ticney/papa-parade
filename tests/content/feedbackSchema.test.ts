@@ -292,6 +292,19 @@ describe('content/feedback.json', () => {
   });
 
   it.each<[string, [string, unknown][], string]>([
+    ['a missing calibration block', [['calibration', undefined]], 'calibration'],
+    ['a missing calibration beep', [['calibration.beep', undefined]], 'calibration.beep'],
+    ['an unknown key in calibration', [['calibration.bogus', 1]], 'calibration.bogus'],
+    [
+      'a calibration beep with no category',
+      [['calibration.beep.clip', 'beep']],
+      'calibration.beep.clip',
+    ],
+    [
+      'a calibration beep above 100 %',
+      [['calibration.beep.gainPct', 101]],
+      'calibration.beep.gainPct',
+    ],
     ['a missing comboBadge (story 4.2)', [['comboBadge', undefined]], 'comboBadge'],
     ['an unknown key in comboBadge', [['comboBadge.bogusMs', 1]], 'comboBadge.bogusMs'],
     ['a cash-in hold of 0 ms', [['comboBadge.cashInHoldMs', 0]], 'comboBadge.cashInHoldMs'],

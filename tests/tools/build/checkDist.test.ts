@@ -86,6 +86,8 @@ const JS_PROD = new Map([
 ]);
 const JS_PLAYTEST = new Map([
   ...JS_PROD,
+  // The calibration mirrors are in the main chunk, behind `isMirrored` (story 2.7).
+  ['assets/boot-a.js', 'mirror("ppCalibration", phase);'],
   ['assets/testApi-a.js', 'window.__PP__ = api; installTestApi; cueLog'],
   ['assets/autoplay-a.js', 'installAutoplay'],
   ['assets/perfHud-a.js', 'installPerfHud pp-debug-perf copyLog'],
@@ -306,6 +308,10 @@ describe('inspectDist: playtest', () => {
     const { problems } = inspectDist(playtestInput({ manifest }), 'playtest');
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain('playtest bundle lacks src/debug/playtestJournal.ts');
+  });
+
+  it('forbids the story 2.7 calibration mirrors in a store build', () => {
+    expect(PROD_FORBIDDEN_MARKERS).toContain('ppCalibration');
   });
 
   it('forbids the story 3.3 journal markers in a store build', () => {

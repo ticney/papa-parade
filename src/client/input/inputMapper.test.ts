@@ -71,6 +71,7 @@ function setup() {
   const markers: [number, number][] = [];
   const taps: [number, number][] = [];
   let nowAtReal = 2000;
+  let visualOffsetMs = 0;
   const pressedIds: number[] = [];
   let targets: ThreatTargets | null = null;
   const moveIntent = createMoveIntent({
@@ -123,6 +124,7 @@ function setup() {
     showTapMarker: (x, z) => markers.push([x, z]),
     onTap: (x, z) => taps.push([x, z]),
     nowAtReal: () => nowAtReal,
+    visualOffsetMs: () => visualOffsetMs,
   });
   return {
     mapper,
@@ -153,6 +155,7 @@ function setup() {
       return { sim: other, timeMap: clock } as unknown as ActiveLevel;
     },
     setNow: (ms: number) => (nowAtReal = ms),
+    setOffset: (ms: number) => (visualOffsetMs = ms),
   };
 }
 
@@ -1398,5 +1401,151 @@ describe('createInputMapper: the toilet (story 4.3)', () => {
       expect(markers).toEqual([]);
       expect(taps).toEqual([]);
     });
+  });
+});
+
+describe('createInputMapper: the calibration offset (story 2.7)', () => {
+  const ICON = {
+    threatId: 4,
+    xM: -3,
+    yM: 0.3,
+    zM: 0.5,
+    icon: 'bolt' as const,
+    followsPapa: false,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
+  };
+  const threatInWorld = {
+    id: 4,
+    state: 'windowOpen',
+    xM: -3,
+    zM: 0.5,
+    windowOpenAt: 1000,
+    responseWindow: { windowMs: 600, perfectMs: 100, toleranceMs: 30, bufferMs: 100 },
+  } as never;
+
+  function withThreat(offsetMs: number) {
+    const env = setup();
+    env.setOffset(offsetMs);
+    env.sim.world.threats = [threatInWorld];
+    env.setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+    const probe = new Vector3(ICON.xM, ICON.yM, ICON.zM).project(env.camera);
+    const iconPx = {
+      x: RECT.left + ((probe.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - probe.y) / 2) * RECT.height,
+    };
+    return { ...env, iconPx };
+  }
+
+  it('moves nothing at an offset of 0: every stamp is the raw event stamp', () => {
+    const { mapper, commands, iconPx } = withThreat(0);
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y, { timeStamp: 1500 }));
+    mapper.handlePointerUp(click(iconPx.x, iconPx.y, { timeStamp: 1620 }));
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 500, threatId: 4 },
+      { type: 'Release', t: 620 },
+    ]);
+  });
+
+  it('subtracts the offset from a press and from its release alike, so a hold keeps its length', () => {
+    const { mapper, commands, iconPx } = withThreat(100);
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y, { timeStamp: 1500 }));
+    mapper.handlePointerUp(click(iconPx.x, iconPx.y, { timeStamp: 1620 }));
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 400, threatId: 4 },
+      { type: 'Release', t: 520 },
+    ]);
+  });
+
+  it('subtracts it from a floor tap, a baby tap and an object tap', () => {
+    const floor = setup();
+    floor.setOffset(100);
+    floor.mapper.handlePointerDown(
+      click(RECT.left + RECT.width / 2, RECT.top + RECT.height / 2, { timeStamp: 1234 }),
+    );
+    expect(floor.commands[0]).toMatchObject({ type: 'TapFloor', t: 134 });
+
+    const object = setup();
+    object.setOffset(100);
+    const target = { id: 'coffee_machine', xM: 2, yM: 0.5, zM: -1 } as ObjectTarget;
+    object.setObjects([target]);
+    const probe = new Vector3(target.xM, target.yM, target.zM).project(object.camera);
+    object.mapper.handlePointerDown(
+      click(
+        RECT.left + ((probe.x + 1) / 2) * RECT.width,
+        RECT.top + ((1 - probe.y) / 2) * RECT.height,
+        { timeStamp: 1234 },
+      ),
+    );
+    expect(object.commands[0]).toMatchObject({ type: 'TapObject', t: 134 });
+  });
+
+  it('subtracts it from the movement keys', () => {
+    const { mapper, held, commands, setOffset } = setup();
+    setOffset(100);
+    held.add('KeyD');
+    mapper.onKeysChanged(1500);
+    expect(commands[0]).toMatchObject({ type: 'Move', t: 400 });
+    held.clear();
+    mapper.onKeysChanged(1600);
+    expect(commands[1]).toEqual({ type: 'MoveStop', t: 500 });
+  });
+
+  it('subtracts it from Space down and up', () => {
+    const { mapper, commands } = withThreat(100);
+    mapper.handleAction('down', 1500, 'keyboard');
+    mapper.handleAction('up', 1620, 'keyboard');
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 400, threatId: 4 },
+      { type: 'Release', t: 520 },
+    ]);
+  });
+
+  it('subtracts it from the pad edge stamps (A down and up) and from the stick, stamped at now', () => {
+    const { mapper, pad, commands, state, setNow } = withThreat(100);
+    pad.isPresent = true;
+    pad.stampAtReal = 1990;
+    pad.pressed = ['confirm'];
+    mapper.pollGamepad();
+    pad.stampAtReal = 2040;
+    pad.released = ['confirm'];
+    mapper.pollGamepad();
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 890, threatId: 4 },
+      { type: 'Release', t: 940 },
+    ]);
+    // The stick's Move is stamped at "now" (real 2000 -> sim 1000), also corrected.
+    commands.length = 0;
+    setNow(2000);
+    state.stick = { x: 1, y: 0 };
+    mapper.pollGamepad();
+    expect(commands[0]).toMatchObject({ type: 'Move', t: 900 });
+  });
+
+  it('keeps the sim clock stamp of a resume uncorrected: it is not an input stamp', () => {
+    const { mapper, held, commands, setOffset } = setup();
+    setOffset(100);
+    held.add('KeyD');
+    mapper.resync();
+    expect(commands[0]).toMatchObject({ type: 'Move', t: 777 });
+  });
+
+  it('applies a new offset to the very next input', () => {
+    const { mapper, commands, setOffset, iconPx } = withThreat(0);
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y, { timeStamp: 1500 }));
+    setOffset(250);
+    mapper.handlePointerUp(click(iconPx.x, iconPx.y, { timeStamp: 1620 }));
+    // A hold across a recalibration: the Release is not dated before its press.
+    expect(commands[1]).toEqual({ type: 'Release', t: 500 });
+  });
+
+  it('handles a negative offset: the stamp moves ahead of the event', () => {
+    const { mapper, commands, iconPx } = withThreat(-50);
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y, { timeStamp: 1500 }));
+    expect(commands[0]).toEqual({ type: 'PressThreat', t: 550, threatId: 4 });
   });
 });

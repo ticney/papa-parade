@@ -243,6 +243,14 @@ const ResultScreenSchema = z
     'The sequence of the Result screen (story 1.22): rows, then stars, then buttons. Real time: the sim never reads it.',
   );
 
+const CalibrationFeedbackSchema = z
+  .strictObject({
+    beep: AudioCueSchema.describe(
+      'The beep of the audio phase. Not a cue: the ring and the flash are the visual measure, and calibration has no vibration (EXPERIENCE.md).',
+    ),
+  })
+  .describe('The sounds of the latency calibration (story 2.7).');
+
 const ComboBadgeSchema = z
   .strictObject({
     cashInHoldMs: realMs(
@@ -265,6 +273,7 @@ export const FeedbackTableSchema = z
     haptics: HapticsSchema,
     loops: LoopsSchema,
     resultScreen: ResultScreenSchema,
+    calibration: CalibrationFeedbackSchema,
     comboBadge: ComboBadgeSchema,
     papaHint: PapaHintSchema,
     cues: z

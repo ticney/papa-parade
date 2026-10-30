@@ -55,8 +55,8 @@ export function createCommandQueue(): CommandQueue {
 
 /**
  * System: moves the commands due at this step (the one ending at `sim + STEP_MS`) into
- * `ctx.commands`, and applies the `SetFeel`s among them (story 2.1) right here, first of the step,
- * so every system after it reads the new feel. A `SetFeel` that reaches an ended level is ignored
+ * `ctx.commands`, and applies the `SetFeel`s among them (story 2.1) and the `SetInputLag`s (story
+ * 2.7) right here, first of the step, so every system after it reads the new feel and the new lag. A `SetFeel` that reaches an ended level is ignored
  * like any command; one that does not fit the feel's shape is ignored and reported.
  */
 export function applyCommands(world: World, ctx: StepContext): void {
@@ -65,6 +65,10 @@ export function applyCommands(world: World, ctx: StepContext): void {
   if (world.flow.state === 'ended') return;
   for (let i = 0; i < ctx.commands.length; i++) {
     const command = ctx.commands[i] as SimCommand;
+    if (command.type === 'SetInputLag') {
+      world.input.lagMs = command.lagMs;
+      continue;
+    }
     if (command.type !== 'SetFeel') continue;
     const next = applyFeelPatch(world.feel, command.patch);
     if (next === null) {

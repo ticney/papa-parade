@@ -28,6 +28,9 @@
     "actionsDelayMs": 400,
     "inputGraceMs": 350
   },
+  "calibration": {
+    "beep": { "clip": "ui_calibration_beep", "bus": "ui", "gainPct": 100 }
+  },
   "comboBadge": {
     "cashInHoldMs": 900
   },

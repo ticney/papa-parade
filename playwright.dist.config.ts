@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { calibratedStorageState } from './tests/e2e/support/calibratedSave.ts';
 import { e2eDistPort } from './tests/e2e/support/e2ePort.ts';
 
 // The e2e of the BUILT playtest bundle (story 1.24): `npm run e2e:dist`. It serves the existing
@@ -17,7 +18,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? 'github' : 'list',
-  use: { baseURL },
+  // A returning player (story 2.7): the saved calibration sends the start screen straight to the level.
+  use: { baseURL, storageState: calibratedStorageState(baseURL) },
   projects: [
     {
       name: 'dist-chromium',

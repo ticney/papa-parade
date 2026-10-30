@@ -698,6 +698,75 @@ const MusicSchema = z
   })
   .describe('Adaptive music mix (story 2.6): the tense stem and the slow-mo effect. Client only.');
 
+const CalibrationSchema = z
+  .strictObject({
+    beatCount: z.int().min(3).max(16).describe('Beats in each phase (audio, then visual).'),
+    bpm: z
+      .number()
+      .min(40)
+      .max(180)
+      .describe(
+        'Tempo of the beats, in beats per minute. At most 180 (3 Hz): a flash never goes faster than the flashing limit.',
+      ),
+    outlierMs: z
+      .number()
+      .min(0)
+      .max(1000)
+      .describe(
+        'A tap further than this from the median gap is thrown away before the final median, in ms.',
+      ),
+    offsetMinMs: z
+      .number()
+      .min(-1000)
+      .max(0)
+      .describe('Lowest offset the calibration keeps, in ms (negative = the screen is early).'),
+    offsetMaxMs: z
+      .number()
+      .min(0)
+      .max(1000)
+      .describe('Highest offset the calibration keeps, in ms (positive = the screen is late).'),
+    minValidTaps: z
+      .int()
+      .min(1)
+      .max(16)
+      .describe('Fewer valid taps than this and the phase starts over.'),
+    leadInMs: z.int().min(0).max(5000).describe('Wait before the first beat of a phase, in ms.'),
+    tailMs: z
+      .int()
+      .min(0)
+      .max(5000)
+      .describe('A phase keeps listening this long after its last beat, in ms.'),
+    audioWaitMs: z
+      .int()
+      .min(0)
+      .max(10000)
+      .describe(
+        'How long the audio phase waits for the audio to be running before it is skipped, in ms.',
+      ),
+    doneHoldMs: z.int().min(0).max(5000).describe('How long the « done » message stays up, in ms.'),
+    pulseMs: z
+      .int()
+      .min(1)
+      .max(1000)
+      .describe('How long the ring or the disc stays on at each beat, in real ms.'),
+  })
+  .refine((calibration) => calibration.minValidTaps <= calibration.beatCount, {
+    error: 'minValidTaps cannot exceed beatCount: no phase could succeed',
+    path: ['minValidTaps'],
+  })
+  .refine((calibration) => calibration.offsetMinMs < calibration.offsetMaxMs, {
+    error: 'offsetMinMs must be below offsetMaxMs',
+    path: ['offsetMinMs'],
+  })
+  .refine((calibration) => calibration.offsetMaxMs < 30_000 / calibration.bpm, {
+    // From half a beat interval a late tap is nearer the next beat: it pairs with it.
+    error: 'offsetMaxMs must be below half a beat interval (30000 / bpm)',
+    path: ['offsetMaxMs'],
+  })
+  .describe(
+    'Latency calibration (story 2.7): the beats, the maths bounds and the timings. Client only.',
+  );
+
 export const FeelSchema = z
   .strictObject({
     timing: TimingSchema,
@@ -716,6 +785,7 @@ export const FeelSchema = z
     gags: GagsSchema,
     fx: FxSchema,
     music: MusicSchema,
+    calibration: CalibrationSchema,
   })
   .describe('Every feel value of the game, tuned by hand or from the feel panel.');
 

@@ -37,6 +37,7 @@ describe('commandProblem', () => {
       'SetBladder',
       'SetFatigue',
       'SetFeel',
+      'SetInputLag',
       'SetNoise',
       'SetTimeScale',
       'StartDisruption',

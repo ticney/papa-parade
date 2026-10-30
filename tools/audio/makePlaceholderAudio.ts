@@ -240,6 +240,14 @@ const GAG_SILENCE_SMOOTHING_PCT = 70;
 const GAG_SILENCE_RELEASE_MS = 120;
 
 /** A star stamped on the Result screen (story 1.22): a short bright blip, two partials. */
+// Calibration beep (story 2.7): the player aligns a tap to its onset, so the attack is as sharp as a
+// click-free start allows (1 ms), on a plain 1 kHz tone that any phone speaker reproduces.
+const CALIBRATION_BEEP_LENGTH_MS = 90;
+const CALIBRATION_BEEP_PITCH_HZ = 1000;
+const CALIBRATION_BEEP_ATTACK_MS = 1;
+const CALIBRATION_BEEP_DECAY_S = 0.06;
+const CALIBRATION_BEEP_RELEASE_MS = 15;
+
 const STAR_LENGTH_MS = 120;
 const STAR_PITCH_HZ = 1318.5;
 const STAR_OVERTONE_GAIN = 0.35;
@@ -763,6 +771,17 @@ export function synthStarStamp(): Float32Array {
   );
 }
 
+/** The beep of the latency calibration: a short sharp 1 kHz tone (feedback `calibration.beep`). */
+export function synthCalibrationBeep(): Float32Array {
+  return strike(
+    CALIBRATION_BEEP_LENGTH_MS,
+    [{ frequencyHz: CALIBRATION_BEEP_PITCH_HZ, gain: 1 }],
+    CALIBRATION_BEEP_ATTACK_MS,
+    CALIBRATION_BEEP_DECAY_S,
+    CALIBRATION_BEEP_RELEASE_MS,
+  );
+}
+
 /** The last star stamped: a lower, longer chord (cue `result_star_last`). */
 export function synthStarStampLast(): Float32Array {
   return strike(
@@ -1072,6 +1091,7 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'papa_bladder_full', synth: synthBladderFull },
   { clip: 'papa_toilet_door', synth: synthToiletDoor },
   { clip: 'env_toilet_flush', synth: synthToiletFlush },
+  { clip: 'ui_calibration_beep', synth: synthCalibrationBeep },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

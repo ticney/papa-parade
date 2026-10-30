@@ -10,6 +10,7 @@ export function feedbackClips(table: FeedbackTable): string[] {
     table.loops.babble.clip,
     table.loops.music.stems.calm,
     table.loops.music.stems.tense,
+    table.calibration.beep.clip,
   ]);
   for (const cue of Object.values(table.cues)) {
     if (cue.audio !== undefined) clips.add(cue.audio.clip);

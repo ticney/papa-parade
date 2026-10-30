@@ -65,6 +65,15 @@ export type SimCommand =
   /** The finger went up. It names no threat: it ends every press made before it. */
   | { type: 'Release'; t: SimMs }
   /**
+   * Journaled (story 2.7, D1): how long, in ms, the client's input stamps are corrected into the
+   * past (the player's screen latency, `visualOffsetMs`). A corrected press reaches the sim `lagMs`
+   * after the instant its `t` names, so the sim waits that long before it decides what no command
+   * has come to say: a press held `holdMinMs` is a Firmness only `lagMs` later, and a window nobody
+   * answered gags `lagMs` later. 0 until this command says otherwise; a level start sends it for a
+   * positive lag only, a recalibration sends it whatever it is (so it may be 0).
+   */
+  | { type: 'SetInputLag'; t: SimMs; lagMs: number }
+  /**
    * Debug / test command, journaled: pushes a prop with this impulse (N·s, world axes) at its
    * centre of mass and wakes it. An unknown or broken `propId` is ignored. Gameplay pushes props
    * through the `pushProp` helper (a gag), never through a command.
@@ -94,6 +103,7 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'MoveStop',
   'PressThreat',
   'Release',
+  'SetInputLag',
   'PushProp',
 ];
 
@@ -201,6 +211,11 @@ export function commandProblem(value: unknown): string | null {
   if (command.type === 'PressThreat') {
     if (!Number.isInteger(command.threatId) || (command.threatId as number) < 1) {
       return 'PressThreat: threatId must be an integer of at least 1';
+    }
+  }
+  if (command.type === 'SetInputLag') {
+    if (typeof command.lagMs !== 'number' || !Number.isFinite(command.lagMs) || command.lagMs < 0) {
+      return 'SetInputLag: lagMs must be a finite number of at least 0';
     }
   }
   if (command.type === 'PushProp') {

@@ -18,6 +18,7 @@ import {
 } from '@sim';
 import { Color, Group, Scene, Vector3 } from 'three';
 import { createAppFsm } from './app/appFsm.ts';
+import { createCalibrationFlow } from './app/calibrationFlow.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
 import { isTestApiEnabled, readDebugParams } from './app/debugParams.ts';
 import { parseThrowDelayMs } from './app/forcedThrow.ts';
@@ -52,6 +53,7 @@ import type { LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
 import { createRenderer, type RenderStats } from './render/renderer.ts';
 import { BABY_CARRIED_FORWARD_M, BABY_CARRIED_HEIGHT_M } from './render/views/babyView.ts';
+import { createSaveStore } from './save/saveStore.ts';
 import { loadFonts } from './ui/fonts.ts';
 import { createEpicStamp } from './ui/hud/epicStamp.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
@@ -281,7 +283,9 @@ export async function boot(): Promise<void> {
       | 'ppStars'
       | 'ppLostStars'
       | 'ppEndReason'
-      | 'ppResult',
+      | 'ppResult'
+      | 'ppCalibration'
+      | 'ppCalibrationBeats',
     value: string,
   ): void => {
     if (document.documentElement.dataset[name] !== value) {
@@ -310,6 +314,12 @@ export async function boot(): Promise<void> {
       heavy: feedbackTable.haptics.heavy.patternMs,
     },
   });
+  // The save (story 2.7): read before the start screen is up (below), so that `onStart` can decide
+  // between the calibration and the level without an await, inside the first gesture.
+  const saveStore = createSaveStore(platform.storage);
+  // The calibrated screen latency, subtracted from every input stamp (the mapper) and told to the
+  // sim as the lag it must wait for (`SetInputLag`). 0 until the player has calibrated.
+  const visualOffsetMs = (): number => saveStore.current().calibration?.visualOffsetMs ?? 0;
   // Each entry into a music mood, counted (story 2.6): polling misses a short slow-mo at speed 4.
   const musicMoodCounts = { tense: 0, slow: 0 };
   const audio = createAudioEngine({
@@ -694,6 +704,18 @@ export async function boot(): Promise<void> {
   // playtest builds only, and read when the Result screen is built.
   let playtestCopyLog: (() => Promise<CopyLogOutcome>) | null = null;
 
+  // Tells a sim how far the inputs it will receive were corrected into the past (story 2.7 D1), so
+  // that it waits that long before it decides what no command has said. Only for a positive lag at a
+  // level's start (a new sim starts at 0, and a player who did not calibrate sends nothing, so
+  // goldens, bots and journals gain no entry); a recalibration re-sends it whatever it is. An
+  // autoplay bot's commands never pass through the mapper: its sim is never told.
+  const sendInputLag = (sim: Sim, isRecalibration: boolean): void => {
+    if (isAutoplaying) return;
+    const lagMs = Math.max(0, visualOffsetMs());
+    if (lagMs <= 0 && !isRecalibration) return;
+    sim.enqueue({ type: 'SetInputLag', t: sim.world.time.sim, lagMs });
+  };
+
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
     content: content.value,
@@ -707,6 +729,7 @@ export async function boot(): Promise<void> {
     speed: params.speed ?? undefined,
     beforeStep: isMirrored ? (sim) => stepHook?.(sim) : undefined,
     onLevelStarted: (started) => {
+      sendInputLag(started.sim, false);
       timerHud.setVariant(started.level.level.variant);
       // The gauges this level has, each at its start value (a restart never shows the last level's).
       const { gauges } = started.level.level;
@@ -1092,6 +1115,45 @@ export async function boot(): Promise<void> {
     timer: timerHud.element,
   });
   hudRoot.append(silenceBubble.element);
+  // The latency calibration (story 2.7): the first launch's detour, and what story 2.8's Recalibrate
+  // row will call. The flow outlives the screen, which the portrait overlay rebuilds.
+  const calibrationFlow = createCalibrationFlow({
+    appFsm,
+    events,
+    t,
+    getFeel: () => content.value.feel.calibration,
+    beep: feedbackTable.calibration.beep,
+    audio,
+    saveStore,
+    device: `${platform.capabilities.target}-${platform.capabilities.touch ? 'touch' : 'desktop'}`,
+    // The wall clock, for the save only: it names a moment in the player's life, not in a game.
+    nowIso: () => new Date().toISOString(),
+    frames: {
+      request: (run) => requestAnimationFrame(run),
+      cancel: (handle) => cancelAnimationFrame(handle),
+    },
+    nowAtReal: () => performance.now(),
+    target: window,
+    page: document,
+    isMotionReduced: prefersReducedMotion,
+    startLevel: () => void levelSession.start(),
+    onPhase: (phase) => {
+      if (isMirrored) mirror('ppCalibration', phase);
+    },
+    onBeat: (count) => {
+      if (isMirrored) mirror('ppCalibrationBeats', String(count));
+    },
+  });
+  // A recalibration while a level is on: its sim must wait for the new lag from the next step.
+  events.on('CalibrationDone', () => {
+    const active = levelSession.active;
+    if (active !== null) sendInputLag(active.sim, true);
+  });
+  events.on('AppStateChanged', ({ from }) => {
+    if (from !== 'calibration' || !isMirrored) return;
+    delete document.documentElement.dataset.ppCalibration;
+    delete document.documentElement.dataset.ppCalibrationBeats;
+  });
   const overlayHost = createOverlayHost(uiRoot, {
     start: () =>
       createStartScreen({
@@ -1102,7 +1164,10 @@ export async function boot(): Promise<void> {
           // only unlocks audio there.
           audio.unlock();
           events.emit('StartGestureReceived', {});
-          void levelSession.start();
+          // A new device calibrates once, then goes straight to Age 1; a calibrated one loads at once.
+          if (saveStore.current().calibration === null)
+            calibrationFlow.startRecalibration('loading');
+          else void levelSession.start();
         },
       }),
     pause: (mode) =>
@@ -1115,6 +1180,7 @@ export async function boot(): Promise<void> {
       }),
     portrait: () => createPortraitOverlay({ t }),
     loading: () => createLoadingScreen({ t }),
+    calibration: () => calibrationFlow.createScreen(),
     oops: () => createOopsScreen({ t, onRetry: () => void levelSession.start() }),
     result: () => {
       if (resultScore === null) {
@@ -1231,7 +1297,7 @@ export async function boot(): Promise<void> {
       return levelFeel().input;
     },
     getObjects: () => levelSession.active?.sim.objects ?? NO_OBJECTS,
-    onPadButton: (button) => shell.handlePadButton(button),
+    onPadButton: (button, atReal) => shell.handlePadButton(button, atReal),
     onPadPresence: (isPresent, family) => {
       log.info('input', isPresent ? 'gamepad connected' : 'gamepad gone', { family });
       if (isPresent) {
@@ -1262,6 +1328,7 @@ export async function boot(): Promise<void> {
       if (isMirrored) mirror('ppTap', `${xM.toFixed(2)},${zM.toFixed(2)}`);
     },
     nowAtReal: () => performance.now(),
+    visualOffsetMs,
   });
   bindPointer(
     canvas,
@@ -1297,7 +1364,12 @@ export async function boot(): Promise<void> {
   };
   events.on('AppStateChanged', ({ to }) => {
     // « loading » too: a button pressed or let go while the level loads is no new edge in its first frame.
-    const wantsPoll = to === 'start' || to === 'oops' || to === 'loading' || to === 'result';
+    const wantsPoll =
+      to === 'start' ||
+      to === 'calibration' ||
+      to === 'oops' ||
+      to === 'loading' ||
+      to === 'result';
     if (wantsPoll && menuPollHandle === null) {
       menuPollHandle = requestAnimationFrame(menuPoll);
     } else if (!wantsPoll && menuPollHandle !== null) {
@@ -1481,6 +1553,8 @@ export async function boot(): Promise<void> {
     }
   }
 
+  // Before the start screen is up (story 2.7): never throws, a bad save is set aside with a `warn`.
+  await saveStore.load();
   appFsm.enter('start');
   drawStatic();
   // Written once more here so that the attributes only appear once the app is up.
