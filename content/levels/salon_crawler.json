@@ -38,9 +38,10 @@
   ],
   "objects": [
     { "id": "coffee_machine", "kind": "coffee_machine", "anchor": "coffee_machine" },
-    { "id": "phone", "kind": "phone", "anchor": "phone" }
+    { "id": "phone", "kind": "phone", "anchor": "phone" },
+    { "id": "toilet", "kind": "toilet", "anchor": "toilet" }
   ],
-  "gauges": { "noise": {}, "fatigue": { "microSleepDef": "papa_microsleep" } },
+  "gauges": { "noise": {}, "fatigue": { "microSleepDef": "papa_microsleep" }, "need": {} },
   "carry": { "armsCryDef": "arms_cry" },
   "feelOverrides": {}
 }

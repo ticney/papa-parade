@@ -15,7 +15,7 @@ import { addFatigue, drawMicroSleepMs } from './fatigue.ts';
  * A level with no fatigue gauge does nothing. Otherwise: add the step's gain (`perSec`, times
  * `carriedMultiplier` while carrying the baby); keep the micro-sleep instance on Papa; and, when
  * a micro-sleep is due, telegraph it at the first step where the instance is `idle`, Papa is not busy
- * (`drink` / `asleep`) and the flow is `playing`, and not so late that it could not be judged before
+ * (`drink` / `asleep` / `onPhone` / `onToilet`) and the flow is `playing`, and not so late that it could not be judged before
  * the level ends (its delay, window and tolerance). The next one is due `microSleepMinMs…MaxMs` after
  * that **telegraph** (one draw). Allocation-free.
  */

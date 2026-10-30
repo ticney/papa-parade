@@ -45,10 +45,10 @@ async function fillScale(page: Page): Promise<number> {
 }
 
 test.describe('the noise gauge', () => {
-  test('is the first gauge of the pill, before Fatigue, both at 0 %', async ({ page }) => {
+  test('is the first gauge of the pill, before Fatigue and Envie, all at 0 %', async ({ page }) => {
     const problems = collectProblems(page);
     await openFrozen(page);
-    await expect(page.locator(GAUGES)).toHaveCount(2);
+    await expect(page.locator(GAUGES)).toHaveCount(3);
     await expect(page.locator(GAUGES).nth(0)).toHaveAttribute(
       'aria-label',
       `${STRINGS['gauge.noise']} 0 %`,
@@ -57,13 +57,17 @@ test.describe('the noise gauge', () => {
       'aria-label',
       `${STRINGS['gauge.fatigue']} 0 %`,
     );
+    await expect(page.locator(GAUGES).nth(2)).toHaveAttribute(
+      'aria-label',
+      `${STRINGS['gauge.urge']} 0 %`,
+    );
     await expect(page.locator(NOISE)).toHaveClass(/pp-hud-gauge-idle/);
     expect(problems).toEqual([]);
   });
 
-  test('keeps the HUD within its node budget with both gauges', async ({ page }) => {
+  test('keeps the HUD within its node budget with the three gauges', async ({ page }) => {
     await openFrozen(page);
-    await expect(page.locator(GAUGES)).toHaveCount(2);
+    await expect(page.locator(GAUGES)).toHaveCount(3);
     const nodes = await page.evaluate(() => document.querySelectorAll('#pp-hud *').length);
     expect(nodes).toBeLessThanOrEqual(HUD_MAX_DOM_NODES);
   });

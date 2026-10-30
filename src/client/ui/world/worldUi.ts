@@ -5,6 +5,7 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { type ComboBadge, type ComboBadgeOptions, createComboBadge } from './comboBadge.ts';
 import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
 import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
+import { createPapaHint, type PapaHint } from './papaHint.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
 import { createThreatMarkers, type ThreatMarkerEntry } from './threatMarkers.ts';
 import type { VerbMetrics } from './verbMetrics.ts';
@@ -17,6 +18,8 @@ export interface WorldUi {
   readonly glyphChip: GlyphChip;
   /** The multiplier above Papa, and the points of a cash-in (story 4.2). */
   readonly comboBadge: ComboBadge;
+  /** « POSE-LE D'ABORD ! » above Papa after a refused toilet (story 4.3). */
+  readonly papaHint: PapaHint;
   /** Mounts the threat icons of a level, replacing the previous level's (all hidden until a frame shows them). */
   mountThreats(entries: readonly ThreatMarkerEntry[]): void;
   /** Removes the threat icons (a restart hides the old ones before its countdown). */
@@ -50,12 +53,21 @@ export interface WorldUi {
     threats: readonly Readonly<ThreatInstance>[],
     nowAtReal: number,
   ): void;
-  /** Mounts the icons of the level's interactive objects (the coffee machine), replacing the previous level's. */
+  /**
+   * Once per frame, before `render`: the hint follows Papa's drawn pose and ends its hold (see
+   * `PapaHint.update`). `nowAtReal` is the real time of the frame, in ms. Allocation-free.
+   */
+  updatePapaHint(papa: Readonly<{ xM: number; zM: number }> | null, nowAtReal: number): void;
+  /** Mounts the icons of the level's interactive objects (the coffee machine, the toilet door), replacing the previous level's. */
   mountObjects(objects: readonly ObjectMarkerSpec[]): void;
   /** Removes the object icons. */
   unmountObjects(): void;
-  /** Once per frame, before `render`: `isUrgent` is the fatigue being above its threshold. */
-  updateObjects(isUrgent: boolean): void;
+  /**
+   * Once per frame, before `render`: one state per object kind (story 4.3). `isCoffeeUrgent` is the
+   * fatigue being above its threshold, `isToiletUrgent` the need being at its warm point and
+   * `isToiletOccupied` Papa being on the toilet.
+   */
+  updateObjects(isCoffeeUrgent: boolean, isToiletUrgent: boolean, isToiletOccupied: boolean): void;
   /** The icon points of the mounted level, for the hit test. */
   readonly threatEntries: readonly ThreatMarkerEntry[];
   /**
@@ -72,7 +84,7 @@ export interface WorldUi {
    * Places the elements for this frame's camera: first the verb layout (the verbs that would overlap
    * are offset, the most urgent threat is in front) and the chip beside its verb, then the DOM renderer.
    * Returns at once, without calling the DOM renderer, while nothing in the layer is visible (no tap
-   * marker, no threat icon, no object icon, no chip, no combo badge).
+   * marker, no threat icon, no object icon, no chip, no combo badge, no papa hint).
    */
   render(camera: Camera): void;
   dispose(): void;
@@ -98,12 +110,15 @@ export function createWorldUi(
   const threats = createThreatMarkers(scene, doc, metrics);
   const glyphChip = createGlyphChip(scene, doc);
   const comboBadge = createComboBadge(scene, doc, comboOptions);
+  const papaHint = createPapaHint(scene, doc, comboOptions.translate);
   const objects = createObjectMarkers(scene, doc);
   return {
     scene,
     tapMarker,
     glyphChip,
     comboBadge,
+    papaHint,
+    updatePapaHint: papaHint.update,
     updateCombo(combo, minMultiplier, papa, threatInstances, nowAtReal) {
       const entries = threats.entries;
       let isAside = false;
@@ -138,7 +153,8 @@ export function createWorldUi(
           threats.isAnyVisible ||
           objects.isAnyVisible ||
           glyphChip.isVisible ||
-          comboBadge.isVisible
+          comboBadge.isVisible ||
+          papaHint.isVisible
         )
       ) {
         return;
@@ -152,6 +168,7 @@ export function createWorldUi(
       tapMarker.dispose();
       glyphChip.dispose();
       comboBadge.dispose();
+      papaHint.dispose();
       threats.dispose();
       objects.dispose();
     },

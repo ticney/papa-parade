@@ -1,0 +1,31 @@
+{
+  "untilSimMs": 10000,
+  "worldHash": "083c64af179fa9",
+  "eventTypes": [
+    "WaveStarted",
+    "BladderFilled",
+    "PapaPathPlanned",
+    "PapaStateChanged",
+    "ObjectTapped",
+    "BabyStateChanged",
+    "ThreatTelegraphed",
+    "BabyStateChanged",
+    "BabyStateChanged",
+    "WindowOpened",
+    "PapaArrived",
+    "PapaStateChanged",
+    "ToiletStarted",
+    "ResponseResolved",
+    "GagTriggered",
+    "BabyStateChanged",
+    "ToiletFinished",
+    "PapaStateChanged",
+    "BabyStateChanged",
+    "BabyStateChanged",
+    "ThreatRearmed",
+    "ThreatTelegraphed",
+    "BabyStateChanged",
+    "BabyStateChanged"
+  ],
+  "eventsHash": "0d6c766359d3f8"
+}

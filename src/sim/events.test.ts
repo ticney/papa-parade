@@ -24,7 +24,7 @@ describe('SIM_EVENT_TYPES', () => {
   it('lists LevelEnded and WaveStarted (story 1.18) in their alphabetical places', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
     expect(names.indexOf('LevelEnded')).toBe(names.indexOf('InvariantViolated') + 1);
-    expect(names.indexOf('WaveStarted')).toBe(names.indexOf('TimeScaleChanged') + 1);
+    expect(names.indexOf('WaveStarted')).toBe(names.indexOf('ToiletStarted') + 1);
     expect(names.indexOf('WindowOpened')).toBe(names.indexOf('WaveStarted') + 1);
   });
 
@@ -57,7 +57,7 @@ describe('SIM_EVENT_TYPES', () => {
 describe('the fatigue events (story 1.19)', () => {
   it('lists CoffeeDrunk, CoffeeStarted and FatigueThresholdCrossed in their alphabetical places', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
-    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('BabyStateChanged') + 1);
+    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('BladderFilled') + 1);
     expect(names.indexOf('CoffeeStarted')).toBe(names.indexOf('CoffeeDrunk') + 1);
     expect(names.indexOf('ComboCashedIn')).toBe(names.indexOf('CoffeeStarted') + 1);
     expect(names.indexOf('ComboChanged')).toBe(names.indexOf('ComboCashedIn') + 1);

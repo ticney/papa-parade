@@ -30,14 +30,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 17 since story 4.3: `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 16;
+  version: 17;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -56,7 +56,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 16,
+    version: 17,
     seed,
     feelHash,
     geometryHash,
@@ -127,6 +127,9 @@ function papaProblem(
   }
   const isBusy = isPapaBusy({ state: slice.state as PapaState });
   if (isBusy !== (slice.busyUntil !== 0)) return 'world.papa.busyUntil';
+  // The toilet is no place for a baby in the arms (story 4.3): `tapObject` refuses, `takeBaby` is
+  // ignored while Papa is busy, so the two never meet.
+  if (slice.state === 'onToilet' && babyState === 'carried') return 'world.papa.state';
 
   // The state and the data it walks on must agree.
   const dirLength = Math.sqrt((slice.dirX as number) ** 2 + (slice.dirZ as number) ** 2);
@@ -332,6 +335,7 @@ function gaugesProblem(
   gauges: unknown,
   hasFatigue: boolean,
   hasNoise: boolean,
+  hasBladder: boolean,
   propCount: number,
   nowMs: number,
 ): string | null {
@@ -362,6 +366,20 @@ function gaugesProblem(
     (!hasNoise && slice.noisePct !== 0)
   ) {
     return 'world.gauges.noisePct';
+  }
+  // The need (story 4.3) is held in [0, 100], and is 0 and not full for good in a level without the
+  // gauge. `isBladderFull` is not held to `feel.bladder.slowFromPct`: a `SetFeel` can move the
+  // threshold, and the flag follows at the next step.
+  if (
+    !isFiniteNumber(slice.bladderPct) ||
+    (slice.bladderPct as number) < 0 ||
+    (slice.bladderPct as number) > GAUGE_MAX_POINTS ||
+    (!hasBladder && slice.bladderPct !== 0)
+  ) {
+    return 'world.gauges.bladderPct';
+  }
+  if (typeof slice.isBladderFull !== 'boolean' || (!hasBladder && slice.isBladderFull)) {
+    return 'world.gauges.isBladderFull';
   }
   const noiseAt = slice.propNoiseAt;
   if (!Array.isArray(noiseAt) || noiseAt.length !== propCount) return 'world.gauges.propNoiseAt';
@@ -527,6 +545,8 @@ export interface PlannedLevel {
   readonly hasCarry: boolean;
   /** Whether the level has the noise gauge (`SimLevel.hasNoise`, story 3.1). */
   readonly hasNoise: boolean;
+  /** Whether the level has the need gauge (`SimLevel.hasBladder`, story 4.3). */
+  readonly hasBladder: boolean;
   /** The level's interactive objects: Papa's `objectId` must be one of them. */
   readonly objects: readonly { readonly id: string }[];
   readonly props: readonly {
@@ -834,6 +854,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
       gauges,
       planned.microSleepIndex >= 0,
       planned.hasNoise,
+      planned.hasBladder,
       planned.props.length,
       clock.sim as number,
     ) ??
@@ -877,7 +898,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 16, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 17, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

@@ -824,10 +824,33 @@ function checkLevelReferences(
           message: `level ${id}: the object "${object.id}" is a coffee_machine, but the level has no gauges.fatigue (a coffee would only make Papa wait)`,
         });
       }
-      if (
-        geometry !== undefined &&
-        !geometry.anchors.some((anchor) => anchor.id === object.anchor)
-      ) {
+      if (object.kind === 'toilet' && level.gauges.need === undefined) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['objects', index, 'kind']),
+          message: `level ${id}: the object "${object.id}" is a toilet, but the level has no gauges.need (nothing would ever send Papa there)`,
+        });
+      }
+      const anchor = geometry?.anchors.find((candidate) => candidate.id === object.anchor);
+      if (object.kind === 'toilet' && geometry !== undefined && anchor !== undefined) {
+        // Papa is out of the room while he is on the toilet, but his point stays at the anchor: a
+        // hidden zone there would « find » the baby from the toilet (baby/silence.ts).
+        const [anchorX, , anchorZ] = anchor.positionM;
+        const hiddenZone = geometry.zones.find(
+          (zone) =>
+            zone.kind === 'hidden' &&
+            Math.abs(anchorX - zone.centerM[0]) <= zone.halfExtentsM[0] &&
+            Math.abs(anchorZ - zone.centerM[2]) <= zone.halfExtentsM[2],
+        );
+        if (hiddenZone !== undefined) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['objects', index, 'anchor']),
+            message: `level ${id}: the toilet "${object.id}" stands at "${object.anchor}", inside the hidden zone "${hiddenZone.id}": Papa would find the baby from the toilet`,
+          });
+        }
+      }
+      if (geometry !== undefined && anchor === undefined) {
         problems.push({
           file,
           jsonPath: formatJsonPath(['objects', index, 'anchor']),

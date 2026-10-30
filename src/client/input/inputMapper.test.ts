@@ -675,8 +675,14 @@ describe('createInputMapper: Space and A (story 1.17)', () => {
   });
 
   describe('the context action (D6)', () => {
-    const COFFEE = { id: 'coffee_machine', xM: -3.6, yM: 1.05, zM: -2 };
-    const PHONE = { id: 'phone', xM: -1.3, yM: 0.65, zM: -1.2 };
+    const COFFEE = {
+      id: 'coffee_machine',
+      kind: 'coffee_machine' as const,
+      xM: -3.6,
+      yM: 1.05,
+      zM: -2,
+    };
+    const PHONE = { id: 'phone', kind: 'phone' as const, xM: -1.3, yM: 0.65, zM: -1.2 };
 
     it('walks to the nearest object in reach when no threat is active', () => {
       const { mapper, sim, commands, setObjects } = setup();
@@ -955,7 +961,13 @@ describe('createInputMapper: Space and A (story 1.17)', () => {
 });
 
 describe('createInputMapper: touching an object (story 1.19)', () => {
-  const COFFEE = { id: 'coffee_machine', xM: -3.6, yM: 1.05, zM: -2 };
+  const COFFEE = {
+    id: 'coffee_machine',
+    kind: 'coffee_machine' as const,
+    xM: -3.6,
+    yM: 1.05,
+    zM: -2,
+  };
   const ICON = {
     threatId: 4,
     xM: -3.6,
@@ -1030,7 +1042,13 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       const { mapper, sim, commands, camera, setObjects } = setup();
       Object.assign(sim.world.baby, BABY);
       const at = babyPx(camera);
-      const phone = { id: 'phone', xM: BABY.xM + 0.5, yM: BABY_RADIUS_M, zM: BABY.zM };
+      const phone = {
+        id: 'phone',
+        kind: 'phone' as const,
+        xM: BABY.xM + 0.5,
+        yM: BABY_RADIUS_M,
+        zM: BABY.zM,
+      };
       setObjects([phone]);
       const phoneAt = new Vector3(phone.xM, phone.yM, phone.zM).project(camera);
       const phonePx = {
@@ -1051,7 +1069,9 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       Object.assign(sim.world.baby, BABY);
       const at = babyPx(camera);
       // An object whose icon is on the baby.
-      setObjects([{ id: 'phone', xM: BABY.xM, yM: BABY_RADIUS_M, zM: BABY.zM }]);
+      setObjects([
+        { id: 'phone', kind: 'phone' as const, xM: BABY.xM, yM: BABY_RADIUS_M, zM: BABY.zM },
+      ]);
       mapper.handlePointerDown(click(at.x, at.y));
       expect(commands.map((c) => c.type)).toEqual(['TapBaby']);
       commands.length = 0;
@@ -1089,7 +1109,7 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
 
     it('Space / A takes the nearer of the baby and the object, a tie going to the baby', () => {
       const { mapper, sim, commands, setObjects } = setup();
-      const phone = { id: 'phone', xM: 1, yM: 0.65, zM: 0 };
+      const phone = { id: 'phone', kind: 'phone' as const, xM: 1, yM: 0.65, zM: 0 };
       setObjects([phone]);
       Object.assign(sim.world.baby, { xM: 0.5, zM: 0 }); // nearer than the phone
       mapper.handleAction('down', 1500, 'keyboard');
@@ -1174,7 +1194,7 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       it('Space / A uses an object in reach before the baby, who is always in reach', () => {
         const { mapper, sim, commands, setObjects } = setup();
         Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
-        setObjects([{ id: 'phone', xM: 1, yM: 0.65, zM: 0 }]);
+        setObjects([{ id: 'phone', kind: 'phone' as const, xM: 1, yM: 0.65, zM: 0 }]);
         mapper.handleAction('down', 1500, 'keyboard');
         expect(commands.map((c) => c.type)).toEqual(['TapObject']);
       });
@@ -1182,7 +1202,7 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       it('Space / A puts him down when no object is in reach', () => {
         const { mapper, sim, commands, setObjects } = setup();
         Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
-        setObjects([{ id: 'phone', xM: 5, yM: 0.65, zM: 0 }]);
+        setObjects([{ id: 'phone', kind: 'phone' as const, xM: 5, yM: 0.65, zM: 0 }]);
         mapper.handleAction('down', 1500, 'keyboard');
         expect(commands).toEqual([{ type: 'TapBaby', t: 500 }]);
       });
@@ -1278,6 +1298,95 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       sim.world.papa.state = 'idle';
       mapper.resumeHeld();
       expect(commands.map((c) => c.type)).toEqual(['Move']);
+    });
+  });
+});
+
+describe('createInputMapper: the toilet (story 4.3)', () => {
+  const TOILET = { id: 'toilet', kind: 'toilet' as const, xM: 1, yM: 1, zM: 0 };
+  const COFFEE_FAR = {
+    id: 'coffee_machine',
+    kind: 'coffee_machine' as const,
+    xM: -1.4,
+    yM: 1.05,
+    zM: 0,
+  };
+  const pxOfPoint = (
+    camera: Parameters<typeof Vector3.prototype.project>[0],
+    o: { xM: number; yM: number; zM: number },
+  ) => {
+    const v = new Vector3(o.xM, o.yM, o.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+
+  describe('Space / A', () => {
+    it('puts a carried baby down beside the door, and the second press goes in (two presses, always)', () => {
+      const { mapper, sim, commands, setObjects } = setup();
+      setObjects([TOILET]);
+      Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapBaby', t: 500 }]);
+      commands.length = 0;
+      // Put down 0.4 m ahead of Papa: nearer than the door, and free.
+      Object.assign(sim.world.baby, { xM: 0.4, zM: 0, state: 'babble' });
+      mapper.handleAction('down', 1600, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 600, objectId: 'toilet' }]);
+    });
+
+    it('lets a toilet in reach beat a free baby, whatever the distances', () => {
+      for (const babyXM of [0.1, 0.5, 0.99, 1.4]) {
+        const { mapper, sim, commands, setObjects } = setup();
+        setObjects([TOILET]);
+        Object.assign(sim.world.baby, { xM: babyXM, zM: 0, state: 'babble' });
+        mapper.handleAction('down', 1500, 'keyboard');
+        expect(commands, String(babyXM)).toEqual([
+          { type: 'TapObject', t: 500, objectId: 'toilet' },
+        ]);
+      }
+    });
+
+    it('keeps the rule of the coffee machine and the phone: an object in reach beats a carried baby', () => {
+      const { mapper, sim, commands, setObjects } = setup();
+      setObjects([TOILET, COFFEE_FAR]);
+      Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
+      // The toilet is nearer (1 m against 1.4 m) but is no object in reach with a baby in the arms.
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'coffee_machine' }]);
+    });
+
+    it('still takes a free baby beside a coffee machine, as before', () => {
+      const { mapper, sim, commands, setObjects } = setup();
+      setObjects([COFFEE_FAR]);
+      Object.assign(sim.world.baby, { xM: -0.2, zM: 0, state: 'babble' });
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapBaby', t: 500 }]);
+    });
+  });
+
+  describe('a tap on the door', () => {
+    it('sends TapObject and shows the tap marker at its floor point when the baby is free', () => {
+      const { mapper, sim, commands, markers, taps, camera, setObjects } = setup();
+      setObjects([TOILET]);
+      Object.assign(sim.world.baby, { xM: 40, zM: 40, state: 'babble' });
+      const at = pxOfPoint(camera, TOILET);
+      mapper.handlePointerDown(click(at.x, at.y));
+      expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'toilet' }]);
+      expect(markers).toEqual([[TOILET.xM, TOILET.zM]]);
+      expect(taps).toEqual([[TOILET.xM, TOILET.zM]]);
+    });
+
+    it('sends the command but no tap marker while the baby is carried: Papa goes nowhere', () => {
+      const { mapper, sim, commands, markers, taps, camera, setObjects } = setup();
+      setObjects([TOILET]);
+      Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried', gazeX: -1, gazeZ: 0 });
+      const at = pxOfPoint(camera, TOILET);
+      mapper.handlePointerDown(click(at.x, at.y));
+      expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'toilet' }]);
+      expect(markers).toEqual([]);
+      expect(taps).toEqual([]);
     });
   });
 });

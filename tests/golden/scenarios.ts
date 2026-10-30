@@ -9,9 +9,11 @@ import {
   COFFEE_TABLE,
   createTestContent,
   createTestLevel,
+  NEED_GAUGES,
   NOISE_GAUGES,
   OUTLET,
   STAIRS,
+  TEST_TOILET,
   testWave,
 } from '../support/testContent.ts';
 
@@ -272,6 +274,34 @@ export const SCENARIOS: readonly Scenario[] = [
       { atStep: 1120, command: { type: 'PressThreat', t: asSimMs(11290), threatId: 1 } },
       { atStep: 1120, command: release(11340) },
       { atStep: 1140, command: tapFloor(11400, -2, 1.6) },
+    ],
+  },
+  {
+    // The pressing need (story 4.3), on the frozen living room with the toilet and one outlet planned
+    // from 2 s that nobody answers. A debug `SetFeel` shortens the visit to 1.5 s and a `SetBladder`
+    // fills the need at once (`BladderFilled`): the walk to the door is slowed by 30 %. Papa goes in
+    // (`ToiletStarted`), the outlet ends in its `late` gag meanwhile with nobody to answer it, and the
+    // visit ends exactly `toiletDurationMs` later (`ToiletFinished`, the need back to 0, `BladderFilled`
+    // can fire again). The times are read from a first recording. `toiletVisit.test.ts` pins what it covers.
+    name: 'toilet_visit',
+    level: createTestLevel({
+      waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })],
+      objects: [TEST_TOILET],
+      gauges: NEED_GAUGES,
+    }),
+    seed: 31,
+    untilSimMs: 10000,
+    actions: [
+      {
+        atStep: 0,
+        command: {
+          type: 'SetFeel',
+          t: asSimMs(0),
+          patch: { bladder: { toiletDurationMs: 1500 } },
+        },
+      },
+      { atStep: 0, command: { type: 'SetBladder', t: asSimMs(0), pct: 100 } },
+      { atStep: 1, command: { type: 'TapObject', t: asSimMs(10), objectId: 'toilet' } },
     ],
   },
 ];

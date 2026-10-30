@@ -109,7 +109,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     expect(ui.threatEntries).toEqual([entry]);
     ui.updateThreats(threat('telegraph'), null, null);
-    const object = ui.scene.children[3] as unknown as { element: FakeElement };
+    const object = ui.scene.children[4] as unknown as { element: FakeElement };
     ui.render(camera);
     expect(object.element.style.transform).toMatch(/translate\(400px, (200|199\.9\d*)px\)/);
     expect(object.element.parentNode).toBe(container);
@@ -121,7 +121,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     ui.updateThreats(threat('telegraph'), null, null);
     ui.updateThreats(threat('resolved'), null, null);
-    const object = ui.scene.children[3] as unknown as { element: FakeElement };
+    const object = ui.scene.children[4] as unknown as { element: FakeElement };
     object.element.style.transform = 'untouched';
     ui.render(camera);
     expect(object.element.style.transform).toBe('untouched');
@@ -132,7 +132,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     ui.unmountThreats();
     expect(ui.threatEntries).toEqual([]);
-    expect(ui.scene.children).toHaveLength(3); // the tap marker, the glyph chip and the combo badge stay
+    expect(ui.scene.children).toHaveLength(4); // the tap marker, the glyph chip, the combo badge and the papa hint stay
   });
 });
 
@@ -301,7 +301,7 @@ describe('createWorldUi, verbs (story 2.2)', () => {
     expect(ui.threatEntries[0]?.verbOffsetPx).toBe(0);
     expect(ui.threatEntries[1]?.verbOffsetPx).toBeGreaterThan(0);
     // The renderer ran after the layout: both markers have their transform.
-    const objects = ui.scene.children.slice(3, 5) as unknown as { element: FakeElement }[];
+    const objects = ui.scene.children.slice(4, 6) as unknown as { element: FakeElement }[];
     for (const object of objects) expect(object.element.style.transform).toBeDefined();
   });
 
@@ -340,5 +340,27 @@ describe('createWorldUi, verbs (story 2.2)', () => {
     entry.verbWidthPx = 0;
     ui.refitVerbs();
     expect(entry.verbWidthPx).toBe(8 * 40 * 0.5 + 10);
+  });
+});
+
+describe('createWorldUi, papa hint (story 4.3)', () => {
+  const PAPA = { xM: 1, zM: 2 };
+
+  it('renders the layer for the hint alone, follows Papa, and stops when its hold is over', () => {
+    const { ui, camera } = build();
+    ui.setSize(800, 400);
+    const hint = ui.scene.children[3] as unknown as { element: FakeElement };
+    ui.render(camera);
+    expect(Object.keys(hint.element.style)).not.toContain('transform');
+    ui.papaHint.show(1200, 0);
+    ui.updatePapaHint(PAPA, 100);
+    ui.render(camera);
+    expect(hint.element.style.transform).toBeDefined();
+    expect(ui.scene.children[3]?.position.x).toBe(PAPA.xM);
+    ui.updatePapaHint(PAPA, 1300);
+    expect(ui.papaHint.isVisible).toBe(false);
+    hint.element.style.transform = 'untouched';
+    ui.render(camera);
+    expect(hint.element.style.transform).toBe('untouched');
   });
 });

@@ -104,6 +104,14 @@
       }
     }
   },
+  "bladder": {
+    "startPct": 0,
+    "perSec": 0.4,
+    "slowFromPct": 100,
+    "slowdownPct": 30,
+    "urgentFromPct": 70,
+    "toiletDurationMs": 5000
+  },
   "instinct": {
     "timeScale": 0.8,
     "windowBonusPct": 30,

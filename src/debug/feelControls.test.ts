@@ -83,6 +83,14 @@ describe('describeFeelControls', () => {
     expect(root.children.map((child) => child.label)).toContain('combo');
   });
 
+  it('shows the bladder section of the feel (story 4.3) with a control for each of its keys', () => {
+    const bladderKeys = Object.keys(feel.bladder);
+    expect(bladderKeys.length).toBeGreaterThan(0);
+    const paths = leaves.map((leaf) => leaf.pathKey);
+    for (const key of bladderKeys) expect(paths).toContain(`bladder.${key}`);
+    expect(root.children.map((child) => child.label)).toContain('bladder');
+  });
+
   it('makes one folder per top-level section of the feel, in the schema’s order', () => {
     const titles = root.children.map((child) => child.label);
     expect(titles).toEqual(Object.keys(feel).filter((key) => key !== '$schema'));

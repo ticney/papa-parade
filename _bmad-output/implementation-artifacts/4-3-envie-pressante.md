@@ -1,6 +1,10 @@
+---
+baseline_commit: 14ab9e2808c9b3a88c611578508ef8fe8ba7cc5d
+---
+
 # Story 4.3: The pressing need
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.3 « Envie pressante » (L1861-1882). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -138,26 +142,26 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Content and room** (AC 1-4)
-  - [ ] T1.1 `feel.bladder` in the schema and three JSON files, `content:schemas`, debug panel test.
-  - [ ] T1.2 `need` and `toilet` in the level schema and `salon_crawler.json`; the two `content:check` rules and their tests.
-  - [ ] T1.3 Blender: `ANCHOR_toilet`, `toilet_door`; export, extract, optimize; check the one-anchor diff; copy and `cmp` the test geometry.
-  - [ ] T1.4 Cues, `papaHint` feedback section, three placeholder clips (commit only the new `.m4a`).
-- [ ] **T2. Sim** (AC 5-11)
-  - [ ] T2.1 Types, `SetBladder`, the events, `hasBladder`, `createWorld`.
-  - [ ] T2.2 `gauges/bladder.ts`, `runGauges`, the slowdown in `runPapa`.
-  - [ ] T2.3 `papa/toilet.ts`, the object action, `runPapa` and `sleep.ts`, the refusal.
-  - [ ] T2.4 Snapshot v17; the sim tests of AC 19; the fuzz test.
-- [ ] **T3. Client** (AC 12-17)
-  - [ ] T3.1 HUD slot, screenshot at 667 × 375.
-  - [ ] T3.2 Per-kind marker state, door glyph, occupied class.
-  - [ ] T3.3 `setAway`, combo badge while away.
-  - [ ] T3.4 `papaHint.ts`, `inputMapper` tap marker and keyboard rule, mirrors.
-- [ ] **T4. Tools and tests** (AC 18, 20, 21)
-  - [ ] T4.1 Report; the bot comparison with `main`, both summaries pasted.
-  - [ ] T4.2 Goldens (regenerate, diff, add `toilet_visit`).
-  - [ ] T4.3 `tests/e2e/toilet.spec.ts`; touched specs; screenshot references.
-- [ ] **T5. Docs and CI** (AC 22, 23)
+- [x] **T1. Content and room** (AC 1-4)
+  - [x] T1.1 `feel.bladder` in the schema and three JSON files, `content:schemas`, debug panel test.
+  - [x] T1.2 `need` and `toilet` in the level schema and `salon_crawler.json`; the two `content:check` rules and their tests.
+  - [x] T1.3 Blender: `ANCHOR_toilet`, `toilet_door`; export, extract, optimize; check the one-anchor diff; copy and `cmp` the test geometry.
+  - [x] T1.4 Cues, `papaHint` feedback section, three placeholder clips (commit only the new `.m4a`).
+- [x] **T2. Sim** (AC 5-11)
+  - [x] T2.1 Types, `SetBladder`, the events, `hasBladder`, `createWorld`.
+  - [x] T2.2 `gauges/bladder.ts`, `runGauges`, the slowdown in `runPapa`.
+  - [x] T2.3 `papa/toilet.ts`, the object action, `runPapa` and `sleep.ts`, the refusal.
+  - [x] T2.4 Snapshot v17; the sim tests of AC 19; the fuzz test.
+- [x] **T3. Client** (AC 12-17)
+  - [x] T3.1 HUD slot, screenshot at 667 × 375.
+  - [x] T3.2 Per-kind marker state, door glyph, occupied class.
+  - [x] T3.3 `setAway`, combo badge while away.
+  - [x] T3.4 `papaHint.ts`, `inputMapper` tap marker and keyboard rule, mirrors.
+- [x] **T4. Tools and tests** (AC 18, 20, 21)
+  - [x] T4.1 Report; the bot comparison with `main`, both summaries pasted.
+  - [x] T4.2 Goldens (regenerate, diff, add `toilet_visit`).
+  - [x] T4.3 `tests/e2e/toilet.spec.ts`; touched specs; screenshot references.
+- [x] **T5. Docs and CI** (AC 22, 23)
 
 ## Dev Notes
 
@@ -251,18 +255,57 @@ Paths follow the epic and the architecture. Variances: the id `need` against the
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Sonnet 5.5 (`claude-sonnet-5-5`)
 
 ### Debug Log References
+
+- **HALT on AC 12 (T3.1), 2026-10-30.** Measured with Playwright on the live level, Chromium, surface `compact`: the gauges pill is `left 12 → right 316` at every width (three gauges of 60 px + icons), the timer is centred. At 667 × 375 the timer's left edge is at 278: **the pill overlaps the timer by 38 px** (Envie's bar runs under the clock icon); at 740 × 360 by 2 px; at 812 × 375 there is a 34 px gap and at 844 × 390 (the e2e viewport, iPhone 12) 50 px. `HUD_MAX_DOM_NODES` (40) holds (`toilet.spec.ts` asserts it). The story forbids raising the limit or shrinking the bars on my own: stopped and asked Geo. Everything else is done and green (see below); T3.1's screenshot, the darwin screenshot references (`autoplay.spec.ts`), the specs pinning the pill, the docs (T5) and the full `npm run ci` wait for that decision, because the layout changes the screenshots.
+- Screenshot look at 667 × 375 with a cry in the arms up: « POSE-LE D'ABORD ! » clears the combo badge (it sits 0.85 m above his head, the badge 0.3 m, and the badge steps aside while a threat on Papa is up) but it overlaps the verb « BERCE ! » and the cry's icon in that one case. Seen in `toilet.spec.ts`: not asserted (open point).
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- **HUD pill (AC 12), decided by Geo.** At 667 × 375 three gauges ran 38 px under the timer (2 px at 740 × 360; none from 812). Geo chose to move the timer: the HUD row's left column is `minmax(max-content, 1fr)` (+ an 8 px column gap), so the timer stays centred when it fits and sits right of the pill otherwise. Bars and `HUD_MAX_DOM_NODES` untouched; `toilet.spec.ts` pins four viewports and the node budget. Seen in a 667 × 375 screenshot after the fix.
+- **Blender.** `ANCHOR_toilet` at Blender (-2.2, 2.85, 1.0) = game `[-2.2, 1, -2.85]` and a flat `toilet_door` slab (0.9 × 0.06 × 2.0, material of `door_frame`) on the back wall, added with a throw-away headless script (`/Applications/Blender.app -b … -P`); no `COL_`/`NAV_`, the nav grid is unchanged. `assets:export/extract/optimize`: the geometry diff is one anchor. The walk ends at (-2.125, -2.625), outside `behind_sofa`.
+- **Sim and client as specified.** `bladder.ts` (writer, rise, factor), `toilet.ts`, `OBJECT_ACTIONS.toilet`, `sleep.ts`, snapshot v17, `SetBladder`, four events, report fields, `data-pp-bladder`. Client: per-kind object states (`update(isCoffeeUrgent, isToiletUrgent, isToiletOccupied)`), `papaView.setAway`, `comboBadge` hides without a pose, `papaHint.ts` (own offset `PAPA_HINT_OFFSET_M`), `ObjectTarget.kind`, the Space / A rules (a toilet is no object in reach while carrying, and beats a free baby). Tests: `bladder`, `toilet`, slowdown in `papaSystem.test.ts`, snapshot, fuzz with visits (200 seeds), report, content checks, client unit tests, `toilet.spec.ts` (7 tests, Chromium + WebKit), the golden `toilet_visit`.
+- **Screenshots (deliberate).** `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots`: the two darwin references (chromium, webkit) now hold the third gauge and the door's marker; looked at both (the first threat's verb « SOULÈVE ! » over the coffee icon was already there). `fatigue.spec.ts` and `noise.spec.ts` assert three gauges and two object icons now; nothing else needed a change (`autoTarget`, `ui`, `phone`, `silence`, `mamaWoke`, `result`, `timer`, `testApi`, `carry`, `feedback` pass unchanged).
+- **CI.** `(unset VITE_DEBUG_ALLOWED; npm run ci)` was green at the second run. The first run failed only on `makePlaceholderAudio.test.ts › is deterministic` (5 s timeout under coverage and load; 1.5 s alone), so the second ran with `VITEST_MAX_WORKERS=5`, as the story's notes say. Coverage thresholds, `dist:check` (both flavours) and `e2e:dist` (incl. `perf.spec.ts`) passed.
+- No new dependency. No `SYSTEMS` change. Open points are in `deferred-work.md`.
+- **Bots, `main` against the branch** (`npm run sim -- --bot <id> --level salon_crawler --seed 1 --runs 20`). Stars, end reasons, success rate, score and gags are identical for the four bots, run by run (every field of `runList` but `worldHash`); only the world hashes move (the world holds two new fields, and the geometry and feel hashes changed). Deliberate.
+
+  | bot | tree | mean stars | star counts (0-5) | ends | success % | mean score | gags | micro-sleeps | toilet visits | need peak % |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | perfect | main | 5 | 0,0,0,0,0,20 | timer 20 | 100 | 90 | 0 | 65 | n/a | n/a |
+  | perfect | branch | 5 | 0,0,0,0,0,20 | timer 20 | 100 | 90 | 0 | 65 | 0 | 72 |
+  | human | main | 4 | 0,0,0,1,18,1 | timer 20 | 99.9 | 82.1 | 1 | 62 | n/a | n/a |
+  | human | branch | 4 | 0,0,0,1,18,1 | timer 20 | 99.9 | 82.1 | 1 | 62 | 0 | 72 |
+  | random | main | 1 | 0,20,0,0,0,0 | timer 20 | 2.2 | 20.3 | 759 | 64 | n/a | n/a |
+  | random | branch | 1 | 0,20,0,0,0,0 | timer 20 | 2.2 | 20.3 | 759 | 64 | 0 | 72 |
+  | idle | main | 1 | 0,20,0,0,0,0 | timer 20 | 0 | 20 | 762 | 64 | n/a | n/a |
+  | idle | branch | 1 | 0,20,0,0,0,0 | timer 20 | 0 | 20 | 762 | 64 | 0 | 72 |
+
+- **Goldens (deliberate).** `npm run golden:update`: each of the 11 existing journals moves only in `geometryHash`, `feelHash` (both of the fixtures) and `worldHash`; no event moved (`*.expected.json` differ by one line, the world hash). New scenario `toilet_visit` (+ `toiletVisit.test.ts`).
 
 ### File List
+
+New:
+- `src/sim/gauges/bladder.ts`, `bladder.test.ts`; `src/sim/papa/toilet.ts`, `toilet.test.ts`
+- `src/client/ui/world/papaHint.ts`, `papaHint.test.ts`
+- `public/assets/audio/papa_bladder_full.m4a`, `papa_toilet_door.m4a`, `env_toilet_flush.m4a`
+- `tests/e2e/toilet.spec.ts`; `tests/golden/toiletVisit.test.ts`; `tests/golden/journals/toilet_visit.json`, `toilet_visit.expected.json`
+
+Updated:
+- Room: `assets-src/blender/salon_crawler.blend`, `public/assets/levels/salon_crawler.glb`, `content/levels/salon_crawler.geometry.json` (one anchor), `tests/support/testLevel.geometry.json` (byte copy)
+- Content: `src/content/schemas/{feel,feedback,level}.ts`, `content/{feel,feedback}.json`, `content/levels/salon_crawler.json`, `content/_schemas/{feel,feedback,level}.schema.json`, `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json`, `tools/content/contentChecks.ts`
+- Sim: `src/sim/{world,events,commands,snapshot,context,createSim}.ts`, `gauges/{gaugesSystem,fatigueSystem}.ts`, `papa/{papaFsm,papaSystem,sleep}.ts`, `threats/threatSystem.ts` (comment), `src/shared/constants.ts` (`PAPA_HINT_OFFSET_M`)
+- Client: `src/client/boot.ts`, `input/{inputMapper,hitTest,contextObject}.ts`, `render/levelScene.ts`, `render/views/papaView.ts`, `ui/world/{objectMarkers,worldUi,comboBadge}.ts`, `ui/styles/ui.css` (door states, hint, the HUD row's left column)
+- Tools: `tools/audio/makePlaceholderAudio.ts`, `tools/sim/{simReport,simArgs}.ts`
+- Tests: `src/sim/{commands,createSim,events,snapshot}.test.ts`, `gauges/gaugesSystem.test.ts`, `papa/{papaSystem,sleep}.test.ts`, `baby/carryFuzz.test.ts`, `src/client/{feedback/feedbackDirector,feedback/simEventFeedback,input/inputMapper,input/hitTest,input/contextObject,render/views/papaView,ui/world/objectMarkers,ui/world/worldUi,ui/world/comboBadge}.test.ts`, `src/debug/feelControls.test.ts`, `tests/content/{checkContent,levelSchema}.test.ts`, `tests/support/testContent.ts`, `tests/tools/sim/simReport.test.ts`, `tests/golden/scenarios.ts`, the 11 existing journals and their `.expected.json`, `tests/e2e/{fatigue,noise}.spec.ts`, `tests/e2e/support/game.ts`, the two darwin references of `autoplay.spec.ts`
+- Docs: `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `sprint-status.yaml`, this file
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-10-30 | Story created (`gds-create-story`), status `ready-for-dev`. |
+| 2026-10-30 | Implemented (`gds-dev-story`): the pressing need, the toilet, the door and hint UI, snapshot v17, goldens regenerated (hashes only) and `toilet_visit` added, darwin references regenerated, HUD timer moves aside on narrow screens (Geo's choice). Status `review`. |

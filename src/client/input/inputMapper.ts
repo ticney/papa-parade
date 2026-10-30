@@ -96,7 +96,7 @@ export interface InputMapper {
    * `pointerdown` on the canvas: a press on a threat's icon (within `touchRadiusPx`), else a tap on
    * the baby (within `objectTouchRadiusPx` of his centre, `TapBaby`, story 1.21) or on an object
    * (within `objectTouchRadiusPx`), whichever is nearer to the finger, else a tap on the floor. A press on a threat or an
-   * object is never also a floor tap. Dropped while Papa is busy (drinking or asleep).
+   * object is never also a floor tap. Dropped while Papa is busy (drinking, asleep, on the phone or in the toilet).
    */
   handlePointerDown(sample: PointerSample): void;
   /**
@@ -262,7 +262,16 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     const { papa, baby } = active.sim.world;
     const { contextReachM } = deps.input;
     const objects = deps.getObjects();
-    const objectId = pickContextObject(objects, papa.xM, papa.zM, contextReachM);
+    const isCarried = baby.state === 'carried';
+    // A toilet is no object in reach while the baby is carried (story 4.3): the sim refuses the trip,
+    // so the action puts him down, and the next press goes in.
+    const objectId = pickContextObject(
+      objects,
+      papa.xM,
+      papa.zM,
+      contextReachM,
+      isCarried ? 'toilet' : null,
+    );
     const babyDistSq = (baby.xM - papa.xM) ** 2 + (baby.zM - papa.zM) ** 2;
     const isBabyInReach = babyDistSq <= contextReachM * contextReachM;
     const object = objectId === null ? undefined : objects.find((o) => o.id === objectId);
@@ -272,8 +281,15 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
         : (object.xM - papa.xM) ** 2 + (object.zM - papa.zM) ** 2;
     // A carried baby is always in reach, so an object in reach wins over him (story 4.1): the coffee
     // machine and the phone must stay usable from the keyboard. Without one, the action puts him down.
-    const isCarried = baby.state === 'carried';
-    if (isBabyInReach && (isCarried ? objectId === null : babyDistSq <= objectDistSq)) {
+    // A free baby never beats a toilet in reach, whatever the distances (story 4.3): he lands
+    // `putDownOffsetM` ahead of Papa, possibly nearer than the door, and « the nearer wins » would
+    // take him back for ever. To take a baby beside the door, tap him or step away.
+    const isToiletNearest = object?.kind === 'toilet';
+    if (
+      isBabyInReach &&
+      !isToiletNearest &&
+      (isCarried ? objectId === null : babyDistSq <= objectDistSq)
+    ) {
       active.sim.enqueue({ type: 'TapBaby', t });
       return;
     }
@@ -424,8 +440,9 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
           t: active.timeMap.realToSim(asRealMs(sample.timeStamp)),
           objectId,
         });
-        // The marker shows where Papa will stand: the object's floor point.
-        if (object !== undefined) {
+        // The marker shows where Papa will stand: the object's floor point. Not for a toilet while
+        // he carries the baby (story 4.3): Papa goes nowhere, the sim refuses and the hint says why.
+        if (object !== undefined && !(isCarried && object.kind === 'toilet')) {
           deps.showTapMarker(object.xM, object.zM);
           deps.onTap?.(object.xM, object.zM);
         }

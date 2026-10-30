@@ -27,6 +27,11 @@ export type SimCommand =
    */
   | { type: 'SetNoise'; t: SimMs; pct: number }
   /**
+   * Debug / test command, the twin of `SetNoise`: sets the need to `pct` (held in `[0, 100]`)
+   * through `addBladder`. Ignored in a level with no need gauge (story 4.3).
+   */
+  | { type: 'SetBladder'; t: SimMs; pct: number }
+  /**
    * Debug / test command, journaled like `SetFatigue`: starts the planned disruption number `index`
    * (the waves' `disruptions` flattened in wave order) now, if it is still `pending`; any other
    * state, or an index the level does not have, is ignored with no event (story 1.20).
@@ -79,6 +84,7 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetFeel',
   'SetFatigue',
   'SetNoise',
+  'SetBladder',
   'StartDisruption',
   'ForceThreat',
   'TapBaby',
@@ -155,6 +161,11 @@ export function commandProblem(value: unknown): string | null {
   if (command.type === 'SetNoise') {
     if (typeof command.pct !== 'number' || !Number.isFinite(command.pct)) {
       return 'SetNoise: pct must be a finite number';
+    }
+  }
+  if (command.type === 'SetBladder') {
+    if (typeof command.pct !== 'number' || !Number.isFinite(command.pct)) {
+      return 'SetBladder: pct must be a finite number';
     }
   }
   if (command.type === 'StartDisruption') {

@@ -70,6 +70,14 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     earlyWakePenaltyStars: number;
   };
   music: { slowMo: { belowScale: number } };
+  bladder: {
+    startPct: number;
+    perSec: number;
+    slowFromPct: number;
+    slowdownPct: number;
+    urgentFromPct: number;
+    toiletDurationMs: number;
+  };
 };
 
 const feelSchema = JSON.parse(readFileSync('content/_schemas/feel.schema.json', 'utf8')) as unknown;

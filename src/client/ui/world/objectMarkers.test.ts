@@ -32,6 +32,7 @@ const COFFEE: ObjectMarkerSpec = {
   zM: -2,
 };
 const PHONE: ObjectMarkerSpec = { id: 'phone', kind: 'phone', xM: 3, yM: 0.8, zM: 0.5 };
+const TOILET: ObjectMarkerSpec = { id: 'toilet', kind: 'toilet', xM: -2.2, yM: 1, zM: -2.85 };
 
 function build() {
   const roots: FakeElement[] = [];
@@ -56,15 +57,20 @@ function build() {
 }
 
 describe('createObjectMarkers', () => {
-  it('draws a mug for the coffee machine at its icon point, and nothing for the phone yet', () => {
+  it('draws a mug for the coffee machine and a door for the toilet at their icon points, and nothing for the phone yet', () => {
     const { scene, markers, rootsOf } = build();
-    markers.mount([COFFEE, PHONE]);
-    expect(rootsOf()).toHaveLength(1);
-    expect(rootsOf()[0]?.attributes.get('data-pp-object')).toBe('coffee_machine');
-    expect(scene.children).toHaveLength(1);
+    markers.mount([COFFEE, PHONE, TOILET]);
+    expect(rootsOf()).toHaveLength(2);
+    expect(rootsOf().map((root) => root.attributes.get('data-pp-object'))).toEqual([
+      'coffee_machine',
+      'toilet',
+    ]);
+    expect(scene.children).toHaveLength(2);
     expect(scene.children[0]?.position.toArray()).toEqual([1, 1.2, -2]);
+    expect(scene.children[1]?.position.toArray()).toEqual([-2.2, 1, -2.85]);
     expect(OBJECT_ICON_PATHS.coffee_machine).toBe(THREAT_ICON_PATHS.mug);
     expect(OBJECT_ICON_PATHS.phone).toBeNull();
+    expect(OBJECT_ICON_PATHS.toilet).toEqual(expect.any(String));
   });
 
   it('is visible while a marker is mounted, and not otherwise', () => {
@@ -90,20 +96,69 @@ describe('createObjectMarkers', () => {
     markers.mount([COFFEE]);
     const root = rootsOf()[0] as FakeElement;
     expect(root.className).toBe(OBJECT_CLASSES.root);
-    markers.update(true);
+    markers.update(true, false, false);
     expect(root.className).toBe(`${OBJECT_CLASSES.root} ${OBJECT_CLASSES.urgent}`);
-    markers.update(false);
+    markers.update(false, false, false);
     expect(root.className).toBe(OBJECT_CLASSES.root);
+  });
+
+  it('keeps the door calm while Papa is tired, and the coffee calm while he is bursting (story 4.3)', () => {
+    const { markers, rootsOf } = build();
+    markers.mount([COFFEE, TOILET]);
+    const [coffee, door] = rootsOf() as [FakeElement, FakeElement];
+    markers.update(true, false, false);
+    expect(coffee.className).toBe(`${OBJECT_CLASSES.root} ${OBJECT_CLASSES.urgent}`);
+    expect(door.className).toBe(OBJECT_CLASSES.root);
+    markers.update(false, true, false);
+    expect(coffee.className).toBe(OBJECT_CLASSES.root);
+    expect(door.className).toBe(`${OBJECT_CLASSES.root} ${OBJECT_CLASSES.urgent}`);
+  });
+
+  it('dims the door while Papa is on the toilet, with no pulse, whatever the need', () => {
+    const { markers, rootsOf } = build();
+    markers.mount([COFFEE, TOILET]);
+    const [coffee, door] = rootsOf() as [FakeElement, FakeElement];
+    markers.update(false, true, true);
+    expect(door.className).toBe(`${OBJECT_CLASSES.root} ${OBJECT_CLASSES.occupied}`);
+    expect(door.className).not.toContain(OBJECT_CLASSES.urgent);
+    expect(coffee.className).toBe(OBJECT_CLASSES.root);
+    markers.update(false, true, false);
+    expect(door.className).toBe(`${OBJECT_CLASSES.root} ${OBJECT_CLASSES.urgent}`);
+  });
+
+  it('writes the DOM only when a class changes', () => {
+    const { markers, rootsOf } = build();
+    markers.mount([COFFEE, TOILET]);
+    const writes: string[] = [];
+    for (const root of rootsOf()) {
+      let value = root.className;
+      Object.defineProperty(root, 'className', {
+        get: () => value,
+        set: (next: string) => {
+          writes.push(next);
+          value = next;
+        },
+      });
+    }
+    markers.update(false, false, false);
+    markers.update(false, false, false);
+    expect(writes).toEqual([]);
+    markers.update(true, false, false);
+    markers.update(true, false, false);
+    expect(writes).toHaveLength(1);
+    markers.update(true, true, false);
+    markers.update(true, true, false);
+    expect(writes).toHaveLength(2);
   });
 
   it('forgets the urgency with the level: a new mount starts calm', () => {
     const { markers, rootsOf } = build();
     markers.mount([COFFEE]);
-    markers.update(true);
+    markers.update(true, false, false);
     markers.mount([COFFEE]);
     const fresh = rootsOf().at(-1) as FakeElement;
     expect(fresh.className).toBe(OBJECT_CLASSES.root);
-    markers.update(true);
+    markers.update(true, false, false);
     expect(fresh.className).toBe(`${OBJECT_CLASSES.root} ${OBJECT_CLASSES.urgent}`);
   });
 });

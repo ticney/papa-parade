@@ -251,6 +251,14 @@ const ComboBadgeSchema = z
   })
   .describe('The combo badge above Papa (story 4.2). Real time: the sim never reads it.');
 
+const PapaHintSchema = z
+  .strictObject({
+    holdMs: realMs(
+      "How long the hint above Papa (« POSE-LE D'ABORD ! » after a refused toilet) stays up, in real ms. A second refusal restarts it.",
+    ),
+  })
+  .describe('The hint above Papa (story 4.3). Real time: the sim never reads it.');
+
 export const FeedbackTableSchema = z
   .strictObject({
     buses: BusesSchema,
@@ -258,6 +266,7 @@ export const FeedbackTableSchema = z
     loops: LoopsSchema,
     resultScreen: ResultScreenSchema,
     comboBadge: ComboBadgeSchema,
+    papaHint: PapaHintSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),

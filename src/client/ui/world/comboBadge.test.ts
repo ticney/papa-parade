@@ -137,6 +137,30 @@ describe('createComboBadge', () => {
     expect(outer.style.display).toBe('none');
   });
 
+  it('hides while Papa has no pose (he is out of the room), and comes back with him (story 4.3)', () => {
+    const { badge, outer, text } = build();
+    badge.update(3, MIN, PAPA, false, 0);
+    expect(badge.isVisible).toBe(true);
+    badge.update(3, MIN, null, false, 16);
+    expect(badge.isVisible).toBe(false);
+    expect(outer.style.display).toBe('none');
+    badge.update(3, MIN, null, false, 32);
+    expect(badge.isVisible).toBe(false);
+    badge.update(3, MIN, PAPA, false, 48);
+    expect(badge.isVisible).toBe(true);
+    expect(outer.style.display).toBe('');
+    expect(text.textContent).toBe('x3');
+  });
+
+  it('hides a cash-in too while Papa has no pose', () => {
+    const { badge } = build();
+    badge.showCashIn(12, 900, 0);
+    badge.update(MIN, MIN, null, false, 16);
+    expect(badge.isVisible).toBe(false);
+    badge.update(MIN, MIN, PAPA, false, 32);
+    expect(badge.isVisible).toBe(true);
+  });
+
   it('writes the text and the classes only when they change, frame after frame', () => {
     const { badge, text, outer } = build();
     for (let frame = 0; frame < 50; frame++) badge.update(4, MIN, PAPA, true, frame * 16);

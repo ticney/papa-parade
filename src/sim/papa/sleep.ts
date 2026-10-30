@@ -3,6 +3,7 @@ import type { StepContext } from '../context.ts';
 import type { World } from '../world.ts';
 import { finishCoffee } from './coffee.ts';
 import { enterPapaState } from './papaFsm.ts';
+import { finishToilet } from './toilet.ts';
 
 /**
  * Papa falls asleep for `feel.fatigue.asleepMs` (story 1.19 D10): the consequence of a missed
@@ -10,11 +11,14 @@ import { enterPapaState } from './papaFsm.ts';
  * answers nothing until `busyUntil`. Falling asleep during a coffee cancels it: no `CoffeeDrunk`,
  * no −40, because `drink` is replaced and only `drink` finishes a coffee. Unless the coffee is
  * over this very step (`now >= busyUntil`, which `runPapa` has not recorded yet because
- * `runThreats` runs first): then it is finished first, and Papa falls asleep after it.
+ * `runThreats` runs first): then it is finished first, and Papa falls asleep after it. A toilet
+ * visit follows the same rule (story 4.3 D5): over this very step, it is finished first; otherwise
+ * the nap replaces it, with no `ToiletFinished` and no reset, and Papa is back in the room, asleep.
  */
 export function putPapaToSleep(world: World, ctx: StepContext): void {
   const { papa } = world;
   if (papa.state === 'drink' && world.time.sim >= papa.busyUntil) finishCoffee(world, ctx);
+  else if (papa.state === 'onToilet' && world.time.sim >= papa.busyUntil) finishToilet(world, ctx);
   papa.path.length = 0;
   papa.pathIndex = 0;
   papa.glide = null;

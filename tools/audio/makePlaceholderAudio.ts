@@ -10,10 +10,10 @@ import { ROOT } from '../assets/paths.ts';
 import { synthBabyLaugh, synthFirm, synthParry } from './cultSounds.ts';
 import { normalize, PEAK_LOUD, SAMPLE_RATE_HZ, SEED, samplesOf } from './synthKit.ts';
 
-// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 3.2 and 4.1 (the outlet's cues,
+// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 3.2, 4.1 and 4.3 (the outlet's cues,
 // then the stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled
 // swell and Papa's snore, then the phone's ring and Papa's pick-up click, then the silence's « ah-ha »
-// chirp and the baby's paper rustle, then story 4.1's cry in the arms, pick-up and put-down; story 2.3 replaced the parry's pop by a toy squeak, dropped the
+// chirp and the baby's paper rustle, then story 4.1's cry in the arms, pick-up and put-down, story 4.3's need alarm, toilet door and flush; story 2.3 replaced the parry's pop by a toy squeak, dropped the
 // perfect's chime and added the Firmness's cupboard clack and the baby's laugh, in `cultSounds.ts`; story 3.2 added Mama's door slam and the lost star's cue),
 // synthesized so that the whole audio pipeline works end to end with no human (golden rule). Real
 // sounds replace the `.m4a` files under the same names (story 7.5, or Geo's recordings; `--only`
@@ -90,6 +90,24 @@ const MUSIC_TENSE_SQUARE_GAIN = 0.6;
 const MUSIC_TENSE_DECAY_S = 0.12;
 
 // Combo cash-in (story 4.2): a bright rising arpeggio with a sparkle of noise on top.
+const BLADDER_FULL_LENGTH_MS = 420;
+const BLADDER_FULL_PITCH_HZ = { from: 330, to: 250 };
+const BLADDER_FULL_PULSE_HZ = 9;
+const BLADDER_FULL_BREATH_GAIN = 0.12;
+const BLADDER_FULL_ATTACK_MS = 8;
+const BLADDER_FULL_RELEASE_MS = 140;
+
+const TOILET_DOOR_LENGTH_MS = 300;
+const TOILET_DOOR_CLICK_GAP_MS = 130;
+const TOILET_DOOR_CLICK_DECAY_S = 0.02;
+const TOILET_DOOR_THUD_HZ = 95;
+const TOILET_DOOR_THUD_DECAY_S = 0.07;
+
+const FLUSH_LENGTH_MS = 1400;
+const FLUSH_CUTOFF_HZ = { from: 2400, to: 700 };
+const FLUSH_ATTACK_MS = 60;
+const FLUSH_RELEASE_MS = 500;
+
 const CASH_IN_LENGTH_MS = 520;
 const CASH_IN_NOTES_HZ: readonly number[] = [523.25, 659.25, 783.99, 1046.5];
 const CASH_IN_NOTE_GAP_MS = 80;
@@ -931,6 +949,73 @@ export function synthComboCashIn(): Float32Array {
   return out;
 }
 
+/** The need is full: urgent low pulses that sag, with a breath of noise (cue `bladder_full`). */
+export function synthBladderFull(): Float32Array {
+  const rng = createRng(SEED + 13);
+  const out = new Float32Array(samplesOf(BLADDER_FULL_LENGTH_MS));
+  const attack = samplesOf(BLADDER_FULL_ATTACK_MS);
+  const release = samplesOf(BLADDER_FULL_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const frequencyHz =
+      BLADDER_FULL_PITCH_HZ.from +
+      (BLADDER_FULL_PITCH_HZ.to - BLADDER_FULL_PITCH_HZ.from) * (i / out.length);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const pulse = 0.5 + 0.5 * Math.sin(2 * Math.PI * BLADDER_FULL_PULSE_HZ * seconds - Math.PI / 2);
+    const breath = (nextFloat(rng) * 2 - 1) * BLADDER_FULL_BREATH_GAIN;
+    out[i] =
+      (Math.sin(phase) + breath) * pulse * Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A latch clicks, then the door thuds shut: Papa goes in (cue `toilet_entered`). */
+export function synthToiletDoor(): Float32Array {
+  const rng = createRng(SEED + 11);
+  const out = new Float32Array(samplesOf(TOILET_DOOR_LENGTH_MS));
+  const gap = samplesOf(TOILET_DOOR_CLICK_GAP_MS);
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const click = (nextFloat(rng) * 2 - 1) * Math.exp(-seconds / TOILET_DOOR_CLICK_DECAY_S);
+    const sinceThud = i - gap;
+    const thud =
+      sinceThud < 0
+        ? 0
+        : Math.sin(2 * Math.PI * TOILET_DOOR_THUD_HZ * (sinceThud / SAMPLE_RATE_HZ)) *
+          Math.exp(-(sinceThud / SAMPLE_RATE_HZ) / TOILET_DOOR_THUD_DECAY_S);
+    out[i] = 0.5 * click + thud;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A flush: low-passed noise whose cutoff sweeps down, like water leaving (cue `toilet_flushed`). */
+export function synthToiletFlush(): Float32Array {
+  const rng = createRng(SEED + 12);
+  const out = new Float32Array(samplesOf(FLUSH_LENGTH_MS));
+  const attack = samplesOf(FLUSH_ATTACK_MS);
+  const release = samplesOf(FLUSH_RELEASE_MS);
+  let low = 0;
+  for (let i = 0; i < out.length; i++) {
+    const cutoffHz =
+      FLUSH_CUTOFF_HZ.from + (FLUSH_CUTOFF_HZ.to - FLUSH_CUTOFF_HZ.from) * (i / out.length);
+    // One-pole low-pass: alpha from the cutoff.
+    const alpha = 1 - Math.exp((-2 * Math.PI * cutoffHz) / SAMPLE_RATE_HZ);
+    low += alpha * (nextFloat(rng) * 2 - 1 - low);
+    out[i] = low * Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -983,6 +1068,9 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'baby_pickup', synth: synthBabyPickup },
   { clip: 'baby_putdown', synth: synthBabyPutdown },
   { clip: 'ui_combo_cash_in', synth: synthComboCashIn },
+  { clip: 'papa_bladder_full', synth: synthBladderFull },
+  { clip: 'papa_toilet_door', synth: synthToiletDoor },
+  { clip: 'env_toilet_flush', synth: synthToiletFlush },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {
