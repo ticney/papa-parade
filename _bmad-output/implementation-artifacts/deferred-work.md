@@ -549,3 +549,8 @@
 
 - **The `human` bot never lifts a Firmness early**: its reports show 100 % success on a Firmness. Add an early-release model (as data). Reason: moved from the review of 1-23; it is about the bots' reports (`npm run sim`), not the testers' journals, so `playtest:metrics` does not need it. It goes with the GDD v2.2 bot indicator (loss rates 10-30 %, « La défaite est possible sans être un mur »), which arrives through `gds-correct-course`.
 - **The two GDD v2.2 playtest indicators are not computed** (« Rater coûte quelque chose » / fear of missing, « La défaite est possible sans être un mur »). Reason: neither is in `epics.md` yet; a `fearedMissing` CSV column is the natural extension once they are.
+
+## Deferred from: code review of story 3-4-indicateurs-de-playtest (2026-10-30)
+
+- **The observation sheet and the e2e test both hard-code the threat id list** (`outlet`, `stairs`, …). Reason: it can drift from `content/threats/*.json`; `parseObservations` already warns on an unknown threat id at run time.
+- **The touch vs keyboard ratio pools touch players and keyboard players, who are different people** (device confounded with skill; the per-tester ratio is usually null). Reason: it is the indicator as the GDD defines it; having the same testers play on both devices is a playtest-panel choice for Geo.

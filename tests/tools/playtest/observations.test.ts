@@ -77,18 +77,37 @@ describe('parseObservations', () => {
     expect(parsed.ok && parsed.value.rows[0]?.comment).toBe('hi');
   });
 
-  it('warns about a threat id that is not a known def, once', () => {
-    const parsed = parse('T1,,bathtub,O,,,', 'T2,,bathtub,N,,,');
-    expect(parsed.ok && parsed.value.warnings).toEqual([
-      'obs.csv: threatId "bathtub" is not a threat def in content/threats/',
+  it('refuses a threat id that is not a known def, naming the known ones', () => {
+    expect(errorsOf('T1,,bathtub,O,,,')).toEqual([
+      expect.stringMatching(
+        /^obs\.csv:2 column threatId: "bathtub" is not a threat def in content\/threats\/ \(known: .*outlet/,
+      ),
     ]);
+  });
+
+  it('skips the threat check when the list of known threats is empty (it could not be read)', () => {
+    const parsed = parseObservations(`${HEADER}\nT1,,bathtub,O,,,`, 'obs.csv', new Set());
+    expect(parsed.ok && parsed.value.rows[0]?.threatId).toBe('bathtub');
+  });
+
+  it('refuses a column that appears twice in the header', () => {
+    const parsed = parseObservations(`${HEADER},laughs\nT1,,,,,,,`, 'obs.csv', KNOWN);
+    expect(parsed).toEqual({
+      ok: false,
+      error: ['obs.csv: column laughs appears twice in the header'],
+    });
+  });
+
+  it('says that column names are case-sensitive when only the case differs', () => {
+    const parsed = parseObservations(HEADER.replace('testerId', 'TesterId'), 'obs.csv', KNOWN);
+    expect(!parsed.ok && parsed.error[0]).toContain('"TesterId" is not "testerId"');
   });
 
   it('refuses a bad tester id, naming the file, line and column', () => {
     expect(errorsOf('Tester 1,,,,,,')).toEqual([
       'obs.csv:2 column testerId: "Tester 1" is not a tester id (1-32 of A-Z a-z 0-9 _ -)',
     ]);
-    expect(errorsOf(',,,,,,')).toEqual([
+    expect(errorsOf(',,,,,,a note')).toEqual([
       'obs.csv:2 column testerId: "" is not a tester id (1-32 of A-Z a-z 0-9 _ -)',
     ]);
   });

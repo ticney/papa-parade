@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { formatContentProblem } from '@content/contentError';
 import { PLAYTEST_FILE, THREAT_DEF_PATTERN } from '@content/contentFiles';
@@ -12,6 +12,7 @@ import { computeMetrics } from './computeMetrics.ts';
 import { loadJournals } from './loadJournals.ts';
 import { DEFAULT_OBSERVATIONS_FILE, METRICS_HELP, parseMetricsArgs } from './metricsArgs.ts';
 import { type ObservationRow, parseObservations } from './observations.ts';
+import { outputConflict } from './outputPaths.ts';
 import { renderJson, renderMetrics } from './renderMetrics.ts';
 
 const REPO_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -49,7 +50,7 @@ async function listThreatIds(): Promise<Set<string>> {
   }
 }
 
-interface LoadedObservations {
+export interface LoadedObservations {
   rows: ObservationRow[];
   warnings: string[];
   /** What the report calls the notes file; `null` = none was read. */
@@ -60,11 +61,13 @@ interface LoadedObservations {
  * The default file may be missing (the computed indicators come first); a path given with
  * `--observations` must exist.
  */
-async function loadObservations(
+export async function loadObservations(
   explicitPath: string | null,
+  defaultPath: string = join(REPO_DIR, DEFAULT_OBSERVATIONS_FILE),
 ): Promise<Result<LoadedObservations, string[]>> {
-  const path = explicitPath ?? join(REPO_DIR, DEFAULT_OBSERVATIONS_FILE);
-  const shown = explicitPath ?? DEFAULT_OBSERVATIONS_FILE;
+  const path = explicitPath ?? defaultPath;
+  // The report is meant to be shared: it names the file, not the folders of this machine.
+  const shown = explicitPath === null ? DEFAULT_OBSERVATIONS_FILE : basename(explicitPath);
   let text: string;
   try {
     text = await readFile(path, 'utf8');
@@ -79,11 +82,17 @@ async function loadObservations(
         ],
       });
     }
-    return err([`cannot read the observations ${shown}: ${reasonOf(cause)}`]);
+    return err([`cannot read the observations ${explicitPath ?? defaultPath}: ${reasonOf(cause)}`]);
   }
   const parsed = parseObservations(text, shown, await listThreatIds());
   if (!parsed.ok) return err(parsed.error);
-  return ok({ rows: parsed.value.rows, warnings: parsed.value.warnings, path: shown });
+  const warnings = [...parsed.value.warnings];
+  if (text.includes('\uFFFD')) {
+    warnings.push(
+      `${shown} is not valid UTF-8 (a spreadsheet saved it as ANSI?): the accents in the comments are lost; save it as "CSV UTF-8"`,
+    );
+  }
+  return ok({ rows: parsed.value.rows, warnings, path: shown });
 }
 
 async function main(): Promise<void> {
@@ -99,14 +108,21 @@ async function main(): Promise<void> {
     return;
   }
 
-  for (const [flag, path] of [
-    ['--out', args.outPath],
-    ['--json', args.jsonPath],
-  ] as const) {
-    if (path === null) continue;
+  const outputs = [
+    { flag: '--out', path: args.outPath },
+    { flag: '--json', path: args.jsonPath },
+  ].filter((output): output is { flag: string; path: string } => output.path !== null);
+  for (const { flag, path } of outputs) {
     const problem = await outProblem(path);
     if (problem !== null) return failAll([`${flag}: ${problem}`]);
   }
+  const conflict = outputConflict(outputs, args.dir, [
+    {
+      label: 'observations file',
+      path: args.observationsPath ?? join(REPO_DIR, DEFAULT_OBSERVATIONS_FILE),
+    },
+  ]);
+  if (conflict !== null) return failAll([conflict]);
 
   const thresholds = await loadThresholds();
   if (!thresholds.ok) return failAll(thresholds.error);
@@ -117,13 +133,14 @@ async function main(): Promise<void> {
   for (const warning of observations.value.warnings) log.warn('playtest', warning);
 
   const loaded = journals.value;
+  const readerWarnings = [...loaded.warnings, ...observations.value.warnings];
   const report = computeMetrics({
     testers: loaded.testers,
     observations: observations.value.rows,
     thresholds: thresholds.value,
-    warnings: [...loaded.warnings, ...observations.value.warnings],
+    warnings: readerWarnings,
     inputs: {
-      folder: args.dir,
+      folder: basename(resolve(args.dir)),
       observationsPath: observations.value.path,
       levels: loaded.levels,
       contentHashes: loaded.contentHashes,
@@ -131,6 +148,8 @@ async function main(): Promise<void> {
       skipped: loaded.skipped,
     },
   });
+  // The readers logged theirs; the computation adds its own to the report, and they go to stderr too.
+  for (const warning of report.warnings.slice(readerWarnings.length)) log.warn('playtest', warning);
 
   if (args.jsonPath !== null) {
     const written = await writeText(args.jsonPath, renderJson(report));

@@ -23,7 +23,8 @@ function detectDelimiter(text: string): ',' | ';' {
 
 /**
  * Parses RFC 4180 text: quoted fields may hold the delimiter, `""` (a quote) and newlines; `\n` and
- * `\r\n` end a record; a UTF-8 BOM is dropped and blank lines are skipped. The first record is the
+ * `\r\n` end a record; a UTF-8 BOM is dropped and blank lines (and rows of bare delimiters) are
+ * skipped; spaces around a quoted field are ignored. The first record is the
  * header and every other one must have as many fields. Pure; never throws. An error names its line.
  */
 export function parseCsv(input: string): Result<CsvTable, string> {
@@ -34,6 +35,7 @@ export function parseCsv(input: string): Result<CsvTable, string> {
   let fields: string[] = [];
   let field = '';
   let quoted = false; // the current field was opened with a quote
+  let recordQuoted = false; // a field of the current record was opened with a quote
   let inQuotes = false;
   let afterQuote = false; // the closing quote of the current field was just read
   let line = 1;
@@ -47,12 +49,13 @@ export function parseCsv(input: string): Result<CsvTable, string> {
     afterQuote = false;
   };
   const endRecord = (): void => {
-    const wasQuoted = quoted;
     endField();
-    // A line with nothing on it is not a record.
-    const blank = fields.length === 1 && fields[0]?.trim() === '' && !wasQuoted;
+    // A line with nothing on it is not a record, nor is a row of bare delimiters (a spreadsheet
+    // leaves `;;;;;;` rows at the end of an export).
+    const blank = !recordQuoted && fields.every((value) => value.trim() === '');
     if (!blank) records.push({ line: recordLine, fields });
     fields = [];
+    recordQuoted = false;
   };
 
   for (let index = 0; index < text.length; index++) {
@@ -67,7 +70,8 @@ export function parseCsv(input: string): Result<CsvTable, string> {
           afterQuote = true;
         }
       } else {
-        if (char === '\n') line++;
+        // A lone `\r` ends a line outside quotes (see below), so it counts here too; `\r\n` counts once.
+        if (char === '\n' || (char === '\r' && text[index + 1] !== '\n')) line++;
         field += char;
       }
       continue;
@@ -84,11 +88,14 @@ export function parseCsv(input: string): Result<CsvTable, string> {
       continue;
     }
     if (afterQuote) {
+      if (char === ' ' || char === '\t') continue; // `"x" ,` is fine, like `, "x"`
       return err(`line ${line}: unexpected "${char}" after the closing quote of a field`);
     }
-    if (char === '"' && field === '' && !quoted) {
+    if (char === '"' && field.trim() === '' && !quoted) {
+      field = ''; // the spaces before the opening quote are not part of the value
       inQuotes = true;
       quoted = true;
+      recordQuoted = true;
       quoteLine = line;
       continue;
     }

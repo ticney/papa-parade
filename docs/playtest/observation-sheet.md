@@ -10,7 +10,7 @@ Une fiche par testeur. Un testeur est un **pseudonyme** que tu choisis (`T1`, `T
 2. **Ne pas expliquer les menaces.** Dire seulement comment on joue (« tape sur l'icône qui apparaît »). Si le testeur demande ce qu'il doit faire face à une menace, ne pas répondre : c'est justement ce qu'on mesure.
 3. **Ne jamais demander de relancer une partie.** L'indicateur de relance (NFR11) compte les testeurs qui recommencent « sans qu'on le leur demande ». Si tu as besoin d'une autre partie pour une autre raison, **recharge la page d'abord** : `gameIndexInSession` repart alors à 1 et cette partie ne compte pas comme une relance.
 4. Observer sans parler. Remplir la grille ci-dessous pendant que le testeur joue.
-5. À la fin, demander le journal : le bouton « Copier le journal » de l'écran de résultat (ou « Télécharger le journal » si le presse-papiers refuse), puis le coller dans un message ou joindre le fichier.
+5. **Récupérer le journal de chaque partie**, pas seulement de la dernière : le bouton « Copier le journal » de l'écran de résultat (ou « Télécharger le journal » si le presse-papiers refuse), puis le coller dans un message ou joindre le fichier. Un journal est une partie : si le testeur en joue trois et que tu n'en reçois qu'une, la première rencontre de chaque menace et les taux par appareil sont faussés (l'outil le signale par un avertissement « has no game 1 »). Demande l'export à la fin de chaque partie, avant que le testeur ne relance.
 6. Ne poser la question de la parade parfaite qu'**après** avoir noté la réponse spontanée (voir « Ce qui compte »).
 
 ## La grille

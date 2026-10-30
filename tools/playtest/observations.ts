@@ -46,10 +46,11 @@ function yesNo(value: string): boolean | undefined {
 }
 
 /**
- * Parses the notes Geo takes during a playtest. Pure: the threat ids that exist are passed in.
+ * Parses the notes Geo takes during a playtest. Pure: the threat ids that exist are passed in (an
+ * empty set means the list could not be read, and the check is skipped).
  * Every error names the file, the line and the column; all the errors of the file are returned
- * together. A threat id that is not a known def, an extra column or a stray session id are warnings
- * for the caller (`warnings`), not errors.
+ * together, among them a threat id that is not a known def (a typo would count as a threat of its
+ * own). An extra column is a warning for the caller (`warnings`), not an error.
  */
 export function parseObservations(
   text: string,
@@ -60,10 +61,23 @@ export function parseObservations(
   if (!csv.ok) return err([`${file}: ${csv.error}`]);
   const { header, rows } = csv.value;
 
+  const duplicated = [...new Set(header.filter((name, i) => header.indexOf(name) !== i))];
+  if (duplicated.length > 0) {
+    return err([
+      `${file}: column${duplicated.length > 1 ? 's' : ''} ${duplicated.join(', ')} appear${duplicated.length > 1 ? '' : 's'} twice in the header`,
+    ]);
+  }
   const missing = OBSERVATION_COLUMNS.filter((column) => !header.includes(column));
   if (missing.length > 0) {
+    // Column names are case-sensitive: say so when only the case differs.
+    const nearMisses = missing.flatMap((column) => {
+      const found = header.find((name) => name.toLowerCase() === column.toLowerCase());
+      return found === undefined ? [] : [`"${found}" is not "${column}"`];
+    });
+    const hint =
+      nearMisses.length === 0 ? '' : `; column names are case-sensitive (${nearMisses.join(', ')})`;
     return err([
-      `${file}: missing column${missing.length > 1 ? 's' : ''} ${missing.join(', ')} (expected: ${OBSERVATION_COLUMNS.join(', ')})`,
+      `${file}: missing column${missing.length > 1 ? 's' : ''} ${missing.join(', ')} (expected: ${OBSERVATION_COLUMNS.join(', ')})${hint}`,
     ]);
   }
   const warnings: string[] = [];
@@ -77,7 +91,6 @@ export function parseObservations(
   const errors: string[] = [];
   const parsed: ObservationRow[] = [];
   const seen = new Map<string, number>();
-  const unknownThreats = new Set<string>();
 
   for (const row of rows) {
     const cell = (column: ObservationColumn): string => {
@@ -101,8 +114,12 @@ export function parseObservations(
     const threatText = cell('threatId');
     if (threatText !== '' && !SNAKE_ID_PATTERN.test(threatText)) {
       fail('threatId', `"${threatText}" must be empty or a lower_snake_case id`);
-    } else if (threatText !== '' && !knownThreatIds.has(threatText)) {
-      unknownThreats.add(threatText);
+    } else if (threatText !== '' && knownThreatIds.size > 0 && !knownThreatIds.has(threatText)) {
+      // A typo would become a threat of its own and decide the « each threat » indicator.
+      fail(
+        'threatId',
+        `"${threatText}" is not a threat def in content/threats/ (known: ${[...knownThreatIds].sort().join(', ')})`,
+      );
     }
 
     const identifiedText = cell('identifiedWithoutHelp');
@@ -165,9 +182,6 @@ export function parseObservations(
     });
   }
 
-  for (const id of [...unknownThreats].sort()) {
-    warnings.push(`${file}: threatId "${id}" is not a threat def in content/threats/`);
-  }
   if (errors.length > 0) return err(errors);
   return ok({ rows: parsed, warnings });
 }

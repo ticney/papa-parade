@@ -64,11 +64,31 @@ describe('parseCsv', () => {
   });
 
   it('keeps an empty field and an empty quoted line', () => {
-    const csv = table('a,b\n,\n"",x\n');
+    const csv = table('a,b\n,x\n"",x\n');
     expect(csv.rows.map((row) => row.fields)).toEqual([
-      ['', ''],
+      ['', 'x'],
       ['', 'x'],
     ]);
+  });
+
+  it('skips a row of bare delimiters, like a spreadsheet leaves at the end of an export', () => {
+    expect(table('a;b\n1;2\n;\n;\n').rows.map((row) => row.fields)).toEqual([['1', '2']]);
+    expect(table('a,b\n1,2\n,\n  ,  \n').rows.map((row) => row.fields)).toEqual([['1', '2']]);
+    // A quoted empty field is a value, not a blank.
+    expect(table('a,b\n"",\n').rows.map((row) => row.fields)).toEqual([['', '']]);
+  });
+
+  it('ignores spaces around a quoted field', () => {
+    const csv = table('a,b\nT1, "x, ""y"" z" \n');
+    expect(csv.rows.map((row) => row.fields)).toEqual([['T1', 'x, "y" z']]);
+  });
+
+  it('counts a lone carriage return inside a quoted field as a line', () => {
+    const parsed = parseCsv('a,b\r1,"x\ry"\r3\r');
+    expect(parsed).toEqual({
+      ok: false,
+      error: 'line 4: expected 2 fields like the header, got 1',
+    });
   });
 
   it('names the line of an unterminated quote', () => {

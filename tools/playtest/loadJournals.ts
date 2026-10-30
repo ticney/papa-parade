@@ -44,6 +44,16 @@ function reasonOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
+const MAX_REASON_LENGTH = 300;
+
+/** A message on one line and of bounded length: a Zod error can span many lines and echo values. */
+function oneLine(text: string): string {
+  const flat = text.replace(/\s*[\r\n]+\s*/g, ' ').trim();
+  return flat.length <= MAX_REASON_LENGTH ? flat : `${flat.slice(0, MAX_REASON_LENGTH)}…`;
+}
+
+const hasJsonSuffix = (name: string): boolean => name.toLowerCase().endsWith(JSON_SUFFIX);
+
 async function listDir(path: string): Promise<Result<Dirent[], string>> {
   try {
     const entries = await readdir(path, { withFileTypes: true });
@@ -66,7 +76,7 @@ async function readJournal(path: string): Promise<FileVerdict> {
   try {
     json = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
   } catch (cause) {
-    return { skip: `not valid JSON: ${reasonOf(cause)}` };
+    return { skip: `not valid JSON: ${oneLine(reasonOf(cause))}` };
   }
   if (
     typeof json === 'object' &&
@@ -76,7 +86,7 @@ async function readJournal(path: string): Promise<FileVerdict> {
     return { skip: 'a bot run file, not a playtest journal' };
   }
   const parsed = parseJournalFile(json);
-  if (!parsed.ok) return { skip: parsed.error };
+  if (!parsed.ok) return { skip: oneLine(parsed.error) };
   const { autoplay } = parsed.value.summary;
   if (autoplay !== null) return { skip: `played by the ${autoplay} bot` };
   return { game: parsed.value };
@@ -104,8 +114,12 @@ export async function loadJournals(dir: string): Promise<Result<LoadedJournals, 
 
   for (const entry of top.value) {
     if (entry.name.startsWith('.')) continue;
+    if (entry.isSymbolicLink()) {
+      warnings.push(`${entry.name}: a symbolic link is ignored: copy the files into ${dir}`);
+      continue;
+    }
     if (entry.isFile()) {
-      if (entry.name.endsWith(JSON_SUFFIX)) {
+      if (hasJsonSuffix(entry.name)) {
         errors.push(
           `${entry.name}: a journal directly in ${dir}: put each tester's journals in a folder named after their testerId`,
         );
@@ -133,11 +147,20 @@ export async function loadJournals(dir: string): Promise<Result<LoadedJournals, 
     for (const file of inside.value) {
       if (file.name.startsWith('.')) continue;
       const label = `${testerId}/${file.name}`;
+      if (file.isSymbolicLink()) {
+        warnings.push(`${label}: a symbolic link is ignored: copy the file`);
+        continue;
+      }
       if (file.isDirectory()) {
         warnings.push(`${label}/: a folder inside a tester folder is ignored`);
         continue;
       }
-      if (!file.isFile() || !file.name.endsWith(JSON_SUFFIX)) continue;
+      if (!file.isFile()) continue;
+      if (hasJsonSuffix(file.name) && !file.name.endsWith(JSON_SUFFIX)) {
+        warnings.push(`${label}: only files ending in ".json" (lowercase) are read: rename it`);
+        continue;
+      }
+      if (!file.name.endsWith(JSON_SUFFIX)) continue;
       filesRead++;
       const verdict = await readJournal(join(dir, testerId, file.name));
       if ('skip' in verdict) {
@@ -181,13 +204,14 @@ export async function loadJournals(dir: string): Promise<Result<LoadedJournals, 
     }
   }
 
+  // Logged first: they are all there is to read when the folder turns out to be unusable.
+  for (const warning of warnings) log.warn('playtest', warning);
   if (errors.length > 0) return err(errors);
   if (testers.length === 0) {
     return err([
       `${dir}: no tester has a usable game (expected ${dir}/<testerId>/*.json, journals exported from the Result screen of a playtest build)`,
     ]);
   }
-  for (const warning of warnings) log.warn('playtest', warning);
 
   const levels = new Set<string>();
   const hashes = new Set<string>();

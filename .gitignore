@@ -36,3 +36,6 @@ blob-report/
 
 # Claude Code worktrees (`claude --worktree`); story worktrees live beside the repo
 .claude/worktrees/
+
+# Notes of real testers (NFR14): only observations.example.csv is committed
+docs/playtest/observations.csv

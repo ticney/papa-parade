@@ -18,6 +18,7 @@ import { createNodeContentSource } from '../../../tools/content/nodeContentSourc
 import { computeMetrics, type PlaytestReport } from '../../../tools/playtest/computeMetrics.ts';
 import { loadJournals } from '../../../tools/playtest/loadJournals.ts';
 import { parseObservations } from '../../../tools/playtest/observations.ts';
+import { loadObservations } from '../../../tools/playtest/playtestMetrics.ts';
 import { loadSimLevel, type SimLevel } from '../../../tools/sim/loadSimLevel.ts';
 
 // Two real headless games on `salon_crawler`, exported through the builders the Result screen uses
@@ -108,7 +109,7 @@ describe('npm run playtest:metrics', () => {
       const out = join(root, 'report.md');
       const json = join(root, 'report.json');
       const done = runCli([journals, '--observations', EXAMPLE_CSV, '--out', out, '--json', json]);
-      expect(done.stderr).not.toContain('error');
+      expect(done.stderr).not.toMatch(/\[error\]/i);
       expect(done.status).toBe(0);
       // With --out the report is in the file; stdout only has the one `done` log line.
       expect(done.stdout).toContain('[playtest] done');
@@ -169,14 +170,83 @@ describe('npm run playtest:metrics', () => {
     TIMEOUT_MS,
   );
 
+  it('warns and returns no rows when the default notes file is missing', async () => {
+    // The default path is injected: the real one is Geo's own file, which may exist on his machine.
+    const loadedNotes = await loadObservations(null, join(root, 'no-such-notes.csv'));
+    expect(loadedNotes).toEqual({
+      ok: true,
+      value: {
+        rows: [],
+        path: null,
+        warnings: [
+          'no observations file at docs/playtest/observations.csv: the observed indicators (2, 3, 5) are n/a',
+        ],
+      },
+    });
+  });
+
+  it('refuses a missing notes file when its path is given', async () => {
+    const loadedNotes = await loadObservations(join(root, 'no-such-notes.csv'));
+    expect(!loadedNotes.ok && loadedNotes.error[0]).toContain('cannot read the observations');
+  });
+
+  it('warns about notes that are not UTF-8, and names the file, not its folder', async () => {
+    const ansi = join(root, 'ansi.csv');
+    writeFileSync(
+      ansi,
+      Buffer.from(
+        'testerId,sessionId,threatId,identifiedWithoutHelp,perfectCitedSpontaneously,laughs,comment\nT1,,,,,1,h\xe9siter\n',
+        'latin1',
+      ),
+    );
+    const loadedNotes = await loadObservations(ansi);
+    if (!loadedNotes.ok) throw new Error(loadedNotes.error.join('\n'));
+    expect(loadedNotes.value.path).toBe('ansi.csv');
+    expect(loadedNotes.value.warnings).toEqual([
+      expect.stringContaining('ansi.csv is not valid UTF-8'),
+    ]);
+  });
+
   it(
-    'warns and leaves the observed indicators n/a when the default notes file is missing',
+    'refuses --out and --json on one file, and an output inside the journals folder',
     () => {
-      // The committed default does not exist (only the example is committed).
-      const done = runCli([journals]);
+      const same = join(root, 'same.md');
+      const twice = runCli([
+        journals,
+        '--observations',
+        EXAMPLE_CSV,
+        '--out',
+        same,
+        '--json',
+        same,
+      ]);
+      expect(twice.status).toBe(1);
+      expect(twice.stderr).toContain('--out and --json are the same file');
+      const inside = runCli([
+        journals,
+        '--observations',
+        EXAMPLE_CSV,
+        '--json',
+        join(journals, 'r.json'),
+      ]);
+      expect(inside.status).toBe(1);
+      expect(inside.stderr).toContain('is inside the journals folder');
+      const overNotes = runCli([journals, '--observations', EXAMPLE_CSV, '--out', EXAMPLE_CSV]);
+      expect(overNotes.status).toBe(1);
+      expect(overNotes.stderr).toContain('would be overwritten');
+    },
+    TIMEOUT_MS,
+  );
+
+  it(
+    'logs the warnings of the computation on stderr, and keeps the machine’s folders out of the report',
+    () => {
+      const done = runCli([journals, '--observations', EXAMPLE_CSV]);
       expect(done.status).toBe(0);
-      expect(done.stdout).toContain('no observations file at docs/playtest/observations.csv');
-      expect(done.stdout).toMatch(/\| 2\. Perfect parry cited[^\n]*\| n\/a \|/);
+      expect(done.stderr).toContain('the panel is too small');
+      expect(done.stdout).toContain('- Folder: journals');
+      expect(done.stdout).toContain('- Observations: observations.example.csv');
+      expect(done.stdout).not.toContain(root);
     },
     TIMEOUT_MS,
   );

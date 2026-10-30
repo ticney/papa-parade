@@ -42,7 +42,8 @@ export function makeJournal(spec: JournalSpec = {}): JournalFile {
   const byQuality = zero();
   for (const response of responses) {
     byDevice[response.device ?? 'touch'][response.quality]++;
-    const counts = byThreat[response.threat] ?? zero();
+    const counts =
+      (Object.hasOwn(byThreat, response.threat) && byThreat[response.threat]) || zero();
     counts[response.quality]++;
     byThreat[response.threat] = counts;
     byQuality[response.quality]++;

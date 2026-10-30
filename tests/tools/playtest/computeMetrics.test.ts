@@ -117,19 +117,18 @@ describe('computeMetrics: relaunch', () => {
     });
   });
 
-  it('does not count a tester who has notes and no journal', () => {
+  it('leaves out a tester who has notes and no usable journal (a typo in the id), and says so', () => {
     const report = run(
       [tester('T1', { sessionId: '00000001', gameIndex: 2 })],
-      [note({ testerId: 'T2', laughs: 1 })],
+      [note({ testerId: 't1', line: 4, laughs: 1 }), note({ testerId: 't1', line: 6 })],
     );
     expect(report.relaunch).toMatchObject({ hits: 1, count: 1, status: 'OK' });
-    expect(report.testers.map((t) => t.testerId)).toEqual(['T1', 'T2']);
-    expect(report.testers[1]?.relaunch).toBeNull();
-    expect(report.warnings).toEqual([
-      'tester T1 session 00000001 has no game 1: its first encounters may be those of a later game',
-      'tester T2 has notes and no journal: only the observed indicators count',
-      'the panel is too small: 2 testers, FR68 asks for at least 5',
-    ]);
+    expect(report.testers.map((t) => t.testerId)).toEqual(['T1']);
+    expect(report.laughed.count).toBe(0);
+    expect(report.panel).toEqual({ testers: 1, minTesters: 5, status: 'KO' });
+    expect(report.warnings).toContain(
+      'tester t1 has notes (lines 4, 6) and no usable journal: the notes are ignored; check the id against the journal folders',
+    );
   });
 });
 
@@ -195,7 +194,7 @@ describe('computeMetrics: first encounter', () => {
     expect(report.firstEncounter.byThreat.outlet).toEqual({
       hits: 2,
       count: 3,
-      valuePct: 66.7,
+      valuePct: 66.6,
       thresholdPct: 80,
       status: 'KO',
     });
@@ -292,7 +291,7 @@ describe('computeMetrics: session order', () => {
   it('warns about a session whose game 1 is missing', () => {
     const report = run([tester('T1', { sessionId: 'aaaaaaaa', gameIndex: 2 })]);
     expect(report.warnings).toContain(
-      'tester T1 session aaaaaaaa has no game 1: its first encounters may be those of a later game',
+      'tester T1 session aaaaaaaa has no game 1: its first encounters may be those of a later game, and its device rates cover only the games sent',
     );
   });
 
@@ -398,9 +397,14 @@ describe('computeMetrics: touch vs keyboard', () => {
 });
 
 describe('computeMetrics: observed indicators', () => {
+  /** One game per tester id, each in its own session. */
+  function journalsOf(...ids: string[]): TesterGames[] {
+    return ids.map((id, i) => tester(id, { sessionId: `0000000${i}` }));
+  }
+
   function panel(laughsByTester: (number | null)[]): PlaytestReport {
     const notes = laughsByTester.map((laughs, i) => note({ testerId: `T${i + 1}`, laughs }));
-    return run([], notes);
+    return run(journalsOf(...laughsByTester.map((_, i) => `T${i + 1}`)), notes);
   }
 
   it('laughed: 4 of 5 at 80 is OK, exactly', () => {
@@ -427,29 +431,23 @@ describe('computeMetrics: observed indicators', () => {
   });
 
   it('sums the laughs of a tester over rows and ignores a tester with every cell empty', () => {
-    const report = run(
-      [],
-      [
-        note({ testerId: 'T1', laughs: 0 }),
-        note({ testerId: 'T1', laughs: 2, threatId: 'outlet', identifiedWithoutHelp: true }),
-        note({ testerId: 'T2' }),
-      ],
-    );
+    const report = run(journalsOf('T1', 'T2'), [
+      note({ testerId: 'T1', laughs: 0 }),
+      note({ testerId: 'T1', laughs: 2, threatId: 'outlet', identifiedWithoutHelp: true }),
+      note({ testerId: 'T2' }),
+    ]);
     expect(report.testers[0]).toMatchObject({ laughs: 2, laughed: true });
     expect(report.testers[1]).toMatchObject({ laughs: null, laughed: null });
     expect(report.laughed).toMatchObject({ hits: 1, count: 1, status: 'OK' });
   });
 
   it('perfect parry: O if any row says O, N if rows say only N, n/a if all empty', () => {
-    const report = run(
-      [],
-      [
-        note({ testerId: 'T1', perfectCitedSpontaneously: false }),
-        note({ testerId: 'T1', perfectCitedSpontaneously: true }),
-        note({ testerId: 'T2', perfectCitedSpontaneously: false }),
-        note({ testerId: 'T3', laughs: 1 }),
-      ],
-    );
+    const report = run(journalsOf('T1', 'T2', 'T3'), [
+      note({ testerId: 'T1', perfectCitedSpontaneously: false }),
+      note({ testerId: 'T1', perfectCitedSpontaneously: true }),
+      note({ testerId: 'T2', perfectCitedSpontaneously: false }),
+      note({ testerId: 'T3', laughs: 1 }),
+    ]);
     expect(report.testers.map((t) => t.perfectCited)).toEqual([true, false, null]);
     expect(report.perfectCited).toEqual({
       hits: 1,
@@ -469,7 +467,7 @@ describe('computeMetrics: observed indicators', () => {
         note({ testerId: id, threatId: 'stairs', identifiedWithoutHelp: id !== 'T4' }),
       ),
     ];
-    const report = run([], rows);
+    const report = run(journalsOf('T1', 'T2', 'T3', 'T4', 'T5'), rows);
     expect(report.identification.byThreat.outlet).toEqual({
       hits: 5,
       count: 5,
@@ -524,19 +522,16 @@ describe('computeMetrics: observed indicators', () => {
   });
 
   it('keeps the comments of a tester, trimmed, with their line and context', () => {
-    const report = run(
-      [],
-      [
-        note({
-          testerId: 'T1',
-          line: 4,
-          threatId: 'stairs',
-          identifiedWithoutHelp: false,
-          comment: ' tapé trop tôt ',
-        }),
-        note({ testerId: 'T1', line: 5, laughs: 1, comment: '   ' }),
-      ],
-    );
+    const report = run(journalsOf('T1'), [
+      note({
+        testerId: 'T1',
+        line: 4,
+        threatId: 'stairs',
+        identifiedWithoutHelp: false,
+        comment: ' tapé trop tôt ',
+      }),
+      note({ testerId: 'T1', line: 5, laughs: 1, comment: '   ' }),
+    ]);
     expect(report.testers[0]?.comments).toEqual([
       { line: 4, sessionId: null, threatId: 'stairs', text: 'tapé trop tôt' },
     ]);
@@ -544,16 +539,18 @@ describe('computeMetrics: observed indicators', () => {
 });
 
 describe('computeMetrics: panel and empty data', () => {
-  it('everything is n/a with no tester', () => {
+  it('everything is n/a with no tester, and the panel is KO', () => {
     const report = run([]);
-    expect(report.panel).toEqual({ testers: 0, minTesters: 5, status: 'n/a' });
+    expect(report.panel).toEqual({ testers: 0, minTesters: 5, status: 'KO' });
     expect(report.relaunch).toMatchObject({ hits: 0, count: 0, valuePct: null, status: 'n/a' });
     expect(report.perfectCited.status).toBe('n/a');
     expect(report.laughed.status).toBe('n/a');
     expect(report.identification).toEqual({ byThreat: {}, status: 'n/a' });
     expect(report.firstEncounter).toEqual({ byThreat: {}, status: 'n/a' });
     expect(report.touchVsKeyboard.status).toBe('n/a');
-    expect(report.warnings).toEqual([]);
+    expect(report.warnings).toEqual([
+      'the panel is too small: 0 testers, FR68 asks for at least 5',
+    ]);
   });
 
   it('a panel below the minimum is KO and says so, and the other indicators are still computed', () => {
@@ -563,10 +560,10 @@ describe('computeMetrics: panel and empty data', () => {
       tester('T3', { sessionId: '00000003', gameIndex: 1 }),
     ]);
     expect(report.panel).toEqual({ testers: 3, minTesters: 5, status: 'KO' });
-    expect(report.relaunch).toMatchObject({ hits: 2, count: 3, valuePct: 66.7, status: 'KO' });
+    expect(report.relaunch).toMatchObject({ hits: 2, count: 3, valuePct: 66.6, status: 'KO' });
     expect(report.warnings).toEqual([
-      'tester T1 session 00000001 has no game 1: its first encounters may be those of a later game',
-      'tester T2 session 00000002 has no game 1: its first encounters may be those of a later game',
+      'tester T1 session 00000001 has no game 1: its first encounters may be those of a later game, and its device rates cover only the games sent',
+      'tester T2 session 00000002 has no game 1: its first encounters may be those of a later game, and its device rates cover only the games sent',
       'the panel is too small: 3 testers, FR68 asks for at least 5',
     ]);
   });
@@ -618,5 +615,121 @@ describe('computeMetrics: panel and empty data', () => {
       [2, 'mamaWoke', 1, 'salon_crawler'],
     ]);
     expect(report.testers[0]).toMatchObject({ deviceTypes: ['phone'], platforms: ['ios'] });
+  });
+});
+
+describe('computeMetrics: review fixes', () => {
+  it('truncates a share instead of rounding it: 79.96 % is not shown as the 80 it misses', () => {
+    const report = run([
+      tester('T1', {
+        sessionId: '00000001',
+        responses: [...responses('outlet', 'success', 15), ...responses('outlet', 'fail', 5)],
+      }),
+      tester('T2', {
+        sessionId: '00000002',
+        responses: [
+          ...responses('outlet', 'success', 106, 'keyboard'),
+          ...responses('outlet', 'fail', 7, 'keyboard'),
+        ],
+      }),
+    ]);
+    expect(report.touchVsKeyboard.ratioPct).toBe(79.9);
+    expect(report.touchVsKeyboard.status).toBe('KO');
+    expect(report.touchVsKeyboard.rates.keyboard.ratePct).toBe(93.8);
+  });
+
+  it('warns when the keyboard rate is 0 and the ratio is therefore undefined', () => {
+    const report = run([
+      tester('T1', { sessionId: '00000001', responses: responses('outlet', 'success', 2) }),
+      tester('T2', {
+        sessionId: '00000002',
+        responses: responses('outlet', 'fail', 2, 'keyboard'),
+      }),
+    ]);
+    expect(report.touchVsKeyboard.status).toBe('n/a');
+    expect(report.warnings).toContain(
+      'indicator 4: the keyboard success rate is 0, so the touch vs keyboard ratio is undefined (n/a): look at the keyboard games',
+    );
+  });
+
+  it('warns when an observed indicator is judged on fewer testers than the panel', () => {
+    const report = run(
+      [
+        tester('T1', { sessionId: '00000001' }),
+        tester('T2', { sessionId: '00000002' }),
+        tester('T3', { sessionId: '00000003' }),
+      ],
+      [
+        note({ testerId: 'T1', perfectCitedSpontaneously: true, laughs: 1 }),
+        note({ testerId: 'T2', threatId: 'outlet', identifiedWithoutHelp: true }),
+      ],
+    );
+    expect(report.warnings).toContain(
+      'observed indicators judged on fewer testers than the panel (a blank cell is not counted): 2 (perfect parry): 1/3 testers; 3 (identification): outlet 1/3; 5 (laughs): 1/3 testers',
+    );
+  });
+
+  it('does not repeat that warning when there are no notes at all', () => {
+    const report = run([tester('T1')]);
+    expect(report.warnings.some((w) => w.includes('fewer testers'))).toBe(false);
+  });
+
+  it('warns when a tester’s notes judge a threat differently on several rows, and keeps the earliest', () => {
+    const report = run(
+      [tester('T1', { sessionId: 'aaaaaaaa' }, { sessionId: 'bbbbbbbb' })],
+      [
+        note({
+          testerId: 'T1',
+          line: 2,
+          sessionId: 'aaaaaaaa',
+          threatId: 'outlet',
+          identifiedWithoutHelp: true,
+        }),
+        note({
+          testerId: 'T1',
+          line: 3,
+          sessionId: 'bbbbbbbb',
+          threatId: 'outlet',
+          identifiedWithoutHelp: false,
+        }),
+      ],
+    );
+    expect(report.testers[0]?.identifiedWithoutHelp).toEqual({ outlet: true });
+    expect(report.warnings).toContain(
+      "tester T1: the notes judge outlet differently on several rows: the earliest session's judgment (line 2) counts",
+    );
+  });
+
+  it('does not warn when the rows agree', () => {
+    const agree = (sessionId: string) =>
+      note({ testerId: 'T1', sessionId, threatId: 'outlet', identifiedWithoutHelp: true });
+    const report = run(
+      [tester('T1', { sessionId: 'aaaaaaaa' }, { sessionId: 'bbbbbbbb' })],
+      [agree('aaaaaaaa'), agree('bbbbbbbb')],
+    );
+    expect(report.warnings.some((w) => w.includes('differently'))).toBe(false);
+  });
+
+  it('warns when the journals mix levels or content versions', () => {
+    const report = run([tester('T1')], [], {
+      inputs: { ...INPUTS, levels: ['a_level', 'b_level'], contentHashes: ['aaaa', 'bbbb'] },
+    });
+    expect(report.warnings).toContain(
+      'the journals mix 2 levels (a_level, b_level): relaunches and first encounters span all of them',
+    );
+    expect(report.warnings).toContain(
+      'the journals come from 2 content versions (aaaa, bbbb): the games were not all played on the same build',
+    );
+  });
+
+  it('handles a threat id that is a property of Object.prototype', () => {
+    const report = run(
+      [tester('T1', { responses: [{ threat: 'constructor', quality: 'success' }] })],
+      [note({ testerId: 'T1', threatId: 'constructor', identifiedWithoutHelp: true })],
+    );
+    expect(report.testers[0]?.firstEncounter).toEqual({ constructor: 'success' });
+    expect(Object.hasOwn(report.firstEncounter.byThreat, 'constructor')).toBe(true);
+    expect(report.firstEncounter.byThreat.constructor).toMatchObject({ hits: 1, count: 1 });
+    expect(report.identification.byThreat.constructor).toMatchObject({ hits: 1, count: 1 });
   });
 });

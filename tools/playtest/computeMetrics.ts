@@ -10,7 +10,10 @@ export type Status = 'OK' | 'KO' | 'n/a';
 export type DeviceName = 'touch' | 'mouse' | 'keyboard' | 'gamepad' | 'none';
 const DEVICE_NAMES: readonly DeviceName[] = ['touch', 'mouse', 'keyboard', 'gamepad', 'none'];
 
-/** A share of a group: `valuePct` is rounded to one decimal for the report, `status` uses the exact counts. */
+/**
+ * A share of a group: `valuePct` is truncated to one decimal for the report (so it never shows the
+ * threshold when the status is KO), `status` uses the exact counts.
+ */
 export interface Measure {
   hits: number;
   /** What the share is computed on (testers, most of the time). */
@@ -71,8 +74,7 @@ export interface TesterReport {
   platforms: string[];
   /** In play order: session order, then game index. */
   games: GameLine[];
-  /** `null` for a tester who has notes and no journal. */
-  relaunch: { games: number; highestGameIndex: number; relaunched: boolean } | null;
+  relaunch: { games: number; highestGameIndex: number; relaunched: boolean };
   /** The first resolved response to each threat the tester met. */
   firstEncounter: Record<string, 'success' | 'fail'>;
   /** Success rate of each device the tester used. */
@@ -127,8 +129,14 @@ export interface ComputeMetricsInput {
   warnings?: readonly string[];
 }
 
+/** Truncated, not rounded: 79.96 % is shown as 79.9, never as the 80 it does not reach. */
 function roundedPct(hits: number, total: number): number | null {
-  return total === 0 ? null : Math.round((hits * 1000) / total) / 10;
+  return total === 0 ? null : Math.floor((hits * 1000) / total) / 10;
+}
+
+/** The value of an own key, so that a threat id such as `constructor` never reads `Object.prototype`. */
+export function ownValue<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
 }
 
 /** Integers only: `hits * 100 >= minPct * count`, so that 4 of 5 at 80 % is exactly `OK`. */
@@ -148,7 +156,7 @@ function threatMeasureOf(
     let hits = 0;
     let count = 0;
     for (const record of perTester) {
-      const value = record[threat];
+      const value = ownValue(record, threat);
       if (value === undefined) continue;
       count++;
       if (value) hits++;
@@ -176,7 +184,7 @@ function rateOf(counts: { hits: number; total: number }): Rate {
 }
 
 /**
- * Touch rate over keyboard rate, in % rounded to one decimal, or `null` when it is undefined (a
+ * Touch rate over keyboard rate, in % truncated to one decimal, or `null` when it is undefined (a
  * device without response, or a keyboard rate of 0). Computed from the counts, never from rounded rates.
  */
 function ratioOf(
@@ -184,7 +192,7 @@ function ratioOf(
   keyboard: { hits: number; total: number },
 ): number | null {
   if (touch.total === 0 || keyboard.total === 0 || keyboard.hits === 0) return null;
-  return Math.round((touch.hits * keyboard.total * 1000) / (touch.total * keyboard.hits)) / 10;
+  return Math.floor((touch.hits * keyboard.total * 1000) / (touch.total * keyboard.hits)) / 10;
 }
 
 function ratioStatus(
@@ -216,64 +224,67 @@ function sessionOrderOf(
   return [...order, ...rest];
 }
 
+/** `null` for a quality this tool does not know: the caller leaves the response out and says so. */
+function outcomeOf(quality: string): 'success' | 'fail' | null {
+  if (quality === 'perfect' || quality === 'success') return 'success';
+  return quality === 'fail' ? 'fail' : null;
+}
+
 function analyseTester(
   testerId: string,
-  tester: TesterGames | undefined,
+  tester: TesterGames,
   rows: readonly ObservationRow[],
   warnings: string[],
 ): TesterReport {
-  const journalSessions = new Set((tester?.games ?? []).map((g) => g.journal.summary.sessionId));
+  const journalSessions = new Set(tester.games.map((g) => g.journal.summary.sessionId));
   const order = sessionOrderOf(journalSessions, rows);
   const rank = (sessionId: string): number => order.indexOf(sessionId);
 
-  if (tester === undefined) {
-    warnings.push(
-      `tester ${testerId} has notes and no journal: only the observed indicators count`,
+  if (journalSessions.size > 1) {
+    const inNotes = new Set(rows.flatMap((row) => (row.sessionId === null ? [] : [row.sessionId])));
+    if ([...journalSessions].some((id) => !inNotes.has(id))) {
+      warnings.push(
+        `tester ${testerId} has ${journalSessions.size} sessions and the notes do not order them all: session order unknown, first encounters may be wrong`,
+      );
+    }
+  }
+  for (const sessionId of [...journalSessions].sort((a, b) => rank(a) - rank(b))) {
+    const hasFirst = tester.games.some(
+      (g) =>
+        g.journal.summary.sessionId === sessionId && g.journal.summary.gameIndexInSession === 1,
     );
-  } else {
-    if (journalSessions.size > 1) {
-      const inNotes = new Set(
-        rows.flatMap((row) => (row.sessionId === null ? [] : [row.sessionId])),
+    if (!hasFirst) {
+      warnings.push(
+        `tester ${testerId} session ${sessionId} has no game 1: its first encounters may be those of a later game, and its device rates cover only the games sent`,
       );
-      if ([...journalSessions].some((id) => !inNotes.has(id))) {
-        warnings.push(
-          `tester ${testerId} has ${journalSessions.size} sessions and the notes do not order them all: session order unknown, first encounters may be wrong`,
-        );
-      }
     }
-    for (const sessionId of [...journalSessions].sort((a, b) => rank(a) - rank(b))) {
-      const hasFirst = tester.games.some(
-        (g) =>
-          g.journal.summary.sessionId === sessionId && g.journal.summary.gameIndexInSession === 1,
+  }
+  for (const row of rows) {
+    if (row.sessionId !== null && !journalSessions.has(row.sessionId)) {
+      warnings.push(
+        `observations line ${row.line}: session ${row.sessionId} is not one of ${testerId}'s journals`,
       );
-      if (!hasFirst) {
-        warnings.push(
-          `tester ${testerId} session ${sessionId} has no game 1: its first encounters may be those of a later game`,
-        );
-      }
-    }
-    for (const row of rows) {
-      if (row.sessionId !== null && !journalSessions.has(row.sessionId)) {
-        warnings.push(
-          `observations line ${row.line}: session ${row.sessionId} is not one of ${testerId}'s journals`,
-        );
-      }
     }
   }
 
-  const played: TesterGame[] = [...(tester?.games ?? [])].sort(
+  const played: TesterGame[] = [...tester.games].sort(
     (a, b) =>
       rank(a.journal.summary.sessionId) - rank(b.journal.summary.sessionId) ||
       a.journal.summary.gameIndexInSession - b.journal.summary.gameIndexInSession,
   );
 
-  const firstEncounter: Record<string, 'success' | 'fail'> = {};
+  const firstEncounter = new Map<string, 'success' | 'fail'>();
   const totals = emptyRates();
-  for (const { journal } of played) {
+  for (const { file, journal } of played) {
     for (const entry of journal.summary.responses.timeline) {
-      if (firstEncounter[entry.threatDefId] === undefined) {
-        firstEncounter[entry.threatDefId] = entry.quality === 'fail' ? 'fail' : 'success';
+      const outcome = outcomeOf(entry.quality);
+      if (outcome === null) {
+        warnings.push(
+          `${file}: a response to ${entry.threatDefId} has an unknown quality "${entry.quality}" and is left out of the first encounters`,
+        );
+        continue;
       }
+      if (!firstEncounter.has(entry.threatDefId)) firstEncounter.set(entry.threatDefId, outcome);
     }
     for (const device of DEVICE_NAMES) {
       const counts = journal.summary.responses.byDevice[device];
@@ -287,16 +298,27 @@ function analyseTester(
   }
 
   // One judgment per threat: the row with no session first (it covers the tester), else the earliest session's.
-  const identified: Record<string, boolean> = {};
-  const chosenRank: Record<string, number> = {};
+  const identified = new Map<string, { value: boolean; rank: number; line: number }>();
+  const conflicting = new Set<string>();
   for (const row of rows) {
     if (row.threatId === null || row.identifiedWithoutHelp === null) continue;
     const rowRank = row.sessionId === null ? -1 : rank(row.sessionId);
-    const current = chosenRank[row.threatId];
-    if (current === undefined || rowRank < current) {
-      chosenRank[row.threatId] = rowRank;
-      identified[row.threatId] = row.identifiedWithoutHelp;
+    const current = identified.get(row.threatId);
+    if (current !== undefined && current.value !== row.identifiedWithoutHelp) {
+      conflicting.add(row.threatId);
     }
+    if (current === undefined || rowRank < current.rank) {
+      identified.set(row.threatId, {
+        value: row.identifiedWithoutHelp,
+        rank: rowRank,
+        line: row.line,
+      });
+    }
+  }
+  for (const threatId of [...conflicting].sort(compareNames)) {
+    warnings.push(
+      `tester ${testerId}: the notes judge ${threatId} differently on several rows: the earliest session's judgment (line ${identified.get(threatId)?.line}) counts`,
+    );
   }
 
   const cited = rows.map((row) => row.perfectCitedSpontaneously).filter((v) => v !== null);
@@ -318,14 +340,13 @@ function analyseTester(
       endReason: journal.summary.endReason,
       stars: journal.summary.score.stars,
     })),
-    relaunch:
-      tester === undefined
-        ? null
-        : { games: played.length, highestGameIndex: highest, relaunched: highest >= 2 },
-    firstEncounter,
+    relaunch: { games: played.length, highestGameIndex: highest, relaunched: highest >= 2 },
+    firstEncounter: Object.fromEntries(firstEncounter),
     rates,
     touchVsKeyboardPct: ratioOf(totals.touch, totals.keyboard),
-    identifiedWithoutHelp: identified,
+    identifiedWithoutHelp: Object.fromEntries(
+      [...identified].map(([threatId, judgment]) => [threatId, judgment.value]),
+    ),
     perfectCited: cited.length === 0 ? null : cited.includes(true),
     laughs,
     laughed: laughs === null ? null : laughs >= 1,
@@ -355,16 +376,24 @@ export function computeMetrics(input: ComputeMetricsInput): PlaytestReport {
     rows.push(row);
     rowsByTester.set(row.testerId, rows);
   }
-  const ids = [...new Set([...journals.keys(), ...rowsByTester.keys()])].sort(compareNames);
-  const testers = ids.map((id) =>
-    analyseTester(id, journals.get(id), rowsByTester.get(id) ?? [], warnings),
-  );
+  // Notes about a tester with no usable journal are left out of the panel and of every indicator: a
+  // typo in a testerId (`t1` for `T1`) would otherwise count as one more tester.
+  for (const [id, rows] of [...rowsByTester].sort((a, b) => compareNames(a[0], b[0]))) {
+    if (journals.has(id)) continue;
+    warnings.push(
+      `tester ${id} has notes (line${rows.length === 1 ? '' : 's'} ${rows.map((row) => row.line).join(', ')}) and no usable journal: the notes are ignored; check the id against the journal folders`,
+    );
+  }
+  const testers = [...journals.keys()]
+    .sort(compareNames)
+    .map((id) =>
+      analyseTester(id, journals.get(id) as TesterGames, rowsByTester.get(id) ?? [], warnings),
+    );
 
   // Indicator 1
-  const withGames = testers.filter((t) => t.relaunch !== null);
   const relaunch = measureOf(
-    withGames.filter((t) => t.relaunch?.relaunched).length,
-    withGames.length,
+    testers.filter((t) => t.relaunch.relaunched).length,
+    testers.length,
     thresholds.relaunchMinPct,
   );
 
@@ -385,6 +414,11 @@ export function computeMetrics(input: ComputeMetricsInput): PlaytestReport {
       pooled[device].hits += rate.hits;
       pooled[device].total += rate.total;
     }
+  }
+  if (pooled.touch.total > 0 && pooled.keyboard.total > 0 && pooled.keyboard.hits === 0) {
+    warnings.push(
+      'indicator 4: the keyboard success rate is 0, so the touch vs keyboard ratio is undefined (n/a): look at the keyboard games',
+    );
   }
   const touchVsKeyboard: TouchVsKeyboard = {
     rates: Object.fromEntries(DEVICE_NAMES.map((d) => [d, rateOf(pooled[d])])) as Record<
@@ -418,11 +452,40 @@ export function computeMetrics(input: ComputeMetricsInput): PlaytestReport {
     thresholds.laughedMinPct,
   );
 
+  // The observed indicators count the testers whose cell is filled in: say when that is fewer than the panel.
+  if (input.observations.length > 0) {
+    const short: string[] = [];
+    if (citedKnown.length < testers.length) {
+      short.push(`2 (perfect parry): ${citedKnown.length}/${testers.length} testers`);
+    }
+    const threatsShort = Object.entries(identification.byThreat)
+      .filter(([, measure]) => measure.count < testers.length)
+      .map(([threat, measure]) => `${threat} ${measure.count}/${testers.length}`);
+    if (threatsShort.length > 0) short.push(`3 (identification): ${threatsShort.join(', ')}`);
+    if (laughKnown.length < testers.length) {
+      short.push(`5 (laughs): ${laughKnown.length}/${testers.length} testers`);
+    }
+    if (short.length > 0) {
+      warnings.push(
+        `observed indicators judged on fewer testers than the panel (a blank cell is not counted): ${short.join('; ')}`,
+      );
+    }
+  }
+  if (input.inputs.levels.length > 1) {
+    warnings.push(
+      `the journals mix ${input.inputs.levels.length} levels (${input.inputs.levels.join(', ')}): relaunches and first encounters span all of them`,
+    );
+  }
+  if (input.inputs.contentHashes.length > 1) {
+    warnings.push(
+      `the journals come from ${input.inputs.contentHashes.length} content versions (${input.inputs.contentHashes.join(', ')}): the games were not all played on the same build`,
+    );
+  }
+
   const panel: PanelMeasure = {
     testers: testers.length,
     minTesters: thresholds.panelMinTesters,
-    status:
-      testers.length === 0 ? 'n/a' : testers.length >= thresholds.panelMinTesters ? 'OK' : 'KO',
+    status: testers.length >= thresholds.panelMinTesters ? 'OK' : 'KO',
   };
   if (panel.status === 'KO') {
     warnings.push(

@@ -1,10 +1,11 @@
-import type {
-  DeviceName,
-  Measure,
-  PlaytestReport,
-  Rate,
-  TesterReport,
-  ThreatMeasure,
+import {
+  type DeviceName,
+  type Measure,
+  ownValue,
+  type PlaytestReport,
+  type Rate,
+  type TesterReport,
+  type ThreatMeasure,
 } from './computeMetrics.ts';
 
 const DEVICE_ORDER: readonly DeviceName[] = ['touch', 'mouse', 'keyboard', 'gamepad', 'none'];
@@ -22,8 +23,13 @@ function share(measure: Measure): string {
   return measure.count === 0 ? '—' : `${pct(measure.valuePct)} (${measure.hits}/${measure.count})`;
 }
 
+/** Text from a file or a note on one line: a line break would end a list item or a table row. */
+function oneLine(text: string): string {
+  return text.replace(/\s*[\r\n]+\s*/g, ' ');
+}
+
 function cell(text: string): string {
-  return text.replaceAll('|', '\\|').replaceAll('\n', ' ');
+  return oneLine(text).replaceAll('|', '\\|');
 }
 
 function table(header: readonly string[], rows: readonly (readonly string[])[]): string[] {
@@ -134,18 +140,10 @@ function threatTable(
 
 function testerSection(tester: TesterReport): string[] {
   const lines: string[] = [`### ${tester.testerId}`, ''];
-  const devices =
-    tester.deviceTypes.length === 0
-      ? 'no journal'
-      : `${tester.deviceTypes.join(', ')} (${tester.platforms.join(', ')})`;
-  lines.push(`- Device: ${devices}`);
-  if (tester.relaunch === null) {
-    lines.push('- Relaunch: — (no journal)');
-  } else {
-    lines.push(
-      `- Relaunch: ${tester.relaunch.relaunched ? 'yes' : 'no'} (${tester.relaunch.games} game${tester.relaunch.games === 1 ? '' : 's'}, highest game index ${tester.relaunch.highestGameIndex})`,
-    );
-  }
+  lines.push(`- Device: ${tester.deviceTypes.join(', ')} (${tester.platforms.join(', ')})`);
+  lines.push(
+    `- Relaunch: ${tester.relaunch.relaunched ? 'yes' : 'no'} (${tester.relaunch.games} game${tester.relaunch.games === 1 ? '' : 's'}, highest game index ${tester.relaunch.highestGameIndex})`,
+  );
   const usedRates = DEVICE_ORDER.filter((d) => tester.rates[d] !== undefined);
   lines.push(
     `- Success rate per device: ${usedRates.length === 0 ? '—' : usedRates.map((d) => `${d} ${rate(tester.rates[d])}`).join(', ')}`,
@@ -187,7 +185,7 @@ function testerSection(tester: TesterReport): string[] {
         .filter((part) => part !== null)
         .join(', ');
       lines.push(
-        `- (line ${comment.line}${where === '' ? '' : `, ${where}`}) ${comment.text.replaceAll('\n', ' ')}`,
+        `- (line ${comment.line}${where === '' ? '' : `, ${where}`}) ${oneLine(comment.text)}`,
       );
     }
   }
@@ -211,16 +209,14 @@ export function renderMetrics(report: PlaytestReport): string {
     '',
     '### Identified without help (observed)',
     '',
-    ...threatTable(
-      report.identification,
-      report.testers,
-      (t, threat) => t.identifiedWithoutHelp[threat],
+    ...threatTable(report.identification, report.testers, (t, threat) =>
+      ownValue(t.identifiedWithoutHelp, threat),
     ),
     '',
     '### First-encounter success (computed)',
     '',
     ...threatTable(report.firstEncounter, report.testers, (t, threat) => {
-      const first = t.firstEncounter[threat];
+      const first = ownValue(t.firstEncounter, threat);
       return first === undefined ? undefined : first === 'success';
     }),
     '',
@@ -240,11 +236,11 @@ export function renderMetrics(report: PlaytestReport): string {
   ];
   if (inputs.skipped.length === 0) lines.push('None.');
   for (const skipped of inputs.skipped) {
-    lines.push(`- ${skipped.file}: ${skipped.reason.replaceAll('\n', ' ')}`);
+    lines.push(`- ${skipped.file}: ${oneLine(skipped.reason)}`);
   }
   lines.push('', '### Warnings', '');
   if (report.warnings.length === 0) lines.push('None.');
-  for (const warning of report.warnings) lines.push(`- ${warning}`);
+  for (const warning of report.warnings) lines.push(`- ${oneLine(warning)}`);
   lines.push('');
   return lines.join('\n');
 }

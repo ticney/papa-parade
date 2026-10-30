@@ -133,6 +133,24 @@ describe('renderMetrics', () => {
   });
 });
 
+describe('renderMetrics: text from files', () => {
+  it('keeps a comment, a warning and a skip reason with line breaks on one line', () => {
+    const value = report();
+    const tester = value.testers[0];
+    if (tester === undefined) throw new Error('no tester');
+    tester.comments = [
+      { line: 9, sessionId: null, threatId: null, text: 'a ri\r\n# fort\rpuis | non' },
+    ];
+    value.warnings = ['first line\nsecond line\r\nthird'];
+    value.inputs.skipped = [{ file: 'T1/c.json', reason: 'one\r\ntwo' }];
+    const markdown = renderMetrics(value);
+    expect(markdown).toContain('- (line 9) a ri # fort puis | non');
+    expect(markdown).toContain('- first line second line third');
+    expect(markdown).toContain('- T1/c.json: one two');
+    expect(markdown).not.toContain('\r');
+  });
+});
+
 describe('renderJson', () => {
   it('is the report, indented by two spaces, with a final newline', () => {
     const value = report();

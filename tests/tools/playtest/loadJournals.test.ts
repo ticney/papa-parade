@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { log } from '@shared/log';
@@ -151,10 +151,30 @@ describe('loadJournals', () => {
       {
         file: 'T1/b.json',
         reason: expect.stringMatching(
-          /^not a valid exported journal:\n {2}summary\.gameIndexInSession: /,
+          /^not a valid exported journal: summary\.gameIndexInSession: /,
         ),
       },
     ]);
+  });
+
+  it('warns about a file whose suffix differs only by case, and about a symbolic link', async () => {
+    journal('T1/a.json');
+    journal('T1/b.JSON', { sessionId: '00000002' });
+    put('T1/notes.txt', 'not a journal');
+    symlinkSync(join(root, 'T1', 'a.json'), join(root, 'T1', 'link.json'));
+    const loaded = await loadedOk();
+    expect(loaded.testers[0]?.games.map((game) => game.file)).toEqual(['T1/a.json']);
+    expect(loaded.warnings).toEqual([
+      'T1/b.JSON: only files ending in ".json" (lowercase) are read: rename it',
+      'T1/link.json: a symbolic link is ignored: copy the file',
+    ]);
+  });
+
+  it('logs the warnings even when the folder turns out to be unusable', async () => {
+    put('T1/a.json', '{ nope');
+    const errors = await errorsOf();
+    expect(errors[0]).toContain('no tester has a usable game');
+    expect(log.warn).toHaveBeenCalledWith('playtest', expect.stringContaining('T1/a.json skipped'));
   });
 
   it('skips a bot run file with its reason', async () => {
