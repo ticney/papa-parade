@@ -239,6 +239,64 @@ describe('TapBaby: what it does (story 4.1, rule 6)', () => {
     expect(world.papa).toMatchObject({ state: 'idle', path: [], intent: 'none' });
     expect(world.baby.state).toBe('babble');
   });
+
+  it('ignores a second TapBaby in the step that took or put down the baby', async () => {
+    const sim = await newSim();
+    const world = worldOf(sim);
+    placeBaby(sim, 0.5);
+    const rng = structuredClone(world.rng);
+    // A pointer tap and Space in the same step: one take, not a take and a put-down.
+    tapBaby(sim);
+    tapBaby(sim);
+    const taken = stepEvents(sim);
+    expect(ofType(taken, 'BabyPickedUp')).toHaveLength(1);
+    expect(ofType(taken, 'BabyPutDown')).toEqual([]);
+    expect(world.baby.state).toBe('carried');
+    expect(drawsBetween(rng, world.rng)).toBe(1);
+    tapBaby(sim);
+    tapBaby(sim);
+    const putDown = stepEvents(sim);
+    expect(ofType(putDown, 'BabyPutDown')).toHaveLength(1);
+    expect(ofType(putDown, 'BabyPickedUp')).toEqual([]);
+    expect(world.baby.state).toBe('babble');
+  });
+
+  it('puts the baby down only where the walk ends: a tap on a closed cell of a safe zone is not enough', async () => {
+    // A strip of safe floor that starts inside the sofa (closed cells for Papa) and reaches open
+    // floor beyond it: a tap on its closed end walks to the nearest open cell, which is outside it.
+    const strip = {
+      id: 'sofa_strip',
+      kind: 'safe' as const,
+      centerM: [0.9, 0.3, -1.75] as [number, number, number],
+      halfExtentsM: [1.1, 0.3, 0.2] as [number, number, number],
+    };
+    const sim = await createSim({
+      content,
+      geometry: { ...geometry, zones: [...geometry.zones, strip] },
+      level: createTestLevel({ carry: CARRY }),
+      seed: 1,
+    });
+    const world = worldOf(sim);
+    placeBaby(sim, 0.5);
+    tapBaby(sim);
+    stepEvents(sim);
+    expect(world.baby.state).toBe('carried');
+    tapFloor(sim, -0.1, -1.75);
+    const planned = stepEvents(sim);
+    const [path] = ofType(planned, 'PapaPathPlanned');
+    if (path === undefined) throw new Error('no walk was planned');
+    const [stripXM, , stripZM] = strip.centerM;
+    const [stripHalfXM, , stripHalfZM] = strip.halfExtentsM;
+    const isGoalInStrip =
+      Math.abs(path.targetXM - stripXM) <= stripHalfXM &&
+      Math.abs(path.targetZM - stripZM) <= stripHalfZM;
+    expect(isGoalInStrip).toBe(false);
+    // The tap itself is inside the strip: only the walk's end tells.
+    expect(Math.abs(-0.1 - stripXM)).toBeLessThanOrEqual(stripHalfXM);
+    expect(world.papa.intent).toBe('none');
+    runUntil(sim, () => world.papa.state === 'idle');
+    expect(world.baby.state).toBe('carried');
+  });
 });
 
 describe('takeBaby', () => {
@@ -335,7 +393,7 @@ describe('taking the baby cancels the threats aimed at him (rule 7)', () => {
     expect(threat).toMatchObject({ state: 'idle', press: null });
   });
 
-  it('leaves a resolved threat, a gagged one and an idle one alone', async () => {
+  it('leaves a gagged threat and an idle one alone', async () => {
     // A gag: the window runs out. The cooldown (6000 ms) is still running at the take.
     const gagged = await outletSim();
     const world = worldOf(gagged);
@@ -390,6 +448,33 @@ describe('taking the baby cancels the threats aimed at him (rule 7)', () => {
     expect(ofType(events, 'BabyPickedUp')).toHaveLength(1);
     expect(ofType(events, 'ThreatCancelled')).toEqual([]);
     expect(microSleep?.state).toBe('telegraph');
+  });
+
+  it('cancels the threat of a found silence too, so that it cannot gag a carried baby', async () => {
+    const sim = await newSim({ waves: [testWave([SILENCE])], feel: withCarry({ reachM: 100 }) });
+    const world = worldOf(sim);
+    runUntil(sim, () => world.silence.startedAt !== null);
+    // The tap that finds the baby is spent; he is then locked on the revealed threat.
+    tapBaby(sim);
+    stepEvents(sim);
+    const threat = world.threats[0];
+    if (threat === undefined) throw new Error('no silence threat');
+    expect(world.baby.state).toBe('targetLocked');
+    expect(threat.state).toBe('telegraph');
+    const mischiefs = world.mess.mischiefs;
+    tapBaby(sim);
+    const events = stepEvents(sim);
+    expect(ofType(events, 'BabyPickedUp')).toHaveLength(1);
+    expect(ofType(events, 'ThreatCancelled')).toEqual([
+      { type: 'ThreatCancelled', t: world.time.sim, threatId: threat.id, reason: 'carried' },
+    ]);
+    expect(threat).toMatchObject({ state: 'idle', press: null, responseWindow: null });
+    expect(world.baby.targetThreatId).toBeNull();
+    // Long after the window would have closed, nothing was gagged.
+    const later = stepEvents(sim, 600);
+    expect(ofType(later, 'GagTriggered')).toEqual([]);
+    expect(world.mess.mischiefs).toBe(mischiefs);
+    expect(world.baby.state).toBe('carried');
   });
 
   it('cancels a threat the director telegraphs in the very step of the pick-up (rule 10)', async () => {
@@ -740,10 +825,32 @@ describe('the Firmness is impossible while carried (rule 12)', () => {
   });
 });
 
+describe('a held press on a Parry threat (rule 12)', () => {
+  it('is a wrongResponse whether or not the baby is carried: the Firmness ban changes nothing for a parry def', async () => {
+    const sim = await newSim({ waves: [testWave([OUTLET])], feel: withCarry({ reachM: 100 }) });
+    placeBaby(sim, 0.5);
+    tapBaby(sim);
+    stepEvents(sim);
+    const world = worldOf(sim);
+    expect(world.baby.state).toBe('carried');
+    const threat = world.threats[0];
+    if (threat === undefined) throw new Error('no outlet');
+    sim.enqueue({ type: 'ForceThreat', t: asSimMs(world.time.sim), threatId: threat.id });
+    runUntil(sim, () => threat.state === 'windowOpen');
+    // Pressed and never released: the ring closes (a Firmness) on a def that asks for a Parry.
+    sim.enqueue({ type: 'PressThreat', t: asSimMs(world.time.sim + STEP_MS), threatId: threat.id });
+    const events = runUntil(sim, () => threat.state === 'gag', 400);
+    expect(ofType(events, 'ResponseResolved')).toEqual([
+      expect.objectContaining({ quality: 'fail', reason: 'wrongResponse' }),
+    ]);
+  });
+});
+
 describe('time passes', () => {
-  it('does not move the baby of a level without carry', async () => {
+  it('keeps world.carry empty and the baby free in a level without carry', async () => {
     const sim = await newSim({ carry: false });
     stepN(sim, 10);
     expect(worldOf(sim).carry).toEqual({ armsCryAt: null });
+    expect(worldOf(sim).baby.state).not.toBe('carried');
   });
 });

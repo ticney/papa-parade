@@ -50,7 +50,7 @@ import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera
 import type { LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
 import { createRenderer, type RenderStats } from './render/renderer.ts';
-import { BABY_CARRIED_HEIGHT_M } from './render/views/babyView.ts';
+import { BABY_CARRIED_FORWARD_M, BABY_CARRIED_HEIGHT_M } from './render/views/babyView.ts';
 import { loadFonts } from './ui/fonts.ts';
 import { createEpicStamp } from './ui/hud/epicStamp.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
@@ -910,6 +910,9 @@ export async function boot(): Promise<void> {
       }
       // A key still held after a tap's path ends walks again, and so after a coffee or a nap.
       if (event.type === 'PapaArrived') inputMapper.resumeHeld();
+      // Taking or putting down the baby stops Papa where he stands (`walkDir` → idle): a direction
+      // still held walks again, with the baby in his arms or without.
+      if (event.type === 'BabyPickedUp' || event.type === 'BabyPutDown') inputMapper.resumeHeld();
       if (
         event.type === 'PapaStateChanged' &&
         event.to === 'idle' &&
@@ -1121,6 +1124,7 @@ export async function boot(): Promise<void> {
       return startFeel().baby.bodyRadiusM;
     },
     babyCarriedHeightM: BABY_CARRIED_HEIGHT_M,
+    babyCarriedForwardM: BABY_CARRIED_FORWARD_M,
     get input() {
       return levelFeel().input;
     },

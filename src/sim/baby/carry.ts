@@ -61,8 +61,8 @@ function drawArmsCryAt(world: World, ctx: StepContext) {
 /**
  * Papa takes the baby in his arms, at the step of the command: he stops, the baby stops crawling,
  * drops his target and is set at Papa's point looking where Papa looks (`BabyStateChanged`, then
- * `BabyPickedUp`). Every anchored threat that is announced or open is cancelled with no gag
- * (`ThreatCancelled{carried}`), in threat order; the ones on Papa stay. With a cry in the arms the
+ * `BabyPickedUp`). Every threat of the baby that is announced or open, an anchored one or a found
+ * silence's, is cancelled with no gag (`ThreatCancelled{carried}`), in threat order; the ones on Papa stay. With a cry in the arms the
  * level draws when the first one is due: one `nextFloat`, whatever the tuning.
  */
 export function takeBaby(world: World, ctx: StepContext): void {
@@ -79,7 +79,7 @@ export function takeBaby(world: World, ctx: StepContext): void {
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
     if (threat.state !== 'telegraph' && threat.state !== 'windowOpen') continue;
-    if (ctx.level.threats[i]?.def.target !== 'anchor') continue;
+    if (ctx.level.threats[i]?.def.target === 'papa') continue;
     cancelThreat(world, ctx, threat, 'carried');
   }
   if (ctx.level.armsCryIndex >= 0) world.carry.armsCryAt = drawArmsCryAt(world, ctx);

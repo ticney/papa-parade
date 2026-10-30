@@ -194,11 +194,20 @@ describe('createBabyView', () => {
       expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
     });
 
-    it('keeps the shadow on the floor', () => {
+    it('keeps the shadow on the floor, under the baby and not under Papa', () => {
       const { scene, view } = build(0.2);
       view.update(carried(), 1, papaAt());
+      scene.updateMatrixWorld(true);
       const shadow = scene.getObjectByName('blob_baby') as Mesh;
-      expect(shadow.position.y).toBeLessThan(0.05);
+      const body = scene.getObjectByName('baby') as Mesh;
+      const shadowAt = shadow.getWorldPosition(new Vector3());
+      const bodyAt = body.getWorldPosition(new Vector3());
+      // On the floor while the body is lifted to the chest, and it follows the group in x and z.
+      expect(shadowAt.y).toBeLessThan(0.05);
+      expect(bodyAt.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
+      expect(shadowAt.x).toBeCloseTo(bodyAt.x, 12);
+      expect(shadowAt.z).toBeCloseTo(bodyAt.z, 12);
+      expect(shadowAt.x).toBeGreaterThan(6);
     });
 
     it('composes with the hop: the two lifts add, and neither overwrites the other', () => {

@@ -84,8 +84,11 @@ async function takeBaby(page: Page): Promise<void> {
         WALK_BOUND_MS,
         (world) => world.baby.state === 'carried',
       );
-    } catch {
-      // He was out of reach on arrival: the next attempt walks to where he is now.
+    } catch (error) {
+      // He was out of reach on arrival: the next attempt walks to where he is now. Anything else
+      // (a page crash, a broken test API) is a failure, not a retry.
+      if (!(error instanceof Error) || !error.message.includes('did not happen within'))
+        throw error;
     }
   }
   expect((await ppWorld(page)).baby.state).toBe('carried');

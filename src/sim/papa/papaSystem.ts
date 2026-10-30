@@ -17,12 +17,18 @@ import { stepInDirection } from './walk.ts';
 
 /**
  * Walks to a tapped point (D7): see {@link planWalkTo} for where the path ends. A tap cancels a
- * glide. A* failing anyway (it should not) leaves Papa where he is. True when a path was planned.
+ * glide. A* failing anyway (it should not) leaves Papa where he is. Returns where the path ends, or
+ * null when no path was planned.
  */
-function tapFloor(world: World, ctx: StepContext, tapXM: number, tapZM: number): boolean {
+function tapFloor(
+  world: World,
+  ctx: StepContext,
+  tapXM: number,
+  tapZM: number,
+): { goalXM: number; goalZM: number } | null {
   const { papa } = world;
   const goal = planWalkTo(papa, ctx, tapXM, tapZM);
-  if (goal === null) return false;
+  if (goal === null) return null;
   papa.dirX = 0;
   papa.dirZ = 0;
   papa.isBlocked = false;
@@ -39,7 +45,7 @@ function tapFloor(world: World, ctx: StepContext, tapXM: number, tapZM: number):
     waypointCount: papa.path.length / 2,
   });
   enterPapaState(world, ctx, 'walkPath');
-  return true;
+  return goal;
 }
 
 /**
@@ -85,25 +91,35 @@ function isTakeable(world: World, ctx: StepContext): boolean {
  * `TapBaby` (story 4.1 rule 6), in this order. The tap that found a hiding baby is spent (Papa stays
  * for the parry). In a level that does not carry, or for a hiding baby who is not found, Papa just
  * walks to where the baby is (story 1.21). A carried baby is put down here. A baby within reach is
- * taken at once; a farther one is walked to, and taken on arrival if he is then within reach.
+ * taken at once; a farther one is walked to, and taken on arrival if he is then within reach. True
+ * when the baby was taken or put down, so that `runPapa` can ignore a second `TapBaby` in the same
+ * step (a pointer tap and Space together) instead of undoing the first.
  */
-function tapBaby(world: World, ctx: StepContext): void {
-  if (isBabyFoundNow(world, ctx)) return;
+function tapBaby(world: World, ctx: StepContext): boolean {
+  if (isBabyFoundNow(world, ctx)) return false;
   const { baby, papa } = world;
   if (!ctx.level.hasCarry || baby.state === 'mischiefSilent') {
     tapFloor(world, ctx, baby.xM, baby.zM);
   } else if (baby.state === 'carried') {
     putDownBaby(world, ctx);
+    return true;
   } else if (isBabyInReach(world, ctx)) {
     takeBaby(world, ctx);
-  } else if (tapFloor(world, ctx, baby.xM, baby.zM)) {
+    return true;
+  } else if (tapFloor(world, ctx, baby.xM, baby.zM) !== null) {
     papa.intent = 'takeBaby';
   }
+  return false;
 }
 
-/** `TapFloor`: a walk to the point; inside a safe zone with the baby in his arms it ends in a put-down. */
+/**
+ * `TapFloor`: a walk to the point; with the baby in his arms, a walk that ends inside a safe zone
+ * ends in a put-down. The zone is tested where the path ends, not at the tap: a tap on a closed
+ * cell of the playpen (its rim) can end outside it.
+ */
 function tapFloorCommand(world: World, ctx: StepContext, xM: number, zM: number): void {
-  if (tapFloor(world, ctx, xM, zM) && isBabyCarried(world) && isInSafeZone(ctx, xM, zM)) {
+  const goal = tapFloor(world, ctx, xM, zM);
+  if (goal !== null && isBabyCarried(world) && isInSafeZone(ctx, goal.goalXM, goal.goalZM)) {
     world.papa.intent = 'putDownBaby';
   }
 }
@@ -148,7 +164,7 @@ function tapObject(world: World, ctx: StepContext, objectId: string): void {
   for (let i = 0; i < objects.length; i++) {
     const object = objects[i] as SimObjectSpec;
     if (object.id !== objectId) continue;
-    if (tapFloor(world, ctx, object.xM, object.zM)) {
+    if (tapFloor(world, ctx, object.xM, object.zM) !== null) {
       world.papa.objectId = objectId;
       ctx.events.push({ type: 'ObjectTapped', t: world.time.sim, objectId });
     }
@@ -237,14 +253,16 @@ export function runPapa(world: World, ctx: StepContext): void {
     }
   }
 
+  let hasToggledCarry = false;
   for (let i = 0; i < ctx.commands.length; i++) {
     const command = ctx.commands[i];
     if (command === undefined) continue;
     if (isPapaBusy(papa)) break;
     if (command.type === 'TapFloor') tapFloorCommand(world, ctx, command.xM, command.zM);
     else if (command.type === 'TapObject') tapObject(world, ctx, command.objectId);
-    else if (command.type === 'TapBaby') tapBaby(world, ctx);
-    else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
+    else if (command.type === 'TapBaby') {
+      if (!hasToggledCarry) hasToggledCarry = tapBaby(world, ctx);
+    } else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
     else if (command.type === 'MoveStop') moveStop(world, ctx);
     else if (command.type === 'PressThreat') pressThreat(world, ctx, command.threatId);
   }

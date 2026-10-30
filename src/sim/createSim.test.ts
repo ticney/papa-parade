@@ -556,6 +556,17 @@ describe('the level’s fatigue and objects (story 1.19)', () => {
       );
     });
 
+    it('refuses a cry in the arms that asks for Firmness', async () => {
+      await expect(
+        createSim({
+          content,
+          geometry,
+          level: withArmsCry({ response: 'firm', holdUntilMs: 1000 }),
+          seed: 1,
+        }),
+      ).rejects.toThrow(/carry\.armsCryDef: the threat "arms_cry" has the response "firm"/);
+    });
+
     it('refuses a level that carries with no safe zone in the room', async () => {
       const bare = {
         ...geometry,

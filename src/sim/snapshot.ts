@@ -523,6 +523,8 @@ export interface PlannedLevel {
   readonly microSleepIndex: number;
   /** The index in `threats` of the cry in the arms, or -1 when the level has none (story 4.1). */
   readonly armsCryIndex: number;
+  /** Whether the level carries the baby (`SimLevel.hasCarry`, story 4.1): only then can he be `carried`. */
+  readonly hasCarry: boolean;
   /** Whether the level has the noise gauge (`SimLevel.hasNoise`, story 3.1). */
   readonly hasNoise: boolean;
   /** The level's interactive objects: Papa's `objectId` must be one of them. */
@@ -648,17 +650,23 @@ function silenceProblem(
 }
 
 /**
- * Carrying (story 4.1): `armsCryAt` is null or a finite instant, and non-null only while the baby is
- * in the arms and the level has a cry in the arms.
+ * Carrying (story 4.1): the baby is carried only in a level that carries; `armsCryAt` is a finite
+ * instant exactly while the baby is in the arms in a level with a cry in the arms, and null
+ * otherwise (`takeBaby` draws it, `putDownBaby` clears it).
  */
-function carryProblem(carry: unknown, baby: unknown, hasArmsCry: boolean): string | null {
+function carryProblem(
+  carry: unknown,
+  baby: unknown,
+  hasCarry: boolean,
+  hasArmsCry: boolean,
+): string | null {
   if (typeof carry !== 'object' || carry === null) return 'world.carry is missing';
   const { armsCryAt } = carry as Record<string, unknown>;
-  if (armsCryAt === null) return null;
+  const isCarried = (baby as Record<string, unknown>).state === 'carried';
+  if (isCarried && !hasCarry) return 'world.baby.state';
+  if (armsCryAt === null) return isCarried && hasArmsCry ? 'world.carry.armsCryAt' : null;
   if (!isFiniteNumber(armsCryAt) || (armsCryAt as number) < 0) return 'world.carry.armsCryAt';
-  if (!hasArmsCry || (baby as Record<string, unknown>).state !== 'carried') {
-    return 'world.carry.armsCryAt';
-  }
+  if (!hasArmsCry || !isCarried) return 'world.carry.armsCryAt';
   return null;
 }
 
@@ -812,7 +820,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
       (baby as { state?: unknown } | null)?.state,
     ) ??
     babyProblem(baby, papa, threats as readonly ThreatInstance[], clock.sim as number) ??
-    carryProblem(carry, baby, planned.armsCryIndex >= 0) ??
+    carryProblem(carry, baby, planned.hasCarry, planned.armsCryIndex >= 0) ??
     silenceProblem(
       silence,
       baby,

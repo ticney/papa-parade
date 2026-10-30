@@ -22,7 +22,7 @@ import type { World } from '../world.ts';
 
 // Story 4.1: random play on the frozen room with carrying and the cry in the arms. Strict
 // invariants throw inside the sim; on top of that, after every step a carried baby is at Papa's
-// point, `armsCryAt` is set only while he is carried, and no anchored threat is announced to him.
+// point, `armsCryAt` is set only while he is carried, and no threat of the baby (an anchored one, or a found silence's) is announced to him.
 // The commands come from a seeded rng of the test (never `Math.random`); `ForceThreat` is left out
 // on purpose: it is the one way to announce a threat to a carried baby.
 
@@ -36,7 +36,7 @@ const content = createTestContent();
 const geometry = createTestGeometry();
 const playpen = geometry.zones.find((zone) => zone.id === 'playpen');
 if (playpen === undefined) throw new Error('the frozen room has no playpen zone');
-const ANCHORED_DEFS = new Set(['outlet', 'stairs', 'coffee_table_object']);
+const BABY_DEFS = new Set(['outlet', 'stairs', 'coffee_table_object', 'silence_mischief']);
 
 function newLevel() {
   return createTestLevel({
@@ -114,10 +114,9 @@ describe('carrying, played at random', () => {
             if (event.type === 'ThreatCancelled') cancels++;
             if (event.type === 'ThreatTelegraphed' && event.kind === 'arms_cry') armsCries++;
             if (event.type === 'ThreatTelegraphed' && wasCarried) {
-              expect(
-                ANCHORED_DEFS.has(event.kind),
-                `seed ${seed} step ${step}: ${event.kind}`,
-              ).toBe(false);
+              expect(BABY_DEFS.has(event.kind), `seed ${seed} step ${step}: ${event.kind}`).toBe(
+                false,
+              );
             }
           }
           const isCarried = world.baby.state === 'carried';
@@ -126,7 +125,7 @@ describe('carrying, played at random', () => {
             expect(world.baby.xM, `seed ${seed} step ${step}`).toBe(world.papa.xM);
             expect(world.baby.zM, `seed ${seed} step ${step}`).toBe(world.papa.zM);
             for (const threat of world.threats) {
-              if (!ANCHORED_DEFS.has(threat.defId)) continue;
+              if (!BABY_DEFS.has(threat.defId)) continue;
               expect(['telegraph', 'windowOpen'], `seed ${seed} step ${step}`).not.toContain(
                 threat.state,
               );

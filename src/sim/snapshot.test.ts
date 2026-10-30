@@ -2194,6 +2194,14 @@ describe('snapshot / restore of carrying (story 4.1)', () => {
         /world\.carry\.armsCryAt/,
       ],
       [
+        'a carried baby with no cry due in a level that has a cry in the arms',
+        (w) => {
+          w.carry.armsCryAt = null;
+        },
+        true,
+        /world\.carry\.armsCryAt/,
+      ],
+      [
         'an unknown intent',
         (w) => {
           w.papa.intent = 'cuddle';

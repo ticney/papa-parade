@@ -584,3 +584,10 @@
 - **The put-down gesture (open point 1, D2):** tap Papa's chest = put down here; tap the playpen = walk and put down; tap elsewhere = walk on with him. Geo judges on a phone whether a dedicated button is needed.
 - **`ThreatTelegraphed` then `ThreatCancelled` in the same step** (rule 10) when the director draws a threat in the step of the pick-up: the client sees both events in one drain, so a marker may never be drawn. Accepted; pinned by `carry.test.ts`.
 - **The architecture still reads `world.papa.carrying`** (`game-architecture.md` L905-911, L965). This story has no such field (D1: `baby.state` is the single source of truth). The architecture is not edited here; fold it in at the next architecture pass.
+
+## Deferred from: code review of story 4-1-porter-le-bebe-bras-bebe (2026-10-30)
+
+- **`BabyPutDown.safe` is judged at Papa's point, not the baby's** (the baby is placed `putDownOffsetM` ahead and `ensureOnOpenCell` accepts any region). Reason: decision D5; revisit when story 4.2 scores the drop.
+- **`papa.intent` is reset by hand next to every `papa.objectId = null`.** Reason: every exit was traced and the snapshot validator guards the pairing; fold it into `enterPapaState` at the next papa refactor.
+- **A walk to take a distant baby is aimed where he was; if he crawled on, Papa idles with no feedback**, and `isBabyInReach` ignores walls. Reason: feel question for the playtest.
+- **The Firmness-while-carried path (`carriedVerb` swap, `wrongResponse` branch) is unreachable in normal play** (no director threat while carried, no `firm` def). Reason: becomes live with stories 4.3-4.4.

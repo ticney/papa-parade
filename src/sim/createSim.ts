@@ -280,6 +280,10 @@ function simLevelOf(
       def.target === 'papa',
       `${where}: the threat "${armsCryDef}" has target "${def.target}", but a cry in the arms must have target "papa"`,
     );
+    invariant(
+      def.response !== 'firm',
+      `${where}: the threat "${armsCryDef}" has the response "firm", which the baby in Papa's arms rules out (Firmness is impossible while carrying): a cry in the arms is parried`,
+    );
     for (const gag of gagIdsOf(def)) {
       invariant(
         (GAG_IDS as readonly string[]).includes(gag),

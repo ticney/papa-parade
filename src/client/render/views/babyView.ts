@@ -24,8 +24,8 @@ const BABY_GAZE_SEGMENTS = 6;
 
 /** Papa's chest height, in metres: the centre of the baby when he is carried (story 4.1). Also where a tap on him aims. */
 export const BABY_CARRIED_HEIGHT_M = 0.75;
-/** The carried baby is held this far in front of Papa along his heading, in metres. */
-const BABY_CARRIED_FORWARD_M = 0.3;
+/** The carried baby is held this far in front of Papa along his heading, in metres. Also where a tap on him aims. */
+export const BABY_CARRIED_FORWARD_M = 0.3;
 
 /** Where the baby is drawn and which way it looks. */
 export interface BabyPose extends PointXZ {

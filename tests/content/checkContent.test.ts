@@ -1239,6 +1239,33 @@ describe('checkContent on level files', () => {
       );
     });
 
+    it('names a cry in the arms that ends in a gag the sim does not know', async () => {
+      await mutateJson('content/threats/arms_cry.json', (threat) => {
+        threat.gag = 'arms_wails';
+      });
+      expect(await checkContent(root)).toContainEqual(
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'carry.armsCryDef',
+          message: expect.stringMatching(/"arms_cry".*gag "arms_wails".*sim does not know/),
+        }),
+      );
+    });
+
+    it('names a cry in the arms that asks for Firmness, which carrying rules out', async () => {
+      await mutateJson('content/threats/arms_cry.json', (threat) => {
+        threat.response = 'firm';
+        threat.holdUntilMs = 1000;
+      });
+      expect(await checkContent(root)).toContainEqual(
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'carry.armsCryDef',
+          message: expect.stringMatching(/"arms_cry".*response "firm"/),
+        }),
+      );
+    });
+
     it('names a level that carries in a room with no safe zone', async () => {
       await mutateJson('content/levels/salon_crawler.geometry.json', (geometry) => {
         geometry.zones = (geometry.zones as { kind: string }[]).filter(

@@ -752,12 +752,28 @@ function checkLevelReferences(
             jsonPath: path,
             message: `the threat "${armsCryDef}" has target "${armsCry.target}", but a cry in the arms must have target "papa"`,
           });
-        } else if (armsCry !== undefined && armsCry.gag === PAPA_ASLEEP_GAG_ID) {
+        } else if (armsCry !== undefined && armsCry.response === 'firm') {
           problems.push({
             file,
             jsonPath: path,
-            message: `the threat "${armsCryDef}" has the gag "${PAPA_ASLEEP_GAG_ID}", which is the micro-sleep's alone`,
+            message: `the threat "${armsCryDef}" has the response "firm", which the baby in Papa's arms rules out (Firmness is impossible while carrying): a cry in the arms is parried`,
           });
+        } else if (armsCry !== undefined) {
+          for (const gag of ThreatGagIds(armsCry)) {
+            if (!(GAG_IDS as readonly string[]).includes(gag)) {
+              problems.push({
+                file,
+                jsonPath: path,
+                message: `the threat "${armsCryDef}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+              });
+            } else if (gag === PAPA_ASLEEP_GAG_ID) {
+              problems.push({
+                file,
+                jsonPath: path,
+                message: `the threat "${armsCryDef}" has the gag "${PAPA_ASLEEP_GAG_ID}", which is the micro-sleep's alone`,
+              });
+            }
+          }
         }
       }
     }
