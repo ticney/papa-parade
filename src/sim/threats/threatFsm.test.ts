@@ -248,6 +248,7 @@ describe('threat FSM', () => {
       events,
       strictInvariants: true,
       t: world.time.sim,
+      level: { hasCarry: false },
     } as unknown as StepContext;
     const stairs = createTestLevel({ waves: [testWave([STAIRS])] }).threats.stairs;
     if (stairs === undefined) throw new Error('no stairs');

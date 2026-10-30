@@ -9,6 +9,8 @@ import { starsForScore } from './stars.ts';
 export interface ScoreTally {
   perfects: number;
   nearMisses: number;
+  /** The points of every combo cashed in (story 4.2): they feed the Rire. */
+  comboPoints: number;
   propsOnFloor: number;
   propsBroken: number;
   mischiefs: number;
@@ -31,7 +33,10 @@ export function computeMamaScore(
   mama: Feel['mama'],
   isMamaWoke: boolean,
 ): MamaScore {
-  const laughPoints = row(tally.perfects * mama.laughPerPerfectPoints, mama.laughMaxPoints);
+  const laughPoints = row(
+    tally.perfects * mama.laughPerPerfectPoints + tally.comboPoints,
+    mama.laughMaxPoints,
+  );
   const babyStatePoints = row(mama.babyStateFixedPoints, mama.babyStateMaxPoints);
   const sighPoints = row(
     tally.propsOnFloor * mama.sighPerPropOnFloorPoints +
@@ -60,14 +65,14 @@ export function computeMamaScore(
 /**
  * Gives the note, once, at the step the level ends (`runFlow`, right after `LevelEnded`; D1): reads
  * the counters and the mess of the frozen room (D5), writes `world.score.final` and emits
- * `LevelScored` at the same `t`. A helper, not a system: `runScoring` stays reserved for live
- * scoring (combos, E4). `reason` is why the level ended: a woken Mama costs stars.
+ * `LevelScored` at the same `t`. A helper, not a system (`runScoring` is the combo's carry tick,
+ * story 4.2). The combo points cashed in feed the Rire; the ones not cashed are lost. `reason` is why the level ended: a woken Mama costs stars.
  */
 export function scoreLevel(world: World, ctx: StepContext, reason: LevelEndReason): void {
-  const { perfects, nearMisses } = world.score;
+  const { perfects, nearMisses, comboPoints } = world.score;
   const { propsOnFloor, propsBroken, mischiefs } = world.mess;
   const score = computeMamaScore(
-    { perfects, nearMisses, propsOnFloor, propsBroken, mischiefs },
+    { perfects, nearMisses, comboPoints, propsOnFloor, propsBroken, mischiefs },
     ctx.feel.mama,
     reason === 'mamaWoke',
   );

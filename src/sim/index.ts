@@ -6,6 +6,8 @@ export type { SimObjectSpec } from './context.ts';
 export { type CreateSimOptions, createSim, type Sim } from './createSim.ts';
 export { DISRUPTION_STATES, type DisruptionState } from './disruptions/disruptionFsm.ts';
 export {
+  COMBO_CHANGE_REASONS,
+  type ComboChangeReason,
   type FailReason,
   LEVEL_END_REASONS,
   type LevelEndReason,
@@ -30,6 +32,7 @@ export { GAG_IDS, type GagId, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
 export type { ThreatState } from './threats/threatFsm.ts';
 export type {
   BabySlice,
+  ComboSlice,
   DirectorSlice,
   DisruptionInstance,
   FlowSlice,

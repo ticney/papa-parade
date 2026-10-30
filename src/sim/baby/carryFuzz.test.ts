@@ -23,6 +23,8 @@ import type { World } from '../world.ts';
 // Story 4.1: random play on the frozen room with carrying and the cry in the arms. Strict
 // invariants throw inside the sim; on top of that, after every step a carried baby is at Papa's
 // point, `armsCryAt` is set only while he is carried, and no threat of the baby (an anchored one, or a found silence's) is announced to him.
+// Story 4.2 adds the combo: after every step the multiplier is between the feel's bounds, the points
+// cashed in never fall, and the carry tick is due exactly while the baby is carried.
 // The commands come from a seeded rng of the test (never `Math.random`); `ForceThreat` is left out
 // on purpose: it is the one way to announce a threat to a carried baby.
 
@@ -32,7 +34,12 @@ const STEP_COUNT = 3000;
 const SNAPSHOT_EVERY_STEPS = 500;
 const COMMAND_CHANCE = 0.05;
 
-const content = createTestContent();
+// A short carry tick: random play seldom carries for ten seconds, and the cash-in must be exercised.
+const baseContent = createTestContent();
+const content = {
+  ...baseContent,
+  feel: { ...baseContent.feel, combo: { ...baseContent.feel.combo, carryTickMs: 1500 } },
+};
 const geometry = createTestGeometry();
 const playpen = geometry.zones.find((zone) => zone.id === 'playpen');
 if (playpen === undefined) throw new Error('the frozen room has no playpen zone');
@@ -98,9 +105,12 @@ describe('carrying, played at random', () => {
     let putDowns = 0;
     let cancels = 0;
     let armsCries = 0;
+    let comboChanges = 0;
+    let cashIns = 0;
     for (let seed = 1; seed <= SEED_COUNT; seed++) {
       const sim = await createSim({ content, geometry, level: newLevel(), seed });
       const rng = createRng(seed * 7919);
+      let previousComboPoints = 0;
       try {
         for (let step = 0; step < STEP_COUNT; step++) {
           // `restore` swaps the world for a copy: read it again at every step.
@@ -112,6 +122,8 @@ describe('carrying, played at random', () => {
             if (event.type === 'BabyPickedUp') pickUps++;
             if (event.type === 'BabyPutDown') putDowns++;
             if (event.type === 'ThreatCancelled') cancels++;
+            if (event.type === 'ComboChanged') comboChanges++;
+            if (event.type === 'ComboCashedIn') cashIns++;
             if (event.type === 'ThreatTelegraphed' && event.kind === 'arms_cry') armsCries++;
             if (event.type === 'ThreatTelegraphed' && wasCarried) {
               expect(BABY_DEFS.has(event.kind), `seed ${seed} step ${step}: ${event.kind}`).toBe(
@@ -131,6 +143,21 @@ describe('carrying, played at random', () => {
               );
             }
           }
+          const { minMultiplier, maxMultiplier } = content.feel.combo;
+          expect(world.combo.multiplier, `seed ${seed} step ${step}`).toBeGreaterThanOrEqual(
+            minMultiplier,
+          );
+          expect(world.combo.multiplier, `seed ${seed} step ${step}`).toBeLessThanOrEqual(
+            maxMultiplier,
+          );
+          expect(world.score.comboPoints, `seed ${seed} step ${step}`).toBeGreaterThanOrEqual(
+            previousComboPoints,
+          );
+          previousComboPoints = world.score.comboPoints;
+          expect(
+            world.combo.carryTickAt !== null,
+            `seed ${seed} step ${step}: carryTickAt and the arms disagree`,
+          ).toBe(isCarried);
           if (world.carry.armsCryAt !== null) {
             expect(isCarried, `seed ${seed} step ${step}: armsCryAt while not carried`).toBe(true);
           }
@@ -148,5 +175,7 @@ describe('carrying, played at random', () => {
     expect(carriedSteps).toBeGreaterThan(SEED_COUNT * 100);
     expect(cancels).toBeGreaterThan(0);
     expect(armsCries).toBeGreaterThan(0);
+    expect(comboChanges).toBeGreaterThan(0);
+    expect(cashIns).toBeGreaterThan(0);
   }, 120_000);
 });

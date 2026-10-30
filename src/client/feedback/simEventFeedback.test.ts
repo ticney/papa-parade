@@ -240,3 +240,35 @@ describe('playSimEventFeedback: the sound fires at judgement (story 2.3)', () =>
     expect(warnSpy.mock.calls.length).toBe(before);
   });
 });
+
+describe('playSimEventFeedback: the combo cash-in (story 4.2)', () => {
+  const cashedIn = (): SimEvent => ({
+    type: 'ComboCashedIn',
+    t: asSimMs(1000),
+    multiplier: 4,
+    basePoints: 1.5,
+    points: 6,
+  });
+  const putDown = (): SimEvent => ({ type: 'BabyPutDown', t: asSimMs(1000), safe: true });
+
+  it('plays the cash-in clip, then the baby laughs, with one heavy haptic, from the events table', () => {
+    const { sounds, pulses, director } = setup();
+    playSimEventFeedback(cashedIn(), sourceOf(worldWith('outlet', false)), director);
+    expect(feedback.events.ComboCashedIn).toBe('combo_cashed_in');
+    const layer = feedback.cues.combo_cashed_in?.layers?.[0];
+    expect(sounds).toEqual([
+      soundOf('combo_cashed_in'),
+      `${layer?.clip}@${layer?.bus}:${layer?.gainPct}`,
+    ]);
+    expect(pulses).toEqual(['heavy']);
+  });
+
+  it('is in addition to the put-down cue, which still fires on its own event', () => {
+    const { sounds, director } = setup();
+    playSimEventFeedback(putDown(), sourceOf(worldWith('outlet', false)), director);
+    playSimEventFeedback(cashedIn(), sourceOf(worldWith('outlet', false)), director);
+    expect(sounds[0]).toBe(soundOf('baby_put_down'));
+    expect(sounds).toContain(soundOf('combo_cashed_in'));
+    expect(sounds.filter((sound) => sound === soundOf('baby_put_down'))).toHaveLength(1);
+  });
+});

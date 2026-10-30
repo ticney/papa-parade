@@ -69,6 +69,9 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     safePutDowns: 0,
     armsCries: 0,
     cancelledThreats: 0,
+    comboCashIns: 0,
+    comboPointsCashed: 0,
+    comboPeakMultiplier: 0,
     noisePeakPct: 0,
     noiseFinalPct: 0,
     noiseBySourcePct: NO_NOISE,
@@ -802,6 +805,31 @@ describe('a level that carries the baby (story 4.1)', () => {
     expect(rec.finish()).toMatchObject({ babyPickUps: 2, babyPutDowns: 2, safePutDowns: 1 });
   });
 
+  it('counts the combos cashed in, their points and the highest multiplier (story 4.2)', async () => {
+    const { recorder: rec } = await recorder();
+    expect(rec.finish()).toMatchObject({
+      comboCashIns: 0,
+      comboPointsCashed: 0,
+      comboPeakMultiplier: 0,
+    });
+    rec.onEvent({ type: 'ComboChanged', t: asSimMs(10), multiplier: 2, reason: 'response' });
+    rec.onEvent({ type: 'ComboChanged', t: asSimMs(20), multiplier: 3, reason: 'carryTick' });
+    rec.onEvent({ type: 'ComboChanged', t: asSimMs(30), multiplier: 1, reason: 'gag' });
+    rec.onEvent({
+      type: 'ComboCashedIn',
+      t: asSimMs(40),
+      multiplier: 3,
+      basePoints: 1.5,
+      points: 4.5,
+    });
+    rec.onEvent({ type: 'ComboCashedIn', t: asSimMs(50), multiplier: 2, basePoints: 1, points: 2 });
+    expect(rec.finish()).toMatchObject({
+      comboCashIns: 2,
+      comboPointsCashed: 6.5,
+      comboPeakMultiplier: 3,
+    });
+  });
+
   it('takes a cancelled wave threat out of the count at once, so the next one is not over the limit', async () => {
     const { recorder: rec } = await recorder();
     rec.onEvent(telegraphed(7, 'outlet', 0));
@@ -821,6 +849,19 @@ describe('a level that carries the baby (story 4.1)', () => {
     rec.onEvent({ type: 'ThreatCancelled', t: asSimMs(0), threatId: 7, reason: 'carried' });
     rec.onEvent(telegraphed(7, 'outlet', 0));
     expect(rec.finish().waves[0]?.isOverLimit).toBe(false);
+  });
+
+  it('sums the combo counters over the runs and keeps the highest peak', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { comboCashIns: 1, comboPointsCashed: 4.5, comboPeakMultiplier: 3 }),
+      run(2, { comboCashIns: 2, comboPointsCashed: 8, comboPeakMultiplier: 5 }),
+      run(3, { comboCashIns: 0, comboPointsCashed: 0, comboPeakMultiplier: 0 }),
+    ]);
+    expect(report).toMatchObject({
+      comboCashIns: 3,
+      comboPointsCashed: 12.5,
+      comboPeakMultiplier: 5,
+    });
   });
 
   it('sums the counters over the runs in the report', () => {

@@ -20,7 +20,7 @@ import {
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import { createNavGrid } from '../nav/navGrid.ts';
-import type { World } from '../world.ts';
+import type { ThreatInstance, World } from '../world.ts';
 
 const content = createTestContent();
 const geometry = createTestGeometry();
@@ -852,5 +852,168 @@ describe('time passes', () => {
     stepN(sim, 10);
     expect(worldOf(sim).carry).toEqual({ armsCryAt: null });
     expect(worldOf(sim).baby.state).not.toBe('carried');
+  });
+});
+
+describe('the combo is cashed in at a safe put-down (story 4.2, rule 7)', () => {
+  const comboFeel = content.feel.combo;
+  const comboEvents = (events: readonly SimEvent[]) =>
+    events.filter((event) => event.type === 'ComboChanged' || event.type === 'ComboCashedIn');
+
+  /** Papa stands in the playpen with the baby in his arms and a combo of x4 and 1.5 base points. */
+  async function inThePlaypen(options: Options = {}) {
+    const sim = await newSim(options);
+    const world = worldOf(sim);
+    world.papa.xM = playpenXM;
+    world.papa.zM = playpenZM;
+    world.papa.prevXM = playpenXM;
+    world.papa.prevZM = playpenZM;
+    placeBaby(sim, 0.5);
+    tapBaby(sim);
+    stepEvents(sim);
+    expect(world.baby.state).toBe('carried');
+    world.combo.multiplier = 4;
+    world.combo.basePoints = 1.5;
+    return { sim, world };
+  }
+
+  it('banks multiplier × basePoints, in this event order, and slows time down', async () => {
+    const { sim, world } = await inThePlaypen();
+    tapBaby(sim);
+    const events = stepEvents(sim);
+    expect(
+      events
+        .map((event) => event.type)
+        .filter((type) => type.startsWith('Combo') || type.startsWith('Baby')),
+    ).toEqual(['BabyStateChanged', 'BabyPutDown', 'ComboCashedIn', 'ComboChanged']);
+    expect(ofType(events, 'ComboCashedIn')).toEqual([
+      { type: 'ComboCashedIn', t: world.time.sim, multiplier: 4, basePoints: 1.5, points: 6 },
+    ]);
+    expect(ofType(events, 'ComboChanged')).toEqual([
+      {
+        type: 'ComboChanged',
+        t: world.time.sim,
+        multiplier: comboFeel.minMultiplier,
+        reason: 'cashIn',
+      },
+    ]);
+    expect(world.score.comboPoints).toBe(6);
+    expect(world.combo).toEqual({
+      multiplier: comboFeel.minMultiplier,
+      basePoints: 0,
+      carryTickAt: null,
+    });
+    expect(world.time.slowMos.map((slowMo) => slowMo.source)).toEqual(['comboCashIn']);
+    expect(world.time.scale).toBe(comboFeel.slowMoCashIn.timeScale);
+    expect(sim.freezeRealMs).toBe(0);
+  });
+
+  it('puts the cry in the arms away first: BabyPutDown, ThreatCancelled, ComboCashedIn, ComboChanged', async () => {
+    const { sim, world } = await inThePlaypen({
+      feel: withCarry({ armsCryMinMs: 500, armsCryMaxMs: 500 }),
+    });
+    const armsCry = world.threats[0];
+    runUntil(sim, () => armsCry?.state === 'telegraph');
+    expect(armsCry?.state).toBe('telegraph');
+    tapBaby(sim);
+    const events = stepEvents(sim);
+    expect(
+      events
+        .map((event) => event.type)
+        .filter(
+          (type) =>
+            type === 'BabyPutDown' || type === 'ThreatCancelled' || type.startsWith('Combo'),
+        ),
+    ).toEqual(['BabyPutDown', 'ThreatCancelled', 'ComboCashedIn', 'ComboChanged']);
+  });
+
+  it('adds up over several cash-ins', async () => {
+    const { sim, world } = await inThePlaypen();
+    tapBaby(sim);
+    stepEvents(sim);
+    expect(world.score.comboPoints).toBe(6);
+    tapBaby(sim);
+    stepEvents(sim);
+    world.combo.multiplier = 2;
+    world.combo.basePoints = 0.5;
+    tapBaby(sim);
+    stepEvents(sim);
+    expect(world.score.comboPoints).toBe(7);
+  });
+
+  it('does nothing at x1: a safe drop is the plain put-down, with no slow-mo', async () => {
+    const { sim, world } = await inThePlaypen();
+    world.combo.multiplier = comboFeel.minMultiplier;
+    world.combo.basePoints = 0;
+    tapBaby(sim);
+    const events = stepEvents(sim);
+    expect(ofType(events, 'BabyPutDown')).toEqual([expect.objectContaining({ safe: true })]);
+    expect(ofType(events, 'ComboCashedIn')).toEqual([]);
+    expect(ofType(events, 'ComboChanged')).toEqual([]);
+    expect(world.time.slowMos).toEqual([]);
+    expect(world.score.comboPoints).toBe(0);
+  });
+
+  it('neither cashes in nor resets on bare floor; a later safe drop cashes the same combo', async () => {
+    const { sim, world } = await inThePlaypen();
+    // Papa takes two steps out of the playpen's box, onto bare floor, with the baby still in his arms.
+    world.papa.xM = 0;
+    world.papa.zM = 0;
+    world.papa.prevXM = 0;
+    world.papa.prevZM = 0;
+    world.baby.xM = 0;
+    world.baby.zM = 0;
+    tapBaby(sim);
+    const events = stepEvents(sim);
+    expect(ofType(events, 'BabyPutDown')).toEqual([expect.objectContaining({ safe: false })]);
+    expect(comboEvents(events)).toEqual([]);
+    expect(world.combo).toMatchObject({ multiplier: 4, basePoints: 1.5, carryTickAt: null });
+    expect(world.time.slowMos).toEqual([]);
+
+    // Next take: the tick starts again, and a safe drop banks what was kept.
+    world.papa.xM = playpenXM;
+    world.papa.zM = playpenZM;
+    placeBaby(sim, 0.5);
+    tapBaby(sim);
+    stepEvents(sim);
+    expect(world.baby.state).toBe('carried');
+    expect(world.combo.carryTickAt).not.toBeNull();
+    tapBaby(sim);
+    const later = stepEvents(sim);
+    expect(ofType(later, 'ComboCashedIn')).toEqual([expect.objectContaining({ points: 6 })]);
+  });
+
+  it('cashes nothing when a gag lands in the very step of the put-down: the gag wins', async () => {
+    const setUp = () => inThePlaypen({ feel: withCarry({ armsCryMinMs: 500, armsCryMaxMs: 500 }) });
+    // A first run, to learn when the cry in the arms is missed.
+    const probe = await setUp();
+    const armsCry = probe.world.threats[0] as ThreatInstance;
+    const gagAt = ofType(
+      runUntil(probe.sim, () => armsCry.state === 'gag'),
+      'GagTriggered',
+    )[0]?.t;
+    if (gagAt === undefined) throw new Error('the cry in the arms was never missed');
+
+    // The same run again, with the put-down pressed for that very step.
+    const { sim, world } = await setUp();
+    runUntil(sim, () => world.time.sim === gagAt - STEP_MS);
+    tapBaby(sim);
+    const events = stepEvents(sim);
+    expect(world.time.sim).toBe(gagAt);
+    expect(ofType(events, 'GagTriggered')).toHaveLength(1);
+    expect(ofType(events, 'BabyPutDown')).toEqual([expect.objectContaining({ safe: true })]);
+    expect(ofType(events, 'ComboCashedIn')).toEqual([]);
+    expect(ofType(events, 'ComboChanged').map((event) => event.reason)).toEqual(['gag']);
+    expect(world.score.comboPoints).toBe(0);
+    expect(world.time.slowMos).toEqual([]);
+  });
+
+  it('draws no random number', async () => {
+    const { sim, world } = await inThePlaypen();
+    const before = structuredClone(world.rng);
+    tapBaby(sim);
+    stepEvents(sim);
+    // The put-down's own draw (babble) is the only one, as in 4.1.
+    expect(drawsBetween(before, world.rng)).toBe(1);
   });
 });

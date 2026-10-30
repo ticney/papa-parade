@@ -292,6 +292,10 @@ describe('content/feedback.json', () => {
   });
 
   it.each<[string, [string, unknown][], string]>([
+    ['a missing comboBadge (story 4.2)', [['comboBadge', undefined]], 'comboBadge'],
+    ['an unknown key in comboBadge', [['comboBadge.bogusMs', 1]], 'comboBadge.bogusMs'],
+    ['a cash-in hold of 0 ms', [['comboBadge.cashInHoldMs', 0]], 'comboBadge.cashInHoldMs'],
+    ['a fractional cash-in hold', [['comboBadge.cashInHoldMs', 1.5]], 'comboBadge.cashInHoldMs'],
     ['a missing resultScreen', [['resultScreen', undefined]], 'resultScreen'],
     ['an unknown key in resultScreen', [['resultScreen.bogusMs', 1]], 'resultScreen.bogusMs'],
     ['a count-up of 0 ms', [['resultScreen.rowCountUpMs', 0]], 'resultScreen.rowCountUpMs'],

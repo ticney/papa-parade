@@ -7,6 +7,7 @@ import type { StepContext } from '../context.ts';
 import { isLastOfWave } from '../director/waveState.ts';
 import type { FailReason, ResponseQuality, ThreatCancelReason } from '../events.ts';
 import { fatigueWindowModifier } from '../gauges/fatigue.ts';
+import { addResponseToCombo, resetCombo } from '../scoring/combo.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import { type EffectiveWindow, effectiveWindow } from '../timing/effectiveWindow.ts';
 import type { ThreatInstance, World } from '../world.ts';
@@ -163,6 +164,8 @@ export function resolveThreat(
   if (isLastOfWave(world, ctx, threat)) {
     startSlowMo(world, ctx, 'lastThreat', ctx.feel.timing.slowMoLastThreat);
   }
+  // The combo climbs on every response, perfect or success, the baby in the arms or not (story 4.2).
+  addResponseToCombo(world, ctx);
 }
 
 /**
@@ -213,6 +216,8 @@ export function gagThreat(
   applyGag(world, ctx, threat, gag);
   // The cry belongs to the def, not to the gag id: many defs share a gag (story 3.1 D9).
   if (def.gagCryMs !== undefined) startBabyCry(world, ctx, def.gagCryMs);
+  // A missed threat loses the combo, nothing is cashed (story 4.2).
+  resetCombo(world, ctx, 'gag');
 }
 
 /** `resolved | gag → idle`, once the cooldown is over. */

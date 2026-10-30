@@ -2,6 +2,7 @@ import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import { enterPapaState, isPapaBusy } from '../papa/papaFsm.ts';
+import { cashInCombo, startCarryTick, stopCarryTick } from '../scoring/combo.ts';
 import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
 import { cancelThreat, telegraphThreat } from '../threats/threatFsm.ts';
 import type { ThreatInstance, World } from '../world.ts';
@@ -83,14 +84,15 @@ export function takeBaby(world: World, ctx: StepContext): void {
     cancelThreat(world, ctx, threat, 'carried');
   }
   if (ctx.level.armsCryIndex >= 0) world.carry.armsCryAt = drawArmsCryAt(world, ctx);
+  startCarryTick(world, ctx);
 }
 
 /**
  * Papa sets the baby down, at the step of the command. The baby goes `putDownOffsetM` in front of
  * Papa along his heading, on the nearest open cell if that point is closed, and babbles again with
  * a fresh draw (his normal FSM resumes). `safe` is about Papa's point (D5). Events: `BabyStateChanged`,
- * `BabyPutDown`, then the cry in the arms, if it is up, is cancelled (`putDown`). Other threats are
- * left alone.
+ * `BabyPutDown`, then the cry in the arms, if it is up, is cancelled (`putDown`), then a safe drop
+ * cashes the combo in (`ComboCashedIn`, `ComboChanged{cashIn}`, story 4.2). Other threats are left alone.
  */
 export function putDownBaby(world: World, ctx: StepContext): void {
   const { papa, baby } = world;
@@ -102,17 +104,17 @@ export function putDownBaby(world: World, ctx: StepContext): void {
   baby.babbling = true;
   baby.wanderAt = asSimMs(world.time.sim + drawBabbleMs(world, ctx));
   enterBabyState(world, ctx, 'babble');
-  ctx.events.push({
-    type: 'BabyPutDown',
-    t: world.time.sim,
-    safe: isInSafeZone(ctx, papa.xM, papa.zM),
-  });
+  const isSafe = isInSafeZone(ctx, papa.xM, papa.zM);
+  ctx.events.push({ type: 'BabyPutDown', t: world.time.sim, safe: isSafe });
   const index = ctx.level.armsCryIndex;
   const armsCry = index < 0 ? undefined : world.threats[index];
   if (armsCry !== undefined && (armsCry.state === 'telegraph' || armsCry.state === 'windowOpen')) {
     cancelThreat(world, ctx, armsCry, 'putDown');
   }
   world.carry.armsCryAt = null;
+  // The combo is cashed in last, once the cry in the arms is cancelled (story 4.2).
+  stopCarryTick(world);
+  cashInCombo(world, ctx, isSafe);
 }
 
 /**

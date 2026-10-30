@@ -254,6 +254,26 @@ export const SCENARIOS: readonly Scenario[] = [
       { atStep: 530, command: release(5400) },
     ],
   },
+  {
+    // The combo cashed in (story 4.2), on the frozen living room with a cry in the arms and no wave.
+    // A TapBaby at 0 walks Papa to the baby and takes him (pick-up 1010). The first carry tick comes
+    // 10 s later (11010, x2); the cry in the arms, telegraphed at 9940, opens its window at 11140 and
+    // a perfect Parry at its centre resolves it (11340, x3, 1 base point). A TapFloor at the playpen's
+    // centre walks Papa there and the baby is put down safe (11920): the combo is cashed in (3 x 1 = 3
+    // points), the cash-in slow-mo runs out, and the level ends at 16000 with the points in the Rire
+    // (1 perfect + 3 combo points). The times are read from a first recording.
+    // `comboCashIn.test.ts` pins what it covers.
+    name: 'combo_cash_in',
+    level: createTestLevel({ waves: [], carry: CARRY, durationMs: 16000 }),
+    seed: 21,
+    untilSimMs: 16000,
+    actions: [
+      { atStep: 0, command: tapBaby(0) },
+      { atStep: 1120, command: { type: 'PressThreat', t: asSimMs(11290), threatId: 1 } },
+      { atStep: 1120, command: release(11340) },
+      { atStep: 1140, command: tapFloor(11400, -2, 1.6) },
+    ],
+  },
 ];
 
 export interface Recording {

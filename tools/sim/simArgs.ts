@@ -43,6 +43,9 @@ It also tells how the games ended (story 3.2): \`endsByReason\` counts the ended
 Carrying (story 4.1) is counted over the runs: \`babyPickUps\`, \`babyPutDowns\`, \`safePutDowns\`,
 \`armsCries\` (the cries in the arms) and \`cancelledThreats\` (threats dropped when Papa took the
 baby). The bots never carry, so they are 0 for a bot.
+The combo (story 4.2) is counted per game and over the runs: \`comboCashIns\` and \`comboPointsCashed\`
+(0 for a bot, which never puts the baby down), and \`comboPeakMultiplier\`, the highest multiplier a
+game reached (the highest of any game in the aggregate; 0 in a level with no \`carry\`).
 `;
 
 const DIGITS = /^\d+$/;

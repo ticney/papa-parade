@@ -1116,6 +1116,32 @@ body {
 }
 
 /* ---------------------------------------------------------------------------------------------
+   The combo badge (DESIGN.md › combo-badge, story 4.2): the multiplier above Papa, and the points of
+   a cash-in. World-anchored text: paper fill, a 5 px ink stroke painted behind it (so the stroke is
+   set twice as wide, as the verbs' is: its inner half is hidden) and the hard shadow. The outer box
+   is placed by the CSS2DRenderer, which writes its `transform`, so the offset of the aside state is
+   the separate `translate` property; the child is the one popped by the Web Animations API. It
+   never takes a tap.
+--------------------------------------------------------------------------------------------- */
+.pp-combo-badge {
+  --pp-combo-aside-offset: 64px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* A threat on Papa (the micro-sleep, the cry in the arms) has its verb in the same spot: step aside. */
+.pp-combo-badge--aside {
+  translate: var(--pp-combo-aside-offset) 0;
+}
+
+.pp-combo-badge-text {
+  color: var(--pp-color-paper);
+  -webkit-text-stroke: calc(5px * 2) var(--pp-color-ink);
+  paint-order: stroke fill;
+  text-shadow: var(--pp-lift);
+}
+
+/* ---------------------------------------------------------------------------------------------
    The threat icon (DESIGN.md › threat-icon, target-highlight; mockup key-hud-level.html state A).
    The outer box is the icon's size and is centred on the anchor by the CSS2DRenderer; the halo, the
    highlight and the chevron are placed around it from that size. The halo is a radial gradient

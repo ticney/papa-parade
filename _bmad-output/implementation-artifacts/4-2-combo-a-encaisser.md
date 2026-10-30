@@ -1,6 +1,10 @@
+---
+baseline_commit: 0c45b43552d4a3bccac2e764cb514257bd285301
+---
+
 # Story 4.2: The combo to cash in
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.2 « Combo à encaisser » (L1838-1859). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -131,22 +135,22 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Content** (AC 1, 2)
-  - [ ] T1.1 `feel.combo` in the schema and three JSON files, refine, `content:schemas`, debug panel test.
-  - [ ] T1.2 Cue, event routing, `comboBadge` feedback section, strings, the placeholder clip (commit only the new `.m4a`).
-- [ ] **T2. Sim** (AC 3-9)
-  - [ ] T2.1 `ComboSlice`, `comboPoints`, slow-mo source, the two events and `COMBO_CHANGE_REASONS`; `createWorld`.
-  - [ ] T2.2 `scoring/combo.ts`, `runScoring` in `SYSTEMS`, the hooks in `resolveThreat` and `gagThreat`.
-  - [ ] T2.3 `takeBaby` / `putDownBaby` hooks and `cashInCombo`; `computeMamaScore`.
-  - [ ] T2.4 Snapshot v16; the unit tests of AC 14 for the sim; the fuzz test.
-- [ ] **T3. Client** (AC 10-12)
-  - [ ] T3.1 `comboBadge.ts`, CSS, `worldUi` and `boot` wiring, aside class, cash-in hold; its unit tests.
-  - [ ] T3.2 Mirrors; check the music and the cue routing with no new code.
-- [ ] **T4. Tools and tests** (AC 13, 15, 16)
-  - [ ] T4.1 Report and its test; the bot comparison with `main`.
-  - [ ] T4.2 Goldens (regenerate, diff, add `combo_cash_in`).
-  - [ ] T4.3 `tests/e2e/combo.spec.ts`; `carry.spec.ts`, `testApi.spec.ts` still green.
-- [ ] **T5. Docs and CI** (AC 17, 18)
+- [x] **T1. Content** (AC 1, 2)
+  - [x] T1.1 `feel.combo` in the schema and three JSON files, refine, `content:schemas`, debug panel test.
+  - [x] T1.2 Cue, event routing, `comboBadge` feedback section, strings, the placeholder clip (commit only the new `.m4a`).
+- [x] **T2. Sim** (AC 3-9)
+  - [x] T2.1 `ComboSlice`, `comboPoints`, slow-mo source, the two events and `COMBO_CHANGE_REASONS`; `createWorld`.
+  - [x] T2.2 `scoring/combo.ts`, `runScoring` in `SYSTEMS`, the hooks in `resolveThreat` and `gagThreat`.
+  - [x] T2.3 `takeBaby` / `putDownBaby` hooks and `cashInCombo`; `computeMamaScore`.
+  - [x] T2.4 Snapshot v16; the unit tests of AC 14 for the sim; the fuzz test.
+- [x] **T3. Client** (AC 10-12)
+  - [x] T3.1 `comboBadge.ts`, CSS, `worldUi` and `boot` wiring, aside class, cash-in hold; its unit tests.
+  - [x] T3.2 Mirrors; check the music and the cue routing with no new code.
+- [x] **T4. Tools and tests** (AC 13, 15, 16)
+  - [x] T4.1 Report and its test; the bot comparison with `main`.
+  - [x] T4.2 Goldens (regenerate, diff, add `combo_cash_in`).
+  - [x] T4.3 `tests/e2e/combo.spec.ts`; `carry.spec.ts`, `testApi.spec.ts` still green.
+- [x] **T5. Docs and CI** (AC 17, 18)
 
 ## Dev Notes
 
@@ -240,16 +244,67 @@ Recent commits are the 4.1 and 2.6 stories. 4.1 is merged into `main`, this bran
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), Claude Code, in the story's worktree `story/4-2-combo-a-encaisser`.
+
+### Implementation Plan
+
+- **Sim (D1).** `src/sim/scoring/combo.ts` holds every writer of `world.combo`: `addResponseToCombo`, `addCarryTickToCombo`, `resetCombo`, `cashInCombo`, `startCarryTick`, `stopCarryTick` and `runScoring` (the carry tick, inserted between `runGauges` and `runFlow`). `resolveThreat` and `gagThreat` call the first and `resetCombo`; `takeBaby` / `putDownBaby` start and stop the tick and `putDownBaby` ends with `cashInCombo` (the `safe` value is lifted to a local, shared with the `BabyPutDown` event). Everything is a no-op without `ctx.level.hasCarry` (D3), and nothing draws from `world.rng`.
+- **Rire.** `ScoreTally.comboPoints`, `laughPoints = row(perfects × laughPerPerfectPoints + comboPoints, laughMaxPoints)`: one rounding, at the end.
+- **Snapshot v16.** `comboProblem` (whole multiplier ≥ 1, finite non-negative base points, `carryTickAt` non-null exactly while carried) and `score.comboPoints`; not checked against `feel.combo` (a `SetFeel` may move the bounds).
+- **Client (D6).** The badge reads `world.combo` each frame (`worldUi.updateCombo`, real time passed in, no timer); `ComboCashedIn` calls `comboBadge.showCashIn`. `pp-combo-badge--aside` is set while a threat that follows Papa is up (the micro-sleep, the cry in the arms), with the CSS `translate` property, because the `CSS2DRenderer` owns the outer element's `transform`.
+- **Content.** `feel.combo`, `feedback.json › comboBadge` and the cue `combo_cashed_in` (clip `ui_combo_cash_in`, `SEED + 10`).
+
 ### Debug Log References
+
+- `npm run typecheck`, `npm run ci:fast` (4978 tests), `combo.spec.ts` (chromium and webkit, 7 tests each), then the neighbouring specs on Chromium: `carry`, `testApi`, `ui`, `feedback`, `threat`, `autoplay`, `adaptiveMusic` (64 tests, all green, no screenshot reference moved). The full `npm run ci` result is in the last Completion Note.
+- The first cut of the carry-tick tests used a level with the cry in the arms: an unanswered cry is a gag, which reset the combo under test. The combo tests use `carry: {}` (no cry) and say so; `CARRY` is used only where the cry is the point.
+- `carryFuzz.test.ts` found no violation of its three new invariants over 200 seeds × 3000 steps, but with the live 10 s tick random play never cashed in; the fuzz now runs with `combo.carryTickMs = 1500` so that cash-ins happen (it asserts at least one).
 
 ### Completion Notes List
 
-Ultimate context engine analysis completed - comprehensive developer guide created.
+- **All 18 ACs are met.** The deviations and judgement calls are listed here first.
+  - **Key names (AC 1).** `basePointsPerResponse` and `basePointsPerCarryTick` are named **`basePerResponsePoints`** and **`basePerCarryTickPoints`**: `tests/content/feelSchema.test.ts › feel unit suffixes` refuses a numeric key that does not end in a unit, and the project already names its weights `laughPerPerfectPoints`, `sighPerMischiefPoints`. The test was not weakened. Values are the story's (0.5 and 0.5).
+  - **Scene order in `worldUi.test.ts`.** The combo badge is the third element of the layer's scene (tap marker, glyph chip, badge), so three assertions that indexed the threat icons shifted by one (`children[2]` → `[3]`, the « stay » count 2 → 3, `slice(2, 4)` → `slice(3, 5)`). No behaviour changed.
+  - **`ComboChanged` while the level has no `carry`** is never emitted (AC 4); the bots on `salon_crawler` (which declares `carry`) do climb and reset.
+- **Bots, `main` against the branch (AC 15), `salon_crawler`, seeds 1-20, `--runs 20`.** For all four bots, the two JSON reports are equal once the hashes, the wall time and the new `combo*` fields are set aside (checked by a script, 0 differences). `main` is the commit this branch was cut from, run from a `git archive` of it:
+
+| bot | `main`: mean score / mean stars / star counts 0-5 / ends / success % / gags | branch: same | branch: `comboCashIns` / `comboPointsCashed` / `comboPeakMultiplier` |
+|---|---|---|---|
+| `perfect` | 90 / 5 / [0,0,0,0,0,20] / timer 20 / 100 / 0 | identical | 0 / 0 / 8 |
+| `human` | 82.1 / 4 / [0,0,0,1,18,1] / timer 20 / 99.9 / 1 (`stairs_slide`) | identical | 0 / 0 / 8 |
+| `random` | 20.3 / 1 / [0,20,0,0,0,0] / timer 20 / 2.2 / 759 | identical | 0 / 0 / 2 |
+| `idle` | 20 / 1 / [0,20,0,0,0,0] / timer 20 / 0 / 762 | identical | 0 / 0 / 0 |
+
+  No rng is drawn by the combo, nothing cashes in (the bots never put the baby down), and the Rire is unchanged. Only the hashes moved.
+- **Goldens (AC 15), regenerated deliberately with `npm run golden:update`, then `biome format` on the JSON.** Every existing journal moves only in its `feelHash` (`*.json`, the feel gained `combo`) and its `worldHash` (`*.expected.json`, the world gained `combo` and `score.comboPoints`). **`baby_carry` is the one exception**: its level has `carry`, and it gains exactly one `ComboChanged` in `eventTypes` (the perfect Parry at the end), so its `eventsHash` changes too; no existing event, `t` or score differs. `mama_woke.expected.json` also changed layout only (biome). New scenario **`combo_cash_in`** (seed 21, 16 s, `STEP_MS`-based, no wave, with the cry in the arms): take at 1010, the carry tick at 11010 (x2), a perfect Parry of the cry at 11340 (x3, 1 base point), the walk to the playpen, the cash-in at 11920 (3 × 1 = 3 points) and its slow-mo running out, the level's end at 16000 with `laughPoints` 4 (1 perfect + 3 combo points). `tests/golden/comboCashIn.test.ts` pins what it covers.
+- **Full CI (AC 18).** `npm run ci` ran once on the branch, with `ci:fast` and the touched specs already green, and exited 0: `test:coverage` 261 files / 4978 tests, coverage 98.3 % lines overall (the `src/sim` ≥ 90 % thresholds pass), `e2e` chromium + webkit 454 passed, `build:playtest` and `dist:check` (playtest), `e2e:dist` (10 passed; `perf.spec.ts` p95 16.8 ms, 42 draw calls max, 1526 triangles max), `build` and `dist:check` (prod). No load timeout, no rerun. `dist/` holds the prod build afterwards.
+- **Screenshots (AC 16).** No darwin reference moved: `autoplay.spec.ts` (the screenshot assertion) is green on Chromium with the badge hidden at x1. I looked at the badge in three screenshots (a multiplier, the aside state beside the verb « BERCE ! » with no overlap, and the « +N » over the playpen), taken with a throw-away spec that is not kept.
+- **Music (AC 11).** Checked, nothing written: `adaptiveMusic` reads `world.time.scale < feel.music.slowMo.belowScale` (1), so the `comboCashIn` slow-mo at 0.25 triggers the low-pass and the lower rate like any other.
+- **Placeholder clip.** `ui_combo_cash_in.m4a` (`SEED + 10`, 520 ms, an arpeggio and a sparkle, 8.5 KB) is the only audio file committed; `npm run assets:audio` rewrote the other 27 clips and they were restored from git.
+- **Not done, on purpose:** nothing in the HUD (AC « no live score »), no bot that cashes in (4.10), no change to `TapBaby`, `safe`, `COMMAND_TYPES` or the journal format, no new dependency or folder. The architecture and the GDD are not edited.
+- **Open points for Geo** are in `deferred-work.md` (« Story 4-2-combo-a-encaisser »): the base points (D2) are this story's invention; a strong player gains little; the safe drop can be farmed in small bites; the bare-floor put-down keeps the combo; the bots do not cash in; the cash-in slow-mo also ducks the music.
 
 ### File List
+
+**New**
+- `src/sim/scoring/combo.ts`, `src/sim/scoring/combo.test.ts`
+- `src/client/ui/world/comboBadge.ts`, `src/client/ui/world/comboBadge.test.ts`
+- `public/assets/audio/ui_combo_cash_in.m4a`
+- `tests/e2e/combo.spec.ts`
+- `tests/golden/comboCashIn.test.ts`, `tests/golden/journals/combo_cash_in.json`, `tests/golden/journals/combo_cash_in.expected.json`
+
+**Modified**
+- Content: `src/content/schemas/feel.ts`, `src/content/schemas/feedback.ts`, `content/feel.json`, `content/feedback.json`, `content/strings.fr.json`, `content/_schemas/feel.schema.json`, `content/_schemas/feedback.schema.json`
+- Sim: `src/sim/world.ts`, `src/sim/events.ts`, `src/sim/index.ts`, `src/sim/snapshot.ts`, `src/sim/step.ts`, `src/sim/threats/threatFsm.ts`, `src/sim/baby/carry.ts`, `src/sim/scoring/mamaScore.ts`
+- Client: `src/client/boot.ts`, `src/client/ui/world/worldUi.ts`, `src/client/ui/styles/ui.css`, `src/shared/constants.ts`
+- Tools: `tools/sim/simReport.ts`, `tools/sim/simArgs.ts`, `tools/audio/makePlaceholderAudio.ts`
+- Tests: `src/sim/snapshot.test.ts`, `src/sim/step.test.ts`, `src/sim/events.test.ts`, `src/sim/baby/carry.test.ts`, `src/sim/baby/carryFuzz.test.ts`, `src/sim/scoring/mamaScore.test.ts`, `src/sim/flow/flowSystem.test.ts`, `src/sim/gauges/gaugesSystem.test.ts`, `src/sim/threats/threatFsm.test.ts`, `src/sim/time/slowMo.test.ts`, `src/debug/feelControls.test.ts`, `src/client/ui/world/worldUi.test.ts`, `src/client/feedback/simEventFeedback.test.ts`, `src/client/feedback/feedbackDirector.test.ts`, `tests/content/feelSchema.test.ts`, `tests/content/feedbackSchema.test.ts`, `tests/tools/sim/simReport.test.ts`, `tests/tools/sim/mamaScore.test.ts`, `tests/tools/audio/makePlaceholderAudio.test.ts`, `tests/support/testContent.ts`, `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json`, `tests/golden/scenarios.ts`
+- Goldens (hashes only, except `baby_carry`): `tests/golden/journals/{baby_carry,baby_wander,core_basic,feel_change,mama_woke,outlet_parry,papa_walk,prop_fall,prop_fall_noise,threat_trio}{,.expected}.json`
+- Docs: `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-10-30 | Story created (`gds-create-story`), status `ready-for-dev`. |
+| 2026-10-30 | Implemented (`gds-dev-story`): `feel.combo`, the sim combo and its cash-in, snapshot v16, the combo badge and the « +N », report fields, goldens regenerated and `combo_cash_in` added, e2e `combo.spec.ts`, docs. Full CI green; status `review`. |
