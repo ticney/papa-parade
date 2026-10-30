@@ -603,3 +603,13 @@
 - **Pad start: the audio phase is skipped on its own** (`audioSkipped: true`, one `warn` on `audio`), since a pad press is no user activation and the context stays suspended. Reason: open point 4; acceptable until E4 reads the audio offset.
 - **The beep is a synthesized placeholder** (`ui_calibration_beep.m4a`); story 7.5 replaces it. Whether 1 kHz for 90 ms is the right sound to align a tap to only Geo can judge.
 - **`leadInMs`, `tailMs`, `doneHoldMs` and `pulseMs` are guesses** (`feel.calibration`). Reason: open point 2; tune them by playing.
+
+## Deferred from: code review of story 2-7-calibration-de-la-latence (2026-10-30)
+
+- **The audio phase waits a fixed `audioWaitMs` for « ready »**, which covers both the beep's decode on a cold network and a suspended context (iOS `resume()`): either gives `audioSkipped: true` with a `warn`. Reason: `audioOffsetMs` is read by nobody until E4; split the two waits then.
+- **The audio context can leave `running` after the 8 beeps are scheduled** (a phone call, no `visibilitychange`): the beats go on in real time, the beeps freeze, a skewed offset is saved. Reason: rare, and the audio offset is unread until E4; check `audio.availability()` in `runAudioFrame` then.
+- **Any tap in the `retry` mode restarts the phase at once**, including a rhythm tap right after the tail. Reason: a feel call; add a short ignore window to `feel.calibration` if playtests show a loop.
+- **`lagMs` is read from `world.input` at each step and counted in sim ms**: a recalibration during a live level moves the expiry of an open window, and under slow-mo sim time runs slower than real time. Reason: a mid-level recalibration is story 2.8's; latch `lagMs` per threat at `windowOpen` and decide real versus sim ms there.
+- **With unusable storage (private window) the calibration lives in memory only and every launch repeats it.** Reason: accepted by AC 13 (the write only warns); a `sessionStorage` fallback is a platform decision for story 2.8 or the playtest tooling.
+- **`setAside` overwrites `papa-parade.save.invalid` on a second unusable save, and a save from a newer version is replaced by defaults after being set aside.** Reason: no second schema version exists yet; keep the first copy and run on in-memory defaults for a future version when story 2.8 adds v2.
+- **No way out of the visual phase on a first launch** (open point 3 of story 2.7): a player who cannot reach `minValidTaps` loops on « too few taps » for ever, and `onStart` sends every new device through it. Reason: Geo's call (2026-10-30), keep the epic's letter (no exit); revisit after the playtest, with a « Plus tard » button or offset 0 after N failed attempts (`feel.calibration.maxAttempts`).

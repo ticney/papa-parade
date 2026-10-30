@@ -155,6 +155,18 @@ describe('createCalibrationFlow', () => {
     expect(audio.preloaded).toEqual([['ui_calibration_beep']]);
   });
 
+  it('leaves no run behind when the transition is refused, so a later start still opens', () => {
+    const { flow, appFsm, enterStart } = setup();
+    // `boot → calibration` is not in the table.
+    expect(() => flow.startRecalibration('loading')).toThrow();
+    expect(flow.isRunning).toBe(false);
+    expect(appFsm.state).toBe('boot');
+    enterStart();
+    flow.startRecalibration('loading');
+    expect(flow.isRunning).toBe(true);
+    expect(appFsm.state).toBe('calibration');
+  });
+
   it('ignores a second start while one is running', () => {
     const { flow, audio, enterStart } = setup();
     enterStart();

@@ -677,6 +677,11 @@ const CalibrationSchema = z
     error: 'offsetMinMs must be below offsetMaxMs',
     path: ['offsetMinMs'],
   })
+  .refine((calibration) => calibration.offsetMaxMs < 30_000 / calibration.bpm, {
+    // From half a beat interval a late tap is nearer the next beat: it pairs with it.
+    error: 'offsetMaxMs must be below half a beat interval (30000 / bpm)',
+    path: ['offsetMaxMs'],
+  })
   .describe(
     'Latency calibration (story 2.7): the beats, the maths bounds and the timings. Client only.',
   );

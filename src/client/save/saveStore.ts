@@ -44,7 +44,18 @@ export function migrateSave(
   while (version < targetVersion) {
     const step = migrations.find((migration) => migration.from === version);
     if (step === undefined) return { ok: false, reason: `no migration from version ${version}` };
-    current = step.migrate(current);
+    // A migration works on whatever a past game stored: a throw is an unusable save, not a crash
+    // (`load` is awaited before the start screen exists).
+    let migrated: unknown;
+    try {
+      migrated = step.migrate(current);
+    } catch (cause) {
+      return { ok: false, reason: `the migration from ${version} threw: ${String(cause)}` };
+    }
+    if (!isRecord(migrated)) {
+      return { ok: false, reason: `the migration from ${version} did not return an object` };
+    }
+    current = migrated;
     version += 1;
     if (current.version !== version) {
       return {

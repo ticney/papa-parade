@@ -64,7 +64,8 @@ export type SimCommand =
    * past (the player's screen latency, `visualOffsetMs`). A corrected press reaches the sim `lagMs`
    * after the instant its `t` names, so the sim waits that long before it decides what no command
    * has come to say: a press held `holdMinMs` is a Firmness only `lagMs` later, and a window nobody
-   * answered gags `lagMs` later. 0 until this command says otherwise; never sent at 0.
+   * answered gags `lagMs` later. 0 until this command says otherwise; a level start sends it for a
+   * positive lag only, a recalibration sends it whatever it is (so it may be 0).
    */
   | { type: 'SetInputLag'; t: SimMs; lagMs: number }
   /**

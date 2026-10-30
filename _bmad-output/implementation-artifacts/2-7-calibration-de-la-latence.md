@@ -4,7 +4,7 @@ baseline_commit: 5842b72841d6a33bc2e5e6bf8cd933202f45f040
 
 # Story 2.7: Latency calibration
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -106,6 +106,24 @@ so that my responses are judged fairly despite my screen's and my audio's latenc
 - [x] **T9. e2e** (AC 20-22): `storageState`, `calibration.spec.ts`, pinned specs.
 - [x] **T10. Goldens and docs** (AC 23-25).
 - [x] **T11. CI** (AC 26).
+
+### Review Findings
+
+Code review of 2026-10-30 (Blind Hunter, Edge Case Hunter, Acceptance Auditor): no acceptance criterion is missing or contradicted. 0 decisions left (1 resolved as a defer by Geo), 6 patches (all applied), 7 deferred, 16 dismissed.
+
+- [x] [Review][Defer] No way out of the visual phase on a first launch (open point 3 of this story): a player who cannot reach `minValidTaps` (motor impairment, broken touch screen, a pad player, a tester) loops on « too few taps » for ever, and `onStart` sends every new device through it — deferred, Geo's call (2026-10-30): keep the epic's letter, no exit; revisit after the playtest (options then: a « Plus tard » button, or offset 0 after N failed attempts) [src/client/ui/screens/calibrationScreen.ts:218-229]
+- [x] [Review][Patch] `saveStore.load()` can throw despite its « never throws » contract: `step.migrate(current)` has no `try/catch` and its result is not checked to be an object, and `boot.ts` awaits `load()` before `appFsm.enter('start')`, so a throwing migration (story 2.8 adds the first) leaves a page that never reaches the start screen. Return `{ ok: false, reason }` from `migrateSave` on a throw or a non-object result, and add the tests [src/client/save/saveStore.ts:44-55]
+- [x] [Review][Patch] `startRecalibration` sets `run` before `appFsm.enter('calibration')`: if the transition throws (illegal source state), `run` stays non-null, `isRunning` stays true and every later call returns at `if (run !== null) return`. Reset `run = null` and rethrow in a `catch`, and add a test [src/client/app/calibrationFlow.ts:192-198]
+- [x] [Review][Patch] `finishRun` enters `retry` without `clearMarks()`: when `tailMs` < `pulseMs` (the schema allows it) no frame loop runs in `retry`, so the ring or the disc stays lit on the « too few taps » prompt. Call `clearMarks()` there and add a test [src/client/ui/screens/calibrationScreen.ts:225]
+- [x] [Review][Patch] `CalibrationSchema` does not tie `offsetMaxMs` to the beat interval: from half an interval (300 ms at 100 BPM, 167 ms at 180) a late tap pairs with the next beat, so a real lag is mismeasured and clamped with no signal, and `content:check` accepts it. Add `.refine(offsetMaxMs < 30000 / bpm)`, a schema test, and regenerate `content/_schemas` with `npm run content:schemas` [src/content/schemas/feel.ts:672-679]
+- [x] [Review][Patch] The doc of `SetInputLag` says « never sent at 0 », but a recalibration to an offset ≤ 0 re-sends it with `lagMs` 0 (`sendInputLag(..., true)`). Fix the comment [src/sim/commands.ts:67]
+- [x] [Review][Patch] Three snapshot test titles still say « is the current version (14) » and assert 15 [src/sim/snapshot.test.ts:1147, 1408, 1859]
+- [x] [Review][Defer] The audio phase waits a fixed `audioWaitMs` (1.5 s) for « ready », which covers both the beep's decode on a cold network and a suspended context; a slow first load or an iOS `resume()` silently gives `audioSkipped: true` — deferred, `audioOffsetMs` is read by nobody until E4; split the two waits then [src/client/app/calibrationFlow.ts:150-155, src/client/ui/screens/calibrationScreen.ts:251-263]
+- [x] [Review][Defer] The audio context can leave `running` after the 8 beeps are scheduled (a phone call, without a `visibilitychange`): the beats keep going in real time while the beeps are frozen, and a skewed offset is saved — deferred, rare, the audio offset is unread until E4; check `audio.availability()` in `runAudioFrame` then [src/client/ui/screens/calibrationScreen.ts:283-290]
+- [x] [Review][Defer] Any tap in `retry` restarts the phase at once, including a rhythm tap that lands right after the tail — deferred, a feel call; add a short ignore window (`feel.calibration`) if playtests show a loop [src/client/ui/screens/calibrationScreen.ts:312-316]
+- [x] [Review][Defer] `lagMs` is read from `world.input` at each step and counted in sim ms: a recalibration while a level is live moves the expiry of an open window, and under slow-mo sim time runs slower than real time — deferred, a mid-level recalibration is story 2.8's (latch `lagMs` per threat at `windowOpen`, and decide real versus sim ms there) [src/sim/threats/threatSystem.ts:131]
+- [x] [Review][Defer] When storage is unusable (private window), the calibration is only in memory and every launch repeats it — deferred, accepted by AC 13 (the write only warns); a `sessionStorage` fallback is a platform decision for story 2.8 or the playtest tooling [src/client/save/saveStore.ts:86-89]
+- [x] [Review][Defer] `setAside` overwrites `papa-parade.save.invalid` on a second unusable save, and a save from a newer version is replaced by defaults after being set aside — deferred, no second schema version exists yet; keep the first copy and run on in-memory defaults for a future version when story 2.8 adds v2 [src/client/save/saveStore.ts:91-97]
 
 ## Dev Notes
 

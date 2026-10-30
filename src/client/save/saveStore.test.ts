@@ -193,6 +193,23 @@ describe('migrateSave', () => {
     });
   });
 
+  it('refuses a migration that throws or returns something that is not an object', () => {
+    const throws: SaveMigration = {
+      from: 0,
+      migrate: () => {
+        throw new Error('boom');
+      },
+    };
+    expect(migrateSave({ version: 0 }, [throws], 1)).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining('boom'),
+    });
+    for (const result of [null, 'x', [], undefined]) {
+      const lies = { from: 0, migrate: () => result } as unknown as SaveMigration;
+      expect(migrateSave({ version: 0 }, [lies], 1), String(result)).toMatchObject({ ok: false });
+    }
+  });
+
   it('refuses what is not a save', () => {
     for (const raw of [null, 'x', 3, [], {}, { version: '1' }, { version: 0.5 }]) {
       expect(migrateSave(raw, MIGRATIONS, 2), JSON.stringify(raw)).toMatchObject({ ok: false });
@@ -208,5 +225,22 @@ describe('migrateSave', () => {
     expect(await store.load()).toEqual({ version: 1, calibration: null });
     expect(storage.items.get(SAVE_KEY)).toEqual({ version: 1, calibration: null });
     expect(storage.items.has(SAVE_INVALID_KEY)).toBe(false);
+  });
+
+  it('never throws on a migration that throws: the save is set aside and replaced by defaults', async () => {
+    const storage = fakeStorage();
+    storage.items.set(SAVE_KEY, { version: 0 });
+    const store = createSaveStore(storage, {
+      migrations: [
+        {
+          from: 0,
+          migrate: () => {
+            throw new Error('boom');
+          },
+        },
+      ],
+    });
+    expect(await store.load()).toMatchObject({ calibration: null });
+    expect(storage.items.get(SAVE_INVALID_KEY)).toEqual({ version: 0 });
   });
 });

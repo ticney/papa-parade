@@ -195,7 +195,14 @@ export function createCalibrationFlow(deps: CalibrationFlowDeps): CalibrationFlo
       void audio.preload([deps.beep.clip]).then(() => {
         state.isPreloaded = true;
       });
-      appFsm.enter('calibration');
+      // `run` is set first: the overlay builds the screen from it as the state changes.
+      try {
+        appFsm.enter('calibration');
+      } catch (cause) {
+        // A refused transition leaves no calibration under way, or no later start would ever open.
+        if (appFsm.state !== 'calibration') run = null;
+        throw cause;
+      }
     },
     createScreen() {
       if (run === null) {

@@ -457,6 +457,15 @@ describe('createCalibrationScreen', () => {
   });
 
   describe('taps', () => {
+    it('puts the disc out when the phase ends in a retry before the pulse is over', () => {
+      // tailMs under pulseMs: the last beat's pulse is still on when the run is judged.
+      const env = build({ startAt: 'visual', feel: { ...feel, tailMs: 0, pulseMs: 1000 } });
+      env.frames.frame(0);
+      env.frames.runTo(feel.leadInMs + 7 * INTERVAL_MS + 100);
+      expect(env.phases.at(-1)).toBe('retry');
+      expect(env.disc.className).not.toContain('pp-calibration-on');
+    });
+
     it('counts only a primary pointer with the main button', () => {
       const env = build({ startAt: 'visual' });
       env.frames.frame(0);

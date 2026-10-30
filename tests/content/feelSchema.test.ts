@@ -483,7 +483,7 @@ describe('feel.calibration (story 2.7)', () => {
         [p('bpm'), 180],
         [p('outlierMs'), 1000],
         [p('offsetMinMs'), 0],
-        [p('offsetMaxMs'), 1000],
+        [p('offsetMaxMs'), 166], // under half an interval at 180 BPM (166.67 ms)
         [p('minValidTaps'), 16],
         [p('leadInMs'), 5000],
         [p('tailMs'), 5000],
@@ -498,13 +498,19 @@ describe('feel.calibration (story 2.7)', () => {
     ['too few beats', [[p('beatCount'), 2]], [p('beatCount'), p('minValidTaps')]],
     ['too many beats', [[p('beatCount'), 17]], [p('beatCount')]],
     ['a fractional beat count', [[p('beatCount'), 8.5]], [p('beatCount')]],
-    ['a tempo over 180 BPM (3 Hz flashing)', [[p('bpm'), 181]], [p('bpm')]],
+    // At 181 BPM half an interval (165.7 ms) is also under the real maximum offset (250 ms).
+    ['a tempo over 180 BPM (3 Hz flashing)', [[p('bpm'), 181]], [p('bpm'), p('offsetMaxMs')]],
     ['a tempo under 40 BPM', [[p('bpm'), 39]], [p('bpm')]],
     ['a negative outlier bound', [[p('outlierMs'), -1]], [p('outlierMs')]],
     ['a positive minimum offset', [[p('offsetMinMs'), 1]], [p('offsetMinMs')]],
     ['a minimum offset under -1000', [[p('offsetMinMs'), -1001]], [p('offsetMinMs')]],
     ['a negative maximum offset', [[p('offsetMaxMs'), -1]], [p('offsetMaxMs')]],
-    ['a maximum offset over 1000', [[p('offsetMaxMs'), 1001]], [p('offsetMaxMs')]],
+    // Over 1000 it also fails the half-interval refine: listed twice.
+    [
+      'a maximum offset over 1000',
+      [[p('offsetMaxMs'), 1001]],
+      [p('offsetMaxMs'), p('offsetMaxMs')],
+    ],
     ['no valid tap needed', [[p('minValidTaps'), 0]], [p('minValidTaps')]],
     ['more valid taps than beats', [[p('minValidTaps'), 9]], [p('minValidTaps')]],
     ['a negative lead-in', [[p('leadInMs'), -1]], [p('leadInMs')]],
@@ -521,6 +527,18 @@ describe('feel.calibration (story 2.7)', () => {
   it('refuses more valid taps than beats, even with both in bounds', () => {
     expect(failedPaths(mutated([p('beatCount'), 4], [p('minValidTaps'), 5]))).toEqual([
       p('minValidTaps'),
+    ]);
+  });
+
+  it('refuses a maximum offset from half a beat interval, whatever the tempo', () => {
+    // 100 BPM: an interval is 600 ms, half is 300.
+    expect(failedPaths(mutated([p('bpm'), 100], [p('offsetMaxMs'), 300]))).toEqual([
+      p('offsetMaxMs'),
+    ]);
+    expect(mutated([p('bpm'), 100], [p('offsetMaxMs'), 299])).toMatchObject({ ok: true });
+    // 180 BPM: half an interval is 166.67 ms.
+    expect(failedPaths(mutated([p('bpm'), 180], [p('offsetMaxMs'), 167]))).toEqual([
+      p('offsetMaxMs'),
     ]);
   });
 

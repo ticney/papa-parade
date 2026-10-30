@@ -222,6 +222,8 @@ export function createCalibrationScreen(options: CalibrationScreenOptions): Cali
         stage,
         validCount: result.validCount,
       });
+      // No frame runs in `retry`: a pulse still on (tailMs under pulseMs) would stay lit.
+      clearMarks();
       mode = 'retry';
       prompt.textContent = t('calibration.too_few_taps');
       options.onPhase('retry');
