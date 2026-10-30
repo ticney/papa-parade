@@ -86,6 +86,18 @@ describe('content/feedback.json', () => {
     ],
     ['a vibration of 0 ms', [['haptics.light.patternMs', [0]]], ['haptics.light.patternMs[0]']],
     ['a negative fade', [['loops.music.fadeMs', -1]], ['loops.music.fadeMs']],
+    [
+      'two identical music stems',
+      [['loops.music.stems.tense', 'music_crawler_calm']],
+      ['loops.music.stems'],
+    ],
+    [
+      'a music stem with no category',
+      [['loops.music.stems.tense', 'crawler']],
+      ['loops.music.stems.tense'],
+    ],
+    ['a music stem missing', [['loops.music.stems.tense', undefined]], ['loops.music.stems.tense']],
+    ['an unknown key in the music loop', [['loops.music.clip', 'music_x']], ['loops.music.clip']],
     ['a cue with no member', [['cues.countdown_tick', {}]], ['cues.countdown_tick']],
     ['an unknown key at the top', [['bogus', 1]], ['bogus']],
     ['an unknown key in a bus', [['buses.sfx.bogusPct', 1]], ['buses.sfx.bogusPct']],

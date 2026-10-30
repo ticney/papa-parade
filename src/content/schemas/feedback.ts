@@ -71,12 +71,32 @@ const LoopSchema = z
   })
   .describe('A sound that loops while a state lasts.');
 
+const MusicLoopSchema = z
+  .strictObject({
+    stems: z
+      .strictObject({
+        calm: clip.describe('The calm stem: the music at rest.'),
+        tense: clip.describe('The tense stem: it comes up while a threat is on (story 2.6).'),
+      })
+      .refine((stems) => stems.calm !== stems.tense, {
+        message: 'the calm and tense stems must be two different clips',
+      })
+      .describe('Two synchronized stems of the same length, started together and looped.'),
+    bus,
+    gainPct: gainPct('Music volume on its bus, in percent.'),
+    fadeMs: z
+      .number()
+      .min(0)
+      .describe('Fade in when the music starts and fade out when it stops or is cut, in ms.'),
+  })
+  .describe('The level music: two synchronized stems mixed by the game state.');
+
 const LoopsSchema = z
   .strictObject({
     babble: LoopSchema.describe(
       'The baby babbles while `baby.babbling` (its stop is the silence).',
     ),
-    music: LoopSchema.describe('The level music, for the whole level.'),
+    music: MusicLoopSchema,
   })
   .describe('Sounds driven by a state, not by an event: they are not cues.');
 

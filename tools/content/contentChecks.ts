@@ -213,7 +213,8 @@ async function checkFeedbackReferences(
   }
   const clipPaths: { clip: string; path: (string | number)[] }[] = [
     { clip: table.loops.babble.clip, path: ['loops', 'babble', 'clip'] },
-    { clip: table.loops.music.clip, path: ['loops', 'music', 'clip'] },
+    { clip: table.loops.music.stems.calm, path: ['loops', 'music', 'stems', 'calm'] },
+    { clip: table.loops.music.stems.tense, path: ['loops', 'music', 'stems', 'tense'] },
     ...Object.entries(table.cues).flatMap(([id, cue]) => [
       ...(cue.audio === undefined
         ? []
@@ -224,6 +225,15 @@ async function checkFeedbackReferences(
       })),
     ]),
   ];
+  // The two music stems are music (`music_*`): another category would land in the wrong mix.
+  for (const stem of ['calm', 'tense'] as const) {
+    if (table.loops.music.stems[stem].startsWith('music_')) continue;
+    problems.push({
+      file,
+      jsonPath: formatJsonPath(['loops', 'music', 'stems', stem]),
+      message: `the ${stem} music stem "${table.loops.music.stems[stem]}" is not a music clip (music_<name>)`,
+    });
+  }
   for (const { clip, path } of clipPaths) {
     if (await exists(join(rootDir, ...AUDIO_DIR, `${clip}.m4a`))) continue;
     problems.push({

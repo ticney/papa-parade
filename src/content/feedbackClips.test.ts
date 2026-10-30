@@ -7,6 +7,7 @@ describe('feedbackClips', () => {
     expect(feedbackClips(createTestFeedback())).toEqual([
       'baby_babble_loop',
       'music_crawler_calm',
+      'music_crawler_tense',
       'papa_bump',
     ]);
   });
@@ -17,7 +18,12 @@ describe('feedbackClips', () => {
       audio: { clip: 'baby_babble_loop', bus: 'voice', gainPct: 50 },
       haptic: 'light',
     };
-    expect(feedbackClips(table)).toEqual(['baby_babble_loop', 'music_crawler_calm', 'papa_bump']);
+    expect(feedbackClips(table)).toEqual([
+      'baby_babble_loop',
+      'music_crawler_calm',
+      'music_crawler_tense',
+      'papa_bump',
+    ]);
   });
 
   it("lists the clips of a cue's layers, once, sorted", () => {
@@ -36,6 +42,7 @@ describe('feedbackClips', () => {
       'baby_laugh_perfect',
       'env_applause',
       'music_crawler_calm',
+      'music_crawler_tense',
       'papa_bump',
     ]);
   });

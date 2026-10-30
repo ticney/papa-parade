@@ -146,5 +146,15 @@
       "zoomInMs": 150,
       "refocusMs": 200
     }
+  },
+  "music": {
+    "tense": { "fadeInMs": 600, "fadeOutMs": 1500, "calmGainPct": 60 },
+    "slowMo": {
+      "belowScale": 1,
+      "lowpassHz": 900,
+      "playbackRatePct": 80,
+      "inMs": 150,
+      "outMs": 500
+    }
   }
 }

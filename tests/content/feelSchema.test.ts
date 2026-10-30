@@ -398,6 +398,61 @@ describe('feel.fx (story 2.5)', () => {
   });
 });
 
+describe('feel.music (story 2.6)', () => {
+  const p = (path: string) => `music.${path}`;
+
+  it('accepts the bounds themselves', () => {
+    expect(
+      mutated(
+        [p('tense.fadeInMs'), 0],
+        [p('tense.fadeOutMs'), 0],
+        [p('tense.calmGainPct'), 0],
+        [p('slowMo.belowScale'), 0.1],
+        [p('slowMo.lowpassHz'), 200],
+        [p('slowMo.playbackRatePct'), 25],
+        [p('slowMo.inMs'), 0],
+        [p('slowMo.outMs'), 0],
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      mutated(
+        [p('tense.fadeInMs'), 5000],
+        [p('tense.fadeOutMs'), 5000],
+        [p('tense.calmGainPct'), 100],
+        [p('slowMo.belowScale'), 1],
+        [p('slowMo.lowpassHz'), 20000],
+        [p('slowMo.playbackRatePct'), 100],
+        [p('slowMo.inMs'), 2000],
+        [p('slowMo.outMs'), 2000],
+      ),
+    ).toMatchObject({ ok: true });
+  });
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a fade-in over 5000 ms', [[p('tense.fadeInMs'), 5001]], [p('tense.fadeInMs')]],
+    ['a negative fade-in', [[p('tense.fadeInMs'), -1]], [p('tense.fadeInMs')]],
+    ['a fractional fade-in', [[p('tense.fadeInMs'), 1.5]], [p('tense.fadeInMs')]],
+    ['a fade-out over 5000 ms', [[p('tense.fadeOutMs'), 5001]], [p('tense.fadeOutMs')]],
+    ['a negative fade-out', [[p('tense.fadeOutMs'), -1]], [p('tense.fadeOutMs')]],
+    ['a calm gain above 100 %', [[p('tense.calmGainPct'), 101]], [p('tense.calmGainPct')]],
+    ['a negative calm gain', [[p('tense.calmGainPct'), -1]], [p('tense.calmGainPct')]],
+    ['a bound scale under 0.1', [[p('slowMo.belowScale'), 0.09]], [p('slowMo.belowScale')]],
+    ['a bound scale above 1', [[p('slowMo.belowScale'), 1.01]], [p('slowMo.belowScale')]],
+    ['a low-pass under 200 Hz', [[p('slowMo.lowpassHz'), 199]], [p('slowMo.lowpassHz')]],
+    ['a low-pass above 20000 Hz', [[p('slowMo.lowpassHz'), 20001]], [p('slowMo.lowpassHz')]],
+    ['a rate under 25 %', [[p('slowMo.playbackRatePct'), 24]], [p('slowMo.playbackRatePct')]],
+    ['a rate above 100 %', [[p('slowMo.playbackRatePct'), 101]], [p('slowMo.playbackRatePct')]],
+    ['a sweep-in over 2000 ms', [[p('slowMo.inMs'), 2001]], [p('slowMo.inMs')]],
+    ['a negative sweep-in', [[p('slowMo.inMs'), -1]], [p('slowMo.inMs')]],
+    ['a sweep-out over 2000 ms', [[p('slowMo.outMs'), 2001]], [p('slowMo.outMs')]],
+    ['a missing music block', [['music', undefined]], ['music']],
+    ['an unknown key', [[p('bogus'), 1]], [p('bogus')]],
+    ['an unknown key in the tense stem', [[p('tense.bogusMs'), 1]], [p('tense.bogusMs')]],
+  ])('refuses %s, at its path', (_name, changes, paths) => {
+    expect(failedPaths(mutated(...changes))).toEqual(paths);
+  });
+});
+
 describe('feel.noise (story 3.1)', () => {
   const SOURCES = 'noise.sources';
   const impact = `${SOURCES}.propImpact`;

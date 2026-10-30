@@ -420,3 +420,15 @@ export const JOURNAL_DOWNLOAD_REVOKE_DELAY_MS = 10_000;
 
 /** A copy that has not settled after this many real ms counts as `'failed'` and frees the button (story 3.3). */
 export const JOURNAL_COPY_TIMEOUT_MS = 5000;
+
+/**
+ * The music's two stems start this many ms after "now", on the same audio-clock time, so that they
+ * can never land in two render quanta (story 2.6). A physical limit of the audio clock, not feel.
+ */
+export const MUSIC_START_LEAD_MS = 50;
+
+/** Two music stems whose durations differ by more than this, in ms, will drift apart as they loop (story 2.6). */
+export const MUSIC_STEM_LENGTH_TOLERANCE_MS = 2;
+
+/** Cut-off of the music's low-pass when the slow-mo effect is off: wide open, under the Nyquist frequency of 44.1 kHz (story 2.6). */
+export const MUSIC_FILTER_OPEN_HZ = 20000;

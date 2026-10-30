@@ -48,6 +48,19 @@ const MUSIC_ATTACK_MS = 5;
 const MUSIC_DECAY_S = 0.22;
 const MUSIC_RELEASE_MS = 30;
 
+/**
+ * The tense stem (story 2.6) plays twice as many steps as the calm one over the same 8 s, so its
+ * notes land on the calm ones. A lower register on a scale with a flat second (Db against C) and a
+ * tritone (F# against C): it sounds worse on purpose.
+ */
+const MUSIC_TENSE_STEPS = 2 * MUSIC_STEPS;
+const MUSIC_TENSE_SCALE_HZ = [
+  130.81, 138.59, 164.81, 185.0, 196.0, 220.0, 261.63, 277.18, 329.63, 369.99,
+];
+/** Level of the square wave against the sawtooth in the tense timbre: a buzzy edge. */
+const MUSIC_TENSE_SQUARE_GAIN = 0.6;
+const MUSIC_TENSE_DECAY_S = 0.12;
+
 const BUMP_LENGTH_MS = 150;
 const BUMP_PITCH_HZ = { from: 180, to: 80 };
 const BUMP_ATTACK_MS = 2;
@@ -274,6 +287,43 @@ export function synthMusic(): Float32Array {
         Math.min(1, i / attack, (length - i) / release) *
         Math.exp(-i / SAMPLE_RATE_HZ / MUSIC_DECAY_S);
       out[n * step + i] = triangle * envelope;
+    }
+  }
+  fadeEnds(out, LOOP_FADE_MS);
+  normalize(out, PEAK_MUSIC);
+  return out;
+}
+
+/**
+ * The nervous twin of `synthMusic`: exactly as long, on the same grid, a buzzy saw-and-square
+ * timbre in a lower register with a flat second and a tritone. Same peak, same end fades.
+ */
+export function synthMusicTense(): Float32Array {
+  const rng = createRng(SEED + 9);
+  const out = new Float32Array(samplesOf(MUSIC_LENGTH_S * 1000));
+  const calmStep = Math.floor(out.length / MUSIC_STEPS);
+  const step = Math.floor(calmStep / 2);
+  let degree = 0;
+  for (let n = 0; n < MUSIC_TENSE_STEPS; n++) {
+    // A jumpier walk than the calm one: leaps are as likely as steps.
+    const roll = nextFloat(rng);
+    degree += roll < 0.3 ? 1 : roll < 0.6 ? -1 : roll < 0.8 ? 3 : -3;
+    degree = Math.max(0, Math.min(MUSIC_TENSE_SCALE_HZ.length - 1, degree));
+    const frequencyHz = MUSIC_TENSE_SCALE_HZ[degree] as number;
+    // Even steps start on a calm step, odd ones half a calm step later.
+    const start = Math.floor(n / 2) * calmStep + (n % 2) * step;
+    const end = n === MUSIC_TENSE_STEPS - 1 ? out.length : start + step;
+    const length = end - start;
+    const attack = samplesOf(MUSIC_ATTACK_MS);
+    const release = samplesOf(MUSIC_RELEASE_MS);
+    for (let i = 0; i < length; i++) {
+      const cycle = (i * frequencyHz) / SAMPLE_RATE_HZ;
+      const saw = 2 * (cycle - Math.floor(cycle + 0.5));
+      const square = cycle - Math.floor(cycle) < 0.5 ? 1 : -1;
+      const envelope =
+        Math.min(1, i / attack, (length - i) / release) *
+        Math.exp(-i / SAMPLE_RATE_HZ / MUSIC_TENSE_DECAY_S);
+      out[start + i] = (saw + MUSIC_TENSE_SQUARE_GAIN * square) * envelope;
     }
   }
   fadeEnds(out, LOOP_FADE_MS);
@@ -742,6 +792,7 @@ export function encodeWav(samples: Float32Array): Buffer {
 export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Array }[] = [
   { clip: 'baby_babble_loop', synth: synthBabble },
   { clip: 'music_crawler_calm', synth: synthMusic },
+  { clip: 'music_crawler_tense', synth: synthMusicTense },
   { clip: 'papa_bump', synth: synthBump },
   { clip: 'tel_outlet', synth: synthTelegraph },
   { clip: 'resp_parry', synth: synthParry },
