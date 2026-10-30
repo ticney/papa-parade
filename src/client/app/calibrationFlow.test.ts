@@ -19,12 +19,10 @@ beforeAll(() => {
 const audioWarnings = (): string[] =>
   warnSpy.mock.calls.filter(([channel]) => channel === 'audio').map(([, message]) => message);
 
-// Story 2.8 adds `settings → calibration → settings`: the flow must serve it with a table alone.
+// Story 2.8 gave the table `settings → calibration → settings`: the flow serves it as it is.
 const TRANSITIONS: Record<string, readonly string[]> = {
   ...APP_TRANSITIONS,
   start: [...APP_TRANSITIONS.start, 'settings'],
-  settings: ['calibration', 'start'],
-  calibration: [...APP_TRANSITIONS.calibration, 'settings'],
 };
 
 function setup() {
@@ -272,6 +270,25 @@ describe('createCalibrationFlow', () => {
   });
 
   describe('a recalibration (story 2.8 serves it with a table alone)', () => {
+    it('resumes the audio first, so a recalibration from the pause hears its beep (D3)', () => {
+      const { flow, appFsm, audio, enterStart } = setup();
+      enterStart();
+      appFsm.enter('settings' as AppState);
+      expect(audio.resumes).toBe(0);
+      flow.startRecalibration('settings' as AppState);
+      expect(audio.resumes).toBe(1);
+      expect(audio.preloaded).toHaveLength(1);
+    });
+
+    it('does not resume again for a start that is ignored', () => {
+      const { flow, appFsm, audio, enterStart } = setup();
+      enterStart();
+      appFsm.enter('settings' as AppState);
+      flow.startRecalibration('settings' as AppState);
+      flow.startRecalibration('settings' as AppState);
+      expect(audio.resumes).toBe(1);
+    });
+
     it('goes back to the state it came from, and does not start a level', () => {
       const { flow, appFsm, calls, enterStart, last } = setup();
       enterStart();
@@ -351,11 +368,12 @@ describe('createCalibrationFlow', () => {
       enterStart();
       flow.startRecalibration('loading');
       flow.createScreen();
+      const startedWith = audio.resumes;
       setVisibility('hidden');
       expect(last().stops).toBe(1);
-      expect(audio.resumes).toBe(0);
+      expect(audio.resumes).toBe(startedWith);
       setVisibility('visible');
-      expect(audio.resumes).toBe(1);
+      expect(audio.resumes).toBe(startedWith + 1);
       expect(last().restarts).toBe(1);
     });
 
@@ -373,9 +391,10 @@ describe('createCalibrationFlow', () => {
       flow.startRecalibration('loading');
       const screen = flow.createScreen();
       screen.dispose();
+      const startedWith = audio.resumes;
       setVisibility('hidden');
       setVisibility('visible');
-      expect(audio.resumes).toBe(1);
+      expect(audio.resumes).toBe(startedWith + 1);
       expect(last().restarts).toBe(0);
     });
 

@@ -861,3 +861,19 @@ export async function advanceToEnd(page: Page): Promise<void> {
     remaining -= chunk;
   }
 }
+
+/**
+ * The player: a tap (Space) at every beat the mirror counts, in the microtask that follows the
+ * frame that popped it. Installed once per page.
+ */
+export const tapOnEveryBeat = (page: Page): Promise<void> =>
+  page.evaluate(() => {
+    new MutationObserver(() => {
+      if (Number(document.documentElement.dataset.ppCalibrationBeats) > 0) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
+      }
+    }).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-pp-calibration-beats'],
+    });
+  });

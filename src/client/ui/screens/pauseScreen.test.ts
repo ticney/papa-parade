@@ -50,6 +50,7 @@ function build(mode: 'panel' | 'countdown' = 'panel') {
     events: { emit: () => undefined } as never,
     onResume: () => calls.push('resume'),
     onRestart: () => calls.push('restart'),
+    onSettings: () => calls.push('settings'),
   });
   const root = screen.element as unknown as FakeElement;
   const panel = root.children[0] as FakeElement;
@@ -115,6 +116,24 @@ describe('createPauseScreen: the pad (story 1.17)', () => {
     });
   });
 
+  describe('the actions (story 2.8)', () => {
+    it('lists Reprendre, Recommencer and Réglages, in that order', () => {
+      const { buttons } = build();
+      expect(buttons.map((button) => button.textContent)).toEqual([
+        'pause.resume',
+        'pause.restart',
+        'pause.settings',
+      ]);
+    });
+
+    it('opens the settings from the third button', () => {
+      const { screen, calls, buttons } = build();
+      buttons[2]?.focus();
+      screen.activateFocused();
+      expect(calls).toEqual(['settings']);
+    });
+  });
+
   describe('moveFocus', () => {
     it('moves the focus like the arrow keys, wrapping', () => {
       const { screen, buttons } = build();
@@ -122,9 +141,11 @@ describe('createPauseScreen: the pad (story 1.17)', () => {
       expect(screen.moveFocus('ArrowDown')).toBe(true);
       expect(fakeDocument.activeElement).toBe(buttons[1]);
       expect(screen.moveFocus('ArrowDown')).toBe(true);
+      expect(fakeDocument.activeElement).toBe(buttons[2]);
+      expect(screen.moveFocus('ArrowDown')).toBe(true);
       expect(fakeDocument.activeElement).toBe(buttons[0]);
       expect(screen.moveFocus('ArrowUp')).toBe(true);
-      expect(fakeDocument.activeElement).toBe(buttons[1]);
+      expect(fakeDocument.activeElement).toBe(buttons[2]);
     });
 
     it('ignores other keys and the countdown', () => {

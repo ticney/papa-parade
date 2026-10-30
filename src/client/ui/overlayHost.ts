@@ -10,6 +10,9 @@ export interface OverlayBuilders {
   loading(): OverlayScreen;
   /** The latency calibration (story 2.7); rebuilt after the portrait overlay, from the flow's state. */
   calibration(): OverlayScreen;
+  /** The settings (story 2.8); rebuilt from the save after the portrait overlay, so it holds no state of its own. */
+  settings(): OverlayScreen;
+  credits(): OverlayScreen;
   oops(): OverlayScreen;
   /** Mama's note (story 1.22); rebuilt after the portrait overlay, so it must not replay its sequence. */
   result(): OverlayScreen;
@@ -55,6 +58,10 @@ export function createOverlayHost(root: HTMLElement, builders: OverlayBuilders):
         return { screen: builders.loading(), pause: null };
       case 'calibration':
         return { screen: builders.calibration(), pause: null };
+      case 'settings':
+        return { screen: builders.settings(), pause: null };
+      case 'credits':
+        return { screen: builders.credits(), pause: null };
       case 'pause': {
         const pause = builders.pause(pauseMode);
         return { screen: pause, pause };

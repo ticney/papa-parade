@@ -6,6 +6,7 @@ const file = () =>
   toRunFile({
     levelId: 'salon_crawler',
     bot: 'human',
+    tier: 'normal',
     untilSimMs: 180_000,
     worldHash: 'abc',
     journal: JOURNAL as never,
@@ -49,5 +50,19 @@ describe('runFile', () => {
     const parsed = parseWith(change);
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) expect(parsed.error).toContain(field);
+  });
+});
+
+describe('runFile tier (story 2.8)', () => {
+  it('reads a file written before the tiers as played at normal', () => {
+    const { tier: _tier, ...old } = file();
+    const parsed = parseRunFile(old);
+    expect(parsed.ok && parsed.value.tier).toBe('normal');
+  });
+
+  it('refuses a tier it does not know', () => {
+    const parsed = parseWith({ tier: 'hard' });
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.error).toContain('tier');
   });
 });

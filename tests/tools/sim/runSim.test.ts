@@ -138,6 +138,36 @@ describe('runSim on the live content', () => {
     }
   }, 120_000);
 
+  it.each(['assistance', 'experienced'] as const)(
+    'sends a SetDifficultyTier at t = 0 at the %s tier, and the report and the file carry it',
+    async (tier) => {
+      const games: RunFile[] = [];
+      const result = await runSim(simArgs({ botId: 'human', tier }), createTestSimLevel(), {
+        onGame: (_name, game) => games.push(game),
+      });
+      if (!result.ok) throw new Error(result.error);
+      expect(result.value.tier).toBe(tier);
+      const file = games[0] as RunFile;
+      expect(file.tier).toBe(tier);
+      const commands = file.journal.entries.filter(
+        (entry) => entry.command.type === 'SetDifficultyTier',
+      );
+      expect(commands).toHaveLength(1);
+      expect(commands[0]?.command).toMatchObject({ t: 0, tier });
+    },
+  );
+
+  it('sends nothing at normal: the journal is what it was before the tiers', async () => {
+    const games: RunFile[] = [];
+    const result = await runSim(simArgs({ botId: 'human' }), createTestSimLevel(), {
+      onGame: (_name, game) => games.push(game),
+    });
+    if (!result.ok) throw new Error(result.error);
+    expect(result.value.tier).toBe('normal');
+    const types = (games[0] as RunFile).journal.entries.map((entry) => entry.command.type);
+    expect(types).not.toContain('SetDifficultyTier');
+  });
+
   it('records where a game stopped, so that it replays to the same world', async () => {
     const loaded = await load();
     const games: RunFile[] = [];

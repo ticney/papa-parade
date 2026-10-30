@@ -1,4 +1,9 @@
-import { SIM_CLI_MAX_UNTIL_MS } from '@shared/constants';
+import {
+  DEFAULT_DIFFICULTY_TIER,
+  DIFFICULTY_TIER_IDS,
+  type DifficultyTierId,
+  SIM_CLI_MAX_UNTIL_MS,
+} from '@shared/constants';
 import { err, ok, type Result } from '@shared/result';
 import type { Journal } from '@sim';
 
@@ -15,6 +20,8 @@ export interface RunFile {
   version: typeof RUN_FILE_VERSION;
   levelId: string;
   bot: string;
+  /** The tier it was played at (story 2.8); informational, the journal holds the command. */
+  tier: DifficultyTierId;
   untilSimMs: number;
   worldHash: string;
   journal: Journal;
@@ -51,6 +58,11 @@ export function parseRunFile(json: unknown): Result<RunFile, string> {
       return err(`invalid recorded game: "${key}" must be a non-empty string`);
     }
   }
+  // Files written before story 2.8 have no tier: they were played at the default one.
+  const tier = file.tier ?? DEFAULT_DIFFICULTY_TIER;
+  if (typeof tier !== 'string' || !(DIFFICULTY_TIER_IDS as readonly string[]).includes(tier)) {
+    return err(`invalid recorded game: "tier" must be one of ${DIFFICULTY_TIER_IDS.join(', ')}`);
+  }
   const { untilSimMs } = file;
   if (
     typeof untilSimMs !== 'number' ||
@@ -75,6 +87,7 @@ export function parseRunFile(json: unknown): Result<RunFile, string> {
     version: RUN_FILE_VERSION,
     levelId: file.levelId as string,
     bot: file.bot as string,
+    tier: tier as DifficultyTierId,
     untilSimMs,
     worldHash: file.worldHash as string,
     journal: file.journal as Journal,

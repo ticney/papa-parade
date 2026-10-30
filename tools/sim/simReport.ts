@@ -1,5 +1,5 @@
 import { NOISE_SOURCE_IDS } from '@content/schemas/feel';
-import { STAR_COUNT_MAX } from '@shared/constants';
+import { type DifficultyTierId, STAR_COUNT_MAX } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import {
   LEVEL_END_REASONS,
@@ -361,6 +361,8 @@ export interface WaveReport {
 export interface SimReport {
   level: string;
   bot: string;
+  /** The difficulty tier the games were played at (story 2.8). */
+  tier: DifficultyTierId;
   seed: number;
   runs: number;
   /** Where each game stops at the latest: the cap, or the level's duration. */
@@ -461,6 +463,7 @@ const pct = (part: number, whole: number): number =>
 export interface ReportInput {
   level: string;
   bot: string;
+  tier: DifficultyTierId;
   seed: number;
   untilSimMs: number;
   hashes: SimReport['hashes'];
@@ -600,6 +603,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   return {
     level: input.level,
     bot: input.bot,
+    tier: input.tier,
     seed: input.seed,
     runs: runs.length,
     untilSimMs: input.untilSimMs,

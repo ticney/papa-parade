@@ -38,6 +38,18 @@ export const TIME_MAP_HISTORY_MS = 2000;
 export const TIME_MAP_CAPACITY = 1024;
 
 /**
+ * The difficulty tiers, easiest first (story 2.8; GDD › Accessibility). The sim may not import
+ * runtime values from `content`, so the ids live here; `DifficultySchema` is checked against them.
+ */
+export const DIFFICULTY_TIER_IDS = ['assistance', 'normal', 'experienced'] as const;
+
+/** One of {@link DIFFICULTY_TIER_IDS}. */
+export type DifficultyTierId = (typeof DIFFICULTY_TIER_IDS)[number];
+
+/** The tier a new player and every headless run start at. */
+export const DEFAULT_DIFFICULTY_TIER: DifficultyTierId = 'normal';
+
+/**
  * The caps the renderer's pixel ratio steps down through, widest first: the ratio is
  * `min(devicePixelRatio, cap)` and starts at the first cap (architecture › Performance).
  */
@@ -448,5 +460,11 @@ export const SAVE_KEY = 'papa-parade.save';
 /** A save that cannot be read is kept here, untouched, while the game runs on defaults (story 2.7). */
 export const SAVE_INVALID_KEY = 'papa-parade.save.invalid';
 
+/** The settings sliders move by this many percent per step (story 2.8 D6: the grain of a control, not feel). */
+export const VOLUME_STEP_PCT = 5;
+
+/** A player volume is a whole percent of the mix, up to this (100 = the mix of `feedback.json`). */
+export const VOLUME_MAX_PCT = 100;
+
 /** The version of the save the game writes. Every bump adds a migration `v{n-1} → v{n}` (story 2.7). */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;

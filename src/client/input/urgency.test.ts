@@ -20,6 +20,17 @@ describe('threatCloseAt', () => {
     expect(threatCloseAt(threat(0, 250))).toBe(250);
   });
 
+  it.each([
+    ['assistance', 450],
+    ['normal', 300],
+    ['experienced', 225],
+  ])(
+    'reads the window the %s tier froze, with nothing tier-specific (story 2.8)',
+    (_tier, windowMs) => {
+      expect(threatCloseAt(threat(1000, windowMs))).toBe(1000 + windowMs);
+    },
+  );
+
   it('is null when the window is not frozen yet (cannot happen once telegraphed)', () => {
     expect(threatCloseAt(threat(1000, null))).toBeNull();
   });

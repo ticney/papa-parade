@@ -1,7 +1,10 @@
 import { parseArgs } from 'node:util';
 import { BOT_IDS, type BotId } from '@bots/bot';
 import {
+  DEFAULT_DIFFICULTY_TIER,
   DEFAULT_LEVEL_ID,
+  DIFFICULTY_TIER_IDS,
+  type DifficultyTierId,
   SIM_CLI_MAX_RUNS,
   SIM_CLI_MAX_UNTIL_MS,
   STEP_MS,
@@ -12,6 +15,8 @@ import { err, ok, type Result } from '@shared/result';
 export interface SimArgs {
   levelId: string;
   botId: BotId;
+  /** The difficulty tier the games are played at; `normal` sends no command (story 2.8). */
+  tier: DifficultyTierId;
   /** The seed of run 0; run `i` uses `(seed + i) % 2**32`. */
   seed: number;
   runs: number;
@@ -28,6 +33,7 @@ export const SIM_HELP = `Usage: npm run sim -- --bot <id> [options]
 
   --level <id>       level to play (default ${DEFAULT_LEVEL_ID})
   --bot <id>         ${BOT_IDS.join(', ')} (required)
+  --tier <id>        ${DIFFICULTY_TIER_IDS.join(', ')} (default ${DEFAULT_DIFFICULTY_TIER}); a SetDifficultyTier at t = 0 unless normal
   --seed <n>         seed of the first run, an integer in [0, 2**32) (default 1)
   --runs <n>         number of games, an integer in [1, ${SIM_CLI_MAX_RUNS}] (default 1); run i uses seed + i
   --until-ms <n>     cap the sim time of a game, in ms, rounded up to ${STEP_MS}, at most ${SIM_CLI_MAX_UNTIL_MS} (default: no cap, a game lasts the level's duration)
@@ -74,6 +80,7 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
       options: {
         level: { type: 'string' },
         bot: { type: 'string' },
+        tier: { type: 'string' },
         seed: { type: 'string' },
         runs: { type: 'string' },
         'until-ms': { type: 'string' },
@@ -99,6 +106,11 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
   }
   if (botText !== undefined && !(BOT_IDS as readonly string[]).includes(botText)) {
     return err(`unknown bot "${botText}": choose ${BOT_IDS.join(', ')}`);
+  }
+
+  const tierText = text('tier') ?? DEFAULT_DIFFICULTY_TIER;
+  if (!(DIFFICULTY_TIER_IDS as readonly string[]).includes(tierText)) {
+    return err(`unknown --tier "${tierText}": choose ${DIFFICULTY_TIER_IDS.join(', ')}`);
   }
 
   const seed = integerOption('seed', text('seed'), 1);
@@ -131,6 +143,7 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
   return ok({
     levelId: text('level') ?? DEFAULT_LEVEL_ID,
     botId: (botText ?? 'idle') as BotId,
+    tier: tierText as DifficultyTierId,
     seed: seed.value,
     runs: runs.value,
     untilSimMs,

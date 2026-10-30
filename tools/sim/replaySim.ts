@@ -5,7 +5,11 @@ import { formatContentProblem } from '@content/contentError';
 import { mergeFeel } from '@content/feelMerge';
 import type { Feel } from '@content/schemas/feel';
 import { JOURNAL_FILE_KIND, type JournalFile, JournalSchema } from '@content/schemas/journal';
-import { SIM_CLI_MAX_UNTIL_MS } from '@shared/constants';
+import {
+  DEFAULT_DIFFICULTY_TIER,
+  type DifficultyTierId,
+  SIM_CLI_MAX_UNTIL_MS,
+} from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
@@ -109,14 +113,25 @@ export function parseJournalFile(json: unknown): Result<JournalFile, string> {
  * the sim's journal are all it needs. `bot` is the autoplay bot, or `player` for a human game.
  */
 export function journalFileToRunFile(file: JournalFile): RunFile {
+  const journal = file.replay.journal as Journal;
   return toRunFile({
     levelId: file.replay.levelId,
     bot: file.summary.autoplay ?? 'player',
+    tier: tierOfJournal(journal),
     untilSimMs: file.replay.endSimMs,
     worldHash: file.replay.worldHash,
     // The envelope was checked by the schema; `replayJournal` checks the commands deeply.
-    journal: file.replay.journal as Journal,
+    journal,
   });
+}
+
+/** The tier a journal was played at: its last `SetDifficultyTier`, else the default (story 2.8). */
+function tierOfJournal(journal: Journal): DifficultyTierId {
+  let tier: DifficultyTierId = DEFAULT_DIFFICULTY_TIER;
+  for (const entry of journal.entries) {
+    if (entry.command.type === 'SetDifficultyTier') tier = entry.command.tier;
+  }
+  return tier;
 }
 
 /**

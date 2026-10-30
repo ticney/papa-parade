@@ -137,7 +137,7 @@ export function runCarry(world: World, ctx: StepContext): void {
   const now = world.time.sim;
   if (armsCryAt === null || now < armsCryAt) return;
   if (threat.state !== 'idle' || isPapaBusy(papa) || world.flow.state !== 'playing') return;
-  if (!isJudgeableBeforeEnd(ctx, planned.def, now)) return;
+  if (!isJudgeableBeforeEnd(world, ctx, planned.def, now)) return;
   telegraphThreat(world, ctx, threat, planned.def, -1);
   world.carry.armsCryAt = drawArmsCryAt(world, ctx);
 }

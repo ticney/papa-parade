@@ -1,6 +1,10 @@
+---
+baseline_commit: 6cc2d885c134185cbff876e40213b19309ee2a49
+---
+
 # Story 2.8: Difficulty tiers and settings
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -107,16 +111,16 @@ so that the game stays funny and comfortable whatever my level.
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Sim** (AC 1-6): ids, `SetDifficultyTier`, `World.difficultyTier`, snapshot v18, `activeDifficulty`, `judgeable`; tests first.
-- [ ] **T2. Headless** (AC 7, 32): `--tier`, report, replay round trip, bot runs.
-- [ ] **T3. Save** (AC 9-12): v2, migration, `setSettings`, first copy kept, future version; tests.
-- [ ] **T4. App states** (AC 13-17): rows, `isSettingsDetour`, overlay kinds, the boot listeners, audio on a recalibration.
-- [ ] **T5. Screens** (AC 18-23): pause row, `settingsScreen`, `creditsScreen`, CSS, strings.
-- [ ] **T6. Keys and pad** (AC 21): `OverlayScreen`, shell, `keys.ts`.
-- [ ] **T7. Applying** (AC 8, 24-26): tier at level start, `setPlayerVolumes`, `createGatedHaptics`, `SettingsChanged`.
-- [ ] **T8. e2e** (AC 28-30): `calibratedSave` v2, `settings.spec.ts`, pinned specs.
-- [ ] **T9. Goldens and docs** (AC 31, 33, 34).
-- [ ] **T10. CI** (AC 35).
+- [x] **T1. Sim** (AC 1-6): ids, `SetDifficultyTier`, `World.difficultyTier`, snapshot v18, `activeDifficulty`, `judgeable`; tests first.
+- [x] **T2. Headless** (AC 7, 32): `--tier`, report, replay round trip, bot runs.
+- [x] **T3. Save** (AC 9-12): v2, migration, `setSettings`, first copy kept, future version; tests.
+- [x] **T4. App states** (AC 13-17): rows, `isSettingsDetour`, overlay kinds, the boot listeners, audio on a recalibration.
+- [x] **T5. Screens** (AC 18-23): pause row, `settingsScreen`, `creditsScreen`, CSS, strings.
+- [x] **T6. Keys and pad** (AC 21): `OverlayScreen`, shell, `keys.ts`.
+- [x] **T7. Applying** (AC 8, 24-26): tier at level start, `setPlayerVolumes`, `createGatedHaptics`, `SettingsChanged`.
+- [x] **T8. e2e** (AC 28-30): `calibratedSave` v2, `settings.spec.ts`, pinned specs.
+- [x] **T9. Goldens and docs** (AC 31, 33, 34).
+- [x] **T10. CI** (AC 35).
 
 ## Dev Notes
 
@@ -191,10 +195,58 @@ None needed: no new library, the stack is pinned, and native `<input type="range
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`)
+
 ### Debug Log References
+
+- First full `npm run ci`: one failure, `tests/tools/audio/makePlaceholderAudio.test.ts › is deterministic`, a 5 s timeout (6.4 s) under coverage while the shared machine had a load average of 20-30. Alone it passes in 2.9 s. The full CI was rerun once, unchanged: green.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Sim.** `DIFFICULTY_TIER_IDS` / `DEFAULT_DIFFICULTY_TIER` in `shared`, tied to `DifficultySchema` by a compile-time check. `SetDifficultyTier` is journaled like `SetInputLag`, applied first of the step; `World.difficultyTier`, snapshot version 18. `activeDifficulty(world, ctx)` replaces both reads of `difficulty.normal` (`telegraphThreat`, `isJudgeableBeforeEnd`, which now takes `world`). Window tests: base 300 gives 450 / 300 / 225, with a 20 % fatigue penalty 360 / 240 / 180, tolerance and buffer unscaled, a window telegraphed before a tier change keeps its length, the micro-sleep's judgeable check at each tier. The threat catalogue's generated « perfect / success / too early / too late » set now runs at each of the three tiers; `tests/bots/tierWindows.test.ts` proves the perfect bot stays perfect at each tier and `urgency.test.ts` that the close instant just reads `responseWindow`.
+- **Test adjustments forced by 225 / 450 windows** (a centre on a half ms or between two steps, no bug): the « ring closed first » catalogue case expects the hold at the first step at or after `center + holdMinMs`; the perfect-bot tier test accepts `|offsetMs| ≤ 0.5`.
+- **Instinct gate (AC 5).** Only the unit test exists (`activeDifficulty(...).hasInstinct` is `false` at `experienced`, `true` otherwise). **No e2e or sim test of a non-trigger is possible in this story**: the instinct itself is 2.9, which must read the flag through the helper (recorded in `deferred-work.md`).
+- **Headless.** `npm run sim -- --tier <id>`: parsed and refused when unknown, in `SIM_HELP`, a `SetDifficultyTier` at t = 0 unless `normal`; the report and the run file carry `tier` (a run file without one reads as `normal`; `journalFileToRunFile` derives it from the journal). `sim:replay` round trip at `experienced` checked in a test and by hand (`replay matches`).
+- **Save.** v2 with `settings`, `v1 → v2` migration (pure, keeps the calibration), `setSettings` (memory first, warns once until a write succeeds), `setAside` keeps the first copy, a future-version save is left in place and copied aside with one `warn` and the session never writes (`migrateSave` answers `kind: 'future' | 'unusable'`). `calibratedSave` is a v2 save with a `settings` override; `calibration.spec.ts` expects version 2 and shares `tapOnEveryBeat` through `support/game.ts`.
+- **App flow.** `appFsm` rows and `isSettingsDetour`; `settings` / `credits` overlay kinds. Every listener of AC 15 is fixed with an e2e proof in `settings.spec.ts`: level-left (markers and objects survive), level-entered (mirrors not reset), loops (stopped on a calibration, restarted on the way back; also stopped on `→ oops` out of the settings), the global error gate (settings, credits, and a recalibration over a live level), the pad lost, and `wantsPoll`. `startRecalibration` resumes the audio first and boot suspends it again on `calibration → settings` while paused (D3): the e2e checks `audioSkipped === false`. D4: `lagMs` stays unlatched (closed in `deferred-work.md`).
+- **Screens and keys.** `settingsScreen` / `creditsScreen`, the « Réglages » pause row, CSS with tokens only (the toggle thumb moves by `transform`, the sliders are `touch-action: pan-y`, the fill is a CSS variable), `OverlayScreen.moveFocus?` / `back?`, `EscapeAction 'back'`, pad tables. The shell now routes through `overlayHost.screen`.
+- **Applying.** The tier is sent at a level's start only (`sendDifficultyTier`, not when autoplaying), `audioEngine.setPlayerVolumes` (remembered before the unlock, applied at once after), `createGatedHaptics`, client event `SettingsChanged`. A debug-only mirror `data-pp-volumes` shows the volumes applied (added so a spec can see the wiring; it is not in prod).
+- **WebKit has no `navigator.vibrate`**, so the « Vibrations » row is correctly absent there: `settings.spec.ts` adapts per project (one test skipped on WebKit, the row-count and pad walk adjusted). A fully-stubbed `vibrate: undefined` case runs on both.
+- **Goldens (AC 31):** `npm run golden:update`, deliberate. The diff holds only the 22 `worldHash` lines of 11 files; `eventsHash` and `eventTypes` are identical (the one array reformatting the generator wrote was put back with `biome format`).
+- **Bot runs (AC 32).** `--bot perfect --tier experienced --runs 5`: 100 % success, 0 gags (no gag from timing). `--bot human --runs 20` over the live level: Assistance 0 gags, Normal 1, Experienced 4 (the expected order). The balance itself is Geo's.
+- **Checks.** `npm run ci` green on the second run (see Debug Log): 511 e2e (chromium and webkit), `e2e:dist`, dist checks, `perf.spec.ts`: p95 16.8 ms, draw calls max 42, triangles max 1526 (2.7: 16.8 ms, 40, 1466). `settings.spec.ts`: 31 passed, 1 skipped on WebKit (no vibration). Pinned specs on Chromium run green before the full CI.
+- **Not verifiable here, for Geo:** whether the three tiers feel right, whether a slider is comfortable under a thumb on a real phone, and the real-device audio of a recalibration from the pause.
+
+### Change Log
+
+- 2026-10-30: Story 2.8 implemented: difficulty tiers (`SetDifficultyTier`, snapshot 18, `activeDifficulty`), `--tier`, save v2 with settings and migration, the settings and credits screens over a paused level, volumes and vibrations, goldens regenerated (hash lines only), docs and deferred work updated.
 
 ### File List
+
+**Sim, shared, content**
+- `src/shared/constants.ts` (tier ids, `DEFAULT_DIFFICULTY_TIER`, `VOLUME_STEP_PCT`, `VOLUME_MAX_PCT`, `SAVE_VERSION = 2`)
+- `src/content/schemas/feel.ts` (compile-time check tying `difficulty` to the ids), `src/content/schemas/save.ts`, `src/content/schemas/save.test.ts`
+- `src/sim/timing/difficulty.ts` (+ `difficulty.test.ts`, `tierWindows.test.ts`), `src/sim/commands.ts`, `src/sim/commandQueue.ts`, `src/sim/world.ts`, `src/sim/snapshot.ts`, `src/sim/threats/threatFsm.ts`, `src/sim/threats/judgeable.ts`, `src/sim/baby/carry.ts`, `src/sim/gauges/fatigueSystem.ts`
+- `src/sim/commands.test.ts`, `src/sim/snapshot.test.ts`, `src/sim/threats/inputLag.test.ts`
+
+**Client**
+- `src/client/boot.ts`, `src/client/app/appFsm.ts`, `src/client/app/overlay.ts`, `src/client/app/clientEvents.ts`, `src/client/app/calibrationFlow.ts` (+ their `.test.ts`: `appFsm`, `overlay`, `calibrationFlow`)
+- `src/client/save/saveStore.ts`, `src/client/save/saveStore.test.ts`
+- `src/client/audio/buses.ts`, `src/client/audio/audioEngine.ts`, `src/client/audio/audioEngine.test.ts`
+- `src/client/feedback/gatedHaptics.ts`, `src/client/feedback/gatedHaptics.test.ts`
+- `src/client/ui/keys.ts`, `src/client/ui/uiShell.ts`, `src/client/ui/overlayHost.ts`, `src/client/ui/overlayScreen.ts`, `src/client/ui/styles/ui.css` (+ `keys.test.ts`, `uiShell.test.ts`)
+- `src/client/ui/screens/settingsScreen.ts`, `src/client/ui/screens/creditsScreen.ts`, `src/client/ui/screens/pauseScreen.ts` (+ `settingsScreen.test.ts`, `creditsScreen.test.ts`, `pauseScreen.test.ts`)
+- `src/client/input/urgency.test.ts`
+- `content/strings.fr.json`
+
+**Headless tools**
+- `tools/sim/simArgs.ts`, `tools/sim/runSim.ts`, `tools/sim/runFile.ts`, `tools/sim/simReport.ts`, `tools/sim/replaySim.ts`
+
+**Tests**
+- `tests/e2e/settings.spec.ts` (new), `tests/e2e/support/calibratedSave.ts`, `tests/e2e/support/game.ts` (`tapOnEveryBeat` moved here), `tests/e2e/calibration.spec.ts`, `tests/e2e/ui.spec.ts`
+- `tests/bots/tierWindows.test.ts` (new), `tests/support/botSupport.ts`, `tests/support/simSupport.ts`, `tests/threats/threatCatalog.test.ts`, `tests/content/calibratedSave.test.ts`, `tests/content/stringsSchema.test.ts`
+- `tests/tools/sim/{simArgs,runSim,runFile,replaySim,simReport}.test.ts`
+- `tests/golden/journals/*.expected.json` (11 files, `worldHash` lines only)
+
+**Docs and tracking**
+- `CLAUDE.md`, `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file

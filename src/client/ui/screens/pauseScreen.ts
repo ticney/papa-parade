@@ -37,6 +37,8 @@ export interface PauseScreenOptions {
   events: Emitter<ClientEvents>;
   onResume(): void;
   onRestart(): void;
+  /** « Réglages » (story 2.8): the settings replace the panel. */
+  onSettings(): void;
 }
 
 interface PauseAction {
@@ -47,14 +49,16 @@ interface PauseAction {
 
 /**
  * The veil and its two faces. The panel lists its actions in code, so later stories append rows
- * (« Réglages » in 2.8, « Quitter vers le frigo » in 3.11). Panel and countdown are both built
- * once and swapped with `hidden`, so the veil never flickers between them.
+ * (« Quitter vers le frigo » in 3.11). Panel and countdown are both built
+ * once and swapped with `hidden`, so the veil never flickers between them. « Réglages » (story 2.8)
+ * comes after « Recommencer » (EXPERIENCE.md); the next row is « Quitter vers le frigo » (3.11).
  */
 export function createPauseScreen(options: PauseScreenOptions): PauseScreen {
   const { t, events } = options;
   const actions: PauseAction[] = [
     { labelKey: 'pause.resume', variant: 'primary', onActivate: options.onResume },
     { labelKey: 'pause.restart', variant: 'secondary', onActivate: options.onRestart },
+    { labelKey: 'pause.settings', variant: 'secondary', onActivate: options.onSettings },
   ];
 
   const element = document.createElement('div');

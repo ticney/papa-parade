@@ -3,8 +3,9 @@ import { loadContent } from '@content/loadContent';
 import { loadLevelContent } from '@content/loadLevelContent';
 import type { Feel } from '@content/schemas/feel';
 import { GAUGE_IDS, type GaugeId } from '@content/schemas/level';
+import type { Settings } from '@content/schemas/save';
 import { createPlatform } from '@platform/createPlatform';
-import { MAX_TIMER_DELAY_MS, MS_PER_S, STEP_MS } from '@shared/constants';
+import { DEFAULT_DIFFICULTY_TIER, MAX_TIMER_DELAY_MS, MS_PER_S, STEP_MS } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
@@ -17,7 +18,7 @@ import {
   type SimObjectSpec,
 } from '@sim';
 import { Color, Group, Scene, Vector3 } from 'three';
-import { createAppFsm } from './app/appFsm.ts';
+import { createAppFsm, isSettingsDetour } from './app/appFsm.ts';
 import { createCalibrationFlow } from './app/calibrationFlow.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
 import { isTestApiEnabled, readDebugParams } from './app/debugParams.ts';
@@ -35,6 +36,7 @@ import { createBrowserContentSource } from './assets/browserContentSource.ts';
 import { isSlowMoActive, isTensionActive } from './audio/adaptiveMusic.ts';
 import { createAudioEngine } from './audio/audioEngine.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
+import { createGatedHaptics } from './feedback/gatedHaptics.ts';
 import { isNoiseAlertCrossing } from './feedback/noiseAlert.ts';
 import { createResponseChoreography } from './feedback/responseChoreography.ts';
 import { playSimEventFeedback } from './feedback/simEventFeedback.ts';
@@ -63,11 +65,13 @@ import { createScreenFlash } from './ui/hud/screenFlash.ts';
 import { createSilenceBubble } from './ui/hud/silenceBubble.ts';
 import { createTimerHud } from './ui/hud/timerHud.ts';
 import { createOverlayHost } from './ui/overlayHost.ts';
+import { createCreditsScreen } from './ui/screens/creditsScreen.ts';
 import { createLoadingScreen } from './ui/screens/loadingScreen.ts';
 import { createOopsScreen } from './ui/screens/oopsScreen.ts';
 import { createPauseScreen } from './ui/screens/pauseScreen.ts';
 import { createPortraitOverlay } from './ui/screens/portraitOverlay.ts';
 import { type CopyLogOutcome, createResultScreen } from './ui/screens/resultScreen.ts';
+import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
 import { createStartScreen } from './ui/screens/startScreen.ts';
 import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
@@ -261,6 +265,7 @@ export async function boot(): Promise<void> {
       | 'ppMusicTenseCount'
       | 'ppMusicSlowCount'
       | 'ppHaptics'
+      | 'ppVolumes'
       | 'ppCue'
       | 'ppFlow'
       | 'ppCueCount'
@@ -366,7 +371,8 @@ export async function boot(): Promise<void> {
   const director = createFeedbackDirector({
     table: feedbackTable,
     audio,
-    haptics: platform.haptics,
+    // Read at each pulse: the settings' switch applies to the very next one (story 2.8).
+    haptics: createGatedHaptics(platform.haptics, () => saveStore.current().settings.haptics),
     // Only while a level is on: a scene behind the loading screen must not play for a dead sim.
     getScene: () => (appFsm.state === 'level' ? (currentLevel?.fx ?? null) : null),
     // Where an `object`-anchored ring (the phone's) starts from.
@@ -429,10 +435,29 @@ export async function boot(): Promise<void> {
   // countdown is over; the loops follow the level. None of these throws: the engine logs its own.
   events.on('PauseRequested', () => audio.suspend());
   events.on('GameResumed', () => audio.resume());
+  // Story 2.8: the settings are a detour over a live level (`isSettingsDetour`), so the music stays
+  // across them (silent: the context is suspended, and it goes on where it was). A calibration needs
+  // a running context and no music under its beeps: the loops stop, and `startLevelLoops` (idempotent)
+  // restarts them from the top when the settings go back to the level.
   events.on('AppStateChanged', ({ from, to }) => {
     if (to === 'level') audio.startLevelLoops();
-    else if (from === 'level') audio.stopLevelLoops();
+    else if (to === 'calibration') audio.stopLevelLoops();
+    else if (from === 'level' && to !== 'settings') audio.stopLevelLoops();
+    // « Oups » out of the settings or the credits: the level is gone.
+    else if (to === 'oops') audio.stopLevelLoops();
   });
+  // A recalibration from the pause woke the context for its beeps (`startRecalibration`): the game is
+  // still paused, so the countdown and the panel must stay silent (D3).
+  events.on('AppStateChanged', ({ from, to }) => {
+    if (from === 'calibration' && to === 'settings' && pause.state !== 'running') audio.suspend();
+  });
+  // The volumes of the settings (story 2.8). A mirror in debug builds, so that a spec sees them applied.
+  const applyPlayerVolumes = (volumes: Settings['volumes']): void => {
+    audio.setPlayerVolumes(volumes);
+    if (isMirrored)
+      mirror('ppVolumes', `${volumes.music},${volumes.sfx},${volumes.voice},${volumes.ui}`);
+  };
+  events.on('SettingsChanged', ({ settings }) => applyPlayerVolumes(settings.volumes));
   // The countdown's digit is a haptic tick (its visual twin is the digit's pulse).
   events.on('CountdownTicked', () => director.handle('CountdownTicked', null));
 
@@ -704,6 +729,17 @@ export async function boot(): Promise<void> {
     sim.enqueue({ type: 'SetInputLag', t: sim.world.time.sim, lagMs });
   };
 
+  // Tells a sim the player's difficulty tier (story 2.8, D1), at a level's start only: a game under
+  // way never changes, and a restart or the next game reads the save again, which is what « Appliqué
+  // à la prochaine partie » means. Nothing at `normal` (a new sim starts there), so goldens, bots and
+  // journals gain no entry. `?autoplay` ignores the player's save, as it does for the lag (D5).
+  const sendDifficultyTier = (sim: Sim): void => {
+    if (isAutoplaying) return;
+    const { tier } = saveStore.current().settings;
+    if (tier === DEFAULT_DIFFICULTY_TIER) return;
+    sim.enqueue({ type: 'SetDifficultyTier', t: sim.world.time.sim, tier });
+  };
+
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
     content: content.value,
@@ -718,6 +754,7 @@ export async function boot(): Promise<void> {
     beforeStep: isMirrored ? (sim) => stepHook?.(sim) : undefined,
     onLevelStarted: (started) => {
       sendInputLag(started.sim, false);
+      sendDifficultyTier(started.sim);
       timerHud.setVariant(started.level.level.variant);
       // The gauges this level has, each at its start value (a restart never shows the last level's).
       const { gauges } = started.level.level;
@@ -1036,7 +1073,14 @@ export async function boot(): Promise<void> {
   // An error nobody caught, while a level is loading or running: stop it and offer to start again.
   // From any other state (boot, start, result, oops) it is only logged.
   recoverFromUncaught = () => {
-    if (appFsm.state !== 'loading' && appFsm.state !== 'level') return;
+    const state = appFsm.state;
+    // The settings and the credits sit over a live level; so does a recalibration started from them
+    // (the first launch's calibration has no level, and stays outside, as 2.7 wants).
+    const isOverLevel =
+      state === 'settings' ||
+      state === 'credits' ||
+      (state === 'calibration' && levelSession.active !== null);
+    if (state !== 'loading' && state !== 'level' && !isOverLevel) return;
     levelSession.stop();
     appFsm.enter('oops');
   };
@@ -1135,10 +1179,37 @@ export async function boot(): Promise<void> {
         mode,
         onResume: () => pause.requestResume(),
         onRestart: () => void levelSession.start(),
+        onSettings: () => appFsm.enter('settings'),
       }),
     portrait: () => createPortraitOverlay({ t }),
     loading: () => createLoadingScreen({ t }),
     calibration: () => calibrationFlow.createScreen(),
+    // Rebuilt from the save after the portrait overlay: the screen holds no state of its own.
+    settings: () =>
+      createSettingsScreen({
+        t,
+        settings: saveStore.current().settings,
+        hasHaptics: platform.capabilities.haptics,
+        onChange: (settings) => {
+          // In memory at once, the write settles on its own and warns once on failure. No `log` per
+          // slider tick.
+          void saveStore.setSettings(settings);
+          events.emit('SettingsChanged', { settings });
+        },
+        onRecalibrate: () => calibrationFlow.startRecalibration('settings'),
+        onCredits: () => appFsm.enter('credits'),
+        // The only entry today is the pause panel; the Fridge (story 3.11) adds its own.
+        onBack: () => {
+          if (appFsm.state === 'settings') appFsm.enter('level');
+        },
+      }),
+    credits: () =>
+      createCreditsScreen({
+        t,
+        onBack: () => {
+          if (appFsm.state === 'credits') appFsm.enter('settings');
+        },
+      }),
     oops: () => createOopsScreen({ t, onRetry: () => void levelSession.start() }),
     result: () => {
       if (resultScore === null) {
@@ -1265,7 +1336,10 @@ export async function boot(): Promise<void> {
       // Only a pad lost while playing pauses the game (D13): the panel then shows the line. The
       // pause is a no-op when the game is already paused for another reason. A pad the player is
       // not playing with (the last input was a key or a touch) may sleep or leave unnoticed.
-      if (appFsm.state !== 'level') return;
+      // The settings and the credits sit over the paused level: the line shows on the pause panel
+      // when it comes back (the shell keeps the flag).
+      const { state } = appFsm;
+      if (state !== 'level' && state !== 'settings' && state !== 'credits') return;
       if (inputMapper.lastDevice !== 'gamepad') {
         log.info('input', 'an unused gamepad went away: no pause');
         return;
@@ -1325,6 +1399,8 @@ export async function boot(): Promise<void> {
     const wantsPoll =
       to === 'start' ||
       to === 'calibration' ||
+      to === 'settings' ||
+      to === 'credits' ||
       to === 'oops' ||
       to === 'loading' ||
       to === 'result';
@@ -1352,8 +1428,13 @@ export async function boot(): Promise<void> {
   window.addEventListener('pointerdown', rescueAudio, { passive: true });
   window.addEventListener('keydown', rescueAudio, { passive: true });
   // A restart or an error leaves the level: its threat icons must not stay up behind the next screen.
-  events.on('AppStateChanged', ({ from }) => {
-    if (from !== 'level') return;
+  // Not the settings detour (story 2.8): the level is alive under it, and its icons and labels would
+  // never come back.
+  events.on('AppStateChanged', ({ from, to }) => {
+    const isLevelGone =
+      (from === 'level' && !isSettingsDetour(from, to)) ||
+      (to === 'oops' && (from === 'settings' || from === 'credits' || from === 'calibration'));
+    if (!isLevelGone) return;
     worldUi.unmountThreats();
     worldUi.unmountObjects();
     worldUi.glyphChip.hide();
@@ -1381,8 +1462,9 @@ export async function boot(): Promise<void> {
       }
     }
   });
-  events.on('AppStateChanged', ({ to }) => {
-    if (to !== 'level') return;
+  events.on('AppStateChanged', ({ from, to }) => {
+    // Back from the settings is no new level: `mirrorNewLevel` would reset the mirrors mid-game.
+    if (to !== 'level' || isSettingsDetour(from, to)) return;
     inputMapper.resync();
     if (isMirrored) mirrorNewLevel();
   });
@@ -1512,6 +1594,8 @@ export async function boot(): Promise<void> {
 
   // Before the start screen is up (story 2.7): never throws, a bad save is set aside with a `warn`.
   await saveStore.load();
+  // The player's volumes wait in the engine for the unlock (story 2.8): the graph is made then.
+  applyPlayerVolumes(saveStore.current().settings.volumes);
   appFsm.enter('start');
   drawStatic();
   // Written once more here so that the attributes only appear once the app is up.

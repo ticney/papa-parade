@@ -5,6 +5,8 @@ import type { PauseState } from './pauseController.ts';
 export type OverlayKind =
   | 'portrait'
   | 'calibration'
+  | 'settings'
+  | 'credits'
   | 'oops'
   | 'result'
   | 'pause'
@@ -18,7 +20,7 @@ export interface OverlayInput {
 }
 
 /**
- * What to show, from the state of the app. Precedence: portrait > calibration > oops > result > pause >
+ * What to show, from the state of the app. Precedence: portrait > calibration > settings > credits > oops > result > pause >
  * loading > start. Portrait is a condition of the device, not a pause reason: it covers whatever else is due,
  * and that comes back when the phone is turned. `pause` stands for both the panel (`paused`) and the countdown
  * (`resuming`); the overlay host tells them apart from `pauseState`.
@@ -26,6 +28,9 @@ export interface OverlayInput {
 export function chooseOverlay(input: OverlayInput): OverlayKind | null {
   if (input.isPortrait) return 'portrait';
   if (input.appState === 'calibration') return 'calibration';
+  // Over a paused level (story 2.8): the pause state is whatever it was, the panel stays below.
+  if (input.appState === 'settings') return 'settings';
+  if (input.appState === 'credits') return 'credits';
   if (input.appState === 'oops') return 'oops';
   // The pause states only veil a level: a page hidden on the Result screen leaves no veil behind.
   if (input.appState === 'result') return 'result';

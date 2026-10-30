@@ -26,6 +26,7 @@ import {
 const INPUT = {
   level: 'salon_crawler',
   bot: 'human',
+  tier: 'normal' as const,
   seed: 5,
   untilSimMs: 1000,
   hashes: { feel: 'f', geometry: 'g', level: 'l', bots: 'b' },

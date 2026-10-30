@@ -7,6 +7,8 @@ const APP_STATES: AppState[] = [
   'boot',
   'start',
   'calibration',
+  'settings',
+  'credits',
   'loading',
   'level',
   'result',
@@ -17,6 +19,8 @@ const PAUSE_STATES: PauseState[] = ['running', 'paused', 'resuming'];
 /** The rule, written out as a table for the landscape case. */
 function expectedLandscape(appState: AppState, pauseState: PauseState): OverlayKind | null {
   if (appState === 'calibration') return 'calibration';
+  if (appState === 'settings') return 'settings';
+  if (appState === 'credits') return 'credits';
   if (appState === 'oops') return 'oops';
   if (appState === 'result') return 'result';
   if (appState === 'loading') return 'loading';
@@ -79,5 +83,20 @@ describe('chooseOverlay', () => {
     const calibrating = { appState: 'calibration', pauseState: 'running' } as const;
     expect(chooseOverlay({ ...calibrating, isPortrait: true })).toBe('portrait');
     expect(chooseOverlay({ ...calibrating, isPortrait: false })).toBe('calibration');
+  });
+
+  it('shows the settings and the credits whatever the pause state: the paused level stays below (story 2.8)', () => {
+    for (const pauseState of PAUSE_STATES) {
+      expect(chooseOverlay({ appState: 'settings', isPortrait: false, pauseState })).toBe(
+        'settings',
+      );
+      expect(chooseOverlay({ appState: 'credits', isPortrait: false, pauseState })).toBe('credits');
+    }
+  });
+
+  it('puts the portrait overlay over the settings, which come back when the phone is turned', () => {
+    const settings = { appState: 'settings', pauseState: 'paused' } as const;
+    expect(chooseOverlay({ ...settings, isPortrait: true })).toBe('portrait');
+    expect(chooseOverlay({ ...settings, isPortrait: false })).toBe('settings');
   });
 });

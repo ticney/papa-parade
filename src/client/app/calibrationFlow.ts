@@ -190,6 +190,10 @@ export function createCalibrationFlow(deps: CalibrationFlowDeps): CalibrationFlo
         hasWarnedAudio: false,
       };
       run = state;
+      // A recalibration from the pause (story 2.8, D3): the pause suspended the context and only a
+      // resume or a page return wakes it, so without this the audio phase would always auto-skip
+      // after `audioWaitMs`. Harmless when it already runs (the first launch).
+      audio.resume();
       // The beep decodes while the screen comes up; the audio phase starts when this has settled.
       // `preload` never rejects.
       void audio.preload([deps.beep.clip]).then(() => {

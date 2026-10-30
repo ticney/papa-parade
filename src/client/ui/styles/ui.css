@@ -615,6 +615,236 @@ body {
 }
 
 /* ---------------------------------------------------------------------------------------------
+   Settings and credits (story 2.8): UX `settings-segmented`, `settings-slider`, `settings-toggle`.
+   The rows exceed a landscape phone (844 x 390), so the panel scrolls (`.pp-panel` already has
+   `max-height: 100%` and `overflow-y: auto`). Tokens only; every target is 44px or more.
+   --------------------------------------------------------------------------------------------- */
+.pp-settings-screen,
+.pp-credits-screen {
+  background: var(--pp-color-scrim);
+}
+
+.pp-settings-panel {
+  width: min(560px, 100%);
+}
+
+.pp-settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pp-spacing-2);
+}
+
+.pp-settings-label,
+.pp-slider-label,
+.pp-toggle-label {
+  margin: 0;
+  font-family: var(--pp-font-label-family), var(--pp-fallback-body);
+  font-size: var(--pp-font-label-size);
+  font-weight: var(--pp-font-label-weight);
+  line-height: var(--pp-font-label-line-height);
+}
+
+.pp-settings-hint,
+.pp-settings-note {
+  margin: 0;
+  color: var(--pp-color-ink-soft);
+  font-family: var(--pp-font-label-family), var(--pp-fallback-body);
+  font-size: var(--pp-font-label-size);
+  font-weight: var(--pp-font-label-weight);
+  line-height: var(--pp-font-label-line-height);
+  overflow-wrap: anywhere;
+}
+
+.pp-segmented {
+  display: flex;
+  overflow: hidden;
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+}
+
+.pp-segment {
+  box-sizing: border-box;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--pp-spacing-touch-target-min);
+  margin: 0;
+  padding: var(--pp-spacing-2) var(--pp-spacing-3);
+  border: 0;
+  background: var(--pp-color-paper);
+  color: var(--pp-color-ink);
+  font-family: var(--pp-font-label-family), var(--pp-fallback-body);
+  font-size: var(--pp-font-label-size);
+  font-weight: var(--pp-font-label-weight);
+  line-height: var(--pp-font-label-line-height);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pp-segment + .pp-segment {
+  border-left: var(--pp-outline);
+}
+
+.pp-segment-selected {
+  background: var(--pp-color-primary);
+  color: var(--pp-color-on-primary);
+}
+
+.pp-segment:focus-visible,
+.pp-toggle:focus-visible {
+  outline: var(--pp-spacing-focus-ring-width) solid var(--pp-color-primary);
+  outline-offset: calc(-1 * var(--pp-spacing-focus-ring-width));
+}
+
+.pp-segment-selected:focus-visible {
+  outline-color: var(--pp-color-alert);
+}
+
+/* The four volumes on two columns: the panel is wide in landscape and short. */
+.pp-settings-volumes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--pp-spacing-2) var(--pp-spacing-5);
+}
+
+.pp-slider-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--pp-spacing-2);
+}
+
+.pp-slider-value {
+  font-family: var(--pp-font-numeric-compact-family), var(--pp-fallback-body);
+  font-size: var(--pp-font-numeric-compact-size);
+  font-weight: var(--pp-font-numeric-compact-weight);
+}
+
+.pp-slider {
+  --pp-slider-fill: 100%;
+  grid-column: 1 / -1;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--pp-spacing-touch-target-min);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  /* A vertical swipe that starts on a slider scrolls the panel instead of moving its value. */
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pp-slider::-webkit-slider-runnable-track {
+  height: 14px;
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: linear-gradient(
+    to right,
+    var(--pp-color-primary) var(--pp-slider-fill),
+    var(--pp-color-paper) var(--pp-slider-fill)
+  );
+}
+
+.pp-slider::-moz-range-track {
+  height: 14px;
+  box-sizing: border-box;
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: linear-gradient(
+    to right,
+    var(--pp-color-primary) var(--pp-slider-fill),
+    var(--pp-color-paper) var(--pp-slider-fill)
+  );
+}
+
+.pp-slider::-webkit-slider-thumb {
+  width: 28px;
+  height: 28px;
+  /* Centred on the 20px track: (20 - 28) / 2. */
+  margin-top: -4px;
+  box-sizing: border-box;
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+  appearance: none;
+}
+
+.pp-slider::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+}
+
+.pp-slider:focus-visible {
+  outline: var(--pp-spacing-focus-ring-width) solid var(--pp-color-primary);
+  outline-offset: 0;
+}
+
+.pp-toggle {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pp-spacing-3);
+  width: 100%;
+  min-height: var(--pp-spacing-touch-target-min);
+  margin: 0;
+  padding: 0 var(--pp-spacing-2);
+  border: 0;
+  background: transparent;
+  color: var(--pp-color-ink);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pp-toggle-track {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 32px;
+  box-sizing: border-box;
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+}
+
+.pp-toggle-thumb {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-ink-soft);
+  transform: translate(0, -50%);
+  transition: transform 80ms ease-out;
+}
+
+.pp-toggle-on .pp-toggle-track {
+  background: var(--pp-color-primary);
+}
+
+.pp-toggle-on .pp-toggle-thumb {
+  background: var(--pp-color-paper);
+  transform: translate(24px, -50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-toggle-thumb {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
    Result: Mama's note (story 1.22, UX `score-row`, `star`, the right column of key-result.html).
    The frozen room stays drawn under the scrim. Sized to fit 750 × 340 without scrolling: 28px rows,
    a 16px panel padding. Every text is 16px or more (`--pp-spacing-text-min`).
