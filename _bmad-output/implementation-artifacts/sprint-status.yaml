@@ -95,8 +95,8 @@ development_status:
   3-3-journal-de-partie-exportable: done
   3-4-indicateurs-de-playtest: done
 
-  epic-4: backlog
-  4-1-porter-le-bebe-bras-bebe: backlog
+  epic-4: in-progress
+  4-1-porter-le-bebe-bras-bebe: ready-for-dev
   4-2-combo-a-encaisser: backlog
   4-3-envie-pressante: backlog
   4-4-cadre-des-sequences-speciales-et-rester-eveille: backlog
