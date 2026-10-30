@@ -1,4 +1,5 @@
 import {
+  type DifficultyTierId,
   EPIC_STAMP_MAX_MS,
   GAUGE_MAX_POINTS,
   MAMA_SCORE_MAX_POINTS,
@@ -790,3 +791,11 @@ export const FeelSchema = z
   .describe('Every feel value of the game, tuned by hand or from the feel panel.');
 
 export type Feel = z.infer<typeof FeelSchema>;
+
+// Story 2.8: the tier ids live in `shared` (the sim reads them); the schema keeps the same keys.
+type AssertSameTiers = [keyof Feel['difficulty']] extends [DifficultyTierId]
+  ? [DifficultyTierId] extends [keyof Feel['difficulty']]
+    ? true
+    : never
+  : never;
+export const DIFFICULTY_KEYS_MATCH_IDS: AssertSameTiers = true;

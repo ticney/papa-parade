@@ -44,7 +44,7 @@ export function isStartKey(key: KeyLike): boolean {
   return !NOT_A_START_KEY.has(key.code) && !NOT_A_START_KEY_PREFIX.test(key.code);
 }
 
-export type EscapeAction = 'pause' | 'resume';
+export type EscapeAction = 'pause' | 'resume' | 'back';
 
 export interface EscapeInput {
   appState: AppState;
@@ -55,11 +55,13 @@ export interface EscapeInput {
 
 /**
  * What Escape does (story 1.5, D14). In a level: running → pause; paused → resume; resuming →
- * pause again (it cancels the countdown and re-opens the panel). Anywhere else, in portrait, or on
- * a repeating key: nothing.
+ * pause again (it cancels the countdown and re-opens the panel). In the settings and the credits
+ * (story 2.8) it goes back one level. Anywhere else, in portrait, or on a repeating key: nothing.
  */
 export function escapeAction(input: EscapeInput): EscapeAction | null {
-  if (input.repeat || input.isPortrait || input.appState !== 'level') return null;
+  if (input.repeat || input.isPortrait) return null;
+  if (input.appState === 'settings' || input.appState === 'credits') return 'back';
+  if (input.appState !== 'level') return null;
   return input.pauseState === 'paused' ? 'resume' : 'pause';
 }
 
@@ -88,7 +90,7 @@ export interface PadInput {
  * what Escape does (`escapeAction`); `ArrowUp` and the like move the focus of the pause panel;
  * `activate` presses the focused button (the panel) or the screen's own action (start, « Oups »,
  * the Result screen, a tap of the calibration); `skip` is B on the calibration screen;
- * `back` is B on the panel: it resumes. A button in play that is not Start is the mapper's or
+ * `back` is B on the panel (it resumes) or on the settings and the credits (one level back). A button in play that is not Start is the mapper's or
  * nothing: B never pauses (it will dodge, story 5.1). Portrait, the loading screen and a
  * countdown take nothing, except Start, which cancels the countdown like Escape.
  */
@@ -121,6 +123,13 @@ export function padAction(input: PadInput): PadAction {
   }
   // A skips the Result sequence, then presses « Rejouer » (the screen's own `activate`).
   if (overlay === 'result') return button === 'confirm' ? 'activate' : null;
+  // The settings and the credits (story 2.8): the D-pad moves, A presses, B goes back one level.
+  // Start does nothing: the paused level under them resumes from the pause panel only.
+  if (overlay === 'settings' || overlay === 'credits') {
+    if (button === 'confirm') return 'activate';
+    if (button === 'back') return 'back';
+    return PAD_FOCUS[button] ?? null;
+  }
   if (appState !== 'level') return null;
   if (button === 'start') {
     if (overlay !== null && overlay !== 'pause') return null;

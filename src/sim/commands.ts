@@ -1,4 +1,4 @@
-import { PATCH_MAX_DEPTH } from '@shared/constants';
+import { DIFFICULTY_TIER_IDS, type DifficultyTierId, PATCH_MAX_DEPTH } from '@shared/constants';
 import type { SimMs } from '@shared/time';
 import { type FeelPatch, isPlainObject, UNSAFE_PATCH_KEYS } from './feel/applyFeelPatch.ts';
 
@@ -74,6 +74,13 @@ export type SimCommand =
    */
   | { type: 'SetInputLag'; t: SimMs; lagMs: number }
   /**
+   * Journaled (story 2.8, D1): the player's difficulty tier. The client sends it at a level's start
+   * when the saved tier is not `normal`, so a journal at `normal` carries no entry. It picks the
+   * entry of `feel.difficulty` that the windows of the threats telegraphed from then on read; a
+   * window already telegraphed keeps its length.
+   */
+  | { type: 'SetDifficultyTier'; t: SimMs; tier: DifficultyTierId }
+  /**
    * Debug / test command, journaled: pushes a prop with this impulse (N·s, world axes) at its
    * centre of mass and wakes it. An unknown or broken `propId` is ignored. Gameplay pushes props
    * through the `pushProp` helper (a gag), never through a command.
@@ -104,6 +111,7 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'PressThreat',
   'Release',
   'SetInputLag',
+  'SetDifficultyTier',
   'PushProp',
 ];
 
@@ -216,6 +224,11 @@ export function commandProblem(value: unknown): string | null {
   if (command.type === 'SetInputLag') {
     if (typeof command.lagMs !== 'number' || !Number.isFinite(command.lagMs) || command.lagMs < 0) {
       return 'SetInputLag: lagMs must be a finite number of at least 0';
+    }
+  }
+  if (command.type === 'SetDifficultyTier') {
+    if (!(DIFFICULTY_TIER_IDS as readonly unknown[]).includes(command.tier)) {
+      return `SetDifficultyTier: tier must be one of ${DIFFICULTY_TIER_IDS.join(', ')}`;
     }
   }
   if (command.type === 'PushProp') {

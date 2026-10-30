@@ -9,6 +9,7 @@ import { UINT32_RANGE } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
+import { asSimMs } from '@shared/time';
 import { createSim, type Sim } from '@sim';
 import { outProblem, writeText } from '../outputFile.ts';
 import { loadSimLevel, type SimLevel } from './loadSimLevel.ts';
@@ -62,6 +63,10 @@ export async function runSim(
     let sim: Sim | null = null;
     try {
       sim = await createSim({ content, geometry, level, seed, strictInvariants: true });
+      // The way the client sends it (story 2.8): nothing at `normal`, so a journal stays as before.
+      if (args.tier !== 'normal') {
+        sim.enqueue({ type: 'SetDifficultyTier', t: asSimMs(0), tier: args.tier });
+      }
       const recorder = createRunRecorder(
         sim,
         seed,
@@ -74,6 +79,7 @@ export async function runSim(
       game = toRunFile({
         levelId: loaded.levelId,
         bot: args.botId,
+        tier: args.tier,
         // Where the game really stopped (the level may have ended before the cap), so that a
         // replay to this time ends in the same world.
         untilSimMs: sim.world.time.sim,
@@ -90,7 +96,7 @@ export async function runSim(
     }
     // Outside the `try`: a bug in the hook is not a crash of the sim.
     if (hooks.onGame !== undefined && game !== null) {
-      hooks.onGame(runFileName(loaded.levelId, args.botId, seed), game);
+      hooks.onGame(runFileName(loaded.levelId, args.botId, seed, args.tier), game);
     }
     hooks.onProgress?.(index + 1, args.runs);
   }
@@ -99,6 +105,7 @@ export async function runSim(
       {
         level: loaded.levelId,
         bot: args.botId,
+        tier: args.tier,
         seed: args.seed,
         untilSimMs,
         waves: level.level.waves,

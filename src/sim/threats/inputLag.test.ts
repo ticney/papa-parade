@@ -99,7 +99,7 @@ describe('SetInputLag', () => {
     expect(sim.journal().entries.map((entry) => entry.command.type)).toContain('SetInputLag');
     const snapshot = sim.snapshot();
     expect(snapshot.world.input.lagMs).toBe(180);
-    expect(snapshot.version).toBe(18);
+    expect(snapshot.version).toBe(19);
   });
 });
 

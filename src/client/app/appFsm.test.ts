@@ -1,6 +1,6 @@
 import { createEmitter } from '@shared/emitter';
 import { describe, expect, it } from 'vitest';
-import { APP_TRANSITIONS, type AppState, createAppFsm } from './appFsm.ts';
+import { APP_TRANSITIONS, type AppState, createAppFsm, isSettingsDetour } from './appFsm.ts';
 import type { ClientEvents } from './clientEvents.ts';
 
 const STATES = Object.keys(APP_TRANSITIONS) as AppState[];
@@ -40,7 +40,7 @@ describe('createAppFsm', () => {
     expect(fsm.state).toBe('loading');
   });
 
-  it('reaches oops from loading, level and the calibration only', () => {
+  it('reaches oops from loading, level, the calibration, the settings and the credits only', () => {
     const fromLoading = setup();
     goTo(fromLoading.fsm, ['start', 'loading', 'oops']);
     expect(fromLoading.fsm.state).toBe('oops');
@@ -48,7 +48,12 @@ describe('createAppFsm', () => {
     goTo(fromLevel.fsm, ['start', 'loading', 'level', 'oops']);
     expect(fromLevel.fsm.state).toBe('oops');
     for (const state of STATES) {
-      const expected = state === 'loading' || state === 'level' || state === 'calibration';
+      const expected =
+        state === 'loading' ||
+        state === 'level' ||
+        state === 'calibration' ||
+        state === 'settings' ||
+        state === 'credits';
       expect(APP_TRANSITIONS[state].includes('oops'), state).toBe(expected);
     }
   });
@@ -99,11 +104,19 @@ describe('createAppFsm', () => {
         'start>calibration',
         'calibration>loading',
         'calibration>oops',
+        'calibration>settings',
+        'settings>level',
+        'settings>calibration',
+        'settings>credits',
+        'settings>oops',
+        'credits>settings',
+        'credits>oops',
         'loading>level',
         'loading>oops',
         'level>loading',
         'level>result',
         'level>oops',
+        'level>settings',
         'result>loading',
         'oops>loading',
       ].sort(),
@@ -130,21 +143,45 @@ describe('createAppFsm', () => {
     expect(fsm.state).toBe('oops');
   });
 
-  it('accepts a table that adds the settings detour and keeps the edges (what story 2.8 will do)', () => {
-    const extended: Record<string, readonly string[]> = {
-      ...APP_TRANSITIONS,
-      start: [...APP_TRANSITIONS.start, 'settings'],
-      settings: ['calibration', 'start'],
-      calibration: [...APP_TRANSITIONS.calibration, 'settings'],
-    };
-    const { fsm } = setup(extended);
-    fsm.enter('start');
-    (fsm.enter as (next: string) => void)('settings');
-    (fsm.enter as (next: string) => void)('calibration');
-    (fsm.enter as (next: string) => void)('settings');
-    expect(fsm.state as string).toBe('settings');
-    const first = setup(extended);
-    goTo(first.fsm, ['start', 'calibration', 'loading']); // the first-launch path, unchanged
+  it('detours a level through the settings and back, then through the credits and back (story 2.8)', () => {
+    const { fsm, seen } = setup();
+    goTo(fsm, ['start', 'loading', 'level', 'settings', 'credits', 'settings', 'level']);
+    expect(fsm.state).toBe('level');
+    expect(seen.slice(3).map((event) => `${event.from}>${event.to}`)).toEqual([
+      'level>settings',
+      'settings>credits',
+      'credits>settings',
+      'settings>level',
+    ]);
+  });
+
+  it('serves a recalibration from the settings, and keeps the first-launch path', () => {
+    const { fsm } = setup();
+    goTo(fsm, ['start', 'loading', 'level', 'settings', 'calibration', 'settings']);
+    expect(fsm.state).toBe('settings');
+    const first = setup();
+    goTo(first.fsm, ['start', 'calibration', 'loading']);
     expect(first.fsm.state).toBe('loading');
+  });
+
+  it('leaves the credits for the settings only, and the settings never for the result or the start', () => {
+    const { fsm } = setup();
+    goTo(fsm, ['start', 'loading', 'level', 'settings', 'credits']);
+    expect(() => fsm.enter('level')).toThrow(/cannot go/);
+    fsm.enter('settings');
+    expect(() => fsm.enter('result')).toThrow(/cannot go/);
+    expect(() => fsm.enter('start')).toThrow(/cannot go/);
+  });
+});
+
+describe('isSettingsDetour (story 2.8)', () => {
+  it('is true for level → settings and settings → level, and for nothing else', () => {
+    for (const from of STATES) {
+      for (const to of STATES) {
+        const expected =
+          (from === 'level' && to === 'settings') || (from === 'settings' && to === 'level');
+        expect(isSettingsDetour(from, to), `${from} → ${to}`).toBe(expected);
+      }
+    }
   });
 });

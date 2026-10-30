@@ -11,6 +11,7 @@ import {
   setVisibility,
   startLevel,
   stubGamepad,
+  tapOnEveryBeat,
   threatIconPoint,
   waitForThreat,
 } from './support/game.ts';
@@ -65,22 +66,6 @@ const readSave = async (page: Page): Promise<StoredSave | null> => {
   return text === null ? null : (JSON.parse(text) as StoredSave);
 };
 
-/**
- * The player: a tap (Space) at every beat the mirror counts, in the microtask that follows the
- * frame that popped it. Installed once per page.
- */
-const tapOnEveryBeat = (page: Page): Promise<void> =>
-  page.evaluate(() => {
-    new MutationObserver(() => {
-      if (Number(document.documentElement.dataset.ppCalibrationBeats) > 0) {
-        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
-      }
-    }).observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-pp-calibration-beats'],
-    });
-  });
-
 /** The same, with A on the stubbed pad: pressed for a few frames at each beat. */
 const padTapOnEveryBeat = (page: Page): Promise<void> =>
   page.evaluate(() => {
@@ -131,7 +116,7 @@ test.describe('the first launch', () => {
     expect(await appHistory(page)).toEqual(['calibration', 'loading', 'level']);
 
     const save = await readSave(page);
-    expect(save?.version).toBe(1);
+    expect(save?.version).toBe(2);
     const calibration = save?.calibration;
     expect(calibration).not.toBeNull();
     for (const offsetMs of [calibration?.visualOffsetMs, calibration?.audioOffsetMs]) {

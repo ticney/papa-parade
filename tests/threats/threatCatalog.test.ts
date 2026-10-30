@@ -9,7 +9,7 @@ import {
   ThreatGagIds,
   type ThreatResponse,
 } from '@content/schemas/threat';
-import { STEP_MS } from '@shared/constants';
+import { DIFFICULTY_TIER_IDS, type DifficultyTierId, STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { createSim, GAG_IDS, type Sim, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
@@ -19,6 +19,8 @@ import { createTestContent, createTestGeometry } from '../support/testContent.ts
 // the JSON: adding a threat adds its four tests, and nothing in this file knows a threat by name.
 // The test-only defs of tests/threats/fixtures/ (story 1.23: a Firmness, which no live level asks for
 // yet) run the same set, and each response adds its own cases (a Firmness released early, a Parry held).
+// Story 2.8: the set runs at each difficulty tier (a window wider or tighter, the same verdicts), the
+// tier being sent as the client sends it, a `SetDifficultyTier` at t = 0 (none at `normal`).
 // Each case plays on the frozen room with EVERY def planned, at the anchor a live level plans it,
 // so that the three threats share one level. The frozen feel and geometry are used, so that
 // retuning feel.json cannot move a result; the threats and the levels are the live files, since
@@ -241,13 +243,14 @@ function findTheBaby(sim: Sim): void {
 }
 
 /** A sim stopped on the step that telegraphed the threat, with the times its window gives. */
-async function telegraphed(def: ThreatDef) {
+async function telegraphed(def: ThreatDef, tier: DifficultyTierId) {
   const sim = await createSim({
     content: contentFor(def),
     geometry,
     level: levelPlanning(def),
     seed: 1,
   });
+  if (tier !== 'normal') sim.enqueue({ type: 'SetDifficultyTier', t: asSimMs(0), tier });
   if (def.target === 'hiddenZone') {
     findTheBaby(sim);
   } else if (armsCryDefs.has(def.id)) {
@@ -320,9 +323,11 @@ describe('the threat catalogue', () => {
   });
 });
 
-describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def) => {
+describe.each(
+  DIFFICULTY_TIER_IDS.flatMap((tier) => defs.map((def) => [def.id, tier, def] as const)),
+)('threat %s at the %s tier', (_id, tier, def) => {
   it('is perfect when answered at the centre of the window', async () => {
-    const { sim, center, openAt, threatId } = await telegraphed(def);
+    const { sim, center, openAt, threatId } = await telegraphed(def, tier);
     const { settledAt } = answer(sim, def, threatId, center, openAt);
     const events = runUntil(sim, settledAt);
     expect(results(events)).toEqual([
@@ -332,7 +337,7 @@ describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def)
   });
 
   it('is a success when answered as the window opens, tolerance included', async () => {
-    const { sim, center, openAt, window, threatId } = await telegraphed(def);
+    const { sim, center, openAt, window, threatId } = await telegraphed(def, tier);
     const t = openAt - window.toleranceMs;
     const { settledAt } = answer(sim, def, threatId, t, openAt);
     const events = runUntil(sim, Math.max(settledAt, center + holdMinMs));
@@ -343,7 +348,7 @@ describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def)
   });
 
   it('is a gag when answered too early', async () => {
-    const { sim, center, openAt, window, threatId } = await telegraphed(def);
+    const { sim, center, openAt, window, threatId } = await telegraphed(def, tier);
     const t = openAt - window.toleranceMs - window.bufferMs - 1;
     sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
     const events = runUntil(sim, openAt);
@@ -355,7 +360,7 @@ describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def)
   });
 
   it('is a gag when not answered in time', async () => {
-    const { sim, openAt, window, threatId } = await telegraphed(def);
+    const { sim, openAt, window, threatId } = await telegraphed(def, tier);
     const events = runUntil(sim, openAt + window.windowMs + window.toleranceMs + 100);
     expect(results(events)).toEqual([
       expect.objectContaining({ quality: 'fail', reason: 'late', offsetMs: null }),
@@ -366,7 +371,7 @@ describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def)
 
   if (def.response === 'firm') {
     it('is a wrongResponse gag when released before holdMinMs (a Parry)', async () => {
-      const { sim, center, threatId } = await telegraphed(def);
+      const { sim, center, threatId } = await telegraphed(def, tier);
       sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId });
       sim.enqueue({ type: 'Release', t: asSimMs(center + holdMinMs - 1) });
       const events = runUntil(sim, center + holdMinMs + STEP_MS);
@@ -380,7 +385,7 @@ describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def)
     });
 
     it('is a "released" gag when released between holdMinMs and the end of the attack', async () => {
-      const { sim, center, openAt, threatId } = await telegraphed(def);
+      const { sim, center, openAt, threatId } = await telegraphed(def, tier);
       const releaseAt = center + holdMinMs;
       expect(releaseAt).toBeLessThan(openAt + (def.holdUntilMs ?? 0));
       sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId });
@@ -396,19 +401,22 @@ describe.each(defs.map((def) => [def.id, def] as const))('threat %s', (_id, def)
 
   if (def.response === 'parry') {
     it('is a wrongResponse gag when held holdMinMs, the ring having closed first', async () => {
-      const { sim, center, threatId } = await telegraphed(def);
+      const { sim, center, threatId } = await telegraphed(def, tier);
       sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId });
-      const events = runUntil(sim, center + holdMinMs + STEP_MS);
+      const events = runUntil(sim, center + holdMinMs + 2 * STEP_MS);
       const tail = events.filter(
         (event) => event.type === 'ResponseHeld' || event.type === 'ResponseResolved',
       );
+      // The ring closes at the first step at or after the hold: a tier's window can put its centre
+      // between two steps (story 2.8: 450 / 2 = 225 from an opening on the grid, plus 10).
+      const closedAt = Math.ceil((center + holdMinMs) / STEP_MS) * STEP_MS;
       expect(tail).toEqual([
-        { type: 'ResponseHeld', t: center + holdMinMs, threatId },
+        { type: 'ResponseHeld', t: closedAt, threatId },
         expect.objectContaining({
           type: 'ResponseResolved',
           quality: 'fail',
           reason: 'wrongResponse',
-          t: center + holdMinMs,
+          t: closedAt,
         }),
       ]);
       expect(gags(events)).toEqual([

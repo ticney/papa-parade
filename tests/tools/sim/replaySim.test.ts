@@ -27,6 +27,20 @@ describe('replayRunFile', () => {
     expect(replay).toEqual({ ok: true, value: { worldHash: file.worldHash } });
   });
 
+  it('replays a game played at the experienced tier to its recorded hash (story 2.8)', async () => {
+    const games: RunFile[] = [];
+    const result = await runSim(
+      simArgs({ botId: 'human', tier: 'experienced', seed: 6, untilSimMs: 30_000 }),
+      createTestSimLevel(),
+      { onGame: (_name, game) => games.push(game) },
+    );
+    expect(result.ok).toBe(true);
+    const file = games[0] as RunFile;
+    expect(file.journal.entries.some((e) => e.command.type === 'SetDifficultyTier')).toBe(true);
+    const replay = await replayRunFile(file, createTestSimLevel());
+    expect(replay).toEqual({ ok: true, value: { worldHash: file.worldHash } });
+  });
+
   it('is an err that gives both hashes when the final state differs', async () => {
     const file = { ...(await recorded()), worldHash: '00000000000000' };
     const replay = await replayRunFile(file, createTestSimLevel());
@@ -151,6 +165,7 @@ describe('SetFeel in a recorded game (story 2.1)', () => {
       version: 1,
       levelId: loaded.levelId,
       bot: 'human',
+      tier: 'normal',
       untilSimMs,
       worldHash: hashJson(sim.world),
       journal: sim.journal(),

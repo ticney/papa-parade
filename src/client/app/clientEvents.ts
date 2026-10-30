@@ -1,3 +1,4 @@
+import type { Settings } from '@content/schemas/save';
 import type { AppState } from './appFsm.ts';
 
 /**
@@ -32,6 +33,11 @@ export interface ClientEvents {
    * ones now applied to every input; `audioOffsetMs` equals `visualOffsetMs` when the audio phase was skipped.
    */
   CalibrationDone: { visualOffsetMs: number; audioOffsetMs: number; audioSkipped: boolean };
+  /**
+   * The player changed a setting (story 2.8). `settings` is the whole value, already in the save in
+   * memory: the volumes follow it, the tier waits for the next game, the vibrations read it per pulse.
+   */
+  SettingsChanged: { settings: Settings };
   /** The digit of the resume countdown changed (including the first « 3 »). Story 1.9: tick sound and vibration. */
   CountdownTicked: { step: 3 | 2 | 1 };
 }

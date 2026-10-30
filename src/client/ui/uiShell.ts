@@ -39,11 +39,12 @@ export interface UiShell {
   /**
    * A gamepad button for the UI (the sim's A is the input mapper's): Start does what Escape does,
    * the D-pad and A drive the pause panel, B goes back, A starts the game or retries. `atReal` is the
-   * edge's own stamp (the calibration's taps, story 2.7). Nothing in
+   * edge's own stamp (the calibration's taps, story 2.7). The settings and the credits take the
+   * D-pad, A and B too (story 2.8). Nothing in
    * portrait (the portrait overlay covers everything), and B never pauses in play.
    */
   handlePadButton(button: PadButton, atReal: number): void;
-  /** Escape and the arrow keys. Returns the function that unbinds. */
+  /** Escape (pause, resume, or back out of the settings) and the arrow keys. Returns the function that unbinds. */
   bindKeys(target: KeyTarget): () => void;
 }
 
@@ -115,10 +116,10 @@ export function createUiShell(options: UiShellOptions): UiShell {
           overlayHost.screen?.skip?.();
           return;
         case 'back':
-          overlayHost.pauseScreen?.back();
+          overlayHost.screen?.back?.();
           return;
         default:
-          overlayHost.pauseScreen?.moveFocus(action);
+          overlayHost.screen?.moveFocus?.(action);
       }
     },
     refresh,
@@ -140,11 +141,12 @@ export function createUiShell(options: UiShellOptions): UiShell {
           if (action === null) return;
           event.preventDefault();
           if (action === 'pause') pause.requestPause('user');
-          else pause.requestResume();
+          else if (action === 'resume') pause.requestResume();
+          else overlayHost.screen?.back?.();
           return;
         }
-        if (isPortrait || overlayHost.pauseScreen === null) return;
-        if (overlayHost.pauseScreen.moveFocus(event.code)) event.preventDefault();
+        if (isPortrait) return;
+        if (overlayHost.screen?.moveFocus?.(event.code)) event.preventDefault();
       };
       target.addEventListener('keydown', onKeyDown);
       return () => target.removeEventListener('keydown', onKeyDown);

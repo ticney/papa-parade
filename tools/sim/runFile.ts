@@ -1,4 +1,9 @@
-import { SIM_CLI_MAX_UNTIL_MS } from '@shared/constants';
+import {
+  DEFAULT_DIFFICULTY_TIER,
+  DIFFICULTY_TIER_IDS,
+  type DifficultyTierId,
+  SIM_CLI_MAX_UNTIL_MS,
+} from '@shared/constants';
 import { err, ok, type Result } from '@shared/result';
 import type { Journal } from '@sim';
 
@@ -15,6 +20,8 @@ export interface RunFile {
   version: typeof RUN_FILE_VERSION;
   levelId: string;
   bot: string;
+  /** The tier it was played at (story 2.8); informational, the journal holds the command. */
+  tier: DifficultyTierId;
   untilSimMs: number;
   worldHash: string;
   journal: Journal;
@@ -24,9 +31,18 @@ export function toRunFile(fields: Omit<RunFile, 'kind' | 'version'>): RunFile {
   return { kind: RUN_FILE_KIND, version: RUN_FILE_VERSION, ...fields };
 }
 
-/** The file name of the recorded game of one run. */
-export function runFileName(levelId: string, bot: string, seed: number): string {
-  return `${levelId}_${bot}_${seed}.journal.json`;
+/**
+ * The file name of the recorded game of one run. A tier other than the default is in the name
+ * (story 2.8), so that the same seed played at two tiers into one folder does not overwrite itself.
+ */
+export function runFileName(
+  levelId: string,
+  bot: string,
+  seed: number,
+  tier: DifficultyTierId = DEFAULT_DIFFICULTY_TIER,
+): string {
+  const tierPart = tier === DEFAULT_DIFFICULTY_TIER ? '' : `_${tier}`;
+  return `${levelId}_${bot}_${seed}${tierPart}.journal.json`;
 }
 
 /**
@@ -50,6 +66,11 @@ export function parseRunFile(json: unknown): Result<RunFile, string> {
     if (typeof file[key] !== 'string' || file[key] === '') {
       return err(`invalid recorded game: "${key}" must be a non-empty string`);
     }
+  }
+  // Files written before story 2.8 have no tier: they were played at the default one.
+  const tier = file.tier ?? DEFAULT_DIFFICULTY_TIER;
+  if (typeof tier !== 'string' || !(DIFFICULTY_TIER_IDS as readonly string[]).includes(tier)) {
+    return err(`invalid recorded game: "tier" must be one of ${DIFFICULTY_TIER_IDS.join(', ')}`);
   }
   const { untilSimMs } = file;
   if (
@@ -75,6 +96,7 @@ export function parseRunFile(json: unknown): Result<RunFile, string> {
     version: RUN_FILE_VERSION,
     levelId: file.levelId as string,
     bot: file.bot as string,
+    tier: tier as DifficultyTierId,
     untilSimMs,
     worldHash: file.worldHash as string,
     journal: file.journal as Journal,

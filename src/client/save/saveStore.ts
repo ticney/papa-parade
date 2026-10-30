@@ -1,8 +1,10 @@
 import {
   type CalibrationResult,
   createDefaultSave,
+  createDefaultSettings,
   type Save,
   SaveSchema,
+  type Settings,
 } from '@content/schemas/save';
 import type { StoragePort } from '@platform/platform';
 import { SAVE_INVALID_KEY, SAVE_KEY, SAVE_VERSION } from '@shared/constants';
@@ -14,12 +16,25 @@ export interface SaveMigration {
   migrate(save: Record<string, unknown>): Record<string, unknown>;
 }
 
-/** `v{n-1} → v{n}`, in order. Empty today: v1 is the first version (story 2.8 adds the next). */
-export const SAVE_MIGRATIONS: readonly SaveMigration[] = [];
+/**
+ * `v{n-1} → v{n}`, in order. `v1 → v2` (story 2.8) adds the settings, with their defaults, and keeps
+ * the calibration. Pure: the input is not changed.
+ */
+export const SAVE_MIGRATIONS: readonly SaveMigration[] = [
+  {
+    from: 1,
+    migrate: (save) => ({ ...save, version: 2, settings: createDefaultSettings() }),
+  },
+];
 
+/**
+ * `future`: a save written by a newer game. It is not damaged, so it must not be replaced (a
+ * rollback of the game would destroy it). `unusable`: everything else that cannot be brought to
+ * the current version.
+ */
 export type MigrationOutcome =
   | { ok: true; value: Record<string, unknown> }
-  | { ok: false; reason: string };
+  | { ok: false; kind: 'future' | 'unusable'; reason: string };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -34,32 +49,47 @@ export function migrateSave(
   targetVersion: number,
 ): MigrationOutcome {
   if (!isRecord(raw) || !Number.isInteger(raw.version)) {
-    return { ok: false, reason: 'not an object with a whole version' };
+    return { ok: false, kind: 'unusable', reason: 'not an object with a whole version' };
   }
   let current = raw;
   let version = raw.version as number;
   if (version > targetVersion) {
-    return { ok: false, reason: `version ${version} is newer than this game (${targetVersion})` };
+    return {
+      ok: false,
+      kind: 'future',
+      reason: `version ${version} is newer than this game (${targetVersion})`,
+    };
   }
   while (version < targetVersion) {
     const step = migrations.find((migration) => migration.from === version);
-    if (step === undefined) return { ok: false, reason: `no migration from version ${version}` };
+    if (step === undefined) {
+      return { ok: false, kind: 'unusable', reason: `no migration from version ${version}` };
+    }
     // A migration works on whatever a past game stored: a throw is an unusable save, not a crash
     // (`load` is awaited before the start screen exists).
     let migrated: unknown;
     try {
       migrated = step.migrate(current);
     } catch (cause) {
-      return { ok: false, reason: `the migration from ${version} threw: ${String(cause)}` };
+      return {
+        ok: false,
+        kind: 'unusable',
+        reason: `the migration from ${version} threw: ${String(cause)}`,
+      };
     }
     if (!isRecord(migrated)) {
-      return { ok: false, reason: `the migration from ${version} did not return an object` };
+      return {
+        ok: false,
+        kind: 'unusable',
+        reason: `the migration from ${version} did not return an object`,
+      };
     }
     current = migrated;
     version += 1;
     if (current.version !== version) {
       return {
         ok: false,
+        kind: 'unusable',
         reason: `the migration from ${version - 1} left version ${current.version}`,
       };
     }
@@ -81,6 +111,11 @@ export interface SaveStore {
   current(): Save;
   /** Replaces the calibration. The value stays in memory even when the write fails. */
   setCalibration(calibration: CalibrationResult): Promise<void>;
+  /**
+   * Replaces the settings (story 2.8): memory at once, then the write. A slider calls it on every
+   * tick, so a failing storage warns once until a write succeeds again.
+   */
+  setSettings(settings: Settings): Promise<void>;
 }
 
 export interface CreateSaveStoreOptions {
@@ -93,18 +128,50 @@ export function createSaveStore(
 ): SaveStore {
   const migrations = options.migrations ?? SAVE_MIGRATIONS;
   let save = createDefaultSave();
+  // A save from a newer game stays where it is: the session runs on defaults and never writes.
+  let isReadOnly = false;
+  // A slider sends many writes: a failing storage warns once, until a write succeeds again.
+  let hasWarnedOfWrite = false;
 
   async function write(): Promise<void> {
+    if (isReadOnly) return;
     const result = await storage.set(SAVE_KEY, save);
-    if (!result.ok) log.warn('storage', 'the save could not be written', result.error);
+    if (result.ok) {
+      hasWarnedOfWrite = false;
+      return;
+    }
+    if (!hasWarnedOfWrite) log.warn('storage', 'the save could not be written', result.error);
+    hasWarnedOfWrite = true;
+  }
+
+  /** Keeps `raw` in `SAVE_INVALID_KEY` unless that key already holds a copy: the first one is kept. */
+  async function keepCopy(raw: unknown): Promise<void> {
+    const existing = await storage.get(SAVE_INVALID_KEY);
+    // An unreadable key (`invalid`) holds something too: only a clean `null` is free.
+    if (!existing.ok || existing.value !== null) {
+      if (!existing.ok && existing.error.kind === 'unavailable') {
+        log.warn('storage', 'the unusable save could not be set aside', existing.error);
+      }
+      return;
+    }
+    const kept = await storage.set(SAVE_INVALID_KEY, raw);
+    if (!kept.ok) log.warn('storage', 'the unusable save could not be set aside', kept.error);
   }
 
   async function setAside(raw: unknown, reason: string): Promise<void> {
     log.warn('storage', 'the save is unusable: set aside, starting from defaults', { reason });
-    const kept = await storage.set(SAVE_INVALID_KEY, raw);
-    if (!kept.ok) log.warn('storage', 'the unusable save could not be set aside', kept.error);
+    await keepCopy(raw);
     save = createDefaultSave();
     await write();
+  }
+
+  async function leaveInPlace(raw: unknown, reason: string): Promise<void> {
+    log.warn('storage', 'the save is from a newer game: left in place, running on defaults', {
+      reason,
+    });
+    await keepCopy(raw);
+    save = createDefaultSave();
+    isReadOnly = true;
   }
 
   return {
@@ -125,7 +192,8 @@ export function createSaveStore(
       }
       const migrated = migrateSave(read.value, migrations, SAVE_VERSION);
       if (!migrated.ok) {
-        await setAside(read.value, migrated.reason);
+        if (migrated.kind === 'future') await leaveInPlace(read.value, migrated.reason);
+        else await setAside(read.value, migrated.reason);
         return save;
       }
       const parsed = SaveSchema.safeParse(migrated.value);
@@ -140,6 +208,10 @@ export function createSaveStore(
     current: () => save,
     async setCalibration(calibration) {
       save = { ...save, calibration };
+      await write();
+    },
+    async setSettings(settings) {
+      save = { ...save, settings };
       await write();
     },
   };
