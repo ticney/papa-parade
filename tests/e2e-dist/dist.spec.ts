@@ -12,8 +12,10 @@ import {
   OVERRUN_MARGIN_MS,
   openGame,
   startLevel,
+  waitForResultActions,
   waitFrames,
 } from '../e2e/support/game.ts';
+import { STRINGS } from '../e2e/support/strings.ts';
 import { ppEvents } from '../e2e/support/testApi.ts';
 
 // The BUILT playtest bundle, served like the host serves it (`npm run e2e:dist`), or the deployed
@@ -88,6 +90,56 @@ test.describe('the built playtest bundle', () => {
       return protocol !== 'data:' && protocol !== 'blob:' && from !== origin;
     });
     expect(foreign).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test('a tester on the plain URL gets « Copier le journal », and its download breaks no CSP', async ({
+    page,
+  }) => {
+    const levelMs =
+      (LEVEL_DURATION_MS / SPEED) * LEVEL_REAL_TIME_FACTOR_MAX +
+      RESUME_COUNTDOWN_MS +
+      OVERRUN_MARGIN_MS;
+    test.setTimeout(levelMs + LOAD_MARGIN_MS + 30_000);
+    const problems = collectProblems(page, {
+      allowedErrors: new RegExp(`${VIBRATE_WITHOUT_TAP.source}|NotAllowedError`),
+    });
+    // The clipboard refuses, so the press downloads the file: the object URL and the `<a download>`
+    // must pass the CSP (story 3.3 AC 12). Violations are recorded, as in the test above.
+    await page.addInitScript(() => {
+      const violations: string[] = [];
+      (window as unknown as { ppCspViolations: string[] }).ppCspViolations = violations;
+      document.addEventListener('securitypolicyviolation', (event) => {
+        violations.push(`${event.violatedDirective}: ${event.blockedURI}`);
+      });
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: () => Promise.reject(new DOMException('denied', 'NotAllowedError')) },
+      });
+    });
+
+    // No `?debug=1`: the button is for every tester of a playtest build, not for Geo's device pass.
+    await page.goto(`/?autoplay=perfect&seed=1&speed=${SPEED}`);
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {
+      timeout: levelMs + LOAD_MARGIN_MS,
+    });
+    expect(await page.evaluate(() => window.__PP__)).toBeUndefined();
+    await waitForResultActions(page);
+
+    const copy = page.locator('.pp-result-actions .pp-button-secondary');
+    await expect(copy).toHaveText(STRINGS['result.copy_log'] as string);
+    const [download] = await Promise.all([page.waitForEvent('download'), copy.click()]);
+    await expect(copy).toHaveText(STRINGS['result.download_log'] as string);
+    expect(download.suggestedFilename()).toMatch(
+      /^papa-parade-journal-salon_crawler-[0-9a-f]{8}-1\.json$/,
+    );
+    const file = JSON.parse(readFileSync(await download.path(), 'utf8')) as { kind: string };
+    expect(file.kind).toBe('papa-parade.journal');
+
+    const violations = await page.evaluate(
+      () => (window as unknown as { ppCspViolations: string[] }).ppCspViolations,
+    );
+    expect(violations).toEqual([]);
     expect(problems).toEqual([]);
   });
 

@@ -127,7 +127,14 @@ test.describe('the Result screen', () => {
     const box = await replay.boundingBox();
     expect(box?.width).toBeGreaterThanOrEqual(44);
     expect(box?.height).toBeGreaterThanOrEqual(44);
-    await expect(page.getByText(STRINGS['result.copy_log'] as string)).toHaveCount(0);
+    // A debug build (dev, playtest) offers « Copier le journal » beside « Rejouer » (story 3.3); that
+    // the store build has none is proven by `dist:check`, not here. It never takes the focus.
+    const copy = page.locator(`${PANEL} .pp-result-actions .pp-button-secondary`);
+    await expect(copy).toHaveText(STRINGS['result.copy_log'] as string);
+    await expect(copy).not.toBeFocused();
+    const copyBox = await copy.boundingBox();
+    expect(copyBox?.width).toBeGreaterThanOrEqual(44);
+    expect(copyBox?.height).toBeGreaterThanOrEqual(44);
 
     const smallest = await page.evaluate((selector) => {
       const panel = document.querySelector(selector);

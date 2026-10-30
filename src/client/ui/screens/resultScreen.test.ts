@@ -1,8 +1,13 @@
-import { COUNT_UP_FRAME_MS, STAR_COUNT_MAX } from '@shared/constants';
+import { COUNT_UP_FRAME_MS, JOURNAL_COPY_TIMEOUT_MS, STAR_COUNT_MAX } from '@shared/constants';
 import type { MamaScore } from '@sim';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestFeedback } from '../../../../tests/support/testContent.ts';
-import { createResultScreen, type ResultPhase, type ResultScreenOptions } from './resultScreen.ts';
+import {
+  type CopyLogOutcome,
+  createResultScreen,
+  type ResultPhase,
+  type ResultScreenOptions,
+} from './resultScreen.ts';
 
 type Listener = (event: unknown) => void;
 
@@ -510,7 +515,7 @@ describe('createResultScreen', () => {
     vi.stubEnv('VITE_DEBUG_ALLOWED', 'true');
     try {
       expect(build().actions.children).toHaveLength(1);
-      const withCopy = build({ copyLog: () => undefined });
+      const withCopy = build({ copyLog: () => Promise.resolve('copied') });
       expect(withCopy.actions.children.map((node) => node.textContent)).toEqual([
         'result.replay_button',
         'result.copy_log',
@@ -523,7 +528,7 @@ describe('createResultScreen', () => {
   it('renders no « Copier le journal » in a build where debug is not allowed, copyLog or not', () => {
     vi.stubEnv('VITE_DEBUG_ALLOWED', 'false');
     try {
-      const { actions } = build({ copyLog: () => undefined });
+      const { actions } = build({ copyLog: () => Promise.resolve('copied') });
       expect(actions.children.map((node) => node.textContent)).toEqual(['result.replay_button']);
     } finally {
       vi.unstubAllEnvs();
@@ -730,5 +735,259 @@ describe('createResultScreen: a woken Mama (story 3.2)', () => {
     expect(lost()).toBe(0);
     expect(root.find('pp-star-lost-chip')).toHaveLength(0);
     expect(calls).toEqual(['star', 'star', 'last star']);
+  });
+});
+
+describe('createResultScreen: the copy button (story 3.3)', () => {
+  const GRACE_MS = 600;
+  beforeEach(() => {
+    focused = null;
+    vi.stubEnv('VITE_DEBUG_ALLOWED', 'true');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  /** Lets the promise chains of the screen settle (a few microtask turns). */
+  async function settle(): Promise<void> {
+    for (let turn = 0; turn < 5; turn++) await Promise.resolve();
+  }
+
+  function deferred() {
+    let resolve: (outcome: CopyLogOutcome) => void = () => undefined;
+    let reject: (cause: unknown) => void = () => undefined;
+    const promise = new Promise<CopyLogOutcome>((onResolve, onReject) => {
+      resolve = onResolve;
+      reject = onReject;
+    });
+    return { promise, resolve, reject };
+  }
+
+  /** A finished screen (the buttons are up, the grace is over) whose copy action answers `outcome`. */
+  function buildCopy(
+    outcome: CopyLogOutcome | (() => Promise<CopyLogOutcome>) = 'copied',
+    overrides: Partial<ResultScreenOptions> = {},
+  ) {
+    let pressCount = 0;
+    const copyLog = () => {
+      pressCount++;
+      return typeof outcome === 'function' ? outcome() : Promise.resolve(outcome);
+    };
+    const made = build({ copyLog, isDone: true, ...overrides });
+    const copy = made.actions.children[1] as FakeElement;
+    return { ...made, copy, presses: () => pressCount };
+  }
+
+  it('starts at « Copier le journal », with the same text as its accessible name', () => {
+    const { copy } = buildCopy();
+    expect(copy.textContent).toBe('result.copy_log');
+    expect(copy.attributes.get('aria-label')).toBe('result.copy_log');
+  });
+
+  it('calls the action synchronously inside the press, before any await', () => {
+    const { copy, presses } = buildCopy();
+    copy.click();
+    expect(presses()).toBe(1);
+  });
+
+  it('a copy that never settles is given up after the timeout: the button works again', async () => {
+    const never = new Promise<CopyLogOutcome>(() => undefined);
+    let answers: Promise<CopyLogOutcome> = never;
+    const { copy, presses, clock } = buildCopy(() => answers);
+    copy.click();
+    copy.click();
+    expect(presses()).toBe(1);
+    clock.advance(JOURNAL_COPY_TIMEOUT_MS);
+    await settle();
+    expect(copy.textContent).toBe('result.copy_log');
+    answers = Promise.resolve('copied');
+    copy.click();
+    expect(presses()).toBe(2);
+    await settle();
+    expect(copy.textContent).toBe('result.log_copied');
+  });
+
+  it('a late answer after the timeout changes nothing', async () => {
+    const answer = deferred();
+    const { copy, clock } = buildCopy(() => answer.promise);
+    copy.click();
+    clock.advance(JOURNAL_COPY_TIMEOUT_MS);
+    answer.resolve('copied');
+    await settle();
+    expect(copy.textContent).toBe('result.copy_log');
+  });
+
+  it('says « Journal copié ! » once the text is on the clipboard', async () => {
+    const { copy } = buildCopy('copied');
+    copy.click();
+    expect(copy.textContent).toBe('result.copy_log');
+    await settle();
+    expect(copy.textContent).toBe('result.log_copied');
+    expect(copy.attributes.get('aria-label')).toBe('result.log_copied');
+  });
+
+  it('says « Télécharger le journal » once the file was downloaded', async () => {
+    const { copy } = buildCopy('downloaded');
+    copy.click();
+    await settle();
+    expect(copy.textContent).toBe('result.download_log');
+    expect(copy.attributes.get('aria-label')).toBe('result.download_log');
+  });
+
+  it('keeps its label when the action failed', async () => {
+    const { copy } = buildCopy('failed');
+    copy.click();
+    await settle();
+    expect(copy.textContent).toBe('result.copy_log');
+    expect(copy.attributes.get('aria-label')).toBe('result.copy_log');
+  });
+
+  it('keeps the label of an earlier success when a later press fails', async () => {
+    const outcomes: CopyLogOutcome[] = ['copied', 'failed'];
+    const { copy, presses } = buildCopy(() => Promise.resolve(outcomes.shift() ?? 'failed'));
+    copy.click();
+    await settle();
+    copy.click();
+    await settle();
+    expect(presses()).toBe(2);
+    expect(copy.textContent).toBe('result.log_copied');
+  });
+
+  it('stays pressable after a success: a second press runs the action again', async () => {
+    const { copy, presses } = buildCopy('copied');
+    copy.click();
+    await settle();
+    copy.click();
+    await settle();
+    expect(presses()).toBe(2);
+    expect(copy.textContent).toBe('result.log_copied');
+  });
+
+  it('ignores a press while the action is pending, and answers again once it is settled', async () => {
+    const pending = deferred();
+    const { copy, presses } = buildCopy(() => pending.promise);
+    copy.click();
+    copy.click();
+    copy.click();
+    expect(presses()).toBe(1);
+    pending.resolve('copied');
+    await settle();
+    expect(copy.textContent).toBe('result.log_copied');
+    copy.click();
+    expect(presses()).toBe(2);
+  });
+
+  it('survives an action that rejects: the label stays and a later press works', async () => {
+    const pending = deferred();
+    let isFirst = true;
+    const { copy, presses } = buildCopy(() => {
+      if (!isFirst) return Promise.resolve('copied');
+      isFirst = false;
+      return pending.promise;
+    });
+    copy.click();
+    pending.reject(new Error('boom'));
+    await settle();
+    expect(copy.textContent).toBe('result.copy_log');
+    copy.click();
+    await settle();
+    expect(presses()).toBe(2);
+    expect(copy.textContent).toBe('result.log_copied');
+  });
+
+  it('survives an action that throws at once: the label stays and a later press works', async () => {
+    let isFirst = true;
+    const { copy, presses } = buildCopy(() => {
+      if (isFirst) {
+        isFirst = false;
+        throw new Error('boom');
+      }
+      return Promise.resolve('downloaded');
+    });
+    copy.click();
+    await settle();
+    expect(copy.textContent).toBe('result.copy_log');
+    copy.click();
+    await settle();
+    expect(presses()).toBe(2);
+    expect(copy.textContent).toBe('result.download_log');
+  });
+
+  it('drops an outcome that arrives after dispose()', async () => {
+    const pending = deferred();
+    const { copy, screen } = buildCopy(() => pending.promise);
+    copy.click();
+    screen.dispose();
+    pending.resolve('copied');
+    await settle();
+    expect(copy.textContent).toBe('result.copy_log');
+    expect(copy.attributes.get('aria-label')).toBe('result.copy_log');
+  });
+
+  it('a screen rebuilt after the portrait overlay starts again at « Copier le journal »', async () => {
+    const first = buildCopy('copied');
+    first.copy.click();
+    await settle();
+    first.screen.dispose();
+    const rebuilt = buildCopy('copied');
+    expect(rebuilt.copy.textContent).toBe('result.copy_log');
+  });
+
+  it('does nothing after dispose(): the button is unbound', () => {
+    const { copy, screen, presses } = buildCopy();
+    screen.dispose();
+    copy.click();
+    expect(presses()).toBe(0);
+  });
+
+  describe('the input grace and the skip rules of « Rejouer » apply to it', () => {
+    const graced = { ...timings, inputGraceMs: GRACE_MS };
+
+    it('ignores a press during the grace after the buttons come up', async () => {
+      const { copy, presses, clock } = buildCopy('copied', { timings: graced, isDone: false });
+      clock.advance(ROWS_END_MS + timings.starsDelayMs + 2 * timings.starIntervalMs);
+      clock.advance(timings.actionsDelayMs);
+      copy.click();
+      expect(presses()).toBe(0);
+      clock.advance(GRACE_MS);
+      copy.click();
+      expect(presses()).toBe(1);
+    });
+
+    it('ignores a press while the sequence is still being skipped by a held key', () => {
+      const { copy, presses, clock, keys } = buildCopy('copied', {
+        timings: graced,
+        isDone: false,
+      });
+      clock.advance(GRACE_MS);
+      keys.dispatch('keydown', { code: 'Space', repeat: false, preventDefault: () => undefined });
+      copy.click();
+      expect(presses()).toBe(0);
+      keys.dispatch('keyup', { code: 'Space' });
+      clock.advance(GRACE_MS);
+      copy.click();
+      expect(presses()).toBe(1);
+    });
+
+    it('takes a press at once on a rebuilt, finished screen', () => {
+      const { copy, presses } = buildCopy('copied', { timings: graced, isDone: true });
+      copy.click();
+      expect(presses()).toBe(1);
+    });
+  });
+
+  it('never takes the initial focus: « Rejouer » does on a finished screen, the panel while it runs', () => {
+    const done = buildCopy('copied', { isDone: true });
+    expect(done.screen.initialFocus).toBe(done.replay as never);
+    expect(done.screen.initialFocus).not.toBe(done.copy as never);
+    const running = buildCopy('copied', { isDone: false });
+    expect(running.screen.initialFocus).toBe(running.panel as never);
+  });
+
+  it("a pad's A presses « Rejouer », never the copy button", () => {
+    const { screen, calls, presses } = buildCopy('copied', { isDone: true });
+    screen.activate?.();
+    expect(calls).toEqual(['replay']);
+    expect(presses()).toBe(0);
   });
 });

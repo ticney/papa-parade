@@ -9,6 +9,7 @@ import { loadContent } from '@content/loadContent';
 import { loadLevelContent } from '@content/loadLevelContent';
 import { parseContentFile } from '@content/parseContentFile';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
 import { createNodeContentSource } from '../content/nodeContentSource.ts';
@@ -16,6 +17,13 @@ import { createNodeContentSource } from '../content/nodeContentSource.ts';
 /** Everything `createSim` needs to play one level, loaded from a content folder. */
 export interface SimLevel {
   levelId: string;
+  /**
+   * `hashJson` of the base content bundle, before the level's `feelOverrides` are merged: what the
+   * browser hashes into an exported journal (`replay.contentHash`, story 3.3) to tell, on a replay,
+   * that the content is not the one the game was played on.
+   */
+  contentHash: string;
+  /** The content with the level's `feelOverrides` merged over the feel: what the sim, the bots and the hashes see. */
   content: ContentBundle;
   level: LevelContent;
   geometry: LevelGeometry;
@@ -62,6 +70,8 @@ export async function loadSimLevel(
   const level = await loadLevelContent(source, levelId);
   if (!level.ok) return err(level.error.problems.map(formatContentProblem).join('\n'));
 
+  const contentHash = hashJson(content.value);
+
   // The level's own feel: `content.feel` is the merged one, so the sim, the bots and the hashes see it.
   let bundle = content.value;
   if (Object.keys(level.value.level.feelOverrides).length > 0) {
@@ -88,6 +98,7 @@ export async function loadSimLevel(
   if (!geometry.ok) return err(geometry.error.map(formatContentProblem).join('\n'));
   return ok({
     levelId,
+    contentHash,
     content: bundle,
     level: level.value,
     geometry: geometry.value,

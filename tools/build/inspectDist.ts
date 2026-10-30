@@ -67,6 +67,10 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   'installAutoplay',
   'installPerfHud',
   'copyLog',
+  // Story 3.3: the playtest journal's entry point, and the kind of the file it exports (the schema
+  // that holds it is imported by the debug chunk only). Both live in the playtest bundle.
+  'installPlaytestJournal',
+  'papa-parade.journal',
   'cueLog',
   'pp-debug-perf',
   // Story 2.1: the debug overlay's root CSS class, and the attribute Tweakpane's style sheet
@@ -90,6 +94,7 @@ export const PLAYTEST_REQUIRED_SOURCES: readonly string[] = [
   'src/debug/autoplay.ts',
   'src/debug/perfHud.ts',
   'src/debug/debugOverlay.ts',
+  'src/debug/playtestJournal.ts',
 ];
 
 const isDebugOnlySource = (src: string): boolean =>
