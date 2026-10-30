@@ -7,7 +7,7 @@ import type { AppFsm } from '../app/appFsm.ts';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import type { PauseController } from '../app/pauseController.ts';
 import { pickAutoTarget } from './autoTarget.ts';
-import { pickContextObject } from './contextObject.ts';
+import { isKindInReach, pickContextObject } from './contextObject.ts';
 import {
   createPadState,
   type GamepadInput,
@@ -176,8 +176,8 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     return active !== null && active.sim.world.flow.state === 'playing';
   };
 
-  // Papa drinks, sleeps or is on the phone (stories 1.19 D6, 1.20): the sim ignores every move and
-  // press meanwhile, so the client sends none either. A key held through it walks again on `PapaStateChanged → idle`
+  // Papa drinks, sleeps, is on the phone or in the toilet (stories 1.19 D6, 1.20, 4.3): the sim
+  // ignores every move and press meanwhile, so the client sends none either. A key held through it walks again on `PapaStateChanged → idle`
   // (boot calls `resumeHeld`).
   const isBusy = (active: ActiveLevel): boolean => isPapaBusy(active.sim.world.papa);
 
@@ -284,10 +284,12 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     // A free baby never beats a toilet in reach, whatever the distances (story 4.3): he lands
     // `putDownOffsetM` ahead of Papa, possibly nearer than the door, and « the nearer wins » would
     // take him back for ever. To take a baby beside the door, tap him or step away.
-    const isToiletNearest = object?.kind === 'toilet';
+    // « In reach » is asked of every toilet, not of the nearest object: a coffee machine nearer than
+    // the door must not give the baby back his place.
+    const isToiletInReach = isKindInReach(objects, 'toilet', papa.xM, papa.zM, contextReachM);
     if (
       isBabyInReach &&
-      !isToiletNearest &&
+      (isCarried || !isToiletInReach) &&
       (isCarried ? objectId === null : babyDistSq <= objectDistSq)
     ) {
       active.sim.enqueue({ type: 'TapBaby', t });

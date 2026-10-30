@@ -2516,6 +2516,19 @@ describe('snapshot / restore of the pressing need (story 4.3)', () => {
     expect(() => target.restore(snapshot)).not.toThrow();
   });
 
+  it('refuses Papa on the toilet in a level with no need gauge', async () => {
+    // `content:check` refuses such a level; the sim runs it all the same, and a snapshot of it must
+    // not be taken for a good one.
+    const doorOnly = createTestLevel({ objects: [...TEST_OBJECTS, TEST_TOILET] });
+    const live = await createSim({ content, geometry, level: doorOnly, seed: 5 });
+    live.enqueue({ type: 'TapObject', t: asSimMs(0), objectId: 'toilet' });
+    for (let i = 0; i < 5000 && live.world.papa.state !== 'onToilet'; i++) live.step();
+    expect(live.world.papa.state).toBe('onToilet');
+    const snapshot = roundTrip(live);
+    const target = await createSim({ content, geometry, level: doorOnly, seed: 5 });
+    expect(() => target.restore(snapshot)).toThrow(/world\.papa\.state/);
+  });
+
   it('refuses a need or a full flag in a level with no need gauge', async () => {
     const plain = createTestLevel();
     const live = await createSim({ content, geometry, level: plain, seed: 9 });

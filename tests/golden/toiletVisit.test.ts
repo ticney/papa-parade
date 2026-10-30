@@ -15,7 +15,7 @@ const SHORT_VISIT_MS = 1500; // the scenario's `SetFeel`
 const scenario = SCENARIOS.find((candidate) => candidate.name === 'toilet_visit');
 if (scenario === undefined) throw new Error('missing scenario toilet_visit');
 const geometry = createTestGeometry();
-const { events } = await recordScenario(content, geometry, scenario);
+const { events, finalBladderPct } = await recordScenario(content, geometry, scenario);
 
 const kinds = events.map((event) => event.type);
 const ofType = <T extends (typeof events)[number]['type']>(type: T) =>
@@ -57,6 +57,11 @@ describe('golden scenario toilet_visit covers the need it is there for', () => {
     expect(started?.t).toBe(arrived?.t);
     expect(started?.untilAt).toBe((started?.t ?? 0) + SHORT_VISIT_MS);
     expect(finished?.t).toBe(started?.untilAt);
+    // Back at 0 at the end of the visit, then rising again at `perSec` for the rest of the run (to
+    // within a step of gain: the step that finishes it also adds one).
+    const afterMs = scenario.untilSimMs - (finished?.t ?? 0);
+    expect(finalBladderPct).toBeCloseTo((bladder.perSec * afterMs) / 1000, 1);
+    expect(finalBladderPct).toBeLessThan(bladder.slowFromPct / 2);
     expect(kinds.indexOf('ToiletStarted')).toBeLessThan(kinds.indexOf('ToiletFinished'));
     expect(ofType('PapaStateChanged').map((event) => `${event.from}>${event.to}`)).toEqual([
       'idle>walkPath',

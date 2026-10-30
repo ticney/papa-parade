@@ -9,9 +9,12 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   NEED_GAUGES,
+  NOISE_GAUGES,
   OUTLET,
+  SILENCE,
   TEST_OBJECTS,
   TEST_TOILET,
+  testPhoneEntry,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import { createSim, type Sim } from '../createSim.ts';
@@ -28,6 +31,7 @@ interface Options {
   waves?: ReturnType<typeof testWave>[];
   fatigue?: boolean;
   carry?: boolean;
+  noise?: boolean;
 }
 
 async function newSim({
@@ -35,6 +39,7 @@ async function newSim({
   waves = [],
   fatigue = false,
   carry = false,
+  noise = false,
 }: Options = {}): Promise<Sim> {
   const feel = { ...base.feel, bladder: { ...base.feel.bladder, ...bladder } };
   return createSim({
@@ -43,7 +48,11 @@ async function newSim({
     level: createTestLevel({
       waves,
       objects: [...TEST_OBJECTS, TEST_TOILET],
-      gauges: fatigue ? { ...NEED_GAUGES, ...FATIGUE_GAUGES } : NEED_GAUGES,
+      gauges: {
+        ...NEED_GAUGES,
+        ...(fatigue ? FATIGUE_GAUGES : {}),
+        ...(noise ? NOISE_GAUGES : {}),
+      },
       ...(carry ? { carry: CARRY } : {}),
     }),
     seed: 1,
@@ -197,6 +206,53 @@ describe('the toilet (story 4.3)', () => {
     expect(world.baby.xM !== babyBefore.xM || world.baby.zM !== babyBefore.zM).toBe(true);
   });
 
+  describe('the room goes on without Papa (AC 10)', () => {
+    it('the director keeps drawing: threats keep being telegraphed while he is in', async () => {
+      const sim = await newSim({
+        bladder: { toiletDurationMs: 600_000 },
+        waves: [testWave([OUTLET], { gapMinMs: 1000, gapMaxMs: 1000 })],
+      });
+      walkIn(sim);
+      const events = runUntil(sim, sim.world.time.sim + 30_000);
+      expect(ofType(events, 'ThreatTelegraphed').length).toBeGreaterThanOrEqual(2);
+      expect(sim.world.papa.state).toBe('onToilet');
+    });
+
+    it('a suspicious silence starts and times out with nobody to find the baby', async () => {
+      const sim = await newSim({
+        bladder: { toiletDurationMs: 600_000 },
+        waves: [testWave([SILENCE], { fromMs: 15_000 })],
+      });
+      walkIn(sim);
+      const events = runUntil(sim, sim.world.time.sim + 90_000);
+      // The director draws it again and again; none of them can be found.
+      const ended = ofType(events, 'SilenceEnded');
+      expect(ofType(events, 'SilenceStarted').length).toBeGreaterThanOrEqual(1);
+      expect(ended.length).toBeGreaterThanOrEqual(1);
+      expect(ended.every((event) => event.reason === 'timedOut')).toBe(true);
+      expect(sim.world.papa.state).toBe('onToilet');
+    });
+
+    it('a ringing phone times out unanswered and its ringing keeps feeding the noise', async () => {
+      const sim = await newSim({
+        bladder: { toiletDurationMs: 600_000 },
+        waves: [testWave([], { disruptions: [testPhoneEntry(15_000)] })],
+        noise: true,
+      });
+      walkIn(sim);
+      const events = runUntil(sim, sim.world.time.sim + 60_000);
+      expect(ofType(events, 'PhoneRingStarted')).toHaveLength(1);
+      expect(ofType(events, 'PhoneRingEnded')).toEqual([
+        expect.objectContaining({ reason: 'timedOut' }),
+      ]);
+      expect(ofType(events, 'NoiseChanged').some((event) => event.source === 'phoneRinging')).toBe(
+        true,
+      );
+      expect(types(events)).not.toContain('PhoneAnswered');
+      expect(sim.world.papa.state).toBe('onToilet');
+    });
+  });
+
   it('judges a press at the step the visit ends, and glides him (the busy test uses busyUntil)', async () => {
     const sim = await newSim({
       waves: [testWave([OUTLET], { gapMinMs: 0, gapMaxMs: 0 })],
@@ -323,6 +379,29 @@ describe('the toilet (story 4.3)', () => {
       const events = runUntilEvent(sim, 'ToiletStarted');
       expect(ofType(events, 'ToiletRefused')).toEqual([]);
       expect(sim.world.papa.state).toBe('onToilet');
+    });
+
+    it('keeps the order of the commands of one step: toilet then baby refuses then puts down, baby then toilet puts down then goes', async () => {
+      const refusedFirst = await newSim({ carry: true });
+      takeBaby(refusedFirst);
+      tapToilet(refusedFirst);
+      tapBaby(refusedFirst);
+      const first = runUntil(refusedFirst, refusedFirst.world.time.sim + STEP_MS);
+      expect(
+        types(first).filter((type) => type === 'ToiletRefused' || type === 'BabyPutDown'),
+      ).toEqual(['ToiletRefused', 'BabyPutDown']);
+      expect(types(first)).not.toContain('PapaPathPlanned');
+
+      const putDownFirst = await newSim({ carry: true });
+      takeBaby(putDownFirst);
+      tapBaby(putDownFirst);
+      tapToilet(putDownFirst);
+      const second = runUntil(putDownFirst, putDownFirst.world.time.sim + STEP_MS);
+      expect(types(second)).not.toContain('ToiletRefused');
+      expect(
+        types(second).filter((type) => type === 'BabyPutDown' || type === 'ObjectTapped'),
+      ).toEqual(['BabyPutDown', 'ObjectTapped']);
+      expect(putDownFirst.world.papa.objectId).toBe('toilet');
     });
 
     it('cancels the walk to the door when the baby is taken on the way: he never arrives carried', async () => {

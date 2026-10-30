@@ -998,6 +998,10 @@ export async function boot(): Promise<void> {
       if (event.type === 'ToiletRefused') {
         worldUi.papaHint.show(feedbackTable.papaHint.holdMs, performance.now());
       }
+      // It has said its piece once the baby is down or Papa is in.
+      if (event.type === 'BabyPutDown' || event.type === 'ToiletStarted') {
+        worldUi.papaHint.hide();
+      }
       // The points of a cash-in show on the badge for `cashInHoldMs` of real time (story 4.2, D6).
       if (event.type === 'ComboCashedIn') {
         worldUi.comboBadge.showCashIn(

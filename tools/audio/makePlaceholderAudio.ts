@@ -89,7 +89,7 @@ const MUSIC_TENSE_SCALE_HZ = [
 const MUSIC_TENSE_SQUARE_GAIN = 0.6;
 const MUSIC_TENSE_DECAY_S = 0.12;
 
-// Combo cash-in (story 4.2): a bright rising arpeggio with a sparkle of noise on top.
+// Pressing need (story 4.3): the alarm of a full bladder, the toilet door's click and thud, the flush.
 const BLADDER_FULL_LENGTH_MS = 420;
 const BLADDER_FULL_PITCH_HZ = { from: 330, to: 250 };
 const BLADDER_FULL_PULSE_HZ = 9;
@@ -108,6 +108,7 @@ const FLUSH_CUTOFF_HZ = { from: 2400, to: 700 };
 const FLUSH_ATTACK_MS = 60;
 const FLUSH_RELEASE_MS = 500;
 
+// Combo cash-in (story 4.2): a bright rising arpeggio with a sparkle of noise on top.
 const CASH_IN_LENGTH_MS = 520;
 const CASH_IN_NOTES_HZ: readonly number[] = [523.25, 659.25, 783.99, 1046.5];
 const CASH_IN_NOTE_GAP_MS = 80;
@@ -975,7 +976,7 @@ export function synthBladderFull(): Float32Array {
 
 /** A latch clicks, then the door thuds shut: Papa goes in (cue `toilet_entered`). */
 export function synthToiletDoor(): Float32Array {
-  const rng = createRng(SEED + 11);
+  const rng = createRng(SEED + 14);
   const out = new Float32Array(samplesOf(TOILET_DOOR_LENGTH_MS));
   const gap = samplesOf(TOILET_DOOR_CLICK_GAP_MS);
   for (let i = 0; i < out.length; i++) {

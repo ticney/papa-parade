@@ -301,7 +301,7 @@ export const SCENARIOS: readonly Scenario[] = [
         },
       },
       { atStep: 0, command: { type: 'SetBladder', t: asSimMs(0), pct: 100 } },
-      { atStep: 1, command: { type: 'TapObject', t: asSimMs(10), objectId: 'toilet' } },
+      { atStep: 1, command: { type: 'TapObject', t: asSimMs(STEP_MS), objectId: 'toilet' } },
     ],
   },
 ];
@@ -310,6 +310,8 @@ export interface Recording {
   journal: Journal;
   worldHash: string;
   events: SimEvent[];
+  /** The need at the end of the run, for the scenarios that care (`toilet_visit`). */
+  finalBladderPct: number;
 }
 
 export async function recordScenario(
@@ -333,7 +335,12 @@ export async function recordScenario(
     sim.step();
     for (const event of sim.drainEvents()) events.push(event);
   }
-  const recording = { journal: sim.journal(), worldHash: hashJson(sim.world), events };
+  const recording = {
+    journal: sim.journal(),
+    worldHash: hashJson(sim.world),
+    events,
+    finalBladderPct: sim.world.gauges.bladderPct,
+  };
   sim.dispose();
   return recording;
 }

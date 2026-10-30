@@ -636,4 +636,11 @@
 - **The HUD pill moves the timer aside on narrow screens (Geo's decision, 2026-10-30).** Three gauges make the pill 304 px wide: at 667 × 375 it ran 38 px under the timer, at 740 × 360 by 2 px. The HUD row's left column is now `minmax(max-content, 1fr)`, so the timer stays centred while it fits and sits one gap (8 px) right of the pill otherwise (`toilet.spec.ts` pins four viewports). The bars and the node budget were not touched. Say if you would rather narrow the bars on the compact surface.
 - **« POSE-LE D'ABORD ! » overlaps a threat on Papa that is up at the same time** (the cry in the arms: its verb « BERCE ! » and its icon sit in the same spot, 0.85 m over his head). It clears the combo badge, which steps aside in that case; the hint lasts 1.2 s. Look at it in the device pass; if it bothers, lift it above the verb stack while a threat follows Papa (as the badge's `aside` does).
 - **The toilet door is a flat greybox slab in the wall's own material**, so only its marker shows it on a light wall; E7 draws the real one. The anchor (`[-2.2, 1, -2.85]`) was not moved.
-- **The placeholder sounds** `papa_bladder_full`, `papa_toilet_door` and `env_toilet_flush` are synthesized (`SEED + 13`, `+11`, `+12`); story 7.5 or Geo's recordings replace them.
+- **The placeholder sounds** `papa_bladder_full`, `papa_toilet_door` and `env_toilet_flush` are synthesized (`SEED + 13`, `+14`, `+12`; the door was `+11` until the review, which `synthParry` already uses); story 7.5 or Geo's recordings replace them.
+
+## Deferred from: code review of story-4-3-envie-pressante (2026-10-30)
+
+- **`ToiletRefused` has no cooldown.** Every `TapObject` on the door with the baby carried emits it (papa_bump, haptic, hint restart); drumming on the door repeats the sound and the vibration. Reason: a feel call for Geo's device pass; a cooldown would be a new `feel.bladder` key.
+- **The sim does not refuse a `toilet` object in a level without `gauges.need`.** Only `content:check` does, as for the coffee machine. Reason: same trust level as the coffee; harden both in `createSim` if a hand-built level ever skips `content:check`.
+- **A cash-in « +N » hold or a rise popping while Papa is `onToilet` elapses unseen** (the badge has no pose to follow). Reason: narrow (a cash-in needs a safe put-down, then the walk in); same real-time clock as the existing cash-in entry.
+- **`toilet.spec.ts › Papa is drawn again` compares two screenshots by inequality.** Any pixel change passes. Reason: assert the away state through a debug view probe when `__PP__` has one.

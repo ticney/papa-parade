@@ -642,7 +642,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 100,
-          "description": "From this need the toilet door's marker turns warm, in % of the gauge (the HUD turns orange at the same point)."
+          "description": "From this need the toilet door's marker turns warm, in % of the gauge (70 by default, where the HUD pill also turns orange; the pill's own threshold is fixed)."
         },
         "toiletDurationMs": {
           "type": "number",

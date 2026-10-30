@@ -375,7 +375,7 @@ const BladderSchema = z
         'How much slower Papa walks while the need is full, in % of his speed (GDD: 30). Strictly below 100: Papa must always arrive. The glide keeps its speed.',
       ),
     urgentFromPct: pct(
-      "From this need the toilet door's marker turns warm, in % of the gauge (the HUD turns orange at the same point).",
+      "From this need the toilet door's marker turns warm, in % of the gauge (70 by default, where the HUD pill also turns orange; the pill's own threshold is fixed).",
     ),
     toiletDurationMs: durationMs(
       'Time Papa spends out of the room in the toilet, in ms. The need only drops to 0 at the end (GDD: 5 s).',

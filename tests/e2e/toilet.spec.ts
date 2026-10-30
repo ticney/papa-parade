@@ -308,6 +308,21 @@ test.describe('the door', () => {
 });
 
 test.describe('with the baby in the arms', () => {
+  test('the verb goes as soon as the baby is put down, well before holdMs', async ({ page }) => {
+    const problems = collectProblems(page);
+    await openFrozen(page);
+    await takeBaby(page);
+    await tapDoor(page);
+    await ppAdvance(page, 2);
+    await expect(page.locator(HINT)).toBeVisible();
+    await ppSend(page, { type: 'TapBaby' });
+    await ppAdvance(page, 3);
+    // Shorter than `holdMs`: only the put-down can have taken it away (the timeout never fails
+    // a hint that is gone, so this can only miss a late hide, never flake).
+    await expect(page.locator(HINT)).toBeHidden({ timeout: HOLD_MS / 2 });
+    expect(problems).toEqual([]);
+  });
+
   test('a tap on the door shows « POSE-LE D’ABORD ! », walks nowhere, and the verb goes after holdMs; after a put-down the tap works', async ({
     page,
   }) => {

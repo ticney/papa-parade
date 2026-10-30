@@ -1348,6 +1348,16 @@ describe('createInputMapper: the toilet (story 4.3)', () => {
       }
     });
 
+    it('lets a toilet in reach beat a free baby even when a coffee machine is nearer than the door', () => {
+      const { mapper, sim, commands, setObjects } = setup();
+      // The coffee machine (0.6 m) is the nearest object, the door (1 m) is in reach too, and the
+      // baby (0.3 m) is nearer than both: he must not win, or he is taken back as he is put down.
+      setObjects([TOILET, { ...COFFEE_FAR, xM: -0.6 }]);
+      Object.assign(sim.world.baby, { xM: 0.3, zM: 0, state: 'babble' });
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'coffee_machine' }]);
+    });
+
     it('keeps the rule of the coffee machine and the phone: an object in reach beats a carried baby', () => {
       const { mapper, sim, commands, setObjects } = setup();
       setObjects([TOILET, COFFEE_FAR]);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type ContextObject, pickContextObject } from './contextObject.ts';
+import { type ContextObject, isKindInReach, pickContextObject } from './contextObject.ts';
 
 const COFFEE: ContextObject = {
   id: 'coffee_machine',
@@ -48,5 +48,23 @@ describe('pickContextObject', () => {
     expect(pickContextObject([toilet, COFFEE], -3, -2, REACH_M, 'toilet')).toBe('coffee_machine');
     expect(pickContextObject([toilet], -3, -2, REACH_M, 'toilet')).toBeNull();
     expect(pickContextObject([toilet, COFFEE], -3, -2, REACH_M, null)).toBe('toilet');
+  });
+});
+
+describe('isKindInReach', () => {
+  const objects: ContextObject[] = [
+    { id: 'coffee', kind: 'coffee_machine', xM: 0.5, zM: 0 },
+    { id: 'door', kind: 'toilet', xM: 1.5, zM: 0 },
+  ];
+
+  it('asks every object of the kind, not the nearest object', () => {
+    expect(isKindInReach(objects, 'toilet', 0, 0, 1.5)).toBe(true);
+    expect(isKindInReach(objects, 'toilet', 0, 0, 1.49)).toBe(false);
+    expect(isKindInReach(objects, 'coffee_machine', 0, 0, 0.5)).toBe(true);
+  });
+
+  it('is false for a kind the level does not have', () => {
+    expect(isKindInReach(objects, 'phone', 0, 0, 10)).toBe(false);
+    expect(isKindInReach([], 'toilet', 0, 0, 10)).toBe(false);
   });
 });

@@ -70,6 +70,7 @@ function papaProblem(
   papa: unknown,
   objectIds: readonly string[],
   babyState: unknown,
+  hasBladder: boolean,
 ): string | null {
   if (typeof papa !== 'object' || papa === null) return 'world.papa is missing';
   const slice = papa as Record<string, unknown>;
@@ -130,6 +131,8 @@ function papaProblem(
   // The toilet is no place for a baby in the arms (story 4.3): `tapObject` refuses, `takeBaby` is
   // ignored while Papa is busy, so the two never meet.
   if (slice.state === 'onToilet' && babyState === 'carried') return 'world.papa.state';
+  // And no toilet without the need gauge: the level has no door (`content:check`).
+  if (slice.state === 'onToilet' && !hasBladder) return 'world.papa.state';
 
   // The state and the data it walks on must agree.
   const dirLength = Math.sqrt((slice.dirX as number) ** 2 + (slice.dirZ as number) ** 2);
@@ -862,6 +865,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
       papa,
       planned.objects.map((object) => object.id),
       (baby as { state?: unknown } | null)?.state,
+      planned.hasBladder,
     ) ??
     babyProblem(baby, papa, threats as readonly ThreatInstance[], clock.sim as number) ??
     carryProblem(carry, baby, planned.hasCarry, planned.armsCryIndex >= 0) ??

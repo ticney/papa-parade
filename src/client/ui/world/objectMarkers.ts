@@ -35,12 +35,12 @@ export interface ObjectMarkers {
  * The glyph of each `ObjectKind` (24 × 24 view box), or null for an object that draws none yet.
  * A `Record`, so that a new kind is a type error until it is decided. The coffee machine draws the
  * mug of the threat glyphs; the phone gets its glyph with story 1.20 (it rings, so it shows then);
- * the toilet's is a plain door with a knob (story 4.3). Provisional placeholders (E7 draws the final ones).
+ * the toilet's is a plain door with a knob (story 4.3; the knob runs the other way round, so that the nonzero fill leaves it a hole). Provisional placeholders (E7 draws the final ones).
  */
 export const OBJECT_ICON_PATHS: Readonly<Record<ObjectKind, string | null>> = {
   coffee_machine: THREAT_ICON_PATHS.mug,
   phone: null,
-  toilet: 'M7 3h10v18H7z M13.6 11h1.8v2h-1.8z',
+  toilet: 'M7 3h10v18H7z M13.6 11v2h1.8v-2z',
 };
 
 /** The classes the CSS styles (`ui.css` owns the look). */

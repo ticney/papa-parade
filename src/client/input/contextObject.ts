@@ -37,3 +37,22 @@ export function pickContextObject(
   }
   return bestId;
 }
+
+/** Whether an object of `kind` is at most `reachM` from Papa (inclusive), nearest or not. Allocates nothing. */
+export function isKindInReach(
+  objects: readonly ContextObject[],
+  kind: ObjectKind,
+  papaXM: number,
+  papaZM: number,
+  reachM: number,
+): boolean {
+  const reachSquared = reachM * reachM;
+  for (let i = 0; i < objects.length; i++) {
+    const object = objects[i] as ContextObject;
+    if (object.kind !== kind) continue;
+    const dx = object.xM - papaXM;
+    const dz = object.zM - papaZM;
+    if (dx * dx + dz * dz <= reachSquared) return true;
+  }
+  return false;
+}

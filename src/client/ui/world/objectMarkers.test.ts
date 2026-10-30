@@ -70,7 +70,8 @@ describe('createObjectMarkers', () => {
     expect(scene.children[1]?.position.toArray()).toEqual([-2.2, 1, -2.85]);
     expect(OBJECT_ICON_PATHS.coffee_machine).toBe(THREAT_ICON_PATHS.mug);
     expect(OBJECT_ICON_PATHS.phone).toBeNull();
-    expect(OBJECT_ICON_PATHS.toilet).toEqual(expect.any(String));
+    // The knob runs the other way round from the slab, so the nonzero fill leaves it a hole.
+    expect(OBJECT_ICON_PATHS.toilet).toBe('M7 3h10v18H7z M13.6 11v2h1.8v-2z');
   });
 
   it('is visible while a marker is mounted, and not otherwise', () => {
