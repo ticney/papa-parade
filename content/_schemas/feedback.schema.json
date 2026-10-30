@@ -357,6 +357,22 @@
       "additionalProperties": false,
       "description": "The sounds of the latency calibration (story 2.7)."
     },
+    "comboBadge": {
+      "type": "object",
+      "properties": {
+        "cashInHoldMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long the combo badge shows the points of a cash-in (« +N »), in real ms, even though the multiplier is already back to its minimum."
+        }
+      },
+      "required": [
+        "cashInHoldMs"
+      ],
+      "additionalProperties": false,
+      "description": "The combo badge above Papa (story 4.2). Real time: the sim never reads it."
+    },
     "cues": {
       "type": "object",
       "propertyNames": {
@@ -574,6 +590,7 @@
     "loops",
     "resultScreen",
     "calibration",
+    "comboBadge",
     "cues",
     "events"
   ],

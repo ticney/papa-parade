@@ -41,5 +41,6 @@
     { "id": "phone", "kind": "phone", "anchor": "phone" }
   ],
   "gauges": { "noise": {}, "fatigue": { "microSleepDef": "papa_microsleep" } },
+  "carry": { "armsCryDef": "arms_cry" },
   "feelOverrides": {}
 }

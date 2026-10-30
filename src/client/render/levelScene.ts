@@ -350,7 +350,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     },
     update(world, alpha, nowReal) {
       papa.update(world.papa, alpha);
-      baby.update(world.baby, alpha);
+      baby.update(world.baby, alpha, world.papa);
       props.sync(world.props, alpha);
       const clockMs = world.time.sim + alpha * STEP_MS;
       // Papa's nap, coffee and call, from the world every frame (stories 1.19, 1.20; diegetic, no overlay).

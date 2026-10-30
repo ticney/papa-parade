@@ -12,6 +12,7 @@ export function startCoffee(world: World, ctx: StepContext, objectId: string): v
   const { papa } = world;
   const untilAt = asSimMs(world.time.sim + ctx.feel.fatigue.coffeeDurationMs);
   papa.objectId = null;
+  papa.intent = 'none';
   papa.busyUntil = untilAt;
   enterPapaState(world, ctx, 'drink');
   ctx.events.push({ type: 'CoffeeStarted', t: world.time.sim, objectId, untilAt });

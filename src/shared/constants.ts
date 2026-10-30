@@ -196,6 +196,15 @@ export const TAP_MARKER_SCALE_FROM = 0.6;
 /** ...and has grown to this scale when it is gone (DESIGN.md › tap-marker `scale: 0.6 → 1.2`). */
 export const TAP_MARKER_SCALE_TO = 1.2;
 
+/** The combo badge floats this far above the top of Papa's body, in metres (story 4.2; the threat icons use the same). */
+export const COMBO_BADGE_OFFSET_M = 0.3;
+
+/** The combo badge pops for this long when the multiplier rises, in real ms (story 4.2). */
+export const COMBO_BADGE_POP_MS = 220;
+
+/** ...from this scale up to its size. */
+export const COMBO_BADGE_POP_SCALE_FROM = 1.5;
+
 /** The hold-ring's progress band is this wide, in CSS px (DESIGN.md › hold-ring `strokeWidth`). */
 export const HOLD_RING_STROKE_PX = 5;
 

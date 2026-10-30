@@ -10,11 +10,14 @@ import {
 } from '../../../tools/sim/simReport.ts';
 import { botTestLevel } from '../../support/botSupport.ts';
 import {
+  CARRY,
   createTestContent,
   createTestGeometry,
   createTestLevel,
   createTestResponseWindow,
+  FATIGUE_GAUGES,
   NOISE_GAUGES,
+  OUTLET,
   TEST_OBJECTS,
   testPhoneEntry,
   testWave,
@@ -61,6 +64,14 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     silencesFound: 0,
     silencesTimedOut: 0,
     silencesCutOff: 0,
+    babyPickUps: 0,
+    babyPutDowns: 0,
+    safePutDowns: 0,
+    armsCries: 0,
+    cancelledThreats: 0,
+    comboCashIns: 0,
+    comboPointsCashed: 0,
+    comboPeakMultiplier: 0,
     noisePeakPct: 0,
     noiseFinalPct: 0,
     noiseBySourcePct: NO_NOISE,
@@ -745,6 +756,137 @@ describe('createRunRecorder', () => {
       expect(recorder.finish().isEnded).toBe(false);
       recorder.onEvent({ type: 'LevelEnded', t: asSimMs(0), reason: 'timer' });
       expect(recorder.finish().isEnded).toBe(true);
+    });
+  });
+});
+
+describe('a level that carries the baby (story 4.1)', () => {
+  const carryLevel = () =>
+    createTestLevel({
+      waves: [testWave([OUTLET], { gapMinMs: 4000, gapMaxMs: 4000 })],
+      gauges: FATIGUE_GAUGES,
+      carry: CARRY,
+    });
+
+  async function recorder(waves = [{ maxSimultaneous: 1 }]) {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: carryLevel(),
+      seed: 1,
+    });
+    return { sim, recorder: createRunRecorder(sim, 1, waves, 'arms_cry') };
+  }
+
+  const telegraphed = (threatId: number, kind: string, waveIndex: number): SimEvent => ({
+    type: 'ThreatTelegraphed',
+    t: asSimMs(0),
+    threatId,
+    kind,
+    anchorId: 'outlet_01',
+    waveIndex,
+  });
+
+  it('counts a cry in the arms as such, not as a micro-sleep, and keeps it out of the waves', async () => {
+    const { recorder: rec } = await recorder();
+    rec.onEvent(telegraphed(9, 'arms_cry', -1));
+    rec.onEvent(telegraphed(8, 'papa_microsleep', -1));
+    const summary = rec.finish();
+    expect(summary).toMatchObject({ armsCries: 1, microSleeps: 1 });
+    expect(summary.waves).toEqual([{ telegraphs: 0, peakSimultaneous: 0, isOverLimit: false }]);
+  });
+
+  it('counts the pick-ups, the put-downs and the safe ones', async () => {
+    const { recorder: rec } = await recorder();
+    rec.onEvent({ type: 'BabyPickedUp', t: asSimMs(0) });
+    rec.onEvent({ type: 'BabyPutDown', t: asSimMs(0), safe: false });
+    rec.onEvent({ type: 'BabyPickedUp', t: asSimMs(0) });
+    rec.onEvent({ type: 'BabyPutDown', t: asSimMs(0), safe: true });
+    expect(rec.finish()).toMatchObject({ babyPickUps: 2, babyPutDowns: 2, safePutDowns: 1 });
+  });
+
+  it('counts the combos cashed in, their points and the highest multiplier (story 4.2)', async () => {
+    const { recorder: rec } = await recorder();
+    expect(rec.finish()).toMatchObject({
+      comboCashIns: 0,
+      comboPointsCashed: 0,
+      comboPeakMultiplier: 0,
+    });
+    rec.onEvent({ type: 'ComboChanged', t: asSimMs(10), multiplier: 2, reason: 'response' });
+    rec.onEvent({ type: 'ComboChanged', t: asSimMs(20), multiplier: 3, reason: 'carryTick' });
+    rec.onEvent({ type: 'ComboChanged', t: asSimMs(30), multiplier: 1, reason: 'gag' });
+    rec.onEvent({
+      type: 'ComboCashedIn',
+      t: asSimMs(40),
+      multiplier: 3,
+      basePoints: 1.5,
+      points: 4.5,
+    });
+    rec.onEvent({ type: 'ComboCashedIn', t: asSimMs(50), multiplier: 2, basePoints: 1, points: 2 });
+    expect(rec.finish()).toMatchObject({
+      comboCashIns: 2,
+      comboPointsCashed: 6.5,
+      comboPeakMultiplier: 3,
+    });
+  });
+
+  it('takes a cancelled wave threat out of the count at once, so the next one is not over the limit', async () => {
+    const { recorder: rec } = await recorder();
+    rec.onEvent(telegraphed(7, 'outlet', 0));
+    rec.onEvent({ type: 'ThreatCancelled', t: asSimMs(0), threatId: 7, reason: 'carried' });
+    // Without the −1 this second one would count as two at once, over the limit of 1.
+    rec.onEvent(telegraphed(7, 'outlet', 0));
+    const summary = rec.finish();
+    expect(summary.cancelledThreats).toBe(1);
+    expect(summary.waves).toEqual([{ telegraphs: 2, peakSimultaneous: 1, isOverLimit: false }]);
+  });
+
+  it('leaves the count alone for a cancelled system threat (the cry in the arms)', async () => {
+    const { recorder: rec } = await recorder();
+    rec.onEvent(telegraphed(7, 'outlet', 0));
+    rec.onEvent(telegraphed(9, 'arms_cry', -1));
+    rec.onEvent({ type: 'ThreatCancelled', t: asSimMs(0), threatId: 9, reason: 'putDown' });
+    rec.onEvent({ type: 'ThreatCancelled', t: asSimMs(0), threatId: 7, reason: 'carried' });
+    rec.onEvent(telegraphed(7, 'outlet', 0));
+    expect(rec.finish().waves[0]?.isOverLimit).toBe(false);
+  });
+
+  it('sums the combo counters over the runs and keeps the highest peak', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { comboCashIns: 1, comboPointsCashed: 4.5, comboPeakMultiplier: 3 }),
+      run(2, { comboCashIns: 2, comboPointsCashed: 8, comboPeakMultiplier: 5 }),
+      run(3, { comboCashIns: 0, comboPointsCashed: 0, comboPeakMultiplier: 0 }),
+    ]);
+    expect(report).toMatchObject({
+      comboCashIns: 3,
+      comboPointsCashed: 12.5,
+      comboPeakMultiplier: 5,
+    });
+  });
+
+  it('sums the counters over the runs in the report', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, {
+        babyPickUps: 2,
+        babyPutDowns: 1,
+        safePutDowns: 1,
+        armsCries: 3,
+        cancelledThreats: 1,
+      }),
+      run(2, {
+        babyPickUps: 1,
+        babyPutDowns: 1,
+        safePutDowns: 0,
+        armsCries: 0,
+        cancelledThreats: 2,
+      }),
+    ]);
+    expect(report).toMatchObject({
+      babyPickUps: 3,
+      babyPutDowns: 2,
+      safePutDowns: 1,
+      armsCries: 3,
+      cancelledThreats: 3,
     });
   });
 });

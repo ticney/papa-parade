@@ -3,6 +3,7 @@ import { MS_PER_S, STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
+  CARRY,
   COFFEE_TABLE,
   createTestContent,
   createTestGeometry,
@@ -31,6 +32,7 @@ async function setup(feel: Feel = content.feel) {
     level: createTestLevel({
       waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE])],
       gauges: FATIGUE_GAUGES,
+      carry: CARRY,
     }),
     seed: 1,
   });
@@ -71,6 +73,8 @@ const OWN_THREAT: Record<GagId, { defId: string; eventCount: number; pushCount: 
   // The surprise mischiefs of the silence: mess only, no near miss (story 1.21 D11).
   tissues_everywhere: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
   crayon_scribbles: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
+  // The cry is the def's `gagCryMs` (story 3.1 D9), not the gag's: nothing else happens (story 4.1).
+  arms_wail: { defId: 'arms_cry', eventCount: 0, pushCount: 0 },
 };
 
 describe('applyGag', () => {

@@ -234,6 +234,64 @@ const FatigueSchema = z
   })
   .describe("Papa's fatigue (GDD §6).");
 
+const CarrySchema = z
+  .strictObject({
+    reachM: z
+      .number()
+      .positive()
+      .describe('Papa takes the baby at once when he is within this distance of him, in metres.'),
+    putDownOffsetM: z
+      .number()
+      .min(0)
+      .describe('The baby is set down this far in front of Papa, along his heading, in metres.'),
+    armsCryMinMs: delayMs(
+      'Shortest delay from picking the baby up (or from the last cry in the arms) to the next one, in ms.',
+    ),
+    armsCryMaxMs: delayMs(
+      'Longest delay from picking the baby up (or from the last cry in the arms) to the next one, in ms.',
+    ),
+  })
+  .refine((carry) => carry.armsCryMinMs <= carry.armsCryMaxMs, {
+    path: ['armsCryMinMs'],
+    error: 'armsCryMinMs must not exceed armsCryMaxMs',
+  })
+  .describe(
+    "Carrying the baby in Papa's arms (FR22, story 4.1). The fatigue multiplier is `fatigue.carriedMultiplier`.",
+  );
+
+const ComboSchema = z
+  .strictObject({
+    minMultiplier: z
+      .int()
+      .min(1)
+      .describe(
+        'Multiplier at rest, and after a cash-in or a gag (the badge is hidden at this value).',
+      ),
+    maxMultiplier: z
+      .int()
+      .min(1)
+      .describe('Highest multiplier; past it the multiplier stays and the base points still grow.'),
+    carryTickMs: durationMs(
+      'One more multiplier step per this much time carried without incident, in **sim** ms.',
+    ),
+    basePerResponsePoints: z
+      .number()
+      .positive()
+      .describe('Base points added to the combo by each successful or perfect response.'),
+    basePerCarryTickPoints: z
+      .number()
+      .positive()
+      .describe('Base points added to the combo by each carry tick.'),
+    slowMoCashIn: slowMo('Slow-mo played when the combo is cashed in at a safe drop.'),
+  })
+  .refine((combo) => combo.minMultiplier < combo.maxMultiplier, {
+    path: ['minMultiplier'],
+    error: 'minMultiplier must be below maxMultiplier',
+  })
+  .describe(
+    'The combo (FR23, story 4.2): a multiplier raised by responses and by carrying, cashed in at a safe drop.',
+  );
+
 const noisePctSource = (description: string) =>
   z
     .strictObject({ noisePct: pct('Noise added once per occurrence, in % of the gauge.') })
@@ -693,6 +751,8 @@ export const FeelSchema = z
     movement: MovementSchema,
     baby: BabySchema,
     fatigue: FatigueSchema,
+    carry: CarrySchema,
+    combo: ComboSchema,
     noise: NoiseSchema,
     instinct: InstinctSchema,
     difficulty: DifficultySchema,

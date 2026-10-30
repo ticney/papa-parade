@@ -228,6 +228,15 @@ describe('the cheat list', () => {
     expect(sim.world.gauges.fatigue).toBeCloseTo(64, 1);
   });
 
+  it('runs « take / put down the baby » through a TapBaby command, always available', async () => {
+    const { host, sim } = await rig();
+    const cheat = CHEATS.find((candidate) => candidate.id === 'takePutDownBaby');
+    expect(cheat?.input).toBeNull();
+    expect(cheat?.isAvailable(sim.world, false)).toBe(true);
+    cheat?.run(createCheatContext(host), 0);
+    expect(sim.journal().entries.at(-1)?.command.type).toBe('TapBaby');
+  });
+
   it('has unique ids, so a story can add an entry without clashing', () => {
     const ids = CHEATS.map((cheat) => cheat.id);
     expect(new Set(ids).size).toBe(ids.length);

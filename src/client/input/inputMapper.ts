@@ -63,6 +63,16 @@ export interface InputMapperDeps {
    * (story 1.21). Read at each tap.
    */
   babyBodyRadiusM: number;
+  /**
+   * How high above the floor a tap aims at the baby while Papa carries him (story 4.1): where he is
+   * drawn, in Papa's arms. Read at each tap.
+   */
+  babyCarriedHeightM: number;
+  /**
+   * How far in front of Papa, along the baby's gaze, the carried baby is drawn (story 4.1): a tap
+   * aims there, not at Papa's feet axis. Read at each tap.
+   */
+  babyCarriedForwardM: number;
   /** The interactive objects of the level being played (`sim.objects`), or an empty list. */
   getObjects(): readonly ObjectTarget[];
   /**
@@ -155,6 +165,8 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
   const padState = createPadState();
   const aim: FloorDir = { x: 0, z: 0 };
   const picked: FloorPoint = { xM: 0, zM: 0 };
+  /** The point a tap on the baby aims at: his floor point, or where he is drawn when carried. */
+  const babyAim: FloorPoint = { xM: 0, zM: 0 };
   let lastDevice: InputDevice | null = null;
   let wasPadPresent = false;
   let wasStickPushed = false;
@@ -261,7 +273,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       return;
     }
     // No threat is active (D6): the context action, on the nearer of the baby and the nearest
-    // object, both in reach (story 1.21: ties go to the baby).
+    // object, both in reach (story 1.21: ties go to the baby; story 4.1: not while he is carried).
     const { papa, baby } = active.sim.world;
     const { contextReachM } = deps.input;
     const objects = deps.getObjects();
@@ -273,7 +285,10 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       object === undefined
         ? Number.POSITIVE_INFINITY
         : (object.xM - papa.xM) ** 2 + (object.zM - papa.zM) ** 2;
-    if (isBabyInReach && babyDistSq <= objectDistSq) {
+    // A carried baby is always in reach, so an object in reach wins over him (story 4.1): the coffee
+    // machine and the phone must stay usable from the keyboard. Without one, the action puts him down.
+    const isCarried = baby.state === 'carried';
+    if (isBabyInReach && (isCarried ? objectId === null : babyDistSq <= objectDistSq)) {
       active.sim.enqueue({ type: 'TapBaby', t });
       return;
     }
@@ -381,12 +396,16 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       // taken from the finger by a baby crawling past; a tie goes to the baby, like Space / A. The
       // marker shows where Papa will walk.
       const { baby } = active.sim.world;
+      const isCarried = baby.state === 'carried';
+      // Where he is drawn: lifted, and a little in front of Papa, when he is in his arms.
+      babyAim.xM = isCarried ? baby.xM + baby.gazeX * deps.babyCarriedForwardM : baby.xM;
+      babyAim.zM = isCarried ? baby.zM + baby.gazeZ * deps.babyCarriedForwardM : baby.zM;
       const babyDistSq = deps.hitTester.pickBaby(
         sample.clientX,
         sample.clientY,
         rect,
-        baby,
-        deps.babyBodyRadiusM,
+        babyAim,
+        isCarried ? deps.babyCarriedHeightM : deps.babyBodyRadiusM,
         deps.objectTouchRadiusPx,
       );
       const objects = deps.getObjects();

@@ -65,7 +65,8 @@
             "stairs",
             "mug",
             "eyelids",
-            "dots"
+            "dots",
+            "cry"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -224,7 +225,8 @@
             "stairs",
             "mug",
             "eyelids",
-            "dots"
+            "dots",
+            "cry"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },

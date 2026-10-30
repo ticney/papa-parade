@@ -1,0 +1,21 @@
+{
+  "$schema": "../_schemas/threat.schema.json",
+  "id": "arms_cry",
+  "target": "papa",
+  "response": "parry",
+  "telegraphDelayMs": 1200,
+  "windowMs": null,
+  "gag": "arms_wail",
+  "verbKey": "verb.rock",
+  "icon": "cry",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_arms_cry",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_arms_wail"
+  },
+  "cooldownMs": 1000,
+  "gagCryMs": 4000
+}

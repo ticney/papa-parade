@@ -4,6 +4,7 @@ import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import { createIsoCamera, fitIsoCamera } from '../render/isoCamera.ts';
+import { BABY_CARRIED_FORWARD_M, BABY_CARRIED_HEIGHT_M } from '../render/views/babyView.ts';
 import type { PadButton, PadFamily, PadState, StickAxes } from './gamepadInput.ts';
 import { createHitTester, type ObjectTarget, type ThreatTargets } from './hitTest.ts';
 import { createInputMapper } from './inputMapper.ts';
@@ -117,6 +118,8 @@ function setup() {
     touchRadiusPx: TOUCH_RADIUS_PX,
     objectTouchRadiusPx: OBJECT_TOUCH_RADIUS_PX,
     babyBodyRadiusM: BABY_RADIUS_M,
+    babyCarriedHeightM: BABY_CARRIED_HEIGHT_M,
+    babyCarriedForwardM: BABY_CARRIED_FORWARD_M,
     onThreatPressed: (id) => pressedIds.push(id),
     showTapMarker: (x, z) => markers.push([x, z]),
     onTap: (x, z) => taps.push([x, z]),
@@ -1102,6 +1105,90 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       Object.assign(sim.world.baby, { xM: 0, zM: 1 }); // as far as the phone: a tie
       mapper.handleAction('down', 1500, 'keyboard');
       expect(commands.map((c) => c.type)).toEqual(['TapBaby']);
+    });
+
+    describe('while he is carried (story 4.1)', () => {
+      const pixelAt = (
+        camera: Parameters<typeof Vector3.prototype.project>[0],
+        yM: number,
+        forwardM = 0,
+      ) => {
+        // `forwardM` along the gaze the tests give the baby: +x.
+        const v = new Vector3(BABY.xM + forwardM, yM, BABY.zM).project(camera);
+        return {
+          x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+          y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+        };
+      };
+
+      /** A point `OBJECT_TOUCH_RADIUS_PX - 1` px from `from`, on the side away from `towards`. */
+      const justInside = (from: { x: number; y: number }, towards: { x: number; y: number }) => {
+        const length = Math.hypot(towards.x - from.x, towards.y - from.y);
+        const reach = OBJECT_TOUCH_RADIUS_PX - 1;
+        return {
+          x: from.x - ((towards.x - from.x) / length) * reach,
+          y: from.y - ((towards.y - from.y) / length) * reach,
+        };
+      };
+
+      it('aims at the baby where he is drawn, lifted in Papa’s arms, not at his body on the floor', () => {
+        const { mapper, sim, commands, camera } = setup();
+        Object.assign(sim.world.baby, BABY, { state: 'carried', gazeX: 1, gazeZ: 0 });
+        const lifted = pixelAt(camera, BABY_CARRIED_HEIGHT_M, BABY_CARRIED_FORWARD_M);
+        const onFloor = pixelAt(camera, BABY_RADIUS_M);
+        expect(lifted.y).not.toBeCloseTo(onFloor.y, 0);
+        // Just inside the radius of the lifted point, and so beyond that of the floor point.
+        const inside = justInside(lifted, onFloor);
+        mapper.handlePointerDown(click(inside.x, inside.y));
+        expect(commands).toEqual([{ type: 'TapBaby', t: 234 }]);
+      });
+
+      it('aims in front of Papa, where the carried baby is drawn, not at Papa’s own point', () => {
+        const { mapper, sim, commands, camera } = setup();
+        Object.assign(sim.world.baby, BABY, { state: 'carried', gazeX: 1, gazeZ: 0 });
+        const drawn = pixelAt(camera, BABY_CARRIED_HEIGHT_M, BABY_CARRIED_FORWARD_M);
+        const atPapa = pixelAt(camera, BABY_CARRIED_HEIGHT_M);
+        expect(drawn.x).not.toBeCloseTo(atPapa.x, 0);
+        // Just inside the radius of the drawn baby, on the side away from Papa's point: out of reach
+        // of an aim that ignored the forward offset.
+        const inside = justInside(drawn, atPapa);
+        expect(Math.hypot(inside.x - atPapa.x, inside.y - atPapa.y)).toBeGreaterThan(
+          OBJECT_TOUCH_RADIUS_PX,
+        );
+        mapper.handlePointerDown(click(inside.x, inside.y));
+        expect(commands.map((c) => c.type)).toEqual(['TapBaby']);
+      });
+
+      it('still aims at his body on the floor when he is not carried', () => {
+        const { mapper, sim, commands, camera } = setup();
+        Object.assign(sim.world.baby, BABY, { state: 'babble' });
+        const lifted = pixelAt(camera, BABY_CARRIED_HEIGHT_M);
+        const onFloor = pixelAt(camera, BABY_RADIUS_M);
+        const inside = justInside(onFloor, lifted);
+        mapper.handlePointerDown(click(inside.x, inside.y));
+        expect(commands.map((c) => c.type)).toEqual(['TapBaby']);
+        // The other way round, a press next to the lifted point is only the floor.
+        commands.length = 0;
+        const beyond = justInside(lifted, onFloor);
+        mapper.handlePointerDown(click(beyond.x, beyond.y));
+        expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
+      });
+
+      it('Space / A uses an object in reach before the baby, who is always in reach', () => {
+        const { mapper, sim, commands, setObjects } = setup();
+        Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
+        setObjects([{ id: 'phone', xM: 1, yM: 0.65, zM: 0 }]);
+        mapper.handleAction('down', 1500, 'keyboard');
+        expect(commands.map((c) => c.type)).toEqual(['TapObject']);
+      });
+
+      it('Space / A puts him down when no object is in reach', () => {
+        const { mapper, sim, commands, setObjects } = setup();
+        Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
+        setObjects([{ id: 'phone', xM: 5, yM: 0.65, zM: 0 }]);
+        mapper.handleAction('down', 1500, 'keyboard');
+        expect(commands).toEqual([{ type: 'TapBaby', t: 500 }]);
+      });
     });
 
     it('Space / A sends nothing with the baby out of reach and no object', () => {

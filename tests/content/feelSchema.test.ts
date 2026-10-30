@@ -21,8 +21,9 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // presets) and `count` (a particle count).
 // Story 2.7 adds `Taps` (`minValidTaps`: a count of taps) and the exact key `bpm` (a tempo; the unit
 // is the name).
+// Story 4.1 adds `OffsetM` (`putDownOffsetM`) and the exact key `reachM` (lengths in metres, spelled out).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm)$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|OffsetM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm|reachM)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -86,6 +87,52 @@ describe('content/feel.json', () => {
       ],
       ['fatigue.microSleepMinMs'],
     ],
+    [
+      'cry-in-the-arms bounds in the wrong order (story 4.1)',
+      [
+        ['carry.armsCryMinMs', 9000],
+        ['carry.armsCryMaxMs', 1000],
+      ],
+      ['carry.armsCryMinMs'],
+    ],
+    [
+      'a combo minimum at the maximum (story 4.2)',
+      [
+        ['combo.minMultiplier', 8],
+        ['combo.maxMultiplier', 8],
+      ],
+      ['combo.minMultiplier'],
+    ],
+    [
+      'a combo minimum above the maximum',
+      [
+        ['combo.minMultiplier', 5],
+        ['combo.maxMultiplier', 3],
+      ],
+      ['combo.minMultiplier'],
+    ],
+    ['a combo minimum of 0', [['combo.minMultiplier', 0]], ['combo.minMultiplier']],
+    ['a fractional combo maximum', [['combo.maxMultiplier', 4.5]], ['combo.maxMultiplier']],
+    ['a combo tick of 0 ms', [['combo.carryTickMs', 0]], ['combo.carryTickMs']],
+    [
+      'base points per response of 0 (a cash-in would be +0)',
+      [['combo.basePerResponsePoints', 0]],
+      ['combo.basePerResponsePoints'],
+    ],
+    [
+      'base points per tick of 0',
+      [['combo.basePerCarryTickPoints', 0]],
+      ['combo.basePerCarryTickPoints'],
+    ],
+    [
+      'a cash-in slow-mo below the minimum time scale',
+      [['combo.slowMoCashIn.timeScale', 0.01]],
+      ['combo.slowMoCashIn.timeScale'],
+    ],
+    ['a missing combo section', [['combo', undefined]], ['combo']],
+    ['a missing carry.reachM', [['carry.reachM', undefined]], ['carry.reachM']],
+    ['a reach of 0 (nothing would ever be in it)', [['carry.reachM', 0]], ['carry.reachM']],
+    ['a negative carry.putDownOffsetM', [['carry.putDownOffsetM', -1]], ['carry.putDownOffsetM']],
     [
       'a fixed baby state above its maximum',
       // The maximum stays as it is: the maxima must still add up to 100 (story 1.22).

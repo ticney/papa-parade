@@ -109,7 +109,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     expect(ui.threatEntries).toEqual([entry]);
     ui.updateThreats(threat('telegraph'), null, null);
-    const object = ui.scene.children[2] as unknown as { element: FakeElement };
+    const object = ui.scene.children[3] as unknown as { element: FakeElement };
     ui.render(camera);
     expect(object.element.style.transform).toMatch(/translate\(400px, (200|199\.9\d*)px\)/);
     expect(object.element.parentNode).toBe(container);
@@ -121,7 +121,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     ui.updateThreats(threat('telegraph'), null, null);
     ui.updateThreats(threat('resolved'), null, null);
-    const object = ui.scene.children[2] as unknown as { element: FakeElement };
+    const object = ui.scene.children[3] as unknown as { element: FakeElement };
     object.element.style.transform = 'untouched';
     ui.render(camera);
     expect(object.element.style.transform).toBe('untouched');
@@ -132,7 +132,93 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     ui.unmountThreats();
     expect(ui.threatEntries).toEqual([]);
-    expect(ui.scene.children).toHaveLength(2); // the tap marker and the glyph chip stay
+    expect(ui.scene.children).toHaveLength(3); // the tap marker, the glyph chip and the combo badge stay
+  });
+});
+
+describe('createWorldUi, combo badge (story 4.2)', () => {
+  const combo = (multiplier: number) => ({ multiplier, basePoints: 0, carryTickAt: null });
+  const PAPA = { xM: 1, zM: 1 };
+  const threatOf = (state: string) => [{ id: 1, state }] as never;
+  const followingEntry = {
+    threatId: 1,
+    xM: 0,
+    yM: 0,
+    zM: 0,
+    icon: 'bolt' as const,
+    followsPapa: true,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
+  };
+
+  it('renders the layer for a visible badge alone: no tap marker, no icon, no chip', () => {
+    const { ui, camera } = build();
+    ui.setSize(800, 400);
+    const badge = ui.scene.children[2] as unknown as { element: FakeElement };
+    ui.render(camera);
+    expect(Object.keys(badge.element.style)).not.toContain('transform');
+    ui.updateCombo(combo(3), 1, PAPA, [], 0);
+    expect(ui.comboBadge.isVisible).toBe(true);
+    ui.render(camera);
+    expect(Object.keys(badge.element.style)).toContain('transform');
+  });
+
+  it('stops rendering the layer once the multiplier is back to its minimum', () => {
+    const { ui, camera } = build();
+    ui.setSize(800, 400);
+    ui.updateCombo(combo(3), 1, PAPA, [], 0);
+    ui.updateCombo(combo(1), 1, PAPA, [], 16);
+    const badge = ui.scene.children[2] as unknown as { element: FakeElement };
+    badge.element.style.transform = 'untouched';
+    ui.render(camera);
+    expect(badge.element.style.transform).toBe('untouched');
+  });
+
+  it('keeps the layer up for the points of a cash-in', () => {
+    const { ui, camera } = build();
+    ui.setSize(800, 400);
+    ui.comboBadge.showCashIn(6, 900, 0);
+    const badge = ui.scene.children[2] as unknown as { element: FakeElement };
+    ui.render(camera);
+    expect(Object.keys(badge.element.style)).toContain('transform');
+  });
+
+  it('moves the badge aside while a threat that follows Papa is up, and only then', () => {
+    const toggles: [string, boolean][] = [];
+    const { ui } = build();
+    ui.setSize(800, 400);
+    const badge = ui.scene.children[2] as unknown as { element: FakeElement };
+    badge.element.classList.toggle = ((name: string, force: boolean) => {
+      toggles.push([name, force]);
+      return force;
+    }) as never;
+    ui.mountThreats([followingEntry]);
+    ui.updateCombo(combo(3), 1, PAPA, threatOf('idle'), 0);
+    ui.updateCombo(combo(3), 1, PAPA, threatOf('telegraph'), 16);
+    ui.updateCombo(combo(3), 1, PAPA, threatOf('windowOpen'), 32);
+    ui.updateCombo(combo(3), 1, PAPA, threatOf('resolved'), 48);
+    expect(toggles.filter(([name]) => name === 'pp-combo-badge--aside')).toEqual([
+      ['pp-combo-badge--aside', true],
+      ['pp-combo-badge--aside', false],
+    ]);
+  });
+
+  it('does not move aside for a threat that stands on the anchor of the room', () => {
+    const toggles: boolean[] = [];
+    const { ui } = build();
+    ui.setSize(800, 400);
+    const badge = ui.scene.children[2] as unknown as { element: FakeElement };
+    badge.element.classList.toggle = ((_name: string, force: boolean) => {
+      toggles.push(force);
+      return force;
+    }) as never;
+    ui.mountThreats([{ ...followingEntry, followsPapa: false }]);
+    ui.updateCombo(combo(3), 1, PAPA, threatOf('telegraph'), 0);
+    expect(toggles).toEqual([]);
   });
 });
 
@@ -215,7 +301,7 @@ describe('createWorldUi, verbs (story 2.2)', () => {
     expect(ui.threatEntries[0]?.verbOffsetPx).toBe(0);
     expect(ui.threatEntries[1]?.verbOffsetPx).toBeGreaterThan(0);
     // The renderer ran after the layout: both markers have their transform.
-    const objects = ui.scene.children.slice(2, 4) as unknown as { element: FakeElement }[];
+    const objects = ui.scene.children.slice(3, 5) as unknown as { element: FakeElement }[];
     for (const object of objects) expect(object.element.style.transform).toBeDefined();
   });
 

@@ -1,7 +1,7 @@
 import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
-import { isBabyFree, isSilenceUnderway } from '../baby/babyFsm.ts';
-import { isInZone } from '../baby/silence.ts';
+import { isBabyCarried, isBabyFree, isSilenceUnderway } from '../baby/babyFsm.ts';
+import { isInZone } from '../baby/zone.ts';
 import type { StepContext } from '../context.ts';
 import { hideThreat, telegraphThreat } from '../threats/threatFsm.ts';
 import type { ThreatInstance, World } from '../world.ts';
@@ -10,7 +10,7 @@ import { isThreatActive } from './waveState.ts';
 /**
  * System: the wave director (story 1.18, architecture L273). It enters each wave at its `fromMs`
  * (`WaveStarted`) and, at most once per step, telegraphs one threat. A threat comes only when the
- * wave is open (before `closesAtMs`, the lull follows), the gap since the last telegraph has
+ * wave is open (before `closesAtMs`, the lull follows), Papa is not carrying the baby (story 4.1: nothing is drawn then, and no draw is spent), the gap since the last telegraph has
  * passed (`director.nextAt`), the baby is not playing out a gag, and fewer than the wave's
  * `maxSimultaneous` threats are announced or open. The threat is drawn from `world.rng`, uniformly
  * among the idle ones of the waves entered so far (waves are cumulative). The draws depend only on
@@ -92,6 +92,8 @@ function isCandidate(world: World, ctx: StepContext, index: number, waveIndex: n
   if (threat === undefined || threat.state !== 'idle' || !isInPool(ctx, index, waveIndex)) {
     return false;
   }
+  // Papa carries the baby (story 4.1): nobody is left to menace, so the director draws nothing.
+  if (isBabyCarried(world)) return false;
   const planned = ctx.level.threats[index];
   if (planned?.def.target !== 'hiddenZone') return !isSilenceUnderway(world);
   if (!isBabyFree(world)) return false;

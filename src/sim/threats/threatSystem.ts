@@ -1,5 +1,6 @@
 import { invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
+import { isBabyCarried } from '../baby/babyFsm.ts';
 import type { StepContext } from '../context.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
 import { classifyPress } from '../timing/classifyPress.ts';
@@ -107,7 +108,10 @@ export function runThreats(world: World, ctx: StepContext): void {
         ctx.events.push({ type: 'ResponseHeld', t: asSimMs(now), threatId: threat.id });
       }
       if (kind !== null && threat.state === 'windowOpen') {
-        if (def.response === 'firm' && kind === 'firm') {
+        if (def.response === 'firm' && kind === 'firm' && isBabyCarried(world)) {
+          // Papa has one hand left (story 4.1): he cannot hold with Firmness while carrying.
+          gagThreat(world, ctx, threat, def, 'wrongResponse', press.offsetMs);
+        } else if (def.response === 'firm' && kind === 'firm') {
           // A Firmness is held to the end of the attack: the hold alone resolves it, no release needed.
           // The schema ties `holdUntilMs` to `response: 'firm'`; a def that skipped it must not play.
           invariant(def.holdUntilMs !== undefined, `firm threat ${def.id} has no holdUntilMs`);

@@ -1,8 +1,9 @@
-import { nextInt, type RngState } from '@shared/rng';
+import { nextFloat, nextInt, type RngState } from '@shared/rng';
+import type { StepContext } from '../context.ts';
 import { findPath } from '../nav/astar.ts';
 import type { NavGrid } from '../nav/navGrid.ts';
 import { smoothPath } from '../nav/smoothPath.ts';
-import type { BabySlice } from '../world.ts';
+import type { BabySlice, World } from '../world.ts';
 
 /**
  * Picks where the baby crawls next: an open cell of its region whose centre is between
@@ -74,4 +75,13 @@ export function planWander(baby: BabySlice, grid: NavGrid, cell: number): boolea
   baby.path = path;
   baby.pathIndex = 0;
   return true;
+}
+
+/**
+ * How long the next babble lasts, in ms. One `nextFloat` even when min = max, so that the number
+ * of draws does not depend on the tuning.
+ */
+export function drawBabbleMs(world: World, ctx: StepContext): number {
+  const { babbleMinMs, babbleMaxMs } = ctx.feel.baby;
+  return babbleMinMs + nextFloat(world.rng) * (babbleMaxMs - babbleMinMs);
 }

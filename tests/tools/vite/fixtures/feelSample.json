@@ -50,6 +50,24 @@
     "coffeeDurationMs": 3000,
     "asleepMs": 3000
   },
+  "carry": {
+    "reachM": 1.2,
+    "putDownOffsetM": 0.4,
+    "armsCryMinMs": 6000,
+    "armsCryMaxMs": 10000
+  },
+  "combo": {
+    "minMultiplier": 1,
+    "maxMultiplier": 8,
+    "carryTickMs": 10000,
+    "basePerResponsePoints": 0.5,
+    "basePerCarryTickPoints": 0.5,
+    "slowMoCashIn": {
+      "timeScale": 0.25,
+      "durationMs": 1000,
+      "returnMs": 300
+    }
+  },
   "noise": {
     "decayPerSec": 1,
     "alertPct": 80,

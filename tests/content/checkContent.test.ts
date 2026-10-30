@@ -1217,6 +1217,104 @@ describe('checkContent on level files', () => {
     ]);
   });
 
+  describe('a level that carries the baby (story 4.1)', () => {
+    it('accepts the live one', async () => {
+      expect(await checkContent(root)).toEqual([]);
+    });
+
+    it('names a cry in the arms that has no threat file', async () => {
+      await mutateJson(FILE, (level) => {
+        level.carry = { armsCryDef: 'arms_snooze' };
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'carry.armsCryDef',
+          message: expect.stringContaining('arms_snooze'),
+        }),
+      ]);
+    });
+
+    it('names a cry in the arms whose target is not "papa"', async () => {
+      await mutateJson(FILE, (level) => {
+        level.carry = { armsCryDef: 'outlet' };
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'carry.armsCryDef',
+          message: expect.stringMatching(/"outlet".*target "anchor".*must have target "papa"/),
+        }),
+      ]);
+    });
+
+    it('names a cry in the arms that ends in "papa_asleep"', async () => {
+      await mutateJson('content/threats/arms_cry.json', (threat) => {
+        threat.gag = 'papa_asleep';
+      });
+      expect(await checkContent(root)).toContainEqual(
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'carry.armsCryDef',
+          message: expect.stringMatching(/"arms_cry".*gag "papa_asleep".*micro-sleep's alone/),
+        }),
+      );
+    });
+
+    it('names a cry in the arms that ends in a gag the sim does not know', async () => {
+      await mutateJson('content/threats/arms_cry.json', (threat) => {
+        threat.gag = 'arms_wails';
+      });
+      expect(await checkContent(root)).toContainEqual(
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'carry.armsCryDef',
+          message: expect.stringMatching(/"arms_cry".*gag "arms_wails".*sim does not know/),
+        }),
+      );
+    });
+
+    it('names a cry in the arms that asks for Firmness, which carrying rules out', async () => {
+      await mutateJson('content/threats/arms_cry.json', (threat) => {
+        threat.response = 'firm';
+        threat.holdUntilMs = 1000;
+      });
+      expect(await checkContent(root)).toContainEqual(
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'carry.armsCryDef',
+          message: expect.stringMatching(/"arms_cry".*response "firm"/),
+        }),
+      );
+    });
+
+    it('names a level that carries in a room with no safe zone', async () => {
+      await mutateJson('content/levels/salon_crawler.geometry.json', (geometry) => {
+        geometry.zones = (geometry.zones as { kind: string }[]).filter(
+          (zone) => zone.kind !== 'safe',
+        );
+      });
+      expect(await checkContent(root)).toContainEqual(
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'carry',
+          message: expect.stringMatching(/carries the baby.*no safe zone/),
+        }),
+      );
+    });
+
+    it('names a wave that plans the cry in the arms', async () => {
+      await plan([entry], [{ def: 'arms_cry', anchor: 'stairs_top' }]);
+      expect(await checkContent(root)).toContainEqual(
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'waves[1].threats[0].def',
+          message: expect.stringMatching(/"arms_cry".*carry\.armsCryDef/),
+        }),
+      );
+    });
+  });
+
   it('names the wave threat whose def has target "papa"', async () => {
     await plan([entry], [{ def: 'papa_microsleep', anchor: 'stairs_top' }]);
     expect(await checkContent(root)).toContainEqual(

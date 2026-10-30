@@ -5,7 +5,7 @@ import { asSimMs, type SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
 import type { DisruptionState } from './disruptions/disruptionFsm.ts';
 import type { FlowState } from './flow/flowFsm.ts';
-import type { PapaState } from './papa/papaFsm.ts';
+import type { PapaIntent, PapaState } from './papa/papaFsm.ts';
 import type { ThreatState } from './threats/threatFsm.ts';
 import type { EffectiveWindow } from './timing/effectiveWindow.ts';
 
@@ -35,8 +35,32 @@ export interface PapaSlice {
   glide: PapaGlide | null;
   /** The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19). */
   objectId: string | null;
+  /**
+   * What the current tapped walk does on arrival besides `objectId` (story 4.1): take the baby, or
+   * put him down in a safe zone. `'none'` outside `walkPath`.
+   */
+  intent: PapaIntent;
   /** When `drink` / `asleep` / `onPhone` ends, in sim time; 0 in any other state. */
   busyUntil: SimMs;
+}
+
+/** Carrying the baby (story 4.1). */
+export interface CarrySlice {
+  /** When the next « cry in the arms » is due, in sim time; null while the baby is not carried. */
+  armsCryAt: SimMs | null;
+}
+
+/**
+ * The combo (FR23, story 4.2). Every writer is in `scoring/combo.ts`, and all of them do nothing in a
+ * level with no `carry` (nowhere to cash in), so the slice stays at rest there.
+ */
+export interface ComboSlice {
+  /** From `feel.combo.minMultiplier`: +1 per successful response and per carry tick, back to the minimum on a gag or a cash-in. */
+  multiplier: number;
+  /** The base points the combo has piled up since it last reset; not whole. A cash-in is `multiplier * basePoints`. */
+  basePoints: number;
+  /** When the next carry tick is due, in sim time; null unless the baby is carried in a level with `carry`. */
+  carryTickAt: SimMs | null;
 }
 
 /** Papa's glide to a pressed threat: it ends by `arriveAt` and never decides a judgement. */
@@ -231,6 +255,8 @@ export interface ScoreSlice {
   perfects: number;
   /** `NearMiss` events. */
   nearMisses: number;
+  /** The sum of the points of every combo cashed in (story 4.2), not rounded; points not cashed when the level ends are lost. */
+  comboPoints: number;
   /** The note, from the step the level ended; null while it plays. */
   final: MamaScore | null;
 }
@@ -270,10 +296,14 @@ export interface FlowSlice {
 }
 
 /** What started a slow-mo. Story 1.18 triggers `lastThreat`; story 2.9 adds `instinct`. */
-export type SlowMoSource = 'perfect' | 'lastThreat';
+export type SlowMoSource = 'perfect' | 'lastThreat' | 'comboCashIn';
 
 /** Every `SlowMoSource`, as data: a snapshot is checked against it. */
-export const SLOW_MO_SOURCES = ['perfect', 'lastThreat'] as const satisfies readonly SlowMoSource[];
+export const SLOW_MO_SOURCES = [
+  'perfect',
+  'lastThreat',
+  'comboCashIn',
+] as const satisfies readonly SlowMoSource[];
 
 type UnlistedSlowMoSource = Exclude<SlowMoSource, (typeof SLOW_MO_SOURCES)[number]>;
 
@@ -336,6 +366,10 @@ export interface World {
   mess: MessSlice;
   /** The suspicious silence under way, if any (story 1.21). */
   silence: SilenceSlice;
+  /** Carrying the baby (story 4.1). */
+  carry: CarrySlice;
+  /** The combo (story 4.2). */
+  combo: ComboSlice;
   /** What feeds Mama's note, and the note once the level has ended (story 1.22). */
   score: ScoreSlice;
   /** What the client has told the sim about the player's input (story 2.7). */
@@ -399,6 +433,7 @@ export function createWorld({
       isBlocked: false,
       glide: null,
       objectId: null,
+      intent: 'none',
       busyUntil: asSimMs(0),
     },
     baby: {
@@ -455,7 +490,9 @@ export function createWorld({
     })),
     mess: { propsOnFloor: 0, propsBroken: 0, mischiefs: 0 },
     silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
-    score: { perfects: 0, nearMisses: 0, final: null },
+    carry: { armsCryAt: null },
+    combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
+    score: { perfects: 0, nearMisses: 0, comboPoints: 0, final: null },
     input: { lagMs: 0 },
     feel: cloneJson(feel),
   };

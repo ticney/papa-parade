@@ -10,10 +10,10 @@ import { ROOT } from '../assets/paths.ts';
 import { synthBabyLaugh, synthFirm, synthParry } from './cultSounds.ts';
 import { normalize, PEAK_LOUD, SAMPLE_RATE_HZ, SEED, samplesOf } from './synthKit.ts';
 
-// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3 and 3.2 (the outlet's cues,
+// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 3.2 and 4.1 (the outlet's cues,
 // then the stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled
 // swell and Papa's snore, then the phone's ring and Papa's pick-up click, then the silence's « ah-ha »
-// chirp and the baby's paper rustle; story 2.3 replaced the parry's pop by a toy squeak, dropped the
+// chirp and the baby's paper rustle, then story 4.1's cry in the arms, pick-up and put-down; story 2.3 replaced the parry's pop by a toy squeak, dropped the
 // perfect's chime and added the Firmness's cupboard clack and the baby's laugh, in `cultSounds.ts`; story 3.2 added Mama's door slam and the lost star's cue),
 // synthesized so that the whole audio pipeline works end to end with no human (golden rule). Real
 // sounds replace the `.m4a` files under the same names (story 7.5, or Geo's recordings; `--only`
@@ -48,6 +48,34 @@ const MUSIC_ATTACK_MS = 5;
 const MUSIC_DECAY_S = 0.22;
 const MUSIC_RELEASE_MS = 30;
 
+const ARMS_TEL_LENGTH_MS = 450;
+const ARMS_TEL_PITCH_HZ = { from: 380, to: 560 };
+const ARMS_TEL_VIBRATO_HZ = 8;
+const ARMS_TEL_VIBRATO_DEPTH = 0.05;
+const ARMS_TEL_ATTACK_MS = 30;
+const ARMS_TEL_RELEASE_MS = 120;
+
+const ARMS_WAIL_LENGTH_MS = 1000;
+const ARMS_WAIL_PITCH_HZ = { from: 460, peak: 720, to: 420 };
+const ARMS_WAIL_VIBRATO_HZ = 6;
+const ARMS_WAIL_VIBRATO_DEPTH = 0.04;
+const ARMS_WAIL_ATTACK_MS = 40;
+const ARMS_WAIL_RELEASE_MS = 200;
+/** Level of the second harmonic against the first in the cries: a nasal, crying colour. */
+const ARMS_HARMONIC_GAIN = 0.5;
+
+const PICKUP_LENGTH_MS = 200;
+const PICKUP_PITCH_HZ = { from: 260, to: 520 };
+const PICKUP_ATTACK_MS = 15;
+const PICKUP_RELEASE_MS = 60;
+
+const PUTDOWN_LENGTH_MS = 260;
+const PUTDOWN_PITCH_HZ = { from: 420, to: 160 };
+const PUTDOWN_ATTACK_MS = 8;
+const PUTDOWN_RELEASE_MS = 120;
+const PUTDOWN_THUMP_HZ = 90;
+const PUTDOWN_THUMP_DECAY_S = 0.05;
+
 /**
  * The tense stem (story 2.6) plays twice as many steps as the calm one over the same 8 s, so its
  * notes land on the calm ones. A lower register on a scale with a flat second (Db against C) and a
@@ -60,6 +88,16 @@ const MUSIC_TENSE_SCALE_HZ = [
 /** Level of the square wave against the sawtooth in the tense timbre: a buzzy edge. */
 const MUSIC_TENSE_SQUARE_GAIN = 0.6;
 const MUSIC_TENSE_DECAY_S = 0.12;
+
+// Combo cash-in (story 4.2): a bright rising arpeggio with a sparkle of noise on top.
+const CASH_IN_LENGTH_MS = 520;
+const CASH_IN_NOTES_HZ: readonly number[] = [523.25, 659.25, 783.99, 1046.5];
+const CASH_IN_NOTE_GAP_MS = 80;
+const CASH_IN_NOTE_DECAY_S = 0.14;
+const CASH_IN_ATTACK_MS = 4;
+const CASH_IN_RELEASE_MS = 120;
+const CASH_IN_SPARKLE_GAIN = 0.18;
+const CASH_IN_SPARKLE_DECAY_S = 0.18;
 
 const BUMP_LENGTH_MS = 150;
 const BUMP_PITCH_HZ = { from: 180, to: 80 };
@@ -785,6 +823,133 @@ export function synthStarLost(): Float32Array {
   return out;
 }
 
+/**
+ * A crying voice: a sine and its second harmonic whose pitch follows `contour` (0..1 over the clip),
+ * with a vibrato, an attack and a release. The cry in the arms' telegraph and gag use it.
+ */
+function cryVoice(
+  lengthMs: number,
+  contour: (progress: number) => number,
+  vibrato: { hz: number; depth: number },
+  attackMs: number,
+  releaseMs: number,
+): Float32Array {
+  const out = new Float32Array(samplesOf(lengthMs));
+  const attack = samplesOf(attackMs);
+  const release = samplesOf(releaseMs);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const frequencyHz =
+      contour(i / out.length) * (1 + vibrato.depth * Math.sin(2 * Math.PI * vibrato.hz * seconds));
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    out[i] =
+      (Math.sin(phase) + ARMS_HARMONIC_GAIN * Math.sin(2 * phase)) *
+      Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A whimper that rises (the cry in the arms' telegraph: « BERCE ! »). */
+export function synthTelegraphArmsCry(): Float32Array {
+  return cryVoice(
+    ARMS_TEL_LENGTH_MS,
+    (progress) =>
+      ARMS_TEL_PITCH_HZ.from + (ARMS_TEL_PITCH_HZ.to - ARMS_TEL_PITCH_HZ.from) * progress,
+    { hz: ARMS_TEL_VIBRATO_HZ, depth: ARMS_TEL_VIBRATO_DEPTH },
+    ARMS_TEL_ATTACK_MS,
+    ARMS_TEL_RELEASE_MS,
+  );
+}
+
+/** A full wail: up to a peak, then down (the cry in the arms' gag). */
+export function synthGagArmsWail(): Float32Array {
+  const { from, peak, to } = ARMS_WAIL_PITCH_HZ;
+  return cryVoice(
+    ARMS_WAIL_LENGTH_MS,
+    (progress) =>
+      progress < 0.35
+        ? from + (peak - from) * (progress / 0.35)
+        : peak + (to - peak) * ((progress - 0.35) / 0.65),
+    { hz: ARMS_WAIL_VIBRATO_HZ, depth: ARMS_WAIL_VIBRATO_DEPTH },
+    ARMS_WAIL_ATTACK_MS,
+    ARMS_WAIL_RELEASE_MS,
+  );
+}
+
+/** A soft « hup »: a short sine that rises (Papa lifts the baby, cue `baby_picked_up`). */
+export function synthBabyPickup(): Float32Array {
+  const out = new Float32Array(samplesOf(PICKUP_LENGTH_MS));
+  const attack = samplesOf(PICKUP_ATTACK_MS);
+  const release = samplesOf(PICKUP_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const frequencyHz =
+      PICKUP_PITCH_HZ.from + (PICKUP_PITCH_HZ.to - PICKUP_PITCH_HZ.from) * (i / out.length);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    out[i] = Math.sin(phase) * Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A soft landing: a sine that falls with a low thump under it (Papa sets the baby down, cue `baby_put_down`). */
+export function synthBabyPutdown(): Float32Array {
+  const out = new Float32Array(samplesOf(PUTDOWN_LENGTH_MS));
+  const attack = samplesOf(PUTDOWN_ATTACK_MS);
+  const release = samplesOf(PUTDOWN_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const frequencyHz =
+      PUTDOWN_PITCH_HZ.from + (PUTDOWN_PITCH_HZ.to - PUTDOWN_PITCH_HZ.from) * (i / out.length);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const thump =
+      Math.sin(2 * Math.PI * PUTDOWN_THUMP_HZ * seconds) *
+      Math.exp(-seconds / PUTDOWN_THUMP_DECAY_S);
+    out[i] = (0.6 * Math.sin(phase) + thump) * Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** The combo cashed in at a safe drop: four rising notes and a sparkle of noise (cue `combo_cashed_in`). */
+export function synthComboCashIn(): Float32Array {
+  const rng = createRng(SEED + 10);
+  const out = new Float32Array(samplesOf(CASH_IN_LENGTH_MS));
+  const attack = samplesOf(CASH_IN_ATTACK_MS);
+  const release = samplesOf(CASH_IN_RELEASE_MS);
+  let sparkle = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    let tone = 0;
+    for (const [index, frequencyHz] of CASH_IN_NOTES_HZ.entries()) {
+      const sinceNoteS = seconds - (index * CASH_IN_NOTE_GAP_MS) / 1000;
+      if (sinceNoteS < 0) continue;
+      tone +=
+        Math.sin(2 * Math.PI * frequencyHz * sinceNoteS) *
+        Math.exp(-sinceNoteS / CASH_IN_NOTE_DECAY_S);
+    }
+    // First difference of white noise: the highs only, the glitter.
+    const white = nextFloat(rng) * 2 - 1;
+    const glitter = white - sparkle;
+    sparkle = white;
+    const air = glitter * CASH_IN_SPARKLE_GAIN * Math.exp(-seconds / CASH_IN_SPARKLE_DECAY_S);
+    out[i] = (tone + air) * Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -832,6 +997,11 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'ui_star_stamp_last', synth: synthStarStampLast },
   { clip: 'env_door_slam', synth: synthDoorSlam },
   { clip: 'ui_star_lost', synth: synthStarLost },
+  { clip: 'tel_arms_cry', synth: synthTelegraphArmsCry },
+  { clip: 'gag_arms_wail', synth: synthGagArmsWail },
+  { clip: 'baby_pickup', synth: synthBabyPickup },
+  { clip: 'baby_putdown', synth: synthBabyPutdown },
+  { clip: 'ui_combo_cash_in', synth: synthComboCashIn },
   { clip: 'ui_calibration_beep', synth: synthCalibrationBeep },
 ];
 

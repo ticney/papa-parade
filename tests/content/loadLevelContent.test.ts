@@ -49,9 +49,15 @@ describe('loadLevelContent', () => {
     expect(result.value.level.id).toBe('salon_crawler');
     const planned = result.value.level.waves.flatMap((wave) => wave.threats.map((t) => t.def));
     expect(planned).toContain('outlet');
-    // The waves' defs in order of first reference, then the micro-sleep of its fatigue gauge.
-    expect(Object.keys(result.value.threats)).toEqual([...new Set(planned), 'papa_microsleep']);
+    // The waves' defs in order of first reference, then the micro-sleep of its fatigue gauge, then
+    // the cry in the arms of its `carry` (story 4.1).
+    expect(Object.keys(result.value.threats)).toEqual([
+      ...new Set(planned),
+      'papa_microsleep',
+      'arms_cry',
+    ]);
     expect(result.value.threats.papa_microsleep?.target).toBe('papa');
+    expect(result.value.threats.arms_cry?.target).toBe('papa');
   });
 
   it('loads the disruption def the live level plans, once, beside the threat defs', async () => {

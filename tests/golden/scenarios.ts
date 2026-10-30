@@ -5,6 +5,7 @@ import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
 import {
+  CARRY,
   COFFEE_TABLE,
   createTestContent,
   createTestLevel,
@@ -50,6 +51,7 @@ const pressOutlet = (t: number): SimCommand => ({
   threatId: 1,
 });
 const release = (t: number): SimCommand => ({ type: 'Release', t: asSimMs(t) });
+const tapBaby = (t: number): SimCommand => ({ type: 'TapBaby', t: asSimMs(t) });
 const pushProp = (t: number, propId: string, impulseXNs: number): SimCommand => ({
   type: 'PushProp',
   t: asSimMs(t),
@@ -226,6 +228,51 @@ export const SCENARIOS: readonly Scenario[] = [
     seed: 42,
     untilSimMs: 40000,
     actions: [],
+  },
+  {
+    // Carrying the baby (story 4.1), on the frozen living room with a cry in the arms. The outlet,
+    // planned from 2 s, is telegraphed while Papa waits next to the baby (a TapFloor at 0 walks him
+    // there). The baby is locked on the outlet and crawling to it when a TapBaby at 2320 takes him
+    // (within reach): `BabyStateChanged{carried}`, `BabyPickedUp`, and the outlet, still in its
+    // telegraph, is cancelled (`ThreatCancelled{carried}`: no gag, no result). A TapFloor at the
+    // playpen's centre walks Papa there with the baby, who is put down on arrival: `BabyPutDown{safe}`.
+    // The director then draws the outlet again (4000) and a perfect Parry resolves it. The times are
+    // read from a first recording (telegraph 2000, pick-up 2330, put-down 3120, second telegraph
+    // 4000, its window opens 5200, centre 5350). `babyCarry.test.ts` pins what it covers.
+    name: 'baby_carry',
+    level: createTestLevel({
+      waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })],
+      carry: CARRY,
+    }),
+    seed: 11,
+    untilSimMs: 8000,
+    actions: [
+      { atStep: 0, command: tapFloor(0, -0.2, 1.2) },
+      { atStep: 232, command: tapBaby(2320) },
+      { atStep: 250, command: tapFloor(2500, -2, 1.6) },
+      { atStep: 530, command: pressOutlet(5350) },
+      { atStep: 530, command: release(5400) },
+    ],
+  },
+  {
+    // The combo cashed in (story 4.2), on the frozen living room with a cry in the arms and no wave.
+    // A TapBaby at 0 walks Papa to the baby and takes him (pick-up 1010). The first carry tick comes
+    // 10 s later (11010, x2); the cry in the arms, telegraphed at 9940, opens its window at 11140 and
+    // a perfect Parry at its centre resolves it (11340, x3, 1 base point). A TapFloor at the playpen's
+    // centre walks Papa there and the baby is put down safe (11920): the combo is cashed in (3 x 1 = 3
+    // points), the cash-in slow-mo runs out, and the level ends at 16000 with the points in the Rire
+    // (1 perfect + 3 combo points). The times are read from a first recording.
+    // `comboCashIn.test.ts` pins what it covers.
+    name: 'combo_cash_in',
+    level: createTestLevel({ waves: [], carry: CARRY, durationMs: 16000 }),
+    seed: 21,
+    untilSimMs: 16000,
+    actions: [
+      { atStep: 0, command: tapBaby(0) },
+      { atStep: 1120, command: { type: 'PressThreat', t: asSimMs(11290), threatId: 1 } },
+      { atStep: 1120, command: release(11340) },
+      { atStep: 1140, command: tapFloor(11400, -2, 1.6) },
+    ],
   },
 ];
 

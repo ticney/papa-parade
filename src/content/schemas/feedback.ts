@@ -251,6 +251,14 @@ const CalibrationFeedbackSchema = z
   })
   .describe('The sounds of the latency calibration (story 2.7).');
 
+const ComboBadgeSchema = z
+  .strictObject({
+    cashInHoldMs: realMs(
+      'How long the combo badge shows the points of a cash-in (« +N »), in real ms, even though the multiplier is already back to its minimum.',
+    ),
+  })
+  .describe('The combo badge above Papa (story 4.2). Real time: the sim never reads it.');
+
 export const FeedbackTableSchema = z
   .strictObject({
     buses: BusesSchema,
@@ -258,6 +266,7 @@ export const FeedbackTableSchema = z
     loops: LoopsSchema,
     resultScreen: ResultScreenSchema,
     calibration: CalibrationFeedbackSchema,
+    comboBadge: ComboBadgeSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),
@@ -287,5 +296,6 @@ export type FeedbackTable = z.infer<typeof FeedbackTableSchema>;
 export type FeedbackCue = z.infer<typeof CueSchema>;
 export type FeedbackFlash = z.infer<typeof FlashSchema>;
 export type ResultScreenTimings = z.infer<typeof ResultScreenSchema>;
+export type ComboBadgeTimings = z.infer<typeof ComboBadgeSchema>;
 export type AudioBus = (typeof AUDIO_BUSES)[number];
 export type HapticKind = (typeof HAPTIC_KINDS)[number];

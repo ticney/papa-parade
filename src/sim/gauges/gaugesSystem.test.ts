@@ -16,10 +16,11 @@ const content = createTestContent();
 const geometry = createTestGeometry();
 
 describe('runGauges', () => {
-  it('sits between runPhysics and runFlow', () => {
+  it('sits between runPhysics and runScoring (story 4.2), which comes right before runFlow', () => {
     const names = SYSTEMS.map((system) => system.name);
     expect(names.indexOf('runGauges')).toBe(names.indexOf('runPhysics') + 1);
-    expect(names.indexOf('runFlow')).toBe(names.indexOf('runGauges') + 1);
+    expect(names.indexOf('runScoring')).toBe(names.indexOf('runGauges') + 1);
+    expect(names.indexOf('runFlow')).toBe(names.indexOf('runScoring') + 1);
     expect(SYSTEMS).toContain(runGauges);
   });
 

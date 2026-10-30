@@ -13,7 +13,7 @@ import { invariant } from '@shared/invariant';
 import { DISRUPTION_STATES } from './disruptions/disruptionFsm.ts';
 import { feelShapeProblem } from './feel/applyFeelPatch.ts';
 import { FLOW_STATES, type FlowState } from './flow/flowFsm.ts';
-import { isPapaBusy, PAPA_STATES, type PapaState } from './papa/papaFsm.ts';
+import { isPapaBusy, PAPA_INTENTS, PAPA_STATES, type PapaState } from './papa/papaFsm.ts';
 import { THREAT_STATES } from './threats/threatFsm.ts';
 import {
   type PropSlice,
@@ -30,14 +30,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 15 since story 2.7: `input.lagMs` (`SetInputLag`). 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 17 since story 2.7 (merged after 4.2): `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 15;
+  version: 17;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -56,7 +56,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 15,
+    version: 17,
     seed,
     feelHash,
     geometryHash,
@@ -66,7 +66,11 @@ export function takeSnapshot(
   };
 }
 
-function papaProblem(papa: unknown, objectIds: readonly string[]): string | null {
+function papaProblem(
+  papa: unknown,
+  objectIds: readonly string[],
+  babyState: unknown,
+): string | null {
   if (typeof papa !== 'object' || papa === null) return 'world.papa is missing';
   const slice = papa as Record<string, unknown>;
   if (!PAPA_STATES.includes(slice.state as (typeof PAPA_STATES)[number])) {
@@ -106,6 +110,15 @@ function papaProblem(papa: unknown, objectIds: readonly string[]): string | null
       return 'world.papa.objectId';
     }
     if (slice.state !== 'walkPath') return 'world.papa.objectId';
+  }
+  // What the walk does on arrival (story 4.1): only a tapped path has one, never with an object, and
+  // it agrees with the baby: a put-down needs him in the arms, a take needs him out of them.
+  if (!PAPA_INTENTS.includes(slice.intent as (typeof PAPA_INTENTS)[number])) {
+    return 'world.papa.intent';
+  }
+  if (slice.intent !== 'none') {
+    if (slice.state !== 'walkPath' || slice.objectId !== null) return 'world.papa.intent';
+    if ((slice.intent === 'putDownBaby') !== (babyState === 'carried')) return 'world.papa.intent';
   }
   // A busy Papa has an end (`busyUntil` > 0); any other state has none. Busy states have no path,
   // no direction and no glide: the checks below hold them to it.
@@ -162,6 +175,7 @@ const BABY_STATES: readonly unknown[] = [
   'approach',
   'act',
   'mischiefSilent',
+  'carried',
 ];
 
 function isUnitVector(x: unknown, z: unknown): boolean {
@@ -171,6 +185,7 @@ function isUnitVector(x: unknown, z: unknown): boolean {
 
 function babyProblem(
   baby: unknown,
+  papa: unknown,
   threats: readonly { id: number }[],
   nowMs: number,
 ): string | null {
@@ -247,6 +262,11 @@ function babyProblem(
   }
   if (!isUnitVector(slice.headingX, slice.headingZ)) return 'world.baby.heading';
   if (!isUnitVector(slice.gazeX, slice.gazeZ)) return 'world.baby.gaze';
+  // In Papa's arms (story 4.1) he is at Papa's point: no path, target or approach was checked above.
+  if (slice.state === 'carried') {
+    const holder = papa as Record<string, unknown>;
+    if (slice.xM !== holder.xM || slice.zM !== holder.zM) return 'world.baby.xM';
+  }
   // A cry (story 3.1) has both its instants or neither, started no later than now, and ends no
   // earlier than it started.
   const { cryStartedAt, cryEndsAt } = slice;
@@ -501,6 +521,10 @@ export interface PlannedLevel {
   readonly disruptions: readonly { readonly def: { readonly ringMaxMs: number } }[];
   /** The index in `threats` of the micro-sleep, or -1 when the level has no fatigue. */
   readonly microSleepIndex: number;
+  /** The index in `threats` of the cry in the arms, or -1 when the level has none (story 4.1). */
+  readonly armsCryIndex: number;
+  /** Whether the level carries the baby (`SimLevel.hasCarry`, story 4.1): only then can he be `carried`. */
+  readonly hasCarry: boolean;
   /** Whether the level has the noise gauge (`SimLevel.hasNoise`, story 3.1). */
   readonly hasNoise: boolean;
   /** The level's interactive objects: Papa's `objectId` must be one of them. */
@@ -625,6 +649,46 @@ function silenceProblem(
   return null;
 }
 
+/**
+ * Carrying (story 4.1): the baby is carried only in a level that carries; `armsCryAt` is a finite
+ * instant exactly while the baby is in the arms in a level with a cry in the arms, and null
+ * otherwise (`takeBaby` draws it, `putDownBaby` clears it).
+ */
+function carryProblem(
+  carry: unknown,
+  baby: unknown,
+  hasCarry: boolean,
+  hasArmsCry: boolean,
+): string | null {
+  if (typeof carry !== 'object' || carry === null) return 'world.carry is missing';
+  const { armsCryAt } = carry as Record<string, unknown>;
+  const isCarried = (baby as Record<string, unknown>).state === 'carried';
+  if (isCarried && !hasCarry) return 'world.baby.state';
+  if (armsCryAt === null) return isCarried && hasArmsCry ? 'world.carry.armsCryAt' : null;
+  if (!isFiniteNumber(armsCryAt) || (armsCryAt as number) < 0) return 'world.carry.armsCryAt';
+  if (!hasArmsCry || !isCarried) return 'world.carry.armsCryAt';
+  return null;
+}
+
+/**
+ * The combo (story 4.2): a whole multiplier of at least 1, finite non-negative base points (not
+ * whole: they are not `isCount`), and a tick that is due at a finite instant exactly while the baby
+ * is in the arms (`takeBaby` starts it, `putDownBaby` stops it). Not checked against `feel.combo`: a
+ * `SetFeel` can move the bounds under a running combo.
+ */
+function comboProblem(combo: unknown, baby: unknown): string | null {
+  if (typeof combo !== 'object' || combo === null) return 'world.combo is missing';
+  const { multiplier, basePoints, carryTickAt } = combo as Record<string, unknown>;
+  if (!Number.isInteger(multiplier) || (multiplier as number) < 1) return 'world.combo.multiplier';
+  if (!isFiniteNumber(basePoints) || (basePoints as number) < 0) return 'world.combo.basePoints';
+  const isCarried = (baby as Record<string, unknown>).state === 'carried';
+  if (carryTickAt === null) return isCarried ? 'world.combo.carryTickAt' : null;
+  if (!isFiniteNumber(carryTickAt) || (carryTickAt as number) < 0 || !isCarried) {
+    return 'world.combo.carryTickAt';
+  }
+  return null;
+}
+
 function propsProblem(
   props: unknown,
   mess: unknown,
@@ -679,6 +743,9 @@ function scoreProblem(score: unknown, isEnded: boolean): string | null {
   const slice = score as Record<string, unknown>;
   if (!isCount(slice.perfects)) return 'world.score.perfects';
   if (!isCount(slice.nearMisses)) return 'world.score.nearMisses';
+  if (!isFiniteNumber(slice.comboPoints) || (slice.comboPoints as number) < 0) {
+    return 'world.score.comboPoints';
+  }
   const { final } = slice;
   if (!isEnded) return final === null ? null : 'world.score.final';
   if (typeof final !== 'object' || final === null) return 'world.score.final';
@@ -728,6 +795,8 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     gauges,
     disruptions,
     silence,
+    carry,
+    combo,
     score,
     input,
     feel,
@@ -780,8 +849,11 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     papaProblem(
       papa,
       planned.objects.map((object) => object.id),
+      (baby as { state?: unknown } | null)?.state,
     ) ??
-    babyProblem(baby, threats as readonly ThreatInstance[], clock.sim as number) ??
+    babyProblem(baby, papa, threats as readonly ThreatInstance[], clock.sim as number) ??
+    carryProblem(carry, baby, planned.hasCarry, planned.armsCryIndex >= 0) ??
+    comboProblem(combo, baby) ??
     silenceProblem(
       silence,
       baby,
@@ -815,7 +887,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 15, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 17, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

@@ -19,6 +19,7 @@ export function startCall(world: World, ctx: StepContext, index: number): void {
   const planned = ctx.level.disruptions[index] as SimPlannedDisruption;
   const untilAt = asSimMs(world.time.sim + planned.def.answerBusyMs);
   papa.objectId = null;
+  papa.intent = 'none';
   papa.busyUntil = untilAt;
   enterPapaState(world, ctx, 'onPhone');
   addFatigue(world, ctx, planned.def.answerFatiguePoints);

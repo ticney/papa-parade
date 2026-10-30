@@ -76,6 +76,22 @@ export interface RunSummary {
   silencesTimedOut: number;
   /** The silences the level ended in (`SilenceEnded{levelEnded}`): neither found nor timed out. */
   silencesCutOff: number;
+  /** The `BabyPickedUp` events (story 4.1). */
+  babyPickUps: number;
+  /** The `BabyPutDown` events. */
+  babyPutDowns: number;
+  /** The `BabyPutDown{safe}` events: Papa stood in a safe zone. */
+  safePutDowns: number;
+  /** The cries in the arms telegraphed (`ThreatTelegraphed` of the level's `carry.armsCryDef`). */
+  armsCries: number;
+  /** The `ThreatCancelled` events, any reason: a threat dropped with no result. */
+  cancelledThreats: number;
+  /** The `ComboCashedIn` events (story 4.2). The bots never carry, so 0 for a bot. */
+  comboCashIns: number;
+  /** The sum of `ComboCashedIn.points`, not rounded: what fed the Rire. */
+  comboPointsCashed: number;
+  /** The highest multiplier a `ComboChanged` reached in the run; 0 if the combo never moved. */
+  comboPeakMultiplier: number;
   /** The highest `NoiseChanged.noisePct` of the run, in %; 0 if none (a level with no noise gauge, story 3.1). */
   noisePeakPct: number;
   /** The final world's noise, in %, rounded to 0.1 (the decay is silent: the events cannot give it). */
@@ -129,11 +145,14 @@ const emptyTally = (): ThreatTally => ({
  * Counts the events of one run of `sim` (created for it, before the first step): responses per
  * threat def, gags, threats at once per wave (against the limits `waves` gives, the level's waves),
  * whether the level ended, and at the end the final world hash and the number of commands sent.
+ * `armsCryDef` is the level's `carry.armsCryDef` (story 4.1): its telegraphs are cries in the arms,
+ * not micro-sleeps (both are threats no wave planned).
  */
 export function createRunRecorder(
   sim: Sim,
   seed: number,
   waves: readonly { readonly maxSimultaneous: number }[] = [],
+  armsCryDef: string | null = null,
 ): RunRecorder {
   // Threat ids and defs never change after `createSim`.
   const defIdOf = new Map<number, string>();
@@ -153,20 +172,29 @@ export function createRunRecorder(
   let silencesFound = 0;
   let silencesTimedOut = 0;
   let silencesCutOff = 0;
+  let babyPickUps = 0;
+  let babyPutDowns = 0;
+  let safePutDowns = 0;
+  let armsCries = 0;
+  let cancelledThreats = 0;
+  let comboCashIns = 0;
+  let comboPointsCashed = 0;
+  let comboPeakMultiplier = 0;
   let noisePeakPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
   // A silence is picked (`ThreatHidden`), then telegraphed only if the baby is found: the pick is
   // what counts against the wave, and the later telegraph of the same threat is not a second one.
   const hiddenThreatIds = new Set<number>();
-  // The threats no wave planned (the micro-sleep): they are in no wave's tally and never count
-  // against a wave's limit, so their results must not move the active count either.
+  // The threats no wave planned (the micro-sleep, the cry in the arms): they are in no wave's tally
+  // and never count against a wave's limit, so their results must not move the active count either.
   const systemThreatIds = new Set<number>();
   const waveTallies: WaveTally[] = waves.map(() => ({
     telegraphs: 0,
     peakSimultaneous: 0,
     isOverLimit: false,
   }));
-  // Each telegraph ends in exactly one `ResponseResolved`: +1 and −1 give the threats at once.
+  // Each telegraph ends in exactly one `ResponseResolved`, or in a `ThreatCancelled` (story 4.1):
+  // +1 and −1 give the threats at once.
   let activeCount = 0;
   let isEnded = false;
   let endReason: LevelEndReason | null = null;
@@ -187,7 +215,8 @@ export function createRunRecorder(
           if (activeCount > limit) wave.isOverLimit = true;
         }
       } else if (event.type === 'ThreatTelegraphed' && event.waveIndex < 0) {
-        microSleeps++;
+        if (armsCryDef !== null && event.kind === armsCryDef) armsCries++;
+        else microSleeps++;
         systemThreatIds.add(event.threatId);
       } else if (event.type === 'ThreatTelegraphed') {
         activeCount++;
@@ -198,6 +227,20 @@ export function createRunRecorder(
           const limit = waves[event.waveIndex]?.maxSimultaneous ?? Number.POSITIVE_INFINITY;
           if (activeCount > limit) wave.isOverLimit = true;
         }
+      } else if (event.type === 'ThreatCancelled') {
+        // A cancelled wave threat leaves the count like a resolved one; a system threat never entered it.
+        cancelledThreats++;
+        if (!systemThreatIds.has(event.threatId)) activeCount--;
+      } else if (event.type === 'BabyPickedUp') {
+        babyPickUps++;
+      } else if (event.type === 'BabyPutDown') {
+        babyPutDowns++;
+        if (event.safe) safePutDowns++;
+      } else if (event.type === 'ComboChanged') {
+        if (event.multiplier > comboPeakMultiplier) comboPeakMultiplier = event.multiplier;
+      } else if (event.type === 'ComboCashedIn') {
+        comboCashIns++;
+        comboPointsCashed += event.points;
       } else if (event.type === 'LevelEnded') {
         isEnded = true;
         endReason = event.reason;
@@ -265,6 +308,14 @@ export function createRunRecorder(
         silencesFound,
         silencesTimedOut,
         silencesCutOff,
+        babyPickUps,
+        babyPutDowns,
+        safePutDowns,
+        armsCries,
+        cancelledThreats,
+        comboCashIns,
+        comboPointsCashed,
+        comboPeakMultiplier,
         noisePeakPct,
         noiseFinalPct: round(sim.world.gauges.noisePct, 1),
         noiseBySourcePct: { ...noiseBySourcePct },
@@ -359,6 +410,22 @@ export interface SimReport {
   silencesTimedOut: number;
   /** The silences the level ended in, over the runs. */
   silencesCutOff: number;
+  /** The times Papa took the baby in his arms, over the runs (story 4.1). */
+  babyPickUps: number;
+  /** The times he set him down, over the runs. */
+  babyPutDowns: number;
+  /** ...of which in a safe zone. */
+  safePutDowns: number;
+  /** The cries in the arms telegraphed, over the runs. */
+  armsCries: number;
+  /** The threats dropped with no result (`ThreatCancelled`), over the runs. */
+  cancelledThreats: number;
+  /** The combos cashed in, over the runs (story 4.2). */
+  comboCashIns: number;
+  /** The points of every combo cashed in, over the runs. */
+  comboPointsCashed: number;
+  /** The highest multiplier any run reached; 0 if no combo ever moved. */
+  comboPeakMultiplier: number;
   /** Mean of the runs' highest noise, in % to one decimal: does 3.2 end games (story 3.1 open point 2)? */
   noisePeakMeanPct: number;
   /** The highest noise of any run, in %. */
@@ -425,6 +492,14 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let silencesFound = 0;
   let silencesTimedOut = 0;
   let silencesCutOff = 0;
+  let babyPickUps = 0;
+  let babyPutDowns = 0;
+  let safePutDowns = 0;
+  let armsCries = 0;
+  let cancelledThreats = 0;
+  let comboCashIns = 0;
+  let comboPointsCashed = 0;
+  let comboPeakMultiplier = 0;
   let noisePeakSumPct = 0;
   let noisePeakMaxPct = 0;
   let noiseFinalSumPct = 0;
@@ -472,6 +547,14 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     silencesFound += run.silencesFound;
     silencesTimedOut += run.silencesTimedOut;
     silencesCutOff += run.silencesCutOff;
+    babyPickUps += run.babyPickUps;
+    babyPutDowns += run.babyPutDowns;
+    safePutDowns += run.safePutDowns;
+    armsCries += run.armsCries;
+    cancelledThreats += run.cancelledThreats;
+    comboCashIns += run.comboCashIns;
+    comboPointsCashed += run.comboPointsCashed;
+    comboPeakMultiplier = Math.max(comboPeakMultiplier, run.comboPeakMultiplier);
     noisePeakSumPct += run.noisePeakPct;
     noisePeakMaxPct = Math.max(noisePeakMaxPct, run.noisePeakPct);
     noiseFinalSumPct += run.noiseFinalPct;
@@ -546,6 +629,14 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     silencesFound,
     silencesTimedOut,
     silencesCutOff,
+    babyPickUps,
+    babyPutDowns,
+    safePutDowns,
+    armsCries,
+    cancelledThreats,
+    comboCashIns,
+    comboPointsCashed,
+    comboPeakMultiplier,
     noisePeakMeanPct: runs.length === 0 ? 0 : round(noisePeakSumPct / runs.length, 1),
     noisePeakMaxPct: round(noisePeakMaxPct, 1),
     noiseFinalMeanPct: runs.length === 0 ? 0 : round(noiseFinalSumPct / runs.length, 1),

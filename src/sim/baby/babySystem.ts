@@ -1,5 +1,4 @@
 import { MAX_CRAWL_SPEED_MPS, MS_PER_S, STEP_MS } from '@shared/constants';
-import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import { isThreatActive } from '../director/waveState.ts';
@@ -8,18 +7,10 @@ import { remainingPathLengthM } from '../nav/pathLength.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { ensureOnOpenCell, gazeAt, planApproach, stopCrawling } from './approach.ts';
 import { enterBabyState } from './babyFsm.ts';
+import { runCarry } from './carry.ts';
 import { runBabyCry } from './cry.ts';
 import { runSilence } from './silence.ts';
-import { pickWanderCell, planWander } from './wander.ts';
-
-/**
- * How long the next babble lasts, in ms. One `nextFloat` even when min = max, so that the number
- * of draws does not depend on the tuning.
- */
-function drawBabbleMs(world: World, ctx: StepContext): number {
-  const { babbleMinMs, babbleMaxMs } = ctx.feel.baby;
-  return babbleMinMs + nextFloat(world.rng) * (babbleMaxMs - babbleMinMs);
-}
+import { drawBabbleMs, pickWanderCell, planWander } from './wander.ts';
 
 function findThreat(world: World, id: number): ThreatInstance | undefined {
   for (let i = 0; i < world.threats.length; i++) {
@@ -82,7 +73,7 @@ function lockOnThreat(world: World, ctx: StepContext): void {
 
 /**
  * System: the baby. Remembers where it sat (for the view's interpolation), then, in this order:
- * ticks its cry (`runBabyCry`, story 3.1), runs the suspicious silence (`runSilence`, story 1.21), lets go of a target that is over, locks on a newly active threat, sets off to its target once it
+ * ticks its cry (`runBabyCry`, story 3.1), runs the suspicious silence (`runSilence`, story 1.21), does nothing but the cry in the arms while carried (`runCarry`, story 4.1), lets go of a target that is over, locks on a newly active threat, sets off to its target once it
  * has stared for `lockMs`, crawls to it, ends its mischief after `actMs`; and, when it is free,
  * does what it did before threats existed: when its babble is over (`wanderAt`) draws a
  * destination and sets off, or, if none can be planned, babbles on for another draw; while
@@ -97,6 +88,11 @@ export function runBaby(world: World, ctx: StepContext): void {
 
   runBabyCry(world, ctx);
   runSilence(world, ctx);
+  // A carried baby is inert (story 4.1 D4): he never wanders, locks on a threat or lets go of Papa.
+  if (baby.state === 'carried') {
+    runCarry(world, ctx);
+    return;
+  }
   releaseTarget(world, ctx);
   lockOnThreat(world, ctx);
 

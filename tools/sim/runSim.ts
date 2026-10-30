@@ -62,7 +62,12 @@ export async function runSim(
     let sim: Sim | null = null;
     try {
       sim = await createSim({ content, geometry, level, seed, strictInvariants: true });
-      const recorder = createRunRecorder(sim, seed, level.level.waves);
+      const recorder = createRunRecorder(
+        sim,
+        seed,
+        level.level.waves,
+        level.level.carry?.armsCryDef ?? null,
+      );
       playGame(sim, bot.value, untilSimMs, recorder.onEvent);
       const summary = recorder.finish();
       summaries.push(summary);
