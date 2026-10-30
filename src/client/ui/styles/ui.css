@@ -1141,6 +1141,11 @@ body {
   text-shadow: var(--pp-lift);
 }
 
+/* The banked « +N » reads differently from the « xN » still at risk: the star colour for the fill. */
+.pp-combo-badge--cash-in .pp-combo-badge-text {
+  color: var(--pp-color-star);
+}
+
 /* ---------------------------------------------------------------------------------------------
    The threat icon (DESIGN.md › threat-icon, target-highlight; mockup key-hud-level.html state A).
    The outer box is the icon's size and is centred on the anchor by the CSS2DRenderer; the halo, the

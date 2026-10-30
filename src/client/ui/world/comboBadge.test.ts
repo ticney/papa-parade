@@ -241,6 +241,16 @@ describe('createComboBadge', () => {
       expect(badge.isVisible).toBe(false);
     });
 
+    it('cancels a rise pop still running, so the « +N » does not pop', () => {
+      const { badge, text } = build();
+      badge.update(MIN, MIN, PAPA, false, 0);
+      badge.update(2, MIN, PAPA, false, 16);
+      expect(text.animations).toHaveLength(1);
+      badge.showCashIn(4, 900, 100);
+      expect(text.animations[0]?.isCancelled).toBe(true);
+      expect(text.animations).toHaveLength(1);
+    });
+
     it('shows with no animation, whatever the motion setting', () => {
       for (const isMotionReduced of [false, true]) {
         const { badge, text } = build(isMotionReduced);

@@ -10,7 +10,10 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
+  SILENCE,
   stepN,
+  TEST_OBJECTS,
+  testPhoneEntry,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { StepContext } from '../context.ts';
@@ -34,6 +37,8 @@ interface Options {
   /** `true`: a level with `carry` and no cry in the arms; `'cry'`: with the cry in the arms; `false`: no `carry`. */
   carry?: boolean | 'cry';
   waves?: ReturnType<typeof testWave>[];
+  /** The level's objects (the phone needs its `phone` object). */
+  objects?: typeof TEST_OBJECTS;
   feel?: (feel: Feel) => Feel;
   durationMs?: number;
   fatigue?: boolean;
@@ -42,6 +47,7 @@ interface Options {
 async function newSim({
   carry = true,
   waves = [],
+  objects,
   feel,
   durationMs,
   fatigue = false,
@@ -51,6 +57,7 @@ async function newSim({
     geometry,
     level: createTestLevel({
       waves,
+      ...(objects === undefined ? {} : { objects }),
       ...(carry === false ? {} : { carry: carry === 'cry' ? CARRY : {} }),
       ...(durationMs === undefined ? {} : { durationMs }),
       ...(fatigue ? { gauges: FATIGUE_GAUGES } : {}),
@@ -250,6 +257,127 @@ describe('a response raises the combo (story 4.2, rule 5)', () => {
     expect(ofType(events, 'ThreatCancelled')).toHaveLength(1);
     expect(comboEvents(events)).toEqual([]);
     expect(world.combo).toMatchObject({ multiplier: 3, basePoints: 1 });
+  });
+});
+
+describe('every kind of gag resets the combo; what is not a miss leaves it alone (AC 5)', () => {
+  const { timing, input } = content.feel;
+  const outletWave = [testWave([OUTLET])];
+  const AT_RISK = { multiplier: 4, basePoints: 1.5 };
+
+  /** A sim with a combo at risk, stopped on the step that telegraphed the outlet. */
+  async function telegraphedOutlet(feel?: (feel: Feel) => Feel) {
+    const sim = await newSim({ waves: outletWave, ...(feel === undefined ? {} : { feel }) });
+    const world = worldOf(sim);
+    Object.assign(world.combo, AT_RISK);
+    const outlet = world.threats[0] as ThreatInstance;
+    runUntil(sim, () => outlet.state === 'telegraph');
+    return { sim, world, outlet };
+  }
+
+  function expectResetByGag(events: readonly SimEvent[], world: World): void {
+    expect(ofType(events, 'GagTriggered')).toHaveLength(1);
+    expect(ofType(events, 'ComboChanged')).toEqual([
+      {
+        type: 'ComboChanged',
+        t: expect.any(Number),
+        multiplier: comboFeel.minMultiplier,
+        reason: 'gag',
+      },
+    ]);
+    expect(ofType(events, 'ComboCashedIn')).toEqual([]);
+    expect(world.combo).toMatchObject({ multiplier: comboFeel.minMultiplier, basePoints: 0 });
+    expect(world.score.comboPoints).toBe(0);
+  }
+
+  it('is reset by an early press', async () => {
+    const { sim, world, outlet } = await telegraphedOutlet();
+    sim.enqueue({
+      type: 'PressThreat',
+      t: asSimMs(outlet.windowOpenAt - timing.toleranceMs - timing.bufferMs - 1),
+      threatId: outlet.id,
+    });
+    const events = runUntil(sim, () => outlet.state === 'gag');
+    expect(ofType(events, 'ResponseResolved')).toEqual([
+      expect.objectContaining({ quality: 'fail', reason: 'early' }),
+    ]);
+    expectResetByGag(events, world);
+  });
+
+  it('is reset by the wrong kind of response: a press held is not a Parry', async () => {
+    const { sim, world, outlet } = await telegraphedOutlet();
+    const window = outlet.responseWindow;
+    if (window === null) throw new Error('no window');
+    const center = outlet.windowOpenAt + window.windowMs / 2;
+    sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId: outlet.id });
+    const events = runUntil(sim, () => outlet.state === 'gag');
+    expect(ofType(events, 'ResponseResolved')).toEqual([
+      expect.objectContaining({ quality: 'fail', reason: 'wrongResponse' }),
+    ]);
+    expect(world.time.sim).toBeGreaterThanOrEqual(center + input.holdMinMs);
+    expectResetByGag(events, world);
+  });
+
+  it('is reset by the silence that nobody found: the surprise mischief', async () => {
+    const sim = await newSim({ waves: [testWave([SILENCE])] });
+    const world = worldOf(sim);
+    Object.assign(world.combo, AT_RISK);
+    const silence = world.threats[0] as ThreatInstance;
+    const events = runUntil(sim, () => silence.state === 'gag', 6000);
+    expect(silence.state).toBe('gag');
+    expect(ofType(events, 'SilenceEnded')).toEqual([
+      expect.objectContaining({ reason: 'timedOut' }),
+    ]);
+    expectResetByGag(events, world);
+  });
+
+  it('is left alone by an early press under earlyPress: guard', async () => {
+    const { sim, world, outlet } = await telegraphedOutlet((feel) => ({
+      ...feel,
+      input: { ...feel.input, earlyPress: 'guard' },
+    }));
+    sim.enqueue({
+      type: 'PressThreat',
+      t: asSimMs(outlet.windowOpenAt - 400),
+      threatId: outlet.id,
+    });
+    const events = stepEvents(sim, 30);
+    expect(ofType(events, 'GagTriggered')).toEqual([]);
+    expect(comboEvents(events)).toEqual([]);
+    expect(world.combo).toMatchObject(AT_RISK);
+  });
+
+  it('is left alone by a phone that rings out: it is not a missed threat', async () => {
+    const sim = await newSim({
+      waves: [testWave([], { disruptions: [testPhoneEntry(0)] })],
+      objects: TEST_OBJECTS,
+    });
+    const world = worldOf(sim);
+    Object.assign(world.combo, AT_RISK);
+    const events = runUntil(sim, () => world.disruptions[0]?.state === 'timedOut', 6000);
+    expect(ofType(events, 'PhoneRingEnded')).toEqual([
+      expect.objectContaining({ reason: 'timedOut' }),
+    ]);
+    expect(comboEvents(events)).toEqual([]);
+    expect(world.combo).toMatchObject(AT_RISK);
+  });
+
+  it('is left alone by the cry in the arms cancelled at the put-down: never answered nor missed', async () => {
+    const sim = await carriedWorldSim({ carry: 'cry' });
+    const world = worldOf(sim);
+    Object.assign(world.combo, { multiplier: 3, basePoints: 1 });
+    const armsCry = world.threats.at(-1) as ThreatInstance;
+    runUntil(sim, () => armsCry.state === 'telegraph');
+    tapBaby(sim);
+    const events = stepEvents(sim);
+    expect(ofType(events, 'BabyPutDown')).toHaveLength(1);
+    expect(ofType(events, 'ThreatCancelled')).toEqual([
+      expect.objectContaining({ reason: 'putDown' }),
+    ]);
+    expect(ofType(events, 'GagTriggered')).toEqual([]);
+    expect(ofType(events, 'ComboChanged')).toEqual([]);
+    expect(world.combo.multiplier).toBe(3);
+    expect(world.combo.basePoints).toBe(1);
   });
 });
 

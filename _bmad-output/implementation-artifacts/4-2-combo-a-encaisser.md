@@ -4,7 +4,7 @@ baseline_commit: 0c45b43552d4a3bccac2e764cb514257bd285301
 
 # Story 4.2: The combo to cash in
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.2 « Combo à encaisser » (L1838-1859). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -266,14 +266,14 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`), Claude Code, in the story's worktree `s
   - **Key names (AC 1).** `basePointsPerResponse` and `basePointsPerCarryTick` are named **`basePerResponsePoints`** and **`basePerCarryTickPoints`**: `tests/content/feelSchema.test.ts › feel unit suffixes` refuses a numeric key that does not end in a unit, and the project already names its weights `laughPerPerfectPoints`, `sighPerMischiefPoints`. The test was not weakened. Values are the story's (0.5 and 0.5).
   - **Scene order in `worldUi.test.ts`.** The combo badge is the third element of the layer's scene (tap marker, glyph chip, badge), so three assertions that indexed the threat icons shifted by one (`children[2]` → `[3]`, the « stay » count 2 → 3, `slice(2, 4)` → `slice(3, 5)`). No behaviour changed.
   - **`ComboChanged` while the level has no `carry`** is never emitted (AC 4); the bots on `salon_crawler` (which declares `carry`) do climb and reset.
-- **Bots, `main` against the branch (AC 15), `salon_crawler`, seeds 1-20, `--runs 20`.** For all four bots, the two JSON reports are equal once the hashes, the wall time and the new `combo*` fields are set aside (checked by a script, 0 differences). `main` is the commit this branch was cut from, run from a `git archive` of it:
+- **Bots, `main` against the branch (AC 15), `salon_crawler`, seeds 1-20, `--runs 20`.** For all four bots, the two JSON reports are equal once the hashes, the wall time and the new `combo*` fields are set aside (checked by a script, 0 differences). `main` is the commit this branch was cut from, run from a `git archive` of it. The branch columns were run again by hand in the code review (`npm run sim -- --bot <id> --level salon_crawler --seed 1 --runs 20`) and give the values below:
 
 | bot | `main`: mean score / mean stars / star counts 0-5 / ends / success % / gags | branch: same | branch: `comboCashIns` / `comboPointsCashed` / `comboPeakMultiplier` |
 |---|---|---|---|
-| `perfect` | 90 / 5 / [0,0,0,0,0,20] / timer 20 / 100 / 0 | identical | 0 / 0 / 8 |
-| `human` | 82.1 / 4 / [0,0,0,1,18,1] / timer 20 / 99.9 / 1 (`stairs_slide`) | identical | 0 / 0 / 8 |
-| `random` | 20.3 / 1 / [0,20,0,0,0,0] / timer 20 / 2.2 / 759 | identical | 0 / 0 / 2 |
-| `idle` | 20 / 1 / [0,20,0,0,0,0] / timer 20 / 0 / 762 | identical | 0 / 0 / 0 |
+| `perfect` | 90 / 5 / [0,0,0,0,0,20] / timer 20 / 100 / 0 | 90 / 5 / [0,0,0,0,0,20] / timer 20 / 100 / 0 | 0 / 0 / 8 |
+| `human` | 82.1 / 4 / [0,0,0,1,18,1] / timer 20 / 99.9 / 1 (`stairs_slide`) | 82.1 / 4 / [0,0,0,1,18,1] / timer 20 / 99.9 / 1 (`stairs_slide`) | 0 / 0 / 8 |
+| `random` | 20.3 / 1 / [0,20,0,0,0,0] / timer 20 / 2.2 / 759 | 20.3 / 1 / [0,20,0,0,0,0] / timer 20 / 2.2 / 759 | 0 / 0 / 2 |
+| `idle` | 20 / 1 / [0,20,0,0,0,0] / timer 20 / 0 / 762 | 20 / 1 / [0,20,0,0,0,0] / timer 20 / 0 / 762 | 0 / 0 / 0 |
 
   No rng is drawn by the combo, nothing cashes in (the bots never put the baby down), and the Rire is unchanged. Only the hashes moved.
 - **Goldens (AC 15), regenerated deliberately with `npm run golden:update`, then `biome format` on the JSON.** Every existing journal moves only in its `feelHash` (`*.json`, the feel gained `combo`) and its `worldHash` (`*.expected.json`, the world gained `combo` and `score.comboPoints`). **`baby_carry` is the one exception**: its level has `carry`, and it gains exactly one `ComboChanged` in `eventTypes` (the perfect Parry at the end), so its `eventsHash` changes too; no existing event, `t` or score differs. `mama_woke.expected.json` also changed layout only (biome). New scenario **`combo_cash_in`** (seed 21, 16 s, `STEP_MS`-based, no wave, with the cry in the arms): take at 1010, the carry tick at 11010 (x2), a perfect Parry of the cry at 11340 (x3, 1 base point), the walk to the playpen, the cash-in at 11920 (3 × 1 = 3 points) and its slow-mo running out, the level's end at 16000 with `laughPoints` 4 (1 perfect + 3 combo points). `tests/golden/comboCashIn.test.ts` pins what it covers.
@@ -302,9 +302,23 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`), Claude Code, in the story's worktree `s
 - Goldens (hashes only, except `baby_carry`): `tests/golden/journals/{baby_carry,baby_wander,core_basic,feel_change,mama_woke,outlet_parry,papa_walk,prop_fall,prop_fall_noise,threat_trio}{,.expected}.json`
 - Docs: `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
 
+### Review Findings
+
+Code review of 2026-10-30 (Blind Hunter, Edge Case Hunter, Acceptance Auditor): 1 decision_needed, 4 patch, 3 defer, 18 dismissed. The sim ordering (gag then safe drop, response then drop in one tick, reset while carried, `SetFeel` lowering the maximum), the snapshot v16 validation and the goldens held up; the auditor found no functional AC violation.
+
+- [x] [Review][Decision] (decided by Geo, who left the call to the reviewer: option 1, a distinct style; `.pp-combo-badge--cash-in .pp-combo-badge-text` now takes `--pp-color-star` for its fill, the stroke and shadow unchanged) The `pp-combo-badge--cash-in` class is toggled by `setCashIn` but no CSS rule or code uses it, so « +6 » looks exactly like « x6 » (same paper fill, stroke, size). DESIGN.md › combo-badge only describes the multiplier. Options: (1) keep it as a styling hook and add a rule (colour or size) so a banked « +N » reads differently from an « x N » at risk; (2) keep the look and remove the class and `setCashIn`; (3) keep the class as a hook for a later art pass and say so in a comment. [src/client/ui/world/comboBadge.ts:105-109, src/client/ui/styles/ui.css:1126-1141]
+- [x] [Review][Patch] Stale and garbled comments: `BabyPutDown`'s doc still says « Nothing scores it yet (story 4.2) » although a safe put-down now cashes the combo (`ComboCashedIn`, `ComboChanged{cashIn}`); the `runScoring` sentence in `step.ts` reads « `runScoring` stays holds the combo's carry tick only » (AC 3, AC 6) [src/sim/events.ts:114-117, src/sim/step.ts:29-30]
+- [x] [Review][Patch] `showCashIn` does not cancel a running rise `pop`: a rise followed within 220 ms by a safe put-down leaves the 1.5 to 1 scale pop playing on the « +N » text; add `pop?.cancel(); pop = null;` and a test (rise, then immediate `showCashIn`, no active animation) [src/client/ui/world/comboBadge.ts:149-155]
+- [x] [Review][Patch] (done: a new `describe` in `combo.test.ts` covers the early press, the wrong kind of response, the silence timeout, an early press under `earlyPress: 'guard'`, a phone that rings out and the arms cry cancelled by the put-down; `released` and the firm-while-carried gag have no frozen test def and the falling prop needs the physics, so they stay unpinned: they go through the same `gagThreat` call) AC 14 gaps: `combo.test.ts` resets only on the outlet late miss, the missed arms cry and the missed micro-sleep. Unpinned `gagThreat` paths: the silence timeout (named in AC 5), an early press (`earlyPress: 'guard'`), `wrongResponse`, `released`, the phone timeout, a falling prop; and the cancel by `putDown` (only covered through `carry.test.ts`) [src/sim/scoring/combo.test.ts, src/sim/baby/silence.ts:133, src/sim/threats/threatSystem.ts]
+- [x] [Review][Patch] (done: the four bots were run again on the branch and the table now holds both summaries) AC 15 literally: the Completion Notes say « 0 differences » for the four bots (`salon_crawler`, seeds 1-20, `--runs 20`) but paste only the `main` values; paste both summaries (`main` and the branch), as 4.1's review asked [_bmad-output/implementation-artifacts/4-2-combo-a-encaisser.md:269]
+- [x] [Review][Defer] `SetFeel` validates only the shape of the patch, so the cross-field rule `minMultiplier < maxMultiplier` of the schema is bypassed, and a patch can raise `minMultiplier` above a running multiplier or lower `maxMultiplier` to the multiplier: base points then pile up invisibly at the floor and the first cash-in pays them — deferred, pre-existing (the debug panel's `SetFeel` never re-runs the schema refines) [src/sim/commandQueue.ts:68-80, src/sim/scoring/combo.ts:28-45]
+- [x] [Review][Defer] The « +N » hold (`cashInHoldMs`, 900 ms) runs on `performance.now()`: a pause or a hidden tab during it makes it elapse unseen — deferred, same real-time clock as the other real-time effects (`screenFlash`, `gaugesHud`); revisit with the device pass
+- [x] [Review][Defer] The `aside` shift is a fixed 64 px, whatever the verb's width or Papa's screen position (near the right edge on a phone it can leave the screen) — deferred to the device pass; the e2e pins the non-overlap in one layout only
+
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-10-30 | Story created (`gds-create-story`), status `ready-for-dev`. |
 | 2026-10-30 | Implemented (`gds-dev-story`): `feel.combo`, the sim combo and its cash-in, snapshot v16, the combo badge and the « +N », report fields, goldens regenerated and `combo_cash_in` added, e2e `combo.spec.ts`, docs. Full CI green; status `review`. |
+| 2026-10-30 | Code review (`gds-code-review`): 1 decision, 4 patches applied (distinct style for the banked « +N », `showCashIn` cancels the rise pop, stale comments, AC 14 gag tests, AC 15 summaries), 3 deferred, 18 dismissed; status `done`. |

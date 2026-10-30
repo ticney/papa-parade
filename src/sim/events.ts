@@ -115,7 +115,8 @@ export type SimEvent =
   | { type: 'BabyPickedUp'; t: SimMs }
   /**
    * Papa set the baby down (story 4.1). `safe` is whether Papa stood in a `kind: "safe"` zone;
-   * `BabyStateChanged{carried → babble}` comes first. Nothing scores it yet (story 4.2).
+   * `BabyStateChanged{carried → babble}` comes first. A `safe` put-down above the minimum
+   * multiplier then cashes the combo in (story 4.2): `ThreatCancelled` if any, `ComboCashedIn`, `ComboChanged{cashIn}`.
    */
   | { type: 'BabyPutDown'; t: SimMs; safe: boolean }
   /**

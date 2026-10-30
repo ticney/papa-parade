@@ -26,8 +26,8 @@ import type { World } from './world.ts';
  * changes, regenerates the golden references and says so.
  * Systems never call each other: they read and write `World` and push to `ctx.events`.
  * Mama's note (story 1.22) needs no system: its counters are written where their events are made,
- * and `runFlow` gives the note (`scoreLevel`) in the step it ends the level. `runScoring` stays
- * holds the combo's carry tick only (story 4.2): the rest of the combo is written where its event is made.
+ * and `runFlow` gives the note (`scoreLevel`) in the step it ends the level. `runScoring` (story 4.2)
+ * holds the combo's carry tick only: the rest of the combo is written where its event is made.
  *
  * Once the level has ended (`world.flow.state === 'ended'`, story 1.18) a step runs only
  * {@link ENDED_SYSTEMS}: commands are drained and ignored, the clock keeps going (every

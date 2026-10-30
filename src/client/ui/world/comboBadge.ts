@@ -147,6 +147,9 @@ export function createComboBadge(
       }
     },
     showCashIn(points, holdMs, nowAtReal) {
+      // A rise pop still running (a put-down within its 220 ms) must not play on the « +N ».
+      pop?.cancel();
+      pop = null;
       cashInText = formatString(translate('combo.cash_in'), { points: Math.round(points) });
       cashInUntilAtReal = nowAtReal + holdMs;
       setCashIn(true);

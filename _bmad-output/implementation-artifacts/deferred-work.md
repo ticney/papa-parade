@@ -621,6 +621,8 @@
 - **No live score in the HUD.** The player sees the badge and the « +N » of a cash-in; the points reach him only in the Rire of the Result screen.
 - **`comboBadge` pops on a rise that the client sees from frame to frame.** Two rises in one frame (several sim steps) pop once; a rise and a cash-in in one frame show only the multiplier.
 
-## Deferred from: code review of story 4-2-combo-a-encaisser
+## Deferred from: code review of story 4-2-combo-a-encaisser (2026-10-30)
 
-_(to fill in at the review)_
+- **`SetFeel` does not re-run the schema's cross-field rules.** `applyCommands` only checks the shape of the patch, so `feel.combo` can end up with `minMultiplier >= maxMultiplier`, a `minMultiplier` above a running multiplier or a `maxMultiplier` at or below it. Base points then pile up invisibly at the floor and the first cash-in pays them. Reason: the debug panel's `SetFeel` has never re-run the refines (any feel group with a cross-field rule has the same gap); decide with the next story that adds a refine to a tunable group, or when Geo hits it in the panel.
+- **The cash-in « +N » hold runs on real time (`performance.now()`).** A pause or a hidden tab during its 900 ms makes it elapse unseen. Reason: same clock as `screenFlash` and `gaugesHud`; revisit with the device pass if it shows.
+- **The `aside` shift of the combo badge is a fixed 64 px.** A long verb or Papa near the right edge of a phone can overlap the verb or leave the screen. Reason: the e2e pins the non-overlap in one layout only; look at it in the device pass (`docs/playtest/device-measurements.md`).
