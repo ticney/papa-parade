@@ -1,4 +1,10 @@
-import { DEFAULT_LEVEL_ID, SIM_CLI_MAX_RUNS, SIM_CLI_MAX_UNTIL_MS } from '@shared/constants';
+import {
+  DEFAULT_DIFFICULTY_TIER,
+  DEFAULT_LEVEL_ID,
+  DIFFICULTY_TIER_IDS,
+  SIM_CLI_MAX_RUNS,
+  SIM_CLI_MAX_UNTIL_MS,
+} from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import { parseSimArgs, SIM_HELP } from '../../../tools/sim/simArgs.ts';
 
@@ -28,6 +34,7 @@ describe('parseSimArgs', () => {
       value: {
         levelId: DEFAULT_LEVEL_ID,
         botId: 'perfect',
+        tier: DEFAULT_DIFFICULTY_TIER,
         seed: 1,
         runs: 1,
         untilSimMs: null,
@@ -46,6 +53,8 @@ describe('parseSimArgs', () => {
       'other_level',
       '--bot',
       'human',
+      '--tier',
+      'experienced',
       '--seed',
       '42',
       '--runs',
@@ -66,6 +75,7 @@ describe('parseSimArgs', () => {
       value: {
         levelId: 'other_level',
         botId: 'human',
+        tier: 'experienced',
         seed: 42,
         runs: 100,
         untilSimMs: 60_000,
@@ -97,6 +107,21 @@ describe('parseSimArgs', () => {
     expect(SIM_HELP).toContain('--sequence <id>');
     expect(SIM_HELP).toContain('--sequence-at-ms');
     expect(SIM_HELP).toContain('sequencesStarted');
+  });
+
+  it.each(DIFFICULTY_TIER_IDS)('accepts the %s tier', (tier) => {
+    const parsed = parseSimArgs(['--bot', 'idle', '--tier', tier]);
+    expect(parsed.ok && parsed.value.tier).toBe(tier);
+  });
+
+  it('refuses an unknown tier, naming the ones it knows', () => {
+    const message = messageOf(['--bot', 'idle', '--tier', 'hard']);
+    expect(message).toContain('--tier');
+    for (const tier of DIFFICULTY_TIER_IDS) expect(message).toContain(tier);
+  });
+
+  it('documents --tier in the help', () => {
+    expect(SIM_HELP).toContain('--tier');
   });
 
   it('rounds the run length up to the step grid', () => {

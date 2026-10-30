@@ -6,7 +6,7 @@ import type {
   CalibrationScreen,
   CalibrationScreenOptions,
 } from '../ui/screens/calibrationScreen.ts';
-import { APP_TRANSITIONS, type AppState, createAppFsm } from './appFsm.ts';
+import { createAppFsm } from './appFsm.ts';
 import { type CalibrationFlowDeps, createCalibrationFlow } from './calibrationFlow.ts';
 import type { ClientEvents } from './clientEvents.ts';
 
@@ -19,17 +19,9 @@ beforeAll(() => {
 const audioWarnings = (): string[] =>
   warnSpy.mock.calls.filter(([channel]) => channel === 'audio').map(([, message]) => message);
 
-// Story 2.8 adds `settings → calibration → settings`: the flow must serve it with a table alone.
-const TRANSITIONS: Record<string, readonly string[]> = {
-  ...APP_TRANSITIONS,
-  start: [...APP_TRANSITIONS.start, 'settings'],
-  settings: ['calibration', 'start'],
-  calibration: [...APP_TRANSITIONS.calibration, 'settings'],
-};
-
 function setup() {
   const events = createEmitter<ClientEvents>();
-  const appFsm = createAppFsm({ events, transitions: TRANSITIONS });
+  const appFsm = createAppFsm({ events });
   const done: ClientEvents['CalibrationDone'][] = [];
   events.on('CalibrationDone', (payload) => done.push(payload));
   const saved: unknown[] = [];
@@ -115,6 +107,13 @@ function setup() {
   };
   const flow = createCalibrationFlow(deps);
   const enterStart = (): void => appFsm.enter('start');
+  // The settings as the pause opens them (story 2.8): over a level, the only entry the table has.
+  const enterSettings = (): void => {
+    appFsm.enter('start');
+    appFsm.enter('loading');
+    appFsm.enter('level');
+    appFsm.enter('settings');
+  };
   return {
     flow,
     appFsm,
@@ -125,6 +124,7 @@ function setup() {
     calls,
     screens,
     enterStart,
+    enterSettings,
     setVisibility: (next: string) => {
       visibility = next;
       for (const listener of visibilityListeners) listener();
@@ -272,11 +272,27 @@ describe('createCalibrationFlow', () => {
   });
 
   describe('a recalibration (story 2.8 serves it with a table alone)', () => {
+    it('resumes the audio first, so a recalibration from the pause hears its beep (D3)', () => {
+      const { flow, audio, enterSettings } = setup();
+      enterSettings();
+      expect(audio.resumes).toBe(0);
+      flow.startRecalibration('settings');
+      expect(audio.resumes).toBe(1);
+      expect(audio.preloaded).toHaveLength(1);
+    });
+
+    it('does not resume again for a start that is ignored', () => {
+      const { flow, audio, enterSettings } = setup();
+      enterSettings();
+      flow.startRecalibration('settings');
+      flow.startRecalibration('settings');
+      expect(audio.resumes).toBe(1);
+    });
+
     it('goes back to the state it came from, and does not start a level', () => {
-      const { flow, appFsm, calls, enterStart, last } = setup();
-      enterStart();
-      appFsm.enter('settings' as AppState);
-      flow.startRecalibration('settings' as AppState);
+      const { flow, appFsm, calls, enterSettings, last } = setup();
+      enterSettings();
+      flow.startRecalibration('settings');
       expect(appFsm.state as string).toBe('calibration');
       flow.createScreen();
       measure(last(), { audio: 10, visual: 20 });
@@ -286,14 +302,13 @@ describe('createCalibrationFlow', () => {
     });
 
     it('replaces the previous values: a second run starts clean', () => {
-      const { flow, appFsm, saved, enterStart, last } = setup();
-      enterStart();
-      appFsm.enter('settings' as AppState);
-      flow.startRecalibration('settings' as AppState);
+      const { flow, saved, enterSettings, last } = setup();
+      enterSettings();
+      flow.startRecalibration('settings');
       flow.createScreen();
       measure(last(), { audio: 10, visual: 20 });
       last().options.onFinished();
-      flow.startRecalibration('settings' as AppState);
+      flow.startRecalibration('settings');
       flow.createScreen();
       expect(last().options.startAt).toBe('audio');
       measure(last(), { audio: null, visual: 200 });
@@ -351,11 +366,12 @@ describe('createCalibrationFlow', () => {
       enterStart();
       flow.startRecalibration('loading');
       flow.createScreen();
+      const startedWith = audio.resumes;
       setVisibility('hidden');
       expect(last().stops).toBe(1);
-      expect(audio.resumes).toBe(0);
+      expect(audio.resumes).toBe(startedWith);
       setVisibility('visible');
-      expect(audio.resumes).toBe(1);
+      expect(audio.resumes).toBe(startedWith + 1);
       expect(last().restarts).toBe(1);
     });
 
@@ -373,9 +389,10 @@ describe('createCalibrationFlow', () => {
       flow.startRecalibration('loading');
       const screen = flow.createScreen();
       screen.dispose();
+      const startedWith = audio.resumes;
       setVisibility('hidden');
       setVisibility('visible');
-      expect(audio.resumes).toBe(1);
+      expect(audio.resumes).toBe(startedWith + 1);
       expect(last().restarts).toBe(0);
     });
 

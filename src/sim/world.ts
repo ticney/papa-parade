@@ -1,4 +1,5 @@
 import type { Feel } from '@content/schemas/feel';
+import { DEFAULT_DIFFICULTY_TIER, type DifficultyTierId } from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { createRng, type RngState } from '@shared/rng';
 import { asSimMs, type SimMs } from '@shared/time';
@@ -406,6 +407,11 @@ export interface World {
   /** What the client has told the sim about the player's input (story 2.7). */
   input: InputSlice;
   /**
+   * The difficulty tier (`SetDifficultyTier`, story 2.8): which entry of `feel.difficulty` the
+   * windows and the instinct read. `normal` until a command says otherwise.
+   */
+  difficultyTier: DifficultyTierId;
+  /**
    * The effective feel (story 2.1): the feel given to `createSim`, with every `SetFeel` laid over
    * it. A `SetFeel` replaces this object at the head of a step; systems read it through `ctx.feel`,
    * so it is in the snapshot and survives `restore()`. Values the sim reads only when it is
@@ -540,6 +546,7 @@ export function createWorld({
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
     score: { perfects: 0, nearMisses: 0, comboPoints: 0, final: null },
     input: { lagMs: 0 },
+    difficultyTier: DEFAULT_DIFFICULTY_TIER,
     feel: cloneJson(feel),
   };
 }

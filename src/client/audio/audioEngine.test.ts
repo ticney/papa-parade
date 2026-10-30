@@ -135,6 +135,93 @@ describe('unlock', () => {
     for (const bus of s.fake.gains.slice(1)) expect(bus.connections).toEqual([s.fake.gains[0]]);
   });
 
+  describe('setPlayerVolumes (story 2.8)', () => {
+    const table = createTestFeedback();
+    const FULL = { music: 100, sfx: 100, voice: 100, ui: 100 } as const;
+    const busGains = (s: Setup): number[] => s.fake.gains.slice(1, 5).map((g) => g.gain.value);
+
+    it('multiplies the bus of the table by the player volume, once the graph exists', () => {
+      const s = setup();
+      s.engine.unlock();
+      s.engine.setPlayerVolumes({ music: 40, sfx: 100, voice: 50, ui: 0 });
+      expect(busGains(s)).toEqual([
+        (table.buses.music.gainPct / 100) * 0.4,
+        table.buses.sfx.gainPct / 100,
+        (table.buses.voice.gainPct / 100) * 0.5,
+        0,
+      ]);
+    });
+
+    it('does not move the master, nor a bus the call does not change', () => {
+      const s = setup();
+      s.engine.unlock();
+      s.engine.setPlayerVolumes({ ...FULL, music: 10 });
+      expect(s.fake.gains[0]?.gain.value).toBe(1);
+      expect(busGains(s).slice(1)).toEqual([
+        table.buses.sfx.gainPct / 100,
+        table.buses.voice.gainPct / 100,
+        table.buses.ui.gainPct / 100,
+      ]);
+    });
+
+    it('is remembered before the unlock and applied when the graph is created', () => {
+      const s = setup();
+      s.engine.setPlayerVolumes({ music: 20, sfx: 100, voice: 100, ui: 60 });
+      expect(s.fake.gains).toHaveLength(0);
+      s.engine.unlock();
+      expect(busGains(s)).toEqual([
+        (table.buses.music.gainPct / 100) * 0.2,
+        table.buses.sfx.gainPct / 100,
+        table.buses.voice.gainPct / 100,
+        (table.buses.ui.gainPct / 100) * 0.6,
+      ]);
+    });
+
+    it('goes back to the table’s mix at 100', () => {
+      const s = setup();
+      s.engine.unlock();
+      s.engine.setPlayerVolumes({ ...FULL, sfx: 0 });
+      s.engine.setPlayerVolumes(FULL);
+      expect(busGains(s)).toEqual([
+        table.buses.music.gainPct / 100,
+        table.buses.sfx.gainPct / 100,
+        table.buses.voice.gainPct / 100,
+        table.buses.ui.gainPct / 100,
+      ]);
+    });
+
+    it('copies the volumes it is given', () => {
+      const s = setup();
+      const volumes = { ...FULL, music: 30 };
+      s.engine.setPlayerVolumes(volumes);
+      volumes.music = 90;
+      s.engine.unlock();
+      expect(busGains(s)[0]).toBeCloseTo((table.buses.music.gainPct / 100) * 0.3, 9);
+    });
+
+    it('never throws: a gain that refuses a value is a warning, and the game plays on', () => {
+      const s = setup();
+      s.engine.unlock();
+      Object.defineProperty(s.fake.gains[1]?.gain, 'value', {
+        set() {
+          throw new Error('frozen');
+        },
+        get: () => 1,
+      });
+      const before = s.newWarnings().length;
+      expect(() => s.engine.setPlayerVolumes({ ...FULL, music: 10 })).not.toThrow();
+      expect(s.newWarnings().length).toBe(before + 1);
+    });
+
+    it('does nothing and does not throw when audio is unavailable', () => {
+      const s = setup(() => {
+        throw new Error('no Web Audio');
+      });
+      s.engine.unlock();
+      expect(() => s.engine.setPlayerVolumes({ ...FULL, music: 10 })).not.toThrow();
+    });
+  });
+
   it('is idempotent: a second call does nothing and returns ok', () => {
     const fake = createFakeAudioContext();
     let created = 0;

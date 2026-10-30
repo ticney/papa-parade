@@ -3,7 +3,14 @@ import { SAVE_INVALID_KEY, SAVE_KEY } from '@shared/constants';
 import { log } from '@shared/log';
 import { err, ok } from '@shared/result';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createSaveStore, migrateSave, type SaveMigration } from './saveStore.ts';
+import { createSaveStore, migrateSave, SAVE_MIGRATIONS, type SaveMigration } from './saveStore.ts';
+
+const SETTINGS = {
+  tier: 'normal',
+  volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
+  haptics: true,
+} as const;
+const DEFAULTS = { version: 2, calibration: null, settings: SETTINGS };
 
 const CALIBRATION = {
   visualOffsetMs: 80,
@@ -73,16 +80,16 @@ describe('createSaveStore', () => {
 
   it('starts a new player on the defaults, without a warning and without writing', async () => {
     const store = createSaveStore(storage);
-    expect(await store.load()).toEqual({ version: 1, calibration: null });
-    expect(store.current()).toEqual({ version: 1, calibration: null });
+    expect(await store.load()).toEqual(DEFAULTS);
+    expect(store.current()).toEqual(DEFAULTS);
     expect(storage.items.size).toBe(0);
     expect(newWarnings()).toEqual([]);
   });
 
   it('reads a valid save back', async () => {
-    storage.items.set(SAVE_KEY, { version: 1, calibration: CALIBRATION });
+    storage.items.set(SAVE_KEY, { ...DEFAULTS, calibration: CALIBRATION });
     const store = createSaveStore(storage);
-    expect(await store.load()).toEqual({ version: 1, calibration: CALIBRATION });
+    expect(await store.load()).toEqual({ ...DEFAULTS, calibration: CALIBRATION });
     expect(newWarnings()).toEqual([]);
   });
 
@@ -91,7 +98,7 @@ describe('createSaveStore', () => {
     await store.load();
     await store.setCalibration(CALIBRATION);
     expect(store.current().calibration).toEqual(CALIBRATION);
-    expect(storage.items.get(SAVE_KEY)).toEqual({ version: 1, calibration: CALIBRATION });
+    expect(storage.items.get(SAVE_KEY)).toEqual({ ...DEFAULTS, calibration: CALIBRATION });
   });
 
   it('keeps the value in memory, with one warning, when the write fails', async () => {
@@ -106,46 +113,56 @@ describe('createSaveStore', () => {
   it('runs on defaults, with a warning and no write, when the storage cannot be read', async () => {
     storage.failing.add('get');
     const store = createSaveStore(storage);
-    expect(await store.load()).toEqual({ version: 1, calibration: null });
+    expect(await store.load()).toEqual(DEFAULTS);
     expect(storage.items.size).toBe(0);
     expect(newWarnings()).toHaveLength(1);
   });
 
   describe('a save it cannot use is set aside and replaced by defaults, with a warning', () => {
     it.each<[string, unknown]>([
-      ['a future version', { version: 2, calibration: null, settings: {} }],
       ['a version no migration reaches', { version: 0, calibration: null }],
+      ['a v2 save with no settings', { version: 2, calibration: null }],
+      ['an unknown tier', { ...DEFAULTS, settings: { ...SETTINGS, tier: 'hard' } }],
+      [
+        'a volume out of range',
+        { ...DEFAULTS, settings: { ...SETTINGS, volumes: { ...SETTINGS.volumes, ui: 101 } } },
+      ],
+      [
+        'a fractional volume',
+        { ...DEFAULTS, settings: { ...SETTINGS, volumes: { ...SETTINGS.volumes, music: 50.5 } } },
+      ],
+      ['an unknown settings key', { ...DEFAULTS, settings: { ...SETTINGS, large: true } }],
       ['not an object', 'hello'],
       ['an array', []],
       ['no version', { calibration: null }],
       ['a fractional version', { version: 1.5, calibration: null }],
-      ['an unknown key', { version: 1, calibration: null, bogus: 1 }],
+      ['an unknown key', { ...DEFAULTS, bogus: 1 }],
       [
         'an offset out of bounds',
-        { version: 1, calibration: { ...CALIBRATION, visualOffsetMs: 5000 } },
+        { ...DEFAULTS, calibration: { ...CALIBRATION, visualOffsetMs: 5000 } },
       ],
       [
         'a user-agent-sized device',
-        { version: 1, calibration: { ...CALIBRATION, device: 'x'.repeat(65) } },
+        { ...DEFAULTS, calibration: { ...CALIBRATION, device: 'x'.repeat(65) } },
       ],
       [
         'a date that is not ISO',
-        { version: 1, calibration: { ...CALIBRATION, measuredAt: 'yesterday' } },
+        { ...DEFAULTS, calibration: { ...CALIBRATION, measuredAt: 'yesterday' } },
       ],
-      ['a missing flag', { version: 1, calibration: { ...CALIBRATION, audioSkipped: undefined } }],
+      ['a missing flag', { ...DEFAULTS, calibration: { ...CALIBRATION, audioSkipped: undefined } }],
     ])('%s', async (_name, stored) => {
       storage.items.set(SAVE_KEY, stored);
       const store = createSaveStore(storage);
-      expect(await store.load()).toEqual({ version: 1, calibration: null });
+      expect(await store.load()).toEqual(DEFAULTS);
       expect(storage.items.get(SAVE_INVALID_KEY)).toEqual(stored);
-      expect(storage.items.get(SAVE_KEY)).toEqual({ version: 1, calibration: null });
+      expect(storage.items.get(SAVE_KEY)).toEqual(DEFAULTS);
       expect(newWarnings()).toHaveLength(1);
     });
 
     it('text that is not JSON: the raw text is what is kept', async () => {
       storage.garbled.set(SAVE_KEY, '{oops');
       const store = createSaveStore(storage);
-      expect(await store.load()).toEqual({ version: 1, calibration: null });
+      expect(await store.load()).toEqual(DEFAULTS);
       expect(storage.items.get(SAVE_INVALID_KEY)).toBe('{oops');
       expect(newWarnings()).toHaveLength(1);
     });
@@ -154,8 +171,112 @@ describe('createSaveStore', () => {
       storage.items.set(SAVE_KEY, { version: 9 });
       storage.failing.add('set');
       const store = createSaveStore(storage);
-      expect(await store.load()).toEqual({ version: 1, calibration: null });
+      expect(await store.load()).toEqual(DEFAULTS);
       expect(newWarnings().length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('keeps the first copy: a second unusable save never overwrites it (story 2.8)', async () => {
+      storage.items.set(SAVE_KEY, { version: 0, first: true });
+      await createSaveStore(storage).load();
+      expect(storage.items.get(SAVE_INVALID_KEY)).toEqual({ version: 0, first: true });
+      storage.items.set(SAVE_KEY, { version: 0, first: false });
+      await createSaveStore(storage).load();
+      expect(storage.items.get(SAVE_INVALID_KEY)).toEqual({ version: 0, first: true });
+      expect(storage.items.get(SAVE_KEY)).toEqual(DEFAULTS);
+    });
+
+    it('keeps a first copy that is not JSON too', async () => {
+      storage.garbled.set(SAVE_INVALID_KEY, '{first');
+      storage.items.set(SAVE_KEY, { version: 0 });
+      await createSaveStore(storage).load();
+      expect(storage.garbled.get(SAVE_INVALID_KEY)).toBe('{first');
+      expect(storage.items.has(SAVE_INVALID_KEY)).toBe(false);
+    });
+  });
+
+  describe('a save from a newer game (story 2.8)', () => {
+    const FUTURE = {
+      version: 3,
+      calibration: CALIBRATION,
+      settings: SETTINGS,
+      reducedMotion: true,
+    };
+
+    it('is left in place, copied aside, with one warning; the session runs on defaults', async () => {
+      storage.items.set(SAVE_KEY, FUTURE);
+      const store = createSaveStore(storage);
+      expect(await store.load()).toEqual(DEFAULTS);
+      expect(storage.items.get(SAVE_KEY)).toBe(FUTURE);
+      expect(storage.items.get(SAVE_INVALID_KEY)).toEqual(FUTURE);
+      expect(newWarnings()).toHaveLength(1);
+    });
+
+    it('never writes the save key afterwards, but keeps what the player sets in memory', async () => {
+      storage.items.set(SAVE_KEY, FUTURE);
+      const store = createSaveStore(storage);
+      await store.load();
+      await store.setCalibration(CALIBRATION);
+      await store.setSettings({ ...SETTINGS, tier: 'assistance' });
+      expect(store.current().settings.tier).toBe('assistance');
+      expect(store.current().calibration).toEqual(CALIBRATION);
+      expect(storage.items.get(SAVE_KEY)).toBe(FUTURE);
+      expect(newWarnings()).toHaveLength(1);
+    });
+
+    it('does not overwrite a first copy', async () => {
+      storage.items.set(SAVE_INVALID_KEY, 'older');
+      storage.items.set(SAVE_KEY, FUTURE);
+      await createSaveStore(storage).load();
+      expect(storage.items.get(SAVE_INVALID_KEY)).toBe('older');
+    });
+  });
+
+  describe('setSettings (story 2.8)', () => {
+    const NEXT = {
+      tier: 'experienced',
+      volumes: { music: 40, sfx: 100, voice: 0, ui: 95 },
+      haptics: false,
+    } as const;
+
+    it('writes the settings under the save key and keeps them in memory, calibration included', async () => {
+      const store = createSaveStore(storage);
+      await store.load();
+      await store.setCalibration(CALIBRATION);
+      await store.setSettings(NEXT);
+      expect(store.current().settings).toEqual(NEXT);
+      expect(storage.items.get(SAVE_KEY)).toEqual({
+        ...DEFAULTS,
+        calibration: CALIBRATION,
+        settings: NEXT,
+      });
+    });
+
+    it('is in memory before the write lands', async () => {
+      const store = createSaveStore(storage);
+      await store.load();
+      const pending = store.setSettings(NEXT);
+      expect(store.current().settings).toEqual(NEXT);
+      await pending;
+    });
+
+    it('warns once while the storage keeps failing, and again after a write succeeds', async () => {
+      const store = createSaveStore(storage);
+      await store.load();
+      storage.failing.add('set');
+      for (const music of [10, 20, 30, 40]) {
+        await store.setSettings({ ...SETTINGS, volumes: { ...SETTINGS.volumes, music } });
+      }
+      expect(store.current().settings.volumes.music).toBe(40);
+      expect(newWarnings()).toEqual(['the save could not be written']);
+      storage.failing.delete('set');
+      await store.setSettings(SETTINGS);
+      storage.failing.add('set');
+      await store.setSettings(NEXT);
+      await store.setSettings(SETTINGS);
+      expect(newWarnings()).toEqual([
+        'the save could not be written',
+        'the save could not be written',
+      ]);
     });
   });
 });
@@ -181,6 +302,12 @@ describe('migrateSave', () => {
   it('leaves a current save alone, same object', () => {
     const save = { version: 2, latency: null };
     expect(migrateSave(save, MIGRATIONS, 2)).toEqual({ ok: true, value: save });
+  });
+
+  it('tells a version from the future apart from a save it cannot use', () => {
+    expect(migrateSave({ version: 3 }, MIGRATIONS, 2)).toMatchObject({ ok: false, kind: 'future' });
+    expect(migrateSave({ version: 0 }, [], 2)).toMatchObject({ ok: false, kind: 'unusable' });
+    expect(migrateSave('x', MIGRATIONS, 2)).toMatchObject({ ok: false, kind: 'unusable' });
   });
 
   it('refuses a version from the future, a gap in the table, and a migration that lies', () => {
@@ -216,14 +343,17 @@ describe('migrateSave', () => {
     }
   });
 
-  it('runs a migration through the store: a v0 save is brought to v1 and written back', async () => {
+  it('runs a migration through the store: a v0 save is brought to v2 and written back', async () => {
     const storage = fakeStorage();
     storage.items.set(SAVE_KEY, { version: 0, calibrated: null });
     const store = createSaveStore(storage, {
-      migrations: [{ from: 0, migrate: (save) => ({ version: 1, calibration: save.calibrated }) }],
+      migrations: [
+        { from: 0, migrate: (save) => ({ version: 1, calibration: save.calibrated }) },
+        ...SAVE_MIGRATIONS,
+      ],
     });
-    expect(await store.load()).toEqual({ version: 1, calibration: null });
-    expect(storage.items.get(SAVE_KEY)).toEqual({ version: 1, calibration: null });
+    expect(await store.load()).toEqual(DEFAULTS);
+    expect(storage.items.get(SAVE_KEY)).toEqual(DEFAULTS);
     expect(storage.items.has(SAVE_INVALID_KEY)).toBe(false);
   });
 
@@ -242,5 +372,32 @@ describe('migrateSave', () => {
     });
     expect(await store.load()).toMatchObject({ calibration: null });
     expect(storage.items.get(SAVE_INVALID_KEY)).toEqual({ version: 0 });
+  });
+});
+
+describe('the v1 → v2 migration (story 2.8)', () => {
+  it('keeps the calibration of a real v1 save and adds the default settings', async () => {
+    const storage = fakeStorage();
+    storage.items.set(SAVE_KEY, { version: 1, calibration: CALIBRATION });
+    const store = createSaveStore(storage);
+    expect(await store.load()).toEqual({ ...DEFAULTS, calibration: CALIBRATION });
+    expect(storage.items.get(SAVE_KEY)).toEqual({ ...DEFAULTS, calibration: CALIBRATION });
+    expect(storage.items.has(SAVE_INVALID_KEY)).toBe(false);
+  });
+
+  it('migrates a v1 save with no calibration', async () => {
+    const storage = fakeStorage();
+    storage.items.set(SAVE_KEY, { version: 1, calibration: null });
+    expect(await createSaveStore(storage).load()).toEqual(DEFAULTS);
+  });
+
+  it('is pure: the input is not changed, and each call gets its own settings', () => {
+    const v1 = Object.freeze({ version: 1, calibration: CALIBRATION });
+    const [step] = SAVE_MIGRATIONS;
+    const a = step?.migrate(v1);
+    const b = step?.migrate(v1);
+    expect(v1).toEqual({ version: 1, calibration: CALIBRATION });
+    expect(a).toEqual({ ...DEFAULTS, calibration: CALIBRATION });
+    expect((a?.settings as object) === (b?.settings as object)).toBe(false);
   });
 });

@@ -43,9 +43,9 @@ async function midSequence(): Promise<Sim> {
 type World = Record<string, Record<string, unknown>>;
 
 describe('the sequence slice in a snapshot (story 4.4)', () => {
-  it('is version 19 and carries the slice at rest, before any sequence', async () => {
+  it('is version 20 and carries the slice at rest, before any sequence', async () => {
     const snapshot = roundTrip(await newSim());
-    expect(snapshot.version).toBe(19);
+    expect(snapshot.version).toBe(20);
     expect(snapshot.world.sequence).toEqual({
       id: null,
       lastId: null,
@@ -154,6 +154,6 @@ describe('the sequence slice in a snapshot (story 4.4)', () => {
   it('refuses a version 18 snapshot, which has no sequence slice', async () => {
     const snapshot = roundTrip(await newSim());
     const target = await newSim();
-    expect(() => target.restore({ ...snapshot, version: 18 as 19 })).toThrow(/version 18/);
+    expect(() => target.restore({ ...snapshot, version: 18 as 20 })).toThrow(/version 18/);
   });
 });

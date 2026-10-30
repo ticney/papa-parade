@@ -3,6 +3,8 @@ import { botResponsesOf } from '@bots/botResponses';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
 import type { LevelContent } from '@content/contentBundle';
+import type { DifficultyTierId } from '@shared/constants';
+import { asSimMs } from '@shared/time';
 import { createSim, type Sim, type SimEvent } from '@sim';
 import {
   COFFEE_TABLE,
@@ -75,6 +77,8 @@ export async function playBotGame(
     untilSimMs?: number;
     settings?: Partial<BotOptions>;
     level?: LevelContent;
+    /** The difficulty tier, sent as the client does: a `SetDifficultyTier` at t = 0, none at `normal` (story 2.8). */
+    tier?: DifficultyTierId;
   } = {},
 ): Promise<BotGame> {
   const sim = await createSim({
@@ -84,6 +88,9 @@ export async function playBotGame(
     seed,
     strictInvariants: true,
   });
+  if (options.tier !== undefined && options.tier !== 'normal') {
+    sim.enqueue({ type: 'SetDifficultyTier', t: asSimMs(0), tier: options.tier });
+  }
   const events: SimEvent[] = [];
   playGame(
     sim,

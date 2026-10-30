@@ -83,6 +83,27 @@ describe('escapeAction', () => {
     }
   });
 
+  it('goes back one level in the settings and the credits (story 2.8), whatever the pause state', () => {
+    for (const appState of ['settings', 'credits'] as const) {
+      for (const pauseState of PAUSE_STATES) {
+        expect(escapeAction({ appState, pauseState, isPortrait: false, repeat: false })).toBe(
+          'back',
+        );
+      }
+    }
+  });
+
+  it('does not go back in portrait or on a repeat', () => {
+    for (const appState of ['settings', 'credits'] as const) {
+      expect(
+        escapeAction({ appState, pauseState: 'paused', isPortrait: true, repeat: false }),
+      ).toBe(null);
+      expect(
+        escapeAction({ appState, pauseState: 'paused', isPortrait: false, repeat: true }),
+      ).toBe(null);
+    }
+  });
+
   it('does nothing in portrait (it must not resume under the overlay) or on a repeat', () => {
     for (const pauseState of PAUSE_STATES) {
       expect(
@@ -161,6 +182,27 @@ describe('padAction (story 1.17)', () => {
     expect(act('level', 'paused', 'pause', 'right')).toBe('ArrowRight');
     expect(act('level', 'paused', 'pause', 'confirm')).toBe('activate');
     expect(act('level', 'paused', 'pause', 'back')).toBe('back');
+  });
+
+  it('drives the settings and the credits (story 2.8): D-pad moves, A presses, B goes back, Start nothing', () => {
+    for (const overlay of ['settings', 'credits'] as const) {
+      const appState = overlay;
+      for (const pauseState of ['paused', 'running'] as const) {
+        expect(act(appState, pauseState, overlay, 'up')).toBe('ArrowUp');
+        expect(act(appState, pauseState, overlay, 'down')).toBe('ArrowDown');
+        expect(act(appState, pauseState, overlay, 'left')).toBe('ArrowLeft');
+        expect(act(appState, pauseState, overlay, 'right')).toBe('ArrowRight');
+        expect(act(appState, pauseState, overlay, 'confirm')).toBe('activate');
+        expect(act(appState, pauseState, overlay, 'back')).toBe('back');
+        expect(act(appState, pauseState, overlay, 'start')).toBeNull();
+      }
+    }
+  });
+
+  it('takes nothing over the settings in portrait', () => {
+    for (const button of BUTTONS) {
+      expect(act('settings', 'paused', 'portrait', button), button).toBeNull();
+    }
   });
 
   it('does what Escape does on Start: pause, resume, or cancel the countdown', () => {

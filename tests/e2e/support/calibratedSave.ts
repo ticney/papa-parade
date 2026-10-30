@@ -1,4 +1,4 @@
-import type { Save } from '../../../src/content/schemas/save.ts';
+import type { Save, Settings } from '../../../src/content/schemas/save.ts';
 
 // The save of a player who has been through the latency calibration (story 2.7), with offsets of 0:
 // the Playwright configs seed it into every context, so that no spec has to click through the
@@ -8,10 +8,17 @@ import type { Save } from '../../../src/content/schemas/save.ts';
 /** Key of the save in `localStorage` (the same as `SAVE_KEY`; `tests` cannot rely on the alias). */
 export const SAVE_STORAGE_KEY = 'papa-parade.save';
 
-/** A valid v1 save with a calibration; `overrides` change what a spec cares about. */
-export function calibratedSave(overrides: Partial<NonNullable<Save['calibration']>> = {}): Save {
+/**
+ * A valid v2 save with a calibration (story 2.8: it also holds the default settings, the normal
+ * tier, which sends no command, so no timing moves). `overrides` change the calibration and
+ * `settings` the settings, for what a spec cares about.
+ */
+export function calibratedSave(
+  overrides: Partial<NonNullable<Save['calibration']>> = {},
+  settings: Partial<Settings> = {},
+): Save {
   return {
-    version: 1,
+    version: 2,
     calibration: {
       visualOffsetMs: 0,
       audioOffsetMs: 0,
@@ -20,13 +27,20 @@ export function calibratedSave(overrides: Partial<NonNullable<Save['calibration'
       device: 'web-touch',
       ...overrides,
     },
+    settings: {
+      tier: 'normal',
+      volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
+      haptics: true,
+      ...settings,
+    },
   };
 }
 
 /** The `localStorage` value of {@link calibratedSave}. */
 export const calibratedSaveValue = (
   overrides: Partial<NonNullable<Save['calibration']>> = {},
-): string => JSON.stringify(calibratedSave(overrides));
+  settings: Partial<Settings> = {},
+): string => JSON.stringify(calibratedSave(overrides, settings));
 
 /** A Playwright `storageState` that holds the calibrated save for the page served at `baseURL`. */
 export function calibratedStorageState(baseURL: string) {

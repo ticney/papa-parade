@@ -20,6 +20,7 @@ export function simArgs(overrides: Partial<SimArgs> = {}): SimArgs {
   return {
     levelId: 'salon_crawler',
     botId: 'perfect',
+    tier: 'normal',
     seed: 1,
     runs: 1,
     untilSimMs: 20_000,

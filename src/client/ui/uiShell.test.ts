@@ -32,6 +32,11 @@ function setup() {
   const screen = {
     activate: (atReal?: number) => calls.push(`screen.activate:${atReal}`),
     skip: () => calls.push('screen.skip'),
+    moveFocus: (code: string) => {
+      calls.push(`screen.moveFocus:${code}`);
+      return code.startsWith('Arrow');
+    },
+    back: () => calls.push('screen.back'),
   };
   const overlayHost = {
     get kind() {
@@ -236,5 +241,109 @@ describe('createUiShell: setPadDisconnected (story 1.17)', () => {
     const { shell, calls } = setup();
     shell.setPadDisconnected(true);
     expect(calls).toEqual([]);
+  });
+});
+
+describe('createUiShell: the settings and the credits (story 2.8)', () => {
+  function settingsSetup() {
+    const base = setup();
+    base.toLevel();
+    base.pause.requestPause('user');
+    base.appFsm.enter('settings');
+    base.shell.refresh();
+    return base;
+  }
+
+  it('hides the HUD under the settings, and shows it again back in the level', () => {
+    const { appFsm, shell, isHudVisible } = settingsSetup();
+    expect(isHudVisible()).toBe(false);
+    appFsm.enter('level');
+    shell.refresh();
+    expect(isHudVisible()).toBe(true);
+  });
+
+  it('gives the D-pad to the screen, A its own edge stamp, B back, and Start nothing', () => {
+    const { calls, press, pause } = settingsSetup();
+    press('down');
+    expect(calls).toEqual(['screen.moveFocus:ArrowDown']);
+    press('left');
+    expect(calls).toEqual(['screen.moveFocus:ArrowLeft']);
+    press('confirm');
+    expect(calls).toEqual(['screen.activate:1234.5']);
+    press('back');
+    expect(calls).toEqual(['screen.back']);
+    press('start');
+    expect(calls).toEqual([]);
+    expect(pause.state).toBe('paused');
+  });
+
+  it('does the same over the credits', () => {
+    const { appFsm, shell, calls, press } = settingsSetup();
+    appFsm.enter('credits');
+    shell.refresh();
+    press('back');
+    expect(calls).toEqual(['screen.back']);
+    press('confirm');
+    expect(calls).toEqual(['screen.activate:1234.5']);
+  });
+
+  describe('the keys', () => {
+    function keysSetup() {
+      const base = settingsSetup();
+      let listener: ((event: KeyboardEvent) => void) | null = null;
+      base.shell.bindKeys({
+        addEventListener: (_type, fn) => {
+          listener = fn;
+        },
+        removeEventListener: () => undefined,
+      });
+      const key = (code: string, repeat = false): { prevented: boolean } => {
+        const result = { prevented: false };
+        base.calls.length = 0;
+        (listener as unknown as (event: unknown) => void)({
+          code,
+          repeat,
+          preventDefault: () => {
+            result.prevented = true;
+          },
+        });
+        return result;
+      };
+      return { ...base, key };
+    }
+
+    it('Escape goes back one level, and never resumes the paused level', () => {
+      const { key, calls, pause } = keysSetup();
+      expect(key('Escape').prevented).toBe(true);
+      expect(calls).toEqual(['screen.back']);
+      expect(pause.state).toBe('paused');
+    });
+
+    it('Escape does not repeat', () => {
+      const { key, calls } = keysSetup();
+      expect(key('Escape', true).prevented).toBe(false);
+      expect(calls).toEqual([]);
+    });
+
+    it('hands the arrows to the screen and cancels their default, so a focused range moves once', () => {
+      const { key, calls } = keysSetup();
+      for (const code of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
+        expect(key(code).prevented, code).toBe(true);
+        expect(calls).toEqual([`screen.moveFocus:${code}`]);
+      }
+    });
+
+    it('leaves the other keys alone', () => {
+      const { key } = keysSetup();
+      expect(key('KeyA').prevented).toBe(false);
+    });
+
+    it('takes nothing in portrait', () => {
+      const { key, shell, calls } = keysSetup();
+      shell.setPortrait(true);
+      expect(key('ArrowDown').prevented).toBe(false);
+      expect(key('Escape').prevented).toBe(false);
+      expect(calls).toEqual([]);
+    });
   });
 });

@@ -6,7 +6,13 @@ import { loadAudioClip } from '../assets/audioAssets.ts';
 import { fetchBytesWithTimeout } from '../assets/loadLevelAssets.ts';
 import { type AdaptiveMusic, createAdaptiveMusic, type MusicFeel } from './adaptiveMusic.ts';
 import { unlockAudioContext } from './audioUnlock.ts';
-import { type BusGraph, createBusGraph } from './buses.ts';
+import {
+  applyPlayerVolumes,
+  type BusGraph,
+  createBusGraph,
+  FULL_VOLUMES,
+  type PlayerVolumes,
+} from './buses.ts';
 import type {
   AudioBufferLike,
   AudioContextLike,
@@ -78,6 +84,12 @@ export interface AudioEngine {
   ): { cancel(): void } | null;
   /** The audio clock, in seconds; `null` while there is no context. */
   readonly currentTimeS: number | null;
+  /**
+   * The player's volume of each bus, in whole percent (story 2.8). Remembered, applied at once when
+   * the bus graph exists and at its creation otherwise (the unlock comes after the save is read).
+   * A bus gain is `gainPct / 100 × pct / 100`. Never throws.
+   */
+  setPlayerVolumes(volumes: PlayerVolumes): void;
   /** The music plays from now until `stopLevelLoops()`, in the mood last set. Idempotent. */
   startLevelLoops(): void;
   /** Fades both loops out. Idempotent. */
@@ -139,6 +151,7 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
 
   let context: AudioContextLike | null = null;
   let graph: BusGraph | null = null;
+  let playerVolumes: PlayerVolumes = FULL_VOLUMES;
   let unlockError: AppError | null = null;
   const buffers = new Map<string, AudioBufferLike>();
   const inFlight = new Map<string, Promise<void>>();
@@ -405,7 +418,7 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       }
       const ctx = unlocked.value;
       try {
-        graph = createBusGraph(ctx, table.buses);
+        graph = createBusGraph(ctx, table.buses, playerVolumes);
         music = createAdaptiveMusic({
           context: ctx,
           graph,
@@ -435,6 +448,15 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       log.info('audio', `audio state ${ctx.state}`, { baseLatencyS: ctx.baseLatency });
       options.onStateChange?.(ctx.state);
       return ok(undefined);
+    },
+    setPlayerVolumes(volumes) {
+      playerVolumes = { ...volumes };
+      if (graph === null) return;
+      try {
+        applyPlayerVolumes(graph, table.buses, playerVolumes);
+      } catch (cause) {
+        warn(`audio volumes could not be applied: ${reasonOf(cause)}`, cause);
+      }
     },
     suspend() {
       if (context === null || context.state === 'closed') return;

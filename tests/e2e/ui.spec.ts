@@ -545,7 +545,12 @@ test.describe('buttons and keyboard', () => {
     await pauseWithEscape(page);
     await settleAnimations(page);
     expect(await labels()).toEqual(
-      [STRINGS['hud.pause_button'], STRINGS['pause.resume'], STRINGS['pause.restart']].sort(),
+      [
+        STRINGS['hud.pause_button'],
+        STRINGS['pause.resume'],
+        STRINGS['pause.restart'],
+        STRINGS['pause.settings'],
+      ].sort(),
     );
     for (const button of await audit()) {
       expect(button.width).toBeGreaterThanOrEqual(TOUCH_TARGET_MIN_PX);

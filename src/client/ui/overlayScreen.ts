@@ -14,6 +14,14 @@ export interface OverlayScreen {
    * no such action.
    */
   skip?(): void;
+  /**
+   * An arrow key inside the screen (story 2.8): moves focus, or changes the value of the focused
+   * control. True when the key was the screen's, so that the shell cancels its default (a focused
+   * range would otherwise move twice). Absent on a screen with nothing to move.
+   */
+  moveFocus?(code: string): boolean;
+  /** B on a pad, Escape: back one level (story 2.8). Absent on a screen that has none. */
+  back?(): void;
   /** Removes whatever the screen bound outside its own element (window listeners). */
   dispose(): void;
 }

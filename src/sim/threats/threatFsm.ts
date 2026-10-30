@@ -10,6 +10,7 @@ import { fatigueWindowModifier } from '../gauges/fatigue.ts';
 import { addResponseToCombo, resetCombo } from '../scoring/combo.ts';
 import { failSequenceOnGag } from '../sequences/sequenceEnd.ts';
 import { startSlowMo } from '../time/slowMo.ts';
+import { activeDifficulty } from '../timing/difficulty.ts';
 import { type EffectiveWindow, effectiveWindow } from '../timing/effectiveWindow.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { applyGag, type GagId, gagIdOf } from './gags.ts';
@@ -61,10 +62,10 @@ export function telegraphThreat(
   def: ThreatDef,
   waveIndex: number,
 ): void {
-  const { timing, difficulty } = ctx.feel;
+  const { timing } = ctx.feel;
   threat.responseWindow = effectiveWindow(timing, def.windowMs ?? timing.windowMs, {
-    // The default tier until story 2.8 lets the player pick; instinct does not exist yet.
-    tier: difficulty.normal.windowMultiplier,
+    // Instinct does not exist yet (story 2.9).
+    tier: activeDifficulty(world, ctx).windowMultiplier,
     fatigue: fatigueWindowModifier(world, ctx),
     instinct: NEUTRAL_WINDOW_MODIFIER,
   });

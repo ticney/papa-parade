@@ -12,6 +12,9 @@ describe('commandProblem', () => {
     expect(commandProblem({ type: 'Release', t: 10 })).toBeNull();
     expect(commandProblem({ type: 'StartDisruption', t: 10, index: 0 })).toBeNull();
     expect(commandProblem({ type: 'StartSequence', t: 10, sequenceId: 'stay_awake' })).toBeNull();
+    for (const tier of ['assistance', 'normal', 'experienced']) {
+      expect(commandProblem({ type: 'SetDifficultyTier', t: 0, tier })).toBeNull();
+    }
     expect(
       commandProblem({ type: 'SetFeel', t: 10, patch: { timing: { windowMs: 320 } } }),
     ).toBeNull();
@@ -36,6 +39,7 @@ describe('commandProblem', () => {
       'PushProp',
       'Release',
       'SetBladder',
+      'SetDifficultyTier',
       'SetFatigue',
       'SetFeel',
       'SetInputLag',
@@ -80,6 +84,13 @@ describe('commandProblem', () => {
       { type: 'StartSequence', t: 0, sequenceId: 3 },
       /sequenceId/,
     ],
+    ['a SetDifficultyTier with no tier', { type: 'SetDifficultyTier', t: 0 }, /tier/],
+    [
+      'a SetDifficultyTier of an unknown tier',
+      { type: 'SetDifficultyTier', t: 0, tier: 'hard' },
+      /tier/,
+    ],
+    ['a SetDifficultyTier of a number', { type: 'SetDifficultyTier', t: 0, tier: 1 }, /tier/],
     ['a Release with a NaN t', { type: 'Release', t: Number.NaN }, /finite/],
     ['a non-finite t', { type: 'MoveStop', t: Number.NaN }, /finite/],
     [

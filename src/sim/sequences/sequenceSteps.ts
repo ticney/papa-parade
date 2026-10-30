@@ -46,8 +46,8 @@ const MICRO_SLEEPS: StepHandler<'microSleeps'> = {
     const planned = ctx.level.threats[index];
     if (threat === undefined || planned === undefined) return;
     if (threat.state !== 'idle' || isPapaBusy(world.papa)) return;
-    if (!isJudgeableBeforeEnd(ctx, planned.def, now, sequence.endsAt)) return;
-    if (!isJudgeableBeforeEnd(ctx, planned.def, now, ctx.level.durationMs)) return;
+    if (!isJudgeableBeforeEnd(world, ctx, planned.def, now, sequence.endsAt)) return;
+    if (!isJudgeableBeforeEnd(world, ctx, planned.def, now)) return;
     telegraphThreat(world, ctx, threat, planned.def, -1);
     sequence.nextMicroSleepAt = drawMicroSleepAt(world, step);
   },

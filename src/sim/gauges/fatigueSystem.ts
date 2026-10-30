@@ -38,7 +38,7 @@ export function runFatigue(world: World, ctx: StepContext): void {
   if (gauges.microSleepAt === null || now < gauges.microSleepAt) return;
   if (threat.state !== 'idle' || isPapaBusy(papa) || world.flow.state !== 'playing') return;
   // One that could not be judged before the end would show a telegraph that never resolves.
-  if (!isJudgeableBeforeEnd(ctx, planned.def, now, ctx.level.durationMs)) return;
+  if (!isJudgeableBeforeEnd(world, ctx, planned.def, now)) return;
   telegraphThreat(world, ctx, threat, planned.def, -1);
   gauges.microSleepAt = asSimMs(now + drawMicroSleepMs(world, ctx));
 }

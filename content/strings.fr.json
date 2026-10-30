@@ -75,6 +75,8 @@
   "result.copy_log": "Copier le journal",
   "result.log_copied": "Journal copié !",
   "result.download_log": "Télécharger le journal",
+  "settings.title": "Réglages",
+  "settings.back": "Retour",
   "settings.difficulty": "Difficulté",
   "settings.tier_assistance": "Assistance",
   "settings.tier_assistance_hint": "Fenêtres plus larges, instinct activé",
@@ -94,6 +96,8 @@
   "combo.multiplier": "x{count}",
   "combo.cash_in": "+{points}",
   "settings.credits": "Crédits",
+  "credits.title": "Crédits",
+  "credits.body": "Papa Parade. Crédits à venir.",
   "oops.message": "Oups ! Quelque chose s'est renversé.",
   "oops.retry": "Réessayer",
   "portrait.rotate": "Tourne ton téléphone"
