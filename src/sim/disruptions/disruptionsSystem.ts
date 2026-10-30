@@ -27,9 +27,11 @@ export const DISRUPTION_HANDLER_KINDS = Object.keys(HANDLERS) as readonly Disrup
  * `StartDisruption` commands (a `pending` instance starts now, anything else is ignored), then each
  * instance in level order: `pending` and `now ≥ atMs` starts, and `ringing` steps. Nothing happens
  * once the level has ended (`runFlow` closes a phone still ringing then). During a special
- * sequence (story 4.4) a `pending` phone waits for its end and `StartDisruption` is ignored, but a ringing one keeps ticking and timing out (Papa cannot walk to it). A disruption fires at most once, draws
- * nothing from `world.rng` itself (answering can, through the fatigue it adds, see `startCall`) and is never a
- * threat: the director neither counts nor draws it. Allocation-free.
+ * sequence (story 4.4) a `pending` phone waits for its end and `StartDisruption` is ignored; a start is
+ * refused while a phone rings (`sequenceRefusal`), so none rings during one. After a sequence a
+ * `pending` phone waits `feel.sequences.resumeGapMs` more, as the director does. A disruption fires
+ * at most once, draws nothing from `world.rng` itself (answering can, through the fatigue it adds,
+ * see `startCall`) and is never a threat: the director neither counts nor draws it. Allocation-free.
  */
 export function runDisruptions(world: World, ctx: StepContext): void {
   const planned = ctx.level.disruptions;
@@ -37,10 +39,12 @@ export function runDisruptions(world: World, ctx: StepContext): void {
   const isPlaying = world.flow.state === 'playing';
   const { disruptions } = world;
   const now = world.time.sim;
+  // The breath after a sequence: a phone due while it ran rings no earlier than this.
+  const { endedAt } = world.sequence;
+  const resumeAt = endedAt === null ? 0 : endedAt + ctx.feel.sequences.resumeGapMs;
 
-  for (let i = 0; i < ctx.commands.length; i++) {
+  for (let i = 0; i < ctx.commands.length && isPlaying; i++) {
     const command = ctx.commands[i];
-    if (!isPlaying) break;
     if (command?.type !== 'StartDisruption') continue;
     const instance = disruptions[command.index];
     const entry = planned[command.index];
@@ -51,7 +55,7 @@ export function runDisruptions(world: World, ctx: StepContext): void {
   for (let i = 0; i < planned.length; i++) {
     const entry = planned[i] as SimPlannedDisruption;
     const instance = disruptions[i] as DisruptionInstance;
-    if (isPlaying && instance.state === 'pending' && now >= entry.atMs) {
+    if (isPlaying && instance.state === 'pending' && now >= entry.atMs && now >= resumeAt) {
       HANDLERS[entry.def.kind].start(world, ctx, i);
     }
     // A disruption that just started was due at the first tick one period later: this is a no-op for it.

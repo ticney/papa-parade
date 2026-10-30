@@ -389,7 +389,22 @@ describe('the sequence framing in createCameraFx (story 4.4)', () => {
     other.fx.focusOn(2, -1);
     other.fx.update(worldWith(slowMo(1000, 2200, 2500)), 1500, PERFECT_CAMERA, false, framing(1));
     expect(other.camera.zoom).toBeCloseTo(perfectOnly.zoom + 0.18, 12);
-    expect(other.camera.position.toArray()).not.toEqual(perfectOnly.position);
+    // The pans add: each offset from the untouched camera, summed, is the combined offset.
+    const rest = build();
+    rest.fx.focusOn(2, -1);
+    rest.fx.update(worldWith(), 1500, PERFECT_CAMERA, false, NO_FRAMING);
+    const framingOnly = build();
+    framingOnly.fx.focusOn(2, -1);
+    framingOnly.fx.update(worldWith(), 1500, PERFECT_CAMERA, false, framing(1));
+    const at = (camera: typeof other.camera) => camera.position.toArray();
+    const [rx, ry, rz] = at(rest.camera);
+    const [px, py, pz] = perfectOnly.position;
+    const [gx, gy, gz] = at(framingOnly.camera);
+    const [cx, cy, cz] = at(other.camera);
+    expect(cx).toBeCloseTo((px as number) + (gx as number) - (rx as number), 9);
+    expect(cy).toBeCloseTo((py as number) + (gy as number) - (ry as number), 9);
+    expect(cz).toBeCloseTo((pz as number) + (gz as number) - (rz as number), 9);
+    expect(at(other.camera)).not.toEqual(perfectOnly.position);
     expect(other.fx.yawDeg).toBeCloseTo(8, 12);
   });
 

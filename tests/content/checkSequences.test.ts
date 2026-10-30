@@ -81,6 +81,36 @@ describe('checkContent and the special sequences (story 4.4)', () => {
     );
   });
 
+  it('names a sequence too short for its first micro-sleep to be judged', async () => {
+    await mutateJson(SEQUENCE, (sequence) => {
+      sequence.steps = (sequence.steps as Record<string, unknown>[]).map((step) => ({
+        ...step,
+        durationMs: 1000,
+      }));
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: LEVEL,
+        jsonPath: 'sequences[0]',
+        message: expect.stringMatching(/"stay_awake" lasts 3000 ms, but its first micro-sleep/),
+      }),
+    );
+  });
+
+  it('names a first gap longer than the whole sequence', async () => {
+    await mutateJson(SEQUENCE, (sequence) => {
+      const [first, ...rest] = sequence.steps as Record<string, unknown>[];
+      sequence.steps = [{ ...first, gapMinMs: 60_000, gapMaxMs: 60_000 }, ...rest];
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: LEVEL,
+        jsonPath: 'sequences[0]',
+        message: expect.stringMatching(/gapMinMs 60000/),
+      }),
+    );
+  });
+
   it.each([
     ['started', 'sequence_started'],
     ['succeeded', 'sequence_succeeded'],

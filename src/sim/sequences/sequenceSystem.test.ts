@@ -278,6 +278,9 @@ describe('startSequence: what a start does (story 4.4, AC 9)', () => {
     world.silence.threatId = 1;
     expect(sequenceRefusal(world)).toBe('silence');
     world.silence.threatId = null;
+    world.disruptions[0] = { state: 'ringing' } as (typeof world.disruptions)[number];
+    expect(sequenceRefusal(world)).toBe('phoneRinging');
+    world.disruptions.length = 0;
     world.flow.state = 'sequence';
     expect(sequenceRefusal(world)).toBe('running');
     world.flow.state = 'ended';
@@ -339,8 +342,12 @@ describe('the steps and the end (AC 10)', () => {
   });
 
   it('draws exactly one nextFloat per telegraph plus the start, whatever the gaps', async () => {
-    for (const def of [defWith([3000, 3000, 3000]), defWith([3000, 3000, 3000])]) {
-      def.steps = def.steps.map((step, i) => ({ ...step, gapMaxMs: 3000 + i * 400 }));
+    for (const gapsMs of [
+      [3000, 3000, 3000],
+      [2000, 3500, 2500],
+    ] as const) {
+      const def = defWith(gapsMs);
+      def.steps = def.steps.map((step, i) => ({ ...step, gapMaxMs: step.gapMinMs + i * 400 }));
       const sim = await newSim({ def });
       placeBaby(sim, 0.5);
       sim.enqueue({ type: 'TapBaby', t: asSimMs(0) });
@@ -375,7 +382,7 @@ describe('the steps and the end (AC 10)', () => {
     const events = [...first, ...runUntil(sim, () => worldOf(sim).flow.state === 'ended')];
     // At +1 s: 1010 + 1200 + 300 + 60 = 2570 ≤ 3000, so the first one does come; the next (at 2.57 s+) cannot.
     const telegraphs = ofType(events, 'ThreatTelegraphed');
-    expect(telegraphs.length).toBeLessThanOrEqual(1);
+    expect(telegraphs).toHaveLength(1);
     expect(ofType(events, 'LevelEnded').map((event) => event.reason)).toEqual(['timer']);
   });
 
@@ -493,8 +500,14 @@ describe('failing a micro-sleep ends the sequence (AC 12)', () => {
     sim.enqueue({ type: 'SetNoise', t: asSimMs(0), pct: 50 });
     start(sim);
     stepEvents(sim);
-    runUntil(sim, () => worldOf(sim).flow.state !== 'sequence');
+    const lifted = runUntil(sim, () => worldOf(sim).flow.state !== 'sequence');
     expect(worldOf(sim).flow.state).toBe('playing');
+    // The snore is added to whatever the gauge holds: 50 + 15, below the cap (the cap is the
+    // « wakes Mama » test below, from 95).
+    const snored = ofType(lifted, 'NoiseChanged').filter((event) => event.source === 'snore');
+    expect(snored).toHaveLength(1);
+    expect((snored[0]?.noisePct ?? 0) - (snored[0]?.deltaPct ?? 0)).toBeGreaterThan(40);
+    expect(snored[0]?.noisePct).toBeLessThan(100);
 
     const noisy = await newSim();
     placeBaby(noisy, 3);
@@ -558,7 +571,9 @@ describe('the level ends during a sequence (AC 13)', () => {
     expect(worldOf(sim).flow.state).toBe('ended');
   });
 
-  it('closes it before the phone and the silence', async () => {
+  it('closes it with a held phone still pending: SequenceEnded before LevelEnded, no ring', async () => {
+    // A phone cannot ring during a sequence (the start is refused while one rings, a pending one is
+    // held back), so the level end has no phone or silence to close before the sequence.
     const sim = await newSim({
       def: QUIET,
       durationMs: 6000,
@@ -572,8 +587,10 @@ describe('the level ends during a sequence (AC 13)', () => {
       ...runUntil(sim, () => worldOf(sim).flow.state === 'ended'),
     ];
     const types = events.map((event) => event.type);
-    expect(types.indexOf('PhoneRingStarted')).toBe(-1);
+    expect(types).not.toContain('PhoneRingStarted');
+    expect(worldOf(sim).disruptions[0]?.state).toBe('pending');
     expect(types.indexOf('SequenceEnded')).toBeGreaterThanOrEqual(0);
+    expect(types.indexOf('SequenceEnded')).toBeLessThan(types.indexOf('LevelEnded'));
   });
 });
 
@@ -619,9 +636,9 @@ describe('what a sequence suspends (AC 11)', () => {
     expect(worldOf(sim).flow.state).toBe('sequence');
   });
 
-  it('keeps a pending phone for the end and ignores StartDisruption; a ringing one times out', async () => {
+  it('keeps a pending phone for the end plus resumeGapMs and ignores StartDisruption', async () => {
     const objects = [{ id: 'phone', kind: 'phone' as const, anchor: 'phone' }];
-    // A phone due at 1 s: the sequence (15 s) holds it back until its end.
+    // A phone due at 1 s: the sequence (15 s) holds it back until its end, then the breath.
     const sim = await newSim({
       def: QUIET,
       objects,
@@ -632,25 +649,30 @@ describe('what a sequence suspends (AC 11)', () => {
     sim.enqueue({ type: 'StartDisruption', t: asSimMs(0), index: 0 });
     stepEvents(sim);
     const during = runUntil(sim, () => worldOf(sim).flow.state !== 'sequence');
-    // It rings in the step the sequence ends (runDisruptions follows runSequence), never before.
-    expect(ofType(during, 'PhoneRingStarted').map((event) => event.t)).toEqual([
-      worldOf(sim).sequence.endedAt,
-    ]);
+    expect(ofType(during, 'PhoneRingStarted')).toEqual([]);
+    const endedAt = worldOf(sim).sequence.endedAt as number;
+    const after = runUntil(sim, () => worldOf(sim).disruptions[0]?.state === 'ringing');
+    expect(ofType(after, 'PhoneRingStarted').map((event) => event.t)).toEqual([endedAt + 2000]);
+  });
 
-    // A phone already ringing keeps ticking and times out during the sequence (15 s ring).
+  it('refuses a start while a phone rings, and starts once it has timed out', async () => {
     const ringing = await newSim({
-      def: { ...QUIET, steps: QUIET.steps.map((s) => ({ ...s, durationMs: 9000 })) },
-      objects,
+      def: QUIET,
+      objects: [{ id: 'phone', kind: 'phone' as const, anchor: 'phone' }],
       waves: [testWave([], { disruptions: [testPhoneEntry(0)] })],
     });
     placeBaby(ringing, 3);
     stepEvents(ringing);
     expect(worldOf(ringing).disruptions[0]?.state).toBe('ringing');
+    expect(sequenceRefusal(worldOf(ringing))).toBe('phoneRinging');
     start(ringing);
-    const events = runUntil(ringing, () => worldOf(ringing).disruptions[0]?.state !== 'ringing');
-    expect(ofType(events, 'PhoneRinging').length).toBeGreaterThan(5);
-    expect(ofType(events, 'PhoneRingEnded')[0]).toMatchObject({ reason: 'timedOut' });
-    expect(worldOf(ringing).flow.state).toBe('sequence');
+    const refused = stepEvents(ringing);
+    expect(ofType(refused, 'SequenceStarted')).toEqual([]);
+    expect(worldOf(ringing).flow.state).toBe('playing');
+    runUntil(ringing, () => worldOf(ringing).disruptions[0]?.state !== 'ringing');
+    expect(sequenceRefusal(worldOf(ringing))).toBeNull();
+    start(ringing);
+    expect(ofType(stepEvents(ringing), 'SequenceStarted')).toHaveLength(1);
   });
 });
 

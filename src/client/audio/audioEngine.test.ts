@@ -719,8 +719,14 @@ describe('the music of a special sequence (story 4.4)', () => {
     const source = s.fake.sources[before];
     expect(source?.loop).toBe(true);
     expect(source?.startCalls).toHaveLength(1);
-    // The gain it fades in: 0 now, its gain (100 %) at fadeMs (400 ms).
+    // The gain it fades in: 0 now, its gain at fadeMs.
     expect(s.fake.gains.length - gainsBefore).toBe(1);
+    const def = createTestFeedback().loops.sequenceMusic.stay_awake;
+    const [set, ramp, ...rest] = s.fake.gains[gainsBefore]?.gain.events ?? [];
+    expect(set).toMatchObject({ kind: 'set', value: 0 });
+    expect(ramp).toMatchObject({ kind: 'ramp', value: (def?.gainPct ?? 0) / 100 });
+    expect(rest).toEqual([]);
+    expect((ramp?.timeS ?? 0) - (set?.timeS ?? 0)).toBeCloseTo((def?.fadeMs ?? 0) / 1000, 6);
   });
 
   it('restarts clean mid-sequence: a level start clears the wanted loop, and the next frame wants none', async () => {
@@ -755,11 +761,33 @@ describe('the music of a special sequence (story 4.4)', () => {
     ]);
   });
 
-  it('is remembered while the level loops are off and starts with them', async () => {
+  it('is not remembered while the level loops are off: a stale frame never carries it into the next level', async () => {
     const s = await ready();
     s.engine.setSequenceMusic('stay_awake');
     expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([]);
     s.engine.startLevelLoops();
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([]);
+    // The next frame that does see the sequence starts it.
+    s.engine.setSequenceMusic('stay_awake');
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([
+      ['sequenceMusic', true],
+    ]);
+  });
+
+  it('retries a clip that was not decoded at the first start once a preload has decoded it', async () => {
+    const s = setup();
+    s.engine.unlock();
+    s.answer.set('music_stay_awake', new Error('404'));
+    await s.engine.preload(CLIPS);
+    s.fake.setState('running');
+    s.engine.startLevelLoops();
+    s.engine.setSequenceMusic('stay_awake');
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([]);
+    // The clip arrives (a later preload): the skip is forgotten, as `startLoop`'s own.
+    s.answer.delete('music_stay_awake');
+    await s.engine.preload(CLIPS);
+    s.engine.setSequenceMusic(null);
+    s.engine.setSequenceMusic('stay_awake');
     expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([
       ['sequenceMusic', true],
     ]);

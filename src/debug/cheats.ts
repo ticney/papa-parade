@@ -101,6 +101,7 @@ export function sequenceRefusalText(world: Readonly<World>): string | null {
     ended: 'the level has ended',
     papaBusy: 'Papa is busy (coffee, nap, call or toilet)',
     silence: 'the baby is hiding (a silence is under way)',
+    phoneRinging: 'a phone is ringing (answer it first)',
   };
   return texts[reason];
 }

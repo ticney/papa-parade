@@ -339,6 +339,9 @@ export async function boot(): Promise<void> {
   const visualOffsetMs = (): number => saveStore.current().calibration?.visualOffsetMs ?? 0;
   // Each entry into a music mood, counted (story 2.6): polling misses a short slow-mo at speed 4.
   const musicMoodCounts = { tense: 0, slow: 0 };
+  // Whether a sequence's own music really plays (the engine says so): the level stems give way to it
+  // only then, so a clip that is not decoded or fails to start never leaves the sequence in silence.
+  let isSequenceMusicOn = false;
   const audio = createAudioEngine({
     table: feedbackTable,
     getMusicFeel: () => levelFeel().music,
@@ -360,6 +363,7 @@ export async function boot(): Promise<void> {
       if (isMirrored) mirror('ppAudioClips', String(count));
     },
     onLoopChange: (loop, isOn) => {
+      if (loop === 'sequenceMusic') isSequenceMusicOn = isOn;
       if (!isMirrored) return;
       const name =
         loop === 'babble' ? 'ppBabble' : loop === 'sequenceMusic' ? 'ppSequenceMusic' : 'ppMusic';
@@ -896,7 +900,7 @@ export async function boot(): Promise<void> {
           ? (currentSequences?.[babbleWorld.sequence.id ?? '']?.framing.musicLoop ?? null)
           : null;
       audio.setSequenceMusic(sequenceMusicId);
-      audio.setMusicMuted(isSilent || sequenceMusicId !== null);
+      audio.setMusicMuted(isSilent || isSequenceMusicOn);
       // The music follows the world's state too (story 2.6): tense while a threat is on, slowed
       // while the time scale is down. Allocation-free: a loop over a handful of threats.
       const isPlaying = babbleWorld !== undefined && isFlowLive(babbleWorld);

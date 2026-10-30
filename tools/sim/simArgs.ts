@@ -66,6 +66,8 @@ visits; 0 for a bot, which never goes) and \`bladderPeakPct\`, the highest the n
 one decimal (the highest of any game in the aggregate; 0 in a level with no \`gauges.need\`).
 The special sequences (story 4.4) are counted per game and over the runs: \`sequencesStarted\`,
 \`sequencesSucceeded\` and \`sequencesFailed\`. Nothing starts one in a normal game: \`--sequence\` does.
+A start the sim refuses (Papa busy, a silence, a phone ringing) is sent once, not retried: the run logs a
+warning and counts 0. A game cut by \`--until-ms\` in the middle of a sequence counts it as started only.
 \`snore\` is a source of the noise per source.
 `;
 

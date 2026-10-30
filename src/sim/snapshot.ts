@@ -554,7 +554,7 @@ export interface PlannedLevel {
   /** The special sequences the level can run, with the length of each one's steps (story 4.4). */
   readonly sequences: readonly {
     readonly id: string;
-    readonly def: { readonly steps: readonly unknown[] };
+    readonly def: { readonly steps: readonly unknown[]; readonly babyCarried: boolean };
   }[];
   /** The level's interactive objects: Papa's `objectId` must be one of them. */
   readonly objects: readonly { readonly id: string }[];
@@ -722,12 +722,15 @@ function comboProblem(combo: unknown, baby: unknown): string | null {
  * The special sequence (story 4.4): `id` and `lastId` are null or a planned sequence's id, the
  * instants are finite and not in the future, `stepIndex` is a step of the sequence's def,
  * `endedAt` is null while one runs, `nextMicroSleepAt` is null or finite, and the flow is in
- * `sequence` exactly when `id` is not null (the level's own end closes the sequence first).
+ * `sequence` exactly when `id` is not null (the level's own end closes the sequence first). The
+ * clocks are ordered (`startedAt ≤ stepEndsAt ≤ endsAt`, `startedAt ≤ endedAt`), no sequence means
+ * step 0 and no micro-sleep due, and a running `babyCarried` sequence has the baby in the arms.
  */
 function sequenceProblem(
   sequence: unknown,
   flow: unknown,
   planned: PlannedLevel['sequences'],
+  baby: unknown,
   nowMs: number,
 ): string | null {
   if (typeof sequence !== 'object' || sequence === null) return 'world.sequence is missing';
@@ -741,11 +744,19 @@ function sequenceProblem(
     if (!isFiniteNumber(slice[key]) || (slice[key] as number) < 0) return `world.sequence.${key}`;
   }
   if ((slice.startedAt as number) > nowMs) return 'world.sequence.startedAt';
+  if ((slice.endsAt as number) < (slice.startedAt as number)) return 'world.sequence.endsAt';
+  if (
+    (slice.stepEndsAt as number) < (slice.startedAt as number) ||
+    (slice.stepEndsAt as number) > (slice.endsAt as number)
+  ) {
+    return 'world.sequence.stepEndsAt';
+  }
   if (slice.endedAt !== null) {
     if (!isFiniteNumber(slice.endedAt) || (slice.endedAt as number) < 0) {
       return 'world.sequence.endedAt';
     }
     if (slice.id !== null || (slice.endedAt as number) > nowMs) return 'world.sequence.endedAt';
+    if ((slice.endedAt as number) < (slice.startedAt as number)) return 'world.sequence.endedAt';
   }
   if (slice.nextMicroSleepAt !== null) {
     if (!isFiniteNumber(slice.nextMicroSleepAt) || (slice.nextMicroSleepAt as number) < 0) {
@@ -760,6 +771,16 @@ function sequenceProblem(
     return 'world.sequence.stepIndex';
   }
   if (((flow as { state: unknown }).state === 'sequence') !== (slice.id !== null)) {
+    return 'world.sequence.id';
+  }
+  if (slice.id === null) {
+    // `closeSequence` resets both: a stale step or cadence would leak into the next sequence.
+    if (slice.stepIndex !== 0) return 'world.sequence.stepIndex';
+    if (slice.nextMicroSleepAt !== null) return 'world.sequence.nextMicroSleepAt';
+  } else if (
+    def?.def.babyCarried === true &&
+    (baby as { state?: unknown } | null)?.state !== 'carried'
+  ) {
     return 'world.sequence.id';
   }
   return null;
@@ -941,7 +962,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     babyProblem(baby, papa, threats as readonly ThreatInstance[], clock.sim as number) ??
     carryProblem(carry, baby, planned.hasCarry, planned.armsCryIndex >= 0) ??
     comboProblem(combo, baby) ??
-    sequenceProblem(sequence, flow, planned.sequences, clock.sim as number) ??
+    sequenceProblem(sequence, flow, planned.sequences, baby, clock.sim as number) ??
     silenceProblem(
       silence,
       baby,

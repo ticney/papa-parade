@@ -1,4 +1,3 @@
-import { sequenceDurationMs } from '@content/schemas/sequence';
 import { asSimMs } from '@shared/time';
 import { isBabyCarried, isSilenceUnderway } from '../baby/babyFsm.ts';
 import { stopPapa, takeBaby } from '../baby/carry.ts';
@@ -11,20 +10,35 @@ import { sequenceDefOf } from './sequenceEnd.ts';
 import { enterSequenceStep } from './sequenceSteps.ts';
 
 /** Why a sequence cannot start now. */
-export type SequenceRefusal = 'running' | 'ended' | 'papaBusy' | 'silence';
+export type SequenceRefusal = 'running' | 'ended' | 'papaBusy' | 'silence' | 'phoneRinging';
 
 /**
  * Why a sequence cannot start now, or null (story 4.4 D6): one is already under way (`running`),
  * the level is over (`ended`), Papa is busy with a coffee, a nap, a call or the toilet
- * (`papaBusy`), or the baby is hiding in a suspicious silence (`silence`: `takeBaby` has no rule
- * for it). Pure and exported: the debug overlay says the reason in plain English.
+ * (`papaBusy`), the baby is hiding in a suspicious silence (`silence`: `takeBaby` has no rule
+ * for it), or a phone is ringing (`phoneRinging`: Papa cannot walk to it during a sequence, and the
+ * ring would cost noise for a call he cannot answer). Pure and exported: the debug overlay says the
+ * reason in plain English.
  */
 export function sequenceRefusal(world: World): SequenceRefusal | null {
   if (world.flow.state === 'sequence') return 'running';
   if (world.flow.state === 'ended') return 'ended';
   if (isPapaBusy(world.papa)) return 'papaBusy';
   if (isSilenceUnderway(world)) return 'silence';
+  for (let i = 0; i < world.disruptions.length; i++) {
+    if (world.disruptions[i]?.state === 'ringing') return 'phoneRinging';
+  }
   return null;
+}
+
+/**
+ * The sequence's length: the sum of its steps. Written here, not imported from `@content`: the sim
+ * takes types and the bundle it is handed from content, never its runtime (which pulls `zod`).
+ */
+function stepsDurationMs(def: { readonly steps: readonly { readonly durationMs: number }[] }) {
+  let total = 0;
+  for (const step of def.steps) total += step.durationMs;
+  return total;
 }
 
 /**
@@ -37,7 +51,9 @@ export function sequenceRefusal(world: World): SequenceRefusal | null {
  */
 export function startSequence(world: World, ctx: StepContext, sequenceId: string): void {
   const def = sequenceDefOf(ctx, sequenceId);
-  if (def === undefined || sequenceRefusal(world) !== null) return;
+  // The first step is read before any side effect: `createSim` refuses a def with no steps.
+  const first = def?.steps[0];
+  if (def === undefined || first === undefined || sequenceRefusal(world) !== null) return;
   const now = world.time.sim;
 
   enterFlowState(world, 'sequence');
@@ -51,12 +67,10 @@ export function startSequence(world: World, ctx: StepContext, sequenceId: string
   if (def.babyCarried && !isBabyCarried(world)) takeBaby(world, ctx);
 
   const { sequence } = world;
-  const first = def.steps[0];
-  if (first === undefined) return;
   sequence.id = sequenceId;
   sequence.lastId = sequenceId;
   sequence.startedAt = now;
-  sequence.endsAt = asSimMs(now + sequenceDurationMs(def));
+  sequence.endsAt = asSimMs(now + stepsDurationMs(def));
   sequence.endedAt = null;
   sequence.stepIndex = 0;
   sequence.stepEndsAt = asSimMs(now + first.durationMs);

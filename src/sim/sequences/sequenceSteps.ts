@@ -66,10 +66,19 @@ export const SEQUENCE_HANDLER_KINDS = Object.keys(HANDLERS) as readonly Sequence
 
 /** Enters `step` (the one at `world.sequence.stepIndex`). */
 export function enterSequenceStep(world: World, ctx: StepContext, step: SequenceStep): void {
-  if (step.kind === 'microSleeps') HANDLERS.microSleeps.enter(world, ctx, step);
+  handlerOf(step).enter(world, ctx, step);
 }
 
 /** Steps `step`, the current one. */
 export function tickSequenceStep(world: World, ctx: StepContext, step: SequenceStep): void {
-  if (step.kind === 'microSleeps') HANDLERS.microSleeps.tick(world, ctx, step);
+  handlerOf(step).tick(world, ctx, step);
+}
+
+/**
+ * The handler of `step`'s kind, through the table: a kind added to the union has to be added to
+ * `HANDLERS` (the type says so) and is then dispatched here with no other edit. The cast is the one
+ * place TypeScript cannot correlate `step.kind` with its own step type.
+ */
+function handlerOf(step: SequenceStep): StepHandler<SequenceStepKind> {
+  return HANDLERS[step.kind] as StepHandler<SequenceStepKind>;
 }

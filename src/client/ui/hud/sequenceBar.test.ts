@@ -148,6 +148,20 @@ describe('createSequenceBar', () => {
     expect(bar.isMounted).toBe(false);
   });
 
+  it('keeps its last fill while it slides out after a failure, and 0 once it is gone', () => {
+    const { bar, def } = build();
+    bar.setPercent(bar.update(worldAt(8500), def));
+    bar.frame(0);
+    bar.frame(16);
+    // The sequence failed at 50 %: the world has no running sequence any more.
+    expect(bar.update(worldAt(8500, null), def)).toBe(50);
+    bar.frame(1000);
+    expect(bar.update(worldAt(8510, null), def)).toBe(50);
+    bar.frame(1000 + SLIDE_MS);
+    expect(bar.isMounted).toBe(false);
+    expect(bar.update(worldAt(8520, null), def)).toBe(0);
+  });
+
   it('a sequence that starts during the slide-out re-shows the bar and does not remove it later', () => {
     const { bar, parent, node, def } = build();
     bar.update(worldAt(1000), def);

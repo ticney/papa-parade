@@ -64,6 +64,12 @@ export async function runSim(
   hooks: RunSimHooks = {},
 ): Promise<Result<SimReport, string>> {
   const { content, geometry, level } = loaded;
+  if (args.sequenceId !== null && !level.level.sequences.includes(args.sequenceId)) {
+    const planned = level.level.sequences.length === 0 ? 'none' : level.level.sequences.join(', ');
+    return err(
+      `--sequence ${args.sequenceId}: the level ${loaded.levelId} does not plan it (it plans: ${planned})`,
+    );
+  }
   const responses = botResponsesOf(level.threats);
   // A game lasts the level's duration unless a cap says less (or more: the flow ends it anyway).
   const untilSimMs = args.untilSimMs ?? level.level.durationMs;
@@ -99,6 +105,14 @@ export async function runSim(
       playGame(sim, player, untilSimMs, recorder.onEvent);
       const summary = recorder.finish();
       summaries.push(summary);
+      // The sim drops a refused start with no event (Papa busy, a silence, a phone ringing) and the
+      // wrapper sends it once: say so, or a run that validated nothing looks like one that did.
+      if (args.sequenceId !== null && summary.sequencesStarted === 0) {
+        log.warn(
+          'sim',
+          `run ${index + 1} of ${args.runs} (seed ${seed}): --sequence ${args.sequenceId} never started (refused at ${args.sequenceAtMs} ms, or the game ended before it)`,
+        );
+      }
       game = toRunFile({
         levelId: loaded.levelId,
         bot: args.botId,

@@ -84,7 +84,7 @@ const setFeel = (
 const { windowMs: testWindowMs } = createTestContent().feel.timing;
 
 /**
- * The frozen « Rester éveille » cut short for the goldens (story 4.4): two steps of 4 s, a micro-sleep
+ * The frozen « Rester éveillé » cut short for the goldens (story 4.4): two steps of 4 s, a micro-sleep
  * every 2.5 s in each. 8 s long: the first micro-sleep is telegraphed at 2.51 s, the second at 5.01 s.
  */
 const SHORT_STAY_AWAKE = (() => {
@@ -350,7 +350,8 @@ export const SCENARIOS: readonly Scenario[] = [
     // « Rester éveillé » won (story 4.4), on the frozen living room: the sequence starts at once and
     // takes the baby (10 ms); the micro-sleeps are telegraphed at 2510 and 5010 (the cadence of the
     // short def) and each is parried at the centre of its window (a perfect: 3860, 6360); the
-    // sequence ends at 8010 (`SequenceEnded{succeeded}`, the clocks pushed by `resumeGapMs`),     // puts the baby down (8500, applied at 8510), the director returns at 10010 (the outlet, parried at 11360).
+    // sequence ends at 8010 (`SequenceEnded{succeeded}`, the clocks pushed by `resumeGapMs`),
+    // the player puts the baby down (8500, applied at 8510), the director returns at 10010 (the outlet, parried at 11360).
     // The times are read from a first recording. `stayAwake.test.ts` pins what it covers.
     name: 'stay_awake_held',
     level: stayAwakeLevel(),

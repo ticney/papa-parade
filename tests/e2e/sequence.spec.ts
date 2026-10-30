@@ -268,12 +268,22 @@ test.describe('Papa stands still', () => {
   }) => {
     const problems = collectProblems(page);
     await openFrozen(page);
+    const canvas = await page.locator('#pp-canvas').boundingBox();
+    const tapAt = (dy: number) =>
+      page.touchscreen.tap(
+        (canvas?.x ?? 0) + 60,
+        (canvas?.y ?? 0) + (canvas?.height ?? 0) / 2 + dy,
+      );
+    // Outside a sequence the same tap draws a marker: proof that the mirror works on this page, so
+    // that its absence below means something.
+    await tapAt(0);
+    await expect(html(page)).toHaveAttribute('data-pp-tap', /^-?\d+\.\d+,-?\d+\.\d+$/);
+    const marker = await html(page).getAttribute('data-pp-tap');
     await start(page);
     await ppAdvance(page, 5);
     const before = (await ppEvents(page)).length;
     const world = await ppWorld(page);
-    const canvas = await page.locator('#pp-canvas').boundingBox();
-    await page.touchscreen.tap((canvas?.x ?? 0) + 60, (canvas?.y ?? 0) + (canvas?.height ?? 0) / 2);
+    await tapAt(40);
     await page.keyboard.down('KeyD');
     await page.keyboard.up('KeyD');
     await page.keyboard.press('Space');
@@ -281,7 +291,7 @@ test.describe('Papa stands still', () => {
     const events = (await ppEvents(page, before)).map((event) => event.type);
     expect(events).not.toContain('PapaPathPlanned');
     expect(events).not.toContain('BabyPutDown');
-    await expect(html(page)).not.toHaveAttribute('data-pp-tap', /.+/);
+    expect(await html(page).getAttribute('data-pp-tap')).toBe(marker);
     const after = await ppWorld(page);
     expect([after.papa.xM, after.papa.zM]).toEqual([world.papa.xM, world.papa.zM]);
     expect(after.baby.state).toBe('carried');
@@ -343,6 +353,26 @@ test.describe('a win', () => {
     const at = await threatIconPoint(page);
     const before = (await ppEvents(page)).length;
     await page.touchscreen.tap(at.x, at.y);
+    await expect
+      .poll(async () => (await ppEvents(page, before)).map((event) => event.type))
+      .toContain('ResponseResolved');
+    const resolved = (await ppEvents(page, before)).find(
+      (event) => event.type === 'ResponseResolved',
+    );
+    expect(resolved).toMatchObject({ quality: expect.stringMatching(/success|perfect/) });
+    expect((await ppWorld(page)).flow.state).toBe('sequence');
+    expect(problems).toEqual([]);
+  });
+
+  test('Space answers the micro-sleep, as a tap does, while Papa stands still', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await startLevel(page);
+    await ppSend(page, { type: 'StartSequence', sequenceId: 'stay_awake' });
+    await waitForThreat(page, 'windowOpen', SEQUENCE_MS);
+    const before = (await ppEvents(page)).length;
+    await page.keyboard.press('Space');
     await expect
       .poll(async () => (await ppEvents(page, before)).map((event) => event.type))
       .toContain('ResponseResolved');

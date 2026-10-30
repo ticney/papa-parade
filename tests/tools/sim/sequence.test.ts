@@ -1,6 +1,7 @@
 import { hashJson } from '@shared/hash';
+import { log } from '@shared/log';
 import { createSim, type SimEvent } from '@sim';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SimLevel } from '../../../tools/sim/loadSimLevel.ts';
 import { replayRunFile } from '../../../tools/sim/replaySim.ts';
 import type { RunFile } from '../../../tools/sim/runFile.ts';
@@ -67,6 +68,30 @@ describe('runSim with --sequence', () => {
     expect(report.runList.map((run) => run.sequencesStarted)).toEqual([1, 1, 1]);
     expect(report.sequencesStarted).toBe(3);
     expect(report.sequencesFailed).toBe(3);
+  });
+
+  it('refuses an id the level does not plan, naming the ones it plans', async () => {
+    const result = await runSim(
+      simArgs({ botId: 'idle', sequenceId: 'typo', sequenceAtMs: 5000 }),
+      levelWithSequence(),
+    );
+    expect(result).toMatchObject({ ok: false });
+    expect(result.ok ? '' : result.error).toContain('--sequence typo');
+    expect(result.ok ? '' : result.error).toContain('stay_awake');
+  });
+
+  it('warns when the sim refuses the start, and reports 0 started', async () => {
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => undefined);
+    try {
+      // The cap ends the game before the start step: nothing is ever sent.
+      const report = await reportOf({ botId: 'idle', runs: 2, untilSimMs: 3000 });
+      expect(report.sequencesStarted).toBe(0);
+      const messages = warn.mock.calls.map(([, message]) => message);
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toContain('--sequence stay_awake never started');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('starts nothing without --sequence: the counters are 0 and the noise has no snore', async () => {

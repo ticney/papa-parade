@@ -553,6 +553,39 @@ function checkTelegraphClips(
 }
 
 /**
+ * Whether the first micro-sleep of a sequence can be telegraphed and judged inside it, or why not:
+ * its step's start, then `gapMinMs`, then the threat's delay, its window (at the widest tier) and
+ * the tolerance must fit in the sequence's length, otherwise the sim never telegraphs one and the
+ * sequence is won by waiting. Null when it fits, or when there is nothing to check.
+ */
+function microSleepFitProblem(
+  sequence: SequenceDef,
+  level: Level,
+  threats: ReadonlyMap<string, ThreatDef>,
+  feel: Feel | undefined,
+): string | null {
+  const microSleepDef = level.gauges.fatigue?.microSleepDef;
+  const index = sequence.steps.findIndex((step) => step.kind === 'microSleeps');
+  if (feel === undefined || microSleepDef === undefined || index < 0) return null;
+  const threat = threats.get(microSleepDef);
+  const step = sequence.steps[index];
+  if (threat === undefined || step?.kind !== 'microSleeps') return null;
+  let startMs = 0;
+  for (const earlier of sequence.steps.slice(0, index)) startMs += earlier.durationMs;
+  let totalMs = 0;
+  for (const each of sequence.steps) totalMs += each.durationMs;
+  const widest = Math.max(...Object.values(feel.difficulty).map((tier) => tier.windowMultiplier));
+  const judgedMs =
+    startMs +
+    step.gapMinMs +
+    (threat.telegraphDelayMs ?? feel.timing.telegraphDelayDefaultMs) +
+    (threat.windowMs ?? feel.timing.windowMs) * widest +
+    feel.timing.toleranceMs;
+  if (judgedMs <= totalMs) return null;
+  return `lasts ${totalMs} ms, but its first micro-sleep could not be judged before ${Math.round(judgedMs)} ms (the step's start ${startMs} + gapMinMs ${step.gapMinMs} + the delay, the widest window and the tolerance of "${microSleepDef}"): none would ever be telegraphed`;
+}
+
+/**
  * The references a sequence makes that its schema cannot see (story 4.4): each level that names it
  * has its file and what it needs (the baby in the arms needs `carry`, a micro-sleeps step needs
  * `gauges.fatigue.microSleepDef`), each of its feedback cues is a cue of `feedback.json` anchored
@@ -564,6 +597,7 @@ function checkSequenceReferences(
   families: ParsedFamilies,
   present: ReadonlySet<string>,
   feedback: FeedbackTable | undefined,
+  feel: Feel | undefined,
 ): ContentProblem[] {
   const problems: ContentProblem[] = [];
   for (const [id, level] of families.levels) {
@@ -597,6 +631,14 @@ function checkSequenceReferences(
           file,
           jsonPath: path,
           message: `the sequence "${sequenceId}" has a microSleeps step, but the level has no gauges.fatigue.microSleepDef (no micro-sleep to start)`,
+        });
+      }
+      const timingProblem = microSleepFitProblem(sequence, level, families.threats, feel);
+      if (timingProblem !== null) {
+        problems.push({
+          file,
+          jsonPath: path,
+          message: `the sequence "${sequenceId}" ${timingProblem}`,
         });
       }
     });
@@ -1160,7 +1202,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   problems.push(...checkDisruptionReferences(families.disruptions, feedback));
   problems.push(...checkTelegraphClips(families.threats, families.disruptions, feedback));
   problems.push(...checkLevelReferences(families, present, feel));
-  problems.push(...checkSequenceReferences(families, present, feedback));
+  problems.push(...checkSequenceReferences(families, present, feedback, feel));
 
   if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));
   if (feel !== undefined) {

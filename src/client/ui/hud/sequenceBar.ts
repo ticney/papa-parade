@@ -21,7 +21,7 @@ export interface SequenceBar {
   /**
    * Once per frame, by state (never by events: a pause, a restart or a level end cannot leave it
    * up): the bar is wanted while a sequence whose def has a bar runs. Returns the whole percent the
-   * bar should show (0 when none is wanted); the caller writes it through `hudBatch` (`setPercent`).
+   * bar should show (0 when none is wanted and the bar is gone; the last one shown while it slides out); the caller writes it through `hudBatch` (`setPercent`).
    * Allocation-free.
    */
   update(world: SequenceBarWorld, def: SequenceDef | null): number;
@@ -113,7 +113,8 @@ export function createSequenceBar(doc: Doc, options: SequenceBarOptions): Sequen
         element.classList.remove('pp-hud-sequence-bar--warn', 'pp-hud-sequence-bar--calm');
         element.classList.add(fillClass);
       }
-      if (!isWanted) return 0;
+      // Sliding out after an end: the fill keeps what it showed (a failed bar must not empty while it is still seen).
+      if (!isWanted) return isMounted ? Math.max(0, shownPercent) : 0;
       const lengthMs = sequence.endsAt - sequence.startedAt;
       const left = lengthMs > 0 ? (sequence.endsAt - world.time.sim) / lengthMs : 0;
       return Math.round(Math.min(PERCENT_MAX, Math.max(0, left * PERCENT_MAX)));

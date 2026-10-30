@@ -508,6 +508,7 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
         clearTimeout(timer);
       }
       skippedLoops.clear();
+      skippedSequenceMusic.clear();
       music?.clearSkipped();
       options.onClipsDecoded?.(buffers.size);
     },
@@ -575,6 +576,9 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
     setSequenceMusic(loopId) {
       // Called every frame: the common case is one compare and nothing else.
       if (loopId === wantedSequenceMusic) return;
+      // Not remembered while the loops are off: a frame that still sees a sequence between
+      // `stopLevelLoops` and the next level start must not carry it into that level.
+      if (!areLoopsActive && loopId !== null) return;
       wantedSequenceMusic = loopId;
       if (playingSequenceMusic !== null && playingSequenceMusic.id !== loopId) stopSequenceMusic();
       if (loopId !== null && areLoopsActive && playingSequenceMusic === null) {
