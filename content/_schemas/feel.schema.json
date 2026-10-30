@@ -1168,6 +1168,91 @@
       ],
       "additionalProperties": false,
       "description": "On-screen juice (story 2.5): shake, particles, stamp and the perfect camera. Client only."
+    },
+    "music": {
+      "type": "object",
+      "properties": {
+        "tense": {
+          "type": "object",
+          "properties": {
+            "fadeInMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "How long the tense stem takes to come up when a threat is on, in **real** ms."
+            },
+            "fadeOutMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "How long the tense stem takes to go away when no threat is on, in **real** ms."
+            },
+            "calmGainPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Level the calm stem ducks to while the tense one plays, in % (100 = no ducking)."
+            }
+          },
+          "required": [
+            "fadeInMs",
+            "fadeOutMs",
+            "calmGainPct"
+          ],
+          "additionalProperties": false,
+          "description": "The nervous stem that comes up with the threats."
+        },
+        "slowMo": {
+          "type": "object",
+          "properties": {
+            "belowScale": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 1,
+              "description": "The effect is on while the effective `world.time.scale` is below this."
+            },
+            "lowpassHz": {
+              "type": "number",
+              "minimum": 200,
+              "maximum": 20000,
+              "description": "Cut-off of the low-pass on the music while the effect is on, in hertz."
+            },
+            "playbackRatePct": {
+              "type": "number",
+              "minimum": 25,
+              "maximum": 100,
+              "description": "Speed of both stems while the effect is on, in % (pitch drops with it)."
+            },
+            "inMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2000,
+              "description": "Time to sweep the music into the effect, in **real** ms."
+            },
+            "outMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2000,
+              "description": "Time to sweep the music back out of the effect, in **real** ms."
+            }
+          },
+          "required": [
+            "belowScale",
+            "lowpassHz",
+            "playbackRatePct",
+            "inMs",
+            "outMs"
+          ],
+          "additionalProperties": false,
+          "description": "The music slows down with the game: a low-pass and a lower playback rate."
+        }
+      },
+      "required": [
+        "tense",
+        "slowMo"
+      ],
+      "additionalProperties": false,
+      "description": "Adaptive music mix (story 2.6): the tense stem and the slow-mo effect. Client only."
     }
   },
   "required": [
@@ -1182,7 +1267,8 @@
     "mama",
     "physics",
     "gags",
-    "fx"
+    "fx",
+    "music"
   ],
   "additionalProperties": false,
   "description": "Every feel value of the game, tuned by hand or from the feel panel."

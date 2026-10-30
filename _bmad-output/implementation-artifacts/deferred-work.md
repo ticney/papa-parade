@@ -574,3 +574,15 @@
 
 - **The observation sheet and the e2e test both hard-code the threat id list** (`outlet`, `stairs`, …). Reason: it can drift from `content/threats/*.json`; `parseObservations` already refuses an unknown threat id at run time.
 - **The touch vs keyboard ratio pools touch players and keyboard players, who are different people** (device confounded with skill; the per-tester ratio is usually null). Reason: it is the indicator as the GDD defines it; having the same testers play on both devices is a playtest-panel choice for Geo.
+
+## Story 2-6-musique-adaptative-de-base (2026-10-30)
+
+- **Music tightening above 70 % noise with an alert sound** (GDD L229, L491; FR60 complete, `[V1]`). Reason: not in this story's ACs; the basic mood (tense stem, slow-mo, silence cut) is done.
+- **`content/music/` and a per-age stem set.** Reason: story 7.5 swaps the two stem names of `loops.music.stems` for a set; nothing is built for it now. More than two stems too.
+- **The gapless loop of `.m4a` on WebKit (L158) now concerns two loops**, and a drift between them if the encoder pads them differently. This story warns on a length mismatch (`MUSIC_STEM_LENGTH_TOLERANCE_MS`); judge on a device (story 8.2).
+- **`param.value` read mid-ramp on Safari.** The mood ramps start from the current value (`cancelScheduledValues`, `setValueAtTime(param.value)`), as `stopLoop` already did; the pattern relies on Safari returning the live value. Judge on a device.
+- **The instinct's ×0.8 slow-mo (story 2.9) will also trigger the music's slow-mo effect** at `feel.music.slowMo.belowScale` 1. Story 2.9 or Geo lowers the bound (e.g. 0.7) if that is not wanted.
+- **No debug « Sons » audition of a mood.** Geo tunes by playing, or with `ForceThreat`.
+- **One shared fade (`loops.music.fadeMs`)** covers the level start, the stop and the silence cut alike.
+- **The tense stem is a synthesized placeholder** (`music_crawler_tense.m4a`); the real one is story 7.5. How the mix sounds (80 % rate, 900 Hz, ducking to 60 %) only Geo can judge.
+- **A missing tense stem** plays the calm one alone: the tension does nothing, the slow-mo effect still applies to the calm stem.

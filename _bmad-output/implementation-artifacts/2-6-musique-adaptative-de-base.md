@@ -1,6 +1,10 @@
+---
+baseline_commit: d39a86c6431e8e74f59bc3e44e7dc48f6653e33e
+---
+
 # Story 2.6: Basic adaptive music
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -85,17 +89,17 @@ so that I feel the threat coming and the slow-mo settling in.
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Content schemas and files** (AC 1, 2): `loops.music.stems` in `feedback.ts` + `feedback.json`; `feel.music` in `feel.ts` + `feel.json` + `testFeel.json` + `feelSample.json`; `MUSIC_START_LEAD_MS`, `MUSIC_FILTER_OPEN_HZ`; `feedbackClips`; `npm run content:schemas`; schema tests and every fixture of AC 1.
-- [ ] **T2. Content checks** (AC 1): both stem files, `music_*` category; failing and passing cases.
-- [ ] **T3. Placeholder tense stem** (AC 3): `synthMusicTense`, `PLACEHOLDER_CLIPS`, the `.m4a` through `--only`, tests.
-- [ ] **T4. Web Audio surface** (AC 4): `webAudio.ts`, `fakeAudioContext.ts` (+ its own test).
-- [ ] **T5. `adaptiveMusic.ts`** (AC 4-7): stems, mood, slow-mo, mute, guards; `isTensionActive`, `isSlowMoActive`; unit tests.
-- [ ] **T6. Engine integration** (AC 5, 7, 9): delegate the `music` loop, `setMusicMood`, `getMusicFeel`, `onMusicMoodChange`; rewrite `audioEngine.test.ts`.
-- [ ] **T7. Boot wiring and mirrors** (AC 8): per-frame call, mirrors, resets; `dist:check` prod.
-- [ ] **T8. e2e** (AC 10, 11): `adaptiveMusic.spec.ts`; the pinned specs on Chromium.
-- [ ] **T9. Goldens** (AC 12, 13): `npm run golden:update`; hashes only.
-- [ ] **T10. Docs** (AC 14, 15): `deferred-work.md`, `project-context.md`.
-- [ ] **T11. CI** (AC 16): `ci:fast` after each task; the full CI once at the end; report the perf numbers. On a loaded machine rerun with `--maxWorkers=5` / `--workers=4` and say so.
+- [x] **T1. Content schemas and files** (AC 1, 2): `loops.music.stems` in `feedback.ts` + `feedback.json`; `feel.music` in `feel.ts` + `feel.json` + `testFeel.json` + `feelSample.json`; `MUSIC_START_LEAD_MS`, `MUSIC_FILTER_OPEN_HZ`; `feedbackClips`; `npm run content:schemas`; schema tests and every fixture of AC 1.
+- [x] **T2. Content checks** (AC 1): both stem files, `music_*` category; failing and passing cases.
+- [x] **T3. Placeholder tense stem** (AC 3): `synthMusicTense`, `PLACEHOLDER_CLIPS`, the `.m4a` through `--only`, tests.
+- [x] **T4. Web Audio surface** (AC 4): `webAudio.ts`, `fakeAudioContext.ts` (+ its own test).
+- [x] **T5. `adaptiveMusic.ts`** (AC 4-7): stems, mood, slow-mo, mute, guards; `isTensionActive`, `isSlowMoActive`; unit tests.
+- [x] **T6. Engine integration** (AC 5, 7, 9): delegate the `music` loop, `setMusicMood`, `getMusicFeel`, `onMusicMoodChange`; rewrite `audioEngine.test.ts`.
+- [x] **T7. Boot wiring and mirrors** (AC 8): per-frame call, mirrors, resets; `dist:check` prod.
+- [x] **T8. e2e** (AC 10, 11): `adaptiveMusic.spec.ts`; the pinned specs on Chromium.
+- [x] **T9. Goldens** (AC 12, 13): `npm run golden:update`; hashes only.
+- [x] **T10. Docs** (AC 14, 15): `deferred-work.md`, `project-context.md`.
+- [x] **T11. CI** (AC 16): `ci:fast` after each task; the full CI once at the end; report the perf numbers. On a loaded machine rerun with `--maxWorkers=5` / `--workers=4` and say so.
 
 ## Dev Notes
 
@@ -206,8 +210,72 @@ Recent commits on `main`: « Story 2.5 : merge de story/2-5-effets-de-feeling-a-
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`)
+
 ### Debug Log References
+
+- `afconvert` output for `music_crawler_tense.m4a` is 66 853 bytes (calm: 67 380); the level payload stays well under `LEVEL_PAYLOAD_MAX_BYTES`.
+- A first `ci:fast` after T1 to T3 failed on the engine only (`loops.music.clip` gone): expected, fixed by T6.
+- `golden:update` rewrote `mama_woke.expected.json`'s `eventTypes` over several lines; reformatted with Biome so that only `worldHash` moved.
+
+### Implementation Plan
+
+- `adaptiveMusic.ts` owns the pair of stems (graph, mood ramps, guards); the engine keeps the context, the buses, the buffers, the **wanted mood** (so it survives a mute and the time between levels) and the edge detection (`onMusicMoodChange`). The engine passes the mood to `start(isTense, isSlowed)` for a restart and to `applyMood` for a live edge.
+- Graph: `calmSource → calmGain` and `tenseSource → tenseGain` → one low-pass → one fade gain (`gainPct`, `fadeMs`) → music bus. Both sources `start(startAtS)` with the same `startAtS`, stop at the same time, and always get identical `playbackRate` events (a single loop over `sources`).
+- Mood is state, not events: `boot.ts` computes `isTensionActive(world.threats)` and `isSlowMoActive(world, feel.music.slowMo.belowScale)` every frame while `flow.state === 'playing'` and calls `setMusicMood` (two boolean compares when nothing changed). The feel is read at each transition through `getMusicFeel`.
+- `isSlowMoActive` takes `{ time: { scale } }` (a structural slice of `World`), not `World`: `createWorld` is not exported by `@sim` and the client may not import it; the unit tests build the slice by hand.
 
 ### Completion Notes List
 
+- Done: AC 1 to 16. All 11 tasks. `ci:fast` is green (255 files, 4743 tests); the full `(unset VITE_DEBUG_ALLOWED; npm run ci)` is green (typecheck, lint, content:check, test:coverage, e2e, both builds, `dist:check` playtest and prod, `e2e:dist`).
+- **Perf** (`perf.spec.ts`, a whole level at speed 1): 17042 frames, p95 **16.8 ms**, draw calls max **40**, triangles max **1466** (2.5: 16.7 ms, 40, 1466). Level payload 317.9 KiB, first-load gzip 2205.7 KiB. The prod bundle holds none of the new `data-pp-music-*` mirrors (`dist:check --flavor prod` OK).
+- **How it sounds is not verified**: the graph is proven with fakes, the intent with the `data-pp-music-tense|slow` mirrors. Geo listens (open points 1 to 4 of the story). The tense stem is a synthesized placeholder.
+- **Deviation, autoplay**: AC 10 asks `data-pp-music` `on` throughout the autoplay run. An autoplay run has no start gesture, hence no audio context (the game is silent, by design of story 1.13), so `data-pp-music` stays `off` there. The autoplay test checks the mood **counts** instead; the `data-pp-music` `on` checks run in the two frozen tests, which start the game with a real tap.
+- **Interpretation, missing tense stem**: AC 4 says « the mood changes do nothing » when only the tense stem is missing. Implemented as: the tension (tense gain, calm ducking) does nothing; the slow-mo (low-pass, rate) still applies to the calm stem alone. Recorded in `deferred-work.md`.
+- **Instinct**: story 2.9's instinct ×0.8 will also trigger the slow-mo effect at `belowScale` 1; story 2.9 or Geo raises the bound down (e.g. 0.7) if that is not wanted.
+- **Not a cue, not a motion effect**: the music has no visual or haptic twin owed and no reduced-motion variant (story 2.10 need not look for one).
+- **Goldens moved deliberately** (`npm run golden:update`): the new `feel.music` block moves `feelHash` and `worldHash` in the 9 journals and their `.expected.json` (`baby_wander`, `core_basic`, `feel_change`, `mama_woke`, `outlet_parry`, `papa_walk`, `prop_fall`, `prop_fall_noise`, `threat_trio`). The diff holds **only hash lines**; no event moved.
+- Specs run on Chromium while developing: `feedback`, `silence`, `mute`, `timeEffects`, `testApi`, `debugOverlay` (60 passed); `adaptiveMusic.spec.ts` on Chromium and WebKit (3 + 3 passed).
+- Only `music_crawler_tense.m4a` was generated (`--only`); no other clip was rewritten.
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/2-6-musique-adaptative-de-base.md`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/project-context.md`
+- `content/_schemas/feedback.schema.json`
+- `content/_schemas/feel.schema.json`
+- `content/feedback.json`
+- `content/feel.json`
+- `public/assets/audio/music_crawler_tense.m4a` (new)
+- `src/client/audio/adaptiveMusic.ts` (new)
+- `src/client/audio/adaptiveMusic.test.ts` (new)
+- `src/client/audio/audioEngine.ts`
+- `src/client/audio/audioEngine.test.ts`
+- `src/client/audio/webAudio.ts`
+- `src/client/boot.ts`
+- `src/client/feedback/feedbackDirector.test.ts`
+- `src/content/feedbackClips.ts`
+- `src/content/feedbackClips.test.ts`
+- `src/content/schemas/feedback.ts`
+- `src/content/schemas/feel.ts`
+- `src/shared/constants.ts`
+- `tests/content/checkContent.test.ts`
+- `tests/content/feedbackSchema.test.ts`
+- `tests/content/feelSchema.test.ts`
+- `tests/e2e/adaptiveMusic.spec.ts` (new)
+- `tests/e2e/support/game.ts`
+- `tests/golden/journals/*.json` (hash lines only: 9 journals and 9 `.expected.json`)
+- `tests/support/fakeAudioContext.ts`
+- `tests/support/fakeAudioContext.test.ts`
+- `tests/support/testContent.ts`
+- `tests/support/testFeel.json`
+- `tests/tools/audio/makePlaceholderAudio.test.ts`
+- `tests/tools/vite/fixtures/feelSample.json`
+- `tools/audio/makePlaceholderAudio.ts`
+- `tools/content/contentChecks.ts`
+
+### Change Log
+
+- 2026-10-30: Story 2.6 implemented. `loops.music.stems` (calm, tense) and `feel.music` (tense, slowMo) added; placeholder tense stem; `adaptiveMusic.ts` mixes the two synchronized stems from the world's state; engine `setMusicMood`; boot wiring and `data-pp-music-tense|slow` mirrors (+ counts); goldens regenerated (hashes only); e2e `adaptiveMusic.spec.ts`.

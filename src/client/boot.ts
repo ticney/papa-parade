@@ -31,6 +31,7 @@ import type { CuePlayedRecord, TestHost } from './app/testHost.ts';
 import { readThreatsOff, withoutThreats } from './app/threatsSwitch.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
 import { createBrowserContentSource } from './assets/browserContentSource.ts';
+import { isSlowMoActive, isTensionActive } from './audio/adaptiveMusic.ts';
 import { createAudioEngine } from './audio/audioEngine.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
 import { isNoiseAlertCrossing } from './feedback/noiseAlert.ts';
@@ -246,6 +247,10 @@ export async function boot(): Promise<void> {
       | 'ppAudioClips'
       | 'ppBabble'
       | 'ppMusic'
+      | 'ppMusicTense'
+      | 'ppMusicSlow'
+      | 'ppMusicTenseCount'
+      | 'ppMusicSlowCount'
       | 'ppHaptics'
       | 'ppCue'
       | 'ppFlow'
@@ -297,8 +302,22 @@ export async function boot(): Promise<void> {
       heavy: feedbackTable.haptics.heavy.patternMs,
     },
   });
+  // Each entry into a music mood, counted (story 2.6): polling misses a short slow-mo at speed 4.
+  const musicMoodCounts = { tense: 0, slow: 0 };
   const audio = createAudioEngine({
     table: feedbackTable,
+    getMusicFeel: () => levelFeel().music,
+    onMusicMoodChange: (mood, isOn) => {
+      if (isOn) musicMoodCounts[mood] += 1;
+      if (!isMirrored) return;
+      if (mood === 'tense') {
+        mirror('ppMusicTense', isOn ? 'on' : 'off');
+        mirror('ppMusicTenseCount', String(musicMoodCounts.tense));
+      } else {
+        mirror('ppMusicSlow', isOn ? 'on' : 'off');
+        mirror('ppMusicSlowCount', String(musicMoodCounts.slow));
+      }
+    },
     onStateChange: (state) => {
       if (isMirrored) mirror('ppAudio', state);
     },
@@ -380,6 +399,10 @@ export async function boot(): Promise<void> {
     mirror('ppAudioClips', '0');
     mirror('ppBabble', 'off');
     mirror('ppMusic', 'off');
+    mirror('ppMusicTense', 'off');
+    mirror('ppMusicSlow', 'off');
+    mirror('ppMusicTenseCount', '0');
+    mirror('ppMusicSlowCount', '0');
     mirror('ppHaptics', String(platform.capabilities.haptics));
     mirror('ppCueCount', '0');
     mirror('ppFlashCount', '0');
@@ -716,6 +739,13 @@ export async function boot(): Promise<void> {
         babbleWorld.flow.state === 'playing' &&
         babbleWorld.silence.startedAt !== null;
       audio.setMusicMuted(isSilent);
+      // The music follows the world's state too (story 2.6): tense while a threat is on, slowed
+      // while the time scale is down. Allocation-free: a loop over a handful of threats.
+      const isPlaying = babbleWorld !== undefined && babbleWorld.flow.state === 'playing';
+      audio.setMusicMood(
+        isPlaying && isTensionActive(babbleWorld.threats),
+        isPlaying && isSlowMoActive(babbleWorld, levelFeel().music.slowMo.belowScale),
+      );
       silenceBubble.update(isSilent && pause.state === 'running', babbleWorld);
       // The timer counts sim time, rounded up to the second (`0:00` exactly when the level ends);
       // `hudBatch` writes the DOM only when the second changes. Before `shell.frame()` flushes it.
