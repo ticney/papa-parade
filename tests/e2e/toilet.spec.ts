@@ -51,8 +51,11 @@ async function openFrozen(page: Page): Promise<void> {
   await startLevel(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
-  // The audio is up (WebKit resumes its context a moment after the start).
+  // The audio is up (WebKit resumes its context a moment after the start). The context itself must
+  // be running, not only the babble started: a tap on a context still suspended makes the game warn
+  // (« resuming on this gesture »), which `collectProblems` counts as a problem.
   await expect(html(page)).toHaveAttribute('data-pp-babble', 'on');
+  await expect(html(page)).toHaveAttribute('data-pp-audio', 'running');
 }
 
 /** Advances by chunks until `isDone` holds on the world; fails when `boundMs` of sim time passed. */
