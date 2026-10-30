@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "panelMinTesters": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Fewest testers a playtest needs for its indicators to mean something (FR68)."
+    },
+    "relaunchMinPct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Indicator 1: share of testers (in %) who start another game without being asked."
+    },
+    "perfectCitedMinPct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Indicator 2: share of testers (in %) who spontaneously cite the perfect parry as a high point."
+    },
+    "identifiedMinPct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Indicator 3 (observed): share of testers (in %) who identify the right response to a threat at its first encounter, without help. Applies to each threat."
+    },
+    "firstEncounterSuccessMinPct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Indicator 3 (computed proxy): share of testers (in %) whose first resolved response to a threat is a success or a perfect. Applies to each threat."
+    },
+    "touchVsKeyboardMinPct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Indicator 4: success rate on touch, as a share (in %) of the success rate on the keyboard."
+    },
+    "laughedMinPct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Indicator 5: share of testers (in %) who laugh at least once during a level."
+    }
+  },
+  "required": [
+    "panelMinTesters",
+    "relaunchMinPct",
+    "perfectCitedMinPct",
+    "identifiedMinPct",
+    "firstEncounterSuccessMinPct",
+    "touchVsKeyboardMinPct",
+    "laughedMinPct"
+  ],
+  "additionalProperties": false
+}

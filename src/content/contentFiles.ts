@@ -6,6 +6,7 @@ import { type FeedbackTable, FeedbackTableSchema } from './schemas/feedback.ts';
 import { type Feel, FeelSchema } from './schemas/feel.ts';
 import { type Level, LevelSchema } from './schemas/level.ts';
 import { type LevelGeometry, LevelGeometrySchema } from './schemas/levelGeometry.ts';
+import { PlaytestSchema, type PlaytestThresholds } from './schemas/playtest.ts';
 import { type Strings, StringsSchema } from './schemas/strings.ts';
 import { type ThreatDef, ThreatDefSchema } from './schemas/threat.ts';
 
@@ -42,14 +43,27 @@ export const STRINGS_FILE: ContentFile<Strings> = {
 };
 
 /**
- * Single source for `loadContent`, `content:check` and `content:schemas`. A story that adds a
- * content file adds its entry here (and a field to `ContentBundle`).
+ * The thresholds of `npm run playtest:metrics`. A tool-only file: registered below so that
+ * `content:check` validates it and `content:schemas` emits its JSON Schema, but `loadContent` does
+ * not load it and the browser bundle does not ship it.
+ */
+export const PLAYTEST_FILE: ContentFile<PlaytestThresholds> = {
+  file: 'playtest.json',
+  schemaName: 'playtest',
+  schema: PlaytestSchema,
+};
+
+/**
+ * Registry of the files `content:check` and `content:schemas` know. `loadContent` loads the first
+ * four by name (a story that adds a game content file adds its entry here and a field to
+ * `ContentBundle`); a tool-only file such as `PLAYTEST_FILE` is registered but not loaded.
  */
 export const CONTENT_FILES: readonly ContentFile<unknown>[] = [
   FEEL_FILE,
   FEEDBACK_FILE,
   BOTS_FILE,
   STRINGS_FILE,
+  PLAYTEST_FILE,
 ];
 
 /**

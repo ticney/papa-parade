@@ -1,0 +1,9 @@
+testerId,sessionId,threatId,identifiedWithoutHelp,perfectCitedSpontaneously,laughs,comment
+T1,,outlet,O,,,A tendu la main vers la prise sans hésiter
+T1,,stairs,N,,,"A tapé trop tôt, puis a compris au deuxième passage"
+T1,,silence_mischief,O,,,
+T1,,,,O,3,"A ri à la table basse, a parlé de la parade parfaite sans qu'on lui demande"
+T2,1a2b3c4d,outlet,O,,,
+T2,1a2b3c4d,stairs,O,,,
+T2,1a2b3c4d,coffee_table_object,N,,,Ne savait pas quoi faire de la tasse
+T2,,,,N,0,"Joue concentré, silencieux ; n'a pas relancé de lui-même"

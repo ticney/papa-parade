@@ -26,6 +26,7 @@
     "content:schemas": "tsx tools/content/emitSchemas.ts",
     "sim": "tsx tools/sim/runSim.ts",
     "sim:replay": "tsx tools/sim/replaySim.ts",
+    "playtest:metrics": "tsx tools/playtest/playtestMetrics.ts",
     "assets:export": "tsx tools/assets/exportLevel.ts",
     "assets:extract": "tsx tools/assets/extractLevelGeometry.ts",
     "assets:optimize": "tsx tools/assets/optimizeGlb.ts",

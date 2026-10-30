@@ -4,7 +4,7 @@ baseline_commit: 485906a
 
 # Story 3.4: Playtest indicators
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 3.4 « Indicateurs de playtest » (L1614-1636). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). The observation sheet it adds is in French, like the rest of `docs/playtest/`. -->
 
@@ -151,18 +151,18 @@ so that I can decide whether the prototype validates the concept.
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Thresholds as data** (AC 6)
-  - [ ] `src/content/schemas/playtest.ts` (`PlaytestSchema`, `type PlaytestThresholds`), with its `.test.ts`.
-  - [ ] `PLAYTEST_FILE` in `src/content/contentFiles.ts` `CONTENT_FILES` (not in `loadContent`).
-  - [ ] `content/playtest.json` with the GDD values; `npm run content:schemas`; commit `content/_schemas/playtest.schema.json`.
-  - [ ] `browserContentSource.ts`: exclude `content/playtest.json`, plus the test.
-- [ ] **T2. CSV and observations** (AC 4, 5) `tools/playtest/csv.ts`, `tools/playtest/observations.ts` (`parseObservations(text, file, knownThreatIds)` → `Result<{ rows, warnings }, string[]>`), tests; `docs/playtest/observations.example.csv`.
-- [ ] **T3. Journals** (AC 2, 3) `tools/playtest/loadJournals.ts` (`loadJournals(dir)` → `Result<{ testers, skipped, warnings, levels, contentHashes }, string[]>`), reusing `parseJournalFile`; tests with temp dirs.
-- [ ] **T4. Computation** (AC 7, 9) `tools/playtest/computeMetrics.ts` and its synthetic-journal helper (`tests/tools/playtest/support.ts`); tests.
-- [ ] **T5. Report and CLI** (AC 1, 8) `tools/playtest/renderMetrics.ts`, `tools/playtest/metricsArgs.ts` (`parseMetricsArgs`, `METRICS_HELP`), `tools/playtest/playtestMetrics.ts` (`main`), the `playtest:metrics` script in `package.json`; the shared `outProblem` helper; the end-to-end test (AC 10).
-- [ ] **T6. The sheet** (AC 5) `docs/playtest/observation-sheet.md` in French.
-- [ ] **T7. Docs** (AC 9, 11) CLAUDE.md (2 places), `project-context.md`, `deferred-work.md`.
-- [ ] **T8. CI** `env | grep VITE_`, `npm run ci:fast` after each task, then `(unset VITE_DEBUG_ALLOWED; npm run ci)` once. Run the command by hand once on the end-to-end fixture and paste its Markdown summary table in the Debug Log.
+- [x] **T1. Thresholds as data** (AC 6)
+  - [x] `src/content/schemas/playtest.ts` (`PlaytestSchema`, `type PlaytestThresholds`), with its `.test.ts`.
+  - [x] `PLAYTEST_FILE` in `src/content/contentFiles.ts` `CONTENT_FILES` (not in `loadContent`).
+  - [x] `content/playtest.json` with the GDD values; `npm run content:schemas`; commit `content/_schemas/playtest.schema.json`.
+  - [x] `browserContentSource.ts`: exclude `content/playtest.json`, plus the test.
+- [x] **T2. CSV and observations** (AC 4, 5) `tools/playtest/csv.ts`, `tools/playtest/observations.ts` (`parseObservations(text, file, knownThreatIds)` → `Result<{ rows, warnings }, string[]>`), tests; `docs/playtest/observations.example.csv`.
+- [x] **T3. Journals** (AC 2, 3) `tools/playtest/loadJournals.ts` (`loadJournals(dir)` → `Result<{ testers, skipped, warnings, levels, contentHashes }, string[]>`), reusing `parseJournalFile`; tests with temp dirs.
+- [x] **T4. Computation** (AC 7, 9) `tools/playtest/computeMetrics.ts` and its synthetic-journal helper (`tests/tools/playtest/support.ts`); tests.
+- [x] **T5. Report and CLI** (AC 1, 8) `tools/playtest/renderMetrics.ts`, `tools/playtest/metricsArgs.ts` (`parseMetricsArgs`, `METRICS_HELP`), `tools/playtest/playtestMetrics.ts` (`main`), the `playtest:metrics` script in `package.json`; the shared `outProblem` helper; the end-to-end test (AC 10).
+- [x] **T6. The sheet** (AC 5) `docs/playtest/observation-sheet.md` in French.
+- [x] **T7. Docs** (AC 9, 11) CLAUDE.md (2 places), `project-context.md`, `deferred-work.md`.
+- [x] **T8. CI** `env | grep VITE_`, `npm run ci:fast` after each task, then `(unset VITE_DEBUG_ALLOWED; npm run ci)` once. Run the command by hand once on the end-to-end fixture and paste its Markdown summary table in the Debug Log.
 
 ## Dev Notes
 
@@ -280,12 +280,68 @@ Updated:
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`)
+
+### Implementation Plan
+
+- **T1.** `PlaytestSchema` is a `z.strictObject` of seven integer keys (`…MinPct` in [0, 100], `panelMinTesters` ≥ 1), each with a `.describe()`. `PLAYTEST_FILE` is added to `CONTENT_FILES` only (the comment on the list now says a tool-only file is registered, not loaded); `loadContent` and `ContentBundle` are untouched, so no 3.3 `contentHash` moves. The browser glob excludes `content/playtest.json`, with a test (`browserContentSource.test.ts`).
+- **T2.** `csv.ts` is a small state machine (quotes, `""`, quoted newlines, CRLF, BOM, `;` detection, blank lines skipped, line numbers of a record, error on an unterminated quote / a short row / text after a closing quote). `observations.ts` validates each cell with the rule of AC 4 and returns **all** errors of the file (each `file:line column name: …`), warnings for an extra column and an unknown threat id.
+- **T3.** `loadJournals.ts` reads `<dir>/<testerId>/*.json` in `localeCompare('en')` order. A bad file is skipped with its reason (invalid JSON, `JournalSchema` path list from `parseJournalFile`, `papa-parade.run`, autoplay); layout errors (root `.json`, bad folder name, one session under two testers, one `(sessionId, gameIndex)` with two world hashes) are returned together.
+- **T4.** `computeMetrics.ts` is pure. Status = `hits * 100 >= minPct * count` on integers; the touch/keyboard ratio is cross-multiplied the same way (`touch.hits * kb.total * 100 >= min * kb.hits * touch.total`) so 4/5 against 5/5 at 80 is exactly OK. Percentages in the report are rounded to one decimal after the status is decided.
+- **T5.** `metricsArgs.ts` (`parseArgs`, strict, one positional), `renderMetrics.ts` (Markdown + `renderJson`), `playtestMetrics.ts` (`main`), `package.json` script. `outProblem` and `writeText` moved to `tools/outputFile.ts`; `runSim` imports them and behaves as before. `LogChannel` gets `'playtest'`.
+- **T6-T7.** `docs/playtest/observation-sheet.md` (French), CLAUDE.md (Commands row and Playtest deployment step 5), `project-context.md`, `deferred-work.md` (L503 resolved, L417 moved to a « Deferred from: story 3-4 » section).
+
+Decisions where the story left room:
+- **Identification with several sessions** (AC 7): a row with an empty `sessionId` wins over a row with a session, else the earliest session in the order of the notes.
+- **Keyboard rate 0**: the touch/keyboard ratio is undefined, so the status is `n/a` (not `OK`), the value `null`.
+- **Warnings** from the computation (no game 1 in a session, session order unknown, a note for a session that is not the tester's, a tester with notes and no journal, a panel too small) are in `report.warnings`, after the readers' warnings.
+- **`--out` still prints one `done` log line on stdout** (same as `runSim`); the report itself goes to the file only.
+
 ### Debug Log References
+
+- `env | grep VITE_` printed nothing; `(unset VITE_DEBUG_ALLOWED; npm run ci)` was used all the same.
+- A first run of the end-to-end test failed because I asserted an empty stdout with `--out`; the `info` log line `done` goes to stdout like `runSim`'s. The assertion now says the report is not on stdout.
+- Two computation tests first expected only the « panel too small » warning; a lone game 2 also (rightly) raises « session … has no game 1 ». The expectations were corrected, not the code.
+- Command run by hand on a synthetic fixture (3 journals for T1/T2, `docs/playtest/observations.example.csv`):
+
+```
+| Indicator | Value | Threshold | Counted on | Status |
+| --- | --- | --- | --- | --- |
+| Panel (FR68) | 2 testers | ≥ 5 | 2 | KO |
+| 1. Relaunch, without being asked (computed) | 50 % (1/2) | ≥ 70 % | 2 | KO |
+| 2. Perfect parry cited as a high point (observed) | 50 % (1/2) | ≥ 80 % | 2 | KO |
+| 3. Readability: identified without help, each threat (observed) | lowest: coffee_table_object 0 % (0/1) | ≥ 80 % | 1–2 | KO |
+| 3 (proxy). First-encounter success, each threat (computed) | lowest: silence_mischief 0 % (0/1) | ≥ 80 % | 1–2 | KO |
+| 4. Touch success rate vs keyboard (computed) | 80 % (touch 80 %, keyboard 100 %) | ≥ 80 % | 5 touch + 3 keyboard responses | OK |
+| 5. Laughed at least once (observed) | 50 % (1/2) | ≥ 80 % | 2 | KO |
+```
 
 ### Completion Notes List
 
+- Added `npm run playtest:metrics -- <dir>`: reads `<dir>/<testerId>/*.json` (exported journals) and Geo's notes CSV, prints the five NFR11 indicators per tester and overall (Markdown on stdout or `--out`, JSON with `--json`). A KO exits 0; an input to fix exits 1 with the file, line and column.
+- Thresholds are data in `content/playtest.json` (validated, JSON Schema committed), tool-only: not in `ContentBundle`, excluded from the browser glob. The game, the sim, `JournalSchema`, the Result screen and the goldens did not change.
+- New tests (`tests/tools/playtest/`: csv, observations, loadJournals, computeMetrics, renderMetrics, metricsArgs, playtestMetrics end to end on two real headless `salon_crawler` games exported through 3.3's builders), `playtest.test.ts` and `browserContentSource.test.ts`. Assertions use exact counts, percentages and statuses.
+- I wrote each task's tests together with its code rather than watching them fail first; the exact-value assertions (4/5 at 80 OK, 3/5 KO, 0 testers n/a, ratio 80 vs 60) are what pin the behaviour.
+- `npm run ci:fast` green (249 files, 4543 tests). Full `(unset VITE_DEBUG_ALLOWED; npm run ci)` green on the branch (exit 0): typecheck, lint, content:check, test:coverage, e2e (404 passed), build:playtest + dist:check, e2e:dist (dist specs and perf), build + dist:check prod.
+- Open points for Geo are unchanged from the story (report language, GDD v2.2 indicators, where the real data lives).
+
 ### File List
+
+New:
+- `content/playtest.json`, `content/_schemas/playtest.schema.json`
+- `src/content/schemas/playtest.ts`, `src/content/schemas/playtest.test.ts`
+- `src/client/assets/browserContentSource.test.ts`
+- `tools/outputFile.ts`
+- `tools/playtest/csv.ts`, `testerId.ts`, `observations.ts`, `loadJournals.ts`, `computeMetrics.ts`, `renderMetrics.ts`, `metricsArgs.ts`, `playtestMetrics.ts`
+- `tests/tools/playtest/csv.test.ts`, `observations.test.ts`, `loadJournals.test.ts`, `computeMetrics.test.ts`, `renderMetrics.test.ts`, `metricsArgs.test.ts`, `playtestMetrics.test.ts`, `support.ts`
+- `docs/playtest/observation-sheet.md`, `docs/playtest/observations.example.csv`
+
+Modified:
+- `package.json` (`playtest:metrics`), `src/shared/log.ts` (`'playtest'` channel), `src/content/contentFiles.ts`, `src/client/assets/browserContentSource.ts`, `tools/sim/runSim.ts` (`outProblem`, `writeText` moved)
+- `CLAUDE.md`, `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
 
 ### Change Log
 
 - 2026-10-30: Story created (ready-for-dev).
+- 2026-10-30: Implemented T1-T7 (thresholds as data, CSV and notes parser, journal loader, pure computation, report and CLI, French observation sheet, docs). `ci:fast` green.
+- 2026-10-30: Full CI green; status → review.
