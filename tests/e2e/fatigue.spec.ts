@@ -77,8 +77,8 @@ test.describe('the gauge pill', () => {
     await expect(page.locator(PILL)).toHaveCount(1);
     await expect(page.locator(PILL)).toHaveAttribute('role', 'group');
     await expect(page.locator(PILL)).toHaveAttribute('aria-label', STRINGS['hud.gauges'] ?? '');
-    // Bruit first, then Fatigue (UX-DR4): the noise gauge is pinned in `noise.spec.ts`.
-    await expect(page.locator(`${PILL} > .pp-hud-gauge`)).toHaveCount(2);
+    // Bruit first, then Fatigue, then Envie (UX-DR4): the noise gauge is pinned in `noise.spec.ts`, the need in `toilet.spec.ts`.
+    await expect(page.locator(`${PILL} > .pp-hud-gauge`)).toHaveCount(3);
     await expect(page.locator(`${PILL} > .pp-hud-gauge`).nth(1)).toHaveAttribute(
       'aria-label',
       `${STRINGS['gauge.fatigue']} 0 %`,
@@ -136,14 +136,15 @@ test.describe('the gauge pill', () => {
 test.describe('the coffee machine icon', () => {
   const ICON = '.pp-object[data-pp-object="coffee_machine"]';
 
-  test('shows where the machine is, on the point a tap on it aims at, and none for the phone', async ({
+  test('shows where the machine is, on the point a tap on it aims at, and none for the phone (only the toilet door beside it)', async ({
     page,
   }) => {
     const problems = collectProblems(page);
     await openFrozen(page);
     await ppAdvance(page, 2);
     await expect(page.locator(ICON)).toHaveCount(1);
-    await expect(page.locator('.pp-object')).toHaveCount(1);
+    // The coffee machine and the toilet door (story 4.3): the phone still draws none.
+    await expect(page.locator('.pp-object')).toHaveCount(2);
     const point = await objectIconPoint(page, 'coffee_machine');
     const box = await page.locator(ICON).boundingBox();
     if (box === null) throw new Error('the icon has no box');

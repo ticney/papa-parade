@@ -41,6 +41,7 @@ export function createTestFeedback(): FeedbackTable {
       heavy: { patternMs: [60] },
     },
     comboBadge: { cashInHoldMs: 900 },
+    papaHint: { holdMs: 1200 },
     resultScreen: {
       rowCountUpMs: 600,
       rowStaggerMs: 200,
@@ -347,6 +348,12 @@ export const TEST_OBJECTS: readonly LevelObject[] = [
   { id: 'coffee_machine', kind: 'coffee_machine', anchor: 'coffee_machine' },
   { id: 'phone', kind: 'phone', anchor: 'phone' },
 ];
+
+/** The toilet of the live level (story 4.3), at the frozen room's `toilet` anchor: not in `TEST_OBJECTS`, a test adds it. */
+export const TEST_TOILET: LevelObject = { id: 'toilet', kind: 'toilet', anchor: 'toilet' };
+
+/** A level with the pressing need (story 4.3): the toilet needs it (`TestLevelOptions.gauges`). */
+export const NEED_GAUGES: LevelGauges = { need: {} };
 
 /** A level with fatigue: the frozen micro-sleep (`TestLevelOptions.gauges`). */
 export const FATIGUE_GAUGES: LevelGauges = { fatigue: { microSleepDef: 'papa_microsleep' } };

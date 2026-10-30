@@ -1,0 +1,38 @@
+{
+  "version": 3,
+  "seed": 31,
+  "feelHash": "0a1d5d78f8c76e",
+  "geometryHash": "0e18fe9d85d9f9",
+  "levelHash": "1e8721a5e55e90",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "patch": {
+          "bladder": {
+            "toiletDurationMs": 1500
+          }
+        },
+        "t": 0,
+        "type": "SetFeel"
+      }
+    },
+    {
+      "applyAt": 10,
+      "command": {
+        "pct": 100,
+        "t": 0,
+        "type": "SetBladder"
+      }
+    },
+    {
+      "applyAt": 20,
+      "command": {
+        "objectId": "toilet",
+        "t": 10,
+        "type": "TapObject"
+      }
+    }
+  ]
+}

@@ -41,7 +41,7 @@ export interface PapaSlice {
    * put him down in a safe zone. `'none'` outside `walkPath`.
    */
   intent: PapaIntent;
-  /** When `drink` / `asleep` / `onPhone` ends, in sim time; 0 in any other state. */
+  /** When `drink` / `asleep` / `onPhone` / `onToilet` ends, in sim time; 0 in any other state. */
   busyUntil: SimMs;
 }
 
@@ -271,8 +271,9 @@ export interface DirectorSlice {
 }
 
 /**
- * The gauges of the level (story 1.19: fatigue, 3.1: noise). `fatigue` is held in `[0, 100]` and
- * written only by `addFatigue`; `noisePct` likewise, by `addNoise`.
+ * The gauges of the level (story 1.19: fatigue, 3.1: noise, 4.3: the pressing need). `fatigue` is
+ * held in `[0, 100]` and written only by `addFatigue`; `noisePct` likewise, by `addNoise`, and
+ * `bladderPct` by `addBladder`.
  */
 export interface GaugesSlice {
   fatigue: number;
@@ -282,6 +283,10 @@ export interface GaugesSlice {
   microSleepAt: SimMs | null;
   /** The noise, in % of the gauge (0-100); stays 0 in a level with no noise gauge (story 3.1). */
   noisePct: number;
+  /** The pressing need, in % of the gauge (0-100); stays 0 in a level with no need gauge (story 4.3). */
+  bladderPct: number;
+  /** Whether `bladderPct` has reached `feel.bladder.slowFromPct`: Papa's walks are slower then (the crossing is an event). */
+  isBladderFull: boolean;
   /**
    * Sim time at which each prop last made noise, index-aligned with `world.props`; null before the
    * first. It keeps a bouncing prop from counting twice (`feel.noise.sources.propImpact.samePropCooldownMs`).
@@ -402,6 +407,8 @@ export interface WorldOptions {
   firstWanderAt: SimMs;
   /** The fatigue gauge at the start (`feel.fatigue.startPoints`); 0 by default. */
   fatiguePoints?: number;
+  /** The need gauge at the start (`feel.bladder.startPct`); 0 by default. */
+  bladderPct?: number;
   /** The level's props (`geometry.props`): they start at their `centerM`, upright and at rest. */
   props?: readonly {
     readonly id: string;
@@ -417,6 +424,7 @@ export function createWorld({
   babySpawn,
   firstWanderAt,
   fatiguePoints = 0,
+  bladderPct = 0,
   props = [],
 }: WorldOptions): World {
   return {
@@ -471,6 +479,8 @@ export function createWorld({
       isFatigueAbove: false,
       microSleepAt: null,
       noisePct: 0,
+      bladderPct,
+      isBladderFull: false,
       propNoiseAt: props.map(() => null),
     },
     props: props.map(({ id, kind, centerM: [xM, yM, zM] }) => ({

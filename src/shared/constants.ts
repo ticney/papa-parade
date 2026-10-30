@@ -211,6 +211,12 @@ export const TAP_MARKER_SCALE_TO = 1.2;
 /** The combo badge floats this far above the top of Papa's body, in metres (story 4.2; the threat icons use the same). */
 export const COMBO_BADGE_OFFSET_M = 0.3;
 
+/**
+ * The « put him down first » hint floats this far above the top of Papa's body, in metres (story
+ * 4.3): above the combo badge, which a carrying Papa usually has up in the same spot.
+ */
+export const PAPA_HINT_OFFSET_M = 0.85;
+
 /** The combo badge pops for this long when the multiplier rises, in real ms (story 4.2). */
 export const COMBO_BADGE_POP_MS = 220;
 

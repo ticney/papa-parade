@@ -1,3 +1,4 @@
+import type { ObjectKind } from '@content/schemas/level';
 import type { ThreatInstance } from '@sim';
 import { type OrthographicCamera, Plane, Raycaster, Vector2, Vector3 } from 'three';
 import type { ThreatMarkerEntry } from '../ui/world/threatMarkers.ts';
@@ -26,11 +27,13 @@ export interface ThreatTargets {
 }
 
 /**
- * An interactive object a touch can aim at: its id and the point its icon is drawn at (the anchor's
- * x and z, at the anchor's height). The sim hands them over (`Sim.objects`, story 1.19).
+ * An interactive object a touch can aim at: its id, its kind (story 4.3: a toilet is refused while
+ * the baby is carried) and the point its icon is drawn at (the anchor's x and z, at the anchor's
+ * height). The sim hands them over (`Sim.objects`, story 1.19).
  */
 export interface ObjectTarget {
   readonly id: string;
+  readonly kind: ObjectKind;
   readonly xM: number;
   readonly yM: number;
   readonly zM: number;

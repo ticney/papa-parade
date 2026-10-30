@@ -16,9 +16,11 @@ import {
   createTestLevel,
   createTestResponseWindow,
   FATIGUE_GAUGES,
+  NEED_GAUGES,
   NOISE_GAUGES,
   OUTLET,
   TEST_OBJECTS,
+  TEST_TOILET,
   testPhoneEntry,
   testWave,
 } from '../../support/testContent.ts';
@@ -73,6 +75,8 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     comboCashIns: 0,
     comboPointsCashed: 0,
     comboPeakMultiplier: 0,
+    toiletVisits: 0,
+    bladderPeakPct: 0,
     noisePeakPct: 0,
     noiseFinalPct: 0,
     noiseBySourcePct: NO_NOISE,
@@ -850,6 +854,70 @@ describe('a level that carries the baby (story 4.1)', () => {
     rec.onEvent({ type: 'ThreatCancelled', t: asSimMs(0), threatId: 7, reason: 'carried' });
     rec.onEvent(telegraphed(7, 'outlet', 0));
     expect(rec.finish().waves[0]?.isOverLimit).toBe(false);
+  });
+
+  it('counts the toilet visits and reads the need peak from the world (story 4.3)', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: createTestLevel({ objects: [...TEST_OBJECTS, TEST_TOILET], gauges: NEED_GAUGES }),
+      seed: 1,
+    });
+    const rec = createRunRecorder(sim, 1);
+    expect(rec.finish()).toMatchObject({ toiletVisits: 0, bladderPeakPct: 0 });
+    sim.enqueue({ type: 'SetBladder', t: asSimMs(0), pct: 80 });
+    sim.enqueue({ type: 'TapObject', t: asSimMs(0), objectId: 'toilet' });
+    let visits = 0;
+    for (let i = 0; i < 6000 && visits === 0; i++) {
+      sim.step();
+      for (const event of sim.drainEvents()) {
+        rec.onEvent(event);
+        if (event.type === 'ToiletFinished') visits++;
+      }
+    }
+    // The peak is what the world held when the visit started (frozen from then on), not the 0.0x
+    // it holds just after the reset.
+    const summary = rec.finish();
+    expect(summary.toiletVisits).toBe(1);
+    expect(summary.bladderPeakPct).toBeGreaterThanOrEqual(80);
+    expect(summary.bladderPeakPct).toBeLessThan(100);
+    expect(sim.world.gauges.bladderPct).toBeLessThan(1);
+  });
+
+  it('reads 100 as the peak once the need has filled, and the final value of a run that never visits', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: createTestLevel({ objects: [...TEST_OBJECTS, TEST_TOILET], gauges: NEED_GAUGES }),
+      seed: 1,
+    });
+    const rec = createRunRecorder(sim, 1);
+    sim.enqueue({ type: 'SetBladder', t: asSimMs(0), pct: 100 });
+    sim.step();
+    for (const event of sim.drainEvents()) rec.onEvent(event);
+    expect(rec.finish()).toMatchObject({ toiletVisits: 0, bladderPeakPct: 100 });
+    const quiet = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: createTestLevel({ gauges: NEED_GAUGES }),
+      seed: 1,
+    });
+    const quietRec = createRunRecorder(quiet, 1);
+    for (let i = 0; i < 1000; i++) quiet.step();
+    // 10 s at the frozen feel's rate, to one decimal.
+    expect(quietRec.finish().bladderPeakPct).toBeCloseTo(
+      createTestContent().feel.bladder.perSec * 10,
+      1,
+    );
+  });
+
+  it('sums the visits over the runs and keeps the highest need peak', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { toiletVisits: 1, bladderPeakPct: 60.4 }),
+      run(2, { toiletVisits: 2, bladderPeakPct: 72 }),
+      run(3, { toiletVisits: 0, bladderPeakPct: 12.3 }),
+    ]);
+    expect(report).toMatchObject({ toiletVisits: 3, bladderPeakPct: 72 });
   });
 
   it('sums the combo counters over the runs and keeps the highest peak', () => {

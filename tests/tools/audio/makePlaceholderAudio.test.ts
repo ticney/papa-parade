@@ -75,9 +75,11 @@ function correlation(first: Float32Array, second: Float32Array, lag: number): nu
 }
 
 describe('placeholder audio', () => {
+  // Every clip is synthesized twice: the time grows with each clip added to the table, and a CI run
+  // under coverage on a busy machine went past the default 5 s.
   it('is deterministic', () => {
     for (const { synth } of PLACEHOLDER_CLIPS) expect(synth()).toEqual(synth());
-  });
+  }, 30_000);
 
   it('keeps every clip at or below -6 dBFS and never silent', () => {
     for (const { clip, synth } of PLACEHOLDER_CLIPS) {

@@ -223,6 +223,16 @@ describe('the nap and the coffee (story 1.19)', () => {
     expect(isShown(named('papa_handset'))).toBe(false);
   });
 
+  it('hides the whole of Papa, the blob shadow included, while he is away, and shows him again after (story 4.3)', () => {
+    const { view, named } = build();
+    for (const name of ['papa', 'blob_papa']) expect(isShown(named(name)), name).toBe(true);
+    view.setAway(true);
+    for (const name of ['papa', 'blob_papa', 'papa_mug'])
+      expect(isShown(named(name)), name).toBe(false);
+    view.setAway(false);
+    for (const name of ['papa', 'blob_papa']) expect(isShown(named(name)), name).toBe(true);
+  });
+
   it('holds the handset against the side of his head: touching the cube, and not above it', () => {
     const { named } = build();
     const cube = named('papa') as Mesh;

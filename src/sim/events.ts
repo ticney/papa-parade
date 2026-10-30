@@ -254,6 +254,17 @@ export type SimEvent =
    * `debug` for `SetNoise`.
    */
   | { type: 'NoiseChanged'; t: SimMs; source: NoiseSource; noisePct: number; deltaPct: number }
+  /**
+   * The need reached `feel.bladder.slowFromPct` (story 4.3): from now on Papa's walks are slower,
+   * until a visit to the toilet. Once per upward crossing.
+   */
+  | { type: 'BladderFilled'; t: SimMs }
+  /** Papa reached the toilet `objectId`: he is out of the room until `untilAt`, and the need is frozen meanwhile. */
+  | { type: 'ToiletStarted'; t: SimMs; objectId: string; untilAt: SimMs }
+  /** Papa is back in the room, the need at 0 (right after the visit's reset, so `BladderFilled` can fire again). */
+  | { type: 'ToiletFinished'; t: SimMs }
+  /** A tap on the toilet while the baby is carried: Papa does not move (he must put the baby down first). */
+  | { type: 'ToiletRefused'; t: SimMs; objectId: string }
   /** A breakable prop took a hit of `impulseNs` or more, once; it stays in the world, broken. */
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
   /**
@@ -292,6 +303,7 @@ export const SIM_EVENT_TYPES = [
   'BabyPickedUp',
   'BabyPutDown',
   'BabyStateChanged',
+  'BladderFilled',
   'CoffeeDrunk',
   'CoffeeStarted',
   'ComboCashedIn',
@@ -325,6 +337,9 @@ export const SIM_EVENT_TYPES = [
   'ThreatRearmed',
   'ThreatTelegraphed',
   'TimeScaleChanged',
+  'ToiletFinished',
+  'ToiletRefused',
+  'ToiletStarted',
   'WaveStarted',
   'WindowOpened',
 ] as const satisfies readonly SimEvent['type'][];

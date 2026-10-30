@@ -318,13 +318,19 @@ body {
 /* ---------------------------------------------------------------------------------------------
    HUD: gauges top-left, timer top-centre, pause top-right; the bottom third stays free
    --------------------------------------------------------------------------------------------- */
+/*
+  The left column never goes under the width of its content (story 4.3: three gauges are 304 px
+  wide): the timer is centred while the screen is wide enough, and sits just right of the pill, one
+  gap away, when it is not (667 × 375).
+*/
 .pp-hud-row {
   position: absolute;
   top: var(--pp-spacing-hud-inset-top);
   right: var(--pp-spacing-hud-inset-right);
   left: var(--pp-spacing-hud-inset-left);
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(max-content, 1fr) auto 1fr;
+  column-gap: var(--pp-spacing-2);
   align-items: center;
   height: var(--pp-spacing-touch-target-min);
 }
@@ -1435,6 +1441,16 @@ body {
 }
 
 /* ---------------------------------------------------------------------------------------------
+   The hint above Papa (story 4.3): « POSE-LE D'ABORD ! » after a tap on the toilet with the baby in
+   his arms. The verb look (paper fill, ink stroke painted behind it, hard shadow), world-anchored by
+   the CSS2DRenderer above the combo badge. It never takes a tap and does not animate.
+--------------------------------------------------------------------------------------------- */
+.pp-papa-hint {
+  pointer-events: none;
+  -webkit-text-stroke: calc(5px * 2) var(--pp-color-ink);
+}
+
+/* ---------------------------------------------------------------------------------------------
    The threat icon (DESIGN.md › threat-icon, target-highlight; mockup key-hud-level.html state A).
    The outer box is the icon's size and is centred on the anchor by the CSS2DRenderer; the halo, the
    highlight and the chevron are placed around it from that size. The halo is a radial gradient
@@ -1688,7 +1704,9 @@ body {
 /*
   An interactive object's icon (the coffee machine, story 1.19): a paper disc smaller than a threat
   icon, so that it is never taken for one. While Papa is tired enough for the coffee to matter
-  (`pp-object-urgent`) it turns warm and a halo pulses around it.
+  (`pp-object-urgent`) it turns warm and a halo pulses around it. The toilet's door (story 4.3)
+  warms with the need the same way, and is dimmed with no pulse while Papa is in there
+  (`pp-object-occupied`).
 */
 .pp-object {
   position: relative;
@@ -1727,6 +1745,11 @@ body {
 
 .pp-object-urgent .pp-object-icon {
   background: var(--pp-color-alert);
+}
+
+.pp-object-occupied .pp-object-icon {
+  background: var(--pp-color-ink-soft);
+  opacity: 0.6;
 }
 
 .pp-object-urgent .pp-object-halo {

@@ -92,6 +92,14 @@ export interface RunSummary {
   comboPointsCashed: number;
   /** The highest multiplier a `ComboChanged` reached in the run; 0 if the combo never moved. */
   comboPeakMultiplier: number;
+  /** The toilet visits finished (`ToiletFinished`, story 4.3). The bots never go, so 0 for a bot. */
+  toiletVisits: number;
+  /**
+   * The highest the need reached in the run, in % to one decimal: the gauge rises silently, so it is
+   * read from the world when a visit starts (it is frozen from then on), when it fills, and at the
+   * end of the run. 0 in a level with no need gauge.
+   */
+  bladderPeakPct: number;
   /** The highest `NoiseChanged.noisePct` of the run, in %; 0 if none (a level with no noise gauge, story 3.1). */
   noisePeakPct: number;
   /** The final world's noise, in %, rounded to 0.1 (the decay is silent: the events cannot give it). */
@@ -180,6 +188,8 @@ export function createRunRecorder(
   let comboCashIns = 0;
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
+  let toiletVisits = 0;
+  let bladderPeakPct = 0;
   let noisePeakPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
   // A silence is picked (`ThreatHidden`), then telegraphed only if the baby is found: the pick is
@@ -236,6 +246,11 @@ export function createRunRecorder(
       } else if (event.type === 'BabyPutDown') {
         babyPutDowns++;
         if (event.safe) safePutDowns++;
+      } else if (event.type === 'ToiletFinished') {
+        toiletVisits++;
+      } else if (event.type === 'ToiletStarted' || event.type === 'BladderFilled') {
+        // The need is frozen from a visit's start, and full from this event on: its peak so far.
+        bladderPeakPct = Math.max(bladderPeakPct, sim.world.gauges.bladderPct);
       } else if (event.type === 'ComboChanged') {
         if (event.multiplier > comboPeakMultiplier) comboPeakMultiplier = event.multiplier;
       } else if (event.type === 'ComboCashedIn') {
@@ -316,6 +331,8 @@ export function createRunRecorder(
         comboCashIns,
         comboPointsCashed,
         comboPeakMultiplier,
+        toiletVisits,
+        bladderPeakPct: round(Math.max(bladderPeakPct, sim.world.gauges.bladderPct), 1),
         noisePeakPct,
         noiseFinalPct: round(sim.world.gauges.noisePct, 1),
         noiseBySourcePct: { ...noiseBySourcePct },
@@ -428,6 +445,10 @@ export interface SimReport {
   comboPointsCashed: number;
   /** The highest multiplier any run reached; 0 if no combo ever moved. */
   comboPeakMultiplier: number;
+  /** The toilet visits finished, over the runs (story 4.3). */
+  toiletVisits: number;
+  /** The highest need any run reached, in % to one decimal (0 in a level with no need gauge). */
+  bladderPeakPct: number;
   /** Mean of the runs' highest noise, in % to one decimal: does 3.2 end games (story 3.1 open point 2)? */
   noisePeakMeanPct: number;
   /** The highest noise of any run, in %. */
@@ -503,6 +524,8 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let comboCashIns = 0;
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
+  let toiletVisits = 0;
+  let bladderPeakPct = 0;
   let noisePeakSumPct = 0;
   let noisePeakMaxPct = 0;
   let noiseFinalSumPct = 0;
@@ -558,6 +581,8 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     comboCashIns += run.comboCashIns;
     comboPointsCashed += run.comboPointsCashed;
     comboPeakMultiplier = Math.max(comboPeakMultiplier, run.comboPeakMultiplier);
+    toiletVisits += run.toiletVisits;
+    bladderPeakPct = Math.max(bladderPeakPct, run.bladderPeakPct);
     noisePeakSumPct += run.noisePeakPct;
     noisePeakMaxPct = Math.max(noisePeakMaxPct, run.noisePeakPct);
     noiseFinalSumPct += run.noiseFinalPct;
@@ -641,6 +666,8 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     comboCashIns,
     comboPointsCashed,
     comboPeakMultiplier,
+    toiletVisits,
+    bladderPeakPct: round(bladderPeakPct, 1),
     noisePeakMeanPct: runs.length === 0 ? 0 : round(noisePeakSumPct / runs.length, 1),
     noisePeakMaxPct: round(noisePeakMaxPct, 1),
     noiseFinalMeanPct: runs.length === 0 ? 0 : round(noiseFinalSumPct / runs.length, 1),

@@ -54,6 +54,8 @@ export interface SimLevel {
   readonly safeZones: readonly SimSafeZone[];
   /** Whether the level has the noise gauge (`gauges.noise`, story 3.1). Without it: no value, no event. */
   readonly hasNoise: boolean;
+  /** Whether the level has the need gauge (`gauges.need`, story 4.3). Without it: no value, no event, no toilet. */
+  readonly hasBladder: boolean;
 }
 
 /**

@@ -103,6 +103,10 @@
     {
       "id": "stairs_top",
       "positionM": [3.9, 0, -1.25]
+    },
+    {
+      "id": "toilet",
+      "positionM": [-2.2, 1, -2.85]
     }
   ],
   "zones": [

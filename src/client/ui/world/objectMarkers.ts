@@ -19,10 +19,13 @@ export interface ObjectMarkers {
   /** Removes the markers of the current level. */
   unmount(): void;
   /**
-   * Once per frame: `isUrgent` is the fatigue being above its threshold (the coffee is wanted):
-   * the markers turn warm and their halo pulses. Writes the DOM only when it changes.
+   * Once per frame, one state per marker by its kind (story 4.3): `isCoffeeUrgent` is the fatigue
+   * being above its threshold (the coffee is wanted), `isToiletUrgent` the need being at its warm
+   * point (the door is wanted) and `isToiletOccupied` Papa being on the toilet. An urgent marker
+   * turns warm and its halo pulses; an occupied door is dimmed, with no pulse. Writes the DOM only
+   * when a marker's class changes.
    */
-  update(isUrgent: boolean): void;
+  update(isCoffeeUrgent: boolean, isToiletUrgent: boolean, isToiletOccupied: boolean): void;
   /** True while at least one marker is mounted: the layer must be rendered. */
   readonly isAnyVisible: boolean;
   dispose(): void;
@@ -31,12 +34,13 @@ export interface ObjectMarkers {
 /**
  * The glyph of each `ObjectKind` (24 × 24 view box), or null for an object that draws none yet.
  * A `Record`, so that a new kind is a type error until it is decided. The coffee machine draws the
- * mug of the threat glyphs; the phone gets its glyph with story 1.20 (it rings, so it shows then).
- * Provisional placeholders (E7 draws the final ones).
+ * mug of the threat glyphs; the phone gets its glyph with story 1.20 (it rings, so it shows then);
+ * the toilet's is a plain door with a knob (story 4.3; the knob runs the other way round, so that the nonzero fill leaves it a hole). Provisional placeholders (E7 draws the final ones).
  */
 export const OBJECT_ICON_PATHS: Readonly<Record<ObjectKind, string | null>> = {
   coffee_machine: THREAT_ICON_PATHS.mug,
   phone: null,
+  toilet: 'M7 3h10v18H7z M13.6 11v2h1.8v-2z',
 };
 
 /** The classes the CSS styles (`ui.css` owns the look). */
@@ -45,13 +49,21 @@ export const OBJECT_CLASSES = {
   halo: 'pp-object-halo',
   icon: 'pp-object-icon',
   urgent: 'pp-object-urgent',
+  occupied: 'pp-object-occupied',
 } as const;
+
+const CLASS_CALM = OBJECT_CLASSES.root;
+const CLASS_URGENT = `${OBJECT_CLASSES.root} ${OBJECT_CLASSES.urgent}`;
+const CLASS_OCCUPIED = `${OBJECT_CLASSES.root} ${OBJECT_CLASSES.occupied}`;
 
 type Doc = Pick<Document, 'createElement' | 'createElementNS'>;
 
 interface Marker {
   readonly object: CSS2DObject;
   readonly element: HTMLElement;
+  readonly kind: ObjectKind;
+  /** The class last written, so that a frame writes the DOM only when it changes. */
+  className: string;
 }
 
 function createMarker(spec: ObjectMarkerSpec, path: string, doc: Doc): Marker {
@@ -87,24 +99,38 @@ function createMarker(spec: ObjectMarkerSpec, path: string, doc: Doc): Marker {
   element.append(halo, icon);
   const object = new CSS2DObject(element);
   object.position.set(spec.xM, spec.yM, spec.zM);
-  return { object, element };
+  return { object, element, kind: spec.kind, className: CLASS_CALM };
 }
 
 /**
  * The icons of the interactive objects of a level, world-anchored in the `CSS2DRenderer` layer, at
  * the point the touch hit test aims at (`Sim.objects`): without them nothing says where the coffee
  * machine is. Always shown while the level is mounted; warm and pulsing while Papa is tired enough
- * for the coffee to matter. Allocates nothing per frame. `doc` makes the elements (the browser's
+ * for the coffee to matter (or needy enough for the door to), and the door dimmed while he is in
+ * there. Allocates nothing per frame. `doc` makes the elements (the browser's
  * `document`; a double in tests).
  */
 export function createObjectMarkers(scene: Scene, doc: Doc = document): ObjectMarkers {
   let markers: Marker[] = [];
-  let isUrgent = false;
 
   const unmount = (): void => {
     for (const marker of markers) scene.remove(marker.object);
     markers = [];
-    isUrgent = false;
+  };
+
+  /** The class a marker of `kind` wears for this frame's three states. */
+  const classOf = (
+    kind: ObjectKind,
+    isCoffeeUrgent: boolean,
+    isToiletUrgent: boolean,
+    isToiletOccupied: boolean,
+  ): string => {
+    if (kind === 'coffee_machine') return isCoffeeUrgent ? CLASS_URGENT : CLASS_CALM;
+    if (kind === 'toilet') {
+      if (isToiletOccupied) return CLASS_OCCUPIED;
+      return isToiletUrgent ? CLASS_URGENT : CLASS_CALM;
+    }
+    return CLASS_CALM;
   };
 
   return {
@@ -119,13 +145,12 @@ export function createObjectMarkers(scene: Scene, doc: Doc = document): ObjectMa
       }
     },
     unmount,
-    update(next) {
-      if (next === isUrgent) return;
-      isUrgent = next;
+    update(isCoffeeUrgent, isToiletUrgent, isToiletOccupied) {
       for (const marker of markers) {
-        marker.element.className = next
-          ? `${OBJECT_CLASSES.root} ${OBJECT_CLASSES.urgent}`
-          : OBJECT_CLASSES.root;
+        const next = classOf(marker.kind, isCoffeeUrgent, isToiletUrgent, isToiletOccupied);
+        if (next === marker.className) continue;
+        marker.className = next;
+        marker.element.className = next;
       }
     },
     get isAnyVisible() {

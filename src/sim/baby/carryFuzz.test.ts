@@ -8,11 +8,13 @@ import {
   createTestGeometry,
   createTestLevel,
   FATIGUE_GAUGES,
+  NEED_GAUGES,
   NOISE_GAUGES,
   OUTLET,
   SILENCE,
   STAIRS,
   TEST_OBJECTS,
+  TEST_TOILET,
   testPhoneEntry,
   testWave,
 } from '../../../tests/support/testContent.ts';
@@ -25,6 +27,8 @@ import type { World } from '../world.ts';
 // point, `armsCryAt` is set only while he is carried, and no threat of the baby (an anchored one, or a found silence's) is announced to him.
 // Story 4.2 adds the combo: after every step the multiplier is between the feel's bounds, the points
 // cashed in never fall, and the carry tick is due exactly while the baby is carried.
+// Story 4.3 adds the toilet: after every step `onToilet` never meets a carried baby, the need stays
+// in [0, 100] and a visit freezes it; random `SetBladder` commands keep the toilet visits coming.
 // The commands come from a seeded rng of the test (never `Math.random`); `ForceThreat` is left out
 // on purpose: it is the one way to announce a threat to a carried baby.
 
@@ -38,7 +42,12 @@ const COMMAND_CHANCE = 0.05;
 const baseContent = createTestContent();
 const content = {
   ...baseContent,
-  feel: { ...baseContent.feel, combo: { ...baseContent.feel.combo, carryTickMs: 1500 } },
+  feel: {
+    ...baseContent.feel,
+    combo: { ...baseContent.feel.combo, carryTickMs: 1500 },
+    // A short visit: random play seldom stays long, and the visits must end inside a run.
+    bladder: { ...baseContent.feel.bladder, toiletDurationMs: 1500 },
+  },
 };
 const geometry = createTestGeometry();
 const playpen = geometry.zones.find((zone) => zone.id === 'playpen');
@@ -57,8 +66,8 @@ function newLevel() {
         disruptions: [testPhoneEntry(25_000)],
       }),
     ],
-    objects: TEST_OBJECTS,
-    gauges: { ...NOISE_GAUGES, ...FATIGUE_GAUGES },
+    objects: [...TEST_OBJECTS, TEST_TOILET],
+    gauges: { ...NOISE_GAUGES, ...FATIGUE_GAUGES, ...NEED_GAUGES },
     carry: CARRY,
   });
 }
@@ -66,7 +75,7 @@ function newLevel() {
 function randomCommand(sim: Sim, rng: ReturnType<typeof createRng>): SimCommand {
   const t = asSimMs(sim.world.time.sim);
   const world = sim.world as World;
-  switch (nextInt(rng, 0, 8)) {
+  switch (nextInt(rng, 0, 9)) {
     case 0:
     case 1:
       return { type: 'TapBaby', t };
@@ -83,7 +92,7 @@ function randomCommand(sim: Sim, rng: ReturnType<typeof createRng>): SimCommand 
       return {
         type: 'TapObject',
         t,
-        objectId: nextFloat(rng) < 0.5 ? 'coffee_machine' : 'phone',
+        objectId: ['coffee_machine', 'phone', 'toilet', 'toilet'][nextInt(rng, 0, 4)] ?? 'toilet',
       };
     case 5:
       return nextFloat(rng) < 0.5
@@ -93,6 +102,8 @@ function randomCommand(sim: Sim, rng: ReturnType<typeof createRng>): SimCommand 
       const threat = world.threats[nextInt(rng, 0, world.threats.length)];
       return { type: 'PressThreat', t, threatId: threat?.id ?? 0 };
     }
+    case 7:
+      return { type: 'SetBladder', t, pct: 40 + nextFloat(rng) * 60 };
     default:
       return { type: 'Release', t };
   }
@@ -107,6 +118,8 @@ describe('carrying, played at random', () => {
     let armsCries = 0;
     let comboChanges = 0;
     let cashIns = 0;
+    let toiletVisits = 0;
+    let refusals = 0;
     for (let seed = 1; seed <= SEED_COUNT; seed++) {
       const sim = await createSim({ content, geometry, level: newLevel(), seed });
       const rng = createRng(seed * 7919);
@@ -124,6 +137,8 @@ describe('carrying, played at random', () => {
             if (event.type === 'ThreatCancelled') cancels++;
             if (event.type === 'ComboChanged') comboChanges++;
             if (event.type === 'ComboCashedIn') cashIns++;
+            if (event.type === 'ToiletFinished') toiletVisits++;
+            if (event.type === 'ToiletRefused') refusals++;
             if (event.type === 'ThreatTelegraphed' && event.kind === 'arms_cry') armsCries++;
             if (event.type === 'ThreatTelegraphed' && wasCarried) {
               expect(BABY_DEFS.has(event.kind), `seed ${seed} step ${step}: ${event.kind}`).toBe(
@@ -132,6 +147,12 @@ describe('carrying, played at random', () => {
             }
           }
           const isCarried = world.baby.state === 'carried';
+          expect(
+            world.papa.state === 'onToilet' && isCarried,
+            `seed ${seed} step ${step}: a carried baby on the toilet`,
+          ).toBe(false);
+          expect(world.gauges.bladderPct, `seed ${seed} step ${step}`).toBeGreaterThanOrEqual(0);
+          expect(world.gauges.bladderPct, `seed ${seed} step ${step}`).toBeLessThanOrEqual(100);
           if (isCarried) {
             carriedSteps++;
             expect(world.baby.xM, `seed ${seed} step ${step}`).toBe(world.papa.xM);
@@ -177,5 +198,7 @@ describe('carrying, played at random', () => {
     expect(armsCries).toBeGreaterThan(0);
     expect(comboChanges).toBeGreaterThan(0);
     expect(cashIns).toBeGreaterThan(0);
+    expect(toiletVisits).toBeGreaterThan(SEED_COUNT / 4);
+    expect(refusals).toBeGreaterThan(0);
   }, 120_000);
 });

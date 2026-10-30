@@ -610,7 +610,7 @@ describe('the level’s fatigue and objects (story 1.19)', () => {
       objects: [{ id: 'kettle', kind: 'kettle' as never, anchor: 'phone' }],
     });
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
-      /objects\[0\]: the object "kettle" has the kind "kettle", which the sim has no action for \(coffee_machine, phone\)/,
+      /objects\[0\]: the object "kettle" has the kind "kettle", which the sim has no action for \(coffee_machine, phone, toilet\)/,
     );
   });
 });

@@ -626,6 +626,25 @@
 - **`SetFeel` does not re-run the schema's cross-field rules.** `applyCommands` only checks the shape of the patch, so `feel.combo` can end up with `minMultiplier >= maxMultiplier`, a `minMultiplier` above a running multiplier or a `maxMultiplier` at or below it. Base points then pile up invisibly at the floor and the first cash-in pays them. Reason: the debug panel's `SetFeel` has never re-run the refines (any feel group with a cross-field rule has the same gap); decide with the next story that adds a refine to a tunable group, or when Geo hits it in the panel.
 - **The cash-in « +N » hold runs on real time (`performance.now()`).** A pause or a hidden tab during its 900 ms makes it elapse unseen. Reason: same clock as `screenFlash` and `gaugesHud`; revisit with the device pass if it shows.
 - **The `aside` shift of the combo badge is a fixed 64 px.** A long verb or Papa near the right edge of a phone can overlap the verb or leave the screen. Reason: the e2e pins the non-overlap in one layout only; look at it in the device pass (`docs/playtest/device-measurements.md`).
+
+## Story 4-3-envie-pressante (2026-10-30)
+
+- **Open point 1, in the salon the slowdown never comes (D7).** 0.4/s over 180 s is 72 points: the gauge turns orange at about 175 s and never reaches 100 (`bladderPeakPct` is 72 for the four bots). The slowdown is tested through `SetBladder` and is first felt in `chambre_night` (4.10), unless Geo tunes the salon: a `feelOverrides` with `bladder.startPct` around 40 does it with no code, but it changes the `random` bot's walks.
+- **Open point 2, a nap in the toilet cuts the visit with no relief (D5).** Say if you prefer the gauge to fall anyway.
+- **Open point 3, nothing shows the 5 s running out** except the occupied door. A ring on the door is cheap if the wait feels blind.
+- **Open point 4, fatigue keeps rising in the toilet, and the flush makes no noise.** Both are what the GDD leaves unsaid. A flush that feeds the Bruit gauge in a Sieste level would be a good gag.
+- **The HUD pill moves the timer aside on narrow screens (Geo's decision, 2026-10-30).** Three gauges make the pill 304 px wide: at 667 × 375 it ran 38 px under the timer, at 740 × 360 by 2 px. The HUD row's left column is now `minmax(max-content, 1fr)`, so the timer stays centred while it fits and sits one gap (8 px) right of the pill otherwise (`toilet.spec.ts` pins four viewports). The bars and the node budget were not touched. Say if you would rather narrow the bars on the compact surface.
+- **« POSE-LE D'ABORD ! » overlaps a threat on Papa that is up at the same time** (the cry in the arms: its verb « BERCE ! » and its icon sit in the same spot, 0.85 m over his head). It clears the combo badge, which steps aside in that case; the hint lasts 1.2 s. Look at it in the device pass; if it bothers, lift it above the verb stack while a threat follows Papa (as the badge's `aside` does).
+- **The toilet door is a flat greybox slab in the wall's own material**, so only its marker shows it on a light wall; E7 draws the real one. The anchor (`[-2.2, 1, -2.85]`) was not moved.
+- **The placeholder sounds** `papa_bladder_full`, `papa_toilet_door` and `env_toilet_flush` are synthesized (`SEED + 13`, `+14`, `+12`; the door was `+11` until the review, which `synthParry` already uses); story 7.5 or Geo's recordings replace them.
+
+## Deferred from: code review of story-4-3-envie-pressante (2026-10-30)
+
+- **`ToiletRefused` has no cooldown.** Every `TapObject` on the door with the baby carried emits it (papa_bump, haptic, hint restart); drumming on the door repeats the sound and the vibration. Reason: a feel call for Geo's device pass; a cooldown would be a new `feel.bladder` key.
+- **The sim does not refuse a `toilet` object in a level without `gauges.need`.** Only `content:check` does, as for the coffee machine. Reason: same trust level as the coffee; harden both in `createSim` if a hand-built level ever skips `content:check`.
+- **A cash-in « +N » hold or a rise popping while Papa is `onToilet` elapses unseen** (the badge has no pose to follow). Reason: narrow (a cash-in needs a safe put-down, then the walk in); same real-time clock as the existing cash-in entry.
+- **`toilet.spec.ts › Papa is drawn again` compares two screenshots by inequality.** Any pixel change passes. Reason: assert the away state through a debug view probe when `__PP__` has one.
+
 ## Story 2-7-calibration-de-la-latence (2026-10-30)
 
 - ~~**The Recalibrate row of the settings screen** (`settings → calibration → settings`). Reason: story 2.8. `calibrationFlow.startRecalibration(returnTo)` already serves it with a table alone (the flow test uses an extended `APP_TRANSITIONS`); no settings row is built here.~~ **Closed in story 2.8:** the row calls `startRecalibration('settings')`; the table has the edges; `startRecalibration` resumes the audio first (the pause suspended it) and boot suspends it again on the way back while the game is paused.

@@ -192,8 +192,14 @@ describe('pickObject (story 1.19)', () => {
   const camera = createIsoCamera();
   fitIsoCamera(camera, ROOM, RECT.width / RECT.height);
   const tester = createHitTester(camera);
-  const COFFEE = { id: 'coffee_machine', xM: -3.6, yM: 1.05, zM: -2 };
-  const PHONE = { id: 'phone', xM: -1.3, yM: 0.65, zM: -1.2 };
+  const COFFEE = {
+    id: 'coffee_machine',
+    kind: 'coffee_machine' as const,
+    xM: -3.6,
+    yM: 1.05,
+    zM: -2,
+  };
+  const PHONE = { id: 'phone', kind: 'phone' as const, xM: -1.3, yM: 0.65, zM: -1.2 };
   const pxOf = (object: { xM: number; yM: number; zM: number }) => {
     const v = new Vector3(object.xM, object.yM, object.zM).project(camera);
     return {

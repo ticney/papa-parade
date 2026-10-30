@@ -68,14 +68,15 @@ describe('Papa states (story 1.19)', () => {
       'drink',
       'asleep',
       'onPhone',
+      'onToilet',
     ]);
     expect(PAPA_STATES_ARE_COMPLETE).toBe(true);
   });
 
-  it('is busy exactly when drinking, asleep or on the phone (story 1.20)', () => {
+  it('is busy exactly when drinking, asleep, on the phone or on the toilet (stories 1.20, 4.3)', () => {
     for (const state of PAPA_STATES) {
       expect(isPapaBusy({ state }), state).toBe(
-        state === 'drink' || state === 'asleep' || state === 'onPhone',
+        state === 'drink' || state === 'asleep' || state === 'onPhone' || state === 'onToilet',
       );
     }
   });
