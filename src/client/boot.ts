@@ -61,6 +61,7 @@ import { createEpicStamp } from './ui/hud/epicStamp.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
+import { createInstinctVignette } from './ui/hud/instinctVignette.ts';
 import { createScreenFlash } from './ui/hud/screenFlash.ts';
 import { createSilenceBubble } from './ui/hud/silenceBubble.ts';
 import { createTimerHud } from './ui/hud/timerHud.ts';
@@ -281,6 +282,7 @@ export async function boot(): Promise<void> {
       | 'ppBladder'
       | 'ppPhone'
       | 'ppSilence'
+      | 'ppInstinct'
       | 'ppBabyPx'
       | 'ppObjectPx'
       | 'ppTarget'
@@ -317,6 +319,7 @@ export async function boot(): Promise<void> {
       light: feedbackTable.haptics.light.patternMs,
       medium: feedbackTable.haptics.medium.patternMs,
       heavy: feedbackTable.haptics.heavy.patternMs,
+      heartbeat: feedbackTable.haptics.heartbeat.patternMs,
     },
   });
   // The save (story 2.7): read before the start screen is up (below), so that `onStart` can decide
@@ -588,6 +591,7 @@ export async function boot(): Promise<void> {
       'ppTarget',
       'ppPhone',
       'ppSilence',
+      'ppInstinct',
       'ppBabyPx',
       'ppScore',
       'ppStars',
@@ -600,6 +604,12 @@ export async function boot(): Promise<void> {
   };
   // The suspicious silence, on its events only (story 1.21): `on` at `SilenceStarted`, then `found`
   // or `timedOut`; and where the baby is on the page then, in px, for a Playwright tap on him.
+  // Fatherly Instinct (story 2.9), on its events only: `on` at `InstinctTriggered`, then the reason
+  // (`timer` or `levelEnded`) of `InstinctEnded`.
+  const mirrorInstinctEvent = (event: SimEvent): void => {
+    if (event.type === 'InstinctTriggered') mirror('ppInstinct', 'on');
+    else if (event.type === 'InstinctEnded') mirror('ppInstinct', event.reason);
+  };
   const mirrorSilenceEvent = (event: SimEvent): void => {
     if (event.type === 'SilenceEnded') {
       mirror('ppSilence', event.reason);
@@ -843,6 +853,13 @@ export async function boot(): Promise<void> {
         isPlaying && isSlowMoActive(babbleWorld, levelFeel().music.slowMo.belowScale),
       );
       silenceBubble.update(isSilent && pause.state === 'running', babbleWorld);
+      // Fatherly Instinct's vignette follows the state too (story 2.9), never the events: a pause, a
+      // restart or the end of the level can never leave it on.
+      instinctVignette.update(
+        babbleWorld !== undefined &&
+          babbleWorld.instinct.state === 'active' &&
+          pause.state === 'running',
+      );
       // The timer counts sim time, rounded up to the second (`0:00` exactly when the level ends);
       // `hudBatch` writes the DOM only when the second changes. Before `shell.frame()` flushes it.
       const running = levelSession.active;
@@ -1034,6 +1051,9 @@ export async function boot(): Promise<void> {
         director.handle('NoiseAlertReached', null);
         gaugesHud.alert('noise');
       }
+      // Fatherly Instinct started (story 2.9 D4): the heartbeat and its vibration. The vignette is a UI
+      // element drawn from the state, so the cue goes through a client event like the noise alert.
+      if (event.type === 'InstinctTriggered') director.handle('InstinctVignetteShown', null);
       if (isMirrored) {
         if (event.type === 'NoiseChanged') mirrorNoise();
         if (
@@ -1053,6 +1073,7 @@ export async function boot(): Promise<void> {
         mirrorThreatEvent(event);
         mirrorPhoneEvent(event);
         mirrorSilenceEvent(event);
+        mirrorInstinctEvent(event);
       }
       // A refused toilet says why above Papa, for `holdMs` of real time (story 4.3).
       if (event.type === 'ToiletRefused') {
@@ -1159,6 +1180,9 @@ export async function boot(): Promise<void> {
     timer: timerHud.element,
   });
   hudRoot.append(silenceBubble.element);
+  // Right before `#pp-world` (z-index 4 against its 5): it darkens the room, not the verbs and the icons.
+  const instinctVignette = createInstinctVignette(document);
+  worldRoot.before(instinctVignette.element);
   // The latency calibration (story 2.7): the first launch's detour, and what story 2.8's Recalibrate
   // row will call. The flow outlives the screen, which the portrait overlay rebuilds.
   const calibrationFlow = createCalibrationFlow({

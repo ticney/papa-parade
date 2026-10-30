@@ -13,6 +13,7 @@ import {
   clampTimeScale,
   createCheatContext,
   createSkipToEnd,
+  forceInstinct,
   launchableThreats,
   launchThreat,
   levelHasFatigue,
@@ -246,6 +247,14 @@ export function createDebugOverlay(
       const id = Number(threatSelect.value);
       if (Number.isInteger(id) && id > 0 && launchThreat(context, id)) say(`Launch: #${id} sent`);
       else say('Launch: pick a threat first');
+    });
+    button(threatRow, 'Instinct', 'forceInstinct', () => {
+      const reason = refusalReason(host);
+      if (reason !== null) {
+        say(`Instinct: ${reason}`);
+        return;
+      }
+      if (forceInstinct(context)) say('Instinct: sent');
     });
 
     const cheatRows = CHEATS.map((cheat) => {

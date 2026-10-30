@@ -148,12 +148,34 @@
           ],
           "additionalProperties": false,
           "description": "A heavy tap: a gag."
+        },
+        "heartbeat": {
+          "type": "object",
+          "properties": {
+            "patternMs": {
+              "minItems": 1,
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "description": "`navigator.vibrate` pattern, in ms: vibrate, pause, vibrate, pause..."
+            }
+          },
+          "required": [
+            "patternMs"
+          ],
+          "additionalProperties": false,
+          "description": "A lub-dub: Fatherly Instinct kicks in (story 2.9)."
         }
       },
       "required": [
         "light",
         "medium",
-        "heavy"
+        "heavy",
+        "heartbeat"
       ],
       "additionalProperties": false,
       "description": "The vibration of each kind. A browser without vibration ignores them."
@@ -546,7 +568,8 @@
             "enum": [
               "light",
               "medium",
-              "heavy"
+              "heavy",
+              "heartbeat"
             ]
           },
           "flash": {

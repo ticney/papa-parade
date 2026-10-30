@@ -1,6 +1,10 @@
+---
+baseline_commit: 2001aba8c9e5d9bfef7bda410fb403904c3c5dc
+---
+
 # Story 2.9: Fatherly Instinct
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -94,14 +98,14 @@ so that the chaos stays funny and never frustrating.
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Sim rule** (AC 1-5, 7-13): slice, snapshot 20, `recordMiss`, `runInstinct`, slow-mo source, window modifier, `judgeable`, `endInstinct`; tests first (AC 15).
-- [ ] **T2. Feel** (AC 6): `returnMs`, schemas, fixtures.
-- [ ] **T3. Debug and headless** (AC 14, 24, 25): `ForceInstinct`, cheat, inspector, report, real-content test.
-- [ ] **T4. Feedback** (AC 17-19): client event, cue, `heartbeat` haptic, clip.
-- [ ] **T5. Vignette and mirror** (AC 20-22).
-- [ ] **T6. e2e** (AC 26).
-- [ ] **T7. Goldens and docs** (AC 16, 27-30).
-- [ ] **T8. CI** (AC 31).
+- [x] **T1. Sim rule** (AC 1-5, 7-13): slice, snapshot 20, `recordMiss`, `runInstinct`, slow-mo source, window modifier, `judgeable`, `endInstinct`; tests first (AC 15).
+- [x] **T2. Feel** (AC 6): `returnMs`, schemas, fixtures.
+- [x] **T3. Debug and headless** (AC 14, 24, 25): `ForceInstinct`, cheat, inspector, report, real-content test.
+- [x] **T4. Feedback** (AC 17-19): client event, cue, `heartbeat` haptic, clip.
+- [x] **T5. Vignette and mirror** (AC 20-22).
+- [x] **T6. e2e** (AC 26).
+- [x] **T7. Goldens and docs** (AC 16, 27-30).
+- [x] **T8. CI** (AC 31).
 
 ## Dev Notes
 
@@ -187,10 +191,60 @@ None needed: no new library, the stack is pinned, and `navigator.vibrate` with a
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`)
+
 ### Debug Log References
+
+- Gag timing of the test threats: an unanswered outlet gags 1570 ms after its telegraph (1200 delay + 300 window + 60 tolerance, judged at the next step); the frozen stairs gag 1570 ms after theirs too but its delay is 1000 ms, so in the `instinct` golden the stairs (forced at 200) gag at 1570 and the outlet (forced at 100) at 1670.
+- First draft of the `instinct` golden used the director (6 threats, gap 450 ms): the baby's lock-on made the draws irregular and the instinct only triggered at 8930 with no window drawn during it. Replaced by `ForceThreat` actions on a far-away wave (the misses are still real gags): trigger at 1670, end at 5670, threat 6 judged against 390.
+- `console.log` is silenced in the Vitest run; timelines were dumped to a scratch file instead (temporary test removed).
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **The rule** (`src/sim/assist/paternalInstinct.ts`): `runInstinct` between `runGauges` and `runScoring`; `enterInstinctState` is the only writer; `recordMiss` is called by `gagThreat` beside `resetCombo`; `instinctWindowModifier` feeds `telegraphThreat` and `isJudgeableBeforeEnd`; `endInstinct` is called by `endLevel` after `endSilence`. `World.instinct`, `INSTINCT_STATES`, slow-mo source `instinct`, events `InstinctTriggered` / `InstinctEnded`, command `ForceInstinct`, snapshot **version 20** with an `instinctProblem` validator. No `world.rng` draw (a test compares the rng state).
+- **Feel**: `feel.instinct.returnMs` = 300 (D1) in `content/feel.json`, the test fixtures and the schema; `npm run content:schemas` run. No other value of `feel.instinct` moved.
+- **Feedback**: client event `InstinctVignetteShown` (boot sends it on `InstinctTriggered`), cue `instinct_triggered` (clip `papa_heartbeat`, `uiElement`, haptic `heartbeat`), new haptic kind `heartbeat` `[30, 90, 30]` (`HAPTIC_KINDS`, `HapticsSchema`, `platform.ts`, `webHaptics.ts`, boot's pattern table), `synthHeartbeat` + `papa_heartbeat.m4a` generated alone with `--only papa_heartbeat`.
+- **Vignette**: `createInstinctVignette`, class toggle only, z-index 4 right before `#pp-world`, the `--pp-color-vignette` token, 200 ms fade; driven per frame from `world.instinct.state` and `pause.state`. Mirror `data-pp-instinct` (`on`, then the end reason). `feel.music.slowMo.belowScale` left at 1 (D5).
+- **Debug and headless**: `forceInstinct` cheat + « Instinct » button beside « Launch »; `summarizeWorld` gets an `instinct <state> … · misses <n>` line (the 4th line, so the per-threat lines moved to index 4) and the inspector a `instinct` slice block; `instinctTriggers` in the sim report (per run, totals, `SIM_HELP`).
+- **Tests added**: `paternalInstinct.test.ts` (66 tests: misses, trigger conditions strict at 9990/10000, late third threat, length, recharge 29 990 / 30 000, windows 390 / 585 / 312 / 225, frozen windows, `isJudgeableBeforeEnd` boundary, overlap with `perfect` / `lastThreat` / `comboCashIn`, level end, `SetFeel`, `ForceInstinct`, snapshot round trips and refusals), `instinctVignette.test.ts`, `tests/bots/instinct.test.ts` (seeds 1-20 of the real `salon_crawler`), `tests/golden/instinct.test.ts` + scenario `instinct`, `tests/e2e/instinct.spec.ts` (7 tests, Chromium and WebKit), a debug overlay e2e for the button, synth tests, report tests; the pinned system order, command list and snapshot version tests follow.
+- **Goldens (AC 27), regenerated deliberately with `npm run golden:update`**: `World.instinct` and `feel.instinct.returnMs` moved `worldHash` / `feelHash` in every file. **No existing scenario gained an `InstinctTriggered`** (`threat_trio` included: `eventTypes` and `eventsHash` are unchanged in all of them; the diff of the 12 existing files is hash lines only). The only new golden is `instinct`.
+- **AC 28, 20 games of `salon_crawler` per row** (seeds 1-20, FR20 values), `instinctTriggers` over the 20 games / gags per game:
+
+  | Bot | Tier | Instincts in 20 games | Per game | Gags per game |
+  |---|---|---|---|---|
+  | `idle` | normal | 6 | 0.30 | 38.1 |
+  | `idle` | assistance | 8 | 0.40 | 37.75 |
+  | `random` | normal | 6 | 0.30 | 37.95 |
+  | `random` | assistance | 7 | 0.35 | 38 |
+  | `human` | normal | 0 | 0 | 0.05 |
+  | `human` | assistance | 0 | 0 | 0 |
+
+  It matches the probe of open point 1 (0.30 per game for `idle` and `random`, none for `human`): the instinct is rare on the current level, as built from FR20. The report does not list a trigger per game in `runList`, so « games with one » is not given.
+- **Checks**: `npm run ci:fast` green after each task; touched specs on Chromium (`debugOverlay`, `feedback`, `timeEffects`, `juice`, `adaptiveMusic`, `timer`, `threat`, `testApi`, `settings`, `calibration`, `combo`) green; `(unset VITE_DEBUG_ALLOWED; npm run ci)` green once (543 e2e on both browsers, 10 e2e:dist, `perf.spec.ts`). **Perf of the built playtest, a whole level at speed 1: p95 frame 16.7 ms, max 43 draw calls, max 1538 triangles** (2.8: 16.8 ms, 42, 1526): no regression from the full-screen vignette layer.
+- **Not done / left to Geo**: how the instinct feels (rarity, the music dip, the 34 s trigger-to-trigger, windows not widened for threats already up) is the open points 1-5 of the Dev Notes; `ForceInstinct` and `returnMs` are the additions of D1 and D3. The `ppInstinct` mirror is behind `isMirrored` and is not in `PROD_FORBIDDEN_MARKERS` (the AC did not ask).
+- Deferred items recorded in `deferred-work.md` (« Story 2-9-instinct-paternel » section) and L245, L601, L672 closed.
+
+### Change Log
+
+- 2026-10-30: Story 2.9 implemented: Fatherly Instinct (sim rule, snapshot 20, `ForceInstinct`, heartbeat cue and haptic, vignette, mirror, report, tests, goldens, docs). Status set to review.
 
 ### File List
+
+New:
+
+- `src/sim/assist/paternalInstinct.ts`, `src/sim/assist/paternalInstinct.test.ts`
+- `src/client/ui/hud/instinctVignette.ts`, `src/client/ui/hud/instinctVignette.test.ts`
+- `tests/bots/instinct.test.ts`, `tests/e2e/instinct.spec.ts`, `tests/golden/instinct.test.ts`
+- `tests/golden/journals/instinct.json`, `tests/golden/journals/instinct.expected.json`
+- `public/assets/audio/papa_heartbeat.m4a`
+
+Modified:
+
+- Sim: `src/sim/world.ts`, `src/sim/events.ts`, `src/sim/commands.ts`, `src/sim/step.ts`, `src/sim/snapshot.ts`, `src/sim/flow/flowSystem.ts`, `src/sim/threats/threatFsm.ts`, `src/sim/threats/judgeable.ts`, `src/shared/constants.ts`
+- Sim tests: `src/sim/commands.test.ts`, `src/sim/step.test.ts`, `src/sim/snapshot.test.ts`, `src/sim/gauges/gaugesSystem.test.ts`, `src/sim/threats/inputLag.test.ts`
+- Content: `src/content/schemas/feel.ts`, `src/content/schemas/feedback.ts`, `content/feel.json`, `content/feedback.json`, `content/_schemas/feel.schema.json`, `content/_schemas/feedback.schema.json`
+- Client and platform: `src/client/boot.ts`, `src/client/feedback/feedbackEvents.ts`, `src/client/ui/styles/ui.css`, `src/platform/platform.ts`, `src/platform/web/webHaptics.ts`, `src/client/feedback/feedbackDirector.test.ts`, `src/platform/createPlatform.test.ts`, `src/platform/web/webHaptics.test.ts`
+- Debug: `src/debug/cheats.ts`, `src/debug/debugOverlay.ts`, `src/debug/stateInspector.ts`, `src/debug/cheats.test.ts`, `src/debug/debugViews.test.ts`
+- Tools: `tools/audio/makePlaceholderAudio.ts`, `tools/sim/simReport.ts`, `tools/sim/simArgs.ts`
+- Tests and fixtures: `tests/support/testFeel.json`, `tests/support/testContent.ts`, `tests/tools/vite/fixtures/feelSample.json`, `tests/tools/audio/makePlaceholderAudio.test.ts`, `tests/tools/sim/simReport.test.ts`, `tests/e2e/support/game.ts`, `tests/e2e/debugOverlay.spec.ts`, `tests/golden/scenarios.ts`, `tests/golden/journals/*.json` (hash lines only, except the new `instinct`)
+- Docs: `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this file

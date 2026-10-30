@@ -22,6 +22,7 @@ import {
   clampTimeScale,
   createCheatContext,
   createSkipToEnd,
+  forceInstinct,
   launchableThreats,
   launchThreat,
   levelHasFatigue,
@@ -203,6 +204,14 @@ describe('the cheat list', () => {
     });
     sim.step();
     expect(sim.world.threats.find((threat) => threat.id === target)?.state).toBe('telegraph');
+  });
+
+  it('forceInstinct sends ForceInstinct, and the instinct starts at the next step', async () => {
+    const { host, sim } = await rig();
+    expect(forceInstinct(createCheatContext(host))).toBe(true);
+    expect(sim.journal().entries.at(-1)?.command).toMatchObject({ type: 'ForceInstinct' });
+    sim.step();
+    expect(sim.world.instinct.state).toBe('active');
   });
 
   it('offers « set fatigue » only in a level with the gauge, as a number from 0 to the gauge maximum', async () => {

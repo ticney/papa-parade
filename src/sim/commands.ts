@@ -45,6 +45,12 @@ export type SimCommand =
    */
   | { type: 'ForceThreat'; t: SimMs; threatId: number }
   /**
+   * Debug / test command, journaled like `ForceThreat`: starts Fatherly Instinct now, ignoring the
+   * threats, the misses and the recharge (story 2.9). Ignored with no event while it is `active`
+   * and when the player's tier has no instinct.
+   */
+  | { type: 'ForceInstinct'; t: SimMs }
+  /**
    * A tap on the baby. During a started silence it finds him; otherwise Papa walks to where the baby
    * is, as `TapFloor` there would (story 1.21; story 4.1 turns this into « take the baby »).
    */
@@ -103,6 +109,7 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetBladder',
   'StartDisruption',
   'ForceThreat',
+  'ForceInstinct',
   'TapBaby',
   'TapFloor',
   'TapObject',

@@ -26,6 +26,7 @@ describe('system order', () => {
       'runPapa',
       'runPhysics',
       'runGauges',
+      'runInstinct',
       'runScoring',
       'runFlow',
     ]);

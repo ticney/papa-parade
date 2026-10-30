@@ -36,7 +36,12 @@ const TABLE: FeedbackTable = {
     voice: { gainPct: 80 },
     ui: { gainPct: 80 },
   },
-  haptics: { light: { patternMs: [15] }, medium: { patternMs: [30] }, heavy: { patternMs: [60] } },
+  haptics: {
+    light: { patternMs: [15] },
+    medium: { patternMs: [30] },
+    heavy: { patternMs: [60] },
+    heartbeat: { patternMs: [30, 90, 30] },
+  },
   comboBadge: { cashInHoldMs: 900 },
   papaHint: { holdMs: 1200 },
   resultScreen: {

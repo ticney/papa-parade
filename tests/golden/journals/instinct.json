@@ -1,0 +1,58 @@
+{
+  "version": 3,
+  "seed": 42,
+  "feelHash": "1f445c0b9e7e6c",
+  "geometryHash": "0e18fe9d85d9f9",
+  "levelHash": "04042f572f068d",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 100,
+      "command": {
+        "t": 100,
+        "threatId": 1,
+        "type": "ForceThreat"
+      }
+    },
+    {
+      "applyAt": 200,
+      "command": {
+        "t": 200,
+        "threatId": 2,
+        "type": "ForceThreat"
+      }
+    },
+    {
+      "applyAt": 900,
+      "command": {
+        "t": 900,
+        "threatId": 3,
+        "type": "ForceThreat"
+      }
+    },
+    {
+      "applyAt": 910,
+      "command": {
+        "t": 910,
+        "threatId": 4,
+        "type": "ForceThreat"
+      }
+    },
+    {
+      "applyAt": 920,
+      "command": {
+        "t": 920,
+        "threatId": 5,
+        "type": "ForceThreat"
+      }
+    },
+    {
+      "applyAt": 2500,
+      "command": {
+        "t": 2500,
+        "threatId": 6,
+        "type": "ForceThreat"
+      }
+    }
+  ]
+}

@@ -388,7 +388,10 @@ const InstinctSchema = z
   .strictObject({
     timeScale: timeScale('Sim speed while Fatherly Instinct is active (1 = normal).'),
     windowBonusPct: pct('Response windows grow by this percentage while active.'),
-    durationMs: durationMs('How long the instinct lasts, in ms.'),
+    durationMs: durationMs(
+      'How long the instinct lasts, in sim ms (the slow-mo hold and the window bonus).',
+    ),
+    returnMs: delayMs('Return to normal speed after the instinct, in sim ms (0 = instant).'),
     cooldownMs: delayMs('Recharge time after the instinct ends, in ms.'),
     minActiveThreatsCount: z
       .int()

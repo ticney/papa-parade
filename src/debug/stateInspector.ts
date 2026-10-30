@@ -4,7 +4,7 @@ import type { World } from '@sim';
 import { guarded } from './guard.ts';
 
 /**
- * The one-glance summary of a world: sim time, time scale, flow, Papa, baby, fatigue and each
+ * The one-glance summary of a world: sim time, time scale, flow, Papa, baby, fatigue, Fatherly Instinct and each
  * threat with its def and state. Pure and read-only; one string per line.
  */
 export function summarizeWorld(world: Readonly<World>): string[] {
@@ -12,6 +12,7 @@ export function summarizeWorld(world: Readonly<World>): string[] {
     `t ${world.time.sim} ms · timeScale ${world.time.scale.toFixed(2)} (base ${world.time.baseScale.toFixed(2)}, ${world.time.slowMos.length} slow-mo)`,
     `flow ${world.flow.state} · papa ${world.papa.state} · baby ${world.baby.state}`,
     `fatigue ${world.gauges.fatigue.toFixed(1)}${world.gauges.isFatigueAbove ? ' (above threshold)' : ''}`,
+    `instinct ${world.instinct.state}${world.instinct.state === 'ready' ? '' : ` until ${world.instinct.untilAt} ms`} · misses ${world.instinct.missAts.length}`,
   ];
   for (const threat of world.threats) {
     lines.push(`#${threat.id} ${threat.defId} @ ${threat.anchorId}: ${threat.state}`);
@@ -32,6 +33,7 @@ const SLICES = [
   'props',
   'mess',
   'silence',
+  'instinct',
   'score',
   'rng',
   'nextId',

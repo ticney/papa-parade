@@ -147,9 +147,10 @@ describe('summarizeWorld', () => {
     expect(lines[0]).toBe('t 0 ms · timeScale 1.00 (base 1.00, 0 slow-mo)');
     expect(lines[1]).toBe('flow playing · papa idle · baby babble');
     expect(lines[2]).toBe('fatigue 0.0');
+    expect(lines[3]).toBe('instinct ready · misses 0');
     expect(sim.world.threats.length).toBeGreaterThan(0);
     // One line per threat, with its id, def, anchor and state.
-    expect(lines.slice(3)).toEqual(
+    expect(lines.slice(4)).toEqual(
       sim.world.threats.map(
         (threat) => `#${threat.id} ${threat.defId} @ ${threat.anchorId}: ${threat.state}`,
       ),

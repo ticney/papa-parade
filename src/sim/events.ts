@@ -51,6 +51,12 @@ export const LEVEL_END_REASONS_ARE_COMPLETE: [UnlistedLevelEndReason] extends [n
   : UnlistedLevelEndReason = true;
 
 /**
+ * Why Fatherly Instinct ended (story 2.9): its `durationMs` ran out (`timer`), or the level ended
+ * first (`levelEnded`), so every `InstinctTriggered` gets exactly one `InstinctEnded`.
+ */
+export type InstinctEndReason = 'timer' | 'levelEnded';
+
+/**
  * Why a threat was cancelled with no result (story 4.1): Papa took the baby in his arms
  * (`carried`: the threats aimed at the baby's mischief go away), or put him down (`putDown`: the
  * cry in the arms goes with the arms).
@@ -205,6 +211,14 @@ export type SimEvent =
    * « Hurlement » (story 1.22) counts these; it is never an injury (NFR9).
    */
   | { type: 'NearMiss'; t: SimMs; threatId: number; gag: GagId }
+  /**
+   * Fatherly Instinct started (story 2.9): enough misses in a short time with enough threats up.
+   * The slow-mo (`TimeScaleChanged`) follows in the same step. It lasts until `untilAt` (sim time),
+   * where `InstinctEnded{timer}` comes.
+   */
+  | { type: 'InstinctTriggered'; t: SimMs; untilAt: SimMs }
+  /** Fatherly Instinct is over, for the `reason`; the recharge starts (silently) at this `t`. */
+  | { type: 'InstinctEnded'; t: SimMs; reason: InstinctEndReason }
   | { type: 'ThreatRearmed'; t: SimMs; threatId: number }
   /**
    * An active threat was dropped with no result, no gag and no rearm (story 4.1): it goes straight
@@ -310,6 +324,8 @@ export const SIM_EVENT_TYPES = [
   'ComboChanged',
   'FatigueThresholdCrossed',
   'GagTriggered',
+  'InstinctEnded',
+  'InstinctTriggered',
   'InvariantViolated',
   'LevelEnded',
   'LevelScored',

@@ -6,7 +6,7 @@
 import type { Result } from '@shared/result';
 
 /** The same literals as the content schema's `HapticKind`: `platform` cannot import `content`. */
-export type HapticKind = 'light' | 'medium' | 'heavy';
+export type HapticKind = 'light' | 'medium' | 'heavy' | 'heartbeat';
 
 export interface Haptics {
   /** A short vibration. Never throws; does nothing where the device cannot vibrate. */

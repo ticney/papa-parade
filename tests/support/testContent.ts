@@ -39,6 +39,7 @@ export function createTestFeedback(): FeedbackTable {
       light: { patternMs: [15] },
       medium: { patternMs: [30] },
       heavy: { patternMs: [60] },
+      heartbeat: { patternMs: [30, 90, 30] },
     },
     comboBadge: { cashInHoldMs: 900 },
     papaHint: { holdMs: 1200 },

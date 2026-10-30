@@ -240,8 +240,28 @@ body {
 }
 
 /* ---------------------------------------------------------------------------------------------
-   Layers: canvas < #pp-world < #pp-hud < #pp-ui (start, pause veil and panel, countdown, portrait)
+   Layers: canvas < .pp-instinct-vignette (4) < #pp-world (5) < #pp-hud (10) < #pp-ui (start, pause veil and panel, countdown, portrait)
    --------------------------------------------------------------------------------------------- */
+
+/* Fatherly Instinct's vignette (story 2.9, UX `instinct-vignette`): the edge of the screen darkens
+   while the instinct lasts. Right before #pp-world in the page and under it (z-index 4 against 5), so
+   it dims the room and not the markers, their verbs or the HUD. A plain fade of 200 ms: it does not
+   pulse (nothing to clamp under the 3 Hz rule, nothing to change under reduced motion). The colour is
+   the vignette token, never red; the class is toggled by `instinctVignette.ts`. */
+.pp-instinct-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, var(--pp-color-vignette) 100%);
+  transition: opacity 200ms ease-out;
+}
+
+.pp-instinct-vignette-on {
+  opacity: 1;
+}
+
 #pp-world {
   position: fixed;
   inset: 0;

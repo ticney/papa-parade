@@ -679,7 +679,12 @@
         "durationMs": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "How long the instinct lasts, in ms."
+          "description": "How long the instinct lasts, in sim ms (the slow-mo hold and the window bonus)."
+        },
+        "returnMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Return to normal speed after the instinct, in sim ms (0 = instant)."
         },
         "cooldownMs": {
           "type": "number",
@@ -708,6 +713,7 @@
         "timeScale",
         "windowBonusPct",
         "durationMs",
+        "returnMs",
         "cooldownMs",
         "minActiveThreatsCount",
         "missesCount",

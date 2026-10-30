@@ -1,4 +1,5 @@
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
+import type { LevelWaveThreat } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
@@ -54,6 +55,11 @@ const pressOutlet = (t: number): SimCommand => ({
 });
 const release = (t: number): SimCommand => ({ type: 'Release', t: asSimMs(t) });
 const tapBaby = (t: number): SimCommand => ({ type: 'TapBaby', t: asSimMs(t) });
+const forceThreat = (t: number, threatId: number): SimCommand => ({
+  type: 'ForceThreat',
+  t: asSimMs(t),
+  threatId,
+});
 const pushProp = (t: number, propId: string, impulseXNs: number): SimCommand => ({
   type: 'PushProp',
   t: asSimMs(t),
@@ -81,6 +87,16 @@ const setFeel = (
 /** The frozen feel's window: the scenario below widens it, then puts it back, relative to this. */
 const { windowMs: testWindowMs } = createTestContent().feel.timing;
 const WIDER_MS = 200;
+
+/** Six threats on six anchors, started by hand (the wave is far away) and never answered. */
+const INSTINCT_THREATS: readonly LevelWaveThreat[] = [
+  OUTLET,
+  STAIRS,
+  COFFEE_TABLE,
+  { def: 'outlet', anchor: 'door' },
+  { def: 'outlet', anchor: 'coffee_machine' },
+  { def: 'outlet', anchor: 'toilet' },
+];
 
 export const SCENARIOS: readonly Scenario[] = [
   {
@@ -302,6 +318,30 @@ export const SCENARIOS: readonly Scenario[] = [
       },
       { atStep: 0, command: { type: 'SetBladder', t: asSimMs(0), pct: 100 } },
       { atStep: 1, command: { type: 'TapObject', t: asSimMs(STEP_MS), objectId: 'toilet' } },
+    ],
+  },
+  {
+    // Fatherly Instinct (story 2.9), reached by real misses. A debug `ForceThreat` starts the threats
+    // (the wave is far away, so the director draws none and the timing does not depend on the baby):
+    // 1 (the outlet, 100) and 2 (the stairs, 200) are never answered and gag at 1670 and 1570; 3, 4 and
+    // 5 (900-920) are the three threats still up at the second miss, so the instinct triggers at 1670
+    // (`InstinctTriggered`, `TimeScaleChanged` to 0.8). Threat 6, forced at 2500 during it, gets the
+    // +30 % window (390 against 300), and `InstinctEnded{timer}` comes exactly `durationMs` later
+    // (5670). Nobody answers anything. The times are read from a first recording.
+    // `instinct.test.ts` pins what it covers.
+    name: 'instinct',
+    level: createTestLevel({
+      waves: [testWave(INSTINCT_THREATS, { fromMs: 500_000, maxSimultaneous: 6 })],
+    }),
+    seed: 42,
+    untilSimMs: 12000,
+    actions: [
+      { atStep: 9, command: forceThreat(100, 1) },
+      { atStep: 19, command: forceThreat(200, 2) },
+      { atStep: 89, command: forceThreat(900, 3) },
+      { atStep: 90, command: forceThreat(910, 4) },
+      { atStep: 91, command: forceThreat(920, 5) },
+      { atStep: 249, command: forceThreat(2500, 6) },
     ],
   },
 ];
