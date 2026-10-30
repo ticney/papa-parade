@@ -49,6 +49,7 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     hitstopMs: number;
   };
   movement: { walkSpeedMps: number };
+  instinct: { timeScale: number };
   input: {
     contextReachM: number;
     autoTargetConeDeg: number;

@@ -278,7 +278,7 @@ test.describe('the offset in the sim', () => {
 
   const journal = (page: Page) => page.evaluate(() => window.__PP__?.journal() ?? null);
 
-  test('a seeded offset of 100 journals SetInputLag, and a press is dated at least that much before the step that applies it', async ({
+  test('a seeded offset of 100 journals SetInputLag, and a press is dated at least that much (in sim time) before the step that applies it', async ({
     page,
   }) => {
     test.setTimeout(60_000);
@@ -291,7 +291,10 @@ test.describe('the offset in the sim', () => {
     const press = entries.find((entry) => entry.command.type === 'PressThreat');
     expect(press).toBeDefined();
     // The press is corrected into the past by the offset: `t` is that much earlier than the step.
-    expect((press?.applyAt ?? 0) - (press?.command.t ?? 0)).toBeGreaterThanOrEqual(100);
+    // The offset is real ms and `t` is sim ms: while Instinct slows the sim, 100 real ms are only
+    // `timeScale` x 100 sim ms (the full CI caught 94 with the 0.8 of Instinct).
+    const minSimSpanMs = 100 * Math.min(1, liveFeel.instinct.timeScale);
+    expect((press?.applyAt ?? 0) - (press?.command.t ?? 0)).toBeGreaterThanOrEqual(minSimSpanMs);
     expect(problems).toEqual([]);
   });
 
