@@ -50,7 +50,12 @@ export function createTestFeedback(): FeedbackTable {
     },
     loops: {
       babble: { clip: 'baby_babble_loop', bus: 'voice', gainPct: 100, fadeMs: 80 },
-      music: { clip: 'music_crawler_calm', bus: 'music', gainPct: 100, fadeMs: 400 },
+      music: {
+        stems: { calm: 'music_crawler_calm', tense: 'music_crawler_tense' },
+        bus: 'music',
+        gainPct: 100,
+        fadeMs: 400,
+      },
     },
     cues: {
       papa_bump: {

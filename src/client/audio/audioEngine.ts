@@ -4,6 +4,7 @@ import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
 import { loadAudioClip } from '../assets/audioAssets.ts';
 import { fetchBytesWithTimeout } from '../assets/loadLevelAssets.ts';
+import { type AdaptiveMusic, createAdaptiveMusic, type MusicFeel } from './adaptiveMusic.ts';
 import { unlockAudioContext } from './audioUnlock.ts';
 import { type BusGraph, createBusGraph } from './buses.ts';
 import type {
@@ -31,9 +32,18 @@ export interface AudioEngineOptions {
   onStateChange?: (state: AudioStateName) => void;
   /** A preload settled: how many clips are decoded now (the debug mirror). */
   onClipsDecoded?: (count: number) => void;
-  /** A loop started (`true`) or stopped (`false`) (the debug mirror). */
+  /** A loop started (`true`) or stopped (`false`) (the debug mirror). The music is one loop, not one per stem. */
   onLoopChange?: (loop: LoopName, isOn: boolean) => void;
+  /**
+   * The music's wanted mood entered (`true`) or left (`false`) `tense` or `slow` (the debug
+   * mirror). The target mood, whether or not the music is playing.
+   */
+  onMusicMoodChange?: (mood: MusicMood, isOn: boolean) => void;
+  /** The music's mix numbers, read at each transition so that a live retuning applies to the next one. */
+  getMusicFeel: () => MusicFeel;
 }
+
+export type MusicMood = 'tense' | 'slow';
 
 export interface AudioEngine {
   /** `none` until `unlock()` has created the context, then the context's own state. */
@@ -54,20 +64,30 @@ export interface AudioEngine {
   preload(clips: readonly string[]): Promise<void>;
   /** Plays a decoded clip once, through `bus`, at the cue's gain times the bus's. */
   playOneShot(clip: string, bus: AudioBus, gainPct: number): void;
-  /** The music loop plays from now until `stopLevelLoops()`. Idempotent. */
+  /** The music plays from now until `stopLevelLoops()`, in the mood last set. Idempotent. */
   startLevelLoops(): void;
   /** Fades both loops out. Idempotent. */
   stopLevelLoops(): void;
   /** Edge-triggered: the babble starts when `isOn` turns `true` and fades out when it turns `false`. Cheap enough for every frame. */
   setBabbling(isOn: boolean): void;
   /**
-   * Edge-triggered like {@link setBabbling}, for every frame: while `isMuted` the music loop is
+   * Edge-triggered like {@link setBabbling}, for every frame: while `isMuted` the music is
    * faded out (the suspicious silence, story 1.21), and it restarts when `isMuted` turns `false`
    * if the level loops are on. A level start (`startLevelLoops`) and its end (`stopLevelLoops`)
    * clear the mute.
    */
   setMusicMuted(isMuted: boolean): void;
+  /**
+   * Edge-triggered like {@link setBabbling}, for every frame: the tense stem comes up while
+   * `isTense` (a threat is on) and the music is low-passed and slowed while `isSlowed`. The wanted
+   * mood is remembered while the music is stopped (muted, or between levels) and applies at its
+   * restart; `stopLevelLoops` resets it to calm.
+   */
+  setMusicMood(isTense: boolean, isSlowed: boolean): void;
 }
+
+/** A loop of one clip. The music is not one: see `adaptiveMusic.ts`. */
+type ClipLoopName = Exclude<LoopName, 'music'>;
 
 interface LoopHandle {
   readonly source: BufferSourceLike;
@@ -105,15 +125,20 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
   let areLoopsActive = false;
   // The suspicious silence cuts the music (story 1.21); set by `setMusicMuted`, cleared with the level loops.
   let isMusicMuted = false;
-  const loops: Record<LoopName, LoopHandle | null> = { babble: null, music: null };
+  // The music is delegated to `adaptiveMusic.ts`, built with the bus graph at the unlock.
+  let music: AdaptiveMusic | null = null;
+  // The mood the music wants, remembered while it is stopped.
+  let isMoodTense = false;
+  let isMoodSlowed = false;
+  const loops: Record<ClipLoopName, LoopHandle | null> = { babble: null };
   // A loop whose clip is not decoded is skipped once, not retried every frame; a preload clears it.
-  const skippedLoops = new Set<LoopName>();
+  const skippedLoops = new Set<ClipLoopName>();
 
   const warn = (message: string, cause?: unknown): void => {
     log.warn('audio', message, cause === undefined ? undefined : { cause: reasonOf(cause) });
   };
 
-  const setLoop = (name: LoopName, handle: LoopHandle | null): void => {
+  const setLoop = (name: ClipLoopName, handle: LoopHandle | null): void => {
     loops[name] = handle;
     options.onLoopChange?.(name, handle !== null);
   };
@@ -128,7 +153,7 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
     }
   };
 
-  const startLoop = (name: LoopName): void => {
+  const startLoop = (name: ClipLoopName): void => {
     if (context === null || graph === null || loops[name] !== null || skippedLoops.has(name)) {
       return;
     }
@@ -164,7 +189,7 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
     }
   };
 
-  const stopLoop = (name: LoopName): void => {
+  const stopLoop = (name: ClipLoopName): void => {
     const handle = loops[name];
     if (handle === null || context === null) return;
     const { source, gain } = handle;
@@ -192,6 +217,16 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
     }
     // Forgotten only now, whatever happened: `setBabbling(false)` runs every frame and must not retry.
     setLoop(name, null);
+  };
+
+  /** Remembers the wanted mood and reports each edge (the music applies it, if it plays). */
+  const setMood = (isTense: boolean, isSlowed: boolean): void => {
+    const tenseChanged = isTense !== isMoodTense;
+    const slowChanged = isSlowed !== isMoodSlowed;
+    isMoodTense = isTense;
+    isMoodSlowed = isSlowed;
+    if (tenseChanged) options.onMusicMoodChange?.('tense', isTense);
+    if (slowChanged) options.onMusicMoodChange?.('slow', isSlowed);
   };
 
   /** Releases a context the engine will not use (one of the browser's few). */
@@ -243,6 +278,14 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       const ctx = unlocked.value;
       try {
         graph = createBusGraph(ctx, table.buses);
+        music = createAdaptiveMusic({
+          context: ctx,
+          graph,
+          def: table.loops.music,
+          buffers,
+          getFeel: options.getMusicFeel,
+          onPlayingChange: (isPlaying) => options.onLoopChange?.('music', isPlaying),
+        });
         ctx.addEventListener('statechange', () => {
           log.info('audio', `audio state ${ctx.state}`);
           options.onStateChange?.(ctx.state);
@@ -254,6 +297,9 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
           cause,
         };
         warn(unlockError.message, cause);
+        // Nothing built on the closed context may be used: `music.start` has no context guard of its own.
+        graph = null;
+        music = null;
         closeContext(ctx);
         return err(unlockError);
       }
@@ -312,6 +358,7 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
         clearTimeout(timer);
       }
       skippedLoops.clear();
+      music?.clearSkipped();
       options.onClipsDecoded?.(buffers.size);
     },
     playOneShot(clip, bus, gainPct) {
@@ -344,13 +391,15 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       if (areLoopsActive) return;
       areLoopsActive = true;
       isMusicMuted = false;
-      startLoop('music');
+      music?.start(isMoodTense, isMoodSlowed);
     },
     stopLevelLoops() {
       areLoopsActive = false;
       isMusicMuted = false;
-      stopLoop('music');
+      music?.stop();
       stopLoop('babble');
+      // The next level starts calm, whatever the last frame of this one was.
+      setMood(false, false);
     },
     setBabbling(isOn) {
       // Called every frame: the common case is a boolean compare and nothing else.
@@ -365,8 +414,14 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       // Called every frame: the common case is a boolean compare and nothing else.
       if (isMuted === isMusicMuted) return;
       isMusicMuted = isMuted;
-      if (isMuted) stopLoop('music');
-      else if (areLoopsActive) startLoop('music');
+      if (isMuted) music?.stop();
+      else if (areLoopsActive) music?.start(isMoodTense, isMoodSlowed);
+    },
+    setMusicMood(isTense, isSlowed) {
+      // Called every frame: the common case is two boolean compares and nothing else.
+      if (isTense === isMoodTense && isSlowed === isMoodSlowed) return;
+      setMood(isTense, isSlowed);
+      music?.applyMood(isTense, isSlowed);
     },
   };
 }

@@ -4,6 +4,7 @@ import type {
   AudioContextStateName,
   AudioNodeLike,
   AudioParamLike,
+  BiquadFilterNodeLike,
   BufferSourceLike,
   GainNodeLike,
 } from '../../src/client/audio/webAudio.ts';
@@ -26,7 +27,12 @@ export interface FakeGain extends GainNodeLike, FakeNode {
   readonly gain: FakeParam;
 }
 
+export interface FakeFilter extends BiquadFilterNodeLike, FakeNode {
+  readonly frequency: FakeParam;
+}
+
 export interface FakeSource extends BufferSourceLike, FakeNode {
+  readonly playbackRate: FakeParam;
   readonly startCalls: (number | undefined)[];
   readonly stopCalls: (number | undefined)[];
 }
@@ -35,6 +41,7 @@ export interface FakeAudioContext extends AudioContextLike {
   state: AudioContextStateName;
   currentTime: number;
   readonly gains: FakeGain[];
+  readonly filters: FakeFilter[];
   readonly sources: FakeSource[];
   readonly buffers: { channelCount: number; length: number; sampleRateHz: number }[];
   readonly decoded: ArrayBuffer[];
@@ -43,6 +50,7 @@ export interface FakeAudioContext extends AudioContextLike {
   failures: Partial<
     Record<
       | 'createGain'
+      | 'createBiquadFilter'
       | 'createBufferSource'
       | 'createBuffer'
       | 'decode'
@@ -106,6 +114,7 @@ export function createFakeAudioContext(
     baseLatency: options.baseLatency ?? 0.01,
     destination: withNode({}),
     gains: [],
+    filters: [],
     sources: [],
     buffers: [],
     decoded: [],
@@ -118,6 +127,15 @@ export function createFakeAudioContext(
       context.gains.push(gain);
       return gain;
     },
+    createBiquadFilter() {
+      context.calls.push('createBiquadFilter');
+      if (context.failures.createBiquadFilter !== undefined) {
+        throw context.failures.createBiquadFilter;
+      }
+      const filter = withNode({ type: 'lowpass', frequency: createParam(350) }) as FakeFilter;
+      context.filters.push(filter);
+      return filter;
+    },
     createBufferSource() {
       context.calls.push('createBufferSource');
       if (context.failures.createBufferSource !== undefined) {
@@ -126,6 +144,7 @@ export function createFakeAudioContext(
       const source = withNode({
         buffer: null,
         loop: false,
+        playbackRate: createParam(1),
         onended: null,
         startCalls: [] as (number | undefined)[],
         stopCalls: [] as (number | undefined)[],

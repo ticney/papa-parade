@@ -591,3 +591,20 @@
 - **`papa.intent` is reset by hand next to every `papa.objectId = null`.** Reason: every exit was traced and the snapshot validator guards the pairing; fold it into `enterPapaState` at the next papa refactor.
 - **A walk to take a distant baby is aimed where he was; if he crawled on, Papa idles with no feedback**, and `isBabyInReach` ignores walls. Reason: feel question for the playtest.
 - **The Firmness-while-carried path (`carriedVerb` swap, `wrongResponse` branch) is unreachable in normal play** (no director threat while carried, no `firm` def). Reason: becomes live with stories 4.3-4.4.
+
+## Story 2-6-musique-adaptative-de-base (2026-10-30)
+
+- **Music tightening above 70 % noise with an alert sound** (GDD L229, L491; FR60 complete, `[V1]`). Reason: not in this story's ACs; the basic mood (tense stem, slow-mo, silence cut) is done.
+- **`content/music/` and a per-age stem set.** Reason: story 7.5 swaps the two stem names of `loops.music.stems` for a set; nothing is built for it now. More than two stems too.
+- **The gapless loop of `.m4a` on WebKit (L158) now concerns two loops**, and a drift between them if the encoder pads them differently. This story warns on a length mismatch (`MUSIC_STEM_LENGTH_TOLERANCE_MS`); judge on a device (story 8.2).
+- **`param.value` read mid-ramp on Safari.** The mood ramps start from the current value (`cancelScheduledValues`, `setValueAtTime(param.value)`), as `stopLoop` already did; the pattern relies on Safari returning the live value. Judge on a device.
+- **The instinct's ×0.8 slow-mo (story 2.9) will also trigger the music's slow-mo effect** at `feel.music.slowMo.belowScale` 1. Story 2.9 or Geo lowers the bound (e.g. 0.7) if that is not wanted.
+- **No debug « Sons » audition of a mood.** Geo tunes by playing, or with `ForceThreat`.
+- **One shared fade (`loops.music.fadeMs`)** covers the level start, the stop and the silence cut alike.
+- **The tense stem is a synthesized placeholder** (`music_crawler_tense.m4a`); the real one is story 7.5. How the mix sounds (80 % rate, 900 Hz, ducking to 60 %) only Geo can judge.
+- **A missing tense stem** plays the calm one alone: the tension does nothing, the slow-mo effect still applies to the calm stem.
+
+## Deferred from: code review of 2-6-musique-adaptative-de-base (2026-10-30)
+
+- **The low-pass sweep (and the `playbackRate` ramp) of the music's slow-mo are linear.** Reason: the ear is logarithmic, so 20 kHz → 900 Hz may sound like a late snap; a feel call, `exponentialRampToValueAtTime` is a one-line change (the bounds guarantee a value > 0), to judge by playing.
+- **`content:check` does not compare the two music stems' lengths.** Reason: it only checks that both files exist and are `music_*`; the length is in the decoded `.m4a`, which Node cannot measure without a decoder. A mismatch is one runtime `warn` and a drift; judge on a device (stories 7.5, 8.2).

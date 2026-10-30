@@ -1,4 +1,4 @@
-import { AUDIO_LOAD_TIMEOUT_MS } from '@shared/constants';
+import { AUDIO_LOAD_TIMEOUT_MS, MUSIC_START_LEAD_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -6,7 +6,13 @@ import {
   type FakeAudioContext,
 } from '../../../tests/support/fakeAudioContext.ts';
 import { createTestFeedback } from '../../../tests/support/testContent.ts';
-import { type AudioEngine, createAudioEngine, type LoopName } from './audioEngine.ts';
+import testFeel from '../../../tests/support/testFeel.json' with { type: 'json' };
+import {
+  type AudioEngine,
+  createAudioEngine,
+  type LoopName,
+  type MusicMood,
+} from './audioEngine.ts';
 import type { AudioStateName } from './webAudio.ts';
 
 // A spy, not `log.buffer()`: the ring buffer is capped, so an offset into it stops being valid once it is full.
@@ -23,7 +29,8 @@ const M4A = new Uint8Array([
   0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x4d, 0x34, 0x41, 0x20, 1, 2, 3,
 ]);
 const HTML = new TextEncoder().encode('<!doctype html>');
-const CLIPS = ['baby_babble_loop', 'music_crawler_calm', 'papa_bump'];
+const CLIPS = ['baby_babble_loop', 'music_crawler_calm', 'music_crawler_tense', 'papa_bump'];
+const MUSIC_FEEL = testFeel.music;
 
 interface Setup {
   engine: AudioEngine;
@@ -32,6 +39,7 @@ interface Setup {
   states: AudioStateName[];
   counts: number[];
   loopChanges: [LoopName, boolean][];
+  moodChanges: [MusicMood, boolean][];
   /** Warnings logged since the setup. */
   newWarnings(): string[];
   /** Overrides what the fake network answers for a clip: bytes, or an Error to reject with. */
@@ -45,6 +53,7 @@ function setup(createContext?: () => FakeAudioContext): Setup {
   const states: AudioStateName[] = [];
   const counts: number[] = [];
   const loopChanges: [LoopName, boolean][] = [];
+  const moodChanges: [MusicMood, boolean][] = [];
   const before = warnings().length;
   const contexts: string[] = [];
   const engine = createAudioEngine({
@@ -65,6 +74,8 @@ function setup(createContext?: () => FakeAudioContext): Setup {
     onStateChange: (state) => states.push(state),
     onClipsDecoded: (count) => counts.push(count),
     onLoopChange: (loop, isOn) => loopChanges.push([loop, isOn]),
+    onMusicMoodChange: (mood, isOn) => moodChanges.push([mood, isOn]),
+    getMusicFeel: () => MUSIC_FEEL,
   });
   return {
     engine,
@@ -73,6 +84,7 @@ function setup(createContext?: () => FakeAudioContext): Setup {
     states,
     counts,
     loopChanges,
+    moodChanges,
     answer,
     newWarnings: () => warnings().slice(before),
   };
@@ -141,14 +153,20 @@ describe('unlock', () => {
         received.push(options);
         return fake;
       });
-      const engine = createAudioEngine({ table: createTestFeedback() });
+      const engine = createAudioEngine({
+        table: createTestFeedback(),
+        getMusicFeel: () => MUSIC_FEEL,
+      });
       expect(engine.unlock().ok).toBe(true);
       expect(received).toEqual([{ latencyHint: 'interactive' }]);
     });
 
     it('is an err with a warning, not a throw, when the browser has no Web Audio', () => {
       vi.stubGlobal('AudioContext', undefined);
-      const engine = createAudioEngine({ table: createTestFeedback() });
+      const engine = createAudioEngine({
+        table: createTestFeedback(),
+        getMusicFeel: () => MUSIC_FEEL,
+      });
       const before = warnings().length;
       expect(engine.unlock()).toMatchObject({
         ok: false,
@@ -208,6 +226,22 @@ describe('unlock', () => {
     expect(s.fake.calls).toContain('close');
     expect(s.fake.state).toBe('closed');
     expect(s.engine.state).toBe('none');
+  });
+
+  it('keeps no music on that closed context when the unlock fails after the music was built', async () => {
+    const s = setup();
+    s.fake.addEventListener = () => {
+      throw new Error('no listeners');
+    };
+    expect(s.engine.unlock().ok).toBe(false);
+    // The unlock's own silent source is already there: no stem may join it.
+    const before = s.fake.sources.length;
+    await s.engine.preload(CLIPS);
+    s.engine.startLevelLoops();
+    s.engine.setMusicMuted(true);
+    s.engine.setMusicMuted(false);
+    expect(s.fake.sources).toHaveLength(before);
+    expect(s.loopChanges).toEqual([]);
   });
 
   it('warns, and does not throw, when closing that context fails too', async () => {
@@ -281,21 +315,21 @@ describe('preload', () => {
     await s.engine.preload(CLIPS);
     await s.engine.preload(CLIPS);
     expect(s.fetched).toEqual(CLIPS.map((clip) => `./assets/audio/${clip}.m4a`));
-    expect(s.fake.decoded).toHaveLength(3);
-    expect(s.engine.decodedCount).toBe(3);
-    expect(s.counts).toEqual([3, 3]);
+    expect(s.fake.decoded).toHaveLength(CLIPS.length);
+    expect(s.engine.decodedCount).toBe(CLIPS.length);
+    expect(s.counts).toEqual([CLIPS.length, CLIPS.length]);
   });
 
   it('shares an in-flight fetch between two overlapping calls', async () => {
     await Promise.all([s.engine.preload(CLIPS), s.engine.preload(CLIPS)]);
-    expect(s.fetched).toHaveLength(3);
+    expect(s.fetched).toHaveLength(CLIPS.length);
   });
 
   it('warns and skips an HTML body, a 404 and a decode rejection, and still loads the others', async () => {
     s.answer.set('baby_babble_loop', HTML);
     s.answer.set('music_crawler_calm', new Error('HTTP 404'));
     await s.engine.preload(CLIPS);
-    expect(s.engine.decodedCount).toBe(1);
+    expect(s.engine.decodedCount).toBe(CLIPS.length - 2);
     expect(s.newWarnings()).toEqual([
       expect.stringMatching(/^audio clip baby_babble_loop unavailable: .*not an MP4/),
       expect.stringMatching(/^audio clip music_crawler_calm unavailable: .*HTTP 404/),
@@ -351,6 +385,7 @@ describe('preload', () => {
         fetchBytes: () => Promise.resolve(M4A),
         baseUrl: './',
         loadTimeoutMs: 50,
+        getMusicFeel: () => MUSIC_FEEL,
       });
       fast.unlock();
       await fast.preload(CLIPS);
@@ -436,7 +471,8 @@ describe('the music mute of the suspicious silence (story 1.21)', () => {
     ]);
     s.engine.setMusicMuted(false);
     s.engine.setMusicMuted(false);
-    expect(s.fake.sources.length - before).toBe(2);
+    // The pair, twice: each start builds both stems, together.
+    expect(s.fake.sources.length - before).toBe(4);
     expect(s.loopChanges.at(-1)).toEqual(['music', true]);
   });
 
@@ -477,7 +513,7 @@ describe('the music mute of the suspicious silence (story 1.21)', () => {
 });
 
 describe('level loops', () => {
-  it('starts one music source and, with a babbling baby, one babble source, however often it is asked', async () => {
+  it('starts the music pair and, with a babbling baby, one babble source, however often it is asked', async () => {
     const s = await ready();
     const before = s.fake.sources.length;
     s.engine.startLevelLoops();
@@ -485,10 +521,12 @@ describe('level loops', () => {
     s.engine.setBabbling(true);
     s.engine.setBabbling(true);
     s.engine.setBabbling(true);
-    expect(s.fake.sources.length - before).toBe(2);
-    const [music, babble] = s.fake.sources.slice(before);
-    expect(music?.loop).toBe(true);
+    expect(s.fake.sources.length - before).toBe(3);
+    const [calm, tense, babble] = s.fake.sources.slice(before);
+    expect(calm?.loop).toBe(true);
+    expect(tense?.loop).toBe(true);
     expect(babble?.loop).toBe(true);
+    // One `music` change for the pair, not one per stem.
     expect(s.loopChanges).toEqual([
       ['music', true],
       ['babble', true],
@@ -501,15 +539,17 @@ describe('level loops', () => {
     s.fake.currentTime = 2;
     s.engine.startLevelLoops();
     s.engine.setBabbling(true);
-    const [musicGain, babbleGain] = s.fake.gains.slice(-2);
-    expect(musicGain?.connections).toEqual([s.fake.gains[1]]); // music bus
+    // Created in this order: the music's fade gain, the calm and tense stem gains, the babble's.
+    const [musicFade, , , babbleGain] = s.fake.gains.slice(-4);
+    expect(musicFade?.connections).toEqual([s.fake.gains[1]]); // music bus
     expect(babbleGain?.connections).toEqual([s.fake.gains[3]]); // voice bus
-    expect(musicGain?.gain.events).toEqual([
+    expect(musicFade?.gain.events).toEqual([
       { kind: 'set', value: 0, timeS: 2 },
+      { kind: 'set', value: 0, timeS: 2 + MUSIC_START_LEAD_MS / 1000 },
       {
         kind: 'ramp',
         value: table.loops.music.gainPct / 100,
-        timeS: 2 + table.loops.music.fadeMs / 1000,
+        timeS: 2 + MUSIC_START_LEAD_MS / 1000 + table.loops.music.fadeMs / 1000,
       },
     ]);
   });
@@ -523,7 +563,7 @@ describe('level loops', () => {
     s.engine.setBabbling(false);
     s.engine.setBabbling(false);
     s.engine.setBabbling(true);
-    const babbles = s.fake.sources.slice(before + 1);
+    const babbles = s.fake.sources.slice(before + 2);
     expect(babbles).toHaveLength(2);
     const fadeMs = createTestFeedback().loops.babble.fadeMs;
     expect(babbles[0]?.stopCalls).toEqual([5 + fadeMs / 1000]);
@@ -545,16 +585,18 @@ describe('level loops', () => {
     s.fake.currentTime = 1;
     s.engine.stopLevelLoops();
     s.engine.stopLevelLoops();
-    const [music, babble] = s.fake.sources.slice(before);
-    expect(music?.stopCalls).toEqual([1 + createTestFeedback().loops.music.fadeMs / 1000]);
+    const [calm, tense, babble] = s.fake.sources.slice(before);
+    const musicStopS = 1 + createTestFeedback().loops.music.fadeMs / 1000;
+    expect(calm?.stopCalls).toEqual([musicStopS]);
+    expect(tense?.stopCalls).toEqual([musicStopS]);
     expect(babble?.stopCalls).toEqual([1 + createTestFeedback().loops.babble.fadeMs / 1000]);
     // Frames of the old level that still say « babbling » must not restart the babble.
     s.engine.setBabbling(true);
-    expect(s.fake.sources).toHaveLength(before + 2);
+    expect(s.fake.sources).toHaveLength(before + 3);
 
     s.engine.startLevelLoops();
     s.engine.setBabbling(true);
-    expect(s.fake.sources).toHaveLength(before + 4);
+    expect(s.fake.sources).toHaveLength(before + 6);
     expect(s.loopChanges.filter(([name, isOn]) => name === 'music' && isOn)).toHaveLength(2);
   });
 
@@ -565,6 +607,7 @@ describe('level loops', () => {
     s.fake.setState('suspended');
     s.engine.stopLevelLoops();
     expect(s.fake.sources[before]?.stopCalls).toEqual([0]);
+    expect(s.fake.sources[before + 1]?.stopCalls).toEqual([0]);
   });
 
   it('disconnects the nodes of a loop that has ended', async () => {
@@ -575,6 +618,8 @@ describe('level loops', () => {
     const music = s.fake.sources[before];
     music?.onended?.(undefined as never);
     expect(music?.isDisconnected).toBe(true);
+    expect(s.fake.filters.at(-1)?.isDisconnected).toBe(true);
+    expect(s.fake.gains.at(-3)?.isDisconnected).toBe(true); // the fade gain
   });
 
   it('does not babble outside a level', async () => {
@@ -602,7 +647,7 @@ describe('level loops', () => {
     const s = await ready();
     s.fake.failures.createBufferSource = new Error('too many sources');
     expect(() => s.engine.startLevelLoops()).not.toThrow();
-    expect(s.newWarnings().at(-1)).toContain('audio loop music failed to start');
+    expect(s.newWarnings().at(-1)).toContain('audio music failed to start');
     expect(s.loopChanges).toEqual([]);
   });
 
@@ -657,6 +702,89 @@ describe('level loops', () => {
       };
     }
     expect(() => s.engine.stopLevelLoops()).not.toThrow();
-    expect(s.newWarnings().at(-1)).toContain('audio loop music failed to stop');
+    expect(s.newWarnings().at(-1)).toContain('audio music failed to stop');
+    expect(s.loopChanges.at(-1)).toEqual(['music', false]);
+  });
+});
+
+describe('the music mood (story 2.6)', () => {
+  const tenseGainOf = (s: Setup) => s.fake.gains.at(-1);
+  const calmGainOf = (s: Setup) => s.fake.gains.at(-2);
+
+  it('is a no-op that is remembered before the unlock, and reaches the first start', async () => {
+    const s = setup();
+    expect(() => s.engine.setMusicMood(true, true)).not.toThrow();
+    expect(s.moodChanges).toEqual([
+      ['tense', true],
+      ['slow', true],
+    ]);
+    s.engine.unlock();
+    await s.engine.preload(CLIPS);
+    s.fake.setState('running');
+    s.engine.startLevelLoops();
+    expect(tenseGainOf(s)?.gain.value).toBe(1);
+    expect(calmGainOf(s)?.gain.value).toBe(MUSIC_FEEL.tense.calmGainPct / 100);
+    expect(s.fake.filters.at(-1)?.frequency.value).toBe(MUSIC_FEEL.slowMo.lowpassHz);
+    for (const source of s.fake.sources.slice(-2)) {
+      expect(source.playbackRate.value).toBe(MUSIC_FEEL.slowMo.playbackRatePct / 100);
+    }
+  });
+
+  it('is remembered between level loops, and applies at the restart after a mute', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    s.engine.setMusicMuted(true);
+    s.engine.setMusicMood(true, false);
+    s.engine.setMusicMuted(false);
+    expect(tenseGainOf(s)?.gain.value).toBe(1);
+    expect(calmGainOf(s)?.gain.value).toBe(MUSIC_FEEL.tense.calmGainPct / 100);
+    expect(s.fake.filters.at(-1)?.frequency.value).toBe(20000);
+  });
+
+  it('reports one change per edge, and none for the same mood twice', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    for (let frame = 0; frame < 5; frame++) s.engine.setMusicMood(true, false);
+    s.engine.setMusicMood(true, true);
+    s.engine.setMusicMood(false, true);
+    expect(s.moodChanges).toEqual([
+      ['tense', true],
+      ['slow', true],
+      ['tense', false],
+    ]);
+  });
+
+  it('ramps the live stems on an edge, and nothing on the same mood', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    const events = tenseGainOf(s)?.gain.events.length;
+    s.engine.setMusicMood(true, false);
+    expect(tenseGainOf(s)?.gain.events.length).toBeGreaterThan(events ?? 0);
+    const after = tenseGainOf(s)?.gain.events.length;
+    s.engine.setMusicMood(true, false);
+    expect(tenseGainOf(s)?.gain.events.length).toBe(after);
+  });
+
+  it('is reset to calm by stopLevelLoops, whatever the last frame said', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    s.engine.setMusicMood(true, true);
+    s.engine.stopLevelLoops();
+    expect(s.moodChanges.slice(-2)).toEqual([
+      ['tense', false],
+      ['slow', false],
+    ]);
+    s.engine.startLevelLoops();
+    expect(tenseGainOf(s)?.gain.value).toBe(0);
+    expect(calmGainOf(s)?.gain.value).toBe(1);
+    expect(s.fake.filters.at(-1)?.frequency.value).toBe(20000);
+  });
+
+  it('does not throw before the unlock or with no music playing', () => {
+    const s = setup();
+    expect(() => {
+      s.engine.setMusicMood(true, true);
+      s.engine.setMusicMood(false, false);
+    }).not.toThrow();
   });
 });

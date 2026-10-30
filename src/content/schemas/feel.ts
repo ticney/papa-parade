@@ -583,6 +583,65 @@ const FxSchema = z
     'On-screen juice (story 2.5): shake, particles, stamp and the perfect camera. Client only.',
   );
 
+const MusicSchema = z
+  .strictObject({
+    tense: z
+      .strictObject({
+        fadeInMs: z
+          .int()
+          .min(0)
+          .max(5000)
+          .describe(
+            'How long the tense stem takes to come up when a threat is on, in **real** ms.',
+          ),
+        fadeOutMs: z
+          .int()
+          .min(0)
+          .max(5000)
+          .describe(
+            'How long the tense stem takes to go away when no threat is on, in **real** ms.',
+          ),
+        calmGainPct: z
+          .number()
+          .min(0)
+          .max(100)
+          .describe(
+            'Level the calm stem ducks to while the tense one plays, in % (100 = no ducking).',
+          ),
+      })
+      .describe('The nervous stem that comes up with the threats.'),
+    slowMo: z
+      .strictObject({
+        belowScale: z
+          .number()
+          .min(0.1)
+          .max(1)
+          .describe('The effect is on while the effective `world.time.scale` is below this.'),
+        lowpassHz: z
+          .number()
+          .min(200)
+          .max(20000)
+          .describe('Cut-off of the low-pass on the music while the effect is on, in hertz.'),
+        playbackRatePct: z
+          .number()
+          .min(25)
+          .max(100)
+          .describe('Speed of both stems while the effect is on, in % (pitch drops with it).'),
+        inMs: z
+          .int()
+          .min(0)
+          .max(2000)
+          .describe('Time to sweep the music into the effect, in **real** ms.'),
+        outMs: z
+          .int()
+          .min(0)
+          .max(2000)
+          .describe('Time to sweep the music back out of the effect, in **real** ms.'),
+      })
+      .describe('The music slows down with the game: a low-pass and a lower playback rate.'),
+  })
+  .describe('Adaptive music mix (story 2.6): the tense stem and the slow-mo effect. Client only.');
+
 export const FeelSchema = z
   .strictObject({
     timing: TimingSchema,
@@ -598,6 +657,7 @@ export const FeelSchema = z
     physics: PhysicsSchema,
     gags: GagsSchema,
     fx: FxSchema,
+    music: MusicSchema,
   })
   .describe('Every feel value of the game, tuned by hand or from the feel panel.');
 

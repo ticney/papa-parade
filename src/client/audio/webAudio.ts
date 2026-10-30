@@ -18,6 +18,11 @@ export interface GainNodeLike extends AudioNodeLike {
   readonly gain: AudioParamLike;
 }
 
+export interface BiquadFilterNodeLike extends AudioNodeLike {
+  type: BiquadFilterType;
+  readonly frequency: AudioParamLike;
+}
+
 export interface AudioBufferLike {
   readonly duration: number;
 }
@@ -25,6 +30,7 @@ export interface AudioBufferLike {
 export interface BufferSourceLike extends AudioNodeLike {
   buffer: AudioBufferLike | null;
   loop: boolean;
+  readonly playbackRate: AudioParamLike;
   onended: ((event: never) => unknown) | null;
   start(whenS?: number): void;
   stop(whenS?: number): void;
@@ -39,6 +45,7 @@ export interface AudioContextLike {
   readonly destination: AudioNodeLike;
   readonly baseLatency?: number;
   createGain(): GainNodeLike;
+  createBiquadFilter(): BiquadFilterNodeLike;
   createBufferSource(): BufferSourceLike;
   createBuffer(channelCount: number, length: number, sampleRateHz: number): AudioBufferLike;
   decodeAudioData(data: ArrayBuffer): Promise<AudioBufferLike>;

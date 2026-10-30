@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -228,7 +228,7 @@ describe('checkContent on feedback.json references', () => {
   ) as {
     events: Record<string, string>;
     cues: Record<string, { audio?: { clip: string }; visual?: unknown }>;
-    loops: { music: { clip: string } };
+    loops: { music: { stems: { calm: string; tense: string } } };
   };
   const SIM_EVENT = SIM_EVENT_TYPES[0];
   const CLIENT_EVENT = FEEDBACK_CLIENT_EVENTS[0];
@@ -373,11 +373,33 @@ describe('checkContent on feedback.json references', () => {
     ]);
   });
 
-  it('reports a loop clip with no file', async () => {
-    await rm(join(root, `public/assets/audio/${live.loops.music.clip}.m4a`));
+  it.each(['calm', 'tense'] as const)('reports the %s music stem with no file', async (stem) => {
+    await rm(join(root, `public/assets/audio/${live.loops.music.stems[stem]}.m4a`));
     expect(await checkContent(root)).toEqual([
-      expect.objectContaining({ file: FILE, jsonPath: 'loops.music.clip' }),
+      expect.objectContaining({ file: FILE, jsonPath: `loops.music.stems.${stem}` }),
     ]);
+  });
+
+  it('reports a music stem that is not in the music category, and accepts music_* stems', async () => {
+    const calmFile = join(root, `public/assets/audio/${live.loops.music.stems.calm}.m4a`);
+    await copyFile(calmFile, join(root, 'public/assets/audio/papa_stem.m4a'));
+    await mutateJson('content/feedback.json', (feedback) => {
+      (feedback.loops as { music: { stems: Record<string, string> } }).music.stems.tense =
+        'papa_stem';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'loops.music.stems.tense',
+        message: expect.stringContaining('music_<name>'),
+      }),
+    ]);
+    await copyFile(calmFile, join(root, 'public/assets/audio/music_other.m4a'));
+    await mutateJson('content/feedback.json', (feedback) => {
+      (feedback.loops as { music: { stems: Record<string, string> } }).music.stems.tense =
+        'music_other';
+    });
+    expect(await checkContent(root)).toEqual([]);
   });
 });
 

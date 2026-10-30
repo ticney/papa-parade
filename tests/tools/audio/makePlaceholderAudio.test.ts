@@ -21,6 +21,7 @@ import {
   synthGagSilence,
   synthGagStairs,
   synthMusic,
+  synthMusicTense,
   synthParry,
   synthPhoneAnswer,
   synthStarLost,
@@ -324,6 +325,41 @@ describe('placeholder audio', () => {
 
   it('keeps the music quiet, around -12 dBFS', () => {
     expect(peakOf(synthMusic())).toBeLessThanOrEqual(10 ** (-11 / 20));
+  });
+
+  describe('the tense music stem (story 2.6)', () => {
+    it('is in the table once, right after the calm stem', () => {
+      const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+      expect(names.filter((name) => name === 'music_crawler_tense')).toHaveLength(1);
+      expect(names.indexOf('music_crawler_tense')).toBe(names.indexOf('music_crawler_calm') + 1);
+    });
+
+    it('is exactly as long as the calm stem, in samples: the loops never drift', () => {
+      expect(synthMusicTense().length).toBe(synthMusic().length);
+    });
+
+    it('is not the calm stem, and is normalised to the same peak', () => {
+      const tense = synthMusicTense();
+      expect(tense).not.toEqual(synthMusic());
+      expect(peakOf(tense)).toBeCloseTo(peakOf(synthMusic()), 5);
+    });
+
+    it('gives the same bytes on two runs', () => {
+      expect(encodeWav(synthMusicTense()).equals(encodeWav(synthMusicTense()))).toBe(true);
+    });
+
+    it('plays its notes on the calm stem grid: a note starts on every calm step', () => {
+      const calm = synthMusic();
+      const tense = synthMusicTense();
+      const calmStep = Math.floor(calm.length / 21);
+      for (let n = 1; n < 21; n++) {
+        // The attack is a ramp from silence: the sample just before a step is quiet, the one a few
+        // samples in is not.
+        const before = Math.abs(tense[n * calmStep - 1] as number);
+        const after = Math.abs(tense[n * calmStep + 40] as number);
+        expect(after, `step ${n}`).toBeGreaterThan(before);
+      }
+    });
   });
 
   it('writes a mono 16-bit PCM WAV of the right size', () => {

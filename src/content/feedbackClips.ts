@@ -6,7 +6,11 @@ import type { FeedbackTable } from './schemas/feedback.ts';
  * measures them.
  */
 export function feedbackClips(table: FeedbackTable): string[] {
-  const clips = new Set<string>([table.loops.babble.clip, table.loops.music.clip]);
+  const clips = new Set<string>([
+    table.loops.babble.clip,
+    table.loops.music.stems.calm,
+    table.loops.music.stems.tense,
+  ]);
   for (const cue of Object.values(table.cues)) {
     if (cue.audio !== undefined) clips.add(cue.audio.clip);
     for (const layer of cue.layers ?? []) clips.add(layer.clip);

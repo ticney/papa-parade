@@ -203,10 +203,26 @@
         "music": {
           "type": "object",
           "properties": {
-            "clip": {
-              "type": "string",
-              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
-              "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
+            "stems": {
+              "type": "object",
+              "properties": {
+                "calm": {
+                  "type": "string",
+                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                  "description": "The calm stem: the music at rest."
+                },
+                "tense": {
+                  "type": "string",
+                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                  "description": "The tense stem: it comes up while a threat is on (story 2.6)."
+                }
+              },
+              "required": [
+                "calm",
+                "tense"
+              ],
+              "additionalProperties": false,
+              "description": "Two synchronized stems of the same length, started together and looped."
             },
             "bus": {
               "type": "string",
@@ -222,22 +238,22 @@
               "type": "number",
               "minimum": 0,
               "maximum": 100,
-              "description": "Loop volume on its bus, in percent."
+              "description": "Music volume on its bus, in percent."
             },
             "fadeMs": {
               "type": "number",
               "minimum": 0,
-              "description": "Fade in when the loop starts and fade out when it stops, in ms."
+              "description": "Fade in when the music starts and fade out when it stops or is cut, in ms."
             }
           },
           "required": [
-            "clip",
+            "stems",
             "bus",
             "gainPct",
             "fadeMs"
           ],
           "additionalProperties": false,
-          "description": "The level music, for the whole level."
+          "description": "The level music: two synchronized stems mixed by the game state."
         }
       },
       "required": [
