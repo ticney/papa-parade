@@ -13,7 +13,8 @@ export type LogChannel =
   | 'platform'
   | 'debug'
   | 'content'
-  | 'sim';
+  | 'sim'
+  | 'playtest';
 
 export interface LogEntry {
   atReal: number;

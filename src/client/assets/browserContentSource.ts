@@ -9,6 +9,8 @@ const RAW_CONTENT = import.meta.glob<string>(
     '!../../../content/_schemas/**',
     // Fetched per level at load time (loadLevelAssets), not inlined in the main bundle.
     '!../../../content/**/*.geometry.json',
+    // The thresholds of `npm run playtest:metrics` (story 3.4): a tool-only file, the game never reads it.
+    '!../../../content/playtest.json',
   ],
   { eager: true, query: '?raw', import: 'default' },
 );

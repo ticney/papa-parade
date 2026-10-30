@@ -1,4 +1,4 @@
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { BotSetup } from '@bots/bot';
@@ -10,6 +10,7 @@ import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
 import { createSim, type Sim } from '@sim';
+import { outProblem, writeText } from '../outputFile.ts';
 import { loadSimLevel, type SimLevel } from './loadSimLevel.ts';
 import { type RunFile, runFileName, toRunFile } from './runFile.ts';
 import { parseSimArgs, SIM_HELP, type SimArgs } from './simArgs.ts';
@@ -108,15 +109,6 @@ export async function runSim(
   );
 }
 
-async function writeText(path: string, text: string): Promise<Result<null, string>> {
-  try {
-    await writeFile(path, text);
-    return ok(null);
-  } catch (cause) {
-    return err(`cannot write ${path}: ${cause instanceof Error ? cause.message : String(cause)}`);
-  }
-}
-
 async function makeDir(path: string): Promise<Result<null, string>> {
   try {
     await mkdir(path, { recursive: true });
@@ -124,22 +116,6 @@ async function makeDir(path: string): Promise<Result<null, string>> {
   } catch (cause) {
     return err(`cannot create ${path}: ${cause instanceof Error ? cause.message : String(cause)}`);
   }
-}
-
-/** Why `path` cannot be written as a report file, or `null` when it can: its folder exists and it is not a folder. */
-async function outProblem(path: string): Promise<string | null> {
-  const parent = dirname(path);
-  try {
-    if (!(await stat(parent)).isDirectory()) return `${parent} is not a folder`;
-  } catch {
-    return `the folder ${parent} does not exist`;
-  }
-  try {
-    if ((await stat(path)).isDirectory()) return `${path} is a folder, not a file`;
-  } catch {
-    // A file that does not exist yet is the normal case.
-  }
-  return null;
 }
 
 async function main(): Promise<void> {

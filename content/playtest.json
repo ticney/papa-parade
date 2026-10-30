@@ -1,0 +1,10 @@
+{
+  "$schema": "./_schemas/playtest.schema.json",
+  "panelMinTesters": 5,
+  "relaunchMinPct": 70,
+  "perfectCitedMinPct": 80,
+  "identifiedMinPct": 80,
+  "firstEncounterSuccessMinPct": 80,
+  "touchVsKeyboardMinPct": 80,
+  "laughedMinPct": 80
+}
