@@ -414,7 +414,7 @@
 ## Deferred from: code review of 1-23-fermete-optionnelle (2026-10-28)
 
 - **Multi-touch and a `Release` that names no threat**: any finger-up ends a held Firmness (spurious `released` gag). Pre-existing item of 1.11 / 1.18, still for the playtest (story 1.24).
-- **The `human` bot never lifts a Firmness early**: its reports show 100 % success on a Firmness. Add an early-release model (as data) with the playtest indicators, story 3.4.
+- ~~**The `human` bot never lifts a Firmness early**~~ *Moved by story 3.4 to « Deferred from: story 3-4 » below: it is about the bots' reports, not the testers' journals.*
 - **`firm` on a `hiddenZone` def, and thin `holdUntilMs` checks**: the schema accepts `response: 'firm'` on the silence, and `content:check` only requires `holdUntilMs > windowMs` (nothing against `holdMinMs`, the tier / fatigue widening or the wave spacing). Tighten with the first live Firmness threat (E5) and the sniff (4.9).
 - **A Firmness hold keeps succeeding when Papa becomes busy mid-hold** (`isPapaBusy` is only checked on `PressThreat`). Settle with the busy states of E4 / E5.
 - **No Firmness test for `pointercancel` / `blur` mid-hold**: the pause release covers them today. Add one with the first live Firmness.
@@ -500,7 +500,7 @@
 ## Deferred from: code review of story 3-3-journal-de-partie-exportable (2026-10-29)
 
 - **The clipboard-rejection fallback download runs after a microtask, not in the press (AC 8).** Reason: declared; the iPhone gesture check is Geo's (`docs/playtest/device-measurements.md`).
-- **`dominantDevice` and the per-device fail count are approximate.** `onInput` is fed on every sim event, a timeout fail is credited to the last device used, and `lastPointerType` is never reset between games. Reason: story 3.4 decides what it needs.
+- **`dominantDevice` and the per-device fail count are approximate.** `onInput` is fed on every sim event, a timeout fail is credited to the last device used, and `lastPointerType` is never reset between games. Reason: story 3.4 decides what it needs. **Resolved in story 3.4:** the playtest indicators use only `responses.byDevice` and the timeline's `device`, never `dominantDevice` (its no-response approximation does not matter). A timeout fail credited to the device in use is the right denominator of a success rate (3.3 D5). `lastPointerType` not being reset between games only matters for a tester who switches device between games, which the protocol does not do.
 - **The log ring buffer is not scoped to the game.** Reason: the third replay of a session also exports the logs of games 1 and 2; harmless for the analysis.
 - **`JournalEnvelopeSchema` hard-codes `version: 3`, nothing ties it to the sim's `Journal.version`.** Reason: add an architecture test when the sim bumps it.
 - **`autoplay` is fixed at boot; an iPad with a keyboard is typed `desktop`.** Reason: test-API and device-type edge cases only.
@@ -564,3 +564,13 @@
 - **The camera blend clock (`sim − STEP_MS × (1 − alpha)`, `boot.ts`) runs 10 ms behind the rings and gags (`sim + alpha × STEP_MS`, `levelScene.ts`).** Reason: pre-existing, `updateThreats` in `boot.ts` uses the same formula; align both when the draw clock is unified.
 - **A shake that starts during another replaces it even when smaller (no max-merge).** Reason: documented as « replaces » in the shake contract; merge only if Geo feels a cut after playing.
 - **Art constants hard-coded: the stamp's scale-in share, fade-out start, tilt and entry scale (`epicStamp.ts`), `FOCUS_HEIGHT_M` (`cameraFx.ts`), `PARTICLE_ORIGIN_LIFT_M`, `PUFF_*`, `INK_EVERY` (`particles.ts`), `SHAKE_Z_RATIO`, the stamp's `top` and `z-index` (`ui.css`).** Reason: provisional art constants (Geo, 2026-10-30); move them into `feel.fx` if he retouches them after playing.
+
+## Deferred from: story 3-4-indicateurs-de-playtest (2026-10-30)
+
+- **The `human` bot never lifts a Firmness early**: its reports show 100 % success on a Firmness. Add an early-release model (as data). Reason: moved from the review of 1-23; it is about the bots' reports (`npm run sim`), not the testers' journals, so `playtest:metrics` does not need it. It goes with the GDD v2.2 bot indicator (loss rates 10-30 %, « La défaite est possible sans être un mur »), which arrives through `gds-correct-course`.
+- **The two GDD v2.2 playtest indicators are not computed** (« Rater coûte quelque chose » / fear of missing, « La défaite est possible sans être un mur »). Reason: neither is in `epics.md` yet; a `fearedMissing` CSV column is the natural extension once they are.
+
+## Deferred from: code review of story 3-4-indicateurs-de-playtest (2026-10-30)
+
+- **The observation sheet and the e2e test both hard-code the threat id list** (`outlet`, `stairs`, …). Reason: it can drift from `content/threats/*.json`; `parseObservations` already refuses an unknown threat id at run time.
+- **The touch vs keyboard ratio pools touch players and keyboard players, who are different people** (device confounded with skill; the per-tester ratio is usually null). Reason: it is the indicator as the GDD defines it; having the same testers play on both devices is a playtest-panel choice for Geo.
