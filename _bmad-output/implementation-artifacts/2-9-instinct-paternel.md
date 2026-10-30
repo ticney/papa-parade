@@ -4,7 +4,7 @@ baseline_commit: 2001aba8c9e5d9bfef7bda410fb403904c3c5dc
 
 # Story 2.9: Fatherly Instinct
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -106,6 +106,23 @@ so that the chaos stays funny and never frustrating.
 - [x] **T6. e2e** (AC 26).
 - [x] **T7. Goldens and docs** (AC 16, 27-30).
 - [x] **T8. CI** (AC 31).
+
+### Review Findings
+
+Code review of 2026-10-30 (Blind Hunter, Edge Case Hunter, Acceptance Auditor): 0 decision (1 resolved into a patch), 9 patch, 3 defer, 12 dismissed. No acceptance criterion is violated.
+
+- [x] [Review][Patch] Misses made during `active` / `cooldown` can re-trigger the instinct at once when `cooldownMs < missesWithinMs` — `recordMiss` records in every state (AC 3) and only a trigger empties the list, so with `cooldownMs: 0` (the schema allows it) `finishInstinct` goes `cooldown → ready → startInstinct` in one step, and below 10 000 ms two misses made during the instinct fire it again. Decided by Geo (option 1): empty `missAts` in `finishInstinct`, so an instinct never starts from misses made during the previous one (misses during `cooldown` are still recorded and count; AC 3's « every state » then holds for recording only). Update the comments of `recordMiss` and `startInstinct`, and add a test (`cooldownMs: 0`, and two misses during the instinct, no new trigger). [`src/sim/assist/paternalInstinct.ts`:28, :66-79, :82-85]
+- [x] [Review][Patch] `feel.instinct.timeScale` accepts values the sim then rejects — the helper is `gt(0).max(1)` while every other slow-mo uses `.min(MIN_TIME_SCALE)` (0.05); 0.01 passes `content:check`, then `setTimeScale` throws in strict mode at the first `InstinctTriggered` and `isTimeScale` refuses a mid-instinct snapshot. Use `.min(MIN_TIME_SCALE)` and regenerate with `npm run content:schemas`, plus a schema test. [`src/content/schemas/feel.ts`:29, :389]
+- [x] [Review][Patch] A window telegraphed at `t == untilAt` still gets +30 % — `runInstinct` runs after `runDirector` / `runThreats`, so the state is still `active` in the step where `InstinctEnded{timer}` is emitted (AC 10 ends it at `t >= untilAt`). Make `instinctWindowModifier` return neutral when `world.time.sim >= world.instinct.untilAt` (`isJudgeableBeforeEnd` follows); pin both steps (`untilAt − 10` and `untilAt`) in a test. The start side (threats telegraphed before `runInstinct` in the trigger step get no bonus) is D2 and stays. [`src/sim/assist/paternalInstinct.ts`:38-42]
+- [x] [Review][Patch] The e2e check « keeps its +30 % after the instinct » can pass without asserting anything — it sits behind `if (after?.responseWindow !== null && … !== undefined)`, and the threat may be gagged long before `untilAt`. Force the threat late enough, or assert that `responseWindow` is present first. [`tests/e2e/instinct.spec.ts`]
+- [x] [Review][Patch] The « Instinct » debug button says « Instinct: sent » whenever the command is enqueued, even when the sim ignores it (`experienced` tier, or already `active`). Use the `refusalReason` guard / the state to report the real outcome. [`src/debug/debugOverlay.ts`, `src/debug/cheats.ts`]
+- [x] [Review][Patch] `instinctProblem` checks less than its comment says — nothing for `cooldown` (`untilAt < enteredAt` is accepted), `active` is accepted with `flow.state === 'ended'` (nothing closes it, and `boot.ts` reads `instinct.state === 'active'` without a `flow.state === 'playing'` guard, so the vignette stays on over the Result screen). Add the `cooldown` check, refuse `active` once the flow has ended (or fix the comment if the flow state is out of reach), and guard the vignette on the flow state. [`src/sim/snapshot.ts`:806-840, `src/client/boot.ts`:858-862]
+- [x] [Review][Patch] The vignette is only cleared by a later frame: `levelSession.stop()` while the instinct is active and running (`recoverFromUncaught`, a debug restart) runs no further `onLevelFrame`, so `pp-instinct-vignette-on` stays on until the next level's first frame. Clear it in the stop / reset path (`onFxReset` or `stop`). [`src/client/boot.ts`:826, :858-862, `src/client/app/levelSession.ts`:280-288]
+- [x] [Review][Patch] `finishInstinct` types `reason` as `'timer' | 'levelEnded'` instead of the exported `InstinctEndReason`. [`src/sim/assist/paternalInstinct.ts`:82]
+- [x] [Review][Patch] Misleading test titles and comments: `paternalInstinct.test.ts` « fires at no tier but experienced… which gets none », « One ms more room for the bonus (30 % of 300 = 90 ms) » (it adds 90), a stale « idle again after 6000 ms of cooldown », and `makePlaceholderAudio.test.ts` « thumps twice a second-long beat »; the `isJudgeableBeforeEnd` doc says « same as `telegraphThreat` will freeze it » but ignores the fatigue modifier (conservative; say so). [`src/sim/assist/paternalInstinct.test.ts`, `tests/tools/audio/makePlaceholderAudio.test.ts`, `src/sim/threats/judgeable.ts`]
+- [x] [Review][Defer] The heartbeat clip keeps playing across a pause (the vignette turns off, the sound does not) [`content/feedback.json` cue `instinct_triggered`] — deferred, same cause as the level-end case already recorded (no « stop on event » for a one-shot)
+- [x] [Review][Defer] An instinct can trigger in the very step the level ends (`runInstinct` runs before `runFlow`): trigger, slow-mo and `InstinctEnded{levelEnded}` in one step, the heartbeat plays over the Result screen and `instinctTriggers` counts it [`src/sim/assist/paternalInstinct.ts`:128] — deferred, pinned by a test on purpose; revisit with the heartbeat stop
+- [x] [Review][Defer] The new `ppInstinct` mirror is not in `PROD_FORBIDDEN_MARKERS` [`tools/build/inspectDist.ts`:64] — deferred, pre-existing: only `ppCalibration` is listed, the silence and other mirrors are not either
 
 ## Dev Notes
 
@@ -227,6 +244,7 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`)
 ### Change Log
 
 - 2026-10-30: Story 2.9 implemented: Fatherly Instinct (sim rule, snapshot 20, `ForceInstinct`, heartbeat cue and haptic, vignette, mirror, report, tests, goldens, docs). Status set to review.
+- 2026-10-30: Code review: 9 patches applied (misses dropped at the end of the instinct, window bonus ends at `untilAt`, instinct `timeScale` floor, snapshot validator, vignette cleared on loop stop and when the level has ended, accurate « Instinct » button status, e2e check made real, test and comment fixes), 3 items deferred. The `instinct` golden's `worldHash` changed on purpose (`missAts` is emptied at the end); its events did not. Status set to done.
 
 ### File List
 

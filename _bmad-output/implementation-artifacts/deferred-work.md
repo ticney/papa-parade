@@ -691,3 +691,9 @@
 - **The instinct is rare on the current level** (open point 1 of the story): over 20 games of `salon_crawler` at the FR20 values, `idle` and `random` trigger it 0.30 times per game at `normal` (0.40 and 0.35 at `assistance`), `human` and `perfect` never. Reason: 3 active threats only exist in the last wave. Geo tunes `feel.instinct.minActiveThreatsCount` (2 is the first thing to try) and `missesWithinMs` while playing, with `ForceInstinct` to feel one.
 - **Threats already on screen get the slow-mo, not the +30 %** (D2, open point 2). Reason: a window frozen at the telegraph; re-freezing at the trigger would move the notch the player is aiming at.
 - **Trigger to trigger is 34 s** (the recharge counts from the end, open point 3). `cooldownMs` 26000 gives 30 s between starts.
+
+## Deferred from: code review of story 2-9-instinct-paternel (2026-10-30)
+
+- **The heartbeat clip keeps playing across a pause.** The vignette follows `pause.state`, the one-shot does not, so sound and image desync on pause / resume. Reason: no « stop on event » for a one-shot in the audio layer; same cause as the level-end case above. Story 7.5.
+- **An instinct can trigger in the very step the level ends.** `runInstinct` runs before `runFlow`: `InstinctTriggered`, the slow-mo start and `InstinctEnded{levelEnded}` land in one step, the heartbeat plays over the Result screen and `instinctTriggers` in the sim report counts a trigger with no gameplay effect. Reason: pinned by a test on purpose (every trigger has exactly one end); revisit together with the heartbeat stop.
+- **The `data-pp-instinct` mirror (`ppInstinct`) is not in `PROD_FORBIDDEN_MARKERS`.** Reason: pre-existing gap, only `ppCalibration` is listed; the silence and the other mirrors are not either. Worth one story that lists every mirror.

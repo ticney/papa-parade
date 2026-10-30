@@ -335,7 +335,7 @@ describe('placeholder audio', () => {
       expect(peaks[1]).toBeGreaterThan(peaks[2] as number);
     });
 
-    it('thumps twice a second-long beat: a lub, a quieter dub, then silence', () => {
+    it('thumps twice in each one-second beat: a lub, a quieter dub, then silence', () => {
       const beat = synthHeartbeat();
       const windowOf = (fromMs: number, toMs: number) =>
         peakOf(

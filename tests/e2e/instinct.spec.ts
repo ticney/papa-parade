@@ -149,6 +149,10 @@ test.describe('Fatherly Instinct', () => {
     await startInstinct(page);
     const untilAt = (await ppWorld(page)).instinct.untilAt;
 
+    // Telegraphed 100 ms before the end, so that it is still up (its window open) after the end and
+    // the return: a threat forced at the start would be gagged long before.
+    const lateAt = untilAt - 100;
+    await ppAdvance(page, Math.floor((lateAt - (await ppWorld(page)).time.sim) / STEP_MS));
     const threat = (await ppWorld(page)).threats.find((candidate) => candidate.state === 'idle');
     expect(threat, 'the live level plans a threat that is idle').toBeDefined();
     await ppSend(page, { type: 'ForceThreat', threatId: threat?.id as number });
@@ -157,11 +161,9 @@ test.describe('Fatherly Instinct', () => {
       (candidate) => candidate.id === threat?.id,
     );
     const baseMs = liveThreat(telegraphed?.defId as string).windowMs ?? liveFeel.timing.windowMs;
+    const widenedMs = baseMs * (1 + instinct.windowBonusPct / 100);
     expect(telegraphed?.state).toBe('telegraph');
-    expect(telegraphed?.responseWindow?.windowMs).toBeCloseTo(
-      baseMs * (1 + instinct.windowBonusPct / 100),
-      6,
-    );
+    expect(telegraphed?.responseWindow?.windowMs).toBeCloseTo(widenedMs, 6);
 
     // Up to the end of the instinct, and past its return.
     const now = (await ppWorld(page)).time.sim;
@@ -171,14 +173,10 @@ test.describe('Fatherly Instinct', () => {
     await expect(page.locator(VIGNETTE)).not.toHaveClass(/pp-instinct-vignette-on/);
     await ppAdvance(page, RETURN_STEPS + 2);
     expect((await ppWorld(page)).time.scale).toBe(1);
-    // The window telegraphed during it kept its length after the end.
+    // The window telegraphed during it kept its length after the end (and is still there to read).
     const after = (await ppWorld(page)).threats.find((candidate) => candidate.id === threat?.id);
-    if (after?.responseWindow !== null && after?.responseWindow !== undefined) {
-      expect(after.responseWindow.windowMs).toBeCloseTo(
-        baseMs * (1 + instinct.windowBonusPct / 100),
-        6,
-      );
-    }
+    expect(after?.responseWindow, 'the threat is still up after the end').toBeTruthy();
+    expect(after?.responseWindow?.windowMs).toBeCloseTo(widenedMs, 6);
     expect(problems).toEqual([]);
   });
 

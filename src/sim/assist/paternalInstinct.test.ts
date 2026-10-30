@@ -278,7 +278,7 @@ describe('the trigger', () => {
     const rig = await newRig(level);
     rig.force(100, 1);
     rig.force(200, 2);
-    // Two misses first (threats 1 and 2), idle again after 6000 ms of cooldown.
+    // Two misses first (threats 1 and 2), then nothing happens until the baby takes the silence.
     rig.runTo(1900);
     expect(rig.sim.world.instinct.missAts).toHaveLength(2);
     rig.runTo(8000);
@@ -304,7 +304,7 @@ describe('the trigger', () => {
     expect(only(rig.log, 'InstinctTriggered')).toHaveLength(0);
   });
 
-  it('fires at no tier but experienced... which gets none, with the misses still recorded', async () => {
+  it('does not fire at the experienced tier, which has no instinct, but still records the misses', async () => {
     const { rig } = await twoMissesGapMs(1000, 'experienced');
     expect(only(rig.log, 'InstinctTriggered')).toHaveLength(0);
     expect(rig.sim.world.instinct.state).toBe('ready');
@@ -412,6 +412,24 @@ describe('the recharge', () => {
     expect(rig.sim.world.instinct.state).toBe('active');
   });
 
+  it('drops the misses made during the instinct: with no cooldown, the next one does not start from them', async () => {
+    const rig = await newRig();
+    rig.sim.enqueue({ type: 'SetFeel', t: asSimMs(50), patch: { instinct: { cooldownMs: 0 } } });
+    rig.forceInstinct(100);
+    // Two misses inside the instinct (they gag at about 1800), then three threats up when it ends.
+    rig.force(200, 1);
+    rig.force(300, 2);
+    rig.force(3500, 3);
+    rig.force(3510, 4);
+    rig.force(3520, 5);
+    rig.runTo(4090);
+    expect(rig.sim.world.instinct.missAts).toHaveLength(2);
+    rig.runTo(4300);
+    expect(only(rig.log, 'InstinctEnded').map((event) => event.t)).toEqual([4100]);
+    expect(only(rig.log, 'InstinctTriggered').map((event) => event.t)).toEqual([100]);
+    expect(rig.sim.world.instinct).toMatchObject({ state: 'ready', missAts: [] });
+  });
+
   it('keeps recording misses during the cooldown', async () => {
     const rig = await newRig();
     rig.forceInstinct(100);
@@ -433,6 +451,8 @@ describe('the windows', () => {
     });
     const world = sim.world as World;
     world.time.sim = asSimMs(500);
+    // Where an instinct entered by hand would end: well after the telegraphs these cases make.
+    world.instinct.untilAt = asSimMs(5000);
     world.difficultyTier = tier;
     if (fatigued) world.gauges.fatigue = content.feel.fatigue.thresholdPoints + 1;
     const ctx = {
@@ -458,6 +478,20 @@ describe('the windows', () => {
     telegraphThreat(world, ctx, threat, def, 0);
     expect(threat.responseWindow?.windowMs).toBeCloseTo(windowMs, 9);
   });
+
+  it.each([
+    [4990, 390],
+    [5000, 300],
+  ] as const)(
+    'a telegraph at %i (untilAt 5000) has a window of %i: the end instant is outside',
+    async (nowMs, windowMs) => {
+      const { world, ctx, def, threat } = await setup('normal');
+      world.instinct.state = 'active';
+      world.time.sim = asSimMs(nowMs);
+      telegraphThreat(world, ctx, threat, def, 0);
+      expect(threat.responseWindow?.windowMs).toBeCloseTo(windowMs, 9);
+    },
+  );
 
   it('gives 312 at normal with a fatigue penalty of 20 %', async () => {
     const { world, ctx, def, threat } = await setup('normal', true);
@@ -539,11 +573,24 @@ describe('the windows', () => {
       expect(isJudgeableBeforeEnd(world, ctx, microSleep, now)).toBe(true);
       world.instinct.state = 'active';
       expect(isJudgeableBeforeEnd(world, ctx, microSleep, now)).toBe(false);
-      // One ms more room for the bonus (30 % of 300 = 90 ms) and it passes again.
+      // The bonus is 90 ms (30 % of 300): that much more room and it passes again, one ms less and it does not.
       (ctx.level as { durationMs: number }).durationMs += 90;
       expect(isJudgeableBeforeEnd(world, ctx, microSleep, now)).toBe(true);
       (ctx.level as { durationMs: number }).durationMs -= 1;
       expect(isJudgeableBeforeEnd(world, ctx, microSleep, now)).toBe(false);
+    });
+
+    it('adds nothing from untilAt on, like the telegraph it announces', async () => {
+      const microSleep = createTestMicroSleep();
+      const { world, ctx } = await setup('normal');
+      const { toleranceMs, windowMs, telegraphDelayDefaultMs } = content.feel.timing;
+      const delayMs = microSleep.telegraphDelayMs ?? telegraphDelayDefaultMs;
+      (ctx.level as { durationMs: number }).durationMs = 1000 + delayMs + windowMs + toleranceMs;
+      world.instinct.state = 'active';
+      world.time.sim = asSimMs(4990);
+      expect(isJudgeableBeforeEnd(world, ctx, microSleep, 1000)).toBe(false);
+      world.time.sim = world.instinct.untilAt;
+      expect(isJudgeableBeforeEnd(world, ctx, microSleep, 1000)).toBe(true);
     });
   });
 });
@@ -824,6 +871,12 @@ describe('snapshot and restore', () => {
         Object.assign(w.instinct as object, { state: 'active', enteredAt: 20, untilAt: 10 });
       },
     ],
+    [
+      'a cooldown slice that ends before it began',
+      (w) => {
+        Object.assign(w.instinct as object, { state: 'cooldown', enteredAt: 20, untilAt: 10 });
+      },
+    ],
     ['misses that are not a list', (w) => ((w.instinct as Record<string, unknown>).missAts = 3)],
     [
       'misses that are not ascending',
@@ -838,6 +891,29 @@ describe('snapshot and restore', () => {
     live.runTo(30);
     const snapshot = JSON.parse(JSON.stringify(live.sim.snapshot()));
     damage(snapshot.world);
+    const target = await newRig();
+    expect(() => target.sim.restore(snapshot)).toThrow(/world\.instinct/);
+  });
+
+  it('refuses an active instinct once the level has ended (endLevel closes it)', async () => {
+    const level = createTestLevel({ waves: [FAR_AWAY_WAVE], durationMs: 3000 });
+    const live = await newRig(level);
+    live.forceInstinct(100);
+    live.runTo(3100);
+    expect(live.sim.world.flow.state).toBe('ended');
+    const snapshot = JSON.parse(JSON.stringify(live.sim.snapshot()));
+    expect(snapshot.world.instinct.state).toBe('cooldown');
+    Object.assign(snapshot.world.instinct, { state: 'active', untilAt: 1e9 });
+    const target = await newRig(level);
+    expect(() => target.sim.restore(snapshot)).toThrow(/world\.instinct/);
+  });
+
+  it('refuses an active instinct that should have ended already', async () => {
+    const live = await newRig();
+    live.forceInstinct(10);
+    live.runTo(500);
+    const snapshot = JSON.parse(JSON.stringify(live.sim.snapshot()));
+    snapshot.world.instinct.untilAt = 100;
     const target = await newRig();
     expect(() => target.sim.restore(snapshot)).toThrow(/world\.instinct/);
   });

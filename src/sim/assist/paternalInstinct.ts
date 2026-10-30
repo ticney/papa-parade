@@ -2,6 +2,7 @@ import { NEUTRAL_WINDOW_MODIFIER } from '@shared/constants';
 import { asSimMs, type SimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import { isThreatActive } from '../director/waveState.ts';
+import type { InstinctEndReason } from '../events.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import { activeDifficulty } from '../timing/difficulty.ts';
 import type { InstinctState, ThreatInstance, World } from '../world.ts';
@@ -22,7 +23,8 @@ export function enterInstinctState(world: World, next: InstinctState, untilAt: S
  * failure (a timed-out silence and a failed micro-sleep included), beside `resetCombo`. Written at
  * the source like `world.score.perfects`, so `runInstinct` never scans `ctx.events`. It keeps the
  * last `feel.instinct.missesCount` of them, in every state and at every tier (a player who
- * switches tier, or an instinct that recharges, loses nothing); the list grows in place.
+ * switches tier, or an instinct that recharges, loses nothing); the list grows in place. The ones
+ * made during the instinct do not outlive it: {@link finishInstinct} empties the list.
  */
 export function recordMiss(world: World, ctx: StepContext): void {
   const { missAts } = world.instinct;
@@ -34,9 +36,11 @@ export function recordMiss(world: World, ctx: StepContext): void {
  * The instinct factor of {@link effectiveWindow}: `1 + windowBonusPct / 100` while the instinct is
  * active, nothing otherwise. Read by `telegraphThreat` (the window is frozen there, so one
  * already up keeps its length when the instinct starts or ends) and by `isJudgeableBeforeEnd`.
+ * The director and the threats run before `runInstinct`, so the state is still `active` in the step
+ * that ends it: the end instant (`untilAt`) is already outside, as `InstinctEnded` says.
  */
 export function instinctWindowModifier(world: World, ctx: StepContext): number {
-  return world.instinct.state === 'active'
+  return world.instinct.state === 'active' && world.time.sim < world.instinct.untilAt
     ? 1 + ctx.feel.instinct.windowBonusPct / 100
     : NEUTRAL_WINDOW_MODIFIER;
 }
@@ -65,7 +69,8 @@ function isTriggerMet(world: World, ctx: StepContext): boolean {
 
 /**
  * `ready → active` (or from `cooldown`, for the debug command): empties the misses (a trigger
- * consumes them, so a short `cooldownMs` cannot fire twice on the same two misses), freezes the end
+ * consumes them; the end of the instinct empties them again, so a short `cooldownMs` cannot fire
+ * twice on the same two misses nor on the ones made during it), freezes the end
  * (`durationMs` is read once, so a live `SetFeel` cannot split the instinct from its slow-mo's
  * hold), `InstinctTriggered`, then the slow-mo.
  */
@@ -78,8 +83,13 @@ function startInstinct(world: World, ctx: StepContext): void {
   startSlowMo(world, ctx, 'instinct', feel);
 }
 
-/** `active → cooldown`: `InstinctEnded{reason}`, then the recharge runs from here (`cooldownMs` frozen in `untilAt`). */
-function finishInstinct(world: World, ctx: StepContext, reason: 'timer' | 'levelEnded'): void {
+/**
+ * `active → cooldown`: `InstinctEnded{reason}`, then the recharge runs from here (`cooldownMs` frozen
+ * in `untilAt`). The misses made during the instinct are dropped: the next one never starts from
+ * them, whatever `cooldownMs` is (0 included).
+ */
+function finishInstinct(world: World, ctx: StepContext, reason: InstinctEndReason): void {
+  world.instinct.missAts.length = 0;
   ctx.events.push({ type: 'InstinctEnded', t: world.time.sim, reason });
   enterInstinctState(world, 'cooldown', asSimMs(world.time.sim + ctx.feel.instinct.cooldownMs));
 }

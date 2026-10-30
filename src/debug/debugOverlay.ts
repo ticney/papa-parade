@@ -14,6 +14,7 @@ import {
   createCheatContext,
   createSkipToEnd,
   forceInstinct,
+  instinctRefusalReason,
   launchableThreats,
   launchThreat,
   levelHasFatigue,
@@ -252,6 +253,12 @@ export function createDebugOverlay(
       const reason = refusalReason(host);
       if (reason !== null) {
         say(`Instinct: ${reason}`);
+        return;
+      }
+      const world = host.levelSession.active?.sim.world;
+      const ignored = world === undefined ? null : instinctRefusalReason(world);
+      if (ignored !== null) {
+        say(`Instinct: ${ignored}`);
         return;
       }
       if (forceInstinct(context)) say('Instinct: sent');

@@ -799,11 +799,11 @@ function feelProblem(feel: unknown, initial: Feel): string | null {
 
 /**
  * Fatherly Instinct (story 2.9): a known state, finite instants, ascending misses that never come
- * from the future, and an `untilAt` that agrees with the state: 0 in `ready`, still ahead of or at
- * the clock in `active` (it ends at the first step at or after it), anything non-negative in
- * `cooldown`. Not checked against `feel.instinct`: a `SetFeel` can move the bounds under a run.
+ * from the future, and an `untilAt` that agrees with the state: 0 in `ready`, ahead of or at the
+ * clock in `active` (it ends at the first step at or after it), from `enteredAt` on in `cooldown`. An ended level has no `active` instinct: `endLevel` closes it. Not
+ * checked against `feel.instinct`: a `SetFeel` can move the bounds under a run.
  */
-function instinctProblem(instinct: unknown, now: number): string | null {
+function instinctProblem(instinct: unknown, now: number, isLevelEnded: boolean): string | null {
   if (typeof instinct !== 'object' || instinct === null) return 'world.instinct is missing';
   const { state, enteredAt, untilAt, missAts } = instinct as Record<string, unknown>;
   if (!INSTINCT_STATES.includes(state as InstinctState)) return 'world.instinct.state';
@@ -812,7 +812,10 @@ function instinctProblem(instinct: unknown, now: number): string | null {
   }
   if (!isFiniteNumber(untilAt) || (untilAt as number) < 0) return 'world.instinct.untilAt';
   if (state === 'ready' && untilAt !== 0) return 'world.instinct.untilAt';
-  if (state === 'active' && (untilAt as number) < (enteredAt as number)) {
+  if (state === 'active' && (isLevelEnded || (untilAt as number) < now)) {
+    return 'world.instinct.untilAt';
+  }
+  if (state === 'cooldown' && (untilAt as number) < (enteredAt as number)) {
     return 'world.instinct.untilAt';
   }
   if (!Array.isArray(missAts)) return 'world.instinct.missAts';
@@ -928,7 +931,11 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
       (flow as { state: unknown }).state === 'ended',
     ) ??
     propsProblem(props, mess, planned.props) ??
-    instinctProblem(instinct, clock.sim as number) ??
+    instinctProblem(
+      instinct,
+      clock.sim as number,
+      (flow as { state: unknown }).state === 'ended',
+    ) ??
     scoreProblem(score, (flow as { state: unknown }).state === 'ended') ??
     inputProblem(input) ??
     difficultyTierProblem(difficultyTier) ??

@@ -666,7 +666,7 @@
       "properties": {
         "timeScale": {
           "type": "number",
-          "exclusiveMinimum": 0,
+          "minimum": 0.05,
           "maximum": 1,
           "description": "Sim speed while Fatherly Instinct is active (1 = normal)."
         },

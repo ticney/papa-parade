@@ -826,6 +826,8 @@ export async function boot(): Promise<void> {
     onFxReset: () => {
       cameraFx.reset();
       epicStamp.cancel();
+      // The loop stopped: no further frame would turn the vignette off (a restart, a crash recovery).
+      instinctVignette.update(false);
     },
     onLevelFrame: (alpha, frameAtReal) => {
       // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
@@ -856,9 +858,7 @@ export async function boot(): Promise<void> {
       // Fatherly Instinct's vignette follows the state too (story 2.9), never the events: a pause, a
       // restart or the end of the level can never leave it on.
       instinctVignette.update(
-        babbleWorld !== undefined &&
-          babbleWorld.instinct.state === 'active' &&
-          pause.state === 'running',
+        isPlaying && babbleWorld.instinct.state === 'active' && pause.state === 'running',
       );
       // The timer counts sim time, rounded up to the second (`0:00` exactly when the level ends);
       // `hudBatch` writes the DOM only when the second changes. Before `shell.frame()` flushes it.

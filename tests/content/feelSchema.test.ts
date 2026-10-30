@@ -197,6 +197,11 @@ describe('content/feel.json', () => {
       [['timing.slowMoLastThreat.timeScale', 0.01]],
       ['timing.slowMoLastThreat.timeScale'],
     ],
+    [
+      'an instinct below the minimum time scale (the sim would refuse it)',
+      [['instinct.timeScale', 0.01]],
+      ['instinct.timeScale'],
+    ],
     ['a non-integer count', [['instinct.missesCount', 1.5]], ['instinct.missesCount']],
     ['a walking speed of 0', [['movement.walkSpeedMps', 0]], ['movement.walkSpeedMps']],
     [
