@@ -1,0 +1,70 @@
+{
+  "version": 3,
+  "seed": 41,
+  "feelHash": "0f4bff7ea69d27",
+  "geometryHash": "0e18fe9d85d9f9",
+  "levelHash": "0121b162e19c88",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "sequenceId": "stay_awake",
+        "t": 0,
+        "type": "StartSequence"
+      }
+    },
+    {
+      "applyAt": 3870,
+      "command": {
+        "t": 3860,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 3920,
+      "command": {
+        "t": 3910,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 6370,
+      "command": {
+        "t": 6360,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 6420,
+      "command": {
+        "t": 6410,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 8510,
+      "command": {
+        "t": 8500,
+        "type": "TapBaby"
+      }
+    },
+    {
+      "applyAt": 11370,
+      "command": {
+        "t": 11360,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 11420,
+      "command": {
+        "t": 11410,
+        "type": "Release"
+      }
+    }
+  ]
+}

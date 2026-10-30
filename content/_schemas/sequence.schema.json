@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "The sequence id; equals the file name."
+    },
+    "babyCarried": {
+      "type": "boolean",
+      "description": "Whether Papa holds the baby for the whole sequence (he is taken at the start)."
+    },
+    "steps": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "microSleeps",
+                "description": "Papa fights off sleep: micro-sleeps come at a cadence."
+              },
+              "durationMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How long the step lasts, in sim ms."
+              },
+              "gapMinMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Shortest wait between two micro-sleeps in this step, in sim ms."
+              },
+              "gapMaxMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Longest wait between two micro-sleeps in this step, in sim ms."
+              }
+            },
+            "required": [
+              "kind",
+              "durationMs",
+              "gapMinMs",
+              "gapMaxMs"
+            ],
+            "additionalProperties": false,
+            "description": "A stretch of the sequence where micro-sleeps come every gapMinMs to gapMaxMs."
+          }
+        ],
+        "description": "One step of a sequence."
+      },
+      "description": "The steps, in order. The sequence lasts the sum of their durations."
+    },
+    "success": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "stepsDone",
+              "description": "Every step ran to its end with no open response left behind."
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "How the sequence is won."
+    },
+    "failure": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "gag",
+              "description": "Any gag during the sequence ends it."
+            },
+            "hasSnore": {
+              "type": "boolean",
+              "description": "Whether the failure makes Papa snore and wakes the baby (+noise)."
+            }
+          },
+          "required": [
+            "kind",
+            "hasSnore"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "How the sequence is lost."
+    },
+    "framing": {
+      "type": "object",
+      "properties": {
+        "camera": {
+          "type": "object",
+          "properties": {
+            "zoomPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Extra zoom at full framing, in % of the base zoom."
+            },
+            "focusPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "How far the camera pans toward Papa at full framing, in % of the way to him."
+            },
+            "inMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Time to reach full framing, in sim ms."
+            },
+            "outMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Time to come back after the end, in sim ms."
+            }
+          },
+          "required": [
+            "zoomPct",
+            "focusPct",
+            "inMs",
+            "outMs"
+          ],
+          "additionalProperties": false,
+          "description": "The light zoom on Papa while the sequence lasts (sim clock: a pause holds it)."
+        },
+        "musicLoop": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "description": "Id of `feedback.json › loops.sequenceMusic`: the level stems give way to it."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The sequence music, or null for no change of music."
+        },
+        "bar": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "labelKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Key of `strings.fr.json` for the bar label (and its accessible name)."
+                },
+                "fill": {
+                  "type": "string",
+                  "enum": [
+                    "opponent",
+                    "player"
+                  ],
+                  "description": "`opponent` fills in `gauge-warn` (a boss health bar), `player` in `gauge-calm`."
+                },
+                "value": {
+                  "type": "string",
+                  "enum": [
+                    "timeLeft"
+                  ],
+                  "description": "What the bar shows; `timeLeft` is the time left."
+                }
+              },
+              "required": [
+                "labelKey",
+                "fill",
+                "value"
+              ],
+              "additionalProperties": false,
+              "description": "The sequence bar under the timer."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The bar under the timer, or null for no bar (and no compact timer)."
+        }
+      },
+      "required": [
+        "camera",
+        "musicLoop",
+        "bar"
+      ],
+      "additionalProperties": false,
+      "description": "What the client shows around the sequence. The sim ignores it."
+    },
+    "feedback": {
+      "type": "object",
+      "properties": {
+        "started": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when the sequence starts."
+        },
+        "succeeded": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when the sequence is won."
+        },
+        "failed": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when the sequence is lost."
+        }
+      },
+      "required": [
+        "started",
+        "succeeded",
+        "failed"
+      ],
+      "additionalProperties": false,
+      "description": "Cues of `feedback.json` › `cues` the client plays for this sequence."
+    }
+  },
+  "required": [
+    "id",
+    "babyCarried",
+    "steps",
+    "success",
+    "failure",
+    "framing",
+    "feedback"
+  ],
+  "additionalProperties": false,
+  "description": "A special sequence: its steps, how it ends and how it looks (story 4.4)."
+}

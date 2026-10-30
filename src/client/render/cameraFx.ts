@@ -33,6 +33,41 @@ export function perfectCameraBlendAt(
   return Math.min(rise, 1 - smoothstep(u));
 }
 
+/**
+ * How far the special sequence's framing has got, 0 to 1 (story 4.4), at sim time `clockMs`: 0
+ * before `startedAt`, a linear rise over `inMs`, held, and from `endedAt` (null while the sequence
+ * runs) the value it had then going down to 0 along `1 − smoothstep` over `outMs`. Pure, with the
+ * world's `sequence` slice and the sim clock as the only inputs: a pause holds it, the hitstop
+ * (a clock that stands still) holds it back, and a restart (a fresh slice) clears it.
+ */
+export function sequenceFramingBlendAt(
+  startedAt: number,
+  endedAt: number | null,
+  clockMs: number,
+  inMs: number,
+  outMs: number,
+): number {
+  if (clockMs < startedAt) return 0;
+  const riseAt = (atMs: number): number => (inMs > 0 ? Math.min(1, (atMs - startedAt) / inMs) : 1);
+  if (endedAt === null || clockMs < endedAt) return riseAt(clockMs);
+  const u = outMs > 0 ? (clockMs - endedAt) / outMs : 1;
+  if (u >= 1) return 0;
+  return riseAt(endedAt) * (1 - smoothstep(u));
+}
+
+/**
+ * The special sequence's framing as the camera takes it (story 4.4): `blend` from
+ * `sequenceFramingBlendAt`, the def's zoom and pan, and Papa's floor point. One object, written by
+ * the caller each frame.
+ */
+export interface SequenceFraming {
+  blend: number;
+  zoomPct: number;
+  focusPct: number;
+  xM: number;
+  zM: number;
+}
+
 export interface CameraFx {
   /** Takes the camera's current pose as the framing to move around: call it after every `fitIsoCamera`. */
   captureBase(): void;
@@ -44,14 +79,16 @@ export interface CameraFx {
   focusOn(xM: number, zM: number): void;
   /**
    * Moves the camera for the sim time `clockMs`, around the captured framing. Call it every
-   * rendered frame, before the draw. At blend 0 it puts the base back bit for bit and writes
-   * nothing on the next frames. Allocates nothing.
+   * rendered frame, before the draw. The perfect's move and the special sequence's framing
+   * (`framing`, story 4.4) compose: the zooms add, the pans add. With both blends at 0 it puts the
+   * base back bit for bit and writes nothing on the next frames. Allocates nothing.
    */
   update(
     world: Readonly<World>,
     clockMs: number,
     perfectCamera: Readonly<PerfectCamera>,
     isMotionReduced: boolean,
+    framing: Readonly<SequenceFraming>,
   ): void;
   /** Puts the framing back at once (level end, restart, loading). */
   reset(): void;
@@ -83,12 +120,19 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
   let refocusStartMs = 0;
   let isRefocusing = false;
   let isDisplaced = false;
+  // Whether the last write had a perfect move in it (a new perfect glides only from one that is under way).
+  let wasPerfectMoving = false;
   // The inputs of the last write: nothing is written again while they are the same.
   let appliedBlend = -1;
   let appliedReduced = false;
   let appliedZoomPct = -1;
   let appliedYawDeg = -1;
   let appliedFocusPct = -1;
+  let appliedFrameBlend = -1;
+  let appliedFrameZoomPct = -1;
+  let appliedFrameFocusPct = -1;
+  let appliedFrameXM = Number.NaN;
+  let appliedFrameZM = Number.NaN;
   let isDirty = true;
   let yawDeg = 0;
 
@@ -99,7 +143,9 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld(true);
     isDisplaced = false;
+    wasPerfectMoving = false;
     appliedBlend = 0;
+    appliedFrameBlend = 0;
     yawDeg = 0;
   };
 
@@ -114,7 +160,9 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       camera.zoom = 1;
       camera.updateProjectionMatrix();
       isDisplaced = false;
+      wasPerfectMoving = false;
       appliedBlend = -1;
+      appliedFrameBlend = -1;
       isDirty = true;
     },
     focusOn(xM, zM) {
@@ -122,21 +170,23 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       isRefocusPending = true;
       isDirty = true;
     },
-    update(world, clockMs, perfectCamera, isMotionReduced) {
+    update(world, clockMs, perfectCamera, isMotionReduced, framing) {
       let slowMo: SlowMoEntry | undefined;
       const { slowMos } = world.time;
       for (let i = 0; i < slowMos.length; i++) {
         if ((slowMos[i] as SlowMoEntry).source === 'perfect') slowMo = slowMos[i];
       }
       const blend = perfectCameraBlendAt(slowMo, clockMs, perfectCamera.zoomInMs);
-      if (blend === 0) {
+      const frameBlend = framing.blend;
+      if (blend === 0 && frameBlend === 0) {
         if (isDisplaced) restore();
         return;
       }
-      if (isRefocusPending) {
+      // The refocus and its glide belong to the perfect's move alone (a framing never starts one).
+      if (blend !== 0 && isRefocusPending) {
         isRefocusPending = false;
         // A move under way glides from where the view leans now; a fresh one starts on the point.
-        if (isDisplaced && isFocused && perfectCamera.refocusMs > 0) {
+        if (wasPerfectMoving && isFocused && perfectCamera.refocusMs > 0) {
           focusFrom.copy(focus);
           refocusStartMs = clockMs;
           isRefocusing = true;
@@ -146,7 +196,7 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
         }
         isFocused = true;
       }
-      if (isRefocusing) {
+      if (blend !== 0 && isRefocusing) {
         const glide = Math.min(
           1,
           Math.max(0, (clockMs - refocusStartMs) / perfectCamera.refocusMs),
@@ -161,7 +211,12 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
         isMotionReduced === appliedReduced &&
         perfectCamera.zoomPct === appliedZoomPct &&
         perfectCamera.yawDeg === appliedYawDeg &&
-        perfectCamera.focusPct === appliedFocusPct
+        perfectCamera.focusPct === appliedFocusPct &&
+        frameBlend === appliedFrameBlend &&
+        framing.zoomPct === appliedFrameZoomPct &&
+        framing.focusPct === appliedFrameFocusPct &&
+        framing.xM === appliedFrameXM &&
+        framing.zM === appliedFrameZM
       ) {
         return;
       }
@@ -169,9 +224,11 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       const k = isFocused ? (perfectCamera.focusPct / 100) * capPct * blend : 0;
       // Pan: the view centre moves toward the focus point, the position with it (orthographic: the
       // framing shifts, the perspective does not change).
-      const dx = (focus.x - baseCentre.x) * k;
-      const dy = (focus.y - baseCentre.y) * k;
-      const dz = (focus.z - baseCentre.z) * k;
+      // The sequence's framing adds its own pan, toward Papa (it is 0 outside a sequence: no change).
+      const kFrame = (framing.focusPct / 100) * capPct * frameBlend;
+      const dx = (focus.x - baseCentre.x) * k + (framing.xM - baseCentre.x) * kFrame;
+      const dy = (focus.y - baseCentre.y) * k + (FOCUS_HEIGHT_M - baseCentre.y) * kFrame;
+      const dz = (focus.z - baseCentre.z) * k + (framing.zM - baseCentre.z) * kFrame;
       centre.set(baseCentre.x + dx, baseCentre.y + dy, baseCentre.z + dz);
       // Turn around the vertical axis through the moved centre; none under reduced motion.
       const turnDeg = isMotionReduced ? 0 : perfectCamera.yawDeg * blend;
@@ -184,7 +241,10 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
         centre.z - offsetX * Math.sin(turn) + offsetZ * Math.cos(turn),
       );
       camera.lookAt(centre);
-      camera.zoom = 1 + (perfectCamera.zoomPct / 100) * capPct * blend;
+      camera.zoom =
+        1 +
+        (perfectCamera.zoomPct / 100) * capPct * blend +
+        (framing.zoomPct / 100) * capPct * frameBlend;
       camera.updateProjectionMatrix();
       camera.updateMatrixWorld(true);
       isDisplaced = true;
@@ -194,6 +254,12 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       appliedZoomPct = perfectCamera.zoomPct;
       appliedYawDeg = perfectCamera.yawDeg;
       appliedFocusPct = perfectCamera.focusPct;
+      appliedFrameBlend = frameBlend;
+      appliedFrameZoomPct = framing.zoomPct;
+      appliedFrameFocusPct = framing.focusPct;
+      appliedFrameXM = framing.xM;
+      appliedFrameZM = framing.zM;
+      wasPerfectMoving = blend !== 0;
       yawDeg = turnDeg;
     },
     reset() {

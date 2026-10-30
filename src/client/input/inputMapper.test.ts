@@ -1303,6 +1303,103 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       expect(commands.map((c) => c.type)).toEqual(['Move']);
     });
   });
+
+  describe('while a special sequence holds Papa in place (story 4.4)', () => {
+    const BABY = { xM: -1, zM: 0.5 };
+    const babyPx = (camera: Parameters<typeof Vector3.prototype.project>[0]) => {
+      const v = new Vector3(BABY.xM, BABY_RADIUS_M, BABY.zM).project(camera);
+      return {
+        x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+        y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+      };
+    };
+    const inSequence = (sim: ReturnType<typeof setup>['sim']) => {
+      (sim.world.flow as { state: string }).state = 'sequence';
+    };
+
+    it('is live: the level is still going, so a press on a threat gets through', () => {
+      const { mapper, sim, commands, camera, setObjects, setTargets } = setup();
+      setObjects([COFFEE]);
+      setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+      inSequence(sim);
+      expect(mapper.isLive()).toBe(true);
+      const at = pxOf(camera, COFFEE);
+      mapper.handlePointerDown(click(at.x, at.y));
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+    });
+
+    it('is not live once the level has ended', () => {
+      const { mapper, sim } = setup();
+      (sim.world.flow as { state: string }).state = 'ended';
+      expect(mapper.isLive()).toBe(false);
+    });
+
+    it('sends nothing for a tap on the floor, an object or the baby, and draws no tap marker', () => {
+      const { mapper, sim, commands, markers, taps, camera, setObjects } = setup();
+      setObjects([COFFEE]);
+      Object.assign(sim.world.baby, BABY);
+      inSequence(sim);
+      const object = pxOf(camera, COFFEE);
+      mapper.handlePointerDown(click(object.x, object.y));
+      const baby = babyPx(camera);
+      mapper.handlePointerDown(click(baby.x, baby.y));
+      mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+      expect(commands).toEqual([]);
+      expect(markers).toEqual([]);
+      expect(taps).toEqual([]);
+    });
+
+    it('sends no Move and no MoveStop for a held key', () => {
+      const { mapper, sim, commands, held } = setup();
+      inSequence(sim);
+      held.add('KeyD');
+      mapper.onKeysChanged(1500);
+      held.delete('KeyD');
+      mapper.onKeysChanged(1600);
+      expect(commands).toEqual([]);
+    });
+
+    it('Space with no threat up sends no TapBaby and no TapObject; on a threat it answers it', () => {
+      const { mapper, sim, commands, setObjects } = setup();
+      setObjects([COFFEE]);
+      Object.assign(sim.world.baby, { xM: 0.2, zM: 0.2 });
+      inSequence(sim);
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([]);
+      sim.world.threats = [
+        {
+          id: 1,
+          state: 'windowOpen',
+          xM: 1,
+          zM: 1,
+          windowOpenAt: 1000,
+          responseWindow: { windowMs: 600, perfectMs: 100, toleranceMs: 30, bufferMs: 100 },
+        },
+      ];
+      mapper.handleAction('down', 1600, 'keyboard');
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+    });
+
+    it('a key held through the sequence walks again at its end (resumeHeld)', () => {
+      const { mapper, sim, commands, held } = setup();
+      inSequence(sim);
+      held.add('KeyD');
+      mapper.onKeysChanged(1500);
+      expect(commands).toEqual([]);
+      (sim.world.flow as { state: string }).state = 'playing';
+      mapper.resumeHeld();
+      expect(commands.map((c) => c.type)).toEqual(['Move']);
+    });
+
+    it('control: the same inputs outside a sequence do send commands', () => {
+      const { mapper, commands, markers, held } = setup();
+      mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+      held.add('KeyD');
+      mapper.onKeysChanged(1500);
+      expect(commands.map((c) => c.type)).toEqual(['TapFloor', 'Move']);
+      expect(markers).toHaveLength(1);
+    });
+  });
 });
 
 describe('createInputMapper: the toilet (story 4.3)', () => {

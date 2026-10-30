@@ -1,5 +1,6 @@
 import type { Translator } from '../strings.ts';
 import { createPauseButton } from './pauseButton.ts';
+import type { SequenceBar } from './sequenceBar.ts';
 
 export interface HudLayer {
   /** Shown in a level only. */
@@ -15,6 +16,8 @@ export interface HudLayerOptions {
   gauges: HTMLElement;
   /** The `hud-timer` pill (story 1.18), top-centre. */
   timer: HTMLElement;
+  /** The sequence bar (story 4.4): mounted under the timer, in the same zone, only while shown. */
+  sequenceBar: SequenceBar;
 }
 
 const ZONES = ['gauges', 'timer', 'pause'] as const;
@@ -37,7 +40,9 @@ export function createHudLayer(root: HTMLElement, options: HudLayerOptions): Hud
   const pauseButton = createPauseButton({ t: options.t, onPress: options.onPausePress });
   (zones.get('pause') as HTMLElement).append(pauseButton.element);
   (zones.get('gauges') as HTMLElement).append(options.gauges);
-  (zones.get('timer') as HTMLElement).append(options.timer);
+  const timerZone = zones.get('timer') as HTMLElement;
+  timerZone.append(options.timer);
+  options.sequenceBar.attachTo(timerZone);
   root.append(row);
 
   return {

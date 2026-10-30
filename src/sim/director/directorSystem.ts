@@ -43,6 +43,11 @@ export function runDirector(world: World, ctx: StepContext): void {
     }
   }
 
+  // A special sequence (story 4.4) owns the room: the waves above still entered on time (their
+  // draw and clock do not depend on sequences), but nothing is forced or drawn, and nothing but
+  // the sequence's own threats is telegraphed.
+  if (world.flow.state === 'sequence') return;
+
   for (let c = 0; c < ctx.commands.length; c++) {
     const command = ctx.commands[c];
     if (command?.type === 'ForceThreat') forceThreat(world, ctx, command.threatId);

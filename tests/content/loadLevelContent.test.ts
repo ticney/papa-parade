@@ -104,6 +104,52 @@ describe('loadLevelContent', () => {
     ]);
   });
 
+  it('loads the sequence the live level names, once, keyed by id (story 4.4)', async () => {
+    const result = await loadLevelContent(memorySource(), 'salon_crawler');
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    expect(result.value.level.sequences).toEqual(['stay_awake']);
+    expect(Object.keys(result.value.sequences)).toEqual(['stay_awake']);
+    expect(result.value.sequences.stay_awake?.babyCarried).toBe(true);
+  });
+
+  it('loads no sequence for a level that names none', async () => {
+    const result = await loadLevelContent(
+      memorySource({ 'levels/salon_crawler.json': planning(['outlet']) }),
+      'salon_crawler',
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) expect(result.value.sequences).toEqual({});
+  });
+
+  it('names the level and the path of a sequence whose file cannot be read', async () => {
+    expect(await problemsOf({ 'sequences/stay_awake.json': null })).toEqual([
+      expect.objectContaining({
+        file: 'content/levels/salon_crawler.json',
+        jsonPath: 'sequences[0]',
+        message: expect.stringContaining('sequence "stay_awake"'),
+      }),
+    ]);
+  });
+
+  it('names a sequence file that breaks its schema or whose id is not its file name', async () => {
+    const stayAwake = JSON.parse(readReal('sequences/stay_awake.json'));
+    expect(
+      await problemsOf({
+        'sequences/stay_awake.json': JSON.stringify({ ...stayAwake, steps: [] }),
+      }),
+    ).toEqual([
+      expect.objectContaining({ file: 'content/sequences/stay_awake.json', jsonPath: 'steps' }),
+    ]);
+    expect(
+      await problemsOf({
+        'sequences/stay_awake.json': JSON.stringify({ ...stayAwake, id: 'wide_awake' }),
+      }),
+    ).toEqual([
+      expect.objectContaining({ file: 'content/sequences/stay_awake.json', jsonPath: 'id' }),
+    ]);
+  });
+
   it('names gauges.fatigue.microSleepDef when its threat file cannot be read', async () => {
     const live = JSON.parse(readReal('levels/salon_crawler.json'));
     const problems = await problemsOf({

@@ -40,6 +40,8 @@ describe('parseSimArgs', () => {
         untilSimMs: null,
         outPath: null,
         journalsDir: null,
+        sequenceId: null,
+        sequenceAtMs: 1000,
         help: false,
       },
     });
@@ -63,6 +65,10 @@ describe('parseSimArgs', () => {
       'report.json',
       '--journals',
       'games',
+      '--sequence',
+      'stay_awake',
+      '--sequence-at-ms',
+      '5005',
     ]);
     expect(parsed).toEqual({
       ok: true,
@@ -75,9 +81,32 @@ describe('parseSimArgs', () => {
         untilSimMs: 60_000,
         outPath: 'report.json',
         journalsDir: 'games',
+        sequenceId: 'stay_awake',
+        sequenceAtMs: 5010,
         help: false,
       },
     });
+  });
+
+  it('reads the sequence flags (story 4.4): the start rounds up to the step grid and needs --sequence', () => {
+    const only = parseSimArgs(['--bot', 'idle', '--sequence', 'stay_awake']);
+    expect(only.ok && [only.value.sequenceId, only.value.sequenceAtMs]).toEqual([
+      'stay_awake',
+      1000,
+    ]);
+    expect(messageOf(['--bot', 'idle', '--sequence-at-ms', '500'])).toBe(
+      '--sequence-at-ms needs --sequence',
+    );
+    expect(messageOf(['--bot', 'idle', '--sequence', ''])).toContain('--sequence');
+    expect(messageOf(['--bot', 'idle', '--sequence', 'a', '--sequence-at-ms', 'soon'])).toContain(
+      '--sequence-at-ms',
+    );
+  });
+
+  it('describes the sequence flags in --help', () => {
+    expect(SIM_HELP).toContain('--sequence <id>');
+    expect(SIM_HELP).toContain('--sequence-at-ms');
+    expect(SIM_HELP).toContain('sequencesStarted');
   });
 
   it.each(DIFFICULTY_TIER_IDS)('accepts the %s tier', (tier) => {

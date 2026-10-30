@@ -14,6 +14,8 @@ export {
   type NoiseSource,
   type PhoneRingEndReason,
   type ResponseQuality,
+  SEQUENCE_OUTCOMES,
+  type SequenceOutcome,
   SIM_EVENT_TYPES,
   type SilenceEndReason,
   type SimEvent,
@@ -21,12 +23,13 @@ export {
   type ThreatCancelReason,
 } from './events.ts';
 export type { FeelPatch } from './feel/applyFeelPatch.ts';
-export type { FlowState } from './flow/flowFsm.ts';
+export { type FlowState, isFlowLive } from './flow/flowFsm.ts';
 export type { Journal, JournalEntry } from './journal.ts';
 export { isPapaBusy, PAPA_STATES, type PapaState } from './papa/papaFsm.ts';
 export { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 export { type ReplayOptions, type ReplayResult, replayJournal } from './replay.ts';
 export { starsForScore } from './scoring/stars.ts';
+export { type SequenceRefusal, sequenceRefusal } from './sequences/sequenceStart.ts';
 export type { SimSnapshot } from './snapshot.ts';
 export { GAG_IDS, type GagId, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
 export type { ThreatState } from './threats/threatFsm.ts';
@@ -44,6 +47,7 @@ export type {
   PendingPress,
   PropSlice,
   ScoreSlice,
+  SequenceSlice,
   SilenceSlice,
   SlowMo,
   SlowMoSource,

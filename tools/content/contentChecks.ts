@@ -12,6 +12,7 @@ import {
   LEVEL_GEOMETRY_PATTERN,
   LEVEL_PATTERN,
   matchContentPattern,
+  SEQUENCE_DEF_PATTERN,
   STRINGS_FILE,
   THREAT_DEF_PATTERN,
 } from '@content/contentFiles';
@@ -25,6 +26,7 @@ import type { FeedbackCue, FeedbackTable } from '@content/schemas/feedback';
 import type { Feel } from '@content/schemas/feel';
 import type { Level } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import type { SequenceDef } from '@content/schemas/sequence';
 import { type ThreatDef, ThreatGagIds } from '@content/schemas/threat';
 import { checkStringReferences } from '@content/stringRefs';
 import {
@@ -216,6 +218,10 @@ async function checkFeedbackReferences(
     { clip: table.loops.music.stems.calm, path: ['loops', 'music', 'stems', 'calm'] },
     { clip: table.loops.music.stems.tense, path: ['loops', 'music', 'stems', 'tense'] },
     { clip: table.calibration.beep.clip, path: ['calibration', 'beep', 'clip'] },
+    ...Object.entries(table.loops.sequenceMusic).map(([id, loop]) => ({
+      clip: loop.clip,
+      path: ['loops', 'sequenceMusic', id, 'clip'],
+    })),
     ...Object.entries(table.cues).flatMap(([id, cue]) => [
       ...(cue.audio === undefined
         ? []
@@ -233,6 +239,14 @@ async function checkFeedbackReferences(
       file,
       jsonPath: formatJsonPath(['loops', 'music', 'stems', stem]),
       message: `the ${stem} music stem "${table.loops.music.stems[stem]}" is not a music clip (music_<name>)`,
+    });
+  }
+  for (const [id, loop] of Object.entries(table.loops.sequenceMusic)) {
+    if (loop.clip.startsWith('music_')) continue;
+    problems.push({
+      file,
+      jsonPath: formatJsonPath(['loops', 'sequenceMusic', id, 'clip']),
+      message: `the music of the sequence "${id}" is "${loop.clip}", not a music clip (music_<name>)`,
     });
   }
   for (const { clip, path } of clipPaths) {
@@ -273,6 +287,7 @@ function checkBotReferences(bots: BotSettings, feel: Feel): ContentProblem[] {
 interface ParsedFamilies {
   threats: Map<string, ThreatDef>;
   disruptions: Map<string, DisruptionDef>;
+  sequences: Map<string, SequenceDef>;
   levels: Map<string, Level>;
   geometries: Map<string, LevelGeometry>;
 }
@@ -531,6 +546,138 @@ function checkTelegraphClips(
         file,
         jsonPath: formatJsonPath(['feedback', role]),
         message: `the clip "${clip}" is already the telegraph sound of ${owner}: each telegraph has a sound of its own`,
+      });
+    }
+  }
+  return problems;
+}
+
+/**
+ * Whether the first micro-sleep of a sequence can be telegraphed and judged inside it, or why not:
+ * its step's start, then `gapMinMs`, then the threat's delay, its window (at the widest tier) and
+ * the tolerance must fit in the sequence's length, otherwise the sim never telegraphs one and the
+ * sequence is won by waiting. Null when it fits, or when there is nothing to check.
+ */
+function microSleepFitProblem(
+  sequence: SequenceDef,
+  level: Level,
+  threats: ReadonlyMap<string, ThreatDef>,
+  feel: Feel | undefined,
+): string | null {
+  const microSleepDef = level.gauges.fatigue?.microSleepDef;
+  const index = sequence.steps.findIndex((step) => step.kind === 'microSleeps');
+  if (feel === undefined || microSleepDef === undefined || index < 0) return null;
+  const threat = threats.get(microSleepDef);
+  const step = sequence.steps[index];
+  if (threat === undefined || step?.kind !== 'microSleeps') return null;
+  let startMs = 0;
+  for (const earlier of sequence.steps.slice(0, index)) startMs += earlier.durationMs;
+  let totalMs = 0;
+  for (const each of sequence.steps) totalMs += each.durationMs;
+  const widest = Math.max(...Object.values(feel.difficulty).map((tier) => tier.windowMultiplier));
+  const judgedMs =
+    startMs +
+    step.gapMinMs +
+    (threat.telegraphDelayMs ?? feel.timing.telegraphDelayDefaultMs) +
+    (threat.windowMs ?? feel.timing.windowMs) * widest +
+    feel.timing.toleranceMs;
+  if (judgedMs <= totalMs) return null;
+  return `lasts ${totalMs} ms, but its first micro-sleep could not be judged before ${Math.round(judgedMs)} ms (the step's start ${startMs} + gapMinMs ${step.gapMinMs} + the delay, the widest window and the tolerance of "${microSleepDef}"): none would ever be telegraphed`;
+}
+
+/**
+ * The references a sequence makes that its schema cannot see (story 4.4): each level that names it
+ * has its file and what it needs (the baby in the arms needs `carry`, a micro-sleeps step needs
+ * `gauges.fatigue.microSleepDef`), each of its feedback cues is a cue of `feedback.json` anchored
+ * on Papa (a sequence event names no threat and no object), and its music loop is one of
+ * `loops.sequenceMusic`. (Its `framing.bar.labelKey` is a `…Key` property: `checkStringReferences`
+ * walks it with every other content file.)
+ */
+function checkSequenceReferences(
+  families: ParsedFamilies,
+  present: ReadonlySet<string>,
+  feedback: FeedbackTable | undefined,
+  feel: Feel | undefined,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  for (const [id, level] of families.levels) {
+    const file = `content/${LEVEL_PATTERN.dir}/${id}${LEVEL_PATTERN.suffix}`;
+    level.sequences.forEach((sequenceId, i) => {
+      const defFile = `${SEQUENCE_DEF_PATTERN.dir}/${sequenceId}${SEQUENCE_DEF_PATTERN.suffix}`;
+      const path = formatJsonPath(['sequences', i]);
+      const sequence = families.sequences.get(sequenceId);
+      if (sequence === undefined) {
+        if (!present.has(defFile)) {
+          problems.push({
+            file,
+            jsonPath: path,
+            message: `no sequence "${sequenceId}" (content/${defFile} does not exist)`,
+          });
+        }
+        return;
+      }
+      if (sequence.babyCarried && level.carry === undefined) {
+        problems.push({
+          file,
+          jsonPath: path,
+          message: `the sequence "${sequenceId}" carries the baby, but the level has no carry (nothing could take him)`,
+        });
+      }
+      if (
+        sequence.steps.some((step) => step.kind === 'microSleeps') &&
+        level.gauges.fatigue === undefined
+      ) {
+        problems.push({
+          file,
+          jsonPath: path,
+          message: `the sequence "${sequenceId}" has a microSleeps step, but the level has no gauges.fatigue.microSleepDef (no micro-sleep to start)`,
+        });
+      }
+      const timingProblem = microSleepFitProblem(sequence, level, families.threats, feel);
+      if (timingProblem !== null) {
+        problems.push({
+          file,
+          jsonPath: path,
+          message: `the sequence "${sequenceId}" ${timingProblem}`,
+        });
+      }
+    });
+  }
+  if (feedback === undefined) return problems;
+  for (const [id, sequence] of families.sequences) {
+    const file = `content/${SEQUENCE_DEF_PATTERN.dir}/${id}${SEQUENCE_DEF_PATTERN.suffix}`;
+    for (const [role, cueId] of Object.entries(sequence.feedback)) {
+      const path = formatJsonPath(['feedback', role]);
+      if (!Object.hasOwn(feedback.cues, cueId)) {
+        problems.push({
+          file,
+          jsonPath: path,
+          message: `the cue "${cueId}" is not in feedback.json › cues`,
+        });
+        continue;
+      }
+      const visual = feedback.cues[cueId]?.visual;
+      if (visual?.kind === 'soundWave' && visual.anchor !== 'papa') {
+        problems.push({
+          file,
+          jsonPath: path,
+          message: `the cue "${cueId}" is anchored on a ${visual.anchor}, but a sequence event names none: anchor it on Papa`,
+        });
+      }
+      if (visual?.kind === 'uiElement') {
+        problems.push({
+          file,
+          jsonPath: path,
+          message: `the cue "${cueId}" has a \`uiElement\` visual, but a sequence's cues are played for sim events`,
+        });
+      }
+    }
+    const musicLoop = sequence.framing.musicLoop;
+    if (musicLoop !== null && !Object.hasOwn(feedback.loops.sequenceMusic, musicLoop)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['framing', 'musicLoop']),
+        message: `the music loop "${musicLoop}" is not in feedback.json › loops.sequenceMusic`,
       });
     }
   }
@@ -954,6 +1101,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   const families: ParsedFamilies = {
     threats: new Map(),
     disruptions: new Map(),
+    sequences: new Map(),
     levels: new Map(),
     geometries: new Map(),
   };
@@ -985,6 +1133,8 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
         families.threats.set(matched.id, result.value as ThreatDef);
       } else if (matched.pattern === DISRUPTION_DEF_PATTERN) {
         families.disruptions.set(matched.id, result.value as DisruptionDef);
+      } else if (matched.pattern === SEQUENCE_DEF_PATTERN) {
+        families.sequences.set(matched.id, result.value as SequenceDef);
       } else if (matched.pattern === LEVEL_PATTERN) {
         families.levels.set(matched.id, result.value as Level);
       } else if (matched.pattern === LEVEL_GEOMETRY_PATTERN) {
@@ -1052,6 +1202,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   problems.push(...checkDisruptionReferences(families.disruptions, feedback));
   problems.push(...checkTelegraphClips(families.threats, families.disruptions, feedback));
   problems.push(...checkLevelReferences(families, present, feel));
+  problems.push(...checkSequenceReferences(families, present, feedback, feel));
 
   if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));
   if (feel !== undefined) {

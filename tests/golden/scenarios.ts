@@ -9,6 +9,8 @@ import {
   COFFEE_TABLE,
   createTestContent,
   createTestLevel,
+  createTestStayAwake,
+  FATIGUE_GAUGES,
   NEED_GAUGES,
   NOISE_GAUGES,
   OUTLET,
@@ -80,6 +82,46 @@ const setFeel = (
 
 /** The frozen feel's window: the scenario below widens it, then puts it back, relative to this. */
 const { windowMs: testWindowMs } = createTestContent().feel.timing;
+
+/**
+ * The frozen « Rester éveillé » cut short for the goldens (story 4.4): two steps of 4 s, a micro-sleep
+ * every 2.5 s in each. 8 s long: the first micro-sleep is telegraphed at 2.51 s, the second at 5.01 s.
+ */
+const SHORT_STAY_AWAKE = (() => {
+  const def = createTestStayAwake();
+  def.steps = def.steps.slice(0, 2).map((step) => ({
+    ...step,
+    durationMs: 4000,
+    gapMinMs: 2500,
+    gapMaxMs: 2500,
+  }));
+  return def;
+})();
+
+/** The level of the two `stay_awake` scenarios: an outlet from 1 s, fatigue, noise, the arms and the sequence. */
+const stayAwakeLevel = () =>
+  createTestLevel({
+    waves: [testWave([OUTLET], { gapMinMs: 1000, gapMaxMs: 1000 })],
+    gauges: { ...FATIGUE_GAUGES, ...NOISE_GAUGES },
+    carry: CARRY,
+    sequences: ['stay_awake'],
+    sequenceDefs: { stay_awake: SHORT_STAY_AWAKE },
+  });
+
+const startStayAwake = (t: number): SimCommand => ({
+  type: 'StartSequence',
+  t: asSimMs(t),
+  sequenceId: 'stay_awake',
+});
+/** A press on a threat, at `t`, enqueued at the step that reaches `t`. */
+const pressAt = (t: number, threatId: number): { atStep: number; command: SimCommand } => ({
+  atStep: t / STEP_MS,
+  command: { type: 'PressThreat', t: asSimMs(t), threatId },
+});
+const releaseAt = (t: number): { atStep: number; command: SimCommand } => ({
+  atStep: t / STEP_MS,
+  command: release(t),
+});
 const WIDER_MS = 200;
 
 export const SCENARIOS: readonly Scenario[] = [
@@ -303,6 +345,39 @@ export const SCENARIOS: readonly Scenario[] = [
       { atStep: 0, command: { type: 'SetBladder', t: asSimMs(0), pct: 100 } },
       { atStep: 1, command: { type: 'TapObject', t: asSimMs(STEP_MS), objectId: 'toilet' } },
     ],
+  },
+  {
+    // « Rester éveillé » won (story 4.4), on the frozen living room: the sequence starts at once and
+    // takes the baby (10 ms); the micro-sleeps are telegraphed at 2510 and 5010 (the cadence of the
+    // short def) and each is parried at the centre of its window (a perfect: 3860, 6360); the
+    // sequence ends at 8010 (`SequenceEnded{succeeded}`, the clocks pushed by `resumeGapMs`),
+    // the player puts the baby down (8500, applied at 8510), the director returns at 10010 (the outlet, parried at 11360).
+    // The times are read from a first recording. `stayAwake.test.ts` pins what it covers.
+    name: 'stay_awake_held',
+    level: stayAwakeLevel(),
+    seed: 41,
+    untilSimMs: 14000,
+    actions: [
+      { atStep: 0, command: startStayAwake(0) },
+      pressAt(3860, 2),
+      releaseAt(3910),
+      pressAt(6360, 2),
+      releaseAt(6410),
+      { atStep: 850, command: tapBaby(8500) },
+      pressAt(11360, 1),
+      releaseAt(11410),
+    ],
+  },
+  {
+    // « Rester éveillé » lost (story 4.4): nobody answers the first micro-sleep (telegraphed at 2510,
+    // gagged `late` at 4080), Papa falls asleep with the baby in his arms, snores (+15 % noise) and the
+    // baby wakes (`PapaSnored`, `BabyWoke`), the sequence ends (`failed`) and Papa wakes 3 s later.
+    // `stayAwake.test.ts` pins what it covers.
+    name: 'stay_awake_dozed',
+    level: stayAwakeLevel(),
+    seed: 41,
+    untilSimMs: 12000,
+    actions: [{ atStep: 0, command: startStayAwake(0) }],
   },
 ];
 

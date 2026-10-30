@@ -4,12 +4,14 @@ import { loadLevelContent } from '@content/loadLevelContent';
 import type { Feel } from '@content/schemas/feel';
 import { GAUGE_IDS, type GaugeId } from '@content/schemas/level';
 import type { Settings } from '@content/schemas/save';
+import type { SequenceDef } from '@content/schemas/sequence';
 import { createPlatform } from '@platform/createPlatform';
 import { DEFAULT_DIFFICULTY_TIER, MAX_TIMER_DELAY_MS, MS_PER_S, STEP_MS } from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
 import {
+  isFlowLive,
   isPapaBusy,
   type LevelEndReason,
   type MamaScore,
@@ -48,7 +50,7 @@ import { keyGlyph, loadKeyboardLayoutMap, padConfirmGlyph } from './input/keyGly
 import { createMoveIntent } from './input/moveIntent.ts';
 import { bindPointer } from './input/pointerInput.ts';
 import { createAdaptivePixelRatio } from './render/adaptivePixelRatio.ts';
-import { createCameraFx } from './render/cameraFx.ts';
+import { createCameraFx, type SequenceFraming, sequenceFramingBlendAt } from './render/cameraFx.ts';
 import { slideDirection } from './render/gags.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
 import type { LevelScene } from './render/levelScene.ts';
@@ -62,6 +64,7 @@ import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
 import { createScreenFlash } from './ui/hud/screenFlash.ts';
+import { createSequenceBar } from './ui/hud/sequenceBar.ts';
 import { createSilenceBubble } from './ui/hud/silenceBubble.ts';
 import { createTimerHud } from './ui/hud/timerHud.ts';
 import { createOverlayHost } from './ui/overlayHost.ts';
@@ -81,6 +84,8 @@ import { createWorldUi } from './ui/world/worldUi.ts';
 const TIMER_SLOT = 0;
 /** One slot per gauge after the timer's: the batch writes a gauge's integer percent when it changes. */
 const gaugeSlotOf = (id: GaugeId): number => GAUGE_IDS.indexOf(id) + 1;
+/** The sequence bar's slot, after the gauges' (story 4.4): its whole percent. */
+const SEQUENCE_SLOT = GAUGE_IDS.length + 1;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
 const NO_SIM_OBJECTS: readonly SimObjectSpec[] = [];
 /** What the Result screen shows if it ever has no note (a bug, warned about): all zero. */
@@ -190,6 +195,10 @@ export async function boot(): Promise<void> {
   const camera = createIsoCamera();
   // The perfect's zoom, pan and turn, around the framing `fitIsoCamera` computes (story 2.5).
   const cameraFx = createCameraFx(camera);
+  // The special sequence's framing, one object written each frame (story 4.4), and the defs of the
+  // level being played, set at its start.
+  const sequenceFraming: SequenceFraming = { blend: 0, zoomPct: 0, focusPct: 0, xM: 0, zM: 0 };
+  let currentSequences: Readonly<Record<string, SequenceDef>> | null = null;
   // Behind the start and « Oups » screens until a level has been loaded: an empty ink stage.
   const backdrop = new Scene();
   backdrop.background = new Color(PALETTE.ink);
@@ -268,6 +277,9 @@ export async function boot(): Promise<void> {
       | 'ppVolumes'
       | 'ppCue'
       | 'ppFlow'
+      | 'ppSequence'
+      | 'ppSequenceOutcome'
+      | 'ppSequenceMusic'
       | 'ppCueCount'
       | 'ppFlashCount'
       | 'ppStampCount'
@@ -327,6 +339,9 @@ export async function boot(): Promise<void> {
   const visualOffsetMs = (): number => saveStore.current().calibration?.visualOffsetMs ?? 0;
   // Each entry into a music mood, counted (story 2.6): polling misses a short slow-mo at speed 4.
   const musicMoodCounts = { tense: 0, slow: 0 };
+  // Whether a sequence's own music really plays (the engine says so): the level stems give way to it
+  // only then, so a clip that is not decoded or fails to start never leaves the sequence in silence.
+  let isSequenceMusicOn = false;
   const audio = createAudioEngine({
     table: feedbackTable,
     getMusicFeel: () => levelFeel().music,
@@ -348,7 +363,11 @@ export async function boot(): Promise<void> {
       if (isMirrored) mirror('ppAudioClips', String(count));
     },
     onLoopChange: (loop, isOn) => {
-      if (isMirrored) mirror(loop === 'babble' ? 'ppBabble' : 'ppMusic', isOn ? 'on' : 'off');
+      if (loop === 'sequenceMusic') isSequenceMusicOn = isOn;
+      if (!isMirrored) return;
+      const name =
+        loop === 'babble' ? 'ppBabble' : loop === 'sequenceMusic' ? 'ppSequenceMusic' : 'ppMusic';
+      mirror(name, isOn ? 'on' : 'off');
     },
   });
   let cuesPlayedCount = 0;
@@ -423,6 +442,7 @@ export async function boot(): Promise<void> {
     mirror('ppAudioClips', '0');
     mirror('ppBabble', 'off');
     mirror('ppMusic', 'off');
+    mirror('ppSequenceMusic', 'off');
     mirror('ppMusicTense', 'off');
     mirror('ppMusicSlow', 'off');
     mirror('ppMusicTenseCount', '0');
@@ -594,8 +614,22 @@ export async function boot(): Promise<void> {
       'ppLostStars',
       'ppEndReason',
       'ppResult',
+      'ppSequence',
+      'ppSequenceOutcome',
     ] as const) {
       delete document.documentElement.dataset[name];
+    }
+  };
+  // The special sequence, on its events only (story 4.4): the flow state follows it and back, the id
+  // is there while it runs, and the last outcome stays. `levelEnded` leaves the flow to `LevelEnded`.
+  const mirrorSequenceEvent = (event: SimEvent): void => {
+    if (event.type === 'SequenceStarted') {
+      mirror('ppFlow', 'sequence');
+      mirror('ppSequence', event.id);
+    } else if (event.type === 'SequenceEnded') {
+      delete document.documentElement.dataset.ppSequence;
+      mirror('ppSequenceOutcome', event.outcome);
+      if (event.outcome !== 'levelEnded') mirror('ppFlow', 'playing');
     }
   };
   // The suspicious silence, on its events only (story 1.21): `on` at `SilenceStarted`, then `found`
@@ -767,6 +801,9 @@ export async function boot(): Promise<void> {
     onLevelStarted: (started) => {
       sendInputLag(started.sim, false);
       sendDifficultyTier(started.sim);
+      currentSequences = started.level.sequences;
+      sequenceBar.reset();
+      timerHud.setCompact(false);
       timerHud.setVariant(started.level.level.variant);
       // The gauges this level has, each at its start value (a restart never shows the last level's).
       const { gauges } = started.level.level;
@@ -806,11 +843,35 @@ export async function boot(): Promise<void> {
       // drawn, so the hitstop holds it back and a pause holds it (story 2.5).
       const world = levelSession.active?.sim.world;
       if (world === undefined) return;
+      const clockMs = world.time.sim - STEP_MS * (1 - alpha);
+      // The special sequence's framing (story 4.4): the world's slice and the sim clock only.
+      const { sequence } = world;
+      const framingDef =
+        sequence.lastId === null || currentSequences === null
+          ? undefined
+          : currentSequences[sequence.lastId];
+      if (framingDef === undefined) {
+        sequenceFraming.blend = 0;
+      } else {
+        const { camera: framingCamera } = framingDef.framing;
+        sequenceFraming.blend = sequenceFramingBlendAt(
+          sequence.startedAt,
+          sequence.endedAt,
+          clockMs,
+          framingCamera.inMs,
+          framingCamera.outMs,
+        );
+        sequenceFraming.zoomPct = framingCamera.zoomPct;
+        sequenceFraming.focusPct = framingCamera.focusPct;
+        sequenceFraming.xM = world.papa.xM;
+        sequenceFraming.zM = world.papa.zM;
+      }
       cameraFx.update(
         world,
-        world.time.sim - STEP_MS * (1 - alpha),
+        clockMs,
         world.feel.fx.perfectCamera,
         prefersReducedMotion(),
+        sequenceFraming,
       );
     },
     onFxReset: () => {
@@ -822,9 +883,7 @@ export async function boot(): Promise<void> {
       // Once the level has ended the sim is frozen with `babbling` as it was: silence it.
       const babbleWorld = levelSession.active?.sim.world;
       audio.setBabbling(
-        babbleWorld !== undefined &&
-          babbleWorld.flow.state === 'playing' &&
-          babbleWorld.baby.babbling,
+        babbleWorld !== undefined && isFlowLive(babbleWorld) && babbleWorld.baby.babbling,
       );
       // The suspicious silence (story 1.21): the music stays off, and the « … » bubble stays up,
       // while the sim says a silence has started. State, not events, so that a pause, a restart or
@@ -832,12 +891,19 @@ export async function boot(): Promise<void> {
       // game: a pause veil or a countdown has the screen.
       const isSilent =
         babbleWorld !== undefined &&
-        babbleWorld.flow.state === 'playing' &&
+        isFlowLive(babbleWorld) &&
         babbleWorld.silence.startedAt !== null;
-      audio.setMusicMuted(isSilent);
+      // A special sequence with its own music (story 4.4) replaces the level stems for as long as it
+      // runs: state, not events, so a restart or a level end cannot leave either on.
+      const sequenceMusicId =
+        babbleWorld !== undefined && babbleWorld.flow.state === 'sequence'
+          ? (currentSequences?.[babbleWorld.sequence.id ?? '']?.framing.musicLoop ?? null)
+          : null;
+      audio.setSequenceMusic(sequenceMusicId);
+      audio.setMusicMuted(isSilent || isSequenceMusicOn);
       // The music follows the world's state too (story 2.6): tense while a threat is on, slowed
       // while the time scale is down. Allocation-free: a loop over a handful of threats.
-      const isPlaying = babbleWorld !== undefined && babbleWorld.flow.state === 'playing';
+      const isPlaying = babbleWorld !== undefined && isFlowLive(babbleWorld);
       audio.setMusicMood(
         isPlaying && isTensionActive(babbleWorld.threats),
         isPlaying && isSlowMoActive(babbleWorld, levelFeel().music.slowMo.belowScale),
@@ -862,6 +928,16 @@ export async function boot(): Promise<void> {
         if (running.level.level.gauges.need !== undefined) {
           hudBatch.set(gaugeSlotOf('need'), Math.round(running.sim.world.gauges.bladderPct));
         }
+      }
+      // The sequence bar and the compact timer follow the world's state each frame (story 4.4).
+      if (running !== null) {
+        const barDef =
+          currentSequences?.[
+            running.sim.world.sequence.id ?? running.sim.world.sequence.lastId ?? ''
+          ] ?? null;
+        hudBatch.set(SEQUENCE_SLOT, sequenceBar.update(running.sim.world, barDef));
+        sequenceBar.frame(performance.now());
+        timerHud.setCompact(sequenceBar.isMounted);
       }
       shell.frame();
       gaugesHud.frame(performance.now());
@@ -1053,6 +1129,7 @@ export async function boot(): Promise<void> {
         mirrorThreatEvent(event);
         mirrorPhoneEvent(event);
         mirrorSilenceEvent(event);
+        mirrorSequenceEvent(event);
       }
       // A refused toilet says why above Papa, for `holdMs` of real time (story 4.3).
       if (event.type === 'ToiletRefused') {
@@ -1075,6 +1152,9 @@ export async function boot(): Promise<void> {
       // Taking or putting down the baby stops Papa where he stands (`walkDir` → idle): a direction
       // still held walks again, with the baby in his arms or without.
       if (event.type === 'BabyPickedUp' || event.type === 'BabyPutDown') inputMapper.resumeHeld();
+      // A key still held through a special sequence walks again at its end (story 4.4); a failure then
+      // waits for the nap, through the `PapaStateChanged` call just below.
+      if (event.type === 'SequenceEnded') inputMapper.resumeHeld();
       if (
         event.type === 'PapaStateChanged' &&
         event.to === 'idle' &&
@@ -1128,11 +1208,16 @@ export async function boot(): Promise<void> {
   };
 
   const timerHud = createTimerHud(document, { t });
+  const sequenceBar = createSequenceBar(document, {
+    t,
+    slideMs: feedbackTable.sequenceBar.slideMs,
+  });
   const gaugesHud = createGaugesHud(document, { t, nowAtReal: () => performance.now() });
   // Slot 0 is the timer's; then one per gauge in `GAUGE_IDS` order, matching `gaugeSlotOf`.
   const hudBatch = createHudBatch([
     (seconds) => timerHud.setRemainingS(seconds),
     ...GAUGE_IDS.map((id) => (percent: number) => gaugesHud.setValue(id, percent)),
+    (percent) => sequenceBar.setPercent(percent),
   ]);
   // The silence bubble is screen-anchored, in the HUD root beside the row (UX `silence-bubble`).
   const bubblePoint = new Vector3();
@@ -1157,6 +1242,7 @@ export async function boot(): Promise<void> {
     onPausePress: () => pause.requestPause('user'),
     gauges: gaugesHud.element,
     timer: timerHud.element,
+    sequenceBar,
   });
   hudRoot.append(silenceBubble.element);
   // The latency calibration (story 2.7): the first launch's detour, and what story 2.8's Recalibrate

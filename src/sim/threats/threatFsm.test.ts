@@ -405,6 +405,22 @@ describe('the hidden state and the surprise gag (story 1.21)', () => {
   });
 });
 
+describe('gagThreat and the special sequence (story 4.4)', () => {
+  it('ends nothing outside a sequence: no snore, no SequenceEnded, the flow and the slice stay', async () => {
+    const { world, ctx, events, threat } = await setup();
+    const flow = structuredClone(world.flow);
+    const slice = structuredClone(world.sequence);
+    gagThreat(world, ctx, threat, def, 'late', null);
+    const types = events.map((event) => event.type);
+    expect(types).toContain('GagTriggered');
+    expect(types).not.toContain('SequenceEnded');
+    expect(types).not.toContain('PapaSnored');
+    expect(types).not.toContain('BabyWoke');
+    expect(world.flow).toEqual(flow);
+    expect(world.sequence).toEqual(slice);
+  });
+});
+
 describe('cancelThreat (story 4.1)', () => {
   it.each(['telegraph', 'windowOpen'] as const)(
     'drops a %s threat back to idle with ThreatCancelled and nothing else: no result, no gag, no rearm, no time effect',

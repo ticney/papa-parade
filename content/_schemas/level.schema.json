@@ -211,6 +211,16 @@
       },
       "additionalProperties": false
     },
+    "sequences": {
+      "default": [],
+      "description": "The special sequences this level can run (story 4.4); none by default. Nothing schedules them here: a bedtime level starts them (4.10), the debug overlay and the sim CLI meanwhile.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "description": "The id of a sequence of `content/sequences/`."
+      }
+    },
     "feelOverrides": {
       "default": {},
       "description": "A partial `feel.json` merged over the base feel for this level only.",
@@ -228,6 +238,7 @@
     "waves",
     "objects",
     "gauges",
+    "sequences",
     "feelOverrides"
   ],
   "additionalProperties": false,

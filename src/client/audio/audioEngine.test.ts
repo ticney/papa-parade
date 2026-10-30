@@ -33,6 +33,7 @@ const CLIPS = [
   'baby_babble_loop',
   'music_crawler_calm',
   'music_crawler_tense',
+  'music_stay_awake',
   'papa_bump',
   'ui_calibration_beep',
 ];
@@ -676,6 +677,151 @@ describe('the music mute of the suspicious silence (story 1.21)', () => {
     expect(() => {
       s.engine.setMusicMuted(true);
       s.engine.setMusicMuted(false);
+    }).not.toThrow();
+  });
+});
+
+describe('the music of a special sequence (story 4.4)', () => {
+  it('plays while it is wanted, once per edge, and is faded out when it is not', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    const before = s.fake.sources.length;
+    s.engine.setSequenceMusic('stay_awake');
+    s.engine.setSequenceMusic('stay_awake');
+    s.engine.setSequenceMusic('stay_awake');
+    expect(s.fake.sources.length - before).toBe(1);
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([
+      ['sequenceMusic', true],
+    ]);
+    s.engine.setSequenceMusic(null);
+    s.engine.setSequenceMusic(null);
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([
+      ['sequenceMusic', true],
+      ['sequenceMusic', false],
+    ]);
+  });
+
+  it('does not touch the level stems: the caller mutes them (setMusicMuted), the loop only plays', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    const stems = s.loopChanges.filter(([loop]) => loop === 'music');
+    s.engine.setSequenceMusic('stay_awake');
+    s.engine.setSequenceMusic(null);
+    expect(s.loopChanges.filter(([loop]) => loop === 'music')).toEqual(stems);
+  });
+
+  it('is one looping source, started once, on a gain that fades in over its fadeMs', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    const before = s.fake.sources.length;
+    const gainsBefore = s.fake.gains.length;
+    s.engine.setSequenceMusic('stay_awake');
+    const source = s.fake.sources[before];
+    expect(source?.loop).toBe(true);
+    expect(source?.startCalls).toHaveLength(1);
+    // The gain it fades in: 0 now, its gain at fadeMs.
+    expect(s.fake.gains.length - gainsBefore).toBe(1);
+    const def = createTestFeedback().loops.sequenceMusic.stay_awake;
+    const [set, ramp, ...rest] = s.fake.gains[gainsBefore]?.gain.events ?? [];
+    expect(set).toMatchObject({ kind: 'set', value: 0 });
+    expect(ramp).toMatchObject({ kind: 'ramp', value: (def?.gainPct ?? 0) / 100 });
+    expect(rest).toEqual([]);
+    expect((ramp?.timeS ?? 0) - (set?.timeS ?? 0)).toBeCloseTo((def?.fadeMs ?? 0) / 1000, 6);
+  });
+
+  it('restarts clean mid-sequence: a level start clears the wanted loop, and the next frame wants none', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    s.engine.setSequenceMusic('stay_awake');
+    // A restart: the loops stop (the wanted id is cleared), then start again for the new level.
+    s.engine.stopLevelLoops();
+    expect(s.loopChanges.at(-1)).not.toEqual(['sequenceMusic', true]);
+    expect(s.loopChanges).toContainEqual(['sequenceMusic', false]);
+    s.engine.startLevelLoops();
+    const before = s.fake.sources.length;
+    s.engine.setSequenceMusic(null);
+    expect(s.fake.sources.length).toBe(before);
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic').length).toBe(2);
+  });
+
+  it('stops with the level when it ends mid-sequence', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    s.engine.setSequenceMusic('stay_awake');
+    s.engine.stopLevelLoops();
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic').at(-1)).toEqual([
+      'sequenceMusic',
+      false,
+    ]);
+    // Still wanted by the next frame of a frozen level: it does not start again outside the loops.
+    s.engine.setSequenceMusic('stay_awake');
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic').at(-1)).toEqual([
+      'sequenceMusic',
+      false,
+    ]);
+  });
+
+  it('is not remembered while the level loops are off: a stale frame never carries it into the next level', async () => {
+    const s = await ready();
+    s.engine.setSequenceMusic('stay_awake');
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([]);
+    s.engine.startLevelLoops();
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([]);
+    // The next frame that does see the sequence starts it.
+    s.engine.setSequenceMusic('stay_awake');
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([
+      ['sequenceMusic', true],
+    ]);
+  });
+
+  it('retries a clip that was not decoded at the first start once a preload has decoded it', async () => {
+    const s = setup();
+    s.engine.unlock();
+    s.answer.set('music_stay_awake', new Error('404'));
+    await s.engine.preload(CLIPS);
+    s.fake.setState('running');
+    s.engine.startLevelLoops();
+    s.engine.setSequenceMusic('stay_awake');
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([]);
+    // The clip arrives (a later preload): the skip is forgotten, as `startLoop`'s own.
+    s.answer.delete('music_stay_awake');
+    await s.engine.preload(CLIPS);
+    s.engine.setSequenceMusic(null);
+    s.engine.setSequenceMusic('stay_awake');
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([
+      ['sequenceMusic', true],
+    ]);
+  });
+
+  it('skips a loop whose clip is not decoded, once, with a warning', async () => {
+    const s = setup();
+    s.engine.unlock();
+    s.answer.set('music_stay_awake', new Error('404'));
+    await s.engine.preload(CLIPS);
+    s.fake.setState('running');
+    s.engine.startLevelLoops();
+    s.engine.setSequenceMusic('stay_awake');
+    s.engine.setSequenceMusic(null);
+    s.engine.setSequenceMusic('stay_awake');
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([]);
+    expect(s.newWarnings().filter((message) => message.includes('sequence music'))).toHaveLength(1);
+  });
+
+  it('warns once and plays nothing for an id the table does not have', async () => {
+    const s = await ready();
+    s.engine.startLevelLoops();
+    s.engine.setSequenceMusic('no_such_loop');
+    s.engine.setSequenceMusic(null);
+    s.engine.setSequenceMusic('no_such_loop');
+    expect(s.loopChanges.filter(([loop]) => loop === 'sequenceMusic')).toEqual([]);
+    expect(s.newWarnings().filter((message) => message.includes('no_such_loop'))).toHaveLength(1);
+  });
+
+  it('does nothing when the context is not there', () => {
+    const s = setup();
+    expect(() => {
+      s.engine.setSequenceMusic('stay_awake');
+      s.engine.setSequenceMusic(null);
     }).not.toThrow();
   });
 });

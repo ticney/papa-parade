@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { BotSetup } from '@bots/bot';
+import type { Bot, BotSetup } from '@bots/bot';
 import { botResponsesOf } from '@bots/botResponses';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
@@ -26,6 +26,25 @@ import {
 const CONTENT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'content');
 const PROGRESS_STEPS = 10;
 
+/**
+ * Wraps `bot` so that the same `StartSequence` is enqueued, once, at the first step at or after
+ * `atMs` (story 4.4): journaled like any command, so `sim:replay` agrees. Sent first, so that a
+ * command of the bot in the same step meets the sequence already running.
+ */
+export function withSequenceStart(bot: Bot, sequenceId: string, atMs: number): Bot {
+  let isSent = false;
+  return {
+    id: bot.id,
+    act(world, out) {
+      if (!isSent && world.time.sim >= atMs) {
+        isSent = true;
+        out.push({ type: 'StartSequence', t: asSimMs(world.time.sim), sequenceId });
+      }
+      bot.act(world, out);
+    },
+  };
+}
+
 export interface RunSimHooks {
   /** Called after each run with its recorded game (a copy of the journal: only asked for when `journalsDir` is set). */
   onGame?: (name: string, game: RunFile) => void;
@@ -45,6 +64,12 @@ export async function runSim(
   hooks: RunSimHooks = {},
 ): Promise<Result<SimReport, string>> {
   const { content, geometry, level } = loaded;
+  if (args.sequenceId !== null && !level.level.sequences.includes(args.sequenceId)) {
+    const planned = level.level.sequences.length === 0 ? 'none' : level.level.sequences.join(', ');
+    return err(
+      `--sequence ${args.sequenceId}: the level ${loaded.levelId} does not plan it (it plans: ${planned})`,
+    );
+  }
   const responses = botResponsesOf(level.threats);
   // A game lasts the level's duration unless a cap says less (or more: the flow ends it anyway).
   const untilSimMs = args.untilSimMs ?? level.level.durationMs;
@@ -73,9 +98,21 @@ export async function runSim(
         level.level.waves,
         level.level.carry?.armsCryDef ?? null,
       );
-      playGame(sim, bot.value, untilSimMs, recorder.onEvent);
+      const player =
+        args.sequenceId === null
+          ? bot.value
+          : withSequenceStart(bot.value, args.sequenceId, args.sequenceAtMs);
+      playGame(sim, player, untilSimMs, recorder.onEvent);
       const summary = recorder.finish();
       summaries.push(summary);
+      // The sim drops a refused start with no event (Papa busy, a silence, a phone ringing) and the
+      // wrapper sends it once: say so, or a run that validated nothing looks like one that did.
+      if (args.sequenceId !== null && summary.sequencesStarted === 0) {
+        log.warn(
+          'sim',
+          `run ${index + 1} of ${args.runs} (seed ${seed}): --sequence ${args.sequenceId} never started (refused at ${args.sequenceAtMs} ms, or the game ended before it)`,
+        );
+      }
       game = toRunFile({
         levelId: loaded.levelId,
         bot: args.botId,

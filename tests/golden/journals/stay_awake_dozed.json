@@ -1,0 +1,18 @@
+{
+  "version": 3,
+  "seed": 41,
+  "feelHash": "0f4bff7ea69d27",
+  "geometryHash": "0e18fe9d85d9f9",
+  "levelHash": "0121b162e19c88",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "sequenceId": "stay_awake",
+        "t": 0,
+        "type": "StartSequence"
+      }
+    }
+  ]
+}

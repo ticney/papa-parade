@@ -4,7 +4,7 @@ import { createBot } from '@bots/createBot';
 import type { TestHost } from '@client/app/testHost';
 import { log } from '@shared/log';
 import { type AppError, ok, type Result } from '@shared/result';
-import type { Sim, SimCommand } from '@sim';
+import { isFlowLive, type Sim, type SimCommand } from '@sim';
 
 /**
  * Makes the bot `botId` play every level of the page instead of the player (`?autoplay=<bot>`).
@@ -56,8 +56,8 @@ function setupFor(
 /** Before a step: asks the bot, enqueues what it says. One reused array, no allocation per step. */
 function stepHookOf(bot: Bot, out: SimCommand[]): (sim: Sim) => void {
   return (sim) => {
-    // The level is over: the sim ignores commands, so do not journal any (headless `playGame` stops here too).
-    if (sim.world.flow.state !== 'playing') return;
+    // The level is over: the sim ignores commands, so do not journal any (headless `playGame` stops here too). A special sequence is no end: the bot keeps answering (story 4.4).
+    if (!isFlowLive(sim.world)) return;
     out.length = 0;
     bot.act(sim.world, out);
     for (let i = 0; i < out.length; i++) sim.enqueue(out[i] as SimCommand);

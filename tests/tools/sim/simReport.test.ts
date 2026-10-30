@@ -47,6 +47,7 @@ const NO_NOISE: RunSummary['noiseBySourcePct'] = {
   floorCreak: 0,
   breathReleased: 0,
   sniff: 0,
+  snore: 0,
   debug: 0,
 };
 
@@ -76,6 +77,9 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     comboPointsCashed: 0,
     comboPeakMultiplier: 0,
     toiletVisits: 0,
+    sequencesStarted: 0,
+    sequencesSucceeded: 0,
+    sequencesFailed: 0,
     bladderPeakPct: 0,
     noisePeakPct: 0,
     noiseFinalPct: 0,
@@ -160,6 +164,9 @@ describe('summarizeRuns', () => {
         stars: null,
         endReason: null,
         lostStars: null,
+        sequencesStarted: 0,
+        sequencesSucceeded: 0,
+        sequencesFailed: 0,
       },
     ]);
   });

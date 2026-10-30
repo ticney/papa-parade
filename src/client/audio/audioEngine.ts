@@ -22,7 +22,7 @@ import type {
   GainNodeLike,
 } from './webAudio.ts';
 
-export type LoopName = 'babble' | 'music';
+export type LoopName = 'babble' | 'music' | 'sequenceMusic';
 
 export interface AudioEngineOptions {
   table: FeedbackTable;
@@ -110,10 +110,18 @@ export interface AudioEngine {
    * restart; `stopLevelLoops` resets it to calm.
    */
   setMusicMood(isTense: boolean, isSlowed: boolean): void;
+  /**
+   * Edge-triggered like {@link setBabbling}, for every frame (story 4.4): the loop `loopId` of
+   * `feedback.json › loops.sequenceMusic` plays while it is the wanted one, `null` for none. The
+   * caller also mutes the level stems meanwhile (`setMusicMuted`): the loop does not touch them. A
+   * clip that is not decoded is skipped once with a `warn`. It sits on the loop's own bus, so the
+   * mute settings apply. `stopLevelLoops` stops it and clears the wanted id.
+   */
+  setSequenceMusic(loopId: string | null): void;
 }
 
 /** A loop of one clip. The music is not one: see `adaptiveMusic.ts`. */
-type ClipLoopName = Exclude<LoopName, 'music'>;
+type ClipLoopName = Exclude<LoopName, 'music' | 'sequenceMusic'>;
 
 interface LoopHandle {
   readonly source: BufferSourceLike;
@@ -160,6 +168,10 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
   const loops: Record<ClipLoopName, LoopHandle | null> = { babble: null };
   // A loop whose clip is not decoded is skipped once, not retried every frame; a preload clears it.
   const skippedLoops = new Set<ClipLoopName>();
+  // The sequence's music (story 4.4): the id wanted, and the one playing (with its own handle).
+  let wantedSequenceMusic: string | null = null;
+  let playingSequenceMusic: { readonly id: string; readonly handle: LoopHandle } | null = null;
+  const skippedSequenceMusic = new Set<string>();
 
   const warn = (message: string, cause?: unknown): void => {
     log.warn('audio', message, cause === undefined ? undefined : { cause: reasonOf(cause) });
@@ -244,6 +256,73 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
     }
     // Forgotten only now, whatever happened: `setBabbling(false)` runs every frame and must not retry.
     setLoop(name, null);
+  };
+
+  const stopSequenceMusic = (): void => {
+    const playing = playingSequenceMusic;
+    if (playing === null) return;
+    playingSequenceMusic = null;
+    options.onLoopChange?.('sequenceMusic', false);
+    if (context === null) return;
+    const { source, gain } = playing.handle;
+    try {
+      source.onended = () => {
+        source.disconnect();
+        gain.disconnect();
+      };
+      if (context.state === 'running') {
+        const now = context.currentTime;
+        const fadeS = (table.loops.sequenceMusic[playing.id]?.fadeMs ?? 0) / 1000;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(0, now + fadeS);
+        source.stop(now + fadeS);
+      } else {
+        source.stop(0);
+      }
+    } catch (cause) {
+      warn(`audio sequence music failed to stop: ${reasonOf(cause)}`, cause);
+      disconnectAll(source, gain);
+    }
+  };
+
+  const startSequenceMusic = (id: string): void => {
+    if (context === null || graph === null || skippedSequenceMusic.has(id)) return;
+    const def = Object.hasOwn(table.loops.sequenceMusic, id)
+      ? table.loops.sequenceMusic[id]
+      : undefined;
+    if (def === undefined) {
+      skippedSequenceMusic.add(id);
+      warn(`sequence music "${id}" is not in feedback.json › loops.sequenceMusic`);
+      return;
+    }
+    const buffer = buffers.get(def.clip);
+    if (buffer === undefined) {
+      // Skipped once, not retried every frame: the preload has warned about the clip itself.
+      skippedSequenceMusic.add(id);
+      warn(`sequence music "${id}" skipped: ${def.clip} is not decoded`);
+      return;
+    }
+    let source: BufferSourceLike | null = null;
+    let gain: GainNodeLike | null = null;
+    try {
+      source = context.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      gain = context.createGain();
+      const now = context.currentTime;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(def.gainPct / 100, now + def.fadeMs / 1000);
+      source.connect(gain);
+      gain.connect(graph.gains[def.bus]);
+      source.start(0);
+      playingSequenceMusic = { id, handle: { source, gain } };
+      options.onLoopChange?.('sequenceMusic', true);
+    } catch (cause) {
+      skippedSequenceMusic.add(id);
+      warn(`audio sequence music failed to start: ${reasonOf(cause)}`, cause);
+      disconnectAll(source, gain);
+    }
   };
 
   /** Remembers the wanted mood and reports each edge (the music applies it, if it plays). */
@@ -429,6 +508,7 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
         clearTimeout(timer);
       }
       skippedLoops.clear();
+      skippedSequenceMusic.clear();
       music?.clearSkipped();
       options.onClipsDecoded?.(buffers.size);
     },
@@ -463,10 +543,15 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       areLoopsActive = true;
       isMusicMuted = false;
       music?.start(isMoodTense, isMoodSlowed);
+      if (wantedSequenceMusic !== null && playingSequenceMusic === null) {
+        startSequenceMusic(wantedSequenceMusic);
+      }
     },
     stopLevelLoops() {
       areLoopsActive = false;
       isMusicMuted = false;
+      wantedSequenceMusic = null;
+      stopSequenceMusic();
       music?.stop();
       stopLoop('babble');
       // The next level starts calm, whatever the last frame of this one was.
@@ -487,6 +572,18 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       isMusicMuted = isMuted;
       if (isMuted) music?.stop();
       else if (areLoopsActive) music?.start(isMoodTense, isMoodSlowed);
+    },
+    setSequenceMusic(loopId) {
+      // Called every frame: the common case is one compare and nothing else.
+      if (loopId === wantedSequenceMusic) return;
+      // Not remembered while the loops are off: a frame that still sees a sequence between
+      // `stopLevelLoops` and the next level start must not carry it into that level.
+      if (!areLoopsActive && loopId !== null) return;
+      wantedSequenceMusic = loopId;
+      if (playingSequenceMusic !== null && playingSequenceMusic.id !== loopId) stopSequenceMusic();
+      if (loopId !== null && areLoopsActive && playingSequenceMusic === null) {
+        startSequenceMusic(loopId);
+      }
     },
     setMusicMood(isTense, isSlowed) {
       // Called every frame: the common case is two boolean compares and nothing else.

@@ -357,3 +357,43 @@ describe('the noise through a real sim', () => {
     expect(await run()).toBe(await run());
   });
 });
+
+describe('runNoise: the snore (story 4.4)', () => {
+  const snore = noise.sources.snore;
+
+  it('adds exactly the snore row for a PapaSnored of this step, source snore', () => {
+    const { world, ctx, events } = setup({ noisePct: 10 });
+    events.push({ type: 'PapaSnored', t: asSimMs(1000) });
+    runNoise(world, ctx);
+    expect(world.gauges.noisePct).toBeCloseTo(10 - DECAY_PER_STEP + snore.noisePct, 9);
+    // The change is the difference of two floats: exact to the last digit but one.
+    expect(events.filter((event) => event.type === 'NoiseChanged')).toEqual([
+      {
+        type: 'NoiseChanged',
+        t: 1000,
+        source: 'snore',
+        noisePct: world.gauges.noisePct,
+        deltaPct: expect.closeTo(snore.noisePct, 9),
+      },
+    ]);
+  });
+
+  it('is clamped at 100', () => {
+    const { world, ctx, events } = setup({ noisePct: 95 });
+    events.push({ type: 'PapaSnored', t: asSimMs(1000) });
+    runNoise(world, ctx);
+    expect(world.gauges.noisePct).toBe(100);
+  });
+
+  it('ignores a PapaSnored of an earlier step, and does nothing in a level with no noise gauge', () => {
+    const old = setup({ noisePct: 10 });
+    old.events.push({ type: 'PapaSnored', t: asSimMs(990) });
+    runNoise(old.world, old.ctx);
+    expect(old.events.filter((event) => event.type === 'NoiseChanged')).toEqual([]);
+    const none = setup({ hasNoise: false });
+    none.events.push({ type: 'PapaSnored', t: asSimMs(1000) });
+    runNoise(none.world, none.ctx);
+    expect(none.world.gauges.noisePct).toBe(0);
+    expect(none.events.filter((event) => event.type === 'NoiseChanged')).toEqual([]);
+  });
+});

@@ -45,6 +45,13 @@ export type SimCommand =
    */
   | { type: 'ForceThreat'; t: SimMs; threatId: number }
   /**
+   * Debug / test command, journaled like `StartDisruption` (story 4.4): starts the special sequence
+   * `sequenceId` now. Ignored with no event when the level does not plan it or when
+   * `sequenceRefusal(world)` is not null (one is under way, the level ended, Papa is busy, the
+   * baby is hiding or a phone is ringing). Nothing schedules a sequence in a normal level.
+   */
+  | { type: 'StartSequence'; t: SimMs; sequenceId: string }
+  /**
    * A tap on the baby. During a started silence it finds him; otherwise Papa walks to where the baby
    * is, as `TapFloor` there would (story 1.21; story 4.1 turns this into « take the baby »).
    */
@@ -103,6 +110,7 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetBladder',
   'StartDisruption',
   'ForceThreat',
+  'StartSequence',
   'TapBaby',
   'TapFloor',
   'TapObject',
@@ -194,6 +202,11 @@ export function commandProblem(value: unknown): string | null {
   if (command.type === 'ForceThreat') {
     if (!Number.isInteger(command.threatId) || (command.threatId as number) < 1) {
       return 'ForceThreat: threatId must be an integer of at least 1';
+    }
+  }
+  if (command.type === 'StartSequence') {
+    if (typeof command.sequenceId !== 'string' || command.sequenceId === '') {
+      return 'StartSequence: sequenceId must be a non-empty string';
     }
   }
   if (command.type === 'TapFloor') {

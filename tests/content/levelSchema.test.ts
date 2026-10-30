@@ -250,6 +250,32 @@ describe('content/levels/salon_crawler.json', () => {
     expect(problemsOf(parse(value)).map((problem) => problem.jsonPath)).toEqual(expected);
   });
 
+  describe('the sequences of the level (story 4.4)', () => {
+    it('lists « Rester éveillé » in the live level, and defaults to none', () => {
+      const parsed = parse(real);
+      expect(parsed.ok && parsed.value.sequences).toEqual(['stay_awake']);
+      const { sequences: _sequences, ...bare } = real;
+      const defaulted = parse(bare);
+      expect(defaulted.ok && defaulted.value.sequences).toEqual([]);
+    });
+
+    it('refuses a sequence listed twice, at the second place', () => {
+      const result = parse({ ...real, sequences: ['stay_awake', 'stay_awake'] });
+      expect(problemsOf(result)).toEqual([
+        {
+          jsonPath: 'sequences[1]',
+          message: expect.stringContaining('"stay_awake" is already listed'),
+        },
+      ]);
+    });
+
+    it('refuses an id that is not lower_snake_case', () => {
+      expect(
+        problemsOf(parse({ ...real, sequences: ['StayAwake'] })).map((p) => p.jsonPath),
+      ).toEqual(['sequences[0]']);
+    });
+  });
+
   describe('the disruptions of a wave (story 1.20)', () => {
     const objects = [{ id: 'phone', kind: 'phone', anchor: 'phone' }];
     const phoneAt = (atMs: number) => ({ def: 'phone', object: 'phone', atMs });
