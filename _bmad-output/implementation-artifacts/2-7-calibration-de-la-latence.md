@@ -107,7 +107,7 @@ so that my responses are judged fairly despite my screen's and my audio's latenc
 
 ### Decisions
 
-- **D1. The sim learns the lag (AC 16). This goes beyond the epic's letter** (« corrigé avant d'être converti ») and the architecture's snippet, both of which stay true: `t` is still corrected in the client, and the judgement is unchanged. A correction into the past cannot work alone in a sim that decides on its own clock while the command is still in flight. Rejected: a raw and a corrected stamp on `PressThreat` (fixes the hold, not the expiry; two clocks in a command); `SetFeel` on `feel.input` (« Enregistrer » in the panel would write one device's lag into `content/feel.json`); ignoring it (a 250 ms device gets a broken Firmness). Geo can overrule: open point 1.
+- **D1. The sim learns the lag (AC 16). This goes beyond the epic's letter** (« corrigé avant d'être converti ») and the architecture's snippet, both of which stay true: `t` is still corrected in the client, and the judgement is unchanged. A correction into the past cannot work alone in a sim that decides on its own clock while the command is still in flight. Rejected: a raw and a corrected stamp on `PressThreat` (fixes the hold, not the expiry; two clocks in a command); `SetFeel` on `feel.input` (« Enregistrer » in the panel would write one device's lag into `content/feel.json`); ignoring it (a 250 ms device gets a broken Firmness). Validated by Geo: open point 1.
 - **D2. Negative offsets:** `t` is ahead of the clock by at most 50 ms; `computeApplyAt` handles a future `t` and `TIME_MAP_MAX_EXTRAPOLATION_MS` (100) covers it. `lagMs` floors at 0.
 - **D3. Tunables in `feel.calibration`** like `fx` and `music`; only the client reads them, and the golden hash move is the known price. Change them in `feel.json`; the panel's live value only reaches a calibration started while a level is on, which is not this story's path.
 - **D4. Save schema in `content`, store in `client`.** The epic's sentence groups them under `saveStore.ts`; the zod boundary wins.
@@ -148,7 +148,7 @@ Branch `story/2-7-calibration-de-la-latence` in `.claude/worktrees/2-7-calibrati
 
 ### Open points for Geo
 
-1. **D1 / AC 16:** the sim waits `lagMs` before a late gag and before a Firmness. On a slow device the gag comes up to 250 ms later, by design. OK?
+1. **D1 / AC 16: validated by Geo on 2026-10-30.** The sim waits `lagMs` before a late gag and before a Firmness. On a slow device the gag comes up to 250 ms later, by design.
 2. **Starting values:** `leadInMs`, `tailMs`, `doneHoldMs`, `pulseMs` are guesses. Tune by playing.
 3. **No way out of the visual phase:** the epic re-proposes it indefinitely below 5 taps. Is a « Plus tard » worth adding? Not built here.
 4. **Pad start:** the audio phase is skipped automatically (AC 9), so a pad player gets `audioSkipped: true`. Acceptable until E4 reads the audio offset?
