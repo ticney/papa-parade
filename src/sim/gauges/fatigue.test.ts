@@ -18,7 +18,7 @@ import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import { putPapaToSleep } from '../papa/sleep.ts';
 import type { World } from '../world.ts';
-import { addFatigue, fatigueWindowModifier, isBabyCarried } from './fatigue.ts';
+import { addFatigue, fatigueWindowModifier } from './fatigue.ts';
 
 const base = createTestContent();
 const geometry = createTestGeometry();
@@ -150,11 +150,6 @@ describe('the fatigue gauge', () => {
     const frozen = sim.world.gauges.fatigue;
     stepN(sim, 200);
     expect(sim.world.gauges.fatigue).toBe(frozen);
-  });
-
-  it('never counts the baby as carried until epic 4', async () => {
-    const { world } = await helperSetup();
-    expect(isBabyCarried(world)).toBe(false);
   });
 });
 

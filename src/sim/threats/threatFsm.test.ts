@@ -17,6 +17,7 @@ import type { SimEvent } from '../events.ts';
 import type { World } from '../world.ts';
 import { GAG_IDS, gagIdOf } from './gags.ts';
 import {
+  cancelThreat,
   enterThreatState,
   gagThreat,
   hideThreat,
@@ -293,6 +294,7 @@ describe('gags', () => {
       'papa_asleep',
       'tissues_everywhere',
       'crayon_scribbles',
+      'arms_wail',
     ]);
   });
 
@@ -399,5 +401,49 @@ describe('the hidden state and the surprise gag (story 1.21)', () => {
     const before = structuredClone(world.rng);
     gagThreat(world, ctx, threat, def, 'late', null);
     expect(world.rng).toEqual(before);
+  });
+});
+
+describe('cancelThreat (story 4.1)', () => {
+  it.each(['telegraph', 'windowOpen'] as const)(
+    'drops a %s threat back to idle with ThreatCancelled and nothing else: no result, no gag, no rearm, no time effect',
+    async (state) => {
+      const { world, ctx, events, threat, freezes } = await setup();
+      telegraphThreat(world, ctx, threat, def, 0);
+      if (state === 'windowOpen') openWindow(world, ctx, threat);
+      threat.press = {
+        t: asSimMs(500),
+        quality: 'perfect',
+        offsetMs: 0,
+        releasedAt: null,
+        heldAt: null,
+      };
+      events.length = 0;
+      world.time.sim = asSimMs(800);
+      cancelThreat(world, ctx, threat, 'carried');
+      expect(events).toEqual([
+        { type: 'ThreatCancelled', t: 800, threatId: threat.id, reason: 'carried' },
+      ]);
+      expect(threat).toMatchObject({
+        state: 'idle',
+        enteredAt: 800,
+        press: null,
+        responseWindow: null,
+        windowOpenAt: 0,
+        waveIndex: -1,
+      });
+      expect(freezes).toEqual([]);
+      expect(world.time.slowMos).toEqual([]);
+    },
+  );
+
+  it('carries the reason it is given', async () => {
+    const { world, ctx, events, threat } = await setup();
+    telegraphThreat(world, ctx, threat, def, -1);
+    events.length = 0;
+    cancelThreat(world, ctx, threat, 'putDown');
+    expect(events).toEqual([
+      expect.objectContaining({ type: 'ThreatCancelled', reason: 'putDown' }),
+    ]);
   });
 });

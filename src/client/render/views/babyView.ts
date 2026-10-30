@@ -1,4 +1,4 @@
-import type { BabySlice } from '@sim';
+import type { BabySlice, PapaSlice } from '@sim';
 import { Color, ConeGeometry, Group, IcosahedronGeometry, Mesh, type Object3D } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
@@ -22,6 +22,11 @@ const BABY_MIN_RADIUS_M = 0.01;
 /** Radial segments of the gaze cone: a six-sided cone reads as a cone and costs 12 triangles. */
 const BABY_GAZE_SEGMENTS = 6;
 
+/** Papa's chest height, in metres: the centre of the baby when he is carried (story 4.1). Also where a tap on him aims. */
+export const BABY_CARRIED_HEIGHT_M = 0.75;
+/** The carried baby is held this far in front of Papa along his heading, in metres. */
+const BABY_CARRIED_FORWARD_M = 0.3;
+
 /** Where the baby is drawn and which way it looks. */
 export interface BabyPose extends PointXZ {
   /** Rotation about the vertical axis, in radians: 0 faces +z, a positive angle turns toward +x. */
@@ -39,11 +44,15 @@ export function babyPoseAt(baby: Readonly<BabySlice>, alpha: number, out: BabyPo
 }
 
 export interface BabyView {
-  /** Moves the baby, turns its gaze marker and moves its shadow. Allocates nothing. */
-  update(baby: Readonly<BabySlice>, alpha: number): void;
+  /**
+   * Moves the baby, turns its gaze marker and moves its shadow. While he is `carried` he is drawn
+   * lifted to Papa's chest, a little in front of him, riding Papa's interpolated pose (`papa`; his
+   * own, which equals Papa's, when none is given), on top of any `setLiftM` hop. Allocates nothing.
+   */
+  update(baby: Readonly<BabySlice>, alpha: number, papa?: Readonly<PapaSlice>): void;
   /**
    * Lifts the body and its gaze marker `heightM` above the floor (the « lift the baby » pose); the
-   * shadow stays on the floor. Allocates nothing.
+   * shadow stays on the floor. It adds to the carried lift instead of replacing it. Allocates nothing.
    */
   setLiftM(heightM: number): void;
   /**
@@ -103,16 +112,37 @@ export function createBabyView(
   const pose: BabyPose = { xM: 0, zM: 0, yawRad: 0 };
   let slideXM = 0;
   let slideZM = 0;
+  /** The hop of the response choreography (`setLiftM`) and the lift of the carry, summed in `placeY`. */
+  let hopM = 0;
+  let carriedLiftM = 0;
+  const placeY = (): void => {
+    body.position.y = bodyRadiusM + hopM + carriedLiftM;
+    gazeGroup.position.y = bodyRadiusM + hopM + carriedLiftM;
+  };
 
   return {
-    update(baby, alpha) {
+    update(baby, alpha, papa) {
       babyPoseAt(baby, alpha, pose);
+      let wantedLiftM = 0;
+      if (baby.state === 'carried') {
+        if (papa !== undefined) {
+          interpolateXZ(papa.prevXM, papa.prevZM, papa.xM, papa.zM, alpha, pose);
+        }
+        // In front of Papa, along the way he faces (the baby's gaze follows Papa's heading).
+        pose.xM += baby.gazeX * BABY_CARRIED_FORWARD_M;
+        pose.zM += baby.gazeZ * BABY_CARRIED_FORWARD_M;
+        wantedLiftM = BABY_CARRIED_HEIGHT_M - bodyRadiusM;
+      }
       group.position.set(pose.xM + slideXM, 0, pose.zM + slideZM);
       gazeGroup.rotation.y = pose.yawRad;
+      if (wantedLiftM !== carriedLiftM) {
+        carriedLiftM = wantedLiftM;
+        placeY();
+      }
     },
     setLiftM(heightM) {
-      body.position.y = bodyRadiusM + heightM;
-      gazeGroup.position.y = bodyRadiusM + heightM;
+      hopM = heightM;
+      placeY();
     },
     setSlideM(xM, zM) {
       // Moves the group now (the slide is set after the frame's `update`), as `update` will next frame.

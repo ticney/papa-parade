@@ -69,6 +69,19 @@ describe('content/levels/salon_crawler.json', () => {
     ]);
   });
 
+  it('lets the live level carry the baby, with a cry in the arms (story 4.1)', () => {
+    const parsed = parse(real);
+    expect(parsed.ok && parsed.value.carry).toEqual({ armsCryDef: 'arms_cry' });
+  });
+
+  it('allows a level with no carry, and one that carries without a cry in the arms', () => {
+    const { carry: _carry, ...withoutCarry } = real;
+    const bare = parse(withoutCarry);
+    expect(bare.ok && bare.value.carry).toBeUndefined();
+    const silent = parse({ ...real, carry: {} });
+    expect(silent.ok && silent.value.carry).toEqual({});
+  });
+
   it('accepts a level with the noise gauge and no fatigue, and one with neither', () => {
     const noiseOnly = parse({ ...real, gauges: { noise: {} } });
     expect(noiseOnly.ok && noiseOnly.value.gauges).toEqual({ noise: {} });
@@ -192,6 +205,16 @@ describe('content/levels/salon_crawler.json', () => {
       'a fatigue gauge with no micro-sleep def',
       { ...real, gauges: { fatigue: {} } },
       ['gauges.fatigue.microSleepDef'],
+    ],
+    [
+      'a carry with an unknown key (story 4.1)',
+      { ...real, carry: { armsCryDef: 'arms_cry', crib: true } },
+      ['carry.crib'],
+    ],
+    [
+      'a cry in the arms in camelCase',
+      { ...real, carry: { armsCryDef: 'armsCry' } },
+      ['carry.armsCryDef'],
     ],
     [
       'a micro-sleep def in camelCase',

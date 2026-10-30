@@ -1,11 +1,11 @@
 import { asSimMs } from '@shared/time';
-import type { BabySlice } from '@sim';
+import type { BabySlice, PapaSlice } from '@sim';
 import { Mesh, Scene, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { createBlobKit } from '../blobShadow.ts';
 import { PALETTE } from '../materials/palette.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
-import { type BabyPose, babyPoseAt, createBabyView } from './babyView.ts';
+import { BABY_CARRIED_HEIGHT_M, type BabyPose, babyPoseAt, createBabyView } from './babyView.ts';
 
 function baby(patch: Partial<BabySlice> = {}): BabySlice {
   return {
@@ -175,5 +175,63 @@ describe('createBabyView', () => {
     view.dispose();
     expect(disposed).toBe(2);
     expect(scene.getObjectByName('baby')).toBeUndefined();
+  });
+
+  describe('in Papa’s arms (story 4.1)', () => {
+    const papaAt = (patch: Partial<PapaSlice> = {}) =>
+      ({ prevXM: 4, prevZM: 2, xM: 6, zM: 2, headingX: 1, headingZ: 0, ...patch }) as PapaSlice;
+    const carried = () => baby({ state: 'carried', gazeX: 1, gazeZ: 0 });
+
+    it('rides Papa’s interpolated pose, a little in front of him, lifted to his chest', () => {
+      const { scene, view } = build(0.2);
+      view.update(carried(), 0.5, papaAt());
+      const group = scene.getObjectByName('baby_group');
+      const body = scene.getObjectByName('baby') as Mesh;
+      // Papa is at x = 5 halfway through the step; the baby is held in front of him along +x.
+      expect(group?.position.x).toBeGreaterThan(5);
+      expect(group?.position.x).toBeLessThan(5.6);
+      expect(group?.position.z).toBeCloseTo(2, 12);
+      expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
+    });
+
+    it('keeps the shadow on the floor', () => {
+      const { scene, view } = build(0.2);
+      view.update(carried(), 1, papaAt());
+      const shadow = scene.getObjectByName('blob_baby') as Mesh;
+      expect(shadow.position.y).toBeLessThan(0.05);
+    });
+
+    it('composes with the hop: the two lifts add, and neither overwrites the other', () => {
+      const { scene, view } = build(0.2);
+      const body = scene.getObjectByName('baby') as Mesh;
+      view.update(carried(), 1, papaAt());
+      view.setLiftM(0.3);
+      expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M + 0.3, 12);
+      // The next frame's update must not drop the hop...
+      view.update(carried(), 1, papaAt());
+      expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M + 0.3, 12);
+      // ...and the hop ending leaves the carry.
+      view.setLiftM(0);
+      expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
+    });
+
+    it('puts him back on the floor, at his own pose, once he is put down', () => {
+      const { scene, view } = build(0.2);
+      const body = scene.getObjectByName('baby') as Mesh;
+      view.update(carried(), 1, papaAt());
+      view.update(baby(), 1, papaAt());
+      expect(body.position.y).toBe(0.2);
+      expect(scene.getObjectByName('baby_group')?.position.toArray()).toEqual([2, 0, 1]);
+    });
+
+    it('falls back to the baby’s own pose when no Papa is given', () => {
+      const { scene, view } = build(0.2);
+      view.update(carried(), 1);
+      expect(scene.getObjectByName('baby_group')?.position.z).toBeCloseTo(1, 12);
+      expect((scene.getObjectByName('baby') as Mesh).position.y).toBeCloseTo(
+        BABY_CARRIED_HEIGHT_M,
+        12,
+      );
+    });
   });
 });

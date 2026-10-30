@@ -21,7 +21,7 @@ export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
  * `Record<ThreatIcon, …>`: a missing glyph is a type error). The marker's shape and colour are
  * separate keys (`THREAT_ICON_SHAPES`, `THREAT_COLORS`, story 2.2).
  */
-export const THREAT_ICONS = ['bolt', 'stairs', 'mug', 'eyelids', 'dots'] as const;
+export const THREAT_ICONS = ['bolt', 'stairs', 'mug', 'eyelids', 'dots', 'cry'] as const;
 export type ThreatIcon = (typeof THREAT_ICONS)[number];
 
 /**

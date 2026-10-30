@@ -43,6 +43,15 @@ export interface SimLevel {
    * or -1 when the level has no fatigue. It is the last entry, after the wave ones.
    */
   readonly microSleepIndex: number;
+  /**
+   * The index, in `threats` and `world.threats`, of the cry in the arms (`carry.armsCryDef`, story
+   * 4.1), or -1 when the level has none. It stands after the micro-sleep, which keeps its own index.
+   */
+  readonly armsCryIndex: number;
+  /** Whether the level lets Papa carry the baby (`carry`, story 4.1). Without it `TapBaby` only walks. */
+  readonly hasCarry: boolean;
+  /** The level's `kind: "safe"` zones as floor rectangles (story 4.1); empty without carrying. */
+  readonly safeZones: readonly SimSafeZone[];
   /** Whether the level has the noise gauge (`gauges.noise`, story 3.1). Without it: no value, no event. */
   readonly hasNoise: boolean;
 }
@@ -61,8 +70,8 @@ export interface SimPlannedThreat {
   readonly zone: SimHiddenZone | null;
 }
 
-/** A `ZONE_hidden_*` of the room as a floor rectangle: where a hidden baby is out of sight. */
-export interface SimHiddenZone {
+/** A zone of the room as a floor rectangle (a box of the geometry seen from above). */
+export interface SimZoneRect {
   readonly id: string;
   readonly centerXM: number;
   readonly centerZM: number;
@@ -70,6 +79,12 @@ export interface SimHiddenZone {
   readonly halfXM: number;
   readonly halfZM: number;
 }
+
+/** A `ZONE_hidden_*` of the room: where a hidden baby is out of sight. */
+export type SimHiddenZone = SimZoneRect;
+
+/** A `ZONE_safe_*` of the room: where putting the baby down is safe (story 4.1). */
+export type SimSafeZone = SimZoneRect;
 
 /** One planned disruption: what, at which object, when, and the wave that planned it. */
 export interface SimPlannedDisruption {

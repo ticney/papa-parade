@@ -15,6 +15,8 @@ export {
   SIM_EVENT_TYPES,
   type SilenceEndReason,
   type SimEvent,
+  THREAT_CANCEL_REASONS,
+  type ThreatCancelReason,
 } from './events.ts';
 export type { FeelPatch } from './feel/applyFeelPatch.ts';
 export type { FlowState } from './flow/flowFsm.ts';

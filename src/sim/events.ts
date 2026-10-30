@@ -50,6 +50,29 @@ export const LEVEL_END_REASONS_ARE_COMPLETE: [UnlistedLevelEndReason] extends [n
   ? true
   : UnlistedLevelEndReason = true;
 
+/**
+ * Why a threat was cancelled with no result (story 4.1): Papa took the baby in his arms
+ * (`carried`: the threats aimed at the baby's mischief go away), or put him down (`putDown`: the
+ * cry in the arms goes with the arms).
+ */
+export type ThreatCancelReason = 'carried' | 'putDown';
+
+/** Every `ThreatCancelReason`, as data: the client keys by it. */
+export const THREAT_CANCEL_REASONS = [
+  'carried',
+  'putDown',
+] as const satisfies readonly ThreatCancelReason[];
+
+type UnlistedThreatCancelReason = Exclude<
+  ThreatCancelReason,
+  (typeof THREAT_CANCEL_REASONS)[number]
+>;
+
+/** Compile-time proof that `THREAT_CANCEL_REASONS` holds every member of the union (see `FLOW_STATES_ARE_COMPLETE`). */
+export const THREAT_CANCEL_REASONS_ARE_COMPLETE: [UnlistedThreatCancelReason] extends [never]
+  ? true
+  : UnlistedThreatCancelReason = true;
+
 /** Domain events pushed by the systems into `ctx.events`; `t` is sim time. */
 export type SimEvent =
   | { type: 'TimeScaleChanged'; t: SimMs; from: number; to: number }
@@ -67,6 +90,13 @@ export type SimEvent =
   /** A direction walk ran into an obstacle and cannot move at all (once per blockage). */
   | { type: 'PapaBlocked'; t: SimMs; xM: number; zM: number }
   | { type: 'BabyStateChanged'; t: SimMs; from: BabyState; to: BabyState }
+  /** Papa took the baby in his arms (story 4.1). `BabyStateChanged{→ carried}` comes first. */
+  | { type: 'BabyPickedUp'; t: SimMs }
+  /**
+   * Papa set the baby down (story 4.1). `safe` is whether Papa stood in a `kind: "safe"` zone;
+   * `BabyStateChanged{carried → babble}` comes first. Nothing scores it yet (story 4.2).
+   */
+  | { type: 'BabyPutDown'; t: SimMs; safe: boolean }
   /** Papa set off to a pressed threat; he arrives by `arriveAt` (choreography: no judgement waits for it). */
   | {
       type: 'PapaGlideStarted';
@@ -143,6 +173,11 @@ export type SimEvent =
    */
   | { type: 'NearMiss'; t: SimMs; threatId: number; gag: GagId }
   | { type: 'ThreatRearmed'; t: SimMs; threatId: number }
+  /**
+   * An active threat was dropped with no result, no gag and no rearm (story 4.1): it goes straight
+   * back to `idle`. Papa's carrying causes it, for the `reason`.
+   */
+  | { type: 'ThreatCancelled'; t: SimMs; threatId: number; reason: ThreatCancelReason }
   /**
    * Papa's fatigue crossed the threshold (strictly above it: `isAbove`), once per crossing, in each
    * direction. Above it, windows shrink and micro-sleeps come (story 1.19).
@@ -221,6 +256,8 @@ export type SimEvent =
  */
 export const SIM_EVENT_TYPES = [
   'BabyCrying',
+  'BabyPickedUp',
+  'BabyPutDown',
   'BabyStateChanged',
   'CoffeeDrunk',
   'CoffeeStarted',
@@ -248,6 +285,7 @@ export const SIM_EVENT_TYPES = [
   'ResponseResolved',
   'SilenceEnded',
   'SilenceStarted',
+  'ThreatCancelled',
   'ThreatHidden',
   'ThreatRearmed',
   'ThreatTelegraphed',

@@ -1,16 +1,13 @@
 import { MS_PER_S, STEP_MS } from '@shared/constants';
 import { invariant } from '@shared/invariant';
-import type { SimHiddenZone, StepContext } from '../context.ts';
+import type { StepContext } from '../context.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
 import { gagThreat, telegraphThreat } from '../threats/threatFsm.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { ensureOnOpenCell, gazeAt, planApproach, stopCrawling } from './approach.ts';
 import { enterBabyState } from './babyFsm.ts';
-
-export function isInZone(zone: SimHiddenZone, xM: number, zM: number): boolean {
-  return Math.abs(xM - zone.centerXM) <= zone.halfXM && Math.abs(zM - zone.centerZM) <= zone.halfZM;
-}
+import { isInZone } from './zone.ts';
 
 /** Index of the `hidden` threat the baby has not taken yet, or -1. */
 function hiddenThreatIndex(world: World): number {

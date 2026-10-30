@@ -126,6 +126,16 @@ const LevelGaugesSchema = z
   })
   .describe('The gauges this level has: a gauge exists only if its system is in the level.');
 
+const LevelCarrySchema = z
+  .strictObject({
+    armsCryDef: idSchema(
+      'The id of the `content/threats/<def>.json` the baby makes in the arms (`target: "papa"`, never `papa_asleep`). Absent: the baby is carried without crying.',
+    ).optional(),
+  })
+  .describe(
+    'The level lets Papa carry the baby (FR22, story 4.1). Absent: no carrying, `TapBaby` only walks Papa to the baby. A level that carries needs a `kind: "safe"` zone.',
+  );
+
 export const LevelSchema = z
   .strictObject({
     id: idSchema('The level id; equals the file name and the id of its geometry.'),
@@ -146,6 +156,9 @@ export const LevelSchema = z
       .describe('The interactive objects of the level (story 1.17); none by default.'),
     gauges: LevelGaugesSchema.default({}).describe(
       'The gauges of the level (story 1.19); none by default.',
+    ),
+    carry: LevelCarrySchema.optional().describe(
+      'Carrying the baby in this level (story 4.1). Absent: the level has no carrying.',
     ),
     feelOverrides: z
       .record(z.string(), z.unknown())
@@ -246,3 +259,4 @@ export type LevelWaveThreat = z.infer<typeof LevelWaveThreatSchema>;
 export type LevelWaveDisruption = z.infer<typeof LevelWaveDisruptionSchema>;
 export type LevelObject = z.infer<typeof LevelObjectSchema>;
 export type LevelGauges = z.infer<typeof LevelGaugesSchema>;
+export type LevelCarry = z.infer<typeof LevelCarrySchema>;

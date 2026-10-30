@@ -8,6 +8,7 @@ import { type DisruptionDef, DisruptionDefSchema } from '@content/schemas/disrup
 import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
 import type {
+  LevelCarry,
   LevelGauges,
   LevelObject,
   LevelVariant,
@@ -191,7 +192,12 @@ export function createTestCryingOutlet(): ThreatDef {
   return readThreatFixture('testCrying.threat.json');
 }
 
-/** The six frozen threats, by id. */
+/** The cry in the arms, frozen like the outlet (`testArmsCry.threat.json`, story 4.1): the second threat on Papa. */
+export function createTestArmsCry(): ThreatDef {
+  return readThreatFixture('testArmsCry.threat.json');
+}
+
+/** The seven frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
     createTestOutlet(),
@@ -200,6 +206,7 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
     createTestMicroSleep(),
     createTestSilence(),
     createTestCryingOutlet(),
+    createTestArmsCry(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
@@ -256,6 +263,8 @@ export interface TestLevelOptions {
   objects?: readonly LevelObject[];
   /** The level's gauges; none by default (golden and most test levels have no fatigue). */
   gauges?: LevelGauges;
+  /** The level lets Papa carry the baby (story 4.1); absent by default, as in most test levels. */
+  carry?: LevelCarry;
   durationMs?: number;
   variant?: LevelVariant;
   feelOverrides?: Record<string, unknown>;
@@ -270,6 +279,7 @@ export function createTestLevel({
   waves = [],
   objects = [],
   gauges = {},
+  carry,
   durationMs = TEST_LEVEL_DURATION_MS,
   variant = 'nap',
   feelOverrides = {},
@@ -287,6 +297,12 @@ export function createTestLevel({
   if (microSleepDef !== undefined) {
     const def = all[microSleepDef];
     if (def === undefined) throw new Error(`no frozen threat "${microSleepDef}" in tests/support`);
+    threats[def.id] = def;
+  }
+  const armsCryDef = carry?.armsCryDef;
+  if (armsCryDef !== undefined) {
+    const def = all[armsCryDef];
+    if (def === undefined) throw new Error(`no frozen threat "${armsCryDef}" in tests/support`);
     threats[def.id] = def;
   }
   const disruptions: Record<string, DisruptionDef> = {};
@@ -311,6 +327,7 @@ export function createTestLevel({
       })),
       objects: [...objects],
       gauges: structuredClone(gauges),
+      ...(carry === undefined ? {} : { carry: structuredClone(carry) }),
       feelOverrides: { ...feelOverrides },
     },
     threats,
@@ -326,6 +343,9 @@ export const TEST_OBJECTS: readonly LevelObject[] = [
 
 /** A level with fatigue: the frozen micro-sleep (`TestLevelOptions.gauges`). */
 export const FATIGUE_GAUGES: LevelGauges = { fatigue: { microSleepDef: 'papa_microsleep' } };
+
+/** A level that lets Papa carry the baby, with the frozen cry in the arms (story 4.1). */
+export const CARRY: LevelCarry = { armsCryDef: 'arms_cry' };
 
 /** A level with the noise gauge (`gauges.noise`, story 3.1). */
 export const NOISE_GAUGES: LevelGauges = { noise: {} };

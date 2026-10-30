@@ -1,6 +1,8 @@
 import type { ObjectKind } from '@content/schemas/level';
 import { STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
+import { isBabyCarried } from '../baby/babyFsm.ts';
+import { isBabyInReach, isInSafeZone, putDownBaby, takeBaby } from '../baby/carry.ts';
 import { isBabyFoundNow } from '../baby/silence.ts';
 import type { SimObjectSpec, StepContext } from '../context.ts';
 import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
@@ -27,6 +29,8 @@ function tapFloor(world: World, ctx: StepContext, tapXM: number, tapZM: number):
   papa.glide = null;
   // A walk to the floor is not a walk to an object; `tapObject` sets it again after a successful plan.
   papa.objectId = null;
+  // Nor does it take or put down the baby; `tapBaby` and the safe-zone tap set `intent` after the plan.
+  papa.intent = 'none';
   ctx.events.push({
     type: 'PapaPathPlanned',
     t: world.time.sim,
@@ -66,6 +70,44 @@ const OBJECT_ACTIONS: Readonly<Record<ObjectKind, ObjectAction>> = {
 /** Every object kind the sim has an action for. */
 export const OBJECT_ACTION_KINDS = Object.keys(OBJECT_ACTIONS) as readonly ObjectKind[];
 
+/** Whether Papa can take the baby now: the level carries, he is not carried, not hiding, and within reach. */
+function isTakeable(world: World, ctx: StepContext): boolean {
+  const { state } = world.baby;
+  return (
+    ctx.level.hasCarry &&
+    state !== 'carried' &&
+    state !== 'mischiefSilent' &&
+    isBabyInReach(world, ctx)
+  );
+}
+
+/**
+ * `TapBaby` (story 4.1 rule 6), in this order. The tap that found a hiding baby is spent (Papa stays
+ * for the parry). In a level that does not carry, or for a hiding baby who is not found, Papa just
+ * walks to where the baby is (story 1.21). A carried baby is put down here. A baby within reach is
+ * taken at once; a farther one is walked to, and taken on arrival if he is then within reach.
+ */
+function tapBaby(world: World, ctx: StepContext): void {
+  if (isBabyFoundNow(world, ctx)) return;
+  const { baby, papa } = world;
+  if (!ctx.level.hasCarry || baby.state === 'mischiefSilent') {
+    tapFloor(world, ctx, baby.xM, baby.zM);
+  } else if (baby.state === 'carried') {
+    putDownBaby(world, ctx);
+  } else if (isBabyInReach(world, ctx)) {
+    takeBaby(world, ctx);
+  } else if (tapFloor(world, ctx, baby.xM, baby.zM)) {
+    papa.intent = 'takeBaby';
+  }
+}
+
+/** `TapFloor`: a walk to the point; inside a safe zone with the baby in his arms it ends in a put-down. */
+function tapFloorCommand(world: World, ctx: StepContext, xM: number, zM: number): void {
+  if (tapFloor(world, ctx, xM, zM) && isBabyCarried(world) && isInSafeZone(ctx, xM, zM)) {
+    world.papa.intent = 'putDownBaby';
+  }
+}
+
 /** The end of a walk to a point: `PapaArrived`, then the action of the object the walk went to, else idle. */
 function arrive(world: World, ctx: StepContext): void {
   const { papa } = world;
@@ -75,6 +117,17 @@ function arrive(world: World, ctx: StepContext): void {
   ctx.events.push({ type: 'PapaArrived', t: world.time.sim, xM: papa.xM, zM: papa.zM });
   const objectId = papa.objectId;
   papa.objectId = null;
+  // The walk was to take the baby (if he is then within reach and free to be taken) or to put him down.
+  const { intent } = papa;
+  papa.intent = 'none';
+  if (intent === 'takeBaby' && isTakeable(world, ctx)) {
+    takeBaby(world, ctx);
+    return;
+  }
+  if (intent === 'putDownBaby' && isBabyCarried(world)) {
+    putDownBaby(world, ctx);
+    return;
+  }
   if (objectId !== null) {
     const objects = ctx.level.objects;
     for (let i = 0; i < objects.length; i++) {
@@ -128,6 +181,7 @@ function move(world: World, ctx: StepContext, dirX: number, dirZ: number): void 
   }
   papa.glide = null;
   papa.objectId = null;
+  papa.intent = 'none';
   enterPapaState(world, ctx, 'walkDir');
 }
 
@@ -164,7 +218,7 @@ function moveStop(world: World, ctx: StepContext): void {
 /**
  * System: Papa. Remembers where he stood (for the view's interpolation), ends a coffee, a nap or a
  * call whose time is up (`busyUntil`; only a coffee has something to finish, the others go back to
- * idle), handles this step's `TapFloor` / `TapObject` / `TapBaby` (a walk to where the baby is, until story 4.1 takes him) / `Move` / `MoveStop` /
+ * idle), handles this step's `TapFloor` / `TapObject` / `TapBaby` (takes or puts down the baby, story 4.1, else a walk to where he is) / `Move` / `MoveStop` /
  * `PressThreat` in order (none while he is busy, D6: he drinks, sleeps or talks and answers nothing), then
  * moves him once for one step: by `walkSpeedMps`, or by the speed of his glide. The speed is read
  * each step, so a changed feel applies at once.
@@ -187,12 +241,10 @@ export function runPapa(world: World, ctx: StepContext): void {
     const command = ctx.commands[i];
     if (command === undefined) continue;
     if (isPapaBusy(papa)) break;
-    if (command.type === 'TapFloor') tapFloor(world, ctx, command.xM, command.zM);
+    if (command.type === 'TapFloor') tapFloorCommand(world, ctx, command.xM, command.zM);
     else if (command.type === 'TapObject') tapObject(world, ctx, command.objectId);
-    else if (command.type === 'TapBaby') {
-      // The tap that found the baby is spent: Papa stays where he is for the parry.
-      if (!isBabyFoundNow(world, ctx)) tapFloor(world, ctx, world.baby.xM, world.baby.zM);
-    } else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
+    else if (command.type === 'TapBaby') tapBaby(world, ctx);
+    else if (command.type === 'Move') move(world, ctx, command.dirX, command.dirZ);
     else if (command.type === 'MoveStop') moveStop(world, ctx);
     else if (command.type === 'PressThreat') pressThreat(world, ctx, command.threatId);
   }
@@ -209,5 +261,14 @@ export function runPapa(world: World, ctx: StepContext): void {
       papa.isBlocked = true;
       ctx.events.push({ type: 'PapaBlocked', t: world.time.sim, xM: papa.xM, zM: papa.zM });
     }
+  }
+
+  // A carried baby rides in Papa's arms (story 4.1 D4): at Papa's point, looking where he looks.
+  const { baby } = world;
+  if (baby.state === 'carried') {
+    baby.xM = papa.xM;
+    baby.zM = papa.zM;
+    baby.gazeX = papa.headingX;
+    baby.gazeZ = papa.headingZ;
   }
 }

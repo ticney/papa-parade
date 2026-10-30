@@ -1,0 +1,50 @@
+{
+  "version": 3,
+  "seed": 11,
+  "feelHash": "141acf7372eb2f",
+  "geometryHash": "10b4e64e4b5e89",
+  "levelHash": "1131384fbb6436",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "t": 0,
+        "type": "TapFloor",
+        "xM": -0.2,
+        "zM": 1.2
+      }
+    },
+    {
+      "applyAt": 2330,
+      "command": {
+        "t": 2320,
+        "type": "TapBaby"
+      }
+    },
+    {
+      "applyAt": 2510,
+      "command": {
+        "t": 2500,
+        "type": "TapFloor",
+        "xM": -2,
+        "zM": 1.6
+      }
+    },
+    {
+      "applyAt": 5350,
+      "command": {
+        "t": 5350,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 5400,
+      "command": {
+        "t": 5400,
+        "type": "Release"
+      }
+    }
+  ]
+}

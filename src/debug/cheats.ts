@@ -95,6 +95,17 @@ export const CHEATS: readonly Cheat[] = [
       context.send({ type: 'SetFatigue', points: value });
     },
   },
+  {
+    // The same `TapBaby` as a finger on him (story 4.1): takes the baby, or puts him down. A tester or
+    // Playwright can carry without aiming at a moving baby.
+    id: 'takePutDownBaby',
+    label: 'Take / put down the baby',
+    input: null,
+    isAvailable: () => true,
+    run: (context) => {
+      context.send({ type: 'TapBaby' });
+    },
+  },
 ];
 
 /** The scale a forced `timeScale` sends: the value held in the sim's own range. */

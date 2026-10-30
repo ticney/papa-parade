@@ -111,6 +111,12 @@
       "kind": "hidden",
       "centerM": [0.5, 0.5, -2.6],
       "halfExtentsM": [1.1, 0.5, 0.4]
+    },
+    {
+      "id": "playpen",
+      "kind": "safe",
+      "centerM": [-2, 0.3, 1.6],
+      "halfExtentsM": [0.7, 0.3, 0.7]
     }
   ],
   "props": [

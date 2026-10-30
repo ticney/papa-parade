@@ -24,6 +24,7 @@ function papa(patch: Partial<PapaSlice> = {}): PapaSlice {
     isBlocked: false,
     glide: null,
     objectId: null,
+    intent: 'none',
     busyUntil: asSimMs(0),
     ...patch,
   };

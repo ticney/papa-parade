@@ -6,8 +6,9 @@ import type { World } from '../world.ts';
  * `targetLocked`: staring, still, at the threat the director targeted (the telegraph). `approach`:
  * crawling to it. `act`: playing its mischief after a gag. `mischiefSilent` (story 1.21): off to,
  * then hidden in, the zone of a suspicious silence, until Papa finds it or the mischief comes. Later
- * stories add `carried` (4.1) and `gagRecovery`: each adds its state here, to `BABY_STATES` in
- * `snapshot.ts` and to the system.
+ * stories add `gagRecovery`: it adds its state here, to `BABY_STATES` in `snapshot.ts` and to the
+ * system. `carried` (story 4.1): in Papa's arms; the single source of truth for carrying (there is
+ * no `papa.carrying`), left only by Papa putting him down.
  */
 export type BabyState =
   | 'wander'
@@ -15,7 +16,13 @@ export type BabyState =
   | 'targetLocked'
   | 'approach'
   | 'act'
-  | 'mischiefSilent';
+  | 'mischiefSilent'
+  | 'carried';
+
+/** Whether Papa carries the baby (story 4.1): the baby's state is the single source of truth. */
+export function isBabyCarried(world: World): boolean {
+  return world.baby.state === 'carried';
+}
 
 /**
  * The only way to change `world.baby.state` (same pattern as `enterPapaState`): does nothing when

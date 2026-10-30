@@ -41,6 +41,11 @@ export interface ThreatMarkerEntry {
   readonly followsPapa: boolean;
   /** The verb shown above the icon, translated once at build (story 2.2); `''` for no verb (an unknown def). */
   readonly verb: string;
+  /**
+   * What a `firm` threat shows instead of its verb while the baby is carried (« POSE-LE D'ABORD ! »,
+   * story 4.1), translated once at build. Absent for a threat that is not a Firmness: its verb never changes.
+   */
+  readonly carriedVerb?: string;
   /** The marker's shape and colour, copied from the def (the pair is the signal, NFR8). */
   readonly iconShape: ThreatIconShape;
   readonly color: ThreatColor;
@@ -76,7 +81,8 @@ export interface ThreatMarkers {
    * The hold-ring (story 1.23) is drawn from the sim's pending press, in sim time: `renderSimMs` is the
    * sim time as drawn (interpolated by the caller) and `holdMinMs` the feel's fill duration. A ring
    * fills while a press is down, closes when the sim says the press was held that long (`heldAt`), and
-   * goes with the press. With `renderSimMs` null no ring is drawn.
+   * goes with the press. With `renderSimMs` null no ring is drawn. `isBabyCarried` (story 4.1) makes the
+   * marker of a Firmness show `carriedVerb` instead of its verb; the text is rewritten only when it changes.
    */
   update(
     threats: readonly Readonly<ThreatInstance>[],
@@ -85,6 +91,7 @@ export interface ThreatMarkers {
     papa?: Readonly<{ xM: number; zM: number }> | null,
     renderSimMs?: number | null,
     holdMinMs?: number,
+    isBabyCarried?: boolean,
   ): boolean;
   /**
    * The layer's size, in CSS px (the verbs' maximum width is a share of it): refits every verb. Called
@@ -120,6 +127,9 @@ const FALLBACK_COLOR: ThreatColor = 'parry';
  * 2.2 D1): only `dodge` has one, and no def can be a `dodge` before story 5.1.
  */
 const DEFAULT_VERB_KEYS: Readonly<Record<string, string>> = { dodge: 'verb.dodge' };
+
+/** The verb of a Firmness while the baby is carried (story 4.1, `EXPERIENCE.md`). */
+const CARRIED_FIRM_VERB_KEY = 'verb.put_down_first';
 
 /** The slice of a `ThreatDef` that a marker reads; a `ThreatDef` is one. */
 export interface ThreatMarkerDef {
@@ -168,9 +178,13 @@ export function threatMarkerEntries(
     const icon = def?.icon ?? FALLBACK_ICON;
     const verbKey =
       def === undefined ? null : (def.verbKey ?? DEFAULT_VERB_KEYS[def.response] ?? null);
+    // A Firmness cannot be held with a baby in the arms: its verb says to put him down first (story 4.1).
+    const carriedVerb =
+      def?.response === 'firm' ? translateVerb(CARRIED_FIRM_VERB_KEY, threat.id, t) : '';
     const look = {
       icon,
       verb: verbKey === null ? '' : translateVerb(verbKey, threat.id, t),
+      ...(carriedVerb === '' ? {} : { carriedVerb }),
       iconShape: def?.iconShape ?? FALLBACK_SHAPE,
       color: def?.color ?? FALLBACK_COLOR,
       verbWidthPx: 0,
@@ -260,6 +274,8 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   mug: 'M3.5 6.5h13v9.5a4 4 0 0 1-4 4h-5a4 4 0 0 1-4-4z M16.5 9h2.5a3 3 0 0 1 0 6h-2.5v-2.2h2.5a.8.8 0 0 0 0-1.6h-2.5z',
   eyelids:
     'M2.5 11c3.5 6 15.5 6 19 0c-3.5-3-15.5-3-19 0z M5 15.5L3 19 M9.5 17.3l-.8 3.4 M14.5 17.3l.8 3.4 M19 15.5l2 3.5',
+  // A tear drop: the baby crying in Papa's arms (story 4.1).
+  cry: 'M12 2.5C12 2.5 5.5 10 5.5 15a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5z',
   // Three dots: the « … » of the suspicious silence (story 1.21).
   dots: 'M6 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M18 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0',
 };
@@ -281,6 +297,8 @@ interface Marker {
   readonly verb: HTMLElement | null;
   /** The verb's font size as drawn, in px; 0 until the first fit. */
   verbFontPx: number;
+  /** The verb's text as drawn is the entry's `carriedVerb` (story 4.1), not its `verb`. */
+  isCarriedShown: boolean;
   /** How far the verb stack is pushed up as drawn, in whole px. */
   verbOffsetPx: number;
   /** The window's closing, in sim ms (`Infinity` while there is none): the urgency of the layout. */
@@ -427,6 +445,7 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
     verbStack,
     verb,
     verbFontPx: 0,
+    isCarriedShown: false,
     verbOffsetPx: 0,
     closeAt: Number.POSITIVE_INFINITY,
     zRank: 0,
@@ -536,7 +555,9 @@ export function createThreatMarkers(
       const marker = markers[i] as Marker;
       const entry = mounted[i] as ThreatMarkerEntry;
       if (marker.verb === null) continue;
-      const advancePx = typography.widthPx(entry.verb.toUpperCase(), scaledBasePx);
+      // The text as drawn now: a Firmness fits « POSE-LE D'ABORD ! » while the baby is carried.
+      const text = marker.isCarriedShown ? (entry.carriedVerb ?? entry.verb) : entry.verb;
+      const advancePx = typography.widthPx(text.toUpperCase(), scaledBasePx);
       // The outline adds `VERB_STROKE_PX` on each side and does not shrink with the font: fit the text
       // into what is left of the maximum, so that the box with its outline is at most the maximum.
       const fontPx = fitVerbFontPx(advancePx, basePx, maxWidthPx - 2 * VERB_STROKE_PX, scale);
@@ -607,8 +628,17 @@ export function createThreatMarkers(
         }
       }
     },
-    update(threats, highlightedId, targetedId, papa = null, renderSimMs = null, holdMinMs = 0) {
+    update(
+      threats,
+      highlightedId,
+      targetedId,
+      papa = null,
+      renderSimMs = null,
+      holdMinMs = 0,
+      isBabyCarried = false,
+    ) {
       let isHighlightShown = false;
+      let isVerbSwapped = false;
       for (let i = 0; i < markers.length; i++) {
         const marker = markers[i] as Marker;
         const candidate = threats[i];
@@ -642,6 +672,15 @@ export function createThreatMarkers(
         }
         // A marker that follows Papa goes where he is drawn (the hit test reads the same entry).
         const entry = mounted[i] as ThreatMarkerEntry;
+        // A Firmness says to put the baby down first while he is carried (story 4.1): the text is
+        // written only when it changes, and the fit is made again for the other string.
+        if (marker.verb !== null && entry.carriedVerb !== undefined) {
+          if (isBabyCarried !== marker.isCarriedShown) {
+            marker.isCarriedShown = isBabyCarried;
+            marker.verb.textContent = isBabyCarried ? entry.carriedVerb : entry.verb;
+            isVerbSwapped = true;
+          }
+        }
         if (isActive && entry.followsPapa && papa !== null) {
           entry.xM = papa.xM;
           entry.zM = papa.zM;
@@ -662,6 +701,8 @@ export function createThreatMarkers(
           if (isPressed) isHighlightShown = true;
         }
       }
+      // After the loop: every swapped text is fitted at once, not once per marker.
+      if (isVerbSwapped) refit();
       return isHighlightShown;
     },
     get isAnyVisible() {

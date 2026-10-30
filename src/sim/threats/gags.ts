@@ -21,6 +21,7 @@ export const GAG_IDS = [
   'papa_asleep',
   'tissues_everywhere',
   'crayon_scribbles',
+  'arms_wail',
 ] as const;
 
 export type GagId = (typeof GAG_IDS)[number];
@@ -100,6 +101,9 @@ function addMischief(world: World): void {
   world.mess.mischiefs += 1;
 }
 
+/** The baby wails in Papa's arms: the cry is the def's `gagCryMs`, so there is nothing more for the sim to do. */
+function armsWail(): void {}
+
 /** One entry per `GagId`, defined once at module scope: a new gag without a consequence is a type error. */
 const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   outlet_hair: outletHair,
@@ -108,6 +112,8 @@ const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   papa_asleep: papaAsleep,
   tissues_everywhere: addMischief,
   crayon_scribbles: addMischief,
+  // The cry in the arms (story 4.1): no sim consequence. The baby's cry is `gagCryMs` on the def (story 3.1 D9), which feeds the noise gauge.
+  arms_wail: armsWail,
 };
 
 /**

@@ -192,6 +192,18 @@
       },
       "additionalProperties": false
     },
+    "carry": {
+      "description": "Carrying the baby in this level (story 4.1). Absent: the level has no carrying.",
+      "type": "object",
+      "properties": {
+        "armsCryDef": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "The id of the `content/threats/<def>.json` the baby makes in the arms (`target: \"papa\"`, never `papa_asleep`). Absent: the baby is carried without crying."
+        }
+      },
+      "additionalProperties": false
+    },
     "feelOverrides": {
       "default": {},
       "description": "A partial `feel.json` merged over the base feel for this level only.",

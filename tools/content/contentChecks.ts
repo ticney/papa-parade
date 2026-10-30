@@ -658,7 +658,7 @@ function checkLevelReferences(
           problems.push({
             file,
             jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
-            message: `the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef), a wave cannot plan it`,
+            message: `the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef or carry.armsCryDef), a wave cannot plan it`,
           });
         }
         for (const gag of threatDef === undefined ? [] : ThreatGagIds(threatDef)) {
@@ -725,6 +725,40 @@ function checkLevelReferences(
           jsonPath: path,
           message: `the threat "${microSleepDef}" has the gag "${microSleep.gag}", but a micro-sleep must have the gag "${PAPA_ASLEEP_GAG_ID}"`,
         });
+      }
+    }
+    if (level.carry !== undefined) {
+      if (geometry !== undefined && !geometry.zones.some((zone) => zone.kind === 'safe')) {
+        problems.push({
+          file,
+          jsonPath: 'carry',
+          message: `the level carries the baby, but content/${geometryFile} has no safe zone (a ZONE_safe_<name> node) to put him down in`,
+        });
+      }
+      const armsCryDef = level.carry.armsCryDef;
+      if (armsCryDef !== undefined) {
+        const defFile = `${THREAT_DEF_PATTERN.dir}/${armsCryDef}${THREAT_DEF_PATTERN.suffix}`;
+        const armsCry = families.threats.get(armsCryDef);
+        const path = formatJsonPath(['carry', 'armsCryDef']);
+        if (armsCry === undefined && !present.has(defFile)) {
+          problems.push({
+            file,
+            jsonPath: path,
+            message: `no threat "${armsCryDef}" (content/${defFile} does not exist)`,
+          });
+        } else if (armsCry !== undefined && armsCry.target !== 'papa') {
+          problems.push({
+            file,
+            jsonPath: path,
+            message: `the threat "${armsCryDef}" has target "${armsCry.target}", but a cry in the arms must have target "papa"`,
+          });
+        } else if (armsCry !== undefined && armsCry.gag === PAPA_ASLEEP_GAG_ID) {
+          problems.push({
+            file,
+            jsonPath: path,
+            message: `the threat "${armsCryDef}" has the gag "${PAPA_ASLEEP_GAG_ID}", which is the micro-sleep's alone`,
+          });
+        }
       }
     }
     if (feel !== undefined) {

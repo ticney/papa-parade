@@ -20,7 +20,7 @@ export function readThreatsOff(search: string): boolean {
  * plans a phone either): still a valid `LevelContent` for `createSim`. The
  * duration stays, so the timer still runs and the level still ends. The level's gauges stay, and
  * the micro-sleep def with them (story 1.19: `createSim` refuses a fatigue gauge whose def is not
- * loaded). So a run of more than about 150 s (fatigue crosses its threshold at 140 s) still sees
+ * loaded) and the cry in the arms of a level that carries (story 4.1). So a run of more than about 150 s (fatigue crosses its threshold at 140 s) still sees
  * micro-sleeps: the switch is quiet for the short runs the tests make, not for a whole level.
  */
 export function withoutThreats(content: LevelContent): LevelContent {
@@ -32,5 +32,19 @@ export function withoutThreats(content: LevelContent): LevelContent {
   if (microSleepDef !== undefined && !Object.hasOwn(content.threats, microSleepDef)) {
     log.warn('boot', `?threats=off: the micro-sleep def "${microSleepDef}" is not loaded`);
   }
-  return { level: { ...content.level, waves: [] }, threats: microSleep, disruptions: {} };
+  // The cry in the arms of a level that carries is kept the same way (story 4.1): `createSim` refuses a
+  // carry whose def is not loaded, and it only ever comes while the baby is carried.
+  const armsCryDef = content.level.carry?.armsCryDef;
+  const armsCry =
+    armsCryDef !== undefined && Object.hasOwn(content.threats, armsCryDef)
+      ? { [armsCryDef]: content.threats[armsCryDef] as ThreatDef }
+      : {};
+  if (armsCryDef !== undefined && !Object.hasOwn(content.threats, armsCryDef)) {
+    log.warn('boot', `?threats=off: the cry-in-the-arms def "${armsCryDef}" is not loaded`);
+  }
+  return {
+    level: { ...content.level, waves: [] },
+    threats: { ...microSleep, ...armsCry },
+    disruptions: {},
+  };
 }

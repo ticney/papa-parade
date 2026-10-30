@@ -3,6 +3,7 @@ import { cloneJson, hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
+  CARRY,
   createTestContent,
   createTestGeometry,
   createTestLevel,
@@ -259,7 +260,7 @@ describe('the level it plans', () => {
   it('refuses a gag the sim does not know', async () => {
     const odd = { ...planning, threats: { outlet: { ...defOf(), gag: 'outlet_hairs' } } };
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
-      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall, papa_asleep, tissues_everywhere, crayon_scribbles\)/,
+      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall, papa_asleep, tissues_everywhere, crayon_scribbles, arms_wail\)/,
     );
   });
 
@@ -486,6 +487,111 @@ describe('the level’s fatigue and objects (story 1.19)', () => {
     await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
       /waves\[0\]\.threats\[0\]: the threat "outlet" has the gag "papa_asleep": only the micro-sleep/,
     );
+  });
+
+  describe('a level that carries the baby (story 4.1)', () => {
+    const carrying = () => createTestLevel({ gauges: FATIGUE_GAUGES, carry: CARRY });
+    const withArmsCry = (patch: Record<string, unknown>) => {
+      const base = carrying();
+      return {
+        ...base,
+        threats: { ...base.threats, arms_cry: { ...base.threats.arms_cry, ...patch } },
+      } as typeof base;
+    };
+
+    it('puts the cry in the arms after the micro-sleep, which keeps its own index', async () => {
+      const sim = await createSim({ content, geometry, level: carrying(), seed: 1 });
+      expect(sim.world.threats.map((threat) => threat.defId)).toEqual([
+        'papa_microsleep',
+        'arms_cry',
+      ]);
+      const onlyCarry = await createSim({
+        content,
+        geometry,
+        level: createTestLevel({ carry: CARRY }),
+        seed: 1,
+      });
+      expect(onlyCarry.world.threats.map((threat) => threat.defId)).toEqual(['arms_cry']);
+    });
+
+    it('accepts a carry without a cry in the arms', async () => {
+      const sim = await createSim({
+        content,
+        geometry,
+        level: createTestLevel({ carry: {} }),
+        seed: 1,
+      });
+      expect(sim.world.threats).toEqual([]);
+    });
+
+    it('refuses a cry in the arms that is not loaded', async () => {
+      const base = carrying();
+      const wrong = {
+        ...base,
+        threats: { papa_microsleep: base.threats.papa_microsleep },
+      } as typeof base;
+      await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
+        /carry\.armsCryDef: the threat arms_cry is not loaded/,
+      );
+    });
+
+    it('refuses a cry in the arms with another target', async () => {
+      await expect(
+        createSim({ content, geometry, level: withArmsCry({ target: 'anchor' }), seed: 1 }),
+      ).rejects.toThrow(
+        /carry\.armsCryDef: the threat "arms_cry" has target "anchor", but a cry in the arms must have target "papa"/,
+      );
+    });
+
+    it('refuses a cry in the arms that ends in papa_asleep, and in a gag the sim does not know', async () => {
+      await expect(
+        createSim({ content, geometry, level: withArmsCry({ gag: 'papa_asleep' }), seed: 1 }),
+      ).rejects.toThrow(
+        /carry\.armsCryDef: the threat "arms_cry" has the gag "papa_asleep", which is the micro-sleep's alone/,
+      );
+      await expect(
+        createSim({ content, geometry, level: withArmsCry({ gag: 'arms_wails' }), seed: 1 }),
+      ).rejects.toThrow(
+        /carry\.armsCryDef: the threat "arms_cry" has the gag "arms_wails", which the sim does not know/,
+      );
+    });
+
+    it('refuses a level that carries with no safe zone in the room', async () => {
+      const bare = {
+        ...geometry,
+        zones: geometry.zones.filter((zone) => zone.kind !== 'safe'),
+      } as typeof geometry;
+      await expect(
+        createSim({ content, geometry: bare, level: carrying(), seed: 1 }),
+      ).rejects.toThrow(/carry: the level carries the baby, but salon_crawler has no safe zone/);
+      // A level that does not carry does not need one.
+      const sim = await createSim({ content, geometry: bare, level: createTestLevel(), seed: 1 });
+      expect(sim.world.threats).toEqual([]);
+    });
+
+    it('refuses a safe zone no one can stand in', async () => {
+      const walled = {
+        ...geometry,
+        zones: geometry.zones.map((zone) =>
+          zone.kind === 'safe'
+            ? { ...zone, centerM: [-6, 0.3, 1.6] as [number, number, number] }
+            : zone,
+        ),
+      } as typeof geometry;
+      await expect(
+        createSim({ content, geometry: walled, level: carrying(), seed: 1 }),
+      ).rejects.toThrow(/the safe zone playpen has no open cell/);
+    });
+
+    it('refuses a wave that plans the cry in the arms', async () => {
+      const wrong = createTestLevel({
+        waves: [testWave([{ def: 'arms_cry', anchor: 'outlet_01' }])],
+        carry: CARRY,
+      });
+      await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
+        /waves\[0\]\.threats\[0\]: the threat "arms_cry" has target "papa": only the sim spawns it/,
+      );
+    });
   });
 
   it('refuses an object kind the sim has no action for', async () => {

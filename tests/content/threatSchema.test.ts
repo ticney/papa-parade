@@ -232,6 +232,30 @@ describe('content/threats/papa_microsleep.json (story 1.19)', () => {
   });
 });
 
+describe('content/threats/arms_cry.json (story 4.1)', () => {
+  const armsCry = JSON.parse(
+    readFileSync(new URL('../../content/threats/arms_cry.json', import.meta.url), 'utf8'),
+  ) as Record<string, unknown>;
+
+  it('parses, stands on Papa, is parried, ends in the wail and makes the baby cry', () => {
+    const parsed = parseContentFile(
+      'content/threats/arms_cry.json',
+      JSON.stringify(armsCry),
+      ThreatDefSchema,
+    );
+    if (!parsed.ok) throw new Error('expected the cry in the arms to parse');
+    expect(parsed.value).toMatchObject({
+      id: 'arms_cry',
+      target: 'papa',
+      response: 'parry',
+      gag: 'arms_wail',
+      icon: 'cry',
+      verbKey: 'verb.rock',
+      gagCryMs: 4000,
+    });
+  });
+});
+
 describe('content/threats/silence_mischief.json (story 1.21)', () => {
   const FILE_SILENCE = 'content/threats/silence_mischief.json';
   const silence = JSON.parse(

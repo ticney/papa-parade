@@ -8,7 +8,15 @@ import { defaultStrictInvariants, invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
-import type { SimHiddenZone, SimLevel, SimObjectSpec, StepContext, System } from './context.ts';
+import type {
+  SimHiddenZone,
+  SimLevel,
+  SimObjectSpec,
+  SimSafeZone,
+  SimZoneRect,
+  StepContext,
+  System,
+} from './context.ts';
 import { DISRUPTION_HANDLER_KINDS } from './disruptions/disruptionsSystem.ts';
 import type { SimEvent } from './events.ts';
 import { applyFeelPatch } from './feel/applyFeelPatch.ts';
@@ -205,7 +213,7 @@ function simLevelOf(
     }
     invariant(
       def.target !== 'papa',
-      `${entry.where}: the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef), a wave cannot plan it`,
+      `${entry.where}: the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef or carry.armsCryDef), a wave cannot plan it`,
     );
     for (const gag of gagIdsOf(def)) {
       invariant(
@@ -238,6 +246,48 @@ function simLevelOf(
       invariant(
         gag === PAPA_ASLEEP_GAG_ID,
         `${where}: the threat "${microSleepDef}" has the gag "${gag}", but a micro-sleep must have the gag "${PAPA_ASLEEP_GAG_ID}"`,
+      );
+    }
+    threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1, zone: null });
+  }
+  const microSleepIndex = microSleepDef === undefined ? -1 : threats.length - 1;
+  // The cry in the arms (story 4.1) is pushed after the micro-sleep, which keeps its own index.
+  const armsCryDef = level.level.carry?.armsCryDef;
+  const safeZones: SimSafeZone[] = [];
+  if (level.level.carry !== undefined) {
+    const where = `level ${level.level.id} › carry`;
+    for (const zone of geometry.zones) {
+      if (zone.kind !== 'safe') continue;
+      safeZones.push({
+        id: zone.id,
+        centerXM: zone.centerM[0],
+        centerZM: zone.centerM[2],
+        halfXM: zone.halfExtentsM[0],
+        halfZM: zone.halfExtentsM[2],
+      });
+    }
+    // The wording of these is the one `content:check` and the schema use.
+    invariant(
+      safeZones.length > 0,
+      `${where}: the level carries the baby, but ${geometry.id} has no safe zone (a ZONE_safe_<name> node) to put him down in`,
+    );
+  }
+  if (armsCryDef !== undefined) {
+    const where = `level ${level.level.id} › carry.armsCryDef`;
+    const def = Object.hasOwn(level.threats, armsCryDef) ? level.threats[armsCryDef] : undefined;
+    invariant(def !== undefined, `${where}: the threat ${armsCryDef} is not loaded`);
+    invariant(
+      def.target === 'papa',
+      `${where}: the threat "${armsCryDef}" has target "${def.target}", but a cry in the arms must have target "papa"`,
+    );
+    for (const gag of gagIdsOf(def)) {
+      invariant(
+        (GAG_IDS as readonly string[]).includes(gag),
+        `${where}: the threat "${armsCryDef}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+      );
+      invariant(
+        gag !== PAPA_ASLEEP_GAG_ID,
+        `${where}: the threat "${armsCryDef}" has the gag "${PAPA_ASLEEP_GAG_ID}", which is the micro-sleep's alone`,
       );
     }
     threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1, zone: null });
@@ -277,7 +327,10 @@ function simLevelOf(
     disruptions.push({ def, objectId: entry.object, atMs: entry.atMs, waveIndex: entry.waveIndex });
   }
   return {
-    microSleepIndex: microSleepDef === undefined ? -1 : threats.length - 1,
+    microSleepIndex,
+    armsCryIndex: armsCryDef === undefined ? -1 : threats.length - 1,
+    hasCarry: level.level.carry !== undefined,
+    safeZones,
     hasNoise: level.level.gauges.noise !== undefined,
     durationMs: level.level.durationMs,
     waves: waves.map((wave, w) => {
@@ -342,7 +395,7 @@ function gagIdsOf(def: ThreatDef): readonly string[] {
  * The open cell of `grid` inside a hidden zone's box (x and z) nearest the box's centre, in
  * `region` (-1: any); ties go to the lower cell index. -1 when none: the agent cannot stand there.
  */
-function zoneCellOf(grid: NavGrid, zone: SimHiddenZone, region: number): number {
+function zoneCellOf(grid: NavGrid, zone: SimZoneRect, region: number): number {
   const total = grid.cols * grid.rows;
   let best = -1;
   let bestSq = Number.POSITIVE_INFINITY;
@@ -411,6 +464,17 @@ function checkReachable(
       `${entry.where}: threat ${entry.def} is planned at ${entry.anchor}, which the baby cannot reach from where it starts`,
     );
   });
+  // A safe zone is checked against both grids (story 4.1): Papa walks in, and the baby may be set down there.
+  for (const zone of simLevel.safeZones) {
+    invariant(
+      zoneCellOf(grids.papa, zone, papaRegion) >= 0,
+      `level ${level.level.id} › carry: the safe zone ${zone.id} has no open cell Papa can reach from where he starts`,
+    );
+    invariant(
+      zoneCellOf(grid, zone, spawnRegion) >= 0,
+      `level ${level.level.id} › carry: the safe zone ${zone.id} has no open cell the baby can reach from where he starts`,
+    );
+  }
 }
 
 /** Internal factory: tests inject extra systems here. The public API is {@link createSim}. */

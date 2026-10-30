@@ -1,6 +1,10 @@
+---
+baseline_commit: 63459540d6cac54b59a10042a30b454e7cbf24b2
+---
+
 # Story 4.1: Carrying the baby (baby-in-arms)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.1 « Porter le bébé (bras-bébé) » (L1811-1836). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -178,33 +182,33 @@ Numbers in `content/feel.json` are live starting values for Geo to tune. Tests u
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Blender: the playpen** (AC 1)
-  - [ ] T1.1 Add `ZONE_safe_playpen` and the `playpen` mesh to `salon_crawler.blend` (no collider, no nav block); run `assets:export`, `assets:extract`, `assets:optimize`.
-  - [ ] T1.2 Check `geometry.json` has the `playpen` safe zone and `behind_sofa` is unchanged; copy to `tests/support/testLevel.geometry.json` and `cmp`; check the `.glb` size; `blenderConventions.test.ts` and `levelGeometry.test.ts` pass.
-- [ ] **T2. Content and schemas** (AC 2, 3, 4)
-  - [ ] T2.1 `feel.carry` in `FeelSchema`, `feel.json`, `testFeel.json`, `feelSample.json`; refine `Min <= Max`; `npm run content:schemas`.
-  - [ ] T2.2 `carry` in `LevelSchema`; `loadLevelContent`; `contentChecks.ts` rules; `salon_crawler.json`; `createTestLevel`.
-  - [ ] T2.3 `arms_cry.json`, gag `arms_wail`, icon `cry`, string `verb.rock`, the two threat cues, the two event cues, four placeholder clips (`assets:audio`, commit only the new `.m4a`).
-- [ ] **T3. Sim: types and the take / put-down** (AC 5-9, 13)
-  - [ ] T3.1 `BabyState.carried`, `PapaSlice.intent`, `World.carry`, three events, `isBabyCarried` moved; `createWorld`, `createSim` (`armsCryIndex`, `safeZones` in `SimLevel`, the new threat instance, the refusals).
-  - [ ] T3.2 `baby/carry.ts`: `takeBaby`, `putDownBaby`, shared `isInZone`; `cancelThreat` in `threatFsm.ts`; `drawBabbleMs` moved to `wander.ts`.
-  - [ ] T3.3 `papaSystem.ts`: the `TapBaby` rules, `TapFloor` into a safe zone, `arrive()` with `intent`, the follow at the end of the step, resets of `intent`.
-  - [ ] T3.4 Snapshot v15 and its tests.
-- [ ] **T4. Sim: while carried** (AC 8, 10-12)
-  - [ ] T4.1 `runBaby` returns early for a carried baby; `directorSystem` candidate rule; `fatigueSystem` reads the real `isBabyCarried`.
-  - [ ] T4.2 `runCarry` and the arms cry (shared « judged before the end » helper); the Firmness ban in `threatSystem.ts`.
-  - [ ] T4.3 Unit tests of AC 20 for the sim, then the fuzz test.
-- [ ] **T5. Client** (AC 14-17)
-  - [ ] T5.1 `inputMapper` / `hitTest` (carried height, Space with an object in reach); `babyView` carried offset; `levelScene` wiring.
-  - [ ] T5.2 `threatMarkers` verb swap; `boot.ts` mirrors and `ThreatCancelled`; `feedback.json` events and cues; the debug cheat.
-  - [ ] T5.3 Client unit tests of AC 20.
-- [ ] **T6. Tools and tests** (AC 18-22)
-  - [ ] T6.1 `simReport.ts` (`ThreatCancelled`, `armsCries`, counters) and its test; the bot regression of AC 19.
-  - [ ] T6.2 `threatCatalog.test.ts` for the arms cry; goldens (regenerate, diff, add `baby_carry`).
-  - [ ] T6.3 `tests/e2e/carry.spec.ts`.
-- [ ] **T7. Docs and CI** (AC 23, 24)
-  - [ ] T7.1 `deferred-work.md`, `project-context.md`.
-  - [ ] T7.2 `ci:fast` after each task; the touched e2e specs on Chromium; one `npm run ci` before the review.
+- [x] **T1. Blender: the playpen** (AC 1)
+  - [x] T1.1 Add `ZONE_safe_playpen` and the `playpen` mesh to `salon_crawler.blend` (no collider, no nav block); run `assets:export`, `assets:extract`, `assets:optimize`.
+  - [x] T1.2 Check `geometry.json` has the `playpen` safe zone and `behind_sofa` is unchanged; copy to `tests/support/testLevel.geometry.json` and `cmp`; check the `.glb` size; `blenderConventions.test.ts` and `levelGeometry.test.ts` pass.
+- [x] **T2. Content and schemas** (AC 2, 3, 4)
+  - [x] T2.1 `feel.carry` in `FeelSchema`, `feel.json`, `testFeel.json`, `feelSample.json`; refine `Min <= Max`; `npm run content:schemas`.
+  - [x] T2.2 `carry` in `LevelSchema`; `loadLevelContent`; `contentChecks.ts` rules; `salon_crawler.json`; `createTestLevel`.
+  - [x] T2.3 `arms_cry.json`, gag `arms_wail`, icon `cry`, string `verb.rock`, the two threat cues, the two event cues, four placeholder clips (`assets:audio`, commit only the new `.m4a`).
+- [x] **T3. Sim: types and the take / put-down** (AC 5-9, 13)
+  - [x] T3.1 `BabyState.carried`, `PapaSlice.intent`, `World.carry`, three events, `isBabyCarried` moved; `createWorld`, `createSim` (`armsCryIndex`, `safeZones` in `SimLevel`, the new threat instance, the refusals).
+  - [x] T3.2 `baby/carry.ts`: `takeBaby`, `putDownBaby`, shared `isInZone`; `cancelThreat` in `threatFsm.ts`; `drawBabbleMs` moved to `wander.ts`.
+  - [x] T3.3 `papaSystem.ts`: the `TapBaby` rules, `TapFloor` into a safe zone, `arrive()` with `intent`, the follow at the end of the step, resets of `intent`.
+  - [x] T3.4 Snapshot v15 and its tests.
+- [x] **T4. Sim: while carried** (AC 8, 10-12)
+  - [x] T4.1 `runBaby` returns early for a carried baby; `directorSystem` candidate rule; `fatigueSystem` reads the real `isBabyCarried`.
+  - [x] T4.2 `runCarry` and the arms cry (shared « judged before the end » helper); the Firmness ban in `threatSystem.ts`.
+  - [x] T4.3 Unit tests of AC 20 for the sim, then the fuzz test.
+- [x] **T5. Client** (AC 14-17)
+  - [x] T5.1 `inputMapper` / `hitTest` (carried height, Space with an object in reach); `babyView` carried offset; `levelScene` wiring.
+  - [x] T5.2 `threatMarkers` verb swap; `boot.ts` mirrors and `ThreatCancelled`; `feedback.json` events and cues; the debug cheat.
+  - [x] T5.3 Client unit tests of AC 20.
+- [x] **T6. Tools and tests** (AC 18-22)
+  - [x] T6.1 `simReport.ts` (`ThreatCancelled`, `armsCries`, counters) and its test; the bot regression of AC 19.
+  - [x] T6.2 `threatCatalog.test.ts` for the arms cry; goldens (regenerate, diff, add `baby_carry`).
+  - [x] T6.3 `tests/e2e/carry.spec.ts`.
+- [x] **T7. Docs and CI** (AC 23, 24)
+  - [x] T7.1 `deferred-work.md`, `project-context.md`.
+  - [x] T7.2 `ci:fast` after each task; the touched e2e specs on Chromium; one `npm run ci` before the review.
 
 ## Dev Notes
 
@@ -337,14 +341,42 @@ Docs: `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/pr
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), `gds-dev-story` workflow.
+
 ### Debug Log References
+
+- Playpen: `ZONE_safe_playpen` (1.4 × 0.6 × 1.4 m box at game `[-2, 0.3, 1.6]`) and the `playpen` mesh (paper mat, primary rim, no `COL_*`, no `NAV_block_*`) were added headless (`Blender -b -P`, a throwaway script) and exported with `assets:export`, `assets:extract`, `assets:optimize`. The `.glb` is 23 148 bytes; `testLevel.geometry.json` was re-copied and `cmp` is clean.
+- Fuzz: a first run failed on a stale `world` after `sim.restore()` (it swaps the world object); the test re-reads `sim.world` at each step.
+- `baby_carry` golden: times read from a first recording (telegraph 2000, pick-up 2330, safe put-down 3120, second telegraph 4000, perfect Parry at 5350).
+- The first full CI run had two 5 s test timeouts under load (`botContract`, `makePlaceholderAudio` « is deterministic »); both pass alone. The CI was rerun once with `VITEST_MAX_WORKERS=5` and is green (257 files, 4 781 tests; `src/sim` coverage over the 90 % thresholds; e2e, `e2e:dist` and its perf spec, both `dist:check`).
 
 ### Completion Notes List
 
+- **Implemented all 24 ACs.** Sim: `BabyState.carried`, `PapaSlice.intent`, `World.carry`, events `BabyPickedUp` / `BabyPutDown` / `ThreatCancelled` (+ `THREAT_CANCEL_REASONS`), `baby/carry.ts` (`takeBaby`, `putDownBaby`, `runCarry`), `cancelThreat`, `isInZone` moved to `baby/zone.ts`, `drawBabbleMs` to `wander.ts`, the « judged before the end » test to `threats/judgeable.ts`, the Firmness ban in `threatSystem`, the director rule, snapshot v15. Content: `feel.carry`, level `carry`, `arms_cry`, gag `arms_wail`, icon `cry`, `verb.rock`, four cues and four placeholder clips. Client: `TapBaby` hit at the carried height, Space / A rule, `babyView` carried pose composed with the hop, `firm` marker verb swap, mirrors (`data-pp-put-down`, `ThreatCancelled` → `<id>:idle`), debug cheat. Tools: sim report counters.
+- **D1 (said as the story asks):** no `world.papa.carrying`; `baby.state === 'carried'` is the one source of truth. The architecture (L905-911, L965) still names the field and was not edited.
+- **Deviations / calls:**
+  - `ThreatMarkerEntry.carriedVerb` is optional (absent for a non-Firmness) so that existing fixtures did not all change.
+  - `SimHiddenZone` is now an alias of a new `SimZoneRect` (also `SimSafeZone`); `createSim` also checks that each safe zone has an open cell for Papa and for the baby.
+  - A frozen `testArmsCry.threat.json` and `CARRY` / `createTestLevel({ carry })` were added to `tests/support/testContent.ts`.
+  - The `feelSchema` unit-suffix test accepts `OffsetM` and the exact key `reachM`.
+  - The arms-cry telegraph cue uses `maxRadiusM 0.9` / `700 ms` (not the micro-sleep's 1.0 / 900) because `feedbackTwins.test.ts` forbids two telegraphs with the same wave.
+  - `?threats=off` keeps the arms-cry def like the micro-sleep's.
+  - The `AC 20` unit tests of `papaSystem`, `babySystem` and `directorSystem` live in `baby/carry.test.ts` (one file driving the real `createSim`) instead of those three files; `cancelThreat` has its own tests in `threatFsm.test.ts`.
+- **AC 19, bots (20 runs, seed 1, `salon_crawler`, main vs this branch):** `perfect` (meanStars 5, `{timer: 20, mamaWoke: 0}`, 100 % success), `human` (4, `{timer: 20, mamaWoke: 0}`, 99.9 %) and `idle` (1, `{timer: 20, mamaWoke: 0}`, 0 %) are **identical** in every summary field. **`random` is not identical**: meanStars 1 → 1 and `endsByReason` the same, but the success rate goes 1.7 % → 2.2 % and the threat tallies move. Cause: `random` picks its `PressThreat` target with `nextInt(rng, 0, world.threats.length)`, and the level now has one more instance (the cry in the arms), so its random draws shift. It never sends a `TapBaby`: all carry counters are 0 for every bot, and no arms-cry appears in a wave's tallies. I did not change the bot.
+- **Goldens (deliberate regeneration, `npm run golden:update`, then `biome format` of the JSON):** every existing journal moved only in `feelHash` / `geometryHash` and every `*.expected.json` only in `worldHash`; I diffed each file and the events, `t`s, event types and scores are identical. New scenario `baby_carry` (+ `babyCarry.test.ts`).
+- **Screenshots (deliberate, macOS only):** `autoplay-frozen-{chromium,webkit}-darwin.png` were refreshed; the only visible change is the playpen on the floor, front-left.
+- **Debug feel panel:** generated from `FeelSchema`, so `carry` appears; not separately checked by eye (the debug-overlay e2e is green).
+- **Not done / left to Geo:** open points 1-5 are in `deferred-work.md`; the arms-cry and playpen are tuned by Geo after playing.
+
 ### File List
+
+New: `content/threats/arms_cry.json`; `public/assets/audio/{baby_pickup,baby_putdown,tel_arms_cry,gag_arms_wail}.m4a`; `src/sim/baby/{carry,carry.test,carryFuzz.test,zone}.ts`; `src/sim/threats/judgeable.ts`; `tests/e2e/carry.spec.ts`; `tests/golden/babyCarry.test.ts`; `tests/golden/journals/baby_carry{,.expected}.json`; `tests/support/testArmsCry.threat.json`.
+
+Modified: `assets-src/blender/salon_crawler.blend`; `public/assets/levels/salon_crawler.glb`; `content/{feel,feedback,strings.fr}.json`, `content/levels/salon_crawler{,.geometry}.json`, `content/_schemas/{feel,level,threat}.schema.json`; `src/content/{loadLevelContent.ts,schemas/{feel,level,threat}.ts}`; `src/sim/{world,events,snapshot,createSim,context,index}.ts`, `src/sim/baby/{babyFsm,babySystem,wander,silence}.ts`, `src/sim/papa/{papaSystem,papaFsm,coffee,glide,phoneCall,sleep}.ts`, `src/sim/director/directorSystem.ts`, `src/sim/threats/{threatFsm,threatSystem,gags}.ts`, `src/sim/gauges/{fatigue,fatigueSystem}.ts`; `src/client/{boot.ts,app/threatsSwitch.ts,input/inputMapper.ts,render/gags.ts,render/levelScene.ts,render/views/babyView.ts,ui/world/{threatMarkers,worldUi}.ts}`; `src/debug/cheats.ts`; `tools/{audio/makePlaceholderAudio.ts,content/contentChecks.ts,sim/{simReport,simArgs,runSim}.ts}`; tests: `src/sim/{createSim,snapshot}.test.ts`, `src/sim/gauges/fatigue.test.ts`, `src/sim/papa/{glide,walk}.test.ts`, `src/sim/threats/{gags,threatFsm}.test.ts`, `src/client/{app/threatsSwitch,input/inputMapper,render/views/{babyView,papaView},ui/world/threatMarkers}.test.ts`, `src/debug/cheats.test.ts`, `tests/content/*.test.ts`, `tests/support/{testContent.ts,testFeel.json,testLevel.geometry.json}`, `tests/tools/{sim/simReport.test.ts,vite/fixtures/feelSample.json}`, `tests/threats/threatCatalog.test.ts`, `tests/golden/{scenarios.ts,journals/*}`, `tests/e2e/threats.spec.ts`, `tests/e2e/__screenshots__/autoplay.spec.ts/*-darwin.png`; docs: `_bmad-output/implementation-artifacts/{deferred-work.md,sprint-status.yaml}`, `_bmad-output/project-context.md`.
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-10-30 | Story created (`gds-create-story`), status `ready-for-dev`. |
+| 2026-10-30 | Story implemented (`gds-dev-story`): carrying the baby, the playpen, the cry in the arms, snapshot v15, goldens and screenshots regenerated, full CI green. Status `review`. |

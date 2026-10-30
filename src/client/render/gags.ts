@@ -49,6 +49,8 @@ export const GAG_PRESENTATIONS: Readonly<Record<GagId, GagPresentation>> = {
   // the show until E7; the mess is `world.mess.mischiefs`.
   tissues_everywhere: { lightsOff: false, hair: false, babySlide: false },
   crayon_scribbles: { lightsOff: false, hair: false, babySlide: false },
+  // The wail in Papa's arms (story 4.1): the gag cue and the baby's cry are the show.
+  arms_wail: { lightsOff: false, hair: false, babySlide: false },
 };
 
 /** Total time the lights are off the full level, in sim ms. */
