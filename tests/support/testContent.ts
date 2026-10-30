@@ -17,6 +17,7 @@ import type {
   LevelWaveThreat,
 } from '@content/schemas/level';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
+import { type SequenceDef, SequenceDefSchema } from '@content/schemas/sequence';
 import { type ThreatDef, ThreatDefSchema } from '@content/schemas/threat';
 import type { Sim } from '@sim';
 
@@ -41,6 +42,7 @@ export function createTestFeedback(): FeedbackTable {
       heavy: { patternMs: [60] },
       heartbeat: { patternMs: [30, 90, 30] },
     },
+    sequenceBar: { slideMs: 250 },
     comboBadge: { cashInHoldMs: 900 },
     papaHint: { holdMs: 1200 },
     resultScreen: {
@@ -59,6 +61,9 @@ export function createTestFeedback(): FeedbackTable {
         bus: 'music',
         gainPct: 100,
         fadeMs: 400,
+      },
+      sequenceMusic: {
+        stay_awake: { clip: 'music_stay_awake', bus: 'music', gainPct: 100, fadeMs: 400 },
       },
     },
     cues: {
@@ -194,6 +199,23 @@ export function createTestPhone(): DisruptionDef {
 }
 
 /**
+ * « Rester éveillé », frozen like the phone (`testStayAwake.sequence.json`): the live def's shape,
+ * but a short one (3 steps of 5 s) so that a test and a golden scenario stay small.
+ */
+export function createTestStayAwake(): SequenceDef {
+  const path = 'tests/support/testStayAwake.sequence.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testStayAwake.sequence.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, SequenceDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
+/**
  * A frozen threat whose gag makes the baby cry for 3500 ms (`testCrying.threat.json`, story 3.1):
  * the outlet with a `gagCryMs`. No live threat declares one yet.
  */
@@ -274,6 +296,10 @@ export interface TestLevelOptions {
   gauges?: LevelGauges;
   /** The level lets Papa carry the baby (story 4.1); absent by default, as in most test levels. */
   carry?: LevelCarry;
+  /** The sequences the level can run (story 4.4), by id; empty by default, so no other test level moves. */
+  sequences?: readonly string[];
+  /** Replaces the frozen def of a sequence id (`createTestStayAwake()` otherwise), for a test that tunes it. */
+  sequenceDefs?: Readonly<Record<string, SequenceDef>>;
   durationMs?: number;
   variant?: LevelVariant;
   feelOverrides?: Record<string, unknown>;
@@ -289,6 +315,8 @@ export function createTestLevel({
   objects = [],
   gauges = {},
   carry,
+  sequences = [],
+  sequenceDefs = {},
   durationMs = TEST_LEVEL_DURATION_MS,
   variant = 'nap',
   feelOverrides = {},
@@ -324,6 +352,12 @@ export function createTestLevel({
       disruptions[def.id] = def;
     }
   }
+  const sequenceContent: Record<string, SequenceDef> = {};
+  for (const id of sequences) {
+    const def = sequenceDefs[id] ?? createTestStayAwake();
+    if (def.id !== id) throw new Error(`no frozen sequence "${id}" in tests/support`);
+    sequenceContent[id] = def;
+  }
   return {
     level: {
       id: 'salon_crawler',
@@ -337,10 +371,12 @@ export function createTestLevel({
       objects: [...objects],
       gauges: structuredClone(gauges),
       ...(carry === undefined ? {} : { carry: structuredClone(carry) }),
+      sequences: [...sequences],
       feelOverrides: { ...feelOverrides },
     },
     threats,
     disruptions,
+    sequences: sequenceContent,
   };
 }
 

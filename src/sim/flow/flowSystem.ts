@@ -5,16 +5,20 @@ import type { StepContext } from '../context.ts';
 import { endRingingPhones } from '../disruptions/phone.ts';
 import type { LevelEndReason } from '../events.ts';
 import { scoreLevel } from '../scoring/mamaScore.ts';
+import { endSequenceForLevelEnd } from '../sequences/sequenceEnd.ts';
 import type { World } from '../world.ts';
 import { enterFlowState } from './flowFsm.ts';
 
 /**
- * The end of the level, shared by both ways in: a phone still ringing is closed first
- * (`PhoneRingEnded{levelEnded}`), then an open silence (`SilenceEnded{levelEnded}`), Fatherly Instinct (`InstinctEnded{levelEnded}`, story 2.9), `playing →
+ * The end of the level, shared by both ways in: a sequence under way is closed first
+ * (`SequenceEnded{levelEnded}`, story 4.4), then a phone still ringing
+ * (`PhoneRingEnded{levelEnded}`), then an open silence (`SilenceEnded{levelEnded}`), Fatherly
+ * Instinct (`InstinctEnded{levelEnded}`, story 2.9), `playing →
  * ended`, `MamaWoke` (a woken Mama only), `LevelEnded{reason}`, and Mama's note in the same step
  * (`scoreLevel`, story 1.22).
  */
 function endLevel(world: World, ctx: StepContext, reason: LevelEndReason): void {
+  endSequenceForLevelEnd(world, ctx);
   endRingingPhones(world, ctx);
   endSilence(world, ctx);
   endInstinct(world, ctx);
@@ -35,7 +39,8 @@ function endLevel(world: World, ctx: StepContext, reason: LevelEndReason): void 
  * left on screen. A level without noise keeps `noisePct` at 0 and can only end on the timer.
  */
 export function runFlow(world: World, ctx: StepContext): void {
-  if (world.flow.state !== 'playing') return;
+  // A sequence (story 4.4) does not suspend the level's end: the timer and the noise still end it.
+  if (world.flow.state === 'ended') return;
   if (ctx.level.hasNoise && world.gauges.noisePct >= GAUGE_MAX_POINTS) {
     endLevel(world, ctx, 'mamaWoke');
     return;

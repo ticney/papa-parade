@@ -168,12 +168,26 @@ export const LevelSchema = z
     carry: LevelCarrySchema.optional().describe(
       'Carrying the baby in this level (story 4.1). Absent: the level has no carrying.',
     ),
+    sequences: z
+      .array(idSchema('The id of a sequence of `content/sequences/`.'))
+      .default([])
+      .describe(
+        'The special sequences this level can run (story 4.4); none by default. Nothing schedules them here: a bedtime level starts them (4.10), the debug overlay and the sim CLI meanwhile.',
+      ),
     feelOverrides: z
       .record(z.string(), z.unknown())
       .default({})
       .describe('A partial `feel.json` merged over the base feel for this level only.'),
   })
   .superRefine((level, ctx) => {
+    level.sequences.forEach((sequence, i) => {
+      if (level.sequences.indexOf(sequence) === i) return;
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sequences', i],
+        message: `sequences[${i}]: the sequence "${sequence}" is already listed`,
+      });
+    });
     const planned = new Map<string, string>();
     const disrupted = new Map<string, string>();
     level.waves.forEach((wave, w) => {

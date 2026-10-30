@@ -268,10 +268,13 @@ export function runPapa(world: World, ctx: StepContext): void {
   }
 
   let hasToggledCarry = false;
+  // Papa stands still in a special sequence (story 4.4 D3): only a press on a threat gets through.
+  const isHeld = world.flow.state === 'sequence';
   for (let i = 0; i < ctx.commands.length; i++) {
     const command = ctx.commands[i];
     if (command === undefined) continue;
     if (isPapaBusy(papa)) break;
+    if (isHeld && command.type !== 'PressThreat') continue;
     if (command.type === 'TapFloor') tapFloorCommand(world, ctx, command.xM, command.zM);
     else if (command.type === 'TapObject') tapObject(world, ctx, command.objectId);
     else if (command.type === 'TapBaby') {

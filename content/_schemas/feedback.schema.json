@@ -276,11 +276,59 @@
           ],
           "additionalProperties": false,
           "description": "The level music: two synchronized stems mixed by the game state."
+        },
+        "sequenceMusic": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "clip": {
+                "type": "string",
+                "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
+              },
+              "bus": {
+                "type": "string",
+                "enum": [
+                  "music",
+                  "sfx",
+                  "voice",
+                  "ui"
+                ],
+                "description": "Bus the sound goes through."
+              },
+              "gainPct": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Loop volume on its bus, in percent."
+              },
+              "fadeMs": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Fade in when the loop starts and fade out when it stops, in ms."
+              }
+            },
+            "required": [
+              "clip",
+              "bus",
+              "gainPct",
+              "fadeMs"
+            ],
+            "additionalProperties": false,
+            "description": "A sound that loops while a state lasts."
+          },
+          "description": "The music of each special sequence (story 4.4), by id, named by a sequence def `framing.musicLoop`: while one plays, the level stems are stopped."
         }
       },
       "required": [
         "babble",
-        "music"
+        "music",
+        "sequenceMusic"
       ],
       "additionalProperties": false,
       "description": "Sounds driven by a state, not by an event: they are not cues."
@@ -378,6 +426,22 @@
       ],
       "additionalProperties": false,
       "description": "The sounds of the latency calibration (story 2.7)."
+    },
+    "sequenceBar": {
+      "type": "object",
+      "properties": {
+        "slideMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long the sequence bar stays mounted after the end, to slide out, in real ms. Real time: not read from `transitionend`, which never fires under reduced motion."
+        }
+      },
+      "required": [
+        "slideMs"
+      ],
+      "additionalProperties": false,
+      "description": "The sequence bar under the timer (story 4.4). Real time: the sim never reads it."
     },
     "comboBadge": {
       "type": "object",
@@ -629,6 +693,7 @@
     "loops",
     "resultScreen",
     "calibration",
+    "sequenceBar",
     "comboBadge",
     "papaHint",
     "cues",

@@ -8,6 +8,7 @@ describe('feedbackClips', () => {
       'baby_babble_loop',
       'music_crawler_calm',
       'music_crawler_tense',
+      'music_stay_awake',
       'papa_bump',
       'ui_calibration_beep',
     ]);
@@ -23,6 +24,7 @@ describe('feedbackClips', () => {
       'baby_babble_loop',
       'music_crawler_calm',
       'music_crawler_tense',
+      'music_stay_awake',
       'papa_bump',
       'ui_calibration_beep',
     ]);
@@ -45,6 +47,7 @@ describe('feedbackClips', () => {
       'env_applause',
       'music_crawler_calm',
       'music_crawler_tense',
+      'music_stay_awake',
       'papa_bump',
       'ui_calibration_beep',
     ]);

@@ -2,7 +2,7 @@ import type { Feel } from '@content/schemas/feel';
 import { GAMEPAD_PRESS_ID, KEYBOARD_PRESS_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type SimMs } from '@shared/time';
-import { isPapaBusy } from '@sim';
+import { isFlowLive, isPapaBusy } from '@sim';
 import type { AppFsm } from '../app/appFsm.ts';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import type { PauseController } from '../app/pauseController.ts';
@@ -184,12 +184,20 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
   const toSim = (active: ActiveLevel, atReal: number): SimMs =>
     active.timeMap.realToSim(asRealMs(atReal - deps.visualOffsetMs()));
 
-  // Live: in a level, running, and the level still playing (a level that has ended takes no input).
+  // Live: in a level, running, and the level still going, in a special sequence too (story 4.4): a
+  // level that has ended takes no input.
   const isLive = (): boolean => {
     if (deps.appFsm.state !== 'level' || deps.pause.state !== 'running') return false;
     const active = deps.getActive();
-    return active !== null && active.sim.world.flow.state === 'playing';
+    return active !== null && isFlowLive(active.sim.world);
   };
+
+  // A special sequence is under way (story 4.4): Papa stands still, the sim ignores every tap on the
+  // floor, an object or the baby and every move, so the client sends none and draws no tap marker
+  // (a marker must never lie). A press on a threat goes through. A key held through it walks again
+  // at the end (boot calls `resumeHeld` on `SequenceEnded`).
+  const isHeldInPlace = (active: ActiveLevel): boolean =>
+    active.sim.world.flow.state === 'sequence';
 
   // Papa drinks, sleeps, is on the phone or in the toilet (stories 1.19 D6, 1.20, 4.3): the sim
   // ignores every move and press meanwhile, so the client sends none either. A key held through it walks again on `PapaStateChanged → idle`
@@ -210,6 +218,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     const active = deps.getActive();
     if (active === null || !isLive()) return;
     bindTo(active);
+    if (isHeldInPlace(active)) return;
     if (isBusy(active)) {
       // Only a move that was asked for is worth a line: this runs every frame.
       if (log.enabled('debug') && (deps.held.size > 0 || stick.x !== 0 || stick.y !== 0)) {
@@ -270,6 +279,12 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       active.sim.enqueue({ type: 'PressThreat', t, threatId });
       press.pressed(pressId, threatId);
       deps.onThreatPressed?.(threatId);
+      return;
+    }
+    // A sequence holds Papa in place (story 4.4): with no threat up, the context action sends nothing.
+    if (isHeldInPlace(active)) {
+      if (log.enabled('debug'))
+        log.debug('input', 'action dropped: a sequence holds Papa in place');
       return;
     }
     // No threat is active (D6): the context action, on the nearer of the baby and the nearest
@@ -407,6 +422,11 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
         active.sim.enqueue({ type: 'PressThreat', t: heldPressAt, threatId });
         press.pressed(sample.pointerId, threatId);
         deps.onThreatPressed?.(threatId);
+        return;
+      }
+      // Nothing but a threat answers a finger during a sequence, and no marker is drawn (story 4.4).
+      if (isHeldInPlace(active)) {
+        if (log.enabled('debug')) log.debug('input', 'tap dropped: a sequence holds Papa in place');
         return;
       }
       // The baby and the objects (story 1.21): a finger aims at whichever is nearer, the baby when

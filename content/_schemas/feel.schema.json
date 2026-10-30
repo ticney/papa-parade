@@ -590,6 +590,22 @@
               ],
               "additionalProperties": false,
               "description": "Sniffing (story 5.3): GDD +3 %."
+            },
+            "snore": {
+              "type": "object",
+              "properties": {
+                "noisePct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Noise added once per occurrence, in % of the gauge."
+                }
+              },
+              "required": [
+                "noisePct"
+              ],
+              "additionalProperties": false,
+              "description": "Papa snoring after a missed micro-sleep in a sequence (story 4.4): GDD +15 %."
             }
           },
           "required": [
@@ -598,7 +614,8 @@
             "babyCrying",
             "floorCreak",
             "breathReleased",
-            "sniff"
+            "sniff",
+            "snore"
           ],
           "additionalProperties": false,
           "description": "What makes noise: one row per source of `NoiseChanged`."
@@ -660,6 +677,21 @@
       ],
       "additionalProperties": false,
       "description": "Papa's pressing need (FR17, story 4.3, GDD §6)."
+    },
+    "sequences": {
+      "type": "object",
+      "properties": {
+        "resumeGapMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "After a sequence, the breath before the director, a due micro-sleep or a due cry in the arms can start again: each of their clocks is pushed to at least this far from the end, in sim ms."
+        }
+      },
+      "required": [
+        "resumeGapMs"
+      ],
+      "additionalProperties": false,
+      "description": "The special sequences (story 4.4)."
     },
     "instinct": {
       "type": "object",
@@ -1509,6 +1541,7 @@
     "combo",
     "noise",
     "bladder",
+    "sequences",
     "instinct",
     "difficulty",
     "mama",

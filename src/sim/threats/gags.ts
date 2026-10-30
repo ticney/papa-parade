@@ -87,7 +87,10 @@ function tableObjectFall(world: World, ctx: StepContext, threat: ThreatInstance)
   pushProp(world, ctx, nearestIndex, awayX * pushImpulseNs, 0, awayZ * pushImpulseNs);
 }
 
-/** Papa nods off for a few seconds (story 1.19 D10): no near miss, no snore noise yet (E4's `stay_awake`). */
+/**
+ * Papa nods off for a few seconds (story 1.19 D10): no near miss. The snore and its noise belong
+ * to the sequence's failure (`failSequenceOnGag`, story 4.4 D2), never to a nap outside one.
+ */
 function papaAsleep(world: World, ctx: StepContext): void {
   putPapaToSleep(world, ctx);
 }

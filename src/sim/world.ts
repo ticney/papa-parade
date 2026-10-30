@@ -302,6 +302,30 @@ export interface FlowSlice {
 }
 
 /**
+ * The special sequence (story 4.4), owned by `runSequence` and its helpers (`sequences/`). `id` is
+ * non-null exactly while `flow.state === 'sequence'`. `lastId`, `startedAt` and `endedAt` stay after
+ * the end: the client's camera falls back from them. Times are sim time.
+ */
+export interface SequenceSlice {
+  /** The running sequence, or null. */
+  id: string | null;
+  /** The last sequence that started (kept after its end), or null before the first. */
+  lastId: string | null;
+  /** When the last sequence started; 0 before the first. */
+  startedAt: SimMs;
+  /** When the running sequence ends, in sim time (its start plus the sum of its steps). */
+  endsAt: SimMs;
+  /** When the last sequence ended, or null while one runs (and before the first). */
+  endedAt: SimMs | null;
+  /** The running step; 0 outside a sequence. */
+  stepIndex: number;
+  /** When the running step ends, in sim time. */
+  stepEndsAt: SimMs;
+  /** When the next micro-sleep of a `microSleeps` step is due, or null. */
+  nextMicroSleepAt: SimMs | null;
+}
+
+/**
  * Fatherly Instinct (FR20, story 2.9): `ready` (can trigger), `active` (slow-mo and wider windows
  * until `untilAt`), `cooldown` (recharging until `untilAt`, counted from the end of `active`).
  */
@@ -413,6 +437,8 @@ export interface World {
   silence: SilenceSlice;
   /** Carrying the baby (story 4.1). */
   carry: CarrySlice;
+  /** The special sequence under way, or the last one (story 4.4). */
+  sequence: SequenceSlice;
   /** The combo (story 4.2). */
   combo: ComboSlice;
   /** Fatherly Instinct (story 2.9). */
@@ -548,6 +574,16 @@ export function createWorld({
     mess: { propsOnFloor: 0, propsBroken: 0, mischiefs: 0 },
     silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
     carry: { armsCryAt: null },
+    sequence: {
+      id: null,
+      lastId: null,
+      startedAt: asSimMs(0),
+      endsAt: asSimMs(0),
+      endedAt: null,
+      stepIndex: 0,
+      stepEndsAt: asSimMs(0),
+      nextMicroSleepAt: null,
+    },
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
     instinct: { state: 'ready', enteredAt: asSimMs(0), untilAt: asSimMs(0), missAts: [] },
     score: { perfects: 0, nearMisses: 0, comboPoints: 0, final: null },

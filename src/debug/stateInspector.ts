@@ -34,6 +34,7 @@ const SLICES = [
   'mess',
   'silence',
   'instinct',
+  'sequence',
   'score',
   'rng',
   'nextId',

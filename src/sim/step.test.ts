@@ -19,6 +19,7 @@ describe('system order', () => {
     expect(SYSTEMS.map((system) => system.name)).toEqual([
       'applyCommands',
       'advanceTime',
+      'runSequence',
       'runDirector',
       'runDisruptions',
       'runBaby',

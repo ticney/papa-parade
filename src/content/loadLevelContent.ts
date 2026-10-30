@@ -2,11 +2,17 @@ import './zodConfig.ts';
 import { err, ok, type Result } from '@shared/result';
 import type { LevelContent } from './contentBundle.ts';
 import { type ContentError, type ContentProblem, createContentError } from './contentError.ts';
-import { DISRUPTION_DEF_PATTERN, LEVEL_PATTERN, THREAT_DEF_PATTERN } from './contentFiles.ts';
+import {
+  DISRUPTION_DEF_PATTERN,
+  LEVEL_PATTERN,
+  SEQUENCE_DEF_PATTERN,
+  THREAT_DEF_PATTERN,
+} from './contentFiles.ts';
 import type { ContentSource } from './contentSource.ts';
 import { formatJsonPath } from './jsonPath.ts';
 import { parseContentFile } from './parseContentFile.ts';
 import type { DisruptionDef } from './schemas/disruption.ts';
+import type { SequenceDef } from './schemas/sequence.ts';
 import type { ThreatDef } from './schemas/threat.ts';
 
 async function readText(
@@ -42,9 +48,9 @@ function checkId(file: string, id: string, expected: string): ContentProblem[] {
 /**
  * Reads `levels/<levelId>.json`, then each distinct `threats/<def>.json` its waves plan (and its
  * `gauges.fatigue.microSleepDef`, then its `carry.armsCryDef`, last), in order of first reference, then each distinct
- * `disruptions/<def>.json` its waves plan (story 1.20), through the same source and the same parser as
+ * `disruptions/<def>.json` its waves plan (story 1.20), then each `sequences/<id>.json` its `sequences` names (story 4.4), through the same source and the same parser as
  * `loadContent`. It collects every problem (a missing def file names the level's JSON path,
- * `waves[1].threats[0].def` or `waves[2].disruptions[0].def`). It checks no anchor, no gag id and no
+ * `waves[1].threats[0].def` or `waves[2].disruptions[0].def` or `sequences[0]`). It checks no anchor, no gag id and no
  * object kind: it has no geometry and must not know the sim (`createSim` and `content:check` do).
  * Never throws and never logs: the caller logs.
  */
@@ -133,6 +139,32 @@ export async function loadLevelContent(
     disruptions[defId] = def.value;
   }
 
+  const sequences: Record<string, SequenceDef> = {};
+  const failedSequences = new Set<string>();
+  for (const [i, sequenceId] of level.sequences.entries()) {
+    if (Object.hasOwn(sequences, sequenceId) || failedSequences.has(sequenceId)) continue;
+    const defFile = `${SEQUENCE_DEF_PATTERN.dir}/${sequenceId}${SEQUENCE_DEF_PATTERN.suffix}`;
+    const defDisplay = `content/${defFile}`;
+    const defText = await readText(source, defFile);
+    if (!defText.ok) {
+      failedSequences.add(sequenceId);
+      problems.push({
+        file: levelDisplay,
+        jsonPath: formatJsonPath(['sequences', i]),
+        message: `cannot load the sequence "${sequenceId}": ${defText.error[0]?.message ?? 'unreadable'}`,
+      });
+      continue;
+    }
+    const def = parseContentFile(defDisplay, defText.value, SEQUENCE_DEF_PATTERN.schema);
+    if (!def.ok) {
+      failedSequences.add(sequenceId);
+      problems.push(...def.error);
+      continue;
+    }
+    problems.push(...checkId(defDisplay, def.value.id, sequenceId));
+    sequences[sequenceId] = def.value;
+  }
+
   if (problems.length > 0) return err(createContentError(problems));
-  return ok({ level, threats, disruptions });
+  return ok({ level, threats, disruptions, sequences });
 }

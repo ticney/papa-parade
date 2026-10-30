@@ -59,14 +59,16 @@ export type InstinctEndReason = 'timer' | 'levelEnded';
 /**
  * Why a threat was cancelled with no result (story 4.1): Papa took the baby in his arms
  * (`carried`: the threats aimed at the baby's mischief go away), or put him down (`putDown`: the
- * cry in the arms goes with the arms).
+ * cry in the arms goes with the arms), or a special sequence started (`sequence`, story 4.4: a clean
+ * slate for the sequence's own cadence, the threats on Papa included).
  */
-export type ThreatCancelReason = 'carried' | 'putDown';
+export type ThreatCancelReason = 'carried' | 'putDown' | 'sequence';
 
 /** Every `ThreatCancelReason`, as data: the client keys by it. */
 export const THREAT_CANCEL_REASONS = [
   'carried',
   'putDown',
+  'sequence',
 ] as const satisfies readonly ThreatCancelReason[];
 
 type UnlistedThreatCancelReason = Exclude<
@@ -78,6 +80,26 @@ type UnlistedThreatCancelReason = Exclude<
 export const THREAT_CANCEL_REASONS_ARE_COMPLETE: [UnlistedThreatCancelReason] extends [never]
   ? true
   : UnlistedThreatCancelReason = true;
+
+/**
+ * How a special sequence ended (story 4.4): won (`succeeded`), lost to a gag (`failed`), or the
+ * level ended first (`levelEnded`, no resume).
+ */
+export type SequenceOutcome = 'succeeded' | 'failed' | 'levelEnded';
+
+/** Every `SequenceOutcome`, as data: the report and the client key their records by it. */
+export const SEQUENCE_OUTCOMES = [
+  'succeeded',
+  'failed',
+  'levelEnded',
+] as const satisfies readonly SequenceOutcome[];
+
+type UnlistedSequenceOutcome = Exclude<SequenceOutcome, (typeof SEQUENCE_OUTCOMES)[number]>;
+
+/** Compile-time proof that `SEQUENCE_OUTCOMES` holds every member of the union (see `LEVEL_END_REASONS_ARE_COMPLETE`). */
+export const SEQUENCE_OUTCOMES_ARE_COMPLETE: [UnlistedSequenceOutcome] extends [never]
+  ? true
+  : UnlistedSequenceOutcome = true;
 
 /**
  * Why the combo's multiplier moved (story 4.2): a successful `response`, a `carryTick`, a `gag`
@@ -279,6 +301,22 @@ export type SimEvent =
   | { type: 'ToiletFinished'; t: SimMs }
   /** A tap on the toilet while the baby is carried: Papa does not move (he must put the baby down first). */
   | { type: 'ToiletRefused'; t: SimMs; objectId: string }
+  /**
+   * A special sequence started (story 4.4). Follows `ThreatCancelled`s and the baby's pick-up, and
+   * precedes `SequenceStepStarted{0}`.
+   */
+  | { type: 'SequenceStarted'; t: SimMs; id: string }
+  /** The sequence entered its step number `stepIndex` (0 right after `SequenceStarted`). */
+  | { type: 'SequenceStepStarted'; t: SimMs; id: string; stepIndex: number }
+  /** The sequence is over, for the `outcome`; `levelEnded` is followed by no resume. */
+  | { type: 'SequenceEnded'; t: SimMs; id: string; outcome: SequenceOutcome }
+  /**
+   * Papa snored after a missed micro-sleep of a sequence whose failure `hasSnore` (story 4.4); the
+   * noise gauge reads it (`feel.noise.sources.snore`). `BabyWoke` follows. Never outside a sequence.
+   */
+  | { type: 'PapaSnored'; t: SimMs }
+  /** The baby woke at the snore: an event and a cue, not a state or a cry (story 4.4, D4). */
+  | { type: 'BabyWoke'; t: SimMs }
   /** A breakable prop took a hit of `impulseNs` or more, once; it stays in the world, broken. */
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
   /**
@@ -317,6 +355,7 @@ export const SIM_EVENT_TYPES = [
   'BabyPickedUp',
   'BabyPutDown',
   'BabyStateChanged',
+  'BabyWoke',
   'BladderFilled',
   'CoffeeDrunk',
   'CoffeeStarted',
@@ -337,6 +376,7 @@ export const SIM_EVENT_TYPES = [
   'PapaBlocked',
   'PapaGlideStarted',
   'PapaPathPlanned',
+  'PapaSnored',
   'PapaStateChanged',
   'PhoneAnswered',
   'PhoneRingEnded',
@@ -346,6 +386,9 @@ export const SIM_EVENT_TYPES = [
   'PropImpact',
   'ResponseHeld',
   'ResponseResolved',
+  'SequenceEnded',
+  'SequenceStarted',
+  'SequenceStepStarted',
   'SilenceEnded',
   'SilenceStarted',
   'ThreatCancelled',

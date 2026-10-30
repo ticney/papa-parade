@@ -42,6 +42,7 @@ const TABLE: FeedbackTable = {
     heavy: { patternMs: [60] },
     heartbeat: { patternMs: [30, 90, 30] },
   },
+  sequenceBar: { slideMs: 250 },
   comboBadge: { cashInHoldMs: 900 },
   papaHint: { holdMs: 1200 },
   resultScreen: {
@@ -61,6 +62,7 @@ const TABLE: FeedbackTable = {
       gainPct: 100,
       fadeMs: 400,
     },
+    sequenceMusic: {},
   },
   cues: {
     full: {

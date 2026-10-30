@@ -12,6 +12,11 @@ export interface TimerHud {
   setVariant(variant: LevelVariant): void;
   /** The time left, in whole seconds. The caller writes through `hudBatch`: once per second at most. */
   setRemainingS(seconds: number): void;
+  /**
+   * The compact timer (story 4.4, UX-DR23): 32 px tall with the compact digits, while a sequence
+   * bar sits under it. Writes the DOM only on a change.
+   */
+  setCompact(isCompact: boolean): void;
 }
 
 export interface TimerHudOptions {
@@ -80,6 +85,7 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
   let variant: LevelVariant | null = null;
   let icon: SVGSVGElement | null = null;
   let clock = '';
+  let isCompact = false;
 
   const refreshLabel = (): void => {
     const name = variant === null ? '' : t(VARIANT_KEYS[variant]);
@@ -98,6 +104,13 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
       else icon.replaceWith(fresh);
       icon = fresh;
       refreshLabel();
+    },
+    setCompact(next) {
+      if (next === isCompact) return;
+      isCompact = next;
+      element.classList.toggle('pp-hud-timer--compact', next);
+      digits.classList.toggle('pp-type-numeric-compact', next);
+      digits.classList.toggle('pp-type-numeric', !next);
     },
     setRemainingS(seconds) {
       clock = formatClock(seconds);

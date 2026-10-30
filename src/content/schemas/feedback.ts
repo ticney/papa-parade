@@ -98,6 +98,11 @@ const LoopsSchema = z
       'The baby babbles while `baby.babbling` (its stop is the silence).',
     ),
     music: MusicLoopSchema,
+    sequenceMusic: z
+      .record(z.string().regex(CUE_ID_PATTERN, 'a loop id is lower_snake_case'), LoopSchema)
+      .describe(
+        'The music of each special sequence (story 4.4), by id, named by a sequence def `framing.musicLoop`: while one plays, the level stems are stopped.',
+      ),
   })
   .describe('Sounds driven by a state, not by an event: they are not cues.');
 
@@ -268,6 +273,14 @@ const PapaHintSchema = z
   })
   .describe('The hint above Papa (story 4.3). Real time: the sim never reads it.');
 
+const SequenceBarFeedbackSchema = z
+  .strictObject({
+    slideMs: realMs(
+      'How long the sequence bar stays mounted after the end, to slide out, in real ms. Real time: not read from `transitionend`, which never fires under reduced motion.',
+    ),
+  })
+  .describe('The sequence bar under the timer (story 4.4). Real time: the sim never reads it.');
+
 export const FeedbackTableSchema = z
   .strictObject({
     buses: BusesSchema,
@@ -275,6 +288,7 @@ export const FeedbackTableSchema = z
     loops: LoopsSchema,
     resultScreen: ResultScreenSchema,
     calibration: CalibrationFeedbackSchema,
+    sequenceBar: SequenceBarFeedbackSchema,
     comboBadge: ComboBadgeSchema,
     papaHint: PapaHintSchema,
     cues: z

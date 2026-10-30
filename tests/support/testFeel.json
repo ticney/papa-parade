@@ -101,6 +101,9 @@
       },
       "sniff": {
         "noisePct": 3
+      },
+      "snore": {
+        "noisePct": 15
       }
     }
   },
@@ -111,6 +114,9 @@
     "slowdownPct": 30,
     "urgentFromPct": 70,
     "toiletDurationMs": 5000
+  },
+  "sequences": {
+    "resumeGapMs": 2000
   },
   "instinct": {
     "timeScale": 0.8,

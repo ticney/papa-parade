@@ -19,6 +19,9 @@
       "bus": "music",
       "gainPct": 100,
       "fadeMs": 400
+    },
+    "sequenceMusic": {
+      "stay_awake": { "clip": "music_stay_awake", "bus": "music", "gainPct": 100, "fadeMs": 400 }
     }
   },
   "resultScreen": {
@@ -31,6 +34,9 @@
   },
   "calibration": {
     "beep": { "clip": "ui_calibration_beep", "bus": "ui", "gainPct": 100 }
+  },
+  "sequenceBar": {
+    "slideMs": 250
   },
   "comboBadge": {
     "cashInHoldMs": 900
@@ -237,6 +243,31 @@
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
       "haptic": "light"
     },
+    "papa_snored": {
+      "audio": { "clip": "papa_snore", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 1.2, "durationMs": 600 },
+      "haptic": "heavy"
+    },
+    "baby_woke": {
+      "audio": { "clip": "baby_woke", "bus": "voice", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "heavy"
+    },
+    "sequence_started": {
+      "audio": { "clip": "env_sequence_started", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "light"
+    },
+    "sequence_succeeded": {
+      "audio": { "clip": "env_sequence_succeeded", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 1.2, "durationMs": 500 },
+      "haptic": "medium"
+    },
+    "sequence_failed": {
+      "audio": { "clip": "env_sequence_failed", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "heavy"
+    },
     "papa_phone_answer": {
       "audio": { "clip": "papa_phone_answer", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
@@ -254,6 +285,8 @@
     "ToiletStarted": "toilet_entered",
     "ToiletFinished": "toilet_flushed",
     "ToiletRefused": "toilet_refused",
+    "PapaSnored": "papa_snored",
+    "BabyWoke": "baby_woke",
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
     "InstinctVignetteShown": "instinct_triggered",

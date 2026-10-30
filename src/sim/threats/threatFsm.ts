@@ -9,6 +9,7 @@ import { isLastOfWave } from '../director/waveState.ts';
 import type { FailReason, ResponseQuality, ThreatCancelReason } from '../events.ts';
 import { fatigueWindowModifier } from '../gauges/fatigue.ts';
 import { addResponseToCombo, resetCombo } from '../scoring/combo.ts';
+import { failSequenceOnGag } from '../sequences/sequenceEnd.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import { activeDifficulty } from '../timing/difficulty.ts';
 import { type EffectiveWindow, effectiveWindow } from '../timing/effectiveWindow.ts';
@@ -221,6 +222,8 @@ export function gagThreat(
   resetCombo(world, ctx, 'gag');
   // Every failure is a miss for Fatherly Instinct, the timed-out silence and the micro-sleep too (story 2.9).
   recordMiss(world, ctx);
+  // In a special sequence a gag ends it (story 4.4); a no-op anywhere else.
+  failSequenceOnGag(world, ctx);
 }
 
 /** `resolved | gag → idle`, once the cooldown is over. */

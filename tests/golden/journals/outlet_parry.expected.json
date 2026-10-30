@@ -1,6 +1,6 @@
 {
   "untilSimMs": 30000,
-  "worldHash": "1793e6abdef3ba",
+  "worldHash": "007e3f1313c8e5",
   "eventTypes": [
     "WaveStarted",
     "BabyStateChanged",

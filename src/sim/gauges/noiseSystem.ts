@@ -21,7 +21,7 @@ function propIndexOf(world: World, propId: string): number {
  *    `isBabyFoundNow`, then applied in emission order, with no allocation), because `ctx.events`
  *    is drained by the caller, not per step: a scan from 0 would count an impact twice.
  *    `PropImpact` (by impulse, once per `samePropCooldownMs` per prop), `PhoneRinging` and
- *    `BabyCrying` (`perSec` for one period of their contract).
+ *    `BabyCrying` (`perSec` for one period of their contract) and `PapaSnored` (a sequence's failure, story 4.4: `snore.noisePct`).
  *
  * It reads events only, never the phone's, the props' or the baby's state (epics, story 3.1 AC 3).
  */
@@ -49,6 +49,8 @@ export function runNoise(world: World, ctx: StepContext): void {
     } else if (event.type === 'PhoneRinging') {
       const pct = (sources.phoneRinging.perSec * PHONE_RINGING_EVERY_MS) / MS_PER_S;
       addNoise(world, ctx, pct, 'phoneRinging');
+    } else if (event.type === 'PapaSnored') {
+      addNoise(world, ctx, sources.snore.noisePct, 'snore');
     } else if (event.type === 'BabyCrying') {
       const pct = (sources.babyCrying.perSec * BABY_CRYING_EVERY_MS) / MS_PER_S;
       addNoise(world, ctx, pct, 'babyCrying');

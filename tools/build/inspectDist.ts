@@ -80,6 +80,9 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   // Story 2.7: the calibration's debug mirrors (`data-pp-calibration`, `data-pp-calibration-beats`)
   // sit in the main chunk behind `isMirrored`; the screen itself ships in every build.
   'ppCalibration',
+  // Story 4.4: the sequence's debug mirrors (`data-pp-sequence`, `data-pp-sequence-outcome`,
+  // `data-pp-sequence-music`), the same way. One entry, being the prefix of the three.
+  'ppSequence',
 ];
 
 /**
