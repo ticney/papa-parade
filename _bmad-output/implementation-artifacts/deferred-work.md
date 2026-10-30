@@ -679,3 +679,7 @@
 - **The sequence bar is two DOM nodes, not four** (Geo's choice, 2026-10-30, the HUD being at 38 of 40 nodes): the label is a CSS `::before` read from `data-label` (it is not in the accessibility tree, the container's `aria-label` carries the name), the fill is the track's background driven by `--pp-sequence-value`. Reason: raising `HUD_MAX_DOM_NODES` was not wanted; a future HUD element must make the same trade or ask again.
 - **The bots never put the baby down after a sequence** (cycle bot, 4.10): a perfect bot that wins `stay_awake` at 5 s then plays the rest of the level with the baby in its arms and the director silent (5 → 4 stars on `salon_crawler`, seed 1, 20 runs). Reason: expected until the cycle bot exists; not a balance finding.
 - **`startSequence` refuses a hidden baby and a busy Papa and says nothing in play**: the overlay says why (`sequenceRefusalText`), the CLI wrapper sends the command once and does not retry. Reason: only the debug paths start a sequence until 4.10.
+
+## Deferred from: code review of story-4.4 (2026-10-30)
+
+- **The debug overlay's « Launch » threat button reports success during a sequence** although `runDirector` drops `ForceThreat` while `flow === 'sequence'`; `refusalReason` in `src/debug/cheats.ts` has no sequence case. Reason: debug tooling only, nothing in play depends on it; add the reason line when the overlay is next touched.
