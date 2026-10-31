@@ -79,6 +79,7 @@ async function startFromOverlay(page: Page): Promise<void> {
   await expect(page.locator('[data-debug="sequenceSelect"] option')).toHaveCount(
     levelSequences.length,
   );
+  await expect(page.locator('[data-debug="sequenceSelect"]')).toHaveValue('stay_awake');
   await page.locator('[data-debug="startSequence"]').click();
   await page.keyboard.press('F1');
   await ppAdvance(page, 2);

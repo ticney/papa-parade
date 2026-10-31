@@ -44,6 +44,9 @@ import {
   sequenceBeatProblems,
 } from '@sim';
 
+/** What the beat checks assume when `feel.json` did not load: the normal tier, no tolerance (story 4.5). */
+const NO_FEEL_BEAT_LIMITS = { maxWindowMultiplier: 1, toleranceMs: 0 } as const;
+
 const SCHEMAS_DIR = '_schemas';
 const AUDIO_DIR = ['public', 'assets', 'audio'];
 // `t('some.key')` with a literal key and nothing else. A non-literal argument cannot be checked.
@@ -665,15 +668,13 @@ function checkSequenceReferences(
   for (const [id, sequence] of families.sequences) {
     const file = `content/${SEQUENCE_DEF_PATTERN.dir}/${id}${SEQUENCE_DEF_PATTERN.suffix}`;
     // The beats (story 4.5): the words are `simLevelOf`'s, the function is shared with it. Without
-    // the feel there is no widest window to check the decoys against.
-    const beatProblems =
-      feel === undefined
-        ? []
-        : sequenceBeatProblems(
-            sequence,
-            Object.keys(feedback.beatTracks),
-            beatWindowLimitsOf(feel),
-          );
+    // the feel (it is reported on its own) there is no widest window to check the decoys against: a
+    // neutral one keeps every other rule running, and only the decoy zones are looser.
+    const beatProblems = sequenceBeatProblems(
+      sequence,
+      Object.keys(feedback.beatTracks),
+      feel === undefined ? NO_FEEL_BEAT_LIMITS : beatWindowLimitsOf(feel),
+    );
     for (const problem of beatProblems) {
       problems.push({
         file,

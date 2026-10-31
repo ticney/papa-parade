@@ -12,6 +12,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestLullabyWalk,
   FATIGUE_GAUGES,
   NOISE_GAUGES,
   OUTLET,
@@ -176,6 +177,10 @@ describe('what a bot does not see', () => {
 
 // `npm run sim -- --sequence lullaby_walk` (story 4.5): the walk played end to end by the bots, with
 // no human, on the frozen short def (10 s; the live one is checked by the CLI table in the story).
+const FROZEN_LULLABY = createTestLullabyWalk();
+const FROZEN_MISS_WAKE_PCT =
+  FROZEN_LULLABY.failure.kind === 'babyAwake' ? FROZEN_LULLABY.failure.missWakePct : Number.NaN;
+
 function levelWithLullaby(): SimLevel {
   const content = createTestContent();
   return {
@@ -221,7 +226,8 @@ describe('runSim with --sequence lullaby_walk (story 4.5)', () => {
       expect(report.sequencesSucceeded).toBe(0);
       expect(report.sequencesFailed).toBe(1);
       expect(report.beatsHit).toBe(0);
-      expect(report.beatsMissed).toBe(4);
+      // The misses it takes to wake him: ceil(100 / the cost of one), from the frozen def.
+      expect(report.beatsMissed).toBe(Math.ceil(100 / FROZEN_MISS_WAKE_PCT));
     },
   );
 
@@ -231,12 +237,24 @@ describe('runSim with --sequence lullaby_walk (story 4.5)', () => {
     expect(report.sequencesSucceeded + report.sequencesFailed).toBe(5);
   });
 
-  it('the random bot taps in the step, hits and wakes the baby with its strays', async () => {
+  it('the random bot taps in the step: it cannot aim, so its taps are strays (or a lucky hit)', async () => {
     const report = await lullabyReport({ botId: 'random', seed: 3, runs: 3 });
     expect(report.sequencesStarted).toBe(3);
-    expect(
-      report.beatsHit + report.beatsMissed + report.beatsStray + report.decoysTapped,
-    ).toBeGreaterThan(0);
+    // Not `beatsMissed`: every beat nobody taps is missed, so a bot that never taps would pass.
+    expect(report.beatsHit + report.beatsStray + report.decoysTapped).toBeGreaterThan(0);
+    expect(report.beatsStray).toBeGreaterThan(0);
+  });
+
+  it('a game cut by --until-ms in the middle of the walk keeps the beats counted so far', async () => {
+    // The walk starts at 2000 ms and its first judged beat is at about 2000 + 1000 + 2 × 700 ms.
+    const whole = await lullabyReport({ botId: 'perfect', seed: 1 });
+    const cut = await lullabyReport({ botId: 'perfect', seed: 1, untilSimMs: 6000 });
+    expect(cut.sequencesStarted).toBe(1);
+    expect(cut.sequencesSucceeded).toBe(0);
+    expect(cut.sequencesFailed).toBe(0);
+    expect(cut.beatsHit).toBeGreaterThan(0);
+    expect(cut.beatsHit).toBeLessThan(whole.beatsHit);
+    expect(cut.beatsMissed).toBe(0);
   });
 
   it('counts per run and over the runs', async () => {

@@ -780,6 +780,48 @@ describe('createRunRecorder', () => {
   });
 });
 
+describe('the lullaby walk in the report (story 4.5)', () => {
+  it('counts each beat event under its own field, none under another', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 5,
+    });
+    const recorder = createRunRecorder(sim, 1, [{ maxSimultaneous: 1 }]);
+    // 3 hits, 2 misses, 4 decoy taps, 1 stray: distinct, so a swap shows.
+    for (let i = 0; i < 3; i++) {
+      recorder.onEvent({ type: 'BeatHit', t: asSimMs(0), judgedIndex: i, offsetMs: 0 });
+    }
+    for (let i = 0; i < 2; i++) {
+      recorder.onEvent({ type: 'BeatMissed', t: asSimMs(0), judgedIndex: i });
+    }
+    for (let i = 0; i < 4; i++)
+      recorder.onEvent({ type: 'DecoyTapped', t: asSimMs(0), entryIndex: i });
+    recorder.onEvent({ type: 'BeatStrayTapped', t: asSimMs(0) });
+    expect(recorder.finish()).toMatchObject({
+      beatsHit: 3,
+      beatsMissed: 2,
+      decoysTapped: 4,
+      beatsStray: 1,
+    });
+  });
+
+  it('adds the runs up field by field', () => {
+    const report = summarizeRuns(INPUT, [
+      run(5, { beatsHit: 10, beatsMissed: 1, decoysTapped: 2, beatsStray: 3 }),
+      run(6, { beatsHit: 20, beatsMissed: 4, decoysTapped: 5, beatsStray: 6 }),
+    ]);
+    expect(report).toMatchObject({
+      beatsHit: 30,
+      beatsMissed: 5,
+      decoysTapped: 7,
+      beatsStray: 9,
+    });
+    expect(report.runList.map((entry) => entry.beatsMissed)).toEqual([1, 4]);
+  });
+});
+
 describe('a level that carries the baby (story 4.1)', () => {
   const carryLevel = () =>
     createTestLevel({

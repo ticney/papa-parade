@@ -186,6 +186,49 @@ describe('createSim and the beats of a sequence (story 4.5)', () => {
     ).rejects.toThrow(/windowMs of 700 ms, which is not below its shortest beat interval/);
   });
 
+  it('refuses a decoy whose hit zone would overlap its beats at the widest tier', async () => {
+    // The frozen feel: widest tier 1.5, tolerance 60 ms. A 400 ms window is a 720 ms zone, wider
+    // than the 350 ms or so between a decoy and its beats.
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: lullabyLevel((def) => {
+          beats(def).windowMs = 400;
+        }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(
+      /decoy after judged beat \d+ sits \d+ ms from its nearest beat, but a hit zone is 720 ms wide/,
+    );
+  });
+
+  it('refuses a beats step beside another step', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: lullabyLevel((def) => {
+          def.steps.push({ kind: 'microSleeps', durationMs: 5000, gapMinMs: 1000, gapMaxMs: 2000 });
+        }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/has a beats step among 2 steps, but a beats step must be the only step/);
+  });
+
+  it('refuses a babyAwake failure whose three wake costs are 0', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: lullabyLevel((def) => {
+          def.failure = { kind: 'babyAwake', missWakePct: 0, decoyWakePct: 0, strayWakePct: 0 };
+        }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/missWakePct, decoyWakePct and strayWakePct are all 0/);
+  });
+
   it('refuses a step with no judged beat at all', async () => {
     await expect(
       createSim({

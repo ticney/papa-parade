@@ -161,12 +161,25 @@ describe('content/sequences/lullaby_walk.json (story 4.5)', () => {
     expect(parsed.value.framing.bar?.value).toBe('calmLeft');
   });
 
-  it('keeps the frozen fixture a valid def of the same shape', () => {
-    expect(createTestLullabyWalk().steps[0]?.kind).toBe('beats');
+  it('keeps the frozen fixture a valid def of the same shape as the live one', () => {
+    const frozen = createTestLullabyWalk();
+    expect(frozen.steps[0]?.kind).toBe('beats');
+    // The same keys at every level the sim reads, so that a key added to the live def (and to the
+    // schema) cannot leave the fixture, and the tests that use it, behind.
+    const keysOf = (value: unknown): string[] =>
+      Object.keys(value as object)
+        .filter((key) => key !== '$schema')
+        .sort();
+    expect(keysOf(frozen)).toEqual(keysOf(lullaby));
+    expect(keysOf(frozen.steps[0])).toEqual(keysOf(lullabyStep[0]));
+    expect(keysOf(frozen.failure)).toEqual(keysOf(lullaby.failure));
+    expect(keysOf(frozen.framing)).toEqual(keysOf(lullaby.framing));
+    expect(keysOf(frozen.feedback)).toEqual(keysOf(lullaby.feedback));
   });
 
   it('keeps every number of the beats step and its failure with a unit suffix', () => {
-    const suffix = /(Ms|Pct|Beats|bpmStart|bpmEnd|decoyBeats)$/;
+    // `bpmStart` and `bpmEnd` carry beats per minute as their own unit (D-notes), written as a prefix.
+    const suffix = /(Ms|Pct|Beats|bpmStart|bpmEnd)$/;
     const step = lullabyStep[0] as Record<string, unknown>;
     const failure = lullaby.failure as Record<string, unknown>;
     for (const [key, value] of [...Object.entries(step), ...Object.entries(failure)]) {

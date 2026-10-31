@@ -1,5 +1,6 @@
 import type { Bot, BotId } from '@bots/bot';
 import { STEP_MS } from '@shared/constants';
+import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import type { SimCommand, World } from '@sim';
 import { describe, expect, it } from 'vitest';
@@ -26,6 +27,12 @@ const SETTINGS = {
   human: { reactionMs: 250, aimOffsetMs: 0, jitterSdMs: 60 },
   random: { actionsPerSec: 2, floorReachM: 3, maxHoldMs: 800 },
 };
+
+/**
+ * `hashJson` of the random bot's commands (seed 5, 20 s, no beats step), see the test that uses it.
+ * Taken on `main`'s `randomBot.ts` and on this branch: both give this.
+ */
+const RANDOM_BOT_PLAIN_DIGEST = '1e7b972f510ba5';
 
 function bot(id: BotId, seed = 1): Bot {
   return makeBot(id, botSetup(seed, SETTINGS));
@@ -80,6 +87,19 @@ describe('the human bot in a beats step', () => {
     expect(Math.abs((taps[0]?.t ?? 0) - 5000)).toBeLessThan(300);
   });
 
+  it('has no reaction floor: a beat 100 ms after first sight is tapped near it, not 250 ms after', () => {
+    // `reactionMs` is 250. With a floor no tap could come before sight + 250; the beat is at +100.
+    for (let seed = 1; seed <= 10; seed++) {
+      const out: SimCommand[] = [];
+      const who = bot('human', seed);
+      who.act(worldAt(5000, { nextBeatAt: 5100 }), out);
+      const later = drive(who, 5010, 5600, () => 5100);
+      const tap = [...out, ...later].find((c) => c.type === 'TapBeat');
+      expect(tap, `seed ${seed}`).toBeDefined();
+      expect((tap?.t ?? Number.POSITIVE_INFINITY) - 5000, `seed ${seed}`).toBeLessThan(250);
+    }
+  });
+
   it('drops the plan of a beat that is settled before the tap is sent', () => {
     const who = bot('human', 7);
     // The beat in play is 9000, planned at 4000; at 4010 it has moved on to 9700: the tap for 9000 is
@@ -114,10 +134,12 @@ describe('the random bot in a beats step', () => {
   });
 
   it('acts as it always did outside a beats step: the usual actions, no tap to the beat', () => {
-    // The proof that its draws did not move is the CLI table of the story (the salon's report with
-    // and without this story, identical for all four bots); here, that the branch stays out of the way.
+    // The beat branch returns before any draw, so outside a beats step the stream is what it was on
+    // `main` (the diff of `randomBot.ts` is that early return and a comment; the salon's CLI table is
+    // identical for all four bots). The digest pins the stream itself: a draw added or moved above
+    // the branch changes it.
     const plain = drive(bot('random', 5), 0, 20_000, () => null);
-    expect(plain).toEqual(drive(bot('random', 5), 0, 20_000, () => null));
+    expect(hashJson(plain)).toBe(RANDOM_BOT_PLAIN_DIGEST);
     expect(plain.some((c) => c.type === 'TapFloor' || c.type === 'Move')).toBe(true);
     expect(plain.some((c) => c.type === 'TapBeat')).toBe(false);
   });

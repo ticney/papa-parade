@@ -34,6 +34,7 @@ export { starsForScore } from './scoring/stars.ts';
 export {
   type BeatEntry,
   type BeatEntryKind,
+  type BeatTimelineStep,
   type BeatWindowLimits,
   beatTimelineOf,
   beatWindowLimitsOf,

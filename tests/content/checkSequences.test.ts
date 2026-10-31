@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { type BeatTimelineStep, beatTimelineOf, judgedBeatCountOf } from '@sim';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkContent } from '../../tools/content/contentChecks.ts';
 
@@ -223,6 +225,32 @@ describe('checkContent and the special sequences (story 4.4)', () => {
 // words `simLevelOf` uses (they share `sequenceBeatProblems`).
 const LULLABY = 'content/sequences/lullaby_walk.json';
 
+// The live numbers the tests below work from, read from `content/`: tuning the lullaby or the feel
+// moves them with it, and no test holds a literal copy.
+const readLive = <T>(relativePath: string): T =>
+  JSON.parse(readFileSync(join(REPO, relativePath), 'utf8')) as T;
+const LIVE_STEP = readLive<{ steps: BeatTimelineStep[] }>(LULLABY).steps[0] as BeatTimelineStep;
+const LIVE_FEEL = readLive<{
+  timing: { toleranceMs: number };
+  difficulty: Record<string, { windowMultiplier: number }>;
+}>('content/feel.json');
+const LIVE_TOLERANCE_MS = LIVE_FEEL.timing.toleranceMs;
+const LIVE_WIDEST_TIER = Math.max(
+  ...Object.values(LIVE_FEEL.difficulty).map((tier) => tier.windowMultiplier),
+);
+const LIVE_JUDGED_COUNT = judgedBeatCountOf(beatTimelineOf(LIVE_STEP));
+const LIVE_FIRST_DECOY = LIVE_STEP.decoyBeats[0] as number;
+
+/** The shortest gap between two judged or count-in beats of `step`, in ms. */
+function shortestGapMs(step: BeatTimelineStep): number {
+  const beats = beatTimelineOf(step).filter((entry) => entry.kind !== 'decoy');
+  let shortest = Number.POSITIVE_INFINITY;
+  for (let i = 1; i < beats.length; i++) {
+    shortest = Math.min(shortest, (beats[i]?.offsetMs ?? 0) - (beats[i - 1]?.offsetMs ?? 0));
+  }
+  return shortest;
+}
+
 describe('checkContent and the beats steps (story 4.5)', () => {
   async function beatsStep(change: (step: Record<string, unknown>) => void) {
     await mutateJson(LULLABY, (sequence) => {
@@ -253,54 +281,99 @@ describe('checkContent and the beats steps (story 4.5)', () => {
   it('names a decoy with no next judged beat', async () => {
     expect(
       await beatsStep((step) => {
-        step.decoyBeats = [20, 500];
+        step.decoyBeats = [LIVE_FIRST_DECOY, LIVE_JUDGED_COUNT + 100];
       }),
     ).toEqual([
       expect.objectContaining({
         file: LULLABY,
         message: expect.stringMatching(
-          /decoy after judged beat 500, which has no next judged beat/,
+          new RegExp(
+            `decoy after judged beat ${LIVE_JUDGED_COUNT + 100}, which has no next judged beat`,
+          ),
         ),
       }),
     ]);
   });
 
   it('names a decoy after the very last judged beat', async () => {
+    const last = LIVE_JUDGED_COUNT - 1;
     const problems = await beatsStep((step) => {
-      step.decoyBeats = [20, 60];
+      step.decoyBeats = [LIVE_FIRST_DECOY, last];
     });
     expect(problems).toHaveLength(1);
-    expect(problems[0]?.message).toMatch(/decoy after judged beat 60/);
+    expect(problems[0]?.message).toMatch(
+      new RegExp(
+        `decoy after judged beat ${last}, which has no next judged beat \\(the step has ${LIVE_JUDGED_COUNT}\\)`,
+      ),
+    );
+    // And the beat before it is fine: a decoy needs a next judged beat, not a last one.
+    expect(
+      await beatsStep((step) => {
+        step.decoyBeats = [LIVE_FIRST_DECOY, last - 1];
+      }),
+    ).toEqual([]);
   });
 
   it('names a window that is not below the shortest beat interval', async () => {
-    expect(
-      await beatsStep((step) => {
-        step.windowMs = 700;
-        step.decoyBeats = [];
-      }),
-    ).toEqual([
+    const windowMs = shortestGapMs(LIVE_STEP) + 20;
+    const problems = await beatsStep((step) => {
+      step.windowMs = windowMs;
+      step.decoyBeats = [];
+    });
+    const shortest = shortestGapMs({ ...LIVE_STEP, windowMs, decoyBeats: [] });
+    expect(problems).toEqual([
       expect.objectContaining({
         file: LULLABY,
-        message: expect.stringMatching(
-          /windowMs of 700 ms, which is not below its shortest beat interval of 6\d\d ms/,
+        message: expect.stringContaining(
+          `windowMs of ${windowMs} ms, which is not below its shortest beat interval of ${shortest} ms`,
         ),
       }),
     ]);
   });
 
   it('names a decoy whose hit zone would overlap its beats at the widest tier', async () => {
+    // A window wide enough that the zone of the first beat's decoy (half a beat away) overlaps.
+    const spacingMs = Math.round(shortestGapMs(LIVE_STEP) / 2);
+    const windowMs = Math.ceil((spacingMs - 2 * LIVE_TOLERANCE_MS) / LIVE_WIDEST_TIER) + 10;
+    const widened = { ...LIVE_STEP, windowMs, decoyBeats: [0] };
+    const decoy = beatTimelineOf(widened).find((entry) => entry.kind === 'decoy');
+    const timeline = beatTimelineOf(widened);
+    const at = timeline.findIndex((entry) => entry.kind === 'decoy');
+    const nearestMs = Math.min(
+      (decoy?.offsetMs ?? 0) - (timeline[at - 1]?.offsetMs ?? 0),
+      (timeline[at + 1]?.offsetMs ?? 0) - (decoy?.offsetMs ?? 0),
+    );
+    const zoneMs = windowMs * LIVE_WIDEST_TIER + 2 * LIVE_TOLERANCE_MS;
+    expect(zoneMs).toBeGreaterThan(nearestMs);
     const problems = await beatsStep((step) => {
-      step.decoyBeats = [7];
+      step.windowMs = windowMs;
+      step.decoyBeats = [0];
     });
     expect(problems).toEqual([
       expect.objectContaining({
         file: LULLABY,
-        message: expect.stringMatching(
-          /decoy after judged beat 7 sits \d+ ms from its nearest beat, but a hit zone is 390 ms wide at the widest tier \(windowMs 180 × 1\.5 \+ 2 × 60 ms of tolerance\)/,
+        message: expect.stringContaining(
+          `decoy after judged beat 0 sits ${nearestMs} ms from its nearest beat, but a hit zone is ${zoneMs} ms wide at the widest tier (windowMs ${windowMs} × ${LIVE_WIDEST_TIER} + 2 × ${LIVE_TOLERANCE_MS} ms of tolerance)`,
         ),
       }),
     ]);
+  });
+
+  it('still checks the beats when feel.json did not load: only the decoy zones are looser', async () => {
+    await mutateJson('content/feel.json', (feel) => {
+      for (const key of Object.keys(feel)) delete feel[key];
+    });
+    const problems = await beatsStep((step) => {
+      step.track = 'march';
+    });
+    // The feel is reported on its own; the beats rules that need nothing from it still run.
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: LULLABY,
+        message: expect.stringMatching(/has a beats step with the track "march"/),
+      }),
+    );
+    expect(problems.some((problem) => problem.file === 'content/feel.json')).toBe(true);
   });
 
   it('names a tempo so fast that two beats would fall on the same millisecond', async () => {

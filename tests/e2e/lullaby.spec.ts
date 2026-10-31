@@ -46,13 +46,34 @@ const STEP = lullaby.steps[0] as BeatsStep;
 const TIMELINE = beatTimelineOf(STEP);
 const BEATS = TIMELINE.filter((entry) => entry.kind === 'beat');
 const DECOY = TIMELINE.find((entry) => entry.kind === 'decoy');
-const DECOY_AFTER = DECOY?.judgedIndex ?? 0;
+// The specs tap the decoy and draw its ring: a live step with none (Geo emptied `decoyBeats`) is a
+// message here, not a tap at offset 0 and a failure elsewhere.
+if (DECOY === undefined) {
+  throw new Error(
+    'content/sequences/lullaby_walk.json has no decoy (decoyBeats is empty): lullaby.spec.ts needs one',
+  );
+}
+const DECOY_AFTER = DECOY.judgedIndex;
+/** The step offset of judged beat `n`, which must exist in the live step. */
+function beatOffsetMs(n: number): number {
+  const beat = BEATS[n];
+  if (beat === undefined) {
+    throw new Error(`the live lullaby has ${BEATS.length} judged beats, the spec taps beat ${n}`);
+  }
+  return beat.offsetMs;
+}
+/** The step offset of timeline entry `n` (count-in, beat or decoy), which must exist. */
+function noteOffsetMs(n: number): number {
+  const entry = TIMELINE[n];
+  if (entry === undefined) throw new Error(`the live lullaby has no timeline entry ${n}`);
+  return entry.offsetMs;
+}
 const { missWakePct, decoyWakePct, strayWakePct } = lullaby.failure;
 const feedback = liveFeedback as unknown as {
   beatRing: { approachMs: number };
   beatScheduler: { scheduleAheadMs: number };
 };
-const hasVibrate = (): boolean => test.info().project.name === 'chromium';
+const isChromium = (): boolean => test.info().project.name === 'chromium';
 
 const BAR = '.pp-hud-sequence-bar';
 const RING = '.pp-beat-ring';
@@ -87,7 +108,7 @@ async function advanceTo(page: Page, untilMs: number): Promise<void> {
 /** Taps judged beats `0..count - 1` dead on, by the test API (each lands at its own step). */
 async function tapBeats(page: Page, startedAt: number, count: number): Promise<void> {
   for (let i = 0; i < count; i++) {
-    await ppSend(page, { type: 'TapBeat', t: startedAt + (BEATS[i]?.offsetMs ?? 0) });
+    await ppSend(page, { type: 'TapBeat', t: startedAt + beatOffsetMs(i) });
   }
 }
 
@@ -145,7 +166,7 @@ test.describe('tapping to the beat', () => {
     const problems = collectProblems(page);
     await openFrozen(page);
     const startedAt = await start(page);
-    await advanceTo(page, startedAt + (BEATS[0]?.offsetMs ?? 0));
+    await advanceTo(page, startedAt + beatOffsetMs(0));
     await realTap(page);
     await ppAdvance(page, 2);
     await expect(html(page)).toHaveAttribute('data-pp-beat-hits', '1');
@@ -154,7 +175,7 @@ test.describe('tapping to the beat', () => {
     expect(Math.abs(hit.offsetMs)).toBeLessThanOrEqual(2 * STEP_MS);
     expect((await ppCueLog(page)).map((entry) => entry.cueId)).toContain('beat_hit');
 
-    await advanceTo(page, startedAt + (BEATS[1]?.offsetMs ?? 0));
+    await advanceTo(page, startedAt + beatOffsetMs(1));
     await page.keyboard.press('Space');
     await ppAdvance(page, 2);
     await expect(html(page)).toHaveAttribute('data-pp-beat-hits', '2');
@@ -182,7 +203,7 @@ test.describe('tapping to the beat', () => {
     const startedAt = await start(page);
     // Walk in time up to the decoy, by the API; the decoy itself is tapped for real.
     await tapBeats(page, startedAt, DECOY_AFTER + 1);
-    await advanceTo(page, startedAt + (DECOY?.offsetMs ?? 0));
+    await advanceTo(page, startedAt + DECOY.offsetMs);
     await realTap(page);
     await ppAdvance(page, 2);
     await expect(html(page)).toHaveAttribute('data-pp-baby-wake', String(decoyWakePct));
@@ -203,7 +224,7 @@ test.describe('tapping to the beat', () => {
       'aria-valuenow',
       String(100 - decoyWakePct - strayWakePct),
     );
-    if (hasVibrate()) {
+    if (isChromium()) {
       expect(await vibrations(page)).toContainEqual(hapticPatternOfCue('baby_stirred'));
     }
     expect(problems).toEqual([]);
@@ -249,15 +270,15 @@ test.describe('seeing and feeling the beat without the music', () => {
     await expect(html(page)).toHaveAttribute('data-pp-volumes', '0,100,100,100');
     const startedAt = await start(page);
     const approachMs = feedback.beatRing.approachMs;
-    await advanceTo(page, startedAt + (TIMELINE[0]?.offsetMs ?? 0) - approachMs / 2);
+    await advanceTo(page, startedAt + noteOffsetMs(0) - approachMs / 2);
     await waitFrames(page, 2);
     await expect(page.locator(RING)).toBeVisible();
     await expect(page.locator(RING)).toHaveCSS('--pp-beat-progress', /0\.[4-6]/);
     // Past the first note and the first judged beat: the cues for the tempo are in the log.
-    await advanceTo(page, startedAt + (BEATS[0]?.offsetMs ?? 0) + STEP_MS);
+    await advanceTo(page, startedAt + beatOffsetMs(0) + STEP_MS);
     const cues = (await ppCueLog(page)).map((entry) => entry.cueId);
     expect(cues).toContain('beat_cued');
-    if (hasVibrate()) {
+    if (isChromium()) {
       const light = hapticPatternOfCue('beat_cued');
       expect(light).not.toBeNull();
       expect(
@@ -279,7 +300,7 @@ test.describe('the ring (looked at at 667 × 375)', () => {
     const startedAt = await start(page);
     const approachMs = feedback.beatRing.approachMs;
     await tapBeats(page, startedAt, DECOY_AFTER + 1);
-    await advanceTo(page, startedAt + (BEATS[2]?.offsetMs ?? 0) - approachMs * 0.4);
+    await advanceTo(page, startedAt + beatOffsetMs(2) - approachMs * 0.4);
     await waitFrames(page, 2);
     await expect(page.locator(RING)).toBeVisible();
     await expect(page.locator(RING)).not.toHaveClass(/pp-beat-ring--decoy/);
@@ -291,7 +312,7 @@ test.describe('the ring (looked at at 667 × 375)', () => {
     );
     await shot(page, testInfo, 'ring-beat.png');
 
-    await advanceTo(page, startedAt + (DECOY?.offsetMs ?? 0) - approachMs * 0.4);
+    await advanceTo(page, startedAt + DECOY.offsetMs - approachMs * 0.4);
     await waitFrames(page, 2);
     await expect(page.locator(RING)).toHaveClass(/pp-beat-ring--decoy/);
     expect(await page.locator(DISC).evaluate((e) => getComputedStyle(e).borderTopStyle)).toBe(
@@ -314,7 +335,7 @@ test.describe('the ring (looked at at 667 × 375)', () => {
     await openFrozen(page);
     const startedAt = await start(page);
     const approachMs = feedback.beatRing.approachMs;
-    await advanceTo(page, startedAt + (TIMELINE[0]?.offsetMs ?? 0) - approachMs * 0.4);
+    await advanceTo(page, startedAt + noteOffsetMs(0) - approachMs * 0.4);
     await waitFrames(page, 2);
     await expect(page.locator(RING)).toHaveClass(/pp-beat-ring--reduced/);
     expect(await page.locator(DISC).evaluate((e) => getComputedStyle(e).transform)).toBe('none');
@@ -336,6 +357,12 @@ test.describe('autoplay', () => {
       timeout: RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS,
     });
     await ppSend(page, { type: 'StartSequence', sequenceId: 'lullaby_walk' });
+    // The sim refuses a start when Papa is busy, a silence is on or a phone rings: say so now, not
+    // after a 60 s wait for an outcome that cannot come.
+    await expect(
+      html(page),
+      'StartSequence was refused (Papa busy, a silence or a ringing phone at the start)',
+    ).toHaveAttribute('data-pp-sequence', 'lullaby_walk', { timeout: 5_000 });
     await expect(html(page)).toHaveAttribute('data-pp-sequence-outcome', 'succeeded', {
       timeout: 60_000,
     });
@@ -348,7 +375,7 @@ test.describe('synchronisation with the game clock (AC 22)', () => {
   test('every note that sounded is within 10 ms of the game clock, through a slow-mo and a real pause', async ({
     page,
   }) => {
-    test.skip(!hasVibrate(), 'real Web Audio, measured on Chromium');
+    test.skip(!isChromium(), 'real Web Audio, measured on Chromium');
     test.setTimeout(120_000);
     const problems = collectProblems(page);
     await startLevel(page);
@@ -377,6 +404,8 @@ test.describe('synchronisation with the game clock (AC 22)', () => {
     await markChange();
     await pauseHud(page).click();
     await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
+    // Real time has to pass while the clocks stand: that is what the resume must not be late by.
+    // (The state above says the pause began; it cannot say how long it lasted.)
     await page.waitForTimeout(1500);
     await pauseButton(page, STRINGS['pause.resume'] as string).click();
     await expect(html(page)).toHaveAttribute('data-pp-state', 'running', {
@@ -404,10 +433,15 @@ test.describe('synchronisation with the game clock (AC 22)', () => {
         },
       ];
     });
+    // Every note that sounded has a gap: one before the first sample would be dropped above, and the
+    // strict check would then cover fewer notes than it seems to.
+    expect(gaps.length, 'notes with no clock sample around them').toBe(notes.length);
     // The one honest exception: a change of rate in the frame just before a note sounds cannot be
     // undone, the note is already out. It is at most one frame times |old − new| / new, 39 ms for a
-    // ×0.3 slow-mo at 60 fps. Only a note within `NEAR_CHANGE_MS` of the game clock at a change
-    // (the slow-mo's start and end, the pause and its resume) is excused, and only down to that bound.
+    // ×0.3 slow-mo at 60 fps (the deterministic test pins that exact bound). A real browser's frames
+    // are not 16.67 ms and its audio clock moves in quanta, so here a note within `NEAR_CHANGE_MS` of
+    // the game clock at a change (the slow-mo's start and end, the pause and its resume) is excused
+    // down to a flat `EXCEPTION_BOUND_MS` instead; the other notes, most of them, must hold 10 ms.
     const NEAR_CHANGE_MS = 250;
     const EXCEPTION_BOUND_MS = 45;
     let verified = 0;

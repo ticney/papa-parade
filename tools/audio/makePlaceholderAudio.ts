@@ -1199,7 +1199,8 @@ const LULLABY_COO_RELEASE_MS = 140;
 const LULLABY_STEP_LENGTH_MS = 190;
 const LULLABY_STEP_HZ = { from: 150, to: 70 };
 const LULLABY_STEP_DECAY_S = 0.05;
-const LULLABY_STEP_NOISE_GAIN = 0.35;
+/** The smoothed noise is a small signal (a few hundredths), so its gain is above 1 to be heard against the thump. */
+const LULLABY_STEP_NOISE_GAIN = 1.4;
 const LULLABY_STEP_NOISE_SMOOTHING = 0.15;
 const LULLABY_STIR_LENGTH_MS = 340;
 const LULLABY_STIR_PITCH_HZ = { from: 340, peak: 470, to: 380 };
@@ -1296,7 +1297,7 @@ export function synthLullabyStep(): Float32Array {
     phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
     noise += LULLABY_STEP_NOISE_SMOOTHING * (nextFloat(rng) * 2 - 1 - noise);
     out[i] =
-      (Math.sin(phase) + noise * LULLABY_STEP_NOISE_GAIN * 4) *
+      (Math.sin(phase) + noise * LULLABY_STEP_NOISE_GAIN) *
       Math.exp(-seconds / LULLABY_STEP_DECAY_S);
   }
   out[0] = 0;
@@ -1334,7 +1335,9 @@ export function synthBabyStir(): Float32Array {
 
 /**
  * The lullaby's pad: a quiet drone that swells once per loop and has no pulse, so the planned notes
- * carry the tempo alone (loop `sequenceMusic.lullaby_walk`). Whole cycles over the loop: no seam.
+ * carry the tempo alone (loop `sequenceMusic.lullaby_walk`). Only the 196 Hz tone and the swell make
+ * whole cycles over the loop; the other two do not, so the seam is hidden by the fade at both ends
+ * (a dip once per loop, like the other loops), not absent.
  */
 export function synthLullabyPad(): Float32Array {
   const out = new Float32Array(samplesOf(LULLABY_PAD_LENGTH_S * 1000));

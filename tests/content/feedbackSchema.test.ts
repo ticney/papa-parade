@@ -447,7 +447,12 @@ describe('the rhythm tracks (story 4.5)', () => {
   it('names the lullaby track with its notes, count-in tick and decoy sound', () => {
     const parsed = parse(real);
     expect(parsed.ok && Object.keys(parsed.value.beatTracks)).toEqual(['lullaby']);
-    expect(parsed.ok && parsed.value.beatTracks.lullaby?.notes.length).toBeGreaterThan(0);
+    const track = parsed.ok ? parsed.value.beatTracks.lullaby : undefined;
+    expect(track?.notes.length).toBeGreaterThan(0);
+    expect(track?.countIn).toMatch(/^music_lullaby_tick$/);
+    expect(track?.decoy).toMatch(/^baby_/);
+    expect(track?.bus).toBe('music');
+    expect(track?.gainPct).toBeGreaterThan(0);
   });
 
   it.each([
@@ -461,6 +466,17 @@ describe('the rhythm tracks (story 4.5)', () => {
       'no count-in tick',
       mutated(['beatTracks.lullaby.countIn', undefined]),
       ['beatTracks.lullaby.countIn'],
+    ],
+    [
+      'no decoy sound',
+      mutated(['beatTracks.lullaby.decoy', undefined]),
+      ['beatTracks.lullaby.decoy'],
+    ],
+    ['no bus', mutated(['beatTracks.lullaby.bus', undefined]), ['beatTracks.lullaby.bus']],
+    [
+      'no volume',
+      mutated(['beatTracks.lullaby.gainPct', undefined]),
+      ['beatTracks.lullaby.gainPct'],
     ],
     [
       'a track id in capitals',

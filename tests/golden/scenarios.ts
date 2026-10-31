@@ -404,7 +404,8 @@ export const SCENARIOS: readonly Scenario[] = [
       ...LULLABY_BEATS.flatMap((entry, i) =>
         i === 6 ? [] : [tapBeatAt(entry.offsetMs, i % 2 === 0 ? -30 : 30)],
       ),
-      tapBeatAt((beatOffsetMs(2) + beatOffsetMs(3)) / 2),
+      // Between two beats, in whole ms (the offsets can differ by an odd number).
+      tapBeatAt(Math.round((beatOffsetMs(2) + beatOffsetMs(3)) / 2)),
     ],
   },
   {
