@@ -4,7 +4,7 @@ baseline_commit: 714d3c000d4834d0845d9d8149262cebc85d499a
 
 # Story 4.6: The bedtime duel (the Wait response)
 
-Status: in-progress
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.6 « Duel du coucher (réponse Attendre) » (L1932-1956). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -214,23 +214,23 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
 
 ## Tasks / Subtasks
 
-- [ ] **T1. The `wait` response** (AC 1-4, 6, 20, part of 21)
-  - [ ] T1.1 Schema, icon, `pressKindOf`, strings, `content:schemas`, the `threatSchema` test.
-  - [ ] T1.2 The draw, `WaitSignalGiven`, `isJudgeableBeforeEnd`, the strict early rule, `threatCueOf`.
-  - [ ] T1.3 `fingerPlanFor`; the catalogue's `wait` set on the anchored fixture **before any duel code**.
-- [ ] **T2. The duel in the sim** (AC 7-15)
-  - [ ] T2.1 Sequence schema, `bedtime_eyes.json`, `bedtime_duel.json`, the gag, the level, `feedback.json`, the clips.
-  - [ ] T2.2 `loadLevelContent`, `simLevelOf` (`armsCryIndex`, `duelThreatIndexes`), `sequenceDuelProblems`, `content:check`.
-  - [ ] T2.3 `isTimed`, the slice, `goToSequenceStep`, `bedtimeDuel.ts`, the two hooks.
-  - [ ] T2.4 Snapshot v23; the sim tests of AC 21; the fuzz test.
-- [ ] **T3. Client** (AC 5, 16-18)
-  - [ ] T3.1 The marker swap and its no-leak test.
-  - [ ] T3.2 `inputMapper`, the babble, mirrors.
-- [ ] **T4. Tools and tests** (AC 19, 22, 23)
-  - [ ] T4.1 The bots and the report; the tables pasted.
-  - [ ] T4.2 Goldens (regenerate, diff, add the two scenarios).
-  - [ ] T4.3 `tests/e2e/bedtimeDuel.spec.ts`; touched specs.
-- [ ] **T5. Docs and CI** (AC 24, 25)
+- [x] **T1. The `wait` response** (AC 1-4, 6, 20, part of 21)
+  - [x] T1.1 Schema, icon, `pressKindOf`, strings, `content:schemas`, the `threatSchema` test.
+  - [x] T1.2 The draw, `WaitSignalGiven`, `isJudgeableBeforeEnd`, the strict early rule, `threatCueOf`.
+  - [x] T1.3 `fingerPlanFor`; the catalogue's `wait` set on the anchored fixture **before any duel code**.
+- [x] **T2. The duel in the sim** (AC 7-15)
+  - [x] T2.1 Sequence schema, `bedtime_eyes.json`, `bedtime_duel.json`, the gag, the level, `feedback.json`, the clips.
+  - [x] T2.2 `loadLevelContent`, `simLevelOf` (`armsCryIndex`, `duelThreatIndexes`), `sequenceDuelProblems`, `content:check`.
+  - [x] T2.3 `isTimed`, the slice, `goToSequenceStep`, `bedtimeDuel.ts`, the two hooks.
+  - [x] T2.4 Snapshot v23; the sim tests of AC 21; the fuzz test.
+- [x] **T3. Client** (AC 5, 16-18)
+  - [x] T3.1 The marker swap and its no-leak test.
+  - [x] T3.2 `inputMapper`, the babble, mirrors.
+- [x] **T4. Tools and tests** (AC 19, 22, 23)
+  - [x] T4.1 The bots and the report; the tables pasted.
+  - [x] T4.2 Goldens (regenerate, diff, add the two scenarios).
+  - [x] T4.3 `tests/e2e/bedtimeDuel.spec.ts`; touched specs.
+- [x] **T5. Docs and CI** (AC 24, 25)
 
 ## Dev Notes
 
@@ -341,16 +341,77 @@ Paths follow the epic and the architecture. No conflict. The one addition of not
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), Claude Code.
 
 ### Debug Log References
 
+- `?threats=off` stripped the duel's threat def (found by `testApi.spec.ts` and `threats.spec.ts` failing with « threatDef "bedtime_eyes" is not loaded »): `withoutThreats` now keeps the defs the `duel` steps of its kept sequences name, with a unit test.
+- The first drafts of `duelSequence.test.ts` counted `gags.total` and `armsCries` as if the game stopped at the end of the sequence: it plays on, the baby stays carried and the cry in the arms goes on (4.10's known limit). They count the eyes' own results now.
+- `never wins by waiting past endsAt` first passed with `isSettled` mutated to `true` (a retreat keeps moving the `endsAt` estimate): the test now puts `endsAt` in the past by hand, and fails under the mutation.
+
 ### Completion Notes List
 
+- **T1.** `wait` is a schema response with `minDelayMs`, `maxDelayMs`, `signalVerbKey`, `signalIcon` and `feedback.signal` (required on a `wait`, refused elsewhere, one message per path), the `eyes` icon, `pressKindOf` next to `classifyPress`, `WaitSignalGiven` (sorted in `SIM_EVENT_TYPES`). `telegraphThreat` draws exactly one `nextFloat` for a `wait` def and nothing for any other; `openWindow` takes the def and pushes `WaitSignalGiven` then `WindowOpened`; `pressThreat` gags a press stamped before the signal as `early` before the `judgement.quality` branches, whatever `earlyPress` says; `isJudgeableBeforeEnd` counts `maxDelayMs`. Strings: `verb.wait` « ATTENDS… », `verb.go` « FILE ! » (the strings schema now accepts a verb ending with « … » beside « ! »: `ATTENDS…` is the story's own text). `threatCueOf` maps `WaitSignalGiven` to `feedback.signal`; `content:check` requires `audio`, `visual` and `haptic` on it (one failing test each).
+- **T2.** `duel` step kind and `retreats` failure with the three cross rules; `bedtime_eyes.json`, `bedtime_duel.json`, `baby_eyes_reopened` gag, the six cues and the hush loop in `feedback.json`, five new placeholder clips (seeds 27 to 31; only the five new `.m4a` are in the diff, the others untouched). `loadLevelContent` loads a duel's threat after the sequences through one shared closure and reports a missing file at `steps[j].threatDef`. `simLevelOf` captures `armsCryIndex` before pushing the duel instances and fills `SimSequence.duelThreatIndexes`. `StepHandler.isTimed`, `DuelSlice` (`createDuelSlice`, `clearDuelSlice`), `goToSequenceStep`, the two hooks (`advanceSequenceOnResolve`, `failSequenceOnGag(world, ctx, threat, reason)`), `DUEL_HANDLER`, `sequenceDuelProblems` (pure, shared by `content:check` and `simLevelOf`). Snapshot v23 with `duelProblem`.
+- **T3.** The marker swaps its verb and glyph and toggles `pp-threat--signal` on `windowOpen` (kept while the marker is up, so a quick tap is drawn once more with the signal; back to the open eye at the next telegraph); nothing visible reads `windowOpenAt` before the signal (unit test with two instances, `windowOpenAt` 2000 vs 6000, writing the same DOM). The input mapper makes a finger anywhere the press on the threat that is up while `isDuelStepRunning`; free in a rest. The babble is off during a duel. Mirrors `data-pp-sequence-step` and `data-pp-sequence-retreats`, cleared at level start and at `SequenceStarted`.
+- **T4.** Bots: `fingerPlanFor` taps a `wait`; `perfect` is unchanged code with a comment; `human` skips a `wait` threat until it is `windowOpen` (before `cycles.isNew`) and presses at `windowOpenAt + reactionMs + aimOffsetMs + jitterSdMs × N(0, 1)`, one draw; its draws on a parry are pinned unchanged by replaying its own rng stream. `simReport` counts `sequenceRetreats`; the recorder no longer counts the duel's telegraph as a micro-sleep. Goldens regenerated, two scenarios added. `tests/e2e/bedtimeDuel.spec.ts` (12 tests, chromium + webkit).
+- **T5.** `project-context.md` paragraph, `snapshot version 23` (the 4.5 paragraph keeps its own version 22), `deferred-work.md` (L204 and L514 closed for `wait`, this story's open points).
+
+**Deliberate golden update (AC 22):** every existing journal moves **only** in `worldHash` (checked: the diff of every other line is empty), because the world now holds `sequence.duel`. Two journals are new: `bedtime_duel_won` (seed 46) and `bedtime_duel_retreated` (seed 47).
+
+**AC 22, `main` (`714d3c0`) against the branch, `salon_crawler`, seed 1, 20 runs, normal tier:**
+
+| bot | tree | meanStars | starCounts | endsByReason | meanSuccessPct | meanScore | gags |
+|---|---|---|---|---|---|---|---|
+| perfect | main | 5 | [0,0,0,0,0,20] | timer 20 | 100 | 90 | 0 |
+| perfect | branch | 5 | [0,0,0,0,0,20] | timer 20 | 100 | 90 | 0 |
+| human | main | 4 | [0,0,0,1,18,1] | timer 20 | 99.9 | 82.1 | 1 |
+| human | branch | 4 | [0,0,0,1,18,1] | timer 20 | 99.9 | 82.1 | 1 |
+| idle | main | 1 | [0,20,0,0,0,0] | timer 20 | 0 | 20 | 762 |
+| idle | branch | 1 | [0,20,0,0,0,0] | timer 20 | 0 | 20 | 762 |
+| random | main | 1 | [0,20,0,0,0,0] | timer 20 | 2.2 | 20.3 | 759 |
+| random | branch | 1 | [0,20,0,0,0,0] | timer 20 | 2.4 | 20.1 | 759 |
+| random | branch, `bedtime_duel` taken out of the level's `sequences` | 1 | [0,20,0,0,0,0] | timer 20 | 2.2 | 20.3 | 759 |
+
+`perfect`, `human` and `idle` are identical (stars, end reasons, success rate, score, gags); only the hashes move. `random` moves, as expected (one more threat instance, it draws `nextInt(rng, 0, world.threats.length)`), and **with the duel taken out of the level it matches `main` exactly** (last row; the level file was restored afterwards).
+
+**AC 22, `--sequence bedtime_duel --sequence-at-ms 5000`, same level, seed 1, 20 runs:**
+
+| bot | started | succeeded | failed | retreats | eyes responses | perfect | success | fail | early | late |
+|---|---|---|---|---|---|---|---|---|---|---|
+| perfect | 20 | 20 | 0 | 0 | 60 | 60 | 0 | 0 | 0 | 0 |
+| human | 20 | 20 | 0 | 3 | 66 | 11 | 52 | 3 | 0 | 3 |
+| idle | 20 | 0 | 20 | 40 | 60 | 0 | 0 | 60 | 0 | 60 |
+| random | 20 | 0 | 20 | 40 | 60 | 0 | 0 | 60 | 13 | 47 |
+
+`perfect` wins 20 of 20 with no retreat and every response `perfect`; `idle` loses 20 of 20 on its third failure (two retreats, then `BabyWoke`). `human` wins 20 of 20 (3 retreats in all, all `late`, never `early`; 11 of 66 responses `perfect`, about 17 %): it is not too hard. `random` loses 20 of 20, mostly late (it presses at random moments, not at the signal). `tests/tools/sim/duelSequence.test.ts` pins `perfect` and `idle` over seeds 1 to 5.
+
+**Findings / deviations to know:**
+- `test_wait` is planned at the `phone` anchor, not `door`: `test_firm` already holds `door` and two defs cannot share an anchor.
+- `ppSequenceStep` and `ppSequenceRetreats` are not separate `PROD_FORBIDDEN_MARKERS` entries: the existing `ppSequence` entry is their prefix and `inspectDist` would report each chunk twice (the existing comment says the same for the story 4.4 mirrors). Covered by the prod build check in the full CI.
+- `failSequenceOnGag` gained the `threat` and `reason` parameters, so `lullabyWalk.test.ts` had to change one call (the only edit of an existing sequence test beyond content counts and the snapshot version).
+- Screenshots at 667 × 375 looked at (Chromium and WebKit): the open eye with « ATTENDS… » before the signal, the closed eye with its lashes and « FILE ! » after; no reference screenshot moved.
+- `main` gained story 2.10 meanwhile: merged into the branch (one conflict, the reduced-motion block of `ui.css`, now `:where(:root[data-pp-motion="reduced"]) …` with the signal's pop added).
+- The 30-seed fuzz is `bedtimeDuelFuzz.test.ts`; `test:coverage` passed with the `src/sim` thresholds (all files 98.1 % statements).
+- **CI:** `npm run ci` was run twice on the branch. Both times typecheck, lint, `content:check`, `test:coverage` (6496 tests) were green and `e2e` ended with 649 passed and 1 failure in `instinct.spec.ts`, a different one each time and not in this story's code: the first a `normal` tier read in a Chromium test (21 of 21 pass alone), the second a WebKit crash (« Cannot find parent object browser », 14 of 14 pass alone). The machine was loaded. Because `e2e` stops the script, the rest of the script (`build:playtest`, `dist:check --flavor playtest`, `e2e:dist` with its perf run, `build`, `dist:check --flavor prod`) was then run by hand, in order: all green. So no single `npm run ci` run exited 0.
+
 ### File List
+
+**Content and assets:** `content/threats/bedtime_eyes.json` (new), `content/sequences/bedtime_duel.json` (new), `content/levels/salon_crawler.json`, `content/feedback.json`, `content/strings.fr.json`, `content/_schemas/{sequence,threat}.schema.json`, `public/assets/audio/{tel_bedtime_eyes,resp_wait,baby_eyes_close,gag_baby_eyes_reopened,music_bedtime_hush}.m4a` (new).
+
+**Sim and content code:** `src/content/schemas/{threat,sequence,strings}.ts`, `src/content/loadLevelContent.ts`, `src/sim/{world,events,context,createSim,snapshot,index}.ts`, `src/sim/sequences/{bedtimeDuel (new),beatClock,lullabyWalk,sequenceEnd,sequenceStart,sequenceSteps,sequenceSystem}.ts`, `src/sim/threats/{threatFsm,threatSystem,judgeable,gags}.ts`, `src/sim/timing/classifyPress.ts`.
+
+**Client, bots, tools:** `src/client/{boot,input/inputMapper,feedback/threatFeedback,render/gags,app/threatsSwitch}.ts`, `src/client/ui/world/threatMarkers.ts`, `src/client/ui/styles/ui.css`, `src/bots/{humanBot,perfectBot,threatTiming}.ts`, `tools/audio/makePlaceholderAudio.ts`, `tools/content/contentChecks.ts`, `tools/build/inspectDist.ts` (comment), `tools/sim/{runSim,simReport}.ts`.
+
+**Tests (new):** `src/sim/sequences/{bedtimeDuel,bedtimeDuelFuzz,duelLevel,duelSnapshot}.test.ts`, `src/sim/threats/waitResponse.test.ts`, `src/client/feedback/waitFeedback.test.ts`, `src/client/ui/world/waitMarker.test.ts`, `tests/bots/waitBots.test.ts`, `tests/content/{checkDuel,duelSequenceSchema,waitThreatSchema}.test.ts`, `tests/tools/audio/bedtimeClips.test.ts`, `tests/tools/sim/duelSequence.test.ts`, `tests/golden/bedtimeDuel.test.ts`, `tests/e2e/bedtimeDuel.spec.ts`, `tests/support/{testBedtimeEyes.threat,testBedtimeDuel.sequence}.json`, `tests/threats/fixtures/test_wait.json`, `tests/golden/journals/bedtime_duel_{won,retreated}{,.expected}.json`.
+
+**Tests (changed):** `tests/support/testContent.ts`, `tests/threats/threatCatalog.test.ts`, `tests/golden/scenarios.ts` and every `tests/golden/journals/*.expected.json` (hashes only), `tests/content/{levelSchema,loadLevelContent,sequenceSchema,threatSchema}.test.ts`, `tests/tools/sim/simReport.test.ts`, `tests/e2e/threats.spec.ts`, `src/sim/{createSim,events,snapshot}.test.ts`, `src/sim/sequences/{lullabyWalk,sequenceSnapshot}.test.ts`, `src/sim/threats/{gags,inputLag,threatFsm}.test.ts`, `src/client/input/inputMapper.test.ts`, `src/client/app/threatsSwitch.test.ts`.
+
+**Docs:** `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this file.
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-10-31 | Story created (`gds-create-story`), status `ready-for-dev`. Ultimate context engine analysis completed: comprehensive developer guide created. |
+| 2026-10-31 | Story implemented (`gds-dev-story`): the `wait` response, the bedtime duel, snapshot v23, the bots, the goldens and the e2e. Status `review`. |
