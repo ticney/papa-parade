@@ -108,8 +108,8 @@ describe('loadLevelContent', () => {
     const result = await loadLevelContent(memorySource(), 'salon_crawler');
     expect(result).toMatchObject({ ok: true });
     if (!result.ok) return;
-    expect(result.value.level.sequences).toEqual(['stay_awake']);
-    expect(Object.keys(result.value.sequences)).toEqual(['stay_awake']);
+    expect(result.value.level.sequences).toEqual(['stay_awake', 'lullaby_walk']);
+    expect(Object.keys(result.value.sequences)).toEqual(['stay_awake', 'lullaby_walk']);
     expect(result.value.sequences.stay_awake?.babyCarried).toBe(true);
   });
 

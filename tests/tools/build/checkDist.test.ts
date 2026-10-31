@@ -87,9 +87,12 @@ const JS_PROD = new Map([
 const JS_PLAYTEST = new Map([
   ...JS_PROD,
   // The calibration mirrors are in the main chunk, behind `isMirrored` (story 2.7).
-  // The sequence's mirrors sit there too (story 4.4).
-  ['assets/boot-a.js', 'mirror("ppCalibration", phase); mirror("ppSequence", id);'],
-  ['assets/testApi-a.js', 'window.__PP__ = api; installTestApi; cueLog'],
+  // The sequence's mirrors sit there too (story 4.4), and the lullaby walk's (story 4.5).
+  [
+    'assets/boot-a.js',
+    'mirror("ppCalibration", phase); mirror("ppSequence", id); mirror("ppBeatHits", n); mirror("ppBeatMisses", n); mirror("ppBabyWake", n);',
+  ],
+  ['assets/testApi-a.js', 'window.__PP__ = api; installTestApi; cueLog; beatLog'],
   ['assets/autoplay-a.js', 'installAutoplay'],
   ['assets/perfHud-a.js', 'installPerfHud pp-debug-perf copyLog'],
   [

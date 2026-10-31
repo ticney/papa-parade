@@ -442,3 +442,54 @@ describe('content/feedback.json', () => {
     expect(undescribed).toEqual([]);
   });
 });
+
+describe('the rhythm tracks (story 4.5)', () => {
+  it('names the lullaby track with its notes, count-in tick and decoy sound', () => {
+    const parsed = parse(real);
+    expect(parsed.ok && Object.keys(parsed.value.beatTracks)).toEqual(['lullaby']);
+    const track = parsed.ok ? parsed.value.beatTracks.lullaby : undefined;
+    expect(track?.notes.length).toBeGreaterThan(0);
+    expect(track?.countIn).toMatch(/^music_lullaby_tick$/);
+    expect(track?.decoy).toMatch(/^baby_/);
+    expect(track?.bus).toBe('music');
+    expect(track?.gainPct).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ['no note', mutated(['beatTracks.lullaby.notes', []]), ['beatTracks.lullaby.notes']],
+    [
+      'a note that is not a clip',
+      mutated(['beatTracks.lullaby.notes', ['lullaby_note']]),
+      ['beatTracks.lullaby.notes[0]'],
+    ],
+    [
+      'no count-in tick',
+      mutated(['beatTracks.lullaby.countIn', undefined]),
+      ['beatTracks.lullaby.countIn'],
+    ],
+    [
+      'no decoy sound',
+      mutated(['beatTracks.lullaby.decoy', undefined]),
+      ['beatTracks.lullaby.decoy'],
+    ],
+    ['no bus', mutated(['beatTracks.lullaby.bus', undefined]), ['beatTracks.lullaby.bus']],
+    [
+      'no volume',
+      mutated(['beatTracks.lullaby.gainPct', undefined]),
+      ['beatTracks.lullaby.gainPct'],
+    ],
+    [
+      'a track id in capitals',
+      mutated(['beatTracks', { Lullaby: (real.beatTracks as Json).lullaby }]),
+      ['beatTracks.Lullaby'],
+    ],
+    [
+      'a scheduler window of 0 ms',
+      mutated(['beatScheduler.scheduleAheadMs', 0]),
+      ['beatScheduler.scheduleAheadMs'],
+    ],
+    ['no ring approach', mutated(['beatRing.approachMs', undefined]), ['beatRing.approachMs']],
+  ])('refuses %s', (_name, result, expected) => {
+    expect(failedPaths(result)).toEqual(expected);
+  });
+});

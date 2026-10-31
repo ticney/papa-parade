@@ -6,7 +6,7 @@ import {
   sequenceDurationMs,
 } from '@content/schemas/sequence';
 import { describe, expect, it } from 'vitest';
-import { createTestStayAwake } from '../support/testContent.ts';
+import { createTestLullabyWalk, createTestStayAwake } from '../support/testContent.ts';
 
 const FILE = 'content/sequences/stay_awake.json';
 const real: Record<string, unknown> = JSON.parse(
@@ -39,7 +39,9 @@ describe('content/sequences/stay_awake.json (story 4.4)', () => {
     expect(parsed.value.babyCarried).toBe(true);
     expect(parsed.value.steps).toHaveLength(3);
     expect(sequenceDurationMs(parsed.value)).toBe(30_000);
-    const gaps = parsed.value.steps.map((entry) => entry.gapMaxMs);
+    const gaps = parsed.value.steps.map((entry) =>
+      entry.kind === 'microSleeps' ? entry.gapMaxMs : 0,
+    );
     expect(gaps).toEqual([...gaps].sort((a, b) => b - a));
   });
 
@@ -68,7 +70,7 @@ describe('content/sequences/stay_awake.json (story 4.4)', () => {
   });
 
   it('lists the step kinds the sim has a handler for', () => {
-    expect([...SEQUENCE_STEP_KINDS]).toEqual(['microSleeps']);
+    expect([...SEQUENCE_STEP_KINDS]).toEqual(['microSleeps', 'beats']);
   });
 
   it('accepts a bar and a music of null: no bar, no compact timer, no change of music', () => {
@@ -134,5 +136,156 @@ describe('content/sequences/stay_awake.json (story 4.4)', () => {
     ],
   ])('refuses %s', (_name, value, expected) => {
     expect(pathsOf(value)).toEqual(expected);
+  });
+});
+
+const LULLABY_FILE = 'content/sequences/lullaby_walk.json';
+const lullaby: Record<string, unknown> = JSON.parse(
+  readFileSync(new URL('../../content/sequences/lullaby_walk.json', import.meta.url), 'utf8'),
+);
+const lullabyStep = lullaby.steps as Record<string, unknown>[];
+
+function lullabyPaths(value: unknown): string[] {
+  const result = parseContentFile(LULLABY_FILE, JSON.stringify(value), SequenceDefSchema);
+  return result.ok ? [] : result.error.map((problem) => problem.jsonPath);
+}
+
+describe('content/sequences/lullaby_walk.json (story 4.5)', () => {
+  it('parses as a beats step with a babyAwake failure and a calmLeft bar', () => {
+    const parsed = parseContentFile(LULLABY_FILE, JSON.stringify(lullaby), SequenceDefSchema);
+    expect(parsed).toMatchObject({ ok: true });
+    if (!parsed.ok) return;
+    expect(parsed.value.id).toBe('lullaby_walk');
+    expect(parsed.value.steps.map((entry) => entry.kind)).toEqual(['beats']);
+    expect(parsed.value.failure.kind).toBe('babyAwake');
+    expect(parsed.value.framing.bar?.value).toBe('calmLeft');
+  });
+
+  it('keeps the frozen fixture a valid def of the same shape as the live one', () => {
+    const frozen = createTestLullabyWalk();
+    expect(frozen.steps[0]?.kind).toBe('beats');
+    // The same keys at every level the sim reads, so that a key added to the live def (and to the
+    // schema) cannot leave the fixture, and the tests that use it, behind.
+    const keysOf = (value: unknown): string[] =>
+      Object.keys(value as object)
+        .filter((key) => key !== '$schema')
+        .sort();
+    expect(keysOf(frozen)).toEqual(keysOf(lullaby));
+    expect(keysOf(frozen.steps[0])).toEqual(keysOf(lullabyStep[0]));
+    expect(keysOf(frozen.failure)).toEqual(keysOf(lullaby.failure));
+    expect(keysOf(frozen.framing)).toEqual(keysOf(lullaby.framing));
+    expect(keysOf(frozen.feedback)).toEqual(keysOf(lullaby.feedback));
+  });
+
+  it('keeps every number of the beats step and its failure with a unit suffix', () => {
+    // `bpmStart` and `bpmEnd` carry beats per minute as their own unit (D-notes), written as a prefix.
+    const suffix = /(Ms|Pct|Beats|bpmStart|bpmEnd)$/;
+    const step = lullabyStep[0] as Record<string, unknown>;
+    const failure = lullaby.failure as Record<string, unknown>;
+    for (const [key, value] of [...Object.entries(step), ...Object.entries(failure)]) {
+      if (typeof value === 'number') expect(key, key).toMatch(suffix);
+    }
+  });
+
+  it.each([
+    [
+      'decoys that do not strictly increase',
+      { ...lullaby, steps: [{ ...lullabyStep[0], decoyBeats: [7, 7] }] },
+      ['steps[0].decoyBeats'],
+    ],
+    [
+      'decoys out of order',
+      { ...lullaby, steps: [{ ...lullabyStep[0], decoyBeats: [15, 7] }] },
+      ['steps[0].decoyBeats'],
+    ],
+    [
+      'a negative decoy',
+      { ...lullaby, steps: [{ ...lullabyStep[0], decoyBeats: [-1] }] },
+      ['steps[0].decoyBeats[0]'],
+    ],
+    [
+      'a zero tempo',
+      { ...lullaby, steps: [{ ...lullabyStep[0], bpmStart: 0 }] },
+      ['steps[0].bpmStart'],
+    ],
+    [
+      'a window of 0 ms',
+      { ...lullaby, steps: [{ ...lullabyStep[0], windowMs: 0 }] },
+      ['steps[0].windowMs'],
+    ],
+    [
+      'a track that is not an id',
+      { ...lullaby, steps: [{ ...lullabyStep[0], track: 'Lullaby' }] },
+      ['steps[0].track'],
+    ],
+    [
+      'a wake cost above 100',
+      { ...lullaby, failure: { ...(lullaby.failure as object), missWakePct: 101 } },
+      ['failure.missWakePct'],
+    ],
+    [
+      'a failure with no strayWakePct',
+      {
+        ...lullaby,
+        failure: { kind: 'babyAwake', missWakePct: 12, decoyWakePct: 20 },
+      },
+      ['failure.strayWakePct'],
+    ],
+    [
+      // The gag failure is refused for the beats step, and so is the calmLeft bar it leaves behind.
+      'a beats step with a gag failure',
+      { ...lullaby, failure: { kind: 'gag', hasSnore: false } },
+      ['failure.kind', 'framing.bar.value'],
+    ],
+    [
+      'a tempo above 300 BPM (a typo that would put two beats on one millisecond)',
+      { ...lullaby, steps: [{ ...lullabyStep[0], bpmStart: 130_000 }] },
+      ['steps[0].bpmStart'],
+    ],
+    [
+      'an end tempo above 300 BPM',
+      { ...lullaby, steps: [{ ...lullabyStep[0], bpmEnd: 301 }] },
+      ['steps[0].bpmEnd'],
+    ],
+    [
+      'a wake cost with a fraction (33.3 three times never reaches 100)',
+      { ...lullaby, failure: { ...(lullaby.failure as object), strayWakePct: 33.3 } },
+      ['failure.strayWakePct'],
+    ],
+    [
+      'a failure whose three wake costs are 0 (the baby could never wake)',
+      {
+        ...lullaby,
+        failure: { kind: 'babyAwake', missWakePct: 0, decoyWakePct: 0, strayWakePct: 0 },
+      },
+      ['failure'],
+    ],
+    [
+      'a beats step beside another step (a step change would drop its open beat)',
+      {
+        ...lullaby,
+        steps: [
+          ...lullabyStep,
+          { kind: 'microSleeps', durationMs: 5000, gapMinMs: 1000, gapMaxMs: 2000 },
+        ],
+      },
+      ['steps'],
+    ],
+    [
+      'a track id with a double underscore (no beatTracks key can be it)',
+      { ...lullaby, steps: [{ ...lullabyStep[0], track: 'a__b' }] },
+      ['steps[0].track'],
+    ],
+  ])('refuses %s', (_name, value, expected) => {
+    expect(lullabyPaths(value)).toEqual(expected);
+  });
+
+  it('refuses a babyAwake failure on a sequence with no beats step', () => {
+    expect(
+      pathsOf({
+        ...real,
+        failure: { kind: 'babyAwake', missWakePct: 1, decoyWakePct: 1, strayWakePct: 1 },
+      }),
+    ).toEqual(['failure.kind']);
   });
 });

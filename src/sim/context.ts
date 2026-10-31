@@ -9,6 +9,7 @@ import type { SimCommand } from './commands.ts';
 import type { SimEvent } from './events.ts';
 import type { NavGrid } from './nav/navGrid.ts';
 import type { PhysicsPort } from './physics/physicsPort.ts';
+import type { BeatEntry } from './sequences/beatClock.ts';
 import type { World } from './world.ts';
 
 /** Navigation grids, one per kind of agent, built once from the level geometry. Outside `World`. */
@@ -108,6 +109,11 @@ export interface SimPlannedDisruption {
 export interface SimSequence {
   readonly id: string;
   readonly def: SequenceDef;
+  /**
+   * The beat timeline of each step (story 4.5), index-aligned with `def.steps`: `null` for a step
+   * that is not a `beats` step. Derived from the def by `simLevelOf`, so it is not in the snapshot.
+   */
+  readonly beatTimelines: readonly (readonly BeatEntry[] | null)[];
 }
 
 /**

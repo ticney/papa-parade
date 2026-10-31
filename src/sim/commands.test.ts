@@ -51,9 +51,16 @@ describe('commandProblem', () => {
       'StartDisruption',
       'StartSequence',
       'TapBaby',
+      'TapBeat',
       'TapFloor',
       'TapObject',
     ]);
+  });
+
+  it('accepts a TapBeat with a timestamp and nothing else, and refuses one with no finite t', () => {
+    expect(commandProblem({ type: 'TapBeat', t: 4210 })).toBeNull();
+    expect(commandProblem({ type: 'TapBeat' })).toMatch(/t must be a finite number/);
+    expect(commandProblem({ type: 'TapBeat', t: Number.NaN })).toMatch(/TapBeat/);
   });
 
   it.each([

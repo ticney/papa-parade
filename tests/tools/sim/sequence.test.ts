@@ -12,6 +12,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestLullabyWalk,
   FATIGUE_GAUGES,
   NOISE_GAUGES,
   OUTLET,
@@ -171,5 +172,116 @@ describe('what a bot does not see', () => {
     }
     expect(events.filter((event) => event.type === 'LevelEnded')).toHaveLength(1);
     sim.dispose();
+  });
+});
+
+// `npm run sim -- --sequence lullaby_walk` (story 4.5): the walk played end to end by the bots, with
+// no human, on the frozen short def (10 s; the live one is checked by the CLI table in the story).
+const FROZEN_LULLABY = createTestLullabyWalk();
+const FROZEN_MISS_WAKE_PCT =
+  FROZEN_LULLABY.failure.kind === 'babyAwake' ? FROZEN_LULLABY.failure.missWakePct : Number.NaN;
+
+function levelWithLullaby(): SimLevel {
+  const content = createTestContent();
+  return {
+    levelId: 'salon_crawler',
+    contentHash: hashJson(content),
+    content,
+    level: createTestLevel({
+      carry: CARRY,
+      sequences: ['lullaby_walk'],
+      durationMs: 30_000,
+    }),
+    geometry: createTestGeometry(),
+  };
+}
+
+async function lullabyReport(overrides: Parameters<typeof simArgs>[0]) {
+  const result = await runSim(
+    simArgs({ sequenceId: 'lullaby_walk', sequenceAtMs: 2000, untilSimMs: 20_000, ...overrides }),
+    levelWithLullaby(),
+  );
+  if (!result.ok) throw new Error(result.error);
+  return result.value;
+}
+
+describe('runSim with --sequence lullaby_walk (story 4.5)', () => {
+  it.each([1, 2, 3, 4, 5])(
+    'the perfect bot wins it on seed %i, with no miss, no decoy and no stray',
+    async (seed) => {
+      const report = await lullabyReport({ botId: 'perfect', seed });
+      expect(report.sequencesSucceeded).toBe(1);
+      expect(report.sequencesFailed).toBe(0);
+      expect(report.beatsHit).toBeGreaterThan(5);
+      expect(report.beatsMissed).toBe(0);
+      expect(report.decoysTapped).toBe(0);
+      expect(report.beatsStray).toBe(0);
+    },
+  );
+
+  it.each([1, 2, 3, 4, 5])(
+    'the idle bot loses it on seed %i: the misses wake the baby',
+    async (seed) => {
+      const report = await lullabyReport({ botId: 'idle', seed });
+      expect(report.sequencesSucceeded).toBe(0);
+      expect(report.sequencesFailed).toBe(1);
+      expect(report.beatsHit).toBe(0);
+      // The misses it takes to wake him: ceil(100 / the cost of one), from the frozen def.
+      expect(report.beatsMissed).toBe(Math.ceil(100 / FROZEN_MISS_WAKE_PCT));
+    },
+  );
+
+  it('the human bot plays it: some beats hit, the sequence ends one way or the other', async () => {
+    const report = await lullabyReport({ botId: 'human', seed: 3, runs: 5 });
+    expect(report.beatsHit).toBeGreaterThan(20);
+    expect(report.sequencesSucceeded + report.sequencesFailed).toBe(5);
+  });
+
+  it('the random bot taps in the step: it cannot aim, so its taps are strays (or a lucky hit)', async () => {
+    const report = await lullabyReport({ botId: 'random', seed: 3, runs: 3 });
+    expect(report.sequencesStarted).toBe(3);
+    // Not `beatsMissed`: every beat nobody taps is missed, so a bot that never taps would pass.
+    expect(report.beatsHit + report.beatsStray + report.decoysTapped).toBeGreaterThan(0);
+    expect(report.beatsStray).toBeGreaterThan(0);
+  });
+
+  it('a game cut by --until-ms in the middle of the walk keeps the beats counted so far', async () => {
+    // The walk starts at 2000 ms and its first judged beat is at about 2000 + 1000 + 2 × 700 ms.
+    const whole = await lullabyReport({ botId: 'perfect', seed: 1 });
+    const cut = await lullabyReport({ botId: 'perfect', seed: 1, untilSimMs: 6000 });
+    expect(cut.sequencesStarted).toBe(1);
+    expect(cut.sequencesSucceeded).toBe(0);
+    expect(cut.sequencesFailed).toBe(0);
+    expect(cut.beatsHit).toBeGreaterThan(0);
+    expect(cut.beatsHit).toBeLessThan(whole.beatsHit);
+    expect(cut.beatsMissed).toBe(0);
+  });
+
+  it('counts per run and over the runs', async () => {
+    const report = await lullabyReport({ botId: 'perfect', runs: 2 });
+    expect(report.runList.map((run) => run.beatsHit)).toEqual([
+      report.beatsHit / 2,
+      report.beatsHit / 2,
+    ]);
+    expect(report.runList.every((run) => run.beatsMissed === 0)).toBe(true);
+  });
+
+  it('journals the TapBeats, so that sim:replay replays the game to the same world', async () => {
+    const games: [string, RunFile][] = [];
+    const result = await runSim(
+      simArgs({
+        botId: 'human',
+        seed: 2,
+        sequenceId: 'lullaby_walk',
+        sequenceAtMs: 2000,
+        untilSimMs: 20_000,
+      }),
+      levelWithLullaby(),
+      { onGame: (name, game) => games.push([name, game]) },
+    );
+    expect(result.ok).toBe(true);
+    const game = games[0]?.[1] as RunFile;
+    expect(game.journal.entries.map((entry) => entry.command.type)).toContain('TapBeat');
+    expect(await replayRunFile(game, levelWithLullaby())).toMatchObject({ ok: true });
   });
 });

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BABY_STIR_REASONS,
+  BABY_STIR_REASONS_ARE_COMPLETE,
   LEVEL_END_REASONS,
   LEVEL_END_REASONS_ARE_COMPLETE,
   SEQUENCE_OUTCOMES,
@@ -64,8 +66,31 @@ describe('the fatigue events (story 1.19)', () => {
     expect(names.indexOf('CoffeeStarted')).toBe(names.indexOf('CoffeeDrunk') + 1);
     expect(names.indexOf('ComboCashedIn')).toBe(names.indexOf('CoffeeStarted') + 1);
     expect(names.indexOf('ComboChanged')).toBe(names.indexOf('ComboCashedIn') + 1);
-    expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('ComboChanged') + 1);
+    expect(names.indexOf('DecoyCued')).toBe(names.indexOf('ComboChanged') + 1);
+    expect(names.indexOf('DecoyTapped')).toBe(names.indexOf('DecoyCued') + 1);
+    expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('DecoyTapped') + 1);
     expect(names.indexOf('GagTriggered')).toBe(names.indexOf('FatigueThresholdCrossed') + 1);
+  });
+});
+
+describe('the lullaby walk events (story 4.5)', () => {
+  it('lists the seven events in their alphabetical places', () => {
+    const names: readonly string[] = SIM_EVENT_TYPES;
+    expect(names.slice(names.indexOf('BabyStirred'), names.indexOf('BladderFilled'))).toEqual([
+      'BabyStirred',
+      'BabyWoke',
+      'BeatCued',
+      'BeatHit',
+      'BeatMissed',
+      'BeatStrayTapped',
+    ]);
+    expect(names).toContain('DecoyCued');
+    expect(names).toContain('DecoyTapped');
+  });
+
+  it('lists the three reasons a baby stirs, proved complete at compile time', () => {
+    expect([...BABY_STIR_REASONS]).toEqual(['missed', 'decoy', 'stray']);
+    expect(BABY_STIR_REASONS_ARE_COMPLETE).toBe(true);
   });
 });
 
@@ -86,7 +111,7 @@ describe('the special-sequence events (story 4.4)', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
     expect(names).toContain('BabyWoke');
     expect(names).toContain('PapaSnored');
-    expect(names.indexOf('BabyWoke')).toBe(names.indexOf('BabyStateChanged') + 1);
+    expect(names.indexOf('BabyWoke')).toBe(names.indexOf('BabyStirred') + 1);
     expect(names.indexOf('PapaSnored')).toBe(names.indexOf('PapaPathPlanned') + 1);
     expect(names.slice(names.indexOf('SequenceEnded'), names.indexOf('SilenceEnded'))).toEqual([
       'SequenceEnded',

@@ -55,6 +55,79 @@
             ],
             "additionalProperties": false,
             "description": "A stretch of the sequence where micro-sleeps come every gapMinMs to gapMaxMs."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "beats",
+                "description": "Papa walks to the beat of a track whose tempo changes (story 4.5)."
+              },
+              "durationMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How long the step lasts, in sim ms. The tempo goes linearly from `bpmStart` at the first beat (`leadInMs`) to `bpmEnd` at the end of the step."
+              },
+              "track": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+                "description": "Id of `feedback.json › beatTracks`: the notes, the count-in tick and the decoy sound."
+              },
+              "bpmStart": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 300,
+                "description": "Tempo of the first beat, in beats per minute."
+              },
+              "bpmEnd": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 300,
+                "description": "Tempo the ramp reaches at the end of the step, in beats per minute. A beat is placed with the tempo of the beat before it, and the last one falls before the end of the step, so this tempo itself is never played."
+              },
+              "leadInMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Wait before the first beat of the count-in, in sim ms from the start of the step."
+              },
+              "countInBeats": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Beats at the start that are only heard (a tap there is free), counted in beats."
+              },
+              "windowMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Length of the window around each judged beat, in sim ms, before the tier and the fatigue."
+              },
+              "decoyBeats": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "description": "Judged-beat numbers (0-based, count-in excluded) after which an off-beat decoy sits halfway to the next beat. Strictly increasing."
+              }
+            },
+            "required": [
+              "kind",
+              "durationMs",
+              "track",
+              "bpmStart",
+              "bpmEnd",
+              "leadInMs",
+              "countInBeats",
+              "windowMs",
+              "decoyBeats"
+            ],
+            "additionalProperties": false,
+            "description": "A stretch of the sequence where Papa taps to a lullaby that slows down."
           }
         ],
         "description": "One step of a sequence."
@@ -98,6 +171,41 @@
           "required": [
             "kind",
             "hasSnore"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "babyAwake",
+              "description": "Every miss, decoy tap and stray tap wakes the baby a little; at 100 % he is up."
+            },
+            "missWakePct": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Wake added by a judged beat nobody tapped, in % of the way to awake."
+            },
+            "decoyWakePct": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Wake added by a tap on a decoy, in % of the way to awake."
+            },
+            "strayWakePct": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Wake added by a tap that is on no beat and no decoy (a second tap in a window, a tap between windows), in % of the way to awake."
+            }
+          },
+          "required": [
+            "kind",
+            "missWakePct",
+            "decoyWakePct",
+            "strayWakePct"
           ],
           "additionalProperties": false
         }
@@ -178,9 +286,10 @@
                 "value": {
                   "type": "string",
                   "enum": [
-                    "timeLeft"
+                    "timeLeft",
+                    "calmLeft"
                   ],
-                  "description": "What the bar shows; `timeLeft` is the time left."
+                  "description": "What the bar shows; `timeLeft` is the time left, `calmLeft` the baby's calm left (100 − his wake, needs a `babyAwake` failure)."
                 }
               },
               "required": [
@@ -244,5 +353,5 @@
     "feedback"
   ],
   "additionalProperties": false,
-  "description": "A special sequence: its steps, how it ends and how it looks (story 4.4)."
+  "description": "A special sequence: its steps, how it ends and how it looks (stories 4.4, 4.5)."
 }

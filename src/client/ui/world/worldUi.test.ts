@@ -109,7 +109,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     expect(ui.threatEntries).toEqual([entry]);
     ui.updateThreats(threat('telegraph'), null, null);
-    const object = ui.scene.children[4] as unknown as { element: FakeElement };
+    const object = ui.scene.children[5] as unknown as { element: FakeElement };
     ui.render(camera);
     expect(object.element.style.transform).toMatch(/translate\(400px, (200|199\.9\d*)px\)/);
     expect(object.element.parentNode).toBe(container);
@@ -121,7 +121,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     ui.updateThreats(threat('telegraph'), null, null);
     ui.updateThreats(threat('resolved'), null, null);
-    const object = ui.scene.children[4] as unknown as { element: FakeElement };
+    const object = ui.scene.children[5] as unknown as { element: FakeElement };
     object.element.style.transform = 'untouched';
     ui.render(camera);
     expect(object.element.style.transform).toBe('untouched');
@@ -132,7 +132,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     ui.unmountThreats();
     expect(ui.threatEntries).toEqual([]);
-    expect(ui.scene.children).toHaveLength(4); // the tap marker, the glyph chip, the combo badge and the papa hint stay
+    expect(ui.scene.children).toHaveLength(5); // the tap marker, the glyph chip, the combo badge, the papa hint and the beat ring stay
   });
 });
 
@@ -301,7 +301,7 @@ describe('createWorldUi, verbs (story 2.2)', () => {
     expect(ui.threatEntries[0]?.verbOffsetPx).toBe(0);
     expect(ui.threatEntries[1]?.verbOffsetPx).toBeGreaterThan(0);
     // The renderer ran after the layout: both markers have their transform.
-    const objects = ui.scene.children.slice(4, 6) as unknown as { element: FakeElement }[];
+    const objects = ui.scene.children.slice(5, 7) as unknown as { element: FakeElement }[];
     for (const object of objects) expect(object.element.style.transform).toBeDefined();
   });
 

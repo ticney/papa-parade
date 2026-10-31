@@ -71,6 +71,8 @@ The special sequences (story 4.4) are counted per game and over the runs: \`sequ
 \`sequencesSucceeded\` and \`sequencesFailed\`. Nothing starts one in a normal game: \`--sequence\` does.
 A start the sim refuses (Papa busy, a silence, a phone ringing) is sent once, not retried: the run logs a
 warning and counts 0. A game cut by \`--until-ms\` in the middle of a sequence counts it as started only.
+The lullaby walk (story 4.5) adds \`beatsHit\`, \`beatsMissed\`, \`decoysTapped\` and \`beatsStray\`: the judged
+beats tapped in time, settled with no tap, the taps on a decoy, and the taps on nothing.
 \`snore\` is a source of the noise per source.
 `;
 

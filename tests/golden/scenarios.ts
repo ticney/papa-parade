@@ -1,15 +1,17 @@
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { LevelWaveThreat } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import type { BeatsStep } from '@content/schemas/sequence';
 import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
-import { createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
+import { beatTimelineOf, createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
 import {
   CARRY,
   COFFEE_TABLE,
   createTestContent,
   createTestLevel,
+  createTestLullabyWalk,
   createTestStayAwake,
   FATIGUE_GAUGES,
   NEED_GAUGES,
@@ -129,6 +131,26 @@ const releaseAt = (t: number): { atStep: number; command: SimCommand } => ({
   command: release(t),
 });
 const WIDER_MS = 200;
+
+// « Les 100 pas en rythme » (story 4.5): the frozen 10 s def, started at t = 0, so the sequence starts
+// at 10 ms (the first step that sees the command) and every note falls at `10 + offsetMs`.
+const LULLABY_STARTED_AT = STEP_MS;
+const LULLABY_STEP = createTestLullabyWalk().steps[0] as BeatsStep;
+const LULLABY_TIMELINE = beatTimelineOf(LULLABY_STEP);
+const LULLABY_BEATS = LULLABY_TIMELINE.filter((entry) => entry.kind === 'beat');
+const lullabyLevel = () => createTestLevel({ carry: CARRY, sequences: ['lullaby_walk'] });
+const startLullaby: SimCommand = {
+  type: 'StartSequence',
+  t: asSimMs(0),
+  sequenceId: 'lullaby_walk',
+};
+/** A tap to the beat `deltaMs` after the instant `offsetMs` of the step, enqueued at the step that reaches it. */
+const tapBeatAt = (offsetMs: number, deltaMs = 0): { atStep: number; command: SimCommand } => {
+  const t = LULLABY_STARTED_AT + offsetMs + deltaMs;
+  return { atStep: Math.floor(t / STEP_MS), command: { type: 'TapBeat', t: asSimMs(t) } };
+};
+const beatOffsetMs = (judgedIndex: number): number => LULLABY_BEATS[judgedIndex]?.offsetMs ?? 0;
+const decoyOffsetMs = LULLABY_TIMELINE.find((entry) => entry.kind === 'decoy')?.offsetMs ?? 0;
 
 /** Six threats on six anchors, started by hand (the wave is far away) and never answered. */
 const INSTINCT_THREATS: readonly LevelWaveThreat[] = [
@@ -406,6 +428,39 @@ export const SCENARIOS: readonly Scenario[] = [
       { atStep: 850, command: tapBaby(8500) },
       pressAt(11360, 1),
       releaseAt(11410),
+    ],
+  },
+  {
+    // « Les 100 pas en rythme » won (story 4.5): the player walks in time, a little early then a little
+    // late, misses judged beat 6 (+25 % wake) and taps once between two beats (+10 %), so the baby
+    // stirs twice and sleeps on; the sequence ends `succeeded` at 10 s with the baby still carried.
+    // `lullabyWalk.test.ts` (golden) pins what it covers.
+    name: 'lullaby_walk_kept',
+    level: lullabyLevel(),
+    seed: 45,
+    untilSimMs: 13000,
+    actions: [
+      { atStep: 0, command: startLullaby },
+      ...LULLABY_BEATS.flatMap((entry, i) =>
+        i === 6 ? [] : [tapBeatAt(entry.offsetMs, i % 2 === 0 ? -30 : 30)],
+      ),
+      // Between two beats, in whole ms (the offsets can differ by an odd number).
+      tapBeatAt(Math.round((beatOffsetMs(2) + beatOffsetMs(3)) / 2)),
+    ],
+  },
+  {
+    // « Les 100 pas en rythme » lost (story 4.5): beats 0 to 4 are tapped, then the decoy between 4 and
+    // 5 is tapped (+40 %), beats 5 and 6 are missed (+50 %), and a stray tap after them (+10 %) takes the
+    // wake to 100: `BabyWoke`, `SequenceEnded{failed}`, the baby stays carried.
+    name: 'lullaby_walk_woken',
+    level: lullabyLevel(),
+    seed: 45,
+    untilSimMs: 9000,
+    actions: [
+      { atStep: 0, command: startLullaby },
+      ...[0, 1, 2, 3, 4].map((i) => tapBeatAt(beatOffsetMs(i))),
+      tapBeatAt(decoyOffsetMs),
+      tapBeatAt(beatOffsetMs(7) - 300),
     ],
   },
   {

@@ -1226,6 +1226,181 @@ export function synthSequenceFailed(): Float32Array {
   return synthChime(20, SEQUENCE_FAILED_NOTES_HZ);
 }
 
+// Story 4.5: « Les 100 pas en rythme ». Seeds 21 to 26 are this story's (cultSounds.ts takes 9 to 11,
+// this file 0 to 20): one clip, one stream. Every note is shorter than the shortest beat interval of
+// the lullaby (667 ms at 90 BPM), so two notes never overlap.
+const LULLABY_NOTES_HZ = [523.25, 587.33, 659.25, 783.99];
+const LULLABY_NOTE_LENGTH_MS = 520;
+const LULLABY_NOTE_ATTACK_MS = 8;
+const LULLABY_NOTE_DECAY_S = 0.14;
+const LULLABY_NOTE_RELEASE_MS = 60;
+const LULLABY_NOTE_BREATH_GAIN = 0.01;
+const LULLABY_NOTE_PEAK = 0.3;
+const LULLABY_TICK_LENGTH_MS = 70;
+const LULLABY_TICK_HZ = 1800;
+const LULLABY_TICK_DECAY_S = 0.012;
+const LULLABY_COO_LENGTH_MS = 380;
+const LULLABY_COO_PITCH_HZ = { from: 500, peak: 650, to: 540 };
+const LULLABY_COO_VIBRATO_HZ = 5;
+const LULLABY_COO_ATTACK_MS = 60;
+const LULLABY_COO_RELEASE_MS = 140;
+const LULLABY_STEP_LENGTH_MS = 190;
+const LULLABY_STEP_HZ = { from: 150, to: 70 };
+const LULLABY_STEP_DECAY_S = 0.05;
+/** The smoothed noise is a small signal (a few hundredths), so its gain is above 1 to be heard against the thump. */
+const LULLABY_STEP_NOISE_GAIN = 1.4;
+const LULLABY_STEP_NOISE_SMOOTHING = 0.15;
+const LULLABY_STIR_LENGTH_MS = 340;
+const LULLABY_STIR_PITCH_HZ = { from: 340, peak: 470, to: 380 };
+const LULLABY_STIR_BREATH_GAIN = 0.3;
+const LULLABY_STIR_ATTACK_MS = 25;
+const LULLABY_STIR_RELEASE_MS = 120;
+const LULLABY_PAD_LENGTH_S = 6;
+const LULLABY_PAD_HZ = [130.81, 196, 261.63];
+const LULLABY_PAD_SWAY_HZ = 1 / 6;
+
+/** One soft bell note of the lullaby, dying inside the clip (clips `music_lullaby_note_1` to `_4`). */
+function synthLullabyNote(seed: number, frequencyHz: number): Float32Array {
+  const rng = createRng(SEED + seed);
+  const out = new Float32Array(samplesOf(LULLABY_NOTE_LENGTH_MS));
+  const attack = samplesOf(LULLABY_NOTE_ATTACK_MS);
+  const release = samplesOf(LULLABY_NOTE_RELEASE_MS);
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const tone =
+      Math.sin(2 * Math.PI * frequencyHz * seconds) +
+      0.3 * Math.sin(2 * Math.PI * frequencyHz * 2 * seconds);
+    out[i] =
+      (tone + (nextFloat(rng) * 2 - 1) * LULLABY_NOTE_BREATH_GAIN) *
+      Math.min(1, i / attack, (out.length - i) / release) *
+      Math.exp(-seconds / LULLABY_NOTE_DECAY_S);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, LULLABY_NOTE_PEAK);
+  return out;
+}
+
+export const synthLullabyNote1 = (): Float32Array =>
+  synthLullabyNote(21, LULLABY_NOTES_HZ[0] as number);
+export const synthLullabyNote2 = (): Float32Array =>
+  synthLullabyNote(22, LULLABY_NOTES_HZ[1] as number);
+export const synthLullabyNote3 = (): Float32Array =>
+  synthLullabyNote(23, LULLABY_NOTES_HZ[2] as number);
+export const synthLullabyNote4 = (): Float32Array =>
+  synthLullabyNote(24, LULLABY_NOTES_HZ[3] as number);
+
+/** A dry wooden tick: the count-in beats, which are only heard (clip `music_lullaby_tick`). */
+export function synthLullabyTick(): Float32Array {
+  const out = new Float32Array(samplesOf(LULLABY_TICK_LENGTH_MS));
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    out[i] =
+      Math.sin(2 * Math.PI * LULLABY_TICK_HZ * seconds) * Math.exp(-seconds / LULLABY_TICK_DECAY_S);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A soft « ooh »: a rounded rise and fall with a slow vibrato, the decoy on the off-beat (clip `baby_lullaby_coo`). */
+export function synthLullabyCoo(): Float32Array {
+  const out = new Float32Array(samplesOf(LULLABY_COO_LENGTH_MS));
+  const attack = samplesOf(LULLABY_COO_ATTACK_MS);
+  const release = samplesOf(LULLABY_COO_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const frequencyHz =
+      progress < 0.5
+        ? LULLABY_COO_PITCH_HZ.from +
+          (LULLABY_COO_PITCH_HZ.peak - LULLABY_COO_PITCH_HZ.from) * (progress / 0.5)
+        : LULLABY_COO_PITCH_HZ.peak +
+          (LULLABY_COO_PITCH_HZ.to - LULLABY_COO_PITCH_HZ.peak) * ((progress - 0.5) / 0.5);
+    const vibrato =
+      1 + 0.03 * Math.sin((2 * Math.PI * LULLABY_COO_VIBRATO_HZ * i) / SAMPLE_RATE_HZ);
+    phase += (2 * Math.PI * frequencyHz * vibrato) / SAMPLE_RATE_HZ;
+    out[i] =
+      (Math.sin(phase) + 0.2 * Math.sin(2 * phase)) *
+      Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A felt footstep: a low thud that sags in pitch under a puff of smoothed noise (cue `beat_hit`). */
+export function synthLullabyStep(): Float32Array {
+  const rng = createRng(SEED + 25);
+  const out = new Float32Array(samplesOf(LULLABY_STEP_LENGTH_MS));
+  let phase = 0;
+  let noise = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const frequencyHz =
+      LULLABY_STEP_HZ.to +
+      (LULLABY_STEP_HZ.from - LULLABY_STEP_HZ.to) * Math.exp(-seconds / LULLABY_STEP_DECAY_S);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    noise += LULLABY_STEP_NOISE_SMOOTHING * (nextFloat(rng) * 2 - 1 - noise);
+    out[i] =
+      (Math.sin(phase) + noise * LULLABY_STEP_NOISE_GAIN) *
+      Math.exp(-seconds / LULLABY_STEP_DECAY_S);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A small stir in the cot: a short, breathy whimper that does not quite wake (cue `baby_stirred`). */
+export function synthBabyStir(): Float32Array {
+  const rng = createRng(SEED + 26);
+  const out = new Float32Array(samplesOf(LULLABY_STIR_LENGTH_MS));
+  const attack = samplesOf(LULLABY_STIR_ATTACK_MS);
+  const release = samplesOf(LULLABY_STIR_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const frequencyHz =
+      progress < 0.4
+        ? LULLABY_STIR_PITCH_HZ.from +
+          (LULLABY_STIR_PITCH_HZ.peak - LULLABY_STIR_PITCH_HZ.from) * (progress / 0.4)
+        : LULLABY_STIR_PITCH_HZ.peak +
+          (LULLABY_STIR_PITCH_HZ.to - LULLABY_STIR_PITCH_HZ.peak) * ((progress - 0.4) / 0.6);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const breath = (nextFloat(rng) * 2 - 1) * LULLABY_STIR_BREATH_GAIN;
+    out[i] =
+      (Math.sin(phase) + 0.5 * Math.sin(3 * phase) + breath) *
+      Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/**
+ * The lullaby's pad: a quiet drone that swells once per loop and has no pulse, so the planned notes
+ * carry the tempo alone (loop `sequenceMusic.lullaby_walk`). Only the 196 Hz tone and the swell make
+ * whole cycles over the loop; the other two do not, so the seam is hidden by the fade at both ends
+ * (a dip once per loop, like the other loops), not absent.
+ */
+export function synthLullabyPad(): Float32Array {
+  const out = new Float32Array(samplesOf(LULLABY_PAD_LENGTH_S * 1000));
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    let tone = 0;
+    for (const frequencyHz of LULLABY_PAD_HZ) tone += Math.sin(2 * Math.PI * frequencyHz * seconds);
+    const swell = 0.7 + 0.3 * Math.sin(2 * Math.PI * LULLABY_PAD_SWAY_HZ * seconds);
+    out[i] = (tone / LULLABY_PAD_HZ.length) * swell;
+  }
+  fadeEnds(out, LOOP_FADE_MS);
+  normalize(out, PEAK_MUSIC);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -1289,6 +1464,15 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'env_sequence_started', synth: synthSequenceStarted },
   { clip: 'env_sequence_succeeded', synth: synthSequenceSucceeded },
   { clip: 'env_sequence_failed', synth: synthSequenceFailed },
+  { clip: 'music_lullaby_note_1', synth: synthLullabyNote1 },
+  { clip: 'music_lullaby_note_2', synth: synthLullabyNote2 },
+  { clip: 'music_lullaby_note_3', synth: synthLullabyNote3 },
+  { clip: 'music_lullaby_note_4', synth: synthLullabyNote4 },
+  { clip: 'music_lullaby_tick', synth: synthLullabyTick },
+  { clip: 'baby_lullaby_coo', synth: synthLullabyCoo },
+  { clip: 'papa_lullaby_step', synth: synthLullabyStep },
+  { clip: 'baby_stir', synth: synthBabyStir },
+  { clip: 'music_lullaby_pad', synth: synthLullabyPad },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

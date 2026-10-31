@@ -60,6 +60,7 @@ function setup() {
     world: {
       time: { sim: asSimMs(777) },
       flow: { state: 'playing' as 'playing' | 'ended' },
+      sequence: { beat: { isRunning: false } },
       papa: { xM: 0, zM: 0, state: 'idle' as string },
       // Far from the first tests' taps and from Papa: the baby only matters in the tests about him.
       baby: { xM: 40, zM: 40 },
@@ -148,6 +149,7 @@ function setup() {
         world: {
           time: { sim: asSimMs(888) },
           flow: { state: 'playing' },
+          sequence: { beat: { isRunning: false } },
           papa: { xM: 0, zM: 0, state: 'idle' },
           baby: { xM: 40, zM: 40 },
         },
@@ -1398,6 +1400,72 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       mapper.onKeysChanged(1500);
       expect(commands.map((c) => c.type)).toEqual(['TapFloor', 'Move']);
       expect(markers).toHaveLength(1);
+    });
+  });
+
+  describe('while a beats step runs (story 4.5)', () => {
+    const inBeats = (sim: ReturnType<typeof setup>['sim']) => {
+      (sim.world.flow as { state: string }).state = 'sequence';
+      sim.world.sequence.beat.isRunning = true;
+    };
+
+    it('a tap anywhere on the screen is a TapBeat, with no marker and no press to release', () => {
+      const { mapper, sim, commands, markers, taps, camera, setObjects } = setup();
+      setObjects([COFFEE]);
+      inBeats(sim);
+      const object = pxOf(camera, COFFEE);
+      mapper.handlePointerDown(click(object.x, object.y));
+      mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+      expect(commands.map((c) => c.type)).toEqual(['TapBeat', 'TapBeat']);
+      expect(markers).toEqual([]);
+      expect(taps).toEqual([]);
+      mapper.handlePointerUp?.({
+        pointerId: 1,
+        isPrimary: true,
+        button: 0,
+        timeStamp: 1600,
+      } as never);
+      expect(commands.map((c) => c.type)).toEqual(['TapBeat', 'TapBeat']);
+    });
+
+    it('Space and the pad’s A are a TapBeat too, stamped like every input', () => {
+      const { mapper, sim, commands } = setup();
+      inBeats(sim);
+      mapper.handleAction('down', 1500, 'keyboard');
+      mapper.handleAction('down', 1700, 'gamepad');
+      expect(commands.map((c) => c.type)).toEqual(['TapBeat', 'TapBeat']);
+      const [first, second] = commands as { t: number }[];
+      expect(second?.t).toBeGreaterThan(first?.t ?? Number.POSITIVE_INFINITY);
+      // The release of a key ends nothing: no Release is sent for a beat.
+      mapper.handleAction('up', 1550, 'keyboard');
+      expect(commands.map((c) => c.type)).toEqual(['TapBeat', 'TapBeat']);
+    });
+
+    it('a threat still comes first: a press on one is a PressThreat, not a beat', () => {
+      const { mapper, sim, commands, camera, setTargets } = setup();
+      setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+      inBeats(sim);
+      const icon = pxOf(camera, ICON as never);
+      mapper.handlePointerDown(click(icon.x, icon.y));
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+    });
+
+    it('sends no Move for a held key, and a tap with the level over sends nothing', () => {
+      const { mapper, sim, commands, held } = setup();
+      inBeats(sim);
+      held.add('KeyD');
+      mapper.onKeysChanged(1500);
+      expect(commands).toEqual([]);
+      (sim.world.flow as { state: string }).state = 'ended';
+      mapper.handleAction('down', 1600, 'keyboard');
+      expect(commands).toEqual([]);
+    });
+
+    it('control: a sequence without a beats step still sends no tap', () => {
+      const { mapper, sim, commands } = setup();
+      (sim.world.flow as { state: string }).state = 'sequence';
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([]);
     });
   });
 });

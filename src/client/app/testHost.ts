@@ -1,6 +1,7 @@
 import type { ContentBundle } from '@content/contentBundle';
 import type { Sim, SimEvent } from '@sim';
 import type { Group } from 'three';
+import type { SoundedNote } from '../audio/beatScheduler.ts';
 import type { InputDevice } from '../input/inputMapper.ts';
 import type { RenderStats } from '../render/renderer.ts';
 import type { LevelSession, StartedLevel } from './levelSession.ts';
@@ -35,6 +36,14 @@ export interface CuePlayedRecord {
   readonly atReal: number;
 }
 
+/** A pair of the audio clock and the game clock, taken in one frame of a beats step (story 4.5). */
+export interface BeatSampleRecord {
+  /** The audio context's time, in seconds. */
+  readonly audioNowS: number;
+  /** The loop's continuous game clock, in sim ms. */
+  readonly clockMs: number;
+}
+
 /**
  * What the debug code (autoplay, `window.__PP__`) may do to the app. Built by `boot.ts` only, in
  * debug builds only. The debug modules receive it and never reach into `boot.ts`; a test passes a
@@ -51,6 +60,10 @@ export interface TestHost {
   /** Told each event after the app has handled it (feedback, choreography, mirrors). Do not keep the event. */
   onSimEvent(listener: (event: SimEvent) => void): () => void;
   onGameResumed(listener: () => void): () => void;
+  /** Told each note of a rhythm step once it has sounded (story 4.5): what the scheduler planned. */
+  onBeatSounded(listener: (note: SoundedNote) => void): () => void;
+  /** Told a pair (audio time, game clock) each frame of a beats step. The record is reused: do not keep it. */
+  onBeatSample(listener: (sample: BeatSampleRecord) => void): () => void;
   /** Told each cue the feedback director has played, after all its parts (`onCue`). Do not keep the record. */
   onCuePlayed(listener: (record: CuePlayedRecord) => void): () => void;
   /**

@@ -9,8 +9,32 @@ export interface SequenceBarWorld {
     readonly id: string | null;
     readonly startedAt: number;
     readonly endsAt: number;
+    /** The running `beats` step: the baby's wake feeds the `calmLeft` bar (story 4.5). */
+    readonly beat: { readonly wakePct: number };
   };
   readonly time: { readonly sim: number };
+}
+
+type SequenceBarValue = NonNullable<SequenceDef['framing']['bar']>['value'];
+
+const PERCENT_MAX = 100;
+
+/**
+ * The whole percent a bar of `value` shows. A `switch` with no default and a return type of
+ * `number`: a new `SEQUENCE_BAR_VALUES` entry does not compile until it has its case here.
+ */
+function percentOf(value: SequenceBarValue, world: SequenceBarWorld): number {
+  const { sequence } = world;
+  switch (value) {
+    case 'timeLeft': {
+      const lengthMs = sequence.endsAt - sequence.startedAt;
+      const left = lengthMs > 0 ? (sequence.endsAt - world.time.sim) / lengthMs : 0;
+      return Math.round(Math.min(PERCENT_MAX, Math.max(0, left * PERCENT_MAX)));
+    }
+    case 'calmLeft':
+      // The baby's calm: what is left of him before he is awake (story 4.5).
+      return Math.round(Math.min(PERCENT_MAX, Math.max(0, PERCENT_MAX - sequence.beat.wakePct)));
+  }
 }
 
 export interface SequenceBar {
@@ -27,6 +51,13 @@ export interface SequenceBar {
   update(world: SequenceBarWorld, def: SequenceDef | null): number;
   /** The `hudBatch` writer of the value: whole percent, `aria-valuenow` and the fill's scale. */
   setPercent(percent: number): void;
+  /**
+   * The sequence ended in failure (on its event, the one thing the bar is told): a `calmLeft` bar
+   * slides out empty, because the stir that woke the baby and the end fall in one sim step and the
+   * last frame it drew was still calm. A `timeLeft` bar keeps what it showed. Cleared when a
+   * sequence is wanted again and at `reset`.
+   */
+  markFailed(): void;
   /** Once per frame, with real time: mounts a bar that is wanted, and unmounts one `slideMs` after its end. */
   frame(nowAtReal: number): void;
   /** Whether the bar is in the DOM (shown, or still sliding out): the timer is compact exactly then. */
@@ -40,8 +71,6 @@ export interface SequenceBarOptions {
   /** How long the bar stays mounted after the end, to slide out, in real ms (`feedback.sequenceBar.slideMs`). */
   slideMs: number;
 }
-
-const PERCENT_MAX = 100;
 
 /**
  * The sequence bar (UX-DR23, story 4.4): a paper container with an ink outline under the timer, a
@@ -73,6 +102,9 @@ export function createSequenceBar(doc: Doc, options: SequenceBarOptions): Sequen
   /** Whether the `--out` class (slid out of sight) is on: written only on a change. */
   let isOut = true;
   let shownPercent = -1;
+  /** What the bar showed last while wanted, and whether the sequence then ended in failure. */
+  let shownValue: SequenceBarValue | null = null;
+  let isFailed = false;
   let shownLabelKey = '';
   let shownFill = '';
 
@@ -113,11 +145,18 @@ export function createSequenceBar(doc: Doc, options: SequenceBarOptions): Sequen
         element.classList.remove('pp-hud-sequence-bar--warn', 'pp-hud-sequence-bar--calm');
         element.classList.add(fillClass);
       }
-      // Sliding out after an end: the fill keeps what it showed (a failed bar must not empty while it is still seen).
-      if (!isWanted) return isMounted ? Math.max(0, shownPercent) : 0;
-      const lengthMs = sequence.endsAt - sequence.startedAt;
-      const left = lengthMs > 0 ? (sequence.endsAt - world.time.sim) / lengthMs : 0;
-      return Math.round(Math.min(PERCENT_MAX, Math.max(0, left * PERCENT_MAX)));
+      // Sliding out after an end: the fill keeps what it showed (a time bar must not empty while it
+      // is still seen), except the baby's calm after he woke: he is not calm, the bar says 0.
+      if (!isWanted) {
+        if (isFailed && shownValue === 'calmLeft') return 0;
+        return isMounted ? Math.max(0, shownPercent) : 0;
+      }
+      isFailed = false;
+      shownValue = bar.value;
+      return percentOf(bar.value, world);
+    },
+    markFailed() {
+      isFailed = true;
     },
     setPercent(percent) {
       if (percent === shownPercent) return;
@@ -148,6 +187,8 @@ export function createSequenceBar(doc: Doc, options: SequenceBarOptions): Sequen
     },
     reset() {
       isWanted = false;
+      isFailed = false;
+      shownValue = null;
       unmount();
     },
   };

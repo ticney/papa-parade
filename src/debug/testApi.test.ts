@@ -1,5 +1,11 @@
 import type { ActiveLevel, LevelSession, LevelStartOutcome } from '@client/app/levelSession';
-import { ADVANCE_MAX_STEPS, STEP_MS, TEST_API_CUE_LOG_MAX, UINT32_RANGE } from '@shared/constants';
+import {
+  ADVANCE_MAX_STEPS,
+  STEP_MS,
+  TEST_API_BEAT_NOTES_MAX,
+  TEST_API_CUE_LOG_MAX,
+  UINT32_RANGE,
+} from '@shared/constants';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
 import { createSim, type Sim, type SimEvent } from '@sim';
@@ -506,6 +512,7 @@ describe('installTestApi', () => {
     expect(Object.keys(first ?? {}).sort()).toEqual(
       [
         'advance',
+        'beatLog',
         'cueLog',
         'events',
         'freeze',
@@ -545,6 +552,40 @@ describe('fx (story 2.5)', () => {
       stampCount: 2,
     };
     expect(api.fx()).toEqual(state);
+  });
+});
+
+describe('beatLog (story 4.5)', () => {
+  it('is empty before a rhythm step, then keeps the notes and the clock pairs as copies', () => {
+    const host = createFakeTestHost();
+    const target: { __PP__?: PPTestApi } = {};
+    installTestApi(target, host);
+    const api = target.__PP__ as PPTestApi;
+    expect(api.beatLog()).toEqual({ notes: [], samples: [] });
+    host.fireBeatSounded({ entryIndex: 3, beatAt: 5000, plannedAtS: 12.5, replans: 1 });
+    const sample = { audioNowS: 12.4, clockMs: 4900 };
+    host.fireBeatSample(sample);
+    sample.clockMs = 0; // the app reuses its record: the log must have copied it
+    const log = api.beatLog();
+    expect(log).toEqual({
+      notes: [{ entryIndex: 3, beatAt: 5000, plannedAtS: 12.5, replans: 1 }],
+      samples: [[12.4, 4900]],
+    });
+    expect(api.beatLog().notes).not.toBe(log.notes);
+  });
+
+  it('starts afresh with each level, and drops the oldest past its caps', () => {
+    const host = createFakeTestHost();
+    const target: { __PP__?: PPTestApi } = {};
+    installTestApi(target, host);
+    const api = target.__PP__ as PPTestApi;
+    for (let i = 0; i < TEST_API_BEAT_NOTES_MAX + 5; i++) {
+      host.fireBeatSounded({ entryIndex: i, beatAt: i, plannedAtS: i, replans: 0 });
+    }
+    expect(api.beatLog().notes).toHaveLength(TEST_API_BEAT_NOTES_MAX);
+    expect(api.beatLog().notes[0]?.entryIndex).toBe(5);
+    host.fireLevelStarted({} as never);
+    expect(api.beatLog()).toEqual({ notes: [], samples: [] });
   });
 });
 

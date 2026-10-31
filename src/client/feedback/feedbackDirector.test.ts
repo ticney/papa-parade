@@ -64,6 +64,9 @@ const TABLE: FeedbackTable = {
     },
     sequenceMusic: {},
   },
+  beatTracks: {},
+  beatScheduler: { scheduleAheadMs: 150, replanToleranceMs: 5 },
+  beatRing: { approachMs: 500 },
   cues: {
     full: {
       audio: { clip: 'papa_bump', bus: 'sfx', gainPct: 70 },

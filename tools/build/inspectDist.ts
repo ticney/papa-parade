@@ -83,6 +83,12 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   // Story 4.4: the sequence's debug mirrors (`data-pp-sequence`, `data-pp-sequence-outcome`,
   // `data-pp-sequence-music`), the same way. One entry, being the prefix of the three.
   'ppSequence',
+  // Story 4.5: the lullaby walk's debug mirrors (`data-pp-beat-hits`, `data-pp-beat-misses`,
+  // `data-pp-baby-wake`) sit in the main chunk behind `isMirrored`; `__PP__.beatLog()` is in the debug chunk.
+  'ppBeatHits',
+  'ppBeatMisses',
+  'ppBabyWake',
+  'beatLog',
 ];
 
 /**

@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PHONE_RINGING_EVERY_MS } from '@shared/constants';
 import { err, ok } from '@shared/result';
+import { beatTimelineOf } from '@sim';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   encodeWav,
@@ -304,6 +306,72 @@ describe('placeholder audio', () => {
     for (const clip of ['env_door_slam', 'ui_star_lost']) {
       expect(names, clip).toContain(clip);
     }
+  });
+
+  describe('the lullaby clips (story 4.5)', () => {
+    const feedback = JSON.parse(
+      readFileSync(new URL('../../../content/feedback.json', import.meta.url), 'utf8'),
+    ) as {
+      beatTracks: Record<string, { notes: string[]; countIn: string; decoy: string }>;
+      loops: { sequenceMusic: Record<string, { clip: string }> };
+      cues: Record<string, { audio?: { clip: string } }>;
+    };
+    const sequence = JSON.parse(
+      readFileSync(
+        new URL('../../../content/sequences/lullaby_walk.json', import.meta.url),
+        'utf8',
+      ),
+    ) as { steps: Parameters<typeof beatTimelineOf>[0][] };
+    const ms = (clip: string): number => {
+      const entry = PLACEHOLDER_CLIPS.find((candidate) => candidate.clip === clip);
+      return ((entry?.synth().length ?? Number.NaN) / SAMPLE_RATE_HZ) * 1000;
+    };
+
+    it('lists every clip the lullaby track, its pad and its cues name, in the table', () => {
+      const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+      const track = feedback.beatTracks.lullaby;
+      const wanted = [
+        ...(track?.notes ?? []),
+        track?.countIn,
+        track?.decoy,
+        feedback.loops.sequenceMusic.lullaby_walk?.clip,
+        feedback.cues.beat_hit?.audio?.clip,
+        feedback.cues.baby_stirred?.audio?.clip,
+      ];
+      expect(wanted).toHaveLength(9);
+      for (const clip of wanted) expect(names, String(clip)).toContain(clip);
+    });
+
+    it('keeps every note shorter than the shortest gap between two beats of the live step', () => {
+      // A note that outlasts the next beat would smear the tempo it is there to give.
+      const step = sequence.steps[0];
+      if (step === undefined) throw new Error('lullaby_walk.json has no step');
+      const beats = beatTimelineOf(step).filter((entry) => entry.kind !== 'decoy');
+      let shortestMs = Number.POSITIVE_INFINITY;
+      for (let i = 1; i < beats.length; i++) {
+        shortestMs = Math.min(
+          shortestMs,
+          (beats[i]?.offsetMs ?? 0) - (beats[i - 1]?.offsetMs ?? 0),
+        );
+      }
+      for (const clip of feedback.beatTracks.lullaby?.notes ?? []) {
+        expect(ms(clip), clip).toBeLessThan(shortestMs);
+      }
+      expect(ms(feedback.beatTracks.lullaby?.countIn ?? '')).toBeLessThan(shortestMs);
+    });
+
+    it('makes the four notes unlike each other, and the stir unlike the coo', () => {
+      const notes = feedback.beatTracks.lullaby?.notes ?? [];
+      const synths = notes.map(
+        (clip) => PLACEHOLDER_CLIPS.find((entry) => entry.clip === clip)?.synth() ?? [],
+      );
+      for (let a = 0; a < synths.length; a++) {
+        for (let b = a + 1; b < synths.length; b++) expect(synths[a]).not.toEqual(synths[b]);
+      }
+      const coo = PLACEHOLDER_CLIPS.find((entry) => entry.clip === 'baby_lullaby_coo')?.synth();
+      const stir = PLACEHOLDER_CLIPS.find((entry) => entry.clip === 'baby_stir')?.synth();
+      expect(stir).not.toEqual(coo);
+    });
   });
 
   it('has a 520 ms combo cash-in clip, listed by the name the feedback table uses', () => {

@@ -102,6 +102,26 @@ export const SEQUENCE_OUTCOMES_ARE_COMPLETE: [UnlistedSequenceOutcome] extends [
   : UnlistedSequenceOutcome = true;
 
 /**
+ * What woke the baby a little during a `beats` step (story 4.5): a judged beat nobody tapped
+ * (`missed`), a tap on a decoy (`decoy`), or a tap on no beat and no decoy (`stray`).
+ */
+export type BabyStirReason = 'missed' | 'decoy' | 'stray';
+
+/** Every `BabyStirReason`, as data: the report and the client key their records by it. */
+export const BABY_STIR_REASONS = [
+  'missed',
+  'decoy',
+  'stray',
+] as const satisfies readonly BabyStirReason[];
+
+type UnlistedBabyStirReason = Exclude<BabyStirReason, (typeof BABY_STIR_REASONS)[number]>;
+
+/** Compile-time proof that `BABY_STIR_REASONS` holds every member of the union (see `LEVEL_END_REASONS_ARE_COMPLETE`). */
+export const BABY_STIR_REASONS_ARE_COMPLETE: [UnlistedBabyStirReason] extends [never]
+  ? true
+  : UnlistedBabyStirReason = true;
+
+/**
  * Why the combo's multiplier moved (story 4.2): a successful `response`, a `carryTick`, a `gag`
  * that reset it, or a `cashIn` that banked it.
  */
@@ -317,6 +337,33 @@ export type SimEvent =
   | { type: 'PapaSnored'; t: SimMs }
   /** The baby woke at the snore: an event and a cue, not a state or a cry (story 4.4, D4). */
   | { type: 'BabyWoke'; t: SimMs }
+  /**
+   * The note of a `beats` step number `entryIndex` of the timeline fell (story 4.5), at its time: the
+   * count-in's (`judgedIndex` null) and the judged beats'. It fires even for a beat that was tapped
+   * early: the cue is the tempo, not the answer.
+   */
+  | { type: 'BeatCued'; t: SimMs; entryIndex: number; judgedIndex: number | null }
+  /** The decoy number `entryIndex` of the timeline fell, between two beats (story 4.5). */
+  | { type: 'DecoyCued'; t: SimMs; entryIndex: number }
+  /**
+   * A tap settled the judged beat `judgedIndex` (story 4.5), `offsetMs` from its centre (negative:
+   * early). Perfect or not, a step earns nothing (D6).
+   */
+  | { type: 'BeatHit'; t: SimMs; judgedIndex: number; offsetMs: number }
+  /**
+   * The judged beat `judgedIndex` was settled with no tap on it (story 4.5): the miss window closed,
+   * or a tap came too late. `BabyStirred{missed}` follows (unless the miss costs 0).
+   */
+  | { type: 'BeatMissed'; t: SimMs; judgedIndex: number }
+  /** A tap landed on the decoy number `entryIndex` (story 4.5). `BabyStirred{decoy}` follows (unless it costs 0). */
+  | { type: 'DecoyTapped'; t: SimMs; entryIndex: number }
+  /** A tap landed on no beat and no decoy (story 4.5). `BabyStirred{stray}` follows (unless it costs 0). */
+  | { type: 'BeatStrayTapped'; t: SimMs }
+  /**
+   * The baby stirred (story 4.5): `wakePct` is his wake after the step, `deltaPct` what this one
+   * added (always above 0: a cost of 0 stirs nobody and emits nothing). At 100 `BabyWoke` follows.
+   */
+  | { type: 'BabyStirred'; t: SimMs; wakePct: number; deltaPct: number; reason: BabyStirReason }
   /** A breakable prop took a hit of `impulseNs` or more, once; it stays in the world, broken. */
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
   /**
@@ -355,12 +402,19 @@ export const SIM_EVENT_TYPES = [
   'BabyPickedUp',
   'BabyPutDown',
   'BabyStateChanged',
+  'BabyStirred',
   'BabyWoke',
+  'BeatCued',
+  'BeatHit',
+  'BeatMissed',
+  'BeatStrayTapped',
   'BladderFilled',
   'CoffeeDrunk',
   'CoffeeStarted',
   'ComboCashedIn',
   'ComboChanged',
+  'DecoyCued',
+  'DecoyTapped',
   'FatigueThresholdCrossed',
   'GagTriggered',
   'InstinctEnded',

@@ -30,6 +30,12 @@ import {
 import { createNavGrid, type NavGrid } from './nav/navGrid.ts';
 import { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 import { createRapierPhysics } from './physics/rapierPhysics.ts';
+import {
+  type BeatWindowLimits,
+  beatTimelineOf,
+  beatWindowLimitsOf,
+  sequenceBeatProblems,
+} from './sequences/beatClock.ts';
 import { SEQUENCE_HANDLER_KINDS } from './sequences/sequenceSteps.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
@@ -170,6 +176,8 @@ function simLevelOf(
   level: LevelContent,
   geometry: LevelGeometry,
   physics: Feel['physics'],
+  beatTrackIds: readonly string[],
+  beatLimits: BeatWindowLimits,
 ): SimLevel {
   invariant(
     level.level.id === geometry.id,
@@ -355,7 +363,14 @@ function simLevelOf(
         `${where}: the sequence "${id}" has a microSleeps step, but the level has no gauges.fatigue.microSleepDef (no micro-sleep to start)`,
       );
     }
-    sequences.push({ id, def });
+    // The beats of a sequence (story 4.5): the words are `content:check`'s, they share the function.
+    const [beatProblem] = sequenceBeatProblems(def, beatTrackIds, beatLimits);
+    invariant(beatProblem === undefined, `${where}: the sequence "${id}" ${beatProblem}`);
+    sequences.push({
+      id,
+      def,
+      beatTimelines: def.steps.map((step) => (step.kind === 'beats' ? beatTimelineOf(step) : null)),
+    });
   });
   return {
     microSleepIndex,
@@ -519,7 +534,13 @@ export async function createSimWithSystems(
   const feelHash = hashJson(content.feel);
   const geometryHash = hashJson(geometry);
   const levelHash = hashJson(level);
-  const simLevel = simLevelOf(level, geometry, content.feel.physics);
+  const simLevel = simLevelOf(
+    level,
+    geometry,
+    content.feel.physics,
+    Object.keys(content.feedback.beatTracks),
+    beatWindowLimitsOf(content.feel),
+  );
   const papaGrid = createNavGrid(geometry, content.feel.movement.papaRadiusM);
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
   let world = createWorld({
