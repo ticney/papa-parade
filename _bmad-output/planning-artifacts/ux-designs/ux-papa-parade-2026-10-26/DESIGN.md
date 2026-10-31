@@ -211,6 +211,7 @@ components:
     typography: '{typography.verb}'
     typographyCompact: '{typography.verb-compact}'
     minFontSize: 28px
+    largeVerbsScale: 1.25
     textTransform: uppercase
     textColor: '{colors.paper}'
     strokeColor: '{colors.ink}'
@@ -530,7 +531,7 @@ These are visual specs. The behaviour of each component is in EXPERIENCE.md › 
 
 **World-anchored (CSS2DRenderer, ARCH ADR-008)**: see [`./mockups/key-hud-level.html`](./mockups/key-hud-level.html). Its state B is a reference composite that shows two threats in one frame.
 
-- **verb-label**: a one-word imperative verb above the threat (story 2.2). Set in `{typography.verb}` (regular) or `{typography.verb-compact}` (compact), uppercase, never below 28px. `{colors.paper}` fill, 5px `{colors.ink}` stroke, `paint-order: stroke`, hard shadow.
+- **verb-label**: a one-word imperative verb above the threat (story 2.2). Set in `{typography.verb}` (regular) or `{typography.verb-compact}` (compact), uppercase, never below 28px. `{colors.paper}` fill, 5px `{colors.ink}` stroke, `paint-order: stroke`, hard shadow. The « Grands verbes » setting multiplies the font size by `largeVerbsScale` (story 2.10); the stroke stays 5px, only the text grows.
 - **threat-icon**: a `{colors.parry}` circle or a `{colors.dodge}` triangle (story 2.2, NFR8) with an ink outline. Diameter is 56px on compact and 64px on regular; the touch radius stays in `feel.json`. The telegraph halo is a soft, pulsing `{colors.alert}` glow (story 7.3 reserved alert hue).
 - **hold-ring**: a 5px ring around the threat icon. `{colors.paper}` progress fills over a `{colors.ring-track}` track in 400ms (`holdMinMs`, ADR-010). A 2px `{colors.ink}` outer outline keeps it readable over light rooms. When the ring closes (Fermeté) it turns solid `{colors.paper}` with a pop. It is never threat-coloured. The same ring is used for sniff (1s on the baby).
 - **breath-ring**: the hold-ring visual (including the ink outer outline) around Papa during stealth, filling over the 6000ms breath gauge (story 4.9).

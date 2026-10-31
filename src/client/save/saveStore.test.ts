@@ -1,3 +1,4 @@
+import { SaveSchema } from '@content/schemas/save';
 import type { StorageError, StoragePort } from '@platform/platform';
 import { SAVE_INVALID_KEY, SAVE_KEY } from '@shared/constants';
 import { log } from '@shared/log';
@@ -9,8 +10,10 @@ const SETTINGS = {
   tier: 'normal',
   volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
   haptics: true,
+  reducedMotion: false,
+  largeVerbs: false,
 } as const;
-const DEFAULTS = { version: 2, calibration: null, settings: SETTINGS };
+const DEFAULTS = { version: 3, calibration: null, settings: SETTINGS };
 
 const CALIBRATION = {
   visualOffsetMs: 80,
@@ -196,10 +199,10 @@ describe('createSaveStore', () => {
 
   describe('a save from a newer game (story 2.8)', () => {
     const FUTURE = {
-      version: 3,
+      version: 4,
       calibration: CALIBRATION,
       settings: SETTINGS,
-      reducedMotion: true,
+      somethingNew: true,
     };
 
     it('is left in place, copied aside, with one warning; the session runs on defaults', async () => {
@@ -236,6 +239,8 @@ describe('createSaveStore', () => {
       tier: 'experienced',
       volumes: { music: 40, sfx: 100, voice: 0, ui: 95 },
       haptics: false,
+      reducedMotion: true,
+      largeVerbs: true,
     } as const;
 
     it('writes the settings under the save key and keeps them in memory, calibration included', async () => {
@@ -393,11 +398,104 @@ describe('the v1 → v2 migration (story 2.8)', () => {
 
   it('is pure: the input is not changed, and each call gets its own settings', () => {
     const v1 = Object.freeze({ version: 1, calibration: CALIBRATION });
-    const [step] = SAVE_MIGRATIONS;
+    const step = SAVE_MIGRATIONS.find((migration) => migration.from === 1);
     const a = step?.migrate(v1);
     const b = step?.migrate(v1);
     expect(v1).toEqual({ version: 1, calibration: CALIBRATION });
-    expect(a).toEqual({ ...DEFAULTS, calibration: CALIBRATION });
+    expect(a).toEqual({
+      version: 2,
+      calibration: CALIBRATION,
+      settings: {
+        tier: 'normal',
+        volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
+        haptics: true,
+      },
+    });
     expect((a?.settings as object) === (b?.settings as object)).toBe(false);
+  });
+
+  it('writes the settings of version 2, with none of the later switches', () => {
+    const step = SAVE_MIGRATIONS.find((migration) => migration.from === 1);
+    const settings = step?.migrate({ version: 1, calibration: null }).settings as object;
+    expect(Object.keys(settings).sort()).toEqual(['haptics', 'tier', 'volumes']);
+  });
+});
+
+describe('the v2 → v3 migration (story 2.10)', () => {
+  const V2_SETTINGS = {
+    tier: 'experienced',
+    volumes: { music: 40, sfx: 55, voice: 70, ui: 85 },
+    haptics: false,
+  };
+  const step = SAVE_MIGRATIONS.find((migration) => migration.from === 2);
+
+  it('is in the table', () => {
+    expect(step).toBeDefined();
+  });
+
+  it('keeps the calibration and every other setting, and adds both switches off', async () => {
+    const storage = fakeStorage();
+    storage.items.set(SAVE_KEY, { version: 2, calibration: CALIBRATION, settings: V2_SETTINGS });
+    const expected = {
+      version: 3,
+      calibration: CALIBRATION,
+      settings: { ...V2_SETTINGS, reducedMotion: false, largeVerbs: false },
+    };
+    expect(await createSaveStore(storage).load()).toEqual(expected);
+    expect(storage.items.get(SAVE_KEY)).toEqual(expected);
+    expect(storage.items.has(SAVE_INVALID_KEY)).toBe(false);
+  });
+
+  it('is pure: the input is not changed, and each call gets its own settings', () => {
+    const v2 = Object.freeze({
+      version: 2,
+      calibration: null,
+      settings: Object.freeze({ ...V2_SETTINGS }),
+    });
+    const a = step?.migrate(v2);
+    const b = step?.migrate(v2);
+    expect(v2).toEqual({ version: 2, calibration: null, settings: V2_SETTINGS });
+    expect(a?.version).toBe(3);
+    expect((a?.settings as object) === (b?.settings as object)).toBe(false);
+    expect((a?.settings as object) === (v2.settings as object)).toBe(false);
+  });
+
+  it('keeps a switch that is already there instead of overwriting it', () => {
+    const migrated = step?.migrate({
+      version: 2,
+      calibration: null,
+      settings: { ...V2_SETTINGS, reducedMotion: true },
+    });
+    expect(migrated?.settings).toEqual({
+      ...V2_SETTINGS,
+      reducedMotion: true,
+      largeVerbs: false,
+    });
+  });
+
+  it('does not repair a v2 save with no settings: it is still refused and set aside as it was (trap 1)', async () => {
+    const storage = fakeStorage();
+    const stored = { version: 2, calibration: null };
+    storage.items.set(SAVE_KEY, stored);
+    expect(await createSaveStore(storage).load()).toEqual(DEFAULTS);
+    expect(storage.items.get(SAVE_INVALID_KEY)).toEqual(stored);
+  });
+
+  it.each<[string, unknown]>([
+    ['a string', 'normal'],
+    ['null', null],
+    ['an array', [1, 2]],
+  ])('does not repair a v2 save whose settings are %s', (_name, settings) => {
+    const migrated = step?.migrate({ version: 2, calibration: null, settings });
+    expect(SaveSchema.safeParse(migrated).success).toBe(false);
+  });
+
+  it('brings a v1 save to a valid v3 one with the calibration kept (trap 2)', async () => {
+    const storage = fakeStorage();
+    storage.items.set(SAVE_KEY, { version: 1, calibration: CALIBRATION });
+    const store = createSaveStore(storage);
+    expect(await store.load()).toEqual({ ...DEFAULTS, calibration: CALIBRATION });
+    expect(SaveSchema.safeParse(storage.items.get(SAVE_KEY)).success).toBe(true);
+    expect(storage.items.has(SAVE_INVALID_KEY)).toBe(false);
   });
 });

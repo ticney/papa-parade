@@ -14,8 +14,12 @@ export interface TapMarker {
   dispose(): void;
 }
 
-/** The two keyframes of the marker's ring, built from the constants (DESIGN.md › tap-marker). */
-export function tapMarkerKeyframes(): Keyframe[] {
+/**
+ * The two keyframes of the marker's ring, built from the constants (DESIGN.md › tap-marker). Under
+ * reduced motion the ring only fades: the scale is the one movement it has (story 2.10).
+ */
+export function tapMarkerKeyframes(isMotionReduced = false): Keyframe[] {
+  if (isMotionReduced) return [{ opacity: 1 }, { opacity: 0 }];
   return [
     { transform: `scale(${TAP_MARKER_SCALE_FROM})`, opacity: 1 },
     { transform: `scale(${TAP_MARKER_SCALE_TO})`, opacity: 0 },
@@ -23,14 +27,19 @@ export function tapMarkerKeyframes(): Keyframe[] {
 }
 
 const KEYFRAMES = tapMarkerKeyframes();
+const REDUCED_KEYFRAMES = tapMarkerKeyframes(true);
 
 /**
  * The one pooled tap marker, re-used for every tap. Two elements, so that two transforms never
  * fight: the outer one is placed on the floor point by the `CSS2DRenderer` (it writes its
  * `transform`), the inner ring is scaled and faded by the Web Animations API. `doc` makes the
- * elements (the browser's `document`; a double in tests).
+ * elements (the browser's `document`; a double in tests). `isMotionReduced` is read at each `showAt`.
  */
-export function createTapMarker(scene: Scene, doc: Pick<Document, 'createElement'>): TapMarker {
+export function createTapMarker(
+  scene: Scene,
+  doc: Pick<Document, 'createElement'>,
+  isMotionReduced: () => boolean = () => false,
+): TapMarker {
   const element = doc.createElement('div');
   element.className = 'pp-tap-marker';
   element.setAttribute('aria-hidden', 'true');
@@ -52,7 +61,7 @@ export function createTapMarker(scene: Scene, doc: Pick<Document, 'createElement
       current?.cancel();
       object.visible = true;
       element.style.display = '';
-      const animation = ring.animate(KEYFRAMES, {
+      const animation = ring.animate(isMotionReduced() ? REDUCED_KEYFRAMES : KEYFRAMES, {
         duration: TAP_MARKER_FADE_MS,
         easing: 'ease-out',
       });

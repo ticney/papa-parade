@@ -1,8 +1,9 @@
 import { PAPA_HINT_OFFSET_M } from '@shared/constants';
-import { Scene } from 'three';
+import { OrthographicCamera, Scene } from 'three';
 import { describe, expect, it } from 'vitest';
 import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
 import { createPapaHint } from './papaHint.ts';
+import type { VerbMetrics } from './verbMetrics.ts';
 
 class FakeElement {
   // What three's CSS2DObject reads when it is removed from a scene.
@@ -28,7 +29,7 @@ class FakeElement {
 const PAPA = { xM: 2, zM: -1 };
 const HOLD_MS = 1200;
 
-function build() {
+function build(getMetrics?: () => VerbMetrics) {
   const created: FakeElement[] = [];
   const doc = {
     createElement: () => {
@@ -38,8 +39,11 @@ function build() {
     },
   } as unknown as Pick<Document, 'createElement'>;
   const scene = new Scene();
-  const hint = createPapaHint(scene, doc, (key) =>
-    key === 'verb.put_down_first' ? 'PUT HIM DOWN' : key,
+  const hint = createPapaHint(
+    scene,
+    doc,
+    (key) => (key === 'verb.put_down_first' ? 'PUT HIM DOWN' : key),
+    getMetrics,
   );
   return { hint, element: created[0] as FakeElement, scene };
 }
@@ -115,6 +119,85 @@ describe('createPapaHint', () => {
     hint.show(HOLD_MS, 10);
     for (let t = 20; t < 100; t += 20) hint.update(PAPA, t);
     expect(writes).toBe(1);
+  });
+
+  describe('fit and layout (story 2.10 review)', () => {
+    const state = { scale: 1 };
+    /** Every character is half the font size wide: 'PUT HIM DOWN' is 12 characters. */
+    const metrics: VerbMetrics = {
+      surfaceKey: () => 'regular',
+      basePx: () => 40,
+      lineHeight: () => 1,
+      scale: () => state.scale,
+      widthPx: (text, fontPx) => text.length * fontPx * 0.5,
+    };
+    const camera = (): OrthographicCamera => {
+      // One world unit is 100 px: x → 400 + 100x on a 800 px layer.
+      const cam = new OrthographicCamera(-4, 4, 2, -2, 0.1, 100);
+      cam.position.set(0, 0, 10);
+      cam.updateMatrixWorld();
+      return cam;
+    };
+    const buildFitted = () => {
+      const made = build(() => metrics);
+      state.scale = 1;
+      return made;
+    };
+
+    it('measures nothing until the hint is shown, then fits it to the layer', () => {
+      const reads: string[] = [];
+      const spy: VerbMetrics = {
+        ...metrics,
+        basePx: () => {
+          reads.push('base');
+          return 40;
+        },
+      };
+      const { hint, element } = build(() => spy);
+      hint.refit(500);
+      expect(reads).toEqual([]);
+      hint.show(HOLD_MS, 0);
+      // 12 characters at 40 px are 240 px, over 45 % of 500 less the outline (215): the font shrinks.
+      expect(element.style.fontSize).toBe(`${(40 * 215) / 240}px`);
+    });
+
+    it('keeps the font when it fits, and grows it with « Grands verbes »', () => {
+      const { hint, element } = buildFitted();
+      hint.refit(800);
+      hint.show(HOLD_MS, 0);
+      expect(element.style.fontSize).toBe('40px');
+      state.scale = 1.25;
+      hint.refit(800);
+      expect(element.style.fontSize).toBe('50px');
+    });
+
+    it('shifts the hint back inside the layer at an edge, and lets go in the middle', () => {
+      const { hint, element, scene } = buildFitted();
+      hint.refit(800);
+      hint.show(HOLD_MS, 0);
+      // The box is 12 * 20 + 10 = 250 px wide. Papa at x = -3.9 puts its centre at 10 px.
+      hint.update({ xM: -3.9, zM: 0 }, 10);
+      hint.layout(camera());
+      const shift = Number.parseInt(element.style.marginLeft as string, 10);
+      expect(shift).toBeGreaterThanOrEqual(115);
+      expect(shift).toBeLessThanOrEqual(116);
+      hint.update({ xM: 0, zM: 0 }, 20);
+      hint.layout(camera());
+      expect(element.style.marginLeft).toBe('');
+      expect(scene.children[0]?.position.x).toBe(0);
+    });
+
+    it('does not lay out a hidden hint, nor one that was never measured', () => {
+      const { hint, element } = buildFitted();
+      hint.refit(800);
+      hint.layout(camera());
+      expect(element.style.marginLeft).toBeUndefined();
+      const bare = build();
+      bare.hint.show(HOLD_MS, 0);
+      bare.hint.update({ xM: -3.9, zM: 0 }, 10);
+      bare.hint.layout(camera());
+      expect(bare.element.style.marginLeft).toBeUndefined();
+    });
   });
 
   it('hide() clears it, and dispose() takes it out of the scene', () => {

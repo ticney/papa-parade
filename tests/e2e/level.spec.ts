@@ -38,6 +38,8 @@ const LOADING_LINES = [
 ];
 /** Frames the page gets to prove that nothing moves on: a bound, not a wait. */
 const FRAMES_TO_PROVE_STILL = 60;
+/** How long the forced throw of test 6a waits after the app enters `level`: more than `expect`'s longest poll gap (1000 ms). */
+const LEVEL_HOLD_BEFORE_THROW_MS = 1500;
 /** The level starts through the countdown, which only ends after this much real time. */
 const LEVEL_TIMEOUT_MS = RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS;
 
@@ -241,7 +243,10 @@ test.describe('an uncaught exception', () => {
     const thrown: string[] = [];
     page.on('pageerror', (error) => thrown.push(error.message));
     const logged = collectConsoleErrors(page);
-    await page.goto('/?throwAfterMs=300');
+    // `expect` polls at growing gaps (100, 250, 500, then 1000 ms): the app must stay in `level` for
+    // longer than the longest gap, or a poll can fall between « loading » and « oops » and never see
+    // `level` (it did on WebKit once the load took 350-550 ms).
+    await page.goto(`/?throwAfterMs=${LEVEL_HOLD_BEFORE_THROW_MS}`);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
     await pressStart(page);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level');

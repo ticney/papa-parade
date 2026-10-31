@@ -92,6 +92,7 @@
   "settings.volume_ui": "Interface",
   "settings.haptics": "Vibrations",
   "settings.reduced_motion": "Réduire les animations",
+  "settings.reduced_motion_device": "Déjà actif sur cet appareil",
   "settings.large_verbs": "Grands verbes",
   "settings.recalibrate": "Recalibrer",
   "combo.multiplier": "x{count}",

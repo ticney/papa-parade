@@ -19,7 +19,7 @@ export interface FeedbackDirectorDeps {
   getObjects?(): readonly SimObjectSpec[];
   /** The current level's effects, `null` outside a level (a scene behind the loading screen is not played on). */
   getScene(): LevelFx | null;
-  /** `matchMedia('(prefers-reduced-motion: reduce)').matches` in boot. */
+  /** `accessibility.isMotionReduced` in boot: the player's « Réduire les animations » switch, or the OS setting (story 2.10). */
   prefersReducedMotion(): boolean;
   /**
    * Draws the cue's screen flash (`pp-screen-flash`, real time) and says whether it did: false when

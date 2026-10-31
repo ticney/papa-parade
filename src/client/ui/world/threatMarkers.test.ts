@@ -1104,6 +1104,52 @@ describe('the verb fit and layout of the markers (story 2.2)', () => {
       expect(markers.entries.map((entry) => entry.verbOffsetPx)).toEqual([0, 0]);
     });
 
+    it('keeps a verb inside the layer: shifts it away from an edge, and writes the shift', () => {
+      const { markers, byClass } = setup([
+        entryAt(1, 'RETIRE !', 40, 200),
+        entryAt(2, 'RETIRE !', 790, 200),
+        entryAt(3, 'RETIRE !', 400, 200),
+      ]);
+      markers.update([closing(1, 5000), closing(2, 6000), closing(3, 7000)], null, null);
+      markers.layout(camera());
+      // The box is BOX_W wide: its left edge at 40 - BOX_W / 2 is cut, so it moves right to touch 0.
+      const [leftShift, rightShift, middleShift] = markers.entries.map(
+        (entry) => entry.verbShiftXPx ?? 0,
+      ) as [number, number, number];
+      // Whole px, away from zero: the projection of the icon may land a hair off its x.
+      expect(Number.isInteger(leftShift)).toBe(true);
+      expect(leftShift).toBeGreaterThanOrEqual(BOX_W / 2 - 40);
+      expect(leftShift).toBeLessThan(BOX_W / 2 - 40 + 1.01);
+      expect(rightShift).toBeLessThanOrEqual(-(790 + BOX_W / 2 - 800));
+      expect(rightShift).toBeGreaterThan(-(790 + BOX_W / 2 - 800) - 1.01);
+      expect(middleShift).toBe(0);
+      const [left, right, middle] = byClass(THREAT_CLASSES.verbStack);
+      expect(left?.vars.get('--pp-verb-shift-x')).toBe(`${leftShift}px`);
+      expect(right?.vars.get('--pp-verb-shift-x')).toBe(`${rightShift}px`);
+      expect(middle?.writes['--pp-verb-shift-x']).toBeUndefined();
+    });
+
+    it('stacks verbs from where they are drawn after the shift, not from their icons', () => {
+      // Two icons 100 px apart: apart before the shift (boxes 170 wide would overlap at 40 / 140
+      // only once the left one is pushed right), so the second one is pushed up.
+      const { markers } = setup([
+        entryAt(1, 'RETIRE !', 40, 200),
+        entryAt(2, 'RETIRE !', 190, 200),
+      ]);
+      markers.update([closing(1, 5000), closing(2, 6000)], null, null);
+      markers.layout(camera());
+      // Threat 1 is shifted to centre 85 (spans 0..170); threat 2 centre 190 (spans 105..275): they overlap.
+      expect(markers.entries[1]?.verbOffsetPx).toBeGreaterThan(0);
+    });
+
+    it('writes the shift only when it changes, and lets go of it', () => {
+      const { markers, byClass } = setup([entryAt(1, 'RETIRE !', 40, 200)]);
+      markers.update([closing(1, 5000)], null, null);
+      markers.layout(camera());
+      markers.layout(camera());
+      expect(byClass(THREAT_CLASSES.verbStack)[0]?.writes['--pp-verb-shift-x']).toBe(1);
+    });
+
     it('pushes the less urgent of two overlapping verbs up and puts the most urgent marker in front', () => {
       const { markers, byClass } = setup([
         entryAt(1, 'RETIRE !', 400, 200),

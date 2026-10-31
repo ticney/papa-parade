@@ -33,6 +33,11 @@ export interface SettingsScreenOptions {
   settings: Settings;
   /** `false` when the device cannot vibrate: the « Vibrations » row is not built (EXPERIENCE.md). */
   hasHaptics: boolean;
+  /**
+   * The OS asks for reduced motion. The effects are then reduced whatever the switch says, so a note
+   * under « Réduire les animations » tells the player (story 2.10, review).
+   */
+  isDeviceMotionReduced(): boolean;
   /** Called at once on every change (a slider calls it on each tick), with the whole settings. */
   onChange(settings: Settings): void;
   onRecalibrate(): void;
@@ -66,12 +71,16 @@ export function createSettingsScreen(options: SettingsScreenOptions): OverlayScr
     tier: options.settings.tier,
     volumes: { ...options.settings.volumes },
     haptics: options.settings.haptics,
+    reducedMotion: options.settings.reducedMotion,
+    largeVerbs: options.settings.largeVerbs,
   };
   const emit = (): void => {
     options.onChange({
       tier: current.tier,
       volumes: { ...current.volumes },
       haptics: current.haptics,
+      reducedMotion: current.reducedMotion,
+      largeVerbs: current.largeVerbs,
     });
   };
 
@@ -199,15 +208,20 @@ export function createSettingsScreen(options: SettingsScreenOptions): OverlayScr
   }
   panel.append(volumes);
 
-  // --- Vibrations: a switch, not built when the device cannot vibrate -------------------------------------
-  if (options.hasHaptics) {
+  // --- The switches: Vibrations (not built when the device cannot vibrate), then the two comfort ------
+  // switches (story 2.10), which are always built: reduced motion and large verbs need no hardware.
+  const toggleRow = (
+    labelKey: string,
+    isOn: () => boolean,
+    onFlip: () => void,
+  ): HTMLButtonElement => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'pp-toggle';
     button.setAttribute('role', 'switch');
     const text = document.createElement('span');
     text.className = 'pp-toggle-label';
-    text.textContent = t('settings.haptics');
+    text.textContent = t(labelKey);
     const track = document.createElement('span');
     track.className = 'pp-toggle-track';
     track.setAttribute('aria-hidden', 'true');
@@ -215,21 +229,60 @@ export function createSettingsScreen(options: SettingsScreenOptions): OverlayScr
     thumb.className = 'pp-toggle-thumb';
     track.append(thumb);
     button.append(text, track);
-    const showHaptics = (): void => {
-      button.setAttribute('aria-checked', current.haptics ? 'true' : 'false');
-      button.className = current.haptics ? 'pp-toggle pp-toggle-on' : 'pp-toggle';
+    const show = (): void => {
+      button.setAttribute('aria-checked', isOn() ? 'true' : 'false');
+      button.className = isOn() ? 'pp-toggle pp-toggle-on' : 'pp-toggle';
     };
-    showHaptics();
+    show();
     unbinds.push(
       bindPressButton(button, () => {
-        current.haptics = !current.haptics;
-        showHaptics();
-        emit();
+        // Before `onFlip` reports: the report flips `data-pp-motion`, which changes the panel's
+        // `animation-name` (`pp-pop-in` ↔ `pp-fade-in`), and a new name would restart it under the finger.
+        panel.classList.add('pp-panel-settled');
+        onFlip();
+        show();
       }),
     );
     panel.append(button);
     rows.push({ kind: 'toggle', elements: [button], target: () => button });
+    return button;
+  };
+  if (options.hasHaptics) {
+    toggleRow(
+      'settings.haptics',
+      () => current.haptics,
+      () => {
+        current.haptics = !current.haptics;
+        emit();
+      },
+    );
   }
+  const motionSwitch = toggleRow(
+    'settings.reduced_motion',
+    () => current.reducedMotion,
+    () => {
+      current.reducedMotion = !current.reducedMotion;
+      emit();
+    },
+  );
+  // `false` follows the device (D6): when the OS already asks for it, the switch alone would read off
+  // while the effects are reduced, so the note says why flipping it changes nothing visible.
+  if (options.isDeviceMotionReduced()) {
+    const deviceNote = document.createElement('p');
+    deviceNote.className = 'pp-settings-note';
+    deviceNote.id = 'pp-settings-motion-device';
+    deviceNote.textContent = t('settings.reduced_motion_device');
+    motionSwitch.setAttribute('aria-describedby', deviceNote.id);
+    panel.append(deviceNote);
+  }
+  toggleRow(
+    'settings.large_verbs',
+    () => current.largeVerbs,
+    () => {
+      current.largeVerbs = !current.largeVerbs;
+      emit();
+    },
+  );
 
   // --- Recalibrer, Crédits, Retour ------------------------------------------------------------------------
   const actions = document.createElement('div');

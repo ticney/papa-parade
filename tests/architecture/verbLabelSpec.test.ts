@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { THREAT_SHAPE_COLORS } from '@content/schemas/threat';
-import { VERB_MIN_FONT_PX, VERB_STROKE_PX } from '@shared/constants';
+import { LARGE_VERBS_SCALE, VERB_MIN_FONT_PX, VERB_STROKE_PX } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import { extractFrontmatter, parseYamlSubset, type YamlMap } from './yamlSubset.ts';
 
@@ -32,6 +32,11 @@ describe('verb-label and threat-icon constants match DESIGN.md', () => {
 
   it('never goes below minFontSize', () => {
     expect(label.minFontSize).toBe(`${VERB_MIN_FONT_PX}px`);
+  });
+
+  it('grows by largeVerbsScale for « Grands verbes » (story 2.10)', () => {
+    expect(label.largeVerbsScale).toBe(String(LARGE_VERBS_SCALE));
+    expect(LARGE_VERBS_SCALE).toBe(1.25);
   });
 
   it('has an ink outline of strokeWidth, painted under the fill', () => {
