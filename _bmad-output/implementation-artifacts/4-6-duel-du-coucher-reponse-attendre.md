@@ -232,6 +232,19 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
   - [x] T4.3 `tests/e2e/bedtimeDuel.spec.ts`; touched specs.
 - [x] **T5. Docs and CI** (AC 24, 25)
 
+### Review Findings
+
+Code review of 2026-10-31, group 1 only (sim, content, schemas: `src/sim`, `src/content`, `content/`). Groups 2 (client, bots, tools) and 3 (tests, goldens, docs) are still to review.
+
+- [x] [Review][Decision] (resolved: option 1, `SequenceEnded{failed}` at once, no `BabyWoke`; delegated to the agent by Geo) A duel round that no longer fits before the level's end freezes the sequence until the level ends — `DUEL_HANDLER.tick` returns forever when `isJudgeableBeforeEnd` is false and `nextRoundAt` stays set; `isSettled()` is always false and a `duel` step is not timed, so nothing ends the sequence. Trigger: `StartSequence bedtime_duel` with less than about 8.5 s of level left, or a late win/retreat that schedules the next round. Outcome: `flow.state` stays `sequence`, the director is off, Papa is held and the baby carried, with no threat, until `levelEnded`. Options: (a) end the sequence when no round can fit (as a success or as a failure?); (b) refuse `StartSequence` when the first round cannot fit; (c) leave it, 4.10 sizes the level. [src/sim/sequences/bedtimeDuel.ts:38-43]
+- [x] [Review][Patch] `goToSequenceStep` returns silently on a non-duel step or a null id, and the `duel` ↔ `retreats` pairing is checked only by the zod schema — a hand-built def (tests, a programmatic bundle) with a `duel` step and a `gag` failure never advances; a `retreats` failure with a non-duel step emits `SequenceStepRetreated`, then deadlocks. Make `sequenceDuelProblems` refuse both pairings (so `createSim` and `content:check` agree) and turn the silent `return` into an `invariant`; replace the `as { durationMs: number }` cast. [src/sim/sequences/sequenceEnd.ts:107]
+- [x] [Review][Patch] Papa's eyelids read the telegraph progress of the first Papa-anchored threat, so a duel on a level with no micro-sleep and no arms cry shows the time left before the signal (AC 5 / D1: nothing visible may read `windowOpenAt` before the signal). `simLevelOf` now puts the duel instance on the Papa anchor. Limit the eyelids to the micro-sleep, and add a unit test next to the one in `threatMarkers.test.ts`. [src/client/render/levelScene.ts:125]
+- [x] [Review][Patch] The snapshot history comment has no entry for version 23 (`world.sequence.duel`, story 4.6); it still opens with « 22 since story 4.5 » (AC 15). [src/sim/snapshot.ts:43]
+- [x] [Review][Patch] `PAPA_ASLEEP` duplicates `PAPA_ASLEEP_GAG_ID` and its comment (« no cycle ») is wrong: `gags.ts` does not import `bedtimeDuel`. Import the constant. [src/sim/sequences/bedtimeDuel.ts:106]
+- [x] [Review][Patch] `neededMs` ignores the threat's `cooldownMs`: the real rest is `max(restMs, cooldownMs)` (the round waits for `rearmThreat`), so a `cooldownMs` above `restMs` pushes a round past `durationMs` with no error. Add `cooldownMs` to `DuelThreatShape` and use the larger of the two. [src/sim/sequences/bedtimeDuel.ts:146]
+- [x] [Review][Defer] `response: "wait"` is accepted in roles the story does not run (a wave-planned anchor, a `hiddenZone` threat, `microSleepDef`, `armsCryDef`); the behaviour (`earlyPress` bypassed, `maxDelayMs` in `isJudgeableBeforeEnd`) is untested and unspecified [src/sim/createSim.ts:208-286] — deferred, not caused by a defect of this story
+- [x] [Review][Defer] `duelProblem` of the snapshot does not cross-check `nextRoundAt === null` with the duel threat's state: an imported snapshot with a running duel, no round pending and an idle threat passes and stalls like the Decision above [src/sim/snapshot.ts] — deferred, to settle together with the Decision
+
 ## Dev Notes
 
 ### Decisions (D1-D10)
@@ -415,3 +428,4 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`), Claude Code.
 |---|---|
 | 2026-10-31 | Story created (`gds-create-story`), status `ready-for-dev`. Ultimate context engine analysis completed: comprehensive developer guide created. |
 | 2026-10-31 | Story implemented (`gds-dev-story`): the `wait` response, the bedtime duel, snapshot v23, the bots, the goldens and the e2e. Status `review`. |
+| 2026-10-31 | Code review, group 1 (sim, content, schemas): a duel round that cannot fit before the level's end now fails the sequence at once; `sequenceDuelProblems` checks the `duel` ↔ `retreats` pairing and the cooldown; `goToSequenceStep` asserts; Papa's eyelids follow the micro-sleep only (`SceneBodies.microSleepDefId`); snapshot v23 history comment. Groups 2 and 3 not reviewed yet. |

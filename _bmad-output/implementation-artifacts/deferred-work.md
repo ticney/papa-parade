@@ -784,3 +784,8 @@
 - **The `ppSequenceStep` / `ppSequenceRetreats` prod markers are the `ppSequence` entry's**: a second entry would be reported twice by `inspectDist`.
 - **The step estimates (`stepEndsAt`, `endsAt`) of a duel are not times anything waits for**: only the snapshot's ordering check reads them. 4.8 reuses `isTimed` and `goToSequenceStep`.
 - **After a sequence the baby stays carried and the bots never put him down** (4.10): the cry in the arms goes on, so a `perfect` bot's stars fall after the duel. Expected.
+
+## Deferred from: code review of story 4-6-duel-du-coucher-reponse-attendre (2026-10-31)
+
+- `response: "wait"` is accepted by the schema, `createSim` and `content:check` in roles the story does not run (a wave-planned anchor, a `hiddenZone` threat, `microSleepDef`, `armsCryDef`). The behaviour there (`earlyPress` bypassed, `maxDelayMs` counted by `isJudgeableBeforeEnd`) is untested and unspecified. Forbid it or specify it before a level uses it.
+- The snapshot's `duelProblem` does not cross-check `world.sequence.duel.nextRoundAt === null` with the duel threat's state (`idle` with no round pending passes). To settle with the « round that no longer fits » decision of the same review.

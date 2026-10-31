@@ -43,6 +43,8 @@ const DEFAULT_PROP_HALF_EXTENTS_M: readonly [number, number, number] = [0.05, 0.
 export interface SceneBodies {
   papaRadiusM: number;
   babyRadiusM: number;
+  /** The def id of the level's micro-sleep (`gauges.fatigue.microSleepDef`), or null: the only threat Papa's eyelids follow. */
+  microSleepDefId: string | null;
 }
 
 /**
@@ -117,15 +119,21 @@ export interface LevelScene {
 }
 
 /**
- * How shut Papa's eyelids are, 0 to 1: while the micro-sleep (the threat that stands on him) is
+ * How shut Papa's eyelids are, 0 to 1: while the micro-sleep (the level's `microSleepDefId`) is
  * announced they lower with the telegraph's progress, from its entry to the opening of the window,
  * and they stay shut while the window is open. Read from the world each frame (story 1.19), so a
- * pause or a slow-mo freezes it. Allocation-free.
+ * pause or a slow-mo freezes it. Only the micro-sleep: another threat on Papa (the duel's, story
+ * 4.6) must not show the time left before its signal. Allocation-free.
  */
-export function eyelidsAmountAt(world: Readonly<World>, clockMs: number): number {
+export function eyelidsAmountAt(
+  world: Readonly<World>,
+  clockMs: number,
+  microSleepDefId: string | null,
+): number {
+  if (microSleepDefId === null) return 0;
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as World['threats'][number];
-    if (threat.anchorId !== PAPA_TARGET_ANCHOR_ID) continue;
+    if (threat.anchorId !== PAPA_TARGET_ANCHOR_ID || threat.defId !== microSleepDefId) continue;
     if (threat.state === 'windowOpen') return 1;
     if (threat.state !== 'telegraph') return 0;
     const spanMs = threat.windowOpenAt - threat.enteredAt;
@@ -354,7 +362,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       props.sync(world.props, alpha);
       const clockMs = world.time.sim + alpha * STEP_MS;
       // Papa's nap, coffee and call, from the world every frame (stories 1.19, 1.20; diegetic, no overlay).
-      papa.setEyelids(eyelidsAmountAt(world, clockMs));
+      papa.setEyelids(eyelidsAmountAt(world, clockMs, bodies.microSleepDefId));
       papa.setAsleep(world.papa.state === 'asleep', clockMs);
       papa.setDrinking(world.papa.state === 'drink');
       papa.setOnPhone(world.papa.state === 'onPhone');

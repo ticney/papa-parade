@@ -1,4 +1,5 @@
 import type { SequenceDef } from '@content/schemas/sequence';
+import { invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
 import type { SimSequence, StepContext } from '../context.ts';
 import type { FailReason, SequenceOutcome } from '../events.ts';
@@ -104,13 +105,19 @@ export function goToSequenceStep(
   const step = def.steps[index];
   const { sequence } = world;
   const { id } = sequence;
-  if (step === undefined || step.kind !== 'duel' || id === null) return;
+  // `sequenceDuelProblems` refuses a `retreats` def whose steps are not all duels, so this never fires on a loaded def.
+  invariant(id !== null, `goToSequenceStep(${index}): no sequence is running`);
+  invariant(
+    step?.kind === 'duel',
+    `goToSequenceStep: step ${index} of the sequence "${id}" is not a duel step`,
+  );
   const now = world.time.sim;
   sequence.stepIndex = index;
   sequence.stepEndsAt = asSimMs(now + step.durationMs);
   let endsAt: number = sequence.stepEndsAt;
   for (let i = index + 1; i < def.steps.length; i++) {
-    endsAt += (def.steps[i] as { durationMs: number }).durationMs;
+    const later = def.steps[i];
+    if (later !== undefined) endsAt += later.durationMs;
   }
   sequence.endsAt = asSimMs(endsAt);
   sequence.duel.nextRoundAt = asSimMs(now + step.restMs);

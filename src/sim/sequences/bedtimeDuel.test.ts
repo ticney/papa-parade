@@ -168,13 +168,35 @@ describe('the bedtime duel: starting (story 4.6)', () => {
     expect(worldOf(sim).sequence.duel.nextRoundAt).toBeNull();
   });
 
-  it('is not telegraphed when it could not be judged before the end of the level', async () => {
+  it('is not telegraphed when it could not be judged before the end of the level: the duel is lost at once', async () => {
     // 1 s of rest + 800 + 4000 + the window and the tolerance does not fit in 3 s.
-    const { sim } = await started({ durationMs: 3000 });
+    const { sim, startedAt } = await started({ durationMs: 3000 });
     const events = runTo(sim, 3000 + STEP_MS);
     expect(typesOf(events)).not.toContain('ThreatTelegraphed');
+    // Not held until the level ends: the sequence fails when the first round was due, and the baby sleeps on.
     expect(ofType(events, 'SequenceEnded')).toEqual([
-      expect.objectContaining({ id: 'bedtime_duel', outcome: 'levelEnded' }),
+      expect.objectContaining({
+        id: 'bedtime_duel',
+        outcome: 'failed',
+        t: expect.any(Number),
+      }),
+    ]);
+    const ended = ofType(events, 'SequenceEnded')[0];
+    expect(ended?.t).toBeLessThan(startedAt + REST_MS + 2 * STEP_MS);
+    expect(typesOf(events)).not.toContain('BabyWoke');
+    expect(worldOf(sim).flow.state).not.toBe('sequence');
+    expect(worldOf(sim).sequence.duel.isRunning).toBe(false);
+  });
+
+  it('a late round (after a win) that can no longer fit also loses the duel', async () => {
+    // Two rounds' worth of level: the first is played, the second no longer fits.
+    const { sim } = await started({ durationMs: 9000 });
+    const first = playRound(sim, 'centre');
+    expect(typesOf(first)).toContain('SequenceStepStarted');
+    const events = runTo(sim, 9000 + STEP_MS);
+    expect(typesOf(events)).not.toContain('ThreatTelegraphed');
+    expect(ofType(events, 'SequenceEnded')).toEqual([
+      expect.objectContaining({ id: 'bedtime_duel', outcome: 'failed' }),
     ]);
   });
 
@@ -498,6 +520,44 @@ describe('sequenceDuelProblems (story 4.6)', () => {
     });
     expect(problemsOf(withDuration(neededMs))).toEqual([]);
     expect(problemsOf(withDuration(neededMs - 1))[0]).toMatch(/below the .* ms a round can take/);
+  });
+
+  it('counts the cooldown of the threat when it is longer than the rest', () => {
+    const { windowMs, toleranceMs } = content.feel.timing;
+    const widest = Math.max(
+      ...Object.values(content.feel.difficulty).map((t) => t.windowMultiplier),
+    );
+    const cooldownMs = REST_MS + 3000;
+    const neededMs = cooldownMs + 800 + (EYES.maxDelayMs ?? 0) + windowMs * widest + toleranceMs;
+    const withDuration = (durationMs: number): SequenceDef => ({
+      ...DEF,
+      steps: [{ kind: 'duel', durationMs, threatDef: 'bedtime_eyes', restMs: REST_MS }],
+    });
+    const slow = { bedtime_eyes: { ...eyes, cooldownMs } };
+    expect(problemsOf(withDuration(neededMs), slow)).toEqual([]);
+    expect(problemsOf(withDuration(neededMs - 1), slow)[0]).toMatch(/below the .* ms a round/);
+  });
+
+  it('refuses a duel step whose failure is not retreats', () => {
+    const def: SequenceDef = { ...DEF, failure: { kind: 'gag', hasSnore: false } };
+    expect(problemsOf(def)).toEqual([
+      'has a duel step, so its failure must be "retreats", not "gag"',
+    ]);
+  });
+
+  it('refuses a retreats failure with a step that is not a duel, or with no duel at all', () => {
+    const duel = DEF.steps[0] as Extract<SequenceDef['steps'][number], { kind: 'duel' }>;
+    const timed = {
+      kind: 'microSleeps',
+      durationMs: 8000,
+    } as unknown as SequenceDef['steps'][number];
+    expect(problemsOf({ ...DEF, steps: [duel, timed] })).toEqual([
+      'has a "retreats" failure, so every step must be a duel (steps[1] is a "microSleeps" step)',
+    ]);
+    expect(problemsOf({ ...DEF, steps: [timed] })).toEqual([
+      'has a "retreats" failure, but no duel step to step back from',
+      'has a "retreats" failure, so every step must be a duel (steps[0] is a "microSleeps" step)',
+    ]);
   });
 
   it('refuses the papa_asleep gag', () => {

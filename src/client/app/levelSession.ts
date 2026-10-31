@@ -478,6 +478,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           level = makeScene(levelAssets, {
             papaRadiusM: effective.movement.papaRadiusM,
             babyRadiusM: effective.baby.bodyRadiusM,
+            microSleepDefId: levelPlan.level.gauges.fatigue?.microSleepDef ?? null,
           });
         } catch (cause) {
           log.error('render', 'cannot build the level scene', { id: levelId, error: cause });

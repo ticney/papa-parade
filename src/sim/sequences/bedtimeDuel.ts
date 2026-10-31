@@ -1,10 +1,11 @@
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
+import { PAPA_ASLEEP_GAG_ID } from '../threats/gags.ts';
 import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
 import { telegraphThreat } from '../threats/threatFsm.ts';
 import type { World } from '../world.ts';
 import type { BeatWindowLimits } from './beatClock.ts';
-import { plannedSequenceOf } from './sequenceEnd.ts';
+import { failSequence, plannedSequenceOf } from './sequenceEnd.ts';
 import type { StepHandler } from './sequenceSteps.ts';
 
 // « Duel du coucher » (story 4.6): the `duel` step. Papa stands still before the bed and leaves at
@@ -39,10 +40,16 @@ export const DUEL_HANDLER: StepHandler<'duel'> = {
     const index = duelThreatIndexOf(world, ctx);
     const threat = world.threats[index];
     const planned = ctx.level.threats[index];
-    // The instance may still be in its cooldown after the last round: the round waits for it.
-    if (threat === undefined || planned === undefined || threat.state !== 'idle') return;
+    if (threat === undefined || planned === undefined) return;
     // Judged before the level's end, not the sequence's: the sequence's end is only an estimate here.
-    if (!isJudgeableBeforeEnd(world, ctx, planned.def, now)) return;
+    // A round that cannot fit any more loses the duel (`SequenceEnded{failed}`, no `BabyWoke`): left
+    // alone, the step would hold Papa and the carried baby, with no threat, until the level ends.
+    if (!isJudgeableBeforeEnd(world, ctx, planned.def, now)) {
+      failSequence(world, ctx);
+      return;
+    }
+    // The instance may still be in its cooldown after the last round: the round waits for it.
+    if (threat.state !== 'idle') return;
     telegraphThreat(world, ctx, threat, planned.def, -1);
     duel.nextRoundAt = null;
   },
@@ -56,6 +63,7 @@ export const DUEL_HANDLER: StepHandler<'duel'> = {
 export interface DuelThreatShape {
   readonly response: string;
   readonly target: string;
+  readonly cooldownMs: number;
   readonly telegraphDelayMs: number | null;
   readonly maxDelayMs?: number;
   readonly windowMs: number | null;
@@ -65,6 +73,7 @@ export interface DuelThreatShape {
 
 /** The part of a sequence def {@link sequenceDuelProblems} reads (a `SequenceDef` of the content fits it). */
 export interface DuelDefShape {
+  readonly failure: { readonly kind: string };
   readonly steps: readonly (
     | { readonly kind: 'microSleeps' }
     | { readonly kind: 'beats' }
@@ -102,9 +111,6 @@ export function duelLimitsOf(feel: {
   };
 }
 
-/** The gag id the micro-sleep alone may end in (the sim's `PAPA_ASLEEP_GAG_ID`, not imported: no cycle). */
-const PAPA_ASLEEP = 'papa_asleep';
-
 /**
  * What is wrong with the duel steps of a sequence def, each as a sentence that follows « the
  * sequence "<id>" »: `content:check` and `simLevelOf` both call it, so they refuse the same things
@@ -117,6 +123,24 @@ export function sequenceDuelProblems(
   limits: DuelLimits,
 ): string[] {
   const problems: string[] = [];
+  // A duel ends on its result and a `retreats` failure steps back into a duel: the two go together.
+  // The zod schema says the same; this is for a def that did not go through it (a hand-built bundle).
+  const duelCount = def.steps.filter((step) => step.kind === 'duel').length;
+  if (duelCount > 0 && def.failure.kind !== 'retreats') {
+    problems.push(`has a duel step, so its failure must be "retreats", not "${def.failure.kind}"`);
+  }
+  if (def.failure.kind === 'retreats') {
+    if (duelCount === 0) {
+      problems.push('has a "retreats" failure, but no duel step to step back from');
+    }
+    def.steps.forEach((step, j) => {
+      if (step.kind !== 'duel') {
+        problems.push(
+          `has a "retreats" failure, so every step must be a duel (steps[${j}] is a "${step.kind}" step)`,
+        );
+      }
+    });
+  }
   def.steps.forEach((step, j) => {
     if (step.kind !== 'duel') return;
     const where = `has a duel step (steps[${j}])`;
@@ -138,13 +162,14 @@ export function sequenceDuelProblems(
       );
     }
     const gags = threat.gag === undefined ? (threat.surpriseGags ?? []) : [threat.gag];
-    if (gags.includes(PAPA_ASLEEP)) {
+    if (gags.includes(PAPA_ASLEEP_GAG_ID)) {
       problems.push(
-        `${where} whose threatDef "${step.threatDef}" has the gag "${PAPA_ASLEEP}", which is the micro-sleep's alone`,
+        `${where} whose threatDef "${step.threatDef}" has the gag "${PAPA_ASLEEP_GAG_ID}", which is the micro-sleep's alone`,
       );
     }
+    // The next round waits for the rest and for the threat to be idle again, whichever is longer.
     const neededMs =
-      step.restMs +
+      Math.max(step.restMs, threat.cooldownMs) +
       (threat.telegraphDelayMs ?? limits.telegraphDelayDefaultMs) +
       (threat.maxDelayMs ?? 0) +
       (threat.windowMs ?? limits.windowMs) * limits.maxWindowMultiplier +

@@ -31,7 +31,7 @@ import {
 import { createLevelScene, eyelidsAmountAt, roomOf } from './levelScene.ts';
 import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
 
-const BODIES = { papaRadiusM: 0.25, babyRadiusM: 0.2 };
+const BODIES = { papaRadiusM: 0.25, babyRadiusM: 0.2, microSleepDefId: null };
 
 function mesh(name: string, color: number): Mesh {
   const result = new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ color }));
@@ -625,28 +625,47 @@ describe('createLevelScene', () => {
 });
 
 describe('eyelidsAmountAt (story 1.19)', () => {
-  const micro = (state: string, enteredAt = 1000, windowOpenAt = 2200) =>
-    ({ state, enteredAt, windowOpenAt, anchorId: 'papa' }) as never;
+  const MICRO = 'papa_microsleep';
+  const micro = (state: string, enteredAt = 1000, windowOpenAt = 2200, defId = MICRO) =>
+    ({ state, enteredAt, windowOpenAt, anchorId: 'papa', defId }) as never;
   const worldOf = (...threats: unknown[]) => ({ threats }) as never;
 
   it('lowers with the progress of the telegraph, from its entry to the opening of the window', () => {
-    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 1000)).toBe(0);
-    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 1600)).toBeCloseTo(0.5, 12);
-    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 2200)).toBe(1);
-    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 9999)).toBe(1);
-    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 0)).toBe(0);
+    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 1000, MICRO)).toBe(0);
+    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 1600, MICRO)).toBeCloseTo(0.5, 12);
+    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 2200, MICRO)).toBe(1);
+    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 9999, MICRO)).toBe(1);
+    expect(eyelidsAmountAt(worldOf(micro('telegraph')), 0, MICRO)).toBe(0);
   });
 
   it('stays shut while the window is open, and open in any other state', () => {
-    expect(eyelidsAmountAt(worldOf(micro('windowOpen')), 3000)).toBe(1);
+    expect(eyelidsAmountAt(worldOf(micro('windowOpen')), 3000, MICRO)).toBe(1);
     for (const state of ['idle', 'resolved', 'gag']) {
-      expect(eyelidsAmountAt(worldOf(micro(state)), 3000), state).toBe(0);
+      expect(eyelidsAmountAt(worldOf(micro(state)), 3000, MICRO), state).toBe(0);
     }
   });
 
   it('ignores the threats that stand on an anchor, and a level with no micro-sleep', () => {
-    const outlet = { state: 'windowOpen', enteredAt: 0, windowOpenAt: 1, anchorId: 'outlet_01' };
-    expect(eyelidsAmountAt(worldOf(outlet), 5)).toBe(0);
-    expect(eyelidsAmountAt(worldOf(), 5)).toBe(0);
+    const outlet = {
+      state: 'windowOpen',
+      enteredAt: 0,
+      windowOpenAt: 1,
+      anchorId: 'outlet_01',
+      defId: 'outlet',
+    };
+    expect(eyelidsAmountAt(worldOf(outlet), 5, MICRO)).toBe(0);
+    expect(eyelidsAmountAt(worldOf(), 5, MICRO)).toBe(0);
+    expect(eyelidsAmountAt(worldOf(micro('windowOpen')), 3000, null)).toBe(0);
+  });
+
+  it('does not read the telegraph of another threat on Papa (the duel’s signal time, story 4.6)', () => {
+    // Two worlds whose duel threat signals at 2200 vs 6000: Papa's eyelids are the same (open).
+    const duelSoon = micro('telegraph', 1000, 2200, 'bedtime_eyes');
+    const duelLate = micro('telegraph', 1000, 6000, 'bedtime_eyes');
+    expect(eyelidsAmountAt(worldOf(duelSoon), 1600, MICRO)).toBe(0);
+    expect(eyelidsAmountAt(worldOf(duelLate), 1600, MICRO)).toBe(0);
+    // The micro-sleep after it in the list is still found.
+    const sleepy = micro('telegraph', 1000, 2200);
+    expect(eyelidsAmountAt(worldOf(duelLate, sleepy), 1600, MICRO)).toBeCloseTo(0.5, 12);
   });
 });
