@@ -4,7 +4,7 @@ baseline_commit: f1fd12ca14023ae86355dc865107156e4c2fed5b
 
 # Story 4.7: The fake sleep
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.7 « Faux sommeil » (L1958-1978). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -174,6 +174,22 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
   - [x] T4.2 Goldens (regenerate, diff, add the two scenarios).
   - [x] T4.3 `tests/e2e/fakeSleep.spec.ts`; touched specs; the screenshots looked at.
 - [x] **T5. Docs and CI** (AC 17, 18)
+
+### Review Findings
+
+Code review of 2026-10-31 (Blind Hunter, Edge Case Hunter, Acceptance Auditor; no layer failed). No high finding: AC 1-18 are met, `pressThreat`, `sequenceSystem`, `sequenceEnd`, `sequenceSteps` and `DUEL_HANDLER` are untouched, the sim is deterministic and clean of forbidden globals. 11 findings dismissed as noise.
+
+- [x] [Review][Decision] (accepted as is by Geo, 2026-10-31; E7 draws the final one) The `peek` glyph is barely legible at the marker's real size (the Completion Notes say « small, two dark marks beside the eyes' big white eye »), and the screenshot evidence is Chromium only with the banner covering the verb. AC 5 asks for a glyph that « reads differently from `eyes` and `eyelids` at 667 × 375 ». Geo to look at `fake-sleep-feint.png` and either accept it (E7 draws the final one) or ask for a bolder placeholder [src/client/render/ or the `peek` path in `THREAT_ICON_PATHS`]
+- [x] [Review][Patch] The fuzz's « sensible press » never fires: `threat.windowOpenAt !== world.time.sim - (world.time.sim % STEP_MS)` is true only when `windowOpenAt` lands on the step grid (it « may be off the step grid », `world.ts`), so the aggregate « exercised the feint » test passes by the seeds' luck, not by design. Answer each window once, the step it is seen open [src/sim/sequences/fakeSleepDuelFuzz.test.ts:59]
+- [x] [Review][Patch] The fuzz's aggregate test reads `games`, filled by the 30 `it.each` cases: it fails alone (`-t`, `--shard`, shuffle, one retry). Play each seed through a cached helper that both the per-seed tests and the aggregate call [src/sim/sequences/fakeSleepDuelFuzz.test.ts:27]
+- [x] [Review][Patch] « makes no noise in a level without the noise gauge, and the cry still comes » never asserts that `BabyCrying` fires (AC 8, 4.6's review pitfall) [src/sim/threats/fakeSleep.test.ts:469]
+- [x] [Review][Patch] `checkThreatFeint` does not refuse `feint.icon` equal to `icon` (the glyph never changes at the feint) or to `signalIcon` (the feint looks like the signal); add the check and its test in `checkFakeSleep.test.ts` [tools/content/contentChecks.ts:489]
+- [x] [Review][Patch] The `THREAT_CLASSES.feint` doc says « a short pop »; the CSS is a tilt, « not the signal's pop » [src/client/ui/world/threatMarkers.ts, src/client/ui/styles/ui.css]
+- [x] [Review][Patch] « has a fresh feint at each telegraph » compares absolute `feintAt` values, always increasing; compare the delay since each telegraph [src/sim/sequences/fakeSleepDuel.test.ts:254]
+- [x] [Review][Patch] `synthTelegraphFakeSleep` mixes `noise * FAKE_SLEEP_TEL_NOISE_GAIN * 10` with a gain of 0.1: the constant lies and the `10` is hidden. Name the real gain [tools/audio/makePlaceholderAudio.ts:1539]
+- [x] [Review][Patch] `threatsSwitch.test.ts` does not say that `?threats=off` keeps `fake_sleep` (the story's « previous story intelligence » asked for it) [src/client/app/threatsSwitch.test.ts:55]
+- [x] [Review][Defer] The snapshot's `threatProblem` ties `feintAt` / `isFeintGiven` to idle, hidden and `windowOpenAt` only: a `windowOpen` threat with a pending feint, or a feint on a def that has none, is accepted (the sim never writes them; AC 11 asks for exactly these checks) — deferred, spec-conforming
+- [x] [Review][Defer] `tests/golden/fakeSleep.test.ts` redeclares `FAKE_SLEEP_ID` and hard-codes the rng-bound instants (8740, 11 820, 17 050, 19 290): any rng or timing change needs several manual edits — deferred, low
 
 ## Dev Notes
 

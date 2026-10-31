@@ -289,7 +289,7 @@ export const THREAT_CLASSES = {
   holdClosed: 'pp-threat-hold--closed',
   /** On the marker of a `wait` threat from its signal on (story 4.6): the CSS draws the cue's onset. */
   signal: 'pp-threat--signal',
-  /** On the marker of a `wait` threat from its feint to its signal (story 4.7): the CSS draws a short pop. */
+  /** On the marker of a `wait` threat from its feint to its signal (story 4.7): the CSS draws a short tilt, not the signal's pop. */
   feint: 'pp-threat--feint',
 } as const;
 

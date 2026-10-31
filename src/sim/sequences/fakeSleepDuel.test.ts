@@ -241,7 +241,8 @@ describe('a round of the fake sleep that is cancelled or restarted (story 4.7)',
       runUntil(sim, log, () => fake.state === 'telegraph');
       expect(fake.isFeintGiven).toBe(false);
       expect(fake.feintAt).not.toBeNull();
-      feintsDrawn.push(fake.feintAt as number);
+      // Relative to its own telegraph: an absolute instant would grow with the clock alone.
+      feintsDrawn.push((fake.feintAt as number) - fake.enteredAt);
       // A press on the feint: the round is lost, the step is played again (the only step).
       runUntil(sim, log, () => fake.isFeintGiven);
       sim.enqueue({ type: 'PressThreat', t: asSimMs(worldOf(sim).time.sim), threatId: fake.id });
@@ -251,7 +252,7 @@ describe('a round of the fake sleep that is cancelled or restarted (story 4.7)',
     }
     expect(ofType(log, 'WaitFeintGiven')).toHaveLength(2);
     // Two draws, two telegraphs: the second feint is a new one, relative to its own telegraph.
-    expect(feintsDrawn[1]).toBeGreaterThan(feintsDrawn[0] as number);
+    expect(feintsDrawn[1]).not.toBe(feintsDrawn[0]);
   });
 
   it('is closed by a level end mid-round: the sequence ends, the feint is cleared, none comes after', async () => {

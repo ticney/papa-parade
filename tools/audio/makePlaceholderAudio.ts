@@ -1521,7 +1521,7 @@ export function synthGagBabyEyesReopened(): Float32Array {
 const FAKE_SLEEP_TEL_LENGTH_MS = 800;
 const FAKE_SLEEP_TEL_HZ = { from: 165, to: 135 };
 const FAKE_SLEEP_TEL_BREATHS = 2;
-const FAKE_SLEEP_TEL_NOISE_GAIN = 0.1;
+const FAKE_SLEEP_TEL_NOISE_GAIN = 1;
 
 /** Two slow soft breaths, the baby sleeping, or so it seems (cue `tel_fake_sleep`): a swell twice, no attack at all. */
 export function synthTelegraphFakeSleep(): Float32Array {
@@ -1536,7 +1536,7 @@ export function synthTelegraphFakeSleep(): Float32Array {
     phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
     noise += 0.04 * (nextFloat(rng) * 2 - 1 - noise);
     const swell = Math.sin(Math.PI * ((progress * FAKE_SLEEP_TEL_BREATHS) % 1)) ** 2;
-    out[i] = (Math.sin(phase) + noise * FAKE_SLEEP_TEL_NOISE_GAIN * 10) * swell;
+    out[i] = (Math.sin(phase) + noise * FAKE_SLEEP_TEL_NOISE_GAIN) * swell;
   }
   out[0] = 0;
   out[out.length - 1] = 0;

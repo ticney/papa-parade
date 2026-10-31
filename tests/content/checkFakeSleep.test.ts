@@ -101,6 +101,29 @@ describe('checkContent and the feint cue (story 4.7)', () => {
     );
   });
 
+  it('names a feint glyph that is the glyph before it, or the signal’s', async () => {
+    await mutateJson(THREAT, (threat) => {
+      (threat.feint as Record<string, unknown>).icon = 'eyes';
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: THREAT,
+        jsonPath: 'feint.icon',
+        message: expect.stringMatching(/is the glyph of the telegraph/),
+      }),
+    );
+    await mutateJson(THREAT, (threat) => {
+      (threat.feint as Record<string, unknown>).icon = 'eyelids';
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: THREAT,
+        jsonPath: 'feint.icon',
+        message: expect.stringMatching(/is the glyph of the signal/),
+      }),
+    );
+  });
+
   it('names a feint that plays the signal’s clip', async () => {
     await mutateJson(FEEDBACK, (feedback) => {
       const signal = cueOf(feedback, 'bedtime_eyes_closed').audio as Record<string, unknown>;

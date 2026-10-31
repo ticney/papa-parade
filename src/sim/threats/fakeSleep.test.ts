@@ -472,6 +472,8 @@ describe('the cost of a gag on the fake sleep: noise through gagCryMs (story 4.7
     const all = [...events, ...runTo(sim, world.time.sim + 2500)];
     expect(typesOf(all)).not.toContain('NoiseChanged');
     expect(world.gauges.noisePct).toBe(0);
+    // The cry does not need the gauge: it still comes, twice.
+    expect(ofType(all, 'BabyCrying')).toHaveLength(2);
   });
 
   it('keeps a cry from covering the next round’s signal: the earliest signal after a gag is later than the cry', () => {

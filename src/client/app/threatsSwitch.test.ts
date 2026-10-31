@@ -2,6 +2,8 @@ import { log } from '@shared/log';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CARRY,
+  createTestFakeSleep,
+  createTestFakeSleepDuel,
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
@@ -62,6 +64,24 @@ describe('withoutThreats', () => {
     const stripped = withoutThreats(planned);
     expect(Object.keys(stripped.threats).sort()).toEqual(['arms_cry', 'bedtime_eyes']);
     expect(Object.keys(stripped.sequences)).toEqual(['bedtime_duel']);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the fake sleep a duel step spawns, with its feint (story 4.7)', () => {
+    const duel = createTestFakeSleepDuel();
+    const planned = createTestLevel({
+      waves: [testWave([OUTLET])],
+      carry: CARRY,
+      sequences: [duel.id],
+    });
+    const stripped = withoutThreats(planned);
+    expect(Object.keys(stripped.threats).sort()).toEqual([
+      'arms_cry',
+      'bedtime_eyes',
+      'fake_sleep',
+    ]);
+    expect(stripped.threats.fake_sleep).toEqual(createTestFakeSleep());
+    expect(Object.keys(stripped.sequences)).toEqual([duel.id]);
     expect(warnSpy).not.toHaveBeenCalled();
   });
 

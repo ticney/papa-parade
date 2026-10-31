@@ -805,3 +805,8 @@
 - The marker stack order and the Space/A auto-target read `windowOpenAt + windowMs` of a `wait` threat (`threatCloseAt`), so the unrevealed signal time orders markers when another one is up. Not reachable in the duel (one threat up). Give `wait` a close time only from its signal on before running `wait` outside a duel.
 - A thumb resting on the canvas makes the real tap non-primary and ignored (`inputMapper.ts:407`); with « a finger anywhere is the press » it can decide a duel. Decide after playing (story 4.6 open point 4 is about holds, not resting fingers).
 - The duel's mirrors `data-pp-sequence-step` / `data-pp-sequence-retreats` are cleared at level start and at `SequenceStarted` in `boot.ts`, but no e2e starts a second sequence or restarts a level to prove it (story 4.6 review, low).
+
+## Deferred from: code review of story 4-7-faux-sommeil (2026-10-31)
+
+- The snapshot's `threatProblem` ties `feintAt` and `isFeintGiven` to idle, hidden and `windowOpenAt` only. A restored `windowOpen` threat with `feintAt` set and `isFeintGiven: false`, or a def without a `feint` carrying a `feintAt`, is accepted (the sim never writes either; `worldFromSnapshot` does not compare with `def.feint`). Add the checks when a bad snapshot becomes a real risk (journals from testers).
+- `tests/golden/fakeSleep.test.ts` redeclares `FAKE_SLEEP_ID` (also in `scenarios.ts`) and hard-codes the instants bound to seed 48's draws (8740, 11 820, 17 050, 19 290). Export the id and derive the instants from the journal when the next rng or timing change touches them.

@@ -392,6 +392,7 @@ function checkThreatReferences(
     problems.push(...checkThreatTwins(file, threat, feedback));
     problems.push(...checkThreatSignal(file, threat, feedback));
     problems.push(...checkThreatFeint(file, threat, feedback));
+    problems.push(...checkThreatFeintIcon(file, threat));
   }
   return problems;
 }
@@ -520,6 +521,33 @@ function checkThreatFeint(
       file,
       jsonPath,
       message: `the cue "${cueId}" plays the clip "${cue.audio.clip}" like the signal "${signalId}", but the feint must be told from the signal by its sound`,
+    });
+  }
+  return problems;
+}
+
+/**
+ * The glyph of the feint (story 4.7) must show: it differs from the glyph the marker has before it
+ * (`icon`, or the marker would not change at the feint) and from the signal's (`signalIcon`, or the
+ * feint would look like the signal, which only the verb tells apart).
+ */
+function checkThreatFeintIcon(file: string, threat: ThreatDef): ContentProblem[] {
+  const { feint } = threat;
+  if (feint === undefined) return [];
+  const jsonPath = formatJsonPath(['feint', 'icon']);
+  const problems: ContentProblem[] = [];
+  if (feint.icon === threat.icon) {
+    problems.push({
+      file,
+      jsonPath,
+      message: `the feint glyph "${feint.icon}" is the glyph of the telegraph, so the marker would not change at the feint`,
+    });
+  }
+  if (feint.icon === threat.signalIcon) {
+    problems.push({
+      file,
+      jsonPath,
+      message: `the feint glyph "${feint.icon}" is the glyph of the signal, so the feint would look like the signal`,
     });
   }
   return problems;
