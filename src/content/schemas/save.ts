@@ -57,8 +57,14 @@ export const SettingsSchema = z
       })
       .describe('What the player multiplies each audio bus by.'),
     haptics: z.boolean().describe('Vibrations on or off.'),
+    reducedMotion: z
+      .boolean()
+      .describe(
+        'Soften the on-screen effects (story 2.10). `false` follows the device: the OS setting still applies.',
+      ),
+    largeVerbs: z.boolean().describe('Enlarge the verb above each threat (story 2.10).'),
   })
-  .describe('The settings screen (story 2.8). `reducedMotion` and `largeVerbs` come with 2.10.');
+  .describe('The settings screen (story 2.8; the two comfort switches come with 2.10).');
 
 export const SaveSchema = z
   .strictObject({
@@ -68,13 +74,15 @@ export const SaveSchema = z
     ),
     settings: SettingsSchema,
   })
-  .describe('The save of the game (version 2: story 2.8 added `settings`).');
+  .describe(
+    'The save of the game (version 3: story 2.10 added `reducedMotion` and `largeVerbs` to `settings`).',
+  );
 
 export type Save = z.infer<typeof SaveSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 export type CalibrationResult = z.infer<typeof CalibrationResultSchema>;
 
-/** The settings of a new player: the normal tier, the mix of `feedback.json` as it is, vibrations on. */
+/** The settings of a new player: the normal tier, the mix of `feedback.json` as it is, vibrations on, both comfort switches off. */
 export function createDefaultSettings(): Settings {
   return {
     tier: DEFAULT_DIFFICULTY_TIER,
@@ -85,6 +93,8 @@ export function createDefaultSettings(): Settings {
       ui: VOLUME_MAX_PCT,
     },
     haptics: true,
+    reducedMotion: false,
+    largeVerbs: false,
   };
 }
 

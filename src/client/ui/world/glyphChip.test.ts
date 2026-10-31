@@ -167,6 +167,20 @@ describe('createGlyphChip beside the verb (story 2.2)', () => {
     expect(anchor.vars.get('--pp-chip-rise')).toBe('79px');
   });
 
+  it('goes with a verb that was shifted sideways to stay on screen, and lets go of it', () => {
+    const { chip, created } = build();
+    const anchor = created[0] as FakeElement;
+    const target = { ...withVerb(), verbShiftXPx: 45 };
+    chip.showAt(target, 'Espace');
+    expect(anchor.vars.get('--pp-chip-shift')).toBe('45px');
+    target.verbShiftXPx = 0;
+    chip.refresh();
+    expect(anchor.vars.has('--pp-chip-shift')).toBe(false);
+    // An entry that never had a shift writes nothing.
+    chip.showAt(withVerb(), 'Espace');
+    expect(anchor.vars.has('--pp-chip-shift')).toBe(false);
+  });
+
   it('stays beside the icon for an entry with no verb, and leaves no variable behind', () => {
     const { chip, created } = build();
     const anchor = created[0] as FakeElement;

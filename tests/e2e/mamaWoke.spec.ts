@@ -3,6 +3,7 @@ import {
   advanceToEnd,
   collectProblems,
   cueCount,
+  emulateReducedMotion,
   hapticPatternOf,
   html,
   liveFeedback,
@@ -206,7 +207,7 @@ test.describe('Mama wakes', () => {
     });
     expect(animated.shadow).toContain(scream);
 
-    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await emulateReducedMotion(page);
     const still = await read();
     expect(still.name).toBe('none');
     expect(still.shadow).toContain(scream);

@@ -3,12 +3,14 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  checkReducedMotion,
   checkStylesheet,
   checkTokens,
   declaredNames,
   declaredVariables,
   expectedTokens,
   normaliseValue,
+  REDUCED_MOTION_PREFIX,
 } from './designTokens.ts';
 import { extractFrontmatter, parseYamlSubset } from './yamlSubset.ts';
 
@@ -287,6 +289,78 @@ describe('checkStylesheet', () => {
   });
 });
 
+describe('checkReducedMotion (story 2.10)', () => {
+  const P = REDUCED_MOTION_PREFIX;
+
+  it('accepts an animation with a reduced rule of its own, after it', () => {
+    const css = `.pp-a { animation: pp-k 1s; } ${P} .pp-a { animation: none; }`;
+    expect(checkReducedMotion(css)).toEqual([]);
+  });
+
+  it('accepts a reduced rule that swaps the animation for a gentler one', () => {
+    const css = `.pp-a { animation-name: pp-pop; } ${P} .pp-a { animation: pp-fade 150ms linear both; }`;
+    expect(checkReducedMotion(css)).toEqual([]);
+  });
+
+  it('flags any prefers-reduced-motion, which a saved setting would never reach', () => {
+    const css = '@media (prefers-reduced-motion: reduce) { .pp-a { animation: none; } }';
+    expect(checkReducedMotion(css)).toEqual([
+      `@media (prefers-reduced-motion) is read in boot.ts only: use ${P} <selector>`,
+    ]);
+  });
+
+  it('ignores the words in a comment', () => {
+    expect(checkReducedMotion('/* prefers-reduced-motion */ .pp-a { color: red; }')).toEqual([]);
+  });
+
+  it('flags an animated selector with no reduced rule', () => {
+    expect(checkReducedMotion('.pp-a { animation: pp-k 1s infinite; }')).toEqual([
+      '".pp-a" animates and has no reduced-motion rule of its own',
+    ]);
+    expect(checkReducedMotion('.pp-a { animation-name: pp-k; }')).toHaveLength(1);
+  });
+
+  it('flags every selector of a list, and a reduced rule that does not touch the animation', () => {
+    const css = `.pp-a, .pp-b { animation: pp-k 1s; } ${P} .pp-a { animation: none; } ${P} .pp-b { color: var(--pp-color-ink); }`;
+    expect(checkReducedMotion(css)).toEqual([
+      '".pp-b" animates and has no reduced-motion rule of its own',
+    ]);
+  });
+
+  it('flags a reduced rule that comes before the animation: the later rule would win', () => {
+    const css = `${P} .pp-a { animation: none; } .pp-a { animation: pp-k 1s; }`;
+    expect(checkReducedMotion(css)).toEqual([
+      'the reduced-motion rule of ".pp-a" comes before its animation: it loses',
+    ]);
+  });
+
+  it('looks inside an @media query, and past keyframes', () => {
+    const css =
+      '@keyframes pp-k { to { opacity: 0; } } @media (max-width: 600px) { .pp-a { animation: pp-k 1s; } }';
+    expect(checkReducedMotion(css)).toEqual([
+      '".pp-a" animates and has no reduced-motion rule of its own',
+    ]);
+    expect(checkReducedMotion(`${css} ${P} .pp-a { animation: none; }`)).toEqual([]);
+  });
+
+  it('wants no reduced rule for a rule that stops an animation', () => {
+    expect(
+      checkReducedMotion('.pp-a { animation: none; } .pp-b { animation-name: none; }'),
+    ).toEqual([]);
+  });
+
+  it('matches descendant selectors as a whole', () => {
+    const css = `.pp-x .pp-a { animation: pp-k 1s; } ${P} .pp-a { animation: none; }`;
+    expect(checkReducedMotion(css)).toEqual([
+      '".pp-x .pp-a" animates and has no reduced-motion rule of its own',
+    ]);
+  });
+
+  it('lets the :where selector through checkStylesheet', () => {
+    expect(checkStylesheet(`${P} .pp-a { animation: none; }`)).toEqual([]);
+  });
+});
+
 describe('the UI stylesheets of the repository', () => {
   const all = listCss(STYLES);
   const sheets = all.filter((file) => !/[\\/](tokens|fonts)\.css$/.test(file));
@@ -302,5 +376,25 @@ describe('the UI stylesheets of the repository', () => {
     it(`${relative(repoRoot, file).replaceAll('\\', '/')} uses declared variables only, no blur, no layout animation`, () => {
       expect(checkStylesheet(readFileSync(file, 'utf8'), known)).toEqual([]);
     });
+    it(`${relative(repoRoot, file).replaceAll('\\', '/')} reads the reduced-motion setting through data-pp-motion, with a reduced rule for every animation`, () => {
+      expect(checkReducedMotion(readFileSync(file, 'utf8'))).toEqual([]);
+    });
   }
+
+  it('hold every animation of the client: no stylesheet outside src/client/ui escapes the guard', () => {
+    const outside = listCss(join(repoRoot, 'src')).filter((file) => !all.includes(file));
+    for (const file of outside) {
+      expect(checkReducedMotion(readFileSync(file, 'utf8')), file).toEqual([]);
+    }
+  });
+
+  it('read prefers-reduced-motion nowhere, tokens.css and fonts.css included', () => {
+    for (const file of all) {
+      const css = readFileSync(file, 'utf8');
+      const problems = checkReducedMotion(css).filter((problem) =>
+        problem.includes('prefers-reduced-motion'),
+      );
+      expect(problems, file).toEqual([]);
+    }
+  });
 });

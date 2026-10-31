@@ -23,6 +23,7 @@ import {
   type SimObjectSpec,
 } from '@sim';
 import { Color, Group, Scene, Vector3 } from 'three';
+import { createAccessibilitySettings } from './app/accessibilitySettings.ts';
 import { createAppFsm, isSettingsDetour } from './app/appFsm.ts';
 import { createCalibrationFlow } from './app/calibrationFlow.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
@@ -431,11 +432,20 @@ export async function boot(): Promise<void> {
   // the director calls last. Debug builds only listen; an empty array otherwise.
   const visualsOfCue: string[] = [];
   const cuePlayedListeners: ((record: CuePlayedRecord) => void)[] = [];
-  // One query, read live: the player can change the setting while the page is open.
-  const reducedMotionQuery = matchMedia('(prefers-reduced-motion: reduce)');
-  // The one source of « motion reduced » for every effect of the screen (story 2.5): story 2.10
-  // makes it `save.settings.reducedMotion || reducedMotionQuery.matches` and nothing else changes.
-  const prefersReducedMotion = (): boolean => reducedMotionQuery.matches;
+  // The two comfort settings (story 2.10): one source for JS (`isMotionReduced`) and CSS (the root's
+  // `data-pp-motion` and `--pp-verb-scale`). The OS query is followed live (its `change` event): the
+  // player can change it while the page is open. Applied once now (what shows before the save is read
+  // follows the OS), once the save is loaded, and on each `SettingsChanged`. A real feature, in prod
+  // too: never through `mirror()`.
+  const accessibility = createAccessibilitySettings({
+    root: document.documentElement,
+    motionQuery: matchMedia('(prefers-reduced-motion: reduce)'),
+    settings: () => saveStore.current().settings,
+    onVerbScaleChanged: () => worldUi.refitVerbs(),
+  });
+  accessibility.apply();
+  // The one source of « motion reduced » for every effect of the screen (story 2.5).
+  const prefersReducedMotion = accessibility.isMotionReduced;
   const director = createFeedbackDirector({
     table: feedbackTable,
     audio,
@@ -526,7 +536,10 @@ export async function boot(): Promise<void> {
     if (isMirrored)
       mirror('ppVolumes', `${volumes.music},${volumes.sfx},${volumes.voice},${volumes.ui}`);
   };
-  events.on('SettingsChanged', ({ settings }) => applyPlayerVolumes(settings.volumes));
+  events.on('SettingsChanged', ({ settings }) => {
+    applyPlayerVolumes(settings.volumes);
+    accessibility.apply();
+  });
   // The countdown's digit is a haptic tick (its visual twin is the digit's pulse).
   events.on('CountdownTicked', () => director.handle('CountdownTicked', null));
 
@@ -1497,6 +1510,7 @@ export async function boot(): Promise<void> {
         t,
         settings: saveStore.current().settings,
         hasHaptics: platform.capabilities.haptics,
+        isDeviceMotionReduced: accessibility.isDeviceMotionReduced,
         onChange: (settings) => {
           // In memory at once, the write settles on its own and warns once on failure. No `log` per
           // slider tick.
@@ -1904,6 +1918,7 @@ export async function boot(): Promise<void> {
 
   // Before the start screen is up (story 2.7): never throws, a bad save is set aside with a `warn`.
   await saveStore.load();
+  accessibility.apply();
   // The player's volumes wait in the engine for the unlock (story 2.8): the graph is made then.
   applyPlayerVolumes(saveStore.current().settings.volumes);
   appFsm.enter('start');

@@ -445,6 +445,12 @@ export const REDUCED_MOTION_PARTICLE_KEEP_PCT = 40;
 export const REDUCED_MOTION_ZOOM_CAP_PCT = 50;
 
 /**
+ * « Grands verbes » multiplies the verb's font size by this (story 2.10). An accessibility rule, not a
+ * feel value; `DESIGN.md` `verb-label.largeVerbsScale` says the same and a test ties the two.
+ */
+export const LARGE_VERBS_SCALE = 1.25;
+
+/**
  * A touch device whose shorter screen side is under this many CSS px is a phone, else a tablet
  * (story 3.3). A classification bound for the exported journal's `device.type`, not a feel value.
  */
@@ -490,4 +496,4 @@ export const VOLUME_STEP_PCT = 5;
 export const VOLUME_MAX_PCT = 100;
 
 /** The version of the save the game writes. Every bump adds a migration `v{n-1} → v{n}` (story 2.7). */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;

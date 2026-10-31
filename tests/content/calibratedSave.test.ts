@@ -9,11 +9,18 @@ import {
 } from '../e2e/support/calibratedSave.ts';
 
 describe('the e2e calibrated save (story 2.7)', () => {
-  it('is a valid v2 save, with offsets of 0 and the normal tier so that no timing moves', () => {
+  it('is a valid v3 save, with offsets of 0, the normal tier and both comfort switches off so that no timing moves', () => {
     const parsed = SaveSchema.safeParse(JSON.parse(calibratedSaveValue()));
     expect(parsed.success).toBe(true);
     expect(calibratedSave().calibration).toMatchObject({ visualOffsetMs: 0, audioOffsetMs: 0 });
     expect(calibratedSave().settings.tier).toBe('normal');
+    expect(calibratedSave().settings).toMatchObject({ reducedMotion: false, largeVerbs: false });
+  });
+
+  it('takes the two comfort switches as overrides (story 2.10) and stays valid', () => {
+    const save = calibratedSave({}, { reducedMotion: true, largeVerbs: true });
+    expect(SaveSchema.safeParse(save).success).toBe(true);
+    expect(save.settings).toMatchObject({ reducedMotion: true, largeVerbs: true });
   });
 
   it('takes a settings override (story 2.8) and stays valid', () => {

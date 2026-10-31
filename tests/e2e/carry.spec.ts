@@ -55,6 +55,9 @@ async function openFrozen(page: Page): Promise<void> {
   // The audio is up (WebKit resumes its context a moment after the start): a first tap must not be
   // the gesture that rescues it.
   await expect(html(page)).toHaveAttribute('data-pp-babble', 'on');
+  // The context itself must be running: a tap on one still suspended makes the game warn
+  // (« resuming on this gesture »), which `collectProblems` counts (as `toilet.spec.ts` waits).
+  await expect(html(page)).toHaveAttribute('data-pp-audio', 'running');
 }
 
 /** Advances by chunks until `isDone` holds on the world; fails when `boundMs` of sim time passed. */

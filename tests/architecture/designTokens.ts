@@ -331,3 +331,223 @@ export function checkStylesheet(css: string, knownVariables?: ReadonlySet<string
   }
   return problems;
 }
+
+/** Every reduced-motion rule is this prefix plus the selector it softens (story 2.10, decision D1). */
+export const REDUCED_MOTION_PREFIX = ':where(:root[data-pp-motion="reduced"])';
+
+interface CssRule {
+  selectors: string[];
+  properties: Declaration[];
+}
+
+/** The selectors of a rule's prelude, split on the commas outside parentheses, whitespace collapsed. */
+function splitSelectors(prelude: string): string[] {
+  const selectors: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of prelude) {
+    if (char === '(' || char === '[') depth++;
+    else if (char === ')' || char === ']') depth--;
+    if (char === ',' && depth === 0) {
+      selectors.push(current);
+      current = '';
+    } else current += char;
+  }
+  selectors.push(current);
+  return selectors.map((selector) => selector.trim().replace(/\s+/g, ' ')).filter(Boolean);
+}
+
+/**
+ * The style rules of a stylesheet in source order, `@media` and `@supports` flattened, `@keyframes` and
+ * `@font-face` left out. No nested rules: the stylesheets use none.
+ */
+function styleRules(css: string): CssRule[] {
+  const rules: CssRule[] = [];
+  let prelude = '';
+  for (let i = 0; i < css.length; i++) {
+    const char = css[i] as string;
+    if (char === ';' || char === '}') prelude = '';
+    else if (char !== '{') prelude += char;
+    else {
+      const head = prelude.trim();
+      prelude = '';
+      if (head.startsWith('@')) {
+        if (/^@(?:-webkit-)?keyframes|^@font-face/.test(head)) {
+          let depth = 1;
+          i++;
+          while (i < css.length && depth > 0) {
+            if (css[i] === '{') depth++;
+            else if (css[i] === '}') depth--;
+            i++;
+          }
+          i--;
+        }
+        continue;
+      }
+      const end = css.indexOf('}', i);
+      const body = css.slice(i + 1, end === -1 ? css.length : end);
+      rules.push({ selectors: splitSelectors(head), properties: declarations(body) });
+      i = end === -1 ? css.length : end;
+    }
+  }
+  return rules;
+}
+
+const declaresAnimation = (declaration: Declaration): boolean =>
+  declaration.property === 'animation' || declaration.property === 'animation-name';
+
+const startsAnimation = (declaration: Declaration): boolean =>
+  declaresAnimation(declaration) && declaration.value.toLowerCase().split(/\s+/)[0] !== 'none';
+
+/**
+ * Problems of the reduced-motion rules of one stylesheet (story 2.10, AC 7 and 21):
+ * - `prefers-reduced-motion` is read in `boot.ts` only: a stylesheet reads `data-pp-motion` through
+ *   `:where`, so that the player's setting reaches it too;
+ * - every selector that starts an animation has a reduced rule of its own (the same selector behind
+ *   {@link REDUCED_MOTION_PREFIX}), after the last rule that animates it: `:where` adds no specificity,
+ *   so « same selector, later rule wins » is what makes the reduced rule win.
+ * A rule that sets `animation: none` needs none.
+ */
+export function checkReducedMotion(css: string): string[] {
+  const problems: string[] = [];
+  const source = stripComments(css);
+  if (/prefers-reduced-motion/i.test(source)) {
+    problems.push(
+      `@media (prefers-reduced-motion) is read in boot.ts only: use ${REDUCED_MOTION_PREFIX} <selector>`,
+    );
+  }
+  const lastAnimated = new Map<string, number>();
+  const lastReduced = new Map<string, number>();
+  styleRules(source).forEach((rule, index) => {
+    for (const selector of rule.selectors) {
+      if (selector.startsWith(`${REDUCED_MOTION_PREFIX} `)) {
+        if (rule.properties.some(declaresAnimation)) {
+          lastReduced.set(selector.slice(REDUCED_MOTION_PREFIX.length + 1), index);
+        }
+      } else if (rule.properties.some(startsAnimation)) lastAnimated.set(selector, index);
+    }
+  });
+  for (const [selector, animatedAt] of lastAnimated) {
+    const reducedAt = lastReduced.get(selector);
+    if (reducedAt === undefined) {
+      problems.push(`"${selector}" animates and has no reduced-motion rule of its own`);
+    } else if (reducedAt < animatedAt) {
+      problems.push(
+        `the reduced-motion rule of "${selector}" comes before its animation: it loses`,
+      );
+    }
+  }
+  return problems;
+}
+
+/** A CSS animation that never stops (`infinite`), read from the `animation` shorthand (story 2.10, AC 13). */
+export interface RepeatingAnimation {
+  selector: string;
+  /** The `@keyframes` it runs. */
+  name: string;
+  /** One cycle, in ms. */
+  periodMs: number;
+  /** Its keyframes change `opacity`: the element goes on and off, which is what a flash is. */
+  animatesOpacity: boolean;
+}
+
+/** The body of each `@keyframes name { … }`, by name. */
+function keyframesByName(css: string): Map<string, string> {
+  const found = new Map<string, string>();
+  for (const match of css.matchAll(/@(?:-webkit-)?keyframes\s+([\w-]+)\s*\{/g)) {
+    let depth = 1;
+    let i = match.index + match[0].length;
+    const start = i;
+    while (i < css.length && depth > 0) {
+      if (css[i] === '{') depth++;
+      else if (css[i] === '}') depth--;
+      i++;
+    }
+    found.set(match[1] as string, css.slice(start, i - 1));
+  }
+  return found;
+}
+
+/** Splits on the characters outside parentheses (`steps(1, end)` and `cubic-bezier(…)` hold commas and spaces). */
+function splitOutsideParens(text: string, separator: RegExp): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of text) {
+    if (char === '(') depth++;
+    else if (char === ')') depth--;
+    if (depth === 0 && separator.test(char)) {
+      if (current !== '') parts.push(current);
+      current = '';
+    } else current += char;
+  }
+  if (current !== '') parts.push(current);
+  return parts;
+}
+
+const toMs = (token: string): number | null => {
+  const match = /^(\d*\.?\d+)(ms|s)$/i.exec(token);
+  if (match === null) return null;
+  return Number.parseFloat(match[1] as string) * (match[2]?.toLowerCase() === 's' ? 1000 : 1);
+};
+
+/**
+ * The `infinite` animations of a stylesheet, one per selector and animation of an `animation`
+ * shorthand. `problems` lists what the check cannot read (a longhand `animation-iteration-count`,
+ * a repeating animation with no duration or no `@keyframes`): a blind spot is a failure, not a pass.
+ */
+export function repeatingAnimations(css: string): {
+  animations: RepeatingAnimation[];
+  problems: string[];
+} {
+  const source = stripComments(css);
+  const keyframes = keyframesByName(source);
+  const animations: RepeatingAnimation[] = [];
+  const problems: string[] = [];
+  for (const rule of styleRules(source)) {
+    for (const { property, value } of rule.properties) {
+      if (property === 'animation-iteration-count' && /\binfinite\b/i.test(value)) {
+        problems.push(
+          `"${rule.selectors.join(', ')}": animation-iteration-count: infinite — use the \`animation\` shorthand so that the period is checked`,
+        );
+      }
+      if (property !== 'animation') continue;
+      for (const part of splitOutsideParens(value, /,/)) {
+        const tokens = splitOutsideParens(part, /\s/);
+        if (!tokens.some((token) => token.toLowerCase() === 'infinite')) continue;
+        const periodMs = tokens.map(toMs).find((ms) => ms !== null) ?? null;
+        const name = tokens.find((token) => keyframes.has(token));
+        if (periodMs === null || name === undefined) {
+          problems.push(
+            `"${rule.selectors.join(', ')}": cannot read the period or keyframes of "${part.trim()}"`,
+          );
+          continue;
+        }
+        const animatesOpacity = declarations(keyframes.get(name) as string).some(
+          (declaration) => declaration.property === 'opacity',
+        );
+        for (const selector of rule.selectors) {
+          animations.push({ selector, name, periodMs, animatesOpacity });
+        }
+      }
+    }
+  }
+  return { animations, problems };
+}
+
+/**
+ * Problems of the flash rate of one stylesheet (NFR6, story 2.10 AC 13): a repeating animation whose
+ * keyframes animate `opacity` goes on and off once per period, so its period is at least
+ * `minPeriodMs` (`SCREEN_FLASH_MIN_INTERVAL_MS`: 3 Hz). Movement (`transform`) is not a flash.
+ */
+export function checkFlashRate(css: string, minPeriodMs: number): string[] {
+  const { animations, problems } = repeatingAnimations(css);
+  for (const animation of animations) {
+    if (animation.animatesOpacity && animation.periodMs < minPeriodMs) {
+      problems.push(
+        `"${animation.selector}" repeats ${animation.name} every ${animation.periodMs} ms (${(1000 / animation.periodMs).toFixed(1)} Hz): a flash is at most 3 Hz`,
+      );
+    }
+  }
+  return problems;
+}

@@ -19,7 +19,13 @@ import { threatCloseAt } from '../../input/urgency.ts';
 import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
 import type { Translator } from '../strings.ts';
 import { svgElement } from '../svg.ts';
-import { createVerbStack, fitVerbFontPx, stackVerbs, type VerbStack } from './verbLayout.ts';
+import {
+  clampVerbShiftPx,
+  createVerbStack,
+  fitVerbFontPx,
+  stackVerbs,
+  type VerbStack,
+} from './verbLayout.ts';
 import { createBrowserVerbMetrics, type VerbMetrics } from './verbMetrics.ts';
 
 /** An icon floats this far above the top of the body it marks (Papa's cube, the baby's), in metres. */
@@ -64,6 +70,11 @@ export interface ThreatMarkerEntry {
   verbWidthPx: number;
   verbHeightPx: number;
   verbOffsetPx: number;
+  /**
+   * How far the verb is shifted sideways so that its box stays inside the layer, in whole px (0, or
+   * absent, when it fits where it is). Written by `ThreatMarkers.layout`; the glyph chip follows it.
+   */
+  verbShiftXPx?: number;
 }
 
 export interface ThreatMarkers {
@@ -324,6 +335,8 @@ interface Marker {
   isSignalShown: boolean;
   /** How far the verb stack is pushed up as drawn, in whole px. */
   verbOffsetPx: number;
+  /** How far the verb stack is shifted sideways as drawn to stay on screen, in whole px. */
+  verbShiftXPx: number;
   /** The window's closing, in sim ms (`Infinity` while there is none): the urgency of the layout. */
   closeAt: number;
   /** The z-index as drawn: a rank counted from the least urgent (0 = not set). */
@@ -471,6 +484,7 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
     glyphPath,
     isSignalShown: false,
     verbOffsetPx: 0,
+    verbShiftXPx: 0,
     closeAt: Number.POSITIVE_INFINITY,
     zRank: 0,
     hold,
@@ -541,6 +555,8 @@ export function createThreatMarkers(
   const projected = new Vector3();
   let stack: VerbStack = createVerbStack(0);
   let stackSource = new Int32Array(0);
+  /** Scratch of `layout`: the sideways shift of each laid-out box, by its index in `stack`. */
+  let shiftXs = new Float64Array(0);
   let zStrings: readonly string[] = [];
   /** Some marker of the level has a verb: only then is the page's typography read at all. */
   let hasVerbs = false;
@@ -561,6 +577,7 @@ export function createThreatMarkers(
     isMisalignedWarned = false;
     stack = createVerbStack(0);
     stackSource = new Int32Array(0);
+    shiftXs = new Float64Array(0);
     zStrings = [];
     hasVerbs = false;
   };
@@ -604,6 +621,7 @@ export function createThreatMarkers(
       for (const marker of markers) scene.add(marker.object);
       stack = createVerbStack(markers.length);
       stackSource = new Int32Array(markers.length);
+      shiftXs = new Float64Array(markers.length);
       zStrings = Array.from({ length: markers.length + 1 }, (_, rank) => String(rank));
       hasVerbs = markers.some((marker) => marker.verb !== null);
       refit();
@@ -626,7 +644,11 @@ export function createThreatMarkers(
         if (!marker.isShown) continue;
         const entry = mounted[i] as ThreatMarkerEntry;
         projected.set(entry.xM, entry.yM, entry.zM).project(camera);
-        stack.centerXPx[count] = (projected.x * 0.5 + 0.5) * layerWidthPx;
+        // The box is kept inside the layer first: the stacking then sees where it really is.
+        const iconXPx = (projected.x * 0.5 + 0.5) * layerWidthPx;
+        const shiftXPx = clampVerbShiftPx(iconXPx, entry.verbWidthPx, layerWidthPx);
+        shiftXs[count] = shiftXPx;
+        stack.centerXPx[count] = iconXPx + shiftXPx;
         stack.bottomPx[count] = (-projected.y * 0.5 + 0.5) * layerHeightPx;
         stack.widthPx[count] = entry.verbWidthPx;
         stack.heightPx[count] = entry.verbHeightPx;
@@ -639,6 +661,12 @@ export function createThreatMarkers(
       for (let k = 0; k < count; k++) {
         const marker = markers[stackSource[k] as number] as Marker;
         const entry = mounted[stackSource[k] as number] as ThreatMarkerEntry;
+        const shiftXPx = shiftXs[k] as number;
+        if (shiftXPx !== marker.verbShiftXPx) {
+          marker.verbShiftXPx = shiftXPx;
+          entry.verbShiftXPx = shiftXPx;
+          marker.verbStack.style.setProperty('--pp-verb-shift-x', `${shiftXPx}px`);
+        }
         const offsetPx = stack.offsetPx[k] as number;
         if (offsetPx !== marker.verbOffsetPx) {
           marker.verbOffsetPx = offsetPx;

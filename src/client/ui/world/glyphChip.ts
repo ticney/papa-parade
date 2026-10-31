@@ -23,7 +23,7 @@ export interface GlyphChip {
 
 type Doc = Pick<Document, 'createElement'>;
 
-/** The anchor's class while the chip hangs from a verb (the CSS reads `--pp-chip-half` and `--pp-chip-rise`). */
+/** The anchor's class while the chip hangs from a verb (the CSS reads `--pp-chip-half`, `--pp-chip-shift` and `--pp-chip-rise`). */
 const BESIDE_VERB_CLASS = 'pp-glyph-chip-anchor--beside-verb';
 
 /**
@@ -52,6 +52,8 @@ export function createGlyphChip(scene: Scene, doc: Doc = document): GlyphChip {
   // The verb box as drawn: the half width and the rise of its centre above the icon, in px; -1 = beside the icon.
   let halfWidthPx = -1;
   let risePx = -1;
+  /** How far the verb was shifted sideways to stay on screen, in px; the chip follows it. */
+  let shiftPx = 0;
 
   /** Beside the verb when the entry has one (its box is laid out), else beside the icon. */
   const place = (entry: ThreatMarkerEntry): void => {
@@ -67,6 +69,12 @@ export function createGlyphChip(scene: Scene, doc: Doc = document): GlyphChip {
       halfWidthPx = nextHalf;
       if (hasVerb) anchor.style.setProperty('--pp-chip-half', `${nextHalf}px`);
       else anchor.style.removeProperty('--pp-chip-half');
+    }
+    const nextShift = hasVerb ? (entry.verbShiftXPx ?? 0) : 0;
+    if (nextShift !== shiftPx) {
+      shiftPx = nextShift;
+      if (nextShift !== 0) anchor.style.setProperty('--pp-chip-shift', `${nextShift}px`);
+      else anchor.style.removeProperty('--pp-chip-shift');
     }
     if (nextRise !== risePx) {
       risePx = nextRise;

@@ -23,7 +23,13 @@ class FakeElement {
   listeners = new Map<string, Set<Listener>>();
   properties = new Map<string, string>();
   scrolls: unknown[] = [];
-  classList = { add: () => undefined, remove: () => undefined, toggle: () => undefined };
+  classNames = new Set<string>();
+  classList = {
+    add: (name: string) => this.classNames.add(name),
+    remove: (name: string) => this.classNames.delete(name),
+    toggle: () => undefined,
+    contains: (name: string) => this.classNames.has(name),
+  };
   style = { setProperty: (name: string, value: string) => this.properties.set(name, value) };
   readonly tag: string;
   constructor(tag: string) {
@@ -73,27 +79,38 @@ const SAVED: Settings = {
   tier: 'normal',
   volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
   haptics: true,
+  reducedMotion: false,
+  largeVerbs: false,
 };
 
-function build(overrides: Partial<Settings> = {}, hasHaptics = true) {
+function build(overrides: Partial<Settings> = {}, hasHaptics = true, isDeviceReduced = false) {
   const settings: Settings = {
     ...SAVED,
     ...overrides,
     volumes: { ...SAVED.volumes, ...overrides.volumes },
   };
   const changes: Settings[] = [];
+  const settledAtChange: boolean[] = [];
   const calls: string[] = [];
+  let panelOf = (): FakeElement => {
+    throw new Error('the screen is not built yet');
+  };
   const screen = createSettingsScreen({
     t: (key) => key,
     settings,
     hasHaptics,
-    onChange: (next) => changes.push(next),
+    isDeviceMotionReduced: () => isDeviceReduced,
+    onChange: (next) => {
+      changes.push(next);
+      settledAtChange.push(panelOf().classNames.has('pp-panel-settled'));
+    },
     onRecalibrate: () => calls.push('recalibrate'),
     onCredits: () => calls.push('credits'),
     onBack: () => calls.push('back'),
   });
   const root = screen.element as unknown as FakeElement;
   const panel = root.children[0] as FakeElement;
+  panelOf = () => panel;
   const [title, tierGroup, volumes] = panel.children as [FakeElement, FakeElement, FakeElement];
   const [tierLabel, segmented, hint, note] = tierGroup.children as [
     FakeElement,
@@ -104,8 +121,11 @@ function build(overrides: Partial<Settings> = {}, hasHaptics = true) {
   const radios = segmented.children;
   const sliderRows = volumes.children;
   const sliders = sliderRows.map((row) => row.children[2] as FakeElement);
-  const toggle = hasHaptics ? (panel.children[3] as FakeElement) : null;
-  const actions = panel.children[hasHaptics ? 4 : 3] as FakeElement;
+  const switches = panel.children.filter((child) => child.role === 'switch');
+  const toggle = hasHaptics ? (switches[0] as FakeElement) : null;
+  const motionToggle = switches.at(-2) as FakeElement;
+  const verbsToggle = switches.at(-1) as FakeElement;
+  const actions = panel.children.at(-1) as FakeElement;
   const buttons = actions.children;
   return {
     screen,
@@ -120,8 +140,11 @@ function build(overrides: Partial<Settings> = {}, hasHaptics = true) {
     sliderRows,
     sliders,
     toggle,
+    motionToggle,
+    verbsToggle,
     buttons,
     changes,
+    settledAtChange,
     calls,
     settings,
   };
@@ -146,8 +169,8 @@ describe('createSettingsScreen (story 2.8)', () => {
       expect(title.textContent).toBe('settings.title');
     });
 
-    it('lists Difficulté, the four volumes, Vibrations, then Recalibrer, Crédits and Retour', () => {
-      const { tierLabel, sliderRows, toggle, buttons } = build();
+    it('lists Difficulté, the four volumes, Vibrations, the two comfort switches, then Recalibrer, Crédits and Retour', () => {
+      const { tierLabel, sliderRows, toggle, motionToggle, verbsToggle, panel, buttons } = build();
       expect(tierLabel.textContent).toBe('settings.difficulty');
       expect(sliderRows.map((row) => (row.children[0] as FakeElement).textContent)).toEqual([
         'settings.volume_music',
@@ -156,6 +179,17 @@ describe('createSettingsScreen (story 2.8)', () => {
         'settings.volume_ui',
       ]);
       expect(toggle?.role).toBe('switch');
+      expect(panel.children.filter((child) => child.role === 'switch')).toEqual([
+        toggle,
+        motionToggle,
+        verbsToggle,
+      ]);
+      const labelOf = (row: FakeElement | null) => row?.children[0]?.textContent;
+      expect([toggle, motionToggle, verbsToggle].map(labelOf)).toEqual([
+        'settings.haptics',
+        'settings.reduced_motion',
+        'settings.large_verbs',
+      ]);
       expect(buttons.map((button) => button.textContent)).toEqual([
         'settings.recalibrate',
         'settings.credits',
@@ -163,11 +197,34 @@ describe('createSettingsScreen (story 2.8)', () => {
       ]);
     });
 
-    it('does not build the Vibrations row when the device cannot vibrate', () => {
-      const { toggle, panel, buttons } = build({}, false);
+    it('does not build the Vibrations row when the device cannot vibrate, but still builds the two others', () => {
+      const { toggle, panel, motionToggle, verbsToggle, buttons } = build({}, false);
       expect(toggle).toBeNull();
-      expect(panel.children.filter((child) => child.role === 'switch')).toEqual([]);
+      expect(panel.children.filter((child) => child.role === 'switch')).toEqual([
+        motionToggle,
+        verbsToggle,
+      ]);
       expect(buttons).toHaveLength(3);
+    });
+
+    it('says, under « Réduire les animations », that the device already asks for it', () => {
+      const b = build({}, true, true);
+      const notes = b.panel.children.filter((child) => child.id === 'pp-settings-motion-device');
+      expect(notes).toHaveLength(1);
+      const [note] = notes as [FakeElement];
+      expect(note.textContent).toBe('settings.reduced_motion_device');
+      expect(b.panel.children.indexOf(note)).toBe(b.panel.children.indexOf(b.motionToggle) + 1);
+      expect(b.motionToggle.attributes.get('aria-describedby')).toBe(note.id);
+      // The saved switch is untouched: it still reads off, the note is what explains it.
+      expect(b.motionToggle.attributes.get('aria-checked')).toBe('false');
+    });
+
+    it('builds no note when the device does not ask for reduced motion', () => {
+      const b = build();
+      expect(b.panel.children.some((child) => child.id === 'pp-settings-motion-device')).toBe(
+        false,
+      );
+      expect(b.motionToggle.attributes.has('aria-describedby')).toBe(false);
     });
   });
 
@@ -296,6 +353,76 @@ describe('createSettingsScreen (story 2.8)', () => {
     });
   });
 
+  describe('the two comfort switches (story 2.10)', () => {
+    const SWITCHES = [
+      ['Réduire les animations', 'motionToggle', 'reducedMotion'],
+      ['Grands verbes', 'verbsToggle', 'largeVerbs'],
+    ] as const;
+
+    it.each(SWITCHES)('« %s » shows the saved state', (_name, which, field) => {
+      expect(build({ [field]: true })[which].attributes.get('aria-checked')).toBe('true');
+      expect(build({ [field]: false })[which].attributes.get('aria-checked')).toBe('false');
+    });
+
+    it.each(SWITCHES)(
+      '« %s » flips on a press and reports the whole settings',
+      (_name, which, field) => {
+        const b = build();
+        b[which].click();
+        expect(b[which].attributes.get('aria-checked')).toBe('true');
+        expect(b[which].className).toContain('pp-toggle-on');
+        b[which].click();
+        expect(b[which].attributes.get('aria-checked')).toBe('false');
+        expect(b.changes.map((change) => change[field])).toEqual([true, false]);
+        expect(b.changes[0]).toEqual({ ...SAVED, [field]: true });
+      },
+    );
+
+    it('keep every other field when one flips: a slider tick must not reset a switch', () => {
+      const b = build();
+      b.motionToggle.click();
+      b.verbsToggle.click();
+      b.toggle?.click();
+      b.sliders[0]?.input(60);
+      b.radios[0]?.click();
+      expect(b.changes.at(-1)).toEqual({
+        tier: 'assistance',
+        volumes: { ...SAVED.volumes, music: 60 },
+        haptics: false,
+        reducedMotion: true,
+        largeVerbs: true,
+      });
+    });
+
+    it('keep the two switches the player had when a screen is built over a saved state', () => {
+      const b = build({ reducedMotion: true, largeVerbs: true });
+      b.sliders[1]?.input(10);
+      expect(b.changes.at(-1)).toMatchObject({ reducedMotion: true, largeVerbs: true });
+    });
+
+    it('settle the panel before they report, so that its animation does not restart under the finger', () => {
+      const b = build();
+      expect(b.panel.classNames.has('pp-panel-settled')).toBe(false);
+      b.motionToggle.click();
+      expect(b.panel.classNames.has('pp-panel-settled')).toBe(true);
+      expect(b.settledAtChange).toEqual([true]);
+      b.verbsToggle.click();
+      expect(b.settledAtChange).toEqual([true, true]);
+    });
+
+    it('are pressed by A on a pad and by a tap, like Vibrations (kind: toggle)', () => {
+      const b = build();
+      b.motionToggle.focus();
+      b.screen.activate?.();
+      b.verbsToggle.focus();
+      b.screen.activate?.();
+      expect(b.changes.map((change) => [change.reducedMotion, change.largeVerbs])).toEqual([
+        [true, false],
+        [true, true],
+      ]);
+    });
+  });
+
   describe('Recalibrer, Crédits and Retour', () => {
     it('call their own action', () => {
       const { buttons, calls } = build();
@@ -305,11 +432,13 @@ describe('createSettingsScreen (story 2.8)', () => {
   });
 
   describe('moveFocus', () => {
-    // Rows: tier, music, sfx, voice, ui, haptics, recalibrate, credits, back.
+    // Rows: tier, music, sfx, voice, ui, haptics, reduced motion, large verbs, recalibrate, credits, back.
     const rowsOf = (b: ReturnType<typeof build>): FakeElement[] => [
       b.radios[1] as FakeElement,
       ...b.sliders,
       b.toggle as FakeElement,
+      b.motionToggle,
+      b.verbsToggle,
       ...b.buttons,
     ];
 
@@ -392,7 +521,12 @@ describe('createSettingsScreen (story 2.8)', () => {
 
     it('does nothing with Left and Right on the switch and the buttons, but still takes the key', () => {
       const b = build();
-      for (const element of [b.toggle as FakeElement, ...b.buttons]) {
+      for (const element of [
+        b.toggle as FakeElement,
+        b.motionToggle,
+        b.verbsToggle,
+        ...b.buttons,
+      ]) {
         element.focus();
         expect(b.screen.moveFocus?.('ArrowLeft')).toBe(true);
         expect(b.screen.moveFocus?.('ArrowRight')).toBe(true);

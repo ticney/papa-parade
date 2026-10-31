@@ -1,7 +1,6 @@
 import {
   type CalibrationResult,
   createDefaultSave,
-  createDefaultSettings,
   type Save,
   SaveSchema,
   type Settings,
@@ -9,6 +8,12 @@ import {
 import type { StoragePort } from '@platform/platform';
 import { SAVE_INVALID_KEY, SAVE_KEY, SAVE_VERSION } from '@shared/constants';
 import { log } from '@shared/log';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** What a past game stored under a key, read as a record: anything else is nothing to spread. */
+const asRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
 /** One step of the ordered table: turns a `from` save into a `from + 1` one. Pure. */
 export interface SaveMigration {
@@ -18,12 +23,39 @@ export interface SaveMigration {
 
 /**
  * `v{n-1} → v{n}`, in order. `v1 → v2` (story 2.8) adds the settings, with their defaults, and keeps
- * the calibration. Pure: the input is not changed.
+ * the calibration. `v2 → v3` (story 2.10) adds the two comfort switches, off, and keeps every other
+ * setting (a switch already there is kept); a v2 save with no usable `settings` is not repaired, so
+ * the schema still refuses it. Pure: the input is not changed. Each step writes the literal shape of
+ * its own version, never `createDefaultSettings()`, so a later change of the defaults cannot alter
+ * the path of an old save.
  */
 export const SAVE_MIGRATIONS: readonly SaveMigration[] = [
   {
     from: 1,
-    migrate: (save) => ({ ...save, version: 2, settings: createDefaultSettings() }),
+    migrate: (save) => ({
+      ...save,
+      version: 2,
+      settings: {
+        tier: 'normal',
+        volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
+        haptics: true,
+      },
+    }),
+  },
+  {
+    from: 2,
+    migrate: (save) => {
+      const settings = asRecord(save.settings);
+      return {
+        ...save,
+        version: 3,
+        settings: {
+          ...settings,
+          reducedMotion: settings.reducedMotion ?? false,
+          largeVerbs: settings.largeVerbs ?? false,
+        },
+      };
+    },
   },
 ];
 
@@ -35,9 +67,6 @@ export const SAVE_MIGRATIONS: readonly SaveMigration[] = [
 export type MigrationOutcome =
   | { ok: true; value: Record<string, unknown> }
   | { ok: false; kind: 'future' | 'unusable'; reason: string };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
  * Brings a stored save to `targetVersion` by running the migrations in order. Refuses what is not

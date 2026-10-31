@@ -116,7 +116,7 @@ test.describe('the first launch', () => {
     expect(await appHistory(page)).toEqual(['calibration', 'loading', 'level']);
 
     const save = await readSave(page);
-    expect(save?.version).toBe(2);
+    expect(save?.version).toBe(3);
     const calibration = save?.calibration;
     expect(calibration).not.toBeNull();
     for (const offsetMs of [calibration?.visualOffsetMs, calibration?.audioOffsetMs]) {
