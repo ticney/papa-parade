@@ -7,6 +7,8 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  FATIGUE_GAUGES,
+  NOISE_GAUGES,
 } from '../../../tests/support/testContent.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
@@ -229,6 +231,38 @@ describe('the duel slice in a snapshot (story 4.6)', () => {
       };
       const target = await newSim();
       expect(() => target.restore(snapshot)).toThrow(expected);
+    });
+
+    // A sequence that is not a duel (the default `stay_awake`): the slice must stay empty.
+    describe.each([
+      [
+        'a duel running during a step that is not a duel',
+        { isRunning: true, nextRoundAt: null, retreats: 0 },
+        /duel\.isRunning/,
+      ],
+      [
+        'retreats in a sequence whose failure is not retreats',
+        { isRunning: false, nextRoundAt: null, retreats: 1 },
+        /duel\.retreats/,
+      ],
+    ] as const)('%s', (_name, patch, expected) => {
+      it('is refused', async () => {
+        const stayAwakeLevel = createTestLevel({
+          gauges: { ...FATIGUE_GAUGES, ...NOISE_GAUGES },
+          carry: CARRY,
+          sequences: ['stay_awake'],
+        });
+        const make = () => createSim({ content, geometry, level: stayAwakeLevel, seed: 5 });
+        const live = await make();
+        live.enqueue({ type: 'StartSequence', t: asSimMs(0), sequenceId: 'stay_awake' });
+        stepFor(live, 2);
+        expect(worldOf(live).sequence.id).toBe('stay_awake');
+        const snapshot = roundTrip(live);
+        const world = snapshot.world as unknown as Record<string, Record<string, unknown>>;
+        world.sequence = { ...(world.sequence as Record<string, unknown>), duel: patch };
+        const target = await make();
+        expect(() => target.restore(snapshot)).toThrow(expected);
+      });
     });
 
     it('a flow outside a sequence, with a duel running', async () => {

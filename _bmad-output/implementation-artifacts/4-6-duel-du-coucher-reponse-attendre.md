@@ -234,7 +234,7 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
 
 ### Review Findings
 
-Code review of 2026-10-31, group 1 only (sim, content, schemas: `src/sim`, `src/content`, `content/`). Groups 2 (client, bots, tools) and 3 (tests, goldens, docs) are still to review.
+Code review of 2026-10-31, group 1 only (sim, content, schemas: `src/sim`, `src/content`, `content/`). Groups 2 and 3 follow below.
 
 - [x] [Review][Decision] (resolved: option 1, `SequenceEnded{failed}` at once, no `BabyWoke`; delegated to the agent by Geo) A duel round that no longer fits before the level's end freezes the sequence until the level ends — `DUEL_HANDLER.tick` returns forever when `isJudgeableBeforeEnd` is false and `nextRoundAt` stays set; `isSettled()` is always false and a `duel` step is not timed, so nothing ends the sequence. Trigger: `StartSequence bedtime_duel` with less than about 8.5 s of level left, or a late win/retreat that schedules the next round. Outcome: `flow.state` stays `sequence`, the director is off, Papa is held and the baby carried, with no threat, until `levelEnded`. Options: (a) end the sequence when no round can fit (as a success or as a failure?); (b) refuse `StartSequence` when the first round cannot fit; (c) leave it, 4.10 sizes the level. [src/sim/sequences/bedtimeDuel.ts:38-43]
 - [x] [Review][Patch] `goToSequenceStep` returns silently on a non-duel step or a null id, and the `duel` ↔ `retreats` pairing is checked only by the zod schema — a hand-built def (tests, a programmatic bundle) with a `duel` step and a `gag` failure never advances; a `retreats` failure with a non-duel step emits `SequenceStepRetreated`, then deadlocks. Make `sequenceDuelProblems` refuse both pairings (so `createSim` and `content:check` agree) and turn the silent `return` into an `invariant`; replace the `as { durationMs: number }` cast. [src/sim/sequences/sequenceEnd.ts:107]
@@ -253,6 +253,17 @@ Group 2 (client, bots, tools), same day. No finding above low severity survived 
 - [x] [Review][Patch] The test « Space and the pad's A… » drove the keyboard only; its title says what it checks now [src/client/input/inputMapper.test.ts:1523]
 - [x] [Review][Defer] A `wait` threat's marker stack order (`threatCloseAt` = `windowOpenAt + windowMs`) and the auto-target of Space/A depend on the unrevealed signal time when another marker is up at the same time; the duel has one threat up, so nothing leaks there, and `waitMarker.test.ts` builds instances with `responseWindow: null`, so it does not see it [src/client/input/urgency.ts:11, src/client/ui/world/threatMarkers.ts] — deferred, only reachable once `wait` runs outside the duel (see the first deferral of group 1)
 - [x] [Review][Defer] A thumb resting on the canvas makes the real tap non-primary (`!sample.isPrimary` returns before any press): with « a finger anywhere is the press » (D10) it decides a duel for the first time. A design call to settle by playing, with open point 4 [src/client/input/inputMapper.ts:407] — deferred to the playtest, Geo's call
+
+Group 3 (tests, goldens, docs), same day. The 17 older goldens move only in `worldHash`, and the two new journals hold what they are named for (checked).
+
+- [x] [Review][Patch] The e2e checks of the missing bar, the full-size timer and the babble `off` held in the initial state too: `waitFrames(page, 3)` before them [tests/e2e/bedtimeDuel.spec.ts:144]
+- [x] [Review][Patch] Two snapshot validator rules had no rejection test (a running duel in a step that is not a duel; retreats in a sequence whose failure is not `retreats`) [src/sim/sequences/duelSnapshot.test.ts]
+- [x] [Review][Patch] The fuzz asserted nothing happened: an aggregate test over the seeds now needs a retreat, a result and an end [src/sim/sequences/bedtimeDuelFuzz.test.ts]
+- [x] [Review][Patch] The relaxed verb rule (« ATTENDS… ») had no test [tests/content/stringsSchema.test.ts]
+- [x] [Review][Patch] `project-context.md` and the duel's error text were stale after the review fixes (cooldown, pairing, a round that no longer fits); `deferred-work.md` pointed at a decision now settled
+- [x] [Review][Patch] `checkDuel.test.ts` `NEEDED_MS` ignored `cooldownMs`; the hooks test did not assert its injected system ran; a title promised `recordMiss` it did not assert; a `toBeDefined` that could not fail
+- [x] [Review][Patch] The File List omitted `levelScene.ts`, `levelSession.ts` (and their tests), `bedtimeDuel` fixes and `simArgs.ts`
+- [x] [Review][Defer] The mirrors `data-pp-sequence-step` / `-retreats` reset at `SequenceStarted` and at level start has no e2e test (a second sequence, a restart) [tests/e2e/bedtimeDuel.spec.ts] — deferred, low; the clear is a single block in `boot.ts`
 
 ## Dev Notes
 
@@ -426,6 +437,8 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`), Claude Code.
 **Client, bots, tools:** `src/client/{boot,input/inputMapper,feedback/threatFeedback,render/gags,app/threatsSwitch}.ts`, `src/client/ui/world/threatMarkers.ts`, `src/client/ui/styles/ui.css`, `src/bots/{humanBot,perfectBot,threatTiming}.ts`, `tools/audio/makePlaceholderAudio.ts`, `tools/content/contentChecks.ts`, `tools/build/inspectDist.ts` (comment), `tools/sim/{runSim,simReport}.ts`.
 
 **Tests (new):** `src/sim/sequences/{bedtimeDuel,bedtimeDuelFuzz,duelLevel,duelSnapshot}.test.ts`, `src/sim/threats/waitResponse.test.ts`, `src/client/feedback/waitFeedback.test.ts`, `src/client/ui/world/waitMarker.test.ts`, `tests/bots/waitBots.test.ts`, `tests/content/{checkDuel,duelSequenceSchema,waitThreatSchema}.test.ts`, `tests/tools/audio/bedtimeClips.test.ts`, `tests/tools/sim/duelSequence.test.ts`, `tests/golden/bedtimeDuel.test.ts`, `tests/e2e/bedtimeDuel.spec.ts`, `tests/support/{testBedtimeEyes.threat,testBedtimeDuel.sequence}.json`, `tests/threats/fixtures/test_wait.json`, `tests/golden/journals/bedtime_duel_{won,retreated}{,.expected}.json`.
+
+**Added by the code review:** `src/client/render/levelScene.ts` and `levelScene.test.ts`, `src/client/app/levelSession.ts` and `levelSession.test.ts` (`SceneBodies.microSleepDefId`: Papa's eyelids follow the micro-sleep only), `src/sim/sequences/{bedtimeDuel,sequenceEnd}.ts` and their tests, `src/sim/snapshot.ts` (history comment), `tools/sim/simArgs.ts` (help), `tests/content/stringsSchema.test.ts`, `_bmad-output/project-context.md`.
 
 **Tests (changed):** `tests/support/testContent.ts`, `tests/threats/threatCatalog.test.ts`, `tests/golden/scenarios.ts` and every `tests/golden/journals/*.expected.json` (hashes only), `tests/content/{levelSchema,loadLevelContent,sequenceSchema,threatSchema}.test.ts`, `tests/tools/sim/simReport.test.ts`, `tests/e2e/threats.spec.ts`, `src/sim/{createSim,events,snapshot}.test.ts`, `src/sim/sequences/{lullabyWalk,sequenceSnapshot}.test.ts`, `src/sim/threats/{gags,inputLag,threatFsm}.test.ts`, `src/client/input/inputMapper.test.ts`, `src/client/app/threatsSwitch.test.ts`.
 

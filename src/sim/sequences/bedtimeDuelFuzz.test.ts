@@ -22,6 +22,9 @@ const DEF = createTestBedtimeDuel();
 const MAX_RETREATS = DEF.failure.kind === 'retreats' ? DEF.failure.maxRetreats : Number.NaN;
 
 describe('the bedtime duel under random presses', () => {
+  /** The event types of each seed's game, for the aggregate check below. */
+  const outcomes: string[][] = [];
+
   it.each(Array.from({ length: 30 }, (_, i) => i + 1))(
     'seed %i keeps retreats in range and fires no invariant',
     async (seed) => {
@@ -55,6 +58,15 @@ describe('the bedtime duel under random presses', () => {
         1,
       );
       expect(world.flow.state).not.toBe('ended');
+      outcomes.push(events.map((event) => event.type));
     },
   );
+
+  // The presses must have reached the eyes: across the seeds, rounds were answered, missed and ended.
+  it('exercised the duel (some retreats, some results, some ends)', () => {
+    const all = outcomes.flat();
+    expect(all).toContain('SequenceStepRetreated');
+    expect(all).toContain('ResponseResolved');
+    expect(all).toContain('SequenceEnded');
+  });
 });

@@ -176,7 +176,7 @@ export function sequenceDuelProblems(
       limits.toleranceMs;
     if (step.durationMs < neededMs) {
       problems.push(
-        `${where} with a durationMs of ${step.durationMs}, below the ${neededMs} ms a round can take (restMs + telegraph + longest wait + window at the widest tier + tolerance)`,
+        `${where} with a durationMs of ${step.durationMs}, below the ${neededMs} ms a round can take (the longer of restMs and the threat's cooldownMs + telegraph + longest wait + window at the widest tier + tolerance)`,
       );
     }
   });

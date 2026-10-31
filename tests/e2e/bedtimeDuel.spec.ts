@@ -140,6 +140,8 @@ test.describe('starting from the overlay', () => {
     await expect(html(page)).toHaveAttribute('data-pp-sequence', 'bedtime_duel');
     await expect(html(page)).toHaveAttribute('data-pp-sequence-step', '0');
     await expect(html(page)).toHaveAttribute('data-pp-baby-state', 'carried');
+    // The HUD and the babble follow the world a frame or two later: look only once they have.
+    await waitFrames(page, 3);
     // No bar and no compact timer: the timer keeps its full size.
     await expect(page.locator(BAR)).toHaveCount(0);
     expect((await page.locator(TIMER).boundingBox())?.height).toBe(40);

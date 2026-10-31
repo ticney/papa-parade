@@ -124,11 +124,6 @@ describe('the entry of a wait threat (story 4.6)', () => {
 });
 
 describe('the marker of a wait threat (story 4.6)', () => {
-  const glyphOf = (created: FakeElement[]) =>
-    created.find(
-      (element) => element.attributes.has('d') && element.attributes.get('d') !== undefined,
-    );
-
   it('swaps the verb and the glyph at the signal, once, and back at the next telegraph', () => {
     const { markers, byClass, created } = build();
     markers.mount(entries());
@@ -156,7 +151,6 @@ describe('the marker of a wait threat (story 4.6)', () => {
     expect(verb?.textContent).toBe('<verb.wait>');
     expect(path?.attributes.get('d')).toBe(THREAT_ICON_PATHS.eyes);
     expect(root?.classes.has(THREAT_CLASSES.signal)).toBe(false);
-    expect(glyphOf(created)).toBeDefined();
   });
 
   it('keeps the signal for the frame a quick tap is drawn after the sim resolved it', () => {

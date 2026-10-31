@@ -366,7 +366,7 @@ describe('the bedtime duel: retreats (story 4.6)', () => {
     expect(worldOf(sim).gauges.noisePct).toBe(0);
   });
 
-  it('resets the combo and records the miss on a retreat', async () => {
+  it('resets the combo on a retreat', async () => {
     const { sim } = await started();
     playRound(sim, 'centre');
     expect(worldOf(sim).combo.multiplier).toBeGreaterThan(content.feel.combo.minMultiplier);
@@ -416,6 +416,7 @@ describe('the bedtime duel: retreats (story 4.6)', () => {
 
 describe('the bedtime duel: the hooks (story 4.6)', () => {
   it('ignores a threat that is not the current step’s, on a win and on a gag', async () => {
+    let hasRun = false;
     const sim = await createSimWithSystems(
       {
         content,
@@ -431,6 +432,7 @@ describe('the bedtime duel: the hooks (story 4.6)', () => {
         ...SYSTEMS,
         (world, ctx) => {
           if (world.time.sim !== 50) return;
+          hasRun = true;
           const other = world.threats.find((threat) => threat.defId === 'papa_microsleep');
           if (other === undefined) throw new Error('no micro-sleep');
           failSequenceOnGag(world, ctx, other, 'late');
@@ -440,6 +442,8 @@ describe('the bedtime duel: the hooks (story 4.6)', () => {
     );
     sim.enqueue({ type: 'StartSequence', t: asSimMs(0), sequenceId: 'bedtime_duel' });
     const events = stepEvents(sim, 8);
+    // The injected system really ran (else the test would pass for nothing).
+    expect(hasRun).toBe(true);
     expect(typesOf(events)).not.toContain('SequenceStepRetreated');
     expect(ofType(events, 'SequenceEnded')).toEqual([]);
     expect(worldOf(sim).sequence.stepIndex).toBe(0);

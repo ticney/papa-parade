@@ -44,6 +44,7 @@ const LIVE_FEEL = readLive<{
   difficulty: Record<string, { windowMultiplier: number }>;
 }>('content/feel.json');
 const LIVE_EYES = readLive<{
+  cooldownMs: number;
   telegraphDelayMs: number | null;
   maxDelayMs: number;
   windowMs: number | null;
@@ -54,7 +55,7 @@ const WIDEST = Math.max(
 );
 /** The shortest `durationMs` a round of the live duel can fit in. */
 const NEEDED_MS =
-  LIVE_REST_MS +
+  Math.max(LIVE_REST_MS, LIVE_EYES.cooldownMs) +
   (LIVE_EYES.telegraphDelayMs ?? LIVE_FEEL.timing.telegraphDelayDefaultMs) +
   LIVE_EYES.maxDelayMs +
   (LIVE_EYES.windowMs ?? LIVE_FEEL.timing.windowMs) * WIDEST +
