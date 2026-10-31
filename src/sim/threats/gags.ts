@@ -23,6 +23,7 @@ export const GAG_IDS = [
   'crayon_scribbles',
   'arms_wail',
   'baby_eyes_reopened',
+  'baby_sat_up',
 ] as const;
 
 export type GagId = (typeof GAG_IDS)[number];
@@ -111,6 +112,9 @@ function armsWail(): void {}
 /** The baby's eyes reopen in the bedtime duel (story 4.6): the cost is the sequence's retreat (`failSequenceOnGag`), nothing for the sim to do here. */
 function babyEyesReopened(): void {}
 
+/** The baby sits up in the fake sleep (story 4.7): the retreat is the sequence's and the cry is the def's `gagCryMs`, so nothing for the sim to do here. */
+function babySatUp(): void {}
+
 /** One entry per `GagId`, defined once at module scope: a new gag without a consequence is a type error. */
 const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   outlet_hair: outletHair,
@@ -122,6 +126,7 @@ const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   // The cry in the arms (story 4.1): no sim consequence. The baby's cry is `gagCryMs` on the def (story 3.1 D9), which feeds the noise gauge.
   arms_wail: armsWail,
   baby_eyes_reopened: babyEyesReopened,
+  baby_sat_up: babySatUp,
 };
 
 /**

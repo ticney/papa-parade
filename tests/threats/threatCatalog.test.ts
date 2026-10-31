@@ -11,6 +11,7 @@ import {
   type ThreatResponse,
 } from '@content/schemas/threat';
 import { DIFFICULTY_TIER_IDS, type DifficultyTierId, STEP_MS } from '@shared/constants';
+import { nextFloat, type RngState } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { createSim, GAG_IDS, type Sim, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
@@ -341,6 +342,23 @@ function findTheBaby(sim: Sim): void {
   expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
 }
 
+/** How many `nextFloat` it takes to go from the rng state `before` to `after` (at most 8; -1 if never). */
+function drawsBetween(before: RngState, after: RngState): number {
+  const replay = { ...before };
+  for (let draws = 0; draws <= 8; draws++) {
+    if (
+      replay.a === after.a &&
+      replay.b === after.b &&
+      replay.c === after.c &&
+      replay.d === after.d
+    ) {
+      return draws;
+    }
+    nextFloat(replay);
+  }
+  return -1;
+}
+
 /** A sim stopped on the step that telegraphed the threat, with the times its window gives. */
 async function telegraphed(
   def: ThreatDef,
@@ -355,6 +373,8 @@ async function telegraphed(
     seed: 1,
   });
   if (tier !== 'normal') sim.enqueue({ type: 'SetDifficultyTier', t: asSimMs(0), tier });
+  // The rng around the step that telegraphs a duel def (story 4.7: the draws it makes there).
+  let rngBefore: RngState | null = null;
   if (def.target === 'hiddenZone') {
     findTheBaby(sim);
   } else if (duelDefs.has(def.id)) {
@@ -364,6 +384,7 @@ async function telegraphed(
       t: asSimMs(sim.world.time.sim),
       sequenceId: 'catalog_duel',
     });
+    rngBefore = { ...sim.world.rng };
     sim.step();
     const events = [...sim.drainEvents()];
     expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
@@ -381,11 +402,14 @@ async function telegraphed(
   }
   const threat = sim.world.threats.find((candidate) => candidate.defId === def.id);
   if (threat === undefined || threat.responseWindow === null) throw new Error('not telegraphed');
-  const { windowOpenAt, responseWindow } = threat;
+  const { windowOpenAt, responseWindow, feintAt } = threat;
   return {
     sim,
     threatId: threat.id,
     openAt: windowOpenAt,
+    feintAt,
+    // How many floats the telegraph step drew (a duel def only): counted by replaying the stream.
+    rngDraws: rngBefore === null ? null : drawsBetween(rngBefore, sim.world.rng),
     center: windowOpenAt + responseWindow.windowMs / 2,
     window: responseWindow,
   };
@@ -437,6 +461,26 @@ describe('the threat catalogue', () => {
 
   it('proves every response: the live defs and the fixtures between them cover parry, firm and wait', () => {
     expect(new Set(defs.map((def) => def.response))).toEqual(new Set(['parry', 'firm', 'wait']));
+  });
+
+  it('draws one float more at the telegraph of a def with a feint than of a wait with none (story 4.7)', async () => {
+    // The step that starts a sequence draws something of its own too (the same for every def), so the
+    // proof is the difference: the feint's draw, after the signal's, and nothing else.
+    const waits = defs.filter((def) => def.response === 'wait' && duelDefs.has(def.id));
+    const withFeint = waits.filter((def) => def.feint !== undefined);
+    const withoutFeint = waits.filter((def) => def.feint === undefined);
+    expect(withFeint.length).toBeGreaterThan(0);
+    expect(withoutFeint.length).toBeGreaterThan(0);
+    for (const tier of DIFFICULTY_TIER_IDS) {
+      const base = (await telegraphed(withoutFeint[0] as ThreatDef, tier)).rngDraws;
+      expect(base).not.toBeNull();
+      for (const def of withoutFeint) {
+        expect((await telegraphed(def, tier)).rngDraws, def.id).toBe(base);
+      }
+      for (const def of withFeint) {
+        expect((await telegraphed(def, tier)).rngDraws, def.id).toBe((base as number) + 1);
+      }
+    }
   });
 
   it('proves the wait on an anchored def, beside the one a sequence spawns on Papa', () => {
@@ -556,6 +600,51 @@ describe.each(
         }
       },
     );
+  }
+
+  // The feint of a fake sleep (story 4.7): a def that has one is proved on its live numbers, at every tier.
+  if (def.feint !== undefined) {
+    const { minGapMs } = def.feint;
+
+    it('gives its feint once, before its signal, at the first step at or after feintAt, with the gap the def asks', async () => {
+      const { sim, openAt, feintAt } = await telegraphed(def, tier);
+      expect(feintAt).not.toBeNull();
+      const events = runUntil(sim, openAt + STEP_MS);
+      const names = events
+        .filter((event) => event.type === 'WaitFeintGiven' || event.type === 'WaitSignalGiven')
+        .map((event) => event.type);
+      expect(names).toEqual(['WaitFeintGiven', 'WaitSignalGiven']);
+      const given = events.filter((event) => event.type === 'WaitFeintGiven');
+      expect(given[0]?.t).toBe(Math.ceil((feintAt as number) / STEP_MS) * STEP_MS);
+      const signal = events.filter((event) => event.type === 'WaitSignalGiven');
+      expect((signal[0]?.t ?? 0) - (given[0]?.t ?? 0)).toBeGreaterThanOrEqual(minGapMs - STEP_MS);
+    });
+
+    it.each(['fail', 'guard'] as const)(
+      'gags a press on the feint as an early gag whatever earlyPress says (%s)',
+      async (earlyPress) => {
+        const { sim, center, feintAt, threatId } = await telegraphed(def, tier, earlyPress);
+        const t = feintAt as number;
+        sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
+        const events = runUntil(sim, t + 2 * STEP_MS);
+        expect(results(events)).toEqual([
+          expect.objectContaining({ quality: 'fail', reason: 'early', offsetMs: t - center }),
+        ]);
+        expect(gags(events)).toEqual([expect.objectContaining({ reason: 'early', threatId })]);
+        expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
+      },
+    );
+
+    it('is a success for a press in the window after the feint, as with no feint', async () => {
+      const { sim, center, openAt, threatId } = await telegraphed(def, tier);
+      const { settledAt } = answer(sim, def, threatId, openAt, openAt);
+      const events = runUntil(sim, Math.max(settledAt, center + holdMinMs));
+      expect(events.filter((event) => event.type === 'WaitFeintGiven')).toHaveLength(1);
+      expect(results(events)).toEqual([
+        expect.objectContaining({ quality: 'success', offsetMs: openAt - center }),
+      ]);
+      expect(gags(events)).toEqual([]);
+    });
   }
 
   if (def.response === 'parry' || def.response === 'wait') {

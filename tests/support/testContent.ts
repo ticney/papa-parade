@@ -267,9 +267,43 @@ export function createTestBedtimeDuel(): SequenceDef {
   return parsed.value;
 }
 
+/**
+ * A duel with the fake sleep, frozen (`testFakeSleepDuel.sequence.json`, story 4.7): the eyes, then the
+ * fake sleep, 12 s each. It carries the id `fake_sleep_duel`, so it never replaces `bedtime_duel`.
+ */
+export function createTestFakeSleepDuel(): SequenceDef {
+  const path = 'tests/support/testFakeSleepDuel.sequence.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testFakeSleepDuel.sequence.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, SequenceDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
+/**
+ * The fake sleep's round alone (story 4.7): the frozen duel with its second step as its only one, under
+ * the same id, so that a test plays the feint with no round of the eyes before it. Pass it as
+ * `sequenceDefs: { [def.id]: def }` of a level that lists `def.id` in its `sequences`.
+ */
+export function createTestFakeSleepRound(): SequenceDef {
+  const duel = createTestFakeSleepDuel();
+  const step = duel.steps[1];
+  if (step === undefined) throw new Error('the frozen fake sleep duel has no second step');
+  return { ...duel, steps: [step] };
+}
+
 /** The frozen sequences, by id. */
 export function createTestSequences(): Readonly<Record<string, SequenceDef>> {
-  const defs = [createTestStayAwake(), createTestLullabyWalk(), createTestBedtimeDuel()];
+  const defs = [
+    createTestStayAwake(),
+    createTestLullabyWalk(),
+    createTestBedtimeDuel(),
+    createTestFakeSleepDuel(),
+  ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
 
@@ -294,7 +328,16 @@ export function createTestBedtimeEyes(): ThreatDef {
   return readThreatFixture('testBedtimeEyes.threat.json');
 }
 
-/** The eight frozen threats, by id. */
+/**
+ * The fake sleep of the bedtime duel, frozen like the eyes (`testFakeSleep.threat.json`, story 4.7):
+ * the `wait` threat on Papa with a feint. The feint 1200 to 2600 ms after the telegraph delay, the
+ * signal 3500 to 7000 ms after it, at least 900 ms between the two.
+ */
+export function createTestFakeSleep(): ThreatDef {
+  return readThreatFixture('testFakeSleep.threat.json');
+}
+
+/** The nine frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
     createTestOutlet(),
@@ -305,6 +348,7 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
     createTestCryingOutlet(),
     createTestArmsCry(),
     createTestBedtimeEyes(),
+    createTestFakeSleep(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }

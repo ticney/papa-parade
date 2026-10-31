@@ -59,6 +59,11 @@ export interface ThreatMarkerEntry {
    */
   readonly signalVerb?: string;
   readonly signalIcon?: ThreatIcon;
+  /**
+   * The glyph a `wait` threat that has a `feint` shows from the feint to the signal (story 4.7): the
+   * verb does not change, only the glyph. Absent for any other threat.
+   */
+  readonly feintIcon?: ThreatIcon;
   /** The marker's shape and colour, copied from the def (the pair is the signal, NFR8). */
   readonly iconShape: ThreatIconShape;
   readonly color: ThreatColor;
@@ -160,6 +165,8 @@ export interface ThreatMarkerDef {
   /** Only on a `wait` threat (story 4.6): the verb and the glyph from the signal on. */
   readonly signalVerbKey?: string | undefined;
   readonly signalIcon?: ThreatIcon | undefined;
+  /** Only on a `wait` threat that has a feint (story 4.7): the glyph from the feint on. A `ThreatDef` is one. */
+  readonly feint?: { readonly icon: ThreatIcon } | undefined;
 }
 
 /**
@@ -211,6 +218,7 @@ export function threatMarkerEntries(
       ...(carriedVerb === '' ? {} : { carriedVerb }),
       ...(signalVerb === '' ? {} : { signalVerb }),
       ...(def?.signalIcon === undefined ? {} : { signalIcon: def.signalIcon }),
+      ...(def?.feint === undefined ? {} : { feintIcon: def.feint.icon }),
       iconShape: def?.iconShape ?? FALLBACK_SHAPE,
       color: def?.color ?? FALLBACK_COLOR,
       verbWidthPx: 0,
@@ -281,6 +289,8 @@ export const THREAT_CLASSES = {
   holdClosed: 'pp-threat-hold--closed',
   /** On the marker of a `wait` threat from its signal on (story 4.6): the CSS draws the cue's onset. */
   signal: 'pp-threat--signal',
+  /** On the marker of a `wait` threat from its feint to its signal (story 4.7): the CSS draws a short pop. */
+  feint: 'pp-threat--feint',
 } as const;
 
 /** The ring's progress in whole percent, as the strings the CSS variable takes (built once: no per-frame concatenation). */
@@ -306,6 +316,10 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   cry: 'M12 2.5C12 2.5 5.5 10 5.5 15a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5z',
   // An open eye, the pupil in the middle: the baby who is not asleep yet (the bedtime duel, story 4.6).
   eyes: 'M1.5 12C5 6 19 6 22.5 12C19 18 5 18 1.5 12z M12 12m-3.4 0a3.4 3.4 0 1 0 6.8 0a3.4 3.4 0 1 0-6.8 0',
+  // Two eyes: the left one shut (a curve), the right one half open (an almond under a drooping lid, the
+  // iris cut in half by it): the fake sleep's feint, « un œil s'entrouvre » (story 4.7). Not the eyes'
+  // single big pupil, not the eyelids' lashes.
+  peek: 'M0.8 11c2.4 5.2 8.2 5.2 10.6 0c-2.8 2.8-7.8 2.8-10.6 0z M12.2 10c2.8-3.4 8-3.4 10.8 0c-2.8 7.6-8 7.6-10.8 0z M14.9 11.2a2.7 2.7 0 0 0 5.4 0c-1.5-.9-3.9-.9-5.4 0z',
   // Three dots: the « … » of the suspicious silence (story 1.21).
   dots: 'M6 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M18 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0',
 };
@@ -333,6 +347,8 @@ interface Marker {
   readonly glyphPath: Element;
   /** The signal has come: the verb and the glyph are the entry's `signalVerb` and `signalIcon`. */
   isSignalShown: boolean;
+  /** The feint has been given and the signal has not come: the glyph is the entry's `feintIcon` (story 4.7). */
+  isFeintShown: boolean;
   /** How far the verb stack is pushed up as drawn, in whole px. */
   verbOffsetPx: number;
   /** How far the verb stack is shifted sideways as drawn to stay on screen, in whole px. */
@@ -483,6 +499,7 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
     isCarriedShown: false,
     glyphPath,
     isSignalShown: false,
+    isFeintShown: false,
     verbOffsetPx: 0,
     verbShiftXPx: 0,
     closeAt: Number.POSITIVE_INFINITY,
@@ -738,22 +755,44 @@ export function createThreatMarkers(
         // A wait threat swaps its verb and its glyph, and toggles a class, at the signal (story 4.6):
         // `windowOpen` is the signal, and the swap stays while the marker is up (a quick tap is drawn
         // once more after the sim resolved it) until the next telegraph or the marker goes.
-        if (entry.signalIcon !== undefined || entry.signalVerb !== undefined) {
-          let isSignal = marker.isSignalShown;
+        // The feint of a fake sleep (story 4.7) swaps the glyph only, between the telegraph and the signal:
+        // it reads `threat.isFeintGiven` and nothing else of the feint (`feintAt`, like `windowOpenAt`, is
+        // in the world before it happens). The signal takes over from it, and the one glyph is
+        // computed from both flags, written only when either changes.
+        if (
+          entry.signalIcon !== undefined ||
+          entry.signalVerb !== undefined ||
+          entry.feintIcon !== undefined
+        ) {
+          const wasSignal = marker.isSignalShown;
+          const wasFeint = marker.isFeintShown;
+          let isSignal = wasSignal;
           if (threat?.state === 'windowOpen') isSignal = true;
           else if (!isActive || threat?.state === 'telegraph') isSignal = false;
-          if (isSignal !== marker.isSignalShown) {
+          let isFeint = wasFeint;
+          if (entry.feintIcon === undefined || isSignal || !isActive) isFeint = false;
+          else if (threat?.state === 'telegraph') isFeint = threat.isFeintGiven === true;
+          if (isSignal !== wasSignal || isFeint !== wasFeint) {
             marker.isSignalShown = isSignal;
-            marker.glyphPath.setAttribute(
-              'd',
-              THREAT_ICON_PATHS[isSignal ? (entry.signalIcon ?? entry.icon) : entry.icon],
-            );
-            if (marker.verb !== null && entry.signalVerb !== undefined) {
-              const normal = marker.isCarriedShown ? (entry.carriedVerb ?? entry.verb) : entry.verb;
-              marker.verb.textContent = isSignal ? entry.signalVerb : normal;
-              isVerbSwapped = true;
+            marker.isFeintShown = isFeint;
+            const icon = isSignal
+              ? (entry.signalIcon ?? entry.icon)
+              : isFeint
+                ? (entry.feintIcon ?? entry.icon)
+                : entry.icon;
+            marker.glyphPath.setAttribute('d', THREAT_ICON_PATHS[icon]);
+            if (isSignal !== wasSignal) {
+              if (marker.verb !== null && entry.signalVerb !== undefined) {
+                const normal = marker.isCarriedShown
+                  ? (entry.carriedVerb ?? entry.verb)
+                  : entry.verb;
+                marker.verb.textContent = isSignal ? entry.signalVerb : normal;
+                isVerbSwapped = true;
+              }
+              marker.element.classList.toggle(THREAT_CLASSES.signal, isSignal);
             }
-            marker.element.classList.toggle(THREAT_CLASSES.signal, isSignal);
+            if (isFeint !== wasFeint)
+              marker.element.classList.toggle(THREAT_CLASSES.feint, isFeint);
           }
         }
         if (isActive && entry.followsPapa && papa !== null) {

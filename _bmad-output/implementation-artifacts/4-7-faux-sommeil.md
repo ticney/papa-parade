@@ -4,7 +4,7 @@ baseline_commit: f1fd12ca14023ae86355dc865107156e4c2fed5b
 
 # Story 4.7: The fake sleep
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.7 « Faux sommeil » (L1958-1978). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -159,21 +159,21 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
 
 ## Tasks / Subtasks
 
-- [ ] **T1. The feint in the sim** (AC 1-4, 11, part of 13-14)
-  - [ ] T1.1 Schema, `peek`, `content:schemas`, the schema tests.
-  - [ ] T1.2 The fields, the second draw, `giveFeint`, `WaitFeintGiven`; `threatCueOf`, `contentChecks` (AC 6).
-  - [ ] T1.3 Snapshot v24, with the in-flight round trips.
-  - [ ] T1.4 `fakeSleep.test.ts` on the frozen def, **before any live content**.
-- [ ] **T2. The fake sleep in the duel** (AC 7-10)
-  - [ ] T2.1 `fake_sleep.json`, the gag, `feedback.json`, the clips, `bedtime_duel.json`.
-  - [ ] T2.2 `fakeSleepDuel.test.ts`, the noise proof, the fuzz, the catalogue block.
-- [ ] **T3. Client** (AC 5)
-  - [ ] T3.1 The glyph, the class, the CSS, the no-leak test.
-- [ ] **T4. Tools and tests** (AC 12, 15, 16)
-  - [ ] T4.1 Bot pins and `simReport`; the tables pasted, the `random` cause proved.
-  - [ ] T4.2 Goldens (regenerate, diff, add the two scenarios).
-  - [ ] T4.3 `tests/e2e/fakeSleep.spec.ts`; touched specs; the screenshots looked at.
-- [ ] **T5. Docs and CI** (AC 17, 18)
+- [x] **T1. The feint in the sim** (AC 1-4, 11, part of 13-14)
+  - [x] T1.1 Schema, `peek`, `content:schemas`, the schema tests.
+  - [x] T1.2 The fields, the second draw, `giveFeint`, `WaitFeintGiven`; `threatCueOf`, `contentChecks` (AC 6).
+  - [x] T1.3 Snapshot v24, with the in-flight round trips.
+  - [x] T1.4 `fakeSleep.test.ts` on the frozen def, **before any live content**.
+- [x] **T2. The fake sleep in the duel** (AC 7-10)
+  - [x] T2.1 `fake_sleep.json`, the gag, `feedback.json`, the clips, `bedtime_duel.json`.
+  - [x] T2.2 `fakeSleepDuel.test.ts`, the noise proof, the fuzz, the catalogue block.
+- [x] **T3. Client** (AC 5)
+  - [x] T3.1 The glyph, the class, the CSS, the no-leak test.
+- [x] **T4. Tools and tests** (AC 12, 15, 16)
+  - [x] T4.1 Bot pins and `simReport`; the tables pasted, the `random` cause proved.
+  - [x] T4.2 Goldens (regenerate, diff, add the two scenarios).
+  - [x] T4.3 `tests/e2e/fakeSleep.spec.ts`; touched specs; the screenshots looked at.
+- [x] **T5. Docs and CI** (AC 17, 18)
 
 ## Dev Notes
 
@@ -277,16 +277,61 @@ Paths follow the epic and the architecture (`content/threats/fake_sleep.json` is
 
 ### Agent Model Used
 
+Not recorded here (the story file is a repo artifact).
+
 ### Debug Log References
+
+- Environment: `VITE_DEBUG_ALLOWED=false` was exported in the shell; every `vitest` / `playwright` / `ci` run was started with it unset (`env -u …` or a subshell).
+- **The slow and red runs were the Mac going to sleep, not the code and not the load.** `pmset -g log` shows 20 sleeps from noon on (15:28 to 15:44 for one), with `sleep 1` in the power settings: a background run does not keep it awake once the agent's turn ends. Hence tests with a 30 s timeout failing after 2 to 5 minutes, by groups of one per worker, a first `npx vitest run src tests` over 10 minutes, `carryFuzz.test.ts` on its 5 s timeout, `page.goto` timeouts, and a first CI killed at its 1 h limit. Each of those tests passes alone in seconds. Attributing it to load or to a cold Vite server, as first reported, was wrong. Long runs now go under `caffeinate -i -s`.
+- The worktree guard refuses a `heredoc` appended to a file and some compound commands: the edits went through the edit tools.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed: comprehensive developer guide created.
+- **The feint in the sim (AC 1-4, 11).** `threat.ts` gains `feint` (`minDelayMs`, `maxDelayMs`, `minGapMs`, `icon`) and `feedback.feint`, both refused off a `wait` and required together; the schema refuses `maxDelayMs < minDelayMs` and `maxDelayMs + minGapMs > minDelayMs` (both at `feint.maxDelayMs`, one issue per path). `THREAT_ICONS` gains `peek`. `telegraphThreat` takes the signal's draw into a local, then draws the feint's second (`feintDelayMs`); a `wait` with no feint still draws one float, any other def none. `ThreatInstance.feintAt` / `isFeintGiven`, `giveFeint`, `WaitFeintGiven` (sorted right before `WaitSignalGiven`), cleared by rearm / cancel / hide. Snapshot **v24** with the `threatProblem` checks; one rejection test per field and a round trip taken before the feint and after it (no second `WaitFeintGiven`), continued to the end on both copies with events and hashes compared.
+- **Judgement: no code, only proof (AC 4).** `pressThreat` is untouched. `fakeSleep.test.ts` proves a press before the feint, at `feintAt` exactly, one step after, one ms before the signal and one stamped before the signal that arrives after it are each an `early` gag (with `earlyPress` `guard` and `fail`), and a press in the window after a given feint is judged exactly as `judgePress` says, same quality and `offsetMs`.
+- **The fake sleep in the duel (AC 7-10).** `content/threats/fake_sleep.json`, `bedtime_duel.json`'s third step now `fake_sleep` (`durationMs` 10 000: the minimum is 9 510), the `baby_sat_up` gag (sim and `render/gags.ts`), the three cues, and three placeholder clips (`tel_fake_sleep`, `baby_eye_peek`, `gag_baby_sat_up`, seeds `SEED + 32` to `+ 34` after reading every `SEED +`: 31 was the highest). Only the three new `.m4a` were committed. `tel_fake_sleep`'s wave is two pulses (400 ms apart, 500 ms long) because a twin-wave test refuses a telegraph that shares size, pulses and duration with `tel_bedtime_eyes`. **Noise** is `gagCryMs` 2000: proved on a carried baby (2 `BabyCrying`, `noisePct` up by `2 × perSec` less the decay, none in a level without `gauges.noise`), for `early` and `late` alike, and a test pins that the earliest signal after a gag is later than the cry on the frozen defs.
+- **The client (AC 5-6).** The marker reads `threat.isFeintGiven` only; one glyph is composed from `isSignalShown` and `isFeintShown` and written, with the `pp-threat--feint` class, only when either changes; the verb stays « ATTENDS… » until the signal. `ui.css` has a 180 ms tilt for the feint and its reduced-motion rule. `threatCueOf` plays `feedback.feint`; `content:check` (`checkThreatFeint`) requires audio, visual and haptic on it and a haptic and a clip different from the signal's (one test each in `tests/content/checkFakeSleep.test.ts`). **A deliberate difference from the story:** `ThreatMarkerDef` takes `feint?: { icon }` (a `ThreatDef` is assigned to it as it is, with no mapping) and `ThreatMarkerEntry` carries `feintIcon`.
+- **The peek glyph was redrawn after looking at it.** The first path (small, mostly ink) read as two dark smudges at the marker's size; the final one is a shut eye (a curve) beside an almond under a drooping lid with its iris cut in half. Rendered next to `eyes` and `eyelids` at 150 and 52 px, and looked at in the 667 × 375 screenshots (`fake-sleep-before`, `-feint`, `-signal`): three clearly different glyphs, though at the real marker size the peek is small, two dark marks beside the eyes' big white eye. In those frames the « PARADE PARFAITE » banner of the round just won stays up (the loop is frozen) and covers the verb; the glyphs are not covered. A placeholder: E7 draws the final one.
+- **Bots (AC 12).** `perfect` and `human`: no code (a comment on `humanBot.ts` says it never falls for the feint and says nothing of how hard it is). `tests/bots/waitBots.test.ts`: `perfect` is perfect with offset 0 on the fake sleep, `human` never presses before the signal over 40 seeds (and the feint did come in each), and its first press is the first of its own draws. `simReport`'s `duelDefs` already held every def the live sequences name (`duelDefIdsOf` is now exported and pinned: `bedtime_eyes` and `fake_sleep`).
+- **Generated tests (AC 13).** `fake_sleep` joined `threatCatalog.test.ts` through the live duel at each tier with no edit; the `def.feint` block proves one `WaitFeintGiven` before the signal at the first step at or after `feintAt` with a gap of at least `minGapMs − STEP_MS`, an `early` gag for a press at the feint with `earlyPress` `fail` and `guard`, and a success for a press in the window. **The draws:** the step that starts a sequence draws one float of its own for every def (not the threat's), so the test pins the difference: a def with a feint draws exactly one float more than a wait with none, at every tier.
+- **Tests (AC 14).** New: `fakeSleep.test.ts` (draws at the exact ms of a collapsed range, spread over 400 states, the feint at least `minGapMs` before the signal over 500 states, events, judging, noise), `fakeSleepDuel.test.ts` (won through the feint; a press on it retreats to step 1 with `reason: "early"`, counts, cries, costs the combo; the eyes' round after it has no feint; one instance per def and the right indices with and without the micro-sleep; a restarted round has a fresh feint; a level end mid-round closes it), `fakeSleepSnapshot.test.ts`, `fakeSleepDuelFuzz.test.ts` (30 seeds with a mix of sensible and wild presses: a wild-only fuzz never got past the eyes; the aggregate requires a feint given, a retreat, an `early` `baby_sat_up` gag and an end), `fakeSleepSchema.test.ts`, `checkFakeSleep.test.ts`, the marker tests in `waitMarker.test.ts`, `waitFeedback.test.ts`, `bedtimeClips.test.ts`, `duelSequence.test.ts` (frozen `fake_sleep_duel`: `perfect` and `idle` over seeds 1 to 5, `human` over 10 runs).
+- **Goldens (AC 15, deliberate).** `npm run golden:update`: the 13 existing journals moved **only** in `worldHash` (the world has two new fields; 13 lines changed, every one a `worldHash`, no command and no event line), diffed and formatted with biome. New scenarios `fake_sleep_won` (ends `succeeded` at 11 820 ms) and `fake_sleep_feint_pressed` (a tap on the feint at 8 738, a retreat, ends `succeeded` at 19 290 ms), whole-ms stamps from the draws of seed 48, pinned by `tests/golden/fakeSleep.test.ts`.
+- **Bot tables (AC 15), `salon_crawler`, seed 1, 20 runs, `main` against the branch.** `perfect`, `human` and `idle` are identical in stars, end reasons, success rate, score, gags and every per-run field; only the hashes move. `random` moves, as predicted:
+
+  | bot | mean stars | star counts (0-5) | ends (timer / Mama woke) | success % | mean score | gags |
+  |---|---|---|---|---|---|---|
+  | perfect, `main` and branch | 5 | 0 0 0 0 0 20 | 20 / 0 | 100 | 90 | 0 |
+  | human, `main` and branch | 4 | 0 0 0 1 18 1 | 20 / 0 | 99.9 | 82.1 | 1 |
+  | idle, `main` and branch | 1 | 0 20 0 0 0 0 | 20 / 0 | 0 | 20 | 762 |
+  | random, `main` | 1 | 0 20 0 0 0 0 | 20 / 0 | 2.4 | 20.1 | 759 |
+  | random, branch | 1 | 0 20 0 0 0 0 | 20 / 0 | 1.2 | 20 | 766 |
+  | random, branch with the third step put back to `bedtime_eyes` | 1 | 0 20 0 0 0 0 | 20 / 0 | 2.4 | 20.1 | 759 |
+
+  **The cause of `random` is proved:** with the duel's third step temporarily back on `bedtime_eyes` (restored right after; `git diff` shows only the intended line), `random` matches `main` run by run (hash aside). It draws `nextInt(rng, 0, world.threats.length)` and the level has one more threat instance.
+- **The duel table (AC 15), `--sequence bedtime_duel --sequence-at-ms 5000`, 20 runs, the live content on the branch.** `perfect` wins 20 of 20 with no retreat and every response `perfect` (40 eyes, 20 fake sleep); `idle` loses 20 of 20 at its third failure on the eyes and never reaches the fake sleep; `human` wins 20 of 20 with 3 retreats in all (2 `late` on the fake sleep, none `early`: it never falls for the feint); `random` loses 20 of 20.
+
+  | bot | started | won | lost | retreats | `bedtime_eyes` | `fake_sleep` | gags |
+  |---|---|---|---|---|---|---|---|
+  | perfect | 20 | 20 | 0 | 0 | 40 resp (40 P) | 20 resp (20 P) | 0 |
+  | human | 20 | 20 | 0 | 3 | 44 resp (6 P, 37 S, 1 F late) | 22 resp (5 P, 15 S, 2 F late) | 5 (`baby_sat_up` 2, `baby_eyes_reopened` 1, `arms_wail` 1, `papa_asleep` 1) |
+  | random | 20 | 0 | 20 | 40 | 61 resp (1 P, 1 S, 59 F: 16 early, 42 late) | 1 resp (1 F late) | 603 |
+  | idle | 20 | 0 | 20 | 40 | 60 resp (60 F late) | none | 460 |
+
+  `human` wins every time, so the fake sleep costs it two failures in 22 rounds and says nothing of how hard the feint is for a player (open point 5).
+- **End to end (AC 16).** `tests/e2e/fakeSleep.spec.ts` (9 tests, chromium and webkit, both green; 1.2 min each) on the helpers extracted to `tests/e2e/support/duel.ts` and shared with `bedtimeDuel.spec.ts` (which only lost its local copies; `untilTelegraphed` now steps 200 ms at a time, well under the 2.8 s a round takes to its signal). Before the feint the eyes glyph and « ATTENDS… »; after `feintAt` the `peek` glyph, the class, the verb unchanged, `fake_sleep_eye_peeks` in the cue log and its vibration (Chromium); a real tap on the feint gags with `gag_baby_sat_up`, one retreat, back at step 1, more noise after the cry's first tick; a real tap after the signal and Space win; `?autoplay=perfect` wins with one feint; the marker at 667 × 375, under reduced motion (animation `none`) and with the `sfx` bus at 0. `bedtimeDuel.spec.ts` needed no assertion change (its rounds are the first two, the eyes). No screenshot reference moved (`autoplay.spec.ts` run).
+- **Docs (AC 17).** `project-context.md`: « The fake sleep (story 4.7, snapshot version 24) » after 4.6's paragraph, and `snapshot version 24` in the `loadContent()` line. `deferred-work.md`: the open points. The architecture and the GDD are untouched.
+- **CI (AC 18).** `caffeinate -i -s npm run ci`, with `VITE_DEBUG_ALLOWED` unset, is green (exit 0): `e2e` 668 passed, 2 skipped, in 10.1 min; `e2e:dist` 10 passed; `perf.spec.ts` passed; both `dist:check`; statement coverage 98.09 % over all files covered. The run before it had one failure, `settings.spec.ts:300`, **a flake already on `main`** (6 failures in 20 repeats on an export of `main`, 5 in 20 on the branch): it read `difficultyTier` right after seeing the command in the journal, before the sim's next step. It now polls for the same value (20 of 20). Not this story's code, fixed here because the CI has to be green.
+- **To say plainly.** The `ui.css` lint reports two *warnings* (`noDescendingSpecificity`, on the beat ring's rules around line 1646); the same two are on `main`. The webkit run of `fakeSleep.spec.ts` and the screenshots predate the removal of a needless 90 s timeout from that spec; the CI covers it since. The first screenshots are looked at on Chromium only.
 
 ### File List
+
+**New:** `content/threats/fake_sleep.json`; `public/assets/audio/{tel_fake_sleep,baby_eye_peek,gag_baby_sat_up}.m4a`; `src/sim/threats/fakeSleep.test.ts`; `src/sim/sequences/{fakeSleepDuel,fakeSleepDuelFuzz,fakeSleepSnapshot}.test.ts`; `tests/support/{testFakeSleep.threat,testFakeSleepDuel.sequence}.json`; `tests/content/{fakeSleepSchema,checkFakeSleep}.test.ts`; `tests/golden/fakeSleep.test.ts`; `tests/golden/journals/{fake_sleep_won,fake_sleep_feint_pressed}{,.expected}.json`; `tests/e2e/fakeSleep.spec.ts`; `tests/e2e/support/duel.ts`.
+
+**Modified:** `content/{feedback.json,sequences/bedtime_duel.json,_schemas/threat.schema.json}`; `src/content/schemas/threat.ts`; `src/sim/{world,events,createSim,snapshot}.ts`; `src/sim/threats/{threatFsm,threatSystem,gags}.ts`; `src/bots/humanBot.ts`; `src/client/feedback/threatFeedback.ts`; `src/client/render/gags.ts`; `src/client/ui/world/threatMarkers.ts`; `src/client/ui/styles/ui.css`; `tools/audio/makePlaceholderAudio.ts`; `tools/content/contentChecks.ts`; `tools/sim/runSim.ts` (`duelDefIdsOf` exported); tests: `src/sim/{createSim,events,snapshot}.test.ts`, `src/sim/sequences/{duelSnapshot,sequenceSnapshot}.test.ts`, `src/sim/threats/{gags,threatFsm,inputLag}.test.ts`, `src/bots/threatTiming.test.ts`, `src/client/input/autoTarget.test.ts`, `src/client/feedback/waitFeedback.test.ts`, `src/client/ui/world/waitMarker.test.ts`, `tests/support/testContent.ts`, `tests/bots/waitBots.test.ts`, `tests/content/{checkDuel,loadLevelContent}.test.ts`, `tests/threats/threatCatalog.test.ts`, `tests/tools/audio/bedtimeClips.test.ts`, `tests/tools/sim/duelSequence.test.ts`, `tests/golden/scenarios.ts`, `tests/golden/journals/*.expected.json` (13 existing, `worldHash` only), `tests/e2e/bedtimeDuel.spec.ts`, `tests/e2e/threats.spec.ts` (the world's threat list gains `fake_sleep`), `tests/e2e/settings.spec.ts` (a flake of `main`: polls for the tier); docs: `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/{deferred-work.md,sprint-status.yaml,4-7-faux-sommeil.md}`.
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-10-31 | Story created (`gds-create-story`), status `ready-for-dev`. Ultimate context engine analysis completed: comprehensive developer guide created. |
+| 2026-10-31 | Implemented (`gds-dev-story`): the feint, the fake sleep as the duel's third round, snapshot v24, goldens regenerated deliberately (`worldHash` only) plus two scenarios. Full CI green under `caffeinate`. Status `review`. |

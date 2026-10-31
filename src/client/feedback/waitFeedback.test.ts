@@ -5,6 +5,7 @@ import {
   CARRY,
   createTestBedtimeEyes,
   createTestContent,
+  createTestFakeSleep,
   createTestGeometry,
   createTestLevel,
   createTestOutlet,
@@ -17,7 +18,8 @@ import { threatCueOf } from './threatFeedback.ts';
 // so a sound, a wave and a vibration tell the player the baby's eyes have closed.
 const eyes = createTestBedtimeEyes();
 const outlet = createTestOutlet();
-const defs = { [eyes.id]: eyes, [outlet.id]: outlet };
+const fakeSleep = createTestFakeSleep();
+const defs = { [eyes.id]: eyes, [outlet.id]: outlet, [fakeSleep.id]: fakeSleep };
 const world: World = (
   await createSim({
     content: createTestContent(),
@@ -25,7 +27,7 @@ const world: World = (
     level: createTestLevel({
       waves: [testWave([OUTLET])],
       carry: CARRY,
-      sequences: ['bedtime_duel'],
+      sequences: ['bedtime_duel', 'fake_sleep_duel'],
     }),
     seed: 1,
   })
@@ -35,6 +37,30 @@ const signal = (id: number): SimEvent => ({
   type: 'WaitSignalGiven',
   t: asSimMs(1000),
   threatId: id,
+});
+
+const feint = (id: number): SimEvent => ({
+  type: 'WaitFeintGiven',
+  t: asSimMs(1000),
+  threatId: id,
+});
+
+describe('threatCueOf and the feint of a fake sleep (story 4.7)', () => {
+  it('maps the feint to the def’s feint cue, which is not the signal’s', () => {
+    expect(threatCueOf(feint(idOf(fakeSleep.id)), world, defs)).toBe(fakeSleep.feedback.feint);
+    expect(fakeSleep.feedback.feint).toBeDefined();
+    expect(fakeSleep.feedback.feint).not.toBe(fakeSleep.feedback.signal);
+    expect(threatCueOf(signal(idOf(fakeSleep.id)), world, defs)).toBe(fakeSleep.feedback.signal);
+  });
+
+  it('plays nothing for a feint of a def that has no feint cue', () => {
+    expect(threatCueOf(feint(idOf(eyes.id)), world, defs)).toBeNull();
+    expect(threatCueOf(feint(idOf(outlet.id)), world, defs)).toBeNull();
+  });
+
+  it('plays nothing for a feint of a threat the world does not know', () => {
+    expect(threatCueOf(feint(9999), world, defs)).toBeNull();
+  });
 });
 
 describe('threatCueOf and the signal of a wait (story 4.6)', () => {

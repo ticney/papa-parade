@@ -141,6 +141,14 @@ export interface ThreatInstance {
   enteredAt: SimMs;
   /** Telegraph entry plus the delay; 0 when idle. May be off the step grid. */
   windowOpenAt: SimMs;
+  /**
+   * The instant a `wait` threat that has a `feint` gives it (story 4.7), drawn at the telegraph; null
+   * for any other def, and when idle. Like `windowOpenAt` it sits in the world before it happens: the
+   * client reads `isFeintGiven`, never this.
+   */
+  feintAt: SimMs | null;
+  /** The feint has been given in this telegraph (story 4.7): false at every telegraph, and when idle. */
+  isFeintGiven: boolean;
   /** Frozen when the threat is telegraphed (a window that moves while read would be unfair); null when idle. */
   responseWindow: EffectiveWindow | null;
   press: PendingPress | null;

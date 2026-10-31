@@ -1,9 +1,19 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { expect, type Page, type TestInfo, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { THREAT_ICON_PATHS } from '../../src/client/ui/world/threatMarkers.ts';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
+import {
+  advanceTo,
+  cueIds,
+  openFrozen,
+  realTap,
+  shot,
+  shownMarkers,
+  start,
+  typesOf,
+  untilTelegraphed,
+} from './support/duel.ts';
 import {
   collectProblems,
   hapticPatternOfCue,
@@ -11,22 +21,11 @@ import {
   OVERRUN_MARGIN_MS,
   pauseButton,
   recordVibrations,
-  startLevel,
   vibrations,
   waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
-import {
-  ppAdvance,
-  ppCueLog,
-  ppEvents,
-  ppFreeze,
-  ppLoadLevel,
-  ppSend,
-  ppState,
-  ppWorld,
-  waitForTestApi,
-} from './support/testApi.ts';
+import { ppAdvance, ppSend, ppState, ppWorld, waitForTestApi } from './support/testApi.ts';
 
 // « Duel du coucher » (story 4.6) on the live level, driven by the test API on a frozen level (steps
 // by hand) with real taps, and in real time for the autoplay. Every bound is read from the live
@@ -34,8 +33,6 @@ import {
 // delay. Chromium and WebKit both run it; the vibrations are checked on Chromium only (WebKit has no
 // `navigator.vibrate`).
 
-const LEVEL = 'salon_crawler';
-const SEED = 42;
 const duel = JSON.parse(readFileSync('content/sequences/bedtime_duel.json', 'utf8')) as {
   steps: { kind: string; restMs: number }[];
   failure: { kind: string; maxRetreats: number };
@@ -53,76 +50,8 @@ const TIMER = '[data-pp-zone="timer"] .pp-hud-timer';
 const OVERLAY = '[data-debug-overlay]';
 const pauseHud = (page: Page) => pauseButton(page, STRINGS['hud.pause_button'] as string);
 
-async function openFrozen(page: Page): Promise<void> {
-  await startLevel(page);
-  await ppFreeze(page, true);
-  await ppLoadLevel(page, LEVEL, SEED);
-  // The audio is up before any tap: a first tap must not be the gesture that rescues it.
-  await expect(html(page)).toHaveAttribute('data-pp-audio', 'running');
-}
-
 type World = Awaited<ReturnType<typeof ppWorld>>;
 const eyesOf = (world: World) => world.threats.find((threat) => threat.defId === 'bedtime_eyes');
-
-async function start(page: Page): Promise<void> {
-  await ppSend(page, { type: 'StartSequence', sequenceId: 'bedtime_duel' });
-  await ppAdvance(page, 2);
-  await expect(html(page)).toHaveAttribute('data-pp-sequence', 'bedtime_duel');
-}
-
-/** Steps, in chunks of 100 ms, until the eyes are `telegraph`: their signal is drawn and not given. */
-async function untilTelegraphed(page: Page): Promise<{ windowOpenAt: number; windowMs: number }> {
-  for (let i = 0; i < 400; i++) {
-    const eyes = eyesOf(await ppWorld(page));
-    if (eyes?.state === 'telegraph' && eyes.responseWindow !== null) {
-      return { windowOpenAt: eyes.windowOpenAt, windowMs: eyes.responseWindow.windowMs };
-    }
-    await ppAdvance(page, 10);
-  }
-  throw new Error('the eyes were never telegraphed');
-}
-
-/** Steps, by hand, to the first step at or after `untilMs` of sim time. */
-async function advanceTo(page: Page, untilMs: number): Promise<void> {
-  const now = (await ppWorld(page)).time.sim;
-  const steps = Math.max(0, Math.ceil((untilMs - now) / STEP_MS));
-  if (steps > 0) await ppAdvance(page, steps);
-  // The loop records the new clock at its next frames: an input stamped before that is mapped
-  // between the old clock and the new one, not onto the new one (the loop is frozen, the map flat).
-  await waitFrames(page, 3);
-}
-
-/** A real click in the bottom-left of the canvas: far from the marker, clear of the HUD's corners. */
-async function realTap(page: Page): Promise<void> {
-  const box = await page.locator('#pp-canvas').boundingBox();
-  if (box === null) throw new Error('the canvas has no box');
-  await page.mouse.click(box.x + box.width * 0.1, box.y + box.height * 0.9);
-}
-
-/** The markers that are shown (not `display: none`): the verb text and the path of the glyph. */
-const shownMarkers = (page: Page) =>
-  page.locator('.pp-threat').evaluateAll((elements) =>
-    elements
-      .filter((element) => getComputedStyle(element).display !== 'none')
-      .map((element) => ({
-        verb: element.querySelector('.pp-threat-verb')?.textContent ?? null,
-        glyph: element.querySelector('.pp-threat-icon path')?.getAttribute('d') ?? null,
-        classes: element.className,
-      })),
-  );
-
-/** A screenshot to look at: in `PP_SHOTS_DIR` when it is set (the story's review), else in the test's output. */
-const shot = (page: Page, testInfo: TestInfo, name: string) =>
-  page.screenshot({
-    path:
-      process.env.PP_SHOTS_DIR === undefined
-        ? testInfo.outputPath(name)
-        : join(process.env.PP_SHOTS_DIR, `${testInfo.project.name}-${name}`),
-  });
-
-const typesOf = async (page: Page, type: string) =>
-  (await ppEvents(page)).filter((event) => event.type === type);
-const cueIds = async (page: Page) => (await ppCueLog(page)).map((entry) => entry.cueId);
 
 test.describe('starting from the overlay', () => {
   test('the « Start » row starts the duel: no bar, the level stems off, the hush on, the babble off', async ({

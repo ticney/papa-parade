@@ -297,6 +297,7 @@ describe('gags', () => {
       'crayon_scribbles',
       'arms_wail',
       'baby_eyes_reopened',
+      'baby_sat_up',
     ]);
   });
 

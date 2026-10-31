@@ -391,6 +391,7 @@ function checkThreatReferences(
     problems.push(...checkThreatSounds(file, threat, feedback));
     problems.push(...checkThreatTwins(file, threat, feedback));
     problems.push(...checkThreatSignal(file, threat, feedback));
+    problems.push(...checkThreatFeint(file, threat, feedback));
   }
   return problems;
 }
@@ -475,6 +476,51 @@ function checkThreatSignal(
         message: `the cue "${cueId}" has no ${channel}, but the signal of a "wait" threat is told by sound, visual and vibration alike`,
       });
     }
+  }
+  return problems;
+}
+
+/**
+ * The feint of a `wait` threat (story 4.7) is told by sound, visual and vibration like the signal, but
+ * it must not be mistaken for it: its vibration and its clip differ from the signal's, so that it is
+ * readable with the sound off, and with the phone off the wrist. A cue that is not in `feedback.json`
+ * was reported already.
+ */
+function checkThreatFeint(
+  file: string,
+  threat: ThreatDef,
+  feedback: FeedbackTable,
+): ContentProblem[] {
+  const cueId = threat.feedback.feint;
+  if (cueId === undefined || !Object.hasOwn(feedback.cues, cueId)) return [];
+  const cue = feedback.cues[cueId];
+  const jsonPath = formatJsonPath(['feedback', 'feint']);
+  const problems: ContentProblem[] = [];
+  for (const channel of ['audio', 'visual', 'haptic'] as const) {
+    if (cue?.[channel] === undefined) {
+      problems.push({
+        file,
+        jsonPath,
+        message: `the cue "${cueId}" has no ${channel}, but the feint of a "wait" threat is told by sound, visual and vibration alike`,
+      });
+    }
+  }
+  const signalId = threat.feedback.signal;
+  if (signalId === undefined || !Object.hasOwn(feedback.cues, signalId)) return problems;
+  const signal = feedback.cues[signalId];
+  if (cue?.haptic !== undefined && cue.haptic === signal?.haptic) {
+    problems.push({
+      file,
+      jsonPath,
+      message: `the cue "${cueId}" vibrates "${cue.haptic}" like the signal "${signalId}", but the feint must be told from the signal by its vibration`,
+    });
+  }
+  if (cue?.audio !== undefined && cue.audio.clip === signal?.audio?.clip) {
+    problems.push({
+      file,
+      jsonPath,
+      message: `the cue "${cueId}" plays the clip "${cue.audio.clip}" like the signal "${signalId}", but the feint must be told from the signal by its sound`,
+    });
   }
   return problems;
 }

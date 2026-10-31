@@ -53,6 +53,8 @@ export const GAG_PRESENTATIONS: Readonly<Record<GagId, GagPresentation>> = {
   arms_wail: { lightsOff: false, hair: false, babySlide: false },
   // The eyes reopen in the bedtime duel (story 4.6): the gag cue and the retreat are the show until E7 draws the baby's eyes.
   baby_eyes_reopened: { lightsOff: false, hair: false, babySlide: false },
+  // The baby sits up in the fake sleep (story 4.7): same as the eyes, the gag cue, the cry and the retreat are the show until E7.
+  baby_sat_up: { lightsOff: false, hair: false, babySlide: false },
 };
 
 /** Total time the lights are off the full level, in sim ms. */

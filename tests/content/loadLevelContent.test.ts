@@ -57,6 +57,7 @@ describe('loadLevelContent', () => {
       'papa_microsleep',
       'arms_cry',
       'bedtime_eyes',
+      'fake_sleep',
     ]);
     expect(result.value.threats.papa_microsleep?.target).toBe('papa');
     expect(result.value.threats.arms_cry?.target).toBe('papa');

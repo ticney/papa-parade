@@ -785,6 +785,19 @@
 - **The step estimates (`stepEndsAt`, `endsAt`) of a duel are not times anything waits for**: only the snapshot's ordering check reads them. 4.8 reuses `isTimed` and `goToSequenceStep`.
 - **After a sequence the baby stays carried and the bots never put him down** (4.10): the cry in the arms goes on, so a `perfect` bot's stars fall after the duel. Expected.
 
+## Story 4-7-faux-sommeil (2026-10-31)
+
+- **The fake sleep is the duel's third round** (open point 1, D1): the epic and 4.10's chain give it no place of its own. One line of `content/sequences/bedtime_duel.json` moves it.
+- **The feint keeps « ATTENDS… »** (open point 2, D2): the glyph (a half-open eye), the sound and a lighter vibration are the three channels that tell it from the signal. If everyone sees through it, a shorter glance or a closer sound makes it meaner.
+- **A late press on the fake sleep also cries** (open point 3, D6), not only a press on the feint: one gag and one cost per def, as `baby_eyes_reopened` shares `early` and `late`.
+- **The noise is +4 %** (open point 4): `gagCryMs` 2000, two `BabyCrying` at 2 % each. The GDD does not price it (L216).
+- **No bot falls for the feint** (open point 5): `perfect` reads the drawn signal, `human` never presses before `windowOpen`. The sim tables say nothing of how hard the feint is for a player; only playing does. 4.10's playtest metrics are the measure.
+- **The tuning is a guess** (open point 6): feint 1.2-2.6 s after the telegraph, signal 3.5-7 s after it, at least 0.9 s between them (`minGapMs`, a design key: a reflex on the feint must never land in the real window).
+- **The baby does not sit up on screen** (open point 7): the half-open eye is a glyph and « le bébé se relève » is a sound, a cue and the marker, until E7.
+- **The peek glyph is a placeholder** (two eyes, one a crescent, one half open): it reads differently from `eyes` and `eyelids` at 667 × 375, but E7 draws the final one.
+- **`ThreatMarkerDef` takes `feint: { icon }`, not a flat `feintIcon`**: a `ThreatDef` is assigned to it as it is, with no mapping; the entry carries `feintIcon` as the story says.
+- **A level end mid-round leaves the fake sleep's instance in `telegraph`** (as 4.6's eyes): the sim steps no threat once the level has ended, so no feint comes, but the instance and its drawn `feintAt` stay in the final world.
+
 ## Deferred from: code review of story 4-6-duel-du-coucher-reponse-attendre (2026-10-31)
 
 - `response: "wait"` is accepted by the schema, `createSim` and `content:check` in roles the story does not run (a wave-planned anchor, a `hiddenZone` threat, `microSleepDef`, `armsCryDef`). The behaviour there (`earlyPress` bypassed, `maxDelayMs` counted by `isJudgeableBeforeEnd`) is untested and unspecified. Forbid it or specify it before a level uses it.
