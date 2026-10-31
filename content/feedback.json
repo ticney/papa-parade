@@ -9,7 +9,8 @@
   "haptics": {
     "light": { "patternMs": [15] },
     "medium": { "patternMs": [30] },
-    "heavy": { "patternMs": [60] }
+    "heavy": { "patternMs": [60] },
+    "heartbeat": { "patternMs": [30, 90, 30] }
   },
   "loops": {
     "babble": { "clip": "baby_babble_loop", "bus": "voice", "gainPct": 100, "fadeMs": 80 },
@@ -72,6 +73,11 @@
     },
     "silence_started": { "haptic": "light" },
     "noise_alert": { "visual": { "kind": "uiElement" }, "haptic": "medium" },
+    "instinct_triggered": {
+      "audio": { "clip": "papa_heartbeat", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "heartbeat"
+    },
     "hold_closed": { "haptic": "medium" },
     "tel_silence_found": {
       "audio": { "clip": "tel_silence_found", "bus": "sfx", "gainPct": 90 },
@@ -283,6 +289,7 @@
     "BabyWoke": "baby_woke",
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
+    "InstinctVignetteShown": "instinct_triggered",
     "ResultStarStamped": "result_star",
     "ResultLastStarStamped": "result_star_last",
     "ResultMamaWokeShown": "mama_woke",

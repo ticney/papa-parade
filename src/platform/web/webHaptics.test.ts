@@ -2,7 +2,7 @@ import { log } from '@shared/log';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createWebHaptics, type NavigatorLike } from './webHaptics.ts';
 
-const PATTERNS = { light: [15], medium: [30, 10, 30], heavy: [60] };
+const PATTERNS = { light: [15], medium: [30, 10, 30], heavy: [60], heartbeat: [30, 90, 30] };
 
 // Warnings go through the shared `log`; read them back from its ring buffer.
 const warnings = (): string[] =>
@@ -46,7 +46,7 @@ describe('createWebHaptics', () => {
   });
 
   it('does not let a later change of the table patterns reach a pulse', () => {
-    const patterns = { light: [15], medium: [30], heavy: [60] };
+    const patterns = { light: [15], medium: [30], heavy: [60], heartbeat: [30, 90, 30] };
     const seen: number[][] = [];
     const { haptics } = createWebHaptics(
       {

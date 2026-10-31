@@ -9,7 +9,7 @@ import { FX_PRESET_IDS } from './feel.ts';
 // so that the file, the type and the emitted JSON Schema map one to one.
 
 export const AUDIO_BUSES = ['music', 'sfx', 'voice', 'ui'] as const;
-export const HAPTIC_KINDS = ['light', 'medium', 'heavy'] as const;
+export const HAPTIC_KINDS = ['light', 'medium', 'heavy', 'heartbeat'] as const;
 
 /** `<category>_<name>`, the categories of the architecture (Conventions › Audio). */
 const CLIP_PATTERN = /^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$/;
@@ -56,6 +56,7 @@ const HapticsSchema = z
     light: HapticSchema.describe('A light tap: a tick, a bump.'),
     medium: HapticSchema.describe('A medium tap: a response.'),
     heavy: HapticSchema.describe('A heavy tap: a gag.'),
+    heartbeat: HapticSchema.describe('A lub-dub: Fatherly Instinct kicks in (story 2.9).'),
   })
   .describe('The vibration of each kind. A browser without vibration ignores them.');
 

@@ -22,6 +22,7 @@ import {
   synthGagPapaAsleep,
   synthGagSilence,
   synthGagStairs,
+  synthHeartbeat,
   synthMusic,
   synthMusicTense,
   synthParry,
@@ -311,6 +312,44 @@ describe('placeholder audio', () => {
     expect(synthComboCashIn()).not.toEqual(
       synthStarStampLast().slice(0, synthComboCashIn().length),
     );
+  });
+
+  describe('the heartbeat (story 2.9)', () => {
+    it('is in the table once, as a papa_ clip, right after the toilet door', () => {
+      const clips = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+      expect(clips.filter((clip) => clip === 'papa_heartbeat')).toHaveLength(1);
+      expect(clips.indexOf('papa_heartbeat')).toBe(clips.indexOf('papa_toilet_door') + 1);
+    });
+
+    it('lasts about 3 s, fades out, starts and ends on silence and gives the same bytes twice', () => {
+      const beat = synthHeartbeat();
+      expect(beat.length / SAMPLE_RATE_HZ).toBeCloseTo(3, 1);
+      expect(beat[0]).toBe(0);
+      expect(beat[beat.length - 1]).toBe(0);
+      expect(synthHeartbeat()).toEqual(beat);
+      expect(peakOf(beat)).toBeLessThanOrEqual(0.45 + 1e-6);
+      // Each second is quieter than the one before.
+      const third = Math.floor(beat.length / 3);
+      const peaks = [0, 1, 2].map((part) => peakOf(beat.slice(part * third, (part + 1) * third)));
+      expect(peaks[0]).toBeGreaterThan(peaks[1] as number);
+      expect(peaks[1]).toBeGreaterThan(peaks[2] as number);
+    });
+
+    it('thumps twice in each one-second beat: a lub, a quieter dub, then silence', () => {
+      const beat = synthHeartbeat();
+      const windowOf = (fromMs: number, toMs: number) =>
+        peakOf(
+          beat.slice(
+            Math.round((fromMs / 1000) * SAMPLE_RATE_HZ),
+            Math.round((toMs / 1000) * SAMPLE_RATE_HZ),
+          ),
+        );
+      const lub = windowOf(0, 200);
+      const dub = windowOf(280, 480);
+      const rest = windowOf(700, 990);
+      expect(lub).toBeGreaterThan(dub);
+      expect(dub).toBeGreaterThan(rest * 5);
+    });
   });
 
   it('makes each telegraph and each gag sound unlike the others (no two clips are alike)', () => {

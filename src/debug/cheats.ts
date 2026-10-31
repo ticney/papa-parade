@@ -168,6 +168,26 @@ export function launchThreat(context: CheatContext, threatId: number): boolean {
   return context.send({ type: 'ForceThreat', threatId });
 }
 
+/**
+ * Why `ForceInstinct` would do nothing now, or `null` when the sim would take it: the sim ignores it
+ * (with no event) while the instinct is on and at a tier with no instinct, so the overlay must not
+ * say « sent ». Reads the same two things as `runInstinct`: `instinct.state` and the tier's `hasInstinct`.
+ */
+export function instinctRefusalReason(world: Readonly<World>): string | null {
+  if (!world.feel.difficulty[world.difficultyTier].hasInstinct) return 'this tier has no instinct';
+  if (world.instinct.state === 'active') return 'the instinct is already on';
+  return null;
+}
+
+/**
+ * Sends `ForceInstinct`: Fatherly Instinct starts now, ignoring the threats, the misses and the
+ * recharge (story 2.9). The sim ignores it while the instinct is on, and for a tier with no instinct
+ * ({@link instinctRefusalReason}).
+ */
+export function forceInstinct(context: CheatContext): boolean {
+  return context.send({ type: 'ForceInstinct' });
+}
+
 export interface SkipToEnd {
   /** Starts running chunks of steps each frame until the level ends. A second call while running does nothing. */
   start(): void;

@@ -76,6 +76,7 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     comboCashIns: 0,
     comboPointsCashed: 0,
     comboPeakMultiplier: 0,
+    instinctTriggers: 0,
     toiletVisits: 0,
     sequencesStarted: 0,
     sequencesSucceeded: 0,
@@ -925,6 +926,21 @@ describe('a level that carries the baby (story 4.1)', () => {
       run(3, { toiletVisits: 0, bladderPeakPct: 12.3 }),
     ]);
     expect(report).toMatchObject({ toiletVisits: 3, bladderPeakPct: 72 });
+  });
+
+  it('counts the instincts triggered per run and sums them over the runs (story 2.9)', async () => {
+    const { recorder: rec } = await recorder();
+    expect(rec.finish()).toMatchObject({ instinctTriggers: 0 });
+    rec.onEvent({ type: 'InstinctTriggered', t: asSimMs(100), untilAt: asSimMs(4100) });
+    rec.onEvent({ type: 'InstinctEnded', t: asSimMs(4100), reason: 'timer' });
+    rec.onEvent({ type: 'InstinctTriggered', t: asSimMs(40_000), untilAt: asSimMs(44_000) });
+    expect(rec.finish()).toMatchObject({ instinctTriggers: 2 });
+    const report = summarizeRuns(INPUT, [
+      run(1, { instinctTriggers: 2 }),
+      run(2, { instinctTriggers: 0 }),
+      run(3, { instinctTriggers: 1 }),
+    ]);
+    expect(report).toMatchObject({ instinctTriggers: 3 });
   });
 
   it('sums the combo counters over the runs and keeps the highest peak', () => {

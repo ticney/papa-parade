@@ -2,7 +2,7 @@ import { log } from '@shared/log';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createPlatform } from './createPlatform.ts';
 
-const PATTERNS = { light: [15], medium: [30], heavy: [60] };
+const PATTERNS = { light: [15], medium: [30], heavy: [60], heartbeat: [30, 90, 30] };
 
 beforeAll(() => {
   log.setLevel('error');

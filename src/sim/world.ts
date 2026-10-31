@@ -325,14 +325,53 @@ export interface SequenceSlice {
   nextMicroSleepAt: SimMs | null;
 }
 
-/** What started a slow-mo. Story 1.18 triggers `lastThreat`; story 2.9 adds `instinct`. */
-export type SlowMoSource = 'perfect' | 'lastThreat' | 'comboCashIn';
+/**
+ * Fatherly Instinct (FR20, story 2.9): `ready` (can trigger), `active` (slow-mo and wider windows
+ * until `untilAt`), `cooldown` (recharging until `untilAt`, counted from the end of `active`).
+ */
+export type InstinctState = 'ready' | 'active' | 'cooldown';
+
+/** Every `InstinctState`, as data: a snapshot is checked against it. */
+export const INSTINCT_STATES = [
+  'ready',
+  'active',
+  'cooldown',
+] as const satisfies readonly InstinctState[];
+
+type UnlistedInstinctState = Exclude<InstinctState, (typeof INSTINCT_STATES)[number]>;
+
+/** Compile-time proof that `INSTINCT_STATES` holds every member of the union (see `THREAT_STATES_ARE_COMPLETE`). */
+export const INSTINCT_STATES_ARE_COMPLETE: [UnlistedInstinctState] extends [never]
+  ? true
+  : UnlistedInstinctState = true;
+
+/**
+ * Fatherly Instinct's memory (story 2.9). `missAts` is written at the source by `recordMiss` (one
+ * entry per `ResponseResolved{fail}`, at most `feel.instinct.missesCount` kept, ascending) and
+ * emptied by a trigger; `state` changes only through `enterInstinctState`.
+ */
+export interface InstinctSlice {
+  state: InstinctState;
+  /** Sim time of the last state change. */
+  enteredAt: SimMs;
+  /**
+   * The instant the current state ends, in sim time: the end of `active` (`durationMs` frozen at the
+   * trigger) or of `cooldown` (`cooldownMs` frozen at the end); `asSimMs(0)` in `ready`.
+   */
+  untilAt: SimMs;
+  /** When the last misses happened, in sim time, oldest first. */
+  missAts: SimMs[];
+}
+
+/** What started a slow-mo: a perfect, the last threat of a wave (1.18), a combo cash-in (4.2) or Fatherly Instinct (2.9). */
+export type SlowMoSource = 'perfect' | 'lastThreat' | 'comboCashIn' | 'instinct';
 
 /** Every `SlowMoSource`, as data: a snapshot is checked against it. */
 export const SLOW_MO_SOURCES = [
   'perfect',
   'lastThreat',
   'comboCashIn',
+  'instinct',
 ] as const satisfies readonly SlowMoSource[];
 
 type UnlistedSlowMoSource = Exclude<SlowMoSource, (typeof SLOW_MO_SOURCES)[number]>;
@@ -402,6 +441,8 @@ export interface World {
   sequence: SequenceSlice;
   /** The combo (story 4.2). */
   combo: ComboSlice;
+  /** Fatherly Instinct (story 2.9). */
+  instinct: InstinctSlice;
   /** What feeds Mama's note, and the note once the level has ended (story 1.22). */
   score: ScoreSlice;
   /** What the client has told the sim about the player's input (story 2.7). */
@@ -544,6 +585,7 @@ export function createWorld({
       nextMicroSleepAt: null,
     },
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
+    instinct: { state: 'ready', enteredAt: asSimMs(0), untilAt: asSimMs(0), missAts: [] },
     score: { perfects: 0, nearMisses: 0, comboPoints: 0, final: null },
     input: { lagMs: 0 },
     difficultyTier: DEFAULT_DIFFICULTY_TIER,
