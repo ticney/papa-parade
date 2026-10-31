@@ -789,3 +789,5 @@
 
 - `response: "wait"` is accepted by the schema, `createSim` and `content:check` in roles the story does not run (a wave-planned anchor, a `hiddenZone` threat, `microSleepDef`, `armsCryDef`). The behaviour there (`earlyPress` bypassed, `maxDelayMs` counted by `isJudgeableBeforeEnd`) is untested and unspecified. Forbid it or specify it before a level uses it.
 - The snapshot's `duelProblem` does not cross-check `world.sequence.duel.nextRoundAt === null` with the duel threat's state (`idle` with no round pending passes). To settle with the « round that no longer fits » decision of the same review.
+- The marker stack order and the Space/A auto-target read `windowOpenAt + windowMs` of a `wait` threat (`threatCloseAt`), so the unrevealed signal time orders markers when another one is up. Not reachable in the duel (one threat up). Give `wait` a close time only from its signal on before running `wait` outside a duel.
+- A thumb resting on the canvas makes the real tap non-primary and ignored (`inputMapper.ts:407`); with « a finger anywhere is the press » it can decide a duel. Decide after playing (story 4.6 open point 4 is about holds, not resting fingers).

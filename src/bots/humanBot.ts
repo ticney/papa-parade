@@ -83,9 +83,9 @@ export function createHumanBot(setup: BotSetup): Bot {
         if (response === 'wait') {
           // A reaction to the signal, not an aim at the centre: the jitter is on the reaction, so
           // it can be late. One draw, like the other responses.
-          const reaction =
+          const reactionAt =
             threat.windowOpenAt + reactionMs + aimOffsetMs + jitterSdMs * nextGaussian(rng);
-          const pressAt = Math.max(Math.round(reaction), now);
+          const pressAt = Math.max(Math.round(reactionAt), now);
           schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
           continue;
         }

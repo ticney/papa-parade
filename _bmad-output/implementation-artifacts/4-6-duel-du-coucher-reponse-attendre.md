@@ -245,6 +245,15 @@ Code review of 2026-10-31, group 1 only (sim, content, schemas: `src/sim`, `src/
 - [x] [Review][Defer] `response: "wait"` is accepted in roles the story does not run (a wave-planned anchor, a `hiddenZone` threat, `microSleepDef`, `armsCryDef`); the behaviour (`earlyPress` bypassed, `maxDelayMs` in `isJudgeableBeforeEnd`) is untested and unspecified [src/sim/createSim.ts:208-286] — deferred, not caused by a defect of this story
 - [x] [Review][Defer] `duelProblem` of the snapshot does not cross-check `nextRoundAt === null` with the duel threat's state: an imported snapshot with a running duel, no round pending and an idle threat passes and stalls like the Decision above [src/sim/snapshot.ts] — deferred, to settle together with the Decision
 
+Group 2 (client, bots, tools), same day. No finding above low severity survived verification.
+
+- [x] [Review][Patch] `humanBot` named an instant `reaction`; it is `reactionAt` now [src/bots/humanBot.ts:86]
+- [x] [Review][Patch] The `fingerPlanFor` doc still listed `wait` among the responses that fail to typecheck until taught [src/bots/threatTiming.ts:25]
+- [x] [Review][Patch] `sim --help` did not document `sequenceRetreats` nor that `microSleeps` excludes the duel's threat [tools/sim/simArgs.ts:70]
+- [x] [Review][Patch] The test « Space and the pad's A… » drove the keyboard only; its title says what it checks now [src/client/input/inputMapper.test.ts:1523]
+- [x] [Review][Defer] A `wait` threat's marker stack order (`threatCloseAt` = `windowOpenAt + windowMs`) and the auto-target of Space/A depend on the unrevealed signal time when another marker is up at the same time; the duel has one threat up, so nothing leaks there, and `waitMarker.test.ts` builds instances with `responseWindow: null`, so it does not see it [src/client/input/urgency.ts:11, src/client/ui/world/threatMarkers.ts] — deferred, only reachable once `wait` runs outside the duel (see the first deferral of group 1)
+- [x] [Review][Defer] A thumb resting on the canvas makes the real tap non-primary (`!sample.isPrimary` returns before any press): with « a finger anywhere is the press » (D10) it decides a duel for the first time. A design call to settle by playing, with open point 4 [src/client/input/inputMapper.ts:407] — deferred to the playtest, Geo's call
+
 ## Dev Notes
 
 ### Decisions (D1-D10)

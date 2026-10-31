@@ -1520,7 +1520,7 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       expect(markers).toEqual([]);
     });
 
-    it('Space and the pad’s A reach the threat, and their release ends it', () => {
+    it('Space reaches the threat, and its release ends it (the pad’s A shares its path)', () => {
       const { mapper, sim, commands } = setup();
       inDuel(sim, 'windowOpen');
       mapper.handleAction('down', 1500, 'keyboard');
