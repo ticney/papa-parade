@@ -4,7 +4,7 @@ baseline_commit: acc51534b71b04c6695a6debaa9e1b88c8625047
 
 # Story 4.5: The hundred steps, in rhythm
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.5 « Les 100 pas en rythme » (L1910-1930). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
