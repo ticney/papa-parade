@@ -386,6 +386,56 @@ describe('createGameLoop › freeze (hitstop)', () => {
   });
 });
 
+describe('createGameLoop › clockMs and simPerRealMs (story 4.5)', () => {
+  it('start at 0, then follow the clock and the rate the time map recorded', async () => {
+    const rig = await createRig();
+    expect(rig.loop.clockMs).toBe(0);
+    expect(rig.loop.simPerRealMs).toBe(0);
+    rig.tick(0);
+    rig.tick(3 * STEP_MS + 4);
+    // The continuous clock: the world's stairs plus the owed 4 ms, not the 10 ms stairs alone.
+    expect(rig.loop.clockMs).toBeCloseTo(3 * STEP_MS + 4, 9);
+    expect(rig.loop.clockMs).toBeGreaterThan(rig.simMs());
+    expect(rig.loop.simPerRealMs).toBe(1);
+    // It is the very clock the time map holds: the stamp of the last frame maps onto it.
+    expect(rig.timeMap.realToSim(asRealMs(3 * STEP_MS + 4))).toBeCloseTo(rig.loop.clockMs, 6);
+  });
+
+  it('report timeScale × speed, and 0 while a hitstop holds the clock', async () => {
+    const rig = await createRig({ speed: 2 });
+    rig.tick(0);
+    rig.tick(FRAME_MS);
+    expect(rig.loop.simPerRealMs).toBe(2);
+    rig.setFreeze(5 * FRAME_MS);
+    rig.tick(2 * FRAME_MS);
+    expect(rig.loop.simPerRealMs).toBe(0);
+    const frozenClockMs = rig.loop.clockMs;
+    rig.tick(3 * FRAME_MS);
+    expect(rig.loop.clockMs).toBe(frozenClockMs);
+  });
+
+  it('follow advance() too: frozen, the clock moves with the steps it ran (a screenshot reads it)', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    rig.tick(2 * STEP_MS);
+    const before = rig.loop.clockMs;
+    rig.loop.advance(5);
+    expect(rig.loop.clockMs).toBeGreaterThanOrEqual(before + 5 * STEP_MS - 1e-9);
+    expect(rig.loop.simPerRealMs).toBe(0);
+  });
+
+  it('report a rate of 0 while the game is paused, and never go back', async () => {
+    const rig = await createRig();
+    rig.tick(0);
+    rig.tick(5 * STEP_MS);
+    const clockMs = rig.loop.clockMs;
+    rig.pause.requestPause('user');
+    rig.tick(6 * STEP_MS);
+    expect(rig.loop.simPerRealMs).toBe(0);
+    expect(rig.loop.clockMs).toBeGreaterThanOrEqual(clockMs);
+  });
+});
+
 describe('createGameLoop › events', () => {
   it('drains the sim events after each step and hands them to onSimEvent', async () => {
     const rig = await createRig();

@@ -1,6 +1,9 @@
 import type { SequenceDef } from '@content/schemas/sequence';
 import { describe, expect, it } from 'vitest';
-import { createTestStayAwake } from '../../../../tests/support/testContent.ts';
+import {
+  createTestLullabyWalk,
+  createTestStayAwake,
+} from '../../../../tests/support/testContent.ts';
 import { createSequenceBar, type SequenceBarWorld } from './sequenceBar.ts';
 
 /** The few things of the DOM that the bar touches, counting its writes. */
@@ -74,9 +77,78 @@ function build(def: SequenceDef = createTestStayAwake()) {
   return { bar, parent, node, def };
 }
 
-const worldAt = (nowMs: number, id: string | null = 'stay_awake'): SequenceBarWorld => ({
-  sequence: { id, startedAt: 1000, endsAt: 16_000 },
+const worldAt = (
+  nowMs: number,
+  id: string | null = 'stay_awake',
+  wakePct = 0,
+): SequenceBarWorld => ({
+  sequence: { id, startedAt: 1000, endsAt: 16_000, beat: { wakePct } },
   time: { sim: nowMs },
+});
+
+describe('createSequenceBar › calmLeft (story 4.5)', () => {
+  const lullaby: SequenceDef = createTestLullabyWalk();
+
+  it('shows 100 minus the baby’s wake, in whole percent, whatever the time left', () => {
+    const { bar, node } = build(lullaby);
+    expect(bar.update(worldAt(1000, 'lullaby_walk', 0), lullaby)).toBe(100);
+    expect(bar.update(worldAt(8000, 'lullaby_walk', 25), lullaby)).toBe(75);
+    expect(bar.update(worldAt(15_000, 'lullaby_walk', 62.4), lullaby)).toBe(38);
+    expect(bar.update(worldAt(15_000, 'lullaby_walk', 100), lullaby)).toBe(0);
+    expect(bar.update(worldAt(15_000, 'lullaby_walk', 130), lullaby)).toBe(0);
+    // A player resource: the calm fill.
+    expect(node.classes.has('pp-hud-sequence-bar--calm')).toBe(true);
+  });
+
+  it('slides out empty after the baby woke: the last stir and the end fall in one step', () => {
+    const { bar, parent, node } = build(lullaby);
+    bar.attachTo(parent as unknown as HTMLElement);
+    bar.setPercent(bar.update(worldAt(5000, 'lullaby_walk', 88), lullaby));
+    bar.frame(0);
+    bar.frame(16);
+    expect(bar.isMounted).toBe(true);
+    expect(node.attributes.get('aria-valuenow')).toBe('12');
+    // `SequenceEnded{failed}` clears the slice (id null, wake 0) in the step that woke him; the bar
+    // is told, and neither refills nor keeps the 12 % of the frame before: he is awake.
+    bar.markFailed();
+    const percent = bar.update(worldAt(5010, null, 0), lullaby);
+    expect(percent).toBe(0);
+    bar.setPercent(percent);
+    bar.frame(100);
+    expect(node.attributes.get('aria-valuenow')).toBe('0');
+    bar.frame(100 + SLIDE_MS);
+    expect(bar.isMounted).toBe(false);
+  });
+
+  it('keeps its last value when the walk ended well: a won bar keeps what it showed', () => {
+    const { bar } = build(lullaby);
+    bar.setPercent(bar.update(worldAt(15_000, 'lullaby_walk', 38), lullaby));
+    bar.frame(0);
+    bar.frame(16);
+    expect(bar.update(worldAt(15_010, null, 0), lullaby)).toBe(62);
+  });
+
+  it('forgets a failure when the next walk starts', () => {
+    const { bar } = build(lullaby);
+    bar.setPercent(bar.update(worldAt(5000, 'lullaby_walk', 88), lullaby));
+    bar.frame(0);
+    bar.frame(16);
+    bar.markFailed();
+    expect(bar.update(worldAt(5010, null, 0), lullaby)).toBe(0);
+    expect(bar.update(worldAt(9000, 'lullaby_walk', 25), lullaby)).toBe(75);
+    // And it ends well this time.
+    bar.setPercent(75);
+    expect(bar.update(worldAt(9010, null, 0), lullaby)).toBe(75);
+  });
+
+  it('keeps the time left of a time bar after a failure: only the baby’s calm is emptied', () => {
+    const { bar, def } = build();
+    bar.setPercent(bar.update(worldAt(8500), def));
+    bar.frame(0);
+    bar.frame(16);
+    bar.markFailed();
+    expect(bar.update(worldAt(8510, null), def)).toBe(50);
+  });
 });
 
 describe('createSequenceBar', () => {

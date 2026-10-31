@@ -251,9 +251,9 @@ describe('content/levels/salon_crawler.json', () => {
   });
 
   describe('the sequences of the level (story 4.4)', () => {
-    it('lists « Rester éveillé » in the live level, and defaults to none', () => {
+    it('lists « Rester éveillé » and « Les 100 pas » in the live level, and defaults to none', () => {
       const parsed = parse(real);
-      expect(parsed.ok && parsed.value.sequences).toEqual(['stay_awake']);
+      expect(parsed.ok && parsed.value.sequences).toEqual(['stay_awake', 'lullaby_walk']);
       const { sequences: _sequences, ...bare } = real;
       const defaulted = parse(bare);
       expect(defaulted.ok && defaulted.value.sequences).toEqual([]);

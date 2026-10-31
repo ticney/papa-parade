@@ -3,11 +3,18 @@ import { createTestFeedback } from '../../tests/support/testContent.ts';
 import { feedbackClips } from './feedbackClips.ts';
 
 describe('feedbackClips', () => {
-  it('lists the loops and the cue clips, once each, sorted', () => {
+  it('lists the loops, the rhythm tracks and the cue clips, once each, sorted', () => {
     expect(feedbackClips(createTestFeedback())).toEqual([
       'baby_babble_loop',
+      'baby_lullaby_coo',
       'music_crawler_calm',
       'music_crawler_tense',
+      'music_lullaby_note_1',
+      'music_lullaby_note_2',
+      'music_lullaby_note_3',
+      'music_lullaby_note_4',
+      'music_lullaby_pad',
+      'music_lullaby_tick',
       'music_stay_awake',
       'papa_bump',
       'ui_calibration_beep',
@@ -22,8 +29,15 @@ describe('feedbackClips', () => {
     };
     expect(feedbackClips(table)).toEqual([
       'baby_babble_loop',
+      'baby_lullaby_coo',
       'music_crawler_calm',
       'music_crawler_tense',
+      'music_lullaby_note_1',
+      'music_lullaby_note_2',
+      'music_lullaby_note_3',
+      'music_lullaby_note_4',
+      'music_lullaby_pad',
+      'music_lullaby_tick',
       'music_stay_awake',
       'papa_bump',
       'ui_calibration_beep',
@@ -44,9 +58,16 @@ describe('feedbackClips', () => {
     expect(feedbackClips(table)).toEqual([
       'baby_babble_loop',
       'baby_laugh_perfect',
+      'baby_lullaby_coo',
       'env_applause',
       'music_crawler_calm',
       'music_crawler_tense',
+      'music_lullaby_note_1',
+      'music_lullaby_note_2',
+      'music_lullaby_note_3',
+      'music_lullaby_note_4',
+      'music_lullaby_pad',
+      'music_lullaby_tick',
       'music_stay_awake',
       'papa_bump',
       'ui_calibration_beep',

@@ -35,7 +35,17 @@ import {
   PHYSICS_BOUNDS_WALL_THICKNESS_M,
   STEP_MS,
 } from '@shared/constants';
-import { GAG_IDS, OBJECT_ACTION_KINDS, PAPA_ASLEEP_GAG_ID, SIM_EVENT_TYPES } from '@sim';
+import {
+  beatWindowLimitsOf,
+  GAG_IDS,
+  OBJECT_ACTION_KINDS,
+  PAPA_ASLEEP_GAG_ID,
+  SIM_EVENT_TYPES,
+  sequenceBeatProblems,
+} from '@sim';
+
+/** What the beat checks assume when `feel.json` did not load: the normal tier, no tolerance (story 4.5). */
+const NO_FEEL_BEAT_LIMITS = { maxWindowMultiplier: 1, toleranceMs: 0 } as const;
 
 const SCHEMAS_DIR = '_schemas';
 const AUDIO_DIR = ['public', 'assets', 'audio'];
@@ -222,6 +232,15 @@ async function checkFeedbackReferences(
       clip: loop.clip,
       path: ['loops', 'sequenceMusic', id, 'clip'],
     })),
+    // The rhythm tracks (story 4.5): every note, the count-in tick and the decoy have their file.
+    ...Object.entries(table.beatTracks).flatMap(([id, track]) => [
+      ...track.notes.map((clip, index) => ({
+        clip,
+        path: ['beatTracks', id, 'notes', index],
+      })),
+      { clip: track.countIn, path: ['beatTracks', id, 'countIn'] },
+      { clip: track.decoy, path: ['beatTracks', id, 'decoy'] },
+    ]),
     ...Object.entries(table.cues).flatMap(([id, cue]) => [
       ...(cue.audio === undefined
         ? []
@@ -590,7 +609,9 @@ function microSleepFitProblem(
  * has its file and what it needs (the baby in the arms needs `carry`, a micro-sleeps step needs
  * `gauges.fatigue.microSleepDef`), each of its feedback cues is a cue of `feedback.json` anchored
  * on Papa (a sequence event names no threat and no object), and its music loop is one of
- * `loops.sequenceMusic`. (Its `framing.bar.labelKey` is a `…Key` property: `checkStringReferences`
+ * `loops.sequenceMusic`. Its beats (story 4.5) are checked by `sequenceBeatProblems`: the track is
+ * one of `beatTracks`, a judged beat exists, every decoy has a next one, a window is shorter than the
+ * shortest beat interval, `calmLeft` needs a `babyAwake` failure. (Its `framing.bar.labelKey` is a `…Key` property: `checkStringReferences`
  * walks it with every other content file.)
  */
 function checkSequenceReferences(
@@ -646,6 +667,21 @@ function checkSequenceReferences(
   if (feedback === undefined) return problems;
   for (const [id, sequence] of families.sequences) {
     const file = `content/${SEQUENCE_DEF_PATTERN.dir}/${id}${SEQUENCE_DEF_PATTERN.suffix}`;
+    // The beats (story 4.5): the words are `simLevelOf`'s, the function is shared with it. Without
+    // the feel (it is reported on its own) there is no widest window to check the decoys against: a
+    // neutral one keeps every other rule running, and only the decoy zones are looser.
+    const beatProblems = sequenceBeatProblems(
+      sequence,
+      Object.keys(feedback.beatTracks),
+      feel === undefined ? NO_FEEL_BEAT_LIMITS : beatWindowLimitsOf(feel),
+    );
+    for (const problem of beatProblems) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['steps']),
+        message: `the sequence "${id}" ${problem}`,
+      });
+    }
     for (const [role, cueId] of Object.entries(sequence.feedback)) {
       const path = formatJsonPath(['feedback', role]);
       if (!Object.hasOwn(feedback.cues, cueId)) {

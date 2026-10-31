@@ -1,0 +1,30 @@
+{
+  "$schema": "../_schemas/sequence.schema.json",
+  "id": "lullaby_walk",
+  "babyCarried": true,
+  "steps": [
+    {
+      "kind": "beats",
+      "durationMs": 40000,
+      "track": "lullaby",
+      "bpmStart": 90,
+      "bpmEnd": 60,
+      "leadInMs": 1200,
+      "countInBeats": 4,
+      "windowMs": 180,
+      "decoyBeats": [20, 25, 30, 35, 40]
+    }
+  ],
+  "success": { "kind": "stepsDone" },
+  "failure": { "kind": "babyAwake", "missWakePct": 12, "decoyWakePct": 20, "strayWakePct": 6 },
+  "framing": {
+    "camera": { "zoomPct": 18, "focusPct": 60, "inMs": 900, "outMs": 700 },
+    "musicLoop": "lullaby_walk",
+    "bar": { "labelKey": "hud.sequence_lullaby_walk", "fill": "player", "value": "calmLeft" }
+  },
+  "feedback": {
+    "started": "sequence_started",
+    "succeeded": "sequence_succeeded",
+    "failed": "sequence_failed"
+  }
+}

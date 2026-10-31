@@ -2,7 +2,7 @@ import type { Feel } from '@content/schemas/feel';
 import { GAMEPAD_PRESS_ID, KEYBOARD_PRESS_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type SimMs } from '@shared/time';
-import { isFlowLive, isPapaBusy } from '@sim';
+import { isBeatStepRunning, isFlowLive, isPapaBusy } from '@sim';
 import type { AppFsm } from '../app/appFsm.ts';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import type { PauseController } from '../app/pauseController.ts';
@@ -281,8 +281,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       deps.onThreatPressed?.(threatId);
       return;
     }
-    // A sequence holds Papa in place (story 4.4): with no threat up, the context action sends nothing.
+    // A sequence holds Papa in place (story 4.4): with no threat up, the context action sends
+    // nothing, except in a beats step, where it is the tap to the beat (story 4.5): no marker, no
+    // press to release (a release ends nothing), the stamp corrected like every other input.
     if (isHeldInPlace(active)) {
+      if (isBeatStepRunning(active.sim.world)) {
+        active.sim.enqueue({ type: 'TapBeat', t });
+        return;
+      }
       if (log.enabled('debug'))
         log.debug('input', 'action dropped: a sequence holds Papa in place');
       return;
@@ -424,8 +430,13 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
         deps.onThreatPressed?.(threatId);
         return;
       }
-      // Nothing but a threat answers a finger during a sequence, and no marker is drawn (story 4.4).
+      // Nothing but a threat answers a finger during a sequence, and no marker is drawn (story 4.4);
+      // in a beats step the finger, anywhere on the screen, is the tap to the beat (story 4.5).
       if (isHeldInPlace(active)) {
+        if (isBeatStepRunning(active.sim.world)) {
+          active.sim.enqueue({ type: 'TapBeat', t: toSim(active, sample.timeStamp) });
+          return;
+        }
         if (log.enabled('debug')) log.debug('input', 'tap dropped: a sequence holds Papa in place');
         return;
       }

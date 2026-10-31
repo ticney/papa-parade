@@ -1,7 +1,10 @@
 import type { LevelStartOptions } from '@client/app/levelSession';
 import type { CuePlayedRecord, FxState, TestHost } from '@client/app/testHost';
+import type { SoundedNote } from '@client/audio/beatScheduler';
 import {
   ADVANCE_MAX_STEPS,
+  TEST_API_BEAT_NOTES_MAX,
+  TEST_API_BEAT_SAMPLES_MAX,
   TEST_API_CUE_LOG_MAX,
   TEST_API_EVENT_LOG_MAX,
   UINT32_RANGE,
@@ -15,6 +18,7 @@ import { feedPerfMeter } from './perfFeed.ts';
 import { createPerfMeter, type PerfReport } from './perfMeter.ts';
 
 export type { CuePlayedRecord } from '@client/app/testHost';
+export type { SoundedNote } from '@client/audio/beatScheduler';
 export type { FeelPatch } from './feelPatch.ts';
 export type { PerfReport } from './perfMeter.ts';
 
@@ -24,6 +28,18 @@ export type TestCommand = SimCommand extends infer C
     ? Omit<C, 't'> & { t?: number }
     : never
   : never;
+
+/**
+ * What the beat scheduler did in the running level (story 4.5): each note that sounded, and pairs of
+ * the audio clock and the game clock taken at the frames of a beats step. The gap of a note to the
+ * game clock is `plannedAtS` (minus the lead) against the audio time at which the sampled game clock
+ * reached `beatAt` (`tests/e2e/lullaby.spec.ts`).
+ */
+export interface BeatLog {
+  readonly notes: SoundedNote[];
+  /** `[audioNowS, clockMs]` per frame, oldest first. */
+  readonly samples: [audioNowS: number, clockMs: number][];
+}
 
 /**
  * `window.__PP__`: how an agent or a Playwright test drives and inspects the running game (the
@@ -68,6 +84,8 @@ export interface PPTestApi {
    * misses nothing).
    */
   cueLog(): CuePlayedRecord[];
+  /** A copy of what the beat scheduler did in the current level (story 4.5): empty before a beats step. */
+  beatLog(): BeatLog;
   /**
    * What the screen effects are doing right now (story 2.5), read at call time: the camera's zoom
    * (1 = the iso framing) and turn in degrees, the shake's offset in metres, the live particles and
@@ -128,6 +146,22 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
       atReal: record.atReal,
     });
     if (cues.length > TEST_API_CUE_LOG_MAX) cues.shift();
+  });
+
+  // The beat scheduler's notes and the clock pairs (story 4.5), of the current level.
+  const beatNotes: SoundedNote[] = [];
+  const beatSamples: [number, number][] = [];
+  host.onLevelStarted(() => {
+    beatNotes.length = 0;
+    beatSamples.length = 0;
+  });
+  host.onBeatSounded((note) => {
+    beatNotes.push({ ...note });
+    if (beatNotes.length > TEST_API_BEAT_NOTES_MAX) beatNotes.shift();
+  });
+  host.onBeatSample((sample) => {
+    beatSamples.push([sample.audioNowS, sample.clockMs]);
+    if (beatSamples.length > TEST_API_BEAT_SAMPLES_MAX) beatSamples.shift();
   });
 
   // Its own meter, fed by the same frames as the FPS counter's (story 1.24 D7).
@@ -240,6 +274,13 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
 
     cueLog() {
       return cues.map((record) => ({ ...record, visuals: [...record.visuals] }));
+    },
+
+    beatLog() {
+      return {
+        notes: beatNotes.map((note) => ({ ...note })),
+        samples: beatSamples.map(([audioNowS, clockMs]) => [audioNowS, clockMs]),
+      };
     },
 
     fx() {

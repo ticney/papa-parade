@@ -1,0 +1,88 @@
+{
+  "version": 3,
+  "seed": 45,
+  "feelHash": "0a0ef27a2eb80a",
+  "geometryHash": "0e18fe9d85d9f9",
+  "levelHash": "144eeb33fc6548",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "sequenceId": "lullaby_walk",
+        "t": 0,
+        "type": "StartSequence"
+      }
+    },
+    {
+      "applyAt": 2340,
+      "command": {
+        "t": 2331,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 3100,
+      "command": {
+        "t": 3093,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 3760,
+      "command": {
+        "t": 3755,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 4160,
+      "command": {
+        "t": 4157,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 4560,
+      "command": {
+        "t": 4558,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 5270,
+      "command": {
+        "t": 5265,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 6120,
+      "command": {
+        "t": 6117,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 7800,
+      "command": {
+        "t": 7791,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 8630,
+      "command": {
+        "t": 8620,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 9620,
+      "command": {
+        "t": 9610,
+        "type": "TapBeat"
+      }
+    }
+  ]
+}

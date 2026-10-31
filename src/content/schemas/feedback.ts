@@ -14,7 +14,7 @@ export const HAPTIC_KINDS = ['light', 'medium', 'heavy', 'heartbeat'] as const;
 /** `<category>_<name>`, the categories of the architecture (Conventions › Audio). */
 const CLIP_PATTERN = /^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$/;
 /** `lower_snake_case`, like every content id. */
-const CUE_ID_PATTERN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
+export const CUE_ID_PATTERN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 
 const gainPct = (description: string) => z.number().min(0).max(100).describe(description);
 
@@ -281,11 +281,53 @@ const SequenceBarFeedbackSchema = z
   })
   .describe('The sequence bar under the timer (story 4.4). Real time: the sim never reads it.');
 
+const BeatTrackSchema = z
+  .strictObject({
+    notes: z
+      .array(clip)
+      .min(1)
+      .describe(
+        'The notes, one per judged beat: the note of judged beat `n` is `notes[n % notes.length]`.',
+      ),
+    countIn: clip.describe('The tick of the count-in beats.'),
+    decoy: clip.describe('The sound of a decoy, between two beats.'),
+    bus,
+    gainPct: gainPct('Volume of the track on its bus, in percent.'),
+  })
+  .describe('The sounds of one rhythm track.');
+
+const BeatSchedulerSchema = z
+  .strictObject({
+    scheduleAheadMs: realMs(
+      'How far ahead of the audio clock a note is planned, in real ms. A note late by more than this is dropped.',
+    ),
+    replanToleranceMs: realMs(
+      'A planned note whose time moved by more than this, in real ms, is cancelled and planned again (slow-mo, hitstop, a debug time scale).',
+    ),
+  })
+  .describe('How the client plans the notes on the audio clock (story 4.5). Real time.');
+
+const BeatRingSchema = z
+  .strictObject({
+    approachMs: z
+      .int()
+      .positive()
+      .describe('How long before a beat its ring starts closing on Papa, in sim ms.'),
+  })
+  .describe('The ring that closes on Papa at each beat (story 4.5). Sim time: a pause holds it.');
+
 export const FeedbackTableSchema = z
   .strictObject({
     buses: BusesSchema,
     haptics: HapticsSchema,
     loops: LoopsSchema,
+    beatTracks: z
+      .record(z.string().regex(CUE_ID_PATTERN, 'a track id is lower_snake_case'), BeatTrackSchema)
+      .describe(
+        'The rhythm tracks (story 4.5), by id, named by a `beats` step. The notes are planned one by one on the audio clock, not looped.',
+      ),
+    beatScheduler: BeatSchedulerSchema,
+    beatRing: BeatRingSchema,
     resultScreen: ResultScreenSchema,
     calibration: CalibrationFeedbackSchema,
     sequenceBar: SequenceBarFeedbackSchema,
@@ -321,5 +363,6 @@ export type FeedbackCue = z.infer<typeof CueSchema>;
 export type FeedbackFlash = z.infer<typeof FlashSchema>;
 export type ResultScreenTimings = z.infer<typeof ResultScreenSchema>;
 export type ComboBadgeTimings = z.infer<typeof ComboBadgeSchema>;
+export type BeatTrack = z.infer<typeof BeatTrackSchema>;
 export type AudioBus = (typeof AUDIO_BUSES)[number];
 export type HapticKind = (typeof HAPTIC_KINDS)[number];

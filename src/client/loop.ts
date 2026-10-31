@@ -67,6 +67,18 @@ export interface GameLoop {
   readonly stats: LoopStats;
   readonly isFrozen: boolean;
   /**
+   * The continuous game clock as the last frame recorded it in the time map, in sim ms: the world's
+   * sim time plus the owed accumulator, never behind itself. 0 before the first frame. Unlike
+   * `world.time.sim` it moves smoothly, not in 10 ms stairs: the beat scheduler maps it onto the
+   * audio clock (story 4.5).
+   */
+  readonly clockMs: number;
+  /**
+   * Sim ms per real ms from `clockMs` on, as the last frame recorded it: `timeScale × speed`, and 0
+   * while frozen (hitstop, a debug freeze) or paused. Dividing by it is a bug.
+   */
+  readonly simPerRealMs: number;
+  /**
    * While frozen the loop keeps running frames (the countdown ends, the scene renders) but runs no
    * step, adds nothing to the accumulator and pays off no hitstop. Idempotent. Unfreezing measures
    * no elapsed time for the next frame: no catch-up.
@@ -142,6 +154,8 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
   let lastRunningAtReal = 0;
   let hasLastRunning = false; // false after a pause, a start or at the beginning: next dt is 0
   let lastClockMs = 0;
+  /** What the last frame recorded in the time map: the rate the clock runs at from `lastClockMs` on. */
+  let lastSimPerRealMs = 0;
   let lastBacklogWarnAtReal = Number.NEGATIVE_INFINITY;
   let lastTimestampWarnAtReal = Number.NEGATIVE_INFINITY;
   let isFrozen = false;
@@ -256,6 +270,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
     // rounding of one ulp between two frames that run the same time.
     const clockMs = Math.max(sim.world.time.sim + accumulatorMs, lastClockMs);
     lastClockMs = clockMs;
+    lastSimPerRealMs = simPerRealMs;
     timeMap.record(asRealMs(atReal), asSimMs(clockMs), simPerRealMs);
 
     // Owed whole steps (held back by a freeze) must not push the view past the last step.
@@ -287,6 +302,12 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
     get isFrozen() {
       return isFrozen;
     },
+    get clockMs() {
+      return lastClockMs;
+    },
+    get simPerRealMs() {
+      return lastSimPerRealMs;
+    },
     setFrozen,
     setMeasure,
     advance(steps) {
@@ -297,6 +318,10 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
       setFrozen(true);
       const stopCountAtCall = stopCount;
       for (let i = 0; i < steps && stopCount === stopCountAtCall; i++) runStep();
+      // The clock moved with the steps, and the loop is frozen: the beat ring and a screenshot of it
+      // read this clock, so it must follow `advance` too (the time map is left alone).
+      lastClockMs = Math.max(sim.world.time.sim + accumulatorMs, lastClockMs);
+      lastSimPerRealMs = 0;
       render(Math.min(accumulatorMs / STEP_MS, 1), lastSeenAtReal);
     },
     start() {

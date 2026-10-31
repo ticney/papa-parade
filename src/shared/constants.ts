@@ -4,11 +4,22 @@ export const LOG_BUFFER_SIZE = 200;
 /** Milliseconds in a second: converts a duration in ms to a speed in m/s. */
 export const MS_PER_S = 1000;
 
+/** Milliseconds in a minute: converts a tempo in beats per minute to the gap between two beats. */
+export const MS_PER_MINUTE = 60_000;
+
 /** Seconds in a minute: the timer shows `m:ss`. */
 export const SECONDS_PER_MINUTE = 60;
 
 /** Length of one simulation step, in sim ms. Every `sim.step()` advances exactly this much. */
 export const STEP_MS = 10;
+
+/**
+ * How long past its close a beat waits for a late tap before it is called a miss (story 4.5), in sim
+ * ms: two sim steps, a 60 fps frame. A tap reaches the sim at the first step of the next frame, so a
+ * tap stamped just after the window would otherwise find the beat already missed and be judged
+ * against the next one, paying a miss and a stray for one press.
+ */
+export const LATE_TAP_GRACE_MS = 2 * STEP_MS;
 
 /**
  * Technical floor of `timeScale`: pause is never `timeScale = 0`, and a scale near 0 would stall
@@ -294,6 +305,12 @@ export const TEST_API_EVENT_LOG_MAX = 50_000;
 
 /** The test API keeps this many played cues (`__PP__.cueLog()`, story 2.4); beyond, the oldest are dropped. */
 export const TEST_API_CUE_LOG_MAX = 200;
+
+/** The test API keeps this many sounded notes (`__PP__.beatLog()`, story 4.5); beyond, the oldest are dropped. */
+export const TEST_API_BEAT_NOTES_MAX = 200;
+
+/** The test API keeps this many (audio time, game clock) pairs, one per frame of a beats step (story 4.5); beyond, the oldest are dropped. */
+export const TEST_API_BEAT_SAMPLES_MAX = 6000;
 
 /** A prop whose lowest point is within this of the floor (y = 0) lies on it, in metres (`World.mess`, story 1.15). */
 export const PROP_ON_FLOOR_TOLERANCE_M = 0.02;

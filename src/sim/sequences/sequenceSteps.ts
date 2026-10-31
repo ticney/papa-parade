@@ -2,20 +2,28 @@ import type { SequenceStep, SequenceStepKind } from '@content/schemas/sequence';
 import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
+import { isThreatActive } from '../director/waveState.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
 import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
 import { telegraphThreat } from '../threats/threatFsm.ts';
 import type { World } from '../world.ts';
+import { BEATS_HANDLER } from './lullabyWalk.ts';
 
-/** What the sim does with one kind of step: enter it, and step it while it runs. */
-interface StepHandler<K extends SequenceStepKind> {
+/** What the sim does with one kind of step: enter it, step it while it runs, say when it is settled. */
+export interface StepHandler<K extends SequenceStepKind> {
   /** Called when the step is entered, the first step included. */
   enter(world: World, ctx: StepContext, step: StepOfKind<K>): void;
   /** Called every step while the step is the current one. */
   tick(world: World, ctx: StepContext, step: StepOfKind<K>): void;
+  /**
+   * Whether nothing of the step is left open, so that the sequence may end well once its time is up
+   * (`runSequence`'s end test, which no longer names a kind): a sequence never succeeds over an open
+   * window.
+   */
+  isSettled(world: World, ctx: StepContext, step: StepOfKind<K>): boolean;
 }
 
-type StepOfKind<K extends SequenceStepKind> = Extract<SequenceStep, { kind: K }>;
+export type StepOfKind<K extends SequenceStepKind> = Extract<SequenceStep, { kind: K }>;
 
 /** When the next micro-sleep is due: `gapMinMs…gapMaxMs` from now, with exactly one `nextFloat`. */
 function drawMicroSleepAt(world: World, step: StepOfKind<'microSleeps'>) {
@@ -51,6 +59,11 @@ const MICRO_SLEEPS: StepHandler<'microSleeps'> = {
     telegraphThreat(world, ctx, threat, planned.def, -1);
     sequence.nextMicroSleepAt = drawMicroSleepAt(world, step);
   },
+  isSettled(world, ctx) {
+    // No micro-sleep announced or open: `lagMs` can move a close a little past the time check.
+    const microSleep = world.threats[ctx.level.microSleepIndex];
+    return microSleep === undefined || !isThreatActive(microSleep);
+  },
 };
 
 /**
@@ -59,6 +72,7 @@ const MICRO_SLEEPS: StepHandler<'microSleeps'> = {
  */
 const HANDLERS: { readonly [K in SequenceStepKind]: StepHandler<K> } = {
   microSleeps: MICRO_SLEEPS,
+  beats: BEATS_HANDLER,
 };
 
 /** Every step kind the sim has a handler for (`createSim` refuses a def of another kind). */
@@ -72,6 +86,11 @@ export function enterSequenceStep(world: World, ctx: StepContext, step: Sequence
 /** Steps `step`, the current one. */
 export function tickSequenceStep(world: World, ctx: StepContext, step: SequenceStep): void {
   handlerOf(step).tick(world, ctx, step);
+}
+
+/** Whether `step`, the current one, has nothing open: the sequence may end well when its time is up. */
+export function isSequenceStepSettled(world: World, ctx: StepContext, step: SequenceStep): boolean {
+  return handlerOf(step).isSettled(world, ctx, step);
 }
 
 /**

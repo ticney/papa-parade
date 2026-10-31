@@ -73,6 +73,12 @@ export type SimCommand =
   | { type: 'Move'; t: SimMs; dirX: number; dirZ: number }
   /** Stop a `Move`. Ignored while Papa follows a tapped path. */
   | { type: 'MoveStop'; t: SimMs }
+  /**
+   * A tap to the beat (story 4.5): the player walks in time. It names no threat (D2: a beat is not a
+   * threat); the sim decides which beat or decoy it is from `t` alone, in a running `beats` step, and
+   * ignores it everywhere else. Anywhere on the screen, Space or A. Never followed by a `Release`.
+   */
+  | { type: 'TapBeat'; t: SimMs }
   /** A finger went down on this threat. The type of the response (Parry or Firmness) is decided at `Release`. */
   | { type: 'PressThreat'; t: SimMs; threatId: number }
   /** The finger went up. It names no threat: it ends every press made before it. */
@@ -128,6 +134,7 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetInputLag',
   'SetDifficultyTier',
   'PushProp',
+  'TapBeat',
 ];
 
 /**

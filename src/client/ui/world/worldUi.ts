@@ -1,7 +1,8 @@
-import type { ComboSlice, ThreatInstance } from '@sim';
+import type { BeatEntry, ComboSlice, ThreatInstance } from '@sim';
 import type { Camera, Scene } from 'three';
 import { Scene as ThreeScene } from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { type BeatRing, createBeatRing } from './beatRing.ts';
 import { type ComboBadge, type ComboBadgeOptions, createComboBadge } from './comboBadge.ts';
 import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
 import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
@@ -20,6 +21,19 @@ export interface WorldUi {
   readonly comboBadge: ComboBadge;
   /** « POSE-LE D'ABORD ! » above Papa after a refused toilet (story 4.3). */
   readonly papaHint: PapaHint;
+  /** The ring that closes on Papa at each beat of a rhythm step (story 4.5). */
+  readonly beatRing: BeatRing;
+  /**
+   * Once per frame, before `render`: the ring of the next beat, from the timeline and the loop's
+   * continuous clock (`timeline` null outside a beats step). Allocation-free.
+   */
+  updateBeatRing(
+    timeline: readonly BeatEntry[] | null,
+    stepStartAt: number,
+    clockMs: number,
+    approachMs: number,
+    papa: Readonly<{ xM: number; zM: number }> | null,
+  ): void;
   /** Mounts the threat icons of a level, replacing the previous level's (all hidden until a frame shows them). */
   mountThreats(entries: readonly ThreatMarkerEntry[]): void;
   /** Removes the threat icons (a restart hides the old ones before its countdown). */
@@ -112,6 +126,9 @@ export function createWorldUi(
   const comboBadge = createComboBadge(scene, doc, comboOptions);
   const papaHint = createPapaHint(scene, doc, comboOptions.translate);
   const objects = createObjectMarkers(scene, doc);
+  // After the markers above it (index 4) and before the object markers, which moved up to 5+ with
+  // it: the earlier children keep their places (a test reads them by index).
+  const beatRing = createBeatRing(scene, doc, { isMotionReduced: comboOptions.isMotionReduced });
   return {
     scene,
     tapMarker,
@@ -119,6 +136,8 @@ export function createWorldUi(
     comboBadge,
     papaHint,
     updatePapaHint: papaHint.update,
+    beatRing,
+    updateBeatRing: beatRing.update,
     updateCombo(combo, minMultiplier, papa, threatInstances, nowAtReal) {
       const entries = threats.entries;
       let isAside = false;
@@ -154,7 +173,8 @@ export function createWorldUi(
           objects.isAnyVisible ||
           glyphChip.isVisible ||
           comboBadge.isVisible ||
-          papaHint.isVisible
+          papaHint.isVisible ||
+          beatRing.isVisible
         )
       ) {
         return;
@@ -169,6 +189,7 @@ export function createWorldUi(
       glyphChip.dispose();
       comboBadge.dispose();
       papaHint.dispose();
+      beatRing.dispose();
       threats.dispose();
       objects.dispose();
     },

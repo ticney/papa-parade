@@ -347,7 +347,9 @@ describe('the steps and the end (AC 10)', () => {
       [2000, 3500, 2500],
     ] as const) {
       const def = defWith(gapsMs);
-      def.steps = def.steps.map((step, i) => ({ ...step, gapMaxMs: step.gapMinMs + i * 400 }));
+      def.steps = def.steps.map((step, i) =>
+        step.kind === 'microSleeps' ? { ...step, gapMaxMs: step.gapMinMs + i * 400 } : step,
+      );
       const sim = await newSim({ def });
       placeBaby(sim, 0.5);
       sim.enqueue({ type: 'TapBaby', t: asSimMs(0) });

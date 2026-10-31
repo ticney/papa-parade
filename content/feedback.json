@@ -21,8 +21,30 @@
       "fadeMs": 400
     },
     "sequenceMusic": {
-      "stay_awake": { "clip": "music_stay_awake", "bus": "music", "gainPct": 100, "fadeMs": 400 }
+      "stay_awake": { "clip": "music_stay_awake", "bus": "music", "gainPct": 100, "fadeMs": 400 },
+      "lullaby_walk": { "clip": "music_lullaby_pad", "bus": "music", "gainPct": 100, "fadeMs": 400 }
     }
+  },
+  "beatTracks": {
+    "lullaby": {
+      "notes": [
+        "music_lullaby_note_1",
+        "music_lullaby_note_2",
+        "music_lullaby_note_3",
+        "music_lullaby_note_4"
+      ],
+      "countIn": "music_lullaby_tick",
+      "decoy": "baby_lullaby_coo",
+      "bus": "music",
+      "gainPct": 100
+    }
+  },
+  "beatScheduler": {
+    "scheduleAheadMs": 150,
+    "replanToleranceMs": 5
+  },
+  "beatRing": {
+    "approachMs": 500
   },
   "resultScreen": {
     "rowCountUpMs": 600,
@@ -268,6 +290,18 @@
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 1.0, "durationMs": 500 },
       "haptic": "heavy"
     },
+    "beat_hit": {
+      "audio": { "clip": "papa_lullaby_step", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
+    },
+    "baby_stirred": {
+      "audio": { "clip": "baby_stir", "bus": "voice", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.8, "durationMs": 450 },
+      "haptic": "medium"
+    },
+    "beat_cued": { "haptic": "light" },
+    "decoy_cued": { "haptic": "light" },
     "papa_phone_answer": {
       "audio": { "clip": "papa_phone_answer", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
@@ -287,6 +321,10 @@
     "ToiletRefused": "toilet_refused",
     "PapaSnored": "papa_snored",
     "BabyWoke": "baby_woke",
+    "BeatHit": "beat_hit",
+    "BabyStirred": "baby_stirred",
+    "BeatCued": "beat_cued",
+    "DecoyCued": "decoy_cued",
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
     "InstinctVignetteShown": "instinct_triggered",

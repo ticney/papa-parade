@@ -1,6 +1,12 @@
 import type { LevelSession, StartedLevel } from '../../src/client/app/levelSession.ts';
 import type { PauseState } from '../../src/client/app/pauseController.ts';
-import type { CuePlayedRecord, FxState, TestHost } from '../../src/client/app/testHost.ts';
+import type {
+  BeatSampleRecord,
+  CuePlayedRecord,
+  FxState,
+  TestHost,
+} from '../../src/client/app/testHost.ts';
+import type { SoundedNote } from '../../src/client/audio/beatScheduler.ts';
 import type { InputDevice } from '../../src/client/input/inputMapper.ts';
 import type { RenderStats } from '../../src/client/render/renderer.ts';
 import type { ContentBundle } from '../../src/content/contentBundle.ts';
@@ -28,6 +34,10 @@ export interface FakeTestHost extends TestHost {
   /** What `lastInputDevice()` answers from now on (default `null`: no input yet). */
   setLastInputDevice(device: InputDevice | null): void;
   fireCuePlayed(record: CuePlayedRecord): void;
+  /** A note of a rhythm step that sounded (story 4.5). */
+  fireBeatSounded(note: SoundedNote): void;
+  /** A pair (audio time, game clock) of one frame of a beats step (story 4.5). */
+  fireBeatSample(sample: BeatSampleRecord): void;
   /** One drawn level frame; the stats default to a small quiet scene at pixel ratio 2. */
   fireRenderedFrame(frameAtReal: number, stats?: Partial<RenderStats>): void;
   setPause(state: PauseState): void;
@@ -48,6 +58,8 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
   const eventListeners = new Set<(event: SimEvent) => void>();
   const resumedListeners = new Set<() => void>();
   const cueListeners = new Set<(record: CuePlayedRecord) => void>();
+  const soundedListeners = new Set<(note: SoundedNote) => void>();
+  const sampleListeners = new Set<(sample: BeatSampleRecord) => void>();
   const frameListeners = new Set<(frameAtReal: number, stats: Readonly<RenderStats>) => void>();
   const calls: string[] = [];
   let stepHook: ((sim: Sim) => void) | null = null;
@@ -84,6 +96,8 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     onSimEvent: (listener) => subscribe(eventListeners, listener),
     onGameResumed: (listener) => subscribe(resumedListeners, listener),
     onCuePlayed: (listener) => subscribe(cueListeners, listener),
+    onBeatSounded: (listener) => subscribe(soundedListeners, listener),
+    onBeatSample: (listener) => subscribe(sampleListeners, listener),
     onRenderedFrame: (listener) => subscribe(frameListeners, listener),
     debugGroup: () => null,
     fxState: () => options.fxState ?? NO_FX_STATE,
@@ -112,6 +126,12 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     },
     fireCuePlayed: (record) => {
       for (const listener of [...cueListeners]) listener(record);
+    },
+    fireBeatSounded: (note) => {
+      for (const listener of [...soundedListeners]) listener(note);
+    },
+    fireBeatSample: (sample) => {
+      for (const listener of [...sampleListeners]) listener(sample);
     },
     fireGameResumed: () => {
       for (const listener of [...resumedListeners]) listener();
