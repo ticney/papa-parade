@@ -33,6 +33,11 @@ export interface SettingsScreenOptions {
   settings: Settings;
   /** `false` when the device cannot vibrate: the « Vibrations » row is not built (EXPERIENCE.md). */
   hasHaptics: boolean;
+  /**
+   * The OS asks for reduced motion. The effects are then reduced whatever the switch says, so a note
+   * under « Réduire les animations » tells the player (story 2.10, review).
+   */
+  isDeviceMotionReduced(): boolean;
   /** Called at once on every change (a slider calls it on each tick), with the whole settings. */
   onChange(settings: Settings): void;
   onRecalibrate(): void;
@@ -205,7 +210,11 @@ export function createSettingsScreen(options: SettingsScreenOptions): OverlayScr
 
   // --- The switches: Vibrations (not built when the device cannot vibrate), then the two comfort ------
   // switches (story 2.10), which are always built: reduced motion and large verbs need no hardware.
-  const toggleRow = (labelKey: string, isOn: () => boolean, onFlip: () => void): void => {
+  const toggleRow = (
+    labelKey: string,
+    isOn: () => boolean,
+    onFlip: () => void,
+  ): HTMLButtonElement => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'pp-toggle';
@@ -236,6 +245,7 @@ export function createSettingsScreen(options: SettingsScreenOptions): OverlayScr
     );
     panel.append(button);
     rows.push({ kind: 'toggle', elements: [button], target: () => button });
+    return button;
   };
   if (options.hasHaptics) {
     toggleRow(
@@ -247,7 +257,7 @@ export function createSettingsScreen(options: SettingsScreenOptions): OverlayScr
       },
     );
   }
-  toggleRow(
+  const motionSwitch = toggleRow(
     'settings.reduced_motion',
     () => current.reducedMotion,
     () => {
@@ -255,6 +265,16 @@ export function createSettingsScreen(options: SettingsScreenOptions): OverlayScr
       emit();
     },
   );
+  // `false` follows the device (D6): when the OS already asks for it, the switch alone would read off
+  // while the effects are reduced, so the note says why flipping it changes nothing visible.
+  if (options.isDeviceMotionReduced()) {
+    const deviceNote = document.createElement('p');
+    deviceNote.className = 'pp-settings-note';
+    deviceNote.id = 'pp-settings-motion-device';
+    deviceNote.textContent = t('settings.reduced_motion_device');
+    motionSwitch.setAttribute('aria-describedby', deviceNote.id);
+    panel.append(deviceNote);
+  }
   toggleRow(
     'settings.large_verbs',
     () => current.largeVerbs,

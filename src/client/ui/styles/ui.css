@@ -1690,10 +1690,12 @@ body {
 .pp-threat-verb-stack {
   /* Pushed up by `threatMarkers.ts` when verbs overlap. */
   --pp-verb-offset: 0px;
+  /* Shifted sideways by `threatMarkers.ts` when the verb would reach past an edge of the layer. */
+  --pp-verb-shift-x: 0px;
   position: absolute;
   left: 50%;
   bottom: calc(100% + var(--pp-verb-gap));
-  transform: translate(-50%, calc(var(--pp-verb-offset) * -1));
+  transform: translate(calc(-50% + var(--pp-verb-shift-x)), calc(var(--pp-verb-offset) * -1));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1748,6 +1750,8 @@ body {
   /* By default beside the icon; `glyphChip.ts` writes both from the verb's box when there is one. */
   --pp-chip-half: calc(var(--pp-threat-size) / 2);
   --pp-chip-rise: 0px;
+  /* How far the verb was shifted sideways to stay on screen: the chip goes with it. */
+  --pp-chip-shift: 0px;
   position: relative;
   /* Above every threat marker: they take 1..(shown threats) from `threatMarkers.layout`. */
   z-index: 50;
@@ -1758,7 +1762,7 @@ body {
 
 .pp-glyph-chip {
   position: absolute;
-  left: calc(var(--pp-chip-half) + var(--pp-spacing-2));
+  left: calc(var(--pp-chip-half) + var(--pp-chip-shift) + var(--pp-spacing-2));
   top: 0;
   transform: translateY(-50%);
   box-sizing: border-box;

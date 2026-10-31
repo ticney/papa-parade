@@ -345,9 +345,35 @@ describe('createWorldUi, verbs (story 2.2)', () => {
 
 describe('createWorldUi, papa hint (story 4.3)', () => {
   const PAPA = { xM: 1, zM: 2 };
+  /** Every character is half the font size wide. */
+  const metrics: VerbMetrics = {
+    surfaceKey: () => 'regular',
+    basePx: () => 40,
+    lineHeight: () => 1,
+    scale: () => 1,
+    widthPx: (text, fontPx) => text.length * fontPx * 0.5,
+  };
+
+  it('keeps the hint inside the layer when Papa is at an edge, and fits it to the layer', () => {
+    const { ui, camera } = build(metrics);
+    ui.setSize(800, 400);
+    const hint = ui.scene.children[3] as unknown as { element: FakeElement };
+    ui.papaHint.show(1200, 0);
+    ui.updatePapaHint({ xM: 0.95, zM: 0 }, 100);
+    ui.render(camera);
+    // 19 characters at 40 px would be 380 px wide: over 45 % of 800, so the font shrinks.
+    expect(Number.parseFloat(hint.element.style.fontSize as string)).toBeLessThan(40);
+    const shift = Number.parseInt(hint.element.style.marginLeft as string, 10);
+    expect(shift).toBeLessThanOrEqual(-160);
+    expect(shift).toBeGreaterThan(-165);
+    // Back in the middle: the shift is let go.
+    ui.updatePapaHint({ xM: 0, zM: 0 }, 200);
+    ui.render(camera);
+    expect(hint.element.style.marginLeft).toBe('');
+  });
 
   it('renders the layer for the hint alone, follows Papa, and stops when its hold is over', () => {
-    const { ui, camera } = build();
+    const { ui, camera } = build(metrics);
     ui.setSize(800, 400);
     const hint = ui.scene.children[3] as unknown as { element: FakeElement };
     ui.render(camera);

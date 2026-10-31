@@ -91,6 +91,20 @@ describe('isMotionReduced', () => {
   });
 });
 
+describe('isDeviceMotionReduced', () => {
+  it('is the OS alone: the player’s switch does not change it', () => {
+    expect(build({ reducedMotion: true }, false).accessibility.isDeviceMotionReduced()).toBe(false);
+    expect(build({ reducedMotion: false }, true).accessibility.isDeviceMotionReduced()).toBe(true);
+  });
+
+  it('follows the OS setting through the query’s change event', () => {
+    const t = build();
+    t.setOs(true);
+    t.fireChange();
+    expect(t.accessibility.isDeviceMotionReduced()).toBe(true);
+  });
+});
+
 describe('apply', () => {
   it('sets data-pp-motion to reduced when the setting is on, or the OS asks', () => {
     const setting = build({ reducedMotion: true });

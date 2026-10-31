@@ -83,7 +83,7 @@ const SAVED: Settings = {
   largeVerbs: false,
 };
 
-function build(overrides: Partial<Settings> = {}, hasHaptics = true) {
+function build(overrides: Partial<Settings> = {}, hasHaptics = true, isDeviceReduced = false) {
   const settings: Settings = {
     ...SAVED,
     ...overrides,
@@ -99,6 +99,7 @@ function build(overrides: Partial<Settings> = {}, hasHaptics = true) {
     t: (key) => key,
     settings,
     hasHaptics,
+    isDeviceMotionReduced: () => isDeviceReduced,
     onChange: (next) => {
       changes.push(next);
       settledAtChange.push(panelOf().classNames.has('pp-panel-settled'));
@@ -204,6 +205,26 @@ describe('createSettingsScreen (story 2.8)', () => {
         verbsToggle,
       ]);
       expect(buttons).toHaveLength(3);
+    });
+
+    it('says, under « Réduire les animations », that the device already asks for it', () => {
+      const b = build({}, true, true);
+      const notes = b.panel.children.filter((child) => child.id === 'pp-settings-motion-device');
+      expect(notes).toHaveLength(1);
+      const [note] = notes as [FakeElement];
+      expect(note.textContent).toBe('settings.reduced_motion_device');
+      expect(b.panel.children.indexOf(note)).toBe(b.panel.children.indexOf(b.motionToggle) + 1);
+      expect(b.motionToggle.attributes.get('aria-describedby')).toBe(note.id);
+      // The saved switch is untouched: it still reads off, the note is what explains it.
+      expect(b.motionToggle.attributes.get('aria-checked')).toBe('false');
+    });
+
+    it('builds no note when the device does not ask for reduced motion', () => {
+      const b = build();
+      expect(b.panel.children.some((child) => child.id === 'pp-settings-motion-device')).toBe(
+        false,
+      );
+      expect(b.motionToggle.attributes.has('aria-describedby')).toBe(false);
     });
   });
 

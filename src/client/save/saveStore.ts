@@ -1,7 +1,6 @@
 import {
   type CalibrationResult,
   createDefaultSave,
-  createDefaultSettings,
   type Save,
   SaveSchema,
   type Settings,
@@ -25,21 +24,38 @@ export interface SaveMigration {
 /**
  * `v{n-1} → v{n}`, in order. `v1 → v2` (story 2.8) adds the settings, with their defaults, and keeps
  * the calibration. `v2 → v3` (story 2.10) adds the two comfort switches, off, and keeps every other
- * setting; a v2 save with no usable `settings` is not repaired, so the schema still refuses it. Pure:
- * the input is not changed.
+ * setting (a switch already there is kept); a v2 save with no usable `settings` is not repaired, so
+ * the schema still refuses it. Pure: the input is not changed. Each step writes the literal shape of
+ * its own version, never `createDefaultSettings()`, so a later change of the defaults cannot alter
+ * the path of an old save.
  */
 export const SAVE_MIGRATIONS: readonly SaveMigration[] = [
   {
     from: 1,
-    migrate: (save) => ({ ...save, version: 2, settings: createDefaultSettings() }),
+    migrate: (save) => ({
+      ...save,
+      version: 2,
+      settings: {
+        tier: 'normal',
+        volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
+        haptics: true,
+      },
+    }),
   },
   {
     from: 2,
-    migrate: (save) => ({
-      ...save,
-      version: 3,
-      settings: { ...asRecord(save.settings), reducedMotion: false, largeVerbs: false },
-    }),
+    migrate: (save) => {
+      const settings = asRecord(save.settings);
+      return {
+        ...save,
+        version: 3,
+        settings: {
+          ...settings,
+          reducedMotion: settings.reducedMotion ?? false,
+          largeVerbs: settings.largeVerbs ?? false,
+        },
+      };
+    },
   },
 ];
 

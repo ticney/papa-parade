@@ -8,7 +8,7 @@ import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
 import { createPapaHint, type PapaHint } from './papaHint.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
 import { createThreatMarkers, type ThreatMarkerEntry } from './threatMarkers.ts';
-import type { VerbMetrics } from './verbMetrics.ts';
+import { createBrowserVerbMetrics, type VerbMetrics } from './verbMetrics.ts';
 
 export interface WorldUi {
   /** The small scene that holds the world-anchored elements (the tap marker, the threat icons and the glyph chip). */
@@ -110,7 +110,12 @@ export function createWorldUi(
   const threats = createThreatMarkers(scene, doc, metrics);
   const glyphChip = createGlyphChip(scene, doc);
   const comboBadge = createComboBadge(scene, doc, comboOptions);
-  const papaHint = createPapaHint(scene, doc, comboOptions.translate);
+  let verbMetrics = metrics;
+  const papaHint = createPapaHint(scene, doc, comboOptions.translate, () => {
+    verbMetrics ??= createBrowserVerbMetrics();
+    return verbMetrics;
+  });
+  let layerWidthPx = 0;
   const objects = createObjectMarkers(scene, doc);
   return {
     scene,
@@ -144,8 +149,13 @@ export function createWorldUi(
     setSize(widthPx, heightPx) {
       renderer.setSize(widthPx, heightPx);
       threats.setSize(widthPx, heightPx);
+      layerWidthPx = widthPx;
+      papaHint.refit(widthPx);
     },
-    refitVerbs: threats.refit,
+    refitVerbs() {
+      threats.refit();
+      papaHint.refit(layerWidthPx);
+    },
     render(camera) {
       if (
         !(
@@ -161,6 +171,7 @@ export function createWorldUi(
       }
       // Before the DOM renderer: the layout writes the offsets and the z-indices it places.
       threats.layout(camera);
+      papaHint.layout(camera);
       glyphChip.refresh();
       renderer.render(scene, camera);
     },

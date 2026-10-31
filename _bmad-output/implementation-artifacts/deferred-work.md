@@ -714,6 +714,14 @@
 
 - **The debug overlay's « Launch » threat button reports success during a sequence** although `runDirector` drops `ForceThreat` while `flow === 'sequence'`; `refusalReason` in `src/debug/cheats.ts` has no sequence case. Reason: debug tooling only, nothing in play depends on it; add the reason line when the overlay is next touched.
 
+## Deferred from: code review of story 2-10-reglages-d-accessibilite-mouvement-reduit-et-grands-verbes (2026-10-31)
+
+- **The 3 Hz guard (`flashRate.test.ts`, `checkReducedMotion`) is narrow**: only `opacity` keyframes and `infinite` count (a 100 ms blink through `visibility`, `filter`, `box-shadow`, or a finite count of 50, passes); `flash.durationMs <= interval` does not prove 3 Hz for two back-to-back cues; the « not vacuous » test pins animation names and periods. Reason: hardening beyond AC 13/14, which are met; widen it when an animation of another kind is added.
+- **Reduced-motion rules guard animations, not transitions**: the former `transition: none` blocks (`.pp-button`, `.pp-hud-sequence-bar`, `.pp-toggle-thumb`) are `:where` rules (specificity 0,1,0) that a more specific selector can beat; `.pp-vignette` (`opacity 200ms`) has none. Reason: no transition is affected today.
+- **A `data-pp-motion` flip restarts the animations of live elements**: only the settings panel is protected by `.pp-panel-settled`. Reason: an OS change in the middle of a game is rare and harmless.
+- **The `comfortSettings` sim guard is name-based**: `reducedMotionEnabled` or `xlargeVerbs` slip through, `LARGE_VERBS_SCALE` is not matched, `tools/playtest` and `tools/build` are not scanned, and nothing says « `prefers-reduced-motion` is read in `boot.ts` only » on the JS side. Reason: the sim has no diff in this story.
+- **`reducedMotion.spec.ts` robustness**: « same game » compares `t` and `offsetMs` of two real-time autoplay runs with `toStrictEqual`; `expectWhole`'s « not cut » check is true by construction and ignores the stroke and shadow. Reason: not flaky so far; watch the first CI failures.
+
 ## Story 2-10-reglages-d-accessibilite-mouvement-reduit-et-grands-verbes (2026-10-31)
 
 **Closed by this story** (the entries above stay as written; this is their resolution):
@@ -736,7 +744,7 @@
 
 **New, from this story:**
 
-- **A player whose phone already asks for reduced motion sees « Réduire les animations » off** while the effects are reduced (`settings || OS`, D6), and flipping the switch changes nothing visible. A hint (« Déjà actif sur cet appareil ») needs one string and one option. Open point 1 of the story, for Geo.
+- ~~**A player whose phone already asks for reduced motion sees « Réduire les animations » off** while the effects are reduced (`settings || OS`, D6).~~ **Closed by the code review**: a note « Déjà actif sur cet appareil » under the switch (`isDeviceMotionReduced`). The switch itself still shows the saved value, and flipping it on such a device changes nothing visible.
 - **The sound rings stay as they are under reduced motion** (decision D3: 2 or 3 small rings, not a blink, pinned at `pulses ≤ 3` by `flashRate.test.ts`). To look at with the setting on: if they read as flicker, the fix is one ring under reduced motion. Open point 2.
-- **+25 % on a long verb is capped by `VERB_MAX_WIDTH_PCT`** (D4). At 844 × 390 every verb of the level, « RÉVEILLE-TOI ! » and « POSE-LE D'ABORD ! » included, is whole and inside the screen (`reducedMotion.spec.ts`), so `layout` got no horizontal shift. To judge in play on the smallest phone. Open point 4.
+- **+25 % on a long verb is capped by `VERB_MAX_WIDTH_PCT`** (D4). At 844 × 390 every verb of the level, « RÉVEILLE-TOI ! » and « POSE-LE D'ABORD ! » included, is whole and inside the screen (`reducedMotion.spec.ts`). **Changed by the code review**: `layout` now shifts a verb back inside the layer (`clampVerbShiftPx`), the Papa hint is fitted and clamped the same way, and the specs also run at 667 × 375 and 568 × 320. Still to judge in play on the smallest phone: whether a verb pressed against an edge, away from its icon, reads well (open point 4).
 - **A media query's `change` event is lost if `.matches` is read between the change and the event** (Chromium). `accessibilitySettings` reads the OS value once and follows the event; anything that later calls `matchMedia('(prefers-reduced-motion: reduce)').matches` on a list it also listens to would bring the bug back. The e2e specs that switch the OS preference with the page open use `emulateReducedMotion` (waits for `data-pp-motion`), the others emulate before the page loads.

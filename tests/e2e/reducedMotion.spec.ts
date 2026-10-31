@@ -305,44 +305,68 @@ async function expectWhole(page: Page, verbs: DrawnVerb[], what: string): Promis
   }
 }
 
-test.describe('« Grands verbes » (844 × 390, compact)', () => {
-  test.describe.configure({ timeout: 90_000 });
+// The phone the project tests on (the configured viewport), then the two smallest landscape phones
+// the game supports (review of story 2.10: the floor of a long verb rises with the setting, and
+// nothing else kept a verb or the hint above Papa inside the screen).
+const VERB_SCREENS: ReadonlyArray<{
+  label: string;
+  viewport: { width: number; height: number } | null;
+}> = [
+  { label: '844 × 390, compact', viewport: null },
+  { label: '667 × 375', viewport: { width: 667, height: 375 } },
+  { label: '568 × 320', viewport: { width: 568, height: 320 } },
+];
 
-  async function openFrozen(page: Page): Promise<void> {
-    await seedSettings(page, { largeVerbs: true });
-    await startLevel(page);
-    await ppFreeze(page, true);
-    await ppLoadLevel(page, LEVEL, SEED);
-    await expect(html(page)).toHaveAttribute('data-pp-babble', 'on');
-    await expect(html(page)).toHaveAttribute('data-pp-audio', 'running');
-  }
+async function openFrozenWithLargeVerbs(page: Page): Promise<void> {
+  await seedSettings(page, { largeVerbs: true });
+  await startLevel(page);
+  await ppFreeze(page, true);
+  await ppLoadLevel(page, LEVEL, SEED);
+  await expect(html(page)).toHaveAttribute('data-pp-babble', 'on');
+  await expect(html(page)).toHaveAttribute('data-pp-audio', 'running');
+}
 
-  test('the root carries the scale, and a verb is 25 % larger than the compact 32 px', async ({
-    page,
-  }) => {
-    const problems = collectProblems(page);
-    await openFrozen(page);
-    expect(
-      await page.evaluate(() =>
-        getComputedStyle(document.documentElement).getPropertyValue('--pp-verb-scale').trim(),
-      ),
-    ).toBe('1.25');
-    const world = await ppWorld(page);
-    const first = world.threats[0];
-    if (first === undefined) throw new Error('the level plans no threat');
-    await ppSend(page, { type: 'ForceThreat', threatId: first.id });
-    await ppAdvance(page, 1);
-    await waitFrames(page, 2);
-    const [verb] = await drawnVerbs(page);
-    expect(verb?.fontPx).toBeCloseTo(40, 0);
-    expect(problems).toEqual([]);
+for (const screen of VERB_SCREENS) {
+  test.describe(`« Grands verbes » (${screen.label})`, () => {
+    test.describe.configure({ timeout: 90_000 });
+    if (screen.viewport !== null) test.use({ viewport: screen.viewport });
+    const openFrozen = openFrozenWithLargeVerbs;
+
+    if (screen.viewport === null) {
+      test('the root carries the scale, and a verb is 25 % larger than the compact 32 px', async ({
+        page,
+      }) => {
+        const problems = collectProblems(page);
+        await openFrozen(page);
+        expect(
+          await page.evaluate(() =>
+            getComputedStyle(document.documentElement).getPropertyValue('--pp-verb-scale').trim(),
+          ),
+        ).toBe('1.25');
+        const world = await ppWorld(page);
+        const first = world.threats[0];
+        if (first === undefined) throw new Error('the level plans no threat');
+        await ppSend(page, { type: 'ForceThreat', threatId: first.id });
+        await ppAdvance(page, 1);
+        await waitFrames(page, 2);
+        const [verb] = await drawnVerbs(page);
+        expect(verb?.fontPx).toBeCloseTo(40, 0);
+        expect(problems).toEqual([]);
+      });
+    }
+
+    largeVerbsWhole();
   });
+}
+
+function largeVerbsWhole(): void {
+  const openFrozen = openFrozenWithLargeVerbs;
 
   test('every threat of the level shows its verb whole, inside the screen', async ({ page }) => {
     const problems = collectProblems(page);
     await openFrozen(page);
-    // A threat in a hidden zone has no marker until the player finds the silence (its verb is the
-    // outlet's, measured here too): the markers of the others are all forced.
+    // A threat in a hidden zone has no marker until the player finds the silence, so it is left out
+    // here (its verb is not measured): the markers of the others are all forced.
     const targetOf = (defId: string): string =>
       (JSON.parse(readFileSync(`content/threats/${defId}.json`, 'utf8')) as { target: string })
         .target;
@@ -402,4 +426,4 @@ test.describe('« Grands verbes » (844 × 390, compact)', () => {
     await expectWhole(page, hint, 'the hint');
     expect(problems).toEqual([]);
   });
-});
+}

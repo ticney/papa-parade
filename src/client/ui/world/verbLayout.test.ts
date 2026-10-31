@@ -1,6 +1,46 @@
 import { VERB_MIN_FONT_PX } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
-import { createVerbStack, fitVerbFontPx, stackVerbs, type VerbStack } from './verbLayout.ts';
+import {
+  clampVerbShiftPx,
+  createVerbStack,
+  fitVerbFontPx,
+  stackVerbs,
+  type VerbStack,
+} from './verbLayout.ts';
+
+describe('clampVerbShiftPx (story 2.10 review)', () => {
+  const LAYER = 568;
+
+  it('leaves a box that fits where it is, edges included', () => {
+    expect(clampVerbShiftPx(284, 200, LAYER)).toBe(0);
+    expect(clampVerbShiftPx(100, 200, LAYER)).toBe(0);
+    expect(clampVerbShiftPx(LAYER - 100, 200, LAYER)).toBe(0);
+  });
+
+  it('moves a box that reaches past the left edge back in, by the overhang', () => {
+    expect(clampVerbShiftPx(60, 200, LAYER)).toBe(40);
+  });
+
+  it('moves a box that reaches past the right edge back in', () => {
+    expect(clampVerbShiftPx(LAYER - 60, 200, LAYER)).toBe(-40);
+  });
+
+  it('rounds away from zero, so that the box is never left half a pixel outside', () => {
+    expect(clampVerbShiftPx(60.4, 200, LAYER)).toBe(40);
+    expect(clampVerbShiftPx(LAYER - 60.4, 200, LAYER)).toBe(-40);
+    expect(clampVerbShiftPx(99.5, 201, LAYER)).toBe(1);
+  });
+
+  it('centres a box wider than the layer on it', () => {
+    expect(clampVerbShiftPx(100, LAYER + 50, LAYER)).toBe(LAYER / 2 - 100);
+    expect(clampVerbShiftPx(LAYER, LAYER, LAYER)).toBe(-LAYER / 2);
+  });
+
+  it('does nothing for a box with no text or a layer with no size', () => {
+    expect(clampVerbShiftPx(0, 0, LAYER)).toBe(0);
+    expect(clampVerbShiftPx(0, 200, 0)).toBe(0);
+  });
+});
 
 describe('fitVerbFontPx', () => {
   const MAX = 380;

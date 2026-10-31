@@ -1355,6 +1355,7 @@ export async function boot(): Promise<void> {
         t,
         settings: saveStore.current().settings,
         hasHaptics: platform.capabilities.haptics,
+        isDeviceMotionReduced: accessibility.isDeviceMotionReduced,
         onChange: (settings) => {
           // In memory at once, the write settles on its own and warns once on failure. No `log` per
           // slider tick.

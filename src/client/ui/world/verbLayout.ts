@@ -26,6 +26,24 @@ export function fitVerbFontPx(
 }
 
 /**
+ * How far a verb box centred on `centerPx` must move sideways to lie inside `[0, layerWidthPx]`, in
+ * whole px away from zero (so the rounding never leaves half a pixel outside). 0 when the box fits
+ * where it is, and 0 for a box with no text. A box wider than the layer is centred on it. Story 2.10
+ * review: « Grands verbes » raises the floor of a long verb, which can then reach past an edge.
+ * Pure.
+ */
+export function clampVerbShiftPx(centerPx: number, widthPx: number, layerWidthPx: number): number {
+  if (!(widthPx > 0) || !(layerWidthPx > 0)) return 0;
+  const halfPx = widthPx / 2;
+  let shiftPx = 0;
+  if (widthPx >= layerWidthPx) shiftPx = layerWidthPx / 2 - centerPx;
+  else if (centerPx - halfPx < 0) shiftPx = halfPx - centerPx;
+  else if (centerPx + halfPx > layerWidthPx) shiftPx = layerWidthPx - halfPx - centerPx;
+  if (shiftPx === 0) return 0;
+  return shiftPx > 0 ? Math.ceil(shiftPx) : Math.floor(shiftPx);
+}
+
+/**
  * The boxes of the verbs that are on screen, as parallel arrays sized once for the whole level (a
  * struct of arrays: filling and stacking them allocates nothing). The caller writes the inputs of
  * boxes `0..count - 1` each frame; `stackVerbs` writes `offsetPx` and `rank`. Screen space: `y`

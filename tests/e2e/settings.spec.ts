@@ -92,6 +92,8 @@ const reducedMotionSwitch = (page: Page) =>
   page.getByRole('switch', { name: STRINGS['settings.reduced_motion'], exact: true });
 const largeVerbsSwitch = (page: Page) =>
   page.getByRole('switch', { name: STRINGS['settings.large_verbs'], exact: true });
+const deviceNote = (page: Page) =>
+  page.getByText(STRINGS['settings.reduced_motion_device'] as string, { exact: true });
 const settingsButton = (
   page: Page,
   key: 'settings.recalibrate' | 'settings.credits' | 'settings.back',
@@ -448,6 +450,7 @@ test.describe('the comfort switches (story 2.10)', () => {
     await expect(reducedMotionSwitch(page)).toHaveAttribute('aria-checked', 'false');
     await expect(largeVerbsSwitch(page)).toHaveAttribute('aria-checked', 'false');
     await expect(html(page)).not.toHaveAttribute('data-pp-motion', /./);
+    await expect(deviceNote(page)).toHaveCount(0);
     expect(await rootScale(page)).toBe('1');
 
     await reducedMotionSwitch(page).click();
@@ -473,6 +476,34 @@ test.describe('the comfort switches (story 2.10)', () => {
     // Still in the settings, over the paused level: a switch never leaves or resumes.
     await expect(html(page)).toHaveAttribute('data-pp-app', 'settings');
     await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
+    expect(problems).toEqual([]);
+  });
+
+  test('the OS already asks for reduced motion: the switch reads off and a note under it says why', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await startLevel(page);
+    await expect(html(page)).toHaveAttribute('data-pp-motion', 'reduced');
+    await openSettings(page);
+    await expect(reducedMotionSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(deviceNote(page)).toBeVisible();
+    await expect(reducedMotionSwitch(page)).toHaveAccessibleDescription(
+      STRINGS['settings.reduced_motion_device'] as string,
+    );
+    // The note is under the switch it explains, not under another row.
+    const order = await page.evaluate(() => {
+      const switches = [...document.querySelectorAll('.pp-settings-panel [role="switch"]')];
+      const note = document.querySelector('#pp-settings-motion-device');
+      const motion = switches.find((one) => one.getAttribute('aria-describedby') === note?.id);
+      return motion?.nextElementSibling === note;
+    });
+    expect(order).toBe(true);
+    // Flipping the switch on the device that already asks changes nothing visible, and saves.
+    await reducedMotionSwitch(page).click();
+    await expect.poll(async () => (await savedSettings(page)).reducedMotion).toBe(true);
+    await expect(html(page)).toHaveAttribute('data-pp-motion', 'reduced');
     expect(problems).toEqual([]);
   });
 

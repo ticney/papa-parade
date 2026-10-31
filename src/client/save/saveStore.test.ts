@@ -402,8 +402,22 @@ describe('the v1 → v2 migration (story 2.8)', () => {
     const a = step?.migrate(v1);
     const b = step?.migrate(v1);
     expect(v1).toEqual({ version: 1, calibration: CALIBRATION });
-    expect(a).toEqual({ ...DEFAULTS, version: 2, calibration: CALIBRATION });
+    expect(a).toEqual({
+      version: 2,
+      calibration: CALIBRATION,
+      settings: {
+        tier: 'normal',
+        volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
+        haptics: true,
+      },
+    });
     expect((a?.settings as object) === (b?.settings as object)).toBe(false);
+  });
+
+  it('writes the settings of version 2, with none of the later switches', () => {
+    const step = SAVE_MIGRATIONS.find((migration) => migration.from === 1);
+    const settings = step?.migrate({ version: 1, calibration: null }).settings as object;
+    expect(Object.keys(settings).sort()).toEqual(['haptics', 'tier', 'volumes']);
   });
 });
 
@@ -444,6 +458,19 @@ describe('the v2 → v3 migration (story 2.10)', () => {
     expect(a?.version).toBe(3);
     expect((a?.settings as object) === (b?.settings as object)).toBe(false);
     expect((a?.settings as object) === (v2.settings as object)).toBe(false);
+  });
+
+  it('keeps a switch that is already there instead of overwriting it', () => {
+    const migrated = step?.migrate({
+      version: 2,
+      calibration: null,
+      settings: { ...V2_SETTINGS, reducedMotion: true },
+    });
+    expect(migrated?.settings).toEqual({
+      ...V2_SETTINGS,
+      reducedMotion: true,
+      largeVerbs: false,
+    });
   });
 
   it('does not repair a v2 save with no settings: it is still refused and set aside as it was (trap 1)', async () => {

@@ -387,4 +387,14 @@ describe('the UI stylesheets of the repository', () => {
       expect(checkReducedMotion(readFileSync(file, 'utf8')), file).toEqual([]);
     }
   });
+
+  it('read prefers-reduced-motion nowhere, tokens.css and fonts.css included', () => {
+    for (const file of all) {
+      const css = readFileSync(file, 'utf8');
+      const problems = checkReducedMotion(css).filter((problem) =>
+        problem.includes('prefers-reduced-motion'),
+      );
+      expect(problems, file).toEqual([]);
+    }
+  });
 });

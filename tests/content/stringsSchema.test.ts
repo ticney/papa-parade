@@ -80,6 +80,7 @@ const REQUIRED_KEYS = [
   'settings.volume_ui',
   'settings.haptics',
   'settings.reduced_motion',
+  'settings.reduced_motion_device',
   'settings.large_verbs',
   'settings.recalibrate',
   'settings.credits',

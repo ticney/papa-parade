@@ -20,6 +20,11 @@ export interface AccessibilitySettings {
    */
   isMotionReduced(): boolean;
   /**
+   * Only the OS asking for reduced motion, whatever the player's switch says. The settings screen
+   * uses it to tell the player that the effects are already reduced on this device.
+   */
+  isDeviceMotionReduced(): boolean;
+  /**
    * Writes what the CSS reads: `data-pp-motion="reduced"` on the root (absent otherwise) and
    * `--pp-verb-scale`. Runs at boot, once the save is read, on each `SettingsChanged` and on a change
    * of the OS setting. Refits the verbs only when the scale really changed.
@@ -63,5 +68,5 @@ export function createAccessibilitySettings(
     apply();
   });
 
-  return { isMotionReduced, apply };
+  return { isMotionReduced, isDeviceMotionReduced: () => isOsReduced, apply };
 }
