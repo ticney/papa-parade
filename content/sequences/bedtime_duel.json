@@ -1,0 +1,22 @@
+{
+  "$schema": "../_schemas/sequence.schema.json",
+  "id": "bedtime_duel",
+  "babyCarried": true,
+  "steps": [
+    { "kind": "duel", "durationMs": 9000, "threatDef": "bedtime_eyes", "restMs": 1200 },
+    { "kind": "duel", "durationMs": 9000, "threatDef": "bedtime_eyes", "restMs": 1200 },
+    { "kind": "duel", "durationMs": 9000, "threatDef": "bedtime_eyes", "restMs": 1200 }
+  ],
+  "success": { "kind": "stepsDone" },
+  "failure": { "kind": "retreats", "maxRetreats": 3 },
+  "framing": {
+    "camera": { "zoomPct": 28, "focusPct": 70, "inMs": 1200, "outMs": 700 },
+    "musicLoop": "bedtime_duel",
+    "bar": null
+  },
+  "feedback": {
+    "started": "sequence_started",
+    "succeeded": "sequence_succeeded",
+    "failed": "sequence_failed"
+  }
+}

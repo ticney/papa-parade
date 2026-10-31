@@ -1,9 +1,15 @@
+import type { SequenceStep } from '@content/schemas/sequence';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import { clearBeatSlice, type World } from '../world.ts';
 import { sequenceDefOf, succeedSequence } from './sequenceEnd.ts';
 import { startSequence } from './sequenceStart.ts';
-import { enterSequenceStep, isSequenceStepSettled, tickSequenceStep } from './sequenceSteps.ts';
+import {
+  enterSequenceStep,
+  isSequenceStepSettled,
+  isSequenceStepTimed,
+  tickSequenceStep,
+} from './sequenceSteps.ts';
 
 /**
  * System: the special sequences (story 4.4), right after `advanceTime` and before the director, so
@@ -28,7 +34,12 @@ export function runSequence(world: World, ctx: StepContext): void {
   if (def === undefined || sequence.id === null) return;
   const now = world.time.sim;
 
-  while (now >= sequence.stepEndsAt && sequence.stepIndex + 1 < def.steps.length) {
+  // Only a timed step moves on with the clock: a duel step advances on its result (story 4.6).
+  while (
+    now >= sequence.stepEndsAt &&
+    sequence.stepIndex + 1 < def.steps.length &&
+    isSequenceStepTimed(def.steps[sequence.stepIndex] as SequenceStep)
+  ) {
     sequence.stepIndex += 1;
     const next = def.steps[sequence.stepIndex];
     if (next === undefined) break;

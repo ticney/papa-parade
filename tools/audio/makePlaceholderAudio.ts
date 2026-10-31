@@ -10,7 +10,7 @@ import { ROOT } from '../assets/paths.ts';
 import { synthBabyLaugh, synthFirm, synthParry } from './cultSounds.ts';
 import { normalize, PEAK_LOUD, SAMPLE_RATE_HZ, SEED, samplesOf } from './synthKit.ts';
 
-// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 2.9, 3.2, 4.1 and 4.3 (the outlet's cues,
+// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 2.9, 3.2, 4.1, 4.3 and 4.6 (the outlet's cues,
 // then the stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled
 // swell and Papa's snore, then the phone's ring and Papa's pick-up click, then the silence's « ah-ha »
 // chirp and the baby's paper rustle, then story 4.1's cry in the arms, pick-up and put-down, story 4.3's need alarm, toilet door and flush, story 2.9's heartbeat; story 2.3 replaced the parry's pop by a toy squeak, dropped the
@@ -1401,6 +1401,151 @@ export function synthLullabyPad(): Float32Array {
   return out;
 }
 
+// Story 4.6: « Duel du coucher ». Seeds 27 to 31 are this story's, one clip one stream.
+const BEDTIME_TEL_LENGTH_MS = 700;
+const BEDTIME_TEL_HZ = { from: 220, to: 180 };
+const BEDTIME_TEL_NOISE_GAIN = 0.15;
+const BEDTIME_TEL_ATTACK_MS = 120;
+const BEDTIME_TEL_RELEASE_MS = 300;
+
+/** A held breath: a soft low tone sinking under a puff of noise, the baby's eyes watching (cue `tel_bedtime_eyes`). */
+export function synthTelegraphBedtimeEyes(): Float32Array {
+  const rng = createRng(SEED + 27);
+  const out = new Float32Array(samplesOf(BEDTIME_TEL_LENGTH_MS));
+  const attack = samplesOf(BEDTIME_TEL_ATTACK_MS);
+  const release = samplesOf(BEDTIME_TEL_RELEASE_MS);
+  let phase = 0;
+  let noise = 0;
+  for (let i = 0; i < out.length; i++) {
+    const frequencyHz =
+      BEDTIME_TEL_HZ.from + (BEDTIME_TEL_HZ.to - BEDTIME_TEL_HZ.from) * (i / out.length);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    noise += 0.05 * (nextFloat(rng) * 2 - 1 - noise);
+    out[i] =
+      (Math.sin(phase) + noise * BEDTIME_TEL_NOISE_GAIN * 10) *
+      Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const BEDTIME_WAIT_LENGTH_MS = 380;
+const BEDTIME_WAIT_NOTES_HZ = [392, 587.33];
+const BEDTIME_WAIT_ATTACK_MS = 4;
+const BEDTIME_WAIT_DECAY_S = 0.12;
+
+/** Two quick soft notes, tiptoeing away: the duel is won (cue `resp_wait`). */
+export function synthRespWait(): Float32Array {
+  const rng = createRng(SEED + 28);
+  const out = new Float32Array(samplesOf(BEDTIME_WAIT_LENGTH_MS));
+  const attack = samplesOf(BEDTIME_WAIT_ATTACK_MS);
+  const noteSamples = Math.floor(out.length / BEDTIME_WAIT_NOTES_HZ.length);
+  BEDTIME_WAIT_NOTES_HZ.forEach((frequencyHz, n) => {
+    for (let i = 0; i < noteSamples; i++) {
+      const seconds = i / SAMPLE_RATE_HZ;
+      const click = i < attack ? (nextFloat(rng) * 2 - 1) * 0.3 : 0;
+      out[n * noteSamples + i] =
+        (Math.sin(2 * Math.PI * frequencyHz * seconds) + click) *
+        Math.min(1, i / attack) *
+        Math.exp(-seconds / BEDTIME_WAIT_DECAY_S);
+    }
+  });
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const BEDTIME_CLOSE_LENGTH_MS = 450;
+const BEDTIME_CLOSE_HZ = { from: 880, to: 440 };
+const BEDTIME_CLOSE_ATTACK_MS = 6;
+const BEDTIME_CLOSE_DECAY_S = 0.14;
+
+/** A small glassy « tink » that falls: the eyelids close, the signal to go (cue `bedtime_eyes_closed`). */
+export function synthBabyEyesClose(): Float32Array {
+  const rng = createRng(SEED + 29);
+  const out = new Float32Array(samplesOf(BEDTIME_CLOSE_LENGTH_MS));
+  const attack = samplesOf(BEDTIME_CLOSE_ATTACK_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const frequencyHz =
+      BEDTIME_CLOSE_HZ.to +
+      (BEDTIME_CLOSE_HZ.from - BEDTIME_CLOSE_HZ.to) * Math.exp(-seconds / BEDTIME_CLOSE_DECAY_S);
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const click = i < attack ? (nextFloat(rng) * 2 - 1) * 0.4 : 0;
+    out[i] =
+      (Math.sin(phase) + 0.3 * Math.sin(2 * phase) + click) *
+      Math.min(1, i / attack) *
+      Math.exp(-seconds / BEDTIME_CLOSE_DECAY_S);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const BEDTIME_REOPEN_LENGTH_MS = 600;
+const BEDTIME_REOPEN_HZ = { from: 300, to: 520 };
+const BEDTIME_REOPEN_ATTACK_MS = 20;
+const BEDTIME_REOPEN_RELEASE_MS = 200;
+const BEDTIME_REOPEN_VIBRATO_HZ = 7;
+
+/** A sleepy « huh? » rising: the eyes snap open again, the gag (cue `gag_baby_eyes_reopened`). */
+export function synthGagBabyEyesReopened(): Float32Array {
+  const rng = createRng(SEED + 30);
+  const out = new Float32Array(samplesOf(BEDTIME_REOPEN_LENGTH_MS));
+  const attack = samplesOf(BEDTIME_REOPEN_ATTACK_MS);
+  const release = samplesOf(BEDTIME_REOPEN_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const seconds = i / SAMPLE_RATE_HZ;
+    const frequencyHz =
+      (BEDTIME_REOPEN_HZ.from + (BEDTIME_REOPEN_HZ.to - BEDTIME_REOPEN_HZ.from) * progress) *
+      (1 + 0.04 * Math.sin(2 * Math.PI * BEDTIME_REOPEN_VIBRATO_HZ * seconds));
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const breath = (nextFloat(rng) * 2 - 1) * 0.15;
+    out[i] =
+      (Math.sin(phase) + 0.4 * Math.sin(2 * phase) + breath) *
+      Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const BEDTIME_HUSH_LENGTH_S = 8;
+const BEDTIME_HUSH_HZ = [98, 147];
+const BEDTIME_HUSH_SWAY_HZ = 1 / 8;
+const BEDTIME_HUSH_BREATH_GAIN = 0.25;
+
+/**
+ * The duel's hush (loop `sequenceMusic.bedtime_duel`): a very quiet low drone under a breath of noise,
+ * with no pulse at all, because a pulse would suggest a rhythm to read. Both tones and the swell make
+ * whole cycles over the loop.
+ */
+export function synthBedtimeHush(): Float32Array {
+  const rng = createRng(SEED + 31);
+  const out = new Float32Array(samplesOf(BEDTIME_HUSH_LENGTH_S * 1000));
+  let breath = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    let tone = 0;
+    for (const frequencyHz of BEDTIME_HUSH_HZ)
+      tone += Math.sin(2 * Math.PI * frequencyHz * seconds);
+    breath += 0.002 * (nextFloat(rng) * 2 - 1 - breath);
+    const swell = 0.7 + 0.3 * Math.sin(2 * Math.PI * BEDTIME_HUSH_SWAY_HZ * seconds);
+    out[i] = (tone / BEDTIME_HUSH_HZ.length + breath * BEDTIME_HUSH_BREATH_GAIN * 20) * swell;
+  }
+  fadeEnds(out, LOOP_FADE_MS);
+  normalize(out, PEAK_MUSIC * 0.5);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -1473,6 +1618,11 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'papa_lullaby_step', synth: synthLullabyStep },
   { clip: 'baby_stir', synth: synthBabyStir },
   { clip: 'music_lullaby_pad', synth: synthLullabyPad },
+  { clip: 'tel_bedtime_eyes', synth: synthTelegraphBedtimeEyes },
+  { clip: 'resp_wait', synth: synthRespWait },
+  { clip: 'baby_eyes_close', synth: synthBabyEyesClose },
+  { clip: 'gag_baby_eyes_reopened', synth: synthGagBabyEyesReopened },
+  { clip: 'music_bedtime_hush', synth: synthBedtimeHush },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

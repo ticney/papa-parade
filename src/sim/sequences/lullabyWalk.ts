@@ -182,6 +182,7 @@ function cueNotes(world: World, ctx: StepContext, step: BeatsStep, timeline: rea
 
 /** `beats`: the walk to the lullaby. See the file's header. */
 export const BEATS_HANDLER: StepHandler<'beats'> = {
+  isTimed: true,
   enter(world, ctx, step) {
     const timeline = timelineOf(world, ctx);
     if (timeline === null) return;

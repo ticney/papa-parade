@@ -190,6 +190,13 @@ describe('StringsSchema', () => {
     expect(failures({ 'a.b': 'Touchez votre écran' })).toHaveLength(1);
   });
 
+  it('accepts the verb of patience, « ATTENDS… », and nothing looser (story 4.6)', () => {
+    expect(parse({ 'verb.wait': 'ATTENDS…' }).ok).toBe(true);
+    expect(failures({ 'verb.wait': 'Attends…' })).toHaveLength(1);
+    expect(failures({ 'verb.wait': 'ATTENDS...' })).toHaveLength(1);
+    expect(failures({ 'verb.wait': 'ATTENDS' })).toHaveLength(1);
+  });
+
   it('requires verbs to be uppercase and to end with " !"', () => {
     expect(parse({ 'verb.lift': 'SOULÈVE !', 'verb.put_down_first': "POSE-LE D'ABORD !" }).ok).toBe(
       true,

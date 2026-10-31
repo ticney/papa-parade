@@ -51,6 +51,8 @@ export const GAG_PRESENTATIONS: Readonly<Record<GagId, GagPresentation>> = {
   crayon_scribbles: { lightsOff: false, hair: false, babySlide: false },
   // The wail in Papa's arms (story 4.1): the gag cue and the baby's cry are the show.
   arms_wail: { lightsOff: false, hair: false, babySlide: false },
+  // The eyes reopen in the bedtime duel (story 4.6): the gag cue and the retreat are the show until E7 draws the baby's eyes.
+  baby_eyes_reopened: { lightsOff: false, hair: false, babySlide: false },
 };
 
 /** Total time the lights are off the full level, in sim ms. */

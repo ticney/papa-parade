@@ -41,6 +41,14 @@ export {
   judgedBeatCountOf,
   sequenceBeatProblems,
 } from './sequences/beatClock.ts';
+export {
+  type DuelDefShape,
+  type DuelLimits,
+  type DuelThreatShape,
+  duelLimitsOf,
+  isDuelStepRunning,
+  sequenceDuelProblems,
+} from './sequences/bedtimeDuel.ts';
 export { isBeatStepRunning } from './sequences/lullabyWalk.ts';
 export { type SequenceRefusal, sequenceRefusal } from './sequences/sequenceStart.ts';
 export type { SimSnapshot } from './snapshot.ts';
@@ -52,6 +60,7 @@ export type {
   ComboSlice,
   DirectorSlice,
   DisruptionInstance,
+  DuelSlice,
   FlowSlice,
   GaugesSlice,
   MamaScore,

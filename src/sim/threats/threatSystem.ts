@@ -3,7 +3,7 @@ import { asSimMs } from '@shared/time';
 import { isBabyCarried } from '../baby/babyFsm.ts';
 import type { StepContext } from '../context.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
-import { classifyPress } from '../timing/classifyPress.ts';
+import { classifyPress, pressKindOf } from '../timing/classifyPress.ts';
 import { firmHoldOutcome, holdEndAt } from '../timing/holdEnd.ts';
 import { judgePress } from '../timing/judge.ts';
 import type { ThreatInstance, World } from '../world.ts';
@@ -23,6 +23,12 @@ function pressThreat(
   if (threat.press !== null || threat.responseWindow === null) return;
   const def = (ctx.level.threats[index] as SimLevelEntry).def;
   const judgement = judgePress(t, threat.windowOpenAt, threat.responseWindow);
+  if (def.response === 'wait' && t < threat.windowOpenAt) {
+    // Before the signal (story 4.6, D2): a press cannot be a reaction to it, so no buffer, no
+    // tolerance and no `earlyPress` choice. Judged on the press's own `t`.
+    gagThreat(world, ctx, threat, def, 'early', judgement.offsetMs);
+    return;
+  }
   if (judgement.quality === 'early') {
     // `guard`: Papa has already set off (the glide is his system's); only a new press in the window counts.
     if (ctx.feel.input.earlyPress === 'fail') {
@@ -91,7 +97,9 @@ export function runThreats(world: World, ctx: StepContext): void {
 
     // A buffered press already resolved by its release waits for the window: `WindowOpened` first,
     // then its result, in this same step.
-    if (threat.state === 'telegraph' && now >= threat.windowOpenAt) openWindow(world, ctx, threat);
+    if (threat.state === 'telegraph' && now >= threat.windowOpenAt) {
+      openWindow(world, ctx, threat, def);
+    }
 
     const { press, responseWindow } = threat;
     if (press !== null) {
@@ -123,7 +131,7 @@ export function runThreats(world: World, ctx: StepContext): void {
           } else if (outcome === 'released') {
             gagThreat(world, ctx, threat, def, 'released', press.offsetMs);
           }
-        } else if (kind === def.response) {
+        } else if (kind === pressKindOf(def.response)) {
           resolveThreat(world, ctx, threat, def, press.quality, press.offsetMs);
         } else {
           gagThreat(world, ctx, threat, def, 'wrongResponse', press.offsetMs);

@@ -258,6 +258,7 @@ describe('createLevelSession', () => {
       {
         papaRadiusM: content.feel.movement.papaRadiusM,
         babyRadiusM: content.feel.baby.bodyRadiusM,
+        microSleepDefId: null,
       },
     ]);
   });
@@ -1114,7 +1115,9 @@ describe('createLevelSession › start options and outcomes', () => {
     expect(simOptions[0]?.seed).toBe(7);
     // The sim is created with feel.json as is; the tuned feel reaches it as a SetFeel at t = 0.
     expect(simOptions[0]?.content).toBe(content);
-    expect(bodies).toEqual([{ papaRadiusM: 0.42, babyRadiusM: content.feel.baby.bodyRadiusM }]);
+    expect(bodies).toEqual([
+      { papaRadiusM: 0.42, babyRadiusM: content.feel.baby.bodyRadiusM, microSleepDefId: null },
+    ]);
     expect(session.active?.feel.movement.papaRadiusM).toBe(0.42);
     expect(session.active?.sim.journal().entries).toEqual([
       {

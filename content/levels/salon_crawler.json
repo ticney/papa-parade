@@ -43,6 +43,6 @@
   ],
   "gauges": { "noise": {}, "fatigue": { "microSleepDef": "papa_microsleep" }, "need": {} },
   "carry": { "armsCryDef": "arms_cry" },
-  "sequences": ["stay_awake", "lullaby_walk"],
+  "sequences": ["stay_awake", "lullaby_walk", "bedtime_duel"],
   "feelOverrides": {}
 }

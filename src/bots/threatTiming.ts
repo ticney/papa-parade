@@ -22,13 +22,14 @@ export type FingerPlan = { kind: 'tap'; holdMs: number } | { kind: 'untilAnswere
 
 /**
  * How the finger gives `response`. Exhaustive on purpose: the story that teaches the sim a new
- * response (`wait`, `nothing`…) fails to typecheck here until the bots learn it. A Firmness is not
+ * response (`nothing`…) fails to typecheck here until the bots learn it. A Firmness is not
  * pre-timed: bots are not told `holdUntilMs`, and the sim resolves a held Firmness with no release,
  * so the finger stays down until the threat leaves the pressed state (story 1.23 D7).
  */
 export function fingerPlanFor(response: BotResponse, tapMs: number): FingerPlan {
   switch (response) {
     case 'parry':
+    case 'wait':
       return { kind: 'tap', holdMs: tapMs };
     case 'firm':
       return { kind: 'untilAnswered' };

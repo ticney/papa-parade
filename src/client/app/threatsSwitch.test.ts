@@ -52,6 +52,28 @@ describe('withoutThreats', () => {
     expect(planned.level.waves).toHaveLength(1); // the original is untouched
   });
 
+  it('keeps the threat a duel step spawns, with its sequence (story 4.6)', () => {
+    const planned = createTestLevel({
+      waves: [testWave([OUTLET])],
+      carry: CARRY,
+      sequences: ['bedtime_duel'],
+    });
+    expect(Object.keys(planned.threats).sort()).toEqual(['arms_cry', 'bedtime_eyes', 'outlet']);
+    const stripped = withoutThreats(planned);
+    expect(Object.keys(stripped.threats).sort()).toEqual(['arms_cry', 'bedtime_eyes']);
+    expect(Object.keys(stripped.sequences)).toEqual(['bedtime_duel']);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('warns about a duel def the level does not load, and keeps the others', () => {
+    const planned = createTestLevel({ carry: CARRY, sequences: ['bedtime_duel'] });
+    const threats = { ...planned.threats };
+    delete threats.bedtime_eyes;
+    const stripped = withoutThreats({ ...planned, threats });
+    expect(Object.keys(stripped.threats)).toEqual(['arms_cry']);
+    expect(warnSpy.mock.calls[0]?.[1]).toContain('bedtime_eyes');
+  });
+
   it('drops the disruptions with the waves that plan them: no phone rings, and no def is kept', () => {
     const planned = createTestLevel({
       waves: [testWave([OUTLET], { disruptions: [testPhoneEntry(5000)] })],

@@ -13,8 +13,11 @@ export const FORBIDDEN_FAILURE_WORDS =
 /** Tutoiement register: the game says « tu », never « vous ». */
 const VOUVOIEMENT = /(?<![\p{L}])(vous|votre|vos)(?![\p{L}])/iu;
 
-/** Action verbs are shouted: `SOULÈVE !` (plain space, then `!`). */
-const VERB_SHAPE = /^[\p{Lu}'’ -]+ !$/u;
+/**
+ * Action verbs are shouted: `SOULÈVE !` (plain space, then `!`). The one that asks for patience ends
+ * with an ellipsis instead, `ATTENDS…` (story 4.6): nothing is to be done yet.
+ */
+const VERB_SHAPE = /^[\p{Lu}'’ -]+( !|…)$/u;
 
 const StringValueSchema = z
   .string()
@@ -39,7 +42,8 @@ export const StringsSchema = z
           code: 'custom',
           input: value,
           path: [key],
-          message: 'a verb is uppercase and ends with " !" (for example "SOULÈVE !")',
+          message:
+            'a verb is uppercase and ends with " !" (for example "SOULÈVE !") or with "…" (for example "ATTENDS…")',
         });
       }
     }

@@ -33,14 +33,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 22;
+  version: 23;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -59,7 +59,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 22,
+    version: 23,
     seed,
     feelHash,
     geometryHash,
@@ -557,8 +557,10 @@ export interface PlannedLevel {
   readonly sequences: readonly {
     readonly id: string;
     readonly def: {
-      readonly steps: readonly { readonly durationMs: number }[];
+      readonly steps: readonly { readonly kind: string; readonly durationMs: number }[];
       readonly babyCarried: boolean;
+      /** A `retreats` failure bounds `world.sequence.duel.retreats` (story 4.6). */
+      readonly failure: { readonly kind: string; readonly maxRetreats?: number };
     };
     /** The beat timeline of each step, null for a step that is not a `beats` step (story 4.5). */
     readonly beatTimelines: readonly (
@@ -793,7 +795,7 @@ function sequenceProblem(
   ) {
     return 'world.sequence.id';
   }
-  return beatProblem(slice, def);
+  return beatProblem(slice, def) ?? duelProblem(slice, def);
 }
 
 /**
@@ -867,6 +869,42 @@ function beatProblem(
   }
   const before = timeline[(judgeIndex as number) - 1];
   if (fields.isDecoySpent === true && before?.kind !== 'decoy') return where('isDecoySpent');
+  return null;
+}
+
+/**
+ * The running `duel` step (story 4.6), `world.sequence.duel`: all clear when no sequence runs;
+ * in one, `isRunning` exactly when the current step is a `duel` step, `nextRoundAt` null or a finite
+ * time (null too while a round is up, and always when no duel runs), and `retreats` a whole number
+ * below the def's `maxRetreats` (a sequence that reached it has ended), 0 for any other failure.
+ */
+function duelProblem(
+  slice: Record<string, unknown>,
+  planned: PlannedLevel['sequences'][number] | undefined,
+): string | null {
+  const duel = slice.duel;
+  if (typeof duel !== 'object' || duel === null) return 'world.sequence.duel is missing';
+  const fields = duel as Record<string, unknown>;
+  const where = (key: string): string => `world.sequence.duel.${key}`;
+  if (typeof fields.isRunning !== 'boolean') return where('isRunning');
+  const isDuelStep =
+    slice.id !== null && planned?.def.steps[slice.stepIndex as number]?.kind === 'duel';
+  if (fields.isRunning !== isDuelStep) return where('isRunning');
+  if (fields.nextRoundAt !== null) {
+    if (!isFiniteNumber(fields.nextRoundAt) || (fields.nextRoundAt as number) < 0) {
+      return where('nextRoundAt');
+    }
+    if (!fields.isRunning) return where('nextRoundAt');
+  }
+  const { retreats } = fields;
+  if (!Number.isInteger(retreats) || (retreats as number) < 0) return where('retreats');
+  const failure = planned?.def.failure;
+  const maxRetreats = failure?.kind === 'retreats' ? (failure.maxRetreats ?? 0) : 0;
+  if (slice.id === null || failure?.kind !== 'retreats') {
+    if (retreats !== 0) return where('retreats');
+  } else if ((retreats as number) >= maxRetreats) {
+    return where('retreats');
+  }
   return null;
 }
 
@@ -1119,7 +1157,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 22, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 23, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

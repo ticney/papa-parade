@@ -2,7 +2,7 @@ import type { Feel } from '@content/schemas/feel';
 import { GAMEPAD_PRESS_ID, KEYBOARD_PRESS_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type SimMs } from '@shared/time';
-import { isBeatStepRunning, isFlowLive, isPapaBusy } from '@sim';
+import { isBeatStepRunning, isDuelStepRunning, isFlowLive, isPapaBusy } from '@sim';
 import type { AppFsm } from '../app/appFsm.ts';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import type { PauseController } from '../app/pauseController.ts';
@@ -435,6 +435,19 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (isHeldInPlace(active)) {
         if (isBeatStepRunning(active.sim.world)) {
           active.sim.enqueue({ type: 'TapBeat', t: toSim(active, sample.timeStamp) });
+          return;
+        }
+        // In a duel step a finger anywhere on the screen is the press on the threat that is up
+        // (story 4.6, D10): a duel of patience tests when, not where, and a tap beside a small marker
+        // would be lost at the one moment that matters. The `Release` follows as for a pick. With no
+        // threat up (a rest between rounds) the finger is free and sends nothing.
+        if (isDuelStepRunning(active.sim.world)) {
+          const duelThreatId = targetNow(active);
+          if (duelThreatId === null) return;
+          heldPressAt = toSim(active, sample.timeStamp);
+          active.sim.enqueue({ type: 'PressThreat', t: heldPressAt, threatId: duelThreatId });
+          press.pressed(sample.pointerId, duelThreatId);
+          deps.onThreatPressed?.(duelThreatId);
           return;
         }
         if (log.enabled('debug')) log.debug('input', 'tap dropped: a sequence holds Papa in place');

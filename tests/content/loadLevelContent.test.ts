@@ -50,11 +50,13 @@ describe('loadLevelContent', () => {
     const planned = result.value.level.waves.flatMap((wave) => wave.threats.map((t) => t.def));
     expect(planned).toContain('outlet');
     // The waves' defs in order of first reference, then the micro-sleep of its fatigue gauge, then
-    // the cry in the arms of its `carry` (story 4.1).
+    // the cry in the arms of its `carry` (story 4.1), then the threats of the duel steps of its
+    // sequences, read once the sequences are (story 4.6).
     expect(Object.keys(result.value.threats)).toEqual([
       ...new Set(planned),
       'papa_microsleep',
       'arms_cry',
+      'bedtime_eyes',
     ]);
     expect(result.value.threats.papa_microsleep?.target).toBe('papa');
     expect(result.value.threats.arms_cry?.target).toBe('papa');
@@ -108,8 +110,12 @@ describe('loadLevelContent', () => {
     const result = await loadLevelContent(memorySource(), 'salon_crawler');
     expect(result).toMatchObject({ ok: true });
     if (!result.ok) return;
-    expect(result.value.level.sequences).toEqual(['stay_awake', 'lullaby_walk']);
-    expect(Object.keys(result.value.sequences)).toEqual(['stay_awake', 'lullaby_walk']);
+    expect(result.value.level.sequences).toEqual(['stay_awake', 'lullaby_walk', 'bedtime_duel']);
+    expect(Object.keys(result.value.sequences)).toEqual([
+      'stay_awake',
+      'lullaby_walk',
+      'bedtime_duel',
+    ]);
     expect(result.value.sequences.stay_awake?.babyCarried).toBe(true);
   });
 
@@ -128,6 +134,49 @@ describe('loadLevelContent', () => {
         file: 'content/levels/salon_crawler.json',
         jsonPath: 'sequences[0]',
         message: expect.stringContaining('sequence "stay_awake"'),
+      }),
+    ]);
+  });
+
+  it('loads the threat of a duel step once, however many steps name it (story 4.6)', async () => {
+    const result = await loadLevelContent(memorySource(), 'salon_crawler');
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    const named = Object.values(result.value.sequences).flatMap((sequence) =>
+      sequence.steps.flatMap((step) => (step.kind === 'duel' ? [step.threatDef] : [])),
+    );
+    expect(named.length).toBeGreaterThan(1);
+    for (const defId of named) expect(result.value.threats[defId]?.response).toBe('wait');
+    expect(Object.keys(result.value.threats).filter((id) => id === 'bedtime_eyes')).toHaveLength(1);
+  });
+
+  it('names the sequence file and the step of a duel whose threat cannot be read (story 4.6)', async () => {
+    expect(await problemsOf({ 'threats/bedtime_eyes.json': null })).toEqual([
+      expect.objectContaining({
+        file: 'content/sequences/bedtime_duel.json',
+        jsonPath: 'steps[0].threatDef',
+        message: expect.stringContaining('threat "bedtime_eyes"'),
+      }),
+    ]);
+  });
+
+  it('names a duel threat file that breaks its schema or whose id is not its file name (story 4.6)', async () => {
+    const eyes = JSON.parse(readReal('threats/bedtime_eyes.json'));
+    expect(
+      await problemsOf({
+        'threats/bedtime_eyes.json': JSON.stringify({ ...eyes, id: 'closed_eyes' }),
+      }),
+    ).toEqual([
+      expect.objectContaining({ file: 'content/threats/bedtime_eyes.json', jsonPath: 'id' }),
+    ]);
+    expect(
+      await problemsOf({
+        'threats/bedtime_eyes.json': JSON.stringify({ ...eyes, minDelayMs: undefined }),
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        file: 'content/threats/bedtime_eyes.json',
+        jsonPath: 'minDelayMs',
       }),
     ]);
   });

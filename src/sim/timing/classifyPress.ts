@@ -1,4 +1,15 @@
+import type { ThreatResponse } from '@content/schemas/threat';
+
 export type PressKind = 'parry' | 'firm';
+
+/**
+ * The press a threat's `response` is answered with (story 4.6): a `wait` is answered by a tap, so a
+ * Parry; the others by themselves. Compare a press to this, never to `def.response` itself, which
+ * typechecks against `'wait'` and would make every tap a `wrongResponse`.
+ */
+export function pressKindOf(response: ThreatResponse): PressKind {
+  return response === 'wait' ? 'parry' : response;
+}
 
 /**
  * The type of a response (ADR-010): a press released before `holdMinMs` is a Parry, one held to

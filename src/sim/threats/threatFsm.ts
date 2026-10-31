@@ -1,5 +1,6 @@
 import type { ThreatDef } from '@content/schemas/threat';
 import { NEUTRAL_WINDOW_MODIFIER } from '@shared/constants';
+import { invariant } from '@shared/invariant';
 import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { instinctWindowModifier, recordMiss } from '../assist/paternalInstinct.ts';
@@ -9,7 +10,7 @@ import { isLastOfWave } from '../director/waveState.ts';
 import type { FailReason, ResponseQuality, ThreatCancelReason } from '../events.ts';
 import { fatigueWindowModifier } from '../gauges/fatigue.ts';
 import { addResponseToCombo, resetCombo } from '../scoring/combo.ts';
-import { failSequenceOnGag } from '../sequences/sequenceEnd.ts';
+import { advanceSequenceOnResolve, failSequenceOnGag } from '../sequences/sequenceEnd.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import { activeDifficulty } from '../timing/difficulty.ts';
 import { type EffectiveWindow, effectiveWindow } from '../timing/effectiveWindow.ts';
@@ -52,6 +53,21 @@ export function enterThreatState(world: World, threat: ThreatInstance, next: Thr
 }
 
 /**
+ * How long after the telegraph delay a `wait` threat gives its signal (story 4.6, D1): drawn here,
+ * once, with exactly one `nextFloat` between `minDelayMs` and `maxDelayMs`, so that the number of
+ * draws never depends on the tuning. Any other def draws nothing (no existing journal moves).
+ */
+function signalDelayMs(world: World, def: ThreatDef): number {
+  if (def.response !== 'wait') return 0;
+  const { minDelayMs, maxDelayMs } = def;
+  invariant(
+    minDelayMs !== undefined && maxDelayMs !== undefined,
+    `wait threat ${def.id} has no minDelayMs / maxDelayMs`,
+  );
+  return Math.round(minDelayMs + nextFloat(world.rng) * (maxDelayMs - minDelayMs));
+}
+
+/**
  * `idle → telegraph`. Freezes the window (D8: a buffered press is judged before the window opens, and a
  * window that moves while the player reads it would be unfair) and fixes the instant it opens.
  * `waveIndex` is the wave that drew the threat, -1 for a threat no wave planned.
@@ -69,9 +85,8 @@ export function telegraphThreat(
     fatigue: fatigueWindowModifier(world, ctx),
     instinct: instinctWindowModifier(world, ctx),
   });
-  threat.windowOpenAt = asSimMs(
-    world.time.sim + (def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs),
-  );
+  const openAfterMs = def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs;
+  threat.windowOpenAt = asSimMs(world.time.sim + openAfterMs + signalDelayMs(world, def));
   threat.press = null;
   threat.waveIndex = waveIndex;
   enterThreatState(world, threat, 'telegraph');
@@ -111,9 +126,17 @@ export function hideThreat(
   });
 }
 
-/** `telegraph → windowOpen`. */
-export function openWindow(world: World, ctx: StepContext, threat: ThreatInstance): void {
+/** `telegraph → windowOpen`. A `wait` threat gives its signal first (`WaitSignalGiven`, story 4.6). */
+export function openWindow(
+  world: World,
+  ctx: StepContext,
+  threat: ThreatInstance,
+  def: ThreatDef,
+): void {
   enterThreatState(world, threat, 'windowOpen');
+  if (def.response === 'wait') {
+    ctx.events.push({ type: 'WaitSignalGiven', t: world.time.sim, threatId: threat.id });
+  }
   ctx.events.push({ type: 'WindowOpened', t: world.time.sim, threatId: threat.id });
 }
 
@@ -168,6 +191,8 @@ export function resolveThreat(
   }
   // The combo climbs on every response, perfect or success, the baby in the arms or not (story 4.2).
   addResponseToCombo(world, ctx);
+  // In a `retreats` sequence a response wins the round (story 4.6); a no-op anywhere else.
+  advanceSequenceOnResolve(world, ctx, threat);
 }
 
 /**
@@ -223,7 +248,7 @@ export function gagThreat(
   // Every failure is a miss for Fatherly Instinct, the timed-out silence and the micro-sleep too (story 2.9).
   recordMiss(world, ctx);
   // In a special sequence a gag ends it (story 4.4); a no-op anywhere else.
-  failSequenceOnGag(world, ctx);
+  failSequenceOnGag(world, ctx, threat, reason);
 }
 
 /** `resolved | gag → idle`, once the cooldown is over. */

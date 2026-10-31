@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../content/_schemas/threat.schema.json",
+  "id": "test_wait",
+  "target": "anchor",
+  "response": "wait",
+  "telegraphDelayMs": 1200,
+  "minDelayMs": 1500,
+  "maxDelayMs": 3000,
+  "windowMs": null,
+  "gag": "outlet_hair",
+  "verbKey": "verb.wait",
+  "signalVerbKey": "verb.go",
+  "icon": "eyes",
+  "signalIcon": "eyelids",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_outlet",
+    "signal": "bedtime_eyes_closed",
+    "success": "resp_wait",
+    "perfect": "resp_wait_perfect",
+    "gag": "gag_outlet"
+  },
+  "cooldownMs": 6000
+}

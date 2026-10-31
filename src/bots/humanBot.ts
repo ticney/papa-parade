@@ -25,6 +25,8 @@ import {
  * started, once per silence. In a lullaby walk (story 4.5) it plans one tap per judged beat at
  * `nextBeatAt + aimOffsetMs + jitterSdMs × N(0, 1)`, with **no `reactionMs` floor**: a rhythm is
  * anticipated, nobody reacts to a beat they can count; a plan whose beat is settled first is dropped.
+ * A `wait` threat (story 4.6) is the opposite: it plans nothing before it sees the signal (state
+ * `windowOpen`), then presses at `windowOpenAt + reactionMs + aimOffsetMs + jitterSdMs × N(0, 1)`.
  */
 export function createHumanBot(setup: BotSetup): Bot {
   const { reactionMs, aimOffsetMs, jitterSdMs } = setup.settings.human;
@@ -72,7 +74,21 @@ export function createHumanBot(setup: BotSetup): Bot {
         if (firmHold.isHolding) break;
         if (!isPressable(threat)) continue;
         const response = responseOf(setup.responses, threat.defId);
-        if (response === undefined || !cycles.isNew(threat)) continue;
+        if (response === undefined) continue;
+        // A wait (story 4.6) cannot be planned from its telegraph: the signal is what the player
+        // reacts to, and the instant the sim drew for it is not the player's to know. This `continue`
+        // comes before `cycles.isNew`, or the telegraph would use up the cycle.
+        if (response === 'wait' && threat.state !== 'windowOpen') continue;
+        if (!cycles.isNew(threat)) continue;
+        if (response === 'wait') {
+          // A reaction to the signal, not an aim at the centre: the jitter is on the reaction, so
+          // it can be late. One draw, like the other responses.
+          const reactionAt =
+            threat.windowOpenAt + reactionMs + aimOffsetMs + jitterSdMs * nextGaussian(rng);
+          const pressAt = Math.max(Math.round(reactionAt), now);
+          schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
+          continue;
+        }
         const aim = centreOf(threat) + aimOffsetMs + jitterSdMs * nextGaussian(rng);
         const reacted = threat.enteredAt + reactionMs;
         // `now` is a floor too: a command never goes into the past.

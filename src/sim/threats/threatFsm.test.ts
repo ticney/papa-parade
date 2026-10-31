@@ -122,7 +122,7 @@ describe('threat FSM', () => {
 
   it('openWindow emits WindowOpened', async () => {
     const { world, ctx, events, threat } = await setup();
-    openWindow(world, ctx, threat);
+    openWindow(world, ctx, threat, def);
     expect(threat.state).toBe('windowOpen');
     expect(events).toEqual([{ type: 'WindowOpened', t: 500, threatId: 1 }]);
   });
@@ -296,6 +296,7 @@ describe('gags', () => {
       'tissues_everywhere',
       'crayon_scribbles',
       'arms_wail',
+      'baby_eyes_reopened',
     ]);
   });
 
@@ -427,7 +428,7 @@ describe('cancelThreat (story 4.1)', () => {
     async (state) => {
       const { world, ctx, events, threat, freezes } = await setup();
       telegraphThreat(world, ctx, threat, def, 0);
-      if (state === 'windowOpen') openWindow(world, ctx, threat);
+      if (state === 'windowOpen') openWindow(world, ctx, threat, def);
       threat.press = {
         t: asSimMs(500),
         quality: 'perfect',

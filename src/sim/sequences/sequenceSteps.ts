@@ -7,10 +7,16 @@ import { isPapaBusy } from '../papa/papaFsm.ts';
 import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
 import { telegraphThreat } from '../threats/threatFsm.ts';
 import type { World } from '../world.ts';
+import { DUEL_HANDLER } from './bedtimeDuel.ts';
 import { BEATS_HANDLER } from './lullabyWalk.ts';
 
 /** What the sim does with one kind of step: enter it, step it while it runs, say when it is settled. */
 export interface StepHandler<K extends SequenceStepKind> {
+  /**
+   * Whether the step ends when its time is up (`stepEndsAt`). `false` for a step that advances on a
+   * result (story 4.6's duel, 4.8's after it): `runSequence` never moves past it on the clock.
+   */
+  readonly isTimed: boolean;
   /** Called when the step is entered, the first step included. */
   enter(world: World, ctx: StepContext, step: StepOfKind<K>): void;
   /** Called every step while the step is the current one. */
@@ -41,6 +47,7 @@ function drawMicroSleepAt(world: World, step: StepOfKind<'microSleeps'>) {
  * sequence's end and the level's.
  */
 const MICRO_SLEEPS: StepHandler<'microSleeps'> = {
+  isTimed: true,
   enter(world, _ctx, step) {
     if (world.sequence.nextMicroSleepAt !== null) return;
     world.sequence.nextMicroSleepAt = drawMicroSleepAt(world, step);
@@ -73,10 +80,16 @@ const MICRO_SLEEPS: StepHandler<'microSleeps'> = {
 const HANDLERS: { readonly [K in SequenceStepKind]: StepHandler<K> } = {
   microSleeps: MICRO_SLEEPS,
   beats: BEATS_HANDLER,
+  duel: DUEL_HANDLER,
 };
 
 /** Every step kind the sim has a handler for (`createSim` refuses a def of another kind). */
 export const SEQUENCE_HANDLER_KINDS = Object.keys(HANDLERS) as readonly SequenceStepKind[];
+
+/** Whether `step` ends when its time is up; a step that advances on a result does not (story 4.6). */
+export function isSequenceStepTimed(step: SequenceStep): boolean {
+  return handlerOf(step).isTimed;
+}
 
 /** Enters `step` (the one at `world.sequence.stepIndex`). */
 export function enterSequenceStep(world: World, ctx: StepContext, step: SequenceStep): void {

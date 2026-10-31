@@ -33,6 +33,7 @@ async function setup(feel: Feel = content.feel) {
       waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE])],
       gauges: FATIGUE_GAUGES,
       carry: CARRY,
+      sequences: ['bedtime_duel'],
     }),
     seed: 1,
   });
@@ -75,6 +76,8 @@ const OWN_THREAT: Record<GagId, { defId: string; eventCount: number; pushCount: 
   crayon_scribbles: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
   // The cry is the def's `gagCryMs` (story 3.1 D9), not the gag's: nothing else happens (story 4.1).
   arms_wail: { defId: 'arms_cry', eventCount: 0, pushCount: 0 },
+  // The retreat is the sequence's (story 4.6): the gag itself does nothing.
+  baby_eyes_reopened: { defId: 'bedtime_eyes', eventCount: 0, pushCount: 0 },
 };
 
 describe('applyGag', () => {

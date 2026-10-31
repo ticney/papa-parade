@@ -52,6 +52,13 @@ export interface ThreatMarkerEntry {
    * story 4.1), translated once at build. Absent for a threat that is not a Firmness: its verb never changes.
    */
   readonly carriedVerb?: string;
+  /**
+   * What a `wait` threat shows from its signal on (« FILE ! », story 4.6): the verb, translated once
+   * at build, and the glyph. Both absent for any other threat. The signal is the glyph and the verb,
+   * never the colour alone (NFR8).
+   */
+  readonly signalVerb?: string;
+  readonly signalIcon?: ThreatIcon;
   /** The marker's shape and colour, copied from the def (the pair is the signal, NFR8). */
   readonly iconShape: ThreatIconShape;
   readonly color: ThreatColor;
@@ -150,6 +157,9 @@ export interface ThreatMarkerDef {
   readonly iconShape: ThreatIconShape;
   readonly color: ThreatColor;
   readonly response: string;
+  /** Only on a `wait` threat (story 4.6): the verb and the glyph from the signal on. */
+  readonly signalVerbKey?: string | undefined;
+  readonly signalIcon?: ThreatIcon | undefined;
 }
 
 /**
@@ -192,10 +202,15 @@ export function threatMarkerEntries(
     // A Firmness cannot be held with a baby in the arms: its verb says to put him down first (story 4.1).
     const carriedVerb =
       def?.response === 'firm' ? translateVerb(CARRIED_FIRM_VERB_KEY, threat.id, t) : '';
+    // A `wait` threat swaps its verb and its glyph at the signal (story 4.6).
+    const signalVerb =
+      def?.signalVerbKey === undefined ? '' : translateVerb(def.signalVerbKey, threat.id, t);
     const look = {
       icon,
       verb: verbKey === null ? '' : translateVerb(verbKey, threat.id, t),
       ...(carriedVerb === '' ? {} : { carriedVerb }),
+      ...(signalVerb === '' ? {} : { signalVerb }),
+      ...(def?.signalIcon === undefined ? {} : { signalIcon: def.signalIcon }),
       iconShape: def?.iconShape ?? FALLBACK_SHAPE,
       color: def?.color ?? FALLBACK_COLOR,
       verbWidthPx: 0,
@@ -264,6 +279,8 @@ export const THREAT_CLASSES = {
   /** The hold-ring (story 1.23); `--closed` once the press has been held `holdMinMs`. */
   hold: 'pp-threat-hold',
   holdClosed: 'pp-threat-hold--closed',
+  /** On the marker of a `wait` threat from its signal on (story 4.6): the CSS draws the cue's onset. */
+  signal: 'pp-threat--signal',
 } as const;
 
 /** The ring's progress in whole percent, as the strings the CSS variable takes (built once: no per-frame concatenation). */
@@ -287,6 +304,8 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
     'M2.5 11c3.5 6 15.5 6 19 0c-3.5-3-15.5-3-19 0z M5 15.5L3 19 M9.5 17.3l-.8 3.4 M14.5 17.3l.8 3.4 M19 15.5l2 3.5',
   // A tear drop: the baby crying in Papa's arms (story 4.1).
   cry: 'M12 2.5C12 2.5 5.5 10 5.5 15a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5z',
+  // An open eye, the pupil in the middle: the baby who is not asleep yet (the bedtime duel, story 4.6).
+  eyes: 'M1.5 12C5 6 19 6 22.5 12C19 18 5 18 1.5 12z M12 12m-3.4 0a3.4 3.4 0 1 0 6.8 0a3.4 3.4 0 1 0-6.8 0',
   // Three dots: the « … » of the suspicious silence (story 1.21).
   dots: 'M6 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M18 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0',
 };
@@ -310,6 +329,10 @@ interface Marker {
   verbFontPx: number;
   /** The verb's text as drawn is the entry's `carriedVerb` (story 4.1), not its `verb`. */
   isCarriedShown: boolean;
+  /** The glyph's path: swapped for the entry's `signalIcon` from the signal on (story 4.6). */
+  readonly glyphPath: Element;
+  /** The signal has come: the verb and the glyph are the entry's `signalVerb` and `signalIcon`. */
+  isSignalShown: boolean;
   /** How far the verb stack is pushed up as drawn, in whole px. */
   verbOffsetPx: number;
   /** How far the verb stack is shifted sideways as drawn to stay on screen, in whole px. */
@@ -386,23 +409,22 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
   }
   const icon = doc.createElement('div');
   icon.className = THREAT_CLASSES.icon;
+  const glyphPath = svgElement(
+    'path',
+    {
+      d: THREAT_ICON_PATHS[entry.icon],
+      fill: 'var(--pp-color-paper)',
+      stroke: 'var(--pp-color-ink)',
+      'stroke-width': '2',
+      'stroke-linejoin': 'round',
+    },
+    [],
+    doc,
+  );
   const glyph = svgElement(
     'svg',
     { class: THREAT_CLASSES.glyph, viewBox: '0 0 24 24' },
-    [
-      svgElement(
-        'path',
-        {
-          d: THREAT_ICON_PATHS[entry.icon],
-          fill: 'var(--pp-color-paper)',
-          stroke: 'var(--pp-color-ink)',
-          'stroke-width': '2',
-          'stroke-linejoin': 'round',
-        },
-        [],
-        doc,
-      ),
-    ],
+    [glyphPath],
     doc,
   );
   // The colour is the def's, by its DESIGN token name; the circle fills with it in CSS, the triangle below.
@@ -459,6 +481,8 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
     verb,
     verbFontPx: 0,
     isCarriedShown: false,
+    glyphPath,
+    isSignalShown: false,
     verbOffsetPx: 0,
     verbShiftXPx: 0,
     closeAt: Number.POSITIVE_INFINITY,
@@ -572,8 +596,10 @@ export function createThreatMarkers(
       const marker = markers[i] as Marker;
       const entry = mounted[i] as ThreatMarkerEntry;
       if (marker.verb === null) continue;
-      // The text as drawn now: a Firmness fits « POSE-LE D'ABORD ! » while the baby is carried.
-      const text = marker.isCarriedShown ? (entry.carriedVerb ?? entry.verb) : entry.verb;
+      // The text as drawn now: a Firmness fits « POSE-LE D'ABORD ! » while the baby is carried, a wait
+      // « FILE ! » from its signal on.
+      let text = marker.isCarriedShown ? (entry.carriedVerb ?? entry.verb) : entry.verb;
+      if (marker.isSignalShown) text = entry.signalVerb ?? text;
       const advancePx = typography.widthPx(text.toUpperCase(), scaledBasePx);
       // The outline adds `VERB_STROKE_PX` on each side and does not shrink with the font: fit the text
       // into what is left of the maximum, so that the box with its outline is at most the maximum.
@@ -707,6 +733,27 @@ export function createThreatMarkers(
             marker.isCarriedShown = isBabyCarried;
             marker.verb.textContent = isBabyCarried ? entry.carriedVerb : entry.verb;
             isVerbSwapped = true;
+          }
+        }
+        // A wait threat swaps its verb and its glyph, and toggles a class, at the signal (story 4.6):
+        // `windowOpen` is the signal, and the swap stays while the marker is up (a quick tap is drawn
+        // once more after the sim resolved it) until the next telegraph or the marker goes.
+        if (entry.signalIcon !== undefined || entry.signalVerb !== undefined) {
+          let isSignal = marker.isSignalShown;
+          if (threat?.state === 'windowOpen') isSignal = true;
+          else if (!isActive || threat?.state === 'telegraph') isSignal = false;
+          if (isSignal !== marker.isSignalShown) {
+            marker.isSignalShown = isSignal;
+            marker.glyphPath.setAttribute(
+              'd',
+              THREAT_ICON_PATHS[isSignal ? (entry.signalIcon ?? entry.icon) : entry.icon],
+            );
+            if (marker.verb !== null && entry.signalVerb !== undefined) {
+              const normal = marker.isCarriedShown ? (entry.carriedVerb ?? entry.verb) : entry.verb;
+              marker.verb.textContent = isSignal ? entry.signalVerb : normal;
+              isVerbSwapped = true;
+            }
+            marker.element.classList.toggle(THREAT_CLASSES.signal, isSignal);
           }
         }
         if (isActive && entry.followsPapa && papa !== null) {

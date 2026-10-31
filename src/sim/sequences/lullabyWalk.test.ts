@@ -17,7 +17,7 @@ import {
 import { createSim, createSimWithSystems, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import { SYSTEMS } from '../step.ts';
-import type { World } from '../world.ts';
+import type { ThreatInstance, World } from '../world.ts';
 import { beatTimelineOf } from './beatClock.ts';
 import { isBeatStepRunning } from './lullabyWalk.ts';
 import { failSequenceOnGag } from './sequenceEnd.ts';
@@ -603,7 +603,7 @@ describe('the gag and the walk (story 4.5)', () => {
         (world, ctx) => {
           if (world.time.sim === stepAt) {
             calls += 1;
-            failSequenceOnGag(world, ctx);
+            failSequenceOnGag(world, ctx, world.threats[0] as ThreatInstance, 'late');
           }
         },
       ],

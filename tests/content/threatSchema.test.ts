@@ -63,7 +63,7 @@ describe('content/threats/outlet.json', () => {
       ],
       ['holdUntilMs'],
     ],
-    ['a response the sim cannot judge yet', [['response', 'wait']], ['response']],
+    ['a response the sim cannot judge yet', [['response', 'nothing']], ['response']],
     ['a telegraph delay of 0', [['telegraphDelayMs', 0]], ['telegraphDelayMs']],
     ['a negative telegraph delay', [['telegraphDelayMs', -1]], ['telegraphDelayMs']],
     [

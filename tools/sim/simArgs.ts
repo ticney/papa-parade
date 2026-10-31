@@ -73,6 +73,8 @@ A start the sim refuses (Papa busy, a silence, a phone ringing) is sent once, no
 warning and counts 0. A game cut by \`--until-ms\` in the middle of a sequence counts it as started only.
 The lullaby walk (story 4.5) adds \`beatsHit\`, \`beatsMissed\`, \`decoysTapped\` and \`beatsStray\`: the judged
 beats tapped in time, settled with no tap, the taps on a decoy, and the taps on nothing.
+The bedtime duel (story 4.6) adds \`sequenceRetreats\`: the steps back its gags made (0 outside a duel). Its threat is not
+counted in \`microSleeps\`.
 \`snore\` is a source of the noise per source.
 `;
 

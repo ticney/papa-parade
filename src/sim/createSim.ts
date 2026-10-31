@@ -30,12 +30,8 @@ import {
 import { createNavGrid, type NavGrid } from './nav/navGrid.ts';
 import { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 import { createRapierPhysics } from './physics/rapierPhysics.ts';
-import {
-  type BeatWindowLimits,
-  beatTimelineOf,
-  beatWindowLimitsOf,
-  sequenceBeatProblems,
-} from './sequences/beatClock.ts';
+import { beatTimelineOf, sequenceBeatProblems } from './sequences/beatClock.ts';
+import { type DuelLimits, duelLimitsOf, sequenceDuelProblems } from './sequences/bedtimeDuel.ts';
 import { SEQUENCE_HANDLER_KINDS } from './sequences/sequenceSteps.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
@@ -177,7 +173,7 @@ function simLevelOf(
   geometry: LevelGeometry,
   physics: Feel['physics'],
   beatTrackIds: readonly string[],
-  beatLimits: BeatWindowLimits,
+  limits: DuelLimits,
 ): SimLevel {
   invariant(
     level.level.id === geometry.id,
@@ -222,7 +218,7 @@ function simLevelOf(
     }
     invariant(
       def.target !== 'papa',
-      `${entry.where}: the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef or carry.armsCryDef), a wave cannot plan it`,
+      `${entry.where}: the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef, carry.armsCryDef or a sequence's duel step), a wave cannot plan it`,
     );
     for (const gag of gagIdsOf(def)) {
       invariant(
@@ -305,6 +301,8 @@ function simLevelOf(
     }
     threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1, zone: null });
   }
+  // Captured here: the duel threats pushed below come after the cry and must not move its index.
+  const armsCryIndex = armsCryDef === undefined ? -1 : threats.length - 1;
   const disruptions: SimLevel['disruptions'][number][] = [];
   for (const entry of plannedDisruptionsOf(level)) {
     // The wording of these is the one `content:check` and the schema use.
@@ -340,6 +338,7 @@ function simLevelOf(
     disruptions.push({ def, objectId: entry.object, atMs: entry.atMs, waveIndex: entry.waveIndex });
   }
   const sequences: SimLevel['sequences'][number][] = [];
+  const duelIndexByDef = new Map<string, number>();
   level.level.sequences.forEach((id, i) => {
     // The wording of these is the one `content:check` uses.
     const where = `level ${level.level.id} › sequences[${i}]`;
@@ -364,17 +363,42 @@ function simLevelOf(
       );
     }
     // The beats of a sequence (story 4.5): the words are `content:check`'s, they share the function.
-    const [beatProblem] = sequenceBeatProblems(def, beatTrackIds, beatLimits);
+    const [beatProblem] = sequenceBeatProblems(def, beatTrackIds, limits);
     invariant(beatProblem === undefined, `${where}: the sequence "${id}" ${beatProblem}`);
+    // The duel steps (story 4.6): the words are `content:check`'s, they share the function.
+    const [duelProblem] = sequenceDuelProblems(def, level.threats, limits);
+    invariant(duelProblem === undefined, `${where}: the sequence "${id}" ${duelProblem}`);
+    // One instance per distinct def, pushed after the cry and the micro-sleep, which keep their indices.
+    const duelThreatIndexes = def.steps.map((step) => {
+      if (step.kind !== 'duel') return null;
+      const known = duelIndexByDef.get(step.threatDef);
+      if (known !== undefined) return known;
+      const duelDef = level.threats[step.threatDef] as ThreatDef;
+      for (const gag of gagIdsOf(duelDef)) {
+        invariant(
+          (GAG_IDS as readonly string[]).includes(gag),
+          `${where}: the threat "${step.threatDef}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+        );
+      }
+      threats.push({
+        def: duelDef,
+        anchorId: PAPA_TARGET_ANCHOR_ID,
+        firstWaveIndex: -1,
+        zone: null,
+      });
+      duelIndexByDef.set(step.threatDef, threats.length - 1);
+      return threats.length - 1;
+    });
     sequences.push({
       id,
       def,
       beatTimelines: def.steps.map((step) => (step.kind === 'beats' ? beatTimelineOf(step) : null)),
+      duelThreatIndexes,
     });
   });
   return {
     microSleepIndex,
-    armsCryIndex: armsCryDef === undefined ? -1 : threats.length - 1,
+    armsCryIndex,
     hasCarry: level.level.carry !== undefined,
     safeZones,
     hasNoise: level.level.gauges.noise !== undefined,
@@ -539,7 +563,7 @@ export async function createSimWithSystems(
     geometry,
     content.feel.physics,
     Object.keys(content.feedback.beatTracks),
-    beatWindowLimitsOf(content.feel),
+    duelLimitsOf(content.feel),
   );
   const papaGrid = createNavGrid(geometry, content.feel.movement.papaRadiusM);
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);

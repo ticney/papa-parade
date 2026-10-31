@@ -22,6 +22,7 @@ export const GAG_IDS = [
   'tissues_everywhere',
   'crayon_scribbles',
   'arms_wail',
+  'baby_eyes_reopened',
 ] as const;
 
 export type GagId = (typeof GAG_IDS)[number];
@@ -107,6 +108,9 @@ function addMischief(world: World): void {
 /** The baby wails in Papa's arms: the cry is the def's `gagCryMs`, so there is nothing more for the sim to do. */
 function armsWail(): void {}
 
+/** The baby's eyes reopen in the bedtime duel (story 4.6): the cost is the sequence's retreat (`failSequenceOnGag`), nothing for the sim to do here. */
+function babyEyesReopened(): void {}
+
 /** One entry per `GagId`, defined once at module scope: a new gag without a consequence is a type error. */
 const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   outlet_hair: outletHair,
@@ -117,6 +121,7 @@ const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   crayon_scribbles: addMischief,
   // The cry in the arms (story 4.1): no sim consequence. The baby's cry is `gagCryMs` on the def (story 3.1 D9), which feeds the noise gauge.
   arms_wail: armsWail,
+  baby_eyes_reopened: babyEyesReopened,
 };
 
 /**
