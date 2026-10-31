@@ -507,6 +507,20 @@ test.describe('the debug overlay › time controls and cheats', () => {
     expect(problems).toEqual([]);
   });
 
+  test('starts Fatherly Instinct with the « Instinct » button (ForceInstinct)', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozenLevel(page);
+    await page.keyboard.press('F1');
+    await openSection(page, 'controls');
+    await page.locator('[data-debug="forceInstinct"]').click();
+    await ppAdvance(page, 2);
+    await expect(html(page)).toHaveAttribute('data-pp-instinct', 'on');
+    expect((await ppWorld(page)).instinct.state).toBe('active');
+    expect(problems).toEqual([]);
+  });
+
   test('keeps the picked threat while the list follows the threats’ states', async ({ page }) => {
     const problems = collectProblems(page);
     await openFrozenLevel(page);

@@ -2,6 +2,7 @@ import type { ThreatDef } from '@content/schemas/threat';
 import { NEUTRAL_WINDOW_MODIFIER } from '@shared/constants';
 import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
+import { instinctWindowModifier, recordMiss } from '../assist/paternalInstinct.ts';
 import { startBabyCry } from '../baby/cry.ts';
 import type { StepContext } from '../context.ts';
 import { isLastOfWave } from '../director/waveState.ts';
@@ -64,10 +65,9 @@ export function telegraphThreat(
 ): void {
   const { timing } = ctx.feel;
   threat.responseWindow = effectiveWindow(timing, def.windowMs ?? timing.windowMs, {
-    // Instinct does not exist yet (story 2.9).
     tier: activeDifficulty(world, ctx).windowMultiplier,
     fatigue: fatigueWindowModifier(world, ctx),
-    instinct: NEUTRAL_WINDOW_MODIFIER,
+    instinct: instinctWindowModifier(world, ctx),
   });
   threat.windowOpenAt = asSimMs(
     world.time.sim + (def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs),
@@ -220,6 +220,8 @@ export function gagThreat(
   if (def.gagCryMs !== undefined) startBabyCry(world, ctx, def.gagCryMs);
   // A missed threat loses the combo, nothing is cashed (story 4.2).
   resetCombo(world, ctx, 'gag');
+  // Every failure is a miss for Fatherly Instinct, the timed-out silence and the micro-sleep too (story 2.9).
+  recordMiss(world, ctx);
   // In a special sequence a gag ends it (story 4.4); a no-op anywhere else.
   failSequenceOnGag(world, ctx);
 }

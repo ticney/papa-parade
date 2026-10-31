@@ -1,5 +1,5 @@
 # generated: 2026-10-26
-# last_updated: 2026-10-30
+# last_updated: 2026-10-31
 # project: papa-parade
 # project_key: NOKEY
 # tracking_system: file-system
@@ -41,7 +41,7 @@
 # - epic-3 reste 'in-progress' entre 3.4 et 3.5 : ne pas le passer à 'done' après 3.4.
 
 generated: 2026-10-26
-last_updated: 2026-10-30
+last_updated: 2026-10-31
 project: papa-parade
 project_key: NOKEY
 tracking_system: file-system
@@ -84,8 +84,8 @@ development_status:
   2-6-musique-adaptative-de-base: done
   2-7-calibration-de-la-latence: done
   2-8-paliers-de-difficulte-et-reglages: done
-  2-9-instinct-paternel: backlog
-  2-10-reglages-d-accessibilite-mouvement-reduit-et-grands-verbes: ready-for-dev
+  2-9-instinct-paternel: done
+  2-10-reglages-d-accessibilite-mouvement-reduit-et-grands-verbes: in-progress
   epic-2-retrospective: optional
 
   epic-3: in-progress

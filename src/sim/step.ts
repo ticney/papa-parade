@@ -1,3 +1,4 @@
+import { runInstinct } from './assist/paternalInstinct.ts';
 import { runBaby } from './baby/babySystem.ts';
 import { applyCommands } from './commandQueue.ts';
 import type { StepContext, System } from './context.ts';
@@ -19,10 +20,11 @@ import type { World } from './world.ts';
  *   applyCommands, advanceTime, runSequence, runDirector, runDisruptions, runBaby, runThreats,
  *   runPapa, runPhysics, runGauges, runInstinct, runScoring, runFlow
  *
- * applyCommands, advanceTime, runSequence, runDirector, runDisruptions, runBaby, runThreats, runPapa, runPhysics,
- * runGauges, runScoring and runFlow exist so far (`runGauges` is the fatigue since story 1.19 and the noise since
- * 3.1; `runDisruptions`, story 1.20, ticks the phone right after the director so that a ring that
- * times out in the step Papa arrives is already over when `runPapa` looks). Each
+ * All of them exist. `runGauges` is the fatigue since story 1.19, the noise since 3.1 and the need
+ * since 4.3. `runInstinct` (story 2.9) is Fatherly Instinct: it reads the misses `gagThreat` wrote
+ * in `runThreats`, so it comes after the threats and the gauges. `runDisruptions` (story 1.20) ticks
+ * the phone right after the director so that a ring that times out in the step Papa arrives is
+ * already over when `runPapa` looks. Each
  * later story inserts its system at its slot, edits the pinned order test and, if behaviour
  * changes, regenerates the golden references and says so.
  * Systems never call each other: they read and write `World` and push to `ctx.events`.
@@ -48,6 +50,7 @@ export const SYSTEMS: readonly System[] = [
   runPapa,
   runPhysics,
   runGauges,
+  runInstinct,
   runScoring,
   runFlow,
 ];

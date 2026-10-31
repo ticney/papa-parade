@@ -242,7 +242,7 @@
 ## Deferred from: implementation of story 1-14-hitstop-et-ralentis (2026-10-27)
 
 - **`slowMoLastThreat` exists but nothing triggers it**: story 1.18 calls `startSlowMo(world, ctx, 'lastThreat', feel.timing.slowMoLastThreat)` on the last threat of a wave. *Resolved (story 1.18): `resolveThreat` starts `lastThreat` on the last success of a closed wave.*
-- **Instinct (2.9)** adds `'instinct'` to `SlowMoSource` (and `SLOW_MO_SOURCES`), and its window bonus separately; the overlap test of 2.9 builds on `slowMo.test.ts`.
+- ~~**Instinct (2.9)** adds `'instinct'` to `SlowMoSource` (and `SLOW_MO_SOURCES`), and its window bonus separately; the overlap test of 2.9 builds on `slowMo.test.ts`.~~ **Closed in story 2.9 (2026-10-30):** `'instinct'` is a slow-mo source, the window bonus is `instinctWindowModifier`, and the overlap is tested in `paternalInstinct.test.ts` against `perfect`, `lastThreat` and `comboCashIn`.
 - **Camera and music under slow-mo** (2.5, 2.6): start on `ResponseResolved{perfect}`, end when `timeScale` returns to its base (D10).
 - **Easing curve is fixed (smoothstep)**: an easing key in `feel.json` if Geo asks for another shape.
 - **Real-time feel of the slow-mo is untuned** (open points 1 to 3 of the story): 1.2 s of sim time is about 4 s of real time at ×0.3, the 80 ms hitstop also hits a perfect, and `returnMs: 300` is a guess. Geo tunes `slowMoPerfect.durationMs` / `returnMs` and `hitstopMs` after playing.
@@ -598,7 +598,7 @@
 - **`content/music/` and a per-age stem set.** Reason: story 7.5 swaps the two stem names of `loops.music.stems` for a set; nothing is built for it now. More than two stems too.
 - **The gapless loop of `.m4a` on WebKit (L158) now concerns two loops**, and a drift between them if the encoder pads them differently. This story warns on a length mismatch (`MUSIC_STEM_LENGTH_TOLERANCE_MS`); judge on a device (story 8.2).
 - **`param.value` read mid-ramp on Safari.** The mood ramps start from the current value (`cancelScheduledValues`, `setValueAtTime(param.value)`), as `stopLoop` already did; the pattern relies on Safari returning the live value. Judge on a device.
-- **The instinct's ×0.8 slow-mo (story 2.9) will also trigger the music's slow-mo effect** at `feel.music.slowMo.belowScale` 1. Story 2.9 or Geo lowers the bound (e.g. 0.7) if that is not wanted.
+- ~~**The instinct's ×0.8 slow-mo (story 2.9) will also trigger the music's slow-mo effect** at `feel.music.slowMo.belowScale` 1. Story 2.9 or Geo lowers the bound (e.g. 0.7) if that is not wanted.~~ **Closed in story 2.9 (2026-10-30), by decision (D5):** `belowScale` stays 1, so the music dips (low-pass, 80 % rate) for the whole instinct; no code. Geo sets `belowScale` to 0.7 to keep the effect for the big slow-mos only (open point 4 of the story).
 - **No debug « Sons » audition of a mood.** Geo tunes by playing, or with `ForceThreat`.
 - **One shared fade (`loops.music.fadeMs`)** covers the level start, the stop and the silence cut alike.
 - **The tense stem is a synthesized placeholder** (`music_crawler_tense.m4a`); the real one is story 7.5. How the mix sounds (80 % rate, 900 Hz, ducking to 60 %) only Geo can judge.
@@ -669,7 +669,7 @@
 
 ## Story 2-8-paliers-de-difficulte-et-reglages (2026-10-30)
 
-- **Story 2.9 (Fatherly Instinct) must gate on `activeDifficulty(world, ctx).hasInstinct`** (`src/sim/timing/difficulty.ts`), not on `feel.difficulty.normal`. Reason: the instinct does not exist yet, so 2.8 only pins the flag (unit test: `false` at `experienced`, `true` otherwise); no e2e or sim test of a non-trigger is possible here.
+- ~~**Story 2.9 (Fatherly Instinct) must gate on `activeDifficulty(world, ctx).hasInstinct`** (`src/sim/timing/difficulty.ts`), not on `feel.difficulty.normal`. Reason: the instinct does not exist yet, so 2.8 only pins the flag (unit test: `false` at `experienced`, `true` otherwise); no e2e or sim test of a non-trigger is possible here.~~ **Closed in story 2.9 (2026-10-30):** `runInstinct` reads `activeDifficulty(world, ctx).hasInstinct`; `paternalInstinct.test.ts`, `tests/bots/instinct.test.ts` (`idle` at `experienced` never triggers) and `tests/e2e/instinct.spec.ts` (a seeded `experienced` save) pin the non-trigger.
 - **The catastrophe gauge's ×0.5 / ×1 / ×1.25 by tier (GDD L366-368).** Reason: no story or code has that gauge yet (`decision-log.md` L45: `gds-correct-course` pending). `feel.difficulty` gets its multiplier with that gauge.
 - **The Fridge magnet entry and its return (3.11), the repeated-failure card (3.x), the automatic Crédits (6.8) and the `credits` content.** Reason: the only entry to the settings is the pause panel for now; « Appliqué à la prochaine partie » always shows. The credits text is a placeholder (`credits.body`).
 - **No sound preview on a volume slider from the pause.** Reason: the audio context is suspended there; « Musique » moves silently and the player hears the result on resuming (open point 2 of the story).
@@ -683,6 +683,20 @@
 - **Returning from Crédits or Recalibrer to the Settings loses the scroll and the focus** (the panel is rebuilt, `initialFocus` is the tier radio). Reason: a pad user goes down every row again; 2.10 reworks the rows.
 - **Journals exported before story 2.8 no longer replay** (`worldHash` includes `difficultyTier`; goldens were regenerated, hash lines only). Reason: expected for a world-slice addition and no tester journal exists yet; regenerate or discard any exported before the playtest.
 
+## Story 2-9-instinct-paternel (2026-10-30)
+
+- **The instinct is not in the journal's `summary`** (`client/telemetry/gameSummary.ts`), so `playtest:metrics` does not count it. Reason: no indicator asks for it yet; its commands (`ForceInstinct`) and the world hash are in the journal, and the replay is exact.
+- **A real heartbeat recording replaces the placeholder** `papa_heartbeat.m4a` (synthesized, about 3 s). Reason: story 7.5.
+- **The heartbeat clip does not follow the slow-mo and does not stop at the level's end.** Reason: a one-shot of about 3 s through the cue table; the audio layer has no « stop on event » for a one-shot, and 3 s over a Result screen's first moments is harmless.
+- **The instinct is rare on the current level** (open point 1 of the story): over 20 games of `salon_crawler` at the FR20 values, `idle` and `random` trigger it 0.30 times per game at `normal` (0.40 and 0.35 at `assistance`), `human` and `perfect` never. Reason: 3 active threats only exist in the last wave. Geo tunes `feel.instinct.minActiveThreatsCount` (2 is the first thing to try) and `missesWithinMs` while playing, with `ForceInstinct` to feel one.
+- **Threats already on screen get the slow-mo, not the +30 %** (D2, open point 2). Reason: a window frozen at the telegraph; re-freezing at the trigger would move the notch the player is aiming at.
+- **Trigger to trigger is 34 s** (the recharge counts from the end, open point 3). `cooldownMs` 26000 gives 30 s between starts.
+
+## Deferred from: code review of story 2-9-instinct-paternel (2026-10-30)
+
+- **The heartbeat clip keeps playing across a pause.** The vignette follows `pause.state`, the one-shot does not, so sound and image desync on pause / resume. Reason: no « stop on event » for a one-shot in the audio layer; same cause as the level-end case above. Story 7.5.
+- **An instinct can trigger in the very step the level ends.** `runInstinct` runs before `runFlow`: `InstinctTriggered`, the slow-mo start and `InstinctEnded{levelEnded}` land in one step, the heartbeat plays over the Result screen and `instinctTriggers` in the sim report counts a trigger with no gameplay effect. Reason: pinned by a test on purpose (every trigger has exactly one end); revisit together with the heartbeat stop.
+- **The `data-pp-instinct` mirror (`ppInstinct`) is not in `PROD_FORBIDDEN_MARKERS`.** Reason: pre-existing gap, only `ppCalibration` is listed; the silence and the other mirrors are not either. Worth one story that lists every mirror.
 ## Story 4-4-cadre-des-sequences-speciales-et-rester-eveille (2026-10-30)
 
 - **A missed micro-sleep outside a sequence, baby in the arms, is still a plain nap with no snore** (D2, open point 1). Reason: the GDD and the epic put the snore in « Rester éveillé »; doing it everywhere would make carrying riskier in the salon. Say if you want it everywhere.

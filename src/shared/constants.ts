@@ -264,7 +264,7 @@ export const SOUND_WAVE_POOL_SIZE = 8;
  */
 export const SCREEN_FLASH_MIN_INTERVAL_MS = 334;
 
-/** A window modifier that changes nothing: fatigue's, when Papa is not tired, and instinct's until story 2.9 builds it. */
+/** A window modifier that changes nothing: fatigue's, when Papa is not tired, and instinct's, when it is not active. */
 export const NEUTRAL_WINDOW_MODIFIER = 1;
 
 /**

@@ -1,4 +1,5 @@
 import { GAUGE_MAX_POINTS } from '@shared/constants';
+import { endInstinct } from '../assist/paternalInstinct.ts';
 import { endSilence } from '../baby/silence.ts';
 import type { StepContext } from '../context.ts';
 import { endRingingPhones } from '../disruptions/phone.ts';
@@ -11,7 +12,8 @@ import { enterFlowState } from './flowFsm.ts';
 /**
  * The end of the level, shared by both ways in: a sequence under way is closed first
  * (`SequenceEnded{levelEnded}`, story 4.4), then a phone still ringing
- * (`PhoneRingEnded{levelEnded}`), then an open silence (`SilenceEnded{levelEnded}`), `playing →
+ * (`PhoneRingEnded{levelEnded}`), then an open silence (`SilenceEnded{levelEnded}`), Fatherly
+ * Instinct (`InstinctEnded{levelEnded}`, story 2.9), `playing →
  * ended`, `MamaWoke` (a woken Mama only), `LevelEnded{reason}`, and Mama's note in the same step
  * (`scoreLevel`, story 1.22).
  */
@@ -19,6 +21,7 @@ function endLevel(world: World, ctx: StepContext, reason: LevelEndReason): void 
   endSequenceForLevelEnd(world, ctx);
   endRingingPhones(world, ctx);
   endSilence(world, ctx);
+  endInstinct(world, ctx);
   enterFlowState(world, 'ended');
   if (reason === 'mamaWoke') ctx.events.push({ type: 'MamaWoke', t: world.time.sim });
   ctx.events.push({ type: 'LevelEnded', t: world.time.sim, reason });

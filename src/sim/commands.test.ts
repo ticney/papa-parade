@@ -15,6 +15,8 @@ describe('commandProblem', () => {
     for (const tier of ['assistance', 'normal', 'experienced']) {
       expect(commandProblem({ type: 'SetDifficultyTier', t: 0, tier })).toBeNull();
     }
+    expect(commandProblem({ type: 'ForceInstinct', t: 10 })).toBeNull();
+    expect(commandProblem({ type: 'ForceInstinct', t: Number.NaN })).toMatch(/finite/);
     expect(
       commandProblem({ type: 'SetFeel', t: 10, patch: { timing: { windowMs: 320 } } }),
     ).toBeNull();
@@ -32,6 +34,7 @@ describe('commandProblem', () => {
 
   it('knows every command type it accepts', () => {
     expect([...COMMAND_TYPES].sort()).toEqual([
+      'ForceInstinct',
       'ForceThreat',
       'Move',
       'MoveStop',

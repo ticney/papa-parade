@@ -10,10 +10,10 @@ import { ROOT } from '../assets/paths.ts';
 import { synthBabyLaugh, synthFirm, synthParry } from './cultSounds.ts';
 import { normalize, PEAK_LOUD, SAMPLE_RATE_HZ, SEED, samplesOf } from './synthKit.ts';
 
-// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 3.2, 4.1 and 4.3 (the outlet's cues,
+// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 2.9, 3.2, 4.1 and 4.3 (the outlet's cues,
 // then the stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled
 // swell and Papa's snore, then the phone's ring and Papa's pick-up click, then the silence's « ah-ha »
-// chirp and the baby's paper rustle, then story 4.1's cry in the arms, pick-up and put-down, story 4.3's need alarm, toilet door and flush; story 2.3 replaced the parry's pop by a toy squeak, dropped the
+// chirp and the baby's paper rustle, then story 4.1's cry in the arms, pick-up and put-down, story 4.3's need alarm, toilet door and flush, story 2.9's heartbeat; story 2.3 replaced the parry's pop by a toy squeak, dropped the
 // perfect's chime and added the Firmness's cupboard clack and the baby's laugh, in `cultSounds.ts`; story 3.2 added Mama's door slam and the lost star's cue),
 // synthesized so that the whole audio pipeline works end to end with no human (golden rule). Real
 // sounds replace the `.m4a` files under the same names (story 7.5, or Geo's recordings; `--only`
@@ -88,6 +88,20 @@ const MUSIC_TENSE_SCALE_HZ = [
 /** Level of the square wave against the sawtooth in the tense timbre: a buzzy edge. */
 const MUSIC_TENSE_SQUARE_GAIN = 0.6;
 const MUSIC_TENSE_DECAY_S = 0.12;
+
+// Fatherly Instinct (story 2.9): about 3 s of low lub-dub, fading out (cue `instinct_triggered`).
+const HEARTBEAT_LENGTH_MS = 3000;
+/** One lub-dub per second. */
+const HEARTBEAT_BEAT_EVERY_MS = 1000;
+/** The dub follows the lub by this long. */
+const HEARTBEAT_DUB_AFTER_MS = 280;
+const HEARTBEAT_LUB_HZ = 55;
+const HEARTBEAT_DUB_HZ = 70;
+const HEARTBEAT_DUB_GAIN = 0.7;
+/** Harmonics of a thump, so that a phone speaker, which cannot play 55 Hz, still renders it. */
+const HEARTBEAT_HARMONIC_GAINS = [1, 0.5, 0.25];
+const HEARTBEAT_ATTACK_MS = 8;
+const HEARTBEAT_DECAY_S = 0.09;
 
 // Pressing need (story 4.3): the alarm of a full bladder, the toilet door's click and thud, the flush.
 const BLADDER_FULL_LENGTH_MS = 420;
@@ -969,6 +983,40 @@ export function synthComboCashIn(): Float32Array {
   return out;
 }
 
+/**
+ * A heartbeat: three lub-dubs a second apart, a low thump (55 Hz, then 70 Hz and weaker) with two
+ * harmonics, each decaying fast, the whole fading out. Deterministic, no noise (cue `instinct_triggered`).
+ */
+export function synthHeartbeat(): Float32Array {
+  const out = new Float32Array(samplesOf(HEARTBEAT_LENGTH_MS));
+  const attack = samplesOf(HEARTBEAT_ATTACK_MS);
+  const thump = (sinceSamples: number, frequencyHz: number, gain: number): number => {
+    if (sinceSamples < 0) return 0;
+    const seconds = sinceSamples / SAMPLE_RATE_HZ;
+    let tone = 0;
+    HEARTBEAT_HARMONIC_GAINS.forEach((harmonicGain, index) => {
+      tone += harmonicGain * Math.sin(2 * Math.PI * frequencyHz * (index + 1) * seconds);
+    });
+    return (
+      gain * tone * Math.exp(-seconds / HEARTBEAT_DECAY_S) * Math.min(1, sinceSamples / attack)
+    );
+  };
+  const beatEvery = samplesOf(HEARTBEAT_BEAT_EVERY_MS);
+  const dubAfter = samplesOf(HEARTBEAT_DUB_AFTER_MS);
+  for (let i = 0; i < out.length; i++) {
+    const sinceBeat = i % beatEvery;
+    const fade = 1 - i / out.length;
+    out[i] =
+      (thump(sinceBeat, HEARTBEAT_LUB_HZ, 1) +
+        thump(sinceBeat - dubAfter, HEARTBEAT_DUB_HZ, HEARTBEAT_DUB_GAIN)) *
+      fade;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 /** The need is full: urgent low pulses that sag, with a breath of noise (cue `bladder_full`). */
 export function synthBladderFull(): Float32Array {
   const rng = createRng(SEED + 13);
@@ -1232,6 +1280,7 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'ui_combo_cash_in', synth: synthComboCashIn },
   { clip: 'papa_bladder_full', synth: synthBladderFull },
   { clip: 'papa_toilet_door', synth: synthToiletDoor },
+  { clip: 'papa_heartbeat', synth: synthHeartbeat },
   { clip: 'env_toilet_flush', synth: synthToiletFlush },
   { clip: 'ui_calibration_beep', synth: synthCalibrationBeep },
   { clip: 'music_stay_awake', synth: synthSequenceMusic },
