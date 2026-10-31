@@ -31,6 +31,17 @@ export function audioAtS(
   return audioNowS + (beatAt - clockMs) / simPerRealMs / MS_PER_S - leadMs / MS_PER_S;
 }
 
+/**
+ * The lead of D1, in ms: the notes play `audioOffsetMs − visualOffsetMs` earlier than their beat, and
+ * the input mapper keeps `visualOffsetMs` alone on the taps, so the latency is corrected once. 0 with
+ * no calibration (a skipped audio phase gives two equal offsets and the same 0).
+ */
+export function beatLeadMs(
+  calibration: Readonly<{ audioOffsetMs: number; visualOffsetMs: number }> | null,
+): number {
+  return calibration === null ? 0 : calibration.audioOffsetMs - calibration.visualOffsetMs;
+}
+
 /** What the scheduler needs to know of the world and the loop, written by `boot.ts` each frame. */
 export interface BeatSchedulerFrame {
   /** The timeline of the running `beats` step, or null when none runs (cancels everything). */
@@ -47,6 +58,12 @@ export interface BeatSchedulerFrame {
   simPerRealMs: number;
   /** `audioOffsetMs − visualOffsetMs`, in ms: the notes play this much earlier (0 with no calibration). */
   leadMs: number;
+  /**
+   * Real ms since the loop recorded `clockMs` (the frame's timestamp) and the scheduler runs: the
+   * audio clock is read now, the game clock is as of then, and the pair is only a pair once this is
+   * taken out. 0 when they were read together.
+   */
+  clockAgeMs: number;
 }
 
 /** A note that has sounded: what `__PP__.beatLog()` reports. */
@@ -195,19 +212,28 @@ export function createBeatScheduler(options: BeatSchedulerOptions): BeatSchedule
       }
       const nowS = audio.currentTimeS;
       if (nowS === null) return;
+      // `clockMs` is the game clock as the loop recorded it, `frame.clockAgeMs` ago: the audio time
+      // that goes with it is the audio time of that instant, not of this one.
+      const clockNowS = nowS - frame.clockAgeMs / MS_PER_S;
 
-      // Notes whose planned time has come have sounded: free them, in the order they were planned.
-      for (let i = 0; i < POOL_SIZE; i++) {
-        const slot = slots[i] as Slot;
-        if (!slot.isUsed || slot.plannedAtS > nowS) continue;
+      // Notes whose planned time has come have sounded: free them, oldest entry first (a slot is
+      // reused, so the slot order is not the order they were planned in).
+      for (;;) {
+        let due: Slot | null = null;
+        for (let i = 0; i < POOL_SIZE; i++) {
+          const slot = slots[i] as Slot;
+          if (!slot.isUsed || slot.plannedAtS > nowS) continue;
+          if (due === null || slot.entryIndex < due.entryIndex) due = slot;
+        }
+        if (due === null) break;
         onSounded?.({
-          entryIndex: slot.entryIndex,
-          beatAt: slot.beatAt,
-          plannedAtS: slot.plannedAtS,
-          replans: slot.replans,
+          entryIndex: due.entryIndex,
+          beatAt: due.beatAt,
+          plannedAtS: due.plannedAtS,
+          replans: due.replans,
         });
-        doneUpTo = Math.max(doneUpTo, slot.entryIndex + 1);
-        free(slot);
+        doneUpTo = Math.max(doneUpTo, due.entryIndex + 1);
+        free(due);
       }
 
       // Frozen (hitstop, pause, a debug freeze): a beat has no real-time position. Whatever has not
@@ -219,17 +245,21 @@ export function createBeatScheduler(options: BeatSchedulerOptions): BeatSchedule
       }
 
       const lateLimitS = -scheduleAheadMs / MS_PER_S;
+      // A note that leads its beat by `leadMs` is due that much earlier: the horizon opens that much
+      // earlier too, or the note would be planned already late (and dropped from a lead of
+      // `scheduleAheadMs` on). A note that trails its beat (a negative lead) is planned as before.
+      const leadAheadMs = Math.max(0, frame.leadMs);
       for (let index = doneUpTo; index < timeline.length; index++) {
         const entry = timeline[index] as BeatEntry;
         const beatAt = frame.stepStartAt + entry.offsetMs;
         const aheadRealMs = (beatAt - frame.clockMs) / frame.simPerRealMs;
-        if (aheadRealMs > scheduleAheadMs) {
+        if (aheadRealMs - leadAheadMs > scheduleAheadMs) {
           // The mapping moved (a slow-mo slowed the clock): a note planned for its old time is now
           // beyond the horizon. Cancelled, it is planned again when it comes back inside it.
           cancelFrom(index);
           break;
         }
-        const atS = audioAtS(beatAt, frame.clockMs, frame.simPerRealMs, nowS, frame.leadMs);
+        const atS = audioAtS(beatAt, frame.clockMs, frame.simPerRealMs, clockNowS, frame.leadMs);
         const slot = slotOf(index);
         if (slot !== null) {
           if (Math.abs(atS - slot.plannedAtS) * MS_PER_S <= replanToleranceMs) continue;

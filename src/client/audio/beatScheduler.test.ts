@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   audioAtS,
   type BeatSchedulerFrame,
+  beatLeadMs,
   createBeatScheduler,
   type SoundedNote,
 } from './beatScheduler.ts';
@@ -37,6 +38,8 @@ interface Plan {
   clip: string;
   atS: number;
   isCancelled: boolean;
+  /** The audio time when it was planned: a plan for a time before it starts late. */
+  plannedWhenS: number;
 }
 
 /** A fake engine: every plan is recorded, `cancel` marks it; `null` while `isRunning` is false. */
@@ -50,7 +53,7 @@ function createFakeAudio() {
     },
     playOneShotAt(clip: string, _bus: string, _gainPct: number, atS: number) {
       if (!audio.isRunning) return null;
-      const plan: Plan = { clip, atS, isCancelled: false };
+      const plan: Plan = { clip, atS, isCancelled: false, plannedWhenS: audio.nowS ?? 0 };
       plans.push(plan);
       return {
         cancel() {
@@ -98,6 +101,13 @@ interface Scenario {
   /** Rate changes at audio times (rate 0 is a hitstop: the audio goes on, the clock stands). */
   changes?: readonly RateChange[];
   leadMs?: number;
+  /**
+   * How long before the audio read the game clock was recorded, in ms (the loop records it at the
+   * frame's timestamp, the scheduler reads the audio later in the frame).
+   */
+  clockAgeMs?: number;
+  /** Whether the frame tells the scheduler that age (it does in the game; false shows what it fixes). */
+  isAgeReported?: boolean;
   /** Frame length in ms (16.67 by default). */
   frameMs?: number;
   /** Audio seconds to play. */
@@ -117,6 +127,8 @@ interface Outcome {
 function simulate({
   changes = [{ atS: 0, rate: 1 }],
   leadMs = 0,
+  clockAgeMs = 0,
+  isAgeReported = true,
   frameMs = FRAME_MS,
   untilS = 14,
   pauses = [],
@@ -137,7 +149,11 @@ function simulate({
     clockMs: 0,
     simPerRealMs: 1,
     leadMs,
+    clockAgeMs: isAgeReported ? clockAgeMs : 0,
   };
+  // The game clock as the loop recorded it: `clockAgeMs` before the audio is read.
+  const clockRecordedAt = (atS: number): number =>
+    clockAt(changes, Math.max(0, atS - clockAgeMs / 1000));
   const rateAt = (atS: number): number => {
     let rate = 1;
     for (const change of changes) if (change.atS <= atS) rate = change.rate;
@@ -153,14 +169,14 @@ function simulate({
       // Suspended: the audio clock and the game clock stand still; the loop reports a rate of 0.
       for (let i = 0; i < pause.frames; i++) {
         audio.nowS = atS;
-        frame.clockMs = clockAt(changes, atS);
+        frame.clockMs = clockRecordedAt(atS);
         frame.simPerRealMs = 0;
         scheduler.update(frame);
         maxPending = Math.max(maxPending, scheduler.pendingCount);
       }
     }
     audio.nowS = atS;
-    frame.clockMs = clockAt(changes, atS);
+    frame.clockMs = clockRecordedAt(atS);
     frame.simPerRealMs = rateAt(atS);
     scheduler.update(frame);
     maxPending = Math.max(maxPending, scheduler.pendingCount);
@@ -242,6 +258,40 @@ describe('the beat scheduler: every note within 10 ms of the game clock (AC 22)'
       expect(note.plannedAtS - (none.notes[i]?.plannedAtS ?? 0)).toBeCloseTo(0.05, 2);
     });
     for (const { gapMs } of late.gapsMs) expect(gapMs).toBeLessThanOrEqual(TOLERANCE_MS);
+  });
+
+  it.each([150, 200, 300])(
+    'plays every note, on time, with a lead of %i ms (a Bluetooth speaker against a small visual offset)',
+    (leadMs) => {
+      const none = simulate();
+      const led = simulate({ leadMs });
+      // None is dropped as late, none is planned already late: the horizon opens by the lead.
+      expect(led.notes.map((note) => note.entryIndex)).toEqual(
+        none.notes.map((note) => note.entryIndex),
+      );
+      for (const { gapMs, entryIndex } of led.gapsMs) {
+        expect(gapMs, `note ${entryIndex}`).toBeLessThanOrEqual(TOLERANCE_MS);
+      }
+      // And none is planned for a time that has already gone by (it would start late).
+      for (const plan of led.plans.filter((candidate) => !candidate.isCancelled)) {
+        expect(plan.atS, plan.clip).toBeGreaterThanOrEqual(plan.plannedWhenS);
+      }
+      led.notes.forEach((note, i) => {
+        expect((none.notes[i]?.plannedAtS ?? 0) - note.plannedAtS).toBeCloseTo(leadMs / 1000, 2);
+      });
+    },
+  );
+
+  it('pairs the audio clock with the game clock of the same instant: a skew of 8 ms is taken out', () => {
+    // The loop recorded `clockMs` 8 ms before the audio clock is read; the frame says so.
+    const paired = simulate({ clockAgeMs: 8 });
+    expect(paired.gapsMs.length).toBeGreaterThan(15);
+    for (const { gapMs, entryIndex } of paired.gapsMs) {
+      expect(gapMs, `note ${entryIndex}`).toBeLessThanOrEqual(1);
+    }
+    // Without it every note sounds that much late: the bias the pairing removes.
+    const skewed = simulate({ clockAgeMs: 8, isAgeReported: false });
+    for (const { gapMs } of skewed.gapsMs) expect(gapMs).toBeGreaterThan(7);
   });
 
   it('follows a slow-mo (×0.3) that starts and ends mid-sequence, on frame boundaries', () => {
@@ -340,6 +390,7 @@ describe('the beat scheduler: the rules of planning (AC 13)', () => {
       clockMs: 0,
       simPerRealMs: 1,
       leadMs: 0,
+      clockAgeMs: 0,
     };
     return { audio, plans, notes, scheduler, frame };
   }
@@ -426,13 +477,27 @@ describe('the beat scheduler: the rules of planning (AC 13)', () => {
 
   it('drops a note whose time has passed by more than scheduleAheadMs, and plays one a little late', () => {
     const { audio, plans, scheduler, frame } = setup();
-    // The context came back 600 ms after the first beats: the old ones are dropped, not stacked.
+    // The context came back late: the clock is at 3000 ms, so the notes up to 2850 ms (150 ms past)
+    // are gone, and the ones in [2850, 3150] are planned. The old ones are dropped, not stacked.
     audio.nowS = 5;
     frame.clockMs = 3000;
     scheduler.update(frame);
-    const atS = plans.map((plan) => plan.atS);
-    expect(atS.every((value) => value >= 5 - AHEAD_MS / 1000)).toBe(true);
-    expect(plans.length).toBeLessThan(3);
+    const expected = TIMELINE.filter((entry) => entry.offsetMs >= 2850 && entry.offsetMs <= 3150);
+    expect(plans.map((plan) => plan.atS)).toHaveLength(expected.length);
+    plans.forEach((plan, i) => {
+      expect(plan.atS).toBeCloseTo(5 + ((expected[i]?.offsetMs ?? 0) - 3000) / 1000, 9);
+    });
+    // The dropped ones stay dropped: the next frame plans nothing for them.
+    const planned = plans.length;
+    audio.nowS = 5.01;
+    frame.clockMs = 3010;
+    scheduler.update(frame);
+    expect(plans.slice(0, planned).every((plan) => !plan.isCancelled)).toBe(true);
+    const earlier = TIMELINE.filter((entry) => entry.offsetMs < 2850).length;
+    expect(plans.length - planned).toBe(
+      TIMELINE.filter((entry) => entry.offsetMs > 3150 && entry.offsetMs <= 3160).length,
+    );
+    expect(earlier).toBeGreaterThan(0);
     // 100 ms late (within the horizon): played at once, not dropped.
     const fresh = setup();
     fresh.audio.nowS = 1.3;
@@ -470,12 +535,73 @@ describe('the beat scheduler: the rules of planning (AC 13)', () => {
     expect(plans).toHaveLength(0);
   });
 
-  it('never holds more notes than its fixed pool, at the fastest autoplay speed', () => {
-    const { maxPending } = simulate({
-      changes: [{ atS: 0, rate: 4 }],
-      untilS: 6,
+  it('plans at most its fixed pool of 16 at once, and refills it as the notes sound', () => {
+    const { audio, plans, notes } = setup();
+    const scheduler = createBeatScheduler({
+      audio,
+      // A horizon that holds the whole step: only the pool limits what is planned.
+      scheduleAheadMs: 60_000,
+      replanToleranceMs: REPLAN_MS,
+      onSounded: (note) => notes.push(note),
     });
-    expect(maxPending).toBeLessThanOrEqual(16);
+    const frame: BeatSchedulerFrame = {
+      timeline: TIMELINE,
+      track: TRACK,
+      stepStartAt: 0,
+      cueIndex: 0,
+      clockMs: 0,
+      simPerRealMs: 1,
+      leadMs: 0,
+      clockAgeMs: 0,
+    };
+    audio.nowS = 0;
+    scheduler.update(frame);
+    expect(scheduler.pendingCount).toBe(16);
+    expect(plans).toHaveLength(16);
+    // The first two sound: two slots are free, and the next two entries (16 and 17) take them.
+    audio.nowS = (TIMELINE[1]?.offsetMs ?? 0) / 1000 + 0.001;
+    frame.clockMs = audio.nowS * 1000;
+    scheduler.update(frame);
+    expect(notes.map((note) => note.entryIndex)).toEqual([0, 1]);
+    expect(scheduler.pendingCount).toBe(16);
+    expect(plans).toHaveLength(18);
+    expect(plans.every((plan) => !plan.isCancelled)).toBe(true);
+  });
+
+  it('says a note sounded in the order the entries were planned, whatever slot it sat in', () => {
+    const { audio, plans, notes } = setup();
+    const scheduler = createBeatScheduler({
+      audio,
+      scheduleAheadMs: 3000,
+      replanToleranceMs: REPLAN_MS,
+      onSounded: (note) => notes.push(note),
+    });
+    const frame: BeatSchedulerFrame = {
+      timeline: TIMELINE,
+      track: TRACK,
+      stepStartAt: 0,
+      cueIndex: 0,
+      clockMs: 0,
+      simPerRealMs: 1,
+      leadMs: 0,
+      clockAgeMs: 0,
+    };
+    // Entries 0 to 2 take slots 0 to 2.
+    audio.nowS = 0;
+    scheduler.update(frame);
+    expect(plans).toHaveLength(3);
+    // Entry 0 sounds and frees slot 0, which entry 3 then takes (a lower slot than entries 1 and 2).
+    audio.nowS = 1.3;
+    frame.clockMs = 1300;
+    scheduler.update(frame);
+    expect(notes.map((note) => note.entryIndex)).toEqual([0]);
+    // Everything planned has sounded in one frame: entry 3 sits in slot 0, before entries 1 and 2.
+    audio.nowS = 6;
+    frame.clockMs = 6000;
+    scheduler.update(frame);
+    const order = notes.map((note) => note.entryIndex);
+    expect(order.slice(0, 4)).toEqual([0, 1, 2, 3]);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 });
 
@@ -485,7 +611,9 @@ describe('audioOffsetMs is one correction, not two (AC 14, D1)', () => {
     // The input mapper then corrects the stamp by `visualOffsetMs`. The note leads by the difference.
     const audioOffsetMs = 110;
     const visualOffsetMs = 70;
-    const leadMs = audioOffsetMs - visualOffsetMs;
+    // The lead the game feeds the scheduler (`boot.ts` calls the same function with the save's calibration).
+    const leadMs = beatLeadMs({ audioOffsetMs, visualOffsetMs });
+    expect(leadMs).toBe(40);
     const beatAt = 5000;
     const clockMs = 4900;
     const simPerRealMs = 1;
@@ -499,9 +627,20 @@ describe('audioOffsetMs is one correction, not two (AC 14, D1)', () => {
     expect(simStamp).toBeCloseTo(beatAt, 9);
   });
 
+  it('has no lead with no calibration, and none for a skipped audio phase (two equal offsets)', () => {
+    expect(beatLeadMs(null)).toBe(0);
+    expect(beatLeadMs({ audioOffsetMs: 80, visualOffsetMs: 80 })).toBe(0);
+  });
+
   it('reads beatAt too for a skipped audio phase, where the two offsets are equal (lead 0)', () => {
     const offsetMs = 80;
-    const noteAtS = audioAtS(5000, 4900, 1, 20, offsetMs - offsetMs);
+    const noteAtS = audioAtS(
+      5000,
+      4900,
+      1,
+      20,
+      beatLeadMs({ audioOffsetMs: offsetMs, visualOffsetMs: offsetMs }),
+    );
     const stampRealMs = noteAtS * 1000 + offsetMs - offsetMs;
     expect(4900 + (stampRealMs - 20_000)).toBeCloseTo(5000, 9);
   });

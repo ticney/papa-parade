@@ -76,6 +76,8 @@ export function createBeatRing(
   const hide = (): void => {
     setVisible(false);
     shownIndex = -1;
+    // The property too: a ring that comes back at exactly 0 writes nothing, and would keep the last one.
+    if (shownProgress !== 0) element.style.setProperty('--pp-beat-progress', '0');
     shownProgress = 0;
     shownKind = null;
   };
@@ -116,12 +118,21 @@ export function createBeatRing(
         hide();
         return;
       }
-      const startsAt = stepStartAt + entry.offsetMs - approachMs;
+      // It never starts before the note that precedes it: a decoy sits closer than `approachMs` to the
+      // beat before it, and the one ring would otherwise jump from the end of that beat to part-way.
+      // The approach is then shorter, and still runs from 0 to 1.
+      const noteAt = stepStartAt + entry.offsetMs;
+      const previousAt =
+        cursor > 0 ? stepStartAt + (timeline[cursor - 1]?.offsetMs ?? 0) : Number.NEGATIVE_INFINITY;
+      const startsAt = Math.max(noteAt - approachMs, previousAt);
       if (clockMs < startsAt) {
         hide();
         return;
       }
-      const progress = Math.min(1, Math.max(0, (clockMs - startsAt) / approachMs));
+      const progress = Math.min(
+        1,
+        Math.max(0, (clockMs - startsAt) / Math.max(1, noteAt - startsAt)),
+      );
       object.position.x = papa.xM;
       object.position.z = papa.zM;
       setVisible(true);

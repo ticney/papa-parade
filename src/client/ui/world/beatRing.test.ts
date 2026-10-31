@@ -118,6 +118,40 @@ describe('createBeatRing', () => {
     expect(element.classes.has('pp-beat-ring--count-in')).toBe(false);
   });
 
+  it('starts a decoy’s ring no earlier than the note before it: no jump from the beat that just closed', () => {
+    const { ring, update } = build();
+    const decoyIndex = TIMELINE.findIndex((entry) => entry.kind === 'decoy');
+    const gapMs = at(decoyIndex) - at(decoyIndex - 1);
+    // The decoy sits half a beat after its beat, closer than approachMs: the whole point.
+    expect(gapMs).toBeLessThan(APPROACH_MS);
+    update(at(decoyIndex - 1) + 1);
+    expect(ring.entryIndex).toBe(decoyIndex);
+    expect(ring.progress).toBeLessThan(0.01);
+    update(at(decoyIndex - 1) + gapMs / 2);
+    expect(ring.progress).toBeCloseTo(0.5, 1);
+    update(at(decoyIndex));
+    expect(ring.progress).toBe(1);
+  });
+
+  it('keeps the full approach for a beat that is farther from the note before it than approachMs', () => {
+    const { ring, update } = build();
+    const beatIndex = TIMELINE.findIndex((entry) => entry.kind === 'beat');
+    expect(at(beatIndex) - at(beatIndex - 1)).toBeGreaterThan(APPROACH_MS);
+    update(at(beatIndex) - APPROACH_MS);
+    expect(ring.progress).toBe(0);
+    update(at(beatIndex) - APPROACH_MS / 2);
+    expect(ring.progress).toBeCloseTo(0.5, 9);
+  });
+
+  it('clears the progress property when it hides, so that a ring coming back at 0 does not keep the last one', () => {
+    const { ring, update, element } = build();
+    update(at(2) - 10);
+    expect(element.styleWrites.at(-1)?.[0]).toBe('--pp-beat-progress');
+    expect(element.styleWrites.at(-1)?.[1]).not.toBe('0');
+    ring.hide();
+    expect(element.styleWrites.at(-1)).toEqual(['--pp-beat-progress', '0']);
+  });
+
   it('is driven by the clock alone: a clock that stands (a pause) holds the ring still', () => {
     const { ring, update, element } = build();
     update(at(2) - 200);

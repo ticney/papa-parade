@@ -713,3 +713,7 @@
 - **The sync bound is `frame × |old − new| / new`, not `frame × (1 − scale)`.** Reason: for a rate change `u` before a note already out, the gap is `(A − u)(old/new − 1)`: 39 ms at worst entering a ×0.3 slow-mo at 60 fps, 12 ms leaving it. The unit test pins it; the e2e measured 0.1 to 5 ms on every note, slow-mo and pause included.
 - **A frame that drops its backlog bends the clock for a frame** (`frame stall: dropped … ms of sim backlog`, seen under load): the game clock then slips behind the audio, and the next frame re-plans. Not a story-4.5 defect, but the only way a note can be late by more than the tolerance outside a rate change.
 - **`botContract.test.ts` times out at 5 s when the machine is loaded** (also noted by 4.4): it passes alone, in about 5.4 s.
+
+## Deferred from: code review of story-4.5 (2026-10-31)
+
+- A second simultaneous finger is not a tap: `handlePointerDown` returns on `!isPrimary` before the beat branch, so a resting thumb costs a rhythm tap. Every other tap behaves the same today (`src/client/input/inputMapper.ts`); revisit with the touch controls.

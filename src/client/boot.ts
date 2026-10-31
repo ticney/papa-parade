@@ -41,6 +41,7 @@ import { isSlowMoActive, isTensionActive } from './audio/adaptiveMusic.ts';
 import { createAudioEngine } from './audio/audioEngine.ts';
 import {
   type BeatSchedulerFrame,
+  beatLeadMs,
   createBeatScheduler,
   type SoundedNote,
 } from './audio/beatScheduler.ts';
@@ -93,6 +94,8 @@ const TIMER_SLOT = 0;
 const gaugeSlotOf = (id: GaugeId): number => GAUGE_IDS.indexOf(id) + 1;
 /** The sequence bar's slot, after the gauges' (story 4.4): its whole percent. */
 const SEQUENCE_SLOT = GAUGE_IDS.length + 1;
+/** The most the scheduler takes off the audio clock to pair it with the loop's, in real ms (story 4.5): a frame older than this is a clock to distrust, not a skew to correct. */
+const BEAT_CLOCK_AGE_MAX_MS = 100;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
 const NO_SIM_OBJECTS: readonly SimObjectSpec[] = [];
 /** What the Result screen shows if it ever has no note (a bug, warned about): all zero. */
@@ -380,6 +383,14 @@ export async function boot(): Promise<void> {
       mirror(name, isOn ? 'on' : 'off');
     },
   });
+  // The notes of a rhythm step (story 4.5), planned one by one on the audio clock. The debug build
+  // listens to the notes that sounded and to the (audio, game) clock pairs, for `__PP__.beatLog()`.
+  const beatSoundedListeners: ((note: SoundedNote) => void)[] = [];
+  const beatSampleListeners: ((sample: BeatSampleRecord) => void)[] = [];
+  const beatSample: { audioNowS: number; clockMs: number } = { audioNowS: 0, clockMs: 0 };
+  // The lullaby walk's counters, for the mirrors (declared here: `mirrorNewLevel` resets them).
+  let beatHitCount = 0;
+  let beatMissCount = 0;
   const beatScheduler = createBeatScheduler({
     audio,
     scheduleAheadMs: feedbackTable.beatScheduler.scheduleAheadMs,
@@ -398,6 +409,7 @@ export async function boot(): Promise<void> {
     clockMs: 0,
     simPerRealMs: 0,
     leadMs: 0,
+    clockAgeMs: 0,
   };
   let currentBeatTimelines: Readonly<Record<string, readonly (readonly BeatEntry[] | null)[]>> = {};
   let cuesPlayedCount = 0;
@@ -413,11 +425,6 @@ export async function boot(): Promise<void> {
   // the director calls last. Debug builds only listen; an empty array otherwise.
   const visualsOfCue: string[] = [];
   const cuePlayedListeners: ((record: CuePlayedRecord) => void)[] = [];
-  // The notes of a rhythm step (story 4.5), planned one by one on the audio clock. The debug build
-  // listens to the notes that sounded and to the (audio, game) clock pairs, for `__PP__.beatLog()`.
-  const beatSoundedListeners: ((note: SoundedNote) => void)[] = [];
-  const beatSampleListeners: ((sample: BeatSampleRecord) => void)[] = [];
-  const beatSample: { audioNowS: number; clockMs: number } = { audioNowS: 0, clockMs: 0 };
   // One query, read live: the player can change the setting while the page is open.
   const reducedMotionQuery = matchMedia('(prefers-reduced-motion: reduce)');
   // The one source of « motion reduced » for every effect of the screen (story 2.5): story 2.10
@@ -673,10 +680,16 @@ export async function boot(): Promise<void> {
     }
   };
   // The lullaby walk, on its events only (story 4.5): the hits and misses so far, and the baby's wake.
-  let beatHitCount = 0;
-  let beatMissCount = 0;
+  // They count one walk: a new `SequenceStarted` starts them afresh (a second walk in one level, a
+  // retry), so a spec never reads the last one's numbers.
   const mirrorBeatEvent = (event: SimEvent): void => {
-    if (event.type === 'BeatHit') {
+    if (event.type === 'SequenceStarted') {
+      beatHitCount = 0;
+      beatMissCount = 0;
+      delete document.documentElement.dataset.ppBeatHits;
+      delete document.documentElement.dataset.ppBeatMisses;
+      delete document.documentElement.dataset.ppBabyWake;
+    } else if (event.type === 'BeatHit') {
       beatHitCount += 1;
       mirror('ppBeatHits', String(beatHitCount));
     } else if (event.type === 'BeatMissed') {
@@ -843,7 +856,7 @@ export async function boot(): Promise<void> {
   // Fills `beatFrame` from the world and the loop: the running `beats` step's timeline and track, or
   // none. The notes lead by `audioOffsetMs − visualOffsetMs` (D1): the inputs keep `visualOffsetMs`
   // alone, in the mapper, so the latency is corrected once.
-  const updateBeatFrame = (world: Sim['world'] | undefined): void => {
+  const updateBeatFrame = (world: Sim['world'] | undefined, frameAtReal: number): void => {
     beatFrame.timeline = null;
     beatFrame.track = null;
     if (world === undefined || !world.sequence.beat.isRunning || world.sequence.id === null) return;
@@ -860,8 +873,14 @@ export async function boot(): Promise<void> {
     beatFrame.cueIndex = world.sequence.beat.cueIndex;
     beatFrame.clockMs = clock.clockMs;
     beatFrame.simPerRealMs = clock.simPerRealMs;
-    beatFrame.leadMs =
-      calibration === null ? 0 : calibration.audioOffsetMs - calibration.visualOffsetMs;
+    beatFrame.leadMs = beatLeadMs(calibration);
+    // The loop recorded `clockMs` at the frame's timestamp; the audio clock is read now, after the
+    // steps and the draw. Both are on `performance.now()`'s timeline, so the age is their difference
+    // (bounded: a timestamp far from it is not a skew to correct but a clock to distrust).
+    beatFrame.clockAgeMs = Math.min(
+      BEAT_CLOCK_AGE_MAX_MS,
+      Math.max(0, performance.now() - frameAtReal),
+    );
   };
   // The level is made later; the screens below only need it when a button is pressed.
   const levelSession = createLevelSession({
@@ -988,12 +1007,13 @@ export async function boot(): Promise<void> {
       // The notes of a rhythm step (story 4.5), planned on the audio clock from the loop's continuous
       // clock: state, every frame, so a pause, a slow-mo, a restart or a level end needs no code.
       const beatWorld = levelSession.active?.sim.world;
-      updateBeatFrame(beatWorld);
+      updateBeatFrame(beatWorld, frameAtReal);
       beatScheduler.update(beatFrame);
       if (beatSampleListeners.length > 0 && beatFrame.timeline !== null) {
         const nowS = audio.currentTimeS;
         if (nowS !== null) {
-          beatSample.audioNowS = nowS;
+          // The audio time of the instant `clockMs` belongs to: a pair read together, or the check is circular.
+          beatSample.audioNowS = nowS - beatFrame.clockAgeMs / 1000;
           beatSample.clockMs = beatFrame.clockMs;
           for (const listener of beatSampleListeners) listener(beatSample);
         }
@@ -1259,7 +1279,11 @@ export async function boot(): Promise<void> {
       if (event.type === 'BabyPickedUp' || event.type === 'BabyPutDown') inputMapper.resumeHeld();
       // A key still held through a special sequence walks again at its end (story 4.4); a failure then
       // waits for the nap, through the `PapaStateChanged` call just below.
-      if (event.type === 'SequenceEnded') inputMapper.resumeHeld();
+      if (event.type === 'SequenceEnded') {
+        inputMapper.resumeHeld();
+        // The baby woke: the calm bar slides out empty, not on the value of the frame before.
+        if (event.outcome === 'failed') sequenceBar.markFailed();
+      }
       if (
         event.type === 'PapaStateChanged' &&
         event.to === 'idle' &&

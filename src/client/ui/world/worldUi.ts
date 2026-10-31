@@ -126,7 +126,8 @@ export function createWorldUi(
   const comboBadge = createComboBadge(scene, doc, comboOptions);
   const papaHint = createPapaHint(scene, doc, comboOptions.translate);
   const objects = createObjectMarkers(scene, doc);
-  // Last, so that the scene's other children keep their places (a test reads them by index).
+  // After the markers above it (index 4) and before the object markers, which moved up to 5+ with
+  // it: the earlier children keep their places (a test reads them by index).
   const beatRing = createBeatRing(scene, doc, { isMotionReduced: comboOptions.isMotionReduced });
   return {
     scene,
