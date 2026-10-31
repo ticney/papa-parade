@@ -12,7 +12,7 @@
       "leadInMs": 1200,
       "countInBeats": 4,
       "windowMs": 180,
-      "decoyBeats": [7, 15, 23, 31, 38]
+      "decoyBeats": [20, 25, 30, 35, 40]
     }
   ],
   "success": { "kind": "stepsDone" },

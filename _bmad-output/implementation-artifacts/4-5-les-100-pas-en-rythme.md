@@ -52,7 +52,7 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
          "leadInMs": 1200,
          "countInBeats": 4,
          "windowMs": 180,
-         "decoyBeats": [7, 15, 23, 31, 38]
+         "decoyBeats": [20, 25, 30, 35, 40]
        }
      ],
      "success": { "kind": "stepsDone" },
@@ -84,14 +84,16 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
    - `track` absent from `feedback.json › beatTracks`;
    - a `decoyBeats` entry with no next judged beat (out of the timeline, computed with `beatTimelineOf`);
    - `windowMs` not below the shortest beat interval;
+   - a decoy whose hit zone (`windowMs × the widest tier + 2 × toleranceMs`) is wider than its distance to the nearest beat (review fix: the zones would overlap);
    - no judged beat at all;
-   - `calmLeft` on a def without `babyAwake`.
+   - `calmLeft` on a def without `babyAwake`;
+   - a `beats` step beside any other step (it is the only step of its sequence), and a `babyAwake` failure whose three costs are all 0 (review fixes).
 
 ### The sim
 
 5. **The beat timeline** (`src/sim/sequences/beatClock.ts`, pure, exported by `src/sim/index.ts`, **no zod and no `@content` runtime import**, the review fix of 4.4). `beatTimelineOf(step)` returns `readonly BeatEntry[]`, `{ offsetMs, kind: 'countIn' | 'beat' | 'decoy', judgedIndex }`, sorted by `offsetMs`, from the step's start:
    - the first entry is at `leadInMs`;
-   - the next beat is `prev + Math.round(MS_PER_MINUTE / bpmAt(prev))`, where `bpmAt` is linear from `bpmStart` to `bpmEnd` over `durationMs`. **Whole ms**, so the journals and the tests read clean numbers;
+   - the next beat is `prev + Math.round(MS_PER_MINUTE / bpmAt(prev))`, where `bpmAt` is linear from `bpmStart` at the first beat (`leadInMs`) to `bpmEnd` at `durationMs` (so the first gap is 667 ms; `bpmEnd` itself is never played), and the gap is at least 1 ms (review fix: a huge tempo cannot hang the loop; the schema also caps both tempos at 300 BPM). **Whole ms**, so the journals and the tests read clean numbers;
    - a beat exists only if `offsetMs + windowMs <= durationMs`;
    - the first `countInBeats` are `countIn`, the rest `beat`. A decoy's offset is `Math.round` of the middle of its two beats.
 
@@ -110,7 +112,7 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
 
    `tick`, in this order, allocation-free apart from the one `EffectiveWindow` per beat:
    1. **Commands.** Each `TapBeat` of `ctx.commands`, in order, judged on **its own `t`** (never `world.time.sim`, ADR-003) through `classifyTap` (AC 9).
-   2. **Misses.** While `now >= beatAt + windowMs / 2 + toleranceMs + world.input.lagMs` for the entry at `judgeIndex`: `BeatMissed`, the stir of AC 10, advance.
+   2. **Misses.** While `now >= beatAt + windowMs / 2 + toleranceMs + world.input.lagMs + LATE_TAP_GRACE_MS` (two sim steps: a tap stamped just after the window reaches the sim a frame later and must still find its beat open, review fix) for the entry at `judgeIndex`: `BeatMissed`, the stir of AC 10 (nothing if its cost is 0), advance.
    3. **Cues.** While the entry at `cueIndex` is due: `BeatCued` or `DecoyCued`. This cursor is separate on purpose: **a beat hit early has not been announced yet, and it still must be.**
 
 9. **`classifyTap`** (pure, in `beatClock.ts`, unit-tested on its own):
@@ -118,7 +120,7 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
    - A tap before the first judged beat's window (the lead-in and the count-in): **free**, no event (tapping along is what a player does).
    - The candidates are the beat at `judgeIndex` and the decoy just before it, if not spent. **Nearest centre wins, a tie goes to the beat** (at a wide tier the two windows can overlap).
    - On the beat, `perfect` or `success`: `BeatHit`, advance (`isDecoySpent` back to false).
-   - On the beat, `late`: settles it as a miss (`BeatMissed`, stir `missed`): one tap never pays twice.
+   - On the beat, `late`: settles it as a miss (`BeatMissed`, stir `missed`): one tap never pays twice (the grace of AC 8 keeps the beat open long enough for that to hold at `lagMs` 0).
    - On the decoy: `DecoyTapped`, `isDecoySpent = true`, stir `decoy`.
    - Anything else (a second tap in a window already hit, a tap between windows): `BeatStrayTapped`, stir `stray`. **This is what stops a player mashing through a 180 ms window.**
 
@@ -214,6 +216,29 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
   - [x] T4.2 Goldens (regenerate, diff, add the two scenarios).
   - [x] T4.3 `tests/e2e/lullaby.spec.ts`; touched specs.
 - [x] **T5. Docs and CI** (AC 24, 25)
+
+### Review Findings
+
+Code review, **group 1 of 3** (`src/sim`, `src/content`, `content`, `src/shared`; 34 files). Groups 2 (`src/client`, `src/bots`, `src/debug`) and 3 (`tests`, `tools`) are still to review. Layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor. Dismissed as noise: 2 (`carryFuzz.test.ts` not extended, the 30-seed random-taps test in `lullabyWalk.test.ts` covers the invariant; one small allocation per tap in `classifyTap`).
+
+- [x] [Review][Patch] **Decided by Geo: option (a).** A tap stamped within one step after a window closes counts as late for that beat (one cost, `miss`), never `miss` + `stray`; pin it with a test at `lagMs` 0, and a decoy tap under a large `SetInputLag`. Original finding: a late tap pays twice at `lagMs` 0, against « one tap never pays twice » (AC 8) — `tick` judges the taps, then closes the beats. A tap stamped just after a window closes reaches the sim on a later step, after the clock has already missed the beat and moved the cursor: it is then judged against the next beat as early, hence `miss` (12) plus `stray` (6). The `classifyTap` `late → miss` branch is only reached with `lagMs` > 0 or when tap and close fall in the same step (the only test forces `lagMs: 400`). Related: with a `SetInputLag` larger than the real tap delay, the cursor stays on beat n until `n + 150 + lagMs`, so a tap meant for the decoy (zone opening at about `n + 183`) is judged `miss` against n. Options: (a) a tap stamped within one step of a close counts as late for that beat (the tick holds the close one step back, or `judgeTap` looks at the beat that just closed); (b) keep the behaviour, correct AC 8 / the doc and pin « late tap = miss + stray » in a test. Sources: blind+edge. [`src/sim/sequences/lullabyWalk.ts:146`, `:205-209`, `beatClock.ts` `classifyTap`]
+- [x] [Review][Patch] **Decided by Geo: option (a), harden the validator.** On steps with decoys, `sequenceBeatProblems` checks `windowMs × maxTierMultiplier + 2 × toleranceMs` against half the shortest beat gap; if `lullaby_walk.json` fails it, retune it (and say so); tests for the refusal and for the shipped content. Original finding: the `windowMs` validator ignores the decoy, the tier and the tolerance — `sequenceBeatProblems` only checks `windowMs < shortest beat gap`. A beat's real zone is `windowMs × tier × fatigue + 2 × toleranceMs`; a decoy sits at half a gap. With the shipped values (180 ms, ×1.5 at the assistance tier, 60 ms tolerance) the zones are ±195 ms and the decoy's zone overlaps the previous beat's from 138 ms after it, so a double-tap about 150 ms after a hit is billed as a decoy (20) instead of a stray (6). Nothing is reported. Options: (a) validate against `windowMs × maxTierMultiplier + 2 × toleranceMs` versus half the shortest gap on steps with decoys (may refuse `lullaby_walk.json`: then retune it); (b) document it as tuning for Geo and leave the validator. Sources: blind+edge. [`src/sim/sequences/beatClock.ts` `sequenceBeatProblems`]
+- [x] [Review][Patch] **Decided by Geo: option (a), silent.** `stirBaby` emits `BabyStirred` only when `deltaPct > 0` (a free stray still emits `BeatStrayTapped`); fix the `BabyStirred` doc, a test at `strayWakePct: 0`, check the goldens and the client / bots that count `BabyStirred`. Original finding: a zero-cost stir still plays the stir sound and haptic — `stirBaby` always pushes `BabyStirred` (`deltaPct` may be 0) and the event maps to the `baby_stir` cue. With `strayWakePct: 0`, which open point 7 advertises as « one edit » to forgive strays, a stray still sounds and vibrates as if the baby stirred. Options: (a) emit `BabyStirred` only when `deltaPct > 0` (then a stray with no cost is silent, the `BeatStrayTapped` event still exists); (b) keep it, a stray is audible feedback by design, and say so in open point 7. Source: auditor. [`src/sim/sequences/lullabyWalk.ts:73-93`]
+- [x] [Review][Patch] `beatTimelineOf` never ends on a BPM of 120000 or more: `Math.round(60000 / bpm)` is 0, the offset does not move and the array grows until out of memory. `content:check` and `simLevelOf` both call it before any check, so a typo hangs the validator instead of producing the AC 4 refusal. Clamp the gap (`Math.max(1, …)`), add a `.max()` on `bpmStart` / `bpmEnd` (300), `npm run content:schemas`, and a test. Sources: blind+edge+auditor. [`src/sim/sequences/beatClock.ts:58-60`, `src/content/schemas/sequence.ts:56-60`]
+- [x] [Review][Patch] A `beats` step that is not the last one loses its open beat silently: `clearBeatSlice` runs on every step change, so the last open window and the remaining cues vanish with no `BeatMissed`, and `wakePct` resets at the next `beats` step. The schema also accepts a `microSleeps` step beside a `beats` step, and its gags are then inert (`failSequenceOnGag` returns for a `babyAwake` failure). No content uses either. Refuse both in `sequenceBeatProblems` (a `beats` step must be the last and the only step kind with `babyAwake`), with tests; 4.9 / 4.10 can lift it. Sources: blind+edge+auditor. [`src/sim/sequences/sequenceSystem.ts:42`, `sequenceEnd.ts:84-86`, `sequenceBeatProblems`]
+- [x] [Review][Patch] Fractional wake costs may never reach 100 (33.3 three times is 99.9…) and a step with the three costs at 0 can never be lost. Make `missWakePct`, `decoyWakePct`, `strayWakePct` integers (`.int().nonnegative()`), refuse the all-zero trio in `sequenceBeatProblems`, regenerate the schemas, test. Source: edge. [`src/content/schemas/sequence.ts`, `src/sim/sequences/lullabyWalk.ts:81`]
+- [x] [Review][Patch] Docs that say what the code does not: AC 5 and the `bpmEnd` / `durationMs` descriptions say the tempo is linear from `bpmStart` to `bpmEnd` « over the step » and « reached at the end », but `bpmAt` runs from `leadInMs` to `durationMs`, `bpmEnd` is never reached (last gap 979 ms, not 1000) and the tempo is the one at the previous beat (deliberate, Completion Notes, to satisfy « first interval 667 ms »). Align the `.describe()` strings, the `beatClock.ts` header, the AC 5 text and regenerate the schemas. Also: the `BabyStirred` doc says `deltaPct` is 0 « when it was already at 100 » (impossible, the sequence ends at 100), and the random-taps test comment says « some in the past of the sim » (none is). Sources: blind+auditor. [`src/sim/sequences/beatClock.ts` header, `src/content/schemas/sequence.ts:51`, `src/sim/events.ts`, `lullabyWalk.test.ts`]
+- [x] [Review][Patch] Test « holds wakePct at 100 and does not judge the commands left in the step that woke him » never wakes the baby: it taps four times early and asserts `wakePct` 0 with no `BabyStirred`. The early return after `judgeTap` once the baby wakes has no test. Rewrite it so that a wake mid-queue leaves the following `TapBeat`s unjudged; drop the pointless `def: { ...DEF, failure: { ...DEF.failure } }`. Source: blind. [`src/sim/sequences/lullabyWalk.test.ts`]
+- [x] [Review][Patch] The snapshot round-trip tests never carry a non-zero state: `playing()` taps every beat dead on and never the decoy, so `wakePct` is 0 and `isDecoySpent` false in every restored snapshot, while the file header quotes 4.4's « a round trip with nothing in flight proves nothing ». Add a round trip with a stirred baby (`wakePct` in 1-99) and a spent decoy. Source: blind. [`src/sim/sequences/lullabySnapshot.test.ts`]
+- [x] [Review][Patch] Stale test titles after the snapshot bump to v21: « is version 20 and carries the gauge and the flag » and « is the current version (19), … » in `snapshot.test.ts` assert 21. Rename. Sources: blind+auditor. [`src/sim/snapshot.test.ts`]
+- [x] [Review][Patch] The schema and `sequenceBeatProblems` duplicate rules and have drifted: « beats needs babyAwake » / « babyAwake needs beats » is worded twice, `calmLeft` needs `babyAwake` is only in the validator, and the step's `track` pattern `^[a-z][a-z0-9_]*$` is looser than the `beatTracks` key pattern (an id like `a__b` passes one layer and never resolves). Say each rule in one place (the schema when it is a pure shape rule) and align the patterns. Source: blind. [`src/content/schemas/sequence.ts`, `beatClock.ts` `sequenceBeatProblems`]
+
+**Group 1 fixes applied (all 11 patches), things to know:**
+- **The late-tap grace is two sim steps (`LATE_TAP_GRACE_MS` = 20 ms), not one.** A tap reaches the sim at the first step of the next frame, up to a 60 fps frame (about 17 ms) after its stamp; one step would not have held it. `BeatMissed` and its stir therefore come 20 ms later than before. The mutation check (grace 0) fails the new `lagMs` 0 test.
+- **`content/sequences/lullaby_walk.json` is retuned: `decoyBeats` goes from `[7, 15, 23, 31, 38]` to `[20, 25, 30, 35, 40]`.** The hardened validator refused decoys 7 and 15: at the assistance tier a hit zone is 180 × 1.5 + 2 × 60 = 390 ms wide, and a decoy sits 356 ms and 376 ms from its beats there; from beat 20 on the gaps are 782 ms or more. `windowMs` stays 180 (FR40). Geo may prefer a narrower window or fewer early decoys: the rule says what it takes.
+- **The frozen test def moves its decoy from beat 3 to beat 4** for the same reason (`tests/support/testLullaby.sequence.json`), and `lullaby_walk_woken` is rewritten around it. `npm run golden:update` was run on purpose: only the two lullaby journals and their references moved (the formatting-only change to `mama_woke.expected.json` was reverted).
+- Schema: both tempos capped at 300 BPM, wake costs whole percents, the track id uses the feedback cue pattern (now exported), and the shape rules say the same words as `sequenceBeatProblems` (which takes the widest tier and the tolerance, `beatWindowLimitsOf(feel)`). `npm run content:schemas` regenerated `sequence.schema.json`.
+- `ci:fast` is green and `lullaby.spec.ts`, `sequence.spec.ts`, `testApi.spec.ts` pass on Chromium. Groups 2 and 3 are not reviewed yet; the full `npm run ci` is for the end.
 
 ## Dev Notes
 

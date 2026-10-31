@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
+import { CUE_ID_PATTERN } from './feedback.ts';
+
+/** The fastest tempo a `beats` step takes, in beats per minute (a typo such as 90000 is refused). */
+const MAX_BEATS_BPM = 300;
 
 // `content/sequences/<id>.json`: one file per special sequence (story 4.4). A sequence is a short
 // stretch of play with its own rules (« Rester éveillé », later the lullaby walk and the bomb
@@ -48,16 +52,26 @@ const BeatsStepSchema = z
       .int()
       .positive()
       .describe(
-        'How long the step lasts, in sim ms. The tempo goes from `bpmStart` to `bpmEnd` over it.',
+        'How long the step lasts, in sim ms. The tempo goes linearly from `bpmStart` at the first beat (`leadInMs`) to `bpmEnd` at the end of the step.',
       ),
-    track: idSchema(
-      'Id of `feedback.json › beatTracks`: the notes, the count-in tick and the decoy sound.',
-    ),
-    bpmStart: z.number().positive().describe('Tempo of the first beat, in beats per minute.'),
+    track: z
+      .string()
+      .regex(CUE_ID_PATTERN, 'a track id is lower_snake_case')
+      .describe(
+        'Id of `feedback.json › beatTracks`: the notes, the count-in tick and the decoy sound.',
+      ),
+    bpmStart: z
+      .number()
+      .positive()
+      .max(MAX_BEATS_BPM)
+      .describe('Tempo of the first beat, in beats per minute.'),
     bpmEnd: z
       .number()
       .positive()
-      .describe('Tempo reached at the end of the step, in beats per minute.'),
+      .max(MAX_BEATS_BPM)
+      .describe(
+        'Tempo the ramp reaches at the end of the step, in beats per minute. A beat is placed with the tempo of the beat before it, and the last one falls before the end of the step, so this tempo itself is never played.',
+      ),
     leadInMs: z
       .number()
       .int()
@@ -98,7 +112,8 @@ export const SEQUENCE_SUCCESS_KINDS = ['stepsDone'] as const;
 /** What ends a sequence badly: the sim judges each kind. */
 export const SEQUENCE_FAILURE_KINDS = ['gag', 'babyAwake'] as const;
 
-const wakePct = (description: string) => z.number().min(0).max(100).describe(description);
+// Whole percents: a cost such as 33.3 added three times would stop at 99.9 and the baby never wake.
+const wakePct = (description: string) => z.number().int().min(0).max(100).describe(description);
 
 const SuccessSchema = z
   .discriminatedUnion('kind', [
@@ -208,22 +223,51 @@ export const SequenceDefSchema = z
     feedback: SequenceFeedbackSchema,
   })
   .superRefine((def, ctx) => {
+    // The shape rules of the beats, in the words of `sequenceBeatProblems` (the sim's `simLevelOf`
+    // and `content:check` also run it, for a def that did not go through this schema; it alone has
+    // the rules that need other files: the track, the decoy zones against the feel).
     // A `beats` step is judged by the baby's wake and nothing else, and a wake is only moved by a
     // `beats` step: the pair is one rule, so neither half can be left alone.
     const hasBeats = def.steps.some((step) => step.kind === 'beats');
-    const isBabyAwake = def.failure.kind === 'babyAwake';
-    if (hasBeats && !isBabyAwake) {
+    const { failure } = def;
+    if (hasBeats && failure.kind !== 'babyAwake') {
       ctx.addIssue({
         code: 'custom',
         path: ['failure', 'kind'],
-        message: 'a sequence with a beats step fails with the kind babyAwake',
+        message: `has a beats step, so its failure must be "babyAwake", not "${failure.kind}"`,
       });
     }
-    if (isBabyAwake && !hasBeats) {
+    if (failure.kind === 'babyAwake' && !hasBeats) {
       ctx.addIssue({
         code: 'custom',
         path: ['failure', 'kind'],
-        message: 'a babyAwake failure needs a beats step',
+        message: 'has a "babyAwake" failure, but no beats step to wake the baby',
+      });
+    }
+    if (hasBeats && def.steps.length > 1) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['steps'],
+        message: `has a beats step among ${def.steps.length} steps, but a beats step must be the only step of its sequence`,
+      });
+    }
+    if (def.framing.bar?.value === 'calmLeft' && failure.kind !== 'babyAwake') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['framing', 'bar', 'value'],
+        message:
+          'has a bar that shows calmLeft, but no "babyAwake" failure (nothing wakes the baby)',
+      });
+    }
+    if (
+      failure.kind === 'babyAwake' &&
+      failure.missWakePct + failure.decoyWakePct + failure.strayWakePct <= 0
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['failure'],
+        message:
+          'has a "babyAwake" failure whose missWakePct, decoyWakePct and strayWakePct are all 0 (the baby could never wake)',
       });
     }
   })

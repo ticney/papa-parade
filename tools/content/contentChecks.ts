@@ -36,6 +36,7 @@ import {
   STEP_MS,
 } from '@shared/constants';
 import {
+  beatWindowLimitsOf,
   GAG_IDS,
   OBJECT_ACTION_KINDS,
   PAPA_ASLEEP_GAG_ID,
@@ -663,8 +664,17 @@ function checkSequenceReferences(
   if (feedback === undefined) return problems;
   for (const [id, sequence] of families.sequences) {
     const file = `content/${SEQUENCE_DEF_PATTERN.dir}/${id}${SEQUENCE_DEF_PATTERN.suffix}`;
-    // The beats (story 4.5): the words are `simLevelOf`'s, the function is shared with it.
-    for (const problem of sequenceBeatProblems(sequence, Object.keys(feedback.beatTracks))) {
+    // The beats (story 4.5): the words are `simLevelOf`'s, the function is shared with it. Without
+    // the feel there is no widest window to check the decoys against.
+    const beatProblems =
+      feel === undefined
+        ? []
+        : sequenceBeatProblems(
+            sequence,
+            Object.keys(feedback.beatTracks),
+            beatWindowLimitsOf(feel),
+          );
+    for (const problem of beatProblems) {
       problems.push({
         file,
         jsonPath: formatJsonPath(['steps']),

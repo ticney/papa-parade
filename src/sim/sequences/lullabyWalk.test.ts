@@ -1,6 +1,6 @@
 import type { BeatsStep } from '@content/schemas/sequence';
 import type { DifficultyTierId } from '@shared/constants';
-import { STEP_MS } from '@shared/constants';
+import { LATE_TAP_GRACE_MS, STEP_MS } from '@shared/constants';
 import { createRng, nextInt } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
@@ -25,7 +25,7 @@ import { failSequenceOnGag } from './sequenceEnd.ts';
 // « Les 100 pas en rythme » (story 4.5), driving the real sim with the frozen short def of
 // `tests/support/testLullaby.sequence.json`: 10 s, 90 → 60 BPM, a lead-in of 1 s, two count-in
 // beats, a 180 ms window (the frozen feel adds a 60 ms tolerance: a tap is a hit within ±150 ms of
-// a beat), one decoy after judged beat 3, and costs of 25 (miss), 40 (decoy) and 10 (stray).
+// a beat), one decoy after judged beat 4, and costs of 25 (miss), 40 (decoy) and 10 (stray).
 const content = createTestContent();
 const geometry = createTestGeometry();
 const DEF = createTestLullabyWalk();
@@ -227,9 +227,9 @@ describe('the lullaby walk: cues, hits and misses (story 4.5)', () => {
     expect(ofType(later, 'BeatCued').filter((cue) => cue.judgedIndex === 0)).toHaveLength(1);
   });
 
-  it('misses a beat at the exact step its window and tolerance close, with the stir right after', async () => {
+  it('misses a beat at the exact step its window, tolerance and late-tap grace close, with the stir right after', async () => {
     const run = await started();
-    const closesAt = beatAtOf(run, 0) + HIT_ZONE_MS;
+    const closesAt = beatAtOf(run, 0) + HIT_ZONE_MS + LATE_TAP_GRACE_MS;
     const before = runTo(run.sim, closesAt - STEP_MS);
     expect(typesOf(before)).not.toContain('BeatMissed');
     const events = stepEvents(run.sim, 2);
@@ -252,7 +252,7 @@ describe('the lullaby walk: cues, hits and misses (story 4.5)', () => {
 
   it('waits `lagMs` longer before it calls a miss (a stamp corrected into the past is late)', async () => {
     const run = await started({ lagMs: 100 });
-    const closesAt = beatAtOf(run, 0) + HIT_ZONE_MS + 100;
+    const closesAt = beatAtOf(run, 0) + HIT_ZONE_MS + LATE_TAP_GRACE_MS + 100;
     const before = runTo(run.sim, closesAt - STEP_MS);
     expect(typesOf(before)).not.toContain('BeatMissed');
     // A tap stamped 60 ms late still reaches the beat, 200 ms after the instant it names.
@@ -262,7 +262,23 @@ describe('the lullaby walk: cues, hits and misses (story 4.5)', () => {
     expect(typesOf(events)).not.toContain('BeatMissed');
   });
 
-  it('settles a tap that is too late as a miss: one tap never pays twice', async () => {
+  it('settles a tap that is too late as a miss: one tap never pays twice, at lagMs 0 too', async () => {
+    const run = await started();
+    const lateAt = beatAtOf(run, 0) + HIT_ZONE_MS + 2;
+    runTo(run.sim, lateAt);
+    // The window closed 2 ms ago, but the finger's stamp only reaches the sim now: the beat is
+    // still open (the grace), so this tap is the miss and not a stray against the next beat.
+    tap(run.sim, lateAt);
+    const events = stepEvents(run.sim, 2);
+    expect(ofType(events, 'BeatMissed')).toEqual([expect.objectContaining({ judgedIndex: 0 })]);
+    expect(ofType(events, 'BabyStirred')).toEqual([
+      expect.objectContaining({ reason: 'missed', wakePct: COST.missed }),
+    ]);
+    expect(typesOf(events)).not.toContain('BeatStrayTapped');
+    expect(worldOf(run.sim).sequence.beat.nextBeatAt).toBe(beatAtOf(run, 1));
+  });
+
+  it('settles a tap that is too late as a miss under an input lag too', async () => {
     const run = await started({ lagMs: 400 });
     runTo(run.sim, beatAtOf(run, 0) + HIT_ZONE_MS + 20);
     tap(run.sim, beatAtOf(run, 0) + HIT_ZONE_MS + 10);
@@ -272,6 +288,44 @@ describe('the lullaby walk: cues, hits and misses (story 4.5)', () => {
       expect.objectContaining({ reason: 'missed', wakePct: COST.missed }),
     ]);
     expect(worldOf(run.sim).sequence.beat.nextBeatAt).toBe(beatAtOf(run, 1));
+  });
+
+  it('charges a tap stamped after the grace as a stray for the next beat: the miss was already called', async () => {
+    const run = await started();
+    const afterGraceAt = beatAtOf(run, 0) + HIT_ZONE_MS + LATE_TAP_GRACE_MS + 30;
+    const before = runTo(run.sim, afterGraceAt);
+    expect(ofType(before, 'BeatMissed')).toHaveLength(1);
+    tap(run.sim, afterGraceAt);
+    const events = stepEvents(run.sim, 2);
+    expect(ofType(events, 'BeatStrayTapped')).toHaveLength(1);
+    expect(ofType(events, 'BabyStirred').map((e) => [e.reason, e.wakePct])).toEqual([
+      ['stray', COST.missed + COST.stray],
+    ]);
+  });
+
+  it('still reads a tap on the decoy as the decoy when the input lag is large', async () => {
+    const run = await started({ lagMs: 200 });
+    tapEveryBeat(run, 5);
+    // The stamp names the decoy's instant; with a lag it reaches the sim 200 ms after it.
+    runTo(run.sim, decoyAtOf(run) + 200);
+    tap(run.sim, decoyAtOf(run));
+    const events = stepEvents(run.sim, 2);
+    expect(ofType(events, 'DecoyTapped')).toHaveLength(1);
+    expect(typesOf(events)).not.toContain('BeatMissed');
+  });
+
+  it('says nothing for a stray tap that costs 0: the event, no stir', async () => {
+    const def = {
+      ...DEF,
+      failure: { kind: 'babyAwake' as const, missWakePct: 25, decoyWakePct: 40, strayWakePct: 0 },
+    };
+    const run = await started({ def });
+    tap(run.sim, beatAtOf(run, 0));
+    tap(run.sim, beatAtOf(run, 0) + 40);
+    const events = runTo(run.sim, beatAtOf(run, 0) + 4 * STEP_MS);
+    expect(ofType(events, 'BeatStrayTapped')).toHaveLength(1);
+    expect(typesOf(events)).not.toContain('BabyStirred');
+    expect(worldOf(run.sim).sequence.beat.wakePct).toBe(0);
   });
 
   it('applies the tier: a tap that is a hit at the normal tier is a miss at the experienced one', async () => {
@@ -314,7 +368,7 @@ describe('the lullaby walk: cues, hits and misses (story 4.5)', () => {
 
   it('costs a tap on the decoy, once; a second tap on it is a stray', async () => {
     const run = await started();
-    tapEveryBeat(run, 4);
+    tapEveryBeat(run, 5);
     tap(run.sim, decoyAtOf(run));
     tap(run.sim, decoyAtOf(run) + 30);
     const events = runTo(run.sim, decoyAtOf(run) + 4 * STEP_MS);
@@ -331,9 +385,9 @@ describe('the lullaby walk: cues, hits and misses (story 4.5)', () => {
 
   it('clears the spent decoy once the next beat is settled', async () => {
     const run = await started();
-    tapEveryBeat(run, 5);
+    tapEveryBeat(run, 6);
     tap(run.sim, decoyAtOf(run));
-    runTo(run.sim, beatAtOf(run, 4) + 2 * STEP_MS);
+    runTo(run.sim, beatAtOf(run, 5) + 2 * STEP_MS);
     expect(worldOf(run.sim).sequence.beat.isDecoySpent).toBe(false);
   });
 });
@@ -380,17 +434,34 @@ describe('the lullaby walk: waking and winning (story 4.5)', () => {
     expect(worldOf(run.sim).gauges.noisePct).toBe(0);
   });
 
-  it('holds wakePct at 100 and does not judge the commands left in the step that woke him', async () => {
-    const run = await started({ def: { ...DEF, failure: { ...DEF.failure } } });
-    const world = worldOf(run.sim);
-    tap(run.sim, beatAtOf(run, 0) - 400);
-    tap(run.sim, beatAtOf(run, 0) - 400);
-    tap(run.sim, beatAtOf(run, 0) - 400);
-    tap(run.sim, beatAtOf(run, 0) - 400);
-    const events = runTo(run.sim, beatAtOf(run, 0) - 380);
-    // The free-ride rule: before the first beat nothing counts, so the baby stays asleep here.
-    expect(world.sequence.beat.wakePct).toBe(0);
-    expect(typesOf(events)).not.toContain('BabyStirred');
+  it('does not judge the commands left in the step that woke him', async () => {
+    // A stray wakes him at once (100), so that the taps after it, all in the same step, are left.
+    const def = {
+      ...DEF,
+      failure: {
+        kind: 'babyAwake' as const,
+        missWakePct: 25,
+        decoyWakePct: 40,
+        strayWakePct: 100,
+      },
+    };
+    const run = await started({ def });
+    runTo(run.sim, beatAtOf(run, 0) + 120);
+    tap(run.sim, beatAtOf(run, 0)); // a hit
+    tap(run.sim, beatAtOf(run, 0) + 40); // a stray: he wakes
+    tap(run.sim, beatAtOf(run, 0) + 60); // would be a second stray
+    tap(run.sim, beatAtOf(run, 0) + 80); // and a third
+    const events = stepEvents(run.sim);
+    expect(ofType(events, 'BeatHit')).toHaveLength(1);
+    expect(ofType(events, 'BeatStrayTapped')).toHaveLength(1);
+    expect(ofType(events, 'BabyStirred')).toEqual([
+      expect.objectContaining({ reason: 'stray', wakePct: 100, deltaPct: 100 }),
+    ]);
+    expect(ofType(events, 'BabyWoke')).toHaveLength(1);
+    expect(ofType(events, 'SequenceEnded')).toEqual([
+      expect.objectContaining({ outcome: 'failed' }),
+    ]);
+    expect(worldOf(run.sim).flow.state).toBe('playing');
   });
 
   it('wins when every beat is tapped: SequenceEnded succeeded at the end of the step, the baby carried', async () => {
@@ -443,7 +514,7 @@ describe('the lullaby walk: waking and winning (story 4.5)', () => {
     const run = await started();
     const world = worldOf(run.sim);
     const before = structuredClone(world.rng);
-    tapEveryBeat(run, 4);
+    tapEveryBeat(run, 5);
     tap(run.sim, decoyAtOf(run));
     tap(run.sim, beatAtOf(run, 6) + 400);
     // Up to the step the sequence ends (the baby wakes at the missed beats): what normal play draws
@@ -460,7 +531,7 @@ describe('the lullaby walk: waking and winning (story 4.5)', () => {
     const slow = await started();
     slow.sim.enqueue({ type: 'SetTimeScale', t: asSimMs(0), scale: 0.3 });
     for (const run of [plain, slow]) {
-      tapEveryBeat(run, 4);
+      tapEveryBeat(run, 5);
       tap(run.sim, decoyAtOf(run));
     }
     const keep = (events: SimEvent[]) =>
@@ -477,7 +548,7 @@ describe('the lullaby walk under random taps (story 4.5)', () => {
       const rng = createRng(seed);
       const run = await started({ seed });
       const world = worldOf(run.sim);
-      // Dense and uneven: up to 40 taps anywhere in the step, some in the past of the sim.
+      // Dense and uneven: up to 40 taps anywhere in the step, in no order (a real input is sorted).
       const count = nextInt(rng, 5, 40);
       for (let i = 0; i < count; i++) {
         tap(run.sim, run.startedAt + nextInt(rng, 0, STEP.durationMs));

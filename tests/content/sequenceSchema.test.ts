@@ -219,9 +219,49 @@ describe('content/sequences/lullaby_walk.json (story 4.5)', () => {
       ['failure.strayWakePct'],
     ],
     [
+      // The gag failure is refused for the beats step, and so is the calmLeft bar it leaves behind.
       'a beats step with a gag failure',
       { ...lullaby, failure: { kind: 'gag', hasSnore: false } },
-      ['failure.kind'],
+      ['failure.kind', 'framing.bar.value'],
+    ],
+    [
+      'a tempo above 300 BPM (a typo that would put two beats on one millisecond)',
+      { ...lullaby, steps: [{ ...lullabyStep[0], bpmStart: 130_000 }] },
+      ['steps[0].bpmStart'],
+    ],
+    [
+      'an end tempo above 300 BPM',
+      { ...lullaby, steps: [{ ...lullabyStep[0], bpmEnd: 301 }] },
+      ['steps[0].bpmEnd'],
+    ],
+    [
+      'a wake cost with a fraction (33.3 three times never reaches 100)',
+      { ...lullaby, failure: { ...(lullaby.failure as object), strayWakePct: 33.3 } },
+      ['failure.strayWakePct'],
+    ],
+    [
+      'a failure whose three wake costs are 0 (the baby could never wake)',
+      {
+        ...lullaby,
+        failure: { kind: 'babyAwake', missWakePct: 0, decoyWakePct: 0, strayWakePct: 0 },
+      },
+      ['failure'],
+    ],
+    [
+      'a beats step beside another step (a step change would drop its open beat)',
+      {
+        ...lullaby,
+        steps: [
+          ...lullabyStep,
+          { kind: 'microSleeps', durationMs: 5000, gapMinMs: 1000, gapMaxMs: 2000 },
+        ],
+      },
+      ['steps'],
+    ],
+    [
+      'a track id with a double underscore (no beatTracks key can be it)',
+      { ...lullaby, steps: [{ ...lullabyStep[0], track: 'a__b' }] },
+      ['steps[0].track'],
     ],
   ])('refuses %s', (_name, value, expected) => {
     expect(lullabyPaths(value)).toEqual(expected);

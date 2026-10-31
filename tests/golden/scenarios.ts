@@ -408,8 +408,8 @@ export const SCENARIOS: readonly Scenario[] = [
     ],
   },
   {
-    // « Les 100 pas en rythme » lost (story 4.5): beats 0 to 3 are tapped, then the decoy between 3 and
-    // 4 is tapped (+40 %), beats 4 and 5 are missed (+50 %), and a stray tap after them (+10 %) takes the
+    // « Les 100 pas en rythme » lost (story 4.5): beats 0 to 4 are tapped, then the decoy between 4 and
+    // 5 is tapped (+40 %), beats 5 and 6 are missed (+50 %), and a stray tap after them (+10 %) takes the
     // wake to 100: `BabyWoke`, `SequenceEnded{failed}`, the baby stays carried.
     name: 'lullaby_walk_woken',
     level: lullabyLevel(),
@@ -417,9 +417,9 @@ export const SCENARIOS: readonly Scenario[] = [
     untilSimMs: 9000,
     actions: [
       { atStep: 0, command: startLullaby },
-      ...[0, 1, 2, 3].map((i) => tapBeatAt(beatOffsetMs(i))),
+      ...[0, 1, 2, 3, 4].map((i) => tapBeatAt(beatOffsetMs(i))),
       tapBeatAt(decoyOffsetMs),
-      tapBeatAt(beatOffsetMs(6) - 300),
+      tapBeatAt(beatOffsetMs(7) - 300),
     ],
   },
   {

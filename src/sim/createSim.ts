@@ -30,7 +30,12 @@ import {
 import { createNavGrid, type NavGrid } from './nav/navGrid.ts';
 import { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 import { createRapierPhysics } from './physics/rapierPhysics.ts';
-import { beatTimelineOf, sequenceBeatProblems } from './sequences/beatClock.ts';
+import {
+  type BeatWindowLimits,
+  beatTimelineOf,
+  beatWindowLimitsOf,
+  sequenceBeatProblems,
+} from './sequences/beatClock.ts';
 import { SEQUENCE_HANDLER_KINDS } from './sequences/sequenceSteps.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
@@ -172,6 +177,7 @@ function simLevelOf(
   geometry: LevelGeometry,
   physics: Feel['physics'],
   beatTrackIds: readonly string[],
+  beatLimits: BeatWindowLimits,
 ): SimLevel {
   invariant(
     level.level.id === geometry.id,
@@ -358,7 +364,7 @@ function simLevelOf(
       );
     }
     // The beats of a sequence (story 4.5): the words are `content:check`'s, they share the function.
-    const [beatProblem] = sequenceBeatProblems(def, beatTrackIds);
+    const [beatProblem] = sequenceBeatProblems(def, beatTrackIds, beatLimits);
     invariant(beatProblem === undefined, `${where}: the sequence "${id}" ${beatProblem}`);
     sequences.push({
       id,
@@ -533,6 +539,7 @@ export async function createSimWithSystems(
     geometry,
     content.feel.physics,
     Object.keys(content.feedback.beatTracks),
+    beatWindowLimitsOf(content.feel),
   );
   const papaGrid = createNavGrid(geometry, content.feel.movement.papaRadiusM);
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);

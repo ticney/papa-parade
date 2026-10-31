@@ -1158,7 +1158,7 @@ describe('snapshot / restore of the director and the flow (story 1.18)', () => {
   const threat0 = (w: Record<string, unknown>) =>
     (w.threats as Record<string, unknown>[])[0] as Record<string, unknown>;
 
-  it('is the current version (19), and carries the director, the flow and the wave index of each threat', async () => {
+  it('is the current version, and carries the director, the flow and the wave index of each threat', async () => {
     const sim = await newSim();
     stepN(sim, 60); // 600 ms: wave 0 entered, the outlet telegraphed
     const snapshot = sim.snapshot();
@@ -1419,7 +1419,7 @@ describe('snapshot / restore of the disruptions and the phone call (story 1.20)'
     return sim;
   }
 
-  it('is the current version (19), and carries a pending disruption as it was created', async () => {
+  it('is the current version, and carries a pending disruption as it was created', async () => {
     const sim = await newPhone();
     const snapshot = sim.snapshot();
     expect(snapshot.version).toBe(21);
@@ -1901,7 +1901,7 @@ describe('snapshot / restore of Mama’s score (story 1.22)', () => {
     return sim;
   }
 
-  it('is the current version (19), carries the counters while playing and the note once ended, and round-trips', async () => {
+  it('is the current version, carries the counters while playing and the note once ended, and round-trips', async () => {
     const playing = await newSim();
     stepN(playing, 10);
     const early = playing.snapshot();
@@ -2527,7 +2527,7 @@ describe('snapshot / restore of the pressing need (story 4.3)', () => {
     return sim;
   }
 
-  it('is version 20 and carries the gauge and the flag', async () => {
+  it('is the current version and carries the gauge and the flag', async () => {
     const fresh = await newSim();
     const snapshot = roundTrip(fresh);
     expect(snapshot.version).toBe(21);

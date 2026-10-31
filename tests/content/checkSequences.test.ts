@@ -253,7 +253,7 @@ describe('checkContent and the beats steps (story 4.5)', () => {
   it('names a decoy with no next judged beat', async () => {
     expect(
       await beatsStep((step) => {
-        step.decoyBeats = [7, 500];
+        step.decoyBeats = [20, 500];
       }),
     ).toEqual([
       expect.objectContaining({
@@ -267,7 +267,7 @@ describe('checkContent and the beats steps (story 4.5)', () => {
 
   it('names a decoy after the very last judged beat', async () => {
     const problems = await beatsStep((step) => {
-      step.decoyBeats = [7, 60];
+      step.decoyBeats = [20, 60];
     });
     expect(problems).toHaveLength(1);
     expect(problems[0]?.message).toMatch(/decoy after judged beat 60/);
@@ -277,6 +277,7 @@ describe('checkContent and the beats steps (story 4.5)', () => {
     expect(
       await beatsStep((step) => {
         step.windowMs = 700;
+        step.decoyBeats = [];
       }),
     ).toEqual([
       expect.objectContaining({
@@ -286,6 +287,29 @@ describe('checkContent and the beats steps (story 4.5)', () => {
         ),
       }),
     ]);
+  });
+
+  it('names a decoy whose hit zone would overlap its beats at the widest tier', async () => {
+    const problems = await beatsStep((step) => {
+      step.decoyBeats = [7];
+    });
+    expect(problems).toEqual([
+      expect.objectContaining({
+        file: LULLABY,
+        message: expect.stringMatching(
+          /decoy after judged beat 7 sits \d+ ms from its nearest beat, but a hit zone is 390 ms wide at the widest tier \(windowMs 180 × 1\.5 \+ 2 × 60 ms of tolerance\)/,
+        ),
+      }),
+    ]);
+  });
+
+  it('names a tempo so fast that two beats would fall on the same millisecond', async () => {
+    const problems = await beatsStep((step) => {
+      step.bpmStart = 130_000;
+    });
+    expect(problems).toContainEqual(
+      expect.objectContaining({ file: LULLABY, jsonPath: 'steps[0].bpmStart' }),
+    );
   });
 
   it('names a step with no judged beat at all: the sequence would be won by waiting', async () => {
@@ -309,9 +333,9 @@ describe('checkContent and the beats steps (story 4.5)', () => {
     expect(await checkContent(root)).toEqual([
       expect.objectContaining({
         file: SEQUENCE,
-        message: expect.stringMatching(
-          /"stay_awake" has a bar that shows calmLeft, but no "babyAwake" failure/,
-        ),
+        // The schema says it first (and `sequenceBeatProblems`, run on a def that skipped the schema,
+        // says it in the same words: `beatClock.test.ts`).
+        message: expect.stringMatching(/has a bar that shows calmLeft, but no "babyAwake" failure/),
       }),
     ]);
   });

@@ -51,6 +51,32 @@ async function playing(): Promise<{ sim: Sim; startedAt: number }> {
   return { sim, startedAt };
 }
 
+const { missWakePct: MISS_WAKE_PCT, decoyWakePct: DECOY_WAKE_PCT } =
+  DEF.failure.kind === 'babyAwake'
+    ? DEF.failure
+    : { missWakePct: Number.NaN, decoyWakePct: Number.NaN };
+
+/**
+ * Like {@link playing}, but the player lets judged beat 2 go by and taps the decoy: the baby has
+ * stirred twice and the decoy is spent when the snapshot is taken after it. `taps` are the stamps.
+ */
+async function playingStirred(): Promise<{ sim: Sim; startedAt: number; taps: number[] }> {
+  const sim = await newSim();
+  const world = sim.world;
+  world.baby.xM = world.papa.xM - 3;
+  world.baby.zM = world.papa.zM;
+  world.baby.prevXM = world.baby.xM;
+  world.baby.prevZM = world.baby.zM;
+  world.baby.wanderAt = asSimMs(1_000_000);
+  sim.enqueue({ type: 'StartSequence', t: asSimMs(0), sequenceId: 'lullaby_walk' });
+  stepN(sim, 1);
+  const startedAt = world.sequence.startedAt;
+  const taps = BEAT_ENTRIES.filter((_, n) => n !== 2).map((entry) => startedAt + entry.offsetMs);
+  taps.push(startedAt + DECOY_OFFSET);
+  for (const t of taps) sim.enqueue({ type: 'TapBeat', t: asSimMs(t) });
+  return { sim, startedAt, taps };
+}
+
 /** Steps `sim` to sim time `untilMs`. */
 function stepTo(sim: Sim, untilMs: number): void {
   while (sim.world.time.sim < untilMs) stepN(sim, 1);
@@ -84,7 +110,7 @@ describe('the beat slice in a snapshot (story 4.5)', () => {
     });
   });
 
-  it('carries the cursors, the window and the wake of a baby who stirred', async () => {
+  it('carries the cursors and the window of a step in flight', async () => {
     const live = (await playing()).sim;
     stepTo(live, 3500);
     const snapshot = roundTrip(live);
@@ -94,6 +120,30 @@ describe('the beat slice in a snapshot (story 4.5)', () => {
     const copy = await newSim();
     copy.restore(snapshot);
     expect(copy.world.sequence.beat).toEqual(live.world.sequence.beat);
+  });
+
+  it('carries the wake of a baby who stirred and a decoy already spent, and plays on identically', async () => {
+    const { sim: live, startedAt, taps } = await playingStirred();
+    stepTo(live, startedAt + DECOY_OFFSET + 20);
+    // A missed beat (25) and a tap on the decoy (40): nothing here is the zero a clean walk leaves.
+    expect(live.world.sequence.beat.wakePct).toBe(MISS_WAKE_PCT + DECOY_WAKE_PCT);
+    expect(live.world.sequence.beat.isDecoySpent).toBe(true);
+    const snapshot = roundTrip(live);
+    expect(beatOf(snapshot)).toMatchObject({
+      wakePct: MISS_WAKE_PCT + DECOY_WAKE_PCT,
+      isDecoySpent: true,
+    });
+    const copy = await newSim();
+    copy.restore(snapshot);
+    for (const t of taps) {
+      if (t > live.world.time.sim) copy.enqueue({ type: 'TapBeat', t: asSimMs(t) });
+    }
+    expect(copy.world.sequence.beat).toEqual(live.world.sequence.beat);
+    expect(hashJson(copy.world)).toBe(hashJson(live.world));
+    stepTo(live, startedAt + STEP.durationMs + 200);
+    stepTo(copy, startedAt + STEP.durationMs + 200);
+    expect(live.world.sequence.id).toBeNull();
+    expect(hashJson(copy.world)).toBe(hashJson(live.world));
   });
 
   describe('refuses a slice that disagrees with itself or the timeline', () => {

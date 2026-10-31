@@ -34,8 +34,10 @@ export interface BeatEntry {
 }
 
 /**
- * The tempo at `offsetMs` into the step: linear from `bpmStart` at the first beat (`leadInMs`) to
- * `bpmEnd` at the end of the step (`durationMs`), so the lullaby really starts at `bpmStart`.
+ * The tempo at `offsetMs` into the step: linear from `bpmStart` at the first beat (`leadInMs`, not
+ * the step's start, so that the lullaby really starts at `bpmStart`) to `bpmEnd` at the end of the
+ * step (`durationMs`). The timeline asks it at a beat to place the next one, so a beat's gap is the
+ * tempo of the beat before it and `bpmEnd` itself is never played (the last beat falls earlier).
  */
 function bpmAt(step: BeatTimelineStep, offsetMs: number): number {
   const spanMs = step.durationMs - step.leadInMs;
@@ -45,8 +47,8 @@ function bpmAt(step: BeatTimelineStep, offsetMs: number): number {
 
 /**
  * The notes of `step`, sorted by `offsetMs`. The first falls at `leadInMs`; the next is the
- * previous one plus `Math.round(MS_PER_MINUTE / bpmAt(previous))` (the tempo is `bpmStart` at the
- * first beat and `bpmEnd` at `durationMs`), whole ms so that a journal and a
+ * previous one plus `Math.round(MS_PER_MINUTE / bpmAt(previous))` (see {@link bpmAt}), at least 1 ms
+ * so that the loop ends whatever the tempo, whole ms so that a journal and a
  * test read clean numbers. A beat exists only if its whole window fits in the step
  * (`offsetMs + windowMs <= durationMs`). The first `countInBeats` are `countIn`, the rest `beat`.
  * A decoy sits at the rounded middle of two judged beats; one named by `decoyBeats` that has no
@@ -57,7 +59,7 @@ export function beatTimelineOf(step: BeatTimelineStep): readonly BeatEntry[] {
   let offsetMs = step.leadInMs;
   while (offsetMs + step.windowMs <= step.durationMs) {
     beatOffsetsMs.push(offsetMs);
-    offsetMs += Math.round(MS_PER_MINUTE / bpmAt(step, offsetMs));
+    offsetMs += Math.max(1, Math.round(MS_PER_MINUTE / bpmAt(step, offsetMs)));
   }
   const decoys = new Set(step.decoyBeats);
   const entries: BeatEntry[] = [];
@@ -139,16 +141,47 @@ export interface BeatsDefShape {
     | { readonly kind: 'microSleeps' }
     | ({ readonly kind: 'beats'; readonly track: string } & BeatTimelineStep)
   )[];
-  readonly failure: { readonly kind: string };
+  readonly failure: {
+    readonly kind: string;
+    readonly missWakePct?: number;
+    readonly decoyWakePct?: number;
+    readonly strayWakePct?: number;
+  };
   readonly framing: { readonly bar: { readonly value: string } | null };
+}
+
+/** What decides how wide a beat's hit zone can get: the widest tier and the hidden tolerance (`feel.json`). */
+export interface BeatWindowLimits {
+  readonly maxWindowMultiplier: number;
+  readonly toleranceMs: number;
+}
+
+/** The {@link BeatWindowLimits} of a feel (the shape `Feel` fits). */
+export function beatWindowLimitsOf(feel: {
+  readonly timing: { readonly toleranceMs: number };
+  readonly difficulty: Readonly<Record<string, { readonly windowMultiplier: number }>>;
+}): BeatWindowLimits {
+  return {
+    maxWindowMultiplier: Math.max(
+      ...Object.values(feel.difficulty).map((tier) => tier.windowMultiplier),
+    ),
+    toleranceMs: feel.timing.toleranceMs,
+  };
 }
 
 /**
  * What is wrong with the beats of a sequence def, each as a sentence that follows « the sequence
  * "<id>" »: `content:check` and `simLevelOf` both call it, so they refuse the same things with the
- * same words. `trackIds` are the keys of `feedback.json › beatTracks`.
+ * same words. `trackIds` are the keys of `feedback.json › beatTracks`; `limits` is the widest a window
+ * gets. A `beats` step is the only step of its sequence: a step change clears the beat slice (a later
+ * step would drop the open beat), and a micro-sleeps step beside it would have its gags ignored by the
+ * `babyAwake` failure. 4.9 and 4.10 can lift it when a sequence needs more.
  */
-export function sequenceBeatProblems(def: BeatsDefShape, trackIds: readonly string[]): string[] {
+export function sequenceBeatProblems(
+  def: BeatsDefShape,
+  trackIds: readonly string[],
+  limits: BeatWindowLimits,
+): string[] {
   const problems: string[] = [];
   const hasBeats = def.steps.some((step) => step.kind === 'beats');
   if (hasBeats && def.failure.kind !== 'babyAwake') {
@@ -159,9 +192,20 @@ export function sequenceBeatProblems(def: BeatsDefShape, trackIds: readonly stri
   if (!hasBeats && def.failure.kind === 'babyAwake') {
     problems.push('has a "babyAwake" failure, but no beats step to wake the baby');
   }
+  if (hasBeats && def.steps.length > 1) {
+    problems.push(
+      `has a beats step among ${def.steps.length} steps, but a beats step must be the only step of its sequence`,
+    );
+  }
   if (def.framing.bar?.value === 'calmLeft' && def.failure.kind !== 'babyAwake') {
     problems.push(
       'has a bar that shows calmLeft, but no "babyAwake" failure (nothing wakes the baby)',
+    );
+  }
+  const { missWakePct = 0, decoyWakePct = 0, strayWakePct = 0 } = def.failure;
+  if (def.failure.kind === 'babyAwake' && missWakePct + decoyWakePct + strayWakePct <= 0) {
+    problems.push(
+      'has a "babyAwake" failure whose missWakePct, decoyWakePct and strayWakePct are all 0 (the baby could never wake)',
     );
   }
   for (const step of def.steps) {
@@ -198,6 +242,23 @@ export function sequenceBeatProblems(def: BeatsDefShape, trackIds: readonly stri
       problems.push(
         `has a beats step with a windowMs of ${step.windowMs} ms, which is not below its shortest beat interval of ${shortestMs} ms (two windows would overlap)`,
       );
+    }
+    // A hit zone is the window (at the widest tier) with the tolerance on each side, centred on its
+    // note: a decoy halfway between two beats must keep its zone clear of both of theirs, or a
+    // second tap after a hit would be billed as the decoy.
+    const zoneMs = step.windowMs * limits.maxWindowMultiplier + 2 * limits.toleranceMs;
+    for (let i = 1; i < timeline.length - 1; i++) {
+      const entry = timeline[i] as BeatEntry;
+      if (entry.kind !== 'decoy') continue;
+      const spacingMs = Math.min(
+        entry.offsetMs - (timeline[i - 1] as BeatEntry).offsetMs,
+        (timeline[i + 1] as BeatEntry).offsetMs - entry.offsetMs,
+      );
+      if (zoneMs > spacingMs) {
+        problems.push(
+          `has a beats step whose decoy after judged beat ${entry.judgedIndex} sits ${spacingMs} ms from its nearest beat, but a hit zone is ${zoneMs} ms wide at the widest tier (windowMs ${step.windowMs} × ${limits.maxWindowMultiplier} + 2 × ${limits.toleranceMs} ms of tolerance): the zones would overlap`,
+        );
+      }
     }
   }
   return problems;

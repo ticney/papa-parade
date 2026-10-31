@@ -18,9 +18,9 @@
     "BabyStirred",
     "BeatCued",
     "BeatHit",
-    "DecoyCued",
     "BeatHit",
     "BeatCued",
+    "DecoyCued",
     "BeatCued",
     "BeatHit",
     "BeatCued",
@@ -36,5 +36,5 @@
     "ComboChanged",
     "ThreatTelegraphed"
   ],
-  "eventsHash": "1725e7c3be50bb"
+  "eventsHash": "0edb9ac3fded65"
 }

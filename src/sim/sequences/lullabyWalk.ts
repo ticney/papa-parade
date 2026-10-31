@@ -1,5 +1,5 @@
 import type { BeatsStep } from '@content/schemas/sequence';
-import { NEUTRAL_WINDOW_MODIFIER } from '@shared/constants';
+import { LATE_TAP_GRACE_MS, NEUTRAL_WINDOW_MODIFIER } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import type { BabyStirReason } from '../events.ts';
@@ -68,7 +68,8 @@ function moveJudgeCursor(
  * The baby stirs: `wakePct` goes up by the cost of `reason` (the def's `babyAwake` failure), held in
  * `[0, 100]`, and `BabyStirred` says so. At 100 the baby is up: `BabyWoke`, then the sequence ends
  * (`SequenceEnded{failed}`, flow back to `playing`, the resume of 4.4). No snore and no noise (D5),
- * no change of the baby's state: the sequence is lost, the note goes on.
+ * no change of the baby's state: the sequence is lost, the note goes on. A cost of 0 stirs nobody,
+ * so it says nothing (`BabyStirred` is the sound and the haptic): `strayWakePct: 0` is a free stray.
  */
 function stirBaby(world: World, ctx: StepContext, reason: BabyStirReason): void {
   const { beat } = world.sequence;
@@ -80,13 +81,15 @@ function stirBaby(world: World, ctx: StepContext, reason: BabyStirReason): void 
   const before = beat.wakePct;
   beat.wakePct = Math.min(100, Math.max(0, before + costPct));
   const now = world.time.sim;
-  ctx.events.push({
-    type: 'BabyStirred',
-    t: now,
-    wakePct: beat.wakePct,
-    deltaPct: beat.wakePct - before,
-    reason,
-  });
+  if (beat.wakePct > before) {
+    ctx.events.push({
+      type: 'BabyStirred',
+      t: now,
+      wakePct: beat.wakePct,
+      deltaPct: beat.wakePct - before,
+      reason,
+    });
+  }
   if (beat.wakePct < 100) return;
   ctx.events.push({ type: 'BabyWoke', t: now });
   failSequence(world, ctx);
@@ -200,13 +203,16 @@ export const BEATS_HANDLER: StepHandler<'beats'> = {
       if (world.flow.state !== 'sequence') return;
     }
     // 2. The misses: a beat whose window has closed with nobody on it (`lagMs`: a stamp corrected
-    // into the past reaches the sim that long after the instant it names).
+    // into the past reaches the sim that long after the instant it names; `LATE_TAP_GRACE_MS`: so
+    // does any tap, by a frame, and a late one must find its beat still open to be a `miss`).
     const now = world.time.sim;
     for (;;) {
       const entry = timeline[beat.judgeIndex];
       if (entry === undefined || beat.nextBeatAt === null) break;
       const { windowMs, toleranceMs } = beat.responseWindow;
-      if (now < beat.nextBeatAt + windowMs / 2 + toleranceMs + world.input.lagMs) break;
+      const closesAt =
+        beat.nextBeatAt + windowMs / 2 + toleranceMs + world.input.lagMs + LATE_TAP_GRACE_MS;
+      if (now < closesAt) break;
       missBeat(world, ctx, step, timeline, entry);
       if (world.flow.state !== 'sequence') return;
     }

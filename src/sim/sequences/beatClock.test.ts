@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { EffectiveWindow } from '../timing/effectiveWindow.ts';
 import {
+  type BeatsDefShape,
   type BeatTimelineStep,
+  type BeatWindowLimits,
   beatTimelineOf,
+  beatWindowLimitsOf,
   classifyTap,
   judgedBeatCountOf,
   nextJudgedEntryIndex,
+  sequenceBeatProblems,
 } from './beatClock.ts';
 
 // A frozen step, in the shape of `content/sequences/lullaby_walk.json` (the live values may move).
@@ -18,6 +22,12 @@ const STEP: BeatTimelineStep = {
   windowMs: 180,
   decoyBeats: [7, 15, 23, 31, 38],
 };
+
+// The widest tier and the tolerance of `content/feel.json` (assistance ×1.5, 60 ms), frozen too.
+const LIMITS: BeatWindowLimits = { maxWindowMultiplier: 1.5, toleranceMs: 60 };
+const TRACKS = ['lullaby'];
+const FAILURE = { kind: 'babyAwake', missWakePct: 12, decoyWakePct: 20, strayWakePct: 6 };
+const BAR = { value: 'calmLeft' };
 
 /** A window with no buffer, as the sim keeps it: ±90 ms around the beat, ±30 ms perfect, 20 ms tolerance. */
 const WINDOW: EffectiveWindow = { windowMs: 180, perfectMs: 60, toleranceMs: 20, bufferMs: 0 };
@@ -111,6 +121,27 @@ describe('beatTimelineOf', () => {
   it('does not divide by a step that ends before its lead-in', () => {
     expect(beatTimelineOf({ ...STEP, durationMs: 1200, leadInMs: 1500 })).toEqual([]);
   });
+
+  it('ends on a tempo so fast that the gap rounds to 0 ms: a gap is at least 1 ms', () => {
+    const frantic = beatTimelineOf({
+      ...STEP,
+      bpmStart: 130_000,
+      bpmEnd: 130_000,
+      durationMs: 1300,
+    });
+    // 1200 ms lead-in, a 180 ms window: no beat fits in a 1300 ms step, whatever the tempo.
+    expect(frantic).toEqual([]);
+    const fits = beatTimelineOf({
+      ...STEP,
+      bpmStart: 130_000,
+      bpmEnd: 130_000,
+      durationMs: 1500,
+      countInBeats: 0,
+      decoyBeats: [],
+    });
+    expect(fits.length).toBeGreaterThan(1);
+    expect(fits.length).toBeLessThanOrEqual(1500 - 1200);
+  });
 });
 
 describe('nextJudgedEntryIndex', () => {
@@ -175,5 +206,72 @@ describe('classifyTap', () => {
     // The same press is early without a buffer, and kept with one: the sim passes bufferMs 0.
     expect(classifyTap(BEAT_AT - 150, BEAT_AT, null, WINDOW, false)).toBe('stray');
     expect(classifyTap(BEAT_AT - 150, BEAT_AT, null, buffered, false)).toBe('hit');
+  });
+});
+
+describe('sequenceBeatProblems and beatWindowLimitsOf', () => {
+  const GOOD: BeatsDefShape = {
+    steps: [{ kind: 'beats', track: 'lullaby', ...STEP, decoyBeats: [20, 25, 30, 35, 40] }],
+    failure: FAILURE,
+    framing: { bar: BAR },
+  };
+  const problemsOf = (change: Partial<BeatsDefShape>, limits: BeatWindowLimits = LIMITS) =>
+    sequenceBeatProblems({ ...GOOD, ...change }, TRACKS, limits);
+  const beatsStep = (change: Partial<BeatTimelineStep>): BeatsDefShape['steps'] => [
+    { kind: 'beats', track: 'lullaby', ...STEP, decoyBeats: [20, 25, 30, 35, 40], ...change },
+  ];
+
+  it('takes the widest tier and the tolerance of a feel', () => {
+    expect(
+      beatWindowLimitsOf({
+        timing: { toleranceMs: 60 },
+        difficulty: {
+          assistance: { windowMultiplier: 1.5 },
+          normal: { windowMultiplier: 1 },
+          experienced: { windowMultiplier: 0.75 },
+        },
+      }),
+    ).toEqual({ maxWindowMultiplier: 1.5, toleranceMs: 60 });
+  });
+
+  it('accepts the shipped shape', () => {
+    expect(problemsOf({})).toEqual([]);
+  });
+
+  it('refuses a decoy whose hit zone would overlap its beats at the widest tier', () => {
+    // Beat 7's decoy sits 356 ms from its beats; 180 × 1.5 + 2 × 60 = 390 ms of zone.
+    const problems = problemsOf({ steps: beatsStep({ decoyBeats: [7] }) });
+    expect(problems).toEqual([
+      expect.stringMatching(/decoy after judged beat 7 sits 356 ms from its nearest beat.*390 ms/),
+    ]);
+  });
+
+  it('lets the same decoy through when no tier is wider than normal', () => {
+    expect(
+      problemsOf(
+        { steps: beatsStep({ decoyBeats: [7] }) },
+        { maxWindowMultiplier: 1, toleranceMs: 60 },
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses a beats step beside another step', () => {
+    const problems = problemsOf({ steps: [...beatsStep({}), { kind: 'microSleeps' }] });
+    expect(problems).toEqual([expect.stringMatching(/beats step among 2 steps.*the only step/)]);
+  });
+
+  it('refuses a babyAwake failure whose three costs are 0', () => {
+    const failure = { kind: 'babyAwake', missWakePct: 0, decoyWakePct: 0, strayWakePct: 0 };
+    expect(problemsOf({ failure })).toEqual([expect.stringMatching(/are all 0/)]);
+  });
+
+  it('accepts one cost at 0 as long as another can wake him', () => {
+    expect(problemsOf({ failure: { ...FAILURE, strayWakePct: 0 } })).toEqual([]);
+  });
+
+  it('refuses a calmLeft bar on a def with no babyAwake failure, in the schema’s words', () => {
+    expect(problemsOf({ steps: [{ kind: 'microSleeps' }], failure: { kind: 'gag' } })).toEqual([
+      expect.stringMatching(/bar that shows calmLeft, but no "babyAwake" failure/),
+    ]);
   });
 });

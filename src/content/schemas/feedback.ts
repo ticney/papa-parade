@@ -14,7 +14,7 @@ export const HAPTIC_KINDS = ['light', 'medium', 'heavy'] as const;
 /** `<category>_<name>`, the categories of the architecture (Conventions › Audio). */
 const CLIP_PATTERN = /^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$/;
 /** `lower_snake_case`, like every content id. */
-const CUE_ID_PATTERN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
+export const CUE_ID_PATTERN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 
 const gainPct = (description: string) => z.number().min(0).max(100).describe(description);
 

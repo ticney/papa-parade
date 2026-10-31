@@ -14,6 +14,14 @@ export const SECONDS_PER_MINUTE = 60;
 export const STEP_MS = 10;
 
 /**
+ * How long past its close a beat waits for a late tap before it is called a miss (story 4.5), in sim
+ * ms: two sim steps, a 60 fps frame. A tap reaches the sim at the first step of the next frame, so a
+ * tap stamped just after the window would otherwise find the beat already missed and be judged
+ * against the next one, paying a miss and a stray for one press.
+ */
+export const LATE_TAP_GRACE_MS = 2 * STEP_MS;
+
+/**
  * Technical floor of `timeScale`: pause is never `timeScale = 0`, and a scale near 0 would stall
  * the client loop. Not a GDD value (the slowest one is far above).
  */

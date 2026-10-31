@@ -34,7 +34,9 @@ export { starsForScore } from './scoring/stars.ts';
 export {
   type BeatEntry,
   type BeatEntryKind,
+  type BeatWindowLimits,
   beatTimelineOf,
+  beatWindowLimitsOf,
   judgedBeatCountOf,
   sequenceBeatProblems,
 } from './sequences/beatClock.ts';

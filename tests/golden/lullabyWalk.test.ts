@@ -84,7 +84,7 @@ describe('golden scenario lullaby_walk_woken covers the failure it is there for'
       ['stray', 100],
     ]);
     expect(ofType(wokenEvents, 'DecoyTapped')).toHaveLength(1);
-    expect(ofType(wokenEvents, 'BeatHit')).toHaveLength(4);
+    expect(ofType(wokenEvents, 'BeatHit')).toHaveLength(5);
   });
 
   it('wakes him, ends the sequence lost and plays no snore, in that order', () => {

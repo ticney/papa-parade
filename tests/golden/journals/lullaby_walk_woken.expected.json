@@ -1,12 +1,14 @@
 {
   "untilSimMs": 9000,
-  "worldHash": "0d6849c631c1c7",
+  "worldHash": "06f29f647e93c1",
   "eventTypes": [
     "BabyStateChanged",
     "BabyPickedUp",
     "SequenceStarted",
     "SequenceStepStarted",
     "BeatCued",
+    "BeatCued",
+    "BeatHit",
     "BeatCued",
     "BeatHit",
     "BeatCued",
@@ -28,8 +30,7 @@
     "BeatStrayTapped",
     "BabyStirred",
     "BabyWoke",
-    "SequenceEnded",
-    "ThreatTelegraphed"
+    "SequenceEnded"
   ],
-  "eventsHash": "190ed7194dddee"
+  "eventsHash": "0c17c4e9910e59"
 }

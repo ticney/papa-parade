@@ -338,16 +338,16 @@ export type SimEvent =
   | { type: 'BeatHit'; t: SimMs; judgedIndex: number; offsetMs: number }
   /**
    * The judged beat `judgedIndex` was settled with no tap on it (story 4.5): the miss window closed,
-   * or a tap came too late. `BabyStirred{missed}` follows.
+   * or a tap came too late. `BabyStirred{missed}` follows (unless the miss costs 0).
    */
   | { type: 'BeatMissed'; t: SimMs; judgedIndex: number }
-  /** A tap landed on the decoy number `entryIndex` (story 4.5). `BabyStirred{decoy}` follows. */
+  /** A tap landed on the decoy number `entryIndex` (story 4.5). `BabyStirred{decoy}` follows (unless it costs 0). */
   | { type: 'DecoyTapped'; t: SimMs; entryIndex: number }
-  /** A tap landed on no beat and no decoy (story 4.5). `BabyStirred{stray}` follows. */
+  /** A tap landed on no beat and no decoy (story 4.5). `BabyStirred{stray}` follows (unless it costs 0). */
   | { type: 'BeatStrayTapped'; t: SimMs }
   /**
    * The baby stirred (story 4.5): `wakePct` is his wake after the step, `deltaPct` what this one
-   * added (0 when it was already at 100 or the cost is 0). At 100 `BabyWoke` follows.
+   * added (always above 0: a cost of 0 stirs nobody and emits nothing). At 100 `BabyWoke` follows.
    */
   | { type: 'BabyStirred'; t: SimMs; wakePct: number; deltaPct: number; reason: BabyStirReason }
   /** A breakable prop took a hit of `impulseNs` or more, once; it stays in the world, broken. */
