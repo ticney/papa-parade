@@ -29,7 +29,9 @@ describe('SIM_EVENT_TYPES', () => {
   it('lists LevelEnded and WaveStarted (story 1.18) in their alphabetical places', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
     expect(names.indexOf('LevelEnded')).toBe(names.indexOf('InvariantViolated') + 1);
-    expect(names.indexOf('WaveStarted')).toBe(names.indexOf('ToiletStarted') + 1);
+    // `WaitSignalGiven` (story 4.6) sorts between them.
+    expect(names.indexOf('WaitSignalGiven')).toBe(names.indexOf('ToiletStarted') + 1);
+    expect(names.indexOf('WaveStarted')).toBe(names.indexOf('WaitSignalGiven') + 1);
     expect(names.indexOf('WindowOpened')).toBe(names.indexOf('WaveStarted') + 1);
   });
 
@@ -116,6 +118,7 @@ describe('the special-sequence events (story 4.4)', () => {
     expect(names.slice(names.indexOf('SequenceEnded'), names.indexOf('SilenceEnded'))).toEqual([
       'SequenceEnded',
       'SequenceStarted',
+      'SequenceStepRetreated',
       'SequenceStepStarted',
     ]);
   });

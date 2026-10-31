@@ -37,15 +37,24 @@ import {
 } from '@shared/constants';
 import {
   beatWindowLimitsOf,
+  duelLimitsOf,
   GAG_IDS,
   OBJECT_ACTION_KINDS,
   PAPA_ASLEEP_GAG_ID,
   SIM_EVENT_TYPES,
   sequenceBeatProblems,
+  sequenceDuelProblems,
 } from '@sim';
 
 /** What the beat checks assume when `feel.json` did not load: the normal tier, no tolerance (story 4.5). */
 const NO_FEEL_BEAT_LIMITS = { maxWindowMultiplier: 1, toleranceMs: 0 } as const;
+
+/** The same for the duel's length check (story 4.6): no default window and no default delay either. */
+const NO_FEEL_DUEL_LIMITS = {
+  ...NO_FEEL_BEAT_LIMITS,
+  windowMs: 0,
+  telegraphDelayDefaultMs: 0,
+} as const;
 
 const SCHEMAS_DIR = '_schemas';
 const AUDIO_DIR = ['public', 'assets', 'audio'];
@@ -381,6 +390,7 @@ function checkThreatReferences(
     }
     problems.push(...checkThreatSounds(file, threat, feedback));
     problems.push(...checkThreatTwins(file, threat, feedback));
+    problems.push(...checkThreatSignal(file, threat, feedback));
   }
   return problems;
 }
@@ -436,6 +446,33 @@ function checkThreatSounds(
         message: isExact
           ? `the cue "${cueId}" plays the clip "${clip}", but a "${threat.response}" response plays "${expected}" (one cult sound per response type)`
           : `the cue "${cueId}" plays the clip "${clip}", but a ${role} plays a ${expected}* clip`,
+      });
+    }
+  }
+  return problems;
+}
+
+/**
+ * The signal of a `wait` threat (story 4.6) is a sound, a visual and a vibration, as every cue that
+ * carries information (the equivalence rule: the signal must reach a player who cannot hear, see or
+ * feel it). A cue that is not in `feedback.json` was reported already.
+ */
+function checkThreatSignal(
+  file: string,
+  threat: ThreatDef,
+  feedback: FeedbackTable,
+): ContentProblem[] {
+  const cueId = threat.feedback.signal;
+  if (cueId === undefined || !Object.hasOwn(feedback.cues, cueId)) return [];
+  const cue = feedback.cues[cueId];
+  const jsonPath = formatJsonPath(['feedback', 'signal']);
+  const problems: ContentProblem[] = [];
+  for (const channel of ['audio', 'visual', 'haptic'] as const) {
+    if (cue?.[channel] === undefined) {
+      problems.push({
+        file,
+        jsonPath,
+        message: `the cue "${cueId}" has no ${channel}, but the signal of a "wait" threat is told by sound, visual and vibration alike`,
       });
     }
   }
@@ -664,6 +701,22 @@ function checkSequenceReferences(
       }
     });
   }
+  // The duel steps (story 4.6): the words are `simLevelOf`'s, the function is shared with it.
+  const threatDefs = Object.fromEntries(families.threats);
+  for (const [id, sequence] of families.sequences) {
+    const duelProblems = sequenceDuelProblems(
+      sequence,
+      threatDefs,
+      feel === undefined ? NO_FEEL_DUEL_LIMITS : duelLimitsOf(feel),
+    );
+    for (const problem of duelProblems) {
+      problems.push({
+        file: `content/${SEQUENCE_DEF_PATTERN.dir}/${id}${SEQUENCE_DEF_PATTERN.suffix}`,
+        jsonPath: formatJsonPath(['steps']),
+        message: `the sequence "${id}" ${problem}`,
+      });
+    }
+  }
   if (feedback === undefined) return problems;
   for (const [id, sequence] of families.sequences) {
     const file = `content/${SEQUENCE_DEF_PATTERN.dir}/${id}${SEQUENCE_DEF_PATTERN.suffix}`;
@@ -852,7 +905,7 @@ function checkLevelReferences(
           problems.push({
             file,
             jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
-            message: `the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef or carry.armsCryDef), a wave cannot plan it`,
+            message: `the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef, carry.armsCryDef or a sequence's duel step), a wave cannot plan it`,
           });
         }
         for (const gag of threatDef === undefined ? [] : ThreatGagIds(threatDef)) {

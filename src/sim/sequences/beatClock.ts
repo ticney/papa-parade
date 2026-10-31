@@ -139,6 +139,7 @@ export function classifyTap(
 export interface BeatsDefShape {
   readonly steps: readonly (
     | { readonly kind: 'microSleeps' }
+    | { readonly kind: 'duel' }
     | ({ readonly kind: 'beats'; readonly track: string } & BeatTimelineStep)
   )[];
   readonly failure: {

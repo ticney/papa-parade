@@ -70,7 +70,7 @@ describe('content/sequences/stay_awake.json (story 4.4)', () => {
   });
 
   it('lists the step kinds the sim has a handler for', () => {
-    expect([...SEQUENCE_STEP_KINDS]).toEqual(['microSleeps', 'beats']);
+    expect([...SEQUENCE_STEP_KINDS]).toEqual(['microSleeps', 'beats', 'duel']);
   });
 
   it('accepts a bar and a music of null: no bar, no compact timer, no change of music', () => {

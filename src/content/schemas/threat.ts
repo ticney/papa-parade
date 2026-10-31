@@ -10,10 +10,11 @@ const idSchema = (description: string) =>
   z.string().regex(SNAKE_ID_PATTERN, 'an id is lower_snake_case').describe(description);
 
 /**
- * The responses the sim judges today. `firm` joined in story 1.23; `wait` (4.6), `nothing` (4.9) and
- * `dodge` (5.1) each join with their story: the schema accepts only what the sim can judge.
+ * The responses the sim judges today. `firm` joined in story 1.23 and `wait` in story 4.6 (a tap,
+ * but only once a signal has come); `nothing` (4.9) and `dodge` (5.1) each join with their story: the
+ * schema accepts only what the sim can judge.
  */
-export const THREAT_RESPONSES = ['parry', 'firm'] as const;
+export const THREAT_RESPONSES = ['parry', 'firm', 'wait'] as const;
 export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
 
 /**
@@ -21,7 +22,7 @@ export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
  * `Record<ThreatIcon, …>`: a missing glyph is a type error). The marker's shape and colour are
  * separate keys (`THREAT_ICON_SHAPES`, `THREAT_COLORS`, story 2.2).
  */
-export const THREAT_ICONS = ['bolt', 'stairs', 'mug', 'eyelids', 'dots', 'cry'] as const;
+export const THREAT_ICONS = ['bolt', 'stairs', 'mug', 'eyelids', 'dots', 'cry', 'eyes'] as const;
 export type ThreatIcon = (typeof THREAT_ICONS)[number];
 
 /**
@@ -61,6 +62,9 @@ const FeedbackCuesSchema = z
     success: idSchema('Cue played on a successful response.'),
     perfect: idSchema('Cue played on a perfect response.'),
     gag: idSchema('Cue played when the gag is triggered.'),
+    signal: idSchema(
+      'Only on a `wait` threat (required there, refused elsewhere): the cue played at the signal, when the window opens (story 4.6).',
+    ).optional(),
   })
   .describe('Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11).');
 
@@ -80,6 +84,33 @@ const baseShape = {
     .positive()
     .nullable()
     .describe('Base response window, in sim ms; `null` = `feel.timing.windowMs`.'),
+  minDelayMs: z
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Only on a `wait` threat (required there, refused elsewhere): the shortest wait, from the end of the telegraph delay to the signal, in sim ms (story 4.6).',
+    ),
+  maxDelayMs: z
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Only on a `wait` threat (required there, refused elsewhere): the longest wait, from the end of the telegraph delay to the signal, in sim ms, at least `minDelayMs`. The signal falls at one random instant between the two (story 4.6).',
+    ),
+  signalVerbKey: z
+    .string()
+    .regex(VERB_KEY_PATTERN, 'a signalVerbKey is a `verb.<name>` key of strings.fr.json')
+    .optional()
+    .describe(
+      'Only on a `wait` threat (required there, refused elsewhere): key of `strings.fr.json` (`verb.` group) of the verb shown from the signal on (« FILE ! », story 4.6).',
+    ),
+  signalIcon: z
+    .enum(THREAT_ICONS)
+    .optional()
+    .describe(
+      'Only on a `wait` threat (required there, refused elsewhere): the glyph drawn in the marker from the signal on, in place of `icon` (story 4.6). The signal is the glyph and the verb, never the colour alone.',
+    ),
   holdUntilMs: z
     .number()
     .positive()
@@ -172,6 +203,47 @@ export const ThreatDefSchema = z
         message: `\`holdUntilMs\` is only for a threat with response "firm", not "${def.response}"`,
       });
     }
+    // The `wait` keys are variant-specific too: one issue per path, whichever rule breaks first.
+    const waitKeys = ['minDelayMs', 'maxDelayMs', 'signalVerbKey', 'signalIcon'] as const;
+    for (const key of waitKeys) {
+      if (def.response === 'wait' && def[key] === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `a threat with response "wait" needs \`${key}\``,
+        });
+      } else if (def.response !== 'wait' && def[key] !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `\`${key}\` is only for a threat with response "wait", not "${def.response}"`,
+        });
+      }
+    }
+    if (
+      def.minDelayMs !== undefined &&
+      def.maxDelayMs !== undefined &&
+      def.minDelayMs > def.maxDelayMs
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['maxDelayMs'],
+        message: '`maxDelayMs` is at least `minDelayMs`',
+      });
+    }
+    if (def.response === 'wait' && def.feedback.signal === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['feedback', 'signal'],
+        message: 'a threat with response "wait" needs a `feedback.signal` cue',
+      });
+    } else if (def.response !== 'wait' && def.feedback.signal !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['feedback', 'signal'],
+        message: `\`feedback.signal\` is only for a threat with response "wait", not "${def.response}"`,
+      });
+    }
     if (def.verbKey === null && !hasDefaultVerb(def.response)) {
       ctx.addIssue({
         code: 'custom',
@@ -187,7 +259,7 @@ export const ThreatDefSchema = z
         message: `shape and colour are a pair: "${def.iconShape}" goes with "${THREAT_SHAPE_COLORS[def.iconShape]}", not "${def.color}"`,
       });
     } else if (def.iconShape !== 'circle') {
-      // `parry` and `firm` are the only responses the sim judges: both are a blue circle.
+      // `parry`, `firm` and `wait` are the only responses the sim judges: all are a blue circle.
       ctx.addIssue({
         code: 'custom',
         path: ['iconShape'],

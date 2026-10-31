@@ -14,7 +14,10 @@ import {
 
 /**
  * Presses every threat at the centre of its window (offset 0, so `perfect` whatever the feel's
- * `perfectMs`) and lets go `tapMs` later. Created mid-window, it presses at once.
+ * `perfectMs`) and lets go `tapMs` later. Created mid-window, it presses at once. It is a bot that
+ * knows the answer: on a `wait` threat (story 4.6) it reads the `windowOpenAt` the sim drew at the
+ * telegraph, which no player can, and presses at the centre of the window after the signal, so
+ * `perfect`.
  */
 export function createPerfectBot(setup: BotSetup): Bot {
   const scheduler = createCommandScheduler();

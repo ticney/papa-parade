@@ -250,9 +250,26 @@ export function createTestLullabyWalk(): SequenceDef {
   return parsed.value;
 }
 
+/**
+ * « Duel du coucher », frozen like the others (`testBedtimeDuel.sequence.json`, story 4.6): three
+ * duel steps of 8 s, 1 s of rest, three retreats to lose. Its threat is `createTestBedtimeEyes()`.
+ */
+export function createTestBedtimeDuel(): SequenceDef {
+  const path = 'tests/support/testBedtimeDuel.sequence.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testBedtimeDuel.sequence.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, SequenceDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
 /** The frozen sequences, by id. */
 export function createTestSequences(): Readonly<Record<string, SequenceDef>> {
-  const defs = [createTestStayAwake(), createTestLullabyWalk()];
+  const defs = [createTestStayAwake(), createTestLullabyWalk(), createTestBedtimeDuel()];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
 
@@ -269,7 +286,15 @@ export function createTestArmsCry(): ThreatDef {
   return readThreatFixture('testArmsCry.threat.json');
 }
 
-/** The seven frozen threats, by id. */
+/**
+ * The baby's eyes of the bedtime duel, frozen like the outlet (`testBedtimeEyes.threat.json`, story
+ * 4.6): the `wait` threat on Papa. A signal 2 to 4 s after the telegraph, which lasts 800 ms.
+ */
+export function createTestBedtimeEyes(): ThreatDef {
+  return readThreatFixture('testBedtimeEyes.threat.json');
+}
+
+/** The eight frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
     createTestOutlet(),
@@ -279,6 +304,7 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
     createTestSilence(),
     createTestCryingOutlet(),
     createTestArmsCry(),
+    createTestBedtimeEyes(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
@@ -382,6 +408,17 @@ export function createTestLevel({
     const def = all[armsCryDef];
     if (def === undefined) throw new Error(`no frozen threat "${armsCryDef}" in tests/support`);
     threats[def.id] = def;
+  }
+  // A duel step spawns its own threat on Papa (story 4.6): the level carries its def, as `loadLevelContent` does.
+  for (const id of sequences) {
+    for (const step of (sequenceDefs[id] ?? createTestSequences()[id])?.steps ?? []) {
+      if (step.kind !== 'duel') continue;
+      const def = all[step.threatDef];
+      if (def === undefined) {
+        throw new Error(`no frozen threat "${step.threatDef}" in tests/support`);
+      }
+      threats[def.id] = def;
+    }
   }
   const disruptions: Record<string, DisruptionDef> = {};
   for (const wave of waves) {

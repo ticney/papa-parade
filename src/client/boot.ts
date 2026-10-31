@@ -13,6 +13,7 @@ import { ok } from '@shared/result';
 import {
   type BeatEntry,
   beatTimelineOf,
+  isDuelStepRunning,
   isFlowLive,
   isPapaBusy,
   type LevelEndReason,
@@ -294,6 +295,8 @@ export async function boot(): Promise<void> {
       | 'ppBeatHits'
       | 'ppBeatMisses'
       | 'ppBabyWake'
+      | 'ppSequenceStep'
+      | 'ppSequenceRetreats'
       | 'ppCueCount'
       | 'ppFlashCount'
       | 'ppStampCount'
@@ -665,6 +668,8 @@ export async function boot(): Promise<void> {
       'ppBeatHits',
       'ppBeatMisses',
       'ppBabyWake',
+      'ppSequenceStep',
+      'ppSequenceRetreats',
     ] as const) {
       delete document.documentElement.dataset[name];
     }
@@ -701,6 +706,20 @@ export async function boot(): Promise<void> {
       mirror('ppBeatMisses', String(beatMissCount));
     } else if (event.type === 'BabyStirred') {
       mirror('ppBabyWake', String(event.wakePct));
+    }
+  };
+  // The step a sequence stands at and the retreats of a duel so far, on events only (story 4.6): the
+  // step follows `SequenceStepStarted` (a retreat starts the step it goes back to), the count follows
+  // `SequenceStepRetreated`. Cleared at `SequenceStarted`, so a second sequence in one level, or a retry,
+  // never shows the last one's numbers.
+  const mirrorDuelEvent = (event: SimEvent): void => {
+    if (event.type === 'SequenceStarted') {
+      delete document.documentElement.dataset.ppSequenceStep;
+      delete document.documentElement.dataset.ppSequenceRetreats;
+    } else if (event.type === 'SequenceStepStarted') {
+      mirror('ppSequenceStep', String(event.stepIndex));
+    } else if (event.type === 'SequenceStepRetreated') {
+      mirror('ppSequenceRetreats', String(event.retreats));
     }
   };
   // The suspicious silence, on its events only (story 1.21): `on` at `SilenceStarted`, then `found`
@@ -997,8 +1016,14 @@ export async function boot(): Promise<void> {
       // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
       // Once the level has ended the sim is frozen with `babbling` as it was: silence it.
       const babbleWorld = levelSession.active?.sim.world;
+      // Not during a bedtime duel (story 4.6): `takeBaby` sets `babbling`, and a baby babbling through
+      // the duel would cover the signal and contradict it. State, every frame, so that a restart or
+      // the end of the level needs no code.
       audio.setBabbling(
-        babbleWorld !== undefined && isFlowLive(babbleWorld) && babbleWorld.baby.babbling,
+        babbleWorld !== undefined &&
+          isFlowLive(babbleWorld) &&
+          babbleWorld.baby.babbling &&
+          !isDuelStepRunning(babbleWorld),
       );
       // The suspicious silence (story 1.21): the music stays off, and the « … » bubble stays up,
       // while the sim says a silence has started. State, not events, so that a pause, a restart or
@@ -1276,6 +1301,7 @@ export async function boot(): Promise<void> {
         mirrorInstinctEvent(event);
         mirrorSequenceEvent(event);
         mirrorBeatEvent(event);
+        mirrorDuelEvent(event);
       }
       // A refused toilet says why above Papa, for `holdMs` of real time (story 4.3).
       if (event.type === 'ToiletRefused') {

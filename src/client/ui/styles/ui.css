@@ -1722,6 +1722,26 @@ body {
   animation: pp-threat-pulse 1400ms ease-in-out infinite;
 }
 
+/*
+  The signal of a wait threat (story 4.6, the bedtime duel): from the baby's eyes closing the marker
+  carries a closed-eye glyph and « FILE ! » (the swap is `threatMarkers.ts`'s), and its icon pops once.
+  The pop is the cue's onset, not the information: the glyph and the verb are, so a player who sees
+  no motion and no colour still reads it (NFR8).
+*/
+.pp-threat--signal .pp-threat-icon {
+  animation: pp-threat-signal-pop 220ms ease-out;
+}
+
+@keyframes pp-threat-signal-pop {
+  from {
+    transform: scale(0.8);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
 .pp-threat-highlight {
   position: absolute;
   inset: calc(var(--pp-threat-size) * -0.3);
@@ -1953,6 +1973,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .pp-threat-halo,
   .pp-threat-chevron,
+  .pp-threat--signal .pp-threat-icon,
   .pp-object-urgent .pp-object-halo {
     animation: none;
   }

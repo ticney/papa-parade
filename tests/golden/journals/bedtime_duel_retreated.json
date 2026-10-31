@@ -1,0 +1,93 @@
+{
+  "version": 3,
+  "seed": 47,
+  "feelHash": "0a0ef27a2eb80a",
+  "geometryHash": "0e18fe9d85d9f9",
+  "levelHash": "1b1e1aaa2c8fad",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "sequenceId": "bedtime_duel",
+        "t": 0,
+        "type": "StartSequence"
+      }
+    },
+    {
+      "applyAt": 4900,
+      "command": {
+        "t": 4890,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 4950,
+      "command": {
+        "t": 4940,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 9110,
+      "command": {
+        "t": 9102,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 9160,
+      "command": {
+        "t": 9152,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 19630,
+      "command": {
+        "t": 19622,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 19680,
+      "command": {
+        "t": 19672,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 23650,
+      "command": {
+        "t": 23644,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 23700,
+      "command": {
+        "t": 23694,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 27820,
+      "command": {
+        "t": 27816,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 27870,
+      "command": {
+        "t": 27866,
+        "type": "Release"
+      }
+    }
+  ]
+}

@@ -114,6 +114,13 @@ export interface SimSequence {
    * that is not a `beats` step. Derived from the def by `simLevelOf`, so it is not in the snapshot.
    */
   readonly beatTimelines: readonly (readonly BeatEntry[] | null)[];
+  /**
+   * The index, in `SimLevel.threats` and `world.threats`, of the instance each step spawns (story
+   * 4.6), index-aligned with `def.steps`: `null` for a step that is not a `duel` step. One instance
+   * per distinct def, shared by the steps (and the sequences) that name it. Derived from the def by
+   * `simLevelOf`, so it is not in the snapshot.
+   */
+  readonly duelThreatIndexes: readonly (number | null)[];
 }
 
 /**

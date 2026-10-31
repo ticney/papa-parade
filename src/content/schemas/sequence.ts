@@ -16,7 +16,7 @@ const idSchema = (description: string) =>
   z.string().regex(SNAKE_ID_PATTERN, 'an id is lower_snake_case').describe(description);
 
 /** What a step is, hence how the sim runs it: one handler per kind (`Record<SequenceStepKind, …>`). */
-export const SEQUENCE_STEP_KINDS = ['microSleeps', 'beats'] as const;
+export const SEQUENCE_STEP_KINDS = ['microSleeps', 'beats', 'duel'] as const;
 export type SequenceStepKind = (typeof SEQUENCE_STEP_KINDS)[number];
 
 const MicroSleepsStepSchema = z
@@ -103,14 +103,41 @@ const BeatsStepSchema = z
   )
   .describe('A stretch of the sequence where Papa taps to a lullaby that slows down.');
 
+const DuelStepSchema = z
+  .strictObject({
+    kind: z
+      .literal('duel')
+      .describe(
+        'Papa stands still before the bed and leaves at the instant the baby closes his eyes (story 4.6). The step ends when its round is won, not when its time is up.',
+      ),
+    durationMs: z
+      .number()
+      .int()
+      .positive()
+      .describe(
+        'The longest a round of this step can take, in sim ms: the rest, the telegraph, the longest wait for the signal, the window and the tolerance must fit in it. A round ends on its result, never on this time.',
+      ),
+    threatDef: idSchema(
+      'Id of the `wait` threat (`content/threats/`, aimed at Papa) the sim spawns each round of this step.',
+    ),
+    restMs: z
+      .number()
+      .int()
+      .min(0)
+      .describe(
+        'The breath before each round, from the start of the step (and after each retreat) to the telegraph, in sim ms. A tap in it costs nothing.',
+      ),
+  })
+  .describe('A round of patience: wait for the signal, then tap (the Wait response).');
+
 const SequenceStepSchema = z
-  .discriminatedUnion('kind', [MicroSleepsStepSchema, BeatsStepSchema])
+  .discriminatedUnion('kind', [MicroSleepsStepSchema, BeatsStepSchema, DuelStepSchema])
   .describe('One step of a sequence.');
 
 /** What ends a sequence well: the sim judges each kind. */
 export const SEQUENCE_SUCCESS_KINDS = ['stepsDone'] as const;
 /** What ends a sequence badly: the sim judges each kind. */
-export const SEQUENCE_FAILURE_KINDS = ['gag', 'babyAwake'] as const;
+export const SEQUENCE_FAILURE_KINDS = ['gag', 'babyAwake', 'retreats'] as const;
 
 // Whole percents: a cost such as 33.3 added three times would stop at 99.9 and the baby never wake.
 const wakePct = (description: string) => z.number().int().min(0).max(100).describe(description);
@@ -144,6 +171,18 @@ const FailureSchema = z
       strayWakePct: wakePct(
         'Wake added by a tap that is on no beat and no decoy (a second tap in a window, a tap between windows), in % of the way to awake.',
       ),
+    }),
+    z.strictObject({
+      kind: z
+        .literal('retreats')
+        .describe(
+          'Every gag steps the sequence back one step (the first step stays the first); the failure that makes `maxRetreats` ends it (story 4.6).',
+        ),
+      maxRetreats: z
+        .number()
+        .int()
+        .positive()
+        .describe('How many gags end the sequence: the last one wakes the baby, counted in gags.'),
     }),
   ])
   .describe('How the sequence is lost.');
@@ -251,6 +290,40 @@ export const SequenceDefSchema = z
         message: `has a beats step among ${def.steps.length} steps, but a beats step must be the only step of its sequence`,
       });
     }
+    // A duel advances on its result, not on time: its step kind and the `retreats` failure are one rule.
+    const hasDuel = def.steps.some((step) => step.kind === 'duel');
+    if (hasDuel && failure.kind !== 'retreats') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['failure', 'kind'],
+        message: `has a duel step, so its failure must be "retreats", not "${failure.kind}"`,
+      });
+    }
+    if (failure.kind === 'retreats' && !hasDuel) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['failure', 'kind'],
+        message: 'has a "retreats" failure, but no duel step to step back from',
+      });
+    }
+    // A step back into a timed step has no meaning yet (4.8 lifts this for its own kind).
+    if (failure.kind === 'retreats' && def.steps.some((step) => step.kind !== 'duel')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['steps'],
+        message:
+          'has a "retreats" failure, so every step must be a duel (a step back into a timed step has no meaning yet)',
+      });
+    }
+    // The end of a duel is only an estimate (it ends on its result): a bar on the time left would lie.
+    if (failure.kind === 'retreats' && def.framing.bar?.value === 'timeLeft') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['framing', 'bar', 'value'],
+        message:
+          'has a "retreats" failure and a bar that shows timeLeft, but the end of a duel is only an estimate (use bar: null)',
+      });
+    }
     if (def.framing.bar?.value === 'calmLeft' && failure.kind !== 'babyAwake') {
       ctx.addIssue({
         code: 'custom',
@@ -276,6 +349,7 @@ export const SequenceDefSchema = z
 export type SequenceDef = z.infer<typeof SequenceDefSchema>;
 export type SequenceStep = z.infer<typeof SequenceStepSchema>;
 export type BeatsStep = z.infer<typeof BeatsStepSchema>;
+export type DuelStep = z.infer<typeof DuelStepSchema>;
 
 /** The sequence's duration: the sum of its steps, never a second key that could disagree. */
 export function sequenceDurationMs(def: Pick<SequenceDef, 'steps'>): number {

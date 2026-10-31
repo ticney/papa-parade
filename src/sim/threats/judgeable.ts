@@ -24,6 +24,7 @@ export function isJudgeableBeforeEnd(
   const judgedByMs =
     now +
     (def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs) +
+    (def.maxDelayMs ?? 0) +
     (def.windowMs ?? timing.windowMs) *
       activeDifficulty(world, ctx).windowMultiplier *
       instinctWindowModifier(world, ctx) +

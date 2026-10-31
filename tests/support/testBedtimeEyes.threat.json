@@ -1,0 +1,25 @@
+{
+  "$schema": "../../content/_schemas/threat.schema.json",
+  "id": "bedtime_eyes",
+  "target": "papa",
+  "response": "wait",
+  "telegraphDelayMs": 800,
+  "minDelayMs": 2000,
+  "maxDelayMs": 4000,
+  "windowMs": null,
+  "gag": "baby_eyes_reopened",
+  "verbKey": "verb.wait",
+  "signalVerbKey": "verb.go",
+  "icon": "eyes",
+  "signalIcon": "eyelids",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_bedtime_eyes",
+    "signal": "bedtime_eyes_closed",
+    "success": "resp_wait",
+    "perfect": "resp_wait_perfect",
+    "gag": "gag_baby_eyes_reopened"
+  },
+  "cooldownMs": 600
+}

@@ -5,7 +5,7 @@ import type { StepContext } from '../context.ts';
 import { enterFlowState } from '../flow/flowFsm.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
 import { cancelThreat } from '../threats/threatFsm.ts';
-import { clearBeatSlice, type ThreatInstance, type World } from '../world.ts';
+import { clearBeatSlice, clearDuelSlice, type ThreatInstance, type World } from '../world.ts';
 import { sequenceDefOf } from './sequenceEnd.ts';
 import { enterSequenceStep } from './sequenceSteps.ts';
 
@@ -76,6 +76,7 @@ export function startSequence(world: World, ctx: StepContext, sequenceId: string
   sequence.stepEndsAt = asSimMs(now + first.durationMs);
   sequence.nextMicroSleepAt = null;
   clearBeatSlice(sequence.beat);
+  clearDuelSlice(sequence.duel);
   ctx.events.push({ type: 'SequenceStarted', t: now, id: sequenceId });
   ctx.events.push({ type: 'SequenceStepStarted', t: now, id: sequenceId, stepIndex: 0 });
   enterSequenceStep(world, ctx, first);

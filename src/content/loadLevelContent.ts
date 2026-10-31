@@ -48,9 +48,12 @@ function checkId(file: string, id: string, expected: string): ContentProblem[] {
 /**
  * Reads `levels/<levelId>.json`, then each distinct `threats/<def>.json` its waves plan (and its
  * `gauges.fatigue.microSleepDef`, then its `carry.armsCryDef`, last), in order of first reference, then each distinct
- * `disruptions/<def>.json` its waves plan (story 1.20), then each `sequences/<id>.json` its `sequences` names (story 4.4), through the same source and the same parser as
+ * `disruptions/<def>.json` its waves plan (story 1.20), then each `sequences/<id>.json` its `sequences` names (story 4.4), then
+ * each `threats/<def>.json` a `duel` step of those sequences names (story 4.6; the sequences are read
+ * after the threats, so these come last), through the same source and the same parser as
  * `loadContent`. It collects every problem (a missing def file names the level's JSON path,
- * `waves[1].threats[0].def` or `waves[2].disruptions[0].def` or `sequences[0]`). It checks no anchor, no gag id and no
+ * `waves[1].threats[0].def` or `waves[2].disruptions[0].def` or `sequences[0]`; a duel's own, the
+ * sequence file's `steps[1].threatDef`). It checks no anchor, no gag id and no
  * object kind: it has no geometry and must not know the sim (`createSim` and `content:check` do).
  * Never throws and never logs: the caller logs.
  */
@@ -82,29 +85,33 @@ export async function loadLevelContent(
   if (armsCryDef !== undefined) {
     planned.push({ defId: armsCryDef, path: ['carry', 'armsCryDef'] });
   }
-  for (const { defId, path } of planned) {
-    if (Object.hasOwn(threats, defId) || failed.has(defId)) continue;
+  // One path for every threat def, whoever asks for it: `file` and `jsonPath` say where the asker names it.
+  const loadThreat = async (defId: string, file: string, jsonPath: string): Promise<void> => {
+    if (Object.hasOwn(threats, defId) || failed.has(defId)) return;
     const defFile = `${THREAT_DEF_PATTERN.dir}/${defId}${THREAT_DEF_PATTERN.suffix}`;
     const defDisplay = `content/${defFile}`;
     const defText = await readText(source, defFile);
     if (!defText.ok) {
       failed.add(defId);
-      // The level names a file that cannot be read: point at the line of the level that asked for it.
+      // The asker names a file that cannot be read: point at the line that asked for it.
       problems.push({
-        file: levelDisplay,
-        jsonPath: formatJsonPath(path),
+        file,
+        jsonPath,
         message: `cannot load the threat "${defId}": ${defText.error[0]?.message ?? 'unreadable'}`,
       });
-      continue;
+      return;
     }
     const def = parseContentFile(defDisplay, defText.value, THREAT_DEF_PATTERN.schema);
     if (!def.ok) {
       failed.add(defId);
       problems.push(...def.error);
-      continue;
+      return;
     }
     problems.push(...checkId(defDisplay, def.value.id, defId));
     threats[defId] = def.value;
+  };
+  for (const { defId, path } of planned) {
+    await loadThreat(defId, levelDisplay, formatJsonPath(path));
   }
 
   const disruptions: Record<string, DisruptionDef> = {};
@@ -163,6 +170,16 @@ export async function loadLevelContent(
     }
     problems.push(...checkId(defDisplay, def.value.id, sequenceId));
     sequences[sequenceId] = def.value;
+  }
+
+  // A `duel` step names the threat it spawns on Papa (story 4.6): the threats were read before the
+  // sequences, so it is loaded now, after every other def, and a missing file is reported at the step.
+  for (const [sequenceId, sequence] of Object.entries(sequences)) {
+    const sequenceDisplay = `content/${SEQUENCE_DEF_PATTERN.dir}/${sequenceId}${SEQUENCE_DEF_PATTERN.suffix}`;
+    for (const [j, step] of sequence.steps.entries()) {
+      if (step.kind !== 'duel') continue;
+      await loadThreat(step.threatDef, sequenceDisplay, formatJsonPath(['steps', j, 'threatDef']));
+    }
   }
 
   if (problems.length > 0) return err(createContentError(problems));

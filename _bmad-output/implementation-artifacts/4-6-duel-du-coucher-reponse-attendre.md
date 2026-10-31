@@ -4,7 +4,7 @@ baseline_commit: 714d3c000d4834d0845d9d8149262cebc85d499a
 
 # Story 4.6: The bedtime duel (the Wait response)
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.6 « Duel du coucher (réponse Attendre) » (L1932-1956). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 

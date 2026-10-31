@@ -152,6 +152,27 @@ const tapBeatAt = (offsetMs: number, deltaMs = 0): { atStep: number; command: Si
 const beatOffsetMs = (judgedIndex: number): number => LULLABY_BEATS[judgedIndex]?.offsetMs ?? 0;
 const decoyOffsetMs = LULLABY_TIMELINE.find((entry) => entry.kind === 'decoy')?.offsetMs ?? 0;
 
+// « Duel du coucher » (story 4.6): the frozen duel (three rounds of 8 s, 1 s of rest, three retreats to
+// lose) on a level that carries. The signal of each round is drawn from the seed at its telegraph, so
+// the answers are written out in whole ms from the draws of these two seeds (a change of the draw
+// moves them, on purpose: the golden says so). The eyes are the second threat of the level, after the
+// cry in the arms.
+const duelLevel = () => createTestLevel({ carry: CARRY, sequences: ['bedtime_duel'] });
+const startBedtimeDuel: SimCommand = {
+  type: 'StartSequence',
+  t: asSimMs(0),
+  sequenceId: 'bedtime_duel',
+};
+const BEDTIME_EYES_ID = 2;
+/** A tap on the eyes at `t`, held 50 ms, each enqueued at the step that reaches it (`t` is in whole ms, off the grid). */
+const duelTap = (t: number): { atStep: number; command: SimCommand }[] => [
+  {
+    atStep: Math.floor(t / STEP_MS),
+    command: { type: 'PressThreat', t: asSimMs(t), threatId: BEDTIME_EYES_ID },
+  },
+  { atStep: Math.floor((t + 50) / STEP_MS), command: release(t + 50) },
+];
+
 /** Six threats on six anchors, started by hand (the wave is far away) and never answered. */
 const INSTINCT_THREATS: readonly LevelWaveThreat[] = [
   OUTLET,
@@ -473,6 +494,31 @@ export const SCENARIOS: readonly Scenario[] = [
     seed: 41,
     untilSimMs: 12000,
     actions: [{ atStep: 0, command: startStayAwake(0) }],
+  },
+  {
+    // « Duel du coucher » won (story 4.6): three rounds, each answered 150 ms after its signal (the
+    // centre of the window: `perfect`), the signals falling at 4436, 10413 and 14812 ms. The sequence
+    // ends `succeeded` at 15020 ms with the baby still carried and no retreat.
+    // `bedtimeDuel.test.ts` (golden) pins what it covers.
+    name: 'bedtime_duel_won',
+    level: duelLevel(),
+    seed: 46,
+    untilSimMs: 16000,
+    actions: [{ atStep: 0, command: startBedtimeDuel }, ...[4586, 10563, 14962].flatMap(duelTap)],
+  },
+  {
+    // « Duel du coucher » with retreats (story 4.6): round 1 is won (signal 4740), round 2 is tapped 300 ms
+    // before its signal (9402): `early`, back to step 0 (retreat 1); round 3 is never answered (signal
+    // 14739): `late`, a retreat at step 0 that stays at step 0 (retreat 2); then three rounds are won
+    // (signals 19472, 23494, 27666) and the sequence ends `succeeded` at 27870 ms.
+    name: 'bedtime_duel_retreated',
+    level: duelLevel(),
+    seed: 47,
+    untilSimMs: 29000,
+    actions: [
+      { atStep: 0, command: startBedtimeDuel },
+      ...[4890, 9102, 19622, 23644, 27816].flatMap(duelTap),
+    ],
   },
 ];
 

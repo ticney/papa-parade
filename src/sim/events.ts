@@ -225,6 +225,11 @@ export type SimEvent =
   | { type: 'SilenceEnded'; t: SimMs; threatId: number; reason: SilenceEndReason }
   | { type: 'WindowOpened'; t: SimMs; threatId: number }
   /**
+   * The signal of a `wait` threat (story 4.6): the baby's eyes close, the window opens. Pushed right
+   * before that threat's `WindowOpened`, at the same `t`, and never for another response.
+   */
+  | { type: 'WaitSignalGiven'; t: SimMs; threatId: number }
+  /**
    * A press on the threat has been held `feel.input.holdMinMs` (story 1.23): the hold-ring closes.
    * Once per press, on a Parry threat too (its `wrongResponse` follows in the same step).
    */
@@ -328,6 +333,20 @@ export type SimEvent =
   | { type: 'SequenceStarted'; t: SimMs; id: string }
   /** The sequence entered its step number `stepIndex` (0 right after `SequenceStarted`). */
   | { type: 'SequenceStepStarted'; t: SimMs; id: string; stepIndex: number }
+  /**
+   * A `retreats` sequence (story 4.6) stepped back after a gag: `retreats` is the count so far (below
+   * `maxRetreats`), `fromStepIndex` the step that failed and `stepIndex` the one it goes back to (the
+   * same at step 0). `SequenceStepStarted` follows. The failure that ends the sequence emits none.
+   */
+  | {
+      type: 'SequenceStepRetreated';
+      t: SimMs;
+      id: string;
+      fromStepIndex: number;
+      stepIndex: number;
+      retreats: number;
+      reason: FailReason;
+    }
   /** The sequence is over, for the `outcome`; `levelEnded` is followed by no resume. */
   | { type: 'SequenceEnded'; t: SimMs; id: string; outcome: SequenceOutcome }
   /**
@@ -442,6 +461,7 @@ export const SIM_EVENT_TYPES = [
   'ResponseResolved',
   'SequenceEnded',
   'SequenceStarted',
+  'SequenceStepRetreated',
   'SequenceStepStarted',
   'SilenceEnded',
   'SilenceStarted',
@@ -453,6 +473,7 @@ export const SIM_EVENT_TYPES = [
   'ToiletFinished',
   'ToiletRefused',
   'ToiletStarted',
+  'WaitSignalGiven',
   'WaveStarted',
   'WindowOpened',
 ] as const satisfies readonly SimEvent['type'][];

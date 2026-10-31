@@ -29,6 +29,7 @@ export type FingerPlan = { kind: 'tap'; holdMs: number } | { kind: 'untilAnswere
 export function fingerPlanFor(response: BotResponse, tapMs: number): FingerPlan {
   switch (response) {
     case 'parry':
+    case 'wait':
       return { kind: 'tap', holdMs: tapMs };
     case 'firm':
       return { kind: 'untilAnswered' };

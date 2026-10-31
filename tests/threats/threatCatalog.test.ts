@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import type { LevelContent } from '@content/contentBundle';
 import { parseContentFile } from '@content/parseContentFile';
 import { LevelSchema } from '@content/schemas/level';
+import { type SequenceDef, SequenceDefSchema } from '@content/schemas/sequence';
 import {
   type ThreatDef,
   ThreatDefSchema,
@@ -28,10 +29,18 @@ import { createTestContent, createTestGeometry } from '../support/testContent.ts
 
 const THREATS_DIR = fileURLToPath(new URL('../../content/threats/', import.meta.url));
 const LEVELS_DIR = fileURLToPath(new URL('../../content/levels/', import.meta.url));
+const SEQUENCES_DIR = fileURLToPath(new URL('../../content/sequences/', import.meta.url));
 const FIXTURES_DIR = fileURLToPath(new URL('./fixtures/', import.meta.url));
 
-/** An anchor of the frozen room that no live def uses: where the fixture defs are planned. */
-const FIXTURE_ANCHOR = 'door';
+/**
+ * The anchors of the frozen room that no live def uses, one per fixture (two defs cannot share an
+ * anchor): where the fixture defs are planned. `test_wait` (story 4.6) goes to the `phone` anchor, as
+ * `door` is the Firmness's; no object stands there in this level.
+ */
+const FIXTURE_ANCHORS: Readonly<Record<string, string>> = {
+  test_firm: 'door',
+  test_wait: 'phone',
+};
 
 /** A release time beyond every case's horizon: the other defs stay idle while one is tested. */
 const CATALOG_OTHERS_FROM_MS = 600_000;
@@ -51,7 +60,7 @@ function readDefs(dir: string, shown: string): ThreatDef[] {
 const liveDefs = readDefs(THREATS_DIR, 'content/threats/');
 /**
  * Test-only defs (story 1.23 D5): a response no live level asks for yet (the Firmness) is proved on
- * a fixture. They are planned at `FIXTURE_ANCHOR`, never by a live level.
+ * a fixture. They are planned at their `FIXTURE_ANCHORS` entry, never by a live level.
  */
 const fixtureDefs = readDefs(FIXTURES_DIR, 'tests/threats/fixtures/');
 const fixtureIds = new Set(fixtureDefs.map((def) => def.id));
@@ -66,6 +75,11 @@ const anchors = new Map<string, string>();
 const spawnedOnPapa = new Set<string>();
 /** The ones that are a cry in the arms (story 4.1): the baby must be carried for them to come. */
 const armsCryDefs = new Set<string>();
+/**
+ * The ones a live sequence's `duel` step spawns on Papa (story 4.6): they come when the sequence
+ * starts, so they are tested through a one-step sequence of their own.
+ */
+const duelDefs = new Set<string>();
 for (const name of readdirSync(LEVELS_DIR).sort()) {
   if (!name.endsWith('.json') || name.endsWith('.geometry.json')) continue;
   const text = readFileSync(`${LEVELS_DIR}${name}`, 'utf8');
@@ -81,6 +95,49 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
     spawnedOnPapa.add(armsCryDef);
     armsCryDefs.add(armsCryDef);
   }
+  for (const sequenceId of parsed.value.sequences) {
+    const sequenceText = readFileSync(`${SEQUENCES_DIR}${sequenceId}.json`, 'utf8');
+    const sequence = parseContentFile(
+      `content/sequences/${sequenceId}.json`,
+      sequenceText,
+      SequenceDefSchema,
+    );
+    if (!sequence.ok) {
+      throw new Error(`${sequenceId} is invalid: ${JSON.stringify(sequence.error)}`);
+    }
+    for (const step of sequence.value.steps) {
+      if (step.kind !== 'duel') continue;
+      spawnedOnPapa.add(step.threatDef);
+      duelDefs.add(step.threatDef);
+    }
+  }
+}
+
+/** The cry in the arms a duel level carries with (the schema asks for one): the first a live level has. */
+const CARRY_CRY_DEF = [...armsCryDefs][0] ?? 'arms_cry';
+
+/**
+ * The one-step sequence a duel def is tested through: its threat on Papa, no rest, a length that
+ * fits any tier, three retreats to lose. Built by hand (the sim takes the structure, not the schema).
+ */
+function duelSequenceOf(def: ThreatDef): SequenceDef {
+  return {
+    id: 'catalog_duel',
+    babyCarried: true,
+    steps: [{ kind: 'duel', durationMs: 60_000, threatDef: def.id, restMs: 0 }],
+    success: { kind: 'stepsDone' },
+    failure: { kind: 'retreats', maxRetreats: 3 },
+    framing: {
+      camera: { zoomPct: 0, focusPct: 0, inMs: 1000, outMs: 1000 },
+      musicLoop: null,
+      bar: null,
+    },
+    feedback: {
+      started: 'sequence_started',
+      succeeded: 'sequence_succeeded',
+      failed: 'sequence_failed',
+    },
+  };
 }
 
 const content = createTestContent();
@@ -101,7 +158,9 @@ interface Answer {
 function answerOf(def: ThreatDef, pressT: number, openAt: number): Answer {
   const response: ThreatResponse = def.response;
   switch (response) {
+    // A `wait` is answered with a tap too: the signal decides when, not how (story 4.6).
     case 'parry':
+    case 'wait':
       return { releaseAt: pressT + holdMinMs / 2, settledAt: pressT + holdMinMs };
     case 'firm': {
       if (def.holdUntilMs === undefined) throw new Error(`"${def.id}" is firm with no holdUntilMs`);
@@ -123,7 +182,11 @@ function answer(sim: Sim, def: ThreatDef, threatId: number, t: number, openAt: n
 
 /** The anchor `def` is planned at: a fixture's own, else a live level's; a def no level plans fails here, with its name. */
 function anchorOf(def: ThreatDef): string {
-  if (fixtureIds.has(def.id)) return FIXTURE_ANCHOR;
+  if (fixtureIds.has(def.id)) {
+    const fixtureAnchor = FIXTURE_ANCHORS[def.id];
+    if (fixtureAnchor === undefined) throw new Error(`fixture "${def.id}" has no anchor`);
+    return fixtureAnchor;
+  }
   const anchor = anchors.get(def.id);
   if (anchor === undefined) throw new Error(`"${def.id}" is planned by no level`);
   return anchor;
@@ -137,6 +200,26 @@ function anchorOf(def: ThreatDef): string {
 function levelPlanning(tested: ThreatDef): LevelContent {
   const anchored = defs.filter((def) => def.target !== 'papa');
   const planned = (def: ThreatDef) => ({ def: def.id, anchor: anchorOf(def) });
+  if (duelDefs.has(tested.id)) {
+    const cry = defs.find((def) => def.id === CARRY_CRY_DEF);
+    if (cry === undefined) throw new Error(`no live cry in the arms "${CARRY_CRY_DEF}"`);
+    return {
+      level: {
+        id: 'salon_crawler',
+        variant: 'nap' as const,
+        durationMs: CATALOG_OTHERS_FROM_MS,
+        objects: [],
+        gauges: {},
+        carry: { armsCryDef: cry.id },
+        sequences: ['catalog_duel'],
+        feelOverrides: {},
+        waves: [],
+      },
+      threats: Object.fromEntries([tested, cry].map((def) => [def.id, def])),
+      disruptions: {},
+      sequences: { catalog_duel: duelSequenceOf(tested) },
+    };
+  }
   if (armsCryDefs.has(tested.id)) {
     return {
       level: {
@@ -203,6 +286,16 @@ function levelPlanning(tested: ThreatDef): LevelContent {
  * the baby is taken (its delay is nil, and the baby is always within reach).
  */
 function contentFor(def: ThreatDef) {
+  if (duelDefs.has(def.id)) {
+    // The cry in the arms the level carries with must not come during the duel.
+    return {
+      ...content,
+      feel: {
+        ...content.feel,
+        carry: { ...content.feel.carry, armsCryMinMs: 600_000, armsCryMaxMs: 600_000 },
+      },
+    };
+  }
   if (armsCryDefs.has(def.id)) {
     return {
       ...content,
@@ -249,9 +342,14 @@ function findTheBaby(sim: Sim): void {
 }
 
 /** A sim stopped on the step that telegraphed the threat, with the times its window gives. */
-async function telegraphed(def: ThreatDef, tier: DifficultyTierId) {
+async function telegraphed(
+  def: ThreatDef,
+  tier: DifficultyTierId,
+  earlyPress: 'fail' | 'guard' = 'fail',
+) {
+  const base = contentFor(def);
   const sim = await createSim({
-    content: contentFor(def),
+    content: { ...base, feel: { ...base.feel, input: { ...base.feel.input, earlyPress } } },
     geometry,
     level: levelPlanning(def),
     seed: 1,
@@ -259,6 +357,16 @@ async function telegraphed(def: ThreatDef, tier: DifficultyTierId) {
   if (tier !== 'normal') sim.enqueue({ type: 'SetDifficultyTier', t: asSimMs(0), tier });
   if (def.target === 'hiddenZone') {
     findTheBaby(sim);
+  } else if (duelDefs.has(def.id)) {
+    // Story 4.6: the sequence takes the baby and spawns the threat on Papa (no rest in the test's step).
+    sim.enqueue({
+      type: 'StartSequence',
+      t: asSimMs(sim.world.time.sim),
+      sequenceId: 'catalog_duel',
+    });
+    sim.step();
+    const events = [...sim.drainEvents()];
+    expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
   } else if (armsCryDefs.has(def.id)) {
     // Papa takes the baby (he is in reach); the cry in the arms is telegraphed at the next step.
     sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) });
@@ -317,15 +425,24 @@ describe('the threat catalogue', () => {
   );
 
   it('keeps the fixture anchor free of live defs, and fixtures out of the live folder', () => {
-    expect([...anchors.values()]).not.toContain(FIXTURE_ANCHOR);
+    for (const fixtureAnchor of Object.values(FIXTURE_ANCHORS)) {
+      expect([...anchors.values()]).not.toContain(fixtureAnchor);
+    }
+    expect(new Set(Object.values(FIXTURE_ANCHORS)).size).toBe(fixtureDefs.length);
     for (const def of fixtureDefs) {
       expect(liveDefs.map((live) => live.id)).not.toContain(def.id);
       expect(def.target).toBe('anchor');
     }
   });
 
-  it('proves both responses: the live defs and the fixtures between them cover parry and firm', () => {
-    expect(new Set(defs.map((def) => def.response))).toEqual(new Set(['parry', 'firm']));
+  it('proves every response: the live defs and the fixtures between them cover parry, firm and wait', () => {
+    expect(new Set(defs.map((def) => def.response))).toEqual(new Set(['parry', 'firm', 'wait']));
+  });
+
+  it('proves the wait on an anchored def, beside the one a sequence spawns on Papa', () => {
+    const waits = defs.filter((def) => def.response === 'wait');
+    expect(waits.some((def) => def.target === 'anchor')).toBe(true);
+    expect(waits.some((def) => duelDefs.has(def.id))).toBe(true);
   });
 });
 
@@ -344,7 +461,8 @@ describe.each(
 
   it('is a success when answered as the window opens, tolerance included', async () => {
     const { sim, center, openAt, window, threatId } = await telegraphed(def, tier);
-    const t = openAt - window.toleranceMs;
+    // A wait has no tolerance before its signal (story 4.6, D2): it opens at the signal, to the ms.
+    const t = def.response === 'wait' ? openAt : openAt - window.toleranceMs;
     const { settledAt } = answer(sim, def, threatId, t, openAt);
     const events = runUntil(sim, Math.max(settledAt, center + holdMinMs));
     expect(results(events)).toEqual([
@@ -405,7 +523,42 @@ describe.each(
     });
   }
 
-  if (def.response === 'parry') {
+  if (def.response === 'wait') {
+    it('gives its signal once, right before the window opens, at the same time', async () => {
+      const { sim, openAt } = await telegraphed(def, tier);
+      const events = runUntil(sim, openAt + STEP_MS);
+      const names = events
+        .filter((event) => event.type === 'WaitSignalGiven' || event.type === 'WindowOpened')
+        .map((event) => event.type);
+      expect(names).toEqual(['WaitSignalGiven', 'WindowOpened']);
+      const signal = events.filter((event) => event.type === 'WaitSignalGiven');
+      // The step that reaches `windowOpenAt`: the sim steps on a 10 ms grid, the signal's instant does not.
+      expect(signal[0]?.t).toBe(Math.ceil(openAt / STEP_MS) * STEP_MS);
+    });
+
+    it.each(['fail', 'guard'] as const)(
+      'gags a press one ms before the signal, and one before the buffer, whatever earlyPress says (%s)',
+      async (earlyPress) => {
+        for (const beforeMs of ['oneMs', 'beyondBuffer'] as const) {
+          const { sim, center, openAt, window, threatId } = await telegraphed(
+            def,
+            tier,
+            earlyPress,
+          );
+          const t =
+            beforeMs === 'oneMs' ? openAt - 1 : openAt - window.toleranceMs - window.bufferMs - 1;
+          sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
+          const events = runUntil(sim, openAt + STEP_MS);
+          expect(results(events)).toEqual([
+            expect.objectContaining({ quality: 'fail', reason: 'early', offsetMs: t - center }),
+          ]);
+          expect(gags(events)).toEqual([expect.objectContaining({ reason: 'early', threatId })]);
+        }
+      },
+    );
+  }
+
+  if (def.response === 'parry' || def.response === 'wait') {
     it('is a wrongResponse gag when held holdMinMs, the ring having closed first', async () => {
       const { sim, center, threatId } = await telegraphed(def, tier);
       sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId });

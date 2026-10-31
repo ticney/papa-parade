@@ -102,6 +102,8 @@ export interface RunSummary {
   sequencesSucceeded: number;
   /** The sequences lost (`SequenceEnded{failed}`). */
   sequencesFailed: number;
+  /** The steps a `retreats` sequence went back, a duel's gags short of the last (`SequenceStepRetreated`, story 4.6). */
+  sequenceRetreats: number;
   /** The judged beats tapped in time (`BeatHit`, story 4.5): 0 outside a lullaby walk. */
   beatsHit: number;
   /** The judged beats settled with no tap on them (`BeatMissed`). */
@@ -170,13 +172,15 @@ const emptyTally = (): ThreatTally => ({
  * threat def, gags, threats at once per wave (against the limits `waves` gives, the level's waves),
  * whether the level ended, and at the end the final world hash and the number of commands sent.
  * `armsCryDef` is the level's `carry.armsCryDef` (story 4.1): its telegraphs are cries in the arms,
- * not micro-sleeps (both are threats no wave planned).
+ * not micro-sleeps (both are threats no wave planned). `duelDefs` are the threats the `duel` steps of
+ * the level's sequences spawn (story 4.6): a third kind of threat no wave planned, counted as neither.
  */
 export function createRunRecorder(
   sim: Sim,
   seed: number,
   waves: readonly { readonly maxSimultaneous: number }[] = [],
   armsCryDef: string | null = null,
+  duelDefs: ReadonlySet<string> = new Set(),
 ): RunRecorder {
   // Threat ids and defs never change after `createSim`.
   const defIdOf = new Map<number, string>();
@@ -209,6 +213,7 @@ export function createRunRecorder(
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
+  let sequenceRetreats = 0;
   let beatsHit = 0;
   let beatsMissed = 0;
   let decoysTapped = 0;
@@ -250,7 +255,7 @@ export function createRunRecorder(
         }
       } else if (event.type === 'ThreatTelegraphed' && event.waveIndex < 0) {
         if (armsCryDef !== null && event.kind === armsCryDef) armsCries++;
-        else microSleeps++;
+        else if (!duelDefs.has(event.kind)) microSleeps++;
         systemThreatIds.add(event.threatId);
       } else if (event.type === 'ThreatTelegraphed') {
         activeCount++;
@@ -277,6 +282,8 @@ export function createRunRecorder(
       } else if (event.type === 'SequenceEnded') {
         if (event.outcome === 'succeeded') sequencesSucceeded++;
         else if (event.outcome === 'failed') sequencesFailed++;
+      } else if (event.type === 'SequenceStepRetreated') {
+        sequenceRetreats++;
       } else if (event.type === 'BeatHit') {
         beatsHit++;
       } else if (event.type === 'BeatMissed') {
@@ -375,6 +382,7 @@ export function createRunRecorder(
         sequencesStarted,
         sequencesSucceeded,
         sequencesFailed,
+        sequenceRetreats,
         beatsHit,
         beatsMissed,
         decoysTapped,
@@ -500,6 +508,7 @@ export interface SimReport {
   sequencesStarted: number;
   sequencesSucceeded: number;
   sequencesFailed: number;
+  sequenceRetreats: number;
   /** The lullaby walk's beats over the runs (story 4.5): tapped in time, missed, decoys and stray taps. */
   beatsHit: number;
   beatsMissed: number;
@@ -531,6 +540,7 @@ export interface SimReport {
     sequencesStarted: number;
     sequencesSucceeded: number;
     sequencesFailed: number;
+    sequenceRetreats: number;
     /** The lullaby walk's beats in this run (story 4.5). */
     beatsHit: number;
     beatsMissed: number;
@@ -596,6 +606,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
+  let sequenceRetreats = 0;
   let beatsHit = 0;
   let beatsMissed = 0;
   let decoysTapped = 0;
@@ -661,6 +672,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     sequencesStarted += run.sequencesStarted;
     sequencesSucceeded += run.sequencesSucceeded;
     sequencesFailed += run.sequencesFailed;
+    sequenceRetreats += run.sequenceRetreats;
     beatsHit += run.beatsHit;
     beatsMissed += run.beatsMissed;
     decoysTapped += run.decoysTapped;
@@ -754,6 +766,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     sequencesStarted,
     sequencesSucceeded,
     sequencesFailed,
+    sequenceRetreats,
     beatsHit,
     beatsMissed,
     decoysTapped,
@@ -778,6 +791,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       sequencesStarted: run.sequencesStarted,
       sequencesSucceeded: run.sequencesSucceeded,
       sequencesFailed: run.sequencesFailed,
+      sequenceRetreats: run.sequenceRetreats,
       beatsHit: run.beatsHit,
       beatsMissed: run.beatsMissed,
       decoysTapped: run.decoysTapped,

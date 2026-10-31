@@ -349,6 +349,35 @@ export interface SequenceSlice {
   nextMicroSleepAt: SimMs | null;
   /** The running `beats` step (story 4.5). */
   beat: BeatSlice;
+  /** The running `duel` step (story 4.6). */
+  duel: DuelSlice;
+}
+
+/**
+ * The running `duel` step (story 4.6), owned by `sequences/bedtimeDuel.ts` and the two hooks of
+ * `sequenceEnd.ts`. All clear outside a `retreats` sequence: `startSequence` and `closeSequence`
+ * clear it. A step change does **not**: `retreats` runs for the whole sequence, and a step of a
+ * `retreats` sequence is a duel, so `isRunning` stays true across steps.
+ */
+export interface DuelSlice {
+  /** The current step is a `duel` step. */
+  isRunning: boolean;
+  /** When the next round is telegraphed (the end of the rest), in sim time; null while a round is up. */
+  nextRoundAt: SimMs | null;
+  /** The gags so far, counted in gags: at the def's `maxRetreats` the sequence is lost. */
+  retreats: number;
+}
+
+/** A `DuelSlice` at rest: no `duel` step runs. */
+export function createDuelSlice(): DuelSlice {
+  return { isRunning: false, nextRoundAt: null, retreats: 0 };
+}
+
+/** Puts `duel` back at rest, in place. */
+export function clearDuelSlice(duel: DuelSlice): void {
+  duel.isRunning = false;
+  duel.nextRoundAt = null;
+  duel.retreats = 0;
 }
 
 /** A `BeatSlice` at rest: no `beats` step runs. */
@@ -637,6 +666,7 @@ export function createWorld({
       stepEndsAt: asSimMs(0),
       nextMicroSleepAt: null,
       beat: createBeatSlice(),
+      duel: createDuelSlice(),
     },
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
     instinct: { state: 'ready', enteredAt: asSimMs(0), untilAt: asSimMs(0), missAts: [] },

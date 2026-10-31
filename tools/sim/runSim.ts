@@ -26,6 +26,17 @@ import {
 const CONTENT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'content');
 const PROGRESS_STEPS = 10;
 
+/** The threats the `duel` steps of the level's sequences spawn on Papa (story 4.6): no wave plans them. */
+function duelDefIdsOf(level: SimLevel['level']): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const sequence of Object.values(level.sequences)) {
+    for (const step of sequence.steps) {
+      if (step.kind === 'duel') ids.add(step.threatDef);
+    }
+  }
+  return ids;
+}
+
 /**
  * Wraps `bot` so that the same `StartSequence` is enqueued, once, at the first step at or after
  * `atMs` (story 4.4): journaled like any command, so `sim:replay` agrees. Sent first, so that a
@@ -97,6 +108,7 @@ export async function runSim(
         seed,
         level.level.waves,
         level.level.carry?.armsCryDef ?? null,
+        duelDefIdsOf(level),
       );
       const player =
         args.sequenceId === null

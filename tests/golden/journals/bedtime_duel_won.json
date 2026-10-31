@@ -1,0 +1,63 @@
+{
+  "version": 3,
+  "seed": 46,
+  "feelHash": "0a0ef27a2eb80a",
+  "geometryHash": "0e18fe9d85d9f9",
+  "levelHash": "1b1e1aaa2c8fad",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "sequenceId": "bedtime_duel",
+        "t": 0,
+        "type": "StartSequence"
+      }
+    },
+    {
+      "applyAt": 4590,
+      "command": {
+        "t": 4586,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 4640,
+      "command": {
+        "t": 4636,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 10570,
+      "command": {
+        "t": 10563,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 10620,
+      "command": {
+        "t": 10613,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 14970,
+      "command": {
+        "t": 14962,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 15020,
+      "command": {
+        "t": 15012,
+        "type": "Release"
+      }
+    }
+  ]
+}

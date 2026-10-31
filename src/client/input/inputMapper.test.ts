@@ -60,7 +60,7 @@ function setup() {
     world: {
       time: { sim: asSimMs(777) },
       flow: { state: 'playing' as 'playing' | 'ended' },
-      sequence: { beat: { isRunning: false } },
+      sequence: { beat: { isRunning: false }, duel: { isRunning: false } },
       papa: { xM: 0, zM: 0, state: 'idle' as string },
       // Far from the first tests' taps and from Papa: the baby only matters in the tests about him.
       baby: { xM: 40, zM: 40 },
@@ -149,7 +149,7 @@ function setup() {
         world: {
           time: { sim: asSimMs(888) },
           flow: { state: 'playing' },
-          sequence: { beat: { isRunning: false } },
+          sequence: { beat: { isRunning: false }, duel: { isRunning: false } },
           papa: { xM: 0, zM: 0, state: 'idle' },
           baby: { xM: 40, zM: 40 },
         },
@@ -1465,6 +1465,86 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       const { mapper, sim, commands } = setup();
       (sim.world.flow as { state: string }).state = 'sequence';
       mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([]);
+    });
+  });
+
+  describe('while a duel step runs (story 4.6)', () => {
+    const WINDOW = { windowMs: 300, perfectMs: 100, toleranceMs: 60, bufferMs: 100 };
+    const inDuel = (sim: ReturnType<typeof setup>['sim'], state: string | null = 'telegraph') => {
+      (sim.world.flow as { state: string }).state = 'sequence';
+      sim.world.sequence.duel.isRunning = true;
+      sim.world.threats =
+        state === null
+          ? []
+          : [{ id: 9, state, xM: 0, zM: 0, windowOpenAt: 5000, responseWindow: WINDOW }];
+    };
+
+    it('a finger anywhere on the screen is the press on the threat that is up, and its release follows', () => {
+      const { mapper, sim, commands, markers, taps, pressedIds, setObjects } = setup();
+      setObjects([COFFEE]);
+      inDuel(sim);
+      mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+      expect(commands).toEqual([{ type: 'PressThreat', t: 234, threatId: 9 }]);
+      expect(pressedIds).toEqual([9]);
+      expect(markers).toEqual([]);
+      expect(taps).toEqual([]);
+      mapper.handlePointerUp?.({
+        pointerId: 1,
+        isPrimary: true,
+        button: 0,
+        timeStamp: 1600,
+      } as never);
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat', 'Release']);
+    });
+
+    it('presses the threat before its signal too: a duel of patience, the sim judges it early', () => {
+      const { mapper, sim, commands } = setup();
+      inDuel(sim, 'telegraph');
+      mapper.handlePointerDown(click(RECT.left + 40, RECT.top + 40));
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+    });
+
+    it('is free in a rest: with no threat up a finger sends nothing', () => {
+      const { mapper, sim, commands, markers, setObjects } = setup();
+      setObjects([COFFEE]);
+      inDuel(sim, null);
+      mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+      mapper.handlePointerUp?.({
+        pointerId: 1,
+        isPrimary: true,
+        button: 0,
+        timeStamp: 1600,
+      } as never);
+      expect(commands).toEqual([]);
+      expect(markers).toEqual([]);
+    });
+
+    it('Space and the pad’s A reach the threat, and their release ends it', () => {
+      const { mapper, sim, commands } = setup();
+      inDuel(sim, 'windowOpen');
+      mapper.handleAction('down', 1500, 'keyboard');
+      mapper.handleAction('up', 1550, 'keyboard');
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat', 'Release']);
+    });
+
+    it('a threat pick still comes first, and a duel sends no TapBeat', () => {
+      const { mapper, sim, commands, camera, setTargets } = setup();
+      setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+      inDuel(sim, 'windowOpen');
+      const icon = pxOf(camera, ICON as never);
+      mapper.handlePointerDown(click(icon.x, icon.y));
+      mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat', 'PressThreat']);
+      expect((commands[0] as { threatId: number }).threatId).toBe(4);
+      expect((commands[1] as { threatId: number }).threatId).toBe(9);
+    });
+
+    it('control: a sequence that is not a duel sends no press from a finger', () => {
+      const { mapper, sim, commands } = setup();
+      inDuel(sim);
+      sim.world.sequence.duel.isRunning = false;
+      mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
       expect(commands).toEqual([]);
     });
   });

@@ -81,7 +81,10 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   // sit in the main chunk behind `isMirrored`; the screen itself ships in every build.
   'ppCalibration',
   // Story 4.4: the sequence's debug mirrors (`data-pp-sequence`, `data-pp-sequence-outcome`,
-  // `data-pp-sequence-music`), the same way. One entry, being the prefix of the three.
+  // `data-pp-sequence-music`), the same way. One entry, being the prefix of the three. Story 4.6's
+  // `data-pp-sequence-step` and `data-pp-sequence-retreats` (`ppSequenceStep`, `ppSequenceRetreats`)
+  // are covered by it too: a second entry would be a substring of nothing new, and the check would
+  // report the same chunk twice.
   'ppSequence',
   // Story 4.5: the lullaby walk's debug mirrors (`data-pp-beat-hits`, `data-pp-beat-misses`,
   // `data-pp-baby-wake`) sit in the main chunk behind `isMirrored`; `__PP__.beatLog()` is in the debug chunk.
