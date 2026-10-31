@@ -46,7 +46,7 @@ class FakeElement {
   }
 }
 
-function build() {
+function build(isMotionReduced: () => boolean = () => false) {
   const created: FakeElement[] = [];
   const doc = {
     createElement: () => {
@@ -56,7 +56,7 @@ function build() {
     },
   } as unknown as Pick<Document, 'createElement'>;
   const scene = new Scene();
-  const marker = createTapMarker(scene, doc);
+  const marker = createTapMarker(scene, doc, isMotionReduced);
   const [outer, ring] = created as [FakeElement, FakeElement];
   return { scene, marker, outer, ring };
 }
@@ -68,6 +68,11 @@ describe('tapMarkerKeyframes', () => {
       { transform: `scale(${TAP_MARKER_SCALE_TO})`, opacity: 0 },
     ]);
     expect(TAP_MARKER_SCALE_FROM).toBeLessThan(TAP_MARKER_SCALE_TO);
+  });
+
+  it('under reduced motion only fades: no scale, same opacity ramp (story 2.10)', () => {
+    expect(tapMarkerKeyframes(true)).toEqual([{ opacity: 1 }, { opacity: 0 }]);
+    expect(tapMarkerKeyframes(false)).toEqual(tapMarkerKeyframes());
   });
 });
 
@@ -93,6 +98,42 @@ describe('createTapMarker', () => {
       easing: 'ease-out',
     });
     expect(ring.animations[0]?.keyframes).toEqual(tapMarkerKeyframes());
+  });
+
+  describe('under reduced motion (story 2.10)', () => {
+    it('fades the ring with no scale, over the same duration', () => {
+      const { marker, ring } = build(() => true);
+      marker.showAt(1, 2);
+      expect(ring.animations[0]?.keyframes).toEqual(tapMarkerKeyframes(true));
+      expect(ring.animations[0]?.options).toEqual({
+        duration: TAP_MARKER_FADE_MS,
+        easing: 'ease-out',
+      });
+    });
+
+    it('reads the setting at each showAt, so a switch applies to the very next tap', () => {
+      let isReduced = false;
+      const { marker, ring } = build(() => isReduced);
+      marker.showAt(0, 0);
+      isReduced = true;
+      marker.showAt(0, 0);
+      isReduced = false;
+      marker.showAt(0, 0);
+      expect(ring.animations.map((animation) => animation.keyframes)).toEqual([
+        tapMarkerKeyframes(false),
+        tapMarkerKeyframes(true),
+        tapMarkerKeyframes(false),
+      ]);
+    });
+
+    it('still places, shows and hides the marker as usual', () => {
+      const { marker, ring, scene } = build(() => true);
+      marker.showAt(1.5, -2);
+      expect(marker.isVisible).toBe(true);
+      expect(scene.children[0]?.position.toArray()).toEqual([1.5, 0, -2]);
+      ring.animations[0]?.finish();
+      expect(marker.isVisible).toBe(false);
+    });
   });
 
   it('hides when the fade is over', () => {

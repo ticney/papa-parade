@@ -293,6 +293,18 @@ export function html(page: Page): Locator {
 }
 
 /**
+ * Asks the browser for « prefers-reduced-motion: reduce » with the game already open, and waits until
+ * the game has taken it (story 2.10): the stylesheets read `data-pp-motion`, which the media query's
+ * `change` event sets at the next rendering step, so a style read right after `emulateMedia` could
+ * still see the normal one. Before the page is opened, a plain `emulateMedia` does: the attribute is
+ * set when the game starts.
+ */
+export async function emulateReducedMotion(page: Page): Promise<void> {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(html(page)).toHaveAttribute('data-pp-motion', 'reduced');
+}
+
+/**
  * Opens the app and waits until it shows the start screen. `data-pp-app` and `data-pp-state` are
  * written by the composition root in dev and playtest builds only, once everything is up.
  */

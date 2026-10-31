@@ -9,8 +9,8 @@ import type { Save, Settings } from '../../../src/content/schemas/save.ts';
 export const SAVE_STORAGE_KEY = 'papa-parade.save';
 
 /**
- * A valid v2 save with a calibration (story 2.8: it also holds the default settings, the normal
- * tier, which sends no command, so no timing moves). `overrides` change the calibration and
+ * A valid v3 save with a calibration (story 2.8: it also holds the default settings, the normal
+ * tier, which sends no command, so no timing moves; story 2.10: both comfort switches off). `overrides` change the calibration and
  * `settings` the settings, for what a spec cares about.
  */
 export function calibratedSave(
@@ -18,7 +18,7 @@ export function calibratedSave(
   settings: Partial<Settings> = {},
 ): Save {
   return {
-    version: 2,
+    version: 3,
     calibration: {
       visualOffsetMs: 0,
       audioOffsetMs: 0,
@@ -31,6 +31,8 @@ export function calibratedSave(
       tier: 'normal',
       volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
       haptics: true,
+      reducedMotion: false,
+      largeVerbs: false,
       ...settings,
     },
   };

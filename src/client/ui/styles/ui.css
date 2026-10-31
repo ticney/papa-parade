@@ -11,6 +11,9 @@
   --pp-fallback-epic: Impact, "Arial Narrow Bold", sans-serif;
   --pp-outline: 3px solid var(--pp-color-ink);
   --pp-lift: 0 4px 0 var(--pp-color-ink);
+  /* « Grands verbes » (story 2.10): the multiplier of the verb's font size. 1 until the setting is on;
+     `accessibilitySettings.ts` sets LARGE_VERBS_SCALE on the root, the only writer. */
+  --pp-verb-scale: 1;
 }
 
 html,
@@ -501,21 +504,19 @@ body {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pp-hud-gauge-warn svg {
-    animation: none;
-  }
+:where(:root[data-pp-motion="reduced"]) .pp-hud-gauge-warn svg {
+  animation: none;
+}
 
-  /* No movement: the icon chip's ring goes from 3 px to 5 px for the same 600 ms. */
-  .pp-hud-gauge-alert {
-    animation: none;
-  }
+/* No movement: the icon chip's ring goes from 3 px to 5 px for the same 600 ms. */
+:where(:root[data-pp-motion="reduced"]) .pp-hud-gauge-alert {
+  animation: none;
+}
 
-  .pp-hud-gauge-alert svg {
-    box-shadow:
-      0 0 0 5px var(--pp-color-gauge-warn),
-      0 0 0 7px var(--pp-color-ink);
-  }
+:where(:root[data-pp-motion="reduced"]) .pp-hud-gauge-alert svg {
+  box-shadow:
+    0 0 0 5px var(--pp-color-gauge-warn),
+    0 0 0 7px var(--pp-color-ink);
 }
 
 /* The timer (story 1.18): a paper pill with an ink outline, the variant's icon, then the digits.
@@ -637,10 +638,8 @@ body {
   content: attr(data-label);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pp-hud-sequence-bar {
-    transition: none;
-  }
+:where(:root[data-pp-motion="reduced"]) .pp-hud-sequence-bar {
+  transition: none;
 }
 
 .pp-hud-zone[data-pp-zone="pause"] {
@@ -951,10 +950,9 @@ body {
   transform: translate(24px, -50%);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pp-toggle-thumb {
-    transition: none;
-  }
+/* biome-ignore lint/style/noDescendingSpecificity: `.pp-toggle-on .pp-toggle-thumb` sets no transition; `:where` adds none */
+:where(:root[data-pp-motion="reduced"]) .pp-toggle-thumb {
+  transition: none;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -1466,32 +1464,40 @@ body {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pp-panel {
-    animation: pp-fade-in 150ms linear both;
-  }
+:where(:root[data-pp-motion="reduced"]) .pp-panel {
+  animation: pp-fade-in 150ms linear both;
+}
 
-  .pp-countdown-digit,
-  .pp-start-prompt,
-  .pp-portrait-icon,
-  .pp-result-reason-slam {
-    animation: none;
-  }
+:where(:root[data-pp-motion="reduced"]) .pp-countdown-digit,
+:where(:root[data-pp-motion="reduced"]) .pp-start-prompt,
+:where(:root[data-pp-motion="reduced"]) .pp-portrait-icon,
+:where(:root[data-pp-motion="reduced"]) .pp-result-reason-slam {
+  animation: none;
+}
 
-  /* The fill is static under reduced motion: half full. */
-  .pp-bottle-fill {
-    animation: none;
-    transform: scaleY(0.5);
-  }
+/* The fill is static under reduced motion: half full. */
+:where(:root[data-pp-motion="reduced"]) .pp-bottle-fill {
+  animation: none;
+  transform: scaleY(0.5);
+}
 
-  .pp-button {
-    transition: none;
-  }
+/* biome-ignore lint/style/noDescendingSpecificity: `.pp-hud-row .pp-button` sets no transition; `:where` adds none */
+:where(:root[data-pp-motion="reduced"]) .pp-button {
+  transition: none;
+}
 
-  /* A star just fades in: no scale, no overshoot (the count-up, sounds and vibrations stay). */
-  .pp-star-stamped {
-    animation: pp-fade-in 150ms linear both;
-  }
+/* A star just fades in: no scale, no overshoot (the count-up, sounds and vibrations stay). */
+:where(:root[data-pp-motion="reduced"]) .pp-star-stamped {
+  animation: pp-fade-in 150ms linear both;
+}
+
+/*
+  After the reduced rule on purpose (same specificity, the later wins): the settings panel stops
+  animating once a switch is pressed. Flipping `data-pp-motion` changes `.pp-panel`'s animation name
+  (`pp-pop-in` ↔ `pp-fade-in`), and a changed name restarts the animation under the player's finger.
+*/
+.pp-panel-settled {
+  animation: none;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -1704,7 +1710,7 @@ body {
 */
 .pp-threat-verb {
   font-family: var(--pp-font-verb-family), var(--pp-fallback-rounded);
-  font-size: var(--pp-font-verb-size);
+  font-size: calc(var(--pp-font-verb-size) * var(--pp-verb-scale));
   font-weight: var(--pp-font-verb-weight);
   line-height: var(--pp-font-verb-line-height);
   text-transform: uppercase;
@@ -1716,7 +1722,7 @@ body {
 
 :root[data-pp-surface="compact"] .pp-threat-verb {
   font-family: var(--pp-font-verb-compact-family), var(--pp-fallback-rounded);
-  font-size: var(--pp-font-verb-compact-size);
+  font-size: calc(var(--pp-font-verb-compact-size) * var(--pp-verb-scale));
   font-weight: var(--pp-font-verb-compact-weight);
   line-height: var(--pp-font-verb-compact-line-height);
 }
@@ -1868,17 +1874,15 @@ body {
   After the base rules on purpose: same selector, same specificity, so the later rule wins. The
   halo glows steady and the chevron stands still.
 */
-@media (prefers-reduced-motion: reduce) {
-  .pp-threat-halo,
-  .pp-threat-chevron,
-  .pp-object-urgent .pp-object-halo {
-    animation: none;
-  }
+:where(:root[data-pp-motion="reduced"]) .pp-threat-halo,
+:where(:root[data-pp-motion="reduced"]) .pp-threat-chevron,
+:where(:root[data-pp-motion="reduced"]) .pp-object-urgent .pp-object-halo {
+  animation: none;
+}
 
-  /* The ring just fades to solid paper: no scale, no overshoot (the haptic stays). */
-  .pp-threat-hold--closed {
-    animation: pp-fade-in 150ms linear both;
-  }
+/* The ring just fades to solid paper: no scale, no overshoot (the haptic stays). */
+:where(:root[data-pp-motion="reduced"]) .pp-threat-hold--closed {
+  animation: pp-fade-in 150ms linear both;
 }
 
 /*
@@ -1982,8 +1986,6 @@ body {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pp-silence-bubble {
-    animation: pp-silence-pulse 1000ms ease-in-out infinite;
-  }
+:where(:root[data-pp-motion="reduced"]) .pp-silence-bubble {
+  animation: pp-silence-pulse 1000ms ease-in-out infinite;
 }

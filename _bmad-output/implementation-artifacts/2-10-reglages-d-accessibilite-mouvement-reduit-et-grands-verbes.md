@@ -1,6 +1,10 @@
+---
+baseline_commit: e349bccb360cce9ea21e6a1e734aea53df787cc4
+---
+
 # Story 2.10: Accessibility settings: reduced motion and large verbs
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -94,16 +98,16 @@ so that I can play comfortably without losing anything of the game.
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Save** (AC 1-2): v3, migration, both traps; tests first.
-- [ ] **T2. Source of truth** (AC 5-6, 12): `accessibilitySettings`, the boot wiring, `SettingsChanged`.
-- [ ] **T3. CSS** (AC 7, 21): the six blocks, the coverage guard. Run the `emulateMedia` specs at once: they must not move.
-- [ ] **T4. Rows** (AC 3-4, 8): `toggleRow`, the two switches, `pp-panel-settled`.
-- [ ] **T5. Tap marker** (AC 10).
-- [ ] **T6. Large verbs** (AC 15-18): `DESIGN.md` first, the constant, the variable, the CSS sizes, the off-screen check.
-- [ ] **T7. Guards** (AC 11, 13-14): sim guard, `flashRate.test.ts`.
-- [ ] **T8. e2e** (AC 19-20, 23): `reducedMotion.spec.ts` with its positive control, `settings.spec.ts`, v3 fixtures.
-- [ ] **T9. Docs** (AC 25-26).
-- [ ] **T10. CI** (AC 27).
+- [x] **T1. Save** (AC 1-2): v3, migration, both traps; tests first.
+- [x] **T2. Source of truth** (AC 5-6, 12): `accessibilitySettings`, the boot wiring, `SettingsChanged`.
+- [x] **T3. CSS** (AC 7, 21): the six blocks, the coverage guard. Run the `emulateMedia` specs at once: they must not move.
+- [x] **T4. Rows** (AC 3-4, 8): `toggleRow`, the two switches, `pp-panel-settled`.
+- [x] **T5. Tap marker** (AC 10).
+- [x] **T6. Large verbs** (AC 15-18): `DESIGN.md` first, the constant, the variable, the CSS sizes, the off-screen check.
+- [x] **T7. Guards** (AC 11, 13-14): sim guard, `flashRate.test.ts`.
+- [x] **T8. e2e** (AC 19-20, 23): `reducedMotion.spec.ts` with its positive control, `settings.spec.ts`, v3 fixtures.
+- [x] **T9. Docs** (AC 25-26).
+- [x] **T10. CI** (AC 27).
 
 ## Dev Notes
 
@@ -198,12 +202,67 @@ None needed: no new library and the stack is pinned. `:where()` and `MediaQueryL
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Sonnet 5.5 (`claude-sonnet-5-5`)
 
 ### Debug Log References
 
+- `main` (with story 2.9) was merged into the branch before the first edit; the only conflict was the two status lines of `sprint-status.yaml`, merged by hand (2-9 `done`, 2-10 `in-progress`).
+- **The OS query's `change` event never reached `boot.ts`** (found while running `ui.spec.ts` and `mamaWoke.spec.ts` after T3). The `emulateMedia` specs failed in a group and passed alone. A probe query created next to boot's received the event, boot's did not, even with a listener added from the test. Cause: the game asks `isMotionReduced()` at every frame, and reading `MediaQueryList.matches` between the change and its event makes Chromium drop the notification. The first fix tried (read `.matches` once before listening) did not help; the one kept reads the OS value once, follows it only through `change`, and `isMotionReduced` returns a cached boolean. A unit test pins « one read at creation, none per frame ».
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **T1 Save v3.** `SAVE_VERSION = 3`, `settings.reducedMotion` and `settings.largeVerbs` (both `false`). `v2 → v3` spreads `save.settings` read as a record (`asRecord`), so a v2 save with no usable `settings` still fails the schema and is set aside as it was (trap 1); `v1 → v2` still ends on a valid v3 save with the calibration kept (trap 2). Both are tested, and a v2 save is also seeded and migrated in `settings.spec.ts`.
+- **T2 One source of truth.** `client/app/accessibilitySettings.ts` (see the debug log for the cached OS value). `apply()` writes `data-pp-motion` and `--pp-verb-scale` (`style.setProperty`, never through `mirror()`) and calls `onVerbScaleChanged` once per real change; `boot.ts` runs it at creation, after `saveStore.load()` and on `SettingsChanged`. `prefersReducedMotion` is `accessibility.isMotionReduced`, so no other call site moved. `?autoplay` reads both settings (D2) without any code: `apply()` does not look at the autoplay flag.
+- **T3 CSS.** The six `@media (prefers-reduced-motion)` blocks of `ui.css` are `:where(:root[data-pp-motion="reduced"]) <selector>` rules, in place and in the same order. `checkReducedMotion` (in `tests/architecture/designTokens.ts`, with failing fixtures) refuses any `prefers-reduced-motion`, an animated selector with no reduced rule of its own, and a reduced rule placed before its animation; it runs on every stylesheet of `src`. Moving the blocks out of `@media` made Biome's `noDescendingSpecificity` warn twice (`.pp-toggle-thumb`, `.pp-button`); both are suppressed with a reason, because the rules they « lose » to set no `transition`.
+- **T4 Rows.** `toggleRow(labelKey, isOn, onFlip)` serves Vibrations and the two new switches (always built). `pp-panel-settled` is added before `onFlip` reports, so the changed animation name (`pp-pop-in` ↔ `pp-fade-in`) does not restart the panel; a mutation check (the line commented out) turns the e2e test red (`animations: 1`). `current` and `emit` copy both new fields; a unit test flips a switch, then a slider and a tier, and checks nothing is reset.
+- **T5 Tap marker.** `tapMarkerKeyframes(isMotionReduced)` gives `[{opacity: 1}, {opacity: 0}]`; `createTapMarker` reads `comboOptions.isMotionReduced` at each `showAt`. `tapMarkerSpec.test.ts` is untouched and still pins the normal keyframes.
+- **T6 Large verbs.** `DESIGN.md` first (`verb-label.largeVerbsScale: 1.25`), then `LARGE_VERBS_SCALE`, `--pp-verb-scale: 1` in `ui.css`'s first `:root`, and both `.pp-threat-verb` sizes as `calc(... * var(--pp-verb-scale))`. **Measured, not guessed (AC 18):** at 844 × 390 every verb of `salon_crawler` (forced one at a time, the micro-sleep brought on with `SetFatigue`) and the hint « POSE-LE D'ABORD ! » is whole, not wider than its box and inside the viewport, on Chromium and WebKit. `threatMarkers` `layout` therefore got **no horizontal shift**. `silence_mischief` has no marker until the silence is found; its verb text is the outlet's. A verb at the width limit may still grow by less than 25 % (D4), for Geo to judge on the smallest phone.
+- **T7 Guards.** `comfortSettings.test.ts` fails if `reducedMotion`, `largeVerbs` (or their snake_case) appear under `src/sim`, `src/bots` or `tools/sim`, tests included, with four failing fixtures. `flashRate.test.ts` covers the CSS repeating animations of opacity (bubble 500 ms, gauge 1 s, halos 1400 ms, prompt 2 s, all ≥ 334 ms), the bubble's two rates against `DESIGN.md`, every cue's `flash.durationMs`, the sound rings (`pulses ≤ 3`, D3) and the calibration tempo (≤ 3 Hz). **No `src/sim`, `src/bots` or `tools/sim` file changed, and `tests/golden` has no diff; the goldens were not regenerated.**
+- **T8 e2e.** `reducedMotion.spec.ts` (new): the rAF sampler with its positive control (setting on: yaw 0, shake 0, zoom ≤ `1 + zoomPct / 200`; setting off: yaw, shake and the larger zoom are seen), the glow class of a perfect's flash and the absence of `shake` in `cueLog` (each with a control), the same first five `ResponseResolved` with and without the setting (same seed), the CSS probes (`pp-fade-in`, `pp-silence-pulse`, the still bottle) with the OS at `no-preference`, and the large-verbs checks. `settings.spec.ts`: both rows by touch and by pad, reload, portrait round trip, a v2 save migrated, version 3, a future save at version 4, the switch applying with no reload, the verb of a mounted marker refitting from 32 to 40 px without leaving the settings, and the panel check of AC 8 in both directions. Chromium and WebKit.
+- **Existing specs touched.** `ui.spec.ts` and `mamaWoke.spec.ts` switch the OS preference with the page open, and read the style right after: with the CSS now reading an attribute that the media query's `change` event sets at the next rendering step, they could read the old style. They use the new `emulateReducedMotion(page)` of `support/game.ts` (emulate, then wait for `data-pp-motion`). `juice`, `silence`, `sequence` and `result` emulate before the page loads and are unchanged. `calibration.spec.ts` expects version 3; `calibratedSave.ts` and its test are a v3 save.
+- **T9 Docs.** `project-context.md` (the setting plugged into `isMotionReduced`, the new « read in one place » rule, the v3 fixture, save v3), `deferred-work.md` (a dated section: what is closed, the six entries moved to the accessibility pass, the new items), `DESIGN.md` (`largeVerbsScale`).
+- **Not built, on purpose.** The hint « Déjà actif sur cet appareil » (open point 1), one ring under reduced motion (open point 2), and the accessibility pass (open point 3): see `deferred-work.md`.
+- **Checks.** `ci:fast` after each task; the touched specs on Chromium while developing; the full CI once at the end. **`perf.spec.ts` (built playtest, a whole level at speed 1): p95 16.8 ms, 43 draw calls, 1538 triangles, next to 2.8's 16.8 ms, 42, 1526.** `tests/golden` has no diff.
+- **The full CI needed reruns, for reasons outside the code (say so, per CLAUDE.md).** (1) The first `npm run ci` ran under a load average of about 22 on the shared machine: the dev server became unreachable during the WebKit run (173 × « Could not connect to the server », plus one Chromium countdown timing in `ui.spec.ts:103`, which passes alone). The `e2e` step was rerun with `--workers=4`. (2) That rerun had one failure, `carry.spec.ts:128` on WebKit (« audio is still suspended … resuming on this gesture », 3 times out of 6 when repeated alone): `carry.spec.ts`'s `openFrozen` did not wait for the audio context to be `running`, as `toilet.spec.ts` does. I added that one wait (test-only, 32/32 afterwards on WebKit). (3) `e2e:dist` failed with `ERR_UNSAFE_PORT`: this worktree's derived dist port is 6666, which Chromium blocks; rerun with `PP_E2E_DIST_PORT=6391` (10 specs and the perf spec pass), then `build` and `dist:check --flavor prod`. Typecheck, lint, `content:check` and `test:coverage` passed in the first run (297 files, 5916 tests); the later steps were run from `e2e` on, in order, across the reruns. A port derived from a path can land on a browser-blocked port: worth a deny-list in `e2ePort.ts`, left alone here (Geo's call).
 
 ### File List
+
+- `_bmad-output/implementation-artifacts/2-10-reglages-d-accessibilite-mouvement-reduit-et-grands-verbes.md` (this file)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/DESIGN.md`
+- `_bmad-output/project-context.md`
+- `src/shared/constants.ts`
+- `src/content/schemas/save.ts`
+- `src/content/schemas/save.test.ts`
+- `src/client/save/saveStore.ts`
+- `src/client/save/saveStore.test.ts`
+- `src/client/app/accessibilitySettings.ts` (new)
+- `src/client/app/accessibilitySettings.test.ts` (new)
+- `src/client/boot.ts`
+- `src/client/feedback/feedbackDirector.ts`
+- `src/client/ui/screens/settingsScreen.ts`
+- `src/client/ui/screens/settingsScreen.test.ts`
+- `src/client/ui/styles/ui.css`
+- `src/client/ui/world/tapMarker.ts`
+- `src/client/ui/world/tapMarker.test.ts`
+- `src/client/ui/world/worldUi.ts`
+- `tests/architecture/comfortSettings.test.ts` (new)
+- `tests/architecture/fixtures/comfortSettings/` (new: `clean`, `in-a-test`, `large-verbs`, `reduced-motion`, `snake-case`)
+- `tests/architecture/flashRate.test.ts` (new)
+- `tests/architecture/designTokens.ts`
+- `tests/architecture/designTokens.test.ts`
+- `tests/architecture/verbLabelSpec.test.ts`
+- `tests/content/calibratedSave.test.ts`
+- `tests/e2e/reducedMotion.spec.ts` (new)
+- `tests/e2e/settings.spec.ts`
+- `tests/e2e/calibration.spec.ts`
+- `tests/e2e/ui.spec.ts`
+- `tests/e2e/carry.spec.ts`
+- `tests/e2e/mamaWoke.spec.ts`
+- `tests/e2e/support/calibratedSave.ts`
+- `tests/e2e/support/game.ts`
+
+### Change Log
+
+- 2026-10-31: Story 2.10 implemented. Save v3 with `reducedMotion` and `largeVerbs`; `accessibilitySettings` as the single source for the JS function and the CSS attribute; the six reduced-motion blocks of `ui.css` read `data-pp-motion` through `:where`; two settings rows; the tap marker fades without scale under reduced motion; `LARGE_VERBS_SCALE` and `--pp-verb-scale`; guards for the 3 Hz rule and the sim; e2e on Chromium and WebKit.

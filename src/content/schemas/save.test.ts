@@ -31,14 +31,16 @@ describe('SaveSchema', () => {
     }
   });
 
-  it('gives a new player the normal tier, full volumes and vibrations on', () => {
+  it('gives a new player the normal tier, full volumes, vibrations on and both comfort switches off', () => {
     expect(createDefaultSave()).toEqual({
-      version: 2,
+      version: 3,
       calibration: null,
       settings: {
         tier: 'normal',
         volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
         haptics: true,
+        reducedMotion: false,
+        largeVerbs: false,
       },
     });
   });
@@ -47,9 +49,9 @@ describe('SaveSchema', () => {
     expect(createDefaultSave().settings).not.toBe(createDefaultSave().settings);
   });
 
-  it('refuses a version other than 2, an unknown key and an empty device', () => {
-    expect(SaveSchema.safeParse({ ...createDefaultSave(), version: 1 }).success).toBe(false);
-    expect(SaveSchema.safeParse({ ...createDefaultSave(), version: 3 }).success).toBe(false);
+  it('refuses a version other than 3, an unknown key and an empty device', () => {
+    expect(SaveSchema.safeParse({ ...createDefaultSave(), version: 2 }).success).toBe(false);
+    expect(SaveSchema.safeParse({ ...createDefaultSave(), version: 4 }).success).toBe(false);
     expect(SaveSchema.safeParse({ ...createDefaultSave(), x: 1 }).success).toBe(false);
     expect(CalibrationResultSchema.safeParse({ ...CALIBRATION, device: '' }).success).toBe(false);
   });
@@ -76,7 +78,19 @@ describe('SettingsSchema', () => {
     expect(SettingsSchema.safeParse({ ...settings(), tier: 'hard' }).success).toBe(false);
     const { ui: _ui, ...three } = settings().volumes;
     expect(SettingsSchema.safeParse({ ...settings(), volumes: three }).success).toBe(false);
-    expect(SettingsSchema.safeParse({ ...settings(), reducedMotion: true }).success).toBe(false);
+    expect(SettingsSchema.safeParse({ ...settings(), motion: true }).success).toBe(false);
     expect(SettingsSchema.safeParse({ ...settings(), haptics: 'yes' }).success).toBe(false);
+  });
+
+  it('accepts both comfort switches on, and refuses a missing or non-boolean one', () => {
+    expect(
+      SettingsSchema.safeParse({ ...settings(), reducedMotion: true, largeVerbs: true }).success,
+    ).toBe(true);
+    const { reducedMotion: _motion, ...noMotion } = settings();
+    const { largeVerbs: _verbs, ...noVerbs } = settings();
+    expect(SettingsSchema.safeParse(noMotion).success).toBe(false);
+    expect(SettingsSchema.safeParse(noVerbs).success).toBe(false);
+    expect(SettingsSchema.safeParse({ ...settings(), reducedMotion: 1 }).success).toBe(false);
+    expect(SettingsSchema.safeParse({ ...settings(), largeVerbs: 'yes' }).success).toBe(false);
   });
 });

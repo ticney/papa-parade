@@ -46,6 +46,8 @@ interface StoredSettings {
   tier: string;
   volumes: { music: number; sfx: number; voice: number; ui: number };
   haptics: boolean;
+  reducedMotion: boolean;
+  largeVerbs: boolean;
 }
 interface StoredSave {
   version: number;
@@ -86,6 +88,10 @@ const slider = (page: Page, bus: 'music' | 'sfx' | 'voice' | 'ui') =>
   page.getByRole('slider', { name: STRINGS[`settings.volume_${bus}`], exact: true });
 const haptics = (page: Page) =>
   page.getByRole('switch', { name: STRINGS['settings.haptics'], exact: true });
+const reducedMotionSwitch = (page: Page) =>
+  page.getByRole('switch', { name: STRINGS['settings.reduced_motion'], exact: true });
+const largeVerbsSwitch = (page: Page) =>
+  page.getByRole('switch', { name: STRINGS['settings.large_verbs'], exact: true });
 const settingsButton = (
   page: Page,
   key: 'settings.recalibrate' | 'settings.credits' | 'settings.back',
@@ -202,6 +208,8 @@ test.describe('Réglages over the pause', () => {
       radio(page, 'experienced'),
       slider(page, 'music'),
       ...(hasVibrate() ? [haptics(page)] : []),
+      reducedMotionSwitch(page),
+      largeVerbsSwitch(page),
       settingsButton(page, 'settings.recalibrate'),
       settingsButton(page, 'settings.credits'),
       settingsButton(page, 'settings.back'),
@@ -221,8 +229,8 @@ test.describe('Réglages over the pause', () => {
   test('reach Crédits by key: moving focus scrolls the row into view', async ({ page }) => {
     await startLevel(page);
     await openSettings(page);
-    // tier, four volumes, the switch (where the device vibrates), Recalibrer, Crédits.
-    const downs = hasVibrate() ? 7 : 6;
+    // tier, four volumes, the switch (where the device vibrates), the two comfort switches, Recalibrer, Crédits.
+    const downs = hasVibrate() ? 9 : 8;
     for (let i = 0; i < downs; i++) await page.keyboard.press('ArrowDown');
     const credits = settingsButton(page, 'settings.credits');
     await expect(credits).toBeFocused();
@@ -309,7 +317,7 @@ test.describe('the tier', () => {
       expect(problems).toEqual([]);
     });
 
-    test('a reload keeps the tier, the volumes and the switch', async ({ page }) => {
+    test('a reload keeps the tier, the volumes and the switches', async ({ page }) => {
       const problems = collectProblems(page);
       await seedStorage(page, SAVE_KEY, calibratedSaveValue());
       await startLevel(page);
@@ -318,12 +326,16 @@ test.describe('the tier', () => {
       await slider(page, 'music').fill('40');
       await slider(page, 'ui').fill('0');
       if (hasVibrate()) await haptics(page).click();
+      await reducedMotionSwitch(page).click();
+      await largeVerbsSwitch(page).click();
       await expect
         .poll(async () => savedSettings(page))
         .toEqual({
           tier: 'experienced',
           volumes: { music: 40, sfx: 100, voice: 100, ui: 0 },
           haptics: !hasVibrate(),
+          reducedMotion: true,
+          largeVerbs: true,
         });
       await page.reload();
       await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
@@ -335,7 +347,10 @@ test.describe('the tier', () => {
       await expect(slider(page, 'music')).toHaveValue('40');
       await expect(slider(page, 'ui')).toHaveValue('0');
       if (hasVibrate()) await expect(haptics(page)).toHaveAttribute('aria-checked', 'false');
+      await expect(reducedMotionSwitch(page)).toHaveAttribute('aria-checked', 'true');
+      await expect(largeVerbsSwitch(page)).toHaveAttribute('aria-checked', 'true');
       await expect(html(page)).toHaveAttribute('data-pp-volumes', '40,100,100,0');
+      await expect(html(page)).toHaveAttribute('data-pp-motion', 'reduced');
       expect(problems).toEqual([]);
     });
   });
@@ -352,7 +367,7 @@ test.describe('the volumes and the vibrations', () => {
     await expect.poll(async () => (await savedSettings(page)).volumes.voice).toBe(0);
     await expect(html(page)).toHaveAttribute('data-pp-volumes', '100,55,0,100');
     const save = await readSave(page);
-    expect(save?.version).toBe(2);
+    expect(save?.version).toBe(3);
     expect(save?.settings.volumes).toEqual({ music: 100, sfx: 55, voice: 0, ui: 100 });
     expect(save?.calibration).not.toBeNull();
     expect(problems).toEqual([]);
@@ -409,10 +424,110 @@ test.describe('the volumes and the vibrations', () => {
       await startLevel(page);
       await expect(html(page)).toHaveAttribute('data-pp-haptics', 'false');
       await openSettings(page);
-      await expect(page.getByRole('switch')).toHaveCount(0);
+      // The two comfort switches need no hardware: only Vibrations is gone.
+      await expect(haptics(page)).toHaveCount(0);
+      await expect(page.getByRole('switch')).toHaveCount(2);
+      await expect(reducedMotionSwitch(page)).toBeVisible();
+      await expect(largeVerbsSwitch(page)).toBeVisible();
       await expect(slider(page, 'music')).toBeVisible();
       expect(problems).toEqual([]);
     });
+  });
+});
+
+test.describe('the comfort switches (story 2.10)', () => {
+  const rootScale = (page: Page): Promise<string> =>
+    page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--pp-verb-scale').trim(),
+    );
+
+  test('both flip, save at once, and apply with no reload', async ({ page }) => {
+    const problems = collectProblems(page);
+    await startLevel(page);
+    await openSettings(page);
+    await expect(reducedMotionSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(largeVerbsSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(html(page)).not.toHaveAttribute('data-pp-motion', /./);
+    expect(await rootScale(page)).toBe('1');
+
+    await reducedMotionSwitch(page).click();
+    await expect(reducedMotionSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    await expect.poll(async () => (await savedSettings(page)).reducedMotion).toBe(true);
+    await expect(html(page)).toHaveAttribute('data-pp-motion', 'reduced');
+
+    await largeVerbsSwitch(page).tap();
+    await expect(largeVerbsSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    await expect.poll(async () => (await savedSettings(page)).largeVerbs).toBe(true);
+    await expect.poll(() => rootScale(page)).toBe('1.25');
+
+    // Off again: the attribute goes, the scale is back to 1, and the other settings never moved.
+    await reducedMotionSwitch(page).click();
+    await largeVerbsSwitch(page).click();
+    await expect(html(page)).not.toHaveAttribute('data-pp-motion', /./);
+    await expect.poll(() => rootScale(page)).toBe('1');
+    expect(await savedSettings(page)).toMatchObject({
+      tier: 'normal',
+      reducedMotion: false,
+      largeVerbs: false,
+    });
+    // Still in the settings, over the paused level: a switch never leaves or resumes.
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'settings');
+    await expect(html(page)).toHaveAttribute('data-pp-state', 'paused');
+    expect(problems).toEqual([]);
+  });
+
+  test('« Grands verbes » refits the verb of a marker already on screen, from 32 to 40 px', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const problems = collectProblems(page);
+    await startLevel(page);
+    await waitForThreat(page, 'telegraph', FIRST_TELEGRAPH_TIMEOUT_MS);
+    await openSettings(page);
+    const verb = page.locator('.pp-threat-verb:visible').first();
+    const fontPx = async (): Promise<number> =>
+      verb.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+    await expect(verb).toBeVisible();
+    expect(await fontPx()).toBeCloseTo(32, 0);
+    await largeVerbsSwitch(page).click();
+    await expect.poll(fontPx).toBeCloseTo(40, 0);
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'settings');
+    await largeVerbsSwitch(page).click();
+    await expect.poll(fontPx).toBeCloseTo(32, 0);
+    expect(problems).toEqual([]);
+  });
+
+  test('a press does not restart the panel: no animation runs and it stays opaque, both ways', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await startLevel(page);
+    await openSettings(page);
+    const state = () =>
+      panel(page).evaluate((element) => ({
+        animations: element.getAnimations().length,
+        opacity: getComputedStyle(element).opacity,
+      }));
+    // The panel's entry has played out: a finished animation with a fill is still listed.
+    await panel(page).evaluate((element) =>
+      Promise.all(element.getAnimations().map((animation) => animation.finished)),
+    );
+    for (const field of ['reducedMotion', 'largeVerbs'] as const) {
+      const row = field === 'reducedMotion' ? reducedMotionSwitch(page) : largeVerbsSwitch(page);
+      for (const isOn of [true, false]) {
+        await row.click();
+        expect(await state(), `${field} ${isOn ? 'on' : 'off'}`).toEqual({
+          animations: 0,
+          opacity: '1',
+        });
+        await expect(row).toHaveAttribute('aria-checked', String(isOn));
+      }
+    }
+    // The name of the animation flipped (pp-pop-in ↔ pp-fade-in) while the panel stood still.
+    await reducedMotionSwitch(page).click();
+    await expect(html(page)).toHaveAttribute('data-pp-motion', 'reduced');
+    expect(await state()).toEqual({ animations: 0, opacity: '1' });
+    expect(problems).toEqual([]);
   });
 });
 
@@ -495,13 +610,15 @@ test.describe('the pad', () => {
     await openSettings(page);
     await expect(radio(page, 'normal')).toBeFocused();
 
-    // Down through the four volumes, the switch, and the three buttons.
+    // Down through the four volumes, the switches, and the three buttons.
     const rows = [
       slider(page, 'music'),
       slider(page, 'sfx'),
       slider(page, 'voice'),
       slider(page, 'ui'),
       ...(hasVibrate() ? [haptics(page)] : []),
+      reducedMotionSwitch(page),
+      largeVerbsSwitch(page),
       settingsButton(page, 'settings.recalibrate'),
       settingsButton(page, 'settings.credits'),
       settingsButton(page, 'settings.back'),
@@ -549,6 +666,17 @@ test.describe('the pad', () => {
         'aria-checked',
         before === 'true' ? 'false' : 'true',
       );
+    }
+    // …and the two comfort switches, which every device has…
+    for (const [comfort, field] of [
+      [reducedMotionSwitch(page), 'reducedMotion'],
+      [largeVerbsSwitch(page), 'largeVerbs'],
+    ] as const) {
+      await pad.tapButton(PAD.down);
+      await expect(comfort).toBeFocused();
+      await pad.tapButton(PAD.a);
+      await expect(comfort).toHaveAttribute('aria-checked', 'true');
+      await expect.poll(async () => (await savedSettings(page))[field]).toBe(true);
     }
     // …and a button: Crédits, then B back to the settings, then B back to the pause panel.
     await pad.tapButton(PAD.down);
@@ -634,7 +762,10 @@ test.describe('the portrait overlay', () => {
     await openSettings(page);
     await radio(page, 'assistance').click();
     await slider(page, 'music').fill('30');
+    await reducedMotionSwitch(page).click();
+    await largeVerbsSwitch(page).click();
     await expect.poll(async () => (await savedSettings(page)).volumes.music).toBe(30);
+    await expect.poll(async () => (await savedSettings(page)).largeVerbs).toBe(true);
 
     await page.setViewportSize(PORTRAIT);
     await expect(page.locator('.pp-portrait-screen')).toBeVisible();
@@ -647,6 +778,8 @@ test.describe('the portrait overlay', () => {
     await expect(page.getByRole('dialog', { name: STRINGS['settings.title'] })).toBeVisible();
     await expect(radio(page, 'assistance')).toHaveAttribute('aria-checked', 'true');
     await expect(slider(page, 'music')).toHaveValue('30');
+    await expect(reducedMotionSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    await expect(largeVerbsSwitch(page)).toHaveAttribute('aria-checked', 'true');
     await expect(html(page)).toHaveAttribute('data-pp-app', 'settings');
     expect(problems).toEqual([]);
   });
@@ -663,14 +796,42 @@ test.describe('the save on disk', () => {
     await seedStorage(page, SAVE_KEY, JSON.stringify({ version: 1, calibration: v1.calibration }));
     await openGame(page);
     const save = await readSave(page);
-    expect(save?.version).toBe(2);
+    expect(save?.version).toBe(3);
     expect(save?.calibration?.visualOffsetMs).toBe(20);
     expect(save?.settings).toEqual({
       tier: 'normal',
       volumes: { music: 100, sfx: 100, voice: 100, ui: 100 },
       haptics: true,
+      reducedMotion: false,
+      largeVerbs: false,
     });
     expect(await readRaw(page, INVALID_KEY)).toBeNull();
+    expect(problems).toEqual([]);
+  });
+
+  test('a v2 save migrates: every setting is kept, both comfort switches are off, it is written back', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    const v3 = JSON.parse(
+      calibratedSaveValue(
+        { visualOffsetMs: 20 },
+        { tier: 'experienced', haptics: false, volumes: { music: 40, sfx: 55, voice: 70, ui: 85 } },
+      ),
+    ) as StoredSave;
+    const { reducedMotion: _motion, largeVerbs: _verbs, ...v2Settings } = v3.settings;
+    await seedStorage(
+      page,
+      SAVE_KEY,
+      JSON.stringify({ version: 2, calibration: v3.calibration, settings: v2Settings }),
+    );
+    await openGame(page);
+    const save = await readSave(page);
+    expect(save?.version).toBe(3);
+    expect(save?.calibration?.visualOffsetMs).toBe(20);
+    expect(save?.settings).toEqual({ ...v2Settings, reducedMotion: false, largeVerbs: false });
+    expect(await readRaw(page, INVALID_KEY)).toBeNull();
+    await expect(html(page)).not.toHaveAttribute('data-pp-motion', /./);
     expect(problems).toEqual([]);
   });
 
@@ -679,7 +840,7 @@ test.describe('the save on disk', () => {
   }) => {
     const future = JSON.stringify({
       ...JSON.parse(calibratedSaveValue()),
-      version: 3,
+      version: 4,
       tomorrow: true,
     });
     await seedStorage(page, SAVE_KEY, future);

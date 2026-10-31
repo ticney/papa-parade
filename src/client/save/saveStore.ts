@@ -10,6 +10,12 @@ import type { StoragePort } from '@platform/platform';
 import { SAVE_INVALID_KEY, SAVE_KEY, SAVE_VERSION } from '@shared/constants';
 import { log } from '@shared/log';
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** What a past game stored under a key, read as a record: anything else is nothing to spread. */
+const asRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
+
 /** One step of the ordered table: turns a `from` save into a `from + 1` one. Pure. */
 export interface SaveMigration {
   readonly from: number;
@@ -18,12 +24,22 @@ export interface SaveMigration {
 
 /**
  * `v{n-1} → v{n}`, in order. `v1 → v2` (story 2.8) adds the settings, with their defaults, and keeps
- * the calibration. Pure: the input is not changed.
+ * the calibration. `v2 → v3` (story 2.10) adds the two comfort switches, off, and keeps every other
+ * setting; a v2 save with no usable `settings` is not repaired, so the schema still refuses it. Pure:
+ * the input is not changed.
  */
 export const SAVE_MIGRATIONS: readonly SaveMigration[] = [
   {
     from: 1,
     migrate: (save) => ({ ...save, version: 2, settings: createDefaultSettings() }),
+  },
+  {
+    from: 2,
+    migrate: (save) => ({
+      ...save,
+      version: 3,
+      settings: { ...asRecord(save.settings), reducedMotion: false, largeVerbs: false },
+    }),
   },
 ];
 
@@ -35,9 +51,6 @@ export const SAVE_MIGRATIONS: readonly SaveMigration[] = [
 export type MigrationOutcome =
   | { ok: true; value: Record<string, unknown> }
   | { ok: false; kind: 'future' | 'unusable'; reason: string };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
  * Brings a stored save to `targetVersion` by running the migrations in order. Refuses what is not

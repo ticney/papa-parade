@@ -106,7 +106,7 @@ export function createWorldUi(
   const renderer = new CSS2DRenderer({ element: container });
   renderer.sortObjects = false;
   const scene = new ThreeScene();
-  const tapMarker = createTapMarker(scene, doc);
+  const tapMarker = createTapMarker(scene, doc, comboOptions.isMotionReduced);
   const threats = createThreatMarkers(scene, doc, metrics);
   const glyphChip = createGlyphChip(scene, doc);
   const comboBadge = createComboBadge(scene, doc, comboOptions);

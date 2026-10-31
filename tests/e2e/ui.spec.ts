@@ -8,6 +8,7 @@ import {
 } from '../../src/shared/constants.ts';
 import {
   collectProblems,
+  emulateReducedMotion,
   GLB_URL,
   holdRequests,
   html,
@@ -258,7 +259,7 @@ test.describe('pause', () => {
     expect(normal.name).toBe('pp-pop-in');
     expect(normal.totalMs).toBeLessThanOrEqual(PANEL_POP_MAX_MS);
 
-    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await emulateReducedMotion(page);
     const reduced = await timing();
     expect(reduced.name).toBe('pp-fade-in');
     expect(reduced.totalMs).toBeLessThanOrEqual(PANEL_POP_MAX_MS);
