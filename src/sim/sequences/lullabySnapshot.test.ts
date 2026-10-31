@@ -13,7 +13,7 @@ import {
 import { createSim, type Sim } from '../createSim.ts';
 import { beatTimelineOf } from './beatClock.ts';
 
-// Snapshot v21 (story 4.5): `world.sequence.beat` round-trips in a count-in, in an open window and
+// Snapshot v22 (story 4.5): `world.sequence.beat` round-trips in a count-in, in an open window and
 // just after a decoy, each continued to the end on both copies with the hashes compared (4.4's
 // review: a round trip with nothing in flight proves nothing); and the validator refuses a slice
 // that disagrees with itself or with the step's timeline.

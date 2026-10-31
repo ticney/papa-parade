@@ -92,6 +92,8 @@ export interface RunSummary {
   comboPointsCashed: number;
   /** The highest multiplier a `ComboChanged` reached in the run; 0 if the combo never moved. */
   comboPeakMultiplier: number;
+  /** The `InstinctTriggered` events (story 2.9): how often Fatherly Instinct helped in the run. */
+  instinctTriggers: number;
   /** The toilet visits finished (`ToiletFinished`, story 4.3). The bots never go, so 0 for a bot. */
   toiletVisits: number;
   /** The special sequences started (`SequenceStarted`, story 4.4): 0 unless `--sequence` starts one. */
@@ -200,6 +202,7 @@ export function createRunRecorder(
   let armsCries = 0;
   let cancelledThreats = 0;
   let comboCashIns = 0;
+  let instinctTriggers = 0;
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
   let toiletVisits = 0;
@@ -290,6 +293,8 @@ export function createRunRecorder(
       } else if (event.type === 'ComboCashedIn') {
         comboCashIns++;
         comboPointsCashed += event.points;
+      } else if (event.type === 'InstinctTriggered') {
+        instinctTriggers++;
       } else if (event.type === 'LevelEnded') {
         isEnded = true;
         endReason = event.reason;
@@ -365,6 +370,7 @@ export function createRunRecorder(
         comboCashIns,
         comboPointsCashed,
         comboPeakMultiplier,
+        instinctTriggers,
         toiletVisits,
         sequencesStarted,
         sequencesSucceeded,
@@ -486,6 +492,8 @@ export interface SimReport {
   comboPointsCashed: number;
   /** The highest multiplier any run reached; 0 if no combo ever moved. */
   comboPeakMultiplier: number;
+  /** The Fatherly Instincts triggered, over the runs (story 2.9). */
+  instinctTriggers: number;
   /** The toilet visits finished, over the runs (story 4.3). */
   toiletVisits: number;
   /** The special sequences started, won and lost, over the runs (story 4.4). */
@@ -581,6 +589,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let armsCries = 0;
   let cancelledThreats = 0;
   let comboCashIns = 0;
+  let instinctTriggers = 0;
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
   let toiletVisits = 0;
@@ -645,6 +654,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     armsCries += run.armsCries;
     cancelledThreats += run.cancelledThreats;
     comboCashIns += run.comboCashIns;
+    instinctTriggers += run.instinctTriggers;
     comboPointsCashed += run.comboPointsCashed;
     comboPeakMultiplier = Math.max(comboPeakMultiplier, run.comboPeakMultiplier);
     toiletVisits += run.toiletVisits;
@@ -739,6 +749,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     comboCashIns,
     comboPointsCashed,
     comboPeakMultiplier,
+    instinctTriggers,
     toiletVisits,
     sequencesStarted,
     sequencesSucceeded,

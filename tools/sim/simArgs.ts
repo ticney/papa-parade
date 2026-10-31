@@ -61,6 +61,9 @@ baby). The bots never carry, so they are 0 for a bot.
 The combo (story 4.2) is counted per game and over the runs: \`comboCashIns\` and \`comboPointsCashed\`
 (0 for a bot, which never puts the baby down), and \`comboPeakMultiplier\`, the highest multiplier a
 game reached (the highest of any game in the aggregate; 0 in a level with no \`carry\`).
+Fatherly Instinct (story 2.9) is counted per game and over the runs: \`instinctTriggers\`, the
+\`InstinctTriggered\` events (a bot that misses a lot triggers it; \`perfect\` never does, and the
+\`experienced\` tier has none).
 The pressing need (story 4.3) is counted per game and over the runs: \`toiletVisits\` (the finished
 visits; 0 for a bot, which never goes) and \`bladderPeakPct\`, the highest the need reached, in % to
 one decimal (the highest of any game in the aggregate; 0 in a level with no \`gauges.need\`).

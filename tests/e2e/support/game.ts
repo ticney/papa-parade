@@ -19,9 +19,12 @@ const liveGeometry = JSON.parse(
 };
 /** The live feedback table, read here and never copied: Geo retunes it freely. */
 export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'utf8')) as {
-  haptics: Record<'light' | 'medium' | 'heavy', { patternMs: number[] }>;
+  haptics: Record<'light' | 'medium' | 'heavy' | 'heartbeat', { patternMs: number[] }>;
   loops: { babble: { clip: string }; music: { stems: { calm: string; tense: string } } };
-  cues: Record<string, { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' }>;
+  cues: Record<
+    string,
+    { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' | 'heartbeat' }
+  >;
   events: Record<string, string>;
   resultScreen: { inputGraceMs: number };
   calibration: { beep: { clip: string } };
@@ -49,7 +52,12 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     hitstopMs: number;
   };
   movement: { walkSpeedMps: number };
-  instinct: { timeScale: number };
+  instinct: {
+    timeScale: number;
+    windowBonusPct: number;
+    durationMs: number;
+    returnMs: number;
+  };
   input: {
     contextReachM: number;
     autoTargetConeDeg: number;

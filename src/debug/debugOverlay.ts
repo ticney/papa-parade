@@ -13,6 +13,8 @@ import {
   clampTimeScale,
   createCheatContext,
   createSkipToEnd,
+  forceInstinct,
+  instinctRefusalReason,
   launchableSequences,
   launchableThreats,
   launchThreat,
@@ -249,6 +251,20 @@ export function createDebugOverlay(
       const id = Number(threatSelect.value);
       if (Number.isInteger(id) && id > 0 && launchThreat(context, id)) say(`Launch: #${id} sent`);
       else say('Launch: pick a threat first');
+    });
+    button(threatRow, 'Instinct', 'forceInstinct', () => {
+      const reason = refusalReason(host);
+      if (reason !== null) {
+        say(`Instinct: ${reason}`);
+        return;
+      }
+      const world = host.levelSession.active?.sim.world;
+      const ignored = world === undefined ? null : instinctRefusalReason(world);
+      if (ignored !== null) {
+        say(`Instinct: ${ignored}`);
+        return;
+      }
+      if (forceInstinct(context)) say('Instinct: sent');
     });
 
     // The special sequences of the level (story 4.4): a list and a « Start ». Hidden with none.

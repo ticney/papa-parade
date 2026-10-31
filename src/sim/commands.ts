@@ -45,6 +45,12 @@ export type SimCommand =
    */
   | { type: 'ForceThreat'; t: SimMs; threatId: number }
   /**
+   * Debug / test command, journaled like `ForceThreat`: starts Fatherly Instinct now, ignoring the
+   * threats, the misses and the recharge (story 2.9). Ignored with no event while it is `active`
+   * and when the player's tier has no instinct.
+   */
+  | { type: 'ForceInstinct'; t: SimMs }
+  /**
    * Debug / test command, journaled like `StartDisruption` (story 4.4): starts the special sequence
    * `sequenceId` now. Ignored with no event when the level does not plan it or when
    * `sequenceRefusal(world)` is not null (one is under way, the level ended, Papa is busy, the
@@ -116,6 +122,7 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetBladder',
   'StartDisruption',
   'ForceThreat',
+  'ForceInstinct',
   'StartSequence',
   'TapBaby',
   'TapFloor',

@@ -26,7 +26,8 @@ const multiplier = (description: string) => z.number().min(0).describe(descripti
 
 /** Points of Mama's note that are shown and summed as they are: whole, so the four rows add up to the score. */
 const wholePoints = (description: string) => z.int().min(0).describe(description);
-const timeScale = (description: string) => z.number().gt(0).max(1).describe(description);
+const timeScale = (description: string) =>
+  z.number().min(MIN_TIME_SCALE).max(1).describe(description);
 
 const slowMo = (description: string) =>
   z
@@ -400,7 +401,10 @@ const InstinctSchema = z
   .strictObject({
     timeScale: timeScale('Sim speed while Fatherly Instinct is active (1 = normal).'),
     windowBonusPct: pct('Response windows grow by this percentage while active.'),
-    durationMs: durationMs('How long the instinct lasts, in ms.'),
+    durationMs: durationMs(
+      'How long the instinct lasts, in sim ms (the slow-mo hold and the window bonus).',
+    ),
+    returnMs: delayMs('Return to normal speed after the instinct, in sim ms (0 = instant).'),
     cooldownMs: delayMs('Recharge time after the instinct ends, in ms.'),
     minActiveThreatsCount: z
       .int()

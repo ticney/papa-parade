@@ -23,6 +23,8 @@ import {
   clampTimeScale,
   createCheatContext,
   createSkipToEnd,
+  forceInstinct,
+  instinctRefusalReason,
   launchableSequences,
   launchableThreats,
   launchThreat,
@@ -207,6 +209,27 @@ describe('the cheat list', () => {
     });
     sim.step();
     expect(sim.world.threats.find((threat) => threat.id === target)?.state).toBe('telegraph');
+  });
+
+  it('forceInstinct sends ForceInstinct, and the instinct starts at the next step', async () => {
+    const { host, sim } = await rig();
+    expect(forceInstinct(createCheatContext(host))).toBe(true);
+    expect(sim.journal().entries.at(-1)?.command).toMatchObject({ type: 'ForceInstinct' });
+    sim.step();
+    expect(sim.world.instinct.state).toBe('active');
+  });
+
+  it('instinctRefusalReason says when the sim would ignore ForceInstinct: no instinct at the tier, already on', async () => {
+    const { host, sim } = await rig();
+    expect(instinctRefusalReason(sim.world)).toBeNull();
+    forceInstinct(createCheatContext(host));
+    sim.step();
+    expect(instinctRefusalReason(sim.world)).toBe('the instinct is already on');
+
+    const other = await rig();
+    createCheatContext(other.host).send({ type: 'SetDifficultyTier', tier: 'experienced' });
+    other.sim.step();
+    expect(instinctRefusalReason(other.sim.world)).toBe('this tier has no instinct');
   });
 
   it('offers « set fatigue » only in a level with the gauge, as a number from 0 to the gauge maximum', async () => {
