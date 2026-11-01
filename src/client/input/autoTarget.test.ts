@@ -30,6 +30,8 @@ function threat(spec: Spec): ThreatInstance {
     state: spec.state ?? 'telegraph',
     enteredAt: asSimMs(0),
     windowOpenAt: asSimMs(spec.windowOpenAt ?? 1000),
+    feintAt: null,
+    isFeintGiven: false,
     responseWindow:
       spec.windowMs === null
         ? null

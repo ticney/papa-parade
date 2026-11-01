@@ -1518,6 +1518,97 @@ export function synthGagBabyEyesReopened(): Float32Array {
   return out;
 }
 
+const FAKE_SLEEP_TEL_LENGTH_MS = 800;
+const FAKE_SLEEP_TEL_HZ = { from: 165, to: 135 };
+const FAKE_SLEEP_TEL_BREATHS = 2;
+const FAKE_SLEEP_TEL_NOISE_GAIN = 1;
+
+/** Two slow soft breaths, the baby sleeping, or so it seems (cue `tel_fake_sleep`): a swell twice, no attack at all. */
+export function synthTelegraphFakeSleep(): Float32Array {
+  const rng = createRng(SEED + 32);
+  const out = new Float32Array(samplesOf(FAKE_SLEEP_TEL_LENGTH_MS));
+  let phase = 0;
+  let noise = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const frequencyHz =
+      FAKE_SLEEP_TEL_HZ.from + (FAKE_SLEEP_TEL_HZ.to - FAKE_SLEEP_TEL_HZ.from) * progress;
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    noise += 0.04 * (nextFloat(rng) * 2 - 1 - noise);
+    const swell = Math.sin(Math.PI * ((progress * FAKE_SLEEP_TEL_BREATHS) % 1)) ** 2;
+    out[i] = (Math.sin(phase) + noise * FAKE_SLEEP_TEL_NOISE_GAIN) * swell;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const EYE_PEEK_LENGTH_MS = 380;
+const EYE_PEEK_HZ = { from: 440, to: 740 };
+const EYE_PEEK_ATTACK_MS = 12;
+const EYE_PEEK_DECAY_S = 0.13;
+
+/**
+ * A soft glassy « tink » that rises at its end, close kin to `baby_eyes_close` (which falls): a careless
+ * ear takes it for the signal, a listening one does not (cue `fake_sleep_eye_peeks`, story 4.7).
+ */
+export function synthBabyEyePeek(): Float32Array {
+  const rng = createRng(SEED + 33);
+  const out = new Float32Array(samplesOf(EYE_PEEK_LENGTH_MS));
+  const attack = samplesOf(EYE_PEEK_ATTACK_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const progress = i / out.length;
+    const frequencyHz = EYE_PEEK_HZ.from + (EYE_PEEK_HZ.to - EYE_PEEK_HZ.from) * progress ** 2;
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const click = i < attack ? (nextFloat(rng) * 2 - 1) * 0.2 : 0;
+    out[i] =
+      (Math.sin(phase) + 0.2 * Math.sin(2 * phase) + click) *
+      Math.min(1, i / attack) *
+      Math.exp(-seconds / EYE_PEEK_DECAY_S);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const SAT_UP_LENGTH_MS = 700;
+const SAT_UP_STEPS_HZ = [340, 520];
+const SAT_UP_ATTACK_MS = 15;
+const SAT_UP_RELEASE_MS = 220;
+const SAT_UP_WOBBLE_HZ = 9;
+
+/** A startled « oh! » in two rising steps: the baby sits up, wide awake, the gag (cue `gag_baby_sat_up`). */
+export function synthGagBabySatUp(): Float32Array {
+  const rng = createRng(SEED + 34);
+  const out = new Float32Array(samplesOf(SAT_UP_LENGTH_MS));
+  const attack = samplesOf(SAT_UP_ATTACK_MS);
+  const release = samplesOf(SAT_UP_RELEASE_MS);
+  const stepSamples = Math.floor(out.length / SAT_UP_STEPS_HZ.length);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const stepIndex = Math.min(SAT_UP_STEPS_HZ.length - 1, Math.floor(i / stepSamples));
+    const frequencyHz =
+      (SAT_UP_STEPS_HZ[stepIndex] as number) *
+      (1 + 0.05 * Math.sin(2 * Math.PI * SAT_UP_WOBBLE_HZ * seconds));
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const stepAttack = Math.min(1, (i % stepSamples) / attack);
+    const breath = (nextFloat(rng) * 2 - 1) * 0.1;
+    out[i] =
+      (Math.sin(phase) + 0.5 * Math.sin(2 * phase) + breath) *
+      stepAttack *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 const BEDTIME_HUSH_LENGTH_S = 8;
 const BEDTIME_HUSH_HZ = [98, 147];
 const BEDTIME_HUSH_SWAY_HZ = 1 / 8;
@@ -1623,6 +1714,9 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'baby_eyes_close', synth: synthBabyEyesClose },
   { clip: 'gag_baby_eyes_reopened', synth: synthGagBabyEyesReopened },
   { clip: 'music_bedtime_hush', synth: synthBedtimeHush },
+  { clip: 'tel_fake_sleep', synth: synthTelegraphFakeSleep },
+  { clip: 'baby_eye_peek', synth: synthBabyEyePeek },
+  { clip: 'gag_baby_sat_up', synth: synthGagBabySatUp },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

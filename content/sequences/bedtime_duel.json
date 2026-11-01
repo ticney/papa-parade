@@ -5,7 +5,7 @@
   "steps": [
     { "kind": "duel", "durationMs": 9000, "threatDef": "bedtime_eyes", "restMs": 1200 },
     { "kind": "duel", "durationMs": 9000, "threatDef": "bedtime_eyes", "restMs": 1200 },
-    { "kind": "duel", "durationMs": 9000, "threatDef": "bedtime_eyes", "restMs": 1200 }
+    { "kind": "duel", "durationMs": 10000, "threatDef": "fake_sleep", "restMs": 1200 }
   ],
   "success": { "kind": "stepsDone" },
   "failure": { "kind": "retreats", "maxRetreats": 3 },

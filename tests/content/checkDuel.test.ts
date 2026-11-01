@@ -43,23 +43,30 @@ const LIVE_FEEL = readLive<{
   timing: { toleranceMs: number; windowMs: number; telegraphDelayDefaultMs: number };
   difficulty: Record<string, { windowMultiplier: number }>;
 }>('content/feel.json');
-const LIVE_EYES = readLive<{
+type LiveWait = {
   cooldownMs: number;
   telegraphDelayMs: number | null;
   maxDelayMs: number;
   windowMs: number | null;
-}>(THREAT);
+};
+const LIVE_EYES = readLive<LiveWait>(THREAT);
+const LIVE_FAKE_SLEEP = readLive<LiveWait>('content/threats/fake_sleep.json');
 const LIVE_REST_MS = readLive<{ steps: { restMs: number }[] }>(SEQUENCE).steps[0]?.restMs ?? 0;
 const WIDEST = Math.max(
   ...Object.values(LIVE_FEEL.difficulty).map((tier) => tier.windowMultiplier),
 );
-/** The shortest `durationMs` a round of the live duel can fit in. */
-const NEEDED_MS =
-  Math.max(LIVE_REST_MS, LIVE_EYES.cooldownMs) +
-  (LIVE_EYES.telegraphDelayMs ?? LIVE_FEEL.timing.telegraphDelayDefaultMs) +
-  LIVE_EYES.maxDelayMs +
-  (LIVE_EYES.windowMs ?? LIVE_FEEL.timing.windowMs) * WIDEST +
+const neededBy = (def: LiveWait) =>
+  Math.max(LIVE_REST_MS, def.cooldownMs) +
+  (def.telegraphDelayMs ?? LIVE_FEEL.timing.telegraphDelayDefaultMs) +
+  def.maxDelayMs +
+  (def.windowMs ?? LIVE_FEEL.timing.windowMs) * WIDEST +
   LIVE_FEEL.timing.toleranceMs;
+/**
+ * The shortest `durationMs` every round of the live duel can fit in: the test sets one value on all
+ * its steps, so it is the largest need of the defs the live steps name (the eyes, and since story 4.7
+ * the fake sleep, whose signal can be later).
+ */
+const NEEDED_MS = Math.max(neededBy(LIVE_EYES), neededBy(LIVE_FAKE_SLEEP));
 
 describe('checkContent and the duel steps (story 4.6)', () => {
   it('accepts the live duel and its eyes', async () => {

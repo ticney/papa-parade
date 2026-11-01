@@ -69,8 +69,54 @@
             "eyelids",
             "dots",
             "cry",
-            "eyes"
+            "eyes",
+            "peek"
           ]
+        },
+        "feint": {
+          "description": "Only on a `wait` threat (optional there, refused elsewhere): a feint before the signal, « un œil s'entrouvre » (story 4.7). A press on it is an `early` gag like any press before the signal.",
+          "type": "object",
+          "properties": {
+            "minDelayMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The shortest time from the end of `telegraphDelayMs` to the feint, in sim ms."
+            },
+            "maxDelayMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The longest time from the end of `telegraphDelayMs` to the feint, in sim ms, at least `minDelayMs`. The feint falls at one random instant between the two, drawn after the signal and independently of it."
+            },
+            "minGapMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The shortest time between the feint and the real signal, in sim ms. `maxDelayMs + minGapMs` must fit in the def's `minDelayMs`: the feint always comes first, and a reflex on it can never land in the real window."
+            },
+            "icon": {
+              "type": "string",
+              "enum": [
+                "bolt",
+                "stairs",
+                "mug",
+                "eyelids",
+                "dots",
+                "cry",
+                "eyes",
+                "peek"
+              ],
+              "description": "The glyph drawn in the marker from the feint on, until the signal."
+            }
+          },
+          "required": [
+            "minDelayMs",
+            "maxDelayMs",
+            "minGapMs",
+            "icon"
+          ],
+          "additionalProperties": false
         },
         "holdUntilMs": {
           "description": "Only on a `firm` threat (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).",
@@ -98,7 +144,8 @@
             "eyelids",
             "dots",
             "cry",
-            "eyes"
+            "eyes",
+            "peek"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -145,6 +192,11 @@
               "type": "string",
               "pattern": "^[a-z][a-z0-9_]*$",
               "description": "Only on a `wait` threat (required there, refused elsewhere): the cue played at the signal, when the window opens (story 4.6)."
+            },
+            "feint": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "description": "Only on a `wait` threat that has a `feint` (required there, refused elsewhere): the cue played when the feint is given, before the signal (story 4.7)."
             }
           },
           "required": [
@@ -266,8 +318,54 @@
             "eyelids",
             "dots",
             "cry",
-            "eyes"
+            "eyes",
+            "peek"
           ]
+        },
+        "feint": {
+          "description": "Only on a `wait` threat (optional there, refused elsewhere): a feint before the signal, « un œil s'entrouvre » (story 4.7). A press on it is an `early` gag like any press before the signal.",
+          "type": "object",
+          "properties": {
+            "minDelayMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The shortest time from the end of `telegraphDelayMs` to the feint, in sim ms."
+            },
+            "maxDelayMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The longest time from the end of `telegraphDelayMs` to the feint, in sim ms, at least `minDelayMs`. The feint falls at one random instant between the two, drawn after the signal and independently of it."
+            },
+            "minGapMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The shortest time between the feint and the real signal, in sim ms. `maxDelayMs + minGapMs` must fit in the def's `minDelayMs`: the feint always comes first, and a reflex on it can never land in the real window."
+            },
+            "icon": {
+              "type": "string",
+              "enum": [
+                "bolt",
+                "stairs",
+                "mug",
+                "eyelids",
+                "dots",
+                "cry",
+                "eyes",
+                "peek"
+              ],
+              "description": "The glyph drawn in the marker from the feint on, until the signal."
+            }
+          },
+          "required": [
+            "minDelayMs",
+            "maxDelayMs",
+            "minGapMs",
+            "icon"
+          ],
+          "additionalProperties": false
         },
         "holdUntilMs": {
           "description": "Only on a `firm` threat (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).",
@@ -295,7 +393,8 @@
             "eyelids",
             "dots",
             "cry",
-            "eyes"
+            "eyes",
+            "peek"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -342,6 +441,11 @@
               "type": "string",
               "pattern": "^[a-z][a-z0-9_]*$",
               "description": "Only on a `wait` threat (required there, refused elsewhere): the cue played at the signal, when the window opens (story 4.6)."
+            },
+            "feint": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "description": "Only on a `wait` threat that has a `feint` (required there, refused elsewhere): the cue played when the feint is given, before the signal (story 4.7)."
             }
           },
           "required": [

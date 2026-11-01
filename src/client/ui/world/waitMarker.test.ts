@@ -220,3 +220,141 @@ describe('the marker of a wait threat (story 4.6)', () => {
     expect(root?.classes.has(THREAT_CLASSES.signal)).toBe(false);
   });
 });
+
+// The feint of a fake sleep (story 4.7): the glyph moves once it is given, the verb does not, and the
+// marker reads `isFeintGiven` only, never `feintAt`.
+const feintDef = { ...defOf, feint: { icon: 'peek' } } as const;
+
+const feintThreat = (
+  state: ThreatState,
+  spec: { isFeintGiven?: boolean; feintAt?: number; windowOpenAt?: number } = {},
+): Readonly<ThreatInstance> =>
+  ({
+    ...threat(4, state, spec.windowOpenAt ?? 5000),
+    feintAt: asSimMs(spec.feintAt ?? 2000),
+    isFeintGiven: spec.isFeintGiven ?? false,
+  }) as Readonly<ThreatInstance>;
+
+const feintEntries = () =>
+  threatMarkerEntries([threat(4, 'idle')], [], { bedtime_eyes: feintDef }, 0.2, t);
+
+describe('the entry of a threat with a feint (story 4.7)', () => {
+  it('keeps the feint glyph beside the signal one', () => {
+    const [entry] = feintEntries();
+    expect(entry).toMatchObject({ icon: 'eyes', signalIcon: 'eyelids', feintIcon: 'peek' });
+  });
+
+  it('gives a threat with no feint no feint glyph', () => {
+    const [entry] = entries();
+    expect(entry?.feintIcon).toBeUndefined();
+  });
+});
+
+describe('the marker of a threat with a feint (story 4.7)', () => {
+  it('goes eyes, peek, closed, then eyes at the next telegraph, the verb unchanged until the signal', () => {
+    const { markers, byClass, created } = build();
+    markers.mount(feintEntries());
+    const [verb] = byClass(THREAT_CLASSES.verb);
+    const [root] = byClass(THREAT_CLASSES.root);
+    const path = created.find((element) => element.attributes.get('d') === THREAT_ICON_PATHS.eyes);
+    expect(path).toBeDefined();
+    const glyph = () => path?.attributes.get('d');
+
+    markers.update([feintThreat('telegraph')], null, null);
+    expect(glyph()).toBe(THREAT_ICON_PATHS.eyes);
+    expect(root?.classes.has(THREAT_CLASSES.feint)).toBe(false);
+
+    markers.update([feintThreat('telegraph', { isFeintGiven: true })], null, null);
+    expect(glyph()).toBe(THREAT_ICON_PATHS.peek);
+    expect(root?.classes.has(THREAT_CLASSES.feint)).toBe(true);
+    expect(root?.classes.has(THREAT_CLASSES.signal)).toBe(false);
+    expect(verb?.textContent).toBe('<verb.wait>');
+
+    // Written once: the glyph's `d` is not touched again while the feint stands.
+    const writes = path?.log.length ?? 0;
+    for (let i = 0; i < 5; i++) {
+      markers.update([feintThreat('telegraph', { isFeintGiven: true })], null, null);
+    }
+    expect(path?.log.length).toBe(writes);
+
+    // The signal takes over: the closed eye, « FILE ! », and the feint class goes.
+    markers.update([feintThreat('windowOpen', { isFeintGiven: true })], null, null);
+    expect(glyph()).toBe(THREAT_ICON_PATHS.eyelids);
+    expect(root?.classes.has(THREAT_CLASSES.feint)).toBe(false);
+    expect(root?.classes.has(THREAT_CLASSES.signal)).toBe(true);
+    expect(verb?.textContent).toBe('<verb.go>');
+
+    // The next telegraph starts again from the open eye, both classes off.
+    markers.update([feintThreat('telegraph')], null, null);
+    expect(glyph()).toBe(THREAT_ICON_PATHS.eyes);
+    expect(root?.classes.has(THREAT_CLASSES.feint)).toBe(false);
+    expect(root?.classes.has(THREAT_CLASSES.signal)).toBe(false);
+    expect(verb?.textContent).toBe('<verb.wait>');
+  });
+
+  it('writes the glyph once per change, over a whole round', () => {
+    const { markers, created } = build();
+    markers.mount(feintEntries());
+    const path = created.find((element) => element.attributes.get('d') === THREAT_ICON_PATHS.eyes);
+    const before = path?.log.length ?? 0;
+    const frames: [ThreatState, boolean][] = [
+      ['telegraph', false],
+      ['telegraph', false],
+      ['telegraph', true],
+      ['telegraph', true],
+      ['windowOpen', true],
+      ['windowOpen', true],
+    ];
+    for (const [state, isFeintGiven] of frames) {
+      markers.update([feintThreat(state, { isFeintGiven })], null, null);
+    }
+    // peek, then closed: two writes, nothing for the frames that change nothing.
+    expect((path?.log.length ?? 0) - before).toBe(2);
+  });
+
+  it('keeps the feint glyph for the frame a tap on it is drawn after the sim gagged it, then drops it', () => {
+    const { markers, created } = build();
+    markers.mount(feintEntries());
+    const path = created.find((element) => element.attributes.get('d') === THREAT_ICON_PATHS.eyes);
+    markers.update([feintThreat('telegraph', { isFeintGiven: true })], null, null);
+    markers.update([feintThreat('gag', { isFeintGiven: true })], 4, null);
+    expect(path?.attributes.get('d')).toBe(THREAT_ICON_PATHS.peek);
+    markers.update([feintThreat('gag', { isFeintGiven: true })], null, null);
+    expect(path?.attributes.get('d')).toBe(THREAT_ICON_PATHS.eyes);
+  });
+
+  it('draws the same DOM until the feint is given whatever feintAt and windowOpenAt the sim drew (no leak)', () => {
+    const drawn = (feintAt: number, windowOpenAt: number, isFeintGiven: boolean) => {
+      const { markers, created } = build();
+      markers.mount(feintEntries());
+      for (let i = 0; i < 4; i++) {
+        markers.update(
+          [feintThreat('telegraph', { feintAt, windowOpenAt, isFeintGiven })],
+          null,
+          null,
+        );
+      }
+      return created.map((element) => ({
+        log: element.log,
+        text: element.textContent,
+        classes: [...element.classes],
+        vars: [...element.vars],
+        display: element.style.display,
+      }));
+    };
+    expect(drawn(1300, 4400, false)).toEqual(drawn(2600, 9000, false));
+    // Once given it is the flag that draws it, not the instant: same again with two other instants.
+    expect(drawn(1300, 4400, true)).toEqual(drawn(2600, 9000, true));
+    expect(drawn(1300, 4400, true)).not.toEqual(drawn(1300, 4400, false));
+  });
+
+  it('leaves a def with no feint exactly as it was, whatever its instance says', () => {
+    const { markers, byClass, created } = build();
+    markers.mount(entries());
+    const path = created.find((element) => element.attributes.get('d') === THREAT_ICON_PATHS.eyes);
+    const [root] = byClass(THREAT_CLASSES.root);
+    markers.update([feintThreat('telegraph', { isFeintGiven: true })], null, null);
+    expect(path?.attributes.get('d')).toBe(THREAT_ICON_PATHS.eyes);
+    expect(root?.classes.has(THREAT_CLASSES.feint)).toBe(false);
+  });
+});

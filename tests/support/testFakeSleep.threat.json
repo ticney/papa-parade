@@ -1,0 +1,28 @@
+{
+  "$schema": "../../content/_schemas/threat.schema.json",
+  "id": "fake_sleep",
+  "target": "papa",
+  "response": "wait",
+  "telegraphDelayMs": 800,
+  "minDelayMs": 3500,
+  "maxDelayMs": 7000,
+  "feint": { "minDelayMs": 1200, "maxDelayMs": 2600, "minGapMs": 900, "icon": "peek" },
+  "windowMs": null,
+  "gag": "baby_sat_up",
+  "gagCryMs": 2000,
+  "verbKey": "verb.wait",
+  "signalVerbKey": "verb.go",
+  "icon": "eyes",
+  "signalIcon": "eyelids",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_fake_sleep",
+    "feint": "fake_sleep_eye_peeks",
+    "signal": "bedtime_eyes_closed",
+    "success": "resp_wait",
+    "perfect": "resp_wait_perfect",
+    "gag": "gag_baby_sat_up"
+  },
+  "cooldownMs": 600
+}

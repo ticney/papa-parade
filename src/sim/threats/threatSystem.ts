@@ -7,7 +7,7 @@ import { classifyPress, pressKindOf } from '../timing/classifyPress.ts';
 import { firmHoldOutcome, holdEndAt } from '../timing/holdEnd.ts';
 import { judgePress } from '../timing/judge.ts';
 import type { ThreatInstance, World } from '../world.ts';
-import { gagThreat, openWindow, rearmThreat, resolveThreat } from './threatFsm.ts';
+import { gagThreat, giveFeint, openWindow, rearmThreat, resolveThreat } from './threatFsm.ts';
 
 type SimLevelEntry = StepContext['level']['threats'][number];
 
@@ -94,6 +94,17 @@ export function runThreats(world: World, ctx: StepContext): void {
   for (let i = 0; i < threats.length; i++) {
     const threat = threats[i] as ThreatInstance;
     const { def } = ctx.level.threats[i] as SimLevelEntry;
+
+    // The feint (story 4.7) is before the signal, so before the window: a press in this same step has
+    // already made it a gag (commands run first), and no feint comes then.
+    if (
+      threat.state === 'telegraph' &&
+      threat.feintAt !== null &&
+      !threat.isFeintGiven &&
+      now >= threat.feintAt
+    ) {
+      giveFeint(world, ctx, threat);
+    }
 
     // A buffered press already resolved by its release waits for the window: `WindowOpened` first,
     // then its result, in this same step.

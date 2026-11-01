@@ -29,8 +29,9 @@ describe('SIM_EVENT_TYPES', () => {
   it('lists LevelEnded and WaveStarted (story 1.18) in their alphabetical places', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
     expect(names.indexOf('LevelEnded')).toBe(names.indexOf('InvariantViolated') + 1);
-    // `WaitSignalGiven` (story 4.6) sorts between them.
-    expect(names.indexOf('WaitSignalGiven')).toBe(names.indexOf('ToiletStarted') + 1);
+    // `WaitFeintGiven` (story 4.7) and `WaitSignalGiven` (story 4.6) sort between them.
+    expect(names.indexOf('WaitFeintGiven')).toBe(names.indexOf('ToiletStarted') + 1);
+    expect(names.indexOf('WaitSignalGiven')).toBe(names.indexOf('WaitFeintGiven') + 1);
     expect(names.indexOf('WaveStarted')).toBe(names.indexOf('WaitSignalGiven') + 1);
     expect(names.indexOf('WindowOpened')).toBe(names.indexOf('WaveStarted') + 1);
   });

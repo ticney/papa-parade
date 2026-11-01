@@ -1750,6 +1750,26 @@ body {
   }
 }
 
+/*
+  The feint of a fake sleep (story 4.7): from « un œil s'entrouvre » to the signal the marker carries a
+  half-open-eye glyph (the swap is `threatMarkers.ts`'s) and its icon gives a short, small tilt, not
+  the signal's pop, so the two do not look alike. The verb stays « ATTENDS… »: the glyph is the
+  information, the tilt only its onset.
+*/
+.pp-threat--feint .pp-threat-icon {
+  animation: pp-threat-feint-tilt 180ms ease-out;
+}
+
+@keyframes pp-threat-feint-tilt {
+  from {
+    transform: rotate(-9deg);
+  }
+
+  to {
+    transform: rotate(0deg);
+  }
+}
+
 .pp-threat-highlight {
   position: absolute;
   inset: calc(var(--pp-threat-size) * -0.3);
@@ -1985,6 +2005,7 @@ body {
 :where(:root[data-pp-motion="reduced"]) .pp-threat-halo,
 :where(:root[data-pp-motion="reduced"]) .pp-threat-chevron,
 :where(:root[data-pp-motion="reduced"]) .pp-threat--signal .pp-threat-icon,
+:where(:root[data-pp-motion="reduced"]) .pp-threat--feint .pp-threat-icon,
 :where(:root[data-pp-motion="reduced"]) .pp-object-urgent .pp-object-halo {
   animation: none;
 }

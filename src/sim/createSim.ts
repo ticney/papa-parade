@@ -611,6 +611,8 @@ export async function createSimWithSystems(
       state: 'idle',
       enteredAt: asSimMs(0),
       windowOpenAt: asSimMs(0),
+      feintAt: null,
+      isFeintGiven: false,
       responseWindow: null,
       press: null,
       waveIndex: -1,

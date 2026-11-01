@@ -68,6 +68,19 @@ function signalDelayMs(world: World, def: ThreatDef): number {
 }
 
 /**
+ * How long after the telegraph delay a `wait` threat that has a `feint` gives it (story 4.7): one more
+ * `nextFloat`, drawn after the signal's and independent of it, so the feint tells nothing of when the
+ * signal comes beyond the range. A def with no feint draws nothing here (no existing journal moves).
+ */
+function feintDelayMs(world: World, def: ThreatDef): number | null {
+  const { feint } = def;
+  if (feint === undefined) return null;
+  return Math.round(
+    feint.minDelayMs + nextFloat(world.rng) * (feint.maxDelayMs - feint.minDelayMs),
+  );
+}
+
+/**
  * `idle → telegraph`. Freezes the window (D8: a buffered press is judged before the window opens, and a
  * window that moves while the player reads it would be unfair) and fixes the instant it opens.
  * `waveIndex` is the wave that drew the threat, -1 for a threat no wave planned.
@@ -86,7 +99,13 @@ export function telegraphThreat(
     instinct: instinctWindowModifier(world, ctx),
   });
   const openAfterMs = def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs;
-  threat.windowOpenAt = asSimMs(world.time.sim + openAfterMs + signalDelayMs(world, def));
+  // The signal's draw first, the feint's second: two locals, so that the order cannot swap silently.
+  const signalAfterMs = signalDelayMs(world, def);
+  const feintAfterMs = feintDelayMs(world, def);
+  threat.windowOpenAt = asSimMs(world.time.sim + openAfterMs + signalAfterMs);
+  threat.feintAt =
+    feintAfterMs === null ? null : asSimMs(world.time.sim + openAfterMs + feintAfterMs);
+  threat.isFeintGiven = false;
   threat.press = null;
   threat.waveIndex = waveIndex;
   enterThreatState(world, threat, 'telegraph');
@@ -114,6 +133,8 @@ export function hideThreat(
   threat.press = null;
   threat.responseWindow = null;
   threat.windowOpenAt = asSimMs(0);
+  threat.feintAt = null;
+  threat.isFeintGiven = false;
   threat.waveIndex = waveIndex;
   enterThreatState(world, threat, 'hidden');
   ctx.events.push({
@@ -124,6 +145,15 @@ export function hideThreat(
     anchorId: threat.anchorId,
     waveIndex,
   });
+}
+
+/**
+ * The feint of a `wait` threat (story 4.7), still in `telegraph`: `WaitFeintGiven`, once. It changes no
+ * state and allocates nothing but the event; the judgement is the strict early rule's, not this helper's.
+ */
+export function giveFeint(world: World, ctx: StepContext, threat: ThreatInstance): void {
+  threat.isFeintGiven = true;
+  ctx.events.push({ type: 'WaitFeintGiven', t: world.time.sim, threatId: threat.id });
 }
 
 /** `telegraph → windowOpen`. A `wait` threat gives its signal first (`WaitSignalGiven`, story 4.6). */
@@ -256,6 +286,8 @@ export function rearmThreat(world: World, ctx: StepContext, threat: ThreatInstan
   threat.press = null;
   threat.responseWindow = null;
   threat.windowOpenAt = asSimMs(0);
+  threat.feintAt = null;
+  threat.isFeintGiven = false;
   threat.waveIndex = -1;
   enterThreatState(world, threat, 'idle');
   ctx.events.push({ type: 'ThreatRearmed', t: world.time.sim, threatId: threat.id });
@@ -275,6 +307,8 @@ export function cancelThreat(
   threat.press = null;
   threat.responseWindow = null;
   threat.windowOpenAt = asSimMs(0);
+  threat.feintAt = null;
+  threat.isFeintGiven = false;
   threat.waveIndex = -1;
   enterThreatState(world, threat, 'idle');
   ctx.events.push({ type: 'ThreatCancelled', t: world.time.sim, threatId: threat.id, reason });

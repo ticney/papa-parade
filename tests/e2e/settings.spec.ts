@@ -304,7 +304,8 @@ test.describe('the tier', () => {
       await seedStorage(page, SAVE_KEY, calibratedSaveValue({}, { tier: 'assistance' }));
       await startLevel(page);
       expect(await tierCommands(page)).toHaveLength(1);
-      expect((await ppWorld(page)).difficultyTier).toBe('assistance');
+      // The journal has the command as soon as it is sent; the sim applies it at its next step.
+      await expect.poll(async () => (await ppWorld(page)).difficultyTier).toBe('assistance');
       await openSettings(page);
       await expect(radio(page, 'assistance')).toBeFocused();
       await radio(page, 'normal').click();

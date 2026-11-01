@@ -22,6 +22,8 @@ function threat(overrides: Partial<ThreatInstance> = {}): ThreatInstance {
     state: 'telegraph',
     enteredAt: asSimMs(1000),
     windowOpenAt: asSimMs(2200),
+    feintAt: null,
+    isFeintGiven: false,
     responseWindow: { windowMs: 300, perfectMs: 100, toleranceMs: 60, bufferMs: 100 },
     press: null,
     waveIndex: 0,

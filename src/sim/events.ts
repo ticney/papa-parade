@@ -225,6 +225,11 @@ export type SimEvent =
   | { type: 'SilenceEnded'; t: SimMs; threatId: number; reason: SilenceEndReason }
   | { type: 'WindowOpened'; t: SimMs; threatId: number }
   /**
+   * The feint of a `wait` threat that has one (story 4.7): « un œil s'entrouvre », before the signal.
+   * Once per telegraph, never after the window opens, and never for a def with no `feint`.
+   */
+  | { type: 'WaitFeintGiven'; t: SimMs; threatId: number }
+  /**
    * The signal of a `wait` threat (story 4.6): the baby's eyes close, the window opens. Pushed right
    * before that threat's `WindowOpened`, at the same `t`, and never for another response.
    */
@@ -473,6 +478,7 @@ export const SIM_EVENT_TYPES = [
   'ToiletFinished',
   'ToiletRefused',
   'ToiletStarted',
+  'WaitFeintGiven',
   'WaitSignalGiven',
   'WaveStarted',
   'WindowOpened',

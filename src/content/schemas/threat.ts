@@ -22,7 +22,16 @@ export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
  * `Record<ThreatIcon, …>`: a missing glyph is a type error). The marker's shape and colour are
  * separate keys (`THREAT_ICON_SHAPES`, `THREAT_COLORS`, story 2.2).
  */
-export const THREAT_ICONS = ['bolt', 'stairs', 'mug', 'eyelids', 'dots', 'cry', 'eyes'] as const;
+export const THREAT_ICONS = [
+  'bolt',
+  'stairs',
+  'mug',
+  'eyelids',
+  'dots',
+  'cry',
+  'eyes',
+  'peek',
+] as const;
 export type ThreatIcon = (typeof THREAT_ICONS)[number];
 
 /**
@@ -64,6 +73,9 @@ const FeedbackCuesSchema = z
     gag: idSchema('Cue played when the gag is triggered.'),
     signal: idSchema(
       'Only on a `wait` threat (required there, refused elsewhere): the cue played at the signal, when the window opens (story 4.6).',
+    ).optional(),
+    feint: idSchema(
+      'Only on a `wait` threat that has a `feint` (required there, refused elsewhere): the cue played when the feint is given, before the signal (story 4.7).',
     ).optional(),
   })
   .describe('Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11).');
@@ -110,6 +122,32 @@ const baseShape = {
     .optional()
     .describe(
       'Only on a `wait` threat (required there, refused elsewhere): the glyph drawn in the marker from the signal on, in place of `icon` (story 4.6). The signal is the glyph and the verb, never the colour alone.',
+    ),
+  feint: z
+    .strictObject({
+      minDelayMs: z
+        .int()
+        .positive()
+        .describe('The shortest time from the end of `telegraphDelayMs` to the feint, in sim ms.'),
+      maxDelayMs: z
+        .int()
+        .positive()
+        .describe(
+          'The longest time from the end of `telegraphDelayMs` to the feint, in sim ms, at least `minDelayMs`. The feint falls at one random instant between the two, drawn after the signal and independently of it.',
+        ),
+      minGapMs: z
+        .int()
+        .positive()
+        .describe(
+          "The shortest time between the feint and the real signal, in sim ms. `maxDelayMs + minGapMs` must fit in the def's `minDelayMs`: the feint always comes first, and a reflex on it can never land in the real window.",
+        ),
+      icon: z
+        .enum(THREAT_ICONS)
+        .describe('The glyph drawn in the marker from the feint on, until the signal.'),
+    })
+    .optional()
+    .describe(
+      "Only on a `wait` threat (optional there, refused elsewhere): a feint before the signal, « un œil s'entrouvre » (story 4.7). A press on it is an `early` gag like any press before the signal.",
     ),
   holdUntilMs: z
     .number()
@@ -229,6 +267,45 @@ export const ThreatDefSchema = z
         code: 'custom',
         path: ['maxDelayMs'],
         message: '`maxDelayMs` is at least `minDelayMs`',
+      });
+    }
+    const { feint } = def;
+    if (feint !== undefined) {
+      if (def.response !== 'wait') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['feint'],
+          message: `\`feint\` is only for a threat with response "wait", not "${def.response}"`,
+        });
+      } else if (feint.minDelayMs > feint.maxDelayMs) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['feint', 'maxDelayMs'],
+          message: '`feint.maxDelayMs` is at least `feint.minDelayMs`',
+        });
+      } else if (
+        def.minDelayMs !== undefined &&
+        feint.maxDelayMs + feint.minGapMs > def.minDelayMs
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['feint', 'maxDelayMs'],
+          message:
+            '`feint.maxDelayMs` + `feint.minGapMs` must be at most `minDelayMs`, so that the feint always comes at least `minGapMs` before the signal',
+        });
+      }
+    }
+    if (feint !== undefined && def.response === 'wait' && def.feedback.feint === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['feedback', 'feint'],
+        message: 'a threat with a `feint` needs a `feedback.feint` cue',
+      });
+    } else if (feint === undefined && def.feedback.feint !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['feedback', 'feint'],
+        message: '`feedback.feint` is only for a threat with a `feint`',
       });
     }
     if (def.response === 'wait' && def.feedback.signal === undefined) {

@@ -1,0 +1,48 @@
+{
+  "version": 3,
+  "seed": 48,
+  "feelHash": "0a0ef27a2eb80a",
+  "geometryHash": "0e18fe9d85d9f9",
+  "levelHash": "06a326f6b4c7d2",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "sequenceId": "fake_sleep_duel",
+        "t": 0,
+        "type": "StartSequence"
+      }
+    },
+    {
+      "applyAt": 4880,
+      "command": {
+        "t": 4879,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 4930,
+      "command": {
+        "t": 4929,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 11770,
+      "command": {
+        "t": 11764,
+        "threatId": 3,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 11820,
+      "command": {
+        "t": 11814,
+        "type": "Release"
+      }
+    }
+  ]
+}

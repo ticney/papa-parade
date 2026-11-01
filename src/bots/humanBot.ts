@@ -27,6 +27,10 @@ import {
  * anticipated, nobody reacts to a beat they can count; a plan whose beat is settled first is dropped.
  * A `wait` threat (story 4.6) is the opposite: it plans nothing before it sees the signal (state
  * `windowOpen`), then presses at `windowOpenAt + reactionMs + aimOffsetMs + jitterSdMs × N(0, 1)`.
+ * **It never falls for the feint of a fake sleep (story 4.7)**: that is the same rule, a `wait` threat
+ * is skipped until it is `windowOpen`, and the feint (`WaitFeintGiven`, `isFeintGiven`) is a beat of
+ * the telegraph, not a signal. So the human bot says nothing of how hard the feint is for a player: its
+ * numbers do not move with it, and only playing tells (open point 5 of story 4.7).
  */
 export function createHumanBot(setup: BotSetup): Bot {
   const { reactionMs, aimOffsetMs, jitterSdMs } = setup.settings.human;

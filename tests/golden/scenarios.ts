@@ -164,14 +164,30 @@ const startBedtimeDuel: SimCommand = {
   sequenceId: 'bedtime_duel',
 };
 const BEDTIME_EYES_ID = 2;
-/** A tap on the eyes at `t`, held 50 ms, each enqueued at the step that reaches it (`t` is in whole ms, off the grid). */
-const duelTap = (t: number): { atStep: number; command: SimCommand }[] => [
+/** The fake sleep (story 4.7) is the third threat of its level: after the cry in the arms and the eyes. */
+const FAKE_SLEEP_ID = 3;
+/** A tap on a threat (the eyes by default) at `t`, held 50 ms, each enqueued at the step that reaches it (`t` is in whole ms, off the grid). */
+const duelTap = (
+  t: number,
+  threatId = BEDTIME_EYES_ID,
+): { atStep: number; command: SimCommand }[] => [
   {
     atStep: Math.floor(t / STEP_MS),
-    command: { type: 'PressThreat', t: asSimMs(t), threatId: BEDTIME_EYES_ID },
+    command: { type: 'PressThreat', t: asSimMs(t), threatId },
   },
   { atStep: Math.floor((t + 50) / STEP_MS), command: release(t + 50) },
 ];
+
+// The fake sleep (story 4.7): the frozen `fake_sleep_duel` (the eyes, then the fake sleep, 12 s each, 1 s
+// of rest, three retreats to lose) on a level that carries. Both draws of the fake sleep (the signal's and
+// the feint's, after it) come from the seed at its telegraph, so the answers are written out in whole ms
+// from the draws of seed 48 (a change of the draws moves them, on purpose: the golden says so).
+const fakeSleepLevel = () => createTestLevel({ carry: CARRY, sequences: ['fake_sleep_duel'] });
+const startFakeSleepDuel: SimCommand = {
+  type: 'StartSequence',
+  t: asSimMs(0),
+  sequenceId: 'fake_sleep_duel',
+};
 
 /** Six threats on six anchors, started by hand (the wave is far away) and never answered. */
 const INSTINCT_THREATS: readonly LevelWaveThreat[] = [
@@ -504,7 +520,10 @@ export const SCENARIOS: readonly Scenario[] = [
     level: duelLevel(),
     seed: 46,
     untilSimMs: 16000,
-    actions: [{ atStep: 0, command: startBedtimeDuel }, ...[4586, 10563, 14962].flatMap(duelTap)],
+    actions: [
+      { atStep: 0, command: startBedtimeDuel },
+      ...[4586, 10563, 14962].flatMap((t) => duelTap(t)),
+    ],
   },
   {
     // « Duel du coucher » with retreats (story 4.6): round 1 is won (signal 4740), round 2 is tapped 300 ms
@@ -517,7 +536,39 @@ export const SCENARIOS: readonly Scenario[] = [
     untilSimMs: 29000,
     actions: [
       { atStep: 0, command: startBedtimeDuel },
-      ...[4890, 9102, 19622, 23644, 27816].flatMap(duelTap),
+      ...[4890, 9102, 19622, 23644, 27816].flatMap((t) => duelTap(t)),
+    ],
+  },
+  {
+    // « Faux sommeil » won (story 4.7): the eyes' round (signal 4729) answered at the centre of its window
+    // at 4879, then the fake sleep (telegraphed at 5930, feint 8738, signal 11614) answered at 11764 the
+    // same way: the feint is let go by, both rounds are `perfect`, and the sequence ends `succeeded` at
+    // 11820 ms with the baby still carried and no retreat. `fakeSleep.test.ts` (golden) pins what it covers.
+    name: 'fake_sleep_won',
+    level: fakeSleepLevel(),
+    seed: 48,
+    untilSimMs: 13000,
+    actions: [
+      { atStep: 0, command: startFakeSleepDuel },
+      ...duelTap(4879),
+      ...duelTap(11764, FAKE_SLEEP_ID),
+    ],
+  },
+  {
+    // « Faux sommeil » falls for (story 4.7): the same game, but the tap on the fake sleep comes at its
+    // feint (8738, a tap 2876 ms before the signal): `early`, `baby_sat_up`, a cry, and a retreat to step 0
+    // (retreat 1). The eyes are won again (signal 12618, tap 12768), then the fake sleep, with a new
+    // draw (feint 17045, signal 19083), is answered at 19233: `succeeded` at 19290 ms.
+    name: 'fake_sleep_feint_pressed',
+    level: fakeSleepLevel(),
+    seed: 48,
+    untilSimMs: 21000,
+    actions: [
+      { atStep: 0, command: startFakeSleepDuel },
+      ...duelTap(4879),
+      ...duelTap(8738, FAKE_SLEEP_ID),
+      ...duelTap(12768),
+      ...duelTap(19233, FAKE_SLEEP_ID),
     ],
   },
 ];

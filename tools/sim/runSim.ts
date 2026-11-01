@@ -27,7 +27,7 @@ const CONTENT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'c
 const PROGRESS_STEPS = 10;
 
 /** The threats the `duel` steps of the level's sequences spawn on Papa (story 4.6): no wave plans them. */
-function duelDefIdsOf(level: SimLevel['level']): ReadonlySet<string> {
+export function duelDefIdsOf(level: SimLevel['level']): ReadonlySet<string> {
   const ids = new Set<string>();
   for (const sequence of Object.values(level.sequences)) {
     for (const step of sequence.steps) {

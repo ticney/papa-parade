@@ -18,6 +18,7 @@ export function threatCueOf(
   let threatId: number;
   switch (event.type) {
     case 'ThreatTelegraphed':
+    case 'WaitFeintGiven':
     case 'WaitSignalGiven':
     case 'GagTriggered':
       threatId = event.threatId;
@@ -41,6 +42,8 @@ export function threatCueOf(
   switch (event.type) {
     case 'ThreatTelegraphed':
       return feedback.telegraph;
+    case 'WaitFeintGiven':
+      return feedback.feint ?? null;
     case 'WaitSignalGiven':
       return feedback.signal ?? null;
     case 'GagTriggered':
