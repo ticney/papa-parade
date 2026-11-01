@@ -1,7 +1,7 @@
 import { invariant } from '@shared/invariant';
 import type { StepContext } from '../context.ts';
 import { putPapaToSleep } from '../papa/sleep.ts';
-import { pushProp } from '../physics/propsSystem.ts';
+import { dropProps } from '../physics/dropProps.ts';
 import type { ThreatInstance, World } from '../world.ts';
 
 /**
@@ -70,26 +70,13 @@ function stairsSlide(world: World, ctx: StepContext, threat: ThreatInstance): vo
  */
 function tableObjectFall(world: World, ctx: StepContext, threat: ThreatInstance): void {
   const { pushImpulseNs, propReachDistM } = ctx.feel.gags.tableObjectFall;
-  let nearestIndex = -1;
-  let nearestM = Number.POSITIVE_INFINITY;
-  let nearestDxM = 0;
-  let nearestDzM = 0;
-  for (let index = 0; index < world.props.length; index++) {
-    const prop = world.props[index];
-    if (prop === undefined || prop.isBroken || prop.isOnFloor) continue;
-    const dxM = prop.xM - threat.xM;
-    const dzM = prop.zM - threat.zM;
-    const distanceM = Math.sqrt(dxM * dxM + dzM * dzM);
-    if (distanceM > propReachDistM || distanceM >= nearestM) continue;
-    nearestIndex = index;
-    nearestM = distanceM;
-    nearestDxM = dxM;
-    nearestDzM = dzM;
-  }
-  if (nearestIndex < 0) return;
-  const awayX = nearestM > 0 ? nearestDxM / nearestM : world.baby.gazeX;
-  const awayZ = nearestM > 0 ? nearestDzM / nearestM : world.baby.gazeZ;
-  pushProp(world, ctx, nearestIndex, awayX * pushImpulseNs, 0, awayZ * pushImpulseNs);
+  // The choice and the push are shared with the door's spill (story 3.5): one prop, any kind.
+  dropProps(world, ctx, threat.xM, threat.zM, {
+    count: 1,
+    reachM: propReachDistM,
+    pushImpulseNs,
+    isUnbreakableOnly: false,
+  });
 }
 
 /**

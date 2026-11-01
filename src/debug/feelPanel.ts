@@ -8,7 +8,7 @@ import {
 } from '@shared/constants';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
-import type { Sim } from '@sim';
+import { isFlowLive, type Sim } from '@sim';
 import { z } from 'zod';
 import {
   type ControlDescriptor,
@@ -211,7 +211,7 @@ export function createFeelPanel(options: FeelPanelOptions): FeelPanel {
     const sim = active.sim;
     const inForce = effectiveFeel(sim);
     lastKnown = inForce;
-    if (sim.world.flow.state === 'ended') {
+    if (!isFlowLive(sim.world)) {
       say('the level has ended: the sim takes no more changes, start a level to tune');
       return getAtPath(inForce, descriptor.path);
     }

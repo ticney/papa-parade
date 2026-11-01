@@ -1,0 +1,169 @@
+import type { BabySlice, BabyState, PapaSlice, PapaState, SimEvent } from '@sim';
+import { GAG_PRESENTATIONS } from '../gags.ts';
+
+// Which clip each state and event plays (story 7.2, D5). Pure, no Three. It takes Papa, the baby and
+// event arguments and never a threat, so no clip can read a hidden answer (D9): a test scans this file.
+
+/** `Record<PapaState, …>`: a new state with no clip is a type error. `onToilet` is `idle`: `setAway` hides him. */
+const PAPA_LOOPS: Readonly<Record<PapaState, string>> = {
+  idle: 'idle',
+  walkPath: 'walk',
+  walkDir: 'walk',
+  glide: 'glide',
+  drink: 'drink',
+  asleep: 'asleep',
+  onPhone: 'on_phone',
+  onToilet: 'idle',
+};
+
+/** `wander` and `approach` crawl; a laid baby has no loop of his own: `carried`, lowered by `layDownPct`. */
+const BABY_LOOPS: Readonly<Record<BabyState, string>> = {
+  wander: 'crawl',
+  babble: 'babble',
+  targetLocked: 'locked',
+  approach: 'crawl',
+  act: 'act',
+  mischiefSilent: 'sneak',
+  carried: 'carried',
+};
+
+/** The loop Papa's state says now; the baby's state alone says whether he carries (there is no `papa.carrying`). */
+export function papaClipOf(papa: Readonly<PapaSlice>, baby: Readonly<BabySlice>): string {
+  const clip = PAPA_LOOPS[papa.state];
+  if (baby.state !== 'carried') return clip;
+  if (clip === 'idle') return 'carry_idle';
+  if (clip === 'walk') return 'carry_walk';
+  return clip;
+}
+
+/** The loop the baby's state says now. His cry is a timer apart from his state, and it overlays any of them. */
+export function babyClipOf(baby: Readonly<BabySlice>): string {
+  return baby.cryEndsAt !== null ? 'cry' : BABY_LOOPS[baby.state];
+}
+
+/** Papa's one-shot for a sim event, or null. A response is not here: its clip waits for his arrival (P3). */
+export function papaOneShotOf(event: Readonly<SimEvent>): string | null {
+  switch (event.type) {
+    case 'GagTriggered':
+      return GAG_PRESENTATIONS[event.gag].papaClip;
+    case 'PapaBlocked':
+      return 'stumble';
+    case 'PapaSnored':
+      return 'snore';
+    default:
+      return null;
+  }
+}
+
+/** The baby's one-shot for a sim event, or null. */
+export function babyOneShotOf(event: Readonly<SimEvent>): string | null {
+  switch (event.type) {
+    case 'GagTriggered':
+      return GAG_PRESENTATIONS[event.gag].babyClip;
+    case 'BabyPickedUp':
+      return 'laugh';
+    case 'BabyPutDown':
+      return 'stir';
+    case 'WaitFeintGiven':
+      return 'eyes_peek';
+    case 'WaitSignalGiven':
+      return 'eyes_open';
+    case 'BabyWoke':
+      return 'wake';
+    case 'BabyStirred':
+      return 'stir';
+    default:
+      return null;
+  }
+}
+
+/** Papa's pose for a response: perfect beats success. A Do Nothing has none: nothing is its point. */
+export function responseClipOf(response: string, quality: string): string | null {
+  if (response === 'nothing') return null;
+  if (quality === 'perfect') return 'respond_perfect';
+  return response === 'firm' ? 'respond_firm' : 'respond_parry';
+}
+
+/** How shut the baby's lids are after the feint: halfway, the eye that peeks. */
+const BABY_LIDS_PEEK = 0.5;
+
+/**
+ * How shut the baby's lids are after `event`, 0 to 1, given `current`. Only what the player is told
+ * moves them (D9): the feint, the signal (the eyes close, stories 4.6 and 4.7), the gag, the end. The
+ * next round's telegraph opens them again, and it is public: the marker shows it.
+ */
+export function babyLidsAfter(event: Readonly<SimEvent>, current: number): number {
+  switch (event.type) {
+    case 'WaitFeintGiven':
+      return BABY_LIDS_PEEK;
+    case 'WaitSignalGiven':
+      return 1;
+    case 'ThreatTelegraphed':
+    case 'GagTriggered':
+    case 'BabyWoke':
+    case 'SequenceEnded':
+      return 0;
+    default:
+      return current;
+  }
+}
+
+/** Papa's contract with his `.glb` (`characterArt.ts` checks the committed file against it). */
+export const PAPA_CONTRACT = {
+  bones: [
+    'root',
+    'spine',
+    'head',
+    'eyelids',
+    'arm_l',
+    'hand_l',
+    'arm_r',
+    'hand_r',
+    'leg_l',
+    'leg_r',
+  ],
+  visibleNodes: ['papa_body', 'papa_shirt'],
+  hiddenNodes: ['papa_mug', 'papa_handset', 'papa_hair', 'papa_look_mash', 'papa_look_shirt'],
+  clips: [
+    'idle',
+    'walk',
+    'glide',
+    'drink',
+    'asleep',
+    'on_phone',
+    'carry_idle',
+    'carry_walk',
+    'respond_parry',
+    'respond_firm',
+    'respond_perfect',
+    'gag_hit',
+    'gag_shock',
+    'stumble',
+    'snore',
+  ],
+  codeDrivenBones: ['eyelids'],
+} as const;
+
+/** The baby's contract with his `.glb`: `head` turns to the gaze and `eyelids` follow the duel, both by code. */
+export const BABY_CONTRACT = {
+  bones: ['root', 'spine', 'head', 'eyelids', 'arm_l', 'arm_r', 'leg_l', 'leg_r'],
+  visibleNodes: ['baby_body'],
+  hiddenNodes: [],
+  clips: [
+    'babble',
+    'crawl',
+    'locked',
+    'act',
+    'sneak',
+    'carried',
+    'cry',
+    'gag_delight',
+    'eyes_peek',
+    'eyes_open',
+    'sat_up',
+    'stir',
+    'wake',
+    'laugh',
+  ],
+  codeDrivenBones: ['head', 'eyelids'],
+} as const;

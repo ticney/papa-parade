@@ -8,7 +8,13 @@ import {
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
 import { asSimMs } from '@shared/time';
-import { type SequenceRefusal, type SimCommand, sequenceRefusal, type World } from '@sim';
+import {
+  isFlowLive,
+  type SequenceRefusal,
+  type SimCommand,
+  sequenceRefusal,
+  type World,
+} from '@sim';
 
 /**
  * What a cheat may do: send a command to the running sim (stamped with its current time), or ask
@@ -45,13 +51,13 @@ export function levelHasFatigue(level: { level: { gauges: { fatigue?: unknown } 
 
 /**
  * Why a command sent to the running sim would be lost, or `null` when it would be taken: no level
- * is running, or the level has ended (the sim drops commands once `flow.state` is `ended`, so
+ * is running, or the level has ended (the sim drops commands once the flow is no longer live, `ended` or `photo`, so
  * « sent » would be a lie). The overlay shows it in its status line.
  */
 export function refusalReason(host: TestHost): string | null {
   const active = host.levelSession.active;
   if (active === null) return 'no level is running';
-  if (active.sim.world.flow.state === 'ended') return 'the level has ended';
+  if (!isFlowLive(active.sim.world)) return 'the level has ended';
   return null;
 }
 
@@ -102,6 +108,7 @@ export function sequenceRefusalText(world: Readonly<World>): string | null {
     papaBusy: 'Papa is busy (coffee, nap, call or toilet)',
     silence: 'the baby is hiding (a silence is under way)',
     phoneRinging: 'a phone is ringing (answer it first)',
+    finalRush: 'the final rush has begun (no sequence starts in it)',
   };
   return texts[reason];
 }
@@ -224,7 +231,7 @@ export function createSkipToEnd(
       stop();
       return;
     }
-    if (active.sim.world.flow.state === 'ended') {
+    if (!isFlowLive(active.sim.world)) {
       stop();
       return;
     }

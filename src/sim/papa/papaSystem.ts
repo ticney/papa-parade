@@ -16,6 +16,7 @@ import { startGlide } from './glide.ts';
 import { enterPapaState, isPapaBusy } from './papaFsm.ts';
 import { startCall } from './phoneCall.ts';
 import { startWalkTo } from './planWalk.ts';
+import { messPropIndexOf, tidyProp } from './tidyProp.ts';
 import { finishToilet, startToilet } from './toilet.ts';
 import { stepInDirection } from './walk.ts';
 
@@ -126,14 +127,22 @@ function arrive(world: World, ctx: StepContext): void {
       const object = objects[i] as SimObjectSpec;
       if (object.id === objectId && OBJECT_ACTIONS[object.kind](world, ctx, object)) return;
     }
+    // The walk was to a prop of the final rush (story 3.5): still a mess on arrival, it is tidied.
+    const propIndex = messPropIndexOf(world, objectId);
+    if (propIndex >= 0) {
+      tidyProp(world, ctx, propIndex);
+      enterPapaState(world, ctx, 'idle');
+      return;
+    }
   }
   enterPapaState(world, ctx, 'idle');
 }
 
 /**
  * Walks to an interactive object of the level exactly as a tap on its anchor does, then says so.
- * The walk remembers the object (`papa.objectId`): arriving runs its action. An unknown id does
- * nothing.
+ * The walk remembers the object (`papa.objectId`): arriving runs its action. In the final rush the
+ * id of a prop that is a mess is walked to the same way and tidied on arrival (story 3.5). An unknown
+ * id does nothing.
  */
 function tapObject(world: World, ctx: StepContext, objectId: string): void {
   const objects = ctx.level.objects;
@@ -150,6 +159,16 @@ function tapObject(world: World, ctx: StepContext, objectId: string): void {
       ctx.events.push({ type: 'ObjectTapped', t: world.time.sim, objectId });
     }
     return;
+  }
+  // In the final rush only, a prop that is a mess is walked to like an object (story 3.5); the same
+  // id outside the rush, or a prop that is not a mess, does nothing.
+  if (world.flow.state !== 'finalRush') return;
+  const propIndex = messPropIndexOf(world, objectId);
+  const prop = propIndex >= 0 ? world.props[propIndex] : undefined;
+  if (prop === undefined) return;
+  if (startWalkTo(world, ctx, prop.xM, prop.zM) !== null) {
+    world.papa.objectId = objectId;
+    ctx.events.push({ type: 'ObjectTapped', t: world.time.sim, objectId });
   }
 }
 

@@ -165,6 +165,38 @@ describe('createRapierPhysics', () => {
     port.dispose();
   });
 
+  it('resetProp puts a fallen, spinning prop back at a pose with no rotation and no velocity, awake (story 3.5)', async () => {
+    const port = await createRapierPhysics({ geometry: roomWith(1.05), physics });
+    port.applyImpulse(0, 0.3, 0.1, 0.05);
+    stepN(port, 400);
+    expect(poseOf(port).xM).not.toBeCloseTo(0, 1);
+    port.resetProp(0, 0, 1.05, 0);
+    expect(port.isSleeping(0)).toBe(false);
+    const reset = poseOf(port);
+    // Rapier keeps single-precision floats.
+    expect(reset).toEqual({ xM: 0, yM: Math.fround(1.05), zM: 0, qx: 0, qy: 0, qz: 0, qw: 1 });
+    // No velocity left: it starts falling straight down, upright, from rest.
+    stepN(port, 10);
+    const falling = poseOf(port);
+    expect(falling.xM).toBeCloseTo(0, 4);
+    expect(falling.zM).toBeCloseTo(0, 4);
+    expect(falling.yM).toBeLessThan(1.05);
+    expect(falling.yM).toBeGreaterThan(1.05 - 0.5 * 9.81 * 0.1 ** 2 - 0.01);
+    expect(Math.abs(falling.qx) + Math.abs(falling.qz)).toBeLessThan(1e-4);
+    port.dispose();
+  });
+
+  it('resetProp to a resting pose re-settles with no impact above the threshold (story 3.5)', async () => {
+    const port = await createRapierPhysics({ geometry: roomWith(0.05), physics });
+    stepN(port, 300);
+    port.applyImpulse(0, 0.3, 0, 0);
+    stepN(port, 300);
+    port.resetProp(0, 0, 0.05, 0);
+    const impacts = impactsOver(port, 300);
+    expect(impacts.filter((hit) => hit.impulseNs >= physics.impactMinImpulseNs)).toEqual([]);
+    port.dispose();
+  });
+
   it('keeps a prop pushed with the largest allowed impulse inside the room, whatever the direction', async () => {
     const maxNs = physics.maxPushImpulseNs;
     const [minX, , minZ] = createTestLevelGeometry().boundsMinM;

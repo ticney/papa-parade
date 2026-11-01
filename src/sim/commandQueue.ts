@@ -4,6 +4,7 @@ import { asSimMs, type SimMs } from '@shared/time';
 import type { SimCommand } from './commands.ts';
 import type { StepContext } from './context.ts';
 import { applyFeelPatch } from './feel/applyFeelPatch.ts';
+import { isFlowLive } from './flow/flowFsm.ts';
 import type { JournalEntry } from './journal.ts';
 import type { World } from './world.ts';
 
@@ -62,7 +63,7 @@ export function createCommandQueue(): CommandQueue {
 export function applyCommands(world: World, ctx: StepContext): void {
   ctx.commands.length = 0;
   ctx.queue.drainDue(world.time.sim + STEP_MS, ctx.commands);
-  if (world.flow.state === 'ended') return;
+  if (!isFlowLive(world)) return;
   for (let i = 0; i < ctx.commands.length; i++) {
     const command = ctx.commands[i] as SimCommand;
     if (command.type === 'SetInputLag') {

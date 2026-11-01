@@ -878,6 +878,10 @@
 - **The bot's crib tap and the gather can pick different safe zones.** `safeSpotOf` takes the first safe zone, open or not; `gather` takes `nearestOpenSafeZoneIndex`. Unreachable in `chambre_night`, which has one open crib; `cycleProblems` would accept a room where it matters. `src/bots/botResponses.ts:18`.
 - **An entry of the cycle can start with no time left.** `runCycle` has no guard like the threats' `isJudgeableBeforeEnd`, so an entry due in the last moments cancels every open threat (`ThreatCancelled{sequence}`), may pop Papa or the baby at the cap, then ends `cut`, which inflates `attempts` but not the rate. Deferred by Geo: rare, and a fix would invent a game rule before the first playtest. `src/sim/sequences/bedtimeCycle.ts:228`.
 
+## Deferred from: code review of 3-5-porte-qui-s-ouvre-et-rush-final (2026-11-01)
+
+- **In `chambre_night`, a player who wins the bedtime cycle never sees the door.** `cycleDone` is tested before the rush (AC 5) and `playableMsOf` makes the cycle fit before `durationMs - finalRushMs` (AC 21), so a won cycle always ends `cycleDone` / `ended`, with no door, no spill and no photo; in the story's 30 bot games neither reached the rush in the bedroom. It follows the ACs to the letter, and changing it would invent a game rule before the first playtest, so it is kept as is. To revisit after the second prototype's playtest: let a won cycle go on to the rush and the photo, which means changing AC 5 and AC 21. `src/sim/flow/flowSystem.ts:81`.
+
 ## Story 7-1-pieces-modelisees-dans-blender (2026-11-01)
 
 - **`COL_stairs` has no visual, so its blob shadow is a lone smudge on the salon's floor** near the stairs. The collider is frozen in this story. Reason: the blob heuristic, for 7.3 (or a visual there, in a later art pass).
@@ -902,3 +906,35 @@
 - **Calm plays alone for the level when tense lands after the level started** (`adaptiveMusic.ts:199`): joining mid-loop needs the running calm's position, or a restart that would be heard. Only on a connection slow enough to time out.
 - **A tense decode that never settles keeps a decoded calm silent until an unmute** (`audioEngine.ts`, `resumeAfterLateClip`): `decodeAudioData` has no timeout anywhere in the engine.
 - **`data-pp-audio-clips` is stale after a preload gives up:** it reports the count at the timeout (66 of 68 with late stems), not the late clips. Debug mirror only; `decodedCount` is right.
+## Story 7-2-personnages-rigges-et-animes (2026-11-01)
+
+Closed:
+
+- **« Papa's yaw has no smoothing » (1.7):** done, in the view only (`turnToward`, `feedback.json › characters.turnRateDegPerSec`, not `feel.json`: the sim never reads it). `pose.yawRad` stays the sim's.
+- **« Smoothed turning of the gaze marker and any crawl animation » (1.8):** the crawl is done. The gaze stays immediate on purpose: the head makes up for whatever the body has not turned yet.
+- **« The mug Papa holds while he drinks is nearly invisible » (coffee machine marker branch):** done: a bigger mug, ink rim and handle, arm up and out to his side so that it reads from behind him. Seen by eye in the salon.
+- **« The baby's eyes » comments in `gags.ts` (4.6, 4.7, 4.8):** done by clips and by `babyLidsAfter`.
+- **Near-white baby on the pale safe floors (7.1 review):** he now wears a teal onesie and bonnet. There is still no guard with thresholds: Geo's call.
+
+Handed on:
+
+- **Inverted-hull outline on Papa and the baby:** to story 7.3. The meshes are closed, with outward normals. They are built of overlapping rigid parts, so 7.3 should check the hull at the joints.
+
+Open:
+
+- **Mama, the dog and the children have no model** (D1): Mama with stories 3.5 / 3.7, the dog with 6.1, the children with 6.4 to 6.8. Each is one `.blend`, one contract in `characterClips.ts`, one id in `CHARACTER_IDS` and one view. The children will need `SkeletonUtils.clone`.
+- **Story 3.7 wires `setLook`** and adds `World.papa.look`, `lookChange` and the Laugh weights (D2). Today only the debug `__PP__.setPapaLook` sets it; `levelScene.update` needs one line.
+- **Untouched:** « le bébé se hisse », « Papa retire l'objet », the stairs slide's height, shards and mischief drawings. The hop and the slide keep their provisional code.
+- **The clip `eyes_open` plays on the signal, and the signal closes the baby's eyes** (4.6, 4.7: `signalIcon: eyelids`). The contract named the clip, so it stays, but it only moves his neck and spine; `babyLidsAfter` shuts the lids. Reason: a name to settle with Geo, renaming means one action in the `.blend` and one line of code.
+- **The baby's shut lids at the signal were not seen on screen:** the marker stands over him in the capture. Unit tests pin the bone. Reason: look at it in play, and it may decide where that marker goes.
+- **Rigid parts, no elbows:** one bone per limb, so `on_phone` and `drink` read as poses more than gestures, and a carried baby hides behind Papa on some headings. Reason: first-pass art (D3); Geo's call on what to rework.
+
+## Deferred from: code review of 7-2-personnages-rigges-et-animes (2026-11-01)
+
+- **A squash restarted mid-run snaps back to scale 1** (`levelScene.ts:447`): a second event on the same character sets `startAt` again and the curve begins at 1 from wherever it stood. Reason: keep the larger, blend or ignore is a feel call, for Geo once he has watched it move.
+- **The baby's head is not limited against his body** (`babyView.ts:180`): up to 180° of twist for the 250 ms or so the body (720°/s) takes to catch up with a gaze that flips. Reason: the gaze is immediate on purpose (D9, readability) and a limit would delay it; judge it in play.
+- **Only `idle` and `walk` have carried variants** (`characterClips.ts:31`): `glide`, `drink`, `asleep` and `on_phone` with a carried baby play the arms-free clip. Reason: the contract lists `carry_idle` and `carry_walk` only; Geo's call on what the first-pass art needs.
+- **Feel numbers left in code**: `BABY_LIDS_PEEK = 0.5` and the clip speed clamp `CLIP_TIME_SCALE_MIN` / `MAX` = 0.3 / 2.5. Reason: move them to `feedback.json › characters` when Geo asks to tune them.
+- **`responseClipOf` takes untyped strings** (`characterClips.ts:81`): a new response kind or a renamed quality silently plays `respond_parry`. Reason: no new response kind is planned; type them from `ResponseResolved` when one is added.
+- **A one-shot no longer than `crossFadeMs` ends at its first update** (`characterRig.ts:170`): the schema has no upper bound on `crossFadeMs`; the shortest clips are three times today's 140 ms. Reason: only if Geo raises `crossFadeMs` past a third of the shortest clip; add a bound then.
+- **Code-driven bones assume an identity rest rotation** (`babyView.ts:180`): true of the committed files, checked by nothing for a re-export. Reason: add the check to `characterAssets.test.ts` with the next Blender export.

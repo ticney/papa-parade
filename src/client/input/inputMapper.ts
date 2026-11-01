@@ -8,12 +8,13 @@ import {
   isFlowLive,
   isPapaBusy,
   isStealthStepRunning,
+  type World,
 } from '@sim';
 import type { AppFsm } from '../app/appFsm.ts';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import type { PauseController } from '../app/pauseController.ts';
 import { pickAutoTarget } from './autoTarget.ts';
-import { isKindInReach, pickContextObject } from './contextObject.ts';
+import { isKindInReach, pickContextObject, pickMessProp } from './contextObject.ts';
 import {
   createPadState,
   type GamepadInput,
@@ -22,7 +23,7 @@ import {
   type PadFamily,
   type StickAxes,
 } from './gamepadInput.ts';
-import type { FloorPoint, HitTester, ObjectTarget, ThreatTargets } from './hitTest.ts';
+import type { FloorPoint, HitTester, ObjectTarget, PickTarget, ThreatTargets } from './hitTest.ts';
 import { type MenuStickMemory, stickToMenuStep } from './menuStep.ts';
 import type { FloorDir } from './moveDirection.ts';
 import type { MoveIntent } from './moveIntent.ts';
@@ -184,6 +185,22 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
   const picked: FloorPoint = { xM: 0, zM: 0 };
   /** The point a tap on the baby aims at: his floor point, or where he is drawn when carried. */
   const babyAim: FloorPoint = { xM: 0, zM: 0 };
+  // The targets of a tap in the final rush: the level's objects, then the props that are a mess
+  // (story 3.5). One buffer, refilled at each tap, so that a tap allocates nothing.
+  const messTargets: PickTarget[] = [];
+  const messTargetsOf = (
+    world: Readonly<World>,
+    objects: readonly ObjectTarget[],
+  ): readonly PickTarget[] => {
+    if (world.flow.state !== 'finalRush') return objects;
+    messTargets.length = 0;
+    for (let i = 0; i < objects.length; i++) messTargets.push(objects[i] as ObjectTarget);
+    for (let i = 0; i < world.props.length; i++) {
+      const prop = world.props[i] as World['props'][number];
+      if (prop.isMess) messTargets.push(prop);
+    }
+    return messTargets;
+  };
   let lastDevice: InputDevice | null = null;
   let wasPadPresent = false;
   let wasStickPushed = false;
@@ -348,6 +365,15 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     // object, both in reach (story 1.21: ties go to the baby; story 4.1: not while he is carried).
     const { papa, baby } = active.sim.world;
     const { contextReachM } = deps.input;
+    // In the final rush a prop that is a mess comes first (story 3.5): ahead of the baby, carried or
+    // not, and of any object. With none in reach the action is what it always was.
+    if (active.sim.world.flow.state === 'finalRush') {
+      const propId = pickMessProp(active.sim.world.props, papa.xM, papa.zM, contextReachM);
+      if (propId !== null) {
+        active.sim.enqueue({ type: 'TapObject', t, objectId: propId });
+        return;
+      }
+    }
     const objects = deps.getObjects();
     const isCarried = baby.state === 'carried';
     // A toilet is no object in reach while the baby is carried (story 4.3): the sim refuses the trip,
@@ -572,14 +598,18 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
         deps.objectTouchRadiusPx,
       );
       const objects = deps.getObjects();
+      // In the final rush a prop that is a mess is a target like an object (story 3.5): one list, so the
+      // nearest to the finger wins whatever it is (objects first on a tie), and the baby is weighed
+      // against all of them.
+      const pickTargets = messTargetsOf(active.sim.world, objects);
       const objectId =
-        objects.length === 0
+        pickTargets.length === 0
           ? null
           : deps.hitTester.pickObject(
               sample.clientX,
               sample.clientY,
               rect,
-              objects,
+              pickTargets,
               babyDistSq === null
                 ? deps.objectTouchRadiusPx
                 : Math.sqrt(babyDistSq) - STRICTLY_NEARER_PX,
@@ -602,11 +632,21 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (objectId !== null && isStealth) return;
       if (objectId !== null) {
         const object = objects.find((candidate) => candidate.id === objectId);
+        const prop =
+          object === undefined
+            ? active.sim.world.props.find((candidate) => candidate.id === objectId)
+            : undefined;
         active.sim.enqueue({
           type: 'TapObject',
           t: toSim(active, sample.timeStamp),
           objectId,
         });
+        // A prop of the rush: the marker shows where Papa will stand, the prop's floor point.
+        if (prop !== undefined) {
+          deps.showTapMarker(prop.xM, prop.zM);
+          deps.onTap?.(prop.xM, prop.zM);
+          return;
+        }
         // The marker shows where Papa will stand: the object's floor point. Not for a toilet while
         // he carries the baby (story 4.3): Papa goes nowhere, the sim refuses and the hint says why.
         if (object !== undefined && !(isCarried && object.kind === 'toilet')) {

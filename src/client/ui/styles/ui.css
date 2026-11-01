@@ -540,6 +540,28 @@ body {
   height: 28px;
 }
 
+/* The final rush (story 3.5): the pill turns alert-yellow and beats gently, so that the last ten
+   seconds read at a glance. Colour and a slow pulse (under the 3 Hz ceiling), never colour alone:
+   the digits still count down. Reduced motion keeps the colour and drops the pulse. */
+.pp-hud-timer--rush {
+  background: var(--pp-color-alert);
+  animation: pp-timer-rush-pulse 1000ms ease-in-out infinite;
+}
+
+@keyframes pp-timer-rush-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+:where(:root[data-pp-motion="reduced"]) .pp-hud-timer--rush {
+  animation: none;
+}
+
 /* While a sequence bar sits under it (story 4.4, UX-DR23): 32 px tall, the compact digits. */
 .pp-hud-timer--compact {
   height: 32px;
@@ -1639,6 +1661,16 @@ body {
 .pp-exit-marker-glyph {
   width: 40px;
   height: 40px;
+}
+
+/* The tidy markers of the final rush (story 3.5): « RANGE ! » over each prop that is a mess, in the
+   look of a threat's verb. World-anchored, never takes a tap (the hit test aims at the prop). */
+.pp-tidy-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 /* ---------------------------------------------------------------------------------------------

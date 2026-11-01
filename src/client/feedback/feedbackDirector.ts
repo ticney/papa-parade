@@ -17,6 +17,8 @@ export interface FeedbackDirectorDeps {
   haptics: Haptics;
   /** The level's interactive objects (constant): where an `object`-anchored ring starts from (story 1.20). */
   getObjects?(): readonly SimObjectSpec[];
+  /** Where the level's door stands (`ANCHOR_door`, constant): where a `door`-anchored ring starts from (story 3.5). */
+  getDoorPoint?(): { readonly xM: number; readonly zM: number } | null;
   /** The current level's effects, `null` outside a level (a scene behind the loading screen is not played on). */
   getScene(): LevelFx | null;
   /** `accessibility.isMotionReduced` in boot: the player's « Réduire les animations » switch, or the OS setting (story 2.10). */
@@ -117,10 +119,11 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
   };
 
   // Where a ring starts from. A `threat` anchor is the threat the event names, read from the world
-  // by id; an `object` anchor is the object it names, read from the level's objects by id; with
+  // by id; an `object` anchor is the object it names, read from the level's objects by id; a `door`
+  // anchor is the level's door (story 3.5); with
   // none the ring is skipped (the sound and the vibration still play).
   const anchorOf = (
-    anchor: 'papa' | 'baby' | 'threat' | 'object',
+    anchor: 'papa' | 'baby' | 'threat' | 'object' | 'door',
     world: Readonly<World>,
     threatId: number | null,
     objectId: string | null,
@@ -128,6 +131,12 @@ export function createFeedbackDirector(deps: FeedbackDirectorDeps): FeedbackDire
   ): { xM: number; zM: number } | null => {
     if (anchor === 'papa') return world.papa;
     if (anchor === 'baby') return world.baby;
+    if (anchor === 'door') {
+      const door = deps.getDoorPoint?.() ?? null;
+      if (door !== null) return door;
+      log.warn('feedback', `feedback ring for ${name} skipped: the level has no door`);
+      return null;
+    }
     if (anchor === 'object') {
       if (objectId !== null) {
         const objects = deps.getObjects?.() ?? [];

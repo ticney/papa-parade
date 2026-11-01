@@ -32,7 +32,7 @@ async function newSim(waves = false, durationMs = DURATION_MS) {
 
 describe('the flow FSM', () => {
   it('lists every state, and is proved complete at compile time', () => {
-    expect([...FLOW_STATES]).toEqual(['playing', 'sequence', 'ended']);
+    expect([...FLOW_STATES]).toEqual(['playing', 'sequence', 'finalRush', 'photo', 'ended']);
     expect(FLOW_STATES_ARE_COMPLETE).toBe(true);
   });
 
@@ -41,7 +41,7 @@ describe('the flow FSM', () => {
     stepN(sim, 5);
     const world = sim.world as Parameters<typeof enterFlowState>[0];
     enterFlowState(world, 'ended');
-    expect(world.flow).toEqual({ state: 'ended', enteredAt: 5 * STEP_MS });
+    expect(world.flow).toEqual({ state: 'ended', enteredAt: 5 * STEP_MS, finalRushAt: null });
     expect(sim.drainEvents()).toEqual([]);
   });
 });
@@ -49,7 +49,7 @@ describe('the flow FSM', () => {
 describe('runFlow', () => {
   it('starts playing', async () => {
     const sim = await newSim();
-    expect(sim.world.flow).toEqual({ state: 'playing', enteredAt: 0 });
+    expect(sim.world.flow).toEqual({ state: 'playing', enteredAt: 0, finalRushAt: null });
   });
 
   it('ends the level at the first step where the clock reaches durationMs, with LevelEnded{timer} once', async () => {
@@ -59,7 +59,11 @@ describe('runFlow', () => {
     expect(sim.drainEvents().some((event) => event.type === 'LevelEnded')).toBe(false);
     sim.step();
     expect(sim.world.time.sim).toBe(DURATION_MS);
-    expect(sim.world.flow).toEqual({ state: 'ended', enteredAt: DURATION_MS });
+    expect(sim.world.flow).toEqual({
+      state: 'ended',
+      enteredAt: DURATION_MS,
+      finalRushAt: null,
+    });
     expect(sim.drainEvents().filter((event) => event.type === 'LevelEnded')).toEqual([
       { type: 'LevelEnded', t: DURATION_MS, reason: 'timer' },
     ]);
@@ -196,7 +200,7 @@ describe('runFlow: Mama wakes (story 3.2)', () => {
     const events = sim.drainEvents();
     const t = sim.world.time.sim;
     expect(sim.world.gauges.noisePct).toBe(100);
-    expect(sim.world.flow).toEqual({ state: 'ended', enteredAt: t });
+    expect(sim.world.flow).toEqual({ state: 'ended', enteredAt: t, finalRushAt: null });
     expect(events.map((event) => event.type)).toEqual([
       'NoiseChanged',
       'MamaWoke',

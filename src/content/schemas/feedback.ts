@@ -118,9 +118,9 @@ const SoundWaveSchema = z
   .strictObject({
     kind: z.literal('soundWave').describe('A ring on the floor that grows and fades.'),
     anchor: z
-      .enum(['papa', 'baby', 'threat', 'object'])
+      .enum(['papa', 'baby', 'threat', 'object', 'door'])
       .describe(
-        'Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption def points at.',
+        "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption def points at. `door` is the level's `ANCHOR_door` (story 3.5), for a generic event.",
       ),
     maxRadiusM: z.number().gt(0).max(3).describe('Radius of the ring when it is gone, in metres.'),
     durationMs: z
@@ -273,6 +273,29 @@ const PapaHintSchema = z
   })
   .describe('The hint above Papa (story 4.3). Real time: the sim never reads it.');
 
+const DoorSchema = z
+  .strictObject({
+    openMs: z
+      .number()
+      .positive()
+      .describe(
+        'How long the door takes to swing open once the final rush starts, in sim ms (story 3.5). Read on the render sim clock, so a pause or a slow-mo holds it.',
+      ),
+    openAngleDeg: z
+      .number()
+      .gt(0)
+      .max(170)
+      .describe(
+        'How far the door panel swings open, in degrees (the panel is centred on the door anchor and hinged at one end).',
+      ),
+    widthM: z.number().positive().describe("The door panel's width, in metres."),
+    heightM: z.number().positive().describe("The door panel's height, in metres."),
+    thicknessM: z.number().positive().describe("The door panel's thickness, in metres."),
+  })
+  .describe(
+    "The door on screen (story 3.5): a closed panel at the level's `ANCHOR_door` that swings open from the start of the final rush. Read per frame on the sim clock; the sim never reads it.",
+  );
+
 const BombDropSchema = z
   .strictObject({
     laidHeightM: z
@@ -329,6 +352,95 @@ const BeatRingSchema = z
   })
   .describe('The ring that closes on Papa at each beat (story 4.5). Sim time: a pause holds it.');
 
+/** The sim events a character squashes on, and who (story 7.2, D7). */
+export const SQUASH_EVENTS = [
+  'PapaArrived',
+  'PapaBlocked',
+  'BabyPickedUp',
+  'BabyPutDown',
+  'GagTriggered',
+  'BabyWoke',
+  'BabyStirred',
+] as const;
+export const SQUASH_CHARACTERS = ['papa', 'baby'] as const;
+
+const SquashRowSchema = z
+  .strictObject({
+    event: z.enum(SQUASH_EVENTS).describe('The sim event that starts it.'),
+    character: z.enum(SQUASH_CHARACTERS).describe('Who squashes.'),
+    amountPct: z
+      .number()
+      .min(-60)
+      .max(60)
+      .refine((value) => value !== 0, 'an amount of 0 is no squash: remove the row')
+      .describe(
+        'How much his height changes at the peak of the curve, in percent: below 0 he squashes first and then stretches, above 0 the other way round. His width follows so that his volume holds. The bounds keep his height strictly positive.',
+      ),
+    durationMs: z.int().positive().describe('How long it lasts, in sim ms.'),
+  })
+  .describe('One squash and stretch: one event on one character.');
+
+const ClipSpeedSchema = z
+  .strictObject({
+    clip: z
+      .string()
+      .regex(CUE_ID_PATTERN, 'a clip name is lower_snake_case')
+      .describe('The looping clip of a walk or a crawl, as named in the `.glb`.'),
+    speedMps: z
+      .number()
+      .positive()
+      .describe(
+        'The floor speed at which this clip plays at its own pace, in m/s: its feet do not slide at that speed. Faster or slower, it plays in proportion.',
+      ),
+  })
+  .describe('The natural speed of one travelling clip.');
+
+const CharactersSchema = z
+  .strictObject({
+    crossFadeMs: z
+      .int()
+      .positive()
+      .describe('How long a clip takes to replace another, in sim ms.'),
+    turnRateDegPerSec: z
+      .number()
+      .positive()
+      .describe(
+        "How fast a character's body turns to face its way, in degrees per sim second. The sim's heading and the baby's eyes do not wait for it.",
+      ),
+    squash: z.array(SquashRowSchema).describe('Which events squash and stretch whom.'),
+    clipSpeeds: z.array(ClipSpeedSchema).describe('The natural speed of the travelling clips.'),
+  })
+  .superRefine((characters, ctx) => {
+    // One row each: a second row for the same thing would silently win or lose, and an edit of Geo's
+    // would then do nothing.
+    const squashed = new Set<string>();
+    for (const [index, row] of characters.squash.entries()) {
+      const key = `${row.event}/${row.character}`;
+      if (squashed.has(key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['squash', index],
+          message: `a second squash of ${row.character} on ${row.event}: one row each`,
+        });
+      }
+      squashed.add(key);
+    }
+    const travelling = new Set<string>();
+    for (const [index, row] of characters.clipSpeeds.entries()) {
+      if (travelling.has(row.clip)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['clipSpeeds', index],
+          message: `a second speed for the clip "${row.clip}": one row each`,
+        });
+      }
+      travelling.add(row.clip);
+    }
+  })
+  .describe(
+    'The animated characters (story 7.2). Read by the views on the sim clock; the sim never reads it.',
+  );
+
 export const FeedbackTableSchema = z
   .strictObject({
     buses: BusesSchema,
@@ -347,6 +459,8 @@ export const FeedbackTableSchema = z
     comboBadge: ComboBadgeSchema,
     papaHint: PapaHintSchema,
     bombDrop: BombDropSchema,
+    characters: CharactersSchema,
+    door: DoorSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),

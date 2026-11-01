@@ -301,3 +301,54 @@ export function planCycleDrop(
   memory.sentForNextAt = nextAt;
   out.push({ type: 'TapFloor', t: asSimMs(now), xM: safeSpot.xM, zM: safeSpot.zM });
 }
+
+/** A prop is not tapped twice within this long: a prop Papa cannot get to must not fill the journal (a bot's habit). */
+const TIDY_RETRY_MS = 1000;
+
+/** When the bot last tapped each prop, in sim ms, by prop id: see {@link planTidy}. */
+export interface TidyMemory {
+  readonly sentAtById: Map<string, number>;
+}
+
+export function createTidyMemory(): TidyMemory {
+  return { sentAtById: new Map() };
+}
+
+/**
+ * The tidying of the final rush (story 3.5), shared by `perfect` and `human`: in the rush, Papa idle
+ * and nothing of the bot's to answer, one `TapObject` on the nearest prop that is a mess, stamped `now`.
+ * `waitMs` is how long after the door opened (`flow.finalRushAt`) it starts: 0 for `perfect`, `reactionMs`
+ * for `human` (nobody tidies before having seen the door open). It draws nothing from `world.rng`, and
+ * does nothing outside the rush, so the games of a level without one are untouched. One command per
+ * prop, then the next one when Papa is idle again; a prop it just tapped waits {@link TIDY_RETRY_MS}.
+ */
+export function planTidy(
+  world: Readonly<World>,
+  responses: Readonly<Record<string, BotResponse>>,
+  out: SimCommand[],
+  memory: TidyMemory,
+  waitMs: number,
+): void {
+  const { finalRushAt } = world.flow;
+  if (world.flow.state !== 'finalRush' || finalRushAt === null) return;
+  const now = world.time.sim;
+  if (now < finalRushAt + waitMs) return;
+  const { papa } = world;
+  if (papa.state !== 'idle' || isAnswerUp(world.threats, responses)) return;
+  let nearestId: string | null = null;
+  let nearestSq = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < world.props.length; i++) {
+    const prop = world.props[i] as World['props'][number];
+    if (!prop.isMess) continue;
+    const sentAt = memory.sentAtById.get(prop.id);
+    if (sentAt !== undefined && now - sentAt < TIDY_RETRY_MS) continue;
+    const squared = (prop.xM - papa.xM) ** 2 + (prop.zM - papa.zM) ** 2;
+    if (squared < nearestSq) {
+      nearestSq = squared;
+      nearestId = prop.id;
+    }
+  }
+  if (nearestId === null) return;
+  memory.sentAtById.set(nearestId, now);
+  out.push({ type: 'TapObject', t: asSimMs(now), objectId: nearestId });
+}

@@ -59,7 +59,7 @@ function setup() {
     enqueue: (command: SimCommand) => commands.push(command),
     world: {
       time: { sim: asSimMs(777) },
-      flow: { state: 'playing' as 'playing' | 'ended' | 'sequence' },
+      flow: { state: 'playing' as 'playing' | 'ended' | 'sequence' | 'finalRush' },
       sequence: {
         beat: { isRunning: false },
         duel: { isRunning: false },
@@ -69,6 +69,13 @@ function setup() {
       // Far from the first tests' taps and from Papa: the baby only matters in the tests about him.
       baby: { xM: 40, zM: 40 },
       threats: [] as unknown[],
+      props: [] as {
+        id: string;
+        xM: number;
+        yM: number;
+        zM: number;
+        isMess: boolean;
+      }[],
     },
   };
   let active: ActiveLevel | null = { sim, timeMap: clock } as unknown as ActiveLevel;
@@ -1977,6 +1984,165 @@ describe('createInputMapper: the toilet (story 4.3)', () => {
       expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'toilet' }]);
       expect(markers).toEqual([]);
       expect(taps).toEqual([]);
+    });
+  });
+});
+
+describe('createInputMapper: tidying in the final rush (story 3.5)', () => {
+  const MUG = { id: 'mug_01', xM: 0.8, yM: 0.05, zM: 0.2, isMess: true };
+  const BOOK = { id: 'book_01', xM: 3.4, yM: 0.02, zM: -0.5, isMess: true };
+  const PHONE = { id: 'phone', kind: 'phone' as const, xM: 0.3, yM: 0.65, zM: 0 };
+  const pxOfPoint = (
+    camera: Parameters<typeof Vector3.prototype.project>[0],
+    o: { xM: number; yM: number; zM: number },
+  ) => {
+    const v = new Vector3(o.xM, o.yM, o.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+
+  /** A threat of the sim's world, active, closing at `windowOpenAt + 600`. */
+  const threatAt = (id: number, xM: number, zM: number, windowOpenAt: number) =>
+    ({
+      id,
+      state: 'telegraph',
+      xM,
+      zM,
+      windowOpenAt,
+      responseWindow: { windowMs: 600, perfectMs: 100, toleranceMs: 30, bufferMs: 100 },
+    }) as never;
+
+  function rush(props = [MUG, BOOK]) {
+    const harness = setup();
+    harness.sim.world.flow.state = 'finalRush';
+    harness.sim.world.props.push(...props.map((prop) => ({ ...prop })));
+    return harness;
+  }
+
+  describe('a tap', () => {
+    it('sends TapObject for a prop that is a mess, with the marker at its floor point', () => {
+      const { mapper, commands, markers, taps, camera } = rush();
+      const at = pxOfPoint(camera, MUG);
+      mapper.handlePointerDown(click(at.x, at.y + OBJECT_TOUCH_RADIUS_PX - 2));
+      expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'mug_01' }]);
+      expect(markers).toEqual([[MUG.xM, MUG.zM]]);
+      expect(taps).toEqual([[MUG.xM, MUG.zM]]);
+    });
+
+    it('does not see a prop that is no mess, or any prop outside the rush: the finger walks to the floor', () => {
+      const flat = rush([{ ...MUG, isMess: false }]);
+      const at = pxOfPoint(flat.camera, MUG);
+      flat.mapper.handlePointerDown(click(at.x, at.y));
+      expect(flat.commands.map((c) => c.type)).toEqual(['TapFloor']);
+      const outside = rush();
+      outside.sim.world.flow.state = 'playing';
+      const there = pxOfPoint(outside.camera, MUG);
+      outside.mapper.handlePointerDown(click(there.x, there.y));
+      expect(outside.commands.map((c) => c.type)).toEqual(['TapFloor']);
+    });
+
+    it('goes to the nearer to the finger of a prop and an object', () => {
+      const { mapper, commands, camera, setObjects } = rush();
+      setObjects([PHONE]);
+      const mug = pxOfPoint(camera, MUG);
+      const phone = pxOfPoint(camera, PHONE);
+      // On the mug: the mug is nearer than the phone, whatever the radius allows.
+      mapper.handlePointerDown(click(mug.x, mug.y));
+      expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'mug_01' }]);
+      commands.length = 0;
+      mapper.handlePointerDown(click(phone.x, phone.y));
+      expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'phone' }]);
+    });
+
+    it('gives a tie between a prop and an object to the object', () => {
+      // The mug lies exactly where the phone is drawn: the finger is as near to both.
+      const { mapper, commands, camera, setObjects } = rush([
+        { ...MUG, xM: PHONE.xM, yM: PHONE.yM, zM: PHONE.zM },
+      ]);
+      setObjects([PHONE]);
+      const at = pxOfPoint(camera, PHONE);
+      mapper.handlePointerDown(click(at.x, at.y));
+      expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'phone' }]);
+    });
+
+    it('weighs a prop against the baby as it does an object: nearer wins, a tie goes to the baby', () => {
+      const { mapper, sim, commands, camera } = rush();
+      const mug = pxOfPoint(camera, MUG);
+      // The baby stands beside the mug but his centre is farther from the finger.
+      Object.assign(sim.world.baby, { xM: MUG.xM + 0.35, zM: MUG.zM, state: 'babble' });
+      mapper.handlePointerDown(click(mug.x, mug.y));
+      expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'mug_01' }]);
+      commands.length = 0;
+      // The baby on the mug itself: a tie goes to him.
+      Object.assign(sim.world.baby, { xM: MUG.xM, zM: MUG.zM });
+      sim.world.props[0] = { ...MUG, yM: BABY_RADIUS_M };
+      mapper.handlePointerDown(click(mug.x, mug.y));
+      expect(commands.map((c) => c.type)).toEqual(['TapBaby']);
+    });
+
+    it('still taps an object in a level without a rush', () => {
+      const { mapper, commands, camera, setObjects } = setup();
+      setObjects([PHONE]);
+      const at = pxOfPoint(camera, PHONE);
+      mapper.handlePointerDown(click(at.x, at.y));
+      expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'phone' }]);
+    });
+  });
+
+  describe('Space / A', () => {
+    it('sends TapObject for the nearest prop that is a mess within contextReachM, ahead of everything', () => {
+      const { mapper, sim, commands, setObjects } = rush([
+        { ...MUG, xM: 1.2, zM: 0 },
+        { ...BOOK, xM: 0.9, zM: 0 },
+      ]);
+      setObjects([PHONE]);
+      Object.assign(sim.world.baby, { xM: 0.1, zM: 0, state: 'babble' });
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'book_01' }]);
+    });
+
+    it('also tidies with the baby in the arms', () => {
+      const { mapper, sim, commands } = rush([{ ...MUG, xM: 0.5, zM: 0 }]);
+      Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'mug_01' }]);
+    });
+
+    it('behaves as before with no prop in reach: the baby, an object, or nothing', () => {
+      const far = rush([{ ...MUG, xM: 6, zM: 0 }]);
+      Object.assign(far.sim.world.baby, { xM: 0.3, zM: 0, state: 'babble' });
+      far.mapper.handleAction('down', 1500, 'keyboard');
+      expect(far.commands).toEqual([{ type: 'TapBaby', t: 500 }]);
+      const none = rush([{ ...MUG, xM: 0.5, zM: 0, isMess: false }]);
+      none.mapper.handleAction('down', 1500, 'keyboard');
+      expect(none.commands).toEqual([]);
+    });
+
+    it('answers a threat that is up first, with the keyboard and with the pad', () => {
+      for (const device of ['keyboard', 'gamepad'] as const) {
+        const { mapper, sim, commands } = rush([{ ...MUG, xM: 0.5, zM: 0 }]);
+        sim.world.threats = [threatAt(1, 2, 0, 1000)];
+        mapper.handleAction('down', 1500, device);
+        expect(
+          commands.map((c) => c.type),
+          device,
+        ).toEqual(['PressThreat']);
+      }
+    });
+
+    it('tidies with the pad as with the keyboard when no threat is up', () => {
+      const { mapper, commands } = rush([{ ...MUG, xM: 0.5, zM: 0 }]);
+      mapper.handleAction('down', 1500, 'gamepad');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'mug_01' }]);
+    });
+
+    it('ignores a mess outside the rush', () => {
+      const { mapper, sim, commands } = rush([{ ...MUG, xM: 0.5, zM: 0 }]);
+      sim.world.flow.state = 'playing';
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([]);
     });
   });
 });

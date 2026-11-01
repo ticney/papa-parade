@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { type ContextObject, isKindInReach, pickContextObject } from './contextObject.ts';
+import {
+  type ContextObject,
+  isKindInReach,
+  pickContextObject,
+  pickMessProp,
+} from './contextObject.ts';
 
 const COFFEE: ContextObject = {
   id: 'coffee_machine',
@@ -66,5 +71,27 @@ describe('isKindInReach', () => {
   it('is false for a kind the level does not have', () => {
     expect(isKindInReach(objects, 'phone', 0, 0, 10)).toBe(false);
     expect(isKindInReach([], 'toilet', 0, 0, 10)).toBe(false);
+  });
+});
+
+describe('pickMessProp (story 3.5)', () => {
+  const prop = (id: string, xM: number, zM: number, isMess = true) => ({ id, xM, zM, isMess });
+
+  it('takes the nearest prop that is a mess within reach, ties to the earlier', () => {
+    const props = [
+      prop('far', 3, 0),
+      prop('near', 1, 0),
+      prop('same', 0, 1),
+      prop('no', 0.2, 0, false),
+    ];
+    expect(pickMessProp(props, 0, 0, 1.5)).toBe('near');
+    expect(pickMessProp([prop('b', 1, 0), prop('a', 0, 1)], 0, 0, 1.5)).toBe('b');
+  });
+
+  it('counts the reach as inclusive and returns null when nothing is in reach or no prop is a mess', () => {
+    expect(pickMessProp([prop('edge', 1.5, 0)], 0, 0, 1.5)).toBe('edge');
+    expect(pickMessProp([prop('out', 1.51, 0)], 0, 0, 1.5)).toBeNull();
+    expect(pickMessProp([prop('tidy', 0.5, 0, false)], 0, 0, 1.5)).toBeNull();
+    expect(pickMessProp([], 0, 0, 1.5)).toBeNull();
   });
 });

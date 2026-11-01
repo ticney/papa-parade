@@ -14,6 +14,7 @@ import {
   recordVibrations,
   setVisibility,
   startLevel,
+  THREATS_OFF,
   vibrations,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
@@ -44,8 +45,8 @@ const DODGE_RED = 'rgb(240, 53, 61)';
 /** The vignette token (`--pp-color-vignette`), as the browser serializes it. */
 const VIGNETTE_COLOUR = 'rgba(42, 33, 64, 0.35)';
 
-async function openFrozen(page: Page): Promise<void> {
-  await page.goto('/');
+async function openFrozen(page: Page, query = ''): Promise<void> {
+  await page.goto(`/${query}`);
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -206,7 +207,9 @@ test.describe('Fatherly Instinct', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await openFrozen(page);
+    // No threat: an idle game would wake Mama before the end (the props of story 3.5 add noise), and
+    // a level that ended early cannot be sent an instinct.
+    await openFrozen(page, THREATS_OFF);
     // Up to a second before the end, in chunks, then the instinct, then the end of the level.
     let remaining = Math.floor((LEVEL_DURATION_MS - 1000) / STEP_MS);
     while (remaining > 0) {

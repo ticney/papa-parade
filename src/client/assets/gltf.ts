@@ -1,4 +1,4 @@
-import type { Group } from 'three';
+import type { AnimationClip, Group } from 'three';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
@@ -11,6 +11,24 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
  * `.glb`, but the loader wants one).
  */
 export async function parseGlb(bytes: Uint8Array, baseUrl: string): Promise<Group> {
+  return (await parseGltf(bytes, baseUrl)).scene;
+}
+
+/** One character's `.glb` as the client wants it: `parseGlb` drops the clips, a rig needs them. */
+export interface CharacterAsset {
+  scene: Group;
+  animations: AnimationClip[];
+}
+
+export async function parseCharacterGlb(
+  bytes: Uint8Array,
+  baseUrl: string,
+): Promise<CharacterAsset> {
+  const { scene, animations } = await parseGltf(bytes, baseUrl);
+  return { scene, animations };
+}
+
+function parseGltf(bytes: Uint8Array, baseUrl: string) {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
   // `parseAsync` wants an ArrayBuffer of exactly the file (a Uint8Array may be a view into more).
@@ -18,6 +36,5 @@ export async function parseGlb(bytes: Uint8Array, baseUrl: string): Promise<Grou
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength,
   ) as ArrayBuffer;
-  const gltf = await loader.parseAsync(buffer, baseUrl);
-  return gltf.scene;
+  return loader.parseAsync(buffer, baseUrl);
 }

@@ -9,6 +9,7 @@ import {
   liveFeedback,
   liveFeel,
   recordVibrations,
+  THREATS_OFF,
   vibrations,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
@@ -265,7 +266,8 @@ test.describe('Mama wakes', () => {
   }
 
   test('a timer end has no header, no lost star and the reason timer', async ({ page }) => {
-    await page.goto('/');
+    // No threat: a level nobody plays would wake Mama before its end (the table's props make noise, story 3.5).
+    await page.goto(`/${THREATS_OFF}`);
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);

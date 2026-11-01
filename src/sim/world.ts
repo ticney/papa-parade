@@ -34,7 +34,10 @@ export interface PapaSlice {
   isBlocked: boolean;
   /** The glide towards a threat that was pressed; non-null exactly in `glide`. Choreography only (P3). */
   glide: PapaGlide | null;
-  /** The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19). */
+  /**
+   * The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19).
+   * In the final rush it may be the id of a prop that is a mess, which Papa tidies on arrival (story 3.5).
+   */
   objectId: string | null;
   /**
    * What the current tapped walk does on arrival besides `objectId` (story 4.1): take the baby, or
@@ -200,6 +203,11 @@ export interface PropSlice {
   prevQw: number;
   /** Lies on the floor (see `propsSystem`). False at spawn, whatever the start pose: `runPhysics` sets it from the first step on. */
   isOnFloor: boolean;
+  /**
+   * A mess to tidy (story 3.5): unbroken, on the floor and spawned above it (`!isBroken && isOnFloor
+   * && spawnedAboveFloor`). Written by `runPhysics`; `mess.propsOnFloor` is the count of it.
+   */
+  isMess: boolean;
   /** Broke on an impact. A broken prop keeps its body (it still collides). */
   isBroken: boolean;
   /** Sim time of the last `PropImpact`; null before the first. */
@@ -211,7 +219,7 @@ export interface PropSlice {
  * `runPhysics` every step; `mischiefs` is not: it is cumulative, written only by the surprise gags.
  */
 export interface MessSlice {
-  /** Unbroken props that spawned above the floor and now lie on it. */
+  /** Unbroken props that spawned above the floor and now lie on it: the count of `PropSlice.isMess`. */
   propsOnFloor: number;
   /** Broken props. */
   propsBroken: number;
@@ -266,6 +274,8 @@ export interface ScoreSlice {
   nearMisses: number;
   /** The sum of the points of every combo cashed in (story 4.2), not rounded; points not cashed when the level ends are lost. */
   comboPoints: number;
+  /** Props Papa put back in the final rush (`PropTidied`, story 3.5). */
+  propsTidied: number;
   /** The note, from the step the level ended; null while it plays. */
   final: MamaScore | null;
 }
@@ -302,11 +312,19 @@ export interface GaugesSlice {
   propNoiseAt: (SimMs | null)[];
 }
 
-/** The level's flow: playing until the clock reaches the level's duration, then ended. */
+/**
+ * The level's flow: playing until the level ends (the clock, the noise, the cycle), then `ended`; a
+ * level with a `finalRush` goes through `finalRush` to `photo` on its timer (story 3.5).
+ */
 export interface FlowSlice {
   state: FlowState;
   /** Sim time of the last state change. */
   enteredAt: SimMs;
+  /**
+   * Sim time at which the final rush started (story 3.5); null until then. Non-null in `finalRush` and
+   * `photo`, and in `ended` after a `mamaWoke` in the rush. The door's animation is a function of it.
+   */
+  finalRushAt: SimMs | null;
 }
 
 /**
@@ -694,7 +712,7 @@ export function createWorld({
     threats: [],
     director: { waveIndex: -1, nextAt: asSimMs(0) },
     disruptions: [],
-    flow: { state: 'playing', enteredAt: asSimMs(0) },
+    flow: { state: 'playing', enteredAt: asSimMs(0), finalRushAt: null },
     gauges: {
       fatigue: fatiguePoints,
       isFatigueAbove: false,
@@ -722,6 +740,7 @@ export function createWorld({
       prevQz: 0,
       prevQw: 1,
       isOnFloor: false,
+      isMess: false,
       isBroken: false,
       lastImpactAt: null,
     })),
@@ -744,7 +763,7 @@ export function createWorld({
     cycle: { index: 0, nextAt: null, completedAt: null },
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
     instinct: { state: 'ready', enteredAt: asSimMs(0), untilAt: asSimMs(0), missAts: [] },
-    score: { perfects: 0, nearMisses: 0, comboPoints: 0, final: null },
+    score: { perfects: 0, nearMisses: 0, comboPoints: 0, propsTidied: 0, final: null },
     input: { lagMs: 0 },
     difficultyTier: DEFAULT_DIFFICULTY_TIER,
     feel: cloneJson(feel),

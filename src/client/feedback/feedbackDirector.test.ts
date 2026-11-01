@@ -30,6 +30,7 @@ const world: World = (
 world.time.sim = asSimMs(4200);
 
 const TABLE: FeedbackTable = {
+  characters: { crossFadeMs: 100, turnRateDegPerSec: 720, squash: [], clipSpeeds: [] },
   buses: {
     music: { gainPct: 50 },
     sfx: { gainPct: 90 },
@@ -46,6 +47,7 @@ const TABLE: FeedbackTable = {
   comboBadge: { cashInHoldMs: 900 },
   papaHint: { holdMs: 1200 },
   bombDrop: { laidHeightM: 0.3 },
+  door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
   resultScreen: {
     rowCountUpMs: 600,
     rowStaggerMs: 200,
@@ -100,6 +102,11 @@ const TABLE: FeedbackTable = {
       audio: { clip: 'tel_phone_ring', bus: 'sfx', gainPct: 90 },
       visual: { kind: 'soundWave', anchor: 'object', maxRadiusM: 0.8, durationMs: 900 },
       haptic: 'light',
+    },
+    doorRing: {
+      audio: { clip: 'env_door_key', bus: 'sfx', gainPct: 100 },
+      visual: { kind: 'soundWave', anchor: 'door', maxRadiusM: 1.6, durationMs: 500 },
+      haptic: 'medium',
     },
     babyRing: {
       audio: { clip: 'baby_babble_loop', bus: 'voice', gainPct: 100 },
@@ -177,6 +184,7 @@ function setup(
     reducedMotion?: boolean;
     hasScene?: boolean;
     hasObjects?: boolean;
+    hasDoor?: boolean;
     /** The 3 Hz rule skipped the flash. */
     flashSkipped?: boolean;
     hasFlash?: boolean;
@@ -208,6 +216,8 @@ function setup(
     },
     gag: () => {},
     liftBaby: () => {},
+    playResponseClip: () => {},
+    playCharacterEvent: () => {},
   };
   const state = {
     throwOnAudio: false,
@@ -241,6 +251,7 @@ function setup(
       },
     },
     getObjects: () => (options.hasObjects === false ? [] : OBJECTS),
+    getDoorPoint: () => (options.hasDoor === false ? null : { xM: 2.9, zM: -2.8 }),
     getScene: () => {
       if (state.throwOnGetScene) throw new Error('no scene today');
       if (options.hasScene === false) return null;
@@ -257,6 +268,8 @@ function setup(
           },
           gag: () => {},
           liftBaby: () => {},
+          playResponseClip: () => {},
+          playCharacterEvent: () => {},
         };
       }
       return fx;
@@ -346,6 +359,27 @@ describe('feedbackDirector: a cue anchored on an object (story 1.20)', () => {
     threat.director.playCue('threatPop', world, null, 'phone');
     expect(threat.trace.some((line) => line.startsWith('wave:'))).toBe(false);
     expect(threat.newWarnings()).toEqual([expect.stringContaining('no threat')]);
+  });
+});
+
+describe('feedbackDirector: a cue anchored on the door (story 3.5)', () => {
+  it("starts the ring at the level's door, and plays the rest", () => {
+    const { director, trace, newWarnings } = setup();
+    director.playCue('doorRing', world, null, null);
+    expect(trace).toEqual([
+      'audio:env_door_key,sfx,100',
+      'haptic:medium',
+      'wave:2.9,-2.8,1.6,500,4200',
+      'cue:doorRing',
+    ]);
+    expect(newWarnings()).toEqual([]);
+  });
+
+  it('warns and skips only the ring when the level has no door point', () => {
+    const { director, trace, newWarnings } = setup({ hasDoor: false });
+    director.playCue('doorRing', world, null, null);
+    expect(trace).toEqual(['audio:env_door_key,sfx,100', 'haptic:medium', 'cue:doorRing']);
+    expect(newWarnings()).toEqual([expect.stringContaining('the level has no door')]);
   });
 });
 
@@ -765,6 +799,8 @@ describe('feedbackDirector: pulses, flash and the visual report (story 2.4)', ()
           particles: () => {},
           gag: () => {},
           liftBaby: () => {},
+          playResponseClip: () => {},
+          playCharacterEvent: () => {},
         }),
         prefersReducedMotion: () => false,
         getFx: () => live,

@@ -9,6 +9,7 @@ import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
 import type {
   LevelCarry,
+  LevelFinalRush,
   LevelGauges,
   LevelObject,
   LevelVariant,
@@ -46,6 +47,8 @@ export function createTestFeedback(): FeedbackTable {
     comboBadge: { cashInHoldMs: 900 },
     papaHint: { holdMs: 1200 },
     bombDrop: { laidHeightM: 0.3 },
+    characters: { crossFadeMs: 100, turnRateDegPerSec: 720, squash: [], clipSpeeds: [] },
+    door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
     resultScreen: {
       rowCountUpMs: 600,
       rowStaggerMs: 200,
@@ -477,6 +480,8 @@ export interface TestLevelOptions {
   sequences?: readonly string[];
   /** Replaces the frozen def of a sequence id (`createTestStayAwake()` otherwise), for a test that tunes it. */
   sequenceDefs?: Readonly<Record<string, SequenceDef>>;
+  /** The level opts into the final rush (story 3.5); absent by default, so no other test level moves. */
+  finalRush?: LevelFinalRush;
   durationMs?: number;
   variant?: LevelVariant;
   feelOverrides?: Record<string, unknown>;
@@ -494,6 +499,7 @@ export function createTestLevel({
   carry,
   sequences = [],
   sequenceDefs = {},
+  finalRush,
   durationMs = TEST_LEVEL_DURATION_MS,
   variant = 'nap',
   feelOverrides = {},
@@ -568,6 +574,7 @@ export function createTestLevel({
       gauges: structuredClone(gauges),
       ...(carry === undefined ? {} : { carry: structuredClone(carry) }),
       sequences: [...sequences],
+      ...(finalRush === undefined ? {} : { finalRush: structuredClone(finalRush) }),
       feelOverrides: { ...feelOverrides },
     },
     threats,
