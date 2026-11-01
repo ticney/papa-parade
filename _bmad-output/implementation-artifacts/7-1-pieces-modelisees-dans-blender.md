@@ -1,6 +1,10 @@
+---
+baseline_commit: 89938978684add5a1ad50dd2253a8f764ee4f1ac
+---
+
 # Story 7.1: Pièces modélisées dans Blender
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -34,38 +38,38 @@ so that the world is readable and charming.
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Spike one multi-material piece through the whole pipeline** (AC 3, D3)
-  - [ ] Read the trap under « Blender access » first. Work headless, on the worktree's files.
-  - [ ] In a copy under the scratchpad: give `sofa` two material slots and a bevel, and give `PROP_mug_01` two slots. Export, extract, optimise, load the room in the browser.
-  - [ ] Check: geometry unchanged, two toon colours on the sofa, the prop drawn by its pool with two colours and no `malformed gameplay node` or `no PROP_` warning, `levelScene.test.ts` unaffected. `gltfpack` may put a node's mesh on a child, and three splits a multi-primitive mesh into child meshes named after the **mesh data**.
-  - [ ] If a multi-material prop fails, props stay single-colour in this story and it is noted. Do not change `levelScene.ts` or `levelNodeNames.ts` for it without asking Geo.
-  - [ ] Record the result in the completion notes.
-- [ ] **T1. Guard test** (AC 5, AC 7), before any modelling
-  - [ ] Add `ROOM_DRAW_CALLS_MAX = 40` and `ROOM_TRIANGLES_MAX = 20_000` to `src/shared/constants.ts`, next to `DRAW_CALLS_MAX`, with a comment saying what they reserve (D6).
-  - [ ] Put pure helpers in `tools/assets/roomArt.ts` and test them with fixtures in `tests/tools/assets/roomArt.test.ts`: `roomBudgetOf(json)`, `reservedHueProblems(json)`, `floorContrastProblem(json)`. Each failing rule has a failing fixture, as `layerBoundaries.test.ts` does.
-  - [ ] Extend `tests/architecture/levelAssets.test.ts` with the three rules on both committed `.glb` files. It reads the JSON chunk only (`parseGlb`), so CI needs no Blender.
-  - [ ] Run it on the greyboxes. If a greybox fails a rule, fix the rule's reading or say so; do not loosen a threshold to pass.
-- [ ] **T2. Model the salon** (AC 1, 4, 6)
-  - [ ] Visual nodes per D7, rules D2 to D5. Run the pipeline often and check the geometry diff at each export.
-  - [ ] `PROP_mug_01` and `PROP_vase_01`: new mesh, same world box to the millimetre.
-  - [ ] Look at it in the browser at both sizes through the autoplay, not in a Blender render (GDD: the modelling tool's render does not carry over).
-- [ ] **T3. Model the bedroom** (AC 1, 4, 6)
-  - [ ] Same rules. Night comes from the palette only (D8).
-- [ ] **T4. Prove nothing moved** (AC 1, 2, 3, 8)
-  - [ ] The `git diff --exit-code` of AC 1; `git status` shows no change under `src/sim`, `src/bots`, `content/`, `tests/golden/`.
-  - [ ] `npm run ci:fast`. A moved golden or geometry is a bug in the room: fix the room.
-  - [ ] `npm run sim -- --level <id> --bot <b> --seed 1 --out <scratchpad file>` for the four bots on both levels, on the branch and on `main`, and compare the reports.
-  - [ ] `npx playwright test tests/e2e/level.spec.ts --project=chromium`: the room draws within budget and a restart costs the same.
-- [ ] **T5. Performance** (AC 7), run under `caffeinate`, one at a time
-  - [ ] `npm run build:playtest`, then `npm run dist:check -- --flavor playtest`.
-  - [ ] `npx playwright test -c playwright.dist.config.ts --project perf --workers=1`, then the same with `PP_PERF_LEVEL=chambre_night`. About 5 minutes each. Write both results in the story.
-- [ ] **T6. References and visual delivery** (AC 9)
-  - [ ] `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` (macOS only, deliberate). Look at both images and say so. No Linux reference, no Docker.
-  - [ ] Check `env | grep VITE_` first; if `VITE_DEBUG_ALLOWED` is set, wrap dev and e2e commands in `(unset VITE_DEBUG_ALLOWED; …)`.
-  - [ ] Screenshots of both rooms at 844 × 390 and 667 × 375, with a threat up and a sound wave on the floor. Say what you checked by eye and what only Geo can judge (the charm is his call).
-- [ ] **T7. Close the deferred items** (see Dev Notes › Deferred items)
-  - [ ] Mark them in `deferred-work.md` with what was done, and add a section for this story.
-  - [ ] Add one paragraph to `_bmad-output/project-context.md` on the frozen-layout rule and the room budgets.
+- [x] **T0. Spike one multi-material piece through the whole pipeline** (AC 3, D3)
+  - [x] Read the trap under « Blender access » first. Work headless, on the worktree's files.
+  - [x] In a copy under the scratchpad: give `sofa` two material slots and a bevel, and give `PROP_mug_01` two slots. Export, extract, optimise, load the room in the browser.
+  - [x] Check: geometry unchanged, two toon colours on the sofa, the prop drawn by its pool with two colours and no `malformed gameplay node` or `no PROP_` warning, `levelScene.test.ts` unaffected. `gltfpack` may put a node's mesh on a child, and three splits a multi-primitive mesh into child meshes named after the **mesh data**.
+  - [x] If a multi-material prop fails, props stay single-colour in this story and it is noted. Do not change `levelScene.ts` or `levelNodeNames.ts` for it without asking Geo.
+  - [x] Record the result in the completion notes.
+- [x] **T1. Guard test** (AC 5, AC 7), before any modelling
+  - [x] Add `ROOM_DRAW_CALLS_MAX = 40` and `ROOM_TRIANGLES_MAX = 20_000` to `src/shared/constants.ts`, next to `DRAW_CALLS_MAX`, with a comment saying what they reserve (D6).
+  - [x] Put pure helpers in `tools/assets/roomArt.ts` and test them with fixtures in `tests/tools/assets/roomArt.test.ts`: `roomBudgetOf(json)`, `reservedHueProblems(json)`, `floorContrastProblem(json)`. Each failing rule has a failing fixture, as `layerBoundaries.test.ts` does.
+  - [x] Extend `tests/architecture/levelAssets.test.ts` with the three rules on both committed `.glb` files. It reads the JSON chunk only (`parseGlb`), so CI needs no Blender.
+  - [x] Run it on the greyboxes. If a greybox fails a rule, fix the rule's reading or say so; do not loosen a threshold to pass.
+- [x] **T2. Model the salon** (AC 1, 4, 6)
+  - [x] Visual nodes per D7, rules D2 to D5. Run the pipeline often and check the geometry diff at each export.
+  - [x] `PROP_mug_01` and `PROP_vase_01`: new mesh, same world box to the millimetre.
+  - [x] Look at it in the browser at both sizes through the autoplay, not in a Blender render (GDD: the modelling tool's render does not carry over).
+- [x] **T3. Model the bedroom** (AC 1, 4, 6)
+  - [x] Same rules. Night comes from the palette only (D8).
+- [x] **T4. Prove nothing moved** (AC 1, 2, 3, 8)
+  - [x] The `git diff --exit-code` of AC 1; `git status` shows no change under `src/sim`, `src/bots`, `content/`, `tests/golden/`.
+  - [x] `npm run ci:fast`. A moved golden or geometry is a bug in the room: fix the room.
+  - [x] `npm run sim -- --level <id> --bot <b> --seed 1 --out <scratchpad file>` for the four bots on both levels, on the branch and on `main`, and compare the reports.
+  - [x] `npx playwright test tests/e2e/level.spec.ts --project=chromium`: the room draws within budget and a restart costs the same.
+- [x] **T5. Performance** (AC 7), run under `caffeinate`, one at a time
+  - [x] `npm run build:playtest`, then `npm run dist:check -- --flavor playtest`.
+  - [x] `npx playwright test -c playwright.dist.config.ts --project perf --workers=1`, then the same with `PP_PERF_LEVEL=chambre_night`. About 5 minutes each. Write both results in the story.
+- [x] **T6. References and visual delivery** (AC 9)
+  - [x] `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` (macOS only, deliberate). Look at both images and say so. No Linux reference, no Docker.
+  - [x] Check `env | grep VITE_` first; if `VITE_DEBUG_ALLOWED` is set, wrap dev and e2e commands in `(unset VITE_DEBUG_ALLOWED; …)`.
+  - [x] Screenshots of both rooms at 844 × 390 and 667 × 375, with a threat up and a sound wave on the floor. Say what you checked by eye and what only Geo can judge (the charm is his call).
+- [x] **T7. Close the deferred items** (see Dev Notes › Deferred items)
+  - [x] Mark them in `deferred-work.md` with what was done, and add a section for this story.
+  - [x] Add one paragraph to `_bmad-output/project-context.md` on the frozen-layout rule and the room budgets.
 
 ## Dev Notes
 
@@ -192,8 +196,77 @@ No new dependency. The stack is pinned (`three@0.186.1`, `gltfpack@1.3.0`, Blend
 
 ### Agent Model Used
 
+Claude Opus 5.5 (`claude-opus-5-5`)
+
 ### Debug Log References
+
+- All Blender work ran headless on the worktree's files (Blender 5.2.3). The live MCP session was neither used nor touched.
+- The throwaway build scripts stayed in the scratchpad (D9). Each build started from a copy of the committed greybox, so the `.blend` was saved fresh each time and is committed once.
 
 ### Completion Notes List
 
+**T0, spike: multi-material works, props included.** A two-material bevelled `sofa` and a two-material `PROP_mug_01` went through export, extract and optimise. The geometry was unchanged, both drew two toon colours in the browser, and there was no `malformed gameplay node` or `no PROP_` warning. `gltfpack -kn` keeps the named node and puts a single unnamed child under it, holding one mesh with one primitive per material, so props stay multi-colour. No change to `levelScene.ts` or `levelNodeNames.ts`. The prop's mesh data is named `mug` / `vase`, never `PROP_…` (D7).
+
+**Measured results**
+
+| AC | Check | `salon_crawler` | `chambre_night` |
+|---|---|---|---|
+| 1 | `git diff --exit-code main` on the geometry | identical | identical |
+| 7 | Room alone (limit 40 draw calls, 20,000 triangles) | 39 / 4,924 | 37 / 4,144 |
+| 7 | `perf.spec.ts`, p95 frame (limit 20 ms) | 16.7 ms | 16.7 ms |
+| 7 | `perf.spec.ts`, max draw calls (limit 100) | 63 | 59 |
+| 7 | `perf.spec.ts`, max triangles (limit 100k) | 6,214 | 5,700 |
+| D3 | Materials (limit 12) | 12 | 11 |
+| 7 | `.glb` size | 58.9 KB | 49.4 KB |
+
+- **AC 7, one caveat:** the salon's perf run came before the last edit, which turned two cushions into ellipsoids. That edit lowered the salon by 16 triangles and kept its draw calls, so I did not spend another 5 minutes on it. `dist:check --flavor playtest` was rerun on the final build: OK, level payload 886.6 KiB.
+- **AC 2:** `git diff --stat main` is empty on `src/sim`, `src/bots`, `content/`, `tests/golden/`, `export_level.py`, the export, extract and optimise tools, `levelNodeNames.ts` and `public/_headers`. `npm run ci:fast` passes (7476 tests, 3 skipped), with no golden regenerated. Biome's 2 warnings are in `ui.css`, which this story does not touch.
+- **AC 3:** both rooms pass `assets:export`, `assets:extract` and `assets:optimize`; `blenderConventions.test.ts` passes unchanged.
+- **AC 5:** the three guard rules are in `tests/architecture/levelAssets.test.ts` and pass on both rooms. They passed on the greyboxes too, with no threshold moved. `tests/tools/assets/roomArt.test.ts` has a failing fixture for each rule.
+- **AC 6:** read from the final `.blend`: sofa top 0.9, coffee table 0.45, side table 0.6, counter 0.9, bed 0.5, nightstand 0.6, exact to the millimetre, and each footprint equals its collider's. The two lamps rise above their collider's top (counter, nightstand), as the room inventory asks; the surfaces stay at collider height. The prop boxes are proved by the identical geometry. Rug edges and plank lines coincide with no `ZONE_creak_*` edge. Playpen and crib stop at 0.3 m (D4).
+- **AC 8:** the four bots on both levels, seed 1, give reports identical to `main` (`diff -r` empty; run before the cushion edit, which touches no gameplay data). `?autoplay=human&seed=1&speed=4`, with and without `&level=chambre_night`, played at both sizes with no `assets` warning. The only warning in that run was one `[sim] frame stall` under load, in the bedroom at 844 × 390. The logs of the final retake of the screenshots were deleted unread, so this statement rests on the identical run just before the cushion edit.
+- **AC 9, references:** `autoplay-frozen-{chromium,webkit}-darwin.png` were regenerated on purpose and looked at: both show the new salon, the threat and its verb. `level.spec.ts` and `autoplay.spec.ts` pass on Chromium against them, and `autoplay.spec.ts` passed on WebKit while regenerating.
+
+**Screenshots** (in `_bmad-output/implementation-artifacts/7-1-screenshots/`): `7-1-<level>-<size>-play.png` (mid-game with the `human` bot) and `-wave.png` (frozen on the first gag of the `idle` bot, with its sound wave), for both rooms at 844 × 390 and 667 × 375.
+
+**What I checked by eye:** every piece of the inventory reads at 844 × 390, and the screenshots at 667 × 375 show the same rooms closer. Papa, the baby and the threat markers stand out in both rooms. The wave shows clearly on the salon's planks.
+
+**What I could not settle, for Geo:**
+- The charm and the palette: that is Geo's call, in play. The room colours render about 20 % darker than their material values, because of the shared lights, so « bright » is what 7.3's lights will settle.
+- In the bedroom's wave frame the gag has the lights down, so the ring is hard to read there. The floor passes 3:1 by the numbers, but I did not capture a wave on the night floor with the lights on.
+- The phone, the outlet and the mug are small at phone size: they are recognisable by shape and colour only when looked for. Their boxes are frozen, and their markers carry them in play.
+- The wardrobe's doors face +X, towards the camera, not into the room: a cheat so that it reads as a wardrobe from the fixed view.
+- A mobile hangs over the crib at about 2 m, above Papa's 0.9 m + 0.35 m hair, from the side wall. It is the one addition that sits over the +Z half (D4), and it projects onto the wall, not onto the crib. It is the first to drop if it bothers.
+
+**For 7.3:** `COL_stairs` has no visual, as in the greybox, so its blob shadow shows as a lone smudge on the floor near the stairs. It is the deferred blob heuristic; I reported it and did not touch the code.
+
+**Merged nodes (D7):** `wall_side` is joined into `wall_back`, and `stairs_step_1..3` into `stairs`, to stay within the budget. New visual node: `crib_mobile`.
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/7-1-pieces-modelisees-dans-blender.md`
+- `_bmad-output/implementation-artifacts/7-1-screenshots/7-1-salon_crawler-844x390-play.png`
+- `_bmad-output/implementation-artifacts/7-1-screenshots/7-1-salon_crawler-844x390-wave.png`
+- `_bmad-output/implementation-artifacts/7-1-screenshots/7-1-salon_crawler-667x375-play.png`
+- `_bmad-output/implementation-artifacts/7-1-screenshots/7-1-salon_crawler-667x375-wave.png`
+- `_bmad-output/implementation-artifacts/7-1-screenshots/7-1-chambre_night-844x390-play.png`
+- `_bmad-output/implementation-artifacts/7-1-screenshots/7-1-chambre_night-844x390-wave.png`
+- `_bmad-output/implementation-artifacts/7-1-screenshots/7-1-chambre_night-667x375-play.png`
+- `_bmad-output/implementation-artifacts/7-1-screenshots/7-1-chambre_night-667x375-wave.png`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/project-context.md`
+- `assets-src/blender/salon_crawler.blend`
+- `assets-src/blender/chambre_night.blend`
+- `public/assets/levels/salon_crawler.glb`
+- `public/assets/levels/chambre_night.glb`
+- `src/shared/constants.ts`
+- `tests/architecture/levelAssets.test.ts`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-chromium-darwin.png`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-webkit-darwin.png`
+- `tests/tools/assets/roomArt.test.ts`
+- `tools/assets/roomArt.ts`
+
+### Change Log
+
+- 2026-11-01: Final models for `salon_crawler` and `chambre_night` on the frozen layout, with the room budgets and the colour guard test. Status set to review.

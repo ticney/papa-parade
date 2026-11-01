@@ -87,6 +87,15 @@ export const DRAW_CALLS_MAX = 100;
 /** Budget: at most this many triangles in a frame (architecture › Performance). */
 export const TRIANGLES_MAX = 100_000;
 
+/**
+ * Budget of one room's `.glb`: its share of `DRAW_CALLS_MAX`. The rest is kept for the rigged
+ * characters of story 7.2 and the outlines of story 7.3, which double what they cover (story 7.1, D6).
+ */
+export const ROOM_DRAW_CALLS_MAX = 40;
+
+/** Budget of one room's `.glb`: its share of `TRIANGLES_MAX`, for the same reason (story 7.1, D6). */
+export const ROOM_TRIANGLES_MAX = 20_000;
+
 /** Budget: the p95 frame interval of a full level on the CI machine, in ms (`perf.spec.ts`). */
 export const FRAME_P95_MAX_MS = 20;
 
