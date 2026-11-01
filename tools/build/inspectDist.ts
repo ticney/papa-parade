@@ -97,6 +97,8 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   // Story 4.9: the stealth step's debug mirrors (`data-pp-breath-pct`, `data-pp-breath-held`), the same way.
   'ppBreathPct',
   'ppBreathHeld',
+  // Story 3.5: the final rush's debug mirror (`data-pp-props-tidied`), the same way.
+  'ppPropsTidied',
 ];
 
 /**

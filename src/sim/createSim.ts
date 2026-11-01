@@ -26,6 +26,7 @@ import type {
 import { DISRUPTION_HANDLER_KINDS } from './disruptions/disruptionsSystem.ts';
 import type { SimEvent } from './events.ts';
 import { applyFeelPatch } from './feel/applyFeelPatch.ts';
+import { finalRushProblems, playableMsOf } from './flow/finalRush.ts';
 import {
   createJournal,
   entryProblem,
@@ -185,6 +186,8 @@ function simLevelOf(
   limits: DuelLimits,
   papaGrid: NavGrid,
   breathCapacityMs: number,
+  endOfLevel: Feel['endOfLevel'],
+  gags: Feel['gags'],
 ): SimLevel {
   invariant(
     level.level.id === geometry.id,
@@ -467,6 +470,17 @@ function simLevelOf(
       stealthThreatIndexes,
     });
   });
+  const levelFinalRush = level.level.finalRush;
+  if (levelFinalRush !== undefined) {
+    // The words are `content:check`'s, they share the function.
+    const [rushProblem] = finalRushProblems(levelFinalRush, level.level.durationMs, endOfLevel, {
+      anchors: geometry.anchors,
+      props: geometry.props,
+      kinds: physics.kinds,
+      propReachDistM: gags.tableObjectFall.propReachDistM,
+    });
+    invariant(rushProblem === undefined, `level ${level.level.id} › finalRush: ${rushProblem}`);
+  }
   const levelCycle = level.level.cycle;
   if (levelCycle !== undefined) {
     // The words are `content:check`'s, they share the function.
@@ -474,7 +488,7 @@ function simLevelOf(
       levelCycle,
       level.level.sequences,
       level.sequences,
-      level.level.durationMs,
+      playableMsOf(level.level.durationMs, levelFinalRush, endOfLevel),
       cycleRoomOf(geometry, papaGrid),
     );
     invariant(cycleProblem === undefined, `level ${level.level.id} › cycle: ${cycleProblem}`);
@@ -499,6 +513,8 @@ function simLevelOf(
     creakZones,
     hasNoise: level.level.gauges.noise !== undefined,
     hasBladder: level.level.gauges.need !== undefined,
+    hasFinalRush: levelFinalRush !== undefined,
+    spillPointM: spillPointOf(levelFinalRush, geometry),
     durationMs: level.level.durationMs,
     waves: waves.map((wave, w) => {
       const endMs = waves[w + 1]?.fromMs ?? level.level.durationMs;
@@ -538,6 +554,10 @@ function simLevelOf(
       };
     }),
     props: geometry.props.map((prop, index) => {
+      invariant(
+        !level.level.objects.some((object) => object.id === prop.id),
+        `level ${level.level.id}: the prop "${prop.id}" has the id of an object (a tap names one or the other)`,
+      );
       const kind = Object.hasOwn(physics.kinds, prop.kind) ? physics.kinds[prop.kind] : undefined;
       invariant(
         kind !== undefined,
@@ -548,10 +568,21 @@ function simLevelOf(
         kind: prop.kind,
         halfExtentsM: prop.halfExtentsM,
         spawnedAboveFloor: prop.centerM[1] - prop.halfExtentsM[1] > PROP_ON_FLOOR_TOLERANCE_M,
+        spawnM: prop.centerM,
         physics: kind,
       };
     }),
   };
+}
+
+/** The floor point of the anchor a level's `finalRush` names (checked by `finalRushProblems`), or null with no rush. */
+function spillPointOf(
+  finalRush: { readonly spillAnchor: string } | undefined,
+  geometry: LevelGeometry,
+): { readonly xM: number; readonly zM: number } | null {
+  if (finalRush === undefined) return null;
+  const anchor = geometry.anchors.find((candidate) => candidate.id === finalRush.spillAnchor);
+  return anchor === undefined ? null : { xM: anchor.positionM[0], zM: anchor.positionM[2] };
 }
 
 /** The gag ids a def can end in: its one `gag`, or the `surpriseGags` a hidden-zone threat draws from. */
@@ -663,6 +694,8 @@ export async function createSimWithSystems(
     duelLimitsOf(content.feel),
     papaGrid,
     content.feel.stealth.breathCapacityMs,
+    content.feel.endOfLevel,
+    content.feel.gags,
   );
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
   let world = createWorld({

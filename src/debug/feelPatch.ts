@@ -1,6 +1,6 @@
 import { type Feel, FeelSchema } from '@content/schemas/feel';
 import { type AppError, err, ok, type Result } from '@shared/result';
-import type { Sim } from '@sim';
+import { isFlowLive, type Sim } from '@sim';
 
 /** A deep partial: plain objects merge key by key, arrays and scalars are given whole. */
 export type DeepPartial<T> = T extends readonly unknown[]
@@ -107,7 +107,7 @@ export function layFeelPatch(feel: Feel, patch: unknown): Feel {
 export function effectiveFeel(sim: Sim): Feel {
   const { world } = sim;
   let feel = world.feel;
-  if (world.flow.state === 'ended') return feel;
+  if (!isFlowLive(world)) return feel;
   const queued = sim
     .journal()
     .entries.filter((entry) => entry.command.type === 'SetFeel' && entry.applyAt > world.time.sim)

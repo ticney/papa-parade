@@ -25,6 +25,8 @@ export interface FxState {
   readonly stampCount: number;
   /** How far the carried baby is lowered onto the mattress as drawn, 0 to 100 (story 4.8: the bomb drop). */
   readonly babyLayDownPct: number;
+  /** How far the door is drawn open, in degrees; 0 while shut (story 3.5: the final rush). */
+  readonly doorOpenDeg: number;
 }
 
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */

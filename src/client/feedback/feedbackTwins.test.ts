@@ -88,6 +88,7 @@ function play(cueId: string, objectId: string | null = null) {
     audio: { playOneShot: () => {} },
     haptics: { pulse: (kind) => void pulses.push(kind) } as Haptics,
     getObjects: () => OBJECTS,
+    getDoorPoint: () => ({ xM: 2.9, zM: -2.8 }),
     getScene: () => fx,
     prefersReducedMotion: () => false,
     getFx: () => testFeelFx,

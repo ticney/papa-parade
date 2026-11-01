@@ -23,6 +23,7 @@ function propAt(overrides: Partial<PropSlice> = {}): PropSlice {
     prevQz: 0,
     prevQw: 1,
     isOnFloor: false,
+    isMess: false,
     isBroken: false,
     lastImpactAt: null,
     ...overrides,

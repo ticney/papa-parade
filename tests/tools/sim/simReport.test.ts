@@ -91,6 +91,8 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     floorCreaks: 0,
     breathGasps: { empty: 0, early: 0, notHeld: 0 },
     nothingResponses: 0,
+    finalRushes: 0,
+    propsTidied: 0,
     bladderPeakPct: 0,
     noisePeakPct: 0,
     noiseFinalPct: 0,

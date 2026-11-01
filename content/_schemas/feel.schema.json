@@ -693,6 +693,28 @@
       "additionalProperties": false,
       "description": "The special sequences (story 4.4)."
     },
+    "endOfLevel": {
+      "type": "object",
+      "properties": {
+        "finalRushMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How long the final rush lasts, in sim ms: the door opens this long before the end of a level that opts in with `finalRush` (story 3.5)."
+        },
+        "doorSpillCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How many props the door knocks over when it opens, at most (0 = none); only props that cannot break fall (story 3.5, D10)."
+        }
+      },
+      "required": [
+        "finalRushMs",
+        "doorSpillCount"
+      ],
+      "additionalProperties": false,
+      "description": "The end of the level (story 3.5): the final rush and the door."
+    },
     "stealth": {
       "type": "object",
       "properties": {
@@ -1576,6 +1598,7 @@
     "noise",
     "bladder",
     "sequences",
+    "endOfLevel",
     "stealth",
     "instinct",
     "difficulty",

@@ -92,6 +92,13 @@
   "bombDrop": {
     "laidHeightM": 0.3
   },
+  "door": {
+    "openMs": 700,
+    "openAngleDeg": 100,
+    "widthM": 0.9,
+    "heightM": 2,
+    "thicknessM": 0.05
+  },
   "cues": {
     "papa_bump": {
       "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
@@ -400,6 +407,23 @@
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.8, "durationMs": 450 },
       "haptic": "medium"
     },
+    "final_rush_started": {
+      "audio": { "clip": "env_door_key", "bus": "sfx", "gainPct": 100 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "door",
+        "maxRadiusM": 1.6,
+        "durationMs": 500,
+        "pulses": 2,
+        "pulseIntervalMs": 250
+      },
+      "haptic": "medium"
+    },
+    "prop_tidied": {
+      "audio": { "clip": "env_prop_tidied", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
+    },
     "toilet_refused": {
       "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
@@ -459,6 +483,8 @@
     "ToiletStarted": "toilet_entered",
     "ToiletFinished": "toilet_flushed",
     "ToiletRefused": "toilet_refused",
+    "FinalRushStarted": "final_rush_started",
+    "PropTidied": "prop_tidied",
     "PapaSnored": "papa_snored",
     "BabyWoke": "baby_woke",
     "FloorCreaked": "floor_creak",

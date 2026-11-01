@@ -1,4 +1,4 @@
-import type { BeatEntry, ComboSlice, StealthSlice, ThreatInstance } from '@sim';
+import type { BeatEntry, ComboSlice, StealthSlice, ThreatInstance, World } from '@sim';
 import type { Camera, Scene } from 'three';
 import { Scene as ThreeScene } from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -11,6 +11,7 @@ import { createPapaHint, type PapaHint } from './papaHint.ts';
 import { createStealthExitMarker, type StealthExitMarker } from './stealthExitMarker.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
 import { createThreatMarkers, type ThreatMarkerEntry } from './threatMarkers.ts';
+import { createTidyMarkers } from './tidyMarkers.ts';
 import { createBrowserVerbMetrics, type VerbMetrics } from './verbMetrics.ts';
 
 export interface WorldUi {
@@ -97,6 +98,15 @@ export interface WorldUi {
    * `isToiletOccupied` Papa being on the toilet.
    */
   updateObjects(isCoffeeUrgent: boolean, isToiletUrgent: boolean, isToiletOccupied: boolean): void;
+  /** Mounts one « RANGE ! » marker per prop of the level (`world.props` order), replacing the previous level's (story 3.5). */
+  mountTidy(propCount: number): void;
+  /** Removes the tidy markers. */
+  unmountTidy(): void;
+  /**
+   * Once per frame, before `render`: « RANGE ! » over each prop that is a mess while the flow is
+   * `finalRush`, gone when it is tidied and in `photo`. Allocation-free.
+   */
+  updateTidy(world: Readonly<World>): void;
   /** The icon points of the mounted level, for the hit test. */
   readonly threatEntries: readonly ThreatMarkerEntry[];
   /**
@@ -152,6 +162,8 @@ export function createWorldUi(
   // After the beat ring: the earlier children keep their places (a test reads them by index).
   const breathRing = createBreathRing(scene, doc);
   const stealthExitMarker = createStealthExitMarker(scene, doc, comboOptions.translate);
+  // After the exit marker: the earlier children keep their places (a test reads them by index).
+  const tidyMarkers = createTidyMarkers(scene, doc, comboOptions.translate);
   return {
     scene,
     tapMarker,
@@ -186,6 +198,9 @@ export function createWorldUi(
     mountObjects: objects.mount,
     unmountObjects: objects.unmount,
     updateObjects: objects.update,
+    mountTidy: tidyMarkers.mount,
+    unmountTidy: tidyMarkers.unmount,
+    updateTidy: tidyMarkers.update,
     get threatEntries() {
       return threats.entries;
     },
@@ -210,7 +225,8 @@ export function createWorldUi(
           papaHint.isVisible ||
           beatRing.isVisible ||
           breathRing.isVisible ||
-          stealthExitMarker.isVisible
+          stealthExitMarker.isVisible ||
+          tidyMarkers.isAnyVisible
         )
       ) {
         return;
@@ -229,6 +245,7 @@ export function createWorldUi(
       beatRing.dispose();
       breathRing.dispose();
       stealthExitMarker.dispose();
+      tidyMarkers.dispose();
       threats.dispose();
       objects.dispose();
     },

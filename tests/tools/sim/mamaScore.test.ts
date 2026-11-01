@@ -49,7 +49,8 @@ describe('Mama’s note of the live salon_crawler', () => {
             mischiefs: world.mess.mischiefs,
           },
           content.feel.mama,
-          false,
+          // The salon's props now fall more, and more noise can wake Mama before the end (story 3.5).
+          events.some((event) => event.type === 'MamaWoke'),
         ),
       };
     } finally {

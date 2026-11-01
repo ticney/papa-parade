@@ -162,7 +162,7 @@ export type SimEvent =
    * Papa set off to an interactive object the player asked for (`TapObject`). Every accepted tap
    * says it, one per command, also when Papa already stands at the anchor (a walk of no length, then
    * `PapaArrived`) or is already walking there: the object (stories 1.19, 1.20) decides what a repeat
-   * means. Nothing consumes this yet.
+   * means. Nothing consumes this yet. The id may be a prop's, in the final rush (story 3.5).
    */
   | { type: 'ObjectTapped'; t: SimMs; objectId: string }
   /** A direction walk ran into an obstacle and cannot move at all (once per blockage). */
@@ -423,6 +423,11 @@ export type SimEvent =
   /** A breakable prop took a hit of `impulseNs` or more, once; it stays in the world, broken. */
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
   /**
+   * Papa put a prop back where it spawned in the final rush (story 3.5): it left the mess in this very
+   * step, so Mama's sigh falls by `feel.mama.sighPerPropOnFloorPoints`.
+   */
+  | { type: 'PropTidied'; t: SimMs; propId: string }
+  /**
    * Mama was woken by the noise (story 3.2): the noise reached 100 % in a Sieste level. Right before
    * `LevelEnded{mamaWoke}`, at the same `t`.
    */
@@ -432,6 +437,12 @@ export type SimEvent =
    * `cycleDone`, or on `mamaWoke` if the noise reached 100 % in it (a tie goes to Mama).
    */
   | { type: 'CycleCompleted'; t: SimMs }
+  /**
+   * The final rush began (story 3.5): the door opens `feel.endOfLevel.finalRushMs` before the end of a
+   * level that opts in with `finalRush`, once. A sequence under way was closed first
+   * (`SequenceEnded{levelEnded}`), and the door's spill (`PropImpact`s from the next step on) follows.
+   */
+  | { type: 'FinalRushStarted'; t: SimMs }
   /** The level is over, once: from here the sim only keeps its clock (the client shows the result). */
   | { type: 'LevelEnded'; t: SimMs; reason: LevelEndReason }
   /**
@@ -481,6 +492,7 @@ export const SIM_EVENT_TYPES = [
   'DecoyCued',
   'DecoyTapped',
   'FatigueThresholdCrossed',
+  'FinalRushStarted',
   'FloorCreaked',
   'GagTriggered',
   'InstinctEnded',
@@ -504,6 +516,7 @@ export const SIM_EVENT_TYPES = [
   'PhoneRinging',
   'PropBroken',
   'PropImpact',
+  'PropTidied',
   'ResponseHeld',
   'ResponseResolved',
   'SequenceEnded',
