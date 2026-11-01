@@ -44,7 +44,7 @@ export interface ResultMaxima {
 export interface ResultScreenOptions {
   t: Translator;
   score: MamaScore;
-  /** Why the level ended: `mamaWoke` adds the header « Maman s'est réveillée ! » (story 3.2). */
+  /** Why the level ended: `mamaWoke` adds the header « Maman s'est réveillée ! » (story 3.2), `cycleDone` « Il dort enfin ! » (story 4.10). */
   endReason: LevelEndReason;
   maxima: ResultMaxima;
   timings: ResultScreenTimings;
@@ -166,7 +166,9 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const element = make('div', 'pp-overlay pp-result-screen');
   const panel = make(
     'section',
-    `pp-panel pp-result-panel${options.endReason === 'mamaWoke' ? ' pp-result-panel-woken' : ''}`,
+    `pp-panel pp-result-panel${options.endReason === 'mamaWoke' ? ' pp-result-panel-woken' : ''}${
+      options.endReason === 'cycleDone' ? ' pp-result-panel-cycle-done' : ''
+    }`,
   );
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-modal', 'true');
@@ -175,14 +177,22 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   panel.tabIndex = -1;
 
   const isMamaWoke = options.endReason === 'mamaWoke';
-  // The slam is one run of an animation: a rebuilt, finished screen shows the header at rest.
-  const header = isMamaWoke
-    ? make(
-        'h2',
-        `pp-result-reason pp-type-heading${options.isDone ? '' : ' pp-result-reason-slam'}`,
-        t('result.mama_woke'),
-      )
-    : null;
+  // The slam is one run of an animation: a rebuilt, finished screen shows the header at rest. The end
+  // of the bedtime cycle (story 4.10) shows its header in the same place, with no slam and no event.
+  let header: HTMLElement | null = null;
+  if (isMamaWoke) {
+    header = make(
+      'h2',
+      `pp-result-reason pp-type-heading${options.isDone ? '' : ' pp-result-reason-slam'}`,
+      t('result.mama_woke'),
+    );
+  } else if (options.endReason === 'cycleDone') {
+    header = make(
+      'h2',
+      'pp-result-reason pp-result-reason-done pp-type-heading',
+      t('result.cycle_done'),
+    );
+  }
 
   const card = make('div', 'pp-score-card');
   card.setAttribute('role', 'table');

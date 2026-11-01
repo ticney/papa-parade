@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { parseNodeName, REQUIRED_ANCHOR_IDS, REQUIRED_ZONE_IDS } from '@content/levelNodeNames';
+import { parseNodeName, REQUIRED_ANCHOR_IDS } from '@content/levelNodeNames';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
 import { DEFAULT_LEVEL_ID, NAV_CELL_M } from '@shared/constants';
 import { log } from '@shared/log';
@@ -372,10 +372,6 @@ export function extractLevelGeometry(
     if (!anchors.some((anchor) => anchor.id === required))
       problems.push(`missing the required anchor "ANCHOR_${required}"`);
   }
-  for (const required of REQUIRED_ZONE_IDS) {
-    if (!zones.some((zone) => zone.id === required))
-      problems.push(`missing the required zone "ZONE_<kind>_${required}"`);
-  }
   if (visualBoxes.length === 0) problems.push('no visual mesh: the level would show nothing');
 
   const floor = floors[0];
@@ -403,7 +399,7 @@ export function extractLevelGeometry(
       mustBeOn: a.id === 'papa_spawn' || a.id === 'baby_spawn',
     })),
     ...zones
-      .filter((z) => z.id === 'behind_sofa')
+      .filter((z) => z.kind === 'hidden')
       .map((z) => ({
         label: `ZONE_${z.kind}_${z.id}`,
         x: z.centerM[0],

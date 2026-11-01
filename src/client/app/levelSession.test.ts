@@ -380,6 +380,21 @@ describe('createLevelSession', () => {
     expect(session.active?.sim).not.toBe(first?.sim);
   });
 
+  it('stays on the level `?level=` chose when the game restarts, seed and all (story 4.10)', async () => {
+    const asked: string[] = [];
+    const { session } = setup({
+      levelId: 'other_room',
+      loadAssets: async (id) => {
+        asked.push(id);
+        return ok(assetsOf(id));
+      },
+    });
+    await session.start();
+    await session.start();
+    expect(asked).toEqual(['other_room', 'other_room']);
+    expect(session.current.levelId).toBe('other_room');
+  });
+
   it('loads the level by its id and hands its scene to onLevelReady', async () => {
     const asked: string[] = [];
     const { session, ready } = setup({

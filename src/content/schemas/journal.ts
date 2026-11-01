@@ -72,6 +72,22 @@ const TimelineEntrySchema = z.strictObject({
   reason: z.string().nullable(),
   offsetMs: z.number().nullable(),
   device: InputDeviceSchema,
+  // Present, and true, on a response given during a special sequence (story 4.10). Optional: a journal
+  // of the first prototype has none, and stays valid.
+  inSequence: z.literal(true).optional(),
+});
+
+const SequenceStepAttemptSchema = z.strictObject({
+  stepIndex: z.int().min(0),
+  outcome: z.enum(['passed', 'failed', 'cut']),
+});
+
+/** One run of a special sequence (story 4.10). Each attempt at a step is an entry, a retreat's too. */
+const SequenceAttemptSchema = z.strictObject({
+  id: z.string(),
+  t: z.number(),
+  outcome: z.enum(['succeeded', 'failed', 'levelEnded']),
+  steps: z.array(SequenceStepAttemptSchema),
 });
 
 const SummarySchema = z.strictObject({
@@ -93,6 +109,8 @@ const SummarySchema = z.strictObject({
     }),
   }),
   dominantDevice: InputDeviceSchema,
+  // Optional: a journal of the first prototype has none, and stays valid (story 4.10).
+  sequences: z.array(SequenceAttemptSchema).optional(),
 });
 
 const DeviceSchema = z.strictObject({

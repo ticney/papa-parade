@@ -1,18 +1,51 @@
 import { PLAY_SPEED_MAX, UINT32_RANGE } from '@shared/constants';
 import { log } from '@shared/log';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isTestApiEnabled, readDebugParams } from './debugParams.ts';
+import { isTestApiEnabled, readDebugParams, resolveLevelParam } from './debugParams.ts';
 
 const warnSpy = vi.spyOn(log, 'warn').mockImplementation(() => {});
 afterEach(() => warnSpy.mockClear());
 
-const ABSENT = { isDebug: false, autoplay: null, seed: null, speed: null };
+const ABSENT = { isDebug: false, autoplay: null, seed: null, speed: null, level: null };
 
 describe('readDebugParams › absent', () => {
   it('reads nothing, and warns of nothing, from a query with none of the parameters', () => {
     expect(readDebugParams('')).toEqual(ABSENT);
     expect(readDebugParams('?threats=off&throwAfterMs=10')).toEqual(ABSENT);
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('readDebugParams › level (story 4.10)', () => {
+  it('keeps an id of the right shape, and works beside ?autoplay', () => {
+    const params = readDebugParams('?level=chambre_night&autoplay=perfect');
+    expect(params.level).toBe('chambre_night');
+    expect(params.autoplay).toBe('perfect');
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('ignores a bad shape with one warning each', () => {
+    for (const value of ['', 'Chambre', '../feel', 'a b']) {
+      expect(readDebugParams(`?level=${encodeURIComponent(value)}`).level).toBeNull();
+    }
+    expect(warnSpy).toHaveBeenCalledTimes(4);
+    expect(warnSpy.mock.calls[1]?.[1]).toBe(
+      'ignoring ?level=Chambre: a level id is lower_snake_case',
+    );
+  });
+});
+
+describe('resolveLevelParam (story 4.10)', () => {
+  it('passes a bundled level and no choice, with no warning', () => {
+    expect(resolveLevelParam('chambre_night', () => true)).toBe('chambre_night');
+    expect(resolveLevelParam(null, () => false)).toBeNull();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('drops an id with no level file, with one warning', () => {
+    expect(resolveLevelParam('chambre_nuit', () => false)).toBeNull();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[1]).toBe('ignoring ?level=chambre_nuit: no such level');
   });
 });
 
@@ -91,12 +124,14 @@ describe('readDebugParams › combined', () => {
       autoplay: 'perfect',
       seed: 42,
       speed: 4,
+      level: null,
     });
     expect(readDebugParams('?autoplay=idle&seed=abc&speed=99')).toEqual({
       isDebug: false,
       autoplay: 'idle',
       seed: null,
       speed: null,
+      level: null,
     });
     expect(warnSpy).toHaveBeenCalledTimes(2);
   });

@@ -21,17 +21,7 @@ PREFIX_ANCHOR = "ANCHOR_"
 PREFIX_ZONE = "ZONE_"
 PREFIX_PROP = "PROP_"
 ZONE_KINDS = ("hidden", "safe", "creak")
-REQUIRED_ANCHOR_IDS = (
-    "papa_spawn",
-    "baby_spawn",
-    "outlet_01",
-    "stairs_top",
-    "coffee_table",
-    "phone",
-    "coffee_machine",
-    "door",
-)
-REQUIRED_ZONE_IDS = ("behind_sofa",)
+REQUIRED_ANCHOR_IDS = ("papa_spawn", "baby_spawn", "door")
 
 SNAKE_ID = re.compile(r"^[a-z][a-z0-9_]*$")
 PROP_SHAPE = re.compile(r"^PROP_([a-z][a-z0-9_]*)_(\d{2})$")
@@ -109,10 +99,6 @@ def check_scene(objects):
     for required in REQUIRED_ANCHOR_IDS:
         if required not in anchors:
             problems.append('missing the required anchor "%s%s"' % (PREFIX_ANCHOR, required))
-    zones = set(i for (k, i) in seen if k == "zone")
-    for required in REQUIRED_ZONE_IDS:
-        if required not in zones:
-            problems.append('missing the required zone "ZONE_<kind>_%s"' % required)
     return problems
 
 

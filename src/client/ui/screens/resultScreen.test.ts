@@ -572,6 +572,12 @@ describe('createResultScreen: a woken Mama (story 3.2)', () => {
     expect(panel.children[1]?.classList.contains('pp-score-card')).toBe(true);
     const timer = build();
     expect(timer.root.find('pp-result-reason')).toHaveLength(0);
+    // The end of the bedtime cycle (story 4.10): a header in the same place, none of the woken flow.
+    const done = build({ endReason: 'cycleDone' });
+    const [doneHeader] = done.root.find('pp-result-reason');
+    expect(doneHeader?.textContent).toBe('result.cycle_done');
+    expect(doneHeader?.classList.contains('pp-result-reason-slam')).toBe(false);
+    expect(done.root.find('pp-result-panel-woken')).toHaveLength(0);
     expect(timer.root.all().some((node) => node.tag === 'h2')).toBe(false);
   });
 

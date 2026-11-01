@@ -56,6 +56,58 @@ export function sequenceFramingBlendAt(
 }
 
 /**
+ * A sequence's framing started over the framing of the one before (story 4.10): what the camera had
+ * still goes out, along `1 − smoothstep` over the old `outMs`, while the new one rises. `bomb_drop` and
+ * `stealth_exit` are one step apart, and the sim's slice only knows the last one. Client state, on the
+ * sim clock; with nothing going out, the framing stays as it was written, bit for bit.
+ */
+export interface FramingChain {
+  /** Adds to `framing` (just written for the sequence that started at `startedAt`) what is going out. */
+  apply(framing: SequenceFraming, startedAt: number, outMs: number, clockMs: number): void;
+  /** Nothing to carry (no sequence yet, a restart). */
+  clear(): void;
+}
+
+export function createFramingChain(): FramingChain {
+  let chainedStartedAt: number | null = null;
+  let chainedOutMs = 0;
+  let appliedZoomPct = 0;
+  let appliedFocusPct = 0;
+  let carriedZoomPct = 0;
+  let carriedFocusPct = 0;
+  let carriedOutMs = 0;
+  return {
+    apply(framing, startedAt, outMs, clockMs) {
+      if (startedAt !== chainedStartedAt) {
+        carriedZoomPct = appliedZoomPct;
+        carriedFocusPct = appliedFocusPct;
+        carriedOutMs = chainedOutMs;
+        chainedStartedAt = startedAt;
+        chainedOutMs = outMs;
+      }
+      const u = carriedOutMs > 0 ? Math.max(0, clockMs - startedAt) / carriedOutMs : 1;
+      if ((carriedZoomPct > 0 || carriedFocusPct > 0) && u < 1) {
+        const left = 1 - smoothstep(u);
+        framing.zoomPct = framing.zoomPct * framing.blend + carriedZoomPct * left;
+        framing.focusPct = framing.focusPct * framing.blend + carriedFocusPct * left;
+        framing.blend = 1;
+      }
+      appliedZoomPct = framing.zoomPct * framing.blend;
+      appliedFocusPct = framing.focusPct * framing.blend;
+    },
+    clear() {
+      chainedStartedAt = null;
+      chainedOutMs = 0;
+      appliedZoomPct = 0;
+      appliedFocusPct = 0;
+      carriedZoomPct = 0;
+      carriedFocusPct = 0;
+      carriedOutMs = 0;
+    },
+  };
+}
+
+/**
  * The special sequence's framing as the camera takes it (story 4.4): `blend` from
  * `sequenceFramingBlendAt`, the def's zoom and pan, and Papa's floor point. One object, written by
  * the caller each frame.

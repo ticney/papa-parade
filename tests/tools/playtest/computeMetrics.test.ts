@@ -591,7 +591,7 @@ describe('computeMetrics: panel and empty data', () => {
     expect(first.warnings[0]).toBe('from the reader');
     expect(JSON.stringify(first)).toBe(JSON.stringify(second));
     expect(first.kind).toBe(PLAYTEST_REPORT_KIND);
-    expect(first.version).toBe(1);
+    expect(first.version).toBe(2);
   });
 
   it('lists the games of a tester in play order, with level, end reason and stars', () => {

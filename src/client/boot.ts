@@ -28,7 +28,7 @@ import { createAccessibilitySettings } from './app/accessibilitySettings.ts';
 import { createAppFsm, isSettingsDetour } from './app/appFsm.ts';
 import { createCalibrationFlow } from './app/calibrationFlow.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
-import { isTestApiEnabled, readDebugParams } from './app/debugParams.ts';
+import { isTestApiEnabled, readDebugParams, resolveLevelParam } from './app/debugParams.ts';
 import { parseThrowDelayMs } from './app/forcedThrow.ts';
 import { waitForForeground } from './app/foreground.ts';
 import { installGlobalErrorHandlers } from './app/globalErrorHandlers.ts';
@@ -39,7 +39,7 @@ import { bindSurface } from './app/surface.ts';
 import type { BeatSampleRecord, CuePlayedRecord, TestHost } from './app/testHost.ts';
 import { readThreatsOff, withoutThreats } from './app/threatsSwitch.ts';
 import { bindVisibilityPause } from './app/visibilityPause.ts';
-import { createBrowserContentSource } from './assets/browserContentSource.ts';
+import { createBrowserContentSource, isBundledLevel } from './assets/browserContentSource.ts';
 import { isSlowMoActive, isTensionActive } from './audio/adaptiveMusic.ts';
 import { createAudioEngine } from './audio/audioEngine.ts';
 import {
@@ -61,7 +61,12 @@ import { keyGlyph, loadKeyboardLayoutMap, padConfirmGlyph } from './input/keyGly
 import { createMoveIntent } from './input/moveIntent.ts';
 import { bindPointer } from './input/pointerInput.ts';
 import { createAdaptivePixelRatio } from './render/adaptivePixelRatio.ts';
-import { createCameraFx, type SequenceFraming, sequenceFramingBlendAt } from './render/cameraFx.ts';
+import {
+  createCameraFx,
+  createFramingChain,
+  type SequenceFraming,
+  sequenceFramingBlendAt,
+} from './render/cameraFx.ts';
 import { slideDirection } from './render/gags.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
 import type { LevelScene } from './render/levelScene.ts';
@@ -212,6 +217,7 @@ export async function boot(): Promise<void> {
   // The special sequence's framing, one object written each frame (story 4.4), and the defs of the
   // level being played, set at its start.
   const sequenceFraming: SequenceFraming = { blend: 0, zoomPct: 0, focusPct: 0, xM: 0, zM: 0 };
+  const framingChain = createFramingChain();
   let currentSequences: Readonly<Record<string, SequenceDef>> | null = null;
   // Behind the start and « Oups » screens until a level has been loaded: an empty ink stage.
   const backdrop = new Scene();
@@ -256,10 +262,11 @@ export async function boot(): Promise<void> {
   // before the bindings below, which can emit as soon as they are bound. The existing specs read
   // these; `window.__PP__` (installed at the end of boot) is the API for new ones.
   const isMirrored = import.meta.env.VITE_DEBUG_ALLOWED === 'true';
-  // `?debug`, `?autoplay`, `?seed`, `?speed`: read only where debug code is allowed at all.
+  // `?debug`, `?autoplay`, `?seed`, `?speed`, `?level`: read only where debug code is allowed at all,
+  // so a production build still plays the default level.
   const params = isMirrored
     ? readDebugParams(window.location.search)
-    : { isDebug: false, autoplay: null, seed: null, speed: null };
+    : { isDebug: false, autoplay: null, seed: null, speed: null, level: null };
   // Written only when the value changes: a test observing the attributes then sees each real change once.
   const mirror = (
     name:
@@ -298,6 +305,7 @@ export async function boot(): Promise<void> {
       | 'ppBeatMisses'
       | 'ppBabyWake'
       | 'ppSequenceStep'
+      | 'ppCycleIndex'
       | 'ppSequenceRetreats'
       | 'ppCueCount'
       | 'ppFlashCount'
@@ -688,9 +696,12 @@ export async function boot(): Promise<void> {
       'ppSequenceRetreats',
       'ppBreathPct',
       'ppBreathHeld',
+      'ppCycleIndex',
     ] as const) {
       delete document.documentElement.dataset[name];
     }
+    // The entry of the bedtime cycle: a restart never shows the last game's (story 4.10).
+    mirror('ppCycleIndex', String(levelSession.active?.sim.world.cycle.index ?? 0));
     beatHitCount = 0;
     beatMissCount = 0;
   };
@@ -703,6 +714,8 @@ export async function boot(): Promise<void> {
     } else if (event.type === 'SequenceEnded') {
       delete document.documentElement.dataset.ppSequence;
       mirror('ppSequenceOutcome', event.outcome);
+      // The entry of the bedtime cycle (story 4.10): the world has moved on by the time events are read.
+      mirror('ppCycleIndex', String(levelSession.active?.sim.world.cycle.index ?? 0));
       if (event.outcome !== 'levelEnded') mirror('ppFlow', 'playing');
     }
   };
@@ -950,6 +963,7 @@ export async function boot(): Promise<void> {
     // `?seed=<n>` fixes the seed of every level of the page, restarts included.
     newSeed: () => params.seed ?? (crypto.getRandomValues(new Uint32Array(1))[0] as number),
     speed: params.speed ?? undefined,
+    levelId: resolveLevelParam(params.level, isBundledLevel) ?? undefined,
     beforeStep: isMirrored ? (sim) => stepHook?.(sim) : undefined,
     onLevelStarted: (started) => {
       sendInputLag(started.sim, false);
@@ -1012,6 +1026,7 @@ export async function boot(): Promise<void> {
           : currentSequences[sequence.lastId];
       if (framingDef === undefined) {
         sequenceFraming.blend = 0;
+        framingChain.clear();
       } else {
         const { camera: framingCamera } = framingDef.framing;
         sequenceFraming.blend = sequenceFramingBlendAt(
@@ -1023,6 +1038,7 @@ export async function boot(): Promise<void> {
         );
         sequenceFraming.zoomPct = framingCamera.zoomPct;
         sequenceFraming.focusPct = framingCamera.focusPct;
+        framingChain.apply(sequenceFraming, sequence.startedAt, framingCamera.outMs, clockMs);
         sequenceFraming.xM = world.papa.xM;
         sequenceFraming.zM = world.papa.zM;
       }

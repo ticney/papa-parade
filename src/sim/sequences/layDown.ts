@@ -61,14 +61,11 @@ export function openSafeCentreCountOf(geometry: LevelGeometry, papaRadiusM: numb
 }
 
 /**
- * Puts Papa's point at the centre of the nearest safe zone whose centre is open on his grid (squared
- * distances, a tie goes to the first listed). A no-op when he already stands in a safe zone, or when no
- * zone has an open centre (the level checks refuse that level). No event, no draw, no allocation.
- * `startSequence` calls it after `stopPapa` and before `takeBaby`, so the baby is taken at the mattress.
+ * The index, in `ctx.level.safeZones`, of the safe zone nearest Papa whose centre is open on his grid
+ * (squared distances, a tie goes to the first listed), or -1 when none is. Pure; no allocation.
  */
-export function placePapaOverMattress(world: World, ctx: StepContext): void {
+export function nearestOpenSafeZoneIndex(world: World, ctx: StepContext): number {
   const { papa } = world;
-  if (isInSafeZone(ctx, papa.xM, papa.zM)) return;
   const { safeZones } = ctx.level;
   const grid = ctx.nav.papa;
   let best = -1;
@@ -84,7 +81,19 @@ export function placePapaOverMattress(world: World, ctx: StepContext): void {
       best = i;
     }
   }
-  const target = safeZones[best];
+  return best;
+}
+
+/**
+ * Puts Papa's point at the centre of the nearest safe zone whose centre is open on his grid. A no-op
+ * when he already stands in a safe zone, or when no zone has an open centre (the level checks refuse
+ * that level). No event, no draw, no allocation. `startSequence` calls it after `stopPapa` and before
+ * `takeBaby`, so the baby is taken at the mattress.
+ */
+export function placePapaOverMattress(world: World, ctx: StepContext): void {
+  const { papa } = world;
+  if (isInSafeZone(ctx, papa.xM, papa.zM)) return;
+  const target = ctx.level.safeZones[nearestOpenSafeZoneIndex(world, ctx)];
   if (target === undefined) return;
   papa.xM = target.centerXM;
   papa.zM = target.centerZM;

@@ -143,6 +143,19 @@ test.describe('the built playtest bundle', () => {
     expect(problems).toEqual([]);
   });
 
+  test('plays ?level=chambre_night on the built playtest, to the end of the cycle', async ({
+    page,
+  }) => {
+    const levelMs = 240_000;
+    test.setTimeout(levelMs + LOAD_MARGIN_MS);
+    const problems = collectProblems(page, { allowedErrors: VIBRATE_WITHOUT_TAP });
+    await page.goto(`/?level=chambre_night&autoplay=perfect&seed=1&speed=${SPEED}&debug=1`);
+    await expect(html(page)).toHaveAttribute('data-pp-end-reason', 'cycleDone', {
+      timeout: levelMs,
+    });
+    expect(problems).toEqual([]);
+  });
+
   test('?debug=1 shows the FPS counter once the level runs', async ({ page }) => {
     const problems = collectProblems(page);
     await startLevel(page, '?debug=1');

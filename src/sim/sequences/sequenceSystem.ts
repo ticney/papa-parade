@@ -2,6 +2,7 @@ import type { SequenceStep } from '@content/schemas/sequence';
 import { asSimMs } from '@shared/time';
 import type { StepContext } from '../context.ts';
 import { clearBeatSlice, type World } from '../world.ts';
+import { runCycle } from './bedtimeCycle.ts';
 import { sequenceDefOf, succeedSequence } from './sequenceEnd.ts';
 import { startSequence } from './sequenceStart.ts';
 import {
@@ -14,7 +15,8 @@ import {
 /**
  * System: the special sequences (story 4.4), right after `advanceTime` and before the director, so
  * that on the step a sequence starts the director already sees it. In order: this step's
- * `StartSequence` commands (`startSequence`: refused ones do nothing), then, if a sequence runs,
+ * `StartSequence` commands (`startSequence`: refused ones do nothing), the bedtime cycle's clock
+ * (`runCycle`, story 4.10: it may start a sequence), then, if a sequence runs,
  * the step change (`SequenceStepStarted` at each `stepEndsAt` passed, no draw), the current step's
  * handler, and the end test: at or after `endsAt`, with the current step settled (its handler's
  * `isSettled`: no micro-sleep announced or open, no judged beat left), the sequence is won
@@ -28,6 +30,7 @@ export function runSequence(world: World, ctx: StepContext): void {
     const command = ctx.commands[i];
     if (command?.type === 'StartSequence') startSequence(world, ctx, command.sequenceId);
   }
+  runCycle(world, ctx);
   if (world.flow.state !== 'sequence') return;
   const { sequence } = world;
   const def = sequenceDefOf(ctx, sequence.id);

@@ -37,6 +37,8 @@ import {
 } from '@shared/constants';
 import {
   beatWindowLimitsOf,
+  cycleProblems,
+  cycleRoomForGeometry,
   duelLimitsOf,
   GAG_IDS,
   OBJECT_ACTION_KINDS,
@@ -752,6 +754,20 @@ function checkSequenceReferences(
   const problems: ContentProblem[] = [];
   for (const [id, level] of families.levels) {
     const file = `content/${LEVEL_PATTERN.dir}/${id}${LEVEL_PATTERN.suffix}`;
+    // The bedtime cycle (story 4.10): the words are `simLevelOf`'s, the function is shared with it. It
+    // needs the room and the defs; a missing one is reported on its own.
+    const cycleGeometry = families.geometries.get(id);
+    if (level.cycle !== undefined && cycleGeometry !== undefined && feel !== undefined) {
+      for (const problem of cycleProblems(
+        level.cycle,
+        level.sequences,
+        Object.fromEntries(families.sequences),
+        level.durationMs,
+        cycleRoomForGeometry(cycleGeometry, feel.movement.papaRadiusM),
+      )) {
+        problems.push({ file, jsonPath: 'cycle', message: `cycle: ${problem}` });
+      }
+    }
     level.sequences.forEach((sequenceId, i) => {
       const defFile = `${SEQUENCE_DEF_PATTERN.dir}/${sequenceId}${SEQUENCE_DEF_PATTERN.suffix}`;
       const path = formatJsonPath(['sequences', i]);

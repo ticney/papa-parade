@@ -1,6 +1,7 @@
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { Feel } from '@content/schemas/feel';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import type { SequenceDef } from '@content/schemas/sequence';
 import type { ThreatDef } from '@content/schemas/threat';
 import {
   BABY_TARGET_ANCHOR_ID,
@@ -36,6 +37,7 @@ import { createNavGrid, type NavGrid } from './nav/navGrid.ts';
 import { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 import { createRapierPhysics } from './physics/rapierPhysics.ts';
 import { beatTimelineOf, sequenceBeatProblems } from './sequences/beatClock.ts';
+import { cycleProblems, cycleRoomOf } from './sequences/bedtimeCycle.ts';
 import { type DuelLimits, duelLimitsOf, sequenceDuelProblems } from './sequences/bedtimeDuel.ts';
 import { openCentreCountOf, sequenceLayProblems } from './sequences/layDown.ts';
 import { SEQUENCE_HANDLER_KINDS } from './sequences/sequenceSteps.ts';
@@ -465,7 +467,31 @@ function simLevelOf(
       stealthThreatIndexes,
     });
   });
+  const levelCycle = level.level.cycle;
+  if (levelCycle !== undefined) {
+    // The words are `content:check`'s, they share the function.
+    const [cycleProblem] = cycleProblems(
+      levelCycle,
+      level.level.sequences,
+      level.sequences,
+      level.level.durationMs,
+      cycleRoomOf(geometry, papaGrid),
+    );
+    invariant(cycleProblem === undefined, `level ${level.level.id} › cycle: ${cycleProblem}`);
+  }
   return {
+    cycle:
+      levelCycle === undefined
+        ? null
+        : {
+            entries: levelCycle.entries.map((entry) => ({
+              sequenceId: entry.sequence,
+              def: level.sequences[entry.sequence] as SequenceDef,
+              interludeMs: entry.interludeMs,
+            })),
+            retryInterludeMs: levelCycle.retryInterludeMs,
+            gatherMaxMs: levelCycle.gatherMaxMs,
+          },
     microSleepIndex,
     armsCryIndex,
     hasCarry: level.level.carry !== undefined,
@@ -651,6 +677,8 @@ export async function createSimWithSystems(
     bladderPct: simLevel.hasBladder ? content.feel.bladder.startPct : 0,
     props: geometry.props,
   });
+  const firstEntry = simLevel.cycle?.entries[0];
+  if (firstEntry !== undefined) world.cycle.nextAt = asSimMs(firstEntry.interludeMs);
   checkReachable(
     level,
     geometry,

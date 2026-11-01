@@ -69,7 +69,8 @@ describe('the fatigue events (story 1.19)', () => {
     expect(names.indexOf('CoffeeStarted')).toBe(names.indexOf('CoffeeDrunk') + 1);
     expect(names.indexOf('ComboCashedIn')).toBe(names.indexOf('CoffeeStarted') + 1);
     expect(names.indexOf('ComboChanged')).toBe(names.indexOf('ComboCashedIn') + 1);
-    expect(names.indexOf('DecoyCued')).toBe(names.indexOf('ComboChanged') + 1);
+    expect(names.indexOf('CycleCompleted')).toBe(names.indexOf('ComboChanged') + 1);
+    expect(names.indexOf('DecoyCued')).toBe(names.indexOf('CycleCompleted') + 1);
     expect(names.indexOf('DecoyTapped')).toBe(names.indexOf('DecoyCued') + 1);
     expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('DecoyTapped') + 1);
     expect(names.indexOf('FloorCreaked')).toBe(names.indexOf('FatigueThresholdCrossed') + 1);
@@ -109,8 +110,8 @@ describe('the lullaby walk events (story 4.5)', () => {
 });
 
 describe('LEVEL_END_REASONS (story 3.2)', () => {
-  it('lists the two ways a level ends', () => {
-    expect([...LEVEL_END_REASONS]).toEqual(['timer', 'mamaWoke']);
+  it('lists the three ways a level ends', () => {
+    expect([...LEVEL_END_REASONS]).toEqual(['timer', 'mamaWoke', 'cycleDone']);
     expect(new Set(LEVEL_END_REASONS).size).toBe(LEVEL_END_REASONS.length);
   });
 

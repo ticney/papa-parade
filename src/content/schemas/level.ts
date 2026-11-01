@@ -144,6 +144,42 @@ const LevelCarrySchema = z
     'The level lets Papa carry the baby (FR22, story 4.1). Absent: no carrying, `TapBaby` only walks Papa to the baby. A level that carries needs a `kind: "safe"` zone.',
   );
 
+const LevelCycleSchema = z
+  .strictObject({
+    entries: z
+      .array(
+        z
+          .strictObject({
+            sequence: idSchema('The id of a sequence listed in the level `sequences`.'),
+            interludeMs: z
+              .number()
+              .int()
+              .min(0)
+              .describe(
+                'Base play before this sequence, in sim ms: from the previous one won (or the level start) until it is due.',
+              ),
+          })
+          .describe('One sequence of the cycle, and the interlude before it.'),
+      )
+      .min(1)
+      .describe('The sequences of the cycle, in order; each once.'),
+    retryInterludeMs: z
+      .number()
+      .int()
+      .min(0)
+      .describe('A lost sequence is due again this long after it ended, in sim ms.'),
+    gatherMaxMs: z
+      .number()
+      .int()
+      .positive()
+      .describe(
+        'How long the sim may walk Papa to the baby or the crib once a sequence is due, in sim ms. Past it the sequence starts at once, with its own placements.',
+      ),
+  })
+  .describe(
+    'The bedtime cycle: which sequences chain, and how long the base play between them lasts.',
+  );
+
 export const LevelSchema = z
   .strictObject({
     id: idSchema('The level id; equals the file name and the id of its geometry.'),
@@ -172,8 +208,11 @@ export const LevelSchema = z
       .array(idSchema('The id of a sequence of `content/sequences/`.'))
       .default([])
       .describe(
-        'The special sequences this level can run (story 4.4); none by default. Nothing schedules them here: a bedtime level starts them (4.10), the debug overlay and the sim CLI meanwhile.',
+        'The special sequences this level can run (story 4.4); none by default. The level `cycle` chains them (story 4.10); the debug overlay and the sim CLI can start any of them.',
       ),
+    cycle: LevelCycleSchema.optional().describe(
+      'The bedtime cycle (story 4.10): the sim chains these sequences by itself and the level ends with the last one won. Absent: nothing schedules a sequence.',
+    ),
     feelOverrides: z
       .record(z.string(), z.unknown())
       .default({})
@@ -282,3 +321,4 @@ export type LevelWaveDisruption = z.infer<typeof LevelWaveDisruptionSchema>;
 export type LevelObject = z.infer<typeof LevelObjectSchema>;
 export type LevelGauges = z.infer<typeof LevelGaugesSchema>;
 export type LevelCarry = z.infer<typeof LevelCarrySchema>;
+export type LevelCycle = z.infer<typeof LevelCycleSchema>;

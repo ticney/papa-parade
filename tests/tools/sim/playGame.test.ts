@@ -33,6 +33,7 @@ function idleBot() {
     holdMinMs: content.feel.input.holdMinMs,
     responses: {},
     releaseDefIds: [],
+    safeSpot: null,
     settings: content.bots,
   });
   if (!bot.ok) throw new Error(bot.error.message);

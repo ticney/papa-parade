@@ -39,13 +39,18 @@ export type PhoneRingEndReason = 'answered' | 'timedOut' | 'levelEnded';
 export type SilenceEndReason = 'found' | 'timedOut' | 'levelEnded';
 
 /**
- * Why a level ended: the clock reached the level's `durationMs` (`timer`), or the noise reached 100 %
- * in a Sieste level and woke Mama (`mamaWoke`, story 3.2).
+ * Why a level ended: the clock reached the level's `durationMs` (`timer`), the noise reached 100 %
+ * in a Sieste level and woke Mama (`mamaWoke`, story 3.2), or the last entry of the bedtime cycle was
+ * won (`cycleDone`, story 4.10).
  */
-export type LevelEndReason = 'timer' | 'mamaWoke';
+export type LevelEndReason = 'timer' | 'mamaWoke' | 'cycleDone';
 
 /** Every `LevelEndReason`, as data: the report and the client key their records by it. */
-export const LEVEL_END_REASONS = ['timer', 'mamaWoke'] as const satisfies readonly LevelEndReason[];
+export const LEVEL_END_REASONS = [
+  'timer',
+  'mamaWoke',
+  'cycleDone',
+] as const satisfies readonly LevelEndReason[];
 
 type UnlistedLevelEndReason = Exclude<LevelEndReason, (typeof LEVEL_END_REASONS)[number]>;
 
@@ -422,6 +427,11 @@ export type SimEvent =
    * `LevelEnded{mamaWoke}`, at the same `t`.
    */
   | { type: 'MamaWoke'; t: SimMs }
+  /**
+   * The last entry of the bedtime cycle was won (story 4.10): the level ends in this very step, on
+   * `cycleDone`, or on `mamaWoke` if the noise reached 100 % in it (a tie goes to Mama).
+   */
+  | { type: 'CycleCompleted'; t: SimMs }
   /** The level is over, once: from here the sim only keeps its clock (the client shows the result). */
   | { type: 'LevelEnded'; t: SimMs; reason: LevelEndReason }
   /**
@@ -467,6 +477,7 @@ export const SIM_EVENT_TYPES = [
   'CoffeeStarted',
   'ComboCashedIn',
   'ComboChanged',
+  'CycleCompleted',
   'DecoyCued',
   'DecoyTapped',
   'FatigueThresholdCrossed',

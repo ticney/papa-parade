@@ -1,5 +1,6 @@
 import { log } from '@shared/log';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createTestCycleLevel } from '../../../tests/support/cycleSupport.ts';
 import {
   CARRY,
   createTestBombDrop,
@@ -41,6 +42,18 @@ describe('readThreatsOff', () => {
 });
 
 describe('withoutThreats', () => {
+  it('still plays the bedtime cycle: the cycle, its sequences and their threats stay (story 4.10)', () => {
+    const planned = createTestCycleLevel();
+    const stripped = withoutThreats(planned);
+    expect(stripped.level.cycle).toEqual(planned.level.cycle);
+    expect(stripped.level.waves).toEqual([]);
+    expect(Object.keys(stripped.sequences).sort()).toEqual(Object.keys(planned.sequences).sort());
+    for (const id of ['bedtime_eyes', 'bomb_drop_lay', 'false_alarm_sigh', 'real_wake']) {
+      expect(stripped.threats[id]).toBeDefined();
+    }
+    expect(stripped.threats.outlet).toBeUndefined();
+  });
+
   it('keeps the level id and the duration, and drops the waves and the defs', () => {
     const planned = createTestLevel({
       waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })],

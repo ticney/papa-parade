@@ -263,3 +263,41 @@ export function planStealthWalk(
     zM: stealth.exitZM,
   });
 }
+
+/**
+ * How long before the next entry of a cycle is due a bot still bothers to go and put the baby down: a
+ * bot's habit, not a game number. Below it, it keeps him in its arms.
+ */
+const CYCLE_DROP_MIN_LEAD_MS = 5000;
+
+/** The interlude the crib was last tapped in: see {@link planCycleDrop}. */
+export interface CycleDropMemory {
+  sentForNextAt: number | null;
+}
+
+export function createCycleDropMemory(): CycleDropMemory {
+  return { sentForNextAt: null };
+}
+
+/**
+ * The cycle bot (story 4.10), shared by `perfect` and `human`: in an interlude long enough, with the
+ * baby in its arms, Papa idle and nothing of the bot's to answer, one `TapFloor` at the crib. So it
+ * cashes in, the base threats come, and the gather walks back for the baby. One tap per interlude,
+ * whatever happens to the walk. With no cycle, or no safe spot, it does nothing: `nextAt` stays null.
+ */
+export function planCycleDrop(
+  world: Readonly<World>,
+  responses: Readonly<Record<string, BotResponse>>,
+  safeSpot: { readonly xM: number; readonly zM: number } | null,
+  out: SimCommand[],
+  memory: CycleDropMemory,
+): void {
+  const { nextAt } = world.cycle;
+  if (nextAt === null || safeSpot === null || world.flow.state !== 'playing') return;
+  if (memory.sentForNextAt === nextAt || world.baby.state !== 'carried') return;
+  if (world.papa.state !== 'idle' || isAnswerUp(world.threats, responses)) return;
+  const now = world.time.sim;
+  if (nextAt - now < CYCLE_DROP_MIN_LEAD_MS) return;
+  memory.sentForNextAt = nextAt;
+  out.push({ type: 'TapFloor', t: asSimMs(now), xM: safeSpot.xM, zM: safeSpot.zM });
+}

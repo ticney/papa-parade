@@ -1,0 +1,83 @@
+{
+  "$schema": "../../content/_schemas/level.schema.json",
+  "id": "chambre_night",
+  "variant": "nap",
+  "durationMs": 240000,
+  "waves": [
+    {
+      "fromMs": 0,
+      "maxSimultaneous": 1,
+      "gapMinMs": 4000,
+      "gapMaxMs": 7000,
+      "lullMs": 3000,
+      "threats": [
+        {
+          "def": "outlet",
+          "anchor": "outlet_01"
+        }
+      ]
+    },
+    {
+      "fromMs": 60000,
+      "maxSimultaneous": 2,
+      "gapMinMs": 3000,
+      "gapMaxMs": 6000,
+      "lullMs": 3000,
+      "threats": [
+        {
+          "def": "coffee_table_object",
+          "anchor": "nightstand"
+        }
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "toilet",
+      "kind": "toilet",
+      "anchor": "toilet"
+    }
+  ],
+  "gauges": {
+    "noise": {},
+    "fatigue": {
+      "microSleepDef": "papa_microsleep"
+    },
+    "need": {}
+  },
+  "carry": {
+    "armsCryDef": "arms_cry"
+  },
+  "sequences": ["stay_awake", "lullaby_walk", "bedtime_duel", "bomb_drop", "stealth_exit"],
+  "cycle": {
+    "entries": [
+      {
+        "sequence": "stay_awake",
+        "interludeMs": 15000
+      },
+      {
+        "sequence": "lullaby_walk",
+        "interludeMs": 12000
+      },
+      {
+        "sequence": "bedtime_duel",
+        "interludeMs": 12000
+      },
+      {
+        "sequence": "bomb_drop",
+        "interludeMs": 6000
+      },
+      {
+        "sequence": "stealth_exit",
+        "interludeMs": 0
+      }
+    ],
+    "retryInterludeMs": 8000,
+    "gatherMaxMs": 6000
+  },
+  "feelOverrides": {
+    "bladder": {
+      "startPct": 30
+    }
+  }
+}

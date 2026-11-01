@@ -7,6 +7,7 @@ import { type OrthographicCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   createCameraFx,
+  createFramingChain,
   perfectCameraBlendAt,
   type SequenceFraming,
   sequenceFramingBlendAt,
@@ -422,5 +423,67 @@ describe('the sequence framing in createCameraFx (story 4.4)', () => {
     fx.update(worldWith(), 3000, PERFECT_CAMERA, false, framing(1));
     expect(camera.zoom).toBeCloseTo(1.18, 12);
     expect(fx.yawDeg).toBe(0);
+  });
+});
+
+describe('createFramingChain (story 4.10)', () => {
+  const OUT = 700;
+  const IN = 1000;
+  const framingAt = (
+    chain: ReturnType<typeof createFramingChain>,
+    startedAt: number,
+    endedAt: number | null,
+    zoomPct: number,
+    clockMs: number,
+  ): SequenceFraming => {
+    const framing: SequenceFraming = {
+      blend: sequenceFramingBlendAt(startedAt, endedAt, clockMs, IN, OUT),
+      zoomPct,
+      focusPct: zoomPct * 2,
+      xM: 0,
+      zM: 0,
+    };
+    chain.apply(framing, startedAt, OUT, clockMs);
+    return framing;
+  };
+  const zoomOf = (framing: SequenceFraming): number => framing.zoomPct * framing.blend;
+
+  it('leaves a lone sequence as written, bit for bit', () => {
+    const chain = createFramingChain();
+    expect(framingAt(chain, 1000, null, 40, 1500)).toEqual({
+      blend: 0.5,
+      zoomPct: 40,
+      focusPct: 80,
+      xM: 0,
+      zM: 0,
+    });
+  });
+
+  it('takes a sequence started one step after the last with no jump, then settles on its own', () => {
+    const chain = createFramingChain();
+    expect(zoomOf(framingAt(chain, 1000, null, 40, 5000))).toBe(40);
+    // The new sequence's slice replaces the old one: the frame before its start, then one by one.
+    expect(zoomOf(framingAt(chain, 5010, null, 20, 5005))).toBe(40);
+    expect(zoomOf(framingAt(chain, 5010, null, 20, 5021))).toBeGreaterThan(39);
+    expect(zoomOf(framingAt(chain, 5010, null, 20, 5360))).toBeCloseTo(40 * 0.5 + 20 * 0.35, 9);
+    expect(framingAt(chain, 5010, null, 20, 5710)).toMatchObject({
+      blend: 0.7,
+      zoomPct: 20,
+      focusPct: 40,
+    });
+  });
+
+  it('carries nothing once the last framing has gone out', () => {
+    const chain = createFramingChain();
+    framingAt(chain, 1000, 2000, 40, 1500);
+    framingAt(chain, 1000, 2000, 40, 2700);
+    expect(framingAt(chain, 10_000, null, 20, 10_000).blend).toBe(0);
+  });
+
+  it('clear forgets the framing: a restart starts from the base', () => {
+    const chain = createFramingChain();
+    framingAt(chain, 1000, null, 40, 5000);
+    chain.clear();
+    expect(framingAt(chain, 5010, null, 20, 5010).blend).toBe(0);
   });
 });

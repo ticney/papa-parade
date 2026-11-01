@@ -213,13 +213,64 @@
     },
     "sequences": {
       "default": [],
-      "description": "The special sequences this level can run (story 4.4); none by default. Nothing schedules them here: a bedtime level starts them (4.10), the debug overlay and the sim CLI meanwhile.",
+      "description": "The special sequences this level can run (story 4.4); none by default. The level `cycle` chains them (story 4.10); the debug overlay and the sim CLI can start any of them.",
       "type": "array",
       "items": {
         "type": "string",
         "pattern": "^[a-z][a-z0-9_]*$",
         "description": "The id of a sequence of `content/sequences/`."
       }
+    },
+    "cycle": {
+      "description": "The bedtime cycle (story 4.10): the sim chains these sequences by itself and the level ends with the last one won. Absent: nothing schedules a sequence.",
+      "type": "object",
+      "properties": {
+        "entries": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sequence": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "The id of a sequence listed in the level `sequences`."
+              },
+              "interludeMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Base play before this sequence, in sim ms: from the previous one won (or the level start) until it is due."
+              }
+            },
+            "required": [
+              "sequence",
+              "interludeMs"
+            ],
+            "additionalProperties": false,
+            "description": "One sequence of the cycle, and the interlude before it."
+          },
+          "description": "The sequences of the cycle, in order; each once."
+        },
+        "retryInterludeMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "A lost sequence is due again this long after it ended, in sim ms."
+        },
+        "gatherMaxMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long the sim may walk Papa to the baby or the crib once a sequence is due, in sim ms. Past it the sequence starts at once, with its own placements."
+        }
+      },
+      "required": [
+        "entries",
+        "retryInterludeMs",
+        "gatherMaxMs"
+      ],
+      "additionalProperties": false
     },
     "feelOverrides": {
       "default": {},

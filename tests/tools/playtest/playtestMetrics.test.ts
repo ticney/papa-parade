@@ -48,6 +48,7 @@ async function playHumanGame(
       holdMinMs: content.feel.input.holdMinMs,
       responses: botResponsesOf(level.threats),
       releaseDefIds: releaseDefIdsOf(level.threats),
+      safeSpot: null,
       settings: content.bots,
     });
     if (!bot.ok) throw new Error(bot.error.message);
@@ -125,7 +126,7 @@ describe('npm run playtest:metrics', () => {
 
       const report = JSON.parse(readFileSync(json, 'utf8')) as PlaytestReport;
       expect(report.kind).toBe('papa-parade.playtest-metrics');
-      expect(report.version).toBe(1);
+      expect(report.version).toBe(2);
       expect(report.testers.map((t) => t.testerId)).toEqual(['T1', 'T2']);
 
       // The CLI and the pure function agree on the same files.

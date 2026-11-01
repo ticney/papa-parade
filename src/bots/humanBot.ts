@@ -8,11 +8,13 @@ import { createCommandScheduler } from './commandScheduler.ts';
 import { nextGaussian } from './gaussian.ts';
 import {
   centreOf,
+  createCycleDropMemory,
   createCycleMemory,
   createFirmHold,
   createSilenceMemory,
   createStealthWalkMemory,
   isPressable,
+  planCycleDrop,
   planStealthWalk,
   responseOf,
   scheduleDrop,
@@ -52,6 +54,8 @@ export function createHumanBot(setup: BotSetup): Bot {
   const breaths = createCycleMemory();
   // Where the walk to the exit last set off from: no new tap while Papa waits at the nearest point.
   const stealthWalk = createStealthWalkMemory();
+  // The interlude the crib was last tapped in (story 4.10).
+  const cycleDrop = createCycleDropMemory();
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
   let find: { startedAt: number; atMs: number } | null = null;
   // The tap planned for the beat in play: dropped if the beat is settled before it is sent.
@@ -139,6 +143,7 @@ export function createHumanBot(setup: BotSetup): Bot {
       }
       scheduler.flush(now, out);
       planStealthWalk(world, setup.responses, out, stealthWalk);
+      planCycleDrop(world, setup.responses, setup.safeSpot, out, cycleDrop);
     },
   };
 }

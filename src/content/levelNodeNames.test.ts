@@ -4,7 +4,6 @@ import {
   NODE_PREFIXES,
   parseNodeName,
   REQUIRED_ANCHOR_IDS,
-  REQUIRED_ZONE_IDS,
   ZONE_KINDS,
 } from './levelNodeNames.ts';
 
@@ -73,10 +72,8 @@ describe('isVisualNodeName', () => {
 });
 
 describe('the conventions', () => {
-  it('requires eight anchors and the hidden zone behind the sofa', () => {
-    expect(REQUIRED_ANCHOR_IDS).toHaveLength(8);
-    expect(REQUIRED_ANCHOR_IDS).toContain('papa_spawn');
-    expect(REQUIRED_ZONE_IDS).toEqual(['behind_sofa']);
+  it('requires only what any room has: the two spawns and the door', () => {
+    expect(REQUIRED_ANCHOR_IDS).toEqual(['papa_spawn', 'baby_spawn', 'door']);
   });
 
   it('has a prefix for every kind of gameplay node', () => {

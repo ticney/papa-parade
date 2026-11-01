@@ -86,6 +86,8 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     beatsMissed: 0,
     decoysTapped: 0,
     beatsStray: 0,
+    cycleEntriesReached: 0,
+    sequenceOutcomes: {},
     floorCreaks: 0,
     breathGasps: { empty: 0, early: 0, notHeld: 0 },
     nothingResponses: 0,
@@ -228,7 +230,7 @@ describe('summarizeRuns', () => {
       // Cut by `--until-ms`: ended for nobody.
       run(4, {}),
     ]);
-    expect(report.endsByReason).toEqual({ timer: 1, mamaWoke: 2 });
+    expect(report.endsByReason).toEqual({ timer: 1, mamaWoke: 2, cycleDone: 0 });
     expect(Object.values(report.endsByReason).reduce((sum, count) => sum + count, 0)).toBe(
       report.endedRuns,
     );
@@ -241,12 +243,31 @@ describe('summarizeRuns', () => {
     ]);
   });
 
+  it('folds the bedtime cycle: runs completed, mean entries, and each sequence by id (story 4.10)', () => {
+    const done = run(1, {
+      endReason: 'cycleDone',
+      cycleEntriesReached: 5,
+      sequenceOutcomes: { stay_awake: { started: 2, won: 1, lost: 1 } },
+    });
+    const lost = run(2, {
+      // A tie with the noise: the last entry won, and Mama ends the level.
+      endReason: 'mamaWoke',
+      cycleEntriesReached: 5,
+      sequenceOutcomes: { stay_awake: { started: 3, won: 0, lost: 2 } },
+    });
+    const report = summarizeRuns(INPUT, [done, lost]);
+    expect(report.cycleCompleted).toBe(1);
+    expect(report.cycleEntriesReached).toBe(5);
+    expect(report.sequenceOutcomes).toEqual({ stay_awake: { started: 5, won: 1, lost: 3 } });
+    expect(summarizeRuns(INPUT, [run(1, {})]).sequenceOutcomes).toEqual({});
+  });
+
   it('keeps every endsByReason key at 0 when nothing ended, and no mean time when Mama never woke', () => {
     const none = summarizeRuns(INPUT, [run(1, {})]);
-    expect(none.endsByReason).toEqual({ timer: 0, mamaWoke: 0 });
+    expect(none.endsByReason).toEqual({ timer: 0, mamaWoke: 0, cycleDone: 0 });
     expect(none.mamaWokeMeanAtMs).toBeNull();
     const timerOnly = summarizeRuns(INPUT, [run(1, { isEnded: true, endReason: 'timer' })]);
-    expect(timerOnly.endsByReason).toEqual({ timer: 1, mamaWoke: 0 });
+    expect(timerOnly.endsByReason).toEqual({ timer: 1, mamaWoke: 0, cycleDone: 0 });
     expect(timerOnly.mamaWokeMeanAtMs).toBeNull();
   });
 

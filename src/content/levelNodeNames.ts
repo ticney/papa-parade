@@ -26,20 +26,11 @@ export const NODE_PREFIXES = {
   prop: 'PROP_',
 } as const;
 
-/** The anchors every level must have (AC 1 of story 1.6): ids without the `ANCHOR_` prefix. */
-export const REQUIRED_ANCHOR_IDS = [
-  'papa_spawn',
-  'baby_spawn',
-  'outlet_01',
-  'stairs_top',
-  'coffee_table',
-  'phone',
-  'coffee_machine',
-  'door',
-] as const;
-
-/** The zones every level must have: ids without the `ZONE_<kind>_` prefix. */
-export const REQUIRED_ZONE_IDS = ['behind_sofa'] as const;
+/**
+ * The anchors every level must have: ids without the `ANCHOR_` prefix. What a level plans at the
+ * others (a threat, an object, a silence's zone) is checked by `content:check` and `simLevelOf`.
+ */
+export const REQUIRED_ANCHOR_IDS = ['papa_spawn', 'baby_spawn', 'door'] as const;
 
 /** `lower_snake_case`, starting with a letter. */
 export const SNAKE_ID_PATTERN = /^[a-z][a-z0-9_]*$/;

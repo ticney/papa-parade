@@ -37,7 +37,10 @@ test('a full level at speed 1 holds the frame, draw-call and triangle budgets', 
   test.setTimeout(levelMs + 30_000);
   const problems = collectProblems(page);
 
-  await page.goto('/?autoplay=human&seed=1&speed=1&debug=1');
+  // `PP_PERF_LEVEL` measures another level by hand (story 4.10); CI keeps the salon, so its time does not grow.
+  const level = process.env.PP_PERF_LEVEL;
+  const levelQuery = level === undefined ? '' : `&level=${level}`;
+  await page.goto(`/?autoplay=human&seed=1&speed=1&debug=1${levelQuery}`);
   await expect(html(page)).toHaveAttribute('data-pp-app', 'result', { timeout: levelMs });
 
   const report = await ppPerf(page);

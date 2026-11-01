@@ -4,11 +4,13 @@ import type { Bot, BotSetup } from './bot.ts';
 import { createCommandScheduler } from './commandScheduler.ts';
 import {
   centreOf,
+  createCycleDropMemory,
   createCycleMemory,
   createFirmHold,
   createSilenceMemory,
   createStealthWalkMemory,
   isPressable,
+  planCycleDrop,
   planStealthWalk,
   responseOf,
   scheduleDrop,
@@ -35,6 +37,8 @@ export function createPerfectBot(setup: BotSetup): Bot {
   const breaths = createCycleMemory();
   // Where the walk to the exit last set off from: no new tap while Papa waits at the nearest point.
   const stealthWalk = createStealthWalkMemory();
+  // The interlude the crib was last tapped in (story 4.10).
+  const cycleDrop = createCycleDropMemory();
   // The beat tapped last: `nextBeatAt` is unique per beat, so one tap per beat whatever the step.
   let lastBeatAt: number | null = null;
   return {
@@ -85,6 +89,7 @@ export function createPerfectBot(setup: BotSetup): Bot {
       }
       scheduler.flush(now, out);
       planStealthWalk(world, setup.responses, out, stealthWalk);
+      planCycleDrop(world, setup.responses, setup.safeSpot, out, cycleDrop);
     },
   };
 }

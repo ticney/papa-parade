@@ -18,41 +18,35 @@ import {
 //   - the path Papa takes from the playpen's centre to the door crosses at least one board, so that a
 //     plain walk creaks (the boards are there to be memorised);
 //   - a fixed list of waypoints reaches the exit radius crossing none (a clean route exists).
-const live = (): LevelGeometry => {
+const live = (levelId: string): LevelGeometry => {
   const text = readFileSync(
-    new URL('../../content/levels/salon_crawler.geometry.json', import.meta.url),
+    new URL(`../../content/levels/${levelId}.geometry.json`, import.meta.url),
     'utf8',
   );
   const parsed = parseContentFile(
-    'content/levels/salon_crawler.geometry.json',
+    `content/levels/${levelId}.geometry.json`,
     text,
     LevelGeometrySchema,
   );
   if (!parsed.ok) throw new Error('the live geometry is invalid');
   return parsed.value;
 };
-const geometry = live();
-const DOOR = geometry.anchors.find((anchor) => anchor.id === 'door')?.positionM ?? [0, 0, 0];
-const PLAYPEN = geometry.zones.find((zone) => zone.id === 'playpen')?.centerM ?? [0, 0, 0];
-/** A clean route from the playpen to the door, found with a throwaway A* and checked here with the sim's own. */
-const CLEAN_ROUTE: readonly (readonly [number, number])[] = [
-  [-0.8, 1.75],
-  [1.0, 1.1],
-  [2.8, 0.3],
-  [2.95, -1.1],
-  [2.9, -2.2],
-];
+const doorOf = (geometry: LevelGeometry) =>
+  geometry.anchors.find((anchor) => anchor.id === 'door')?.positionM ?? [0, 0, 0];
+const safeCentreOf = (geometry: LevelGeometry, id: string) =>
+  geometry.zones.find((zone) => zone.id === id)?.centerM ?? [0, 0, 0];
 
-async function stealthSim() {
+async function stealthSim(geometry: LevelGeometry) {
   const sequence = createTestStealthExit();
+  const level = createTestLevel({
+    carry: CARRY,
+    sequences: [sequence.id],
+    sequenceDefs: { [sequence.id]: sequence },
+  });
   const sim = await createSim({
     content: createTestContent(),
     geometry,
-    level: createTestLevel({
-      carry: CARRY,
-      sequences: [sequence.id],
-      sequenceDefs: { [sequence.id]: sequence },
-    }),
+    level: { ...level, level: { ...level.level, id: geometry.id } },
     seed: 1,
   });
   sim.enqueue({ type: 'StartSequence', t: asSimMs(0), sequenceId: sequence.id });
@@ -68,10 +62,78 @@ async function stealthSim() {
   return { sim, world, events, step };
 }
 
-describe('the boards of the live room (story 4.9)', () => {
-  it('has three creak zones, and leaves the safe and hidden zones where they were', () => {
-    const creaks = geometry.zones.filter((zone) => zone.kind === 'creak');
-    expect(creaks.map((zone) => zone.id)).toEqual(['board_01', 'board_02', 'board_03']);
+describe.each([
+  {
+    levelId: 'salon_crawler',
+    safeZone: 'playpen',
+    // A clean route from the playpen to the door, found with a throwaway A* and checked here with the sim's own.
+    cleanRoute: [
+      [-0.8, 1.75],
+      [1.0, 1.1],
+      [2.8, 0.3],
+      [2.95, -1.1],
+      [2.9, -2.2],
+    ],
+  },
+  {
+    levelId: 'chambre_night',
+    safeZone: 'crib',
+    // The long way round: along the near edge, then between the boards and the wardrobe (story 4.10).
+    cleanRoute: [
+      [-0.5, 1.9],
+      [1.0, 1.5],
+      [1.875, 0.7],
+      [1.875, -1.0],
+      [1.95, -1.5],
+    ],
+  },
+])(
+  'the boards of the live room $levelId (stories 4.9, 4.10)',
+  ({ levelId, safeZone, cleanRoute }) => {
+    const geometry = live(levelId);
+    const door = doorOf(geometry);
+    const safeCentre = safeCentreOf(geometry, safeZone);
+
+    it('has three creak zones', () => {
+      const creaks = geometry.zones.filter((zone) => zone.kind === 'creak');
+      expect(creaks.map((zone) => zone.id)).toEqual(['board_01', 'board_02', 'board_03']);
+    });
+
+    it('is crossed by a plain walk from the safe zone to the door', async () => {
+      const run = await stealthSim(geometry);
+      expect(run.world.papa.xM).toBeCloseTo(safeCentre[0]);
+      run.sim.enqueue({
+        type: 'TapFloor',
+        t: run.world.time.sim,
+        xM: door[0],
+        zM: door[2],
+      });
+      for (let i = 0; i < 4000 && run.world.flow.state === 'sequence'; i++) run.step();
+      expect(run.world.flow.state).toBe('playing');
+      const creaks = run.events.filter((event) => event.type === 'FloorCreaked');
+      expect(creaks.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('can be crossed with no creak: a fixed route reaches the exit radius over no board', async () => {
+      const run = await stealthSim(geometry);
+      for (const [xM, zM] of cleanRoute as [number, number][]) {
+        run.sim.enqueue({ type: 'TapFloor', t: run.world.time.sim, xM, zM });
+        for (let i = 0; i < 2000 && run.world.flow.state === 'sequence'; i++) {
+          run.step();
+          if (run.world.papa.state === 'idle') break;
+        }
+      }
+      expect(run.events.filter((event) => event.type === 'FloorCreaked')).toEqual([]);
+      expect(run.events.filter((event) => event.type === 'SequenceEnded')).toMatchObject([
+        { outcome: 'succeeded' },
+      ]);
+    });
+  },
+);
+
+describe('the salon keeps its zones (story 4.9)', () => {
+  it('leaves the safe and hidden zones where they were', () => {
+    const geometry = live('salon_crawler');
     expect(geometry.zones.find((zone) => zone.id === 'playpen')).toMatchObject({
       kind: 'safe',
       centerM: [-2, 0.3, 1.6],
@@ -80,35 +142,5 @@ describe('the boards of the live room (story 4.9)', () => {
       kind: 'hidden',
       centerM: [0.5, 0.5, -2.6],
     });
-  });
-
-  it('is crossed by a plain walk from the playpen to the door', async () => {
-    const run = await stealthSim();
-    expect(run.world.papa.xM).toBeCloseTo(PLAYPEN[0]);
-    run.sim.enqueue({
-      type: 'TapFloor',
-      t: run.world.time.sim,
-      xM: DOOR[0],
-      zM: DOOR[2],
-    });
-    for (let i = 0; i < 4000 && run.world.flow.state === 'sequence'; i++) run.step();
-    expect(run.world.flow.state).toBe('playing');
-    const creaks = run.events.filter((event) => event.type === 'FloorCreaked');
-    expect(creaks.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('can be crossed with no creak: a fixed route reaches the exit radius over no board', async () => {
-    const run = await stealthSim();
-    for (const [xM, zM] of CLEAN_ROUTE) {
-      run.sim.enqueue({ type: 'TapFloor', t: run.world.time.sim, xM, zM });
-      for (let i = 0; i < 2000 && run.world.flow.state === 'sequence'; i++) {
-        run.step();
-        if (run.world.papa.state === 'idle') break;
-      }
-    }
-    expect(run.events.filter((event) => event.type === 'FloorCreaked')).toEqual([]);
-    expect(run.events.filter((event) => event.type === 'SequenceEnded')).toMatchObject([
-      { outcome: 'succeeded' },
-    ]);
   });
 });
