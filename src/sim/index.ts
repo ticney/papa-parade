@@ -49,6 +49,7 @@ export {
   isDuelStepRunning,
   sequenceDuelProblems,
 } from './sequences/bedtimeDuel.ts';
+export { openSafeCentreCountOf, sequenceLayProblems } from './sequences/layDown.ts';
 export { isBeatStepRunning } from './sequences/lullabyWalk.ts';
 export { type SequenceRefusal, sequenceRefusal } from './sequences/sequenceStart.ts';
 export type { SimSnapshot } from './snapshot.ts';

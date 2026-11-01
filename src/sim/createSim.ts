@@ -32,6 +32,7 @@ import { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 import { createRapierPhysics } from './physics/rapierPhysics.ts';
 import { beatTimelineOf, sequenceBeatProblems } from './sequences/beatClock.ts';
 import { type DuelLimits, duelLimitsOf, sequenceDuelProblems } from './sequences/bedtimeDuel.ts';
+import { openCentreCountOf, sequenceLayProblems } from './sequences/layDown.ts';
 import { SEQUENCE_HANDLER_KINDS } from './sequences/sequenceSteps.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
@@ -586,6 +587,15 @@ export async function createSimWithSystems(
     { baby: world.baby, papa: world.papa },
     simLevel,
   );
+  // A `babyLaid` sequence places Papa over a safe zone (story 4.8): the words are `content:check`'s.
+  const openCentres = openCentreCountOf(simLevel.safeZones, papaGrid);
+  for (const planned of simLevel.sequences) {
+    const [layProblem] = sequenceLayProblems(planned.def, simLevel.hasCarry, openCentres);
+    invariant(
+      layProblem === undefined,
+      `level ${level.level.id}: the sequence "${planned.id}" ${layProblem}`,
+    );
+  }
   const babyRegion = spawnRegionOf(babyGrid, world.baby);
   simLevel.threats.forEach((planned) => {
     // The micro-sleep stands on Papa; a silence on the open cell of its zone nearest the centre

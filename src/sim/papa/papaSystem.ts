@@ -8,6 +8,7 @@ import type { SimObjectSpec, StepContext } from '../context.ts';
 import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
 import { bladderSpeedFactor } from '../gauges/bladder.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
+import { isBabyJustLaid } from '../sequences/layDown.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { finishCoffee, startCoffee } from './coffee.ts';
 import { startGlide } from './glide.ts';
@@ -256,6 +257,13 @@ export function runPapa(world: World, ctx: StepContext): void {
   papa.prevXM = papa.xM;
   papa.prevZM = papa.zM;
 
+  // A won « Dépose-bombe » (story 4.8) ends with the baby on the mattress and the combo cashed in. It
+  // is done here and not by the end of the sequence: `carry.ts` imports the threat code, which
+  // imports `sequenceEnd`. `runThreats` ran first, so `ResponseResolved` and `SequenceEnded` are already
+  // in this step's events.
+  const isJustLaid = isBabyJustLaid(world, ctx);
+  if (isJustLaid) putDownBaby(world, ctx);
+
   if (isPapaBusy(papa) && world.time.sim >= papa.busyUntil) {
     if (papa.state === 'drink') {
       finishCoffee(world, ctx);
@@ -268,8 +276,10 @@ export function runPapa(world: World, ctx: StepContext): void {
   }
 
   let hasToggledCarry = false;
-  // Papa stands still in a special sequence (story 4.4 D3): only a press on a threat gets through.
-  const isHeld = world.flow.state === 'sequence';
+  // Papa stands still in a special sequence (story 4.4 D3): only a press on a threat gets through. The
+  // step that lays the baby is the sequence's last: the flow is `playing` already, but a tap queued
+  // for it must not take him back from the mattress.
+  const isHeld = world.flow.state === 'sequence' || isJustLaid;
   for (let i = 0; i < ctx.commands.length; i++) {
     const command = ctx.commands[i];
     if (command === undefined) continue;

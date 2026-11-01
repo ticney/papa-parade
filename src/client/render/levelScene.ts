@@ -25,7 +25,7 @@ import { createLiftFx } from './vfx/liftHop.ts';
 import { createParticles, type ParticleStyle } from './vfx/particles.ts';
 import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
-import { createBabyView } from './views/babyView.ts';
+import { createBabyView, layDownProgressPct } from './views/babyView.ts';
 import { createPapaView, type PapaPose } from './views/papaView.ts';
 import { createPropView, type PropView } from './views/propView.ts';
 import { createViewPool, type ViewPool } from './views/viewPool.ts';
@@ -45,6 +45,10 @@ export interface SceneBodies {
   babyRadiusM: number;
   /** The def id of the level's micro-sleep (`gauges.fatigue.microSleepDef`), or null: the only threat Papa's eyelids follow. */
   microSleepDefId: string | null;
+  /** The ids of the level's threats judged on a release (story 4.8): the baby is lowered while one runs. */
+  layDownDefIds: readonly string[];
+  /** The height of the baby's centre once laid on the mattress, in metres (`feedback.json › bombDrop.laidHeightM`). */
+  laidHeightM: number;
 }
 
 /**
@@ -104,7 +108,13 @@ export interface LevelScene {
    */
   update(world: Readonly<World>, alpha: number, nowReal: RealMs): void;
   /** What the real-time effects are doing right now, read at call time (the debug `fx()`). */
-  realFxState(): { shakeOffsetXM: number; shakeOffsetZM: number; particlesAlive: number };
+  realFxState(): {
+    shakeOffsetXM: number;
+    shakeOffsetZM: number;
+    particlesAlive: number;
+    /** How far the carried baby was drawn lowered onto the mattress, 0 to 100 (story 4.8). */
+    babyLayDownPct: number;
+  };
   /** Where Papa was last drawn (interpolated), for the markers that follow him. */
   readonly papaPose: Readonly<PapaPose>;
   /**
@@ -139,6 +149,25 @@ export function eyelidsAmountAt(
     const spanMs = threat.windowOpenAt - threat.enteredAt;
     if (!(spanMs > 0)) return 1;
     return Math.min(1, Math.max(0, (clockMs - threat.enteredAt) / spanMs));
+  }
+  return 0;
+}
+
+/**
+ * How far the baby is lowered, 0 to 100 (story 4.8): the progress of the running threat whose def is
+ * one of `layDownDefIds`, or 0. Read from the world each frame, so a pause or a slow-mo holds it.
+ * Allocation-free.
+ */
+export function layDownPctAt(
+  world: Readonly<World>,
+  clockMs: number,
+  layDownDefIds: readonly string[],
+): number {
+  if (layDownDefIds.length === 0) return 0;
+  for (let i = 0; i < world.threats.length; i++) {
+    const threat = world.threats[i] as World['threats'][number];
+    if (threat.state !== 'telegraph' && threat.state !== 'windowOpen') continue;
+    if (layDownDefIds.includes(threat.defId)) return layDownProgressPct(threat, clockMs);
   }
   return 0;
 }
@@ -314,7 +343,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   });
 
   const papa = createPapaView(content, toon, shadows.kit, bodies.papaRadiusM);
-  const baby = createBabyView(content, toon, shadows.kit, bodies.babyRadiusM);
+  const baby = createBabyView(content, toon, shadows.kit, bodies.babyRadiusM, bodies.laidHeightM);
   const waves = createSoundWaves(content, PALETTE.ink);
   const shake = createShake(content);
   const particles = createParticles(content);
@@ -329,6 +358,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     setBabySlide: (offsetXM, offsetZM) => baby.setSlideM(offsetXM, offsetZM),
   });
   const lift = createLiftFx((heightM) => baby.setLiftM(heightM));
+  /** The lowering of the baby as last drawn (story 4.8), read by the debug `fx()`. */
+  let drawnLayDownPct = 0;
   const fx: LevelFx = {
     soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
       waves.play(xM, zM, maxRadiusM, durationMs, startAt),
@@ -354,13 +385,15 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         shakeOffsetXM: shake.offsetM.x,
         shakeOffsetZM: shake.offsetM.z,
         particlesAlive: particles.aliveCount,
+        babyLayDownPct: drawnLayDownPct,
       };
     },
     update(world, alpha, nowReal) {
       papa.update(world.papa, alpha);
-      baby.update(world.baby, alpha, world.papa);
-      props.sync(world.props, alpha);
       const clockMs = world.time.sim + alpha * STEP_MS;
+      drawnLayDownPct = layDownPctAt(world, clockMs, bodies.layDownDefIds);
+      baby.update(world.baby, alpha, world.papa, drawnLayDownPct);
+      props.sync(world.props, alpha);
       // Papa's nap, coffee and call, from the world every frame (stories 1.19, 1.20; diegetic, no overlay).
       papa.setEyelids(eyelidsAmountAt(world, clockMs, bodies.microSleepDefId));
       papa.setAsleep(world.papa.state === 'asleep', clockMs);

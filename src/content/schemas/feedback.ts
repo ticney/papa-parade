@@ -273,6 +273,19 @@ const PapaHintSchema = z
   })
   .describe('The hint above Papa (story 4.3). Real time: the sim never reads it.');
 
+const BombDropSchema = z
+  .strictObject({
+    laidHeightM: z
+      .number()
+      .min(0)
+      .describe(
+        "The height of the baby's centre above the floor once laid on the mattress, in metres. While a Firmness judged on its release runs, the carried baby is lowered linearly from Papa's chest to this height, from the telegraph to the final pose (story 4.8).",
+      ),
+  })
+  .describe(
+    'The bomb drop on screen (story 4.8). Read per frame on the sim clock; the sim never reads it.',
+  );
+
 const SequenceBarFeedbackSchema = z
   .strictObject({
     slideMs: realMs(
@@ -333,6 +346,7 @@ export const FeedbackTableSchema = z
     sequenceBar: SequenceBarFeedbackSchema,
     comboBadge: ComboBadgeSchema,
     papaHint: PapaHintSchema,
+    bombDrop: BombDropSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),

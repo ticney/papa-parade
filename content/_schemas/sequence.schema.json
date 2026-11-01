@@ -146,13 +146,36 @@
               "threatDef": {
                 "type": "string",
                 "pattern": "^[a-z][a-z0-9_]*$",
-                "description": "Id of the `wait` threat (`content/threats/`, aimed at Papa) the sim spawns each round of this step."
+                "description": "Id of the threat (`content/threats/`, aimed at Papa) the sim spawns each round of this step: a `wait`, or a `firm` judged on its `release` (story 4.8)."
               },
               "restMs": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991,
                 "description": "The breath before each round, from the start of the step (and after each retreat) to the telegraph, in sim ms. A tap in it costs nothing."
+              },
+              "slowMo": {
+                "description": "Slow motion for the whole of the round, from the telegraph to the end of the threat's window (story 4.8). Its length is computed from the frozen window, never written here. Absent: the round runs at the world's speed.",
+                "type": "object",
+                "properties": {
+                  "timeScale": {
+                    "type": "number",
+                    "minimum": 0.05,
+                    "exclusiveMaximum": 1,
+                    "description": "The time scale during the round, from 0.05 (the slowest the sim runs) up to but not including 1 (0.4 = 40 % speed)."
+                  },
+                  "returnMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "The smoothstep back to normal speed once the round ends, in sim ms."
+                  }
+                },
+                "required": [
+                  "timeScale",
+                  "returnMs"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -162,7 +185,7 @@
               "restMs"
             ],
             "additionalProperties": false,
-            "description": "A round of patience: wait for the signal, then tap (the Wait response)."
+            "description": "A round of patience: wait for the signal, then tap (the Wait response), or lay the baby down (a Firmness judged on its release)."
           }
         ],
         "description": "One step of a sequence."
@@ -178,6 +201,20 @@
               "type": "string",
               "const": "stepsDone",
               "description": "Every step ran to its end with no open response left behind."
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "babyLaid",
+              "description": "Like `stepsDone`, and the baby is laid on the mattress when it ends: Papa is placed over a safe zone at the start, and the combo is cashed in at the end (story 4.8). Needs `babyCarried` and a `retreats` failure."
             }
           },
           "required": [

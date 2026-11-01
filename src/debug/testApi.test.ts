@@ -539,6 +539,7 @@ describe('fx (story 2.5)', () => {
       shakeOffsetM: 0,
       particlesAlive: 0,
       stampCount: 0,
+      babyLayDownPct: 0,
     };
     const host = createFakeTestHost();
     (host as { fxState: () => typeof state }).fxState = () => state;
@@ -550,6 +551,7 @@ describe('fx (story 2.5)', () => {
       shakeOffsetM: 0.02,
       particlesAlive: 9,
       stampCount: 2,
+      babyLayDownPct: 40,
     };
     expect(api.fx()).toEqual(state);
   });

@@ -119,6 +119,27 @@ export function schedulePress(
   }
 }
 
+/**
+ * Plans the drop of a Firmness judged on its release (story 4.8): a press at `pressAt`, early in the
+ * descent, and a `Release` at `releaseAt` (at least a ms later), the instant the bot aims at the pose.
+ * **Not** {@link schedulePress}'s Firmness: that one holds until the threat is answered, which here would
+ * be through the pose, a `late` gag. Like a tap it only notes when the finger is free again, so a Firmness
+ * of the other kind waits for it.
+ */
+export function scheduleDrop(
+  scheduler: CommandScheduler,
+  hold: FirmHold,
+  threat: Readonly<ThreatInstance>,
+  pressAt: number,
+  releaseAt: number,
+): void {
+  const at = Math.max(pressAt, hold.tapUntil);
+  const releaseT = Math.max(releaseAt, at + 1);
+  scheduler.schedule({ type: 'PressThreat', t: asSimMs(at), threatId: threat.id });
+  scheduler.schedule({ type: 'Release', t: asSimMs(releaseT) });
+  hold.noteTap(releaseT);
+}
+
 /** What a bot asks of a threat def it knows, else `undefined` (the bot leaves that threat alone). */
 export function responseOf(
   responses: Readonly<Record<string, BotResponse>>,

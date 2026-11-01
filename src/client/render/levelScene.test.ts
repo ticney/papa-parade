@@ -31,7 +31,13 @@ import {
 import { createLevelScene, eyelidsAmountAt, roomOf } from './levelScene.ts';
 import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
 
-const BODIES = { papaRadiusM: 0.25, babyRadiusM: 0.2, microSleepDefId: null };
+const BODIES = {
+  papaRadiusM: 0.25,
+  babyRadiusM: 0.2,
+  microSleepDefId: null,
+  layDownDefIds: [] as string[],
+  laidHeightM: 0.3,
+};
 
 function mesh(name: string, color: number): Mesh {
   const result = new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ color }));
@@ -467,7 +473,12 @@ describe('createLevelScene', () => {
     // Over: back to exactly zero, no particle left.
     update(world, 0, asRealMs(1400));
     expect(root?.position.toArray()).toEqual([0, 0, 0]);
-    expect(realFxState()).toEqual({ shakeOffsetXM: 0, shakeOffsetZM: 0, particlesAlive: 0 });
+    expect(realFxState()).toEqual({
+      shakeOffsetXM: 0,
+      shakeOffsetZM: 0,
+      particlesAlive: 0,
+      babyLayDownPct: 0,
+    });
   });
 
   it('puts the particles under the content root and frees them with the scene', () => {

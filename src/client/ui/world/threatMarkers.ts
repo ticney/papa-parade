@@ -162,7 +162,9 @@ export interface ThreatMarkerDef {
   readonly iconShape: ThreatIconShape;
   readonly color: ThreatColor;
   readonly response: string;
-  /** Only on a `wait` threat (story 4.6): the verb and the glyph from the signal on. */
+  /** Only on a Firmness judged on its release (story 4.8): it is meant to be held in the arms. */
+  readonly release?: { readonly pressWithinMs: number } | undefined;
+  /** Only on a `wait` threat or a release (stories 4.6, 4.8): the verb and the glyph from the signal on. */
   readonly signalVerbKey?: string | undefined;
   readonly signalIcon?: ThreatIcon | undefined;
   /** Only on a `wait` threat that has a feint (story 4.7): the glyph from the feint on. A `ThreatDef` is one. */
@@ -207,9 +209,13 @@ export function threatMarkerEntries(
     const verbKey =
       def === undefined ? null : (def.verbKey ?? DEFAULT_VERB_KEYS[def.response] ?? null);
     // A Firmness cannot be held with a baby in the arms: its verb says to put him down first (story 4.1).
+    // The one exception is the bomb drop's (story 4.8): laying the baby down is the Firmness that is held
+    // carrying, so « TIENS… » must not give way to « POSE-LE D'ABORD ! ».
     const carriedVerb =
-      def?.response === 'firm' ? translateVerb(CARRIED_FIRM_VERB_KEY, threat.id, t) : '';
-    // A `wait` threat swaps its verb and its glyph at the signal (story 4.6).
+      def?.response === 'firm' && def.release === undefined
+        ? translateVerb(CARRIED_FIRM_VERB_KEY, threat.id, t)
+        : '';
+    // A `wait` threat or a release swaps its verb and its glyph at the signal (stories 4.6, 4.8).
     const signalVerb =
       def?.signalVerbKey === undefined ? '' : translateVerb(def.signalVerbKey, threat.id, t);
     const look = {
@@ -320,6 +326,11 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   // iris cut in half by it): the fake sleep's feint, « un œil s'entrouvre » (story 4.7). Not the eyes'
   // single big pupil, not the eyelids' lashes.
   peek: 'M0.8 11c2.4 5.2 8.2 5.2 10.6 0c-2.8 2.8-7.8 2.8-10.6 0z M12.2 10c2.8-3.4 8-3.4 10.8 0c-2.8 7.6-8 7.6-10.8 0z M14.9 11.2a2.7 2.7 0 0 0 5.4 0c-1.5-.9-3.9-.9-5.4 0z',
+  // A sweat drop: Papa's forehead while he lays the baby down, « TIENS… » (the bomb drop, story 4.8).
+  sweat: 'M12 2C12 2 5 10.5 5 15.2a7 7 0 0 0 14 0C19 10.5 12 2 12 2z M9 15.5a3 3 0 0 0 3 3',
+  // An open hand, the fingers spread: « LÂCHE ! », the baby touches the mattress (story 4.8).
+  open_hand:
+    'M7 21.5c-2.2-2.4-3.4-5-3.4-7.4L4 9.5a1.3 1.3 0 0 1 2.6-.2l.4 3.2V4.2a1.4 1.4 0 0 1 2.8 0V10h.4V3a1.4 1.4 0 0 1 2.8 0v7h.4V4.2a1.4 1.4 0 0 1 2.8 0V11h.4V7.2a1.4 1.4 0 0 1 2.8 0v7.4c0 3.2-1.8 5.6-4.4 6.9z',
   // Three dots: the « … » of the suspicious silence (story 1.21).
   dots: 'M6 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M18 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0',
 };

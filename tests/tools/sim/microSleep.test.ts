@@ -29,6 +29,7 @@ describe('the micro-sleeps of the live salon_crawler, with the idle bot', () => 
       seed,
       holdMinMs: content.feel.input.holdMinMs,
       responses: {},
+      releaseDefIds: [],
       settings: content.bots,
     });
     const events: SimEvent[] = [];

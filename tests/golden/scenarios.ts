@@ -189,6 +189,30 @@ const startFakeSleepDuel: SimCommand = {
   sequenceId: 'fake_sleep_duel',
 };
 
+// « Dépose-bombe » (story 4.8): the frozen `bomb_drop` (one duel step: a 2000 ms rest, a 2600 ms descent, a
+// 300 ms window, three retreats to lose) on a level that carries. The sequence starts at 10 ms, so the
+// first descent is telegraphed at 2010 and its pose is at 4610 (window 4610 to 4910, centre 4760). The
+// drop's threat is the second of its level, after the cry in the arms. No draw is made at its telegraph
+// (a Firmness judged on its release draws nothing), so the times below do not depend on the seed.
+const bombDropLevel = () => createTestLevel({ carry: CARRY, sequences: ['bomb_drop'] });
+const startBombDrop: SimCommand = {
+  type: 'StartSequence',
+  t: asSimMs(0),
+  sequenceId: 'bomb_drop',
+};
+const BOMB_DROP_ID = 2;
+/** A press and a release on the drop's threat, in whole ms, each enqueued at the step that reaches it. */
+const dropFinger = (
+  pressT: number,
+  releaseT: number,
+): { atStep: number; command: SimCommand }[] => [
+  {
+    atStep: Math.floor(pressT / STEP_MS),
+    command: { type: 'PressThreat', t: asSimMs(pressT), threatId: BOMB_DROP_ID },
+  },
+  { atStep: Math.floor(releaseT / STEP_MS), command: release(releaseT) },
+];
+
 /** Six threats on six anchors, started by hand (the wave is far away) and never answered. */
 const INSTINCT_THREATS: readonly LevelWaveThreat[] = [
   OUTLET,
@@ -569,6 +593,31 @@ export const SCENARIOS: readonly Scenario[] = [
       ...duelTap(8738, FAKE_SLEEP_ID),
       ...duelTap(12768),
       ...duelTap(19233, FAKE_SLEEP_ID),
+    ],
+  },
+  {
+    // « Dépose-bombe » won (story 4.8): pressed 100 ms into the descent (2110) and let go at the centre of the
+    // window (4760): `perfect`, offset 0. The sequence ends `succeeded` in the same step, the baby is laid in
+    // the playpen (`BabyPutDown{safe}`) and the combo is cashed in. `bombDrop.test.ts` (golden) pins what it covers.
+    name: 'bomb_drop_won',
+    level: bombDropLevel(),
+    seed: 49,
+    untilSimMs: 8000,
+    actions: [{ atStep: 0, command: startBombDrop }, ...dropFinger(2110, 4760)],
+  },
+  {
+    // « Dépose-bombe » let go too early (story 4.8): the first descent (telegraphed 2010) is pressed at 2110 and
+    // let go at 2410, long before the pose: `released`, the gag `baby_woke_on_drop`, a cry, a retreat that
+    // starts the descent over (telegraphed again at 4420, pose at 7020). The second is pressed and let go at its centre (7170, placed from the first
+    // recording): `succeeded`, the baby laid.
+    name: 'bomb_drop_released_early',
+    level: bombDropLevel(),
+    seed: 49,
+    untilSimMs: 11000,
+    actions: [
+      { atStep: 0, command: startBombDrop },
+      ...dropFinger(2110, 2410),
+      ...dropFinger(4520, 7170),
     ],
   },
 ];

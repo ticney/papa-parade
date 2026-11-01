@@ -1,0 +1,33 @@
+{
+  "version": 3,
+  "seed": 49,
+  "feelHash": "0a0ef27a2eb80a",
+  "geometryHash": "0e18fe9d85d9f9",
+  "levelHash": "1423e182f4ba1b",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "sequenceId": "bomb_drop",
+        "t": 0,
+        "type": "StartSequence"
+      }
+    },
+    {
+      "applyAt": 2120,
+      "command": {
+        "t": 2110,
+        "threatId": 2,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 4770,
+      "command": {
+        "t": 4760,
+        "type": "Release"
+      }
+    }
+  ]
+}

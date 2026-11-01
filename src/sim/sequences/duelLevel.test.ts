@@ -6,6 +6,8 @@ import {
   CARRY,
   createTestBedtimeDuel,
   createTestBedtimeEyes,
+  createTestBombDrop,
+  createTestBombDropLay,
   createTestContent,
   createTestGeometry,
   createTestLevel,
@@ -168,5 +170,75 @@ describe('the duel instances of a level (story 4.6)', () => {
     );
     expect(planned.sequences[0]?.duelThreatIndexes).toEqual([null, null, null]);
     expect(planned.sequences[1]?.duelThreatIndexes?.every((index) => index !== null)).toBe(true);
+  });
+});
+
+describe('createSim and the bomb drop (story 4.8)', () => {
+  const lay = createTestBombDropLay();
+  const bombDrop = createTestBombDrop();
+  const dropLevel = (overrides: Parameters<typeof createTestLevel>[0] = {}) =>
+    createTestLevel({ carry: CARRY, sequences: ['bomb_drop'], ...overrides });
+
+  it('accepts the frozen bomb drop in a level that carries the baby', async () => {
+    const sim = await createSim({ content, geometry, level: dropLevel(), seed: 1 });
+    sim.dispose();
+  });
+
+  it('refuses a plain firm in a duel step, naming what is asked for', async () => {
+    const { release: _release, signalVerbKey: _verb, signalIcon: _icon, ...rest } = lay;
+    const { signal: _signal, ...feedback } = lay.feedback;
+    const plain = { ...rest, holdUntilMs: 1500, feedback } as ThreatDef;
+    const level = dropLevel();
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: { ...level, threats: { ...level.threats, [plain.id]: plain } },
+        seed: 1,
+      }),
+    ).rejects.toThrow(
+      /has the response "firm", but a duel asks for "wait" or a "firm" judged on its release/,
+    );
+  });
+
+  it('refuses a babyLaid sequence when every safe zone has its centre on a closed cell', async () => {
+    // The sofa: closed in the middle, but the box reaches open cells Papa and the baby can walk to.
+    const closed = {
+      ...geometry,
+      zones: geometry.zones.map((zone) =>
+        zone.kind === 'safe'
+          ? {
+              ...zone,
+              centerM: [0.5, 0.3, -1.8] as [number, number, number],
+              halfExtentsM: [1.5, 0.3, 1.5] as [number, number, number],
+            }
+          : zone,
+      ),
+    };
+    await expect(
+      createSim({ content, geometry: closed, level: dropLevel(), seed: 1 }),
+    ).rejects.toThrow(
+      /the sequence "bomb_drop" has a "babyLaid" success, but every safe zone of the level has its centre on a closed cell/,
+    );
+  });
+
+  it('refuses a babyLaid sequence in a level that cannot carry the baby', async () => {
+    const level = createTestLevel({ sequences: ['bomb_drop'] });
+    await expect(createSim({ content, geometry, level, seed: 1 })).rejects.toThrow(
+      /carries the baby, but the level has no carry/,
+    );
+  });
+
+  it('puts the duel instance after the micro-sleep and the cry in the arms', async () => {
+    const sim = await createSim({
+      content,
+      geometry,
+      level: dropLevel({ gauges: FATIGUE_GAUGES }),
+      seed: 1,
+    });
+    const defs = sim.world.threats.map((threat) => threat.defId);
+    expect(defs.slice(-3)).toEqual(['papa_microsleep', 'arms_cry', lay.id]);
+    expect(bombDrop.steps).toHaveLength(1);
+    sim.dispose();
   });
 });

@@ -1,5 +1,5 @@
 import type { Bot, BotId, BotOptions, BotSetup } from '@bots/bot';
-import { botResponsesOf } from '@bots/botResponses';
+import { botResponsesOf, releaseDefIdsOf } from '@bots/botResponses';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
 import type { LevelContent } from '@content/contentBundle';
@@ -54,6 +54,8 @@ export function botSetup(
     holdMinMs: content.feel.input.holdMinMs,
     // What every frozen def asks for (a bot is only told about the defs it can answer).
     responses: botResponsesOf(level?.threats ?? createTestThreats()),
+    // The defs judged on a release (story 4.8): still `firm` above, told apart here.
+    releaseDefIds: releaseDefIdsOf(level?.threats ?? createTestThreats()),
     settings: { ...createTestBots(), ...settings },
   };
 }

@@ -4,6 +4,7 @@ import { asSimMs } from '@shared/time';
 import type { SimSequence, StepContext } from '../context.ts';
 import type { FailReason, SequenceOutcome } from '../events.ts';
 import { enterFlowState } from '../flow/flowFsm.ts';
+import { endSlowMo } from '../time/slowMo.ts';
 import { clearBeatSlice, clearDuelSlice, type ThreatInstance, type World } from '../world.ts';
 
 // How a special sequence ends (story 4.4). This file imports no threat code: `threatFsm` imports
@@ -41,6 +42,9 @@ function closeSequence(world: World, ctx: StepContext, outcome: SequenceOutcome)
   sequence.nextMicroSleepAt = null;
   clearBeatSlice(sequence.beat);
   clearDuelSlice(sequence.duel);
+  // A round's slow motion ends with the sequence (story 4.8): a level end or a loss must not leave
+  // the world slowed. `slowMo.ts` imports no threat code, so this file keeps its rule.
+  endSlowMo(world, ctx, 'sequence');
 }
 
 /**
@@ -121,6 +125,8 @@ export function goToSequenceStep(
   }
   sequence.endsAt = asSimMs(endsAt);
   sequence.duel.nextRoundAt = asSimMs(now + step.restMs);
+  // A retreat or a win leaves the round: its slow motion returns to normal now (story 4.8).
+  endSlowMo(world, ctx, 'sequence');
   ctx.events.push({ type: 'SequenceStepStarted', t: now, id, stepIndex: index });
 }
 

@@ -1865,6 +1865,7 @@ export async function boot(): Promise<void> {
           shakeOffsetM: Math.hypot(real?.shakeOffsetXM ?? 0, real?.shakeOffsetZM ?? 0),
           particlesAlive: real?.particlesAlive ?? 0,
           stampCount: stampsShownCount,
+          babyLayDownPct: real?.babyLayDownPct ?? 0,
         };
       },
       threatScreenPoints: () => {

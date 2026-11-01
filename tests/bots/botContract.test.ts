@@ -1,4 +1,5 @@
 import { BOT_IDS, type BotId, type BotOptions } from '@bots/bot';
+import { playGame } from '@bots/playGame';
 import type { BotSettings } from '@content/schemas/bots';
 import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
@@ -77,5 +78,29 @@ describe.each(BOT_IDS)('the %s bot contract', (id: BotId) => {
 describe('bot settings', () => {
   it('are the content type', () => {
     expect(settingsAreOptions(createTestContent().bots).tapMs).toBeGreaterThan(0);
+  });
+});
+
+// Parry and wait draws do not move (story 4.8, AC 14): the ids of the release defs are read only for
+// a threat of those defs, so a bot that is told about them plays any other game as it did before.
+describe.each(BOT_IDS)('the %s bot and the release defs it is told about', (id: BotId) => {
+  const played = async (releaseDefIds: readonly string[]) => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: SEED,
+      strictInvariants: true,
+    });
+    playGame(sim, makeBot(id, { ...botSetup(SEED), releaseDefIds }), BOT_TEST_UNTIL_MS, () => {});
+    return sim;
+  };
+
+  it('plays the same game on a level that never uses them, told or not', async () => {
+    const told = await played(botSetup(SEED).releaseDefIds);
+    const untold = await played([]);
+    expect(botSetup(SEED).releaseDefIds.length).toBeGreaterThan(0);
+    expect(told.journal()).toEqual(untold.journal());
+    expect(hashJson(told.world)).toBe(hashJson(untold.world));
   });
 });

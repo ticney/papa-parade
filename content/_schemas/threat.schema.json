@@ -55,12 +55,12 @@
           "maximum": 9007199254740991
         },
         "signalVerbKey": {
-          "description": "Only on a `wait` threat (required there, refused elsewhere): key of `strings.fr.json` (`verb.` group) of the verb shown from the signal on (« FILE ! », story 4.6).",
+          "description": "Only on a `wait` threat or a `firm` threat with a `release` (required there, refused elsewhere): key of `strings.fr.json` (`verb.` group) of the verb shown from the signal on (« FILE ! », story 4.6; « LÂCHE ! », story 4.8).",
           "type": "string",
           "pattern": "^verb\\.[a-z0-9_]+$"
         },
         "signalIcon": {
-          "description": "Only on a `wait` threat (required there, refused elsewhere): the glyph drawn in the marker from the signal on, in place of `icon` (story 4.6). The signal is the glyph and the verb, never the colour alone.",
+          "description": "Only on a `wait` threat or a `firm` threat with a `release` (required there, refused elsewhere): the glyph drawn in the marker from the signal on, in place of `icon` (stories 4.6, 4.8). The signal is the glyph and the verb, never the colour alone.",
           "type": "string",
           "enum": [
             "bolt",
@@ -70,7 +70,9 @@
             "dots",
             "cry",
             "eyes",
-            "peek"
+            "peek",
+            "sweat",
+            "open_hand"
           ]
         },
         "feint": {
@@ -105,7 +107,9 @@
                 "dots",
                 "cry",
                 "eyes",
-                "peek"
+                "peek",
+                "sweat",
+                "open_hand"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -119,9 +123,25 @@
           "additionalProperties": false
         },
         "holdUntilMs": {
-          "description": "Only on a `firm` threat (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).",
+          "description": "Only on a `firm` threat without `release` (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).",
           "type": "number",
           "exclusiveMinimum": 0
+        },
+        "release": {
+          "description": "Only on a `firm` threat (optional there, refused elsewhere; the alternative to `holdUntilMs`): a Firmness judged on its release (story 4.8, « Dépose-bombe »). The telegraph is the descent, `windowOpenAt` the final pose, and the response window the window of the release. Needs `signalVerbKey`, `signalIcon` and `feedback.signal`, and a numeric `telegraphDelayMs`.",
+          "type": "object",
+          "properties": {
+            "pressWithinMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "How long after the telegraph the press may come, in sim ms, strictly below `telegraphDelayMs`. The sim adds the response window's tolerance (and the input lag) to it, so keep a margin below the descent: a press at the limit can land just short of the final pose."
+            }
+          },
+          "required": [
+            "pressWithinMs"
+          ],
+          "additionalProperties": false
         },
         "verbKey": {
           "anyOf": [
@@ -145,7 +165,9 @@
             "dots",
             "cry",
             "eyes",
-            "peek"
+            "peek",
+            "sweat",
+            "open_hand"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -191,7 +213,7 @@
             "signal": {
               "type": "string",
               "pattern": "^[a-z][a-z0-9_]*$",
-              "description": "Only on a `wait` threat (required there, refused elsewhere): the cue played at the signal, when the window opens (story 4.6)."
+              "description": "Only on a `wait` threat or a `firm` threat with a `release` (required there, refused elsewhere): the cue played at the signal, when the window opens (stories 4.6, 4.8)."
             },
             "feint": {
               "type": "string",
@@ -304,12 +326,12 @@
           "maximum": 9007199254740991
         },
         "signalVerbKey": {
-          "description": "Only on a `wait` threat (required there, refused elsewhere): key of `strings.fr.json` (`verb.` group) of the verb shown from the signal on (« FILE ! », story 4.6).",
+          "description": "Only on a `wait` threat or a `firm` threat with a `release` (required there, refused elsewhere): key of `strings.fr.json` (`verb.` group) of the verb shown from the signal on (« FILE ! », story 4.6; « LÂCHE ! », story 4.8).",
           "type": "string",
           "pattern": "^verb\\.[a-z0-9_]+$"
         },
         "signalIcon": {
-          "description": "Only on a `wait` threat (required there, refused elsewhere): the glyph drawn in the marker from the signal on, in place of `icon` (story 4.6). The signal is the glyph and the verb, never the colour alone.",
+          "description": "Only on a `wait` threat or a `firm` threat with a `release` (required there, refused elsewhere): the glyph drawn in the marker from the signal on, in place of `icon` (stories 4.6, 4.8). The signal is the glyph and the verb, never the colour alone.",
           "type": "string",
           "enum": [
             "bolt",
@@ -319,7 +341,9 @@
             "dots",
             "cry",
             "eyes",
-            "peek"
+            "peek",
+            "sweat",
+            "open_hand"
           ]
         },
         "feint": {
@@ -354,7 +378,9 @@
                 "dots",
                 "cry",
                 "eyes",
-                "peek"
+                "peek",
+                "sweat",
+                "open_hand"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -368,9 +394,25 @@
           "additionalProperties": false
         },
         "holdUntilMs": {
-          "description": "Only on a `firm` threat (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).",
+          "description": "Only on a `firm` threat without `release` (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).",
           "type": "number",
           "exclusiveMinimum": 0
+        },
+        "release": {
+          "description": "Only on a `firm` threat (optional there, refused elsewhere; the alternative to `holdUntilMs`): a Firmness judged on its release (story 4.8, « Dépose-bombe »). The telegraph is the descent, `windowOpenAt` the final pose, and the response window the window of the release. Needs `signalVerbKey`, `signalIcon` and `feedback.signal`, and a numeric `telegraphDelayMs`.",
+          "type": "object",
+          "properties": {
+            "pressWithinMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "How long after the telegraph the press may come, in sim ms, strictly below `telegraphDelayMs`. The sim adds the response window's tolerance (and the input lag) to it, so keep a margin below the descent: a press at the limit can land just short of the final pose."
+            }
+          },
+          "required": [
+            "pressWithinMs"
+          ],
+          "additionalProperties": false
         },
         "verbKey": {
           "anyOf": [
@@ -394,7 +436,9 @@
             "dots",
             "cry",
             "eyes",
-            "peek"
+            "peek",
+            "sweat",
+            "open_hand"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -440,7 +484,7 @@
             "signal": {
               "type": "string",
               "pattern": "^[a-z][a-z0-9_]*$",
-              "description": "Only on a `wait` threat (required there, refused elsewhere): the cue played at the signal, when the window opens (story 4.6)."
+              "description": "Only on a `wait` threat or a `firm` threat with a `release` (required there, refused elsewhere): the cue played at the signal, when the window opens (stories 4.6, 4.8)."
             },
             "feint": {
               "type": "string",
