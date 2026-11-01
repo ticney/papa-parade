@@ -693,6 +693,40 @@
       "additionalProperties": false,
       "description": "The special sequences (story 4.4)."
     },
+    "stealth": {
+      "type": "object",
+      "properties": {
+        "sneakSpeedPct": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "description": "Papa's walking speed during a stealth step, in % of `movement.walkSpeedMps` (a glide keeps its own speed): 35 = about 7 s for the 7 m to the door (story 4.9)."
+        },
+        "breathCapacityMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How long the breath can be held, in sim ms; at 0 it is released, with a gasp (story 4.9)."
+        },
+        "breathRefillPerSecMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How much breath comes back for each second it is not held, in ms of capacity per second of sim time."
+        },
+        "holdMinMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How long a finger that tapped the floor must stay down to take the breath, in real ms. Its own value: `input.holdMinMs` is the Firmness threshold, and retuning one must not move the other."
+        }
+      },
+      "required": [
+        "sneakSpeedPct",
+        "breathCapacityMs",
+        "breathRefillPerSecMs",
+        "holdMinMs"
+      ],
+      "additionalProperties": false,
+      "description": "The stealth exit (story 4.9, GDD §6): the sneak and the held breath."
+    },
     "instinct": {
       "type": "object",
       "properties": {
@@ -1542,6 +1576,7 @@
     "noise",
     "bladder",
     "sequences",
+    "stealth",
     "instinct",
     "difficulty",
     "mama",

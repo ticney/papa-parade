@@ -213,6 +213,28 @@ const dropFinger = (
   { atStep: Math.floor(releaseT / STEP_MS), command: release(releaseT) },
 ];
 
+// « Sortie en infiltration » (story 4.9): the frozen `stealth_exit` (a door at 0.9 m, an alert every 4 to 7 s,
+// 30 % of them real wakes) on a level that carries and has the noise gauge. On seed 1 the first alert is a
+// false alarm telegraphed at 4350 (its window opens at 5250 and its 2000 ms end at 7250), whatever the
+// commands: the two draws of an alert are made before any command can move them. The false alarm is the
+// second threat of its level, after the cry in the arms.
+const stealthLevel = () =>
+  createTestLevel({ carry: CARRY, gauges: NOISE_GAUGES, sequences: ['stealth_exit'] });
+const startStealth: SimCommand = {
+  type: 'StartSequence',
+  t: asSimMs(0),
+  sequenceId: 'stealth_exit',
+};
+const STEALTH_FALSE_ALARM_ID = 2;
+const holdBreath = (t: number): { atStep: number; command: SimCommand } => ({
+  atStep: Math.floor(t / STEP_MS),
+  command: { type: 'HoldAnywhere', t: asSimMs(t) },
+});
+const letGoBreath = (t: number): { atStep: number; command: SimCommand } => ({
+  atStep: Math.floor(t / STEP_MS),
+  command: { type: 'ReleaseHold', t: asSimMs(t) },
+});
+
 /** Six threats on six anchors, started by hand (the wave is far away) and never answered. */
 const INSTINCT_THREATS: readonly LevelWaveThreat[] = [
   OUTLET,
@@ -618,6 +640,44 @@ export const SCENARIOS: readonly Scenario[] = [
       { atStep: 0, command: startBombDrop },
       ...dropFinger(2110, 2410),
       ...dropFinger(4520, 7170),
+    ],
+  },
+  {
+    // « Sortie en infiltration » won (story 4.9): Papa walks to the door (three boards creak on the way),
+    // holds his breath from 4400 (right after the false alarm's telegraph at 4350) and lets go at 7250, the very
+    // end of its window: no gasp. He is within reach of the door at 5820, but the alert is still up, so the
+    // sequence is won only at 7260, the step after the false alarm is sat through. `stealthExit.test.ts`
+    // (golden) pins what it covers.
+    name: 'stealth_exit_won',
+    level: stealthLevel(),
+    seed: 1,
+    untilSimMs: 9000,
+    actions: [
+      { atStep: 0, command: startStealth },
+      { atStep: 2, command: tapFloor(20, 2.9, -2.8) },
+      holdBreath(4400),
+      letGoBreath(7250),
+    ],
+  },
+  {
+    // « Sortie en infiltration » lost to a touch (story 4.9): the same walk, but a finger goes on the false alarm
+    // as its window opens (5250): `acted`, the gag `baby_woke_by_touch`, a cry, the sequence lost.
+    name: 'stealth_exit_touched_sigh',
+    level: stealthLevel(),
+    seed: 1,
+    untilSimMs: 9000,
+    actions: [
+      { atStep: 0, command: startStealth },
+      { atStep: 2, command: tapFloor(20, 2.9, -2.8) },
+      holdBreath(4400),
+      {
+        atStep: Math.floor(5250 / STEP_MS),
+        command: {
+          type: 'PressThreat',
+          t: asSimMs(5250),
+          threatId: STEALTH_FALSE_ALARM_ID,
+        },
+      },
     ],
   },
 ];

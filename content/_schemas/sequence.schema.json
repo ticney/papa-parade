@@ -186,6 +186,73 @@
             ],
             "additionalProperties": false,
             "description": "A round of patience: wait for the signal, then tap (the Wait response), or lay the baby down (a Firmness judged on its release)."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "stealth",
+                "description": "Papa sneaks out of the room, holding his breath at every false alarm and answering the real wakes (story 4.9). The step ends on his exit, not when its time is up."
+              },
+              "durationMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "An estimate of the crossing, in sim ms (like a duel step): the step ends when Papa reaches the exit, never on this time."
+              },
+              "exitAnchor": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "Id of an anchor of the level's geometry: the way out. Papa has left once he is within `exitRadiusM` of it."
+              },
+              "exitRadiusM": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "How close to the exit anchor Papa must be to have left, in metres."
+              },
+              "alertGapMinMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Shortest wait between two alerts of this step, in sim ms."
+              },
+              "alertGapMaxMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Longest wait between two alerts of this step, in sim ms, at least `alertGapMinMs`."
+              },
+              "realWakePct": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "description": "The chance, in %, that an alert is a real wake (the rest are false alarms). At least 1: with none the baby would never need rocking, and `idle` would win."
+              },
+              "falseAlarmDef": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "Id of the threat (`content/threats/`, a `nothing` on the baby) an alert draws when it is a false alarm."
+              },
+              "realWakeDef": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "Id of the threat (`content/threats/`, a `parry` on the baby) an alert draws when it is a real wake."
+              }
+            },
+            "required": [
+              "kind",
+              "durationMs",
+              "exitAnchor",
+              "exitRadiusM",
+              "alertGapMinMs",
+              "alertGapMaxMs",
+              "realWakePct",
+              "falseAlarmDef",
+              "realWakeDef"
+            ],
+            "additionalProperties": false,
+            "description": "The infiltration: sneak to the exit while the baby sighs and, sometimes, wakes."
           }
         ],
         "description": "One step of a sequence."

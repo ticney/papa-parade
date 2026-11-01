@@ -491,6 +491,101 @@ describe('a marker that follows Papa (story 1.19)', () => {
     expect(markers.entries[0]).toBe(entry);
   });
 
+  describe('a threat on the baby (story 4.9)', () => {
+    const babyDefs = {
+      false_alarm_sigh: {
+        icon: 'sigh',
+        target: 'baby',
+        verbKey: 'verb.do_nothing',
+        iconShape: 'circle',
+        color: 'parry',
+        response: 'nothing',
+      },
+      real_wake: {
+        icon: 'cry',
+        target: 'baby',
+        verbKey: 'verb.rock',
+        iconShape: 'circle',
+        color: 'parry',
+        response: 'parry',
+      },
+    } as const;
+    const onBaby = (state: ThreatState, xM: number, zM: number, defId = 'false_alarm_sigh') =>
+      ({
+        ...threat(11, state),
+        defId,
+        anchorId: 'baby',
+        xM,
+        zM,
+      }) as Readonly<ThreatInstance>;
+
+    it('starts at the baby’s spawn point, above his body, and follows no pose', () => {
+      const entries = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t);
+      expect(entries).toEqual([
+        expect.objectContaining({
+          threatId: 11,
+          xM: 1,
+          zM: 2,
+          icon: 'sigh',
+          followsPapa: false,
+          followsBaby: true,
+          verb: '<verb.do_nothing>',
+        }),
+      ]);
+      expect(entries[0]?.yM).toBeGreaterThan(0.2 * 2);
+    });
+
+    it('takes the point of each telegraph: a marker whose baby moved between two telegraphs moves with it', () => {
+      const { markers, scene } = build();
+      const [first] = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t);
+      const entry = { ...(first as NonNullable<typeof first>) };
+      markers.mount([entry]);
+      markers.update([onBaby('telegraph', 1, 2)], null, null, { xM: 40, zM: 40 });
+      expect([entry.xM, entry.zM]).toEqual([1, 2]);
+      markers.update([onBaby('resolved', 1, 2)], null, null);
+      // The baby was moved, and the sim wrote the new point at the next telegraph.
+      markers.update([onBaby('telegraph', -2, 1.6)], null, null, { xM: 40, zM: 40 });
+      expect([entry.xM, entry.zM]).toEqual([-2, 1.6]);
+      expect(scene.children[0]?.position.toArray()).toEqual([-2, entry.yM, 1.6]);
+      expect(markers.entries[0]).toBe(entry);
+    });
+
+    it('leaves a marker that is not active where it was', () => {
+      const { markers } = build();
+      const [first] = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t);
+      const entry = { ...(first as NonNullable<typeof first>) };
+      markers.mount([entry]);
+      markers.update([onBaby('idle', 5, 5)], null, null);
+      expect([entry.xM, entry.zM]).toEqual([1, 2]);
+    });
+
+    it('shows no hold-ring on a nothing, which never holds a press', () => {
+      const { markers, byClass } = build();
+      const [first] = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t);
+      markers.mount([{ ...(first as NonNullable<typeof first>) }]);
+      markers.update([onBaby('windowOpen', 1, 2)], null, null, null, 1000, 400);
+      const ring = byClass(THREAT_CLASSES.hold)[0];
+      expect(ring?.hidden).toBe(true);
+    });
+
+    it('reads differently from the cry: another glyph and another verb on the same blue circle', () => {
+      const entries = threatMarkerEntries(
+        [onBaby('idle', 0, 0), onBaby('idle', 0, 0, 'real_wake')],
+        [],
+        babyDefs,
+        0.2,
+        t,
+      );
+      expect(entries[0]?.icon).not.toBe(entries[1]?.icon);
+      expect(entries[0]?.verb).not.toBe(entries[1]?.verb);
+      expect(THREAT_ICON_PATHS.sigh).not.toBe(THREAT_ICON_PATHS.cry);
+      expect([entries[0]?.iconShape, entries[0]?.color]).toEqual([
+        entries[1]?.iconShape,
+        entries[1]?.color,
+      ]);
+    });
+  });
+
   it('stays where it was with no pose, and an anchored marker never moves', () => {
     const { markers, scene } = build();
     const following = { ...FOLLOWING };

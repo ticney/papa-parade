@@ -1,12 +1,14 @@
-import type { BeatEntry, ComboSlice, ThreatInstance } from '@sim';
+import type { BeatEntry, ComboSlice, StealthSlice, ThreatInstance } from '@sim';
 import type { Camera, Scene } from 'three';
 import { Scene as ThreeScene } from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { type BeatRing, createBeatRing } from './beatRing.ts';
+import { type BreathRing, createBreathRing } from './breathRing.ts';
 import { type ComboBadge, type ComboBadgeOptions, createComboBadge } from './comboBadge.ts';
 import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
 import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
 import { createPapaHint, type PapaHint } from './papaHint.ts';
+import { createStealthExitMarker, type StealthExitMarker } from './stealthExitMarker.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
 import { createThreatMarkers, type ThreatMarkerEntry } from './threatMarkers.ts';
 import { createBrowserVerbMetrics, type VerbMetrics } from './verbMetrics.ts';
@@ -34,6 +36,19 @@ export interface WorldUi {
     approachMs: number,
     papa: Readonly<{ xM: number; zM: number }> | null,
   ): void;
+  /** The ring of breath around Papa during a stealth step (story 4.9). */
+  readonly breathRing: BreathRing;
+  /**
+   * Once per frame, before `render`: the breath ring around Papa's drawn pose and the exit marker of a
+   * stealth step, from the stealth slice (`null` outside a level). Allocation-free.
+   */
+  updateStealth(
+    stealth: Readonly<StealthSlice> | null,
+    breathCapacityMs: number,
+    papa: Readonly<{ xM: number; zM: number }> | null,
+  ): void;
+  /** The « SORS ! » door at the exit of a stealth step (story 4.9). */
+  readonly stealthExitMarker: StealthExitMarker;
   /** Mounts the threat icons of a level, replacing the previous level's (all hidden until a frame shows them). */
   mountThreats(entries: readonly ThreatMarkerEntry[]): void;
   /** Removes the threat icons (a restart hides the old ones before its countdown). */
@@ -134,6 +149,9 @@ export function createWorldUi(
   // After the markers above it (index 4) and before the object markers, which moved up to 5+ with
   // it: the earlier children keep their places (a test reads them by index).
   const beatRing = createBeatRing(scene, doc, { isMotionReduced: comboOptions.isMotionReduced });
+  // After the beat ring: the earlier children keep their places (a test reads them by index).
+  const breathRing = createBreathRing(scene, doc);
+  const stealthExitMarker = createStealthExitMarker(scene, doc, comboOptions.translate);
   return {
     scene,
     tapMarker,
@@ -143,6 +161,12 @@ export function createWorldUi(
     updatePapaHint: papaHint.update,
     beatRing,
     updateBeatRing: beatRing.update,
+    breathRing,
+    stealthExitMarker,
+    updateStealth(stealth, breathCapacityMs, papa) {
+      breathRing.update(stealth, breathCapacityMs, papa);
+      stealthExitMarker.update(stealth);
+    },
     updateCombo(combo, minMultiplier, papa, threatInstances, nowAtReal) {
       const entries = threats.entries;
       let isAside = false;
@@ -184,7 +208,9 @@ export function createWorldUi(
           glyphChip.isVisible ||
           comboBadge.isVisible ||
           papaHint.isVisible ||
-          beatRing.isVisible
+          beatRing.isVisible ||
+          breathRing.isVisible ||
+          stealthExitMarker.isVisible
         )
       ) {
         return;
@@ -201,6 +227,8 @@ export function createWorldUi(
       comboBadge.dispose();
       papaHint.dispose();
       beatRing.dispose();
+      breathRing.dispose();
+      stealthExitMarker.dispose();
       threats.dispose();
       objects.dispose();
     },

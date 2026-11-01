@@ -2,13 +2,18 @@ import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { Feel } from '@content/schemas/feel';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import type { ThreatDef } from '@content/schemas/threat';
-import { PAPA_TARGET_ANCHOR_ID, PROP_ON_FLOOR_TOLERANCE_M } from '@shared/constants';
+import {
+  BABY_TARGET_ANCHOR_ID,
+  PAPA_TARGET_ANCHOR_ID,
+  PROP_ON_FLOOR_TOLERANCE_M,
+} from '@shared/constants';
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
 import type {
+  SimCreakZone,
   SimHiddenZone,
   SimLevel,
   SimObjectSpec,
@@ -34,6 +39,7 @@ import { beatTimelineOf, sequenceBeatProblems } from './sequences/beatClock.ts';
 import { type DuelLimits, duelLimitsOf, sequenceDuelProblems } from './sequences/bedtimeDuel.ts';
 import { openCentreCountOf, sequenceLayProblems } from './sequences/layDown.ts';
 import { SEQUENCE_HANDLER_KINDS } from './sequences/sequenceSteps.ts';
+import { sequenceStealthProblems, stealthRoomOf } from './sequences/stealthExit.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
 import { GAG_IDS, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
@@ -175,6 +181,8 @@ function simLevelOf(
   physics: Feel['physics'],
   beatTrackIds: readonly string[],
   limits: DuelLimits,
+  papaGrid: NavGrid,
+  breathCapacityMs: number,
 ): SimLevel {
   invariant(
     level.level.id === geometry.id,
@@ -183,6 +191,10 @@ function simLevelOf(
   invariant(
     !geometry.anchors.some((anchor) => anchor.id === PAPA_TARGET_ANCHOR_ID),
     `level ${level.level.id}: the geometry has an anchor named "${PAPA_TARGET_ANCHOR_ID}", which the sim reserves for the threat that stands on Papa`,
+  );
+  invariant(
+    !geometry.anchors.some((anchor) => anchor.id === BABY_TARGET_ANCHOR_ID),
+    `level ${level.level.id}: the geometry has an anchor named "${BABY_TARGET_ANCHOR_ID}", which the sim reserves for the threats that stand on the baby`,
   );
   const planned = plannedEntriesOf(level);
   const waves = level.level.waves;
@@ -220,6 +232,10 @@ function simLevelOf(
     invariant(
       def.target !== 'papa',
       `${entry.where}: the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef, carry.armsCryDef or a sequence's duel step), a wave cannot plan it`,
+    );
+    invariant(
+      def.target !== 'baby',
+      `${entry.where}: the threat "${entry.def}" has target "baby": only a stealth step spawns it, a wave cannot plan it`,
     );
     for (const gag of gagIdsOf(def)) {
       invariant(
@@ -278,6 +294,16 @@ function simLevelOf(
       `${where}: the level carries the baby, but ${geometry.id} has no safe zone (a ZONE_safe_<name> node) to put him down in`,
     );
   }
+  // The boards of the room (story 4.9): in every level, but they creak only under a stealth step.
+  const creakZones: SimCreakZone[] = geometry.zones
+    .filter((zone) => zone.kind === 'creak')
+    .map((zone) => ({
+      id: zone.id,
+      centerXM: zone.centerM[0],
+      centerZM: zone.centerM[2],
+      halfXM: zone.halfExtentsM[0],
+      halfZM: zone.halfExtentsM[2],
+    }));
   if (armsCryDef !== undefined) {
     const where = `level ${level.level.id} › carry.armsCryDef`;
     const def = Object.hasOwn(level.threats, armsCryDef) ? level.threats[armsCryDef] : undefined;
@@ -369,6 +395,16 @@ function simLevelOf(
     // The duel steps (story 4.6): the words are `content:check`'s, they share the function.
     const [duelProblem] = sequenceDuelProblems(def, level.threats, limits);
     invariant(duelProblem === undefined, `${where}: the sequence "${id}" ${duelProblem}`);
+    // The stealth step (story 4.9): the words are `content:check`'s, they share the function. Papa's
+    // grid is built beforehand, for the exit's reach.
+    const [stealthProblem] = sequenceStealthProblems(
+      def,
+      level.threats,
+      limits,
+      stealthRoomOf(geometry.anchors, papaGrid, level.level.carry !== undefined),
+      breathCapacityMs,
+    );
+    invariant(stealthProblem === undefined, `${where}: the sequence "${id}" ${stealthProblem}`);
     // One instance per distinct def, pushed after the cry and the micro-sleep, which keep their indices.
     const duelThreatIndexes = def.steps.map((step) => {
       if (step.kind !== 'duel') return null;
@@ -390,11 +426,43 @@ function simLevelOf(
       duelIndexByDef.set(step.threatDef, threats.length - 1);
       return threats.length - 1;
     });
+    // The two alerts of a stealth step, one instance per distinct def through the same map.
+    const instanceOf = (defId: string): number => {
+      const known = duelIndexByDef.get(defId);
+      if (known !== undefined) return known;
+      const alertDef = level.threats[defId] as ThreatDef;
+      for (const gag of gagIdsOf(alertDef)) {
+        invariant(
+          (GAG_IDS as readonly string[]).includes(gag),
+          `${where}: the threat "${defId}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+        );
+      }
+      threats.push({
+        def: alertDef,
+        anchorId: BABY_TARGET_ANCHOR_ID,
+        firstWaveIndex: -1,
+        zone: null,
+      });
+      duelIndexByDef.set(defId, threats.length - 1);
+      return threats.length - 1;
+    };
+    const stealthThreatIndexes = def.steps.map((step) => {
+      if (step.kind !== 'stealth') return null;
+      const exit = geometry.anchors.find((candidate) => candidate.id === step.exitAnchor);
+      invariant(exit !== undefined, `${where}: the exit anchor "${step.exitAnchor}" is missing`);
+      return {
+        falseAlarmIndex: instanceOf(step.falseAlarmDef),
+        realWakeIndex: instanceOf(step.realWakeDef),
+        exitXM: exit.positionM[0],
+        exitZM: exit.positionM[2],
+      };
+    });
     sequences.push({
       id,
       def,
       beatTimelines: def.steps.map((step) => (step.kind === 'beats' ? beatTimelineOf(step) : null)),
       duelThreatIndexes,
+      stealthThreatIndexes,
     });
   });
   return {
@@ -402,6 +470,7 @@ function simLevelOf(
     armsCryIndex,
     hasCarry: level.level.carry !== undefined,
     safeZones,
+    creakZones,
     hasNoise: level.level.gauges.noise !== undefined,
     hasBladder: level.level.gauges.need !== undefined,
     durationMs: level.level.durationMs,
@@ -559,14 +628,16 @@ export async function createSimWithSystems(
   const feelHash = hashJson(content.feel);
   const geometryHash = hashJson(geometry);
   const levelHash = hashJson(level);
+  const papaGrid = createNavGrid(geometry, content.feel.movement.papaRadiusM);
   const simLevel = simLevelOf(
     level,
     geometry,
     content.feel.physics,
     Object.keys(content.feedback.beatTracks),
     duelLimitsOf(content.feel),
+    papaGrid,
+    content.feel.stealth.breathCapacityMs,
   );
-  const papaGrid = createNavGrid(geometry, content.feel.movement.papaRadiusM);
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
   let world = createWorld({
     seed,
@@ -598,11 +669,15 @@ export async function createSimWithSystems(
   }
   const babyRegion = spawnRegionOf(babyGrid, world.baby);
   simLevel.threats.forEach((planned) => {
-    // The micro-sleep stands on Papa; a silence on the open cell of its zone nearest the centre
+    // The micro-sleep stands on Papa, a stealth alert on the baby; a silence on the open cell of its zone nearest the centre
     // (`checkReachable` proved there is one); every other threat on its anchor.
     let point: { xM: number; zM: number } | undefined;
     if (planned.def.target === 'papa') {
       point = { xM: world.papa.xM, zM: world.papa.zM };
+    } else if (planned.def.target === 'baby') {
+      // A stealth step's alert (story 4.9) is written at the baby's point at each telegraph; until
+      // then, where he spawned.
+      point = { xM: world.baby.xM, zM: world.baby.zM };
     } else if (planned.zone !== null) {
       const cell = zoneCellOf(babyGrid, planned.zone, babyRegion);
       invariant(cell >= 0, 'a planned hidden zone has an open cell');

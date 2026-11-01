@@ -65,14 +65,25 @@ describe('SIM_EVENT_TYPES', () => {
 describe('the fatigue events (story 1.19)', () => {
   it('lists CoffeeDrunk, CoffeeStarted and FatigueThresholdCrossed in their alphabetical places', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
-    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('BladderFilled') + 1);
+    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('BreathReleased') + 1);
     expect(names.indexOf('CoffeeStarted')).toBe(names.indexOf('CoffeeDrunk') + 1);
     expect(names.indexOf('ComboCashedIn')).toBe(names.indexOf('CoffeeStarted') + 1);
     expect(names.indexOf('ComboChanged')).toBe(names.indexOf('ComboCashedIn') + 1);
     expect(names.indexOf('DecoyCued')).toBe(names.indexOf('ComboChanged') + 1);
     expect(names.indexOf('DecoyTapped')).toBe(names.indexOf('DecoyCued') + 1);
     expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('DecoyTapped') + 1);
-    expect(names.indexOf('GagTriggered')).toBe(names.indexOf('FatigueThresholdCrossed') + 1);
+    expect(names.indexOf('FloorCreaked')).toBe(names.indexOf('FatigueThresholdCrossed') + 1);
+    expect(names.indexOf('GagTriggered')).toBe(names.indexOf('FloorCreaked') + 1);
+  });
+});
+
+describe('the stealth exit events (story 4.9)', () => {
+  it('lists the four events in their alphabetical places', () => {
+    const names: readonly string[] = SIM_EVENT_TYPES;
+    expect(names.indexOf('BreathGasped')).toBe(names.indexOf('BladderFilled') + 1);
+    expect(names.indexOf('BreathHeld')).toBe(names.indexOf('BreathGasped') + 1);
+    expect(names.indexOf('BreathReleased')).toBe(names.indexOf('BreathHeld') + 1);
+    expect(names.indexOf('FloorCreaked')).toBeGreaterThan(-1);
   });
 });
 

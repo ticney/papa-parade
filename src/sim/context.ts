@@ -59,6 +59,12 @@ export interface SimLevel {
   readonly hasCarry: boolean;
   /** The level's `kind: "safe"` zones as floor rectangles (story 4.1); empty without carrying. */
   readonly safeZones: readonly SimSafeZone[];
+  /**
+   * The level's `kind: "creak"` zones as floor rectangles (story 4.9), every level (empty when the
+   * geometry has none). They creak only under a stealth step, so the other levels' sequences and bots
+   * are not touched by them.
+   */
+  readonly creakZones: readonly SimCreakZone[];
   /** Whether the level has the noise gauge (`gauges.noise`, story 3.1). Without it: no value, no event. */
   readonly hasNoise: boolean;
   /** Whether the level has the need gauge (`gauges.need`, story 4.3). Without it: no value, no event, no toilet. */
@@ -95,6 +101,9 @@ export type SimHiddenZone = SimZoneRect;
 /** A `ZONE_safe_*` of the room: where putting the baby down is safe (story 4.1). */
 export type SimSafeZone = SimZoneRect;
 
+/** A `ZONE_creak_*` of the room: a board that creaks when Papa steps on it in a stealth step (story 4.9). */
+export type SimCreakZone = SimZoneRect;
+
 /** One planned disruption: what, at which object, when, and the wave that planned it. */
 export interface SimPlannedDisruption {
   readonly def: DisruptionDef;
@@ -121,6 +130,20 @@ export interface SimSequence {
    * `simLevelOf`, so it is not in the snapshot.
    */
   readonly duelThreatIndexes: readonly (number | null)[];
+  /**
+   * The two instances each step spawns (story 4.9), index-aligned with `def.steps`: `null` for a step
+   * that is not a `stealth` step. One instance per distinct def, through the map the duel's indices
+   * use. Derived from the def by `simLevelOf`, so it is not in the snapshot.
+   */
+  readonly stealthThreatIndexes: readonly (SimStealthStep | null)[];
+}
+
+/** What a `stealth` step runs on: its false alarm and its real wake (indices in `world.threats`), and the floor point of its exit. */
+export interface SimStealthStep {
+  readonly falseAlarmIndex: number;
+  readonly realWakeIndex: number;
+  readonly exitXM: number;
+  readonly exitZM: number;
 }
 
 /**

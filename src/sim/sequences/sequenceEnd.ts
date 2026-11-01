@@ -5,7 +5,13 @@ import type { SimSequence, StepContext } from '../context.ts';
 import type { FailReason, SequenceOutcome } from '../events.ts';
 import { enterFlowState } from '../flow/flowFsm.ts';
 import { endSlowMo } from '../time/slowMo.ts';
-import { clearBeatSlice, clearDuelSlice, type ThreatInstance, type World } from '../world.ts';
+import {
+  clearBeatSlice,
+  clearDuelSlice,
+  clearStealthSlice,
+  type ThreatInstance,
+  type World,
+} from '../world.ts';
 
 // How a special sequence ends (story 4.4). This file imports no threat code: `threatFsm` imports
 // it (a gag in a sequence ends the sequence), and `sequenceSystem.ts` imports both.
@@ -42,6 +48,8 @@ function closeSequence(world: World, ctx: StepContext, outcome: SequenceOutcome)
   sequence.nextMicroSleepAt = null;
   clearBeatSlice(sequence.beat);
   clearDuelSlice(sequence.duel);
+  // With the breath held, a win, a loss or the level's end just drops it: no gasp, no `BreathReleased`.
+  clearStealthSlice(sequence.stealth, ctx.feel.stealth.breathCapacityMs);
   // A round's slow motion ends with the sequence (story 4.8): a level end or a loss must not leave
   // the world slowed. `slowMo.ts` imports no threat code, so this file keeps its rule.
   endSlowMo(world, ctx, 'sequence');

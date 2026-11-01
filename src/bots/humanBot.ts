@@ -11,7 +11,9 @@ import {
   createCycleMemory,
   createFirmHold,
   createSilenceMemory,
+  createStealthWalkMemory,
   isPressable,
+  planStealthWalk,
   responseOf,
   scheduleDrop,
   schedulePress,
@@ -34,6 +36,9 @@ import {
  * numbers do not move with it, and only playing tells (open point 5 of story 4.7). On a Firmness judged
  * on its release (story 4.8) it presses `reactionMs` after the telegraph and lets go at
  * `centre + aimOffsetMs + jitterSdMs × N(0, 1)`: one draw, no signal needed, it aims at what is visible.
+ * In a stealth step (story 4.9) it walks to the exit (and so creaks), parries a real wake like any
+ * threat and never presses a false alarm: it holds its breath `reactionMs` after the telegraph and
+ * lets go at the end of the window `aimOffsetMs + jitterSdMs × N(0, 1)` away, one draw, so it sometimes gasps.
  */
 export function createHumanBot(setup: BotSetup): Bot {
   const { reactionMs, aimOffsetMs, jitterSdMs } = setup.settings.human;
@@ -43,6 +48,10 @@ export function createHumanBot(setup: BotSetup): Bot {
   const silences = createSilenceMemory();
   const firmHold = createFirmHold();
   const releaseDefIds = new Set(setup.releaseDefIds);
+  // The false alarms whose breath is planned (story 4.9): a cycle of its own, since a `nothing` is never pressed.
+  const breaths = createCycleMemory();
+  // Where the walk to the exit last set off from: no new tap while Papa waits at the nearest point.
+  const stealthWalk = createStealthWalkMemory();
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
   let find: { startedAt: number; atMs: number } | null = null;
   // The tap planned for the beat in play: dropped if the beat is settled before it is sent.
@@ -82,6 +91,22 @@ export function createHumanBot(setup: BotSetup): Bot {
         if (firmHold.isHolding) break;
         if (!isPressable(threat)) continue;
         const response = responseOf(setup.responses, threat.defId);
+        if (response === 'nothing') {
+          // A false alarm (story 4.9): never pressed. It holds its breath `reactionMs` after the telegraph
+          // and lets go around the end of the window, `aimOffsetMs + jitterSdMs × N(0, 1)` away: one draw,
+          // so it sometimes lets go too early and gasps.
+          if (breaths.isNew(threat) && threat.responseWindow !== null) {
+            const holdAt = Math.max(Math.round(threat.enteredAt + reactionMs), now);
+            const endAt = threat.windowOpenAt + threat.responseWindow.windowMs;
+            const releaseAt = endAt + aimOffsetMs + jitterSdMs * nextGaussian(rng);
+            scheduler.schedule({ type: 'HoldAnywhere', t: asSimMs(holdAt) });
+            scheduler.schedule({
+              type: 'ReleaseHold',
+              t: asSimMs(Math.max(Math.round(releaseAt), holdAt + 1)),
+            });
+          }
+          continue;
+        }
         if (response === undefined) continue;
         // A wait (story 4.6) cannot be planned from its telegraph: the signal is what the player
         // reacts to, and the instant the sim drew for it is not the player's to know. This `continue`
@@ -113,6 +138,7 @@ export function createHumanBot(setup: BotSetup): Bot {
         schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
       }
       scheduler.flush(now, out);
+      planStealthWalk(world, setup.responses, out, stealthWalk);
     },
   };
 }

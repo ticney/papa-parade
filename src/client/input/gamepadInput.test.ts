@@ -193,6 +193,7 @@ describe('createGamepadInput: button edges (story 1.17)', () => {
     [13, 'down'],
     [14, 'left'],
     [15, 'right'],
+    [7, 'hold'],
   ] as const)('maps standard button %i to %s', (index, name) => {
     const run = session([standardPad()]);
     run.poll();

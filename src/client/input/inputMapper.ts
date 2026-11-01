@@ -2,7 +2,13 @@ import type { Feel } from '@content/schemas/feel';
 import { GAMEPAD_PRESS_ID, KEYBOARD_PRESS_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type SimMs } from '@shared/time';
-import { isBeatStepRunning, isDuelStepRunning, isFlowLive, isPapaBusy } from '@sim';
+import {
+  isBeatStepRunning,
+  isDuelStepRunning,
+  isFlowLive,
+  isPapaBusy,
+  isStealthStepRunning,
+} from '@sim';
 import type { AppFsm } from '../app/appFsm.ts';
 import type { ActiveLevel } from '../app/levelSession.ts';
 import type { PauseController } from '../app/pauseController.ts';
@@ -58,6 +64,11 @@ export interface InputMapperDeps {
    * read at each use so that a changed feel applies at once.
    */
   input: Pick<Feel['input'], 'autoTargetConeDeg' | 'contextReachM' | 'stickDeadzonePct'>;
+  /**
+   * `feel.stealth.holdMinMs`: how long a floor finger stays down to take the breath. Read at each use,
+   * and its own value: `feel.input.holdMinMs` is the Firmness threshold (story 4.9 review).
+   */
+  stealth: Pick<Feel['stealth'], 'holdMinMs'>;
   /**
    * `feel.baby.bodyRadiusM`: the baby's centre is this high above the floor, for the touch hit test
    * (story 1.21). Read at each tap.
@@ -124,6 +135,12 @@ export interface InputMapper {
    * up releases a press this device made. `timeStampAtReal` is the event's (a pad's: D5).
    */
   handleAction(phase: 'down' | 'up', timeStampAtReal: number, device: 'keyboard' | 'gamepad'): void;
+  /**
+   * The breath key (E, or the pad's right trigger) went down or up (story 4.9): while live in a stealth
+   * step, the down holds Papa's breath (`HoldAnywhere`) and the up lets it go (`ReleaseHold`, only if
+   * this device took it). Nothing anywhere else.
+   */
+  handleHold(phase: 'down' | 'up', timeStampAtReal: number, device: 'keyboard' | 'gamepad'): void;
   /** The device of the last input, or null before any: the auto-target shows for keyboard and gamepad only. */
   readonly lastDevice: InputDevice | null;
   /**
@@ -177,6 +194,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
   // The sim time of the press the tracker holds: a `Release` must not be dated before it (the sim
   // ends only the presses made at or before its `t`).
   let heldPressAt: SimMs = asSimMs(0);
+  // The breath (story 4.9). One device holds it at a time: the press id that sent `HoldAnywhere` (a
+  // pointer's, or the keyboard's or the pad's), which alone can send the `ReleaseHold`. A `ReleaseHold`
+  // dated before its hold is clamped to it, like a `Release`.
+  let breathHolder: number | null = null;
+  let breathHeldAt: SimMs = asSimMs(0);
+  // The finger that last tapped the floor in a stealth step: still down `holdMinMs` later, it holds
+  // the breath, so that « Papa walks there, breath held » (D11). It has walked from the first instant.
+  let floorFinger: { pointerId: number; downAtReal: number; isHolding: boolean } | null = null;
 
   // The one conversion of a real input stamp into the sim's time, corrected by the calibrated
   // screen latency (ADR-003). `simClockStamp` (the sim's own clock, after a resume) is not an input
@@ -196,8 +221,10 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
   // floor, an object or the baby and every move, so the client sends none and draws no tap marker
   // (a marker must never lie). A press on a threat goes through. A key held through it walks again
   // at the end (boot calls `resumeHeld` on `SequenceEnded`).
+  // A stealth step is the one sequence that is walked (story 4.9): Papa moves, so moves and floor taps
+  // go through and the tap marker shows.
   const isHeldInPlace = (active: ActiveLevel): boolean =>
-    active.sim.world.flow.state === 'sequence';
+    active.sim.world.flow.state === 'sequence' && !isStealthStepRunning(active.sim.world);
 
   // Papa drinks, sleeps, is on the phone or in the toilet (stories 1.19 D6, 1.20, 4.3): the sim
   // ignores every move and press meanwhile, so the client sends none either. A key held through it walks again on `PapaStateChanged → idle`
@@ -210,6 +237,23 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     boundSim = active.sim;
     deps.moveIntent.reset();
     press.forget();
+    breathHolder = null;
+    floorFinger = null;
+  };
+
+  // Takes the breath for `id`, if nobody holds it (the sim ignores a second `HoldAnywhere` anyway).
+  const holdBreath = (active: ActiveLevel, id: number, t: SimMs): void => {
+    if (breathHolder !== null) return;
+    breathHolder = id;
+    breathHeldAt = t;
+    active.sim.enqueue({ type: 'HoldAnywhere', t });
+  };
+
+  // Lets the breath go if `id` holds it. Sent even while paused or counting down, like a finger's end.
+  const letGoBreath = (active: ActiveLevel, id: number, t: SimMs): void => {
+    if (breathHolder !== id) return;
+    breathHolder = null;
+    active.sim.enqueue({ type: 'ReleaseHold', t: t < breathHeldAt ? breathHeldAt : t });
   };
 
   // Sends what is held if it changed. `stampOf` gives the command's sim time and is only called
@@ -293,6 +337,13 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
         log.debug('input', 'action dropped: a sequence holds Papa in place');
       return;
     }
+    // A stealth step never takes the baby or walks to an object (story 4.9): the action is for the
+    // threat that is up (even a false alarm, D12), and sends nothing with none up.
+    if (isStealthStepRunning(active.sim.world)) {
+      if (log.enabled('debug'))
+        log.debug('input', 'action dropped: no threat is up in a stealth step');
+      return;
+    }
     // No threat is active (D6): the context action, on the nearer of the baby and the nearest
     // object, both in reach (story 1.21: ties go to the baby; story 4.1: not while he is carried).
     const { papa, baby } = active.sim.world;
@@ -344,6 +395,47 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     device: 'keyboard' | 'gamepad',
   ): void => act(phase, (active) => toSim(active, timeStampAtReal), device);
 
+  // The breath key or trigger (story 4.9): live in a stealth step only.
+  const handleHold = (
+    phase: 'down' | 'up',
+    stampOf: (active: ActiveLevel) => SimMs,
+    device: 'keyboard' | 'gamepad',
+  ): void => {
+    const id = device === 'keyboard' ? KEYBOARD_PRESS_ID : GAMEPAD_PRESS_ID;
+    const active = deps.getActive();
+    if (phase === 'up') {
+      if (active === null || deps.appFsm.state !== 'level') return;
+      bindTo(active);
+      letGoBreath(active, id, stampOf(active));
+      return;
+    }
+    lastDevice = device;
+    if (active === null || !isLive()) return;
+    bindTo(active);
+    if (!isStealthStepRunning(active.sim.world)) return;
+    holdBreath(active, id, stampOf(active));
+  };
+
+  // A floor finger still down `holdMinMs` after it tapped holds the breath, stamped at that instant.
+  const refreshFingerHold = (): void => {
+    if (floorFinger === null && breathHolder === null) return;
+    const active = deps.getActive();
+    if (active === null) return;
+    bindTo(active);
+    // The step is over (the door, a gag, the level): the sim let the breath go with it and ignores the
+    // rest, so the mapper forgets its finger and its holder, and a chained step starts clean.
+    if (!isStealthStepRunning(active.sim.world)) {
+      floorFinger = null;
+      breathHolder = null;
+      return;
+    }
+    if (floorFinger === null || floorFinger.isHolding || !isLive()) return;
+    const holdAtReal = floorFinger.downAtReal + deps.stealth.holdMinMs;
+    if (deps.nowAtReal() < holdAtReal) return;
+    floorFinger.isHolding = true;
+    holdBreath(active, floorFinger.pointerId, toSim(active, holdAtReal));
+  };
+
   // The stamps of the pad's commands, as functions made once (the poll runs every frame).
   const simClockStamp = (active: ActiveLevel): SimMs => active.sim.world.time.sim;
   const nowStamp = (active: ActiveLevel): SimMs => toSim(active, deps.nowAtReal());
@@ -377,6 +469,12 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     const edgeStampOf = isResync ? simClockStamp : padEdgeStamp;
     for (let i = 0; i < PAD_BUTTONS.length; i++) {
       const button = PAD_BUTTONS[i] as PadButton;
+      if (button === 'hold') {
+        // The right trigger is the breath in a stealth step and nothing else: it reaches no menu.
+        if (padState.released.hold) handleHold('up', edgeStampOf, 'gamepad');
+        if (padState.pressed.hold) handleHold('down', edgeStampOf, 'gamepad');
+        continue;
+      }
       if (padState.released[button] && button === 'confirm') {
         act('up', edgeStampOf, 'gamepad');
       }
@@ -387,7 +485,10 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     }
   };
 
-  const pollAndRefresh = (): void => readPad(false);
+  const pollAndRefresh = (): void => {
+    readPad(false);
+    refreshFingerHold();
+  };
 
   const resyncNow = (): void => {
     if (!isLive()) return;
@@ -483,15 +584,22 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
                 ? deps.objectTouchRadiusPx
                 : Math.sqrt(babyDistSq) - STRICTLY_NEARER_PX,
             );
+      const isStealth = isStealthStepRunning(active.sim.world);
       if (babyDistSq !== null && objectId === null) {
         active.sim.enqueue({
           type: 'TapBaby',
           t: toSim(active, sample.timeStamp),
         });
-        deps.showTapMarker(baby.xM, baby.zM);
-        deps.onTap?.(baby.xM, baby.zM);
+        // In a stealth step the tap on the baby touches him (a false alarm is lost by it) and walks
+        // nowhere: no marker (story 4.9).
+        if (!isStealth) {
+          deps.showTapMarker(baby.xM, baby.zM);
+          deps.onTap?.(baby.xM, baby.zM);
+        }
         return;
       }
+      // No coffee in a stealth step: a tap on an object sends nothing and draws no marker.
+      if (objectId !== null && isStealth) return;
       if (objectId !== null) {
         const object = objects.find((candidate) => candidate.id === objectId);
         active.sim.enqueue({
@@ -518,11 +626,39 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       });
       deps.showTapMarker(picked.xM, picked.zM);
       deps.onTap?.(picked.xM, picked.zM);
+      // The finger stays down: past `holdMinMs` it holds the breath (the poll sends it).
+      if (isStealth) {
+        floorFinger = {
+          pointerId: sample.pointerId,
+          downAtReal: sample.timeStamp,
+          isHolding: false,
+        };
+      }
     },
     handlePointerUp(sample) {
       const active = deps.getActive();
       if (active === null || deps.appFsm.state !== 'level') return;
       bindTo(active);
+      if (floorFinger !== null && floorFinger.pointerId === sample.pointerId) {
+        const finger = floorFinger;
+        floorFinger = null;
+        // Outside a stealth step (it ended since the tap) the breath is not the sim's business any more.
+        if (!isStealthStepRunning(active.sim.world)) {
+          if (breathHolder === finger.pointerId) breathHolder = null;
+        } else {
+          // Held `holdMinMs` already but not read yet by the poll: the hold is stamped where it began.
+          if (!finger.isHolding && sample.timeStamp >= finger.downAtReal + deps.stealth.holdMinMs) {
+            holdBreath(
+              active,
+              finger.pointerId,
+              toSim(active, finger.downAtReal + deps.stealth.holdMinMs),
+            );
+            finger.isHolding = true;
+          }
+          if (finger.isHolding)
+            letGoBreath(active, finger.pointerId, toSim(active, sample.timeStamp));
+        }
+      }
       if (!press.released(sample.pointerId)) return;
       active.sim.enqueue({
         type: 'Release',
@@ -533,9 +669,13 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       const active = deps.getActive();
       if (active === null) return;
       bindTo(active);
+      const simNow = active.sim.world.time.sim;
+      // A pause with the breath held ends it now, at the sim clock: a pause in a passage costs its
+      // gasp, as a pause in a Firmness costs the Firmness (story 4.9).
+      if (breathHolder !== null) letGoBreath(active, breathHolder, simNow);
+      floorFinger = null;
       if (!press.releaseAll()) return;
       // The press may be dated a step ahead of the sim clock (it is applied at the next step).
-      const simNow = active.sim.world.time.sim;
       active.sim.enqueue({ type: 'Release', t: heldPressAt > simNow ? heldPressAt : simNow });
     },
     onKeysChanged(timeStampAtReal) {
@@ -543,6 +683,8 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       refreshMove((active) => toSim(active, timeStampAtReal));
     },
     handleAction,
+    handleHold: (phase, timeStampAtReal, device) =>
+      handleHold(phase, (active) => toSim(active, timeStampAtReal), device),
     get lastDevice() {
       return lastDevice;
     },

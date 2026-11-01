@@ -7,7 +7,9 @@ import {
   createCycleMemory,
   createFirmHold,
   createSilenceMemory,
+  createStealthWalkMemory,
   isPressable,
+  planStealthWalk,
   responseOf,
   scheduleDrop,
   schedulePress,
@@ -19,7 +21,9 @@ import {
  * knows the answer: on a `wait` threat (story 4.6) it reads the `windowOpenAt` the sim drew at the
  * telegraph, which no player can, and presses at the centre of the window after the signal, so
  * `perfect`. On a Firmness judged on its release (story 4.8) it presses at the first step of the
- * telegraph and lets go at the centre of the window.
+ * telegraph and lets go at the centre of the window. In a stealth step (story 4.9) it walks to the exit,
+ * presses a real wake at its centre like any parry, never presses a false alarm, and holds its breath
+ * from the first step of the false alarm's telegraph to the end of its window (no gasp, ever).
  */
 export function createPerfectBot(setup: BotSetup): Bot {
   const scheduler = createCommandScheduler();
@@ -27,6 +31,10 @@ export function createPerfectBot(setup: BotSetup): Bot {
   const silences = createSilenceMemory();
   const firmHold = createFirmHold();
   const releaseDefIds = new Set(setup.releaseDefIds);
+  // The false alarms whose breath is planned (story 4.9): a cycle of its own, since a `nothing` is never pressed.
+  const breaths = createCycleMemory();
+  // Where the walk to the exit last set off from: no new tap while Papa waits at the nearest point.
+  const stealthWalk = createStealthWalkMemory();
   // The beat tapped last: `nextBeatAt` is unique per beat, so one tap per beat whatever the step.
   let lastBeatAt: number | null = null;
   return {
@@ -50,6 +58,20 @@ export function createPerfectBot(setup: BotSetup): Bot {
         if (firmHold.isHolding) break;
         if (!isPressable(threat)) continue;
         const response = responseOf(setup.responses, threat.defId);
+        if (response === 'nothing') {
+          // A false alarm (story 4.9): never pressed. The breath is held from the first step of its
+          // telegraph and let go at the very end of its window, so no gasp, ever.
+          if (breaths.isNew(threat) && threat.responseWindow !== null) {
+            scheduler.schedule({ type: 'HoldAnywhere', t: asSimMs(now) });
+            scheduler.schedule({
+              type: 'ReleaseHold',
+              t: asSimMs(
+                Math.max(Math.round(threat.windowOpenAt + threat.responseWindow.windowMs), now),
+              ),
+            });
+          }
+          continue;
+        }
         if (response === undefined || !cycles.isNew(threat)) continue;
         if (releaseDefIds.has(threat.defId)) {
           // The bomb drop (story 4.8): it presses at the first step of the telegraph (the centre is far
@@ -62,6 +84,7 @@ export function createPerfectBot(setup: BotSetup): Bot {
         schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
       }
       scheduler.flush(now, out);
+      planStealthWalk(world, setup.responses, out, stealthWalk);
     },
   };
 }

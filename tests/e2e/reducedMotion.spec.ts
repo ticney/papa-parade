@@ -370,10 +370,32 @@ function largeVerbsWhole(): void {
     const targetOf = (defId: string): string =>
       (JSON.parse(readFileSync(`content/threats/${defId}.json`, 'utf8')) as { target: string })
         .target;
-    const defIds = [...new Set((await ppWorld(page)).threats.map((threat) => threat.defId))].filter(
-      (defId) => targetOf(defId) !== 'hiddenZone',
-    );
+    const allDefIds = [
+      ...new Set((await ppWorld(page)).threats.map((threat) => threat.defId)),
+    ].filter((defId) => targetOf(defId) !== 'hiddenZone');
+    // The two alerts of a stealth step stand on the baby (story 4.9): `ForceThreat` ignores them, a
+    // stealth sequence spawns them, whichever comes first on a seed, so seeds are tried until each has shown.
+    const babyDefIds = new Set(allDefIds.filter((defId) => targetOf(defId) === 'baby'));
+    const defIds = allDefIds.filter((defId) => !babyDefIds.has(defId));
     expect(defIds.length).toBeGreaterThan(0);
+    for (let seed = 1; seed <= 40 && babyDefIds.size > 0; seed++) {
+      await ppLoadLevel(page, LEVEL, seed);
+      await ppSend(page, { type: 'StartSequence', sequenceId: 'stealth_exit' });
+      await ppAdvance(page, 2);
+      let shown: string | undefined;
+      for (let chunk = 0; chunk < 80 && shown === undefined; chunk++) {
+        shown = (await ppWorld(page)).threats.find(
+          (one) => babyDefIds.has(one.defId) && one.state === 'telegraph',
+        )?.defId;
+        if (shown === undefined) await ppAdvance(page, 10);
+      }
+      if (shown === undefined) continue;
+      await ppAdvance(page, 1);
+      await waitFrames(page, 2);
+      await expectWhole(page, await drawnVerbs(page), shown);
+      babyDefIds.delete(shown);
+    }
+    expect([...babyDefIds], 'a stealth alert never showed in 40 seeds').toEqual([]);
     for (const defId of defIds) {
       await ppLoadLevel(page, LEVEL, SEED);
       const threat = (await ppWorld(page)).threats.find((candidate) => candidate.defId === defId);

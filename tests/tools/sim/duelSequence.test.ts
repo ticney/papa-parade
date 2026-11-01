@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SimLevel } from '../../../tools/sim/loadSimLevel.ts';
 import { replayRunFile } from '../../../tools/sim/replaySim.ts';
 import type { RunFile } from '../../../tools/sim/runFile.ts';
-import { duelDefIdsOf, runSim } from '../../../tools/sim/runSim.ts';
+import { runSim, sequenceDefIdsOf } from '../../../tools/sim/runSim.ts';
 import { simArgs } from '../../support/simSupport.ts';
 import {
   CARRY,
@@ -153,7 +153,7 @@ async function fakeSleepReport(overrides: Parameters<typeof simArgs>[0]) {
 
 describe('runSim with --sequence fake_sleep_duel (story 4.7)', () => {
   it('counts both defs of the sequence as duel threats, so neither is a micro-sleep', () => {
-    expect([...duelDefIdsOf(levelWithFakeSleepDuel().level)].sort()).toEqual([
+    expect([...sequenceDefIdsOf(levelWithFakeSleepDuel().level)].sort()).toEqual([
       'bedtime_eyes',
       'fake_sleep',
     ]);

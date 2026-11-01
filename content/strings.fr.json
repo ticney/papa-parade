@@ -30,6 +30,8 @@
   "verb.go": "FILE !",
   "verb.hold_on": "TIENS…",
   "verb.let_go": "LÂCHE !",
+  "verb.do_nothing": "CHUT…",
+  "verb.exit": "SORS !",
   "stamp.perfect_parry": "PARADE PARFAITE",
   "stamp.replay": "REPLAY",
   "silence.bubble": "…",

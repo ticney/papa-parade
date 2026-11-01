@@ -84,6 +84,17 @@ export type SimCommand =
   /** The finger went up. It names no threat: it ends every press made before it. */
   | { type: 'Release'; t: SimMs }
   /**
+   * Papa holds his breath (story 4.9): a finger held on the floor, E or the right trigger in a stealth
+   * step. It names no threat and ends nothing: it is ignored outside a stealth step, while already
+   * held and on an empty breath.
+   */
+  | { type: 'HoldAnywhere'; t: SimMs }
+  /**
+   * The breath is let go (story 4.9). Not a `Release`, which ends every press made before it (a key
+   * held for the breath and a tap of Space must not end each other). Ignored when not held.
+   */
+  | { type: 'ReleaseHold'; t: SimMs }
+  /**
    * Journaled (story 2.7, D1): how long, in ms, the client's input stamps are corrected into the
    * past (the player's screen latency, `visualOffsetMs`). A corrected press reaches the sim `lagMs`
    * after the instant its `t` names, so the sim waits that long before it decides what no command
@@ -131,6 +142,8 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'MoveStop',
   'PressThreat',
   'Release',
+  'HoldAnywhere',
+  'ReleaseHold',
   'SetInputLag',
   'SetDifficultyTier',
   'PushProp',

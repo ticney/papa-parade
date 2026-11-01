@@ -39,6 +39,12 @@
         "bus": "music",
         "gainPct": 100,
         "fadeMs": 400
+      },
+      "stealth_exit": {
+        "clip": "music_stealth",
+        "bus": "music",
+        "gainPct": 100,
+        "fadeMs": 400
       }
     }
   },
@@ -248,6 +254,51 @@
       "haptic": "heavy",
       "fx": "gag"
     },
+    "tel_false_alarm_sigh": {
+      "audio": { "clip": "tel_false_alarm_sigh", "bus": "sfx", "gainPct": 80 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.5, "durationMs": 900 },
+      "haptic": "light"
+    },
+    "tel_real_wake": {
+      "audio": { "clip": "tel_real_wake", "bus": "sfx", "gainPct": 90 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "pulses": 2,
+        "pulseIntervalMs": 250,
+        "maxRadiusM": 0.9,
+        "durationMs": 400
+      },
+      "haptic": "light"
+    },
+    "resp_nothing": {
+      "audio": { "clip": "resp_nothing", "bus": "sfx", "gainPct": 70 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.6, "durationMs": 500 },
+      "haptic": "light",
+      "fx": "success"
+    },
+    "gag_baby_woke_by_touch": {
+      "audio": { "clip": "gag_baby_woke_by_touch", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
+    "gag_baby_woke_crying": {
+      "audio": { "clip": "gag_baby_woke_crying", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.1, "durationMs": 600 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
+    "floor_creak": {
+      "audio": { "clip": "env_floor_creak", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.7, "durationMs": 400 },
+      "haptic": "medium"
+    },
+    "breath_gasped": {
+      "audio": { "clip": "papa_breath_gasp", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.5, "durationMs": 300 },
+      "haptic": "light"
+    },
     "gag_outlet": {
       "audio": { "clip": "gag_outlet", "bus": "sfx", "gainPct": 100 },
       "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 500 },
@@ -410,6 +461,8 @@
     "ToiletRefused": "toilet_refused",
     "PapaSnored": "papa_snored",
     "BabyWoke": "baby_woke",
+    "FloorCreaked": "floor_creak",
+    "BreathGasped": "breath_gasped",
     "BeatHit": "beat_hit",
     "BabyStirred": "baby_stirred",
     "BeatCued": "beat_cued",

@@ -100,7 +100,21 @@ export function telegraphThreat(
   });
   // A release is judged on its own instant and never kept from before the pose (story 4.8): a buffer
   // would turn a release that came too early into a good one (the precedent is `moveJudgeCursor`).
-  threat.responseWindow = def.release === undefined ? response : { ...response, bufferMs: 0 };
+  if (def.response === 'nothing') {
+    // A `nothing` (story 4.9): « the window » is the stretch to sit through, `nothingMs` from its
+    // opening, whatever the tier, the fatigue or the instinct say; no perfect zone, no tolerance, no
+    // buffer. So `threatCloseAt`, the auto-target and the bots read the end of it from the world.
+    invariant(def.nothingMs !== undefined, `nothing threat ${def.id} has no nothingMs`);
+    threat.responseWindow = {
+      ...response,
+      windowMs: def.nothingMs,
+      perfectMs: 0,
+      toleranceMs: 0,
+      bufferMs: 0,
+    };
+  } else {
+    threat.responseWindow = def.release === undefined ? response : { ...response, bufferMs: 0 };
+  }
   const openAfterMs = def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs;
   // The signal's draw first, the feint's second: two locals, so that the order cannot swap silently.
   const signalAfterMs = signalDelayMs(world, def);
@@ -221,7 +235,8 @@ export function resolveThreat(
   });
   // Mama's « Rire » counts every perfect, the micro-sleep's included (story 1.22).
   if (quality === 'perfect') world.score.perfects += 1;
-  ctx.requestFreezeRealMs(ctx.feel.timing.hitstopMs);
+  // No hitstop on a `nothing` (story 4.9): nobody pressed anything, and a freeze would stop the walk for nothing.
+  if (def.response !== 'nothing') ctx.requestFreezeRealMs(ctx.feel.timing.hitstopMs);
   if (quality === 'perfect') startSlowMo(world, ctx, 'perfect', ctx.feel.timing.slowMoPerfect);
   if (isLastOfWave(world, ctx, threat)) {
     startSlowMo(world, ctx, 'lastThreat', ctx.feel.timing.slowMoLastThreat);

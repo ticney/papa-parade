@@ -9,6 +9,7 @@ import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
 import { bladderSpeedFactor } from '../gauges/bladder.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
 import { isBabyJustLaid } from '../sequences/layDown.ts';
+import { isStealthStepRunning } from '../sequences/stealthExit.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { finishCoffee, startCoffee } from './coffee.ts';
 import { startGlide } from './glide.ts';
@@ -278,13 +279,16 @@ export function runPapa(world: World, ctx: StepContext): void {
   let hasToggledCarry = false;
   // Papa stands still in a special sequence (story 4.4 D3): only a press on a threat gets through. The
   // step that lays the baby is the sequence's last: the flow is `playing` already, but a tap queued
-  // for it must not take him back from the mattress.
-  const isHeld = world.flow.state === 'sequence' || isJustLaid;
+  // for it must not take him back from the mattress. A stealth step (story 4.9) is the one sequence
+  // that is walked: floor taps, moves and presses work, but he takes no baby and drinks no coffee.
+  const isStealth = isStealthStepRunning(world);
+  const isHeld = (world.flow.state === 'sequence' && !isStealth) || isJustLaid;
   for (let i = 0; i < ctx.commands.length; i++) {
     const command = ctx.commands[i];
     if (command === undefined) continue;
     if (isPapaBusy(papa)) break;
     if (isHeld && command.type !== 'PressThreat') continue;
+    if (isStealth && (command.type === 'TapBaby' || command.type === 'TapObject')) continue;
     if (command.type === 'TapFloor') tapFloorCommand(world, ctx, command.xM, command.zM);
     else if (command.type === 'TapObject') tapObject(world, ctx, command.objectId);
     else if (command.type === 'TapBaby') {
@@ -294,9 +298,12 @@ export function runPapa(world: World, ctx: StepContext): void {
     else if (command.type === 'PressThreat') pressThreat(world, ctx, command.threatId);
   }
 
-  // A full need slows the walks, not the glide (story 4.3 D3). The factor is the previous step's.
+  // A full need slows the walks, not the glide (story 4.3 D3). The factor is the previous step's. A
+  // stealth step (story 4.9) slows them too, to `sneakSpeedPct` of the walk; its glide is not.
+  const sneakFactor = isStealth ? ctx.feel.stealth.sneakSpeedPct / 100 : 1;
   const budgetM =
-    (ctx.feel.movement.walkSpeedMps * STEP_MS * bladderSpeedFactor(world, ctx)) / 1000;
+    (ctx.feel.movement.walkSpeedMps * STEP_MS * bladderSpeedFactor(world, ctx) * sneakFactor) /
+    1000;
   if (papa.state === 'walkPath') {
     if (advanceAlongPath(papa, budgetM)) arrive(world, ctx);
   } else if (papa.state === 'glide' && papa.glide !== null) {

@@ -96,6 +96,7 @@ export interface DuelDefShape {
   readonly steps: readonly (
     | { readonly kind: 'microSleeps' }
     | { readonly kind: 'beats' }
+    | { readonly kind: 'stealth' }
     | {
         readonly kind: 'duel';
         readonly durationMs: number;

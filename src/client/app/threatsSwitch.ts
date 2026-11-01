@@ -21,7 +21,7 @@ export function readThreatsOff(search: string): boolean {
  * duration stays, so the timer still runs and the level still ends. The level's gauges stay, and
  * the micro-sleep def with them (story 1.19: `createSim` refuses a fatigue gauge whose def is not
  * loaded), the cry in the arms of a level that carries (story 4.1) and the threats the duel steps of
- * its sequences spawn (story 4.6: the sequences stay, so their defs do). So a run of more than about 150 s (fatigue crosses its threshold at 140 s) still sees
+ * its sequences spawn (story 4.6: the sequences stay, so their defs do), and the two alerts of a stealth step (story 4.9). So a run of more than about 150 s (fatigue crosses its threshold at 140 s) still sees
  * micro-sleeps: the switch is quiet for the short runs the tests make, not for a whole level.
  */
 export function withoutThreats(content: LevelContent): LevelContent {
@@ -45,14 +45,21 @@ export function withoutThreats(content: LevelContent): LevelContent {
   }
   // The threat a `duel` step spawns on Papa stays with its sequence (story 4.6): `createSim` refuses a
   // duel whose def is not loaded.
+  // Likewise the two alerts a `stealth` step spawns on the baby (story 4.9).
   const duelThreats: Record<string, ThreatDef> = {};
+  const keep = (defId: string, role: string): void => {
+    if (Object.hasOwn(content.threats, defId)) {
+      duelThreats[defId] = content.threats[defId] as ThreatDef;
+    } else {
+      log.warn('boot', `?threats=off: the ${role} def "${defId}" is not loaded`);
+    }
+  };
   for (const sequence of Object.values(content.sequences)) {
     for (const step of sequence.steps) {
-      if (step.kind !== 'duel') continue;
-      if (Object.hasOwn(content.threats, step.threatDef)) {
-        duelThreats[step.threatDef] = content.threats[step.threatDef] as ThreatDef;
-      } else {
-        log.warn('boot', `?threats=off: the duel def "${step.threatDef}" is not loaded`);
+      if (step.kind === 'duel') keep(step.threatDef, 'duel');
+      else if (step.kind === 'stealth') {
+        keep(step.falseAlarmDef, 'false alarm');
+        keep(step.realWakeDef, 'real wake');
       }
     }
   }

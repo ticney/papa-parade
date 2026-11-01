@@ -4,6 +4,7 @@ import type { StepContext } from '../context.ts';
 import { isThreatActive } from '../director/waveState.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
 import { remainingPathLengthM } from '../nav/pathLength.ts';
+import { isStealthStepRunning } from '../sequences/stealthExit.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { ensureOnOpenCell, gazeAt, planApproach, stopCrawling } from './approach.ts';
 import { enterBabyState } from './babyFsm.ts';
@@ -59,10 +60,11 @@ function lockOnThreat(world: World, ctx: StepContext): void {
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
     if (!isThreatActive(threat) || threat.state === 'hidden') continue;
-    // A threat on Papa (the micro-sleep, story 1.19) is not the baby's business, and a silence is
-    // taken by `runSilence`, not locked on (story 1.21).
+    // A threat on Papa (the micro-sleep, story 1.19) is not the baby's business, a silence is
+    // taken by `runSilence`, not locked on (story 1.21), and a threat on the baby himself (a stealth
+    // step's alert, story 4.9) is not something he walks to.
     const target = ctx.level.threats[i]?.def.target;
-    if (target === 'papa' || target === 'hiddenZone') continue;
+    if (target === 'papa' || target === 'hiddenZone' || target === 'baby') continue;
     baby.targetThreatId = threat.id;
     stopCrawling(world);
     gazeAt(baby, threat.xM, threat.zM);
@@ -93,6 +95,9 @@ export function runBaby(world: World, ctx: StepContext): void {
     runCarry(world, ctx);
     return;
   }
+  // The baby sleeps through a stealth step (story 4.9): inert like a carried one. His cry, above, still
+  // runs, and `prevXM` was remembered, so the view has nothing to slide.
+  if (isStealthStepRunning(world)) return;
   releaseTarget(world, ctx);
   lockOnThreat(world, ctx);
 

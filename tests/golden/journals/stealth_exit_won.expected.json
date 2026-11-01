@@ -1,0 +1,28 @@
+{
+  "untilSimMs": 9000,
+  "worldHash": "19b172f1d2bf32",
+  "eventTypes": [
+    "SequenceStarted",
+    "SequenceStepStarted",
+    "PapaPathPlanned",
+    "PapaStateChanged",
+    "FloorCreaked",
+    "NoiseChanged",
+    "FloorCreaked",
+    "NoiseChanged",
+    "ThreatTelegraphed",
+    "BreathHeld",
+    "FloorCreaked",
+    "NoiseChanged",
+    "WindowOpened",
+    "PapaArrived",
+    "PapaStateChanged",
+    "ResponseResolved",
+    "ComboChanged",
+    "BreathReleased",
+    "SequenceEnded",
+    "BabyStateChanged",
+    "ThreatRearmed"
+  ],
+  "eventsHash": "19402212dc8ddf"
+}

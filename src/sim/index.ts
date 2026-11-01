@@ -8,6 +8,7 @@ export { DISRUPTION_STATES, type DisruptionState } from './disruptions/disruptio
 export {
   BABY_STIR_REASONS,
   type BabyStirReason,
+  type BreathGaspReason,
   COMBO_CHANGE_REASONS,
   type ComboChangeReason,
   type FailReason,
@@ -52,6 +53,14 @@ export {
 export { openSafeCentreCountOf, sequenceLayProblems } from './sequences/layDown.ts';
 export { isBeatStepRunning } from './sequences/lullabyWalk.ts';
 export { type SequenceRefusal, sequenceRefusal } from './sequences/sequenceStart.ts';
+export {
+  isStealthStepRunning,
+  type StealthDefShape,
+  type StealthRoom,
+  type StealthThreatShape,
+  sequenceStealthProblems,
+  stealthRoomForGeometry,
+} from './sequences/stealthExit.ts';
 export type { SimSnapshot } from './snapshot.ts';
 export { GAG_IDS, type GagId, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
 export type { ThreatState } from './threats/threatFsm.ts';
@@ -75,6 +84,7 @@ export type {
   SilenceSlice,
   SlowMo,
   SlowMoSource,
+  StealthSlice,
   ThreatInstance,
   World,
 } from './world.ts';

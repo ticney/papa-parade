@@ -1793,3 +1793,71 @@ describe('checkContent on the fx presets (story 2.5)', () => {
     );
   });
 });
+
+describe('the stealth exit (story 4.9)', () => {
+  const ALARM = 'content/threats/false_alarm_sigh.json';
+  const STEALTH = 'content/sequences/stealth_exit.json';
+  const LEVEL = 'content/levels/salon_crawler.json';
+  const messages = async () => (await checkContent(root)).map((problem) => problem.message);
+
+  it('accepts the live false alarm, real wake and sequence', async () => {
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('asks nothing of the perfect of a nothing but its success cue, since it is never perfect', async () => {
+    await mutateJson(ALARM, (threat) => {
+      (threat.feedback as Record<string, string>).perfect = 'resp_parry_perfect';
+    });
+    const found = await messages();
+    expect(found).toEqual([
+      expect.stringMatching(/not the success cue "resp_nothing".*never perfect/),
+    ]);
+  });
+
+  it('still asks a parry for its laugh, its flash and its heavy vibration (the exception is the nothing’s alone)', async () => {
+    await mutateJson('content/threats/real_wake.json', (threat) => {
+      (threat.feedback as Record<string, string>).perfect = 'resp_parry';
+    });
+    expect((await messages()).join('\n')).toMatch(/no layers/);
+  });
+
+  it('refuses a wave that plans a threat on the baby, in the words of createSim', async () => {
+    await mutateJson(LEVEL, (level) => {
+      const waves = level.waves as { threats: { def: string; anchor: string }[] }[];
+      (waves[0] as { threats: { def: string; anchor: string }[] }).threats.push({
+        def: 'false_alarm_sigh',
+        anchor: 'door',
+      });
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /the threat "false_alarm_sigh" has target "baby": only a stealth step spawns it, a wave cannot plan it/,
+    );
+  });
+
+  it('refuses a gap that does not clear a false alarm, in the words of createSim', async () => {
+    await mutateJson(STEALTH, (sequence) => {
+      ((sequence.steps as Record<string, unknown>[])[0] as Record<string, unknown>).alertGapMinMs =
+        1000;
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /the sequence "stealth_exit" has a stealth step \(steps\[0\]\) with an alertGapMinMs of 1000/,
+    );
+  });
+
+  it('refuses an exit anchor the room does not have', async () => {
+    await mutateJson(STEALTH, (sequence) => {
+      ((sequence.steps as Record<string, unknown>[])[0] as Record<string, unknown>).exitAnchor =
+        'window';
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /exitAnchor "window" is not an anchor of the level/,
+    );
+  });
+
+  it('refuses a stealth sequence on a level with no carry', async () => {
+    await mutateJson(LEVEL, (level) => {
+      delete level.carry;
+    });
+    expect((await messages()).join('\n')).toMatch(/stealth step, but the level has no carry/);
+  });
+});

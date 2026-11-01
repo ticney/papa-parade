@@ -20,6 +20,16 @@ export function isActionKey(code: string): boolean {
   return (ACTION_KEY_CODES as readonly string[]).includes(code);
 }
 
+/**
+ * The breath key (story 4.9): E holds Papa's breath in a stealth step. Bound by code like the others,
+ * so it is the same physical key on an AZERTY and a QWERTY keyboard.
+ */
+export const HOLD_KEY_CODES = ['KeyE'] as const;
+
+export function isHoldKey(code: string): boolean {
+  return (HOLD_KEY_CODES as readonly string[]).includes(code);
+}
+
 const ALL_MOVE_CODES: ReadonlySet<string> = new Set([
   ...MOVE_KEY_CODES.up,
   ...MOVE_KEY_CODES.down,
@@ -105,6 +115,12 @@ export interface KeyboardBindings {
    * on a live level: Space on the pause panel keeps its native activation.
    */
   onAction?(phase: 'down' | 'up', timeStampAtReal: number): void;
+  /**
+   * The breath key (E) went down (not a repeat, no Ctrl, Cmd or Alt) or up (every keyup, and the window
+   * losing focus or the page hiding while it is down, so that a lost keyup never holds the breath for
+   * ever). The consumer gates on a stealth step; E does nothing anywhere else.
+   */
+  onHold?(phase: 'down' | 'up', timeStampAtReal: number): void;
 }
 
 /**
@@ -125,11 +141,27 @@ export function bindKeyboard(
     isActionDown = false;
     bindings.onAction?.('up', timeStampAtReal);
   };
+  // E is down (same bookkeeping as Space): a lost keyup is made up for on blur.
+  let isHoldDown = false;
+  const releaseHold = (timeStampAtReal: number): void => {
+    if (!isHoldDown) return;
+    isHoldDown = false;
+    bindings.onHold?.('up', timeStampAtReal);
+  };
   const onKeyDown = (event: KeyboardEvent): void => {
     // macOS sends no `keyup` for a key released while Cmd is down: pressing Cmd lets go of everything.
     if (event.code === 'MetaLeft' || event.code === 'MetaRight') {
       if (keys.clear()) bindings.onChange(event.timeStamp);
       releaseAction(event.timeStamp);
+      releaseHold(event.timeStamp);
+      return;
+    }
+    if (isHoldKey(event.code)) {
+      const isChord = event.ctrlKey || event.metaKey || event.altKey;
+      if (!event.repeat && !isChord && !isHoldDown) {
+        isHoldDown = true;
+        bindings.onHold?.('down', event.timeStamp);
+      }
       return;
     }
     if (isActionKey(event.code)) {
@@ -151,6 +183,12 @@ export function bindKeyboard(
     }
   };
   const onKeyUp = (event: KeyboardEvent): void => {
+    if (isHoldKey(event.code)) {
+      // Every keyup, even one whose keydown we never saw: the consumer ends a hold only if it holds one.
+      isHoldDown = false;
+      bindings.onHold?.('up', event.timeStamp);
+      return;
+    }
     if (isActionKey(event.code)) {
       // Every keyup, even one whose keydown we never saw (the Space that started the game): the
       // consumer ends a press only if it holds one.
@@ -163,11 +201,13 @@ export function bindKeyboard(
   const onBlur = (event: Event): void => {
     if (keys.clear()) bindings.onChange(event.timeStamp);
     releaseAction(event.timeStamp);
+    releaseHold(event.timeStamp);
   };
   const onVisibility = (event: Event): void => {
     if (documentTarget.visibilityState !== 'hidden') return;
     if (keys.clear()) bindings.onChange(event.timeStamp);
     releaseAction(event.timeStamp);
+    releaseHold(event.timeStamp);
   };
   windowTarget.addEventListener('keydown', onKeyDown);
   windowTarget.addEventListener('keyup', onKeyUp);

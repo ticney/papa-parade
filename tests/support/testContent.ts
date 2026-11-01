@@ -314,6 +314,24 @@ export function createTestBombDrop(): SequenceDef {
   return parsed.value;
 }
 
+/**
+ * « Sortie en infiltration », frozen like the others (`testStealth.sequence.json`, story 4.9): one
+ * stealth step to the `door` anchor of the frozen room, an alert every 4 to 7 s, 30 % of them real
+ * wakes, on `false_alarm_sigh` and `real_wake`.
+ */
+export function createTestStealthExit(): SequenceDef {
+  const path = 'tests/support/testStealth.sequence.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testStealth.sequence.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, SequenceDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
 /** The frozen sequences, by id. */
 export function createTestSequences(): Readonly<Record<string, SequenceDef>> {
   const defs = [
@@ -322,6 +340,7 @@ export function createTestSequences(): Readonly<Record<string, SequenceDef>> {
     createTestBedtimeDuel(),
     createTestFakeSleepDuel(),
     createTestBombDrop(),
+    createTestStealthExit(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
@@ -365,7 +384,23 @@ export function createTestBombDropLay(): ThreatDef {
   return readThreatFixture('testBombDrop.threat.json');
 }
 
-/** The ten frozen threats, by id. */
+/**
+ * The false alarm of the stealth exit, frozen like the others (`testFalseAlarm.threat.json`, story
+ * 4.9): a `nothing` on the baby. A 900 ms telegraph, then 2000 ms to sit through.
+ */
+export function createTestFalseAlarm(): ThreatDef {
+  return readThreatFixture('testFalseAlarm.threat.json');
+}
+
+/**
+ * The real wake of the stealth exit, frozen like the others (`testRealWake.threat.json`, story 4.9):
+ * a `parry` on the baby. A 1500 ms telegraph, then the feel's window.
+ */
+export function createTestRealWake(): ThreatDef {
+  return readThreatFixture('testRealWake.threat.json');
+}
+
+/** The twelve frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
     createTestOutlet(),
@@ -378,6 +413,8 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
     createTestBedtimeEyes(),
     createTestFakeSleep(),
     createTestBombDropLay(),
+    createTestFalseAlarm(),
+    createTestRealWake(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
@@ -482,15 +519,21 @@ export function createTestLevel({
     if (def === undefined) throw new Error(`no frozen threat "${armsCryDef}" in tests/support`);
     threats[def.id] = def;
   }
-  // A duel step spawns its own threat on Papa (story 4.6): the level carries its def, as `loadLevelContent` does.
+  // A duel step spawns its own threat on Papa (story 4.6) and a stealth step its two alerts on the baby
+  // (story 4.9): the level carries their defs, as `loadLevelContent` does.
   for (const id of sequences) {
     for (const step of (sequenceDefs[id] ?? createTestSequences()[id])?.steps ?? []) {
-      if (step.kind !== 'duel') continue;
-      const def = all[step.threatDef];
-      if (def === undefined) {
-        throw new Error(`no frozen threat "${step.threatDef}" in tests/support`);
+      const defIds =
+        step.kind === 'duel'
+          ? [step.threatDef]
+          : step.kind === 'stealth'
+            ? [step.falseAlarmDef, step.realWakeDef]
+            : [];
+      for (const defId of defIds) {
+        const def = all[defId];
+        if (def === undefined) throw new Error(`no frozen threat "${defId}" in tests/support`);
+        threats[def.id] = def;
       }
-      threats[def.id] = def;
     }
   }
   const disruptions: Record<string, DisruptionDef> = {};

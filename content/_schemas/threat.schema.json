@@ -14,7 +14,8 @@
           "enum": [
             "parry",
             "firm",
-            "wait"
+            "wait",
+            "nothing"
           ],
           "description": "The response the threat asks for."
         },
@@ -72,7 +73,8 @@
             "eyes",
             "peek",
             "sweat",
-            "open_hand"
+            "open_hand",
+            "sigh"
           ]
         },
         "feint": {
@@ -109,7 +111,8 @@
                 "eyes",
                 "peek",
                 "sweat",
-                "open_hand"
+                "open_hand",
+                "sigh"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -121,6 +124,12 @@
             "icon"
           ],
           "additionalProperties": false
+        },
+        "nothingMs": {
+          "description": "Only on a `nothing` threat (required there, refused elsewhere): how long the player must leave the threat alone, from the opening of the window, in sim ms. It is the whole window: no difficulty tier, fatigue or instinct stretches it (story 4.9).",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
         },
         "holdUntilMs": {
           "description": "Only on a `firm` threat without `release` (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).",
@@ -167,7 +176,8 @@
             "eyes",
             "peek",
             "sweat",
-            "open_hand"
+            "open_hand",
+            "sigh"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -245,9 +255,10 @@
           "type": "string",
           "enum": [
             "anchor",
-            "papa"
+            "papa",
+            "baby"
           ],
-          "description": "Where the threat stands: a planned anchor, or on Papa (system-spawned, story 1.19)."
+          "description": "Where the threat stands: a planned anchor, on Papa (system-spawned, story 1.19), or on the baby (a stealth step spawns it, story 4.9)."
         },
         "gag": {
           "type": "string",
@@ -270,7 +281,7 @@
         "gag"
       ],
       "additionalProperties": false,
-      "description": "A threat that stands on an anchor of the level, or on Papa."
+      "description": "A threat that stands on an anchor of the level, on Papa, or on the baby."
     },
     {
       "type": "object",
@@ -285,7 +296,8 @@
           "enum": [
             "parry",
             "firm",
-            "wait"
+            "wait",
+            "nothing"
           ],
           "description": "The response the threat asks for."
         },
@@ -343,7 +355,8 @@
             "eyes",
             "peek",
             "sweat",
-            "open_hand"
+            "open_hand",
+            "sigh"
           ]
         },
         "feint": {
@@ -380,7 +393,8 @@
                 "eyes",
                 "peek",
                 "sweat",
-                "open_hand"
+                "open_hand",
+                "sigh"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -392,6 +406,12 @@
             "icon"
           ],
           "additionalProperties": false
+        },
+        "nothingMs": {
+          "description": "Only on a `nothing` threat (required there, refused elsewhere): how long the player must leave the threat alone, from the opening of the window, in sim ms. It is the whole window: no difficulty tier, fatigue or instinct stretches it (story 4.9).",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
         },
         "holdUntilMs": {
           "description": "Only on a `firm` threat without `release` (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).",
@@ -438,7 +458,8 @@
             "eyes",
             "peek",
             "sweat",
-            "open_hand"
+            "open_hand",
+            "sigh"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },

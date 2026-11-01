@@ -370,6 +370,7 @@ export const PAD_STAMP_MAX_AGE_MS = 100;
 /** Buttons of the W3C « standard » gamepad layout the game reads (story 1.17). */
 export const PAD_BUTTON_CONFIRM = 0;
 export const PAD_BUTTON_BACK = 1;
+export const PAD_BUTTON_RIGHT_TRIGGER = 7;
 export const PAD_BUTTON_START = 9;
 export const PAD_BUTTON_DPAD_UP = 12;
 export const PAD_BUTTON_DPAD_DOWN = 13;
@@ -381,6 +382,12 @@ export const PAD_BUTTON_DPAD_RIGHT = 15;
  * no anchor of the level geometry, it follows him.
  */
 export const PAPA_TARGET_ANCHOR_ID = 'papa';
+
+/**
+ * The `anchorId` of a threat the sim spawns on the baby (a stealth step's alerts, story 4.9): it is
+ * no anchor of the level geometry either; the instance is written at the baby's point at each telegraph.
+ */
+export const BABY_TARGET_ANCHOR_ID = 'baby';
 
 /**
  * How long a HUD gauge stays at full opacity after it changed, in real ms (story 1.19 D11): a

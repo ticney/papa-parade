@@ -46,3 +46,19 @@ describe('hold-ring constants match DESIGN.md', () => {
     expect(ring.durationMs).toBe(String(createTestContent().feel.input.holdMinMs));
   });
 });
+
+describe('breath-ring constants match DESIGN.md (story 4.9)', () => {
+  const frontmatter = parseYamlSubset(extractFrontmatter(readFileSync(DESIGN, 'utf8')));
+  const ring = (frontmatter.components as YamlMap)['breath-ring'] as YamlMap;
+
+  it('is the hold-ring’s band and ink outline, with the same constants', () => {
+    expect(ring.strokeWidth).toBe(`${HOLD_RING_STROKE_PX}px`);
+    expect(ring.outerOutline).toBe(`${HOLD_RING_OUTLINE_PX}px {colors.ink}`);
+    expect(ring.progress).toBe('{colors.paper}');
+    expect(ring.track).toBe('{colors.ring-track}');
+  });
+
+  it("is told in the frozen feel's breathCapacityMs", () => {
+    expect(ring.durationMs).toBe(String(createTestContent().feel.stealth.breathCapacityMs));
+  });
+});

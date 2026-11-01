@@ -1,0 +1,30 @@
+{
+  "$schema": "../../content/_schemas/sequence.schema.json",
+  "id": "stealth_exit",
+  "babyCarried": false,
+  "steps": [
+    {
+      "kind": "stealth",
+      "durationMs": 60000,
+      "exitAnchor": "door",
+      "exitRadiusM": 0.9,
+      "alertGapMinMs": 4000,
+      "alertGapMaxMs": 7000,
+      "realWakePct": 30,
+      "falseAlarmDef": "false_alarm_sigh",
+      "realWakeDef": "real_wake"
+    }
+  ],
+  "success": { "kind": "stepsDone" },
+  "failure": { "kind": "gag", "hasSnore": false },
+  "framing": {
+    "camera": { "zoomPct": 20, "focusPct": 45, "inMs": 1000, "outMs": 700 },
+    "musicLoop": "stealth_exit",
+    "bar": null
+  },
+  "feedback": {
+    "started": "sequence_started",
+    "succeeded": "sequence_succeeded",
+    "failed": "sequence_failed"
+  }
+}

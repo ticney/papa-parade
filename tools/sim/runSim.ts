@@ -26,12 +26,19 @@ import {
 const CONTENT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'content');
 const PROGRESS_STEPS = 10;
 
-/** The threats the `duel` steps of the level's sequences spawn on Papa (story 4.6): no wave plans them. */
-export function duelDefIdsOf(level: SimLevel['level']): ReadonlySet<string> {
+/**
+ * The threats the steps of the level's sequences spawn: the `duel` steps' on Papa (story 4.6) and the
+ * `stealth` steps' two alerts on the baby (story 4.9). No wave plans them, and none is a micro-sleep.
+ */
+export function sequenceDefIdsOf(level: SimLevel['level']): ReadonlySet<string> {
   const ids = new Set<string>();
   for (const sequence of Object.values(level.sequences)) {
     for (const step of sequence.steps) {
       if (step.kind === 'duel') ids.add(step.threatDef);
+      else if (step.kind === 'stealth') {
+        ids.add(step.falseAlarmDef);
+        ids.add(step.realWakeDef);
+      }
     }
   }
   return ids;
@@ -110,7 +117,7 @@ export async function runSim(
         seed,
         level.level.waves,
         level.level.carry?.armsCryDef ?? null,
-        duelDefIdsOf(level),
+        sequenceDefIdsOf(level),
       );
       const player =
         args.sequenceId === null

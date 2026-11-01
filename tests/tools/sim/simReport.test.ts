@@ -86,6 +86,9 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     beatsMissed: 0,
     decoysTapped: 0,
     beatsStray: 0,
+    floorCreaks: 0,
+    breathGasps: { empty: 0, early: 0, notHeld: 0 },
+    nothingResponses: 0,
     bladderPeakPct: 0,
     noisePeakPct: 0,
     noiseFinalPct: 0,
@@ -109,7 +112,7 @@ const tally = (overrides: Partial<RunSummary['threats'][string]> = {}) => ({
   perfect: 0,
   success: 0,
   fail: 0,
-  failReasons: { early: 0, late: 0, wrongResponse: 0, released: 0 },
+  failReasons: { early: 0, late: 0, wrongResponse: 0, released: 0, acted: 0 },
   absOffsetSumMs: 0,
   offsetCount: 0,
   ...overrides,
@@ -130,7 +133,7 @@ describe('summarizeRuns', () => {
             perfect: 1,
             success: 1,
             fail: 1,
-            failReasons: { early: 0, late: 1, wrongResponse: 0, released: 0 },
+            failReasons: { early: 0, late: 1, wrongResponse: 0, released: 0, acted: 0 },
             absOffsetSumMs: 30,
             offsetCount: 2,
           }),
@@ -145,7 +148,7 @@ describe('summarizeRuns', () => {
       perfectPct: 33.3,
       successPct: 33.3,
       failPct: 33.3,
-      failReasons: { early: 0, late: 1, wrongResponse: 0, released: 0 },
+      failReasons: { early: 0, late: 1, wrongResponse: 0, released: 0, acted: 0 },
       meanAbsOffsetMs: 15,
     });
     expect(report.meanSuccessPct).toBe(66.7);
@@ -456,7 +459,13 @@ describe('createRunRecorder', () => {
     });
     const tallies = Object.values(recorder.finish().threats);
     expect(tallies).toHaveLength(1);
-    expect(tallies[0]?.failReasons).toEqual({ early: 0, late: 0, wrongResponse: 0, released: 1 });
+    expect(tallies[0]?.failReasons).toEqual({
+      early: 0,
+      late: 0,
+      wrongResponse: 0,
+      released: 1,
+      acted: 0,
+    });
   });
 
   it('counts the responses, gags and near misses of the events it is given', async () => {

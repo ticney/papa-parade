@@ -78,7 +78,7 @@ describe('the bots and the suspicious silence', () => {
         time: { sim },
         threats: [],
         silence: { threatId: startedAt === null ? null : 1, zoneEnteredAt: startedAt, startedAt },
-        sequence: { beat: { isRunning: false, nextBeatAt: null } },
+        sequence: { beat: { isRunning: false, nextBeatAt: null }, stealth: { isRunning: false } },
       }) as never;
     const out: { type: string; t: number }[] = [];
     // The silence starts at 1000: the tap is planned for 1400.
@@ -104,7 +104,7 @@ describe('the bots and the suspicious silence', () => {
         time: { sim: 0 },
         threats: [],
         silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
-        sequence: { beat: { isRunning: false, nextBeatAt: null } },
+        sequence: { beat: { isRunning: false, nextBeatAt: null }, stealth: { isRunning: false } },
       } as never,
       out,
     );

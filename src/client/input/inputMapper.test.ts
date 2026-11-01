@@ -59,8 +59,12 @@ function setup() {
     enqueue: (command: SimCommand) => commands.push(command),
     world: {
       time: { sim: asSimMs(777) },
-      flow: { state: 'playing' as 'playing' | 'ended' },
-      sequence: { beat: { isRunning: false }, duel: { isRunning: false } },
+      flow: { state: 'playing' as 'playing' | 'ended' | 'sequence' },
+      sequence: {
+        beat: { isRunning: false },
+        duel: { isRunning: false },
+        stealth: { isRunning: false },
+      },
       papa: { xM: 0, zM: 0, state: 'idle' as string },
       // Far from the first tests' taps and from Papa: the baby only matters in the tests about him.
       baby: { xM: 40, zM: 40 },
@@ -111,6 +115,7 @@ function setup() {
       },
     },
     input: { autoTargetConeDeg: 60, contextReachM: 1.5, stickDeadzonePct: 20 },
+    stealth: { holdMinMs: 400 },
     getObjects: () => objects,
     onPadButton: (button) => padButtons.push(button),
     onPadPresence: (isPresent, family) => padPresence.push([isPresent, family]),
@@ -149,7 +154,11 @@ function setup() {
         world: {
           time: { sim: asSimMs(888) },
           flow: { state: 'playing' },
-          sequence: { beat: { isRunning: false }, duel: { isRunning: false } },
+          sequence: {
+            beat: { isRunning: false },
+            duel: { isRunning: false },
+            stealth: { isRunning: false },
+          },
           papa: { xM: 0, zM: 0, state: 'idle' },
           baby: { xM: 40, zM: 40 },
         },
@@ -1545,6 +1554,329 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
       inDuel(sim);
       sim.world.sequence.duel.isRunning = false;
       mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+      expect(commands).toEqual([]);
+    });
+  });
+});
+
+describe('createInputMapper: the stealth step (story 4.9)', () => {
+  const WINDOW = { windowMs: 2000, perfectMs: 0, toleranceMs: 0, bufferMs: 0 };
+  const COFFEE = {
+    id: 'coffee_machine',
+    kind: 'coffee_machine' as const,
+    xM: -3.6,
+    yM: 1.05,
+    zM: -2,
+  };
+  const ICON = {
+    threatId: 4,
+    xM: -3,
+    yM: 0.3,
+    zM: 0.5,
+    icon: 'bolt' as const,
+    followsPapa: false,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
+  };
+  const pxOf = (camera: Parameters<typeof Vector3.prototype.project>[0], o: typeof COFFEE) => {
+    const v = new Vector3(o.xM, o.yM, o.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+  const inStealth = (sim: ReturnType<typeof setup>['sim']) => {
+    (sim.world.flow as { state: string }).state = 'sequence';
+    sim.world.sequence.stealth.isRunning = true;
+  };
+  const up = (timeStamp: number, pointerId = 1) =>
+    ({ pointerId, isPrimary: true, button: 0, timeStamp }) as never;
+  const types = (commands: readonly SimCommand[]) => commands.map((c) => c.type);
+
+  it('lets a floor tap through to a walk, with its marker (a sequence usually holds Papa)', () => {
+    const { mapper, sim, commands, markers } = setup();
+    inStealth(sim);
+    mapper.handlePointerDown(click(RECT.left + RECT.width / 2, RECT.top + RECT.height / 2));
+    expect(types(commands)).toEqual(['TapFloor']);
+    expect(markers).toHaveLength(1);
+  });
+
+  it('control: any other sequence still holds the finger', () => {
+    const { mapper, sim, commands, markers } = setup();
+    (sim.world.flow as { state: string }).state = 'sequence';
+    mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+    expect(commands).toEqual([]);
+    expect(markers).toEqual([]);
+  });
+
+  it('sends Move for a held key, which a sequence usually refuses', () => {
+    const { mapper, sim, commands, held } = setup();
+    inStealth(sim);
+    held.add('KeyD');
+    mapper.onKeysChanged(1500);
+    expect(types(commands)).toEqual(['Move']);
+  });
+
+  it('sends nothing and draws nothing for a tap on an object', () => {
+    const { mapper, sim, commands, markers, taps, setObjects, camera } = setup();
+    setObjects([COFFEE]);
+    inStealth(sim);
+    const at = pxOf(camera, COFFEE as never);
+    mapper.handlePointerDown(click(at.x, at.y));
+    expect(commands).toEqual([]);
+    expect(markers).toEqual([]);
+    expect(taps).toEqual([]);
+  });
+
+  it('sends only TapBaby for a tap on the baby, with no marker', () => {
+    const { mapper, sim, commands, markers, taps, camera } = setup();
+    inStealth(sim);
+    sim.world.baby.xM = 0;
+    sim.world.baby.zM = 0;
+    const at = pxOf(camera, { xM: 0, zM: 0, yM: BABY_RADIUS_M } as never);
+    mapper.handlePointerDown(click(at.x, at.y));
+    expect(types(commands)).toEqual(['TapBaby']);
+    expect(markers).toEqual([]);
+    expect(taps).toEqual([]);
+  });
+
+  describe('the finger and the breath (D11)', () => {
+    it('holds the breath once it is still down holdMinMs later, stamped press + holdMinMs, and lets go at its up', () => {
+      const { mapper, sim, commands, setNow } = setup();
+      inStealth(sim);
+      mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+      expect(types(commands)).toEqual(['TapFloor']);
+      setNow(1200);
+      mapper.pollGamepad();
+      expect(types(commands)).toEqual(['TapFloor']);
+      setNow(1450);
+      mapper.pollGamepad();
+      expect(commands[1]).toEqual({ type: 'HoldAnywhere', t: 400 });
+      mapper.pollGamepad();
+      expect(types(commands)).toEqual(['TapFloor', 'HoldAnywhere']);
+      mapper.handlePointerUp(up(1900));
+      expect(commands[2]).toEqual({ type: 'ReleaseHold', t: 900 });
+    });
+
+    it('a floor finger released before holdMinMs is a walk and no HoldAnywhere, and its up sends nothing', () => {
+      const { mapper, sim, commands, setNow } = setup();
+      inStealth(sim);
+      mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+      setNow(1100);
+      mapper.pollGamepad();
+      mapper.handlePointerUp(up(1100));
+      setNow(2000);
+      mapper.pollGamepad();
+      expect(types(commands)).toEqual(['TapFloor']);
+    });
+
+    it('never holds for a finger on a threat: it is a press', () => {
+      const { mapper, sim, commands, camera, setTargets, setNow } = setup();
+      inStealth(sim);
+      setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+      const icon = pxOf(camera, ICON as never);
+      mapper.handlePointerDown(click(icon.x, icon.y, { timeStamp: 1000 }));
+      setNow(3000);
+      mapper.pollGamepad();
+      expect(types(commands)).toEqual(['PressThreat']);
+      mapper.handlePointerUp(up(3000));
+      expect(types(commands)).toEqual(['PressThreat', 'Release']);
+    });
+
+    it('a pointercancel is an up: it lets the breath go too', () => {
+      const { mapper, sim, commands, setNow } = setup();
+      inStealth(sim);
+      mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+      setNow(1500);
+      mapper.pollGamepad();
+      mapper.handlePointerUp(up(1600));
+      expect(types(commands)).toEqual(['TapFloor', 'HoldAnywhere', 'ReleaseHold']);
+    });
+
+    it('stamps the hold through the calibration offset like every other input', () => {
+      const { mapper, sim, commands, setNow, setOffset } = setup();
+      setOffset(50);
+      inStealth(sim);
+      mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+      setNow(1500);
+      mapper.pollGamepad();
+      expect(commands[0]).toMatchObject({ type: 'TapFloor', t: -50 });
+      expect(commands[1]).toEqual({ type: 'HoldAnywhere', t: 350 });
+    });
+
+    it('a finger still down when the step ends sends no breath at its up, held or not yet read', () => {
+      for (const isHoldingAlready of [false, true]) {
+        const { mapper, sim, commands, setNow } = setup();
+        inStealth(sim);
+        mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+        if (isHoldingAlready) {
+          setNow(1500);
+          mapper.pollGamepad();
+        }
+        sim.world.sequence.stealth.isRunning = false;
+        setNow(1600);
+        mapper.pollGamepad();
+        mapper.handlePointerUp(up(2000));
+        const sent = types(commands);
+        expect(sent).not.toContain('ReleaseHold');
+        expect(sent.filter((type) => type === 'HoldAnywhere')).toHaveLength(
+          isHoldingAlready ? 1 : 0,
+        );
+      }
+    });
+
+    it('forgets the holder when the step ends, so a chained step can take the breath again', () => {
+      const { mapper, sim, commands, setNow } = setup();
+      inStealth(sim);
+      mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+      setNow(1500);
+      mapper.pollGamepad();
+      sim.world.sequence.stealth.isRunning = false;
+      mapper.pollGamepad();
+      inStealth(sim);
+      mapper.handleHold('down', 1700, 'keyboard');
+      expect(types(commands)).toEqual(['TapFloor', 'HoldAnywhere', 'HoldAnywhere']);
+    });
+
+    it('sends nothing outside a stealth step', () => {
+      const { mapper, commands, setNow } = setup();
+      mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+      setNow(2000);
+      mapper.pollGamepad();
+      mapper.handlePointerUp(up(2100));
+      expect(types(commands)).toEqual(['TapFloor']);
+    });
+
+    it('a pause with the breath held lets it go at the sim clock, and the up after it sends nothing', () => {
+      const { mapper, sim, commands, setNow } = setup();
+      inStealth(sim);
+      mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+      setNow(1500);
+      mapper.pollGamepad();
+      mapper.releaseHeld();
+      expect(commands[2]).toEqual({ type: 'ReleaseHold', t: 777 });
+      mapper.handlePointerUp(up(2000));
+      expect(types(commands)).toEqual(['TapFloor', 'HoldAnywhere', 'ReleaseHold']);
+    });
+
+    it('forgets the holder when a new level binds', () => {
+      const { mapper, sim, commands, setNow, setActive, newSim } = setup();
+      inStealth(sim);
+      mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+      setNow(1500);
+      mapper.pollGamepad();
+      const next = newSim();
+      setActive(next);
+      mapper.handlePointerUp(up(1800));
+      expect(types(commands)).toEqual(['TapFloor', 'HoldAnywhere']);
+    });
+  });
+
+  describe('E and the right trigger', () => {
+    it('E holds on its down and lets go on its up, stamped from the event', () => {
+      const { mapper, sim, commands } = setup();
+      inStealth(sim);
+      mapper.handleHold('down', 1500, 'keyboard');
+      mapper.handleHold('up', 1700, 'keyboard');
+      expect(commands).toEqual([
+        { type: 'HoldAnywhere', t: 500 },
+        { type: 'ReleaseHold', t: 700 },
+      ]);
+    });
+
+    it('sends nothing outside a stealth step, and no ReleaseHold for a hold it never made', () => {
+      const { mapper, sim, commands } = setup();
+      mapper.handleHold('down', 1500, 'keyboard');
+      mapper.handleHold('up', 1700, 'keyboard');
+      inStealth(sim);
+      mapper.handleHold('up', 1800, 'keyboard');
+      expect(commands).toEqual([]);
+    });
+
+    it('is dropped while the game is paused, but its up is not', () => {
+      const { mapper, sim, commands, state } = setup();
+      inStealth(sim);
+      mapper.handleHold('down', 1500, 'keyboard');
+      state.pause = 'paused';
+      mapper.handleHold('up', 1700, 'keyboard');
+      mapper.handleHold('down', 1800, 'keyboard');
+      expect(types(commands)).toEqual(['HoldAnywhere', 'ReleaseHold']);
+    });
+
+    it('the pad’s right trigger holds and lets go, and never reaches the menu', () => {
+      const { mapper, sim, pad, commands, padButtons } = setup();
+      inStealth(sim);
+      pad.isPresent = true;
+      pad.stampAtReal = 1500;
+      pad.pressed = ['hold'];
+      mapper.pollGamepad();
+      pad.stampAtReal = 1700;
+      pad.released = ['hold'];
+      mapper.pollGamepad();
+      expect(commands).toEqual([
+        { type: 'HoldAnywhere', t: 500 },
+        { type: 'ReleaseHold', t: 700 },
+      ]);
+      expect(padButtons).toEqual([]);
+    });
+
+    it('the trigger outside a stealth step, or outside play, moves no menu and sends nothing', () => {
+      const { mapper, sim, pad, commands, padButtons, state } = setup();
+      pad.isPresent = true;
+      pad.pressed = ['hold'];
+      mapper.pollGamepad();
+      state.app = 'start';
+      pad.pressed = ['hold'];
+      pad.released = ['hold'];
+      mapper.pollGamepad();
+      expect(commands).toEqual([]);
+      expect(padButtons).toEqual([]);
+      expect(sim.world.sequence.stealth.isRunning).toBe(false);
+    });
+
+    it('one device at a time: a second hold is ignored and only the holder lets go', () => {
+      const { mapper, sim, commands } = setup();
+      inStealth(sim);
+      mapper.handleHold('down', 1500, 'keyboard');
+      mapper.handleHold('down', 1520, 'gamepad');
+      mapper.handleHold('up', 1540, 'gamepad');
+      mapper.handleHold('up', 1560, 'keyboard');
+      expect(types(commands)).toEqual(['HoldAnywhere', 'ReleaseHold']);
+    });
+
+    it('never dates a release before its hold', () => {
+      const { mapper, sim, commands } = setup();
+      inStealth(sim);
+      mapper.handleHold('down', 1500, 'keyboard');
+      mapper.handleHold('up', 1400, 'keyboard');
+      expect(commands[1]).toEqual({ type: 'ReleaseHold', t: 500 });
+    });
+  });
+
+  describe('Space and A (D12)', () => {
+    it('press the sigh too: pressing the action while only the false alarm is up is a press on it', () => {
+      const { mapper, sim, commands, pressedIds } = setup();
+      inStealth(sim);
+      sim.world.threats = [
+        { id: 6, state: 'windowOpen', xM: 0, zM: 0, windowOpenAt: 5000, responseWindow: WINDOW },
+      ];
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'PressThreat', t: 500, threatId: 6 }]);
+      expect(pressedIds).toEqual([6]);
+    });
+
+    it('with nothing up send nothing: never TapBaby or TapObject, even with the baby and an object in reach', () => {
+      const { mapper, sim, commands, setObjects } = setup();
+      setObjects([{ id: 'coffee', kind: 'coffee_machine', xM: 0.2, zM: 0, yM: 1 } as never]);
+      inStealth(sim);
+      sim.world.baby.xM = 0.3;
+      sim.world.baby.zM = 0;
+      mapper.handleAction('down', 1500, 'keyboard');
+      mapper.handleAction('up', 1600, 'keyboard');
       expect(commands).toEqual([]);
     });
   });

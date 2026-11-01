@@ -90,7 +90,7 @@ const JS_PLAYTEST = new Map([
   // The sequence's mirrors sit there too (story 4.4), and the lullaby walk's (story 4.5).
   [
     'assets/boot-a.js',
-    'mirror("ppCalibration", phase); mirror("ppSequence", id); mirror("ppBeatHits", n); mirror("ppBeatMisses", n); mirror("ppBabyWake", n);',
+    'mirror("ppCalibration", phase); mirror("ppSequence", id); mirror("ppBeatHits", n); mirror("ppBeatMisses", n); mirror("ppBabyWake", n); mirror("ppBreathPct", n); mirror("ppBreathHeld", n);',
   ],
   ['assets/testApi-a.js', 'window.__PP__ = api; installTestApi; cueLog; beatLog'],
   ['assets/autoplay-a.js', 'installAutoplay'],

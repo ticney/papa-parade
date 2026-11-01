@@ -1781,6 +1781,251 @@ export function synthBombThriller(): Float32Array {
   return out;
 }
 
+// The infiltration's placeholders (story 4.9), seeds `SEED + 39` to `+ 46`: the baby's sigh and his real
+// wake-up, the soft « all is well », the two ways to wake him, a creaking board, a breath let out and
+// a short loop of held-breath tension.
+
+const SIGH_TEL_LENGTH_MS = 700;
+const SIGH_TEL_HZ = { from: 250, to: 150 };
+const SIGH_TEL_ATTACK_MS = 120;
+const SIGH_TEL_RELEASE_MS = 300;
+
+/** A long, soft breath out with a falling hum under it: the false alarm's telegraph (cue `tel_false_alarm_sigh`). */
+export function synthTelegraphFalseAlarmSigh(): Float32Array {
+  const rng = createRng(SEED + 39);
+  const out = new Float32Array(samplesOf(SIGH_TEL_LENGTH_MS));
+  const attack = samplesOf(SIGH_TEL_ATTACK_MS);
+  const release = samplesOf(SIGH_TEL_RELEASE_MS);
+  let phase = 0;
+  let noise = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const frequencyHz = SIGH_TEL_HZ.from + (SIGH_TEL_HZ.to - SIGH_TEL_HZ.from) * progress;
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    noise += 0.2 * (nextFloat(rng) * 2 - 1 - noise);
+    out[i] =
+      (0.6 * Math.sin(phase) + 0.9 * noise) *
+      Math.min(1, i / attack) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const REAL_WAKE_TEL_PULSE_MS = 170;
+const REAL_WAKE_TEL_GAP_MS = 60;
+const REAL_WAKE_TEL_HZ = [540, 720];
+const REAL_WAKE_TEL_ATTACK_MS = 6;
+const REAL_WAKE_TEL_RELEASE_MS = 70;
+const REAL_WAKE_TEL_VIBRATO_HZ = 14;
+
+/** Two quick, rising whimpers: the real wake's telegraph (cue `tel_real_wake`), sharp where the sigh is soft. */
+export function synthTelegraphRealWake(): Float32Array {
+  const pulse = samplesOf(REAL_WAKE_TEL_PULSE_MS);
+  const gap = samplesOf(REAL_WAKE_TEL_GAP_MS);
+  const out = new Float32Array(
+    pulse * REAL_WAKE_TEL_HZ.length + gap * (REAL_WAKE_TEL_HZ.length - 1),
+  );
+  const attack = samplesOf(REAL_WAKE_TEL_ATTACK_MS);
+  const release = samplesOf(REAL_WAKE_TEL_RELEASE_MS);
+  REAL_WAKE_TEL_HZ.forEach((baseHz, index) => {
+    const start = index * (pulse + gap);
+    let phase = 0;
+    for (let i = 0; i < pulse; i++) {
+      const seconds = i / SAMPLE_RATE_HZ;
+      const frequencyHz =
+        baseHz *
+        (1 + 0.25 * (i / pulse)) *
+        (1 + 0.05 * Math.sin(2 * Math.PI * REAL_WAKE_TEL_VIBRATO_HZ * seconds));
+      phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+      out[start + i] =
+        (Math.sin(phase) + 0.45 * Math.sin(2 * phase)) *
+        Math.min(1, i / attack) *
+        Math.min(1, (pulse - i) / release);
+    }
+  });
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const RESP_NOTHING_LENGTH_MS = 380;
+const RESP_NOTHING_HZ = 196;
+const RESP_NOTHING_ATTACK_MS = 60;
+const RESP_NOTHING_RELEASE_MS = 200;
+
+/** A low, round « mm »: all is well (cue `resp_nothing`), the quietest of the responses. */
+export function synthRespNothing(): Float32Array {
+  const out = new Float32Array(samplesOf(RESP_NOTHING_LENGTH_MS));
+  const attack = samplesOf(RESP_NOTHING_ATTACK_MS);
+  const release = samplesOf(RESP_NOTHING_RELEASE_MS);
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    out[i] =
+      (Math.sin(2 * Math.PI * RESP_NOTHING_HZ * seconds) +
+        0.3 * Math.sin(2 * Math.PI * RESP_NOTHING_HZ * 1.5 * seconds)) *
+      Math.min(1, i / attack) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const WOKE_BY_TOUCH_LENGTH_MS = 650;
+const WOKE_BY_TOUCH_HZ = { from: 880, to: 520 };
+const WOKE_BY_TOUCH_ATTACK_MS = 8;
+const WOKE_BY_TOUCH_RELEASE_MS = 220;
+const WOKE_BY_TOUCH_JITTER = 0.2;
+
+/** A sharp little shriek that falls away: the baby woken by a touch (cue `gag_baby_woke_by_touch`). */
+export function synthGagBabyWokeByTouch(): Float32Array {
+  const rng = createRng(SEED + 42);
+  const out = new Float32Array(samplesOf(WOKE_BY_TOUCH_LENGTH_MS));
+  const attack = samplesOf(WOKE_BY_TOUCH_ATTACK_MS);
+  const release = samplesOf(WOKE_BY_TOUCH_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const frequencyHz =
+      (WOKE_BY_TOUCH_HZ.from + (WOKE_BY_TOUCH_HZ.to - WOKE_BY_TOUCH_HZ.from) * progress ** 0.5) *
+      (1 + WOKE_BY_TOUCH_JITTER * 0.1 * (nextFloat(rng) * 2 - 1));
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    out[i] =
+      (Math.sign(Math.sin(phase)) * 0.35 + Math.sin(phase)) *
+      Math.min(1, i / attack) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const WOKE_CRYING_LENGTH_MS = 950;
+const WOKE_CRYING_HZ = { from: 330, peak: 590, to: 300 };
+const WOKE_CRYING_SOBS = 3;
+const WOKE_CRYING_ATTACK_MS = 30;
+const WOKE_CRYING_RELEASE_MS = 260;
+
+/** A long wail in three sobs: the baby woken for real and left crying (cue `gag_baby_woke_crying`). */
+export function synthGagBabyWokeCrying(): Float32Array {
+  const out = new Float32Array(samplesOf(WOKE_CRYING_LENGTH_MS));
+  const attack = samplesOf(WOKE_CRYING_ATTACK_MS);
+  const release = samplesOf(WOKE_CRYING_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const base =
+      progress < 0.4
+        ? WOKE_CRYING_HZ.from + (WOKE_CRYING_HZ.peak - WOKE_CRYING_HZ.from) * (progress / 0.4)
+        : WOKE_CRYING_HZ.peak +
+          (WOKE_CRYING_HZ.to - WOKE_CRYING_HZ.peak) * ((progress - 0.4) / 0.6);
+    phase += (2 * Math.PI * base) / SAMPLE_RATE_HZ;
+    const sob = 0.55 + 0.45 * Math.sin(2 * Math.PI * WOKE_CRYING_SOBS * progress) ** 2;
+    out[i] =
+      (Math.sin(phase) + 0.6 * Math.sin(2 * phase) + 0.3 * Math.sin(3 * phase)) *
+      sob *
+      Math.min(1, i / attack) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const CREAK_LENGTH_MS = 420;
+const CREAK_HZ = { from: 95, to: 160 };
+const CREAK_STICK_HZ = 37;
+const CREAK_ATTACK_MS = 15;
+const CREAK_RELEASE_MS = 140;
+
+/** A board giving under a foot: a rough, stick-slip groan that slides up (cue `floor_creak`, clip `env_floor_creak`). */
+export function synthFloorCreak(): Float32Array {
+  const rng = createRng(SEED + 44);
+  const out = new Float32Array(samplesOf(CREAK_LENGTH_MS));
+  const attack = samplesOf(CREAK_ATTACK_MS);
+  const release = samplesOf(CREAK_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const progress = i / out.length;
+    const frequencyHz = CREAK_HZ.from + (CREAK_HZ.to - CREAK_HZ.from) * progress;
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const stick = Math.sin(2 * Math.PI * CREAK_STICK_HZ * seconds) > -0.3 ? 1 : 0.25;
+    const saw = ((phase / (2 * Math.PI)) % 1) * 2 - 1;
+    out[i] =
+      (saw * 0.8 + (nextFloat(rng) * 2 - 1) * 0.25) *
+      stick *
+      Math.min(1, i / attack) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const GASP_LENGTH_MS = 320;
+const GASP_ATTACK_MS = 20;
+const GASP_RELEASE_MS = 150;
+const GASP_SMOOTHING = 0.35;
+
+/** A breath let out too soon: a short burst of airy noise (cue `breath_gasped`, clip `papa_breath_gasp`). */
+export function synthBreathGasp(): Float32Array {
+  const rng = createRng(SEED + 45);
+  const out = new Float32Array(samplesOf(GASP_LENGTH_MS));
+  const attack = samplesOf(GASP_ATTACK_MS);
+  const release = samplesOf(GASP_RELEASE_MS);
+  let noise = 0;
+  for (let i = 0; i < out.length; i++) {
+    noise += GASP_SMOOTHING * (nextFloat(rng) * 2 - 1 - noise);
+    out[i] = noise * Math.min(1, i / attack) * Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const STEALTH_LOOP_LENGTH_S = 4;
+const STEALTH_DRONE_HZ = [49, 73.5];
+const STEALTH_TICK_PERIOD_S = 2;
+const STEALTH_TICK_HZ = 1320;
+const STEALTH_TICK_DECAY_S = 0.012;
+
+/**
+ * The infiltration's loop (loop `sequenceMusic.stealth_exit`): a very low drone and one dry tick every
+ * two seconds, like a clock in a dark room. Short on purpose (the level's audio budget); both parts
+ * make whole cycles over the loop so that it does not click.
+ */
+export function synthStealthLoop(): Float32Array {
+  const rng = createRng(SEED + 46);
+  const out = new Float32Array(samplesOf(STEALTH_LOOP_LENGTH_S * 1000));
+  let air = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    let drone = 0;
+    for (const frequencyHz of STEALTH_DRONE_HZ)
+      drone += Math.sin(2 * Math.PI * frequencyHz * seconds);
+    drone /= STEALTH_DRONE_HZ.length;
+    const sinceTick = seconds % STEALTH_TICK_PERIOD_S;
+    const tick =
+      Math.sin(2 * Math.PI * STEALTH_TICK_HZ * sinceTick) *
+      Math.exp(-sinceTick / STEALTH_TICK_DECAY_S);
+    air += 0.004 * (nextFloat(rng) * 2 - 1 - air);
+    out[i] = drone * 0.6 + tick * 0.5 + air * 3;
+  }
+  fadeEnds(out, LOOP_FADE_MS);
+  normalize(out, PEAK_MUSIC * 0.6);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -1865,6 +2110,14 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'baby_mattress_touch', synth: synthBabyMattressTouch },
   { clip: 'gag_baby_woke_on_drop', synth: synthGagBabyWokeOnDrop },
   { clip: 'music_bomb_thriller', synth: synthBombThriller },
+  { clip: 'tel_false_alarm_sigh', synth: synthTelegraphFalseAlarmSigh },
+  { clip: 'tel_real_wake', synth: synthTelegraphRealWake },
+  { clip: 'resp_nothing', synth: synthRespNothing },
+  { clip: 'gag_baby_woke_by_touch', synth: synthGagBabyWokeByTouch },
+  { clip: 'gag_baby_woke_crying', synth: synthGagBabyWokeCrying },
+  { clip: 'env_floor_creak', synth: synthFloorCreak },
+  { clip: 'papa_breath_gasp', synth: synthBreathGasp },
+  { clip: 'music_stealth', synth: synthStealthLoop },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {
