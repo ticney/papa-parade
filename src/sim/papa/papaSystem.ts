@@ -261,7 +261,8 @@ export function runPapa(world: World, ctx: StepContext): void {
   // is done here and not by the end of the sequence: `carry.ts` imports the threat code, which
   // imports `sequenceEnd`. `runThreats` ran first, so `ResponseResolved` and `SequenceEnded` are already
   // in this step's events.
-  if (isBabyJustLaid(world, ctx)) putDownBaby(world, ctx);
+  const isJustLaid = isBabyJustLaid(world, ctx);
+  if (isJustLaid) putDownBaby(world, ctx);
 
   if (isPapaBusy(papa) && world.time.sim >= papa.busyUntil) {
     if (papa.state === 'drink') {
@@ -275,8 +276,10 @@ export function runPapa(world: World, ctx: StepContext): void {
   }
 
   let hasToggledCarry = false;
-  // Papa stands still in a special sequence (story 4.4 D3): only a press on a threat gets through.
-  const isHeld = world.flow.state === 'sequence';
+  // Papa stands still in a special sequence (story 4.4 D3): only a press on a threat gets through. The
+  // step that lays the baby is the sequence's last: the flow is `playing` already, but a tap queued
+  // for it must not take him back from the mattress.
+  const isHeld = world.flow.state === 'sequence' || isJustLaid;
   for (let i = 0; i < ctx.commands.length; i++) {
     const command = ctx.commands[i];
     if (command === undefined) continue;

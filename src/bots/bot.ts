@@ -44,9 +44,9 @@ export interface BotSetup {
    * The ids of the threat defs judged on a release (story 4.8: the bomb drop's `firm` with a `release`),
    * built beside `responses` by `releaseDefIdsOf`. Their response stays `firm` (`BotResponse` is derived
    * from the sim and gains no member for them); a bot that knows the ids presses early and releases at an
-   * instant of its own. Absent: none.
+   * instant of its own. Required: an empty list says "none", while a missing one would play the drop as a plain `firm`.
    */
-  releaseDefIds?: readonly string[];
+  releaseDefIds: readonly string[];
   settings: BotOptions;
 }
 

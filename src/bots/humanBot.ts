@@ -42,7 +42,7 @@ export function createHumanBot(setup: BotSetup): Bot {
   const cycles = createCycleMemory();
   const silences = createSilenceMemory();
   const firmHold = createFirmHold();
-  const releaseDefIds = new Set(setup.releaseDefIds ?? []);
+  const releaseDefIds = new Set(setup.releaseDefIds);
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
   let find: { startedAt: number; atMs: number } | null = null;
   // The tap planned for the beat in play: dropped if the beat is settled before it is sent.

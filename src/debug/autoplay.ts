@@ -20,7 +20,7 @@ import { isFlowLive, type Sim, type SimCommand } from '@sim';
  */
 export function installAutoplay(host: TestHost, botId: string): Result<void, AppError> {
   // Asked once with a throwaway setup, so that a bad id is refused before the level starts.
-  const probe = createBot(botId, setupFor(host, 0, host.content.feel.input.holdMinMs, {}));
+  const probe = createBot(botId, setupFor(host, 0, host.content.feel.input.holdMinMs, {}, []));
   if (!probe.ok) return probe;
 
   const out: SimCommand[] = [];
@@ -55,7 +55,7 @@ function setupFor(
   seed: number,
   holdMinMs: number,
   responses: BotSetup['responses'],
-  releaseDefIds: readonly string[] = [],
+  releaseDefIds: readonly string[],
 ): BotSetup {
   return { seed, holdMinMs, responses, releaseDefIds, settings: host.content.bots };
 }

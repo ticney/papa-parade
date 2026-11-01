@@ -164,7 +164,7 @@ const baseShape = {
         .int()
         .positive()
         .describe(
-          'How long after the telegraph the press may come, in sim ms, strictly below `telegraphDelayMs`: the press always comes before the final pose.',
+          "How long after the telegraph the press may come, in sim ms, strictly below `telegraphDelayMs`. The sim adds the response window's tolerance (and the input lag) to it, so keep a margin below the descent: a press at the limit can land just short of the final pose.",
         ),
     })
     .optional()
@@ -249,6 +249,14 @@ export const ThreatDefSchema = z
         code: 'custom',
         path: ['release'],
         message: `\`release\` is only for a threat with response "firm", not "${def.response}"`,
+      });
+    }
+    // The baby is laid by Papa, in a duel step (story 4.8): a `release` def stands on him.
+    if (release !== undefined && def.response === 'firm' && def.target !== 'papa') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['release'],
+        message: `a threat with a \`release\` stands on Papa (target "papa"), not on "${def.target}"`,
       });
     }
     if (def.response === 'firm' && release !== undefined) {

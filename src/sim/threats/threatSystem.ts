@@ -27,8 +27,9 @@ function pressThreat(
   const judgement = judgePress(t, threat.windowOpenAt, threat.responseWindow);
   if (def.release !== undefined) {
     // A Firmness judged on its release (story 4.8): the press only has to come within `pressWithinMs` of
-    // the telegraph, the release is what is judged. In `windowOpen` it is always late (the schema keeps
-    // `pressWithinMs` below the descent). `earlyPress` is not read.
+    // the telegraph, the release is what is judged. The deadline is `pressWithinMs` plus the tolerance,
+    // which the schema keeps below the descent only by `pressWithinMs`: past it, or in `windowOpen`,
+    // the press is `late`. `earlyPress` is not read.
     const deadline =
       threat.enteredAt + def.release.pressWithinMs + threat.responseWindow.toleranceMs;
     if (threat.state === 'telegraph' && t <= deadline) {

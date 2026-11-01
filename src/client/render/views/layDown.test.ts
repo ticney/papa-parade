@@ -124,6 +124,20 @@ describe('the carried baby lowered onto the mattress (story 4.8)', () => {
     expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
   });
 
+  it('never lowers him under the floor, whatever the laid height', () => {
+    const scene = new Scene();
+    const view = createBabyView(
+      scene,
+      createToonMaterialCache(),
+      createBlobKit(),
+      radiusM,
+      radiusM / 2,
+    );
+    const body = scene.getObjectByName('baby') as Mesh;
+    view.update(carried(), 1, undefined, 100);
+    expect(body.position.y).toBeCloseTo(radiusM, 12);
+  });
+
   it('does not lower a baby who is not in the arms', () => {
     const { view, body } = build();
     view.update({ ...carried(), state: 'babble' }, 1, undefined, 100);

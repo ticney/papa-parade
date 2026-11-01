@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { botResponsesOf } from '@bots/botResponses';
+import { botResponsesOf, releaseDefIdsOf } from '@bots/botResponses';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
 import { UINT32_RANGE } from '@shared/constants';
@@ -219,6 +219,7 @@ describe('runSim on the live content', () => {
         seed,
         holdMinMs: feel.input.holdMinMs,
         responses: botResponsesOf(loaded.level.threats),
+        releaseDefIds: releaseDefIdsOf(loaded.level.threats),
         settings: loaded.content.bots,
       });
       if (!bot.ok) throw new Error(bot.error.message);

@@ -160,9 +160,9 @@
                 "properties": {
                   "timeScale": {
                     "type": "number",
-                    "exclusiveMinimum": 0,
+                    "minimum": 0.05,
                     "exclusiveMaximum": 1,
-                    "description": "The time scale during the round, above 0 and below 1 (0.4 = 40 % speed)."
+                    "description": "The time scale during the round, from 0.05 (the slowest the sim runs) up to but not including 1 (0.4 = 40 % speed)."
                   },
                   "returnMs": {
                     "type": "integer",

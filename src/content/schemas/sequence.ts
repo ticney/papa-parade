@@ -1,3 +1,4 @@
+import { MIN_TIME_SCALE } from '@shared/constants';
 import { z } from 'zod';
 import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 import { CUE_ID_PATTERN } from './feedback.ts';
@@ -131,9 +132,11 @@ const DuelStepSchema = z
       .strictObject({
         timeScale: z
           .number()
-          .gt(0)
+          .min(MIN_TIME_SCALE)
           .lt(1)
-          .describe('The time scale during the round, above 0 and below 1 (0.4 = 40 % speed).'),
+          .describe(
+            `The time scale during the round, from ${MIN_TIME_SCALE} (the slowest the sim runs) up to but not including 1 (0.4 = 40 % speed).`,
+          ),
         returnMs: z
           .number()
           .int()

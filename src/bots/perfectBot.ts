@@ -26,7 +26,7 @@ export function createPerfectBot(setup: BotSetup): Bot {
   const cycles = createCycleMemory();
   const silences = createSilenceMemory();
   const firmHold = createFirmHold();
-  const releaseDefIds = new Set(setup.releaseDefIds ?? []);
+  const releaseDefIds = new Set(setup.releaseDefIds);
   // The beat tapped last: `nextBeatAt` is unique per beat, so one tap per beat whatever the step.
   let lastBeatAt: number | null = null;
   return {

@@ -151,7 +151,8 @@ describe('the idle bot and the random bot at the bomb drop', () => {
 
   it('the random bot plays it end to end with strict invariants on', async () => {
     const { events } = await playDrop('random', 7, {}, 40_000);
+    // `strictInvariants` throws on a violation; what the bot must show is that the drop really ran.
     expect(events.map((event) => event.type)).not.toContain('InvariantViolated');
-    expect(events.some((event) => event.type === 'SequenceStarted')).toBe(true);
+    expect(telegraphs(events).length).toBeGreaterThan(0);
   });
 });

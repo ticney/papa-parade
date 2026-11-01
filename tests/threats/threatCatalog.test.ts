@@ -126,7 +126,8 @@ function duelSequenceOf(def: ThreatDef): SequenceDef {
     id: 'catalog_duel',
     babyCarried: true,
     steps: [{ kind: 'duel', durationMs: 60_000, threatDef: def.id, restMs: 0 }],
-    success: { kind: 'stepsDone' },
+    // A Firmness judged on its release lays the baby down (story 4.8); every other duel just ends.
+    success: { kind: def.release === undefined ? 'stepsDone' : 'babyLaid' },
     failure: { kind: 'retreats', maxRetreats: 3 },
     framing: {
       camera: { zoomPct: 0, focusPct: 0, inMs: 1000, outMs: 1000 },

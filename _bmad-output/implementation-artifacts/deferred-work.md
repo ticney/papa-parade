@@ -826,3 +826,10 @@
 - **`__PP__.fx()` gained `babyLayDownPct`** (the lowering as drawn, 0 to 100), and `LevelScene.realFxState()` carries it: the e2e reads the baby's height without a pixel. The name `realFxState` is older than this (it was the real-time effects only).
 - **`content:check` says the « no carry » half of a `babyLaid` sequence twice** (the existing « carries the baby, but the level has no carry » and `sequenceLayProblems`'s own): same cause, two lines.
 - **Fixture anchors and goldens**: the two new golden scenarios (`bomb_drop_won`, `bomb_drop_released_early`) hard-code the instants of the descent (2010, 4610, 4420, 7020): they do not depend on the seed (no draw), only on the frozen def and the 2000 ms rest.
+
+## Deferred from: code review of story 4-8-depose-bombe (2026-11-01)
+
+- The `human` bot cannot win if `bots.human.reactionMs` reaches `release.pressWithinMs + toleranceMs`: its press is always `late`, and no check relates `content/bots.json` to the release def. Fine at today's values (250 ms against about 760 ms); revisit if either is tuned. (`src/bots/humanBot.ts`)
+- A sequence `restMs` shorter than `slowMo.returnMs` merges the next round's slow-mo into the return ramp, so the time scale jumps from about 0.7 back to 0.4 in one step. No schema rule relates the two; today's content has 2000 against 400. (`src/sim/time/slowMo.ts`)
+- The 4.8 cue rings (`tel_bomb_drop`, `bomb_drop_touchdown`, `gag_baby_woke_on_drop`) use `anchor: "threat"`, so they appear at the duel threat's spawn point and not at the teleported Papa. The bedtime and fake-sleep cues share the anchor, so it predates 4.8. (`content/feedback.json`, `src/sim/createSim.ts`)
+- `WaitSignalGiven` is now emitted for any def with a `feedback.signal` (a release firm too), not only for a `wait`; the name is the wait's. A rename (`SignalGiven`) touches the events contract and the goldens: cheap before more consumers, expensive later. (`src/sim/events.ts`)

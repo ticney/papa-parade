@@ -91,6 +91,7 @@ export interface DuelThreatShape {
 
 /** The part of a sequence def {@link sequenceDuelProblems} reads (a `SequenceDef` of the content fits it). */
 export interface DuelDefShape {
+  readonly success?: { readonly kind: string };
   readonly failure: { readonly kind: string };
   readonly steps: readonly (
     | { readonly kind: 'microSleeps' }
@@ -129,6 +130,15 @@ export function duelLimitsOf(feel: {
   };
 }
 
+/** Whether `step` is a duel whose loaded threat def is judged on its `release` (story 4.8). */
+function isReleaseDuel(
+  step: DuelDefShape['steps'][number],
+  threatDefs: Readonly<Record<string, DuelThreatShape>>,
+): boolean {
+  if (step.kind !== 'duel' || !Object.hasOwn(threatDefs, step.threatDef)) return false;
+  return threatDefs[step.threatDef]?.release !== undefined;
+}
+
 /**
  * What is wrong with the duel steps of a sequence def, each as a sentence that follows « the
  * sequence "<id>" »: `content:check` and `simLevelOf` both call it, so they refuse the same things
@@ -159,6 +169,10 @@ export function sequenceDuelProblems(
       }
     });
   }
+  // The drop (story 4.8): a `babyLaid` sequence is won by a duel judged on its release, and a duel
+  // judged on its release is the only thing that lays the baby. `success` absent: a hand-built def
+  // that says nothing of it, so there is nothing to tie.
+  const isLaying = def.success?.kind === 'babyLaid';
   def.steps.forEach((step, j) => {
     if (step.kind !== 'duel') return;
     const where = `has a duel step (steps[${j}])`;
@@ -175,6 +189,11 @@ export function sequenceDuelProblems(
     ) {
       problems.push(
         `${where} whose threatDef "${step.threatDef}" has the response "${threat.response}", but a duel asks for "wait" or a "firm" judged on its release`,
+      );
+    }
+    if (threat.release !== undefined && def.success !== undefined && !isLaying) {
+      problems.push(
+        `${where} whose threatDef "${step.threatDef}" has a \`release\`, but the success is "${def.success.kind}", not "babyLaid" (the baby would be lowered and never laid)`,
       );
     }
     if (threat.target !== 'papa') {
@@ -201,5 +220,11 @@ export function sequenceDuelProblems(
       );
     }
   });
+  // After the steps, so that a wrong response is the first thing said of a sequence.
+  if (isLaying && !def.steps.some((step) => isReleaseDuel(step, threatDefs))) {
+    problems.push(
+      'has a "babyLaid" success, but no duel step whose threatDef has a `release` (nothing would lay the baby down)',
+    );
+  }
   return problems;
 }

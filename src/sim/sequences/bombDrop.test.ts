@@ -26,6 +26,8 @@ if (step?.kind !== 'duel' || step.slowMo === undefined) {
   throw new Error('the frozen bomb drop lost its duel step or its slow motion');
 }
 const { restMs, slowMo } = step;
+const { gagCryMs } = LAY;
+if (gagCryMs === undefined) throw new Error('the frozen bomb drop lost its gag cry');
 const windowMs = LAY.windowMs ?? content.feel.timing.windowMs;
 const { toleranceMs } = content.feel.timing;
 const CENTRE_MS = windowMs / 2;
@@ -180,6 +182,31 @@ describe('winning the bomb drop (story 4.8, AC 6)', () => {
     });
     const events = stepUntil(round.sim, () => false, 2);
     expect(only(events, 'PapaPathPlanned')).toHaveLength(1);
+  });
+});
+
+describe('a tap on the baby in the step that lays him (story 4.8, review)', () => {
+  it("does not take him back from the mattress: the step that lays him is the sequence's last, still held", async () => {
+    const round = await telegraphed();
+    const { sim, world, lay } = round;
+    dropPerfectly(round);
+    const events: SimEvent[] = [];
+    // A `TapBaby` in every step around the pose, until the sequence is over: one of them lands in the
+    // step of the release, which is the step that lays the baby down.
+    for (let i = 0; i < 3000 && world.sequence.id !== null; i++) {
+      if (world.time.sim >= lay.windowOpenAt - 3 * STEP_MS) {
+        sim.enqueue({ type: 'TapBaby', t: world.time.sim });
+      }
+      sim.step();
+      events.push(...sim.drainEvents());
+    }
+    expect(only(events, 'SequenceEnded')).toEqual([
+      expect.objectContaining({ outcome: 'succeeded' }),
+    ]);
+    expect(only(events, 'BabyPutDown')).toHaveLength(1);
+    expect(only(events, 'ComboCashedIn')).toHaveLength(1);
+    expect(only(events, 'BabyPickedUp')).toEqual([]);
+    expect(world.baby.state).toBe('babble');
   });
 });
 
@@ -366,15 +393,12 @@ describe('failing the bomb drop (story 4.8, AC 7)', () => {
     const before = round.world.gauges.noisePct;
     tapQuickly(round);
     const events = stepUntil(round.sim, () => round.world.sequence.duel.retreats === 1);
-    stepUntil(
-      round.sim,
-      () => round.world.time.sim >= (events.at(-1)?.t ?? 0) + (LAY.gagCryMs ?? 0) + 1000,
-    );
+    stepUntil(round.sim, () => round.world.time.sim >= (events.at(-1)?.t ?? 0) + gagCryMs + 1000);
     expect(round.world.gauges.noisePct).toBeGreaterThan(before);
   });
 
   it('rests for at least as long as the cry, so that a cry never covers the next descent cue', () => {
-    expect(restMs).toBeGreaterThanOrEqual(LAY.gagCryMs ?? 0);
+    expect(restMs).toBeGreaterThanOrEqual(gagCryMs);
   });
 });
 

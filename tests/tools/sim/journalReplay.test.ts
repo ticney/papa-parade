@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { botResponsesOf } from '@bots/botResponses';
+import { botResponsesOf, releaseDefIdsOf } from '@bots/botResponses';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
 import { buildJournalFile } from '@client/telemetry/buildJournalFile';
@@ -73,6 +73,7 @@ async function playExportedGame(options: PlayOptions = {}): Promise<JournalFile>
       seed,
       holdMinMs: content.feel.input.holdMinMs,
       responses: botResponsesOf(level.threats),
+      releaseDefIds: releaseDefIdsOf(level.threats),
       settings: content.bots,
     });
     if (!bot.ok) throw new Error(bot.error.message);

@@ -135,7 +135,7 @@
               "type": "integer",
               "exclusiveMinimum": 0,
               "maximum": 9007199254740991,
-              "description": "How long after the telegraph the press may come, in sim ms, strictly below `telegraphDelayMs`: the press always comes before the final pose."
+              "description": "How long after the telegraph the press may come, in sim ms, strictly below `telegraphDelayMs`. The sim adds the response window's tolerance (and the input lag) to it, so keep a margin below the descent: a press at the limit can land just short of the final pose."
             }
           },
           "required": [
@@ -406,7 +406,7 @@
               "type": "integer",
               "exclusiveMinimum": 0,
               "maximum": 9007199254740991,
-              "description": "How long after the telegraph the press may come, in sim ms, strictly below `telegraphDelayMs`: the press always comes before the final pose."
+              "description": "How long after the telegraph the press may come, in sim ms, strictly below `telegraphDelayMs`. The sim adds the response window's tolerance (and the input lag) to it, so keep a margin below the descent: a press at the limit can land just short of the final pose."
             }
           },
           "required": [

@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { botResponsesOf } from '@bots/botResponses';
+import { botResponsesOf, releaseDefIdsOf } from '@bots/botResponses';
 import { playGame } from '@bots/playGame';
 import { createSim, type MamaScore, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
@@ -26,6 +26,7 @@ describe('Mama’s note of the live salon_crawler', () => {
       seed,
       holdMinMs: content.feel.input.holdMinMs,
       responses: botResponsesOf(level.threats),
+      releaseDefIds: releaseDefIdsOf(level.threats),
       settings: content.bots,
     });
     const events: SimEvent[] = [];

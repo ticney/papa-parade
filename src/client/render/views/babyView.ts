@@ -166,7 +166,8 @@ export function createBabyView(
         // it stays under reduced motion: it is what the release is aimed at.
         const heightM =
           BABY_CARRIED_HEIGHT_M + (laidHeightM - BABY_CARRIED_HEIGHT_M) * (layDownPct / 100);
-        wantedLiftM = heightM - bodyRadiusM;
+        // Never under his resting height: a `laidHeightM` below his radius would sink him into the floor.
+        wantedLiftM = Math.max(0, heightM - bodyRadiusM);
       }
       group.position.set(pose.xM + slideXM, 0, pose.zM + slideZM);
       gazeGroup.rotation.y = pose.yawRad;

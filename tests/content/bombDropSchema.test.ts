@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { parseContentFile } from '@content/parseContentFile';
 import { SequenceDefSchema } from '@content/schemas/sequence';
 import { THREAT_ICONS, ThreatDefSchema } from '@content/schemas/threat';
+import { MIN_TIME_SCALE } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 
 // The `release` Firmness of the threat schema and the bomb drop's sequence keys (story 4.8). The
@@ -107,6 +108,7 @@ describe('a firm threat judged on its release (story 4.8)', () => {
       [['release.pressWithinMs', 3000]],
       ['release.pressWithinMs'],
     ],
+    ['a release def on an anchor', lay, [['target', 'anchor']], ['release']],
     ['a null telegraphDelayMs', lay, [['telegraphDelayMs', null]], ['telegraphDelayMs']],
     ['a missing signalVerbKey', lay, [['signalVerbKey', undefined]], ['signalVerbKey']],
     ['a missing signalIcon', lay, [['signalIcon', undefined]], ['signalIcon']],
@@ -142,6 +144,11 @@ describe('the bomb drop sequence (story 4.8)', () => {
     ['a slowMo timeScale of 0', [['steps.0.slowMo.timeScale', 0]], ['steps[0].slowMo.timeScale']],
     ['a slowMo timeScale of 1', [['steps.0.slowMo.timeScale', 1]], ['steps[0].slowMo.timeScale']],
     [
+      'a slowMo timeScale below the slowest the sim runs',
+      [['steps.0.slowMo.timeScale', MIN_TIME_SCALE / 2]],
+      ['steps[0].slowMo.timeScale'],
+    ],
+    [
       'a slowMo timeScale above 1',
       [['steps.0.slowMo.timeScale', 1.5]],
       ['steps[0].slowMo.timeScale'],
@@ -162,5 +169,22 @@ describe('the bomb drop sequence (story 4.8)', () => {
 
   it('accepts a step with no slowMo', () => {
     expect(mutatedSequence(bombDrop, ['steps.0.slowMo', undefined])).toEqual([]);
+  });
+});
+
+describe('the live bomb drop (story 4.8)', () => {
+  // A relation between two tunable values, not a pinned value: a cry that outlasts the rest would
+  // cover the cue of the next descent.
+  it('rests at least as long as the cry of its gag', () => {
+    const live = (file: string): Record<string, unknown> =>
+      JSON.parse(readFileSync(new URL(`../../content/${file}`, import.meta.url), 'utf8'));
+    const liveLay = live('threats/bomb_drop_lay.json');
+    const liveDrop = live('sequences/bomb_drop.json') as {
+      steps: { kind: string; restMs?: number }[];
+    };
+    expect(typeof liveLay.gagCryMs).toBe('number');
+    for (const liveStep of liveDrop.steps.filter((candidate) => candidate.kind === 'duel')) {
+      expect(liveStep.restMs).toBeGreaterThanOrEqual(liveLay.gagCryMs as number);
+    }
   });
 });
