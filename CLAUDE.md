@@ -39,7 +39,7 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 | `npm run lint` | `biome check .` (lint, format, import order, layer rules) |
 | `npm run format` | `biome format --write .` |
 | `npm test` | Vitest: unit, golden and architecture tests |
-| `npm run test:coverage` | Vitest with the `src/sim` ≥ 90 % coverage thresholds; this is what CI runs instead of `npm test` |
+| `npm run test:coverage` | Vitest with the `src/sim` ≥ 90 % coverage thresholds; this is what `npm run ci` runs instead of `npm test` |
 | `npm run golden:update` | Regenerate the golden journals and references (deliberate: say so in the story) |
 | `npm run sim -- --bot <id> …` | Plays headless games with a bot (`perfect`, `human`, `random`, `idle`) and writes a JSON report (`--level`, `--tier assistance\|normal\|experienced`, `--seed`, `--runs`, `--until-ms`, `--out`, `--journals`); a run lasts the level's `durationMs` (until `LevelEnded`) unless `--until-ms` caps it; `--help` lists them |
 | `npm run sim:replay -- <file>` | Replays a game recorded by `npm run sim --journals` (`papa-parade.run`, strict invariants), or a journal a tester exported from the Result screen of a playtest build (`papa-parade.journal`, replayed in the invariant mode it was played in), and checks it ends in the same state (exit 0 if so). A different content hash is a warning, not a failure |
@@ -54,16 +54,18 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 | `npm run content:check` | Validate `content/**` against the Zod schemas, string references and generated JSON Schemas |
 | `npm run content:schemas` | Regenerate `content/_schemas/` (commit the result; never edit it by hand) |
 | `npm run ci:fast` | The quick loop (a few seconds, no browser): `typecheck`, `lint`, `content:check`, `test`. Run it after every task while developing |
-| `npm run ci` | Everything CI runs, in order, stopping at the first failure: `typecheck`, `lint`, `content:check`, `test:coverage`, `e2e`, `build:playtest`, `dist:check --flavor playtest`, `e2e:dist`, `build`, `dist:check --flavor prod`. `dist/` holds the **prod** build afterwards |
+| `npm run ci:story` | The gate before a merge (about 6 min): `ci:fast`, then the whole e2e suite on Chromium |
+| `npm run ci` | The full check (about 20 min), in order, stopping at the first failure: `typecheck`, `lint`, `content:check`, `test:coverage`, `e2e`, `build:playtest`, `dist:check --flavor playtest`, `e2e:dist`, `build`, `dist:check --flavor prod`. `dist/` holds the **prod** build afterwards |
 | `npm run story:new -- <epic>-<story>` | Agents run it themselves (see Git workflow): gives the story its worktree `.claude/worktrees/<story-key>` (inside the repo, git-ignored) on `story/<story-key>` (from `main`, full key looked up in `sprint-status.yaml`, `npm ci` there unless `--skip-install`), or finds the one that already holds the branch; last line `WORKTREE=<path>` |
 
-**Which check, when (the full CI takes over 10 minutes; do not burn it on every change).**
+**Which check, when (a free game for Geo and friends: keep the checks light; Geo's call, 2026-11-01).**
 - *While developing a story*: after each task, `npm run ci:fast`, plus only the e2e specs the change can touch, on Chromium alone: `npx playwright test <spec files> --project=chromium`. A change to a shared contract (the `__PP__` API, the HUD, the director, content schemas) means running the specs that pin it (`testApi.spec.ts`, `ui.spec.ts`, `feedback.spec.ts`…), not the whole suite.
-- *Once per story, before the review*: one `npm run ci` on the branch, started only when `ci:fast` and the touched specs are already green. A red full CI is fixed with the failing spec alone, then the full CI is rerun once.
-- *Not rerun after a review fix that touches only docs or tests already run green*: rerun what the fix touches, and the full CI once before the merge.
-- `e2e:dist` and its `perf.spec.ts` (about 5 minutes of real time, one whole level at speed 1) are part of the full CI and of every playtest build; do not run them in the loop.
+- *Once per story, after the review and before the merge*: one `npm run ci:story`. dev-story does not run it. A red spec is fixed or rerun alone; when that spec is green, do not rerun the whole suite, and say what happened. After merging `main` into the branch, `ci:fast` is enough.
+- *After a review fix*: `ci:fast`, plus the touched specs if the fix touches the client.
+- *`npm run ci` runs only when a merge completes an epic's stories, and before a playtest link.* It adds WebKit, the coverage thresholds, both builds, `e2e:dist` and `perf.spec.ts` (about 5 minutes of real time, one whole level at speed 1). A regression in these may therefore sit on `main` until then: Geo accepts that.
+- *GitHub Actions* runs the `ci:fast` stages on pushes to `main`, and nobody waits for it. A red run is fixed in the next story, not chased.
 
-**Trap: check `VITE_DEBUG_ALLOWED` in your shell before `dev`, `e2e` or `ci`.** The agent shell may export `VITE_DEBUG_ALLOWED=false` (inherited from the parent process, set in no dotfile). A process env var beats `.env.development` in Vite, so the dev server has no `data-pp-*` mirrors and no `window.__PP__`, and almost every e2e spec times out on `data-pp-app="start"` (134 of 140 fail). It looks like « no WebGL » but is not. Run `env | grep VITE_` first; if it is set, run these as `(unset VITE_DEBUG_ALLOWED; npm run ci)` (same for `npx playwright test`, `npm run dev`). `npm run build`, `build:playtest` and `e2e:dist` pin or ignore the flag and are fine either way.
+**Trap: check `VITE_DEBUG_ALLOWED` in your shell before `dev`, `e2e` or `ci`.** The agent shell may export `VITE_DEBUG_ALLOWED=false` (inherited from the parent process, set in no dotfile). A process env var beats `.env.development` in Vite, so the dev server has no `data-pp-*` mirrors and no `window.__PP__`, and almost every e2e spec times out on `data-pp-app="start"` (134 of 140 fail). It looks like « no WebGL » but is not. Run `env | grep VITE_` first; if it is set, run these as `(unset VITE_DEBUG_ALLOWED; npm run ci)` (same for `ci:story`, `npx playwright test`, `npm run dev`). `npm run build`, `build:playtest` and `e2e:dist` pin or ignore the flag and are fine either way.
 
 ## Conventions
 
@@ -79,7 +81,7 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 ## Git workflow
 
 - **One branch per story, from creation to merge:** `story/<story-key>` (e.g. `story/1-21-le-silence-suspect`), cut from an up-to-date `main`. `create-story`, `dev-story` and `code-review` all work on it, with the usual commits (« Story X : création de la story », « Story X : <titre> », « Story X : corrections de la revue de code »).
-- **`main` only receives merges.** After the review, with a green `npm run ci` on the branch and Geo's explicit OK, the agent runs `git merge --no-ff story/<story-key>`, pushes `main` and deletes the branch. No OK, no merge.
+- **`main` only receives merges.** After the review, with a green `npm run ci:story` on the branch (`npm run ci` when the merge completes an epic's stories) and Geo's explicit OK, the agent runs `git merge --no-ff story/<story-key>`, pushes `main` and deletes the branch. No OK, no merge.
 - An agent may commit on `main` only files under `_bmad-output/` (planning docs). `.claude/hooks/guard-main-commit.sh` (a `PreToolUse` hook in `.claude/settings.json`) blocks any other agent commit on `main`. Never weaken it to get a commit through.
 - The BMAD side lives in `_bmad/custom/gds-{create-story,dev-story,code-review}.toml`.
 - **Every story runs in its own git worktree, and the agents handle it: Geo runs no git command.** Geo starts `claude` in the main checkout and runs a workflow (`/gds-create-story 2-3`, `/gds-dev-story`, `/gds-code-review`). Before touching anything, the agent runs `npm run story:new -- <epic>-<story>` and, if the `WORKTREE=<path>` it prints is not its current folder, calls the `EnterWorktree` tool with that `path` and works there. Several agents can thus run different stories at once. A branch can be checked out in one worktree only, so two agents cannot grab the same story.
@@ -90,7 +92,7 @@ Enforced by Biome (`noRestrictedImports`, `noConsole`) and by `tests/architectur
 
 The playtest is a static build, one URL per version, sent to testers as a link (FR67). Both hosts below read `dist/_headers` (copied from `public/_headers`: the CSP `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; font-src 'self'`, `nosniff`, no referrer). Never widen the CSP without asking Geo.
 
-1. `npm run build:playtest`, then `npm run dist:check -- --flavor playtest`, then `npm run e2e:dist`. (`npm run ci` leaves the prod build in `dist/`: always rebuild the playtest first.)
+1. `npm run ci`, then `npm run build:playtest` and `npm run dist:check -- --flavor playtest` (`npm run ci` leaves the prod build in `dist/`).
 2. Deploy `dist/`. Cloudflare Pages direct upload: `npx wrangler@4.154.0 pages deploy dist --project-name papa-parade --branch playtest` (Netlify alternative: `npx netlify-cli@27.15.0 deploy --dir dist --prod`). Both versions were the latest on npm on 2026-10-28; neither is a dependency of the repo. Each upload gets its own URL.
 3. **Geo does the account login the first time (`npx wrangler@4.154.0 login`).** An agent never handles his credentials.
 4. `npm run deploy:check -- <url>`, then `PP_DIST_URL=<url> npm run e2e:dist`.
