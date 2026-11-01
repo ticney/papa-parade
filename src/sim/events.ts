@@ -230,8 +230,10 @@ export type SimEvent =
    */
   | { type: 'WaitFeintGiven'; t: SimMs; threatId: number }
   /**
-   * The signal of a `wait` threat (story 4.6): the baby's eyes close, the window opens. Pushed right
-   * before that threat's `WindowOpened`, at the same `t`, and never for another response.
+   * The signal of a threat whose def has a `feedback.signal` cue: a `wait` (story 4.6: the baby's eyes
+   * close) or a Firmness judged on its release (story 4.8: the baby touches the mattress). The window
+   * opens. Pushed right before that threat's `WindowOpened`, at the same `t`; a `parry` or a plain
+   * `firm` never emits it. The name is the `wait`'s; the meaning is « the signal ».
    */
   | { type: 'WaitSignalGiven'; t: SimMs; threatId: number }
   /**

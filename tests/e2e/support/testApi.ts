@@ -62,6 +62,7 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
         shakeOffsetM: 0,
         particlesAlive: 0,
         stampCount: 0,
+        babyLayDownPct: 0,
       },
   );
 

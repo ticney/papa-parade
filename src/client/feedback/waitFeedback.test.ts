@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CARRY,
   createTestBedtimeEyes,
+  createTestBombDropLay,
   createTestContent,
   createTestFakeSleep,
   createTestGeometry,
@@ -19,7 +20,13 @@ import { threatCueOf } from './threatFeedback.ts';
 const eyes = createTestBedtimeEyes();
 const outlet = createTestOutlet();
 const fakeSleep = createTestFakeSleep();
-const defs = { [eyes.id]: eyes, [outlet.id]: outlet, [fakeSleep.id]: fakeSleep };
+const drop = createTestBombDropLay();
+const defs = {
+  [eyes.id]: eyes,
+  [outlet.id]: outlet,
+  [fakeSleep.id]: fakeSleep,
+  [drop.id]: drop,
+};
 const world: World = (
   await createSim({
     content: createTestContent(),
@@ -27,7 +34,7 @@ const world: World = (
     level: createTestLevel({
       waves: [testWave([OUTLET])],
       carry: CARRY,
-      sequences: ['bedtime_duel', 'fake_sleep_duel'],
+      sequences: ['bedtime_duel', 'fake_sleep_duel', 'bomb_drop'],
     }),
     seed: 1,
   })
@@ -101,5 +108,20 @@ describe('threatCueOf and the signal of a wait (story 4.6)', () => {
         defs,
       ),
     ).toBe(eyes.feedback.gag);
+  });
+});
+
+describe('threatCueOf and the signal of a bomb drop (story 4.8)', () => {
+  // A `firm` judged on its release has a signal, like a `wait`: `WaitSignalGiven` (the name is the
+  // wait's) plays the def's `feedback.signal` at the final pose, « LÂCHE ! ».
+  it('maps the signal of a release def to its signal cue', () => {
+    expect(drop.response).toBe('firm');
+    expect(drop.release).toBeDefined();
+    expect(drop.feedback.signal).toBeDefined();
+    expect(threatCueOf(signal(idOf(drop.id)), world, defs)).toBe(drop.feedback.signal);
+  });
+
+  it('plays nothing for the signal of a threat that is not in the world', () => {
+    expect(threatCueOf(signal(-1), world, defs)).toBeNull();
   });
 });

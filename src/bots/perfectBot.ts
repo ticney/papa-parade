@@ -9,6 +9,7 @@ import {
   createSilenceMemory,
   isPressable,
   responseOf,
+  scheduleDrop,
   schedulePress,
 } from './threatTiming.ts';
 
@@ -17,13 +18,15 @@ import {
  * `perfectMs`) and lets go `tapMs` later. Created mid-window, it presses at once. It is a bot that
  * knows the answer: on a `wait` threat (story 4.6) it reads the `windowOpenAt` the sim drew at the
  * telegraph, which no player can, and presses at the centre of the window after the signal, so
- * `perfect`.
+ * `perfect`. On a Firmness judged on its release (story 4.8) it presses at the first step of the
+ * telegraph and lets go at the centre of the window.
  */
 export function createPerfectBot(setup: BotSetup): Bot {
   const scheduler = createCommandScheduler();
   const cycles = createCycleMemory();
   const silences = createSilenceMemory();
   const firmHold = createFirmHold();
+  const releaseDefIds = new Set(setup.releaseDefIds);
   // The beat tapped last: `nextBeatAt` is unique per beat, so one tap per beat whatever the step.
   let lastBeatAt: number | null = null;
   return {
@@ -48,6 +51,12 @@ export function createPerfectBot(setup: BotSetup): Bot {
         if (!isPressable(threat)) continue;
         const response = responseOf(setup.responses, threat.defId);
         if (response === undefined || !cycles.isNew(threat)) continue;
+        if (releaseDefIds.has(threat.defId)) {
+          // The bomb drop (story 4.8): it presses at the first step of the telegraph (the centre is far
+          // past `pressWithinMs`) and lets go at the centre of the window: offset 0, so `perfect`.
+          scheduleDrop(scheduler, firmHold, threat, now, Math.round(centreOf(threat)));
+          continue;
+        }
         // Whole ms, as a client's commands are (and as the human bot's are).
         const pressAt = Math.max(Math.round(centreOf(threat)), now);
         schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);

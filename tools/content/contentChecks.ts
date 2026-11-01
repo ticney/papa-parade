@@ -40,10 +40,12 @@ import {
   duelLimitsOf,
   GAG_IDS,
   OBJECT_ACTION_KINDS,
+  openSafeCentreCountOf,
   PAPA_ASLEEP_GAG_ID,
   SIM_EVENT_TYPES,
   sequenceBeatProblems,
   sequenceDuelProblems,
+  sequenceLayProblems,
 } from '@sim';
 
 /** What the beat checks assume when `feel.json` did not load: the normal tier, no tolerance (story 4.5). */
@@ -455,7 +457,7 @@ function checkThreatSounds(
 }
 
 /**
- * The signal of a `wait` threat (story 4.6) is a sound, a visual and a vibration, as every cue that
+ * The signal of a `wait` threat (story 4.6) or of a Firmness judged on its release (story 4.8) is a sound, a visual and a vibration, as every cue that
  * carries information (the equivalence rule: the signal must reach a player who cannot hear, see or
  * feel it). A cue that is not in `feedback.json` was reported already.
  */
@@ -474,7 +476,7 @@ function checkThreatSignal(
       problems.push({
         file,
         jsonPath,
-        message: `the cue "${cueId}" has no ${channel}, but the signal of a "wait" threat is told by sound, visual and vibration alike`,
+        message: `the cue "${cueId}" has no ${channel}, but the signal of a "wait" threat, or of a Firmness judged on its release, is told by sound, visual and vibration alike`,
       });
     }
   }
@@ -764,6 +766,23 @@ function checkSequenceReferences(
           jsonPath: path,
           message: `the sequence "${sequenceId}" has a microSleeps step, but the level has no gauges.fatigue.microSleepDef (no micro-sleep to start)`,
         });
+      }
+      // A `babyLaid` sequence places Papa over a safe zone (story 4.8): the words are `simLevelOf`'s,
+      // the function is shared with it. Without the geometry or the feel there is no grid to look at.
+      const geometry = families.geometries.get(id);
+      if (sequence.success.kind === 'babyLaid' && geometry !== undefined && feel !== undefined) {
+        const openCentres = openSafeCentreCountOf(geometry, feel.movement.papaRadiusM);
+        for (const problem of sequenceLayProblems(
+          sequence,
+          level.carry !== undefined,
+          openCentres,
+        )) {
+          problems.push({
+            file,
+            jsonPath: path,
+            message: `the sequence "${sequenceId}" ${problem}`,
+          });
+        }
       }
       const timingProblem = microSleepFitProblem(sequence, level, families.threats, feel);
       if (timingProblem !== null) {

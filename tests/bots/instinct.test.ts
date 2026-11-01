@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import type { BotId } from '@bots/bot';
-import { botResponsesOf } from '@bots/botResponses';
+import { botResponsesOf, releaseDefIdsOf } from '@bots/botResponses';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
 import { loadContent } from '@content/loadContent';
@@ -44,6 +44,7 @@ async function play(
       seed,
       holdMinMs: content.feel.input.holdMinMs,
       responses: botResponsesOf(level.threats),
+      releaseDefIds: releaseDefIdsOf(level.threats),
       settings: bots,
     });
     if (!bot.ok) throw new Error(bot.error.message);

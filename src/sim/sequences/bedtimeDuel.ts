@@ -3,6 +3,7 @@ import type { StepContext } from '../context.ts';
 import { PAPA_ASLEEP_GAG_ID } from '../threats/gags.ts';
 import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
 import { telegraphThreat } from '../threats/threatFsm.ts';
+import { startSlowMo } from '../time/slowMo.ts';
 import type { World } from '../world.ts';
 import type { BeatWindowLimits } from './beatClock.ts';
 import { failSequence, plannedSequenceOf } from './sequenceEnd.ts';
@@ -33,7 +34,7 @@ export const DUEL_HANDLER: StepHandler<'duel'> = {
     duel.isRunning = true;
     duel.nextRoundAt = asSimMs(world.time.sim + step.restMs);
   },
-  tick(world, ctx) {
+  tick(world, ctx, step) {
     const { duel } = world.sequence;
     const now = world.time.sim;
     if (!duel.isRunning || duel.nextRoundAt === null || now < duel.nextRoundAt) return;
@@ -52,6 +53,22 @@ export const DUEL_HANDLER: StepHandler<'duel'> = {
     if (threat.state !== 'idle') return;
     telegraphThreat(world, ctx, threat, planned.def, -1);
     duel.nextRoundAt = null;
+    const { slowMo } = step;
+    const { responseWindow } = threat;
+    if (slowMo !== undefined && responseWindow !== null) {
+      // The whole descent, the pose and no more, whatever the tier (story 4.8, D6): computed from the
+      // frozen window, so a `durationMs` in the JSON could never disagree with it.
+      startSlowMo(world, ctx, 'sequence', {
+        timeScale: slowMo.timeScale,
+        returnMs: slowMo.returnMs,
+        durationMs:
+          threat.windowOpenAt -
+          now +
+          responseWindow.windowMs +
+          responseWindow.toleranceMs +
+          world.input.lagMs,
+      });
+    }
   },
   // A duel is won by a result only (`advanceSequenceOnResolve`): waiting past `endsAt` must never win it.
   isSettled() {
@@ -66,6 +83,7 @@ export interface DuelThreatShape {
   readonly cooldownMs: number;
   readonly telegraphDelayMs: number | null;
   readonly maxDelayMs?: number;
+  readonly release?: { readonly pressWithinMs: number };
   readonly windowMs: number | null;
   readonly gag?: string;
   readonly surpriseGags?: readonly string[];
@@ -73,6 +91,7 @@ export interface DuelThreatShape {
 
 /** The part of a sequence def {@link sequenceDuelProblems} reads (a `SequenceDef` of the content fits it). */
 export interface DuelDefShape {
+  readonly success?: { readonly kind: string };
   readonly failure: { readonly kind: string };
   readonly steps: readonly (
     | { readonly kind: 'microSleeps' }
@@ -111,6 +130,15 @@ export function duelLimitsOf(feel: {
   };
 }
 
+/** Whether `step` is a duel whose loaded threat def is judged on its `release` (story 4.8). */
+function isReleaseDuel(
+  step: DuelDefShape['steps'][number],
+  threatDefs: Readonly<Record<string, DuelThreatShape>>,
+): boolean {
+  if (step.kind !== 'duel' || !Object.hasOwn(threatDefs, step.threatDef)) return false;
+  return threatDefs[step.threatDef]?.release !== undefined;
+}
+
 /**
  * What is wrong with the duel steps of a sequence def, each as a sentence that follows « the
  * sequence "<id>" »: `content:check` and `simLevelOf` both call it, so they refuse the same things
@@ -141,6 +169,10 @@ export function sequenceDuelProblems(
       }
     });
   }
+  // The drop (story 4.8): a `babyLaid` sequence is won by a duel judged on its release, and a duel
+  // judged on its release is the only thing that lays the baby. `success` absent: a hand-built def
+  // that says nothing of it, so there is nothing to tie.
+  const isLaying = def.success?.kind === 'babyLaid';
   def.steps.forEach((step, j) => {
     if (step.kind !== 'duel') return;
     const where = `has a duel step (steps[${j}])`;
@@ -151,9 +183,17 @@ export function sequenceDuelProblems(
       problems.push(`${where} whose threatDef "${step.threatDef}" is not loaded`);
       return;
     }
-    if (threat.response !== 'wait') {
+    if (
+      threat.response !== 'wait' &&
+      !(threat.response === 'firm' && threat.release !== undefined)
+    ) {
       problems.push(
-        `${where} whose threatDef "${step.threatDef}" has the response "${threat.response}", but a duel asks for "wait"`,
+        `${where} whose threatDef "${step.threatDef}" has the response "${threat.response}", but a duel asks for "wait" or a "firm" judged on its release`,
+      );
+    }
+    if (threat.release !== undefined && def.success !== undefined && !isLaying) {
+      problems.push(
+        `${where} whose threatDef "${step.threatDef}" has a \`release\`, but the success is "${def.success.kind}", not "babyLaid" (the baby would be lowered and never laid)`,
       );
     }
     if (threat.target !== 'papa') {
@@ -180,5 +220,11 @@ export function sequenceDuelProblems(
       );
     }
   });
+  // After the steps, so that a wrong response is the first thing said of a sequence.
+  if (isLaying && !def.steps.some((step) => isReleaseDuel(step, threatDefs))) {
+    problems.push(
+      'has a "babyLaid" success, but no duel step whose threatDef has a `release` (nothing would lay the baby down)',
+    );
+  }
   return problems;
 }

@@ -2,6 +2,8 @@ import { log } from '@shared/log';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CARRY,
+  createTestBombDrop,
+  createTestBombDropLay,
   createTestFakeSleep,
   createTestFakeSleepDuel,
   createTestLevel,
@@ -82,6 +84,21 @@ describe('withoutThreats', () => {
     ]);
     expect(stripped.threats.fake_sleep).toEqual(createTestFakeSleep());
     expect(Object.keys(stripped.sequences)).toEqual([duel.id]);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the bomb drop’s Firmness a duel step spawns, with its release (story 4.8)', () => {
+    const drop = createTestBombDrop();
+    const planned = createTestLevel({
+      waves: [testWave([OUTLET])],
+      carry: CARRY,
+      sequences: [drop.id],
+    });
+    const stripped = withoutThreats(planned);
+    expect(Object.keys(stripped.threats).sort()).toEqual(['arms_cry', 'bomb_drop_lay']);
+    expect(stripped.threats.bomb_drop_lay).toEqual(createTestBombDropLay());
+    expect(stripped.threats.bomb_drop_lay?.release).toBeDefined();
+    expect(Object.keys(stripped.sequences)).toEqual([drop.id]);
     expect(warnSpy).not.toHaveBeenCalled();
   });
 

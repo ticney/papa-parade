@@ -13,6 +13,7 @@ import {
   createSilenceMemory,
   isPressable,
   responseOf,
+  scheduleDrop,
   schedulePress,
 } from './threatTiming.ts';
 
@@ -30,7 +31,9 @@ import {
  * **It never falls for the feint of a fake sleep (story 4.7)**: that is the same rule, a `wait` threat
  * is skipped until it is `windowOpen`, and the feint (`WaitFeintGiven`, `isFeintGiven`) is a beat of
  * the telegraph, not a signal. So the human bot says nothing of how hard the feint is for a player: its
- * numbers do not move with it, and only playing tells (open point 5 of story 4.7).
+ * numbers do not move with it, and only playing tells (open point 5 of story 4.7). On a Firmness judged
+ * on its release (story 4.8) it presses `reactionMs` after the telegraph and lets go at
+ * `centre + aimOffsetMs + jitterSdMs × N(0, 1)`: one draw, no signal needed, it aims at what is visible.
  */
 export function createHumanBot(setup: BotSetup): Bot {
   const { reactionMs, aimOffsetMs, jitterSdMs } = setup.settings.human;
@@ -39,6 +42,7 @@ export function createHumanBot(setup: BotSetup): Bot {
   const cycles = createCycleMemory();
   const silences = createSilenceMemory();
   const firmHold = createFirmHold();
+  const releaseDefIds = new Set(setup.releaseDefIds);
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
   let find: { startedAt: number; atMs: number } | null = null;
   // The tap planned for the beat in play: dropped if the beat is settled before it is sent.
@@ -84,6 +88,15 @@ export function createHumanBot(setup: BotSetup): Bot {
         // comes before `cycles.isNew`, or the telegraph would use up the cycle.
         if (response === 'wait' && threat.state !== 'windowOpen') continue;
         if (!cycles.isNew(threat)) continue;
+        if (releaseDefIds.has(threat.defId)) {
+          // The bomb drop (story 4.8): it aims at what is visible (the lowering), so it needs no signal.
+          // It presses `reactionMs` after the telegraph and lets go around the centre of the window,
+          // `aimOffsetMs + jitterSdMs × N(0, 1)` away: one draw, like the other responses.
+          const pressAt = Math.max(Math.round(threat.enteredAt + reactionMs), now);
+          const aim = centreOf(threat) + aimOffsetMs + jitterSdMs * nextGaussian(rng);
+          scheduleDrop(scheduler, firmHold, threat, pressAt, Math.round(aim));
+          continue;
+        }
         if (response === 'wait') {
           // A reaction to the signal, not an aim at the centre: the jitter is on the reaction, so
           // it can be late. One draw, like the other responses.

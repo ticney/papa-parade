@@ -93,11 +93,14 @@ export function telegraphThreat(
   waveIndex: number,
 ): void {
   const { timing } = ctx.feel;
-  threat.responseWindow = effectiveWindow(timing, def.windowMs ?? timing.windowMs, {
+  const response = effectiveWindow(timing, def.windowMs ?? timing.windowMs, {
     tier: activeDifficulty(world, ctx).windowMultiplier,
     fatigue: fatigueWindowModifier(world, ctx),
     instinct: instinctWindowModifier(world, ctx),
   });
+  // A release is judged on its own instant and never kept from before the pose (story 4.8): a buffer
+  // would turn a release that came too early into a good one (the precedent is `moveJudgeCursor`).
+  threat.responseWindow = def.release === undefined ? response : { ...response, bufferMs: 0 };
   const openAfterMs = def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs;
   // The signal's draw first, the feint's second: two locals, so that the order cannot swap silently.
   const signalAfterMs = signalDelayMs(world, def);
@@ -156,7 +159,11 @@ export function giveFeint(world: World, ctx: StepContext, threat: ThreatInstance
   ctx.events.push({ type: 'WaitFeintGiven', t: world.time.sim, threatId: threat.id });
 }
 
-/** `telegraph → windowOpen`. A `wait` threat gives its signal first (`WaitSignalGiven`, story 4.6). */
+/**
+ * `telegraph → windowOpen`. A def with a signal cue (a `wait`, story 4.6, or a Firmness judged on its
+ * release, story 4.8: the final pose) gives it first (`WaitSignalGiven`); a `parry` or a plain
+ * `firm` emits only `WindowOpened`.
+ */
 export function openWindow(
   world: World,
   ctx: StepContext,
@@ -164,7 +171,7 @@ export function openWindow(
   def: ThreatDef,
 ): void {
   enterThreatState(world, threat, 'windowOpen');
-  if (def.response === 'wait') {
+  if (def.feedback.signal !== undefined) {
     ctx.events.push({ type: 'WaitSignalGiven', t: world.time.sim, threatId: threat.id });
   }
   ctx.events.push({ type: 'WindowOpened', t: world.time.sim, threatId: threat.id });

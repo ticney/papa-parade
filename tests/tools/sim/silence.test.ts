@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { botResponsesOf } from '@bots/botResponses';
+import { botResponsesOf, releaseDefIdsOf } from '@bots/botResponses';
 import { playGame } from '@bots/playGame';
 import { STEP_MS } from '@shared/constants';
 import { createSim, type SimEvent } from '@sim';
@@ -29,6 +29,7 @@ describe('the suspicious silence of the live salon_crawler', () => {
       seed,
       holdMinMs: content.feel.input.holdMinMs,
       responses: botResponsesOf(level.threats),
+      releaseDefIds: releaseDefIdsOf(level.threats),
       settings: content.bots,
     });
     const events: SimEvent[] = [];

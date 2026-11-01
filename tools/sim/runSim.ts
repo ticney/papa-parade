@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Bot, BotSetup } from '@bots/bot';
-import { botResponsesOf } from '@bots/botResponses';
+import { botResponsesOf, releaseDefIdsOf } from '@bots/botResponses';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
 import { UINT32_RANGE } from '@shared/constants';
@@ -82,6 +82,7 @@ export async function runSim(
     );
   }
   const responses = botResponsesOf(level.threats);
+  const releaseDefIds = releaseDefIdsOf(level.threats);
   // A game lasts the level's duration unless a cap says less (or more: the flow ends it anyway).
   const untilSimMs = args.untilSimMs ?? level.level.durationMs;
   const summaries: RunSummary[] = [];
@@ -91,6 +92,7 @@ export async function runSim(
       seed,
       holdMinMs: content.feel.input.holdMinMs,
       responses,
+      releaseDefIds,
       settings: content.bots,
     };
     const bot = createBot(args.botId, setup);

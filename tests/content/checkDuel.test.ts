@@ -198,3 +198,123 @@ describe('checkContent and the signal cue of a wait threat (story 4.6)', () => {
     },
   );
 });
+
+// The bomb drop (story 4.8): the same rules, said once by `sequenceDuelProblems`, `sequenceLayProblems`
+// and the threat schema, for `content:check` and `simLevelOf` alike.
+describe('checkContent and the bomb drop (story 4.8)', () => {
+  const DROP_SEQUENCE = 'content/sequences/bomb_drop.json';
+  const DROP_THREAT = 'content/threats/bomb_drop_lay.json';
+  const GEOMETRY = 'content/levels/salon_crawler.geometry.json';
+
+  it('accepts the live bomb drop', async () => {
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('refuses a babyLaid sequence on a level with no carry', async () => {
+    await mutateJson(LEVEL, (level) => {
+      delete level.carry;
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringMatching(
+          /the sequence "bomb_drop" has a "babyLaid" success, but the level has no carry/,
+        ),
+      }),
+    );
+  });
+
+  it('refuses a babyLaid sequence when every safe zone has its centre on a closed cell', async () => {
+    await mutateJson(GEOMETRY, (geometry) => {
+      const nav = geometry.nav as { rows: string[] };
+      nav.rows = nav.rows.map((row, i) => (i >= 16 && i <= 20 ? '0'.repeat(row.length) : row));
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringMatching(
+          /the sequence "bomb_drop" has a "babyLaid" success, but every safe zone of the level has its centre on a closed cell/,
+        ),
+      }),
+    );
+  });
+
+  it.each(['audio', 'visual', 'haptic'])(
+    'refuses a release def whose signal cue has no %s',
+    async (channel) => {
+      await mutateJson(FEEDBACK, (feedback) => {
+        const cues = feedback.cues as Record<string, Record<string, unknown>>;
+        delete cues.bomb_drop_touchdown?.[channel];
+      });
+      expect(await checkContent(root)).toContainEqual(
+        expect.objectContaining({
+          file: DROP_THREAT,
+          message: expect.stringMatching(
+            new RegExp(`the cue "bomb_drop_touchdown" has no ${channel}`),
+          ),
+        }),
+      );
+    },
+  );
+
+  it('names a plain firm in a duel step: only a firm judged on its release is a duel', async () => {
+    await mutateJson(DROP_THREAT, (threat) => {
+      delete threat.release;
+      delete threat.signalVerbKey;
+      delete threat.signalIcon;
+      delete (threat.feedback as Record<string, unknown>).signal;
+      threat.holdUntilMs = 1000;
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: DROP_SEQUENCE,
+        message: expect.stringMatching(
+          /whose threatDef "bomb_drop_lay" has the response "firm", but a duel asks for "wait" or a "firm" judged on its release/,
+        ),
+      }),
+    );
+  });
+
+  it('refuses a babyLaid sequence whose duel is a wait: nothing would lay the baby down', async () => {
+    await mutateJson(DROP_SEQUENCE, (sequence) => {
+      (sequence.steps as Record<string, unknown>[])[0] = {
+        kind: 'duel',
+        durationMs: 9000,
+        threatDef: 'bedtime_eyes',
+        restMs: 1200,
+      };
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: DROP_SEQUENCE,
+        message: expect.stringMatching(
+          /the sequence "bomb_drop" has a "babyLaid" success, but no duel step whose threatDef has a `release`/,
+        ),
+      }),
+    );
+  });
+
+  it('refuses a release duel in a sequence that does not lay the baby', async () => {
+    await mutateJson(DROP_SEQUENCE, (sequence) => {
+      sequence.success = { kind: 'stepsDone' };
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: DROP_SEQUENCE,
+        message: expect.stringMatching(
+          /whose threatDef "bomb_drop_lay" has a `release`, but the success is "stepsDone", not "babyLaid"/,
+        ),
+      }),
+    );
+  });
+
+  it('refuses a release def that does not stand on Papa', async () => {
+    await mutateJson(DROP_THREAT, (threat) => {
+      threat.target = 'anchor';
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: DROP_THREAT,
+        message: expect.stringMatching(/a threat with a `release` stands on Papa/),
+      }),
+    );
+  });
+});

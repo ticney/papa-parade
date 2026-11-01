@@ -45,6 +45,7 @@ const TABLE: FeedbackTable = {
   sequenceBar: { slideMs: 250 },
   comboBadge: { cashInHoldMs: 900 },
   papaHint: { holdMs: 1200 },
+  bombDrop: { laidHeightM: 0.3 },
   resultScreen: {
     rowCountUpMs: 600,
     rowStaggerMs: 200,

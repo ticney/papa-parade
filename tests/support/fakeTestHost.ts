@@ -19,6 +19,7 @@ const NO_FX_STATE: FxState = {
   shakeOffsetM: 0,
   particlesAlive: 0,
   stampCount: 0,
+  babyLayDownPct: 0,
 };
 
 /** A `TestHost` for the debug modules' tests, with handles to fire what the app would. */

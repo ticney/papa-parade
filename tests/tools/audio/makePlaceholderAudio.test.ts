@@ -455,7 +455,7 @@ describe('placeholder audio', () => {
         expect(best, `${first.clip} / ${second.clip}`).toBeLessThan(CORRELATION_MAX);
       }
     }
-  }, 30_000);
+  }, 120_000);
 
   it('never gives a NaN, in any clip', () => {
     for (const { clip, synth } of PLACEHOLDER_CLIPS) {

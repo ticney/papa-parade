@@ -1,0 +1,25 @@
+{
+  "$schema": "../../content/_schemas/threat.schema.json",
+  "id": "bomb_drop_lay",
+  "target": "papa",
+  "response": "firm",
+  "telegraphDelayMs": 2600,
+  "release": { "pressWithinMs": 700 },
+  "windowMs": 300,
+  "gag": "baby_woke_on_drop",
+  "gagCryMs": 2000,
+  "verbKey": "verb.hold_on",
+  "signalVerbKey": "verb.let_go",
+  "icon": "sweat",
+  "signalIcon": "open_hand",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_bomb_drop",
+    "signal": "bomb_drop_touchdown",
+    "success": "resp_firm",
+    "perfect": "resp_firm_perfect",
+    "gag": "gag_baby_woke_on_drop"
+  },
+  "cooldownMs": 600
+}

@@ -103,8 +103,8 @@ development_status:
   4-5-les-100-pas-en-rythme: done
   4-6-duel-du-coucher-reponse-attendre: done
   4-7-faux-sommeil: done
-  4-8-depose-bombe: backlog
-  4-9-sortie-en-infiltration-reponse-ne-rien-faire: ready-for-dev
+  4-8-depose-bombe: done
+  4-9-sortie-en-infiltration-reponse-ne-rien-faire: in-progress
   4-10-niveau-chambre-de-nuit-et-playtest-du-deuxieme-prototype: backlog
   epic-4-retrospective: optional
 

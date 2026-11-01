@@ -298,6 +298,7 @@ describe('gags', () => {
       'arms_wail',
       'baby_eyes_reopened',
       'baby_sat_up',
+      'baby_woke_on_drop',
     ]);
   });
 

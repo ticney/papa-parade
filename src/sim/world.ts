@@ -453,8 +453,8 @@ export interface InstinctSlice {
   missAts: SimMs[];
 }
 
-/** What started a slow-mo: a perfect, the last threat of a wave (1.18), a combo cash-in (4.2) or Fatherly Instinct (2.9). */
-export type SlowMoSource = 'perfect' | 'lastThreat' | 'comboCashIn' | 'instinct';
+/** What started a slow-mo: a perfect, the last threat of a wave (1.18), a combo cash-in (4.2), Fatherly Instinct (2.9) or a duel step's own (4.8). */
+export type SlowMoSource = 'perfect' | 'lastThreat' | 'comboCashIn' | 'instinct' | 'sequence';
 
 /** Every `SlowMoSource`, as data: a snapshot is checked against it. */
 export const SLOW_MO_SOURCES = [
@@ -462,6 +462,7 @@ export const SLOW_MO_SOURCES = [
   'lastThreat',
   'comboCashIn',
   'instinct',
+  'sequence',
 ] as const satisfies readonly SlowMoSource[];
 
 type UnlistedSlowMoSource = Exclude<SlowMoSource, (typeof SLOW_MO_SOURCES)[number]>;
