@@ -111,7 +111,7 @@ development_status:
   # Epic 3 [V1] (suite) — différé après E4 (séquence des epics :
   # E1 → E2 → E3 [P] → playtest → E4 → E3 [V1] → E5 → E6).
   # Les stories 3.5 à 3.11 restent rattachées à epic-3 (clé 3-x) mais se livrent ici.
-  3-5-porte-qui-s-ouvre-et-rush-final: review
+  3-5-porte-qui-s-ouvre-et-rush-final: done
   3-6-photo-de-fin-figee: backlog
   3-7-reactions-de-maman-et-degaine-de-papa: backlog
   3-8-memoire-de-maman: backlog

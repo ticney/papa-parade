@@ -4,7 +4,7 @@ baseline_commit: dbe4b3d85053b3c58839b6de7b9cba1a9f750777
 
 # Story 3.5: Porte qui s'ouvre et rush final
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
