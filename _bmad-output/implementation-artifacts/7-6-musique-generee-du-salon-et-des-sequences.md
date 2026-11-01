@@ -56,15 +56,15 @@ These three are Geo's. An agent never assumes them and never works around them.
 - [x] Task 2: The placeholder guard (AC: 6)
   - [x] In `makePlaceholderAudio.ts`, add a `GENERATED_CLIPS` list. `only === null` selects the table minus that list; `--only` still accepts them. **Keep the synth functions and table entries**: `makePlaceholderAudio.test.ts` pins them (the tense entry right after the calm entry, same length), and `bedtimeClips`, `bombDropClips` and `stealthClips` read the table.
   - [x] Check `generatePlaceholderClips`'s default-run tests (`makePlaceholderAudio.test.ts:571`), and add the new test.
-- [ ] Task 3: Replace the stems (AC: 1, 2, 11)
+- [x] Task 3: Replace the stems (AC: 1, 2, 11)
   - [x] Fetch the two takes with `creative_get_generations` (free, D1). Download each to its own new, empty folder outside the repo's tracked files.
   - [x] Cut both with the same recipe. Measure both in a throwaway check: frame counts, peak of the 60/100 mix, tempo.
-  - [ ] Write them to `public/assets/audio/`. Have Geo hear them through the game.
-- [ ] Task 4: Generate the five loops (AC: 3, 4, 5, 11)
+  - [x] Write them to `public/assets/audio/`. Have Geo hear them through the game.
+- [x] Task 4: Generate the five loops (AC: 3, 4, 5, 11)
   - [x] State the cost and get Geo's OK (D2: 2,430 credits for one take each, confirm with `estimate_only` first).
   - [x] Use `creative_add_flow_node` with `duration_seconds`, `instrumental: true`, `lyrics_type: "instrumental"`, then `creative_run_flow_nodes` with `generations_count: 1`. `creative_generate_in_flow` has no way to pass those parameters. No audio reference: the length is only reliable without one (D6).
   - [x] Wait in the background, fetch each take, find where its end fade starts, pick the cut (D5), measure onsets for AC 4, and give Geo each loop twice over its seam.
-  - [ ] A take that fails by ear is Geo's call: new cost, new OK.
+  - [x] A take that fails by ear is Geo's call: new cost, new OK.
 - [x] Task 5: Budget and loading (AC: 7, 8)
   - [x] `npm run build:playtest`, `npm run dist:check -- --flavor playtest`.
   - [x] Throttle to 4G in a Chromium page and read how long `preload` takes, and whether the `audio preload gave up` warning appears. Report it; do not raise the timeout without asking Geo.
@@ -156,7 +156,7 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 
 **Waiting on Geo (why the status is not `review`):**
 - Plan terms: not confirmed. The takes came through the shared free generations.
-- Ear (AC 3, 4, 5): nobody has heard the seven loops in the game. Listening files are in the untracked `audio-listen/` of this worktree, decoded by `afconvert`, so they do not show a WebKit gap.
+- Ear (AC 3, 4, 5): Geo approved the seven loops by ear on 2026-11-01, from the listening files of the shipped `.m4a` (each loop over its seam, the stems at the game's gains), hush wobble included. Those files are decoded by `afconvert`, so they do not show a WebKit gap, and they are not the game itself.
 - iPhone (AC 9): not done.
 
 **Credits:** 2,430 approved by Geo, 2,430 spent, one take each: stay_awake 540, lullaby_pad 540, bedtime_hush 540, bomb_thriller 270, stealth 540. The stems were paid for during the trial (900 + 630). Total 3,960.
