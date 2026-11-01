@@ -521,6 +521,8 @@ describe('checkContent on level geometry files', () => {
       expect(problems.map((problem) => problem.jsonPath)).toEqual([
         'physics.kinds.mug.massKg',
         'physics.kinds.vase.massKg',
+        'physics.kinds.book.massKg',
+        'physics.kinds.toy.massKg',
       ]);
       expect(problems[0]?.message).toContain('could cross one');
     });

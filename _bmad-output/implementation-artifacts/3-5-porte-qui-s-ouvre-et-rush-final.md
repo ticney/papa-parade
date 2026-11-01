@@ -99,21 +99,21 @@ Requirement: FR35 `[V1]`. First of the `[V1]` end-of-level stories: 3.6 (photo),
   - [x] `ui/world/tidyMarkers.ts`, styles in `ui.css`, `verb.tidy`
   - [x] `timerHud.setRush`, reduced-motion rule (`designTokens.test.ts` enforces it)
   - [x] Mirrors in `boot.ts`; replace the literal at L1346; `inspectDist.ts`
-- [ ] Task 5: Bots and report (AC: 19, 20)
-  - [ ] `planTidy` in `threatTiming.ts`, wired in `perfectBot.ts` and `humanBot.ts`
-  - [ ] `simReport.ts`, `simArgs.ts`, and the whole-report pins in `simReport.test.ts`
-- [ ] Task 6: The new props (AC: 25, 26, 27, 28, 29)
-  - [ ] Add `book` and `toy` to `FeelSchema`'s content (`content/feel.json`); the fixtures need them only if a fixture uses them
-  - [ ] Add the nodes to both `.blend` files (Blender MCP if connected, else `/Applications/Blender.app -b -P` with a throwaway script), copying the existing `PROP_mug_01` collection and material
-  - [ ] `npm run assets:export -- <id>`, `assets:extract -- <id>`, `assets:optimize -- <id>` for both levels
-  - [ ] Live-geometry tests (AC 27, 28, 29), then adjust positions until they pass
-  - [ ] Run `npm run sim` with `random` and `human` on both levels and write the before and after in the Completion Notes: `endsByReason`, `meanStars`, `noisePeakMeanPct`
-- [ ] Task 7: The door's spill (AC: 30, 31, 32)
-  - [ ] `sim/physics/dropProps.ts`, extracted from `tableObjectFall` with its gag tests still green and unedited
-  - [ ] `doorSpillCount`, `finalRush.spillAnchor`, `SimLevel` holding the anchor's point, the new `finalRushProblems` cases
-  - [ ] The spill in `runFlow`, after `FinalRushStarted`
-  - [ ] Tests of AC 30 and 31 on both live levels, plus a rush after the gags have already dropped the table's props
-  - [ ] Report `noisePeakMeanPct` and `endsByReason` with the spill in the Completion Notes (open point 1)
+- [x] Task 5: Bots and report (AC: 19, 20)
+  - [x] `planTidy` in `threatTiming.ts`, wired in `perfectBot.ts` and `humanBot.ts`
+  - [x] `simReport.ts`, `simArgs.ts`, and the whole-report pins in `simReport.test.ts`
+- [x] Task 6: The new props (AC: 25, 26, 27, 28, 29)
+  - [x] Add `book` and `toy` to `FeelSchema`'s content (`content/feel.json`); the fixtures need them only if a fixture uses them
+  - [x] Add the nodes to both `.blend` files (Blender MCP if connected, else `/Applications/Blender.app -b -P` with a throwaway script), copying the existing `PROP_mug_01` collection and material
+  - [x] `npm run assets:export -- <id>`, `assets:extract -- <id>`, `assets:optimize -- <id>` for both levels
+  - [x] Live-geometry tests (AC 27, 28, 29), then adjust positions until they pass
+  - [x] Run `npm run sim` with `random` and `human` on both levels and write the before and after in the Completion Notes: `endsByReason`, `meanStars`, `noisePeakMeanPct`
+- [x] Task 7: The door's spill (AC: 30, 31, 32)
+  - [x] `sim/physics/dropProps.ts`, extracted from `tableObjectFall` with its gag tests still green and unedited
+  - [x] `doorSpillCount`, `finalRush.spillAnchor`, `SimLevel` holding the anchor's point, the new `finalRushProblems` cases
+  - [x] The spill in `runFlow`, after `FinalRushStarted`
+  - [x] Tests of AC 30 and 31 on both live levels, plus a rush after the gags have already dropped the table's props
+  - [x] Report `noisePeakMeanPct` and `endsByReason` with the spill in the Completion Notes (open point 1)
 - [ ] Task 8: Goldens, e2e and docs (AC: 24 and all)
   - [ ] New `tests/golden/finalRush.test.ts` with its scenario, on a fixture that opts in
   - [ ] `npm run golden:update`, deliberately; say so in the Completion Notes and read the diff

@@ -78,6 +78,8 @@ counted in \`microSleeps\`.
 The stealth exit (story 4.9) adds \`floorCreaks\` (the boards that creaked under Papa), \`breathGasps\` (the breaths let
 out loudly, by reason: \`empty\`, \`early\`, \`notHeld\`) and \`nothingResponses\` (the false alarms sat through or touched).
 Its two alerts are not counted in \`microSleeps\`. \`snore\`, \`floorCreak\` and \`breathReleased\` are sources of the noise per source.
+The final rush (story 3.5) adds \`finalRushes\` (the doors that opened: 0 in a level without one) and \`propsTidied\` (the props put back
+in the rush), per game and over the runs. A game that ends on \`timer\` in a level with a rush ends on the photo, not on \`ended\`.
 `;
 
 const DIGITS = /^\d+$/;

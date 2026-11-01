@@ -77,6 +77,11 @@ export interface SimLevel {
    * the level behaves as it always did and ends on `ended`.
    */
   readonly hasFinalRush: boolean;
+  /**
+   * The floor point the door's shock lands at (`finalRush.spillAnchor`'s x and z, story 3.5): the props that
+   * cannot break and stand nearest to it are knocked over when the door opens. Null in a level with no rush.
+   */
+  readonly spillPointM: { readonly xM: number; readonly zM: number } | null;
 }
 
 /**

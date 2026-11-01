@@ -15,7 +15,8 @@ let activeCtx: StepContext | null = null;
  * Pushes the prop at `propIndex` with an impulse (N·s, world axes) at its centre of mass and wakes
  * it. A broken prop is left alone. This is what a gag calls (story 1.16); the journaled test and
  * debug command `PushProp` goes through it too. Call it before `runPhysics` steps the engine (any
- * system that runs earlier in the step may), so that the push counts in this step.
+ * system that runs earlier in the step may), so that the push counts in this step. A call made after
+ * it (`runFlow`: the door's spill, story 3.5) moves the prop in the next step: a delay of one step, fine.
  *
  * The length of the impulse is held to `feel.physics.maxPushImpulseNs`: with that bound a prop
  * cannot cross a wall of the room in one step. A longer push, or one that is not a finite vector (a

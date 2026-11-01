@@ -24,6 +24,10 @@ describe('the micro-sleeps of the live salon_crawler, with the idle bot', () => 
     const loaded = await loadSimLevel(CONTENT_DIR, 'salon_crawler');
     if (!loaded.ok) throw new Error(loaded.error);
     const { content, geometry, level, levelId } = loaded.value;
+    // This is about the fatigue: the table's four props make noise enough to wake Mama before the
+    // threshold with nobody parrying (story 3.5), and the micro-sleep is the thing under test.
+    content.feel.noise.sources.propImpact.minPct = 0;
+    content.feel.noise.sources.propImpact.maxPct = 0;
     const sim = await createSim({ content, geometry, level, seed, strictInvariants: true });
     const bot = makeBot('idle', {
       seed,
@@ -39,7 +43,9 @@ describe('the micro-sleeps of the live salon_crawler, with the idle bot', () => 
     } finally {
       sim.dispose();
     }
-    return { events, feel: content.feel.fatigue, levelId, durationMs: level.level.durationMs };
+    // The last stretch of the level is the final rush (story 3.5), where no micro-sleep starts.
+    const playableMs = level.level.durationMs - content.feel.endOfLevel.finalRushMs;
+    return { events, feel: content.feel.fatigue, levelId, durationMs: playableMs };
   }
 
   it.each(SEEDS)(

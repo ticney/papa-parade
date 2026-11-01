@@ -187,6 +187,7 @@ function simLevelOf(
   papaGrid: NavGrid,
   breathCapacityMs: number,
   endOfLevel: Feel['endOfLevel'],
+  gags: Feel['gags'],
 ): SimLevel {
   invariant(
     level.level.id === geometry.id,
@@ -472,12 +473,12 @@ function simLevelOf(
   const levelFinalRush = level.level.finalRush;
   if (levelFinalRush !== undefined) {
     // The words are `content:check`'s, they share the function.
-    const [rushProblem] = finalRushProblems(
-      levelFinalRush,
-      level.level.durationMs,
-      endOfLevel,
-      geometry.anchors.map((anchor) => anchor.id),
-    );
+    const [rushProblem] = finalRushProblems(levelFinalRush, level.level.durationMs, endOfLevel, {
+      anchors: geometry.anchors,
+      props: geometry.props,
+      kinds: physics.kinds,
+      propReachDistM: gags.tableObjectFall.propReachDistM,
+    });
     invariant(rushProblem === undefined, `level ${level.level.id} › finalRush: ${rushProblem}`);
   }
   const levelCycle = level.level.cycle;
@@ -513,6 +514,7 @@ function simLevelOf(
     hasNoise: level.level.gauges.noise !== undefined,
     hasBladder: level.level.gauges.need !== undefined,
     hasFinalRush: levelFinalRush !== undefined,
+    spillPointM: spillPointOf(levelFinalRush, geometry),
     durationMs: level.level.durationMs,
     waves: waves.map((wave, w) => {
       const endMs = waves[w + 1]?.fromMs ?? level.level.durationMs;
@@ -571,6 +573,16 @@ function simLevelOf(
       };
     }),
   };
+}
+
+/** The floor point of the anchor a level's `finalRush` names (checked by `finalRushProblems`), or null with no rush. */
+function spillPointOf(
+  finalRush: { readonly spillAnchor: string } | undefined,
+  geometry: LevelGeometry,
+): { readonly xM: number; readonly zM: number } | null {
+  if (finalRush === undefined) return null;
+  const anchor = geometry.anchors.find((candidate) => candidate.id === finalRush.spillAnchor);
+  return anchor === undefined ? null : { xM: anchor.positionM[0], zM: anchor.positionM[2] };
 }
 
 /** The gag ids a def can end in: its one `gag`, or the `surpriseGags` a hidden-zone threat draws from. */
@@ -683,6 +695,7 @@ export async function createSimWithSystems(
     papaGrid,
     content.feel.stealth.breathCapacityMs,
     content.feel.endOfLevel,
+    content.feel.gags,
   );
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
   let world = createWorld({

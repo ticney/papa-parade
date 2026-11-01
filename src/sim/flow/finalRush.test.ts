@@ -17,7 +17,7 @@ import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import { sequenceRefusal } from '../sequences/sequenceStart.ts';
 import type { World } from '../world.ts';
-import { finalRushProblems, playableMsOf } from './finalRush.ts';
+import { type FinalRushRoom, finalRushProblems, playableMsOf } from './finalRush.ts';
 import { enterFlowState, isFlowLive } from './flowFsm.ts';
 
 const DURATION_MS = 30_000;
@@ -319,24 +319,56 @@ describe('the rush in a snapshot (AC 23)', () => {
   });
 });
 
-describe('finalRushProblems (AC 2)', () => {
+describe('finalRushProblems (AC 2, AC 30)', () => {
   const feel = FEEL.endOfLevel;
-  const anchors = ['coffee_table', 'door'];
+  const room = (patch: Partial<FinalRushRoom> = {}): FinalRushRoom => ({
+    anchors: [
+      { id: 'coffee_table', positionM: [0.5, 0.45, -0.6] },
+      { id: 'door', positionM: [2.9, 0, -2.8] },
+    ],
+    props: [
+      { id: 'toy_01', kind: 'toy', centerM: [0.5, 0.5, -0.38] },
+      { id: 'book_01', kind: 'book', centerM: [0.25, 0.47, -0.6] },
+      { id: 'mug_01', kind: 'mug', centerM: [0.7, 0.5, -0.6] },
+    ],
+    kinds: { toy: { breakable: false }, book: { breakable: false }, mug: { breakable: true } },
+    propReachDistM: 0.5,
+    ...patch,
+  });
 
-  it('accepts a level that outlasts the rush and names one of its anchors', () => {
-    expect(finalRushProblems(FINAL_RUSH, DURATION_MS, feel, anchors)).toEqual([]);
+  it('accepts a level that outlasts the rush, names one of its anchors and holds enough props to spill', () => {
+    expect(finalRushProblems(FINAL_RUSH, DURATION_MS, feel, room())).toEqual([]);
   });
 
   it('refuses a level that does not outlast the rush, at the limit included', () => {
-    const [problem] = finalRushProblems(FINAL_RUSH, feel.finalRushMs, feel, anchors);
+    const [problem] = finalRushProblems(FINAL_RUSH, feel.finalRushMs, feel, room());
     expect(problem).toContain(`${feel.finalRushMs} ms`);
-    expect(finalRushProblems(FINAL_RUSH, feel.finalRushMs + 1, feel, anchors)).toEqual([]);
+    expect(finalRushProblems(FINAL_RUSH, feel.finalRushMs + 1, feel, room())).toEqual([]);
   });
 
   it('refuses a spill anchor that is not an anchor of the level', () => {
-    expect(finalRushProblems({ spillAnchor: 'nowhere' }, DURATION_MS, feel, anchors)).toEqual([
+    expect(finalRushProblems({ spillAnchor: 'nowhere' }, DURATION_MS, feel, room())).toEqual([
       'the spill anchor "nowhere" is not an anchor of the level',
     ]);
+  });
+
+  it('refuses a room with fewer props that can spill than doorSpillCount: breakable, or out of reach', () => {
+    const noBook = room({ props: room().props.filter((prop) => prop.id !== 'book_01') });
+    expect(finalRushProblems(FINAL_RUSH, DURATION_MS, feel, noBook)).toEqual([
+      expect.stringContaining('only 1 unbreakable prop(s) stand within 0.5 m of "coffee_table"'),
+    ]);
+    const far = room({ propReachDistM: 0.1 });
+    expect(finalRushProblems(FINAL_RUSH, DURATION_MS, feel, far)).toEqual([
+      expect.stringContaining('only 0 unbreakable prop(s)'),
+    ]);
+    // A kind the feel does not know cannot be told breakable: it does not count.
+    const unknown = room({ kinds: { toy: { breakable: false } } });
+    expect(finalRushProblems(FINAL_RUSH, DURATION_MS, feel, unknown)).toHaveLength(1);
+  });
+
+  it('asks nothing of the room when the door spills nothing (doorSpillCount 0)', () => {
+    const none = { ...feel, doorSpillCount: 0 };
+    expect(finalRushProblems(FINAL_RUSH, DURATION_MS, none, room({ props: [] }))).toEqual([]);
   });
 
   it('is what createSim throws on, with the same words', async () => {
@@ -346,5 +378,15 @@ describe('finalRushProblems (AC 2)', () => {
     await expect(
       createSim({ content, geometry: createTestGeometry(), level, seed: 1 }),
     ).rejects.toThrow(/finalRush: the level lasts/);
+    // The frozen room's props are all breakable: the door has nothing to spill.
+    const spilling = createTestContent();
+    await expect(
+      createSim({
+        content: spilling,
+        geometry: createTestGeometry(),
+        level: createTestLevel({ durationMs: DURATION_MS, finalRush: FINAL_RUSH }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/the door spills 2 props .* but only 0 unbreakable prop\(s\)/);
   });
 });

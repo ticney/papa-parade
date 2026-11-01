@@ -4,6 +4,7 @@ import { endSilence } from '../baby/silence.ts';
 import type { StepContext } from '../context.ts';
 import { endRingingPhones } from '../disruptions/phone.ts';
 import type { LevelEndReason } from '../events.ts';
+import { dropProps } from '../physics/dropProps.ts';
 import { scoreLevel } from '../scoring/mamaScore.ts';
 import { endSequenceForLevelEnd } from '../sequences/sequenceEnd.ts';
 import type { World } from '../world.ts';
@@ -30,14 +31,28 @@ function endLevel(world: World, ctx: StepContext, reason: LevelEndReason): void 
 
 /**
  * The door opens (story 3.5): a sequence under way is closed first (`SequenceEnded{levelEnded}`, no
- * resume and no cycle move), the flow enters `finalRush`, `flow.finalRushAt` is written beside it
- * and `FinalRushStarted` is emitted. A phone already ringing keeps ringing. Once per level.
+ * resume and no cycle move), the flow enters `finalRush`, `flow.finalRushAt` is written beside it,
+ * `FinalRushStarted` is emitted and the door's spill follows (AC 30). A phone already ringing keeps
+ * ringing. Once per level.
  */
 function startFinalRush(world: World, ctx: StepContext): void {
   endSequenceForLevelEnd(world, ctx);
   enterFlowState(world, 'finalRush');
   world.flow.finalRushAt = world.time.sim;
   ctx.events.push({ type: 'FinalRushStarted', t: world.time.sim });
+  // The door's opening knocks over up to `doorSpillCount` props that cannot break, nearest the level's
+  // spill anchor (story 3.5, D10): so that there is something to tidy. They fall in the next step.
+  const { spillPointM } = ctx.level;
+  const { doorSpillCount } = ctx.feel.endOfLevel;
+  if (spillPointM !== null && doorSpillCount > 0) {
+    const { pushImpulseNs, propReachDistM } = ctx.feel.gags.tableObjectFall;
+    dropProps(world, ctx, spillPointM.xM, spillPointM.zM, {
+      count: doorSpillCount,
+      reachM: propReachDistM,
+      pushImpulseNs,
+      isUnbreakableOnly: true,
+    });
+  }
 }
 
 /**

@@ -28,6 +28,7 @@ export {
 export type { FeelPatch } from './feel/applyFeelPatch.ts';
 export {
   type EndOfLevelShape,
+  type FinalRushRoom,
   type FinalRushShape,
   finalRushProblems,
   playableMsOf,

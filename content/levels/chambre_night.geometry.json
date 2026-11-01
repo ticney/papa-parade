@@ -111,9 +111,21 @@
   ],
   "props": [
     {
+      "id": "book_01",
+      "kind": "book",
+      "centerM": [-1.45, 0.62, -1.98],
+      "halfExtentsM": [0.07, 0.02, 0.1]
+    },
+    {
       "id": "mug_01",
       "kind": "mug",
-      "centerM": [-1.3, 0.65, -2.15],
+      "centerM": [-1.3, 0.65, -2.05],
+      "halfExtentsM": [0.05, 0.05, 0.05]
+    },
+    {
+      "id": "toy_01",
+      "kind": "toy",
+      "centerM": [-1.45, 0.65, -2.15],
       "halfExtentsM": [0.05, 0.05, 0.05]
     }
   ]

@@ -13,9 +13,11 @@ import {
   createFirmHold,
   createSilenceMemory,
   createStealthWalkMemory,
+  createTidyMemory,
   isPressable,
   planCycleDrop,
   planStealthWalk,
+  planTidy,
   responseOf,
   scheduleDrop,
   schedulePress,
@@ -41,6 +43,8 @@ import {
  * In a stealth step (story 4.9) it walks to the exit (and so creaks), parries a real wake like any
  * threat and never presses a false alarm: it holds its breath `reactionMs` after the telegraph and
  * lets go at the end of the window `aimOffsetMs + jitterSdMs × N(0, 1)` away, one draw, so it sometimes gasps.
+ * In the final rush (story 3.5) it tidies the props that are a mess, nearest first, from `reactionMs` after the
+ * door opened (`planTidy`): no draw.
  */
 export function createHumanBot(setup: BotSetup): Bot {
   const { reactionMs, aimOffsetMs, jitterSdMs } = setup.settings.human;
@@ -56,6 +60,8 @@ export function createHumanBot(setup: BotSetup): Bot {
   const stealthWalk = createStealthWalkMemory();
   // The interlude the crib was last tapped in (story 4.10).
   const cycleDrop = createCycleDropMemory();
+  // The prop tapped last in the final rush (story 3.5).
+  const tidy = createTidyMemory();
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
   let find: { startedAt: number; atMs: number } | null = null;
   // The tap planned for the beat in play: dropped if the beat is settled before it is sent.
@@ -144,6 +150,7 @@ export function createHumanBot(setup: BotSetup): Bot {
       scheduler.flush(now, out);
       planStealthWalk(world, setup.responses, out, stealthWalk);
       planCycleDrop(world, setup.responses, setup.safeSpot, out, cycleDrop);
+      planTidy(world, setup.responses, out, tidy, reactionMs);
     },
   };
 }

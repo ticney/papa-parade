@@ -17,6 +17,8 @@ function worldAt(
     threats: [],
     silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
     cycle: { index: 0, nextAt: null, completedAt: null },
+    flow: { state: 'playing', enteredAt: 0, finalRushAt: null },
+    props: [],
     papa: { xM: 0, zM: 0 },
     sequence: {
       beat: { isRunning: beat.isRunning ?? true, nextBeatAt: beat.nextBeatAt ?? null },

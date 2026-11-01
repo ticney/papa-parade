@@ -762,12 +762,18 @@ function checkSequenceReferences(
     // The final rush (story 3.5): the same words as `simLevelOf`, with the level's own feel.
     const merged = feel === undefined ? undefined : mergeFeel(feel, level.feelOverrides, file);
     const endOfLevel = merged?.ok ? merged.value.endOfLevel : feel?.endOfLevel;
-    if (level.finalRush !== undefined && cycleGeometry !== undefined && endOfLevel !== undefined) {
+    const rushFeel = merged?.ok ? merged.value : feel;
+    if (level.finalRush !== undefined && cycleGeometry !== undefined && rushFeel !== undefined) {
       for (const problem of finalRushProblems(
         level.finalRush,
         level.durationMs,
-        endOfLevel,
-        cycleGeometry.anchors.map((anchor) => anchor.id),
+        rushFeel.endOfLevel,
+        {
+          anchors: cycleGeometry.anchors,
+          props: cycleGeometry.props,
+          kinds: rushFeel.physics.kinds,
+          propReachDistM: rushFeel.gags.tableObjectFall.propReachDistM,
+        },
       )) {
         problems.push({ file, jsonPath: 'finalRush', message: `finalRush: ${problem}` });
       }
