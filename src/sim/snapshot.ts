@@ -611,7 +611,7 @@ export interface PlannedLevel {
   readonly cycle: { readonly entries: readonly unknown[] } | null;
   /** The level's creak zones (story 4.9): only the count is needed, it bounds `stealth.creakZoneIndex`. */
   readonly creakZones: readonly unknown[];
-  /** The level's interactive objects: Papa's `objectId` must be one of them. */
+  /** The level's interactive objects: Papa's `objectId` must be one of them (or one of `props` in the final rush and after it, see `isPropWalkState`). */
   readonly objects: readonly { readonly id: string }[];
   readonly props: readonly {
     readonly id: string;
@@ -620,6 +620,14 @@ export interface PlannedLevel {
   }[];
 }
 type PlannedThreats = PlannedLevel['threats'];
+
+/**
+ * Whether Papa's `objectId` may name a prop (story 3.5): in the rush, and in the frozen states that follow
+ * it, since the level can end (timer, `mamaWoke`) while he is still walking to one.
+ */
+function isPropWalkState(state: unknown): boolean {
+  return state === 'finalRush' || state === 'photo' || state === 'ended';
+}
 
 function isTimeScale(value: unknown): boolean {
   return (
@@ -1277,7 +1285,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     ) ??
     papaProblem(
       papa,
-      (flow as { state?: unknown } | null)?.state === 'finalRush'
+      planned.hasFinalRush && isPropWalkState((flow as { state?: unknown } | null)?.state)
         ? [...planned.objects, ...planned.props].map((target) => target.id)
         : planned.objects.map((object) => object.id),
       (baby as { state?: unknown } | null)?.state,

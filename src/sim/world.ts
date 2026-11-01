@@ -34,7 +34,10 @@ export interface PapaSlice {
   isBlocked: boolean;
   /** The glide towards a threat that was pressed; non-null exactly in `glide`. Choreography only (P3). */
   glide: PapaGlide | null;
-  /** The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19). */
+  /**
+   * The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19).
+   * In the final rush it may be the id of a prop that is a mess, which Papa tidies on arrival (story 3.5).
+   */
   objectId: string | null;
   /**
    * What the current tapped walk does on arrival besides `objectId` (story 4.1): take the baby, or

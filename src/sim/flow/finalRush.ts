@@ -1,3 +1,5 @@
+import { PROP_ON_FLOOR_TOLERANCE_M } from '@shared/constants';
+
 /** What `finalRushProblems` reads of a level's `finalRush` (the schema's shape, without zod). */
 export interface FinalRushShape {
   readonly spillAnchor: string;
@@ -16,6 +18,7 @@ export interface FinalRushRoom {
     readonly id: string;
     readonly kind: string;
     readonly centerM: readonly number[];
+    readonly halfExtentsM: readonly number[];
   }[];
   /** `feel.physics.kinds`: a kind that does not break is the only one the door knocks over. */
   readonly kinds: Readonly<Record<string, { readonly breakable: boolean }>>;
@@ -28,7 +31,7 @@ export interface FinalRushRoom {
  * and `content:check` both call it, so they refuse the same things with the same words (story 3.5).
  * The level must outlast the rush, the spill anchor must be an anchor of the level's geometry, and
  * (AC 30) the room must hold at least `doorSpillCount` props the door can knock over: a kind that cannot
- * break, within `propReachDistM` of the anchor. Pure: no zod and no `@content` runtime import.
+ * break, starting off the floor, within `propReachDistM` of the anchor. Pure: no zod and no `@content` runtime import.
  */
 export function finalRushProblems(
   finalRush: FinalRushShape,
@@ -51,6 +54,10 @@ export function finalRushProblems(
   for (const prop of room.props) {
     const kind = Object.hasOwn(room.kinds, prop.kind) ? room.kinds[prop.kind] : undefined;
     if (kind === undefined || kind.breakable) continue;
+    // A prop that starts on the floor is never knocked over (`dropProps` skips what `isOnFloor`).
+    const isAboveFloor =
+      (prop.centerM[1] ?? 0) - (prop.halfExtentsM[1] ?? 0) > PROP_ON_FLOOR_TOLERANCE_M;
+    if (!isAboveFloor) continue;
     const dxM = (prop.centerM[0] ?? 0) - (anchor.positionM[0] ?? 0);
     const dzM = (prop.centerM[2] ?? 0) - (anchor.positionM[2] ?? 0);
     if (Math.sqrt(dxM * dxM + dzM * dzM) <= room.propReachDistM) spillable++;

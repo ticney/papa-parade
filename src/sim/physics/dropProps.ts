@@ -14,9 +14,6 @@ export interface DropRule {
   readonly isUnbreakableOnly: boolean;
 }
 
-/** The props chosen so far in one call: reused, since two choices in one step must differ (a pushed prop is still off the floor until it lands). */
-const chosen: number[] = [];
-
 /**
  * Knocks props off a table (story 1.16, shared with the door's spill of story 3.5, `sim/physics`): up to
  * `rule.count` of the unbroken props that are off the floor, the nearest to `(originXM, originZM)` first and
@@ -33,7 +30,8 @@ export function dropProps(
   originZM: number,
   rule: DropRule,
 ): number {
-  chosen.length = 0;
+  // Two choices in one call must differ: a pushed prop is still off the floor until it lands.
+  const chosen: number[] = [];
   for (let n = 0; n < rule.count; n++) {
     let nearestIndex = -1;
     let nearestM = Number.POSITIVE_INFINITY;

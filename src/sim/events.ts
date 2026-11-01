@@ -162,7 +162,7 @@ export type SimEvent =
    * Papa set off to an interactive object the player asked for (`TapObject`). Every accepted tap
    * says it, one per command, also when Papa already stands at the anchor (a walk of no length, then
    * `PapaArrived`) or is already walking there: the object (stories 1.19, 1.20) decides what a repeat
-   * means. Nothing consumes this yet.
+   * means. Nothing consumes this yet. The id may be a prop's, in the final rush (story 3.5).
    */
   | { type: 'ObjectTapped'; t: SimMs; objectId: string }
   /** A direction walk ran into an obstacle and cannot move at all (once per blockage). */

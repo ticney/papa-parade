@@ -15,6 +15,8 @@ import type { World } from '../world.ts';
 const DURATION_MS = 15_000;
 const content = createTestContent();
 const RUSH_AT = DURATION_MS - content.feel.endOfLevel.finalRushMs;
+/** How long a dropped mug is given to land and stop bouncing, after the push. */
+const DROP_SETTLE_MS = 1500;
 const SIGH_POINTS = content.feel.mama.sighPerPropOnFloorPoints;
 
 interface Options {
@@ -69,6 +71,7 @@ const of = <T extends SimEvent['type']>(events: readonly SimEvent[], type: T) =>
 
 /** The mug leaves the table by its +z edge (away from the vase): it ends up on the floor, unbroken. */
 function dropMug(sim: Sim): SimEvent[] {
+  const settledAt = Math.max(3000, sim.world.time.sim + DROP_SETTLE_MS);
   sim.enqueue({
     type: 'PushProp',
     t: asSimMs(sim.world.time.sim),
@@ -77,8 +80,8 @@ function dropMug(sim: Sim): SimEvent[] {
     impulseYNs: 0,
     impulseZNs: content.feel.gags.tableObjectFall.pushImpulseNs,
   });
-  // Lets it land and stop bouncing, so that nothing moves in the next steps.
-  return runUntil(sim, () => propOf(sim, 'mug_01').isMess && sim.world.time.sim >= 3000);
+  // Lets it land and stop bouncing, so that nothing moves in the next steps (from a later round too).
+  return runUntil(sim, () => propOf(sim, 'mug_01').isMess && sim.world.time.sim >= settledAt);
 }
 
 const tap = (sim: Sim, objectId: string) =>
@@ -301,6 +304,27 @@ describe('a snapshot in the middle of a rush walk (AC 23)', () => {
     runUntil(sim, () => sim.world.score.propsTidied === 1, 800);
     expect(twin.world.score.propsTidied).toBe(1);
     expect(twin.world).toEqual(sim.world);
+  });
+
+  it('round-trips a frozen photo or ended world where Papa was walking to a prop', async () => {
+    const sim = await newSim();
+    dropMug(sim);
+    runTo(sim, DURATION_MS - 3 * STEP_MS);
+    tap(sim, 'mug_01');
+    runUntil(sim, () => sim.world.flow.state === 'photo', 20);
+    expect(sim.world.flow.state).toBe('photo');
+    // The level ended on the timer while Papa was still on his way to the mug.
+    expect(sim.world.papa.objectId).toBe('mug_01');
+    const photo = roundTrip(sim);
+    const twin = await newSim();
+    twin.restore(photo);
+    expect(twin.world).toEqual(sim.world);
+    // The same walk, cut short by Mama waking: the flow is `ended`, and the finalRushAt stays.
+    const ended = roundTrip(sim);
+    ended.world.flow.state = 'ended';
+    const other = await newSim();
+    other.restore(ended);
+    expect(other.world.papa.objectId).toBe('mug_01');
   });
 
   it('refuses a prop id for Papa outside the rush', async () => {

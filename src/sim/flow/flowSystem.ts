@@ -56,7 +56,7 @@ function startFinalRush(world: World, ctx: StepContext): void {
 }
 
 /**
- * System: the level's flow, last of `SYSTEMS`. It has three ways in. At the first step where the
+ * System: the level's flow, last of `SYSTEMS`. It has three ways to end the level. At the first step where the
  * noise gauge of a level with noise is at 100 % (`GAUGE_MAX_POINTS`, read after `runGauges`, story
  * 3.2), Mama wakes: `MamaWoke`, then `LevelEnded{reason: 'mamaWoke'}`. In the step the bedtime cycle
  * is completed (story 4.10), `LevelEnded{reason: 'cycleDone'}`. At the first step where the sim clock

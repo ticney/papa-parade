@@ -66,7 +66,8 @@ export type SimCommand =
   | { type: 'TapFloor'; t: SimMs; xM: number; zM: number }
   /**
    * Walk to this interactive object of the level; what happens there is the object's (stories 1.19,
-   * 1.20). An unknown id does nothing.
+   * 1.20). In the final rush only (story 3.5), the id of a prop that is a mess walks Papa to it to tidy
+   * it. An unknown id, or a prop's outside the rush or not a mess, does nothing.
    */
   | { type: 'TapObject'; t: SimMs; objectId: string }
   /** Walk in this direction on the floor (world axes, any length but 0: the sim normalises it) until `MoveStop`. */

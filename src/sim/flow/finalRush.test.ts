@@ -33,6 +33,8 @@ interface Options {
   sequences?: readonly string[];
   carry?: boolean;
   phone?: boolean;
+  /** When the phone starts to ring (with `phone`), in sim ms; 0 by default. */
+  phoneAtMs?: number;
 }
 
 /** The frozen room, whose props are all breakable: the spill has nothing to knock over here (`doorSpillCount: 0`). */
@@ -49,7 +51,10 @@ async function newSim(options: Options = {}): Promise<Sim> {
         ...(options.noise === true ? NOISE_GAUGES : {}),
         ...(options.sequences?.includes('stay_awake') === true ? FATIGUE_GAUGES : {}),
       },
-      waves: options.phone === true ? [testWave([], { disruptions: [testPhoneEntry(0)] })] : [],
+      waves:
+        options.phone === true
+          ? [testWave([], { disruptions: [testPhoneEntry(options.phoneAtMs ?? 0)] })]
+          : [],
       sequences: options.sequences ?? [],
       ...(options.carry === true ? { carry: CARRY } : {}),
       ...(options.finalRush === false ? {} : { finalRush: FINAL_RUSH }),
@@ -153,12 +158,14 @@ describe('the final rush starts (AC 3)', () => {
   });
 
   it('lets a phone that is already ringing go on ringing', async () => {
-    const sim = await newSim({ phone: true });
-    runTo(sim, 1000);
+    // It starts to ring 3 s before the door, and rings 15 s: it is still ringing when the rush starts.
+    const sim = await newSim({ phone: true, phoneAtMs: RUSH_AT - 3000 });
+    const before = runTo(sim, RUSH_AT - STEP_MS);
     expect(sim.world.disruptions[0]?.state).toBe('ringing');
-    const events = runTo(sim, RUSH_AT);
-    expect(of(events, 'PhoneRingEnded').every((event) => event.reason === 'timedOut')).toBe(true);
+    const events = runTo(sim, RUSH_AT + 1000);
     expect(sim.world.flow.state).toBe('finalRush');
+    expect(sim.world.disruptions[0]?.state).toBe('ringing');
+    expect(of([...before, ...events], 'PhoneRingEnded')).toEqual([]);
   });
 });
 
@@ -327,9 +334,9 @@ describe('finalRushProblems (AC 2, AC 30)', () => {
       { id: 'door', positionM: [2.9, 0, -2.8] },
     ],
     props: [
-      { id: 'toy_01', kind: 'toy', centerM: [0.5, 0.5, -0.38] },
-      { id: 'book_01', kind: 'book', centerM: [0.25, 0.47, -0.6] },
-      { id: 'mug_01', kind: 'mug', centerM: [0.7, 0.5, -0.6] },
+      { id: 'toy_01', kind: 'toy', centerM: [0.5, 0.5, -0.38], halfExtentsM: [0.04, 0.04, 0.04] },
+      { id: 'book_01', kind: 'book', centerM: [0.25, 0.47, -0.6], halfExtentsM: [0.08, 0.02, 0.1] },
+      { id: 'mug_01', kind: 'mug', centerM: [0.7, 0.5, -0.6], halfExtentsM: [0.04, 0.05, 0.04] },
     ],
     kinds: { toy: { breakable: false }, book: { breakable: false }, mug: { breakable: true } },
     propReachDistM: 0.5,
@@ -360,6 +367,15 @@ describe('finalRushProblems (AC 2, AC 30)', () => {
     const far = room({ propReachDistM: 0.1 });
     expect(finalRushProblems(FINAL_RUSH, DURATION_MS, feel, far)).toEqual([
       expect.stringContaining('only 0 unbreakable prop(s)'),
+    ]);
+    // A prop that starts on the floor is never knocked over: it does not count.
+    const onFloor = room({
+      props: room().props.map((prop) =>
+        prop.id === 'book_01' ? { ...prop, centerM: [0.25, 0.02, -0.6] } : prop,
+      ),
+    });
+    expect(finalRushProblems(FINAL_RUSH, DURATION_MS, feel, onFloor)).toEqual([
+      expect.stringContaining('only 1 unbreakable prop(s)'),
     ]);
     // A kind the feel does not know cannot be told breakable: it does not count.
     const unknown = room({ kinds: { toy: { breakable: false } } });
