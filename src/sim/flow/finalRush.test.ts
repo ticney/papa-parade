@@ -33,6 +33,7 @@ interface Options {
   sequences?: readonly string[];
   carry?: boolean;
   phone?: boolean;
+  fatigue?: boolean;
   /** When the phone starts to ring (with `phone`), in sim ms; 0 by default. */
   phoneAtMs?: number;
 }
@@ -49,7 +50,9 @@ async function newSim(options: Options = {}): Promise<Sim> {
       objects: TEST_OBJECTS,
       gauges: {
         ...(options.noise === true ? NOISE_GAUGES : {}),
-        ...(options.sequences?.includes('stay_awake') === true ? FATIGUE_GAUGES : {}),
+        ...(options.sequences?.includes('stay_awake') === true || options.fatigue === true
+          ? FATIGUE_GAUGES
+          : {}),
       },
       waves:
         options.phone === true
@@ -242,6 +245,53 @@ describe('what stops in the rush (AC 6)', () => {
     expect(isFlowLive(world)).toBe(true);
     enterFlowState(world, 'photo');
     expect(isFlowLive(world)).toBe(false);
+  });
+});
+
+describe('what goes on and what stops in the rush (AC 6)', () => {
+  const microSleeps = (events: readonly SimEvent[]) =>
+    of(events, 'ThreatTelegraphed').filter((event) => event.kind === 'papa_microsleep');
+  /** Papa is worn out and falls asleep at once (a micro-sleep delay of 0), so the test needs no long wait. */
+  const tireOut = (sim: Sim) => {
+    const t = asSimMs(sim.world.time.sim);
+    sim.enqueue({
+      type: 'SetFeel',
+      t,
+      patch: { fatigue: { microSleepMinMs: 0, microSleepMaxMs: 0 } },
+    });
+    sim.enqueue({ type: 'SetFatigue', t, points: 100 });
+  };
+
+  it('starts no micro-sleep, though the fatigue gauge goes on and is full', async () => {
+    // The control: the same tired Papa, the same time, in a level with no rush, does fall asleep.
+    const control = await newSim({ fatigue: true, finalRush: false });
+    runTo(control, RUSH_AT);
+    tireOut(control);
+    expect(microSleeps(runTo(control, RUSH_AT + 3000))).not.toEqual([]);
+    const sim = await newSim({ fatigue: true });
+    runTo(sim, RUSH_AT);
+    tireOut(sim);
+    const events = runTo(sim, RUSH_AT + 3000);
+    expect(sim.world.flow.state).toBe('finalRush');
+    expect(sim.world.gauges.fatigue).toBe(100);
+    expect(microSleeps(events)).toEqual([]);
+  });
+
+  it('keeps the noise going: the gauge still rises with a noise source in the rush', async () => {
+    const sim = await newSim({ noise: true });
+    runTo(sim, RUSH_AT);
+    sim.enqueue({
+      type: 'PushProp',
+      t: asSimMs(sim.world.time.sim),
+      propId: 'mug_01',
+      impulseXNs: 0,
+      impulseYNs: 0,
+      impulseZNs: createTestContent().feel.gags.tableObjectFall.pushImpulseNs,
+    });
+    const events = runTo(sim, RUSH_AT + 3000);
+    expect(sim.world.flow.state).toBe('finalRush');
+    expect(of(events, 'NoiseChanged').length).toBeGreaterThan(0);
+    expect(sim.world.gauges.noisePct).toBeGreaterThan(0);
   });
 });
 

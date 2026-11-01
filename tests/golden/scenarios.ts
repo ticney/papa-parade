@@ -696,7 +696,7 @@ export const SCENARIOS: readonly Scenario[] = [
   },
   {
     // The final rush (story 3.5) on the frozen room with a toy and a book on the table: the mug is knocked
-    // off by the push at 1 s (a mess before the door), the door opens at 20 s (10 s before the end) and
+    // off by a push queued at 1 s (step 100) and applied at 1.1 s (a mess before the door), the door opens at 20 s (10 s before the end) and
     // knocks over the toy and the book (the nearest props that cannot break, within reach of the table; the
     // mug and the vase are breakable or already down), and Papa tidies all three, a tap at 22 s, 24 s and 26 s.
     // The level ends on the photo at 30 s with LevelEnded{timer} and LevelScored. `finalRush.test.ts` (golden)

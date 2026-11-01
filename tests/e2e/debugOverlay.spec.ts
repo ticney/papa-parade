@@ -597,7 +597,8 @@ test.describe('the debug overlay › time controls and cheats', () => {
     const types = (await ppEvents(page)).map((event) => event.type);
     expect(types).toContain('LevelEnded');
     expect(types).toContain('LevelScored');
-    expect((await ppWorld(page)).flow.state).toBe('ended');
+    // The timer gives `photo` in a level with a rush, Mama waking gives `ended`: either way it is over.
+    expect(['photo', 'ended']).toContain((await ppWorld(page)).flow.state);
     // The level is over: a cheat says so instead of reporting « sent ».
     const status = page.locator('[data-debug="status"]');
     await page.locator('[data-debug="timeScaleReset"]').click();

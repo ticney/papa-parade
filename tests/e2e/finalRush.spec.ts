@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
-import { MS_PER_S, STEP_MS } from '../../src/shared/constants.ts';
+import { STEP_MS } from '../../src/shared/constants.ts';
 import {
   CHUNK_STEPS,
   collectProblems,
@@ -27,7 +27,7 @@ import {
 // and the level ends on the photo. Driven by the test API on a frozen level (steps by hand, nothing waits on a
 // fixed delay) with a REAL tap and a REAL key for the tidying; the rush is moved to the start of the level
 // with a `SetFeel` (a feel value, as the story says), so no spec plays 170 s to get there. The door's numbers
-// are the live ones (`feedback.json › door`). Chromium only (the story's call).
+// are the live ones (`feedback.json › door`). Chromium only (the story's call): the other engine is not asked.
 
 const LEVEL = 'salon_crawler';
 const SEED = 42;
@@ -76,6 +76,8 @@ async function openRush(page: Page): Promise<void> {
 }
 
 test.describe('the final rush', () => {
+  test.skip(({ browserName }) => browserName !== 'chromium', 'Chromium only (story 3.5)');
+
   test('opens the door, shows « RANGE ! » over the mess, lets a real tap and a real key tidy it, and ends on the photo', async ({
     page,
   }) => {
@@ -83,12 +85,12 @@ test.describe('the final rush', () => {
     await openRush(page);
     await expect(html(page)).toHaveAttribute('data-pp-flow', 'playing');
     await expect(page.locator(TIMER)).not.toHaveClass(/pp-hud-timer--rush/);
-    // Only the mug is on the floor, and the door is shut: one marker is not shown yet (flow is playing).
+    // Only the mug is on the floor, and the door is shut: no marker is shown yet (the flow is playing).
     expect((await ppWorld(page)).mess.propsOnFloor).toBe(1);
-    await expect(page.locator(MARKER).first()).toBeHidden();
+    await expect(shownMarkers(page)).toHaveCount(0);
     expect((await ppFx(page)).doorOpenDeg).toBe(0);
 
-    // The door opens: the cue, the flow, the timer, and the door a little way open (not jumped).
+    // The door opens: the cue, the flow, the timer, and the door not jumped open.
     await ppAdvance(page, 1);
     await expect(html(page)).toHaveAttribute('data-pp-flow', 'finalRush');
     const started = (await ppEvents(page)).filter((event) => event.type === 'FinalRushStarted');
@@ -99,7 +101,12 @@ test.describe('the final rush', () => {
       .toBeLessThan(feedback.door.openAngleDeg);
     // Half the opening time later it is part open, then it is open and stays open.
     await ppAdvance(page, Math.ceil(feedback.door.openMs / 2 / STEP_MS));
-    await expect.poll(async () => (await ppFx(page)).doorOpenDeg).toBeGreaterThan(0);
+    await expect
+      .poll(async () => {
+        const { doorOpenDeg } = await ppFx(page);
+        return doorOpenDeg > 0 && doorOpenDeg < feedback.door.openAngleDeg;
+      })
+      .toBe(true);
     await ppAdvance(page, Math.ceil(feedback.door.openMs / STEP_MS));
     await expect
       .poll(async () => (await ppFx(page)).doorOpenDeg)
@@ -155,7 +162,6 @@ test.describe('the final rush', () => {
     expect(scored).toMatchObject({ sighPoints: 0 });
     // The door stays open through the photo.
     expect((await ppFx(page)).doorOpenDeg).toBeCloseTo(feedback.door.openAngleDeg, 5);
-    expect(LEVEL_DURATION_MS / MS_PER_S).toBeGreaterThan(RUSH_AT_MS / MS_PER_S);
     expect(problems).toEqual([]);
   });
 
@@ -184,6 +190,13 @@ test.describe('the final rush', () => {
     await expect
       .poll(() => page.locator(TIMER).evaluate((node) => getComputedStyle(node).animationName))
       .not.toBe('none');
-    expect((await ppFx(page)).doorOpenDeg).toBeLessThan(feedback.door.openAngleDeg);
+    // Half the opening time after the rush began, the door is on its way: neither shut nor open.
+    await ppAdvance(page, Math.ceil(feedback.door.openMs / 2 / STEP_MS));
+    await expect
+      .poll(async () => {
+        const { doorOpenDeg } = await ppFx(page);
+        return doorOpenDeg > 0 && doorOpenDeg < feedback.door.openAngleDeg;
+      })
+      .toBe(true);
   });
 });

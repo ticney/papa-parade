@@ -116,7 +116,8 @@ describe('the tidying bots in the final rush (story 3.5)', () => {
     }
   });
 
-  it('answers its threats first: it does not walk off to the mess with an outlet to parry', async () => {
+  // That a threat to answer comes first is pinned by `planTidy`'s own test (`threatTiming.test.ts`).
+  it('still tidies in a game that also has threats to parry: it parries them and puts the mug back', async () => {
     const { sim, events } = await play('perfect', { waves: true });
     const responses = events.filter((event) => event.type === 'ResponseResolved');
     expect(responses.length).toBeGreaterThan(0);

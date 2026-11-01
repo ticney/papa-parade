@@ -84,6 +84,14 @@ describe.each(LEVELS)('the props of $levelId (story 3.5)', ({ levelId, anchor, t
   const anchorPosition = geometry.anchors.find((candidate) => candidate.id === anchor)
     ?.positionM as [number, number, number];
 
+  it('declares its final rush on the table’s anchor, in its own level file (AC 1)', () => {
+    const level = JSON.parse(read(`content/levels/${levelId}.json`)) as {
+      finalRush?: { spillAnchor?: string };
+    };
+    expect(level.finalRush).toEqual({ spillAnchor: anchor });
+    expect(geometry.anchors.map((candidate) => candidate.id)).toContain(anchor);
+  });
+
   it('has the table props of AC 25, with the kinds the live feel knows', () => {
     const ids = geometry.props.map((prop) => prop.id);
     for (const id of tableProps) expect(ids, id).toContain(id);
@@ -109,7 +117,11 @@ describe.each(LEVELS)('the props of $levelId (story 3.5)', ({ levelId, anchor, t
     const sim = await liveSim(levelId, anchor, false);
     const events: SimEvent[] = [];
     const spawn = new Map(geometry.props.map((prop) => [prop.id, prop.centerM]));
-    runUntil(sim, () => sim.world.time.sim >= 70_000, events);
+    runUntil(
+      sim,
+      () => sim.world.time.sim >= DURATION_MS - liveFeel().endOfLevel.finalRushMs - STEP_MS,
+      events,
+    );
     expect(events.filter((event) => event.type === 'PropImpact')).toEqual([]);
     expect(events.filter((event) => event.type === 'NoiseChanged')).toEqual([]);
     expect(sim.world.mess.propsOnFloor).toBe(0);
