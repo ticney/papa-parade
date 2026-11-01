@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
-import { STEP_MS } from '../../src/shared/constants.ts';
+import { AUDIO_LOAD_TIMEOUT_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { PARRY_RELEASE_AFTER_MS } from '../support/timeEffects.ts';
 import {
   collectProblems,
@@ -60,7 +60,26 @@ async function wantedMood(page: Page): Promise<{ tense: 'on' | 'off'; slow: 'on'
   return { tense: isTense ? 'on' : 'off', slow: isSlowed ? 'on' : 'off' };
 }
 
+/** Past the preload's timeout and the level's countdown: the stems land while the level plays. */
+const LATE_STEMS_MS = AUDIO_LOAD_TIMEOUT_MS + 7_000;
+
 test.describe('the music follows the game (story 2.6)', () => {
+  test('stems that land after the preload gave up still start the music (story 7.6 AC 8)', async ({
+    page,
+  }) => {
+    test.setTimeout(LATE_STEMS_MS + 30_000);
+    await page.route('**/assets/audio/music_crawler_*.m4a', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, LATE_STEMS_MS));
+      await route.continue();
+    });
+    await page.goto('/?debug=1');
+    await page.locator('.pp-start-screen').click();
+    // Not `data-pp-state`: it already reads `running` while the level loads.
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'level', { timeout: LATE_STEMS_MS });
+    await expect(html(page)).toHaveAttribute('data-pp-music', 'off');
+    await expect(html(page)).toHaveAttribute('data-pp-music', 'on', { timeout: LATE_STEMS_MS });
+  });
+
   test('a bot playing perfectly raises the tension at each threat and the slow-mo at each perfect', async ({
     page,
   }) => {

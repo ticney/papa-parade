@@ -160,6 +160,8 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
   let areLoopsActive = false;
   // The suspicious silence cuts the music (story 1.21); set by `setMusicMuted`, cleared with the level loops.
   let isMusicMuted = false;
+  /** A preload timed out and its clips are still landing: nothing else will ask for them again. */
+  let hasPreloadGivenUp = false;
   // The music is delegated to `adaptiveMusic.ts`, built with the bus graph at the unlock.
   let music: AdaptiveMusic | null = null;
   // The mood the music wants, remembered while it is stopped.
@@ -346,6 +348,34 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
     }
   };
 
+  /**
+   * A preload that gave up leaves its clips loading while the level already plays (story 7.6 AC 8), and
+   * what was skipped for want of them stays skipped until the next preload. Called once a clip has
+   * settled, landed or failed: the skips of that clip go, and the music starts here, once no other stem
+   * is still on its way. The babble needs no start: `setBabbling` asks again every frame.
+   */
+  const resumeAfterLateClip = (clip: string): void => {
+    if (!hasPreloadGivenUp) return;
+    if (inFlight.size === 0) hasPreloadGivenUp = false;
+    if (table.loops.babble.clip === clip) skippedLoops.delete('babble');
+    for (const [id, def] of Object.entries(table.loops.sequenceMusic)) {
+      if (def.clip === clip) skippedSequenceMusic.delete(id);
+    }
+    if (!areLoopsActive) return;
+    const { calm, tense } = table.loops.music.stems;
+    if (clip === calm || clip === tense) {
+      music?.clearSkipped();
+      const isStemLoading = inFlight.has(calm) || inFlight.has(tense);
+      if (!isMusicMuted && !isStemLoading) music?.start(isMoodTense, isMoodSlowed);
+    }
+    if (wantedSequenceMusic !== null && playingSequenceMusic === null) {
+      const wanted = Object.hasOwn(table.loops.sequenceMusic, wantedSequenceMusic)
+        ? table.loops.sequenceMusic[wantedSequenceMusic]
+        : undefined;
+      if (wanted?.clip === clip) startSequenceMusic(wantedSequenceMusic);
+    }
+  };
+
   const decodeClip = (clip: string, ctx: AudioContextLike): Promise<void> => {
     const pending = inFlight.get(clip);
     if (pending !== undefined) return pending;
@@ -360,6 +390,8 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
       })
       .finally(() => {
         inFlight.delete(clip);
+        // After the delete, and on a failure too: the other stem may be all that it was waiting for.
+        resumeAfterLateClip(clip);
       });
     inFlight.set(clip, work);
     return work;
@@ -497,6 +529,7 @@ export function createAudioEngine(options: AudioEngineOptions): AudioEngine {
         });
         // A decode that never settles must not hold the loading screen: audio is optional.
         if (!(await Promise.race([loading, timeout]))) {
+          hasPreloadGivenUp = true;
           warn(
             `audio preload gave up after ${loadTimeoutMs} ms: the level starts without the rest`,
           );

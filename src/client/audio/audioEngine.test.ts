@@ -50,13 +50,13 @@ interface Setup {
   /** Warnings logged since the setup. */
   newWarnings(): string[];
   /** Overrides what the fake network answers for a clip: bytes, or an Error to reject with. */
-  answer: Map<string, Uint8Array | Error>;
+  answer: Map<string, Uint8Array | Error | Promise<Uint8Array>>;
 }
 
 function setup(createContext?: () => FakeAudioContext): Setup {
   const fake = createFakeAudioContext();
   const fetched: string[] = [];
-  const answer = new Map<string, Uint8Array | Error>();
+  const answer = new Map<string, Uint8Array | Error | Promise<Uint8Array>>();
   const states: AudioStateName[] = [];
   const counts: number[] = [];
   const loopChanges: [LoopName, boolean][] = [];
@@ -468,6 +468,140 @@ describe('preload', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe('clips that land after the preload gave up (story 7.6 AC 8)', () => {
+    /** An engine past a preload that has given up, whose clips land one by one, in the test's order. */
+    const gaveUp = async () => {
+      const s = setup();
+      const held = new Map<string, { land(): void; fail(): void }>();
+      for (const clip of CLIPS) {
+        s.answer.set(
+          clip,
+          new Promise<Uint8Array>((resolve, reject) => {
+            held.set(clip, {
+              land: () => resolve(M4A),
+              fail: () => reject(new Error('network down')),
+            });
+          }),
+        );
+      }
+      s.engine.unlock();
+      const loading = s.engine.preload(CLIPS);
+      await vi.advanceTimersByTimeAsync(AUDIO_LOAD_TIMEOUT_MS);
+      await loading;
+      s.fake.setState('running');
+      s.loopChanges.length = 0;
+      const land = async (...clips: string[]) => {
+        for (const clip of clips) held.get(clip)?.land();
+        await vi.advanceTimersByTimeAsync(0);
+      };
+      const fail = async (clip: string) => {
+        held.get(clip)?.fail();
+        await vi.advanceTimersByTimeAsync(0);
+      };
+      const changes = (loop: LoopName) => s.loopChanges.filter(([name]) => name === loop);
+      return { s, land, fail, changes };
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('starts the level music once, when the last stem lands, whatever the order', async () => {
+      for (const [first, last] of [
+        ['music_crawler_calm', 'music_crawler_tense'],
+        ['music_crawler_tense', 'music_crawler_calm'],
+      ] as const) {
+        const { s, land, changes } = await gaveUp();
+        s.engine.startLevelLoops();
+        await land(first);
+        expect(changes('music')).toEqual([]);
+        await land(last);
+        expect(changes('music')).toEqual([['music', true]]);
+        await land('papa_bump', 'ui_calibration_beep');
+        expect(changes('music')).toEqual([['music', true]]);
+      }
+    });
+
+    it('starts on the calm stem alone when the tense one fails', async () => {
+      const { s, land, fail, changes } = await gaveUp();
+      s.engine.startLevelLoops();
+      await land('music_crawler_calm');
+      await fail('music_crawler_tense');
+      expect(changes('music')).toEqual([['music', true]]);
+    });
+
+    it('starts the running sequence music when its clip lands', async () => {
+      const { s, land, changes } = await gaveUp();
+      s.engine.startLevelLoops();
+      s.engine.setSequenceMusic('stay_awake');
+      expect(changes('sequenceMusic')).toEqual([]);
+      await land('music_stay_awake');
+      expect(changes('sequenceMusic')).toEqual([['sequenceMusic', true]]);
+    });
+
+    it('forgets the skip of a sequence that ended before its clip landed', async () => {
+      const { s, land, changes } = await gaveUp();
+      s.engine.startLevelLoops();
+      s.engine.setSequenceMusic('stay_awake');
+      s.engine.setSequenceMusic(null);
+      await land('music_stay_awake');
+      expect(changes('sequenceMusic')).toEqual([]);
+      s.engine.setSequenceMusic('stay_awake');
+      expect(changes('sequenceMusic')).toEqual([['sequenceMusic', true]]);
+    });
+
+    it('lets the babble start once its clip has landed: its stop is the silence telegraph', async () => {
+      const { s, land, changes } = await gaveUp();
+      s.engine.startLevelLoops();
+      s.engine.setBabbling(true);
+      expect(changes('babble')).toEqual([]);
+      await land('baby_babble_loop');
+      s.engine.setBabbling(true);
+      expect(changes('babble')).toEqual([['babble', true]]);
+    });
+
+    it('is not disarmed by a later preload of other clips (a recalibration)', async () => {
+      const { s, land, changes } = await gaveUp();
+      const beep = s.engine.preload(['ui_calibration_beep']);
+      await land('ui_calibration_beep');
+      await vi.advanceTimersByTimeAsync(AUDIO_LOAD_TIMEOUT_MS);
+      await beep;
+      s.engine.startLevelLoops();
+      await land('music_crawler_calm', 'music_crawler_tense');
+      expect(changes('music')).toEqual([['music', true]]);
+    });
+
+    it('warns once when the music fails to start, not once per clip that lands', async () => {
+      const { s, land } = await gaveUp();
+      s.engine.startLevelLoops();
+      s.fake.createBiquadFilter = () => {
+        throw new Error('boom');
+      };
+      await land('music_crawler_calm', 'music_crawler_tense');
+      await land('papa_bump', 'ui_calibration_beep', 'baby_babble_loop');
+      expect(s.newWarnings().filter((one) => one.includes('music failed to start'))).toHaveLength(
+        1,
+      );
+    });
+
+    it('stays silent when the level has not started, or the music is muted', async () => {
+      const idle = await gaveUp();
+      await idle.land('music_crawler_calm', 'music_crawler_tense');
+      expect(idle.s.loopChanges).toEqual([]);
+
+      const muted = await gaveUp();
+      muted.s.engine.startLevelLoops();
+      muted.s.engine.setMusicMuted(true);
+      await muted.land('music_crawler_calm', 'music_crawler_tense');
+      expect(muted.changes('music')).toEqual([]);
+      muted.s.engine.setMusicMuted(false);
+      expect(muted.changes('music')).toEqual([['music', true]]);
+    });
   });
 
   it('honours a loadTimeoutMs option and clears its timer when the clips load in time', async () => {
