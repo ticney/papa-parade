@@ -94,7 +94,8 @@ function lowestPointM(prop: Readonly<PropSlice>, halfExtentsM: readonly [number,
  * becomes its previous pose; (3) one Rapier step; (4) each awake prop's pose is read back into
  * `world.props` (a sleeping body has not moved: reading it would only allocate); (5) impacts, in
  * prop index order: `PropImpact` above `feel.physics.impactMinImpulseNs` (once per cooldown), then
- * `PropBroken` for a breakable prop hit hard enough; (6) `isOnFloor` and `world.mess`, recounted.
+ * `PropBroken` for a breakable prop hit hard enough; (6) `isOnFloor`, `isMess` (story 3.5: what the
+ * rush has Papa tidy) and `world.mess`, recounted.
  * Allocates only for an event or for the pose of an awake body (Rapier's getters).
  */
 export function runPhysics(world: World, ctx: StepContext): void {
@@ -154,8 +155,9 @@ export function runPhysics(world: World, ctx: StepContext): void {
     const spec = ctx.level.props[i];
     if (spec === undefined) continue;
     prop.isOnFloor = lowestPointM(prop, spec.halfExtentsM) <= PROP_ON_FLOOR_TOLERANCE_M;
+    prop.isMess = !prop.isBroken && prop.isOnFloor && spec.spawnedAboveFloor;
     if (prop.isBroken) broken++;
-    else if (prop.isOnFloor && spec.spawnedAboveFloor) onFloor++;
+    else if (prop.isMess) onFloor++;
   }
   world.mess.propsOnFloor = onFloor;
   world.mess.propsBroken = broken;

@@ -26,6 +26,7 @@ import type {
 import { DISRUPTION_HANDLER_KINDS } from './disruptions/disruptionsSystem.ts';
 import type { SimEvent } from './events.ts';
 import { applyFeelPatch } from './feel/applyFeelPatch.ts';
+import { finalRushProblems, playableMsOf } from './flow/finalRush.ts';
 import {
   createJournal,
   entryProblem,
@@ -185,6 +186,7 @@ function simLevelOf(
   limits: DuelLimits,
   papaGrid: NavGrid,
   breathCapacityMs: number,
+  endOfLevel: Feel['endOfLevel'],
 ): SimLevel {
   invariant(
     level.level.id === geometry.id,
@@ -467,6 +469,17 @@ function simLevelOf(
       stealthThreatIndexes,
     });
   });
+  const levelFinalRush = level.level.finalRush;
+  if (levelFinalRush !== undefined) {
+    // The words are `content:check`'s, they share the function.
+    const [rushProblem] = finalRushProblems(
+      levelFinalRush,
+      level.level.durationMs,
+      endOfLevel,
+      geometry.anchors.map((anchor) => anchor.id),
+    );
+    invariant(rushProblem === undefined, `level ${level.level.id} › finalRush: ${rushProblem}`);
+  }
   const levelCycle = level.level.cycle;
   if (levelCycle !== undefined) {
     // The words are `content:check`'s, they share the function.
@@ -474,7 +487,7 @@ function simLevelOf(
       levelCycle,
       level.level.sequences,
       level.sequences,
-      level.level.durationMs,
+      playableMsOf(level.level.durationMs, levelFinalRush, endOfLevel),
       cycleRoomOf(geometry, papaGrid),
     );
     invariant(cycleProblem === undefined, `level ${level.level.id} › cycle: ${cycleProblem}`);
@@ -499,6 +512,7 @@ function simLevelOf(
     creakZones,
     hasNoise: level.level.gauges.noise !== undefined,
     hasBladder: level.level.gauges.need !== undefined,
+    hasFinalRush: levelFinalRush !== undefined,
     durationMs: level.level.durationMs,
     waves: waves.map((wave, w) => {
       const endMs = waves[w + 1]?.fromMs ?? level.level.durationMs;
@@ -538,6 +552,10 @@ function simLevelOf(
       };
     }),
     props: geometry.props.map((prop, index) => {
+      invariant(
+        !level.level.objects.some((object) => object.id === prop.id),
+        `level ${level.level.id}: the prop "${prop.id}" has the id of an object (a tap names one or the other)`,
+      );
       const kind = Object.hasOwn(physics.kinds, prop.kind) ? physics.kinds[prop.kind] : undefined;
       invariant(
         kind !== undefined,
@@ -548,6 +566,7 @@ function simLevelOf(
         kind: prop.kind,
         halfExtentsM: prop.halfExtentsM,
         spawnedAboveFloor: prop.centerM[1] - prop.halfExtentsM[1] > PROP_ON_FLOOR_TOLERANCE_M,
+        spawnM: prop.centerM,
         physics: kind,
       };
     }),
@@ -663,6 +682,7 @@ export async function createSimWithSystems(
     duelLimitsOf(content.feel),
     papaGrid,
     content.feel.stealth.breathCapacityMs,
+    content.feel.endOfLevel,
   );
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
   let world = createWorld({

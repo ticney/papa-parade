@@ -78,9 +78,9 @@ function parryOn(sim: Sim): void {
 }
 
 describe('the sequence slice in a snapshot (story 4.4)', () => {
-  it('is version 27 and carries the slice at rest, before any sequence', async () => {
+  it('is version 28 and carries the slice at rest, before any sequence', async () => {
     const snapshot = roundTrip(await newSim());
-    expect(snapshot.version).toBe(27);
+    expect(snapshot.version).toBe(28);
     expect(snapshot.world.sequence).toEqual({
       id: null,
       lastId: null,
@@ -235,7 +235,11 @@ describe('the sequence slice in a snapshot (story 4.4)', () => {
 
     it('a sequence flow state with no running id', async () => {
       const snapshot = roundTrip(await newSim());
-      (snapshot.world as unknown as World).flow = { state: 'sequence', enteredAt: 0 };
+      (snapshot.world as unknown as World).flow = {
+        state: 'sequence',
+        enteredAt: 0,
+        finalRushAt: null,
+      };
       const target = await newSim();
       expect(() => target.restore(snapshot)).toThrow(/world\.sequence\.id/);
     });
@@ -276,18 +280,18 @@ describe('the sequence slice in a snapshot (story 4.4)', () => {
   it('refuses a version 18 snapshot, which has no sequence slice', async () => {
     const snapshot = roundTrip(await newSim());
     const target = await newSim();
-    expect(() => target.restore({ ...snapshot, version: 18 as 27 })).toThrow(/version 18/);
+    expect(() => target.restore({ ...snapshot, version: 18 as 28 })).toThrow(/version 18/);
   });
 
   it('refuses a version 21 snapshot, which has no beat slice', async () => {
     const snapshot = roundTrip(await newSim());
     const target = await newSim();
-    expect(() => target.restore({ ...snapshot, version: 21 as 27 })).toThrow(/version 21/);
+    expect(() => target.restore({ ...snapshot, version: 21 as 28 })).toThrow(/version 21/);
   });
 
   it('refuses a version 19 snapshot, which has no sequence slice either', async () => {
     const snapshot = roundTrip(await newSim());
     const target = await newSim();
-    expect(() => target.restore({ ...snapshot, version: 19 as 27 })).toThrow(/version 19/);
+    expect(() => target.restore({ ...snapshot, version: 19 as 28 })).toThrow(/version 19/);
   });
 });

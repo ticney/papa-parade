@@ -71,6 +71,12 @@ export interface SimLevel {
   readonly hasNoise: boolean;
   /** Whether the level has the need gauge (`gauges.need`, story 4.3). Without it: no value, no event, no toilet. */
   readonly hasBladder: boolean;
+  /**
+   * Whether the level opts into the final rush (`finalRush`, story 3.5): the door opens
+   * `feel.endOfLevel.finalRushMs` before the end and the timer ends the level on `photo`. Without it
+   * the level behaves as it always did and ends on `ended`.
+   */
+  readonly hasFinalRush: boolean;
 }
 
 /**
@@ -195,6 +201,8 @@ export interface SimPropSpec {
   readonly halfExtentsM: readonly [number, number, number];
   /** Its lowest point started above the floor: it counts as mess once it lies on it. */
   readonly spawnedAboveFloor: boolean;
+  /** Where its centre starts, in metres: tidying puts it back there (story 3.5). */
+  readonly spawnM: readonly [number, number, number];
   /** The kind's entry of `feel.physics.kinds`. */
   readonly physics: Feel['physics']['kinds'][string];
 }

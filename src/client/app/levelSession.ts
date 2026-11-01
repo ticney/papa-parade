@@ -68,6 +68,8 @@ export interface LevelSessionDeps {
   levelId?: string;
   /** Real-time multiplier of every level's loop (`?speed`). Default 1. */
   speed?: number;
+  /** The player's « reduce motion » switch, or the OS setting (story 2.10): the door jumps open instead of swinging (story 3.5). Default: false. */
+  isMotionReduced?(): boolean;
   /** Called before every step of every level's loop (the autoplay bot hangs here). Given to each new loop as is. */
   beforeStep?(sim: Sim): void;
   /**
@@ -485,6 +487,8 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
               .filter((def) => def.release !== undefined)
               .map((def) => def.id),
             laidHeightM: deps.content.feedback.bombDrop.laidHeightM,
+            door: deps.content.feedback.door,
+            isMotionReduced: deps.isMotionReduced ?? (() => false),
           });
         } catch (cause) {
           log.error('render', 'cannot build the level scene', { id: levelId, error: cause });

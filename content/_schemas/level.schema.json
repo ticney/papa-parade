@@ -272,6 +272,21 @@
       ],
       "additionalProperties": false
     },
+    "finalRush": {
+      "description": "The final rush (story 3.5): the door opens before the end and the level ends on the photo. Absent: the level ends on `ended`, as before.",
+      "type": "object",
+      "properties": {
+        "spillAnchor": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "The id of the anchor of the level's geometry the door's shock lands nearest to (a table, a nightstand): the props that cannot break and stand nearest to it are knocked over when the door opens (story 3.5, D10)."
+        }
+      },
+      "required": [
+        "spillAnchor"
+      ],
+      "additionalProperties": false
+    },
     "feelOverrides": {
       "default": {},
       "description": "A partial `feel.json` merged over the base feel for this level only.",

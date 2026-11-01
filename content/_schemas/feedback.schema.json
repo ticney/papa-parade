@@ -587,6 +587,46 @@
       "additionalProperties": false,
       "description": "The bomb drop on screen (story 4.8). Read per frame on the sim clock; the sim never reads it."
     },
+    "door": {
+      "type": "object",
+      "properties": {
+        "openMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How long the door takes to swing open once the final rush starts, in sim ms (story 3.5). Read on the render sim clock, so a pause or a slow-mo holds it."
+        },
+        "openAngleDeg": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 170,
+          "description": "How far the door panel swings open, in degrees (the hinge is at the door anchor)."
+        },
+        "widthM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The door panel's width, in metres."
+        },
+        "heightM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The door panel's height, in metres."
+        },
+        "thicknessM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The door panel's thickness, in metres."
+        }
+      },
+      "required": [
+        "openMs",
+        "openAngleDeg",
+        "widthM",
+        "heightM",
+        "thicknessM"
+      ],
+      "additionalProperties": false,
+      "description": "The door on screen (story 3.5): a closed panel at the level's `ANCHOR_door` that swings open from the start of the final rush. Read per frame on the sim clock; the sim never reads it."
+    },
     "cues": {
       "type": "object",
       "propertyNames": {
@@ -685,9 +725,10 @@
                       "papa",
                       "baby",
                       "threat",
-                      "object"
+                      "object",
+                      "door"
                     ],
-                    "description": "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption def points at."
+                    "description": "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption def points at. `door` is the level's `ANCHOR_door` (story 3.5), for a generic event."
                   },
                   "maxRadiusM": {
                     "type": "number",
@@ -812,6 +853,7 @@
     "comboBadge",
     "papaHint",
     "bombDrop",
+    "door",
     "cues",
     "events"
   ],

@@ -37,6 +37,8 @@ const BODIES = {
   microSleepDefId: null,
   layDownDefIds: [] as string[],
   laidHeightM: 0.3,
+  door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
+  isMotionReduced: () => false,
 };
 
 function mesh(name: string, color: number): Mesh {
@@ -478,6 +480,7 @@ describe('createLevelScene', () => {
       shakeOffsetZM: 0,
       particlesAlive: 0,
       babyLayDownPct: 0,
+      doorOpenDeg: 0,
     });
   });
 
@@ -590,6 +593,56 @@ describe('createLevelScene', () => {
     expect(scene.getObjectsByProperty('name', 'sound_wave').every((wave) => !wave.visible)).toBe(
       true,
     );
+  });
+
+  it('stands a closed door panel in the room that swings open from the rush start on the sim clock (story 3.5)', () => {
+    const { scene, update, realFxState } = build();
+    const panels = scene.getObjectsByProperty('name', 'door_panel');
+    expect(panels).toHaveLength(1);
+    const world = fakeWorldAt(1000);
+    world.flow.finalRushAt = null;
+    update(world, 0);
+    expect(realFxState().doorOpenDeg).toBe(0);
+    const closedYaw = panels[0]?.rotation.y;
+    // The rush starts at 2000: the door is part open at 2350, open from 2700 on, and stays open.
+    world.flow.finalRushAt = asSimMs(2000);
+    update(fakeWorldAt(1999), 0);
+    expect(realFxState().doorOpenDeg).toBe(0);
+    update(fakeWorldAt(2350), 0);
+    expect(realFxState().doorOpenDeg).toBeGreaterThan(0);
+    expect(realFxState().doorOpenDeg).toBeLessThan(BODIES.door.openAngleDeg);
+    update(fakeWorldAt(2700), 0);
+    expect(realFxState().doorOpenDeg).toBe(BODIES.door.openAngleDeg);
+    update(fakeWorldAt(60_000), 0);
+    expect(realFxState().doorOpenDeg).toBe(BODIES.door.openAngleDeg);
+    expect(panels[0]?.rotation.y).not.toBeCloseTo(closedYaw ?? 0, 3);
+    world.flow.finalRushAt = null;
+  });
+
+  it('holds the door while the sim clock stands still, and keeps it open through resetFx', () => {
+    const { update, resetFx, realFxState } = build();
+    const world = fakeWorldAt(2200);
+    world.flow.finalRushAt = asSimMs(2000);
+    update(world, 0);
+    const half = realFxState().doorOpenDeg;
+    update(world, 0, asRealMs(5000));
+    expect(realFxState().doorOpenDeg).toBe(half);
+    resetFx();
+    expect(realFxState().doorOpenDeg).toBe(half);
+    world.flow.finalRushAt = null;
+  });
+
+  it('jumps the door open under reduced motion', () => {
+    const level = createLevelScene(
+      { id: 'test_room', geometry: createTestLevelGeometry('test_room'), model: buildModel() },
+      { ...BODIES, isMotionReduced: () => true },
+    );
+    const world = fakeWorldAt(2000);
+    world.flow.finalRushAt = asSimMs(2000);
+    level.update(world, 0, asRealMs(0));
+    expect(level.realFxState().doorOpenDeg).toBe(BODIES.door.openAngleDeg);
+    world.flow.finalRushAt = null;
+    level.dispose();
   });
 
   it('shakes the content root, not the lights, and is back to exactly zero after', () => {

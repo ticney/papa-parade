@@ -26,6 +26,12 @@ export {
   type ThreatCancelReason,
 } from './events.ts';
 export type { FeelPatch } from './feel/applyFeelPatch.ts';
+export {
+  type EndOfLevelShape,
+  type FinalRushShape,
+  finalRushProblems,
+  playableMsOf,
+} from './flow/finalRush.ts';
 export { type FlowState, isFlowLive } from './flow/flowFsm.ts';
 export type { Journal, JournalEntry } from './journal.ts';
 export { isPapaBusy, PAPA_STATES, type PapaState } from './papa/papaFsm.ts';

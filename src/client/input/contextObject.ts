@@ -38,6 +38,42 @@ export function pickContextObject(
   return bestId;
 }
 
+/** A prop of the world as the context action sees it: `PropSlice` fits. */
+export interface ContextProp {
+  readonly id: string;
+  readonly xM: number;
+  readonly zM: number;
+  readonly isMess: boolean;
+}
+
+/**
+ * The prop Space or A walks Papa to in the final rush (story 3.5): the nearest `isMess` prop to
+ * Papa on the floor, at most `reachM` away (inclusive), ties to the earlier one. Null when none is
+ * in reach. Allocates nothing.
+ */
+export function pickMessProp(
+  props: readonly ContextProp[],
+  papaXM: number,
+  papaZM: number,
+  reachM: number,
+): string | null {
+  const reachSquared = reachM * reachM;
+  let bestId: string | null = null;
+  let bestSquared = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < props.length; i++) {
+    const prop = props[i] as ContextProp;
+    if (!prop.isMess) continue;
+    const dx = prop.xM - papaXM;
+    const dz = prop.zM - papaZM;
+    const squared = dx * dx + dz * dz;
+    if (squared <= reachSquared && squared < bestSquared) {
+      bestId = prop.id;
+      bestSquared = squared;
+    }
+  }
+  return bestId;
+}
+
 /** Whether an object of `kind` is at most `reachM` from Papa (inclusive), nearest or not. Allocates nothing. */
 export function isKindInReach(
   objects: readonly ContextObject[],

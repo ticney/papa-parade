@@ -54,7 +54,7 @@ export type SimCommand =
    * Debug / test command, journaled like `StartDisruption` (story 4.4): starts the special sequence
    * `sequenceId` now. Ignored with no event when the level does not plan it or when
    * `sequenceRefusal(world)` is not null (one is under way, the level ended, Papa is busy, the
-   * baby is hiding or a phone is ringing). Nothing schedules a sequence in a normal level.
+   * baby is hiding, a phone is ringing or the final rush has begun). Nothing schedules a sequence in a normal level.
    */
   | { type: 'StartSequence'; t: SimMs; sequenceId: string }
   /**

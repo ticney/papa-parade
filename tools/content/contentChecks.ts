@@ -40,10 +40,12 @@ import {
   cycleProblems,
   cycleRoomForGeometry,
   duelLimitsOf,
+  finalRushProblems,
   GAG_IDS,
   OBJECT_ACTION_KINDS,
   openSafeCentreCountOf,
   PAPA_ASLEEP_GAG_ID,
+  playableMsOf,
   SIM_EVENT_TYPES,
   sequenceBeatProblems,
   sequenceDuelProblems,
@@ -757,12 +759,30 @@ function checkSequenceReferences(
     // The bedtime cycle (story 4.10): the words are `simLevelOf`'s, the function is shared with it. It
     // needs the room and the defs; a missing one is reported on its own.
     const cycleGeometry = families.geometries.get(id);
-    if (level.cycle !== undefined && cycleGeometry !== undefined && feel !== undefined) {
+    // The final rush (story 3.5): the same words as `simLevelOf`, with the level's own feel.
+    const merged = feel === undefined ? undefined : mergeFeel(feel, level.feelOverrides, file);
+    const endOfLevel = merged?.ok ? merged.value.endOfLevel : feel?.endOfLevel;
+    if (level.finalRush !== undefined && cycleGeometry !== undefined && endOfLevel !== undefined) {
+      for (const problem of finalRushProblems(
+        level.finalRush,
+        level.durationMs,
+        endOfLevel,
+        cycleGeometry.anchors.map((anchor) => anchor.id),
+      )) {
+        problems.push({ file, jsonPath: 'finalRush', message: `finalRush: ${problem}` });
+      }
+    }
+    if (
+      level.cycle !== undefined &&
+      cycleGeometry !== undefined &&
+      feel !== undefined &&
+      endOfLevel !== undefined
+    ) {
       for (const problem of cycleProblems(
         level.cycle,
         level.sequences,
         Object.fromEntries(families.sequences),
-        level.durationMs,
+        playableMsOf(level.durationMs, level.finalRush, endOfLevel),
         cycleRoomForGeometry(cycleGeometry, feel.movement.papaRadiusM),
       )) {
         problems.push({ file, jsonPath: 'cycle', message: `cycle: ${problem}` });
@@ -1200,6 +1220,13 @@ function checkLevelReferences(
         });
       }
       seenObjects.add(object.id);
+      if (geometry?.props.some((prop) => prop.id === object.id) === true) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['objects', index, 'id']),
+          message: `level ${id}: the prop "${object.id}" has the id of an object (a tap names one or the other)`,
+        });
+      }
       if (!(OBJECT_ACTION_KINDS as readonly string[]).includes(object.kind)) {
         problems.push({
           file,

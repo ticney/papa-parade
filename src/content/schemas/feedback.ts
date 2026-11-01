@@ -118,9 +118,9 @@ const SoundWaveSchema = z
   .strictObject({
     kind: z.literal('soundWave').describe('A ring on the floor that grows and fades.'),
     anchor: z
-      .enum(['papa', 'baby', 'threat', 'object'])
+      .enum(['papa', 'baby', 'threat', 'object', 'door'])
       .describe(
-        'Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption def points at.',
+        "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption def points at. `door` is the level's `ANCHOR_door` (story 3.5), for a generic event.",
       ),
     maxRadiusM: z.number().gt(0).max(3).describe('Radius of the ring when it is gone, in metres.'),
     durationMs: z
@@ -273,6 +273,29 @@ const PapaHintSchema = z
   })
   .describe('The hint above Papa (story 4.3). Real time: the sim never reads it.');
 
+const DoorSchema = z
+  .strictObject({
+    openMs: z
+      .number()
+      .positive()
+      .describe(
+        'How long the door takes to swing open once the final rush starts, in sim ms (story 3.5). Read on the render sim clock, so a pause or a slow-mo holds it.',
+      ),
+    openAngleDeg: z
+      .number()
+      .gt(0)
+      .max(170)
+      .describe(
+        'How far the door panel swings open, in degrees (the hinge is at the door anchor).',
+      ),
+    widthM: z.number().positive().describe("The door panel's width, in metres."),
+    heightM: z.number().positive().describe("The door panel's height, in metres."),
+    thicknessM: z.number().positive().describe("The door panel's thickness, in metres."),
+  })
+  .describe(
+    "The door on screen (story 3.5): a closed panel at the level's `ANCHOR_door` that swings open from the start of the final rush. Read per frame on the sim clock; the sim never reads it.",
+  );
+
 const BombDropSchema = z
   .strictObject({
     laidHeightM: z
@@ -347,6 +370,7 @@ export const FeedbackTableSchema = z
     comboBadge: ComboBadgeSchema,
     papaHint: PapaHintSchema,
     bombDrop: BombDropSchema,
+    door: DoorSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),

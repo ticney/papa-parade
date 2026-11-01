@@ -2,7 +2,7 @@ import { asSimMs } from '@shared/time';
 import { isBabyCarried, isSilenceUnderway } from '../baby/babyFsm.ts';
 import { stopPapa, takeBaby } from '../baby/carry.ts';
 import type { StepContext } from '../context.ts';
-import { enterFlowState } from '../flow/flowFsm.ts';
+import { enterFlowState, isFlowLive } from '../flow/flowFsm.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
 import { cancelThreat } from '../threats/threatFsm.ts';
 import {
@@ -17,20 +17,28 @@ import { sequenceDefOf } from './sequenceEnd.ts';
 import { enterSequenceStep } from './sequenceSteps.ts';
 import { placeBabyForStealth } from './stealthExit.ts';
 
-/** Why a sequence cannot start now. */
-export type SequenceRefusal = 'running' | 'ended' | 'papaBusy' | 'silence' | 'phoneRinging';
+/** Why a sequence cannot start now (`finalRush`: none starts in the last stretch of a level, story 3.5). */
+export type SequenceRefusal =
+  | 'running'
+  | 'ended'
+  | 'papaBusy'
+  | 'silence'
+  | 'phoneRinging'
+  | 'finalRush';
 
 /**
  * Why a sequence cannot start now, or null (story 4.4 D6): one is already under way (`running`),
  * the level is over (`ended`), Papa is busy with a coffee, a nap, a call or the toilet
  * (`papaBusy`), the baby is hiding in a suspicious silence (`silence`: `takeBaby` has no rule
  * for it), or a phone is ringing (`phoneRinging`: Papa cannot walk to it during a sequence, and the
- * ring would cost noise for a call he cannot answer). Pure and exported: the debug overlay says the
+ * ring would cost noise for a call he cannot answer), or the final rush has begun (`finalRush`, story
+ * 3.5: the last stretch of the level has no sequence). Pure and exported: the debug overlay says the
  * reason in plain English.
  */
 export function sequenceRefusal(world: World): SequenceRefusal | null {
   if (world.flow.state === 'sequence') return 'running';
-  if (world.flow.state === 'ended') return 'ended';
+  if (!isFlowLive(world)) return 'ended';
+  if (world.flow.state === 'finalRush') return 'finalRush';
   if (isPapaBusy(world.papa)) return 'papaBusy';
   if (isSilenceUnderway(world)) return 'silence';
   for (let i = 0; i < world.disruptions.length; i++) {

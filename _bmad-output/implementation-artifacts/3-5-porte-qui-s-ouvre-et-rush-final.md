@@ -1,6 +1,10 @@
+---
+baseline_commit: dbe4b3d85053b3c58839b6de7b9cba1a9f750777
+---
+
 # Story 3.5: Porte qui s'ouvre et rush final
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -69,32 +73,32 @@ Requirement: FR35 `[V1]`. First of the `[V1]` end-of-level stories: 3.6 (photo),
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Flow states, feel and level opt-in (AC: 1, 2, 3, 4, 5, 6, 21, 23)
-  - [ ] Add `finalRush` and `photo` to `FlowState` and `FLOW_STATES`; make `isFlowLive` false for `photo`
-  - [ ] Classify every reader of `flow.state` (table below)
-  - [ ] Add `feel.endOfLevel`, `LevelSchema.finalRush`, `SimLevel.hasFinalRush`, `finalRushProblems`; run `npm run content:schemas`
-  - [ ] `runFlow`: the order noise, cycle, timer, rush start; `endLevel` picks `photo` or `ended`
-  - [ ] `FinalRushStarted` in `events.ts` and its event list; `flow.finalRushAt` in `world.ts`
-  - [ ] Pass the playable time to `cycleProblems` in both callers
-  - [ ] Unit tests in `flowSystem.test.ts`, including a rush that cuts each sequence kind
-- [ ] Task 2: Tidying in the sim (AC: 9, 10, 11, 12, 22, 23)
-  - [ ] `PropSlice.isMess`, written in `runPhysics` step 6; `propsOnFloor` counts it
-  - [ ] `SimPropSpec.spawnM`; `PhysicsPort.resetProp` in `rapierPhysics.ts` and in every fake port in tests
-  - [ ] New `sim/papa/tidyProp.ts`; branch in `tapObject` and in `arrive`
-  - [ ] `PropTidied`, `score.propsTidied`
-  - [ ] Snapshot 28 and its checks; the object / prop id clash check
-  - [ ] Tests: AC 10 to 12, re-settling emits no `PropImpact` and no noise, a tidied prop can be knocked over and tidied again, snapshot round trip in the middle of a rush walk
-- [ ] Task 3: Door and cues (AC: 7, 8, 13)
-  - [ ] `env_door_key` and `env_prop_tidied` in `tools/audio/makePlaceholderAudio.ts`; run `npm run assets:audio`
-  - [ ] `door` in the ring anchor enum, the door point given to the feedback director
-  - [ ] `final_rush_started`, `prop_tidied` and the two `events` rows in `feedback.json`
-  - [ ] `feedback.json › door` schema (`openMs`, `openAngleDeg`, `widthM`, `heightM`, `thicknessM`)
-  - [ ] `render/views/doorView.ts`, pure helpers tested; wired in `levelScene.ts`
-- [ ] Task 4: Input, marker, timer, mirrors (AC: 14, 15, 16, 17, 18)
-  - [ ] Hit test and Space / A in `inputMapper.ts`; widen `pickObject` and `ContextObject`
-  - [ ] `ui/world/tidyMarkers.ts`, styles in `ui.css`, `verb.tidy`
-  - [ ] `timerHud.setRush`, reduced-motion rule (`designTokens.test.ts` enforces it)
-  - [ ] Mirrors in `boot.ts`; replace the literal at L1346; `inspectDist.ts`
+- [x] Task 1: Flow states, feel and level opt-in (AC: 1, 2, 3, 4, 5, 6, 21, 23)
+  - [x] Add `finalRush` and `photo` to `FlowState` and `FLOW_STATES`; make `isFlowLive` false for `photo`
+  - [x] Classify every reader of `flow.state` (table below)
+  - [x] Add `feel.endOfLevel`, `LevelSchema.finalRush`, `SimLevel.hasFinalRush`, `finalRushProblems`; run `npm run content:schemas`
+  - [x] `runFlow`: the order noise, cycle, timer, rush start; `endLevel` picks `photo` or `ended`
+  - [x] `FinalRushStarted` in `events.ts` and its event list; `flow.finalRushAt` in `world.ts`
+  - [x] Pass the playable time to `cycleProblems` in both callers
+  - [x] Unit tests in `flowSystem.test.ts`, including a rush that cuts each sequence kind
+- [x] Task 2: Tidying in the sim (AC: 9, 10, 11, 12, 22, 23)
+  - [x] `PropSlice.isMess`, written in `runPhysics` step 6; `propsOnFloor` counts it
+  - [x] `SimPropSpec.spawnM`; `PhysicsPort.resetProp` in `rapierPhysics.ts` and in every fake port in tests
+  - [x] New `sim/papa/tidyProp.ts`; branch in `tapObject` and in `arrive`
+  - [x] `PropTidied`, `score.propsTidied`
+  - [x] Snapshot 28 and its checks; the object / prop id clash check
+  - [x] Tests: AC 10 to 12, re-settling emits no `PropImpact` and no noise, a tidied prop can be knocked over and tidied again, snapshot round trip in the middle of a rush walk
+- [x] Task 3: Door and cues (AC: 7, 8, 13)
+  - [x] `env_door_key` and `env_prop_tidied` in `tools/audio/makePlaceholderAudio.ts`; run `npm run assets:audio`
+  - [x] `door` in the ring anchor enum, the door point given to the feedback director
+  - [x] `final_rush_started`, `prop_tidied` and the two `events` rows in `feedback.json`
+  - [x] `feedback.json › door` schema (`openMs`, `openAngleDeg`, `widthM`, `heightM`, `thicknessM`)
+  - [x] `render/views/doorView.ts`, pure helpers tested; wired in `levelScene.ts`
+- [x] Task 4: Input, marker, timer, mirrors (AC: 14, 15, 16, 17, 18)
+  - [x] Hit test and Space / A in `inputMapper.ts`; widen `pickObject` and `ContextObject`
+  - [x] `ui/world/tidyMarkers.ts`, styles in `ui.css`, `verb.tidy`
+  - [x] `timerHud.setRush`, reduced-motion rule (`designTokens.test.ts` enforces it)
+  - [x] Mirrors in `boot.ts`; replace the literal at L1346; `inspectDist.ts`
 - [ ] Task 5: Bots and report (AC: 19, 20)
   - [ ] `planTidy` in `threatTiming.ts`, wired in `perfectBot.ts` and `humanBot.ts`
   - [ ] `simReport.ts`, `simArgs.ts`, and the whole-report pins in `simReport.test.ts`

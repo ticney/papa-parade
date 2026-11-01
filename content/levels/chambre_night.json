@@ -75,6 +75,7 @@
     "retryInterludeMs": 8000,
     "gatherMaxMs": 6000
   },
+  "finalRush": { "spillAnchor": "nightstand" },
   "feelOverrides": {
     "bladder": {
       "startPct": 30

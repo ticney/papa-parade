@@ -397,6 +397,20 @@ const SequencesSchema = z
   })
   .describe('The special sequences (story 4.4).');
 
+const EndOfLevelSchema = z
+  .strictObject({
+    finalRushMs: durationMs(
+      'How long the final rush lasts, in sim ms: the door opens this long before the end of a level that opts in with `finalRush` (story 3.5).',
+    ),
+    doorSpillCount: z
+      .int()
+      .min(0)
+      .describe(
+        'How many props the door knocks over when it opens, at most (0 = none); only props that cannot break fall (story 3.5, D10).',
+      ),
+  })
+  .describe('The end of the level (story 3.5): the final rush and the door.');
+
 const StealthSchema = z
   .strictObject({
     sneakSpeedPct: z
@@ -817,6 +831,7 @@ export const FeelSchema = z
     noise: NoiseSchema,
     bladder: BladderSchema,
     sequences: SequencesSchema,
+    endOfLevel: EndOfLevelSchema,
     stealth: StealthSchema,
     instinct: InstinctSchema,
     difficulty: DifficultySchema,

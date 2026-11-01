@@ -17,6 +17,11 @@ export interface TimerHud {
    * bar sits under it. Writes the DOM only on a change.
    */
   setCompact(isCompact: boolean): void;
+  /**
+   * The final rush (story 3.5): the pill wears `pp-hud-timer--rush` (alert colour, a slow pulse unless
+   * motion is reduced) while the world's flow is `finalRush`. Writes the DOM only on a change; no new node.
+   */
+  setRush(isRush: boolean): void;
 }
 
 export interface TimerHudOptions {
@@ -86,6 +91,7 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
   let icon: SVGSVGElement | null = null;
   let clock = '';
   let isCompact = false;
+  let isRush = false;
 
   const refreshLabel = (): void => {
     const name = variant === null ? '' : t(VARIANT_KEYS[variant]);
@@ -111,6 +117,11 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
       element.classList.toggle('pp-hud-timer--compact', next);
       digits.classList.toggle('pp-type-numeric-compact', next);
       digits.classList.toggle('pp-type-numeric', !next);
+    },
+    setRush(next) {
+      if (next === isRush) return;
+      isRush = next;
+      element.classList.toggle('pp-hud-timer--rush', next);
     },
     setRemainingS(seconds) {
       clock = formatClock(seconds);

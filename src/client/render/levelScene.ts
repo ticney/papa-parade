@@ -26,6 +26,7 @@ import { createParticles, type ParticleStyle } from './vfx/particles.ts';
 import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
 import { createBabyView, layDownProgressPct } from './views/babyView.ts';
+import { createDoorView, type DoorLook, doorPlacementOf } from './views/doorView.ts';
 import { createPapaView, type PapaPose } from './views/papaView.ts';
 import { createPropView, type PropView } from './views/propView.ts';
 import { createViewPool, type ViewPool } from './views/viewPool.ts';
@@ -49,6 +50,10 @@ export interface SceneBodies {
   layDownDefIds: readonly string[];
   /** The height of the baby's centre once laid on the mattress, in metres (`feedback.json › bombDrop.laidHeightM`). */
   laidHeightM: number;
+  /** The door panel's numbers (`feedback.json › door`, story 3.5). */
+  door: DoorLook;
+  /** Read each frame: under reduced motion the door jumps open instead of swinging (story 3.5). */
+  isMotionReduced(): boolean;
 }
 
 /**
@@ -114,6 +119,8 @@ export interface LevelScene {
     particlesAlive: number;
     /** How far the carried baby was drawn lowered onto the mattress, 0 to 100 (story 4.8). */
     babyLayDownPct: number;
+    /** How far the door was drawn open, in degrees; 0 while it is shut (story 3.5). */
+    doorOpenDeg: number;
   };
   /** Where Papa was last drawn (interpolated), for the markers that follow him. */
   readonly papaPose: Readonly<PapaPose>;
@@ -344,6 +351,25 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
 
   const papa = createPapaView(content, toon, shadows.kit, bodies.papaRadiusM);
   const baby = createBabyView(content, toon, shadows.kit, bodies.babyRadiusM, bodies.laidHeightM);
+  // The closed door at `ANCHOR_door` (story 3.5): it opens from `world.flow.finalRushAt`, every frame.
+  const doorAnchor = geometry.anchors.find((anchor) => anchor.id === 'door');
+  const door =
+    doorAnchor === undefined
+      ? null
+      : createDoorView(
+          content,
+          toon,
+          bodies.door,
+          doorPlacementOf(
+            doorAnchor.positionM[0],
+            doorAnchor.positionM[2],
+            geometry.boundsMinM[0],
+            geometry.boundsMinM[2],
+            geometry.boundsMaxM[0],
+            geometry.boundsMaxM[2],
+            bodies.door.widthM,
+          ),
+        );
   const waves = createSoundWaves(content, PALETTE.ink);
   const shake = createShake(content);
   const particles = createParticles(content);
@@ -386,6 +412,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         shakeOffsetZM: shake.offsetM.z,
         particlesAlive: particles.aliveCount,
         babyLayDownPct: drawnLayDownPct,
+        doorOpenDeg: door?.openAngleDeg ?? 0,
       };
     },
     update(world, alpha, nowReal) {
@@ -401,6 +428,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       papa.setOnPhone(world.papa.state === 'onPhone');
       // Out of the room, in the toilet (story 4.3): not him, not his shadow.
       papa.setAway(world.papa.state === 'onToilet');
+      // The door, from the rush's start on the sim clock: a pause or a slow-mo holds it (story 3.5).
+      door?.update(world.flow.finalRushAt, clockMs, bodies.isMotionReduced());
       waves.update(clockMs);
       shake.update(nowReal);
       particles.update(nowReal);

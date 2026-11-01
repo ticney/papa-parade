@@ -4,6 +4,7 @@ import { applyCommands } from './commandQueue.ts';
 import type { StepContext, System } from './context.ts';
 import { runDirector } from './director/directorSystem.ts';
 import { runDisruptions } from './disruptions/disruptionsSystem.ts';
+import { isFlowLive } from './flow/flowFsm.ts';
 import { runFlow } from './flow/flowSystem.ts';
 import { runGauges } from './gauges/gaugesSystem.ts';
 import { runPapa } from './papa/papaSystem.ts';
@@ -35,7 +36,7 @@ import type { World } from './world.ts';
  * and `runFlow` gives the note (`scoreLevel`) in the step it ends the level. `runScoring` (story 4.2)
  * holds the combo's carry tick only: the rest of the combo is written where its event is made.
  *
- * Once the level has ended (`world.flow.state === 'ended'`, story 1.18) a step runs only
+ * Once the level has ended (`!isFlowLive(world)`: `ended` since story 1.18, `photo` since 3.5) a step runs only
  * {@link ENDED_SYSTEMS}: commands are drained and ignored, the clock keeps going (every
  * `while (time < until)` loop still ends, and a slow-mo winds down) and nothing else moves.
  */
@@ -59,6 +60,6 @@ export const SYSTEMS: readonly System[] = [
 export const ENDED_SYSTEMS: readonly System[] = [applyCommands, advanceTime];
 
 export function step(world: World, ctx: StepContext, systems: readonly System[] = SYSTEMS): void {
-  if (world.flow.state === 'ended') systems = ENDED_SYSTEMS;
+  if (!isFlowLive(world)) systems = ENDED_SYSTEMS;
   for (let i = 0; i < systems.length; i++) (systems[i] as System)(world, ctx);
 }
