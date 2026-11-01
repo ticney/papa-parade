@@ -587,6 +587,105 @@
       "additionalProperties": false,
       "description": "The bomb drop on screen (story 4.8). Read per frame on the sim clock; the sim never reads it."
     },
+    "characters": {
+      "type": "object",
+      "properties": {
+        "crossFadeMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long a clip takes to replace another, in sim ms."
+        },
+        "turnRateDegPerSec": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How fast a character's body turns to face its way, in degrees per sim second. The sim's heading and the baby's eyes do not wait for it."
+        },
+        "squash": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "event": {
+                "type": "string",
+                "enum": [
+                  "PapaArrived",
+                  "PapaBlocked",
+                  "BabyPickedUp",
+                  "BabyPutDown",
+                  "GagTriggered",
+                  "BabyWoke",
+                  "BabyStirred"
+                ],
+                "description": "The sim event that starts it."
+              },
+              "character": {
+                "type": "string",
+                "enum": [
+                  "papa",
+                  "baby"
+                ],
+                "description": "Who squashes."
+              },
+              "amountPct": {
+                "type": "number",
+                "minimum": -60,
+                "maximum": 60,
+                "description": "How much his height changes at the peak of the curve, in percent: below 0 he squashes first and then stretches, above 0 the other way round. His width follows so that his volume holds. The bounds keep his height strictly positive."
+              },
+              "durationMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How long it lasts, in sim ms."
+              }
+            },
+            "required": [
+              "event",
+              "character",
+              "amountPct",
+              "durationMs"
+            ],
+            "additionalProperties": false,
+            "description": "One squash and stretch: one event on one character."
+          },
+          "description": "Which events squash and stretch whom."
+        },
+        "clipSpeeds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clip": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+                "description": "The looping clip of a walk or a crawl, as named in the `.glb`."
+              },
+              "speedMps": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "The floor speed at which this clip plays at its own pace, in m/s: its feet do not slide at that speed. Faster or slower, it plays in proportion."
+              }
+            },
+            "required": [
+              "clip",
+              "speedMps"
+            ],
+            "additionalProperties": false,
+            "description": "The natural speed of one travelling clip."
+          },
+          "description": "The natural speed of the travelling clips."
+        }
+      },
+      "required": [
+        "crossFadeMs",
+        "turnRateDegPerSec",
+        "squash",
+        "clipSpeeds"
+      ],
+      "additionalProperties": false,
+      "description": "The animated characters (story 7.2). Read by the views on the sim clock; the sim never reads it."
+    },
     "cues": {
       "type": "object",
       "propertyNames": {
@@ -812,6 +911,7 @@
     "comboBadge",
     "papaHint",
     "bombDrop",
+    "characters",
     "cues",
     "events"
   ],

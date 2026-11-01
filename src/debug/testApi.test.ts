@@ -524,6 +524,7 @@ describe('installTestApi', () => {
         'perf',
         'send',
         'setFeel',
+        'setPapaLook',
         'state',
       ].sort(),
     );

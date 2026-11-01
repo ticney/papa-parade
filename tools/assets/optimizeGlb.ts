@@ -22,7 +22,8 @@ export function isOptimised(json: unknown): boolean {
   return used?.includes('EXT_meshopt_compression') === true;
 }
 
-function run(args: string[]): Promise<{ code: number | null; output: string }> {
+/** Runs the pinned `gltfpack` with `args`; never rejects: a failure to start is a `null` code. */
+export function runGltfpack(args: string[]): Promise<{ code: number | null; output: string }> {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [GLTFPACK_CLI, ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -62,7 +63,7 @@ async function main(): Promise<void> {
   }
 
   const temporary = `${target}.tmp.glb`;
-  const { code, output } = await run(['-i', target, '-o', temporary, ...GLTFPACK_FLAGS]);
+  const { code, output } = await runGltfpack(['-i', target, '-o', temporary, ...GLTFPACK_FLAGS]);
   if (code !== 0) {
     await rm(temporary, { force: true });
     log.error('assets', `gltfpack failed (exit ${code})`, output.trim());

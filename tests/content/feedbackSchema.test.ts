@@ -15,7 +15,7 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // The suffixes are spelled out, as in `feelSchema.test.ts`: a bare `M` would accept `gamM`. A new
 // unit gets a deliberate, commented entry here.
 // `pulses` is a count of rings, not a quantity: it has no unit. `laidHeightM` is a height in metres (story 4.8).
-const UNIT_SUFFIX = /(?:Pct|Ms|RadiusM|AmplitudeM|HeightM|^pulses)$/;
+const UNIT_SUFFIX = /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|^pulses)$/;
 
 type Json = Record<string, unknown>;
 

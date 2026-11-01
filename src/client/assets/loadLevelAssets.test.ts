@@ -1,5 +1,5 @@
 import { type Logger, log } from '@shared/log';
-import { Group } from 'three';
+import { AnimationClip, Group } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
 import { fetchBytesWithTimeout, type LoadLevelDeps, loadLevelAssets } from './loadLevelAssets.ts';
@@ -18,6 +18,7 @@ function deps(overrides: LoadLevelDeps = {}): LoadLevelDeps & { urls: string[] }
     },
     loadGeometryText: async (id) => geometryText(id),
     parseModel: async () => new Group(),
+    parseCharacter: async () => ({ scene: new Group(), animations: [] }),
     ...overrides,
   };
 }
@@ -49,8 +50,85 @@ describe('loadLevelAssets', () => {
     expect(result.value.id).toBe('test_room');
     expect(result.value.geometry.id).toBe('test_room');
     expect(result.value.model).toBeInstanceOf(Group);
-    expect(d.urls).toEqual(['./assets/levels/test_room.glb']);
+    expect(d.urls).toEqual([
+      './assets/levels/test_room.glb',
+      './assets/characters/papa.glb',
+      './assets/characters/baby.glb',
+    ]);
     expect(warnings).toEqual([]);
+  });
+
+  it('returns both characters with their clips, under their own base URL', async () => {
+    const bases: string[] = [];
+    const clip = new AnimationClip('idle', 1, []);
+    const result = await loadLevelAssets(
+      'test_room',
+      deps({
+        parseCharacter: async (_bytes, baseUrl) => {
+          bases.push(baseUrl);
+          return { scene: new Group(), animations: [clip] };
+        },
+      }),
+    );
+    if (!result.ok) throw new Error('expected the assets');
+    expect(result.value.characters.papa.animations).toEqual([clip]);
+    expect(result.value.characters.baby.animations).toEqual([clip]);
+    expect(bases).toEqual(['./assets/characters/', './assets/characters/']);
+  });
+
+  it('loads the three files in parallel: none waits for another', async () => {
+    const started: string[] = [];
+    let release: (() => void) | undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const loading = loadLevelAssets(
+      'test_room',
+      deps({
+        fetchBytes: async (url) => {
+          started.push(url);
+          await held;
+          return GLB;
+        },
+      }),
+    );
+    await Promise.resolve();
+    expect(started).toHaveLength(3);
+    release?.();
+    expect((await loading).ok).toBe(true);
+  });
+
+  describe.each(['papa', 'baby'])('a broken %s.glb', (character) => {
+    const file = `${character}.glb`;
+    const only =
+      (answer: () => Promise<Uint8Array>) =>
+      (url: string): Promise<Uint8Array> =>
+        url.endsWith(`/characters/${file}`) ? answer() : Promise.resolve(GLB);
+
+    it('is an error naming the file when it is missing, with one warn', async () => {
+      const message = await errorOf({
+        fetchBytes: only(() => Promise.reject(new Error('HTTP 404'))),
+      });
+      expect(message).toBe(`cannot fetch ${file}: HTTP 404`);
+      expect(warnings).toHaveLength(1);
+    });
+
+    it('is an error naming the file when HTML is served in its place', async () => {
+      const html = new TextEncoder().encode('<!doctype html>');
+      const message = await errorOf({ fetchBytes: only(() => Promise.resolve(html)) });
+      expect(message).toBe(`${file} is not a glTF binary (it does not start with "glTF")`);
+    });
+
+    it('is an error naming the file when it cannot be parsed', async () => {
+      const message = await errorOf({
+        fetchBytes: only(() => Promise.resolve(new Uint8Array([...GLB, 1]))),
+        parseCharacter: async (bytes) => {
+          if (bytes.length > GLB.length) throw new Error('bad accessor');
+          return { scene: new Group(), animations: [] };
+        },
+      });
+      expect(message).toBe(`cannot parse ${file}: bad accessor`);
+    });
   });
 
   it('fails with a message naming the glb when the fetch rejects', async () => {

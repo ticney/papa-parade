@@ -2,10 +2,12 @@ import { asSimMs } from '@shared/time';
 import type { BabySlice, World } from '@sim';
 import { type Mesh, Scene } from 'three';
 import { describe, expect, it } from 'vitest';
+import { createTestBaby } from '../../../../tests/support/testCharacters.ts';
 import { createBlobKit } from '../blobShadow.ts';
 import { layDownPctAt } from '../levelScene.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
 import { BABY_CARRIED_HEIGHT_M, createBabyView, layDownProgressPct } from './babyView.ts';
+import { createCharacterRig } from './characterRig.ts';
 
 // The descent of the bomb drop on screen (story 4.8): the carried baby is lowered linearly from Papa's
 // chest to the laid height, from the telegraph to the final pose, on the render's sim clock.
@@ -95,60 +97,60 @@ describe('the carried baby lowered onto the mattress (story 4.8)', () => {
       gazeX: 0,
       gazeZ: 1,
     }) as unknown as BabySlice;
-  const build = () => {
-    const scene = new Scene();
-    const view = createBabyView(
+  const MOTION = { turnRateDegPerSec: 720, clips: [] };
+  const viewOf = (scene: Scene, laid?: number) =>
+    createBabyView(
       scene,
-      createToonMaterialCache(),
       createBlobKit(),
       radiusM,
-      laidHeightM,
+      createCharacterRig(createTestBaby(), createToonMaterialCache(), 100),
+      MOTION,
+      laid,
     );
+  const build = () => {
+    const scene = new Scene();
+    const view = viewOf(scene, laidHeightM);
     const body = scene.getObjectByName('baby') as Mesh;
     return { view, body };
   };
+  // The group stands on his feet: the height of his centre, what the descent aims at, is a radius above.
+  const centreOf = (body: Mesh): number => body.position.y + radiusM;
 
   it('carries him at Papa’s chest with no lowering, and lays him at the laid height at 100', () => {
     const { view, body } = build();
     view.update(carried(), 1, undefined, 0);
-    expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
+    expect(centreOf(body)).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
     view.update(carried(), 1, undefined, 100);
-    expect(body.position.y).toBeCloseTo(laidHeightM, 12);
+    expect(centreOf(body)).toBeCloseTo(laidHeightM, 12);
   });
 
   it('goes down linearly and comes back up at once', () => {
     const { view, body } = build();
     view.update(carried(), 1, undefined, 50);
-    expect(body.position.y).toBeCloseTo((BABY_CARRIED_HEIGHT_M + laidHeightM) / 2, 12);
+    expect(centreOf(body)).toBeCloseTo((BABY_CARRIED_HEIGHT_M + laidHeightM) / 2, 12);
     view.update(carried(), 1, undefined, 0);
-    expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
+    expect(centreOf(body)).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
   });
 
   it('never lowers him under the floor, whatever the laid height', () => {
     const scene = new Scene();
-    const view = createBabyView(
-      scene,
-      createToonMaterialCache(),
-      createBlobKit(),
-      radiusM,
-      radiusM / 2,
-    );
+    const view = viewOf(scene, radiusM / 2);
     const body = scene.getObjectByName('baby') as Mesh;
     view.update(carried(), 1, undefined, 100);
-    expect(body.position.y).toBeCloseTo(radiusM, 12);
+    expect(centreOf(body)).toBeCloseTo(radiusM, 12);
   });
 
   it('does not lower a baby who is not in the arms', () => {
     const { view, body } = build();
     view.update({ ...carried(), state: 'babble' }, 1, undefined, 100);
-    expect(body.position.y).toBe(radiusM);
+    expect(centreOf(body)).toBe(radiusM);
   });
 
   it('keeps the default of an older caller: no lowering without a laid height', () => {
     const scene = new Scene();
-    const view = createBabyView(scene, createToonMaterialCache(), createBlobKit(), radiusM);
+    const view = viewOf(scene);
     const body = scene.getObjectByName('baby') as Mesh;
     view.update(carried(), 1, undefined, 100);
-    expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
+    expect(centreOf(body)).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
   });
 });

@@ -1,6 +1,7 @@
 import type { LevelStartOptions } from '@client/app/levelSession';
 import type { CuePlayedRecord, FxState, TestHost } from '@client/app/testHost';
 import type { SoundedNote } from '@client/audio/beatScheduler';
+import type { PapaLook } from '@client/render/views/papaView';
 import {
   ADVANCE_MAX_STEPS,
   TEST_API_BEAT_NOTES_MAX,
@@ -92,6 +93,8 @@ export interface PPTestApi {
    * the stamps shown so far. Reduced motion shows as a turn of 0 and an offset of 0.
    */
   fx(): FxState;
+  /** Shows the parts of Papa's look (story 7.2: nothing in a game sets it until story 3.7). */
+  setPapaLook(look: PapaLook): void;
   /** A copy of what the level's frames measured so far: frame intervals (real ms), draw calls, triangles. */
   perf(): PerfReport;
 }
@@ -283,6 +286,9 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
       };
     },
 
+    setPapaLook(look) {
+      host.setPapaLook(look);
+    },
     fx() {
       return host.fxState();
     },

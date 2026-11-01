@@ -1,16 +1,16 @@
 import { looksLikeGameplayNode, parseNodeName } from '@content/levelNodeNames';
+import type { FeedbackTable } from '@content/schemas/feedback';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { PAPA_TARGET_ANCHOR_ID, STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import type { RealMs, SimMs } from '@shared/time';
-import type { GagId, PropSlice, World } from '@sim';
+import type { GagId, PropSlice, SimEvent, World } from '@sim';
 import {
   AmbientLight,
   BoxGeometry,
   Color,
   DirectionalLight,
   Group,
-  type Material,
   Mesh,
   type Object3D,
   Scene,
@@ -20,14 +20,22 @@ import { addBlobShadows } from './blobShadow.ts';
 import { createGagFx } from './gags.ts';
 import type { RoomSize } from './isoCamera.ts';
 import { PALETTE } from './materials/palette.ts';
-import { createToonMaterialCache } from './materials/toonMaterial.ts';
+import { createToonMaterialCache, swapToToon } from './materials/toonMaterial.ts';
 import { createLiftFx } from './vfx/liftHop.ts';
 import { createParticles, type ParticleStyle } from './vfx/particles.ts';
 import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
 import { createBabyView, layDownProgressPct } from './views/babyView.ts';
-import { createPapaView, type PapaPose } from './views/papaView.ts';
+import {
+  babyLidsAfter,
+  babyOneShotOf,
+  papaOneShotOf,
+  responseClipOf,
+} from './views/characterClips.ts';
+import { createCharacterRig } from './views/characterRig.ts';
+import { createPapaView, type PapaLook, type PapaPose } from './views/papaView.ts';
 import { createPropView, type PropView } from './views/propView.ts';
+import { type SquashScale, squashScaleAt } from './views/squash.ts';
 import { createViewPool, type ViewPool } from './views/viewPool.ts';
 import { createViewRegistry } from './views/viewRegistry.ts';
 
@@ -49,6 +57,8 @@ export interface SceneBodies {
   layDownDefIds: readonly string[];
   /** The height of the baby's centre once laid on the mattress, in metres (`feedback.json › bombDrop.laidHeightM`). */
   laidHeightM: number;
+  /** How the characters move (`feedback.json › characters`). */
+  characters: FeedbackTable['characters'];
 }
 
 /**
@@ -90,6 +100,17 @@ export interface LevelFx {
   ): void;
   /** The provisional « lift the baby » pose: a short hop of the baby. */
   liftBaby(startAt: SimMs): void;
+  /** Papa's pose for a response he has arrived at (P3: the sound fired at the judgement). */
+  playResponseClip(response: string, quality: string): void;
+  /**
+   * What a sim event plays on the characters: one-shots, the baby's lids and, unless `isMotionReduced`,
+   * the squash. The clips stay under reduced motion: a pose carries state (story 7.2, D7).
+   */
+  playCharacterEvent(
+    event: Readonly<SimEvent>,
+    world: Readonly<World>,
+    isMotionReduced: boolean,
+  ): void;
 }
 
 export interface LevelScene {
@@ -114,7 +135,15 @@ export interface LevelScene {
     particlesAlive: number;
     /** How far the carried baby was drawn lowered onto the mattress, 0 to 100 (story 4.8). */
     babyLayDownPct: number;
+    /** The clip Papa is seen playing, or null. */
+    papaClip: string | null;
+    /** The clip the baby is seen playing, or null. */
+    babyClip: string | null;
+    /** Papa's mixer clock, in sim ms. */
+    papaMixerMs: number;
   };
+  /** Shows the parts of Papa's look. Nothing in a game sets it until story 3.7 (story 7.2, D2). */
+  setPapaLook(look: Readonly<PapaLook>): void;
   /** Where Papa was last drawn (interpolated), for the markers that follow him. */
   readonly papaPose: Readonly<PapaPose>;
   /**
@@ -203,23 +232,22 @@ function isHiddenInGame(name: string): boolean {
   return false;
 }
 
-function disposeMaterial(material: Material | Material[]): void {
-  for (const one of Array.isArray(material) ? material : [material]) one.dispose();
-}
-
 function disposeObject(object: Object3D): void {
   object.traverse((child) => {
     if (child instanceof Mesh) {
       child.geometry.dispose();
-      disposeMaterial(child.material);
+      for (const one of Array.isArray(child.material) ? child.material : [child.material]) {
+        one.dispose();
+      }
     }
   });
 }
 
-function originalColor(material: Material | Material[]): Color {
-  const one = Array.isArray(material) ? material[0] : material;
-  const color = (one as { color?: unknown } | undefined)?.color;
-  return color instanceof Color ? color : new Color(PALETTE.cream);
+/** A squash under way on one character. Reused: nothing is allocated when one starts. */
+interface SquashRun {
+  startAt: number | null;
+  amountPct: number;
+  durationMs: number;
 }
 
 /**
@@ -280,10 +308,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
 
   const toon = createToonMaterialCache();
   model.traverse((node) => {
-    if (!(node instanceof Mesh)) return;
-    const original = node.material;
-    node.material = toon.get(originalColor(original));
-    disposeMaterial(original);
+    if (node instanceof Mesh) swapToToon(node, toon);
   });
   // The room, its shadows, Papa, the baby and the waves live under one root: a shake moves the
   // root, not the camera, so the framing and the world UI layer stay put. The lights stay outside.
@@ -342,8 +367,24 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     },
   });
 
-  const papa = createPapaView(content, toon, shadows.kit, bodies.papaRadiusM);
-  const baby = createBabyView(content, toon, shadows.kit, bodies.babyRadiusM, bodies.laidHeightM);
+  const { crossFadeMs, turnRateDegPerSec, clipSpeeds, squash } = bodies.characters;
+  const motion = { turnRateDegPerSec, clips: clipSpeeds };
+  const papa = createPapaView(
+    content,
+    toon,
+    shadows.kit,
+    bodies.papaRadiusM,
+    createCharacterRig(assets.characters.papa, toon, crossFadeMs),
+    motion,
+  );
+  const baby = createBabyView(
+    content,
+    shadows.kit,
+    bodies.babyRadiusM,
+    createCharacterRig(assets.characters.baby, toon, crossFadeMs),
+    motion,
+    bodies.laidHeightM,
+  );
   const waves = createSoundWaves(content, PALETTE.ink);
   const shake = createShake(content);
   const particles = createParticles(content);
@@ -360,6 +401,26 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const lift = createLiftFx((heightM) => baby.setLiftM(heightM));
   /** The lowering of the baby as last drawn (story 4.8), read by the debug `fx()`. */
   let drawnLayDownPct = 0;
+  /** The clock of the last frame: the mixers advance by its difference alone (D6). */
+  let lastClockMs: number | null = null;
+  let babyLids = 0;
+  const papaSquash: SquashRun = { startAt: null, amountPct: 0, durationMs: 0 };
+  const babySquash: SquashRun = { startAt: null, amountPct: 0, durationMs: 0 };
+  const squashScale: SquashScale = { xz: 1, y: 1 };
+  /** Writes one character's squash for `clockMs`: only while one runs, and a last time when it ends. */
+  const applySquash = (
+    run: SquashRun,
+    clockMs: number,
+    setSquash: (xz: number, y: number) => void,
+  ): void => {
+    if (run.startAt === null) return;
+    const elapsedMs = clockMs - run.startAt;
+    squashScaleAt(run.amountPct, elapsedMs, run.durationMs, squashScale);
+    setSquash(squashScale.xz, squashScale.y);
+    if (elapsedMs >= run.durationMs) run.startAt = null;
+  };
+  const setPapaSquash = (xz: number, y: number): void => papa.setSquash(xz, y);
+  const setBabySquash = (xz: number, y: number): void => baby.setSquash(xz, y);
   const fx: LevelFx = {
     soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
       waves.play(xM, zM, maxRadiusM, durationMs, startAt),
@@ -370,6 +431,28 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     gag: (gag, startAt, isMotionReduced, slideDirX, slideDirZ) =>
       gags.start(gag, startAt, isMotionReduced, slideDirX, slideDirZ),
     liftBaby: (startAt) => lift.start(startAt),
+    playResponseClip(response, quality) {
+      const clip = responseClipOf(response, quality);
+      if (clip !== null) papa.playOnce(clip);
+    },
+    playCharacterEvent(event, world, isMotionReduced) {
+      const papaClip = papaOneShotOf(event);
+      // A gag during a glide plays as his squash alone: the glide's loop goes on (P3).
+      if (papaClip !== null && world.papa.state !== 'glide') papa.playOnce(papaClip);
+      const babyClip = babyOneShotOf(event);
+      if (babyClip !== null) baby.playOnce(babyClip);
+      babyLids = babyLidsAfter(event, babyLids);
+      baby.setEyelids(babyLids);
+      if (isMotionReduced) return;
+      for (let i = 0; i < squash.length; i++) {
+        const row = squash[i] as (typeof squash)[number];
+        if (row.event !== event.type) continue;
+        const run = row.character === 'papa' ? papaSquash : babySquash;
+        run.startAt = event.t;
+        run.amountPct = row.amountPct;
+        run.durationMs = row.durationMs;
+      }
+    },
   };
 
   return {
@@ -386,13 +469,27 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         shakeOffsetZM: shake.offsetM.z,
         particlesAlive: particles.aliveCount,
         babyLayDownPct: drawnLayDownPct,
+        papaClip: papa.clipName,
+        babyClip: baby.clipName,
+        papaMixerMs: papa.mixerTimeMs,
       };
+    },
+    setPapaLook(look) {
+      papa.setLook(look);
     },
     update(world, alpha, nowReal) {
       papa.update(world.papa, alpha);
       const clockMs = world.time.sim + alpha * STEP_MS;
       drawnLayDownPct = layDownPctAt(world, clockMs, bodies.layDownDefIds);
       baby.update(world.baby, alpha, world.papa, drawnLayDownPct);
+      // The sim's clock drives the mixers: it stands still in a pause and a hitstop, slows in a slow-mo.
+      // `alpha` can step back at a boundary, and a negative time would run a clip backwards (D6).
+      const dtMs = lastClockMs === null ? 0 : Math.max(0, clockMs - lastClockMs);
+      lastClockMs = clockMs;
+      papa.animate(world.papa, world.baby, dtMs);
+      baby.animate(world.baby, dtMs);
+      applySquash(papaSquash, clockMs, setPapaSquash);
+      applySquash(babySquash, clockMs, setBabySquash);
       props.sync(world.props, alpha);
       // Papa's nap, coffee and call, from the world every frame (stories 1.19, 1.20; diegetic, no overlay).
       papa.setEyelids(eyelidsAmountAt(world, clockMs, bodies.microSleepDefId));
@@ -413,8 +510,17 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       particles.reset();
       gags.reset();
       lift.reset();
+      lastClockMs = null;
+      papaSquash.startAt = null;
+      babySquash.startAt = null;
+      babyLids = 0;
+      papa.resetAnimation();
+      baby.resetAnimation();
     },
     dispose() {
+      // Skeletons first: `disposeObject` handles meshes only and would leave their bone textures (D11).
+      papa.dispose();
+      baby.dispose();
       props.dispose();
       waves.dispose();
       particles.dispose();

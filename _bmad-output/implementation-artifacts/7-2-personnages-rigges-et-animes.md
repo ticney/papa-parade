@@ -4,7 +4,7 @@ baseline_commit: 76c6517e16d1a22d14927727fd86af951f226a41
 
 # Story 7.2: Personnages riggés et animés
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -44,49 +44,49 @@ The epics' criterion is: *given rigged `.glb` files in `public/assets/characters
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Spike one rigged character through the whole pipeline** (AC 1, D3, D4)
-  - [ ] Read « Blender access » first. In a copy under the scratchpad, build a two-bone, two-material mesh with two actions and a hidden child mesh parented to a bone.
-  - [ ] Export with a draft `export_character.py`, then `gltfpack`, then load it in the browser with a mixer and a `MeshToonMaterial`.
-  - [ ] Check, and write in the completion notes: the exact exporter arguments on Blender 5.2.3 (read them from `bpy.ops.export_scene.gltf.get_rna_type()`, do not trust memory); that each action exports as one clip under its own name (Blender 5 actions have slots: a headless script must assign `action_slot` too); that bone and hidden node names survive `-kn`; that clips with held poses survive gltfpack's constant-track removal, or that `-ac` is needed; that 30 Hz resampling and the default 12-bit rotations keep the poses clean; that the skinned mesh is not moved or displaced by quantisation.
-  - [ ] Record the final flags as `CHARACTER_GLTFPACK_FLAGS`. Do not change `GLTFPACK_FLAGS`: the rooms stay byte-identical.
-- [ ] **T1. Guard test, before any modelling** (AC 9, D4, D10)
-  - [ ] Add the five `CHARACTER_*` constants to `src/shared/constants.ts`, with a comment saying what they reserve.
-  - [ ] `tools/assets/characterArt.ts` (pure, reuses `reservedHueProblems` and `roomMaterialProblems` of `roomArt.ts`; extend those only by parameters): `characterBudgetOf(json)`, `characterRigProblems(json, contract)`. Test in `tests/tools/assets/characterArt.test.ts`, one failing fixture per rule, including a missing clip, a missing bone, a joint with more than 4 influences if readable from the JSON, a texture, and over-budget counts.
-  - [ ] `tests/architecture/characterAssets.test.ts`: runs them on both committed `.glb` files, and checks every clip named in `feedback.json › characters` and in `src/client/render/views/characterClips.ts` exists in the file.
-- [ ] **T2. Pipeline** (AC 1, D3)
-  - [ ] `tools/blender/export_character.py`, `tools/assets/exportCharacter.ts`, `tools/assets/optimizeCharacter.ts`, and `characterBlendPath` / `characterGlbPath` in `paths.ts`. Reuse `findBlender` and factor the `gltfpack` runner of `optimizeGlb.ts` without changing its behaviour. Scripts `assets:character:export` and `assets:character:optimize`.
-  - [ ] Do not route characters through `export_level.py`: it refuses a scene with no `NAV_floor` and pins skins and animations off, and `blenderConventions.test.ts` compares it to the TypeScript rules.
-- [ ] **T3. Loading** (AC 1, D11)
-  - [ ] `gltf.ts`: add `parseCharacterGlb(bytes, baseUrl)` returning `{ scene, animations }`. Today `parseGlb` returns `gltf.scene` alone, so **every clip would be dropped silently**. `parseGlb` stays as it is.
-  - [ ] `loadLevelAssets.ts`: `LevelAssets.characters: { papa, baby }`, with an injectable `parseCharacter`, the same magic check and the same `err` wording. The three files load in parallel. Tests for each failure.
-  - [ ] `dist:check` (`tools/build/inspectDist.ts`): add both characters to every level's payload and gzip totals, report a missing file as a problem (the budget must not be vacuous), and each over `CHARACTER_GLB_MAX_BYTES` as one. Fixtures in its test.
-- [ ] **T4. Data** (AC 5, D7)
-  - [ ] `feedback.json › characters`: `crossFadeMs`, `turnRateDegPerSec`, `squash` (one row per trigger: `event`, `amountPct`, `durationMs`), walk clip speeds. `FeedbackSchema` first, then `npm run content:schemas`. Bounds in the schema: `amountPct` keeps the height strictly positive.
-- [ ] **T5. The character kit, with no art** (AC 3, 4, 5, 10)
-  - [ ] `src/client/render/views/characterClips.ts`: `papaClipOf(papa, baby)`, `babyClipOf(baby)`, the two `Record`s, the clip names. Pure, no Three.
-  - [ ] `src/client/render/views/characterRig.ts`: `createCharacterRig(asset, toon)`: swaps materials through the toon cache by colour, sets `frustumCulled = false`, makes one mixer with every action created up front, `play(clip)`, `playOnce(clip)`, `update(dtMs)`, `dispose()`. A test fixture builds a small skinned mesh in code (`tests/support` or next to the test).
-  - [ ] `squashScaleAt(amountPct, elapsedMs, durationMs, out)` pure, volume-preserving (`y = s`, `x = z = 1 / √s`), back to exactly 1 at the end, in `src/client/render/views/squash.ts`.
-  - [ ] Allocation check: nothing in `update` allocates once the clips have played once. Existing rule; prove it by reading, and let `perf.spec.ts` confirm.
-- [ ] **T6. Model and animate Papa** (AC 6, 8, D3, D8)
-  - [ ] Inventory under « Character contract ». Look in the browser at both sizes through the autoplay, not in a Blender render (GDD: the modelling tool's render does not carry over).
-- [ ] **T7. Model and animate the baby** (AC 6, D3, D8)
-  - [ ] Huge head, big eyes, readable gaze from the fixed camera. White alone fails on the pale safe-zone floors (7.1 review): give him a colour that keeps him apart.
-- [ ] **T8. Wire the views** (AC 3, 4, 6, 7)
-  - [ ] Rewrite `papaView.ts` and `babyView.ts` on the kit: **every method keeps its signature and its meaning**. Remove the cube, the sphere and the code that only they used. `PAPA_HEIGHT_M` and `BABY_CARRIED_*` stay, since UI and input read them.
-  - [ ] `levelScene.ts`: pass `assets.characters`; advance both mixers with the sim-clock delta (D6); `resetFx` clears one-shots and squash; `dispose` frees skeletons (D11). Add `playCharacterEvent` to `LevelFx`, called from `onSimEvent` in `boot.ts`, skipped for squash under reduced motion like `noLiftFx`.
-  - [ ] Response clips follow P3: the sound fires at judgement, and the clip plays on arrival (`PapaArrived`, through `responseChoreography.ts`). A gag during a glide plays in parallel, on the upper body or as squash; it must never stop the glide.
-  - [ ] `gags.ts`: `GagPresentation` gains `papaClip` and `babyClip` (`string | null`). Replace the « until E7 » comments that this resolves.
-  - [ ] Smooth Papa's body turn (shortest arc, `turnRateDegPerSec`). `pose.yawRad` stays the sim's: whatever reads it must not lag. **The baby's gaze stays immediate**, since the eyes are what the player reads.
-  - [ ] `realFxState()` and `__PP__.fx()` gain `papaClip`, `babyClip`; `testHost` gains a debug `setPapaLook`. Check `dist:check`'s prod markers still pass.
-- [ ] **T9. Prove nothing moved** (AC 2, 6, 7, 11)
-  - [ ] `git diff --stat main` on the paths of AC 2 is empty; `npm run ci:fast`; the four bots on both levels against `main` with `--seed 1`.
-  - [ ] Update unit tests that pinned the cube (`levelScene.test.ts`, `papaView.test.ts`, `babyView.test.ts`, `layDown.test.ts`) to the same behaviour on the fixture rig. An assertion may change its subject, never lose its meaning; say which ones changed.
-  - [ ] `tests/e2e/characters.spec.ts` (clips change, a hitstop freezes the mixer's time, a pause too, the look shows). Run on Chromium with the specs that pin the views: `level`, `carry`, `feedback`, `autoplay`, `testApi`, plus whichever covers the sequences.
-- [ ] **T10. Performance and delivery** (AC 9, 12), under `caffeinate`, one at a time
-  - [ ] `npm run build:playtest`, `npm run dist:check -- --flavor playtest`, then `npx playwright test -c playwright.dist.config.ts --project perf --workers=1`, then with `PP_PERF_LEVEL=chambre_night`. Write the numbers in the story.
-  - [ ] `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` (macOS only, deliberate). Look at the images and say so.
-  - [ ] Screenshots in `_bmad-output/implementation-artifacts/7-2-screenshots/`: each character walking, carrying, asleep, on the phone, in a gag, and each look part. **State what you saw by eye and what you did not capture.**
-- [ ] **T11. Close the deferred items and record the debts** (see Dev Notes)
+- [x] **T0. Spike one rigged character through the whole pipeline** (AC 1, D3, D4)
+  - [x] Read « Blender access » first. In a copy under the scratchpad, build a two-bone, two-material mesh with two actions and a hidden child mesh parented to a bone.
+  - [x] Export with a draft `export_character.py`, then `gltfpack`, then load it in the browser with a mixer and a `MeshToonMaterial`.
+  - [x] Check, and write in the completion notes: the exact exporter arguments on Blender 5.2.3 (read them from `bpy.ops.export_scene.gltf.get_rna_type()`, do not trust memory); that each action exports as one clip under its own name (Blender 5 actions have slots: a headless script must assign `action_slot` too); that bone and hidden node names survive `-kn`; that clips with held poses survive gltfpack's constant-track removal, or that `-ac` is needed; that 30 Hz resampling and the default 12-bit rotations keep the poses clean; that the skinned mesh is not moved or displaced by quantisation.
+  - [x] Record the final flags as `CHARACTER_GLTFPACK_FLAGS`. Do not change `GLTFPACK_FLAGS`: the rooms stay byte-identical.
+- [x] **T1. Guard test, before any modelling** (AC 9, D4, D10)
+  - [x] Add the five `CHARACTER_*` constants to `src/shared/constants.ts`, with a comment saying what they reserve.
+  - [x] `tools/assets/characterArt.ts` (pure, reuses `reservedHueProblems` and `roomMaterialProblems` of `roomArt.ts`; extend those only by parameters): `characterBudgetOf(json)`, `characterRigProblems(json, contract)`. Test in `tests/tools/assets/characterArt.test.ts`, one failing fixture per rule, including a missing clip, a missing bone, a joint with more than 4 influences if readable from the JSON, a texture, and over-budget counts.
+  - [x] `tests/architecture/characterAssets.test.ts`: runs them on both committed `.glb` files, and checks every clip named in `feedback.json › characters` and in `src/client/render/views/characterClips.ts` exists in the file.
+- [x] **T2. Pipeline** (AC 1, D3)
+  - [x] `tools/blender/export_character.py`, `tools/assets/exportCharacter.ts`, `tools/assets/optimizeCharacter.ts`, and `characterBlendPath` / `characterGlbPath` in `paths.ts`. Reuse `findBlender` and factor the `gltfpack` runner of `optimizeGlb.ts` without changing its behaviour. Scripts `assets:character:export` and `assets:character:optimize`.
+  - [x] Do not route characters through `export_level.py`: it refuses a scene with no `NAV_floor` and pins skins and animations off, and `blenderConventions.test.ts` compares it to the TypeScript rules.
+- [x] **T3. Loading** (AC 1, D11)
+  - [x] `gltf.ts`: add `parseCharacterGlb(bytes, baseUrl)` returning `{ scene, animations }`. Today `parseGlb` returns `gltf.scene` alone, so **every clip would be dropped silently**. `parseGlb` stays as it is.
+  - [x] `loadLevelAssets.ts`: `LevelAssets.characters: { papa, baby }`, with an injectable `parseCharacter`, the same magic check and the same `err` wording. The three files load in parallel. Tests for each failure.
+  - [x] `dist:check` (`tools/build/inspectDist.ts`): add both characters to every level's payload and gzip totals, report a missing file as a problem (the budget must not be vacuous), and each over `CHARACTER_GLB_MAX_BYTES` as one. Fixtures in its test.
+- [x] **T4. Data** (AC 5, D7)
+  - [x] `feedback.json › characters`: `crossFadeMs`, `turnRateDegPerSec`, `squash` (one row per trigger: `event`, `amountPct`, `durationMs`), walk clip speeds. `FeedbackSchema` first, then `npm run content:schemas`. Bounds in the schema: `amountPct` keeps the height strictly positive.
+- [x] **T5. The character kit, with no art** (AC 3, 4, 5, 10)
+  - [x] `src/client/render/views/characterClips.ts`: `papaClipOf(papa, baby)`, `babyClipOf(baby)`, the two `Record`s, the clip names. Pure, no Three.
+  - [x] `src/client/render/views/characterRig.ts`: `createCharacterRig(asset, toon)`: swaps materials through the toon cache by colour, sets `frustumCulled = false`, makes one mixer with every action created up front, `play(clip)`, `playOnce(clip)`, `update(dtMs)`, `dispose()`. A test fixture builds a small skinned mesh in code (`tests/support` or next to the test).
+  - [x] `squashScaleAt(amountPct, elapsedMs, durationMs, out)` pure, volume-preserving (`y = s`, `x = z = 1 / √s`), back to exactly 1 at the end, in `src/client/render/views/squash.ts`.
+  - [x] Allocation check: nothing in `update` allocates once the clips have played once. Existing rule; prove it by reading, and let `perf.spec.ts` confirm.
+- [x] **T6. Model and animate Papa** (AC 6, 8, D3, D8)
+  - [x] Inventory under « Character contract ». Look in the browser at both sizes through the autoplay, not in a Blender render (GDD: the modelling tool's render does not carry over).
+- [x] **T7. Model and animate the baby** (AC 6, D3, D8)
+  - [x] Huge head, big eyes, readable gaze from the fixed camera. White alone fails on the pale safe-zone floors (7.1 review): give him a colour that keeps him apart.
+- [x] **T8. Wire the views** (AC 3, 4, 6, 7)
+  - [x] Rewrite `papaView.ts` and `babyView.ts` on the kit: **every method keeps its signature and its meaning**. Remove the cube, the sphere and the code that only they used. `PAPA_HEIGHT_M` and `BABY_CARRIED_*` stay, since UI and input read them.
+  - [x] `levelScene.ts`: pass `assets.characters`; advance both mixers with the sim-clock delta (D6); `resetFx` clears one-shots and squash; `dispose` frees skeletons (D11). Add `playCharacterEvent` to `LevelFx`, called from `onSimEvent` in `boot.ts`, skipped for squash under reduced motion like `noLiftFx`.
+  - [x] Response clips follow P3: the sound fires at judgement, and the clip plays on arrival (`PapaArrived`, through `responseChoreography.ts`). A gag during a glide plays in parallel, on the upper body or as squash; it must never stop the glide.
+  - [x] `gags.ts`: `GagPresentation` gains `papaClip` and `babyClip` (`string | null`). Replace the « until E7 » comments that this resolves.
+  - [x] Smooth Papa's body turn (shortest arc, `turnRateDegPerSec`). `pose.yawRad` stays the sim's: whatever reads it must not lag. **The baby's gaze stays immediate**, since the eyes are what the player reads.
+  - [x] `realFxState()` and `__PP__.fx()` gain `papaClip`, `babyClip`; `testHost` gains a debug `setPapaLook`. Check `dist:check`'s prod markers still pass.
+- [x] **T9. Prove nothing moved** (AC 2, 6, 7, 11)
+  - [x] `git diff --stat main` on the paths of AC 2 is empty; `npm run ci:fast`; the four bots on both levels against `main` with `--seed 1`.
+  - [x] Update unit tests that pinned the cube (`levelScene.test.ts`, `papaView.test.ts`, `babyView.test.ts`, `layDown.test.ts`) to the same behaviour on the fixture rig. An assertion may change its subject, never lose its meaning; say which ones changed.
+  - [x] `tests/e2e/characters.spec.ts` (clips change, a hitstop freezes the mixer's time, a pause too, the look shows). Run on Chromium with the specs that pin the views: `level`, `carry`, `feedback`, `autoplay`, `testApi`, plus whichever covers the sequences.
+- [x] **T10. Performance and delivery** (AC 9, 12), under `caffeinate`, one at a time
+  - [x] `npm run build:playtest`, `npm run dist:check -- --flavor playtest`, then `npx playwright test -c playwright.dist.config.ts --project perf --workers=1`, then with `PP_PERF_LEVEL=chambre_night`. Write the numbers in the story.
+  - [x] `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots` (macOS only, deliberate). Look at the images and say so.
+  - [x] Screenshots in `_bmad-output/implementation-artifacts/7-2-screenshots/`: each character walking, carrying, asleep, on the phone, in a gag, and each look part. **State what you saw by eye and what you did not capture.**
+- [x] **T11. Close the deferred items and record the debts** (see Dev Notes)
 
 ## Dev Notes
 
@@ -222,10 +222,84 @@ No new dependency: `three@0.186.1`, `gltfpack@1.3.0`, Blender 5.2.3 are pinned, 
 
 ### Agent Model Used
 
+Claude Opus 5.5 (claude-opus-5-5)
+
 ### Debug Log References
+
+- A first `perf.spec.ts` on the salon gave p95 33.3 ms (mean 18.72), failed. The machine's load average was about 15 at that time. Rerun alone, with no change: p95 16.7 ms. The bedroom, between the two, gave 16.8 ms. Both figures are reported below; the first is load, on this evidence, not proved otherwise.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
 
+**T0, the spike (Blender 5.2.3, read from `get_rna_type()`, not memory).**
+- Exporter arguments used: `export_animation_mode='ACTIONS'`, `export_force_sampling=True`, `export_frame_step=1`, `export_anim_slide_to_zero=True`, `export_optimize_animation_size=True`, `export_optimize_animation_keep_anim_armature=False`, `export_skins=True`, `export_influence_nb=4`, `export_def_bones=False`, `export_leaf_bone=False`, `export_morph=False`.
+- Each action exports as one clip under its own name. A headless script does need `action.slots.new(id_type='OBJECT', …)` and `animation_data.action_slot`; `use_fake_user` keeps the action.
+- Bone and hidden node names survive `-kn`. A skinned or accessory mesh lands in an unnamed child of its named node (`mesh_0`), as 7.1 found: the code toggles the named node.
+- Held poses survive with no `-ac`; a track equal to the rest pose is dropped, which is safe since the mixer restores a bone no clip holds. `CHARACTER_GLTFPACK_FLAGS = ['-cc', '-kn']`, `GLTFPACK_FLAGS` untouched.
+- 30 Hz and 12-bit rotations keep the poses, and quantisation neither moves nor displaces the skinned mesh: the spike's bounds at the rest pose and mid-clip in each clip were identical to 3 decimals between the raw and the packed file, moved and scaled under a parent too.
+- With `keep_anim_armature=False`, a bone no action keys has no track. The guard reads this on the committed files.
+- A shared `MeshToonMaterial` draws a `SkinnedMesh` correctly: seen in the browser, in the game itself, not in a separate spike page.
+
+**What changed.** Two rigged `.glb` files replace the cube and the sphere; the kit is `characterRig.ts`, `characterClips.ts`, `characterMotion.ts` (not in the story's list: the pacing and turn helpers, shared by both views) and `squash.ts`. `createBabyView` no longer takes the toon cache, since he has no code-made mesh. Both views gained `animate`, `playOnce`, `clipName`, `setSquash`, `resetAnimation`; every existing method keeps its signature and meaning.
+
+**Decisions taken beyond the story.**
+- **Lids of the baby:** D4 says no clip has a track on them, so `eyes_peek` and `eyes_open` cannot move them. `babyLidsAfter` does, from events alone: half on the feint, shut on the signal, open on a telegraph, gag, wake or sequence end. The signal *closes* his eyes (4.6, 4.7), so the contract's name `eyes_open` is misleading: kept, recorded in `deferred-work.md`, for Geo.
+- **`neck` bone on the baby:** `head` is written by code every frame, so its gestures needed a bone of their own. `head` is in `codeDrivenBones`.
+- **`papa_shirt`** is a node of its own, so that the inside-out shirt can replace it (`visibleNodes` in the contract).
+- **`__PP__` gained `setPapaLook`** (thirteen methods now) and `fx()` gained `papaClip`, `babyClip`, `papaMixerMs`.
+- **`UNIT_SUFFIX` of `feedbackSchema.test.ts` gained `Mps` and `DegPerSec`:** real units of the project's convention, new to this file. It rejects as before anything else.
+
+**Tests that changed subject, with the same meaning.** `papaView.test.ts`: the cube's size and colour became the rig's parts shown and not culled; the eyelids' mesh became the `eyelids` bone's scale; « hair on top of the cube, one geometry » and « handset against the cube » went, being facts of code-made meshes: the silhouette tests of `characterAssets.test.ts` and the screenshots replace them. `babyView.test.ts`, `layDown.test.ts`, `levelScene.test.ts`: `baby`'s y is now his feet, so the carried and laid assertions read `y + radius`, the same centre; `baby_gaze_group` became body yaw plus head yaw. `gags.test.ts`: `toEqual` became `toMatchObject` on the stage flags. The mischiefs' title no longer says « until E7 ». `testApi.spec.ts`: thirteen methods.
+
+**Proof that the game did not move (AC 2, after the last art edit).** `git diff --stat main` on the AC's paths is empty. `npm run sim` with the four bots on both levels, seed 1: all 8 reports byte-identical to `main` at 76c6517. No golden regenerated.
+
+**Performance (AC 9), built playtest, after the last art edit.** `dist:check --flavor playtest`: OK, level payload 966.7 KiB, first load 2678.2 KiB gzip.
+
+| Level | Frames | p95 | Mean | Draw calls max | Triangles max |
+|---|---|---|---|---|---|
+| `salon_crawler` | 17110 | 16.7 ms | 16.68 | 68 | 11210 |
+| `chambre_night` | 11319 | 16.8 ms | 17.84 | 64 | 10712 |
+
+Files: `papa.glb` 46.6 KB, `baby.glb` 35.5 KB. See the debug log for the salon's first, failed run.
+
+**E2E, Chromium, last run of the view specs:** `characters`, `level`, `carry`, `feedback`, `autoplay`, `testApi`, `sequence`, `bombDrop`, `bedtimeDuel`, `fakeSleep`, `stealthExit`, `reducedMotion`, `baby`, `fatigue`, `phone`, `toilet`, `chambreNight`: 166 passed, 2 failed, both expected and fixed then: the screenshot reference (regenerated) and the method list of `testApi.spec.ts` (updated, rerun in the last check). `ci:story` is the review's, as the workflow says. That run came after the last art edit. After the last code edit: `npm run ci:fast` passes (7608 tests, no golden regenerated), and `characters`, `testApi`, `autoplay` on Chromium: 22 passed.
+
+**What I saw by eye (AC 12), screenshots in `7-2-screenshots/`.**
+- Opened on the final art: Papa drinking (the mug reads), on the phone (the handset sits above his hand, near the head; passable), asleep (slumped, with the « Z »), in the outlet gag (arms out, hair up, lights down), with mash on the cheek (small, beside the eye: Geo may want it bigger); the baby babbling and crawling (the bonnet reads from behind); both carrying (the baby is partly behind Papa on this heading); `salon_crawler_844_start`, `salon_crawler_667_carrying`, `chambre_night_844_start`, `chambre_night_667_carrying`. The frozen references, chromium and webkit: Papa, and the baby in the playpen.
+- Opened on the art just before it (Papa's body did not change after): idle, walking, hair on end, shirt inside out.
+- **Not seen, or not fully:**
+  - The baby's lids shut at the signal: the marker stands over him in `duel_eyes_shut_at_signal.png`. Only unit tests pin it.
+  - `salon_crawler_844_carrying`, `salon_crawler_667_start`, `chambre_night_844_carrying`, `chambre_night_667_start`, and the regenerated `papa_idle`, `papa_walking`, `papa_look_hair`, `papa_look_shirt_inside_out`, `baby_gag_outlet`, `both_carry_walking`: generated, not opened.
+  - The motion itself: walk cycle, crossfades, squash and the one-shots were seen only as frozen frames or through the clip names. **No one has watched them move:** the feel of the squash and the timing are entirely unjudged.
+  - `respond_*`, `stumble`, `snore`, `sat_up`, `wake`, `laugh`, `stir`, `cry`, `act`, `locked`, `sneak`: no capture. Their bounds are tested, their look is not.
+  - The first capture of `papa_asleep` showed a white mass over him: the gag's particles, gone 1.5 s later in a second capture. Its name in `7-2-screenshots/` is that later one.
+  - A real phone, and the whole under `?debug=1`: not done, no device here.
+
+**For Geo.** D1 (only Papa and the baby) and D3 (first-pass rig and keyframes scripted by the agent) were applied as written; the throwaway scripts stayed in the scratchpad and the `.blend` files are the source. Charm, squash and the merge are his call (AC 12).
+
 ### File List
+
+**New**
+- `assets-src/blender/characters/papa.blend`, `assets-src/blender/characters/baby.blend`
+- `public/assets/characters/papa.glb`, `public/assets/characters/baby.glb`
+- `tools/blender/export_character.py`, `tools/assets/exportCharacter.ts`, `tools/assets/optimizeCharacter.ts`, `tools/assets/characterArt.ts`
+- `src/client/render/views/characterClips.ts`, `characterClips.test.ts`, `characterMotion.ts`, `characterMotion.test.ts`, `characterRig.ts`, `characterRig.test.ts`, `squash.ts`, `squash.test.ts`
+- `tests/architecture/characterAssets.test.ts`, `tests/tools/assets/characterArt.test.ts`, `tests/support/testCharacters.ts`, `tests/e2e/characters.spec.ts`
+- `_bmad-output/implementation-artifacts/7-2-screenshots/` (24 images)
+
+**Modified**
+- `package.json`, `content/feedback.json`, `content/_schemas/feedback.schema.json`, `src/content/schemas/feedback.ts`, `src/shared/constants.ts`
+- `tools/assets/optimizeGlb.ts` (the runner exported, nothing else), `tools/assets/paths.ts`, `tools/assets/roomArt.ts` (a parameter), `tools/build/inspectDist.ts`
+- `src/client/assets/gltf.ts`, `src/client/assets/loadLevelAssets.ts`, `src/client/assets/loadLevelAssets.test.ts`
+- `src/client/render/levelScene.ts`, `levelScene.test.ts`, `src/client/render/gags.ts`, `gags.test.ts`, `src/client/render/materials/toonMaterial.ts`
+- `src/client/render/views/papaView.ts`, `papaView.test.ts`, `babyView.ts`, `babyView.test.ts`, `layDown.test.ts`
+- `src/client/feedback/responseChoreography.ts`, `responseChoreography.test.ts`, `feedbackDirector.test.ts`, `feedbackTwins.test.ts`
+- `src/client/app/levelSession.ts`, `levelSession.test.ts`, `src/client/app/testHost.ts`, `src/client/boot.ts`, `src/debug/testApi.ts`, `src/debug/testApi.test.ts`
+- `tests/support/fakeTestHost.ts`, `tests/support/testContent.ts`, `tests/content/feedbackSchema.test.ts`, `tests/tools/build/checkDist.test.ts`, `tests/e2e/support/testApi.ts`, `tests/e2e/testApi.spec.ts`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-chromium-darwin.png`, `autoplay-frozen-webkit-darwin.png` (regenerated on purpose, looked at)
+- `_bmad-output/implementation-artifacts/deferred-work.md`, `sprint-status.yaml`, `_bmad-output/project-context.md`, `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md`
+
+## Change Log
+
+- 2026-11-01: Story 7.2 implemented: Papa and the baby rigged and animated, kit and pipeline, look ready for story 3.7. Set to review; the merge waits for the review, `ci:story` and Geo's visual OK.

@@ -42,14 +42,56 @@ const worldWith = (
 
 function setup() {
   const lifts: number[] = [];
+  const clips: string[] = [];
   return {
     choreography: createResponseChoreography(),
-    fx: { liftBaby: (startAt: number) => void lifts.push(startAt) },
+    fx: {
+      liftBaby: (startAt: number) => void lifts.push(startAt),
+      playResponseClip: (response: string, quality: string) =>
+        void clips.push(`${response}/${quality}`),
+    },
     lifts,
+    clips,
   };
 }
 
 describe('createResponseChoreography', () => {
+  it('plays the response clip with the pose, at once or on arrival, and never for a dropped glide', () => {
+    const { choreography, fx, clips } = setup();
+    choreography.onEvent(resolved('perfect'), worldWith('idle', null), fx);
+    expect(clips).toEqual(['parry/perfect']);
+    // Gliding: the sound fired at the judgement, the clip waits for him (P3).
+    choreography.onEvent(resolved('success'), worldWith('glide', 1), fx);
+    expect(clips).toEqual(['parry/perfect']);
+    choreography.onEvent(
+      { type: 'PapaArrived', t: t(1200), xM: 0, zM: 0 },
+      worldWith('idle', null),
+      fx,
+    );
+    expect(clips).toEqual(['parry/perfect', 'parry/success']);
+    // The glide cancelled: the clip is dropped with the pose.
+    choreography.onEvent(resolved('success'), worldWith('glide', 1), fx);
+    choreography.onEvent(
+      { type: 'PapaStateChanged', t: t(1300), from: 'glide', to: 'walkPath' },
+      worldWith('walkPath', null),
+      fx,
+    );
+    choreography.onEvent(
+      { type: 'PapaArrived', t: t(1400), xM: 0, zM: 0 },
+      worldWith('idle', null),
+      fx,
+    );
+    expect(clips).toHaveLength(2);
+  });
+
+  it('plays the clip of a threat on Papa at once, with no baby to lift', () => {
+    const { choreography, fx, clips, lifts } = setup();
+    const world = worldWith('idle', null, 1000, [{ id: 2, anchorId: PAPA_TARGET_ANCHOR_ID }]);
+    choreography.onEvent(resolved('success', 2), world, fx);
+    expect(clips).toEqual(['parry/success']);
+    expect(lifts).toEqual([]);
+  });
+
   it('plays the pose at once when Papa is not gliding to the threat, at the sim time of the world', () => {
     const { choreography, fx, lifts } = setup();
     choreography.onEvent(resolved('success'), worldWith('idle', null, 1234), fx);

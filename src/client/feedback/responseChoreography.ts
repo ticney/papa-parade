@@ -9,10 +9,14 @@ import type { LevelFx } from '../render/levelScene.ts';
  */
 export interface ResponseChoreography {
   /**
-   * Reads one sim event (in order, after the step that emitted it) and starts the provisional
-   * « lift the baby » pose when it is due. `world` is the live world, read never written.
+   * Reads one sim event (in order, after the step that emitted it) and starts Papa's response clip
+   * and the « lift the baby » hop when they are due. `world` is the live world, read never written.
    */
-  onEvent(event: SimEvent, world: Readonly<World>, fx: Pick<LevelFx, 'liftBaby'>): void;
+  onEvent(
+    event: SimEvent,
+    world: Readonly<World>,
+    fx: Pick<LevelFx, 'liftBaby' | 'playResponseClip'>,
+  ): void;
   /** A new level: forgets the queued pose. */
   reset(): void;
 }
@@ -28,17 +32,25 @@ function isOnPapa(world: Readonly<World>, threatId: number): boolean {
 
 export function createResponseChoreography(): ResponseChoreography {
   let queuedThreatId: number | null = null;
+  let queuedResponse = '';
+  let queuedQuality = '';
   return {
     onEvent(event, world, fx) {
       switch (event.type) {
         case 'ResponseResolved': {
           if (event.quality === 'fail') return;
           // The micro-sleep is Papa's own business (a threat that stands on him): no baby to lift.
-          if (isOnPapa(world, event.threatId)) return;
+          if (isOnPapa(world, event.threatId)) {
+            fx.playResponseClip(event.response, event.quality);
+            return;
+          }
           // Papa is on his way to this threat: the pose waits for him. Otherwise it plays now.
           if (world.papa.state === 'glide' && world.papa.glide?.threatId === event.threatId) {
             queuedThreatId = event.threatId;
+            queuedResponse = event.response;
+            queuedQuality = event.quality;
           } else {
+            fx.playResponseClip(event.response, event.quality);
             fx.liftBaby(world.time.sim);
           }
           return;
@@ -46,6 +58,7 @@ export function createResponseChoreography(): ResponseChoreography {
         case 'PapaArrived': {
           if (queuedThreatId === null) return;
           queuedThreatId = null;
+          fx.playResponseClip(queuedResponse, queuedQuality);
           fx.liftBaby(event.t);
           return;
         }

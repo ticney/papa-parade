@@ -20,6 +20,9 @@ const NO_FX_STATE: FxState = {
   particlesAlive: 0,
   stampCount: 0,
   babyLayDownPct: 0,
+  papaClip: null,
+  babyClip: null,
+  papaMixerMs: 0,
 };
 
 /** A `TestHost` for the debug modules' tests, with handles to fire what the app would. */
@@ -102,6 +105,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     onRenderedFrame: (listener) => subscribe(frameListeners, listener),
     debugGroup: () => null,
     fxState: () => options.fxState ?? NO_FX_STATE,
+    setPapaLook: () => {},
     threatScreenPoints: () => [],
     lastInputDevice: () => lastInput,
     auditionCue(cueId) {

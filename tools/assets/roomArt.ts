@@ -245,15 +245,19 @@ function materialProblems(material: RoomMaterial, index: number): string[] {
 }
 
 /**
- * The rules of D3 on the colour of a room: at most `ROOM_MATERIALS_MAX` materials, base colour only,
- * and no image, vertex colour or UV set. One message per problem, empty when the room conforms.
+ * The rules of D3 on the colour of a room: at most `materialsMax` materials, base colour only, and
+ * no image, vertex colour or UV set. One message per problem, empty when the room conforms. A
+ * character passes its own maximum (story 7.2, D4).
  */
-export function roomMaterialProblems(document: unknown): string[] {
+export function roomMaterialProblems(
+  document: unknown,
+  materialsMax: number = ROOM_MATERIALS_MAX,
+): string[] {
   const json = document as RoomJson;
   const materials = json.materials ?? [];
   const problems: string[] = [];
-  if (materials.length > ROOM_MATERIALS_MAX) {
-    problems.push(`${materials.length} materials, at most ${ROOM_MATERIALS_MAX}`);
+  if (materials.length > materialsMax) {
+    problems.push(`${materials.length} materials, at most ${materialsMax}`);
   }
   if ((json.images?.length ?? 0) > 0 || (json.textures?.length ?? 0) > 0) {
     problems.push('the file holds a texture or an image');

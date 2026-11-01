@@ -5,6 +5,7 @@ import { LEVEL_FETCH_TIMEOUT_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
 import type { Group } from 'three';
+import type { CharacterAsset } from './gltf.ts';
 
 /** Everything the client needs to build one level's scene. */
 export interface LevelAssets {
@@ -12,6 +13,8 @@ export interface LevelAssets {
   geometry: LevelGeometry;
   /** The loaded `.glb` scene, still holding the `COL_`/`NAV_`/`ZONE_`/`ANCHOR_` nodes and the `PROP_` nodes (the scene turns those into per-kind templates for the pooled prop views). Mutable: not shared across loads (D7). */
   model: Group;
+  /** The rigged characters, parsed for this level alone: each scene takes one over and frees it (story 7.2, D11). */
+  characters: { papa: CharacterAsset; baby: CharacterAsset };
 }
 
 export interface LoadLevelDeps {
@@ -21,6 +24,8 @@ export interface LoadLevelDeps {
   loadGeometryText?(id: string): Promise<string>;
   /** Parses a `.glb`. Default: `gltf.ts`, imported on demand. */
   parseModel?(bytes: Uint8Array, baseUrl: string): Promise<Group>;
+  /** Parses a character's `.glb`, keeping its clips. Default: `gltf.ts`, imported on demand. */
+  parseCharacter?(bytes: Uint8Array, baseUrl: string): Promise<CharacterAsset>;
   /** Default: `import.meta.env.BASE_URL` (`./` in builds, `/` in dev). Never write `/assets/…`. */
   baseUrl?: string;
 }
@@ -59,18 +64,24 @@ async function defaultParseModel(bytes: Uint8Array, baseUrl: string): Promise<Gr
   return parseGlb(bytes, baseUrl);
 }
 
+async function defaultParseCharacter(bytes: Uint8Array, baseUrl: string): Promise<CharacterAsset> {
+  const { parseCharacterGlb } = await import('./gltf.ts');
+  return parseCharacterGlb(bytes, baseUrl);
+}
+
 const reasonOf = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
 const fail = (message: string, cause?: unknown): Result<never, AppError> =>
   err({ kind: 'assets', message, cause });
 
-async function loadModel(
-  id: string,
+async function loadGlb<T>(
+  file: string,
+  folder: string,
+  parse: (bytes: Uint8Array, baseUrl: string) => Promise<T>,
   deps: Required<LoadLevelDeps>,
-): Promise<Result<Group, AppError>> {
-  const file = `${id}.glb`;
-  const url = `${deps.baseUrl}assets/levels/${file}`;
+): Promise<Result<T, AppError>> {
+  const url = `${deps.baseUrl}${folder}${file}`;
   let bytes: Uint8Array;
   try {
     bytes = await deps.fetchBytes(url);
@@ -82,7 +93,7 @@ async function loadModel(
     return fail(`${file} is not a glTF binary (it does not start with "glTF")`);
   }
   try {
-    return ok(await deps.parseModel(bytes, `${deps.baseUrl}assets/levels/`));
+    return ok(await parse(bytes, `${deps.baseUrl}${folder}`));
   } catch (cause) {
     return fail(`cannot parse ${file}: ${reasonOf(cause)}`, cause);
   }
@@ -113,10 +124,10 @@ async function loadGeometry(
 }
 
 /**
- * Loads the `.glb` and the geometry of level `id` in parallel. Never throws: a rejected fetch, a
- * non-OK status, an HTML body served as the `.glb`, a bad geometry and a bad glb are each an `err`
- * of kind `assets` whose message names the file. It logs the `warn` itself, with the level id.
- * The `.glb` is reported before the geometry when both fail.
+ * Loads the `.glb` and the geometry of level `id` and both characters' `.glb` in parallel. Never
+ * throws: a rejected fetch, a non-OK status, an HTML body served as a `.glb`, a bad geometry and a bad
+ * glb are each an `err` of kind `assets` whose message names the file. It logs the `warn` itself, with
+ * the level id. The level's `.glb` is reported first, then the geometry, then the characters.
  */
 export async function loadLevelAssets(
   id: string,
@@ -126,17 +137,33 @@ export async function loadLevelAssets(
     fetchBytes: deps.fetchBytes ?? fetchBytesWithTimeout,
     loadGeometryText: deps.loadGeometryText ?? defaultLoadGeometryText,
     parseModel: deps.parseModel ?? defaultParseModel,
+    parseCharacter: deps.parseCharacter ?? defaultParseCharacter,
     baseUrl: deps.baseUrl ?? import.meta.env.BASE_URL,
   };
-  const [model, geometry] = await Promise.all([
-    loadModel(id, resolved),
+  const [model, geometry, papa, baby] = await Promise.all([
+    loadGlb(`${id}.glb`, 'assets/levels/', resolved.parseModel, resolved),
     loadGeometry(id, resolved),
+    loadGlb('papa.glb', 'assets/characters/', resolved.parseCharacter, resolved),
+    loadGlb('baby.glb', 'assets/characters/', resolved.parseCharacter, resolved),
   ]);
-  const failure = !model.ok ? model.error : !geometry.ok ? geometry.error : null;
+  const failure = !model.ok
+    ? model.error
+    : !geometry.ok
+      ? geometry.error
+      : !papa.ok
+        ? papa.error
+        : !baby.ok
+          ? baby.error
+          : null;
   if (failure !== null) {
     log.warn('assets', 'level load failed', { id, error: failure });
     return err(failure);
   }
-  if (!model.ok || !geometry.ok) return fail('unreachable'); // narrows the types
-  return ok({ id, geometry: geometry.value, model: model.value });
+  if (!model.ok || !geometry.ok || !papa.ok || !baby.ok) return fail('unreachable'); // narrows the types
+  return ok({
+    id,
+    geometry: geometry.value,
+    model: model.value,
+    characters: { papa: papa.value, baby: baby.value },
+  });
 }

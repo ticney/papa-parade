@@ -46,6 +46,7 @@ export function createTestFeedback(): FeedbackTable {
     comboBadge: { cashInHoldMs: 900 },
     papaHint: { holdMs: 1200 },
     bombDrop: { laidHeightM: 0.3 },
+    characters: { crossFadeMs: 100, turnRateDegPerSec: 720, squash: [], clipSpeeds: [] },
     resultScreen: {
       rowCountUpMs: 600,
       rowStaggerMs: 200,

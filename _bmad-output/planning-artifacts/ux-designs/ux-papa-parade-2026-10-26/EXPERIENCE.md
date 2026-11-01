@@ -433,6 +433,8 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | Particle counts | Cut by 60% |
 | UI overshoot (panels) | Plain fade |
 | Full-screen flash | Border glow |
+| Characters' clips | Kept: a pose carries state (asleep, on the phone), the same call as hitstop and slow-mo `[ASSUMPTION]` |
+| Characters' squash and stretch | Removed `[ASSUMPTION]` |
 | silence-bubble blink | Slow pulse, 1Hz or slower |
 | Loading bottle | Static fill |
 | Hitstop, slow-mo | Unchanged, because they are gameplay timing |

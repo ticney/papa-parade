@@ -99,6 +99,25 @@ export const ROOM_TRIANGLES_MAX = 20_000;
 /** Budget of one room's `.glb`: one Blender material per colour, shared between objects (story 7.1, D3). */
 export const ROOM_MATERIALS_MAX = 12;
 
+/**
+ * Budget of one character's `.glb`, visible nodes only: a hidden accessory costs no draw call. Two
+ * characters at this reach about 70 draw calls in a room at its limit, and 7.3's outlines, which double
+ * them, about 82 (story 7.2, D10).
+ */
+export const CHARACTER_DRAW_CALLS_MAX = 6;
+
+/** Budget of one character's `.glb`: one material per colour, hidden accessories included (story 7.2, D4). */
+export const CHARACTER_MATERIALS_MAX = 6;
+
+/** Budget of one character's `.glb`, visible nodes only: its share of `TRIANGLES_MAX` (story 7.2, D10). */
+export const CHARACTER_TRIANGLES_MAX = 4_000;
+
+/** Budget of one character's skeleton: each bone is a matrix per frame and a row of the bone texture (story 7.2, D10). */
+export const CHARACTER_BONES_MAX = 32;
+
+/** Budget of one character's `.glb`: two at this limit still fit each level in `LEVEL_PAYLOAD_MAX_BYTES` (story 7.2, D10). */
+export const CHARACTER_GLB_MAX_BYTES = 300 * 1024;
+
 /** Budget: the p95 frame interval of a full level on the CI machine, in ms (`perf.spec.ts`). */
 export const FRAME_P95_MAX_MS = 20;
 

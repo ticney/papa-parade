@@ -485,6 +485,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
               .filter((def) => def.release !== undefined)
               .map((def) => def.id),
             laidHeightM: deps.content.feedback.bombDrop.laidHeightM,
+            characters: deps.content.feedback.characters,
           });
         } catch (cause) {
           log.error('render', 'cannot build the level scene', { id: levelId, error: cause });

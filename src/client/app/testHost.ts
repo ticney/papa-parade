@@ -4,6 +4,7 @@ import type { Group } from 'three';
 import type { SoundedNote } from '../audio/beatScheduler.ts';
 import type { InputDevice } from '../input/inputMapper.ts';
 import type { RenderStats } from '../render/renderer.ts';
+import type { PapaLook } from '../render/views/papaView.ts';
 import type { LevelSession, StartedLevel } from './levelSession.ts';
 import type { PauseState } from './pauseController.ts';
 
@@ -25,6 +26,12 @@ export interface FxState {
   readonly stampCount: number;
   /** How far the carried baby is lowered onto the mattress as drawn, 0 to 100 (story 4.8: the bomb drop). */
   readonly babyLayDownPct: number;
+  /** The clip Papa is seen playing, or null (story 7.2). */
+  readonly papaClip: string | null;
+  /** The clip the baby is seen playing, or null. */
+  readonly babyClip: string | null;
+  /** Papa's mixer clock, in sim ms: it stands still in a pause and a hitstop. */
+  readonly papaMixerMs: number;
 }
 
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */
@@ -98,6 +105,8 @@ export interface TestHost {
    * how many stamps were shown.
    */
   fxState(): FxState;
+  /** Shows the parts of Papa's look (story 7.2: nothing in a game sets it until story 3.7). No effect without a level. */
+  setPapaLook(look: PapaLook): void;
   /** The icon points of the running level's threats as they are on the page now (a new array per call). */
   threatScreenPoints(): readonly ThreatScreenPoint[];
   /**

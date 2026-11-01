@@ -329,6 +329,68 @@ const BeatRingSchema = z
   })
   .describe('The ring that closes on Papa at each beat (story 4.5). Sim time: a pause holds it.');
 
+/** The sim events a character squashes on, and who (story 7.2, D7). */
+export const SQUASH_EVENTS = [
+  'PapaArrived',
+  'PapaBlocked',
+  'BabyPickedUp',
+  'BabyPutDown',
+  'GagTriggered',
+  'BabyWoke',
+  'BabyStirred',
+] as const;
+export const SQUASH_CHARACTERS = ['papa', 'baby'] as const;
+
+const SquashRowSchema = z
+  .strictObject({
+    event: z.enum(SQUASH_EVENTS).describe('The sim event that starts it.'),
+    character: z.enum(SQUASH_CHARACTERS).describe('Who squashes.'),
+    amountPct: z
+      .number()
+      .min(-60)
+      .max(60)
+      .refine((value) => value !== 0, 'an amount of 0 is no squash: remove the row')
+      .describe(
+        'How much his height changes at the peak of the curve, in percent: below 0 he squashes first and then stretches, above 0 the other way round. His width follows so that his volume holds. The bounds keep his height strictly positive.',
+      ),
+    durationMs: z.int().positive().describe('How long it lasts, in sim ms.'),
+  })
+  .describe('One squash and stretch: one event on one character.');
+
+const ClipSpeedSchema = z
+  .strictObject({
+    clip: z
+      .string()
+      .regex(CUE_ID_PATTERN, 'a clip name is lower_snake_case')
+      .describe('The looping clip of a walk or a crawl, as named in the `.glb`.'),
+    speedMps: z
+      .number()
+      .positive()
+      .describe(
+        'The floor speed at which this clip plays at its own pace, in m/s: its feet do not slide at that speed. Faster or slower, it plays in proportion.',
+      ),
+  })
+  .describe('The natural speed of one travelling clip.');
+
+const CharactersSchema = z
+  .strictObject({
+    crossFadeMs: z
+      .int()
+      .positive()
+      .describe('How long a clip takes to replace another, in sim ms.'),
+    turnRateDegPerSec: z
+      .number()
+      .positive()
+      .describe(
+        "How fast a character's body turns to face its way, in degrees per sim second. The sim's heading and the baby's eyes do not wait for it.",
+      ),
+    squash: z.array(SquashRowSchema).describe('Which events squash and stretch whom.'),
+    clipSpeeds: z.array(ClipSpeedSchema).describe('The natural speed of the travelling clips.'),
+  })
+  .describe(
+    'The animated characters (story 7.2). Read by the views on the sim clock; the sim never reads it.',
+  );
+
 export const FeedbackTableSchema = z
   .strictObject({
     buses: BusesSchema,
@@ -347,6 +409,7 @@ export const FeedbackTableSchema = z
     comboBadge: ComboBadgeSchema,
     papaHint: PapaHintSchema,
     bombDrop: BombDropSchema,
+    characters: CharactersSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),
