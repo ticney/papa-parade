@@ -4,7 +4,7 @@ baseline_commit: c1cfddf
 
 # Story 4.9: The stealth exit (the Do Nothing response)
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.9 « Sortie en infiltration » (L2002-2027). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
