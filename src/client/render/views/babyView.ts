@@ -4,13 +4,11 @@ import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
 import { babyClipOf } from './characterClips.ts';
 import { clipTimeScaleOf, stepSpeedMpsOf, turnToward, wrapAngleRad } from './characterMotion.ts';
-import type { CharacterRig } from './characterRig.ts';
+import { type CharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
 import type { CharacterMotionConfig } from './papaView.ts';
 
 /** Smallest body radius read, in metres: a feel with no radius still has a (tiny) shadow. */
 const BABY_MIN_RADIUS_M = 0.01;
-/** The bone's scale with the lids fully open: nothing, without a degenerate matrix. */
-const EYELIDS_OPEN_SCALE = 0.02;
 
 /** Papa's chest height, in metres: the centre of the baby when he is carried (story 4.1). Also where a tap on him aims. */
 export const BABY_CARRIED_HEIGHT_M = 0.75;

@@ -287,7 +287,21 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
     },
 
     setPapaLook(look) {
-      host.setPapaLook(look);
+      const parts = ['hasMashOnCheek', 'hasHairOnEnd', 'isShirtInsideOut'] as const;
+      if (
+        typeof look !== 'object' ||
+        look === null ||
+        parts.some((part) => typeof look[part] !== 'boolean')
+      ) {
+        throw new Error(
+          `__PP__.setPapaLook: the look must be an object with the booleans ${parts.join(', ')}`,
+        );
+      }
+      host.setPapaLook({
+        hasMashOnCheek: look.hasMashOnCheek,
+        hasHairOnEnd: look.hasHairOnEnd,
+        isShirtInsideOut: look.isShirtInsideOut,
+      });
     },
     fx() {
       return host.fxState();

@@ -387,6 +387,33 @@ const CharactersSchema = z
     squash: z.array(SquashRowSchema).describe('Which events squash and stretch whom.'),
     clipSpeeds: z.array(ClipSpeedSchema).describe('The natural speed of the travelling clips.'),
   })
+  .superRefine((characters, ctx) => {
+    // One row each: a second row for the same thing would silently win or lose, and an edit of Geo's
+    // would then do nothing.
+    const squashed = new Set<string>();
+    for (const [index, row] of characters.squash.entries()) {
+      const key = `${row.event}/${row.character}`;
+      if (squashed.has(key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['squash', index],
+          message: `a second squash of ${row.character} on ${row.event}: one row each`,
+        });
+      }
+      squashed.add(key);
+    }
+    const travelling = new Set<string>();
+    for (const [index, row] of characters.clipSpeeds.entries()) {
+      if (travelling.has(row.clip)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['clipSpeeds', index],
+          message: `a second speed for the clip "${row.clip}": one row each`,
+        });
+      }
+      travelling.add(row.clip);
+    }
+  })
   .describe(
     'The animated characters (story 7.2). Read by the views on the sim clock; the sim never reads it.',
   );

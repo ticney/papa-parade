@@ -12,12 +12,14 @@ import {
 import type { CharacterAsset } from '../../assets/gltf.ts';
 import { swapToToon, type ToonMaterialCache } from '../materials/toonMaterial.ts';
 
-/** A clip of the mixer with the weight it is fading to. Made up front: nothing is allocated per frame. */
+/** The scale of the `eyelids` bone with the lids fully open: nothing, without a degenerate matrix. Both views write it. */
+export const EYELIDS_OPEN_SCALE = 0.02;
+
+/** A clip of the mixer with its weight. Made up front: nothing is allocated per frame. */
 interface ClipTrack {
   readonly name: string;
   readonly action: AnimationAction;
   weight: number;
-  targetWeight: number;
   isLive: boolean;
 }
 
@@ -76,12 +78,13 @@ export function createCharacterRig(
       name: clip.name,
       action: mixer.clipAction(clip),
       weight: 0,
-      targetWeight: 0,
       isLive: false,
     });
   }
   /** The tracks with a weight or on their way to one: the only ones the mixer runs. */
   const live: ClipTrack[] = [];
+  /** The one clip fading in: every other live track gives way to it. */
+  let incoming: ClipTrack | null = null;
   let loop: ClipTrack | null = null;
   let oneShot: ClipTrack | null = null;
   const warned = new Set<string>();
@@ -98,11 +101,10 @@ export function createCharacterRig(
     return track ?? null;
   };
 
-  /** Makes `track` the one clip fading in, and every other live one fade out. The very first plays at once. */
+  /** Makes `track` the one clip fading in, and every other live one give way. The very first plays at once. */
   const fadeTo = (track: ClipTrack): void => {
     const isFirst = live.length === 0;
-    for (let i = 0; i < live.length; i++) (live[i] as ClipTrack).targetWeight = 0;
-    track.targetWeight = 1;
+    incoming = track;
     if (!track.isLive) {
       track.isLive = true;
       track.weight = isFirst ? 1 : 0;
@@ -113,21 +115,33 @@ export function createCharacterRig(
     }
   };
 
+  /**
+   * The incoming clip gains `dtMs / crossFadeMs`; the others share what is left in the proportions
+   * they had, so the weights always add up to 1. A fade cut short by a third clip must not leave
+   * less: three fills the missing share from the bind pose, and the character dips toward it.
+   */
   const stepWeights = (dtMs: number): void => {
-    const step = dtMs / crossFadeMs;
+    if (incoming === null || !(dtMs > 0)) return;
+    incoming.weight = Math.min(1, incoming.weight + dtMs / crossFadeMs);
+    incoming.action.setEffectiveWeight(incoming.weight);
+    let othersWeight = 0;
+    for (let i = 0; i < live.length; i++) {
+      const track = live[i] as ClipTrack;
+      if (track !== incoming) othersWeight += track.weight;
+    }
+    const share = 1 - incoming.weight;
     for (let i = live.length - 1; i >= 0; i--) {
       const track = live[i] as ClipTrack;
-      const gap = track.targetWeight - track.weight;
-      track.weight =
-        Math.abs(gap) <= step ? track.targetWeight : track.weight + Math.sign(gap) * step;
-      if (track.weight === 0 && track.targetWeight === 0) {
-        track.action.stop();
-        track.isLive = false;
-        live[i] = live[live.length - 1] as ClipTrack;
-        live.pop();
-      } else {
+      if (track === incoming) continue;
+      track.weight = othersWeight > 0 ? (track.weight * share) / othersWeight : 0;
+      if (track.weight > 0) {
         track.action.setEffectiveWeight(track.weight);
+        continue;
       }
+      track.action.stop();
+      track.isLive = false;
+      live[i] = live[live.length - 1] as ClipTrack;
+      live.pop();
     }
   };
 
@@ -187,9 +201,9 @@ export function createCharacterRig(
       for (const track of live) {
         track.isLive = false;
         track.weight = 0;
-        track.targetWeight = 0;
       }
       live.length = 0;
+      incoming = null;
       loop = null;
       oneShot = null;
       mixer.setTime(0);

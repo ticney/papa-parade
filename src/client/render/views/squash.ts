@@ -1,5 +1,5 @@
-/** The peak of `sin(2πu) × (1 − u)` on 0..1: dividing by it makes `amountPct` the real extreme of the curve. */
-const SQUASH_CURVE_PEAK = 0.7638;
+/** The peak of `sin(2πu) × (1 − u)` on 0..1, 0.76625 at u ≈ 0.218: dividing by it makes `amountPct` the real extreme of the curve. */
+const SQUASH_CURVE_PEAK = 0.76625;
 
 /** The scale of a character's group: `y` is its height, `xz` its width. */
 export interface SquashScale {

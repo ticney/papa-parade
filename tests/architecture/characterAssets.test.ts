@@ -110,6 +110,13 @@ describe('the clips the code names exist in the files', () => {
   });
 });
 
+/** The committed file of `id`, parsed as the game does. */
+const load = (id: string) =>
+  parseCharacterGlb(
+    new Uint8Array(readFileSync(join(root, 'public', 'assets', 'characters', `${id}.glb`))),
+    './',
+  );
+
 /** Where every drawn vertex of a character is, posed: the silhouette the markers and the hit tests rely on. */
 function drawnBox(root: Object3D, hiddenNodes: readonly string[]): Box3 {
   root.updateMatrixWorld(true);
@@ -136,11 +143,6 @@ function drawnBox(root: Object3D, hiddenNodes: readonly string[]): Box3 {
 const FLOOR_SLACK_M = 0.03;
 
 describe('the silhouettes are gameplay (story 7.2, D8)', () => {
-  const load = (id: string) =>
-    parseCharacterGlb(
-      new Uint8Array(readFileSync(join(root, 'public', 'assets', 'characters', `${id}.glb`))),
-      './',
-    );
   const eachClipPose = (
     asset: Awaited<ReturnType<typeof load>>,
     visit: (clip: string, atS: number) => void,
@@ -191,6 +193,75 @@ describe('the silhouettes are gameplay (story 7.2, D8)', () => {
       expect(box.max.y, clip).toBeLessThan(0.9);
       expect(box.min.y, clip).toBeGreaterThan(-FLOOR_SLACK_M);
     });
+  });
+});
+
+/** How far an accessory may stand off the part it belongs to, in metres: a mug in a raised hand, spikes of hair. */
+const ACCESSORY_SLACK_M = 0.1;
+
+describe("Papa's look and accessories sit where the view shows them (story 7.2, AC 6)", () => {
+  // The hidden nodes are skipped by every silhouette test above, so these are the ones that say where
+  // they stand. Each is measured posed, as the view shows it: the mug in `drink`, the handset in `on_phone`.
+  const posed = async (clip: string | null) => {
+    const asset = await load('papa');
+    if (clip !== null) {
+      const found = asset.animations.find((candidate) => candidate.name === clip);
+      if (found === undefined) throw new Error(`papa.glb has no clip "${clip}"`);
+      const mixer = new AnimationMixer(asset.scene);
+      mixer.clipAction(found).play();
+      mixer.setTime(found.duration / 2);
+    }
+    asset.scene.updateMatrixWorld(true);
+    const part = (name: string): Box3 => {
+      const node = asset.scene.getObjectByName(name);
+      if (node === undefined) throw new Error(`papa.glb has no node "${name}"`);
+      return drawnBox(node, []);
+    };
+    return { asset, part, body: drawnBox(asset.scene, PAPA_CONTRACT.hiddenNodes) };
+  };
+  const within = (outer: Box3, inner: Box3, slackM: number): boolean =>
+    outer.clone().expandByScalar(slackM).containsBox(inner);
+  /** A held thing may stand out of the body's box (a mug at arm's length) but must meet it. */
+  const touches = (outer: Box3, held: Box3, slackM: number): boolean =>
+    outer.clone().expandByScalar(slackM).intersectsBox(held);
+
+  it('wears the primary colour of DESIGN.md, so that he stays the purple one', async () => {
+    const { asset } = await posed(null);
+    const colours: string[] = [];
+    asset.scene.getObjectByName('papa_shirt')?.traverse((node) => {
+      if (!(node instanceof Mesh)) return;
+      const hex = (node.material as { color: { getHex(): number } }).color.getHex();
+      colours.push(`#${hex.toString(16).padStart(6, '0')}`);
+    });
+    expect(colours).toContain(colourToken('primary').toLowerCase());
+  });
+
+  it('raises the mug to his head while he drinks', async () => {
+    const { part, body } = await posed('drink');
+    const mug = part('papa_mug');
+    expect(touches(body, mug, ACCESSORY_SLACK_M)).toBe(true);
+    expect((mug.min.y + mug.max.y) / 2).toBeGreaterThan(0.45);
+  });
+
+  it('holds the handset by his head while he is on the phone', async () => {
+    const { part, body } = await posed('on_phone');
+    const handset = part('papa_handset');
+    expect(touches(body, handset, ACCESSORY_SLACK_M)).toBe(true);
+    expect((handset.min.y + handset.max.y) / 2).toBeGreaterThan(0.55);
+  });
+
+  it('stands the hair on his head, over his width', async () => {
+    const { part, body } = await posed(null);
+    const hair = part('papa_hair');
+    expect(hair.min.y).toBeGreaterThan(PAPA_HEIGHT_M - 0.15);
+    expect(hair.min.x).toBeGreaterThan(body.min.x - ACCESSORY_SLACK_M);
+    expect(hair.max.x).toBeLessThan(body.max.x + ACCESSORY_SLACK_M);
+  });
+
+  it('puts the mash on his face and the inside-out shirt where the shirt is', async () => {
+    const { part, body } = await posed(null);
+    expect(within(body, part('papa_look_mash'), ACCESSORY_SLACK_M)).toBe(true);
+    expect(within(part('papa_shirt'), part('papa_look_shirt'), 0.03)).toBe(true);
   });
 });
 

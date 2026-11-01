@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { toContentJsonSchema } from '../../src/content/jsonSchema.ts';
 import { parseContentFile } from '../../src/content/parseContentFile.ts';
-import { FeedbackTableSchema } from '../../src/content/schemas/feedback.ts';
+import { FeedbackTableSchema, SQUASH_EVENTS } from '../../src/content/schemas/feedback.ts';
+import { SIM_EVENT_TYPES } from '../../src/sim/index.ts';
 import { createTestFeedback } from '../support/testContent.ts';
 
 // Tunable values are never pinned here (golden rule: Geo tunes them). Structure, ranges and
@@ -440,6 +441,40 @@ describe('content/feedback.json', () => {
     // Not vacuous: the walk really went through the table (top level, buses, haptics, loops, cues...).
     expect(visited).toBeGreaterThan(30);
     expect(undescribed).toEqual([]);
+  });
+});
+
+describe('the characters table (story 7.2)', () => {
+  const characters = real.characters as {
+    squash: Json[];
+    clipSpeeds: Json[];
+  };
+
+  it('refuses a second squash of the same character on the same event', () => {
+    const first = characters.squash[0] as Json;
+    const result = mutated(['characters.squash', [...characters.squash, { ...first }]]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.squash'))).toBe(true);
+  });
+
+  it('accepts one event squashing both characters', () => {
+    const result = mutated([
+      'characters.squash',
+      [
+        { event: 'GagTriggered', character: 'papa', amountPct: 10, durationMs: 100 },
+        { event: 'GagTriggered', character: 'baby', amountPct: -10, durationMs: 100 },
+      ],
+    ]);
+    expect(result).toMatchObject({ ok: true });
+  });
+
+  it('refuses a second speed for the same clip', () => {
+    const first = characters.clipSpeeds[0] as Json;
+    const result = mutated(['characters.clipSpeeds', [...characters.clipSpeeds, { ...first }]]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.clipSpeeds'))).toBe(true);
+  });
+
+  it('squashes only on events the sim emits: a typo would silence a squash', () => {
+    for (const event of SQUASH_EVENTS) expect(SIM_EVENT_TYPES, event).toContain(event);
   });
 });
 

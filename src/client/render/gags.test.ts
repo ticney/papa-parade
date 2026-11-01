@@ -28,23 +28,29 @@ describe('GAG_PRESENTATIONS', () => {
   });
 
   it('turns the lights off and raises the hair for the outlet gag', () => {
-    expect(GAG_PRESENTATIONS.outlet_hair).toMatchObject({
+    expect(GAG_PRESENTATIONS.outlet_hair).toEqual({
       lightsOff: true,
       hair: true,
       babySlide: false,
+      papaClip: 'gag_shock',
+      babyClip: 'gag_delight',
     });
   });
 
   it('slides the baby for the stairs gag only, and shows nothing of its own for the coffee table', () => {
-    expect(GAG_PRESENTATIONS.stairs_slide).toMatchObject({
+    expect(GAG_PRESENTATIONS.stairs_slide).toEqual({
       lightsOff: false,
       hair: false,
       babySlide: true,
+      papaClip: 'gag_shock',
+      babyClip: 'gag_delight',
     });
-    expect(GAG_PRESENTATIONS.table_object_fall).toMatchObject({
+    expect(GAG_PRESENTATIONS.table_object_fall).toEqual({
       lightsOff: false,
       hair: false,
       babySlide: false,
+      papaClip: 'gag_hit',
+      babyClip: 'laugh',
     });
   });
 });
@@ -53,10 +59,12 @@ describe('the surprise mischiefs of the silence (story 1.21)', () => {
   it.each(['tissues_everywhere', 'crayon_scribbles'] as const)(
     '%s moves nothing on the stage: its clips and the gag cue are the show',
     (gag) => {
-      expect(GAG_PRESENTATIONS[gag]).toMatchObject({
+      expect(GAG_PRESENTATIONS[gag]).toEqual({
         lightsOff: false,
         hair: false,
         babySlide: false,
+        papaClip: 'gag_hit',
+        babyClip: 'gag_delight',
       });
     },
   );

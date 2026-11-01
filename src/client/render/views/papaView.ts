@@ -11,16 +11,14 @@ import {
   type TravelClips,
   turnToward,
 } from './characterMotion.ts';
-import type { CharacterRig } from './characterRig.ts';
+import { type CharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
 
-// Art constants (Geo tunes them here), named with their units.
-/** Papa's height, feet on the floor to the top of his head, in metres: what the markers above him read. */
+/**
+ * Papa's height, feet on the floor to the top of his head, in metres: what the markers above him
+ * read. The mesh is authored to it (`papa.glb`), and the silhouette test in `characterAssets.test.ts`
+ * measures the file against it: changing it here moves the markers, not the drawing.
+ */
 export const PAPA_HEIGHT_M = 0.9;
-/** How tall his spikes of hair stand, fully on end, in metres (`papa_hair` in the `.glb`). */
-export const PAPA_HAIR_HEIGHT_M = 0.35;
-
-/** The bone's scale with the lids fully open: nothing, without a degenerate matrix. */
-const EYELIDS_OPEN_SCALE = 0.02;
 
 // The micro-sleep (story 1.19). Diegetic: 3D, never a DOM overlay.
 const PAPA_Z_COLOR = PALETTE.ink;

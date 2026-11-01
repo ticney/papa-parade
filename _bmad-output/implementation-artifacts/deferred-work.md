@@ -914,3 +914,13 @@ Open:
 - **The clip `eyes_open` plays on the signal, and the signal closes the baby's eyes** (4.6, 4.7: `signalIcon: eyelids`). The contract named the clip, so it stays, but it only moves his neck and spine; `babyLidsAfter` shuts the lids. Reason: a name to settle with Geo, renaming means one action in the `.blend` and one line of code.
 - **The baby's shut lids at the signal were not seen on screen:** the marker stands over him in the capture. Unit tests pin the bone. Reason: look at it in play, and it may decide where that marker goes.
 - **Rigid parts, no elbows:** one bone per limb, so `on_phone` and `drink` read as poses more than gestures, and a carried baby hides behind Papa on some headings. Reason: first-pass art (D3); Geo's call on what to rework.
+
+## Deferred from: code review of 7-2-personnages-rigges-et-animes (2026-11-01)
+
+- **A squash restarted mid-run snaps back to scale 1** (`levelScene.ts:447`): a second event on the same character sets `startAt` again and the curve begins at 1 from wherever it stood. Reason: keep the larger, blend or ignore is a feel call, for Geo once he has watched it move.
+- **The baby's head is not limited against his body** (`babyView.ts:180`): up to 180° of twist for the 250 ms or so the body (720°/s) takes to catch up with a gaze that flips. Reason: the gaze is immediate on purpose (D9, readability) and a limit would delay it; judge it in play.
+- **Only `idle` and `walk` have carried variants** (`characterClips.ts:31`): `glide`, `drink`, `asleep` and `on_phone` with a carried baby play the arms-free clip. Reason: the contract lists `carry_idle` and `carry_walk` only; Geo's call on what the first-pass art needs.
+- **Feel numbers left in code**: `BABY_LIDS_PEEK = 0.5` and the clip speed clamp `CLIP_TIME_SCALE_MIN` / `MAX` = 0.3 / 2.5. Reason: move them to `feedback.json › characters` when Geo asks to tune them.
+- **`responseClipOf` takes untyped strings** (`characterClips.ts:81`): a new response kind or a renamed quality silently plays `respond_parry`. Reason: no new response kind is planned; type them from `ResponseResolved` when one is added.
+- **A one-shot no longer than `crossFadeMs` ends at its first update** (`characterRig.ts:170`): the schema has no upper bound on `crossFadeMs`; the shortest clips are three times today's 140 ms. Reason: only if Geo raises `crossFadeMs` past a third of the shortest clip; add a bound then.
+- **Code-driven bones assume an identity rest rotation** (`babyView.ts:180`): true of the committed files, checked by nothing for a re-export. Reason: add the check to `characterAssets.test.ts` with the next Blender export.

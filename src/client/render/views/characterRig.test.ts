@@ -1,5 +1,11 @@
 import { type Logger, log } from '@shared/log';
-import { MeshToonMaterial, SkinnedMesh } from 'three';
+import {
+  AnimationClip,
+  AnimationMixer,
+  MeshToonMaterial,
+  SkinnedMesh,
+  VectorKeyframeTrack,
+} from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestPapa } from '../../../../tests/support/testCharacters.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
@@ -65,6 +71,35 @@ describe('createCharacterRig', () => {
     rig.update(CROSS_FADE_MS);
     expect(rig.clipName).toBe('walk');
     expect(rig.isClipRunning('idle')).toBe(false);
+  });
+
+  it('keeps the weights adding up to 1 when a fade is cut short by a third clip', () => {
+    // Three flat clips at y = 0.5 over a rest pose at 0: the pose is 0.5 × the summed weight, so a
+    // sum under 1 would show as a dip toward the bind pose.
+    const flat = (name: string): AnimationClip =>
+      new AnimationClip(name, 1, [
+        new VectorKeyframeTrack('spine.position', [0, 1], [0, 0.5, 0, 0, 0.5, 0]),
+      ]);
+    const { scene } = createTestPapa();
+    const rig = createCharacterRig(
+      { scene, animations: ['idle', 'walk', 'glide'].map(flat) },
+      createToonMaterialCache(),
+      CROSS_FADE_MS,
+    );
+    const spineY = (): number => rig.node('spine').position.y;
+    rig.play('idle');
+    rig.update(10);
+    rig.play('walk');
+    rig.update(CROSS_FADE_MS / 2);
+    expect(spineY()).toBeCloseTo(0.5, 5);
+    rig.play('glide');
+    for (let i = 0; i < 12; i++) {
+      rig.update(CROSS_FADE_MS / 10);
+      expect(spineY(), `step ${i}`).toBeCloseTo(0.5, 5);
+    }
+    expect(rig.isClipRunning('idle')).toBe(false);
+    expect(rig.isClipRunning('walk')).toBe(false);
+    expect(rig.clipName).toBe('glide');
   });
 
   it('does not restart a loop asked for again', () => {
@@ -179,10 +214,15 @@ describe('createCharacterRig', () => {
       }
     });
     const spies = skeletons.map((skeleton) => vi.spyOn(skeleton, 'dispose'));
+    // The mixer's caches hold the clips' bindings of the root: a leak there shows in no GPU count.
+    const stopAll = vi.spyOn(AnimationMixer.prototype, 'stopAllAction');
+    const uncacheRoot = vi.spyOn(AnimationMixer.prototype, 'uncacheRoot');
     rig.play('idle');
     rig.update(10);
     rig.dispose();
     for (const spy of spies) expect(spy).toHaveBeenCalled();
+    expect(stopAll).toHaveBeenCalled();
+    expect(uncacheRoot).toHaveBeenCalledWith(rig.root);
     expect(isGeometryFreed).toBe(true);
     expect(rig.root.parent).toBeNull();
   });

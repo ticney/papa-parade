@@ -22,8 +22,9 @@ describe('squashScaleAt', () => {
   });
 
   it('reaches its amount at the peak, then overshoots the other way, smaller', () => {
-    const heights = Array.from({ length: 99 }, (_, index) => at(-30, index + 1).y);
-    expect(Math.min(...heights)).toBeCloseTo(0.7, 2);
+    // Finely sampled: the peak is 0.218 of the way in, and the amount is the real extreme to 4 digits.
+    const heights = Array.from({ length: 9999 }, (_, index) => at(-30, index + 1, 10_000).y);
+    expect(Math.min(...heights)).toBeCloseTo(0.7, 4);
     const stretch = Math.max(...heights);
     expect(stretch).toBeGreaterThan(1);
     expect(stretch).toBeLessThan(1.3);

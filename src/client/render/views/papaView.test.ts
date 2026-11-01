@@ -6,7 +6,7 @@ import { createTestPapa } from '../../../../tests/support/testCharacters.ts';
 import { createBlobKit } from '../blobShadow.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
 import { createCharacterRig } from './characterRig.ts';
-import { createPapaView, PAPA_HEIGHT_M, type PapaPose, papaPoseAt } from './papaView.ts';
+import { createPapaView, type PapaPose, papaPoseAt } from './papaView.ts';
 
 function papa(patch: Partial<PapaSlice> = {}): PapaSlice {
   return {
@@ -107,10 +107,6 @@ describe('createPapaView', () => {
     const { named } = buildView();
     expect(named('papa_body')).toBeInstanceOf(SkinnedMesh);
     expect(named('papa_body').frustumCulled).toBe(false);
-  });
-
-  it('keeps the height the markers read', () => {
-    expect(PAPA_HEIGHT_M).toBe(0.9);
   });
 
   it('puts him on the floor at the interpolated position, turned at once on his first frame', () => {

@@ -296,6 +296,28 @@ describe('advance(steps) and freeze(on)', () => {
   });
 });
 
+describe('setPapaLook(look)', () => {
+  const look = { hasMashOnCheek: true, hasHairOnEnd: false, isShirtInsideOut: true };
+
+  it('hands the three parts to the host, as a copy', async () => {
+    const { api, host } = await createRig();
+    const setLook = vi.spyOn(host, 'setPapaLook');
+    api.setPapaLook(look);
+    expect(setLook).toHaveBeenCalledWith(look);
+    expect(setLook.mock.calls[0]?.[0]).not.toBe(look);
+  });
+
+  it('throws on anything but an object with the three booleans', async () => {
+    const { api, host } = await createRig();
+    const setLook = vi.spyOn(host, 'setPapaLook');
+    const bad = [null, 'mash', {}, { hasMashOnCheek: true }, { ...look, hasHairOnEnd: 1 }];
+    for (const value of bad) {
+      expect(() => api.setPapaLook(value as never), String(value)).toThrow('__PP__.setPapaLook');
+    }
+    expect(setLook).not.toHaveBeenCalled();
+  });
+});
+
 describe('loadLevel(id, seed)', () => {
   it('starts that level with that seed and resolves once the countdown is over', async () => {
     const { api, host, session } = await createRig();
