@@ -6,6 +6,8 @@ export default mergeConfig(
   defineConfig({
     test: {
       environment: 'node',
+      // Whole headless games and audio synthesis go past the default 5 s on a shared Mac or a CI runner.
+      testTimeout: 60_000,
       include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
       exclude: [
         'tests/e2e/**',
