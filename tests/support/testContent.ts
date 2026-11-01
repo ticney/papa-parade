@@ -45,6 +45,7 @@ export function createTestFeedback(): FeedbackTable {
     sequenceBar: { slideMs: 250 },
     comboBadge: { cashInHoldMs: 900 },
     papaHint: { holdMs: 1200 },
+    bombDrop: { laidHeightM: 0.3 },
     resultScreen: {
       rowCountUpMs: 600,
       rowStaggerMs: 200,
@@ -296,6 +297,23 @@ export function createTestFakeSleepRound(): SequenceDef {
   return { ...duel, steps: [step] };
 }
 
+/**
+ * « Dépose-bombe », frozen like the others (`testBombDrop.sequence.json`, story 4.8): one duel step
+ * (6 s) on `bomb_drop_lay`, slow motion at 0.4, three retreats to lose, and the baby laid to win.
+ */
+export function createTestBombDrop(): SequenceDef {
+  const path = 'tests/support/testBombDrop.sequence.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testBombDrop.sequence.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, SequenceDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
 /** The frozen sequences, by id. */
 export function createTestSequences(): Readonly<Record<string, SequenceDef>> {
   const defs = [
@@ -303,6 +321,7 @@ export function createTestSequences(): Readonly<Record<string, SequenceDef>> {
     createTestLullabyWalk(),
     createTestBedtimeDuel(),
     createTestFakeSleepDuel(),
+    createTestBombDrop(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
@@ -337,7 +356,16 @@ export function createTestFakeSleep(): ThreatDef {
   return readThreatFixture('testFakeSleep.threat.json');
 }
 
-/** The nine frozen threats, by id. */
+/**
+ * The bomb drop's Firmness, frozen like the others (`testBombDrop.threat.json`, story 4.8): a `firm`
+ * on Papa judged on its release. A 2600 ms descent, a press within 700 ms of the telegraph, a 300 ms
+ * window for the release.
+ */
+export function createTestBombDropLay(): ThreatDef {
+  return readThreatFixture('testBombDrop.threat.json');
+}
+
+/** The ten frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
     createTestOutlet(),
@@ -349,6 +377,7 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
     createTestArmsCry(),
     createTestBedtimeEyes(),
     createTestFakeSleep(),
+    createTestBombDropLay(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }

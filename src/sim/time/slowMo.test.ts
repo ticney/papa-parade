@@ -5,7 +5,7 @@ import { createTestContent } from '../../../tests/support/testContent.ts';
 import type { StepContext } from '../context.ts';
 import type { SimEvent } from '../events.ts';
 import { createWorld, type SlowMo, type World } from '../world.ts';
-import { slowMoFactorAt, startSlowMo, updateTimeScale } from './slowMo.ts';
+import { endSlowMo, slowMoFactorAt, startSlowMo, updateTimeScale } from './slowMo.ts';
 
 const { slowMoPerfect, slowMoLastThreat } = createTestContent().feel.timing;
 const { slowMoCashIn } = createTestContent().feel.combo;
@@ -287,5 +287,84 @@ describe('startSlowMo and updateTimeScale', () => {
       const scales = run(slowMoPerfect.durationMs + slowMoPerfect.returnMs);
       expect(new Set(scales)).toEqual(new Set([0.2]));
     });
+  });
+});
+
+describe('endSlowMo (story 4.8)', () => {
+  const sequenceSlowMo = { timeScale: 0.4, durationMs: 1000, returnMs: 400 };
+
+  it('is a no-op when none of that source runs: no event, no scale change', () => {
+    const { world, ctx } = newRig();
+    startSlowMo(world, ctx, 'perfect', slowMoPerfect);
+    const events = ctx.events.length;
+    const scale = world.time.scale;
+    endSlowMo(world, ctx, 'sequence');
+    expect(ctx.events).toHaveLength(events);
+    expect(world.time.scale).toBe(scale);
+    expect(world.time.slowMos.map((slowMo) => slowMo.source)).toEqual(['perfect']);
+  });
+
+  it('is a no-op in an empty world', () => {
+    const { world, ctx } = newRig();
+    endSlowMo(world, ctx, 'sequence');
+    expect(ctx.events).toEqual([]);
+    expect(world.time.slowMos).toEqual([]);
+  });
+
+  it('stops the hold now and starts the return now, with the whole return left', () => {
+    const { world, ctx, run } = newRig();
+    startSlowMo(world, ctx, 'sequence', sequenceSlowMo);
+    run(300);
+    endSlowMo(world, ctx, 'sequence');
+    const [slowMo] = world.time.slowMos;
+    expect(slowMo).toMatchObject({ holdUntil: 300, endsAt: 300 + sequenceSlowMo.returnMs });
+    const scales = run(300 + sequenceSlowMo.returnMs);
+    expect(scales[0]).toBeGreaterThan(sequenceSlowMo.timeScale);
+    expect(scales.at(-1)).toBe(1);
+    expect(world.time.slowMos).toEqual([]);
+  });
+
+  it('keeps what remains of a return that is already under way', () => {
+    const { world, ctx, run } = newRig();
+    startSlowMo(world, ctx, 'sequence', sequenceSlowMo);
+    run(sequenceSlowMo.durationMs + 100);
+    const before = { ...(world.time.slowMos[0] as SlowMo) };
+    endSlowMo(world, ctx, 'sequence');
+    expect(world.time.slowMos[0]).toMatchObject({
+      holdUntil: before.holdUntil,
+      endsAt: before.endsAt,
+    });
+  });
+
+  it('ends at once when its return is 0', () => {
+    const { world, ctx, run } = newRig();
+    startSlowMo(world, ctx, 'sequence', { ...sequenceSlowMo, returnMs: 0 });
+    run(200);
+    endSlowMo(world, ctx, 'sequence');
+    expect(world.time.slowMos).toEqual([]);
+    expect(world.time.scale).toBe(1);
+  });
+
+  it('leaves another source alone, and the slowest of the rest wins', () => {
+    const { world, ctx, run } = newRig();
+    startSlowMo(world, ctx, 'perfect', slowMoPerfect);
+    startSlowMo(world, ctx, 'sequence', sequenceSlowMo);
+    run(100);
+    endSlowMo(world, ctx, 'sequence');
+    expect(world.time.slowMos.find((slowMo) => slowMo.source === 'perfect')?.holdUntil).toBe(
+      slowMoPerfect.durationMs,
+    );
+    // The perfect's 0.3 is slower than the sequence's 0.4 return: it rules until it lets go.
+    expect(world.time.scale).toBe(slowMoPerfect.timeScale);
+  });
+
+  it('gives the next step a scale of 1 once the return has run out', () => {
+    const { world, ctx, run } = newRig();
+    startSlowMo(world, ctx, 'sequence', sequenceSlowMo);
+    run(500);
+    endSlowMo(world, ctx, 'sequence');
+    const scales = run(500 + sequenceSlowMo.returnMs + STEP_MS);
+    expect(scales.at(-1)).toBe(1);
+    expect(world.time.scale).toBe(1);
   });
 });

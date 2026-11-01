@@ -1,6 +1,10 @@
+---
+baseline_commit: 0ae3bab3a028e5c00598277c0c28b925bb9d9760
+---
+
 # Story 4.8: The bomb drop
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.8 « Dépose-bombe » (L1980-2000). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -208,17 +212,17 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
 
 ## Tasks / Subtasks
 
-- [ ] **T1. The release Firmness in the sim** (AC 1-3, 10, part of 15-16)
-  - [ ] T1.1 Schema, glyphs, `content:schemas`, schema tests.
-  - [ ] T1.2 `telegraphThreat`, `openWindow`, `pressThreat`, the loop branch; `bombDropRelease.test.ts` on a frozen def, **before any live content**.
-- [ ] **T2. The sequence** (AC 4-7, 10)
-  - [ ] T2.1 `sequenceDuelProblems`, `slowMo` on the step, the `sequence` source, `endSlowMo`, snapshot v25.
-  - [ ] T2.2 `babyLaid`: placement, the put-down in `runPapa`, the shared level check.
-  - [ ] T2.3 `bombDrop.test.ts`, the fuzz, the round trip.
-- [ ] **T3. Content** (AC 8-9): the JSON, the gag, strings, cues, clips.
-- [ ] **T4. Client** (AC 11-13): the marker trap, the descent, the music.
-- [ ] **T5. Bots and tools** (AC 14-15, 17): the release plan, catalogue, tables, goldens.
-- [ ] **T6. End to end, docs, CI** (AC 18-20).
+- [x] **T1. The release Firmness in the sim** (AC 1-3, 10, part of 15-16)
+  - [x] T1.1 Schema, glyphs, `content:schemas`, schema tests.
+  - [x] T1.2 `telegraphThreat`, `openWindow`, `pressThreat`, the loop branch; `bombDropRelease.test.ts` on a frozen def, **before any live content**.
+- [x] **T2. The sequence** (AC 4-7, 10)
+  - [x] T2.1 `sequenceDuelProblems`, `slowMo` on the step, the `sequence` source, `endSlowMo`, snapshot v25.
+  - [x] T2.2 `babyLaid`: placement, the put-down in `runPapa`, the shared level check.
+  - [x] T2.3 `bombDrop.test.ts`, the fuzz, the round trip.
+- [x] **T3. Content** (AC 8-9): the JSON, the gag, strings, cues, clips.
+- [x] **T4. Client** (AC 11-13): the marker trap, the descent, the music.
+- [x] **T5. Bots and tools** (AC 14-15, 17): the release plan, catalogue, tables, goldens.
+- [x] **T6. End to end, docs, CI** (AC 18-20).
 
 ## Dev Notes
 
@@ -325,14 +329,76 @@ Paths follow the architecture (`src/sim/sequences/`, `content/sequences/`). The 
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), `gds-dev-story`, in the worktree `.claude/worktrees/4-8-depose-bombe` on `story/4-8-depose-bombe`.
+
 ### Debug Log References
+
+- `simPurity` refuses the identifier `window` in `src/sim`: the effective window of `telegraphThreat` is a local named `response` (the story's testing notes said so).
+- Biome folds a `let` that it sees assigned nowhere into a `const`: a first edit of `levelScene.ts` that did not apply (the call had been reformatted) silently turned `drawnLayDownPct` into a constant, and the e2e read 0 for the lowering. Fixed, and the e2e caught it.
+- The catalogue (`threatCatalog.test.ts`) picks `bomb_drop_lay` up by itself (a live level's duel step names it) and its generic « too early » / « not answered » cases do not fit a Firmness judged on its release: no press within `pressWithinMs` is a `late` gag about 760 ms after the telegraph, long before the pose, and a retreat then starts the next round at once (the catalogue's duel has `restMs: 0`). The release defs get their own block there, and the generic « not answered » horizon is the press deadline for them.
+- `ForceThreat` refuses a threat on Papa, so the unit tests of `bombDropRelease.test.ts` start the real sequence and, for « not carried », set the baby down by hand once the round is telegraphed.
+- The first full `npm run ci` stopped in `test:coverage`: `makePlaceholderAudio.test.ts › makes each telegraph and each gag sound unlike the others` timed out at its 30 s (it compares every pair of the `tel_`, `gag_`, `resp_` and `baby_` clips, so three more clips make it slower, and the coverage run is several times slower than `npm test`: 7 s alone). The comparison is untouched and the new clips pass it; the test's own timeout went to 120 s (`tests/tools/audio/makePlaceholderAudio.test.ts`), and the full CI was rerun once.
+- The sandbox refuses compound shell commands that name `git`, heredocs appended to a file and `xargs sed`: every multi-file edit went through small Python scripts in the scratchpad.
+- The shell exported no `VITE_DEBUG_ALLOWED` (checked with `env | grep VITE_`); every browser run was still wrapped in `(unset VITE_DEBUG_ALLOWED; caffeinate -i -s …)`.
 
 ### Completion Notes List
 
+- **T1, the release Firmness in the sim.** `threat.ts`: `release: { pressWithinMs }` (strict, every key described), exactly one of `holdUntilMs` and `release` on a `firm`, `pressWithinMs < telegraphDelayMs` with a numeric delay, `signalVerbKey` / `signalIcon` / `feedback.signal` required on a release and still refused elsewhere (the `waitKeys` loop is split, `minDelayMs` and `maxDelayMs` stay `wait`-only), `sweat` and `open_hand` in `THREAT_ICONS` and `THREAT_ICON_PATHS`. `telegraphThreat` forces `bufferMs: 0` on a release def and draws nothing; `openWindow` emits `WaitSignalGiven` when `def.feedback.signal` exists (the event's comment says « the signal »). `threatSystem.ts`: the first branch of `pressThreat`, the `judgeRelease` branch before the carried Firmness rule (it never calls `firmHoldOutcome`), and the « no press within the deadline » expiry. `judgePress`, `classifyPress`, `firmHoldOutcome`, `holdEndAt`, `effectiveWindow` and `pressKindOf` are untouched; the plain carried Firmness is still a `wrongResponse` (`carry.test.ts`).
+- **T2, the sequence.** `sequenceDuelProblems` accepts a `wait` or a release `firm` (a plain `firm` is refused, with a test); the stale comments of `sequence.ts` and `sequenceSteps.ts` are corrected. `DuelStepSchema.slowMo`, the `sequence` slow-mo source, `endSlowMo`, called by `goToSequenceStep` and `closeSequence`. `babyLaid`: schema refusals (no `babyCarried`, another failure), `placePapaOverMattress` at the start (also moves `prevXM/prevZM`), `isBabyJustLaid` + `putDownBaby` at the top of `runPapa`, the shared level check (`sequenceLayProblems`, `openSafeCentreCountOf`, used by `createSim` and `content:check`). Gag `baby_woke_on_drop`. **Snapshot version 25** (the `sequence` source is the only change); the history comment and every « version 24 » title or cast moved.
+- **T3, content.** `bomb_drop_lay.json`, `bomb_drop.json`, the level lists it, `verb.hold_on` « TIENS… » and `verb.let_go` « LÂCHE ! », the cues `tel_bomb_drop`, `bomb_drop_touchdown`, `gag_baby_woke_on_drop`, `loops.sequenceMusic.bomb_drop`. Four placeholder clips (seeds `SEED + 35` to `+ 38`, all the seeds in the table read first: 34 was the highest), generated with `npm run assets:audio -- --only …`; only the four new `.m4a` are in the tree (the thriller loop is 4 s, 35 KB). The verb fit is checked in the e2e screenshots at 667 × 375.
+- **T4, client.** `threatMarkers.ts`: a release def has no `carriedVerb` (the trap). `layDownProgressPct` (pure, clamped, 100 in `windowOpen`, 0 for a threat that is not running) and `layDownPctAt`, `SceneBodies.layDownDefIds` and `laidHeightM`, `feedback.json › bombDrop.laidHeightM` (0.3 m), `BabyView.update(..., layDownPct)`; the lowering stays under reduced motion. `__PP__.fx().babyLayDownPct` (new) lets the e2e read the drawn lowering with no pixel. The music loop needed no code (`sequenceMusic` is generic). Input: no code, proved in the e2e (a held finger, Space, a pause).
+- **T5, bots and tools.** `BotSetup.releaseDefIds` (optional) built by `releaseDefIdsOf` beside `botResponsesOf` (which keeps its output; `BotResponse` has no new member); `scheduleDrop` plans the press and the `Release` (not `firmHold`); `perfect` presses at the first step of the telegraph and releases at `round(centreOf)`, `human` at `enteredAt + reactionMs` and `round(centreOf + aimOffsetMs + jitterSdMs × N(0, 1))` (one draw); `random` and `idle` unchanged. `runSim` and the browser's autoplay pass the ids. The generated catalogue covers `bomb_drop_lay` (release perfect, both window edges, too early, too late, held through the pose, no press, a press past `pressWithinMs` and at the limit, `earlyPress` guard, the signal, at each tier). `simReport`'s `duelDefs` already held every live duel def (a test pins `bomb_drop_lay` among them).
+- **T6, end to end, docs.** `tests/e2e/bombDrop.spec.ts` (12 tests, Chromium and WebKit): the start (Papa placed, baby in the arms, music), a held press (ring closes, « TIENS… », sweat, no « POSE-LE D'ABORD ! », the lowering rises), the time scale (0.4 in the descent, back to 1), the pose (« LÂCHE ! », open hand, the cue, the vibration on Chromium, the baby all the way down), a release in the window (`resp_firm*`, `baby_put_down`, `combo_cashed_in`, `data-pp-combo-cashed`, `data-pp-put-down="safe"`), Space, a tap at once and a hold past the pose (the same gag, one retreat, the baby back up), a pause during the hold (`released`), reduced motion, the sfx bus at 0, and the perfect autoplay. Screenshots at 667 × 375 were looked at (descent, pose, reduced motion on WebKit): the verb is whole, the glyphs read (a drop, a hand), nothing overlaps the HUD. `threats.spec.ts` lists the new threat. `project-context.md` (a « The bomb drop » paragraph, « snapshot version 25 », the exception in « Carrying the baby ») and `deferred-work.md` (the open points) are written; the architecture and the GDD are untouched.
+- **Deliberate regeneration of the goldens (AC 17).** `npm run golden:update`, then `biome format` of the JSON: **every existing journal is byte for byte what it was** (the frozen feel and defs did not change, snapshot 25 adds no field, so not even a `worldHash` moved; the only diff of the first run was `mama_woke.expected.json`'s array layout, undone by the formatter). Two scenarios are new: `bomb_drop_won` and `bomb_drop_released_early` (frozen defs, whole-ms stamps, no draw so seed-independent), pinned by `tests/golden/bombDrop.test.ts`. No screenshot reference moved (`__screenshots__` untouched).
+- **The sim tables (AC 17).** Level `salon_crawler`, seed 1, 20 runs, whole level, `main` against the branch (hashes ignored; a script compared every key of the two reports):
+
+| run | success % | responses | perfect | gags | mean score | mean stars | micro-sleeps | sequences |
+|---|---|---|---|---|---|---|---|---|
+| perfect / main | 100 | 1032 | 1032 | 0 | 90 | 5 | 65 | 0 |
+| perfect / branch | 100 | 1032 | 1032 | 0 | 90 | 5 | 65 | 0 |
+| human / main | 99.9 | 1025 | 645 | 1 | 82.1 | 4 | 62 | 0 |
+| human / branch | 99.9 | 1025 | 645 | 1 | 82.1 | 4 | 62 | 0 |
+| idle / main | 0 | 762 | 0 | 762 | 20 | 1 | 64 | 0 |
+| idle / branch | 0 | 762 | 0 | 762 | 20 | 1 | 64 | 0 |
+| random / main | 1.2 | 775 | 0 | 766 | 20 | 1 | 64 | 0 |
+| random / branch | 0.8 | 787 | 1 | 781 | 20.1 | 1 | 65 | 0 |
+| random / branch with `bomb_drop` removed from the level | 1.2 | 775 | 0 | 766 | 20 | 1 | 64 | 0 |
+
+  `perfect`, `human` and `idle` are identical to `main` apart from hashes. `random` moves (one more instance in the level, as in 4.6 and 4.7), and **removing `bomb_drop` from the level's `sequences` brings it back to `main` exactly** (identical apart from hashes): the instance is the whole cause. The level file was restored.
+
+  The drop alone, `--sequence bomb_drop --sequence-at-ms 5000`, seed 1, 20 runs, capped at 60 s:
+
+| bot | started | won | lost | retreats | lay responses | perfect | success | fail | fail reasons | put downs (safe) | cash-ins | points cashed |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| perfect | 20 | 20 | 0 | 0 | 20 | 20 | 0 | 0 | none | 20 (20) | 20 | 20 |
+| human | 20 | 20 | 0 | 0 | 20 | 16 | 4 | 0 | none | 20 (20) | 20 | 20 |
+| random | 20 | 0 | 20 | 40 | 60 | 0 | 0 | 60 | late 59, released 1 | 5 (5) | 0 | 0 |
+| idle | 20 | 0 | 20 | 40 | 60 | 0 | 0 | 60 | late 60 | 0 (0) | 0 | 0 |
+
+  `perfect` wins 20 of 20 with no retreat, every response `perfect`, the baby down and the combo cashed. `idle` loses 20 of 20 at its third failure (two retreats, then `BabyWoke`). **Findings for Geo:** `human` wins the drop 20 of 20 (16 perfect, 4 success), with no retreat: slow motion makes the 300 ms window about 750 ms of real time, and the press only has to come early. If it is too easy once played, narrow `windowMs`. `random` never wins (its `late` gags are the presses it never makes); its 5 put-downs are walks into the playpen with the baby in the arms (4.1's rule), not wins. The micro-sleep count skips duel defs.
+- **Checks run.** `npm run ci:fast` green after each task. E2E on Chromium: `bombDrop`, `bedtimeDuel`, `fakeSleep`, `holdRing`, `sequence`, `threats`, `combo`, `carry`, `testApi`, `ui`, `feedback`, `lullaby` (114 passed); `bombDrop` also on WebKit (12 passed). Coverage of `src/sim` is part of the full CI run below.
+
 ### File List
+
+Content and assets: `content/threats/bomb_drop_lay.json`, `content/sequences/bomb_drop.json`, `content/levels/salon_crawler.json`, `content/feedback.json`, `content/strings.fr.json`, `content/_schemas/{feedback,sequence,threat}.schema.json`, `public/assets/audio/{tel_bomb_drop,baby_mattress_touch,gag_baby_woke_on_drop,music_bomb_thriller}.m4a`.
+
+Sim: `src/sim/{world,events,snapshot,createSim,index}.ts`, `src/sim/threats/{threatFsm,threatSystem,gags}.ts`, `src/sim/sequences/{bedtimeDuel,sequenceEnd,sequenceStart,sequenceSteps,layDown}.ts`, `src/sim/time/slowMo.ts`, `src/sim/papa/papaSystem.ts`.
+
+Content schemas: `src/content/schemas/{threat,sequence,feedback}.ts`.
+
+Client and debug: `src/client/boot.ts`, `src/client/app/{levelSession,testHost}.ts`, `src/client/render/{levelScene,gags}.ts`, `src/client/render/views/babyView.ts`, `src/client/ui/world/threatMarkers.ts`, `src/debug/autoplay.ts`.
+
+Bots and tools: `src/bots/{bot,botResponses,threatTiming,perfectBot,humanBot}.ts`, `tools/sim/runSim.ts`, `tools/content/contentChecks.ts`, `tools/audio/makePlaceholderAudio.ts`.
+
+New tests and fixtures: `src/sim/threats/bombDropRelease.test.ts`, `src/sim/sequences/{bombDrop,bombDropFuzz,bombDropSnapshot}.test.ts`, `src/client/render/views/layDown.test.ts`, `src/client/ui/world/releaseMarker.test.ts`, `tests/content/bombDropSchema.test.ts`, `tests/bots/dropBots.test.ts`, `tests/tools/sim/dropSequence.test.ts`, `tests/tools/audio/bombDropClips.test.ts`, `tests/golden/bombDrop.test.ts`, `tests/golden/journals/bomb_drop_{won,released_early}{,.expected}.json`, `tests/e2e/bombDrop.spec.ts`, `tests/support/testBombDrop.{threat,sequence}.json`.
+
+Updated tests: `src/bots/botResponses.test.ts`, `src/client/app/{levelSession,threatsSwitch}.test.ts`, `src/client/feedback/feedbackDirector.test.ts`, `src/client/render/levelScene.test.ts`, `src/debug/{debugViews,testApi}.test.ts`, `src/sim/{createSim,snapshot}.test.ts`, `src/sim/sequences/{duelLevel,duelSnapshot,fakeSleepSnapshot,sequenceSnapshot}.test.ts`, `src/sim/threats/{gags,inputLag,threatFsm}.test.ts`, `src/sim/time/slowMo.test.ts`, `tests/content/{feedbackSchema,levelSchema,loadLevelContent}.test.ts`, `tests/e2e/{threats.spec,support/testApi}.ts`, `tests/golden/scenarios.ts`, `tests/support/{botSupport,fakeTestHost,testContent}.ts`, `tests/threats/threatCatalog.test.ts`, `tests/tools/audio/makePlaceholderAudio.test.ts` (one timeout).
+
+Docs: `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/{4-8-depose-bombe.md,deferred-work.md,sprint-status.yaml}`.
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-11-01 | Story created (`gds-create-story`), status `ready-for-dev`. Ultimate context engine analysis completed: comprehensive developer guide created. |
+| 2026-11-01 | Implemented (`gds-dev-story`): the Firmness judged on its release, the `bomb_drop` sequence with its slow motion, `babyLaid` and the put-down, snapshot version 25, content and four placeholder clips, the client lowering and marker, the bot plan, the catalogue, two golden scenarios, the e2e spec and the docs. Status `review`. |

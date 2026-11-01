@@ -810,3 +810,19 @@
 
 - The snapshot's `threatProblem` ties `feintAt` and `isFeintGiven` to idle, hidden and `windowOpenAt` only. A restored `windowOpen` threat with `feintAt` set and `isFeintGiven: false`, or a def without a `feint` carrying a `feintAt`, is accepted (the sim never writes either; `worldFromSnapshot` does not compare with `def.feint`). Add the checks when a bad snapshot becomes a real risk (journals from testers).
 - `tests/golden/fakeSleep.test.ts` redeclares `FAKE_SLEEP_ID` (also in `scenarios.ts`) and hard-codes the instants bound to seed 48's draws (8740, 11 820, 17 050, 19 290). Export the id and derive the instants from the journal when the next rng or timing change touches them.
+
+## Story 4-8-depose-bombe (2026-11-01)
+
+- **Papa is placed over the playpen at the start** (open point 1, D3), rather than the start being refused elsewhere. It shows as a jump in the salon's debug start (`prevXM/prevZM` are set too, so the view does not slide). 4.10's Papa should already be at the crib.
+- **A failure restarts the descent** (open point 2, D2); it does not go back to the duel. One step, so a retreat from step 0 stays at step 0. 4.10 can revisit it once sequences chain.
+- **Laying the baby is the one Firmness allowed while carrying** (open point 3): GDD L171's « pas tenir avec Fermeté » concerns carrying through a threat. `project-context.md › Carrying the baby` says so.
+- **A pause during the hold is a failure** (open point 4), as for every Firmness (`releaseHeld`): a `released` gag, tested. On a hold of about 6.5 s of real time it may feel harsher than elsewhere.
+- **The noise is +4 %** per failure (open point 5): `gagCryMs` 2000, two `BabyCrying` at 2 % each. The GDD does not price it (L216). `restMs` (2000) is at least the cry.
+- **The tuning is a guess** (open point 6): 2.6 s of descent, 700 ms to press, a 300 ms window, slow motion at 0.4, so about 6.5 s of real time and a 750 ms window. **The sim table says `human` wins the drop 20 of 20 (16 perfect, 4 success)**: slow motion makes the window generous. If it is too easy once played, narrow `windowMs` (a number of `bomb_drop_lay.json`) or raise `timeScale` toward 1.
+- **The sweat, the open hand and the lowered sphere are placeholders** (open point 7) until E7. « TIENS… » and « LÂCHE ! » are the story's words (`verb.hold_on`, `verb.let_go`).
+- **A drop nobody presses is gagged long before its pose** (`pressWithinMs` + tolerance after the telegraph, about 760 ms), by design: the player's finger must be down early. A `release` def has therefore no « late » of its own until a press has been made.
+- **A press stamped in the descent that reaches the sim once the window is open is `late`**, whatever its stamp (the schema keeps `pressWithinMs` below the descent, so only an absurd `lagMs` can do it).
+- **`ForceThreat` refuses a threat on Papa**, so the drop can only start through `StartSequence` (the overlay, `__PP__.send`, `npm run sim -- --sequence bomb_drop`).
+- **`__PP__.fx()` gained `babyLayDownPct`** (the lowering as drawn, 0 to 100), and `LevelScene.realFxState()` carries it: the e2e reads the baby's height without a pixel. The name `realFxState` is older than this (it was the real-time effects only).
+- **`content:check` says the « no carry » half of a `babyLaid` sequence twice** (the existing « carries the baby, but the level has no carry » and `sequenceLayProblems`'s own): same cause, two lines.
+- **Fixture anchors and goldens**: the two new golden scenarios (`bomb_drop_won`, `bomb_drop_released_early`) hard-code the instants of the descent (2010, 4610, 4420, 7020): they do not depend on the seed (no draw), only on the frozen def and the 2000 ms rest.

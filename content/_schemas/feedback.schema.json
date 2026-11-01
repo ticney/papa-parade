@@ -572,6 +572,21 @@
       "additionalProperties": false,
       "description": "The hint above Papa (story 4.3). Real time: the sim never reads it."
     },
+    "bombDrop": {
+      "type": "object",
+      "properties": {
+        "laidHeightM": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The height of the baby's centre above the floor once laid on the mattress, in metres. While a Firmness judged on its release runs, the carried baby is lowered linearly from Papa's chest to this height, from the telegraph to the final pose (story 4.8)."
+        }
+      },
+      "required": [
+        "laidHeightM"
+      ],
+      "additionalProperties": false,
+      "description": "The bomb drop on screen (story 4.8). Read per frame on the sim clock; the sim never reads it."
+    },
     "cues": {
       "type": "object",
       "propertyNames": {
@@ -796,6 +811,7 @@
     "sequenceBar",
     "comboBadge",
     "papaHint",
+    "bombDrop",
     "cues",
     "events"
   ],

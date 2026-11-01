@@ -58,6 +58,7 @@ describe('loadLevelContent', () => {
       'arms_cry',
       'bedtime_eyes',
       'fake_sleep',
+      'bomb_drop_lay',
     ]);
     expect(result.value.threats.papa_microsleep?.target).toBe('papa');
     expect(result.value.threats.arms_cry?.target).toBe('papa');
@@ -111,11 +112,17 @@ describe('loadLevelContent', () => {
     const result = await loadLevelContent(memorySource(), 'salon_crawler');
     expect(result).toMatchObject({ ok: true });
     if (!result.ok) return;
-    expect(result.value.level.sequences).toEqual(['stay_awake', 'lullaby_walk', 'bedtime_duel']);
+    expect(result.value.level.sequences).toEqual([
+      'stay_awake',
+      'lullaby_walk',
+      'bedtime_duel',
+      'bomb_drop',
+    ]);
     expect(Object.keys(result.value.sequences)).toEqual([
       'stay_awake',
       'lullaby_walk',
       'bedtime_duel',
+      'bomb_drop',
     ]);
     expect(result.value.sequences.stay_awake?.babyCarried).toBe(true);
   });
@@ -147,7 +154,11 @@ describe('loadLevelContent', () => {
       sequence.steps.flatMap((step) => (step.kind === 'duel' ? [step.threatDef] : [])),
     );
     expect(named.length).toBeGreaterThan(1);
-    for (const defId of named) expect(result.value.threats[defId]?.response).toBe('wait');
+    // A `wait`, or a Firmness judged on its release (story 4.8).
+    for (const defId of named) {
+      const def = result.value.threats[defId];
+      expect(def?.response === 'wait' || def?.release !== undefined, defId).toBe(true);
+    }
     expect(Object.keys(result.value.threats).filter((id) => id === 'bedtime_eyes')).toHaveLength(1);
   });
 

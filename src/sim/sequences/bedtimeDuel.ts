@@ -3,6 +3,7 @@ import type { StepContext } from '../context.ts';
 import { PAPA_ASLEEP_GAG_ID } from '../threats/gags.ts';
 import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
 import { telegraphThreat } from '../threats/threatFsm.ts';
+import { startSlowMo } from '../time/slowMo.ts';
 import type { World } from '../world.ts';
 import type { BeatWindowLimits } from './beatClock.ts';
 import { failSequence, plannedSequenceOf } from './sequenceEnd.ts';
@@ -33,7 +34,7 @@ export const DUEL_HANDLER: StepHandler<'duel'> = {
     duel.isRunning = true;
     duel.nextRoundAt = asSimMs(world.time.sim + step.restMs);
   },
-  tick(world, ctx) {
+  tick(world, ctx, step) {
     const { duel } = world.sequence;
     const now = world.time.sim;
     if (!duel.isRunning || duel.nextRoundAt === null || now < duel.nextRoundAt) return;
@@ -52,6 +53,22 @@ export const DUEL_HANDLER: StepHandler<'duel'> = {
     if (threat.state !== 'idle') return;
     telegraphThreat(world, ctx, threat, planned.def, -1);
     duel.nextRoundAt = null;
+    const { slowMo } = step;
+    const { responseWindow } = threat;
+    if (slowMo !== undefined && responseWindow !== null) {
+      // The whole descent, the pose and no more, whatever the tier (story 4.8, D6): computed from the
+      // frozen window, so a `durationMs` in the JSON could never disagree with it.
+      startSlowMo(world, ctx, 'sequence', {
+        timeScale: slowMo.timeScale,
+        returnMs: slowMo.returnMs,
+        durationMs:
+          threat.windowOpenAt -
+          now +
+          responseWindow.windowMs +
+          responseWindow.toleranceMs +
+          world.input.lagMs,
+      });
+    }
   },
   // A duel is won by a result only (`advanceSequenceOnResolve`): waiting past `endsAt` must never win it.
   isSettled() {
@@ -66,6 +83,7 @@ export interface DuelThreatShape {
   readonly cooldownMs: number;
   readonly telegraphDelayMs: number | null;
   readonly maxDelayMs?: number;
+  readonly release?: { readonly pressWithinMs: number };
   readonly windowMs: number | null;
   readonly gag?: string;
   readonly surpriseGags?: readonly string[];
@@ -151,9 +169,12 @@ export function sequenceDuelProblems(
       problems.push(`${where} whose threatDef "${step.threatDef}" is not loaded`);
       return;
     }
-    if (threat.response !== 'wait') {
+    if (
+      threat.response !== 'wait' &&
+      !(threat.response === 'firm' && threat.release !== undefined)
+    ) {
       problems.push(
-        `${where} whose threatDef "${step.threatDef}" has the response "${threat.response}", but a duel asks for "wait"`,
+        `${where} whose threatDef "${step.threatDef}" has the response "${threat.response}", but a duel asks for "wait" or a "firm" judged on its release`,
       );
     }
     if (threat.target !== 'papa') {

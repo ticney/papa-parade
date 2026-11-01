@@ -8,6 +8,7 @@ import type { SimObjectSpec, StepContext } from '../context.ts';
 import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
 import { bladderSpeedFactor } from '../gauges/bladder.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
+import { isBabyJustLaid } from '../sequences/layDown.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { finishCoffee, startCoffee } from './coffee.ts';
 import { startGlide } from './glide.ts';
@@ -255,6 +256,12 @@ export function runPapa(world: World, ctx: StepContext): void {
   const { papa } = world;
   papa.prevXM = papa.xM;
   papa.prevZM = papa.zM;
+
+  // A won « Dépose-bombe » (story 4.8) ends with the baby on the mattress and the combo cashed in. It
+  // is done here and not by the end of the sequence: `carry.ts` imports the threat code, which
+  // imports `sequenceEnd`. `runThreats` ran first, so `ResponseResolved` and `SequenceEnded` are already
+  // in this step's events.
+  if (isBabyJustLaid(world, ctx)) putDownBaby(world, ctx);
 
   if (isPapaBusy(papa) && world.time.sim >= papa.busyUntil) {
     if (papa.state === 'drink') {

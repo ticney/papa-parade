@@ -14,7 +14,7 @@ import { BEATS_HANDLER } from './lullabyWalk.ts';
 export interface StepHandler<K extends SequenceStepKind> {
   /**
    * Whether the step ends when its time is up (`stepEndsAt`). `false` for a step that advances on a
-   * result (story 4.6's duel, 4.8's after it): `runSequence` never moves past it on the clock.
+   * result (the duel of stories 4.6 to 4.8, the bomb drop's included): `runSequence` never moves past it on the clock.
    */
   readonly isTimed: boolean;
   /** Called when the step is entered, the first step included. */

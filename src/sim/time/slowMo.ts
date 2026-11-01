@@ -49,6 +49,21 @@ export function startSlowMo(
 }
 
 /**
+ * Ends the slow-mo of `source` early (story 4.8): its hold stops now and its return starts now, with
+ * what remains of the return (`endsAt - holdUntil` is its `returnMs`, read before anything is written).
+ * A no-op when none of that source runs, or when it is already in its return.
+ */
+export function endSlowMo(world: World, ctx: StepContext, source: SlowMoSource): void {
+  const running = world.time.slowMos.find((slowMo) => slowMo.source === source);
+  if (running === undefined) return;
+  const now = world.time.sim;
+  const returnMs = running.endsAt - running.holdUntil;
+  running.holdUntil = asSimMs(Math.min(running.holdUntil, now));
+  running.endsAt = asSimMs(Math.min(running.endsAt, now + returnMs));
+  updateTimeScale(world, ctx);
+}
+
+/**
  * Drops the slow-mos that ended by now, then publishes min(baseScale, every factor) through
  * `setTimeScale`, the only writer of `world.time.scale`.
  */

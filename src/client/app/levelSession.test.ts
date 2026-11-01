@@ -38,7 +38,12 @@ const NO_FX: LevelFx = {
   gag: () => {},
   liftBaby: () => {},
 };
-const NO_REAL_FX = () => ({ shakeOffsetXM: 0, shakeOffsetZM: 0, particlesAlive: 0 });
+const NO_REAL_FX = () => ({
+  shakeOffsetXM: 0,
+  shakeOffsetZM: 0,
+  particlesAlive: 0,
+  babyLayDownPct: 0,
+});
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -259,6 +264,8 @@ describe('createLevelSession', () => {
         papaRadiusM: content.feel.movement.papaRadiusM,
         babyRadiusM: content.feel.baby.bodyRadiusM,
         microSleepDefId: null,
+        layDownDefIds: [],
+        laidHeightM: content.feedback.bombDrop.laidHeightM,
       },
     ]);
   });
@@ -1116,7 +1123,13 @@ describe('createLevelSession › start options and outcomes', () => {
     // The sim is created with feel.json as is; the tuned feel reaches it as a SetFeel at t = 0.
     expect(simOptions[0]?.content).toBe(content);
     expect(bodies).toEqual([
-      { papaRadiusM: 0.42, babyRadiusM: content.feel.baby.bodyRadiusM, microSleepDefId: null },
+      {
+        papaRadiusM: 0.42,
+        babyRadiusM: content.feel.baby.bodyRadiusM,
+        microSleepDefId: null,
+        layDownDefIds: [],
+        laidHeightM: content.feedback.bombDrop.laidHeightM,
+      },
     ]);
     expect(session.active?.feel.movement.papaRadiusM).toBe(0.42);
     expect(session.active?.sim.journal().entries).toEqual([

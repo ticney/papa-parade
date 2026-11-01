@@ -23,6 +23,8 @@ export interface FxState {
   readonly shakeOffsetM: number;
   readonly particlesAlive: number;
   readonly stampCount: number;
+  /** How far the carried baby is lowered onto the mattress as drawn, 0 to 100 (story 4.8: the bomb drop). */
+  readonly babyLayDownPct: number;
 }
 
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */

@@ -6,6 +6,7 @@ import { enterFlowState } from '../flow/flowFsm.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
 import { cancelThreat } from '../threats/threatFsm.ts';
 import { clearBeatSlice, clearDuelSlice, type ThreatInstance, type World } from '../world.ts';
+import { placePapaOverMattress } from './layDown.ts';
 import { sequenceDefOf } from './sequenceEnd.ts';
 import { enterSequenceStep } from './sequenceSteps.ts';
 
@@ -46,7 +47,7 @@ function stepsDurationMs(def: { readonly steps: readonly { readonly durationMs: 
  * for an id the level does not plan or when {@link sequenceRefusal} says so. Otherwise, in order:
  * the flow enters `sequence`; Papa stops; every threat that is announced or open is cancelled,
  * the ones on Papa too (`ThreatCancelled{sequence}`: no gag, a clean slate for the sequence's own
- * cadence); a `babyCarried` sequence takes a baby who is not in the arms, wherever he is (D6); the
+ * cadence); a `babyLaid` sequence places Papa over the nearest safe zone first (story 4.8); a `babyCarried` sequence takes a baby who is not in the arms, wherever he is (D6); the
  * slice is written; `SequenceStarted`, `SequenceStepStarted{0}` and the first step's entry.
  */
 export function startSequence(world: World, ctx: StepContext, sequenceId: string): void {
@@ -58,6 +59,8 @@ export function startSequence(world: World, ctx: StepContext, sequenceId: string
 
   enterFlowState(world, 'sequence');
   stopPapa(world, ctx);
+  // Laying the baby down is done over the mattress (story 4.8, D3): Papa is placed, never refused.
+  if (def.success.kind === 'babyLaid') placePapaOverMattress(world, ctx);
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
     if (threat.state === 'telegraph' || threat.state === 'windowOpen') {

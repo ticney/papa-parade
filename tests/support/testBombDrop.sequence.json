@@ -1,0 +1,26 @@
+{
+  "$schema": "../../content/_schemas/sequence.schema.json",
+  "id": "bomb_drop",
+  "babyCarried": true,
+  "steps": [
+    {
+      "kind": "duel",
+      "durationMs": 6000,
+      "threatDef": "bomb_drop_lay",
+      "restMs": 2000,
+      "slowMo": { "timeScale": 0.4, "returnMs": 400 }
+    }
+  ],
+  "success": { "kind": "babyLaid" },
+  "failure": { "kind": "retreats", "maxRetreats": 3 },
+  "framing": {
+    "camera": { "zoomPct": 40, "focusPct": 80, "inMs": 1000, "outMs": 700 },
+    "musicLoop": "bomb_drop",
+    "bar": null
+  },
+  "feedback": {
+    "started": "sequence_started",
+    "succeeded": "sequence_succeeded",
+    "failed": "sequence_failed"
+  }
+}

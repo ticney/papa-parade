@@ -479,6 +479,10 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
             papaRadiusM: effective.movement.papaRadiusM,
             babyRadiusM: effective.baby.bodyRadiusM,
             microSleepDefId: levelPlan.level.gauges.fatigue?.microSleepDef ?? null,
+            layDownDefIds: Object.values(levelPlan.threats)
+              .filter((def) => def.release !== undefined)
+              .map((def) => def.id),
+            laidHeightM: deps.content.feedback.bombDrop.laidHeightM,
           });
         } catch (cause) {
           log.error('render', 'cannot build the level scene', { id: levelId, error: cause });

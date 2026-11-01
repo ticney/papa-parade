@@ -147,6 +147,8 @@ const { holdMinMs } = content.feel.input;
 
 /** How a right answer is given: when the finger comes up (null: it stays down), and when it is over. */
 interface Answer {
+  /** When the finger goes down; the instant asked for when absent (a Firmness judged on its release presses early). */
+  pressAt?: number;
   releaseAt: number | null;
   settledAt: number;
 }
@@ -164,6 +166,16 @@ function answerOf(def: ThreatDef, pressT: number, openAt: number): Answer {
     case 'wait':
       return { releaseAt: pressT + holdMinMs / 2, settledAt: pressT + holdMinMs };
     case 'firm': {
+      if (def.release !== undefined) {
+        // Story 4.8: pressed at the first steps of the descent, released at the instant asked for (the
+        // pose, if it is a perfect answer); the verdict comes when the window is open.
+        const telegraphDelayMs = def.telegraphDelayMs ?? Number.NaN;
+        return {
+          pressAt: openAt - telegraphDelayMs + STEP_MS,
+          releaseAt: pressT,
+          settledAt: Math.max(pressT, openAt) + 2 * STEP_MS,
+        };
+      }
       if (def.holdUntilMs === undefined) throw new Error(`"${def.id}" is firm with no holdUntilMs`);
       return {
         releaseAt: null,
@@ -176,7 +188,7 @@ function answerOf(def: ThreatDef, pressT: number, openAt: number): Answer {
 /** Presses `def` at `t` and answers it as it asks. */
 function answer(sim: Sim, def: ThreatDef, threatId: number, t: number, openAt: number): Answer {
   const given = answerOf(def, t, openAt);
-  sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
+  sim.enqueue({ type: 'PressThreat', t: asSimMs(given.pressAt ?? t), threatId });
   if (given.releaseAt !== null) sim.enqueue({ type: 'Release', t: asSimMs(given.releaseAt) });
   return given;
 }
@@ -406,6 +418,7 @@ async function telegraphed(
   return {
     sim,
     threatId: threat.id,
+    enteredAt: threat.enteredAt,
     openAt: windowOpenAt,
     feintAt,
     // How many floats the telegraph step drew (a duel def only): counted by replaying the stream.
@@ -493,6 +506,9 @@ describe('the threat catalogue', () => {
 describe.each(
   DIFFICULTY_TIER_IDS.flatMap((tier) => defs.map((def) => [def.id, tier, def] as const)),
 )('threat %s at the %s tier', (_id, tier, def) => {
+  // A Firmness judged on its release (story 4.8) is pressed early and judged on the release: its own set below.
+  const release = def.release;
+
   it('is perfect when answered at the centre of the window', async () => {
     const { sim, center, openAt, threatId } = await telegraphed(def, tier);
     const { settledAt } = answer(sim, def, threatId, center, openAt);
@@ -515,7 +531,7 @@ describe.each(
     expect(gags(events)).toEqual([]);
   });
 
-  it('is a gag when answered too early', async () => {
+  it.skipIf(release !== undefined)('is a gag when answered too early', async () => {
     const { sim, center, openAt, window, threatId } = await telegraphed(def, tier);
     const t = openAt - window.toleranceMs - window.bufferMs - 1;
     sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
@@ -528,8 +544,13 @@ describe.each(
   });
 
   it('is a gag when not answered in time', async () => {
-    const { sim, openAt, window, threatId } = await telegraphed(def, tier);
-    const events = runUntil(sim, openAt + window.windowMs + window.toleranceMs + 100);
+    const { sim, enteredAt, openAt, window, threatId } = await telegraphed(def, tier);
+    // A release def is not answered at all within `pressWithinMs` of the telegraph, long before its pose.
+    const horizonMs =
+      release === undefined
+        ? openAt + window.windowMs + window.toleranceMs + 100
+        : enteredAt + release.pressWithinMs + window.toleranceMs + 100;
+    const events = runUntil(sim, horizonMs);
     expect(results(events)).toEqual([
       expect.objectContaining({ quality: 'fail', reason: 'late', offsetMs: null }),
     ]);
@@ -537,7 +558,7 @@ describe.each(
     expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
   });
 
-  if (def.response === 'firm') {
+  if (def.response === 'firm' && release === undefined) {
     it('is a wrongResponse gag when released before holdMinMs (a Parry)', async () => {
       const { sim, center, threatId } = await telegraphed(def, tier);
       sim.enqueue({ type: 'PressThreat', t: asSimMs(center), threatId });
@@ -564,6 +585,107 @@ describe.each(
       ]);
       expect(gags(events)).toEqual([expect.objectContaining({ reason: 'released', threatId })]);
       expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
+    });
+  }
+
+  if (release !== undefined) {
+    const { pressWithinMs } = release;
+    const pressedAt = (enteredAt: number) => enteredAt + STEP_MS;
+
+    it('has no hold to the end of the attack: the release is what is judged', () => {
+      expect(def.holdUntilMs).toBeUndefined();
+      expect(def.feedback.signal).toBeDefined();
+    });
+
+    it('is a "released" gag when released a ms before the tolerance of the pose, and a tap is one too', async () => {
+      for (const tooEarly of ['beforeTolerance', 'quickTap'] as const) {
+        const { sim, center, enteredAt, openAt, window, threatId } = await telegraphed(def, tier);
+        const releaseAt =
+          tooEarly === 'beforeTolerance'
+            ? openAt - window.toleranceMs - 1
+            : pressedAt(enteredAt) + holdMinMs / 2;
+        sim.enqueue({ type: 'PressThreat', t: asSimMs(pressedAt(enteredAt)), threatId });
+        sim.enqueue({ type: 'Release', t: asSimMs(releaseAt) });
+        const events = runUntil(sim, releaseAt + 2 * STEP_MS);
+        expect(results(events), tooEarly).toEqual([
+          expect.objectContaining({
+            quality: 'fail',
+            reason: 'released',
+            offsetMs: releaseAt - center,
+          }),
+        ]);
+        expect(gags(events)).toEqual([expect.objectContaining({ reason: 'released', threatId })]);
+        expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
+      }
+    });
+
+    it('is a "late" gag when released a ms after the window and its tolerance', async () => {
+      const { sim, center, enteredAt, openAt, window, threatId } = await telegraphed(def, tier);
+      const releaseAt = openAt + window.windowMs + window.toleranceMs + 1;
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(pressedAt(enteredAt)), threatId });
+      sim.enqueue({ type: 'Release', t: asSimMs(releaseAt) });
+      const events = runUntil(sim, releaseAt + 2 * STEP_MS);
+      expect(results(events)).toEqual([
+        expect.objectContaining({ quality: 'fail', reason: 'late', offsetMs: releaseAt - center }),
+      ]);
+    });
+
+    it('is a "late" gag, with no offset, when the finger never lets go (the hold is never kept)', async () => {
+      const { sim, enteredAt, openAt, window, threatId } = await telegraphed(def, tier);
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(pressedAt(enteredAt)), threatId });
+      const events = runUntil(sim, openAt + window.windowMs + window.toleranceMs + 100);
+      expect(results(events)).toEqual([
+        expect.objectContaining({ quality: 'fail', reason: 'late', offsetMs: null }),
+      ]);
+      expect(events.filter((event) => event.type === 'ResponseHeld')).toHaveLength(1);
+    });
+
+    it('is a "late" gag for a press a ms past pressWithinMs plus the tolerance, and kept at the limit', async () => {
+      const limit = await telegraphed(def, tier);
+      const atLimit = limit.enteredAt + pressWithinMs + limit.window.toleranceMs;
+      limit.sim.enqueue({ type: 'PressThreat', t: asSimMs(atLimit), threatId: limit.threatId });
+      limit.sim.enqueue({ type: 'Release', t: asSimMs(limit.center) });
+      expect(results(runUntil(limit.sim, limit.center + 2 * STEP_MS))).toEqual([
+        expect.objectContaining({ quality: 'perfect', offsetMs: 0 }),
+      ]);
+      const past = await telegraphed(def, tier);
+      past.sim.enqueue({
+        type: 'PressThreat',
+        t: asSimMs(atLimit + 1),
+        threatId: past.threatId,
+      });
+      const events = runUntil(past.sim, atLimit + 2 * STEP_MS);
+      expect(results(events)).toEqual([
+        expect.objectContaining({ quality: 'fail', reason: 'late' }),
+      ]);
+    });
+
+    it.each(['fail', 'guard'] as const)(
+      'is judged the same whatever earlyPress says (%s)',
+      async (earlyPress) => {
+        const { sim, center, enteredAt, openAt, window, threatId } = await telegraphed(
+          def,
+          tier,
+          earlyPress,
+        );
+        const releaseAt = openAt - window.toleranceMs - 1;
+        sim.enqueue({ type: 'PressThreat', t: asSimMs(pressedAt(enteredAt)), threatId });
+        sim.enqueue({ type: 'Release', t: asSimMs(releaseAt) });
+        const events = runUntil(sim, releaseAt + 2 * STEP_MS);
+        expect(results(events)).toEqual([
+          expect.objectContaining({ reason: 'released', offsetMs: releaseAt - center }),
+        ]);
+      },
+    );
+
+    it('gives its signal once, right before the window opens, at the same time', async () => {
+      const { sim, enteredAt, openAt, threatId } = await telegraphed(def, tier);
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(pressedAt(enteredAt)), threatId });
+      const events = runUntil(sim, openAt + STEP_MS);
+      const names = events
+        .filter((event) => event.type === 'WaitSignalGiven' || event.type === 'WindowOpened')
+        .map((event) => event.type);
+      expect(names).toEqual(['WaitSignalGiven', 'WindowOpened']);
     });
   }
 

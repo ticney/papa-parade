@@ -24,6 +24,7 @@ export const GAG_IDS = [
   'arms_wail',
   'baby_eyes_reopened',
   'baby_sat_up',
+  'baby_woke_on_drop',
 ] as const;
 
 export type GagId = (typeof GAG_IDS)[number];
@@ -115,6 +116,9 @@ function babyEyesReopened(): void {}
 /** The baby sits up in the fake sleep (story 4.7): the retreat is the sequence's and the cry is the def's `gagCryMs`, so nothing for the sim to do here. */
 function babySatUp(): void {}
 
+/** The baby wakes as he is laid down (story 4.8): the retreat is the sequence's and the cry is the def's `gagCryMs`, so nothing for the sim to do here. */
+function babyWokeOnDrop(): void {}
+
 /** One entry per `GagId`, defined once at module scope: a new gag without a consequence is a type error. */
 const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   outlet_hair: outletHair,
@@ -127,6 +131,7 @@ const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   arms_wail: armsWail,
   baby_eyes_reopened: babyEyesReopened,
   baby_sat_up: babySatUp,
+  baby_woke_on_drop: babyWokeOnDrop,
 };
 
 /**

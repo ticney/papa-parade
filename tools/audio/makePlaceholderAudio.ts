@@ -1637,6 +1637,150 @@ export function synthBedtimeHush(): Float32Array {
   return out;
 }
 
+const BOMB_DROP_TEL_LENGTH_MS = 900;
+const BOMB_DROP_TEL_HZ = { from: 230, to: 105 };
+const BOMB_DROP_TEL_CREAK_HZ = 23;
+const BOMB_DROP_TEL_ATTACK_MS = 40;
+const BOMB_DROP_TEL_RELEASE_MS = 260;
+
+/**
+ * A slow wooden creak that sinks in pitch, « on le descend » (cue `tel_bomb_drop`, story 4.8): a falling
+ * tone shaken by a fast amplitude flutter, and a thread of noise. No kin to the other telegraphs.
+ */
+export function synthTelegraphBombDrop(): Float32Array {
+  const rng = createRng(SEED + 35);
+  const out = new Float32Array(samplesOf(BOMB_DROP_TEL_LENGTH_MS));
+  const attack = samplesOf(BOMB_DROP_TEL_ATTACK_MS);
+  const release = samplesOf(BOMB_DROP_TEL_RELEASE_MS);
+  let phase = 0;
+  let noise = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const progress = i / out.length;
+    const frequencyHz =
+      BOMB_DROP_TEL_HZ.from + (BOMB_DROP_TEL_HZ.to - BOMB_DROP_TEL_HZ.from) * progress;
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    noise += 0.08 * (nextFloat(rng) * 2 - 1 - noise);
+    const creak = 0.65 + 0.35 * Math.sin(2 * Math.PI * BOMB_DROP_TEL_CREAK_HZ * seconds);
+    out[i] =
+      (Math.sin(phase) + 0.4 * Math.sin(2 * phase) + noise * 0.6) *
+      creak *
+      Math.min(1, i / attack) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const MATTRESS_TOUCH_LENGTH_MS = 450;
+const MATTRESS_TOUCH_HZ = 68;
+const MATTRESS_TOUCH_DECAY_S = 0.09;
+const MATTRESS_TOUCH_PUFF_MS = 120;
+
+/** A soft thud and a puff of air, the baby touching the mattress (cue `bomb_drop_touchdown`): « LÂCHE ! ». */
+export function synthBabyMattressTouch(): Float32Array {
+  const rng = createRng(SEED + 36);
+  const out = new Float32Array(samplesOf(MATTRESS_TOUCH_LENGTH_MS));
+  const puff = samplesOf(MATTRESS_TOUCH_PUFF_MS);
+  let noise = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    noise += 0.05 * (nextFloat(rng) * 2 - 1 - noise);
+    const thud =
+      Math.sin(2 * Math.PI * MATTRESS_TOUCH_HZ * seconds) *
+      Math.exp(-seconds / MATTRESS_TOUCH_DECAY_S);
+    const air = i < puff ? noise * (1 - i / puff) * 1.5 : 0;
+    out[i] = thud + air;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const WOKE_ON_DROP_LENGTH_MS = 800;
+const WOKE_ON_DROP_HZ = { from: 380, peak: 690, to: 460 };
+const WOKE_ON_DROP_ATTACK_MS = 20;
+const WOKE_ON_DROP_RELEASE_MS = 240;
+const WOKE_ON_DROP_WOBBLE_HZ = 11;
+
+/** A shocked wail that jumps up and sags, the baby waking as he is laid down (cue `gag_baby_woke_on_drop`). */
+export function synthGagBabyWokeOnDrop(): Float32Array {
+  const rng = createRng(SEED + 37);
+  const out = new Float32Array(samplesOf(WOKE_ON_DROP_LENGTH_MS));
+  const attack = samplesOf(WOKE_ON_DROP_ATTACK_MS);
+  const release = samplesOf(WOKE_ON_DROP_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const progress = i / out.length;
+    const base =
+      progress < 0.3
+        ? WOKE_ON_DROP_HZ.from + (WOKE_ON_DROP_HZ.peak - WOKE_ON_DROP_HZ.from) * (progress / 0.3)
+        : WOKE_ON_DROP_HZ.peak +
+          (WOKE_ON_DROP_HZ.to - WOKE_ON_DROP_HZ.peak) * ((progress - 0.3) / 0.7);
+    const frequencyHz =
+      base * (1 + 0.04 * Math.sin(2 * Math.PI * WOKE_ON_DROP_WOBBLE_HZ * seconds));
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const breath = (nextFloat(rng) * 2 - 1) * 0.12;
+    out[i] =
+      (Math.sin(phase) + 0.5 * Math.sin(2 * phase) + 0.25 * Math.sin(3 * phase) + breath) *
+      Math.min(1, i / attack) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const BOMB_THRILLER_LENGTH_S = 4;
+const BOMB_THRILLER_DRONE_HZ = [55, 78];
+const BOMB_THRILLER_BEAT_PERIOD_S = 1;
+const BOMB_THRILLER_THUMP_HZ = 62;
+const BOMB_THRILLER_THUMP_DECAY_S = 0.07;
+const BOMB_THRILLER_SECOND_THUMP_S = 0.28;
+const BOMB_THRILLER_TENSION_HZ = 440;
+
+/**
+ * The drop's thriller loop (loop `sequenceMusic.bomb_drop`): a heartbeat every second over a dark
+ * two-tone drone, and a thin tone that swells once over the loop. Short on purpose (the level's audio
+ * budget); the drone and the swell make whole cycles over the loop so that it does not click.
+ */
+export function synthBombThriller(): Float32Array {
+  const rng = createRng(SEED + 38);
+  const out = new Float32Array(samplesOf(BOMB_THRILLER_LENGTH_S * 1000));
+  let breath = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    let drone = 0;
+    for (const frequencyHz of BOMB_THRILLER_DRONE_HZ) {
+      drone += Math.sin(2 * Math.PI * frequencyHz * seconds);
+    }
+    drone /= BOMB_THRILLER_DRONE_HZ.length;
+    const sinceBeat = seconds % BOMB_THRILLER_BEAT_PERIOD_S;
+    const thump =
+      Math.sin(2 * Math.PI * BOMB_THRILLER_THUMP_HZ * sinceBeat) *
+        Math.exp(-sinceBeat / BOMB_THRILLER_THUMP_DECAY_S) +
+      (sinceBeat >= BOMB_THRILLER_SECOND_THUMP_S
+        ? 0.7 *
+          Math.sin(
+            2 * Math.PI * BOMB_THRILLER_THUMP_HZ * (sinceBeat - BOMB_THRILLER_SECOND_THUMP_S),
+          ) *
+          Math.exp(-(sinceBeat - BOMB_THRILLER_SECOND_THUMP_S) / BOMB_THRILLER_THUMP_DECAY_S)
+        : 0);
+    const swell = Math.sin((Math.PI * seconds) / BOMB_THRILLER_LENGTH_S) ** 2;
+    const tension = Math.sin(2 * Math.PI * BOMB_THRILLER_TENSION_HZ * seconds) * swell * 0.12;
+    breath += 0.002 * (nextFloat(rng) * 2 - 1 - breath);
+    out[i] = drone * 0.5 + thump + tension + breath * 4;
+  }
+  fadeEnds(out, LOOP_FADE_MS);
+  normalize(out, PEAK_MUSIC * 0.6);
+  return out;
+}
+
 /** A 16-bit mono PCM WAV file. */
 export function encodeWav(samples: Float32Array): Buffer {
   const dataBytes = samples.length * 2;
@@ -1717,6 +1861,10 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'tel_fake_sleep', synth: synthTelegraphFakeSleep },
   { clip: 'baby_eye_peek', synth: synthBabyEyePeek },
   { clip: 'gag_baby_sat_up', synth: synthGagBabySatUp },
+  { clip: 'tel_bomb_drop', synth: synthTelegraphBombDrop },
+  { clip: 'baby_mattress_touch', synth: synthBabyMattressTouch },
+  { clip: 'gag_baby_woke_on_drop', synth: synthGagBabyWokeOnDrop },
+  { clip: 'music_bomb_thriller', synth: synthBombThriller },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

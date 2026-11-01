@@ -45,7 +45,7 @@ describe('walkableCellTriangles', () => {
 });
 
 describe('boxEdgeSegments', () => {
-  it('gives the 12 edges of a box, as 24 points, each of the box’s own length', () => {
+  it('gives the 12 edges of a box, as 25 points, each of the box’s own length', () => {
     const segments = boxEdgeSegments([1, 2, 3], [0.5, 1, 1.5]);
     expect(segments).toHaveLength(12 * 2 * 3);
     const lengths = new Set<number>();

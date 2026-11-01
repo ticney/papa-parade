@@ -27,6 +27,29 @@ export const BABY_CARRIED_HEIGHT_M = 0.75;
 /** The carried baby is held this far in front of Papa along his heading, in metres. Also where a tap on him aims. */
 export const BABY_CARRIED_FORWARD_M = 0.3;
 
+/** The part of a threat the lowering reads: a `ThreatInstance` fits it. */
+export interface LayDownThreat {
+  readonly state: string;
+  readonly enteredAt: number;
+  readonly windowOpenAt: number;
+}
+
+/**
+ * How far the baby has been lowered onto the mattress, 0 to 100 (story 4.8): the descent of a
+ * Firmness judged on its release goes linearly from the telegraph's start to `windowOpenAt`, the final
+ * pose, on the render's sim clock (`renderSimMs`: the loop's continuous clock, so a slow-mo slows it).
+ * It is 100 once the window is open, and 0 for a threat that is not running (a gag or a retreat sends
+ * him back up at once). Reading `windowOpenAt` is allowed here: this is not a `wait`, its instant is
+ * not hidden, and the player must see the pose coming. Pure and allocation-free.
+ */
+export function layDownProgressPct(threat: LayDownThreat, renderSimMs: number): number {
+  if (threat.state === 'windowOpen') return 100;
+  if (threat.state !== 'telegraph') return 0;
+  const spanMs = threat.windowOpenAt - threat.enteredAt;
+  if (!(spanMs > 0)) return 100;
+  return Math.min(100, Math.max(0, ((renderSimMs - threat.enteredAt) / spanMs) * 100));
+}
+
 /** Where the baby is drawn and which way it looks. */
 export interface BabyPose extends PointXZ {
   /** Rotation about the vertical axis, in radians: 0 faces +z, a positive angle turns toward +x. */
@@ -47,9 +70,16 @@ export interface BabyView {
   /**
    * Moves the baby, turns its gaze marker and moves its shadow. While he is `carried` he is drawn
    * lifted to Papa's chest, a little in front of him, riding Papa's interpolated pose (`papa`; his
-   * own, which equals Papa's, when none is given), on top of any `setLiftM` hop. Allocates nothing.
+   * own, which equals Papa's, when none is given), on top of any `setLiftM` hop. `layDownPct` (0 to 100,
+   * default 0) lowers a carried baby from Papa's chest to the laid height (story 4.8: the bomb drop).
+   * Allocates nothing.
    */
-  update(baby: Readonly<BabySlice>, alpha: number, papa?: Readonly<PapaSlice>): void;
+  update(
+    baby: Readonly<BabySlice>,
+    alpha: number,
+    papa?: Readonly<PapaSlice>,
+    layDownPct?: number,
+  ): void;
   /**
    * Lifts the body and its gaze marker `heightM` above the floor (the « lift the baby » pose); the
    * shadow stays on the floor. It adds to the carried lift instead of replacing it. Allocates nothing.
@@ -75,6 +105,7 @@ export function createBabyView(
   toon: ToonMaterialCache,
   blobs: BlobKit,
   radiusM: number,
+  laidHeightM: number = BABY_CARRIED_HEIGHT_M,
 ): BabyView {
   const bodyRadiusM = Math.max(radiusM, BABY_MIN_RADIUS_M);
   const bodyGeometry = new IcosahedronGeometry(bodyRadiusM, BABY_BODY_DETAIL);
@@ -121,7 +152,7 @@ export function createBabyView(
   };
 
   return {
-    update(baby, alpha, papa) {
+    update(baby, alpha, papa, layDownPct = 0) {
       babyPoseAt(baby, alpha, pose);
       let wantedLiftM = 0;
       if (baby.state === 'carried') {
@@ -131,7 +162,11 @@ export function createBabyView(
         // In front of Papa, along the way he faces (the baby's gaze follows Papa's heading).
         pose.xM += baby.gazeX * BABY_CARRIED_FORWARD_M;
         pose.zM += baby.gazeZ * BABY_CARRIED_FORWARD_M;
-        wantedLiftM = BABY_CARRIED_HEIGHT_M - bodyRadiusM;
+        // The lowering of the bomb drop: linear from the chest to the mattress. Motion-essential, so
+        // it stays under reduced motion: it is what the release is aimed at.
+        const heightM =
+          BABY_CARRIED_HEIGHT_M + (laidHeightM - BABY_CARRIED_HEIGHT_M) * (layDownPct / 100);
+        wantedLiftM = heightM - bodyRadiusM;
       }
       group.position.set(pose.xM + slideXM, 0, pose.zM + slideZM);
       gazeGroup.rotation.y = pose.yawRad;

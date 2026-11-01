@@ -118,7 +118,7 @@ const DuelStepSchema = z
         'The longest a round of this step can take, in sim ms: the rest, the telegraph, the longest wait for the signal, the window and the tolerance must fit in it. A round ends on its result, never on this time.',
       ),
     threatDef: idSchema(
-      'Id of the `wait` threat (`content/threats/`, aimed at Papa) the sim spawns each round of this step.',
+      'Id of the threat (`content/threats/`, aimed at Papa) the sim spawns each round of this step: a `wait`, or a `firm` judged on its `release` (story 4.8).',
     ),
     restMs: z
       .number()
@@ -127,15 +127,34 @@ const DuelStepSchema = z
       .describe(
         'The breath before each round, from the start of the step (and after each retreat) to the telegraph, in sim ms. A tap in it costs nothing.',
       ),
+    slowMo: z
+      .strictObject({
+        timeScale: z
+          .number()
+          .gt(0)
+          .lt(1)
+          .describe('The time scale during the round, above 0 and below 1 (0.4 = 40 % speed).'),
+        returnMs: z
+          .number()
+          .int()
+          .min(0)
+          .describe('The smoothstep back to normal speed once the round ends, in sim ms.'),
+      })
+      .optional()
+      .describe(
+        "Slow motion for the whole of the round, from the telegraph to the end of the threat's window (story 4.8). Its length is computed from the frozen window, never written here. Absent: the round runs at the world's speed.",
+      ),
   })
-  .describe('A round of patience: wait for the signal, then tap (the Wait response).');
+  .describe(
+    'A round of patience: wait for the signal, then tap (the Wait response), or lay the baby down (a Firmness judged on its release).',
+  );
 
 const SequenceStepSchema = z
   .discriminatedUnion('kind', [MicroSleepsStepSchema, BeatsStepSchema, DuelStepSchema])
   .describe('One step of a sequence.');
 
 /** What ends a sequence well: the sim judges each kind. */
-export const SEQUENCE_SUCCESS_KINDS = ['stepsDone'] as const;
+export const SEQUENCE_SUCCESS_KINDS = ['stepsDone', 'babyLaid'] as const;
 /** What ends a sequence badly: the sim judges each kind. */
 export const SEQUENCE_FAILURE_KINDS = ['gag', 'babyAwake', 'retreats'] as const;
 
@@ -148,6 +167,13 @@ const SuccessSchema = z
       kind: z
         .literal('stepsDone')
         .describe('Every step ran to its end with no open response left behind.'),
+    }),
+    z.strictObject({
+      kind: z
+        .literal('babyLaid')
+        .describe(
+          'Like `stepsDone`, and the baby is laid on the mattress when it ends: Papa is placed over a safe zone at the start, and the combo is cashed in at the end (story 4.8). Needs `babyCarried` and a `retreats` failure.',
+        ),
     }),
   ])
   .describe('How the sequence is won.');
@@ -290,6 +316,24 @@ export const SequenceDefSchema = z
         message: `has a beats step among ${def.steps.length} steps, but a beats step must be the only step of its sequence`,
       });
     }
+    // Laying the baby down needs a baby in the arms, and a failure that leaves him there (story 4.8).
+    if (def.success.kind === 'babyLaid') {
+      if (!def.babyCarried) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['babyCarried'],
+          message: 'has a "babyLaid" success, so `babyCarried` must be true (nothing to lay down)',
+        });
+      }
+      // A duel step already says the same of its failure: one issue per path.
+      if (failure.kind !== 'retreats' && !def.steps.some((step) => step.kind === 'duel')) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['failure', 'kind'],
+          message: `has a "babyLaid" success, so its failure must be "retreats", not "${failure.kind}"`,
+        });
+      }
+    }
     // A duel advances on its result, not on time: its step kind and the `retreats` failure are one rule.
     const hasDuel = def.steps.some((step) => step.kind === 'duel');
     if (hasDuel && failure.kind !== 'retreats') {
@@ -306,7 +350,7 @@ export const SequenceDefSchema = z
         message: 'has a "retreats" failure, but no duel step to step back from',
       });
     }
-    // A step back into a timed step has no meaning yet (4.8 lifts this for its own kind).
+    // A step back into a timed step has no meaning yet: the bomb drop (4.8) is a duel step too.
     if (failure.kind === 'retreats' && def.steps.some((step) => step.kind !== 'duel')) {
       ctx.addIssue({
         code: 'custom',

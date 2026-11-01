@@ -31,6 +31,8 @@ export const THREAT_ICONS = [
   'cry',
   'eyes',
   'peek',
+  'sweat',
+  'open_hand',
 ] as const;
 export type ThreatIcon = (typeof THREAT_ICONS)[number];
 
@@ -72,7 +74,7 @@ const FeedbackCuesSchema = z
     perfect: idSchema('Cue played on a perfect response.'),
     gag: idSchema('Cue played when the gag is triggered.'),
     signal: idSchema(
-      'Only on a `wait` threat (required there, refused elsewhere): the cue played at the signal, when the window opens (story 4.6).',
+      'Only on a `wait` threat or a `firm` threat with a `release` (required there, refused elsewhere): the cue played at the signal, when the window opens (stories 4.6, 4.8).',
     ).optional(),
     feint: idSchema(
       'Only on a `wait` threat that has a `feint` (required there, refused elsewhere): the cue played when the feint is given, before the signal (story 4.7).',
@@ -115,13 +117,13 @@ const baseShape = {
     .regex(VERB_KEY_PATTERN, 'a signalVerbKey is a `verb.<name>` key of strings.fr.json')
     .optional()
     .describe(
-      'Only on a `wait` threat (required there, refused elsewhere): key of `strings.fr.json` (`verb.` group) of the verb shown from the signal on (« FILE ! », story 4.6).',
+      'Only on a `wait` threat or a `firm` threat with a `release` (required there, refused elsewhere): key of `strings.fr.json` (`verb.` group) of the verb shown from the signal on (« FILE ! », story 4.6; « LÂCHE ! », story 4.8).',
     ),
   signalIcon: z
     .enum(THREAT_ICONS)
     .optional()
     .describe(
-      'Only on a `wait` threat (required there, refused elsewhere): the glyph drawn in the marker from the signal on, in place of `icon` (story 4.6). The signal is the glyph and the verb, never the colour alone.',
+      'Only on a `wait` threat or a `firm` threat with a `release` (required there, refused elsewhere): the glyph drawn in the marker from the signal on, in place of `icon` (stories 4.6, 4.8). The signal is the glyph and the verb, never the colour alone.',
     ),
   feint: z
     .strictObject({
@@ -154,7 +156,20 @@ const baseShape = {
     .positive()
     .optional()
     .describe(
-      'Only on a `firm` threat (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).',
+      'Only on a `firm` threat without `release` (required there, refused elsewhere): from the opening of the window to the end of the attack, in sim ms. A Firmness is held until then (story 1.23).',
+    ),
+  release: z
+    .strictObject({
+      pressWithinMs: z
+        .int()
+        .positive()
+        .describe(
+          'How long after the telegraph the press may come, in sim ms, strictly below `telegraphDelayMs`: the press always comes before the final pose.',
+        ),
+    })
+    .optional()
+    .describe(
+      'Only on a `firm` threat (optional there, refused elsewhere; the alternative to `holdUntilMs`): a Firmness judged on its release (story 4.8, « Dépose-bombe »). The telegraph is the descent, `windowOpenAt` the final pose, and the response window the window of the release. Needs `signalVerbKey`, `signalIcon` and `feedback.signal`, and a numeric `telegraphDelayMs`.',
     ),
   verbKey: z
     .string()
@@ -227,12 +242,29 @@ export const ThreatDefSchema = z
   .discriminatedUnion('target', [AnchoredThreatDefSchema, HiddenZoneThreatDefSchema])
   .superRefine((def, ctx) => {
     // `holdUntilMs` is variant-specific, like `findMaxMs`: a `parry` file does not carry a `null` for it.
-    if (def.response === 'firm' && def.holdUntilMs === undefined) {
+    // A `firm` def has exactly one of `holdUntilMs` and `release` (story 4.8).
+    const { release } = def;
+    if (release !== undefined && def.response !== 'firm') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['release'],
+        message: `\`release\` is only for a threat with response "firm", not "${def.response}"`,
+      });
+    }
+    if (def.response === 'firm' && release !== undefined) {
+      if (def.holdUntilMs !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['holdUntilMs'],
+          message: 'a threat with a `release` is judged on it: it has no `holdUntilMs`',
+        });
+      }
+    } else if (def.response === 'firm' && def.holdUntilMs === undefined) {
       ctx.addIssue({
         code: 'custom',
         path: ['holdUntilMs'],
         message:
-          'a threat with response "firm" needs `holdUntilMs` (sim ms from the window opening)',
+          'a threat with response "firm" needs `holdUntilMs` (sim ms from the window opening), or a `release`',
       });
     } else if (def.response !== 'firm' && def.holdUntilMs !== undefined) {
       ctx.addIssue({
@@ -241,8 +273,24 @@ export const ThreatDefSchema = z
         message: `\`holdUntilMs\` is only for a threat with response "firm", not "${def.response}"`,
       });
     }
+    if (release !== undefined && def.response === 'firm') {
+      if (def.telegraphDelayMs === null) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['telegraphDelayMs'],
+          message:
+            'a threat with a `release` needs a numeric `telegraphDelayMs`: it is the descent, and `null` has no length to compare',
+        });
+      } else if (release.pressWithinMs >= def.telegraphDelayMs) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['release', 'pressWithinMs'],
+          message: '`release.pressWithinMs` must be below `telegraphDelayMs`',
+        });
+      }
+    }
     // The `wait` keys are variant-specific too: one issue per path, whichever rule breaks first.
-    const waitKeys = ['minDelayMs', 'maxDelayMs', 'signalVerbKey', 'signalIcon'] as const;
+    const waitKeys = ['minDelayMs', 'maxDelayMs'] as const;
     for (const key of waitKeys) {
       if (def.response === 'wait' && def[key] === undefined) {
         ctx.addIssue({
@@ -255,6 +303,26 @@ export const ThreatDefSchema = z
           code: 'custom',
           path: [key],
           message: `\`${key}\` is only for a threat with response "wait", not "${def.response}"`,
+        });
+      }
+    }
+    // The signal keys (the verb and the glyph at the signal, the cue) belong to a `wait` def and to a
+    // `release` def (story 4.8): both swap the marker when the window opens.
+    const hasSignal = def.response === 'wait' || (def.response === 'firm' && release !== undefined);
+    const signalOwner =
+      def.response === 'wait' ? 'a threat with response "wait"' : 'a threat with a `release`';
+    for (const key of ['signalVerbKey', 'signalIcon'] as const) {
+      if (hasSignal && def[key] === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `${signalOwner} needs \`${key}\``,
+        });
+      } else if (!hasSignal && def[key] !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `\`${key}\` is only for a threat with response "wait" or a \`release\`, not "${def.response}"`,
         });
       }
     }
@@ -308,17 +376,17 @@ export const ThreatDefSchema = z
         message: '`feedback.feint` is only for a threat with a `feint`',
       });
     }
-    if (def.response === 'wait' && def.feedback.signal === undefined) {
+    if (hasSignal && def.feedback.signal === undefined) {
       ctx.addIssue({
         code: 'custom',
         path: ['feedback', 'signal'],
-        message: 'a threat with response "wait" needs a `feedback.signal` cue',
+        message: `${signalOwner} needs a \`feedback.signal\` cue`,
       });
-    } else if (def.response !== 'wait' && def.feedback.signal !== undefined) {
+    } else if (!hasSignal && def.feedback.signal !== undefined) {
       ctx.addIssue({
         code: 'custom',
         path: ['feedback', 'signal'],
-        message: `\`feedback.signal\` is only for a threat with response "wait", not "${def.response}"`,
+        message: `\`feedback.signal\` is only for a threat with response "wait" or a \`release\`, not "${def.response}"`,
       });
     }
     if (def.verbKey === null && !hasDefaultVerb(def.response)) {
