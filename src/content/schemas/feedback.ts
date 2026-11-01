@@ -286,7 +286,7 @@ const DoorSchema = z
       .gt(0)
       .max(170)
       .describe(
-        'How far the door panel swings open, in degrees (the hinge is at the door anchor).',
+        'How far the door panel swings open, in degrees (the panel is centred on the door anchor and hinged at one end).',
       ),
     widthM: z.number().positive().describe("The door panel's width, in metres."),
     heightM: z.number().positive().describe("The door panel's height, in metres."),

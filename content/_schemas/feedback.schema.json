@@ -599,7 +599,7 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 170,
-          "description": "How far the door panel swings open, in degrees (the hinge is at the door anchor)."
+          "description": "How far the door panel swings open, in degrees (the panel is centred on the door anchor and hinged at one end)."
         },
         "widthM": {
           "type": "number",

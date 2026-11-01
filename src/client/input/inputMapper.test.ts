@@ -2003,6 +2003,17 @@ describe('createInputMapper: tidying in the final rush (story 3.5)', () => {
     };
   };
 
+  /** A threat of the sim's world, active, closing at `windowOpenAt + 600`. */
+  const threatAt = (id: number, xM: number, zM: number, windowOpenAt: number) =>
+    ({
+      id,
+      state: 'telegraph',
+      xM,
+      zM,
+      windowOpenAt,
+      responseWindow: { windowMs: 600, perfectMs: 100, toleranceMs: 30, bufferMs: 100 },
+    }) as never;
+
   function rush(props = [MUG, BOOK]) {
     const harness = setup();
     harness.sim.world.flow.state = 'finalRush';
@@ -2032,7 +2043,7 @@ describe('createInputMapper: tidying in the final rush (story 3.5)', () => {
       expect(outside.commands.map((c) => c.type)).toEqual(['TapFloor']);
     });
 
-    it('goes to the nearer to the finger of a prop and an object, an object winning a tie', () => {
+    it('goes to the nearer to the finger of a prop and an object', () => {
       const { mapper, commands, camera, setObjects } = rush();
       setObjects([PHONE]);
       const mug = pxOfPoint(camera, MUG);
@@ -2042,6 +2053,17 @@ describe('createInputMapper: tidying in the final rush (story 3.5)', () => {
       expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'mug_01' }]);
       commands.length = 0;
       mapper.handlePointerDown(click(phone.x, phone.y));
+      expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'phone' }]);
+    });
+
+    it('gives a tie between a prop and an object to the object', () => {
+      // The mug lies exactly where the phone is drawn: the finger is as near to both.
+      const { mapper, commands, camera, setObjects } = rush([
+        { ...MUG, xM: PHONE.xM, yM: PHONE.yM, zM: PHONE.zM },
+      ]);
+      setObjects([PHONE]);
+      const at = pxOfPoint(camera, PHONE);
+      mapper.handlePointerDown(click(at.x, at.y));
       expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'phone' }]);
     });
 
@@ -2060,7 +2082,7 @@ describe('createInputMapper: tidying in the final rush (story 3.5)', () => {
       expect(commands.map((c) => c.type)).toEqual(['TapBaby']);
     });
 
-    it('allocates no list for a level without a rush: the objects are passed as they are', () => {
+    it('still taps an object in a level without a rush', () => {
       const { mapper, commands, camera, setObjects } = setup();
       setObjects([PHONE]);
       const at = pxOfPoint(camera, PHONE);
@@ -2098,7 +2120,19 @@ describe('createInputMapper: tidying in the final rush (story 3.5)', () => {
       expect(none.commands).toEqual([]);
     });
 
-    it('answers a threat that is up first, and the pad does the same as the keyboard', () => {
+    it('answers a threat that is up first, with the keyboard and with the pad', () => {
+      for (const device of ['keyboard', 'gamepad'] as const) {
+        const { mapper, sim, commands } = rush([{ ...MUG, xM: 0.5, zM: 0 }]);
+        sim.world.threats = [threatAt(1, 2, 0, 1000)];
+        mapper.handleAction('down', 1500, device);
+        expect(
+          commands.map((c) => c.type),
+          device,
+        ).toEqual(['PressThreat']);
+      }
+    });
+
+    it('tidies with the pad as with the keyboard when no threat is up', () => {
       const { mapper, commands } = rush([{ ...MUG, xM: 0.5, zM: 0 }]);
       mapper.handleAction('down', 1500, 'gamepad');
       expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'mug_01' }]);

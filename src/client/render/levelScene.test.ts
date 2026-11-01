@@ -11,7 +11,7 @@ import {
   MeshToonMaterial,
   Object3D,
 } from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   createTestContent,
   createTestGeometry,
@@ -86,6 +86,12 @@ const effectsWorld = (
     seed: 1,
   })
 ).world;
+
+// The world is shared by the tests of this file: a rush a test starts must not leak into the next one,
+// also when one of its assertions fails.
+afterEach(() => {
+  effectsWorld.flow.finalRushAt = null;
+});
 
 function fakeWorldAt(simMs: number): World {
   effectsWorld.time.sim = asSimMs(simMs);
@@ -616,7 +622,6 @@ describe('createLevelScene', () => {
     update(fakeWorldAt(60_000), 0);
     expect(realFxState().doorOpenDeg).toBe(BODIES.door.openAngleDeg);
     expect(panels[0]?.rotation.y).not.toBeCloseTo(closedYaw ?? 0, 3);
-    world.flow.finalRushAt = null;
   });
 
   it('holds the door while the sim clock stands still, and keeps it open through resetFx', () => {
@@ -629,7 +634,6 @@ describe('createLevelScene', () => {
     expect(realFxState().doorOpenDeg).toBe(half);
     resetFx();
     expect(realFxState().doorOpenDeg).toBe(half);
-    world.flow.finalRushAt = null;
   });
 
   it('jumps the door open under reduced motion', () => {
@@ -641,7 +645,6 @@ describe('createLevelScene', () => {
     world.flow.finalRushAt = asSimMs(2000);
     level.update(world, 0, asRealMs(0));
     expect(level.realFxState().doorOpenDeg).toBe(BODIES.door.openAngleDeg);
-    world.flow.finalRushAt = null;
     level.dispose();
   });
 

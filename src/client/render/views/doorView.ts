@@ -28,8 +28,8 @@ export interface DoorPlacement {
 
 /**
  * Where a door at `(anchorXM, anchorZM)` stands in a room with bounds `[minXM, minZM]`-`[maxXM,
- * maxZM]`: parallel to the nearest wall of the bounds (D7), centred on the anchor, hinged at its
- * low end and swinging into the room. Pure.
+ * maxZM]`: parallel to the nearest wall of the bounds (D7), centred on the anchor, hinged at the end
+ * it starts from (the one opposite the tangent) and swinging into the room. Pure.
  */
 export function doorPlacementOf(
   anchorXM: number,
@@ -50,7 +50,7 @@ export function doorPlacementOf(
   for (const candidate of gaps) if (candidate.gapM < nearest.gapM) nearest = candidate;
   const inward = nearest.normal;
   // The tangent is the inward direction turned a quarter: (0, 1) -> (1, 0), (1, 0) -> (0, -1) ...
-  // so that the pair is the same handedness on every wall.
+  // so that the pair is the same handedness on every wall. The `+ 0`s turn a `-0` into `0`.
   const tangent: PlanarDir = { x: inward.z, z: -inward.x + 0 };
   return {
     hingeXM: anchorXM - (tangent.x * widthM) / 2,
@@ -89,6 +89,7 @@ export function doorYawRadAt(placement: DoorPlacement, angleDeg: number): number
   const dirX = tangent.x * Math.cos(angle) + inward.x * Math.sin(angle);
   const dirZ = tangent.z * Math.cos(angle) + inward.z * Math.sin(angle);
   // three.js turns +x towards -z for a positive yaw: (cos y, 0, -sin y) is the panel's direction.
+  // `+ 0`: no `-0`, which a `toEqual` tells from `0`.
   return Math.atan2(-dirZ, dirX) + 0;
 }
 

@@ -1859,6 +1859,7 @@ export async function boot(): Promise<void> {
         'ppLostStars',
         'ppEndReason',
         'ppResult',
+        'ppPropsTidied',
       ] as const) {
         delete document.documentElement.dataset[name];
       }

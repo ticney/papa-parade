@@ -271,4 +271,19 @@ describe('planTidy (story 3.5)', () => {
       ),
     ).toEqual([{ type: 'TapObject', t: RUSH_AT + 1100, objectId: 'other' }]);
   });
+
+  it('holds back every prop it just tapped, not only the last one', () => {
+    const memory = createTidyMemory();
+    const props = [mess('a', 1, 0), mess('b', 2, 0)];
+    const ids = (now: number) =>
+      run(worldOf({ props, now }), 0, memory).map((command) =>
+        command.type === 'TapObject' ? command.objectId : command.type,
+      );
+    expect(ids(RUSH_AT)).toEqual(['a']);
+    expect(ids(RUSH_AT + 10)).toEqual(['b']);
+    // Two props Papa cannot get to: neither is sent again until a second has passed.
+    expect(ids(RUSH_AT + 20)).toEqual([]);
+    expect(ids(RUSH_AT + 500)).toEqual([]);
+    expect(ids(RUSH_AT + 1000)).toEqual(['a']);
+  });
 });

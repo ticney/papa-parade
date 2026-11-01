@@ -305,14 +305,13 @@ export function planCycleDrop(
 /** A prop is not tapped twice within this long: a prop Papa cannot get to must not fill the journal (a bot's habit). */
 const TIDY_RETRY_MS = 1000;
 
-/** The prop the bot tapped last, and when: see {@link planTidy}. */
+/** When the bot last tapped each prop, in sim ms, by prop id: see {@link planTidy}. */
 export interface TidyMemory {
-  lastPropId: string | null;
-  sentAt: number;
+  readonly sentAtById: Map<string, number>;
 }
 
 export function createTidyMemory(): TidyMemory {
-  return { lastPropId: null, sentAt: Number.NEGATIVE_INFINITY };
+  return { sentAtById: new Map() };
 }
 
 /**
@@ -341,7 +340,8 @@ export function planTidy(
   for (let i = 0; i < world.props.length; i++) {
     const prop = world.props[i] as World['props'][number];
     if (!prop.isMess) continue;
-    if (prop.id === memory.lastPropId && now - memory.sentAt < TIDY_RETRY_MS) continue;
+    const sentAt = memory.sentAtById.get(prop.id);
+    if (sentAt !== undefined && now - sentAt < TIDY_RETRY_MS) continue;
     const squared = (prop.xM - papa.xM) ** 2 + (prop.zM - papa.zM) ** 2;
     if (squared < nearestSq) {
       nearestSq = squared;
@@ -349,7 +349,6 @@ export function planTidy(
     }
   }
   if (nearestId === null) return;
-  memory.lastPropId = nearestId;
-  memory.sentAt = now;
+  memory.sentAtById.set(nearestId, now);
   out.push({ type: 'TapObject', t: asSimMs(now), objectId: nearestId });
 }
