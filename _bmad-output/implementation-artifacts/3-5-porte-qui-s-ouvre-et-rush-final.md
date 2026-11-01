@@ -16,9 +16,9 @@ Requirement: FR35 `[V1]`. First of the `[V1]` end-of-level stories: 3.6 (photo),
 
 ### The flow
 
-1. **Opt-in.** `LevelSchema` gains an optional `finalRush: {}` (strict, no default, same pattern as `carry` and `cycle`). `salon_crawler` and `chambre_night` declare it. A level without it, every test fixture included, behaves exactly as today and ends in `ended`.
-2. **The tunable.** `feel.endOfLevel.finalRushMs` (10 000, positive) in `FeelSchema`, `content/feel.json`, `tests/support/testFeel.json` and `tests/tools/vite/fixtures/feelSample.json`; `content/_schemas` regenerated. `finalRushProblems` (pure, shared by `simLevelOf` and `content:check`, same words) refuses a `finalRush` level whose `durationMs` is not above `finalRushMs`.
-3. **The start.** In a level with `finalRush`, at the first step where `world.time.sim >= durationMs - finalRushMs`, `runFlow` closes a running sequence first (`SequenceEnded{levelEnded}`), enters `finalRush`, writes `world.flow.finalRushAt` and emits `FinalRushStarted`, once.
+1. **Opt-in.** `LevelSchema` gains an optional `finalRush: { spillAnchor }` (strict, no default, same pattern as `carry` and `cycle`). `salon_crawler` declares `coffee_table` and `chambre_night` declares `nightstand`. A level without it, every test fixture included, behaves exactly as today and ends in `ended`.
+2. **The tunables.** `feel.endOfLevel.finalRushMs` (10 000, positive) and `feel.endOfLevel.doorSpillCount` (2, whole, 0 or more) in `FeelSchema`, `content/feel.json`, `tests/support/testFeel.json` and `tests/tools/vite/fixtures/feelSample.json`; `content/_schemas` regenerated. `finalRushProblems` (pure, shared by `simLevelOf` and `content:check`, same words) refuses a `finalRush` level whose `durationMs` is not above `finalRushMs`, whose `spillAnchor` is not an anchor of the level, or with fewer than `doorSpillCount` props that can spill (AC 30).
+3. **The start.** In a level with `finalRush`, at the first step where `world.time.sim >= durationMs - finalRushMs`, `runFlow` closes a running sequence first (`SequenceEnded{levelEnded}`), enters `finalRush`, writes `world.flow.finalRushAt`, emits `FinalRushStarted` and spills the props (AC 30), once.
 4. **The end.** At `durationMs`, a `finalRush` level goes to `photo`, with `LevelEnded{timer}` and `LevelScored` in that same step (D2). `photo` is frozen like `ended`: `isFlowLive` is false, `step()` runs `ENDED_SYSTEMS`, commands are dropped.
 5. **The other ends.** Noise at 100 % during the rush still gives `MamaWoke`, `LevelEnded{mamaWoke}` and `ended` (D4). A cycle completed before the rush still gives `cycleDone`. No sequence, and so no `cycleDone`, can start in the rush.
 6. **What goes on and what stops in the rush.** Threats, the director, the baby, silences, noise, the instinct, the combo and physics run as usual, and a gag still costs its points (GDD: « Les gags du rush pèsent seulement sur la note »). The micro-sleep, the cry in the arms, a `pending` phone and the bedtime cycle do not start (their `=== 'playing'` tests stay). `sequenceRefusal` returns a new `finalRush` reason, with its text in `debug/cheats.ts`. A phone already ringing keeps ringing.
@@ -50,7 +50,13 @@ Requirement: FR35 `[V1]`. First of the `[V1]` end-of-level stories: 3.6 (photo),
 26. **New kinds.** `feel.physics.kinds` gains `book` and `toy`, both `box` and `breakable: false` (D9). A tidying player should not lose them to breakage.
 27. **They all fall.** A test on the live geometry of each level, with the live feel: repeated `table_object_fall` gags drop every prop of that table, one gag per prop, and each ends with `isOnFloor` and `isMess` true, on neither the furniture nor the bed. Each prop can then be tidied and sits back on its table, not on the floor.
 28. **The first fall does not change.** `mug_01` stays the nearest prop to each table's anchor, so the first gag still drops it and the live specs that follow it (`tests/e2e/props.spec.ts`, `threats.spec.ts`) keep their meaning.
-29. **At rest.** With no command, for a whole level, the new props stay on their furniture with no `PropImpact` and no noise.
+29. **At rest.** With no command, until the rush starts, the new props stay on their furniture with no `PropImpact` and no noise.
+
+### The door's spill (Geo's call, 2026-11-01)
+
+30. **The spill.** When the rush starts, the door's opening knocks over up to `doorSpillCount` props: the unbroken, off-floor props with `breakable: false` nearest the level's `spillAnchor`, within `feel.gags.tableObjectFall.propReachDistM`, each pushed away from the anchor at `pushImpulseNs` (ties to the lower index, no `world.rng` draw). A breakable prop never spills. Fewer eligible props means fewer pushes; `doorSpillCount: 0` means no spill.
+31. **It can always be answered.** On each live level, with no earlier gag, exactly 2 props fall (`toy_01` and `book_01`), none breaks, the salon's vase and the mugs do not move, and both end with `isMess` true. `perfect` and `human` then tidy both before `photo`, so their Soupir ends as if nothing had spilled. An `idle` game loses `2 × sighPerPropOnFloorPoints` against the same game with `doorSpillCount: 0` (pinned through the feel's values).
+32. **Shared code.** The choice and the push move out of `tableObjectFall` into one helper (`sim/physics/dropProps.ts`), which both call. The table gag's behaviour does not change: its existing tests and goldens pass unedited.
 
 ### Bots, tools, docs
 
@@ -59,7 +65,7 @@ Requirement: FR35 `[V1]`. First of the `[V1]` end-of-level stories: 3.6 (photo),
 21. **The cycle.** `cycleProblems` is given the playable time (`durationMs - finalRushMs` in a `finalRush` level), in `createSim.ts` and in `contentChecks.ts`. `chambre_night` must still pass.
 22. **Id clash.** `content:check` and `simLevelOf` refuse a level where an object id equals a prop id (same words).
 23. **Snapshot.** Version 28: `PropSlice.isMess`, `score.propsTidied` and `flow.finalRushAt`, all checked (see Traps).
-24. **Docs.** `project-context.md` gets a « final rush » paragraph, line 78's snapshot version, and the « Three ways to end a level » paragraph updated. `EXPERIENCE.md` gets the tidy marker and the rush timer.
+24. **Docs.** `project-context.md` gets a « final rush » paragraph, line 78's snapshot version, and the « Three ways to end a level » paragraph updated. `EXPERIENCE.md` gets the tidy marker and the rush timer. The GDD's end-of-level section and `decision-log.md` get the door's spill.
 
 ## Tasks / Subtasks
 
@@ -98,7 +104,13 @@ Requirement: FR35 `[V1]`. First of the `[V1]` end-of-level stories: 3.6 (photo),
   - [ ] `npm run assets:export -- <id>`, `assets:extract -- <id>`, `assets:optimize -- <id>` for both levels
   - [ ] Live-geometry tests (AC 27, 28, 29), then adjust positions until they pass
   - [ ] Run `npm run sim` with `random` and `human` on both levels and write the before and after in the Completion Notes: `endsByReason`, `meanStars`, `noisePeakMeanPct`
-- [ ] Task 7: Goldens, e2e and docs (AC: 24 and all)
+- [ ] Task 7: The door's spill (AC: 30, 31, 32)
+  - [ ] `sim/physics/dropProps.ts`, extracted from `tableObjectFall` with its gag tests still green and unedited
+  - [ ] `doorSpillCount`, `finalRush.spillAnchor`, `SimLevel` holding the anchor's point, the new `finalRushProblems` cases
+  - [ ] The spill in `runFlow`, after `FinalRushStarted`
+  - [ ] Tests of AC 30 and 31 on both live levels, plus a rush after the gags have already dropped the table's props
+  - [ ] Report `noisePeakMeanPct` and `endsByReason` with the spill in the Completion Notes (open point 1)
+- [ ] Task 8: Goldens, e2e and docs (AC: 24 and all)
   - [ ] New `tests/golden/finalRush.test.ts` with its scenario, on a fixture that opts in
   - [ ] `npm run golden:update`, deliberately; say so in the Completion Notes and read the diff
   - [ ] New `tests/e2e/finalRush.spec.ts`; update `timer.spec.ts:120`; Chromium only
@@ -119,6 +131,8 @@ Requirement: FR35 `[V1]`. First of the `[V1]` end-of-level stories: 3.6 (photo),
 - **D7. The door panel is built by the client, not in Blender.** Both `.glb` files hold a `door_frame` node and no door panel (checked in the binaries at this story's creation). A procedural hinged box at `ANCHOR_door` needs no re-export, stays one draw call, and E7 replaces it. It lies parallel to the nearest wall of the bounds: the anchors are `[3, 0, -2.9]` in the salon and `[2, 0, -2.3]` in the bedroom, both against the back wall. Check its fit in the frame with a screenshot.
 - **D8. No banner.** The door, the key sound, the timer and the « RANGE ! » markers tell the player what is happening. Geo judges this by playing (open point 5).
 - **D9. More props, on the tables that already have a gag.** `table_object_fall` is the only gag that moves a prop: it pushes the unbroken off-floor prop nearest the threat's anchor, within `propReachDistM` (0.5 m), straight away from the anchor. Each failed table threat therefore drops one more prop, with no new sim code. Sigh is capped at 15 (3 props at 5), so 3 or 4 props can fill it. `book` and `toy` do not break, so what falls can always be tidied; the salon's vase stays where it is. Two kinds need a template node each, and `takePropNodes` shares the first node of a kind with its siblings (`mug_02` reuses `mug_01`'s).
+
+- **D10. The door spills what cannot break.** Without a spill, a player who parries everything has nothing to tidy (measured before this story, 50 salon games: `human` 0 `table_object_fall` gags, `random` about 6.4 per game). Limiting it to `breakable: false` is what keeps it fair. In the salon the next prop by distance after the toy, `mug_02`, and the nearest, `mug_01`, are mugs; `mug_01` goes `+x` towards the vase, whose break threshold is 0.35 N·s, and a player must never lose 8 points to the door with no way to answer. The two kinds that spill go `+z` and `-x`, away from the vase and the bed. They cost 10 points only if left on the floor, and Papa walks at 3 m/s, about 3 s across the salon, so 10 s is enough for both. The level names its table, since nothing else says where the door's shock lands. The GDD has no such rule; this is Geo's decision of 2026-11-01, and the GDD gets a line (AC 24's docs).
 
 ### The new props: starting values
 
@@ -184,6 +198,9 @@ Also update the stale comment in `flowFsm.ts` and the doc of `FlowSlice` in `wor
 - **`sim/snapshot.ts:112` refuses a `papa.objectId` that is not a level object.** A snapshot taken during a rush walk would be refused: accept prop ids too (AC 23's round trip pins it).
 - **The mess check at `snapshot.ts:1023` recomputes `propsOnFloor`.** Check `isMess` against the same formula, and that the count equals the props with `isMess`.
 - **`flow.finalRushAt`:** null in `playing` and `sequence`, non-null in `finalRush` and `photo`, either in `ended` (`mamaWoke` in the rush). Don't check it against the current `finalRushMs`: `SetFeel` can move that.
+- **`runFlow` runs after `runPhysics`,** so a spill's impulse moves the prop in the next step. The doc of `pushProp` asks for a call before `runPhysics` only « so that the push counts in this step », so a one-step delay is fine; adjust that comment.
+- **Choosing two props in one step:** a pushed prop is still off the floor until it lands, so a plain « nearest » loop picks the same prop twice. The helper keeps a local list of what it pushed (one allocation per level, not a hot path).
+- **The spill's `PropImpact`s feed the noise,** up to +15 % each, so a player near 100 % can be woken by the door (open point 1). Don't special-case it.
 - **The Blender MCP runs AI Python unguarded:** use it only on these two project `.blend` files, committed first. Blender is not on the `PATH`; `assets:export` finds `/Applications/Blender.app`.
 - **Tests on fixtures must not see the new props.** `tests/support/test*.geometry.json` are separate files: leave them alone. A test that uses live content and counts props will change: `grep -rln "mug_01\|vase_01" src tests`.
 - **Every `PhysicsPort` fake must gain `resetProp`.** Find them with `grep -rl "forEachImpact" src tests tools`.
@@ -247,7 +264,7 @@ Follows the layers and aliases; `tidyMarkers.ts` sits beside `objectMarkers.ts` 
 
 ### Open points for Geo
 
-1. **A player who parries everything still has an empty rush.** Geo asked for more props (AC 25-29), but they fall only when a table threat is missed. Measured on the salon before this story, 50 games each: `human` had 0 `table_object_fall` gags, `random` about 6.4 per game. Geo's decision is pending on whether something else should put props on the floor, such as the door's opening. This story as written does not.
+1. **The door's spill can itself wake Mama.** Two falls add up to +30 % noise, so a player at about 70 % or more when the door opens may get `mamaWoke` and lose a star from the spill alone. The story leaves that in, since it is the same rule as any fall. If it feels unfair in play, the fix is to exempt those two impacts.
 2. Noise can wake Mama during the rush (D4).
 3. A tidied prop returns to the furniture instead of disappearing (D5).
 4. Broken props cannot be tidied (D6).
