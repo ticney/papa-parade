@@ -5,6 +5,7 @@ import {
   collectProblems,
   html,
   LEVEL_DURATION_MS,
+  THREATS_OFF,
   waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
@@ -33,7 +34,8 @@ const clock = (seconds: number): string =>
 const START_CLOCK = clock(Math.ceil(LEVEL_DURATION_MS / MS_PER_S));
 
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto('/');
+  // No threat: a level nobody plays would wake Mama before its end (the table's props make noise, story 3.5).
+  await page.goto(`/${THREATS_OFF}`);
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -114,10 +116,11 @@ test.describe('the level timer', () => {
     await expect(html(page)).toHaveAttribute('data-pp-flow', 'playing');
     await advanceTo(page, LEVEL_DURATION_MS - STEP_MS);
     await expect(page.locator(TIMER)).toHaveText('0:01');
-    await expect(html(page)).toHaveAttribute('data-pp-flow', 'playing');
+    // The last ten seconds are the final rush (story 3.5), where the level still ends on its timer.
+    await expect(html(page)).toHaveAttribute('data-pp-flow', 'finalRush');
     await ppAdvance(page, 1);
 
-    await expect(html(page)).toHaveAttribute('data-pp-flow', 'ended');
+    await expect(html(page)).toHaveAttribute('data-pp-flow', 'photo');
     const events = await ppEvents(page);
     const ended = events.filter((event) => event.type === 'LevelEnded');
     expect(ended).toEqual([{ type: 'LevelEnded', t: LEVEL_DURATION_MS, reason: 'timer' }]);

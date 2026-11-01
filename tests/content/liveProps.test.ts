@@ -97,7 +97,7 @@ describe.each(LEVELS)('the props of $levelId (story 3.5)', ({ levelId, anchor, t
   it('keeps mug_01 the nearest prop to the table’s anchor, so the first fall does not change (AC 28)', () => {
     const distanceOf = (id: string) => {
       const prop = geometry.props.find((candidate) => candidate.id === id);
-      const [x, , z] = prop?.centerM as [number, number, number];
+      const [x, , z] = prop?.centerM ?? [Number.NaN, 0, Number.NaN];
       return Math.hypot(x - anchorPosition[0], z - anchorPosition[2]);
     };
     const others = tableProps.filter((id) => id !== 'mug_01');

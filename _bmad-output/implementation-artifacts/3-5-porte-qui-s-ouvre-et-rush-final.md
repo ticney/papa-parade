@@ -4,7 +4,7 @@ baseline_commit: dbe4b3d85053b3c58839b6de7b9cba1a9f750777
 
 # Story 3.5: Porte qui s'ouvre et rush final
 
-Status: in-progress
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -114,13 +114,13 @@ Requirement: FR35 `[V1]`. First of the `[V1]` end-of-level stories: 3.6 (photo),
   - [x] The spill in `runFlow`, after `FinalRushStarted`
   - [x] Tests of AC 30 and 31 on both live levels, plus a rush after the gags have already dropped the table's props
   - [x] Report `noisePeakMeanPct` and `endsByReason` with the spill in the Completion Notes (open point 1)
-- [ ] Task 8: Goldens, e2e and docs (AC: 24 and all)
-  - [ ] New `tests/golden/finalRush.test.ts` with its scenario, on a fixture that opts in
-  - [ ] `npm run golden:update`, deliberately; say so in the Completion Notes and read the diff
-  - [ ] New `tests/e2e/finalRush.spec.ts`; update `timer.spec.ts:120`; Chromium only
-  - [ ] Regenerate the macOS screenshot references (the closed door is new in the frame), look at them, say so
-  - [ ] `project-context.md`, `EXPERIENCE.md`
-  - [ ] `npm run ci:fast` after each task, plus the touched specs (`timer`, `result`, `mamaWoke`, `chambreNight`, `sequence`, `ui`, `feedback`, `testApi`, `autoplay`) on Chromium
+- [x] Task 8: Goldens, e2e and docs (AC: 24 and all)
+  - [x] New `tests/golden/finalRush.test.ts` with its scenario, on a fixture that opts in
+  - [x] `npm run golden:update`, deliberately; say so in the Completion Notes and read the diff
+  - [x] New `tests/e2e/finalRush.spec.ts`; update `timer.spec.ts:120`; Chromium only
+  - [x] Regenerate the macOS screenshot references (the closed door is new in the frame), look at them, say so
+  - [x] `project-context.md`, `EXPERIENCE.md`
+  - [x] `npm run ci:fast` after each task, plus the touched specs (`timer`, `result`, `mamaWoke`, `chambreNight`, `sequence`, `ui`, `feedback`, `testApi`, `autoplay`) on Chromium
 
 ## Dev Notes
 
@@ -288,12 +288,67 @@ Follows the layers and aliases; `tidyMarkers.ts` sits beside `objectMarkers.ts` 
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Sonnet 5.5 (`claude-sonnet-5-5`)
 
 ### Debug Log References
 
+- Blender was driven headless (`/Applications/Blender.app -b <level>.blend -P <throwaway script>`), not through the MCP; the scripts lived outside the repo (`/tmp`). Game `(x, y, z)` is Blender `(x, -z, y)`.
+- First bedroom layout of the props (the story's starting values) failed AC 27: the mug sat on the anchor, so its push direction came from a 2 cm settling offset and it was pinned against the back wall at the nightstand's edge, never reaching the floor. Re-laid by hand (the story's own fallback): `mug_01` (-1.3, 0.65, -2.05) falls `+z`, `toy_01` (-1.45, 0.65, -2.15) falls `-x`, `book_01` (-1.45, 0.62, -1.98) falls `-x/+z`. Distances to the anchor are 0.10 / 0.15 / 0.23, so `mug_01` is still strictly the nearest (AC 28), and the first fall is the mug's. The salon's starting values held as they were.
+- `Math.hypot` and `Math.sqrt(dx² + dz²)` can differ in the last bit: `dropProps` keeps the `sqrt` form the table gag always used, so the gag's goldens did not move (AC 32).
+- A hand-made sim/bot test fake without a `flow` slice broke `planTidy` (it reads `world.flow`): the fakes of `tests/bots/beatBots.test.ts` and `silenceBots.test.ts` gained `flow` and `props`.
+- `typecheck`, `lint`, `content:check` and `npm test` (369 files, 7 590 tests) are green; `npm run ci:story` was not run, as the workflow says.
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- **All 8 tasks done, all 32 ACs covered.** The sim (flow states, rush, spill, tidy), the content (feel, level opt-in, feedback, strings, the two new props in both `.blend`, regenerated `.glb` and geometry), the client (door, markers, input, timer, mirrors), the bots and report, the goldens, the e2e spec and the docs.
+- **Flow.** `FlowState` gains `finalRush` and `photo`; `isFlowLive` is false for `photo`; `runFlow` starts the rush last in the step, closes a sequence first, enters `photo` on the timer with `LevelEnded` and `LevelScored` in the same step. Rush states are refused by the snapshot in a level with no rush; `photo` is refused before `durationMs`. The rush cut is tested on `stay_awake` and on the bedtime duel with the baby in the arms; the other sequence kinds go through the same `endSequenceForLevelEnd`, which 4.4 to 4.10 already test for a level end, and are not each re-tested here.
+- **Tidying.** `PropSlice.isMess`, `world.score.propsTidied`, `PhysicsPort.resetProp` (tested on the real Rapier port: reset pose, no rotation, no velocity, awake, and a resting pose re-settles with no impact above the threshold), `tidyProp`. A tidied prop re-settles with no `PropImpact` and no noise (tested); one knocked over again can be tidied again. The Soupir falls by exactly `sighPerPropOnFloorPoints` (tested through the feel's value).
+- **Snapshot version 28:** `flow.finalRushAt`, `PropSlice.isMess` (checked against its formula and the count), `score.propsTidied`, a prop id as `papa.objectId` in `finalRush` only. A round trip in the middle of a rush walk is tested. Old journals no longer replay (new world slices; deferred at 4.10's review, pre-existing).
+- **Door and cues.** `env_door_key` and `env_prop_tidied` placeholders (`npm run assets:audio -- --only …`), the `door` ring anchor (`getDoorPoint`), the two cues and events, `feedback.json › door`, `doorView.ts` (pure placement, angle and yaw helpers tested; the door is paper-white, the colour of the existing `door_frame`, parallel to the nearest wall). The door's angle is a function of the render's sim clock (a clock that stands still holds it); `__PP__.fx().doorOpenDeg` mirrors it.
+- **Client.** Touch weighs a prop with `isMess` with the objects and the baby through one reusable list (a `PropSlice` fits the narrowed `PickTarget`); Space / A takes the nearest mess within `contextReachM` ahead of the baby and of every object (`pickMessProp`, so `ContextObject` was left alone). « RANGE ! » markers (`tidyMarkers.ts`), `timerHud.setRush`, mirrors `data-pp-flow` (`finalRush`, then `world.flow.state` on `LevelEnded`) and `data-pp-props-tidied` (`ppPropsTidied`, added to `inspectDist.ts`). Screenshots of both levels in the rush looked right (the door swings into the room, the timer turns yellow, the markers sit over the fallen toy and book): the markers are big and overlap when two props are close, which is for Geo to judge.
+- **Bots.** `planTidy` shared by `perfect` (at once) and `human` (`reactionMs` after the door), no `world.rng` draw (tested: the rng after a game equals an idle game's), nothing outside the rush. A prop it just tapped waits 1 s before being tapped again, so an unreachable prop cannot fill the journal. `random` and `idle` do nothing new. Report: `finalRushes` and `propsTidied`, per game and in the totals; `simArgs --help` says so.
+- **The new props (AC 25 to 29)** on the live geometry and live feel, `tests/content/liveProps.test.ts`: every table prop falls to the floor as an unbroken mess, one per gag, the first fall is the mug's, nothing moves at rest (no `PropImpact`, no noise), each can be tidied back onto its table. Both `.blend` files are committed with them; `.glb`, `*.geometry.json` regenerated by the export pipeline.
+- **The door's spill (AC 30 to 32).** `dropProps` (shared with the table gag, whose tests are unedited and whose goldens did not change), `finalRushProblems` now also refuses a room with fewer than `doorSpillCount` unbreakable props within reach of the anchor. On both live levels, with no gag, the door knocks over exactly `toy_01` and `book_01` (nothing breaks, the mugs and the vase do not move); `perfect` and `human` tidy both and end with the sigh of a game with no spill; an `idle` game loses exactly `2 × sighPerPropOnFloorPoints`; with every prop already down, the door adds no impact.
+- **Goldens regenerated deliberately (`npm run golden:update`).** I read the diff: the 26 existing scenarios changed only in `feelHash` (the feel fixture gained `endOfLevel`, `book` and `toy`) and in `worldHash` (the world gained `finalRushAt`, `isMess`, `propsTidied`); **their `eventTypes` and `eventsHash` did not move**, which is the proof that a level without `finalRush` emits the same events in the same order. New scenario `final_rush_tidied` (frozen room plus a toy and a book) with `tests/golden/finalRush.test.ts`.
+- **E2E (Chromium).** New `tests/e2e/finalRush.spec.ts` (3 tests: a real tap and a real key tidy the mess, the markers and mirrors, the photo and the Result screen; reduced motion; the door swinging and the timer pulsing). The rush is moved to the start of the level by a `SetFeel` of `finalRushMs`, so no spec plays 170 s. Specs run alone and green: `timer`, `result`, `mamaWoke`, `chambreNight`, `sequence`, `ui`, `feedback`, `testApi`, `props`, `threats`, `autoplay`, `level`, `baby`, `pauseResume`, `move`, `reducedMotion`, `noise`, `carry`, `finalRush`.
+- **Screenshot reference.** `autoplay-frozen-chromium-darwin.png` did not change: the closed door has the colour and footprint of the existing `door_frame`, so the frame is within tolerance; I looked at it. The WebKit reference was not run (Chromium only, as the story says).
+- **Existing specs and tests that had to change, and why.** The extra table props make noise: a live level nobody plays now wakes Mama before its timer (the idle bot of the live salon, which used to reach the end). `timer`, `result` and `mamaWoke` (the timer-end test) now open the level with `?threats=off`; `advanceToEnd` stops when the app leaves `level`; `timer.spec.ts` expects `finalRush` just before the last step and `photo` after it; `tests/tools/sim/microSleep.test.ts` turns the props' noise off and counts the playable time without the rush; `mamaScore.test.ts` passes the real `MamaWoke` to the expected note; `checkContent.test.ts`'s light-kinds list gained `book` and `toy`.
+- **Measured with `npm run sim` (30 games, seed 1000), before this story (`main`) and after it:**
+
+  | Level / bot | Ends before | Ends after | Mean stars before → after | `noisePeakMeanPct` before → after |
+  |---|---|---|---|---|
+  | salon / `human` | timer 30 | timer 30 | 3.9 → 3.9 | 91 → 91 |
+  | salon / `perfect` | not measured | timer 30 | 5 | 91 |
+  | salon / `random` | timer 30 | **timer 25, mamaWoke 5** | 1.0 → 0.8 | 91 → 95.6 |
+  | bedroom / `human` | cycleDone 30 | cycleDone 30 | 5 → 5 | 7.4 → 7.4 |
+  | bedroom / `perfect` | not measured | cycleDone 30 | 5 | 7.9 |
+  | bedroom / `random` | mamaWoke 30 | mamaWoke 30 | 1 → 1 | 100 → 100 |
+
+  With the spill, `human` tidied 61 props in 30 salon games (the mug of the one game that failed a table threat, plus the toy and the book of every game) and `perfect` 60. In the bedroom neither reached the rush: the cycle ended first in all 30 games (at creation, 1 game in 30 was expected to be cut). **The door never woke Mama for `human` or `perfect`** (their noise peak is earlier in the game). **For Geo:** `random` in the salon now wakes Mama in 5 games out of 30 (it used to never), because each failed table threat drops another prop instead of nothing: intended by the story, and worth knowing.
+- **Open points for Geo (story's list), unchanged:** 1. the door's spill can itself wake Mama (two falls, up to +30 %); 2. noise can wake Mama during the rush; 3. a tidied prop goes back to its table; 4. broken props cannot be tidied; 5. no banner, the music does not change; 6. in Sieste the key in the door is a little odd.
 
 ### File List
+
+New:
+- `src/sim/flow/finalRush.ts`, `src/sim/flow/finalRush.test.ts`
+- `src/sim/papa/tidyProp.ts`, `src/sim/papa/tidyProp.test.ts`
+- `src/sim/physics/dropProps.ts`, `src/sim/physics/dropProps.test.ts`
+- `src/client/render/views/doorView.ts`, `src/client/render/views/doorView.test.ts`
+- `src/client/ui/world/tidyMarkers.ts`, `src/client/ui/world/tidyMarkers.test.ts`
+- `public/assets/audio/env_door_key.m4a`, `public/assets/audio/env_prop_tidied.m4a`
+- `tests/bots/tidyBots.test.ts`, `tests/content/checkFinalRush.test.ts`, `tests/content/liveProps.test.ts`
+- `tests/golden/finalRush.test.ts`, `tests/golden/journals/final_rush_tidied.json`, `tests/golden/journals/final_rush_tidied.expected.json`
+- `tests/e2e/finalRush.spec.ts`, `tests/tools/audio/finalRushClips.test.ts`, `tests/tools/sim/finalRushReport.test.ts`
+
+Modified:
+- Sim: `src/sim/{commandQueue,commands,context,createSim,events,index,snapshot,step,world}.ts`, `src/sim/flow/{flowFsm,flowSystem}.ts`, `src/sim/papa/papaSystem.ts`, `src/sim/physics/{physicsPort,propsSystem,rapierPhysics}.ts`, `src/sim/sequences/sequenceStart.ts`, `src/sim/threats/gags.ts`
+- Content: `src/content/schemas/{feedback,feel,level}.ts`, `content/{feedback,feel,strings.fr}.json`, `content/levels/{salon_crawler,chambre_night}.json`, `content/levels/{salon_crawler,chambre_night}.geometry.json`, `content/_schemas/{feedback,feel,level}.schema.json`
+- Assets: `assets-src/blender/{salon_crawler,chambre_night}.blend`, `public/assets/levels/{salon_crawler,chambre_night}.glb`
+- Client: `src/client/boot.ts`, `src/client/app/{levelSession,testHost}.ts`, `src/client/feedback/feedbackDirector.ts`, `src/client/input/{contextObject,hitTest,inputMapper}.ts`, `src/client/render/levelScene.ts`, `src/client/ui/hud/timerHud.ts`, `src/client/ui/styles/ui.css`, `src/client/ui/world/worldUi.ts`
+- Debug, bots, tools: `src/debug/{cheats,feelPanel,feelPatch}.ts`, `src/bots/{humanBot,perfectBot,threatTiming}.ts`, `tools/audio/makePlaceholderAudio.ts`, `tools/build/inspectDist.ts`, `tools/content/contentChecks.ts`, `tools/sim/{simArgs,simReport}.ts`
+- Tests (updated for the new world, feel and flow): `src/bots/threatTiming.test.ts`, `src/client/app/levelSession.test.ts`, `src/client/feedback/{feedbackDirector,feedbackTwins}.test.ts`, `src/client/input/{contextObject,inputMapper}.test.ts`, `src/client/render/levelScene.test.ts`, `src/client/render/views/propView.test.ts`, `src/client/ui/hud/timerHud.test.ts`, `src/debug/testApi.test.ts`, `src/sim/{createSim,events,snapshot}.test.ts`, `src/sim/flow/flowSystem.test.ts`, `src/sim/physics/{propsSystem,rapierPhysics}.test.ts`, `src/sim/sequences/{bombDropSnapshot,cycleSnapshot,duelSnapshot,fakeSleepSnapshot,sequenceSnapshot}.test.ts`, `src/sim/threats/inputLag.test.ts`, `tests/bots/{beatBots,silenceBots}.test.ts`, `tests/content/{checkContent,feedbackSchema}.test.ts`, `tests/e2e/{mamaWoke,result,timer}.spec.ts`, `tests/e2e/support/{game,testApi}.ts`, `tests/golden/scenarios.ts`, `tests/golden/journals/*.json` (the 26 existing scenarios: `feelHash` and `worldHash` only), `tests/support/{fakeTestHost,testContent}.ts`, `tests/support/testFeel.json`, `tests/tools/build/checkDist.test.ts`, `tests/tools/sim/{mamaScore,microSleep,simReport}.test.ts`, `tests/tools/vite/fixtures/feelSample.json`
+- Docs: `_bmad-output/project-context.md`, `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md`, `_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/{gdd,decision-log}.md`, `_bmad-output/implementation-artifacts/{3-5-porte-qui-s-ouvre-et-rush-final,sprint-status}.md|yaml`
+
+### Change Log
+
+- 2026-11-01 — Implemented story 3.5: the final rush (door, spill, tidying, photo), the two new props in both rooms, the bots and report, goldens, e2e and docs. Snapshot version 28. Ready for review.

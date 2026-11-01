@@ -15,6 +15,7 @@ import {
   COFFEE_TABLE,
   createTestBots,
   createTestContent,
+  createTestGeometry,
   createTestLevel,
   createTestLullabyWalk,
   createTestStayAwake,
@@ -81,6 +82,29 @@ const pushProp = (t: number, propId: string, impulseXNs: number): SimCommand => 
   impulseYNs: 0,
   impulseZNs: 0,
 });
+
+const tapObject = (t: number, objectId: string): SimCommand => ({
+  type: 'TapObject',
+  t: asSimMs(t),
+  objectId,
+});
+
+/**
+ * The frozen living room with the two props the door can knock over (story 3.5): a toy and a book on the
+ * coffee table, as in the live room, of the kinds the frozen feel holds (`toy`, `book`, neither breakable).
+ * Its anchors and colliders are the frozen room's.
+ */
+const finalRushGeometry = (): LevelGeometry => {
+  const geometry = createTestGeometry();
+  return {
+    ...geometry,
+    props: [
+      ...geometry.props,
+      { id: 'toy_01', kind: 'toy', centerM: [0.5, 0.5, -0.38], halfExtentsM: [0.05, 0.05, 0.05] },
+      { id: 'book_01', kind: 'book', centerM: [0.25, 0.47, -0.6], halfExtentsM: [0.07, 0.02, 0.1] },
+    ],
+  };
+};
 
 const setNoise = (t: number, pct: number): SimCommand => ({
   type: 'SetNoise',
@@ -669,6 +693,35 @@ export const SCENARIOS: readonly Scenario[] = [
         safeSpot: safeSpotOf(createTestCycleGeometry()),
         settings: createTestBots(),
       }),
+  },
+  {
+    // The final rush (story 3.5) on the frozen room with a toy and a book on the table: the mug is knocked
+    // off by the push at 1 s (a mess before the door), the door opens at 20 s (10 s before the end) and
+    // knocks over the toy and the book (the nearest props that cannot break, within reach of the table; the
+    // mug and the vase are breakable or already down), and Papa tidies all three, a tap at 22 s, 24 s and 26 s.
+    // The level ends on the photo at 30 s with LevelEnded{timer} and LevelScored. `finalRush.test.ts` (golden)
+    // pins what it covers.
+    name: 'final_rush_tidied',
+    level: createTestLevel({ durationMs: 30_000, finalRush: { spillAnchor: 'coffee_table' } }),
+    geometry: finalRushGeometry(),
+    seed: 42,
+    untilSimMs: 30_000,
+    actions: [
+      {
+        atStep: 100,
+        command: {
+          type: 'PushProp',
+          t: asSimMs(1100),
+          propId: 'mug_01',
+          impulseXNs: 0,
+          impulseYNs: 0,
+          impulseZNs: 0.72,
+        },
+      },
+      { atStep: 2200, command: tapObject(22_000, 'toy_01') },
+      { atStep: 2400, command: tapObject(24_000, 'book_01') },
+      { atStep: 2600, command: tapObject(26_000, 'mug_01') },
+    ],
   },
   {
     // « Sortie en infiltration » won (story 4.9): Papa walks to the door (three boards creak on the way),
