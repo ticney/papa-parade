@@ -175,7 +175,7 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 ### Completion Notes List
 
 **Geo's gates:**
-- Plan terms: **not confirmed, and they block the merge.** The takes came through the shared free generations.
+- Plan terms: Geo confirmed on 2026-11-01 that his ElevenLabs plan allows this music in a game he distributes. His word: the agent did not read the terms.
 - Ear (AC 3, 4, 5): Geo approved all seven on 2026-11-01 from listening files. The five mono ones were left-channel only at first (see Review Findings); they were recut, and he approved the recut files the same day. The stems did not change. Listening files are decoded by `afconvert`, so they do not show a WebKit gap, and they are not the game itself.
 - iPhone (AC 9): Geo played the playtest build served on the LAN on his iPhone on 2026-11-01: the stems stay in sync and he hears no gap at the seam, so D7 was not applied. His report covers those two points on the stems; it does not say whether he reached the slow-mo, the silence or the sequence loops there, or whether he heard the "at least 3 loops" AC 9 asks for. That report predates the recut, which did not touch the stems.
 
@@ -224,4 +224,4 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 ### Change Log
 
 - 2026-11-01: Seven generated music files, the cutting tool, the placeholder guard, and the late-music fix. Geo reported no gap and stems in sync on his iPhone; he approved the first cuts by ear.
-- 2026-11-01: Code review: 13 patches applied, 3 deferred. The five mono loops recut with a true downmix, and Geo approved them by ear. The plan terms are still to confirm, and they block the merge.
+- 2026-11-01: Code review: 13 patches applied, 3 deferred. The five mono loops recut with a true downmix, and Geo approved them by ear. Geo confirmed the plan terms. `ci:story`: 376 passed, 4 timed out under a load near 56 (three of `reducedMotion.spec.ts:365`, `stealthExit.spec.ts:455`); those 4 pass rerun alone.

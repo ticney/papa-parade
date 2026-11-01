@@ -2,7 +2,7 @@
 
 Where the shipped music comes from (story 7.6), so that a track can be redone and the licence question answered later. Everything else in `public/assets/audio/` is still a synthesized placeholder from `tools/audio/makePlaceholderAudio.ts`.
 
-**Licence status: not confirmed.** ElevenLabs refused several of these takes with "Free generations are busy" (`free_shared`), which suggests a free tier; the takes that ran were charged credits, and nothing here shows which plan or terms apply. Geo checks that his plan allows music in a game he distributes before this ships.
+**Licence status:** Geo confirmed on 2026-11-01 that his ElevenLabs plan allows this music in a game he distributes. ElevenLabs refused several takes with "Free generations are busy" (`free_shared`), so check the plan again before a store release.
 
 All takes: ElevenLabs, model `eleven_music_v2_5`, instrumental, flow `oJxjnjQgAe66OVCVySXO`, generated on 2026-11-01. `creative_get_generations` with the flow and generation id gives a fresh download link, at no cost.
 
