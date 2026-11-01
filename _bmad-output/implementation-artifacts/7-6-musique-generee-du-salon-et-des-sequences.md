@@ -4,7 +4,7 @@ baseline_commit: 76c6517e16d1a22d14927727fd86af951f226a41
 
 # Story 7.6: Musique générée du salon et des séquences
 
-Status: in-progress
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -70,9 +70,9 @@ These three are Geo's. An agent never assumes them and never works around them.
   - [x] Throttle to 4G in a Chromium page and read how long `preload` takes, and whether the `audio preload gave up` warning appears. Report it; do not raise the timeout without asking Geo.
 - [x] Task 6: Records (AC: 11)
   - [x] Write `docs/audio-sources.md`. Update `deferred-work.md`: the "Real sounds" and "Looped `.m4a` clips" entries, with what this story settled and what it did not.
-- [ ] Task 7: Device check (AC: 9, 10)
+- [x] Task 7: Device check (AC: 9, 10)
   - [x] `npx playwright test tests/e2e/adaptiveMusic.spec.ts tests/e2e/feedback.spec.ts --project=chromium`, `npm run ci:fast`.
-  - [ ] Geo plays a playtest build on his iPhone and reports on the seam. If the gap is audible, apply D7 and say so in the notes.
+  - [x] Geo plays a playtest build on his iPhone and reports on the seam. If the gap is audible, apply D7 and say so in the notes.
 
 ## Dev Notes
 
@@ -154,10 +154,10 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 
 ### Completion Notes List
 
-**Waiting on Geo (why the status is not `review`):**
-- Plan terms: not confirmed. The takes came through the shared free generations.
+**Geo's gates:**
+- Plan terms: **not confirmed, and they block the merge.** The takes came through the shared free generations.
 - Ear (AC 3, 4, 5): Geo approved the seven loops by ear on 2026-11-01, from the listening files of the shipped `.m4a` (each loop over its seam, the stems at the game's gains), hush wobble included. Those files are decoded by `afconvert`, so they do not show a WebKit gap, and they are not the game itself.
-- iPhone (AC 9): not done.
+- iPhone (AC 9): Geo played the playtest build served on the LAN on his iPhone on 2026-11-01: the stems stay in sync and he hears no gap at the seam, so D7 was not applied. His report covers those two points; it does not say whether he reached the slow-mo, the silence or the sequence loops there.
 
 **Credits:** 2,430 approved by Geo, 2,430 spent, one take each: stay_awake 540, lullaby_pad 540, bedtime_hush 540, bomb_thriller 270, stealth 540. The stems were paid for during the trial (900 + 630). Total 3,960.
 
@@ -198,4 +198,4 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 
 ### Change Log
 
-- 2026-11-01: Seven generated music files, the cutting tool, the placeholder guard, and the late-music fix. Waiting on Geo's ear, iPhone and plan terms.
+- 2026-11-01: Seven generated music files, the cutting tool, the placeholder guard, and the late-music fix. Geo approved them by ear and on his iPhone; plan terms still to confirm.
