@@ -4,7 +4,7 @@ baseline_commit: 76c6517e16d1a22d14927727fd86af951f226a41
 
 # Story 7.6: Musique générée du salon et des séquences
 
-Status: in-progress
+Status: done
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -76,7 +76,7 @@ These three are Geo's. An agent never assumes them and never works around them.
 
 ### Review Findings
 
-- [x] [Review][Decision] The five mono loops keep only the left channel — `afconvert -c 1` drops the right channel, with or without `--mix` (tested with hard-left and hard-right tones). L/R correlation of the takes: stay_awake 0.38, lullaby_pad 0.52, stealth 0.62, bedtime_hush 0.95, bomb_thriller 0.97. Geo approved by ear what shipped, so what he heard is the left channel. Recutting with a true downmix costs no credit but changes the sound he approved. **Geo chose to recut (2026-11-01):** done, and his new listening is pending.
+- [x] [Review][Decision] The five mono loops keep only the left channel — `afconvert -c 1` drops the right channel, with or without `--mix` (tested with hard-left and hard-right tones). L/R correlation of the takes: stay_awake 0.38, lullaby_pad 0.52, stealth 0.62, bedtime_hush 0.95, bomb_thriller 0.97. Geo approved by ear what shipped, so what he heard is the left channel. Recutting with a true downmix costs no credit but changes the sound he approved. **Geo chose to recut (2026-11-01):** done, and he approved the recut files by ear.
 - [x] [Review][Patch] Downmix in PCM in the tool, not through `afconvert -c 1` [tools/audio/cutMusicLoop.ts]
 - [x] [Review][Patch] The babble stays silent for the level if its clip lands after a preload gave up: `skippedLoops` is never cleared, and its stop is the silence telegraph [src/client/audio/audioEngine.ts:356]
 - [x] [Review][Patch] A preload of unrelated clips (recalibration's beep) resets `hasPreloadGivenUp` while stems are in flight, and the music stays silent [src/client/audio/audioEngine.ts:514]
@@ -176,7 +176,7 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 
 **Geo's gates:**
 - Plan terms: **not confirmed, and they block the merge.** The takes came through the shared free generations.
-- Ear (AC 3, 4, 5): **pending for the five recut loops.** Geo approved all seven on 2026-11-01 from listening files, but the five mono ones were left-channel only (see Review Findings); they were recut and he has not heard the new files. The stems did not change. Listening files are decoded by `afconvert`, so they do not show a WebKit gap, and they are not the game itself.
+- Ear (AC 3, 4, 5): Geo approved all seven on 2026-11-01 from listening files. The five mono ones were left-channel only at first (see Review Findings); they were recut, and he approved the recut files the same day. The stems did not change. Listening files are decoded by `afconvert`, so they do not show a WebKit gap, and they are not the game itself.
 - iPhone (AC 9): Geo played the playtest build served on the LAN on his iPhone on 2026-11-01: the stems stay in sync and he hears no gap at the seam, so D7 was not applied. His report covers those two points on the stems; it does not say whether he reached the slow-mo, the silence or the sequence loops there, or whether he heard the "at least 3 loops" AC 9 asks for. That report predates the recut, which did not touch the stems.
 
 **Credits:** 2,430 approved by Geo, 2,430 spent, one take each: stay_awake 540, lullaby_pad 540, bedtime_hush 540, bomb_thriller 270, stealth 540. The stems were paid for during the trial (900 + 630). Total 3,960.
@@ -224,4 +224,4 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 ### Change Log
 
 - 2026-11-01: Seven generated music files, the cutting tool, the placeholder guard, and the late-music fix. Geo reported no gap and stems in sync on his iPhone; he approved the first cuts by ear.
-- 2026-11-01: Code review: 13 patches applied, 3 deferred. The five mono loops recut with a true downmix; Geo's new listening and the plan terms are pending.
+- 2026-11-01: Code review: 13 patches applied, 3 deferred. The five mono loops recut with a true downmix, and Geo approved them by ear. The plan terms are still to confirm, and they block the merge.
