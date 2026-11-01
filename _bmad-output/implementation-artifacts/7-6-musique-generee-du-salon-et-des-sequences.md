@@ -4,7 +4,7 @@ baseline_commit: 76c6517e16d1a22d14927727fd86af951f226a41
 
 # Story 7.6: Musique générée du salon et des séquences
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -49,29 +49,29 @@ These three are Geo's. An agent never assumes them and never works around them.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: The cutting tool (AC: 1, 2, 5)
-  - [ ] Add `tools/audio/cutMusicLoop.ts` (Node, `tsx`, macOS only, `afconvert` like `makePlaceholderAudio.ts`; `tools/` never imported by `src/`). In: a source file, `--bars`, `--bpm`, `--gain-db`, `--crossfade-ms`, `--bitrate`, `--channels`, out path. Pure functions for the cut and the crossfade, unit tested in `tests/tools/audio/`.
-  - [ ] Recipe of D5: decode to 16-bit 44.1 kHz WAV, keep `bars × 60 / bpm × 4` s, mix the audio just past the cut into the first 50 ms with an equal-power fade, gain, encode. Refuse a source too short for cut + crossfade.
-  - [ ] Log through `log` from `@shared/log`, return `Result`, exit 1 on failure, as the placeholder tool does.
-- [ ] Task 2: The placeholder guard (AC: 6)
-  - [ ] In `makePlaceholderAudio.ts`, add a `GENERATED_CLIPS` list. `only === null` selects the table minus that list; `--only` still accepts them. **Keep the synth functions and table entries**: `makePlaceholderAudio.test.ts` pins them (the tense entry right after the calm entry, same length), and `bedtimeClips`, `bombDropClips` and `stealthClips` read the table.
-  - [ ] Check `generatePlaceholderClips`'s default-run tests (`makePlaceholderAudio.test.ts:571`), and add the new test.
+- [x] Task 1: The cutting tool (AC: 1, 2, 5)
+  - [x] Add `tools/audio/cutMusicLoop.ts` (Node, `tsx`, macOS only, `afconvert` like `makePlaceholderAudio.ts`; `tools/` never imported by `src/`). In: a source file, `--bars`, `--bpm`, `--gain-db`, `--crossfade-ms`, `--bitrate`, `--channels`, out path. Pure functions for the cut and the crossfade, unit tested in `tests/tools/audio/`.
+  - [x] Recipe of D5: decode to 16-bit 44.1 kHz WAV, keep `bars × 60 / bpm × 4` s, mix the audio just past the cut into the first 50 ms with an equal-power fade, gain, encode. Refuse a source too short for cut + crossfade.
+  - [x] Log through `log` from `@shared/log`, return `Result`, exit 1 on failure, as the placeholder tool does.
+- [x] Task 2: The placeholder guard (AC: 6)
+  - [x] In `makePlaceholderAudio.ts`, add a `GENERATED_CLIPS` list. `only === null` selects the table minus that list; `--only` still accepts them. **Keep the synth functions and table entries**: `makePlaceholderAudio.test.ts` pins them (the tense entry right after the calm entry, same length), and `bedtimeClips`, `bombDropClips` and `stealthClips` read the table.
+  - [x] Check `generatePlaceholderClips`'s default-run tests (`makePlaceholderAudio.test.ts:571`), and add the new test.
 - [ ] Task 3: Replace the stems (AC: 1, 2, 11)
-  - [ ] Fetch the two takes with `creative_get_generations` (free, D1). Download each to its own new, empty folder outside the repo's tracked files.
-  - [ ] Cut both with the same recipe. Measure both in a throwaway check: frame counts, peak of the 60/100 mix, tempo.
+  - [x] Fetch the two takes with `creative_get_generations` (free, D1). Download each to its own new, empty folder outside the repo's tracked files.
+  - [x] Cut both with the same recipe. Measure both in a throwaway check: frame counts, peak of the 60/100 mix, tempo.
   - [ ] Write them to `public/assets/audio/`. Have Geo hear them through the game.
 - [ ] Task 4: Generate the five loops (AC: 3, 4, 5, 11)
-  - [ ] State the cost and get Geo's OK (D2: 2,430 credits for one take each, confirm with `estimate_only` first).
-  - [ ] Use `creative_add_flow_node` with `duration_seconds`, `instrumental: true`, `lyrics_type: "instrumental"`, then `creative_run_flow_nodes` with `generations_count: 1`. `creative_generate_in_flow` has no way to pass those parameters. No audio reference: the length is only reliable without one (D6).
-  - [ ] Wait in the background, fetch each take, find where its end fade starts, pick the cut (D5), measure onsets for AC 4, and give Geo each loop twice over its seam.
+  - [x] State the cost and get Geo's OK (D2: 2,430 credits for one take each, confirm with `estimate_only` first).
+  - [x] Use `creative_add_flow_node` with `duration_seconds`, `instrumental: true`, `lyrics_type: "instrumental"`, then `creative_run_flow_nodes` with `generations_count: 1`. `creative_generate_in_flow` has no way to pass those parameters. No audio reference: the length is only reliable without one (D6).
+  - [x] Wait in the background, fetch each take, find where its end fade starts, pick the cut (D5), measure onsets for AC 4, and give Geo each loop twice over its seam.
   - [ ] A take that fails by ear is Geo's call: new cost, new OK.
-- [ ] Task 5: Budget and loading (AC: 7, 8)
-  - [ ] `npm run build:playtest`, `npm run dist:check -- --flavor playtest`.
-  - [ ] Throttle to 4G in a Chromium page and read how long `preload` takes, and whether the `audio preload gave up` warning appears. Report it; do not raise the timeout without asking Geo.
-- [ ] Task 6: Records (AC: 11)
-  - [ ] Write `docs/audio-sources.md`. Update `deferred-work.md`: the "Real sounds" and "Looped `.m4a` clips" entries, with what this story settled and what it did not.
+- [x] Task 5: Budget and loading (AC: 7, 8)
+  - [x] `npm run build:playtest`, `npm run dist:check -- --flavor playtest`.
+  - [x] Throttle to 4G in a Chromium page and read how long `preload` takes, and whether the `audio preload gave up` warning appears. Report it; do not raise the timeout without asking Geo.
+- [x] Task 6: Records (AC: 11)
+  - [x] Write `docs/audio-sources.md`. Update `deferred-work.md`: the "Real sounds" and "Looped `.m4a` clips" entries, with what this story settled and what it did not.
 - [ ] Task 7: Device check (AC: 9, 10)
-  - [ ] `npx playwright test tests/e2e/adaptiveMusic.spec.ts tests/e2e/feedback.spec.ts --project=chromium`, `npm run ci:fast`.
+  - [x] `npx playwright test tests/e2e/adaptiveMusic.spec.ts tests/e2e/feedback.spec.ts --project=chromium`, `npm run ci:fast`.
   - [ ] Geo plays a playtest build on his iPhone and reports on the seam. If the gap is audible, apply D7 and say so in the notes.
 
 ## Dev Notes
@@ -145,10 +145,57 @@ ElevenLabs tools as seen on 2026-11-01, through the session's MCP server: music 
 
 ### Agent Model Used
 
+Claude Opus 5.5 (`claude-opus-5-5`)
+
 ### Debug Log References
+
+- Throwaway stdlib Python measures, and a throwaway Playwright spec for 4G, not committed.
+- ElevenLabs refused takes several times with `free_shared` ("Free generations are busy"), never charged. Takes ran one at a time, on Geo's say-so.
 
 ### Completion Notes List
 
+**Waiting on Geo (why the status is not `review`):**
+- Plan terms: not confirmed. The takes came through the shared free generations.
+- Ear (AC 3, 4, 5): nobody has heard the seven loops in the game. Listening files are in the untracked `audio-listen/` of this worktree, decoded by `afconvert`, so they do not show a WebKit gap.
+- iPhone (AC 9): not done.
+
+**Credits:** 2,430 approved by Geo, 2,430 spent, one take each: stay_awake 540, lullaby_pad 540, bedtime_hush 540, bomb_thriller 270, stealth 540. The stems were paid for during the trial (900 + 630). Total 3,960.
+
+**Measured:**
+- Stems: 1,587,600 frames each, stereo 96 kbps. The 60/100 mix peaks at -1.04 dBFS (AC 2).
+- Payload: 2,485.6 KiB against 3,072 KiB, `dist:check --flavor playtest` OK (AC 7).
+- 4G, built playtest, Chromium, cache off (AC 8). Fast (9 Mbps, 60 ms): no timeout, 68 clips decoded, music on. Slow (1.6 Mbps, 150 ms): preload gave up at 5 s, audio landed by about 13 s, level at about 36 s for reasons other than audio, music on.
+- `lullaby_pad`: no pulse. `bedtime_hush`: a faint wobble near 150 BPM (correlation 0.46, about 9 % of energy), for Geo's ear. `bomb_thriller`: 60 BPM, strong. `stealth`: a 4 s pattern. `stay_awake`: 60 BPM, faint.
+
+**Departures from the story, each deliberate:**
+- `audioEngine.ts` changed. AC 8's suspected bug was real: after a preload gave up, the music stayed silent for the whole level even once decoded (`isSkipped`, cleared only before the clips landed). Late clips now start the music and the running sequence's music, only after a preload that gave up. Three new unit tests.
+- `--start-ms` added to the tool: `lullaby_pad` fades in over about 6 s despite the prompt.
+- Cuts: `stay_awake` and `stealth` 32 s (8 bars), not 30; `lullaby_pad` 26 s, not 30.
+- Bitrate flag named `--bitrate-bps`, for the units rule.
+- A test of `makePlaceholderAudio.test.ts` changed clip: the table's second clip is now out of a default run.
+
+`ci:fast` and 12 specs of `adaptiveMusic.spec.ts` and `feedback.spec.ts` on Chromium pass. `ci:story` has not run: that is the review's.
+
 ### File List
 
+- `docs/audio-sources.md` (new)
+- `tools/audio/cutMusicLoop.ts` (new)
+- `tests/tools/audio/cutMusicLoop.test.ts` (new)
+- `tools/audio/makePlaceholderAudio.ts`
+- `tests/tools/audio/makePlaceholderAudio.test.ts`
+- `src/client/audio/audioEngine.ts`
+- `src/client/audio/audioEngine.test.ts`
+- `public/assets/audio/music_crawler_calm.m4a`
+- `public/assets/audio/music_crawler_tense.m4a`
+- `public/assets/audio/music_stay_awake.m4a`
+- `public/assets/audio/music_lullaby_pad.m4a`
+- `public/assets/audio/music_bedtime_hush.m4a`
+- `public/assets/audio/music_bomb_thriller.m4a`
+- `public/assets/audio/music_stealth.m4a`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/implementation-artifacts/7-6-musique-generee-du-salon-et-des-sequences.md`
+
 ### Change Log
+
+- 2026-11-01: Seven generated music files, the cutting tool, the placeholder guard, and the late-music fix. Waiting on Geo's ear, iPhone and plan terms.

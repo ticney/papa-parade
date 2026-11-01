@@ -470,6 +470,77 @@ describe('preload', () => {
     }
   });
 
+  describe('clips that land after the preload gave up (story 7.6 AC 8)', () => {
+    /** An engine whose decodes wait for `release`, past a preload that has given up. */
+    const gaveUp = async () => {
+      const fake = createFakeAudioContext();
+      const decodeNow = fake.decodeAudioData.bind(fake);
+      const waiting: (() => void)[] = [];
+      fake.decodeAudioData = (data) =>
+        new Promise((resolve, reject) => {
+          waiting.push(() => {
+            decodeNow(data).then(resolve, reject);
+          });
+        });
+      const s = setup(() => fake);
+      s.engine.unlock();
+      const loading = s.engine.preload(CLIPS);
+      await vi.advanceTimersByTimeAsync(AUDIO_LOAD_TIMEOUT_MS);
+      await loading;
+      fake.setState('running');
+      s.loopChanges.length = 0;
+      const release = async () => {
+        for (const one of waiting.splice(0)) one();
+        await vi.advanceTimersByTimeAsync(0);
+      };
+      return { s, release };
+    };
+
+    it('starts the level music once its stems are decoded, not silently never', async () => {
+      vi.useFakeTimers();
+      try {
+        const { s, release } = await gaveUp();
+        s.engine.startLevelLoops();
+        expect(s.loopChanges).toEqual([]);
+        await release();
+        expect(s.loopChanges).toContainEqual(['music', true]);
+        expect(s.engine.decodedCount).toBe(CLIPS.length);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('starts the running sequence music too', async () => {
+      vi.useFakeTimers();
+      try {
+        const { s, release } = await gaveUp();
+        s.engine.startLevelLoops();
+        s.engine.setSequenceMusic('stay_awake');
+        await release();
+        expect(s.loopChanges).toContainEqual(['sequenceMusic', true]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('stays silent when the level has not started, or the music is muted', async () => {
+      vi.useFakeTimers();
+      try {
+        const idle = await gaveUp();
+        await idle.release();
+        expect(idle.s.loopChanges).toEqual([]);
+
+        const muted = await gaveUp();
+        muted.s.engine.startLevelLoops();
+        muted.s.engine.setMusicMuted(true);
+        await muted.release();
+        expect(muted.s.loopChanges).not.toContainEqual(['music', true]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it('honours a loadTimeoutMs option and clears its timer when the clips load in time', async () => {
     vi.useFakeTimers();
     try {
