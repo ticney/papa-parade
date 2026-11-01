@@ -686,6 +686,8 @@ export async function boot(): Promise<void> {
       'ppBabyWake',
       'ppSequenceStep',
       'ppSequenceRetreats',
+      'ppBreathPct',
+      'ppBreathHeld',
     ] as const) {
       delete document.documentElement.dataset[name];
     }
@@ -1673,6 +1675,9 @@ export async function boot(): Promise<void> {
     babyCarriedForwardM: BABY_CARRIED_FORWARD_M,
     get input() {
       return levelFeel().input;
+    },
+    get stealth() {
+      return levelFeel().stealth;
     },
     getObjects: () => levelSession.active?.sim.objects ?? NO_OBJECTS,
     onPadButton: (button, atReal) => shell.handlePadButton(button, atReal),

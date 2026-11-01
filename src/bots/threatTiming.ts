@@ -215,20 +215,47 @@ function isAnswerUp(
   return false;
 }
 
+/** Where Papa stood the last time the walk to the exit was sent: see {@link planStealthWalk}. */
+export interface StealthWalkMemory {
+  sentFromXM: number | null;
+  sentFromZM: number | null;
+}
+
+export function createStealthWalkMemory(): StealthWalkMemory {
+  return { sentFromXM: null, sentFromZM: null };
+}
+
 /**
  * The walk of a stealth step (story 4.9), shared by `perfect` and `human`: while it runs, Papa is
  * `idle` and no real wake is up, one `TapFloor` at the exit, stamped `now`. It follows the plain A*
  * path, so it **does creak**: no bot memorises the boards (open point 6 of the story). Nothing is sent
- * while he walks, so a step costs one command at most, and none outside a stealth step.
+ * while he walks, so a step costs one command at most, and none outside a stealth step. Idle again
+ * on the very point he last set off from, with no walk or glide seen since, he is as near the exit as
+ * the room lets him (he waits there for an alert to end): a new tap would go nowhere, so none is sent.
  */
 export function planStealthWalk(
   world: Readonly<World>,
   responses: Readonly<Record<string, BotResponse>>,
   out: SimCommand[],
+  memory: StealthWalkMemory,
 ): void {
   const { stealth } = world.sequence;
-  if (!stealth.isRunning || world.papa.state !== 'idle') return;
+  if (!stealth.isRunning) {
+    memory.sentFromXM = null;
+    memory.sentFromZM = null;
+    return;
+  }
+  const { papa } = world;
+  // A walk or a glide seen under way is a fresh start: the point he comes back to may be the same.
+  if (papa.state !== 'idle') {
+    memory.sentFromXM = null;
+    memory.sentFromZM = null;
+    return;
+  }
   if (isAnswerUp(world.threats, responses)) return;
+  if (memory.sentFromXM === papa.xM && memory.sentFromZM === papa.zM) return;
+  memory.sentFromXM = papa.xM;
+  memory.sentFromZM = papa.zM;
   out.push({
     type: 'TapFloor',
     t: asSimMs(world.time.sim),

@@ -267,6 +267,20 @@ describe('sequenceStealthProblems (story 4.9)', () => {
     expect(one(shape).join('\n')).not.toMatch(/a false alarm takes/);
   });
 
+  it('refuses a breath capacity under the false alarm (telegraph + nothingMs), and skips the rule with no capacity', () => {
+    const alarm = THREATS.false_alarm_sigh;
+    const neededMs = (alarm.telegraphDelayMs ?? 0) + (alarm.nothingMs ?? 0);
+    const shape = def();
+    expect(sequenceStealthProblems(shape, THREATS, LIMITS, ROOM, neededMs - 1).join('\n')).toMatch(
+      /needs 2900 ms of breath.*every false alarm would end in an empty gasp/,
+    );
+    expect(sequenceStealthProblems(shape, THREATS, LIMITS, ROOM, neededMs)).toEqual([]);
+    expect(sequenceStealthProblems(shape, THREATS, LIMITS, ROOM, null)).toEqual([]);
+    expect(
+      sequenceStealthProblems(shape, THREATS, LIMITS, ROOM, content.feel.stealth.breathCapacityMs),
+    ).toEqual([]);
+  });
+
   it('refuses a gap that does not clear the real wake (telegraph + widest window + tolerance + cooldownMs)', () => {
     const wake = THREATS.real_wake;
     const neededMs =

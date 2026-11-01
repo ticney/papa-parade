@@ -1,7 +1,7 @@
 import { botSeed } from '@bots/botSeed';
 import { nextGaussian } from '@bots/gaussian';
 import { playGame } from '@bots/playGame';
-import { fingerPlanFor, planStealthWalk } from '@bots/threatTiming';
+import { createStealthWalkMemory, fingerPlanFor, planStealthWalk } from '@bots/threatTiming';
 import { createRng } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { createSim, type SimCommand, type SimEvent } from '@sim';
@@ -137,7 +137,7 @@ describe('the perfect bot and the stealth exit', () => {
     const out: SimCommand[] = [];
     makeBot('perfect', botSetup(1, {}, lvl)).act(sim.world, out);
     expect(out).toEqual([]);
-    planStealthWalk(sim.world, botSetup(1, {}, lvl).responses, out);
+    planStealthWalk(sim.world, botSetup(1, {}, lvl).responses, out, createStealthWalkMemory());
     expect(out).toEqual([]);
   });
 });
@@ -214,5 +214,43 @@ describe('the idle and random bots in the stealth exit', () => {
 describe('fingerPlanFor (story 4.9)', () => {
   it('plans no finger at all for a nothing', () => {
     expect(fingerPlanFor('nothing', 80)).toEqual({ kind: 'none' });
+  });
+});
+
+describe('planStealthWalk memory (story 4.9 review)', () => {
+  const worldAt = (xM: number, zM: number, isRunning = true) =>
+    ({
+      sequence: { stealth: { isRunning, exitXM: 3, exitZM: -2 } },
+      papa: { state: 'idle', xM, zM },
+      threats: [],
+      time: { sim: 100 },
+    }) as never;
+  const walk = (world: never, memory: ReturnType<typeof createStealthWalkMemory>) => {
+    const out: SimCommand[] = [];
+    planStealthWalk(world, {}, out, memory);
+    return out;
+  };
+
+  it('sends one tap to the exit, then none while Papa waits on the point he set off from', () => {
+    const memory = createStealthWalkMemory();
+    expect(walk(worldAt(0, 0), memory)).toEqual([{ type: 'TapFloor', t: 100, xM: 3, zM: -2 }]);
+    for (let i = 0; i < 5; i++) expect(walk(worldAt(0, 0), memory)).toEqual([]);
+  });
+
+  it('sends again after a walk or a glide was seen, even back on the same point', () => {
+    const memory = createStealthWalkMemory();
+    walk(worldAt(0, 0), memory);
+    const gliding = { ...(worldAt(0, 0) as object), papa: { state: 'glide', xM: 1, zM: 1 } };
+    expect(walk(gliding as never, memory)).toEqual([]);
+    expect(walk(worldAt(0, 0), memory)).toHaveLength(1);
+  });
+
+  it('sends again once Papa stands elsewhere, and once more for a new step', () => {
+    const memory = createStealthWalkMemory();
+    walk(worldAt(0, 0), memory);
+    expect(walk(worldAt(1.5, -1), memory)).toHaveLength(1);
+    expect(walk(worldAt(1.5, -1), memory)).toEqual([]);
+    expect(walk(worldAt(1.5, -1, false), memory)).toEqual([]);
+    expect(walk(worldAt(1.5, -1), memory)).toHaveLength(1);
   });
 });

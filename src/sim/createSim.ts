@@ -182,6 +182,7 @@ function simLevelOf(
   beatTrackIds: readonly string[],
   limits: DuelLimits,
   papaGrid: NavGrid,
+  breathCapacityMs: number,
 ): SimLevel {
   invariant(
     level.level.id === geometry.id,
@@ -401,6 +402,7 @@ function simLevelOf(
       level.threats,
       limits,
       stealthRoomOf(geometry.anchors, papaGrid, level.level.carry !== undefined),
+      breathCapacityMs,
     );
     invariant(stealthProblem === undefined, `${where}: the sequence "${id}" ${stealthProblem}`);
     // One instance per distinct def, pushed after the cry and the micro-sleep, which keep their indices.
@@ -634,6 +636,7 @@ export async function createSimWithSystems(
     Object.keys(content.feedback.beatTracks),
     duelLimitsOf(content.feel),
     papaGrid,
+    content.feel.stealth.breathCapacityMs,
   );
   const babyGrid = createNavGrid(geometry, content.feel.baby.bodyRadiusM);
   let world = createWorld({

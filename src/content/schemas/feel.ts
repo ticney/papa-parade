@@ -412,6 +412,9 @@ const StealthSchema = z
     breathRefillPerSecMs: delayMs(
       'How much breath comes back for each second it is not held, in ms of capacity per second of sim time.',
     ),
+    holdMinMs: durationMs(
+      'How long a finger that tapped the floor must stay down to take the breath, in real ms. Its own value: `input.holdMinMs` is the Firmness threshold, and retuning one must not move the other.',
+    ),
   })
   .describe('The stealth exit (story 4.9, GDD §6): the sneak and the held breath.');
 

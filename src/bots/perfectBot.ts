@@ -7,6 +7,7 @@ import {
   createCycleMemory,
   createFirmHold,
   createSilenceMemory,
+  createStealthWalkMemory,
   isPressable,
   planStealthWalk,
   responseOf,
@@ -32,6 +33,8 @@ export function createPerfectBot(setup: BotSetup): Bot {
   const releaseDefIds = new Set(setup.releaseDefIds);
   // The false alarms whose breath is planned (story 4.9): a cycle of its own, since a `nothing` is never pressed.
   const breaths = createCycleMemory();
+  // Where the walk to the exit last set off from: no new tap while Papa waits at the nearest point.
+  const stealthWalk = createStealthWalkMemory();
   // The beat tapped last: `nextBeatAt` is unique per beat, so one tap per beat whatever the step.
   let lastBeatAt: number | null = null;
   return {
@@ -81,7 +84,7 @@ export function createPerfectBot(setup: BotSetup): Bot {
         schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
       }
       scheduler.flush(now, out);
-      planStealthWalk(world, setup.responses, out);
+      planStealthWalk(world, setup.responses, out, stealthWalk);
     },
   };
 }

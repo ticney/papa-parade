@@ -92,13 +92,24 @@ function isAlertUp(falseAlarm: ThreatInstance, realWake: ThreatInstance): boolea
  * the threats cancelled: the baby sleeps in a safe zone. A carried baby is put down; one who is not in
  * a safe zone is moved to the centre of the nearest, with no path, no draw and no event but his
  * state, his crawl and target cleared, babbling. Whatever is already true is skipped, so a chain
- * (4.10) that starts with the baby in his crib moves nothing. A level with no safe zone (the level
+ * (4.10) that starts with the baby babbling in his crib moves nothing; one on an errand inside the
+ * crib is only settled (crawl and target cleared, babbling), not moved. A level with no safe zone (the level
  * checks refuse it) leaves him where he is.
  */
 export function placeBabyForStealth(world: World, ctx: StepContext): void {
   const { baby } = world;
   if (isBabyCarried(world)) putDownBaby(world, ctx);
-  if (isInSafeZone(ctx, baby.xM, baby.zM)) return;
+  if (isInSafeZone(ctx, baby.xM, baby.zM)) {
+    // Already in his crib, but maybe on an errand (wandering, off to a threat): `runBaby` is inert in
+    // a stealth step, so a crawl left under way would freeze him mid-crawl with a stale path.
+    if (baby.state !== 'babble') {
+      stopCrawling(world);
+      baby.targetThreatId = null;
+      baby.babbling = true;
+      enterBabyState(world, ctx, 'babble');
+    }
+    return;
+  }
   const { safeZones } = ctx.level;
   let best = -1;
   let bestSq = Number.POSITIVE_INFINITY;
@@ -334,14 +345,16 @@ export function stealthRoomForGeometry(
  * What is wrong with the stealth steps of a sequence def, each as a sentence that follows « the
  * sequence "<id>" »: `content:check` and `simLevelOf` both call it, so they refuse the same things
  * with the same words. `threatDefs` are the loaded threat defs by id; `limits` is the widest a window
- * gets; `room` is what the level offers (null: skip the rules that need it). Pure: no zod and no
- * `@content` runtime import.
+ * gets; `room` is what the level offers (null: skip the rules that need it); `breathCapacityMs` is
+ * `feel.stealth.breathCapacityMs` (null: skip the rule that needs it). Pure: no zod and no `@content`
+ * runtime import.
  */
 export function sequenceStealthProblems(
   def: StealthDefShape,
   threatDefs: Readonly<Record<string, StealthThreatShape>>,
   limits: DuelLimits,
   room: StealthRoom | null,
+  breathCapacityMs: number | null = null,
 ): string[] {
   const stealthCount = def.steps.filter((step) => step.kind === 'stealth').length;
   if (stealthCount === 0) return [];
@@ -419,6 +432,15 @@ export function sequenceStealthProblems(
         (falseAlarm.telegraphDelayMs ?? limits.telegraphDelayDefaultMs) +
         falseAlarm.nothingMs +
         falseAlarm.cooldownMs;
+      // The breath held from the telegraph to the end of the sigh must last: a smaller capacity makes
+      // every false alarm lost by an empty gasp, whatever the player does.
+      const holdMs =
+        (falseAlarm.telegraphDelayMs ?? limits.telegraphDelayDefaultMs) + falseAlarm.nothingMs;
+      if (breathCapacityMs !== null && breathCapacityMs < holdMs) {
+        problems.push(
+          `${where} whose falseAlarmDef "${step.falseAlarmDef}" needs ${holdMs} ms of breath (telegraph + nothingMs), but feel.stealth.breathCapacityMs is ${breathCapacityMs}: every false alarm would end in an empty gasp`,
+        );
+      }
       if (step.alertGapMinMs <= falseAlarmMs) {
         problems.push(
           `${where} with an alertGapMinMs of ${step.alertGapMinMs}, which is not above the ${falseAlarmMs} ms a false alarm takes (telegraph + nothingMs + cooldownMs): an alert would wait on the last one`,

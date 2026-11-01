@@ -63,10 +63,12 @@ export interface InputMapperDeps {
    * `feel.input`: the auto-target cone, the reach of the context action and the stick's deadzone,
    * read at each use so that a changed feel applies at once.
    */
-  input: Pick<
-    Feel['input'],
-    'autoTargetConeDeg' | 'contextReachM' | 'stickDeadzonePct' | 'holdMinMs'
-  >;
+  input: Pick<Feel['input'], 'autoTargetConeDeg' | 'contextReachM' | 'stickDeadzonePct'>;
+  /**
+   * `feel.stealth.holdMinMs`: how long a floor finger stays down to take the breath. Read at each use,
+   * and its own value: `feel.input.holdMinMs` is the Firmness threshold (story 4.9 review).
+   */
+  stealth: Pick<Feel['stealth'], 'holdMinMs'>;
   /**
    * `feel.baby.bodyRadiusM`: the baby's centre is this high above the floor, for the touch hit test
    * (story 1.21). Read at each tap.
@@ -416,12 +418,19 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
 
   // A floor finger still down `holdMinMs` after it tapped holds the breath, stamped at that instant.
   const refreshFingerHold = (): void => {
-    if (floorFinger === null || floorFinger.isHolding) return;
+    if (floorFinger === null && breathHolder === null) return;
     const active = deps.getActive();
-    if (active === null || !isLive()) return;
+    if (active === null) return;
     bindTo(active);
-    if (floorFinger === null || !isStealthStepRunning(active.sim.world)) return;
-    const holdAtReal = floorFinger.downAtReal + deps.input.holdMinMs;
+    // The step is over (the door, a gag, the level): the sim let the breath go with it and ignores the
+    // rest, so the mapper forgets its finger and its holder, and a chained step starts clean.
+    if (!isStealthStepRunning(active.sim.world)) {
+      floorFinger = null;
+      breathHolder = null;
+      return;
+    }
+    if (floorFinger === null || floorFinger.isHolding || !isLive()) return;
+    const holdAtReal = floorFinger.downAtReal + deps.stealth.holdMinMs;
     if (deps.nowAtReal() < holdAtReal) return;
     floorFinger.isHolding = true;
     holdBreath(active, floorFinger.pointerId, toSim(active, holdAtReal));
@@ -633,17 +642,22 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (floorFinger !== null && floorFinger.pointerId === sample.pointerId) {
         const finger = floorFinger;
         floorFinger = null;
-        // Held `holdMinMs` already but not read yet by the poll: the hold is stamped where it began.
-        if (!finger.isHolding && sample.timeStamp >= finger.downAtReal + deps.input.holdMinMs) {
-          holdBreath(
-            active,
-            finger.pointerId,
-            toSim(active, finger.downAtReal + deps.input.holdMinMs),
-          );
-          finger.isHolding = true;
+        // Outside a stealth step (it ended since the tap) the breath is not the sim's business any more.
+        if (!isStealthStepRunning(active.sim.world)) {
+          if (breathHolder === finger.pointerId) breathHolder = null;
+        } else {
+          // Held `holdMinMs` already but not read yet by the poll: the hold is stamped where it began.
+          if (!finger.isHolding && sample.timeStamp >= finger.downAtReal + deps.stealth.holdMinMs) {
+            holdBreath(
+              active,
+              finger.pointerId,
+              toSim(active, finger.downAtReal + deps.stealth.holdMinMs),
+            );
+            finger.isHolding = true;
+          }
+          if (finger.isHolding)
+            letGoBreath(active, finger.pointerId, toSim(active, sample.timeStamp));
         }
-        if (finger.isHolding)
-          letGoBreath(active, finger.pointerId, toSim(active, sample.timeStamp));
       }
       if (!press.released(sample.pointerId)) return;
       active.sim.enqueue({

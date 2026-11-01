@@ -99,7 +99,8 @@
   "stealth": {
     "sneakSpeedPct": 35,
     "breathCapacityMs": 6000,
-    "breathRefillPerSecMs": 1500
+    "breathRefillPerSecMs": 1500,
+    "holdMinMs": 400
   },
   "instinct": {
     "timeScale": 0.8,

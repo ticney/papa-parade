@@ -6,8 +6,6 @@ import {
   createCreakGeometry,
   createStealthSim,
   FLOAT_MAX,
-  FLOAT_ZERO,
-  NEVER_MS,
   only,
 } from '../../../tests/support/stealthSupport.ts';
 import {
@@ -85,6 +83,30 @@ describe('the start of a stealth sequence (story 4.9, D6)', () => {
     expect(only(seen, 'BabyPutDown')).toEqual([]);
   });
 
+  it('settles a baby who is in the playpen on an errand: crawl and target cleared, babbling, not moved', async () => {
+    const run = await createStealthSim();
+    run.teleportPapa(PLAYPEN_XM, PLAYPEN_ZM);
+    const { baby } = run.world;
+    baby.xM = PLAYPEN_XM + 0.2;
+    baby.zM = PLAYPEN_ZM - 0.1;
+    baby.prevXM = baby.xM;
+    baby.prevZM = baby.zM;
+    baby.state = 'wander';
+    baby.babbling = false;
+    baby.targetThreatId = 7;
+    baby.path.push(PLAYPEN_XM + 0.5, PLAYPEN_ZM);
+    baby.approachSpeedMps = 0.4;
+    const babyBefore = { x: baby.xM, z: baby.zM };
+    const seen = run.start();
+    expect(baby.state).toBe('babble');
+    expect(baby.babbling).toBe(true);
+    expect(baby.targetThreatId).toBeNull();
+    expect(baby.path).toHaveLength(0);
+    expect(baby.approachSpeedMps).toBe(0);
+    expect({ x: baby.xM, z: baby.zM }).toEqual({ x: babyBefore.x, z: babyBefore.z });
+    expect(only(seen, 'BabyStateChanged')).toMatchObject([{ from: 'wander', to: 'babble' }]);
+  });
+
   it('puts a carried baby down over the playpen, safe', async () => {
     const run = await createStealthSim();
     run.teleportPapa(PLAYPEN_XM, PLAYPEN_ZM);
@@ -96,12 +118,19 @@ describe('the start of a stealth sequence (story 4.9, D6)', () => {
     expect(run.world.baby.state).toBe('babble');
   });
 
-  it('is refused with the usual refusals: a ringing phone, a hiding baby, a running sequence', async () => {
+  it('is refused while a sequence runs: no second SequenceStarted', async () => {
     const run = await createStealthSim();
     run.start();
-    // A second start while it runs is refused: no second SequenceStarted.
     run.sim.enqueue({ type: 'StartSequence', t: run.world.time.sim, sequenceId: 'stealth_exit' });
     expect(only(run.stepOnce(), 'SequenceStarted')).toEqual([]);
+  });
+
+  it('is refused while Papa is busy: nothing starts and the flow stays playing', async () => {
+    const run = await createStealthSim();
+    run.world.papa.state = 'onPhone';
+    expect(only(run.start(), 'SequenceStarted')).toEqual([]);
+    expect(run.world.flow.state).toBe('playing');
+    expect(run.world.sequence.stealth.isRunning).toBe(false);
   });
 });
 
@@ -484,7 +513,5 @@ describe('the alert gap (story 4.9)', () => {
         step.alertGapMinMs,
       );
     }
-    expect(NEVER_MS).toBeGreaterThan(0);
-    expect(FLOAT_ZERO.a).toBe(0);
   });
 });

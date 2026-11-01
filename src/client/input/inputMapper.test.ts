@@ -114,7 +114,8 @@ function setup() {
         pad.released = [];
       },
     },
-    input: { autoTargetConeDeg: 60, contextReachM: 1.5, stickDeadzonePct: 20, holdMinMs: 400 },
+    input: { autoTargetConeDeg: 60, contextReachM: 1.5, stickDeadzonePct: 20 },
+    stealth: { holdMinMs: 400 },
     getObjects: () => objects,
     onPadButton: (button) => padButtons.push(button),
     onPadPresence: (isPresent, family) => padPresence.push([isPresent, family]),
@@ -1705,6 +1706,40 @@ describe('createInputMapper: the stealth step (story 4.9)', () => {
       mapper.pollGamepad();
       expect(commands[0]).toMatchObject({ type: 'TapFloor', t: -50 });
       expect(commands[1]).toEqual({ type: 'HoldAnywhere', t: 350 });
+    });
+
+    it('a finger still down when the step ends sends no breath at its up, held or not yet read', () => {
+      for (const isHoldingAlready of [false, true]) {
+        const { mapper, sim, commands, setNow } = setup();
+        inStealth(sim);
+        mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+        if (isHoldingAlready) {
+          setNow(1500);
+          mapper.pollGamepad();
+        }
+        sim.world.sequence.stealth.isRunning = false;
+        setNow(1600);
+        mapper.pollGamepad();
+        mapper.handlePointerUp(up(2000));
+        const sent = types(commands);
+        expect(sent).not.toContain('ReleaseHold');
+        expect(sent.filter((type) => type === 'HoldAnywhere')).toHaveLength(
+          isHoldingAlready ? 1 : 0,
+        );
+      }
+    });
+
+    it('forgets the holder when the step ends, so a chained step can take the breath again', () => {
+      const { mapper, sim, commands, setNow } = setup();
+      inStealth(sim);
+      mapper.handlePointerDown(click(RECT.left + 200, RECT.top + 200, { timeStamp: 1000 }));
+      setNow(1500);
+      mapper.pollGamepad();
+      sim.world.sequence.stealth.isRunning = false;
+      mapper.pollGamepad();
+      inStealth(sim);
+      mapper.handleHold('down', 1700, 'keyboard');
+      expect(types(commands)).toEqual(['TapFloor', 'HoldAnywhere', 'HoldAnywhere']);
     });
 
     it('sends nothing outside a stealth step', () => {

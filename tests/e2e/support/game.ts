@@ -52,6 +52,7 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
     hitstopMs: number;
   };
   movement: { walkSpeedMps: number };
+  stealth: { holdMinMs: number };
   instinct: {
     timeScale: number;
     windowBonusPct: number;

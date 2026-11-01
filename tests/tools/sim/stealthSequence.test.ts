@@ -89,7 +89,9 @@ describe('runSim with --sequence stealth_exit (story 4.9)', () => {
     expect(report.sequencesSucceeded + report.sequencesFailed).toBe(10);
     expect(report.sequencesSucceeded).toBeGreaterThan(0);
     expect(report.microSleeps).toBe(0);
-    expect(report.nothingResponses).toBeGreaterThanOrEqual(0);
+    expect(report.nothingResponses).toBeGreaterThan(0);
+    const gasps = report.breathGasps;
+    expect(gasps.empty + gasps.early + gasps.notHeld).toBeGreaterThan(0);
   }, 90_000);
 
   it('the random bot plays it too, and touches false alarms (an acted gag)', async () => {

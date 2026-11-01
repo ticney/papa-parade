@@ -583,6 +583,8 @@ export interface PlannedLevel {
       | null
     )[];
   }[];
+  /** The level's creak zones (story 4.9): only the count is needed, it bounds `stealth.creakZoneIndex`. */
+  readonly creakZones: readonly unknown[];
   /** The level's interactive objects: Papa's `objectId` must be one of them. */
   readonly objects: readonly { readonly id: string }[];
   readonly props: readonly {
@@ -760,6 +762,7 @@ function sequenceProblem(
   baby: unknown,
   nowMs: number,
   breathBoundMs: number,
+  creakZoneCount: number,
 ): string | null {
   if (typeof sequence !== 'object' || sequence === null) return 'world.sequence is missing';
   const slice = sequence as Record<string, unknown>;
@@ -812,7 +815,9 @@ function sequenceProblem(
     return 'world.sequence.id';
   }
   return (
-    beatProblem(slice, def) ?? duelProblem(slice, def) ?? stealthProblem(slice, def, breathBoundMs)
+    beatProblem(slice, def) ??
+    duelProblem(slice, def) ??
+    stealthProblem(slice, def, breathBoundMs, creakZoneCount, nowMs)
   );
 }
 
@@ -940,13 +945,15 @@ function breathBoundMsOf(world: unknown, initialFeel: Feel): number {
  * The running `stealth` step (story 4.9), `world.sequence.stealth`: all at rest when no sequence runs
  * or the current step is not a `stealth` step (no exit, no alert due, no breath held, no board, no
  * gasp paid); in one, `isRunning`, a finite exit, and the breath between 0 and the capacity, held only
- * while some is left. `breathHeldAt` and `nextAlertAt` are null or a finite time, `creakZoneIndex` is
- * -1 or the index of a zone.
+ * while some is left. `breathHeldAt` and `nextAlertAt` are null or a finite time (a hold is never
+ * later than the sim clock), `creakZoneIndex` is -1 or the index of one of the level's creak zones.
  */
 function stealthProblem(
   slice: Record<string, unknown>,
   planned: PlannedLevel['sequences'][number] | undefined,
   breathBoundMs: number,
+  creakZoneCount: number,
+  nowMs: number,
 ): string | null {
   const stealth = slice.stealth;
   if (typeof stealth !== 'object' || stealth === null) return 'world.sequence.stealth is missing';
@@ -972,8 +979,15 @@ function stealthProblem(
     const value = fields[key];
     if (value !== null && (!isFiniteNumber(value) || (value as number) < 0)) return where(key);
   }
-  if (!Number.isInteger(fields.creakZoneIndex) || (fields.creakZoneIndex as number) < -1) {
+  if (
+    !Number.isInteger(fields.creakZoneIndex) ||
+    (fields.creakZoneIndex as number) < -1 ||
+    (fields.creakZoneIndex as number) >= creakZoneCount
+  ) {
     return where('creakZoneIndex');
+  }
+  if (fields.breathHeldAt !== null && (fields.breathHeldAt as number) > nowMs) {
+    return where('breathHeldAt');
   }
   if (fields.breathHeldAt !== null && (breathLeftMs as number) <= 0) return where('breathHeldAt');
   if (!fields.isRunning) {
@@ -1205,6 +1219,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
       baby,
       clock.sim as number,
       breathBoundMsOf(world, initialFeel),
+      planned.creakZones.length,
     ) ??
     silenceProblem(
       silence,

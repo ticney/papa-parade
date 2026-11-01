@@ -118,6 +118,8 @@ describe('what the slice refuses (story 4.9)', () => {
     ['no nextAlertAt while running', { nextAlertAt: null }, 'nextAlertAt'],
     ['a fractional creakZoneIndex', { creakZoneIndex: 0.5 }, 'creakZoneIndex'],
     ['a creakZoneIndex below -1', { creakZoneIndex: -2 }, 'creakZoneIndex'],
+    ['a creakZoneIndex beyond the level’s zones', { creakZoneIndex: 99 }, 'creakZoneIndex'],
+    ['a breathHeldAt later than the sim clock', { breathHeldAt: 600000 }, 'breathHeldAt'],
   ] as const)('refuses %s, naming the field', async (_name, patch, field) => {
     const { snapshot } = await midStep();
     Object.assign(snapshot.world.sequence.stealth, patch);

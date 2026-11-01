@@ -851,3 +851,9 @@
 - **`duelDefIdsOf` is now `sequenceDefIdsOf`** (it names the stealth step's two alerts too, which are neither wave threats nor micro-sleeps).
 - **The e2e finds its alerts by seed** (`reachAlert`, up to 120 loads of the level): the kind of the first alert is drawn by the sim. If Geo's tuning made a kind rare (a `realWakePct` of 1) the search can run long; it fails with a message, never hangs.
 - **`data-pp-threat-px` of a threat on the baby** is computed from the instance, not the entry, at the event: the marker follows the instance at the next frame, so the mirror would have named the previous point.
+
+## Deferred from: code review of story 4-9-sortie-en-infiltration-reponse-ne-rien-faire (2026-11-01)
+
+- **Content guards for a stealth step's geometry.** `sequenceStealthProblems` does not refuse Papa's start inside `exitRadiusM` (the sequence would win on its first step), a level with no open safe-zone centre (`placePapaOverMattress` finds nothing), or creak zones that overlap each other or the exit (`creakZoneIndexAt` keeps the first match only). `creakZones.test.ts` pins the live salon; add the guards with the `chambre_night` level (4.10).
+- **The stealth e2e scans seeds 1-120 for its first alert** (`reachAlert`). A `realWakePct` or `alertGapMinMs` retune can turn it red with « no seed from 1 to 120 ». Freeze a stealth sequence for the e2e if it happens.
+- **Two presentation numbers are not data:** `--pp-breath-ring-size: 84px` (`ui.css`) and `EXIT_MARKER_HEIGHT_M = 1.1` (`stealthExitMarker.ts`). DESIGN.md gives no size; move them to tokens or `feel` if Geo wants to tune them.

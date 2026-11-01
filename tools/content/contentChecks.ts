@@ -812,6 +812,7 @@ function checkSequenceReferences(
           Object.fromEntries(families.threats),
           feel === undefined ? NO_FEEL_DUEL_LIMITS : duelLimitsOf(feel),
           room,
+          feel?.stealth.breathCapacityMs ?? null,
         )) {
           problems.push({
             file,

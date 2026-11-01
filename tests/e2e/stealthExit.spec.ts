@@ -49,7 +49,7 @@ const isChromium = (): boolean => test.info().project.name === 'chromium';
 const SEQUENCE = 'stealth_exit';
 const SIGH = 'false_alarm_sigh';
 const WAKE = 'real_wake';
-const { holdMinMs } = liveFeel.input;
+const { holdMinMs } = liveFeel.stealth;
 
 const sequenceDef = JSON.parse(readFileSync('content/sequences/stealth_exit.json', 'utf8')) as {
   steps: { exitAnchor: string; exitRadiusM: number }[];

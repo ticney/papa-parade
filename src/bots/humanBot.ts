@@ -11,6 +11,7 @@ import {
   createCycleMemory,
   createFirmHold,
   createSilenceMemory,
+  createStealthWalkMemory,
   isPressable,
   planStealthWalk,
   responseOf,
@@ -49,6 +50,8 @@ export function createHumanBot(setup: BotSetup): Bot {
   const releaseDefIds = new Set(setup.releaseDefIds);
   // The false alarms whose breath is planned (story 4.9): a cycle of its own, since a `nothing` is never pressed.
   const breaths = createCycleMemory();
+  // Where the walk to the exit last set off from: no new tap while Papa waits at the nearest point.
+  const stealthWalk = createStealthWalkMemory();
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
   let find: { startedAt: number; atMs: number } | null = null;
   // The tap planned for the beat in play: dropped if the beat is settled before it is sent.
@@ -135,7 +138,7 @@ export function createHumanBot(setup: BotSetup): Bot {
         schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
       }
       scheduler.flush(now, out);
-      planStealthWalk(world, setup.responses, out);
+      planStealthWalk(world, setup.responses, out, stealthWalk);
     },
   };
 }
