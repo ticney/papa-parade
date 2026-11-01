@@ -1,37 +1,27 @@
-import type { PapaSlice } from '@sim';
-import { BoxGeometry, Color, ConeGeometry, Group, Mesh, type Object3D } from 'three';
+import type { BabySlice, PapaSlice } from '@sim';
+import { BoxGeometry, Color, Group, Mesh, type Object3D } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
 import { PALETTE } from '../materials/palette.ts';
 import type { ToonMaterialCache } from '../materials/toonMaterial.ts';
+import { papaClipOf } from './characterClips.ts';
+import {
+  clipTimeScaleOf,
+  stepSpeedMpsOf,
+  type TravelClips,
+  turnToward,
+} from './characterMotion.ts';
+import { type CharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
 
-// Art constants (Geo tunes them here until the final art, E7), named with their units.
-/** Papa's provisional cube is this tall, in metres. Its width is `2 × papaRadiusM`, from the feel. */
+/**
+ * Papa's height, feet on the floor to the top of his head, in metres: what the markers above him
+ * read. The mesh is authored to it (`papa.glb`), and the silhouette test in `characterAssets.test.ts`
+ * measures the file against it: changing it here moves the markers, not the drawing.
+ */
 export const PAPA_HEIGHT_M = 0.9;
-/** Never `parry`, `dodge` or `alert`: those colours belong to threats and signals. */
-const PAPA_COLOR = PALETTE.primary;
-/** Papa's hair, shown by the outlet gag: spikes of this height when fully on end, in metres. */
-export const PAPA_HAIR_HEIGHT_M = 0.35;
-/** ...each this wide at its base, as a share of Papa's width, in percent. */
-const PAPA_HAIR_WIDTH_PCT = 18;
-/** ...radial segments of a spike: a four-sided cone reads as a spike and costs 8 triangles. */
-const PAPA_HAIR_SEGMENTS = 4;
-/** Where the spikes stand on top of the cube, as shares of half his width in x and z, in percent. */
-const PAPA_HAIR_SPOTS_PCT: readonly (readonly [number, number])[] = [
-  [0, 0],
-  [55, 55],
-  [-55, 55],
-  [55, -55],
-  [-55, -55],
-];
-const PAPA_HAIR_COLOR = PALETTE.ink;
 
-// The micro-sleep and the coffee (story 1.19, provisional until E7). Diegetic: 3D, never a DOM overlay.
-/** The eyelids: an ink band that lowers over the top of the cube's front face, this tall when closed, in metres. */
-const PAPA_EYELIDS_BAND_M = 0.3;
-/** ...starting this far below the top of the cube, in metres. */
-const PAPA_EYELIDS_TOP_GAP_M = 0.12;
-const PAPA_EYELIDS_COLOR = PALETTE.ink;
+// The micro-sleep (story 1.19). Diegetic: 3D, never a DOM overlay.
+const PAPA_Z_COLOR = PALETTE.ink;
 /** The « Z » of a sleeping Papa floats this far above his head, in metres... */
 const PAPA_Z_HEIGHT_M = 0.45;
 /** ...bobs by this much, in metres... */
@@ -41,23 +31,18 @@ const PAPA_Z_BOB_PERIOD_MS = 1200;
 /** Each bar of the « Z » is this long, in metres, and this thick. */
 const PAPA_Z_SIZE_M = 0.2;
 const PAPA_Z_THICKNESS_M = 0.04;
-/** The mug in Papa's hand: a small cube this big, in metres, held to his right and in front. */
-const PAPA_MUG_SIZE_M = 0.14;
-const PAPA_MUG_COLOR = PALETTE.paper;
-
-// The phone call (story 1.20, provisional until E7). Diegetic: a handset at the side of his head.
-/** The handset: a thin box this long (along the head, up), this wide and this thick, in metres. */
-const PAPA_HANDSET_LENGTH_M = 0.32;
-const PAPA_HANDSET_WIDTH_M = 0.1;
-const PAPA_HANDSET_THICKNESS_M = 0.06;
-/** ...held this far above the middle of the cube, as a share of its height, in percent. */
-const PAPA_HANDSET_HEIGHT_PCT = 40;
-const PAPA_HANDSET_COLOR = PALETTE.ink;
 
 /** Where Papa is drawn and which way he faces. */
 export interface PapaPose extends PointXZ {
   /** Rotation about the vertical axis, in radians: 0 faces +z, a positive angle turns toward +x. */
   yawRad: number;
+}
+
+/** The three parts of Papa's look, each on its own (story 7.2, D2; story 3.7 will drive them). */
+export interface PapaLook {
+  readonly hasMashOnCheek: boolean;
+  readonly hasHairOnEnd: boolean;
+  readonly isShirtInsideOut: boolean;
 }
 
 /**
@@ -70,13 +55,34 @@ export function papaPoseAt(papa: Readonly<PapaSlice>, alpha: number, out: PapaPo
   out.yawRad = Math.atan2(papa.headingX, papa.headingZ);
 }
 
+/** What the view reads from the feedback table (`feedback.json › characters`). */
+export interface CharacterMotionConfig {
+  readonly turnRateDegPerSec: number;
+  readonly clips: TravelClips;
+}
+
 export interface PapaView {
-  /** Where Papa was last drawn (interpolated): what a marker that follows him reads. */
+  /** Where Papa was last drawn (interpolated): what a marker that follows him reads. It never waits for his body to turn. */
   readonly pose: Readonly<PapaPose>;
-  /** Moves the cube and its shadow. Allocates nothing. */
+  /** Moves him and his shadow. Allocates nothing. */
   update(papa: Readonly<PapaSlice>, alpha: number): void;
   /**
-   * Lowers the ink eyelids over his face: 0 is open (hidden), 1 is shut. Clamped. Allocates nothing.
+   * Plays the loop the world says now, turns his body toward his heading and advances his mixer by
+   * `dtMs` of sim time; a `dtMs` of 0 holds him. Allocates nothing once the clips have played once.
+   */
+  animate(papa: Readonly<PapaSlice>, baby: Readonly<BabySlice>, dtMs: number): void;
+  /** Plays a clip once, over his loop. */
+  playOnce(clip: string): void;
+  /** The clip the player sees. */
+  readonly clipName: string | null;
+  /** His mixer's clock, in sim ms. */
+  readonly mixerTimeMs: number;
+  /** Scales his body, feet on the floor (the squash); the shadow stays. Allocates nothing. */
+  setSquash(xz: number, y: number): void;
+  /** Stops his clips and starts them over (a restart, a stopped loop). */
+  resetAnimation(): void;
+  /**
+   * Lowers his eyelids: 0 is open, 1 is shut. Clamped. Allocates nothing.
    */
   setEyelids(amount01: number): void;
   /**
@@ -84,7 +90,7 @@ export interface PapaView {
    * ms). Off, it hides the « Z » and leaves the eyelids to `setEyelids`. Allocates nothing.
    */
   setAsleep(isAsleep: boolean, clockMs: number): void;
-  /** A small mug at his hand while he drinks. Allocates nothing. */
+  /** A mug in his hand while he drinks. Allocates nothing. */
   setDrinking(isDrinking: boolean): void;
   /** A handset at the side of his head while he is on the phone. Allocates nothing. */
   setOnPhone(isOnPhone: boolean): void;
@@ -95,64 +101,57 @@ export interface PapaView {
   setAway(isAway: boolean): void;
   /**
    * Stands Papa's hair on end: 0 is flat (the spikes are hidden), 1 is fully up. A value outside
-   * 0..1 is clamped. Allocates nothing.
+   * 0..1 is clamped. A look with his hair on end holds it up whatever this says. Allocates nothing.
    */
   setHair(amount01: number): void;
-  /** Frees what the view made (its geometry); the shared materials belong to the scene. */
+  /** Shows or hides each part of his look on its own (story 7.2, D2). Allocates nothing. */
+  setLook(look: Readonly<PapaLook>): void;
+  /** Frees what the view made and the rig; the shared materials belong to the scene. */
   dispose(): void;
 }
 
 /**
- * Papa as a provisional toon cube with a blob shadow under him (two draw calls). The blob does not
- * turn: it follows his position only. No outline yet (E7, or with the baby in story 1.8).
+ * Papa as a rigged `.glb` with a blob shadow under him. The blob does not turn: it follows his
+ * position only. `papa` is the group his body turns and squashes on, above the rig (D7); no gameplay
+ * value is ever read from it. `radiusM` sizes the shadow alone: the mesh is authored at real size (D8).
  */
 export function createPapaView(
   scene: Object3D,
   toon: ToonMaterialCache,
   blobs: BlobKit,
   radiusM: number,
+  rig: CharacterRig,
+  motion: CharacterMotionConfig,
 ): PapaView {
   const widthM = Math.max(radiusM * 2, 0.01);
-  const geometry = new BoxGeometry(widthM, PAPA_HEIGHT_M, widthM);
-  const cube = new Mesh(geometry, toon.get(new Color(PAPA_COLOR)));
-  cube.name = 'papa';
-  cube.position.y = PAPA_HEIGHT_M / 2; // standing on the floor
+  const body = new Group();
+  body.name = 'papa';
+  body.add(rig.root);
   const shadow = blobs.createMesh('blob_papa');
   shadow.scale.set(blobSizeM(widthM), 1, blobSizeM(widthM));
-  // The hair: a few ink spikes on top of the cube, one shared geometry, hidden until a gag raises it.
-  const hairGeometry = new ConeGeometry(
-    (widthM * PAPA_HAIR_WIDTH_PCT) / 100,
-    PAPA_HAIR_HEIGHT_M,
-    PAPA_HAIR_SEGMENTS,
-  );
-  hairGeometry.translate(0, PAPA_HAIR_HEIGHT_M / 2, 0); // the base at the origin, the tip along +y
-  const hairMaterial = toon.get(new Color(PAPA_HAIR_COLOR));
-  const hair = new Group();
-  hair.name = 'papa_hair';
-  hair.position.y = PAPA_HEIGHT_M;
+
+  const eyelids = rig.node('eyelids');
+  const mug = rig.node('papa_mug');
+  const handset = rig.node('papa_handset');
+  const hair = rig.node('papa_hair');
+  const mash = rig.node('papa_look_mash');
+  const shirt = rig.node('papa_shirt');
+  const insideOutShirt = rig.node('papa_look_shirt');
+  mug.visible = false;
+  handset.visible = false;
   hair.visible = false;
-  for (const [xPct, zPct] of PAPA_HAIR_SPOTS_PCT) {
-    const spike = new Mesh(hairGeometry, hairMaterial);
-    spike.name = 'papa_hair_spike';
-    spike.position.set((widthM / 2) * (xPct / 100), 0, (widthM / 2) * (zPct / 100));
-    hair.add(spike);
-  }
-  // The eyelids hang from just under the top of the cube and lower by scaling down from there.
-  const eyelidsGeometry = new BoxGeometry(widthM * 1.04, PAPA_EYELIDS_BAND_M, widthM * 0.08);
-  eyelidsGeometry.translate(0, -PAPA_EYELIDS_BAND_M / 2, 0);
-  const eyelids = new Mesh(eyelidsGeometry, toon.get(new Color(PAPA_EYELIDS_COLOR)));
-  eyelids.name = 'papa_eyelids';
-  eyelids.position.set(0, PAPA_HEIGHT_M / 2 - PAPA_EYELIDS_TOP_GAP_M, widthM / 2);
-  eyelids.visible = false;
-  cube.add(eyelids);
-  // The « Z »: two bars and a diagonal, in ink, above the head.
+  mash.visible = false;
+  insideOutShirt.visible = false;
+
+  // The « Z »: two bars and a diagonal, in ink, above the head. Made here, not in the file: it
+  // floats free of the skeleton.
   const zBarGeometry = new BoxGeometry(PAPA_Z_SIZE_M, PAPA_Z_THICKNESS_M, PAPA_Z_THICKNESS_M);
   const zDiagonalGeometry = new BoxGeometry(
     PAPA_Z_SIZE_M * Math.SQRT2,
     PAPA_Z_THICKNESS_M,
     PAPA_Z_THICKNESS_M,
   );
-  const zMaterial = toon.get(new Color(PAPA_EYELIDS_COLOR));
+  const zMaterial = toon.get(new Color(PAPA_Z_COLOR));
   const zSign = new Group();
   zSign.name = 'papa_z';
   const zTop = new Mesh(zBarGeometry, zMaterial);
@@ -163,45 +162,28 @@ export function createPapaView(
   zDiagonal.rotation.z = Math.PI / 4;
   zSign.add(zTop, zBottom, zDiagonal);
   zSign.visible = false;
-  // The mug, held out to his right and in front of him; it turns with the cube.
-  const mugGeometry = new BoxGeometry(PAPA_MUG_SIZE_M, PAPA_MUG_SIZE_M, PAPA_MUG_SIZE_M);
-  const mug = new Mesh(mugGeometry, toon.get(new Color(PAPA_MUG_COLOR)));
-  mug.name = 'papa_mug';
-  mug.position.set(widthM * 0.7, 0, widthM * 0.6);
-  mug.visible = false;
-  cube.add(mug);
-  // The handset, at the side of his head (his left); it turns with the cube.
-  const handsetGeometry = new BoxGeometry(
-    PAPA_HANDSET_THICKNESS_M,
-    PAPA_HANDSET_LENGTH_M,
-    PAPA_HANDSET_WIDTH_M,
-  );
-  const handset = new Mesh(handsetGeometry, toon.get(new Color(PAPA_HANDSET_COLOR)));
-  handset.name = 'papa_handset';
-  // Flush against his side, and no higher than the top of the head (the cube is centred on its origin).
-  handset.position.set(
-    -(widthM / 2 + PAPA_HANDSET_THICKNESS_M / 2),
-    Math.min(
-      (PAPA_HEIGHT_M * PAPA_HANDSET_HEIGHT_PCT) / 100,
-      (PAPA_HEIGHT_M - PAPA_HANDSET_LENGTH_M) / 2,
-    ),
-    0,
-  );
-  handset.visible = false;
-  cube.add(handset);
+
   const group = new Group();
   group.name = 'papa_group';
-  group.add(cube, shadow, hair, zSign);
+  group.add(body, shadow, zSign);
   scene.add(group);
   const pose: PapaPose = { xM: 0, zM: 0, yawRad: 0 };
+  let bodyYawRad: number | null = null;
 
   let asleepAmount = 0;
   let wantedEyelids = 0;
   const applyEyelids = (): void => {
-    const amount = Math.max(wantedEyelids, asleepAmount);
-    const isOpen = amount <= 0;
-    eyelids.visible = !isOpen;
-    eyelids.scale.y = isOpen ? 1 : amount;
+    eyelids.scale.y = Math.max(EYELIDS_OPEN_SCALE, wantedEyelids, asleepAmount);
+  };
+  applyEyelids();
+
+  let gagHairAmount = 0;
+  let lookHairAmount = 0;
+  const applyHair = (): void => {
+    // One mesh for the gag and the look, drawn at the greater of the two (D2).
+    const amount = Math.max(gagHairAmount, lookHairAmount);
+    hair.visible = amount > 0;
+    hair.scale.y = amount > 0 ? amount : 1;
   };
 
   return {
@@ -210,10 +192,41 @@ export function createPapaView(
     },
     update(papa, alpha) {
       papaPoseAt(papa, alpha, pose);
-      // The group sits on the floor under him; only the cube turns (a round shadow looks the same
+      // The group sits on the floor under him; only the body turns (a round shadow looks the same
       // from every side).
       group.position.set(pose.xM, 0, pose.zM);
-      cube.rotation.y = pose.yawRad;
+      if (bodyYawRad === null) {
+        bodyYawRad = pose.yawRad;
+        body.rotation.y = bodyYawRad;
+      }
+    },
+    animate(papa, baby, dtMs) {
+      bodyYawRad = turnToward(
+        bodyYawRad ?? pose.yawRad,
+        pose.yawRad,
+        motion.turnRateDegPerSec,
+        dtMs,
+      );
+      body.rotation.y = bodyYawRad;
+      const clip = papaClipOf(papa, baby);
+      rig.play(clip, clipTimeScaleOf(clip, stepSpeedMpsOf(papa), motion.clips));
+      rig.update(dtMs);
+    },
+    playOnce(clip) {
+      rig.playOnce(clip);
+    },
+    get clipName() {
+      return rig.clipName;
+    },
+    get mixerTimeMs() {
+      return rig.mixerTimeMs;
+    },
+    setSquash(xz, y) {
+      body.scale.set(xz, y, xz);
+    },
+    resetAnimation() {
+      rig.reset();
+      body.scale.set(1, 1, 1);
     },
     setEyelids(amount01) {
       const amount = Math.min(1, Math.max(0, amount01));
@@ -244,18 +257,20 @@ export function createPapaView(
       group.visible = !isAway;
     },
     setHair(amount01) {
-      const amount = Math.min(1, Math.max(0, amount01));
-      hair.visible = amount > 0;
-      hair.scale.y = amount > 0 ? amount : 1;
+      gagHairAmount = Math.min(1, Math.max(0, amount01));
+      applyHair();
+    },
+    setLook(look) {
+      mash.visible = look.hasMashOnCheek;
+      shirt.visible = !look.isShirtInsideOut;
+      insideOutShirt.visible = look.isShirtInsideOut;
+      lookHairAmount = look.hasHairOnEnd ? 1 : 0;
+      applyHair();
     },
     dispose() {
-      geometry.dispose();
-      hairGeometry.dispose();
-      eyelidsGeometry.dispose();
+      rig.dispose();
       zBarGeometry.dispose();
       zDiagonalGeometry.dispose();
-      mugGeometry.dispose();
-      handsetGeometry.dispose();
       scene.remove(group);
     },
   };

@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { toContentJsonSchema } from '../../src/content/jsonSchema.ts';
 import { parseContentFile } from '../../src/content/parseContentFile.ts';
-import { FeedbackTableSchema } from '../../src/content/schemas/feedback.ts';
+import { FeedbackTableSchema, SQUASH_EVENTS } from '../../src/content/schemas/feedback.ts';
+import { SIM_EVENT_TYPES } from '../../src/sim/index.ts';
 import { createTestFeedback } from '../support/testContent.ts';
 
 // Tunable values are never pinned here (golden rule: Geo tunes them). Structure, ranges and
@@ -16,8 +17,9 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // unit gets a deliberate, commented entry here.
 // `pulses` is a count of rings, not a quantity: it has no unit. `laidHeightM` is a height in metres (story 4.8).
 // The door (story 3.5) adds `openAngleDeg` (degrees) and its size in metres: `widthM`, `heightM`, `thicknessM`.
+// The characters (story 7.2) add `speedMps` and `turnRateDegPerSec`.
 const UNIT_SUFFIX =
-  /(?:Pct|Ms|RadiusM|AmplitudeM|HeightM|Deg|^widthM|^heightM|^thicknessM|^pulses)$/;
+  /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|Deg|^widthM|^heightM|^thicknessM|^pulses)$/;
 
 type Json = Record<string, unknown>;
 
@@ -442,6 +444,40 @@ describe('content/feedback.json', () => {
     // Not vacuous: the walk really went through the table (top level, buses, haptics, loops, cues...).
     expect(visited).toBeGreaterThan(30);
     expect(undescribed).toEqual([]);
+  });
+});
+
+describe('the characters table (story 7.2)', () => {
+  const characters = real.characters as {
+    squash: Json[];
+    clipSpeeds: Json[];
+  };
+
+  it('refuses a second squash of the same character on the same event', () => {
+    const first = characters.squash[0] as Json;
+    const result = mutated(['characters.squash', [...characters.squash, { ...first }]]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.squash'))).toBe(true);
+  });
+
+  it('accepts one event squashing both characters', () => {
+    const result = mutated([
+      'characters.squash',
+      [
+        { event: 'GagTriggered', character: 'papa', amountPct: 10, durationMs: 100 },
+        { event: 'GagTriggered', character: 'baby', amountPct: -10, durationMs: 100 },
+      ],
+    ]);
+    expect(result).toMatchObject({ ok: true });
+  });
+
+  it('refuses a second speed for the same clip', () => {
+    const first = characters.clipSpeeds[0] as Json;
+    const result = mutated(['characters.clipSpeeds', [...characters.clipSpeeds, { ...first }]]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.clipSpeeds'))).toBe(true);
+  });
+
+  it('squashes only on events the sim emits: a typo would silence a squash', () => {
+    for (const event of SQUASH_EVENTS) expect(SIM_EVENT_TYPES, event).toContain(event);
   });
 });
 

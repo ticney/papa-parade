@@ -30,6 +30,7 @@ const world: World = (
 world.time.sim = asSimMs(4200);
 
 const TABLE: FeedbackTable = {
+  characters: { crossFadeMs: 100, turnRateDegPerSec: 720, squash: [], clipSpeeds: [] },
   buses: {
     music: { gainPct: 50 },
     sfx: { gainPct: 90 },
@@ -215,6 +216,8 @@ function setup(
     },
     gag: () => {},
     liftBaby: () => {},
+    playResponseClip: () => {},
+    playCharacterEvent: () => {},
   };
   const state = {
     throwOnAudio: false,
@@ -265,6 +268,8 @@ function setup(
           },
           gag: () => {},
           liftBaby: () => {},
+          playResponseClip: () => {},
+          playCharacterEvent: () => {},
         };
       }
       return fx;
@@ -794,6 +799,8 @@ describe('feedbackDirector: pulses, flash and the visual report (story 2.4)', ()
           particles: () => {},
           gag: () => {},
           liftBaby: () => {},
+          playResponseClip: () => {},
+          playCharacterEvent: () => {},
         }),
         prefersReducedMotion: () => false,
         getFx: () => live,

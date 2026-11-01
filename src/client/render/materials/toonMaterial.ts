@@ -1,4 +1,13 @@
-import { type Color, DataTexture, MeshToonMaterial, NearestFilter, RedFormat } from 'three';
+import {
+  Color,
+  DataTexture,
+  type Material,
+  type Mesh,
+  MeshToonMaterial,
+  NearestFilter,
+  RedFormat,
+} from 'three';
+import { PALETTE } from './palette.ts';
 
 /**
  * The 3-tone ramp of the toon shading (ADR-008), darkest to lightest, as 0-255. Art direction, not a
@@ -18,6 +27,23 @@ export interface ToonMaterialCache {
   readonly size: number;
   /** Disposes every material and the ramp. */
   dispose(): void;
+}
+
+function disposeMaterial(material: Material | Material[]): void {
+  for (const one of Array.isArray(material) ? material : [material]) one.dispose();
+}
+
+function originalColor(material: Material | Material[]): Color {
+  const one = Array.isArray(material) ? material[0] : material;
+  const color = (one as { color?: unknown } | undefined)?.color;
+  return color instanceof Color ? color : new Color(PALETTE.cream);
+}
+
+/** Gives `mesh` the shared toon material of its own colour and frees the one it had. */
+export function swapToToon(mesh: Mesh, toon: ToonMaterialCache): void {
+  const original = mesh.material;
+  mesh.material = toon.get(originalColor(original));
+  disposeMaterial(original);
 }
 
 function createGradientMap(): DataTexture {

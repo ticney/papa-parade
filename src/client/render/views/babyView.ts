@@ -1,26 +1,14 @@
 import type { BabySlice, PapaSlice } from '@sim';
-import { Color, ConeGeometry, Group, IcosahedronGeometry, Mesh, type Object3D } from 'three';
+import { Group, type Object3D } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
-import { PALETTE } from '../materials/palette.ts';
-import type { ToonMaterialCache } from '../materials/toonMaterial.ts';
+import { babyClipOf } from './characterClips.ts';
+import { clipTimeScaleOf, stepSpeedMpsOf, turnToward, wrapAngleRad } from './characterMotion.ts';
+import { type CharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
+import type { CharacterMotionConfig } from './papaView.ts';
 
-// Art constants (Geo tunes them here until the final art, E7), named with their units.
-/** Subdivision of the icosphere: 1 is a 80-triangle ball, round enough from the iso camera. */
-const BABY_BODY_DETAIL = 1;
-/** Colour of the body: white keeps the baby apart from Papa, never a threat or signal colour. */
-const BABY_COLOR = PALETTE.paper;
-const BABY_GAZE_COLOR = PALETTE.ink;
-/** The gaze marker (a small cone) is this long, as a share of the body radius, in percent. */
-const BABY_GAZE_LENGTH_PCT = 55;
-/** ...this wide at its base, as a share of the body radius, in percent. */
-const BABY_GAZE_WIDTH_PCT = 40;
-/** The marker sits at this height on the body, as a share of the radius above the centre, in percent. */
-const BABY_GAZE_HEIGHT_PCT = 25;
-/** Smallest body radius drawn, in metres: a feel with no radius still shows a (tiny) baby. */
+/** Smallest body radius read, in metres: a feel with no radius still has a (tiny) shadow. */
 const BABY_MIN_RADIUS_M = 0.01;
-/** Radial segments of the gaze cone: a six-sided cone reads as a cone and costs 12 triangles. */
-const BABY_GAZE_SEGMENTS = 6;
 
 /** Papa's chest height, in metres: the centre of the baby when he is carried (story 4.1). Also where a tap on him aims. */
 export const BABY_CARRIED_HEIGHT_M = 0.75;
@@ -68,11 +56,10 @@ export function babyPoseAt(baby: Readonly<BabySlice>, alpha: number, out: BabyPo
 
 export interface BabyView {
   /**
-   * Moves the baby, turns its gaze marker and moves its shadow. While he is `carried` he is drawn
-   * lifted to Papa's chest, a little in front of him, riding Papa's interpolated pose (`papa`; his
-   * own, which equals Papa's, when none is given), on top of any `setLiftM` hop. `layDownPct` (0 to 100,
-   * default 0) lowers a carried baby from Papa's chest to the laid height (story 4.8: the bomb drop).
-   * Allocates nothing.
+   * Moves the baby and its shadow. While he is `carried` he is drawn lifted to Papa's chest, a little
+   * in front of him, riding Papa's interpolated pose (`papa`; his own, which equals Papa's, when none
+   * is given), on top of any `setLiftM` hop. `layDownPct` (0 to 100, default 0) lowers a carried baby
+   * from Papa's chest to the laid height (story 4.8: the bomb drop). Allocates nothing.
    */
   update(
     baby: Readonly<BabySlice>,
@@ -81,74 +68,74 @@ export interface BabyView {
     layDownPct?: number,
   ): void;
   /**
-   * Lifts the body and its gaze marker `heightM` above the floor (the « lift the baby » pose); the
-   * shadow stays on the floor. It adds to the carried lift instead of replacing it. Allocates nothing.
+   * Plays the loop the world says now, turns his body toward his gaze, his head at once on the gaze
+   * itself (the eyes are what the player reads), and advances his mixer by `dtMs` of sim time; a `dtMs`
+   * of 0 holds him. Allocates nothing once the clips have played once.
+   */
+  animate(baby: Readonly<BabySlice>, dtMs: number): void;
+  /** Plays a clip once, over his loop. */
+  playOnce(clip: string): void;
+  /** The clip the player sees. */
+  readonly clipName: string | null;
+  /** Scales his body, from the point his feet are at (the squash); the shadow stays. Allocates nothing. */
+  setSquash(xz: number, y: number): void;
+  /** Lowers his eyelids: 0 is open, 1 is shut. Clamped. Allocates nothing. */
+  setEyelids(amount01: number): void;
+  /** Stops his clips and starts them over (a restart, a stopped loop). */
+  resetAnimation(): void;
+  /**
+   * Lifts the body `heightM` above the floor (the « lift the baby » pose); the shadow stays on the
+   * floor. It adds to the carried lift instead of replacing it. Allocates nothing.
    */
   setLiftM(heightM: number): void;
   /**
-   * Offsets the whole view (body, gaze marker and shadow) from the sim position by (`xM`, `zM`) on
-   * the floor plane: the stairs gag's slide. It holds until set again, across `update`s. (0, 0)
-   * puts the baby back. Allocates nothing.
+   * Offsets the whole view (body and shadow) from the sim position by (`xM`, `zM`) on the floor
+   * plane: the stairs gag's slide. It holds until set again, across `update`s. (0, 0) puts the baby
+   * back. Allocates nothing.
    */
   setSlideM(xM: number, zM: number): void;
-  /** Frees what the view made (its geometries); the shared materials belong to the scene. */
+  /** Frees the rig and what the view made; the shared materials belong to the scene. */
   dispose(): void;
 }
 
 /**
- * The baby as a provisional toon sphere with a gaze marker and a blob shadow under it (three draw
- * calls). The marker is on a group that turns toward the gaze; the shadow does not turn. No
- * outline yet (E7).
+ * The baby as a rigged `.glb` with a blob shadow under him. His `head` bone is the gaze, written here
+ * every frame (no clip has a track on it: `neck` carries the head's gestures). `baby` is the group his
+ * body turns, lifts and squashes on, above the rig (D7). The centre of his mass sits at `radiusM` above
+ * his feet, as the sphere's did, so that the carried height holds; the mesh is authored at real size (D8).
  */
 export function createBabyView(
   scene: Object3D,
-  toon: ToonMaterialCache,
   blobs: BlobKit,
   radiusM: number,
+  rig: CharacterRig,
+  motion: CharacterMotionConfig,
   laidHeightM: number = BABY_CARRIED_HEIGHT_M,
 ): BabyView {
   const bodyRadiusM = Math.max(radiusM, BABY_MIN_RADIUS_M);
-  const bodyGeometry = new IcosahedronGeometry(bodyRadiusM, BABY_BODY_DETAIL);
-  const body = new Mesh(bodyGeometry, toon.get(new Color(BABY_COLOR)));
+  const body = new Group();
   body.name = 'baby';
-
-  // A cone points along +y: laid down so that its tip points along +z, the group's forward.
-  const gazeLengthM = (bodyRadiusM * BABY_GAZE_LENGTH_PCT) / 100;
-  const gazeGeometry = new ConeGeometry(
-    (bodyRadiusM * BABY_GAZE_WIDTH_PCT) / 100,
-    gazeLengthM,
-    BABY_GAZE_SEGMENTS,
-  );
-  gazeGeometry.translate(0, gazeLengthM / 2, 0); // the base at the origin, the tip along +y
-  gazeGeometry.rotateX(Math.PI / 2);
-  const gaze = new Mesh(gazeGeometry, toon.get(new Color(BABY_GAZE_COLOR)));
-  gaze.name = 'baby_gaze';
-  // Its base is on the surface (at this height, where the sphere is a little narrower than at the
-  // equator), its tip out in front.
-  const gazeHeightM = (bodyRadiusM * BABY_GAZE_HEIGHT_PCT) / 100;
-  gaze.position.set(0, gazeHeightM, Math.sqrt(bodyRadiusM ** 2 - gazeHeightM ** 2));
-  const gazeGroup = new Group();
-  gazeGroup.name = 'baby_gaze_group';
-  gazeGroup.position.y = bodyRadiusM; // the centre of the body
-  gazeGroup.add(gaze);
+  body.add(rig.root);
+  const headBone = rig.node('head');
+  const eyelids = rig.node('eyelids');
+  eyelids.scale.y = EYELIDS_OPEN_SCALE;
 
   const shadow = blobs.createMesh('blob_baby');
   shadow.scale.set(blobSizeM(bodyRadiusM * 2), 1, blobSizeM(bodyRadiusM * 2));
 
   const group = new Group();
   group.name = 'baby_group';
-  body.position.y = bodyRadiusM; // resting on the floor
-  group.add(body, gazeGroup, shadow);
+  group.add(body, shadow);
   scene.add(group);
   const pose: BabyPose = { xM: 0, zM: 0, yawRad: 0 };
+  let bodyYawRad: number | null = null;
   let slideXM = 0;
   let slideZM = 0;
   /** The hop of the response choreography (`setLiftM`) and the lift of the carry, summed in `placeY`. */
   let hopM = 0;
   let carriedLiftM = 0;
   const placeY = (): void => {
-    body.position.y = bodyRadiusM + hopM + carriedLiftM;
-    gazeGroup.position.y = bodyRadiusM + hopM + carriedLiftM;
+    body.position.y = hopM + carriedLiftM;
   };
 
   return {
@@ -170,11 +157,45 @@ export function createBabyView(
         wantedLiftM = Math.max(0, heightM - bodyRadiusM);
       }
       group.position.set(pose.xM + slideXM, 0, pose.zM + slideZM);
-      gazeGroup.rotation.y = pose.yawRad;
+      if (bodyYawRad === null) {
+        bodyYawRad = pose.yawRad;
+        body.rotation.y = bodyYawRad;
+      }
       if (wantedLiftM !== carriedLiftM) {
         carriedLiftM = wantedLiftM;
         placeY();
       }
+    },
+    animate(baby, dtMs) {
+      bodyYawRad = turnToward(
+        bodyYawRad ?? pose.yawRad,
+        pose.yawRad,
+        motion.turnRateDegPerSec,
+        dtMs,
+      );
+      body.rotation.y = bodyYawRad;
+      // The gaze never waits: the head makes up for whatever the body has not turned yet.
+      headBone.rotation.y = wrapAngleRad(pose.yawRad - bodyYawRad);
+      const clip = babyClipOf(baby);
+      rig.play(clip, clipTimeScaleOf(clip, stepSpeedMpsOf(baby), motion.clips));
+      rig.update(dtMs);
+    },
+    playOnce(clip) {
+      rig.playOnce(clip);
+    },
+    get clipName() {
+      return rig.clipName;
+    },
+    setSquash(xz, y) {
+      body.scale.set(xz, y, xz);
+    },
+    setEyelids(amount01) {
+      eyelids.scale.y = Math.max(EYELIDS_OPEN_SCALE, Math.min(1, amount01));
+    },
+    resetAnimation() {
+      rig.reset();
+      body.scale.set(1, 1, 1);
+      eyelids.scale.y = EYELIDS_OPEN_SCALE;
     },
     setLiftM(heightM) {
       hopM = heightM;
@@ -188,8 +209,7 @@ export function createBabyView(
       slideZM = zM;
     },
     dispose() {
-      bodyGeometry.dispose();
-      gazeGeometry.dispose();
+      rig.dispose();
       scene.remove(group);
     },
   };

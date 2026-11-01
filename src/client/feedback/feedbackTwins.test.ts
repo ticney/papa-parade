@@ -82,6 +82,8 @@ function play(cueId: string, objectId: string | null = null) {
     particles: () => {},
     gag: () => {},
     liftBaby: () => {},
+    playResponseClip: () => {},
+    playCharacterEvent: () => {},
   };
   const director = createFeedbackDirector({
     table: feedback,

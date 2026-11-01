@@ -487,6 +487,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
               .filter((def) => def.release !== undefined)
               .map((def) => def.id),
             laidHeightM: deps.content.feedback.bombDrop.laidHeightM,
+            characters: deps.content.feedback.characters,
             door: deps.content.feedback.door,
             isMotionReduced: deps.isMotionReduced ?? (() => false),
           });

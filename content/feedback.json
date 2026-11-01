@@ -92,6 +92,26 @@
   "bombDrop": {
     "laidHeightM": 0.3
   },
+  "characters": {
+    "crossFadeMs": 140,
+    "turnRateDegPerSec": 720,
+    "squash": [
+      { "event": "PapaArrived", "character": "papa", "amountPct": -14, "durationMs": 280 },
+      { "event": "PapaBlocked", "character": "papa", "amountPct": -18, "durationMs": 260 },
+      { "event": "GagTriggered", "character": "papa", "amountPct": 30, "durationMs": 420 },
+      { "event": "BabyPickedUp", "character": "baby", "amountPct": 24, "durationMs": 300 },
+      { "event": "BabyPutDown", "character": "baby", "amountPct": -24, "durationMs": 300 },
+      { "event": "GagTriggered", "character": "baby", "amountPct": -26, "durationMs": 420 },
+      { "event": "BabyWoke", "character": "baby", "amountPct": 28, "durationMs": 360 },
+      { "event": "BabyStirred", "character": "baby", "amountPct": 10, "durationMs": 220 }
+    ],
+    "clipSpeeds": [
+      { "clip": "walk", "speedMps": 3 },
+      { "clip": "carry_walk", "speedMps": 3 },
+      { "clip": "crawl", "speedMps": 0.6 },
+      { "clip": "sneak", "speedMps": 1.2 }
+    ]
+  },
   "door": {
     "openMs": 700,
     "openAngleDeg": 100,

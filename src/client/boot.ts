@@ -69,7 +69,7 @@ import {
 } from './render/cameraFx.ts';
 import { slideDirection } from './render/gags.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
-import type { LevelScene } from './render/levelScene.ts';
+import type { LevelFx, LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
 import { createRenderer, type RenderStats } from './render/renderer.ts';
 import { BABY_CARRIED_FORWARD_M, BABY_CARRIED_HEIGHT_M } from './render/views/babyView.ts';
@@ -581,7 +581,11 @@ export async function boot(): Promise<void> {
   let chipFamily: 'xbox' | 'playstation' | null = null;
   let chipMap: ReadonlyMap<string, string> | null = null;
   const choreography = createResponseChoreography();
-  const noLiftFx = { liftBaby: () => {} };
+  // Reduced motion drops the hop, never the clip: a pose carries state (story 7.2, D7).
+  const noLiftFx: Pick<LevelFx, 'liftBaby' | 'playResponseClip'> = {
+    liftBaby: () => {},
+    playResponseClip: (response, quality) => currentLevel?.fx.playResponseClip(response, quality),
+  };
   /** The direction of the last gag's slide, written once per `GagTriggered`. */
   const slideDir = { x: 0, z: 0 };
   const stripThreats = isMirrored && readThreatsOff(window.location.search);
@@ -1328,6 +1332,7 @@ export async function boot(): Promise<void> {
             active.sim.world,
             isMotionReduced ? noLiftFx : currentLevel.fx,
           );
+          currentLevel.fx.playCharacterEvent(event, active.sim.world, isMotionReduced);
           if (event.type === 'GagTriggered') {
             const { world } = active.sim;
             const threat = world.threats.find((candidate) => candidate.id === event.threatId);
@@ -1947,9 +1952,13 @@ export async function boot(): Promise<void> {
           particlesAlive: real?.particlesAlive ?? 0,
           stampCount: stampsShownCount,
           babyLayDownPct: real?.babyLayDownPct ?? 0,
+          papaClip: real?.papaClip ?? null,
+          babyClip: real?.babyClip ?? null,
+          papaMixerMs: real?.papaMixerMs ?? 0,
           doorOpenDeg: real?.doorOpenDeg ?? 0,
         };
       },
+      setPapaLook: (look) => currentLevel?.setPapaLook(look),
       threatScreenPoints: () => {
         const rect = canvas.getBoundingClientRect();
         return worldUi.threatEntries.map((entry) => {

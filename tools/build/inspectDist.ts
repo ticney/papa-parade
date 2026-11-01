@@ -1,4 +1,4 @@
-import { LEVEL_PAYLOAD_MAX_BYTES } from '@shared/constants';
+import { CHARACTER_GLB_MAX_BYTES, LEVEL_PAYLOAD_MAX_BYTES } from '@shared/constants';
 import {
   cspDirectives,
   headersFor,
@@ -42,7 +42,7 @@ export interface DistInput {
 
 export interface DistReport {
   problems: string[];
-  /** For the level with the biggest payload: its `.glb` plus all the audio, in bytes. */
+  /** For the level with the biggest payload: its `.glb`, the characters' and all the audio, in bytes. */
   levelPayloadBytes: number;
   /** Gzip bytes of what a first visit downloads (see {@link inspectDist}); printed, never asserted. */
   firstLoadGzipBytes: number;
@@ -119,6 +119,9 @@ export const PLAYTEST_REQUIRED_SOURCES: readonly string[] = [
   'src/debug/playtestJournal.ts',
 ];
 
+/** Every level loads these, behind its loading screen (story 7.2). */
+export const CHARACTER_IDS: readonly string[] = ['papa', 'baby'];
+
 const isDebugOnlySource = (src: string): boolean =>
   src.startsWith('src/debug/') || src.startsWith('src/bots/');
 
@@ -182,8 +185,9 @@ function externalUrlsOf(indexHtml: string): string[] {
  * Checks a built `dist/` against the story-1.24 rules (the epic's « test sur dist/ »), for the
  * `prod` or the `playtest` flavour; pure, no disk. Every problem is listed, none stops the others.
  *
- * - both: the CSP of `_headers`; no cross-origin URL in `index.html`; each level's `.glb` plus all
- *   the audio within `LEVEL_PAYLOAD_MAX_BYTES`.
+ * - both: the CSP of `_headers`; no cross-origin URL in `index.html`; each level's `.glb`, both
+ *   characters' and all the audio within `LEVEL_PAYLOAD_MAX_BYTES`; each character's `.glb` there and
+ *   within `CHARACTER_GLB_MAX_BYTES`.
  * - both: no {@link NEVER_SHIPPED_MARKERS} (dev-server-only code) in any chunk.
  * - `prod`: no debug or bot module in the manifest, no debug marker in any chunk.
  * - `playtest`: the debug modules are in the manifest and every prod marker is in a chunk (so that
@@ -213,8 +217,26 @@ export function inspectDist(input: DistInput, flavor: DistFlavor): DistReport {
     );
   }
   const audioGzipBytes = audioFiles.reduce((sum, file) => sum + file.gzipBytes, 0);
-  let levelPayloadBytes = audioBytes;
-  let levelPayloadGzipBytes = audioGzipBytes;
+  let sharedBytes = audioBytes;
+  let sharedGzipBytes = audioGzipBytes;
+  for (const id of CHARACTER_IDS) {
+    const path = `assets/characters/${id}.glb`;
+    const character = fileAt.get(path);
+    if (character === undefined) {
+      // A missing file must not make the level budget vacuous, nor pass until the game asks for it.
+      problems.push(`character "${id}": ${path} is missing from dist/`);
+      continue;
+    }
+    sharedBytes += character.bytes;
+    sharedGzipBytes += character.gzipBytes;
+    if (character.bytes > CHARACTER_GLB_MAX_BYTES) {
+      problems.push(
+        `character "${id}": ${path} is ${character.bytes} B, over the ${CHARACTER_GLB_MAX_BYTES} B budget`,
+      );
+    }
+  }
+  let levelPayloadBytes = sharedBytes;
+  let levelPayloadGzipBytes = sharedGzipBytes;
   for (const id of input.levelIds) {
     const glbPath = `assets/levels/${id}.glb`;
     const glb = fileAt.get(glbPath);
@@ -222,12 +244,12 @@ export function inspectDist(input: DistInput, flavor: DistFlavor): DistReport {
       problems.push(`level "${id}": ${glbPath} is missing from dist/`);
       continue;
     }
-    const payload = glb.bytes + audioBytes;
+    const payload = glb.bytes + sharedBytes;
     levelPayloadBytes = Math.max(levelPayloadBytes, payload);
-    levelPayloadGzipBytes = Math.max(levelPayloadGzipBytes, glb.gzipBytes + audioGzipBytes);
+    levelPayloadGzipBytes = Math.max(levelPayloadGzipBytes, glb.gzipBytes + sharedGzipBytes);
     if (payload > LEVEL_PAYLOAD_MAX_BYTES) {
       problems.push(
-        `level "${id}": payload is ${payload} B (${glbPath} + all audio), over the ${LEVEL_PAYLOAD_MAX_BYTES} B budget`,
+        `level "${id}": payload is ${payload} B (${glbPath} + the characters + all audio), over the ${LEVEL_PAYLOAD_MAX_BYTES} B budget`,
       );
     }
   }

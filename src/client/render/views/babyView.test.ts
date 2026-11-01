@@ -1,11 +1,12 @@
 import { asSimMs } from '@shared/time';
 import type { BabySlice, PapaSlice } from '@sim';
-import { Mesh, Scene, Vector3 } from 'three';
+import { type Mesh, Scene, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
+import { createTestBaby } from '../../../../tests/support/testCharacters.ts';
 import { createBlobKit } from '../blobShadow.ts';
-import { PALETTE } from '../materials/palette.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
 import { BABY_CARRIED_HEIGHT_M, type BabyPose, babyPoseAt, createBabyView } from './babyView.ts';
+import { createCharacterRig } from './characterRig.ts';
 
 function baby(patch: Partial<BabySlice> = {}): BabySlice {
   return {
@@ -60,79 +61,90 @@ describe('babyPoseAt', () => {
 });
 
 describe('createBabyView', () => {
+  const MOTION = { turnRateDegPerSec: 360, clips: [{ clip: 'crawl', speedMps: 0.6 }] };
+
   function build(radiusM = 0.2) {
     const scene = new Scene();
     const toon = createToonMaterialCache();
-    const blobs = createBlobKit();
-    const view = createBabyView(scene, toon, blobs, radiusM);
-    return { scene, toon, blobs, view };
+    const rig = createCharacterRig(createTestBaby(), toon, 100);
+    const view = createBabyView(scene, createBlobKit(), radiusM, rig, MOTION);
+    return { scene, toon, rig, view };
   }
 
-  it('adds a sphere of the feel’s radius, a gaze marker and a flat shadow: three meshes', () => {
+  it('draws the rig and a flat shadow, never culling his skinned mesh', () => {
     const { scene } = build(0.2);
-    const meshes: Mesh[] = [];
-    scene.traverse((node) => {
-      if (node instanceof Mesh) meshes.push(node);
-    });
-    expect(meshes.map((m) => m.name).sort()).toEqual(['baby', 'baby_gaze', 'blob_baby']);
-    const body = scene.getObjectByName('baby') as Mesh;
-    body.geometry.computeBoundingBox();
-    const size = body.geometry.boundingBox?.getSize(new Vector3());
-    // A low-poly ball: its extent is the diameter on at least the axes of its vertices.
-    expect(size?.y).toBeCloseTo(0.4, 5);
+    expect(scene.getObjectByName('baby_body')?.frustumCulled).toBe(false);
+    expect(scene.getObjectByName('blob_baby')).toBeDefined();
   });
 
-  it('is white with an ink marker, from the shared toon cache', () => {
-    const { scene, toon } = build();
-    const hex = (name: string) =>
-      (
-        (scene.getObjectByName(name) as Mesh).material as unknown as {
-          color: { getHex(): number };
-        }
-      ).color.getHex();
-    expect(hex('baby')).toBe(PALETTE.paper);
-    expect(hex('baby_gaze')).toBe(PALETTE.ink);
-    expect(toon.size).toBe(2);
-  });
-
-  it('rests on the floor at the interpolated position', () => {
+  it('rests on the floor at the interpolated position: his feet at y = 0', () => {
     const { scene, view } = build(0.2);
     view.update(baby(), 0.5);
     const group = scene.getObjectByName('baby_group');
     const body = scene.getObjectByName('baby') as Mesh;
     expect(group?.position.toArray()).toEqual([1.5, 0, 1]);
-    expect(body.position.y).toBe(0.2);
+    expect(body.position.y).toBe(0);
   });
 
-  it('turns only the gaze marker toward the gaze: the body and the shadow keep their orientation', () => {
+  it('turns the head to the gaze at once, and the body at the turn rate; the shadow keeps its orientation', () => {
     const { scene, view } = build();
-    view.update(baby({ gazeX: 1, gazeZ: 0 }), 1);
-    scene.updateMatrixWorld(true);
-    expect((scene.getObjectByName('baby_gaze_group') as Mesh).rotation.y).toBeCloseTo(
-      Math.PI / 2,
-      12,
-    );
-    expect((scene.getObjectByName('baby') as Mesh).rotation.y).toBe(0);
+    view.update(baby({ gazeX: 0, gazeZ: 1 }), 1);
+    const looking = baby({ gazeX: 1, gazeZ: 0 });
+    view.update(looking, 1);
+    view.animate(looking, 125); // 360 °/s for 125 ms is 45°
+    const body = scene.getObjectByName('baby') as Mesh;
+    const head = scene.getObjectByName('head') as Mesh;
+    expect(body.rotation.y).toBeCloseTo(Math.PI / 4, 12);
+    // Body and head together are the gaze: it never waits for the body.
+    expect(body.rotation.y + head.rotation.y).toBeCloseTo(Math.PI / 2, 12);
     expect((scene.getObjectByName('blob_baby') as Mesh).rotation.y).toBe(0);
-    // The marker points along +x once turned: its tip is further along x than the body's centre.
-    const marker = (scene.getObjectByName('baby_gaze') as Mesh).getWorldPosition(new Vector3());
-    expect(marker.x).toBeGreaterThan(2);
-    expect(marker.z).toBeCloseTo(1, 12);
+    view.animate(looking, 1000);
+    expect(body.rotation.y).toBeCloseTo(Math.PI / 2, 12);
+    expect(head.rotation.y).toBeCloseTo(0, 12);
   });
 
-  it('lifts the body and its gaze marker, not the shadow, and puts them back', () => {
+  it('plays the loop of his state, and his cry over any of them', () => {
+    const { view } = build();
+    view.update(baby(), 1);
+    view.animate(baby({ state: 'wander' }), 10);
+    expect(view.clipName).toBe('crawl');
+    view.animate(baby({ state: 'targetLocked' }), 10);
+    expect(view.clipName).toBe('locked');
+    view.animate(baby({ state: 'wander', cryEndsAt: asSimMs(9000) }), 10);
+    expect(view.clipName).toBe('cry');
+  });
+
+  it('moves his lids from the bone, clamped, and leaves them to the code when a clip plays', () => {
+    const { scene, view } = build();
+    const lids = scene.getObjectByName('eyelids') as Mesh;
+    expect(lids.scale.y).toBeLessThan(0.05);
+    view.setEyelids(1);
+    view.update(baby(), 1);
+    view.animate(baby(), 100);
+    expect(lids.scale.y).toBe(1);
+    view.setEyelids(0.5);
+    expect(lids.scale.y).toBe(0.5);
+    view.resetAnimation();
+    expect(lids.scale.y).toBeLessThan(0.05);
+  });
+
+  it('scales the body and not the shadow for the squash', () => {
+    const { scene, view } = build();
+    view.setSquash(1.1, 0.8);
+    expect((scene.getObjectByName('baby') as Mesh).scale.toArray()).toEqual([1.1, 0.8, 1.1]);
+    expect((scene.getObjectByName('blob_baby') as Mesh).scale.y).toBe(1);
+  });
+
+  it('lifts the body, not the shadow, and puts it back', () => {
     const { scene, view } = build(0.2);
     view.update(baby(), 1);
     view.setLiftM(0.3);
     const body = scene.getObjectByName('baby') as Mesh;
-    const gazeGroup = scene.getObjectByName('baby_gaze_group') as Mesh;
     const shadowY = (scene.getObjectByName('blob_baby') as Mesh).position.y;
-    expect(body.position.y).toBeCloseTo(0.5, 12);
-    expect(gazeGroup.position.y).toBeCloseTo(0.5, 12);
+    expect(body.position.y).toBeCloseTo(0.3, 12);
     expect((scene.getObjectByName('blob_baby') as Mesh).position.y).toBe(shadowY);
     view.setLiftM(0);
-    expect(body.position.y).toBe(0.2);
-    expect(gazeGroup.position.y).toBe(0.2);
+    expect(body.position.y).toBe(0);
   });
 
   it('offsets the whole view by the slide, across updates, and puts it back', () => {
@@ -164,16 +176,14 @@ describe('createBabyView', () => {
     expect(shadow.getWorldPosition(new Vector3()).x).toBe(2);
   });
 
-  it('tolerates a feel with no radius, and disposes its geometries and takes the baby out of the scene', () => {
+  it('tolerates a feel with no radius, and disposes the rig and takes the baby out of the scene', () => {
     const { scene, view } = build(0);
     view.update(baby(), 0);
-    const body = scene.getObjectByName('baby') as Mesh;
-    const gaze = scene.getObjectByName('baby_gaze') as Mesh;
+    const mesh = scene.getObjectByName('baby_body') as Mesh;
     let disposed = 0;
-    body.geometry.addEventListener('dispose', () => disposed++);
-    gaze.geometry.addEventListener('dispose', () => disposed++);
+    mesh.geometry.addEventListener('dispose', () => disposed++);
     view.dispose();
-    expect(disposed).toBe(2);
+    expect(disposed).toBe(1);
     expect(scene.getObjectByName('baby')).toBeUndefined();
   });
 
@@ -191,7 +201,7 @@ describe('createBabyView', () => {
       expect(group?.position.x).toBeGreaterThan(5);
       expect(group?.position.x).toBeLessThan(5.6);
       expect(group?.position.z).toBeCloseTo(2, 12);
-      expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
+      expect(body.position.y + 0.2).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
     });
 
     it('keeps the shadow on the floor, under the baby and not under Papa', () => {
@@ -204,7 +214,7 @@ describe('createBabyView', () => {
       const bodyAt = body.getWorldPosition(new Vector3());
       // On the floor while the body is lifted to the chest, and it follows the group in x and z.
       expect(shadowAt.y).toBeLessThan(0.05);
-      expect(bodyAt.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
+      expect(bodyAt.y + 0.2).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
       expect(shadowAt.x).toBeCloseTo(bodyAt.x, 12);
       expect(shadowAt.z).toBeCloseTo(bodyAt.z, 12);
       expect(shadowAt.x).toBeGreaterThan(6);
@@ -215,13 +225,13 @@ describe('createBabyView', () => {
       const body = scene.getObjectByName('baby') as Mesh;
       view.update(carried(), 1, papaAt());
       view.setLiftM(0.3);
-      expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M + 0.3, 12);
+      expect(body.position.y + 0.2).toBeCloseTo(BABY_CARRIED_HEIGHT_M + 0.3, 12);
       // The next frame's update must not drop the hop...
       view.update(carried(), 1, papaAt());
-      expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M + 0.3, 12);
+      expect(body.position.y + 0.2).toBeCloseTo(BABY_CARRIED_HEIGHT_M + 0.3, 12);
       // ...and the hop ending leaves the carry.
       view.setLiftM(0);
-      expect(body.position.y).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
+      expect(body.position.y + 0.2).toBeCloseTo(BABY_CARRIED_HEIGHT_M, 12);
     });
 
     it('puts him back on the floor, at his own pose, once he is put down', () => {
@@ -229,7 +239,7 @@ describe('createBabyView', () => {
       const body = scene.getObjectByName('baby') as Mesh;
       view.update(carried(), 1, papaAt());
       view.update(baby(), 1, papaAt());
-      expect(body.position.y).toBe(0.2);
+      expect(body.position.y).toBe(0);
       expect(scene.getObjectByName('baby_group')?.position.toArray()).toEqual([2, 0, 1]);
     });
 
@@ -237,7 +247,7 @@ describe('createBabyView', () => {
       const { scene, view } = build(0.2);
       view.update(carried(), 1);
       expect(scene.getObjectByName('baby_group')?.position.z).toBeCloseTo(1, 12);
-      expect((scene.getObjectByName('baby') as Mesh).position.y).toBeCloseTo(
+      expect((scene.getObjectByName('baby') as Mesh).position.y + 0.2).toBeCloseTo(
         BABY_CARRIED_HEIGHT_M,
         12,
       );

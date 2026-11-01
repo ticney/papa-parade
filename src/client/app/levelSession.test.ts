@@ -37,12 +37,17 @@ const NO_FX: LevelFx = {
   particles: () => {},
   gag: () => {},
   liftBaby: () => {},
+  playResponseClip: () => {},
+  playCharacterEvent: () => {},
 };
 const NO_REAL_FX = () => ({
   shakeOffsetXM: 0,
   shakeOffsetZM: 0,
   particlesAlive: 0,
   babyLayDownPct: 0,
+  papaClip: null,
+  babyClip: null,
+  papaMixerMs: 0,
   doorOpenDeg: 0,
 });
 
@@ -63,6 +68,10 @@ const assetsOf = (id: string): LevelAssets => ({
   // The frozen living room: the sim needs a room where Papa has room to stand.
   geometry: { ...createTestGeometry(), id },
   model: new Group(),
+  characters: {
+    papa: { scene: new Group(), animations: [] },
+    baby: { scene: new Group(), animations: [] },
+  },
 });
 
 /** The frozen living room's level, under the id the session asked for (its geometry carries the same). */
@@ -147,6 +156,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
         fx: NO_FX,
         papaPose: { xM: 0, zM: 0, yawRad: 0 },
         realFxState: NO_REAL_FX,
+        setPapaLook: () => {},
         resetFx: () => {
           record.resets++;
         },
@@ -254,6 +264,7 @@ describe('createLevelSession', () => {
           papaPose: { xM: 0, zM: 0, yawRad: 0 },
           resetFx: () => {},
           realFxState: NO_REAL_FX,
+          setPapaLook: () => {},
           update: () => {},
           dispose: () => {},
         };
@@ -267,6 +278,7 @@ describe('createLevelSession', () => {
         microSleepDefId: null,
         layDownDefIds: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
+        characters: content.feedback.characters,
         door: content.feedback.door,
         isMotionReduced: expect.any(Function),
       },
@@ -298,6 +310,7 @@ describe('createLevelSession', () => {
             papaPose: { xM: 0, zM: 0, yawRad: 0 },
             resetFx: () => {},
             realFxState: NO_REAL_FX,
+            setPapaLook: () => {},
             update: () => {},
             dispose: () => {},
           };
@@ -480,6 +493,7 @@ describe('createLevelSession', () => {
         fx: NO_FX,
         papaPose: { xM: 0, zM: 0, yawRad: 0 },
         realFxState: NO_REAL_FX,
+        setPapaLook: () => {},
         resetFx: () => {},
         update: (_world, _alpha, nowReal) => {
           calls.push('update');
@@ -513,6 +527,7 @@ describe('createLevelSession', () => {
         fx: NO_FX,
         papaPose: { xM: 0, zM: 0, yawRad: 0 },
         realFxState: NO_REAL_FX,
+        setPapaLook: () => {},
         resetFx: () => {},
         // The level ends inside the frame (a step's LevelScored), before the camera is moved.
         update: () => {
@@ -891,6 +906,7 @@ describe('createLevelSession', () => {
             papaPose: { xM: 0, zM: 0, yawRad: 0 },
             resetFx: () => {},
             realFxState: NO_REAL_FX,
+            setPapaLook: () => {},
             update: () => {},
             dispose: () => {},
           };
@@ -1128,6 +1144,7 @@ describe('createLevelSession › start options and outcomes', () => {
           papaPose: { xM: 0, zM: 0, yawRad: 0 },
           resetFx: () => {},
           realFxState: NO_REAL_FX,
+          setPapaLook: () => {},
           update: () => {},
           dispose: () => {},
         };
@@ -1147,6 +1164,7 @@ describe('createLevelSession › start options and outcomes', () => {
         microSleepDefId: null,
         layDownDefIds: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
+        characters: content.feedback.characters,
         door: content.feedback.door,
         isMotionReduced: expect.any(Function),
       },

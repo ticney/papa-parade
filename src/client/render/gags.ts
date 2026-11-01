@@ -23,7 +23,7 @@ export const GAG_SLIDE_HOLD_MS = 500;
 /** ...and is back at the stairs over this long, in sim ms. */
 export const GAG_SLIDE_BACK_MS = 400;
 
-/** What a gag shows on the provisional cubes. A flag is a stage effect the scene can play. */
+/** What a gag shows. A flag is a stage effect the scene can play; a clip is a one-shot of that character's `.glb`. */
 export interface GagPresentation {
   /** The room's lights go out and come back (the lamp plugged into the outlet). */
   readonly lightsOff: boolean;
@@ -31,34 +31,52 @@ export interface GagPresentation {
   readonly hair: boolean;
   /** The baby slides away from the threat and back (« en bas des marches », provisional until E7). */
   readonly babySlide: boolean;
+  /** Papa's one-shot, or null. During a glide his squash plays instead: a gag never stops a glide. */
+  readonly papaClip: string | null;
+  /** The baby's one-shot, or null. */
+  readonly babyClip: string | null;
 }
+
+/** A gag whose show is its clips alone. */
+const NO_STAGE = { lightsOff: false, hair: false, babySlide: false } as const;
 
 /**
  * `Record<GagId, …>`: a gag the sim knows with no presentation here is a type error (AC 5 of
  * story 1.11), so a new `GagId` cannot reach the player as nothing.
  */
 export const GAG_PRESENTATIONS: Readonly<Record<GagId, GagPresentation>> = {
-  outlet_hair: { lightsOff: true, hair: true, babySlide: false },
-  stairs_slide: { lightsOff: false, hair: false, babySlide: true },
+  outlet_hair: {
+    lightsOff: true,
+    hair: true,
+    babySlide: false,
+    papaClip: 'gag_shock',
+    babyClip: 'gag_delight',
+  },
+  stairs_slide: {
+    lightsOff: false,
+    hair: false,
+    babySlide: true,
+    papaClip: 'gag_shock',
+    babyClip: 'gag_delight',
+  },
   // The falling prop is its show (the sim pushes it): the stage has nothing to add.
-  table_object_fall: { lightsOff: false, hair: false, babySlide: false },
+  table_object_fall: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'laugh' },
   // Papa nodding off is drawn from the world (`papa.state === 'asleep'`: shut eyelids and a « Z »,
-  // story 1.19), not played as an effect: the stage has nothing to add.
-  papa_asleep: { lightsOff: false, hair: false, babySlide: false },
-  // The surprise mischiefs of the suspicious silence (story 1.21): the gag cue's ring and sound are
-  // the show until E7; the mess is `world.mess.mischiefs`.
-  tissues_everywhere: { lightsOff: false, hair: false, babySlide: false },
-  crayon_scribbles: { lightsOff: false, hair: false, babySlide: false },
-  // The wail in Papa's arms (story 4.1): the gag cue and the baby's cry are the show.
-  arms_wail: { lightsOff: false, hair: false, babySlide: false },
-  // The eyes reopen in the bedtime duel (story 4.6): the gag cue and the retreat are the show until E7 draws the baby's eyes.
-  baby_eyes_reopened: { lightsOff: false, hair: false, babySlide: false },
-  // The baby sits up in the fake sleep (story 4.7): same as the eyes, the gag cue, the cry and the retreat are the show until E7.
-  baby_sat_up: { lightsOff: false, hair: false, babySlide: false },
-  // The baby wakes as he is laid down (story 4.8): the gag cue, the cry and the retreat are the show until E7.
-  baby_woke_on_drop: { lightsOff: false, hair: false, babySlide: false },
-  baby_woke_by_touch: { lightsOff: false, hair: false, babySlide: false },
-  baby_woke_crying: { lightsOff: false, hair: false, babySlide: false },
+  // story 1.19), not played as an effect: his `asleep` loop is the clip.
+  papa_asleep: { ...NO_STAGE, papaClip: null, babyClip: 'laugh' },
+  // The surprise mischiefs of the suspicious silence (story 1.21); the mess is `world.mess.mischiefs`.
+  tissues_everywhere: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'gag_delight' },
+  crayon_scribbles: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'gag_delight' },
+  // The wail in Papa's arms (story 4.1): the baby's cry is his own loop, `cryEndsAt` says so.
+  arms_wail: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: null },
+  // The eyes reopen in the bedtime duel (story 4.6): `babyLidsAfter` opens them, the clip wakes him.
+  baby_eyes_reopened: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'wake' },
+  // The baby sits up in the fake sleep (story 4.7).
+  baby_sat_up: { ...NO_STAGE, papaClip: 'gag_shock', babyClip: 'sat_up' },
+  // The baby wakes as he is laid down (story 4.8).
+  baby_woke_on_drop: { ...NO_STAGE, papaClip: 'gag_shock', babyClip: 'wake' },
+  baby_woke_by_touch: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'wake' },
+  baby_woke_crying: { ...NO_STAGE, papaClip: 'gag_shock', babyClip: 'wake' },
 };
 
 /** Total time the lights are off the full level, in sim ms. */
