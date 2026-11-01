@@ -143,8 +143,8 @@ development_status:
   6-9-selection-des-ages-et-tutoriel-implicite: backlog
   epic-6-retrospective: optional
 
-  epic-7: backlog
-  7-1-pieces-modelisees-dans-blender: backlog
+  epic-7: in-progress
+  7-1-pieces-modelisees-dans-blender: ready-for-dev
   7-2-personnages-rigges-et-animes: backlog
   7-3-rendu-toon-final-et-effets: backlog
   7-4-celebration-finale-et-cadrages-parodiques: backlog
