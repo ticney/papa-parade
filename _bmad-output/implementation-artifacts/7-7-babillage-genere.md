@@ -29,7 +29,7 @@ so that the voice stops hiding the rest of the game's sound.
 - [x] Cut the take with `tools/audio/cutMusicLoop.ts` (AC 1)
 - [x] Add it to `GENERATED_CLIPS` and record its origin (AC 1, 2)
 - [x] Run the checks and the specs (AC 5)
-- [ ] Geo plays a build (AC 3, 4)
+- [x] Geo plays a build (AC 3, 4)
 
 ## Dev Notes
 
@@ -47,7 +47,7 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 ### Completion Notes List
 
 - Cut and installed; 84,680 bytes against 23,809. 10.000 s, mono, peak -0.7 dB.
-- AC 3 and 4 wait on Geo's play.
+- AC 3 and 4: Geo played the build on 2026-11-01: the music comes through, and he clearly notices the babble stopping. His report covers those two points only.
 
 ### File List
 
