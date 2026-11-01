@@ -1,6 +1,6 @@
 # Audio sources
 
-Where the shipped music comes from (story 7.6), so that a track can be redone and the licence question answered later. Everything else in `public/assets/audio/` is still a synthesized placeholder from `tools/audio/makePlaceholderAudio.ts`.
+Where the shipped music (story 7.6) and babble (story 7.7) come from, so that a track can be redone and the licence question answered later. Everything else in `public/assets/audio/` is still a synthesized placeholder from `tools/audio/makePlaceholderAudio.ts`.
 
 **Licence status:** Geo confirmed on 2026-11-01 that his ElevenLabs plan allows this music in a game he distributes. ElevenLabs refused several takes with "Free generations are busy" (`free_shared`), so check the plan again before a store release.
 
@@ -25,6 +25,12 @@ Gains put each loop near the level of the placeholder it replaced, except the st
 The mono files are true downmixes of both channels, made by the tool: `afconvert -c 1` keeps the left channel alone.
 
 The calm take's end fades out and the lullaby pad's start fades in, whatever the prompt said; the cuts stay clear of both.
+
+## The babble (story 7.7)
+
+`baby_babble_loop`: generation `4rlt765QnXKUPFcIjCkA`, node `kHX97o3MkXGaJqajhXBE`, on the same flow, model `eleven_text_to_sound_v2` (sound effects, not music), 100 credits. Asked for 10 s with `loop: true` and `prompt_influence: 0.6`. Cut with `--length-ms 10000 --crossfade-ms 0 --gain-db 0`; mono, 64 kbps. Kept whole, because the model made it loop.
+
+Prompt: Happy baby babbling continuously to itself, soft cute coos and gentle "ba-ba" and "da-da" syllables, no crying, no words, no pauses, close-mic, dry indoor room
 
 ## Prompts
 

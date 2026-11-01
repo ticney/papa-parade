@@ -2452,6 +2452,20 @@ afin que le jeu sonne comme un jeu dès le prochain playtest.
 **Quand** il tourne sans `--only`
 **Alors** il n'écrase aucune musique générée
 
+### Story 7.7 : Babillage généré
+
+**Exigences :** FR70
+
+En tant que joueur,
+je veux que le babillage sonne comme un bébé,
+afin que la voix ne masque plus le reste du son du jeu.
+
+**Critères d'acceptation :**
+
+**Étant donné** la prise choisie à l'écoute par Geo le 2026-11-01
+**Quand** `baby_babble_loop` est remplacé
+**Alors** l'arrêt du babillage annonce toujours le silence suspect, et `npm run assets:audio` sans `--only` n'écrase pas le fichier
+
 ## Epic 8 : Distribution mobile
 
 *Stories cadrées.* **Prérequis :** le modèle économique est tranché avant cet epic.
