@@ -23,6 +23,11 @@ export interface PhysicsPort {
   step(): void;
   /** Pushes the prop at its centre of mass and wakes it. */
   applyImpulse(propIndex: number, xNs: number, yNs: number, zNs: number): void;
+  /**
+   * Puts the prop back at `(xM, yM, zM)` with no rotation and no velocity, and wakes it, so that it
+   * settles again as at spawn (story 3.5: tidying). Collider and body move together.
+   */
+  resetProp(propIndex: number, xM: number, yM: number, zM: number): void;
   isSleeping(propIndex: number): boolean;
   /** Writes the body's pose into `out`. */
   readPose(propIndex: number, out: PropPose): void;

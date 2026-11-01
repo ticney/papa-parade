@@ -44,6 +44,7 @@ function createFakePort(poses: PropPose[]) {
     propCount: poses.length,
     step: () => calls.push('step'),
     applyImpulse: (index, x, y, z) => calls.push(`impulse:${index}:${x}:${y}:${z}`),
+    resetProp: (index, x, y, z) => calls.push(`reset:${index}:${x}:${y}:${z}`),
     isSleeping: (index) => sleeping[index] as boolean,
     readPose(index, out) {
       calls.push(`read:${index}`);
@@ -75,6 +76,7 @@ function specOf(id: string, kind: string, centerYM: number, halfYM = 0.05): SimP
     kind,
     halfExtentsM: [0.05, halfYM, 0.05],
     spawnedAboveFloor: centerYM - halfYM > PROP_ON_FLOOR_TOLERANCE_M,
+    spawnM: [0, centerYM, 0],
     physics: physics.kinds[kind] as SimPropSpec['physics'],
   };
 }

@@ -66,6 +66,7 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
         papaClip: null,
         babyClip: null,
         papaMixerMs: 0,
+        doorOpenDeg: 0,
       },
   );
 

@@ -1,0 +1,45 @@
+{
+  "version": 3,
+  "seed": 42,
+  "feelHash": "03a2cd02f15fe4",
+  "geometryHash": "181bcc6e7772a8",
+  "levelHash": "02c99a2710e7bb",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 1100,
+      "command": {
+        "impulseXNs": 0,
+        "impulseYNs": 0,
+        "impulseZNs": 0.72,
+        "propId": "mug_01",
+        "t": 1100,
+        "type": "PushProp"
+      }
+    },
+    {
+      "applyAt": 22010,
+      "command": {
+        "objectId": "toy_01",
+        "t": 22000,
+        "type": "TapObject"
+      }
+    },
+    {
+      "applyAt": 24010,
+      "command": {
+        "objectId": "book_01",
+        "t": 24000,
+        "type": "TapObject"
+      }
+    },
+    {
+      "applyAt": 26010,
+      "command": {
+        "objectId": "mug_01",
+        "t": 26000,
+        "type": "TapObject"
+      }
+    }
+  ]
+}

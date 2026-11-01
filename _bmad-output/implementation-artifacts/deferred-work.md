@@ -878,6 +878,10 @@
 - **The bot's crib tap and the gather can pick different safe zones.** `safeSpotOf` takes the first safe zone, open or not; `gather` takes `nearestOpenSafeZoneIndex`. Unreachable in `chambre_night`, which has one open crib; `cycleProblems` would accept a room where it matters. `src/bots/botResponses.ts:18`.
 - **An entry of the cycle can start with no time left.** `runCycle` has no guard like the threats' `isJudgeableBeforeEnd`, so an entry due in the last moments cancels every open threat (`ThreatCancelled{sequence}`), may pop Papa or the baby at the cap, then ends `cut`, which inflates `attempts` but not the rate. Deferred by Geo: rare, and a fix would invent a game rule before the first playtest. `src/sim/sequences/bedtimeCycle.ts:228`.
 
+## Deferred from: code review of 3-5-porte-qui-s-ouvre-et-rush-final (2026-11-01)
+
+- **In `chambre_night`, a player who wins the bedtime cycle never sees the door.** `cycleDone` is tested before the rush (AC 5) and `playableMsOf` makes the cycle fit before `durationMs - finalRushMs` (AC 21), so a won cycle always ends `cycleDone` / `ended`, with no door, no spill and no photo; in the story's 30 bot games neither reached the rush in the bedroom. It follows the ACs to the letter, and changing it would invent a game rule before the first playtest, so it is kept as is. To revisit after the second prototype's playtest: let a won cycle go on to the rush and the photo, which means changing AC 5 and AC 21. `src/sim/flow/flowSystem.ts:81`.
+
 ## Story 7-1-pieces-modelisees-dans-blender (2026-11-01)
 
 - **`COL_stairs` has no visual, so its blob shadow is a lone smudge on the salon's floor** near the stairs. The collider is frozen in this story. Reason: the blob heuristic, for 7.3 (or a visual there, in a later art pass).

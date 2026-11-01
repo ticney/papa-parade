@@ -39,6 +39,17 @@ export interface ObjectTarget {
   readonly zM: number;
 }
 
+/**
+ * What `pickObject` weighs: an id and the point its icon is drawn at. An {@link ObjectTarget} is one,
+ * and so is a prop of the world (`PropSlice`) in the final rush (story 3.5).
+ */
+export interface PickTarget {
+  readonly id: string;
+  readonly xM: number;
+  readonly yM: number;
+  readonly zM: number;
+}
+
 export interface HitTester {
   /**
    * Projects a screen point (normalised device coordinates, x right and y up, both in `[-1, 1]`)
@@ -83,7 +94,7 @@ export interface HitTester {
     clientX: number,
     clientY: number,
     rect: ScreenRect,
-    objects: readonly ObjectTarget[],
+    objects: readonly PickTarget[],
     radiusPx: number,
   ): string | null;
 }
@@ -126,7 +137,7 @@ export function createHitTester(camera: OrthographicCamera): HitTester {
       let nearestId: string | null = null;
       let nearestSq = radiusPx * radiusPx;
       for (let i = 0; i < objects.length; i++) {
-        const object = objects[i] as ObjectTarget;
+        const object = objects[i] as PickTarget;
         icon.set(object.xM, object.yM, object.zM).project(camera);
         if (!(icon.z >= -1 && icon.z <= 1)) continue;
         const dx = rect.left + ((icon.x + 1) / 2) * rect.width - clientX;

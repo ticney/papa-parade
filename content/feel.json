@@ -118,6 +118,10 @@
   "sequences": {
     "resumeGapMs": 2000
   },
+  "endOfLevel": {
+    "finalRushMs": 10000,
+    "doorSpillCount": 2
+  },
   "stealth": {
     "sneakSpeedPct": 35,
     "breathCapacityMs": 6000,
@@ -184,6 +188,22 @@
         "restitution": 0.1,
         "breakable": true,
         "breakImpulseNs": 0.35
+      },
+      "book": {
+        "shape": "box",
+        "massKg": 0.25,
+        "friction": 0.5,
+        "restitution": 0.1,
+        "breakable": false,
+        "breakImpulseNs": 1
+      },
+      "toy": {
+        "shape": "box",
+        "massKg": 0.3,
+        "friction": 0.6,
+        "restitution": 0.3,
+        "breakable": false,
+        "breakImpulseNs": 1
       }
     }
   },

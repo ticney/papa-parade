@@ -33,6 +33,7 @@ import {
   responseClipOf,
 } from './views/characterClips.ts';
 import { createCharacterRig } from './views/characterRig.ts';
+import { createDoorView, type DoorLook, doorPlacementOf } from './views/doorView.ts';
 import { createPapaView, type PapaLook, type PapaPose } from './views/papaView.ts';
 import { createPropView, type PropView } from './views/propView.ts';
 import { type SquashScale, squashScaleAt } from './views/squash.ts';
@@ -59,6 +60,10 @@ export interface SceneBodies {
   laidHeightM: number;
   /** How the characters move (`feedback.json › characters`). */
   characters: FeedbackTable['characters'];
+  /** The door panel's numbers (`feedback.json › door`, story 3.5). */
+  door: DoorLook;
+  /** Read each frame: under reduced motion the door jumps open instead of swinging (story 3.5). */
+  isMotionReduced(): boolean;
 }
 
 /**
@@ -141,6 +146,8 @@ export interface LevelScene {
     babyClip: string | null;
     /** Papa's mixer clock, in sim ms. */
     papaMixerMs: number;
+    /** How far the door was drawn open, in degrees; 0 while it is shut (story 3.5). */
+    doorOpenDeg: number;
   };
   /** Shows the parts of Papa's look. Nothing in a game sets it until story 3.7 (story 7.2, D2). */
   setPapaLook(look: Readonly<PapaLook>): void;
@@ -385,6 +392,25 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     motion,
     bodies.laidHeightM,
   );
+  // The closed door at `ANCHOR_door` (story 3.5): it opens from `world.flow.finalRushAt`, every frame.
+  const doorAnchor = geometry.anchors.find((anchor) => anchor.id === 'door');
+  const door =
+    doorAnchor === undefined
+      ? null
+      : createDoorView(
+          content,
+          toon,
+          bodies.door,
+          doorPlacementOf(
+            doorAnchor.positionM[0],
+            doorAnchor.positionM[2],
+            geometry.boundsMinM[0],
+            geometry.boundsMinM[2],
+            geometry.boundsMaxM[0],
+            geometry.boundsMaxM[2],
+            bodies.door.widthM,
+          ),
+        );
   const waves = createSoundWaves(content, PALETTE.ink);
   const shake = createShake(content);
   const particles = createParticles(content);
@@ -472,6 +498,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         papaClip: papa.clipName,
         babyClip: baby.clipName,
         papaMixerMs: papa.mixerTimeMs,
+        doorOpenDeg: door?.openAngleDeg ?? 0,
       };
     },
     setPapaLook(look) {
@@ -498,6 +525,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       papa.setOnPhone(world.papa.state === 'onPhone');
       // Out of the room, in the toilet (story 4.3): not him, not his shadow.
       papa.setAway(world.papa.state === 'onToilet');
+      // The door, from the rush's start on the sim clock: a pause or a slow-mo holds it (story 3.5).
+      door?.update(world.flow.finalRushAt, clockMs, bodies.isMotionReduced());
       waves.update(clockMs);
       shake.update(nowReal);
       particles.update(nowReal);

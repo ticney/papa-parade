@@ -1993,6 +1993,72 @@ export function synthBreathGasp(): Float32Array {
   return out;
 }
 
+// The final rush's placeholders (story 3.5), seeds `SEED + 47` and `+ 48`: the key in the door's lock
+// and the soft pop of a prop put back.
+const DOOR_KEY_LENGTH_MS = 620;
+/** A key turning: two metal clicks (the bolt, then the latch), a scrape between them. */
+const DOOR_KEY_CLICKS_S = [0.02, 0.34];
+const DOOR_KEY_CLICK_DECAY_S = 0.018;
+const DOOR_KEY_CLICK_HZ = 1850;
+const DOOR_KEY_SCRAPE_FROM_S = 0.08;
+const DOOR_KEY_SCRAPE_TO_S = 0.3;
+const DOOR_KEY_SCRAPE_GAIN = 0.18;
+const DOOR_KEY_SMOOTHING = 0.5;
+
+/** A key turning in a lock, then the door giving way (cue `final_rush_started`, clip `env_door_key`). */
+export function synthDoorKey(): Float32Array {
+  const rng = createRng(SEED + 47);
+  const out = new Float32Array(samplesOf(DOOR_KEY_LENGTH_MS));
+  let smoothed = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    smoothed += DOOR_KEY_SMOOTHING * (nextFloat(rng) * 2 - 1 - smoothed);
+    let value = 0;
+    for (const clickAt of DOOR_KEY_CLICKS_S) {
+      const age = seconds - clickAt;
+      if (age < 0) continue;
+      const decay = Math.exp(-age / DOOR_KEY_CLICK_DECAY_S);
+      value += (Math.sin(2 * Math.PI * DOOR_KEY_CLICK_HZ * age) * 0.7 + smoothed * 0.5) * decay;
+    }
+    if (seconds > DOOR_KEY_SCRAPE_FROM_S && seconds < DOOR_KEY_SCRAPE_TO_S) {
+      value += smoothed * DOOR_KEY_SCRAPE_GAIN;
+    }
+    out[i] = value;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const TIDIED_LENGTH_MS = 200;
+const TIDIED_PITCH_HZ = { from: 360, to: 620 };
+const TIDIED_ATTACK_MS = 6;
+const TIDIED_RELEASE_MS = 90;
+
+/** A prop set back in its place: a short, soft rising pop (cue `prop_tidied`, clip `env_prop_tidied`). */
+export function synthPropTidied(): Float32Array {
+  const rng = createRng(SEED + 48);
+  const out = new Float32Array(samplesOf(TIDIED_LENGTH_MS));
+  const attack = samplesOf(TIDIED_ATTACK_MS);
+  const release = samplesOf(TIDIED_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const frequencyHz =
+      TIDIED_PITCH_HZ.from + (TIDIED_PITCH_HZ.to - TIDIED_PITCH_HZ.from) * progress;
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    out[i] =
+      (Math.sin(phase) + (nextFloat(rng) * 2 - 1) * 0.04) *
+      Math.exp(-progress * 3) *
+      Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 const STEALTH_LOOP_LENGTH_S = 4;
 const STEALTH_DRONE_HZ = [49, 73.5];
 const STEALTH_TICK_PERIOD_S = 2;
@@ -2118,6 +2184,8 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'env_floor_creak', synth: synthFloorCreak },
   { clip: 'papa_breath_gasp', synth: synthBreathGasp },
   { clip: 'music_stealth', synth: synthStealthLoop },
+  { clip: 'env_door_key', synth: synthDoorKey },
+  { clip: 'env_prop_tidied', synth: synthPropTidied },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

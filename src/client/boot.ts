@@ -107,6 +107,17 @@ const SEQUENCE_SLOT = GAUGE_IDS.length + 1;
 const BEAT_CLOCK_AGE_MAX_MS = 100;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
 const NO_SIM_OBJECTS: readonly SimObjectSpec[] = [];
+
+/** The floor point of the level's `ANCHOR_door`, or null when the geometry has none (story 3.5). */
+function doorPointOf(
+  geometry:
+    | { readonly anchors: readonly { id: string; positionM: readonly number[] }[] }
+    | undefined,
+): { xM: number; zM: number } | null {
+  const door = geometry?.anchors.find((anchor) => anchor.id === 'door');
+  const [xM, , zM] = door?.positionM ?? [];
+  return door === undefined || xM === undefined || zM === undefined ? null : { xM, zM };
+}
 /** What the Result screen shows if it ever has no note (a bug, warned about): all zero. */
 const NO_SCORE: MamaScore = {
   laughPoints: 0,
@@ -326,6 +337,7 @@ export async function boot(): Promise<void> {
       | 'ppTarget'
       | 'ppBreathPct'
       | 'ppBreathHeld'
+      | 'ppPropsTidied'
       | 'ppScore'
       | 'ppStars'
       | 'ppLostStars'
@@ -408,6 +420,8 @@ export async function boot(): Promise<void> {
   const beatSample: { audioNowS: number; clockMs: number } = { audioNowS: 0, clockMs: 0 };
   // The lullaby walk's counters, for the mirrors (declared here: `mirrorNewLevel` resets them).
   let beatHitCount = 0;
+  // The props Papa tidied in this level (story 3.5): counted on `PropTidied`, mirrored on events only.
+  let propsTidiedCount = 0;
   let beatMissCount = 0;
   const beatScheduler = createBeatScheduler({
     audio,
@@ -466,6 +480,8 @@ export async function boot(): Promise<void> {
     getScene: () => (appFsm.state === 'level' ? (currentLevel?.fx ?? null) : null),
     // Where an `object`-anchored ring (the phone's) starts from.
     getObjects: () => levelSession.active?.sim.objects ?? NO_SIM_OBJECTS,
+    // Where a `door`-anchored ring (the final rush's key in the lock) starts from.
+    getDoorPoint: () => doorPointOf(levelSession.active?.geometry),
     prefersReducedMotion,
     flash: (peakOpacityPct, durationMs, isMotionReduced) =>
       screenFlash.flash(peakOpacityPct, durationMs, isMotionReduced),
@@ -701,6 +717,7 @@ export async function boot(): Promise<void> {
       'ppBreathPct',
       'ppBreathHeld',
       'ppCycleIndex',
+      'ppPropsTidied',
     ] as const) {
       delete document.documentElement.dataset[name];
     }
@@ -708,6 +725,7 @@ export async function boot(): Promise<void> {
     mirror('ppCycleIndex', String(levelSession.active?.sim.world.cycle.index ?? 0));
     beatHitCount = 0;
     beatMissCount = 0;
+    propsTidiedCount = 0;
   };
   // The special sequence, on its events only (story 4.4): the flow state follows it and back, the id
   // is there while it runs, and the last outcome stays. `levelEnded` leaves the flow to `LevelEnded`.
@@ -967,6 +985,7 @@ export async function boot(): Promise<void> {
     // `?seed=<n>` fixes the seed of every level of the page, restarts included.
     newSeed: () => params.seed ?? (crypto.getRandomValues(new Uint32Array(1))[0] as number),
     speed: params.speed ?? undefined,
+    isMotionReduced: prefersReducedMotion,
     levelId: resolveLevelParam(params.level, isBundledLevel) ?? undefined,
     beforeStep: isMirrored ? (sim) => stepHook?.(sim) : undefined,
     onLevelStarted: (started) => {
@@ -982,6 +1001,7 @@ export async function boot(): Promise<void> {
       beatScheduler.reset();
       sequenceBar.reset();
       timerHud.setCompact(false);
+      timerHud.setRush(false);
       timerHud.setVariant(started.level.level.variant);
       // The gauges this level has, each at its start value (a restart never shows the last level's).
       const { gauges } = started.level.level;
@@ -996,6 +1016,7 @@ export async function boot(): Promise<void> {
         gaugesHud.setValue('need', Math.round(started.sim.world.gauges.bladderPct));
       }
       worldUi.mountObjects(started.sim.objects);
+      worldUi.mountTidy(started.sim.world.props.length);
       // The full duration at once, so a restart never shows the last level's `0:00`.
       hudBatch.set(TIMER_SLOT, Math.ceil(started.level.level.durationMs / MS_PER_S));
       resetFramePacing();
@@ -1145,6 +1166,8 @@ export async function boot(): Promise<void> {
         hudBatch.set(SEQUENCE_SLOT, sequenceBar.update(running.sim.world, barDef));
         sequenceBar.frame(performance.now());
         timerHud.setCompact(sequenceBar.isMounted);
+        // The last ten seconds of a level with a door (story 3.5): from the world's state, every frame.
+        timerHud.setRush(running.sim.world.flow.state === 'finalRush');
       }
       shell.frame();
       gaugesHud.frame(performance.now());
@@ -1186,6 +1209,8 @@ export async function boot(): Promise<void> {
           nowAtReal,
         );
         worldUi.updatePapaHint(papaPose, nowAtReal);
+        // « RANGE ! » over the mess of the final rush, from the world's state (story 3.5).
+        worldUi.updateTidy(world);
         worldUi.updateBeatRing(
           beatFrame.timeline,
           beatFrame.stepStartAt,
@@ -1347,8 +1372,12 @@ export async function boot(): Promise<void> {
         ) {
           mirrorBladder();
         }
+        // The final rush (story 3.5): the door opening, then the end of the level, which is `photo` after a
+        // timer in a level with a rush and `ended` otherwise: the world's own state, not a literal.
+        if (event.type === 'FinalRushStarted') mirror('ppFlow', 'finalRush');
+        if (event.type === 'PropTidied') mirror('ppPropsTidied', String(++propsTidiedCount));
         if (event.type === 'LevelEnded') {
-          mirror('ppFlow', 'ended');
+          mirror('ppFlow', levelSession.active?.sim.world.flow.state ?? 'ended');
           mirror('ppEndReason', event.reason);
         }
         mirrorPapaEvent(event);
@@ -1813,6 +1842,7 @@ export async function boot(): Promise<void> {
     if (!isLevelGone) return;
     worldUi.unmountThreats();
     worldUi.unmountObjects();
+    worldUi.unmountTidy();
     worldUi.glyphChip.hide();
     worldUi.comboBadge.hide();
     worldUi.papaHint.hide();
@@ -1834,6 +1864,7 @@ export async function boot(): Promise<void> {
         'ppLostStars',
         'ppEndReason',
         'ppResult',
+        'ppPropsTidied',
       ] as const) {
         delete document.documentElement.dataset[name];
       }
@@ -1924,6 +1955,7 @@ export async function boot(): Promise<void> {
           papaClip: real?.papaClip ?? null,
           babyClip: real?.babyClip ?? null,
           papaMixerMs: real?.papaMixerMs ?? 0,
+          doorOpenDeg: real?.doorOpenDeg ?? 0,
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),

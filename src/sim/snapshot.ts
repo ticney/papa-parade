@@ -33,14 +33,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 27 since story 4.10: `world.cycle` (the bedtime cycle: the entry, when it is due and when the cycle was completed), and the `CycleCompleted` event. 26 since story 4.9: `world.sequence.stealth` (the running `stealth` step: the exit, the next alert, the breath and the board Papa stands on). 25 since story 4.8: the `sequence` slow-mo source (a duel step's own slow motion); no new field. 24 since story 4.7: `ThreatInstance.feintAt` / `isFeintGiven` (the feint of a fake sleep, before its signal). 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 28 since story 3.5: `world.flow.finalRushAt`, the `finalRush` and `photo` flow states, `PropSlice.isMess` and `score.propsTidied`. 27 since story 4.10: `world.cycle` (the bedtime cycle: the entry, when it is due and when the cycle was completed), and the `CycleCompleted` event. 26 since story 4.9: `world.sequence.stealth` (the running `stealth` step: the exit, the next alert, the breath and the board Papa stands on). 25 since story 4.8: the `sequence` slow-mo source (a duel step's own slow motion); no new field. 24 since story 4.7: `ThreatInstance.feintAt` / `isFeintGiven` (the feint of a fake sleep, before its signal). 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 27;
+  version: 28;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -59,7 +59,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 27,
+    version: 28,
     seed,
     feelHash,
     geometryHash,
@@ -71,6 +71,7 @@ export function takeSnapshot(
 
 function papaProblem(
   papa: unknown,
+  // The ids Papa's walk may go to: the level's objects and, in the final rush, its props (story 3.5).
   objectIds: readonly string[],
   babyState: unknown,
   hasBladder: boolean,
@@ -470,13 +471,18 @@ function onPhoneProblem(papa: unknown, disruptions: readonly { state: unknown }[
 
 /**
  * `ended` before the level's time is up is only a woken Mama (story 3.2): the level has the noise
- * gauge and it stands at 100 %, frozen there by the end.
+ * gauge and it stands at 100 %, frozen there by the end. `finalRush` and `photo` (story 3.5) exist
+ * only in a level with a final rush, `photo` only once the time is up, and `finalRushAt` is null in
+ * `playing` and `sequence`, set in `finalRush` and `photo`, and either in `ended` (set only after a
+ * `mamaWoke` in the rush, so only in a level with one). It is never compared with the current
+ * `finalRushMs`: a `SetFeel` can move that.
  */
 function flowProblem(
   flow: unknown,
   nowMs: number,
   durationMs: number,
   hasNoise: boolean,
+  hasFinalRush: boolean,
   gauges: unknown,
   cycle: unknown,
 ): string | null {
@@ -488,6 +494,19 @@ function flowProblem(
   }
   // A state is entered in the past, and the level only ends once its time is up, the noise is full or the cycle is done.
   if ((slice.enteredAt as number) > nowMs) return 'world.flow.enteredAt';
+  const { finalRushAt } = slice;
+  if (finalRushAt !== null) {
+    if (!isFiniteNumber(finalRushAt) || (finalRushAt as number) < 0)
+      return 'world.flow.finalRushAt';
+    if ((finalRushAt as number) > nowMs || !hasFinalRush) return 'world.flow.finalRushAt';
+    // The flow state the rush leaves is entered at or after it.
+    if ((finalRushAt as number) > (slice.enteredAt as number)) return 'world.flow.finalRushAt';
+  }
+  const isRushState = slice.state === 'finalRush' || slice.state === 'photo';
+  if (isRushState && (!hasFinalRush || finalRushAt === null)) return 'world.flow.state';
+  if (!isRushState && slice.state !== 'ended' && finalRushAt !== null)
+    return 'world.flow.finalRushAt';
+  if (slice.state === 'photo' && nowMs < durationMs) return 'world.flow.state';
   if (slice.state === 'ended' && nowMs < durationMs) {
     const noisePct = (gauges as Record<string, unknown> | null | undefined)?.noisePct;
     const completedAt = (cycle as Record<string, unknown> | null | undefined)?.completedAt;
@@ -571,6 +590,8 @@ export interface PlannedLevel {
   readonly hasNoise: boolean;
   /** Whether the level has the need gauge (`SimLevel.hasBladder`, story 4.3). */
   readonly hasBladder: boolean;
+  /** Whether the level has a final rush (`SimLevel.hasFinalRush`, story 3.5): only then can the flow be in it. */
+  readonly hasFinalRush: boolean;
   /** The special sequences the level can run, with the length of each one's steps (story 4.4). */
   readonly sequences: readonly {
     readonly id: string;
@@ -590,7 +611,7 @@ export interface PlannedLevel {
   readonly cycle: { readonly entries: readonly unknown[] } | null;
   /** The level's creak zones (story 4.9): only the count is needed, it bounds `stealth.creakZoneIndex`. */
   readonly creakZones: readonly unknown[];
-  /** The level's interactive objects: Papa's `objectId` must be one of them. */
+  /** The level's interactive objects: Papa's `objectId` must be one of them (or one of `props` in the final rush and after it, see `isPropWalkState`). */
   readonly objects: readonly { readonly id: string }[];
   readonly props: readonly {
     readonly id: string;
@@ -599,6 +620,14 @@ export interface PlannedLevel {
   }[];
 }
 type PlannedThreats = PlannedLevel['threats'];
+
+/**
+ * Whether Papa's `objectId` may name a prop (story 3.5): in the rush, and in the frozen states that follow
+ * it, since the level can end (timer, `mamaWoke`) while he is still walking to one.
+ */
+function isPropWalkState(state: unknown): boolean {
+  return state === 'finalRush' || state === 'photo' || state === 'ended';
+}
 
 function isTimeScale(value: unknown): boolean {
   return (
@@ -659,7 +688,7 @@ function propProblem(prop: unknown, index: number, planned: PlannedLevel['props'
   if (!isUnitQuaternion(slice.prevQx, slice.prevQy, slice.prevQz, slice.prevQw)) {
     return `${where}.prevQ`;
   }
-  for (const key of ['isOnFloor', 'isBroken']) {
+  for (const key of ['isOnFloor', 'isMess', 'isBroken']) {
     if (typeof slice[key] !== 'boolean') return `${where}.${key}`;
   }
   if (slice.lastImpactAt !== null && !isFiniteNumber(slice.lastImpactAt)) {
@@ -1026,15 +1055,17 @@ function propsProblem(
   // The counts are a function of the props: a snapshot that disagrees with itself is damaged.
   let onFloor = 0;
   let broken = 0;
+  let isMessWrong = false;
   (props as PropSlice[]).forEach((prop, index) => {
-    if (prop.isBroken) broken++;
-    else if (
+    const isMess =
+      !prop.isBroken &&
       prop.isOnFloor &&
-      (planned[index] as PlannedLevel['props'][number]).spawnedAboveFloor
-    ) {
-      onFloor++;
-    }
+      (planned[index] as PlannedLevel['props'][number]).spawnedAboveFloor;
+    if (prop.isMess !== isMess) isMessWrong = true;
+    if (prop.isBroken) broken++;
+    else if (isMess) onFloor++;
   });
+  if (isMessWrong) return 'world.props.isMess';
   if (counts.propsOnFloor !== onFloor) return 'world.mess.propsOnFloor';
   if (counts.propsBroken !== broken) return 'world.mess.propsBroken';
   return null;
@@ -1052,6 +1083,11 @@ const MAMA_SCORE_KEYS = [
   'lostStars',
 ] as const;
 
+/** The level is over: `ended`, or `photo` (story 3.5), where the world is frozen with Mama's note given. */
+function isLevelOver(state: unknown): boolean {
+  return state === 'ended' || state === 'photo';
+}
+
 /**
  * Mama's counters are non-negative integers; her note (story 1.22) is `null` while the level plays
  * and a whole `MamaScore` once it has ended (`runFlow` gives it in the ending step), with a score of
@@ -1065,6 +1101,7 @@ function scoreProblem(score: unknown, isEnded: boolean): string | null {
   if (!isFiniteNumber(slice.comboPoints) || (slice.comboPoints as number) < 0) {
     return 'world.score.comboPoints';
   }
+  if (!isCount(slice.propsTidied)) return 'world.score.propsTidied';
   const { final } = slice;
   if (!isEnded) return final === null ? null : 'world.score.final';
   if (typeof final !== 'object' || final === null) return 'world.score.final';
@@ -1229,7 +1266,15 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     disruptionsProblem(disruptions, planned.disruptions, clock.sim as number) ??
     onPhoneProblem(papa, disruptions as readonly { state: unknown }[]) ??
     cycleProblem(cycle, planned) ??
-    flowProblem(flow, clock.sim as number, planned.durationMs, planned.hasNoise, gauges, cycle) ??
+    flowProblem(
+      flow,
+      clock.sim as number,
+      planned.durationMs,
+      planned.hasNoise,
+      planned.hasFinalRush,
+      gauges,
+      cycle,
+    ) ??
     gaugesProblem(
       gauges,
       planned.microSleepIndex >= 0,
@@ -1240,7 +1285,9 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     ) ??
     papaProblem(
       papa,
-      planned.objects.map((object) => object.id),
+      planned.hasFinalRush && isPropWalkState((flow as { state?: unknown } | null)?.state)
+        ? [...planned.objects, ...planned.props].map((target) => target.id)
+        : planned.objects.map((object) => object.id),
       (baby as { state?: unknown } | null)?.state,
       planned.hasBladder,
     ) ??
@@ -1261,15 +1308,15 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
       baby,
       threats as readonly ThreatInstance[],
       clock.sim as number,
-      (flow as { state: unknown }).state === 'ended',
+      isLevelOver((flow as { state: unknown }).state),
     ) ??
     propsProblem(props, mess, planned.props) ??
     instinctProblem(
       instinct,
       clock.sim as number,
-      (flow as { state: unknown }).state === 'ended',
+      isLevelOver((flow as { state: unknown }).state),
     ) ??
-    scoreProblem(score, (flow as { state: unknown }).state === 'ended') ??
+    scoreProblem(score, isLevelOver((flow as { state: unknown }).state)) ??
     inputProblem(input) ??
     difficultyTierProblem(difficultyTier) ??
     feelProblem(feel, initialFeel)
@@ -1295,7 +1342,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 27, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 28, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

@@ -888,6 +888,8 @@ export const CHUNK_STEPS = 3000;
 export async function advanceToEnd(page: Page): Promise<void> {
   let remaining = Math.ceil((LEVEL_DURATION_MS - (await ppWorld(page)).time.sim) / STEP_MS);
   while (remaining > 0) {
+    // A level that ended early (Mama woke, story 3.2) is over: the loop is stopped, no step can be asked for.
+    if ((await html(page).getAttribute('data-pp-app')) !== 'level') return;
     const chunk = Math.min(CHUNK_STEPS, remaining);
     await ppAdvance(page, chunk);
     remaining -= chunk;

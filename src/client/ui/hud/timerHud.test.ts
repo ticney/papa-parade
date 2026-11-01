@@ -187,3 +187,29 @@ describe('setCompact (story 4.4)', () => {
     expect(root.classWrites).toBe(writes);
   });
 });
+
+describe('setRush (story 3.5)', () => {
+  it('puts the rush class on the pill from the flow state and takes it off again, with no new node', () => {
+    const { hud, root } = build();
+    const nodes = root.all().length;
+    hud.setRush(true);
+    expect(root.classes.has('pp-hud-timer--rush')).toBe(true);
+    expect(root.all()).toHaveLength(nodes);
+    hud.setRush(false);
+    expect(root.classes.has('pp-hud-timer--rush')).toBe(false);
+  });
+
+  it('writes the DOM only on a change, and leaves the compact class alone', () => {
+    const { hud, root } = build();
+    hud.setRush(false);
+    expect(root.classWrites).toBe(0);
+    hud.setRush(true);
+    const writes = root.classWrites;
+    hud.setRush(true);
+    hud.setRush(true);
+    expect(root.classWrites).toBe(writes);
+    hud.setCompact(true);
+    expect(root.classes.has('pp-hud-timer--rush')).toBe(true);
+    expect(root.classes.has('pp-hud-timer--compact')).toBe(true);
+  });
+});

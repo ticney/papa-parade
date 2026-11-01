@@ -32,6 +32,8 @@ export interface FxState {
   readonly babyClip: string | null;
   /** Papa's mixer clock, in sim ms: it stands still in a pause and a hitstop. */
   readonly papaMixerMs: number;
+  /** How far the door is drawn open, in degrees; 0 while shut (story 3.5: the final rush). */
+  readonly doorOpenDeg: number;
 }
 
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */

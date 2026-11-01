@@ -9,9 +9,11 @@ import {
   createFirmHold,
   createSilenceMemory,
   createStealthWalkMemory,
+  createTidyMemory,
   isPressable,
   planCycleDrop,
   planStealthWalk,
+  planTidy,
   responseOf,
   scheduleDrop,
   schedulePress,
@@ -25,7 +27,8 @@ import {
  * `perfect`. On a Firmness judged on its release (story 4.8) it presses at the first step of the
  * telegraph and lets go at the centre of the window. In a stealth step (story 4.9) it walks to the exit,
  * presses a real wake at its centre like any parry, never presses a false alarm, and holds its breath
- * from the first step of the false alarm's telegraph to the end of its window (no gasp, ever).
+ * from the first step of the false alarm's telegraph to the end of its window (no gasp, ever). In the
+ * final rush (story 3.5) it tidies the props that are a mess, nearest first, the moment the door opens.
  */
 export function createPerfectBot(setup: BotSetup): Bot {
   const scheduler = createCommandScheduler();
@@ -39,6 +42,8 @@ export function createPerfectBot(setup: BotSetup): Bot {
   const stealthWalk = createStealthWalkMemory();
   // The interlude the crib was last tapped in (story 4.10).
   const cycleDrop = createCycleDropMemory();
+  // The prop tapped last in the final rush (story 3.5).
+  const tidy = createTidyMemory();
   // The beat tapped last: `nextBeatAt` is unique per beat, so one tap per beat whatever the step.
   let lastBeatAt: number | null = null;
   return {
@@ -90,6 +95,7 @@ export function createPerfectBot(setup: BotSetup): Bot {
       scheduler.flush(now, out);
       planStealthWalk(world, setup.responses, out, stealthWalk);
       planCycleDrop(world, setup.responses, setup.safeSpot, out, cycleDrop);
+      planTidy(world, setup.responses, out, tidy, 0);
     },
   };
 }

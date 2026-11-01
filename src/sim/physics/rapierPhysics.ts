@@ -175,6 +175,9 @@ export async function createRapierPhysics(options: RapierPhysicsOptions): Promis
     return world.getRigidBody(bodyHandles[propIndex] as number);
   };
   const impulse = { x: 0, y: 0, z: 0 };
+  const position = { x: 0, y: 0, z: 0 };
+  const identity = { x: 0, y: 0, z: 0, w: 1 };
+  const zero = { x: 0, y: 0, z: 0 };
 
   return {
     fixedColliderCount,
@@ -191,6 +194,17 @@ export async function createRapierPhysics(options: RapierPhysicsOptions): Promis
       impulse.y = yNs;
       impulse.z = zNs;
       bodyOf(propIndex).applyImpulse(impulse, true);
+    },
+    resetProp(propIndex, xM, yM, zM) {
+      const body = bodyOf(propIndex);
+      // Through scratch objects, as `applyImpulse`: the caller allocates nothing.
+      position.x = xM;
+      position.y = yM;
+      position.z = zM;
+      body.setTranslation(position, true);
+      body.setRotation(identity, true);
+      body.setLinvel(zero, true);
+      body.setAngvel(zero, true);
     },
     isSleeping(propIndex) {
       return bodyOf(propIndex).isSleeping();

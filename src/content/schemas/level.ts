@@ -180,6 +180,16 @@ const LevelCycleSchema = z
     'The bedtime cycle: which sequences chain, and how long the base play between them lasts.',
   );
 
+const LevelFinalRushSchema = z
+  .strictObject({
+    spillAnchor: idSchema(
+      "The id of the anchor of the level's geometry the door's shock lands nearest to (a table, a nightstand): the props that cannot break and stand nearest to it are knocked over when the door opens (story 3.5, D10).",
+    ),
+  })
+  .describe(
+    'The final rush (FR35, story 3.5): the last `feel.endOfLevel.finalRushMs` of the level, the door opens and the player tidies. Absent: the level ends as before.',
+  );
+
 export const LevelSchema = z
   .strictObject({
     id: idSchema('The level id; equals the file name and the id of its geometry.'),
@@ -212,6 +222,9 @@ export const LevelSchema = z
       ),
     cycle: LevelCycleSchema.optional().describe(
       'The bedtime cycle (story 4.10): the sim chains these sequences by itself and the level ends with the last one won. Absent: nothing schedules a sequence.',
+    ),
+    finalRush: LevelFinalRushSchema.optional().describe(
+      'The final rush (story 3.5): the door opens before the end and the level ends on the photo. Absent: the level ends on `ended`, as before.',
     ),
     feelOverrides: z
       .record(z.string(), z.unknown())
@@ -322,3 +335,4 @@ export type LevelObject = z.infer<typeof LevelObjectSchema>;
 export type LevelGauges = z.infer<typeof LevelGaugesSchema>;
 export type LevelCarry = z.infer<typeof LevelCarrySchema>;
 export type LevelCycle = z.infer<typeof LevelCycleSchema>;
+export type LevelFinalRush = z.infer<typeof LevelFinalRushSchema>;
