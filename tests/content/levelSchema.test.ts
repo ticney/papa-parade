@@ -258,6 +258,7 @@ describe('content/levels/salon_crawler.json', () => {
         'lullaby_walk',
         'bedtime_duel',
         'bomb_drop',
+        'stealth_exit',
       ]);
       const { sequences: _sequences, ...bare } = real;
       const defaulted = parse(bare);

@@ -18,9 +18,13 @@ export type ResponseQuality = 'perfect' | 'success' | 'fail';
 
 /**
  * Why a response failed: pressed before the window, never pressed in it, the wrong kind of press,
- * or (a Firmness) the finger came up before the end of the attack.
+ * or (a Firmness) the finger came up before the end of the attack, or (a `nothing`, story 4.9) the
+ * player acted on a threat they were to leave alone.
  */
-export type FailReason = 'early' | 'late' | 'wrongResponse' | 'released';
+export type FailReason = 'early' | 'late' | 'wrongResponse' | 'released' | 'acted';
+
+/** Why a held breath was let out loudly (story 4.9): the gauge ran out, an early release, or no breath held in a false alarm. */
+export type BreathGaspReason = 'empty' | 'early' | 'notHeld';
 
 /**
  * Why a ringing phone stopped: Papa picked up, it rang `ringMaxMs` for nothing, or the level ended
@@ -364,6 +368,27 @@ export type SimEvent =
   /** The baby woke at the snore: an event and a cue, not a state or a cry (story 4.4, D4). */
   | { type: 'BabyWoke'; t: SimMs }
   /**
+   * The breath was taken (story 4.9): a `HoldAnywhere` in a stealth step. It plays nothing; the
+   * `breath-ring` is drawn from the world.
+   */
+  | { type: 'BreathHeld'; t: SimMs }
+  /**
+   * The breath is over, for any reason (story 4.9): a `ReleaseHold`, or the gauge running out. Every
+   * end of a hold. A level end or a loss with the breath held ends none.
+   */
+  | { type: 'BreathReleased'; t: SimMs }
+  /**
+   * The breath was let out loudly (story 4.9): it ran `empty`, was released `early` in a false alarm's
+   * window, or was `notHeld` when the window was first seen. At most one per passage. The noise gauge
+   * reads it (`feel.noise.sources.breathReleased`).
+   */
+  | { type: 'BreathGasped'; t: SimMs; reason: BreathGaspReason }
+  /**
+   * A board creaked under Papa (story 4.9): he walked onto the creak zone `zoneId`, at this point.
+   * The noise gauge reads it (`feel.noise.sources.floorCreak`).
+   */
+  | { type: 'FloorCreaked'; t: SimMs; zoneId: string; xM: number; zM: number }
+  /**
    * The note of a `beats` step number `entryIndex` of the timeline fell (story 4.5), at its time: the
    * count-in's (`judgedIndex` null) and the judged beats'. It fires even for a beat that was tapped
    * early: the cue is the tempo, not the answer.
@@ -435,6 +460,9 @@ export const SIM_EVENT_TYPES = [
   'BeatMissed',
   'BeatStrayTapped',
   'BladderFilled',
+  'BreathGasped',
+  'BreathHeld',
+  'BreathReleased',
   'CoffeeDrunk',
   'CoffeeStarted',
   'ComboCashedIn',
@@ -442,6 +470,7 @@ export const SIM_EVENT_TYPES = [
   'DecoyCued',
   'DecoyTapped',
   'FatigueThresholdCrossed',
+  'FloorCreaked',
   'GagTriggered',
   'InstinctEnded',
   'InstinctTriggered',

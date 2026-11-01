@@ -102,6 +102,33 @@ describe('withoutThreats', () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
+  it('keeps the two alerts a stealth step spawns on the baby, with its sequence (story 4.9)', () => {
+    const planned = createTestLevel({
+      waves: [testWave([OUTLET])],
+      carry: CARRY,
+      sequences: ['stealth_exit'],
+    });
+    const stripped = withoutThreats(planned);
+    expect(Object.keys(stripped.threats).sort()).toEqual([
+      'arms_cry',
+      'false_alarm_sigh',
+      'real_wake',
+    ]);
+    expect(stripped.threats.false_alarm_sigh?.response).toBe('nothing');
+    expect(stripped.threats.real_wake?.target).toBe('baby');
+    expect(Object.keys(stripped.sequences)).toEqual(['stealth_exit']);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('warns about a stealth def the level does not load, and keeps the others', () => {
+    const planned = createTestLevel({ carry: CARRY, sequences: ['stealth_exit'] });
+    const threats = { ...planned.threats };
+    delete threats.real_wake;
+    const stripped = withoutThreats({ ...planned, threats });
+    expect(Object.keys(stripped.threats).sort()).toEqual(['arms_cry', 'false_alarm_sigh']);
+    expect(warnSpy.mock.calls[0]?.[1]).toContain('real_wake');
+  });
+
   it('warns about a duel def the level does not load, and keeps the others', () => {
     const planned = createTestLevel({ carry: CARRY, sequences: ['bedtime_duel'] });
     const threats = { ...planned.threats };

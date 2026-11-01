@@ -92,6 +92,9 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   'ppBeatMisses',
   'ppBabyWake',
   'beatLog',
+  // Story 4.9: the stealth step's debug mirrors (`data-pp-breath-pct`, `data-pp-breath-held`), the same way.
+  'ppBreathPct',
+  'ppBreathHeld',
 ];
 
 /**

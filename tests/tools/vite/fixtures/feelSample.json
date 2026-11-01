@@ -96,6 +96,11 @@
     "toiletDurationMs": 5000
   },
   "sequences": { "resumeGapMs": 2000 },
+  "stealth": {
+    "sneakSpeedPct": 35,
+    "breathCapacityMs": 6000,
+    "breathRefillPerSecMs": 1500
+  },
   "instinct": {
     "timeScale": 0.8,
     "windowBonusPct": 30,

@@ -63,7 +63,7 @@ describe('content/threats/outlet.json', () => {
       ],
       ['holdUntilMs'],
     ],
-    ['a response the sim cannot judge yet', [['response', 'nothing']], ['response']],
+    ['a response the sim cannot judge yet', [['response', 'dodge']], ['response']],
     ['a telegraph delay of 0', [['telegraphDelayMs', 0]], ['telegraphDelayMs']],
     ['a negative telegraph delay', [['telegraphDelayMs', -1]], ['telegraphDelayMs']],
     [
@@ -80,7 +80,7 @@ describe('content/threats/outlet.json', () => {
     ['a missing icon', [['icon', undefined]], ['icon']],
     ['a missing cue', [['feedback.gag', undefined]], ['feedback.gag']],
     ['a missing target (no default)', [['target', undefined]], ['target']],
-    ['an unknown target', [['target', 'baby']], ['target']],
+    ['an unknown target', [['target', 'crib']], ['target']],
   ])('rejects %s', (_name, changes, expected) => {
     expect(failedPaths(mutated(...changes))).toEqual(expected);
   });

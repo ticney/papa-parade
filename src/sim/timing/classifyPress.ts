@@ -8,6 +8,9 @@ export type PressKind = 'parry' | 'firm';
  * typechecks against `'wait'` and would make every tap a `wrongResponse`.
  */
 export function pressKindOf(response: ThreatResponse): PressKind {
+  // A `nothing` threat (story 4.9) never holds a press: `pressThreat` gags any command aimed at it, so
+  // this line is unreachable. 'parry' only keeps the signature total.
+  if (response === 'nothing') return 'parry';
   return response === 'wait' ? 'parry' : response;
 }
 

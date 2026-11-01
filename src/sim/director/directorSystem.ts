@@ -119,14 +119,15 @@ function startThreat(world: World, ctx: StepContext, index: number, waveIndex: n
 
 /**
  * `ForceThreat` (debug): starts the idle threat `threatId` now. Ignored, with no event, when it is
- * unknown, not idle, on Papa, or a silence while the baby is not free, or Papa stands in its zone.
+ * unknown, not idle, on Papa or on the baby, or a silence while the baby is not free, or Papa stands in its zone.
  */
 function forceThreat(world: World, ctx: StepContext, threatId: number): void {
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
     if (threat.id !== threatId) continue;
     const target = ctx.level.threats[i]?.def.target;
-    if (threat.state !== 'idle' || target === 'papa') return;
+    // A threat on Papa or on the baby is spawned by the sim itself (a micro-sleep, a stealth step's alerts).
+    if (threat.state !== 'idle' || target === 'papa' || target === 'baby') return;
     if (target === 'hiddenZone') {
       const zone = ctx.level.threats[i]?.zone;
       const isPapaIn =

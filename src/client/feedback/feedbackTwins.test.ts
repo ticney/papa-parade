@@ -202,7 +202,17 @@ describe('a telegraph sends waves from the source of its sound (story 2.4, AC 3)
 });
 
 describe('a perfect flashes the screen and keeps its ring (story 2.4, AC 6)', () => {
-  const perfects = threats.map((def) => ({ what: def.id, cueId: def.feedback.perfect }));
+  // A `nothing` is never perfect (story 4.9, architecture L744): its perfect is its success, which
+  // `content:check` requires, and nothing of the perfect's mark is asked of it.
+  const perfects = threats
+    .filter((def) => def.response !== 'nothing')
+    .map((def) => ({ what: def.id, cueId: def.feedback.perfect }));
+
+  it('leaves a nothing out because its perfect cue is its success cue', () => {
+    const nothings = threats.filter((def) => def.response === 'nothing');
+    expect(nothings.length).toBeGreaterThan(0);
+    for (const def of nothings) expect(def.feedback.perfect).toBe(def.feedback.success);
+  });
 
   it.each(perfects)('$what ($cueId): flash, ring and heavy vibration', ({ cueId }) => {
     const cue = feedback.cues[cueId];

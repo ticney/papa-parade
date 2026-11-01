@@ -45,6 +45,12 @@ export interface ThreatMarkerEntry {
   readonly icon: ThreatIcon;
   /** The threat stands on Papa (its def's `target` is `papa`): the marker follows his pose. */
   readonly followsPapa: boolean;
+  /**
+   * The threat stands on the baby (its def's `target` is `baby`, story 4.9): his point is written by
+   * the sim at each telegraph, and the marker takes it from the instance when it shows (the baby
+   * may have moved between two telegraphs). Absent for any other threat.
+   */
+  readonly followsBaby?: boolean;
   /** The verb shown above the icon, translated once at build (story 2.2); `''` for no verb (an unknown def). */
   readonly verb: string;
   /**
@@ -242,6 +248,19 @@ export function threatMarkerEntries(
         ...look,
       };
     }
+    // A threat on the baby (a stealth step's alert, story 4.9) stands where he lies, at his height; the
+    // sim writes the point at each telegraph and the marker follows it (`update`).
+    if (def?.target === 'baby') {
+      return {
+        threatId: threat.id,
+        xM: threat.xM,
+        yM: babyBodyRadiusM * 2 + PAPA_MARKER_OFFSET_M,
+        zM: threat.zM,
+        followsPapa: false,
+        followsBaby: true,
+        ...look,
+      };
+    }
     // A silence stands on the open cell of its hidden zone, which the sim chose: above the baby
     // (his body is a cube of side twice `feel.baby.bodyRadiusM`).
     if (def?.target === 'hiddenZone') {
@@ -331,6 +350,10 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   // An open hand, the fingers spread: « LÂCHE ! », the baby touches the mattress (story 4.8).
   open_hand:
     'M7 21.5c-2.2-2.4-3.4-5-3.4-7.4L4 9.5a1.3 1.3 0 0 1 2.6-.2l.4 3.2V4.2a1.4 1.4 0 0 1 2.8 0V10h.4V3a1.4 1.4 0 0 1 2.8 0v7h.4V4.2a1.4 1.4 0 0 1 2.8 0V11h.4V7.2a1.4 1.4 0 0 1 2.8 0v7.4c0 3.2-1.8 5.6-4.4 6.9z',
+  // A big « Z » and a smaller one above it, to its right: the baby's sleeping breath, « CHUT… » (the false alarm,
+  // story 4.9). Two chunky letters, not the tear drop's single round silhouette, and wide enough that the
+  // ink outline does not fill them at the marker's size.
+  sigh: 'M2.5 8h9.5v2.7L6.7 17.3H12v3H2.5v-2.7l5.3-6.6H2.5z M13.8 3h7.4v2.2l-4 4.8h4v2.4h-7.4v-2.2l4-4.8h-4z',
   // Three dots: the « … » of the suspicious silence (story 1.21).
   dots: 'M6 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M18 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0',
 };
@@ -810,6 +833,14 @@ export function createThreatMarkers(
           entry.xM = papa.xM;
           entry.zM = papa.zM;
           marker.object.position.set(entry.xM, entry.yM, entry.zM);
+        }
+        // The sim wrote the baby's point at this telegraph: the marker and the hit test take it.
+        if (isActive && entry.followsBaby === true && threat !== undefined) {
+          if (entry.xM !== threat.xM || entry.zM !== threat.zM) {
+            entry.xM = threat.xM;
+            entry.zM = threat.zM;
+            marker.object.position.set(entry.xM, entry.yM, entry.zM);
+          }
         }
         updateHoldRing(marker, threat, renderSimMs, holdMinMs);
         const isHighlighted = isPressed || (threat !== undefined && threat.id === targetedId);

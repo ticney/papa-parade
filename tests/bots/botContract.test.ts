@@ -1,4 +1,4 @@
-import { BOT_IDS, type BotId, type BotOptions } from '@bots/bot';
+import { BOT_IDS, type BotId, type BotOptions, type BotSetup } from '@bots/bot';
 import { playGame } from '@bots/playGame';
 import type { BotSettings } from '@content/schemas/bots';
 import { STEP_MS } from '@shared/constants';
@@ -102,5 +102,36 @@ describe.each(BOT_IDS)('the %s bot and the release defs it is told about', (id: 
     expect(botSetup(SEED).releaseDefIds.length).toBeGreaterThan(0);
     expect(told.journal()).toEqual(untold.journal());
     expect(hashJson(told.world)).toBe(hashJson(untold.world));
+  });
+});
+
+// The stealth defs move no draw (story 4.9, AC 18): `nothing` is read only for a threat of that response,
+// and the walk and the breath only in a stealth step, so a bot that is told about the false alarm and the
+// real wake plays any other game as it did before.
+describe.each(BOT_IDS)('the %s bot and the stealth defs it is told about', (id: BotId) => {
+  const STEALTH_DEFS = ['false_alarm_sigh', 'real_wake'];
+  const played = async (responses: BotSetup['responses']) => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: SEED,
+      strictInvariants: true,
+    });
+    playGame(sim, makeBot(id, { ...botSetup(SEED), responses }), BOT_TEST_UNTIL_MS, () => {});
+    return sim;
+  };
+
+  it('plays the same game on a level that never uses them, told or not', async () => {
+    const told = botSetup(SEED).responses;
+    for (const defId of STEALTH_DEFS) expect(told[defId]).toBeDefined();
+    const untold = Object.fromEntries(
+      Object.entries(told).filter(([defId]) => !STEALTH_DEFS.includes(defId)),
+    );
+    const a = await played(told);
+    const b = await played(untold);
+    expect(a.journal()).toEqual(b.journal());
+    expect(hashJson(a.world)).toBe(hashJson(b.world));
+    expect(a.journal().entries.some((entry) => entry.command.type === 'HoldAnywhere')).toBe(false);
   });
 });

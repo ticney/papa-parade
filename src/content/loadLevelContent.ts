@@ -172,13 +172,30 @@ export async function loadLevelContent(
     sequences[sequenceId] = def.value;
   }
 
-  // A `duel` step names the threat it spawns on Papa (story 4.6): the threats were read before the
+  // A `duel` step names the threat it spawns on Papa (story 4.6), a `stealth` step its two alerts (story 4.9): the threats were read before the
   // sequences, so it is loaded now, after every other def, and a missing file is reported at the step.
   for (const [sequenceId, sequence] of Object.entries(sequences)) {
     const sequenceDisplay = `content/${SEQUENCE_DEF_PATTERN.dir}/${sequenceId}${SEQUENCE_DEF_PATTERN.suffix}`;
     for (const [j, step] of sequence.steps.entries()) {
-      if (step.kind !== 'duel') continue;
-      await loadThreat(step.threatDef, sequenceDisplay, formatJsonPath(['steps', j, 'threatDef']));
+      if (step.kind === 'duel') {
+        await loadThreat(
+          step.threatDef,
+          sequenceDisplay,
+          formatJsonPath(['steps', j, 'threatDef']),
+        );
+      } else if (step.kind === 'stealth') {
+        // A stealth step (story 4.9) names its two alerts, which the sim spawns on the baby.
+        await loadThreat(
+          step.falseAlarmDef,
+          sequenceDisplay,
+          formatJsonPath(['steps', j, 'falseAlarmDef']),
+        );
+        await loadThreat(
+          step.realWakeDef,
+          sequenceDisplay,
+          formatJsonPath(['steps', j, 'realWakeDef']),
+        );
+      }
     }
   }
 

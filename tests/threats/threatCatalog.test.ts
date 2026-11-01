@@ -13,8 +13,9 @@ import {
 import { DIFFICULTY_TIER_IDS, type DifficultyTierId, STEP_MS } from '@shared/constants';
 import { nextFloat, type RngState } from '@shared/rng';
 import { asSimMs } from '@shared/time';
-import { createSim, GAG_IDS, type Sim, type SimEvent } from '@sim';
+import { createSim, GAG_IDS, type Sim, type SimEvent, type World } from '@sim';
 import { describe, expect, it } from 'vitest';
+import { FLOAT_MAX, FLOAT_ZERO } from '../support/stealthSupport.ts';
 import { createTestContent, createTestGeometry } from '../support/testContent.ts';
 
 // One "perfect / success / too early / too late" set per file of content/threats/, generated from
@@ -81,6 +82,12 @@ const armsCryDefs = new Set<string>();
  * starts, so they are tested through a one-step sequence of their own.
  */
 const duelDefs = new Set<string>();
+/**
+ * The ones a live sequence's `stealth` step spawns on the baby (story 4.9): a false alarm (a `nothing`)
+ * and a real wake (a `parry`), both on `target: "baby"`, which no wave can plan.
+ */
+const stealthDefs = new Set<string>();
+let liveStealthSequence: SequenceDef | undefined;
 for (const name of readdirSync(LEVELS_DIR).sort()) {
   if (!name.endsWith('.json') || name.endsWith('.geometry.json')) continue;
   const text = readFileSync(`${LEVELS_DIR}${name}`, 'utf8');
@@ -107,6 +114,14 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
       throw new Error(`${sequenceId} is invalid: ${JSON.stringify(sequence.error)}`);
     }
     for (const step of sequence.value.steps) {
+      if (step.kind === 'stealth') {
+        // Story 4.9: a stealth step spawns its two alerts on the baby. They are tested through the live
+        // sequence itself (the real exit, the real gaps), the alert being forced at the telegraph.
+        stealthDefs.add(step.falseAlarmDef);
+        stealthDefs.add(step.realWakeDef);
+        liveStealthSequence ??= sequence.value;
+        continue;
+      }
       if (step.kind !== 'duel') continue;
       spawnedOnPapa.add(step.threatDef);
       duelDefs.add(step.threatDef);
@@ -183,6 +198,9 @@ function answerOf(def: ThreatDef, pressT: number, openAt: number): Answer {
         settledAt: Math.max(pressT + holdMinMs, openAt + def.holdUntilMs) + STEP_MS,
       };
     }
+    case 'nothing':
+      // Story 4.9: nothing is answered by not pressing; its block below never calls this.
+      throw new Error(`"${def.id}" is answered by leaving it alone, not by a press`);
   }
 }
 
@@ -212,7 +230,7 @@ function anchorOf(def: ThreatDef): string {
  * `contentFor` makes it due at once.
  */
 function levelPlanning(tested: ThreatDef): LevelContent {
-  const anchored = defs.filter((def) => def.target !== 'papa');
+  const anchored = defs.filter((def) => def.target !== 'papa' && def.target !== 'baby');
   const planned = (def: ThreatDef) => ({ def: def.id, anchor: anchorOf(def) });
   if (duelDefs.has(tested.id)) {
     const cry = defs.find((def) => def.id === CARRY_CRY_DEF);
@@ -232,6 +250,27 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       threats: Object.fromEntries([tested, cry].map((def) => [def.id, def])),
       disruptions: {},
       sequences: { catalog_duel: duelSequenceOf(tested) },
+    };
+  }
+  if (stealthDefs.has(tested.id)) {
+    const cry = defs.find((def) => def.id === CARRY_CRY_DEF);
+    if (cry === undefined) throw new Error(`no live cry in the arms "${CARRY_CRY_DEF}"`);
+    if (liveStealthSequence === undefined) throw new Error('no live stealth sequence');
+    return {
+      level: {
+        id: 'salon_crawler',
+        variant: 'nap' as const,
+        durationMs: CATALOG_OTHERS_FROM_MS,
+        objects: [],
+        gauges: {},
+        carry: { armsCryDef: cry.id },
+        sequences: [liveStealthSequence.id],
+        feelOverrides: {},
+        waves: [],
+      },
+      threats: Object.fromEntries(defs.map((def) => [def.id, def])),
+      disruptions: {},
+      sequences: { [liveStealthSequence.id]: liveStealthSequence },
     };
   }
   if (armsCryDefs.has(tested.id)) {
@@ -300,7 +339,7 @@ function levelPlanning(tested: ThreatDef): LevelContent {
  * the baby is taken (its delay is nil, and the baby is always within reach).
  */
 function contentFor(def: ThreatDef) {
-  if (duelDefs.has(def.id)) {
+  if (duelDefs.has(def.id) || stealthDefs.has(def.id)) {
     // The cry in the arms the level carries with must not come during the duel.
     return {
       ...content,
@@ -377,6 +416,7 @@ async function telegraphed(
   def: ThreatDef,
   tier: DifficultyTierId,
   earlyPress: 'fail' | 'guard' = 'fail',
+  lagMs = 0,
 ) {
   const base = contentFor(def);
   const sim = await createSim({
@@ -386,6 +426,7 @@ async function telegraphed(
     seed: 1,
   });
   if (tier !== 'normal') sim.enqueue({ type: 'SetDifficultyTier', t: asSimMs(0), tier });
+  if (lagMs > 0) sim.enqueue({ type: 'SetInputLag', t: asSimMs(0), lagMs });
   // The rng around the step that telegraphs a duel def (story 4.7: the draws it makes there).
   let rngBefore: RngState | null = null;
   if (def.target === 'hiddenZone') {
@@ -401,6 +442,23 @@ async function telegraphed(
     sim.step();
     const events = [...sim.drainEvents()];
     expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
+  } else if (stealthDefs.has(def.id)) {
+    // Story 4.9: the sequence starts, then the alert of the tested def is forced at the next step (the
+    // rng set so that the kind's draw is extreme, the alert due now): the real thing, the gaps apart.
+    if (liveStealthSequence === undefined) throw new Error('no live stealth sequence');
+    sim.enqueue({
+      type: 'StartSequence',
+      t: asSimMs(sim.world.time.sim),
+      sequenceId: liveStealthSequence.id,
+    });
+    sim.step();
+    sim.drainEvents();
+    (sim.world as World).rng = { ...(def.response === 'nothing' ? FLOAT_MAX : FLOAT_ZERO) };
+    sim.world.sequence.stealth.nextAlertAt = asSimMs(sim.world.time.sim);
+    sim.step();
+    const events = [...sim.drainEvents()];
+    expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
+    sim.world.sequence.stealth.nextAlertAt = asSimMs(CATALOG_OTHERS_FROM_MS);
   } else if (armsCryDefs.has(def.id)) {
     // Papa takes the baby (he is in reach); the cry in the arms is telegraphed at the next step.
     sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) });
@@ -457,7 +515,12 @@ describe('the threat catalogue', () => {
   it.each(liveDefs.map((def) => [def.id, def.target] as const))(
     '"%s" is planned by a live level',
     (id, target) => {
-      const planned = target === 'papa' ? spawnedOnPapa.has(id) : anchors.has(id);
+      const planned =
+        target === 'papa'
+          ? spawnedOnPapa.has(id)
+          : target === 'baby'
+            ? stealthDefs.has(id)
+            : anchors.has(id);
       expect(planned, `"${id}" is planned by no level`).toBe(true);
     },
   );
@@ -473,8 +536,10 @@ describe('the threat catalogue', () => {
     }
   });
 
-  it('proves every response: the live defs and the fixtures between them cover parry, firm and wait', () => {
-    expect(new Set(defs.map((def) => def.response))).toEqual(new Set(['parry', 'firm', 'wait']));
+  it('proves every response: the live defs and the fixtures between them cover parry, firm, wait and nothing', () => {
+    expect(new Set(defs.map((def) => def.response))).toEqual(
+      new Set(['parry', 'firm', 'wait', 'nothing']),
+    );
   });
 
   it('draws one float more at the telegraph of a def with a feint than of a wait with none (story 4.7)', async () => {
@@ -505,7 +570,10 @@ describe('the threat catalogue', () => {
 });
 
 describe.each(
-  DIFFICULTY_TIER_IDS.flatMap((tier) => defs.map((def) => [def.id, tier, def] as const)),
+  DIFFICULTY_TIER_IDS.flatMap((tier) =>
+    // A `nothing` is sat through, not answered: its set is the one below (story 4.9).
+    defs.filter((def) => def.response !== 'nothing').map((def) => [def.id, tier, def] as const),
+  ),
 )('threat %s at the %s tier', (_id, tier, def) => {
   // A Firmness judged on its release (story 4.8) is pressed early and judged on the release: its own set below.
   const release = def.release;
@@ -795,4 +863,101 @@ describe.each(
       ]);
     });
   }
+});
+
+describe.each(
+  DIFFICULTY_TIER_IDS.flatMap((tier) =>
+    defs.filter((def) => def.response === 'nothing').map((def) => [def.id, tier, def] as const),
+  ),
+)('nothing threat %s at the %s tier (story 4.9)', (_id, tier, def) => {
+  const nothingMs = def.nothingMs ?? Number.NaN;
+
+  it('proves the generic set does not run on it: it is a nothing, with a length of its own', () => {
+    expect(def.response).toBe('nothing');
+    expect(def.windowMs).toBeNull();
+    expect(nothingMs).toBeGreaterThan(0);
+  });
+
+  it.each([0, 200])(
+    'is a success at windowOpenAt + nothingMs exactly (the length does not scale), with lagMs %i',
+    async (lagMs) => {
+      const { sim, openAt, window, threatId } = await telegraphed(def, tier, 'fail', lagMs);
+      expect(window).toEqual({ windowMs: nothingMs, perfectMs: 0, toleranceMs: 0, bufferMs: 0 });
+      const endAt = openAt + nothingMs;
+      const before = runUntil(sim, endAt + lagMs - STEP_MS);
+      expect(results(before)).toEqual([]);
+      const events = runUntil(sim, endAt + lagMs + STEP_MS);
+      expect(results(events)).toEqual([
+        expect.objectContaining({
+          response: 'nothing',
+          quality: 'success',
+          offsetMs: 0,
+          t: endAt + lagMs,
+          threatId,
+        }),
+      ]);
+      expect(gags(events)).toEqual([]);
+    },
+  );
+
+  it('is never perfect, and asks for no hitstop', async () => {
+    const { sim, openAt } = await telegraphed(def, tier);
+    const events = runUntil(sim, openAt + nothingMs + STEP_MS);
+    expect(results(events).map((event) => (event as { quality: string }).quality)).toEqual([
+      'success',
+    ]);
+    expect(sim.freezeRealMs).toBe(0);
+  });
+
+  it.each(['fail', 'guard'] as const)(
+    'is an acted gag for a press at the telegraph, at the opening and one step before the end, with earlyPress %s',
+    async (earlyPress) => {
+      const instants = {
+        telegraph: (enteredAt: number) => enteredAt + STEP_MS,
+        opening: (_enteredAt: number, openAt: number) => openAt,
+        lastStep: (_enteredAt: number, openAt: number) => openAt + nothingMs - STEP_MS,
+      };
+      for (const [name, instant] of Object.entries(instants)) {
+        const { sim, enteredAt, openAt, threatId } = await telegraphed(def, tier, earlyPress);
+        const t = instant(enteredAt, openAt);
+        sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
+        const events = runUntil(sim, openAt + nothingMs + STEP_MS);
+        expect(results(events), name).toEqual([
+          expect.objectContaining({ quality: 'fail', reason: 'acted', offsetMs: null }),
+        ]);
+        expect(gags(events), name).toEqual([
+          expect.objectContaining({ reason: 'acted', threatId }),
+        ]);
+        expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
+      }
+    },
+  );
+
+  it('is an acted gag for a TapBaby too, at the telegraph, at the opening and one step before the end', async () => {
+    for (const earlyPress of ['fail', 'guard'] as const) {
+      for (const name of ['telegraph', 'opening', 'lastStep'] as const) {
+        const { sim, enteredAt, openAt, threatId } = await telegraphed(def, tier, earlyPress);
+        const t =
+          name === 'telegraph'
+            ? enteredAt + STEP_MS
+            : name === 'opening'
+              ? openAt
+              : openAt + nothingMs - STEP_MS;
+        sim.enqueue({ type: 'TapBaby', t: asSimMs(t) });
+        const events = runUntil(sim, openAt + nothingMs + STEP_MS);
+        expect(gags(events), `${earlyPress} ${name}`).toEqual([
+          expect.objectContaining({ reason: 'acted', threatId }),
+        ]);
+      }
+    }
+  });
+
+  it('ignores a press stamped at the end or after it: nothing, and the verdict is the success', async () => {
+    const { sim, openAt, threatId } = await telegraphed(def, tier, 'fail', 200);
+    sim.enqueue({ type: 'PressThreat', t: asSimMs(openAt + nothingMs), threatId });
+    sim.enqueue({ type: 'PressThreat', t: asSimMs(openAt + nothingMs + STEP_MS), threatId });
+    const events = runUntil(sim, openAt + nothingMs + 200 + 3 * STEP_MS);
+    expect(gags(events)).toEqual([]);
+    expect(results(events)).toEqual([expect.objectContaining({ quality: 'success' })]);
+  });
 });

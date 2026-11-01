@@ -145,11 +145,13 @@ describe('bindKeyboard', () => {
     const keys = createHeldKeys();
     const changes: number[] = [];
     const actions: string[] = [];
+    const holds: string[] = [];
     let live = isLive;
     const unbind = bindKeyboard(keys, targets.windowTarget, targets.documentTarget, {
       onChange: (timeStampMs) => changes.push(timeStampMs),
       isLive: () => live,
       onAction: (phase, timeStampAtReal) => actions.push(`${phase}@${timeStampAtReal}`),
+      onHold: (phase, timeStampAtReal) => holds.push(`${phase}@${timeStampAtReal}`),
     });
     const press = (code: string, extra: Record<string, unknown> = {}) => {
       const event = {
@@ -173,6 +175,7 @@ describe('bindKeyboard', () => {
       keys,
       changes,
       actions,
+      holds,
       unbind,
       press,
       setLive: (value: boolean) => (live = value),
@@ -246,6 +249,62 @@ describe('bindKeyboard', () => {
     const { unbind, listeners } = setup();
     unbind();
     for (const set of listeners.values()) expect(set.size).toBe(0);
+  });
+
+  describe('the breath key (story 4.9)', () => {
+    it('reports E down once and up on its keyup, by the physical key, and never prevents its default', () => {
+      const { press, fire, holds } = setup();
+      const down = press('KeyE', { timeStamp: 10 });
+      press('KeyE', { timeStamp: 20, repeat: true });
+      fire('keyup', { code: 'KeyE', timeStamp: 30 });
+      expect(holds).toEqual(['down@10', 'up@30']);
+      expect(down.defaultPrevented).toBe(false);
+    });
+
+    it('ignores a chord on the way down but not on the way up', () => {
+      const { press, fire, holds } = setup();
+      for (const modifier of ['ctrlKey', 'metaKey', 'altKey']) press('KeyE', { [modifier]: true });
+      expect(holds).toEqual([]);
+      fire('keyup', { code: 'KeyE', timeStamp: 40 });
+      expect(holds).toEqual(['up@40']);
+    });
+
+    it('lets go when the window loses focus, the page hides or Cmd goes down, once', () => {
+      for (const lose of [
+        (f: ReturnType<typeof setup>) => f.fire('blur', { timeStamp: 50 }),
+        (f: ReturnType<typeof setup>) => {
+          f.documentTarget.visibilityState = 'hidden';
+          f.fire('visibilitychange', { timeStamp: 50 });
+        },
+        (f: ReturnType<typeof setup>) => f.press('MetaLeft', { timeStamp: 50 }),
+      ]) {
+        const run = setup();
+        run.press('KeyE', { timeStamp: 10 });
+        lose(run);
+        lose(run);
+        expect(run.holds).toEqual(['down@10', 'up@50']);
+      }
+    });
+
+    it('is no movement key and no action key', () => {
+      const { press, changes, actions, keys } = setup();
+      press('KeyE');
+      expect(changes).toEqual([]);
+      expect(actions).toEqual([]);
+      expect(keys.held.size).toBe(0);
+    });
+
+    it('works without an onHold binding', () => {
+      const targets = fakeTargets();
+      bindKeyboard(createHeldKeys(), targets.windowTarget, targets.documentTarget, {
+        onChange: () => {},
+        isLive: () => true,
+      });
+      expect(() => {
+        targets.fire('keydown', { code: 'KeyE', repeat: false, timeStamp: 1 });
+        targets.fire('keyup', { code: 'KeyE', timeStamp: 2 });
+      }).not.toThrow();
+    });
   });
 
   describe('the action key (story 1.17)', () => {

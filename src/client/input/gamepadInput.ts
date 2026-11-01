@@ -5,6 +5,7 @@ import {
   PAD_BUTTON_DPAD_LEFT,
   PAD_BUTTON_DPAD_RIGHT,
   PAD_BUTTON_DPAD_UP,
+  PAD_BUTTON_RIGHT_TRIGGER,
   PAD_BUTTON_START,
   PAD_STAMP_MAX_AGE_MS,
 } from '@shared/constants';
@@ -29,8 +30,17 @@ export interface StickAxes {
   y: number;
 }
 
-/** The buttons the game reads, named by their role (standard layout: 0, 1, 9 and 12 to 15). */
-export type PadButton = 'confirm' | 'back' | 'start' | 'up' | 'down' | 'left' | 'right';
+/** The buttons the game reads, named by their role (standard layout: 0, 1, 7, 9 and 12 to 15). */
+export type PadButton =
+  | 'confirm'
+  | 'back'
+  | 'start'
+  | 'up'
+  | 'down'
+  | 'left'
+  | 'right'
+  /** The right trigger (story 4.9): Papa's breath in a stealth step; it moves no menu. */
+  | 'hold';
 
 /** Every `PadButton`, in the order of `BUTTON_INDEX`. */
 export const PAD_BUTTONS: readonly PadButton[] = [
@@ -41,6 +51,7 @@ export const PAD_BUTTONS: readonly PadButton[] = [
   'down',
   'left',
   'right',
+  'hold',
 ];
 
 /** Standard-layout index of each entry of `PAD_BUTTONS` (W3C Gamepad › Standard Gamepad layout). */
@@ -52,6 +63,7 @@ const BUTTON_INDEX: readonly number[] = [
   PAD_BUTTON_DPAD_DOWN,
   PAD_BUTTON_DPAD_LEFT,
   PAD_BUTTON_DPAD_RIGHT,
+  PAD_BUTTON_RIGHT_TRIGGER,
 ];
 
 /** Whose glyphs the player knows: PlayStation (✕ ○) or the Xbox style everything else gets (A B). */
@@ -91,6 +103,7 @@ export function createPadState(): PadState {
     down: false,
     left: false,
     right: false,
+    hold: false,
   });
   return {
     isPresent: false,

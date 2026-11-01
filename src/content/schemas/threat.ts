@@ -10,11 +10,11 @@ const idSchema = (description: string) =>
   z.string().regex(SNAKE_ID_PATTERN, 'an id is lower_snake_case').describe(description);
 
 /**
- * The responses the sim judges today. `firm` joined in story 1.23 and `wait` in story 4.6 (a tap,
- * but only once a signal has come); `nothing` (4.9) and `dodge` (5.1) each join with their story: the
- * schema accepts only what the sim can judge.
+ * The responses the sim judges today. `firm` joined in story 1.23, `wait` in story 4.6 (a tap, but
+ * only once a signal has come) and `nothing` in story 4.9 (the player must leave the threat alone for
+ * `nothingMs`); `dodge` (5.1) joins with its story: the schema accepts only what the sim can judge.
  */
-export const THREAT_RESPONSES = ['parry', 'firm', 'wait'] as const;
+export const THREAT_RESPONSES = ['parry', 'firm', 'wait', 'nothing'] as const;
 export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
 
 /**
@@ -33,6 +33,7 @@ export const THREAT_ICONS = [
   'peek',
   'sweat',
   'open_hand',
+  'sigh',
 ] as const;
 export type ThreatIcon = (typeof THREAT_ICONS)[number];
 
@@ -62,9 +63,10 @@ const hasDefaultVerb = (response: string): boolean => response === 'dodge';
 /**
  * Where a threat stands: on a planned anchor of the level (a wave plans it), on Papa himself
  * (the sim spawns it: the micro-sleep of story 1.19, which follows him wherever he walks), or in a
- * hidden zone of the room (the suspicious silence of story 1.21: the baby goes there and goes quiet).
+ * hidden zone of the room (the suspicious silence of story 1.21: the baby goes there and goes quiet),
+ * or on the baby wherever he lies (story 4.9: a stealth step's alerts, whose marker follows him).
  */
-export const THREAT_TARGETS = ['anchor', 'papa', 'hiddenZone'] as const;
+export const THREAT_TARGETS = ['anchor', 'papa', 'hiddenZone', 'baby'] as const;
 export type ThreatTarget = (typeof THREAT_TARGETS)[number];
 
 const FeedbackCuesSchema = z
@@ -151,6 +153,13 @@ const baseShape = {
     .describe(
       "Only on a `wait` threat (optional there, refused elsewhere): a feint before the signal, « un œil s'entrouvre » (story 4.7). A press on it is an `early` gag like any press before the signal.",
     ),
+  nothingMs: z
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Only on a `nothing` threat (required there, refused elsewhere): how long the player must leave the threat alone, from the opening of the window, in sim ms. It is the whole window: no difficulty tier, fatigue or instinct stretches it (story 4.9).',
+    ),
   holdUntilMs: z
     .number()
     .positive()
@@ -209,13 +218,13 @@ const AnchoredThreatDefSchema = z
   .strictObject({
     ...baseShape,
     target: z
-      .enum(['anchor', 'papa'])
+      .enum(['anchor', 'papa', 'baby'])
       .describe(
-        'Where the threat stands: a planned anchor, or on Papa (system-spawned, story 1.19).',
+        'Where the threat stands: a planned anchor, on Papa (system-spawned, story 1.19), or on the baby (a stealth step spawns it, story 4.9).',
       ),
     gag: idSchema('The gag played on a miss (a `GAG_IDS` entry of the sim).'),
   })
-  .describe('A threat that stands on an anchor of the level, or on Papa.');
+  .describe('A threat that stands on an anchor of the level, on Papa, or on the baby.');
 
 const HiddenZoneThreatDefSchema = z
   .strictObject({
@@ -294,6 +303,38 @@ export const ThreatDefSchema = z
           code: 'custom',
           path: ['release', 'pressWithinMs'],
           message: '`release.pressWithinMs` must be below `telegraphDelayMs`',
+        });
+      }
+    }
+    // `nothing` (story 4.9): the window is the stretch to sit through, so `nothingMs` is its length and
+    // every key that shapes another response's window or signal is refused.
+    if (def.response === 'nothing' && def.nothingMs === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['nothingMs'],
+        message: 'a threat with response "nothing" needs `nothingMs` (sim ms)',
+      });
+    } else if (def.response !== 'nothing' && def.nothingMs !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['nothingMs'],
+        message: `\`nothingMs\` is only for a threat with response "nothing", not "${def.response}"`,
+      });
+    }
+    if (def.response === 'nothing') {
+      if (def.windowMs !== null) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['windowMs'],
+          message:
+            'a threat with response "nothing" has `windowMs: null`: `nothingMs` is its window',
+        });
+      }
+      if (def.target === 'hiddenZone') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['target'],
+          message: 'a threat with response "nothing" cannot be a "hiddenZone" threat',
         });
       }
     }
@@ -412,7 +453,7 @@ export const ThreatDefSchema = z
         message: `shape and colour are a pair: "${def.iconShape}" goes with "${THREAT_SHAPE_COLORS[def.iconShape]}", not "${def.color}"`,
       });
     } else if (def.iconShape !== 'circle') {
-      // `parry`, `firm` and `wait` are the only responses the sim judges: all are a blue circle.
+      // `parry`, `firm`, `wait` and `nothing` are the only responses the sim judges: all are a blue circle.
       ctx.addIssue({
         code: 'custom',
         path: ['iconShape'],

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CARRY,
   createTestContent,
+  createTestFalseAlarm,
   createTestGeometry,
   createTestLevel,
   FATIGUE_GAUGES,
@@ -262,7 +263,7 @@ describe('the level it plans', () => {
   it('refuses a gag the sim does not know', async () => {
     const odd = { ...planning, threats: { outlet: { ...defOf(), gag: 'outlet_hairs' } } };
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
-      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall, papa_asleep, tissues_everywhere, crayon_scribbles, arms_wail, baby_eyes_reopened, baby_sat_up, baby_woke_on_drop\)/,
+      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall, papa_asleep, tissues_everywhere, crayon_scribbles, arms_wail, baby_eyes_reopened, baby_sat_up, baby_woke_on_drop, baby_woke_by_touch, baby_woke_crying\)/,
     );
   });
 
@@ -451,6 +452,14 @@ describe('the level’s fatigue and objects (story 1.19)', () => {
     });
     await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
       /waves\[0\]\.threats\[0\]: the threat "papa_microsleep" has target "papa": only the sim spawns it/,
+    );
+  });
+
+  it('refuses a wave that plans a threat whose target is baby (story 4.9)', async () => {
+    const base = createTestLevel({ waves: [testWave([OUTLET])] });
+    const level = { ...base, threats: { ...base.threats, outlet: createTestFalseAlarm() } };
+    await expect(createSim({ content, geometry, level, seed: 1 })).rejects.toThrow(
+      /waves\[0\]\.threats\[0\]: the threat "outlet" has target "baby": only a stealth step spawns it/,
     );
   });
 

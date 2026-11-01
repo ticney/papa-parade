@@ -46,6 +46,8 @@ import {
   sequenceBeatProblems,
   sequenceDuelProblems,
   sequenceLayProblems,
+  sequenceStealthProblems,
+  stealthRoomForGeometry,
 } from '@sim';
 
 /** What the beat checks assume when `feel.json` did not load: the normal tier, no tolerance (story 4.5). */
@@ -419,6 +421,18 @@ function checkThreatSounds(
   ] as const;
   for (const { role, clip: expected, isExact } of rules) {
     const cueId = threat.feedback[role];
+    // A `nothing` is never perfect (story 4.9, architecture L744): its `perfect` is never played, so it
+    // is its `success` cue and nothing of the perfect's mark (laugh, heavy vibration, flash) is asked.
+    if (threat.response === 'nothing' && role === 'perfect') {
+      if (cueId !== threat.feedback.success) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['feedback', role]),
+          message: `the cue "${cueId}" is not the success cue "${threat.feedback.success}", but a "nothing" is never perfect: its perfect is its success`,
+        });
+      }
+      continue;
+    }
     if (!Object.hasOwn(feedback.cues, cueId)) continue;
     const clip = feedback.cues[cueId]?.audio?.clip;
     const jsonPath = formatJsonPath(['feedback', role]);
@@ -578,7 +592,8 @@ function checkThreatTwins(
       message: `the cue "${telegraph.cueId}" vibrates "${telegraph.cue?.haptic ?? 'never'}", but a telegraph is a short \`light\` vibration`,
     });
   }
-  const perfect = cueOf('perfect');
+  // A `nothing` never makes a perfect (story 4.9): its perfect cue is its success cue, checked with the sounds.
+  const perfect = threat.response === 'nothing' ? undefined : cueOf('perfect');
   if (perfect !== undefined) {
     if (perfect.cue?.haptic !== 'heavy') {
       problems.push({
@@ -609,6 +624,7 @@ function checkThreatTwins(
     ['perfect', 'perfect'],
     ['gag', 'gag'],
   ] as const) {
+    if (threat.response === 'nothing' && role === 'perfect') continue;
     const juiced = cueOf(role);
     if (juiced !== undefined && juiced.cue?.fx !== preset) {
       problems.push({
@@ -776,6 +792,26 @@ function checkSequenceReferences(
           sequence,
           level.carry !== undefined,
           openCentres,
+        )) {
+          problems.push({
+            file,
+            jsonPath: path,
+            message: `the sequence "${sequenceId}" ${problem}`,
+          });
+        }
+      }
+      // A stealth step (story 4.9): the words are `simLevelOf`'s, the function is shared with it. The
+      // rules that need the room (the exit, the carry) run when the geometry and the feel are there.
+      if (sequence.steps.some((step) => step.kind === 'stealth')) {
+        const room =
+          geometry !== undefined && feel !== undefined
+            ? stealthRoomForGeometry(geometry, feel.movement.papaRadiusM, level.carry !== undefined)
+            : null;
+        for (const problem of sequenceStealthProblems(
+          sequence,
+          Object.fromEntries(families.threats),
+          feel === undefined ? NO_FEEL_DUEL_LIMITS : duelLimitsOf(feel),
+          room,
         )) {
           problems.push({
             file,
@@ -999,6 +1035,13 @@ function checkLevelReferences(
             file,
             jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
             message: `the threat "${entry.def}" has target "papa": only the sim spawns it (gauges.fatigue.microSleepDef, carry.armsCryDef or a sequence's duel step), a wave cannot plan it`,
+          });
+        }
+        if (threatDef?.target === 'baby') {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
+            message: `the threat "${entry.def}" has target "baby": only a stealth step spawns it, a wave cannot plan it`,
           });
         }
         for (const gag of threatDef === undefined ? [] : ThreatGagIds(threatDef)) {

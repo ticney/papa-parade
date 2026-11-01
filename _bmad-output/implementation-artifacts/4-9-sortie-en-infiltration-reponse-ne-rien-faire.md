@@ -4,7 +4,7 @@ baseline_commit: c1cfddf
 
 # Story 4.9: The stealth exit (the Do Nothing response)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.9 « Sortie en infiltration » (L2002-2027). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -276,18 +276,18 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Merge `main` with 4.8 into this branch** (`git merge main`; `npm ci`). If 4.8 is not merged yet, stop and tell Geo.
-- [ ] **T1. `nothing` in the sim** (AC 1-3, part of 19-20)
-  - [ ] T1.1 Schema, `acted`, `sigh`, `content:schemas`, the schema tests.
-  - [ ] T1.2 `telegraphThreat`, `pressThreat`, `TapBaby`, the resolve; `nothingResponse.test.ts` on a frozen def, **before any live content**; `fingerPlanFor`.
-- [ ] **T2. The stealth step** (AC 4-11, 15)
-  - [ ] T2.1 Target `baby`; the step schema, `sequenceStealthProblems`, `feel.stealth`.
-  - [ ] T2.2 The slice, the handler, the start, snapshot v26; the baby inert; `runPapa`.
-  - [ ] T2.3 Breath, gasps, creaks, `runNoise`; the three test files, the fuzz, the round trips.
-- [ ] **T3. Zones and content** (AC 12-14): the `.blend`, `creakZones.test.ts`, the JSON, gags, strings, cues, clips.
-- [ ] **T4. Client** (AC 16-17): the mapper first, then the ring, the exit marker, the baby-target marker, the mirrors.
-- [ ] **T5. Bots and tools** (AC 18-19, 21): the bots, the report, the catalogue, the tables, the goldens.
-- [ ] **T6. End to end, docs, CI** (AC 22-24).
+- [x] **T0. Merge `main` with 4.8 into this branch** (`git merge main`; `npm ci`). If 4.8 is not merged yet, stop and tell Geo.
+- [x] **T1. `nothing` in the sim** (AC 1-3, part of 19-20)
+  - [x] T1.1 Schema, `acted`, `sigh`, `content:schemas`, the schema tests.
+  - [x] T1.2 `telegraphThreat`, `pressThreat`, `TapBaby`, the resolve; `nothingResponse.test.ts` on a frozen def, **before any live content**; `fingerPlanFor`.
+- [x] **T2. The stealth step** (AC 4-11, 15)
+  - [x] T2.1 Target `baby`; the step schema, `sequenceStealthProblems`, `feel.stealth`.
+  - [x] T2.2 The slice, the handler, the start, snapshot v26; the baby inert; `runPapa`.
+  - [x] T2.3 Breath, gasps, creaks, `runNoise`; the three test files, the fuzz, the round trips.
+- [x] **T3. Zones and content** (AC 12-14): the `.blend`, `creakZones.test.ts`, the JSON, gags, strings, cues, clips.
+- [x] **T4. Client** (AC 16-17): the mapper first, then the ring, the exit marker, the baby-target marker, the mirrors.
+- [x] **T5. Bots and tools** (AC 18-19, 21): the bots, the report, the catalogue, the tables, the goldens.
+- [x] **T6. End to end, docs, CI** (AC 22-24).
 
 ## Dev Notes
 
@@ -413,14 +413,68 @@ Paths follow the architecture (`src/sim/sequences/`, `content/sequences/`, `ZONE
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), through `gds-dev-story`.
+
 ### Debug Log References
+
+- **T0.** `main` had moved on: 4.8 was merged (`ecd8cd9`) and the worktree was behind it. `git merge main` conflicted only on `sprint-status.yaml` (the status lines: 4.8 `done`, 4.9 `in-progress`), which CLAUDE.md lets the agent merge. `npm ci` ran again.
+- **`snapshot.ts › threatProblem`** already accepted `perfectMs: 0` (`windowProblem` only wants finite numbers, `>= 0` on restore): nothing to fix there, as AC 2 allowed.
+- **`createSim` order.** `papaGrid` is now built before `simLevelOf` (the stealth exit's « an open cell within `exitRadiusM` » needs it); `simLevelOf` takes it as a parameter. The geometry-reserved anchor `baby` joins `papa`.
+- **The test geometry now has the three boards** (it is the byte copy of the live one, as 4.1 did): `tests/support/stealthSupport.ts › createCreakGeometry` strips them and puts a test board where a test needs one, so a test that walks « the real path » is not creaked by the room's own.
+- **The placement of the boards** was moved by `creakZones.test.ts`, as the story allowed: with the story's centres and half-extents 0.6 its own clean route crossed `board_01`. Now (-0.9, 1.0), (0.85, 0.2), (2.1, -1.1), half-extents 0.45, and the clean route (-0.8, 1.75), (1.0, 1.1), (2.8, 0.3), (2.95, -1.1), (2.9, -2.2).
+- **`content:check`** refused two of the story's own names. A clip is `<category>_<name>` with the category in `tel, resp, gag, baby, papa, env, ui, music`: `floor_creak` became `env_floor_creak` and `breath_gasp` `papa_breath_gasp` (the cues keep their names). And a `nothing` cannot satisfy the perfect cue rules (laugh layer, heavy vibration, flash, `perfect` fx); architecture L744 says a `nothing` is never perfect, so the check now wants its `perfect` cue to be its `success` cue and asks nothing else of it (`tests/content/checkContent.test.ts`, `feedbackTwins.test.ts`).
+- **A real tap on the sigh's marker missed in the e2e**: `data-pp-threat-px` is computed from the marker entry at the `ThreatTelegraphed` event, and the entry of a threat on the baby follows the instance only at the next frame. The mirror now reads the instance for a `followsBaby` entry (the game itself was right: the hit test reads the entry each frame).
+- **A floor tap near the baby is a touch.** The e2e tapped 1.3 m from the playpen and Papa did not move: the hit test gives the baby the touch radius around his point (`TapBaby` is dropped in a stealth step). Kept as designed (a tap on the baby is `TapBaby` only, which is how a false alarm is lost by touch) and noted in `deferred-work.md`; the specs tap away from him.
+- **The sigh glyph** (a mouth and three puffs) fused into a blob at the marker's size in the 667 × 375 screenshot; it is now a big « Z » and a small one, which reads at once and differs from the cry's tear drop.
+- **`random` without `stealth_exit`**: proved below.
+- **Full CI.** Two runs. The first failed on three `tests/tools/sim/stealthSequence.test.ts` tests (5 s under coverage): given a timeout. The second failed on `tests/e2e/reducedMotion.spec.ts › every threat of the level shows its verb whole` (6 cases): `ForceThreat` ignores a threat on the baby, so the spec now starts `stealth_exit` and tries seeds until each alert has shown. Fixed with that spec alone; the steps after the e2e (`build:playtest`, `dist:check`, `e2e:dist` with p95 16.8 ms, 43 draw calls, `build`, `dist:check prod`) were then run and are green.
 
 ### Completion Notes List
 
+**What was done.** The generic `nothing` response (`nothingMs`, `acted`, `target: "baby"`, the `sigh` glyph), the `stealth` step with its slice, its handler, its breath, its boards and its alerts, snapshot v26, `ZONE_creak_board_01..03` in the greybox, the live content (`false_alarm_sigh`, `real_wake`, `stealth_exit`), eight placeholder clips and the cues, the client (the mapper's finger/E/trigger hold, the breath ring, the « SORS ! » marker, the baby-target marker, the mirrors), the bots, the report and the catalogue, two golden scenarios, an e2e spec on both browsers, and the docs.
+
+**Tests added.** `src/sim/threats/nothingResponse.test.ts` (27), `src/sim/sequences/{stealthExit,stealthBreath,stealthCreak,stealthSnapshot}.test.ts` and the 30-seed `stealthExitFuzz.test.ts` (runs cached per seed), `tests/content/{nothingThreatSchema,stealthSchema,creakZones}.test.ts` and the live-content cases of `checkContent.test.ts`, `tests/bots/stealthBots.test.ts` and the « told about the stealth defs, plays the same game » case of `botContract.test.ts`, `tests/tools/sim/stealthSequence.test.ts`, `tests/tools/audio/stealthClips.test.ts`, `tests/golden/stealthExit.test.ts`, the client `breathRing`, `stealthExitMarker`, mapper (AC 16, every bullet), keyboard, gamepad and baby-target-marker tests, the catalogue's `nothing` block (`tests/threats/threatCatalog.test.ts`: at every tier and with `lagMs`), and `tests/e2e/stealthExit.spec.ts` (24 tests, chromium and webkit).
+
+**Goldens (deliberate).** `npm run golden:update` moved the 23 existing journals **only in `worldHash`, `feelHash` and `geometryHash`** (checked: 69 changed lines, all three keys; not one command, not one event). Two scenarios are new: `stealth_exit_won` (seed 1: the false alarm at 4350 sat through with the breath held to 7250, three boards creaked, the exit at 7260) and `stealth_exit_touched_sigh`. `tests/golden/stealthExit.test.ts` pins what they cover. No screenshot reference moved (`autoplay.spec.ts` passes on both browsers).
+
+**The bot tables (AC 21), `npm run sim -- --bot <id> --level salon_crawler --seed 1 --runs 20`**, `main` (with 4.8) against this branch: `perfect`, `human` and `idle` are **identical apart from hashes** (the report only gains the keys `floorCreaks`, `breathGasps`, `nothingResponses` and `failReasons.acted`, all zero); `random` moves (two more instances to pick among), and **taking `stealth_exit` out of the level's `sequences` brings it back to `main`'s report exactly** (the cause, proved, then restored).
+
+| tree | bot | success % | gags | mean score | mean stars | micro-sleeps | silences | instinct | ended |
+|---|---|---|---|---|---|---|---|---|---|
+| main | perfect | 100 | 0 | 90 | 5 | 65 | 190 | 0 | 20 |
+| main | human | 99.9 | 1 | 82.1 | 4 | 62 | 185 | 0 | 20 |
+| main | idle | 0 | 762 | 20 | 1 | 64 | 124 | 6 | 20 |
+| main | random | 0.8 | 781 | 20.1 | 1 | 65 | 122 | 7 | 20 |
+| branch | perfect | 100 | 0 | 90 | 5 | 65 | 190 | 0 | 20 |
+| branch | human | 99.9 | 1 | 82.1 | 4 | 62 | 185 | 0 | 20 |
+| branch | idle | 0 | 762 | 20 | 1 | 64 | 124 | 6 | 20 |
+| branch | random | 0.4 | 774 | 20 | 1 | 63 | 123 | 6 | 20 |
+| branch, `stealth_exit` out of the level | random | 0.8 | 781 | 20.1 | 1 | 65 | 122 | 7 | 20 |
+
+**`--sequence stealth_exit --sequence-at-ms 5000`, same level, seed 1, 20 runs:**
+
+| bot | started | won | lost | gags | creaks | gasps (empty / early / notHeld) | nothing responses | touched (acted) | mean score |
+|---|---|---|---|---|---|---|---|---|---|
+| perfect | 20 | **20** | 0 | 0 | 104 | 0 / 0 / 0 | 11 | 0 | 90 |
+| human | 20 | 20 | 0 | 1 (a wave threat after the sequence) | 104 | 0 / 4 / 0 | 11 | 0 | 80.3 |
+| idle | 20 | 0 | **20** (`baby_woke_crying`) | 718 (the level's own after the loss) | 0 | 0 / 0 / 35 | 35 | 0 | 20 |
+| random | 20 | 0 | 20 (4 by a touch, 16 by a missed wake) | 743 | 12 | 0 / 0 / 27 | 28 | 4 | 20 |
+
+`perfect` wins 20 of 20 with no gag and no gasp, `idle` loses 20 of 20 to a real wake. **`human` does not lose** in this table (20 of 20 won, four early gasps over the 20); the finding for Geo is the opposite of the feared one: at 35 % and these gaps the infiltration is easy for a bot that holds its breath, and `perfect`'s 5 creaks a crossing say the boards are unavoidable on the plain path. Neither is tuned away.
+
+**AC check.** AC 1-3 (`nothing`, generic, tested on an anchored copy, `acted`, `lagMs`, no hitstop), AC 4 (baby target: refused in a wave, `ForceThreat` ignores it, `lockOnThreat` skips it, the marker takes the instance's point: a test on a baby who moved between two telegraphs), AC 5-11 (schema, `sequenceStealthProblems` one test per rule, feel, slice, handler, breath, creaks, Papa), AC 12 (`creakZones.test.ts` on the live geometry; `behind_sofa` and `playpen` unmoved; `testLevel.geometry.json` `cmp` clean), AC 13-14 (content, gags, cues, the eight clips: `content:check` passes), AC 15 (snapshot v26, the three round trips), AC 16-17 (mapper, ring, marker, mirrors), AC 18-19 (bots, report, catalogue), AC 20-21, AC 22 (the e2e: start, tap and key walks incl. a key held through the start, the finger hold and a quick tap, E and RT, a board with its cue, noise and vibration, the sigh, nothing done, a touch by marker and by Space, a floor tap meanwhile, the real wake parried and unanswered, the breath not held / held / early / paused, the door, reduced motion, sfx at 0, autoplay; the screenshots were looked at), AC 23 (docs), AC 24 below.
+
+**Not done / for Geo.** Open points 1-9 are in `deferred-work.md` (§ Story 4-9). The story's starting board placement was replaced by one the test accepts.
+
 ### File List
+
+New: `content/threats/{false_alarm_sigh,real_wake}.json`, `content/sequences/stealth_exit.json`, `public/assets/audio/{tel_false_alarm_sigh,tel_real_wake,resp_nothing,gag_baby_woke_by_touch,gag_baby_woke_crying,env_floor_creak,papa_breath_gasp,music_stealth}.m4a`, `src/sim/sequences/stealthExit.ts`, `src/sim/threats/nothingResponse.test.ts`, `src/sim/sequences/{stealthExit,stealthBreath,stealthCreak,stealthExitFuzz,stealthSnapshot}.test.ts`, `src/client/ui/world/{breathRing,stealthExitMarker}.ts` and their tests, `tests/support/{stealthSupport.ts,testStealth.sequence.json,testFalseAlarm.threat.json,testRealWake.threat.json}`, `tests/content/{nothingThreatSchema,stealthSchema,creakZones}.test.ts`, `tests/bots/stealthBots.test.ts`, `tests/tools/sim/stealthSequence.test.ts`, `tests/tools/audio/stealthClips.test.ts`, `tests/golden/stealthExit.test.ts`, `tests/golden/journals/stealth_exit_{won,touched_sigh}{,.expected}.json`, `tests/e2e/stealthExit.spec.ts`.
+
+Updated: `assets-src/blender/salon_crawler.blend`, `public/assets/levels/salon_crawler.glb`, `content/levels/salon_crawler{,.geometry}.json`, `content/{feel,feedback,strings.fr}.json`, `content/_schemas/{feel,sequence,threat}.schema.json`; `src/content/schemas/{threat,sequence,feel}.ts`, `src/content/loadLevelContent.ts`, `src/shared/constants.ts`; `src/sim/{world,events,commands,createSim,snapshot,index,context}.ts`, `src/sim/threats/{threatFsm,threatSystem,judgeable,gags}.ts`, `src/sim/timing/classifyPress.ts`, `src/sim/sequences/{sequenceSteps,sequenceStart,sequenceEnd,beatClock,bedtimeDuel}.ts`, `src/sim/papa/papaSystem.ts`, `src/sim/baby/babySystem.ts`, `src/sim/gauges/noiseSystem.ts`, `src/sim/director/directorSystem.ts`; `src/bots/{threatTiming,perfectBot,humanBot}.ts`; `src/client/input/{inputMapper,keyboardInput,gamepadInput}.ts`, `src/client/boot.ts`, `src/client/app/threatsSwitch.ts`, `src/client/render/gags.ts`, `src/client/ui/world/{threatMarkers,worldUi}.ts`, `src/client/ui/styles/ui.css`; `tools/{audio/makePlaceholderAudio,content/contentChecks,sim/runSim,sim/simReport,sim/simArgs,build/inspectDist}.ts`; tests: `src/sim/{createSim,commands,events,snapshot}.test.ts`, `src/sim/threats/{gags,threatFsm,inputLag}.test.ts`, `src/sim/sequences/{sequenceSnapshot,duelSnapshot,fakeSleepSnapshot,bombDropSnapshot}.test.ts`, `src/bots/threatTiming.test.ts`, `src/client/input/{inputMapper,keyboardInput,gamepadInput}.test.ts`, `src/client/ui/world/{threatMarkers,worldUi}.test.ts`, `src/client/app/threatsSwitch.test.ts`, `src/client/feedback/feedbackTwins.test.ts`, `tests/architecture/holdRingSpec.test.ts`, `tests/bots/{botContract,beatBots,silenceBots}.test.ts`, `tests/content/{checkContent,levelSchema,loadLevelContent,sequenceSchema,threatSchema}.test.ts`, `tests/support/{testContent.ts,testFeel.json,testLevel.geometry.json}`, `tests/threats/threatCatalog.test.ts`, `tests/tools/{sim/{simReport,duelSequence,dropSequence}.test.ts,build/checkDist.test.ts,vite/fixtures/feelSample.json}`, `tests/golden/{scenarios.ts,journals/*}` (the 23 existing journals: hashes only), `tests/e2e/threats.spec.ts`; docs: `_bmad-output/implementation-artifacts/{deferred-work.md,sprint-status.yaml}`, `_bmad-output/project-context.md`.
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-11-01 | Story created (`gds-create-story`), status `ready-for-dev`. Ultimate context engine analysis completed: comprehensive developer guide created. |
+| 2026-11-01 | Implemented (`gds-dev-story`): the `nothing` response, the `stealth` step, the boards, the content, the client, the bots, snapshot v26, goldens (hashes only), the e2e on both browsers. Full CI green (the two runs: the first red on three slow `runSim` tests, given a timeout; the second red on `reducedMotion.spec.ts`, whose « every threat shows its verb whole » now starts the stealth alerts itself since `ForceThreat` ignores a threat on the baby; the failing spec then passed alone and the steps after the e2e, `e2e:dist` included, ran green). Status `review`. |

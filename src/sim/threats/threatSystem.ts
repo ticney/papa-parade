@@ -24,6 +24,15 @@ function pressThreat(
   if (threat.state !== 'telegraph' && threat.state !== 'windowOpen') return;
   if (threat.press !== null || threat.responseWindow === null) return;
   const def = (ctx.level.threats[index] as SimLevelEntry).def;
+  if (def.response === 'nothing') {
+    // Aimed at a threat the player was to leave alone (story 4.9): a gag, whatever `earlyPress` says,
+    // up to the end of the stretch, judged on the press's own `t`. Later than that it is nothing:
+    // the verdict is a success, and `threat.press` stays null, always.
+    if (t < threat.windowOpenAt + threat.responseWindow.windowMs) {
+      gagThreat(world, ctx, threat, def, 'acted', null);
+    }
+    return;
+  }
   const judgement = judgePress(t, threat.windowOpenAt, threat.responseWindow);
   if (def.release !== undefined) {
     // A Firmness judged on its release (story 4.8): the press only has to come within `pressWithinMs` of
@@ -142,6 +151,17 @@ export function runThreats(world: World, ctx: StepContext): void {
         const threat = threats[j] as ThreatInstance;
         if (threat.id === command.threatId) pressThreat(world, ctx, threat, j, command.t);
       }
+    } else if (command.type === 'TapBaby') {
+      // A tap on the baby aims at him, so it « vise » every `nothing` threat on him (story 4.9): the
+      // same branch as a press on it, on the command's own `t`. No other def is touched. Busy Papa
+      // answers nothing, as for a `PressThreat`.
+      if (isPapaBusy(world.papa) && now < world.papa.busyUntil) continue;
+      for (let j = 0; j < threats.length; j++) {
+        const { def } = ctx.level.threats[j] as SimLevelEntry;
+        if (def.response === 'nothing' && def.target === 'baby') {
+          pressThreat(world, ctx, threats[j] as ThreatInstance, j, command.t);
+        }
+      }
     } else if (command.type === 'Release') {
       releasePresses(world, command.t);
     }
@@ -166,6 +186,25 @@ export function runThreats(world: World, ctx: StepContext): void {
     // then its result, in this same step.
     if (threat.state === 'telegraph' && now >= threat.windowOpenAt) {
       openWindow(world, ctx, threat, def);
+    }
+
+    if (def.response === 'nothing') {
+      // Nobody acted on it (a command aimed at it has gagged it already): once the stretch is over, and
+      // the late edge of a press stamped before its end could no longer arrive, the player sat it
+      // through. Decided from an absence, so it waits for `lagMs`. Never `perfect`; never `late`.
+      if (
+        threat.state === 'windowOpen' &&
+        threat.responseWindow !== null &&
+        now >= threat.windowOpenAt + threat.responseWindow.windowMs + lagMs
+      ) {
+        resolveThreat(world, ctx, threat, def, 'success', 0);
+      } else if (
+        (threat.state === 'resolved' || threat.state === 'gag') &&
+        now >= threat.enteredAt + def.cooldownMs
+      ) {
+        rearmThreat(world, ctx, threat);
+      }
+      continue;
     }
 
     const { press, responseWindow } = threat;

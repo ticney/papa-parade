@@ -9,6 +9,7 @@ import { telegraphThreat } from '../threats/threatFsm.ts';
 import type { World } from '../world.ts';
 import { DUEL_HANDLER } from './bedtimeDuel.ts';
 import { BEATS_HANDLER } from './lullabyWalk.ts';
+import { STEALTH_HANDLER } from './stealthExit.ts';
 
 /** What the sim does with one kind of step: enter it, step it while it runs, say when it is settled. */
 export interface StepHandler<K extends SequenceStepKind> {
@@ -81,6 +82,7 @@ const HANDLERS: { readonly [K in SequenceStepKind]: StepHandler<K> } = {
   microSleeps: MICRO_SLEEPS,
   beats: BEATS_HANDLER,
   duel: DUEL_HANDLER,
+  stealth: STEALTH_HANDLER,
 };
 
 /** Every step kind the sim has a handler for (`createSim` refuses a def of another kind). */

@@ -121,7 +121,7 @@ test.describe('the three threats', () => {
     // the instances are in order of first appearance in the waves. Since story 1.19 the level's
     // micro-sleep (the threat on Papa, planned by no wave) comes after them, and since story 4.1 the
     // cry in the arms (the level's `carry`), and since story 4.6 the eyes of the bedtime duel (a
-    // sequence's `duel` step), since story 4.7 its fake sleep and, since story 4.8, the bomb drop's, last of all.
+    // sequence's `duel` step), since story 4.7 its fake sleep and, since story 4.8, the bomb drop's, and since story 4.9 the false alarm and the real wake of the stealth exit, last of all.
     const planned = await ppWorld(page);
     expect(planned.threats.map((threat) => threat.defId)).toEqual([
       'outlet',
@@ -133,6 +133,8 @@ test.describe('the three threats', () => {
       'bedtime_eyes',
       'fake_sleep',
       'bomb_drop_lay',
+      'false_alarm_sigh',
+      'real_wake',
     ]);
 
     // Each threat is telegraphed with its own glyph (the def's icon), at its own anchor: the one

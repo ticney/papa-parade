@@ -1,5 +1,5 @@
 import { asSimMs } from '@shared/time';
-import type { SilenceSlice, SimCommand, ThreatInstance } from '@sim';
+import type { SilenceSlice, SimCommand, ThreatInstance, World } from '@sim';
 import type { BotResponse } from './bot.ts';
 import type { CommandScheduler } from './commandScheduler.ts';
 
@@ -18,11 +18,15 @@ export function isPressable(threat: Readonly<ThreatInstance>): boolean {
 }
 
 /** How a finger gives a response: down for a fixed time, or down until the threat has been answered. */
-export type FingerPlan = { kind: 'tap'; holdMs: number } | { kind: 'untilAnswered' };
+export type FingerPlan =
+  | { kind: 'tap'; holdMs: number }
+  | { kind: 'untilAnswered' }
+  /** A `nothing` response (story 4.9): the finger stays off the threat, and no press is ever scheduled. */
+  | { kind: 'none' };
 
 /**
  * How the finger gives `response`. Exhaustive on purpose: the story that teaches the sim a new
- * response (`nothing`…) fails to typecheck here until the bots learn it. A Firmness is not
+ * response (`dodge`…) fails to typecheck here until the bots learn it. A Firmness is not
  * pre-timed: bots are not told `holdUntilMs`, and the sim resolves a held Firmness with no release,
  * so the finger stays down until the threat leaves the pressed state (story 1.23 D7).
  */
@@ -33,6 +37,8 @@ export function fingerPlanFor(response: BotResponse, tapMs: number): FingerPlan 
       return { kind: 'tap', holdMs: tapMs };
     case 'firm':
       return { kind: 'untilAnswered' };
+    case 'nothing':
+      return { kind: 'none' };
     default: {
       const unreachable: never = response;
       return unreachable;
@@ -109,6 +115,8 @@ export function schedulePress(
   tapMs: number,
 ): void {
   const plan = fingerPlanFor(response, tapMs);
+  // A `nothing` is left alone (story 4.9): a bot never presses it, so this is a guard, not a path.
+  if (plan.kind === 'none') return;
   const at = plan.kind === 'tap' ? pressAt : Math.max(pressAt, hold.tapUntil);
   scheduler.schedule({ type: 'PressThreat', t: asSimMs(at), threatId: threat.id });
   if (plan.kind === 'tap') {
@@ -187,4 +195,44 @@ export function createSilenceMemory(): SilenceMemory {
       return true;
     },
   };
+}
+
+/**
+ * Whether a real wake is up (story 4.9): a threat the bot must answer is announced or open. A `nothing`
+ * is not one (it is sat through), so the walk to the exit goes on during a false alarm and stops for a
+ * real wake, which the bot answers by pressing it.
+ */
+function isAnswerUp(
+  threats: readonly Readonly<ThreatInstance>[],
+  responses: Readonly<Record<string, BotResponse>>,
+): boolean {
+  for (let i = 0; i < threats.length; i++) {
+    const threat = threats[i] as Readonly<ThreatInstance>;
+    if (!isPressable(threat)) continue;
+    const response = responseOf(responses, threat.defId);
+    if (response !== undefined && response !== 'nothing') return true;
+  }
+  return false;
+}
+
+/**
+ * The walk of a stealth step (story 4.9), shared by `perfect` and `human`: while it runs, Papa is
+ * `idle` and no real wake is up, one `TapFloor` at the exit, stamped `now`. It follows the plain A*
+ * path, so it **does creak**: no bot memorises the boards (open point 6 of the story). Nothing is sent
+ * while he walks, so a step costs one command at most, and none outside a stealth step.
+ */
+export function planStealthWalk(
+  world: Readonly<World>,
+  responses: Readonly<Record<string, BotResponse>>,
+  out: SimCommand[],
+): void {
+  const { stealth } = world.sequence;
+  if (!stealth.isRunning || world.papa.state !== 'idle') return;
+  if (isAnswerUp(world.threats, responses)) return;
+  out.push({
+    type: 'TapFloor',
+    t: asSimMs(world.time.sim),
+    xM: stealth.exitXM,
+    zM: stealth.exitZM,
+  });
 }

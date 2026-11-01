@@ -51,7 +51,7 @@ describe('loadLevelContent', () => {
     expect(planned).toContain('outlet');
     // The waves' defs in order of first reference, then the micro-sleep of its fatigue gauge, then
     // the cry in the arms of its `carry` (story 4.1), then the threats of the duel steps of its
-    // sequences, read once the sequences are (story 4.6).
+    // sequences, read once the sequences are (story 4.6), and the two alerts of its stealth step (story 4.9).
     expect(Object.keys(result.value.threats)).toEqual([
       ...new Set(planned),
       'papa_microsleep',
@@ -59,6 +59,8 @@ describe('loadLevelContent', () => {
       'bedtime_eyes',
       'fake_sleep',
       'bomb_drop_lay',
+      'false_alarm_sigh',
+      'real_wake',
     ]);
     expect(result.value.threats.papa_microsleep?.target).toBe('papa');
     expect(result.value.threats.arms_cry?.target).toBe('papa');
@@ -117,12 +119,14 @@ describe('loadLevelContent', () => {
       'lullaby_walk',
       'bedtime_duel',
       'bomb_drop',
+      'stealth_exit',
     ]);
     expect(Object.keys(result.value.sequences)).toEqual([
       'stay_awake',
       'lullaby_walk',
       'bedtime_duel',
       'bomb_drop',
+      'stealth_exit',
     ]);
     expect(result.value.sequences.stay_awake?.babyCarried).toBe(true);
   });

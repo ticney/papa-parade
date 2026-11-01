@@ -359,6 +359,57 @@ export interface SequenceSlice {
   beat: BeatSlice;
   /** The running `duel` step (story 4.6). */
   duel: DuelSlice;
+  /** The running `stealth` step (story 4.9). */
+  stealth: StealthSlice;
+}
+
+/**
+ * The running `stealth` step (story 4.9), owned by `sequences/stealthExit.ts`. All clear outside one:
+ * `startSequence` and `closeSequence` clear it, with no gasp and no `BreathReleased` (a level end, a
+ * loss or a win with the breath held just drops it).
+ */
+export interface StealthSlice {
+  /** The current step is a `stealth` step. */
+  isRunning: boolean;
+  /** The floor point of the exit anchor, in metres; 0 when not running. */
+  exitXM: number;
+  exitZM: number;
+  /** When the next alert is due, in sim time; null when not running. */
+  nextAlertAt: SimMs | null;
+  /** How much breath is left, in sim ms of holding; full (`feel.stealth.breathCapacityMs`) when not running. */
+  breathLeftMs: number;
+  /** When the breath was taken, in sim time; null unless it is held. */
+  breathHeldAt: SimMs | null;
+  /** The false alarm in progress has already cost its gasp: at most one per passage. */
+  isPassagePaid: boolean;
+  /** The index of the creak zone Papa stands in, -1 for none. */
+  creakZoneIndex: number;
+}
+
+/** A `StealthSlice` at rest: no `stealth` step runs, the breath is full. */
+export function createStealthSlice(breathCapacityMs: number): StealthSlice {
+  return {
+    isRunning: false,
+    exitXM: 0,
+    exitZM: 0,
+    nextAlertAt: null,
+    breathLeftMs: breathCapacityMs,
+    breathHeldAt: null,
+    isPassagePaid: false,
+    creakZoneIndex: -1,
+  };
+}
+
+/** Puts `stealth` back at rest, in place (the breath full again). */
+export function clearStealthSlice(stealth: StealthSlice, breathCapacityMs: number): void {
+  stealth.isRunning = false;
+  stealth.exitXM = 0;
+  stealth.exitZM = 0;
+  stealth.nextAlertAt = null;
+  stealth.breathLeftMs = breathCapacityMs;
+  stealth.breathHeldAt = null;
+  stealth.isPassagePaid = false;
+  stealth.creakZoneIndex = -1;
 }
 
 /**
@@ -676,6 +727,7 @@ export function createWorld({
       nextMicroSleepAt: null,
       beat: createBeatSlice(),
       duel: createDuelSlice(),
+      stealth: createStealthSlice(feel.stealth.breathCapacityMs),
     },
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
     instinct: { state: 'ready', enteredAt: asSimMs(0), untilAt: asSimMs(0), missAts: [] },

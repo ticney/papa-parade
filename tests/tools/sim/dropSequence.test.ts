@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SimLevel } from '../../../tools/sim/loadSimLevel.ts';
 import { replayRunFile } from '../../../tools/sim/replaySim.ts';
 import type { RunFile } from '../../../tools/sim/runFile.ts';
-import { duelDefIdsOf, runSim } from '../../../tools/sim/runSim.ts';
+import { runSim, sequenceDefIdsOf } from '../../../tools/sim/runSim.ts';
 import { simArgs } from '../../support/simSupport.ts';
 import {
   CARRY,
@@ -41,7 +41,7 @@ async function dropReport(overrides: Parameters<typeof simArgs>[0]) {
 
 describe('runSim with --sequence bomb_drop (story 4.8)', () => {
   it('counts the drop’s threat as a duel threat, so it is not a micro-sleep', () => {
-    expect([...duelDefIdsOf(levelWithDrop().level)]).toEqual(['bomb_drop_lay']);
+    expect([...sequenceDefIdsOf(levelWithDrop().level)]).toEqual(['bomb_drop_lay']);
   });
 
   it.each([1, 2, 3, 4, 5])(

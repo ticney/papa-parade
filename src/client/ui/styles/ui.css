@@ -1564,6 +1564,78 @@ body {
 }
 
 /* ---------------------------------------------------------------------------------------------
+   The breath-ring and the exit marker of the stealth step (story 4.9; DESIGN.md › breath-ring).
+   The breath-ring is the hold-ring's look around Papa: a paper band over the ring-track, whose conic
+   fill (`--pp-hold-progress`, whole percent, written by `breathRing.ts` from the breath left) EMPTIES
+   while the breath is held and fills back after. The band and the ink outline use the hold-ring's
+   constants (set inline from `constants.ts`, pinned to DESIGN.md by `holdRingSpec.test.ts`). It has
+   no animation, so it needs no reduced-motion rule. Neither element takes a tap: a finger on them
+   walks to the floor under them.
+--------------------------------------------------------------------------------------------- */
+:root {
+  --pp-breath-ring-size: 84px;
+}
+
+.pp-breath-ring {
+  --pp-hold-progress: 100;
+  --pp-breath-stroke: 5px;
+  --pp-breath-outline: 2px;
+  pointer-events: none;
+}
+
+.pp-breath-ring-band,
+.pp-breath-ring-outline {
+  position: absolute;
+  top: calc(var(--pp-breath-ring-size) / -2);
+  left: calc(var(--pp-breath-ring-size) / -2);
+  box-sizing: border-box;
+  width: var(--pp-breath-ring-size);
+  height: var(--pp-breath-ring-size);
+  border-radius: 50%;
+}
+
+.pp-breath-ring-band {
+  background: conic-gradient(
+    var(--pp-color-paper) calc(var(--pp-hold-progress) * 1%),
+    var(--pp-color-ring-track) 0
+  );
+  /* Only the band: the middle is the room, with Papa in it (a mask reads alpha only; the ink is opaque). */
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--pp-breath-stroke)),
+    var(--pp-color-ink) calc(100% - var(--pp-breath-stroke) + 0.5px)
+  );
+}
+
+.pp-breath-ring-outline {
+  inset: auto;
+  top: calc(var(--pp-breath-ring-size) / -2 - var(--pp-breath-outline));
+  left: calc(var(--pp-breath-ring-size) / -2 - var(--pp-breath-outline));
+  width: calc(var(--pp-breath-ring-size) + var(--pp-breath-outline) * 2);
+  height: calc(var(--pp-breath-ring-size) + var(--pp-breath-outline) * 2);
+  /* The ink outline around the band, 2px wide, and nothing inside it. */
+  background: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--pp-breath-outline)),
+    var(--pp-color-ink) calc(100% - var(--pp-breath-outline) + 0.5px)
+  );
+}
+
+.pp-exit-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  row-gap: 2px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.pp-exit-marker-glyph {
+  width: 40px;
+  height: 40px;
+}
+
+/* ---------------------------------------------------------------------------------------------
    The beat ring (story 4.5): a ring that closes on Papa before each beat of the lullaby walk, so the
    tempo can be followed with the sound off. World-anchored by the CSS2DRenderer, which writes the
    outer box's `transform`: the scale is on the inner disc. `--pp-beat-progress` (0 to 1) is written

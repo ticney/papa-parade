@@ -5,10 +5,17 @@ import type { StepContext } from '../context.ts';
 import { enterFlowState } from '../flow/flowFsm.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
 import { cancelThreat } from '../threats/threatFsm.ts';
-import { clearBeatSlice, clearDuelSlice, type ThreatInstance, type World } from '../world.ts';
+import {
+  clearBeatSlice,
+  clearDuelSlice,
+  clearStealthSlice,
+  type ThreatInstance,
+  type World,
+} from '../world.ts';
 import { placePapaOverMattress } from './layDown.ts';
 import { sequenceDefOf } from './sequenceEnd.ts';
 import { enterSequenceStep } from './sequenceSteps.ts';
+import { placeBabyForStealth } from './stealthExit.ts';
 
 /** Why a sequence cannot start now. */
 export type SequenceRefusal = 'running' | 'ended' | 'papaBusy' | 'silence' | 'phoneRinging';
@@ -60,7 +67,9 @@ export function startSequence(world: World, ctx: StepContext, sequenceId: string
   enterFlowState(world, 'sequence');
   stopPapa(world, ctx);
   // Laying the baby down is done over the mattress (story 4.8, D3): Papa is placed, never refused.
-  if (def.success.kind === 'babyLaid') placePapaOverMattress(world, ctx);
+  // So is sneaking away from it (story 4.9, D6): he starts over the crib, where the baby sleeps.
+  const isStealth = def.steps.some((step) => step.kind === 'stealth');
+  if (def.success.kind === 'babyLaid' || isStealth) placePapaOverMattress(world, ctx);
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
     if (threat.state === 'telegraph' || threat.state === 'windowOpen') {
@@ -68,6 +77,7 @@ export function startSequence(world: World, ctx: StepContext, sequenceId: string
     }
   }
   if (def.babyCarried && !isBabyCarried(world)) takeBaby(world, ctx);
+  if (isStealth) placeBabyForStealth(world, ctx);
 
   const { sequence } = world;
   sequence.id = sequenceId;
@@ -80,6 +90,7 @@ export function startSequence(world: World, ctx: StepContext, sequenceId: string
   sequence.nextMicroSleepAt = null;
   clearBeatSlice(sequence.beat);
   clearDuelSlice(sequence.duel);
+  clearStealthSlice(sequence.stealth, ctx.feel.stealth.breathCapacityMs);
   ctx.events.push({ type: 'SequenceStarted', t: now, id: sequenceId });
   ctx.events.push({ type: 'SequenceStepStarted', t: now, id: sequenceId, stepIndex: 0 });
   enterSequenceStep(world, ctx, first);

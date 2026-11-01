@@ -16,6 +16,7 @@ import {
   isDuelStepRunning,
   isFlowLive,
   isPapaBusy,
+  isStealthStepRunning,
   type LevelEndReason,
   type MamaScore,
   type Sim,
@@ -315,6 +316,8 @@ export async function boot(): Promise<void> {
       | 'ppBabyPx'
       | 'ppObjectPx'
       | 'ppTarget'
+      | 'ppBreathPct'
+      | 'ppBreathHeld'
       | 'ppScore'
       | 'ppStars'
       | 'ppLostStars'
@@ -776,7 +779,17 @@ export async function boot(): Promise<void> {
         );
         if (entry !== undefined) {
           const rect = canvas.getBoundingClientRect();
-          iconPoint.set(entry.xM, entry.yM, entry.zM).project(camera);
+          // A threat on the baby (story 4.9) takes his point at the telegraph, and its marker follows it only
+          // at the next frame: this mirror, read at the event, takes it from the instance.
+          const instance =
+            entry.followsBaby === true
+              ? levelSession.active?.sim.world.threats.find(
+                  (candidate) => candidate.id === event.threatId,
+                )
+              : undefined;
+          iconPoint
+            .set(instance?.xM ?? entry.xM, entry.yM, instance?.zM ?? entry.zM)
+            .project(camera);
           const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
           const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
           mirror('ppThreatPx', `${x.toFixed(1)},${y.toFixed(1)}`);
@@ -1158,6 +1171,16 @@ export async function boot(): Promise<void> {
           feedbackTable.beatRing.approachMs,
           papaPose,
         );
+        // The breath ring around Papa and the « SORS ! » door of a stealth step (story 4.9).
+        worldUi.updateStealth(
+          world.sequence.stealth,
+          world.feel.stealth.breathCapacityMs,
+          papaPose,
+        );
+        if (isMirrored) {
+          mirror('ppBreathPct', String(worldUi.breathRing.progressPct));
+          mirror('ppBreathHeld', String(world.sequence.stealth.breathHeldAt !== null));
+        }
       }
       showGlyphChip(world, targetedId, device);
       if (isMirrored) mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
@@ -1339,6 +1362,11 @@ export async function boot(): Promise<void> {
       if (event.type === 'BabyPickedUp' || event.type === 'BabyPutDown') inputMapper.resumeHeld();
       // A key still held through a special sequence walks again at its end (story 4.4); a failure then
       // waits for the nap, through the `PapaStateChanged` call just below.
+      // A stealth sequence is walked (story 4.9): `startSequence` stopped Papa and the mapper believes
+      // a key held through the start was sent, so it sends what is held again.
+      if (event.type === 'SequenceStarted' && levelSession.active !== null) {
+        if (isStealthStepRunning(levelSession.active.sim.world)) inputMapper.resumeHeld();
+      }
       if (event.type === 'SequenceEnded') {
         inputMapper.resumeHeld();
         // The baby woke: the calm bar slides out empty, not on the value of the frame before.
@@ -1696,6 +1724,7 @@ export async function boot(): Promise<void> {
     isLive: () => inputMapper.isLive(),
     onAction: (phase, timeStampAtReal) =>
       inputMapper.handleAction(phase, timeStampAtReal, 'keyboard'),
+    onHold: (phase, timeStampAtReal) => inputMapper.handleHold(phase, timeStampAtReal, 'keyboard'),
   });
   // The names the browser gives the keys (Chromium only). Space is never in the map (D10), so the
   // chip says « Espace » until a letter key needs a name; one `warn` where it cannot be read.

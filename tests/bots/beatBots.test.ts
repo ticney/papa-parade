@@ -19,6 +19,7 @@ function worldAt(
     papa: { xM: 0, zM: 0 },
     sequence: {
       beat: { isRunning: beat.isRunning ?? true, nextBeatAt: beat.nextBeatAt ?? null },
+      stealth: { isRunning: false },
     },
   } as unknown as Readonly<World>;
 }

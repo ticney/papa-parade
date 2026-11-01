@@ -73,6 +73,10 @@ describe('fingerPlanFor / responseOf', () => {
     expect(fingerPlanFor('firm', 80)).toEqual({ kind: 'untilAnswered' });
   });
 
+  it('presses nothing for a nothing (story 4.9)', () => {
+    expect(fingerPlanFor('nothing', 80)).toEqual({ kind: 'none' });
+  });
+
   it('knows only the defs it was given, and no prototype key', () => {
     expect(responseOf({ outlet: 'parry' }, 'outlet')).toBe('parry');
     expect(responseOf({ outlet: 'parry' }, 'lamp')).toBeUndefined();

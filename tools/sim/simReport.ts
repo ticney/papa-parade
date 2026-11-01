@@ -2,6 +2,7 @@ import { NOISE_SOURCE_IDS } from '@content/schemas/feel';
 import { type DifficultyTierId, STAR_COUNT_MAX } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import {
+  type BreathGaspReason,
   LEVEL_END_REASONS,
   type LevelEndReason,
   type NoiseSource,
@@ -23,7 +24,7 @@ const emptyEndsByReason = (): Record<LevelEndReason, number> =>
     number
   >;
 
-const FAIL_REASONS = ['early', 'late', 'wrongResponse', 'released'] as const;
+const FAIL_REASONS = ['early', 'late', 'wrongResponse', 'released', 'acted'] as const;
 type FailReasonKey = (typeof FAIL_REASONS)[number];
 
 /** What one run saw of one threat def. */
@@ -112,6 +113,12 @@ export interface RunSummary {
   decoysTapped: number;
   /** The taps on no beat and no decoy (`BeatStrayTapped`). */
   beatsStray: number;
+  /** The boards that creaked under Papa (`FloorCreaked`, story 4.9): 0 outside a stealth step. */
+  floorCreaks: number;
+  /** The breaths let out loudly (`BreathGasped`), by reason: it ran empty, was let go early, or was not held. */
+  breathGasps: Record<BreathGaspReason, number>;
+  /** The `nothing` threats answered (`ResponseResolved` of response `nothing`), sat through or touched. */
+  nothingResponses: number;
   /**
    * The highest the need reached in the run, in % to one decimal: the gauge rises silently, so it is
    * read from the world when a visit starts (it is frozen from then on), when it fills, and at the
@@ -157,12 +164,18 @@ function tallyOf(tallies: Record<string, ThreatTally>, defId: string): ThreatTal
   return tally;
 }
 
+const emptyBreathGasps = (): Record<BreathGaspReason, number> => ({
+  empty: 0,
+  early: 0,
+  notHeld: 0,
+});
+
 const emptyTally = (): ThreatTally => ({
   responses: 0,
   perfect: 0,
   success: 0,
   fail: 0,
-  failReasons: { early: 0, late: 0, wrongResponse: 0, released: 0 },
+  failReasons: { early: 0, late: 0, wrongResponse: 0, released: 0, acted: 0 },
   absOffsetSumMs: 0,
   offsetCount: 0,
 });
@@ -172,15 +185,15 @@ const emptyTally = (): ThreatTally => ({
  * threat def, gags, threats at once per wave (against the limits `waves` gives, the level's waves),
  * whether the level ended, and at the end the final world hash and the number of commands sent.
  * `armsCryDef` is the level's `carry.armsCryDef` (story 4.1): its telegraphs are cries in the arms,
- * not micro-sleeps (both are threats no wave planned). `duelDefs` are the threats the `duel` steps of
- * the level's sequences spawn (story 4.6): a third kind of threat no wave planned, counted as neither.
+ * not micro-sleeps (both are threats no wave planned). `sequenceDefs` are the threats the steps of
+ * the level's sequences spawn (a duel's, story 4.6; a stealth step's two alerts, story 4.9): a third kind of threat no wave planned, counted as neither.
  */
 export function createRunRecorder(
   sim: Sim,
   seed: number,
   waves: readonly { readonly maxSimultaneous: number }[] = [],
   armsCryDef: string | null = null,
-  duelDefs: ReadonlySet<string> = new Set(),
+  sequenceDefs: ReadonlySet<string> = new Set(),
 ): RunRecorder {
   // Threat ids and defs never change after `createSim`.
   const defIdOf = new Map<number, string>();
@@ -218,6 +231,9 @@ export function createRunRecorder(
   let beatsMissed = 0;
   let decoysTapped = 0;
   let beatsStray = 0;
+  let floorCreaks = 0;
+  const breathGasps = emptyBreathGasps();
+  let nothingResponses = 0;
   let bladderPeakPct = 0;
   let noisePeakPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
@@ -255,7 +271,7 @@ export function createRunRecorder(
         }
       } else if (event.type === 'ThreatTelegraphed' && event.waveIndex < 0) {
         if (armsCryDef !== null && event.kind === armsCryDef) armsCries++;
-        else if (!duelDefs.has(event.kind)) microSleeps++;
+        else if (!sequenceDefs.has(event.kind)) microSleeps++;
         systemThreatIds.add(event.threatId);
       } else if (event.type === 'ThreatTelegraphed') {
         activeCount++;
@@ -292,6 +308,10 @@ export function createRunRecorder(
         decoysTapped++;
       } else if (event.type === 'BeatStrayTapped') {
         beatsStray++;
+      } else if (event.type === 'FloorCreaked') {
+        floorCreaks++;
+      } else if (event.type === 'BreathGasped') {
+        breathGasps[event.reason]++;
       } else if (event.type === 'ToiletStarted' || event.type === 'BladderFilled') {
         // The need is frozen from a visit's start, and full from this event on: its peak so far.
         bladderPeakPct = Math.max(bladderPeakPct, sim.world.gauges.bladderPct);
@@ -317,6 +337,7 @@ export function createRunRecorder(
         if (!systemThreatIds.has(event.threatId)) activeCount--;
         responses++;
         const defId = defIdOf.get(event.threatId) ?? `threat_${event.threatId}`;
+        if (event.response === 'nothing') nothingResponses++;
         const tally = tallyOf(threats, defId);
         tally.responses++;
         tally[event.quality]++;
@@ -387,6 +408,9 @@ export function createRunRecorder(
         beatsMissed,
         decoysTapped,
         beatsStray,
+        floorCreaks,
+        breathGasps: { ...breathGasps },
+        nothingResponses,
         bladderPeakPct: round(Math.max(bladderPeakPct, sim.world.gauges.bladderPct), 1),
         noisePeakPct,
         noiseFinalPct: round(sim.world.gauges.noisePct, 1),
@@ -514,6 +538,12 @@ export interface SimReport {
   beatsMissed: number;
   decoysTapped: number;
   beatsStray: number;
+  /** The stealth exit's boards that creaked, over the runs (story 4.9). */
+  floorCreaks: number;
+  /** The breaths let out loudly, over the runs, by reason (story 4.9). */
+  breathGasps: Record<BreathGaspReason, number>;
+  /** The `nothing` threats answered, over the runs (story 4.9). */
+  nothingResponses: number;
   /** The highest need any run reached, in % to one decimal (0 in a level with no need gauge). */
   bladderPeakPct: number;
   /** Mean of the runs' highest noise, in % to one decimal: does 3.2 end games (story 3.1 open point 2)? */
@@ -611,6 +641,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let beatsMissed = 0;
   let decoysTapped = 0;
   let beatsStray = 0;
+  let floorCreaks = 0;
+  const breathGasps = emptyBreathGasps();
+  let nothingResponses = 0;
   let bladderPeakPct = 0;
   let noisePeakSumPct = 0;
   let noisePeakMaxPct = 0;
@@ -677,6 +710,11 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     beatsMissed += run.beatsMissed;
     decoysTapped += run.decoysTapped;
     beatsStray += run.beatsStray;
+    floorCreaks += run.floorCreaks;
+    for (const reason of Object.keys(breathGasps) as BreathGaspReason[]) {
+      breathGasps[reason] += run.breathGasps[reason];
+    }
+    nothingResponses += run.nothingResponses;
     bladderPeakPct = Math.max(bladderPeakPct, run.bladderPeakPct);
     noisePeakSumPct += run.noisePeakPct;
     noisePeakMaxPct = Math.max(noisePeakMaxPct, run.noisePeakPct);
@@ -771,6 +809,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     beatsMissed,
     decoysTapped,
     beatsStray,
+    floorCreaks,
+    breathGasps,
+    nothingResponses,
     bladderPeakPct: round(bladderPeakPct, 1),
     noisePeakMeanPct: runs.length === 0 ? 0 : round(noisePeakSumPct / runs.length, 1),
     noisePeakMaxPct: round(noisePeakMaxPct, 1),

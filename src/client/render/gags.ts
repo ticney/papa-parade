@@ -57,6 +57,8 @@ export const GAG_PRESENTATIONS: Readonly<Record<GagId, GagPresentation>> = {
   baby_sat_up: { lightsOff: false, hair: false, babySlide: false },
   // The baby wakes as he is laid down (story 4.8): the gag cue, the cry and the retreat are the show until E7.
   baby_woke_on_drop: { lightsOff: false, hair: false, babySlide: false },
+  baby_woke_by_touch: { lightsOff: false, hair: false, babySlide: false },
+  baby_woke_crying: { lightsOff: false, hair: false, babySlide: false },
 };
 
 /** Total time the lights are off the full level, in sim ms. */

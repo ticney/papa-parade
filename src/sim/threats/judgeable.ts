@@ -21,9 +21,14 @@ export function isJudgeableBeforeEnd(
   endMs: number = ctx.level.durationMs,
 ): boolean {
   const { timing } = ctx.feel;
+  const delayMs = def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs;
+  if (def.response === 'nothing') {
+    // A `nothing` counts `nothingMs`, which no tier, fatigue or instinct scales (story 4.9), and has no tolerance.
+    return now + delayMs + (def.nothingMs ?? 0) <= endMs;
+  }
   const judgedByMs =
     now +
-    (def.telegraphDelayMs ?? timing.telegraphDelayDefaultMs) +
+    delayMs +
     (def.maxDelayMs ?? 0) +
     (def.windowMs ?? timing.windowMs) *
       activeDifficulty(world, ctx).windowMultiplier *

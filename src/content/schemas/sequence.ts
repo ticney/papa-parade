@@ -17,7 +17,7 @@ const idSchema = (description: string) =>
   z.string().regex(SNAKE_ID_PATTERN, 'an id is lower_snake_case').describe(description);
 
 /** What a step is, hence how the sim runs it: one handler per kind (`Record<SequenceStepKind, …>`). */
-export const SEQUENCE_STEP_KINDS = ['microSleeps', 'beats', 'duel'] as const;
+export const SEQUENCE_STEP_KINDS = ['microSleeps', 'beats', 'duel', 'stealth'] as const;
 export type SequenceStepKind = (typeof SEQUENCE_STEP_KINDS)[number];
 
 const MicroSleepsStepSchema = z
@@ -152,8 +152,67 @@ const DuelStepSchema = z
     'A round of patience: wait for the signal, then tap (the Wait response), or lay the baby down (a Firmness judged on its release).',
   );
 
+const StealthStepSchema = z
+  .strictObject({
+    kind: z
+      .literal('stealth')
+      .describe(
+        'Papa sneaks out of the room, holding his breath at every false alarm and answering the real wakes (story 4.9). The step ends on his exit, not when its time is up.',
+      ),
+    durationMs: z
+      .number()
+      .int()
+      .positive()
+      .describe(
+        'An estimate of the crossing, in sim ms (like a duel step): the step ends when Papa reaches the exit, never on this time.',
+      ),
+    exitAnchor: idSchema(
+      "Id of an anchor of the level's geometry: the way out. Papa has left once he is within `exitRadiusM` of it.",
+    ),
+    exitRadiusM: z
+      .number()
+      .positive()
+      .describe('How close to the exit anchor Papa must be to have left, in metres.'),
+    alertGapMinMs: z
+      .number()
+      .int()
+      .positive()
+      .describe('Shortest wait between two alerts of this step, in sim ms.'),
+    alertGapMaxMs: z
+      .number()
+      .int()
+      .positive()
+      .describe(
+        'Longest wait between two alerts of this step, in sim ms, at least `alertGapMinMs`.',
+      ),
+    realWakePct: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .describe(
+        'The chance, in %, that an alert is a real wake (the rest are false alarms). At least 1: with none the baby would never need rocking, and `idle` would win.',
+      ),
+    falseAlarmDef: idSchema(
+      'Id of the threat (`content/threats/`, a `nothing` on the baby) an alert draws when it is a false alarm.',
+    ),
+    realWakeDef: idSchema(
+      'Id of the threat (`content/threats/`, a `parry` on the baby) an alert draws when it is a real wake.',
+    ),
+  })
+  .refine((step) => step.alertGapMinMs <= step.alertGapMaxMs, {
+    path: ['alertGapMaxMs'],
+    error: 'alertGapMaxMs must not be below alertGapMinMs',
+  })
+  .describe('The infiltration: sneak to the exit while the baby sighs and, sometimes, wakes.');
+
 const SequenceStepSchema = z
-  .discriminatedUnion('kind', [MicroSleepsStepSchema, BeatsStepSchema, DuelStepSchema])
+  .discriminatedUnion('kind', [
+    MicroSleepsStepSchema,
+    BeatsStepSchema,
+    DuelStepSchema,
+    StealthStepSchema,
+  ])
   .describe('One step of a sequence.');
 
 /** What ends a sequence well: the sim judges each kind. */
@@ -371,6 +430,49 @@ export const SequenceDefSchema = z
           'has a "retreats" failure and a bar that shows timeLeft, but the end of a duel is only an estimate (use bar: null)',
       });
     }
+    // A stealth step (story 4.9) is judged by its gags and ends on Papa's exit; the same words as
+    // `sequenceStealthProblems`, which `simLevelOf` and `content:check` also run.
+    const stealthIndex = def.steps.findIndex((step) => step.kind === 'stealth');
+    if (stealthIndex >= 0) {
+      if (def.steps.length > 1) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['steps'],
+          message: `has a stealth step among ${def.steps.length} steps, but a stealth step must be the only step of its sequence`,
+        });
+      }
+      if (failure.kind !== 'gag' || failure.hasSnore) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['failure'],
+          message:
+            'has a stealth step, so its failure must be a "gag" with hasSnore false (Papa is awake: he does not snore)',
+        });
+      }
+      if (def.babyCarried) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['babyCarried'],
+          message:
+            'has a stealth step, so `babyCarried` must be false (the baby sleeps in his crib)',
+        });
+      }
+      if (def.success.kind !== 'stepsDone') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['success', 'kind'],
+          message: `has a stealth step, so its success must be "stepsDone", not "${def.success.kind}"`,
+        });
+      }
+      if (def.framing.bar !== null) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['framing', 'bar'],
+          message:
+            'has a stealth step, so its bar must be null (the end of the crossing is only an estimate: a timeLeft bar would lie)',
+        });
+      }
+    }
     if (def.framing.bar?.value === 'calmLeft' && failure.kind !== 'babyAwake') {
       ctx.addIssue({
         code: 'custom',
@@ -397,6 +499,7 @@ export type SequenceDef = z.infer<typeof SequenceDefSchema>;
 export type SequenceStep = z.infer<typeof SequenceStepSchema>;
 export type BeatsStep = z.infer<typeof BeatsStepSchema>;
 export type DuelStep = z.infer<typeof DuelStepSchema>;
+export type StealthStep = z.infer<typeof StealthStepSchema>;
 
 /** The sequence's duration: the sum of its steps, never a second key that could disagree. */
 export function sequenceDurationMs(def: Pick<SequenceDef, 'steps'>): number {

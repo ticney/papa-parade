@@ -36,11 +36,13 @@ describe('commandProblem', () => {
     expect([...COMMAND_TYPES].sort()).toEqual([
       'ForceInstinct',
       'ForceThreat',
+      'HoldAnywhere',
       'Move',
       'MoveStop',
       'PressThreat',
       'PushProp',
       'Release',
+      'ReleaseHold',
       'SetBladder',
       'SetDifficultyTier',
       'SetFatigue',
@@ -55,6 +57,13 @@ describe('commandProblem', () => {
       'TapFloor',
       'TapObject',
     ]);
+  });
+
+  it('accepts the two breath commands with a timestamp and nothing else (story 4.9)', () => {
+    expect(commandProblem({ type: 'HoldAnywhere', t: 4210 })).toBeNull();
+    expect(commandProblem({ type: 'ReleaseHold', t: 4210 })).toBeNull();
+    expect(commandProblem({ type: 'HoldAnywhere' })).toMatch(/t must be a finite number/);
+    expect(commandProblem({ type: 'ReleaseHold', t: Number.NaN })).toMatch(/ReleaseHold/);
   });
 
   it('accepts a TapBeat with a timestamp and nothing else, and refuses one with no finite t', () => {

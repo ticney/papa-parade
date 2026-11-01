@@ -33,7 +33,7 @@ async function setup(feel: Feel = content.feel) {
       waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE])],
       gauges: FATIGUE_GAUGES,
       carry: CARRY,
-      sequences: ['bedtime_duel', 'fake_sleep_duel', 'bomb_drop'],
+      sequences: ['bedtime_duel', 'fake_sleep_duel', 'bomb_drop', 'stealth_exit'],
     }),
     seed: 1,
   });
@@ -82,6 +82,9 @@ const OWN_THREAT: Record<GagId, { defId: string; eventCount: number; pushCount: 
   baby_sat_up: { defId: 'fake_sleep', eventCount: 0, pushCount: 0 },
   // Same: the retreat is the sequence's and the cry is the def's (story 4.8).
   baby_woke_on_drop: { defId: 'bomb_drop_lay', eventCount: 0, pushCount: 0 },
+  // Same: the sequence's retreat or failure and the def's cry (story 4.9).
+  baby_woke_by_touch: { defId: 'false_alarm_sigh', eventCount: 0, pushCount: 0 },
+  baby_woke_crying: { defId: 'real_wake', eventCount: 0, pushCount: 0 },
 };
 
 describe('applyGag', () => {

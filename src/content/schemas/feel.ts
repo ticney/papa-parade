@@ -397,6 +397,24 @@ const SequencesSchema = z
   })
   .describe('The special sequences (story 4.4).');
 
+const StealthSchema = z
+  .strictObject({
+    sneakSpeedPct: z
+      .number()
+      .positive()
+      .max(100)
+      .describe(
+        "Papa's walking speed during a stealth step, in % of `movement.walkSpeedMps` (a glide keeps its own speed): 35 = about 7 s for the 7 m to the door (story 4.9).",
+      ),
+    breathCapacityMs: durationMs(
+      'How long the breath can be held, in sim ms; at 0 it is released, with a gasp (story 4.9).',
+    ),
+    breathRefillPerSecMs: delayMs(
+      'How much breath comes back for each second it is not held, in ms of capacity per second of sim time.',
+    ),
+  })
+  .describe('The stealth exit (story 4.9, GDD §6): the sneak and the held breath.');
+
 const InstinctSchema = z
   .strictObject({
     timeScale: timeScale('Sim speed while Fatherly Instinct is active (1 = normal).'),
@@ -796,6 +814,7 @@ export const FeelSchema = z
     noise: NoiseSchema,
     bladder: BladderSchema,
     sequences: SequencesSchema,
+    stealth: StealthSchema,
     instinct: InstinctSchema,
     difficulty: DifficultySchema,
     mama: MamaSchema,

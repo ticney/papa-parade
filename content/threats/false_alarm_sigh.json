@@ -1,0 +1,22 @@
+{
+  "$schema": "../_schemas/threat.schema.json",
+  "id": "false_alarm_sigh",
+  "target": "baby",
+  "response": "nothing",
+  "telegraphDelayMs": 900,
+  "nothingMs": 2000,
+  "windowMs": null,
+  "gag": "baby_woke_by_touch",
+  "gagCryMs": 2000,
+  "verbKey": "verb.do_nothing",
+  "icon": "sigh",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_false_alarm_sigh",
+    "success": "resp_nothing",
+    "perfect": "resp_nothing",
+    "gag": "gag_baby_woke_by_touch"
+  },
+  "cooldownMs": 500
+}

@@ -75,7 +75,9 @@ The lullaby walk (story 4.5) adds \`beatsHit\`, \`beatsMissed\`, \`decoysTapped\
 beats tapped in time, settled with no tap, the taps on a decoy, and the taps on nothing.
 The bedtime duel (story 4.6) adds \`sequenceRetreats\`: the steps back its gags made (0 outside a duel). Its threat is not
 counted in \`microSleeps\`.
-\`snore\` is a source of the noise per source.
+The stealth exit (story 4.9) adds \`floorCreaks\` (the boards that creaked under Papa), \`breathGasps\` (the breaths let
+out loudly, by reason: \`empty\`, \`early\`, \`notHeld\`) and \`nothingResponses\` (the false alarms sat through or touched).
+Its two alerts are not counted in \`microSleeps\`. \`snore\`, \`floorCreak\` and \`breathReleased\` are sources of the noise per source.
 `;
 
 const DIGITS = /^\d+$/;

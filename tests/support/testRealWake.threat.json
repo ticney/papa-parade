@@ -1,0 +1,21 @@
+{
+  "$schema": "../../content/_schemas/threat.schema.json",
+  "id": "real_wake",
+  "target": "baby",
+  "response": "parry",
+  "telegraphDelayMs": 1500,
+  "windowMs": null,
+  "gag": "baby_woke_crying",
+  "gagCryMs": 4000,
+  "verbKey": "verb.rock",
+  "icon": "cry",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_real_wake",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_baby_woke_crying"
+  },
+  "cooldownMs": 500
+}

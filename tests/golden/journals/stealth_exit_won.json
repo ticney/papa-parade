@@ -1,0 +1,41 @@
+{
+  "version": 3,
+  "seed": 1,
+  "feelHash": "1814aba8efc4a7",
+  "geometryHash": "1fad21f04c6015",
+  "levelHash": "09d2701bd02bef",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "sequenceId": "stealth_exit",
+        "t": 0,
+        "type": "StartSequence"
+      }
+    },
+    {
+      "applyAt": 30,
+      "command": {
+        "t": 20,
+        "type": "TapFloor",
+        "xM": 2.9,
+        "zM": -2.8
+      }
+    },
+    {
+      "applyAt": 4410,
+      "command": {
+        "t": 4400,
+        "type": "HoldAnywhere"
+      }
+    },
+    {
+      "applyAt": 7260,
+      "command": {
+        "t": 7250,
+        "type": "ReleaseHold"
+      }
+    }
+  ]
+}

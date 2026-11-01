@@ -33,14 +33,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 25 since story 4.8: the `sequence` slow-mo source (a duel step's own slow motion); no new field. 24 since story 4.7: `ThreatInstance.feintAt` / `isFeintGiven` (the feint of a fake sleep, before its signal). 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 26 since story 4.9: `world.sequence.stealth` (the running `stealth` step: the exit, the next alert, the breath and the board Papa stands on). 25 since story 4.8: the `sequence` slow-mo source (a duel step's own slow motion); no new field. 24 since story 4.7: `ThreatInstance.feintAt` / `isFeintGiven` (the feint of a fake sleep, before its signal). 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 25;
+  version: 26;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -59,7 +59,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 25,
+    version: 26,
     seed,
     feelHash,
     geometryHash,
@@ -759,6 +759,7 @@ function sequenceProblem(
   planned: PlannedLevel['sequences'],
   baby: unknown,
   nowMs: number,
+  breathBoundMs: number,
 ): string | null {
   if (typeof sequence !== 'object' || sequence === null) return 'world.sequence is missing';
   const slice = sequence as Record<string, unknown>;
@@ -810,7 +811,9 @@ function sequenceProblem(
   ) {
     return 'world.sequence.id';
   }
-  return beatProblem(slice, def) ?? duelProblem(slice, def);
+  return (
+    beatProblem(slice, def) ?? duelProblem(slice, def) ?? stealthProblem(slice, def, breathBoundMs)
+  );
 }
 
 /**
@@ -919,6 +922,69 @@ function duelProblem(
     if (retreats !== 0) return where('retreats');
   } else if ((retreats as number) >= maxRetreats) {
     return where('retreats');
+  }
+  return null;
+}
+
+/** The most breath a snapshot may hold: the larger capacity of the initial and the effective feel (a `SetFeel` may have moved it). */
+function breathBoundMsOf(world: unknown, initialFeel: Feel): number {
+  const effective = (world as { feel?: { stealth?: { breathCapacityMs?: unknown } } }).feel;
+  const capacityMs = effective?.stealth?.breathCapacityMs;
+  return Math.max(
+    initialFeel.stealth.breathCapacityMs,
+    typeof capacityMs === 'number' && Number.isFinite(capacityMs) ? capacityMs : 0,
+  );
+}
+
+/**
+ * The running `stealth` step (story 4.9), `world.sequence.stealth`: all at rest when no sequence runs
+ * or the current step is not a `stealth` step (no exit, no alert due, no breath held, no board, no
+ * gasp paid); in one, `isRunning`, a finite exit, and the breath between 0 and the capacity, held only
+ * while some is left. `breathHeldAt` and `nextAlertAt` are null or a finite time, `creakZoneIndex` is
+ * -1 or the index of a zone.
+ */
+function stealthProblem(
+  slice: Record<string, unknown>,
+  planned: PlannedLevel['sequences'][number] | undefined,
+  breathBoundMs: number,
+): string | null {
+  const stealth = slice.stealth;
+  if (typeof stealth !== 'object' || stealth === null) return 'world.sequence.stealth is missing';
+  const fields = stealth as Record<string, unknown>;
+  const where = (key: string): string => `world.sequence.stealth.${key}`;
+  if (typeof fields.isRunning !== 'boolean') return where('isRunning');
+  if (typeof fields.isPassagePaid !== 'boolean') return where('isPassagePaid');
+  const isStealthStep =
+    slice.id !== null && planned?.def.steps[slice.stepIndex as number]?.kind === 'stealth';
+  if (fields.isRunning !== isStealthStep) return where('isRunning');
+  for (const key of ['exitXM', 'exitZM']) {
+    if (!isFiniteNumber(fields[key])) return where(key);
+  }
+  const { breathLeftMs } = fields;
+  if (
+    !isFiniteNumber(breathLeftMs) ||
+    (breathLeftMs as number) < 0 ||
+    (breathLeftMs as number) > breathBoundMs
+  ) {
+    return where('breathLeftMs');
+  }
+  for (const key of ['breathHeldAt', 'nextAlertAt']) {
+    const value = fields[key];
+    if (value !== null && (!isFiniteNumber(value) || (value as number) < 0)) return where(key);
+  }
+  if (!Number.isInteger(fields.creakZoneIndex) || (fields.creakZoneIndex as number) < -1) {
+    return where('creakZoneIndex');
+  }
+  if (fields.breathHeldAt !== null && (breathLeftMs as number) <= 0) return where('breathHeldAt');
+  if (!fields.isRunning) {
+    // At rest: a stale breath, alert or board would leak into the next stealth step.
+    if (fields.exitXM !== 0 || fields.exitZM !== 0) return where('exitXM');
+    if (fields.nextAlertAt !== null) return where('nextAlertAt');
+    if (fields.breathHeldAt !== null) return where('breathHeldAt');
+    if (fields.isPassagePaid) return where('isPassagePaid');
+    if (fields.creakZoneIndex !== -1) return where('creakZoneIndex');
+  } else if (fields.nextAlertAt === null) {
+    return where('nextAlertAt');
   }
   return null;
 }
@@ -1132,7 +1198,14 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
     babyProblem(baby, papa, threats as readonly ThreatInstance[], clock.sim as number) ??
     carryProblem(carry, baby, planned.hasCarry, planned.armsCryIndex >= 0) ??
     comboProblem(combo, baby) ??
-    sequenceProblem(sequence, flow, planned.sequences, baby, clock.sim as number) ??
+    sequenceProblem(
+      sequence,
+      flow,
+      planned.sequences,
+      baby,
+      clock.sim as number,
+      breathBoundMsOf(world, initialFeel),
+    ) ??
     silenceProblem(
       silence,
       baby,
@@ -1172,7 +1245,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 25, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 26, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(
