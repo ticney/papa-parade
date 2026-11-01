@@ -1,11 +1,11 @@
-import { readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { isVisualNodeName } from '../../src/content/levelNodeNames.ts';
 import { parseContentFile } from '../../src/content/parseContentFile.ts';
 import { LevelGeometrySchema } from '../../src/content/schemas/levelGeometry.ts';
-import { DEFAULT_LEVEL_ID, LEVEL_PAYLOAD_MAX_BYTES } from '../../src/shared/constants.ts';
+import { LEVEL_PAYLOAD_MAX_BYTES } from '../../src/shared/constants.ts';
 import { parseGlb } from '../../tools/assets/glb.ts';
 
 // The committed level artefacts: the shipped .glb (NFR3: at most 3 MB) and the geometry the sim
@@ -13,8 +13,9 @@ import { parseGlb } from '../../tools/assets/glb.ts';
 // `assets:extract` and `assets:optimize`, then committed.
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const glbFile = join(root, 'public', 'assets', 'levels', `${DEFAULT_LEVEL_ID}.glb`);
-const geometryFile = join(root, 'content', 'levels', `${DEFAULT_LEVEL_ID}.geometry.json`);
+const levelIds = readdirSync(join(root, 'content', 'levels'))
+  .filter((name) => name.endsWith('.json') && !name.endsWith('.geometry.json'))
+  .map((name) => name.slice(0, -'.json'.length));
 
 interface GltfNode {
   name?: string;
@@ -29,7 +30,10 @@ function holdsMesh(nodes: GltfNode[], index: number): boolean {
   return node.mesh !== undefined || (node.children ?? []).some((child) => holdsMesh(nodes, child));
 }
 
-describe(`the committed ${DEFAULT_LEVEL_ID} level`, () => {
+describe.each(levelIds)('the committed %s level', (levelId) => {
+  const glbFile = join(root, 'public', 'assets', 'levels', `${levelId}.glb`);
+  const geometryFile = join(root, 'content', 'levels', `${levelId}.geometry.json`);
+
   it('ships a .glb within the payload ceiling', () => {
     expect(statSync(glbFile).size).toBeLessThanOrEqual(LEVEL_PAYLOAD_MAX_BYTES);
   });
@@ -37,12 +41,12 @@ describe(`the committed ${DEFAULT_LEVEL_ID} level`, () => {
   it('has a geometry file that passes LevelGeometrySchema', () => {
     const text = readFileSync(geometryFile, 'utf8');
     const parsed = parseContentFile(
-      `content/levels/${DEFAULT_LEVEL_ID}.geometry.json`,
+      `content/levels/${levelId}.geometry.json`,
       text,
       LevelGeometrySchema,
     );
     expect(parsed).toMatchObject({ ok: true });
-    if (parsed.ok) expect(parsed.value.id).toBe(DEFAULT_LEVEL_ID);
+    if (parsed.ok) expect(parsed.value.id).toBe(levelId);
   });
 
   it('still holds at least one visual mesh node', () => {

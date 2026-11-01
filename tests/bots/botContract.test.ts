@@ -135,3 +135,26 @@ describe.each(BOT_IDS)('the %s bot and the stealth defs it is told about', (id: 
     expect(a.journal().entries.some((entry) => entry.command.type === 'HoldAnywhere')).toBe(false);
   });
 });
+
+// The cycle bot moves no draw (story 4.10, AC 12): with no cycle `world.cycle.nextAt` stays null, so a
+// bot that is told where the crib is plays any other game as it did before.
+describe('a safe spot in a level with no cycle', () => {
+  const played = async (id: BotId, safeSpot: BotSetup['safeSpot']) => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: SEED,
+      strictInvariants: true,
+    });
+    playGame(sim, makeBot(id, { ...botSetup(SEED), safeSpot }), BOT_TEST_UNTIL_MS, () => {});
+    return sim;
+  };
+
+  it.each(['perfect', 'human'] as const)('plays the same %s game, told or not', async (id) => {
+    const told = await played(id, { xM: -2, zM: 1.6 });
+    const untold = await played(id, null);
+    expect(told.journal()).toEqual(untold.journal());
+    expect(hashJson(told.world)).toBe(hashJson(untold.world));
+  });
+});

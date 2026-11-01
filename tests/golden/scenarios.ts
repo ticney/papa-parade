@@ -1,3 +1,6 @@
+import type { Bot } from '@bots/bot';
+import { botResponsesOf, releaseDefIdsOf, safeSpotOf } from '@bots/botResponses';
+import { createPerfectBot } from '@bots/perfectBot';
 import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import type { LevelWaveThreat } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
@@ -6,9 +9,11 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { beatTimelineOf, createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
+import { createTestCycleGeometry, createTestCycleLevel } from '../support/cycleSupport.ts';
 import {
   CARRY,
   COFFEE_TABLE,
+  createTestBots,
   createTestContent,
   createTestLevel,
   createTestLullabyWalk,
@@ -31,6 +36,10 @@ export interface Scenario {
   untilSimMs: number;
   /** Enqueued just before step number `atStep` (0 = before the first step). */
   actions: { atStep: number; command: SimCommand }[];
+  /** The room, when it is not the frozen living room (story 4.10). */
+  geometry?: LevelGeometry;
+  /** Makes a fresh bot that plays too: asked before each step, as `playGame` does (story 4.10: a whole cycle is too long to script). */
+  createBot?: () => Bot;
 }
 
 const scale = (t: number, value: number): SimCommand => ({
@@ -643,6 +652,25 @@ export const SCENARIOS: readonly Scenario[] = [
     ],
   },
   {
+    // The whole bedtime cycle won by the perfect bot on the frozen bedroom (story 4.10): five sequences
+    // chained by the sim, with the crib between them. `bedtimeCycle.test.ts` (golden) pins what it covers.
+    name: 'bedtime_cycle_won',
+    level: createTestCycleLevel(),
+    geometry: createTestCycleGeometry(),
+    seed: 1,
+    untilSimMs: 240_000,
+    actions: [],
+    createBot: () =>
+      createPerfectBot({
+        seed: 1,
+        holdMinMs: createTestContent().feel.input.holdMinMs,
+        responses: botResponsesOf(createTestCycleLevel().threats),
+        releaseDefIds: releaseDefIdsOf(createTestCycleLevel().threats),
+        safeSpot: safeSpotOf(createTestCycleGeometry()),
+        settings: createTestBots(),
+      }),
+  },
+  {
     // « Sortie en infiltration » won (story 4.9): Papa walks to the door (three boards creak on the way),
     // holds his breath from 4400 (right after the false alarm's telegraph at 4350) and lets go at 7250, the very
     // end of its window: no gasp. He is within reach of the door at 5820, but the alert is still up, so the
@@ -704,10 +732,22 @@ export async function recordScenario(
       throw new Error(`${scenario.name}: action at step ${atStep} is outside [0, ${steps})`);
     }
   }
-  const sim = await createSim({ content, geometry, level: scenario.level, seed: scenario.seed });
+  const sim = await createSim({
+    content,
+    geometry: scenario.geometry ?? geometry,
+    level: scenario.level,
+    seed: scenario.seed,
+  });
   const events: SimEvent[] = [];
+  const botCommands: SimCommand[] = [];
+  const bot = scenario.createBot?.();
   for (let i = 0; i < steps; i++) {
     for (const action of scenario.actions) if (action.atStep === i) sim.enqueue(action.command);
+    if (bot !== undefined) {
+      botCommands.length = 0;
+      bot.act(sim.world, botCommands);
+      for (const command of botCommands) sim.enqueue(command);
+    }
     sim.step();
     for (const event of sim.drainEvents()) events.push(event);
   }

@@ -56,6 +56,7 @@ export function botSetup(
     responses: botResponsesOf(level?.threats ?? createTestThreats()),
     // The defs judged on a release (story 4.8): still `firm` above, told apart here.
     releaseDefIds: releaseDefIdsOf(level?.threats ?? createTestThreats()),
+    safeSpot: null,
     settings: { ...createTestBots(), ...settings },
   };
 }

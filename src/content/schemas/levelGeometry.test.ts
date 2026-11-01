@@ -90,16 +90,16 @@ describe('LevelGeometrySchema', () => {
     expect(problems(level)).toEqual([expect.stringContaining(`required anchor "${id}"`)]);
   });
 
-  it('refuses a level without the zone behind the sofa', () => {
+  it('accepts a room with no zone: a silence planned in a missing zone is refused by the level checks', () => {
     const level = goodLevel();
     level.zones = [];
-    expect(problems(level)).toEqual([expect.stringContaining('required zone "behind_sofa"')]);
+    expect(problems(level)).toEqual([]);
   });
 
   it('refuses an anchor outside the bounds', () => {
     const level = goodLevel();
-    level.anchors[2] = { id: 'outlet_01', positionM: [9, 0, 0] };
-    expect(problems(level)).toEqual([expect.stringContaining('anchors[2].positionM')]);
+    level.anchors.push({ id: 'outlet_01', positionM: [9, 0, 0] });
+    expect(problems(level)).toEqual([expect.stringContaining('anchors[3].positionM')]);
   });
 
   it('refuses bounds whose upper corner is below the lower one', () => {
@@ -112,12 +112,6 @@ describe('LevelGeometrySchema', () => {
     const level = goodLevel();
     level.boundsMaxM = [-1, 2.5, 1]; // same x as the lower corner
     expect(problems(level).some((line) => line.includes('boundsMaxM[0]'))).toBe(true);
-  });
-
-  it('refuses the zone behind the sofa when it is not a hidden zone', () => {
-    const level = goodLevel();
-    (level.zones[0] as { kind: string }).kind = 'safe';
-    expect(problems(level)).toEqual([expect.stringContaining('must be of kind "hidden"')]);
   });
 
   it('refuses a zone of an unknown kind and a negative half extent', () => {

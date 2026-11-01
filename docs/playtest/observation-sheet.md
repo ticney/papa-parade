@@ -37,6 +37,10 @@ Laisser vide la ligne d'une menace que le testeur n'a pas rencontrée : elle n'e
 | Nombre de rires | |
 | Commentaires libres | |
 
+### Chambre de nuit : une séquence sans parade, c'est amusant ?
+
+Dans le niveau « Chambre de nuit », un taux de réussite ne dit pas si une séquence plaît. Pour chacune, note si le testeur s'est amusé, dans la colonne `comment` de la ligne de la partie (aucune colonne de plus) : `rester éveillé`, `100 pas`, `duel du coucher`, `dépose-bombe`, `sortie en infiltration`. Par exemple : `dépose-bombe : a retenu son souffle, a ri ; 100 pas : ennui`.
+
 ## Ce qui compte
 
 - **« A trouvé seul la bonne réponse »** : le testeur fait le bon geste face à la menace **dès la première rencontre**, sans aide et sans te l'avoir demandé. Un tap au hasard qui tombe juste, ce n'est pas comprendre : note N. Un tap juste mais trop tard, après avoir compris, note O seulement s'il a su quoi faire.

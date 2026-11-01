@@ -15,42 +15,9 @@ import { finishCoffee, startCoffee } from './coffee.ts';
 import { startGlide } from './glide.ts';
 import { enterPapaState, isPapaBusy } from './papaFsm.ts';
 import { startCall } from './phoneCall.ts';
-import { planWalkTo } from './planWalk.ts';
+import { startWalkTo } from './planWalk.ts';
 import { finishToilet, startToilet } from './toilet.ts';
 import { stepInDirection } from './walk.ts';
-
-/**
- * Walks to a tapped point (D7): see {@link planWalkTo} for where the path ends. A tap cancels a
- * glide. A* failing anyway (it should not) leaves Papa where he is. Returns where the path ends, or
- * null when no path was planned.
- */
-function tapFloor(
-  world: World,
-  ctx: StepContext,
-  tapXM: number,
-  tapZM: number,
-): { goalXM: number; goalZM: number } | null {
-  const { papa } = world;
-  const goal = planWalkTo(papa, ctx, tapXM, tapZM);
-  if (goal === null) return null;
-  papa.dirX = 0;
-  papa.dirZ = 0;
-  papa.isBlocked = false;
-  papa.glide = null;
-  // A walk to the floor is not a walk to an object; `tapObject` sets it again after a successful plan.
-  papa.objectId = null;
-  // Nor does it take or put down the baby; `tapBaby` and the safe-zone tap set `intent` after the plan.
-  papa.intent = 'none';
-  ctx.events.push({
-    type: 'PapaPathPlanned',
-    t: world.time.sim,
-    targetXM: goal.goalXM,
-    targetZM: goal.goalZM,
-    waypointCount: papa.path.length / 2,
-  });
-  enterPapaState(world, ctx, 'walkPath');
-  return goal;
-}
 
 /**
  * What Papa does on arriving at an object, by kind (story 1.19 D7): true when the action took over
@@ -108,14 +75,14 @@ function tapBaby(world: World, ctx: StepContext): boolean {
   if (isBabyFoundNow(world, ctx)) return false;
   const { baby, papa } = world;
   if (!ctx.level.hasCarry || baby.state === 'mischiefSilent') {
-    tapFloor(world, ctx, baby.xM, baby.zM);
+    startWalkTo(world, ctx, baby.xM, baby.zM);
   } else if (baby.state === 'carried') {
     putDownBaby(world, ctx);
     return true;
   } else if (isBabyInReach(world, ctx)) {
     takeBaby(world, ctx);
     return true;
-  } else if (tapFloor(world, ctx, baby.xM, baby.zM) !== null) {
+  } else if (startWalkTo(world, ctx, baby.xM, baby.zM) !== null) {
     papa.intent = 'takeBaby';
   }
   return false;
@@ -127,7 +94,7 @@ function tapBaby(world: World, ctx: StepContext): boolean {
  * cell of the playpen (its rim) can end outside it.
  */
 function tapFloorCommand(world: World, ctx: StepContext, xM: number, zM: number): void {
-  const goal = tapFloor(world, ctx, xM, zM);
+  const goal = startWalkTo(world, ctx, xM, zM);
   if (goal !== null && isBabyCarried(world) && isInSafeZone(ctx, goal.goalXM, goal.goalZM)) {
     world.papa.intent = 'putDownBaby';
   }
@@ -178,7 +145,7 @@ function tapObject(world: World, ctx: StepContext, objectId: string): void {
       ctx.events.push({ type: 'ToiletRefused', t: world.time.sim, objectId });
       return;
     }
-    if (tapFloor(world, ctx, object.xM, object.zM) !== null) {
+    if (startWalkTo(world, ctx, object.xM, object.zM) !== null) {
       world.papa.objectId = objectId;
       ctx.events.push({ type: 'ObjectTapped', t: world.time.sim, objectId });
     }

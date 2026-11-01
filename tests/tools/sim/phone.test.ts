@@ -25,6 +25,7 @@ describe('the phone of the live salon_crawler, with the idle bot', () => {
       holdMinMs: content.feel.input.holdMinMs,
       responses: {},
       releaseDefIds: [],
+      safeSpot: null,
       settings: content.bots,
     });
     const events: SimEvent[] = [];

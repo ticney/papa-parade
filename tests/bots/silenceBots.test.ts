@@ -78,6 +78,7 @@ describe('the bots and the suspicious silence', () => {
         time: { sim },
         threats: [],
         silence: { threatId: startedAt === null ? null : 1, zoneEnteredAt: startedAt, startedAt },
+        cycle: { index: 0, nextAt: null, completedAt: null },
         sequence: { beat: { isRunning: false, nextBeatAt: null }, stealth: { isRunning: false } },
       }) as never;
     const out: { type: string; t: number }[] = [];
@@ -104,6 +105,7 @@ describe('the bots and the suspicious silence', () => {
         time: { sim: 0 },
         threats: [],
         silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
+        cycle: { index: 0, nextAt: null, completedAt: null },
         sequence: { beat: { isRunning: false, nextBeatAt: null }, stealth: { isRunning: false } },
       } as never,
       out,

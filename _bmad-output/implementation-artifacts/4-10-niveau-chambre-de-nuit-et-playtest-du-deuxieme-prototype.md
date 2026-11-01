@@ -4,7 +4,7 @@ baseline_commit: 919942d
 
 # Story 4.10: The « Chambre de nuit » level and the second prototype's playtest
 
-Status: ready-for-dev
+Status: review
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.10 (L2029-2049). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -215,12 +215,12 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
 
 ## Tasks / Subtasks
 
-- [ ] **T1. The room** (AC 1-3): required anchors on both sides with the proof of AC 1; the `.blend`, the export, the geometry, the board test; the level JSON **without** `cycle` first, playable through `__PP__.loadLevel`.
-- [ ] **T2. The chain in the sim** (AC 4-9): schema and `cycleProblems`; the slice and `runCycle`; `advanceCycle`; `cycleDone`; snapshot v27; `bedtimeCycle.test.ts` on a frozen level, then `cycle` in the live JSON.
-- [ ] **T3. Bots and tools** (AC 12-13, 17): the helper, `safeSpot`, the report, the tables, the goldens.
-- [ ] **T4. Client** (AC 10-11): `?level=`, the Result header, the mirror.
-- [ ] **T5. Metrics** (AC 14-15): the journal's `sequences`, the tool, the sheet.
-- [ ] **T6. End to end, docs, CI** (AC 16, 18-20): the fuzz, the specs, the perf reading, the docs, `npm run ci`.
+- [x] **T1. The room** (AC 1-3): required anchors on both sides with the proof of AC 1; the `.blend`, the export, the geometry, the board test; the level JSON **without** `cycle` first, playable through `__PP__.loadLevel`.
+- [x] **T2. The chain in the sim** (AC 4-9): schema and `cycleProblems`; the slice and `runCycle`; `advanceCycle`; `cycleDone`; snapshot v27; `bedtimeCycle.test.ts` on a frozen level, then `cycle` in the live JSON.
+- [x] **T3. Bots and tools** (AC 12-13, 17): the helper, `safeSpot`, the report, the tables, the goldens.
+- [x] **T4. Client** (AC 10-11): `?level=`, the Result header, the mirror.
+- [x] **T5. Metrics** (AC 14-15): the journal's `sequences`, the tool, the sheet.
+- [x] **T6. End to end, docs, CI** (AC 16, 18-20): the fuzz, the specs, the perf reading, the docs, `npm run ci`.
 
 ## Dev Notes
 
@@ -352,14 +352,105 @@ Paths follow the architecture (`src/sim/sequences/`, `content/levels/`, `assets-
 
 ### Agent Model Used
 
+Claude Opus 5.5 (`claude-opus-5-5`)
+
 ### Debug Log References
+
+- The first `npm run sim` baseline of the salon was run from the main checkout (read-only, `--out` to the session's scratchpad), because the branch cannot hold `main`'s code. It wrote nothing there as far as the command goes; the worktree guard refuses a `git status` of that checkout, so this was not re-verified with git. The session then went back to this worktree.
+- 139 unit tests went red midway, for three causes, all fixtures: `threatCatalog` picked the bedroom's `nightstand` for a def it plays in the salon (it now keeps anchors and zones of the frozen room), the dist fixture lacked the new marker, and two hand-built bot worlds lacked `cycle`.
+- `bedtimeCycleFuzz.test.ts` moved from `src/sim/sequences/` to `tests/bots/`: Biome's layer rule refuses a `src/sim` test importing `@bots`. The guardrail was not touched.
 
 ### Completion Notes List
 
+**Done:** every task, and every AC except 20, which this workflow leaves to the review on purpose (see below).
+
+**AC 20 and the WebKit and CI gates are NOT run in dev-story.** The project's dev-story rule says not to run `npm run ci` or `ci:story` here whatever the acceptance criteria say. This merge completes Epic 4, so **the review must run the full `npm run ci` before the merge**. Run here instead: `ci:fast` green (7,400+ unit tests); the 9 touched e2e spec files on Chromium (97 passed); `chambreNight.spec.ts` on WebKit too (7 passed); `dist:check` on both flavours; the dist specs on the built playtest on Chromium (6 passed); `src/sim` coverage 98 % statements, 96.18 % branches, 100 % functions, 99.62 % lines (no threshold failure).
+
+**Goldens (deliberate).** `npm run golden:update`: 25 `.expected.json` files moved, **only in `worldHash`** (the new slice); checked with a diff filtered on that key, which left no other line. No journal, command or event moved. New scenario `bedtime_cycle_won` (the frozen bedroom, played by the perfect bot: `Scenario` gains `geometry` and `createBot`), pinned by `tests/golden/bedtimeCycle.test.ts`. No screenshot reference moved.
+
+**`chambre_night`, live content, seed 1, 20 runs per bot:**
+
+| Bot | timer | mamaWoke | cycleDone | Mean entries | Cash-ins | stay_awake (s/w/l) | lullaby_walk | bedtime_duel | bomb_drop | stealth_exit |
+|---|---|---|---|---|---|---|---|---|---|---|
+| perfect | 0 | 0 | **20** | 5 | 80 | 20/20/0 | 20/20/0 | 20/20/0 | 20/20/0 | 20/20/0 |
+| human | 0 | 0 | 20 | 5 | 80 | 20/20/0 | 20/20/0 | 21/20/1 | 20/20/0 | 20/20/0 |
+| random | 0 | 20 | 0 | 0 | 0 | 248/0/248 | – | – | – | – |
+| idle | 0 | 20 | 0 | 0 | 0 | 240/0/240 | – | – | – | – |
+
+(s/w/l: started, won, lost.) **`perfect` ends every run on `cycleDone`; `idle` never does**, and never passes `stay_awake`: it snores until Mama wakes. `random` is the same: it fails `stay_awake` and wakes Mama. **`human` losing almost nothing is a finding, not a verdict:** this bot never falls for a feint and aims with a small jitter, so it says nothing of how hard the evening is for a person. Only playing does.
+
+`npm run sim -- --bot perfect --level chambre_night --seed 7 --runs 1 --journals <dir>`, then `npm run sim:replay` on it: « replay matches », exit 0.
+
+**`salon_crawler`, `main` against the branch, seed 1, 20 runs:** identical for all four bots once hashes and the new keys at zero are set aside (compared by a script over the whole JSON reports).
+
+| Bot | `main` vs branch | Ends | cycleCompleted | sequenceOutcomes |
+|---|---|---|---|---|
+| perfect | identical | 20 timer | 0 | none |
+| human | identical | 20 timer | 0 | none |
+| random | identical | 20 timer | 0 | none |
+| idle | identical | 20 timer | 0 | none |
+
+**Perf, by hand, `PP_PERF_LEVEL=chambre_night`, built playtest, Chromium, speed 1:** 12,095 frames, **p95 16.8 ms** (mean 16.68, max 100.0), **35 draw calls** at most, **1,748 triangles** at most. Budgets: 20 ms, 100, 100k. Level payload 853.4 KiB (`.glb` plus audio), budget 3 MiB.
+
+**The room.** Greybox built headless with a throwaway script from the salon's `.blend` (same collections and materials; the crib is the playpen's mesh, renamed). Final boards, in Blender coordinates: `board_01` (-0.6, -0.6), `board_02` (0.35, 0.35), `board_03` (1.3, 0.7). They moved twice, as 4.9's did: first because `board_03` reached into the exit radius, then because the grid closes the wardrobe's side up to x = 2.0, which left no clean corridor. `creakZones.test.ts` runs on both live rooms. Screenshots at 667 x 375 and 844 x 390 were looked at: the room, crib, door and toilet read; see the note on the verb below.
+
+**Decisions taken while implementing:**
+- **The whole of `runCycle` waits while Papa is not `idle`,** not only the gather: AC 6's step 3 alone would have cut across a player's walk when nothing is left to gather, which the same AC forbids. The cap still bounds it.
+- **`advanceCycle` lives in `sequences/cycleEnd.ts`,** as the story allows, so that `sequenceEnd.ts` imports no threat code.
+- **The snapshot guard is stricter than AC 9 asks:** `completedAt` set exactly once past the last entry, and `nextAt` null exactly then. `flowProblem` also had to accept an early `ended` with the cycle done.
+- **`LevelGeometrySchema` dropped its required zone too:** the story names the two constants' other users, not this one, but it read the same list.
+- **`StartedLevel` gains `geometry`,** which the autoplay needs for `safeSpotOf`.
+- **The planned silence's zone was already checked** by `content:check` and `simLevelOf`, so nothing was added; `checkCycle.test.ts` proves it, with the anchor and object cases.
+- **`CYCLE_DROP_MIN_LEAD_MS` is 5,000,** so the bot also drops in the 6 s before `bomb_drop`. It keeps one tap per interlude: 3 taps a game, plus the drop's own cash-in.
+
+**For Geo:** the open points are in `deferred-work.md`. One is new: at 844 x 390 the outlet's verb can sit over the toilet's marker, both being on the left wall, for the length of a telegraph.
+
 ### File List
+
+New:
+- `assets-src/blender/chambre_night.blend`
+- `public/assets/levels/chambre_night.glb`
+- `content/levels/chambre_night.json`, `content/levels/chambre_night.geometry.json`
+- `src/sim/sequences/bedtimeCycle.ts`, `bedtimeCycle.test.ts`, `cycleEnd.ts`, `cycleSnapshot.test.ts`
+- `tests/support/cycleSupport.ts`, `testCycle.level.json`, `testCycle.geometry.json`
+- `tests/bots/bedtimeCycleFuzz.test.ts`
+- `tests/content/checkCycle.test.ts`
+- `tests/e2e/chambreNight.spec.ts`
+- `tests/golden/bedtimeCycle.test.ts`, `tests/golden/journals/bedtime_cycle_won.json`, `bedtime_cycle_won.expected.json`
+- `tests/tools/playtest/sequenceMetrics.test.ts`
+- `tests/tools/sim/cycleLevel.test.ts`
+
+Modified, docs and data:
+- `CLAUDE.md`, `docs/playtest/observation-sheet.md`
+- `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/{deferred-work.md,sprint-status.yaml}`, this story
+- `content/_schemas/level.schema.json`, `content/strings.fr.json`
+
+Modified, source:
+- `src/bots/{bot,botResponses,humanBot,perfectBot,threatTiming}.ts`
+- `src/client/boot.ts`, `src/client/app/{debugParams,levelSession}.ts`, `src/client/assets/browserContentSource.ts`, `src/client/telemetry/gameSummary.ts`, `src/client/ui/screens/resultScreen.ts`
+- `src/content/levelNodeNames.ts`, `src/content/schemas/{journal,level,levelGeometry}.ts`
+- `src/debug/autoplay.ts`
+- `src/sim/{context,createSim,events,index,snapshot,world}.ts`, `src/sim/flow/flowSystem.ts`, `src/sim/papa/{papaSystem,planWalk}.ts`, `src/sim/sequences/{layDown,sequenceEnd,sequenceSystem}.ts`
+- `tools/assets/extractLevelGeometry.ts`, `tools/blender/export_level.py`, `tools/build/inspectDist.ts`, `tools/content/contentChecks.ts`, `tools/playtest/{computeMetrics,renderMetrics}.ts`, `tools/sim/{runSim,simReport}.ts`
+
+Modified, tests:
+- `src/client/app/{debugParams,levelSession,threatsSwitch}.test.ts`, `src/client/telemetry/gameSummary.test.ts`, `src/client/ui/screens/resultScreen.test.ts`
+- `src/content/levelNodeNames.test.ts`, `src/content/schemas/levelGeometry.test.ts`
+- `src/debug/{autoplay,feelPanel,testApi}.test.ts`
+- `src/sim/{events,snapshot}.test.ts`, `src/sim/threats/inputLag.test.ts`, `src/sim/sequences/{bombDropSnapshot,duelSnapshot,fakeSleepSnapshot,sequenceSnapshot}.test.ts`
+- `tests/architecture/{blenderConventions,levelAssets}.test.ts`
+- `tests/bots/{beatBots,botContract,instinct,silenceBots}.test.ts`
+- `tests/content/{checkContent,creakZones}.test.ts`
+- `tests/e2e/support/game.ts`, `tests/e2e-dist/{dist,perf}.spec.ts`
+- `tests/golden/{golden.test,scenarios}.ts`, `tests/golden/journals/*.expected.json` (25 files, `worldHash` only)
+- `tests/support/botSupport.ts`, `tests/threats/threatCatalog.test.ts`
+- `tests/tools/assets/extractLevelGeometry.test.ts`, `tests/tools/build/checkDist.test.ts`
+- `tests/tools/playtest/{computeMetrics,playtestMetrics,renderMetrics}.test.ts`
+- `tests/tools/sim/{journalReplay,mamaScore,microSleep,phone,playGame,runSim,silence,simReport}.test.ts`
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-11-01 | Story created (`gds-create-story`), status `ready-for-dev`. Ultimate context engine analysis completed: comprehensive developer guide created. |
+| 2026-11-01 | Story implemented (`gds-dev-story`), status `review`. The bedroom, the chain in the sim (snapshot v27), the cycle bot, `?level=`, the journal's sequences and `playtest:metrics` report v2. Goldens regenerated (`worldHash` only). The full `npm run ci` is left to the review. |

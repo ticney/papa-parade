@@ -72,7 +72,7 @@ function goodSpecs(): Spec[] {
     { name: 'NAV_block_sofa', center: [0, 0.45, -1.5], half: [1, 0.45, 0.5] },
     { name: 'ZONE_hidden_behind_sofa', center: [0, 0.5, -2.5], half: [1, 0.5, 0.4] },
     { name: 'PROP_mug_01', center: [0.123456, 0.5, 0], half: [0.05, 0.05, 0.05] },
-    ...REQUIRED_ANCHOR_IDS.map((id) => anchor(id, ...(positions[id] as [number, number]))),
+    ...Object.entries(positions).map(([id, [xM, zM]]) => anchor(id, xM, zM)),
   ];
 }
 
@@ -88,6 +88,10 @@ function withSpecs(change: (specs: Spec[]) => Spec[]): GltfJson {
 }
 
 describe('extractLevelGeometry', () => {
+  it('accepts a room with no zone at all: what a level plans is checked against it later', () => {
+    expect(extract(withSpecs((s) => s.filter((n) => !n.name.startsWith('ZONE_')))).ok).toBe(true);
+  });
+
   it('extracts colliders, anchors, zones, props and bounds from a good level', () => {
     const result = extract(build(goodSpecs()));
     expect(result.ok).toBe(true);
@@ -106,7 +110,10 @@ describe('extractLevelGeometry', () => {
     expect(level.props).toEqual([
       { id: 'mug_01', kind: 'mug', centerM: [0.123, 0.5, 0], halfExtentsM: [0.05, 0.05, 0.05] },
     ]);
-    expect(level.anchors.map((a) => a.id)).toEqual([...REQUIRED_ANCHOR_IDS].sort());
+    expect(level.anchors.map((a) => a.id)).toEqual(
+      expect.arrayContaining([...REQUIRED_ANCHOR_IDS]),
+    );
+    expect(level.anchors).toHaveLength(8);
     expect(level.anchors.find((a) => a.id === 'door')?.positionM).toEqual([3, 0, -2.9]);
   });
 
@@ -218,10 +225,15 @@ describe('extractLevelGeometry', () => {
       expect(found.some((m) => m.includes(`ANCHOR_${id}`))).toBe(true);
     });
 
-    it('a missing required zone', () => {
-      expect(errorsOf(withSpecs((s) => s.filter((n) => !n.name.startsWith('ZONE_'))))).toEqual([
-        expect.stringContaining('behind_sofa'),
-      ]);
+    it('a hidden zone of any name with no walkable cell near it', () => {
+      const found = errorsOf(
+        withSpecs((s) => [
+          ...s.filter((n) => n.name !== 'ANCHOR_outlet_01'),
+          { name: 'NAV_block_wall', center: [-3, 0.5, 1.5], half: [1, 0.5, 1.5] },
+          { name: 'ZONE_hidden_nook', center: [-3.5, 0.5, 1.5], half: [0.4, 0.5, 0.4] },
+        ]),
+      );
+      expect(found).toEqual([expect.stringContaining('ZONE_hidden_nook')]);
     });
 
     it('a box rotated by 45° about Y', () => {
@@ -279,7 +291,7 @@ describe('extractLevelGeometry', () => {
       const found = errorsOf(
         withSpecs((s) =>
           s
-            .filter((n) => n.name !== 'ANCHOR_door' && n.name !== 'ANCHOR_phone')
+            .filter((n) => n.name !== 'ANCHOR_door' && n.name !== 'ANCHOR_baby_spawn')
             .concat({ name: 'Bad Name', center: [0, 0, 0], half: [1, 1, 1] }),
         ),
       );

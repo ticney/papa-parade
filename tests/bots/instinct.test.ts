@@ -45,6 +45,7 @@ async function play(
       holdMinMs: content.feel.input.holdMinMs,
       responses: botResponsesOf(level.threats),
       releaseDefIds: releaseDefIdsOf(level.threats),
+      safeSpot: null,
       settings: bots,
     });
     if (!bot.ok) throw new Error(bot.error.message);

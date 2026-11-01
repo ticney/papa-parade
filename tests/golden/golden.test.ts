@@ -55,7 +55,7 @@ describe.each(SCENARIOS)('golden: $name', (scenario) => {
     const expected = readJson<ReturnType<typeof summarize>>(expectedFile);
     const replay = await replayJournal({
       content,
-      geometry,
+      geometry: scenario.geometry ?? geometry,
       level: scenario.level,
       journal,
       untilSimMs: expected.untilSimMs,
@@ -75,7 +75,7 @@ describe.each(SCENARIOS)('golden: $name', (scenario) => {
     const recording = await recordScenario(content, geometry, scenario);
     const replay = await replayJournal({
       content,
-      geometry,
+      geometry: scenario.geometry ?? geometry,
       level: scenario.level,
       journal: recording.journal,
       untilSimMs: scenario.untilSimMs,

@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import {
   NODE_PREFIXES,
   REQUIRED_ANCHOR_IDS,
-  REQUIRED_ZONE_IDS,
   SNAKE_ID_PATTERN,
   ZONE_KINDS,
   ZONE_NAME_PATTERN,
@@ -44,10 +43,6 @@ describe('Blender naming conventions: Python and TypeScript agree', () => {
 
   it('the required anchors', () => {
     expect(pythonTuple('REQUIRED_ANCHOR_IDS')).toEqual([...REQUIRED_ANCHOR_IDS]);
-  });
-
-  it('the required zones', () => {
-    expect(pythonTuple('REQUIRED_ZONE_IDS')).toEqual([...REQUIRED_ZONE_IDS]);
   });
 
   it('the zone kinds', () => {

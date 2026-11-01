@@ -34,9 +34,11 @@ export interface SimLevel {
   readonly disruptions: readonly SimPlannedDisruption[];
   /**
    * The special sequences the level can run (story 4.4), in the level's order. Empty: it has none.
-   * Nothing schedules them: `StartSequence` does.
+   * `StartSequence` starts any of them, and the level's `cycle` chains them (story 4.10).
    */
   readonly sequences: readonly SimSequence[];
+  /** The bedtime cycle (story 4.10), or null in a level that has none. */
+  readonly cycle: SimCycle | null;
   /** The waves, in order. Empty: the level plans nothing. */
   readonly waves: readonly SimWave[];
   /** How long the level lasts, in sim ms: the flow ends it then. */
@@ -136,6 +138,20 @@ export interface SimSequence {
    * use. Derived from the def by `simLevelOf`, so it is not in the snapshot.
    */
   readonly stealthThreatIndexes: readonly (SimStealthStep | null)[];
+}
+
+/** The bedtime cycle of a level (story 4.10): its entries, each def resolved. */
+export interface SimCycle {
+  readonly entries: readonly SimCycleEntry[];
+  readonly retryInterludeMs: number;
+  readonly gatherMaxMs: number;
+}
+
+/** One entry of the bedtime cycle. */
+export interface SimCycleEntry {
+  readonly sequenceId: string;
+  readonly def: SequenceDef;
+  readonly interludeMs: number;
 }
 
 /** What a `stealth` step runs on: its false alarm and its real wake (indices in `world.threats`), and the floor point of its exit. */

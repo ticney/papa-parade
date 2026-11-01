@@ -549,6 +549,16 @@ export interface InputSlice {
   lagMs: number;
 }
 
+/** The bedtime cycle (story 4.10): which entry of the level's `cycle` is next, and when. */
+export interface CycleSlice {
+  /** The entry being waited for or run; the entry count once done, 0 in a level with no cycle. */
+  index: number;
+  /** When the current entry is due; null with no cycle or once done. */
+  nextAt: SimMs | null;
+  /** When the last entry was won; null until then. */
+  completedAt: SimMs | null;
+}
+
 export interface World {
   time: {
     /** Sim time, in ms. Advances by exactly `STEP_MS` per step, whatever `scale` is. */
@@ -581,6 +591,8 @@ export interface World {
   carry: CarrySlice;
   /** The special sequence under way, or the last one (story 4.4). */
   sequence: SequenceSlice;
+  /** The bedtime cycle (story 4.10), at rest in a level that has none. */
+  cycle: CycleSlice;
   /** The combo (story 4.2). */
   combo: ComboSlice;
   /** Fatherly Instinct (story 2.9). */
@@ -729,6 +741,7 @@ export function createWorld({
       duel: createDuelSlice(),
       stealth: createStealthSlice(feel.stealth.breathCapacityMs),
     },
+    cycle: { index: 0, nextAt: null, completedAt: null },
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
     instinct: { state: 'ready', enteredAt: asSimMs(0), untilAt: asSimMs(0), missAts: [] },
     score: { perfects: 0, nearMisses: 0, comboPoints: 0, final: null },

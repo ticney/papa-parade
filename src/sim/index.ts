@@ -43,6 +43,13 @@ export {
   sequenceBeatProblems,
 } from './sequences/beatClock.ts';
 export {
+  type CycleDefShape,
+  type CycleRoom,
+  type CycleShape,
+  cycleProblems,
+  cycleRoomForGeometry,
+} from './sequences/bedtimeCycle.ts';
+export {
   type DuelDefShape,
   type DuelLimits,
   type DuelThreatShape,
@@ -68,6 +75,7 @@ export type {
   BabySlice,
   BeatSlice,
   ComboSlice,
+  CycleSlice,
   DirectorSlice,
   DisruptionInstance,
   DuelSlice,

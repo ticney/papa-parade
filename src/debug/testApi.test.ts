@@ -114,6 +114,7 @@ async function createRig(options: { eventLogMax?: number } = {}): Promise<Rig> {
       levelId: 'salon_crawler',
       seed,
       level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
+      geometry: createTestGeometry(),
       feel: content.feel,
     });
     return next;
@@ -123,6 +124,7 @@ async function createRig(options: { eventLogMax?: number } = {}): Promise<Rig> {
     levelId: 'salon_crawler',
     seed: 1,
     level: createTestLevel({ waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })] }),
+    geometry: createTestGeometry(),
     feel: content.feel,
   });
   return { api, host, session, sim, startLevel };

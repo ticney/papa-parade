@@ -579,7 +579,7 @@
 
 - **Open point 3, a missed micro-sleep while carrying** is still a 3 s nap with the baby in the arms; waking him with a snore and +15 % noise is story 4.4. *Resolved in story 4.4 for the sequence only (D2): the snore is `stay_awake`'s failure; a nap in a normal level is unchanged.* The busy-Papa edge cases of « Deferred from: code review of 1-23 » (a Firmness hold that keeps succeeding when Papa becomes busy mid-hold) are not settled by this story either: carrying makes a Firmness impossible, it does not touch the busy states.
 - **Open point 4, the playpen holds nobody.** It is a flat mat with a safe zone over it: the baby crawls off it after a put-down like anywhere else, and the player has no hint (ring, highlight) of where the safe place is except the mesh. A highlight of the safe zone while carrying is a possible next step (UX has none). Nothing scores the put-down yet: `BabyPutDown{safe}` is only said, the combo cash-in is story 4.2.
-- **Open point 5, the bots do not carry.** `perfect`, `human`, `random` and `idle` never send a `TapBaby` outside a silence, so the headless sim and `--autoplay` do not exercise the carry beyond the unit tests, the fuzz test, the `baby_carry` golden and `carry.spec.ts`. The cycle bot comes with 4.10. `random` picks a threat among `world.threats`, which now holds the cry in the arms, so its draws differ from before the story (it still never carries).
+- **Open point 5, the bots do not carry.** `perfect`, `human`, `random` and `idle` never send a `TapBaby` outside a silence, so the headless sim and `--autoplay` do not exercise the carry beyond the unit tests, the fuzz test, the `baby_carry` golden and `carry.spec.ts`. The cycle bot comes with 4.10. `random` picks a threat among `world.threats`, which now holds the cry in the arms, so its draws differ from before the story (it still never carries). *Closed by 4.10: `perfect` and `human` carry and put down in a cycle.*
 - **Open point 2, carrying is almost free until 4.2-4.4.** The director draws nothing while the baby is carried; the price is fatigue ×2 (`fatigue.carriedMultiplier`), the micro-sleeps and the cry in the arms (`carry.armsCry*Ms`, `arms_cry.gagCryMs`). Tune after the playtest. *Updated in story 4.2: carrying now also earns, a carry tick (+1 multiplier and base points every `feel.combo.carryTickMs` without incident), and risks the combo (a missed micro-sleep or cry in the arms resets it), so the trade-off is real; the cry in the arms and the fatigue remain the price.*
 - **The put-down gesture (open point 1, D2):** tap Papa's chest = put down here; tap the playpen = walk and put down; tap elsewhere = walk on with him. Geo judges on a phone whether a dedicated button is needed.
 - **`ThreatTelegraphed` then `ThreatCancelled` in the same step** (rule 10) when the director draws a threat in the step of the pick-up: the client sees both events in one drain, so a marker may never be drawn. Accepted; pinned by `carry.test.ts`.
@@ -615,7 +615,7 @@
 - **Open point 2, a strong player gains little.** The Rire is capped at 40 and the `perfect` bot already reaches it with perfects alone; `human` is close. The combo mostly helps average players unless the perfects are retuned.
 - **Open point 3, a safe drop can be farmed in small bites**, and x8 with few base points is worth less than a long run (28 points for 7 responses at x8). Watch how players bank it.
 - **Open point 4, the bare-floor put-down keeps the combo (D4).** Say if you prefer it lost. The carry tick stops until the next take.
-- **Open point 5, the bots still do not cash in** (`comboCashIns` is 0 for all four), until the cycle bot of 4.10. They do climb and reset (`comboPeakMultiplier` is 8 for `perfect` and `human`).
+- **Open point 5, the bots still do not cash in** (`comboCashIns` is 0 for all four), until the cycle bot of 4.10. They do climb and reset (`comboPeakMultiplier` is 8 for `perfect` and `human`). *Closed by 4.10: 4 cash-ins a game for `perfect` on `chambre_night`.*
 - **The cash-in slow-mo triggers the music's slow-mo effect** (`feel.music.slowMo.belowScale` is 1, so any slow-mo does: the low-pass and the lower rate). Nothing was written for it; judge by playing, and lower the bound if a 1 s cash-in should not duck the music.
 - **Points not cashed when the level ends are lost, with no event.** A player who is carrying at the timer gets nothing; the Result screen cannot say « combo perdu ». Reason: AC 8 (the note has four rows and no new field).
 - **No live score in the HUD.** The player sees the badge and the « +N » of a cash-in; the points reach him only in the Rire of the Result screen.
@@ -629,7 +629,7 @@
 
 ## Story 4-3-envie-pressante (2026-10-30)
 
-- **Open point 1, in the salon the slowdown never comes (D7).** 0.4/s over 180 s is 72 points: the gauge turns orange at about 175 s and never reaches 100 (`bladderPeakPct` is 72 for the four bots). The slowdown is tested through `SetBladder` and is first felt in `chambre_night` (4.10), unless Geo tunes the salon: a `feelOverrides` with `bladder.startPct` around 40 does it with no code, but it changes the `random` bot's walks.
+- **Open point 1, in the salon the slowdown never comes (D7).** 0.4/s over 180 s is 72 points: the gauge turns orange at about 175 s and never reaches 100 (`bladderPeakPct` is 72 for the four bots). The slowdown is tested through `SetBladder` and is first felt in `chambre_night` (4.10), unless Geo tunes the salon: a `feelOverrides` with `bladder.startPct` around 40 does it with no code, but it changes the `random` bot's walks. *Closed by 4.10: `chambre_night` starts the need at 30 %, so it is felt at about 175 s.*
 - **Open point 2, a nap in the toilet cuts the visit with no relief (D5).** Say if you prefer the gauge to fall anyway.
 - **Open point 3, nothing shows the 5 s running out** except the occupied door. A ring on the door is cheap if the wait feels blind.
 - **Open point 4, fatigue keeps rising in the toilet, and the flush makes no noise.** Both are what the GDD leaves unsaid. A flush that feeds the Bruit gauge in a Sieste level would be a good gag.
@@ -705,10 +705,10 @@
 - **`stay_awake` is 30 s with a cadence tightening from about 5 s to about 3.4 s** (open point 4): all guesses in the JSON; micro-sleeps every few seconds may read as a metronome. Tune after playing.
 - **The bar « Sommeil » counts the time left, not the sleep** (open point 5): `"bar": null` removes it (and the compact timer).
 - **The framing is a light zoom on Papa** (18 %, open point 6): 7.4 owns the parody. Tune `zoomPct` and `focusPct` first.
-- **The baby pops into the arms on a debug start** (D6, open point 7): only the bedtime flow of 4.10 can walk there first.
+- **The baby pops into the arms on a debug start** (D6, open point 7): only the bedtime flow of 4.10 can walk there first. *Closed by 4.10: the gather walks Papa to him; only a debug start and the gather's cap still pop.*
 - **The sequence bar is two DOM nodes, not four** (Geo's choice, 2026-10-30, the HUD being at 38 of 40 nodes): the label is a CSS `::before` read from `data-label` (it is not in the accessibility tree, the container's `aria-label` carries the name), the fill is the track's background driven by `--pp-sequence-value`. Reason: raising `HUD_MAX_DOM_NODES` was not wanted; a future HUD element must make the same trade or ask again.
-- **The bots never put the baby down after a sequence** (cycle bot, 4.10): a perfect bot that wins `stay_awake` at 5 s then plays the rest of the level with the baby in its arms and the director silent (5 → 4 stars on `salon_crawler`, seed 1, 20 runs). Reason: expected until the cycle bot exists; not a balance finding.
-- **`startSequence` refuses a hidden baby and a busy Papa and says nothing in play**: the overlay says why (`sequenceRefusalText`), the CLI wrapper sends the command once and does not retry. Reason: only the debug paths start a sequence until 4.10.
+- **The bots never put the baby down after a sequence** (cycle bot, 4.10): a perfect bot that wins `stay_awake` at 5 s then plays the rest of the level with the baby in its arms and the director silent (5 → 4 stars on `salon_crawler`, seed 1, 20 runs). Reason: expected until the cycle bot exists; not a balance finding. *Closed by 4.10: the cycle bot.*
+- **`startSequence` refuses a hidden baby and a busy Papa and says nothing in play**: the overlay says why (`sequenceRefusalText`), the CLI wrapper sends the command once and does not retry. Reason: only the debug paths start a sequence until 4.10. *Closed by 4.10: `runCycle` waits on the refusal and tries again each step.*
 
 ## Deferred from: code review of story-4.4 (2026-10-30)
 
@@ -751,7 +751,7 @@
 
 ## Story 4-5-les-100-pas-en-rythme (2026-10-30)
 
-- **Papa does not walk** (open point 1): « Les 100 pas » happen on the spot, a sound and a ring at each step, because 4.4's D3 holds Papa still until 4.9. Reason: moving that guard is 4.9's work; a small sway on each hit is cheap if it feels wrong. *Story 4.9 lifted the guard for a stealth step only (`isHeld` in `runPapa`); a lullaby step still holds Papa, so this stays open for 4.10 or later.*
+- **Papa does not walk** (open point 1): « Les 100 pas » happen on the spot, a sound and a ring at each step, because 4.4's D3 holds Papa still until 4.9. Reason: moving that guard is 4.9's work; a small sway on each hit is cheap if it feels wrong. *Story 4.9 lifted the guard for a stealth step only (`isHeld` in `runPapa`); a lullaby step still holds Papa, so this stays open for 4.10 or later.* *Still open after 4.10 (open point 7).*
 - **D1 chose between two documents** (open point 2): the notes lead by `audioOffsetMs − visualOffsetMs` and the taps keep their usual correction, where the epic corrects the planning and the architecture the judgement. Reason: doing both counts the latency twice; the felt result is the same for the judgement. Say if the sound should stay on the game's clock instead.
 - **A step earns nothing** (open point 3, D6): a won `lullaby_walk` pays only through the carry tick. A bonus at the end is Geo's call.
 - **The tolerance is a guess** (open point 4): 45 judged beats, 9 misses or 5 decoys or 17 stray taps to wake him, no recovery on a hit. Tune `missWakePct`, `decoyWakePct`, `strayWakePct`. On `salon_crawler` seed 1, 20 runs: `perfect` wins 20 of 20, `idle` loses 20 of 20 (9 misses), `human` wins 20 of 20 (13 misses and 9 strays over 900 beats: the wake never reaches 100), `random` loses 20 of 20. `human` winning every time is a finding, not a bug: with a 60 ms jitter against a ±150 ms zone the walk is easy for an attentive player; tighten `windowMs` or raise the costs if that is not wanted.
@@ -783,7 +783,7 @@
 - **Two fixtures cannot share an anchor**: `test_wait` is planned at `phone`, `test_firm` keeps `door` (the story said `door` for both).
 - **The `ppSequenceStep` / `ppSequenceRetreats` prod markers are the `ppSequence` entry's**: a second entry would be reported twice by `inspectDist`.
 - **The step estimates (`stepEndsAt`, `endsAt`) of a duel are not times anything waits for**: only the snapshot's ordering check reads them. 4.8 reuses `isTimed` and `goToSequenceStep`.
-- **After a sequence the baby stays carried and the bots never put him down** (4.10): the cry in the arms goes on, so a `perfect` bot's stars fall after the duel. Expected.
+- **After a sequence the baby stays carried and the bots never put him down** (4.10): the cry in the arms goes on, so a `perfect` bot's stars fall after the duel. Expected. *Closed by 4.10: the cycle bot.*
 
 ## Story 4-7-faux-sommeil (2026-10-31)
 
@@ -791,7 +791,7 @@
 - **The feint keeps « ATTENDS… »** (open point 2, D2): the glyph (a half-open eye), the sound and a lighter vibration are the three channels that tell it from the signal. If everyone sees through it, a shorter glance or a closer sound makes it meaner.
 - **A late press on the fake sleep also cries** (open point 3, D6), not only a press on the feint: one gag and one cost per def, as `baby_eyes_reopened` shares `early` and `late`.
 - **The noise is +4 %** (open point 4): `gagCryMs` 2000, two `BabyCrying` at 2 % each. The GDD does not price it (L216).
-- **No bot falls for the feint** (open point 5): `perfect` reads the drawn signal, `human` never presses before `windowOpen`. The sim tables say nothing of how hard the feint is for a player; only playing does. 4.10's playtest metrics are the measure.
+- **No bot falls for the feint** (open point 5): `perfect` reads the drawn signal, `human` never presses before `windowOpen`. The sim tables say nothing of how hard the feint is for a player; only playing does. 4.10's playtest metrics are the measure. *Still open after 4.10: `playtest:metrics` now gives the rate per step, and only playing says how hard it is.*
 - **The tuning is a guess** (open point 6): feint 1.2-2.6 s after the telegraph, signal 3.5-7 s after it, at least 0.9 s between them (`minGapMs`, a design key: a reflex on the feint must never land in the real window).
 - **The baby does not sit up on screen** (open point 7): the half-open eye is a glyph and « le bébé se relève » is a sound, a cue and the marker, until E7.
 - **The peek glyph is a placeholder** (two eyes, one a crescent, one half open): it reads differently from `eyes` and `eyelids` at 667 × 375, but E7 draws the final one.
@@ -813,8 +813,8 @@
 
 ## Story 4-8-depose-bombe (2026-11-01)
 
-- **Papa is placed over the playpen at the start** (open point 1, D3), rather than the start being refused elsewhere. It shows as a jump in the salon's debug start (`prevXM/prevZM` are set too, so the view does not slide). 4.10's Papa should already be at the crib.
-- **A failure restarts the descent** (open point 2, D2); it does not go back to the duel. One step, so a retreat from step 0 stays at step 0. 4.10 can revisit it once sequences chain.
+- **Papa is placed over the playpen at the start** (open point 1, D3), rather than the start being refused elsewhere. It shows as a jump in the salon's debug start (`prevXM/prevZM` are set too, so the view does not slide). 4.10's Papa should already be at the crib. *Closed by 4.10 for the cycle: Papa is walked to the crib; the jump stays on a debug start and at the gather's cap.*
+- **A failure restarts the descent** (open point 2, D2); it does not go back to the duel. One step, so a retreat from step 0 stays at step 0. 4.10 can revisit it once sequences chain. *Still open after 4.10: a failed drop retries the same entry (open point 1).*
 - **Laying the baby is the one Firmness allowed while carrying** (open point 3): GDD L171's « pas tenir avec Fermeté » concerns carrying through a threat. `project-context.md › Carrying the baby` says so.
 - **A pause during the hold is a failure** (open point 4), as for every Firmness (`releaseHeld`): a `released` gag, tested. On a hold of about 6.5 s of real time it may feel harsher than elsewhere.
 - **The noise is +4 %** per failure (open point 5): `gagCryMs` 2000, two `BabyCrying` at 2 % each. The GDD does not price it (L216). `restMs` (2000) is at least the cry.
@@ -854,6 +854,20 @@
 
 ## Deferred from: code review of story 4-9-sortie-en-infiltration-reponse-ne-rien-faire (2026-11-01)
 
-- **Content guards for a stealth step's geometry.** `sequenceStealthProblems` does not refuse Papa's start inside `exitRadiusM` (the sequence would win on its first step), a level with no open safe-zone centre (`placePapaOverMattress` finds nothing), or creak zones that overlap each other or the exit (`creakZoneIndexAt` keeps the first match only). `creakZones.test.ts` pins the live salon; add the guards with the `chambre_night` level (4.10).
+- **Content guards for a stealth step's geometry.** `sequenceStealthProblems` does not refuse Papa's start inside `exitRadiusM` (the sequence would win on its first step), a level with no open safe-zone centre (`placePapaOverMattress` finds nothing), or creak zones that overlap each other or the exit (`creakZoneIndexAt` keeps the first match only). `creakZones.test.ts` pins the live salon; add the guards with the `chambre_night` level (4.10). *Closed by 4.10: `cycleProblems`, for a level with a cycle; the salon has none and `creakZones.test.ts` still pins it.*
 - **The stealth e2e scans seeds 1-120 for its first alert** (`reachAlert`). A `realWakePct` or `alertGapMinMs` retune can turn it red with « no seed from 1 to 120 ». Freeze a stealth sequence for the e2e if it happens.
 - **Two presentation numbers are not data:** `--pp-breath-ring-size: 84px` (`ui.css`) and `EXIT_MARKER_HEIGHT_M = 1.1` (`stealthExitMarker.ts`). DESIGN.md gives no size; move them to tokens or `feel` if Geo wants to tune them.
+
+## Story 4-10-niveau-chambre-de-nuit-et-playtest-du-deuxieme-prototype (2026-11-01)
+
+- **Open point 1, a failed sequence retries itself** (D4), and a failed infiltration shows the baby back in the crib. Going back to the lullaby would be truer to life and much harsher.
+- **Open point 2, base threats between sequences only come with the baby down** (D5). A player who keeps him in the arms meets only the cry and the micro-sleeps. The decision most worth playing.
+- **Open point 3, an unfinished cycle costs no stars.** A good player out of time can get a high note. A penalty would be one `feel.mama` number, using the mechanism a woken Mama already has.
+- **Open point 4, the level reaches the Result the instant Papa is at the door,** with no breath of relief. E7's end sequence may want one.
+- **Open point 5, no bot goes to the toilet,** so the tables say nothing of that trade.
+- **Open point 6, the boards still creak only in the infiltration** (4.9's D9). Everywhere in the bedroom is a one-line change.
+- **Open point 8, the starting values are guesses:** interludes of 15, 12, 12, 6 and 0 s, 8 s before a retry, 4 min.
+- **Open point 9, the room has no night look** until E7. Only the name says it is night.
+- **Open point 10, « Il dort enfin ! » is the agent's wording.**
+- **The first wave's outlet verb can sit over the toilet's marker** at 844 × 390 (« SOULÈVE ! » over the door icon, both on the left wall). It lasts a telegraph; look at it in the device pass, and move the outlet if it bothers.
+- **The `human` bot loses almost nothing here** (one duel in 20 games): it never falls for a feint and aims with a small jitter. Say nothing of difficulty from it; only playing does.

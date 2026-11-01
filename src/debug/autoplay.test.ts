@@ -43,6 +43,7 @@ function startedOf(sim: Sim, seed: number) {
     levelId: 'salon_crawler',
     seed,
     level: botTestLevel(),
+    geometry: createTestGeometry(),
     feel: content.feel,
   };
 }

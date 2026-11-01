@@ -1,0 +1,326 @@
+{
+  "version": 3,
+  "seed": 1,
+  "feelHash": "190066a832e140",
+  "geometryHash": "04bed1f64acbb9",
+  "levelHash": "137a2cdd507e77",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 5700,
+      "command": {
+        "t": 5690,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 5780,
+      "command": {
+        "t": 5770,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 13150,
+      "command": {
+        "t": 13140,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 13230,
+      "command": {
+        "t": 13220,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 20100,
+      "command": {
+        "t": 20090,
+        "threatId": 3,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 20180,
+      "command": {
+        "t": 20170,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 23290,
+      "command": {
+        "t": 23280,
+        "threatId": 3,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 23370,
+      "command": {
+        "t": 23360,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 25980,
+      "command": {
+        "t": 25970,
+        "threatId": 3,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 26060,
+      "command": {
+        "t": 26050,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 29080,
+      "command": {
+        "t": 29070,
+        "threatId": 3,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 29160,
+      "command": {
+        "t": 29150,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 30020,
+      "command": {
+        "t": 30010,
+        "type": "TapFloor",
+        "xM": -1.8,
+        "zM": 1.4
+      }
+    },
+    {
+      "applyAt": 33370,
+      "command": {
+        "t": 33360,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 33450,
+      "command": {
+        "t": 33440,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 40820,
+      "command": {
+        "t": 40810,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 40900,
+      "command": {
+        "t": 40890,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 44380,
+      "command": {
+        "t": 44371,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 45080,
+      "command": {
+        "t": 45073,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 45800,
+      "command": {
+        "t": 45795,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 46540,
+      "command": {
+        "t": 46538,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 47310,
+      "command": {
+        "t": 47305,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 48100,
+      "command": {
+        "t": 48097,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 48920,
+      "command": {
+        "t": 48918,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 49780,
+      "command": {
+        "t": 49771,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 50670,
+      "command": {
+        "t": 50660,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 51600,
+      "command": {
+        "t": 51590,
+        "type": "TapBeat"
+      }
+    },
+    {
+      "applyAt": 52030,
+      "command": {
+        "t": 52020,
+        "type": "TapFloor",
+        "xM": -1.8,
+        "zM": 1.4
+      }
+    },
+    {
+      "applyAt": 55380,
+      "command": {
+        "t": 55370,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 55460,
+      "command": {
+        "t": 55450,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 70360,
+      "command": {
+        "t": 70351,
+        "threatId": 5,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 70440,
+      "command": {
+        "t": 70431,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 75600,
+      "command": {
+        "t": 75590,
+        "threatId": 5,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 75680,
+      "command": {
+        "t": 75670,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 81360,
+      "command": {
+        "t": 81352,
+        "threatId": 5,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 81440,
+      "command": {
+        "t": 81432,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 81450,
+      "command": {
+        "t": 81440,
+        "type": "TapFloor",
+        "xM": -1.8,
+        "zM": 1.4
+      }
+    },
+    {
+      "applyAt": 84800,
+      "command": {
+        "t": 84790,
+        "threatId": 1,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 84880,
+      "command": {
+        "t": 84870,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 89900,
+      "command": {
+        "t": 89890,
+        "threatId": 6,
+        "type": "PressThreat"
+      }
+    },
+    {
+      "applyAt": 92650,
+      "command": {
+        "t": 92640,
+        "type": "Release"
+      }
+    },
+    {
+      "applyAt": 92670,
+      "command": {
+        "t": 92660,
+        "type": "TapFloor",
+        "xM": 2,
+        "zM": -2.3
+      }
+    }
+  ]
+}

@@ -98,6 +98,7 @@ const startedOf = (sim: Sim, feel: Feel, level = levelOf()): StartedLevel => ({
   levelId: 'salon_crawler',
   seed: 1,
   level,
+  geometry: createTestGeometry(),
   feel,
 });
 

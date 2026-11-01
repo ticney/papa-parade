@@ -4,7 +4,7 @@ import type { ObservationRow } from './observations.ts';
 import { compareNames } from './testerId.ts';
 
 export const PLAYTEST_REPORT_KIND = 'papa-parade.playtest-metrics';
-export const PLAYTEST_REPORT_VERSION = 1;
+export const PLAYTEST_REPORT_VERSION = 2;
 
 export type Status = 'OK' | 'KO' | 'n/a';
 export type DeviceName = 'touch' | 'mouse' | 'keyboard' | 'gamepad' | 'none';
@@ -45,6 +45,38 @@ export interface TouchVsKeyboard {
   status: Status;
 }
 
+/** One step of a sequence, over the attempts at it (story 4.10). */
+export interface SequenceStepRates {
+  stepIndex: number;
+  attempts: number;
+  passed: number;
+  failed: number;
+  cut: number;
+  /** Passed over passed + failed: a game cut by the end of the level says nothing. `null` when neither. */
+  ratePct: number | null;
+}
+
+/** One sequence, over its attempts (story 4.10). */
+export interface SequenceRates {
+  attempts: number;
+  succeeded: number;
+  failed: number;
+  cut: number;
+  /** Succeeded over succeeded + failed: a game cut by the end of the level says nothing. `null` when neither. */
+  ratePct: number | null;
+  steps: SequenceStepRates[];
+}
+
+/** The success rate per sequence and per step (story 4.10, D9): rates, no threshold and no status. */
+export interface SequenceMetrics {
+  /** The journals holding at least one sequence. */
+  games: number;
+  /** Of those, the ones whose level ended on `cycleDone`. */
+  cycleCompletedGames: number;
+  /** Sorted by id. */
+  bySequence: Record<string, SequenceRates>;
+}
+
 export interface PanelMeasure {
   testers: number;
   minTesters: number;
@@ -69,6 +101,8 @@ export interface TesterComment {
 
 export interface TesterReport {
   testerId: string;
+  /** This tester's success rate per sequence and per step (story 4.10). */
+  sequences: SequenceMetrics;
   /** Device types and platforms the tester's journals report, sorted. */
   deviceTypes: string[];
   platforms: string[];
@@ -115,6 +149,8 @@ export interface PlaytestReport {
   touchVsKeyboard: TouchVsKeyboard;
   /** Indicator 5, observed. */
   laughed: Measure;
+  /** The panel's success rate per sequence and per step (story 4.10): no threshold, no status. */
+  sequences: SequenceMetrics;
   testers: TesterReport[];
   inputs: ReportInputs;
   warnings: string[];
@@ -222,6 +258,53 @@ function sessionOrderOf(
   }
   const rest = [...journalSessions].filter((id) => !order.includes(id)).sort(compareNames);
   return [...order, ...rest];
+}
+
+/**
+ * The success rate per sequence and per step over `games`. A journal with no `sequences` key adds
+ * nothing and raises no warning. Pure.
+ */
+function sequenceMetricsOf(games: readonly TesterGame[]): SequenceMetrics {
+  let withSequence = 0;
+  let cycleCompletedGames = 0;
+  const bySequence = new Map<string, SequenceRates>();
+  for (const { journal } of games) {
+    const attempts = journal.summary.sequences ?? [];
+    if (attempts.length === 0) continue;
+    withSequence++;
+    if (journal.summary.endReason === 'cycleDone') cycleCompletedGames++;
+    for (const attempt of attempts) {
+      let rates = bySequence.get(attempt.id);
+      if (rates === undefined) {
+        rates = { attempts: 0, succeeded: 0, failed: 0, cut: 0, ratePct: null, steps: [] };
+        bySequence.set(attempt.id, rates);
+      }
+      rates.attempts++;
+      if (attempt.outcome === 'succeeded') rates.succeeded++;
+      else if (attempt.outcome === 'failed') rates.failed++;
+      else rates.cut++;
+      for (const { stepIndex, outcome } of attempt.steps) {
+        let step = rates.steps.find((candidate) => candidate.stepIndex === stepIndex);
+        if (step === undefined) {
+          step = { stepIndex, attempts: 0, passed: 0, failed: 0, cut: 0, ratePct: null };
+          rates.steps.push(step);
+        }
+        step.attempts++;
+        step[outcome]++;
+      }
+    }
+  }
+  for (const rates of bySequence.values()) {
+    rates.ratePct = roundedPct(rates.succeeded, rates.succeeded + rates.failed);
+    rates.steps.sort((a, b) => a.stepIndex - b.stepIndex);
+    for (const step of rates.steps)
+      step.ratePct = roundedPct(step.passed, step.passed + step.failed);
+  }
+  return {
+    games: withSequence,
+    cycleCompletedGames,
+    bySequence: Object.fromEntries([...bySequence].sort(([a], [b]) => compareNames(a, b))),
+  };
 }
 
 /** `null` for a quality this tool does not know: the caller leaves the response out and says so. */
@@ -342,6 +425,7 @@ function analyseTester(
     })),
     relaunch: { games: played.length, highestGameIndex: highest, relaunched: highest >= 2 },
     firstEncounter: Object.fromEntries(firstEncounter),
+    sequences: sequenceMetricsOf(played),
     rates,
     touchVsKeyboardPct: ratioOf(totals.touch, totals.keyboard),
     identifiedWithoutHelp: Object.fromEntries(
@@ -504,6 +588,7 @@ export function computeMetrics(input: ComputeMetricsInput): PlaytestReport {
     firstEncounter,
     touchVsKeyboard,
     laughed,
+    sequences: sequenceMetricsOf(input.testers.flatMap((tester) => tester.games)),
     testers,
     inputs: input.inputs,
     warnings,

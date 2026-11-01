@@ -194,6 +194,43 @@ function testerSection(tester: TesterReport): string[] {
 }
 
 /** The Markdown report, in English like every tool's output. Pure: no clock, no file. */
+/**
+ * « Séquences » (story 4.10): one table per sequence and step. Rates, no threshold and no status;
+ * nothing at all when no journal has a sequence. Whether a sequence is fun is in the comments.
+ */
+function sequencesSection(report: PlaytestReport): string[] {
+  const { games, cycleCompletedGames, bySequence } = report.sequences;
+  if (games === 0) return [];
+  const rows = Object.entries(bySequence).flatMap(([id, rates]) => [
+    [
+      cell(id),
+      'all',
+      String(rates.attempts),
+      String(rates.succeeded),
+      String(rates.failed),
+      String(rates.cut),
+      pct(rates.ratePct),
+    ],
+    ...rates.steps.map((step) => [
+      '',
+      String(step.stepIndex),
+      String(step.attempts),
+      String(step.passed),
+      String(step.failed),
+      String(step.cut),
+      pct(step.ratePct),
+    ]),
+  ]);
+  return [
+    '## Séquences',
+    '',
+    `${games} game${games === 1 ? '' : 's'} with a sequence, ${cycleCompletedGames} ended with the cycle complete. A game cut by the end of the level does not count in a rate.`,
+    '',
+    ...table(['Sequence', 'Step', 'Attempts', 'Won', 'Failed', 'Cut', 'Success'], rows),
+    '',
+  ];
+}
+
 export function renderMetrics(report: PlaytestReport): string {
   const { inputs } = report;
   const lines: string[] = [
@@ -220,6 +257,7 @@ export function renderMetrics(report: PlaytestReport): string {
       return first === undefined ? undefined : first === 'success';
     }),
     '',
+    ...sequencesSection(report),
     '## Testers',
     '',
     ...report.testers.flatMap(testerSection),

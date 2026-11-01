@@ -1,3 +1,4 @@
+import { SNAKE_ID_PATTERN } from '@content/levelNodeNames';
 import { PLAY_SPEED_MAX, UINT32_RANGE } from '@shared/constants';
 import { log } from '@shared/log';
 
@@ -14,10 +15,12 @@ export interface DebugParams {
   readonly seed: number | null;
   /** `?speed=<x>`: the multiplier of the real time the level loop measures. */
   readonly speed: number | null;
+  /** `?level=<id>` (story 4.10): the level to play, of a valid shape; `resolveLevelParam` checks it exists. */
+  readonly level: string | null;
 }
 
 /**
- * Reads `?debug`, `?autoplay`, `?seed` and `?speed`. A bad value is ignored with one `warn` that
+ * Reads `?debug`, `?autoplay`, `?seed`, `?speed` and `?level`. A bad value is ignored with one `warn` that
  * says what is accepted (the pattern of `readThreatsOff`). Only called when
  * `VITE_DEBUG_ALLOWED === 'true'`: a production build does not even read them.
  */
@@ -50,7 +53,27 @@ export function readDebugParams(search: string): DebugParams {
     else log.warn('boot', `ignoring ?speed=${speedRaw}: not a number in (0, ${PLAY_SPEED_MAX}]`);
   }
 
-  return { isDebug, autoplay, seed, speed };
+  let level: string | null = null;
+  const levelRaw = query.get('level');
+  if (levelRaw !== null) {
+    if (SNAKE_ID_PATTERN.test(levelRaw)) level = levelRaw;
+    else log.warn('boot', `ignoring ?level=${levelRaw}: a level id is lower_snake_case`);
+  }
+
+  return { isDebug, autoplay, seed, speed, level };
+}
+
+/**
+ * The level `?level=` asks for, if there is one: an id with no level file is ignored with one `warn`,
+ * and the default level plays (a mistyped link must not end on the Oops screen). Null: no choice made.
+ */
+export function resolveLevelParam(
+  level: string | null,
+  isBundled: (id: string) => boolean,
+): string | null {
+  if (level === null || isBundled(level)) return level;
+  log.warn('boot', `ignoring ?level=${level}: no such level`);
+  return null;
 }
 
 /**

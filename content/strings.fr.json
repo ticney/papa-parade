@@ -68,6 +68,7 @@
   "result.stars_label": "{count} sur {max} étoiles",
   "result.stars_lost_label": "{count} sur {max} étoiles, {lost} en moins",
   "result.mama_woke": "Maman s'est réveillée !",
+  "result.cycle_done": "Il dort enfin !",
   "result.next_age_unlocked": "Nouvel âge débloqué !",
   "result.score_laughs": "Rires",
   "result.score_baby_state": "État du bébé",

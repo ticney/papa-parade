@@ -68,7 +68,15 @@ const fixtureDefs = readDefs(FIXTURES_DIR, 'tests/threats/fixtures/');
 const fixtureIds = new Set(fixtureDefs.map((def) => def.id));
 const defs: ThreatDef[] = [...liveDefs, ...fixtureDefs];
 
-/** The anchor of the first entry of a live level that plans each def (`*.geometry.json` are not levels). */
+/**
+ * The anchor of the first entry of a live level that plans each def (`*.geometry.json` are not levels),
+ * among those of the frozen room these tests play in (`chambre_night` plans a def at its own anchors).
+ * A silence is planned at a zone, hence the two lists.
+ */
+const frozenRoom = createTestGeometry();
+const frozenAnchorIds = new Set(
+  [...frozenRoom.anchors, ...frozenRoom.zones].map((point) => point.id),
+);
 const anchors = new Map<string, string>();
 /**
  * The defs a live level spawns on Papa (`gauges.fatigue.microSleepDef`, `carry.armsCryDef`): they
@@ -94,7 +102,9 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
   const parsed = parseContentFile(`content/levels/${name}`, text, LevelSchema);
   if (!parsed.ok) throw new Error(`${name} is invalid: ${JSON.stringify(parsed.error)}`);
   for (const entry of parsed.value.waves.flatMap((wave) => wave.threats)) {
-    if (!anchors.has(entry.def)) anchors.set(entry.def, entry.anchor);
+    if (!anchors.has(entry.def) && frozenAnchorIds.has(entry.anchor)) {
+      anchors.set(entry.def, entry.anchor);
+    }
   }
   const microSleepDef = parsed.value.gauges.fatigue?.microSleepDef;
   if (microSleepDef !== undefined) spawnedOnPapa.add(microSleepDef);

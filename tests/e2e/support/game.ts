@@ -370,11 +370,12 @@ export async function pagePointOf(
   xM: number,
   yM: number,
   zM: number,
+  levelId = 'salon_crawler',
 ): Promise<{ x: number; y: number }> {
   const box = await page.locator('#pp-canvas').boundingBox();
   if (box === null) throw new Error('the canvas has no box');
   const geometry = JSON.parse(
-    readFileSync('content/levels/salon_crawler.geometry.json', 'utf8'),
+    readFileSync(`content/levels/${levelId}.geometry.json`, 'utf8'),
   ) as LevelGeometry;
   const camera = createIsoCamera();
   fitIsoCamera(camera, roomOf(geometry), box.width / box.height);

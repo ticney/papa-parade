@@ -26,6 +26,11 @@ function indexByRelativePath(raw: Record<string, string>): Map<string, string> {
   return files;
 }
 
+/** Whether the level `id` is in the bundle: `?level=` asks before the first start (story 4.10). */
+export function isBundledLevel(id: string): boolean {
+  return indexByRelativePath(RAW_CONTENT).has(`levels/${id}.json`);
+}
+
 export function createBrowserContentSource(): ContentSource {
   const files = indexByRelativePath(RAW_CONTENT);
   return {

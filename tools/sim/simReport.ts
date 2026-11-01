@@ -50,6 +50,22 @@ export interface WaveTally {
 }
 
 /** What one run produced, kept small: counts, never events. */
+/** One sequence over a run or over the runs (story 4.10): started, won, lost. A level end cuts it: neither. */
+export interface SequenceOutcomeCounts {
+  started: number;
+  won: number;
+  lost: number;
+}
+
+/** The counts of the sequence `id`, created at zero on first sight. */
+function outcomesOf(
+  outcomes: Record<string, SequenceOutcomeCounts>,
+  id: string,
+): SequenceOutcomeCounts {
+  if (!Object.hasOwn(outcomes, id)) outcomes[id] = { started: 0, won: 0, lost: 0 };
+  return outcomes[id] as SequenceOutcomeCounts;
+}
+
 export interface RunSummary {
   seed: number;
   worldHash: string;
@@ -113,6 +129,12 @@ export interface RunSummary {
   decoysTapped: number;
   /** The taps on no beat and no decoy (`BeatStrayTapped`). */
   beatsStray: number;
+  /** Whether the bedtime cycle was completed (`CycleCompleted`, story 4.10). */
+  isCycleCompleted: boolean;
+  /** The entries of the bedtime cycle won (`world.cycle.index`): 0 in a level with no cycle. */
+  cycleEntriesReached: number;
+  /** Each sequence started, won and lost in this run, by id (story 4.10). */
+  sequenceOutcomes: Record<string, SequenceOutcomeCounts>;
   /** The boards that creaked under Papa (`FloorCreaked`, story 4.9): 0 outside a stealth step. */
   floorCreaks: number;
   /** The breaths let out loudly (`BreathGasped`), by reason: it ran empty, was let go early, or was not held. */
@@ -231,6 +253,8 @@ export function createRunRecorder(
   let beatsMissed = 0;
   let decoysTapped = 0;
   let beatsStray = 0;
+  let isCycleCompleted = false;
+  const sequenceOutcomes: Record<string, SequenceOutcomeCounts> = {};
   let floorCreaks = 0;
   const breathGasps = emptyBreathGasps();
   let nothingResponses = 0;
@@ -293,11 +317,19 @@ export function createRunRecorder(
         if (event.safe) safePutDowns++;
       } else if (event.type === 'ToiletFinished') {
         toiletVisits++;
+      } else if (event.type === 'CycleCompleted') {
+        isCycleCompleted = true;
       } else if (event.type === 'SequenceStarted') {
         sequencesStarted++;
+        outcomesOf(sequenceOutcomes, event.id).started++;
       } else if (event.type === 'SequenceEnded') {
-        if (event.outcome === 'succeeded') sequencesSucceeded++;
-        else if (event.outcome === 'failed') sequencesFailed++;
+        if (event.outcome === 'succeeded') {
+          sequencesSucceeded++;
+          outcomesOf(sequenceOutcomes, event.id).won++;
+        } else if (event.outcome === 'failed') {
+          sequencesFailed++;
+          outcomesOf(sequenceOutcomes, event.id).lost++;
+        }
       } else if (event.type === 'SequenceStepRetreated') {
         sequenceRetreats++;
       } else if (event.type === 'BeatHit') {
@@ -408,6 +440,9 @@ export function createRunRecorder(
         beatsMissed,
         decoysTapped,
         beatsStray,
+        isCycleCompleted,
+        cycleEntriesReached: sim.world.cycle.index,
+        sequenceOutcomes,
         floorCreaks,
         breathGasps: { ...breathGasps },
         nothingResponses,
@@ -538,6 +573,12 @@ export interface SimReport {
   beatsMissed: number;
   decoysTapped: number;
   beatsStray: number;
+  /** The runs that completed the bedtime cycle (story 4.10). */
+  cycleCompleted: number;
+  /** Mean over the runs of the entries of the cycle won, to one decimal. */
+  cycleEntriesReached: number;
+  /** Each sequence started, won and lost, over the runs, by id (story 4.10). */
+  sequenceOutcomes: Record<string, SequenceOutcomeCounts>;
   /** The stealth exit's boards that creaked, over the runs (story 4.9). */
   floorCreaks: number;
   /** The breaths let out loudly, over the runs, by reason (story 4.9). */
@@ -641,6 +682,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let beatsMissed = 0;
   let decoysTapped = 0;
   let beatsStray = 0;
+  let cycleCompleted = 0;
+  let cycleEntriesSum = 0;
+  const sequenceOutcomes: Record<string, SequenceOutcomeCounts> = {};
   let floorCreaks = 0;
   const breathGasps = emptyBreathGasps();
   let nothingResponses = 0;
@@ -710,6 +754,14 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     beatsMissed += run.beatsMissed;
     decoysTapped += run.decoysTapped;
     beatsStray += run.beatsStray;
+    if (run.isCycleCompleted) cycleCompleted++;
+    cycleEntriesSum += run.cycleEntriesReached;
+    for (const [id, counts] of Object.entries(run.sequenceOutcomes)) {
+      const total = outcomesOf(sequenceOutcomes, id);
+      total.started += counts.started;
+      total.won += counts.won;
+      total.lost += counts.lost;
+    }
     floorCreaks += run.floorCreaks;
     for (const reason of Object.keys(breathGasps) as BreathGaspReason[]) {
       breathGasps[reason] += run.breathGasps[reason];
@@ -809,6 +861,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     beatsMissed,
     decoysTapped,
     beatsStray,
+    cycleCompleted,
+    cycleEntriesReached: runs.length === 0 ? 0 : round(cycleEntriesSum / runs.length, 1),
+    sequenceOutcomes,
     floorCreaks,
     breathGasps,
     nothingResponses,

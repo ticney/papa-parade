@@ -220,6 +220,7 @@ describe('runSim on the live content', () => {
         holdMinMs: feel.input.holdMinMs,
         responses: botResponsesOf(loaded.level.threats),
         releaseDefIds: releaseDefIdsOf(loaded.level.threats),
+        safeSpot: null,
         settings: loaded.content.bots,
       });
       if (!bot.ok) throw new Error(bot.error.message);

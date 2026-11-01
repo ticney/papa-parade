@@ -21,6 +21,7 @@ export const JOURNAL_DEVICES = [
 
 type ResponseCounts = GameSummary['responses']['byQuality'];
 type TimelineEntry = GameSummary['responses']['timeline'][number];
+type SequenceAttempt = NonNullable<GameSummary['sequences']>[number];
 
 export interface GameSummaryOptions {
   /** 8 hex chars drawn once per page load. */
@@ -63,6 +64,10 @@ export function createGameSummary(options: GameSummaryOptions): GameSummaryRecor
   let lastInput: JournalDevice = 'none';
   let endReason: string | null = null;
   let score: GameSummary['score'] | null = null;
+  const sequences: SequenceAttempt[] = [];
+  // The sequence under way (story 4.10), its id and start, and the attempt at a step still open.
+  let openSequence: Pick<SequenceAttempt, 'id' | 't' | 'steps'> | null = null;
+  let openStepIndex: number | null = null;
 
   /** The device with the most responses; a tie goes to the one used last among the tied ones. */
   function dominantDevice(): JournalDevice {
@@ -122,6 +127,41 @@ export function createGameSummary(options: GameSummaryOptions): GameSummaryRecor
           });
           break;
         }
+        case 'SequenceStarted':
+          openSequence = { id: event.id, t: event.t, steps: [] };
+          openStepIndex = null;
+          break;
+        case 'SequenceStepStarted':
+          // A step reached by moving forward passed the one before; a retreat has closed its own.
+          if (openStepIndex !== null && event.stepIndex > openStepIndex) {
+            openSequence?.steps.push({ stepIndex: openStepIndex, outcome: 'passed' });
+          }
+          openStepIndex = event.stepIndex;
+          break;
+        case 'SequenceStepRetreated':
+          if (openStepIndex !== null) {
+            openSequence?.steps.push({ stepIndex: openStepIndex, outcome: 'failed' });
+          }
+          openStepIndex = null;
+          break;
+        case 'SequenceEnded':
+          if (openSequence !== null) {
+            if (openStepIndex !== null) {
+              openSequence.steps.push({
+                stepIndex: openStepIndex,
+                outcome:
+                  event.outcome === 'succeeded'
+                    ? 'passed'
+                    : event.outcome === 'failed'
+                      ? 'failed'
+                      : 'cut',
+              });
+            }
+            sequences.push({ ...openSequence, outcome: event.outcome });
+          }
+          openSequence = null;
+          openStepIndex = null;
+          break;
         case 'LevelEnded':
           endReason = event.reason;
           break;
@@ -166,6 +206,10 @@ export function createGameSummary(options: GameSummaryOptions): GameSummaryRecor
           },
         },
         dominantDevice: dominantDevice(),
+        sequences: sequences.map((entry) => ({
+          ...entry,
+          steps: entry.steps.map((step) => ({ ...step })),
+        })),
       };
     },
   };

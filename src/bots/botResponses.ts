@@ -12,6 +12,20 @@ export function releaseDefIdsOf(defs: Readonly<Record<string, object>>): string[
 }
 
 /**
+ * Where a bot puts the baby down (story 4.10): the centre of the room's first safe zone, or null when
+ * it has none. Built beside {@link releaseDefIdsOf}, typed structurally like it (a level's geometry fits).
+ */
+export function safeSpotOf(geometry: {
+  readonly zones: readonly {
+    readonly kind: string;
+    readonly centerM: readonly [number, number, number];
+  }[];
+}): { xM: number; zM: number } | null {
+  const zone = geometry.zones.find((candidate) => candidate.kind === 'safe');
+  return zone === undefined ? null : { xM: zone.centerM[0], zM: zone.centerM[2] };
+}
+
+/**
  * What every threat def of a level asks for, by def id: the `responses` of a `BotSetup`. A bot is
  * only told about the defs it can answer. Typed structurally because a bot may not import
  * `@content`: a level's `threats` (def id → `ThreatDef`) fits. The CLI and the browser's autoplay

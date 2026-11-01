@@ -16,6 +16,7 @@ function worldAt(
     time: { sim: asSimMs(now) },
     threats: [],
     silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
+    cycle: { index: 0, nextAt: null, completedAt: null },
     papa: { xM: 0, zM: 0 },
     sequence: {
       beat: { isRunning: beat.isRunning ?? true, nextBeatAt: beat.nextBeatAt ?? null },

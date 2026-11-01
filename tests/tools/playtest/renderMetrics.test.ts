@@ -156,7 +156,7 @@ describe('renderJson', () => {
     const value = report();
     const text = renderJson(value);
     expect(text.endsWith('}\n')).toBe(true);
-    expect(text.startsWith('{\n  "kind": "papa-parade.playtest-metrics",\n  "version": 1,')).toBe(
+    expect(text.startsWith('{\n  "kind": "papa-parade.playtest-metrics",\n  "version": 2,')).toBe(
       true,
     );
     expect(JSON.parse(text)).toEqual(JSON.parse(JSON.stringify(value)));

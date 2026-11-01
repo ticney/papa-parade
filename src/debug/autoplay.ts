@@ -1,5 +1,5 @@
 import type { Bot, BotSetup } from '@bots/bot';
-import { botResponsesOf, releaseDefIdsOf } from '@bots/botResponses';
+import { botResponsesOf, releaseDefIdsOf, safeSpotOf } from '@bots/botResponses';
 import { createBot } from '@bots/createBot';
 import type { TestHost } from '@client/app/testHost';
 import { log } from '@shared/log';
@@ -20,12 +20,15 @@ import { isFlowLive, type Sim, type SimCommand } from '@sim';
  */
 export function installAutoplay(host: TestHost, botId: string): Result<void, AppError> {
   // Asked once with a throwaway setup, so that a bad id is refused before the level starts.
-  const probe = createBot(botId, setupFor(host, 0, host.content.feel.input.holdMinMs, {}, []));
+  const probe = createBot(
+    botId,
+    setupFor(host, 0, host.content.feel.input.holdMinMs, {}, [], null),
+  );
   if (!probe.ok) return probe;
 
   const out: SimCommand[] = [];
   host.setGameInputBlocked(true);
-  host.onLevelStarted(({ seed, level, feel }) => {
+  host.onLevelStarted(({ seed, level, geometry, feel }) => {
     const made = createBot(
       botId,
       setupFor(
@@ -34,6 +37,7 @@ export function installAutoplay(host: TestHost, botId: string): Result<void, App
         feel.input.holdMinMs,
         botResponsesOf(level.threats),
         releaseDefIdsOf(level.threats),
+        safeSpotOf(geometry),
       ),
     );
     if (!made.ok) {
@@ -56,8 +60,9 @@ function setupFor(
   holdMinMs: number,
   responses: BotSetup['responses'],
   releaseDefIds: readonly string[],
+  safeSpot: BotSetup['safeSpot'],
 ): BotSetup {
-  return { seed, holdMinMs, responses, releaseDefIds, settings: host.content.bots };
+  return { seed, holdMinMs, responses, releaseDefIds, safeSpot, settings: host.content.bots };
 }
 
 /** Before a step: asks the bot, enqueues what it says. One reused array, no allocation per step. */

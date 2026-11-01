@@ -1,5 +1,5 @@
 import { asSimMs } from '@shared/time';
-import { LEVEL_END_REASONS, type ResponseQuality, type SimEvent } from '@sim';
+import { LEVEL_END_REASONS, type LevelEndReason, type ResponseQuality, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
 import { createGameSummary, type GameSummaryRecorder, type JournalDevice } from './gameSummary.ts';
 
@@ -37,7 +37,7 @@ function resolved(
   };
 }
 
-function ended(reason: 'timer' | 'mamaWoke' = 'timer'): SimEvent {
+function ended(reason: LevelEndReason = 'timer'): SimEvent {
   return { type: 'LevelEnded', t: asSimMs(180_000), reason };
 }
 
@@ -68,6 +68,106 @@ function finish(game: GameSummaryRecorder, device: JournalDevice = 'none'): void
   game.onEvent(ended(), device);
   game.onEvent(scored(), device);
 }
+
+describe('the sequences of a game (story 4.10)', () => {
+  const t = asSimMs(1000);
+  const seq = (id = 'bedtime_duel'): SimEvent => ({ type: 'SequenceStarted', t, id });
+  const step = (stepIndex: number): SimEvent => ({
+    type: 'SequenceStepStarted',
+    t,
+    id: 'bedtime_duel',
+    stepIndex,
+  });
+  const retreat = (fromStepIndex: number, stepIndex: number): SimEvent => ({
+    type: 'SequenceStepRetreated',
+    t,
+    id: 'bedtime_duel',
+    fromStepIndex,
+    stepIndex,
+    retreats: 1,
+    reason: 'late',
+  });
+  const end = (outcome: 'succeeded' | 'failed' | 'levelEnded'): SimEvent => ({
+    type: 'SequenceEnded',
+    t,
+    id: 'bedtime_duel',
+    outcome,
+  });
+  const summaryOf = (...events: SimEvent[]) => {
+    const game = recorder();
+    for (const event of events) game.onEvent(event, 'none');
+    game.onEvent(ended(), 'none');
+    game.onEvent(scored(), 'none');
+    return game.summary()?.sequences;
+  };
+
+  it('always writes the key, empty with no sequence', () => {
+    expect(summaryOf()).toEqual([]);
+  });
+
+  it('closes each step as passed on the next, and the last with the win', () => {
+    expect(summaryOf(seq(), step(0), step(1), step(2), end('succeeded'))).toEqual([
+      {
+        id: 'bedtime_duel',
+        t: 1000,
+        outcome: 'succeeded',
+        steps: [
+          { stepIndex: 0, outcome: 'passed' },
+          { stepIndex: 1, outcome: 'passed' },
+          { stepIndex: 2, outcome: 'passed' },
+        ],
+      },
+    ]);
+  });
+
+  it('counts a retreat from step 0 back to step 0 as a failed attempt, and opens another', () => {
+    expect(summaryOf(seq(), step(0), retreat(0, 0), step(0), end('succeeded'))?.[0]?.steps).toEqual(
+      [
+        { stepIndex: 0, outcome: 'failed' },
+        { stepIndex: 0, outcome: 'passed' },
+      ],
+    );
+  });
+
+  it('follows a duel forward then back: the new index is lower, so nothing is passed by it', () => {
+    expect(
+      summaryOf(seq(), step(0), step(1), retreat(1, 0), step(0), step(1), end('failed'))?.[0]
+        ?.steps,
+    ).toEqual([
+      { stepIndex: 0, outcome: 'passed' },
+      { stepIndex: 1, outcome: 'failed' },
+      { stepIndex: 0, outcome: 'passed' },
+      { stepIndex: 1, outcome: 'failed' },
+    ]);
+  });
+
+  it('cuts the open step when the level ends in mid-sequence: endLevel closes it first', () => {
+    expect(summaryOf(seq(), step(0), step(1), end('levelEnded'))).toEqual([
+      {
+        id: 'bedtime_duel',
+        t: 1000,
+        outcome: 'levelEnded',
+        steps: [
+          { stepIndex: 0, outcome: 'passed' },
+          { stepIndex: 1, outcome: 'cut' },
+        ],
+      },
+    ]);
+  });
+
+  it('keeps each try of a retried sequence, and returns a copy', () => {
+    const game = recorder();
+    for (const event of [seq(), step(0), end('failed'), seq(), step(0), end('succeeded')]) {
+      game.onEvent(event, 'none');
+    }
+    game.onEvent(ended(), 'none');
+    game.onEvent(scored(), 'none');
+    const first = game.summary();
+    expect(first?.sequences?.map((entry) => entry.outcome)).toEqual(['failed', 'succeeded']);
+    first?.sequences?.[0]?.steps.push({ stepIndex: 9, outcome: 'cut' });
+    expect(game.summary()?.sequences?.[0]?.steps).toHaveLength(1);
+  });
+});
 
 describe('createGameSummary (story 3.3)', () => {
   it('has no summary until the level has ended and been scored', () => {

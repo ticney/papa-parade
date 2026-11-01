@@ -74,6 +74,19 @@ const TimelineEntrySchema = z.strictObject({
   device: InputDeviceSchema,
 });
 
+const SequenceStepAttemptSchema = z.strictObject({
+  stepIndex: z.int().min(0),
+  outcome: z.enum(['passed', 'failed', 'cut']),
+});
+
+/** One run of a special sequence (story 4.10). Each attempt at a step is an entry, a retreat's too. */
+const SequenceAttemptSchema = z.strictObject({
+  id: z.string(),
+  t: z.number(),
+  outcome: z.enum(['succeeded', 'failed', 'levelEnded']),
+  steps: z.array(SequenceStepAttemptSchema),
+});
+
 const SummarySchema = z.strictObject({
   sessionId: z.string().regex(/^[0-9a-f]{8}$/),
   gameIndexInSession: z.int().min(1),
@@ -93,6 +106,8 @@ const SummarySchema = z.strictObject({
     }),
   }),
   dominantDevice: InputDeviceSchema,
+  // Optional: a journal of the first prototype has none, and stays valid (story 4.10).
+  sequences: z.array(SequenceAttemptSchema).optional(),
 });
 
 const DeviceSchema = z.strictObject({

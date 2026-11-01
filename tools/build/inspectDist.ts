@@ -86,6 +86,8 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   // are covered by it too: a second entry would be a substring of nothing new, and the check would
   // report the same chunk twice.
   'ppSequence',
+  // Story 4.10: the bedtime cycle's debug mirror (`data-pp-cycle-index`), the same way.
+  'ppCycleIndex',
   // Story 4.5: the lullaby walk's debug mirrors (`data-pp-beat-hits`, `data-pp-beat-misses`,
   // `data-pp-baby-wake`) sit in the main chunk behind `isMirrored`; `__PP__.beatLog()` is in the debug chunk.
   'ppBeatHits',

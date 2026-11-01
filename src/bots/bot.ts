@@ -47,6 +47,11 @@ export interface BotSetup {
    * instant of its own. Required: an empty list says "none", while a missing one would play the drop as a plain `firm`.
    */
   releaseDefIds: readonly string[];
+  /**
+   * Where the level puts the baby down (story 4.10: the cycle bot cashes in there, `planCycleDrop`),
+   * built by `safeSpotOf`. Required like `releaseDefIds`: null says the room has none.
+   */
+  safeSpot: { readonly xM: number; readonly zM: number } | null;
   settings: BotOptions;
 }
 

@@ -142,6 +142,8 @@ export interface StartedLevel {
   readonly levelId: string;
   readonly seed: number;
   readonly level: LevelContent;
+  /** The level's geometry: the autoplay's cycle bot reads where the crib is (story 4.10). */
+  readonly geometry: LevelGeometry;
   /** The effective feel at the start (see `ActiveLevel.feel`): `feelOverrides` merged over feel.json, the remembered tweaks over those. */
   readonly feel: Feel;
 }
@@ -541,7 +543,14 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         loop.setFrozen(isFrozenWish);
         loop.setMeasure(measureWish);
         try {
-          deps.onLevelStarted?.({ sim, levelId, seed, level: levelPlan, feel: effective });
+          deps.onLevelStarted?.({
+            sim,
+            levelId,
+            seed,
+            level: levelPlan,
+            geometry: levelAssets.geometry,
+            feel: effective,
+          });
         } catch (cause) {
           stopLoop();
           releaseSim();

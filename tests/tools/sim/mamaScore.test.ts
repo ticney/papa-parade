@@ -27,6 +27,7 @@ describe('Mama’s note of the live salon_crawler', () => {
       holdMinMs: content.feel.input.holdMinMs,
       responses: botResponsesOf(level.threats),
       releaseDefIds: releaseDefIdsOf(level.threats),
+      safeSpot: null,
       settings: content.bots,
     });
     const events: SimEvent[] = [];

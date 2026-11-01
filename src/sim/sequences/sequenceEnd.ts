@@ -12,6 +12,7 @@ import {
   type ThreatInstance,
   type World,
 } from '../world.ts';
+import { advanceCycle } from './cycleEnd.ts';
 
 // How a special sequence ends (story 4.4). This file imports no threat code: `threatFsm` imports
 // it (a gag in a sequence ends the sequence), and `sequenceSystem.ts` imports both.
@@ -70,24 +71,26 @@ function resumeAfterSequence(world: World, ctx: StepContext): void {
   if (carry.armsCryAt !== null && carry.armsCryAt < resumeAt) carry.armsCryAt = asSimMs(resumeAt);
 }
 
-/** The sequence was won: `SequenceEnded{succeeded}`, back to `playing`, then the resume. */
+/** The sequence was won: `SequenceEnded{succeeded}`, back to `playing`, the resume, then the bedtime cycle moves on. */
 export function succeedSequence(world: World, ctx: StepContext): void {
   if (world.flow.state !== 'sequence') return;
   closeSequence(world, ctx, 'succeeded');
   enterFlowState(world, 'playing');
   resumeAfterSequence(world, ctx);
+  advanceCycle(world, ctx, world.sequence.lastId, true);
 }
 
 /**
- * The sequence was lost: `SequenceEnded{failed}`, back to `playing`, then the resume. The end both
- * kinds of failure share (the gag's and the baby waking); each emits its own events first. A no-op
- * outside a sequence.
+ * The sequence was lost: `SequenceEnded{failed}`, back to `playing`, the resume, then the bedtime
+ * cycle waits to retry it. The end both kinds of failure share (the gag's and the baby waking); each
+ * emits its own events first. A no-op outside a sequence.
  */
 export function failSequence(world: World, ctx: StepContext): void {
   if (world.flow.state !== 'sequence') return;
   closeSequence(world, ctx, 'failed');
   enterFlowState(world, 'playing');
   resumeAfterSequence(world, ctx);
+  advanceCycle(world, ctx, world.sequence.lastId, false);
 }
 
 /**
