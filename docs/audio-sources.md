@@ -2,7 +2,7 @@
 
 Where the shipped music comes from (story 7.6), so that a track can be redone and the licence question answered later. Everything else in `public/assets/audio/` is still a synthesized placeholder from `tools/audio/makePlaceholderAudio.ts`.
 
-**Licence status: not confirmed.** All takes went through ElevenLabs' shared free generations (`free_shared` in its error code). Geo checks that his plan allows music in a game he distributes before this ships.
+**Licence status: not confirmed.** ElevenLabs refused several of these takes with "Free generations are busy" (`free_shared`), which suggests a free tier; the takes that ran were charged credits, and nothing here shows which plan or terms apply. Geo checks that his plan allows music in a game he distributes before this ships.
 
 All takes: ElevenLabs, model `eleven_music_v2_5`, instrumental, flow `oJxjnjQgAe66OVCVySXO`, generated on 2026-11-01. `creative_get_generations` with the flow and generation id gives a fresh download link, at no cost.
 
@@ -21,6 +21,8 @@ Each file is cut with `tools/audio/cutMusicLoop.ts`. `npm run assets:audio` leav
 | `music_stealth` | `5671JpuRpmgoKpG0WT7g` | 540 | 36 s | `--bars 8 --bpm 60 --crossfade-ms 50` | -3 dB | Mono, 64 kbps |
 
 Gains put each loop near the level of the placeholder it replaced, except the stems, which are set by the headroom of their mix (-1.04 dBFS at the game's 60/100). The level is a starting point for Geo's ear.
+
+The mono files are true downmixes of both channels, made by the tool: `afconvert -c 1` keeps the left channel alone.
 
 The calm take's end fades out and the lullaby pad's start fades in, whatever the prompt said; the cuts stay clear of both.
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyGainDb,
   cutLoop,
   encodePcmWav,
   framesOfBars,
@@ -9,6 +8,7 @@ import {
   parseWav,
   peakDbfs,
   skipStart,
+  toChannels,
 } from '../../../tools/audio/cutMusicLoop.ts';
 
 // The tool that turns a generated take into a game loop (story 7.6).
@@ -92,22 +92,62 @@ describe('skipStart', () => {
   });
 });
 
-describe('applyGainDb and peakDbfs', () => {
+describe('the gain of cutLoop', () => {
   it('lowers the level by the gain', () => {
-    const pcm = applyGainDb(
-      stereo(4, () => 16_384),
+    const cut = cutLoop(
+      stereo(100, () => 16_384),
+      50,
+      0,
       -6,
     );
-    expect(peakDbfs(pcm.samples)).toBeCloseTo(-12, 0);
+    expect(cut.ok && peakDbfs(cut.value.samples)).toBeCloseTo(-12, 0);
   });
 
   it('clamps rather than wraps', () => {
-    const pcm = applyGainDb(
-      stereo(1, () => 30_000),
+    const cut = cutLoop(
+      stereo(100, () => 30_000),
+      50,
+      0,
       12,
     );
-    expect(pcm.samples[0]).toBe(32_767);
-    expect(pcm.samples[1]).toBe(-32_768);
+    if (!cut.ok) throw new Error(cut.error.message);
+    expect(cut.value.samples[0]).toBe(32_767);
+    expect(cut.value.samples[1]).toBe(-32_768);
+  });
+
+  it('leaves room for the +3 dB of the fade: a later gain keeps no flat top', () => {
+    const cut = cutLoop(
+      stereo(400, () => 30_000),
+      200,
+      100,
+      -6,
+    );
+    if (!cut.ok) throw new Error(cut.error.message);
+    const peak = Math.max(...cut.value.samples);
+    // 30000 × √2 × 0.5 at the middle of the fade, not 32767 × 0.5.
+    expect(peak).toBeGreaterThan(21_000);
+    expect(peak).toBeLessThan(21_300);
+  });
+});
+
+describe('toChannels', () => {
+  it('mixes both channels down: `afconvert -c 1` would keep the left one alone', () => {
+    const pcm: Pcm = {
+      sampleRateHz: 1000,
+      channels: 2,
+      samples: new Int16Array([1000, 0, 0, 1000, 500, 500, 1000, -1000]),
+    };
+    expect([...toChannels(pcm, 1).samples]).toEqual([500, 500, 500, 0]);
+  });
+
+  it('copies a mono source to both channels', () => {
+    const pcm: Pcm = { sampleRateHz: 1000, channels: 1, samples: new Int16Array([7, 8]) };
+    expect([...toChannels(pcm, 2).samples]).toEqual([7, 7, 8, 8]);
+  });
+
+  it('leaves the right layout alone', () => {
+    const pcm = stereo(4, (frame) => frame);
+    expect(toChannels(pcm, 2)).toBe(pcm);
   });
 });
 
@@ -127,6 +167,18 @@ describe('the WAV round trip', () => {
 
   it('refuses a file that is not a WAV', () => {
     expect(parseWav(Buffer.from('not audio at all')).ok).toBe(false);
+    expect(parseWav(Buffer.from('RIFF\0\0\0\0AVI LIST', 'latin1')).ok).toBe(false);
+  });
+
+  it('refuses a truncated format chunk with an error, not a throw', () => {
+    const wav = encodePcmWav(stereo(2, () => 7));
+    expect(parseWav(wav.subarray(0, 24)).ok).toBe(false);
+  });
+
+  it('refuses a format that is not PCM', () => {
+    const wav = Buffer.from(encodePcmWav(stereo(2, () => 7)));
+    wav.writeUInt16LE(3, 20);
+    expect(parseWav(wav).ok).toBe(false);
   });
 });
 
@@ -159,6 +211,23 @@ describe('parseArgs', () => {
       '1',
     ]);
     expect(parsed.ok && parsed.value.lengthMs).toBe(30_000);
+  });
+
+  it('refuses what would silently give a wrong cut', () => {
+    const ok = ['--length-ms', '30000', ...common, '--channels', '1'];
+    const refused = (...extra: string[]) => parseArgs(['a', 'b', ...ok, ...extra]).ok;
+    expect(parseArgs(['a', 'b', ...ok]).ok).toBe(true);
+    expect(refused('--start_ms', '8000')).toBe(false);
+    expect(refused('--start-ms', '-1000')).toBe(false);
+    expect(refused('--start-ms', '')).toBe(false);
+    expect(refused('--bars', '12')).toBe(false);
+    expect(refused('--gain-db', '-3')).toBe(false);
+    const bars = (b: string, bpm: string) =>
+      parseArgs(['a', 'b', '--bars', b, '--bpm', bpm, ...common, '--channels', '1']).ok;
+    expect(bars('12', '80')).toBe(true);
+    expect(bars('12', '0')).toBe(false);
+    expect(bars('-4', '-80')).toBe(false);
+    expect(bars('1.5', '80')).toBe(false);
   });
 
   it('refuses both a length and bars, neither, and a bad channel count', () => {

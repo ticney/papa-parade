@@ -4,7 +4,7 @@ baseline_commit: 76c6517e16d1a22d14927727fd86af951f226a41
 
 # Story 7.6: Musique générée du salon et des séquences
 
-Status: review
+Status: in-progress
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -73,6 +73,26 @@ These three are Geo's. An agent never assumes them and never works around them.
 - [x] Task 7: Device check (AC: 9, 10)
   - [x] `npx playwright test tests/e2e/adaptiveMusic.spec.ts tests/e2e/feedback.spec.ts --project=chromium`, `npm run ci:fast`.
   - [x] Geo plays a playtest build on his iPhone and reports on the seam. If the gap is audible, apply D7 and say so in the notes.
+
+### Review Findings
+
+- [x] [Review][Decision] The five mono loops keep only the left channel — `afconvert -c 1` drops the right channel, with or without `--mix` (tested with hard-left and hard-right tones). L/R correlation of the takes: stay_awake 0.38, lullaby_pad 0.52, stealth 0.62, bedtime_hush 0.95, bomb_thriller 0.97. Geo approved by ear what shipped, so what he heard is the left channel. Recutting with a true downmix costs no credit but changes the sound he approved. **Geo chose to recut (2026-11-01):** done, and his new listening is pending.
+- [x] [Review][Patch] Downmix in PCM in the tool, not through `afconvert -c 1` [tools/audio/cutMusicLoop.ts]
+- [x] [Review][Patch] The babble stays silent for the level if its clip lands after a preload gave up: `skippedLoops` is never cleared, and its stop is the silence telegraph [src/client/audio/audioEngine.ts:356]
+- [x] [Review][Patch] A preload of unrelated clips (recalibration's beep) resets `hasPreloadGivenUp` while stems are in flight, and the music stays silent [src/client/audio/audioEngine.ts:514]
+- [x] [Review][Patch] Every late clip, sound effects included, clears the skip and retries `start`, so a failed start warns once per clip: only a stem landing should [src/client/audio/audioEngine.ts:357]
+- [x] [Review][Patch] A sequence's skip outlives its clip landing when the sequence is no longer wanted [src/client/audio/audioEngine.ts:361]
+- [x] [Review][Patch] The late-music tests release every clip together and accept any number of starts: pin the stem order, an exact count and a failed stem [src/client/audio/audioEngine.test.ts]
+- [x] [Review][Patch] The fix has no browser proof: on slow 4G the audio landed before the level started, so that run took the normal path. Add a spec that delays the stems past the timeout [tests/e2e/adaptiveMusic.spec.ts]
+- [x] [Review][Patch] The crossfade clamps before the gain, so a take near 0 dBFS gets flat tops that the gain keeps: mix in floating point [tools/audio/cutMusicLoop.ts:115]
+- [x] [Review][Patch] `parseArgs` accepts unknown flags, `--bars` dropped by `--length-ms`, zero or negative values, and an empty value [tools/audio/cutMusicLoop.ts:163]
+- [x] [Review][Patch] The reported peak is measured before the channel reduction [tools/audio/cutMusicLoop.ts:263]
+- [x] [Review][Patch] `parseWav` throws on a truncated `fmt ` chunk and does not check `WAVE` or the PCM tag [tools/audio/cutMusicLoop.ts:47]
+- [x] [Review][Patch] "Never drift" in the header comment overclaims: it holds for frame counts, not for the browser's AAC decode [tools/audio/cutMusicLoop.ts:11]
+- [x] [Review][Patch] Records: `deferred-work.md` still calls the iPhone seam and the hush open, and leaves the original entries untouched; the Change Log reads as all seven passing on iPhone; the licence line overstates `free_shared`; the File List omits `epics.md`; `--length-ms` is an unlisted departure; AC 9's "3 loops" is unrecorded; AC 4's key and AC 5's Chromium decode have no statement; `audio-listen/` must go before the merge [docs/audio-sources.md, deferred-work.md, this file]
+- [x] [Review][Defer] Calm plays alone for the level when tense lands after the level started [src/client/audio/adaptiveMusic.ts:199] — deferred: joining mid-loop needs the running calm's position, or an audible restart
+- [x] [Review][Defer] A tense decode that never settles keeps a decoded calm silent until an unmute [src/client/audio/audioEngine.ts:360] — deferred: `decodeAudioData` has no timeout anywhere in the engine
+- [x] [Review][Defer] `data-pp-audio-clips` is stale after a preload gives up [src/client/audio/audioEngine.ts:538] — deferred, debug mirror only
 
 ## Dev Notes
 
@@ -156,19 +176,22 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 
 **Geo's gates:**
 - Plan terms: **not confirmed, and they block the merge.** The takes came through the shared free generations.
-- Ear (AC 3, 4, 5): Geo approved the seven loops by ear on 2026-11-01, from the listening files of the shipped `.m4a` (each loop over its seam, the stems at the game's gains), hush wobble included. Those files are decoded by `afconvert`, so they do not show a WebKit gap, and they are not the game itself.
-- iPhone (AC 9): Geo played the playtest build served on the LAN on his iPhone on 2026-11-01: the stems stay in sync and he hears no gap at the seam, so D7 was not applied. His report covers those two points; it does not say whether he reached the slow-mo, the silence or the sequence loops there.
+- Ear (AC 3, 4, 5): **pending for the five recut loops.** Geo approved all seven on 2026-11-01 from listening files, but the five mono ones were left-channel only (see Review Findings); they were recut and he has not heard the new files. The stems did not change. Listening files are decoded by `afconvert`, so they do not show a WebKit gap, and they are not the game itself.
+- iPhone (AC 9): Geo played the playtest build served on the LAN on his iPhone on 2026-11-01: the stems stay in sync and he hears no gap at the seam, so D7 was not applied. His report covers those two points on the stems; it does not say whether he reached the slow-mo, the silence or the sequence loops there, or whether he heard the "at least 3 loops" AC 9 asks for. That report predates the recut, which did not touch the stems.
 
 **Credits:** 2,430 approved by Geo, 2,430 spent, one take each: stay_awake 540, lullaby_pad 540, bedtime_hush 540, bomb_thriller 270, stealth 540. The stems were paid for during the trial (900 + 630). Total 3,960.
 
 **Measured:**
 - Stems: 1,587,600 frames each, stereo 96 kbps. The 60/100 mix peaks at -1.04 dBFS (AC 2).
-- Payload: 2,485.6 KiB against 3,072 KiB, `dist:check --flavor playtest` OK (AC 7).
-- 4G, built playtest, Chromium, cache off (AC 8). Fast (9 Mbps, 60 ms): no timeout, 68 clips decoded, music on. Slow (1.6 Mbps, 150 ms): preload gave up at 5 s, audio landed by about 13 s, level at about 36 s for reasons other than audio, music on.
-- `lullaby_pad`: no pulse. `bedtime_hush`: a faint wobble near 150 BPM (correlation 0.46, about 9 % of energy), for Geo's ear. `bomb_thriller`: 60 BPM, strong. `stealth`: a 4 s pattern. `stay_awake`: 60 BPM, faint.
+- Payload: 2,481.9 KiB against 3,072 KiB, `dist:check --flavor playtest` OK (AC 7).
+- 4G, built playtest, Chromium, cache off (AC 8). Fast (9 Mbps, 60 ms): no timeout, 68 clips decoded, music on. Slow (1.6 Mbps, 150 ms): preload gave up at 5 s, audio landed by about 13 s, level at about 36 s for reasons other than audio, music on. That slow run took the normal start path, since the audio landed before the level. The late path has its own proof: a Chromium spec of `adaptiveMusic.spec.ts` holds the stems 12 s, and the music turns on after they land.
+- After the recut, pulse at musical rates: `lullaby_pad` none (0.20 at most); `bedtime_hush` none (0.01; the wobble measured earlier on the left channel is gone); `bomb_thriller` 60 BPM, strong; `stealth` a 4 s pattern; `stay_awake` 60 BPM, faint (0.27).
+- AC 4 key: a crude pitch-class check on the first cut of `lullaby_pad` found C, E and G and almost nothing else, consistent with the pentatonic; not repeated on the recut.
+- AC 5 in Chromium: `decodeAudioData` gave exact lengths with no leading or trailing silence on the first cut, from the review's sample check, not listening; not repeated on the recut.
 
 **Departures from the story, each deliberate:**
-- `audioEngine.ts` changed. AC 8's suspected bug was real: after a preload gave up, the music stayed silent for the whole level even once decoded (`isSkipped`, cleared only before the clips landed). Late clips now start the music and the running sequence's music, only after a preload that gave up. Three new unit tests.
+- `audioEngine.ts` changed. AC 8's suspected bug was real: after a preload gave up, the music stayed silent for the whole level even once decoded (`isSkipped`, cleared only before the clips landed). `resumeAfterLateClip` now clears the skips of a late clip (the babble's and the sequences' too) and starts the stems once neither is in flight. Unit tests pin the order, an exact count and a failed stem; one spec proves it in Chromium.
+- `--length-ms` added to the tool, for the loops with no pulse (D5).
 - `--start-ms` added to the tool: `lullaby_pad` fades in over about 6 s despite the prompt.
 - Cuts: `stay_awake` and `stealth` 32 s (8 bars), not 30; `lullaby_pad` 26 s, not 30.
 - Bitrate flag named `--bitrate-bps`, for the units rule.
@@ -185,6 +208,7 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 - `tests/tools/audio/makePlaceholderAudio.test.ts`
 - `src/client/audio/audioEngine.ts`
 - `src/client/audio/audioEngine.test.ts`
+- `tests/e2e/adaptiveMusic.spec.ts`
 - `public/assets/audio/music_crawler_calm.m4a`
 - `public/assets/audio/music_crawler_tense.m4a`
 - `public/assets/audio/music_stay_awake.m4a`
@@ -194,8 +218,10 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 - `public/assets/audio/music_stealth.m4a`
 - `_bmad-output/implementation-artifacts/deferred-work.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/planning-artifacts/epics.md`
 - `_bmad-output/implementation-artifacts/7-6-musique-generee-du-salon-et-des-sequences.md`
 
 ### Change Log
 
-- 2026-11-01: Seven generated music files, the cutting tool, the placeholder guard, and the late-music fix. Geo approved them by ear and on his iPhone; plan terms still to confirm.
+- 2026-11-01: Seven generated music files, the cutting tool, the placeholder guard, and the late-music fix. Geo reported no gap and stems in sync on his iPhone; he approved the first cuts by ear.
+- 2026-11-01: Code review: 13 patches applied, 3 deferred. The five mono loops recut with a true downmix; Geo's new listening and the plan terms are pending.

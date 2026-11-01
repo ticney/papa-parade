@@ -9,8 +9,9 @@ import { SAMPLE_RATE_HZ } from './synthKit.ts';
 
 // Turns a generated music take into a game loop (story 7.6): decode, keep whole bars (or a length, for
 // a loop with no pulse), fold the audio just past the cut into the start with an equal-power fade, set
-// the level, encode. The same recipe on two stems gives the same number of frames, so they never
-// drift. macOS only (`afconvert`), like `makePlaceholderAudio.ts`; CI never runs it.
+// the level, encode. The same recipe on two stems gives them the same number of frames, which is what
+// keeps them together; a browser's AAC decode still has to be checked on a device. macOS only
+// (`afconvert`), like `makePlaceholderAudio.ts`; CI never runs it.
 
 const BEATS_PER_BAR = 4;
 const MS_PER_S = 1000;
@@ -20,6 +21,11 @@ const BYTES_PER_SAMPLE = 2;
 const WAV_HEADER_BYTES = 44;
 const RIFF_HEADER_BYTES = 12;
 const CHUNK_HEADER_BYTES = 8;
+const FMT_CHUNK_MIN_BYTES = 16;
+const WAV_FORMAT_PCM = 1;
+const WAV_FORMAT_EXTENSIBLE = 0xfffe;
+/** A peak this close to full scale may have been clamped. */
+const CLIPPING_PEAK_DBFS = -0.01;
 
 const fail = (message: string): Result<never, AppError> => err({ kind: 'assets', message });
 
@@ -32,7 +38,11 @@ export interface Pcm {
 
 /** Reads a 16-bit PCM WAV, whatever other chunks `afconvert` wrote around its `data`. */
 export function parseWav(bytes: Buffer): Result<Pcm, AppError> {
-  if (bytes.length < RIFF_HEADER_BYTES || bytes.toString('latin1', 0, 4) !== 'RIFF') {
+  if (
+    bytes.length < RIFF_HEADER_BYTES ||
+    bytes.toString('latin1', 0, 4) !== 'RIFF' ||
+    bytes.toString('latin1', 8, 12) !== 'WAVE'
+  ) {
     return fail('not a RIFF WAV file');
   }
   let channels = 0;
@@ -44,6 +54,13 @@ export function parseWav(bytes: Buffer): Result<Pcm, AppError> {
     const size = bytes.readUInt32LE(offset + 4);
     const body = offset + CHUNK_HEADER_BYTES;
     if (id === 'fmt ') {
+      if (size < FMT_CHUNK_MIN_BYTES || body + FMT_CHUNK_MIN_BYTES > bytes.length) {
+        return fail('truncated fmt chunk in the WAV file');
+      }
+      const format = bytes.readUInt16LE(body);
+      if (format !== WAV_FORMAT_PCM && format !== WAV_FORMAT_EXTENSIBLE) {
+        return fail(`expected PCM, got WAV format ${String(format)}`);
+      }
       channels = bytes.readUInt16LE(body + 2);
       sampleRateHz = bytes.readUInt32LE(body + 4);
       bits = bytes.readUInt16LE(body + 14);
@@ -91,10 +108,16 @@ export function framesOfBars(bars: number, bpm: number, sampleRateHz: number): n
 }
 
 /**
- * Keeps `loopFrames` frames and mixes the audio just past the cut into the start, with an equal-power
- * fade: the end of the loop runs on into its own continuation, so the seam has no step.
+ * Keeps `loopFrames` frames at `gainDb` and mixes the audio just past the cut into the start, with an
+ * equal-power fade: the end of the loop runs on into its own continuation, so the seam has no step.
+ * The fade can add 3 dB, so the mix and the gain happen before anything is rounded or clamped.
  */
-export function cutLoop(pcm: Pcm, loopFrames: number, crossfadeMs: number): Result<Pcm, AppError> {
+export function cutLoop(
+  pcm: Pcm,
+  loopFrames: number,
+  crossfadeMs: number,
+  gainDb = 0,
+): Result<Pcm, AppError> {
   const { channels, samples, sampleRateHz } = pcm;
   const crossfadeFrames = Math.round((crossfadeMs / MS_PER_S) * sampleRateHz);
   const framesNeeded = loopFrames + crossfadeFrames;
@@ -106,16 +129,40 @@ export function cutLoop(pcm: Pcm, loopFrames: number, crossfadeMs: number): Resu
       `the take is too short: ${String(samples.length / channels)} frames, the cut needs ${String(framesNeeded)}`,
     );
   }
-  const out = samples.slice(0, loopFrames * channels);
-  for (let frame = 0; frame < crossfadeFrames; frame += 1) {
-    const phase = (0.5 * Math.PI * frame) / crossfadeFrames;
+  const gain = 10 ** (gainDb / 20);
+  const out = new Int16Array(loopFrames * channels);
+  for (let frame = 0; frame < loopFrames; frame += 1) {
+    const phase =
+      frame < crossfadeFrames ? (0.5 * Math.PI * frame) / crossfadeFrames : 0.5 * Math.PI;
     for (let channel = 0; channel < channels; channel += 1) {
       const head = samples[frame * channels + channel] ?? 0;
-      const tail = samples[(loopFrames + frame) * channels + channel] ?? 0;
-      out[frame * channels + channel] = clampInt16(head * Math.sin(phase) + tail * Math.cos(phase));
+      const tail =
+        frame < crossfadeFrames ? (samples[(loopFrames + frame) * channels + channel] ?? 0) : 0;
+      out[frame * channels + channel] = clampInt16(
+        (head * Math.sin(phase) + tail * Math.cos(phase)) * gain,
+      );
     }
   }
   return ok({ sampleRateHz, channels, samples: out });
+}
+
+/**
+ * Mixes down or copies to the channels asked for. `afconvert -c 1` is no downmix: it keeps the left
+ * channel, with or without `--mix` (found in the review of story 7.6).
+ */
+export function toChannels(pcm: Pcm, channels: 1 | 2): Pcm {
+  if (pcm.channels === channels) return pcm;
+  const frames = Math.floor(pcm.samples.length / pcm.channels);
+  const out = new Int16Array(frames * channels);
+  for (let frame = 0; frame < frames; frame += 1) {
+    let sum = 0;
+    for (let channel = 0; channel < pcm.channels; channel += 1) {
+      sum += pcm.samples[frame * pcm.channels + channel] ?? 0;
+    }
+    const mixed = clampInt16(sum / pcm.channels);
+    for (let channel = 0; channel < channels; channel += 1) out[frame * channels + channel] = mixed;
+  }
+  return { sampleRateHz: pcm.sampleRateHz, channels, samples: out };
 }
 
 /** Drops the start of a take: the model may fade in, whatever the prompt asks. */
@@ -126,11 +173,6 @@ export function skipStart(pcm: Pcm, startMs: number): Pcm {
 
 const clampInt16 = (value: number): number =>
   Math.max(INT16_MIN, Math.min(INT16_MAX, Math.round(value)));
-
-export function applyGainDb(pcm: Pcm, gainDb: number): Pcm {
-  const gain = 10 ** (gainDb / 20);
-  return { ...pcm, samples: pcm.samples.map((sample) => clampInt16(sample * gain)) };
-}
 
 export function peakDbfs(samples: Int16Array): number {
   let peak = 0;
@@ -156,14 +198,30 @@ export interface CutOptions {
 const USAGE =
   'usage: tsx tools/audio/cutMusicLoop.ts <source> <out.m4a> (--bars <n> --bpm <n> | --length-ms <n>) [--start-ms <n>] --crossfade-ms <n> --gain-db <n> --bitrate-bps <n> --channels <1|2>';
 
+const NUMERIC_FLAGS = [
+  '--bars',
+  '--bpm',
+  '--length-ms',
+  '--start-ms',
+  '--crossfade-ms',
+  '--gain-db',
+  '--bitrate-bps',
+  '--channels',
+];
+
 export function parseArgs(args: readonly string[]): Result<CutOptions, AppError> {
   const [source, out, ...flags] = args;
   if (source === undefined || out === undefined) return fail(USAGE);
   const values = new Map<string, number>();
   for (let i = 0; i < flags.length; i += 2) {
-    const value = Number(flags[i + 1]);
-    if (flags[i + 1] === undefined || !Number.isFinite(value)) return fail(USAGE);
-    values.set(flags[i] ?? '', value);
+    const flag = flags[i] ?? '';
+    const text = flags[i + 1];
+    if (!NUMERIC_FLAGS.includes(flag)) return fail(`unknown flag ${flag}. ${USAGE}`);
+    if (values.has(flag)) return fail(`${flag} is given twice. ${USAGE}`);
+    if (text === undefined || text.trim() === '' || !Number.isFinite(Number(text))) {
+      return fail(`${flag} needs a number. ${USAGE}`);
+    }
+    values.set(flag, Number(text));
   }
   const crossfadeMs = values.get('--crossfade-ms');
   const gainDb = values.get('--gain-db');
@@ -174,14 +232,24 @@ export function parseArgs(args: readonly string[]): Result<CutOptions, AppError>
   const lengthMs = values.get('--length-ms');
   const startMs = values.get('--start-ms');
   const hasBars = bars !== undefined && bpm !== undefined;
+  const hasLength = lengthMs !== undefined;
   if (
     crossfadeMs === undefined ||
     gainDb === undefined ||
     bitrateBps === undefined ||
     (channels !== 1 && channels !== 2) ||
-    hasBars === (lengthMs !== undefined)
+    hasBars === hasLength ||
+    (hasLength && (bars !== undefined || bpm !== undefined))
   ) {
     return fail(USAGE);
+  }
+  const isBadCut = hasBars
+    ? !Number.isInteger(bars) || bars <= 0 || bpm <= 0
+    : (lengthMs ?? 0) <= 0;
+  if (isBadCut || crossfadeMs < 0 || bitrateBps <= 0 || (startMs !== undefined && startMs < 0)) {
+    return fail(
+      `a length, tempo or bitrate must be positive, whole bars, no negative time. ${USAGE}`,
+    );
   }
   return ok({
     source,
@@ -191,7 +259,7 @@ export function parseArgs(args: readonly string[]): Result<CutOptions, AppError>
     bitrateBps,
     channels,
     ...(hasBars ? { bars, bpm } : {}),
-    ...(lengthMs !== undefined ? { lengthMs } : {}),
+    ...(hasLength ? { lengthMs } : {}),
     ...(startMs !== undefined ? { startMs } : {}),
   });
 }
@@ -239,12 +307,13 @@ export async function cutMusicLoop(
         ? Math.round((options.lengthMs / MS_PER_S) * SAMPLE_RATE_HZ)
         : framesOfBars(options.bars ?? 0, options.bpm ?? 1, SAMPLE_RATE_HZ);
     const cut = cutLoop(
-      skipStart(pcm.value, options.startMs ?? 0),
+      skipStart(toChannels(pcm.value, options.channels), options.startMs ?? 0),
       loopFrames,
       options.crossfadeMs,
+      options.gainDb,
     );
     if (!cut.ok) return cut;
-    const loop = applyGainDb(cut.value, options.gainDb);
+    const loop = cut.value;
     const loopPath = join(work, 'loop.wav');
     await writeFile(loopPath, encodePcmWav(loop));
     const encoded = await run([
@@ -254,13 +323,18 @@ export async function cutMusicLoop(
       'aac',
       '-b',
       String(options.bitrateBps),
-      '-c',
-      String(options.channels),
       loopPath,
       options.out,
     ]);
     if (!encoded.ok) return encoded;
-    return ok({ frames: loopFrames, peakDbfs: peakDbfs(loop.samples) });
+    // Of the samples sent to the encoder: AAC can overshoot it a little.
+    const peak = peakDbfs(loop.samples);
+    if (peak >= CLIPPING_PEAK_DBFS) {
+      log.warn('assets', 'the loop reaches full scale and may be clipped: lower --gain-db', {
+        out: options.out,
+      });
+    }
+    return ok({ frames: loopFrames, peakDbfs: peak });
   } finally {
     await rm(work, { recursive: true, force: true });
   }
