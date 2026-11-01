@@ -96,6 +96,9 @@ export const ROOM_DRAW_CALLS_MAX = 40;
 /** Budget of one room's `.glb`: its share of `TRIANGLES_MAX`, for the same reason (story 7.1, D6). */
 export const ROOM_TRIANGLES_MAX = 20_000;
 
+/** Budget of one room's `.glb`: one Blender material per colour, shared between objects (story 7.1, D3). */
+export const ROOM_MATERIALS_MAX = 12;
+
 /** Budget: the p95 frame interval of a full level on the CI machine, in ms (`perf.spec.ts`). */
 export const FRAME_P95_MAX_MS = 20;
 

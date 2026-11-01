@@ -15,6 +15,7 @@ import {
   floorContrastProblem,
   reservedHueProblems,
   roomBudgetOf,
+  roomMaterialProblems,
 } from '../../tools/assets/roomArt.ts';
 import { expectedTokens } from './designTokens.ts';
 import { extractFrontmatter, parseYamlSubset } from './yamlSubset.ts';
@@ -105,6 +106,11 @@ describe.each(levelIds)('the committed %s level', (levelId) => {
     const { json } = parseGlb(new Uint8Array(readFileSync(glbFile)));
     const reserved = ['parry', 'dodge', 'alert'].map(colourToken);
     expect(reservedHueProblems(json, reserved)).toEqual([]);
+  });
+
+  it('keeps its colour to a few base-colour materials', () => {
+    const { json } = parseGlb(new Uint8Array(readFileSync(glbFile)));
+    expect(roomMaterialProblems(json)).toEqual([]);
   });
 
   it('has a floor the ink of the sound waves shows on', () => {

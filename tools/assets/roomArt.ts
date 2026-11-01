@@ -2,6 +2,7 @@
 // of one room, the hues kept for gameplay and the floor the sound waves are drawn on. Pure, no
 // Blender: `tests/architecture/levelAssets.test.ts` runs them on the committed files.
 import { looksLikeGameplayNode, parseNodeName } from '@content/levelNodeNames';
+import { ROOM_MATERIALS_MAX } from '@shared/constants';
 
 /** A material this close to a reserved hue, in degrees, is refused while it is also vivid. */
 export const RESERVED_HUE_MARGIN_DEG = 15;
@@ -16,18 +17,33 @@ export const FLOOR_INK_MIN_CONTRAST = 3;
 const FLOOR_NODE_NAME = 'floor';
 /** glTF's default material, for a primitive with none and a material with no `baseColorFactor`. */
 const WHITE: readonly number[] = [1, 1, 1, 1];
+/** glTF's `mode` for a list of triangles, the only one the budget counts. */
+const TRIANGLES_MODE = 4;
+const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
+/** An attribute the toon swap ignores and the export keeps out (D3): a vertex colour or a UV set. */
+const FORBIDDEN_ATTRIBUTE = /^(COLOR|TEXCOORD)_\d+$/;
 const DEGREES_PER_SEXTANT = 60;
 const FULL_TURN_DEG = 360;
 const HALF_TURN_DEG = 180;
 
 interface RoomPrimitive {
-  attributes?: { POSITION?: number };
+  attributes?: Record<string, number>;
   indices?: number;
   material?: number;
+  mode?: number;
 }
 interface RoomMaterial {
   name?: string;
-  pbrMetallicRoughness?: { baseColorFactor?: number[] };
+  alphaMode?: string;
+  emissiveFactor?: number[];
+  emissiveTexture?: unknown;
+  normalTexture?: unknown;
+  occlusionTexture?: unknown;
+  pbrMetallicRoughness?: {
+    baseColorFactor?: number[];
+    baseColorTexture?: unknown;
+    metallicRoughnessTexture?: unknown;
+  };
 }
 interface RoomNode {
   name?: string;
@@ -41,6 +57,8 @@ interface RoomJson {
   meshes?: { primitives?: RoomPrimitive[] }[];
   accessors?: { count?: number }[];
   materials?: RoomMaterial[];
+  textures?: unknown[];
+  images?: unknown[];
 }
 
 export interface RoomBudget {
@@ -64,23 +82,35 @@ function primitivesUnder(json: RoomJson, index: number): RoomPrimitive[] {
   return [...own, ...(node.children ?? []).flatMap((child) => primitivesUnder(json, child))];
 }
 
+/** The triangles of one primitive; a file this reader cannot count exactly is refused, not under-counted. */
+function trianglesOf(json: RoomJson, primitive: RoomPrimitive, where: string): number {
+  if (primitive.mode !== undefined && primitive.mode !== TRIANGLES_MODE) {
+    throw new Error(`${where}: primitive mode ${primitive.mode} is not a list of triangles`);
+  }
+  const accessor = primitive.indices ?? primitive.attributes?.POSITION;
+  const count = accessor === undefined ? undefined : json.accessors?.[accessor]?.count;
+  if (count === undefined) throw new Error(`${where}: a primitive has no accessor to count`);
+  if (count % 3 !== 0) throw new Error(`${where}: ${count} vertices are not whole triangles`);
+  return count / 3;
+}
+
 /** One draw call per primitive and `indices.count / 3` triangles, over every drawn node (D6). */
 export function roomBudgetOf(document: unknown): RoomBudget {
   const json = document as RoomJson;
   const nodes = json.nodes ?? [];
+  const roots = json.scenes?.[json.scene ?? 0]?.nodes;
+  if (roots === undefined) throw new Error('roomBudgetOf: the file has no scene with nodes');
   const budget: RoomBudget = { drawCalls: 0, triangles: 0 };
   const visit = (index: number): void => {
     const node = nodes[index];
     if (node === undefined || !isDrawn(node)) return;
     const primitives = node.mesh === undefined ? [] : (json.meshes?.[node.mesh]?.primitives ?? []);
     for (const primitive of primitives) {
-      const accessor = primitive.indices ?? primitive.attributes?.POSITION ?? -1;
       budget.drawCalls += 1;
-      budget.triangles += (json.accessors?.[accessor]?.count ?? 0) / 3;
+      budget.triangles += trianglesOf(json, primitive, `node ${index} "${node.name ?? ''}"`);
     }
     for (const child of node.children ?? []) visit(child);
   };
-  const roots = json.scenes?.[json.scene ?? 0]?.nodes ?? nodes.map((_, index) => index);
   for (const root of roots) visit(root);
   return budget;
 }
@@ -90,8 +120,9 @@ const toLinear = (srgb: number): number =>
 const toSrgb = (linear: number): number =>
   linear <= 0.0031308 ? linear * 12.92 : 1.055 * linear ** (1 / 2.4) - 0.055;
 
-/** The sRGB channels of `#RRGGBB`, 0 to 1. */
+/** The sRGB channels of `#RRGGBB`, 0 to 1; any other form would read as black and pass every rule. */
 function channelsOf(hex: string): [number, number, number] {
+  if (!HEX_COLOUR.test(hex)) throw new Error(`"${hex}" is not a #RRGGBB colour`);
   const value = Number.parseInt(hex.slice(1), 16);
   return [((value >> 16) & 0xff) / 255, ((value >> 8) & 0xff) / 255, (value & 0xff) / 255];
 }
@@ -126,6 +157,10 @@ function srgbOf(material: RoomMaterial | undefined): [number, number, number] {
   return [toSrgb(r), toSrgb(g), toSrgb(b)];
 }
 
+/** A material's name for a message, or its index when it has none. */
+const labelOf = (material: RoomMaterial | undefined, index: number): string =>
+  `"${material?.name ?? `#${index}`}"`;
+
 function hueDistanceDeg(a: number, b: number): number {
   const distance = Math.abs(a - b) % FULL_TURN_DEG;
   return distance > HALF_TURN_DEG ? FULL_TURN_DEG - distance : distance;
@@ -134,14 +169,15 @@ function hueDistanceDeg(a: number, b: number): number {
 /** Every material that sits on a hue kept for gameplay (`reservedHexes`, `#RRGGBB`), one message each (D3). */
 export function reservedHueProblems(document: unknown, reservedHexes: readonly string[]): string[] {
   const problems: string[] = [];
-  for (const material of (document as RoomJson).materials ?? []) {
+  const reserved = reservedHexes.map((hex) => ({ hex, hueDeg: hsvOf(channelsOf(hex)).hueDeg }));
+  for (const [index, material] of ((document as RoomJson).materials ?? []).entries()) {
     const colour = hsvOf(srgbOf(material));
     if (colour.saturation < RESERVED_MIN_SATURATION || colour.value < RESERVED_MIN_VALUE) continue;
-    for (const hex of reservedHexes) {
-      const distanceDeg = hueDistanceDeg(colour.hueDeg, hsvOf(channelsOf(hex)).hueDeg);
+    for (const { hex, hueDeg } of reserved) {
+      const distanceDeg = hueDistanceDeg(colour.hueDeg, hueDeg);
       if (distanceDeg <= RESERVED_HUE_MARGIN_DEG) {
         problems.push(
-          `material "${material.name}" is ${distanceDeg.toFixed(1)}° from the reserved ${hex}`,
+          `material ${labelOf(material, index)} is ${distanceDeg.toFixed(1)}° from the reserved ${hex}`,
         );
       }
     }
@@ -159,12 +195,12 @@ const luminanceOf = (r: number, g: number, b: number): number =>
  */
 export function floorContrastProblem(document: unknown, inkHex: string): string | null {
   const json = document as RoomJson;
+  const [inkR, inkG, inkB] = channelsOf(inkHex).map(toLinear) as [number, number, number];
+  const inkLuminance = luminanceOf(inkR, inkG, inkB);
   const floor = (json.nodes ?? []).findIndex((node) => node.name === FLOOR_NODE_NAME);
   if (floor === -1) return `no "${FLOOR_NODE_NAME}" node to read`;
   const primitives = primitivesUnder(json, floor);
   if (primitives.length === 0) return `the "${FLOOR_NODE_NAME}" node holds no mesh`;
-  const [inkR, inkG, inkB] = channelsOf(inkHex).map(toLinear) as [number, number, number];
-  const inkLuminance = luminanceOf(inkR, inkG, inkB);
   for (const primitive of primitives) {
     const material =
       primitive.material === undefined ? undefined : json.materials?.[primitive.material];
@@ -173,8 +209,66 @@ export function floorContrastProblem(document: unknown, inkHex: string): string 
     const contrast =
       (Math.max(luminance, inkLuminance) + 0.05) / (Math.min(luminance, inkLuminance) + 0.05);
     if (contrast < FLOOR_INK_MIN_CONTRAST) {
-      return `floor material "${material?.name}" has a contrast of ${contrast.toFixed(2)}:1 against ${inkHex} (at least ${FLOOR_INK_MIN_CONTRAST}:1)`;
+      return `floor material ${labelOf(material, primitive.material ?? -1)} has a contrast of ${contrast.toFixed(2)}:1 against ${inkHex} (at least ${FLOOR_INK_MIN_CONTRAST}:1)`;
     }
   }
   return null;
+}
+
+/** The textures a material points at, by property name. */
+function texturesOf(material: RoomMaterial): string[] {
+  const { pbrMetallicRoughness: pbr } = material;
+  const slots: [string, unknown][] = [
+    ['baseColorTexture', pbr?.baseColorTexture],
+    ['metallicRoughnessTexture', pbr?.metallicRoughnessTexture],
+    ['normalTexture', material.normalTexture],
+    ['occlusionTexture', material.occlusionTexture],
+    ['emissiveTexture', material.emissiveTexture],
+  ];
+  return slots.flatMap(([name, value]) => (value === undefined ? [] : [name]));
+}
+
+/** What one material may not carry: the toon swap keeps the base colour only (D3). */
+function materialProblems(material: RoomMaterial, index: number): string[] {
+  const label = labelOf(material, index);
+  const problems = texturesOf(material).map((name) => `material ${label} has a ${name}`);
+  if (material.emissiveFactor?.some((channel) => channel !== 0)) {
+    problems.push(`material ${label} is emissive`);
+  }
+  if (material.alphaMode !== undefined && material.alphaMode !== 'OPAQUE') {
+    problems.push(`material ${label} has alphaMode ${material.alphaMode}`);
+  }
+  if ((material.pbrMetallicRoughness?.baseColorFactor?.[3] ?? 1) < 1) {
+    problems.push(`material ${label} is translucent`);
+  }
+  return problems;
+}
+
+/**
+ * The rules of D3 on the colour of a room: at most `ROOM_MATERIALS_MAX` materials, base colour only,
+ * and no image, vertex colour or UV set. One message per problem, empty when the room conforms.
+ */
+export function roomMaterialProblems(document: unknown): string[] {
+  const json = document as RoomJson;
+  const materials = json.materials ?? [];
+  const problems: string[] = [];
+  if (materials.length > ROOM_MATERIALS_MAX) {
+    problems.push(`${materials.length} materials, at most ${ROOM_MATERIALS_MAX}`);
+  }
+  if ((json.images?.length ?? 0) > 0 || (json.textures?.length ?? 0) > 0) {
+    problems.push('the file holds a texture or an image');
+  }
+  for (const [index, material] of materials.entries()) {
+    problems.push(...materialProblems(material, index));
+  }
+  for (const [meshIndex, mesh] of (json.meshes ?? []).entries()) {
+    for (const primitive of mesh.primitives ?? []) {
+      for (const attribute of Object.keys(primitive.attributes ?? {})) {
+        if (FORBIDDEN_ATTRIBUTE.test(attribute)) {
+          problems.push(`mesh ${meshIndex} has a ${attribute} attribute`);
+        }
+      }
+    }
+  }
+  return problems;
 }
