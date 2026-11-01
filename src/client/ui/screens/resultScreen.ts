@@ -166,7 +166,9 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const element = make('div', 'pp-overlay pp-result-screen');
   const panel = make(
     'section',
-    `pp-panel pp-result-panel${options.endReason === 'mamaWoke' ? ' pp-result-panel-woken' : ''}`,
+    `pp-panel pp-result-panel${options.endReason === 'mamaWoke' ? ' pp-result-panel-woken' : ''}${
+      options.endReason === 'cycleDone' ? ' pp-result-panel-cycle-done' : ''
+    }`,
   );
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-modal', 'true');
@@ -185,7 +187,11 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
       t('result.mama_woke'),
     );
   } else if (options.endReason === 'cycleDone') {
-    header = make('h2', 'pp-result-reason pp-type-heading', t('result.cycle_done'));
+    header = make(
+      'h2',
+      'pp-result-reason pp-result-reason-done pp-type-heading',
+      t('result.cycle_done'),
+    );
   }
 
   const card = make('div', 'pp-score-card');

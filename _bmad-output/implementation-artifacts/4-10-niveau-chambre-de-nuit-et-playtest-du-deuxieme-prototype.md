@@ -4,7 +4,7 @@ baseline_commit: 919942d
 
 # Story 4.10: The « Chambre de nuit » level and the second prototype's playtest
 
-Status: review
+Status: done
 
 <!-- Source: _bmad-output/planning-artifacts/epics.md › Story 4.10 (L2029-2049). Epics, GDD, architecture and UX are in French; this file is in English (document_output_language). -->
 
@@ -222,6 +222,30 @@ Numbers in `content/` are live starting values for Geo to tune. Tests use frozen
 - [x] **T5. Metrics** (AC 14-15): the journal's `sequences`, the tool, the sheet.
 - [x] **T6. End to end, docs, CI** (AC 16, 18-20): the fuzz, the specs, the perf reading, the docs, `npm run ci`.
 
+### Review Findings
+
+- [x] [Review][Patch] Exclude sequence threats from indicators 3 and 4 (Geo's call): they enter `firstEncounter` and the device rates unfiltered, and one under its threshold turns indicator 3 KO, while AC 15 and D9 say the five indicators do not change [tools/playtest/computeMetrics.ts:370]
+- [x] [Review][Patch] Smooth the camera from `bomb_drop` into `stealth_exit` in the client (Geo's call): `startSequence` overwrites `startedAt` and `endedAt` one step after the win, so the zoom drops from 40 % to about 0 in one frame and the 700 ms `outMs` never plays; `interludeMs: 0` stays [src/client/boot.ts:1025]
+- [x] [Review][Patch] The `cycleDone` panel lacks the 750 × 340 tightening, and its header wears Mama's scream colour [src/client/ui/screens/resultScreen.ts:169]
+- [x] [Review][Patch] A cycle won on a noise tie counts in `cycleCompleted` but ends `mamaWoke`, and the fuzz invariant would refuse that case [tools/sim/simReport.ts:321]
+- [x] [Review][Patch] `not.toThrow('world.flow.state')` passes on any other error, so « accepts » is unproven [src/sim/sequences/cycleSnapshot.test.ts:161]
+- [x] [Review][Patch] The `chambre_night` dist test collects no problems (CSP, other origins), unlike its neighbours [tests/e2e-dist/dist.spec.ts:146]
+- [x] [Review][Patch] The mistyped-level e2e never checks that the salon plays, and `?level=` alone is not shown to reach the room (`openFrozen` forces the level) (AC 10, AC 18) [tests/e2e/chambreNight.spec.ts:92]
+- [x] [Review][Patch] No e2e has a base threat parried by a real tap between two sequences: it runs in the first interlude only (AC 18) [tests/e2e/chambreNight.spec.ts]
+- [x] [Review][Patch] No test covers the restart reset of `data-pp-cycle-index` (AC 11, AC 16) [src/client/boot.ts:698]
+- [x] [Review][Patch] The retry tests name `gag`, `babyAwake`, `retreats` and stealth but only assert `failed` and the timing (AC 16) [src/sim/sequences/bedtimeCycle.test.ts]
+- [x] [Review][Patch] The fuzz's `timer` end comes from 3 extra games on a modified level, while the title says 30 seeds and the Completion Notes do not mention it (AC 16) [tests/bots/bedtimeCycleFuzz.test.ts:85]
+- [x] [Review][Patch] A debug `StartSequence` of the current entry does move the cycle: correct the comment and pin it with a test [src/sim/sequences/cycleEnd.ts:11]
+- [x] [Review][Patch] Tests use step literals (`maxMs / 10`, `14990`, `+ 10`, `15_020`) instead of `STEP_MS` [src/sim/sequences/bedtimeCycle.test.ts]
+- [x] [Review][Patch] Tests pin live tuning (`startPct: 30`, the outlet at `waves[0].threats[0]`) instead of frozen content [tests/content/checkCycle.test.ts:145]
+- [x] [Review][Patch] `project-context.md` L78 still says snapshot version 26; it is 27 (AC 9, AC 19) [_bmad-output/project-context.md:78]
+- [x] [Review][Patch] Three doc comments now sit above the wrong declaration [src/sim/events.ts:429]
+- [x] [Review][Patch] Text left stale by `cycleDone`: the `LevelEndReason` doc, `flowSystem.ts` on a level with no noise, `events.test.ts` « the two ways » [src/sim/events.ts:42]
+- [x] [Review][Patch] `DOOR_OF` and `SAFE_CENTRE_OF` are functions named as constants [tests/content/creakZones.test.ts]
+- [x] [Review][Defer] `sim:replay` fails on every journal recorded before a new world slice, because the final hash includes it [tools/sim/replaySim.ts:91] — deferred, pre-existing
+- [x] [Review][Defer] An entry can start with no time left: `runCycle` has no guard like the threats' `isJudgeableBeforeEnd`, so an entry due in the last moments cancels every open threat, may pop Papa or the baby at the cap, then ends `cut` [src/sim/sequences/bedtimeCycle.ts:228] — deferred by Geo: rare, and a fix would invent a game rule before the first playtest
+- [x] [Review][Defer] The bot's crib tap takes the first safe zone while the gather takes the nearest open one; unreachable in `chambre_night`, which has one open crib [src/bots/botResponses.ts:18] — deferred, unreachable today
+
 ## Dev Notes
 
 ### Decisions (D1-D9)
@@ -364,6 +388,8 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 
 **Done:** every task, and every AC except 20, which this workflow leaves to the review on purpose (see below).
 
+**The fuzz runs 33 games, not 30 (AC 16):** the `timer` end is guaranteed only by 3 more games on the level with no noise gauge (seeds 3, 6, 9).
+
 **AC 20 and the WebKit and CI gates are NOT run in dev-story.** The project's dev-story rule says not to run `npm run ci` or `ci:story` here whatever the acceptance criteria say. This merge completes Epic 4, so **the review must run the full `npm run ci` before the merge**. Run here instead: `ci:fast` green (7,400+ unit tests); the 9 touched e2e spec files on Chromium (97 passed); `chambreNight.spec.ts` on WebKit too (7 passed); `dist:check` on both flavours; the dist specs on the built playtest on Chromium (6 passed); `src/sim` coverage 98 % statements, 96.18 % branches, 100 % functions, 99.62 % lines (no threshold failure).
 
 **Goldens (deliberate).** `npm run golden:update`: 25 `.expected.json` files moved, **only in `worldHash`** (the new slice); checked with a diff filtered on that key, which left no other line. No journal, command or event moved. New scenario `bedtime_cycle_won` (the frozen bedroom, played by the perfect bot: `Scenario` gains `geometry` and `createBot`), pinned by `tests/golden/bedtimeCycle.test.ts`. No screenshot reference moved.
@@ -427,14 +453,14 @@ Modified, docs and data:
 
 Modified, source:
 - `src/bots/{bot,botResponses,humanBot,perfectBot,threatTiming}.ts`
-- `src/client/boot.ts`, `src/client/app/{debugParams,levelSession}.ts`, `src/client/assets/browserContentSource.ts`, `src/client/telemetry/gameSummary.ts`, `src/client/ui/screens/resultScreen.ts`
+- `src/client/boot.ts`, `src/client/app/{debugParams,levelSession}.ts`, `src/client/assets/browserContentSource.ts`, `src/client/render/cameraFx.ts`, `src/client/telemetry/gameSummary.ts`, `src/client/ui/screens/resultScreen.ts`, `src/client/ui/styles/ui.css`
 - `src/content/levelNodeNames.ts`, `src/content/schemas/{journal,level,levelGeometry}.ts`
 - `src/debug/autoplay.ts`
 - `src/sim/{context,createSim,events,index,snapshot,world}.ts`, `src/sim/flow/flowSystem.ts`, `src/sim/papa/{papaSystem,planWalk}.ts`, `src/sim/sequences/{layDown,sequenceEnd,sequenceSystem}.ts`
 - `tools/assets/extractLevelGeometry.ts`, `tools/blender/export_level.py`, `tools/build/inspectDist.ts`, `tools/content/contentChecks.ts`, `tools/playtest/{computeMetrics,renderMetrics}.ts`, `tools/sim/{runSim,simReport}.ts`
 
 Modified, tests:
-- `src/client/app/{debugParams,levelSession,threatsSwitch}.test.ts`, `src/client/telemetry/gameSummary.test.ts`, `src/client/ui/screens/resultScreen.test.ts`
+- `src/client/app/{debugParams,levelSession,threatsSwitch}.test.ts`, `src/client/render/cameraFx.test.ts`, `src/client/telemetry/gameSummary.test.ts`, `src/client/ui/screens/resultScreen.test.ts`
 - `src/content/levelNodeNames.test.ts`, `src/content/schemas/levelGeometry.test.ts`
 - `src/debug/{autoplay,feelPanel,testApi}.test.ts`
 - `src/sim/{events,snapshot}.test.ts`, `src/sim/threats/inputLag.test.ts`, `src/sim/sequences/{bombDropSnapshot,duelSnapshot,fakeSleepSnapshot,sequenceSnapshot}.test.ts`
@@ -454,3 +480,4 @@ Modified, tests:
 |---|---|
 | 2026-11-01 | Story created (`gds-create-story`), status `ready-for-dev`. Ultimate context engine analysis completed: comprehensive developer guide created. |
 | 2026-11-01 | Story implemented (`gds-dev-story`), status `review`. The bedroom, the chain in the sim (snapshot v27), the cycle bot, `?level=`, the journal's sequences and `playtest:metrics` report v2. Goldens regenerated (`worldHash` only). The full `npm run ci` is left to the review. |
+| 2026-11-01 | Code review (`gds-code-review`), status `done`. 18 patches applied, among them Geo's two calls: a sequence's responses stay out of indicators 3 and 4 (`inSequence` in the journal timeline), and the camera chains from `bomb_drop` into `stealth_exit` (`createFramingChain`). 3 deferred. |

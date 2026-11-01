@@ -37,7 +37,7 @@ function endLevel(world: World, ctx: StepContext, reason: LevelEndReason): void 
  * tie the noise goes first (D2), then the cycle. After that `step()` no longer runs this
  * system (nor any gameplay one, see `ENDED_SYSTEMS`), so the event comes exactly once. Mama's note
  * follows `LevelEnded` in the same step: the world is frozen from then on, so it matches the room
- * left on screen. A level without noise keeps `noisePct` at 0 and can only end on the timer.
+ * left on screen. A level without noise keeps `noisePct` at 0 and never ends on Mama.
  */
 export function runFlow(world: World, ctx: StepContext): void {
   // A sequence (story 4.4) does not suspend the level's end: the timer and the noise still end it.

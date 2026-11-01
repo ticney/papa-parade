@@ -1,4 +1,5 @@
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import { STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
@@ -6,7 +7,11 @@ import {
   createTestCycleGeometry,
   createTestCycleLevel,
 } from '../../../tests/support/cycleSupport.ts';
-import { createTestContent, createTestSilence } from '../../../tests/support/testContent.ts';
+import {
+  createTestContent,
+  createTestSequences,
+  createTestSilence,
+} from '../../../tests/support/testContent.ts';
 import type { StepContext, System } from '../context.ts';
 import { createSimWithSystems, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
@@ -72,7 +77,7 @@ async function runOf(options: CycleLevelOptions = {}, seed = 1): Promise<Run> {
     events,
     step,
     stepUntil(until, maxMs = 240_000) {
-      for (let i = 0; i < maxMs / 10 && !until(); i++) step();
+      for (let i = 0; i < maxMs / STEP_MS && !until(); i++) step();
       expect(until()).toBe(true);
     },
     end(outcome) {
@@ -122,7 +127,7 @@ describe('the chain', () => {
   it('is due after each interlude to the ms: the first gather starts at 15000', async () => {
     const run = await runOf(NO_THREATS);
     expect(run.world.cycle.nextAt).toBe(15000);
-    run.stepUntil(() => run.world.time.sim === 14990);
+    run.stepUntil(() => run.world.time.sim === 15000 - STEP_MS);
     expect(only(run.events, 'PapaPathPlanned')).toEqual([]);
     run.step();
     expect(only(run.events, 'PapaPathPlanned')).toMatchObject([{ t: 15000 }]);
@@ -166,14 +171,15 @@ describe('the chain', () => {
 
 describe('a retry', () => {
   it.each([
-    ['gag (a micro-sleep missed)', 'stay_awake'],
-    ['babyAwake (no beat tapped)', 'lullaby_walk'],
-    ['retreats at the maximum (no round answered)', 'bedtime_duel'],
-    ['retreats at the maximum (no drop)', 'bomb_drop'],
-    ['stealth (a real wake missed)', 'stealth_exit'],
+    ['gag', 'stay_awake'],
+    ['babyAwake', 'lullaby_walk'],
+    ['retreats', 'bedtime_duel'],
+    ['retreats', 'bomb_drop'],
+    ['gag', 'stealth_exit'],
   ])(
-    'comes on the same entry after %s',
-    async (_title, id) => {
+    'comes on the same entry after a %s failure (%s)',
+    async (kind, id) => {
+      expect(createTestSequences()[id]?.failure?.kind).toBe(kind);
       const run = await runOf(oneEntry(id));
       run.stepUntil(() => only(run.events, 'SequenceEnded').length === 1);
       const [ended] = only(run.events, 'SequenceEnded');
@@ -321,7 +327,7 @@ describe('the gather', () => {
     run.step();
     expect(only(run.events, 'SequenceStarted').at(-1)).toMatchObject({
       id: 'stealth_exit',
-      t: (laid?.t as number) + 10,
+      t: (laid?.t as number) + STEP_MS,
     });
     expect(only(run.events, 'PapaPathPlanned')).toHaveLength(walks);
     expect(run.world.baby.xM).toBe(at.xM);
@@ -396,6 +402,21 @@ describe('the gather', () => {
 });
 
 describe('what the cycle ignores', () => {
+  it("a debug StartSequence of the current entry's id does count as that entry", async () => {
+    const won = await runOf(NO_THREATS);
+    won.sim.enqueue({ type: 'StartSequence', t: asSimMs(0), sequenceId: 'stay_awake' });
+    won.stepUntil(() => inSequence(won));
+    won.end('win');
+    expect(won.world.cycle.index).toBe(1);
+
+    const lost = await runOf(NO_THREATS);
+    lost.sim.enqueue({ type: 'StartSequence', t: asSimMs(0), sequenceId: 'stay_awake' });
+    lost.stepUntil(() => inSequence(lost));
+    lost.end('lose');
+    expect(lost.world.cycle.index).toBe(0);
+    expect(lost.world.cycle.nextAt).toBe(lost.world.time.sim + 8000);
+  });
+
   it('a debug StartSequence of another sequence moves nothing', async () => {
     const run = await runOf(NO_THREATS);
     run.sim.enqueue({ type: 'StartSequence', t: asSimMs(0), sequenceId: 'bedtime_duel' });

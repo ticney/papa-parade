@@ -72,6 +72,9 @@ const TimelineEntrySchema = z.strictObject({
   reason: z.string().nullable(),
   offsetMs: z.number().nullable(),
   device: InputDeviceSchema,
+  // Present, and true, on a response given during a special sequence (story 4.10). Optional: a journal
+  // of the first prototype has none, and stays valid.
+  inSequence: z.literal(true).optional(),
 });
 
 const SequenceStepAttemptSchema = z.strictObject({

@@ -871,3 +871,9 @@
 - **Open point 10, « Il dort enfin ! » is the agent's wording.**
 - **The first wave's outlet verb can sit over the toilet's marker** at 844 × 390 (« SOULÈVE ! » over the door icon, both on the left wall). It lasts a telegraph; look at it in the device pass, and move the outlet if it bothers.
 - **The `human` bot loses almost nothing here** (one duel in 20 games): it never falls for a feint and aims with a small jitter. Say nothing of difficulty from it; only playing does.
+
+## Deferred from: code review of 4-10-niveau-chambre-de-nuit-et-playtest-du-deuxieme-prototype (2026-11-01)
+
+- **`sim:replay` refuses journals recorded before a new world slice.** The final hash covers `hashJson(sim.world)`, so any new slice (`cycle` here, as in 4.9) makes an older journal exit with « the replay ends in another state », although it played identically. `playtest:metrics` still reads those journals. `tools/sim/replaySim.ts:91`.
+- **The bot's crib tap and the gather can pick different safe zones.** `safeSpotOf` takes the first safe zone, open or not; `gather` takes `nearestOpenSafeZoneIndex`. Unreachable in `chambre_night`, which has one open crib; `cycleProblems` would accept a room where it matters. `src/bots/botResponses.ts:18`.
+- **An entry of the cycle can start with no time left.** `runCycle` has no guard like the threats' `isJudgeableBeforeEnd`, so an entry due in the last moments cancels every open threat (`ThreatCancelled{sequence}`), may pop Papa or the baby at the cap, then ends `cut`, which inflates `attempts` but not the rate. Deferred by Geo: rare, and a fix would invent a game rule before the first playtest. `src/sim/sequences/bedtimeCycle.ts:228`.

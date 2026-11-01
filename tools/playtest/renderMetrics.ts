@@ -193,7 +193,6 @@ function testerSection(tester: TesterReport): string[] {
   return lines;
 }
 
-/** The Markdown report, in English like every tool's output. Pure: no clock, no file. */
 /**
  * « Séquences » (story 4.10): one table per sequence and step. Rates, no threshold and no status;
  * nothing at all when no journal has a sequence. Whether a sequence is fun is in the comments.
@@ -231,6 +230,7 @@ function sequencesSection(report: PlaytestReport): string[] {
   ];
 }
 
+/** The Markdown report, in English like every tool's output. Pure: no clock, no file. */
 export function renderMetrics(report: PlaytestReport): string {
   const { inputs } = report;
   const lines: string[] = [

@@ -137,11 +137,15 @@ describe("the live level's need (AC 3)", () => {
     );
     if (!parsedFeel.ok) throw new Error('content/feel.json must be valid');
     const level = JSON.parse(await readFile(join(REPO, LEVEL), 'utf8')) as {
-      feelOverrides: Record<string, unknown>;
+      feelOverrides: { bladder: Record<string, unknown> };
     };
     const merged = mergeFeel(parsedFeel.value, level.feelOverrides, 'chambre_night');
     expect(merged.ok).toBe(true);
     if (!merged.ok) return;
-    expect(merged.value.bladder).toEqual({ ...parsedFeel.value.bladder, startPct: 30 });
+    expect(Object.keys(level.feelOverrides.bladder)).toEqual(['startPct']);
+    expect(merged.value.bladder).toEqual({
+      ...parsedFeel.value.bladder,
+      ...level.feelOverrides.bladder,
+    });
   });
 });

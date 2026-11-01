@@ -39,8 +39,9 @@ export type PhoneRingEndReason = 'answered' | 'timedOut' | 'levelEnded';
 export type SilenceEndReason = 'found' | 'timedOut' | 'levelEnded';
 
 /**
- * Why a level ended: the clock reached the level's `durationMs` (`timer`), or the noise reached 100 %
- * in a Sieste level and woke Mama (`mamaWoke`, story 3.2).
+ * Why a level ended: the clock reached the level's `durationMs` (`timer`), the noise reached 100 %
+ * in a Sieste level and woke Mama (`mamaWoke`, story 3.2), or the last entry of the bedtime cycle was
+ * won (`cycleDone`, story 4.10).
  */
 export type LevelEndReason = 'timer' | 'mamaWoke' | 'cycleDone';
 
@@ -426,9 +427,12 @@ export type SimEvent =
    * `LevelEnded{mamaWoke}`, at the same `t`.
    */
   | { type: 'MamaWoke'; t: SimMs }
-  /** The level is over, once: from here the sim only keeps its clock (the client shows the result). */
-  /** The last entry of the bedtime cycle was won (story 4.10): the level ends in this very step (`cycleDone`). */
+  /**
+   * The last entry of the bedtime cycle was won (story 4.10): the level ends in this very step, on
+   * `cycleDone`, or on `mamaWoke` if the noise reached 100 % in it (a tie goes to Mama).
+   */
   | { type: 'CycleCompleted'; t: SimMs }
+  /** The level is over, once: from here the sim only keeps its clock (the client shows the result). */
   | { type: 'LevelEnded'; t: SimMs; reason: LevelEndReason }
   /**
    * Mama's note (story 1.22), right after `LevelEnded` and at the same `t`, once per level: the

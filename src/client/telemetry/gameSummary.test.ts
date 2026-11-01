@@ -169,6 +169,29 @@ describe('the sequences of a game (story 4.10)', () => {
   });
 });
 
+describe('a response during a sequence (story 4.10)', () => {
+  it('is marked in the timeline, and only then', () => {
+    const game = recorder();
+    game.onEvent(telegraph(1, 'outlet', 'ThreatTelegraphed'), 'touch');
+    game.onEvent(resolved(1000, 1, 'success'), 'touch');
+    game.onEvent({ type: 'SequenceStarted', t: 2000, id: 'stay_awake' } as SimEvent, 'touch');
+    game.onEvent(telegraph(2, 'fake_sleep', 'ThreatTelegraphed'), 'touch');
+    game.onEvent(resolved(3000, 2, 'fail'), 'touch');
+    game.onEvent(
+      { type: 'SequenceEnded', t: 3000, id: 'stay_awake', outcome: 'failed' } as SimEvent,
+      'touch',
+    );
+    game.onEvent(telegraph(3, 'outlet', 'ThreatTelegraphed'), 'touch');
+    game.onEvent(resolved(4000, 3, 'success'), 'touch');
+    finish(game);
+    expect(game.summary()?.responses.timeline.map((entry) => entry.inSequence)).toEqual([
+      undefined,
+      true,
+      undefined,
+    ]);
+  });
+});
+
 describe('createGameSummary (story 3.3)', () => {
   it('has no summary until the level has ended and been scored', () => {
     const game = recorder();

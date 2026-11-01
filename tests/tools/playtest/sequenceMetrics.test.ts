@@ -147,3 +147,39 @@ describe('the Séquences section of the Markdown', () => {
     expect(renderMetrics(reportOf(journalWith(undefined)))).not.toContain('Séquences');
   });
 });
+
+describe('a sequence stays out of the five indicators (story 4.10, D9)', () => {
+  const entry = (threatDefId: string, quality: 'success' | 'fail', inSequence: boolean) => ({
+    t: 1000,
+    threatDefId,
+    quality,
+    reason: null,
+    offsetMs: 0,
+    device: 'touch' as const,
+    ...(inSequence ? { inSequence: true as const } : {}),
+  });
+
+  it('leaves its responses out of the first encounters and the device rates', () => {
+    const journal = journalWith(undefined);
+    journal.summary.responses.timeline = [
+      entry('fake_sleep', 'fail', true),
+      entry('outlet', 'success', false),
+      entry('real_wake', 'success', true),
+    ];
+    journal.summary.responses.byDevice.touch = { perfect: 0, success: 2, fail: 1 };
+    const report = reportOf(journal);
+    expect(report.testers[0]?.firstEncounter).toEqual({ outlet: 'success' });
+    expect(Object.keys(report.firstEncounter.byThreat)).toEqual(['outlet']);
+    expect(report.firstEncounter.status).toBe('OK');
+    expect(report.testers[0]?.rates.touch).toMatchObject({ hits: 1, total: 1 });
+  });
+
+  it('gives indicator 3 nothing to judge in a game of sequence responses only', () => {
+    const journal = journalWith(undefined);
+    journal.summary.responses.timeline = [entry('fake_sleep', 'fail', true)];
+    journal.summary.responses.byDevice.touch = { perfect: 0, success: 0, fail: 1 };
+    const report = reportOf(journal);
+    expect(report.firstEncounter.status).toBe('n/a');
+    expect(report.testers[0]?.rates.touch).toBeUndefined();
+  });
+});

@@ -367,6 +367,12 @@ function analyseTester(
         );
         continue;
       }
+      // A sequence's responses have their own rates (D9): indicators 3 and 4 read the base game only.
+      if (entry.inSequence === true) {
+        totals[entry.device].total--;
+        if (outcome === 'success') totals[entry.device].hits--;
+        continue;
+      }
       if (!firstEncounter.has(entry.threatDefId)) firstEncounter.set(entry.threatDefId, outcome);
     }
     for (const device of DEVICE_NAMES) {

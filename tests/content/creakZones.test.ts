@@ -31,9 +31,9 @@ const live = (levelId: string): LevelGeometry => {
   if (!parsed.ok) throw new Error('the live geometry is invalid');
   return parsed.value;
 };
-const DOOR_OF = (geometry: LevelGeometry) =>
+const doorOf = (geometry: LevelGeometry) =>
   geometry.anchors.find((anchor) => anchor.id === 'door')?.positionM ?? [0, 0, 0];
-const SAFE_CENTRE_OF = (geometry: LevelGeometry, id: string) =>
+const safeCentreOf = (geometry: LevelGeometry, id: string) =>
   geometry.zones.find((zone) => zone.id === id)?.centerM ?? [0, 0, 0];
 
 async function stealthSim(geometry: LevelGeometry) {
@@ -91,8 +91,8 @@ describe.each([
   'the boards of the live room $levelId (stories 4.9, 4.10)',
   ({ levelId, safeZone, cleanRoute }) => {
     const geometry = live(levelId);
-    const door = DOOR_OF(geometry);
-    const safeCentre = SAFE_CENTRE_OF(geometry, safeZone);
+    const door = doorOf(geometry);
+    const safeCentre = safeCentreOf(geometry, safeZone);
 
     it('has three creak zones', () => {
       const creaks = geometry.zones.filter((zone) => zone.kind === 'creak');

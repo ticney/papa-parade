@@ -8,7 +8,8 @@ import type { World } from '../world.ts';
 /**
  * The sequence `sequenceId` ended, won or lost (`succeedSequence` and `failSequence` call this last;
  * a level end does not). A no-op in a level with no cycle and for a sequence that is not the current
- * entry's, so a debug `StartSequence` moves nothing. Won: the next entry is due after its
+ * entry's, so a debug `StartSequence` of another one moves nothing; of the current entry's id it counts
+ * as that entry (the slice does not say who started it). Won: the next entry is due after its
  * `interludeMs`; after the last one the cycle is done (`CycleCompleted`, and `runFlow` ends the level
  * in this very step). Lost: the same entry again, after `retryInterludeMs` (D4).
  */

@@ -124,6 +124,7 @@ export function createGameSummary(options: GameSummaryOptions): GameSummaryRecor
             reason: event.reason ?? null,
             offsetMs: event.offsetMs,
             device,
+            ...(openSequence === null ? {} : { inSequence: true as const }),
           });
           break;
         }

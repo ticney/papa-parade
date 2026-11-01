@@ -61,7 +61,12 @@ import { keyGlyph, loadKeyboardLayoutMap, padConfirmGlyph } from './input/keyGly
 import { createMoveIntent } from './input/moveIntent.ts';
 import { bindPointer } from './input/pointerInput.ts';
 import { createAdaptivePixelRatio } from './render/adaptivePixelRatio.ts';
-import { createCameraFx, type SequenceFraming, sequenceFramingBlendAt } from './render/cameraFx.ts';
+import {
+  createCameraFx,
+  createFramingChain,
+  type SequenceFraming,
+  sequenceFramingBlendAt,
+} from './render/cameraFx.ts';
 import { slideDirection } from './render/gags.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
 import type { LevelScene } from './render/levelScene.ts';
@@ -212,6 +217,7 @@ export async function boot(): Promise<void> {
   // The special sequence's framing, one object written each frame (story 4.4), and the defs of the
   // level being played, set at its start.
   const sequenceFraming: SequenceFraming = { blend: 0, zoomPct: 0, focusPct: 0, xM: 0, zM: 0 };
+  const framingChain = createFramingChain();
   let currentSequences: Readonly<Record<string, SequenceDef>> | null = null;
   // Behind the start and « Oups » screens until a level has been loaded: an empty ink stage.
   const backdrop = new Scene();
@@ -1020,6 +1026,7 @@ export async function boot(): Promise<void> {
           : currentSequences[sequence.lastId];
       if (framingDef === undefined) {
         sequenceFraming.blend = 0;
+        framingChain.clear();
       } else {
         const { camera: framingCamera } = framingDef.framing;
         sequenceFraming.blend = sequenceFramingBlendAt(
@@ -1031,6 +1038,7 @@ export async function boot(): Promise<void> {
         );
         sequenceFraming.zoomPct = framingCamera.zoomPct;
         sequenceFraming.focusPct = framingCamera.focusPct;
+        framingChain.apply(sequenceFraming, sequence.startedAt, framingCamera.outMs, clockMs);
         sequenceFraming.xM = world.papa.xM;
         sequenceFraming.zM = world.papa.zM;
       }

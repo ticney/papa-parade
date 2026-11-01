@@ -86,7 +86,6 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     beatsMissed: 0,
     decoysTapped: 0,
     beatsStray: 0,
-    isCycleCompleted: false,
     cycleEntriesReached: 0,
     sequenceOutcomes: {},
     floorCreaks: 0,
@@ -246,17 +245,19 @@ describe('summarizeRuns', () => {
 
   it('folds the bedtime cycle: runs completed, mean entries, and each sequence by id (story 4.10)', () => {
     const done = run(1, {
-      isCycleCompleted: true,
+      endReason: 'cycleDone',
       cycleEntriesReached: 5,
       sequenceOutcomes: { stay_awake: { started: 2, won: 1, lost: 1 } },
     });
     const lost = run(2, {
-      cycleEntriesReached: 0,
+      // A tie with the noise: the last entry won, and Mama ends the level.
+      endReason: 'mamaWoke',
+      cycleEntriesReached: 5,
       sequenceOutcomes: { stay_awake: { started: 3, won: 0, lost: 2 } },
     });
     const report = summarizeRuns(INPUT, [done, lost]);
     expect(report.cycleCompleted).toBe(1);
-    expect(report.cycleEntriesReached).toBe(2.5);
+    expect(report.cycleEntriesReached).toBe(5);
     expect(report.sequenceOutcomes).toEqual({ stay_awake: { started: 5, won: 1, lost: 3 } });
     expect(summarizeRuns(INPUT, [run(1, {})]).sequenceOutcomes).toEqual({});
   });

@@ -76,7 +76,7 @@ async function play(seed: number, isQuiet: boolean): Promise<Outcome> {
   return outcome;
 }
 
-describe('the bedtime cycle under 30 seeds', () => {
+describe('the bedtime cycle under 30 seeds, and 3 more with no noise gauge', () => {
   const outcomes: Outcome[] = [];
 
   beforeAll(async () => {
@@ -110,7 +110,9 @@ describe('the bedtime cycle under 30 seeds', () => {
   it('holds a completed cycle to exactly one CycleCompleted and five wins, in order', () => {
     for (const outcome of outcomes) {
       const completed = outcome.events.filter((event) => event.type === 'CycleCompleted');
-      expect(completed).toHaveLength(outcome.reason === 'cycleDone' ? 1 : 0);
+      // A tie with the noise goes to Mama: the cycle was completed, and the level ends on `mamaWoke`.
+      if (outcome.reason === 'mamaWoke') expect(completed.length).toBeLessThanOrEqual(1);
+      else expect(completed).toHaveLength(outcome.reason === 'cycleDone' ? 1 : 0);
       if (outcome.reason !== 'cycleDone') continue;
       expect(outcome.index).toBe(5);
       const won = outcome.events.flatMap((event) =>

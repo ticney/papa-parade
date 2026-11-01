@@ -1,3 +1,4 @@
+import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
@@ -79,7 +80,7 @@ describe('the cycle in a snapshot (story 4.10)', () => {
 
   it('round-trips during a gather walk', async () => {
     const live = await createCycleSim();
-    stepUntil(live, () => worldOf(live).time.sim === 15_020);
+    stepUntil(live, () => worldOf(live).time.sim === 15_000 + 2 * STEP_MS);
     expect(worldOf(live).papa.state).toBe('walkPath');
     expect(worldOf(live).papa.intent).toBe('takeBaby');
     await expectSameEnd(live);
@@ -152,13 +153,16 @@ describe('what the slice refuses (story 4.10)', () => {
     snapshot.world.cycle = { index: 5, nextAt: null, completedAt: snapshot.world.time.sim };
     snapshot.world.score.final = {
       laughPoints: 0,
+      babyStatePoints: 0,
       sighPoints: 0,
       screamPoints: 0,
-      totalPoints: 0,
+      scorePoints: 0,
       stars: 0,
       lostStars: 0,
     } as unknown as World['score']['final'];
-    expect(() => sim.restore(snapshot)).not.toThrow('world.flow.state');
+    sim.restore(snapshot);
+    expect(worldOf(sim).flow.state).toBe('ended');
+    expect(worldOf(sim).cycle.completedAt).toBe(snapshot.world.time.sim);
     sim.dispose();
   });
 });

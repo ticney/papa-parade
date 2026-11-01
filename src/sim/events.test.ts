@@ -110,7 +110,7 @@ describe('the lullaby walk events (story 4.5)', () => {
 });
 
 describe('LEVEL_END_REASONS (story 3.2)', () => {
-  it('lists the two ways a level ends', () => {
+  it('lists the three ways a level ends', () => {
     expect([...LEVEL_END_REASONS]).toEqual(['timer', 'mamaWoke', 'cycleDone']);
     expect(new Set(LEVEL_END_REASONS).size).toBe(LEVEL_END_REASONS.length);
   });

@@ -49,7 +49,6 @@ export interface WaveTally {
   isOverLimit: boolean;
 }
 
-/** What one run produced, kept small: counts, never events. */
 /** One sequence over a run or over the runs (story 4.10): started, won, lost. A level end cuts it: neither. */
 export interface SequenceOutcomeCounts {
   started: number;
@@ -66,6 +65,7 @@ function outcomesOf(
   return outcomes[id] as SequenceOutcomeCounts;
 }
 
+/** What one run produced, kept small: counts, never events. */
 export interface RunSummary {
   seed: number;
   worldHash: string;
@@ -129,8 +129,6 @@ export interface RunSummary {
   decoysTapped: number;
   /** The taps on no beat and no decoy (`BeatStrayTapped`). */
   beatsStray: number;
-  /** Whether the bedtime cycle was completed (`CycleCompleted`, story 4.10). */
-  isCycleCompleted: boolean;
   /** The entries of the bedtime cycle won (`world.cycle.index`): 0 in a level with no cycle. */
   cycleEntriesReached: number;
   /** Each sequence started, won and lost in this run, by id (story 4.10). */
@@ -253,7 +251,6 @@ export function createRunRecorder(
   let beatsMissed = 0;
   let decoysTapped = 0;
   let beatsStray = 0;
-  let isCycleCompleted = false;
   const sequenceOutcomes: Record<string, SequenceOutcomeCounts> = {};
   let floorCreaks = 0;
   const breathGasps = emptyBreathGasps();
@@ -317,8 +314,6 @@ export function createRunRecorder(
         if (event.safe) safePutDowns++;
       } else if (event.type === 'ToiletFinished') {
         toiletVisits++;
-      } else if (event.type === 'CycleCompleted') {
-        isCycleCompleted = true;
       } else if (event.type === 'SequenceStarted') {
         sequencesStarted++;
         outcomesOf(sequenceOutcomes, event.id).started++;
@@ -440,7 +435,6 @@ export function createRunRecorder(
         beatsMissed,
         decoysTapped,
         beatsStray,
-        isCycleCompleted,
         cycleEntriesReached: sim.world.cycle.index,
         sequenceOutcomes,
         floorCreaks,
@@ -754,7 +748,8 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     beatsMissed += run.beatsMissed;
     decoysTapped += run.decoysTapped;
     beatsStray += run.beatsStray;
-    if (run.isCycleCompleted) cycleCompleted++;
+    // On the end reason, like `playtest:metrics`: a tie with the noise goes to Mama (`CycleCompleted`, then `mamaWoke`).
+    if (run.endReason === 'cycleDone') cycleCompleted++;
     cycleEntriesSum += run.cycleEntriesReached;
     for (const [id, counts] of Object.entries(run.sequenceOutcomes)) {
       const total = outcomesOf(sequenceOutcomes, id);
