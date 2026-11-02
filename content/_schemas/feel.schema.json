@@ -706,14 +706,20 @@
           "minimum": 0,
           "maximum": 9007199254740991,
           "description": "How many props the door knocks over when it opens, at most (0 = none); only props that cannot break fall (story 3.5, D10)."
+        },
+        "frozenNearMissReachM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "When the level ends, the baby (not carried) within this distance of a near-miss threat's point counts one near miss, frozen on the photo, in metres (story 3.6, D2). The closest he can stand to the salon's stairs is 0.79: under that the rule counts nothing."
         }
       },
       "required": [
         "finalRushMs",
-        "doorSpillCount"
+        "doorSpillCount",
+        "frozenNearMissReachM"
       ],
       "additionalProperties": false,
-      "description": "The end of the level (story 3.5): the final rush and the door."
+      "description": "The end of the level: the final rush and the door (story 3.5), the near misses frozen on the photo (story 3.6)."
     },
     "stealth": {
       "type": "object",
@@ -1360,6 +1366,36 @@
           "additionalProperties": false,
           "description": "Juice of a gag: the « pouf »."
         },
+        "photoCamera": {
+          "type": "object",
+          "properties": {
+            "yawDeg": {
+              "type": "number",
+              "minimum": 15,
+              "maximum": 75,
+              "description": "Where the end photo is taken from, around the vertical, in degrees (45 = the game camera). Held to 15..75 so that the camera never looks through a wall the room does not model (story 3.6, D3)."
+            },
+            "pitchDeg": {
+              "type": "number",
+              "minimum": 20,
+              "maximum": 60,
+              "description": "How high the end photo is taken from, in degrees above the floor."
+            },
+            "zoomPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 40,
+              "description": "Extra zoom of the end photo on top of the room fitted to the frame, in %."
+            }
+          },
+          "required": [
+            "yawDeg",
+            "pitchDeg",
+            "zoomPct"
+          ],
+          "additionalProperties": false,
+          "description": "The camera of the end photo (story 3.6): its own angle and zoom, not the game camera."
+        },
         "perfectCamera": {
           "type": "object",
           "properties": {
@@ -1410,6 +1446,7 @@
         "success",
         "perfect",
         "gag",
+        "photoCamera",
         "perfectCamera"
       ],
       "additionalProperties": false,

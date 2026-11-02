@@ -408,8 +408,16 @@ const EndOfLevelSchema = z
       .describe(
         'How many props the door knocks over when it opens, at most (0 = none); only props that cannot break fall (story 3.5, D10).',
       ),
+    frozenNearMissReachM: z
+      .number()
+      .positive()
+      .describe(
+        "When the level ends, the baby (not carried) within this distance of a near-miss threat's point counts one near miss, frozen on the photo, in metres (story 3.6, D2). The closest he can stand to the salon's stairs is 0.79: under that the rule counts nothing.",
+      ),
   })
-  .describe('The end of the level (story 3.5): the final rush and the door.');
+  .describe(
+    'The end of the level: the final rush and the door (story 3.5), the near misses frozen on the photo (story 3.6).',
+  );
 
 const StealthSchema = z
   .strictObject({
@@ -659,6 +667,29 @@ const FxSchema = z
       })
       .describe('Juice of a perfect response: shake, sparks and the stamp.'),
     gag: fxPreset('Juice of a gag: the « pouf ».'),
+    photoCamera: z
+      .strictObject({
+        yawDeg: z
+          .number()
+          .min(15)
+          .max(75)
+          .describe(
+            'Where the end photo is taken from, around the vertical, in degrees (45 = the game camera). Held to 15..75 so that the camera never looks through a wall the room does not model (story 3.6, D3).',
+          ),
+        pitchDeg: z
+          .number()
+          .min(20)
+          .max(60)
+          .describe('How high the end photo is taken from, in degrees above the floor.'),
+        zoomPct: z
+          .number()
+          .min(0)
+          .max(40)
+          .describe('Extra zoom of the end photo on top of the room fitted to the frame, in %.'),
+      })
+      .describe(
+        'The camera of the end photo (story 3.6): its own angle and zoom, not the game camera.',
+      ),
     perfectCamera: z
       .strictObject({
         zoomPct: z.number().min(0).max(40).describe('Extra zoom at the peak of the slow-mo, in %.'),

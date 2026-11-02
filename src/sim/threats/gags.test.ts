@@ -19,7 +19,7 @@ import type { StepContext } from '../context.ts';
 import { createSim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import type { World } from '../world.ts';
-import { applyGag, GAG_IDS, type GagId } from './gags.ts';
+import { applyGag, GAG_IDS, type GagId, isNearMissGag } from './gags.ts';
 
 const content = createTestContent();
 const { pushImpulseNs, propReachDistM } = content.feel.gags.tableObjectFall;
@@ -115,6 +115,16 @@ describe('applyGag', () => {
       expect(world.score.nearMisses).toBe(nearMisses);
       expect(world.score.nearMisses).toBe(gag === 'stairs_slide' ? 1 : 0);
       expect(world.score.perfects).toBe(0);
+    },
+  );
+
+  it.each(GAG_IDS)(
+    '%s is a near miss for the end photo exactly when it pushes a NearMiss (story 3.6)',
+    async (gag) => {
+      const { defId } = OWN_THREAT[gag];
+      const { world, ctx, events, threatOf } = await setup();
+      applyGag(world, ctx, threatOf(defId), gag);
+      expect(isNearMissGag(gag)).toBe(events.some((event) => event.type === 'NearMiss'));
     },
   );
 

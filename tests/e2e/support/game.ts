@@ -26,7 +26,8 @@ export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'ut
     { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' | 'heartbeat' }
   >;
   events: Record<string, string>;
-  resultScreen: { inputGraceMs: number };
+  resultScreen: { inputGraceMs: number; photoHoldMs: number };
+  photo: { widthPx: number; heightPx: number; tiltMaxDeg: number };
   calibration: { beep: { clip: string } };
 };
 

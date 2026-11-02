@@ -173,6 +173,15 @@ export const ISO_FIT_MARGIN_PCT = 4;
 /** Near plane of the isometric camera, in metres: the room is ~`ISO_CAMERA_DISTANCE_M` away, so nothing is ever this close. */
 export const ISO_CAMERA_NEAR_M = 0.1;
 
+/**
+ * The range of the end photo's aspect (`feedback.json › photo.widthPx / heightPx`) the Result screen
+ * is laid out for. The polaroid is as wide as its card (`.pp-polaroid-photo`: `width: 100%`, `height:
+ * auto`), so its height follows the aspect: at 1.25 it still fits 750 × 340 beside the panel (about
+ * 300 px with its paper), a taller photo does not; 2.5 is as wide as the room box frames well.
+ */
+export const PHOTO_ASPECT_MIN = 1.25;
+export const PHOTO_ASPECT_MAX = 2.5;
+
 /** Warnings raised from the frame loop are rate-limited to one per this much real time, in ms. */
 export const LOOP_WARN_INTERVAL_MS = 1000;
 

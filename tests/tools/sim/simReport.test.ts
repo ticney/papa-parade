@@ -93,6 +93,7 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     nothingResponses: 0,
     finalRushes: 0,
     propsTidied: 0,
+    frozenNearMisses: 0,
     bladderPeakPct: 0,
     noisePeakPct: 0,
     noiseFinalPct: 0,
@@ -325,6 +326,17 @@ describe('summarizeRuns', () => {
     expect(summarizeRuns(INPUT, []).gags.nearMisses).toBe(0);
   });
 
+  it('adds the frozen near misses of the runs up, apart from the near misses of play (story 3.6)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(5, { nearMisses: 2, frozenNearMisses: 1 }),
+      run(6, { nearMisses: 0, frozenNearMisses: 2 }),
+    ]);
+    expect(report.frozenNearMisses).toBe(3);
+    expect(report.gags.nearMisses).toBe(2);
+    expect(report.runList.map((entry) => entry.seed)).toEqual([5, 6]);
+    expect(summarizeRuns(INPUT, []).frozenNearMisses).toBe(0);
+  });
+
   it('adds the micro-sleeps and the coffees up, and counts the runs where Papa fell asleep', () => {
     const report = summarizeRuns(INPUT, [
       run(5, { microSleeps: 3, coffees: 1, asleepGags: 2 }),
@@ -520,12 +532,15 @@ describe('createRunRecorder', () => {
       reason: 'late',
     });
     recorder.onEvent({ type: 'NearMiss', t: asSimMs(0), threatId, gag: 'stairs_slide' });
+    // The photo's near miss is counted on its own, never as one of play (story 3.6).
+    recorder.onEvent({ type: 'NearMissFrozen', t: asSimMs(0), threatId, gag: 'stairs_slide' });
     const summary = recorder.finish();
     expect(summary).toMatchObject({
       seed: 1,
       responses: 2,
       gags: 1,
       nearMisses: 1,
+      frozenNearMisses: 1,
       commands: 0,
       byGag: { outlet_hair: 1 },
     });

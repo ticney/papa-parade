@@ -75,7 +75,8 @@
     "starsDelayMs": 300,
     "starIntervalMs": 450,
     "actionsDelayMs": 400,
-    "inputGraceMs": 350
+    "inputGraceMs": 350,
+    "photoHoldMs": 1200
   },
   "calibration": {
     "beep": { "clip": "ui_calibration_beep", "bus": "ui", "gainPct": 100 }
@@ -118,6 +119,14 @@
     "widthM": 0.9,
     "heightM": 2,
     "thicknessM": 0.05
+  },
+  "photo": {
+    "widthPx": 570,
+    "heightPx": 360,
+    "tiltMaxDeg": 3,
+    "vignetteFromPct": 60,
+    "vignetteOpacityPct": 28,
+    "vignetteRadiusPct": 70
   },
   "render": {
     "toonTones": [96, 178, 255],
@@ -168,6 +177,12 @@
       "audio": { "clip": "ui_star_lost", "bus": "ui", "gainPct": 90 },
       "visual": { "kind": "uiElement" },
       "haptic": "light"
+    },
+    "photo_taken": {
+      "audio": { "clip": "ui_camera_shutter", "bus": "ui", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "flash": { "peakOpacityPct": 60, "durationMs": 300 },
+      "haptic": "medium"
     },
     "silence_started": { "haptic": "light" },
     "noise_alert": { "visual": { "kind": "uiElement" }, "haptic": "medium" },
@@ -539,6 +554,7 @@
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
     "InstinctVignetteShown": "instinct_triggered",
+    "PhotoTaken": "photo_taken",
     "ResultStarStamped": "result_star",
     "ResultLastStarStamped": "result_star_last",
     "ResultMamaWokeShown": "mama_woke",

@@ -27,6 +27,16 @@ export interface RoomSize {
 const centre = new Vector3();
 const corner = new Vector3();
 
+/**
+ * Where a camera looks from, in degrees: `yawDeg` around the vertical (45 = the game camera, looking
+ * from `+x +z`) and `pitchDeg` above the floor. Left out, {@link fitIsoCamera} uses the game camera's
+ * (`ISO_YAW_DEG`, `ISO_PITCH_DEG`); the end photo (story 3.6) passes its own.
+ */
+export interface IsoView {
+  readonly yawDeg: number;
+  readonly pitchDeg: number;
+}
+
 /** Pure maths on a `three` camera (no DOM, no WebGL): call {@link fitIsoCamera} to place it. */
 export function createIsoCamera(): OrthographicCamera {
   return new OrthographicCamera(-1, 1, 1, -1, ISO_CAMERA_NEAR_M, ISO_CAMERA_DISTANCE_M * 2);
@@ -39,9 +49,15 @@ export function createIsoCamera(): OrthographicCamera {
  *
  * The 8 corners of the box are projected into the camera's view space; their bounding rectangle
  * is grown by the margin, then widened on one axis to match the aspect. This is what keeps the
- * room visible at every aspect, portrait included.
+ * room visible at every aspect, portrait included. `view` moves the camera around the room (the
+ * end photo's own angle, story 3.6); left out, the game camera is placed exactly as it always was.
  */
-export function fitIsoCamera(camera: OrthographicCamera, room: RoomSize, aspect: number): void {
+export function fitIsoCamera(
+  camera: OrthographicCamera,
+  room: RoomSize,
+  aspect: number,
+  view?: IsoView,
+): void {
   invariant(
     Number.isFinite(aspect) && aspect > 0,
     `fitIsoCamera: aspect must be a finite number > 0 (${aspect})`,
@@ -53,8 +69,12 @@ export function fitIsoCamera(camera: OrthographicCamera, room: RoomSize, aspect:
     );
   }
 
-  const yaw = (ISO_YAW_DEG * Math.PI) / 180;
-  const pitch = (ISO_PITCH_DEG * Math.PI) / 180;
+  const yaw = ((view?.yawDeg ?? ISO_YAW_DEG) * Math.PI) / 180;
+  const pitch = ((view?.pitchDeg ?? ISO_PITCH_DEG) * Math.PI) / 180;
+  invariant(
+    Number.isFinite(yaw) && Number.isFinite(pitch),
+    `fitIsoCamera: the view must be finite (${view?.yawDeg}, ${view?.pitchDeg})`,
+  );
   const centerX = room.centerXM ?? 0;
   const centerZ = room.centerZM ?? 0;
   invariant(

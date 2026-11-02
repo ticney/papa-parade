@@ -10,6 +10,7 @@ import { DEFAULT_DIFFICULTY_TIER, MAX_TIMER_DELAY_MS, MS_PER_S, STEP_MS } from '
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
+import { asRealMs } from '@shared/time';
 import {
   type BeatEntry,
   beatTimelineOf,
@@ -48,6 +49,7 @@ import {
   createBeatScheduler,
   type SoundedNote,
 } from './audio/beatScheduler.ts';
+import { takeEndPhoto } from './endOfLevel/photo.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
 import { createGatedHaptics } from './feedback/gatedHaptics.ts';
 import { isNoiseAlertCrossing } from './feedback/noiseAlert.ts';
@@ -80,7 +82,7 @@ import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
 import { createInstinctVignette } from './ui/hud/instinctVignette.ts';
-import { createScreenFlash } from './ui/hud/screenFlash.ts';
+import { createScreenFlash, SCREEN_FLASH_CLASSES } from './ui/hud/screenFlash.ts';
 import { createSequenceBar } from './ui/hud/sequenceBar.ts';
 import { createSilenceBubble } from './ui/hud/silenceBubble.ts';
 import { createTimerHud } from './ui/hud/timerHud.ts';
@@ -90,7 +92,11 @@ import { createLoadingScreen } from './ui/screens/loadingScreen.ts';
 import { createOopsScreen } from './ui/screens/oopsScreen.ts';
 import { createPauseScreen } from './ui/screens/pauseScreen.ts';
 import { createPortraitOverlay } from './ui/screens/portraitOverlay.ts';
-import { type CopyLogOutcome, createResultScreen } from './ui/screens/resultScreen.ts';
+import {
+  type CopyLogOutcome,
+  createResultScreen,
+  type ResultPhoto,
+} from './ui/screens/resultScreen.ts';
 import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
 import { createStartScreen } from './ui/screens/startScreen.ts';
 import { createTranslator } from './ui/strings.ts';
@@ -223,6 +229,8 @@ export async function boot(): Promise<void> {
   const renderer = created.value;
 
   const camera = createIsoCamera();
+  // The end photo's own camera (story 3.6): the game camera, `cameraFx` and the world UI are not touched.
+  const photoCamera = createIsoCamera();
   // The perfect's zoom, pan and turn, around the framing `fitIsoCamera` computes (story 2.5).
   const cameraFx = createCameraFx(camera);
   // The special sequence's framing, one object written each frame (story 4.4), and the defs of the
@@ -343,6 +351,7 @@ export async function boot(): Promise<void> {
       | 'ppLostStars'
       | 'ppEndReason'
       | 'ppResult'
+      | 'ppPhoto'
       | 'ppCalibration'
       | 'ppCalibrationBeats',
     value: string,
@@ -447,12 +456,18 @@ export async function boot(): Promise<void> {
   let cuesPlayedCount = 0;
   let flashesDrawnCount = 0;
   let stampsShownCount = 0;
-  // The full-screen flash of a perfect (story 2.4): one overlay in the HUD root, on real time.
+  // The full-screen flash of a perfect (story 2.4) and of the end photo (story 3.6): one overlay on
+  // real time. A sibling of `#pp-ui`, not a child of the HUD: `#pp-hud` is `hidden` in `result`, which
+  // would hide the photo's flash, and `#pp-ui` empties its children at each screen. Still above the HUD
+  // and below the pause panel, and above the Result screen only while the app is in it (`--over`).
   const screenFlash = createScreenFlash(document, { nowReal: () => performance.now() });
-  hudRoot.append(screenFlash.element);
-  // The « PARADE PARFAITE » stamp (story 2.5): one overlay above the flash, on real time.
+  // The « PARADE PARFAITE » stamp (story 2.5): one overlay above the flash, on real time. It goes
+  // with the flash, so that a perfect looks as it always did (the stamp over the flash's fade).
   const epicStamp = createEpicStamp(document, { text: t('stamp.perfect_parry') });
-  hudRoot.append(epicStamp.element);
+  uiRoot.before(screenFlash.element, epicStamp.element);
+  events.on('AppStateChanged', ({ to }) => {
+    screenFlash.element.classList.toggle(SCREEN_FLASH_CLASSES.over, to === 'result');
+  });
   // The visuals the cue being played drew (`onVisual`), handed to the test host with `onCue`, which
   // the director calls last. Debug builds only listen; an empty array otherwise.
   const visualsOfCue: string[] = [];
@@ -707,6 +722,7 @@ export async function boot(): Promise<void> {
       'ppLostStars',
       'ppEndReason',
       'ppResult',
+      'ppPhoto',
       'ppSequence',
       'ppSequenceOutcome',
       'ppBeatHits',
@@ -918,6 +934,45 @@ export async function boot(): Promise<void> {
   // Why it ended (story 3.2): a woken Mama puts a header on the Result screen. Cleared with the note.
   let resultEndReason: LevelEndReason = 'timer';
   let hasResultStarted = false;
+  // The end photo (story 3.6): taken once, at `LevelScored`, null when the capture failed. It lives
+  // here and not in the screen because the screen is rebuilt after the portrait overlay: each build
+  // re-parents the same canvas, so the picture and its tilt survive. Cleared when a level loads.
+  let resultPhoto: ResultPhoto | null = null;
+  /**
+   * The end photo (story 3.6, FR35): one `sim.snapshot()` of the frozen world, drawn through the
+   * photo camera (`level.update(snapshot.world, 1, now)`: no step runs) and copied to a 2D canvas.
+   * A failure is one `warn` on `render` and no photo; the Result screen then runs without one.
+   */
+  const takeResultPhoto = (): ResultPhoto | null => {
+    const active = levelSession.active;
+    if (active === null || currentLevel === null) {
+      log.warn('render', 'no level to take the end photo of');
+      return null;
+    }
+    try {
+      const taken = takeEndPhoto(
+        {
+          renderer,
+          level: currentLevel,
+          camera: photoCamera,
+          createCanvas: () => document.createElement('canvas'),
+        },
+        active.sim.snapshot().world,
+        { photo: feedbackTable.photo, photoCamera: levelFeel().fx.photoCamera },
+        asRealMs(performance.now()),
+      );
+      if (!taken.ok) {
+        log.warn('render', taken.error.message, taken.error);
+        return null;
+      }
+      // The tilt is the client's to draw (the sim never reads it), once, kept with the photo.
+      const tiltDeg = (Math.random() * 2 - 1) * feedbackTable.photo.tiltMaxDeg;
+      return { canvas: taken.value, tiltDeg };
+    } catch (cause) {
+      log.warn('render', 'cannot take the end photo', cause);
+      return null;
+    }
+  };
   // The action behind « Copier le journal » (story 3.3): set at boot by the debug block, in
   // playtest builds only, and read when the Result screen is built.
   let playtestCopyLog: (() => Promise<CopyLogOutcome>) | null = null;
@@ -1454,6 +1509,11 @@ export async function boot(): Promise<void> {
           mirror('ppLostStars', String(score.lostStars));
         }
         levelSession.finish();
+        // After `finish()` (it resets the effects and the camera, so nothing mid-shake is in the
+        // picture) and before the app enters `result`. The capture leaves the viewport and the
+        // scissor as it found them, so `drawStatic` below draws the game camera's view as before.
+        resultPhoto = takeResultPhoto();
+        if (isMirrored) mirror('ppPhoto', resultPhoto === null ? 'none' : 'taken');
         appFsm.enter('result');
         drawStatic();
       }
@@ -1626,6 +1686,9 @@ export async function boot(): Promise<void> {
         timings: feedbackTable.resultScreen,
         // Rebuilt after the portrait overlay: the stars do not stamp (nor sound) twice.
         isDone: hasResultStarted,
+        photo: resultPhoto,
+        // The shutter and the flash, once, when the photo drops in (never on a rebuild, nor with no photo).
+        onPhoto: () => director.handle('PhotoTaken', null),
         scheduler: {
           schedule: (run, delayMs) => window.setTimeout(run, delayMs),
           cancel: (handle) => window.clearTimeout(handle),
@@ -1855,6 +1918,7 @@ export async function boot(): Promise<void> {
     resultScore = null;
     resultEndReason = 'timer';
     hasResultStarted = false;
+    resultPhoto = null;
     // The previous game's note must not be read as the next one's while it loads (`mirrorNewLevel`
     // clears them only once the level has started).
     if (isMirrored) {
@@ -1864,6 +1928,7 @@ export async function boot(): Promise<void> {
         'ppLostStars',
         'ppEndReason',
         'ppResult',
+        'ppPhoto',
         'ppPropsTidied',
       ] as const) {
         delete document.documentElement.dataset[name];

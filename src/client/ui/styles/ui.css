@@ -280,16 +280,24 @@ body {
   pointer-events: none;
 }
 
-/* The screen flash (story 2.4): the mark of a perfect response, in the HUD root so that it sits above
-   the world UI and below the pause panel (`#pp-ui`). It never takes a tap or focus. `screenFlash.ts`
-   animates its opacity in real ms; with reduced motion the same call shows a border glow instead. */
+/* The screen flash (story 2.4): the mark of a perfect response and (story 3.6) of the end photo. A
+   sibling of `#pp-ui`, outside the HUD (`#pp-hud` is hidden in `result`, and `#pp-ui` empties itself
+   at each screen): z-index 15, above the HUD (10) and below the pause panel (`#pp-ui`, 20), as it was
+   inside the HUD. It never takes a tap or focus. `screenFlash.ts` animates its opacity in real ms; with
+   reduced motion the same call shows a border glow instead. */
 .pp-screen-flash {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 15;
   background: var(--pp-color-paper);
   opacity: 0;
   pointer-events: none;
+}
+
+/* Over the Result screen (`#pp-ui`, 20): boot sets the class only while the app is in `result`, so the
+   photo's flash is seen over the panel and the polaroid. A perfect in play never has it. */
+.pp-screen-flash--over {
+  z-index: 60;
 }
 
 .pp-screen-flash--glow {
@@ -299,15 +307,15 @@ body {
 
 /* The « PARADE PARFAITE » stamp (story 2.5, UX-DR15): the Epic register, paper fill and ink stroke
    (`pp-type-epic pp-stroked` on the element), centred in the upper half so that the bottom third stays
-   free. In the HUD root: above the flash, below the pause panel (`#pp-ui`). It never takes a tap or
-   focus. `epicStamp.ts` animates its opacity (and, but under reduced motion, its scale and tilt) in
+   free. Beside the flash, outside the HUD (story 3.6): above the flash (15), below the pause panel
+   (`#pp-ui`, 20). It never takes a tap or focus. `epicStamp.ts` animates its opacity (and, but under reduced motion, its scale and tilt) in
    real ms; it is invisible when idle. Fitted to the width, never truncated. */
 .pp-epic-stamp {
   position: fixed;
   top: 22%;
   left: 0;
   right: 0;
-  z-index: 61;
+  z-index: 16;
   box-sizing: border-box;
   max-width: 90%;
   margin: 0 auto;
@@ -997,6 +1005,68 @@ body {
   outline: none;
 }
 
+/* The end photo (story 3.6, UX `polaroid`, the left column of key-result.html): two columns, the
+   polaroid left of the panel, both centred. Sized for 750 × 340 without a scroll, whatever the header
+   of the panel: a 340px polaroid with a 2px canvas border and 10px / 30px of paper is under 250px high
+   at the photo's 570 × 360, against the panel's own height. */
+.pp-result-screen-photo {
+  gap: var(--pp-spacing-4);
+}
+
+/* A paper card with the ink outline and the sticker shadow, tilted by a random angle that boot drew
+   (`--pp-polaroid-tilt`, within `feedback.json › photo.tiltMaxDeg`) and keeps for a rebuilt screen. */
+.pp-polaroid {
+  --pp-polaroid-tilt: 0deg;
+  box-sizing: border-box;
+  flex: 0 1 340px;
+  min-width: 0;
+  padding: var(--pp-spacing-3) var(--pp-spacing-3) var(--pp-spacing-6);
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-sm);
+  background: var(--pp-color-paper);
+  box-shadow: var(--pp-lift);
+  transform: rotate(var(--pp-polaroid-tilt));
+}
+
+/* The picture is a 2D canvas of the photo's own size, shrunk to the card (never an image URL: the CSP
+   would refuse a `data:` or `blob:` one in the deployed build). Its height follows its aspect, which
+   `feedback.json › photo` keeps within `PHOTO_ASPECT_MIN` to `PHOTO_ASPECT_MAX` (schema refine). */
+.pp-polaroid-photo {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  border: 2px solid var(--pp-color-ink);
+  border-radius: calc(var(--pp-rounded-sm) / 2);
+}
+
+/* The photo drops in once, when the sequence starts: from above and larger, down to its tilt. A
+   rebuilt screen has no drop class. `transform` and `opacity` only. */
+.pp-polaroid-drop {
+  animation: pp-polaroid-drop 380ms cubic-bezier(0.2, 0.9, 0.3, 1.2) 1 both;
+}
+
+@keyframes pp-polaroid-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-60px) scale(1.2) rotate(calc(var(--pp-polaroid-tilt) * 3));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(var(--pp-polaroid-tilt));
+  }
+}
+
+/* While the photo stands alone the panel is transparent, not `hidden`: an element that is hidden cannot
+   take the focus the host gives it at build (story 3.6, D6). Its pop-in is off meanwhile and plays
+   when the class goes. Two classes, so that the reduced-motion `.pp-panel` rule (later, same weight
+   as one class) cannot bring it back through its fade. */
+.pp-result-panel.pp-result-panel-waiting {
+  animation: none;
+  opacity: 0;
+}
+
 .pp-score-card {
   display: flex;
   flex-direction: column;
@@ -1499,7 +1569,8 @@ body {
 :where(:root[data-pp-motion="reduced"]) .pp-countdown-digit,
 :where(:root[data-pp-motion="reduced"]) .pp-start-prompt,
 :where(:root[data-pp-motion="reduced"]) .pp-portrait-icon,
-:where(:root[data-pp-motion="reduced"]) .pp-result-reason-slam {
+:where(:root[data-pp-motion="reduced"]) .pp-result-reason-slam,
+:where(:root[data-pp-motion="reduced"]) .pp-polaroid-drop {
   animation: none;
 }
 

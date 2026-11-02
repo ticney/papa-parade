@@ -50,6 +50,14 @@ const TABLE: FeedbackTable = {
   papaHint: { holdMs: 1200 },
   bombDrop: { laidHeightM: 0.3 },
   door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
+  photo: {
+    widthPx: 570,
+    heightPx: 360,
+    tiltMaxDeg: 3,
+    vignetteFromPct: 60,
+    vignetteOpacityPct: 28,
+    vignetteRadiusPct: 70,
+  },
   resultScreen: {
     rowCountUpMs: 600,
     rowStaggerMs: 200,
@@ -57,6 +65,7 @@ const TABLE: FeedbackTable = {
     starIntervalMs: 450,
     actionsDelayMs: 400,
     inputGraceMs: 0,
+    photoHoldMs: 1200,
   },
   calibration: { beep: { clip: 'ui_calibration_beep', bus: 'ui', gainPct: 100 } },
   loops: {
@@ -165,6 +174,7 @@ const FX: Feel['fx'] = {
     shake: { amplitudeM: 0.04, durationMs: 250 },
     particles: { style: 'puff', count: 12, speedMps: 0.8, lifeMs: 650, sizeM: 0.12 },
   },
+  photoCamera: { yawDeg: 38, pitchDeg: 30, zoomPct: 0 },
   perfectCamera: { zoomPct: 18, yawDeg: 6, focusPct: 35, zoomInMs: 150, refocusMs: 200 },
 };
 

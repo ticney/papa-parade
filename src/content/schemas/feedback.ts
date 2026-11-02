@@ -1,4 +1,8 @@
-import { SCREEN_FLASH_MIN_INTERVAL_MS } from '@shared/constants';
+import {
+  PHOTO_ASPECT_MAX,
+  PHOTO_ASPECT_MIN,
+  SCREEN_FLASH_MIN_INTERVAL_MS,
+} from '@shared/constants';
 import { z } from 'zod';
 import { FX_PRESET_IDS } from './feel.ts';
 
@@ -244,9 +248,75 @@ const ResultScreenSchema = z
       .describe(
         'After the screen comes up, and again after the buttons come up, presses that start within this many real ms skip nothing and press nothing, so that taps still mashing for the last parry do not skip the note or hit « Rejouer »; 0 turns it off.',
       ),
+    photoHoldMs: z
+      .int()
+      .min(0)
+      .describe(
+        'How long the end photo stays alone on screen, after it drops in and before the rows start, in real ms (story 3.6); 0 goes straight to the rows. A level that took no photo skips it. A press skips it.',
+      ),
   })
   .describe(
-    'The sequence of the Result screen (story 1.22): rows, then stars, then buttons. Real time: the sim never reads it.',
+    'The sequence of the Result screen (story 1.22): the photo (story 3.6), then rows, then stars, then buttons. Real time: the sim never reads it.',
+  );
+
+const PhotoSchema = z
+  .strictObject({
+    widthPx: z
+      .int()
+      .min(120)
+      .max(1280)
+      .describe(
+        'Width of the end photo canvas, in pixels (story 3.6). Its CSS size is the polaroid’s.',
+      ),
+    heightPx: z
+      .int()
+      .min(80)
+      .max(1024)
+      .describe(
+        'Height of the end photo canvas, in pixels. The camera frames the room at this aspect.',
+      ),
+    tiltMaxDeg: z
+      .number()
+      .min(0)
+      .max(3)
+      .describe(
+        'The polaroid is tilted by a random angle within plus or minus this, in degrees (DESIGN.md: 3).',
+      ),
+    vignetteFromPct: z
+      .number()
+      .min(0)
+      .max(99)
+      .describe(
+        'The photo filter’s vignette is clear out to this share of its radius (`vignetteRadiusPct`), then darkens to the end of it.',
+      ),
+    vignetteOpacityPct: z
+      .number()
+      .min(0)
+      .max(100)
+      .describe(
+        'How dark the vignette is at the end of its radius (ink), in %. With the mockup’s `vignetteRadiusPct` of 70 only the corners get that far: the middle of each side is at 71 % of the radius.',
+      ),
+    vignetteRadiusPct: z
+      .number()
+      .min(10)
+      .max(200)
+      .describe(
+        'The radius of the vignette, in % of the photo’s width across and of its height down, so it is an ellipse that follows the photo’s aspect (the mockup’s `#vig` gradient has 70). The middle of each side is `50 / vignetteRadiusPct` of the way out to the end of the radius and each corner `71 / vignetteRadiusPct`: with 70 only the corners reach the end, and a `vignetteFromPct` of 72 or more leaves the sides clear.',
+      ),
+  })
+  .refine(
+    (photo) => {
+      const aspect = photo.widthPx / photo.heightPx;
+      return aspect >= PHOTO_ASPECT_MIN && aspect <= PHOTO_ASPECT_MAX;
+    },
+    {
+      error: `the photo's aspect (widthPx / heightPx) must be ${PHOTO_ASPECT_MIN} to ${PHOTO_ASPECT_MAX}: the polaroid is as wide as its card, so a taller photo does not fit a 750 × 340 phone`,
+      // Checked once each size is valid on its own, so a bad size reports itself alone.
+      when: (payload) => payload.issues.length === 0,
+    },
+  )
+  .describe(
+    'The end photo (story 3.6): its canvas, its tilt and its filter. Real time and client only: the sim never reads it.',
   );
 
 const CalibrationFeedbackSchema = z
@@ -566,6 +636,7 @@ export const FeedbackTableSchema = z
     bombDrop: BombDropSchema,
     characters: CharactersSchema,
     door: DoorSchema,
+    photo: PhotoSchema,
     render: RenderSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
@@ -596,6 +667,7 @@ export type FeedbackTable = z.infer<typeof FeedbackTableSchema>;
 export type FeedbackCue = z.infer<typeof CueSchema>;
 export type FeedbackFlash = z.infer<typeof FlashSchema>;
 export type ResultScreenTimings = z.infer<typeof ResultScreenSchema>;
+export type PhotoSettings = z.infer<typeof PhotoSchema>;
 export type ComboBadgeTimings = z.infer<typeof ComboBadgeSchema>;
 export type BeatTrack = z.infer<typeof BeatTrackSchema>;
 export type AudioBus = (typeof AUDIO_BUSES)[number];

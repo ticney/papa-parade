@@ -8,7 +8,7 @@ export interface EpicStampOptions {
 }
 
 export interface EpicStamp {
-  /** The `div.pp-epic-stamp`, created once, for the HUD root. */
+  /** The `div.pp-epic-stamp`, created once, for boot to put beside `#pp-ui` (a child of the HUD would be hidden in `result`). */
   readonly element: HTMLElement;
   /**
    * Stamps the text over the scene for `min(durationMs, EPIC_STAMP_MAX_MS)` **real** ms, restarting

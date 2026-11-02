@@ -8,7 +8,7 @@ export interface ScreenFlashOptions {
 }
 
 export interface ScreenFlash {
-  /** The `div.pp-screen-flash`, created once, for the HUD root. */
+  /** The `div.pp-screen-flash`, created once, for boot to put beside `#pp-ui` (a child of the HUD would be hidden in `result`). */
   readonly element: HTMLElement;
   /**
    * Fades the screen from `peakOpacityPct` to nothing over `durationMs` real ms, restarting any fade
@@ -22,6 +22,8 @@ export interface ScreenFlash {
 export const SCREEN_FLASH_CLASSES = {
   root: 'pp-screen-flash',
   glow: 'pp-screen-flash--glow',
+  /** Over the Result screen (story 3.6): boot sets it only while the app is in `result`. */
+  over: 'pp-screen-flash--over',
 } as const;
 
 /**

@@ -19,8 +19,9 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // The door (story 3.5) adds `openAngleDeg` (degrees) and its size in metres: `widthM`, `heightM`, `thicknessM`.
 // The characters (story 7.2) add `speedMps` and `turnRateDegPerSec`. The look (story 7.3) adds `pulseHz`,
 // `radiusM`, `sunOffsetM`, and two numbers with no unit: a light's `…Intensity` and the 0-255 `toonTones`.
+// The end photo (story 3.6) adds the size of its canvas in pixels, `widthPx` and `heightPx`, spelled out for the same reason.
 const UNIT_SUFFIX =
-  /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^pulses)$/;
+  /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^widthPx|^heightPx|^pulses)$/;
 
 type Json = Record<string, unknown>;
 
@@ -345,6 +346,100 @@ describe('content/feedback.json', () => {
 
   it('accepts an input grace of 0 ms: the screen then takes every press', () => {
     expect(mutated(['resultScreen.inputGraceMs', 0])).toMatchObject({ ok: true });
+  });
+
+  describe('the end photo (story 3.6)', () => {
+    it.each<[string, [string, unknown][], string]>([
+      ['a missing photo', [['photo', undefined]], 'photo'],
+      ['an unknown key in photo', [['photo.bogusPx', 1]], 'photo.bogusPx'],
+      ['a canvas under 120 px wide', [['photo.widthPx', 119]], 'photo.widthPx'],
+      ['a canvas over 1280 px wide', [['photo.widthPx', 1281]], 'photo.widthPx'],
+      ['a fractional width', [['photo.widthPx', 570.5]], 'photo.widthPx'],
+      ['a canvas under 80 px high', [['photo.heightPx', 79]], 'photo.heightPx'],
+      ['a canvas over 1024 px high', [['photo.heightPx', 1025]], 'photo.heightPx'],
+      ['a negative tilt', [['photo.tiltMaxDeg', -1]], 'photo.tiltMaxDeg'],
+      ['a tilt over 3 degrees (DESIGN.md)', [['photo.tiltMaxDeg', 3.5]], 'photo.tiltMaxDeg'],
+      ['a negative vignette start', [['photo.vignetteFromPct', -1]], 'photo.vignetteFromPct'],
+      [
+        'a vignette that starts at the edge',
+        [['photo.vignetteFromPct', 100]],
+        'photo.vignetteFromPct',
+      ],
+      ['a vignette over 100 %', [['photo.vignetteOpacityPct', 101]], 'photo.vignetteOpacityPct'],
+      ['a vignette radius under 10 %', [['photo.vignetteRadiusPct', 9]], 'photo.vignetteRadiusPct'],
+      [
+        'a vignette radius over 200 %',
+        [['photo.vignetteRadiusPct', 201]],
+        'photo.vignetteRadiusPct',
+      ],
+      [
+        'a missing vignette radius',
+        [['photo.vignetteRadiusPct', undefined]],
+        'photo.vignetteRadiusPct',
+      ],
+      [
+        'a photo taller than its card fits (400 x 1024)',
+        [
+          ['photo.widthPx', 400],
+          ['photo.heightPx', 1024],
+        ],
+        'photo',
+      ],
+      [
+        'a square photo (aspect 1)',
+        [
+          ['photo.widthPx', 360],
+          ['photo.heightPx', 360],
+        ],
+        'photo',
+      ],
+      [
+        'a photo wider than 2.5 (1280 x 400)',
+        [
+          ['photo.widthPx', 1280],
+          ['photo.heightPx', 400],
+        ],
+        'photo',
+      ],
+      ['a negative photo hold', [['resultScreen.photoHoldMs', -1]], 'resultScreen.photoHoldMs'],
+      ['a fractional photo hold', [['resultScreen.photoHoldMs', 1.5]], 'resultScreen.photoHoldMs'],
+      [
+        'a missing photo hold',
+        [['resultScreen.photoHoldMs', undefined]],
+        'resultScreen.photoHoldMs',
+      ],
+    ])('refuses %s', (_name, changes, path) => {
+      expect(failedPaths(mutated(...changes))).toEqual([path]);
+    });
+
+    it('accepts the bounds themselves, and a photo hold of 0 ms (straight to the rows)', () => {
+      expect(
+        mutated(
+          ['photo.widthPx', 120],
+          ['photo.heightPx', 80],
+          ['photo.tiltMaxDeg', 0],
+          ['photo.vignetteFromPct', 0],
+          ['photo.vignetteOpacityPct', 0],
+          ['photo.vignetteRadiusPct', 10],
+          ['resultScreen.photoHoldMs', 0],
+        ),
+      ).toMatchObject({ ok: true });
+      expect(
+        mutated(
+          ['photo.widthPx', 1280],
+          ['photo.heightPx', 1024],
+          ['photo.tiltMaxDeg', 3],
+          ['photo.vignetteFromPct', 99],
+          ['photo.vignetteOpacityPct', 100],
+          ['photo.vignetteRadiusPct', 200],
+        ),
+      ).toMatchObject({ ok: true });
+    });
+
+    it('accepts the aspect bounds themselves (1.25 and 2.5)', () => {
+      expect(mutated(['photo.widthPx', 500], ['photo.heightPx', 400])).toMatchObject({ ok: true });
+      expect(mutated(['photo.widthPx', 1000], ['photo.heightPx', 400])).toMatchObject({ ok: true });
+    });
   });
 
   describe('layers (story 2.3 D1)', () => {

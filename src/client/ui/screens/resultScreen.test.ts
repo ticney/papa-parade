@@ -49,6 +49,9 @@ class FakeElement {
   append(...children: FakeElement[]): void {
     this.children.push(...children);
   }
+  prepend(...children: FakeElement[]): void {
+    this.children.unshift(...children);
+  }
   addEventListener(type: string, listener: Listener): void {
     const set = this.listeners.get(type) ?? new Set<Listener>();
     set.add(listener);
@@ -155,9 +158,12 @@ function build(overrides: Partial<ResultScreenOptions> = {}) {
     maxima,
     timings,
     isDone: false,
+    // No photo by default: the sequence starts at `rows`, as it did before story 3.6.
+    photo: null,
     scheduler: clock.scheduler,
     now: clock.now,
     keyTarget: keys as never,
+    onPhoto: () => calls.push('photo'),
     onStar: (isLast) => calls.push(isLast ? 'last star' : 'star'),
     onMamaWoke: () => calls.push('mama woke'),
     onStarLost: () => calls.push('star lost'),
@@ -167,7 +173,8 @@ function build(overrides: Partial<ResultScreenOptions> = {}) {
     ...overrides,
   });
   const root = screen.element as unknown as FakeElement;
-  const panel = root.children[0] as FakeElement;
+  // With a photo the polaroid comes first in the screen: the panel is found by its class.
+  const panel = root.find('pp-result-panel')[0] as FakeElement;
   const values = () => root.find('pp-score-value').map((node) => Number(node.textContent));
   const earned = () => root.find('pp-star-earned').length;
   const lost = () => root.find('pp-star-lost').length;
@@ -741,6 +748,241 @@ describe('createResultScreen: a woken Mama (story 3.2)', () => {
     expect(lost()).toBe(0);
     expect(root.find('pp-star-lost-chip')).toHaveLength(0);
     expect(calls).toEqual(['star', 'star', 'last star']);
+  });
+});
+
+describe('createResultScreen: the end photo (story 3.6)', () => {
+  beforeEach(() => {
+    focused = null;
+  });
+
+  const HOLD_MS = timings.photoHoldMs;
+  const TILT_DEG = -2.25;
+  /** The canvas boot keeps: a stand-in, since only the screen's handling of it is under test. */
+  const makeCanvas = () => new FakeElement('canvas');
+  const withPhoto = (overrides: Partial<ResultScreenOptions> = {}) => {
+    const canvas = makeCanvas();
+    const built = build({ photo: { canvas: canvas as never, tiltDeg: TILT_DEG }, ...overrides });
+    const polaroid = built.root.find('pp-polaroid')[0];
+    return { ...built, canvas, polaroid };
+  };
+  const woken = (overrides: Partial<ResultScreenOptions> = {}) =>
+    withPhoto({ endReason: 'mamaWoke', score: { ...SCORE, stars: 1, lostStars: 1 }, ...overrides });
+  const press = (root: FakeElement) => {
+    root.dispatch('pointerdown', { pointerId: 3, isPrimary: true });
+    root.dispatch('pointerup', { pointerId: 3 });
+  };
+
+  it('starts at `photo`, first, and fires onPhoto once at build', () => {
+    const { phases, calls } = withPhoto();
+    expect(phases).toEqual(['photo']);
+    expect(calls).toEqual(['photo']);
+  });
+
+  it('puts the canvas in a polaroid left of the panel, labelled and tilted', () => {
+    const { root, panel, canvas, polaroid } = withPhoto();
+    expect(polaroid).toBeDefined();
+    expect(root.children).toEqual([polaroid, panel]);
+    expect(polaroid?.children).toEqual([canvas]);
+    expect(canvas.attributes.get('role')).toBe('img');
+    expect(canvas.attributes.get('aria-label')).toBe('result.photo_label');
+    expect(polaroid?.styles.get('--pp-polaroid-tilt')).toBe(`${TILT_DEG}deg`);
+    expect(root.classList.contains('pp-result-screen-photo')).toBe(true);
+  });
+
+  it('drops the polaroid in once, and holds the panel transparent meanwhile', () => {
+    const { polaroid, panel } = withPhoto();
+    expect(polaroid?.classList.contains('pp-polaroid-drop')).toBe(true);
+    expect(panel.classList.contains('pp-result-panel-waiting')).toBe(true);
+  });
+
+  it('counts nothing during the hold, then starts the rows after photoHoldMs', () => {
+    const { clock, phases, values, panel } = withPhoto();
+    clock.advance(HOLD_MS - 1);
+    expect(phases).toEqual(['photo']);
+    expect(values()).toEqual([0, 0, 0, 0]);
+    expect(panel.classList.contains('pp-result-panel-waiting')).toBe(true);
+    clock.advance(1);
+    expect(phases).toEqual(['photo', 'rows']);
+    expect(panel.classList.contains('pp-result-panel-waiting')).toBe(false);
+    clock.advance(ROWS_END_MS);
+    expect(values()).toEqual(ROW_TOTALS);
+  });
+
+  it('follows the hold in feedback.json, not a literal', () => {
+    const { clock, phases } = withPhoto({ timings: { ...timings, photoHoldMs: 5000 } });
+    clock.advance(4999);
+    expect(phases).toEqual(['photo']);
+    clock.advance(1);
+    expect(phases).toEqual(['photo', 'rows']);
+  });
+
+  it('goes straight to the rows, in the same call, with a hold of 0 (no task of a transparent panel)', () => {
+    const { phases, calls, panel } = withPhoto({ timings: { ...timings, photoHoldMs: 0 } });
+    expect(phases).toEqual(['photo', 'rows']);
+    expect(calls).toEqual(['photo']);
+    expect(panel.classList.contains('pp-result-panel-waiting')).toBe(false);
+  });
+
+  it('runs the rest of the sequence as before, shifted by the hold', () => {
+    const { clock, calls, phases, actions } = withPhoto();
+    clock.advance(HOLD_MS + 20_000);
+    expect(phases).toEqual(['photo', 'rows', 'stars', 'actions']);
+    expect(calls).toEqual(['photo', 'star', 'star', 'last star']);
+    expect(actions.hidden).toBe(false);
+  });
+
+  it('has no polaroid and starts at `rows` exactly as before with no photo', () => {
+    const { root, phases, calls, panel } = build();
+    expect(root.find('pp-polaroid')).toHaveLength(0);
+    expect(root.classList.contains('pp-result-screen-photo')).toBe(false);
+    expect(phases).toEqual(['rows']);
+    expect(calls).toEqual([]);
+    expect(panel.classList.contains('pp-result-panel-waiting')).toBe(false);
+  });
+
+  it('keeps the panel the first child of a screen with no photo (the specs select it)', () => {
+    const { root, panel } = build();
+    expect(root.children).toEqual([panel]);
+  });
+
+  describe("a woken Mama's header (EXPERIENCE: nothing between the photo and her reaction)", () => {
+    it('waits for the rows: no header and no onMamaWoke at build', () => {
+      const { root, calls, clock } = woken();
+      expect(root.find('pp-result-reason')).toHaveLength(0);
+      expect(calls).toEqual(['photo']);
+      clock.advance(HOLD_MS - 1);
+      expect(root.find('pp-result-reason')).toHaveLength(0);
+      expect(calls).toEqual(['photo']);
+    });
+
+    it('comes with the rows, slammed, and tells the host once, after the photo', () => {
+      const { root, calls, clock, panel } = woken();
+      clock.advance(HOLD_MS);
+      const header = root.find('pp-result-reason')[0] as FakeElement;
+      expect(header.textContent).toBe('result.mama_woke');
+      expect(header.classList.contains('pp-result-reason-slam')).toBe(true);
+      expect(panel.children[0]).toBe(header);
+      expect(calls).toEqual(['photo', 'mama woke']);
+      clock.advance(20_000);
+      expect(calls.filter((call) => call === 'mama woke')).toHaveLength(1);
+    });
+
+    it('is not delayed with no photo: the header and the cue are there at build, as before', () => {
+      const none = build({ endReason: 'mamaWoke', score: { ...SCORE, stars: 1, lostStars: 1 } });
+      expect(none.root.find('pp-result-reason')).toHaveLength(1);
+      expect(none.calls).toEqual(['mama woke']);
+    });
+
+    it("brings a cycle's « Il dort enfin ! » header up with the rows too, with no slam and no cue", () => {
+      const { root, calls, clock } = withPhoto({ endReason: 'cycleDone' });
+      expect(root.find('pp-result-reason')).toHaveLength(0);
+      clock.advance(HOLD_MS);
+      const header = root.find('pp-result-reason')[0] as FakeElement;
+      expect(header.textContent).toBe('result.cycle_done');
+      expect(header.classList.contains('pp-result-reason-slam')).toBe(false);
+      expect(calls).toEqual(['photo']);
+    });
+  });
+
+  describe('a press during the photo', () => {
+    it('skips: panel shown, rows at their totals, buttons up, the polaroid kept', () => {
+      const { root, polaroid, panel, canvas, values, actions, phases, replay } = withPhoto();
+      press(root);
+      expect(phases).toEqual(['photo', 'actions']);
+      expect(panel.classList.contains('pp-result-panel-waiting')).toBe(false);
+      expect(values()).toEqual(ROW_TOTALS);
+      expect(actions.hidden).toBe(false);
+      expect(focused).toBe(replay);
+      expect(root.children[0]).toBe(polaroid);
+      expect(polaroid?.children).toEqual([canvas]);
+    });
+
+    it('places the stars silently and fires no cue but the photo’s', () => {
+      const { root, calls, earned, stamped } = withPhoto();
+      press(root);
+      expect(earned()).toBe(SCORE.stars);
+      expect(stamped()).toBe(0);
+      expect(calls).toEqual(['photo']);
+    });
+
+    it('brings a woken header up at rest: no slam, no onMamaWoke', () => {
+      const { root, calls, lost, panel } = woken();
+      press(root);
+      const header = root.find('pp-result-reason')[0] as FakeElement;
+      expect(header.classList.contains('pp-result-reason-slam')).toBe(false);
+      expect(panel.children[0]).toBe(header);
+      expect(calls).toEqual(['photo']);
+      expect(lost()).toBe(1);
+    });
+
+    it('is a skip for Enter, Space and the pad’s A too, and cancels the hold', () => {
+      for (const skip of ['Enter', 'Space']) {
+        const { keys, phases, clock } = withPhoto();
+        keys.dispatch('keydown', { code: skip, repeat: false, preventDefault: () => undefined });
+        expect(phases).toEqual(['photo', 'actions']);
+        clock.advance(HOLD_MS * 10);
+        expect(phases).toEqual(['photo', 'actions']);
+      }
+      const pad = withPhoto();
+      pad.screen.activate?.();
+      expect(pad.phases).toEqual(['photo', 'actions']);
+    });
+
+    it('is ignored within inputGraceMs: a tap still meant for the game skips nothing', () => {
+      const { root, phases, clock } = withPhoto({ timings: { ...timings, inputGraceMs: 350 } });
+      press(root);
+      expect(phases).toEqual(['photo']);
+      clock.advance(350);
+      press(root);
+      expect(phases).toEqual(['photo', 'actions']);
+    });
+  });
+
+  describe('a screen rebuilt after the portrait overlay', () => {
+    it('shows the same picture at rest: same tilt, no drop, no cue, buttons up', () => {
+      const { root, polaroid, canvas, calls, phases, panel, values, actions } = withPhoto({
+        isDone: true,
+      });
+      expect(polaroid?.children).toEqual([canvas]);
+      expect(polaroid?.styles.get('--pp-polaroid-tilt')).toBe(`${TILT_DEG}deg`);
+      expect(polaroid?.classList.contains('pp-polaroid-drop')).toBe(false);
+      expect(panel.classList.contains('pp-result-panel-waiting')).toBe(false);
+      expect(phases).toEqual(['actions']);
+      expect(calls).toEqual([]);
+      expect(values()).toEqual(ROW_TOTALS);
+      expect(actions.hidden).toBe(false);
+      expect(root.children[0]).toBe(polaroid);
+    });
+
+    it('shows a woken header at rest, with no slam and no cue', () => {
+      const { root, calls } = woken({ isDone: true });
+      const header = root.find('pp-result-reason')[0] as FakeElement;
+      expect(header.classList.contains('pp-result-reason-slam')).toBe(false);
+      expect(calls).toEqual([]);
+    });
+
+    it('re-parents the same canvas into the new polaroid', () => {
+      const canvas = makeCanvas();
+      const photo = { canvas: canvas as never, tiltDeg: TILT_DEG };
+      const first = build({ photo });
+      const second = build({ photo, isDone: true });
+      expect(first.root.find('pp-polaroid')[0]?.children).toEqual([canvas]);
+      expect(second.root.find('pp-polaroid')[0]?.children).toEqual([canvas]);
+    });
+  });
+
+  it('cancels the hold when the screen is disposed', () => {
+    const { clock, screen, phases } = withPhoto();
+    screen.dispose();
+    clock.advance(HOLD_MS * 10);
+    expect(phases).toEqual(['photo']);
+    expect(clock.pending).toBe(0);
+  });
+
+  it('takes the panel as its initial focus, transparent or not', () => {
+    const { screen, panel } = withPhoto();
+    expect(screen.initialFocus).toBe(panel as never);
   });
 });
 

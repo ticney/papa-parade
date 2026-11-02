@@ -49,6 +49,14 @@ export function createTestFeedback(): FeedbackTable {
     bombDrop: { laidHeightM: 0.3 },
     characters: { crossFadeMs: 100, turnRateDegPerSec: 720, squash: [], clipSpeeds: [] },
     door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
+    photo: {
+      widthPx: 570,
+      heightPx: 360,
+      tiltMaxDeg: 3,
+      vignetteFromPct: 60,
+      vignetteOpacityPct: 28,
+      vignetteRadiusPct: 70,
+    },
     render: {
       toonTones: [96, 178, 255],
       lights: {
@@ -72,6 +80,7 @@ export function createTestFeedback(): FeedbackTable {
       starIntervalMs: 450,
       actionsDelayMs: 400,
       inputGraceMs: 0,
+      photoHoldMs: 1200,
     },
     calibration: { beep: { clip: 'ui_calibration_beep', bus: 'ui', gainPct: 100 } },
     loops: {

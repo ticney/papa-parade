@@ -440,6 +440,7 @@ Chaque âge garde les mêmes contrôles mais change ce que « répondre juste »
 | **Soupir** | 0 à −15 | Le bazar : objets au sol, dégâts |
 | **Hurlement** | 0 à −15 | Les presque-accidents, y compris ceux figés sur la photo de fin (bébé en haut de l'étagère). Jamais une blessure |
 
+- **Presque-accident figé (story 3.6) :** à la fin du niveau, quelle que soit la façon dont il finit, le bébé (pas dans les bras de Papa) à moins de `feel.endOfLevel.frozenNearMissReachM` du point d'une menace dont le gag est un presque-accident compte pour un presque-accident de plus, comme s'il avait glissé, et la photo montre pourquoi Maman crie. Le jeu n'a pas de hauteur : « en haut de l'étagère » s'y lit « au haut de l'escalier ». L'état de la menace ne compte pas, seule la place du bébé.
 - **Score** = Rire + État du bébé + 30 − Soupir − Hurlement, sur 100.
 - **Étoiles :** 1 étoile à partir de 20, 2 à 40, 3 à 60, 4 à 75, 5 à 90.
 - **Réveil anticipé de Maman** (niveau Sieste) : −1 étoile.

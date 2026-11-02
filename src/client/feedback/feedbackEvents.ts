@@ -8,6 +8,7 @@ export const FEEDBACK_CLIENT_EVENTS = [
   'CountdownTicked',
   'NoiseAlertReached',
   'InstinctVignetteShown',
+  'PhotoTaken',
   'ResultStarStamped',
   'ResultLastStarStamped',
   'ResultMamaWokeShown',

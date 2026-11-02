@@ -120,7 +120,8 @@
   },
   "endOfLevel": {
     "finalRushMs": 10000,
-    "doorSpillCount": 2
+    "doorSpillCount": 2,
+    "frozenNearMissReachM": 1
   },
   "stealth": {
     "sneakSpeedPct": 35,
@@ -255,6 +256,7 @@
         "sizeM": 0.12
       }
     },
+    "photoCamera": { "yawDeg": 38, "pitchDeg": 30, "zoomPct": 0 },
     "perfectCamera": {
       "zoomPct": 18,
       "yawDeg": 6,

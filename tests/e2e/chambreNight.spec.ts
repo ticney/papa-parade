@@ -115,6 +115,10 @@ test.describe('Chambre de nuit', () => {
       STRINGS['result.cycle_done'] as string,
     );
     await expect(page.locator(PANEL)).not.toHaveClass(/pp-result-panel-woken/);
+    // The end photo is taken whatever the end and the level (story 3.6, D1): the bedroom is the one
+    // level that ends on `cycleDone`, and its frozen world is the snapshot the picture is drawn from.
+    await expect(html(page)).toHaveAttribute('data-pp-photo', 'taken');
+    await expect(page.locator('.pp-polaroid canvas')).toHaveCount(1);
 
     // The smallest landscape phone the Result was laid out for: its buttons stay on screen.
     await page.setViewportSize({ width: 750, height: 340 });

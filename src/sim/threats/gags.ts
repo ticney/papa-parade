@@ -8,7 +8,8 @@ import type { ThreatInstance, World } from '../world.ts';
  * Every gag a threat can end in, as data. A gag is a harmless, comic consequence (NFR9). The sim
  * applies the consequences that need the sim (`applyGag`: a near miss, a pushed prop); the rest
  * comes from the events and from `World` (noise from `PropImpact`, story 3.1; Mama's sigh from
- * `world.mess` and her scream from `world.score.nearMisses`, story 1.22). The presentation is the client's
+ * `world.mess` and her scream from `world.score.nearMisses`, story 1.22: the stairs gag writes it, and
+ * `recordFrozenNearMisses` adds the baby's frozen ones when the level ends, story 3.6). The presentation is the client's
  * (`client/render/gags.ts`). `content:check` checks a threat's `gag` (or `surpriseGags`) against this
  * list. The surprise mischiefs of the suspicious silence (story 1.21) add to `world.mess.mischiefs`.
  * A gag that makes the baby cry is not a gag id's business: the def says it with `gagCryMs`, and
@@ -130,6 +131,31 @@ const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   baby_woke_by_touch: babyWokeByTouch,
   baby_woke_crying: babyWokeCrying,
 };
+
+/**
+ * Whether each gag is a near miss: the one answer the end of the level needs (story 3.6, D2). Today
+ * `stairs_slide` alone is. A table typed on `GagId`, as `GAG_CONSEQUENCES` is, so that a new gag must
+ * say whether it counts.
+ */
+const NEAR_MISS_GAGS: Readonly<Record<GagId, boolean>> = {
+  outlet_hair: false,
+  stairs_slide: true,
+  table_object_fall: false,
+  papa_asleep: false,
+  tissues_everywhere: false,
+  crayon_scribbles: false,
+  arms_wail: false,
+  baby_eyes_reopened: false,
+  baby_sat_up: false,
+  baby_woke_on_drop: false,
+  baby_woke_by_touch: false,
+  baby_woke_crying: false,
+};
+
+/** Whether `gag` is a near miss: the frozen rule of the end photo reads it (`recordFrozenNearMisses`). */
+export function isNearMissGag(gag: GagId): boolean {
+  return NEAR_MISS_GAGS[gag];
+}
 
 /**
  * Applies what `gag` does to the world. `gagThreat` calls it right after `GagTriggered`, inside
