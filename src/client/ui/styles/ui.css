@@ -1029,7 +1029,8 @@ body {
 }
 
 /* The picture is a 2D canvas of the photo's own size, shrunk to the card (never an image URL: the CSP
-   would refuse a `data:` or `blob:` one in the deployed build). */
+   would refuse a `data:` or `blob:` one in the deployed build). Its height follows its aspect, which
+   `feedback.json › photo` keeps within `PHOTO_ASPECT_MIN` to `PHOTO_ASPECT_MAX` (schema refine). */
 .pp-polaroid-photo {
   display: block;
   box-sizing: border-box;

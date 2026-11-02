@@ -659,13 +659,19 @@
           "type": "number",
           "minimum": 0,
           "maximum": 99,
-          "description": "The photo filter’s vignette is clear out to this share of its radius (% of the radius the mockup’s `#vig` gradient has), then darkens to the edge."
+          "description": "The photo filter’s vignette is clear out to this share of its radius (`vignetteRadiusPct`), then darkens to the end of it."
         },
         "vignetteOpacityPct": {
           "type": "number",
           "minimum": 0,
           "maximum": 100,
-          "description": "How dark the vignette is at the edge of the photo (ink), in %."
+          "description": "How dark the vignette is at the end of its radius (ink), in %. With the mockup’s `vignetteRadiusPct` of 70 only the corners get that far: the middle of each side is at 71 % of the radius."
+        },
+        "vignetteRadiusPct": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 200,
+          "description": "The radius of the vignette, in % of the photo’s width across and of its height down, so it is an ellipse that follows the photo’s aspect (the mockup’s `#vig` gradient has 70). The middle of each side is `50 / vignetteRadiusPct` of the way out to the end of the radius and each corner `71 / vignetteRadiusPct`: with 70 only the corners reach the end, and a `vignetteFromPct` of 72 or more leaves the sides clear."
         }
       },
       "required": [
@@ -673,7 +679,8 @@
         "heightPx",
         "tiltMaxDeg",
         "vignetteFromPct",
-        "vignetteOpacityPct"
+        "vignetteOpacityPct",
+        "vignetteRadiusPct"
       ],
       "additionalProperties": false,
       "description": "The end photo (story 3.6): its canvas, its tilt and its filter. Real time and client only: the sim never reads it."

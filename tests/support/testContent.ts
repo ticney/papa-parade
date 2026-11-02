@@ -54,6 +54,7 @@ export function createTestFeedback(): FeedbackTable {
       tiltMaxDeg: 3,
       vignetteFromPct: 60,
       vignetteOpacityPct: 28,
+      vignetteRadiusPct: 70,
     },
     resultScreen: {
       rowCountUpMs: 600,

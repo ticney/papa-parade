@@ -817,6 +817,13 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
     expect(phases).toEqual(['photo', 'rows']);
   });
 
+  it('goes straight to the rows, in the same call, with a hold of 0 (no task of a transparent panel)', () => {
+    const { phases, calls, panel } = withPhoto({ timings: { ...timings, photoHoldMs: 0 } });
+    expect(phases).toEqual(['photo', 'rows']);
+    expect(calls).toEqual(['photo']);
+    expect(panel.classList.contains('pp-result-panel-waiting')).toBe(false);
+  });
+
   it('runs the rest of the sequence as before, shifted by the hold', () => {
     const { clock, calls, phases, actions } = withPhoto();
     clock.advance(HOLD_MS + 20_000);

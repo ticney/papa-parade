@@ -105,7 +105,8 @@
     "heightPx": 360,
     "tiltMaxDeg": 3,
     "vignetteFromPct": 60,
-    "vignetteOpacityPct": 28
+    "vignetteOpacityPct": 28,
+    "vignetteRadiusPct": 70
   },
   "cues": {
     "papa_bump": {

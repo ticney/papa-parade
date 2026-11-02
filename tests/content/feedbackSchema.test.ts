@@ -363,6 +363,41 @@ describe('content/feedback.json', () => {
         'photo.vignetteFromPct',
       ],
       ['a vignette over 100 %', [['photo.vignetteOpacityPct', 101]], 'photo.vignetteOpacityPct'],
+      ['a vignette radius under 10 %', [['photo.vignetteRadiusPct', 9]], 'photo.vignetteRadiusPct'],
+      [
+        'a vignette radius over 200 %',
+        [['photo.vignetteRadiusPct', 201]],
+        'photo.vignetteRadiusPct',
+      ],
+      [
+        'a missing vignette radius',
+        [['photo.vignetteRadiusPct', undefined]],
+        'photo.vignetteRadiusPct',
+      ],
+      [
+        'a photo taller than its card fits (400 x 1024)',
+        [
+          ['photo.widthPx', 400],
+          ['photo.heightPx', 1024],
+        ],
+        'photo',
+      ],
+      [
+        'a square photo (aspect 1)',
+        [
+          ['photo.widthPx', 360],
+          ['photo.heightPx', 360],
+        ],
+        'photo',
+      ],
+      [
+        'a photo wider than 2.5 (1280 x 400)',
+        [
+          ['photo.widthPx', 1280],
+          ['photo.heightPx', 400],
+        ],
+        'photo',
+      ],
       ['a negative photo hold', [['resultScreen.photoHoldMs', -1]], 'resultScreen.photoHoldMs'],
       ['a fractional photo hold', [['resultScreen.photoHoldMs', 1.5]], 'resultScreen.photoHoldMs'],
       [
@@ -382,6 +417,7 @@ describe('content/feedback.json', () => {
           ['photo.tiltMaxDeg', 0],
           ['photo.vignetteFromPct', 0],
           ['photo.vignetteOpacityPct', 0],
+          ['photo.vignetteRadiusPct', 10],
           ['resultScreen.photoHoldMs', 0],
         ),
       ).toMatchObject({ ok: true });
@@ -392,8 +428,14 @@ describe('content/feedback.json', () => {
           ['photo.tiltMaxDeg', 3],
           ['photo.vignetteFromPct', 99],
           ['photo.vignetteOpacityPct', 100],
+          ['photo.vignetteRadiusPct', 200],
         ),
       ).toMatchObject({ ok: true });
+    });
+
+    it('accepts the aspect bounds themselves (1.25 and 2.5)', () => {
+      expect(mutated(['photo.widthPx', 500], ['photo.heightPx', 400])).toMatchObject({ ok: true });
+      expect(mutated(['photo.widthPx', 1000], ['photo.heightPx', 400])).toMatchObject({ ok: true });
     });
   });
 

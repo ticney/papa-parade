@@ -1,4 +1,8 @@
-import { SCREEN_FLASH_MIN_INTERVAL_MS } from '@shared/constants';
+import {
+  PHOTO_ASPECT_MAX,
+  PHOTO_ASPECT_MIN,
+  SCREEN_FLASH_MIN_INTERVAL_MS,
+} from '@shared/constants';
 import { z } from 'zod';
 import { FX_PRESET_IDS } from './feel.ts';
 
@@ -283,14 +287,34 @@ const PhotoSchema = z
       .min(0)
       .max(99)
       .describe(
-        'The photo filter’s vignette is clear out to this share of its radius (% of the radius the mockup’s `#vig` gradient has), then darkens to the edge.',
+        'The photo filter’s vignette is clear out to this share of its radius (`vignetteRadiusPct`), then darkens to the end of it.',
       ),
     vignetteOpacityPct: z
       .number()
       .min(0)
       .max(100)
-      .describe('How dark the vignette is at the edge of the photo (ink), in %.'),
+      .describe(
+        'How dark the vignette is at the end of its radius (ink), in %. With the mockup’s `vignetteRadiusPct` of 70 only the corners get that far: the middle of each side is at 71 % of the radius.',
+      ),
+    vignetteRadiusPct: z
+      .number()
+      .min(10)
+      .max(200)
+      .describe(
+        'The radius of the vignette, in % of the photo’s width across and of its height down, so it is an ellipse that follows the photo’s aspect (the mockup’s `#vig` gradient has 70). The middle of each side is `50 / vignetteRadiusPct` of the way out to the end of the radius and each corner `71 / vignetteRadiusPct`: with 70 only the corners reach the end, and a `vignetteFromPct` of 72 or more leaves the sides clear.',
+      ),
   })
+  .refine(
+    (photo) => {
+      const aspect = photo.widthPx / photo.heightPx;
+      return aspect >= PHOTO_ASPECT_MIN && aspect <= PHOTO_ASPECT_MAX;
+    },
+    {
+      error: `the photo's aspect (widthPx / heightPx) must be ${PHOTO_ASPECT_MIN} to ${PHOTO_ASPECT_MAX}: the polaroid is as wide as its card, so a taller photo does not fit a 750 × 340 phone`,
+      // Checked once each size is valid on its own, so a bad size reports itself alone.
+      when: (payload) => payload.issues.length === 0,
+    },
+  )
   .describe(
     'The end photo (story 3.6): its canvas, its tilt and its filter. Real time and client only: the sim never reads it.',
   );

@@ -141,18 +141,31 @@ async function openEnd(
 const pixelsOfPhoto = (page: Page): Promise<string> =>
   page.locator(PHOTO).evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL('image/png'));
 
-/** How many different colours the canvas holds, over a grid of its pixels: a blank photo has one. */
-const coloursOfPhoto = (page: Page): Promise<number> =>
+/**
+ * What the canvas holds, over a grid of its pixels (a margin of 6 px left out, where a scaled copy may
+ * blend): how many different colours, and how many pixels are not fully opaque. The renderer draws
+ * opaque (`alpha: false`) and the vignette is ink over what is there, so a capture that copied the room
+ * leaves no transparent pixel; one that drew nothing leaves the canvas transparent, and the vignette's
+ * gradient over it still gives many colours (the alpha varies), which is why the colours alone prove nothing.
+ */
+const surveyOfPhoto = (
+  page: Page,
+): Promise<{ colourCount: number; notOpaqueCount: number; sampleCount: number }> =>
   page.locator(PHOTO).evaluate((node) => {
     const canvas = node as HTMLCanvasElement;
     const context = canvas.getContext('2d') as CanvasRenderingContext2D;
     const colours = new Set<string>();
-    for (let y = 0; y < canvas.height; y += 6) {
-      for (let x = 0; x < canvas.width; x += 6) {
-        colours.add(context.getImageData(x, y, 1, 1).data.join(','));
+    let notOpaqueCount = 0;
+    let sampleCount = 0;
+    for (let y = 6; y < canvas.height - 6; y += 6) {
+      for (let x = 6; x < canvas.width - 6; x += 6) {
+        const data = context.getImageData(x, y, 1, 1).data;
+        colours.add(data.join(','));
+        if (data[3] !== 255) notOpaqueCount++;
+        sampleCount++;
       }
     }
-    return colours.size;
+    return { colourCount: colours.size, notOpaqueCount, sampleCount };
   });
 
 const waitForInputGrace = (page: Page): Promise<void> =>
@@ -197,8 +210,12 @@ test.describe('the end photo', () => {
     await expect(canvas).toHaveAttribute('height', String(PHOTO_SETTINGS.heightPx));
     await expect(canvas).toHaveAttribute('role', 'img');
     await expect(canvas).toHaveAttribute('aria-label', 'Photo de fin');
-    // A room is many colours: a blank or one-colour photo is a capture that drew nothing.
-    expect(await coloursOfPhoto(page)).toBeGreaterThan(8);
+    // A room is many colours, all of them opaque: a capture that drew nothing leaves transparent
+    // pixels (the vignette alone cannot fill them), and a one-colour photo is a flat fill.
+    const survey = await surveyOfPhoto(page);
+    expect(survey.sampleCount).toBeGreaterThan(500);
+    expect(survey.notOpaqueCount).toBe(0);
+    expect(survey.colourCount).toBeGreaterThan(8);
     // The CSP has no `img-src`: a `data:` or `blob:` image would be refused in the deployed build only.
     await expect(page.locator(`${POLAROID} img`)).toHaveCount(0);
     expect(await page.locator('#pp-ui img').count()).toBe(0);
@@ -386,6 +403,29 @@ test.describe('the end photo', () => {
     });
     await expect(html(page)).not.toHaveAttribute('data-pp-photo', /.*/);
     await expect(html(page)).not.toHaveAttribute('data-pp-result', /.*/);
+  });
+
+  test('the flash sits over the Result screen only while the app is in `result`', async ({
+    page,
+  }) => {
+    const flash = page.locator('.pp-screen-flash');
+    await page.goto(`/${THREATS_OFF}`);
+    await waitForTestApi(page);
+    await ppFreeze(page, true);
+    await ppLoadLevel(page, LEVEL, SEED);
+    // In play a perfect's flash is what it was: under the pause panel, above the HUD, not over a screen.
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
+    await expect(flash).toHaveCount(1);
+    await expect(flash).not.toHaveClass(/pp-screen-flash--over/);
+    await advanceToEnd(page);
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'result');
+    await expect(flash).toHaveClass(/pp-screen-flash--over/);
+    await waitForActions(page);
+    await page.locator(REPLAY).click();
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'level', {
+      timeout: SEQUENCE_TIMEOUT_MS,
+    });
+    await expect(flash).not.toHaveClass(/pp-screen-flash--over/);
   });
 
   for (const viewport of [

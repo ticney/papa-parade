@@ -264,13 +264,13 @@ export interface MamaScore {
 
 /**
  * What feeds Mama's note (story 1.22). The counters are written where their event is produced
- * (`resolveThreat`, the stairs gag); `final` is written once, by `scoreLevel`, at the step the
- * level ends.
+ * (`resolveThreat`, the stairs gag; `recordFrozenNearMisses` when the level ends, story 3.6); `final`
+ * is written once, by `scoreLevel`, at the step the level ends.
  */
 export interface ScoreSlice {
   /** `ResponseResolved{perfect}`, the micro-sleep's included. */
   perfects: number;
-  /** `NearMiss` events. */
+  /** `NearMiss` events, plus the `NearMissFrozen` ones the end of the level adds (story 3.6). */
   nearMisses: number;
   /** The sum of the points of every combo cashed in (story 4.2), not rounded; points not cashed when the level ends are lost. */
   comboPoints: number;

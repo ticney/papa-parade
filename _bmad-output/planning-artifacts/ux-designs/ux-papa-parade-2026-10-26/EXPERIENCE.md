@@ -557,7 +557,7 @@ Priya is an external playtester on a QWERTY laptop, using the keyboard, from the
 4. Aiming with the movement keys re-targets. The `{colors.alert}` target-highlight outline and its chevron follow the most urgent threat in her direction.
 5. Her noisy responses fill the Bruit gauge. At 70% it turns `{colors.gauge-warn}`, its icon chip starts pulsing, and it goes to full opacity. Above 80%, a visual and haptic cue warns her (story 3.1).
 6. Bruit reaches 100%. Mama wakes, and the level ends early with the door-slam cue (story 3.2).
-7. Result shows the photo polaroid under the header « Maman s'est réveillée ! ». The mum-bubble plays Mama's reactions, and the score-rows count up (« Rires » /40, « État du bébé » /30, « Sans soupir » /15, « Sans hurlement » /15). The lost star stamps as a dashed empty star with a « −1 » chip.
+7. Result opens on the photo polaroid alone, with its flash; the header « Maman s'est réveillée ! » comes after it, when the rows start (story 3.6). The mum-bubble plays Mama's reactions, and the score-rows count up (« Rires » /40, « État du bébé » /30, « Sans soupir » /15, « Sans hurlement » /15). The lost star stamps as a dashed empty star with a « −1 » chip.
 8. **Climax:** Mama's line (content-driven; « *Encore* l'étagère ?! » would come on a later run) makes her laugh out loud. The lost star reads as a gag, not a failure.
 9. The REPLAY plays; she taps twice to skip it. With fewer than 2★, "Rejouer" is the primary action and "Âge suivant" shows « 2 étoiles pour débloquer ».
 10. She presses « Copier le journal » (one gesture, story 3.3); the button confirms « Journal copié ! ». She sends the log to the team.

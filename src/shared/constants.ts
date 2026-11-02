@@ -154,11 +154,13 @@ export const ISO_FIT_MARGIN_PCT = 4;
 export const ISO_CAMERA_NEAR_M = 0.1;
 
 /**
- * The radius of the end photo's vignette, as a share of the photo's width (across) and of its height
- * (down): the mockup's `#vig` gradient (`key-result.html`, `r="70%"` in bounding-box units, so an
- * ellipse). Its `feedback.json › photo` numbers say where it starts and how dark it gets.
+ * The range of the end photo's aspect (`feedback.json › photo.widthPx / heightPx`) the Result screen
+ * is laid out for. The polaroid is as wide as its card (`.pp-polaroid-photo`: `width: 100%`, `height:
+ * auto`), so its height follows the aspect: at 1.25 it still fits 750 × 340 beside the panel (about
+ * 300 px with its paper), a taller photo does not; 2.5 is as wide as the room box frames well.
  */
-export const PHOTO_VIGNETTE_RADIUS_RATIO = 0.7;
+export const PHOTO_ASPECT_MIN = 1.25;
+export const PHOTO_ASPECT_MAX = 2.5;
 
 /** Warnings raised from the frame loop are rate-limited to one per this much real time, in ms. */
 export const LOOP_WARN_INTERVAL_MS = 1000;

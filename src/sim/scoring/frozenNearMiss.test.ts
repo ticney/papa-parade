@@ -16,7 +16,7 @@ import type { System } from '../context.ts';
 import { createSim, createSimWithSystems, type Sim } from '../createSim.ts';
 import type { LevelEndReason, SimEvent } from '../events.ts';
 import { SYSTEMS } from '../step.ts';
-import type { ThreatState } from '../threats/threatFsm.ts';
+import { enterThreatState, type ThreatState } from '../threats/threatFsm.ts';
 import type { World } from '../world.ts';
 
 const CONTENT = createTestContent();
@@ -52,6 +52,8 @@ interface Scenario {
   noThreat?: boolean;
   /** The level has a final rush, so that its timer ends on `photo` (story 3.5). */
   rush?: boolean;
+  /** The stairs threat is `resolved` (a parry) when the level ends. */
+  resolved?: boolean;
 }
 
 interface Played {
@@ -85,11 +87,18 @@ function endMsOf(scenario: Scenario): number {
 
 /** Plays the scenario to the step the level ends, and returns what that step and the ones before it emitted. */
 async function play(scenario: Scenario = {}): Promise<Played> {
-  // A hidden hand completes the bedtime cycle of a level that has none, right before `runFlow`: the
-  // snapshot would refuse the field, and playing a whole cycle is not what these tests are about.
+  // A hidden hand, right before `runFlow`, completes the bedtime cycle of a level that has none (the
+  // snapshot would refuse the field, and playing a whole cycle is not what these tests are about), and
+  // leaves the stairs threat `resolved` as a parry would (a parry's choreography is not either).
   let isCycleDone = false;
+  let isResolved = false;
   const hand: System = (world) => {
     if (isCycleDone && world.cycle.completedAt === null) world.cycle.completedAt = world.time.sim;
+    if (!isResolved) return;
+    const stairs = world.threats.find((threat) => threat.defId === 'stairs');
+    if (stairs !== undefined && stairs.state !== 'resolved') {
+      enterThreatState(world, stairs, 'resolved');
+    }
   };
   const content = createTestContent();
   // The frozen room's props can all break: the door's spill has nothing to knock over here.
@@ -141,6 +150,7 @@ async function play(scenario: Scenario = {}): Promise<Played> {
     sim.enqueue({ type: 'SetNoise', t: asSimMs(sim.world.time.sim), pct: 100 });
   }
   isCycleDone = scenario.reason === 'cycleDone';
+  isResolved = scenario.resolved === true;
   for (let guard = 0; guard < 10 && !isOver(sim.world); guard++) stepOnce();
   return { events, world: sim.world as World, sim };
 }
@@ -220,10 +230,18 @@ describe('recordFrozenNearMisses (story 3.6, D2)', () => {
     expect(of(events, 'NearMissFrozen')).toHaveLength(1);
   });
 
+  it('does not look at the threat state: a parried threat (`resolved`) counts too', async () => {
+    const { events, world } = await play({ resolved: true, babyAt: AT_THE_STAIRS });
+    const stairs = world.threats.find((threat) => threat.defId === 'stairs');
+    expect(stairs?.state).toBe('resolved');
+    expect(of(events, 'NearMissFrozen')).toHaveLength(1);
+    expect(world.score.nearMisses).toBe(1);
+  });
+
   it('does not look at the threat state: a threat that already ended in its gag counts too', async () => {
     const { events, world } = await play({ force: true, endMs: 2900, babyAt: AT_THE_STAIRS });
     const stairs = world.threats.find((threat) => threat.defId === 'stairs');
-    expect(['gag', 'idle']).toContain(stairs?.state);
+    expect(stairs?.state).toBe('gag');
     // The slide during play is one `NearMiss`, the photo's is one `NearMissFrozen`: two different things.
     expect(of(events, 'NearMiss')).toHaveLength(1);
     expect(of(events, 'NearMissFrozen')).toHaveLength(1);
@@ -284,7 +302,6 @@ describe('the end snapshot of a frozen world (story 3.6 AC 2)', () => {
     sim.restore(snapshot);
     expect(hashJson(sim.world)).toBe(hashBefore);
     // This story adds no world field: the snapshot stays at the version 3.5 left.
-    expect(sim.snapshot().version).toBe(snapshot.version);
     expect(snapshot.version).toBe(28);
   });
 });

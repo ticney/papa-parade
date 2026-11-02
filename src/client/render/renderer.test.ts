@@ -11,6 +11,7 @@ const gl = vi.hoisted(() => ({
   viewport: [0, 0, 844, 390],
   scissor: [0, 0, 844, 390],
   isScissorTest: false,
+  isContextLost: false,
   /** Every state the viewport, the scissor and the test were in when `render` ran. */
   atRender: [] as { viewport: number[]; scissor: number[]; isScissorTest: boolean }[],
 }));
@@ -58,6 +59,7 @@ vi.mock('three', () => ({
     ) => {
       gl.scissor = typeof x === 'number' ? [x, ...rest] : [x.x, x.y, x.z, x.w];
     };
+    getContext = () => ({ isContextLost: () => gl.isContextLost });
     getScissorTest = () => gl.isScissorTest;
     setScissorTest = (isOn: boolean) => {
       gl.isScissorTest = isOn;
@@ -225,6 +227,7 @@ describe('the renderer capture (story 3.6)', () => {
     gl.viewport = [0, 0, 400, 300];
     gl.scissor = [0, 0, 400, 300];
     gl.isScissorTest = false;
+    gl.isContextLost = false;
     gl.atRender = [];
     gl.render.mockClear();
     vi.stubGlobal('window', { devicePixelRatio: 2 });
@@ -299,6 +302,19 @@ describe('the renderer capture (story 3.6)', () => {
     expect(result).toMatchObject({ ok: false, error: { kind: 'render' } });
     expect(gl.render).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
+  });
+
+  it('is an err, and draws and copies nothing, while the WebGL context is lost', () => {
+    const renderer = make();
+    gl.isContextLost = true;
+    const { target, calls } = makeTarget();
+    const result = renderer.capture({} as never, {} as never, 2, target);
+    expect(result).toMatchObject({ ok: false, error: { kind: 'render' } });
+    expect(gl.render).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+    // Nothing was moved, so there is nothing to put back.
+    expect(gl.viewport).toEqual([0, 0, 400, 300]);
+    expect(gl.isScissorTest).toBe(false);
   });
 
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(

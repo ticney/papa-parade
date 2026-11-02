@@ -563,7 +563,9 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     polaroid.classList.add('pp-polaroid-drop');
     enter('photo');
     options.onPhoto();
-    later(startRows, timings.photoHoldMs);
+    // A hold of 0 goes straight to the rows: not one task of a transparent panel in between.
+    if (timings.photoHoldMs === 0) startRows();
+    else later(startRows, timings.photoHoldMs);
   } else {
     startRows();
   }

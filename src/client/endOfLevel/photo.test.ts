@@ -1,4 +1,3 @@
-import { PHOTO_VIGNETTE_RADIUS_RATIO } from '@shared/constants';
 import { err, ok } from '@shared/result';
 import { asRealMs } from '@shared/time';
 import type { World } from '@sim';
@@ -21,26 +20,32 @@ const PHOTO_CAMERA = createTestContent().feel.fx.photoCamera;
 const ROOM = { widthM: 9.1, depthM: 6.2, heightM: 2.5, centerXM: 0.35, centerZM: -0.1 };
 const ASPECT = PHOTO.widthPx / PHOTO.heightPx;
 
-/** A 2D context double that records every call in order. */
-function makeContext() {
+/** A 2D context double that records every call in order; `onFirstCall` runs when the first one lands. */
+function makeContext(onFirstCall?: () => void) {
   const calls: unknown[][] = [];
   const stops: [number, string][] = [];
+  let isFirstCall = true;
+  const record = (...call: unknown[]): void => {
+    if (isFirstCall) onFirstCall?.();
+    isFirstCall = false;
+    calls.push(call);
+  };
   const gradient = {
     addColorStop: (offset: number, color: string) => {
-      calls.push(['addColorStop', offset, color]);
+      record('addColorStop', offset, color);
       stops.push([offset, color]);
     },
   };
   const context = {
     fillStyle: '' as unknown,
-    save: () => calls.push(['save']),
-    restore: () => calls.push(['restore']),
-    scale: (x: number, y: number) => calls.push(['scale', x, y]),
+    save: () => record('save'),
+    restore: () => record('restore'),
+    scale: (x: number, y: number) => record('scale', x, y),
     createRadialGradient: (...args: number[]) => {
-      calls.push(['createRadialGradient', ...args]);
+      record('createRadialGradient', ...args);
       return gradient;
     },
-    fillRect: (...args: number[]) => calls.push(['fillRect', ...args]),
+    fillRect: (...args: number[]) => record('fillRect', ...args),
   };
   return {
     context: context as unknown as CanvasRenderingContext2D,
@@ -86,18 +91,27 @@ describe('vignetteStopsOf', () => {
 
 describe('drawVignette', () => {
   it('fills a unit square scaled to the photo, with the mockup gradient, and puts the state back', () => {
-    const { context, raw, calls } = makeContext();
+    const { context, raw, calls, gradient } = makeContext();
     drawVignette(context, 570, 360, PHOTO);
     expect(calls).toEqual([
       ['save'],
       ['scale', 570, 360],
-      ['createRadialGradient', 0.5, 0.5, 0, 0.5, 0.5, PHOTO_VIGNETTE_RADIUS_RATIO],
+      ['createRadialGradient', 0.5, 0.5, 0, 0.5, 0.5, 0.7],
       ['addColorStop', 0.6, 'rgba(42, 33, 64, 0)'],
       ['addColorStop', 1, 'rgba(42, 33, 64, 0.28)'],
       ['fillRect', 0, 0, 1, 1],
       ['restore'],
     ]);
-    expect(raw.fillStyle).toBeTruthy();
+    // The gradient itself is what fills, not some other style.
+    expect(raw.fillStyle).toBe(gradient);
+  });
+
+  it('takes its radius from vignetteRadiusPct, a share of the photo, not from a literal', () => {
+    const { context, calls } = makeContext();
+    drawVignette(context, 570, 360, { ...PHOTO, vignetteRadiusPct: 45 });
+    const gradientCall = calls.find((call) => call[0] === 'createRadialGradient');
+    expect(gradientCall?.slice(1, 4)).toEqual([0.5, 0.5, 0]);
+    expect(gradientCall?.[6]).toBeCloseTo(0.45);
   });
 });
 
@@ -170,8 +184,8 @@ describe('takeEndPhoto', () => {
 
   function harness(options: { captureError?: boolean; hasContext?: boolean } = {}): Harness {
     const log: string[] = [];
-    const photoContext = makeContext();
-    // The vignette's calls land on the same recorder as the copy's, to read their order.
+    // The vignette's first call lands in `log`, beside `update` and `capture`, to read their order.
+    const photoContext = makeContext(() => log.push('vignette'));
     const canvas = {
       width: 0,
       height: 0,
@@ -208,10 +222,10 @@ describe('takeEndPhoto', () => {
 
   const options = { photo: PHOTO, photoCamera: PHOTO_CAMERA };
 
-  it('draws the snapshot world at alpha 1, then captures, in this order', () => {
+  it('draws the snapshot world at alpha 1, captures it, then draws the vignette over the copy, in this order', () => {
     const { deps, log } = harness();
     takeEndPhoto(deps, WORLD, options, NOW);
-    expect(log).toEqual(['getContext:2d', `update:true:1:${String(NOW)}`, 'capture']);
+    expect(log).toEqual(['getContext:2d', `update:true:1:${String(NOW)}`, 'capture', 'vignette']);
   });
 
   it('returns a 2D canvas of the size feedback.json says', () => {
@@ -232,7 +246,7 @@ describe('takeEndPhoto', () => {
     expect(deps.camera.zoom).toBeCloseTo(1 + PHOTO_CAMERA.zoomPct / 100);
   });
 
-  it('draws the vignette after the copy, over it', () => {
+  it('draws the vignette as one saved, scaled gradient fill (after the copy: see the order above)', () => {
     const { deps, photoContext } = harness();
     takeEndPhoto(deps, WORLD, options, NOW);
     expect(photoContext.calls.map((call) => call[0])).toEqual([
@@ -247,10 +261,11 @@ describe('takeEndPhoto', () => {
   });
 
   it('is an err, with no vignette, when the capture fails', () => {
-    const { deps, photoContext } = harness({ captureError: true });
+    const { deps, photoContext, log } = harness({ captureError: true });
     const result = takeEndPhoto(deps, WORLD, options, NOW);
     expect(result).toMatchObject({ ok: false, error: { kind: 'render' } });
     expect(photoContext.calls).toEqual([]);
+    expect(log).not.toContain('vignette');
   });
 
   it('is an err, and captures nothing, when the canvas has no 2D context', () => {

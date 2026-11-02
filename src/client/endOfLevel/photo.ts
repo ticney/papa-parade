@@ -1,6 +1,5 @@
 import type { PhotoSettings } from '@content/schemas/feedback';
 import type { Feel } from '@content/schemas/feel';
-import { PHOTO_VIGNETTE_RADIUS_RATIO } from '@shared/constants';
 import { type AppError, err, ok, type Result } from '@shared/result';
 import type { RealMs } from '@shared/time';
 import type { World } from '@sim';
@@ -50,7 +49,14 @@ export function drawVignette(
   const [clear, edge] = vignetteStopsOf(photo);
   context.save();
   context.scale(widthPx, heightPx);
-  const gradient = context.createRadialGradient(0.5, 0.5, 0, 0.5, 0.5, PHOTO_VIGNETTE_RADIUS_RATIO);
+  const gradient = context.createRadialGradient(
+    0.5,
+    0.5,
+    0,
+    0.5,
+    0.5,
+    photo.vignetteRadiusPct / 100,
+  );
   gradient.addColorStop(clear.offset, clear.color);
   gradient.addColorStop(edge.offset, edge.color);
   context.fillStyle = gradient;

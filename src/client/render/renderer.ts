@@ -144,6 +144,11 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
       if (!Number.isFinite(aspect) || aspect <= 0) {
         return err({ kind: 'render', message: `cannot capture: the aspect is ${aspect}` });
       }
+      // A lost context draws nothing and `drawImage` of its canvas does not throw: without this the
+      // photo would be a blank picture reported as taken.
+      if (renderer.getContext().isContextLost()) {
+        return err({ kind: 'render', message: 'cannot capture: the WebGL context is lost' });
+      }
       const rect = photoRectOf(canvasWidthPx, canvasHeightPx, aspect);
       renderer.getViewport(previousViewport);
       renderer.getScissor(previousScissor);

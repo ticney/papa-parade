@@ -71,7 +71,10 @@ export interface RunSummary {
   worldHash: string;
   responses: number;
   gags: number;
-  /** The `NearMiss` events: what Mama's « Hurlement » counts (story 1.22). */
+  /**
+   * The `NearMiss` events (story 1.22). Mama's « Hurlement » counts these and the frozen ones
+   * (`frozenNearMisses`, which the report keeps apart).
+   */
   nearMisses: number;
   /** The micro-sleeps telegraphed (`ThreatTelegraphed` of no wave, story 1.19). */
   microSleeps: number;
