@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { toContentJsonSchema } from '../../src/content/jsonSchema.ts';
 import { parseContentFile } from '../../src/content/parseContentFile.ts';
-import { FeedbackTableSchema } from '../../src/content/schemas/feedback.ts';
+import { FeedbackTableSchema, SQUASH_EVENTS } from '../../src/content/schemas/feedback.ts';
+import { SIM_EVENT_TYPES } from '../../src/sim/index.ts';
 import { createTestFeedback } from '../support/testContent.ts';
 
 // Tunable values are never pinned here (golden rule: Geo tunes them). Structure, ranges and
@@ -16,9 +17,11 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // unit gets a deliberate, commented entry here.
 // `pulses` is a count of rings, not a quantity: it has no unit. `laidHeightM` is a height in metres (story 4.8).
 // The door (story 3.5) adds `openAngleDeg` (degrees) and its size in metres: `widthM`, `heightM`, `thicknessM`.
+// The characters (story 7.2) add `speedMps` and `turnRateDegPerSec`. The look (story 7.3) adds `pulseHz`,
+// `radiusM`, `sunOffsetM`, and two numbers with no unit: a light's `…Intensity` and the 0-255 `toonTones`.
 // The end photo (story 3.6) adds the size of its canvas in pixels, `widthPx` and `heightPx`, spelled out for the same reason.
 const UNIT_SUFFIX =
-  /(?:Pct|Ms|RadiusM|AmplitudeM|HeightM|Deg|^widthM|^heightM|^thicknessM|^widthPx|^heightPx|^pulses)$/;
+  /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^widthPx|^heightPx|^pulses)$/;
 
 type Json = Record<string, unknown>;
 
@@ -540,6 +543,40 @@ describe('content/feedback.json', () => {
   });
 });
 
+describe('the characters table (story 7.2)', () => {
+  const characters = real.characters as {
+    squash: Json[];
+    clipSpeeds: Json[];
+  };
+
+  it('refuses a second squash of the same character on the same event', () => {
+    const first = characters.squash[0] as Json;
+    const result = mutated(['characters.squash', [...characters.squash, { ...first }]]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.squash'))).toBe(true);
+  });
+
+  it('accepts one event squashing both characters', () => {
+    const result = mutated([
+      'characters.squash',
+      [
+        { event: 'GagTriggered', character: 'papa', amountPct: 10, durationMs: 100 },
+        { event: 'GagTriggered', character: 'baby', amountPct: -10, durationMs: 100 },
+      ],
+    ]);
+    expect(result).toMatchObject({ ok: true });
+  });
+
+  it('refuses a second speed for the same clip', () => {
+    const first = characters.clipSpeeds[0] as Json;
+    const result = mutated(['characters.clipSpeeds', [...characters.clipSpeeds, { ...first }]]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.clipSpeeds'))).toBe(true);
+  });
+
+  it('squashes only on events the sim emits: a typo would silence a squash', () => {
+    for (const event of SQUASH_EVENTS) expect(SIM_EVENT_TYPES, event).toContain(event);
+  });
+});
+
 describe('the rhythm tracks (story 4.5)', () => {
   it('names the lullaby track with its notes, count-in tick and decoy sound', () => {
     const parsed = parse(real);
@@ -588,5 +625,27 @@ describe('the rhythm tracks (story 4.5)', () => {
     ['no ring approach', mutated(['beatRing.approachMs', undefined]), ['beatRing.approachMs']],
   ])('refuses %s', (_name, result, expected) => {
     expect(failedPaths(result)).toEqual(expected);
+  });
+});
+
+describe('feedback.json › render (story 7.3)', () => {
+  it.each([
+    ['tones out of order', 'render.toonTones', [178, 96, 255]],
+    ['a tone above 255', 'render.toonTones', [96, 178, 256]],
+    ['a pulse above 3 Hz', 'render.dangerTint.pulseHz', 3.5],
+    ['no outline width', 'render.outlines.widthM', 0],
+    ['a sun under the floor', 'render.sunOffsetM', [5, -9, 7]],
+    ['a colour that is not #RRGGBB', 'render.lights.default.sunColor', 'white'],
+    ['a pulse low above its top', 'render.dangerTint.minOpacityPct', 95],
+    ['no section', 'render.outlines', undefined],
+  ] as const)('refuses %s', (_name, path, value) => {
+    expect(parse(mutated([path, value])).ok).toBe(false);
+  });
+
+  it('keeps the danger glow at or under the 3 Hz of the comfort rule', () => {
+    expect(parse(real).ok).toBe(true);
+    expect(
+      (real as { render: { dangerTint: { pulseHz: number } } }).render.dangerTint.pulseHz,
+    ).toBeLessThanOrEqual(3);
   });
 });

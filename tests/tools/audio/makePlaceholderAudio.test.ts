@@ -8,6 +8,7 @@ import { beatTimelineOf } from '@sim';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   encodeWav,
+  GENERATED_CLIPS,
   generatePlaceholderClips,
   PLACEHOLDER_CLIPS,
   parseOnly,
@@ -566,13 +567,44 @@ describe('generatePlaceholderClips', () => {
     return ok(undefined);
   };
 
-  it('writes every clip, named after its id, when every conversion succeeds', async () => {
+  it('writes every placeholder clip, named after its id, when every conversion succeeds', async () => {
     const out = await tempDir();
     const result = await generatePlaceholderClips(out, converter());
     expect(result.ok).toBe(true);
     expect((await readdir(out)).sort()).toEqual(
-      PLACEHOLDER_CLIPS.map(({ clip }) => `${clip}.m4a`).sort(),
+      PLACEHOLDER_CLIPS.map(({ clip }) => clip)
+        .filter((clip) => !GENERATED_CLIPS.includes(clip))
+        .map((clip) => `${clip}.m4a`)
+        .sort(),
     );
+  });
+
+  describe('the generated music (story 7.6 AC 6)', () => {
+    it('names only clips of the table', () => {
+      const names = PLACEHOLDER_CLIPS.map(({ clip }) => clip);
+      expect(GENERATED_CLIPS.filter((clip) => !names.includes(clip))).toEqual([]);
+    });
+
+    it('survives a run with no `only`, byte for byte', async () => {
+      const out = await tempDir();
+      for (const clip of GENERATED_CLIPS) {
+        await writeFile(join(out, `${clip}.m4a`), `generated ${clip}`);
+      }
+      const result = await generatePlaceholderClips(out, converter());
+      expect(result.ok).toBe(true);
+      for (const clip of GENERATED_CLIPS) {
+        expect(await readFile(join(out, `${clip}.m4a`), 'utf8')).toBe(`generated ${clip}`);
+      }
+    });
+
+    it('is written again when `only` names it, on purpose', async () => {
+      const out = await tempDir();
+      const stealth = join(out, 'music_stealth.m4a');
+      await writeFile(stealth, 'generated');
+      const result = await generatePlaceholderClips(out, converter(), ['music_stealth']);
+      expect(result.ok).toBe(true);
+      expect(await readFile(stealth, 'utf8')).not.toBe('generated');
+    });
   });
 
   it('writes only the clips it is asked for with `only`, and leaves the others alone (story 2.3 AC 15)', async () => {
@@ -602,15 +634,18 @@ describe('generatePlaceholderClips', () => {
 
   it('touches nothing in the output directory when a conversion fails, and names the clip', async () => {
     const out = await tempDir();
-    const stale = join(out, `${PLACEHOLDER_CLIPS[0]?.clip}.m4a`);
+    // The table's first two clips that a run with no `only` still writes (stories 7.6 and 7.7 took the others out).
+    const [first, second] = PLACEHOLDER_CLIPS.map(({ clip }) => clip).filter(
+      (clip) => !GENERATED_CLIPS.includes(clip),
+    ) as [string, string];
+    const stale = join(out, `${first}.m4a`);
     await writeFile(stale, 'stale but whole');
-    const second = PLACEHOLDER_CLIPS[1]?.clip as string;
     const result = await generatePlaceholderClips(out, converter(second));
     expect(result).toMatchObject({
       ok: false,
       error: { message: expect.stringContaining(second) },
     });
-    expect(await readdir(out)).toEqual([`${PLACEHOLDER_CLIPS[0]?.clip}.m4a`]);
+    expect(await readdir(out)).toEqual([`${first}.m4a`]);
     expect(await readFile(stale, 'utf8')).toBe('stale but whole');
   });
 });

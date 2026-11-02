@@ -170,15 +170,37 @@ const exists = (path: string): Promise<boolean> =>
  * The cross-references of `feedback.json` that its schema cannot see: an `events` key is the name
  * of a sim or client event (a typo is a cue that never plays), a client event's cue has neither
  * visual nor fx (they need a world), a cue with an fx has a `soundWave` (its anchor), a cue an event points at has no `threat`-anchored visual
- * (a generic event names no threat), and every clip is a file under `public/assets/audio/`.
+ * (a generic event names no threat), every clip is a file under `public/assets/audio/`, and a level's
+ * lights are those of a level that exists, and a collider with no blob shadow is a collider of some
+ * level.
  * (That an `events` value is a cue of `cues` is the schema's own check.)
  */
 async function checkFeedbackReferences(
   rootDir: string,
   table: FeedbackTable,
+  levelIds: ReadonlySet<string>,
+  colliderIds: ReadonlySet<string>,
 ): Promise<ContentProblem[]> {
   const file = `content/${FEEDBACK_FILE.file}`;
   const problems: ContentProblem[] = [];
+  for (const id of Object.keys(table.render.lights.byLevel)) {
+    if (!levelIds.has(id)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['render', 'lights', 'byLevel', id]),
+        message: `"${id}" is not a level: its lights would never show`,
+      });
+    }
+  }
+  for (const [index, id] of table.render.blobSkipColliderIds.entries()) {
+    if (!colliderIds.has(id)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['render', 'blobSkipColliderIds', index]),
+        message: `"${id}" is no collider of any level: it would skip nothing`,
+      });
+    }
+  }
   const eventNames = new Set<string>([...SIM_EVENT_TYPES, ...FEEDBACK_CLIENT_EVENTS]);
   for (const [name, cueId] of Object.entries(table.events)) {
     if (!eventNames.has(name)) {
@@ -1485,7 +1507,15 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
     problems.push(...checkPhysicsTuning(feel));
   }
 
-  if (feedback !== undefined) problems.push(...(await checkFeedbackReferences(rootDir, feedback)));
+  if (feedback !== undefined)
+    problems.push(
+      ...(await checkFeedbackReferences(
+        rootDir,
+        feedback,
+        new Set(families.levels.keys()),
+        new Set([...families.geometries.values()].flatMap((g) => g.colliders.map((c) => c.id))),
+      )),
+    );
 
   if (strings !== undefined) {
     problems.push(...checkStringReferences(parsed, strings, `content/${STRINGS_FILE.file}`));

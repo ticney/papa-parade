@@ -185,7 +185,7 @@ Aucun starter communautaire : les starters Three.js imposent des structures (Rea
 | Retours multimodaux | Événements de domaine → `FeedbackDirector` piloté par `feedback.json` ; test de triple équivalence son, visuel, haptique | — | E1, E2, E7 | Pilier 3 garanti par un test ; Geo règle les retours hors code |
 | Contenu | JSON validé par schémas Zod (types inférés, validation au chargement et en CI, export JSON Schema) | zod 4.6.7 | Toutes | Source unique pour les types et la validation ; l'IA génère et valide |
 | Feeling | `feel.json` unique, surcharges par niveau ; panneau Tweakpane en dev, réglage à chaud, sauvegarde via un plugin Vite | tweakpane 4.0.5 | E1, E2 | Règle d'or : Geo règle sans toucher à la logique |
-| Rendu | `WebGLRenderer`, `MeshToonMaterial` (rampe 3 tons), contours inverted hull, pas de post-process lourd, DPR plafonné et adaptatif | three 0.186.1 | E1, E7 | Fiable en WebView mobile, 60 FPS ; WebGPU réévalué en E7 |
+| Rendu | `WebGLRenderer`, `MeshToonMaterial` (rampe 3 tons), contours inverted hull, pas de post-process lourd, DPR plafonné et adaptatif | three 0.186.1 | E1, E7 | Fiable en WebView mobile, 60 FPS ; WebGPU réévalué en E7 : on reste sur WebGL (ADR-008) |
 | Audio | Web Audio maison : bus musique / sfx / voix / UI, buffers pré-décodés, stems synchronisés, déverrouillage au premier tap | API native | E1, E2, E4 | Maîtrise de la latence et de la synchro ; Howler n'est plus maintenu |
 | UI et HUD | DOM superposé en vanilla TS + CSS ; éléments ancrés au monde via `CSS2DRenderer` ; tokens et composants définis par `DESIGN.md` et `EXPERIENCE.md` | addon three | E1, E2, E3 | Lisible par Playwright, facile à écrire pour l'IA, sans framework |
 | Pipeline d'assets | Blender 5.2 LTS (greybox dès E1, via Blender MCP) → `.glb` avec convention `COL_` / `NAV_` / `ANCHOR_` ; optimisation gltfpack | Blender 5.2.3, gltfpack 1.3.0 | E1, E7 | Le pipeline est validé tôt ; les niveaux JSON référencent les ancres par nom |
@@ -197,7 +197,7 @@ Aucun starter communautaire : les starters Three.js imposent des structures (Rea
 | Hébergement | Build statique (Cloudflare Pages ou Netlify, choisi au premier déploiement) | vite 8.3.5 | E1 | Playtest par lien, zéro backend |
 | Télémétrie | Journal de partie JSON anonyme, téléchargeable ou copiable par le testeur | — | E1 | Mesure des 5 indicateurs de E1 sans donnée personnelle |
 | Mobile | Capacitor (`core`, `ios`, `android`, `haptics`, `app`) | 8.5.3 | E8 (haptique dès E2) | Décision du decision log |
-| Différé | Modèle économique (avant E8) ; WebGPU (E7) | — | E7, E8 | Hors scope du prototype |
+| Différé | Modèle économique (avant E8) ; WebGPU écarté en E7, à rouvrir seulement sur un budget que WebGL ne tient pas (ADR-008) | — | E7, E8 | Hors scope du prototype |
 
 Versions vérifiées sur le registre npm le 2026-10-26.
 
@@ -305,7 +305,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 - **ADR-005 — Rapier dans la sim, objets seulement.** *Décision :* `rapier3d-deterministic-compat` derrière `PhysicsPort` ; personnages cinématiques. *Conséquences :* des accidents émergents qui comptent pour le score ; un coût CPU un peu plus élevé que la build optimisée, acceptable pour une dizaine d'objets.
 - **ADR-006 — Retours pilotés par les données, avec triple équivalence testée.** *Décision :* `feedback.json` est lu par le `FeedbackDirector`. *Conséquences :* le pilier 3 est garanti par un test, et Geo règle les retours hors code.
 - **ADR-007 — Contenu et feeling en JSON, validés par Zod, réglables à chaud.** *Conséquences :* une source unique pour les types et la validation ; le panneau dev écrit `feel.json`.
-- **ADR-008 — WebGL, toon et contours inverted hull, UI en DOM.** *Conséquences :* priorité aux 60 FPS sur mobile et à la testabilité ; WebGPU réévalué en E7.
+- **ADR-008 — WebGL, toon et contours inverted hull, UI en DOM.** *Conséquences :* priorité aux 60 FPS sur mobile et à la testabilité. **WebGPU réévalué en E7 (story 7.3), décision : on reste sur `WebGLRenderer`.** *Raisons :* aucun goulot à résoudre (voir les mesures de la story 7.3, à confirmer sur appareils réels) ; `three/webgpu` ajoute environ 91 Ko gzip au bundle (mesure sur three 0.186.1 : 145 Ko pour WebGL, 236 Ko pour WebGPU, à périmètre égal) ; `MeshToonMaterial` a son équivalent nœud, mais pas `ShaderMaterial`, donc les contours devraient être réécrits en matériau nœud ; un repli vers WebGL ferait deux rendus à tester. *Non établi :* aucune documentation d'Apple sur WebGPU dans `WKWebView` (le shell d'E8) n'a été trouvée ; seule une réponse sur les forums Apple indique qu'il suit l'activation par défaut d'iOS 26. La part des téléphones concernés n'est pas vérifiée non plus. *À rouvrir* seulement si E8 ou la passe sur appareils trouve un budget qu'un rendu WebGL ne peut pas tenir.
 - **ADR-009 — Blender greybox dès E1, conventions de nommage, données extraites au build.** *Conséquences :* la sim ne lit jamais de `.glb` ; le pipeline est validé dès le prototype.
 - **ADR-010 — Relâché < 400 ms = Parer.** *Contexte :* le GDD ne définit pas la zone 0,2–0,4 s. *Décision :* un seuil unique `holdMinMs` = 400 ; `tapMaxMs` est conservé pour d'éventuels usages futurs. *Conséquences :* plus indulgent sur mobile ; à valider au playtest.
 
@@ -512,7 +512,7 @@ papa-parade/
 │   │   ├── render/                # renderer.ts, isoCamera.ts, cameraFx.ts, levelScene.ts, interpolate.ts
 │   │   │   ├── views/             # papaView.ts, babyView.ts, threatView.ts, propView.ts
 │   │   │   ├── materials/         # toonMaterial.ts, outlineHull.ts, palette.ts
-│   │   │   └── vfx/               # particles.ts, screenShake.ts
+│   │   │   └── vfx/               # particles.ts, screenShake.ts, dangerTint.ts
 │   │   ├── audio/                 # audioEngine.ts, buses.ts, adaptiveMusic.ts, audioUnlock.ts
 │   │   ├── feedback/              # feedbackDirector.ts, visualCues.ts, hapticCues.ts
 │   │   ├── ui/
@@ -975,7 +975,7 @@ export function runFatigue(world: World, ctx: StepContext): void {
 | E6 | Désarmement, coolitude, préparation entre les vagues | `content/objects/` (`coolness`), `src/sim/flow/` (état `prep`) | Données |
 | E6 | Chien, casserole | `content/disruptions/` | P1 |
 | **E7** | Personnages riggés et animés | `public/assets/characters/`, `AnimationMixer` dans les vues | Patterns d'entités (pools de vues) |
-| E7 | Rendu toon final, palette, VFX, célébration | `src/client/render/materials/`, `vfx/` | ADR-008 (réévaluer WebGPU) |
+| E7 | Rendu toon final, palette, VFX, célébration | `src/client/render/materials/`, `vfx/` | ADR-008 (WebGPU réévalué : on reste sur WebGL) |
 | E7 | Musique adaptative par âge | `src/client/audio/adaptiveMusic.ts`, `content/music/` | — |
 | **E8** | Capacitor iOS et Android | `capacitor.config.ts`, `src/platform/native/`, `ios/`, `android/` | Déploiement |
 
@@ -1146,7 +1146,7 @@ interface Platform {
 
 - Modèle économique : avant E8 (GDD).
 - Choix de l'hébergeur (Cloudflare Pages ou Netlify) : au premier déploiement de playtest, sans impact sur le code (build statique, base relative).
-- WebGPU : réévalué en E7.
+- WebGPU : réévalué en E7, on reste sur WebGL (ADR-008).
 - CI : à créer avec le dépôt git (pipeline défini dans « Déploiement »).
 
 ### Date de validation

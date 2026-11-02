@@ -6,7 +6,7 @@ import type { ToonMaterialCache } from '../materials/toonMaterial.ts';
 /** The door's numbers (`feedback.json › door`): how long it takes to swing open, how far, and its size. */
 export type DoorLook = FeedbackTable['door'];
 
-/** The door's colour until the real model (E7): plain paper, so that a closed door reads against the wall. */
+/** The door's colour, a code-made panel that story 7.3 leaves as it is: plain paper, so that a closed door reads against the wall. */
 const DOOR_COLOR = PALETTE.paper;
 
 /** A unit step on the floor plane: `x` and `z` of a direction. */

@@ -93,6 +93,26 @@
   "bombDrop": {
     "laidHeightM": 0.3
   },
+  "characters": {
+    "crossFadeMs": 140,
+    "turnRateDegPerSec": 720,
+    "squash": [
+      { "event": "PapaArrived", "character": "papa", "amountPct": -14, "durationMs": 280 },
+      { "event": "PapaBlocked", "character": "papa", "amountPct": -18, "durationMs": 260 },
+      { "event": "GagTriggered", "character": "papa", "amountPct": 30, "durationMs": 420 },
+      { "event": "BabyPickedUp", "character": "baby", "amountPct": 24, "durationMs": 300 },
+      { "event": "BabyPutDown", "character": "baby", "amountPct": -24, "durationMs": 300 },
+      { "event": "GagTriggered", "character": "baby", "amountPct": -26, "durationMs": 420 },
+      { "event": "BabyWoke", "character": "baby", "amountPct": 28, "durationMs": 360 },
+      { "event": "BabyStirred", "character": "baby", "amountPct": 10, "durationMs": 220 }
+    ],
+    "clipSpeeds": [
+      { "clip": "walk", "speedMps": 3 },
+      { "clip": "carry_walk", "speedMps": 3 },
+      { "clip": "crawl", "speedMps": 0.6 },
+      { "clip": "sneak", "speedMps": 1.2 }
+    ]
+  },
   "door": {
     "openMs": 700,
     "openAngleDeg": 100,
@@ -107,6 +127,29 @@
     "vignetteFromPct": 60,
     "vignetteOpacityPct": 28,
     "vignetteRadiusPct": 70
+  },
+  "render": {
+    "toonTones": [96, 178, 255],
+    "lights": {
+      "default": {
+        "ambientColor": "#FFFFFF",
+        "ambientIntensity": 1.1,
+        "sunColor": "#FFFFFF",
+        "sunIntensity": 2.04
+      },
+      "byLevel": {
+        "chambre_night": {
+          "ambientColor": "#C4CEFF",
+          "ambientIntensity": 1.15,
+          "sunColor": "#DCE2FF",
+          "sunIntensity": 1.5
+        }
+      }
+    },
+    "sunOffsetM": [3, 9, 5],
+    "outlines": { "widthM": 0.025, "skipMaterials": ["art_ink"] },
+    "dangerTint": { "radiusM": 0.55, "minOpacityPct": 35, "peakOpacityPct": 85, "pulseHz": 2 },
+    "blobSkipColliderIds": ["stairs"]
   },
   "cues": {
     "papa_bump": {

@@ -1,16 +1,16 @@
 import { looksLikeGameplayNode, parseNodeName } from '@content/levelNodeNames';
+import type { FeedbackTable } from '@content/schemas/feedback';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { PAPA_TARGET_ANCHOR_ID, STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import type { RealMs, SimMs } from '@shared/time';
-import type { GagId, PropSlice, World } from '@sim';
+import type { GagId, PropSlice, SimEvent, World } from '@sim';
 import {
   AmbientLight,
   BoxGeometry,
   Color,
   DirectionalLight,
   Group,
-  type Material,
   Mesh,
   type Object3D,
   Scene,
@@ -19,24 +19,29 @@ import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { addBlobShadows } from './blobShadow.ts';
 import { createGagFx } from './gags.ts';
 import type { RoomSize } from './isoCamera.ts';
+import { addOutlineHulls, createOutlineKit } from './materials/outlineHull.ts';
 import { PALETTE } from './materials/palette.ts';
-import { createToonMaterialCache } from './materials/toonMaterial.ts';
+import { createToonMaterialCache, swapToToon } from './materials/toonMaterial.ts';
+import { createDangerTint } from './vfx/dangerTint.ts';
 import { createLiftFx } from './vfx/liftHop.ts';
 import { createParticles, type ParticleStyle } from './vfx/particles.ts';
 import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
 import { createBabyView, layDownProgressPct } from './views/babyView.ts';
+import {
+  babyLidsAfter,
+  babyOneShotOf,
+  papaOneShotOf,
+  responseClipOf,
+} from './views/characterClips.ts';
+import { createCharacterRig } from './views/characterRig.ts';
 import { createDoorView, type DoorLook, doorPlacementOf } from './views/doorView.ts';
-import { createPapaView, type PapaPose } from './views/papaView.ts';
+import { createPapaView, type PapaLook, type PapaPose } from './views/papaView.ts';
 import { createPropView, type PropView } from './views/propView.ts';
+import { type SquashScale, squashScaleAt } from './views/squash.ts';
 import { createViewPool, type ViewPool } from './views/viewPool.ts';
 import { createViewRegistry } from './views/viewRegistry.ts';
 
-// Art direction, not GDD numbers: Geo tunes the light here until the final art (E7).
-const AMBIENT_INTENSITY = 0.9;
-const SUN_INTENSITY = 1.3;
-/** Where the sun sits relative to the room centre: the camera side, high, in metres. */
-const SUN_OFFSET_M: readonly [number, number, number] = [5, 9, 7];
 /** Half extents of the box drawn for a prop kind that has no model node and no prop in the geometry, in metres. */
 const DEFAULT_PROP_HALF_EXTENTS_M: readonly [number, number, number] = [0.05, 0.05, 0.05];
 
@@ -48,10 +53,16 @@ export interface SceneBodies {
   microSleepDefId: string | null;
   /** The ids of the level's threats judged on a release (story 4.8): the baby is lowered while one runs. */
   layDownDefIds: readonly string[];
+  /** The ids of the level's threats aimed at an anchor: only they show the alert tint (story 7.3, D6). */
+  anchorThreatDefIds: readonly string[];
   /** The height of the baby's centre once laid on the mattress, in metres (`feedback.json › bombDrop.laidHeightM`). */
   laidHeightM: number;
+  /** How the characters move (`feedback.json › characters`). */
+  characters: FeedbackTable['characters'];
   /** The door panel's numbers (`feedback.json › door`, story 3.5). */
   door: DoorLook;
+  /** The final look (`feedback.json › render`, story 7.3). */
+  render: FeedbackTable['render'];
   /** Read each frame: under reduced motion the door jumps open instead of swinging (story 3.5). */
   isMotionReduced(): boolean;
 }
@@ -95,6 +106,17 @@ export interface LevelFx {
   ): void;
   /** The provisional « lift the baby » pose: a short hop of the baby. */
   liftBaby(startAt: SimMs): void;
+  /** Papa's pose for a response he has arrived at (P3: the sound fired at the judgement). */
+  playResponseClip(response: string, quality: string): void;
+  /**
+   * What a sim event plays on the characters: one-shots, the baby's lids and, unless `isMotionReduced`,
+   * the squash. The clips stay under reduced motion: a pose carries state (story 7.2, D7).
+   */
+  playCharacterEvent(
+    event: Readonly<SimEvent>,
+    world: Readonly<World>,
+    isMotionReduced: boolean,
+  ): void;
 }
 
 export interface LevelScene {
@@ -119,13 +141,23 @@ export interface LevelScene {
     particlesAlive: number;
     /** How far the carried baby was drawn lowered onto the mattress, 0 to 100 (story 4.8). */
     babyLayDownPct: number;
+    /** The clip Papa is seen playing, or null. */
+    papaClip: string | null;
+    /** The clip the baby is seen playing, or null. */
+    babyClip: string | null;
+    /** Papa's mixer clock, in sim ms. */
+    papaMixerMs: number;
     /** How far the door was drawn open, in degrees; 0 while it is shut (story 3.5). */
     doorOpenDeg: number;
+    /** How many alert glows stand on the room's dangers (story 7.3). */
+    dangerTintsShown: number;
   };
+  /** Shows the parts of Papa's look. Nothing in a game sets it until story 3.7 (story 7.2, D2). */
+  setPapaLook(look: Readonly<PapaLook>): void;
   /** Where Papa was last drawn (interpolated), for the markers that follow him. */
   readonly papaPose: Readonly<PapaPose>;
   /**
-   * Ends the effects under way (rings hidden, shake offset back to zero, lights back, hair down,
+   * Ends the effects under way (rings and glows hidden, shake offset back to zero, lights back, hair down,
    * baby on the floor). Effects advance only
    * while the game loop runs; call it when the loop stops, so a frozen mid-effect frame is not what
    * `drawStatic` shows behind the loading or error screen.
@@ -210,23 +242,22 @@ function isHiddenInGame(name: string): boolean {
   return false;
 }
 
-function disposeMaterial(material: Material | Material[]): void {
-  for (const one of Array.isArray(material) ? material : [material]) one.dispose();
-}
-
 function disposeObject(object: Object3D): void {
   object.traverse((child) => {
     if (child instanceof Mesh) {
       child.geometry.dispose();
-      disposeMaterial(child.material);
+      for (const one of Array.isArray(child.material) ? child.material : [child.material]) {
+        one.dispose();
+      }
     }
   });
 }
 
-function originalColor(material: Material | Material[]): Color {
-  const one = Array.isArray(material) ? material[0] : material;
-  const color = (one as { color?: unknown } | undefined)?.color;
-  return color instanceof Color ? color : new Color(PALETTE.cream);
+/** A squash under way on one character. Reused: nothing is allocated when one starts. */
+interface SquashRun {
+  startAt: number | null;
+  amountPct: number;
+  durationMs: number;
 }
 
 /**
@@ -266,8 +297,8 @@ function takePropNodes(
 
 /**
  * The scene of one level: the loaded model with its non-visual nodes removed, every material
- * swapped for a shared toon one (keeping each mesh's colour), lights, blob shadows (no shadow map),
- * Papa, the baby and the props (pooled views, one pool per kind, made here so that nothing is
+ * swapped for a shared toon one (keeping each mesh's colour), the level's lights, blob shadows (no
+ * shadow map), ink hulls on the characters and the props (not on the furniture, story 7.3, D2), Papa, the baby and the props (pooled views, one pool per kind, made here so that nothing is
  * built during play). The model is taken over: it belongs to this scene from now on. The bodies'
  * radii are the feel's, read once when the level starts (a `SetFeel` takes effect at the next level).
  */
@@ -285,13 +316,18 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     node.removeFromParent();
   }
 
-  const toon = createToonMaterialCache();
-  model.traverse((node) => {
-    if (!(node instanceof Mesh)) return;
-    const original = node.material;
-    node.material = toon.get(originalColor(original));
-    disposeMaterial(original);
-  });
+  const { render } = bodies;
+  const toon = createToonMaterialCache(render.toonTones);
+  const outlines = createOutlineKit(render.outlines);
+  // The props leave the model first, and get their hulls before the swap, which loses the material
+  // names. `template.clone(true)` then carries the hull into every view.
+  const { templates, taken: propNodes } = takePropNodes(model, geometry);
+  for (const template of templates.values()) addOutlineHulls(template, outlines);
+  for (const root of [model, ...propNodes]) {
+    root.traverse((node) => {
+      if (node instanceof Mesh && !outlines.isHull(node.material)) swapToToon(node, toon);
+    });
+  }
   // The room, its shadows, Papa, the baby and the waves live under one root: a shake moves the
   // root, not the camera, so the framing and the world UI layer stay put. The lights stay outside.
   const content = new Group();
@@ -302,17 +338,18 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const room = roomOf(geometry);
   const centerX = room.centerXM ?? 0;
   const centerZ = room.centerZM ?? 0;
-  const ambient = new AmbientLight(0xffffff, AMBIENT_INTENSITY);
+  const lights = render.lights.byLevel[assets.id] ?? render.lights.default;
+  const ambient = new AmbientLight(new Color(lights.ambientColor), lights.ambientIntensity);
   scene.add(ambient);
-  const sun = new DirectionalLight(0xffffff, SUN_INTENSITY);
-  sun.position.set(centerX + SUN_OFFSET_M[0], SUN_OFFSET_M[1], centerZ + SUN_OFFSET_M[2]);
+  const sun = new DirectionalLight(new Color(lights.sunColor), lights.sunIntensity);
+  const [sunX, sunY, sunZ] = render.sunOffsetM;
+  sun.position.set(centerX + sunX, sunY, centerZ + sunZ);
   sun.target.position.set(centerX, 0, centerZ);
   scene.add(sun, sun.target);
 
-  const shadows = addBlobShadows(content, geometry.colliders);
+  const shadows = addBlobShadows(content, geometry.colliders, render.blobSkipColliderIds);
 
   // The props: the model's PROP_ nodes are templates, the views are pooled per kind.
-  const { templates, taken: propNodes } = takePropNodes(model, geometry);
   const pools = new Map<string, ViewPool<PropView>>();
   const poolOf = (kind: string, halfExtentsM: readonly [number, number, number]) => {
     const existing = pools.get(kind);
@@ -326,6 +363,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         new BoxGeometry(halfExtentsM[0] * 2, halfExtentsM[1] * 2, halfExtentsM[2] * 2),
         toon.get(new Color(PALETTE.cream)),
       );
+      addOutlineHulls(template, outlines);
       propNodes.push(template);
     }
     const count = geometry.props.filter((prop) => prop.kind === kind).length;
@@ -349,8 +387,24 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     },
   });
 
-  const papa = createPapaView(content, toon, shadows.kit, bodies.papaRadiusM);
-  const baby = createBabyView(content, toon, shadows.kit, bodies.babyRadiusM, bodies.laidHeightM);
+  const { crossFadeMs, turnRateDegPerSec, clipSpeeds, squash } = bodies.characters;
+  const motion = { turnRateDegPerSec, clips: clipSpeeds };
+  const papa = createPapaView(
+    content,
+    toon,
+    shadows.kit,
+    bodies.papaRadiusM,
+    createCharacterRig(assets.characters.papa, toon, crossFadeMs, outlines),
+    motion,
+  );
+  const baby = createBabyView(
+    content,
+    shadows.kit,
+    bodies.babyRadiusM,
+    createCharacterRig(assets.characters.baby, toon, crossFadeMs, outlines),
+    motion,
+    bodies.laidHeightM,
+  );
   // The closed door at `ANCHOR_door` (story 3.5): it opens from `world.flow.finalRushAt`, every frame.
   const doorAnchor = geometry.anchors.find((anchor) => anchor.id === 'door');
   const door =
@@ -373,12 +427,20 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const waves = createSoundWaves(content, PALETTE.ink);
   const shake = createShake(content);
   const particles = createParticles(content);
-  // The gags move the lights (the room's lights are « the lamp » until E7), Papa's hair and the
-  // baby's slide; the hop moves the baby too. Both on the sim clock.
+  // Under the root: a shake moves the glows with the room.
+  const dangerTint = createDangerTint(
+    content,
+    geometry.anchors,
+    render.dangerTint,
+    shadows.kit.texture,
+    bodies.anchorThreatDefIds,
+  );
+  // The gags move the lights (the level's own: the outlet does not bring the salon into the bedroom),
+  // Papa's hair and the baby's slide; the hop moves the baby too. Both on the sim clock.
   const gags = createGagFx({
     setLightsFactor: (factor) => {
-      ambient.intensity = AMBIENT_INTENSITY * factor;
-      sun.intensity = SUN_INTENSITY * factor;
+      ambient.intensity = lights.ambientIntensity * factor;
+      sun.intensity = lights.sunIntensity * factor;
     },
     setHairAmount: (amount) => papa.setHair(amount),
     setBabySlide: (offsetXM, offsetZM) => baby.setSlideM(offsetXM, offsetZM),
@@ -386,6 +448,26 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const lift = createLiftFx((heightM) => baby.setLiftM(heightM));
   /** The lowering of the baby as last drawn (story 4.8), read by the debug `fx()`. */
   let drawnLayDownPct = 0;
+  /** The clock of the last frame: the mixers advance by its difference alone (D6). */
+  let lastClockMs: number | null = null;
+  let babyLids = 0;
+  const papaSquash: SquashRun = { startAt: null, amountPct: 0, durationMs: 0 };
+  const babySquash: SquashRun = { startAt: null, amountPct: 0, durationMs: 0 };
+  const squashScale: SquashScale = { xz: 1, y: 1 };
+  /** Writes one character's squash for `clockMs`: only while one runs, and a last time when it ends. */
+  const applySquash = (
+    run: SquashRun,
+    clockMs: number,
+    setSquash: (xz: number, y: number) => void,
+  ): void => {
+    if (run.startAt === null) return;
+    const elapsedMs = clockMs - run.startAt;
+    squashScaleAt(run.amountPct, elapsedMs, run.durationMs, squashScale);
+    setSquash(squashScale.xz, squashScale.y);
+    if (elapsedMs >= run.durationMs) run.startAt = null;
+  };
+  const setPapaSquash = (xz: number, y: number): void => papa.setSquash(xz, y);
+  const setBabySquash = (xz: number, y: number): void => baby.setSquash(xz, y);
   const fx: LevelFx = {
     soundWave: (xM, zM, maxRadiusM, durationMs, startAt) =>
       waves.play(xM, zM, maxRadiusM, durationMs, startAt),
@@ -396,6 +478,28 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     gag: (gag, startAt, isMotionReduced, slideDirX, slideDirZ) =>
       gags.start(gag, startAt, isMotionReduced, slideDirX, slideDirZ),
     liftBaby: (startAt) => lift.start(startAt),
+    playResponseClip(response, quality) {
+      const clip = responseClipOf(response, quality);
+      if (clip !== null) papa.playOnce(clip);
+    },
+    playCharacterEvent(event, world, isMotionReduced) {
+      const papaClip = papaOneShotOf(event);
+      // A gag during a glide plays as his squash alone: the glide's loop goes on (P3).
+      if (papaClip !== null && world.papa.state !== 'glide') papa.playOnce(papaClip);
+      const babyClip = babyOneShotOf(event);
+      if (babyClip !== null) baby.playOnce(babyClip);
+      babyLids = babyLidsAfter(event, babyLids);
+      baby.setEyelids(babyLids);
+      if (isMotionReduced) return;
+      for (let i = 0; i < squash.length; i++) {
+        const row = squash[i] as (typeof squash)[number];
+        if (row.event !== event.type) continue;
+        const run = row.character === 'papa' ? papaSquash : babySquash;
+        run.startAt = event.t;
+        run.amountPct = row.amountPct;
+        run.durationMs = row.durationMs;
+      }
+    },
   };
 
   return {
@@ -412,14 +516,29 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         shakeOffsetZM: shake.offsetM.z,
         particlesAlive: particles.aliveCount,
         babyLayDownPct: drawnLayDownPct,
+        papaClip: papa.clipName,
+        babyClip: baby.clipName,
+        papaMixerMs: papa.mixerTimeMs,
         doorOpenDeg: door?.openAngleDeg ?? 0,
+        dangerTintsShown: dangerTint.shownCount,
       };
+    },
+    setPapaLook(look) {
+      papa.setLook(look);
     },
     update(world, alpha, nowReal) {
       papa.update(world.papa, alpha);
       const clockMs = world.time.sim + alpha * STEP_MS;
       drawnLayDownPct = layDownPctAt(world, clockMs, bodies.layDownDefIds);
       baby.update(world.baby, alpha, world.papa, drawnLayDownPct);
+      // The sim's clock drives the mixers: it stands still in a pause and a hitstop, slows in a slow-mo.
+      // `alpha` can step back at a boundary, and a negative time would run a clip backwards (D6).
+      const dtMs = lastClockMs === null ? 0 : Math.max(0, clockMs - lastClockMs);
+      lastClockMs = clockMs;
+      papa.animate(world.papa, world.baby, dtMs);
+      baby.animate(world.baby, dtMs);
+      applySquash(papaSquash, clockMs, setPapaSquash);
+      applySquash(babySquash, clockMs, setBabySquash);
       props.sync(world.props, alpha);
       // Papa's nap, coffee and call, from the world every frame (stories 1.19, 1.20; diegetic, no overlay).
       papa.setEyelids(eyelidsAmountAt(world, clockMs, bodies.microSleepDefId));
@@ -430,6 +549,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       papa.setAway(world.papa.state === 'onToilet');
       // The door, from the rush's start on the sim clock: a pause or a slow-mo holds it (story 3.5).
       door?.update(world.flow.finalRushAt, clockMs, bodies.isMotionReduced());
+      dangerTint.update(world, clockMs, bodies.isMotionReduced());
       waves.update(clockMs);
       shake.update(nowReal);
       particles.update(nowReal);
@@ -437,16 +557,27 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       lift.update(clockMs);
     },
     resetFx() {
+      dangerTint.reset();
       waves.reset();
       shake.reset();
       particles.reset();
       gags.reset();
       lift.reset();
+      lastClockMs = null;
+      papaSquash.startAt = null;
+      babySquash.startAt = null;
+      babyLids = 0;
+      papa.resetAnimation();
+      baby.resetAnimation();
     },
     dispose() {
+      // Skeletons first: `disposeObject` handles meshes only and would leave their bone textures (D11).
+      papa.dispose();
+      baby.dispose();
       props.dispose();
       waves.dispose();
       particles.dispose();
+      dangerTint.dispose();
       disposeObject(scene);
       // The templates are not in the scene any more: free their geometry too (the materials are the toon cache's).
       for (const node of propNodes) {
@@ -455,6 +586,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         });
       }
       toon.dispose();
+      outlines.dispose();
       shadows.dispose();
       scene.clear();
     },

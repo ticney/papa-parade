@@ -6,6 +6,7 @@ import {
 } from '../../../src/shared/constants.ts';
 import {
   floorContrastProblem,
+  floorLightOf,
   reservedHueProblems,
   roomBudgetOf,
   roomMaterialProblems,
@@ -229,7 +230,42 @@ describe('reservedHueProblems', () => {
   });
 });
 
+describe('floorLightOf', () => {
+  const WHITE_ROW = {
+    ambientColor: '#FFFFFF',
+    ambientIntensity: 1.1,
+    sunColor: '#FFFFFF',
+    sunIntensity: 2.04,
+  };
+
+  it('draws a sun-facing floor as authored when ambient + sun = pi', () => {
+    const [r, g, b] = floorLightOf(WHITE_ROW, [96, 178, 255], [3, 9, 5]);
+    expect(r).toBeCloseTo(1, 2);
+    expect(g).toBeCloseTo(1, 2);
+    expect(b).toBeCloseTo(1, 2);
+  });
+
+  it('reads the ramp like the shader: a low sun puts the floor one band down', () => {
+    const [r] = floorLightOf(WHITE_ROW, [96, 178, 255], [9, 1, 0]);
+    expect(r).toBeCloseTo((1.1 + (2.04 * 178) / 255) / Math.PI, 5);
+  });
+});
+
 describe('floorContrastProblem', () => {
+  it('judges the floor under a light, leaving out what is not walkable', () => {
+    const json = floorWith(
+      [
+        { name: 'plank', pbrMetallicRoughness: { baseColorFactor: [0.6, 0.6, 0.6, 1] } },
+        { name: 'slab', pbrMetallicRoughness: { baseColorFactor: [0.2, 0.2, 0.2, 1] } },
+      ],
+      [{ material: 0 }, { material: 1 }],
+    );
+    const dim = [0.5, 0.5, 0.5] as const;
+    expect(floorContrastProblem(json, INK, dim)).toContain('"slab"');
+    expect(floorContrastProblem(json, INK, dim, ['slab'])).toBeNull();
+    expect(floorContrastProblem(json, INK, [0.05, 0.05, 0.05], ['slab'])).toContain('"plank"');
+  });
+
   const floorWith = (materials: unknown[], primitives: { material?: number }[]) => ({
     scenes: [{ nodes: [0] }],
     nodes: [{ name: 'floor', mesh: 0 }],
@@ -272,6 +308,11 @@ describe('floorContrastProblem', () => {
   it('counts a primitive with no material, or no baseColorFactor, as white', () => {
     expect(floorContrastProblem(floorWith([], [{}]), INK)).toBeNull();
     expect(floorContrastProblem(floorWith([{ name: 'plain' }], [{ material: 0 }]), INK)).toBeNull();
+  });
+
+  it('says so when every material is left out as not walkable: nothing was judged', () => {
+    const json = floorWith([solid('slab', 20, 20, 20)], [{ material: 0 }]);
+    expect(floorContrastProblem(json, INK, [1, 1, 1], ['slab'])).toContain('nothing was judged');
   });
 
   it('says so when there is no floor to read', () => {

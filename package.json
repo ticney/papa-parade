@@ -30,6 +30,8 @@
     "assets:export": "tsx tools/assets/exportLevel.ts",
     "assets:extract": "tsx tools/assets/extractLevelGeometry.ts",
     "assets:optimize": "tsx tools/assets/optimizeGlb.ts",
+    "assets:character:export": "tsx tools/assets/exportCharacter.ts",
+    "assets:character:optimize": "tsx tools/assets/optimizeCharacter.ts",
     "assets:audio": "tsx tools/audio/makePlaceholderAudio.ts",
     "story:new": "bash tools/git/newStoryWorktree.sh",
     "ci:fast": "npm run typecheck && npm run lint && npm run content:check && npm run test",

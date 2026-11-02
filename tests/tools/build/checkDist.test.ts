@@ -1,4 +1,4 @@
-import { LEVEL_PAYLOAD_MAX_BYTES } from '@shared/constants';
+import { CHARACTER_GLB_MAX_BYTES, LEVEL_PAYLOAD_MAX_BYTES } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import { parseCheckDistArgs } from '../../../tools/build/checkDist.ts';
 import {
@@ -75,6 +75,8 @@ const FILES: DistFile[] = [
   file('assets/debugOverlay-a.js', 60_000, 18_000),
   file('assets/playtestJournal-a.js', 40_000, 12_000),
   file('assets/levels/salon_crawler.glb', 21_000, 9000),
+  file('assets/characters/papa.glb', 40_000, 20_000),
+  file('assets/characters/baby.glb', 30_000, 15_000),
   file('assets/audio/pop.m4a', 100_000, 98_000),
   file('assets/audio/laugh.m4a', 150_000, 148_000),
   file('fonts/baloo.woff2', 30_000),
@@ -130,12 +132,35 @@ describe('inspectDist: both flavours', () => {
     expect(inspectDist(playtestInput(), 'playtest').problems).toEqual([]);
   });
 
-  it('reports the level payload (glb + all audio) and the first-load gzip total', () => {
+  it.each(['papa', 'baby'])('fails a missing %s.glb, naming the file', (id) => {
+    const path = `assets/characters/${id}.glb`;
+    const files = FILES.filter((one) => one.path !== path);
+    expect(inspectDist(prodInput({ files }), 'prod').problems).toEqual([
+      `character "${id}": ${path} is missing from dist/`,
+    ]);
+  });
+
+  it.each(['papa', 'baby'])('fails a %s.glb over its own budget', (id) => {
+    const path = `assets/characters/${id}.glb`;
+    const bytes = CHARACTER_GLB_MAX_BYTES + 1;
+    const files = FILES.map((one) => (one.path === path ? file(path, bytes) : one));
+    expect(inspectDist(prodInput({ files }), 'prod').problems).toEqual([
+      `character "${id}": ${path} is ${bytes} B, over the ${CHARACTER_GLB_MAX_BYTES} B budget`,
+    ]);
+  });
+
+  it('reports the level payload (glb + characters + all audio) and the first-load gzip total', () => {
     const report = inspectDist(prodInput(), 'prod');
-    expect(report.levelPayloadBytes).toBe(21_000 + 100_000 + 150_000);
+    expect(report.levelPayloadBytes).toBe(21_000 + 40_000 + 30_000 + 100_000 + 150_000);
     // index.html + entry + css + rapier + gltf + the font + the level payload, all gzipped.
     expect(report.firstLoadGzipBytes).toBe(
-      480 + 240_000 + 4500 + 1_600_000 + 20_000 + 30_000 + (9000 + 98_000 + 148_000),
+      480 +
+        240_000 +
+        4500 +
+        1_600_000 +
+        20_000 +
+        30_000 +
+        (9000 + 20_000 + 15_000 + 98_000 + 148_000),
     );
   });
 
@@ -233,7 +258,7 @@ describe('inspectDist: both flavours', () => {
   });
 
   it('fails a level whose glb is missing', () => {
-    const files = FILES.filter((f) => !f.path.endsWith('.glb'));
+    const files = FILES.filter((f) => !f.path.startsWith('assets/levels/'));
     const { problems } = inspectDist(prodInput({ files }), 'prod');
     expect(problems).toEqual([
       'level "salon_crawler": assets/levels/salon_crawler.glb is missing from dist/',

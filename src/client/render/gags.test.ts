@@ -32,6 +32,8 @@ describe('GAG_PRESENTATIONS', () => {
       lightsOff: true,
       hair: true,
       babySlide: false,
+      papaClip: 'gag_shock',
+      babyClip: 'gag_delight',
     });
   });
 
@@ -40,20 +42,30 @@ describe('GAG_PRESENTATIONS', () => {
       lightsOff: false,
       hair: false,
       babySlide: true,
+      papaClip: 'gag_shock',
+      babyClip: 'gag_delight',
     });
     expect(GAG_PRESENTATIONS.table_object_fall).toEqual({
       lightsOff: false,
       hair: false,
       babySlide: false,
+      papaClip: 'gag_hit',
+      babyClip: 'laugh',
     });
   });
 });
 
 describe('the surprise mischiefs of the silence (story 1.21)', () => {
   it.each(['tissues_everywhere', 'crayon_scribbles'] as const)(
-    '%s shows nothing of its own: the gag cue is the show until E7',
+    '%s moves nothing on the stage: its clips and the gag cue are the show',
     (gag) => {
-      expect(GAG_PRESENTATIONS[gag]).toEqual({ lightsOff: false, hair: false, babySlide: false });
+      expect(GAG_PRESENTATIONS[gag]).toEqual({
+        lightsOff: false,
+        hair: false,
+        babySlide: false,
+        papaClip: 'gag_hit',
+        babyClip: 'gag_delight',
+      });
     },
   );
 });

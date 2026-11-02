@@ -2245,6 +2245,22 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'ui_camera_shutter', synth: synthCameraShutter },
 ];
 
+/**
+ * The real sounds of stories 7.6 and 7.7 (`docs/audio-sources.md`), cut by `cutMusicLoop.ts`. Their synths
+ * stay, but only naming one with `--only` writes it again. The babble's real file no longer matches its
+ * synth in length, pauses or level.
+ */
+export const GENERATED_CLIPS: readonly string[] = [
+  'baby_babble_loop',
+  'music_crawler_calm',
+  'music_crawler_tense',
+  'music_stay_awake',
+  'music_lullaby_pad',
+  'music_bedtime_hush',
+  'music_bomb_thriller',
+  'music_stealth',
+];
+
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {
   return new Promise((resolve) => {
     const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -2328,7 +2344,7 @@ export function parseOnly(
 }
 
 /**
- * Synthesizes the placeholder clips (all of them, or the `only` ones) and writes the `.m4a` files
+ * Synthesizes the placeholder clips (all but `GENERATED_CLIPS`, or the `only` ones) and writes the `.m4a` files
  * into `outDir`, all or none of the selected clips: each clip is converted into a temporary
  * directory first, and `outDir` is touched only when every conversion has succeeded, so a failure
  * never leaves a mix of fresh, stale and truncated files (which `content:check` would accept, since
@@ -2344,7 +2360,9 @@ export async function generatePlaceholderClips(
     if (!checked.ok) return checked;
   }
   const selected =
-    only === null ? PLACEHOLDER_CLIPS : PLACEHOLDER_CLIPS.filter(({ clip }) => only.includes(clip));
+    only === null
+      ? PLACEHOLDER_CLIPS.filter(({ clip }) => !GENERATED_CLIPS.includes(clip))
+      : PLACEHOLDER_CLIPS.filter(({ clip }) => only.includes(clip));
   const work = await mkdtemp(join(tmpdir(), 'pp-audio-'));
   try {
     for (const { clip, synth } of selected) {

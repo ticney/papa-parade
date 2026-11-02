@@ -1,11 +1,15 @@
 import { asSimMs } from '@shared/time';
-import type { PapaSlice } from '@sim';
-import { type Box3, Mesh, type Object3D, Scene, Vector3 } from 'three';
+import type { BabySlice, PapaSlice } from '@sim';
+import { type Object3D, Scene, SkinnedMesh, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
+import { createTestPapa } from '../../../../tests/support/testCharacters.ts';
 import { createBlobKit } from '../blobShadow.ts';
-import { PALETTE } from '../materials/palette.ts';
+import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
-import { createPapaView, PAPA_HEIGHT_M, type PapaPose, papaPoseAt } from './papaView.ts';
+import { createCharacterRig } from './characterRig.ts';
+import { createPapaView, type PapaPose, papaPoseAt } from './papaView.ts';
+
+const TOON_TONES = [96, 178, 255];
 
 function papa(patch: Partial<PapaSlice> = {}): PapaSlice {
   return {
@@ -60,60 +64,71 @@ function isShown(node: Object3D | null): boolean {
   return true;
 }
 
+const CROSS_FADE_MS = 100;
+const MOTION = {
+  turnRateDegPerSec: 360,
+  clips: [{ clip: 'walk', speedMps: 3 }],
+};
+const FREE_BABY = { state: 'babble' } as BabySlice;
+const CARRIED_BABY = { state: 'carried' } as BabySlice;
+
+function buildView(radiusM = 0.25) {
+  const scene = new Scene();
+  const toon = createToonMaterialCache(TOON_TONES);
+  const blobs = createBlobKit();
+  const rig = createCharacterRig(
+    createTestPapa(),
+    toon,
+    CROSS_FADE_MS,
+    createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] }),
+  );
+  const view = createPapaView(scene, toon, blobs, radiusM, rig, MOTION);
+  return {
+    scene,
+    toon,
+    blobs,
+    rig,
+    view,
+    named: (name: string) => scene.getObjectByName(name) as Object3D,
+  };
+}
+
 describe('createPapaView', () => {
-  function build(radiusM = 0.25) {
-    const scene = new Scene();
-    const toon = createToonMaterialCache();
-    const blobs = createBlobKit();
-    const view = createPapaView(scene, toon, blobs, radiusM);
-    return { scene, toon, blobs, view };
-  }
-
-  it('adds a cube 2 × radius wide and a flat shadow, two meshes in all', () => {
-    const { scene } = build(0.25);
-    const meshes: Mesh[] = [];
-    scene.traverse((node) => {
-      if (node instanceof Mesh) meshes.push(node);
-    });
-    // The hair (hidden spikes) comes with the cube: it is not a draw call until a gag raises it.
-    expect(
-      meshes
-        .filter((m) => isShown(m))
-        .map((m) => m.name)
-        .sort(),
-    ).toEqual(['blob_papa', 'papa']);
-    const cube = scene.getObjectByName('papa') as Mesh;
-    cube.geometry.computeBoundingBox();
-    const size = cube.geometry.boundingBox?.getSize(new Vector3());
-    // Float32 vertex data: millimetre precision is plenty.
-    expect(size?.x).toBeCloseTo(0.5, 5);
-    expect(size?.z).toBeCloseTo(0.5, 5);
-    expect(size?.y).toBeCloseTo(PAPA_HEIGHT_M, 5);
+  it('draws the rig and a flat shadow, and none of the hidden parts', () => {
+    const { named } = buildView();
+    for (const name of ['papa_body', 'papa_shirt', 'blob_papa']) {
+      expect(isShown(named(name)), name).toBe(true);
+    }
+    for (const name of [
+      'papa_mug',
+      'papa_handset',
+      'papa_hair',
+      'papa_look_mash',
+      'papa_look_shirt',
+      'papa_z',
+    ]) {
+      expect(isShown(named(name)), name).toBe(false);
+    }
   });
 
-  it('is drawn in the palette, with a shared toon material, not in a signal colour', () => {
-    const { scene, toon } = build();
-    const cube = scene.getObjectByName('papa') as Mesh;
-    expect((cube.material as unknown as { color: { getHex(): number } }).color.getHex()).toBe(
-      PALETTE.primary,
-    );
-    expect(toon.size).toBe(3); // the cube, the ink (hair, eyelids, « Z ») and the paper of the mug
+  it("never culls his skinned meshes, whose bounds are the rest pose's", () => {
+    const { named } = buildView();
+    expect(named('papa_body')).toBeInstanceOf(SkinnedMesh);
+    expect(named('papa_body').frustumCulled).toBe(false);
   });
 
-  it('puts the cube on the floor at the interpolated position, turned toward where he walks', () => {
-    const { scene, view } = build();
+  it('puts him on the floor at the interpolated position, turned at once on his first frame', () => {
+    const { view, named } = buildView();
     view.update(papa({ headingX: 1, headingZ: 0 }), 0.5);
-    const group = scene.getObjectByName('papa_group');
-    const cube = scene.getObjectByName('papa') as Mesh;
-    expect(group?.position.toArray()).toEqual([1.5, 0, 1]);
-    expect(cube.position.y).toBe(PAPA_HEIGHT_M / 2);
-    expect(cube.rotation.y).toBeCloseTo(Math.PI / 2, 12);
+    expect(named('papa_group').position.toArray()).toEqual([1.5, 0, 1]);
+    expect(named('papa').position.y).toBe(0);
+    expect(named('papa').rotation.y).toBeCloseTo(Math.PI / 2, 12);
   });
 
   it('the shadow follows his position but does not turn or rise', () => {
-    const { scene, view } = build();
+    const { scene, view, named } = buildView();
     view.update(papa({ headingX: 1, headingZ: 0 }), 1);
-    const shadow = scene.getObjectByName('blob_papa') as Mesh;
+    const shadow = named('blob_papa');
     scene.updateMatrixWorld(true);
     expect(shadow.rotation.y).toBe(0);
     expect(shadow.position.y).toBeGreaterThan(0);
@@ -123,91 +138,184 @@ describe('createPapaView', () => {
   });
 
   it('keeps the hair hidden until it is raised, scales it with the amount and clamps it', () => {
-    const { scene, view } = build();
-    const hair = scene.getObjectByName('papa_hair');
-    const spikes = hair?.children ?? [];
-    expect(spikes.length).toBeGreaterThan(1);
-    expect(hair?.visible).toBe(false);
+    const { view, named } = buildView();
+    const hair = named('papa_hair');
+    expect(hair.visible).toBe(false);
     view.setHair(0.5);
-    expect(hair?.visible).toBe(true);
-    expect(hair?.scale.y).toBe(0.5);
+    expect(hair.visible).toBe(true);
+    expect(hair.scale.y).toBe(0.5);
     view.setHair(7);
-    expect(hair?.scale.y).toBe(1);
+    expect(hair.scale.y).toBe(1);
     view.setHair(-3);
-    expect(hair?.visible).toBe(false);
+    expect(hair.visible).toBe(false);
   });
 
-  it('puts the hair on top of the cube, over its width, with one shared geometry', () => {
-    const { scene } = build(0.25);
-    const hair = scene.getObjectByName('papa_hair');
-    expect(hair?.position.y).toBe(PAPA_HEIGHT_M);
-    const geometries = new Set((hair?.children ?? []).map((spike) => (spike as Mesh).geometry));
-    expect(geometries.size).toBe(1);
-    for (const spike of hair?.children ?? []) {
-      expect(Math.abs(spike.position.x)).toBeLessThanOrEqual(0.25);
-      expect(Math.abs(spike.position.z)).toBeLessThanOrEqual(0.25);
-    }
-  });
-
-  it('tolerates a feel with no radius, and disposes by taking Papa out of the scene', () => {
-    const { scene, view } = build(0);
+  it('tolerates a feel with no radius, and disposes by taking Papa out of the scene and freeing the rig', () => {
+    const { scene, view } = buildView(0);
     view.update(papa(), 0);
     expect(scene.getObjectByName('papa')).toBeDefined();
     view.dispose();
     expect(scene.getObjectByName('papa')).toBeUndefined();
+    expect(scene.getObjectByName('papa_body')).toBeUndefined();
+  });
+});
+
+describe('his animation (story 7.2)', () => {
+  it("plays the loop of his state, and the carried one when the baby's state says so", () => {
+    const { view } = buildView();
+    view.update(papa(), 1);
+    view.animate(papa(), FREE_BABY, 10);
+    expect(view.clipName).toBe('idle');
+    view.animate(papa(), CARRIED_BABY, 10);
+    expect(view.clipName).toBe('carry_idle');
+    view.animate(papa({ state: 'walkPath' }), CARRIED_BABY, 10);
+    expect(view.clipName).toBe('carry_walk');
+    view.animate(papa({ state: 'onPhone' }), FREE_BABY, 10);
+    expect(view.clipName).toBe('on_phone');
+  });
+
+  it('holds the mixer on a dt of 0', () => {
+    const { view } = buildView();
+    view.update(papa(), 1);
+    view.animate(papa(), FREE_BABY, 200);
+    const timeMs = view.mixerTimeMs;
+    view.animate(papa(), FREE_BABY, 0);
+    expect(view.mixerTimeMs).toBe(timeMs);
+  });
+
+  it('paces the walk clip by the floor speed read from the sim', () => {
+    const { rig, view } = buildView();
+    const action = (): number => rig.node('spine').position.y;
+    view.update(papa({ state: 'walkPath', prevXM: 0, xM: 0.015 }), 1);
+    // 0.015 m in a 10 ms step is 1.5 m/s, half the clip's 3 m/s.
+    view.animate(papa({ state: 'walkPath', prevXM: 0, xM: 0.015 }), FREE_BABY, 400);
+    expect(action()).toBeCloseTo(0.2, 5);
+  });
+
+  it("turns his body by the shortest arc at the turn rate, while the pose says the sim's heading at once", () => {
+    const { view, named } = buildView();
+    view.update(papa({ headingX: 0, headingZ: 1 }), 1);
+    const east = papa({ headingX: 1, headingZ: 0 });
+    view.update(east, 1);
+    expect(view.pose.yawRad).toBeCloseTo(Math.PI / 2, 12);
+    expect(named('papa').rotation.y).toBe(0);
+    view.animate(east, FREE_BABY, 125); // 360 °/s for 125 ms is 45°
+    expect(named('papa').rotation.y).toBeCloseTo(Math.PI / 4, 12);
+    view.animate(east, FREE_BABY, 0);
+    expect(named('papa').rotation.y).toBeCloseTo(Math.PI / 4, 12);
+    view.animate(east, FREE_BABY, 1000);
+    expect(named('papa').rotation.y).toBeCloseTo(Math.PI / 2, 12);
+  });
+
+  it('scales the body and not the shadow for the squash, and puts it back on a reset', () => {
+    const { view, named } = buildView();
+    view.setSquash(1.2, 0.7);
+    expect(named('papa').scale.toArray()).toEqual([1.2, 0.7, 1.2]);
+    expect(named('blob_papa').scale.y).toBe(1);
+    view.resetAnimation();
+    expect(named('papa').scale.toArray()).toEqual([1, 1, 1]);
+    expect(view.clipName).toBeNull();
+  });
+});
+
+describe('his look (story 7.2, D2)', () => {
+  const look = (patch = {}) => ({
+    hasMashOnCheek: false,
+    hasHairOnEnd: false,
+    isShirtInsideOut: false,
+    ...patch,
+  });
+
+  it('shows each part on its own', () => {
+    const { view, named } = buildView();
+    view.setLook(look({ hasMashOnCheek: true }));
+    expect(isShown(named('papa_look_mash'))).toBe(true);
+    expect(isShown(named('papa_hair'))).toBe(false);
+    expect(isShown(named('papa_look_shirt'))).toBe(false);
+    expect(isShown(named('papa_shirt'))).toBe(true);
+    view.setLook(look({ hasHairOnEnd: true }));
+    expect(isShown(named('papa_look_mash'))).toBe(false);
+    expect(isShown(named('papa_hair'))).toBe(true);
+    view.setLook(look({ isShirtInsideOut: true }));
+    expect(isShown(named('papa_hair'))).toBe(false);
+    expect(isShown(named('papa_look_shirt'))).toBe(true);
+    expect(isShown(named('papa_shirt'))).toBe(false);
+    view.setLook(look());
+    expect(isShown(named('papa_look_shirt'))).toBe(false);
+    expect(isShown(named('papa_shirt'))).toBe(true);
+  });
+
+  it('draws the hair at the greater of the gag and the look, so that the gag ending leaves the look up', () => {
+    const { view, named } = buildView();
+    view.setHair(0.4);
+    view.setLook(look({ hasHairOnEnd: true }));
+    expect(named('papa_hair').scale.y).toBe(1);
+    view.setHair(0);
+    expect(isShown(named('papa_hair'))).toBe(true);
+    expect(named('papa_hair').scale.y).toBe(1);
+    view.setLook(look());
+    expect(isShown(named('papa_hair'))).toBe(false);
   });
 });
 
 describe('the nap and the coffee (story 1.19)', () => {
-  function build() {
-    const scene = new Scene();
-    const view = createPapaView(scene, createToonMaterialCache(), createBlobKit(), 0.25);
-    return { scene, view, named: (name: string) => scene.getObjectByName(name) as Object3D };
-  }
+  /** How shut the lids are, from the bone: the open scale is a sliver, not 0. */
+  const lidsOf = (named: (name: string) => Object3D): number => named('eyelids').scale.y;
 
-  it('draws nothing of it by default: no eyelids, no « Z », no mug (they are hidden at rest)', () => {
-    const { named } = build();
-    for (const name of ['papa_eyelids', 'papa_z', 'papa_mug']) {
+  it('draws nothing of it by default: open lids, no « Z », no mug', () => {
+    const { named } = buildView();
+    expect(lidsOf(named)).toBeLessThan(0.05);
+    for (const name of ['papa_z', 'papa_mug']) {
       expect(isShown(named(name)), name).toBe(false);
     }
   });
 
-  it('lowers the eyelids with the amount: hidden at 0, scaled down from the top, clamped', () => {
-    const { view, named } = build();
+  it('lowers the eyelids with the amount: scaled down from the top, clamped', () => {
+    const { view, named } = buildView();
     view.setEyelids(0.5);
-    expect(isShown(named('papa_eyelids'))).toBe(true);
-    expect(named('papa_eyelids').scale.y).toBe(0.5);
+    expect(lidsOf(named)).toBe(0.5);
     view.setEyelids(7);
-    expect(named('papa_eyelids').scale.y).toBe(1);
+    expect(lidsOf(named)).toBe(1);
     view.setEyelids(-1);
-    expect(isShown(named('papa_eyelids'))).toBe(false);
+    expect(lidsOf(named)).toBeLessThan(0.05);
   });
 
-  it('puts the eyelids on the cube, so they turn with his heading', () => {
-    const { scene, view, named } = build();
-    view.update(papa({ headingX: 1, headingZ: 0 }), 1);
-    const cube = scene.getObjectByName('papa') as Mesh;
-    expect(named('papa_eyelids').parent).toBe(cube);
-    expect(named('papa_mug').parent).toBe(cube);
+  it('keeps the lids and the accessories on the rig, so they turn with his body', () => {
+    const { named } = buildView();
+    for (const name of ['eyelids', 'papa_mug']) {
+      let isUnderBody = false;
+      for (let n: Object3D | null = named(name); n !== null; n = n.parent) {
+        if (n === named('papa')) isUnderBody = true;
+      }
+      expect(isUnderBody, name).toBe(true);
+    }
+  });
+
+  it('survives the mixer: a clip playing does not reopen the lids', () => {
+    const { view, named } = buildView();
+    view.update(papa(), 1);
+    view.setEyelids(0.7);
+    view.animate(papa(), FREE_BABY, 100);
+    expect(lidsOf(named)).toBe(0.7);
   });
 
   it('shuts the eyelids and floats a « Z » while he sleeps, and puts them away when he wakes', () => {
-    const { view, named } = build();
+    const { view, named } = buildView();
     view.setEyelids(0.2);
     view.setAsleep(true, 0);
     expect(isShown(named('papa_z'))).toBe(true);
-    expect(named('papa_eyelids').scale.y).toBe(1);
+    expect(lidsOf(named)).toBe(1);
     const restY = named('papa_z').position.y;
     view.setAsleep(true, 300);
     expect(named('papa_z').position.y).not.toBe(restY);
     view.setAsleep(false, 600);
     expect(isShown(named('papa_z'))).toBe(false);
     // Back to what the telegraph asks for: the amount set before.
-    expect(named('papa_eyelids').scale.y).toBe(0.2);
+    expect(lidsOf(named)).toBe(0.2);
   });
 
   it('shows the mug while he drinks', () => {
-    const { view, named } = build();
+    const { view, named } = buildView();
     view.setDrinking(true);
     expect(isShown(named('papa_mug'))).toBe(true);
     view.setDrinking(false);
@@ -215,7 +323,7 @@ describe('the nap and the coffee (story 1.19)', () => {
   });
 
   it('shows the handset while he is on the phone', () => {
-    const { view, named } = build();
+    const { view, named } = buildView();
     expect(isShown(named('papa_handset'))).toBe(false);
     view.setOnPhone(true);
     expect(isShown(named('papa_handset'))).toBe(true);
@@ -224,7 +332,7 @@ describe('the nap and the coffee (story 1.19)', () => {
   });
 
   it('hides the whole of Papa, the blob shadow included, while he is away, and shows him again after (story 4.3)', () => {
-    const { view, named } = build();
+    const { view, named } = buildView();
     for (const name of ['papa', 'blob_papa']) expect(isShown(named(name)), name).toBe(true);
     view.setAway(true);
     for (const name of ['papa', 'blob_papa', 'papa_mug'])
@@ -233,22 +341,8 @@ describe('the nap and the coffee (story 1.19)', () => {
     for (const name of ['papa', 'blob_papa']) expect(isShown(named(name)), name).toBe(true);
   });
 
-  it('holds the handset against the side of his head: touching the cube, and not above it', () => {
-    const { named } = build();
-    const cube = named('papa') as Mesh;
-    const handset = named('papa_handset') as Mesh;
-    cube.geometry.computeBoundingBox();
-    handset.geometry.computeBoundingBox();
-    const head = cube.geometry.boundingBox as Box3;
-    const held = (handset.geometry.boundingBox as Box3).clone().translate(handset.position);
-    // Float32 vertex data: a tenth of a millimetre is plenty.
-    expect(held.max.x).toBeCloseTo(head.min.x, 4);
-    expect(held.max.y).toBeLessThanOrEqual(head.max.y + 1e-4);
-    expect(held.min.y).toBeGreaterThanOrEqual(head.min.y - 1e-4);
-  });
-
   it('exposes the pose it drew, interpolated', () => {
-    const { view } = build();
+    const { view } = buildView();
     view.update(papa(), 0.5);
     expect([view.pose.xM, view.pose.zM]).toEqual([1.5, 1]);
   });

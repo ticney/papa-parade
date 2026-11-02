@@ -486,8 +486,13 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
             layDownDefIds: Object.values(levelPlan.threats)
               .filter((def) => def.release !== undefined)
               .map((def) => def.id),
+            anchorThreatDefIds: Object.values(levelPlan.threats)
+              .filter((def) => def.target === 'anchor')
+              .map((def) => def.id),
             laidHeightM: deps.content.feedback.bombDrop.laidHeightM,
+            characters: deps.content.feedback.characters,
             door: deps.content.feedback.door,
+            render: deps.content.feedback.render,
             isMotionReduced: deps.isMotionReduced ?? (() => false),
           });
         } catch (cause) {

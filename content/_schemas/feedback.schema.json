@@ -594,6 +594,105 @@
       "additionalProperties": false,
       "description": "The bomb drop on screen (story 4.8). Read per frame on the sim clock; the sim never reads it."
     },
+    "characters": {
+      "type": "object",
+      "properties": {
+        "crossFadeMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long a clip takes to replace another, in sim ms."
+        },
+        "turnRateDegPerSec": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How fast a character's body turns to face its way, in degrees per sim second. The sim's heading and the baby's eyes do not wait for it."
+        },
+        "squash": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "event": {
+                "type": "string",
+                "enum": [
+                  "PapaArrived",
+                  "PapaBlocked",
+                  "BabyPickedUp",
+                  "BabyPutDown",
+                  "GagTriggered",
+                  "BabyWoke",
+                  "BabyStirred"
+                ],
+                "description": "The sim event that starts it."
+              },
+              "character": {
+                "type": "string",
+                "enum": [
+                  "papa",
+                  "baby"
+                ],
+                "description": "Who squashes."
+              },
+              "amountPct": {
+                "type": "number",
+                "minimum": -60,
+                "maximum": 60,
+                "description": "How much his height changes at the peak of the curve, in percent: below 0 he squashes first and then stretches, above 0 the other way round. His width follows so that his volume holds. The bounds keep his height strictly positive."
+              },
+              "durationMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How long it lasts, in sim ms."
+              }
+            },
+            "required": [
+              "event",
+              "character",
+              "amountPct",
+              "durationMs"
+            ],
+            "additionalProperties": false,
+            "description": "One squash and stretch: one event on one character."
+          },
+          "description": "Which events squash and stretch whom."
+        },
+        "clipSpeeds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clip": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+                "description": "The looping clip of a walk or a crawl, as named in the `.glb`."
+              },
+              "speedMps": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "The floor speed at which this clip plays at its own pace, in m/s: its feet do not slide at that speed. Faster or slower, it plays in proportion."
+              }
+            },
+            "required": [
+              "clip",
+              "speedMps"
+            ],
+            "additionalProperties": false,
+            "description": "The natural speed of one travelling clip."
+          },
+          "description": "The natural speed of the travelling clips."
+        }
+      },
+      "required": [
+        "crossFadeMs",
+        "turnRateDegPerSec",
+        "squash",
+        "clipSpeeds"
+      ],
+      "additionalProperties": false,
+      "description": "The animated characters (story 7.2). Read by the views on the sim clock; the sim never reads it."
+    },
     "door": {
       "type": "object",
       "properties": {
@@ -684,6 +783,210 @@
       ],
       "additionalProperties": false,
       "description": "The end photo (story 3.6): its canvas, its tilt and its filter. Real time and client only: the sim never reads it."
+    },
+    "render": {
+      "type": "object",
+      "properties": {
+        "toonTones": {
+          "minItems": 2,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "description": "The toon ramp, darkest to lightest, as 0-255 (ADR-008). Three reads it at `N.L x 0.5 + 0.5`, in equal bands."
+        },
+        "lights": {
+          "type": "object",
+          "properties": {
+            "default": {
+              "type": "object",
+              "properties": {
+                "ambientColor": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$",
+                  "description": "Ambient light colour."
+                },
+                "ambientIntensity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 10,
+                  "description": "Ambient light intensity."
+                },
+                "sunColor": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$",
+                  "description": "Sun colour."
+                },
+                "sunIntensity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 10,
+                  "description": "Sun intensity."
+                }
+              },
+              "required": [
+                "ambientColor",
+                "ambientIntensity",
+                "sunColor",
+                "sunIntensity"
+              ],
+              "additionalProperties": false,
+              "description": "The lights of any level that has no row of its own."
+            },
+            "byLevel": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "ambientColor": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$",
+                    "description": "Ambient light colour."
+                  },
+                  "ambientIntensity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10,
+                    "description": "Ambient light intensity."
+                  },
+                  "sunColor": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$",
+                    "description": "Sun colour."
+                  },
+                  "sunIntensity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10,
+                    "description": "Sun intensity."
+                  }
+                },
+                "required": [
+                  "ambientColor",
+                  "ambientIntensity",
+                  "sunColor",
+                  "sunIntensity"
+                ],
+                "additionalProperties": false,
+                "description": "A level's lights. The drawn linear colour is `material x (ambient + sun x tone) / pi`, so ambient + sun = pi with white lights draws a sun-facing surface as authored. The colour of each light multiplies its intensity."
+              },
+              "description": "The lights of one level, by id. `npm run content:check` refuses an unknown level."
+            }
+          },
+          "required": [
+            "default",
+            "byLevel"
+          ],
+          "additionalProperties": false,
+          "description": "The lights of each level (story 7.3, D7, D8)."
+        },
+        "sunOffsetM": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Where the sun sits relative to the room centre, in metres: x, height, z."
+        },
+        "outlines": {
+          "type": "object",
+          "properties": {
+            "widthM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 0.2,
+              "description": "How far the ink hull stands out of a silhouette, in metres of view space: constant on screen under the orthographic camera."
+            },
+            "skipMaterials": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "The materials of a `.glb` that get no hull: thickening what is already ink would close the eyes."
+            }
+          },
+          "required": [
+            "widthM",
+            "skipMaterials"
+          ],
+          "additionalProperties": false,
+          "description": "The inverted-hull outlines of the characters and the props (story 7.3, D3, D4)."
+        },
+        "dangerTint": {
+          "type": "object",
+          "properties": {
+            "radiusM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 3,
+              "description": "Radius of the glow on a danger, in metres."
+            },
+            "minOpacityPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Opacity at the low of the pulse, in percent."
+            },
+            "peakOpacityPct": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100,
+              "description": "Opacity at the top of the pulse, in percent; the steady one under reduced motion."
+            },
+            "pulseHz": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 3,
+              "description": "How fast the glow pulses, on the sim clock, in Hz. Nothing flashes above 3 Hz."
+            }
+          },
+          "required": [
+            "radiusM",
+            "minOpacityPct",
+            "peakOpacityPct",
+            "pulseHz"
+          ],
+          "additionalProperties": false,
+          "description": "The reserved alert glow on the anchor of a telegraphed or open threat (story 7.3, D5)."
+        },
+        "blobSkipColliderIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "The colliders with no blob shadow: the height rule cannot tell a stairwell from furniture."
+        }
+      },
+      "required": [
+        "toonTones",
+        "lights",
+        "sunOffsetM",
+        "outlines",
+        "dangerTint",
+        "blobSkipColliderIds"
+      ],
+      "additionalProperties": false,
+      "description": "The final look (story 7.3). Client-only: unlike `feel.json` it is not hashed into the journal, so no golden moves for it."
     },
     "cues": {
       "type": "object",
@@ -911,8 +1214,10 @@
     "comboBadge",
     "papaHint",
     "bombDrop",
+    "characters",
     "door",
     "photo",
+    "render",
     "cues",
     "events"
   ],

@@ -1,6 +1,7 @@
+import { STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type RealMs } from '@shared/time';
-import { createSim, type World } from '@sim';
+import { createSim, type SimEvent, type World } from '@sim';
 import {
   BoxGeometry,
   Color,
@@ -10,10 +11,14 @@ import {
   MeshStandardMaterial,
   MeshToonMaterial,
   Object3D,
+  type Skeleton,
+  SkinnedMesh,
 } from 'three';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createTestCharacters } from '../../../tests/support/testCharacters.ts';
 import {
   createTestContent,
+  createTestFeedback,
   createTestGeometry,
   createTestLevel,
   stepN,
@@ -28,7 +33,7 @@ import {
   GAG_SLIDE_OUT_MS,
   GAG_SLIDE_TOTAL_MS,
 } from './gags.ts';
-import { createLevelScene, eyelidsAmountAt, roomOf } from './levelScene.ts';
+import { createLevelScene, eyelidsAmountAt, roomOf, type SceneBodies } from './levelScene.ts';
 import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
 
 const BODIES = {
@@ -36,8 +41,19 @@ const BODIES = {
   babyRadiusM: 0.2,
   microSleepDefId: null,
   layDownDefIds: [] as string[],
+  anchorThreatDefIds: [] as string[],
   laidHeightM: 0.3,
+  characters: {
+    crossFadeMs: 100,
+    turnRateDegPerSec: 720,
+    squash: [
+      { event: 'PapaBlocked', character: 'papa', amountPct: -20, durationMs: 200 },
+      { event: 'BabyWoke', character: 'baby', amountPct: 20, durationMs: 200 },
+    ],
+    clipSpeeds: [],
+  } as SceneBodies['characters'],
   door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
+  render: createTestFeedback().render,
   isMotionReduced: () => false,
 };
 
@@ -67,7 +83,10 @@ function buildModel(): Group {
 
 function build() {
   const geometry = createTestLevelGeometry('test_room');
-  const level = createLevelScene({ id: 'test_room', geometry, model: buildModel() }, BODIES);
+  const level = createLevelScene(
+    { id: 'test_room', geometry, model: buildModel(), characters: createTestCharacters() },
+    BODIES,
+  );
   return {
     geometry,
     ...level,
@@ -147,7 +166,7 @@ describe('createLevelScene', () => {
       'papa',
       'blob_papa',
       'baby',
-      'baby_gaze',
+      'baby_body',
       'blob_baby',
     ]) {
       expect(found).toContain(kept);
@@ -257,7 +276,7 @@ describe('createLevelScene', () => {
         halfExtentsM: [0.08, 0.15, 0.08],
       });
       const { scene } = createLevelScene(
-        { id: 'test_room', geometry, model: buildModel() },
+        { id: 'test_room', geometry, model: buildModel(), characters: createTestCharacters() },
         BODIES,
       );
       expect(scene.getObjectByName('prop_vase')).toBeDefined();
@@ -283,7 +302,10 @@ describe('createLevelScene', () => {
       let templateFreed = 0;
       spare.geometry.addEventListener('dispose', () => spareFreed++);
       template.geometry.addEventListener('dispose', () => templateFreed++);
-      const built = createLevelScene({ id: 'test_room', geometry, model }, BODIES);
+      const built = createLevelScene(
+        { id: 'test_room', geometry, model, characters: createTestCharacters() },
+        BODIES,
+      );
       expect(spareFreed + templateFreed).toBe(0);
       built.dispose();
       expect(spareFreed).toBeGreaterThan(0);
@@ -301,7 +323,12 @@ describe('createLevelScene', () => {
       mesh('Sofa_Cube', 0x6d3fe0),
       mesh('collar', 0x6d3fe0),
     );
-    const found = names(createLevelScene({ id: 'test_room', geometry, model }, BODIES).scene);
+    const found = names(
+      createLevelScene(
+        { id: 'test_room', geometry, model, characters: createTestCharacters() },
+        BODIES,
+      ).scene,
+    );
     for (const gone of ['COL_Sofa', 'nav_block_x', 'ZONE_nowhere']) {
       expect(found).not.toContain(gone);
     }
@@ -318,9 +345,8 @@ describe('createLevelScene', () => {
     expect(floor.material).toBe(wall.material); // same colour, one material
     expect(sofa.material).not.toBe(floor.material);
     expect((sofa.material as MeshToonMaterial).color.getHex()).toBe(new Color(0x6d3fe0).getHex());
-    expect((scene.getObjectByName('papa') as Mesh).material).toBeInstanceOf(MeshToonMaterial);
-    expect((scene.getObjectByName('baby') as Mesh).material).toBeInstanceOf(MeshToonMaterial);
-    expect((scene.getObjectByName('baby_gaze') as Mesh).material).toBeInstanceOf(MeshToonMaterial);
+    expect((scene.getObjectByName('papa_body') as Mesh).material).toBeInstanceOf(MeshToonMaterial);
+    expect((scene.getObjectByName('baby_body') as Mesh).material).toBeInstanceOf(MeshToonMaterial);
   });
 
   it('adds blob shadows under the furniture and lights, and uses no shadow map', () => {
@@ -397,7 +423,8 @@ describe('createLevelScene', () => {
   it('draws the baby where the sim has it, interpolated, looking where it crawls', async () => {
     const { scene, update } = build();
     const group = scene.getObjectByName('baby_group');
-    const gazeGroup = scene.getObjectByName('baby_gaze_group');
+    const body = scene.getObjectByName('baby');
+    const head = scene.getObjectByName('baby')?.getObjectByName('head');
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
@@ -416,7 +443,11 @@ describe('createLevelScene', () => {
     update(sim.world, 0.5);
     expect(group?.position.x).toBeCloseTo((baby.prevXM + baby.xM) / 2, 12);
     expect(group?.position.z).toBeCloseTo((baby.prevZM + baby.zM) / 2, 12);
-    expect(gazeGroup?.rotation.y).toBeCloseTo(Math.atan2(baby.gazeX, baby.gazeZ), 12);
+    // The body turns at its own pace; with the head on top, the gaze never waits.
+    expect((body?.rotation.y ?? 0) + (head?.rotation.y ?? 0)).toBeCloseTo(
+      Math.atan2(baby.gazeX, baby.gazeZ),
+      12,
+    );
   });
 
   it('has effects, hidden at rest: no sound wave is visible and nothing is offset', () => {
@@ -486,7 +517,11 @@ describe('createLevelScene', () => {
       shakeOffsetZM: 0,
       particlesAlive: 0,
       babyLayDownPct: 0,
+      papaClip: 'idle',
+      babyClip: 'babble',
+      papaMixerMs: 0,
       doorOpenDeg: 0,
+      dangerTintsShown: 0,
     });
   });
 
@@ -583,7 +618,7 @@ describe('createLevelScene', () => {
       expect(lights(scene).map((light) => light.intensity)).toEqual(base);
       expect((scene.getObjectByName('papa_hair') as Object3D).visible).toBe(false);
       const body = scene.getObjectByName('baby') as Mesh;
-      expect(body.position.y).toBe(BODIES.babyRadiusM);
+      expect(body.position.y).toBe(0);
     });
   });
 
@@ -638,7 +673,12 @@ describe('createLevelScene', () => {
 
   it('jumps the door open under reduced motion', () => {
     const level = createLevelScene(
-      { id: 'test_room', geometry: createTestLevelGeometry('test_room'), model: buildModel() },
+      {
+        id: 'test_room',
+        geometry: createTestLevelGeometry('test_room'),
+        model: buildModel(),
+        characters: createTestCharacters(),
+      },
       { ...BODIES, isMotionReduced: () => true },
     );
     const world = fakeWorldAt(2000);
@@ -688,6 +728,246 @@ describe('createLevelScene', () => {
     dispose();
     expect(disposed).toBeGreaterThan(0);
     expect(scene.children).toHaveLength(0);
+  });
+});
+
+describe('the final look (story 7.3)', () => {
+  const rowOf = (ambientIntensity: number, sunIntensity: number) => ({
+    ambientColor: '#C4CEFF',
+    ambientIntensity,
+    sunColor: '#DCE2FF',
+    sunIntensity,
+  });
+  const lit = (ambient: number, sun: number) => {
+    const geometry = createTestLevelGeometry('test_room');
+    const level = createLevelScene(
+      { id: 'test_room', geometry, model: buildModel(), characters: createTestCharacters() },
+      {
+        ...BODIES,
+        render: {
+          ...BODIES.render,
+          lights: { ...BODIES.render.lights, byLevel: { test_room: rowOf(ambient, sun) } },
+        },
+      },
+    );
+    const lights = level.scene.children.filter(
+      (child) => 'isAmbientLight' in child || 'isDirectionalLight' in child,
+    ) as unknown as { intensity: number; color: Color }[];
+    return { level, lights };
+  };
+
+  it('lights a level with its own row, and with the default row otherwise', () => {
+    const { lights } = lit(0.7, 1.2);
+    expect(lights.map((light) => light.intensity)).toEqual([0.7, 1.2]);
+    expect(lights[0]?.color.getHexString()).toBe('c4ceff');
+    const { scene } = build();
+    const others = scene.children.filter(
+      (child) => 'isAmbientLight' in child || 'isDirectionalLight' in child,
+    ) as unknown as { intensity: number }[];
+    expect(others.map((light) => light.intensity)).toEqual([1.1, 2.04]);
+  });
+
+  it("dims the level's own lights during the outlet gag, not the salon's", () => {
+    const { level, lights } = lit(0.7, 1.2);
+    level.fx.gag('outlet_hair', asSimMs(1000));
+    level.update(fakeWorldAt(1000 + GAG_LIGHTS_FADE_MS + GAG_LIGHTS_DARK_MS / 2), 0, asRealMs(0));
+    expect(lights[0]?.intensity).toBeCloseTo(0.7 * (GAG_LIGHTS_MIN_PCT / 100), 6);
+    expect(lights[1]?.intensity).toBeCloseTo(1.2 * (GAG_LIGHTS_MIN_PCT / 100), 6);
+  });
+
+  it('gives Papa, the baby and a prop a hull, and the furniture none', () => {
+    const { scene } = build();
+    const hulls: string[] = [];
+    scene.traverse((node) => {
+      if (node.name.startsWith('outline_')) hulls.push(node.parent?.name ?? '');
+    });
+    expect(hulls.length).toBeGreaterThan(0);
+    expect(hulls).toContain('papa_body');
+    expect(hulls).toContain('baby_body');
+    const sofa = scene.getObjectByName('sofa') as Mesh;
+    expect(sofa.children).toHaveLength(0);
+    const prop = scene.getObjectByName('prop_mug') as Object3D;
+    expect(prop.getObjectByProperty('name', 'outline_PROP_mug_01')).toBeDefined();
+  });
+
+  it('gives each hull the depth test, so that nothing shows through a wall (AC 3)', () => {
+    const { scene } = build();
+    let count = 0;
+    scene.traverse((node) => {
+      if (node instanceof Mesh && node.name.startsWith('outline_')) {
+        const material = node.material as {
+          depthTest: boolean;
+          depthWrite: boolean;
+          transparent: boolean;
+        };
+        expect(material.depthTest).toBe(true);
+        expect(material.depthWrite).toBe(true);
+        expect(material.transparent).toBe(false);
+        count++;
+      }
+    });
+    expect(count).toBeGreaterThan(0);
+  });
+
+  // The kit's own `dispose` (both materials) is pinned in `outlineHull.test.ts`; here the scene's
+  // disposal reaches the hulls' materials too, so a hull is found first and freed with the scene.
+  it('frees the hull materials with the scene', () => {
+    const { scene, dispose } = build();
+    const materials = new Set<MeshBasicMaterial>();
+    scene.traverse((node) => {
+      if (node instanceof Mesh && node.name.startsWith('outline_')) {
+        materials.add(node.material as unknown as MeshBasicMaterial);
+      }
+    });
+    expect(materials.size).toBeGreaterThan(0);
+    const freed = new Set<MeshBasicMaterial>();
+    for (const material of materials)
+      material.addEventListener('dispose', () => freed.add(material));
+    dispose();
+    expect(freed).toEqual(materials);
+  });
+});
+
+describe('the characters on the sim clock (story 7.2)', () => {
+  const blocked = (t: number): SimEvent => ({ type: 'PapaBlocked', t: asSimMs(t), xM: 0, zM: 0 });
+
+  it('advances the mixers by the sim clock alone: a clock that stands still holds them, whatever the real clock', () => {
+    const { update, realFxState } = build();
+    update(fakeWorldAt(1000), 0, asRealMs(0));
+    expect(realFxState().papaMixerMs).toBe(0);
+    update(fakeWorldAt(1100), 0, asRealMs(16));
+    expect(realFxState().papaMixerMs).toBeCloseTo(100, 6);
+    // A hitstop or a pause: frames keep coming, the real clock runs, the sim's does not.
+    for (let frame = 0; frame < 5; frame++) update(fakeWorldAt(1100), 0, asRealMs(100 * frame));
+    expect(realFxState().papaMixerMs).toBeCloseTo(100, 6);
+    // A slow-mo is a sim clock that advances less per frame.
+    update(fakeWorldAt(1110), 0, asRealMs(600));
+    expect(realFxState().papaMixerMs).toBeCloseTo(110, 6);
+  });
+
+  it('counts alpha, and never runs a clip backwards when alpha steps back', () => {
+    const { update, realFxState } = build();
+    update(fakeWorldAt(1000), 0.5);
+    update(fakeWorldAt(1000), 0.9);
+    const at = realFxState().papaMixerMs;
+    expect(at).toBeCloseTo(0.4 * STEP_MS, 6);
+    update(fakeWorldAt(1000), 0.1);
+    expect(realFxState().papaMixerMs).toBe(at);
+  });
+
+  it('starts over after a reset: clips and clock', () => {
+    const { update, resetFx, realFxState, fx } = build();
+    update(fakeWorldAt(1000), 0);
+    update(fakeWorldAt(1500), 0);
+    fx.playCharacterEvent(blocked(1500), fakeWorldAt(1500), false);
+    resetFx();
+    expect(realFxState().papaClip).toBeNull();
+    expect(realFxState().papaMixerMs).toBe(0);
+    update(fakeWorldAt(9000), 0);
+    expect(realFxState().papaClip).toBe('idle');
+    expect(realFxState().papaMixerMs).toBe(0);
+  });
+
+  it("plays a one-shot from an event, then the state's loop", () => {
+    const { update, realFxState, fx } = build();
+    update(fakeWorldAt(1000), 0);
+    fx.playCharacterEvent(blocked(1000), fakeWorldAt(1000), false);
+    update(fakeWorldAt(1010), 0);
+    expect(realFxState().papaClip).toBe('stumble');
+    update(fakeWorldAt(3000), 0);
+    expect(realFxState().papaClip).toBe('idle');
+  });
+
+  it('plays the response clip it is told, and none for a Do Nothing', () => {
+    const { update, realFxState, fx } = build();
+    update(fakeWorldAt(1000), 0);
+    fx.playResponseClip('nothing', 'success');
+    expect(realFxState().papaClip).toBe('idle');
+    fx.playResponseClip('parry', 'perfect');
+    expect(realFxState().papaClip).toBe('respond_perfect');
+  });
+
+  it('squashes on the sim clock from the data, and is back to exactly 1', () => {
+    const { scene, update, fx } = build();
+    const body = scene.getObjectByName('papa') as Object3D;
+    update(fakeWorldAt(1000), 0);
+    fx.playCharacterEvent(blocked(1000), fakeWorldAt(1000), false);
+    update(fakeWorldAt(1040), 0);
+    expect(body.scale.y).toBeLessThan(1);
+    expect(body.scale.x).toBeGreaterThan(1);
+    const held = body.scale.y;
+    update(fakeWorldAt(1040), 0);
+    expect(body.scale.y).toBe(held);
+    update(fakeWorldAt(1200), 0);
+    expect(body.scale.toArray()).toEqual([1, 1, 1]);
+  });
+
+  it('keeps the squash at rest and the clip under reduced motion', () => {
+    const { scene, update, fx, realFxState } = build();
+    const body = scene.getObjectByName('papa') as Object3D;
+    update(fakeWorldAt(1000), 0);
+    fx.playCharacterEvent(blocked(1000), fakeWorldAt(1000), true);
+    update(fakeWorldAt(1040), 0);
+    expect(body.scale.toArray()).toEqual([1, 1, 1]);
+    expect(realFxState().papaClip).toBe('stumble');
+  });
+
+  it("never stops a glide for a gag: his loop goes on, the baby's clip plays", () => {
+    const { update, realFxState, fx } = build();
+    const world = fakeWorldAt(1000);
+    const state = world.papa.state;
+    const gag: SimEvent = {
+      type: 'GagTriggered',
+      t: asSimMs(1000),
+      threatId: 1,
+      gag: 'table_object_fall',
+      reason: 'late',
+    };
+    try {
+      world.papa.state = 'glide';
+      update(world, 0);
+      fx.playCharacterEvent(gag, world, false);
+      expect(realFxState().papaClip).toBe('glide');
+      expect(realFxState().babyClip).toBe('laugh');
+    } finally {
+      world.papa.state = state;
+    }
+  });
+
+  it("moves the baby's lids on what the player is told: the feint, the signal, the gag", () => {
+    const { scene, update, fx } = build();
+    const lids = scene.getObjectByName('baby')?.getObjectByName('eyelids') as Object3D;
+    const world = fakeWorldAt(1000);
+    update(world, 0);
+    const open = lids.scale.y;
+    fx.playCharacterEvent({ type: 'WaitFeintGiven', t: asSimMs(1000), threatId: 1 }, world, false);
+    expect(lids.scale.y).toBe(0.5);
+    fx.playCharacterEvent({ type: 'WaitSignalGiven', t: asSimMs(1000), threatId: 1 }, world, false);
+    expect(lids.scale.y).toBe(1);
+    fx.playCharacterEvent(
+      { type: 'GagTriggered', t: asSimMs(1000), threatId: 1, gag: 'baby_sat_up', reason: 'early' },
+      world,
+      false,
+    );
+    expect(lids.scale.y).toBe(open);
+  });
+
+  it('shows the look through the scene', () => {
+    const { scene, setPapaLook } = build();
+    setPapaLook({ hasMashOnCheek: true, hasHairOnEnd: false, isShirtInsideOut: false });
+    expect(scene.getObjectByName('papa_look_mash')?.visible).toBe(true);
+  });
+
+  it("frees each skeleton on dispose: the bone texture is not a mesh's", () => {
+    const { scene, dispose } = build();
+    const skeletons: Skeleton[] = [];
+    scene.traverse((node) => {
+      if (node instanceof SkinnedMesh) skeletons.push(node.skeleton);
+    });
+    expect(skeletons.length).toBeGreaterThanOrEqual(2);
+    const spies = skeletons.map((skeleton) => vi.spyOn(skeleton, 'dispose'));
+    dispose();
+    for (const spy of spies) expect(spy).toHaveBeenCalled();
   });
 });
 

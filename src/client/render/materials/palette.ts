@@ -1,5 +1,5 @@
 /**
- * The few colours of the provisional 3D scene, as `0xRRGGBB`. Copied from the `colors` of the
+ * The few colours the 3D scene draws by itself, as `0xRRGGBB`. Copied from the `colors` of the
  * DESIGN.md frontmatter (the UX spec is the source of truth); three treats them as sRGB.
  */
 export const PALETTE = {
@@ -11,4 +11,6 @@ export const PALETTE = {
   paper: 0xffffff,
   /** DESIGN.md `colors.primary` (#6D3FE0). */
   primary: 0x6d3fe0,
+  /** DESIGN.md `colors.alert` (#FFC21A): reserved for dangers, only `vfx/dangerTint.ts` draws with it (story 7.3). */
+  alert: 0xffc21a,
 } as const;
