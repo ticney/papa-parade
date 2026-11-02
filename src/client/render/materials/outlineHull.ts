@@ -1,4 +1,5 @@
 import type { FeedbackTable } from '@content/schemas/feedback';
+import { log } from '@shared/log';
 import {
   BackSide,
   BufferAttribute,
@@ -91,31 +92,46 @@ function hullGeometryOf(source: BufferGeometry): BufferGeometry {
 }
 
 export interface OutlineKit {
-  /** The one material of every hull: flat ink, drawn on its back faces, depth test and write on. */
-  readonly material: ShaderMaterial;
+  /**
+   * The material of `mesh`'s hull: flat ink, drawn on its back faces, depth test and write on. Two
+   * materials share the same uniforms, one for skinned meshes and one for the others: three decides
+   * `USE_SKINNING` per draw, and a material that alternates between the two would take the program
+   * path again at each switch.
+   */
+  materialFor(mesh: Mesh): ShaderMaterial;
+  /** Whether `material` is one of the kit's two hull materials. */
+  isHull(material: Material | Material[]): boolean;
   /** The materials that get no hull (`feedback.json › render.outlines.skipMaterials`). */
   isSkipped(materialName: string): boolean;
   dispose(): void;
 }
 
 export function createOutlineKit(outlines: FeedbackTable['render']['outlines']): OutlineKit {
-  const material = new ShaderMaterial({
-    name: 'outline_hull',
-    uniforms: {
-      widthM: { value: outlines.widthM },
-      inkColor: { value: new Color(PALETTE.ink) },
-    },
-    vertexShader: VERTEX_SHADER,
-    fragmentShader: FRAGMENT_SHADER,
-    side: BackSide,
-    depthTest: true,
-    depthWrite: true,
-  });
+  const uniforms = {
+    widthM: { value: outlines.widthM },
+    inkColor: { value: new Color(PALETTE.ink) },
+  };
+  const hullMaterial = (name: string): ShaderMaterial =>
+    new ShaderMaterial({
+      name,
+      uniforms,
+      vertexShader: VERTEX_SHADER,
+      fragmentShader: FRAGMENT_SHADER,
+      side: BackSide,
+      depthTest: true,
+      depthWrite: true,
+    });
+  const skinnedMaterial = hullMaterial('outline_hull_skinned');
+  const staticMaterial = hullMaterial('outline_hull_static');
   const skipped = new Set(outlines.skipMaterials);
   return {
-    material,
+    materialFor: (mesh) => (mesh instanceof SkinnedMesh ? skinnedMaterial : staticMaterial),
+    isHull: (material) => material === skinnedMaterial || material === staticMaterial,
     isSkipped: (materialName) => skipped.has(materialName),
-    dispose: () => material.dispose(),
+    dispose: () => {
+      skinnedMaterial.dispose();
+      staticMaterial.dispose();
+    },
   };
 }
 
@@ -128,31 +144,37 @@ function nameOf(material: Material | Material[]): string {
  * the squash above it, and hiding the mesh or any named node above it hides both.
  */
 function addHull(mesh: Mesh, kit: OutlineKit): void {
+  if (!mesh.geometry.hasAttribute('normal')) {
+    log.warn('render', 'a mesh has no normals: it gets no outline hull', { name: mesh.name });
+    return;
+  }
   const geometry = hullGeometryOf(mesh.geometry);
+  const material = kit.materialFor(mesh);
   let hull: Mesh;
   if (mesh instanceof SkinnedMesh) {
-    const skinned = new SkinnedMesh(geometry, kit.material);
+    const skinned = new SkinnedMesh(geometry, material);
     skinned.bind(mesh.skeleton, mesh.bindMatrix);
     skinned.bindMode = mesh.bindMode;
     // Three's bounds are the rest pose's, and a clip can leave them (like the mesh itself, story 7.2).
     skinned.frustumCulled = false;
     hull = skinned;
   } else {
-    hull = new Mesh(geometry, kit.material);
+    hull = new Mesh(geometry, material);
   }
   hull.name = `outline_${mesh.name}`;
   mesh.add(hull);
 }
 
 /**
- * Gives every mesh under `root` an ink hull, except those of a skipped material. Call it **before**
- * the toon swap, which loses the material's name. Collects first: adding during `traverse` would
- * hull the hulls.
+ * Gives every mesh under `root` an ink hull, except those of a skipped material and those that
+ * already have one (a second call adds nothing). Call it **before** the toon swap, which loses the
+ * material's name. Collects first: adding during `traverse` would hull the hulls.
  */
 export function addOutlineHulls(root: Object3D, kit: OutlineKit): void {
   const meshes: Mesh[] = [];
   root.traverse((node) => {
-    if (!(node instanceof Mesh) || node.material === kit.material) return;
+    if (!(node instanceof Mesh) || kit.isHull(node.material)) return;
+    if (node.children.some((child) => child instanceof Mesh && kit.isHull(child.material))) return;
     if (!kit.isSkipped(nameOf(node.material))) meshes.push(node);
   });
   for (const mesh of meshes) addHull(mesh, kit);

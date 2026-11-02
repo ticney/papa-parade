@@ -1,3 +1,4 @@
+import { type Logger, log } from '@shared/log';
 import {
   BackSide,
   BoxGeometry,
@@ -8,8 +9,9 @@ import {
   InterleavedBufferAttribute,
   Mesh,
   MeshBasicMaterial,
+  SkinnedMesh,
 } from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createTestPapa } from '../../../../tests/support/testCharacters.ts';
 import { addOutlineHulls, createOutlineKit, weldedNormals } from './outlineHull.ts';
 
@@ -56,14 +58,39 @@ describe('weldedNormals', () => {
 });
 
 describe('createOutlineKit', () => {
-  it('is one flat back-face material with the depth test on, and the width as a uniform', () => {
-    const { material } = kitOf();
+  it('is a flat back-face material with the depth test on, and the width as a uniform', () => {
+    const material = kitOf().materialFor(named('a'));
     expect(material.side).toBe(BackSide);
     expect(material.depthTest).toBe(true);
     expect(material.depthWrite).toBe(true);
+    expect(material.transparent).toBe(false);
     expect(material.uniforms.widthM?.value).toBe(0.025);
     // BackSide negates the normal (FLIP_SIDED): a plus would push the hull inward, where it never shows.
     expect(material.vertexShader).toMatch(/mvPosition - vec4\(normalize\(transformedNormal\)/);
+  });
+
+  it('has one material for the skinned meshes and one for the others, sharing their uniforms', () => {
+    const kit = kitOf();
+    const skinned = kit.materialFor(new SkinnedMesh(new BoxGeometry(1, 1, 1)));
+    const plain = kit.materialFor(named('a'));
+    expect(skinned).not.toBe(plain);
+    expect(kit.materialFor(new SkinnedMesh(new BoxGeometry(1, 1, 1)))).toBe(skinned);
+    expect(skinned.uniforms).toBe(plain.uniforms);
+    expect(kit.isHull(skinned)).toBe(true);
+    expect(kit.isHull(plain)).toBe(true);
+    expect(kit.isHull(new MeshBasicMaterial())).toBe(false);
+    expect(kit.isHull([plain])).toBe(false);
+  });
+
+  it('frees both materials', () => {
+    const kit = kitOf();
+    const freed: string[] = [];
+    for (const mesh of [named('a'), new SkinnedMesh(new BoxGeometry(1, 1, 1))]) {
+      const material = kit.materialFor(mesh);
+      material.addEventListener('dispose', () => freed.push(material.name));
+    }
+    kit.dispose();
+    expect(freed.sort()).toEqual(['outline_hull_skinned', 'outline_hull_static']);
   });
 });
 
@@ -75,7 +102,7 @@ describe('addOutlineHulls', () => {
     root.add(mesh);
     addOutlineHulls(root, kit);
     const hull = mesh.children[0] as Mesh;
-    expect(hull.material).toBe(kit.material);
+    expect(hull.material).toBe(kit.materialFor(mesh));
     expect(hull.geometry.getAttribute('position')).toBe(mesh.geometry.getAttribute('position'));
     expect(hull.geometry.index).toBe(mesh.geometry.index);
     expect(hull.geometry.getAttribute('normal')).not.toBe(mesh.geometry.getAttribute('normal'));
@@ -97,16 +124,41 @@ describe('addOutlineHulls', () => {
     expect(root.children).toHaveLength(1);
   });
 
-  it('never hulls a hull, even when called twice', () => {
-    const kit = kitOf();
-    const root = new Group();
-    root.add(named('a'), named('b'));
-    addOutlineHulls(root, kit);
+  const hullsUnder = (root: Group, kit: ReturnType<typeof kitOf>): number => {
     let hulls = 0;
     root.traverse((node) => {
-      if (node instanceof Mesh && node.material === kit.material) hulls++;
+      if (node instanceof Mesh && kit.isHull(node.material)) hulls++;
     });
-    expect(hulls).toBe(2);
+    return hulls;
+  };
+
+  it('never hulls a hull, and adds nothing the second time', () => {
+    const kit = kitOf();
+    const root = new Group();
+    const [a, b] = [named('a'), named('b')];
+    root.add(a, b);
+    addOutlineHulls(root, kit);
+    expect(hullsUnder(root, kit)).toBe(2);
+    addOutlineHulls(root, kit);
+    expect(hullsUnder(root, kit)).toBe(2);
+    expect(a.children).toHaveLength(1);
+    expect(b.children).toHaveLength(1);
+  });
+
+  it('gives a mesh with no normals no hull, and warns', () => {
+    const warn = vi.spyOn(log, 'warn').mockImplementation((() => {}) as Logger['warn']);
+    const geometry = new BoxGeometry(1, 1, 1);
+    geometry.deleteAttribute('normal');
+    const bare = new Mesh(geometry, new MeshBasicMaterial());
+    bare.name = 'bare';
+    const root = new Group();
+    root.add(bare, named('fine'));
+    addOutlineHulls(root, kitOf());
+    expect(bare.children).toHaveLength(0);
+    expect(root.children[1]?.children).toHaveLength(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith('render', expect.any(String), { name: 'bare' });
+    warn.mockRestore();
   });
 
   it('binds a skinned hull to the same skeleton, and never culls it', () => {
@@ -115,10 +167,12 @@ describe('addOutlineHulls', () => {
     addOutlineHulls(scene, kit);
     let hulls = 0;
     scene.traverse((node) => {
-      if (node instanceof Mesh && node.material === kit.material) {
+      if (node instanceof Mesh && kit.isHull(node.material)) {
         const source = node.parent as unknown as { skeleton?: unknown };
         const hull = node as unknown as { skeleton?: unknown; frustumCulled: boolean };
         if (source.skeleton !== undefined) {
+          expect(node.material).toBe(kit.materialFor(node));
+          expect(node instanceof SkinnedMesh).toBe(true);
           expect(hull.skeleton).toBe(source.skeleton);
           expect(hull.frustumCulled).toBe(false);
           hulls++;

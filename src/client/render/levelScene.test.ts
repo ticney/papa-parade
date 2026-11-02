@@ -795,25 +795,36 @@ describe('the final look (story 7.3)', () => {
     let count = 0;
     scene.traverse((node) => {
       if (node instanceof Mesh && node.name.startsWith('outline_')) {
-        const material = node.material as { depthTest: boolean; depthWrite: boolean };
+        const material = node.material as {
+          depthTest: boolean;
+          depthWrite: boolean;
+          transparent: boolean;
+        };
         expect(material.depthTest).toBe(true);
         expect(material.depthWrite).toBe(true);
+        expect(material.transparent).toBe(false);
         count++;
       }
     });
     expect(count).toBeGreaterThan(0);
   });
 
-  it('frees the hull kit with the scene', () => {
+  // The kit's own `dispose` (both materials) is pinned in `outlineHull.test.ts`; here the scene's
+  // disposal reaches the hulls' materials too, so a hull is found first and freed with the scene.
+  it('frees the hull materials with the scene', () => {
     const { scene, dispose } = build();
-    let hullMaterial: { addEventListener: Mesh['addEventListener'] } | null = null;
+    const materials = new Set<MeshBasicMaterial>();
     scene.traverse((node) => {
-      if (node instanceof Mesh && node.name.startsWith('outline_')) hullMaterial = node.material;
+      if (node instanceof Mesh && node.name.startsWith('outline_')) {
+        materials.add(node.material as unknown as MeshBasicMaterial);
+      }
     });
-    let freed = 0;
-    (hullMaterial as unknown as MeshBasicMaterial).addEventListener('dispose', () => freed++);
+    expect(materials.size).toBeGreaterThan(0);
+    const freed = new Set<MeshBasicMaterial>();
+    for (const material of materials)
+      material.addEventListener('dispose', () => freed.add(material));
     dispose();
-    expect(freed).toBeGreaterThan(0);
+    expect(freed).toEqual(materials);
   });
 });
 

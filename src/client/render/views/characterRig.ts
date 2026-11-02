@@ -68,7 +68,7 @@ export function createCharacterRig(
   addOutlineHulls(root, outlines);
   const skinned: SkinnedMesh[] = [];
   root.traverse((node) => {
-    if (!(node instanceof Mesh) || node.material === outlines.material) return;
+    if (!(node instanceof Mesh) || outlines.isHull(node.material)) return;
     swapToToon(node, toon);
     if (node instanceof SkinnedMesh) {
       node.frustumCulled = false;

@@ -281,9 +281,9 @@
 
 ## Deferred from: implementation of story 1-16-escalier-et-objet-sur-la-table-basse (2026-10-27)
 
-- **« Le bébé se hisse »**: the baby sphere does not rise against the table; the approach ends at the nearest open cell. Pose for E7 (with the lift).
-- **« Papa retire l'objet »**: a success leaves the prop in place (D5). An E7 animation, or a `PhysicsPort.setPose` if a later gag needs it.
-- **The stairs slide is a view offset** (D6), with no height and no `ANCHOR_stairs_bottom`. E7.
+- **« Le bébé se hisse »**: the baby sphere does not rise against the table; the approach ends at the nearest open cell. Pose for E7 (with the lift). **Still open after story 7.3.**
+- **« Papa retire l'objet »**: a success leaves the prop in place (D5). An E7 animation, or a `PhysicsPort.setPose` if a later gag needs it. **Still open after story 7.3.**
+- **The stairs slide is a view offset** (D6), with no height and no `ANCHOR_stairs_bottom`. E7. **Still open after story 7.3.**
 - **`outlet_hair` is not a near miss** (D3). Geo decides (Open points of the story): one line in `GAG_CONSEQUENCES`.
 - **The coffee-table threat is still targeted when no object is left on the table** (the mug fell): its gag then pushes nothing (the golden `threat_trio` shows it from its second cycle). Story 1.18's wave director may skip a threat whose gag has no target. *Still open after story 1.18 (the wave director does not look at gag targets): story 2.x, or 1.22 when a dud threat shows in Mama's score.* *Still open after story 1.22: a dud coffee-table threat parried perfectly still gives a Rire point (every perfect counts). Story 2.x.*
 - **Distinct haptics and visuals per telegraph** beyond the icon: story 2.4. The four new sounds and the two glyphs are placeholders.
@@ -390,7 +390,7 @@
 
 - **The silence's sounds are placeholders** (`tel_silence_found`, `gag_silence_mischief`, and the `silence_started` cue, which has no sound on purpose): story 2.3 gives the silence its own `tel_*` sound under the same ids, no code change. **Story 2.3 (2026-10-29), D6:** the silence already has its own `tel_silence_found` (distinct from the five other telegraphs, now enforced by `content:check` and the « no two clips are alike » test); the clips themselves stay placeholders that Geo judges in the « Sons » folder and asks to redo clip by clip (story 7.5 for the final ones). `silence_started` stays haptic-only on purpose.
 - **The music cut is a fade of the one music loop** (`audio.setMusicMuted`). Story 2.6's stems keep reading `world.silence.startedAt` and replace the loop; the bubble and the cut already follow the state, not the event.
-- **No mischief is drawn yet.** The two surprise gags (`tissues_everywhere`, `crayon_scribbles`) add to `world.mess.mischiefs` and play a ring and a sound: a real animation and a visible mess are E7. Decided: story 1.22 counts `mischiefs` in Mama's Sigh (a mischief is mess); its AC wires it. *Done in story 1.22: `sighPerMischiefPoints` per mischief.*
+- **No mischief is drawn yet.** The two surprise gags (`tissues_everywhere`, `crayon_scribbles`) add to `world.mess.mischiefs` and play a ring and a sound: a real animation and a visible mess are E7. Decided: story 1.22 counts `mischiefs` in Mama's Sigh (a mischief is mess); its AC wires it. *Done in story 1.22: `sighPerMischiefPoints` per mischief.* **Still open after story 7.3** (the drawing).
 - **`TapBaby` outside a silence only walks Papa to the baby** (D9). Story 4.1 replaces that branch with « take the baby ». *Done in story 4.1 (2026-10-30): in a level with `carry`, `TapBaby` takes the baby (at once within `feel.carry.reachM`, else walk then take) or puts him down; a level without `carry`, and a hiding baby who is not found, keep the walk. `isBabyCarried`'s stub in `gauges/fatigue.ts` is gone: it reads `baby.state === 'carried'` (`baby/babyFsm.ts`).*
 - **`findMaxMs` is one fixed number per def** (5 s), and the silence reveals the threat with the normal `telegraphDelayMs` (800 ms) after the find (D4, which deviates from the epic's « windowOpen at once »). Both kept on Geo's delegation; tune after playing wave 2.
 - **Papa standing in the zone after a parry** would find the next silence at the step it is announced: the director now skips a silence while Papa is in its zone box (decided on Geo's delegation).
@@ -894,7 +894,7 @@
 - **The floor contrast guard reads material values, not what is drawn.** The rooms render about 20 % darker than their values (shared lights), and a darker floor loses contrast against the ink. The walkable planks pass with a wide margin and the bedroom's lowest, `art_wood` at 3.20:1, is on the slab's sides, so no wave is lost today. Reason: lights are 7.3's; recheck the rule there, with the lights on. **Closed by story 7.3:** `floorLightOf` feeds the level's live lights into `floorContrastProblem`.
 - **`ROOM_DRAW_CALLS_MAX = 40` assumes the outlines of 7.3 « double what they cover ».** The salon plays at 63 draw calls with 39 in the room, so outlining the whole room would give 102. Reason: it depends on what 7.3 outlines (characters and props only, or furniture); settle the room's share there. **Closed by story 7.3:** outlines go on the characters and the props only (D2); the limit stays 40 and its comment is corrected.
 - **Look at the playpen's floor patch against `ZONE_creak_board_01` in play.** The patch ends at x = -1.40 and the board's edge is at -1.35 (z 1.0 to 1.45): 5 cm, about a pixel at phone size, so it may read as one continuous edge. If it hints at the board, move the patch edge in Blender (the geometry stays identical). Reason: Geo's call in play; moving it means a re-export and new measures.
-- **Look at the safe-zone floors and the bedroom planks against the baby and Papa in play.** `art_butter` (#fce7a8) and `art_moon` (#fff1b8) are near-white under the white baby (about 1.2:1), and the bedroom's `art_plank_a/b` sit at hue 247-248° against Papa's `primary` at about 255° (low saturation). D3 says to keep walls and floor apart from `primary` and white, and no test pins it. Reason: a charm and readability call for Geo; add a guard with thresholds once he has chosen them.
+- **Look at the safe-zone floors and the bedroom planks against the baby and Papa in play.** `art_butter` (#fce7a8) and `art_moon` (#fff1b8) are near-white under the white baby (about 1.2:1), and the bedroom's `art_plank_a/b` sit at hue 247-248° against Papa's `primary` at about 255° (low saturation). D3 says to keep walls and floor apart from `primary` and white, and no test pins it. Reason: a charm and readability call for Geo; add a guard with thresholds once he has chosen them. **Still open after story 7.3, not looked at:** the lights moved, so the planks now draw as in `salon_crawler_667_start.png` and `chambre_night_667_start.png`, but the baby was never laid on the safe floors in this story (the attempt did not land).
 
 ## Story 7-6-musique-generee-du-salon-et-des-sequences (2026-11-01)
 
@@ -918,7 +918,7 @@ Closed:
 
 Handed on:
 
-- **Inverted-hull outline on Papa and the baby:** to story 7.3. The meshes are closed, with outward normals. They are built of overlapping rigid parts, so 7.3 should check the hull at the joints.
+- **Inverted-hull outline on Papa and the baby:** to story 7.3. The meshes are closed, with outward normals. They are built of overlapping rigid parts, so 7.3 should check the hull at the joints. **Closed by story 7.3:** `outlineHull.ts` hulls both characters; the joints draw a thin ink line where a hand meets a sleeve, which the story read as line work (Geo's call).
 
 Open:
 
@@ -938,3 +938,12 @@ Open:
 - **`responseClipOf` takes untyped strings** (`characterClips.ts:81`): a new response kind or a renamed quality silently plays `respond_parry`. Reason: no new response kind is planned; type them from `ResponseResolved` when one is added.
 - **A one-shot no longer than `crossFadeMs` ends at its first update** (`characterRig.ts:170`): the schema has no upper bound on `crossFadeMs`; the shortest clips are three times today's 140 ms. Reason: only if Geo raises `crossFadeMs` past a third of the shortest clip; add a bound then.
 - **Code-driven bones assume an identity rest rotation** (`babyView.ts:180`): true of the committed files, checked by nothing for a re-export. Reason: add the check to `characterAssets.test.ts` with the next Blender export.
+
+## Deferred from: code review of 7-3-rendu-toon-final-et-effets (2026-11-02)
+
+- **Test fixtures repeat the render numbers** (`tests/support/testContent.ts:52`): `TOON_TONES` and `createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] })` are copied across seven test files, and the shared fixture's `sunOffsetM` is `[5, 9, 7]` where the content has `[3, 9, 5]`. Reason: tidy-up with no effect on play; add one `createTestRender()` the next time a test file needs these numbers.
+- **No unit test counts a committed level's draw calls with the hulls** (`src/shared/constants.ts`): the 100-call budget rests on `perf.spec.ts` (87 in the salon, 79 in the bedroom, measured). Reason: that spec runs when an epic completes and before a playtest link, which Geo accepted for the checks; a prop-heavy level is where it would show first.
+- **`reducedMotion.spec.ts` « every threat shows its verb whole » has a 150 s timeout, up from 90 s** (`tests/e2e/reducedMotion.spec.ts:333`): the hulls cost each round trip's frame on software GL (9 to 14 ms). Reason: it says nothing about the frame budget, which `perf.spec.ts` holds; look at the cost again in Geo's device pass.
+- **`render.blobSkipColliderIds` is one list for all levels** (`content/feedback.json`, `src/client/render/blobShadow.ts`): any collider named `stairs` in a later level loses its blob. Reason: only the salon has the stairs; make it per level when a second level needs a skip.
+- **A level that fails its schema also draws an « is not a level » problem on `feedback.json`** (`tools/content/contentChecks.ts:1501`): the `byLevel` check reads `families.levels`, which lacks the broken file. Reason: the level's own error comes first; the extra line is misleading, not wrong.
+- **`weldedNormals` builds a template-string key per vertex** (`src/client/render/materials/outlineHull.ts:55`): load-time garbage for Papa, the baby and every prop template. Reason: load time only and no cost measured; revisit if the level load grows in the device pass.

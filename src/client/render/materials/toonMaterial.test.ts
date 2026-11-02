@@ -15,15 +15,20 @@ describe('createToonMaterialCache', () => {
     expect(cache.size).toBe(2);
   });
 
-  it('gives every material the same 3-tone ramp, unfiltered', () => {
+  it('gives every material the same ramp, unfiltered', () => {
     const cache = createToonMaterialCache(TOON_TONES);
     const ramp = cache.get(new Color(0x123456)).gradientMap;
     const image = ramp?.image as { width: number; height: number };
     expect(image.width).toBe(3);
     expect(image.height).toBe(1);
-    expect(TOON_TONES).toHaveLength(3);
-    expect([...TOON_TONES]).toEqual([...TOON_TONES].sort((x, y) => x - y));
     expect(cache.get(new Color(0xabcdef)).gradientMap).toBe(ramp);
+  });
+
+  it('builds its ramp from the tones it is given, in that order', () => {
+    const ramp = createToonMaterialCache([40, 120, 200, 250]).get(new Color(0x123456)).gradientMap;
+    const image = ramp?.image as { width: number; data: Uint8Array };
+    expect(image.width).toBe(4);
+    expect([...image.data]).toEqual([40, 120, 200, 250]);
   });
 
   it('copies the colour it is given', () => {

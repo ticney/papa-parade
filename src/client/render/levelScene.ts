@@ -325,7 +325,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   for (const template of templates.values()) addOutlineHulls(template, outlines);
   for (const root of [model, ...propNodes]) {
     root.traverse((node) => {
-      if (node instanceof Mesh && node.material !== outlines.material) swapToToon(node, toon);
+      if (node instanceof Mesh && !outlines.isHull(node.material)) swapToToon(node, toon);
     });
   }
   // The room, its shadows, Papa, the baby and the waves live under one root: a shake moves the

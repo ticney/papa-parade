@@ -20,7 +20,7 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // The characters (story 7.2) add `speedMps` and `turnRateDegPerSec`. The look (story 7.3) adds `pulseHz`,
 // `radiusM`, `sunOffsetM`, and two numbers with no unit: a light's `…Intensity` and the 0-255 `toonTones`.
 const UNIT_SUFFIX =
-  /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|Intensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^pulses)$/;
+  /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^pulses)$/;
 
 type Json = Record<string, unknown>;
 

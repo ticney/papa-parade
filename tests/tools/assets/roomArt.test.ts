@@ -310,6 +310,11 @@ describe('floorContrastProblem', () => {
     expect(floorContrastProblem(floorWith([{ name: 'plain' }], [{ material: 0 }]), INK)).toBeNull();
   });
 
+  it('says so when every material is left out as not walkable: nothing was judged', () => {
+    const json = floorWith([solid('slab', 20, 20, 20)], [{ material: 0 }]);
+    expect(floorContrastProblem(json, INK, [1, 1, 1], ['slab'])).toContain('nothing was judged');
+  });
+
   it('says so when there is no floor to read', () => {
     expect(floorContrastProblem({ nodes: [{ name: 'sofa', mesh: 0 }] }, INK)).toContain('floor');
   });

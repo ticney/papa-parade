@@ -171,13 +171,15 @@ const exists = (path: string): Promise<boolean> =>
  * of a sim or client event (a typo is a cue that never plays), a client event's cue has neither
  * visual nor fx (they need a world), a cue with an fx has a `soundWave` (its anchor), a cue an event points at has no `threat`-anchored visual
  * (a generic event names no threat), every clip is a file under `public/assets/audio/`, and a level's
- * lights are those of a level that exists.
+ * lights are those of a level that exists, and a collider with no blob shadow is a collider of some
+ * level.
  * (That an `events` value is a cue of `cues` is the schema's own check.)
  */
 async function checkFeedbackReferences(
   rootDir: string,
   table: FeedbackTable,
   levelIds: ReadonlySet<string>,
+  colliderIds: ReadonlySet<string>,
 ): Promise<ContentProblem[]> {
   const file = `content/${FEEDBACK_FILE.file}`;
   const problems: ContentProblem[] = [];
@@ -187,6 +189,15 @@ async function checkFeedbackReferences(
         file,
         jsonPath: formatJsonPath(['render', 'lights', 'byLevel', id]),
         message: `"${id}" is not a level: its lights would never show`,
+      });
+    }
+  }
+  for (const [index, id] of table.render.blobSkipColliderIds.entries()) {
+    if (!colliderIds.has(id)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['render', 'blobSkipColliderIds', index]),
+        message: `"${id}" is no collider of any level: it would skip nothing`,
       });
     }
   }
@@ -1498,7 +1509,12 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
 
   if (feedback !== undefined)
     problems.push(
-      ...(await checkFeedbackReferences(rootDir, feedback, new Set(families.levels.keys()))),
+      ...(await checkFeedbackReferences(
+        rootDir,
+        feedback,
+        new Set(families.levels.keys()),
+        new Set([...families.geometries.values()].flatMap((g) => g.colliders.map((c) => c.id))),
+      )),
     );
 
   if (strings !== undefined) {

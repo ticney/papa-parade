@@ -244,10 +244,12 @@ export function floorContrastProblem(
   if (floor === -1) return `no "${FLOOR_NODE_NAME}" node to read`;
   const primitives = primitivesUnder(json, floor);
   if (primitives.length === 0) return `the "${FLOOR_NODE_NAME}" node holds no mesh`;
+  let judged = 0;
   for (const primitive of primitives) {
     const material =
       primitive.material === undefined ? undefined : json.materials?.[primitive.material];
     if (material?.name !== undefined && notWalkable.includes(material.name)) continue;
+    judged++;
     const [r = 1, g = 1, b = 1] = factorOf(material);
     const luminance = luminanceOf(
       Math.min(1, r * light[0]),
@@ -259,6 +261,9 @@ export function floorContrastProblem(
     if (contrast < FLOOR_INK_MIN_CONTRAST) {
       return `floor material ${labelOf(material, primitive.material ?? -1)} has a contrast of ${contrast.toFixed(2)}:1 against ${inkHex} (at least ${FLOOR_INK_MIN_CONTRAST}:1)`;
     }
+  }
+  if (judged === 0) {
+    return `every material of the "${FLOOR_NODE_NAME}" node is listed as not walkable: nothing was judged`;
   }
   return null;
 }

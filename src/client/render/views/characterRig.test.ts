@@ -64,11 +64,14 @@ describe('createCharacterRig', () => {
       expect(source.material).toBeInstanceOf(MeshToonMaterial);
     }
     const spies = hulls.map((hull) => vi.spyOn(hull.geometry, 'dispose'));
-    const skeletonSpies = hulls.map((hull) => vi.spyOn(hull.skeleton, 'dispose'));
+    // Each distinct skeleton is freed once per original mesh that uses it: the hulls add none.
+    const skeletons = [...new Set(hulls.map((hull) => hull.skeleton))].map((skeleton) => ({
+      spy: vi.spyOn(skeleton, 'dispose'),
+      originals: hulls.filter((hull) => hull.skeleton === skeleton).length,
+    }));
     rig.dispose();
     for (const spy of spies) expect(spy).toHaveBeenCalledTimes(1);
-    // One disposal per original: the hulls add none.
-    expect(skeletonSpies[0]).toHaveBeenCalledTimes(hulls.length);
+    for (const { spy, originals } of skeletons) expect(spy).toHaveBeenCalledTimes(originals);
   });
 
   it('hides a hull with its named node', () => {

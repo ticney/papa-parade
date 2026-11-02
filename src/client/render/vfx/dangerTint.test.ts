@@ -34,7 +34,7 @@ describe('createDangerTint', () => {
     expect(outlet.visible).toBe(false);
     expect(outlet.scale.x).toBe(1);
     const material = outlet.material as SpriteMaterial;
-    expect(material.color.getHexString()).toBe(new Sprite(material).material.color.getHexString());
+    expect(material.color.getHex()).toBe(PALETTE.alert);
     expect(material.depthTest).toBe(false);
     expect(material.depthWrite).toBe(false);
     expect(material.fog).toBe(false);
@@ -50,14 +50,11 @@ describe('createDangerTint', () => {
     expect(tint.shownCount).toBe(1);
   });
 
-  it.each(['inactive', 'resolved', 'hidden', 'recovering'])(
-    'shows nothing while it is %s',
-    (state) => {
-      const { tint } = build();
-      tint.update(worldWith({ state, defId: 'outlet', anchorId: 'outlet_01' }), 0, false);
-      expect(tint.shownCount).toBe(0);
-    },
-  );
+  it.each(['idle', 'hidden', 'resolved', 'gag'])('shows nothing while it is %s', (state) => {
+    const { tint } = build();
+    tint.update(worldWith({ state, defId: 'outlet', anchorId: 'outlet_01' }), 0, false);
+    expect(tint.shownCount).toBe(0);
+  });
 
   it('goes when the threat leaves those states', () => {
     const { sprite, tint } = build();
