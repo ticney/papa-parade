@@ -97,6 +97,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
       drawn.onRender?.();
     },
     setPixelRatioCap: () => {},
+    capture: () => ok(undefined),
     stats: () => ({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, pixelRatio: 1 }),
     dispose: () => {},
   };

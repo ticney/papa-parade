@@ -110,4 +110,26 @@ describe('ui.css › .pp-screen-flash', () => {
     expect(rule).toContain('pointer-events: none');
     expect(rule).toContain('var(--pp-color-paper)');
   });
+
+  // Story 3.6: a sibling of `#pp-ui`, so its layer is the page's, not the HUD's.
+  const zIndexOf = (selector: string): number =>
+    Number(
+      new RegExp(`${selector.replace('.', '\\.')}\\s*\\{[^}]*z-index:\\s*(\\d+)`).exec(css)?.[1],
+    );
+
+  it('sits above the HUD and below the pause panel, outside the HUD', () => {
+    expect(zIndexOf('#pp-hud')).toBe(10);
+    expect(zIndexOf('.pp-screen-flash')).toBe(15);
+    expect(zIndexOf('#pp-ui')).toBe(20);
+  });
+
+  it('goes over the panel only with the --over class, which the Result screen gets', () => {
+    expect(SCREEN_FLASH_CLASSES.over).toBe('pp-screen-flash--over');
+    expect(zIndexOf('.pp-screen-flash--over')).toBeGreaterThan(zIndexOf('#pp-ui'));
+  });
+
+  it('keeps the epic stamp over the flash and under the pause panel', () => {
+    expect(zIndexOf('.pp-epic-stamp')).toBeGreaterThan(zIndexOf('.pp-screen-flash'));
+    expect(zIndexOf('.pp-epic-stamp')).toBeLessThan(zIndexOf('#pp-ui'));
+  });
 });

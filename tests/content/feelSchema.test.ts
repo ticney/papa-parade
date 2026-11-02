@@ -455,6 +455,35 @@ describe('feel.fx (story 2.5)', () => {
   });
 });
 
+describe('feel.fx.photoCamera and feel.endOfLevel.frozenNearMissReachM (story 3.6)', () => {
+  const p = (path: string) => `fx.photoCamera.${path}`;
+  const reach = 'endOfLevel.frozenNearMissReachM';
+
+  it('accepts the bounds themselves', () => {
+    expect(
+      mutated([p('yawDeg'), 15], [p('pitchDeg'), 20], [p('zoomPct'), 0], [reach, 0.01]),
+    ).toMatchObject({ ok: true });
+    expect(mutated([p('yawDeg'), 75], [p('pitchDeg'), 60], [p('zoomPct'), 40])).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a yaw under 15 degrees', [[p('yawDeg'), 14]], [p('yawDeg')]],
+    ['a yaw over 75 degrees', [[p('yawDeg'), 76]], [p('yawDeg')]],
+    ['a pitch under 20 degrees', [[p('pitchDeg'), 19]], [p('pitchDeg')]],
+    ['a pitch over 60 degrees', [[p('pitchDeg'), 61]], [p('pitchDeg')]],
+    ['a negative zoom', [[p('zoomPct'), -1]], [p('zoomPct')]],
+    ['a zoom above 40 %', [[p('zoomPct'), 41]], [p('zoomPct')]],
+    ['a missing camera', [['fx.photoCamera', undefined]], ['fx.photoCamera']],
+    ['a reach of 0', [[reach, 0]], [reach]],
+    ['a negative reach', [[reach, -1]], [reach]],
+    ['a missing reach', [[reach, undefined]], [reach]],
+  ])('refuses %s, at its path', (_name, changes, paths) => {
+    expect(failedPaths(mutated(...changes))).toEqual(paths);
+  });
+});
+
 describe('feel.music (story 2.6)', () => {
   const p = (path: string) => `music.${path}`;
 

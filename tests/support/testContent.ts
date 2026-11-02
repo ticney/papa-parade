@@ -48,6 +48,13 @@ export function createTestFeedback(): FeedbackTable {
     papaHint: { holdMs: 1200 },
     bombDrop: { laidHeightM: 0.3 },
     door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
+    photo: {
+      widthPx: 570,
+      heightPx: 360,
+      tiltMaxDeg: 3,
+      vignetteFromPct: 60,
+      vignetteOpacityPct: 28,
+    },
     resultScreen: {
       rowCountUpMs: 600,
       rowStaggerMs: 200,
@@ -55,6 +62,7 @@ export function createTestFeedback(): FeedbackTable {
       starIntervalMs: 450,
       actionsDelayMs: 400,
       inputGraceMs: 0,
+      photoHoldMs: 1200,
     },
     calibration: { beep: { clip: 'ui_calibration_beep', bus: 'ui', gainPct: 100 } },
     loops: {

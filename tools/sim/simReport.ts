@@ -144,6 +144,11 @@ export interface RunSummary {
   /** The props put back in the final rush (`PropTidied`, story 3.5). */
   propsTidied: number;
   /**
+   * The near misses frozen on the end photo (`NearMissFrozen`, story 3.6): the baby, not carried, within
+   * `feel.endOfLevel.frozenNearMissReachM` of the stairs when the level ended. Not in `nearMisses`.
+   */
+  frozenNearMisses: number;
+  /**
    * The highest the need reached in the run, in % to one decimal: the gauge rises silently, so it is
    * read from the world when a visit starts (it is frozen from then on), when it fills, and at the
    * end of the run. 0 in a level with no need gauge.
@@ -261,6 +266,7 @@ export function createRunRecorder(
   let nothingResponses = 0;
   let finalRushes = 0;
   let propsTidied = 0;
+  let frozenNearMisses = 0;
   let bladderPeakPct = 0;
   let noisePeakPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
@@ -345,6 +351,8 @@ export function createRunRecorder(
         finalRushes++;
       } else if (event.type === 'PropTidied') {
         propsTidied++;
+      } else if (event.type === 'NearMissFrozen') {
+        frozenNearMisses++;
       } else if (event.type === 'FloorCreaked') {
         floorCreaks++;
       } else if (event.type === 'BreathGasped') {
@@ -452,6 +460,7 @@ export function createRunRecorder(
         nothingResponses,
         finalRushes,
         propsTidied,
+        frozenNearMisses,
         bladderPeakPct: round(Math.max(bladderPeakPct, sim.world.gauges.bladderPct), 1),
         noisePeakPct,
         noiseFinalPct: round(sim.world.gauges.noisePct, 1),
@@ -595,6 +604,8 @@ export interface SimReport {
   finalRushes: number;
   /** The props put back in the final rush, over the runs (story 3.5). */
   propsTidied: number;
+  /** The near misses frozen on the end photo, over the runs (`NearMissFrozen`, story 3.6). */
+  frozenNearMisses: number;
   /** The highest need any run reached, in % to one decimal (0 in a level with no need gauge). */
   bladderPeakPct: number;
   /** Mean of the runs' highest noise, in % to one decimal: does 3.2 end games (story 3.1 open point 2)? */
@@ -700,6 +711,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let nothingResponses = 0;
   let finalRushes = 0;
   let propsTidied = 0;
+  let frozenNearMisses = 0;
   let bladderPeakPct = 0;
   let noisePeakSumPct = 0;
   let noisePeakMaxPct = 0;
@@ -782,6 +794,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     nothingResponses += run.nothingResponses;
     finalRushes += run.finalRushes;
     propsTidied += run.propsTidied;
+    frozenNearMisses += run.frozenNearMisses;
     bladderPeakPct = Math.max(bladderPeakPct, run.bladderPeakPct);
     noisePeakSumPct += run.noisePeakPct;
     noisePeakMaxPct = Math.max(noisePeakMaxPct, run.noisePeakPct);
@@ -884,6 +897,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     nothingResponses,
     finalRushes,
     propsTidied,
+    frozenNearMisses,
     bladderPeakPct: round(bladderPeakPct, 1),
     noisePeakMeanPct: runs.length === 0 ? 0 : round(noisePeakSumPct / runs.length, 1),
     noisePeakMaxPct: round(noisePeakMaxPct, 1),

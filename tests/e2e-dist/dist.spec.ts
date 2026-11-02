@@ -78,6 +78,11 @@ test.describe('the built playtest bundle', () => {
       timeout: levelMs + LOAD_MARGIN_MS,
     });
     expect((await ppEvents(page)).some((event) => event.type === 'LevelScored')).toBe(true);
+    // The end photo (story 3.6) is a 2D canvas, never a `data:` or `blob:` image: the CSP has no
+    // `img-src`, so a URL image would be refused here and in no dev server. `taken` is the proof that
+    // the capture worked under the built bundle's policy, and the violation list below that it asked for nothing else.
+    await expect(html(page)).toHaveAttribute('data-pp-photo', 'taken');
+    await expect(page.locator('.pp-polaroid canvas')).toHaveCount(1);
 
     const violations = await page.evaluate(
       () => (window as unknown as { ppCspViolations: string[] }).ppCspViolations,

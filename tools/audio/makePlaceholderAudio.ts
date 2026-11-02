@@ -2059,6 +2059,62 @@ export function synthPropTidied(): Float32Array {
   return out;
 }
 
+// The end photo's shutter (story 3.6), seed `SEED + 49`: a camera taking the picture.
+const SHUTTER_LENGTH_MS = 260;
+/** Two clicks, the mirror then the curtain, close together like a small camera's. */
+const SHUTTER_CLICKS_S = [0.015, 0.105];
+const SHUTTER_CLICK_DECAY_S = 0.014;
+const SHUTTER_CLICK_HZ = 2400;
+const SHUTTER_THUMP_HZ = 140;
+const SHUTTER_THUMP_DECAY_S = 0.05;
+const SHUTTER_THUMP_GAIN = 0.55;
+const SHUTTER_SMOOTHING = 0.6;
+/** The little whir of the flash charging, after the clicks. */
+const SHUTTER_WHIR_FROM_S = 0.13;
+const SHUTTER_WHIR_PITCH_HZ = { from: 900, to: 2600 };
+const SHUTTER_WHIR_GAIN = 0.16;
+
+/** A camera shutter: two crisp clicks over a soft thump, then a faint rising whir (cue `photo_taken`, clip `ui_camera_shutter`). */
+export function synthCameraShutter(): Float32Array {
+  const rng = createRng(SEED + 49);
+  const out = new Float32Array(samplesOf(SHUTTER_LENGTH_MS));
+  const lengthS = SHUTTER_LENGTH_MS / 1000;
+  let smoothed = 0;
+  let whirPhase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    smoothed += SHUTTER_SMOOTHING * (nextFloat(rng) * 2 - 1 - smoothed);
+    let value = 0;
+    for (const clickAt of SHUTTER_CLICKS_S) {
+      const age = seconds - clickAt;
+      if (age < 0) continue;
+      value +=
+        (Math.sin(2 * Math.PI * SHUTTER_CLICK_HZ * age) * 0.6 + smoothed * 0.6) *
+        Math.exp(-age / SHUTTER_CLICK_DECAY_S);
+    }
+    const thumpAge = seconds - (SHUTTER_CLICKS_S[0] as number);
+    if (thumpAge >= 0) {
+      value +=
+        Math.sin(2 * Math.PI * SHUTTER_THUMP_HZ * thumpAge) *
+        SHUTTER_THUMP_GAIN *
+        Math.exp(-thumpAge / SHUTTER_THUMP_DECAY_S);
+    }
+    if (seconds > SHUTTER_WHIR_FROM_S) {
+      const progress = (seconds - SHUTTER_WHIR_FROM_S) / (lengthS - SHUTTER_WHIR_FROM_S);
+      const frequencyHz =
+        SHUTTER_WHIR_PITCH_HZ.from +
+        (SHUTTER_WHIR_PITCH_HZ.to - SHUTTER_WHIR_PITCH_HZ.from) * progress;
+      whirPhase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+      value += Math.sin(whirPhase) * SHUTTER_WHIR_GAIN * (1 - progress);
+    }
+    out[i] = value;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 const STEALTH_LOOP_LENGTH_S = 4;
 const STEALTH_DRONE_HZ = [49, 73.5];
 const STEALTH_TICK_PERIOD_S = 2;
@@ -2186,6 +2242,7 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'music_stealth', synth: synthStealthLoop },
   { clip: 'env_door_key', synth: synthDoorKey },
   { clip: 'env_prop_tidied', synth: synthPropTidied },
+  { clip: 'ui_camera_shutter', synth: synthCameraShutter },
 ];
 
 function run(command: string, args: string[]): Promise<{ code: number | null; output: string }> {

@@ -153,6 +153,13 @@ export const ISO_FIT_MARGIN_PCT = 4;
 /** Near plane of the isometric camera, in metres: the room is ~`ISO_CAMERA_DISTANCE_M` away, so nothing is ever this close. */
 export const ISO_CAMERA_NEAR_M = 0.1;
 
+/**
+ * The radius of the end photo's vignette, as a share of the photo's width (across) and of its height
+ * (down): the mockup's `#vig` gradient (`key-result.html`, `r="70%"` in bounding-box units, so an
+ * ellipse). Its `feedback.json › photo` numbers say where it starts and how dark it gets.
+ */
+export const PHOTO_VIGNETTE_RADIUS_RATIO = 0.7;
+
 /** Warnings raised from the frame loop are rate-limited to one per this much real time, in ms. */
 export const LOOP_WARN_INTERVAL_MS = 1000;
 

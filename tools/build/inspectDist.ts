@@ -99,6 +99,8 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   'ppBreathHeld',
   // Story 3.5: the final rush's debug mirror (`data-pp-props-tidied`), the same way.
   'ppPropsTidied',
+  // Story 3.6: the end photo's debug mirror (`data-pp-photo`), the same way.
+  'ppPhoto',
 ];
 
 /**

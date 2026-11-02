@@ -2,7 +2,8 @@ import { MAX_PIXEL_RATIO } from '@shared/constants';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
 import type { Camera, Scene } from 'three';
-import { WebGLRenderer } from 'three';
+import { Vector4, WebGLRenderer } from 'three';
+import { bufferRectOf, photoRectOf } from './captureRect.ts';
 
 /**
  * `min(devicePixelRatio, cap)`. A value that is not a positive finite number (some embedded
@@ -40,6 +41,20 @@ export interface GameRenderer {
    */
   setPixelRatioCap(cap: number): void;
   render(scene: Scene, camera: Camera): void;
+  /**
+   * Draws `scene` through `camera` into a centred rectangle of the drawing buffer of aspect `aspect`
+   * (width / height), copies it to `target` with `drawImage` in the same task (the buffer is only valid
+   * until the task ends: `preserveDrawingBuffer` stays off, story 3.6 D4), and puts the viewport and
+   * the scissor back. `target` is filled whole. It does not remember the scene or the camera, so a
+   * later pixel-ratio step redraws the game's last frame and not the photo's. A canvas with no size, or
+   * a copy the browser refuses, returns an `err` of kind `render`; the game's next frame draws as usual.
+   */
+  capture(
+    scene: Scene,
+    camera: Camera,
+    aspect: number,
+    target: CanvasRenderingContext2D,
+  ): Result<void, AppError>;
   /** The last frame's draw calls and triangles, and the GPU memory held: one object, rewritten by each call (no allocation). */
   stats(): Readonly<RenderStats>;
   dispose(): void;
@@ -90,6 +105,9 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
   // The last frame's scene and camera, to draw it again right after the backing store is resized.
   let lastScene: Scene | null = null;
   let lastCamera: Camera | null = null;
+  // `capture` puts the viewport and the scissor back from these (reused, so it allocates nothing but once).
+  const previousViewport = new Vector4();
+  const previousScissor = new Vector4();
 
   return ok({
     resize() {
@@ -116,6 +134,47 @@ export function createRenderer(canvas: HTMLCanvasElement): Result<GameRenderer, 
       lastScene = scene;
       lastCamera = camera;
       renderer.render(scene, camera);
+    },
+    capture(scene, camera, aspect, target) {
+      const canvasWidthPx = canvas.clientWidth;
+      const canvasHeightPx = canvas.clientHeight;
+      if (canvasWidthPx === 0 || canvasHeightPx === 0) {
+        return err({ kind: 'render', message: 'cannot capture: the canvas has no size' });
+      }
+      if (!Number.isFinite(aspect) || aspect <= 0) {
+        return err({ kind: 'render', message: `cannot capture: the aspect is ${aspect}` });
+      }
+      const rect = photoRectOf(canvasWidthPx, canvasHeightPx, aspect);
+      renderer.getViewport(previousViewport);
+      renderer.getScissor(previousScissor);
+      const wasScissorTest = renderer.getScissorTest();
+      try {
+        renderer.setViewport(rect.xPx, rect.yPx, rect.widthPx, rect.heightPx);
+        renderer.setScissor(rect.xPx, rect.yPx, rect.widthPx, rect.heightPx);
+        renderer.setScissorTest(true);
+        // Not `this.render`: the photo's scene and camera must not become the ones a cap change redraws.
+        renderer.render(scene, camera);
+        const source = bufferRectOf(rect, renderer.getPixelRatio(), canvas.height);
+        target.drawImage(
+          canvas,
+          source.xPx,
+          source.yPx,
+          source.widthPx,
+          source.heightPx,
+          0,
+          0,
+          target.canvas.width,
+          target.canvas.height,
+        );
+        return ok(undefined);
+      } catch (cause) {
+        return err({ kind: 'render', message: 'cannot capture the end photo', cause });
+      } finally {
+        // The scissor test too, or every later frame is drawn inside the photo's rectangle.
+        renderer.setViewport(previousViewport);
+        renderer.setScissor(previousScissor);
+        renderer.setScissorTest(wasScissorTest);
+      }
     },
     stats() {
       stats.drawCalls = renderer.info.render.calls;

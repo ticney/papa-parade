@@ -65,6 +65,7 @@
   "countdown.step_2": "2",
   "countdown.step_1": "1",
   "result.title": "Note de Maman",
+  "result.photo_label": "Photo de fin",
   "result.score_label": "Score",
   "result.stars_label": "{count} sur {max} étoiles",
   "result.stars_lost_label": "{count} sur {max} étoiles, {lost} en moins",

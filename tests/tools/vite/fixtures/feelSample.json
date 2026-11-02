@@ -96,7 +96,7 @@
     "toiletDurationMs": 5000
   },
   "sequences": { "resumeGapMs": 2000 },
-  "endOfLevel": { "finalRushMs": 10000, "doorSpillCount": 2 },
+  "endOfLevel": { "finalRushMs": 10000, "doorSpillCount": 2, "frozenNearMissReachM": 1 },
   "stealth": {
     "sneakSpeedPct": 35,
     "breathCapacityMs": 6000,
@@ -175,6 +175,7 @@
       "shake": { "amplitudeM": 0.04, "durationMs": 250 },
       "particles": { "style": "puff", "count": 12, "speedMps": 0.8, "lifeMs": 650, "sizeM": 0.12 }
     },
+    "photoCamera": { "yawDeg": 38, "pitchDeg": 30, "zoomPct": 0 },
     "perfectCamera": {
       "zoomPct": 18,
       "yawDeg": 6,

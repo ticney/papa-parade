@@ -132,6 +132,31 @@ const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
 };
 
 /**
+ * Whether each gag is a near miss: the one answer the end of the level needs (story 3.6, D2). Today
+ * `stairs_slide` alone is. A table typed on `GagId`, as `GAG_CONSEQUENCES` is, so that a new gag must
+ * say whether it counts.
+ */
+const NEAR_MISS_GAGS: Readonly<Record<GagId, boolean>> = {
+  outlet_hair: false,
+  stairs_slide: true,
+  table_object_fall: false,
+  papa_asleep: false,
+  tissues_everywhere: false,
+  crayon_scribbles: false,
+  arms_wail: false,
+  baby_eyes_reopened: false,
+  baby_sat_up: false,
+  baby_woke_on_drop: false,
+  baby_woke_by_touch: false,
+  baby_woke_crying: false,
+};
+
+/** Whether `gag` is a near miss: the frozen rule of the end photo reads it (`recordFrozenNearMisses`). */
+export function isNearMissGag(gag: GagId): boolean {
+  return NEAR_MISS_GAGS[gag];
+}
+
+/**
  * Applies what `gag` does to the world. `gagThreat` calls it right after `GagTriggered`, inside
  * `runThreats`: a prop pushed here is stepped by `runPhysics` in the same step.
  */

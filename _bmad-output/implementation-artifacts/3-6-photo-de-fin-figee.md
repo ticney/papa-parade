@@ -1,6 +1,10 @@
+---
+baseline_commit: e3219e68f0673df5c5b5a94a65a52fef351da311
+---
+
 # Story 3.6: Photo de fin figée
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -54,33 +58,33 @@ Requirement: FR35 `[V1]`, UX-DR4, UX-DR13. It builds on the `photo` flow state o
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Frozen near misses in the sim (AC: 2, 17, 18, 19, 20, 21)
-  - [ ] `isNearMissGag` in `gags.ts`, as one typed table, with `stairsSlide` left as it is
-  - [ ] `sim/scoring/frozenNearMiss.ts` (`recordFrozenNearMisses`), called by `endLevel`; `NearMissFrozen` in `events.ts` and its list
-  - [ ] `feel.endOfLevel.frozenNearMissReachM`; `npm run content:schemas`
-  - [ ] Unit tests: within and beyond reach, carried, no such threat, a threat in each state, all three ends, the note's difference, snapshot round trip of `photo` and `ended`
-- [ ] Task 2: The camera and the capture (AC: 4, 5, 6, 7, 8)
-  - [ ] `feel.fx.photoCamera`; the `view` parameter of `fitIsoCamera`
-  - [ ] `GameRenderer.capture`, and the fakes (`levelSession.test.ts`)
-  - [ ] New `client/endOfLevel/photo.ts`: `takeEndPhoto` plus the pure `photoRectOf` and vignette helpers, with tests
-  - [ ] Look at a real photo of both levels and tune the default camera in `feel.json` (D3)
-- [ ] Task 3: Cue and flash (AC: 9, 10)
-  - [ ] `ui_camera_shutter` in `tools/audio/makePlaceholderAudio.ts`; `npm run assets:audio -- --only ui_camera_shutter`
-  - [ ] `PhotoTaken`, the cue and the event row; `feedback.json › photo` and `resultScreen.photoHoldMs` in the schema, `tests/support/testContent.ts` and the tests that build a full table
-  - [ ] Move `screenFlash.element`, add `pp-screen-flash--over`; check the perfect's flash specs still pass
-- [ ] Task 4: The Result screen (AC: 3, 11, 12, 13, 14, 15, 16)
-  - [ ] Option `photo: { canvas, tiltDeg } | null` and `onPhoto` in `createResultScreen`; the `photo` phase; `startRows`; the header's move
-  - [ ] Wire it in `boot.ts`: snapshot, capture, `resultPhoto`, mirror, clear on `loading`
-  - [ ] CSS in `ui.css`: two columns, polaroid, the drop and its `:where(:root[data-pp-motion="reduced"])` rule (`designTokens.test.ts` enforces it)
-  - [ ] `result.photo_label`; `ppPhoto` in `inspectDist.ts`
-  - [ ] Unit tests in `resultScreen.test.ts`: both paths, skip in `photo`, rebuild, the header's timing. Existing tests pass `photo: null` and keep their assertions
-- [ ] Task 5: Report and e2e (AC: 22 and all)
-  - [ ] `simReport.ts`, `simArgs.ts`, the whole-report pins
-  - [ ] `npm run golden:update`, deliberately; read the diff and say what moved in the Completion Notes
-  - [ ] New `tests/e2e/photo.spec.ts`; adapt `result.spec.ts`, `mamaWoke.spec.ts`, `debugOverlay.spec.ts` (see Traps); assert `data-pp-photo="taken"` in `tests/e2e-dist/dist.spec.ts`
-  - [ ] `npm run sim` with all four bots on the salon, before and after: `meanStars`, `endsByReason`, `frozenNearMisses`, in the Completion Notes
-- [ ] Task 6: Docs (AC: 23)
-  - [ ] `npm run ci:fast` after each task, plus the touched specs (`photo`, `result`, `mamaWoke`, `finalRush`, `feedback`, `debugOverlay`, `timer`, `journal`, `autoplay`) on Chromium
+- [x] Task 1: Frozen near misses in the sim (AC: 2, 17, 18, 19, 20, 21)
+  - [x] `isNearMissGag` in `gags.ts`, as one typed table, with `stairsSlide` left as it is
+  - [x] `sim/scoring/frozenNearMiss.ts` (`recordFrozenNearMisses`), called by `endLevel`; `NearMissFrozen` in `events.ts` and its list
+  - [x] `feel.endOfLevel.frozenNearMissReachM`; `npm run content:schemas`
+  - [x] Unit tests: within and beyond reach, carried, no such threat, a threat in each state, all three ends, the note's difference, snapshot round trip of `photo` and `ended`
+- [x] Task 2: The camera and the capture (AC: 4, 5, 6, 7, 8)
+  - [x] `feel.fx.photoCamera`; the `view` parameter of `fitIsoCamera`
+  - [x] `GameRenderer.capture`, and the fakes (`levelSession.test.ts`)
+  - [x] New `client/endOfLevel/photo.ts`: `takeEndPhoto` plus the pure `photoRectOf` and vignette helpers, with tests
+  - [x] Look at a real photo of both levels and tune the default camera in `feel.json` (D3)
+- [x] Task 3: Cue and flash (AC: 9, 10)
+  - [x] `ui_camera_shutter` in `tools/audio/makePlaceholderAudio.ts`; `npm run assets:audio -- --only ui_camera_shutter`
+  - [x] `PhotoTaken`, the cue and the event row; `feedback.json › photo` and `resultScreen.photoHoldMs` in the schema, `tests/support/testContent.ts` and the tests that build a full table
+  - [x] Move `screenFlash.element`, add `pp-screen-flash--over`; check the perfect's flash specs still pass
+- [x] Task 4: The Result screen (AC: 3, 11, 12, 13, 14, 15, 16)
+  - [x] Option `photo: { canvas, tiltDeg } | null` and `onPhoto` in `createResultScreen`; the `photo` phase; `startRows`; the header's move
+  - [x] Wire it in `boot.ts`: snapshot, capture, `resultPhoto`, mirror, clear on `loading`
+  - [x] CSS in `ui.css`: two columns, polaroid, the drop and its `:where(:root[data-pp-motion="reduced"])` rule (`designTokens.test.ts` enforces it)
+  - [x] `result.photo_label`; `ppPhoto` in `inspectDist.ts`
+  - [x] Unit tests in `resultScreen.test.ts`: both paths, skip in `photo`, rebuild, the header's timing. Existing tests pass `photo: null` and keep their assertions
+- [x] Task 5: Report and e2e (AC: 22 and all)
+  - [x] `simReport.ts`, `simArgs.ts`, the whole-report pins
+  - [x] `npm run golden:update`, deliberately; read the diff and say what moved in the Completion Notes
+  - [x] New `tests/e2e/photo.spec.ts`; adapt `result.spec.ts`, `mamaWoke.spec.ts`, `debugOverlay.spec.ts` (see Traps); assert `data-pp-photo="taken"` in `tests/e2e-dist/dist.spec.ts`
+  - [x] `npm run sim` with all four bots on the salon, before and after: `meanStars`, `endsByReason`, `frozenNearMisses`, in the Completion Notes
+- [x] Task 6: Docs (AC: 23)
+  - [x] `npm run ci:fast` after each task, plus the touched specs (`photo`, `result`, `mamaWoke`, `finalRush`, `feedback`, `debugOverlay`, `timer`, `journal`, `autoplay`) on Chromium
 
 ## Dev Notes
 
@@ -223,12 +227,56 @@ Follows the layers and aliases. `client/endOfLevel/` is new and named by the arc
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Sonnet 5.5 (`claude-sonnet-5-5`)
+
+### Implementation Plan
+
+Six tasks in the story's order, `npm run ci:fast` after each: (1) the frozen near miss in the sim, (2) the photo camera and `GameRenderer.capture`, (3) the shutter cue and the flash's move, (4) the Result screen and the `boot.ts` wiring, (5) the report, goldens and e2e, (6) docs. Task 2's « look at a real photo » needed the boot wiring of Task 4, so it was done right after it (a throwaway spec took the photos, then it was deleted).
 
 ### Debug Log References
 
+- The first `ci:fast` after Task 1 was red on the goldens only (`feelHash`), as expected: regenerated deliberately (see below).
+- `renderer.test.ts` mocks `three`: the mock gained `Vector4` and the viewport / scissor calls `capture` uses.
+- `designTokens.test.ts` refused `var(--pp-polaroid-tilt)` until `.pp-polaroid` declared it (`--pp-polaroid-tilt: 0deg`).
+- `.pp-panel` has a `pp-pop-in` animation with `both`, whose fill beats a plain `opacity: 0`: the waiting panel is `.pp-result-panel.pp-result-panel-waiting { animation: none; opacity: 0 }` (two classes, so the later reduced-motion `.pp-panel` rule cannot bring it back).
+- `tests/content/feedbackSchema.test.ts` has an explicit unit-suffix list: `^widthPx|^heightPx` added, with a comment, for the photo canvas (the story names `widthPx` and `heightPx`).
+- The worktree guard refuses heredocs and a shell loop with a computed program: the edit tools and one script file in the scratchpad were used instead.
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Frozen near miss (AC 17-22).** `isNearMissGag` is one table typed on `GagId` (`stairs_slide` alone is `true`); `recordFrozenNearMisses` runs in `endLevel` between `LevelEnded` and `scoreLevel`, whatever the end, with a squared-distance test, no state and no draw. `NearMissFrozen` is a new event (sorted right after `NearMiss`). `SimSnapshot.version` stays 28 (a test restores a `photo`, an `ended` and a `mamaWoke` world and compares `hashJson` of the world). `cycleDone` is reached in the unit test through a hidden system that sets `world.cycle.completedAt` (the snapshot refuses the field in a level with no cycle), as `bedtimeCycle.test.ts` does for its hand.
+- **Goldens (deliberate `npm run golden:update`).** All 54 files moved by the two new feel keys: `feelHash` in each journal and `worldHash` in each `.expected`. **No `eventTypes` and no `eventsHash` moved**: no scenario ends with the baby within reach of a stairs threat, so the rule is invisible there, as the story predicted. The only other diff was a Biome reformat of `mama_woke.expected.json`'s array, undone.
+- **Sim before and after** (`npm run sim`, salon, 30 games per bot, seeds 1000 to 1029; « before » is the same code with `frozenNearMissReachM` at 0.01, which counts nothing, put back to 1 after). `perfect`: meanStars 5, ends `timer` 30, `frozenNearMisses` 0 before and after. `human`: meanStars 3.9, ends `timer` 30; `frozenNearMisses` 0 → **1** (seed 1016: 80.2 → 80.1 mean, one game 3 points lower, same stars). `random`: meanStars 0.8, ends `timer` 25 / `mamaWoke` 5; `frozenNearMisses` 0 → **4**, no score moved. `idle`: meanStars 0.8, ends `timer` 24 / `mamaWoke` 6; `frozenNearMisses` 0 → **2**, no score moved. The last two already have their Hurlement row at its cap (about 330 `NearMiss` over 30 games), so a frozen one costs them nothing visible. This matches « The measure » of the story (human 1, random 4, idle 2 within 1 m; perfect 0). The `human` figure is Geo's open point 1.
+- **Camera (D3), looked at.** The Result screen and the photo of both levels (salon with the door open, bedroom with a woken Mama, Papa asleep) were captured and read. At the default (`yawDeg` 38, `pitchDeg` 30, `zoomPct` 0) the whole room is in frame, the door, the stairs and the playpen included. The four corners of the bounds (yaw 15 and 75, pitch 20 and 60) were captured on both levels: none shows the outside or looks through a wall the room does not model, so the bounds stay as the story set them and the **default values are unchanged**. Geo tunes the rest: at zoom 0 the room leaves ink margins, and since the room already fills the frame from top to bottom, a large zoom crops its corners (the threshold was not measured).
+- **Capture (AC 6, D4).** `GameRenderer.capture` renders into the centred rectangle (`setViewport`, `setScissor`, the scissor test), copies it with `target.drawImage(canvas, …)` in the same call, and restores the viewport, the scissor and the test in a `finally`; it returns an `err` for a canvas with no size, a bad aspect or a refused copy, and it does not write `lastScene` / `lastCamera`. **Deviation:** `photoRectOf` (and `bufferRectOf`, which turns GL's bottom-left origin into `drawImage`'s top-left one, pinned at a pixel ratio of 2) live in `client/render/captureRect.ts`, not in `endOfLevel/photo.ts`: the renderer needs them and `photo.ts` imports the renderer's type, so this avoids a cycle. `photo.ts` has `takeEndPhoto`, `placePhotoCamera`, the vignette (`vignetteStopsOf`, `drawVignette`, the radius ratio 0.7 of the mockup is `PHOTO_VIGNETTE_RADIUS_RATIO` in `shared/constants.ts`).
+- **Flash, cue and sound.** `photo_taken` (clip `ui_camera_shutter`, `ui` bus, `uiElement`, `medium`, flash 60 % for 300 ms, the maximum the schema allows) and a placeholder clip with its own seed (`SEED + 49`). The flash is a sibling of `#pp-ui` at `z-index` 15 and takes `pp-screen-flash--over` (60) only in `result`. **One addition beyond the story:** the epic stamp moved with it (to `z-index` 16, still above the flash and below the pause panel), or the stamp of a perfect would now sit under the flash's fade; the unit test pins flash < stamp < `#pp-ui`.
+- **Result screen.** `ResultPhase` gains `photo`; `photo: { canvas, tiltDeg } | null` and `onPhoto` are required options. The header of a woken Mama (and the cycle's) is mounted by `mountHeader` when the rows start, at rest on a skip or a rebuild. `.pp-result-panel` keeps its name and stays the only panel; with no photo the screen is built exactly as before (its tests pass with `photo: null` and unchanged assertions; the helper now finds the panel by class because a photo puts the polaroid first).
+- **E2E (Chromium).** New `tests/e2e/photo.spec.ts` (15 tests, passing): the phases through a mutation recorder (`photo`, `rows`, `stars`, `actions`, so no polling race), the moment of `photo` (HUD hidden, panel `opacity: 0`, polaroid dropping, panel focused), non-blank canvas, no `<img>`, the shutter once and the flash seen (opacity, outside the hidden HUD, `z-index` above `#pp-ui`), reduced motion (glow, no drop), skip during `photo`, a portrait rebuild (same pixels and tilt, no cue, no flash), the tilt bound, a woken Mama (header after the photo; skip brings it up at rest), a camera tune changing the pixels, `data-pp-photo` cleared on replay, 844 × 390 and 750 × 340 in two columns without a scroll, and a failed capture (the 2D context refused: `data-pp-photo="none"`, no polaroid, no cue, the rows start as before, one warning). Adapted: `mamaWoke.spec.ts` (the shutter is one more cue and one more vibration, first); `result.spec.ts` and `debugOverlay.spec.ts` needed no edit (they already wait for `rows`) and pass. `tests/e2e-dist/dist.spec.ts` asserts `data-pp-photo="taken"` and one canvas.
+- **Checks run.** `npm run ci:fast` green after each task and at the end (375 files, 7 793 tests). Chromium e2e: `photo`, `result`, `mamaWoke`, `finalRush`, `mute`, `reducedMotion`, `juice`, `ui`, `feedback`, `timer`, `journal`, `autoplay` (its frozen screenshot did not move), `testApi`, `chambreNight` and the two `debugOverlay` tests of the Result screen: all green. `npm run build:playtest` + `dist:check --flavor playtest`, then the dist spec « plays a level end to end » on the built bundle with its real CSP (`dist-chromium`): green, `data-pp-photo="taken"`, no CSP violation. `npm run build` + `dist:check --flavor prod`: green, so `ppPhoto` is not in the store build; level payload 906 KiB. **Not run, by the story's own rule:** `npm run ci:story` and `npm run ci` (the review runs the gate), WebKit, `perf.spec.ts`, the full `debugOverlay` and the other suites.
+- **Look (for Geo).** Seen on screenshots of both levels (rows phase): the polaroid left of the panel, tilted, the room whole in the picture, the panel on the right with the woken header on the bedroom. The vignette is over the picture, but the margins are ink-coloured, so it is hard to see: judge it by playing. The panel's pop-in at the start of the rows and the drop of the polaroid were checked by their computed styles in the e2e, not by eye. To judge by playing: the photo has no Mama (3.7); zoom 0 leaves empty margins; `photoHoldMs` 1 200 adds that to every Result (a press skips it); the salon's photo shows its door swung open (that level has a rush), and a `mamaWoke` or `cycleDone` end gets no door-opening (open point 2). No screenshot reference was added: the tilt is random.
 
 ### File List
+
+**New**
+
+- `src/sim/scoring/frozenNearMiss.ts`, `src/sim/scoring/frozenNearMiss.test.ts`
+- `src/client/endOfLevel/photo.ts`, `src/client/endOfLevel/photo.test.ts`
+- `src/client/render/captureRect.ts`, `src/client/render/captureRect.test.ts`
+- `tests/e2e/photo.spec.ts`
+- `tests/tools/audio/cameraShutterClip.test.ts`
+- `public/assets/audio/ui_camera_shutter.m4a`
+
+**Modified**
+
+- Sim: `src/sim/events.ts`, `src/sim/events.test.ts`, `src/sim/flow/flowSystem.ts`, `src/sim/threats/gags.ts`, `src/sim/threats/gags.test.ts`
+- Content and schemas: `src/content/schemas/feel.ts`, `src/content/schemas/feedback.ts`, `content/feel.json`, `content/feedback.json`, `content/strings.fr.json`, `content/_schemas/feel.schema.json`, `content/_schemas/feedback.schema.json`, `src/shared/constants.ts`
+- Client: `src/client/boot.ts`, `src/client/render/renderer.ts`, `src/client/render/renderer.test.ts`, `src/client/render/isoCamera.ts`, `src/client/render/isoCamera.test.ts`, `src/client/feedback/feedbackEvents.ts`, `src/client/feedback/feedbackDirector.test.ts`, `src/client/app/levelSession.test.ts`, `src/client/ui/hud/screenFlash.ts`, `src/client/ui/hud/screenFlash.test.ts`, `src/client/ui/screens/resultScreen.ts`, `src/client/ui/screens/resultScreen.test.ts`, `src/client/ui/styles/ui.css`
+- Tools: `tools/audio/makePlaceholderAudio.ts`, `tools/build/inspectDist.ts`, `tools/sim/simReport.ts`, `tools/sim/simArgs.ts`
+- Tests: `tests/support/testContent.ts`, `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json`, `tests/tools/sim/simReport.test.ts`, `tests/tools/build/checkDist.test.ts`, `tests/content/feelSchema.test.ts`, `tests/content/feedbackSchema.test.ts`, `tests/e2e/mamaWoke.spec.ts`, `tests/e2e/support/game.ts`, `tests/e2e-dist/dist.spec.ts`
+- Goldens (`feelHash` / `worldHash` only): the 54 files of `tests/golden/journals/`
+- Docs: `_bmad-output/project-context.md`, `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md`, `_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/gdd.md`, `_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/decision-log.md`
+- Tracking: `_bmad-output/implementation-artifacts/3-6-photo-de-fin-figee.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+### Change Log
+
+- 2026-11-02 — Story 3.6 implemented: the near misses frozen on the end photo (sim, `NearMissFrozen`, `feel.endOfLevel.frozenNearMissReachM`), the photo camera and `GameRenderer.capture`, the polaroid and the `photo` phase of the Result screen, the shutter cue and the flash moved out of the HUD, `simReport.frozenNearMisses`, docs. Goldens regenerated deliberately (`feelHash`, `worldHash`).

@@ -7,8 +7,21 @@ import { bindPressButton } from '../pressButton.ts';
 import { formatString, type Translator } from '../strings.ts';
 import { svgElement } from '../svg.ts';
 
-/** Where the sequence is: the rows count up, then the stars stamp (the lost ones last), then the buttons are up. */
-export type ResultPhase = 'rows' | 'stars' | 'actions';
+/**
+ * Where the sequence is: the end photo drops in and holds (story 3.6, only with a photo), the rows
+ * count up, then the stars stamp (the lost ones last), then the buttons are up.
+ */
+export type ResultPhase = 'photo' | 'rows' | 'stars' | 'actions';
+
+/**
+ * The end photo as the screen gets it (story 3.6): the 2D canvas boot took at `LevelScored`, which
+ * boot keeps and every build of the screen re-parents, and the tilt of its polaroid, in degrees,
+ * drawn once with the photo so that a rebuilt screen shows the same tilt.
+ */
+export interface ResultPhoto {
+  readonly canvas: HTMLCanvasElement;
+  readonly tiltDeg: number;
+}
 
 /**
  * What the copy action did (story 3.3): `copied` to the clipboard, `downloaded` as a file (the
@@ -50,13 +63,20 @@ export interface ResultScreenOptions {
   timings: ResultScreenTimings;
   /** The sequence already ran (a screen rebuilt after the portrait overlay): show its end, silently. */
   isDone: boolean;
+  /**
+   * The end photo (story 3.6), or null when the level took none: the screen then has no polaroid and
+   * its sequence starts at `rows`, exactly as before the photo existed.
+   */
+  photo: ResultPhoto | null;
   scheduler: ResultScheduler;
   /** Real ms, for the count-up. */
   now(): number;
   keyTarget: ResultKeyTarget;
+  /** The photo dropped in, once, when the `photo` phase starts (never on a rebuild, nor with no photo). */
+  onPhoto(): void;
   /** A star is stamped; `isLast` for the last earned one. Never called for a skipped or done star. */
   onStar(isLast: boolean): void;
-  /** The header of a woken Mama comes up, once, when the sequence starts (never on a rebuild). */
+  /** The header of a woken Mama comes up, once, when the rows start (never on a rebuild or a skip). */
   onMamaWoke(): void;
   /** A lost star is stamped (after the earned ones). Never called for a skipped or done one. */
   onStarLost(): void;
@@ -113,14 +133,18 @@ interface Row {
 }
 
 /**
- * The Result screen (story 1.22, UX-DR13): Mama's four rows count up one after the other, the total
+ * The Result screen (story 1.22, UX-DR13): the end photo drops in as a polaroid left of the panel
+ * and holds alone (`photoHoldMs`, story 3.6; the panel is transparent meanwhile, and a level that took
+ * no photo skips this), then Mama's four rows count up one after the other, the total
  * follows them, the earned stars stamp one by one, then the stars a woken Mama took off (dashed,
  * with a « −1 », story 3.2), then « Rejouer » comes up and takes focus. A woken Mama also puts a
- * header over the card, with its own cue. The
- * timings are `feedback.json › resultScreen`, in real ms. A press on the screen, Enter, Space or a
- * pad's A skips to the end (rows at their totals, stars placed silently, buttons up) without
+ * header over the card, with its own cue, when the rows start (nothing sits between the photo and
+ * her reaction). The
+ * timings are `feedback.json › resultScreen`, in real ms. A press on the screen (the polaroid
+ * included), Enter, Space or a pad's A skips to the end (panel shown, rows at their totals, stars
+ * placed silently, the header at rest, buttons up) without
  * pressing « Rejouer ». A press that starts within `inputGraceMs` of the screen coming up, or of the
- * buttons coming up, does neither: it is a tap still meant for the game. The photo (3.6), Mama's lines (3.7) and the 3.11 buttons come later.
+ * buttons coming up, does neither: it is a tap still meant for the game. Mama's lines (3.7) and the 3.11 buttons come later.
  */
 export function createResultScreen(options: ResultScreenOptions): OverlayScreen {
   const { t, score, maxima, timings, scheduler, doc = document } = options;
@@ -163,7 +187,11 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     return node;
   };
 
-  const element = make('div', 'pp-overlay pp-result-screen');
+  const { photo } = options;
+  const element = make(
+    'div',
+    `pp-overlay pp-result-screen${photo === null ? '' : ' pp-result-screen-photo'}`,
+  );
   const panel = make(
     'section',
     `pp-panel pp-result-panel${options.endReason === 'mamaWoke' ? ' pp-result-panel-woken' : ''}${
@@ -176,16 +204,26 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   // Focusable while the sequence runs: Enter and Space are heard on the panel, not on a button.
   panel.tabIndex = -1;
 
+  // The polaroid of the end photo (story 3.6, UX `polaroid`), left of the panel. The canvas belongs to
+  // boot, which keeps it for as long as the result lasts: a rebuilt screen re-parents it, and the tilt
+  // comes with it, so the same picture stands at the same angle.
+  let polaroid: HTMLElement | null = null;
+  if (photo !== null) {
+    polaroid = make('div', 'pp-polaroid');
+    polaroid.style.setProperty('--pp-polaroid-tilt', `${photo.tiltDeg}deg`);
+    photo.canvas.classList.add('pp-polaroid-photo');
+    photo.canvas.setAttribute('role', 'img');
+    photo.canvas.setAttribute('aria-label', t('result.photo_label'));
+    polaroid.append(photo.canvas);
+  }
+
   const isMamaWoke = options.endReason === 'mamaWoke';
   // The slam is one run of an animation: a rebuilt, finished screen shows the header at rest. The end
   // of the bedtime cycle (story 4.10) shows its header in the same place, with no slam and no event.
+  // With a photo the header waits for the rows (`mountHeader`, story 3.6); without one it is there at once.
   let header: HTMLElement | null = null;
   if (isMamaWoke) {
-    header = make(
-      'h2',
-      `pp-result-reason pp-type-heading${options.isDone ? '' : ' pp-result-reason-slam'}`,
-      t('result.mama_woke'),
-    );
+    header = make('h2', 'pp-result-reason pp-type-heading', t('result.mama_woke'));
   } else if (options.endReason === 'cycleDone') {
     header = make(
       'h2',
@@ -193,6 +231,18 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
       t('result.cycle_done'),
     );
   }
+  let isHeaderMounted = false;
+  /** Puts the header over the card, once: with the slam when it comes up for the first time, at rest otherwise. */
+  const mountHeader = (isSlammed: boolean): void => {
+    if (header === null || isHeaderMounted) return;
+    isHeaderMounted = true;
+    if (isSlammed && isMamaWoke) header.classList.add('pp-result-reason-slam');
+    panel.prepend(header);
+  };
+  /** The panel is transparent while the photo stands alone; this lets it show (its pop-in plays then). */
+  const showPanel = (): void => {
+    panel.classList.remove('pp-result-panel-waiting');
+  };
 
   const card = make('div', 'pp-score-card');
   card.setAttribute('role', 'table');
@@ -330,8 +380,8 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     actions.append(copy);
   }
 
-  if (header !== null) panel.append(header);
   panel.append(card, total, actions);
+  if (polaroid !== null) element.append(polaroid);
   element.append(panel);
 
   // The sequence. Every timer goes through `scheduler`, so `dispose` and a skip cancel them all.
@@ -348,6 +398,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     pending.clear();
   };
 
+  // The first phase of a screen that runs its sequence is set at the end of the build; `enter` calls the host.
   let phase: ResultPhase = 'rows';
   const enter = (next: ResultPhase): void => {
     phase = next;
@@ -395,10 +446,15 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     enter('actions');
     replay.focus({ preventScroll: true });
   };
-  /** Rows at their totals, the stars placed without a sound, the buttons up. */
+  /**
+   * The panel shown, the header of a woken Mama at rest (no slam, no cue), the rows at their totals,
+   * the stars placed without a sound, the buttons up. The polaroid stays as it is.
+   */
   const complete = (): void => {
     if (phase === 'actions') return;
     cancelAll();
+    showPanel();
+    mountHeader(false);
     showTotals();
     while (earned < score.stars) earn(false);
     while (lost < lostCount) lose(false);
@@ -480,19 +536,36 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   options.keyTarget.addEventListener('keyup', onKeyUp);
   options.keyTarget.addEventListener('blur', onBlur);
 
-  if (options.isDone) {
-    showTotals();
-    while (earned < score.stars) earn(false);
-    while (lost < lostCount) lose(false);
-    actions.hidden = false;
-    enter('actions');
-  } else {
+  /** The rows count up, then the stars: with a photo this follows its hold, otherwise it is the whole start. */
+  const startRows = (): void => {
+    showPanel();
+    mountHeader(true);
     enter('rows');
     if (isMamaWoke) options.onMamaWoke();
     for (let index = 0; index < rows.length; index++) {
       later(() => countUp(index), index * timings.rowStaggerMs);
     }
     later(startStars, (rows.length - 1) * timings.rowStaggerMs + timings.rowCountUpMs);
+  };
+
+  if (options.isDone) {
+    mountHeader(false);
+    showTotals();
+    while (earned < score.stars) earn(false);
+    while (lost < lostCount) lose(false);
+    actions.hidden = false;
+    enter('actions');
+  } else if (polaroid !== null) {
+    // The photo stands alone first: the panel is transparent (not `hidden`, which cannot take the
+    // focus the host gives it), the polaroid drops in, the cue plays once, and after the hold the rows
+    // start. The header of a woken Mama waits for them (EXPERIENCE: nothing between the photo and her).
+    panel.classList.add('pp-result-panel-waiting');
+    polaroid.classList.add('pp-polaroid-drop');
+    enter('photo');
+    options.onPhoto();
+    later(startRows, timings.photoHoldMs);
+  } else {
+    startRows();
   }
 
   return {

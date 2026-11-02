@@ -16,8 +16,9 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // unit gets a deliberate, commented entry here.
 // `pulses` is a count of rings, not a quantity: it has no unit. `laidHeightM` is a height in metres (story 4.8).
 // The door (story 3.5) adds `openAngleDeg` (degrees) and its size in metres: `widthM`, `heightM`, `thicknessM`.
+// The end photo (story 3.6) adds the size of its canvas in pixels, `widthPx` and `heightPx`, spelled out for the same reason.
 const UNIT_SUFFIX =
-  /(?:Pct|Ms|RadiusM|AmplitudeM|HeightM|Deg|^widthM|^heightM|^thicknessM|^pulses)$/;
+  /(?:Pct|Ms|RadiusM|AmplitudeM|HeightM|Deg|^widthM|^heightM|^thicknessM|^widthPx|^heightPx|^pulses)$/;
 
 type Json = Record<string, unknown>;
 
@@ -342,6 +343,58 @@ describe('content/feedback.json', () => {
 
   it('accepts an input grace of 0 ms: the screen then takes every press', () => {
     expect(mutated(['resultScreen.inputGraceMs', 0])).toMatchObject({ ok: true });
+  });
+
+  describe('the end photo (story 3.6)', () => {
+    it.each<[string, [string, unknown][], string]>([
+      ['a missing photo', [['photo', undefined]], 'photo'],
+      ['an unknown key in photo', [['photo.bogusPx', 1]], 'photo.bogusPx'],
+      ['a canvas under 120 px wide', [['photo.widthPx', 119]], 'photo.widthPx'],
+      ['a canvas over 1280 px wide', [['photo.widthPx', 1281]], 'photo.widthPx'],
+      ['a fractional width', [['photo.widthPx', 570.5]], 'photo.widthPx'],
+      ['a canvas under 80 px high', [['photo.heightPx', 79]], 'photo.heightPx'],
+      ['a canvas over 1024 px high', [['photo.heightPx', 1025]], 'photo.heightPx'],
+      ['a negative tilt', [['photo.tiltMaxDeg', -1]], 'photo.tiltMaxDeg'],
+      ['a tilt over 3 degrees (DESIGN.md)', [['photo.tiltMaxDeg', 3.5]], 'photo.tiltMaxDeg'],
+      ['a negative vignette start', [['photo.vignetteFromPct', -1]], 'photo.vignetteFromPct'],
+      [
+        'a vignette that starts at the edge',
+        [['photo.vignetteFromPct', 100]],
+        'photo.vignetteFromPct',
+      ],
+      ['a vignette over 100 %', [['photo.vignetteOpacityPct', 101]], 'photo.vignetteOpacityPct'],
+      ['a negative photo hold', [['resultScreen.photoHoldMs', -1]], 'resultScreen.photoHoldMs'],
+      ['a fractional photo hold', [['resultScreen.photoHoldMs', 1.5]], 'resultScreen.photoHoldMs'],
+      [
+        'a missing photo hold',
+        [['resultScreen.photoHoldMs', undefined]],
+        'resultScreen.photoHoldMs',
+      ],
+    ])('refuses %s', (_name, changes, path) => {
+      expect(failedPaths(mutated(...changes))).toEqual([path]);
+    });
+
+    it('accepts the bounds themselves, and a photo hold of 0 ms (straight to the rows)', () => {
+      expect(
+        mutated(
+          ['photo.widthPx', 120],
+          ['photo.heightPx', 80],
+          ['photo.tiltMaxDeg', 0],
+          ['photo.vignetteFromPct', 0],
+          ['photo.vignetteOpacityPct', 0],
+          ['resultScreen.photoHoldMs', 0],
+        ),
+      ).toMatchObject({ ok: true });
+      expect(
+        mutated(
+          ['photo.widthPx', 1280],
+          ['photo.heightPx', 1024],
+          ['photo.tiltMaxDeg', 3],
+          ['photo.vignetteFromPct', 99],
+          ['photo.vignetteOpacityPct', 100],
+        ),
+      ).toMatchObject({ ok: true });
+    });
   });
 
   describe('layers (story 2.3 D1)', () => {

@@ -468,6 +468,12 @@
           "minimum": 0,
           "maximum": 9007199254740991,
           "description": "After the screen comes up, and again after the buttons come up, presses that start within this many real ms skip nothing and press nothing, so that taps still mashing for the last parry do not skip the note or hit « Rejouer »; 0 turns it off."
+        },
+        "photoHoldMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long the end photo stays alone on screen, after it drops in and before the rows start, in real ms (story 3.6); 0 goes straight to the rows. A level that took no photo skips it. A press skips it."
         }
       },
       "required": [
@@ -476,10 +482,11 @@
         "starsDelayMs",
         "starIntervalMs",
         "actionsDelayMs",
-        "inputGraceMs"
+        "inputGraceMs",
+        "photoHoldMs"
       ],
       "additionalProperties": false,
-      "description": "The sequence of the Result screen (story 1.22): rows, then stars, then buttons. Real time: the sim never reads it."
+      "description": "The sequence of the Result screen (story 1.22): the photo (story 3.6), then rows, then stars, then buttons. Real time: the sim never reads it."
     },
     "calibration": {
       "type": "object",
@@ -626,6 +633,50 @@
       ],
       "additionalProperties": false,
       "description": "The door on screen (story 3.5): a closed panel at the level's `ANCHOR_door` that swings open from the start of the final rush. Read per frame on the sim clock; the sim never reads it."
+    },
+    "photo": {
+      "type": "object",
+      "properties": {
+        "widthPx": {
+          "type": "integer",
+          "minimum": 120,
+          "maximum": 1280,
+          "description": "Width of the end photo canvas, in pixels (story 3.6). Its CSS size is the polaroid’s."
+        },
+        "heightPx": {
+          "type": "integer",
+          "minimum": 80,
+          "maximum": 1024,
+          "description": "Height of the end photo canvas, in pixels. The camera frames the room at this aspect."
+        },
+        "tiltMaxDeg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "The polaroid is tilted by a random angle within plus or minus this, in degrees (DESIGN.md: 3)."
+        },
+        "vignetteFromPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 99,
+          "description": "The photo filter’s vignette is clear out to this share of its radius (% of the radius the mockup’s `#vig` gradient has), then darkens to the edge."
+        },
+        "vignetteOpacityPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "How dark the vignette is at the edge of the photo (ink), in %."
+        }
+      },
+      "required": [
+        "widthPx",
+        "heightPx",
+        "tiltMaxDeg",
+        "vignetteFromPct",
+        "vignetteOpacityPct"
+      ],
+      "additionalProperties": false,
+      "description": "The end photo (story 3.6): its canvas, its tilt and its filter. Real time and client only: the sim never reads it."
     },
     "cues": {
       "type": "object",
@@ -854,6 +905,7 @@
     "papaHint",
     "bombDrop",
     "door",
+    "photo",
     "cues",
     "events"
   ],

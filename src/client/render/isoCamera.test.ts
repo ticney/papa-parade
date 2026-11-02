@@ -168,3 +168,72 @@ describe('fitIsoCamera', () => {
     expect(() => fitIsoCamera(createIsoCamera(), room, 16 / 9)).toThrow(/room/i);
   });
 });
+
+describe('fitIsoCamera with a view (the end photo, story 3.6)', () => {
+  /** Everything fitIsoCamera writes that a game camera test would notice. */
+  const stateOf = (camera: OrthographicCamera) => ({
+    position: camera.position.toArray(),
+    left: camera.left,
+    right: camera.right,
+    top: camera.top,
+    bottom: camera.bottom,
+    near: camera.near,
+    far: camera.far,
+    projection: camera.projectionMatrix.toArray(),
+    view: camera.matrixWorldInverse.toArray(),
+  });
+
+  it('leaves the game camera exactly as it was when the view is left out', () => {
+    const plain = fitted(OFF_CENTRE_ROOM, 844 / 390);
+    const withDefaults = createIsoCamera();
+    fitIsoCamera(withDefaults, OFF_CENTRE_ROOM, 844 / 390, {
+      yawDeg: ISO_YAW_DEG,
+      pitchDeg: ISO_PITCH_DEG,
+    });
+    // Bit for bit: the view's defaults are the constants the game camera always used.
+    expect(stateOf(withDefaults)).toEqual(stateOf(plain));
+  });
+
+  it('places the camera at the yaw and the pitch it is given', () => {
+    const camera = createIsoCamera();
+    fitIsoCamera(camera, ROOM, 16 / 9, { yawDeg: 38, pitchDeg: 30 });
+    const fromCentre = camera.position.clone().sub(new Vector3(0, ROOM.heightM / 2, 0));
+    expect(fromCentre.length()).toBeCloseTo(ISO_CAMERA_DISTANCE_M, 9);
+    expect(degrees(Math.asin(fromCentre.y / fromCentre.length()))).toBeCloseTo(30, 6);
+    expect(degrees(Math.atan2(fromCentre.x, fromCentre.z))).toBeCloseTo(38, 6);
+  });
+
+  it.each([
+    [15, 20],
+    [38, 30],
+    [75, 60],
+  ])('keeps the whole room in view at a yaw of %f and a pitch of %f', (yawDeg, pitchDeg) => {
+    for (const room of [ROOM, OFF_CENTRE_ROOM, SUNKEN_ROOM]) {
+      for (const aspect of [1, 4 / 3, 844 / 390]) {
+        const camera = createIsoCamera();
+        fitIsoCamera(camera, room, aspect, { yawDeg, pitchDeg });
+        for (const corner of cornersOf(room)) {
+          const ndc = ndcOf(camera, corner);
+          expect(Math.abs(ndc.x)).toBeLessThanOrEqual(1 + EPSILON);
+          expect(Math.abs(ndc.y)).toBeLessThanOrEqual(1 + EPSILON);
+          expect(Math.abs(ndc.z)).toBeLessThanOrEqual(1);
+        }
+        expect((camera.right - camera.left) / (camera.top - camera.bottom)).toBeCloseTo(aspect, 9);
+      }
+    }
+  });
+
+  it('really moves the camera: another view gives another picture', () => {
+    const game = fitted(ROOM, 4 / 3);
+    const photo = createIsoCamera();
+    fitIsoCamera(photo, ROOM, 4 / 3, { yawDeg: 38, pitchDeg: 30 });
+    expect(photo.position.toArray()).not.toEqual(game.position.toArray());
+    expect(photo.projectionMatrix.toArray()).not.toEqual(game.projectionMatrix.toArray());
+  });
+
+  it('throws on a view that is not finite', () => {
+    expect(() =>
+      fitIsoCamera(createIsoCamera(), ROOM, 16 / 9, { yawDeg: Number.NaN, pitchDeg: 30 }),
+    ).toThrow(/view/i);
+  });
+});

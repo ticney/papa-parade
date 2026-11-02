@@ -41,7 +41,9 @@ describe('SIM_EVENT_TYPES', () => {
     expect(names.indexOf('LevelScored')).toBe(names.indexOf('LevelEnded') + 1);
     expect(names.indexOf('MamaWoke')).toBe(names.indexOf('LevelScored') + 1);
     expect(names.indexOf('NearMiss')).toBe(names.indexOf('MamaWoke') + 1);
-    expect(names.indexOf('NoiseChanged')).toBe(names.indexOf('NearMiss') + 1);
+    // `NearMissFrozen` (story 3.6) sorts right after `NearMiss`.
+    expect(names.indexOf('NearMissFrozen')).toBe(names.indexOf('NearMiss') + 1);
+    expect(names.indexOf('NoiseChanged')).toBe(names.indexOf('NearMissFrozen') + 1);
     expect(names.indexOf('ObjectTapped')).toBe(names.indexOf('NoiseChanged') + 1);
     expect(names.indexOf('PapaArrived')).toBe(names.indexOf('ObjectTapped') + 1);
   });

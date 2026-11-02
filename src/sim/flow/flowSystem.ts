@@ -5,6 +5,7 @@ import type { StepContext } from '../context.ts';
 import { endRingingPhones } from '../disruptions/phone.ts';
 import type { LevelEndReason } from '../events.ts';
 import { dropProps } from '../physics/dropProps.ts';
+import { recordFrozenNearMisses } from '../scoring/frozenNearMiss.ts';
 import { scoreLevel } from '../scoring/mamaScore.ts';
 import { endSequenceForLevelEnd } from '../sequences/sequenceEnd.ts';
 import type { World } from '../world.ts';
@@ -16,7 +17,8 @@ import { enterFlowState, isFlowLive } from './flowFsm.ts';
  * (`PhoneRingEnded{levelEnded}`), then an open silence (`SilenceEnded{levelEnded}`), Fatherly
  * Instinct (`InstinctEnded{levelEnded}`, story 2.9), the flow goes to `ended` (to `photo` when the
  * timer ends a level with a final rush, story 3.5, D2), `MamaWoke` (a woken Mama only),
- * `LevelEnded{reason}`, and Mama's note in the same step (`scoreLevel`, story 1.22).
+ * `LevelEnded{reason}`, the near misses frozen on the photo (`recordFrozenNearMisses`, story 3.6) and
+ * Mama's note in the same step (`scoreLevel`, story 1.22).
  */
 function endLevel(world: World, ctx: StepContext, reason: LevelEndReason): void {
   endSequenceForLevelEnd(world, ctx);
@@ -26,6 +28,8 @@ function endLevel(world: World, ctx: StepContext, reason: LevelEndReason): void 
   enterFlowState(world, reason === 'timer' && ctx.level.hasFinalRush ? 'photo' : 'ended');
   if (reason === 'mamaWoke') ctx.events.push({ type: 'MamaWoke', t: world.time.sim });
   ctx.events.push({ type: 'LevelEnded', t: world.time.sim, reason });
+  // The near misses the photo shows (story 3.6, D2) count before the note is computed.
+  recordFrozenNearMisses(world, ctx);
   scoreLevel(world, ctx, reason);
 }
 

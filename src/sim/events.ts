@@ -275,6 +275,13 @@ export type SimEvent =
    */
   | { type: 'NearMiss'; t: SimMs; threatId: number; gag: GagId }
   /**
+   * A near miss frozen on the end photo (story 3.6, D2): when the level ends, the baby (not carried)
+   * stands within `feel.endOfLevel.frozenNearMissReachM` of the point of a threat whose gag is a near
+   * miss. Between `LevelEnded` and `LevelScored`, at the same `t`. `world.score.nearMisses` rises by one
+   * beside it. It is not a `NearMiss`, so nothing that reads the moments of play takes it for one.
+   */
+  | { type: 'NearMissFrozen'; t: SimMs; threatId: number; gag: GagId }
+  /**
    * Fatherly Instinct started (story 2.9): enough misses in a short time with enough threats up.
    * The slow-mo (`TimeScaleChanged`) follows in the same step. It lasts until `untilAt` (sim time),
    * where `InstinctEnded{timer}` comes.
@@ -502,6 +509,7 @@ export const SIM_EVENT_TYPES = [
   'LevelScored',
   'MamaWoke',
   'NearMiss',
+  'NearMissFrozen',
   'NoiseChanged',
   'ObjectTapped',
   'PapaArrived',

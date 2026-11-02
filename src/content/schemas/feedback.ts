@@ -244,9 +244,55 @@ const ResultScreenSchema = z
       .describe(
         'After the screen comes up, and again after the buttons come up, presses that start within this many real ms skip nothing and press nothing, so that taps still mashing for the last parry do not skip the note or hit « Rejouer »; 0 turns it off.',
       ),
+    photoHoldMs: z
+      .int()
+      .min(0)
+      .describe(
+        'How long the end photo stays alone on screen, after it drops in and before the rows start, in real ms (story 3.6); 0 goes straight to the rows. A level that took no photo skips it. A press skips it.',
+      ),
   })
   .describe(
-    'The sequence of the Result screen (story 1.22): rows, then stars, then buttons. Real time: the sim never reads it.',
+    'The sequence of the Result screen (story 1.22): the photo (story 3.6), then rows, then stars, then buttons. Real time: the sim never reads it.',
+  );
+
+const PhotoSchema = z
+  .strictObject({
+    widthPx: z
+      .int()
+      .min(120)
+      .max(1280)
+      .describe(
+        'Width of the end photo canvas, in pixels (story 3.6). Its CSS size is the polaroid’s.',
+      ),
+    heightPx: z
+      .int()
+      .min(80)
+      .max(1024)
+      .describe(
+        'Height of the end photo canvas, in pixels. The camera frames the room at this aspect.',
+      ),
+    tiltMaxDeg: z
+      .number()
+      .min(0)
+      .max(3)
+      .describe(
+        'The polaroid is tilted by a random angle within plus or minus this, in degrees (DESIGN.md: 3).',
+      ),
+    vignetteFromPct: z
+      .number()
+      .min(0)
+      .max(99)
+      .describe(
+        'The photo filter’s vignette is clear out to this share of its radius (% of the radius the mockup’s `#vig` gradient has), then darkens to the edge.',
+      ),
+    vignetteOpacityPct: z
+      .number()
+      .min(0)
+      .max(100)
+      .describe('How dark the vignette is at the edge of the photo (ink), in %.'),
+  })
+  .describe(
+    'The end photo (story 3.6): its canvas, its tilt and its filter. Real time and client only: the sim never reads it.',
   );
 
 const CalibrationFeedbackSchema = z
@@ -371,6 +417,7 @@ export const FeedbackTableSchema = z
     papaHint: PapaHintSchema,
     bombDrop: BombDropSchema,
     door: DoorSchema,
+    photo: PhotoSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),
@@ -400,6 +447,7 @@ export type FeedbackTable = z.infer<typeof FeedbackTableSchema>;
 export type FeedbackCue = z.infer<typeof CueSchema>;
 export type FeedbackFlash = z.infer<typeof FlashSchema>;
 export type ResultScreenTimings = z.infer<typeof ResultScreenSchema>;
+export type PhotoSettings = z.infer<typeof PhotoSchema>;
 export type ComboBadgeTimings = z.infer<typeof ComboBadgeSchema>;
 export type BeatTrack = z.infer<typeof BeatTrackSchema>;
 export type AudioBus = (typeof AUDIO_BUSES)[number];
