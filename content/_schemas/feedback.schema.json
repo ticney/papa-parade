@@ -726,6 +726,210 @@
       "additionalProperties": false,
       "description": "The door on screen (story 3.5): a closed panel at the level's `ANCHOR_door` that swings open from the start of the final rush. Read per frame on the sim clock; the sim never reads it."
     },
+    "render": {
+      "type": "object",
+      "properties": {
+        "toonTones": {
+          "minItems": 2,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "description": "The toon ramp, darkest to lightest, as 0-255 (ADR-008). Three reads it at `N.L x 0.5 + 0.5`, in equal bands."
+        },
+        "lights": {
+          "type": "object",
+          "properties": {
+            "default": {
+              "type": "object",
+              "properties": {
+                "ambientColor": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$",
+                  "description": "Ambient light colour."
+                },
+                "ambientIntensity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 10,
+                  "description": "Ambient light intensity."
+                },
+                "sunColor": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$",
+                  "description": "Sun colour."
+                },
+                "sunIntensity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 10,
+                  "description": "Sun intensity."
+                }
+              },
+              "required": [
+                "ambientColor",
+                "ambientIntensity",
+                "sunColor",
+                "sunIntensity"
+              ],
+              "additionalProperties": false,
+              "description": "The lights of any level that has no row of its own."
+            },
+            "byLevel": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "ambientColor": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$",
+                    "description": "Ambient light colour."
+                  },
+                  "ambientIntensity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10,
+                    "description": "Ambient light intensity."
+                  },
+                  "sunColor": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$",
+                    "description": "Sun colour."
+                  },
+                  "sunIntensity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10,
+                    "description": "Sun intensity."
+                  }
+                },
+                "required": [
+                  "ambientColor",
+                  "ambientIntensity",
+                  "sunColor",
+                  "sunIntensity"
+                ],
+                "additionalProperties": false,
+                "description": "A level's lights. The drawn linear colour is `material x (ambient + sun x tone) / pi`, so ambient + sun = pi with white lights draws a sun-facing surface as authored. The colour of each light multiplies its intensity."
+              },
+              "description": "The lights of one level, by id. `npm run content:check` refuses an unknown level."
+            }
+          },
+          "required": [
+            "default",
+            "byLevel"
+          ],
+          "additionalProperties": false,
+          "description": "The lights of each level (story 7.3, D7, D8)."
+        },
+        "sunOffsetM": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Where the sun sits relative to the room centre, in metres: x, height, z."
+        },
+        "outlines": {
+          "type": "object",
+          "properties": {
+            "widthM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 0.2,
+              "description": "How far the ink hull stands out of a silhouette, in metres of view space: constant on screen under the orthographic camera."
+            },
+            "skipMaterials": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "The materials of a `.glb` that get no hull: thickening what is already ink would close the eyes."
+            }
+          },
+          "required": [
+            "widthM",
+            "skipMaterials"
+          ],
+          "additionalProperties": false,
+          "description": "The inverted-hull outlines of the characters and the props (story 7.3, D3, D4)."
+        },
+        "dangerTint": {
+          "type": "object",
+          "properties": {
+            "radiusM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 3,
+              "description": "Radius of the glow on a danger, in metres."
+            },
+            "minOpacityPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Opacity at the low of the pulse, in percent."
+            },
+            "peakOpacityPct": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100,
+              "description": "Opacity at the top of the pulse, in percent; the steady one under reduced motion."
+            },
+            "pulseHz": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 3,
+              "description": "How fast the glow pulses, on the sim clock, in Hz. Nothing flashes above 3 Hz."
+            }
+          },
+          "required": [
+            "radiusM",
+            "minOpacityPct",
+            "peakOpacityPct",
+            "pulseHz"
+          ],
+          "additionalProperties": false,
+          "description": "The reserved alert glow on the anchor of a telegraphed or open threat (story 7.3, D5)."
+        },
+        "blobSkipColliderIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "The colliders with no blob shadow: the height rule cannot tell a stairwell from furniture."
+        }
+      },
+      "required": [
+        "toonTones",
+        "lights",
+        "sunOffsetM",
+        "outlines",
+        "dangerTint",
+        "blobSkipColliderIds"
+      ],
+      "additionalProperties": false,
+      "description": "The final look (story 7.3). Client-only: unlike `feel.json` it is not hashed into the journal, so no golden moves for it."
+    },
     "cues": {
       "type": "object",
       "propertyNames": {
@@ -954,6 +1158,7 @@
     "bombDrop",
     "characters",
     "door",
+    "render",
     "cues",
     "events"
   ],

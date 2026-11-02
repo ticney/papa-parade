@@ -4,9 +4,12 @@ import { type Object3D, Scene, SkinnedMesh, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { createTestPapa } from '../../../../tests/support/testCharacters.ts';
 import { createBlobKit } from '../blobShadow.ts';
+import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
 import { createCharacterRig } from './characterRig.ts';
 import { createPapaView, type PapaPose, papaPoseAt } from './papaView.ts';
+
+const TOON_TONES = [96, 178, 255];
 
 function papa(patch: Partial<PapaSlice> = {}): PapaSlice {
   return {
@@ -71,9 +74,14 @@ const CARRIED_BABY = { state: 'carried' } as BabySlice;
 
 function buildView(radiusM = 0.25) {
   const scene = new Scene();
-  const toon = createToonMaterialCache();
+  const toon = createToonMaterialCache(TOON_TONES);
   const blobs = createBlobKit();
-  const rig = createCharacterRig(createTestPapa(), toon, CROSS_FADE_MS);
+  const rig = createCharacterRig(
+    createTestPapa(),
+    toon,
+    CROSS_FADE_MS,
+    createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] }),
+  );
   const view = createPapaView(scene, toon, blobs, radiusM, rig, MOTION);
   return {
     scene,

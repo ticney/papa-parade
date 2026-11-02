@@ -119,6 +119,29 @@
     "heightM": 2,
     "thicknessM": 0.05
   },
+  "render": {
+    "toonTones": [96, 178, 255],
+    "lights": {
+      "default": {
+        "ambientColor": "#FFFFFF",
+        "ambientIntensity": 1.1,
+        "sunColor": "#FFFFFF",
+        "sunIntensity": 2.04
+      },
+      "byLevel": {
+        "chambre_night": {
+          "ambientColor": "#C4CEFF",
+          "ambientIntensity": 1.15,
+          "sunColor": "#DCE2FF",
+          "sunIntensity": 1.5
+        }
+      }
+    },
+    "sunOffsetM": [3, 9, 5],
+    "outlines": { "widthM": 0.025, "skipMaterials": ["art_ink"] },
+    "dangerTint": { "radiusM": 0.55, "minOpacityPct": 35, "peakOpacityPct": 85, "pulseHz": 2 },
+    "blobSkipColliderIds": ["stairs"]
+  },
   "cues": {
     "papa_bump": {
       "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },

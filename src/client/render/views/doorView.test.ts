@@ -9,6 +9,8 @@ import {
   doorYawRadAt,
 } from './doorView.ts';
 
+const TOON_TONES = [96, 178, 255];
+
 const LOOK: DoorLook = {
   openMs: 700,
   openAngleDeg: 100,
@@ -110,7 +112,7 @@ describe('doorYawRadAt', () => {
 describe('createDoorView', () => {
   it('stands one closed panel at the hinge, and turns it on update', () => {
     const parent = new Group();
-    const toon = createToonMaterialCache();
+    const toon = createToonMaterialCache(TOON_TONES);
     const placement = doorPlacementOf(2.9, -2.8, -4.2, -3.2, 4.9, 3, LOOK.widthM);
     const view = createDoorView(parent, toon, LOOK, placement);
     expect(parent.children).toHaveLength(1);

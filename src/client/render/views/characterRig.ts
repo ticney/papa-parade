@@ -10,6 +10,7 @@ import {
   SkinnedMesh,
 } from 'three';
 import type { CharacterAsset } from '../../assets/gltf.ts';
+import { addOutlineHulls, type OutlineKit } from '../materials/outlineHull.ts';
 import { swapToToon, type ToonMaterialCache } from '../materials/toonMaterial.ts';
 
 /** The scale of the `eyelids` bone with the lids fully open: nothing, without a degenerate matrix. Both views write it. */
@@ -52,19 +53,22 @@ export interface CharacterRig {
 }
 
 /**
- * Takes `asset` over: swaps its materials for shared toon ones by colour (the scene's swap walks the
- * room only), never culls its skinned meshes (three's bounds are the rest pose's, and a clip can leave
- * them, D12), and makes one action per clip up front. `crossFadeMs` is the feedback table's.
+ * Takes `asset` over: gives its meshes an ink hull (story 7.3; first, the swap loses the material
+ * names), swaps its materials for shared toon ones by colour (the scene's swap walks the room only),
+ * never culls its skinned meshes (three's bounds are the rest pose's, and a clip can leave them, D12),
+ * and makes one action per clip up front. `crossFadeMs` is the feedback table's.
  */
 export function createCharacterRig(
   asset: CharacterAsset,
   toon: ToonMaterialCache,
   crossFadeMs: number,
+  outlines: OutlineKit,
 ): CharacterRig {
   const root = asset.scene;
+  addOutlineHulls(root, outlines);
   const skinned: SkinnedMesh[] = [];
   root.traverse((node) => {
-    if (!(node instanceof Mesh)) return;
+    if (!(node instanceof Mesh) || outlines.isHull(node.material)) return;
     swapToToon(node, toon);
     if (node instanceof SkinnedMesh) {
       node.frustumCulled = false;

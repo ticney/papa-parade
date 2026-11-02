@@ -89,7 +89,8 @@ export const TRIANGLES_MAX = 100_000;
 
 /**
  * Budget of one room's `.glb`: its share of `DRAW_CALLS_MAX`. The rest is kept for the rigged
- * characters of story 7.2 and the outlines of story 7.3, which double what they cover (story 7.1, D6).
+ * characters of story 7.2 and the outlines of story 7.3, on the characters and the props only: the
+ * room's furniture has none (story 7.1, D6; story 7.3, D2).
  */
 export const ROOM_DRAW_CALLS_MAX = 40;
 
@@ -101,8 +102,8 @@ export const ROOM_MATERIALS_MAX = 12;
 
 /**
  * Budget of one character's `.glb`, visible nodes only: a hidden accessory costs no draw call. Two
- * characters at this reach about 70 draw calls in a room at its limit, and 7.3's outlines, which double
- * them, about 82 (story 7.2, D10).
+ * characters at this reach about 70 draw calls in a room at its limit, and 7.3's hulls add one per
+ * visible primitive except the ink ones (story 7.2, D10; story 7.3, D2).
  */
 export const CHARACTER_DRAW_CALLS_MAX = 6;
 

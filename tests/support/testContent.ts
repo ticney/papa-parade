@@ -49,6 +49,22 @@ export function createTestFeedback(): FeedbackTable {
     bombDrop: { laidHeightM: 0.3 },
     characters: { crossFadeMs: 100, turnRateDegPerSec: 720, squash: [], clipSpeeds: [] },
     door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
+    render: {
+      toonTones: [96, 178, 255],
+      lights: {
+        default: {
+          ambientColor: '#FFFFFF',
+          ambientIntensity: 1.1,
+          sunColor: '#FFFFFF',
+          sunIntensity: 2.04,
+        },
+        byLevel: {},
+      },
+      sunOffsetM: [5, 9, 7],
+      outlines: { widthM: 0.025, skipMaterials: ['art_ink'] },
+      dangerTint: { radiusM: 0.5, minOpacityPct: 40, peakOpacityPct: 80, pulseHz: 2 },
+      blobSkipColliderIds: [],
+    },
     resultScreen: {
       rowCountUpMs: 600,
       rowStaggerMs: 200,

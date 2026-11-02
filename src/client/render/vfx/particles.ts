@@ -1,18 +1,18 @@
 import { PARTICLE_GRAVITY_MPS2, PARTICLE_POOL_SIZE } from '@shared/constants';
 import {
-  BoxGeometry,
   Color,
   InstancedMesh,
   Matrix4,
   MeshBasicMaterial,
   type Object3D,
+  OctahedronGeometry,
   Quaternion,
   Vector3,
 } from 'three';
 import { PALETTE } from '../materials/palette.ts';
 
-// Art constants of the provisional particles (E7 swaps the geometry and anchors on the real
-// response point), named with their units.
+// Art constants of the particles, named with their units. Faceted since story 7.3; a burst still
+// starts from the floor point, not from the real response point (deferred-work.md).
 /** A burst starts this high above the anchor's floor point, in metres. */
 const PARTICLE_ORIGIN_LIFT_M = 0.25;
 /** Every third spark is ink, so that the sparks read on a pale floor as well as on a dark one. */
@@ -25,6 +25,8 @@ const PUFF_RISE_RATIO = 0.25;
 const PUFF_PEAK_AT = 0.5;
 const PUFF_PEAK_SCALE = 2;
 const MS_PER_S = 1000;
+/** A unit-wide gem: `sizeM` keeps meaning the particle's width from tip to tip. */
+const PARTICLE_CIRCUMRADIUS = 0.5;
 
 export type ParticleStyle = 'spark' | 'puff';
 
@@ -63,12 +65,11 @@ const scratchQuaternion = new Quaternion();
 const scratchColor = new Color();
 
 /**
- * The pooled particles of a level: one `InstancedMesh` of `PARTICLE_POOL_SIZE` small boxes (« même
- * avec des cubes »), so every burst costs one draw call. They run on the real time the scene
+ * The pooled particles of a level: one `InstancedMesh` of `PARTICLE_POOL_SIZE` small faceted gems, so every burst costs one draw call. They run on the real time the scene
  * passes to `update`, so they play during the hitstop, when the sim clock stands still.
  */
 export function createParticles(parent: Object3D): Particles {
-  const geometry = new BoxGeometry(1, 1, 1);
+  const geometry = new OctahedronGeometry(PARTICLE_CIRCUMRADIUS);
   // White: the colour of each instance is what shows (the material colour multiplies it).
   const material = new MeshBasicMaterial();
   const mesh = new InstancedMesh(geometry, material, PARTICLE_POOL_SIZE);

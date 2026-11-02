@@ -20,7 +20,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 Pinned versions (verified on npm 2026-10-26). Do NOT upgrade or swap without an architecture change.
 
-- **Runtime:** `three@0.186.1` (r186, `WebGLRenderer` only — no WebGPU before E7), `@dimforge/rapier3d-deterministic-compat@0.21.0` (the *deterministic* build — never `@dimforge/rapier3d` or `-compat` non-deterministic), `zod@4.6.7` (Zod 4 API: `z.toJSONSchema`, not `zod-to-json-schema`).
+- **Runtime:** `three@0.186.1` (r186, `WebGLRenderer` only — WebGPU re-evaluated in story 7.3 and turned down, ADR-008), `@dimforge/rapier3d-deterministic-compat@0.21.0` (the *deterministic* build — never `@dimforge/rapier3d` or `-compat` non-deterministic), `zod@4.6.7` (Zod 4 API: `z.toJSONSchema`, not `zod-to-json-schema`).
 - **Dev:** `typescript@7.0.2` (native compiler; `tsc` is typecheck only — Vite transpiles), `vite@8.3.5`, `vitest@5.0.5`, `@playwright/test@1.64.1` (chromium + webkit), `@biomejs/biome@2.6.3`, `tweakpane@4.0.5`, `tsx@4.23.15`, `@types/three@0.186.0`, `gltfpack@1.3.0`.
 - **Mobile (E8 only):** `@capacitor/core|cli|ios|android@8.5.3`, `@capacitor/haptics@8.0.2`, `@capacitor/app@8.1.2`, `@capacitor/preferences@8.0.1`. Do not add Capacitor deps before E8 (haptics via `navigator.vibrate` until then).
 - **Toolchain:** Node 25.8.1 (Vite 8 needs ≥ 22.12), Blender 5.2.3 LTS (driven via Blender MCP).

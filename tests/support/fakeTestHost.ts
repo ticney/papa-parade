@@ -24,6 +24,7 @@ const NO_FX_STATE: FxState = {
   babyClip: null,
   papaMixerMs: 0,
   doorOpenDeg: 0,
+  dangerTintsShown: 0,
 };
 
 /** A `TestHost` for the debug modules' tests, with handles to fire what the app would. */

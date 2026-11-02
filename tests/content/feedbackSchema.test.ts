@@ -17,9 +17,10 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // unit gets a deliberate, commented entry here.
 // `pulses` is a count of rings, not a quantity: it has no unit. `laidHeightM` is a height in metres (story 4.8).
 // The door (story 3.5) adds `openAngleDeg` (degrees) and its size in metres: `widthM`, `heightM`, `thicknessM`.
-// The characters (story 7.2) add `speedMps` and `turnRateDegPerSec`.
+// The characters (story 7.2) add `speedMps` and `turnRateDegPerSec`. The look (story 7.3) adds `pulseHz`,
+// `radiusM`, `sunOffsetM`, and two numbers with no unit: a light's `…Intensity` and the 0-255 `toonTones`.
 const UNIT_SUFFIX =
-  /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|Deg|^widthM|^heightM|^thicknessM|^pulses)$/;
+  /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^pulses)$/;
 
 type Json = Record<string, unknown>;
 
@@ -529,5 +530,27 @@ describe('the rhythm tracks (story 4.5)', () => {
     ['no ring approach', mutated(['beatRing.approachMs', undefined]), ['beatRing.approachMs']],
   ])('refuses %s', (_name, result, expected) => {
     expect(failedPaths(result)).toEqual(expected);
+  });
+});
+
+describe('feedback.json › render (story 7.3)', () => {
+  it.each([
+    ['tones out of order', 'render.toonTones', [178, 96, 255]],
+    ['a tone above 255', 'render.toonTones', [96, 178, 256]],
+    ['a pulse above 3 Hz', 'render.dangerTint.pulseHz', 3.5],
+    ['no outline width', 'render.outlines.widthM', 0],
+    ['a sun under the floor', 'render.sunOffsetM', [5, -9, 7]],
+    ['a colour that is not #RRGGBB', 'render.lights.default.sunColor', 'white'],
+    ['a pulse low above its top', 'render.dangerTint.minOpacityPct', 95],
+    ['no section', 'render.outlines', undefined],
+  ] as const)('refuses %s', (_name, path, value) => {
+    expect(parse(mutated([path, value])).ok).toBe(false);
+  });
+
+  it('keeps the danger glow at or under the 3 Hz of the comfort rule', () => {
+    expect(parse(real).ok).toBe(true);
+    expect(
+      (real as { render: { dangerTint: { pulseHz: number } } }).render.dangerTint.pulseHz,
+    ).toBeLessThanOrEqual(3);
   });
 });

@@ -15,6 +15,8 @@ import {
   createTestGeometry,
   createTestLevel,
   OUTLET,
+  SILENCE,
+  STAIRS,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
@@ -49,6 +51,7 @@ const NO_REAL_FX = () => ({
   babyClip: null,
   papaMixerMs: 0,
   doorOpenDeg: 0,
+  dangerTintsShown: 0,
 });
 
 interface Deferred<T> {
@@ -277,12 +280,41 @@ describe('createLevelSession', () => {
         babyRadiusM: content.feel.baby.bodyRadiusM,
         microSleepDefId: null,
         layDownDefIds: [],
+        anchorThreatDefIds: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
         door: content.feedback.door,
+        render: content.feedback.render,
         isMotionReduced: expect.any(Function),
       },
     ]);
+  });
+
+  it('hands the scene the planned threats that aim at an anchor, and no other', async () => {
+    const bodies: { anchorThreatDefIds: readonly string[] }[] = [];
+    const { session } = setup({
+      loadLevelContent: async (id) =>
+        ok(levelOf(id, createTestLevel({ waves: [testWave([OUTLET, STAIRS, SILENCE])] }))),
+      createScene: (assets, sceneBodies) => {
+        bodies.push(sceneBodies);
+        return {
+          id: assets.id,
+          scene: new Scene(),
+          room: { widthM: 8, depthM: 6, heightM: 2.5 },
+          fx: NO_FX,
+          papaPose: { xM: 0, zM: 0, yawRad: 0 },
+          resetFx: () => {},
+          realFxState: NO_REAL_FX,
+          setPapaLook: () => {},
+          update: () => {},
+          dispose: () => {},
+        };
+      },
+    });
+    await session.start();
+    expect(bodies).toHaveLength(1);
+    // The silence is aimed at a hidden zone: no glow, a secret until found.
+    expect([...(bodies[0]?.anchorThreatDefIds ?? [])].sort()).toEqual(['outlet', 'stairs']);
   });
 
   describe('the level’s feelOverrides (story 1.18)', () => {
@@ -1163,9 +1195,11 @@ describe('createLevelSession › start options and outcomes', () => {
         babyRadiusM: content.feel.baby.bodyRadiusM,
         microSleepDefId: null,
         layDownDefIds: [],
+        anchorThreatDefIds: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
         door: content.feedback.door,
+        render: content.feedback.render,
         isMotionReduced: expect.any(Function),
       },
     ]);

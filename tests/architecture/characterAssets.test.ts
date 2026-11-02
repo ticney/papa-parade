@@ -299,6 +299,14 @@ describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
     expect(allowed).not.toMatch(/windowOpenAt|feintAt|realWakePct/);
   });
 
+  it('dangerTint.ts reads no `windowOpenAt` or `feintAt` of a threat: a wake and a false alarm draw the same', () => {
+    const source = readFileSync(
+      join(root, 'src', 'client', 'render', 'vfx', 'dangerTint.ts'),
+      'utf8',
+    );
+    expect(source).not.toMatch(/windowOpenAt|feintAt|realWakePct|enteredAt/);
+  });
+
   it('characterClips.ts takes no threat', () => {
     expect(clips).not.toMatch(/ThreatInstance|\.threats\b/);
   });

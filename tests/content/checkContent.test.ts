@@ -260,6 +260,37 @@ describe('checkContent on feedback.json references', () => {
     expect(problems[0]?.message).toContain('no_such_cue');
   });
 
+  it('reports lights for a level that does not exist (they would never show)', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      const { lights } = feedback.render as {
+        lights: { default: unknown; byLevel: Record<string, unknown> };
+      };
+      lights.byLevel.no_such_level = structuredClone(lights.default);
+    });
+    const problems = await checkContent(root);
+    expect(problems).toEqual([
+      expect.objectContaining({ file: FILE, jsonPath: 'render.lights.byLevel.no_such_level' }),
+    ]);
+    expect(problems[0]?.message).toContain('is not a level');
+  });
+
+  it('reports a collider with no blob shadow that no level has (it would skip nothing)', async () => {
+    await mutateJson('content/feedback.json', (feedback) => {
+      (feedback.render as { blobSkipColliderIds: string[] }).blobSkipColliderIds.push(
+        'no_such_collider',
+      );
+    });
+    const problems = await checkContent(root);
+    expect(problems).toEqual([
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: expect.stringContaining('render.blobSkipColliderIds'),
+      }),
+    ]);
+    expect(problems[0]?.message).toContain('no_such_collider');
+    expect(problems[0]?.message).toContain('no collider');
+  });
+
   it('accepts a client event whose cue has neither visual nor camera, as well as a sim event', async () => {
     await mutateJson('content/feedback.json', (feedback) => {
       (feedback.cues as Record<string, unknown>).only_haptic = { haptic: 'light' };

@@ -11,7 +11,7 @@ import {
 } from 'three';
 import { PALETTE } from './materials/palette.ts';
 
-// Art constants (Geo tunes them here until E7), named with their units.
+// Art constants, named with their units. What may be retouched per collider is `feedback.json › render.blobSkipColliderIds`.
 /** A shadow is this much wider than the footprint it sits under, in percent. */
 const BLOB_MARGIN_PCT = 30;
 /** Opacity of the darkest point of a shadow. */
@@ -80,6 +80,8 @@ export function blobSizeM(footprintM: number): number {
 export interface BlobKit {
   /** A new blob on the floor, centred on the origin, unit size, drawn after the floor. Place and scale it. */
   createMesh(name: string): Mesh;
+  /** The soft round texture, white with a radial alpha (`blobAlpha`): the danger tint draws with it too. The kit frees it. */
+  readonly texture: DataTexture;
   dispose(): void;
 }
 
@@ -95,6 +97,7 @@ export function createBlobKit(): BlobKit {
   const geometry = new PlaneGeometry(1, 1);
   geometry.rotateX(-Math.PI / 2); // a plane is born vertical; the blob lies on the floor
   return {
+    texture,
     createMesh(name) {
       const blob = new Mesh(geometry, material);
       blob.name = name;
@@ -121,14 +124,18 @@ export interface BlobShadows {
 /**
  * One soft round shadow on the floor under each collider footprint (no shadow map anywhere: the
  * renderer's `shadowMap` stays off). All blobs share one geometry, one texture and one material.
+ * A collider of `skipIds` gets none (the height heuristic of `blobFootprint` cannot tell a stairwell
+ * from a piece of furniture, story 7.3).
  */
 export function addBlobShadows(
   scene: Object3D,
   colliders: LevelGeometry['colliders'],
+  skipIds: readonly string[],
 ): BlobShadows {
   const kit = createBlobKit();
   let count = 0;
   for (const collider of colliders) {
+    if (skipIds.includes(collider.id)) continue;
     const footprint = blobFootprint(collider);
     if (footprint === null) continue;
     const blob = kit.createMesh(`blob_${collider.id}`);

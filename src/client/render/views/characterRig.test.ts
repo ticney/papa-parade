@@ -3,20 +3,29 @@ import {
   AnimationClip,
   AnimationMixer,
   MeshToonMaterial,
+  type Object3D,
   SkinnedMesh,
   VectorKeyframeTrack,
 } from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestPapa } from '../../../../tests/support/testCharacters.ts';
+import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
 import { createCharacterRig } from './characterRig.ts';
+
+const TOON_TONES = [96, 178, 255];
 
 const CROSS_FADE_MS = 100;
 
 function build() {
-  const toon = createToonMaterialCache();
+  const toon = createToonMaterialCache(TOON_TONES);
   const asset = createTestPapa();
-  const rig = createCharacterRig(asset, toon, CROSS_FADE_MS);
+  const rig = createCharacterRig(
+    asset,
+    toon,
+    CROSS_FADE_MS,
+    createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] }),
+  );
   const spineY = (): number => rig.node('spine').position.y;
   return { rig, toon, asset, spineY };
 }
@@ -30,7 +39,7 @@ describe('createCharacterRig', () => {
     const { rig, toon } = build();
     const skinned: SkinnedMesh[] = [];
     rig.root.traverse((node) => {
-      if (node instanceof SkinnedMesh) skinned.push(node);
+      if (node instanceof SkinnedMesh && !node.name.startsWith('outline_')) skinned.push(node);
     });
     expect(skinned.length).toBeGreaterThan(0);
     for (const mesh of skinned) {
@@ -38,6 +47,49 @@ describe('createCharacterRig', () => {
       expect(mesh.frustumCulled).toBe(false);
     }
     expect(toon.size).toBe(2); // the fixture's two colours
+  });
+
+  it('gives each mesh a hull on the same skeleton, under the mesh, never culled, freed with the rig', () => {
+    const { rig } = build();
+    const hulls: SkinnedMesh[] = [];
+    rig.root.traverse((node) => {
+      if (node instanceof SkinnedMesh && node.name.startsWith('outline_')) hulls.push(node);
+    });
+    expect(hulls.length).toBeGreaterThan(0);
+    for (const hull of hulls) {
+      const source = hull.parent as SkinnedMesh;
+      expect(hull.skeleton).toBe(source.skeleton);
+      expect(hull.frustumCulled).toBe(false);
+      expect(hull.material).not.toBeInstanceOf(MeshToonMaterial);
+      expect(source.material).toBeInstanceOf(MeshToonMaterial);
+    }
+    const spies = hulls.map((hull) => vi.spyOn(hull.geometry, 'dispose'));
+    // Each distinct skeleton is freed once per original mesh that uses it: the hulls add none.
+    const skeletons = [...new Set(hulls.map((hull) => hull.skeleton))].map((skeleton) => ({
+      spy: vi.spyOn(skeleton, 'dispose'),
+      originals: hulls.filter((hull) => hull.skeleton === skeleton).length,
+    }));
+    rig.dispose();
+    for (const spy of spies) expect(spy).toHaveBeenCalledTimes(1);
+    for (const { spy, originals } of skeletons) expect(spy).toHaveBeenCalledTimes(originals);
+  });
+
+  it('hides a hull with its named node', () => {
+    const { rig } = build();
+    const mug = rig.node('papa_mug');
+    const hulls: Object3D[] = [];
+    mug.traverse((node) => {
+      if (node.name.startsWith('outline_')) hulls.push(node);
+    });
+    expect(hulls.length).toBeGreaterThan(0);
+    mug.visible = false;
+    for (const hull of hulls) {
+      let isShown = true;
+      hull.traverseAncestors((ancestor) => {
+        if (!ancestor.visible) isShown = false;
+      });
+      expect(isShown).toBe(false);
+    }
   });
 
   it('plays the first loop at once, at full weight', () => {
@@ -83,8 +135,9 @@ describe('createCharacterRig', () => {
     const { scene } = createTestPapa();
     const rig = createCharacterRig(
       { scene, animations: ['idle', 'walk', 'glide'].map(flat) },
-      createToonMaterialCache(),
+      createToonMaterialCache(TOON_TONES),
       CROSS_FADE_MS,
+      createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] }),
     );
     const spineY = (): number => rig.node('spine').position.y;
     rig.play('idle');

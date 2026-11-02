@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestCharacters } from '../../../tests/support/testCharacters.ts';
 import {
   createTestContent,
+  createTestFeedback,
   createTestGeometry,
   createTestLevel,
   stepN,
@@ -40,6 +41,7 @@ const BODIES = {
   babyRadiusM: 0.2,
   microSleepDefId: null,
   layDownDefIds: [] as string[],
+  anchorThreatDefIds: [] as string[],
   laidHeightM: 0.3,
   characters: {
     crossFadeMs: 100,
@@ -51,6 +53,7 @@ const BODIES = {
     clipSpeeds: [],
   } as SceneBodies['characters'],
   door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
+  render: createTestFeedback().render,
   isMotionReduced: () => false,
 };
 
@@ -518,6 +521,7 @@ describe('createLevelScene', () => {
       babyClip: 'babble',
       papaMixerMs: 0,
       doorOpenDeg: 0,
+      dangerTintsShown: 0,
     });
   });
 
@@ -724,6 +728,103 @@ describe('createLevelScene', () => {
     dispose();
     expect(disposed).toBeGreaterThan(0);
     expect(scene.children).toHaveLength(0);
+  });
+});
+
+describe('the final look (story 7.3)', () => {
+  const rowOf = (ambientIntensity: number, sunIntensity: number) => ({
+    ambientColor: '#C4CEFF',
+    ambientIntensity,
+    sunColor: '#DCE2FF',
+    sunIntensity,
+  });
+  const lit = (ambient: number, sun: number) => {
+    const geometry = createTestLevelGeometry('test_room');
+    const level = createLevelScene(
+      { id: 'test_room', geometry, model: buildModel(), characters: createTestCharacters() },
+      {
+        ...BODIES,
+        render: {
+          ...BODIES.render,
+          lights: { ...BODIES.render.lights, byLevel: { test_room: rowOf(ambient, sun) } },
+        },
+      },
+    );
+    const lights = level.scene.children.filter(
+      (child) => 'isAmbientLight' in child || 'isDirectionalLight' in child,
+    ) as unknown as { intensity: number; color: Color }[];
+    return { level, lights };
+  };
+
+  it('lights a level with its own row, and with the default row otherwise', () => {
+    const { lights } = lit(0.7, 1.2);
+    expect(lights.map((light) => light.intensity)).toEqual([0.7, 1.2]);
+    expect(lights[0]?.color.getHexString()).toBe('c4ceff');
+    const { scene } = build();
+    const others = scene.children.filter(
+      (child) => 'isAmbientLight' in child || 'isDirectionalLight' in child,
+    ) as unknown as { intensity: number }[];
+    expect(others.map((light) => light.intensity)).toEqual([1.1, 2.04]);
+  });
+
+  it("dims the level's own lights during the outlet gag, not the salon's", () => {
+    const { level, lights } = lit(0.7, 1.2);
+    level.fx.gag('outlet_hair', asSimMs(1000));
+    level.update(fakeWorldAt(1000 + GAG_LIGHTS_FADE_MS + GAG_LIGHTS_DARK_MS / 2), 0, asRealMs(0));
+    expect(lights[0]?.intensity).toBeCloseTo(0.7 * (GAG_LIGHTS_MIN_PCT / 100), 6);
+    expect(lights[1]?.intensity).toBeCloseTo(1.2 * (GAG_LIGHTS_MIN_PCT / 100), 6);
+  });
+
+  it('gives Papa, the baby and a prop a hull, and the furniture none', () => {
+    const { scene } = build();
+    const hulls: string[] = [];
+    scene.traverse((node) => {
+      if (node.name.startsWith('outline_')) hulls.push(node.parent?.name ?? '');
+    });
+    expect(hulls.length).toBeGreaterThan(0);
+    expect(hulls).toContain('papa_body');
+    expect(hulls).toContain('baby_body');
+    const sofa = scene.getObjectByName('sofa') as Mesh;
+    expect(sofa.children).toHaveLength(0);
+    const prop = scene.getObjectByName('prop_mug') as Object3D;
+    expect(prop.getObjectByProperty('name', 'outline_PROP_mug_01')).toBeDefined();
+  });
+
+  it('gives each hull the depth test, so that nothing shows through a wall (AC 3)', () => {
+    const { scene } = build();
+    let count = 0;
+    scene.traverse((node) => {
+      if (node instanceof Mesh && node.name.startsWith('outline_')) {
+        const material = node.material as {
+          depthTest: boolean;
+          depthWrite: boolean;
+          transparent: boolean;
+        };
+        expect(material.depthTest).toBe(true);
+        expect(material.depthWrite).toBe(true);
+        expect(material.transparent).toBe(false);
+        count++;
+      }
+    });
+    expect(count).toBeGreaterThan(0);
+  });
+
+  // The kit's own `dispose` (both materials) is pinned in `outlineHull.test.ts`; here the scene's
+  // disposal reaches the hulls' materials too, so a hull is found first and freed with the scene.
+  it('frees the hull materials with the scene', () => {
+    const { scene, dispose } = build();
+    const materials = new Set<MeshBasicMaterial>();
+    scene.traverse((node) => {
+      if (node instanceof Mesh && node.name.startsWith('outline_')) {
+        materials.add(node.material as unknown as MeshBasicMaterial);
+      }
+    });
+    expect(materials.size).toBeGreaterThan(0);
+    const freed = new Set<MeshBasicMaterial>();
+    for (const material of materials)
+      material.addEventListener('dispose', () => freed.add(material));
+    dispose();
+    expect(freed).toEqual(materials);
   });
 });
 

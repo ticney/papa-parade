@@ -566,6 +566,7 @@ describe('fx (story 2.5)', () => {
       stampCount: 0,
       babyLayDownPct: 0,
       doorOpenDeg: 0,
+      dangerTintsShown: 0,
     };
     const host = createFakeTestHost();
     (host as { fxState: () => typeof state }).fxState = () => state;
@@ -579,6 +580,7 @@ describe('fx (story 2.5)', () => {
       stampCount: 2,
       babyLayDownPct: 40,
       doorOpenDeg: 65,
+      dangerTintsShown: 1,
     };
     expect(api.fx()).toEqual(state);
   });

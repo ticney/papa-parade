@@ -3,7 +3,7 @@ import { Group, type Object3D, Quaternion } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXYZ, type PointXYZ } from '../interpolate.ts';
 
-// Art constants (Geo tunes them here until the final art, E7), named with their units.
+// Art constants (the broken look stays provisional: shards are in deferred-work.md), named with their units.
 /** A broken prop is drawn squashed to this share of its height (1 = whole): the provisional « broken » look. */
 export const BROKEN_SCALE_Y = 0.35;
 

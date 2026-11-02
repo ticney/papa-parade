@@ -328,7 +328,9 @@ async function openFrozenWithLargeVerbs(page: Page): Promise<void> {
 
 for (const screen of VERB_SCREENS) {
   test.describe(`« Grands verbes » (${screen.label})`, () => {
-    test.describe.configure({ timeout: 90_000 });
+    // Thousands of round trips, each with a frame on Chromium's software GL: 72 s on a loaded machine
+    // before the outlines of story 7.3, 96 s with them. The frame budget itself is `perf.spec.ts`'s.
+    test.describe.configure({ timeout: 150_000 });
     if (screen.viewport !== null) test.use({ viewport: screen.viewport });
     const openFrozen = openFrozenWithLargeVerbs;
 

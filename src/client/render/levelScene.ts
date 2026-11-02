@@ -19,8 +19,10 @@ import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { addBlobShadows } from './blobShadow.ts';
 import { createGagFx } from './gags.ts';
 import type { RoomSize } from './isoCamera.ts';
+import { addOutlineHulls, createOutlineKit } from './materials/outlineHull.ts';
 import { PALETTE } from './materials/palette.ts';
 import { createToonMaterialCache, swapToToon } from './materials/toonMaterial.ts';
+import { createDangerTint } from './vfx/dangerTint.ts';
 import { createLiftFx } from './vfx/liftHop.ts';
 import { createParticles, type ParticleStyle } from './vfx/particles.ts';
 import { createShake } from './vfx/shake.ts';
@@ -40,11 +42,6 @@ import { type SquashScale, squashScaleAt } from './views/squash.ts';
 import { createViewPool, type ViewPool } from './views/viewPool.ts';
 import { createViewRegistry } from './views/viewRegistry.ts';
 
-// Art direction, not GDD numbers: Geo tunes the light here until the final art (E7).
-const AMBIENT_INTENSITY = 0.9;
-const SUN_INTENSITY = 1.3;
-/** Where the sun sits relative to the room centre: the camera side, high, in metres. */
-const SUN_OFFSET_M: readonly [number, number, number] = [5, 9, 7];
 /** Half extents of the box drawn for a prop kind that has no model node and no prop in the geometry, in metres. */
 const DEFAULT_PROP_HALF_EXTENTS_M: readonly [number, number, number] = [0.05, 0.05, 0.05];
 
@@ -56,12 +53,16 @@ export interface SceneBodies {
   microSleepDefId: string | null;
   /** The ids of the level's threats judged on a release (story 4.8): the baby is lowered while one runs. */
   layDownDefIds: readonly string[];
+  /** The ids of the level's threats aimed at an anchor: only they show the alert tint (story 7.3, D6). */
+  anchorThreatDefIds: readonly string[];
   /** The height of the baby's centre once laid on the mattress, in metres (`feedback.json › bombDrop.laidHeightM`). */
   laidHeightM: number;
   /** How the characters move (`feedback.json › characters`). */
   characters: FeedbackTable['characters'];
   /** The door panel's numbers (`feedback.json › door`, story 3.5). */
   door: DoorLook;
+  /** The final look (`feedback.json › render`, story 7.3). */
+  render: FeedbackTable['render'];
   /** Read each frame: under reduced motion the door jumps open instead of swinging (story 3.5). */
   isMotionReduced(): boolean;
 }
@@ -148,13 +149,15 @@ export interface LevelScene {
     papaMixerMs: number;
     /** How far the door was drawn open, in degrees; 0 while it is shut (story 3.5). */
     doorOpenDeg: number;
+    /** How many alert glows stand on the room's dangers (story 7.3). */
+    dangerTintsShown: number;
   };
   /** Shows the parts of Papa's look. Nothing in a game sets it until story 3.7 (story 7.2, D2). */
   setPapaLook(look: Readonly<PapaLook>): void;
   /** Where Papa was last drawn (interpolated), for the markers that follow him. */
   readonly papaPose: Readonly<PapaPose>;
   /**
-   * Ends the effects under way (rings hidden, shake offset back to zero, lights back, hair down,
+   * Ends the effects under way (rings and glows hidden, shake offset back to zero, lights back, hair down,
    * baby on the floor). Effects advance only
    * while the game loop runs; call it when the loop stops, so a frozen mid-effect frame is not what
    * `drawStatic` shows behind the loading or error screen.
@@ -294,8 +297,8 @@ function takePropNodes(
 
 /**
  * The scene of one level: the loaded model with its non-visual nodes removed, every material
- * swapped for a shared toon one (keeping each mesh's colour), lights, blob shadows (no shadow map),
- * Papa, the baby and the props (pooled views, one pool per kind, made here so that nothing is
+ * swapped for a shared toon one (keeping each mesh's colour), the level's lights, blob shadows (no
+ * shadow map), ink hulls on the characters and the props (not on the furniture, story 7.3, D2), Papa, the baby and the props (pooled views, one pool per kind, made here so that nothing is
  * built during play). The model is taken over: it belongs to this scene from now on. The bodies'
  * radii are the feel's, read once when the level starts (a `SetFeel` takes effect at the next level).
  */
@@ -313,10 +316,18 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     node.removeFromParent();
   }
 
-  const toon = createToonMaterialCache();
-  model.traverse((node) => {
-    if (node instanceof Mesh) swapToToon(node, toon);
-  });
+  const { render } = bodies;
+  const toon = createToonMaterialCache(render.toonTones);
+  const outlines = createOutlineKit(render.outlines);
+  // The props leave the model first, and get their hulls before the swap, which loses the material
+  // names. `template.clone(true)` then carries the hull into every view.
+  const { templates, taken: propNodes } = takePropNodes(model, geometry);
+  for (const template of templates.values()) addOutlineHulls(template, outlines);
+  for (const root of [model, ...propNodes]) {
+    root.traverse((node) => {
+      if (node instanceof Mesh && !outlines.isHull(node.material)) swapToToon(node, toon);
+    });
+  }
   // The room, its shadows, Papa, the baby and the waves live under one root: a shake moves the
   // root, not the camera, so the framing and the world UI layer stay put. The lights stay outside.
   const content = new Group();
@@ -327,17 +338,18 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const room = roomOf(geometry);
   const centerX = room.centerXM ?? 0;
   const centerZ = room.centerZM ?? 0;
-  const ambient = new AmbientLight(0xffffff, AMBIENT_INTENSITY);
+  const lights = render.lights.byLevel[assets.id] ?? render.lights.default;
+  const ambient = new AmbientLight(new Color(lights.ambientColor), lights.ambientIntensity);
   scene.add(ambient);
-  const sun = new DirectionalLight(0xffffff, SUN_INTENSITY);
-  sun.position.set(centerX + SUN_OFFSET_M[0], SUN_OFFSET_M[1], centerZ + SUN_OFFSET_M[2]);
+  const sun = new DirectionalLight(new Color(lights.sunColor), lights.sunIntensity);
+  const [sunX, sunY, sunZ] = render.sunOffsetM;
+  sun.position.set(centerX + sunX, sunY, centerZ + sunZ);
   sun.target.position.set(centerX, 0, centerZ);
   scene.add(sun, sun.target);
 
-  const shadows = addBlobShadows(content, geometry.colliders);
+  const shadows = addBlobShadows(content, geometry.colliders, render.blobSkipColliderIds);
 
   // The props: the model's PROP_ nodes are templates, the views are pooled per kind.
-  const { templates, taken: propNodes } = takePropNodes(model, geometry);
   const pools = new Map<string, ViewPool<PropView>>();
   const poolOf = (kind: string, halfExtentsM: readonly [number, number, number]) => {
     const existing = pools.get(kind);
@@ -351,6 +363,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         new BoxGeometry(halfExtentsM[0] * 2, halfExtentsM[1] * 2, halfExtentsM[2] * 2),
         toon.get(new Color(PALETTE.cream)),
       );
+      addOutlineHulls(template, outlines);
       propNodes.push(template);
     }
     const count = geometry.props.filter((prop) => prop.kind === kind).length;
@@ -381,14 +394,14 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     toon,
     shadows.kit,
     bodies.papaRadiusM,
-    createCharacterRig(assets.characters.papa, toon, crossFadeMs),
+    createCharacterRig(assets.characters.papa, toon, crossFadeMs, outlines),
     motion,
   );
   const baby = createBabyView(
     content,
     shadows.kit,
     bodies.babyRadiusM,
-    createCharacterRig(assets.characters.baby, toon, crossFadeMs),
+    createCharacterRig(assets.characters.baby, toon, crossFadeMs, outlines),
     motion,
     bodies.laidHeightM,
   );
@@ -414,12 +427,20 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const waves = createSoundWaves(content, PALETTE.ink);
   const shake = createShake(content);
   const particles = createParticles(content);
-  // The gags move the lights (the room's lights are « the lamp » until E7), Papa's hair and the
-  // baby's slide; the hop moves the baby too. Both on the sim clock.
+  // Under the root: a shake moves the glows with the room.
+  const dangerTint = createDangerTint(
+    content,
+    geometry.anchors,
+    render.dangerTint,
+    shadows.kit.texture,
+    bodies.anchorThreatDefIds,
+  );
+  // The gags move the lights (the level's own: the outlet does not bring the salon into the bedroom),
+  // Papa's hair and the baby's slide; the hop moves the baby too. Both on the sim clock.
   const gags = createGagFx({
     setLightsFactor: (factor) => {
-      ambient.intensity = AMBIENT_INTENSITY * factor;
-      sun.intensity = SUN_INTENSITY * factor;
+      ambient.intensity = lights.ambientIntensity * factor;
+      sun.intensity = lights.sunIntensity * factor;
     },
     setHairAmount: (amount) => papa.setHair(amount),
     setBabySlide: (offsetXM, offsetZM) => baby.setSlideM(offsetXM, offsetZM),
@@ -499,6 +520,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         babyClip: baby.clipName,
         papaMixerMs: papa.mixerTimeMs,
         doorOpenDeg: door?.openAngleDeg ?? 0,
+        dangerTintsShown: dangerTint.shownCount,
       };
     },
     setPapaLook(look) {
@@ -527,6 +549,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       papa.setAway(world.papa.state === 'onToilet');
       // The door, from the rush's start on the sim clock: a pause or a slow-mo holds it (story 3.5).
       door?.update(world.flow.finalRushAt, clockMs, bodies.isMotionReduced());
+      dangerTint.update(world, clockMs, bodies.isMotionReduced());
       waves.update(clockMs);
       shake.update(nowReal);
       particles.update(nowReal);
@@ -534,6 +557,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       lift.update(clockMs);
     },
     resetFx() {
+      dangerTint.reset();
       waves.reset();
       shake.reset();
       particles.reset();
@@ -553,6 +577,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       props.dispose();
       waves.dispose();
       particles.dispose();
+      dangerTint.dispose();
       disposeObject(scene);
       // The templates are not in the scene any more: free their geometry too (the materials are the toon cache's).
       for (const node of propNodes) {
@@ -561,6 +586,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         });
       }
       toon.dispose();
+      outlines.dispose();
       shadows.dispose();
       scene.clear();
     },

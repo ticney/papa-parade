@@ -34,6 +34,8 @@ export interface FxState {
   readonly papaMixerMs: number;
   /** How far the door is drawn open, in degrees; 0 while shut (story 3.5: the final rush). */
   readonly doorOpenDeg: number;
+  /** How many alert glows stand on the room's dangers (story 7.3). */
+  readonly dangerTintsShown: number;
 }
 
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */
