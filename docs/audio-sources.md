@@ -2,7 +2,7 @@
 
 Where the shipped music (story 7.6) and babble (story 7.7) come from, so that a track can be redone and the licence question answered later. Everything else in `public/assets/audio/` is still a synthesized placeholder from `tools/audio/makePlaceholderAudio.ts`.
 
-**Licence status:** Geo confirmed on 2026-11-01 that his ElevenLabs plan allows this music in a game he distributes. That confirmation named the music; the babble comes from the sound effects model and is not covered yet. ElevenLabs refused several takes with "Free generations are busy" (`free_shared`), so check the plan again before a store release.
+**Licence status:** Geo confirmed on 2026-11-01 that his ElevenLabs plan allows this music in a game he distributes. On 2026-11-02 he confirmed the same for the babble, which comes from the sound effects model. ElevenLabs refused several takes with "Free generations are busy" (`free_shared`), so check the plan again before a store release.
 
 All takes: ElevenLabs, flow `oJxjnjQgAe66OVCVySXO`, generated on 2026-11-01. The music uses model `eleven_music_v2_5`, instrumental; the babble's model is in its section. `creative_get_generations` with the flow and generation id gives a fresh download link, at no cost.
 

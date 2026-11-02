@@ -34,7 +34,7 @@ so that the voice stops hiding the rest of the game's sound.
 ### Review Findings
 
 - [x] [Review][Decision] Resolved 2026-11-02: Geo kept the take; asked whether the lull made him believe in a silence while playing, he answered « Non, on garde ». The take has a 3 s lull — from 4.18 to 7.14 s of each 10 s loop the babble sits at or under the music, longer than the 2 s the real silence's sound-only warning lasts, and a real stop landing there has little audible edge. Geo reported noticing the stop, not whether the lull reads as one. The old test rule (under 0.4 s of silence) only checks the synth, and this file measures 0.52 s at -45 dB.
-- [ ] [Review][Decision] Geo's plan confirmation named the music — the babble comes from the sound effects model, so the licence line does not cover it yet.
+- [x] [Review][Decision] Resolved 2026-11-02: Geo confirmed his plan covers the babble too (« Forfait OK, merger »). His first confirmation named the music, and the babble comes from the sound effects model.
 - [x] [Review][Patch] A test no longer tests anything on its stale file: `PLACEHOLDER_CLIPS[0]` is now out of a default run [tests/tools/audio/makePlaceholderAudio.test.ts:635]
 - [x] [Review][Patch] The comment calls the synths documentation of what each loop must do, false for the babble (length, pauses, level) [tools/audio/makePlaceholderAudio.ts:2192]
 - [x] [Review][Patch] Docs: "All takes" names the music model; the cut lacks `--bitrate-bps` and `--channels`; the source's real shape (10.000 s, stereo) is unrecorded; the prompt says "no pauses" while the pauses were accepted [docs/audio-sources.md]
