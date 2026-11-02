@@ -2189,10 +2189,12 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
 ];
 
 /**
- * The real music of story 7.6 (`docs/audio-sources.md`), cut by `cutMusicLoop.ts`. Their synths stay, as
- * documentation of what each loop must do, but only naming one with `--only` writes it again.
+ * The real sounds of stories 7.6 and 7.7 (`docs/audio-sources.md`), cut by `cutMusicLoop.ts`. Their synths
+ * stay, but only naming one with `--only` writes it again. The babble's real file no longer matches its
+ * synth in length, pauses or level.
  */
 export const GENERATED_CLIPS: readonly string[] = [
+  'baby_babble_loop',
   'music_crawler_calm',
   'music_crawler_tense',
   'music_stay_awake',
