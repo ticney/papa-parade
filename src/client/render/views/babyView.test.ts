@@ -4,9 +4,12 @@ import { type Mesh, Scene, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { createTestBaby } from '../../../../tests/support/testCharacters.ts';
 import { createBlobKit } from '../blobShadow.ts';
+import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
 import { BABY_CARRIED_HEIGHT_M, type BabyPose, babyPoseAt, createBabyView } from './babyView.ts';
 import { createCharacterRig } from './characterRig.ts';
+
+const TOON_TONES = [96, 178, 255];
 
 function baby(patch: Partial<BabySlice> = {}): BabySlice {
   return {
@@ -65,8 +68,13 @@ describe('createBabyView', () => {
 
   function build(radiusM = 0.2) {
     const scene = new Scene();
-    const toon = createToonMaterialCache();
-    const rig = createCharacterRig(createTestBaby(), toon, 100);
+    const toon = createToonMaterialCache(TOON_TONES);
+    const rig = createCharacterRig(
+      createTestBaby(),
+      toon,
+      100,
+      createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] }),
+    );
     const view = createBabyView(scene, createBlobKit(), radiusM, rig, MOTION);
     return { scene, toon, rig, view };
   }

@@ -49,6 +49,7 @@ const NO_REAL_FX = () => ({
   babyClip: null,
   papaMixerMs: 0,
   doorOpenDeg: 0,
+  dangerTintsShown: 0,
 });
 
 interface Deferred<T> {
@@ -277,9 +278,11 @@ describe('createLevelSession', () => {
         babyRadiusM: content.feel.baby.bodyRadiusM,
         microSleepDefId: null,
         layDownDefIds: [],
+        anchorThreatDefIds: expect.any(Array),
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
         door: content.feedback.door,
+        render: content.feedback.render,
         isMotionReduced: expect.any(Function),
       },
     ]);
@@ -1163,9 +1166,11 @@ describe('createLevelSession › start options and outcomes', () => {
         babyRadiusM: content.feel.baby.bodyRadiusM,
         microSleepDefId: null,
         layDownDefIds: [],
+        anchorThreatDefIds: expect.any(Array),
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
         door: content.feedback.door,
+        render: content.feedback.render,
         isMotionReduced: expect.any(Function),
       },
     ]);

@@ -1,7 +1,7 @@
 import { SLIDE_DIRECTION_MIN_M } from '@shared/constants';
 import type { GagId } from '@sim';
 
-// Art constants for the provisional gags (Geo tunes them here until the real animations, E7), named
+// Art constants for the gags' stage (provisional: the final slide stays open in deferred-work.md), named
 // with their units. All on the sim clock: a pause freezes them.
 /** The lights fade from full to `GAG_LIGHTS_MIN_PCT` over this long, in sim ms... */
 export const GAG_LIGHTS_FADE_MS = 120;
@@ -29,7 +29,7 @@ export interface GagPresentation {
   readonly lightsOff: boolean;
   /** Papa's hair stands on end. */
   readonly hair: boolean;
-  /** The baby slides away from the threat and back (« en bas des marches », provisional until E7). */
+  /** The baby slides away from the threat and back (« en bas des marches », provisional: deferred-work.md). */
   readonly babySlide: boolean;
   /** Papa's one-shot, or null. During a glide his squash plays instead: a gag never stops a glide. */
   readonly papaClip: string | null;

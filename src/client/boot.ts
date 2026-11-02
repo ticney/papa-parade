@@ -1956,6 +1956,7 @@ export async function boot(): Promise<void> {
           babyClip: real?.babyClip ?? null,
           papaMixerMs: real?.papaMixerMs ?? 0,
           doorOpenDeg: real?.doorOpenDeg ?? 0,
+          dangerTintsShown: real?.dangerTintsShown ?? 0,
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),

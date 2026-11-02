@@ -50,13 +50,31 @@ describe('blobAlpha', () => {
 });
 
 describe('addBlobShadows', () => {
+  it('gives no blob to a collider it is told to skip', () => {
+    const scene = new Scene();
+    const shadows = addBlobShadows(
+      scene,
+      [
+        collider('stairs', [3, -0.5, 0], [1, 0.5, 1]),
+        collider('sofa', [0, 0.45, 0], [1, 0.45, 0.4]),
+      ],
+      ['stairs'],
+    );
+    expect(shadows.count).toBe(1);
+    expect(scene.children.map((child) => child.name)).toEqual(['blob_sofa']);
+  });
+
   it('adds one flat, transparent, depth-write-free quad per piece of furniture', () => {
     const scene = new Scene();
-    const shadows = addBlobShadows(scene, [
-      collider('sofa', [0, 0.45, 0], [1, 0.45, 0.4]),
-      collider('table', [2, 0.2, 0], [0.5, 0.2, 0.3]),
-      collider('wall', [0, 1.25, -3], [4, 1.25, 0.1]),
-    ]);
+    const shadows = addBlobShadows(
+      scene,
+      [
+        collider('sofa', [0, 0.45, 0], [1, 0.45, 0.4]),
+        collider('table', [2, 0.2, 0], [0.5, 0.2, 0.3]),
+        collider('wall', [0, 1.25, -3], [4, 1.25, 0.1]),
+      ],
+      [],
+    );
     expect(shadows.count).toBe(2);
     const blobs = scene.children.filter((child): child is Mesh => child instanceof Mesh);
     expect(blobs.map((blob) => blob.name)).toEqual(['blob_sofa', 'blob_table']);

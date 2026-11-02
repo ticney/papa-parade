@@ -189,11 +189,54 @@ export function reservedHueProblems(document: unknown, reservedHexes: readonly s
 const luminanceOf = (r: number, g: number, b: number): number =>
   0.2126 * r + 0.7152 * g + 0.0722 * b;
 
+/** What a level's lights multiply a sun-facing floor's linear colour by, per channel (story 7.3, D7). */
+export type DrawnLight = readonly [number, number, number];
+
+/** A level's lights, as `feedback.json › render.lights` holds them. */
+export interface LevelLights {
+  ambientColor: string;
+  ambientIntensity: number;
+  sunColor: string;
+  sunIntensity: number;
+}
+
 /**
- * Whether every material of the `floor` node keeps its contrast against `inkHex`, or the problem with
- * the first that does not (D3). glTF stores linear values, so the luminance reads them as they are.
+ * `(ambient + sun x tone) / pi` on a floor, per channel: three's toon shading, proved by pixel in story
+ * 7.3 (T1). `tone` is the ramp's band for the floor's `N.L`, read like the shader at `N.L x 0.5 + 0.5`.
  */
-export function floorContrastProblem(document: unknown, inkHex: string): string | null {
+export function floorLightOf(
+  lights: LevelLights,
+  toonTones: readonly number[],
+  sunOffsetM: readonly [number, number, number],
+): DrawnLight {
+  const [x, y, z] = sunOffsetM;
+  const coord = (y / Math.hypot(x, y, z)) * 0.5 + 0.5;
+  const band = Math.min(toonTones.length - 1, Math.floor(coord * toonTones.length));
+  const tone = (toonTones[band] as number) / 255;
+  const ambient = channelsOf(lights.ambientColor).map(toLinear);
+  const sun = channelsOf(lights.sunColor).map(toLinear);
+  const channel = (i: number): number =>
+    ((ambient[i] as number) * lights.ambientIntensity +
+      (sun[i] as number) * lights.sunIntensity * tone) /
+    Math.PI;
+  return [channel(0), channel(1), channel(2)];
+}
+
+/** No light at all to account for: the material's own colour is what is judged. */
+const AS_AUTHORED: DrawnLight = [1, 1, 1];
+
+/**
+ * Whether every material of the `floor` node keeps its contrast against `inkHex` once drawn under
+ * `light`, or the problem with the first that does not (D3). glTF stores linear values, so the
+ * luminance reads them as they are. The display clamps a channel at 1. `notWalkable` names materials
+ * no wave is ever drawn on, such as the side of the slab (story 7.3, D8).
+ */
+export function floorContrastProblem(
+  document: unknown,
+  inkHex: string,
+  light: DrawnLight = AS_AUTHORED,
+  notWalkable: readonly string[] = [],
+): string | null {
   const json = document as RoomJson;
   const [inkR, inkG, inkB] = channelsOf(inkHex).map(toLinear) as [number, number, number];
   const inkLuminance = luminanceOf(inkR, inkG, inkB);
@@ -204,8 +247,13 @@ export function floorContrastProblem(document: unknown, inkHex: string): string 
   for (const primitive of primitives) {
     const material =
       primitive.material === undefined ? undefined : json.materials?.[primitive.material];
+    if (material?.name !== undefined && notWalkable.includes(material.name)) continue;
     const [r = 1, g = 1, b = 1] = factorOf(material);
-    const luminance = luminanceOf(r, g, b);
+    const luminance = luminanceOf(
+      Math.min(1, r * light[0]),
+      Math.min(1, g * light[1]),
+      Math.min(1, b * light[2]),
+    );
     const contrast =
       (Math.max(luminance, inkLuminance) + 0.05) / (Math.min(luminance, inkLuminance) + 0.05);
     if (contrast < FLOOR_INK_MIN_CONTRAST) {

@@ -1,6 +1,9 @@
+---
+baseline_commit: 0dd1a86f59170ce7f95413bfc554cc71e2c455c7
+---
 # Story 7.3: Rendu toon final et effets
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -42,46 +45,46 @@ The epics' criterion is: *given `src/client/render/materials/`, when the final r
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Spike the hull on one rig, one prop** (AC 1, 3, D3, D4)
-  - [ ] In a throwaway branch of the code, hull Papa and a mug with the `ShaderMaterial` of D3, and look at it in the browser at both sizes.
-  - [ ] Check and write in the notes: the width is right despite the node scale (`6.4e-5`), a clip moves the hull with the body, the squash too, and no crack shows on a prop with hard edges.
-  - [ ] Look hard at three places: the eyes, the collapsed eyelids (`EYELIDS_OPEN_SCALE` 0.02, D4) and the joints of overlapping parts (7.2's rigid parts). Settle `skipMaterials`.
-- [ ] **T1. Data and lights** (AC 7, 8, 9, D7, D8, D9)
-  - [ ] `FeedbackSchema` gains `render`, then `npm run content:schemas`. `content:check` refuses a `lights.byLevel` key that is not a level.
-  - [ ] `createToonMaterialCache(tones)` reads `render.toonTones`; `TOON_TONES` goes.
-  - [ ] `createLevelScene` picks the level's lights from `SceneBodies`. `AMBIENT_INTENSITY`, `SUN_INTENSITY` and `SUN_OFFSET_M` go. **`setLightsFactor` must multiply the level's own values**, or the outlet gag brings the salon's lights into the bedroom.
-  - [ ] Read a sun-facing floor pixel at 1:1 (screenshot) and compare it to the material. Write both values in the notes.
-  - [ ] `tools/assets/roomArt.ts`: the floor-contrast check takes the level's lights by parameter (pure, same formula as D7). `levelAssets.test.ts` calls it with the live values. Run the light colours through `reservedHueProblems` with a fixture document, so that no light is vivid on a reserved hue.
-- [ ] **T2. `materials/outlineHull.ts`** (AC 1, 3, D3, D4)
-  - [ ] `createOutlineKit(render.outlines)`: one shared `ShaderMaterial`, `addOutlineHulls(root, kit)`, `dispose()`. Pure normals helper `weldedNormals(geometry)`, unit-tested on a split-normal cube (each corner's three copies get one averaged normal).
-  - [ ] Collect meshes **before** adding anything: adding during `traverse` would hull the hulls.
-- [ ] **T3. Wire the hulls** (AC 1, 12)
-  - [ ] `createCharacterRig`: add hulls, reading material names **before** `swapToToon`, which loses them. The hull is the mesh's **sibling** with the same local transform, so toggling a named node (`papa_mug`, `papa_shirt`…) hides both. `SkinnedMesh`: `hull.bind(mesh.skeleton, mesh.bindMatrix)`, `frustumCulled = false`.
-  - [ ] `dispose`: `rig.dispose()` already frees geometry through `root.traverse`, so hulls are covered. Do not dispose the skeleton twice: only the originals stay in `skinned`.
-  - [ ] Props: hull the **template** in `createLevelScene` before the first `poolOf`, so that `template.clone(true)` carries it. The templates' geometry is freed through `propNodes`, already.
-  - [ ] Update the tests that count children or meshes (`characterRig.test.ts`, `levelScene.test.ts`, `papaView.test.ts`). Say which assertions changed subject.
-- [ ] **T4. `vfx/dangerTint.ts`** (AC 4, 5, 6, D5, D6)
-  - [ ] Sprites made up front, one per threat instance with an anchor target, sharing one radial texture (reuse `blobAlpha`). `update(world, clockMs, isMotionReduced)` allocates nothing. Added under `content_root`, so that a shake moves it.
-  - [ ] `SceneBodies.anchorThreatDefIds` beside `layDownDefIds`, from the same place in `levelSession.ts`. Heights come from `geometry.anchors`; a threat whose anchor is missing logs one `warn` and shows nothing.
-  - [ ] Add `PALETTE.alert` with a test tying it to `DESIGN.md` (`colourToken`). An architecture test: only `dangerTint.ts` under `src/client/render/` names `PALETTE.alert`, `parry` or `dodge`.
-  - [ ] `resetFx` hides them; `dispose` frees them. `realFxState()` and `__PP__.fx()` gain `dangerTintsShown`.
-- [ ] **T5. Particles** (D11)
-  - [ ] `particles.ts`: `OctahedronGeometry` for the `BoxGeometry`. Same pool, same draw call. Replace its « provisional » comment.
-- [ ] **T6. The stray blob** (D9)
-  - [ ] `addBlobShadows(parent, colliders, skipIds)`, from `render.blobSkipColliderIds: ["stairs"]`. The height heuristic stays for everything else, and `deferred-work.md` says the rest of it is unchanged.
-- [ ] **T7. Prove nothing moved** (AC 2, 3, 5, 12, 14)
-  - [ ] `git diff --stat main` on the paths of AC 2 is empty; `npm run ci:fast`; the four bots on both levels against `main` with `--seed 1`.
-  - [ ] `tests/e2e/render.spec.ts` (new): a forced anchor threat raises `dangerTintsShown` to 1, then back to 0 once resolved; `ForceThreat` on a threat of another target leaves it at 0; the behind-the-sofa screenshot of AC 3.
-  - [ ] On Chromium: `render`, `level`, `characters`, `feedback`, `reducedMotion`, `autoplay`, `testApi`, `chambreNight`.
-- [ ] **T8. WebGPU** (AC 13, D10)
-  - [ ] Timebox: one hour, in the scratchpad, nothing committed. In a throwaway Vite entry on the pinned `three@0.186.1`, measure the gzip size added by `three/webgpu`, and read in its source whether `ShaderMaterial` and `MeshToonMaterial` with a `gradientMap` carry over. **Do not upgrade `three`**, even though 0.187.0 is out.
-  - [ ] Check Apple's own docs on WebGPU in `WKWebView`, which matters for E8. Write what could not be established as such.
-  - [ ] Write the decision in French in `game-architecture.md`: the Rendu row (L188), the Différé row (L200), ADR-008 (L308), the E7 row (L978), L1149. Update `project-context.md` where it says « no WebGPU before E7 » (L23).
-- [ ] **T9. Close and record the debts**, see « Deferred items ».
-- [ ] **T10. Performance and delivery** (AC 10, 15), under `caffeinate`, alone on the machine, **after the last visual edit**
-  - [ ] `npm run build:playtest`, `npm run dist:check -- --flavor playtest`, `npx playwright test -c playwright.dist.config.ts --project perf --workers=1`, then with `PP_PERF_LEVEL=chambre_night`.
-  - [ ] `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots`. Open the images and say so.
-  - [ ] Screenshots in `_bmad-output/implementation-artifacts/7-3-screenshots/`: both rooms at both sizes, a telegraphed outlet, stairs and coffee table, the baby behind the sofa, the eyes close up, the gag with the lights down in the bedroom, a wave on the bedroom floor with the lights on (never captured in 7.1).
+- [x] **T0. Spike the hull on one rig, one prop** (AC 1, 3, D3, D4)
+  - [x] In a throwaway branch of the code, hull Papa and a mug with the `ShaderMaterial` of D3, and look at it in the browser at both sizes.
+  - [x] Check and write in the notes: the width is right despite the node scale (`6.4e-5`), a clip moves the hull with the body, the squash too, and no crack shows on a prop with hard edges.
+  - [x] Look hard at three places: the eyes, the collapsed eyelids (`EYELIDS_OPEN_SCALE` 0.02, D4) and the joints of overlapping parts (7.2's rigid parts). Settle `skipMaterials`.
+- [x] **T1. Data and lights** (AC 7, 8, 9, D7, D8, D9)
+  - [x] `FeedbackSchema` gains `render`, then `npm run content:schemas`. `content:check` refuses a `lights.byLevel` key that is not a level.
+  - [x] `createToonMaterialCache(tones)` reads `render.toonTones`; `TOON_TONES` goes.
+  - [x] `createLevelScene` picks the level's lights from `SceneBodies`. `AMBIENT_INTENSITY`, `SUN_INTENSITY` and `SUN_OFFSET_M` go. **`setLightsFactor` must multiply the level's own values**, or the outlet gag brings the salon's lights into the bedroom.
+  - [x] Read a sun-facing floor pixel at 1:1 (screenshot) and compare it to the material. Write both values in the notes.
+  - [x] `tools/assets/roomArt.ts`: the floor-contrast check takes the level's lights by parameter (pure, same formula as D7). `levelAssets.test.ts` calls it with the live values. Run the light colours through `reservedHueProblems` with a fixture document, so that no light is vivid on a reserved hue.
+- [x] **T2. `materials/outlineHull.ts`** (AC 1, 3, D3, D4)
+  - [x] `createOutlineKit(render.outlines)`: one shared `ShaderMaterial`, `addOutlineHulls(root, kit)`, `dispose()`. Pure normals helper `weldedNormals(geometry)`, unit-tested on a split-normal cube (each corner's three copies get one averaged normal).
+  - [x] Collect meshes **before** adding anything: adding during `traverse` would hull the hulls.
+- [x] **T3. Wire the hulls** (AC 1, 12)
+  - [x] `createCharacterRig`: add hulls, reading material names **before** `swapToToon`, which loses them. The hull is the mesh's **sibling** with the same local transform, so toggling a named node (`papa_mug`, `papa_shirt`…) hides both. `SkinnedMesh`: `hull.bind(mesh.skeleton, mesh.bindMatrix)`, `frustumCulled = false`.
+  - [x] `dispose`: `rig.dispose()` already frees geometry through `root.traverse`, so hulls are covered. Do not dispose the skeleton twice: only the originals stay in `skinned`.
+  - [x] Props: hull the **template** in `createLevelScene` before the first `poolOf`, so that `template.clone(true)` carries it. The templates' geometry is freed through `propNodes`, already.
+  - [x] Update the tests that count children or meshes (`characterRig.test.ts`, `levelScene.test.ts`, `papaView.test.ts`). Say which assertions changed subject.
+- [x] **T4. `vfx/dangerTint.ts`** (AC 4, 5, 6, D5, D6)
+  - [x] Sprites made up front, one per threat instance with an anchor target, sharing one radial texture (reuse `blobAlpha`). `update(world, clockMs, isMotionReduced)` allocates nothing. Added under `content_root`, so that a shake moves it.
+  - [x] `SceneBodies.anchorThreatDefIds` beside `layDownDefIds`, from the same place in `levelSession.ts`. Heights come from `geometry.anchors`; a threat whose anchor is missing logs one `warn` and shows nothing.
+  - [x] Add `PALETTE.alert` with a test tying it to `DESIGN.md` (`colourToken`). An architecture test: only `dangerTint.ts` under `src/client/render/` names `PALETTE.alert`, `parry` or `dodge`.
+  - [x] `resetFx` hides them; `dispose` frees them. `realFxState()` and `__PP__.fx()` gain `dangerTintsShown`.
+- [x] **T5. Particles** (D11)
+  - [x] `particles.ts`: `OctahedronGeometry` for the `BoxGeometry`. Same pool, same draw call. Replace its « provisional » comment.
+- [x] **T6. The stray blob** (D9)
+  - [x] `addBlobShadows(parent, colliders, skipIds)`, from `render.blobSkipColliderIds: ["stairs"]`. The height heuristic stays for everything else, and `deferred-work.md` says the rest of it is unchanged.
+- [x] **T7. Prove nothing moved** (AC 2, 3, 5, 12, 14)
+  - [x] `git diff --stat main` on the paths of AC 2 is empty; `npm run ci:fast`; the four bots on both levels against `main` with `--seed 1`.
+  - [x] `tests/e2e/render.spec.ts` (new): a forced anchor threat raises `dangerTintsShown` to 1, then back to 0 once resolved; `ForceThreat` on a threat of another target leaves it at 0; the behind-the-sofa screenshot of AC 3.
+  - [x] On Chromium: `render`, `level`, `characters`, `feedback`, `reducedMotion`, `autoplay`, `testApi`, `chambreNight`.
+- [x] **T8. WebGPU** (AC 13, D10)
+  - [x] Timebox: one hour, in the scratchpad, nothing committed. In a throwaway Vite entry on the pinned `three@0.186.1`, measure the gzip size added by `three/webgpu`, and read in its source whether `ShaderMaterial` and `MeshToonMaterial` with a `gradientMap` carry over. **Do not upgrade `three`**, even though 0.187.0 is out.
+  - [x] Check Apple's own docs on WebGPU in `WKWebView`, which matters for E8. Write what could not be established as such.
+  - [x] Write the decision in French in `game-architecture.md`: the Rendu row (L188), the Différé row (L200), ADR-008 (L308), the E7 row (L978), L1149. Update `project-context.md` where it says « no WebGPU before E7 » (L23).
+- [x] **T9. Close and record the debts**, see « Deferred items ».
+- [x] **T10. Performance and delivery** (AC 10, 15), under `caffeinate`, alone on the machine, **after the last visual edit**
+  - [x] `npm run build:playtest`, `npm run dist:check -- --flavor playtest`, `npx playwright test -c playwright.dist.config.ts --project perf --workers=1`, then with `PP_PERF_LEVEL=chambre_night`.
+  - [x] `npx playwright test tests/e2e/autoplay.spec.ts --update-snapshots`. Open the images and say so.
+  - [x] Screenshots in `_bmad-output/implementation-artifacts/7-3-screenshots/`: both rooms at both sizes, a telegraphed outlet, stairs and coffee table, the baby behind the sofa, the eyes close up, the gag with the lights down in the bedroom, a wave on the bedroom floor with the lights on (never captured in 7.1).
 
 ## Dev Notes
 
@@ -188,10 +191,102 @@ Web, 2026-11-01: [web.dev on WebGPU support](https://web.dev/blog/webgpu-support
 
 ### Agent Model Used
 
+Claude Opus 5.5 (claude-opus-5-5)
+
 ### Debug Log References
+
+- `main` (7.6, 7.7: audio and docs only) was merged into the branch before the work, so that AC 2's `git diff main` means something. `baseline_commit` is that merge.
+- `reducedMotion.spec.ts` « every threat shows its verb whole » timed out at 90 s: it was 72 s on `main` (load about 30) and is 96 s with the hulls. Measured side by side, level load (3.03 s) and frame time (16.7 ms) are unchanged; only a round trip's frame on software GL costs more (`advance(10)`: 9 ms to 14 ms, thousands of them). Its timeout is now 150 s, with the reason in a comment. It says nothing about the frame budget, which `perf.spec.ts` holds.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+**Variances from the story, to check in review**
+- **T0 ran on the real code, not on a throwaway branch.** The hull went straight into `outlineHull.ts`, and T0's questions were answered by looking at it there.
+- **The hull is the mesh's child, not its sibling (T2, T3).** A child with no transform of its own has the same world matrix, so it takes the node scale, a clip and the squash, and hiding the mesh or any node above hides it. A sibling fails when the named node is the mesh itself and has no parent to share (a prop template that is a bare mesh, the fixtures). One code path instead of two.
+- **`dangerTint` makes one sprite per anchor, not per threat instance (T4).** `createLevelScene` has no world to count instances from. Two threats on one anchor are one glow, and `dangerTintsShown` counts glows. All sprites share one material, so they pulse together.
+- **Lights rows also hold colours** (`ambientColor`, `sunColor`), which D9's sketch left implicit but D8 and T1 need.
+- **`sunOffsetM` moved from `[5, 9, 7]` to `[3, 9, 5]`:** see the correction of D7 below. This is the one visual choice the story did not spell out, and it is Geo's to judge.
+- **The prop nodes leave the model before the toon swap** in `levelScene.ts` (the story said the swap runs first), because the swap loses the material names the hulls need.
+- `tests/content/feedbackSchema.test.ts`'s unit-suffix rule gained `Hz`, `OffsetM`, `radiusM`, and two unitless names: `…Intensity` and `toonTones`. These are D9's own keys.
+
+**T0: what the hull does.** Checked on screen in Chromium, at 844 x 390, 667 x 375 and enlarged at 2532 x 1170 (`big_*.png`).
+- The width holds despite the node scale of 6.4e-5. At `widthM` 0.025 it reads as about 2 CSS px at 844 wide: an estimate by eye, not measured.
+- A clip moves the hull with the body (`big_papa_walk.png`, `big_carry.png`). No crack on the props' hard edges (`salon_coffee_table_telegraph.png`).
+- **The squash with a hull was not looked at on screen:** the hull is a child of the mesh, so it inherits it, but no image shows one mid-squash.
+- Eyes and lids: `skipMaterials` stays `["art_ink"]`; `art_paper` keeps its hull. No ink dots show from the collapsed lids in the open-eyed poses I looked at. **Closed lids and a mid-blink were not looked at close up.**
+- Joints: the parts' hulls draw a thin ink line where a hand meets a sleeve. I read it as cartoon line work, not a defect. Geo's call.
+
+**T1: the colours by pixel (AC 7).** Read 1:1 from a screenshot at 667 x 375:
+| Surface | Material (sRGB) | Drawn (sRGB) |
+|---|---|---|
+| Salon floor, `art_plank_a` | 242, 214, 171 | 242, 214, 171 (exact) |
+| Salon floor, `art_plank_b` | 232, 199, 149 | 232, 199, 149 (exact) |
+| Salon side wall, `art_wall` | 180, 230, 219 | 163, 209, 199 |
+| Bedroom floor, `art_plank_a` | 179, 175, 207 | 136, 138, 192 (night light, on purpose) |
+
+**Correction of D7.** The formula holds: the side wall's factor is (1.1 + 2.04 x 178/255) / pi = 0.80 linear, which is what the pixel shows. But the note's reading of the bands was wrong. Three reads the ramp at `N.L x 0.5 + 0.5`, so the top band starts at `N.L` > 1/3, not 2/3. With the sun at `[5, 9, 7]`, the floor and both walls (0.72, 0.56, 0.40) all sat in the top band, so the room looked flat and the stairs' steps merged. At `[3, 9, 5]` (floor 0.84, back wall 0.47, side wall 0.28) the side wall and the furniture's sides drop one band: the toon look D7 wanted, and the steps now read.
+
+**AC 8, drawn contrast against ink, from the live lights:** salon planks 10.77 and 9.37:1; bedroom planks 4.61 and 4.03:1. `levelAssets.test.ts` computes it on both levels and passes. **It leaves out `art_wood`, the side of the slab, as D8 says:** it draws at 2.19:1 in the bedroom (4.08:1 in the salon), and no wave lands there. The as-authored check still judges every material of the `floor` node. Light colours go through `reservedHueProblems`.
+
+**AC 2, nothing moved.** `git diff --stat main` on the listed paths is empty. No golden was regenerated. The 4 bots on both levels at seed 1 give reports byte-identical to `main` (`diff -r` of the 8 JSON files).
+
+**AC 10, budgets, CI proxy** (`perf.spec.ts` on the built playtest, Chromium, on a shared machine at load 8-22):
+| Level | Frames | p95 | Max frame | Draw calls max | Triangles max |
+|---|---|---|---|---|---|
+| `salon_crawler` | 17,107 | 16.7 ms | 116.7 ms | 87 | 15,584 |
+| `chambre_night` | 12,097 | 16.7 ms | 116.6 ms | 79 | 14,664 |
+
+`dist:check --flavor playtest` passes: level payload 2634.9 KiB, first load 4326.5 KiB gzip. The p95 is vsync-bound on a desktop machine, so it proves little about a phone.
+
+**AC 11, real devices: NOT PROVEN.** The epics' criterion names the reference devices. No agent has one and nothing was written in `docs/playtest/device-measurements.md`. This part stands open until Geo's device pass.
+
+**AC 13, WebGPU (T8).** Decision written in the architecture: stay on `WebGLRenderer`. Geo can overrule it (Open for Geo, 3).
+- Measured on the pinned three 0.186.1, in a throwaway Vite entry with the same scope: 145.5 KB gzip for WebGL, 236.2 KB for `three/webgpu`, so about 91 KB more.
+- Read in three's source: `MeshToonMaterial` maps to `MeshToonNodeMaterial`, whose lighting model reads the `gradientMap`. `ShaderMaterial` is not in `StandardNodeLibrary`, so D3's hull would need a node-material twin.
+- **Not established:** I found no Apple documentation on WebGPU in `WKWebView`. The closest is [one answer on Apple's forums](https://developer.apple.com/forums/thread/770862), which says flags only affect Safari and a `WKWebView` gets it once on by default, in iOS 26. The share of phones covered was not verified, and WebGPU was not run.
+
+**AC 14.** `/?autoplay=human&seed=1&speed=4`, with and without `&level=chambre_night`, played 45 s on Chromium with no `warn` on `assets` or `render`. Only 45 s of each, not a whole level. The other console lines seen on the bedroom run (one 30 s run listed): driver `ReadPixels` notes, `navigator.vibrate` with no gesture, one sim-backlog stall.
+
+**E2E, Chromium:** `render`, `level`, `characters`, `feedback`, `reducedMotion`, `autoplay`, `testApi`, `chambreNight`. All green; `reducedMotion` needed the timeout above and `render` and `reducedMotion` were rerun alone after it. `ci:story` was not run: that is the review's. WebKit ran only `autoplay.spec.ts`.
+
+**The macOS references.** Regenerated on purpose with `--update-snapshots=all`, and both opened. **The plain `--update-snapshots` wrote nothing, and the old references still passed**, in spite of the new lights: `maxDiffPixelRatio` with Playwright's default per-pixel `threshold` tolerates a change this soft. That reference would not catch a change of lights.
+
+**AC 15, screenshots** in `7-3-screenshots/`.
+- Opened in their final capture: `salon_crawler_667_start`, `chambre_night_667_start`, `chambre_night_wave` (the ring is by the outlet, near the glow), `big_papa_walk`.
+- Opened in an earlier run of the same scene with the final look, not reopened after the last run: `salon_crawler_844_start`, `salon_stairs_telegraph`, `salon_coffee_table_telegraph`, `salon_baby_behind_sofa`, `chambre_night_gag_lights_down`, `big_papa`, `big_baby`, `big_carry`.
+- Opened only before the sun moved to `[3, 9, 5]`: `salon_outlet_telegraph`, `chambre_night_844_start`.
+- **The merge waits for Geo's visual OK.**
+
+**What I saw that Geo should judge**
+- **AC 3:** behind the sofa, the top of the baby's head and its outline show **above** the sofa's back, at about (472, 152) in `salon_baby_behind_sofa.png`. It is behind the sofa in depth, not drawn over it, so the depth test holds, and the head would stick out with or without a hull. But the dark line makes it easier to spot during a silence that should be a secret. I did not compare it with a hull-less capture.
+- **The door** (story 3.5's code-made panel in `PALETTE.paper`) now draws pure white: its colour is as authored, but it is the brightest thing in the room.
+- **The glow** reads well on the wall and at the stairs, more softly on the coffee table. Its numbers are data: `render.dangerTint`.
+- **The safe floors against the baby (L897): not looked at.** My attempt to lay the baby in the playpen did not land, so the entry stays open.
 
 ### File List
+
+**New**
+- `src/client/render/materials/outlineHull.ts`, `outlineHull.test.ts`
+- `src/client/render/vfx/dangerTint.ts`, `dangerTint.test.ts`
+- `tests/architecture/reservedHues.test.ts`
+- `tests/e2e/render.spec.ts`
+- `_bmad-output/implementation-artifacts/7-3-screenshots/` (14 images)
+
+**Modified**
+- `content/feedback.json`, `content/_schemas/feedback.schema.json`, `src/content/schemas/feedback.ts`
+- `src/client/render/levelScene.ts`, `levelScene.test.ts`, `blobShadow.ts`, `blobShadow.test.ts`, `gags.ts`
+- `src/client/render/materials/palette.ts`, `toonMaterial.ts`, `toonMaterial.test.ts`
+- `src/client/render/vfx/particles.ts`
+- `src/client/render/views/characterRig.ts`, `characterRig.test.ts`, `doorView.ts`, `propView.ts`, and the tests `babyView.test.ts`, `doorView.test.ts`, `layDown.test.ts`, `papaView.test.ts`
+- `src/client/app/levelSession.ts`, `levelSession.test.ts`, `testHost.ts`, `src/client/boot.ts`, `src/client/feedback/feedbackDirector.test.ts`, `src/debug/testApi.test.ts`
+- `src/shared/constants.ts` (comments)
+- `tools/assets/roomArt.ts`, `tools/content/contentChecks.ts`, `tests/tools/assets/roomArt.test.ts`
+- `tests/architecture/characterAssets.test.ts`, `levelAssets.test.ts`, `tests/content/feedbackSchema.test.ts`, `tests/support/testContent.ts`, `tests/support/fakeTestHost.ts`, `tests/e2e/support/testApi.ts`, `tests/e2e/reducedMotion.spec.ts`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-chromium-darwin.png`, `autoplay-frozen-webkit-darwin.png`
+- `_bmad-output/planning-artifacts/game-architecture.md`, `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `sprint-status.yaml`, this file
+
+**Assertions that changed subject (T3):** `characterRig.test.ts`'s « swaps every material » now leaves out the hulls, which are skinned meshes with no toon material. No other existing count moved: `propView.test.ts` still finds the source mesh first.
+
+### Change Log
+
+- 2026-11-02: Story 7.3 implemented: ink hulls, per-level lights, final ramp as data, alert glow, faceted particles, stray blob removed, WebGPU recommendation written. Status: review.

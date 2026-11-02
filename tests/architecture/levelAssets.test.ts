@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { isVisualNodeName } from '../../src/content/levelNodeNames.ts';
 import { parseContentFile } from '../../src/content/parseContentFile.ts';
+import { FeedbackTableSchema } from '../../src/content/schemas/feedback.ts';
 import { LevelGeometrySchema } from '../../src/content/schemas/levelGeometry.ts';
 import {
   LEVEL_PAYLOAD_MAX_BYTES,
@@ -13,6 +14,7 @@ import {
 import { parseGlb } from '../../tools/assets/glb.ts';
 import {
   floorContrastProblem,
+  floorLightOf,
   reservedHueProblems,
   roomBudgetOf,
   roomMaterialProblems,
@@ -46,6 +48,15 @@ const designTokens = expectedTokens(
     ),
   ),
 );
+/** The side of the floor's slab: part of the `floor` node, but no wave is drawn on it (story 7.3, D8). */
+const FLOOR_SLAB_SIDES = ['art_wood'];
+const feedbackFile = parseContentFile(
+  'content/feedback.json',
+  readFileSync(join(root, 'content', 'feedback.json'), 'utf8'),
+  FeedbackTableSchema,
+);
+if (!feedbackFile.ok) throw new Error('content/feedback.json does not parse');
+const { render } = feedbackFile.value;
 function colourToken(name: string): string {
   const token = designTokens.find((candidate) => candidate.name === `--pp-color-${name}`);
   if (token === undefined) throw new Error(`DESIGN.md has no colour "${name}"`);
@@ -113,8 +124,35 @@ describe.each(levelIds)('the committed %s level', (levelId) => {
     expect(roomMaterialProblems(json)).toEqual([]);
   });
 
-  it('has a floor the ink of the sound waves shows on', () => {
+  it('has a floor the ink of the sound waves shows on, as authored', () => {
     const { json } = parseGlb(new Uint8Array(readFileSync(glbFile)));
     expect(floorContrastProblem(json, colourToken('ink'))).toBeNull();
   });
+
+  it('has walkable planks the ink shows on, under its own lights', () => {
+    const { json } = parseGlb(new Uint8Array(readFileSync(glbFile)));
+    const lights = render.lights.byLevel[levelId] ?? render.lights.default;
+    const light = floorLightOf(lights, render.toonTones, render.sunOffsetM);
+    expect(floorContrastProblem(json, colourToken('ink'), light, FLOOR_SLAB_SIDES)).toBeNull();
+  });
+});
+
+describe('the lights of feedback.json', () => {
+  const rows = [render.lights.default, ...Object.values(render.lights.byLevel)];
+  const toLinear = (channel: number): number =>
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+
+  it.each(rows.flatMap((row) => [row.ambientColor, row.sunColor]))(
+    '%s is not vivid on a hue reserved for gameplay',
+    (hex) => {
+      const channels = [1, 3, 5].map((at) =>
+        toLinear(Number.parseInt(hex.slice(at, at + 2), 16) / 255),
+      );
+      const fixture = {
+        materials: [{ name: hex, pbrMetallicRoughness: { baseColorFactor: [...channels, 1] } }],
+      };
+      const reserved = ['parry', 'dodge', 'alert'].map(colourToken);
+      expect(reservedHueProblems(fixture, reserved)).toEqual([]);
+    },
+  );
 });

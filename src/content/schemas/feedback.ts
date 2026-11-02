@@ -441,6 +441,111 @@ const CharactersSchema = z
     'The animated characters (story 7.2). Read by the views on the sim clock; the sim never reads it.',
   );
 
+/** `#RRGGBB`, the form of the colours of DESIGN.md. */
+const HEX_COLOUR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
+const LightsRowSchema = z
+  .strictObject({
+    ambientColor: z
+      .string()
+      .regex(HEX_COLOUR_PATTERN, 'a colour is #RRGGBB')
+      .describe('Ambient light colour.'),
+    ambientIntensity: z.number().min(0).max(10).describe('Ambient light intensity.'),
+    sunColor: z.string().regex(HEX_COLOUR_PATTERN, 'a colour is #RRGGBB').describe('Sun colour.'),
+    sunIntensity: z.number().min(0).max(10).describe('Sun intensity.'),
+  })
+  .describe(
+    "A level's lights. The drawn linear colour is `material x (ambient + sun x tone) / pi`, so ambient + sun = pi with white lights draws a sun-facing surface as authored. The colour of each light multiplies its intensity.",
+  );
+
+const RenderSchema = z
+  .strictObject({
+    toonTones: z
+      .array(z.int().min(0).max(255))
+      .min(2)
+      .max(8)
+      .refine(
+        (tones) =>
+          tones.every((tone, index) => index === 0 || tone >= (tones[index - 1] as number)),
+        {
+          message: 'the tones go from the darkest to the lightest',
+        },
+      )
+      .describe(
+        'The toon ramp, darkest to lightest, as 0-255 (ADR-008). Three reads it at `N.L x 0.5 + 0.5`, in equal bands.',
+      ),
+    lights: z
+      .strictObject({
+        default: LightsRowSchema.describe('The lights of any level that has no row of its own.'),
+        byLevel: z
+          .record(
+            z.string().regex(CUE_ID_PATTERN, 'a level id is lower_snake_case'),
+            LightsRowSchema,
+          )
+          .describe(
+            'The lights of one level, by id. `npm run content:check` refuses an unknown level.',
+          ),
+      })
+      .describe('The lights of each level (story 7.3, D7, D8).'),
+    sunOffsetM: z
+      .tuple([z.number(), z.number().gt(0), z.number()])
+      .describe('Where the sun sits relative to the room centre, in metres: x, height, z.'),
+    outlines: z
+      .strictObject({
+        widthM: z
+          .number()
+          .gt(0)
+          .max(0.2)
+          .describe(
+            'How far the ink hull stands out of a silhouette, in metres of view space: constant on screen under the orthographic camera.',
+          ),
+        skipMaterials: z
+          .array(z.string().min(1))
+          .describe(
+            'The materials of a `.glb` that get no hull: thickening what is already ink would close the eyes.',
+          ),
+      })
+      .describe('The inverted-hull outlines of the characters and the props (story 7.3, D3, D4).'),
+    dangerTint: z
+      .strictObject({
+        radiusM: z.number().gt(0).max(3).describe('Radius of the glow on a danger, in metres.'),
+        minOpacityPct: z
+          .number()
+          .min(0)
+          .max(100)
+          .describe('Opacity at the low of the pulse, in percent.'),
+        peakOpacityPct: z
+          .number()
+          .gt(0)
+          .max(100)
+          .describe(
+            'Opacity at the top of the pulse, in percent; the steady one under reduced motion.',
+          ),
+        pulseHz: z
+          .number()
+          .gt(0)
+          .max(3)
+          .describe(
+            'How fast the glow pulses, on the sim clock, in Hz. Nothing flashes above 3 Hz.',
+          ),
+      })
+      .refine((tint) => tint.minOpacityPct <= tint.peakOpacityPct, {
+        message: 'the low of the pulse is below its top',
+        path: ['minOpacityPct'],
+      })
+      .describe(
+        'The reserved alert glow on the anchor of a telegraphed or open threat (story 7.3, D5).',
+      ),
+    blobSkipColliderIds: z
+      .array(z.string().min(1))
+      .describe(
+        'The colliders with no blob shadow: the height rule cannot tell a stairwell from furniture.',
+      ),
+  })
+  .describe(
+    'The final look (story 7.3). Client-only: unlike `feel.json` it is not hashed into the journal, so no golden moves for it.',
+  );
+
 export const FeedbackTableSchema = z
   .strictObject({
     buses: BusesSchema,
@@ -461,6 +566,7 @@ export const FeedbackTableSchema = z
     bombDrop: BombDropSchema,
     characters: CharactersSchema,
     door: DoorSchema,
+    render: RenderSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),

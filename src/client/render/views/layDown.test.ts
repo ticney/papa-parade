@@ -5,9 +5,12 @@ import { describe, expect, it } from 'vitest';
 import { createTestBaby } from '../../../../tests/support/testCharacters.ts';
 import { createBlobKit } from '../blobShadow.ts';
 import { layDownPctAt } from '../levelScene.ts';
+import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
 import { BABY_CARRIED_HEIGHT_M, createBabyView, layDownProgressPct } from './babyView.ts';
 import { createCharacterRig } from './characterRig.ts';
+
+const TOON_TONES = [96, 178, 255];
 
 // The descent of the bomb drop on screen (story 4.8): the carried baby is lowered linearly from Papa's
 // chest to the laid height, from the telegraph to the final pose, on the render's sim clock.
@@ -103,7 +106,12 @@ describe('the carried baby lowered onto the mattress (story 4.8)', () => {
       scene,
       createBlobKit(),
       radiusM,
-      createCharacterRig(createTestBaby(), createToonMaterialCache(), 100),
+      createCharacterRig(
+        createTestBaby(),
+        createToonMaterialCache(TOON_TONES),
+        100,
+        createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] }),
+      ),
       MOTION,
       laid,
     );
