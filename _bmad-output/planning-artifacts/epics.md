@@ -2426,6 +2426,46 @@ afin que chaque âge ait son identité.
 **Quand** un niveau se joue
 **Alors** la musique adaptative de la story 2.6 utilise les stems de l'âge, et chaque son de la bibliothèque respecte la convention `<catégorie>_<nom>.m4a`
 
+### Story 7.6 : Musique générée du salon et des séquences
+
+**Exigences :** FR60, FR70
+
+En tant que joueur,
+je veux une vraie musique à la place des boucles provisoires synthétisées,
+afin que le jeu sonne comme un jeu dès le prochain playtest.
+
+**Critères d'acceptation :**
+
+**Étant donné** les deux stems validés à l'oreille par Geo le 2026-11-01 (essai ElevenLabs, coupés à 36 s)
+**Quand** `music_crawler_calm` et `music_crawler_tense` sont remplacés
+**Alors** ils gardent la même longueur, jouent en boucle sans trou et restent synchronisés dans `adaptiveMusic.ts`
+
+**Étant donné** `music_stay_awake`, `music_lullaby_pad`, `music_bedtime_hush`, `music_bomb_thriller` et `music_stealth`
+**Quand** ils sont générés et coupés
+**Alors** chacun remplace le fichier du même nom, et chaque crédit dépensé a reçu l'accord préalable de Geo
+
+**Étant donné** les nouveaux fichiers
+**Quand** `npm run dist:check` tourne
+**Alors** la charge de chaque niveau reste sous 3 Mio
+
+**Étant donné** `tools/audio/makePlaceholderAudio.ts`
+**Quand** il tourne sans `--only`
+**Alors** il n'écrase aucune musique générée
+
+### Story 7.7 : Babillage généré
+
+**Exigences :** FR70
+
+En tant que joueur,
+je veux que le babillage sonne comme un bébé,
+afin que la voix ne masque plus le reste du son du jeu.
+
+**Critères d'acceptation :**
+
+**Étant donné** la prise choisie à l'écoute par Geo le 2026-11-01
+**Quand** `baby_babble_loop` est remplacé
+**Alors** l'arrêt du babillage annonce toujours le silence suspect, et `npm run assets:audio` sans `--only` n'écrase pas le fichier
+
 ## Epic 8 : Distribution mobile
 
 *Stories cadrées.* **Prérequis :** le modèle économique est tranché avant cet epic.
