@@ -634,18 +634,18 @@ describe('generatePlaceholderClips', () => {
 
   it('touches nothing in the output directory when a conversion fails, and names the clip', async () => {
     const out = await tempDir();
-    const stale = join(out, `${PLACEHOLDER_CLIPS[0]?.clip}.m4a`);
-    await writeFile(stale, 'stale but whole');
-    // The table's second clip that a run with no `only` still writes (the music is out of it, story 7.6).
-    const second = PLACEHOLDER_CLIPS.map(({ clip }) => clip).filter(
+    // The table's first two clips that a run with no `only` still writes (stories 7.6 and 7.7 took the others out).
+    const [first, second] = PLACEHOLDER_CLIPS.map(({ clip }) => clip).filter(
       (clip) => !GENERATED_CLIPS.includes(clip),
-    )[1] as string;
+    ) as [string, string];
+    const stale = join(out, `${first}.m4a`);
+    await writeFile(stale, 'stale but whole');
     const result = await generatePlaceholderClips(out, converter(second));
     expect(result).toMatchObject({
       ok: false,
       error: { message: expect.stringContaining(second) },
     });
-    expect(await readdir(out)).toEqual([`${PLACEHOLDER_CLIPS[0]?.clip}.m4a`]);
+    expect(await readdir(out)).toEqual([`${first}.m4a`]);
     expect(await readFile(stale, 'utf8')).toBe('stale but whole');
   });
 });

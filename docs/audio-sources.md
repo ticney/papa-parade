@@ -2,9 +2,9 @@
 
 Where the shipped music (story 7.6) and babble (story 7.7) come from, so that a track can be redone and the licence question answered later. Everything else in `public/assets/audio/` is still a synthesized placeholder from `tools/audio/makePlaceholderAudio.ts`.
 
-**Licence status:** Geo confirmed on 2026-11-01 that his ElevenLabs plan allows this music in a game he distributes. ElevenLabs refused several takes with "Free generations are busy" (`free_shared`), so check the plan again before a store release.
+**Licence status:** Geo confirmed on 2026-11-01 that his ElevenLabs plan allows this music in a game he distributes. That confirmation named the music; the babble comes from the sound effects model and is not covered yet. ElevenLabs refused several takes with "Free generations are busy" (`free_shared`), so check the plan again before a store release.
 
-All takes: ElevenLabs, model `eleven_music_v2_5`, instrumental, flow `oJxjnjQgAe66OVCVySXO`, generated on 2026-11-01. `creative_get_generations` with the flow and generation id gives a fresh download link, at no cost.
+All takes: ElevenLabs, flow `oJxjnjQgAe66OVCVySXO`, generated on 2026-11-01. The music uses model `eleven_music_v2_5`, instrumental; the babble's model is in its section. `creative_get_generations` with the flow and generation id gives a fresh download link, at no cost.
 
 Each file is cut with `tools/audio/cutMusicLoop.ts`. `npm run assets:audio` leaves them alone unless `--only` names one (`GENERATED_CLIPS`).
 
@@ -28,9 +28,11 @@ The calm take's end fades out and the lullaby pad's start fades in, whatever the
 
 ## The babble (story 7.7)
 
-`baby_babble_loop`: generation `4rlt765QnXKUPFcIjCkA`, node `kHX97o3MkXGaJqajhXBE`, on the same flow, model `eleven_text_to_sound_v2` (sound effects, not music), 100 credits. Asked for 10 s with `loop: true` and `prompt_influence: 0.6`. Cut with `--length-ms 10000 --crossfade-ms 0 --gain-db 0`; mono, 64 kbps. Kept whole, because the model made it loop.
+`baby_babble_loop`: generation `4rlt765QnXKUPFcIjCkA`, node `kHX97o3MkXGaJqajhXBE`, on the same flow, model `eleven_text_to_sound_v2` (sound effects, not music), 100 credits. Asked for 10 s with `loop: true` and `prompt_influence: 0.6`; the source is 10.000 s, stereo. Cut with `--length-ms 10000 --crossfade-ms 0 --gain-db 0 --bitrate-bps 64000 --channels 1`. Kept whole, because the model made it loop.
 
 Prompt: Happy baby babbling continuously to itself, soft cute coos and gentle "ba-ba" and "da-da" syllables, no crying, no words, no pauses, close-mic, dry indoor room
+
+The take has pauses despite the prompt, and a lull from 4.18 to 7.14 s where the babble sits at or under the music. Geo played it and kept it (story 7.7).
 
 ## Prompts
 
