@@ -4,7 +4,7 @@ baseline_commit: d6ef5be
 
 # Story 7.7: Babillage généré
 
-Status: review
+Status: done
 
 ## Story
 
@@ -77,3 +77,4 @@ Claude Opus 5.5 (`claude-opus-5-5`)
 
 - 2026-11-01: Generated babble in place of the synthetic one.
 - 2026-11-02: Review fixes. `ci:fast` passes: 7,802 tests, 3 skipped.
+- 2026-11-02: `ci:story`: 379 passed, 9 timed out or missed their timing, with the machine's load near 80. Those 9 passed rerun alone (`--workers=4`), so the whole suite was not rerun.
