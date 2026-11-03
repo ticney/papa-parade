@@ -101,6 +101,7 @@ import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
 import { createStartScreen } from './ui/screens/startScreen.ts';
 import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
+import { applyChronoRingMetrics, chronoJudgedMirror } from './ui/world/chronoRing.ts';
 import { createWorldUi } from './ui/world/worldUi.ts';
 
 /** The timer's slot in the HUD batch. */
@@ -277,6 +278,8 @@ export async function boot(): Promise<void> {
   new ResizeObserver(fitViewToCanvas).observe(canvas);
   window.addEventListener('resize', fitViewToCanvas);
   bindSurface(window, document.documentElement);
+  // The chrono-ring's reach and the highlight's size (story 2.11) come from the constants, not from CSS literals.
+  applyChronoRingMetrics(document.documentElement);
 
   // Debug mirrors of the flow for Playwright, stripped from store builds by the flag. They go
   // before the bindings below, which can emit as soon as they are bound. The existing specs read
@@ -333,6 +336,7 @@ export async function boot(): Promise<void> {
       | 'ppThreat'
       | 'ppThreatPx'
       | 'ppResponse'
+      | 'ppChronoJudged'
       | 'ppGag'
       | 'ppPress'
       | 'ppFatigue'
@@ -711,6 +715,7 @@ export async function boot(): Promise<void> {
       'ppThreat',
       'ppThreatPx',
       'ppResponse',
+      'ppChronoJudged',
       'ppGag',
       'ppPress',
       'ppTarget',
@@ -859,6 +864,25 @@ export async function boot(): Promise<void> {
       case 'ResponseResolved':
         mirror('ppThreat', `${event.threatId}:${event.quality === 'fail' ? 'gag' : 'resolved'}`);
         mirror('ppResponse', event.quality);
+        // A judged press of a threat with a ring (story 2.11 AC 15): where the ring would have been at the
+        // press instant, by the function that draws it, on the geometry its marker holds.
+        // Only where the mirrors exist: production builds neither scan the markers nor build the string.
+        if (isMirrored && event.offsetMs !== null) {
+          const ring = worldUi.chronoRingOf(event.threatId);
+          // A ring whose window is not the one judged belongs to another telegraph (no frame drew this one yet).
+          if (ring !== null && ring.closeAt - ring.windowOpenAt === event.responseWindow.windowMs) {
+            mirror(
+              'ppChronoJudged',
+              chronoJudgedMirror(
+                event.t,
+                event.threatId,
+                ring,
+                event.responseWindow.windowMs,
+                event.offsetMs,
+              ),
+            );
+          }
+        }
         return;
       case 'GagTriggered':
         mirror('ppGag', event.gag);
@@ -1187,7 +1211,12 @@ export async function boot(): Promise<void> {
         isPlaying && isTensionActive(babbleWorld.threats),
         isPlaying && isSlowMoActive(babbleWorld, levelFeel().music.slowMo.belowScale),
       );
-      silenceBubble.update(isSilent && pause.state === 'running', babbleWorld);
+      // The ring beside the bubble fills over the drawn sim time, like the threat rings (story 2.11, AC 12).
+      silenceBubble.update(
+        isSilent && pause.state === 'running',
+        babbleWorld,
+        babbleWorld === undefined ? null : babbleWorld.time.sim - STEP_MS * (1 - alpha),
+      );
       // Fatherly Instinct's vignette follows the state too (story 2.9), never the events: a pause, a
       // restart or the end of the level can never leave it on.
       instinctVignette.update(
@@ -1565,6 +1594,11 @@ export async function boot(): Promise<void> {
     viewport: () => ({ width: hudRoot.clientWidth, height: hudRoot.clientHeight }),
     targetHeightM: () => startFeel().baby.bodyRadiusM,
     hudBottomPx: () => hudRoot.querySelector('.pp-hud-row')?.getBoundingClientRect().bottom ?? 0,
+    // The silence def's `findMaxMs`, by the def of its threat (the same one `runSilence` times out on).
+    findMaxMs: (defId) => {
+      const def = levelSession.active?.level.threats[defId];
+      return def?.target === 'hiddenZone' ? def.findMaxMs : null;
+    },
   });
   window.addEventListener('resize', () => silenceBubble.relayout());
   const hud = createHudLayer(hudRoot, {
@@ -1574,6 +1608,7 @@ export async function boot(): Promise<void> {
     timer: timerHud.element,
     sequenceBar,
   });
+  // The ring beside the bubble is mounted by the bubble itself, while it shows (the HUD's node budget).
   hudRoot.append(silenceBubble.element);
   // Right before `#pp-world` (z-index 4 against its 5): it darkens the room, not the verbs and the icons.
   const instinctVignette = createInstinctVignette(document);

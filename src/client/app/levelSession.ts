@@ -510,6 +510,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
               levelPlan.threats,
               effective.baby.bodyRadiusM,
               deps.t,
+              effective.timing.telegraphDelayDefaultMs,
             ),
           );
         } catch (cause) {

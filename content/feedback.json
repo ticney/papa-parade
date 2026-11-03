@@ -186,6 +186,7 @@
     },
     "silence_started": { "haptic": "light" },
     "noise_alert": { "visual": { "kind": "uiElement" }, "haptic": "medium" },
+    "chrono_arc_lit": { "visual": { "kind": "uiElement" }, "haptic": "light" },
     "instinct_triggered": {
       "audio": { "clip": "papa_heartbeat", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "uiElement" },
@@ -553,6 +554,7 @@
     "DecoyCued": "decoy_cued",
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
+    "ChronoArcLit": "chrono_arc_lit",
     "InstinctVignetteShown": "instinct_triggered",
     "PhotoTaken": "photo_taken",
     "ResultStarStamped": "result_star",

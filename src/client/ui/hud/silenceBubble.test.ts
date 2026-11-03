@@ -1,19 +1,55 @@
+import { log } from '@shared/log';
 import { describe, expect, it } from 'vitest';
-import { createSilenceBubble, SILENCE_BUBBLE_CLASSES } from './silenceBubble.ts';
+import {
+  createSilenceBubble,
+  SILENCE_BUBBLE_CLASSES,
+  SILENCE_RING_CLASSES,
+} from './silenceBubble.ts';
 
 /** The few things of the DOM that the bubble touches. */
 class FakeElement {
   className = '';
   textContent = '';
   hidden = false;
-  readonly style: { top: string } = { top: '' };
+  readonly vars = new Map<string, string>();
+  varWrites: Record<string, number> = {};
+  readonly style: { top: string; setProperty(name: string, value: string): void } = {
+    top: '',
+    setProperty: (name, value) => {
+      this.vars.set(name, value);
+      this.varWrites[name] = (this.varWrites[name] ?? 0) + 1;
+    },
+  };
   readonly attributes = new Map<string, string>();
+  readonly children: FakeElement[] = [];
+  parentNode: FakeElement | null = null;
   classWrites = 0;
   topWrites = 0;
   setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
   }
+  append(...children: FakeElement[]): void {
+    for (const child of children) child.parentNode = this;
+    this.children.push(...children);
+  }
+  /** `ChildNode.after`: a sibling right behind this element, in the same parent. */
+  after(node: FakeElement): void {
+    const parent = this.parentNode;
+    if (parent === null) return;
+    node.remove();
+    parent.children.splice(parent.children.indexOf(this) + 1, 0, node);
+    node.parentNode = parent;
+  }
+  remove(): void {
+    const parent = this.parentNode;
+    if (parent === null) return;
+    parent.children.splice(parent.children.indexOf(this), 1);
+    this.parentNode = null;
+  }
 }
+
+/** The silence def's `findMaxMs` the fake options answer. */
+const FIND_MAX_MS = 8000;
 
 const strings: Record<string, string> = {
   'hud.silence_bubble': '…',
@@ -34,6 +70,7 @@ function setup(point = { x: 700, y: 200 }, viewport = { width: 844, height: 390 
     viewport: () => viewport,
     targetHeightM: () => 0.2,
     hudBottomPx: () => 56,
+    findMaxMs: (defId) => (defId === 'silence_mischief' ? FIND_MAX_MS : null),
   });
   const element = bubble.element as unknown as FakeElement;
   // Counts the writes of the two properties the bubble changes after creation.
@@ -55,11 +92,15 @@ function setup(point = { x: 700, y: 200 }, viewport = { width: 844, height: 390 
   });
   const world = {
     silence: { threatId: 7, zoneEnteredAt: 100, startedAt: 2100 },
-    threats: [{ id: 7, xM: 1.5, zM: -2.6 }],
+    threats: [{ id: 7, defId: 'silence_mischief', xM: 1.5, zM: -2.6 }],
   } as unknown as Parameters<typeof bubble.update>[1];
+  // The HUD root the bubble sits in: the ring is mounted beside it, there, while it shows.
+  const host = new FakeElement();
+  host.append(element);
   return {
     bubble,
     element,
+    host,
     world,
     calls,
     setPoint: (next: { x: number; y: number }) => Object.assign(point, next),
@@ -173,5 +214,148 @@ describe('createSilenceBubble', () => {
     expect(element.hidden).toBe(false);
     expect(element.className).toContain(SILENCE_BUBBLE_CLASSES.right);
     expect(element.style.top).toBe('64px');
+  });
+});
+
+describe('the ring beside the bubble (story 2.11, AC 12)', () => {
+  const ringOf = (bubble: { ring: HTMLElement }): FakeElement =>
+    bubble.ring as unknown as FakeElement;
+  const progressOf = (ring: FakeElement): string | undefined =>
+    ring.vars.get('--pp-silence-progress');
+
+  it('is a hidden sibling with an outline and a band, at the hold-ring’s sizes, not a child of the bubble', () => {
+    const { bubble, element } = setup();
+    const ring = ringOf(bubble);
+    expect(ring.hidden).toBe(true);
+    expect(ring).not.toBe(element);
+    expect(element.children).toHaveLength(0);
+    expect(ring.children.map((child) => child.className)).toEqual([
+      SILENCE_RING_CLASSES.outline,
+      SILENCE_RING_CLASSES.band,
+    ]);
+    expect(ring.vars.get('--pp-silence-ring-stroke')).toBe('5px');
+    expect(ring.vars.get('--pp-silence-ring-outline')).toBe('2px');
+    expect(ring.attributes.get('aria-hidden')).toBe('true');
+  });
+
+  it('shows with the bubble and fills from startedAt to startedAt + findMaxMs, in the drawn sim time', () => {
+    const { bubble, world } = setup();
+    const ring = ringOf(bubble);
+    const startedAt = 2100;
+    bubble.update(true, world, startedAt);
+    expect(ring.hidden).toBe(false);
+    expect(progressOf(ring)).toBe('0');
+    bubble.update(true, world, startedAt + FIND_MAX_MS / 4);
+    expect(progressOf(ring)).toBe('250');
+    bubble.update(true, world, startedAt + FIND_MAX_MS / 2);
+    expect(progressOf(ring)).toBe('500');
+    bubble.update(true, world, startedAt + FIND_MAX_MS);
+    expect(progressOf(ring)).toBe('1000');
+    // Before the start (the drawn time trails the step) and after the end: clamped.
+    bubble.update(true, world, startedAt - 5);
+    expect(progressOf(ring)).toBe('0');
+    bubble.update(true, world, startedAt + FIND_MAX_MS + 500);
+    expect(progressOf(ring)).toBe('1000');
+  });
+
+  it('sits on the same side and at the same height as the bubble, on its centre side', () => {
+    const right = setup({ x: 700, y: 200 });
+    right.bubble.update(true, right.world, 3000);
+    expect(ringOf(right.bubble).className).toContain(SILENCE_RING_CLASSES.right);
+    expect(ringOf(right.bubble).style.top).toBe(right.element.style.top);
+    const left = setup({ x: 120, y: 200 });
+    left.bubble.update(true, left.world, 3000);
+    expect(ringOf(left.bubble).className).toContain(SILENCE_RING_CLASSES.left);
+    expect(ringOf(left.bubble).className).not.toContain(SILENCE_RING_CLASSES.right);
+  });
+
+  it('hides with the bubble: found, timed out, level end, pause and restart all clear the silence', () => {
+    const { bubble, element, world } = setup();
+    const ring = ringOf(bubble);
+    bubble.update(true, world, 3000);
+    expect(ring.hidden).toBe(false);
+    bubble.update(false, world, 3100);
+    expect(element.hidden).toBe(true);
+    expect(ring.hidden).toBe(true);
+    bubble.update(false, undefined, null);
+    expect(ring.hidden).toBe(true);
+    // A new silence starts empty again.
+    bubble.update(true, world, 2100);
+    expect(ring.hidden).toBe(false);
+    expect(progressOf(ring)).toBe('0');
+  });
+
+  it('is not drawn without a drawn sim time, nor for a silence whose findMaxMs is unknown', () => {
+    const { bubble, world } = setup();
+    bubble.update(true, world, null);
+    expect(ringOf(bubble).hidden).toBe(true);
+    bubble.update(true, world);
+    expect(ringOf(bubble).hidden).toBe(true);
+    const unknown = setup();
+    const other = {
+      ...unknown.world,
+      threats: [{ id: 7, defId: 'another_def', xM: 0, zM: 0 }],
+    } as unknown as Parameters<typeof unknown.bubble.update>[1];
+    unknown.bubble.update(true, other, 3000);
+    expect(unknown.element.hidden).toBe(false);
+    expect(ringOf(unknown.bubble).hidden).toBe(true);
+  });
+
+  it('is mounted right behind the bubble only while it shows, so a hidden one costs no HUD node', () => {
+    const { bubble, element, host, world } = setup();
+    const ring = ringOf(bubble);
+    expect(host.children).toEqual([element]);
+    bubble.update(false, undefined, 0);
+    expect(host.children).toEqual([element]);
+    bubble.update(true, world, 3000);
+    expect(host.children).toEqual([element, ring]);
+    expect(ring.parentNode).toBe(host);
+    // A frame later, a resize: still one ring, still behind the bubble.
+    bubble.update(true, world, 3100);
+    bubble.relayout();
+    expect(host.children).toEqual([element, ring]);
+    bubble.update(false, world, 3200);
+    expect(host.children).toEqual([element]);
+    expect(ring.parentNode).toBeNull();
+    bubble.update(true, world, 3300);
+    expect(host.children).toEqual([element, ring]);
+  });
+
+  it('warns, and stays hidden, when the silence has no find deadline to count down', () => {
+    const { bubble, world } = setup();
+    const seen = log.buffer().length;
+    const noDeadline = {
+      ...world,
+      threats: [{ id: 7, defId: 'another_def', xM: 0, zM: 0 }],
+    } as unknown as Parameters<typeof bubble.update>[1];
+    bubble.update(true, noDeadline, 3000);
+    const warns = log
+      .buffer()
+      .slice(seen)
+      .filter((record) => record.level === 'warn' && /no find deadline/.test(record.message));
+    expect(warns).toHaveLength(1);
+    expect(ringOf(bubble).hidden).toBe(true);
+  });
+
+  it('writes the progress only when the per-mille changes', () => {
+    const { bubble, world } = setup();
+    const ring = ringOf(bubble);
+    bubble.update(true, world, 3000);
+    const writes = ring.varWrites['--pp-silence-progress'];
+    for (let i = 0; i < 50; i++) bubble.update(true, world, 3000);
+    expect(ring.varWrites['--pp-silence-progress']).toBe(writes);
+    bubble.update(true, world, 3000 + FIND_MAX_MS / 10);
+    expect(ring.varWrites['--pp-silence-progress']).toBe((writes ?? 0) + 1);
+  });
+
+  it('keeps its fill through a resize', () => {
+    const { bubble, world, setPoint } = setup({ x: 700, y: 200 });
+    const ring = ringOf(bubble);
+    bubble.update(true, world, 2100 + FIND_MAX_MS / 2);
+    setPoint({ x: 100, y: 180 });
+    bubble.relayout();
+    expect(ring.hidden).toBe(false);
+    expect(progressOf(ring)).toBe('500');
+    expect(ring.className).toContain(SILENCE_RING_CLASSES.left);
   });
 });

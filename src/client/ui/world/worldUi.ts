@@ -4,6 +4,7 @@ import { Scene as ThreeScene } from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { type BeatRing, createBeatRing } from './beatRing.ts';
 import { type BreathRing, createBreathRing } from './breathRing.ts';
+import type { ChronoRing } from './chronoRing.ts';
 import { type ComboBadge, type ComboBadgeOptions, createComboBadge } from './comboBadge.ts';
 import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
 import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
@@ -52,6 +53,12 @@ export interface WorldUi {
   readonly stealthExitMarker: StealthExitMarker;
   /** Mounts the threat icons of a level, replacing the previous level's (all hidden until a frame shows them). */
   mountThreats(entries: readonly ThreatMarkerEntry[]): void;
+  /**
+   * The chrono-ring geometry (story 2.11) the marker of `threatId` holds, as drawn at its last telegraph: the
+   * judged mirror reads the per-mille the ring would draw at a press instant from it. Null for a threat with
+   * no ring, or one not drawn yet. The marker's own object: allocation-free.
+   */
+  chronoRingOf(threatId: number): Readonly<ChronoRing> | null;
   /** Removes the threat icons (a restart hides the old ones before its countdown). */
   unmountThreats(): void;
   /**
@@ -195,6 +202,7 @@ export function createWorldUi(
     mountThreats: threats.mount,
     unmountThreats: threats.unmount,
     updateThreats: threats.update,
+    chronoRingOf: threats.chronoRing,
     mountObjects: objects.mount,
     unmountObjects: objects.unmount,
     updateObjects: objects.update,

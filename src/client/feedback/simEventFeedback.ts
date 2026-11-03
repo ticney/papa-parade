@@ -3,7 +3,7 @@ import type { SimEvent, World } from '@sim';
 import { disruptionCueOf } from './disruptionFeedback.ts';
 import type { FeedbackDirector } from './feedbackDirector.ts';
 import { sequenceCueOf } from './sequenceFeedback.ts';
-import { threatCueOf } from './threatFeedback.ts';
+import { opensChronoArc, threatCueOf } from './threatFeedback.ts';
 
 /** What the routing reads of the level being played: its world and the defs that name the cues. */
 export interface FeedbackSource {
@@ -33,6 +33,10 @@ export function playSimEventFeedback(
   const cue = threatCueOf(event, active.sim.world, active.level.threats);
   if (cue !== null && 'threatId' in event) {
     director.playCue(cue, active.sim.world, event.threatId);
+  }
+  // The lit arc of the chrono-ring vibrates once, at the opening of a window that has one (story 2.11).
+  if (opensChronoArc(event, active.sim.world, active.level.threats)) {
+    director.handle('ChronoArcLit', null);
   }
   // A disruption's cues come from its def too (story 1.20 D10), anchored on its object.
   const disruptionCue = disruptionCueOf(event, active.level.level, active.level.disruptions);

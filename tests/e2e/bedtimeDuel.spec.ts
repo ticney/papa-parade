@@ -5,6 +5,7 @@ import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
   advanceTo,
+  chronoRingsInShownMarkers,
   cueIds,
   openFrozen,
   realTap,
@@ -243,6 +244,8 @@ test.describe('the marker (looked at at 667 × 375)', () => {
       }),
     ]);
     expect((await shownMarkers(page))[0]?.classes).not.toContain('pp-threat--signal');
+    // A wait has no chrono-ring at all: its timing would hand the player the signal (story 2.11).
+    expect(await chronoRingsInShownMarkers(page)).toBe(0);
     await shot(page, testInfo, 'marker-before.png');
 
     await advanceTo(page, windowOpenAt + STEP_MS);

@@ -281,6 +281,25 @@ export const HOLD_RING_STROKE_PX = 5;
 /** ...and its outer ink outline is this wide, in CSS px (DESIGN.md › hold-ring `outerOutline`). */
 export const HOLD_RING_OUTLINE_PX = 2;
 
+/**
+ * The chrono-ring (story 2.11; DESIGN.md › chrono-ring). Its progress band and its ink outline are the
+ * hold-ring's (`HOLD_RING_STROKE_PX`, `HOLD_RING_OUTLINE_PX`); `holdRingSpec.test.ts` pins all of these.
+ * The gap between the hold-ring's outline and the chrono-ring's band, in CSS px (`gapFromHoldRing`).
+ */
+export const CHRONO_RING_GAP_PX = 2;
+
+/** ...the lit final arc's thickness, growing outward from the band's inner edge, in CSS px (`finalArcStrokeWidth`). */
+export const CHRONO_RING_FINAL_ARC_STROKE_PX = 8;
+
+/** ...the perfect notch's width, in CSS px (`perfectNotch`: a 2 px ink tick). */
+export const CHRONO_RING_NOTCH_PX = 2;
+
+/** The target-highlight's ring is this thick, in CSS px (DESIGN.md › target-highlight `outline`), inside its ink outlines. */
+export const TARGET_HIGHLIGHT_STROKE_PX = 4;
+
+/** ...and each of its two ink outlines (inside and outside the ring) is this wide, in CSS px. */
+export const TARGET_HIGHLIGHT_OUTLINE_PX = 2;
+
 /** A threat's verb never shrinks under this font size, in CSS px (DESIGN.md › verb-label `minFontSize`). */
 export const VERB_MIN_FONT_PX = 28;
 

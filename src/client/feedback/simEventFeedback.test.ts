@@ -67,7 +67,11 @@ function setup() {
 }
 
 /** A world with one threat of `defId`; Papa is gliding to it when `isGliding`. */
-function worldWith(defId: string, isGliding: boolean): World {
+function worldWith(
+  defId: string,
+  isGliding: boolean,
+  state: 'windowOpen' | 'resolved' = 'windowOpen',
+): World {
   return {
     time: { sim: asSimMs(1000) },
     papa: {
@@ -86,7 +90,7 @@ function worldWith(defId: string, isGliding: boolean): World {
         : null,
     },
     baby: { xM: 2, zM: 2 },
-    threats: [{ id: THREAT_ID, defId, xM: 1, zM: 1 }],
+    threats: [{ id: THREAT_ID, defId, xM: 1, zM: 1, state }],
   } as unknown as World;
 }
 
@@ -363,5 +367,52 @@ describe('playSimEventFeedback: the special sequence (story 4.4)', () => {
     playSimEventFeedback({ type: 'PapaSnored', t: asSimMs(1000) }, source, director);
     playSimEventFeedback({ type: 'BabyWoke', t: asSimMs(1000) }, source, director);
     expect(sounds).toEqual([soundOf('papa_snored'), soundOf('baby_woke')]);
+  });
+});
+
+describe('playSimEventFeedback: the chrono-ring vibration (story 2.11)', () => {
+  const opened = (): SimEvent => ({
+    type: 'WindowOpened',
+    t: asSimMs(1000),
+    threatId: THREAT_ID,
+  });
+
+  it('vibrates once, lightly and silently, when the window of a threat with a ring opens', () => {
+    const { sounds, pulses, director } = setup();
+    // The cue is the table's own: a light haptic and a UI visual twin, no audio.
+    expect(feedback.cues.chrono_arc_lit?.haptic).toBe('light');
+    expect(feedback.cues.chrono_arc_lit?.audio).toBeUndefined();
+    for (const defId of ['outlet', 'stairs', 'papa_microsleep']) {
+      pulses.length = 0;
+      playSimEventFeedback(opened(), sourceOf(worldWith(defId, false)), director);
+      expect(pulses, defId).toEqual(['light']);
+    }
+    expect(sounds).toEqual([]);
+  });
+
+  it('plays nothing new for a wait, a nothing, or a threat with a signal cue of its own', () => {
+    const { pulses, director } = setup();
+    for (const defId of ['bedtime_eyes', 'fake_sleep', 'false_alarm_sigh', 'bomb_drop_lay']) {
+      expect(liveThreats[defId], defId).toBeDefined();
+      playSimEventFeedback(opened(), sourceOf(worldWith(defId, false)), director);
+    }
+    expect(pulses).toEqual([]);
+  });
+
+  it('plays nothing outside a level, and nothing for the closing of a window', () => {
+    const { pulses, director } = setup();
+    playSimEventFeedback(opened(), null, director);
+    playSimEventFeedback(resolved('success'), sourceOf(worldWith('outlet', false)), director);
+    // The success cue's own haptic, and nothing else: the closing of a window adds no arc vibration.
+    expect(pulses).toEqual([feedback.cues.resp_parry?.haptic]);
+  });
+
+  it('does not add the arc vibration to a press buffered in the telegraph: one step, one vibration', () => {
+    const { pulses, director } = setup();
+    // The step that opens the window also resolves the buffered press: the world already shows it resolved.
+    const source = sourceOf(worldWith('outlet', false, 'resolved'));
+    playSimEventFeedback(opened(), source, director);
+    playSimEventFeedback(resolved('perfect'), source, director);
+    expect(pulses).toEqual([feedback.cues.resp_parry_perfect?.haptic]);
   });
 });

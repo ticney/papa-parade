@@ -268,6 +268,7 @@ describe('createWorldUi, verbs (story 2.2)', () => {
     basePx: () => 40,
     lineHeight: () => 1,
     scale: () => 1,
+    threatSizePx: () => 64,
     widthPx: (text, fontPx) => text.length * fontPx * 0.5,
   };
   const base = {
@@ -351,6 +352,7 @@ describe('createWorldUi, papa hint (story 4.3)', () => {
     basePx: () => 40,
     lineHeight: () => 1,
     scale: () => 1,
+    threatSizePx: () => 64,
     widthPx: (text, fontPx) => text.length * fontPx * 0.5,
   };
 

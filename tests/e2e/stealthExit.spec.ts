@@ -5,6 +5,7 @@ import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
   advanceTo,
+  chronoRingsInShownMarkers,
   cueIds,
   LEVEL,
   openFrozen,
@@ -556,6 +557,8 @@ test.describe('the options', () => {
       .poll(async () => (await shownMarkers(page))[0]?.verb)
       .toBe(STRINGS['verb.do_nothing']);
     expect((await shownMarkers(page))[0]?.glyph).toBe(THREAT_ICON_PATHS.sigh);
+    // The false alarm is a « do nothing »: no chrono-ring (story 2.11).
+    expect(await chronoRingsInShownMarkers(page)).toBe(0);
     await waitFrames(page, 3);
     expect(await cueIds(page)).toContain('tel_false_alarm_sigh');
     if (isChromium()) {
