@@ -16,9 +16,11 @@ import { isThreatActive } from './waveState.ts';
  * passed (`director.nextAt`), the baby is not playing out a gag, and fewer than the wave's
  * `maxSimultaneous` threats are announced or open (a silence counts for two, any other wave-planned
  * threat for one, the micro-sleep for none). The threat is drawn from `world.rng`, uniformly
- * among the idle ones of the waves entered so far (waves are cumulative). The draws depend only on
- * the game, never on the tuning: one `nextFloat` per gap and one per pick, even with a single
- * candidate. A level with no wave draws nothing. Allocation-free: counting loops only.
+ * among the idle ones of the waves entered so far (waves are cumulative). The number of draws never
+ * depends on the tuning: one `nextFloat` per gap and one per pick, even with a single candidate
+ * (the tuning decides which threat is picked and, through the fairness rule below, whether it is
+ * telegraphed, never how many numbers are drawn). A level with no wave draws nothing.
+ * Allocation-free: counting loops only.
  *
  * The fairness rule (story 3.13, FR75, ADR-011): the threat is telegraphed now, but its window opens
  * no closer than `movement.glideMaxMs + director.fairnessMarginMs` to any other frozen window, and
@@ -84,21 +86,17 @@ export function runDirector(world: World, ctx: StepContext): void {
     activeCount += weight;
     if (weight > 0) isWaveThreatActive = true;
   }
-  if (activeCount >= wave.maxSimultaneous) return;
-  const limits: DrawLimits = {
-    activeCount,
-    isWaveThreatActive,
-    maxSimultaneous: wave.maxSimultaneous,
-  };
+  const placesLeft = wave.maxSimultaneous - activeCount;
+  if (placesLeft <= 0) return;
   let candidateCount = 0;
   for (let i = 0; i < threats.length; i++) {
-    if (isCandidate(world, ctx, i, waveIndex, limits)) candidateCount++;
+    if (isCandidate(world, ctx, i, waveIndex, placesLeft, isWaveThreatActive)) candidateCount++;
   }
   if (candidateCount === 0) return;
 
   let pick = Math.min(candidateCount - 1, Math.floor(nextFloat(world.rng) * candidateCount));
   for (let i = 0; i < threats.length; i++) {
-    if (!isCandidate(world, ctx, i, waveIndex, limits)) continue;
+    if (!isCandidate(world, ctx, i, waveIndex, placesLeft, isWaveThreatActive)) continue;
     if (pick > 0) {
       pick--;
       continue;
@@ -113,28 +111,23 @@ export function runDirector(world: World, ctx: StepContext): void {
   }
 }
 
-/** What the wave's active threats leave to draw from, counted once per step ({@link runDirector}). */
-interface DrawLimits {
-  /** The places the active wave threats take (a silence takes two). */
-  readonly activeCount: number;
-  /** Whether any wave-planned threat (a silence included) is hidden, announced or open. */
-  readonly isWaveThreatActive: boolean;
-  readonly maxSimultaneous: number;
-}
-
 /**
  * Whether the idle threat at `index` can be drawn by wave `waveIndex` now: it is in the pool, a
  * place is left for it and, while a silence is under way, nothing else is drawn (the baby is away
  * and would ignore the telegraph). A silence needs the baby free to go and hide, Papa outside the
  * zone (he would find the baby at once: no silence at all), two places left in the wave and no
  * other wave threat active (an announced threat would open its window while Papa searches, story 3.13).
+ * `placesLeft` is the wave's `maxSimultaneous` minus the places its active threats take (a silence
+ * takes two); `isWaveThreatActive` is whether any wave-planned threat (a silence included) is
+ * hidden, announced or open. Both are counted once per step by {@link runDirector}.
  */
 function isCandidate(
   world: World,
   ctx: StepContext,
   index: number,
   waveIndex: number,
-  limits: DrawLimits,
+  placesLeft: number,
+  isWaveThreatActive: boolean,
 ): boolean {
   const threat = world.threats[index];
   if (threat === undefined || threat.state !== 'idle' || !isInPool(ctx, index, waveIndex)) {
@@ -142,10 +135,10 @@ function isCandidate(
   }
   // Papa carries the baby (story 4.1): nobody is left to menace, so the director draws nothing.
   if (isBabyCarried(world)) return false;
-  if (limits.activeCount + simultaneousWeightOf(ctx, index) > limits.maxSimultaneous) return false;
+  if (simultaneousWeightOf(ctx, index) > placesLeft) return false;
   const planned = ctx.level.threats[index];
   if (planned?.def.target !== 'hiddenZone') return !isSilenceUnderway(world);
-  if (limits.isWaveThreatActive || !isBabyFree(world)) return false;
+  if (isWaveThreatActive || !isBabyFree(world)) return false;
   return planned.zone === null || !isInZone(planned.zone, world.papa.xM, world.papa.zM);
 }
 

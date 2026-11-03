@@ -116,8 +116,10 @@ describe('Mama’s note of the live salon_crawler', () => {
         // No scream of its own: only the near misses frozen on the end photo (story 3.6), where the baby
         // happens to stand at the end of the level, are counted.
         const frozen = events.filter((event) => event.type === 'NearMissFrozen').length;
-        if (frozen === 0) expect(final?.screamPoints, `seed ${seed}`).toBe(0);
-        else expect(final?.screamPoints, `seed ${seed}`).toBeGreaterThan(0);
+        // Pinned exactly: the frozen near misses times their points, held to the row and rounded, as the score does.
+        expect(final?.screamPoints, `seed ${seed}`).toBe(
+          Math.round(Math.min(frozen * mama.screamPerNearMissPoints, mama.screamMaxPoints)),
+        );
         expect(final?.laughPoints, `seed ${seed}`).toBe(
           Math.min(mama.laughMaxPoints, perfects * mama.laughPerPerfectPoints),
         );

@@ -88,6 +88,10 @@ export function simultaneousWeightOf(ctx: StepContext, index: number): number {
  * the silence's weight: it could never be drawn there (story 3.13 AC 8). A sentence for the
  * planned entry, or null. `simLevelOf` and `content:check` both call it, so they refuse it with
  * the same words. Pure: no zod and no `@content` runtime import.
+ *
+ * It checks the wave that plans the silence only. The pool is cumulative, so a later wave with a
+ * `maxSimultaneous` below the weight still never draws it, and nothing refuses that (Geo's call,
+ * review of story 3.13: AC 8 stays as written).
  */
 export function silenceLimitProblem(
   waveIndex: number,

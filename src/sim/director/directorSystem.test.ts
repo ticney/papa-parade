@@ -34,6 +34,18 @@ function runTo(sim: Sim, untilSimMs: number): SimEvent[] {
   return events;
 }
 
+/**
+ * Runs `sim` until a silence is under way, then taps the baby so that it is found (the silence's
+ * threat goes `telegraph`). Bounded: a silence that never starts fails the test instead of hanging it.
+ */
+function findTheBaby(sim: Sim): void {
+  for (let i = 0; i < 2000 && sim.world.silence.startedAt === null; i++) {
+    runTo(sim, sim.world.time.sim + STEP_MS);
+  }
+  if (sim.world.silence.startedAt === null) throw new Error('the silence never started');
+  sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) } as SimCommand);
+}
+
 const telegraphs = (events: readonly SimEvent[]) =>
   events.filter(
     (event): event is Extract<SimEvent, { type: 'ThreatTelegraphed' }> =>
@@ -427,6 +439,28 @@ describe('the suspicious silence and the director (story 1.21)', () => {
       expect(sim.world.threats.filter((t) => t.state === 'telegraph')).toEqual([]);
   });
 
+  it.each([
+    { maxSimultaneous: 2, outletComes: false },
+    { maxSimultaneous: 3, outletComes: true },
+  ])(
+    'counts a found silence for two: in a wave of $maxSimultaneous, an outlet is telegraphed while it is announced: $outletComes (story 3.13)',
+    async ({ maxSimultaneous, outletComes }) => {
+      // The silence is forced at once; the director is due to draw (gap 0) as soon as it is found.
+      const sim = await newSim(
+        silenceLevel({ maxSimultaneous, gapMinMs: 0, gapMaxMs: 0 }, [OUTLET]),
+      );
+      const silence = sim.world.threats[0] as { id: number };
+      sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: silence.id } as SimCommand);
+      findTheBaby(sim);
+      const events = runTo(sim, sim.world.time.sim + 20 * STEP_MS);
+      expect(sim.world.threats[0]?.state).toBe('telegraph'); // found, announced, not yet open
+      const outlets = telegraphs(events).filter((event) => event.kind === 'outlet');
+      // A weight of one would leave a place in the wave of two and let the outlet come.
+      expect(outlets).toHaveLength(outletComes ? 1 : 0);
+      expect(sim.world.threats[1]?.state).toBe(outletComes ? 'telegraph' : 'idle');
+    },
+  );
+
   it('draws a silence only when two places are left: an outlet announced in a wave of two keeps it away', async () => {
     const sim = await newSim(silenceLevel({ maxSimultaneous: 2 }, [OUTLET]));
     const outlet = sim.world.threats[1] as { id: number };
@@ -663,7 +697,9 @@ describe('the fairness rule (story 3.13, FR75, ADR-011)', () => {
     const events = runTo(sim, 1000);
     expect(telegraphs(events)).toHaveLength(1);
     expect(sim.world.threats.filter((t) => t.state === 'idle')).toHaveLength(1);
-    expect(sim.world.director.nextAt).toBeGreaterThan(sim.world.time.sim);
+    // The gap is drawn after the refused attempt as after a telegraph: one gap (500 ms) after the
+    // attempt, which fell on the step at 1 s (the first telegraph was at 500 ms).
+    expect(sim.world.director.nextAt).toBe(1500);
   });
 
   it('applies a tuned margin to the next draw and never moves a window already frozen', async () => {
@@ -696,8 +732,7 @@ describe('the fairness rule (story 3.13, FR75, ADR-011)', () => {
       });
       const sim = await newSim(level, seed);
       if (hidden(runTo(sim, STEP_MS)).length === 0) continue;
-      while (sim.world.silence.startedAt === null) runTo(sim, sim.world.time.sim + STEP_MS);
-      sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) } as SimCommand);
+      findTheBaby(sim);
       const events = runTo(sim, sim.world.time.sim + 3 * STEP_MS);
       const silence = sim.world.threats[0];
       const outlet = sim.world.threats[1];
