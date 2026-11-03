@@ -17,7 +17,9 @@ export interface ComboBadge {
    * while he has no pose (`papa` null: out of the room, story 4.3), moved
    * `aside` while a threat stands on Papa (its verb is in the same spot). The text and the classes
    * are written only when they change; a rise pops the badge unless motion is reduced.
-   * `nowAtReal` is the real time of this frame, in ms.
+   * `nowAtReal` is the real time of this frame, in ms. `isBesideActivity` (story 2.12): the activity bubble
+   * shows above Papa, so the badge sits to its right (`pp-combo-badge--beside-activity`); it never applies
+   * with `isAside`, where the badge already keeps the right of the threat that holds the centre.
    */
   update(
     multiplier: number,
@@ -25,6 +27,7 @@ export interface ComboBadge {
     papa: Readonly<{ xM: number; zM: number }> | null,
     isAside: boolean,
     nowAtReal: number,
+    isBesideActivity?: boolean,
   ): void;
   /**
    * Shows « +N » (`points` rounded) for `holdMs` of real time from `nowAtReal`, even though the
@@ -87,6 +90,7 @@ export function createComboBadge(
 
   let shownText = '';
   let isAsideShown = false;
+  let isBesideShown = false;
   let isCashInShown = false;
   let lastMultiplier = 0;
   let cashInUntilAtReal: number | null = null;
@@ -103,6 +107,11 @@ export function createComboBadge(
     isAsideShown = isAside;
     element.classList.toggle('pp-combo-badge--aside', isAside);
   };
+  const setBeside = (isBeside: boolean): void => {
+    if (isBeside === isBesideShown) return;
+    isBesideShown = isBeside;
+    element.classList.toggle('pp-combo-badge--beside-activity', isBeside);
+  };
   const setCashIn = (isCashIn: boolean): void => {
     if (isCashIn === isCashInShown) return;
     isCashInShown = isCashIn;
@@ -118,7 +127,7 @@ export function createComboBadge(
     get isVisible() {
       return object.visible;
     },
-    update(multiplier, minMultiplier, papa, isAside, nowAtReal) {
+    update(multiplier, minMultiplier, papa, isAside, nowAtReal, isBesideActivity = false) {
       const isRise = multiplier > lastMultiplier && lastMultiplier >= minMultiplier;
       lastMultiplier = multiplier;
       if (cashInUntilAtReal !== null) {
@@ -144,6 +153,7 @@ export function createComboBadge(
         setVisible(false);
       }
       setAside(isAside);
+      setBeside(isBesideActivity && !isAside);
       if (papa !== null && object.visible) {
         object.position.x = papa.xM;
         object.position.z = papa.zM;
@@ -166,6 +176,7 @@ export function createComboBadge(
       lastMultiplier = 0;
       setCashIn(false);
       setAside(false);
+      setBeside(false);
       setVisible(false);
     },
     dispose() {

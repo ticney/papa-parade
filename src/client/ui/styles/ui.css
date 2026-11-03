@@ -1640,14 +1640,21 @@ body {
    never takes a tap.
 --------------------------------------------------------------------------------------------- */
 .pp-combo-badge {
-  --pp-combo-aside-offset: 64px;
   pointer-events: none;
   white-space: nowrap;
 }
 
-/* A threat on Papa (the micro-sleep, the cry in the arms) has its verb in the same spot: step aside. */
+/*
+  A threat on Papa (the micro-sleep, the cry in the arms) has its verb in the same spot: step aside, to the
+  right of the threat and its chrono-ring. The offset is computed in `activityBubble.ts` from the constants.
+*/
 .pp-combo-badge--aside {
-  translate: var(--pp-combo-aside-offset) 0;
+  translate: var(--pp-activity-badge-aside-offset) 0;
+}
+
+/* The activity bubble shows above Papa (story 2.12): the badge sits to its right, clear of its ring. */
+.pp-combo-badge--beside-activity {
+  translate: var(--pp-activity-beside-offset) 0;
 }
 
 .pp-combo-badge-text {
@@ -1660,6 +1667,163 @@ body {
 /* The banked « +N » reads differently from the « xN » still at risk: the star colour for the fill. */
 .pp-combo-badge--cash-in .pp-combo-badge-text {
   color: var(--pp-color-star);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   The activity bubble (DESIGN.md › activity-bubble, story 2.12): a paper disc with an ink border and a
+   pictogram in ink, above a busy Papa at the combo badge's height, its tail pointing down to him. The
+   hold-ring's visual around it (a paper band over the ring-track, a 2 px ink outline) drains to
+   `busyUntil`: `--pp-activity-progress` is the whole percent that is paper, from 12 o'clock clockwise, so
+   the edge moves counter-clockwise as it falls. `activityBubble.ts` writes it from the sim time as drawn:
+   there is no transition or animation on it. Every size comes from `constants.ts`: the root properties per
+   surface are written once by `applyActivityBubbleMetrics`, the widths inline on the bubble, over the 0px
+   placeholders here. The outer box is placed by the CSS2DRenderer (it writes `transform`, so the aside step
+   is `translate`); the body is the one the Web Animations API squashes and pops, and the shake is a class.
+   Never a threat colour. It takes no tap.
+--------------------------------------------------------------------------------------------- */
+:root {
+  --pp-activity-size-compact: 0px;
+  --pp-activity-size-regular: 0px;
+  --pp-activity-reach-compact: 0px;
+  --pp-activity-reach-regular: 0px;
+  --pp-activity-beside-offset-compact: 0px;
+  --pp-activity-beside-offset-regular: 0px;
+  --pp-activity-aside-offset-compact: 0px;
+  --pp-activity-aside-offset-regular: 0px;
+  --pp-activity-badge-aside-offset-compact: 0px;
+  --pp-activity-badge-aside-offset-regular: 0px;
+  --pp-activity-size: var(--pp-activity-size-regular);
+  --pp-activity-reach: var(--pp-activity-reach-regular);
+  --pp-activity-beside-offset: var(--pp-activity-beside-offset-regular);
+  --pp-activity-aside-offset: var(--pp-activity-aside-offset-regular);
+  --pp-activity-badge-aside-offset: var(--pp-activity-badge-aside-offset-regular);
+}
+
+:root[data-pp-surface="compact"] {
+  --pp-activity-size: var(--pp-activity-size-compact);
+  --pp-activity-reach: var(--pp-activity-reach-compact);
+  --pp-activity-beside-offset: var(--pp-activity-beside-offset-compact);
+  --pp-activity-aside-offset: var(--pp-activity-aside-offset-compact);
+  --pp-activity-badge-aside-offset: var(--pp-activity-badge-aside-offset-compact);
+}
+
+.pp-activity-bubble {
+  /* Placeholders (the stylesheet check wants a declaration): `activityBubble.ts` writes the constants inline. */
+  --pp-activity-border: 0px;
+  --pp-activity-border-reduced: 0px;
+  --pp-activity-stroke: 0px;
+  --pp-activity-outline: 0px;
+  --pp-activity-shake-ms: 0ms;
+  --pp-activity-progress: 100;
+  position: relative;
+  width: var(--pp-activity-size);
+  height: var(--pp-activity-size);
+  pointer-events: none;
+}
+
+/* A threat that follows Papa holds the centre: the bubble steps left, clear of its chrono-ring. */
+.pp-activity-bubble--aside {
+  translate: calc(-1 * var(--pp-activity-aside-offset)) 0;
+}
+
+.pp-activity-body {
+  position: absolute;
+  inset: 0;
+}
+
+.pp-activity-disc {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border: var(--pp-activity-border) solid var(--pp-color-ink);
+  border-radius: 50%;
+  background: var(--pp-color-paper);
+}
+
+.pp-activity-pictogram {
+  width: 62%;
+  height: 62%;
+}
+
+.pp-activity-ring-band,
+.pp-activity-ring-outline {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.pp-activity-ring-band {
+  inset: calc(-1 * var(--pp-activity-stroke));
+  background: conic-gradient(
+    var(--pp-color-paper) calc(var(--pp-activity-progress) * 1%),
+    var(--pp-color-ring-track) 0
+  );
+  /* Only the band: the middle is the disc (a mask reads alpha only; the ink is opaque). */
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--pp-activity-stroke)),
+    var(--pp-color-ink) calc(100% - var(--pp-activity-stroke) + 0.5px)
+  );
+}
+
+.pp-activity-ring-outline {
+  inset: calc(-1 * (var(--pp-activity-stroke) + var(--pp-activity-outline)));
+  /* The ink outline around the band, and nothing inside it. */
+  background: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--pp-activity-outline)),
+    var(--pp-color-ink) calc(100% - var(--pp-activity-outline) + 0.5px)
+  );
+}
+
+/* The tail hangs below the ring, over it, pointing down to Papa. */
+.pp-activity-tail {
+  position: absolute;
+  top: calc(100% - var(--pp-activity-border));
+  left: 50%;
+  width: calc(var(--pp-activity-size) * 0.38);
+  height: calc(
+    var(--pp-activity-reach) -
+    var(--pp-activity-size) /
+    2 +
+    var(--pp-activity-size) *
+    0.2
+  );
+  translate: -50% 0;
+  overflow: visible;
+}
+
+/* A refused tap on a threat: a short shake of the bubble, one run. `transform` only. */
+.pp-activity-body--refused {
+  animation: pp-activity-shake var(--pp-activity-shake-ms) ease-in-out 1;
+}
+
+@keyframes pp-activity-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  45% {
+    transform: translateX(4px);
+  }
+  70% {
+    transform: translateX(-3px);
+  }
+}
+
+/* The reduced replacement of the shake (a static class held for the same time): the border goes from 3 px to 5 px. */
+.pp-activity-body--thick .pp-activity-disc {
+  box-shadow: inset 0 0 0 calc(var(--pp-activity-border-reduced) - var(--pp-activity-border))
+    var(--pp-color-ink);
+}
+
+/* No movement under reduced motion: the thicker border says it instead. The ring is unchanged (timing). */
+:where(:root[data-pp-motion="reduced"]) .pp-activity-body--refused {
+  animation: none;
 }
 
 /* ---------------------------------------------------------------------------------------------

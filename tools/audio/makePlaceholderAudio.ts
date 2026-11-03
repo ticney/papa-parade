@@ -10,10 +10,10 @@ import { ROOT } from '../assets/paths.ts';
 import { synthBabyLaugh, synthFirm, synthParry } from './cultSounds.ts';
 import { normalize, PEAK_LOUD, SAMPLE_RATE_HZ, SEED, samplesOf } from './synthKit.ts';
 
-// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 2.9, 3.2, 4.1, 4.3 and 4.6 (the outlet's cues,
+// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 2.9, 2.12, 3.2, 4.1, 4.3 and 4.6 (the outlet's cues,
 // then the stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled
 // swell and Papa's snore, then the phone's ring and Papa's pick-up click, then the silence's « ah-ha »
-// chirp and the baby's paper rustle, then story 4.1's cry in the arms, pick-up and put-down, story 4.3's need alarm, toilet door and flush, story 2.9's heartbeat; story 2.3 replaced the parry's pop by a toy squeak, dropped the
+// chirp and the baby's paper rustle, then story 4.1's cry in the arms, pick-up and put-down, story 4.3's need alarm, toilet door and flush, story 2.9's heartbeat, story 2.12's double « bonk » for a refused tap on a busy Papa and the bubble's ding; story 2.3 replaced the parry's pop by a toy squeak, dropped the
 // perfect's chime and added the Firmness's cupboard clack and the baby's laugh, in `cultSounds.ts`; story 3.2 added Mama's door slam and the lost star's cue),
 // synthesized so that the whole audio pipeline works end to end with no human (golden rule). Real
 // sounds replace the `.m4a` files under the same names (story 7.5, or Geo's recordings; `--only`
@@ -2171,6 +2171,71 @@ export function encodeWav(samples: Float32Array): Buffer {
   return wav;
 }
 
+// Story 2.12: the refused tap on a busy Papa, and the bubble's ding when he is free again.
+const BUSY_REFUSED_BONK_MS = 90;
+const BUSY_REFUSED_GAP_MS = 110;
+const BUSY_REFUSED_LENGTH_MS = 260;
+const BUSY_REFUSED_PITCH_HZ = { from: 150, to: 90 };
+const BUSY_REFUSED_DECAY_S = 0.035;
+const BUSY_REFUSED_ATTACK_MS = 2;
+const FREE_DING_LENGTH_MS = 420;
+const FREE_DING_PITCH_HZ = 1568;
+const FREE_DING_OVERTONE_RATIO = 2.76;
+const FREE_DING_OVERTONE_GAIN = 0.25;
+const FREE_DING_DECAY_S = 0.11;
+const FREE_DING_ATTACK_MS = 3;
+const FREE_DING_RELEASE_MS = 30;
+
+/**
+ * A dry low double « bonk »: two short dropping sines, a beat apart, a « nope » that is not alarming and
+ * unlike the toilet's single `papa_bump` (cue `papa_busy_refused`, clip `papa_busy`).
+ */
+export function synthBusyRefused(): Float32Array {
+  const out = new Float32Array(samplesOf(BUSY_REFUSED_LENGTH_MS));
+  const attack = samplesOf(BUSY_REFUSED_ATTACK_MS);
+  const bonk = samplesOf(BUSY_REFUSED_BONK_MS);
+  const gap = samplesOf(BUSY_REFUSED_GAP_MS);
+  for (const start of [0, gap]) {
+    let phase = 0;
+    for (let n = 0; n < bonk && start + n < out.length; n++) {
+      const seconds = n / SAMPLE_RATE_HZ;
+      const frequencyHz =
+        BUSY_REFUSED_PITCH_HZ.to +
+        (BUSY_REFUSED_PITCH_HZ.from - BUSY_REFUSED_PITCH_HZ.to) *
+          Math.exp(-seconds / BUSY_REFUSED_DECAY_S);
+      phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+      const envelope =
+        Math.min(1, n / attack, (bonk - n) / attack) * Math.exp(-seconds / BUSY_REFUSED_DECAY_S);
+      out[start + n] = (out[start + n] ?? 0) + Math.sin(phase) * envelope;
+    }
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+/** A small bell: a high sine and a bright inharmonic overtone, dying fast (cue `papa_free`, clip `ui_papa_free_ding`). */
+export function synthFreeDing(): Float32Array {
+  const out = new Float32Array(samplesOf(FREE_DING_LENGTH_MS));
+  const attack = samplesOf(FREE_DING_ATTACK_MS);
+  const release = samplesOf(FREE_DING_RELEASE_MS);
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const tone =
+      Math.sin(2 * Math.PI * FREE_DING_PITCH_HZ * seconds) +
+      FREE_DING_OVERTONE_GAIN *
+        Math.sin(2 * Math.PI * FREE_DING_PITCH_HZ * FREE_DING_OVERTONE_RATIO * seconds);
+    const envelope =
+      Math.min(1, i / attack, (out.length - i) / release) * Math.exp(-seconds / FREE_DING_DECAY_S);
+    out[i] = tone * envelope;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Array }[] = [
   { clip: 'baby_babble_loop', synth: synthBabble },
   { clip: 'music_crawler_calm', synth: synthMusic },
@@ -2243,6 +2308,8 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'env_door_key', synth: synthDoorKey },
   { clip: 'env_prop_tidied', synth: synthPropTidied },
   { clip: 'ui_camera_shutter', synth: synthCameraShutter },
+  { clip: 'papa_busy', synth: synthBusyRefused },
+  { clip: 'ui_papa_free_ding', synth: synthFreeDing },
 ];
 
 /**

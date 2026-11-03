@@ -1,6 +1,10 @@
+---
+baseline_commit: 827a927e9f08d6c207b6ec057bc43323ffd9d2d6
+---
+
 # Story 2.12: Bulle d'activité de papa et tap refusé visible
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -154,60 +158,60 @@ Requirement: FR74 `[P]`, UX-DR28. This is the fourth story of the v2.3 catch-up 
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: `TapRefused` in the sim (AC: 8, 11, 14)
-  - [ ] `src/sim/events.ts`: `{ type: 'TapRefused'; t: SimMs; threatId: number }` in `SimEvent`, `'TapRefused'` in `SIM_EVENT_TYPES`
-  - [ ] `src/sim/threats/threatSystem.ts` L144–150: on the busy skip, emit `TapRefused` once when the command's threat exists and is `telegraph` / `windowOpen` (one loop over `threats`, no allocation beyond the event)
-  - [ ] `threatSystem.test.ts` (or a new `tapRefused.test.ts` beside it): every case of AC 14
-  - [ ] `npm test`. If a golden moves, check it against AC 14's rule, then `npm run golden:update` and note it
-- [ ] Task 2: The input mapper sends the busy press (AC: 9)
-  - [ ] `handlePointerDown`: hit-test first. When busy, a hit means `PressThreat` plus `press.pressed`, and returns before `onThreatPressed` and every floor, object or baby branch; no hit means the debug log line and a return, as today
-  - [ ] `act`: when busy, `targetNow` is used the same way; with no threat up, the action is dropped as today
-  - [ ] Update the « Papa drinks, sleeps… the client sends none either » comment (L245–248)
-  - [ ] `inputMapper.test.ts`: the AC 15 cases
-- [ ] Task 3: The bubble (AC: 1–7, 12, 13)
-  - [ ] Constants in `shared/constants.ts`:
+- [x] Task 1: `TapRefused` in the sim (AC: 8, 11, 14)
+  - [x] `src/sim/events.ts`: `{ type: 'TapRefused'; t: SimMs; threatId: number }` in `SimEvent`, `'TapRefused'` in `SIM_EVENT_TYPES`
+  - [x] `src/sim/threats/threatSystem.ts` L144–150: on the busy skip, emit `TapRefused` once when the command's threat exists and is `telegraph` / `windowOpen` (one loop over `threats`, no allocation beyond the event)
+  - [x] `threatSystem.test.ts` (or a new `tapRefused.test.ts` beside it): every case of AC 14
+  - [x] `npm test`. If a golden moves, check it against AC 14's rule, then `npm run golden:update` and note it
+- [x] Task 2: The input mapper sends the busy press (AC: 9)
+  - [x] `handlePointerDown`: hit-test first. When busy, a hit means `PressThreat` plus `press.pressed`, and returns before `onThreatPressed` and every floor, object or baby branch; no hit means the debug log line and a return, as today
+  - [x] `act`: when busy, `targetNow` is used the same way; with no threat up, the action is dropped as today
+  - [x] Update the « Papa drinks, sleeps… the client sends none either » comment (L245–248)
+  - [x] `inputMapper.test.ts`: the AC 15 cases
+- [x] Task 3: The bubble (AC: 1–7, 12, 13)
+  - [x] Constants in `shared/constants.ts`:
     - `ACTIVITY_BUBBLE_BORDER_PX`, `ACTIVITY_BUBBLE_COMPACT_PX`, `ACTIVITY_BUBBLE_REGULAR_PX`, `ACTIVITY_BUBBLE_REFUSED_SHAKE_MS`
     - `ACTIVITY_BUBBLE_SQUASH_MS` and its scale, `ACTIVITY_BUBBLE_POP_MS` and its scale
     - `ACTIVITY_BUBBLE_REDUCED_BORDER_PX`, the badge gap
     - The drift test in `tests/architecture/holdRingSpec.test.ts` (or a sibling `activityBubbleSpec.test.ts`)
-  - [ ] New `src/client/ui/world/activityBubble.ts`: `createActivityBubble(doc, scene, options)` returns `{ update(papa, renderSimMs, isAside), shake(), hide(), dispose() }`
+  - [x] New `src/client/ui/world/activityBubble.ts`: `createActivityBubble(doc, scene, options)` returns `{ update(papa, renderSimMs, isAside), shake(), hide(), dispose() }`
     - One `CSS2DObject`: an outer box placed by the renderer, an inner box animated by the Web Animations API, the ring (outline plus band, from `breathRing.ts`'s build), and the pictogram SVG.
     - The pictogram table is typed on `PapaState`. The paths: the cup from `THREAT_ICON_PATHS.mug`, the door from `OBJECT_ICON_PATHS`' toilet door, and new handset and dizzy-stars paths, each a single ink path in the style of the icons beside them.
-  - [ ] `worldUi.ts`:
-    - create the bubble **last** (tests read the scene's children by index, L166–173);
+  - [x] `worldUi.ts`:
+    - create the bubble **last** (tests read the scene's children by index; the mounted threat markers therefore start at index 8, and `worldUi.test.ts` reads them there);
     - add it to `render()`'s `isVisible` list (L225–247), or it is never drawn;
     - expose `updateActivity` and `shakeActivity`;
-    - `updateCombo` sets the badge's `--beside-activity` state and returns the bubble's aside.
-  - [ ] `comboBadge.ts` / `ui.css`: the `--beside-activity` state (a `translate`, as `--aside` is), with the offset from custom properties written once
-  - [ ] `ui.css`:
+    - `updateActivity` computes the bubble's aside (a private helper shared with `updateCombo`), and `updateCombo` sets the badge's `--beside-activity` from `activityBubble.isActive`, so `updateActivity` runs first (deviation: `updateCombo` returns nothing).
+  - [x] `comboBadge.ts` / `ui.css`: the `--beside-activity` state (a `translate`, as `--aside` is), with the offset from custom properties written once; the `--aside` offset is now computed too (it was a 64 px literal that overlapped a threat's chrono-ring), so the three never overlap
+  - [x] `ui.css`:
     - `.pp-activity-bubble` and its tail, the ring, the pictogram;
     - `@keyframes pp-activity-shake` (`transform` only);
     - the reduced rules (`:where(:root[data-pp-motion="reduced"])`);
     - every custom property it reads is declared (`designTokens.test.ts`);
     - `tokens.css` mirrors any new DESIGN token 1:1.
-  - [ ] `boot.ts`, in the frame loop next to `updateCombo` (≈ L1285–1316): `worldUi.updateActivity(world.papa, renderSimMs, …)` from the world's Papa, not from `papaPose`. Hide the bubble on level end, restart and `loadLevel`, alongside the other world UI resets
-  - [ ] `activityBubble.test.ts`, `worldUi.test.ts`, `comboBadge.test.ts`: the AC 12 and AC 15 cases
-- [ ] Task 4: Cues and sounds (AC: 7, 10)
-  - [ ] `feedbackEvents.ts`: `ActivityBubbleShaken` and `ActivityBubblePopped` in `FEEDBACK_CLIENT_EVENTS`
-  - [ ] `simEventFeedback.ts`:
-    - `TapRefused` → `director.handle('ActivityBubbleShaken', null)` plus a callback or return value so that `boot.ts` calls `worldUi.shakeActivity()`;
+  - [x] `boot.ts`, in the frame loop next to `updateCombo` (≈ L1285–1316): `worldUi.updateActivity(world.papa, renderSimMs, …)` from the world's Papa, not from `papaPose`. Hide the bubble on level end, restart and `loadLevel`, alongside the other world UI resets
+  - [x] `activityBubble.test.ts`, `worldUi.test.ts`, `comboBadge.test.ts`: the AC 12 and AC 15 cases
+- [x] Task 4: Cues and sounds (AC: 7, 10)
+  - [x] `feedbackEvents.ts`: `ActivityBubbleShaken` and `ActivityBubblePopped` in `FEEDBACK_CLIENT_EVENTS`
+  - [x] `simEventFeedback.ts`:
+    - `TapRefused` → `director.handle('ActivityBubbleShaken', null)`; `boot.ts` calls `worldUi.shakeActivity()` itself in `onSimEvent`, next to `ToiletRefused` (deviation: no callback);
     - `PapaStateChanged` with `isPapaBusy(from) && !isPapaBusy(to)` → `director.handle('ActivityBubblePopped', null)`;
     - `isPapaBusy` takes `{ state }` and is already exported through `@sim` (with `PAPA_STATES` and `PapaState`), so `isPapaBusy({ state: event.from })` needs no new export and no deep import.
-  - [ ] `content/feedback.json`:
+  - [x] `content/feedback.json`:
     - the cues `papa_busy_refused` (`audio: papa_busy`, `uiElement`, `light`) and `papa_free` (`audio: ui_papa_free_ding`, `uiElement`, `light`);
     - the two `events` rows.
-  - [ ] `tools/audio/makePlaceholderAudio.ts`:
+  - [x] `tools/audio/makePlaceholderAudio.ts`:
     - two placeholder synths: a short low double « bonk » for `papa_busy` (a dry, not alarming « nope », clearly unlike the `papa_bump` of the toilet refusal) and a small bell for `ui_papa_free_ding`;
     - `npm run assets:audio -- --only papa_busy,ui_papa_free_ding` (macOS, `afconvert`), commit the two `.m4a`;
     - update the header comment's list of stories.
-  - [ ] Run `npm run content:check`: each clip exists, each client cue has only a `uiElement` visual, and each cue with audio has its visual and haptic twin (`feedbackTwins.test.ts`, `feedbackEquivalence.test.ts`)
-  - [ ] `simEventFeedback.test.ts`: the AC 15 cases
-- [ ] Task 5: E2E (AC: 16, 17)
-  - [ ] New `tests/e2e/activityBubble.spec.ts`; additions to `phone`, `toilet`, `fatigue`, `reducedMotion`
-  - [ ] Run AC 17's specs on Chromium: `npm run e2e -- <files> --project=chromium` (never `npx playwright test`)
-- [ ] Task 6: Docs, checks, look (AC: 18)
-  - [ ] `project-context.md`, `game-architecture.md` L413, `EXPERIENCE.md`; `npm run ci:fast` after each task
-  - [ ] Look at the bubble in play (zoomed captures at both surfaces):
+  - [x] Run `npm run content:check`: each clip exists, each client cue has only a `uiElement` visual, and each cue with audio has its visual and haptic twin (`feedbackTwins.test.ts`, `feedbackEquivalence.test.ts`)
+  - [x] `simEventFeedback.test.ts`: the AC 15 cases
+- [x] Task 5: E2E (AC: 16, 17)
+  - [x] New `tests/e2e/activityBubble.spec.ts`; additions to `phone`, `toilet`, `fatigue`, `reducedMotion`
+  - [x] Run AC 17's specs on Chromium: `npm run e2e -- <files> --project=chromium` (never `npx playwright test`)
+- [x] Task 6: Docs, checks, look (AC: 18)
+  - [x] `project-context.md`, `game-architecture.md` L413, `EXPERIENCE.md`; `npm run ci:fast` after each task
+  - [x] Look at the bubble in play (zoomed captures at both surfaces):
     - a coffee with the ring half drained;
     - a phone with the badge at x2 or more beside it;
     - the toilet bubble with no Papa;
@@ -443,10 +447,67 @@ The story follows the layers and the architecture tree (`client/ui/world/activit
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (claude-sonnet-5-5)
+
 ### Debug Log References
+
+- Goldens: `npm test` ran green with no golden moving: no scenario has a bot pressing while Papa is busy, so no `golden:update` was needed.
+- First AC 17 run: 4 timeouts (`waitFrames`, `loadLevel`) while another agent's suite and a throwaway Chromium of mine ran at the same time. The two specs (`activityBubble`, `reducedMotion`) rerun alone with `--workers=2`: 20 / 20 green. The other 128 tests of the run were green.
+- Mutation check: with `worldUi.shakeActivity` removed from `boot.ts`, `activityBubble.spec.ts › on a threat while Papa drinks` fails (`isShaking` expected true, received false); restored.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed: comprehensive developer guide created.
+- **Sim (AC 8, 11, 14).** `TapRefused{t, threatId}` joins `SimEvent` and `SIM_EVENT_TYPES`. `runThreats` emits it once per refused `PressThreat` on a `telegraph` / `windowOpen` threat; nothing else changes (a world-hash comparison with and without the command proves it). 12 tests in `src/sim/threats/tapRefused.test.ts`: the four busy states, once per command, the `busyUntil` step (judged, no event), an unknown or resolved threat, `TapBaby` / `TapFloor`. No golden moved.
+- **Input (AC 9).** `inputMapper.ts` hit-tests before the busy return: a busy tap on a threat (or the keyboard / gamepad action with one up) sends the `PressThreat` and records the finger so that its `Release` follows (D2), with no `onThreatPressed` and no tap marker. A busy tap elsewhere is dropped as before. The old test that dropped a threat press while busy is split into the unchanged drops and the new sends.
+- **Bubble (AC 1–7, 12, 13).** `activityBubble.ts`: one `CSS2DObject` (outer box placed by the renderer, a body animated by the Web Animations API, the ring built like `breathRing.ts`, the pictogram SVG, a tail). `ACTIVITY_PICTOGRAMS` is a `Record<PapaState, …>`, checked against `isPapaBusy`. The ring is `chronoDrainPermille(enteredAt, busyUntil, renderSimMs)` in whole percent, written only on change. Squash, pop and shake are real-time juice; reduced motion removes all three and thickens the border (`pp-activity-body--thick`) for the same 150 ms. A busy state with no pictogram warns once.
+- **Layout.** `activityMetricsFor` computes every offset from constants; `applyActivityBubbleMetrics` writes them to the root per surface, so `ui.css` holds no px literal of the bubble (`activityBubbleSpec.test.ts` pins the constants to DESIGN.md and the threat sizes to `ui.css`). The badge's `--aside` offset used to be a 64 px literal, which overlapped a threat's chrono-ring (reach 19 px beyond the icon); it is now computed (83 px regular, 79 px compact) and the three-way no-overlap test covers both surfaces.
+- **Cues (AC 7, 10).** `ActivityBubbleShaken` / `ActivityBubblePopped` client events, routed in `simEventFeedback.ts`; cues `papa_busy_refused` and `papa_free` in `feedback.json` (`uiElement`, `light`); two placeholder clips `papa_busy.m4a` (dry double « bonk ») and `ui_papa_free_ding.m4a` (small bell), written by `npm run assets:audio -- --only papa_busy,ui_papa_free_ding`.
+- **Deviations from the task text** (task text updated): the bubble is index 7 of the layer so the threat markers mounted later start at 8; `updateCombo` returns nothing (`updateActivity` runs before it and the badge reads `activityBubble.isActive`); `boot.ts` calls `shakeActivity` itself instead of a callback from `simEventFeedback`; `boot.ts` hides the bubble when the flow is not live (end, photo) and when leaving a level, in addition to what the story lists.
+- **Docs (AC 18).** `project-context.md` (the « Busy Papa » correction and an « Activity bubble » paragraph), `game-architecture.md` L413 (`threatId`), `EXPERIENCE.md` (refused-tap haptic decided; the nap's stars).
+- **Checks.** `npm run ci:fast` green (392 files, 8237 tests; 2 pre-existing CSS specificity warnings). AC 17's 14 specs on Chromium green (the 4 load timeouts above rerun alone). `ci:story` is the review's gate, not run here. `autoplay.spec.ts`'s frozen frame did not move: no reference regenerated.
+- **For Geo to judge (the look, from zoomed Chromium captures at 844 × 390 and 1024 × 768).**
+  - The bubble reads well at both sizes; the ring on a half-drained coffee drains counter-clockwise as D4 says; the toilet door floats alone where Papa went in; the handset with `x5` beside it does not overlap.
+  - The cup in the bubble is the same glyph as the coffee-machine's own icon, and the two sit close together in the salon: judge whether the cup should be something else (a steaming cup?).
+  - On a nap the bubble hides the 3D « Z » above Papa's head (open point 5): keep both or drop the « Z ».
+  - The tail covers the bottom of the ring (a few px). Two sounds still play at the end of the toilet: the flush and the ding (open point 4).
+  - Not captured: a micro-sleep telegraphed on Papa during the phone (the bubble's aside step). The geometry is pinned by a unit test, but the picture is not looked at.
+  - Squash 180 ms from scale 0.5, pop 160 ms to scale 1.4: all `[ASSUMPTION]`s, judge them by playing.
 
 ### File List
+
+- `src/sim/events.ts`
+- `src/sim/threats/threatSystem.ts`
+- `src/sim/threats/tapRefused.test.ts` (new)
+- `src/client/input/inputMapper.ts`
+- `src/client/input/inputMapper.test.ts`
+- `src/client/ui/world/activityBubble.ts` (new)
+- `src/client/ui/world/activityBubble.test.ts` (new)
+- `src/client/ui/world/comboBadge.ts`
+- `src/client/ui/world/comboBadge.test.ts`
+- `src/client/ui/world/worldUi.ts`
+- `src/client/ui/world/worldUi.test.ts`
+- `src/client/ui/styles/ui.css`
+- `src/client/boot.ts`
+- `src/client/feedback/feedbackEvents.ts`
+- `src/client/feedback/simEventFeedback.ts`
+- `src/client/feedback/simEventFeedback.test.ts`
+- `src/shared/constants.ts`
+- `content/feedback.json`
+- `tools/audio/makePlaceholderAudio.ts`
+- `public/assets/audio/papa_busy.m4a` (new)
+- `public/assets/audio/ui_papa_free_ding.m4a` (new)
+- `tests/architecture/activityBubbleSpec.test.ts` (new)
+- `tests/e2e/activityBubble.spec.ts` (new)
+- `tests/e2e/phone.spec.ts`
+- `tests/e2e/toilet.spec.ts`
+- `tests/e2e/fatigue.spec.ts`
+- `tests/e2e/reducedMotion.spec.ts`
+- `_bmad-output/project-context.md`
+- `_bmad-output/planning-artifacts/game-architecture.md`
+- `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/implementation-artifacts/2-12-bulle-d-activite-de-papa-et-tap-refuse-visible.md`
+
+### Change Log
+
+- 2026-11-03: Story 2.12 implemented: `TapRefused` sim event, the busy press the client now sends, the activity bubble with its sim-time ring, the squash / pop / shake, the two cues and clips, the combo badge beside it, reduced motion, tests and docs. Status → review.

@@ -2,6 +2,7 @@ import type { BeatEntry, ComboSlice, StealthSlice, ThreatInstance, World } from 
 import type { Camera, Scene } from 'three';
 import { Scene as ThreeScene } from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { type ActivityBubble, type ActivityPapa, createActivityBubble } from './activityBubble.ts';
 import { type BeatRing, createBeatRing } from './beatRing.ts';
 import { type BreathRing, createBreathRing } from './breathRing.ts';
 import type { ChronoRing } from './chronoRing.ts';
@@ -38,6 +39,22 @@ export interface WorldUi {
     approachMs: number,
     papa: Readonly<{ xM: number; zM: number }> | null,
   ): void;
+  /** The bubble above a busy Papa, with its ring draining to `busyUntil` (story 2.12). */
+  readonly activityBubble: ActivityBubble;
+  /**
+   * Once per frame, before `updateCombo` (the badge moves to the bubble's right while it shows) and `render`:
+   * the activity bubble from the world's Papa (not the pose: he is hidden on the toilet), the sim time as
+   * drawn and the real time of the frame. It steps left while a threat that follows Papa is up and holds the
+   * centre. Allocation-free.
+   */
+  updateActivity(
+    papa: Readonly<ActivityPapa> | null,
+    renderSimMs: number,
+    threats: readonly Readonly<ThreatInstance>[],
+    nowAtReal: number,
+  ): void;
+  /** A tap on a threat was refused: the bubble shakes (story 2.12). */
+  shakeActivity(nowAtReal: number): void;
   /** The ring of breath around Papa during a stealth step (story 4.9). */
   readonly breathRing: BreathRing;
   /**
@@ -130,7 +147,7 @@ export interface WorldUi {
    * Places the elements for this frame's camera: first the verb layout (the verbs that would overlap
    * are offset, the most urgent threat is in front) and the chip beside its verb, then the DOM renderer.
    * Returns at once, without calling the DOM renderer, while nothing in the layer is visible (no tap
-   * marker, no threat icon, no object icon, no chip, no combo badge, no papa hint).
+   * marker, no threat icon, no object icon, no chip, no combo badge, no papa hint, no activity bubble).
    */
   render(camera: Camera): void;
   dispose(): void;
@@ -171,6 +188,20 @@ export function createWorldUi(
   const stealthExitMarker = createStealthExitMarker(scene, doc, comboOptions.translate);
   // After the exit marker: the earlier children keep their places (a test reads them by index).
   const tidyMarkers = createTidyMarkers(scene, doc, comboOptions.translate);
+  // Last: the earlier children keep their places (tests read them by index).
+  const activityBubble = createActivityBubble(scene, doc, {
+    isMotionReduced: comboOptions.isMotionReduced,
+  });
+  // A threat that follows Papa (the micro-sleep, the cry in the arms) is up: it holds the centre above him.
+  const isFollowingThreatUp = (threatInstances: readonly Readonly<ThreatInstance>[]): boolean => {
+    const entries = threats.entries;
+    for (let i = 0; i < entries.length; i++) {
+      if (!entries[i]?.followsPapa) continue;
+      const state = threatInstances[i]?.state;
+      if (state === 'telegraph' || state === 'windowOpen') return true;
+    }
+    return false;
+  };
   return {
     scene,
     tapMarker,
@@ -186,18 +217,20 @@ export function createWorldUi(
       breathRing.update(stealth, breathCapacityMs, papa);
       stealthExitMarker.update(stealth);
     },
+    activityBubble,
+    updateActivity(papa, renderSimMs, threatInstances, nowAtReal) {
+      activityBubble.update(papa, renderSimMs, isFollowingThreatUp(threatInstances), nowAtReal);
+    },
+    shakeActivity: activityBubble.shake,
     updateCombo(combo, minMultiplier, papa, threatInstances, nowAtReal) {
-      const entries = threats.entries;
-      let isAside = false;
-      for (let i = 0; i < entries.length; i++) {
-        if (!entries[i]?.followsPapa) continue;
-        const state = threatInstances[i]?.state;
-        if (state === 'telegraph' || state === 'windowOpen') {
-          isAside = true;
-          break;
-        }
-      }
-      comboBadge.update(combo.multiplier, minMultiplier, papa, isAside, nowAtReal);
+      comboBadge.update(
+        combo.multiplier,
+        minMultiplier,
+        papa,
+        isFollowingThreatUp(threatInstances),
+        nowAtReal,
+        activityBubble.isActive,
+      );
     },
     mountThreats: threats.mount,
     unmountThreats: threats.unmount,
@@ -234,7 +267,8 @@ export function createWorldUi(
           beatRing.isVisible ||
           breathRing.isVisible ||
           stealthExitMarker.isVisible ||
-          tidyMarkers.isAnyVisible
+          tidyMarkers.isAnyVisible ||
+          activityBubble.isVisible
         )
       ) {
         return;
@@ -254,6 +288,7 @@ export function createWorldUi(
       breathRing.dispose();
       stealthExitMarker.dispose();
       tidyMarkers.dispose();
+      activityBubble.dispose();
       threats.dispose();
       objects.dispose();
     },

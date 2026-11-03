@@ -8,6 +8,7 @@ import {
   objectIconPoint,
   pagePointOf,
   WALK_BOUND_MS,
+  waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
 import {
@@ -305,6 +306,10 @@ test.describe('the micro-sleep', () => {
       (event) => event.type === 'PapaStateChanged' && event.to === 'asleep',
     );
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'asleep');
+    // The activity bubble (story 2.12) shows the dizzy stars for the nap.
+    await waitFrames(page, 3);
+    await expect(page.locator('.pp-activity-bubble')).toBeVisible();
+    await expect(page.locator('.pp-activity-bubble')).toHaveClass(/pp-activity-bubble--stars/);
     const events = (await ppEvents(page)).map((event) => event.type);
     expect(events).toContain('GagTriggered');
     expect(events).not.toContain('NearMiss');

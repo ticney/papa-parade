@@ -410,7 +410,7 @@ if (log.enabled('debug')) log.debug('input', 'press mapped', { target: hit.kind,
 - `CatastropheChanged{value, delta}` (story 3.16), sur le modèle de `NoiseChanged`.
 - `AfterEffectStarted{kind, until}` / `AfterEffectEnded{kind}` : séquelles des gags (story 3.15).
 - `ChoreBeatTelegraphed` / `ChoreBeatJudged{quality}` / `ChoreCompleted` : tâches de la maison (E9, stories 9.4–9.6).
-- `TapRefused{target}` : commande visant une menace pendant une occupation non interruptible ; elle reste refusée, mais le refus devient visible et audible (story 2.12, bulle d'activité).
+- `TapRefused{t, threatId}` : commande visant une menace pendant une occupation non interruptible ; elle reste refusée, mais le refus devient visible et audible (story 2.12, bulle d'activité).
 
 **Exemple :**
 

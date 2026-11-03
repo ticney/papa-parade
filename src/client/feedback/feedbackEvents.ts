@@ -9,6 +9,9 @@ export const FEEDBACK_CLIENT_EVENTS = [
   'NoiseAlertReached',
   // The chrono-ring's final arc lit (story 2.11): a short vibration at the opening of a window that has a ring.
   'ChronoArcLit',
+  // The activity bubble (story 2.12): shaken by a refused tap on a busy Papa, popped when he is free again.
+  'ActivityBubbleShaken',
+  'ActivityBubblePopped',
   'InstinctVignetteShown',
   'PhotoTaken',
   'ResultStarStamped',

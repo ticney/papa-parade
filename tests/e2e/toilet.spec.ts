@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
-import { HUD_MAX_DOM_NODES, STEP_MS } from '../../src/shared/constants.ts';
+import { PAPA_HEIGHT_M } from '../../src/client/render/views/papaView.ts';
+import { COMBO_BADGE_OFFSET_M, HUD_MAX_DOM_NODES, STEP_MS } from '../../src/shared/constants.ts';
 import {
   collectProblems,
   hapticPatternOfCue,
@@ -13,6 +14,7 @@ import {
   startLevel,
   vibrations,
   WALK_BOUND_MS,
+  waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
 import {
@@ -38,6 +40,8 @@ const GAUGE_LABELS = [STRINGS['gauge.noise'], STRINGS['gauge.fatigue'], STRINGS[
 const NEED_GAUGE = `${PILL} > .pp-hud-gauge[aria-label^="${STRINGS['gauge.urge']} "]`;
 const DOOR = '.pp-object[data-pp-object="toilet"]';
 const HINT = '.pp-papa-hint';
+/** The bubble's centre is the projected point it is anchored on, to the pixel: this is a bound for the layout's rounding. */
+const BUBBLE_ANCHOR_TOLERANCE_PX = 6;
 const { bladder } = liveFeel;
 const HOLD_MS = (liveFeedback as unknown as { papaHint: { holdMs: number } }).papaHint.holdMs;
 const geometry = JSON.parse(readFileSync('content/levels/salon_crawler.geometry.json', 'utf8')) as {
@@ -242,6 +246,28 @@ test.describe('the door', () => {
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'onToilet');
     await expect(page.locator(DOOR)).toHaveClass(/pp-object-occupied/);
     await expect(page.locator(DOOR)).not.toHaveClass(/pp-object-urgent/);
+
+    // The activity bubble (story 2.12) shows the door where Papa went in, with no Papa drawn: it is anchored on the
+    // world's Papa and not on his pose. (The layer is hidden above to compare the canvas: its box is still laid out.)
+    await waitFrames(page, 3);
+    const bubble = page.locator('.pp-activity-bubble');
+    await expect(bubble).toHaveClass(/pp-activity-bubble--door/);
+    expect(await bubble.evaluate((element) => (element as HTMLElement).style.display)).toBe('');
+    const entered = await ppWorld(page);
+    const anchor = await pagePointOf(
+      page,
+      entered.papa.xM,
+      PAPA_HEIGHT_M + COMBO_BADGE_OFFSET_M,
+      entered.papa.zM,
+    );
+    const bubbleBox = await bubble.boundingBox();
+    if (bubbleBox === null) throw new Error('the bubble has no box');
+    expect(
+      Math.hypot(
+        bubbleBox.x + bubbleBox.width / 2 - anchor.x,
+        bubbleBox.y + bubbleBox.height / 2 - anchor.y,
+      ),
+    ).toBeLessThan(BUBBLE_ANCHOR_TOLERANCE_PX);
 
     // Papa's mesh is hidden: the canvas around his feet is what the floor alone gives, and differs
     // from the same frame with him there.
