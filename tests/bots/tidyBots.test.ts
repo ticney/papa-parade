@@ -19,7 +19,12 @@ const DURATION_MS = 20_000;
 const content = createTestContent();
 const RUSH_AT = DURATION_MS - content.feel.endOfLevel.finalRushMs;
 const { reactionMs } = createTestBots().human;
-const SIGH_POINTS = content.feel.mama.sighPerPropOnFloorPoints;
+// A row is a whole number: half a point rounds up (story 3.12).
+// The sigh row of one prop on the floor, the only mess here: the row is rounded once over all the
+// props (story 3.12), so it is not a per-prop cost from any other count.
+const ONE_PROP_SIGH_POINTS = Math.round(
+  Math.min(content.feel.mama.sighPerPropOnFloorPoints, content.feel.mama.sighMaxPoints),
+);
 
 interface Game {
   sim: Sim;
@@ -90,7 +95,7 @@ describe('the tidying bots in the final rush (story 3.5)', () => {
     const { sim } = await play('idle');
     expect(sim.world.score.propsTidied).toBe(0);
     expect(tapsOf(sim)).toEqual([]);
-    expect(sim.world.score.final?.sighPoints).toBe(SIGH_POINTS);
+    expect(sim.world.score.final?.sighPoints).toBe(ONE_PROP_SIGH_POINTS);
   });
 
   it('random never names a prop: it does nothing new in the rush', async () => {

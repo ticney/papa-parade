@@ -46,7 +46,8 @@ function scored(): SimEvent {
     type: 'LevelScored',
     t: asSimMs(180_000),
     laughPoints: 12,
-    babyStatePoints: 20,
+    calmPoints: 15,
+    homePoints: 0,
     sighPoints: 4,
     screamPoints: 1,
     scorePoints: 77,
@@ -225,7 +226,8 @@ describe('createGameSummary (story 3.3)', () => {
     finish(game);
     expect(game.summary()?.score).toEqual({
       laughPoints: 12,
-      babyStatePoints: 20,
+      calmPoints: 15,
+      homePoints: 0,
       sighPoints: 4,
       screamPoints: 1,
       scorePoints: 77,

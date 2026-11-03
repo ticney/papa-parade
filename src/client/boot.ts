@@ -128,7 +128,8 @@ function doorPointOf(
 /** What the Result screen shows if it ever has no note (a bug, warned about): all zero. */
 const NO_SCORE: MamaScore = {
   laughPoints: 0,
-  babyStatePoints: 0,
+  calmPoints: 0,
+  homePoints: 0,
   sighPoints: 0,
   screamPoints: 0,
   scorePoints: 0,

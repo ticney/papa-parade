@@ -242,6 +242,8 @@ test.describe('Mama wakes', () => {
 
   for (const viewport of [
     { width: 844, height: 390 },
+    // The smallest landscape phone the UX names, just above the 360px tightening (story 3.12 review).
+    { width: 667, height: 375 },
     { width: 750, height: 340 },
   ]) {
     test(`fits ${viewport.width} × ${viewport.height} with the header, without scrolling`, async ({

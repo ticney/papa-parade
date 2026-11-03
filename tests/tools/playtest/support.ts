@@ -74,7 +74,8 @@ export function makeJournal(spec: JournalSpec = {}): JournalFile {
       endReason: spec.endReason ?? 'timer',
       score: {
         laughPoints: 0,
-        babyStatePoints: 0,
+        calmPoints: 0,
+        homePoints: 0,
         sighPoints: 0,
         screamPoints: 0,
         scorePoints: 0,
