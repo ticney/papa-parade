@@ -14,6 +14,13 @@ export const SECONDS_PER_MINUTE = 60;
 export const STEP_MS = 10;
 
 /**
+ * How many places a suspicious silence takes against a wave's `maxSimultaneous` (story 3.13, GDD
+ * mechanic 17): the baby hides and Papa must search, so it counts for two while it is under way or
+ * announced. A rule of the GDD, not a tunable.
+ */
+export const SILENCE_SIMULTANEOUS_WEIGHT = 2;
+
+/**
  * How long past its close a beat waits for a late tap before it is called a miss (story 4.5), in sim
  * ms: two sim steps, a 60 fps frame. A tap reaches the sim at the first step of the next frame, so a
  * tap stamped just after the window would otherwise find the beat already missed and be judged

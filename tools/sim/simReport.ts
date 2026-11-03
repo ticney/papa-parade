@@ -1,5 +1,9 @@
 import { NOISE_SOURCE_IDS } from '@content/schemas/feel';
-import { type DifficultyTierId, STAR_COUNT_MAX } from '@shared/constants';
+import {
+  type DifficultyTierId,
+  SILENCE_SIMULTANEOUS_WEIGHT,
+  STAR_COUNT_MAX,
+} from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import {
   type BreathGaspReason,
@@ -10,6 +14,7 @@ import {
   type Sim,
   type SimEvent,
 } from '@sim';
+import { createFairnessCheck } from './fairnessCheck.ts';
 
 /** Every `NoiseSource` the report counts, in file order, `debug` last (a bot never sends `SetNoise`, so it stays 0). */
 const NOISE_SOURCES: readonly NoiseSource[] = [...NOISE_SOURCE_IDS, 'debug'];
@@ -43,7 +48,7 @@ export interface ThreatTally {
 export interface WaveTally {
   /** The `ThreatTelegraphed` events the wave's director drew. */
   telegraphs: number;
-  /** The most threats announced or open at once, counted at this wave's telegraphs. */
+  /** The most threats announced or open at once, counted at this wave's telegraphs (a silence counts for two, as the director does). */
   peakSimultaneous: number;
   /** Whether the count ever went above the wave's `maxSimultaneous`. */
   isOverLimit: boolean;
@@ -163,6 +168,16 @@ export interface RunSummary {
   noiseFinalPct: number;
   /** The sum of the positive `NoiseChanged.deltaPct` per source, in %. */
   noiseBySourcePct: Record<NoiseSource, number>;
+  /**
+   * The director-drawn windows that broke the fairness rule (story 3.13, `tools/sim/fairnessCheck.ts`):
+   * opened closer than `glideMaxMs + fairnessMarginMs` to a window announced before them, inside a
+   * found silence's guard, or drawn while a silence was under way. 0 when the director is right.
+   */
+  fairnessViolations: number;
+  /** The director-drawn threats whose window opened later than their telegraph delay: the director waited. */
+  stretchedTelegraphs: number;
+  /** How much later they opened than their telegraph delay, summed, in ms. */
+  stretchSumMs: number;
   commands: number;
   threats: Record<string, ThreatTally>;
   byGag: Record<string, number>;
@@ -231,6 +246,14 @@ const emptyTally = (): ThreatTally => ({
   offsetCount: 0,
 });
 
+/** What the fairness check reads of the level's effective feel (story 3.13, `createFairnessCheck`). */
+export interface FairnessSetup {
+  /** `movement.glideMaxMs + director.fairnessMarginMs`. */
+  readonly spacingMs: number;
+  /** The telegraph delay of each def, `def.telegraphDelayMs ?? feel.timing.telegraphDelayDefaultMs`. */
+  readonly telegraphDelayMsOf: Readonly<Record<string, number>>;
+}
+
 /**
  * Counts the events of one run of `sim` (created for it, before the first step): responses per
  * threat def, gags, threats at once per wave (against the limits `waves` gives, the level's waves),
@@ -238,6 +261,8 @@ const emptyTally = (): ThreatTally => ({
  * `armsCryDef` is the level's `carry.armsCryDef` (story 4.1): its telegraphs are cries in the arms,
  * not micro-sleeps (both are threats no wave planned). `sequenceDefs` are the threats the steps of
  * the level's sequences spawn (a duel's, story 4.6; a stealth step's two alerts, story 4.9): a third kind of threat no wave planned, counted as neither.
+ * `fairness` (story 3.13) is what the fairness check needs of the level's effective feel; without it
+ * the run reports 0 violations and 0 stretched telegraphs.
  */
 export function createRunRecorder(
   sim: Sim,
@@ -245,6 +270,7 @@ export function createRunRecorder(
   waves: readonly { readonly maxSimultaneous: number }[] = [],
   armsCryDef: string | null = null,
   sequenceDefs: ReadonlySet<string> = new Set(),
+  fairness: FairnessSetup | null = null,
 ): RunRecorder {
   // Threat ids and defs never change after `createSim`.
   const defIdOf = new Map<number, string>();
@@ -295,6 +321,12 @@ export function createRunRecorder(
   // A silence is picked (`ThreatHidden`), then telegraphed only if the baby is found: the pick is
   // what counts against the wave, and the later telegraph of the same threat is not a second one.
   const hiddenThreatIds = new Set<number>();
+  // The silences of the run (kept after the reveal): they take two places of the wave's limit, like in the director.
+  const silenceThreatIds = new Set<number>();
+  const fairnessCheck =
+    fairness === null ? null : createFairnessCheck(fairness.spacingMs, fairness.telegraphDelayMsOf);
+  const weightOf = (threatId: number): number =>
+    silenceThreatIds.has(threatId) ? SILENCE_SIMULTANEOUS_WEIGHT : 1;
   // The threats no wave planned (the micro-sleep, the cry in the arms): they are in no wave's tally
   // and never count against a wave's limit, so their results must not move the active count either.
   const systemThreatIds = new Set<number>();
@@ -313,11 +345,13 @@ export function createRunRecorder(
     null;
   return {
     onEvent(event) {
+      fairnessCheck?.onEvent(event);
       if (event.type === 'ThreatTelegraphed' && hiddenThreatIds.delete(event.threatId)) {
         // The reveal of a silence picked earlier: already counted at its `ThreatHidden`.
       } else if (event.type === 'ThreatHidden') {
         hiddenThreatIds.add(event.threatId);
-        activeCount++;
+        silenceThreatIds.add(event.threatId);
+        activeCount += SILENCE_SIMULTANEOUS_WEIGHT;
         const wave = waveTallies[event.waveIndex];
         if (wave !== undefined) {
           wave.telegraphs++;
@@ -341,7 +375,7 @@ export function createRunRecorder(
       } else if (event.type === 'ThreatCancelled') {
         // A cancelled wave threat leaves the count like a resolved one; a system threat never entered it.
         cancelledThreats++;
-        if (!systemThreatIds.has(event.threatId)) activeCount--;
+        if (!systemThreatIds.has(event.threatId)) activeCount -= weightOf(event.threatId);
       } else if (event.type === 'BabyPickedUp') {
         babyPickUps++;
       } else if (event.type === 'BabyPutDown') {
@@ -409,7 +443,7 @@ export function createRunRecorder(
           },
         };
       } else if (event.type === 'ResponseResolved') {
-        if (!systemThreatIds.has(event.threatId)) activeCount--;
+        if (!systemThreatIds.has(event.threatId)) activeCount -= weightOf(event.threatId);
         responses++;
         const defId = defIdOf.get(event.threatId) ?? `threat_${event.threatId}`;
         if (event.response === 'nothing') nothingResponses++;
@@ -449,6 +483,11 @@ export function createRunRecorder(
       }
     },
     finish() {
+      const fairnessResult = fairnessCheck?.finish() ?? {
+        fairnessViolations: 0,
+        stretchedTelegraphs: 0,
+        stretchSumMs: 0,
+      };
       return {
         seed,
         worldHash: hashJson(sim.world),
@@ -495,6 +534,7 @@ export function createRunRecorder(
         noisePeakPct,
         noiseFinalPct: round(sim.world.gauges.noisePct, 1),
         noiseBySourcePct: { ...noiseBySourcePct },
+        ...fairnessResult,
         commands: sim.journal().entries.length,
         threats,
         byGag,
@@ -531,7 +571,7 @@ export interface WaveReport {
   telegraphs: number;
   /** The most threats at once, over the runs. */
   peakSimultaneous: number;
-  /** The runs where the count went above `maxSimultaneous`: always 0 unless the director is wrong. */
+  /** The runs where the count (a silence counts for two) went above `maxSimultaneous`: always 0 unless the director is wrong. */
   overLimitRuns: number;
 }
 
@@ -571,6 +611,12 @@ export interface SimReport {
     /** Total `NearMiss` events over the runs (the stairs' gags today). */
     nearMisses: number;
   };
+  /** The director-drawn windows that broke the fairness rule, over the runs: 0 when the director is right (story 3.13, FR75). */
+  fairnessViolations: number;
+  /** The director-drawn threats whose window opened later than their telegraph delay, over the runs: how often the director waits. */
+  stretchedTelegraphs: number;
+  /** Mean of how much later they opened, in ms to one decimal; null when none was stretched. */
+  meanStretchMs: number | null;
   /** The micro-sleeps telegraphed, over the runs (story 1.19). */
   microSleeps: number;
   /** The coffees drunk, over the runs. */
@@ -654,6 +700,8 @@ export interface SimReport {
     worldHash: string;
     responses: number;
     gags: number;
+    /** The fairness violations of this run (story 3.13). */
+    fairnessViolations: number;
     commands: number;
     /** Null for a run cut by `--until-ms` before the level ended. */
     scorePoints: number | null;
@@ -710,6 +758,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   const endsByReason = emptyEndsByReason();
   let mamaWokeCount = 0;
   let mamaWokeSumAtMs = 0;
+  let fairnessViolations = 0;
+  let stretchedTelegraphs = 0;
+  let stretchSumMs = 0;
   let microSleeps = 0;
   let coffees = 0;
   let asleepRuns = 0;
@@ -797,6 +848,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     });
     gags += run.gags;
     nearMisses += run.nearMisses;
+    fairnessViolations += run.fairnessViolations;
+    stretchedTelegraphs += run.stretchedTelegraphs;
+    stretchSumMs += run.stretchSumMs;
     microSleeps += run.microSleeps;
     coffees += run.coffees;
     if (run.asleepGags > 0) asleepRuns++;
@@ -918,6 +972,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       byGag: sortedByGag,
       nearMisses,
     },
+    fairnessViolations,
+    stretchedTelegraphs,
+    meanStretchMs: stretchedTelegraphs === 0 ? null : round(stretchSumMs / stretchedTelegraphs, 1),
     microSleeps,
     coffees,
     asleepRuns,
@@ -967,6 +1024,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       worldHash: run.worldHash,
       responses: run.responses,
       gags: run.gags,
+      fairnessViolations: run.fairnessViolations,
       commands: run.commands,
       scorePoints: run.scorePoints,
       stars: run.stars,

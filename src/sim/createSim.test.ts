@@ -749,6 +749,22 @@ describe('the hidden-zone threat the level plans (story 1.21)', () => {
     );
   });
 
+  it('refuses a wave that plans a silence while it allows one at a time: it counts for two (story 3.13)', async () => {
+    const wrong = createTestLevel({
+      waves: [
+        testWave([OUTLET], { maxSimultaneous: 1 }),
+        testWave([SILENCE], { fromMs: 60_000, maxSimultaneous: 1 }),
+      ],
+    });
+    await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
+      /salon_crawler.*waves\[1\]\.threats\[0\]: wave 1 plans the silence "silence_mischief".*counts for 2 against maxSimultaneous, but allows 1/,
+    );
+    const right = createTestLevel({
+      waves: [testWave([OUTLET]), testWave([SILENCE], { fromMs: 60_000, maxSimultaneous: 2 })],
+    });
+    await expect(createSim({ content, geometry, level: right, seed: 1 })).resolves.toBeDefined();
+  });
+
   it('refuses an anchored threat planned at a zone: a zone is not an anchor', async () => {
     const wrong = createTestLevel({
       waves: [testWave([{ def: 'outlet', anchor: 'behind_sofa' }])],

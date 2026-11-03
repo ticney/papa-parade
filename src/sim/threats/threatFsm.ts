@@ -84,6 +84,12 @@ function feintDelayMs(world: World, def: ThreatDef): number | null {
  * `idle → telegraph`. Freezes the window (D8: a buffered press is judged before the window opens, and a
  * window that moves while the player reads it would be unfair) and fixes the instant it opens.
  * `waveIndex` is the wave that drew the threat, -1 for a threat no wave planned.
+ *
+ * `postponeMs` is how much later than its natural instant the window opens (story 3.13, FR75): only
+ * the wave director passes one, to keep two windows `glideMaxMs + fairnessMarginMs` apart
+ * (`fairWindowOpenAt`); every other caller (the silence's find, the micro-sleep, the cry in the
+ * arms, the sequences) passes nothing. It moves `windowOpenAt` and `feintAt` by the same amount and
+ * never touches the signal's draw. The director's guarantee is for defs with no signal: no wave plans a `wait`.
  */
 export function telegraphThreat(
   world: World,
@@ -91,6 +97,7 @@ export function telegraphThreat(
   threat: ThreatInstance,
   def: ThreatDef,
   waveIndex: number,
+  postponeMs = 0,
 ): void {
   const { timing } = ctx.feel;
   const response = effectiveWindow(timing, def.windowMs ?? timing.windowMs, {
@@ -119,9 +126,11 @@ export function telegraphThreat(
   // The signal's draw first, the feint's second: two locals, so that the order cannot swap silently.
   const signalAfterMs = signalDelayMs(world, def);
   const feintAfterMs = feintDelayMs(world, def);
-  threat.windowOpenAt = asSimMs(world.time.sim + openAfterMs + signalAfterMs);
+  threat.windowOpenAt = asSimMs(world.time.sim + openAfterMs + signalAfterMs + postponeMs);
   threat.feintAt =
-    feintAfterMs === null ? null : asSimMs(world.time.sim + openAfterMs + feintAfterMs);
+    feintAfterMs === null
+      ? null
+      : asSimMs(world.time.sim + openAfterMs + feintAfterMs + postponeMs);
   threat.isFeintGiven = false;
   threat.press = null;
   threat.waveIndex = waveIndex;

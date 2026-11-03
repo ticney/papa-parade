@@ -94,6 +94,9 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     finalRushes: 0,
     propsTidied: 0,
     frozenNearMisses: 0,
+    fairnessViolations: 0,
+    stretchedTelegraphs: 0,
+    stretchSumMs: 0,
     bladderPeakPct: 0,
     noisePeakPct: 0,
     noiseFinalPct: 0,
@@ -175,6 +178,7 @@ describe('summarizeRuns', () => {
         worldHash: 'hash5',
         responses: 3,
         gags: 1,
+        fairnessViolations: 0,
         commands: 6,
         scorePoints: null,
         stars: null,
@@ -191,6 +195,25 @@ describe('summarizeRuns', () => {
         beatsStray: 0,
       },
     ]);
+  });
+
+  it('adds the fairness violations and stretched telegraphs of the runs, with the mean stretch to one decimal (story 3.13)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { fairnessViolations: 2, stretchedTelegraphs: 2, stretchSumMs: 1000 }),
+      run(2, { fairnessViolations: 0, stretchedTelegraphs: 1, stretchSumMs: 700 }),
+      run(3, {}),
+    ]);
+    expect(report.fairnessViolations).toBe(2);
+    expect(report.stretchedTelegraphs).toBe(3);
+    expect(report.meanStretchMs).toBe(566.7);
+    expect(report.runList.map((entry) => entry.fairnessViolations)).toEqual([2, 0, 0]);
+  });
+
+  it('has no mean stretch when no telegraph was stretched, not 0 (story 3.13)', () => {
+    const report = summarizeRuns(INPUT, [run(1, {}), run(2, {})]);
+    expect(report.stretchedTelegraphs).toBe(0);
+    expect(report.meanStretchMs).toBeNull();
+    expect(report.fairnessViolations).toBe(0);
   });
 
   it('gives Mama’s mean score and stars over the runs that ended, and counts the runs per star (story 1.22)', () => {
@@ -839,8 +862,8 @@ describe('createRunRecorder', () => {
       });
     });
 
-    it('counts a silence as one pick of its wave, found or not: a result with no telegraph before it keeps the active count right', async () => {
-      const recorder = await recorderOf([{ maxSimultaneous: 1 }]);
+    it('counts a silence as one pick of its wave, found or not, for two places (story 3.13): a result with no telegraph before it keeps the active count right', async () => {
+      const recorder = await recorderOf([{ maxSimultaneous: 2 }]);
       const hidden = (threatId: number): SimEvent => ({
         type: 'ThreatHidden',
         t: asSimMs(0),
@@ -860,7 +883,22 @@ describe('createRunRecorder', () => {
       recorder.onEvent(telegraph(8, 0));
       recorder.onEvent(resolved(8));
       const [wave] = recorder.finish().waves;
-      expect(wave).toEqual({ telegraphs: 3, peakSimultaneous: 1, isOverLimit: false });
+      expect(wave).toEqual({ telegraphs: 3, peakSimultaneous: 2, isOverLimit: false });
+    });
+
+    it('holds a wave over its limit when a silence (two places) and another threat are active in a wave of two, as the director would never let happen', async () => {
+      const recorder = await recorderOf([{ maxSimultaneous: 2 }]);
+      recorder.onEvent({
+        type: 'ThreatHidden',
+        t: asSimMs(0),
+        threatId: 7,
+        kind: 'silence_mischief',
+        anchorId: 'behind_sofa',
+        waveIndex: 0,
+      });
+      recorder.onEvent(telegraph(8, 0));
+      const [wave] = recorder.finish().waves;
+      expect(wave).toEqual({ telegraphs: 2, peakSimultaneous: 3, isOverLimit: true });
     });
 
     it('knows whether the level ended', async () => {

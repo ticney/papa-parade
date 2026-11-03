@@ -33,6 +33,9 @@
     "walkSpeedMps": 3,
     "papaRadiusM": 0.25
   },
+  "director": {
+    "fairnessMarginMs": 300
+  },
   "baby": {
     "crawlSpeedMps": 0.6,
     "bodyRadiusM": 0.2,

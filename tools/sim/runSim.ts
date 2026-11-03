@@ -17,6 +17,7 @@ import { type RunFile, runFileName, toRunFile } from './runFile.ts';
 import { parseSimArgs, SIM_HELP, type SimArgs } from './simArgs.ts';
 import {
   createRunRecorder,
+  type FairnessSetup,
   type RunSummary,
   renderReport,
   type SimReport,
@@ -42,6 +43,26 @@ export function sequenceDefIdsOf(level: SimLevel['level']): ReadonlySet<string> 
     }
   }
   return ids;
+}
+
+/**
+ * What the fairness check needs of a loaded level (story 3.13): the spacing `S` of its effective
+ * feel (the level's `feelOverrides` are already merged in `content.feel`) and the telegraph delay of
+ * each def. A `wait` def is left out: its signal adds a random delay no one can read from the def.
+ */
+export function fairnessSetupOf(
+  content: SimLevel['content'],
+  level: SimLevel['level'],
+): FairnessSetup {
+  const telegraphDelayMsOf: Record<string, number> = {};
+  for (const [id, def] of Object.entries(level.threats)) {
+    if (def.response === 'wait') continue;
+    telegraphDelayMsOf[id] = def.telegraphDelayMs ?? content.feel.timing.telegraphDelayDefaultMs;
+  }
+  return {
+    spacingMs: content.feel.movement.glideMaxMs + content.feel.director.fairnessMarginMs,
+    telegraphDelayMsOf,
+  };
 }
 
 /**
@@ -120,6 +141,7 @@ export async function runSim(
         level.level.waves,
         level.level.carry?.armsCryDef ?? null,
         sequenceDefIdsOf(level),
+        fairnessSetupOf(content, level),
       );
       const player =
         args.sequenceId === null

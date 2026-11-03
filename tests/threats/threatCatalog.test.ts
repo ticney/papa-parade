@@ -318,7 +318,8 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       sequences: {},
     };
   }
-  const wave = { maxSimultaneous: 1, gapMinMs: 0, gapMaxMs: 0, lullMs: 0, disruptions: [] };
+  // Two, not one: a silence counts for two against `maxSimultaneous` (story 3.13), and the catalog plans one.
+  const wave = { maxSimultaneous: 2, gapMinMs: 0, gapMaxMs: 0, lullMs: 0, disruptions: [] };
   return {
     level: {
       id: 'salon_crawler',

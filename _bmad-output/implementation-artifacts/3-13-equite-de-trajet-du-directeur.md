@@ -1,6 +1,10 @@
+---
+baseline_commit: e5179e8c0d3f33daaf1812435ac6390afc428f55
+---
+
 # Story 3.13: Équité de trajet du directeur
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -49,31 +53,31 @@ Requirements: FR75 (new in GDD v2.3), FR31 (revised: « simultaneous » means ac
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: The feel (AC 1, 4)
-  - [ ] `src/content/schemas/feel.ts`: `DirectorSchema = z.strictObject({ fairnessMarginMs: delayMs('…') }).describe('…')` (`delayMs` allows 0: the glide alone), added to `FeelSchema` right after `movement` (D1); the description says « added to `movement.glideMaxMs`: two windows of the director never open closer than their sum (FR75, ADR-011) »
-  - [ ] `content/feel.json`: `"director": { "fairnessMarginMs": 300 }` at the same place; `npm run content:schemas` (commit `content/_schemas/feel.schema.json`, never edit it by hand)
-  - [ ] The same section in `tests/support/testFeel.json` and `tests/tools/vite/fixtures/feelSample.json`; `tests/content/feelSchema.test.ts`: a negative margin and an unknown key are refused
-- [ ] Task 2: The spacing in the director (AC 1-5, 9, 14, 15)
-  - [ ] New `src/sim/director/fairness.ts` (D2): `fairWindowOpenAt(world, ctx, threatIndex, openAt)` — pure, allocation-free, the earliest instant ≥ `openAt` on the step grid outside every guard of AC 1 and AC 5; `simultaneousWeightOf(ctx, index)` (2 for a `hiddenZone` def, 1 for another wave-planned def, 0 for one no wave plans); doc comments name FR75 / ADR-011
-  - [ ] `src/sim/threats/threatFsm.ts › telegraphThreat`: a last parameter `postponeMs = 0` added to `windowOpenAt` and to `feintAt` (not to the signal's draw); every other caller passes nothing (silence, fatigue, carry, sequences); its doc says who postpones and why
-  - [ ] `directorSystem.ts › runDirector`: after the pick, a non-silence threat gets `postponeMs = fairWindowOpenAt(...) − (now + delay)`; when the postponed window is not judgeable before the end (AC 3), no telegraph, the gap is drawn as usual; `startThreat` takes the postponement, `forceThreat` passes 0 (AC 14)
-  - [ ] Update the doc comment of `runDirector` (the rule, the silence weight, ForceThreat's bypass)
-  - [ ] Unit tests in `src/sim/director/fairness.test.ts` and `directorSystem.test.ts` (see Testing)
-- [ ] Task 3: The silence (AC 6, 7, 8)
-  - [ ] `runDirector`: `activeCount` sums `simultaneousWeightOf`; `isCandidate` refuses a silence when `activeCount + 2 > maxSimultaneous` or when any other wave-planned threat is active; a non-silence candidate when `activeCount + 1 > maxSimultaneous` (the early `return` on `activeCount >= maxSimultaneous` stays right for the non-silence case; write it so the silence's own test is explicit)
-  - [ ] `createSim.ts` (`simLevelOf`, beside the `hiddenZone` checks around L211): an invariant refusing a wave that adds a `hiddenZone` threat with `maxSimultaneous < 2`; the same sentence in `tools/content/contentChecks.ts` through one shared pure function (precedent: `finalRushProblems`, `sequenceDuelProblems`); a `tests/content/` test for the refusal and one for `createSim`
-  - [ ] Move every test level that plans a silence in a wave of `maxSimultaneous: 1` to 2 (Traps), with the reason in the test
-- [ ] Task 4: The fairness check and the report (AC 10, 11, 12, 13)
-  - [ ] New `tools/sim/fairnessCheck.ts` (D6): fed event by event by the run recorder, returns `fairnessViolations`, `stretchedTelegraphs`, `stretchSumMs`; created with `S` (the level's effective `glideMaxMs + fairnessMarginMs`) and the telegraph delay of each def (`def.telegraphDelayMs ?? feel.timing.telegraphDelayDefaultMs`)
-  - [ ] `tools/sim/simReport.ts`: the recorder feeds it (a trailing optional argument or an options object: existing calls and tests keep working); `RunSummary` and the aggregate gain `fairnessViolations`, `stretchedTelegraphs`, `meanStretchMs` (one decimal, `null` when nothing stretched); the wave tally counts a silence for two (`hiddenThreatIds` already knows which threats are silences); `--help` (`SIM_HELP` in `simArgs.ts`) gets a paragraph like the other stories'
-  - [ ] `runSim.ts` passes `S` and the delays from the loaded level (its feel is already the merged one)
-  - [ ] Tests: `tests/tools/sim/fairnessCheck.test.ts` on synthetic event streams (each clause of AC 10, the micro-sleep never flagged as B, a forced overlap flagged); whole-report pins in `tests/tools/sim/simReport.test.ts` gain the new fields; one live test (`tests/tools/sim/`, like the existing live-content ones) plays `perfect` and `human` on a few seeds of the salon and asserts 0 fail for `perfect` and `fairnessViolations === 0` for both
-- [ ] Task 5: Goldens, measurements, docs (AC 12, 13, 16)
-  - [ ] `npm run golden:update`, then `npm run format`; read the diff and name what moved (AC 16)
-  - [ ] `npm run sim -- --bot <id> --level salon_crawler --runs 200` for `perfect` and `human`, and `--runs 20 --seed 1000` for `random` and `idle` (3.12's baseline): before / after tables in the Completion Notes (D8)
-  - [ ] Run the e2e specs the director touches, on Chromium (Testing)
-  - [ ] `_bmad-output/project-context.md`: the director paragraph (L60) gains the spacing rule, `feel.director`, ForceThreat's bypass and the fairness check; the silence paragraph (L45) says it counts for two and is drawn only with no other wave threat active
-- [ ] Task 6: `npm run ci:fast` after each task; `ci:story` is the review's, not dev-story's
+- [x] Task 1: The feel (AC 1, 4)
+  - [x] `src/content/schemas/feel.ts`: `DirectorSchema = z.strictObject({ fairnessMarginMs: delayMs('…') }).describe('…')` (`delayMs` allows 0: the glide alone), added to `FeelSchema` right after `movement` (D1); the description says « added to `movement.glideMaxMs`: two windows of the director never open closer than their sum (FR75, ADR-011) »
+  - [x] `content/feel.json`: `"director": { "fairnessMarginMs": 300 }` at the same place; `npm run content:schemas` (commit `content/_schemas/feel.schema.json`, never edit it by hand)
+  - [x] The same section in `tests/support/testFeel.json` and `tests/tools/vite/fixtures/feelSample.json`; `tests/content/feelSchema.test.ts`: a negative margin and an unknown key are refused
+- [x] Task 2: The spacing in the director (AC 1-5, 9, 14, 15)
+  - [x] New `src/sim/director/fairness.ts` (D2): `fairWindowOpenAt(world, ctx, threatIndex, openAt)` — pure, allocation-free, the earliest instant ≥ `openAt` on the step grid outside every guard of AC 1 and AC 5; `simultaneousWeightOf(ctx, index)` (2 for a `hiddenZone` def, 1 for another wave-planned def, 0 for one no wave plans); doc comments name FR75 / ADR-011
+  - [x] `src/sim/threats/threatFsm.ts › telegraphThreat`: a last parameter `postponeMs = 0` added to `windowOpenAt` and to `feintAt` (not to the signal's draw); every other caller passes nothing (silence, fatigue, carry, sequences); its doc says who postpones and why
+  - [x] `directorSystem.ts › runDirector`: after the pick, a non-silence threat gets `postponeMs = fairWindowOpenAt(...) − (now + delay)`; when the postponed window is not judgeable before the end (AC 3), no telegraph, the gap is drawn as usual; `startThreat` takes the postponement, `forceThreat` passes 0 (AC 14)
+  - [x] Update the doc comment of `runDirector` (the rule, the silence weight, ForceThreat's bypass)
+  - [x] Unit tests in `src/sim/director/fairness.test.ts` and `directorSystem.test.ts` (see Testing)
+- [x] Task 3: The silence (AC 6, 7, 8)
+  - [x] `runDirector`: `activeCount` sums `simultaneousWeightOf`; `isCandidate` refuses a silence when `activeCount + 2 > maxSimultaneous` or when any other wave-planned threat is active; a non-silence candidate when `activeCount + 1 > maxSimultaneous` (the early `return` on `activeCount >= maxSimultaneous` stays right for the non-silence case; write it so the silence's own test is explicit)
+  - [x] `createSim.ts` (`simLevelOf`, beside the `hiddenZone` checks around L211): an invariant refusing a wave that adds a `hiddenZone` threat with `maxSimultaneous < 2`; the same sentence in `tools/content/contentChecks.ts` through one shared pure function (precedent: `finalRushProblems`, `sequenceDuelProblems`); a `tests/content/` test for the refusal and one for `createSim`
+  - [x] Move every test level that plans a silence in a wave of `maxSimultaneous: 1` to 2 (Traps), with the reason in the test
+- [x] Task 4: The fairness check and the report (AC 10, 11, 12, 13)
+  - [x] New `tools/sim/fairnessCheck.ts` (D6): fed event by event by the run recorder, returns `fairnessViolations`, `stretchedTelegraphs`, `stretchSumMs`; created with `S` (the level's effective `glideMaxMs + fairnessMarginMs`) and the telegraph delay of each def (`def.telegraphDelayMs ?? feel.timing.telegraphDelayDefaultMs`)
+  - [x] `tools/sim/simReport.ts`: the recorder feeds it (a trailing optional argument or an options object: existing calls and tests keep working); `RunSummary` and the aggregate gain `fairnessViolations`, `stretchedTelegraphs`, `meanStretchMs` (one decimal, `null` when nothing stretched); the wave tally counts a silence for two (`hiddenThreatIds` already knows which threats are silences); `--help` (`SIM_HELP` in `simArgs.ts`) gets a paragraph like the other stories'
+  - [x] `runSim.ts` passes `S` and the delays from the loaded level (its feel is already the merged one)
+  - [x] Tests: `tests/tools/sim/fairnessCheck.test.ts` on synthetic event streams (each clause of AC 10, the micro-sleep never flagged as B, a forced overlap flagged); whole-report pins in `tests/tools/sim/simReport.test.ts` gain the new fields; one live test (`tests/tools/sim/`, like the existing live-content ones) plays `perfect` and `human` on a few seeds of the salon and asserts 0 fail for `perfect` and `fairnessViolations === 0` for both
+- [x] Task 5: Goldens, measurements, docs (AC 12, 13, 16)
+  - [x] `npm run golden:update`, then `npm run format`; read the diff and name what moved (AC 16)
+  - [x] `npm run sim -- --bot <id> --level salon_crawler --runs 200` for `perfect` and `human`, and `--runs 20 --seed 1000` for `random` and `idle` (3.12's baseline): before / after tables in the Completion Notes (D8)
+  - [x] Run the e2e specs the director touches, on Chromium (Testing)
+  - [x] `_bmad-output/project-context.md`: the director paragraph (L60) gains the spacing rule, `feel.director`, ForceThreat's bypass and the fairness check; the silence paragraph (L45) says it counts for two and is drawn only with no other wave threat active
+- [x] Task 6: `npm run ci:fast` after each task; `ci:story` is the review's, not dev-story's
 
 ## Dev Notes
 
@@ -212,10 +216,56 @@ Follows the layers and aliases. `sim/director/fairness.ts` is where the architec
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), Claude Code, 2026-11-03.
+
 ### Debug Log References
+
+- The first full run after the director change failed 290 tests in 22 files: nearly all of them were levels that plan a silence in a wave of one (`testWave`'s default), refused by the new AC 8 invariant.
+- `simPurity` refused a local named `window` in `director/fairness.ts` (the sim may not name that global): renamed `frozen`.
+- `mamaScore.test.ts` (seed 3, `perfect`): `screamPoints` went from 0 to 2 because the baby now ends the level near the stairs (`NearMissFrozen`, story 3.6). Nothing failed: the trajectory moved with the postponed windows (the baby shares `world.rng`). The test now reads the frozen near misses instead of assuming none.
+
+### Implementation Plan
+
+1. `feel.director.fairnessMarginMs` (300), in `FeelSchema`, `feel.json`, `testFeel.json`, `feelSample.json`, the JSON Schema regenerated.
+2. `src/sim/director/fairness.ts`: `fairWindowOpenAt` (fixed-point loop over `world.threats`, allocation-free), `simultaneousWeightOf`, `silenceLimitProblem`, `fairnessSpacingMs`. `telegraphThreat` takes a trailing `postponeMs = 0` that moves `windowOpenAt` and `feintAt` and nothing else. `runDirector`: weights, silence candidacy (two places, no other wave threat active), `postponementOf` (null when the postponed window could no longer be judged: no telegraph, the gap is still drawn). `ForceThreat` passes 0.
+3. `createSim` and `content:check` refuse a silence in a wave with `maxSimultaneous < 2` with the same sentence (`silenceLimitProblem`, exported from `@sim`).
+4. `tools/sim/fairnessCheck.ts`: a black box over the events (D6), fed by `createRunRecorder` through a trailing `FairnessSetup` argument that `runSim` builds from the loaded level (`fairnessSetupOf`); the report gains `fairnessViolations` (per run and total), `stretchedTelegraphs`, `meanStretchMs`; the wave tally weighs a silence for two.
+5. Test levels that plan a silence: `testWave` now defaults to `maxSimultaneous: 2` when its threats include the silence (one place, the reason in its doc); the two levels that build their waves by hand (`threatCatalog`, `bedtimeCycle`, the content-check `wave()`) got 2 with the reason beside them.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created (story creation, 2026-11-03).
+- **Implemented as specified**, decisions D1-D9 kept. One departure from ADR-011's letter, as D3 says: the glide is bounded by `glideMaxMs` instead of read from Papa's position, so the director reads no Papa state (AC 9) and needs no path search; it can only wait a little longer than the real glide. The architecture text needs no change.
+- **The proof is the check, not the 0 fail** (the story's trap). On the same 200 seeds of the salon (`--runs 200`, seed 1, normal tier), the check run on the old director and on the new one:
+
+  | bot | director | meanScore | meanSuccessPct | gags | fairnessViolations | stretchedTelegraphs | meanStretchMs |
+  |---|---|---|---|---|---|---|---|
+  | `perfect` | before | 79.9 | 100 | 0 | **2 521** | 0 | - |
+  | `perfect` | after | 79.8 | 100 | 0 | **0** | 2 506 | 518.7 |
+  | `human` | before | 79.9 | 99.9 | 6 | **2 440** | 0 | - |
+  | `human` | after | 79.8 | 99.9 | 7 | **0** | 2 361 | 556.1 |
+
+  `--runs 20 --seed 1000` (3.12's baseline):
+
+  | bot | director | meanScore | meanSuccessPct | gags | fairnessViolations | stretchedTelegraphs | meanStretchMs | silences found / timed out | Mama woke |
+  |---|---|---|---|---|---|---|---|---|---|
+  | `random` | before | 16.4 | 1.1 | 720 | 41 | 0 | - | 15 / 94 | 4 |
+  | `random` | after | 16.4 | 0.8 | 721 | 0 | 49 | 440.4 | 20 / 92 | 4 |
+  | `idle` | before | 16.0 | 0 | 711 | 43 | 0 | - | 0 / 113 | 4 |
+  | `idle` | after | 16.4 | 0 | 694 | 0 | 45 | 378.4 | 0 / 111 | 5 |
+
+  The "before" numbers come from `git checkout`-ing the director of the commit before this story for the run only (the new check, the new report and `createSim` stay), then putting the new one back. They are a floor for the old behaviour: the old director also let a silence and another threat coexist, which the report now counts for two (`waves[].overLimitRuns` 200 / 170 for `perfect` before, 0 / 0 after; the per-wave peak is 3 / 4 before, 2 / 3 after). `perfect` keeps its score (79.8 against 79.9) and 0 fail; `human` has one more gag (7 against 6) in 200 games, within what a different baby trajectory gives: the baby shares `world.rng`, so every later draw moved. The director waits on about a quarter of its draws (2 506 of 9 746 `perfect` telegraphs, 519 ms on average), a telegraph at most about 2 s longer.
+- **Goldens regenerated deliberately** (`npm run golden:update`, then `npm run format`): what moved is `feelHash` and `worldHash` in all 27 journals and their `.expected` (the new `director` section is part of the effective feel). `eventsHash` and `eventTypes` did not move in any file: no golden scenario draws two windows close enough to be postponed, and no event was added, removed or changed (AC 16).
+- **Tests that had to move, and why.** `testWave` defaults to 2 places for a silence (AC 8); `directorSystem.test.ts` "counts a silence for two" replaces "counts a hidden silence against maxSimultaneous" (the baseline trace test, seed 7, kept its byte-for-byte hash: no postponement there); `threatSystem.test.ts` "two threats active at once" taps each threat in its own window (the second one now opens later); `mamaScore.test.ts` reads the frozen near misses (above); `simReport.test.ts` pins the new fields and the silence's weight of two. Nothing was loosened.
+- **E2E (Chromium, the touched specs):** `threats`, `silence`, `testApi`, `fatigue`, `autoplay`, `level` and `timer` specs: 56 passed (the autoplay screenshot did not move). `ci:story` is the review's.
+- **Open points for Geo** (unchanged from the story): the micro-sleep is not protected (D5); a threat can stay announced up to about 2 s longer in wave 3 (no timer ring yet, 2.11); the guard after a found silence uses the worst case (≈ 2 s after the find); tune `director.fairnessMarginMs` in the feel panel and read `stretchedTelegraphs` / `meanStretchMs`.
 
 ### File List
+
+**New:** `src/sim/director/fairness.ts`, `src/sim/director/fairness.test.ts`, `tools/sim/fairnessCheck.ts`, `tests/tools/sim/fairnessCheck.test.ts`.
+
+**Updated:** `src/content/schemas/feel.ts`, `content/feel.json`, `content/_schemas/feel.schema.json` (generated), `src/shared/constants.ts`, `src/sim/director/directorSystem.ts`, `src/sim/director/directorSystem.test.ts`, `src/sim/threats/threatFsm.ts`, `src/sim/threats/threatFsm.test.ts`, `src/sim/threats/threatSystem.test.ts`, `src/sim/createSim.ts`, `src/sim/createSim.test.ts`, `src/sim/index.ts`, `src/sim/sequences/bedtimeCycle.test.ts`, `tools/content/contentChecks.ts`, `tools/sim/simReport.ts`, `tools/sim/runSim.ts`, `tools/sim/simArgs.ts`, `tests/support/testContent.ts`, `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json`, `tests/content/feelSchema.test.ts`, `tests/content/checkContent.test.ts`, `tests/threats/threatCatalog.test.ts`, `tests/tools/sim/simReport.test.ts`, `tests/tools/sim/mamaScore.test.ts`, `tests/golden/journals/*.json` (27 journals and 27 `.expected`, `feelHash` / `worldHash` only), `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this file.
+
+### Change Log
+
+- 2026-11-03: Story 3.13 implemented (director fairness rule, silence weight, fairness check and report fields, goldens regenerated). `npm run ci:fast` green (389 files, 8 107 tests).

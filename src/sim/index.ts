@@ -4,6 +4,7 @@ export type { BabyState } from './baby/babyFsm.ts';
 export type { SimCommand } from './commands.ts';
 export type { SimObjectSpec } from './context.ts';
 export { type CreateSimOptions, createSim, type Sim } from './createSim.ts';
+export { silenceLimitProblem } from './director/fairness.ts';
 export { DISRUPTION_STATES, type DisruptionState } from './disruptions/disruptionFsm.ts';
 export {
   BABY_STIR_REASONS,

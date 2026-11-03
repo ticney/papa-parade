@@ -545,7 +545,9 @@ describe('several threats', () => {
 });
 
 // Story 1.18 D13: two threats at once resolve one after the other with sequential taps (press,
-// release, press, release); each press is classified on its own release.
+// release, press, release); each press is classified on its own release. Since story 3.13 the
+// director keeps the two windows `glideMaxMs + fairnessMarginMs` apart: both threats are announced
+// together, but the second opens later, so each is tapped inside its own window.
 describe('two threats active at once', () => {
   it('resolves both when they are tapped one after the other, each by its own id', async () => {
     const level = createTestLevel({
@@ -556,13 +558,14 @@ describe('two threats active at once', () => {
     const telegraphed = only(events, 'ThreatTelegraphed').map((event) => event.threatId);
     expect(telegraphed).toHaveLength(2);
     const [first, second] = telegraphed as [number, number];
-    const openAt = Math.max(...sim.world.threats.map((threat) => threat.windowOpenAt));
-    // Both windows are open by `openAt`; tap the first, then the second, inside both.
-    sim.enqueue(press(openAt + 60, first));
-    sim.enqueue(release(openAt + 100));
-    sim.enqueue(press(openAt + 140, second));
-    sim.enqueue(release(openAt + 180));
-    const later = runTo(sim, openAt + 400);
+    const openOf = (threatId: number): number =>
+      sim.world.threats.find((threat) => threat.id === threatId)?.windowOpenAt ?? 0;
+    // Each is tapped inside its own window, the second one's coming after the first one's is over.
+    sim.enqueue(press(openOf(first) + 60, first));
+    sim.enqueue(release(openOf(first) + 100));
+    sim.enqueue(press(openOf(second) + 60, second));
+    sim.enqueue(release(openOf(second) + 100));
+    const later = runTo(sim, openOf(second) + 400);
     const resolved = only(later, 'ResponseResolved');
     expect(resolved.map((event) => event.threatId)).toEqual([first, second]);
     expect(resolved.every((event) => event.quality !== 'fail')).toBe(true);

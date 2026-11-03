@@ -62,6 +62,12 @@ describe('content/feel.json', () => {
     ['an unknown key', [['timing.bogusMs', 1]], ['timing.bogusMs']],
     ['a string where a number is expected', [['timing.windowMs', 'x']], ['timing.windowMs']],
     [
+      'a negative fairness margin (story 3.13)',
+      [['director.fairnessMarginMs', -1]],
+      ['director.fairnessMarginMs'],
+    ],
+    ['an unknown director key (story 3.13)', [['director.bogusMs', 1]], ['director.bogusMs']],
+    [
       'perfectMs above windowMs',
       [
         ['timing.windowMs', 100],

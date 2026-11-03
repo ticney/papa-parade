@@ -3,8 +3,10 @@ import { asSimMs } from '@shared/time';
 import { isBabyCarried, isBabyFree, isSilenceUnderway } from '../baby/babyFsm.ts';
 import { isInZone } from '../baby/zone.ts';
 import type { StepContext } from '../context.ts';
+import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
 import { hideThreat, telegraphThreat } from '../threats/threatFsm.ts';
 import type { ThreatInstance, World } from '../world.ts';
+import { fairWindowOpenAt, simultaneousWeightOf } from './fairness.ts';
 import { isThreatActive } from './waveState.ts';
 
 /**
@@ -12,15 +14,26 @@ import { isThreatActive } from './waveState.ts';
  * (`WaveStarted`) and, at most once per step, telegraphs one threat. A threat comes only when the
  * wave is open (before `closesAtMs`, the lull follows), Papa is not carrying the baby (story 4.1: nothing is drawn then, and no draw is spent), the gap since the last telegraph has
  * passed (`director.nextAt`), the baby is not playing out a gag, and fewer than the wave's
- * `maxSimultaneous` threats are announced or open. The threat is drawn from `world.rng`, uniformly
+ * `maxSimultaneous` threats are announced or open (a silence counts for two, any other wave-planned
+ * threat for one, the micro-sleep for none). The threat is drawn from `world.rng`, uniformly
  * among the idle ones of the waves entered so far (waves are cumulative). The draws depend only on
  * the game, never on the tuning: one `nextFloat` per gap and one per pick, even with a single
  * candidate. A level with no wave draws nothing. Allocation-free: counting loops only.
  *
+ * The fairness rule (story 3.13, FR75, ADR-011): the threat is telegraphed now, but its window opens
+ * no closer than `movement.glideMaxMs + director.fairnessMarginMs` to any other frozen window, and
+ * no sooner than the end of a found silence's parry plus that spacing ({@link fairWindowOpenAt}):
+ * the window is postponed, the telegraph lasts longer. A postponed window that could no longer be
+ * judged before the end of the level is not telegraphed at all (the threat stays idle, the gap is
+ * drawn as usual, so the draws do not change). The director reads no Papa state, so an occupation
+ * Papa chose or a sequel of a miss moves nothing; a window already frozen never moves.
+ *
  * A `hiddenZone` threat (the suspicious silence, story 1.21) is drawn like any other, but is a
- * candidate only while the baby is free and Papa is outside its zone, and picking it does not telegraph it: it is hidden until
+ * candidate only while the baby is free, Papa is outside its zone, two places are left in the wave
+ * and no other wave threat is active; picking it does not telegraph it: it is hidden until
  * the baby is found ({@link startThreat}). This step's `ForceThreat` debug commands run first, through
- * the same helper; they ignore the gaps, `maxSimultaneous` and the lull, and draw nothing.
+ * the same helper; they ignore the gaps, `maxSimultaneous`, the lull and the fairness rule
+ * (the e2e specs force overlapping threats on purpose), and draw nothing.
  */
 export function runDirector(world: World, ctx: StepContext): void {
   const { waves } = ctx.level;
@@ -61,60 +74,114 @@ export function runDirector(world: World, ctx: StepContext): void {
   if (world.baby.state === 'act') return;
 
   const { threats } = world;
+  // The places taken by the wave's active threats: a silence takes two, the micro-sleep (no wave
+  // plans it) none (deferred L326); and whether any wave-planned threat is active at all.
   let activeCount = 0;
+  let isWaveThreatActive = false;
+  for (let i = 0; i < threats.length; i++) {
+    if (!isThreatActive(threats[i] as ThreatInstance)) continue;
+    const weight = simultaneousWeightOf(ctx, i);
+    activeCount += weight;
+    if (weight > 0) isWaveThreatActive = true;
+  }
+  if (activeCount >= wave.maxSimultaneous) return;
+  const limits: DrawLimits = {
+    activeCount,
+    isWaveThreatActive,
+    maxSimultaneous: wave.maxSimultaneous,
+  };
   let candidateCount = 0;
   for (let i = 0; i < threats.length; i++) {
-    const threat = threats[i] as ThreatInstance;
-    // The micro-sleep (no wave plans it) never counts against `maxSimultaneous` (deferred L326).
-    if (isThreatActive(threat)) {
-      if ((ctx.level.threats[i]?.firstWaveIndex ?? -1) >= 0) activeCount++;
-    } else if (isCandidate(world, ctx, i, waveIndex)) candidateCount++;
+    if (isCandidate(world, ctx, i, waveIndex, limits)) candidateCount++;
   }
-  if (activeCount >= wave.maxSimultaneous || candidateCount === 0) return;
+  if (candidateCount === 0) return;
 
   let pick = Math.min(candidateCount - 1, Math.floor(nextFloat(world.rng) * candidateCount));
   for (let i = 0; i < threats.length; i++) {
-    if (!isCandidate(world, ctx, i, waveIndex)) continue;
+    if (!isCandidate(world, ctx, i, waveIndex, limits)) continue;
     if (pick > 0) {
       pick--;
       continue;
     }
-    startThreat(world, ctx, i, waveIndex);
+    // Telegraphed now with its window postponed to a fair instant; or, when that instant could no
+    // longer be judged before the end of the level, not telegraphed (it waits; the gap is drawn).
+    const postponeMs = postponementOf(world, ctx, i);
+    if (postponeMs !== null) startThreat(world, ctx, i, waveIndex, postponeMs);
     const gapMs = wave.gapMinMs + nextFloat(world.rng) * (wave.gapMaxMs - wave.gapMinMs);
     director.nextAt = asSimMs(now + gapMs);
     return;
   }
 }
 
+/** What the wave's active threats leave to draw from, counted once per step ({@link runDirector}). */
+interface DrawLimits {
+  /** The places the active wave threats take (a silence takes two). */
+  readonly activeCount: number;
+  /** Whether any wave-planned threat (a silence included) is hidden, announced or open. */
+  readonly isWaveThreatActive: boolean;
+  readonly maxSimultaneous: number;
+}
+
 /**
- * Whether the idle threat at `index` can be drawn by wave `waveIndex` now: it is in the pool and,
- * while a silence is under way, nothing else is drawn (the baby is away and would ignore the
- * telegraph). A silence needs the baby free to go and hide, and Papa outside the zone (he would
- * find the baby at once: no silence at all).
+ * Whether the idle threat at `index` can be drawn by wave `waveIndex` now: it is in the pool, a
+ * place is left for it and, while a silence is under way, nothing else is drawn (the baby is away
+ * and would ignore the telegraph). A silence needs the baby free to go and hide, Papa outside the
+ * zone (he would find the baby at once: no silence at all), two places left in the wave and no
+ * other wave threat active (an announced threat would open its window while Papa searches, story 3.13).
  */
-function isCandidate(world: World, ctx: StepContext, index: number, waveIndex: number): boolean {
+function isCandidate(
+  world: World,
+  ctx: StepContext,
+  index: number,
+  waveIndex: number,
+  limits: DrawLimits,
+): boolean {
   const threat = world.threats[index];
   if (threat === undefined || threat.state !== 'idle' || !isInPool(ctx, index, waveIndex)) {
     return false;
   }
   // Papa carries the baby (story 4.1): nobody is left to menace, so the director draws nothing.
   if (isBabyCarried(world)) return false;
+  if (limits.activeCount + simultaneousWeightOf(ctx, index) > limits.maxSimultaneous) return false;
   const planned = ctx.level.threats[index];
   if (planned?.def.target !== 'hiddenZone') return !isSilenceUnderway(world);
-  if (!isBabyFree(world)) return false;
+  if (limits.isWaveThreatActive || !isBabyFree(world)) return false;
   return planned.zone === null || !isInZone(planned.zone, world.papa.xM, world.papa.zM);
 }
 
 /**
- * Starts the idle threat at `index`: a silence goes `idle → hidden`, any other threat is telegraphed.
- * The one place a draw and `ForceThreat` share.
+ * How much later than its natural instant the window of the idle threat at `index` opens when the
+ * director draws it now (the fairness rule, {@link fairWindowOpenAt}), or null when that postponed
+ * window could no longer be judged before the end of the level (the threat waits). A silence has
+ * no window yet: 0.
  */
-function startThreat(world: World, ctx: StepContext, index: number, waveIndex: number): void {
+function postponementOf(world: World, ctx: StepContext, index: number): number | null {
+  const def = ctx.level.threats[index]?.def;
+  if (def === undefined || def.target === 'hiddenZone') return 0;
+  const delayMs = def.telegraphDelayMs ?? ctx.feel.timing.telegraphDelayDefaultMs;
+  const naturalAt = world.time.sim + delayMs;
+  const postponeMs = fairWindowOpenAt(world, ctx, index, naturalAt) - naturalAt;
+  if (postponeMs <= 0) return 0;
+  return isJudgeableBeforeEnd(world, ctx, def, world.time.sim + postponeMs) ? postponeMs : null;
+}
+
+/**
+ * Starts the idle threat at `index`: a silence goes `idle → hidden`, any other threat is
+ * telegraphed with its window postponed by `postponeMs`. The one place a draw and `ForceThreat`
+ * share (`ForceThreat` postpones nothing).
+ */
+function startThreat(
+  world: World,
+  ctx: StepContext,
+  index: number,
+  waveIndex: number,
+  postponeMs: number,
+): void {
   const threat = world.threats[index];
   const planned = ctx.level.threats[index];
   if (threat === undefined || planned === undefined) return;
   if (planned.def.target === 'hiddenZone') hideThreat(world, ctx, threat, waveIndex);
-  else telegraphThreat(world, ctx, threat, planned.def, waveIndex);
+  else telegraphThreat(world, ctx, threat, planned.def, waveIndex, postponeMs);
 }
 
 /**
@@ -134,7 +201,7 @@ function forceThreat(world: World, ctx: StepContext, threatId: number): void {
         zone !== null && zone !== undefined && isInZone(zone, world.papa.xM, world.papa.zM);
       if (!isBabyFree(world) || isPapaIn) return;
     }
-    startThreat(world, ctx, i, world.director.waveIndex);
+    startThreat(world, ctx, i, world.director.waveIndex, 0);
     return;
   }
 }

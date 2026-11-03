@@ -3,6 +3,7 @@ import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
   createTestContent,
+  createTestFakeSleep,
   createTestGeometry,
   createTestLevel,
   createTestMicroSleep,
@@ -118,6 +119,31 @@ describe('threat FSM', () => {
         waveIndex: 0,
       },
     ]);
+  });
+
+  it('telegraphThreat postpones the window by postponeMs, the telegraph itself staying where it is (story 3.13)', async () => {
+    const { world, ctx, events, threat } = await setup();
+    telegraphThreat(world, ctx, threat, def, 0, 300);
+    expect(threat).toMatchObject({
+      state: 'telegraph',
+      enteredAt: 500,
+      windowOpenAt: 500 + 1200 + 300,
+    });
+    expect(events).toEqual([expect.objectContaining({ type: 'ThreatTelegraphed', t: 500 })]);
+    expect(events).toHaveLength(1);
+  });
+
+  it('telegraphThreat moves the feint by the same postponement and draws the same numbers', async () => {
+    const fakeSleep = createTestFakeSleep();
+    if (fakeSleep.feint === undefined) throw new Error('the frozen fake sleep has a feint');
+    const plain = await setup();
+    const postponed = await setup();
+    telegraphThreat(plain.world, plain.ctx, plain.threat, fakeSleep, 0);
+    telegraphThreat(postponed.world, postponed.ctx, postponed.threat, fakeSleep, 0, 300);
+    expect(postponed.threat.feintAt).toBe((plain.threat.feintAt as number) + 300);
+    expect(postponed.threat.windowOpenAt).toBe(plain.threat.windowOpenAt + 300);
+    // The signal and the feint draw one number each, whatever the postponement.
+    expect(postponed.world.rng).toEqual(plain.world.rng);
   });
 
   it('openWindow emits WindowOpened', async () => {

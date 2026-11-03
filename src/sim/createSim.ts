@@ -23,6 +23,7 @@ import type {
   StepContext,
   System,
 } from './context.ts';
+import { silenceLimitProblem } from './director/fairness.ts';
 import { DISRUPTION_HANDLER_KINDS } from './disruptions/disruptionsSystem.ts';
 import type { SimEvent } from './events.ts';
 import { applyFeelPatch } from './feel/applyFeelPatch.ts';
@@ -242,6 +243,14 @@ function simLevelOf(
       def.target !== 'baby',
       `${entry.where}: the threat "${entry.def}" has target "baby": only a stealth step spawns it, a wave cannot plan it`,
     );
+    if (def.target === 'hiddenZone') {
+      const limitProblem = silenceLimitProblem(
+        entry.waveIndex,
+        entry.def,
+        waves[entry.waveIndex]?.maxSimultaneous ?? 0,
+      );
+      invariant(limitProblem === null, `${entry.where}: ${limitProblem}`);
+    }
     for (const gag of gagIdsOf(def)) {
       invariant(
         gag !== PAPA_ASLEEP_GAG_ID,
