@@ -897,17 +897,17 @@
           "maximum": 9007199254740991,
           "description": "Most points the baby laughs can give, in points."
         },
-        "babyStateMaxPoints": {
+        "calmMaxPoints": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "Most points the baby state can give, in points."
+          "description": "Most points the baby staying calm can give, in points."
         },
-        "babyStateFixedPoints": {
+        "homeMaxPoints": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "Baby-state points used by the prototype instead of the real computation, in points."
+          "description": "Most points the house chores can give, in points."
         },
         "baseScorePoints": {
           "type": "integer",
@@ -949,6 +949,17 @@
           "minimum": 0,
           "description": "Laugh points each perfect response gives (held to `laughMaxPoints`), in points per perfect."
         },
+        "laughPerSuccessPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Laugh points each success (not perfect) gives (held to `laughMaxPoints`), in points per success."
+        },
+        "calmNoiseThresholdPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "The baby counts as calm while the noise gauge is strictly below this level, in % of the gauge."
+        },
         "sighPerPropOnFloorPoints": {
           "type": "number",
           "minimum": 0,
@@ -972,14 +983,16 @@
       },
       "required": [
         "laughMaxPoints",
-        "babyStateMaxPoints",
-        "babyStateFixedPoints",
+        "calmMaxPoints",
+        "homeMaxPoints",
         "baseScorePoints",
         "sighMaxPoints",
         "screamMaxPoints",
         "starThresholdPoints",
         "earlyWakePenaltyStars",
         "laughPerPerfectPoints",
+        "laughPerSuccessPoints",
+        "calmNoiseThresholdPct",
         "sighPerPropOnFloorPoints",
         "sighPerBrokenPropPoints",
         "sighPerMischiefPoints",

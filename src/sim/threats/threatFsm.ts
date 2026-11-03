@@ -233,8 +233,10 @@ export function resolveThreat(
     offsetMs,
     responseWindow: judged,
   });
-  // Mama's « Rire » counts every perfect, the micro-sleep's included (story 1.22).
+  // Mama's « Rire » counts every perfect, the micro-sleep's included (story 1.22), and every success
+  // beside them (story 3.12); a fail counts nothing.
   if (quality === 'perfect') world.score.perfects += 1;
+  if (quality === 'success') world.score.successes += 1;
   // No hitstop on a `nothing` (story 4.9): nobody pressed anything, and a freeze would stop the walk for nothing.
   if (def.response !== 'nothing') ctx.requestFreezeRealMs(ctx.feel.timing.hitstopMs);
   if (quality === 'perfect') startSlowMo(world, ctx, 'perfect', ctx.feel.timing.slowMoPerfect);

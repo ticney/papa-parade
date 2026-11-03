@@ -46,10 +46,11 @@ export interface ResultKeyTarget {
   removeEventListener(type: 'blur', listener: () => void): void;
 }
 
-/** The maxima of the four rows, from `feel.mama`: never written in code. */
+/** The maxima of the five rows, from `feel.mama`: never written in code. */
 export interface ResultMaxima {
   laughMaxPoints: number;
-  babyStateMaxPoints: number;
+  calmMaxPoints: number;
+  homeMaxPoints: number;
   sighMaxPoints: number;
   screamMaxPoints: number;
 }
@@ -107,10 +108,16 @@ const CHIP_ICONS: Readonly<Record<RowKind, readonly [string, Record<string, stri
     ['circle', { cx: '11', cy: '6', r: '1.4' }],
     ['path', { d: 'M4 9.5q4 4.5 8 0z' }],
   ],
-  baby: [
-    ['circle', { cx: '5.5', cy: '7', r: '1.4' }],
-    ['circle', { cx: '10.5', cy: '7', r: '1.4' }],
-    ['path', { d: 'M6 10.5q2 1.5 4 0', class: 'pp-score-chip-line' }],
+  // Calme du bébé: a sleeping face, two closed-eye arcs and a small smile.
+  calm: [
+    ['path', { d: 'M3.5 7q1.5 -2 3 0M9.5 7q1.5 -2 3 0', class: 'pp-score-chip-line' }],
+    ['path', { d: 'M6 11q2 1.5 4 0', class: 'pp-score-chip-line' }],
+  ],
+  // Maison: a little house, a roof over a door.
+  home: [
+    ['path', { d: 'M2.5 8L8 3l5.5 5z' }],
+    ['path', { d: 'M4.5 8v5h7V8z', class: 'pp-score-chip-line' }],
+    ['path', { d: 'M7 13v-3h2v3', class: 'pp-score-chip-line' }],
   ],
   sigh: [
     ['path', { d: 'M3.5 6.5h3M9.5 6.5h3', class: 'pp-score-chip-line' }],
@@ -123,7 +130,7 @@ const CHIP_ICONS: Readonly<Record<RowKind, readonly [string, Record<string, stri
   ],
 };
 
-type RowKind = 'laugh' | 'baby' | 'sigh' | 'scream';
+type RowKind = 'laugh' | 'calm' | 'home' | 'sigh' | 'scream';
 
 interface Row {
   kind: RowKind;
@@ -135,7 +142,7 @@ interface Row {
 /**
  * The Result screen (story 1.22, UX-DR13): the end photo drops in as a polaroid left of the panel
  * and holds alone (`photoHoldMs`, story 3.6; the panel is transparent meanwhile, and a level that took
- * no photo skips this), then Mama's four rows count up one after the other, the total
+ * no photo skips this), then Mama's five rows count up one after the other, the total
  * follows them, the earned stars stamp one by one, then the stars a woken Mama took off (dashed,
  * with a « −1 », story 3.2), then « Rejouer » comes up and takes focus. A woken Mama also puts a
  * header over the card, with its own cue, when the rows start (nothing sits between the photo and
@@ -156,10 +163,16 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
       maxPoints: maxima.laughMaxPoints,
     },
     {
-      kind: 'baby',
-      labelKey: 'result.score_baby_state',
-      totalPoints: score.babyStatePoints,
-      maxPoints: maxima.babyStateMaxPoints,
+      kind: 'calm',
+      labelKey: 'result.score_calm',
+      totalPoints: score.calmPoints,
+      maxPoints: maxima.calmMaxPoints,
+    },
+    {
+      kind: 'home',
+      labelKey: 'result.score_home',
+      totalPoints: score.homePoints,
+      maxPoints: maxima.homeMaxPoints,
     },
     {
       kind: 'sigh',

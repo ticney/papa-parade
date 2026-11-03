@@ -169,7 +169,8 @@ export function createGameSummary(options: GameSummaryOptions): GameSummaryRecor
         case 'LevelScored':
           score = {
             laughPoints: event.laughPoints,
-            babyStatePoints: event.babyStatePoints,
+            calmPoints: event.calmPoints,
+            homePoints: event.homePoints,
             sighPoints: event.sighPoints,
             screamPoints: event.screamPoints,
             scorePoints: event.scorePoints,

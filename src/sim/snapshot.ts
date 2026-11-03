@@ -33,14 +33,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 28 since story 3.5: `world.flow.finalRushAt`, the `finalRush` and `photo` flow states, `PropSlice.isMess` and `score.propsTidied`. 27 since story 4.10: `world.cycle` (the bedtime cycle: the entry, when it is due and when the cycle was completed), and the `CycleCompleted` event. 26 since story 4.9: `world.sequence.stealth` (the running `stealth` step: the exit, the next alert, the breath and the board Papa stands on). 25 since story 4.8: the `sequence` slow-mo source (a duel step's own slow motion); no new field. 24 since story 4.7: `ThreatInstance.feintAt` / `isFeintGiven` (the feint of a fake sleep, before its signal). 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 29 since story 3.12: `score.successes` and `score.calmMs`, and Mama's note has five rows (`calmPoints` and `homePoints` replace `babyStatePoints`). 28 since story 3.5: `world.flow.finalRushAt`, the `finalRush` and `photo` flow states, `PropSlice.isMess` and `score.propsTidied`. 27 since story 4.10: `world.cycle` (the bedtime cycle: the entry, when it is due and when the cycle was completed), and the `CycleCompleted` event. 26 since story 4.9: `world.sequence.stealth` (the running `stealth` step: the exit, the next alert, the breath and the board Papa stands on). 25 since story 4.8: the `sequence` slow-mo source (a duel step's own slow motion); no new field. 24 since story 4.7: `ThreatInstance.feintAt` / `isFeintGiven` (the feint of a fake sleep, before its signal). 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 28;
+  version: 29;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -59,7 +59,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 28,
+    version: 29,
     seed,
     feelHash,
     geometryHash,
@@ -1075,7 +1075,8 @@ const isCount = (value: unknown): boolean => Number.isInteger(value) && (value a
 
 const MAMA_SCORE_KEYS = [
   'laughPoints',
-  'babyStatePoints',
+  'calmPoints',
+  'homePoints',
   'sighPoints',
   'screamPoints',
   'scorePoints',
@@ -1097,11 +1098,13 @@ function scoreProblem(score: unknown, isEnded: boolean): string | null {
   if (typeof score !== 'object' || score === null) return 'world.score is missing';
   const slice = score as Record<string, unknown>;
   if (!isCount(slice.perfects)) return 'world.score.perfects';
+  if (!isCount(slice.successes)) return 'world.score.successes';
   if (!isCount(slice.nearMisses)) return 'world.score.nearMisses';
   if (!isFiniteNumber(slice.comboPoints) || (slice.comboPoints as number) < 0) {
     return 'world.score.comboPoints';
   }
   if (!isCount(slice.propsTidied)) return 'world.score.propsTidied';
+  if (!isCount(slice.calmMs)) return 'world.score.calmMs';
   const { final } = slice;
   if (!isEnded) return final === null ? null : 'world.score.final';
   if (typeof final !== 'object' || final === null) return 'world.score.final';
@@ -1342,7 +1345,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 28, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 29, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

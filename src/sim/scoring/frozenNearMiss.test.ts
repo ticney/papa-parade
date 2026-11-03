@@ -279,7 +279,9 @@ describe('recordFrozenNearMisses (story 3.6, D2)', () => {
     const away = await play({ babyAt: FAR_AT });
     const near = await play({ babyAt: JUST_INSIDE });
     const scoreOf = (events: readonly SimEvent[]) => of(events, 'LevelScored')[0];
-    const lostScreamPoints = Math.min(MAMA.screamPerNearMissPoints, MAMA.screamMaxPoints);
+    const lostScreamPoints = Math.round(
+      Math.min(MAMA.screamPerNearMissPoints, MAMA.screamMaxPoints),
+    );
     expect(scoreOf(near.events)?.screamPoints).toBe(
       (scoreOf(away.events)?.screamPoints ?? 0) + lostScreamPoints,
     );
@@ -302,6 +304,6 @@ describe('the end snapshot of a frozen world (story 3.6 AC 2)', () => {
     sim.restore(snapshot);
     expect(hashJson(sim.world)).toBe(hashBefore);
     // This story adds no world field: the snapshot stays at the version 3.5 left.
-    expect(snapshot.version).toBe(28);
+    expect(snapshot.version).toBe(29);
   });
 });

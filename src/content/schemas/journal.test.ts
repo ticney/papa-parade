@@ -34,7 +34,8 @@ function validFile(): JournalFile {
       endReason: 'timer',
       score: {
         laughPoints: 10,
-        babyStatePoints: 20,
+        calmPoints: 15,
+        homePoints: 0,
         sighPoints: 3,
         screamPoints: 0,
         scorePoints: 80,
@@ -98,6 +99,29 @@ describe('JournalSchema (story 3.3)', () => {
     expect(JournalSchema.safeParse(validFile()).success).toBe(true);
     const roundTrip: unknown = JSON.parse(JSON.stringify(validFile()));
     expect(JournalSchema.safeParse(roundTrip).success).toBe(true);
+  });
+
+  it('still accepts the four-row score of a journal exported before v2.3 (story 3.12)', () => {
+    const file = validFile();
+    const {
+      calmPoints: _calm,
+      homePoints: _home,
+      ...rows
+    } = file.summary.score as Record<string, number>;
+    const legacy = {
+      ...file,
+      summary: { ...file.summary, score: { ...rows, babyStatePoints: 20 } },
+    };
+    expect(JournalSchema.safeParse(legacy).success).toBe(true);
+    expect(JournalSchema.safeParse(JSON.parse(JSON.stringify(legacy))).success).toBe(true);
+  });
+
+  it('refuses a score that mixes the two shapes, or has neither', () => {
+    const file = validFile();
+    const mixed = { ...file.summary.score, babyStatePoints: 20 };
+    expect(issuePaths({ ...file, summary: { ...file.summary, score: mixed } })).not.toEqual([]);
+    const { calmPoints: _calm, ...noCalm } = file.summary.score as Record<string, number>;
+    expect(issuePaths({ ...file, summary: { ...file.summary, score: noCalm } })).not.toEqual([]);
   });
 
   it('refuses an unknown key at the top level, in the summary, the device and the replay', () => {

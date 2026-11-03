@@ -211,6 +211,18 @@ describe('threat FSM', () => {
     expect(world.score.nearMisses).toBe(0);
   });
 
+  it('counts a success for Mama’s laughs beside the perfects, and not a perfect or a fail (story 3.12)', async () => {
+    const { world, ctx, threat } = await setup();
+    resolveThreat(world, ctx, threat, def, 'perfect', 0);
+    gagThreat(world, ctx, threat, def, 'late', null);
+    expect(world.score.successes).toBe(0);
+    resolveThreat(world, ctx, threat, def, 'success', 30);
+    resolveThreat(world, ctx, threat, def, 'success', 40);
+    resolveThreat(world, ctx, threat, createTestMicroSleep(), 'success', 50);
+    expect(world.score.successes).toBe(3);
+    expect(world.score.perfects).toBe(1);
+  });
+
   it('counts the micro-sleep’s perfect too: a perfect is a perfect (story 1.22, open point 2)', async () => {
     const { world, ctx, threat } = await setup();
     resolveThreat(world, ctx, threat, createTestMicroSleep(), 'perfect', 0);

@@ -19,7 +19,8 @@ const DURATION_MS = 20_000;
 const content = createTestContent();
 const RUSH_AT = DURATION_MS - content.feel.endOfLevel.finalRushMs;
 const { reactionMs } = createTestBots().human;
-const SIGH_POINTS = content.feel.mama.sighPerPropOnFloorPoints;
+// A row is a whole number: half a point rounds up (story 3.12).
+const SIGH_POINTS = Math.round(content.feel.mama.sighPerPropOnFloorPoints);
 
 interface Game {
   sim: Sim;

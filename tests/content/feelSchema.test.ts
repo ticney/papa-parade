@@ -133,15 +133,11 @@ describe('content/feel.json', () => {
     ['a missing carry.reachM', [['carry.reachM', undefined]], ['carry.reachM']],
     ['a reach of 0 (nothing would ever be in it)', [['carry.reachM', 0]], ['carry.reachM']],
     ['a negative carry.putDownOffsetM', [['carry.putDownOffsetM', -1]], ['carry.putDownOffsetM']],
-    [
-      'a fixed baby state above its maximum',
-      // The maximum stays as it is: the maxima must still add up to 100 (story 1.22).
-      [['mama.babyStateFixedPoints', (real.mama?.babyStateMaxPoints as number) + 1]],
-      ['mama.babyStateFixedPoints'],
-    ],
     ...(
       [
         'laughPerPerfectPoints',
+        'laughPerSuccessPoints',
+        'calmNoiseThresholdPct',
         'sighPerPropOnFloorPoints',
         'sighPerBrokenPropPoints',
         'sighPerMischiefPoints',
@@ -161,11 +157,37 @@ describe('content/feel.json', () => {
       [['mama.baseScorePoints', (real.mama?.baseScorePoints as number) + 1]],
       ['mama.baseScorePoints'],
     ],
+    ['a missing mama.calmMaxPoints', [['mama.calmMaxPoints', undefined]], ['mama.calmMaxPoints']],
+    ['a missing mama.homeMaxPoints', [['mama.homeMaxPoints', undefined]], ['mama.homeMaxPoints']],
     [
-      'a fractional fixed baby state: the rows are whole numbers that add up to the score',
-      [['mama.babyStateFixedPoints', 20.5]],
-      ['mama.babyStateFixedPoints'],
+      'maxima of the note that do not add up to 100 through the calm row (story 3.12)',
+      [['mama.calmMaxPoints', (real.mama?.calmMaxPoints as number) + 1]],
+      ['mama.laughMaxPoints'],
     ],
+    [
+      'maxima of the note that do not add up to 100 through the home row (story 3.12)',
+      [['mama.homeMaxPoints', (real.mama?.homeMaxPoints as number) - 1]],
+      ['mama.laughMaxPoints'],
+    ],
+    [
+      'a fractional calm maximum: the rows are whole numbers that add up to the score',
+      [['mama.calmMaxPoints', 20.5]],
+      ['mama.calmMaxPoints'],
+    ],
+    ['a fractional home maximum', [['mama.homeMaxPoints', 15.5]], ['mama.homeMaxPoints']],
+    [
+      'a calm noise threshold above 100 %',
+      [['mama.calmNoiseThresholdPct', 120]],
+      ['mama.calmNoiseThresholdPct'],
+    ],
+    // The prototype's fixed baby state is gone (story 3.12): the file is strict.
+    ...(['babyStateMaxPoints', 'babyStateFixedPoints'] as const).map(
+      (key): [string, [string, unknown][], string[]] => [
+        `the removed mama.${key}`,
+        [[`mama.${key}`, 20]],
+        [`mama.${key}`],
+      ],
+    ),
     ['a fractional sigh maximum', [['mama.sighMaxPoints', 15.5]], ['mama.sighMaxPoints']],
     [
       'a wake penalty above the five stars (story 3.2)',

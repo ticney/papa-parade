@@ -127,24 +127,26 @@ function createClock() {
 
 const timings = createTestFeedback().resultScreen;
 const maxima = {
-  laughMaxPoints: 40,
-  babyStateMaxPoints: 30,
+  laughMaxPoints: 35,
+  calmMaxPoints: 20,
+  homeMaxPoints: 15,
   sighMaxPoints: 15,
   screamMaxPoints: 15,
 };
-/** 32 + 20 + 9 + 12 = 73: the mockup's game. */
+/** 28 + 14 + 5 + 9 + 12 = 68: a game with a chore done (E9 fills the Maison row; it is 0 before). */
 const SCORE: MamaScore = {
-  laughPoints: 32,
-  babyStatePoints: 20,
+  laughPoints: 28,
+  calmPoints: 14,
+  homePoints: 5,
   sighPoints: 6,
   screamPoints: 3,
-  scorePoints: 73,
+  scorePoints: 68,
   stars: 3,
   lostStars: 0,
 };
-const ROW_TOTALS = [32, 20, 9, 12];
+const ROW_TOTALS = [28, 14, 5, 9, 12];
 /** When the last row lands, from the build. */
-const ROWS_END_MS = 3 * timings.rowStaggerMs + timings.rowCountUpMs;
+const ROWS_END_MS = 4 * timings.rowStaggerMs + timings.rowCountUpMs;
 
 function build(overrides: Partial<ResultScreenOptions> = {}) {
   const clock = createClock();
@@ -208,7 +210,7 @@ describe('createResultScreen', () => {
     vi.unstubAllGlobals();
   });
 
-  it('builds the dialog, the four rows with their labels and maxima, the total out of the summed maxima, and five star slots', () => {
+  it('builds the dialog, the five rows with their labels and maxima, the total out of the summed maxima, and five star slots', () => {
     const { root, panel } = build();
     expect(root.className).toBe('pp-overlay pp-result-screen');
     expect(panel.tag).toBe('section');
@@ -221,22 +223,26 @@ describe('createResultScreen', () => {
     expect(card.attributes.get('role')).toBe('table');
     expect(card.attributes.get('aria-label')).toBe('result.score_label');
     const rows = root.find('pp-score-row');
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(5);
     expect(root.find('pp-score-label').map((node) => node.textContent)).toEqual([
       'result.score_laughs',
-      'result.score_baby_state',
+      'result.score_calm',
+      'result.score_home',
       'result.score_no_sigh',
       'result.score_no_scream',
     ]);
     expect(root.find('pp-score-max').map((node) => node.textContent)).toEqual([
-      '/40',
-      '/30',
+      '/35',
+      '/20',
+      '/15',
       '/15',
       '/15',
     ]);
     expect(
-      ['laugh', 'baby', 'sigh', 'scream'].map((kind) => root.find(`pp-score-chip-${kind}`).length),
-    ).toEqual([1, 1, 1, 1]);
+      ['laugh', 'calm', 'home', 'sigh', 'scream'].map(
+        (kind) => root.find(`pp-score-chip-${kind}`).length,
+      ),
+    ).toEqual([1, 1, 1, 1, 1]);
     expect(root.find('pp-score-total-max')[0]?.textContent).toBe('/100');
     const stars = root.find('pp-stars')[0] as FakeElement;
     expect(stars.attributes.get('role')).toBe('img');
@@ -249,14 +255,16 @@ describe('createResultScreen', () => {
     const { root } = build({
       maxima: {
         laughMaxPoints: 50,
-        babyStateMaxPoints: 20,
+        calmMaxPoints: 10,
+        homeMaxPoints: 10,
         sighMaxPoints: 20,
         screamMaxPoints: 10,
       },
     });
     expect(root.find('pp-score-max').map((node) => node.textContent)).toEqual([
       '/50',
-      '/20',
+      '/10',
+      '/10',
       '/20',
       '/10',
     ]);
@@ -273,7 +281,7 @@ describe('createResultScreen', () => {
   it('counts each row up to its total in rowCountUpMs, each starting rowStaggerMs after the last, the total following', () => {
     const { clock, values, total, phases } = build();
     expect(phases).toEqual(['rows']);
-    expect(values()).toEqual([0, 0, 0, 0]);
+    expect(values()).toEqual([0, 0, 0, 0, 0]);
     clock.advance(timings.rowCountUpMs / 2);
     const half = values();
     expect(half[0]).toBeGreaterThan(0);
@@ -290,11 +298,12 @@ describe('createResultScreen', () => {
   });
 
   it('shows 0 at once for a row whose total is 0, and schedules no count-up frame for it', () => {
-    // Four rows at 0: laugh 0, baby 0, and the sigh and scream rows have lost their whole maximum.
+    // Five rows at 0: laugh 0, calm 0, home 0, and the sigh and scream rows have lost their whole maximum.
     const { clock, values } = build({
       score: {
         laughPoints: 0,
-        babyStatePoints: 0,
+        calmPoints: 0,
+        homePoints: 0,
         sighPoints: maxima.sighMaxPoints,
         screamPoints: maxima.screamMaxPoints,
         scorePoints: 30,
@@ -302,12 +311,37 @@ describe('createResultScreen', () => {
         lostStars: 0,
       },
     });
-    expect(values()).toEqual([0, 0, 0, 0]);
-    // Left: the three rows still to start and the stars. A count-up frame would make it five.
+    expect(values()).toEqual([0, 0, 0, 0, 0]);
+    // Left: the four rows still to start and the stars. A count-up frame would make it six.
     clock.advance(1);
-    expect(clock.pending).toBe(4);
+    expect(clock.pending).toBe(5);
     clock.advance(COUNT_UP_FRAME_MS);
-    expect(values()).toEqual([0, 0, 0, 0]);
+    expect(values()).toEqual([0, 0, 0, 0, 0]);
+  });
+
+  it('always shows the five rows, in order, and their values add up to the total (AC 10)', () => {
+    const { clock, root, values, total } = build();
+    clock.advance(ROWS_END_MS);
+    expect(root.find('pp-score-row').map((row) => row.className)).toEqual([
+      'pp-score-row pp-score-row-laugh',
+      'pp-score-row pp-score-row-calm',
+      'pp-score-row pp-score-row-home',
+      'pp-score-row pp-score-row-sigh',
+      'pp-score-row pp-score-row-scream',
+    ]);
+    expect(values().reduce((sum, value) => sum + value, 0)).toBe(total());
+    expect(total()).toBe(SCORE.scorePoints);
+  });
+
+  it('shows the Maison row as 0 over 15 in a level without a chore: the row is never hidden (AC 9)', () => {
+    const { clock, root, values, total } = build({
+      score: { ...SCORE, homePoints: 0, scorePoints: SCORE.scorePoints - SCORE.homePoints },
+    });
+    clock.advance(ROWS_END_MS);
+    expect(root.find('pp-score-row')).toHaveLength(5);
+    expect(values()).toEqual([28, 14, 0, 9, 12]);
+    expect(root.find('pp-score-max')[2]?.textContent).toBe(`/${maxima.homeMaxPoints}`);
+    expect(values().reduce((sum, value) => sum + value, 0)).toBe(total());
   });
 
   it('stamps the earned stars starsDelayMs after the rows, starIntervalMs apart, the last one marked', () => {
@@ -800,7 +834,7 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
     const { clock, phases, values, panel } = withPhoto();
     clock.advance(HOLD_MS - 1);
     expect(phases).toEqual(['photo']);
-    expect(values()).toEqual([0, 0, 0, 0]);
+    expect(values()).toEqual([0, 0, 0, 0, 0]);
     expect(panel.classList.contains('pp-result-panel-waiting')).toBe(true);
     clock.advance(1);
     expect(phases).toEqual(['photo', 'rows']);

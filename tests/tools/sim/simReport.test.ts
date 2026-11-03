@@ -108,6 +108,7 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     scorePoints: null,
     stars: null,
     lostStars: null,
+    rows: null,
     ...overrides,
   };
 }
@@ -166,6 +167,7 @@ describe('summarizeRuns', () => {
     // No run ended: no score, and no star count.
     expect(report.meanScore).toBeNull();
     expect(report.meanStars).toBeNull();
+    expect(report.meanRows).toBeNull();
     expect(report.starCounts).toEqual([0, 0, 0, 0, 0, 0]);
     expect(report.runList).toEqual([
       {
@@ -178,6 +180,7 @@ describe('summarizeRuns', () => {
         stars: null,
         endReason: null,
         lostStars: null,
+        rows: null,
         sequencesStarted: 0,
         sequencesSucceeded: 0,
         sequencesFailed: 0,
@@ -209,6 +212,39 @@ describe('summarizeRuns', () => {
       [null, null],
     ]);
     expect(report).not.toHaveProperty('scoreNote');
+  });
+
+  it('gives the mean of each of the five rows over the runs that ended, one decimal (story 3.12)', () => {
+    const rows = (laugh: number, calm: number, home: number, sigh: number, scream: number) => ({
+      laughPoints: laugh,
+      calmPoints: calm,
+      homePoints: home,
+      sighPoints: sigh,
+      screamPoints: scream,
+    });
+    const report = summarizeRuns(INPUT, [
+      run(1, { isEnded: true, scorePoints: 60, stars: 3, rows: rows(10, 20, 0, 5, 0) }),
+      run(2, { isEnded: true, scorePoints: 40, stars: 2, rows: rows(11, 11, 0, 8, 3) }),
+      run(3, { isEnded: true, scorePoints: 30, stars: 1, rows: rows(0, 0, 3, 15, 15) }),
+      // Cut by `--until-ms`: no note, left out of the means.
+      run(4, {}),
+    ]);
+    expect(report.meanRows).toEqual({
+      laughPoints: 7,
+      calmPoints: 10.3,
+      homePoints: 1,
+      sighPoints: 9.3,
+      screamPoints: 6,
+    });
+    expect(report.runList.map((entry) => entry.rows)).toEqual([
+      rows(10, 20, 0, 5, 0),
+      rows(11, 11, 0, 8, 3),
+      rows(0, 0, 3, 15, 15),
+      null,
+    ]);
+    // Nothing that 3.14 and the playtest metrics read has moved.
+    expect(report.meanScore).toBe(43.3);
+    expect(report.meanStars).toBe(2);
   });
 
   it('counts how the games ended, every reason present, and the mean time Mama woke at (story 3.2)', () => {
@@ -561,6 +597,7 @@ describe('createRunRecorder', () => {
       scorePoints: null,
       stars: null,
       lostStars: null,
+      rows: null,
     });
   });
 
@@ -577,7 +614,8 @@ describe('createRunRecorder', () => {
       type: 'LevelScored',
       t: asSimMs(0),
       laughPoints: 30,
-      babyStatePoints: 20,
+      calmPoints: 15,
+      homePoints: 0,
       sighPoints: 5,
       screamPoints: 3,
       scorePoints: 72,
@@ -591,6 +629,7 @@ describe('createRunRecorder', () => {
       scorePoints: 72,
       stars: 3,
       lostStars: 0,
+      rows: { laughPoints: 30, calmPoints: 15, homePoints: 0, sighPoints: 5, screamPoints: 3 },
     });
   });
 

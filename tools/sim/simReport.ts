@@ -179,7 +179,26 @@ export interface RunSummary {
   stars: number | null;
   /** The stars Mama took off because she woke (`LevelScored.lostStars`); null for a run cut before the end. */
   lostStars: number | null;
+  /** The five rows of Mama's note (`LevelScored`, story 3.12); null for a run cut before the end. */
+  rows: ScoreRows | null;
 }
+
+/** The five rows of Mama's note as the report keeps them: points earned for Rire, Calme, Maison, and what Soupir and Hurlement took off. */
+export interface ScoreRows {
+  laughPoints: number;
+  calmPoints: number;
+  homePoints: number;
+  sighPoints: number;
+  screamPoints: number;
+}
+
+const SCORE_ROW_KEYS = [
+  'laughPoints',
+  'calmPoints',
+  'homePoints',
+  'sighPoints',
+  'screamPoints',
+] as const satisfies readonly (keyof ScoreRows)[];
 
 export interface RunRecorder {
   onEvent(event: SimEvent): void;
@@ -290,7 +309,8 @@ export function createRunRecorder(
   let isEnded = false;
   let endReason: LevelEndReason | null = null;
   let mamaWokeAtMs: number | null = null;
-  let scored: { scorePoints: number; stars: number; lostStars: number } | null = null;
+  let scored: { scorePoints: number; stars: number; lostStars: number; rows: ScoreRows } | null =
+    null;
   return {
     onEvent(event) {
       if (event.type === 'ThreatTelegraphed' && hiddenThreatIds.delete(event.threatId)) {
@@ -380,6 +400,13 @@ export function createRunRecorder(
           scorePoints: event.scorePoints,
           stars: event.stars,
           lostStars: event.lostStars,
+          rows: {
+            laughPoints: event.laughPoints,
+            calmPoints: event.calmPoints,
+            homePoints: event.homePoints,
+            sighPoints: event.sighPoints,
+            screamPoints: event.screamPoints,
+          },
         };
       } else if (event.type === 'ResponseResolved') {
         if (!systemThreatIds.has(event.threatId)) activeCount--;
@@ -478,6 +505,7 @@ export function createRunRecorder(
         scorePoints: scored?.scorePoints ?? null,
         stars: scored?.stars ?? null,
         lostStars: scored?.lostStars ?? null,
+        rows: scored?.rows ?? null,
       };
     },
   };
@@ -527,6 +555,8 @@ export interface SimReport {
   meanScore: number | null;
   /** Mean of Mama's stars over the runs that ended, one decimal; null when none ended. */
   meanStars: number | null;
+  /** Mean of each of the five rows of the note over the runs that ended, one decimal; null when none ended (story 3.12). */
+  meanRows: ScoreRows | null;
   /** Runs per number of stars, from 0 to 5 (index = stars); they add up to `endedRuns`. */
   starCounts: number[];
   /** `null` when no response was seen (no threat, or a game too short for one): not 0 %. */
@@ -631,6 +661,8 @@ export interface SimReport {
     /** Null for a run cut before the end (story 3.2). */
     endReason: LevelEndReason | null;
     lostStars: number | null;
+    /** The five rows of the note; null for a run cut before the end (story 3.12). */
+    rows: ScoreRows | null;
     /** The special sequences started, won and lost in this run (story 4.4). */
     sequencesStarted: number;
     sequencesSucceeded: number;
@@ -724,6 +756,13 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let scoreSum = 0;
   let starSum = 0;
   const starCounts: number[] = Array.from({ length: STAR_COUNT_MAX + 1 }, () => 0);
+  const rowSums: ScoreRows = {
+    laughPoints: 0,
+    calmPoints: 0,
+    homePoints: 0,
+    sighPoints: 0,
+    screamPoints: 0,
+  };
   const waves: WaveReport[] = input.waves.map((wave) => ({
     fromMs: wave.fromMs,
     maxSimultaneous: wave.maxSimultaneous,
@@ -737,6 +776,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     if (run.mamaWokeAtMs !== null) {
       mamaWokeCount++;
       mamaWokeSumAtMs += run.mamaWokeAtMs;
+    }
+    if (run.rows !== null) {
+      for (const key of SCORE_ROW_KEYS) rowSums[key] += run.rows[key];
     }
     if (run.scorePoints !== null && run.stars !== null) {
       scoredRuns++;
@@ -854,6 +896,16 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     hashes: input.hashes,
     meanScore: scoredRuns === 0 ? null : round(scoreSum / scoredRuns, 1),
     meanStars: scoredRuns === 0 ? null : round(starSum / scoredRuns, 1),
+    meanRows:
+      scoredRuns === 0
+        ? null
+        : {
+            laughPoints: round(rowSums.laughPoints / scoredRuns, 1),
+            calmPoints: round(rowSums.calmPoints / scoredRuns, 1),
+            homePoints: round(rowSums.homePoints / scoredRuns, 1),
+            sighPoints: round(rowSums.sighPoints / scoredRuns, 1),
+            screamPoints: round(rowSums.screamPoints / scoredRuns, 1),
+          },
     starCounts,
     meanSuccessPct: responses === 0 ? null : pct(good, responses),
     threats,
@@ -918,6 +970,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       stars: run.stars,
       endReason: run.endReason,
       lostStars: run.lostStars,
+      rows: run.rows,
       sequencesStarted: run.sequencesStarted,
       sequencesSucceeded: run.sequencesSucceeded,
       sequencesFailed: run.sequencesFailed,

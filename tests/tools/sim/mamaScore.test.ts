@@ -42,8 +42,13 @@ describe('Mama’s note of the live salon_crawler', () => {
         expected: computeMamaScore(
           {
             perfects: world.score.perfects,
+            successes: world.score.successes,
             nearMisses: world.score.nearMisses,
             comboPoints: world.score.comboPoints,
+            calmMs: world.score.calmMs,
+            // The clock keeps going after the end: the time played is the one of `LevelEnded`.
+            playedMs: events.find((event) => event.type === 'LevelEnded')?.t ?? world.time.sim,
+            homePoints: 0,
             propsOnFloor: world.mess.propsOnFloor,
             propsBroken: world.mess.propsBroken,
             mischiefs: world.mess.mischiefs,
@@ -87,7 +92,8 @@ describe('Mama’s note of the live salon_crawler', () => {
           expect(final, `seed ${seed}`).toEqual(note);
           expect(note.scorePoints, `seed ${seed}`).toBe(
             note.laughPoints +
-              note.babyStatePoints +
+              note.calmPoints +
+              note.homePoints +
               (mama.sighMaxPoints - note.sighPoints) +
               (mama.screamMaxPoints - note.screamPoints),
           );

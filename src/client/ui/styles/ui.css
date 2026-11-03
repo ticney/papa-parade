@@ -987,8 +987,8 @@ body {
 
 /* ---------------------------------------------------------------------------------------------
    Result: Mama's note (story 1.22, UX `score-row`, `star`, the right column of key-result.html).
-   The frozen room stays drawn under the scrim. Sized to fit 750 × 340 without scrolling: 28px rows,
-   a 16px panel padding. Every text is 16px or more (`--pp-spacing-text-min`).
+   The frozen room stays drawn under the scrim. Sized to fit 750 × 340 without scrolling: five 24px
+   rows (the chip's height; story 3.12 added the fifth), a 16px panel padding. Every text is 16px or more (`--pp-spacing-text-min`).
    --------------------------------------------------------------------------------------------- */
 .pp-result-screen {
   background: var(--pp-color-scrim);
@@ -1081,7 +1081,7 @@ body {
   display: flex;
   align-items: center;
   gap: var(--pp-spacing-2);
-  min-height: 28px;
+  min-height: 24px;
 }
 
 .pp-score-chip {
@@ -1100,8 +1100,12 @@ body {
   background: var(--pp-color-mama-laugh);
 }
 
-.pp-score-chip-baby {
-  background: var(--pp-color-paper);
+.pp-score-chip-calm {
+  background: var(--pp-color-mama-calm);
+}
+
+.pp-score-chip-home {
+  background: var(--pp-color-mama-home);
 }
 
 .pp-score-chip-sigh {
@@ -1326,12 +1330,16 @@ body {
 }
 
 /* On a short landscape phone the header costs about 40px that the 750 × 340 layout of story 1.22 does
-   not have: a panel with a header tightens its padding and gaps (the text keeps its size). */
+   not have, and the fifth row of the note (story 3.12) another 24px: the panel tightens its padding
+   and gaps, and the score card its own padding (the text keeps its size). */
 @media (max-height: 360px) {
-  .pp-result-panel-woken,
-  .pp-result-panel-cycle-done {
+  .pp-result-panel {
     gap: var(--pp-spacing-1);
     padding-block: var(--pp-spacing-2);
+  }
+
+  .pp-score-card {
+    padding-block: var(--pp-spacing-1);
   }
 }
 

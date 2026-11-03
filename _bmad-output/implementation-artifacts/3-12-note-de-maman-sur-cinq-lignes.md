@@ -4,7 +4,7 @@ baseline_commit: 231d5deb280c82adfe34cc7c0d67f1c71ad0a7b7
 
 # Story 3.12: Note de Maman sur cinq lignes
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -56,35 +56,35 @@ Requirement: FR34 (revised in GDD v2.3), UX-DR13 (revised). First story of the v
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: The feel and its schema (AC: 1, 2, 3)
-  - [ ] `MamaSchema` in `src/content/schemas/feel.ts`: drop `babyStateMaxPoints` and `babyStateFixedPoints` and their refine; add `calmMaxPoints`, `homeMaxPoints` (`wholePoints`), `laughPerSuccessPoints` (`points`), `calmNoiseThresholdPct` (`pct`); the 100-sum refine becomes `laughMaxPoints + calmMaxPoints + homeMaxPoints + sighMaxPoints + screamMaxPoints === MAMA_SCORE_MAX_POINTS` (with the base refine, that is AC 3's « Rire + Calme + Maison + base = 100 »); fix the `wholePoints` comment (« the five rows »)
-  - [ ] `content/feel.json › mama` with the values of D2; `npm run content:schemas`
-  - [ ] The same keys in `tests/support/testFeel.json` and `tests/tools/vite/fixtures/feelSample.json`; `tests/content/feelSchema.test.ts`: each refine refused, each old key refused
-- [ ] Task 2: The note in the sim (AC: 1, 2, 4, 5, 6, 7, 8, 9, 13)
-  - [ ] `world.ts`: `ScoreSlice` gains `successes` and `calmMs`; `MamaScore` renames `babyStatePoints` → `calmPoints` and gains `homePoints`; doc comments say five rows
-  - [ ] `threatFsm.ts` (`resolveThreat`): `if (quality === 'success') world.score.successes += 1;` beside the perfect counter
-  - [ ] New `src/sim/scoring/calmTracker.ts` (`tickCalm(world, ctx)` and the pure `calmShareOf`), called from `runScoring` (D4); test file beside it
-  - [ ] `mamaScore.ts`: `ScoreTally` gains `successes`, `calmMs`, `playedMs`, `homePoints`; `computeMamaScore` computes the five rows; `scoreLevel` passes `homePoints: 0` (D5) and `playedMs: world.time.sim`
-  - [ ] `events.ts` (`LevelScored`), `snapshot.ts` (`MAMA_SCORE_KEYS`, `scoreProblem` checks `successes` and `calmMs`, `version` 28 → 29 with its history line), `index.ts` exports if needed
-  - [ ] Unit tests: `mamaScore.test.ts` (each slope, each clamp, the rows add up over a grid, the woken Mama, the « Geo » tally of D7), `calmTracker.test.ts` (AC 6, 7, 8: threshold strict, the ending step, `mamaWoke` share, a level without noise), snapshot round trip with the new fields
-- [ ] Task 3: The Result screen (AC: 10, 11, 12)
-  - [ ] `resultScreen.ts`: `RowKind` `'laugh' | 'calm' | 'home' | 'sigh' | 'scream'`, five rows, `ResultMaxima` with `calmMaxPoints` and `homeMaxPoints`; two new chip icons (D6); comments say five rows
-  - [ ] `tokens.css`: `--pp-color-mama-calm: #d6609a;` `--pp-color-mama-home: #9a6a3f;`; `ui.css`: `.pp-score-chip-calm`, `.pp-score-chip-home` (drop `.pp-score-chip-baby`)
-  - [ ] `strings.fr.json`: `result.score_calm` « Calme du bébé », `result.score_home` « Maison »; drop `result.score_baby_state`
-  - [ ] `boot.ts`: `NO_SCORE` with the new keys (`maxima: mama` keeps working by structure)
-  - [ ] `resultScreen.test.ts`: five rows, order, labels, maxima, sum, the `0 /15` Maison row
-  - [ ] Look at it: screenshots of the Result screen on both levels at 844 × 390 and 750 × 340, with a photo, and in a playtest-like build with « Copier le journal »; tighten the row spacing only if it overflows (Traps)
-- [ ] Task 4: Journal, summary and report (AC: 13, 14, 15)
-  - [ ] `src/content/schemas/journal.ts`: `ScoreSchema` (five rows) and `LegacyScoreSchema` (the four rows before v2.3), `summary.score: z.union([...])`; `JOURNAL_FILE_VERSION` stays 1 (precedent: the optional fields of 4.10); tests in `journal.test.ts` (a legacy score parses; a mix of both is refused)
-  - [ ] `src/client/telemetry/gameSummary.ts` writes the new shape; its test
-  - [ ] `tools/sim/simReport.ts`: per-run rows and `meanRows` (D8); `tests/tools/sim/simReport.test.ts` whole-report pins; `tests/tools/sim/mamaScore.test.ts` builds the new tally
-- [ ] Task 5: Goldens, e2e, measures (AC: 16, 17 and all)
-  - [ ] `npm run golden:update`, deliberately; read the diff (Traps) and say in the Completion Notes what moved
-  - [ ] E2E (Chromium): `result.spec.ts` (five labels, values, maxima, sum), `combo.spec.ts` (the Rire formula gains the successes), and every spec that names `babyStatePoints` / `babyStateMaxPoints` (`grep -rn babyState tests src tools`): `tests/e2e/support/game.ts`, `timer`, `journal`, `mamaWoke`, `finalRush`, `photo`, `tests/e2e-dist/dist.spec.ts`
-  - [ ] `npm run sim` on the salon with `human`, `random`, `perfect`, `idle`, 20 runs from seed 1000: `meanScore`, `meanStars`, the new `meanRows`, before (D10) and after, in the Completion Notes
-- [ ] Task 6: Docs (AC: 18)
-  - [ ] `project-context.md › Mama's note` and every « four rows » left in code comments (`grep -rn "four rows\|4 rows\|État du bébé\|baby state" src tools tests`)
-  - [ ] `npm run ci:fast` after each task, plus the touched specs on Chromium: `result`, `combo`, `photo`, `mamaWoke`, `finalRush`, `timer`, `journal`, `chambreNight`, `debugOverlay` (its Result tests)
+- [x] Task 1: The feel and its schema (AC: 1, 2, 3)
+  - [x] `MamaSchema` in `src/content/schemas/feel.ts`: drop `babyStateMaxPoints` and `babyStateFixedPoints` and their refine; add `calmMaxPoints`, `homeMaxPoints` (`wholePoints`), `laughPerSuccessPoints` (`points`), `calmNoiseThresholdPct` (`pct`); the 100-sum refine becomes `laughMaxPoints + calmMaxPoints + homeMaxPoints + sighMaxPoints + screamMaxPoints === MAMA_SCORE_MAX_POINTS` (with the base refine, that is AC 3's « Rire + Calme + Maison + base = 100 »); fix the `wholePoints` comment (« the five rows »)
+  - [x] `content/feel.json › mama` with the values of D2; `npm run content:schemas`
+  - [x] The same keys in `tests/support/testFeel.json` and `tests/tools/vite/fixtures/feelSample.json`; `tests/content/feelSchema.test.ts`: each refine refused, each old key refused
+- [x] Task 2: The note in the sim (AC: 1, 2, 4, 5, 6, 7, 8, 9, 13)
+  - [x] `world.ts`: `ScoreSlice` gains `successes` and `calmMs`; `MamaScore` renames `babyStatePoints` → `calmPoints` and gains `homePoints`; doc comments say five rows
+  - [x] `threatFsm.ts` (`resolveThreat`): `if (quality === 'success') world.score.successes += 1;` beside the perfect counter
+  - [x] New `src/sim/scoring/calmTracker.ts` (`tickCalm(world, ctx)` and the pure `calmShareOf`), called from `runScoring` (D4); test file beside it
+  - [x] `mamaScore.ts`: `ScoreTally` gains `successes`, `calmMs`, `playedMs`, `homePoints`; `computeMamaScore` computes the five rows; `scoreLevel` passes `homePoints: 0` (D5) and `playedMs: world.time.sim`
+  - [x] `events.ts` (`LevelScored`), `snapshot.ts` (`MAMA_SCORE_KEYS`, `scoreProblem` checks `successes` and `calmMs`, `version` 28 → 29 with its history line), `index.ts` exports if needed
+  - [x] Unit tests: `mamaScore.test.ts` (each slope, each clamp, the rows add up over a grid, the woken Mama, the « Geo » tally of D7), `calmTracker.test.ts` (AC 6, 7, 8: threshold strict, the ending step, `mamaWoke` share, a level without noise), snapshot round trip with the new fields
+- [x] Task 3: The Result screen (AC: 10, 11, 12)
+  - [x] `resultScreen.ts`: `RowKind` `'laugh' | 'calm' | 'home' | 'sigh' | 'scream'`, five rows, `ResultMaxima` with `calmMaxPoints` and `homeMaxPoints`; two new chip icons (D6); comments say five rows
+  - [x] `tokens.css`: `--pp-color-mama-calm: #d6609a;` `--pp-color-mama-home: #9a6a3f;`; `ui.css`: `.pp-score-chip-calm`, `.pp-score-chip-home` (drop `.pp-score-chip-baby`)
+  - [x] `strings.fr.json`: `result.score_calm` « Calme du bébé », `result.score_home` « Maison »; drop `result.score_baby_state`
+  - [x] `boot.ts`: `NO_SCORE` with the new keys (`maxima: mama` keeps working by structure)
+  - [x] `resultScreen.test.ts`: five rows, order, labels, maxima, sum, the `0 /15` Maison row
+  - [x] Look at it: screenshots of the Result screen on both levels at 844 × 390 and 750 × 340, with a photo, and in a playtest-like build with « Copier le journal »; tighten the row spacing only if it overflows (Traps)
+- [x] Task 4: Journal, summary and report (AC: 13, 14, 15)
+  - [x] `src/content/schemas/journal.ts`: `ScoreSchema` (five rows) and `LegacyScoreSchema` (the four rows before v2.3), `summary.score: z.union([...])`; `JOURNAL_FILE_VERSION` stays 1 (precedent: the optional fields of 4.10); tests in `journal.test.ts` (a legacy score parses; a mix of both is refused)
+  - [x] `src/client/telemetry/gameSummary.ts` writes the new shape; its test
+  - [x] `tools/sim/simReport.ts`: per-run rows and `meanRows` (D8); `tests/tools/sim/simReport.test.ts` whole-report pins; `tests/tools/sim/mamaScore.test.ts` builds the new tally
+- [x] Task 5: Goldens, e2e, measures (AC: 16, 17 and all)
+  - [x] `npm run golden:update`, deliberately; read the diff (Traps) and say in the Completion Notes what moved
+  - [x] E2E (Chromium): `result.spec.ts` (five labels, values, maxima, sum), `combo.spec.ts` (the Rire formula gains the successes), and every spec that names `babyStatePoints` / `babyStateMaxPoints` (`grep -rn babyState tests src tools`): `tests/e2e/support/game.ts`, `timer`, `journal`, `mamaWoke`, `finalRush`, `photo`, `tests/e2e-dist/dist.spec.ts`
+  - [x] `npm run sim` on the salon with `human`, `random`, `perfect`, `idle`, 20 runs from seed 1000: `meanScore`, `meanStars`, the new `meanRows`, before (D10) and after, in the Completion Notes
+- [x] Task 6: Docs (AC: 18)
+  - [x] `project-context.md › Mama's note` and every « four rows » left in code comments (`grep -rn "four rows\|4 rows\|État du bébé\|baby state" src tools tests`)
+  - [x] `npm run ci:fast` after each task, plus the touched specs on Chromium: `result`, `combo`, `photo`, `mamaWoke`, `finalRush`, `timer`, `journal`, `chambreNight`, `debugOverlay` (its Result tests)
 
 ## Dev Notes
 
@@ -230,12 +230,74 @@ Follows the layers and aliases; `scoring/calmTracker.ts` is where the architectu
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`).
+
 ### Debug Log References
+
+- `npm run ci:fast` green at the end: typecheck, lint (2 pre-existing CSS « descending specificity » warnings on the beat-ring rules, untouched), `content:check`, 386 test files / 8 050 tests (it was 1 red on `main`: `designTokens.test.ts`, now green).
+- E2E on Chromium, by the touched specs only (as the story says): `result`, `combo`, `photo`, `mamaWoke`, `finalRush`, `timer`, `journal`, `chambreNight`, `debugOverlay`, then `testApi`, `ui`, `feedback`, `autoplay`: all green after the CSS fix below. `ci:story` is the review's.
+- The first e2e run after the code change had 8 red specs, all « fits … without scrolling » (`photo`, `mamaWoke`, `journal`, `result` at 750 × 340 and 844 × 390) plus `chambreNight › the perfect bot chains the five sequences` (not diagnosed separately: it stayed red after the first CSS change and went green with the 750 × 340 tightening, so I take it for the same layout check): the fifth row costs 28 px (Traps). Fixed in `ui.css` (see Completion Notes).
+- `Math.round` half-up shows up in four existing tests that compared a row with a raw slope (`tidyProp`, `tidyBots`, `frozenNearMiss`, `mamaScore`): 2.5 per prop is a row of 3. They now compare with `Math.round(min(max, slope))`; no assertion was loosened.
+- One throwaway Playwright spec took the screenshots below; it is deleted and not in the File List.
 
 ### Completion Notes List
 
+**What was built**
+
+- **Feel (AC 1-3, 5).** `feel.json › mama` has the D2 values: maxima Rire 35, Calme 20, Maison 15, Soupir 15, Hurlement 15, base 30; slopes 1 per perfect, 0.5 per success, 2.5 per prop on the floor, 4 per broken prop, 1.5 per mischief and per near miss; `calmNoiseThresholdPct` 50. `MamaSchema` refuses a file where the five maxima do not add up to 100 or `baseScorePoints ≠ sighMax + screamMax`, and refuses `babyStateMaxPoints` / `babyStateFixedPoints` (`strictObject`). Stars unchanged (20 / 40 / 60 / 75 / 90, `earlyWakePenaltyStars`).
+- **Sim (AC 1, 2, 4, 6-9, 13).** `ScoreSlice` gained `successes` (counted in `resolveThreat`, beside the perfects) and `calmMs`; `MamaScore` has `calmPoints` and `homePoints` instead of `babyStatePoints`; `computeMamaScore` computes the five rows (each clamped, then rounded one by one, the score is the sum of the rounded rows); `scoreLevel` passes `homePoints: 0` and `playedMs: world.time.sim`. New `scoring/calmTracker.ts` (`tickCalm`, `calmShareOf`), called first by `runScoring`: it reads the gauge after `runGauges`, counts the step that ends the level and nothing after (`ENDED_SYSTEMS` only advances the clock). A level without a noise gauge counts the steps where `baby.cryEndsAt === null`. `SYSTEMS` did not change. `SimSnapshot.version` 28 → 29 (history line added; `scoreProblem` checks `successes` and `calmMs`).
+- **Result screen (AC 10-12).** Five rows, in the order Rires /35, Calme du bébé /20, Maison /15, Sans soupir /15, Sans hurlement /15, maxima read from `feel.mama`; two new chips (a sleeping face, a little house) and the tokens `--pp-color-mama-calm` / `--pp-color-mama-home` (which turns `designTokens.test.ts` green). `result.score_baby_state` is gone, `result.score_calm` and `result.score_home` are in. Maison shows « 0 » « /15 », never hidden. **Layout:** the fifth row overflowed every « fits » spec, so `.pp-score-row` is `min-height: 24px` (the chip's height, was 28) and, under `max-height: 360px`, the panel and the score card tighten their padding and gaps (the woken / cycle-done panels already did; the rule now covers every panel). Text stays ≥ 16 px and the buttons keep their 44 × 44 targets.
+- **Journal, summary, report (AC 13-15).** `ScoreSchema` has the five rows; `LegacyScoreSchema` is the four-row score of journals exported before v2.3; `summary.score` is a `z.union` of the two (`JOURNAL_FILE_VERSION` stays 1). A bad score gives `summary.score: Invalid input`, pinned by a test. `gameSummary` writes the new shape. The sim report keeps every existing field and adds `rows` to each run and `meanRows` (one decimal, over the runs that ended).
+- **Docs (AC 18).** `_bmad-output/project-context.md` « Mama's note » describes the five rows, `calmMs`, `successes` and the legacy score; the combo paragraph says five rows. No contradiction found in the GDD, `DESIGN.md`, `EXPERIENCE.md`, the architecture or `epics.md`.
+
+**AC 16 — the « Geo » tally.** `mamaScore.test.ts` pins D7: 0 perfect, 20 successes, 3 props on the floor, 5 near misses, half the time calm gives Rire 10, Calme 10, Maison 0, Soupir 8, Hurlement 8 (7.5 rounded up), **34 points, 1★**; the four-row note's own numbers, written out in the test, give 20.
+
+**AC 17 — the bots, before and after** (`npm run sim -- --bot <id> --level salon_crawler --runs 20 --seed 1000`, the salon, normal tier):
+
+| Bot | | `meanScore` | `meanStars` | `starCounts` (0★…5★) | `meanSuccessPct` | `endsByReason` |
+|---|---|---|---|---|---|---|
+| `perfect` | before (D10) | 90 | 5 | 0,0,0,0,0,20 | 100 | timer 20 |
+| `perfect` | **after** | **80** | **4** | 0,0,0,0,20,0 | 100 | timer 20 |
+| `human` | before (D10) | 80.8 | 4 | 0,0,0,1,19,0 | 99.8 | timer 20 |
+| `human` | **after** | **79.9** | **4** | 0,0,0,0,20,0 | 99.8 | timer 20 |
+| `random` | before (D10) | 20.2 | 0.8 | 4,16,0,0,0,0 | 1.1 | timer 16, mamaWoke 4 |
+| `random` | **after** | **16.4** | **0** | 20,0,0,0,0,0 | 1.1 | timer 16, mamaWoke 4 |
+| `idle` | before | *about 20 (derived from the old formula, not re-measured: Calme fixed at 20, Soupir and Hurlement saturated, no laugh)* | *about 0.8* | | 0 | |
+| `idle` | **after** | **16** | **0** | 20,0,0,0,0,0 | 0 | timer 16, mamaWoke 4 |
+
+The new `meanRows` (Rire, Calme, Maison, Soupir taken off, Hurlement taken off): `perfect` 35 / 15 / 0 / 0 / 0, `human` 35 / 15 / 0 / 0 / 0.1, `random` 0.4 / 15.8 / 0 / 15 / 14.9, `idle` 0 / 15.8 / 0 / 15 / 14.8. `random` no longer sits on 20: its twenty scores run from 15 to 21 (D10 had it at 20.2 on average, on the fixed Calme). The bots are headless, so they are evidence of the formula, not of the feel.
+
+**What Geo should look at** (all data in `feel.json › mama`, tunable in the feel panel):
+
+1. **`perfect` drops from 5★ to 4★ (90 → 80) and `human` is now the same as `perfect`.** Both lose exactly 5 of the 20 Calme points in every run: the salon's ringing phone pushes the noise gauge to 91 % at its peak and leaves it at 66 % at the end (`noiseBySourcePct` summed over the 20 runs: phone 2 100 %, props 307 %), so the baby is « calm » only 75 % of the time even for a bot that never misses. `idle` gets 15.8 of 20, `perfect` gets 15: **in the salon the Calme row does not tell a good game from a bad one**. That is a tuning call (`calmNoiseThresholdPct`, the phone's `perSec`, or the bots answering the phone), not a formula bug, and I did not move any value of D2. Story 3.14 (bots toward Geo) will meet it.
+2. **Half points round up** (open point 2): a prop on the floor costs 3, two cost 5, three cost 8. One line to change if you prefer flooring.
+3. **The two new accents**: I looked at the screenshots. At 750 × 340, with a photo, the card reads « Rires 0 /35 · Calme du bébé 20 /20 · Maison 0 /15 · Sans soupir 10 /15 · Sans hurlement 15 /15 », all five chips legible (the Maison house is the dimmest: ink on `mama-home`, ≈ 3.2:1, graphics only as `DESIGN.md` says). I looked at the salon at 844 × 390 and 750 × 340 and the Chambre de nuit at 750 × 340 (header « Il dort enfin ! » on top, still no scroll), not the Chambre at 844 × 390; judge the colours on your phone.
+4. **The Result sequence is one `rowStaggerMs` longer** (the count-up reads `rows.length`); `feedback.json` was not retuned.
+5. **No journal of 2026-11-03 exists** (open point 1): story 3.14 will need new ones from Geo.
+
+**Goldens (AC 17), regenerated deliberately** with `npm run golden:update`, then `biome format` (the writer's expanded arrays are reformatted by the repo's formatter; without it the `eventTypes` lines look moved when they are not). What moved: in the 27 `tests/golden/journals/*.json`, only `feelHash`; in the 27 `*.expected.json`, `worldHash` (the new `mama` keys do not enter it, but `ScoreSlice` has two more fields); `eventsHash` in the 4 scenarios that reach `LevelScored` (`bedtime_cycle_won`, `combo_cash_in`, `final_rush_tidied`, `mama_woke`: its payload changed). **`eventTypes` did not move in any of the 54 files**, nor any other key.
+
+**Not done / not verified.** `ci:story` and `npm run ci` (the review runs the first; the second is for an epic's last merge). WebKit was not run. `tests/e2e-dist/dist.spec.ts` names none of the old fields and was not touched or run.
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/3-12-note-de-maman-sur-cinq-lignes.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, `_bmad-output/project-context.md`
+- `content/feel.json`, `content/strings.fr.json`, `content/_schemas/feel.schema.json`
+- `src/content/schemas/feel.ts`, `src/content/schemas/journal.ts`, `src/content/schemas/journal.test.ts`
+- `src/sim/world.ts`, `src/sim/events.ts`, `src/sim/snapshot.ts`, `src/sim/snapshot.test.ts`
+- `src/sim/threats/threatFsm.ts`, `src/sim/threats/threatFsm.test.ts`, `src/sim/threats/inputLag.test.ts`
+- `src/sim/scoring/calmTracker.ts` (new), `src/sim/scoring/calmTracker.test.ts` (new), `src/sim/scoring/mamaScore.ts`, `src/sim/scoring/mamaScore.test.ts`, `src/sim/scoring/combo.ts`, `src/sim/scoring/frozenNearMiss.test.ts`
+- `src/sim/flow/flowSystem.test.ts`, `src/sim/papa/tidyProp.test.ts`
+- `src/sim/sequences/{bombDropSnapshot,cycleSnapshot,duelSnapshot,fakeSleepSnapshot,sequenceSnapshot}.test.ts`
+- `src/client/boot.ts`, `src/client/telemetry/gameSummary.ts`, `src/client/telemetry/gameSummary.test.ts`
+- `src/client/ui/screens/resultScreen.ts`, `src/client/ui/screens/resultScreen.test.ts`, `src/client/ui/styles/tokens.css`, `src/client/ui/styles/ui.css`
+- `tools/sim/simReport.ts`
+- `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json`, `tests/content/feelSchema.test.ts`, `tests/content/stringsSchema.test.ts`
+- `tests/tools/sim/mamaScore.test.ts`, `tests/tools/sim/simReport.test.ts`, `tests/tools/sim/journalParse.test.ts` (new), `tests/tools/playtest/support.ts`, `tests/tools/playtest/loadJournals.test.ts`, `tests/bots/tidyBots.test.ts`
+- `tests/e2e/result.spec.ts`, `tests/e2e/combo.spec.ts`, `tests/e2e/support/game.ts`
+- `tests/golden/journals/*.json` (54 files: 27 journals and their 27 `.expected.json`, regenerated)
 
 ### Change Log
 
 - 2026-11-03 — Story created (create-story): ultimate context engine analysis completed, comprehensive developer guide created.
+- 2026-11-03 — Story implemented (dev-story): five-row note (Rire, Calme du bébé, Maison, Sans soupir, Sans hurlement), the calm tracker and the successes counter, the five-row Result screen and its tokens, the legacy-tolerant journal score, the report's `meanRows`, goldens regenerated; status → review.
