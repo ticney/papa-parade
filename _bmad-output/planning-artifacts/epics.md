@@ -15,9 +15,9 @@ language: fr
 
 ## Vue d'ensemble
 
-Ce document découpe en epics et en stories implémentables les exigences du GDD v2.1, de l'architecture (`planning-artifacts/game-architecture.md`) et de la spécification UX (`planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/`, reprise en UX-DR1 à UX-DR26). Il compte 8 epics et 80 stories. Il est rédigé en français, comme le GDD et l'architecture ; les identifiants techniques restent en anglais.
+Ce document découpe en epics et en stories implémentables les exigences du GDD v2.1, complétées par la v2.3 (`planning-artifacts/sprint-change-proposal-2026-11-03.md`), de l'architecture (`planning-artifacts/game-architecture.md`) et de la spécification UX (`planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/`, reprise en UX-DR1 à UX-DR30). Il compte 9 epics et 98 stories. Il est rédigé en français, comme le GDD et l'architecture ; les identifiants techniques restent en anglais.
 
-**Phases :** `[P]` prototype « Bébé à 4 pattes » (E1, E2, E3 partiel) · `[P2]` deuxième prototype (cycle du dodo, E4) · `[V1]` version 1.
+**Phases :** `[P]` prototype « Bébé à 4 pattes » (E1, E2, E3 partiel) · `[P2]` deuxième prototype (cycle du dodo, E4) · `[P3]` troisième prototype (grand salon et maison, E9) · `[V1]` version 1.
 
 ## Inventaire des exigences
 
@@ -49,7 +49,7 @@ Ce document découpe en epics et en stories implémentables les exigences du GDD
 - FR16 `[P]` : fatigue de 0 à 100, +0,5/s (×2 en portant le bébé). Au-dessus de 70 : fenêtres réduites de 20 % et micro-siestes télégraphiées toutes les 8 à 12 s (paupières qui tombent, son cotonneux), à parer pour se réveiller. Café : −40, au prix de 3 s d'action.
 - FR17 `[P2]` : envie pressante de 0 à 100, +0,4/s ; à 100, déplacements ralentis de 30 % ; toilettes = 5 s hors de la pièce, remise à 0.
 - FR18 `[P]` : jauge de bruit (niveaux Sieste). Elle monte avec les cris (+2 %/s), les objets qui tombent (+5 à +15 %), les lattes qui grincent (+3 %), le souffle relâché trop tôt (+5 %) et le reniflage (+3 %). Elle redescend de 1 %/s. À 100 %, Maman se réveille.
-- FR19 `[P]` : silence-télégraphe. Quand le bébé est hors du champ de vision et que son babillage s'arrête plus de 2 s : la musique se coupe, une bulle « … » clignote au bord de l'écran, une vibration courte part.
+- FR19 `[P]` : silence-télégraphe. Quand le bébé est hors du champ de vision et que son babillage s'arrête plus de 2 s : la musique se coupe, une bulle « … » clignote au bord de l'écran, une vibration courte part. Dans une grande pièce filmée par une caméra qui suit, la bulle « … » reste sans flèche ni direction : trouver le bébé reste le défi (v2.3).
 - FR20 `[P]` : instinct paternel. Quand au moins 3 menaces sont actives et que le joueur a raté 2 réponses en moins de 10 s : ralenti ×0,8 et fenêtres +30 % pendant 4 s ; au plus une fois toutes les 30 s.
 - FR21 `[P]` : physique légère ; les objets tombent, roulent, rebondissent et provoquent des accidents émergents.
 - FR22 `[P2]` : bras-bébé. Porter le bébé neutralise ses menaces directes. Papa n'a plus qu'une main (Parer et Esquiver, pas Fermeté), sa fatigue monte deux fois plus vite, et de nouvelles menaces apparaissent (micro-siestes, pleurs).
@@ -63,14 +63,14 @@ Ce document découpe en epics et en stories implémentables les exigences du GDD
 - FR27 `[P]` : **objet sur la table basse**. Télégraphe : le bébé se hisse, icône de l'objet. Délai 1,5 s, Parer (retirer l'objet ou détourner avec un jouet). Gag : l'objet tombe, rebondit et casse quelque chose d'autre.
 - FR28 `[P]` : **silence suspect**. Délai 2 s ; trouver le bébé, puis Parer. Gag : une bêtise surprise tirée au hasard.
 - FR29 `[P]` : **téléphone qui sonne** (perturbation). Décrocher : fatigue +10 et attention détournée 5 s. Ignorer : bruit +2 %/s tant qu'il sonne.
-- FR30 `[V1]` : **chien** (vole la purée, aboie avec bruit +10 %, fait tomber des objets ; Parer pour le détourner) et **casserole** (déborde après 30 s d'oubli ; Parer pour baisser le feu).
-- FR31 `[P]` : les menaces s'empilent par vagues. Vague 1 : une à la fois. Vague 2 : deux simultanées. Vague 3 : trois simultanées et une perturbation.
+- FR30 `[V1]` : **chien** (vole la purée, aboie avec bruit +10 %, fait tomber des objets ; Parer pour le détourner) et **casserole sur le feu** : conséquence d'une cuisson de la tâche « cuisine » laissée seule plus de 30 s (Parer pour baisser le feu ; E9, FR76, v2.3).
+- FR31 `[P]` : les menaces s'empilent par vagues. Vague 1 : une à la fois. Vague 2 : deux simultanées. Vague 3 : trois simultanées et une perturbation. « Simultanées » veut dire actives en même temps, avec des fenêtres décalées selon la règle d'équité de trajet (FR75, v2.3).
 
 **Fin de niveau et note**
 
 - FR32 `[P]` : variante Sieste. Fin normale au chrono (3 min dans le prototype, 4 min en v1) ; fin anticipée quand le bruit atteint 100 % (Maman réveillée, −1 étoile).
-- FR33 `[V1]` : variante Retour (3 min, Maman rentre à la fin du chrono, sans fin anticipée).
-- FR34 `[P]` : note de Maman. Score = Rire (0–40) + État du bébé (0–30) + 30 − Soupir (0–15) − Hurlement (0–15), sur 100. Étoiles à 20, 40, 60, 75 et 90. Réveil anticipé : −1 étoile. Un gag coûte : des objets au sol (soupir), un presque-accident (hurlement), du bruit et un multiplicateur remis à x1. **Prototype :** comme les états cachés n'arrivent qu'en E5, le composant « État du bébé » prend une valeur fixe réglable dans `feel.json` (20/30 par défaut) ; E5 la remplace par le calcul réel (décision de Geo, 2026-10-26).
+- FR33 `[V1]` : variante Retour (3 min, Maman rentre à la fin du chrono). Seule fin anticipée : la jauge de catastrophe pleine (FR73, v2.3).
+- FR34 `[P]` : note de Maman (révisée en v2.3). Score = Rire (0–35) + Calme du bébé (0–20) + Maison (0–15) + 30 − Soupir (0–15) − Hurlement (0–15), sur 100. Rire : 1 point par parfaite, 0,5 par réussite, plus les combos encaissés. Calme du bébé : jusqu'à E5, la part du niveau passée sous 50 % de la jauge de bruit (Sieste) ou sans pleurs (Retour) ; E5 la remplace par propre, nourri, reposé. Maison : tâches de la maison finies (0 dans un niveau sans tâche). Soupir : 2,5 par objet au sol, 4 par objet cassé, 1,5 par bêtise surprise. Hurlement : 1,5 par presque-accident. Étoiles à 20, 40, 60, 75 et 90. Réveil anticipé : −1 étoile. Catastrophe : 0 étoile (FR73). Un gag coûte aussi du bruit et un multiplicateur remis à x1. Toutes les valeurs sont dans `feel.json` (décision de Geo, 2026-11-03 ; remplace la formule du 2026-10-26).
 - FR35 `[V1]` : séquence de fin. La porte s'ouvre → rush final (les 10 dernières secondes pour tout planquer) → photo figée → réactions de Maman (rire, soupir, hurlement) → note → replay → rejouer ou passer à l'âge suivant.
 - FR36 `[V1]` : les répliques de Maman se souviennent des parties précédentes (« *Encore* l'étagère ?! »).
 - FR37 `[V1]` : la dégaine de papa se dégrade visiblement pendant le niveau (purée sur la joue, cheveux en pétard, t-shirt à l'envers) et nourrit le Rire.
@@ -135,6 +135,14 @@ Ce document découpe en epics et en stories implémentables les exigences du GDD
 - FR68 `[P]` : les cinq indicateurs de gameplay sont mesurables sur au moins 5 testeurs (critère de sortie de E1).
 - FR69 `[V1]` : builds iOS et Android via Capacitor (haptique, audio, paysage) et préparation des fiches stores.
 - FR70 `[V1]` : production art et audio. Pièces entières dans Blender, utilisé comme éditeur de niveaux ; personnages papa, bébé, un enfant par âge, Maman et chien ; rendu toon avec contours ; musique adaptative par âge.
+- FR71 `[P]` : **anneau-chrono.** Un anneau entoure l'icône de chaque menace à réponse Parer, Fermeté ou Esquiver ; il se remplit en temps de jeu du télégraphe à la fin de la fenêtre affichée. Le dernier arc (la fenêtre de réponse) s'allume et s'épaissit ; une encoche marque la fenêtre parfaite. Il reflète les fenêtres réelles (fatigue, instinct, palier) ; la tolérance cachée n'est pas dessinée. Pas d'anneau sur Attendre, Ne rien faire, ni les feintes. Vibration courte quand le dernier arc s'allume.
+- FR72 `[P]` : **séquelles des gags.** Chaque gag laisse une séquelle (catalogue des menaces du GDD). Une séquelle qui occupe papa dure 2 s au plus, glissade comprise (micro-sieste : 3 s) ; elles ne se cumulent pas ; les séquelles de décor se cumulent.
+- FR73 `[P]` : **jauge de catastrophe.** 0–100 %, visible pendant le jeu sous la forme du visage de Maman. Hausses : presque-accident +35 %, bazar +20 %, micro-sieste ratée +15 %, temps fort de tâche raté +10 % ; −0,5 %/s ; −5 % par parfaite ; multipliée par palier. Au-dessus de 70 % : musique tendue, visage en alerte, vibration. À 100 % : « Maman est rentrée plus tôt ! », la porte s'ouvre sans rush final, photo, 0 étoile.
+- FR74 `[P]` : **bulle d'activité de papa.** Pendant chaque occupation (café, téléphone, toilettes, tâche, séquelle), une bulle au-dessus de papa montre le pictogramme de l'action et un anneau qui se vide jusqu'à ce qu'il puisse répondre. Poses exagérées ; début et fin marqués (écrasement ; « ding », pop, vibration). Un tap sur une menace pendant une occupation est refusé de façon visible et audible.
+- FR75 `[P]` : **équité de trajet.** Deux fenêtres de réponse ne s'ouvrent jamais à moins de « glissade max du niveau + 0,3 s » l'une de l'autre. Tant que papa cherche puis soulève le bébé du silence suspect, aucune autre fenêtre ne s'ouvre avant qu'il puisse l'atteindre une fois libre. Un silence suspect actif compte pour deux menaces simultanées. Les séquelles et les occupations choisies (café, téléphone, tâche) ne sont pas protégées.
+- FR76 `[P3]` : **tâches de la maison.** Tâches facultatives à un poste (cuisine, lave-vaisselle), jouées en temps forts de Parer (anneau-chrono, fenêtre 300 ms), interruptibles à tout moment avec progression gardée, en attente pendant la fenêtre d'une menace. Une tâche finie remplit la ligne Maison. Un temps fort raté est un petit gag.
+- FR77 `[P3]` : **grand salon et caméra qui suit.** Un grand salon avec cuisine ouverte (environ 13–14 × 7 m) remplace le salon. La caméra suit papa avec une zone morte, sans rotation (sauf la rotation courte d'une parfaite). Une menace hors cadre est signalée par une bulle d'info au bord de l'écran (icône, anneau-chrono, flèche), qu'on peut taper. Glissade plafonnée à 0,9 s dans cette pièce.
+- FR78 `[P3]` : **nouvelles bêtises.** Bêtises du grand salon tirées de la liste candidate du GDD (nappe, placard bas, lave-vaisselle ouvert, poubelle, plante verte, tasse de papa), triées par Geo, avec les réponses existantes.
 
 ### Exigences non fonctionnelles
 
@@ -146,12 +154,13 @@ Ce document découpe en epics et en stories implémentables les exigences du GDD
 - NFR6 : prise en main immédiate, sans tutoriel long ni texte explicatif ; au moins 4 testeurs sur 5 identifient la bonne réponse à chaque menace dès la première rencontre.
 - NFR7 : jouable sans le son, grâce aux équivalents visuels et haptiques de chaque signal.
 - NFR8 : accessible aux daltoniens (forme d'icône en plus de la couleur).
-- NFR9 : contenu tout public ; aucune blessure montrée, aucun game over ; un échec fait rire.
+- NFR9 : contenu tout public ; aucune blessure montrée, aucun game over sec : un niveau ne se termine jamais au premier raté, et une fin anticipée (« Maman est rentrée plus tôt ! ») est un gag, sans les mots « perdu », « échec » ou « game over ». Un échec fait rire (révisée en v2.3).
 - NFR10 : sessions courtes (niveau de 3 à 5 min, séquence de 20 à 60 s).
 - NFR11 : indicateurs de gameplay. Au moins 70 % des testeurs relancent une partie sans qu'on le leur demande. Au moins 4 sur 5 citent spontanément la parade parfaite comme un moment fort. Le taux de réussite sur mobile atteint au moins 80 % de celui au clavier. Au moins 4 sur 5 rient pendant un niveau.
 - NFR12 : testabilité. La logique est testable dans Node sans rendu ; le contenu est validé automatiquement.
 - NFR13 : compatibilité avec les navigateurs mobiles et desktop (Chromium, Safari/WebKit) et la WebView Capacitor.
 - NFR14 : aucune donnée personnelle collectée ; aucun backend nécessaire.
+- NFR15 : poids d'un niveau (glb + audio du niveau) ≤ 3 Mo, sauf le grand salon (E9) : ≤ 5 Mo, avec un chargement de moins de 5 s en 4G. Les budgets de rendu (≤ 100 draw calls, ≤ 100 000 triangles) ne changent pas. [ASSUMPTION: 5 Mo à confirmer avec l'audio réel de E9.] (v2.3)
 
 ### Exigences supplémentaires (architecture)
 
@@ -236,9 +245,10 @@ La spécification UX fait foi pour l'interface : `ux-designs/ux-papa-parade-2026
 - UX-DR11 : **Invites clavier et manette.** Un seul `glyph-chip` à côté du verbe ciblé, avec `getLayoutMap()` au clavier et la famille de la manette pour les glyphes. Aucune invite au tactile.
 - UX-DR12 : **Silence.** La `silence-bubble` s'affiche au bord de l'écran, du côté de la zone, et ne clignote jamais à plus de 3 Hz.
 - UX-DR13 : **Résultat.**
-  - Séquence : photo en polaroïd → répliques de Maman (`mum-bubble`, qui sert de sous-titre) → 4 lignes de score positives (« Rires » /40, « État du bébé » /30, « Sans soupir » /15, « Sans hurlement » /15) → étoiles posées une à une → REPLAY → actions.
+  - Séquence : photo en polaroïd → répliques de Maman (`mum-bubble`, qui sert de sous-titre) → 5 lignes de score positives (« Rires » /35, « Calme du bébé » /20, « Maison » /15, « Sans soupir » /15, « Sans hurlement » /15 ; 4 lignes avant la v2.3) → étoiles posées une à une → REPLAY → actions.
   - Les actions dépendent du cas.
   - Maman réveillée : en-tête dédié et étoile perdue en pointillé avec « −1 ».
+  - Maman rentrée plus tôt (catastrophe) : en-tête « Maman est rentrée plus tôt ! » et 0 étoile (v2.3).
   - « Copier le journal » n'existe que dans les builds de playtest.
 - UX-DR14 : **Anneau de maintien.** Le `hold-ring` se remplit en 400 ms (Fermeté) ou en 1 s (renifler).
 - UX-DR15 : **Juice d'UI.** Tampon « PARADE PARFAITE » (900 ms au plus, sans bloquer les entrées), bandeau « REPLAY », vignette de l'instinct (jamais rouge).
@@ -259,6 +269,10 @@ La spécification UX fait foi pour l'interface : `ux-designs/ux-papa-parade-2026
   - HUD de 40 nœuds DOM au plus, mises à jour regroupées une fois par frame.
   - Jauges animées en `scaleX` uniquement, étiquettes CSS2D en pool.
   - Retour visuel au plus 50 ms après le tap.
+- UX-DR27 : **anneau-chrono.** 5 px autour de l'icône de menace, à l'extérieur du `hold-ring` (2 px d'écart). Progression `paper` sur `ring-track`, contour `ink` de 2 px ; dernier arc `alert`, épaissi à 8 px ; encoche parfaite : un trait `ink` de 2 px. Jamais aux couleurs `parry` / `dodge`. Pendant un maintien (Fermeté), le `hold-ring` se remplit à l'intérieur et l'anneau-chrono se vide jusqu'à la fin de l'attaque.
+- UX-DR28 : **bulle d'activité et tap refusé.** Bulle `paper` au-dessus de papa avec pictogramme `ink` ; anneau qui se vide (visuel du `hold-ring`, sens antihoraire). Si le combo-badge est affiché, il se décale à droite de la bulle. Tap refusé : la bulle tremble 150 ms et un son « occupé » ; pas de `tap-marker`.
+- UX-DR29 : **jauge de catastrophe.** Le visage de Maman dans la zone haute, à côté du chrono (elle n'occupe pas une 4ᵉ pastille de jauge) ; 4 états d'inquiétude ; alerte au-dessus de 70 % (pulsation sous 3 Hz, vibration). Ce visage n'est pas la note : E127 reste vrai pour le score. Fin anticipée : bandeau « Maman est rentrée plus tôt ! » sur le résultat, sur le modèle de « Maman s'est réveillée ! ».
+- UX-DR30 : **bulle d'info hors cadre.** Bulle collée aux bords gauche, droit ou haut, jamais dans le tiers bas (une menace en bas s'affiche au bas d'un bord latéral, au-dessus de la zone des pouces) ; icône de la menace, anneau-chrono, flèche. Tapable (même cible que la menace). 3 au plus (une par menace active). Le silence suspect garde sa `silence-bubble` sans flèche.
 
 ### Carte de couverture des FR
 
@@ -293,11 +307,11 @@ La spécification UX fait foi pour l'interface : `ux-designs/ux-papa-parade-2026
 | FR27 | E1 | Objet sur la table basse |
 | FR28 | E1 | Silence suspect (menace) |
 | FR29 | E1 | Téléphone |
-| FR30 | E6 | Chien, casserole |
+| FR30 | E6 (chien), E9 (casserole) | Chien, casserole sur le feu |
 | FR31 | E1 | Vagues |
 | FR32 | E3 `[P]` | Variante Sieste, fin anticipée |
 | FR33 | E3 `[V1]` | Variante Retour |
-| FR34 | E1 | Note de Maman |
+| FR34 | E1, E3 (3.12) | Note de Maman |
 | FR35 | E3 `[V1]` | Séquence de fin |
 | FR36 | E3 `[V1]` | Mémoire de Maman |
 | FR37 | E3 `[V1]` | Dégaine de papa |
@@ -334,8 +348,16 @@ La spécification UX fait foi pour l'interface : `ux-designs/ux-papa-parade-2026
 | FR68 | E3 `[P]` | Mesure des 5 indicateurs |
 | FR69 | E8 | Capacitor iOS et Android |
 | FR70 | E7 | Production art et audio |
+| FR71 | E2 | Anneau-chrono |
+| FR72 | E3 `[P]` | Séquelles des gags |
+| FR73 | E3 `[P]` | Jauge de catastrophe |
+| FR74 | E2 | Bulle d'activité de papa |
+| FR75 | E3 `[P]` | Équité de trajet |
+| FR76 | E9 | Tâches de la maison |
+| FR77 | E9 | Grand salon et caméra qui suit |
+| FR78 | E9 | Nouvelles bêtises |
 
-Les NFR sont transverses. NFR2, NFR4, NFR5, NFR12 et NFR14 sont posées dès E1 ; NFR6 à NFR9 sont consolidées en E2 ; NFR1 et NFR3 sont mesurées en E1 (test de performance), puis tenues à chaque epic ; NFR11 est mesurée en fin de E3 `[P]` ; NFR13 est vérifiée en E1 (web) et en E8 (WebView).
+Les NFR sont transverses. NFR2, NFR4, NFR5, NFR12 et NFR14 sont posées dès E1 ; NFR6 à NFR9 sont consolidées en E2 ; NFR1 et NFR3 sont mesurées en E1 (test de performance), puis tenues à chaque epic ; NFR11 est mesurée en fin de E3 `[P]` ; NFR13 est vérifiée en E1 (web) et en E8 (WebView) ; NFR15 est vérifiée par `dist:check` à chaque niveau (E1, E9).
 
 ### Carte de couverture UX-DR
 
@@ -353,7 +375,7 @@ Les NFR sont transverses. NFR2, NFR4, NFR5, NFR12 et NFR14 sont posées dès E1 
 | UX-DR10 | 1.11, 1.17, 2.2 |
 | UX-DR11 | 1.17 |
 | UX-DR12 | 1.21 |
-| UX-DR13 | 1.22, 3.2, 3.3, 3.6, 3.7, 3.9, 3.11, 6.8 |
+| UX-DR13 | 1.22, 3.2, 3.3, 3.6, 3.7, 3.9, 3.11, 3.12, 3.16, 6.8 |
 | UX-DR14 | 1.23, 5.3 |
 | UX-DR15 | 2.5, 2.9, 3.9 |
 | UX-DR16 | 2.7 |
@@ -367,10 +389,14 @@ Les NFR sont transverses. NFR2, NFR4, NFR5, NFR12 et NFR14 sont posées dès E1 
 | UX-DR24 | 2.8, 6.8 |
 | UX-DR25 | 8.1 |
 | UX-DR26 | 1.5, 1.24 |
+| UX-DR27 | 2.11, 9.4 |
+| UX-DR28 | 2.12, 2.13, 3.15, 9.4 |
+| UX-DR29 | 3.16 |
+| UX-DR30 | 9.3 |
 
 ## Liste des epics
 
-**Séquence :** E1 → E2 → E3 `[P]` → **playtest** → E4 → E3 `[V1]` → E5 → E6, avec E7 et E8 en parallèle à partir de E4. **Attention au sprint planning :** le tri par numéro placerait les stories 3.5 à 3.11 avant E4 ; elles doivent être différées après E4. La numérotation est celle du GDD et de l'architecture.
+**Séquence :** E1 → E2 → E3 `[P]` → **playtest** → E4 → E3 `[V1]` (3.5, 3.6) → **rattrapage v2.3** (3.12, 2.11, 3.13, 2.12, 2.13, 3.14, 3.15, 3.16, dans cet ordre) → **playtest** → **E9** → E3 `[V1]` (3.7 à 3.11) → E5 → E6, avec E7 et E8 en parallèle à partir de E4 (révisée le 2026-11-03). **Attention au sprint planning :** le tri par numéro placerait les stories 3.5 à 3.11 avant E4 ; elles doivent être différées après E4. La numérotation est celle du GDD et de l'architecture.
 
 ### Epic 1 : Le salon jouable en cubes
 Le joueur joue une partie complète de 3 minutes dans un salon isométrique en cubes. Il protège le bébé de trois menaces et du téléphone en parant au bon moment, gère sa fatigue avec le café, repère le silence suspect, et reçoit la note de Maman. La partie est jouable à la souris, au tactile, au clavier et à la manette, par lien web, et sans humain grâce aux bots. Les fondations techniques de l'architecture (sim pure, horloge, contenu, feeling, tests) et celles de l'UI (tokens, HUD, pause : story 1.5) arrivent dans les premières stories, au service d'une tranche verticale jouable au plus tôt.
@@ -378,12 +404,14 @@ Le joueur joue une partie complète de 3 minutes dans un salon isométrique en c
 
 ### Epic 2 : Game feel et lisibilité
 Chaque réponse se ressent (sons cultes, rire du bébé, haptique, tremblement, particules, zoom), chaque menace se comprend sans explication (verbe affiché, couleur et forme), le jeu reste juste sur chaque appareil (calibration) et reste drôle quand il déborde (instinct paternel, palier Assistance). Geo règle tout le feeling en jouant, grâce au panneau. Le joueur règle sa difficulté, son confort (mouvement réduit, grands verbes) et sa calibration.
-**FR couvertes :** FR20, FR53, FR54, FR55, FR56, FR57, FR58, FR59, FR60 (base), FR61, FR65 (panneau).
+`[Rattrapage v2.3]` Le bon moment se voit (anneau-chrono) et un papa occupé se lit d'un coup d'œil (bulle d'activité, poses exagérées).
+**FR couvertes :** FR20, FR53, FR54, FR55, FR56, FR57, FR58, FR59, FR60 (base), FR61, FR65 (panneau), FR71, FR74.
 
 ### Epic 3 : Bruit et Maman
 `[P]` Le bruit devient la menace globale du salon (variante Sieste : Maman peut se réveiller avant la fin), et le prototype est prêt pour le playtest, avec un journal de partie et le calcul des 5 indicateurs.
 `[V1]` La fin de niveau devient mémorable : la porte s'ouvre, rush final, photo figée, réactions de Maman qui se souvient des parties précédentes, dégaine de papa, replay des meilleurs moments. S'y ajoutent la variante Retour, le déblocage par étoiles et le Frigo, écran d'accueil des âges.
-**FR couvertes :** `[P]` FR18, FR32, FR68 · `[V1]` FR33, FR35, FR36, FR37, FR38, FR39.
+`[Rattrapage v2.3]` La note bouge avec le jeu (cinq lignes), chaque situation a une bonne réponse (équité de trajet), le bot `human` joue comme un humain, et rater a un prix pendant la partie (séquelles, jauge de catastrophe, « Maman est rentrée plus tôt ! »).
+**FR couvertes :** `[P]` FR18, FR32, FR68 · `[V1]` FR33, FR35, FR36, FR37, FR38, FR39 · `[Rattrapage v2.3]` FR34 (révisée), FR72, FR73, FR75.
 
 ### Epic 4 : Cycle du dodo (deuxième prototype)
 Le joueur vit une séquence qui ne repose pas sur la parade. Il porte le bébé d'une main et gère ses propres besoins (fatigue doublée, envie pressante). Il enchaîne rester éveillé, les 100 pas en rythme, le duel du coucher, la dépose-bombe et la sortie en infiltration, déjoue le faux sommeil, et encaisse son combo à la dépose.
@@ -394,7 +422,7 @@ Le joueur devine l'état caché du bébé (odeur, pleurs typés, renifler) et y 
 **FR couvertes :** FR4, FR24, FR42, FR43, FR44, FR48, FR49.
 
 ### Epic 6 : Âges suivants *(stories cadrées, à réviser après playtest ; catalogues des âges 3 à 5 à écrire avant)*
-Le joueur grandit avec l'enfant : petite enfance (crises, provocation, jauge d'attention, aide invisible, fugue), désarmement et coolitude, préparation entre les vagues, chien et casserole, puis Enfance, Adolescence et Adulte, jusqu'à apprendre à ne plus parer.
+Le joueur grandit avec l'enfant : petite enfance (crises, provocation, jauge d'attention, aide invisible, fugue), désarmement et coolitude, préparation entre les vagues, le chien, puis Enfance, Adolescence et Adulte, jusqu'à apprendre à ne plus parer.
 **FR couvertes :** FR6 (provocations), FR30, FR45, FR46, FR47, FR50, FR51, FR52.
 
 ### Epic 7 : Production art et audio *(stories cadrées)*
@@ -404,6 +432,10 @@ Le jeu quitte les cubes : pièces modélisées, personnages riggés et animés (
 ### Epic 8 : Distribution mobile *(stories cadrées ; modèle économique à trancher avant)*
 Le joueur installe le jeu sur iOS ou Android, avec haptique native, audio fiable et orientation paysage, depuis les stores.
 **FR couvertes :** FR69.
+
+### Epic 9 : Grand salon et maison (troisième prototype)
+Le salon devient un grand salon avec cuisine ouverte. La caméra suit papa et signale les menaces hors cadre. Papa a des tâches de la maison qui se jouent en parades et remplissent la ligne Maison, et le bébé a de nouvelles bêtises. Dépend du rattrapage v2.3 (2.11, 2.12, 3.12, 3.13).
+**FR couvertes :** FR76, FR77, FR78, NFR15.
 
 ## Epic 1 : Le salon jouable en cubes
 
@@ -1525,11 +1557,97 @@ afin de jouer confortablement sans rien perdre du jeu.
 **Quand** le bot `perfect` joue avec le réglage actif
 **Alors** aucune rotation de caméra ni aucun tremblement n'est observé (via `window.__PP__`), et les jugements sont identiques à ceux d'une partie sans le réglage
 
+### Story 2.11 : Anneau-chrono autour des menaces `[P]`
+
+**Exigences :** FR71, FR53
+**UX :** UX-DR27, UX-DR10
+
+En tant que joueur,
+je veux voir combien de temps il me reste et quand taper,
+afin de pouvoir réussir une parade parfaite exprès.
+
+**Critères d'acceptation :**
+
+**Étant donné** une menace à réponse Parer, Fermeté ou Esquiver qui passe en `telegraph`
+**Quand** le temps de jeu avance
+**Alors** un anneau se remplit autour de son icône, de 0 au télégraphe à plein à la fin de la fenêtre affichée (délai + fenêtre effective), sans dessiner la tolérance cachée
+**Et** le dernier arc correspond à la fenêtre effective (palier, fatigue, instinct) et s'allume au moment où elle s'ouvre, avec une vibration courte
+**Et** une encoche marque la fenêtre parfaite
+
+**Étant donné** un ralenti, un hitstop ou la pause
+**Quand** l'anneau est affiché
+**Alors** il ralentit, se fige ou s'arrête avec le temps de jeu
+
+**Étant donné** une menace Attendre, Ne rien faire ou une feinte (faux sommeil)
+**Quand** elle est active
+**Alors** aucun anneau n'est dessiné
+
+**Étant donné** un silence suspect
+**Quand** la bulle « … » apparaît
+**Alors** un anneau à côté de la bulle mesure les `findMaxMs` ; une fois le bébé trouvé, l'anneau habituel de la parade prend le relais
+
+**Étant donné** le bot `perfect` et la timeline de debug (2.1)
+**Quand** il pare
+**Alors** chaque appui tombe dans l'encoche : un test e2e lit la progression de l'anneau (`data-pp-*`) au moment du jugement et vérifie qu'elle est dans l'arc final
+
+### Story 2.12 : Bulle d'activité de papa et tap refusé visible `[P]`
+
+**Exigences :** FR74
+**UX :** UX-DR28
+
+En tant que joueur,
+je veux voir que papa est occupé et pour combien de temps,
+afin de comprendre pourquoi il ne répond pas et de choisir quand boire un café ou décrocher.
+
+**Critères d'acceptation :**
+
+**Étant donné** papa dans un état occupé (`drink`, `onPhone`, `onToilet`, séquelle qui l'occupe, plus tard une tâche)
+**Quand** l'état commence
+**Alors** une bulle au-dessus de lui montre le pictogramme de l'action (tasse, combiné, porte, étoiles de vertige) avec un petit écrasement
+**Et** un anneau autour de la bulle se vide jusqu'à `busyUntil`, en temps de jeu
+
+**Étant donné** la fin de l'occupation
+**Quand** papa redevient libre
+**Alors** un « ding », un pop de la bulle et une vibration courte le signalent (triple équivalence, ADR-006)
+
+**Étant donné** papa occupé par une activité non interruptible
+**Quand** le joueur tape une menace
+**Alors** la commande est refusée comme aujourd'hui, mais la bulle tremble et un son « occupé » joue ; aucun `tap-marker`
+
+**Étant donné** le combo-badge affiché
+**Quand** la bulle apparaît
+**Alors** le badge se décale à côté de la bulle, sans chevauchement
+
+### Story 2.13 : Poses exagérées du café et du téléphone `[P]`
+
+**Exigences :** FR74
+**UX :** UX-DR28
+
+En tant que joueur,
+je veux reconnaître d'un coup d'œil ce que fait papa, même sans la bulle,
+afin que l'occupation se lise sur un petit écran.
+
+**Critères d'acceptation :**
+
+**Étant donné** `papa.glb`
+**Quand** les clips `drink` et `on_phone` sont refaits dans Blender
+**Alors** le mug et le combiné sont agrandis (au moins ×2), le téléphone a une bulle « bla bla » gribouillée et papa tourne le dos au bébé, le café a de la vapeur, un « slurp » et des yeux qui s'écarquillent à la fin
+
+**Étant donné** le mouvement réduit
+**Quand** papa boit ou téléphone
+**Alors** la pose reste (elle porte un état), seuls les effets secondaires (vapeur, gribouillis animés) sont figés
+
+**Étant donné** `npm run dist:check`
+**Quand** le personnage est reconstruit
+**Alors** le budget du niveau tient toujours
+
 ## Epic 3 : Bruit et Maman
 
 `[P]` Le bruit devient la menace globale du salon, et le prototype est prêt pour le playtest (stories 3.1 à 3.4). `[V1]` La fin de niveau devient mémorable (stories 3.5 à 3.11).
 
 > **Ordre de livraison :** les stories 3.5 à 3.11 `[V1]` se livrent **après E4**, et non après 3.4. Le sprint planning doit les marquer comme différées (`sprint-status.yaml`), malgré leur numérotation.
+>
+> **Rattrapage v2.3 (2026-11-03) :** les stories 3.12 à 3.16, avec 2.11 à 2.13, se livrent après 3.6 et avant 3.7, puis un playtest, puis E9, puis 3.7 à 3.11.
 
 ### Story 3.1 : Jauge de bruit `[P]`
 
@@ -1803,6 +1921,143 @@ afin d'avoir un objectif de progression.
 **Étant donné** 3 résultats consécutifs à 1 étoile ou moins sur le même niveau, hors palier Assistance (`save.progress.failStreak[levelId]`)
 **Quand** l'écran de résultat s'affiche
 **Alors** une carte douce propose « Envie de souffler ? Essaie le mode Assistance », avec un bouton vers les réglages (Difficulté en première ligne) et un bouton pour la fermer ; elle n'apparaît jamais en Assistance
+
+### Story 3.12 : Note de Maman sur cinq lignes `[P]`
+
+**Exigences :** FR34 (révisée)
+**UX :** UX-DR13 (révisé)
+
+En tant que joueur,
+je veux que ma note bouge avec ce que je fais,
+afin d'avoir envie de faire mieux à la partie suivante.
+
+**Critères d'acceptation :**
+
+**Étant donné** `feel.json › mama`
+**Quand** la note est calculée
+**Alors** Score = Rire + Calme du bébé + Maison + 30 − Soupir − Hurlement, avec les maxima 35 / 20 / 15 / 15 / 15 et les pentes de FR34 (parfaite 1, réussite 0,5, objet au sol 2,5, objet cassé 4, bêtise 1,5, presque-accident 1,5), toutes dans `feel.json`
+**Et** le schéma vérifie que Rire + Calme + Maison + base = 100 et que base = Soupir max + Hurlement max
+
+**Étant donné** un niveau Sieste
+**Quand** il se termine
+**Alors** Calme du bébé = part du temps de jeu passée sous `feel.mama.calmNoiseThresholdPct` (50 %) de la jauge de bruit × 20, arrondie ; dans un niveau sans jauge de bruit, la part du temps sans pleurs du bébé
+
+**Étant donné** un niveau sans tâche de la maison
+**Quand** il se termine
+**Alors** Maison vaut 0 et la ligne s'affiche « 0 / 15 » (pas de ligne masquée)
+
+**Étant donné** l'écran de résultat
+**Quand** les lignes comptent
+**Alors** il y en a cinq, dans l'ordre Rires, Calme du bébé, Maison, Sans soupir, Sans hurlement, et leurs totaux s'additionnent au score
+
+**Étant donné** `npm run sim -- --bot human` sur le salon et les journaux de Geo du 2026-11-03 rejoués
+**Quand** la note est recalculée
+**Alors** une partie de Geo ne tombe plus mécaniquement à 20 points ; les goldens sont régénérés (`npm run golden:update`, dit dans la story)
+
+### Story 3.13 : Équité de trajet du directeur `[P]`
+
+**Exigences :** FR75, FR31 (révisée)
+
+En tant que joueur,
+je veux que chaque situation ait une bonne réponse,
+afin de ne jamais perdre une menace parce que deux tombaient en même temps à deux endroits.
+
+**Critères d'acceptation :**
+
+**Étant donné** le `WaveDirector`
+**Quand** il programme une menace
+**Alors** sa fenêtre ne s'ouvre jamais à moins de `glideMaxMs + feel.director.fairnessMarginMs` (300) d'une autre fenêtre ouverte ou programmée ; sinon son délai est allongé, ou elle attend
+
+**Étant donné** un silence suspect actif
+**Quand** papa n'a pas encore trouvé puis soulevé le bébé
+**Alors** aucune autre fenêtre ne s'ouvre avant `fin de la parade du silence + temps de glissade vers la menace + marge`
+**Et** le silence compte pour deux menaces dans `maxSimultaneous` (il ne peut donc pas apparaître en vague 1)
+
+**Étant donné** une séquelle qui occupe papa, ou un café, un téléphone
+**Quand** une menace est programmée
+**Alors** la règle ne la décale pas (ces occupations ne sont pas protégées)
+
+**Étant donné** le bot `perfect` sur 200 graines du salon
+**Quand** les parties sont simulées
+**Alors** aucune réponse n'échoue pour cause de fenêtres impossibles à tenir (0 raté), y compris avec le silence derrière le canapé
+
+### Story 3.14 : Joueur simulé humain réaliste `[P]`
+
+**Exigences :** FR66
+**Indicateur :** « le joueur simulé humain joue comme un humain » (GDD v2.3)
+
+En tant que Geo,
+je veux que le bot `human` obtienne des notes proches des miennes,
+afin que les indicateurs simulés disent la vérité avant un playtest.
+
+**Critères d'acceptation :**
+
+**Étant donné** `content/bots.json › human`
+**Quand** le bot répond
+**Alors** il a un temps de réaction (moyenne et écart-type), une erreur de lecture du moment d'appui qui dépend de ce qui est affiché (plus grande sans anneau-chrono, plus petite avec), une probabilité de ne pas voir une menace quand il est occupé ailleurs, tous réglables
+
+**Étant donné** les journaux de Geo du playtest du 2026-11-03, exportés depuis l'écran de résultat et rangés dans `docs/playtest/geo/`
+**Quand** `npm run sim -- --bot human` joue le salon sans anneau (réglage de comparaison)
+**Alors** son score moyen est à moins d'une étoile de la médiane de ces journaux, et son taux de parfaites ne la dépasse pas de plus de 10 points
+
+**Étant donné** le rapport de `npm run sim`
+**Quand** il est écrit
+**Alors** il garde les champs existants (pas de rupture de `playtest:metrics`)
+
+### Story 3.15 : Séquelles des gags `[P]`
+
+**Exigences :** FR72
+**UX :** UX-DR28 (étoiles de vertige)
+
+En tant que joueur,
+je veux qu'un raté complique la suite,
+afin que rater ait un prix pendant la partie et pas seulement sur la note.
+
+**Critères d'acceptation :**
+
+**Étant donné** le catalogue des menaces du GDD (prise : papa électrisé 1,5 s et pénombre 6 s ; escalier : bébé en bas, 2 s pour le remonter ; table basse : débris au sol, ramassage 1 s, +3 % de bruit quand on marche dessus ; silence : bazar visible jusqu'à la photo ; micro-sieste : 3 s endormi)
+**Quand** le gag se déclenche
+**Alors** la séquelle s'applique, ses durées dans le JSON de la menace
+
+**Étant donné** une séquelle qui occupe papa
+**Quand** une autre arrive
+**Alors** elle remplace la première sans l'allonger ; les séquelles de décor se cumulent ; aucune ne dépasse 2 s glissade comprise, sauf la micro-sieste
+
+**Étant donné** la pénombre
+**Quand** la pièce s'assombrit
+**Alors** icônes, halos et anneaux restent pleinement lisibles
+
+**Étant donné** les bots `perfect`, `human` et `idle`
+**Quand** ils jouent le salon
+**Alors** `perfect` n'a aucune séquelle, `idle` en accumule ; les goldens sont régénérés (dit dans la story)
+
+### Story 3.16 : Jauge de catastrophe et « Maman est rentrée plus tôt ! » `[P]`
+
+**Exigences :** FR73, NFR9 (révisée), FR33 (révisée)
+**UX :** UX-DR29
+
+En tant que joueur,
+je veux sentir monter la catastrophe et pouvoir perdre un niveau dans un dernier gag,
+afin que chaque menace ait un vrai enjeu.
+
+**Critères d'acceptation :**
+
+**Étant donné** `feel.json › catastrophe`
+**Quand** un gag a lieu
+**Alors** la jauge monte de la valeur de sa catégorie (presque-accident 35, bazar 20, micro-sieste 15, temps fort de tâche 10), multipliée par le palier, baisse de 0,5 %/s et de 5 % par parfaite
+
+**Étant donné** la jauge au-dessus de 70 %
+**Quand** elle franchit le seuil
+**Alors** le visage de Maman passe en alerte, la musique se tend, une vibration et un son partent
+
+**Étant donné** la jauge à 100 %
+**Quand** elle est atteinte
+**Alors** `LevelEnded` part avec la raison `mamaHome`, sans rush final ; la photo est prise ; le résultat montre « Maman est rentrée plus tôt ! » et 0 étoile, sans les mots « perdu », « échec », « game over »
+**Et** pendant le rush final, la jauge est figée ; si bruit et catastrophe sont pleins au même pas, la catastrophe l'emporte
+
+**Étant donné** le palier Normal et les bots
+**Quand** 200 parties du salon sont simulées
+**Alors** `human` perd le niveau dans 10 à 30 % des parties, `perfect` jamais, `idle` toujours avant la fin du chrono (seuils du GDD) ; les journaux exportés gardent la raison de fin, `sim:replay` la rejoue
 
 ## Epic 4 : Cycle du dodo (deuxième prototype)
 
@@ -2079,7 +2334,7 @@ afin de devoir les deviner, et que Maman les juge.
 
 **Étant donné** `World.baby.needs` (`clean`, `fed`, `rested`), avec des évolutions définies dans `feel.json`
 **Quand** le niveau se termine
-**Alors** le composant « État du bébé » de la note vaut 10 points par état satisfait, et remplace `babyStateFixedPoints` (qui reste disponible pour les niveaux qui le déclarent)
+**Alors** le composant « Calme du bébé » de la note (/20, story 3.12) se calcule sur l'état réel, à parts égales entre propre, nourri et reposé, à la place de la jauge de bruit (v2.3)
 
 ### Story 5.3 : Odeur et renifler
 
@@ -2192,20 +2447,19 @@ afin de surmonter les deux soins les plus redoutés.
 
 *Stories cadrées, à réviser après playtest.* **Prérequis :** les catalogues des menaces des âges Enfance, Adolescence et Adulte doivent être écrits dans le GDD avant cet epic. Le ton du niveau Adulte reste à trancher (question ouverte du GDD).
 
-### Story 6.1 : Chien et casserole
+### Story 6.1 : Chien
 
 **Exigences :** FR30
 
 En tant que joueur,
-je veux qu'un chien et une casserole ajoutent du chaos,
+je veux qu'un chien ajoute du chaos,
 afin de traiter des perturbations en plus du bébé.
 
 **Critères d'acceptation :**
 
-**Étant donné** `content/disruptions/dog.json` et `pot.json`
+**Étant donné** `content/disruptions/dog.json` (la casserole est passée en story 9.5, v2.3)
 **Quand** elles se déclenchent
 **Alors** le chien vole la purée, aboie (+10 % de bruit) et fait tomber des objets jusqu'à ce qu'on le détourne (Parer)
-**Et** la casserole déborde après 30 000 ms d'oubli (bruit, bazar), et Parer baisse le feu
 
 ### Story 6.2 : Coolitude et désarmement
 
@@ -2446,7 +2700,7 @@ afin que le jeu sonne comme un jeu dès le prochain playtest.
 
 **Étant donné** les nouveaux fichiers
 **Quand** `npm run dist:check` tourne
-**Alors** la charge de chaque niveau reste sous 3 Mio
+**Alors** la charge de chaque niveau tient NFR15 (3 Mo ; 5 Mo pour le grand salon, v2.3)
 
 **Étant donné** `tools/audio/makePlaceholderAudio.ts`
 **Quand** il tourne sans `--only`
@@ -2517,3 +2771,193 @@ afin que les joueurs le trouvent.
 **Étant donné** les builds de release
 **Quand** ils sont soumis
 **Alors** TestFlight et la Play Console reçoivent des builds signés, et les fiches stores (textes, captures, classification tout public, politique de confidentialité « aucune donnée collectée ») sont prêtes
+
+## Epic 9 : Grand salon et maison (troisième prototype)
+
+Le salon devient un grand salon avec cuisine ouverte. La caméra suit papa et signale les menaces hors cadre. Papa a des tâches de la maison qui se jouent en parades et remplissent la ligne Maison, et le bébé a de nouvelles bêtises. Elle vient après le rattrapage v2.3 et son playtest ; elle réutilise l'anneau-chrono (2.11), la bulle d'activité (2.12), la note sur cinq lignes (3.12) et l'équité de trajet (3.13).
+
+### Story 9.1 : Grand salon avec cuisine ouverte dans Blender `[P3]`
+
+**Exigences :** FR77, NFR15
+
+En tant que joueur,
+je veux une pièce plus grande avec un coin cuisine,
+afin que le salon soit moins chargé et que papa ait des choses à faire.
+
+**Critères d'acceptation :**
+
+**Étant donné** Blender (pipeline de 1.6 et 7.1)
+**Quand** la pièce `salon_kitchen` est modélisée
+**Alors** elle mesure environ 13–14 × 7 m avec un coin salon (canapé, table basse, escalier, prise), un coin repas (table et nappe) et une cuisine ouverte (plaque, lave-vaisselle, placards bas, poubelle), avec ses colliders, ses ancres (menaces, postes, objets) et sa géométrie de navigation
+
+**Étant donné** `npm run dist:check` et `perf.spec.ts`
+**Quand** le niveau est construit
+**Alors** il tient NFR15 (≤ 5 Mo) et les budgets de rendu (≤ 100 draw calls, ≤ 100 000 triangles, p95 ≤ 20 ms)
+
+**Étant donné** `content:check`
+**Quand** le niveau est validé
+**Alors** chaque ancre citée par le JSON existe dans la géométrie
+
+### Story 9.2 : Caméra qui suit papa `[P3]`
+
+**Exigences :** FR77
+
+En tant que joueur,
+je veux une caméra qui suit papa dans le grand salon,
+afin que les personnages restent aussi grands qu'aujourd'hui.
+
+**Critères d'acceptation :**
+
+**Étant donné** un niveau qui déclare `camera: "follow"` (la chambre garde `fixed`)
+**Quand** papa se déplace ou glisse
+**Alors** la caméra le suit avec une zone morte et un rattrapage sans à-coup, réglés dans `feel.json › camera`, sans jamais tourner (sauf la rotation courte d'une parfaite, qui revient à l'angle de départ) et sans sortir des bornes de la pièce
+
+**Étant donné** un ralenti ou un cadrage serré
+**Quand** une menace est jugée
+**Alors** la caméra cadre la menace jugée
+
+**Étant donné** un tap sur l'écran
+**Quand** la caméra a bougé
+**Alors** le hit-test (menace > objet > sol) vise le bon point du monde ; les specs e2e de tap passent sur une caméra déplacée
+
+**Étant donné** le mouvement réduit
+**Quand** la caméra suit
+**Alors** le rattrapage est plus lent et sans rebond (ligne ajoutée au tableau du mouvement réduit)
+
+**Étant donné** la glissade dans le grand salon
+**Quand** papa traverse la pièce
+**Alors** elle plafonne à `glideMaxMs` du niveau (900 ms)
+
+### Story 9.3 : Bulle d'info hors cadre `[P3]`
+
+**Exigences :** FR77, FR19
+**UX :** UX-DR30
+
+En tant que joueur,
+je veux savoir qu'une bêtise se prépare hors de l'écran, et où,
+afin de pouvoir y aller à temps.
+
+**Critères d'acceptation :**
+
+**Étant donné** une menace active hors du cadre
+**Quand** elle passe en `telegraph`
+**Alors** une bulle au bord gauche, droit ou haut de l'écran, du côté de la menace et jamais dans le tiers bas, montre son icône, son anneau-chrono et une flèche vers elle ; elle disparaît quand la menace entre dans le cadre
+
+**Étant donné** la bulle
+**Quand** le joueur la tape (ou cible la menace au clavier ou à la manette)
+**Alors** c'est la même commande qu'un tap sur la menace
+
+**Étant donné** un silence suspect hors cadre
+**Quand** il commence
+**Alors** seule la `silence-bubble` « … » apparaît, sans flèche ; la bulle avec flèche n'apparaît qu'une fois le bébé trouvé
+
+**Étant donné** trois menaces actives hors cadre
+**Quand** elles sont du même côté
+**Alors** leurs bulles s'empilent sans se chevaucher ; le budget DOM du HUD (UX-DR26) tient
+
+### Story 9.4 : Cadre des tâches de la maison `[P3]`
+
+**Exigences :** FR76, FR34
+**UX :** UX-DR27, UX-DR28
+
+En tant que joueur,
+je veux des tâches facultatives qui se jouent en parades,
+afin d'avoir quelque chose à faire entre deux menaces, au risque de tourner le dos au bébé.
+
+**Critères d'acceptation :**
+
+**Étant donné** un poste déclaré par le niveau (`content/chores/<id>.json` : temps forts, espacement, gag de raté, points Maison)
+**Quand** le joueur tape le poste
+**Alors** papa glisse et commence ; chaque temps fort a son anneau-chrono et une fenêtre de 300 ms, jugé comme une parade (parfaite, réussie, ratée)
+
+**Étant donné** une tâche en cours
+**Quand** le joueur tape une menace ou le sol
+**Alors** papa part, la progression est gardée, et la tâche reprend au prochain tap sur le poste
+
+**Étant donné** une menace en fenêtre
+**Quand** un temps fort devait tomber
+**Alors** il est mis en attente
+
+**Étant donné** une tâche finie
+**Quand** le niveau se termine
+**Alors** ses points vont à la ligne Maison ; un temps fort raté joue son gag et fait monter la catastrophe de 10 %
+
+**Étant donné** les bots
+**Quand** ils jouent un niveau avec postes
+**Alors** `perfect` finit les tâches dans les accalmies sans rater de menace ; le comportement des bots face aux tâches est réglable dans `bots.json`
+
+### Story 9.5 : Tâche « cuisine » et casserole sur le feu `[P3]`
+
+**Exigences :** FR76, FR30 (révisée)
+
+En tant que joueur,
+je veux cuire la purée en surveillant le bébé,
+afin de gagner des points Maison sans laisser brûler la casserole.
+
+**Critères d'acceptation :**
+
+**Étant donné** le poste « plaque »
+**Quand** papa cuisine
+**Alors** 4 temps forts (remuer, écraser, remuer, couper le feu) espacés de 1,5 à 3 s ; raté : purée qui attache (fumée)
+
+**Étant donné** une cuisson commencée puis abandonnée
+**Quand** 30 s passent sans y revenir
+**Alors** la perturbation « casserole sur le feu » se déclenche (bruit, bazar, Parer : baisser le feu)
+
+### Story 9.6 : Tâche « lave-vaisselle » `[P3]`
+
+**Exigences :** FR76, FR78
+
+En tant que joueur,
+je veux vider le lave-vaisselle au bon rythme,
+afin de gagner des points Maison sans casser d'assiette.
+
+**Critères d'acceptation :**
+
+**Étant donné** le poste « lave-vaisselle »
+**Quand** papa le vide
+**Alors** 4 temps forts (rattraper l'assiette qui glisse du panier) ; raté : assiette cassée (objet cassé au Soupir, bruit)
+
+**Étant donné** le lave-vaisselle ouvert et papa parti
+**Quand** le bébé choisit une cible
+**Alors** le lave-vaisselle ouvert devient une menace possible (Parer : refermer la porte)
+
+### Story 9.7 : Nouvelles bêtises du grand salon `[P3]`
+
+**Exigences :** FR78
+
+En tant que joueur,
+je veux que le bébé fasse plus de bêtises différentes,
+afin que chaque partie surprenne.
+
+**Critères d'acceptation :**
+
+**Étant donné** la liste candidate du GDD triée par Geo (au moins 3 retenues avant la création de la story)
+**Quand** elles sont ajoutées
+**Alors** chacune est une fiche `content/threats/<id>.json` avec une réponse existante, son télégraphe, son gag, sa séquelle, sa hausse de catastrophe et son ancre dans le grand salon
+
+**Étant donné** le bot `perfect`
+**Quand** il joue
+**Alors** il pare chaque nouvelle bêtise ; `human` les rate parfois
+
+### Story 9.8 : Niveau grand salon jouable de bout en bout `[P3]`
+
+**Exigences :** FR31, FR66, FR77
+
+En tant que Geo,
+je veux le grand salon en niveau complet, testé par les bots,
+afin de le donner au playtest du troisième prototype.
+
+**Critères d'acceptation :**
+
+**Étant donné** `content/levels/salon_kitchen.json`
+**Quand** il est joué
+**Alors** il a ses vagues (menaces du salon, nouvelles bêtises), ses postes, ses perturbations et ses séquences ; il remplace `salon_crawler` comme premier niveau de l'âge bébé
+
+**Étant donné** le bot `human`
+**Quand** il joue avec une caméra qui suit
+**Alors** il ne réagit à une menace hors cadre qu'après l'apparition de sa bulle (modèle de visibilité)
+
+**Étant donné** les indicateurs simulés du GDD
+**Quand** 200 parties sont jouées
+**Alors** les cibles de défaite (10–30 % pour `human`) et d'équité (0 raté pour `perfect`) tiennent ; `npm run ci` est vert avant le lien de playtest
