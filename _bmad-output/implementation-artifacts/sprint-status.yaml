@@ -1,5 +1,5 @@
 # generated: 2026-10-26
-# last_updated: 2026-11-02
+# last_updated: 2026-11-03
 # project: papa-parade
 # project_key: NOKEY
 # tracking_system: file-system
@@ -41,7 +41,7 @@
 # - epic-3 reste 'in-progress' entre 3.4 et 3.5 : ne pas le passer à 'done' après 3.4.
 
 generated: 2026-10-26
-last_updated: 2026-11-02
+last_updated: 2026-11-03
 project: papa-parade
 project_key: NOKEY
 tracking_system: file-system
@@ -113,7 +113,7 @@ development_status:
   # Les stories 3.5 à 3.11 restent rattachées à epic-3 (clé 3-x) mais se livrent ici.
   3-5-porte-qui-s-ouvre-et-rush-final: done
   3-6-photo-de-fin-figee: done
-  3-7-reactions-de-maman-et-degaine-de-papa: backlog
+  3-7-reactions-de-maman-et-degaine-de-papa: ready-for-dev
   3-8-memoire-de-maman: backlog
   3-9-replay-des-meilleurs-moments: backlog
   3-10-variante-retour: backlog
