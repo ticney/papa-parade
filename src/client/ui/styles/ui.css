@@ -2303,14 +2303,22 @@ body {
    and non-diegetic; it takes no input. Alert fill, ink glyph and outline (the mockup's state C), the
    tail pointing out to the edge (mirrored on the left). It blinks at 2 Hz, under the 3 Hz ceiling;
    with reduced motion it pulses at 1 Hz, with no on/off flash. */
+/* The bubble's own box, said once: the ring beside it (below) is sized and placed from the same values. The
+   tail (14 px, on the screen-edge side) fills the edge margin. */
+:root {
+  --pp-silence-bubble-width: 76px;
+  --pp-silence-bubble-height: 58px;
+  --pp-silence-bubble-edge: 14px;
+}
+
 .pp-silence-bubble {
   position: absolute;
   z-index: 35;
   box-sizing: border-box;
   display: grid;
   place-items: center;
-  width: 76px;
-  height: 58px;
+  width: var(--pp-silence-bubble-width);
+  height: var(--pp-silence-bubble-height);
   padding-bottom: 12px;
   background: var(--pp-color-alert);
   border: var(--pp-outline);
@@ -2330,34 +2338,37 @@ body {
 }
 
 .pp-silence-bubble-right {
-  right: calc(var(--pp-spacing-hud-inset-right) + 14px);
+  right: calc(var(--pp-spacing-hud-inset-right) + var(--pp-silence-bubble-edge));
 }
 
 .pp-silence-bubble-left {
-  left: calc(var(--pp-spacing-hud-inset-left) + 14px);
+  left: calc(var(--pp-spacing-hud-inset-left) + var(--pp-silence-bubble-edge));
 }
 
 /*
   The ring beside the bubble (story 2.11, D8): the chrono-ring's look for the find-the-baby deadline, on the
-  centre side of the bubble and past its tail. A sibling of the bubble, not a child, so it does not blink
-  with it. Paper over the ring-track in a band, with an ink outline around it; no lit arc, no notch. The
-  fill (`--pp-silence-progress`, whole per-mille, written by `silenceBubble.ts` from the drawn sim time) is
-  game time only; the band and outline widths are the hold-ring's constants, set inline. It never
-  animates, so it needs no reduced-motion rule.
+  centre side of the bubble, a gap from it (its tail points the other way, to the screen edge). A sibling of
+  the bubble, not a child, so it does not blink with it. Paper over the ring-track in a band, with an ink
+  outline around it; no lit arc, no notch. The fill (`--pp-silence-progress`, whole per-mille, written by
+  `silenceBubble.ts` from the drawn sim time) is game time only. The band and outline widths
+  (`--pp-silence-ring-stroke`, `--pp-silence-ring-outline`) are the hold-ring's constants, written inline by
+  `silenceBubble.ts` over a 0px placeholder here (a copy would drift unpinned); its size and place come from the
+  bubble's own custom properties above. It never animates, so it needs no reduced-motion rule.
 */
 :root {
-  --pp-silence-ring-size: 58px;
+  --pp-silence-ring-gap: 8px;
 }
 
 .pp-silence-ring {
   --pp-silence-progress: 0;
-  --pp-silence-ring-stroke: 5px;
-  --pp-silence-ring-outline: 2px;
+  /* Placeholders (the stylesheet check wants a declaration): `silenceBubble.ts` writes the constants inline. */
+  --pp-silence-ring-stroke: 0px;
+  --pp-silence-ring-outline: 0px;
   position: absolute;
   z-index: 35;
   box-sizing: border-box;
-  width: var(--pp-silence-ring-size);
-  height: var(--pp-silence-ring-size);
+  width: var(--pp-silence-bubble-height);
+  height: var(--pp-silence-bubble-height);
   pointer-events: none;
 }
 
@@ -2365,13 +2376,23 @@ body {
   display: none;
 }
 
-/* Past the bubble's edge margin, its width and its tail, and a gap. */
+/* Past the bubble's edge margin and its width, and a gap. */
 .pp-silence-ring-right {
-  right: calc(var(--pp-spacing-hud-inset-right) + 14px + 76px + 14px + 8px);
+  right: calc(
+    var(--pp-spacing-hud-inset-right) +
+    var(--pp-silence-bubble-edge) +
+    var(--pp-silence-bubble-width) +
+    var(--pp-silence-ring-gap)
+  );
 }
 
 .pp-silence-ring-left {
-  left: calc(var(--pp-spacing-hud-inset-left) + 14px + 76px + 14px + 8px);
+  left: calc(
+    var(--pp-spacing-hud-inset-left) +
+    var(--pp-silence-bubble-edge) +
+    var(--pp-silence-bubble-width) +
+    var(--pp-silence-ring-gap)
+  );
 }
 
 .pp-silence-ring-band,

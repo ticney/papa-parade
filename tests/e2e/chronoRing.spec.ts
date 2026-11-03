@@ -95,15 +95,16 @@ const expectedPermille = (
   return Math.min(1000, Math.max(0, ((simMs - threat.enteredAt) / spanMs) * 1000));
 };
 
-/** One step of slack: the frame draws the sim time interpolated, and the ring is whole per-mille. */
-const toleranceOf = (threat: {
-  enteredAt: number;
-  windowOpenAt: number;
-  responseWindow: { windowMs: number };
-}): number => {
-  const spanMs = threat.windowOpenAt + threat.responseWindow.windowMs - threat.enteredAt;
-  return Math.ceil((STEP_MS / spanMs) * 1000) + 1;
-};
+/**
+ * The ring is drawn at the sim time as drawn: `world.time.sim − STEP_MS × (1 − alpha)`, and a frozen frame has
+ * alpha 0, so it trails the sim by exactly one step (AC 9). The one per-mille of slack is the rounding to whole
+ * per-mille, not a step: a ring drawn at the sim time instead would be off by `STEP_MS / span` (about 12‰).
+ */
+const DRAWN_ROUNDING_PERMILLE = 1;
+const drawnPermille = (
+  threat: { enteredAt: number; windowOpenAt: number; responseWindow: { windowMs: number } },
+  simMs: number,
+): number => expectedPermille(threat, simMs - STEP_MS);
 
 test.describe('the ring on a threat', () => {
   test('is not there before the telegraph; fills from it, in sim time, to the end of the window; lights at the opening; stays full; goes with the threat', async ({
@@ -117,10 +118,9 @@ test.describe('the ring on a threat', () => {
     // The delay and the window come from the live def and the frozen window of the world.
     expect(threat.windowOpenAt - threat.enteredAt).toBe(telegraphDelayMsOf(liveThreat(OUTLET)));
     await expect(shownRing(page)).toHaveCount(1);
-    const tolerance = toleranceOf(threat);
     expect(
-      Math.abs((await progressOf(page)) - expectedPermille(threat, threat.enteredAt)),
-    ).toBeLessThanOrEqual(tolerance);
+      Math.abs((await progressOf(page)) - drawnPermille(threat, (await ppWorld(page)).time.sim)),
+    ).toBeLessThanOrEqual(DRAWN_ROUNDING_PERMILLE);
     expect(await isLit(page)).toBe(false);
 
     // After n steps the progress is n × STEP_MS / (delay + window), and the arc is not lit before the opening.
@@ -131,9 +131,9 @@ test.describe('the ring on a threat', () => {
       await waitFrames(page, 2);
       const sim = (await ppWorld(page)).time.sim;
       expect(
-        Math.abs((await progressOf(page)) - expectedPermille(threat, sim)),
+        Math.abs((await progressOf(page)) - drawnPermille(threat, sim)),
         `after ${steps} steps`,
-      ).toBeLessThanOrEqual(tolerance);
+      ).toBeLessThanOrEqual(DRAWN_ROUNDING_PERMILLE);
       expect(await isLit(page)).toBe(false);
     }
 
@@ -173,6 +173,51 @@ test.describe('the ring on a threat', () => {
     }
     await waitFrames(page, 2);
     await expect(shownRing(page)).toHaveCount(0);
+    expect(problems).toEqual([]);
+  });
+
+  test('turns the notch to the centre of the window and starts the lit arc at the opening, from the telegraph on', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozen(page);
+    const threat = await telegraphOutlet(page);
+    const spanMs = threat.windowOpenAt + threat.responseWindow.windowMs - threat.enteredAt;
+    // What the world says, not what the mirror says: the window is frozen in the world at the telegraph.
+    const centreAt = threat.windowOpenAt + threat.responseWindow.windowMs / 2;
+    const notchPermille = ((centreAt - threat.enteredAt) / spanMs) * 1000;
+    const arcFromPermille = ((threat.windowOpenAt - threat.enteredAt) / spanMs) * 1000;
+    const notch = shownRing(page).locator('.pp-chrono-notch');
+    // The notch is drawn (not display: none) while the arc is not lit yet: visible from the telegraph on (D4).
+    expect(await isLit(page)).toBe(false);
+    expect(await notch.evaluate((line) => getComputedStyle(line).display)).not.toBe('none');
+    const rotation = (await notch.getAttribute('transform')) ?? '';
+    const degrees = Number(/^rotate\((-?[\d.]+) /.exec(rotation)?.[1]);
+    // 360° per 1000‰, clockwise from 12 o'clock (the group is turned −90° around it).
+    expect(Math.abs(degrees - notchPermille * 0.36), rotation).toBeLessThanOrEqual(0.36);
+    // The notch is across the arc, at the perfect zone's size, from the ring's inner to its outer edge.
+    const [x1, x2, width] = await notch.evaluate((line) => [
+      Number(line.getAttribute('x1')),
+      Number(line.getAttribute('x2')),
+      Number(line.getAttribute('stroke-width')),
+    ]);
+    expect(x2).toBeGreaterThan(x1);
+    expect(width).toBe(2);
+    // The lit arc covers the window: from `arcFrom` to the end of the path (a dash of the rest, offset by `arcFrom`).
+    const arc = shownRing(page).locator('.pp-chrono-arc');
+    const dasharray = ((await arc.getAttribute('stroke-dasharray')) ?? '').split(' ').map(Number);
+    expect(Math.abs((dasharray[0] ?? 0) - (1000 - arcFromPermille))).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(Number(await arc.getAttribute('stroke-dashoffset')) + arcFromPermille),
+    ).toBeLessThanOrEqual(1);
+    // The notch does not move when the ring lights.
+    for (let i = 0; i < 400 && (await outletThreat(page)).state === 'telegraph'; i++) {
+      await ppAdvance(page, 1);
+    }
+    await ppAdvance(page, 1);
+    await waitFrames(page, 2);
+    await expect(shownRing(page)).toHaveClass(/pp-chrono-ring--lit/);
+    expect(await notch.getAttribute('transform')).toBe(rotation);
     expect(problems).toEqual([]);
   });
 
@@ -271,7 +316,7 @@ test.describe('the hold drains the ring', () => {
     await serveOutletAsFirm(page);
     const problems = collectProblems(page);
     await openFrozen(page);
-    const threat = await telegraphOutlet(page);
+    await telegraphOutlet(page);
     // Before the press the ring fills and is a plain ring.
     await expect(shownRing(page)).not.toHaveClass(/pp-chrono-ring--hold/);
     for (let i = 0; i < 400 && (await outletThreat(page)).state === 'telegraph'; i++) {
@@ -293,11 +338,24 @@ test.describe('the hold drains the ring', () => {
     const early = await progressOf(page);
     expect(early).toBeGreaterThan(500);
 
-    // It drains: later in the hold the ring holds less.
+    // It drains: later in the hold the ring holds less, by `holdEndAt` (`max(press + holdMinMs, opening +
+    // holdUntilMs)`, `src/sim/timing/holdEnd.ts`): full at the press, empty at the end of the attack, drawn at
+    // the sim time as drawn (a step behind a frozen sim).
     await ppAdvance(page, Math.ceil(holdMinMs / STEP_MS / 2));
     await waitFrames(page, 2);
     const later = await progressOf(page);
     expect(later).toBeLessThan(early);
+    const held = (await outletThreat(page)) as unknown as {
+      windowOpenAt: number;
+      press: { t: number } | null;
+    };
+    if (held.press === null) throw new Error('the press is not in the world');
+    const endAt = Math.max(held.press.t + holdMinMs, held.windowOpenAt + FIRM_HOLD_UNTIL_MS);
+    const drawnAt = (await ppWorld(page)).time.sim - STEP_MS;
+    const drained = ((endAt - drawnAt) / (endAt - held.press.t)) * 1000;
+    expect(Math.abs(later - Math.min(1000, Math.max(0, drained)))).toBeLessThanOrEqual(
+      DRAWN_ROUNDING_PERMILLE,
+    );
     await expect(shownRing(page)).toHaveClass(/pp-chrono-ring--hold/);
 
     // To the end of the attack: the hold resolves the threat and the ring goes.
@@ -306,7 +364,6 @@ test.describe('the hold drains the ring', () => {
     expect((await outletThreat(page)).state).not.toBe('windowOpen');
     await expect(shownRing(page)).toHaveCount(0);
     await page.mouse.up();
-    expect(threat.id).toBeGreaterThan(0);
     expect(problems).toEqual([]);
   });
 });
@@ -337,21 +394,30 @@ test.describe('every perfect press is in the notch', () => {
   }) => {
     const problems = collectProblems(page);
     // A recorder, as `photo.spec.ts` does: the mirror changes at every judgement and polling would miss some.
-    await recordMirrorWrites(page, ['data-pp-chrono-judged']);
+    await recordMirrorWrites(page, ['data-pp-response', 'data-pp-chrono-judged']);
     await page.goto(`/?autoplay=perfect&seed=${SEED}&speed=${SPEED}`);
     await waitForTestApi(page);
 
     await expect
-      .poll(async () => (await mirrorWrites(page)).length, {
-        timeout: RESUME_COUNTDOWN_MS + LEVEL_DURATION_MS / SPEED + 2 * OVERRUN_MARGIN_MS,
-      })
+      .poll(
+        async () =>
+          (await mirrorWrites(page)).filter((write) => write.name === 'data-pp-chrono-judged')
+            .length,
+        { timeout: RESUME_COUNTDOWN_MS + LEVEL_DURATION_MS / SPEED + 2 * OVERRUN_MARGIN_MS },
+      )
       .toBeGreaterThanOrEqual(RINGS_NEEDED);
 
-    const judged = (await mirrorWrites(page)).filter(
-      (write) => write.name === 'data-pp-chrono-judged',
-    );
-    expect(judged.length).toBeGreaterThanOrEqual(RINGS_NEEDED);
-    for (const write of judged) {
+    // The mirror is a function of the same ring as the drawing, so a judgement alone cannot fail on a drawing
+    // bug (the notch's DOM is pinned above, from the world). What it pins here: the bot really lands perfects
+    // on purpose, and every perfect is inside the notch. `ppResponse` is written just before the judgement.
+    let quality = '';
+    let perfects = 0;
+    for (const write of await mirrorWrites(page)) {
+      if (write.name === 'data-pp-response') {
+        quality = write.value;
+        continue;
+      }
+      if (write.name !== 'data-pp-chrono-judged') continue;
       const [, , press, arcFrom, notchFrom, notchTo] = write.value.split(':').map(Number) as [
         number,
         number,
@@ -360,13 +426,16 @@ test.describe('every perfect press is in the notch', () => {
         number,
         number,
       ];
-      const label = `judgement ${write.value}`;
+      const label = `${quality} judgement ${write.value}`;
       expect(Number.isFinite(press), label).toBe(true);
       expect(arcFrom, label).toBeLessThanOrEqual(press);
       expect(press, label).toBeLessThanOrEqual(1000);
+      if (quality !== 'perfect') continue;
+      perfects++;
       expect(notchFrom, label).toBeLessThanOrEqual(press);
       expect(press, label).toBeLessThanOrEqual(notchTo);
     }
+    expect(perfects).toBeGreaterThanOrEqual(RINGS_NEEDED);
     expect(problems).toEqual([]);
   });
 });

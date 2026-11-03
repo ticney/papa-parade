@@ -8,7 +8,9 @@ import { hasChronoRing } from '../ui/world/chronoRing.ts';
  * cue of its own. `WindowOpened` cannot be mapped in `feedback.json › events` (it would vibrate for every
  * `wait` and `nothing` too), so the caller plays the client event `ChronoArcLit` when this is true. The
  * bomb drop's « LÂCHE ! » (`feedback.signal`) already vibrates at that very step: one moment, one
- * vibration. Allocates nothing.
+ * vibration. So does a press buffered in `telegraph`, which the very step that opens the window resolves
+ * (events are drained one step at a time, so the world already shows the threat resolved): its success or
+ * perfect cue vibrates, the arc does not. Allocates nothing.
  */
 export function opensChronoArc(
   event: SimEvent,
@@ -19,6 +21,7 @@ export function opensChronoArc(
   for (const threat of world.threats) {
     if (threat.id !== event.threatId) continue;
     if (!Object.hasOwn(defs, threat.defId)) return false;
+    if (threat.state !== 'windowOpen') return false;
     const def = defs[threat.defId] as ThreatDef;
     return hasChronoRing(def.response) && def.feedback.signal === undefined;
   }

@@ -17,6 +17,7 @@ import {
   createThreatMarkers,
   THREAT_CLASSES,
   THREAT_ICON_PATHS,
+  type ThreatMarkerEntry,
   threatMarkerEntries,
 } from './threatMarkers.ts';
 import type { VerbMetrics } from './verbMetrics.ts';
@@ -352,6 +353,7 @@ describe('threatMarkerEntries', () => {
       defs,
       0.2,
       t,
+      0,
     );
     expect(entries).toEqual([
       expect.objectContaining({
@@ -384,6 +386,7 @@ describe('threatMarkerEntries', () => {
       defs,
       0.2,
       t,
+      0,
     );
     expect(entries.map((entry) => entry.icon)).toEqual(['stairs', 'mug', 'bolt']);
   });
@@ -396,6 +399,7 @@ describe('threatMarkerEntries', () => {
       defs,
       0.2,
       t,
+      0,
     );
     expect(entries.map((entry) => entry.icon)).toEqual(['bolt']);
     expect(
@@ -407,7 +411,7 @@ describe('threatMarkerEntries', () => {
   });
 
   it('is empty for a level without threats', () => {
-    expect(threatMarkerEntries([], anchors, defs, 0.2, t)).toEqual([]);
+    expect(threatMarkerEntries([], anchors, defs, 0.2, t, 0)).toEqual([]);
   });
 
   it('falls back to the threat floor point when the room lacks the anchor', () => {
@@ -417,6 +421,7 @@ describe('threatMarkerEntries', () => {
       defs,
       0.2,
       t,
+      0,
     );
     expect(entries).toEqual([
       expect.objectContaining({
@@ -470,6 +475,7 @@ describe('a marker that follows Papa (story 1.19)', () => {
       },
       0.2,
       t,
+      0,
     );
     expect(entries).toEqual([
       expect.objectContaining({ threatId: 9, xM: 2, zM: 3, icon: 'eyelids', followsPapa: true }),
@@ -524,7 +530,7 @@ describe('a marker that follows Papa (story 1.19)', () => {
       }) as Readonly<ThreatInstance>;
 
     it('starts at the baby’s spawn point, above his body, and follows no pose', () => {
-      const entries = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t);
+      const entries = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t, 0);
       expect(entries).toEqual([
         expect.objectContaining({
           threatId: 11,
@@ -541,7 +547,7 @@ describe('a marker that follows Papa (story 1.19)', () => {
 
     it('takes the point of each telegraph: a marker whose baby moved between two telegraphs moves with it', () => {
       const { markers, scene } = build();
-      const [first] = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t);
+      const [first] = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t, 0);
       const entry = { ...(first as NonNullable<typeof first>) };
       markers.mount([entry]);
       markers.update([onBaby('telegraph', 1, 2)], null, null, { xM: 40, zM: 40 });
@@ -556,7 +562,7 @@ describe('a marker that follows Papa (story 1.19)', () => {
 
     it('leaves a marker that is not active where it was', () => {
       const { markers } = build();
-      const [first] = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t);
+      const [first] = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t, 0);
       const entry = { ...(first as NonNullable<typeof first>) };
       markers.mount([entry]);
       markers.update([onBaby('idle', 5, 5)], null, null);
@@ -565,7 +571,7 @@ describe('a marker that follows Papa (story 1.19)', () => {
 
     it('shows no hold-ring on a nothing, which never holds a press', () => {
       const { markers, byClass } = build();
-      const [first] = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t);
+      const [first] = threatMarkerEntries([onBaby('idle', 1, 2)], [], babyDefs, 0.2, t, 0);
       markers.mount([{ ...(first as NonNullable<typeof first>) }]);
       markers.update([onBaby('windowOpen', 1, 2)], null, null, null, 1000, 400);
       const ring = byClass(THREAT_CLASSES.hold)[0];
@@ -579,6 +585,7 @@ describe('a marker that follows Papa (story 1.19)', () => {
         babyDefs,
         0.2,
         t,
+        0,
       );
       expect(entries[0]?.icon).not.toBe(entries[1]?.icon);
       expect(entries[0]?.verb).not.toBe(entries[1]?.verb);
@@ -632,6 +639,7 @@ describe('a silence in a hidden zone (story 1.21)', () => {
       },
       0.25,
       t,
+      0,
     );
     expect(entries).toEqual([
       expect.objectContaining({
@@ -789,6 +797,7 @@ describe('threatMarkerEntries: verb, shape and colour (story 2.2)', () => {
       def === undefined ? {} : { outlet: def },
       0.2,
       t,
+      0,
     );
 
   it('translates the verb key of the def, once, at build', () => {
@@ -843,6 +852,7 @@ describe('threatMarkerEntries: verb, shape and colour (story 2.2)', () => {
       { outlet: circleDef },
       0.2,
       (key) => key,
+      0,
     );
     expect(entry?.verb).toBe('');
     const warns = log
@@ -889,6 +899,7 @@ describe('threatMarkerEntries: verb, shape and colour (story 2.2)', () => {
       defs,
       0.2,
       t,
+      0,
     );
     expect(entries.map((entry) => entry.verb)).toEqual(
       Object.values(keys).map((key) => `<${key}>`),
@@ -1438,7 +1449,7 @@ describe('the verb of a Firmness while the baby is carried (story 4.1)', () => {
       response,
     }) as const;
   const entriesFor = (response: string) =>
-    threatMarkerEntries([threat(7, 'idle')], anchors, { outlet: defOf(response) }, 0.2, t);
+    threatMarkerEntries([threat(7, 'idle')], anchors, { outlet: defOf(response) }, 0.2, t, 0);
 
   it("translates « POSE-LE D'ABORD ! » once at build, for a firm def only", () => {
     expect(entriesFor('firm')[0]?.carriedVerb).toBe('<verb.put_down_first>');
@@ -1604,6 +1615,57 @@ describe('the chrono-ring of a marker (story 2.11)', () => {
       });
     });
 
+    it('has a chrono-ring on Papa too (the micro-sleep, AC 1): shown in telegraph and window, gone when settled', () => {
+      const [entry] = threatMarkerEntries(
+        [{ ...threat(9, 'idle'), defId: 'papa_microsleep', anchorId: 'papa', xM: 2, zM: 3 }],
+        [],
+        {
+          papa_microsleep: {
+            icon: 'eyelids',
+            target: 'papa',
+            verbKey: 'verb.wake_up',
+            iconShape: 'circle',
+            color: 'parry',
+            response: 'parry',
+            telegraphDelayMs: 1000,
+          },
+        },
+        0.2,
+        t,
+        0,
+      );
+      expect(entry).toMatchObject({
+        followsPapa: true,
+        hasChronoRing: true,
+        telegraphDelayMs: 1000,
+      });
+      const { markers, byClass } = buildRing();
+      markers.mount([entry as ThreatMarkerEntry]);
+      const [ring] = byClass(CHRONO_RING_CLASSES.root);
+      expect(ring?.hidden).toBe(true);
+      const at = (state: ThreatState, enteredAt: number) =>
+        ({
+          ...threat(9, state),
+          defId: 'papa_microsleep',
+          anchorId: 'papa',
+          enteredAt: asSimMs(enteredAt),
+          windowOpenAt: asSimMs(2000),
+          responseWindow: { windowMs: 400, perfectMs: 100 },
+          press: null,
+        }) as unknown as Readonly<ThreatInstance>;
+      markers.update([at('telegraph', 1000)], null, null, { xM: 4, zM: -2 }, 1500);
+      expect(ring?.hidden).toBe(false);
+      expect(markers.chronoRing(9)).toMatchObject({
+        startAt: 1000,
+        windowOpenAt: 2000,
+        closeAt: 2400,
+      });
+      markers.update([at('windowOpen', 2000)], null, null, { xM: 5, zM: -2 }, 2100);
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.lit)).toBe(true);
+      markers.update([at('resolved', 2000)], null, null, { xM: 5, zM: -2 }, 2200);
+      expect(ring?.hidden).toBe(true);
+    });
+
     it('has none on a wait, a nothing, a feint, or a def the level lacks', () => {
       for (const response of ['wait', 'nothing']) {
         const [entry] = entriesFor(response);
@@ -1618,6 +1680,7 @@ describe('the chrono-ring of a marker (story 2.11)', () => {
         {},
         0.2,
         t,
+        0,
       );
       expect(unknown?.hasChronoRing).toBeUndefined();
     });
@@ -1827,6 +1890,29 @@ describe('the chrono-ring of a marker (story 2.11)', () => {
       expect(markers.chronoRing(4)).toBe(ring);
       expect(ring?.notchPermille).toBe(Math.round((1200 / 1400) * 1000));
     });
+
+    it('lets go of a telegraph’s geometry once its threat is over, so a re-armed one never reads it', () => {
+      const { markers } = buildRing();
+      markers.mount([RING_ENTRY]);
+      markers.update([ringThreat('telegraph')], null, null, null, 1100);
+      markers.update([ringThreat('windowOpen')], null, null, null, 2100);
+      expect(markers.chronoRing(4)).not.toBeNull();
+      for (const state of ['resolved', 'gag', 'idle'] as const) {
+        markers.update([ringThreat('telegraph')], null, null, null, 1100);
+        expect(markers.chronoRing(4), `${state}: before`).not.toBeNull();
+        markers.update([ringThreat(state)], null, null, null, 2600);
+        expect(markers.chronoRing(4), state).toBeNull();
+      }
+      // The next telegraph sets it again, on its own start.
+      markers.update(
+        [ringThreat('telegraph', { enteredAt: asSimMs(5000), windowOpenAt: asSimMs(6000) })],
+        null,
+        null,
+        null,
+        5100,
+      );
+      expect(markers.chronoRing(4)).toMatchObject({ startAt: 5000, windowOpenAt: 6000 });
+    });
   });
 
   describe('the hold drains the ring (AC 11, D5)', () => {
@@ -1912,11 +1998,66 @@ describe('the chrono-ring of a marker (story 2.11)', () => {
       expect(ring?.classes.has(CHRONO_RING_CLASSES.hold)).toBe(false);
     });
 
-    it('does not drain a Firmness with no hold end (a release Firmness) nor a parry', () => {
-      const { markers, byClass, bySvgClass } = buildRing();
-      markers.mount([RING_ENTRY]);
+    // The entries come out of the real builder: a parry and a release Firmness (the bomb drop) carry no hold end.
+    const entryOf = (response: string, extra: Record<string, unknown> = {}): ThreatMarkerEntry => {
+      const [entry] = threatMarkerEntries(
+        [threat(4, 'idle')],
+        [{ id: 'outlet_01', positionM: [0, 0, 0] }],
+        {
+          outlet: {
+            icon: 'bolt' as const,
+            target: 'anchor' as const,
+            verbKey: 'verb.lift',
+            iconShape: 'circle' as const,
+            color: 'parry' as const,
+            response,
+            telegraphDelayMs: OPEN_AT - START_AT,
+            ...extra,
+          },
+        },
+        0.2,
+        t,
+        0,
+      );
+      return entry as ThreatMarkerEntry;
+    };
+
+    it.each([
+      [
+        'a release Firmness',
+        'firm',
+        { release: { pressWithinMs: 800 }, holdUntilMs: HOLD_UNTIL_MS },
+      ],
+      ['a parry', 'parry', {}],
+    ] as const)(
+      'does not drain %s with the finger down: the ring keeps filling, lit',
+      (_name, response, extra) => {
+        const entry = entryOf(response, extra);
+        expect(entry.holdUntilMs).toBeUndefined();
+        const { markers, byClass, bySvgClass } = buildRing();
+        markers.mount([entry]);
+        const [ring] = byClass(CHRONO_RING_CLASSES.root);
+        const [progress] = bySvgClass(CHRONO_RING_CLASSES.progress);
+        markers.update(
+          [ringThreat('windowOpen', { press: press(2100) })],
+          null,
+          null,
+          null,
+          2200,
+          HOLD_MIN_MS,
+        );
+        expect(ring?.classes.has(CHRONO_RING_CLASSES.hold)).toBe(false);
+        expect(ring?.classes.has(CHRONO_RING_CLASSES.lit)).toBe(true);
+        expect(offsetOf(progress)).toBe(String(1000 - Math.round((1200 / 1400) * 1000)));
+      },
+    );
+
+    it('drains a Firmness that has a hold end, to tell the two apart', () => {
+      const entry = entryOf('firm', { holdUntilMs: HOLD_UNTIL_MS });
+      expect(entry.holdUntilMs).toBe(HOLD_UNTIL_MS);
+      const { markers, byClass } = buildRing();
+      markers.mount([entry]);
       const [ring] = byClass(CHRONO_RING_CLASSES.root);
-      const [progress] = bySvgClass(CHRONO_RING_CLASSES.progress);
       markers.update(
         [ringThreat('windowOpen', { press: press(2100) })],
         null,
@@ -1925,9 +2066,7 @@ describe('the chrono-ring of a marker (story 2.11)', () => {
         2200,
         HOLD_MIN_MS,
       );
-      expect(ring?.classes.has(CHRONO_RING_CLASSES.hold)).toBe(false);
-      expect(ring?.classes.has(CHRONO_RING_CLASSES.lit)).toBe(true);
-      expect(offsetOf(progress)).toBe(String(1000 - Math.round((1200 / 1400) * 1000)));
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.hold)).toBe(true);
     });
   });
 

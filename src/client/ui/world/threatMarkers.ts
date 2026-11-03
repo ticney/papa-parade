@@ -237,7 +237,9 @@ function translateVerb(verbKey: string, threatId: number, t: Translator): string
  * happen (`createSim` refuses both); if it does the icon goes to the threat's floor point, or draws a
  * bolt in a parry circle with no verb, with a `warn`. Built once per level, never per frame. An entry whose
  * def's response has a chrono-ring (story 2.11) says so and carries the telegraph delay (the def's, or
- * `defaultTelegraphDelayMs`, the feel's) and, for a held Firmness, `holdUntilMs`.
+ * `defaultTelegraphDelayMs`, the feel's as it was at mount: required, a missing one would start the ring at
+ * the opening) and, for a held Firmness, `holdUntilMs`. The delay only serves the ring's start when its marker
+ * first sees the threat already open, which a `SetFeel` between the telegraph and then can shift.
  */
 export function threatMarkerEntries(
   threats: readonly Readonly<ThreatInstance>[],
@@ -245,7 +247,7 @@ export function threatMarkerEntries(
   defs: Readonly<Record<string, ThreatMarkerDef>>,
   babyBodyRadiusM: number,
   t: Translator,
-  defaultTelegraphDelayMs = 0,
+  defaultTelegraphDelayMs: number,
 ): ThreatMarkerEntry[] {
   return threats.map((threat) => {
     const def = defs[threat.defId];
@@ -722,6 +724,12 @@ function updateChronoRing(
       permille = chronoProgressPermille(ring, renderSimMs);
       isLit = isChronoArcLit(ring, renderSimMs);
     }
+  } else if (
+    threat === undefined ||
+    (threat.state !== 'telegraph' && threat.state !== 'windowOpen')
+  ) {
+    // The telegraph this geometry belonged to is over: `chronoRing(threatId)` must not hand it to the next one.
+    marker.isChronoRingSet = false;
   }
   chrono.draw(permille, isLit, isHold);
 }

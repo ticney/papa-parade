@@ -865,9 +865,11 @@ export async function boot(): Promise<void> {
         mirror('ppResponse', event.quality);
         // A judged press of a threat with a ring (story 2.11 AC 15): where the ring would have been at the
         // press instant, by the function that draws it, on the geometry its marker holds.
-        if (event.offsetMs !== null) {
+        // Only where the mirrors exist: production builds neither scan the markers nor build the string.
+        if (isMirrored && event.offsetMs !== null) {
           const ring = worldUi.chronoRingOf(event.threatId);
-          if (ring !== null) {
+          // A ring whose window is not the one judged belongs to another telegraph (no frame drew this one yet).
+          if (ring !== null && ring.closeAt - ring.windowOpenAt === event.responseWindow.windowMs) {
             mirror(
               'ppChronoJudged',
               chronoJudgedMirror(
@@ -1605,7 +1607,8 @@ export async function boot(): Promise<void> {
     timer: timerHud.element,
     sequenceBar,
   });
-  hudRoot.append(silenceBubble.element, silenceBubble.ring);
+  // The ring beside the bubble is mounted by the bubble itself, while it shows (the HUD's node budget).
+  hudRoot.append(silenceBubble.element);
   // Right before `#pp-world` (z-index 4 against its 5): it darkens the room, not the verbs and the icons.
   const instinctVignette = createInstinctVignette(document);
   worldRoot.before(instinctVignette.element);

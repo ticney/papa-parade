@@ -90,7 +90,8 @@ const defOf = {
   response: 'wait',
 } as const;
 
-const entries = () => threatMarkerEntries([threat(4, 'idle')], [], { bedtime_eyes: defOf }, 0.2, t);
+const entries = () =>
+  threatMarkerEntries([threat(4, 'idle')], [], { bedtime_eyes: defOf }, 0.2, t, 0);
 
 describe('the entry of a wait threat (story 4.6)', () => {
   it('translates the signal verb once at build and keeps the signal icon', () => {
@@ -117,6 +118,7 @@ describe('the entry of a wait threat (story 4.6)', () => {
       },
       0.2,
       t,
+      0,
     );
     expect(entry?.signalVerb).toBeUndefined();
     expect(entry?.signalIcon).toBeUndefined();
@@ -236,7 +238,7 @@ const feintThreat = (
   }) as Readonly<ThreatInstance>;
 
 const feintEntries = () =>
-  threatMarkerEntries([threat(4, 'idle')], [], { bedtime_eyes: feintDef }, 0.2, t);
+  threatMarkerEntries([threat(4, 'idle')], [], { bedtime_eyes: feintDef }, 0.2, t, 0);
 
 describe('the entry of a threat with a feint (story 4.7)', () => {
   it('keeps the feint glyph beside the signal one', () => {

@@ -110,7 +110,7 @@ const plainFirmDef = {
 } as const;
 
 const entries = () =>
-  threatMarkerEntries([threat(4, 'idle')], [], { bomb_drop_lay: releaseDef }, 0.2, t);
+  threatMarkerEntries([threat(4, 'idle')], [], { bomb_drop_lay: releaseDef }, 0.2, t, 0);
 
 describe('the entry of a Firmness judged on its release (story 4.8)', () => {
   it('has no carried verb: « POSE-LE D’ABORD ! » must not replace « TIENS… »', () => {
@@ -131,6 +131,7 @@ describe('the entry of a Firmness judged on its release (story 4.8)', () => {
       { bomb_drop_lay: plainFirmDef },
       0.2,
       t,
+      0,
     );
     expect(entry?.carriedVerb).toBe('<verb.put_down_first>');
     expect(entry?.signalVerb).toBeUndefined();

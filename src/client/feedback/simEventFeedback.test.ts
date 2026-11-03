@@ -67,7 +67,11 @@ function setup() {
 }
 
 /** A world with one threat of `defId`; Papa is gliding to it when `isGliding`. */
-function worldWith(defId: string, isGliding: boolean): World {
+function worldWith(
+  defId: string,
+  isGliding: boolean,
+  state: 'windowOpen' | 'resolved' = 'windowOpen',
+): World {
   return {
     time: { sim: asSimMs(1000) },
     papa: {
@@ -86,7 +90,7 @@ function worldWith(defId: string, isGliding: boolean): World {
         : null,
     },
     baby: { xM: 2, zM: 2 },
-    threats: [{ id: THREAT_ID, defId, xM: 1, zM: 1 }],
+    threats: [{ id: THREAT_ID, defId, xM: 1, zM: 1, state }],
   } as unknown as World;
 }
 
@@ -399,6 +403,16 @@ describe('playSimEventFeedback: the chrono-ring vibration (story 2.11)', () => {
     const { pulses, director } = setup();
     playSimEventFeedback(opened(), null, director);
     playSimEventFeedback(resolved('success'), sourceOf(worldWith('outlet', false)), director);
-    expect(pulses.includes('light')).toBe(false);
+    // The success cue's own haptic, and nothing else: the closing of a window adds no arc vibration.
+    expect(pulses).toEqual([feedback.cues.resp_parry?.haptic]);
+  });
+
+  it('does not add the arc vibration to a press buffered in the telegraph: one step, one vibration', () => {
+    const { pulses, director } = setup();
+    // The step that opens the window also resolves the buffered press: the world already shows it resolved.
+    const source = sourceOf(worldWith('outlet', false, 'resolved'));
+    playSimEventFeedback(opened(), source, director);
+    playSimEventFeedback(resolved('perfect'), source, director);
+    expect(pulses).toEqual([feedback.cues.resp_parry_perfect?.haptic]);
   });
 });

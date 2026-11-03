@@ -8,6 +8,7 @@ import {
   TARGET_HIGHLIGHT_OUTLINE_PX,
   TARGET_HIGHLIGHT_STROKE_PX,
 } from '@shared/constants';
+import { log } from '@shared/log';
 
 // The chrono-ring (story 2.11; DESIGN.md › chrono-ring, GDD mechanic 12): the pure part. Everything
 // here is a function of the world's sim time and of the window frozen at the telegraph, never of real
@@ -31,13 +32,29 @@ const HAS_CHRONO_RING: Readonly<Record<ThreatResponse, boolean>> = {
   nothing: false,
 };
 
+/** The response names the table did not know, warned about once each (a content bug, not a per-frame cost). */
+const warnedResponses = new Set<string>();
+
 /**
  * True when a threat of this response draws a chrono-ring, whatever it stands on. Takes a plain string
  * because a marker def's `response` is one (a test double may name a response the schema cannot yet
- * hold, like `dodge`): a name the table does not know has no ring.
+ * hold, like `dodge`): a name the table does not know has no ring, and says so with a `warn`, once.
  */
 export function hasChronoRing(response: string): boolean {
-  return (HAS_CHRONO_RING as Readonly<Record<string, boolean>>)[response] === true;
+  const hasRing = (HAS_CHRONO_RING as Readonly<Record<string, boolean | undefined>>)[response];
+  if (hasRing === undefined) {
+    if (!warnedResponses.has(response)) {
+      warnedResponses.add(response);
+      log.warn('render', `the response ${response} is not in the chrono-ring table: no ring`);
+    }
+    return false;
+  }
+  return hasRing;
+}
+
+/** Forgets the responses already warned about: for the tests. */
+export function resetChronoRingWarnings(): void {
+  warnedResponses.clear();
 }
 
 /**

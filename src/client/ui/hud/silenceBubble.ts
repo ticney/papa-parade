@@ -1,4 +1,5 @@
 import { HOLD_RING_OUTLINE_PX, HOLD_RING_STROKE_PX } from '@shared/constants';
+import { log } from '@shared/log';
 import type { World } from '@sim';
 import type { Translator } from '../strings.ts';
 import {
@@ -41,8 +42,9 @@ export interface SilenceBubble {
   readonly element: HTMLElement;
   /**
    * The ring beside the bubble (story 2.11, AC 12): a sibling of the bubble, not a child, so it does not
-   * blink with it. The caller puts it in the HUD root after the bubble. It is 3 DOM nodes (the ring, its
-   * outline and its band), which count against `HUD_MAX_DOM_NODES`.
+   * blink with it. The bubble itself mounts it right after the bubble's own element, in the same parent,
+   * while the ring shows, and takes it away when it hides: it is 3 DOM nodes (the ring, its outline and
+   * its band), which count against `HUD_MAX_DOM_NODES` only then.
    */
   readonly ring: HTMLElement;
   /**
@@ -171,9 +173,15 @@ export function createSilenceBubble(doc: Doc, options: SilenceBubbleOptions): Si
     const isVisible = isShown && isPlaced && hasSpan && renderSimMs !== null;
     const permille = isVisible ? chronoProgressPermille(span, renderSimMs) : RING_HIDDEN;
     if (permille === ringPermille) return;
-    if (permille === RING_HIDDEN) ring.hidden = true;
-    else {
-      if (ringPermille === RING_HIDDEN) ring.hidden = false;
+    if (permille === RING_HIDDEN) {
+      ring.hidden = true;
+      ring.remove();
+    } else {
+      if (ringPermille === RING_HIDDEN) {
+        ring.hidden = false;
+        // Mounted beside the bubble only while it shows: hidden, it would cost 3 of the HUD's nodes.
+        if (element.parentNode !== null) element.after(ring);
+      }
       ring.style.setProperty('--pp-silence-progress', CHRONO_PERMILLE_STRINGS[permille] as string);
     }
     ringPermille = permille;
@@ -202,6 +210,12 @@ export function createSilenceBubble(doc: Doc, options: SilenceBubbleOptions): Si
               hasSpan = true;
               span.startAt = startedAt;
               span.closeAt = startedAt + findMaxMs;
+            } else {
+              log.warn('feedback', 'the silence has no find deadline: its ring stays hidden', {
+                defId: threat.defId,
+                startedAt,
+                findMaxMs,
+              });
             }
           }
         }

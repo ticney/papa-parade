@@ -126,9 +126,14 @@ describe('threatCueOf for the micro-sleep (story 1.19)', () => {
 
 describe('opensChronoArc (story 2.11, D6)', () => {
   const opened: SimEvent = { type: 'WindowOpened', t, threatId };
+  /** The world as the opening step leaves it: the threat is `windowOpen`. */
+  const openWorld = {
+    ...world,
+    threats: [{ ...(world.threats[0] as object), state: 'windowOpen' }],
+  } as unknown as World;
 
   it('is true for the opening of a parry window: the lit arc vibrates once', () => {
-    expect(opensChronoArc(opened, world, defs)).toBe(true);
+    expect(opensChronoArc(opened, openWorld, defs)).toBe(true);
   });
 
   it('is false for any other event', () => {
@@ -137,13 +142,14 @@ describe('opensChronoArc (story 2.11, D6)', () => {
       { type: 'WaitSignalGiven', t, threatId },
       resolved('perfect'),
     ];
-    for (const event of others) expect(opensChronoArc(event, world, defs), event.type).toBe(false);
+    for (const event of others)
+      expect(opensChronoArc(event, openWorld, defs), event.type).toBe(false);
   });
 
   it('is false for a response with no ring (a wait, a nothing): a signal plays nothing new', () => {
     for (const response of ['wait', 'nothing'] as const) {
       const noRing = { ...outlet, response } as unknown as ThreatDef;
-      expect(opensChronoArc(opened, world, { [outlet.id]: noRing }), response).toBe(false);
+      expect(opensChronoArc(opened, openWorld, { [outlet.id]: noRing }), response).toBe(false);
     }
   });
 
@@ -152,11 +158,21 @@ describe('opensChronoArc (story 2.11, D6)', () => {
       ...outlet,
       feedback: { ...outlet.feedback, signal: 'bomb_signal' },
     } as ThreatDef;
-    expect(opensChronoArc(opened, world, { [outlet.id]: withSignal })).toBe(false);
+    expect(opensChronoArc(opened, openWorld, { [outlet.id]: withSignal })).toBe(false);
+  });
+
+  it('is false when the same step already resolved the threat (a press buffered in the telegraph)', () => {
+    for (const state of ['resolved', 'gag', 'idle', 'telegraph']) {
+      const settled = {
+        ...world,
+        threats: [{ ...(world.threats[0] as object), state }],
+      } as unknown as World;
+      expect(opensChronoArc(opened, settled, defs), state).toBe(false);
+    }
   });
 
   it('is false for a threat the world or the defs do not know', () => {
-    expect(opensChronoArc({ ...opened, threatId: threatId + 99 }, world, defs)).toBe(false);
-    expect(opensChronoArc(opened, world, {})).toBe(false);
+    expect(opensChronoArc({ ...opened, threatId: threatId + 99 }, openWorld, defs)).toBe(false);
+    expect(opensChronoArc(opened, openWorld, {})).toBe(false);
   });
 });

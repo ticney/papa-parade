@@ -6,6 +6,7 @@ import {
   HOLD_RING_OUTLINE_PX,
   HOLD_RING_STROKE_PX,
 } from '@shared/constants';
+import { log } from '@shared/log';
 import { describe, expect, it } from 'vitest';
 import {
   applyChronoRingMetrics,
@@ -22,6 +23,7 @@ import {
   createChronoRing,
   hasChronoRing,
   isChronoArcLit,
+  resetChronoRingWarnings,
   threatFootprint,
 } from './chronoRing.ts';
 
@@ -38,10 +40,29 @@ describe('hasChronoRing', () => {
     expect(hasChronoRing('nothing')).toBe(false);
   });
 
-  it('says yes or no for every response of the schema', () => {
+  it('says what it expects for every response of the schema, so a new one fails here until it is decided', () => {
+    const expected: Record<string, boolean> = {
+      parry: true,
+      firm: true,
+      wait: false,
+      nothing: false,
+    };
+    expect([...THREAT_RESPONSES].sort()).toEqual(Object.keys(expected).sort());
     for (const response of THREAT_RESPONSES) {
-      expect(typeof hasChronoRing(response)).toBe('boolean');
+      expect(hasChronoRing(response), response).toBe(expected[response]);
     }
+  });
+
+  it('has no ring for a response the table does not know, and warns about it once', () => {
+    resetChronoRingWarnings();
+    const warnsAbout = (name: string): number =>
+      log.buffer().filter((record) => record.level === 'warn' && record.message.includes(name))
+        .length;
+    expect(hasChronoRing('levitate')).toBe(false);
+    expect(hasChronoRing('levitate')).toBe(false);
+    expect(warnsAbout('levitate')).toBe(1);
+    expect(hasChronoRing('teleport')).toBe(false);
+    expect(warnsAbout('teleport')).toBe(1);
   });
 });
 
@@ -97,10 +118,23 @@ describe('chronoRingOf', () => {
     expect(ring.notchToPermille).toBe(1000);
   });
 
-  it('does not divide by zero on a degenerate span', () => {
+  it('counts a degenerate span (no delay, no window) as one ms: nothing is NaN, the ring fills in that ms', () => {
     const ring = ringOf({ windowMs: 0, perfectMs: 0 }, 2000, 2000);
-    expect(Number.isFinite(ring.arcFromPermille)).toBe(true);
-    expect(chronoProgressPermille(ring, 2000)).toBeGreaterThanOrEqual(0);
+    expect([
+      ring.arcFromPermille,
+      ring.notchPermille,
+      ring.notchFromPermille,
+      ring.notchToPermille,
+    ]).toEqual([0, 0, 0, 0]);
+    expect(chronoProgressPermille(ring, 2000)).toBe(0);
+    expect(chronoProgressPermille(ring, 2001)).toBe(1000);
+    // A span that ends before it starts (a clock that went back) is the same one ms.
+    expect(
+      chronoProgressPermille(
+        chronoRingOf(createChronoRing(), 3000, 2000, { windowMs: 0, perfectMs: 0 }),
+        3001,
+      ),
+    ).toBe(1000);
   });
 
   it('writes into the ring it is given and returns it', () => {

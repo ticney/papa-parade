@@ -1,3 +1,4 @@
+import { log } from '@shared/log';
 import { describe, expect, it } from 'vitest';
 import {
   createSilenceBubble,
@@ -21,13 +22,29 @@ class FakeElement {
   };
   readonly attributes = new Map<string, string>();
   readonly children: FakeElement[] = [];
+  parentNode: FakeElement | null = null;
   classWrites = 0;
   topWrites = 0;
   setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
   }
   append(...children: FakeElement[]): void {
+    for (const child of children) child.parentNode = this;
     this.children.push(...children);
+  }
+  /** `ChildNode.after`: a sibling right behind this element, in the same parent. */
+  after(node: FakeElement): void {
+    const parent = this.parentNode;
+    if (parent === null) return;
+    node.remove();
+    parent.children.splice(parent.children.indexOf(this) + 1, 0, node);
+    node.parentNode = parent;
+  }
+  remove(): void {
+    const parent = this.parentNode;
+    if (parent === null) return;
+    parent.children.splice(parent.children.indexOf(this), 1);
+    this.parentNode = null;
   }
 }
 
@@ -77,9 +94,13 @@ function setup(point = { x: 700, y: 200 }, viewport = { width: 844, height: 390 
     silence: { threatId: 7, zoneEnteredAt: 100, startedAt: 2100 },
     threats: [{ id: 7, defId: 'silence_mischief', xM: 1.5, zM: -2.6 }],
   } as unknown as Parameters<typeof bubble.update>[1];
+  // The HUD root the bubble sits in: the ring is mounted beside it, there, while it shows.
+  const host = new FakeElement();
+  host.append(element);
   return {
     bubble,
     element,
+    host,
     world,
     calls,
     setPoint: (next: { x: number; y: number }) => Object.assign(point, next),
@@ -278,6 +299,42 @@ describe('the ring beside the bubble (story 2.11, AC 12)', () => {
     unknown.bubble.update(true, other, 3000);
     expect(unknown.element.hidden).toBe(false);
     expect(ringOf(unknown.bubble).hidden).toBe(true);
+  });
+
+  it('is mounted right behind the bubble only while it shows, so a hidden one costs no HUD node', () => {
+    const { bubble, element, host, world } = setup();
+    const ring = ringOf(bubble);
+    expect(host.children).toEqual([element]);
+    bubble.update(false, undefined, 0);
+    expect(host.children).toEqual([element]);
+    bubble.update(true, world, 3000);
+    expect(host.children).toEqual([element, ring]);
+    expect(ring.parentNode).toBe(host);
+    // A frame later, a resize: still one ring, still behind the bubble.
+    bubble.update(true, world, 3100);
+    bubble.relayout();
+    expect(host.children).toEqual([element, ring]);
+    bubble.update(false, world, 3200);
+    expect(host.children).toEqual([element]);
+    expect(ring.parentNode).toBeNull();
+    bubble.update(true, world, 3300);
+    expect(host.children).toEqual([element, ring]);
+  });
+
+  it('warns, and stays hidden, when the silence has no find deadline to count down', () => {
+    const { bubble, world } = setup();
+    const seen = log.buffer().length;
+    const noDeadline = {
+      ...world,
+      threats: [{ id: 7, defId: 'another_def', xM: 0, zM: 0 }],
+    } as unknown as Parameters<typeof bubble.update>[1];
+    bubble.update(true, noDeadline, 3000);
+    const warns = log
+      .buffer()
+      .slice(seen)
+      .filter((record) => record.level === 'warn' && /no find deadline/.test(record.message));
+    expect(warns).toHaveLength(1);
+    expect(ringOf(bubble).hidden).toBe(true);
   });
 
   it('writes the progress only when the per-mille changes', () => {
