@@ -45,10 +45,10 @@ Requirement: FR34 (revised in GDD v2.3), UX-DR13 (revised). First story of the v
 ### Journals, report, goldens
 
 13. **Given** `LevelScored` and `MamaScore`, **when** they are emitted or stored, **then** they carry `laughPoints`, `calmPoints`, `homePoints`, `sighPoints`, `screamPoints`, `scorePoints`, `stars`, `lostStars` (`babyStatePoints` is gone), and the exported journal's `summary.score` has that shape.
-14. **Given** a journal exported before this story (`summary.score` with `babyStatePoints`), **when** it is parsed (`JournalSchema`, `npm run sim:replay`, `npm run playtest:metrics`), **then** it is still a valid journal file: the legacy four-row score is accepted beside the new one. (Replaying it still fails on the feel hash, as after every feel change: AC 16 is the way to rescore it.)
+14. **Given** a journal exported before this story (`summary.score` with `babyStatePoints`), **when** it is parsed (`JournalSchema`, `npm run sim:replay`, `npm run playtest:metrics`), **then** it is still a valid journal file: the legacy four-row score is accepted beside the new one. (Replaying it still fails on the feel hash, as after every feel change.)
 15. **Given** `npm run sim -- --bot <id>` on the salon, **when** the report is written, **then** it keeps every existing field (3.14 and `playtest:metrics` read them) and adds the mean of each of the five rows over the runs that ended.
-16. **Given** journals exported from a playtest build before this story and the `feel.json` they were played with, **when** `npm run sim:rescore -- --recorded-feel <feel.json> <journal files or folder>` runs, **then** each journal is replayed with the current content, after checking that the recorded feel hashes to the journal's `feelHash` and differs from the current feel in `mama` only, and that the replay gives the same end reason and the same response counts by quality as the journal's summary; the tool prints, per journal, the old note and the new five rows, score and stars, plus the median score, and refuses (listed, exit 1) a journal that fails a check.
-17. **Given** `npm run sim -- --bot human` on the salon and Geo's journals of 2026-11-03 rescored (AC 16), **when** the note is recomputed, **then** a game of Geo's no longer lands mechanically on 20 points; the goldens are regenerated deliberately (`npm run golden:update`), and the Completion Notes say what moved.
+16. **Given** the « Geo » tally of D7 (Geo's games of 2026-11-03 as the change proposal describes them; he kept no journal), **when** the note is computed with the new feel, **then** it is 34 points (1★), where the old feel gave 20; a unit test pins both.
+17. **Given** `npm run sim` on the salon with `perfect`, `human`, `random` and `idle`, **when** the note is recomputed, **then** `random` (the bot that landed on 20 like Geo, D10) no longer lands mechanically on 20 points, and the before / after tables are in the Completion Notes; the goldens are regenerated deliberately (`npm run golden:update`), and the Completion Notes say what moved.
 
 ### Docs
 
@@ -78,15 +78,11 @@ Requirement: FR34 (revised in GDD v2.3), UX-DR13 (revised). First story of the v
   - [ ] `src/content/schemas/journal.ts`: `ScoreSchema` (five rows) and `LegacyScoreSchema` (the four rows before v2.3), `summary.score: z.union([...])`; `JOURNAL_FILE_VERSION` stays 1 (precedent: the optional fields of 4.10); tests in `journal.test.ts` (a legacy score parses; a mix of both is refused)
   - [ ] `src/client/telemetry/gameSummary.ts` writes the new shape; its test
   - [ ] `tools/sim/simReport.ts`: per-run rows and `meanRows` (D8); `tests/tools/sim/simReport.test.ts` whole-report pins; `tests/tools/sim/mamaScore.test.ts` builds the new tally
-- [ ] Task 5: Rescoring Geo's journals (AC: 16, 17)
-  - [ ] New `tools/sim/rescoreJournals.ts` and the `sim:rescore` script in `package.json` (D9); add it to the Commands table of `CLAUDE.md` (one row, like `sim:replay`)
-  - [ ] Tests in `tests/tools/sim/rescoreJournals.test.ts` on journals made in the test (play a short game with `createSim`, export it with the client's journal builder or by hand, change `mama`): a match, a recorded feel with another hash, a feel that differs outside `mama`, a journal whose replay diverges (forged counts)
-  - [ ] Run it on Geo's journals (Open point 1), with the feel of commit `231d5de` (`git show 231d5de:content/feel.json` into the scratchpad); paste the table in the Completion Notes
-- [ ] Task 6: Goldens, e2e, measures (AC: 17 and all)
+- [ ] Task 5: Goldens, e2e, measures (AC: 16, 17 and all)
   - [ ] `npm run golden:update`, deliberately; read the diff (Traps) and say in the Completion Notes what moved
   - [ ] E2E (Chromium): `result.spec.ts` (five labels, values, maxima, sum), `combo.spec.ts` (the Rire formula gains the successes), and every spec that names `babyStatePoints` / `babyStateMaxPoints` (`grep -rn babyState tests src tools`): `tests/e2e/support/game.ts`, `timer`, `journal`, `mamaWoke`, `finalRush`, `photo`, `tests/e2e-dist/dist.spec.ts`
   - [ ] `npm run sim` on the salon with `human`, `random`, `perfect`, `idle`, 20 runs from seed 1000: `meanScore`, `meanStars`, the new `meanRows`, before (D10) and after, in the Completion Notes
-- [ ] Task 7: Docs (AC: 18)
+- [ ] Task 6: Docs (AC: 18)
   - [ ] `project-context.md › Mama's note` and every « four rows » left in code comments (`grep -rn "four rows\|4 rows\|État du bébé\|baby state" src tools tests`)
   - [ ] `npm run ci:fast` after each task, plus the touched specs on Chromium: `result`, `combo`, `photo`, `mamaWoke`, `finalRush`, `timer`, `journal`, `chambreNight`, `debugOverlay` (its Result tests)
 
@@ -94,16 +90,16 @@ Requirement: FR34 (revised in GDD v2.3), UX-DR13 (revised). First story of the v
 
 ### Decisions
 
-- **D1. Rename, do not alias.** « État du bébé » becomes « Calme du bébé » in every layer: `calmPoints`, `calmMaxPoints`, `result.score_calm`, `pp-score-chip-calm`. There is no compatibility key in `feel.json` or the sim: old journals are only read (AC 14) or rescored (AC 16), never replayed as they are. E5 (story 5.2) will change how `calmPoints` is computed, not its name.
+- **D1. Rename, do not alias.** « État du bébé » becomes « Calme du bébé » in every layer: `calmPoints`, `calmMaxPoints`, `result.score_calm`, `pp-score-chip-calm`. There is no compatibility key in `feel.json` or the sim: old journals are only read (AC 14), never replayed as they are. E5 (story 5.2) will change how `calmPoints` is computed, not its name.
 - **D2. Values in `feel.json › mama`** (keep the file's key order, new keys beside their row):
   `laughMaxPoints` 35, `laughPerPerfectPoints` 1, `laughPerSuccessPoints` 0.5, `calmMaxPoints` 20, `calmNoiseThresholdPct` 50, `homeMaxPoints` 15, `baseScorePoints` 30, `sighMaxPoints` 15, `screamMaxPoints` 15, `starThresholdPoints` [20, 40, 60, 75, 90], `earlyWakePenaltyStars` 1, `sighPerPropOnFloorPoints` 2.5, `sighPerBrokenPropPoints` 4, `sighPerMischiefPoints` 1.5, `screamPerNearMissPoints` 1.5. They are the GDD's « pentes de départ » (open question 13): Geo tunes them in the feel panel, which builds its fields from the schema.
 - **D3. What counts as a success.** Every `ResponseResolved{quality: 'success'}` from `resolveThreat`, exactly where perfects are counted (`threatFsm.ts:237`): the micro-sleep's, a sequence's and a `nothing` response's included, as for perfects since 1.22. A fail counts nothing. Counters are written at their source; no system reads `ctx.events` (project rule).
 - **D4. The calm tracker lives in `scoring/calmTracker.ts`** (the architecture names it, L510, L606) and runs inside `runScoring`, which keeps its slot between `runGauges` and `runFlow`: so it reads this step's `noisePct`, and the step that ends the level is counted before `runFlow` calls `scoreLevel`. `SYSTEMS` does not change. `runScoring`'s comment becomes « the combo's carry tick and the calm tracker ». Allocation-free, no draw. The calm rule is « strictly below » the threshold (« sous 50 % »). The share is `calmMs / playedMs`, with `playedMs = world.time.sim` read in `scoreLevel` (the sim starts every level at 0, and `ENDED_SYSTEMS` keep the clock going after the end, so read it in the ending step, never later); `playedMs === 0` gives a share of 1.
 - **D5. Maison is an input of the note, 0 for now.** `ScoreTally.homePoints` exists and is held to `homeMaxPoints`; `scoreLevel` passes `0` with a comment « no chore before E9 (story 9.4 writes it) ». No `world.chores` and no counter in `World` yet: E9 adds them. `computeMamaScore` tests cover a non-zero and a clamped `homePoints`.
 - **D6. Two chips.** Same 16 × 16 viewBox and `currentColor` drawing as the four existing ones: Calme du bébé is a sleeping face (two closed-eye arcs and a small smile, `pp-score-chip-line` strokes), Maison is a little house (roof and door). The chip background is the accent (`mama-calm`, `mama-home`); `DESIGN.md` says no text sits on them and the ink icon is graphics only (contrast ≈ 3.5 / 3.2:1, fine for non-text). The old `baby` chip had a `paper` background; it goes.
-- **D7. The « Geo » tally.** From the change proposal: Geo's games had 0 perfect, Sigh and Scream saturated (≥ 3 props on the floor, ≥ 5 near misses). A unit test pins that, with the new feel, a tally of 0 perfect, 20 successes, 3 props on the floor, 5 near misses and half the time calm gives Rire 10, Calme 10, Maison 0, Soupir 8, Hurlement 8 (7.5 rounded up by `Math.round`), score 34 (1 star), and that the old feel would have given 20. Name it in the test as the playtest finding; it is the evidence of AC 17 if Geo's journals are not available.
+- **D7. The « Geo » tally.** From the change proposal: Geo's games had 0 perfect, Sigh and Scream saturated (≥ 3 props on the floor, ≥ 5 near misses). A unit test pins that, with the new feel, a tally of 0 perfect, 20 successes, 3 props on the floor, 5 near misses and half the time calm gives Rire 10, Calme 10, Maison 0, Soupir 8, Hurlement 8 (7.5 rounded up by `Math.round`), score 34 (1 star), and that the old feel would have given 20. Name it in the test as the playtest finding: Geo kept no journal of that playtest, so this tally and the `random` bot (D10) are the evidence of AC 16-17.
 - **D8. Report rows.** Each run of the report gains its five rows (`null` for a run cut before the end, like `scorePoints`), and the report gains, beside `meanScore` (top level), `meanRows: { laughPoints, calmPoints, homePoints, sighPoints, screamPoints } | null` (one decimal, over the runs that ended, like `meanScore`). No existing field moves or changes name: 3.14 compares bots and Geo on these files.
-- **D9. The rescore tool.** `tools/sim/rescoreJournals.ts`, Node only, reusing `parseJournalFile`, `journalFileToRunFile`, `loadSimLevel` and `replayJournal` of `tools/sim/replaySim.ts` / `src/sim/replay.ts`. For each journal: (1) parse (legacy score accepted); (2) `hashJson(JSON.parse(recordedFeel)) === journal.replay.journal.feelHash` (`canonicalJson` sorts keys, so the raw file and the Zod-parsed feel hash alike), else refuse « played on another feel »; (3) the recorded feel and the current one are equal once `mama` is removed from both (compare `canonicalJson`), else refuse « the feel changed outside mama: the game would not replay »; (4) replay with the current content, the envelope's `feelHash` set to `hashJson(current feel)` (a copy, in the tool only: `replayJournal` and `createSim` keep their gate) and `strictInvariants` as recorded, until `endSimMs`; (5) check the replay's `LevelEnded.reason` equals `summary.endReason` and its response counts by quality, counted from the replayed events exactly as `client/telemetry/gameSummary.ts` counts them (reuse its recorder if it runs in Node, else read which events it counts), equal `summary.responses.byQuality`, else refuse « the replay diverged »; (6) print a Markdown table: file, end reason, old score and stars (`summary.score`), the five new rows, new score and stars; then the median of old and new scores. `--out <md>` writes it (use `tools/outputFile.ts`). Exit 1 if any journal was refused, after printing the others. **No guardrail of the sim is relaxed:** the hash is rewritten on a copy of a journal whose gameplay feel was proven equal. This only works while nothing but `mama` has changed since the journals were recorded, which is why it runs in this story (3.13 changes the director): keep the table in the story, 3.14 reads it.
+- **D9. No rescore of old journals.** Geo kept no journal of the 2026-11-03 playtest, so no tool replays old journals with the new note: an old journal is only parsed (AC 14). Replaying one with the new feel is refused on the feel hash, as after every feel change; that gate stays.
 - **D10. Baseline before the change** (this story's creation, `npm run sim -- --level salon_crawler --runs 20 --seed 1000`, current four-row note):
 
   | Bot | `meanScore` | `meanStars` | `starCounts` (0★…5★) | `meanSuccessPct` | `endsByReason` |
@@ -156,7 +152,7 @@ Requirement: FR34 (revised in GDD v2.3), UX-DR13 (revised). First story of the v
 - Propre / nourri / reposé replacing the calm share: E5 (5.2).
 - The catastrophe gauge and « Maman est rentrée plus tôt ! » (0 star): 3.16. The ending reason `mamaHome` does not exist yet.
 - Mama's lines and `mum-bubble` (3.7), the replay (3.9), the unlock buttons (3.11).
-- Tuning the bot `human` toward Geo: 3.14 (it reads this story's rescored table).
+- Tuning the bot `human` toward Geo: 3.14.
 - A gag also resetting the multiplier and costing noise (FR34's last sentence): already true (story 4.2 and 3.1).
 
 ### Architecture compliance
@@ -164,7 +160,6 @@ Requirement: FR34 (revised in GDD v2.3), UX-DR13 (revised). First story of the v
 - `src/sim` stays pure: no `Math.random`, no real time, no log; the tracker uses `STEP_MS` from `@shared/constants`.
 - `World` stays serialisable: two numbers in `score`; `SimSnapshot.version` 29.
 - Tunables in `feel.json`; the schema holds only bounds; no `.default()` / `.optional()` in `feel.ts`.
-- `tools/sim/rescoreJournals.ts` is Node only, imports `@sim`, `@content`, `@shared` and `tools/sim/*`; nothing in `src/` imports it. I/O returns `Result`, every fallback logs a `warn`, `log.<level>` only (no `console.*`).
 - Client: the Result screen reads `MamaScore` and `feel.mama`; colours are tokens (`designTokens.test.ts` checks both ways).
 
 ### Library and framework notes
@@ -173,8 +168,8 @@ Stack pinned, nothing added: TypeScript 7 (`tsc --noEmit`), Zod 4 (`z.strictObje
 
 ### File structure
 
-- **New:** `src/sim/scoring/calmTracker.ts` and its test; `tools/sim/rescoreJournals.ts`; `tests/tools/sim/rescoreJournals.test.ts`.
-- **Updated:** `src/sim/{world,events,snapshot}.ts`, `src/sim/threats/threatFsm.ts`, `src/sim/scoring/{mamaScore,combo}.ts` and tests, `src/content/schemas/{feel,journal}.ts` and tests, `content/{feel,strings.fr}.json`, `content/_schemas/feel.schema.json`, `src/client/ui/screens/resultScreen.ts` and test, `src/client/ui/styles/{tokens,ui}.css`, `src/client/boot.ts`, `src/client/telemetry/gameSummary.ts` and test, `src/client/app/levelSession.test.ts`, `src/debug/{cheats,playtestJournal}.test.ts`, `tools/sim/simReport.ts`, `package.json` (`sim:rescore`), `CLAUDE.md` (one Commands row), `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json`, `tests/content/feelSchema.test.ts`, `tests/tools/sim/{mamaScore,simReport}.test.ts`, `tests/tools/playtest/support.ts`, `tests/golden/*` (regenerated), the e2e specs of Task 6, `_bmad-output/project-context.md`.
+- **New:** `src/sim/scoring/calmTracker.ts` and its test.
+- **Updated:** `src/sim/{world,events,snapshot}.ts`, `src/sim/threats/threatFsm.ts`, `src/sim/scoring/{mamaScore,combo}.ts` and tests, `src/content/schemas/{feel,journal}.ts` and tests, `content/{feel,strings.fr}.json`, `content/_schemas/feel.schema.json`, `src/client/ui/screens/resultScreen.ts` and test, `src/client/ui/styles/{tokens,ui}.css`, `src/client/boot.ts`, `src/client/telemetry/gameSummary.ts` and test, `src/client/app/levelSession.test.ts`, `src/debug/{cheats,playtestJournal}.test.ts`, `tools/sim/simReport.ts`, `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json`, `tests/content/feelSchema.test.ts`, `tests/tools/sim/{mamaScore,simReport}.test.ts`, `tests/tools/playtest/support.ts`, `tests/golden/*` (regenerated), the e2e specs of Task 5, `_bmad-output/project-context.md`.
 - The full list of files naming the old fields today: `grep -rln "babyStatePoints\|babyStateFixedPoints\|babyStateMaxPoints" src tools tests content`.
 
 ### Testing
@@ -183,7 +178,7 @@ Stack pinned, nothing added: TypeScript 7 (`tsc --noEmit`), Zod 4 (`z.strictObje
 - **Pure:** `computeMamaScore` over a grid (perfects × successes × props × near misses, clamped and not), so AC 4 cannot pass by accident; assert exact rows, not just the sum.
 - **Client unit:** `resultScreen.test.ts` with its fake scheduler and `photo: null`; five rows, order, labels, `/max` from the maxima passed in.
 - **E2E (Chromium):** `result.spec.ts` asserts the five labels, values from `LevelScored` and maxima from the live feel, and that they add up; the Maison row reads `0` and `/15`.
-- **Tools:** the rescore tool on journals built in the test; `simReport.test.ts` whole-report pins with the new fields.
+- **Tools:** `simReport.test.ts` whole-report pins with the new fields.
 - **Look at it:** screenshots of the five rows on both levels, both landscape sizes; say in the notes what Geo should judge (the two new accents are `[ASSUMPTION]` in `DESIGN.md`).
 - **Checks:** `npm run ci:fast` per task; `ci:story` belongs to the review, not to dev-story.
 
@@ -201,7 +196,7 @@ Recent commits: `231d5de` (correct-course: GDD v2.3 split into stories), `ff2d0b
 
 ### Project Structure Notes
 
-Follows the layers and aliases; `scoring/calmTracker.ts` is where the architecture puts it. No variance. The rescore tool sits beside `replaySim.ts` in `tools/sim/`.
+Follows the layers and aliases; `scoring/calmTracker.ts` is where the architecture puts it. No variance.
 
 ### Project Context Rules
 
@@ -215,7 +210,7 @@ Follows the layers and aliases; `scoring/calmTracker.ts` is where the architectu
 
 ### Open points for Geo
 
-1. **Your journals of 2026-11-03.** They are not in the repo and were not found on this Mac. AC 16-17 rescore them. Put them in `docs/playtest/geo/` (3.14 expects them there too; they hold no personal data). The rescore works only while the feel has changed in `mama` alone, so **before 3.13 is merged**. Without them, the dev proves AC 17 with the « Geo » tally of D7 and the `human` bot, and says so.
+1. **No journal of 2026-11-03** (Geo kept none, said on 2026-11-03). The evidence is the « Geo » tally of D7 and the `random` bot; there is no rescore tool. **Story 3.14 depends on such journals** (its AC compares `human` with their median): it will need new journals from Geo, from a playtest after the catch-up stories, or another reference. Raise it when 3.14 is created.
 2. **Half points round up.** With 2.5 per prop, one prop costs 3 points and two cost 5 (7.5 → 8 for three). That is `Math.round`; if you would rather floor the penalties, it is one line, but say so before the goldens are regenerated.
 3. **Calme du bébé is « strictly below 50 % » of the noise**, measured on every step of the level, the final rush included. The two levels start quiet, so a calm player gets close to 20.
 4. **The two new accents** (`mama-calm` rose, `mama-home` brown) are `[ASSUMPTION]` in `DESIGN.md`: judge them on the screenshots.
