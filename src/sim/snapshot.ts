@@ -8,6 +8,7 @@ import {
   PHONE_RINGING_EVERY_MS,
   QUATERNION_LENGTH_TOLERANCE,
   STAR_COUNT_MAX,
+  STEP_MS,
 } from '@shared/constants';
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
@@ -1090,11 +1091,12 @@ function isLevelOver(state: unknown): boolean {
 }
 
 /**
- * Mama's counters are non-negative integers; her note (story 1.22) is `null` while the level plays
+ * Mama's counters are non-negative integers, and the calm time (story 3.12) is whole steps no later
+ * than the clock (the tracker adds one `STEP_MS` per live step); her note (story 1.22) is `null` while the level plays
  * and a whole `MamaScore` once it has ended (`runFlow` gives it in the ending step), with a score of
  * at most `MAMA_SCORE_MAX_POINTS`, and at most five stars, the lost ones included.
  */
-function scoreProblem(score: unknown, isEnded: boolean): string | null {
+function scoreProblem(score: unknown, now: number, isEnded: boolean): string | null {
   if (typeof score !== 'object' || score === null) return 'world.score is missing';
   const slice = score as Record<string, unknown>;
   if (!isCount(slice.perfects)) return 'world.score.perfects';
@@ -1105,6 +1107,9 @@ function scoreProblem(score: unknown, isEnded: boolean): string | null {
   }
   if (!isCount(slice.propsTidied)) return 'world.score.propsTidied';
   if (!isCount(slice.calmMs)) return 'world.score.calmMs';
+  if ((slice.calmMs as number) % STEP_MS !== 0 || (slice.calmMs as number) > now) {
+    return 'world.score.calmMs';
+  }
   const { final } = slice;
   if (!isEnded) return final === null ? null : 'world.score.final';
   if (typeof final !== 'object' || final === null) return 'world.score.final';
@@ -1319,7 +1324,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
       clock.sim as number,
       isLevelOver((flow as { state: unknown }).state),
     ) ??
-    scoreProblem(score, isLevelOver((flow as { state: unknown }).state)) ??
+    scoreProblem(score, clock.sim as number, isLevelOver((flow as { state: unknown }).state)) ??
     inputProblem(input) ??
     difficultyTierProblem(difficultyTier) ??
     feelProblem(feel, initialFeel)

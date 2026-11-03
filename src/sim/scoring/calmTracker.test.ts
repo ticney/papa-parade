@@ -7,9 +7,12 @@ import {
   createTestLevel,
   NOISE_GAUGES,
   stepN,
+  TEST_OBJECTS,
 } from '../../../tests/support/testContent.ts';
-import type { StepContext } from '../context.ts';
-import { createSim } from '../createSim.ts';
+import type { StepContext, System } from '../context.ts';
+import { createSim, createSimWithSystems, type Sim } from '../createSim.ts';
+import type { SimEvent } from '../events.ts';
+import { SYSTEMS } from '../step.ts';
 import type { World } from '../world.ts';
 import { calmShareOf, tickCalm } from './calmTracker.ts';
 
@@ -167,5 +170,88 @@ describe('the calm tracker through a real sim', () => {
     const sim = await newSim({ hasNoise: false });
     stepN(sim, DURATION_MS / STEP_MS);
     expect(sim.world.score.final?.calmPoints).toBe(calmMaxPoints);
+  });
+});
+
+describe('the calm tracker on the other ends of a level (AC 8)', () => {
+  const NOISY_PCT = calmNoiseThresholdPct + 10;
+
+  const setNoise = (sim: Sim, pct: number) =>
+    sim.enqueue({ type: 'SetNoise', t: asSimMs(sim.world.time.sim), pct });
+
+  const levelEndedOf = (events: readonly SimEvent[]) =>
+    events.find(
+      (event): event is Extract<SimEvent, { type: 'LevelEnded' }> => event.type === 'LevelEnded',
+    );
+
+  it('on a completed cycle, shares the calm over the time played, not the level length', async () => {
+    const DURATION_MS = 60_000;
+    // A hidden hand, right before `runFlow`, completes the bedtime cycle of a level that has none
+    // (playing a whole cycle is not what this test is about).
+    let isCycleDone = false;
+    const hand: System = (world) => {
+      if (isCycleDone && world.cycle.completedAt === null) world.cycle.completedAt = world.time.sim;
+    };
+    const sim = await createSimWithSystems(
+      {
+        content: createTestContent(),
+        geometry: createTestGeometry(),
+        level: createTestLevel({ durationMs: DURATION_MS, gauges: NOISE_GAUGES }),
+        seed: 3,
+      },
+      [...SYSTEMS.slice(0, -1), hand, ...SYSTEMS.slice(-1)],
+    );
+    setNoise(sim, NOISY_PCT);
+    stepN(sim, 100);
+    setNoise(sim, 0);
+    stepN(sim, 199);
+    isCycleDone = true;
+    stepN(sim, 1);
+    const ended = levelEndedOf(sim.drainEvents());
+    expect(ended?.reason).toBe('cycleDone');
+    const playedMs = 300 * STEP_MS;
+    expect(ended?.t).toBe(playedMs);
+    // 100 noisy steps, then 200 calm ones, the ending step included.
+    expect(sim.world.score.calmMs).toBe(200 * STEP_MS);
+    const calmPoints = Math.round(((200 * STEP_MS) / playedMs) * calmMaxPoints);
+    expect(calmPoints).not.toBe(Math.round(((200 * STEP_MS) / DURATION_MS) * calmMaxPoints));
+    expect(sim.world.score.final?.calmPoints).toBe(calmPoints);
+  });
+
+  it('on a timer end with a final rush, counts the rush and stops at LevelEnded (photo)', async () => {
+    const DURATION_MS = 12_000;
+    const content = createTestContent();
+    content.feel.endOfLevel.doorSpillCount = 0;
+    const sim = await createSim({
+      content,
+      geometry: createTestGeometry(),
+      level: createTestLevel({
+        durationMs: DURATION_MS,
+        objects: TEST_OBJECTS,
+        gauges: NOISE_GAUGES,
+        finalRush: { spillAnchor: 'coffee_table' },
+      }),
+      seed: 3,
+    });
+    const rushAt = DURATION_MS - content.feel.endOfLevel.finalRushMs;
+    // Calm until halfway through the rush, noisy from then on.
+    const noisyFromMs = rushAt + (DURATION_MS - rushAt) / 2;
+    stepN(sim, noisyFromMs / STEP_MS);
+    expect(sim.world.flow.state).toBe('finalRush');
+    setNoise(sim, NOISY_PCT);
+    stepN(sim, (DURATION_MS - noisyFromMs) / STEP_MS);
+    const ended = levelEndedOf(sim.drainEvents());
+    expect(ended).toEqual({ type: 'LevelEnded', t: DURATION_MS, reason: 'timer' });
+    expect(sim.world.flow.state).toBe('photo');
+    const { calmMs } = sim.world.score;
+    // The quiet steps of the rush count; the noisy ones do not (the gauge may only fall back late).
+    expect(calmMs).toBeGreaterThanOrEqual(noisyFromMs);
+    expect(calmMs).toBeLessThan(DURATION_MS);
+    expect(sim.world.score.final?.calmPoints).toBe(
+      Math.round((calmMs / DURATION_MS) * calmMaxPoints),
+    );
+    // The photo phase adds nothing.
+    stepN(sim, 100);
+    expect(sim.world.score.calmMs).toBe(calmMs);
   });
 });

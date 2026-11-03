@@ -111,7 +111,10 @@ const SummarySchema = z.strictObject({
   gameIndexInSession: z.int().min(1),
   autoplay: z.string().nullable(),
   endReason: z.string(),
-  score: z.union([ScoreSchema, LegacyScoreSchema]),
+  score: z.union([ScoreSchema, LegacyScoreSchema], {
+    error:
+      'neither the five-row score (laughPoints, calmPoints, homePoints, sighPoints, screamPoints, scorePoints, stars, lostStars) nor the four-row one before v2.3 (babyStatePoints instead of calmPoints and homePoints)',
+  }),
   responses: z.strictObject({
     byQuality: ResponseCountsSchema,
     byThreat: z.record(z.string(), ResponseCountsSchema),
@@ -154,3 +157,6 @@ export const JournalSchema = z.strictObject({
 });
 
 export type JournalFile = z.infer<typeof JournalSchema>;
+
+/** The five-row score the game writes (story 3.12); the legacy branch of `summary.score` is only read. */
+export type JournalScore = z.infer<typeof ScoreSchema>;

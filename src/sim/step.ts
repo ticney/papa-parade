@@ -32,9 +32,10 @@ import type { World } from './world.ts';
  * `runSequence` (story 4.4) sits right after the clock and before the director, so that on the step a
  * special sequence starts the director already sees it (and returns early). It is a system, not a
  * helper, because later sequences hang their step kinds there.
- * Mama's note (story 1.22) needs no system: its counters are written where their events are made,
- * and `runFlow` gives the note (`scoreLevel`) in the step it ends the level. `runScoring` (story 4.2)
- * holds the combo's carry tick only: the rest of the combo is written where its event is made.
+ * Mama's note (story 1.22) is mostly written where its events are made, and `runFlow` gives it
+ * (`scoreLevel`) in the step it ends the level. `runScoring` holds what runs on a clock: the calm
+ * tracker (story 3.12, which counts that ending step) and the combo's carry tick (story 4.2); the rest
+ * of the combo is written where its event is made.
  *
  * Once the level has ended (`!isFlowLive(world)`: `ended` since story 1.18, `photo` since 3.5) a step runs only
  * {@link ENDED_SYSTEMS}: commands are drained and ignored, the clock keeps going (every

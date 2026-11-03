@@ -1,8 +1,11 @@
-import type { JournalFile } from '@content/schemas/journal';
+import type { JournalFile, JournalScore } from '@content/schemas/journal';
 import type { SimEvent } from '@sim';
 
-/** The summary block of the exported journal (story 3.3): what story 3.4 computes the indicators from. */
-export type GameSummary = JournalFile['summary'];
+/**
+ * The summary block of the exported journal (story 3.3): what story 3.4 computes the indicators from.
+ * The game writes the five-row score only; the four-row one of older journals is read, never written.
+ */
+export type GameSummary = Omit<JournalFile['summary'], 'score'> & { score: JournalScore };
 
 /**
  * The input device a response is credited to. The client's `pointer` is split into `touch` and
@@ -63,7 +66,7 @@ export function createGameSummary(options: GameSummaryOptions): GameSummaryRecor
   const timeline: TimelineEntry[] = [];
   let lastInput: JournalDevice = 'none';
   let endReason: string | null = null;
-  let score: GameSummary['score'] | null = null;
+  let score: JournalScore | null = null;
   const sequences: SequenceAttempt[] = [];
   // The sequence under way (story 4.10), its id and start, and the attempt at a step still open.
   let openSequence: Pick<SequenceAttempt, 'id' | 't' | 'steps'> | null = null;

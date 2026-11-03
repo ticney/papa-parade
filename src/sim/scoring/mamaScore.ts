@@ -84,8 +84,8 @@ export function computeMamaScore(
 /**
  * Gives the note, once, at the step the level ends (`runFlow`, right after `LevelEnded`; D1): reads
  * the counters and the mess of the frozen room (D5), writes `world.score.final` and emits
- * `LevelScored` at the same `t`. A helper, not a system (`runScoring` is the combo's carry tick,
- * story 4.2). The combo points cashed in feed the Rire; the ones not cashed are lost. `reason` is why
+ * `LevelScored` at the same `t`. A helper, not a system (`runScoring` holds the calm tracker and the
+ * combo's carry tick). The combo points cashed in feed the Rire; the ones not cashed are lost. `reason` is why
  * the level ended: a woken Mama costs stars.
  */
 export function scoreLevel(world: World, ctx: StepContext, reason: LevelEndReason): void {

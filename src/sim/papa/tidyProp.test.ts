@@ -18,7 +18,11 @@ const RUSH_AT = DURATION_MS - content.feel.endOfLevel.finalRushMs;
 /** How long a dropped mug is given to land and stop bouncing, after the push. */
 const DROP_SETTLE_MS = 1500;
 // A row is a whole number: half a point rounds up (story 3.12).
-const SIGH_POINTS = Math.round(content.feel.mama.sighPerPropOnFloorPoints);
+// The sigh row of one prop on the floor, the only mess here: the row is rounded once over all the
+// props (story 3.12), so it is not a per-prop cost from any other count.
+const ONE_PROP_SIGH_POINTS = Math.round(
+  Math.min(content.feel.mama.sighPerPropOnFloorPoints, content.feel.mama.sighMaxPoints),
+);
 
 interface Options {
   finalRush?: boolean;
@@ -266,10 +270,10 @@ describe('the note (AC 12)', () => {
     };
     const untidied = await noteOf(false);
     const tidied = await noteOf(true);
-    expect(untidied?.sighPoints).toBe(SIGH_POINTS);
+    expect(untidied?.sighPoints).toBe(ONE_PROP_SIGH_POINTS);
     expect(tidied?.sighPoints).toBe(0);
-    expect((untidied?.sighPoints ?? 0) - (tidied?.sighPoints ?? 0)).toBe(SIGH_POINTS);
-    expect((tidied?.scorePoints ?? 0) - (untidied?.scorePoints ?? 0)).toBe(SIGH_POINTS);
+    expect((untidied?.sighPoints ?? 0) - (tidied?.sighPoints ?? 0)).toBe(ONE_PROP_SIGH_POINTS);
+    expect((tidied?.scorePoints ?? 0) - (untidied?.scorePoints ?? 0)).toBe(ONE_PROP_SIGH_POINTS);
   });
 });
 

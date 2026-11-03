@@ -228,6 +228,8 @@ describe('summarizeRuns', () => {
       run(3, { isEnded: true, scorePoints: 30, stars: 1, rows: rows(0, 0, 3, 15, 15) }),
       // Cut by `--until-ms`: no note, left out of the means.
       run(4, {}),
+      // A score without its rows (a summary built before 3.12): counted in `meanScore`, never as zero rows.
+      run(5, { isEnded: true, scorePoints: 50, stars: 2, rows: null }),
     ]);
     expect(report.meanRows).toEqual({
       laughPoints: 7,
@@ -241,9 +243,10 @@ describe('summarizeRuns', () => {
       rows(11, 11, 0, 8, 3),
       rows(0, 0, 3, 15, 15),
       null,
+      null,
     ]);
-    // Nothing that 3.14 and the playtest metrics read has moved.
-    expect(report.meanScore).toBe(43.3);
+    // Nothing that 3.14 and the playtest metrics read has moved: run 5 counts in the score's mean.
+    expect(report.meanScore).toBe(45);
     expect(report.meanStars).toBe(2);
   });
 

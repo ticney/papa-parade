@@ -431,7 +431,8 @@ export type SimEvent =
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
   /**
    * Papa put a prop back where it spawned in the final rush (story 3.5): it left the mess in this very
-   * step, so Mama's sigh falls by `feel.mama.sighPerPropOnFloorPoints`.
+   * step, so Mama's sigh is counted with one prop less (`feel.mama.sighPerPropOnFloorPoints` each; the
+   * row is rounded once, so the drop is that slope rounded up or down).
    */
   | { type: 'PropTidied'; t: SimMs; propId: string }
   /**

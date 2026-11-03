@@ -753,6 +753,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let noiseFinalSumPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
   let scoredRuns = 0;
+  let rowRuns = 0;
   let scoreSum = 0;
   let starSum = 0;
   const starCounts: number[] = Array.from({ length: STAR_COUNT_MAX + 1 }, () => 0);
@@ -778,6 +779,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       mamaWokeSumAtMs += run.mamaWokeAtMs;
     }
     if (run.rows !== null) {
+      rowRuns++;
       for (const key of SCORE_ROW_KEYS) rowSums[key] += run.rows[key];
     }
     if (run.scorePoints !== null && run.stars !== null) {
@@ -897,14 +899,14 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     meanScore: scoredRuns === 0 ? null : round(scoreSum / scoredRuns, 1),
     meanStars: scoredRuns === 0 ? null : round(starSum / scoredRuns, 1),
     meanRows:
-      scoredRuns === 0
+      rowRuns === 0
         ? null
         : {
-            laughPoints: round(rowSums.laughPoints / scoredRuns, 1),
-            calmPoints: round(rowSums.calmPoints / scoredRuns, 1),
-            homePoints: round(rowSums.homePoints / scoredRuns, 1),
-            sighPoints: round(rowSums.sighPoints / scoredRuns, 1),
-            screamPoints: round(rowSums.screamPoints / scoredRuns, 1),
+            laughPoints: round(rowSums.laughPoints / rowRuns, 1),
+            calmPoints: round(rowSums.calmPoints / rowRuns, 1),
+            homePoints: round(rowSums.homePoints / rowRuns, 1),
+            sighPoints: round(rowSums.sighPoints / rowRuns, 1),
+            screamPoints: round(rowSums.screamPoints / rowRuns, 1),
           },
     starCounts,
     meanSuccessPct: responses === 0 ? null : pct(good, responses),

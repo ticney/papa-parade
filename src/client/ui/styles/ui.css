@@ -988,7 +988,8 @@ body {
 /* ---------------------------------------------------------------------------------------------
    Result: Mama's note (story 1.22, UX `score-row`, `star`, the right column of key-result.html).
    The frozen room stays drawn under the scrim. Sized to fit 750 × 340 without scrolling: five 24px
-   rows (the chip's height; story 3.12 added the fifth), a 16px panel padding. Every text is 16px or more (`--pp-spacing-text-min`).
+   rows (the chip's height; story 3.12 added the fifth), and under 380px of height a tighter panel and
+   score card (the media query below). Every text is 16px or more (`--pp-spacing-text-min`).
    --------------------------------------------------------------------------------------------- */
 .pp-result-screen {
   background: var(--pp-color-scrim);
@@ -1331,8 +1332,9 @@ body {
 
 /* On a short landscape phone the header costs about 40px that the 750 × 340 layout of story 1.22 does
    not have, and the fifth row of the note (story 3.12) another 24px: the panel tightens its padding
-   and gaps, and the score card its own padding (the text keeps its size). */
-@media (max-height: 360px) {
+   and gaps, and the score card its own padding (the text keeps its size). 380px takes in 667 × 375,
+   the smallest landscape phone the UX names (3.12 review); 844 × 390 keeps the roomy layout. */
+@media (max-height: 380px) {
   .pp-result-panel {
     gap: var(--pp-spacing-1);
     padding-block: var(--pp-spacing-2);

@@ -26,11 +26,12 @@ describe('parseJournalFile: the score of an exported journal (story 3.12)', () =
     expect(parseJournalFile(legacy).ok).toBe(true);
   });
 
-  it('refuses a score that is neither, naming the path of the score', () => {
+  it('refuses a score that is neither, naming the path and the two shapes it accepts', () => {
     const half = parseJournalFile(withScore(({ calmPoints: _calm, ...rows }) => rows));
     expect(half).toEqual({
       ok: false,
-      error: 'not a valid exported journal:\n  summary.score: Invalid input',
+      error:
+        'not a valid exported journal:\n  summary.score: neither the five-row score (laughPoints, calmPoints, homePoints, sighPoints, screamPoints, scorePoints, stars, lostStars) nor the four-row one before v2.3 (babyStatePoints instead of calmPoints and homePoints)',
     });
     const mixed = parseJournalFile(withScore((score) => ({ ...score, babyStatePoints: 20 })));
     expect(mixed.ok).toBe(false);

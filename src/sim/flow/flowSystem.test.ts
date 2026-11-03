@@ -355,22 +355,15 @@ describe('runFlow: Mama wakes (story 3.2)', () => {
   });
 
   it('takes earlyWakePenaltyStars off the note, never below 0, and keeps the points', async () => {
-    const quiet = await noisySim({ durationMs: DURATION_MS });
-    stepN(quiet, DURATION_MS / STEP_MS);
-    const timer = quiet.world.score.final;
     const woken = await noisySim({});
     stepN(woken, 5);
     setNoise(woken, 100);
     woken.step();
     const note = woken.world.score.final;
-    expect(timer).not.toBeNull();
     expect(note).not.toBeNull();
-    if (timer === null || note === null) return;
-    expect(timer.stars).toBeGreaterThanOrEqual(1);
-    expect(note.lostStars).toBe(Math.min(MAMA.earlyWakePenaltyStars, timer.stars));
-    expect(note.stars).toBe(timer.stars - note.lostStars);
-    // The points are those of a timer end over the time she was left to sleep (the calm share moves
-    // with it since story 3.12): the same tally, scored as if the level had run out.
+    if (note === null) return;
+    // The same tally scored as if the level had run out at that instant (story 3.12: the calm share
+    // is over the time played, so a quiet timer run is another note): only the stars may differ.
     const { score, mess, time } = woken.world;
     const asTimer = computeMamaScore(
       {
@@ -388,7 +381,10 @@ describe('runFlow: Mama wakes (story 3.2)', () => {
       MAMA,
       false,
     );
+    expect(asTimer.stars).toBeGreaterThanOrEqual(1);
     expect(note.scorePoints).toBe(asTimer.scorePoints);
+    expect(note.lostStars).toBe(Math.min(MAMA.earlyWakePenaltyStars, asTimer.stars));
+    expect(note.stars).toBe(asTimer.stars - note.lostStars);
     expect(note.lostStars).toBeGreaterThanOrEqual(1);
   });
 });

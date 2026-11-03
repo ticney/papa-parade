@@ -2023,6 +2023,16 @@ describe('snapshot / restore of Mama’s score (story 1.22)', () => {
     ['a fractional calm time', (w) => (score(w).calmMs = 10.5), /world\.score\.calmMs/],
     ['a missing calm time', (w) => delete score(w).calmMs, /world\.score\.calmMs/],
     [
+      'a calm time between two steps',
+      (w) => (score(w).calmMs = STEP_MS + 5),
+      /world\.score\.calmMs/,
+    ],
+    [
+      'a calm time later than the clock',
+      (w) => (score(w).calmMs = (w.time as { sim: number }).sim + STEP_MS),
+      /world\.score\.calmMs/,
+    ],
+    [
       'a note while the level plays',
       (w) =>
         (score(w).final = {
