@@ -365,3 +365,40 @@ describe('playSimEventFeedback: the special sequence (story 4.4)', () => {
     expect(sounds).toEqual([soundOf('papa_snored'), soundOf('baby_woke')]);
   });
 });
+
+describe('playSimEventFeedback: the chrono-ring vibration (story 2.11)', () => {
+  const opened = (): SimEvent => ({
+    type: 'WindowOpened',
+    t: asSimMs(1000),
+    threatId: THREAT_ID,
+  });
+
+  it('vibrates once, lightly and silently, when the window of a threat with a ring opens', () => {
+    const { sounds, pulses, director } = setup();
+    // The cue is the table's own: a light haptic and a UI visual twin, no audio.
+    expect(feedback.cues.chrono_arc_lit?.haptic).toBe('light');
+    expect(feedback.cues.chrono_arc_lit?.audio).toBeUndefined();
+    for (const defId of ['outlet', 'stairs', 'papa_microsleep']) {
+      pulses.length = 0;
+      playSimEventFeedback(opened(), sourceOf(worldWith(defId, false)), director);
+      expect(pulses, defId).toEqual(['light']);
+    }
+    expect(sounds).toEqual([]);
+  });
+
+  it('plays nothing new for a wait, a nothing, or a threat with a signal cue of its own', () => {
+    const { pulses, director } = setup();
+    for (const defId of ['bedtime_eyes', 'fake_sleep', 'false_alarm_sigh', 'bomb_drop_lay']) {
+      expect(liveThreats[defId], defId).toBeDefined();
+      playSimEventFeedback(opened(), sourceOf(worldWith(defId, false)), director);
+    }
+    expect(pulses).toEqual([]);
+  });
+
+  it('plays nothing outside a level, and nothing for the closing of a window', () => {
+    const { pulses, director } = setup();
+    playSimEventFeedback(opened(), null, director);
+    playSimEventFeedback(resolved('success'), sourceOf(worldWith('outlet', false)), director);
+    expect(pulses.includes('light')).toBe(false);
+  });
+});

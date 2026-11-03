@@ -1,3 +1,4 @@
+import type { ThreatDef } from '@content/schemas/threat';
 import { asSimMs } from '@shared/time';
 import { createSim, type SimEvent, type World } from '@sim';
 import { describe, expect, it } from 'vitest';
@@ -12,7 +13,7 @@ import {
   OUTLET,
   testWave,
 } from '../../../tests/support/testContent.ts';
-import { threatCueOf } from './threatFeedback.ts';
+import { opensChronoArc, threatCueOf } from './threatFeedback.ts';
 
 const outlet = createTestOutlet();
 const defs = { [outlet.id]: outlet };
@@ -120,5 +121,42 @@ describe('threatCueOf for the micro-sleep (story 1.19)', () => {
       reason: 'late',
     };
     expect(threatCueOf(gag, microWorld, microDefs)).toBe('gag_papa_asleep');
+  });
+});
+
+describe('opensChronoArc (story 2.11, D6)', () => {
+  const opened: SimEvent = { type: 'WindowOpened', t, threatId };
+
+  it('is true for the opening of a parry window: the lit arc vibrates once', () => {
+    expect(opensChronoArc(opened, world, defs)).toBe(true);
+  });
+
+  it('is false for any other event', () => {
+    const others: SimEvent[] = [
+      { type: 'ThreatRearmed', t, threatId },
+      { type: 'WaitSignalGiven', t, threatId },
+      resolved('perfect'),
+    ];
+    for (const event of others) expect(opensChronoArc(event, world, defs), event.type).toBe(false);
+  });
+
+  it('is false for a response with no ring (a wait, a nothing): a signal plays nothing new', () => {
+    for (const response of ['wait', 'nothing'] as const) {
+      const noRing = { ...outlet, response } as unknown as ThreatDef;
+      expect(opensChronoArc(opened, world, { [outlet.id]: noRing }), response).toBe(false);
+    }
+  });
+
+  it('is false for a def with its own signal cue: one moment, one vibration (the bomb drop)', () => {
+    const withSignal = {
+      ...outlet,
+      feedback: { ...outlet.feedback, signal: 'bomb_signal' },
+    } as ThreatDef;
+    expect(opensChronoArc(opened, world, { [outlet.id]: withSignal })).toBe(false);
+  });
+
+  it('is false for a threat the world or the defs do not know', () => {
+    expect(opensChronoArc({ ...opened, threatId: threatId + 99 }, world, defs)).toBe(false);
+    expect(opensChronoArc(opened, world, {})).toBe(false);
   });
 });

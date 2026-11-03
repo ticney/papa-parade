@@ -1837,8 +1837,27 @@ body {
    --------------------------------------------------------------------------------------------- */
 :root {
   --pp-threat-size: 64px; /* the icon's size: the glyph chip hangs from it too */
-  /* From the icon's edge to the verb's bottom edge: clear of the highlight ring (0.3 of the size). */
-  --pp-verb-gap: calc(var(--pp-threat-size) * 0.3 + 2px);
+  /*
+    What the marker takes around the icon (story 2.11), in px from the icon's edge. Written once on the
+    root by `applyChronoRingMetrics` (`chronoRing.ts`) from `constants.ts`, which `holdRingSpec.test.ts` pins to
+    DESIGN.md: the chrono-ring's outermost ink, the gap kept outside it, and the target-highlight's ring and
+    ink outlines. The 0 here is only the value before the first write.
+  */
+  --pp-chrono-reach: 0px;
+  --pp-chrono-gap: 0px;
+  --pp-highlight-stroke: 0px;
+  --pp-highlight-outline: 0px;
+  /*
+    From the icon's edge to the verb's bottom edge: the highlight's outer edge, which sits a gap outside the
+    chrono-ring (`threatFootprint`, `chronoRing.test.ts`, pins the same sum).
+  */
+  --pp-verb-gap: calc(
+    var(--pp-chrono-reach) +
+    var(--pp-chrono-gap) +
+    var(--pp-highlight-stroke) +
+    2 *
+    var(--pp-highlight-outline)
+  );
 }
 
 :root[data-pp-surface="compact"] {
@@ -1951,15 +1970,90 @@ body {
   }
 }
 
+/* A gap outside the chrono-ring's outermost ink: its inner ink starts at reach + gap from the icon's edge. */
 .pp-threat-highlight {
   position: absolute;
-  inset: calc(var(--pp-threat-size) * -0.3);
+  inset: calc(
+    -1 *
+    (
+      var(--pp-chrono-reach) +
+      var(--pp-chrono-gap) +
+      var(--pp-highlight-stroke) +
+      var(--pp-highlight-outline)
+    )
+  );
   box-sizing: border-box;
-  border: 4px solid var(--pp-color-alert);
+  border: var(--pp-highlight-stroke) solid var(--pp-color-alert);
   border-radius: 50%;
   box-shadow:
-    0 0 0 2px var(--pp-color-ink),
-    inset 0 0 0 2px var(--pp-color-ink);
+    0 0 0 var(--pp-highlight-outline) var(--pp-color-ink),
+    inset 0 0 0 var(--pp-highlight-outline) var(--pp-color-ink);
+}
+
+/*
+  The chrono-ring (story 2.11; DESIGN.md › chrono-ring): an SVG over the marker's box, outside the hold-ring
+  with a gap. `chronoRingElement.ts` writes every radius and stroke width (from `constants.ts`) and the dash
+  of the paper progress; the colours are here. Paper over the ring-track in a 5 px band with a 2 px ink outer
+  outline; from the opening of the window (`--lit`) the final arc is `alert`, 8 px, growing outward, and the
+  perfect notch is a 2 px ink tick across it. Never `parry` or `dodge` coloured: the lit arc is told by its
+  thickness, not its hue. A held Firmness (`--hold`) drains the ring and drops the lit arc and the notch. It
+  never animates (« lighting up » is a class flip, and the ring is gameplay timing), so it has no reduced rule.
+*/
+.pp-chrono-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pp-chrono-ring[hidden] {
+  display: none;
+}
+
+.pp-chrono-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pp-chrono-ring circle {
+  fill: none;
+}
+
+.pp-chrono-outline {
+  stroke: var(--pp-color-ink);
+}
+
+.pp-chrono-track {
+  stroke: var(--pp-color-ring-track);
+}
+
+.pp-chrono-arc-outline {
+  stroke: var(--pp-color-ink);
+  display: none;
+}
+
+.pp-chrono-arc {
+  stroke: var(--pp-color-alert);
+  display: none;
+}
+
+.pp-chrono-ring--lit .pp-chrono-arc-outline,
+.pp-chrono-ring--lit .pp-chrono-arc {
+  display: inline;
+}
+
+.pp-chrono-progress {
+  stroke: var(--pp-color-paper);
+}
+
+.pp-chrono-notch {
+  stroke: var(--pp-color-ink);
+}
+
+.pp-chrono-ring--hold .pp-chrono-arc-outline,
+.pp-chrono-ring--hold .pp-chrono-arc,
+.pp-chrono-ring--hold .pp-chrono-notch {
+  display: none;
 }
 
 /*
@@ -2241,6 +2335,87 @@ body {
 
 .pp-silence-bubble-left {
   left: calc(var(--pp-spacing-hud-inset-left) + 14px);
+}
+
+/*
+  The ring beside the bubble (story 2.11, D8): the chrono-ring's look for the find-the-baby deadline, on the
+  centre side of the bubble and past its tail. A sibling of the bubble, not a child, so it does not blink
+  with it. Paper over the ring-track in a band, with an ink outline around it; no lit arc, no notch. The
+  fill (`--pp-silence-progress`, whole per-mille, written by `silenceBubble.ts` from the drawn sim time) is
+  game time only; the band and outline widths are the hold-ring's constants, set inline. It never
+  animates, so it needs no reduced-motion rule.
+*/
+:root {
+  --pp-silence-ring-size: 58px;
+}
+
+.pp-silence-ring {
+  --pp-silence-progress: 0;
+  --pp-silence-ring-stroke: 5px;
+  --pp-silence-ring-outline: 2px;
+  position: absolute;
+  z-index: 35;
+  box-sizing: border-box;
+  width: var(--pp-silence-ring-size);
+  height: var(--pp-silence-ring-size);
+  pointer-events: none;
+}
+
+.pp-silence-ring[hidden] {
+  display: none;
+}
+
+/* Past the bubble's edge margin, its width and its tail, and a gap. */
+.pp-silence-ring-right {
+  right: calc(var(--pp-spacing-hud-inset-right) + 14px + 76px + 14px + 8px);
+}
+
+.pp-silence-ring-left {
+  left: calc(var(--pp-spacing-hud-inset-left) + 14px + 76px + 14px + 8px);
+}
+
+.pp-silence-ring-band,
+.pp-silence-ring-outline {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 50%;
+}
+
+.pp-silence-ring-band {
+  inset: 0;
+  background: conic-gradient(
+    var(--pp-color-paper) calc(var(--pp-silence-progress) * 0.1%),
+    var(--pp-color-ring-track) 0
+  );
+  /* Only the band: the middle is the room (a mask reads alpha only; the ink is opaque). */
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--pp-silence-ring-stroke)),
+    var(--pp-color-ink) calc(100% - var(--pp-silence-ring-stroke) + 0.5px)
+  );
+}
+
+/*
+  The ring sits over the dark page margin as often as over the room, where a 40 % ink track and an ink
+  outline vanish: a faint paper veil under the band keeps the whole circle, not only its filled arc, readable.
+*/
+.pp-silence-ring-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--pp-color-paper);
+  opacity: 0.3;
+}
+
+.pp-silence-ring-outline {
+  inset: calc(var(--pp-silence-ring-outline) * -1);
+  /* The ink outline around the band, 2px wide, and nothing inside it. */
+  background: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--pp-silence-ring-outline)),
+    var(--pp-color-ink) calc(100% - var(--pp-silence-ring-outline) + 0.5px)
+  );
 }
 
 .pp-silence-bubble::before,

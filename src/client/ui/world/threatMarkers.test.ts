@@ -12,6 +12,7 @@ import type { ThreatInstance, ThreatState } from '@sim';
 import { OrthographicCamera, Scene } from 'three';
 import { describe, expect, it } from 'vitest';
 import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
+import { CHRONO_RING_CLASSES } from './chronoRingElement.ts';
 import {
   createThreatMarkers,
   THREAT_CLASSES,
@@ -56,8 +57,11 @@ class FakeElement {
   };
   attributes = new Map<string, string>();
   children: FakeElement[] = [];
+  /** How many times each attribute was written (the chrono-ring's dash offset). */
+  attributeWrites: Record<string, number> = {};
   setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
+    this.attributeWrites[name] = (this.attributeWrites[name] ?? 0) + 1;
   }
   removeAttribute(name: string): void {
     this.attributes.delete(name);
@@ -1015,6 +1019,7 @@ describe('the verb fit and layout of the markers (story 2.2)', () => {
       basePx: () => state.base,
       lineHeight: () => state.lineHeight,
       scale: () => state.scale,
+      threatSizePx: () => (state.surface === 'compact' ? 56 : 64),
       widthPx: (text, fontPx) => {
         measured.push([text, fontPx]);
         return text.length * fontPx * state.charEm;
@@ -1488,6 +1493,7 @@ describe('the verb of a Firmness while the baby is carried (story 4.1)', () => {
       basePx: () => 40,
       lineHeight: () => 1,
       scale: () => 1,
+      threatSizePx: () => 64,
       widthPx: (text, fontPx) => {
         measured.push(text);
         return text.length * fontPx * 0.5;
@@ -1513,5 +1519,436 @@ describe('the verb of a Firmness while the baby is carried (story 4.1)', () => {
     expect(entry.verbWidthPx).toBeGreaterThan(shortWidthPx);
     markers.update([threat(4, 'telegraph')], null, null, null, null, 0, false);
     expect(entry.verbWidthPx).toBe(shortWidthPx);
+  });
+});
+
+describe('the chrono-ring of a marker (story 2.11)', () => {
+  const OPEN_AT = 2000;
+  const START_AT = 1000;
+  const WINDOW = { windowMs: 400, perfectMs: 100, toleranceMs: 60, bufferMs: 150 };
+  const RING_ENTRY = { ...ENTRY, hasChronoRing: true, telegraphDelayMs: OPEN_AT - START_AT };
+
+  function buildRing(surface = { size: 64, key: 'regular' }) {
+    const created: FakeElement[] = [];
+    const make = (): FakeElement => {
+      const element = new FakeElement();
+      created.push(element);
+      return element;
+    };
+    const doc = { createElement: make, createElementNS: make } as unknown as Pick<
+      Document,
+      'createElement' | 'createElementNS'
+    >;
+    const metrics: VerbMetrics = {
+      surfaceKey: () => surface.key,
+      basePx: () => 40,
+      lineHeight: () => 1,
+      scale: () => 1,
+      threatSizePx: () => surface.size,
+      widthPx: (text, fontPx) => text.length * fontPx * 0.5,
+    };
+    const markers = createThreatMarkers(new Scene(), doc, metrics);
+    const byClass = (name: string): FakeElement[] =>
+      created.filter((element) => element.className === name);
+    const bySvgClass = (name: string): FakeElement[] =>
+      created.filter((element) => element.attributes.get('class') === name);
+    return { markers, created, byClass, bySvgClass };
+  }
+
+  /** A threat at the given state, telegraphed at `START_AT` and opening at `OPEN_AT`, with a frozen window. */
+  const ringThreat = (
+    state: ThreatState,
+    over: Partial<Record<string, unknown>> = {},
+  ): Readonly<ThreatInstance> =>
+    ({
+      ...threat(4, state),
+      enteredAt: asSimMs(state === 'windowOpen' ? OPEN_AT : START_AT),
+      windowOpenAt: asSimMs(OPEN_AT),
+      responseWindow: WINDOW,
+      press: null,
+      ...over,
+    }) as unknown as Readonly<ThreatInstance>;
+
+  const offsetOf = (element: FakeElement | undefined): string | undefined =>
+    element?.attributes.get('stroke-dashoffset');
+
+  describe('which markers have one (AC 1)', () => {
+    const def = (response: string, extra: Record<string, unknown> = {}) => ({
+      icon: 'bolt' as const,
+      target: 'anchor' as const,
+      verbKey: 'verb.lift',
+      iconShape: 'circle' as const,
+      color: 'parry' as const,
+      response,
+      telegraphDelayMs: null,
+      ...extra,
+    });
+    const entriesFor = (response: string, extra: Record<string, unknown> = {}) =>
+      threatMarkerEntries(
+        [threat(4, 'idle')],
+        [{ id: 'outlet_01', positionM: [0, 0, 0] }],
+        { outlet: def(response, extra) },
+        0.2,
+        t,
+        1200,
+      );
+
+    it('has a ring on a parry and a firm, with the telegraph delay of the def or the feel', () => {
+      const [parry] = entriesFor('parry');
+      expect(parry).toMatchObject({ hasChronoRing: true, telegraphDelayMs: 1200 });
+      const [firm] = entriesFor('firm', { telegraphDelayMs: 900, holdUntilMs: 700 });
+      expect(firm).toMatchObject({
+        hasChronoRing: true,
+        telegraphDelayMs: 900,
+        holdUntilMs: 700,
+      });
+    });
+
+    it('has none on a wait, a nothing, a feint, or a def the level lacks', () => {
+      for (const response of ['wait', 'nothing']) {
+        const [entry] = entriesFor(response);
+        expect(entry?.hasChronoRing, response).toBeUndefined();
+        expect(entry?.telegraphDelayMs, response).toBeUndefined();
+      }
+      const [feint] = entriesFor('wait', { feint: { icon: 'peek' } });
+      expect(feint?.hasChronoRing).toBeUndefined();
+      const [unknown] = threatMarkerEntries(
+        [threat(4, 'idle')],
+        [{ id: 'outlet_01', positionM: [0, 0, 0] }],
+        {},
+        0.2,
+        t,
+      );
+      expect(unknown?.hasChronoRing).toBeUndefined();
+    });
+
+    it('keeps a release Firmness filling: no hold end on its entry (the bomb drop has a ring)', () => {
+      const [entry] = entriesFor('firm', {
+        release: { pressWithinMs: 800 },
+        holdUntilMs: 700,
+        telegraphDelayMs: 1500,
+      });
+      expect(entry?.hasChronoRing).toBe(true);
+      expect(entry?.holdUntilMs).toBeUndefined();
+    });
+
+    it('builds the ring element only for an entry with one, between the halo and the hold-ring', () => {
+      const { markers, byClass } = buildRing();
+      markers.mount([RING_ENTRY, { ...ENTRY, threatId: 5 }]);
+      const roots = byClass(THREAT_CLASSES.root);
+      expect(roots[0]?.children.map((child) => child.className || 'svg')).toEqual([
+        THREAT_CLASSES.halo,
+        CHRONO_RING_CLASSES.root,
+        THREAT_CLASSES.hold,
+        THREAT_CLASSES.highlight,
+        THREAT_CLASSES.verbStack,
+        THREAT_CLASSES.icon,
+      ]);
+      expect(byClass(CHRONO_RING_CLASSES.root)).toHaveLength(1);
+      // A wait marker has no ring element at all: nothing to read a signal's timing off.
+      expect(roots[1]?.children.map((child) => child.className)).not.toContain(
+        CHRONO_RING_CLASSES.root,
+      );
+      expect(byClass(CHRONO_RING_CLASSES.root)[0]?.hidden).toBe(true);
+      expect(byClass(CHRONO_RING_CLASSES.root)[0]?.attributes.get('aria-hidden')).toBe('true');
+    });
+  });
+
+  describe('when it shows (AC 2) and how full it is (AC 3, 4, 9)', () => {
+    it('shows only in telegraph and windowOpen, not on a resolved press frame nor a hidden silence', () => {
+      const { markers, byClass } = buildRing();
+      markers.mount([RING_ENTRY]);
+      const [ring] = byClass(CHRONO_RING_CLASSES.root);
+      for (const [state, isShown] of [
+        ['idle', false],
+        ['hidden', false],
+        ['telegraph', true],
+        ['windowOpen', true],
+        ['resolved', false],
+        ['gag', false],
+      ] as const) {
+        markers.update([ringThreat(state)], null, null, null, 1500);
+        expect(ring?.hidden, state).toBe(!isShown);
+      }
+      // A quick tap: the sim resolved the threat but its marker stays one frame (highlighted).
+      markers.update([ringThreat('windowOpen')], null, null, null, 2100);
+      expect(ring?.hidden).toBe(false);
+      markers.update([ringThreat('resolved')], 4, null, null, 2100);
+      expect(ring?.hidden).toBe(true);
+    });
+
+    it('draws nothing without a drawn sim time, or before the window is frozen', () => {
+      const { markers, byClass } = buildRing();
+      markers.mount([RING_ENTRY]);
+      const [ring] = byClass(CHRONO_RING_CLASSES.root);
+      markers.update([ringThreat('telegraph')], null, null, null, null);
+      expect(ring?.hidden).toBe(true);
+      markers.update([ringThreat('telegraph', { responseWindow: null })], null, null, null, 1500);
+      expect(ring?.hidden).toBe(true);
+    });
+
+    it('fills from the telegraph to the end of the window, whole per-mille of the drawn sim time', () => {
+      const { markers, byClass, bySvgClass } = buildRing();
+      markers.mount([RING_ENTRY]);
+      const [progress] = bySvgClass(CHRONO_RING_CLASSES.progress);
+      const [ring] = byClass(CHRONO_RING_CLASSES.root);
+      const span = OPEN_AT + WINDOW.windowMs - START_AT;
+      const offsetAt = (simMs: number): string =>
+        String(1000 - Math.round(((simMs - START_AT) / span) * 1000));
+      markers.update([ringThreat('telegraph')], null, null, null, START_AT);
+      expect(ring?.hidden).toBe(false);
+      expect(offsetOf(progress)).toBe('1000');
+      for (const simMs of [1250, 1700, 1999.5]) {
+        markers.update([ringThreat('telegraph')], null, null, null, simMs);
+        expect(offsetOf(progress), String(simMs)).toBe(offsetAt(simMs));
+      }
+      markers.update([ringThreat('windowOpen')], null, null, null, 2200);
+      expect(offsetOf(progress)).toBe(offsetAt(2200));
+      markers.update([ringThreat('windowOpen')], null, null, null, 2400);
+      expect(offsetOf(progress)).toBe('0');
+      // Full from the end of the window, until the sim settles the threat (the tolerance is not drawn).
+      markers.update([ringThreat('windowOpen')], null, null, null, 2460);
+      expect(offsetOf(progress)).toBe('0');
+    });
+
+    it('lights the final arc when the drawn sim time reaches the opening, not before', () => {
+      const { markers, byClass } = buildRing();
+      markers.mount([RING_ENTRY]);
+      const [ring] = byClass(CHRONO_RING_CLASSES.root);
+      markers.update([ringThreat('telegraph')], null, null, null, 1999.9);
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.lit)).toBe(false);
+      markers.update([ringThreat('windowOpen')], null, null, null, 2000);
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.lit)).toBe(true);
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.hold)).toBe(false);
+    });
+
+    it('writes the geometry once per telegraph and the DOM only when the per-mille changes', () => {
+      const { markers, bySvgClass } = buildRing();
+      markers.mount([RING_ENTRY]);
+      const [progress] = bySvgClass(CHRONO_RING_CLASSES.progress);
+      const [arc] = bySvgClass(CHRONO_RING_CLASSES.arc);
+      markers.update([ringThreat('telegraph')], null, null, null, 1300);
+      const arcWrites = arc?.attributeWrites['stroke-dasharray'];
+      const progressWrites = progress?.attributeWrites['stroke-dashoffset'];
+      // The same drawn time again, and again: nothing is written.
+      markers.update([ringThreat('telegraph')], null, null, null, 1300);
+      markers.update([ringThreat('telegraph')], null, null, null, 1300.1);
+      expect(arc?.attributeWrites['stroke-dasharray']).toBe(arcWrites);
+      expect(progress?.attributeWrites['stroke-dashoffset']).toBe(progressWrites);
+      // The next frame moves the ring: only the progress is written.
+      markers.update([ringThreat('telegraph')], null, null, null, 1400);
+      expect(arc?.attributeWrites['stroke-dasharray']).toBe(arcWrites);
+      expect(progress?.attributeWrites['stroke-dashoffset']).toBe((progressWrites ?? 0) + 1);
+    });
+
+    it('freezes with the sim: the same drawn time draws the same ring (hitstop, pause)', () => {
+      const { markers, bySvgClass } = buildRing();
+      markers.mount([RING_ENTRY]);
+      const [progress] = bySvgClass(CHRONO_RING_CLASSES.progress);
+      markers.update([ringThreat('windowOpen')], null, null, null, 2100);
+      const before = offsetOf(progress);
+      for (let frame = 0; frame < 5; frame++) {
+        markers.update([ringThreat('windowOpen')], null, null, null, 2100);
+      }
+      expect(offsetOf(progress)).toBe(before);
+    });
+
+    it('draws the lit arc as long as the frozen window says, through the dash of the arc', () => {
+      const { markers, bySvgClass } = buildRing();
+      markers.mount([RING_ENTRY]);
+      const [arc] = bySvgClass(CHRONO_RING_CLASSES.arc);
+      markers.update([ringThreat('telegraph')], null, null, null, 1200);
+      // 1000 ms of delay then 400 ms: the arc starts at 1000 / 1400.
+      const from = Math.round((1000 / 1400) * 1000);
+      expect(arc?.attributes.get('stroke-dasharray')).toBe(`${1000 - from} ${from}`);
+      // A tier or an instinct that stretched the window (frozen at the telegraph) stretches the arc.
+      markers.update(
+        [ringThreat('telegraph', { responseWindow: { ...WINDOW, windowMs: 600 } })],
+        null,
+        null,
+        null,
+        1200,
+      );
+      const stretchedFrom = Math.round((1000 / 1600) * 1000);
+      expect(arc?.attributes.get('stroke-dasharray')).toBe(
+        `${1000 - stretchedFrom} ${stretchedFrom}`,
+      );
+    });
+  });
+
+  describe('the start (D3)', () => {
+    it('uses the opening minus the telegraph delay when the marker first sees the threat already open', () => {
+      const { markers, bySvgClass } = buildRing();
+      markers.mount([{ ...RING_ENTRY, telegraphDelayMs: 1000 }]);
+      const [progress] = bySvgClass(CHRONO_RING_CLASSES.progress);
+      markers.update([ringThreat('windowOpen')], null, null, null, 2200);
+      const ring = markers.chronoRing(4);
+      expect(ring?.startAt).toBe(OPEN_AT - 1000);
+      expect(offsetOf(progress)).toBe(String(1000 - Math.round((1200 / 1400) * 1000)));
+    });
+
+    it('keeps the telegraph instant it saw when the window opens, whatever the entry says', () => {
+      const { markers } = buildRing();
+      markers.mount([{ ...RING_ENTRY, telegraphDelayMs: 500 }]);
+      markers.update([ringThreat('telegraph')], null, null, null, 1100);
+      markers.update([ringThreat('windowOpen')], null, null, null, 2050);
+      expect(markers.chronoRing(4)?.startAt).toBe(START_AT);
+    });
+
+    it('starts again at the next telegraph (a re-armed threat)', () => {
+      const { markers } = buildRing();
+      markers.mount([RING_ENTRY]);
+      markers.update([ringThreat('telegraph')], null, null, null, 1100);
+      markers.update([ringThreat('windowOpen')], null, null, null, 2050);
+      markers.update([ringThreat('resolved')], null, null, null, 2100);
+      markers.update(
+        [ringThreat('telegraph', { enteredAt: asSimMs(5000), windowOpenAt: asSimMs(6000) })],
+        null,
+        null,
+        null,
+        5100,
+      );
+      expect(markers.chronoRing(4)?.startAt).toBe(5000);
+      expect(markers.chronoRing(4)?.windowOpenAt).toBe(6000);
+    });
+  });
+
+  describe('the geometry the mirror reads (AC 15)', () => {
+    it('is null before the first telegraph and for a marker with no ring, then the marker’s own object', () => {
+      const { markers } = buildRing();
+      markers.mount([RING_ENTRY, { ...ENTRY, threatId: 5 }]);
+      expect(markers.chronoRing(4)).toBeNull();
+      expect(markers.chronoRing(5)).toBeNull();
+      expect(markers.chronoRing(99)).toBeNull();
+      markers.update([ringThreat('telegraph')], null, null, null, 1100);
+      const ring = markers.chronoRing(4);
+      expect(ring).toMatchObject({ startAt: START_AT, windowOpenAt: OPEN_AT, closeAt: 2400 });
+      markers.update([ringThreat('telegraph')], null, null, null, 1200);
+      expect(markers.chronoRing(4)).toBe(ring);
+      expect(ring?.notchPermille).toBe(Math.round((1200 / 1400) * 1000));
+    });
+  });
+
+  describe('the hold drains the ring (AC 11, D5)', () => {
+    const HOLD_MIN_MS = 400;
+    const HOLD_UNTIL_MS = 800;
+    const heldEntry = { ...RING_ENTRY, holdUntilMs: HOLD_UNTIL_MS };
+    const press = (t: number, releasedAt: number | null = null) => ({
+      t: asSimMs(t),
+      quality: 'success',
+      offsetMs: 0,
+      releasedAt: releasedAt === null ? null : asSimMs(releasedAt),
+      heldAt: null,
+    });
+
+    it('drains from full at the press to empty at the end of the attack, with no lit arc', () => {
+      const { markers, byClass, bySvgClass } = buildRing();
+      markers.mount([heldEntry]);
+      const [ring] = byClass(CHRONO_RING_CLASSES.root);
+      const [progress] = bySvgClass(CHRONO_RING_CLASSES.progress);
+      const held = (simMs: number) =>
+        markers.update(
+          [ringThreat('windowOpen', { press: press(2100) })],
+          null,
+          null,
+          null,
+          simMs,
+          HOLD_MIN_MS,
+        );
+      // The end of the attack: the opening + holdUntilMs, later than the press + holdMinMs.
+      const endAt = Math.max(2100 + HOLD_MIN_MS, OPEN_AT + HOLD_UNTIL_MS);
+      held(2100);
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.hold)).toBe(true);
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.lit)).toBe(false);
+      // Full at the press: the dash shows all of it (offset 0).
+      expect(offsetOf(progress)).toBe('0');
+      held(2450);
+      expect(offsetOf(progress)).toBe(
+        String(1000 - Math.round(((endAt - 2450) / (endAt - 2100)) * 1000)),
+      );
+      held(endAt);
+      expect(offsetOf(progress)).toBe('1000');
+    });
+
+    it('lets holdMinMs win when the press is late in the attack', () => {
+      const { markers, bySvgClass } = buildRing();
+      markers.mount([heldEntry]);
+      const [progress] = bySvgClass(CHRONO_RING_CLASSES.progress);
+      // Pressed at 2700: 2700 + 400 is after the end of the attack (2800), so it is the end.
+      markers.update(
+        [ringThreat('windowOpen', { press: press(2700) })],
+        null,
+        null,
+        null,
+        2900,
+        HOLD_MIN_MS,
+      );
+      expect(offsetOf(progress)).toBe(
+        String(1000 - Math.round(((3100 - 2900) / (3100 - 2700)) * 1000)),
+      );
+    });
+
+    it('stops draining when the finger is up, going back to the plain fill', () => {
+      const { markers, byClass } = buildRing();
+      markers.mount([heldEntry]);
+      const [ring] = byClass(CHRONO_RING_CLASSES.root);
+      markers.update(
+        [ringThreat('windowOpen', { press: press(2100) })],
+        null,
+        null,
+        null,
+        2200,
+        HOLD_MIN_MS,
+      );
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.hold)).toBe(true);
+      markers.update(
+        [ringThreat('windowOpen', { press: press(2100, 2250) })],
+        null,
+        null,
+        null,
+        2300,
+        HOLD_MIN_MS,
+      );
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.hold)).toBe(false);
+    });
+
+    it('does not drain a Firmness with no hold end (a release Firmness) nor a parry', () => {
+      const { markers, byClass, bySvgClass } = buildRing();
+      markers.mount([RING_ENTRY]);
+      const [ring] = byClass(CHRONO_RING_CLASSES.root);
+      const [progress] = bySvgClass(CHRONO_RING_CLASSES.progress);
+      markers.update(
+        [ringThreat('windowOpen', { press: press(2100) })],
+        null,
+        null,
+        null,
+        2200,
+        HOLD_MIN_MS,
+      );
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.hold)).toBe(false);
+      expect(ring?.classes.has(CHRONO_RING_CLASSES.lit)).toBe(true);
+      expect(offsetOf(progress)).toBe(String(1000 - Math.round((1200 / 1400) * 1000)));
+    });
+  });
+
+  describe('the size (D10)', () => {
+    it('sizes the SVG from the icon size, and again when the surface changes', () => {
+      const surface = { size: 64, key: 'regular' };
+      const { markers, bySvgClass, byClass } = buildRing(surface);
+      markers.mount([RING_ENTRY]);
+      const [track] = bySvgClass(CHRONO_RING_CLASSES.track);
+      const svg = byClass(CHRONO_RING_CLASSES.root)[0]?.children[0];
+      expect(svg?.attributes.get('viewBox')).toBe('0 0 64 64');
+      // The track's band is the hold-ring's 5 px, a gap outside its 7 px reach: radius 32 + 9 + 2.5.
+      expect(track?.attributes.get('stroke-width')).toBe('5');
+      expect(track?.attributes.get('r')).toBe('43.5');
+      surface.size = 56;
+      surface.key = 'compact';
+      markers.update([ringThreat('telegraph')], null, null, null, 1100);
+      markers.setSize(800, 400);
+      markers.layout(new OrthographicCamera(-4, 4, 2, -2, 0.1, 100));
+      expect(svg?.attributes.get('viewBox')).toBe('0 0 56 56');
+      expect(track?.attributes.get('r')).toBe('39.5');
+    });
   });
 });

@@ -15,6 +15,8 @@ export interface VerbMetrics {
   lineHeight(): number;
   /** The « Grands verbes » multiplier, 1 by default. */
   scale(): number;
+  /** The threat icon's size on this surface (`--pp-threat-size`: 56 compact, 64 regular), in CSS px: the chrono-ring's radii hang from it. */
+  threatSizePx(): number;
   /** The advance width of `text` (already uppercase) at `fontPx`, in CSS px. */
   widthPx(text: string, fontPx: number): number;
 }
@@ -37,6 +39,8 @@ function numberOf(raw: string, fallback: number): number {
 /** The fallback of a missing token: a verb is never invisible, so the DESIGN regular size and line height. */
 const FALLBACK_BASE_PX = 40;
 const FALLBACK_LINE_HEIGHT = 1;
+/** The regular surface's icon size, when `--pp-threat-size` cannot be read. */
+const FALLBACK_THREAT_SIZE_PX = 64;
 /** A glyph is about this wide, as a multiple of its font size: used only when the canvas cannot measure. */
 const ESTIMATED_GLYPH_EM = 0.6;
 
@@ -64,6 +68,7 @@ export function createVerbMetrics(source: VerbMetricsSource): VerbMetrics {
     basePx: () => requiredNumber(`--pp-font-${group()}-size`, FALLBACK_BASE_PX),
     lineHeight: () => requiredNumber(`--pp-font-${group()}-line-height`, FALLBACK_LINE_HEIGHT),
     scale: () => numberOf(source.cssVar('--pp-verb-scale'), 1),
+    threatSizePx: () => requiredNumber('--pp-threat-size', FALLBACK_THREAT_SIZE_PX),
     widthPx(text, fontPx) {
       const family = source.cssVar(`--pp-font-${group()}-family`);
       const weight = source.cssVar(`--pp-font-${group()}-weight`);

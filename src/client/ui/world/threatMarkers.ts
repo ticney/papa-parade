@@ -12,13 +12,28 @@ import {
   VERB_STROKE_PX,
 } from '@shared/constants';
 import { log } from '@shared/log';
-import type { ThreatInstance } from '@sim';
+import { holdEndAt, type ThreatInstance } from '@sim';
 import { type Camera, type Scene, Vector3 } from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { threatCloseAt } from '../../input/urgency.ts';
 import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
 import type { Translator } from '../strings.ts';
 import { svgElement } from '../svg.ts';
+import {
+  type ChronoRing,
+  chronoDrainPermille,
+  chronoProgressPermille,
+  chronoRingOf,
+  chronoRingStartAt,
+  createChronoRing,
+  hasChronoRing,
+  isChronoArcLit,
+} from './chronoRing.ts';
+import {
+  CHRONO_HIDDEN,
+  type ChronoRingElement,
+  createChronoRingElement,
+} from './chronoRingElement.ts';
 import {
   clampVerbShiftPx,
   createVerbStack,
@@ -82,6 +97,22 @@ export interface ThreatMarkerEntry {
   verbHeightPx: number;
   verbOffsetPx: number;
   /**
+   * The threat's response has a chrono-ring (story 2.11, `hasChronoRing`): `true` for a `parry` and a
+   * `firm`, absent (no ring element at all) for a `wait`, a `nothing` and a def the level lacks.
+   */
+  readonly hasChronoRing?: boolean;
+  /**
+   * From the telegraph to the opening of the window, in sim ms (the def's `telegraphDelayMs`, or the feel's
+   * default): the fallback start of a ring whose marker first sees its threat already open (D3). Only on an
+   * entry with a ring.
+   */
+  readonly telegraphDelayMs?: number;
+  /**
+   * Only on a Firmness held to the end of the attack (the def's `holdUntilMs`): while its press is down the
+   * ring drains to `holdEndAt` (D5). Absent on a release Firmness, which keeps filling.
+   */
+  readonly holdUntilMs?: number;
+  /**
    * How far the verb is shifted sideways so that its box stays inside the layer, in whole px (0, or
    * absent, when it fits where it is). Written by `ThreatMarkers.layout`; the glyph chip follows it.
    */
@@ -143,6 +174,12 @@ export interface ThreatMarkers {
   readonly isAnyVisible: boolean;
   /** The icon points of the mounted level, for the hit test (the same objects, never copied). */
   readonly entries: readonly ThreatMarkerEntry[];
+  /**
+   * The chrono-ring geometry the marker of `threatId` holds, as drawn at its last telegraph (story 2.11, the
+   * judged mirror): null for a threat with no ring, or one the marker has not drawn yet. The marker's own
+   * object, never a copy: it allocates nothing, and changes at the next telegraph.
+   */
+  chronoRing(threatId: number): Readonly<ChronoRing> | null;
   dispose(): void;
 }
 
@@ -168,6 +205,10 @@ export interface ThreatMarkerDef {
   readonly iconShape: ThreatIconShape;
   readonly color: ThreatColor;
   readonly response: string;
+  /** From the telegraph to the opening of the window; `null` = the feel's default (story 2.11: the ring's start fallback). */
+  readonly telegraphDelayMs?: number | null | undefined;
+  /** Only on a Firmness held to the end of the attack (story 1.23): the chrono-ring drains while it is held (story 2.11). */
+  readonly holdUntilMs?: number | undefined;
   /** Only on a Firmness judged on its release (story 4.8): it is meant to be held in the arms. */
   readonly release?: { readonly pressWithinMs: number } | undefined;
   /** Only on a `wait` threat or a release (stories 4.6, 4.8): the verb and the glyph from the signal on. */
@@ -194,7 +235,9 @@ function translateVerb(verbKey: string, threatId: number, t: Translator): string
  * def (`defs` is the level's `LevelContent.threats`; the verb is `t(def.verbKey)`, or the default verb
  * of its response for a `null` key). An anchor the geometry lacks, or a def the level lacks, cannot
  * happen (`createSim` refuses both); if it does the icon goes to the threat's floor point, or draws a
- * bolt in a parry circle with no verb, with a `warn`. Built once per level, never per frame.
+ * bolt in a parry circle with no verb, with a `warn`. Built once per level, never per frame. An entry whose
+ * def's response has a chrono-ring (story 2.11) says so and carries the telegraph delay (the def's, or
+ * `defaultTelegraphDelayMs`, the feel's) and, for a held Firmness, `holdUntilMs`.
  */
 export function threatMarkerEntries(
   threats: readonly Readonly<ThreatInstance>[],
@@ -202,6 +245,7 @@ export function threatMarkerEntries(
   defs: Readonly<Record<string, ThreatMarkerDef>>,
   babyBodyRadiusM: number,
   t: Translator,
+  defaultTelegraphDelayMs = 0,
 ): ThreatMarkerEntry[] {
   return threats.map((threat) => {
     const def = defs[threat.defId];
@@ -224,7 +268,19 @@ export function threatMarkerEntries(
     // A `wait` threat or a release swaps its verb and its glyph at the signal (stories 4.6, 4.8).
     const signalVerb =
       def?.signalVerbKey === undefined ? '' : translateVerb(def.signalVerbKey, threat.id, t);
+    const ring =
+      def !== undefined && hasChronoRing(def.response)
+        ? {
+            hasChronoRing: true,
+            telegraphDelayMs: def.telegraphDelayMs ?? defaultTelegraphDelayMs,
+            // A release Firmness has no `holdUntilMs`: its window is the release, the ring keeps filling.
+            ...(def.holdUntilMs === undefined || def.release !== undefined
+              ? {}
+              : { holdUntilMs: def.holdUntilMs }),
+          }
+        : {};
     const look = {
+      ...ring,
       icon,
       verb: verbKey === null ? '' : translateVerb(verbKey, threat.id, t),
       ...(carriedVerb === '' ? {} : { carriedVerb }),
@@ -396,6 +452,15 @@ interface Marker {
   /** The ring's progress as drawn, in whole percent; `HOLD_HIDDEN` while it is hidden. */
   holdPct: number;
   isHoldClosed: boolean;
+  /** The chrono-ring (story 2.11); null for an entry whose response has none (a `wait`, a `nothing`). */
+  readonly chrono: ChronoRingElement | null;
+  /** The geometry the ring was last drawn with: the telegraph's start, the window and the notch (`chronoRingOf`). */
+  readonly chronoRing: ChronoRing;
+  /** True once `chronoRing` holds a telegraph (a marker that never saw its threat has nothing to mirror). */
+  isChronoRingSet: boolean;
+  /** The telegraph instant seen in `telegraph` and the `windowOpenAt` it went with (D3); NaN before the first. */
+  chronoStartAt: number;
+  chronoWindowOpenAt: number;
   isShown: boolean;
   isHighlighted: boolean;
   /** The press highlight is up for this marker (the return value of `update` follows its rising edge). */
@@ -515,7 +580,11 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
   } else {
     icon.append(glyph);
   }
-  element.append(halo, hold, highlight, verbStack, icon);
+  // The chrono-ring (story 2.11) only for a response that has one: a `wait` marker has no such element at all,
+  // so no code can read the timing of a signal off it (the 4.6 rule).
+  const chrono = entry.hasChronoRing === true ? createChronoRingElement(doc) : null;
+  if (chrono === null) element.append(halo, hold, highlight, verbStack, icon);
+  else element.append(halo, chrono.root, hold, highlight, verbStack, icon);
   // Hidden until its threat is active: the CSS2D renderer only writes `display` when it runs.
   element.style.display = 'none';
 
@@ -541,6 +610,11 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
     hold,
     holdPct: HOLD_HIDDEN,
     isHoldClosed: false,
+    chrono,
+    chronoRing: createChronoRing(),
+    isChronoRingSet: false,
+    chronoStartAt: Number.NaN,
+    chronoWindowOpenAt: Number.NaN,
     isShown: false,
     isHighlighted: false,
     isPressed: false,
@@ -581,6 +655,78 @@ function updateHoldRing(
 }
 
 /**
+ * The chrono-ring of one marker (story 2.11), from the world and the drawn sim time only (AC 9): shown while
+ * its threat is `telegraph` or `windowOpen` (never on a resolved press kept one more frame, never on a
+ * `hidden` silence), filled from the telegraph to the end of the shown window, lit from the opening (`--lit`).
+ * A held Firmness with `holdUntilMs` drains instead, full at the press and empty at `holdEndAt`, with no lit
+ * arc and no notch (`--hold`, D5). The geometry is written once per telegraph; the DOM only when the
+ * per-mille, the lit state or the hold state changes; nothing allocates.
+ */
+function updateChronoRing(
+  marker: Marker,
+  entry: ThreatMarkerEntry,
+  threat: Readonly<ThreatInstance> | undefined,
+  renderSimMs: number | null,
+  holdMinMs: number,
+): void {
+  const chrono = marker.chrono;
+  if (chrono === null) return;
+  let permille = CHRONO_HIDDEN;
+  let isLit = false;
+  let isHold = false;
+  if (
+    threat !== undefined &&
+    renderSimMs !== null &&
+    threat.responseWindow !== null &&
+    (threat.state === 'telegraph' || threat.state === 'windowOpen')
+  ) {
+    const ring = marker.chronoRing;
+    const isTelegraph = threat.state === 'telegraph';
+    const startAt = chronoRingStartAt(
+      isTelegraph,
+      threat.enteredAt,
+      threat.windowOpenAt,
+      marker.chronoStartAt,
+      marker.chronoWindowOpenAt,
+      entry.telegraphDelayMs ?? 0,
+    );
+    if (isTelegraph) {
+      marker.chronoStartAt = startAt;
+      marker.chronoWindowOpenAt = threat.windowOpenAt;
+    }
+    const closeAt = threat.windowOpenAt + threat.responseWindow.windowMs;
+    if (
+      !marker.isChronoRingSet ||
+      startAt !== ring.startAt ||
+      threat.windowOpenAt !== ring.windowOpenAt ||
+      closeAt !== ring.closeAt
+    ) {
+      chronoRingOf(ring, startAt, threat.windowOpenAt, threat.responseWindow);
+      marker.isChronoRingSet = true;
+      chrono.setGeometry(ring);
+    }
+    const press = threat.press;
+    if (
+      entry.holdUntilMs !== undefined &&
+      press !== null &&
+      press.releasedAt === null &&
+      holdMinMs > 0
+    ) {
+      isHold = true;
+      permille = chronoDrainPermille(
+        press.t,
+        holdEndAt(press.t, threat.windowOpenAt, entry.holdUntilMs, holdMinMs),
+        renderSimMs,
+      );
+    } else {
+      permille = chronoProgressPermille(ring, renderSimMs);
+      isLit = isChronoArcLit(ring, renderSimMs);
+    }
+  }
+  chrono.draw(permille, isLit, isHold);
+}
+
+/**
  * The threat icons of a level, world-anchored in the `CSS2DRenderer` layer: a `{colors.parry}`
  * circle with the threat's glyph (`THREAT_ICON_PATHS`) and a pulsing `{colors.alert}` halo while the threat is `telegraph` or
  * `windowOpen`, and the `target-highlight` (a solid ring and a bouncing chevron) on the pressed
@@ -611,6 +757,10 @@ export function createThreatMarkers(
   let zStrings: readonly string[] = [];
   /** Some marker of the level has a verb: only then is the page's typography read at all. */
   let hasVerbs = false;
+  /** Some marker of the level has a chrono-ring: its radii hang from the icon's size (story 2.11). */
+  let hasRings = false;
+  /** The surface the rings were last sized for. */
+  let ringSurface = '';
   let fontMetrics = metrics;
   const getMetrics = (): VerbMetrics => {
     fontMetrics ??= createBrowserVerbMetrics();
@@ -631,9 +781,22 @@ export function createThreatMarkers(
     shiftXs = new Float64Array(0);
     zStrings = [];
     hasVerbs = false;
+    hasRings = false;
+    ringSurface = '';
+  };
+
+  // The ring's radii hang from the icon's size, which changes with the surface: written on mount and when
+  // the surface changes, never per frame (the size is read only then).
+  const fitRings = (): void => {
+    if (!hasRings) return;
+    const typography = getMetrics();
+    ringSurface = typography.surfaceKey();
+    const sizePx = typography.threatSizePx();
+    for (const marker of markers) marker.chrono?.setSize(sizePx);
   };
 
   const refit = (): void => {
+    fitRings();
     // Nothing to fit against before the first size: the CSS size shows until `setSize`.
     if (layerWidthPx <= 0 || !hasVerbs) return;
     const typography = getMetrics();
@@ -675,6 +838,7 @@ export function createThreatMarkers(
       shiftXs = new Float64Array(markers.length);
       zStrings = Array.from({ length: markers.length + 1 }, (_, rank) => String(rank));
       hasVerbs = markers.some((marker) => marker.verb !== null);
+      hasRings = markers.some((marker) => marker.chrono !== null);
       refit();
     },
     unmount,
@@ -688,6 +852,7 @@ export function createThreatMarkers(
       if (shownCount === 0 || layerWidthPx <= 0 || layerHeightPx <= 0) return;
       // A surface change (a resize across `COMPACT_SURFACE_MAX_PX`) changes the verb's base size.
       if (hasVerbs && getMetrics().surfaceKey() !== fittedSurface) refit();
+      else if (hasRings && getMetrics().surfaceKey() !== ringSurface) fitRings();
       camera.updateMatrixWorld();
       let count = 0;
       for (let i = 0; i < markers.length; i++) {
@@ -843,6 +1008,7 @@ export function createThreatMarkers(
           }
         }
         updateHoldRing(marker, threat, renderSimMs, holdMinMs);
+        updateChronoRing(marker, entry, threat, renderSimMs, holdMinMs);
         const isHighlighted = isPressed || (threat !== undefined && threat.id === targetedId);
         if (isHighlighted !== marker.isHighlighted) {
           marker.isHighlighted = isHighlighted;
@@ -866,6 +1032,14 @@ export function createThreatMarkers(
     },
     get entries() {
       return mounted;
+    },
+    chronoRing(threatId) {
+      for (let i = 0; i < markers.length; i++) {
+        if ((mounted[i] as ThreatMarkerEntry).threatId !== threatId) continue;
+        const marker = markers[i] as Marker;
+        return marker.chrono !== null && marker.isChronoRingSet ? marker.chronoRing : null;
+      }
+      return null;
     },
     dispose: unmount,
   };

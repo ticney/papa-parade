@@ -14,6 +14,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestOutlet,
   OUTLET,
   SILENCE,
   STAIRS,
@@ -487,6 +488,11 @@ describe('createLevelSession', () => {
         verbWidthPx: 0,
         verbHeightPx: 0,
         verbOffsetPx: 0,
+        // A parry has a chrono-ring (story 2.11), whose start fallback is the def's delay or the live feel's.
+        hasChronoRing: true,
+        telegraphDelayMs:
+          createTestOutlet().telegraphDelayMs ??
+          createTestContent().feel.timing.telegraphDelayDefaultMs,
       },
     ]);
   });

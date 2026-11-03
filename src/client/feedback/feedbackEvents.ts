@@ -7,6 +7,8 @@ import type { SimEvent } from '@sim';
 export const FEEDBACK_CLIENT_EVENTS = [
   'CountdownTicked',
   'NoiseAlertReached',
+  // The chrono-ring's final arc lit (story 2.11): a short vibration at the opening of a window that has a ring.
+  'ChronoArcLit',
   'InstinctVignetteShown',
   'PhotoTaken',
   'ResultStarStamped',

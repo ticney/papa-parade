@@ -1,5 +1,29 @@
 import type { ThreatDef } from '@content/schemas/threat';
 import type { SimEvent, World } from '@sim';
+import { hasChronoRing } from '../ui/world/chronoRing.ts';
+
+/**
+ * True when this event is the opening of a window the player must now hit with a chrono-ring lit on it
+ * (story 2.11, D6): a `WindowOpened` of a threat whose def's response has a ring and which has no signal
+ * cue of its own. `WindowOpened` cannot be mapped in `feedback.json › events` (it would vibrate for every
+ * `wait` and `nothing` too), so the caller plays the client event `ChronoArcLit` when this is true. The
+ * bomb drop's « LÂCHE ! » (`feedback.signal`) already vibrates at that very step: one moment, one
+ * vibration. Allocates nothing.
+ */
+export function opensChronoArc(
+  event: SimEvent,
+  world: Readonly<World>,
+  defs: Readonly<Record<string, ThreatDef>>,
+): boolean {
+  if (event.type !== 'WindowOpened') return false;
+  for (const threat of world.threats) {
+    if (threat.id !== event.threatId) continue;
+    if (!Object.hasOwn(defs, threat.defId)) return false;
+    const def = defs[threat.defId] as ThreatDef;
+    return hasChronoRing(def.response) && def.feedback.signal === undefined;
+  }
+  return false;
+}
 
 /**
  * The cue a threat event plays, named by the threat's def (`feedback.telegraph/success/perfect/gag`),

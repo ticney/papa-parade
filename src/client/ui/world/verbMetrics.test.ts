@@ -46,6 +46,16 @@ describe('createVerbMetrics', () => {
     expect(createVerbMetrics(source('regular', { '--pp-verb-scale': '0' })).scale()).toBe(1);
   });
 
+  it('reads the threat icon size of the surface (the chrono-ring hangs from it, story 2.11)', () => {
+    expect(
+      createVerbMetrics(source('regular', { '--pp-threat-size': '64px' })).threatSizePx(),
+    ).toBe(64);
+    expect(
+      createVerbMetrics(source('compact', { '--pp-threat-size': '56px' })).threatSizePx(),
+    ).toBe(56);
+    expect(createVerbMetrics(source('regular')).threatSizePx()).toBe(64);
+  });
+
   it('falls back to the DESIGN regular size when the token is missing', () => {
     const metrics = createVerbMetrics({
       surface: () => 'regular',

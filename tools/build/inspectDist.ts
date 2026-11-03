@@ -101,6 +101,8 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   'ppPropsTidied',
   // Story 3.6: the end photo's debug mirror (`data-pp-photo`), the same way.
   'ppPhoto',
+  // Story 2.11: the chrono-ring's judged mirror (`data-pp-chrono-judged`), the same way.
+  'ppChronoJudged',
 ];
 
 /**

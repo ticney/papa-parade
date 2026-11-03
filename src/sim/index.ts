@@ -78,6 +78,7 @@ export {
 export type { SimSnapshot } from './snapshot.ts';
 export { GAG_IDS, type GagId, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
 export type { ThreatState } from './threats/threatFsm.ts';
+export { holdEndAt } from './timing/holdEnd.ts';
 export type {
   BabySlice,
   BeatSlice,

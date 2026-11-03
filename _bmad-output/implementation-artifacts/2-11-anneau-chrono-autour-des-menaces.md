@@ -4,7 +4,7 @@ baseline_commit: 231d5deb280c82adfe34cc7c0d67f1c71ad0a7b7
 
 # Story 2.11: Anneau-chrono autour des menaces
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -58,31 +58,31 @@ Requirement: FR71 `[P]`, FR53, UX-DR27, UX-DR10. Second story of the v2.3 catch-
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: The pure geometry (AC: 1, 3, 4, 5, 11, 15)
-  - [ ] New `src/client/ui/world/chronoRing.ts`: `hasChronoRing(response)` (the typed table), `chronoRingStartAt(...)` (D3), `chronoRingOf(startAt, windowOpenAt, window)` → `{ startAt, closeAt, arcFromPermille, notchPermille, notchFromPermille, notchToPermille }`, `chronoProgressPermille(ring, simMs)` (clamped 0–1000, whole), `chronoDrainPermille(pressT, endAt, simMs)`
-  - [ ] `export { holdEndAt } from './timing/holdEnd.ts'` in `src/sim/index.ts` (public API, pure)
-  - [ ] Unit tests: 0 at the start, `delay / (delay + window)` at the opening, 1000 at the close and after it, before-start clamp, notch at the centre and its range, a window stretched by each modifier (tier, fatigue, instinct, through a frozen `responseWindow`), the start fallback, the drain (full at the press, 0 at the end, `holdMinMs` wins when later), the table (`wait`, `nothing` false)
-- [ ] Task 2: The ring in the threat marker (AC: 1–5, 7–11)
-  - [ ] Constants in `shared/constants.ts`; the drift test beside `holdRingSpec.test.ts` (D9)
-  - [ ] `ThreatMarkerDef` and `ThreatMarkerEntry` gain what the ring needs (has a ring, the telegraph delay, `holdUntilMs`), set once in `threatMarkerEntries`
-  - [ ] The ring element in `createMarker` (only for entries with a ring), drawn by an `updateChronoRing` beside `updateHoldRing`, from `renderSimMs` and `holdMinMs` already passed to `update`: geometry written once per telegraph, progress only when the per-mille changes, `--lit` and `--hold` only when they flip; zero allocation per frame
-  - [ ] CSS in `ui.css`: the ring, the lit arc, the notch, `--hold`; the highlight and `--pp-verb-gap` moved out (AC 8); declare every custom property it reads (`designTokens.test.ts`)
-  - [ ] `threatMarkers.test.ts`: ring present per response kind and absent on `wait` / `nothing` / a feint def, hidden outside `telegraph` / `windowOpen` and on the resolved press frame, progress and lit state from `renderSimMs`, DOM written only on change, the drain on a `holdUntilMs` def and not on a `release` def, the radii do not overlap at both sizes
-- [ ] Task 3: Vibration and mirror (AC: 6, 15)
-  - [ ] `ChronoArcLit` in `FEEDBACK_CLIENT_EVENTS`; `chrono_arc_lit` cue and the `events` row in `content/feedback.json`
-  - [ ] `boot.ts`: on `WindowOpened` of a ring def with no `feedback.signal`, `director.handle('ChronoArcLit', null)` (the `InstinctVignetteShown` pattern); on `ResponseResolved`, `ppChronoJudged` from `worldUi`'s ring geometry (a getter that allocates nothing per frame; per event is fine)
-  - [ ] `ppChronoJudged` in the `mirror()` name union and in `tools/build/inspectDist.ts`; `feedbackDirector.test.ts` / `feedbackTwins.test.ts` as needed
-- [ ] Task 4: The silence ring (AC: 12, 13, 14)
-  - [ ] Extend `silenceBubble.ts` (or a sibling `silenceRing` in `ui/hud/` built from `chronoRing.ts`'s helpers): placed beside the bubble on the centre side, filled from `startedAt` over the def's `findMaxMs` at `renderSimMs`; written only on change
-  - [ ] `boot.ts` passes the drawn sim time and the silence def's `findMaxMs` (from the level's threat defs, by `world.silence.threatId`)
-  - [ ] `silenceBubble.test.ts`: placement on both sides, fill, hidden with the bubble
-- [ ] Task 5: E2E and screenshots (AC: 16, 17, 18)
-  - [ ] New `tests/e2e/chronoRing.spec.ts`; additions to `silence.spec.ts`, `bedtimeDuel.spec.ts`, `fakeSleep.spec.ts`, `stealthExit.spec.ts`
-  - [ ] Regenerate and look at the two `autoplay-frozen-*-darwin.png`
-  - [ ] Run the specs the change touches on Chromium: `chronoRing`, `holdRing`, `silence`, `threat`, `threats`, `autoTarget`, `ui`, `reducedMotion`, `feedback`, `juice`, `testApi`, `autoplay`, `bedtimeDuel`, `fakeSleep`, `bombDrop`, `stealthExit`, `carry`, `fatigue`
-- [ ] Task 6: Docs and checks (AC: 19, 20)
-  - [ ] `project-context.md`, `EXPERIENCE.md`; `npm run ci:fast` after each task; `npm run build` + `npm run dist:check -- --flavor prod` once (the new marker)
-  - [ ] Look at the ring in play on both levels (screenshots: a telegraph, a lit arc, two threats, the micro-sleep on Papa, the silence ring) and say in the notes what Geo should judge
+- [x] Task 1: The pure geometry (AC: 1, 3, 4, 5, 11, 15)
+  - [x] New `src/client/ui/world/chronoRing.ts`: `hasChronoRing(response)` (the typed table), `chronoRingStartAt(...)` (D3), `chronoRingOf(startAt, windowOpenAt, window)` → `{ startAt, closeAt, arcFromPermille, notchPermille, notchFromPermille, notchToPermille }`, `chronoProgressPermille(ring, simMs)` (clamped 0–1000, whole), `chronoDrainPermille(pressT, endAt, simMs)`
+  - [x] `export { holdEndAt } from './timing/holdEnd.ts'` in `src/sim/index.ts` (public API, pure)
+  - [x] Unit tests: 0 at the start, `delay / (delay + window)` at the opening, 1000 at the close and after it, before-start clamp, notch at the centre and its range, a window stretched by each modifier (tier, fatigue, instinct, through a frozen `responseWindow`), the start fallback, the drain (full at the press, 0 at the end, `holdMinMs` wins when later), the table (`wait`, `nothing` false)
+- [x] Task 2: The ring in the threat marker (AC: 1–5, 7–11)
+  - [x] Constants in `shared/constants.ts`; the drift test beside `holdRingSpec.test.ts` (D9)
+  - [x] `ThreatMarkerDef` and `ThreatMarkerEntry` gain what the ring needs (has a ring, the telegraph delay, `holdUntilMs`), set once in `threatMarkerEntries`
+  - [x] The ring element in `createMarker` (only for entries with a ring), drawn by an `updateChronoRing` beside `updateHoldRing`, from `renderSimMs` and `holdMinMs` already passed to `update`: geometry written once per telegraph, progress only when the per-mille changes, `--lit` and `--hold` only when they flip; zero allocation per frame
+  - [x] CSS in `ui.css`: the ring, the lit arc, the notch, `--hold`; the highlight and `--pp-verb-gap` moved out (AC 8); declare every custom property it reads (`designTokens.test.ts`)
+  - [x] `threatMarkers.test.ts`: ring present per response kind and absent on `wait` / `nothing` / a feint def, hidden outside `telegraph` / `windowOpen` and on the resolved press frame, progress and lit state from `renderSimMs`, DOM written only on change, the drain on a `holdUntilMs` def and not on a `release` def, the radii do not overlap at both sizes
+- [x] Task 3: Vibration and mirror (AC: 6, 15)
+  - [x] `ChronoArcLit` in `FEEDBACK_CLIENT_EVENTS`; `chrono_arc_lit` cue and the `events` row in `content/feedback.json`
+  - [x] `boot.ts`: on `WindowOpened` of a ring def with no `feedback.signal`, `director.handle('ChronoArcLit', null)` (the `InstinctVignetteShown` pattern); on `ResponseResolved`, `ppChronoJudged` from `worldUi`'s ring geometry (a getter that allocates nothing per frame; per event is fine)
+  - [x] `ppChronoJudged` in the `mirror()` name union and in `tools/build/inspectDist.ts`; `feedbackDirector.test.ts` / `feedbackTwins.test.ts` as needed
+- [x] Task 4: The silence ring (AC: 12, 13, 14)
+  - [x] Extend `silenceBubble.ts` (or a sibling `silenceRing` in `ui/hud/` built from `chronoRing.ts`'s helpers): placed beside the bubble on the centre side, filled from `startedAt` over the def's `findMaxMs` at `renderSimMs`; written only on change
+  - [x] `boot.ts` passes the drawn sim time and the silence def's `findMaxMs` (from the level's threat defs, by `world.silence.threatId`)
+  - [x] `silenceBubble.test.ts`: placement on both sides, fill, hidden with the bubble
+- [x] Task 5: E2E and screenshots (AC: 16, 17, 18)
+  - [x] New `tests/e2e/chronoRing.spec.ts`; additions to `silence.spec.ts`, `bedtimeDuel.spec.ts`, `fakeSleep.spec.ts`, `stealthExit.spec.ts`
+  - [x] Regenerate and look at the two `autoplay-frozen-*-darwin.png`
+  - [x] Run the specs the change touches on Chromium: `chronoRing`, `holdRing`, `silence`, `threat`, `threats`, `autoTarget`, `ui`, `reducedMotion`, `feedback`, `juice`, `testApi`, `autoplay`, `bedtimeDuel`, `fakeSleep`, `bombDrop`, `stealthExit`, `carry`, `fatigue`
+- [x] Task 6: Docs and checks (AC: 19, 20)
+  - [x] `project-context.md`, `EXPERIENCE.md`; `npm run ci:fast` after each task; `npm run build` + `npm run dist:check -- --flavor prod` once (the new marker)
+  - [x] Look at the ring in play on both levels (screenshots: a telegraph, a lit arc, two threats, the micro-sleep on Papa, the silence ring) and say in the notes what Geo should judge
 
 ## Dev Notes
 
@@ -213,10 +213,36 @@ Follows the layers and the architecture tree (`client/ui/world/chronoRing.ts`). 
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (claude-sonnet-5-5)
+
 ### Debug Log References
+
+- `npm run ci:fast`: 8081 unit/golden/architecture tests pass, **no golden regenerated** (AC 19). The one red test, `designTokens.test.ts › tokens.css mirrors DESIGN.md` (`--pp-color-mama-calm`, `--pp-color-mama-home` missing from `tokens.css`), is **already red on `main`**: the v2.3 course-correct commit `231d5de` added the two colours to DESIGN.md and nothing adds them to `tokens.css` yet (a five-row Result story's job, 3.12). Not touched here.
+- E2E on Chromium, all green: `chronoRing`, `silence`, `holdRing`, `threat`, `threats`, `autoTarget`, `ui`, `reducedMotion`, `feedback`, `juice`, `testApi`, `bedtimeDuel`, `fakeSleep`, `bombDrop`, `stealthExit`, `carry`, `fatigue`; `autoplay` on Chromium and WebKit after regenerating its references. `stealthExit › a real wake` (2 tests) timed out at 30 s in a 4-worker run while another agent's CI was on the machine, and passed alone with `--workers=2` (24 s each).
+- `npm run build` + `dist:check --flavor prod` OK (no `ppChronoJudged`, no debug marker); `build:playtest` + `dist:check --flavor playtest` OK (the marker is there).
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **The ring is a pure function of the world.** `client/ui/world/chronoRing.ts` (`hasChronoRing`, `chronoRingStartAt`, `chronoRingOf`, `chronoProgressPermille`, `chronoDrainPermille`, `isChronoArcLit`, the radii and the `threatFootprint`), drawn by `chronoRingElement.ts` (one inline SVG per ring, `pathLength` 1000, progress as a `stroke-dashoffset` from a prebuilt string table) and driven by `updateChronoRing` in `threatMarkers.ts` from `renderSimMs`: shown in `telegraph` / `windowOpen` only, geometry once per telegraph, DOM only on change, nothing allocated per frame. A `wait` / `nothing` marker has **no ring element at all** (`hasChronoRing` is absent from its entry).
+- **D3 as written:** no `telegraphedAt` in the world; `enteredAt` in `telegraph`, remembered start in `windowOpen`, `windowOpenAt − telegraphDelayMs` for a marker that first sees the threat open (`threatMarkerEntries` got a 6th parameter, the feel's `telegraphDelayDefaultMs`, passed by `levelSession.ts`).
+- **D9:** `--pp-verb-gap` and the highlight's `inset` are computed in CSS from four custom properties written once on the root by `applyChronoRingMetrics` (`--pp-chrono-reach`, `--pp-chrono-gap`, `--pp-highlight-stroke`, `--pp-highlight-outline`), so no ring pixel lives in a CSS literal. New constants: `CHRONO_RING_GAP_PX`, `CHRONO_RING_FINAL_ARC_STROKE_PX`, `CHRONO_RING_NOTCH_PX`, `TARGET_HIGHLIGHT_STROKE_PX`, `TARGET_HIGHLIGHT_OUTLINE_PX`; the drift test in `holdRingSpec.test.ts` pins them (and `direction: clockwise`, the tokens) to DESIGN.md. **The highlight is bigger now** (it sits a gap outside the ring: 27 px past the icon's edge at both surfaces, it was 0.3 × size) and the verbs sit higher by the same amount.
+- **`VerbMetrics.threatSizePx()`** (reads `--pp-threat-size`) gives the ring its radii on mount and on a surface change; the three test doubles of `VerbMetrics` got it.
+- **Drain (D5):** `holdEndAt` exported through `@sim` (`src/sim/index.ts` is the only sim file touched); a `firm` def with `holdUntilMs` drains from full at `press.t` to `holdEndAt`, `--hold` hides the lit arc and the notch; a release Firmness (the bomb drop) keeps filling and has its ring.
+- **Vibration:** client event `ChronoArcLit` → cue `chrono_arc_lit` (`light`, `uiElement`, no audio). **Deviation from the task text:** it is sent by `playSimEventFeedback` (`simEventFeedback.ts`, with `opensChronoArc` in `threatFeedback.ts`: a `WindowOpened` of a ring def with no `feedback.signal`) rather than by `boot.ts`, because that routing function is the one unit-tested path from a sim event to the director. Same effect, same step.
+- **Mirror:** `data-pp-chrono-judged` on every `ResponseResolved` with an offset, built by `chronoJudgedMirror` with the very function that draws the ring, on the geometry the marker holds (`worldUi.chronoRingOf`, the marker's own object); `ppChronoJudged` is in `inspectDist.ts` and in `checkDist.test.ts`'s fixture.
+- **Silence ring (AC 12–14):** `silenceBubble.ring` (3 HUD nodes, a sibling of the bubble), filled from `world.silence.startedAt` over `findMaxMs` (a `findMaxMs(defId)` option, boot reads the def) at the drawn sim time. **Look fix after seeing it:** over the dark page margin a 40 % ink track and an ink outline vanish and only the paper arc showed, so the band has a faint paper veil (`::before`, 30 % paper) under it.
+- **The drawn time trails the sim by up to one step** (`world.time.sim − STEP_MS × (1 − alpha)`, alpha 0 in a frozen frame): the arc lights, and the ring is full, one step after the opening step / the close in the frozen e2e. This is by design (D6: the vibration is the event, the arc the drawn frame); the specs check one step later and say so.
+- **Screenshots (AC 18):** `autoplay-frozen-chromium-darwin.png` and `autoplay-frozen-webkit-darwin.png` were regenerated on purpose and looked at: the same scene, the half-way telegraph, with its ring around the icon and nothing else moved.
+- **Looked at in play** (zoomed captures, both surfaces, a throw-away spec): telegraph with the highlight on (ring, gap, highlight, verb, no overlap at 56 and 64 px), lit arc with the notch, two threats at once, the silence ring beside its bubble. Not looked at: the micro-sleep on Papa and the second level.
+- **What Geo should judge by playing:** (1) the ring's weight around the icon now that the highlight moved out (open point 4's cousin); (2) whether the bomb drop should keep its ring (open point 1); (3) the notch as one 2 px tick with no width (open point 2); (4) the silence ring's place and size, 58 px beside the bubble (open point 4); (5) telegraph delays: now that the ring shows them, are 0.8–1.5 s too short (open point 3, `content/threats/*.json` only).
 
 ### File List
+
+- New: `src/client/ui/world/chronoRing.ts`, `src/client/ui/world/chronoRing.test.ts`, `src/client/ui/world/chronoRingElement.ts`, `tests/e2e/chronoRing.spec.ts`
+- Modified (code): `src/client/ui/world/threatMarkers.ts`, `src/client/ui/world/worldUi.ts`, `src/client/ui/world/verbMetrics.ts`, `src/client/ui/hud/silenceBubble.ts`, `src/client/ui/styles/ui.css`, `src/client/boot.ts`, `src/client/app/levelSession.ts`, `src/client/feedback/feedbackEvents.ts`, `src/client/feedback/threatFeedback.ts`, `src/client/feedback/simEventFeedback.ts`, `src/shared/constants.ts`, `src/sim/index.ts`, `content/feedback.json`, `tools/build/inspectDist.ts`
+- Modified (tests): `src/client/ui/world/threatMarkers.test.ts`, `src/client/ui/world/worldUi.test.ts`, `src/client/ui/world/papaHint.test.ts`, `src/client/ui/world/releaseMarker.test.ts`, `src/client/ui/world/verbMetrics.test.ts`, `src/client/ui/hud/silenceBubble.test.ts`, `src/client/app/levelSession.test.ts`, `src/client/feedback/threatFeedback.test.ts`, `src/client/feedback/simEventFeedback.test.ts`, `tests/architecture/holdRingSpec.test.ts`, `tests/tools/build/checkDist.test.ts`, `tests/e2e/silence.spec.ts`, `tests/e2e/bedtimeDuel.spec.ts`, `tests/e2e/fakeSleep.spec.ts`, `tests/e2e/stealthExit.spec.ts`, `tests/e2e/support/duel.ts`, `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-chromium-darwin.png`, `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-webkit-darwin.png`
+- Modified (docs): `_bmad-output/project-context.md` (« The chrono-ring (story 2.11) » paragraph), `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md` (chrono-ring row), `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story. `game-architecture.md` L977 checked: already right.
+
+### Change Log
+
+- 2026-11-03: Story 2.11 implemented: the chrono-ring around parry and firm threats (fill, lit final arc, notch, drain on a held Firmness), the ring beside the silence bubble, the `ChronoArcLit` vibration, the `data-pp-chrono-judged` mirror, the two autoplay screenshot references regenerated. Status → review.

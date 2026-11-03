@@ -105,6 +105,20 @@ export const shownMarkers = (page: Page) =>
       })),
   );
 
+/**
+ * How many chrono-rings (story 2.11) the shown markers hold, lit or not: a `wait` or `nothing` marker, a
+ * feint included, holds none at all, so this is 0 while only such a threat is up. Assert it next to a
+ * `shownMarkers` that proves a marker is shown, so that it cannot pass on an empty page.
+ */
+export const chronoRingsInShownMarkers = (page: Page) =>
+  page
+    .locator('.pp-threat')
+    .evaluateAll((elements) =>
+      elements
+        .filter((element) => getComputedStyle(element).display !== 'none')
+        .reduce((count, element) => count + element.querySelectorAll('.pp-chrono-ring').length, 0),
+    );
+
 /** A screenshot to look at: in `PP_SHOTS_DIR` when it is set (the story's review), else in the test's output. */
 export const shot = (page: Page, testInfo: TestInfo, name: string) =>
   page.screenshot({

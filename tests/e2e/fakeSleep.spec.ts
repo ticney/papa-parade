@@ -4,6 +4,7 @@ import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
   advanceTo,
+  chronoRingsInShownMarkers,
   cueIds,
   openFrozen,
   realTap,
@@ -199,6 +200,8 @@ test.describe('the marker (looked at at 667 × 375)', () => {
       .poll(async () => (await shownMarkers(page))[0]?.glyph)
       .toBe(THREAT_ICON_PATHS.peek);
     expect((await shownMarkers(page))[0]?.verb).toBe(STRINGS['verb.wait'] as string);
+    // Neither the wait nor its feint has a chrono-ring (story 2.11).
+    expect(await chronoRingsInShownMarkers(page)).toBe(0);
     await shot(page, testInfo, 'fake-sleep-feint.png');
 
     await advanceTo(page, windowOpenAt + STEP_MS);
