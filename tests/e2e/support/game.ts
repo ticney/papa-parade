@@ -76,7 +76,8 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
   };
   mama: {
     laughMaxPoints: number;
-    babyStateMaxPoints: number;
+    calmMaxPoints: number;
+    homeMaxPoints: number;
     sighMaxPoints: number;
     screamMaxPoints: number;
     earlyWakePenaltyStars: number;

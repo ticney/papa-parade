@@ -24,7 +24,7 @@ const pct = (description: string) => z.number().min(0).max(100).describe(descrip
 const points = (description: string) => z.number().min(0).describe(description);
 const multiplier = (description: string) => z.number().min(0).describe(description);
 
-/** Points of Mama's note that are shown and summed as they are: whole, so the four rows add up to the score. */
+/** Points of Mama's note that are shown and summed as they are: whole, so the five rows add up to the score. */
 const wholePoints = (description: string) => z.int().min(0).describe(description);
 const timeScale = (description: string) =>
   z.number().min(MIN_TIME_SCALE).max(1).describe(description);
@@ -469,10 +469,8 @@ const DifficultySchema = z
 const MamaSchema = z
   .strictObject({
     laughMaxPoints: wholePoints('Most points the baby laughs can give, in points.'),
-    babyStateMaxPoints: wholePoints('Most points the baby state can give, in points.'),
-    babyStateFixedPoints: wholePoints(
-      'Baby-state points used by the prototype instead of the real computation, in points.',
-    ),
+    calmMaxPoints: wholePoints('Most points the baby staying calm can give, in points.'),
+    homeMaxPoints: wholePoints('Most points the house chores can give, in points.'),
     baseScorePoints: wholePoints('Base points added to every score, in points.'),
     sighMaxPoints: wholePoints('Most points a sigh can take off, in points.'),
     screamMaxPoints: wholePoints('Most points a scream can take off, in points.'),
@@ -499,6 +497,12 @@ const MamaSchema = z
     laughPerPerfectPoints: points(
       'Laugh points each perfect response gives (held to `laughMaxPoints`), in points per perfect.',
     ),
+    laughPerSuccessPoints: points(
+      'Laugh points each success (not perfect) gives (held to `laughMaxPoints`), in points per success.',
+    ),
+    calmNoiseThresholdPct: pct(
+      'The baby counts as calm while the noise gauge is strictly below this level, in % of the gauge.',
+    ),
     sighPerPropOnFloorPoints: points(
       'Sigh points each unbroken prop lying on the floor at the end takes off, in points per prop.',
     ),
@@ -510,24 +514,24 @@ const MamaSchema = z
       'Scream points each near miss takes off (held to `screamMaxPoints`), in points per near miss.',
     ),
   })
-  .refine((mama) => mama.babyStateFixedPoints <= mama.babyStateMaxPoints, {
-    path: ['babyStateFixedPoints'],
-    error: 'babyStateFixedPoints must not exceed babyStateMaxPoints',
-  })
   .refine(
     (mama) =>
-      mama.laughMaxPoints + mama.babyStateMaxPoints + mama.sighMaxPoints + mama.screamMaxPoints ===
+      mama.laughMaxPoints +
+        mama.calmMaxPoints +
+        mama.homeMaxPoints +
+        mama.sighMaxPoints +
+        mama.screamMaxPoints ===
       MAMA_SCORE_MAX_POINTS,
     {
       path: ['laughMaxPoints'],
       error:
-        'laughMaxPoints + babyStateMaxPoints + sighMaxPoints + screamMaxPoints must be 100: the note is out of 100',
+        'laughMaxPoints + calmMaxPoints + homeMaxPoints + sighMaxPoints + screamMaxPoints must be 100: the note is out of 100',
     },
   )
   .refine((mama) => mama.baseScorePoints === mama.sighMaxPoints + mama.screamMaxPoints, {
     path: ['baseScorePoints'],
     error:
-      'baseScorePoints must equal sighMaxPoints + screamMaxPoints, so that the four rows add up to the score',
+      'baseScorePoints must equal sighMaxPoints + screamMaxPoints, so that the five rows add up to the score',
   })
   .describe("Mama's note (GDD, economy › Mama's note).");
 

@@ -431,7 +431,8 @@ export type SimEvent =
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
   /**
    * Papa put a prop back where it spawned in the final rush (story 3.5): it left the mess in this very
-   * step, so Mama's sigh falls by `feel.mama.sighPerPropOnFloorPoints`.
+   * step, so Mama's sigh is counted with one prop less (`feel.mama.sighPerPropOnFloorPoints` each; the
+   * row is rounded once, so the drop is that slope rounded up or down).
    */
   | { type: 'PropTidied'; t: SimMs; propId: string }
   /**
@@ -454,7 +455,7 @@ export type SimEvent =
   | { type: 'LevelEnded'; t: SimMs; reason: LevelEndReason }
   /**
    * Mama's note (story 1.22), right after `LevelEnded` and at the same `t`, once per level: the
-   * four rows (`sighPoints` and `screamPoints` are what she takes off), the score out of 100 and the
+   * five rows (`sighPoints` and `screamPoints` are what she takes off), the score out of 100 and the
    * stars (after the `lostStars` she took off for being woken, story 3.2). The same values are in
    * `world.score.final`.
    */
@@ -462,7 +463,8 @@ export type SimEvent =
       type: 'LevelScored';
       t: SimMs;
       laughPoints: number;
-      babyStatePoints: number;
+      calmPoints: number;
+      homePoints: number;
       sighPoints: number;
       screamPoints: number;
       scorePoints: number;

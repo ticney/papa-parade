@@ -240,14 +240,17 @@ export interface SilenceSlice {
 }
 
 /**
- * Mama's note (story 1.22, GDD › economy): four integer rows and their sum, out of 100. The rows
- * always add up: `scorePoints = laugh + babyState + (sighMax − sigh) + (screamMax − scream)`.
+ * Mama's note (story 1.22, revised in 3.12, GDD › economy): five integer rows and their sum, out of
+ * 100. The rows always add up:
+ * `scorePoints = laugh + calm + home + (sighMax − sigh) + (screamMax − scream)`.
  */
 export interface MamaScore {
-  /** Rire: the perfect responses, held to `laughMaxPoints`. */
+  /** Rire: the perfects, the successes and the combo points cashed in, held to `laughMaxPoints`. */
   laughPoints: number;
-  /** État du bébé: `babyStateFixedPoints` until E5 computes it. */
-  babyStatePoints: number;
+  /** Calme du bébé: the share of the played time the baby was calm, times `calmMaxPoints` (E5 changes how). */
+  calmPoints: number;
+  /** Maison: the house chores, held to `homeMaxPoints`; 0 until E9 (story 9.4). */
+  homePoints: number;
   /** Soupir, taken off: props on the floor, broken props and mischiefs, held to `sighMaxPoints`. */
   sighPoints: number;
   /** Hurlement, taken off: the near misses, held to `screamMaxPoints`. */
@@ -270,12 +273,19 @@ export interface MamaScore {
 export interface ScoreSlice {
   /** `ResponseResolved{perfect}`, the micro-sleep's included. */
   perfects: number;
+  /** `ResponseResolved{success}` (a response in time but not perfect), counted where perfects are (story 3.12). */
+  successes: number;
   /** `NearMiss` events, plus the `NearMissFrozen` ones the end of the level adds (story 3.6). */
   nearMisses: number;
   /** The sum of the points of every combo cashed in (story 4.2), not rounded; points not cashed when the level ends are lost. */
   comboPoints: number;
   /** Props Papa put back in the final rush (`PropTidied`, story 3.5). */
   propsTidied: number;
+  /**
+   * Sim time the baby was calm, in ms, whole steps (story 3.12, `tickCalm`): the noise gauge strictly
+   * below `calmNoiseThresholdPct`, or the baby not crying in a level with no noise gauge.
+   */
+  calmMs: number;
   /** The note, from the step the level ended; null while it plays. */
   final: MamaScore | null;
 }
@@ -763,7 +773,15 @@ export function createWorld({
     cycle: { index: 0, nextAt: null, completedAt: null },
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
     instinct: { state: 'ready', enteredAt: asSimMs(0), untilAt: asSimMs(0), missAts: [] },
-    score: { perfects: 0, nearMisses: 0, comboPoints: 0, propsTidied: 0, final: null },
+    score: {
+      perfects: 0,
+      successes: 0,
+      nearMisses: 0,
+      comboPoints: 0,
+      propsTidied: 0,
+      calmMs: 0,
+      final: null,
+    },
     input: { lagMs: 0 },
     difficultyTier: DEFAULT_DIFFICULTY_TIER,
     feel: cloneJson(feel),

@@ -400,51 +400,51 @@ describe('snapshot / restore', () => {
   it('refuses an unknown snapshot version', async () => {
     const sim = await createSim({ content, geometry, level, seed: 5 });
     const snapshot = sim.snapshot();
-    expect(() => sim.restore({ ...snapshot, version: 1 as 28 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 1 as 29 })).toThrow(/version/);
     // Version 3 predates the base scale and the slow-mos (story 1.14).
-    expect(() => sim.restore({ ...snapshot, version: 3 as 28 })).toThrow(/version/);
+    expect(() => sim.restore({ ...snapshot, version: 3 as 29 })).toThrow(/version/);
     // Version 4 has no Rapier world (story 1.15).
-    expect(() => sim.restore({ ...snapshot, version: 4 as 28 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...snapshot, version: 4 as 29 })).toThrow(/version 4/);
     // Version 5 has no director, flow or wave index (story 1.18).
-    expect(() => sim.restore({ ...snapshot, version: 5 as 28 })).toThrow(/version 5/);
+    expect(() => sim.restore({ ...snapshot, version: 5 as 29 })).toThrow(/version 5/);
     // Version 6 has no gauges, no Papa busy state and no `objectId` (story 1.19).
-    expect(() => sim.restore({ ...snapshot, version: 6 as 28 })).toThrow(/version 6/);
+    expect(() => sim.restore({ ...snapshot, version: 6 as 29 })).toThrow(/version 6/);
     // Version 7 has no disruptions and no `onPhone` state (story 1.20).
-    expect(() => sim.restore({ ...snapshot, version: 7 as 28 })).toThrow(/version 7/);
+    expect(() => sim.restore({ ...snapshot, version: 7 as 29 })).toThrow(/version 7/);
     // Version 8 has no silence, no `mischiefs` and no hidden state (story 1.21).
-    expect(() => sim.restore({ ...snapshot, version: 8 as 28 })).toThrow(/version 8/);
+    expect(() => sim.restore({ ...snapshot, version: 8 as 29 })).toThrow(/version 8/);
     // Version 9 has no score (story 1.22).
-    expect(() => sim.restore({ ...snapshot, version: 9 as 28 })).toThrow(/version 9/);
+    expect(() => sim.restore({ ...snapshot, version: 9 as 29 })).toThrow(/version 9/);
     // Version 10 has no `heldAt` on a press (story 1.23).
-    expect(() => sim.restore({ ...snapshot, version: 10 as 28 })).toThrow(/version 10/);
+    expect(() => sim.restore({ ...snapshot, version: 10 as 29 })).toThrow(/version 10/);
     // Version 11 has no noise state and no cry (story 3.1).
-    expect(() => sim.restore({ ...snapshot, version: 11 as 28 })).toThrow(/version 11/);
+    expect(() => sim.restore({ ...snapshot, version: 11 as 29 })).toThrow(/version 11/);
     // Version 12 has no effective feel (story 2.1).
-    expect(() => sim.restore({ ...snapshot, version: 12 as 28 })).toThrow(/version 12/);
+    expect(() => sim.restore({ ...snapshot, version: 12 as 29 })).toThrow(/version 12/);
     // Version 13 has no `lostStars` in the note (story 3.2).
-    expect(() => sim.restore({ ...snapshot, version: 13 as 28 })).toThrow(/version 13/);
+    expect(() => sim.restore({ ...snapshot, version: 13 as 29 })).toThrow(/version 13/);
     // Version 14 has no `carry`, no `papa.intent` and no `carried` baby (story 4.1).
-    expect(() => sim.restore({ ...snapshot, version: 14 as 28 })).toThrow(/version 14/);
+    expect(() => sim.restore({ ...snapshot, version: 14 as 29 })).toThrow(/version 14/);
     // Version 15 has no `combo`, no `comboPoints` and no `comboCashIn` slow-mo (story 4.2).
-    expect(() => sim.restore({ ...snapshot, version: 15 as 28 })).toThrow(/version 15/);
+    expect(() => sim.restore({ ...snapshot, version: 15 as 29 })).toThrow(/version 15/);
     // Version 16 has no input slice (story 2.7).
-    expect(() => sim.restore({ ...snapshot, version: 16 as 28 })).toThrow(/version 16/);
+    expect(() => sim.restore({ ...snapshot, version: 16 as 29 })).toThrow(/version 16/);
     // Version 17 has no need gauge, no toilet (story 4.3).
-    expect(() => sim.restore({ ...snapshot, version: 17 as 28 })).toThrow(/version 17/);
+    expect(() => sim.restore({ ...snapshot, version: 17 as 29 })).toThrow(/version 17/);
     // Version 18 has no difficulty tier (story 2.8).
-    expect(() => sim.restore({ ...snapshot, version: 18 as 28 })).toThrow(/version 18/);
+    expect(() => sim.restore({ ...snapshot, version: 18 as 29 })).toThrow(/version 18/);
     // Version 19 has no `sequence` slice and no `sequence` flow state (story 4.4).
-    expect(() => sim.restore({ ...snapshot, version: 19 as 28 })).toThrow(/version 19/);
+    expect(() => sim.restore({ ...snapshot, version: 19 as 29 })).toThrow(/version 19/);
     // Version 20 has no instinct slice and no `instinct` slow-mo source (story 2.9).
-    expect(() => sim.restore({ ...snapshot, version: 20 as 28 })).toThrow(/version 20/);
+    expect(() => sim.restore({ ...snapshot, version: 20 as 29 })).toThrow(/version 20/);
     // Version 21 has no beat slice (story 4.5).
-    expect(() => sim.restore({ ...snapshot, version: 21 as 28 })).toThrow(/version 21/);
+    expect(() => sim.restore({ ...snapshot, version: 21 as 29 })).toThrow(/version 21/);
     // Version 22 has no duel slice (story 4.6).
-    expect(() => sim.restore({ ...snapshot, version: 22 as 28 })).toThrow(/version 22/);
+    expect(() => sim.restore({ ...snapshot, version: 22 as 29 })).toThrow(/version 22/);
     // Version 23 has no feint on a threat (story 4.7).
-    expect(() => sim.restore({ ...snapshot, version: 23 as 28 })).toThrow(/version 23/);
+    expect(() => sim.restore({ ...snapshot, version: 23 as 29 })).toThrow(/version 23/);
     // Version 25 has no stealth slice (story 4.9).
-    expect(() => sim.restore({ ...snapshot, version: 25 as 28 })).toThrow(/version 25/);
+    expect(() => sim.restore({ ...snapshot, version: 25 as 29 })).toThrow(/version 25/);
   });
 
   it('refuses a snapshot of another level', async () => {
@@ -1076,7 +1076,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
   it('is taken while a prop moves, and carries the Rapier world as base64', async () => {
     const sim = await midFall();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(28);
+    expect(snapshot.version).toBe(29);
     expect(snapshot.physics).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
     expect(snapshot.world.props[0]?.xM).toBeGreaterThan(0.7);
     expect(snapshot.world.props[0]?.yM).toBeLessThan(0.5);
@@ -1127,7 +1127,7 @@ describe('snapshot / restore with props in motion (story 1.15)', () => {
 
   it('refuses a snapshot from before the Rapier world (version 4)', async () => {
     const sim = await newSim();
-    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 28 })).toThrow(/version 4/);
+    expect(() => sim.restore({ ...sim.snapshot(), version: 4 as 29 })).toThrow(/version 4/);
   });
 
   describe('refuses a malformed props slice, with its path', () => {
@@ -1244,7 +1244,7 @@ describe('snapshot / restore of the director and the flow (story 1.18)', () => {
     const sim = await newSim();
     stepN(sim, 60); // 600 ms: wave 0 entered, the outlet telegraphed
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(28);
+    expect(snapshot.version).toBe(29);
     expect(snapshot.world.director.waveIndex).toBe(0);
     expect(snapshot.world.flow).toEqual({ state: 'playing', enteredAt: 0, finalRushAt: null });
     expect(snapshot.world.threats[0]).toMatchObject({ state: 'telegraph', waveIndex: 0 });
@@ -1504,7 +1504,7 @@ describe('snapshot / restore of the disruptions and the phone call (story 1.20)'
   it('is the current version, and carries a pending disruption as it was created', async () => {
     const sim = await newPhone();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(28);
+    expect(snapshot.version).toBe(29);
     expect(snapshot.world.disruptions).toEqual([
       { state: 'pending', enteredAt: 0, untilAt: 0, nextRingingAt: 0 },
     ]);
@@ -1987,12 +1987,15 @@ describe('snapshot / restore of Mama’s score (story 1.22)', () => {
     const playing = await newSim();
     stepN(playing, 10);
     const early = playing.snapshot();
-    expect(early.version).toBe(28);
+    expect(early.version).toBe(29);
+    // 10 quiet steps: all of them calm (story 3.12).
     expect(early.world.score).toEqual({
       perfects: 0,
+      successes: 0,
       nearMisses: 0,
       comboPoints: 0,
       propsTidied: 0,
+      calmMs: 10 * STEP_MS,
       final: null,
     });
 
@@ -2016,12 +2019,26 @@ describe('snapshot / restore of Mama’s score (story 1.22)', () => {
     ['a negative perfect count', (w) => (score(w).perfects = -1), /world\.score\.perfects/],
     ['a fractional perfect count', (w) => (score(w).perfects = 1.5), /world\.score\.perfects/],
     ['a negative near-miss count', (w) => (score(w).nearMisses = -1), /world\.score\.nearMisses/],
+    ['a negative success count', (w) => (score(w).successes = -1), /world\.score\.successes/],
+    ['a fractional calm time', (w) => (score(w).calmMs = 10.5), /world\.score\.calmMs/],
+    ['a missing calm time', (w) => delete score(w).calmMs, /world\.score\.calmMs/],
+    [
+      'a calm time between two steps',
+      (w) => (score(w).calmMs = STEP_MS + 5),
+      /world\.score\.calmMs/,
+    ],
+    [
+      'a calm time later than the clock',
+      (w) => (score(w).calmMs = (w.time as { sim: number }).sim + STEP_MS),
+      /world\.score\.calmMs/,
+    ],
     [
       'a note while the level plays',
       (w) =>
         (score(w).final = {
           laughPoints: 0,
-          babyStatePoints: 0,
+          calmPoints: 0,
+          homePoints: 0,
           sighPoints: 0,
           screamPoints: 0,
           scorePoints: 0,
@@ -2081,7 +2098,7 @@ describe('snapshot / restore of a level ended by Mama waking (story 3.2)', () =>
     const snapshot = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<
       typeof live.snapshot
     >;
-    expect(snapshot.version).toBe(28);
+    expect(snapshot.version).toBe(29);
     const copy = await newNoisy();
     copy.restore(snapshot);
     expect(hashJson(copy.world)).toBe(hashJson(live.world));
@@ -2110,7 +2127,8 @@ describe('snapshot / restore of a level ended by Mama waking (story 3.2)', () =>
     early.world.flow = { state: 'ended', enteredAt: 100, finalRushAt: null };
     early.world.score.final = {
       laughPoints: 0,
-      babyStatePoints: 0,
+      calmPoints: 0,
+      homePoints: 0,
       sighPoints: 0,
       screamPoints: 0,
       scorePoints: 0,
@@ -2300,7 +2318,7 @@ describe('snapshot / restore of carrying (story 4.1)', () => {
     expect(live.world.baby.state).toBe('carried');
     expect(live.world.carry.armsCryAt).not.toBeNull();
     const snapshot = roundTrip(live);
-    expect(snapshot.version).toBe(28);
+    expect(snapshot.version).toBe(29);
     const copy = await newSim();
     copy.restore(snapshot);
     expect(hashJson(copy.world)).toBe(hashJson(live.world));
@@ -2484,7 +2502,7 @@ describe('snapshot / restore of the combo (story 4.2)', () => {
     expect(live.world.combo.multiplier).toBe(content.feel.combo.minMultiplier + 1);
     expect(live.world.combo.carryTickAt).not.toBeNull();
     const snapshot = roundTrip(live);
-    expect(snapshot.version).toBe(28);
+    expect(snapshot.version).toBe(29);
     const copy = await newSim();
     copy.restore(snapshot);
     expect(hashJson(copy.world)).toBe(hashJson(live.world));
@@ -2618,7 +2636,7 @@ describe('snapshot / restore of the pressing need (story 4.3)', () => {
   it('is the current version and carries the gauge and the flag', async () => {
     const fresh = await newSim();
     const snapshot = roundTrip(fresh);
-    expect(snapshot.version).toBe(28);
+    expect(snapshot.version).toBe(29);
     expect(snapshot.world.gauges).toMatchObject({ bladderPct: 0, isBladderFull: false });
   });
 

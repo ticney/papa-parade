@@ -44,7 +44,8 @@ const LANDSCAPE = { width: 844, height: 390 };
 
 interface Scored {
   laughPoints: number;
-  babyStatePoints: number;
+  calmPoints: number;
+  homePoints: number;
   sighPoints: number;
   screamPoints: number;
   scorePoints: number;
@@ -82,7 +83,7 @@ async function waitForActions(page: Page): Promise<void> {
 }
 
 test.describe('the Result screen', () => {
-  test('shows Mama’s note: four rows from LevelScored and the live feel that add up, the stars, then « Rejouer » focused', async ({
+  test('shows Mama’s note: five rows from LevelScored and the live feel that add up, the stars, then « Rejouer » focused', async ({
     page,
   }) => {
     const problems = collectProblems(page);
@@ -95,22 +96,31 @@ test.describe('the Result screen', () => {
     const { mama } = liveFeel;
     await expect(page.locator(`${PANEL} .pp-score-label`)).toHaveText([
       STRINGS['result.score_laughs'] as string,
-      STRINGS['result.score_baby_state'] as string,
+      STRINGS['result.score_calm'] as string,
+      STRINGS['result.score_home'] as string,
       STRINGS['result.score_no_sigh'] as string,
       STRINGS['result.score_no_scream'] as string,
     ]);
     const rows = [
       scored.laughPoints,
-      scored.babyStatePoints,
+      scored.calmPoints,
+      scored.homePoints,
       mama.sighMaxPoints - scored.sighPoints,
       mama.screamMaxPoints - scored.screamPoints,
     ];
     await expect(page.locator(`${PANEL} .pp-score-value`)).toHaveText(rows.map(String));
     await expect(page.locator(`${PANEL} .pp-score-max`)).toHaveText(
-      [mama.laughMaxPoints, mama.babyStateMaxPoints, mama.sighMaxPoints, mama.screamMaxPoints].map(
-        (max) => `/${max}`,
-      ),
+      [
+        mama.laughMaxPoints,
+        mama.calmMaxPoints,
+        mama.homeMaxPoints,
+        mama.sighMaxPoints,
+        mama.screamMaxPoints,
+      ].map((max) => `/${max}`),
     );
+    // No house chore before E9 (story 3.12): the Maison row reads « 0 » over its maximum, never hidden.
+    expect(scored.homePoints).toBe(0);
+    await expect(page.locator(`${PANEL} .pp-score-row-home .pp-score-value`)).toHaveText('0');
     expect(rows.reduce((sum, value) => sum + value, 0)).toBe(scored.scorePoints);
     await expect(page.locator(`${PANEL} .pp-score-total-value`)).toHaveText(
       String(scored.scorePoints),

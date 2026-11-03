@@ -119,19 +119,21 @@
     "experienced": { "windowMultiplier": 0.75, "hasInstinct": false }
   },
   "mama": {
-    "laughMaxPoints": 40,
-    "babyStateMaxPoints": 30,
-    "babyStateFixedPoints": 20,
+    "laughMaxPoints": 35,
+    "laughPerPerfectPoints": 1,
+    "laughPerSuccessPoints": 0.5,
+    "calmMaxPoints": 20,
+    "calmNoiseThresholdPct": 50,
+    "homeMaxPoints": 15,
     "baseScorePoints": 30,
     "sighMaxPoints": 15,
     "screamMaxPoints": 15,
     "starThresholdPoints": [20, 40, 60, 75, 90],
     "earlyWakePenaltyStars": 1,
-    "laughPerPerfectPoints": 1,
-    "sighPerPropOnFloorPoints": 5,
-    "sighPerBrokenPropPoints": 8,
-    "sighPerMischiefPoints": 3,
-    "screamPerNearMissPoints": 3
+    "sighPerPropOnFloorPoints": 2.5,
+    "sighPerBrokenPropPoints": 4,
+    "sighPerMischiefPoints": 1.5,
+    "screamPerNearMissPoints": 1.5
   },
   "physics": {
     "gravityMps2": 9.81,

@@ -120,8 +120,12 @@ describe('runFlow', () => {
       ...computeMamaScore(
         {
           perfects: sim.world.score.perfects,
+          successes: sim.world.score.successes,
           nearMisses: sim.world.score.nearMisses,
           comboPoints: sim.world.score.comboPoints,
+          calmMs: sim.world.score.calmMs,
+          playedMs: DURATION_MS,
+          homePoints: 0,
           propsOnFloor: sim.world.mess.propsOnFloor,
           propsBroken: sim.world.mess.propsBroken,
           mischiefs: sim.world.mess.mischiefs,
@@ -351,21 +355,36 @@ describe('runFlow: Mama wakes (story 3.2)', () => {
   });
 
   it('takes earlyWakePenaltyStars off the note, never below 0, and keeps the points', async () => {
-    const quiet = await noisySim({ durationMs: DURATION_MS });
-    stepN(quiet, DURATION_MS / STEP_MS);
-    const timer = quiet.world.score.final;
     const woken = await noisySim({});
     stepN(woken, 5);
     setNoise(woken, 100);
     woken.step();
     const note = woken.world.score.final;
-    expect(timer).not.toBeNull();
     expect(note).not.toBeNull();
-    if (timer === null || note === null) return;
-    expect(timer.stars).toBeGreaterThanOrEqual(1);
-    expect(note.lostStars).toBe(Math.min(MAMA.earlyWakePenaltyStars, timer.stars));
-    expect(note.stars).toBe(timer.stars - note.lostStars);
-    expect(note.scorePoints).toBe(timer.scorePoints);
+    if (note === null) return;
+    // The same tally scored as if the level had run out at that instant (story 3.12: the calm share
+    // is over the time played, so a quiet timer run is another note): only the stars may differ.
+    const { score, mess, time } = woken.world;
+    const asTimer = computeMamaScore(
+      {
+        perfects: score.perfects,
+        successes: score.successes,
+        nearMisses: score.nearMisses,
+        comboPoints: score.comboPoints,
+        calmMs: score.calmMs,
+        playedMs: time.sim,
+        homePoints: 0,
+        propsOnFloor: mess.propsOnFloor,
+        propsBroken: mess.propsBroken,
+        mischiefs: mess.mischiefs,
+      },
+      MAMA,
+      false,
+    );
+    expect(asTimer.stars).toBeGreaterThanOrEqual(1);
+    expect(note.scorePoints).toBe(asTimer.scorePoints);
+    expect(note.lostStars).toBe(Math.min(MAMA.earlyWakePenaltyStars, asTimer.stars));
+    expect(note.stars).toBe(asTimer.stars - note.lostStars);
     expect(note.lostStars).toBeGreaterThanOrEqual(1);
   });
 });
