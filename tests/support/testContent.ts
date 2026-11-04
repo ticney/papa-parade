@@ -87,6 +87,7 @@ export function createTestFeedback(): FeedbackTable {
       sunOffsetM: [5, 9, 7],
       outlines: { widthM: 0.025, skipMaterials: ['art_ink'] },
       dangerTint: { radiusM: 0.5, minOpacityPct: 40, peakOpacityPct: 80, pulseHz: 2 },
+      decalWallHeightM: 2,
       blobSkipColliderIds: [],
     },
     resultScreen: {
@@ -249,6 +250,13 @@ export function createTestCoffeeTableObject(): ThreatDef {
 /** The micro-sleep, frozen like the outlet (`testMicroSleep.threat.json`): the threat on Papa. */
 export function createTestMicroSleep(): ThreatDef {
   return readThreatFixture('testMicroSleep.threat.json');
+}
+
+/** How long the frozen micro-sleep keeps Papa asleep, in sim ms (its `afterEffect.busyMs`, story 3.15). */
+export function testMicroSleepBusyMs(): number {
+  const { afterEffect } = createTestMicroSleep();
+  if (afterEffect.kind !== 'asleep') throw new Error('testMicroSleep.threat.json is not asleep');
+  return afterEffect.busyMs;
 }
 
 /** The suspicious silence, frozen like the outlet (`testSilence.threat.json`): the threat in a hidden zone. */

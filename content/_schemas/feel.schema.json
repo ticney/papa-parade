@@ -345,11 +345,6 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "Time Papa spends drinking a coffee, in ms."
-        },
-        "asleepMs": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "How long Papa sleeps after a missed micro-sleep, in ms."
         }
       },
       "required": [
@@ -361,8 +356,7 @@
         "microSleepMinMs",
         "microSleepMaxMs",
         "coffeeReductionPoints",
-        "coffeeDurationMs",
-        "asleepMs"
+        "coffeeDurationMs"
       ],
       "additionalProperties": false,
       "description": "Papa's fatigue (GDD §6)."
@@ -606,6 +600,22 @@
               "additionalProperties": false,
               "description": "Sniffing (story 5.3): GDD +3 %."
             },
+            "debrisStep": {
+              "type": "object",
+              "properties": {
+                "noisePct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Noise added once per occurrence, in % of the gauge."
+                }
+              },
+              "required": [
+                "noisePct"
+              ],
+              "additionalProperties": false,
+              "description": "Papa walking onto a debris on the floor (story 3.15, `DebrisSteppedOn`): GDD +3 %."
+            },
             "snore": {
               "type": "object",
               "properties": {
@@ -630,6 +640,7 @@
             "floorCreak",
             "breathReleased",
             "sniff",
+            "debrisStep",
             "snore"
           ],
           "additionalProperties": false,
@@ -1130,10 +1141,16 @@
           ],
           "additionalProperties": false,
           "description": "The gag of the object on the coffee table (story 1.16)."
+        },
+        "debrisStepRadiusM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Papa steps on a debris (`DebrisSteppedOn`, +`noise.sources.debrisStep`) when he comes within this distance of it, in metres (story 3.15)."
         }
       },
       "required": [
-        "tableObjectFall"
+        "tableObjectFall",
+        "debrisStepRadiusM"
       ],
       "additionalProperties": false,
       "description": "Tunables of the gags whose consequence the sim applies (`sim/threats/gags.ts`); a gag with nothing to tune has no key."
@@ -1394,6 +1411,29 @@
           "additionalProperties": false,
           "description": "Juice of a gag: the « pouf »."
         },
+        "dim": {
+          "type": "object",
+          "properties": {
+            "lightsPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Level the 3D lights fade to while the room is dim, in % (100 = no dimming)."
+            },
+            "fadeMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2000,
+              "description": "Time to fade the lights to that level, and back, in **sim** ms."
+            }
+          },
+          "required": [
+            "lightsPct",
+            "fadeMs"
+          ],
+          "additionalProperties": false,
+          "description": "The pénombre of the outlet gag (story 3.15): only the 3D lights fade, the world UI never does."
+        },
         "photoCamera": {
           "type": "object",
           "properties": {
@@ -1474,6 +1514,7 @@
         "success",
         "perfect",
         "gag",
+        "dim",
         "photoCamera",
         "perfectCamera"
       ],

@@ -8,6 +8,7 @@ import { dropProps } from '../physics/dropProps.ts';
 import { recordFrozenNearMisses } from '../scoring/frozenNearMiss.ts';
 import { scoreLevel } from '../scoring/mamaScore.ts';
 import { endSequenceForLevelEnd } from '../sequences/sequenceEnd.ts';
+import { endAfterEffects } from '../threats/afterEffects.ts';
 import type { World } from '../world.ts';
 import { enterFlowState, isFlowLive } from './flowFsm.ts';
 
@@ -15,7 +16,8 @@ import { enterFlowState, isFlowLive } from './flowFsm.ts';
  * The end of the level, shared by every way in: a sequence under way is closed first
  * (`SequenceEnded{levelEnded}`, story 4.4), then a phone still ringing
  * (`PhoneRingEnded{levelEnded}`), then an open silence (`SilenceEnded{levelEnded}`), Fatherly
- * Instinct (`InstinctEnded{levelEnded}`, story 2.9), the flow goes to `ended` (to `photo` when the
+ * Instinct (`InstinctEnded{levelEnded}`, story 2.9), the séquelles that have an end (`endAfterEffects`,
+ * story 3.15: Papa is freed, the baby comes back up, the pénombre ends), the flow goes to `ended` (to `photo` when the
  * timer ends a level with a final rush, story 3.5, D2), `MamaWoke` (a woken Mama only),
  * `LevelEnded{reason}`, the near misses frozen on the photo (`recordFrozenNearMisses`, story 3.6) and
  * Mama's note in the same step (`scoreLevel`, story 1.22).
@@ -25,6 +27,7 @@ function endLevel(world: World, ctx: StepContext, reason: LevelEndReason): void 
   endRingingPhones(world, ctx);
   endSilence(world, ctx);
   endInstinct(world, ctx);
+  endAfterEffects(world, ctx);
   enterFlowState(world, reason === 'timer' && ctx.level.hasFinalRush ? 'photo' : 'ended');
   if (reason === 'mamaWoke') ctx.events.push({ type: 'MamaWoke', t: world.time.sim });
   ctx.events.push({ type: 'LevelEnded', t: world.time.sim, reason });

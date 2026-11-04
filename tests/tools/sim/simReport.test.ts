@@ -48,6 +48,7 @@ const NO_NOISE: RunSummary['noiseBySourcePct'] = {
   floorCreak: 0,
   breathReleased: 0,
   sniff: 0,
+  debrisStep: 0,
   snore: 0,
   debug: 0,
 };
@@ -62,6 +63,15 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     microSleeps: 0,
     coffees: 0,
     asleepGags: 0,
+    afterEffects: {
+      electrified: 0,
+      babyDownstairs: 0,
+      debris: 0,
+      mess: 0,
+      asleep: 0,
+      dim: 0,
+      carryUp: 0,
+    },
     phoneRings: 0,
     phoneAnswers: 0,
     phoneRingingSeconds: 0,
@@ -219,6 +229,33 @@ describe('summarizeRuns', () => {
         beatsStray: 0,
       },
     ]);
+  });
+
+  it('totals the séquelles per kind and per run, every kind present (story 3.15)', () => {
+    const none = {
+      electrified: 0,
+      babyDownstairs: 0,
+      debris: 0,
+      mess: 0,
+      asleep: 0,
+      dim: 0,
+      carryUp: 0,
+    };
+    const report = summarizeRuns(INPUT, [
+      run(1, { afterEffects: { ...none, electrified: 2, dim: 2, carryUp: 1 } }),
+      run(2, { afterEffects: { ...none, electrified: 1, dim: 1, debris: 1 } }),
+      run(3, {}),
+    ]);
+    expect(report.afterEffects.byKind).toEqual({
+      ...none,
+      electrified: 3,
+      dim: 3,
+      carryUp: 1,
+      debris: 1,
+    });
+    // 8 séquelles over 3 games.
+    expect(report.afterEffects.meanPerRun).toBe(2.67);
+    expect(summarizeRuns(INPUT, []).afterEffects).toEqual({ byKind: none, meanPerRun: 0 });
   });
 
   it('adds the fairness violations and stretched telegraphs of the runs, with the mean stretch to one decimal (story 3.13)', () => {

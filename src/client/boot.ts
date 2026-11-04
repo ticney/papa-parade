@@ -115,6 +115,7 @@ const SEQUENCE_SLOT = GAUGE_IDS.length + 1;
 /** The most the scheduler takes off the audio clock to pair it with the loop's, in real ms (story 4.5): a frame older than this is a clock to distrust, not a skew to correct. */
 const BEAT_CLOCK_AGE_MAX_MS = 100;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
+const NO_BABY_SLIDE: Readonly<{ xM: number; zM: number }> = { xM: 0, zM: 0 };
 const NO_SIM_OBJECTS: readonly SimObjectSpec[] = [];
 
 /** The floor point of the level's `ANCHOR_door`, or null when the geometry has none (story 3.5). */
@@ -347,6 +348,7 @@ export async function boot(): Promise<void> {
       | 'ppFatigue'
       | 'ppNoise'
       | 'ppBladder'
+      | 'ppDim'
       | 'ppPhone'
       | 'ppSilence'
       | 'ppInstinct'
@@ -649,6 +651,11 @@ export async function boot(): Promise<void> {
     mirror('ppBabyState', event.to);
     mirrorBabyAt();
   };
+  // The pénombre of the outlet gag (story 3.15): `on` from `AfterEffectStarted{dim}` to `AfterEffectEnded{dim}`.
+  const mirrorDimEvent = (event: SimEvent): void => {
+    if (event.type === 'AfterEffectStarted' && event.kind === 'dim') mirror('ppDim', 'on');
+    else if (event.type === 'AfterEffectEnded' && event.kind === 'dim') mirror('ppDim', 'off');
+  };
   // The combo (story 4.2), on its events: the multiplier on `ComboChanged`, the points on `ComboCashedIn`.
   const mirrorComboEvent = (event: SimEvent): void => {
     if (event.type === 'ComboChanged') mirror('ppCombo', String(event.multiplier));
@@ -708,6 +715,7 @@ export async function boot(): Promise<void> {
     mirrorPapaAt();
     mirror('ppBabyState', levelSession.active?.sim.world.baby.state ?? 'babble');
     mirrorBabyAt();
+    mirror('ppDim', (levelSession.active?.sim.world.afterEffects.dimUntil ?? 0) > 0 ? 'on' : 'off');
     mirrorFatigue();
     mirrorNoise();
     mirrorBladder();
@@ -1534,6 +1542,7 @@ export async function boot(): Promise<void> {
         }
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);
+        mirrorDimEvent(event);
         mirrorComboEvent(event);
         mirrorThreatEvent(event);
         mirrorPhoneEvent(event);
@@ -1892,6 +1901,7 @@ export async function boot(): Promise<void> {
     },
     babyCarriedHeightM: BABY_CARRIED_HEIGHT_M,
     babyCarriedForwardM: BABY_CARRIED_FORWARD_M,
+    getBabySlideM: () => currentLevel?.babySlideM ?? NO_BABY_SLIDE,
     get input() {
       return levelFeel().input;
     },
@@ -2135,6 +2145,8 @@ export async function boot(): Promise<void> {
           papaBlablaTiltDeg: real?.papaBlablaTiltDeg ?? 0,
           doorOpenDeg: real?.doorOpenDeg ?? 0,
           dangerTintsShown: real?.dangerTintsShown ?? 0,
+          lightsFactor: real?.lightsFactor ?? 1,
+          mischiefDecals: real?.mischiefDecals ?? 0,
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),

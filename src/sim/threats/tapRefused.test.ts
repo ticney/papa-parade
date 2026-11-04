@@ -173,7 +173,6 @@ describe('TapRefused through the real busy flows (story 2.12)', () => {
       fatigue: {
         ...content.feel.fatigue,
         coffeeDurationMs: LONG_MS,
-        asleepMs: LONG_MS,
         // The micro-sleep is due at once, so a missed one puts Papa to sleep.
         ...(state === 'asleep' ? { startPoints: 90, microSleepMinMs: 0, microSleepMaxMs: 0 } : {}),
       },
@@ -189,12 +188,26 @@ describe('TapRefused through the real busy flows (story 2.12)', () => {
       gauges: { ...NEED_GAUGES, ...FATIGUE_GAUGES },
     });
     const phone = level.disruptions.phone;
+    // The nap lasts as long as the test: the micro-sleep's séquelle is a long one (an override of the frozen def).
+    const microSleep = level.threats.papa_microsleep;
+    const longLevel = microSleep
+      ? {
+          ...level,
+          threats: {
+            ...level.threats,
+            papa_microsleep: {
+              ...microSleep,
+              afterEffect: { kind: 'asleep' as const, busyMs: LONG_MS },
+            },
+          },
+        }
+      : level;
     const sim = await createSim({
       content: { ...content, feel },
       geometry,
       level: phone
-        ? { ...level, disruptions: { phone: { ...phone, answerBusyMs: LONG_MS } } }
-        : level,
+        ? { ...longLevel, disruptions: { phone: { ...phone, answerBusyMs: LONG_MS } } }
+        : longLevel,
       seed: 1,
     });
     const command = (cmd: Record<string, unknown>) =>

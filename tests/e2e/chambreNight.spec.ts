@@ -22,6 +22,7 @@ import {
   ppEvents,
   ppFreeze,
   ppLoadLevel,
+  ppSetFeel,
   ppWorld,
   waitForTestApi,
 } from './support/testApi.ts';
@@ -36,6 +37,8 @@ const REPO = fileURLToPath(new URL('../../', import.meta.url));
 const SEQUENCES = ['stay_awake', 'lullaby_walk', 'bedtime_duel', 'bomb_drop', 'stealth_exit'];
 const PANEL = '.pp-result-panel';
 const AUTOPLAY_TIMEOUT_MS = 180_000;
+/** A response window long enough to outlast any wait of the toilet test: no threat of it gags before the entry starts (story 3.15). */
+const WIDE_WINDOW_MS = 60_000;
 /** Above the baby's floor point, where a finger aims at him. */
 const BABY_TAP_HEIGHT_M = 0.2;
 /** Five steps of a walk are 15 cm at 3 m/s; a jump across the room is metres. */
@@ -172,6 +175,10 @@ test.describe('Chambre de nuit', () => {
     test.setTimeout(120_000);
     const problems = collectProblems(page, { allowedErrors: OWN_WARNINGS });
     await openFrozen(page);
+    // The outlet is drawn the moment the baby is put down, and a gag while Papa is in the toilet would shock
+    // him out of it (story 3.15). Its window is made wide, so that the entry's start (which cancels every
+    // threat up) comes before any gag: the test is about the entry waiting for a busy Papa.
+    await ppSetFeel(page, { timing: { windowMs: WIDE_WINDOW_MS } });
     await waitFrames(page, 3);
     // Taken early, so that the carry's tick climbs the combo before the first entry is due.
     const baby = (await ppWorld(page)).baby;

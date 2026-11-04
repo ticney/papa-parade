@@ -240,6 +240,7 @@ describe('the human bot, what has no ring does not depend on the mode (AC 2)', (
         flow: { state: 'playing', enteredAt: 0, finalRushAt: null },
         props: [],
         papa: { xM: 0, zM: 0, state: 'idle' },
+        baby: { state: 'babble', downstairsUntil: null },
         sequence: {
           beat: { isRunning: true, nextBeatAt: 3000 },
           stealth: { isRunning: false },
@@ -304,6 +305,7 @@ function worldOf(now: number, threats: readonly FakeThreat[], papaState = 'idle'
     flow: { state: 'playing', enteredAt: 0, finalRushAt: null },
     props: [],
     papa: { xM: 0, zM: 0, state: papaState },
+    baby: { state: 'babble', downstairsUntil: null },
     sequence: { beat: { isRunning: false, nextBeatAt: null }, stealth: { isRunning: false } },
   } as unknown as Readonly<World>;
 }

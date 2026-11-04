@@ -508,6 +508,16 @@ export const PHONE_RINGING_EVERY_MS = 1000;
  */
 export const BABY_CRYING_EVERY_MS = 1000;
 
+/**
+ * The longest a séquelle may keep Papa busy, glissade comprise, in sim ms (story 3.15, GDD mechanic
+ * 13: « aucune ne dépasse 2 s »). A rule of the GDD, not a tunable: the threat schema refuses a
+ * longer `afterEffect` duration, so a tuning typo cannot break the promise.
+ */
+export const AFTER_EFFECT_BUSY_MAX_MS = 2000;
+
+/** The micro-sleep's séquelle is the one exception to {@link AFTER_EFFECT_BUSY_MAX_MS}: 3 s at most (story 3.15). */
+export const MICRO_SLEEP_BUSY_MAX_MS = 3000;
+
 /** A feel is a few levels deep; a `SetFeel` patch nested deeper than this is refused (it stops a runaway or cyclic patch). */
 export const PATCH_MAX_DEPTH = 8;
 

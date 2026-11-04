@@ -16,5 +16,6 @@
     "perfect": "resp_parry_perfect",
     "gag": "gag_papa_asleep"
   },
+  "afterEffect": { "kind": "asleep", "busyMs": 3000 },
   "cooldownMs": 1000
 }

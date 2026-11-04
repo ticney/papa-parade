@@ -7,6 +7,7 @@ import type { BabyState } from './baby/babyFsm.ts';
 import type { DisruptionState } from './disruptions/disruptionFsm.ts';
 import type { FlowState } from './flow/flowFsm.ts';
 import type { PapaIntent, PapaState } from './papa/papaFsm.ts';
+import type { GagId } from './threats/gags.ts';
 import type { ThreatState } from './threats/threatFsm.ts';
 import type { EffectiveWindow } from './timing/effectiveWindow.ts';
 
@@ -44,7 +45,10 @@ export interface PapaSlice {
    * put him down in a safe zone. `'none'` outside `walkPath`.
    */
   intent: PapaIntent;
-  /** When `drink` / `asleep` / `onPhone` / `onToilet` ends, in sim time; 0 in any other state. */
+  /**
+   * When `drink` / `asleep` / `onPhone` / `onToilet` / `electrified` / `carryingUp` / `pickingUp`
+   * ends, in sim time; 0 in any other state.
+   */
   busyUntil: SimMs;
 }
 
@@ -113,6 +117,11 @@ export interface BabySlice {
   cryStartedAt: SimMs | null;
   /** When the current cry ends, in sim time (a gag during a cry pushes it); null while not crying. */
   cryEndsAt: SimMs | null;
+  /**
+   * When a baby left at the bottom of the stairs climbs back by himself (story 3.15), in sim time;
+   * non-null exactly in `downstairs`.
+   */
+  downstairsUntil: SimMs | null;
 }
 
 /** A response that was judged `perfect` or `success` and waits to be classified (Parry or Firmness). */
@@ -212,6 +221,29 @@ export interface PropSlice {
   isBroken: boolean;
   /** Sim time of the last `PropImpact`; null before the first. */
   lastImpactAt: SimMs | null;
+  /**
+   * How long Papa is busy picking this prop up, in sim ms, when the coffee table's gag pushed it
+   * (story 3.15); 0 = not a debris. It is a debris only while `isMess`; the mark is cleared by
+   * `tidyProp` (picked up, or the final rush) and when the prop breaks.
+   */
+  debrisPickUpMs: number;
+}
+
+/** One mess a silence's mischief left (story 3.15): drawn on the floor to the end of the level and on the photo. */
+export interface MischiefMark {
+  gag: GagId;
+  xM: number;
+  zM: number;
+}
+
+/** What the gags leave behind (story 3.15), besides Papa's and the baby's own states: the décor séquelles. */
+export interface AfterEffectsSlice {
+  /** The room is dim until this sim time; 0 = not dim. Several pénombres end at the latest one. */
+  dimUntil: SimMs;
+  /** The index in `world.props` of the debris Papa stands on, or -1 (one `DebrisSteppedOn` per entry). */
+  steppedDebrisIndex: number;
+  /** The mischiefs left by the suspicious silence, never removed. */
+  mischiefMarks: MischiefMark[];
 }
 
 /**
@@ -613,6 +645,8 @@ export interface World {
   /** One per prop of the level's geometry, index-aligned with `geometry.props` (their bodies live in Rapier, beside `World`). */
   props: PropSlice[];
   mess: MessSlice;
+  /** The décor séquelles of the gags (story 3.15). */
+  afterEffects: AfterEffectsSlice;
   /** The suspicious silence under way, if any (story 1.21). */
   silence: SilenceSlice;
   /** Carrying the baby (story 4.1). */
@@ -718,6 +752,7 @@ export function createWorld({
       approachSpeedMps: 0,
       cryStartedAt: null,
       cryEndsAt: null,
+      downstairsUntil: null,
     },
     threats: [],
     director: { waveIndex: -1, nextAt: asSimMs(0) },
@@ -753,7 +788,9 @@ export function createWorld({
       isMess: false,
       isBroken: false,
       lastImpactAt: null,
+      debrisPickUpMs: 0,
     })),
+    afterEffects: { dimUntil: asSimMs(0), steppedDebrisIndex: -1, mischiefMarks: [] },
     mess: { propsOnFloor: 0, propsBroken: 0, mischiefs: 0 },
     silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
     carry: { armsCryAt: null },

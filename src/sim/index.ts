@@ -7,6 +7,8 @@ export { type CreateSimOptions, createSim, type Sim } from './createSim.ts';
 export { silenceLimitProblem } from './director/fairness.ts';
 export { DISRUPTION_STATES, type DisruptionState } from './disruptions/disruptionFsm.ts';
 export {
+  AFTER_EFFECT_KINDS,
+  type AfterEffectKind,
   BABY_STIR_REASONS,
   type BabyStirReason,
   type BreathGaspReason,
@@ -77,10 +79,17 @@ export {
   stealthRoomForGeometry,
 } from './sequences/stealthExit.ts';
 export type { SimSnapshot } from './snapshot.ts';
-export { GAG_IDS, type GagId, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
+export {
+  AFTER_EFFECT_OF_GAG,
+  afterEffectProblem,
+  GAG_IDS,
+  type GagId,
+  PAPA_ASLEEP_GAG_ID,
+} from './threats/gags.ts';
 export type { ThreatState } from './threats/threatFsm.ts';
 export { holdEndAt } from './timing/holdEnd.ts';
 export type {
+  AfterEffectsSlice,
   BabySlice,
   BeatSlice,
   ComboSlice,
@@ -92,6 +101,7 @@ export type {
   GaugesSlice,
   MamaScore,
   MessSlice,
+  MischiefMark,
   PapaGlide,
   PapaSlice,
   PendingPress,

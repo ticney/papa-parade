@@ -6,7 +6,7 @@ import { nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { ensureOnOpenCell, stopCrawling } from '../baby/approach.ts';
 import { enterBabyState, isBabyCarried } from '../baby/babyFsm.ts';
-import { isInSafeZone, putDownBaby } from '../baby/carry.ts';
+import { endDownstairsWait, isInSafeZone, putDownBaby } from '../baby/carry.ts';
 import { isInZone } from '../baby/zone.ts';
 import type { SimStealthStep, StepContext } from '../context.ts';
 import type { BreathGaspReason } from '../events.ts';
@@ -99,6 +99,8 @@ function isAlertUp(falseAlarm: ThreatInstance, realWake: ThreatInstance): boolea
 export function placeBabyForStealth(world: World, ctx: StepContext): void {
   const { baby } = world;
   if (isBabyCarried(world)) putDownBaby(world, ctx);
+  // Left at the bottom of the stairs (story 3.15): the stealth step settles him, his wait is over.
+  endDownstairsWait(world, ctx);
   if (isInSafeZone(ctx, baby.xM, baby.zM)) {
     // Already in his crib, but maybe on an errand (wandering, off to a threat): `runBaby` is inert in
     // a stealth step, so a crawl left under way would freeze him mid-crawl with a stale path.

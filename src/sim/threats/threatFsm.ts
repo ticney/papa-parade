@@ -15,6 +15,7 @@ import { startSlowMo } from '../time/slowMo.ts';
 import { activeDifficulty } from '../timing/difficulty.ts';
 import { type EffectiveWindow, effectiveWindow } from '../timing/effectiveWindow.ts';
 import type { ThreatInstance, World } from '../world.ts';
+import { applyAfterEffect } from './afterEffects.ts';
 import { applyGag, type GagId, gagIdOf } from './gags.ts';
 
 /**
@@ -275,7 +276,7 @@ function gagOf(world: World, def: ThreatDef): GagId {
 
 /**
  * `→ gag`: a failed response. `ResponseResolved{fail}`, `GagTriggered`, then the gag's own
- * consequences (`applyGag`: a `NearMiss`, a pushed prop, or Papa falling asleep; NFR9: never an injury), with no hitstop
+ * consequences (`applyGag`: a `NearMiss`, a pushed prop; NFR9: never an injury), then its séquelle (`applyAfterEffect`, story 3.15), with no hitstop
  * and no slow-mo. `offsetMs` is `null` when no press ever came.
  */
 export function gagThreat(
@@ -303,7 +304,9 @@ export function gagThreat(
     },
     { type: 'GagTriggered', t: world.time.sim, threatId: threat.id, gag, reason },
   );
-  applyGag(world, ctx, threat, gag);
+  applyGag(world, ctx, threat, gag, def);
+  // What the gag leaves behind: Papa electrified or asleep, the baby downstairs, the mess (story 3.15).
+  applyAfterEffect(world, ctx, def, gag);
   // The cry belongs to the def, not to the gag id: many defs share a gag (story 3.1 D9).
   if (def.gagCryMs !== undefined) startBabyCry(world, ctx, def.gagCryMs);
   // A missed threat loses the combo, nothing is cashed (story 4.2).

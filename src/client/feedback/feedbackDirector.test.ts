@@ -174,6 +174,7 @@ const FX: Feel['fx'] = {
     shake: { amplitudeM: 0.04, durationMs: 250 },
     particles: { style: 'puff', count: 12, speedMps: 0.8, lifeMs: 650, sizeM: 0.12 },
   },
+  dim: { lightsPct: 40, fadeMs: 400 },
   photoCamera: { yawDeg: 38, pitchDeg: 30, zoomPct: 0 },
   perfectCamera: { zoomPct: 18, yawDeg: 6, focusPct: 35, zoomInMs: 150, refocusMs: 200 },
 };

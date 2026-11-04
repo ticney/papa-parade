@@ -8,6 +8,7 @@ import {
   FATIGUE_GAUGES,
   OUTLET,
   TEST_OBJECTS,
+  testMicroSleepBusyMs,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import { createSim, type Sim } from '../createSim.ts';
@@ -16,7 +17,7 @@ import { isPapaBusy, PAPA_STATES, PAPA_STATES_ARE_COMPLETE } from './papaFsm.ts'
 
 const base = createTestContent();
 const geometry = createTestGeometry();
-const { asleepMs } = base.feel.fatigue;
+const asleepMs = testMicroSleepBusyMs();
 
 /** Papa is exhausted and the micro-sleep is due at once. */
 const content: ContentBundle = {
@@ -69,14 +70,23 @@ describe('Papa states (story 1.19)', () => {
       'asleep',
       'onPhone',
       'onToilet',
+      'electrified',
+      'carryingUp',
+      'pickingUp',
     ]);
     expect(PAPA_STATES_ARE_COMPLETE).toBe(true);
   });
 
-  it('is busy exactly when drinking, asleep, on the phone or on the toilet (stories 1.20, 4.3)', () => {
+  it('is busy exactly when drinking, asleep, on the phone, on the toilet, electrified, carrying the baby up or picking up (stories 1.20, 4.3, 3.15)', () => {
     for (const state of PAPA_STATES) {
       expect(isPapaBusy({ state }), state).toBe(
-        state === 'drink' || state === 'asleep' || state === 'onPhone' || state === 'onToilet',
+        state === 'drink' ||
+          state === 'asleep' ||
+          state === 'onPhone' ||
+          state === 'onToilet' ||
+          state === 'electrified' ||
+          state === 'carryingUp' ||
+          state === 'pickingUp',
       );
     }
   });

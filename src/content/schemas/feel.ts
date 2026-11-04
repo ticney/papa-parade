@@ -236,7 +236,6 @@ const FatigueSchema = z
     microSleepMaxMs: delayMs('Longest delay between two micro-sleeps above the threshold, in ms.'),
     coffeeReductionPoints: points('Fatigue removed by a coffee, in points.'),
     coffeeDurationMs: durationMs('Time Papa spends drinking a coffee, in ms.'),
-    asleepMs: durationMs('How long Papa sleeps after a missed micro-sleep, in ms.'),
   })
   .refine((fatigue) => fatigue.microSleepMinMs <= fatigue.microSleepMaxMs, {
     path: ['microSleepMinMs'],
@@ -347,6 +346,9 @@ const NoiseSourcesSchema = z
     floorCreak: noisePctSource('A creaking floorboard (story 4.9): GDD +3 %.'),
     breathReleased: noisePctSource('Breath released too early (story 4.9): GDD +5 %.'),
     sniff: noisePctSource('Sniffing (story 5.3): GDD +3 %.'),
+    debrisStep: noisePctSource(
+      'Papa walking onto a debris on the floor (story 3.15, `DebrisSteppedOn`): GDD +3 %.',
+    ),
     snore: noisePctSource(
       'Papa snoring after a missed micro-sleep in a sequence (story 4.4): GDD +15 %.',
     ),
@@ -361,6 +363,7 @@ export const NOISE_SOURCE_IDS = [
   'floorCreak',
   'breathReleased',
   'sniff',
+  'debrisStep',
   'snore',
 ] as const;
 
@@ -610,6 +613,9 @@ const GagsSchema = z
         ),
       })
       .describe('The gag of the object on the coffee table (story 1.16).'),
+    debrisStepRadiusM: positive(
+      'Papa steps on a debris (`DebrisSteppedOn`, +`noise.sources.debrisStep`) when he comes within this distance of it, in metres (story 3.15).',
+    ),
   })
   .describe(
     'Tunables of the gags whose consequence the sim applies (`sim/threats/gags.ts`); a gag with nothing to tune has no key.',
@@ -679,6 +685,22 @@ const FxSchema = z
       })
       .describe('Juice of a perfect response: shake, sparks and the stamp.'),
     gag: fxPreset('Juice of a gag: the « pouf ».'),
+    dim: z
+      .strictObject({
+        lightsPct: z
+          .number()
+          .min(0)
+          .max(100)
+          .describe('Level the 3D lights fade to while the room is dim, in % (100 = no dimming).'),
+        fadeMs: z
+          .int()
+          .min(0)
+          .max(2000)
+          .describe('Time to fade the lights to that level, and back, in **sim** ms.'),
+      })
+      .describe(
+        'The pénombre of the outlet gag (story 3.15): only the 3D lights fade, the world UI never does.',
+      ),
     photoCamera: z
       .strictObject({
         yawDeg: z

@@ -164,6 +164,7 @@
     "sunOffsetM": [3, 9, 5],
     "outlines": { "widthM": 0.025, "skipMaterials": ["art_ink"] },
     "dangerTint": { "radiusM": 0.55, "minOpacityPct": 35, "peakOpacityPct": 85, "pulseHz": 2 },
+    "decalWallHeightM": 2,
     "blobSkipColliderIds": ["stairs"]
   },
   "cues": {
@@ -385,6 +386,11 @@
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.7, "durationMs": 400 },
       "haptic": "medium"
     },
+    "debris_stepped": {
+      "audio": { "clip": "env_floor_creak", "bus": "sfx", "gainPct": 70 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
+    },
     "breath_gasped": {
       "audio": { "clip": "papa_breath_gasp", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.5, "durationMs": 300 },
@@ -577,6 +583,7 @@
     "PapaSnored": "papa_snored",
     "BabyWoke": "baby_woke",
     "FloorCreaked": "floor_creak",
+    "DebrisSteppedOn": "debris_stepped",
     "BreathGasped": "breath_gasped",
     "BeatHit": "beat_hit",
     "BabyStirred": "baby_stirred",

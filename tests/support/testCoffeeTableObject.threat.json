@@ -16,5 +16,6 @@
     "perfect": "resp_parry_perfect",
     "gag": "gag_coffee_table"
   },
+  "afterEffect": { "kind": "debris", "pickUpMs": 1000 },
   "cooldownMs": 6000
 }

@@ -11,14 +11,22 @@ import {
 // `withChronoRing` at the old jitter, nobody inattentive) reduce the new human model to the one of
 // before the story. These hashes were taken on the code BEFORE the change; they must never be
 // regenerated to make a change pass, only if a later story changes the human bot on purpose.
-// Story 9.2: the hash is the game's (the journal without `feelHash` and `levelHash`), since a feel key
-// or a level field the sim never reads moves those two and nothing the bot does. Taken from the 3.14
-// pins, not regenerated: with the pre-9.2 content hashes put back, each journal hashed to its 3.14 pin
-// (`test` 012275ee303326, 031f2271eea72b, 171950cfe8d377; `trio` 19146b77db2723, 1c1e1a63ccfac4,
-// 0da6a71b615e45), and these are the same journals with the two content hashes left out.
+//
+// Story 3.15 re-pinned the whole-journal hashes: the journal's header carries the hashes of the feel and
+// of the level, and the feel lost `fatigue.asleepMs` while every threat gained its `afterEffect`. The
+// commands themselves did not move: `PINNED_COMMANDS` are the hashes of `journal.entries` taken on the code
+// BEFORE the story (`main` at 5572c36), and still hold. The frozen levels meet no downstairs baby, so the
+// new fetch draw never runs.
+//
+// Story 9.2 re-pinned them again, for the same reason: the feel gained `camera` and the level its
+// `camera` field, which the sim never reads. `PINNED_COMMANDS` were not touched and still hold.
 const PINNED: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
-  test: { 1: '18a907af7cd6a0', 2: '1130997142ba01', 3: '18ff6a084aa87a' },
-  trio: { 1: '0a016e25c7fe89', 2: '11b47d4e76dcd0', 3: '0f2b759509bf38' },
+  test: { 1: '1b7aa4ff20901f', 2: '18717537c1db1e', 3: '12ad9c52688559' },
+  trio: { 1: '04cffb3ecad72f', 2: '029e85fac4d2ba', 3: '135f4730250614' },
+};
+const PINNED_COMMANDS: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
+  test: { 1: '0632f181689687', 2: '158358e075a1a2', 3: '111636e2c690a2' },
+  trio: { 1: '1f13d096e14190', 2: '0dcf36b7fba7c5', 3: '045e0bb9041d03' },
 };
 
 describe('human bot, frozen settings (story 3.14 AC 6)', () => {
@@ -32,8 +40,9 @@ describe('human bot, frozen settings (story 3.14 AC 6)', () => {
           untilSimMs: BOT_TEST_UNTIL_MS,
           level: level(),
         });
-        const { feelHash: _feelHash, levelHash: _levelHash, ...game } = sim.journal();
-        expect(hashJson(game)).toBe(PINNED[name][seed]);
+        const journal = sim.journal();
+        expect(hashJson(journal.entries)).toBe(PINNED_COMMANDS[name][seed]);
+        expect(hashJson(journal)).toBe(PINNED[name][seed]);
       });
     }
   }

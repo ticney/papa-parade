@@ -55,6 +55,13 @@ const PERFECTS = 3;
 const COMPARED_RESPONSES = 5;
 /** Chunks of 10 steps the sim may take to let a Papa at full fatigue fall asleep (30 s of sim time). */
 const FATIGUE_CHUNKS_MAX = Math.ceil(30_000 / (10 * STEP_MS));
+/** The cry in the arms is due `armsCryMaxMs` after the pick-up at the latest. */
+const ARMS_CRY_CHUNKS_MAX = Math.ceil(
+  ((JSON.parse(readFileSync('content/feel.json', 'utf8')) as { carry: { armsCryMaxMs: number } })
+    .carry.armsCryMaxMs +
+    5000) /
+    (10 * STEP_MS),
+);
 
 const live = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
   fx: { perfectCamera: { zoomPct: number } };
@@ -454,6 +461,11 @@ function largeVerbsWhole(): void {
     const targetOf = (defId: string): string =>
       (JSON.parse(readFileSync(`content/threats/${defId}.json`, 'utf8')) as { target: string })
         .target;
+    const microSleepDefId = (
+      JSON.parse(readFileSync(`content/levels/${LEVEL}.json`, 'utf8')) as {
+        gauges: { fatigue: { microSleepDef: string } };
+      }
+    ).gauges.fatigue.microSleepDef;
     const allDefIds = [
       ...new Set((await ppWorld(page)).threats.map((threat) => threat.defId)),
     ].filter((defId) => targetOf(defId) !== 'hiddenZone');
@@ -484,7 +496,29 @@ function largeVerbsWhole(): void {
       await ppLoadLevel(page, LEVEL, SEED);
       const threat = (await ppWorld(page)).threats.find((candidate) => candidate.defId === defId);
       if (threat === undefined) throw new Error(`the level does not plan ${defId}`);
-      if (targetOf(defId) === 'papa') {
+      // The other threats on Papa (the duel's eyes, the fake sleep, the bomb drop) are spawned by a sequence
+      // step: `ForceThreat` ignores them and fatigue does not draw them, so there is nothing of theirs to
+      // measure here (their own specs read their verbs). Before story 3.15 a verb of another threat that
+      // happened to be up at that instant satisfied the check; it is no longer left to chance.
+      if (targetOf(defId) === 'papa' && defId !== 'arms_cry' && defId !== microSleepDefId) continue;
+      if (defId === 'arms_cry') {
+        // The cry in the arms comes only while Papa carries the baby (story 4.1), after its own delay (the
+        // shock of an outlet gag, story 3.15, may hold Papa a moment: a tap is repeated until he carries).
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if ((await ppWorld(page)).baby.state === 'carried') break;
+          await ppSend(page, { type: 'TapBaby' });
+          for (let i = 0; i < Math.ceil(WALK_BOUND_MS / (10 * STEP_MS)); i++) {
+            if ((await ppWorld(page)).baby.state === 'carried') break;
+            await ppAdvance(page, 10);
+          }
+        }
+        expect((await ppWorld(page)).baby.state, 'the baby is carried').toBe('carried');
+        for (let chunk = 0; chunk < ARMS_CRY_CHUNKS_MAX; chunk++) {
+          const state = (await ppWorld(page)).threats.find((one) => one.id === threat.id)?.state;
+          if (state !== 'idle') break;
+          await ppAdvance(page, 10);
+        }
+      } else if (targetOf(defId) === 'papa') {
         // The micro-sleep comes from fatigue, not from `ForceThreat`: Papa at the top of the gauge.
         await ppSend(page, { type: 'SetFatigue', points: 100 });
         for (let chunk = 0; chunk < FATIGUE_CHUNKS_MAX; chunk++) {

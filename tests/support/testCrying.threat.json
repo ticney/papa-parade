@@ -16,6 +16,7 @@
     "perfect": "resp_parry_perfect",
     "gag": "gag_outlet"
   },
+  "afterEffect": { "kind": "electrified", "busyMs": 1500, "dimMs": 6000 },
   "cooldownMs": 6000,
   "gagCryMs": 3500
 }

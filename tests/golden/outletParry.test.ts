@@ -68,10 +68,10 @@ describe('golden scenario outlet_parry covers the cases it is there for', () => 
 
   it('cancels a glide with a tap', () => {
     const glides = events.filter((event) => event.type === 'PapaGlideStarted');
-    // One per press: cycle 1, cycle 2 (zero length: Papa is at the wall) and cycle 4.
-    expect(glides).toHaveLength(3);
-    expect(glides[1]).toMatchObject({ t: 10310, arriveAt: 10310 });
-    const lastGlide = glides[2];
+    // One per press that is not a gag: cycle 1 and cycle 4. The press of cycle 2 is far too early: it
+    // gags, and the outlet's shock holds Papa where he stands (story 3.15), so he glides nowhere.
+    expect(glides).toHaveLength(2);
+    const lastGlide = glides[1];
     // The glide of cycle 4 was due to arrive at 26010, but the tap at 25500 sent Papa elsewhere.
     expect(lastGlide).toMatchObject({ t: 25410, arriveAt: 26010 });
     const arrivals = events.filter(

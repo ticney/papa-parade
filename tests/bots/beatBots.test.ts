@@ -20,6 +20,7 @@ function worldAt(
     flow: { state: 'playing', enteredAt: 0, finalRushAt: null },
     props: [],
     papa: { xM: 0, zM: 0 },
+    baby: { state: 'babble', downstairsUntil: null },
     sequence: {
       beat: { isRunning: beat.isRunning ?? true, nextBeatAt: beat.nextBeatAt ?? null },
       stealth: { isRunning: false },

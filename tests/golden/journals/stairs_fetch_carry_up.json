@@ -1,0 +1,25 @@
+{
+  "version": 3,
+  "seed": 52,
+  "feelHash": "1bfd48f8854906",
+  "geometryHash": "1fad21f04c6015",
+  "levelHash": "0ca817d4dd6acf",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 100,
+      "command": {
+        "t": 100,
+        "threatId": 1,
+        "type": "ForceThreat"
+      }
+    },
+    {
+      "applyAt": 3000,
+      "command": {
+        "t": 3000,
+        "type": "TapBaby"
+      }
+    }
+  ]
+}

@@ -261,7 +261,14 @@ describe('threat FSM', () => {
     expect(freezes).toEqual([]);
     expect(world.time.slowMos).toEqual([]);
     expect(threat.state).toBe('gag');
-    expect(events.map((event) => event.type)).toEqual(['ResponseResolved', 'GagTriggered']);
+    // The outlet's séquelle follows the gag (story 3.15): Papa is electrified and the room goes dim.
+    expect(events.map((event) => event.type)).toEqual([
+      'ResponseResolved',
+      'GagTriggered',
+      'PapaStateChanged',
+      'AfterEffectStarted',
+      'AfterEffectStarted',
+    ]);
     expect(events[1]).toEqual({
       type: 'GagTriggered',
       t: 500,
@@ -295,8 +302,10 @@ describe('threat FSM', () => {
       'ResponseResolved',
       'GagTriggered',
       'NearMiss',
+      'BabyStateChanged',
+      'AfterEffectStarted',
     ]);
-    expect(events.map((event) => event.t)).toEqual([700, 700, 700]);
+    expect(events.map((event) => event.t)).toEqual([700, 700, 700, 700, 700]);
     expect(events[2]).toEqual({ type: 'NearMiss', t: 700, threatId: 1, gag: 'stairs_slide' });
   });
 

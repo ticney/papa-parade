@@ -17,5 +17,6 @@
     "perfect": "resp_parry_perfect",
     "gag": "gag_silence_mischief"
   },
+  "afterEffect": { "kind": "mess" },
   "cooldownMs": 6000
 }

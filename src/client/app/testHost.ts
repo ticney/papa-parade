@@ -54,6 +54,10 @@ export interface FxState {
   readonly doorOpenDeg: number;
   /** How many alert glows stand on the room's dangers (story 7.3). */
   readonly dangerTintsShown: number;
+  /** The factor the room's 3D lights are scaled by: 1 at full light, down to `fx.dim.lightsPct / 100` in the pénombre (story 3.15). */
+  readonly lightsFactor: number;
+  /** How many mischief decals lie on the floor (story 3.15). */
+  readonly mischiefDecals: number;
 }
 
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */

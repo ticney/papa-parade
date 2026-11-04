@@ -21,7 +21,7 @@ export interface DropRule {
  * leaves the table by its nearest edge. A prop exactly on the origin is pushed along the baby's gaze. Ties
  * go to the lower index and nothing is drawn from `world.rng`. Fewer props than `count` means fewer pushes,
  * none means none. The pushes reach the engine through `pushProp`; a call from `runFlow` (after `runPhysics`)
- * moves the props in the next step. Returns how many were pushed.
+ * moves the props in the next step. Returns how many were pushed; `pushedOut`, when given, receives their indices.
  */
 export function dropProps(
   world: World,
@@ -29,6 +29,7 @@ export function dropProps(
   originXM: number,
   originZM: number,
   rule: DropRule,
+  pushedOut?: number[],
 ): number {
   // Two choices in one call must differ: a pushed prop is still off the floor until it lands.
   const chosen: number[] = [];
@@ -59,6 +60,7 @@ export function dropProps(
     const awayX = distanceM > 0 ? dxM / distanceM : world.baby.gazeX;
     const awayZ = distanceM > 0 ? dzM / distanceM : world.baby.gazeZ;
     pushProp(world, ctx, index, awayX * rule.pushImpulseNs, 0, awayZ * rule.pushImpulseNs);
+    pushedOut?.push(index);
   }
   return chosen.length;
 }

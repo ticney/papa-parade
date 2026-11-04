@@ -207,8 +207,10 @@ describe('the live salon_kitchen level (story 9.2)', () => {
         (content.feel.movement.walkSpeedMps * 900) / 1000,
       );
       sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: farthest.id });
-      const pressAt = 20 * STEP_MS;
-      for (let i = 0; i < 20; i++) sim.step();
+      sim.step();
+      // Pressed in its window: an early press is a gag, whose séquelle (story 3.15) holds Papa still.
+      while (sim.world.time.sim < farthest.windowOpenAt) sim.step();
+      const pressAt = sim.world.time.sim;
       sim.enqueue({ type: 'PressThreat', t: asSimMs(pressAt), threatId: farthest.id });
       sim.enqueue({ type: 'Release', t: asSimMs(pressAt + STEP_MS) });
       sim.drainEvents();
