@@ -4,7 +4,7 @@ baseline_commit: 52669ba8d6452222cbc3f62cf428f9e24ee52ac9
 
 # Story 3.16: Jauge de catastrophe et « Maman est rentrée plus tôt ! »
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
