@@ -4,7 +4,7 @@ baseline_commit: 52669ba8d6452222cbc3f62cf428f9e24ee52ac9
 
 # Story 3.16: Jauge de catastrophe et « Maman est rentrée plus tôt ! »
 
-Status: done
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -110,6 +110,13 @@ Code review of 2026-11-04 (Blind Hunter, Edge Case Hunter, Acceptance Auditor; 1
 - [x] [Review][Defer] `catastrophe_alert` (door key + medium haptic) plays in the same step as a rise 70→100 that ends the level, right before the slam [`src/client/boot.ts:1507`] — deferred, cosmetic; decide at the playtest
 - [x] [Review][Defer] The alert has no hysteresis: hovering at 68-72 % re-fires the cue at each upward crossing [`src/client/feedback/catastropheAlert.ts`] — deferred, a feel question for the playtest
 - [x] [Review][Defer] No live region announces the alarmed face to a screen reader (the alert is sound, ring and haptic) [`src/client/ui/hud/catastropheFace.ts`] — deferred, accessibility pass
+
+**`ci:story` of 2026-11-04 is red (Chromium, 8 failed on the first run, 14 when the files are rerun alone; 436 passed). Story back to `in-progress`, no merge.** The e2e suite had not run in full since the tuning commit `5430cd0`. Causes found:
+
+- [ ] [Review][Decision] The HUD node budget is broken by Mama's face: `sequence.spec.ts:152` reads 41 and `silence.spec.ts:201` reads 42 nodes against `HUD_MAX_DOM_NODES` = 40 (`shared/constants.ts:205`, UX-DR26); the face costs 3 nodes (div, svg, path) and `silence` needs it to cost 1. AC 12 requires the HUD to stay within the budget. Options: (a) raise the budget (Geo's call, UX-DR26 and `ui.spec.ts` follow); (b) redraw the face with fewer nodes (svg + path = 2 is not enough for `silence`; a 1-node face needs a CSS-drawn glyph).
+- [ ] [Review][Patch] Sim-driven specs that leave threats unanswered now end on `mamaHome`, so `ppAdvance` throws « no level is running »: `debugOverlay.spec.ts:358` (ten unanswered responses) and `threats.spec.ts:111` (gags to the end). Give them a catastrophe-free feel (`NO_CATASTROPHE` through `SetFeel`, as the unit tests do) with a one-line comment. `toilet.spec.ts:122` (bladder 7.788 against 8, a level frozen 0.2 s early) looks like the same cause: to check.
+- [ ] [Review][Patch] `afterEffects.spec.ts:161` screenshot `penombre-threat-up-chromium-darwin.png` differs by 2071 px: the face is now in the HUD. Regenerate (`npm run e2e -- tests/e2e/afterEffects.spec.ts --update-snapshots --project=chromium`), look at it, say so.
+- [ ] [Review][Patch] `stealthExit.spec.ts` (8 tests in `a false alarm`, `the breath in a false alarm`, `a real wake`) time out at 30 s inside `reachAlert`'s seed search (`ppLoadLevel` / `ppState`); 2 of them failed on the full run, 8 alone. Not diagnosed: load, or the level ending on `mamaHome` during the search. Check against `main` before touching.
 
 ## Dev Notes
 
