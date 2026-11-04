@@ -56,7 +56,11 @@ const strings: Record<string, string> = {
   'hud.silence_bubble_label': 'Silence',
 };
 
-function setup(point = { x: 700, y: 200 }, viewport = { width: 844, height: 390 }) {
+function setup(
+  point = { x: 700, y: 200 },
+  viewport = { width: 844, height: 390 },
+  isDirectional?: () => boolean,
+) {
   const calls: number[][] = [];
   const doc = { createElement: () => new FakeElement() } as unknown as Document;
   const bubble = createSilenceBubble(doc, {
@@ -71,6 +75,7 @@ function setup(point = { x: 700, y: 200 }, viewport = { width: 844, height: 390 
     targetHeightM: () => 0.2,
     hudBottomPx: () => 56,
     findMaxMs: (defId) => (defId === 'silence_mischief' ? FIND_MAX_MS : null),
+    ...(isDirectional === undefined ? {} : { isDirectional }),
   });
   const element = bubble.element as unknown as FakeElement;
   // Counts the writes of the two properties the bubble changes after creation.
@@ -214,6 +219,39 @@ describe('createSilenceBubble', () => {
     expect(element.hidden).toBe(false);
     expect(element.className).toContain(SILENCE_BUBBLE_CLASSES.right);
     expect(element.style.top).toBe('64px');
+  });
+});
+
+describe('the silence bubble in a follow level (story 9.3, D8)', () => {
+  it('says no direction: the right edge under the HUD row, whatever the zone’s side and height', () => {
+    for (const point of [
+      { x: 60, y: 250 },
+      { x: 700, y: 200 },
+      { x: 400, y: 30 },
+    ]) {
+      const { bubble, element, calls } = setup(point, undefined, () => false);
+      bubble.update(true, setup().world);
+      expect(element.hidden).toBe(false);
+      expect(element.className).toContain(SILENCE_BUBBLE_CLASSES.right);
+      expect(element.style.top).toBe('64px');
+      // The zone is never even projected.
+      expect(calls).toEqual([]);
+    }
+  });
+
+  it('keeps its ring, which counts down as before', () => {
+    const { bubble, host, world } = setup({ x: 60, y: 250 }, undefined, () => false);
+    bubble.update(true, world, 2100 + FIND_MAX_MS / 2);
+    const ring = bubble.ring as unknown as FakeElement;
+    expect(host.children).toContain(ring);
+    expect(ring.className).toContain(SILENCE_RING_CLASSES.right);
+    expect(ring.vars.get('--pp-silence-progress')).toBe('500');
+  });
+
+  it('is directional again when the answer is true (a fixed level)', () => {
+    const { bubble, element } = setup({ x: 60, y: 250 }, undefined, () => true);
+    bubble.update(true, setup().world);
+    expect(element.className).toContain(SILENCE_BUBBLE_CLASSES.left);
   });
 });
 

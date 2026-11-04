@@ -1,6 +1,10 @@
+---
+baseline_commit: 0df96e4e091ca7d4d979cd7d2b7d6fa2efe23b80
+---
+
 # Story 9.3: Bulle d'info hors cadre
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -37,40 +41,40 @@ so that I can get there in time.
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Pre-flight** (all ACs)
-  - [ ] `env | grep VITE_`: if `VITE_DEBUG_ALLOWED` is set, wrap `dev` and `e2e` in `(unset VITE_DEBUG_ALLOWED; …)`.
-  - [ ] `git worktree list`: **3.16** (`story/3-16-jauge-de-catastrophe-et-maman-est-rentree-plus-tot`) adds the catastrophe-face to the HUD (3 nodes, `ui.css`, `boot.ts`, `timerHud.ts`, `tests/e2e/support/game.ts`), **7.4** (cadrages parodiques) may touch `cameraFx` / the framing, **3.7** the result and Papa's look. Whichever merges second re-runs the HUD budget specs (AC 8) after merging `main`: note it, do not block on it.
-  - [ ] Measure the HUD's node count today in `salon_kitchen` at its peak (gauges noise, fatigue and need up, the timer, pause, a silence bubble with its ring) with a throwaway Playwright snippet; write the number in the Debug Log. With 3 bubbles at `OFFSCREEN_BUBBLE_MAX_NODES` it must stay ≤ 40, counting 3.16's +3 (AC 8). If it cannot, stop and tell Geo before building anything.
-- [ ] **T1. The in-frame test, pure** (AC 1; D2)
-  - [ ] `src/shared/followVisibility.ts`: `followFramePointOf(frame, centreUM, centreVM, uM, vM, widthPx, heightPx, out)` (the screen point of a view-plane point in the base follow frame, CSS px, origin top left) and `isInFollowFrame(...)` / an insets struct (`leftPx`, `rightPx`, `topPx`, `bottomPx`) with a hysteresis input (D2). Std lib only, allocation-free, `out` parameters.
-  - [ ] `src/shared/followVisibility.test.ts`: inside, outside on each side, the insets, the hysteresis (shown stays shown until it is `OFFSCREEN_BUBBLE_HYSTERESIS_PX` inside), a point exactly on the line, symmetric frames.
-  - [ ] Client pin (in `src/client/render/isoCamera.test.ts` or `followRig.test.ts`, because a `shared` test may not import `three`): `followFramePointOf` equals `Vector3.project` through `fitFollowCamera`'s camera moved by `cameraFx.moveBaseTo` (no perfect), within 0.5 px, at 844 × 390 and 1024 × 768.
-  - [ ] `followRig.ts`: expose the follow's current centre (`centreUM`, `centreVM`, read-only getters; the state stays private) beside `mode` and `frame`.
-- [ ] **T2. The layout, pure** (AC 2, 4, 6, 7; D3)
-  - [ ] `src/client/ui/world/offscreenLayout.ts` (no DOM, no `three`): from the viewport size, the insets (`hud-inset` per side, read once per resize), the HUD row's bottom, the bubble's outer radius on this surface, the frame centre on screen, up to N candidate threats (screen point, urgency, id) and an optional obstacle rectangle (the silence bubble and its ring), writes up to 3 slots (`threatId`, `edge`, `xPx`, `yPx`, `angleDeg`, or empty). Choose by urgency, project each onto the U track, pack (D3), compute the chevron's angle from each placed centre to its threat's point.
-  - [ ] `offscreenLayout.test.ts`: each edge; a threat below the frame → bottom of the nearer side edge, above the bottom third (and a threat straight below the centre goes right, a stated tie rule); never in the bottom third, never above the HUD row's bottom, never outside the insets; 3 threats on one side at 750 × 340 (the side edge holds 2): the third wraps onto the top edge, no overlap; a seeded property test (fixed seed, a loop, no `Math.random` in the module) over the four viewports × two surfaces × 1–5 candidates × random points outside the frame: no two discs closer than `2 × radius + 8`, all in the allowed region, the 3 most urgent kept; the obstacle is avoided; the same inputs give the same slots (stable order: a bubble does not jump edges when another one appears, unless packing forces it); the angle points at the threat (unit vector dot > 0.99).
-  - [ ] Constants in `src/shared/constants.ts` (D9), pinned to DESIGN.md by `tests/architecture/offscreenBubbleSpec.test.ts` (the `activityBubbleSpec.test.ts` pattern).
-- [ ] **T3. The bubble's DOM** (AC 1, 3, 4, 8, 9; D5, D6)
-  - [ ] Extract the marker's icon builder from `createMarker` (`threatMarkers.ts`) into an exported `createThreatIconElement(entry, doc)` (same nodes, same classes, same inline colour); `createMarker` calls it. `threatMarkers.test.ts` unchanged and green.
-  - [ ] Let `ThreatMarkers` hand out what its ring drew this frame for a threat (`chronoDrawOf(threatId)` → `{ permille, isLit, isHold }` or `null`, from the values `updateChronoRing` already computes; no new computation, no allocation: a preallocated record).
-  - [ ] `src/client/ui/world/offscreenBubble.ts` (the architecture's path; mounted in `#pp-hud`: D1): `createOffscreenBubbles(doc, options)` with 3 slot shells (root disc with the chevron as a pseudo-element turned by a custom property; the ring as CSS, D6), `setLevel(entries)` (builds one detached icon per marker entry, once per level), `update(...)` once per frame (assign, mount/unmount, write on change), `relayout()` on resize, `pick(clientX, clientY): number | null`, `hide()`. Class names in an exported `OFFSCREEN_BUBBLE_CLASSES`.
-  - [ ] CSS in `ui.css`: `.pp-offscreen-bubble*`, `pointer-events: none` (the canvas gets the tap: D4), sizes from custom properties written from the constants (never CSS literals for DESIGN sizes), compact and regular via `:root[data-pp-surface="compact"]`, `z-index` above the world layer and below `#pp-ui`, the targeted outline (D7). No `@media (prefers-reduced-motion)` and no animation.
-  - [ ] String `hud.offscreen_bubble_label` in `content/strings.fr.json` (« Bêtise hors de l'écran »; the bubble is `role="img"` with it, the icon and ring `aria-hidden`); `strings.test.ts` / `content:check` green.
-  - [ ] `offscreenBubble.test.ts` (a fake `doc` like `silenceBubble.test.ts`): nodes per bubble ≤ `OFFSCREEN_BUBBLE_MAX_NODES` for a circle icon (and the count for a triangle, stated), nothing mounted while hidden, mounted in slot order, icon per entry (shape and colour classes), ring copied from `chronoDrawOf` (lit, hold, per-mille; no ring for `wait`), writes only on change (a second identical `update` writes nothing), `pick` inside / outside / between two bubbles (nearest wins) / hidden → null, `hide()` on level end.
-- [ ] **T4. Wiring in `boot.ts`** (AC 1, 5, 6, 7, 10)
-  - [ ] Create the bubbles beside the silence bubble (same `hudRoot`, same canvas-to-HUD conversion as its `project`), `setLevel` at `onLevelReady` with `worldUi.threatEntries`, hide them when the flow is not live and on leaving a level (the activity bubble's rule).
-  - [ ] Per frame, after `worldUi.updateThreats` (so `chronoDrawOf` is this frame's) and after the follow rig's update: in a `follow` level, collect the candidates (D2) from `world.threats` and the entries (index-aligned, as `showGlyphChip` does), run the layout, update the DOM, the targeted / pressed flag (D7) and the mirror. In a `fixed` level do nothing (no cost).
-  - [ ] `inputMapper`: a new optional dep `pickOffscreenBubble?(clientX, clientY): number | null`, consulted first in `handlePointerDown`; its result is used as `threatId` (the rest of the path unchanged, busy branch included). `inputMapper.test.ts`: bubble pick → `PressThreat` + `Release` on up, bubble over a world threat or the floor wins, busy Papa still sends it, no dep → as today.
-  - [ ] The glyph chip on a bubble (D7) and `data-pp-offscreen` (AC 10); `ppOffscreen` in `inspectDist.ts`'s markers.
-  - [ ] Silence bubble (D8): an option `isDirectional(): boolean` (false in a `follow` level) in `createSilenceBubble`; when false, `place()` uses the fallback spot (right edge, just under the HUD row). `silenceBubble.test.ts`: the new case, the old ones unchanged. Pass the silence bubble's box (when shown) to the layout as its obstacle.
-- [ ] **T5. Browser** (AC 1–8, 10, 12)
-  - [ ] `tests/e2e/offscreenBubble.spec.ts` (Chromium; Testing › E2E). `ppOffscreen` helper in `tests/e2e/support/testApi.ts` (parses the mirror).
-  - [ ] Run in the background: `npm run e2e -- tests/e2e/offscreenBubble.spec.ts tests/e2e/salonKitchen.spec.ts tests/e2e/silence.spec.ts tests/e2e/autoTarget.spec.ts tests/e2e/ui.spec.ts tests/e2e/testApi.spec.ts tests/e2e/threat.spec.ts tests/e2e/chronoRing.spec.ts tests/e2e/activityBubble.spec.ts tests/e2e/autoplay.spec.ts --project=chromium`.
-  - [ ] Screenshots (AC 12) with a throwaway spec, then delete it.
-- [ ] **T6. Docs**
-  - [ ] `_bmad-output/project-context.md`: one paragraph « The off-screen bubble (story 9.3) » after the follow camera's (where it is mounted and why, the pure in-frame test in `shared` and its frame, the U track and the packing, the 3 most urgent, the ring copied from the marker, the tap through `pickOffscreenBubble`, the target and the chip, the neutral silence bubble in a follow level, the node budget, `data-pp-offscreen`); in the follow camera paragraph, replace « The off-screen bubble and the silence bubble's side are 9.3 ».
-  - [ ] `deferred-work.md`: mark resolved the two 9.2 items « The silence bubble's side is computed when it shows » and « An off-screen threat can be neither seen nor tapped »; a section for this story (Dev Notes › Deferred items).
-  - [ ] `EXPERIENCE.md`, `DESIGN.md`: no change expected; if the placement of the chip on the bubble differs from EXPERIENCE's `[ASSUMPTION]` line, say so in the notes, do not edit the UX docs.
+- [x] **T0. Pre-flight** (all ACs)
+  - [x] `env | grep VITE_`: if `VITE_DEBUG_ALLOWED` is set, wrap `dev` and `e2e` in `(unset VITE_DEBUG_ALLOWED; …)`.
+  - [x] `git worktree list`: **3.16** (`story/3-16-jauge-de-catastrophe-et-maman-est-rentree-plus-tot`) adds the catastrophe-face to the HUD (3 nodes, `ui.css`, `boot.ts`, `timerHud.ts`, `tests/e2e/support/game.ts`), **7.4** (cadrages parodiques) may touch `cameraFx` / the framing, **3.7** the result and Papa's look. Whichever merges second re-runs the HUD budget specs (AC 8) after merging `main`: note it, do not block on it.
+  - [x] Measure the HUD's node count today in `salon_kitchen` at its peak (gauges noise, fatigue and need up, the timer, pause, a silence bubble with its ring) with a throwaway Playwright snippet; write the number in the Debug Log. With 3 bubbles at `OFFSCREEN_BUBBLE_MAX_NODES` it must stay ≤ 40, counting 3.16's +3 (AC 8). If it cannot, stop and tell Geo before building anything.
+- [x] **T1. The in-frame test, pure** (AC 1; D2)
+  - [x] `src/shared/followVisibility.ts`: `followFramePointOf(frame, centreUM, centreVM, uM, vM, widthPx, heightPx, out)` (the screen point of a view-plane point in the base follow frame, CSS px, origin top left) and `isInFollowFrame(...)` / an insets struct (`leftPx`, `rightPx`, `topPx`, `bottomPx`) with a hysteresis input (D2). Std lib only, allocation-free, `out` parameters.
+  - [x] `src/shared/followVisibility.test.ts`: inside, outside on each side, the insets, the hysteresis (shown stays shown until it is `OFFSCREEN_BUBBLE_HYSTERESIS_PX` inside), a point exactly on the line, symmetric frames.
+  - [x] Client pin (in `src/client/render/isoCamera.test.ts` or `followRig.test.ts`, because a `shared` test may not import `three`): `followFramePointOf` equals `Vector3.project` through `fitFollowCamera`'s camera moved by `cameraFx.moveBaseTo` (no perfect), within 0.5 px, at 844 × 390 and 1024 × 768.
+  - [x] `followRig.ts`: expose the follow's current centre (`centreUM`, `centreVM`, read-only getters; the state stays private) beside `mode` and `frame`.
+- [x] **T2. The layout, pure** (AC 2, 4, 6, 7; D3)
+  - [x] `src/client/ui/world/offscreenLayout.ts` (no DOM, no `three`): from the viewport size, the insets (`hud-inset` per side, read once per resize), the HUD row's bottom, the bubble's outer radius on this surface, the frame centre on screen, up to N candidate threats (screen point, urgency, id) and an optional obstacle rectangle (the silence bubble and its ring), writes up to 3 slots (`threatId`, `edge`, `xPx`, `yPx`, `angleDeg`, or empty). Choose by urgency, project each onto the U track, pack (D3), compute the chevron's angle from each placed centre to its threat's point.
+  - [x] `offscreenLayout.test.ts`: each edge; a threat below the frame → bottom of the nearer side edge, above the bottom third (and a threat straight below the centre goes right, a stated tie rule); never in the bottom third, never above the HUD row's bottom, never outside the insets; 3 threats on one side at 750 × 340 (the side edge holds 2): the third wraps onto the top edge, no overlap; a seeded property test (fixed seed, a loop, no `Math.random` in the module) over the four viewports × two surfaces × 1–5 candidates × random points outside the frame: no two discs closer than `2 × radius + 8`, all in the allowed region, the 3 most urgent kept; the obstacle is avoided; the same inputs give the same slots (stable order: a bubble does not jump edges when another one appears, unless packing forces it); the angle points at the threat (unit vector dot > 0.99).
+  - [x] Constants in `src/shared/constants.ts` (D9), pinned to DESIGN.md by `tests/architecture/offscreenBubbleSpec.test.ts` (the `activityBubbleSpec.test.ts` pattern).
+- [x] **T3. The bubble's DOM** (AC 1, 3, 4, 8, 9; D5, D6)
+  - [x] Extract the marker's icon builder from `createMarker` (`threatMarkers.ts`) into an exported `createThreatIconElement(entry, doc)` (same nodes, same classes, same inline colour); `createMarker` calls it. `threatMarkers.test.ts` unchanged and green.
+  - [x] Let `ThreatMarkers` hand out what its ring drew this frame for a threat (`chronoDrawOf(threatId)` → `{ permille, isLit, isHold }` or `null`, from the values `updateChronoRing` already computes; no new computation, no allocation: a preallocated record).
+  - [x] `src/client/ui/world/offscreenBubble.ts` (the architecture's path; mounted in `#pp-hud`: D1): `createOffscreenBubbles(doc, options)` with 3 slot shells (root disc with the chevron as a pseudo-element turned by a custom property; the ring as CSS, D6), `setLevel(entries)` (builds one detached icon per marker entry, once per level), `update(...)` once per frame (assign, mount/unmount, write on change), `relayout()` on resize, `pick(clientX, clientY): number | null`, `hide()`. Class names in an exported `OFFSCREEN_BUBBLE_CLASSES`.
+  - [x] CSS in `ui.css`: `.pp-offscreen-bubble*`, `pointer-events: none` (the canvas gets the tap: D4), sizes from custom properties written from the constants (never CSS literals for DESIGN sizes), compact and regular via `:root[data-pp-surface="compact"]`, `z-index` above the world layer and below `#pp-ui`, the targeted outline (D7). No `@media (prefers-reduced-motion)` and no animation.
+  - [x] String `hud.offscreen_bubble_label` in `content/strings.fr.json` (« Bêtise hors de l'écran »; the bubble is `role="img"` with it, the icon and ring `aria-hidden`); `strings.test.ts` / `content:check` green.
+  - [x] `offscreenBubble.test.ts` (a fake `doc` like `silenceBubble.test.ts`): nodes per bubble ≤ `OFFSCREEN_BUBBLE_MAX_NODES` for a circle icon (and the count for a triangle, stated), nothing mounted while hidden, mounted in slot order, icon per entry (shape and colour classes), ring copied from `chronoDrawOf` (lit, hold, per-mille; no ring for `wait`), writes only on change (a second identical `update` writes nothing), `pick` inside / outside / between two bubbles (nearest wins) / hidden → null, `hide()` on level end.
+- [x] **T4. Wiring in `boot.ts`** (AC 1, 5, 6, 7, 10)
+  - [x] Create the bubbles beside the silence bubble (same `hudRoot`, same canvas-to-HUD conversion as its `project`), `setLevel` at `onLevelReady` with `worldUi.threatEntries`, hide them when the flow is not live and on leaving a level (the activity bubble's rule).
+  - [x] Per frame, after `worldUi.updateThreats` (so `chronoDrawOf` is this frame's) and after the follow rig's update: in a `follow` level, collect the candidates (D2) from `world.threats` and the entries (index-aligned, as `showGlyphChip` does), run the layout, update the DOM, the targeted / pressed flag (D7) and the mirror. In a `fixed` level do nothing (no cost).
+  - [x] `inputMapper`: a new optional dep `pickOffscreenBubble?(clientX, clientY): number | null`, consulted first in `handlePointerDown`; its result is used as `threatId` (the rest of the path unchanged, busy branch included). `inputMapper.test.ts`: bubble pick → `PressThreat` + `Release` on up, bubble over a world threat or the floor wins, busy Papa still sends it, no dep → as today.
+  - [x] The glyph chip on a bubble (D7) and `data-pp-offscreen` (AC 10); `ppOffscreen` in `inspectDist.ts`'s markers.
+  - [x] Silence bubble (D8): an option `isDirectional(): boolean` (false in a `follow` level) in `createSilenceBubble`; when false, `place()` uses the fallback spot (right edge, just under the HUD row). `silenceBubble.test.ts`: the new case, the old ones unchanged. Pass the silence bubble's box (when shown) to the layout as its obstacle.
+- [x] **T5. Browser** (AC 1–8, 10, 12)
+  - [x] `tests/e2e/offscreenBubble.spec.ts` (Chromium; Testing › E2E). `ppOffscreen` helper in `tests/e2e/support/testApi.ts` (parses the mirror).
+  - [x] Run in the background: `npm run e2e -- tests/e2e/offscreenBubble.spec.ts tests/e2e/salonKitchen.spec.ts tests/e2e/silence.spec.ts tests/e2e/autoTarget.spec.ts tests/e2e/ui.spec.ts tests/e2e/testApi.spec.ts tests/e2e/threat.spec.ts tests/e2e/chronoRing.spec.ts tests/e2e/activityBubble.spec.ts tests/e2e/autoplay.spec.ts --project=chromium`.
+  - [x] Screenshots (AC 12) with a throwaway spec, then delete it.
+- [x] **T6. Docs**
+  - [x] `_bmad-output/project-context.md`: one paragraph « The off-screen bubble (story 9.3) » after the follow camera's (where it is mounted and why, the pure in-frame test in `shared` and its frame, the U track and the packing, the 3 most urgent, the ring copied from the marker, the tap through `pickOffscreenBubble`, the target and the chip, the neutral silence bubble in a follow level, the node budget, `data-pp-offscreen`); in the follow camera paragraph, replace « The off-screen bubble and the silence bubble's side are 9.3 ».
+  - [x] `deferred-work.md`: mark resolved the two 9.2 items « The silence bubble's side is computed when it shows » and « An off-screen threat can be neither seen nor tapped »; a section for this story (Dev Notes › Deferred items).
+  - [x] `EXPERIENCE.md`, `DESIGN.md`: no change expected; if the placement of the chip on the bubble differs from EXPERIENCE's `[ASSUMPTION]` line, say so in the notes, do not edit the UX docs.
 
 ## Dev Notes
 
@@ -201,14 +205,60 @@ No new dependency. `three@0.186.1` (pinned): `Vector3.project(camera)` for the c
 
 ### Agent Model Used
 
+Claude Opus 5.5 (`claude-opus-5-5`)
+
 ### Debug Log References
+
+- 2026-11-04 · T0 pre-flight: `VITE_DEBUG_ALLOWED` not set in the agent shell (runs still wrapped in `unset`). Open worktrees: 3.16, 3.7, 7.4 as the story says.
+- 2026-11-04 · T0 HUD node count, `salon_kitchen` at 844 × 390, Chromium, throwaway Playwright spec (deleted): **36** nodes in `#pp-hud *` at rest (HUD row 1, zones 3, gauges container 1, three gauges 19, timer 7, pause button 4, the hidden `.pp-silence-bubble` 1), **39** with the silence and its ring up. With 3.16's catastrophe-face (+3): 39 / 42. `HUD_MAX_DOM_NODES` is 40: a single bubble at 6 nodes (D5) breaks it; 3 bubbles bring the peak to 39 + 3 + 18 = **60**. **HALT per T0 / AC 8: told Geo before building the DOM.** Geo's answer (2026-11-04): raise the budget to 64 (`HUD_MAX_DOM_NODES`, EXPERIENCE's performance row, pinned by `offscreenBubbleSpec.test.ts`).
+- 2026-11-04 · T5 exploration (throwaway specs, deleted): with the live feel, Papa at the kitchen end, the stairs land at x ≈ 1083 px on a 1024 × 768 screen (off the right); on a phone nothing leaves the frame. With the tightest frame `feel.camera` allows (3 × 3 m) the coffee table and the stairs leave it on 844 × 390 and 750 × 340, but the outlet stays inside (x ≈ 635 of 750, 723 of 844): the camera stands against the kitchen wall, so Papa's spot barely changes it. Three bubbles at once are therefore checked in the browser at 1024 × 768 (tight frame: all three on the right edge, which holds four), and two (with the corner wrap) on the phones; three at phone sizes are proved by the layout's seeded property test.
+- 2026-11-04 · A first exploration showed no bubble: its long walks let the level's own waves run, so the forced threats were mid-gag. The spec forces right after Papa stops, before the first wave's telegraph (t = 6 s).
 
 ### Completion Notes List
 
+- **The budget (AC 8).** `salon_kitchen`'s HUD already had 36 nodes (39 with the silence ring), so the 40 of UX-DR26 could not hold a single bubble; Geo raised `HUD_MAX_DOM_NODES` to 64. Peak with 3.16's face and three bubbles: 36 + 3 + 3 + 18 = 60. A bubble is 6 nodes (circle with its ring), 4 for a `wait`, 9 for a triangle (5.1 owns that: 69 > 64). AC 8's « 40 » in this story is now 64.
+- **T1 (D2).** `src/shared/followVisibility.ts` (std lib only): `followFramePointOf`, `isInFollowFrame` with insets and the hysteresis. Pinned against `three` (`Vector3.project` through the moved follow camera, within 0.5 px at 844 × 390 and 1024 × 768) in `followRig.test.ts`. `followRig` exposes `centreUM` / `centreVM`.
+- **T2 (D3).** `offscreenLayout.ts`, pure and allocation-free: the U track, the ray from the frame's centre, below-the-frame to the bottom of the leg on its side (straight below goes right), the 3 most urgent (`compareUrgency`), forward packing with a Euclidean `2R + 8` gap and a backward pass when it runs past the end, fewer bubbles if they can never fit, the silence as a forbidden stretch, whole-px centres and whole-degree angles. Plus `placeOffscreenChip` (D7). A seeded property test (mulberry32, 4 viewports × 2 surfaces × 150 runs × 1–5 candidates).
+- **T3 (D5, D6).** `createThreatIconElement` extracted from `createMarker` (the marker's DOM and `threatMarkers.test.ts` unchanged; the colour stays on the marker's root, the bubble sets it on its icon). `ThreatMarkers.chronoDrawOf` hands out the per-mille, lit and hold the marker's ring drew this frame (one preallocated record), also on `worldUi`. `offscreenBubble.ts`: 3 reusable shells mounted in `#pp-hud` only while shown, a threat keeps its shell, positions and angles from prebuilt string tables, written on change. The ring is CSS (band: conic progress, masked; arc: the band's ink outline and, lit, the arc's outer part and its ink, as the marker's SVG draws them back to front; the notch a `::after` wedge), sizes written per surface by `applyOffscreenBubbleMetrics`. The chevron is the root's `::after`, an ink arrowhead turned by `--pp-offscreen-angle`. Label « Bêtise hors de l'écran ».
+- **T4.** The per-frame glue is its own module, `src/client/ui/hud/offscreenHud.ts` (variance from the story's « in `boot.ts` »: boot is 2 300 lines, and this way it is unit-tested): measured after a resize or a new level only, candidates from `world.threats` and the entries (index-aligned), layout, DOM, the target / press highlight, the mirror on change. In a fixed level it does nothing (no measure, no layout). `inputMapper` asks `pickOffscreenBubble` first. The glyph chip gains `showAtPoint` (a world point unprojected from the bubble's centre at NDC depth 0, sides right / left / below by class), so « exactly one chip » holds. `createSilenceBubble({ isDirectional })`: false in a follow level, where the bubble sits at the right edge under the HUD row and the zone is never projected; its box and ring's box, measured once when it shows, are the layout's obstacle. `ppOffscreen` is a prod-forbidden marker.
+- **T5.** `tests/e2e/offscreenBubble.spec.ts`, 8 tests on Chromium: the 4:3 stairs case (edge, placement, chevron within 10° of the live icon point, icon, ring copied from the marker over three frames, nodes), a real tap on the bubble (`PressThreat` of the stairs, resolved, the bubble goes), the stacking at 844 × 390, 750 × 340 (two, corner wrap) and 1024 × 768 (three), the keyboard target and chip (beside the bubble toward the centre, Space presses it), the neutral silence (right edge under the HUD row, no bubble; found, the threat telegraphs) and a fixed level (none).
+- **Variances.** (1) Architecture: `offscreenBubble.ts` is HUD DOM, not a CSS2D object (D1); the maths are in `shared/followVisibility.ts` and `ui/world/offscreenLayout.ts`. (2) The glue is `offscreenHud.ts`, not inline in boot. (3) Three bubbles in the browser are checked at 4:3 only (the room cannot put three out on a phone). (4) EXPERIENCE's line on the chip is an `[ASSUMPTION]`: D7 puts it toward the screen's centre. (5) EXPERIENCE's budget row was edited (Geo's 64).
+- **Checks run:** `npm run ci:fast` green (413 files, 8 818 tests); `npm run e2e` on Chromium, in one run: `offscreenBubble` (8), `salonKitchen`, `silence`, `autoTarget`, `ui`, `testApi`, `threat`, `chronoRing`, `activityBubble`, `autoplay` (darwin screenshots unchanged), `sequence`, `fatigue`, `timer`: 119 passed. `offscreenBubble.spec.ts` rerun alone after the last CSS fix: 8 passed. Not run: `ci:story` (the review's gate), WebKit.
+- **Checked by eye on the screenshots** (and fixed): the chevron first started under the ink border and showed as a 5 px bump; it now starts on the border's outer edge. The ring's notch was cut by the band's mask; the band's look moved to its `::before`. After both: the stairs' bubble at the right edge, the chevron toward the bottom right, the lit arc in alert with its ink notch (a2), the « Espace » chip left of the targeted bubble (d), two bubbles round the top-right corner at 844 × 390 (b), three on one edge at 1024 × 768 (b2), the « … » at the right under the HUD row (c).
+- **Seen on the screenshots, for Geo:** (1) at 844 × 390 with the tight frame the coffee table's bubble covers the in-frame outlet's icon at the right edge (b): a bubble sits over the room by design and wins the tap (D4); (2) the verb of an off-screen threat (« RATTRAPE ! », « SOULÈVE ! ») stays on screen because the verb layout keeps verbs inside the layer (story 2.2), so the verb shows near the edge while its icon is out: not changed here.
+- **What only Geo can judge** (screenshots in `9-3-screenshots/`): the bubble's size (74 px across on a phone, 82 on a tablet), whether the ring reads at that size, how the chevron reads, the neutral silence bubble (question 1), and the chip's place.
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/9-3-bulle-d-info-hors-cadre.md`
+- `_bmad-output/implementation-artifacts/9-3-screenshots/` (new)
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md`
+- `_bmad-output/project-context.md`
+- `content/strings.fr.json`
+- `src/client/boot.ts`
+- `src/client/input/inputMapper.ts`, `src/client/input/inputMapper.test.ts`
+- `src/client/render/followRig.ts`, `src/client/render/followRig.test.ts`
+- `src/client/ui/hud/offscreenHud.ts`, `src/client/ui/hud/offscreenHud.test.ts` (new)
+- `src/client/ui/hud/silenceBubble.ts`, `src/client/ui/hud/silenceBubble.test.ts`
+- `src/client/ui/styles/ui.css`
+- `src/client/ui/world/glyphChip.ts`, `src/client/ui/world/glyphChip.test.ts`
+- `src/client/ui/world/offscreenBubble.ts`, `src/client/ui/world/offscreenBubble.test.ts` (new)
+- `src/client/ui/world/offscreenLayout.ts`, `src/client/ui/world/offscreenLayout.test.ts` (new)
+- `src/client/ui/world/threatMarkers.ts`, `src/client/ui/world/threatMarkers.test.ts`
+- `src/client/ui/world/worldUi.ts`
+- `src/shared/constants.ts`
+- `src/shared/followVisibility.ts`, `src/shared/followVisibility.test.ts` (new)
+- `tests/architecture/offscreenBubbleSpec.test.ts` (new)
+- `tests/e2e/offscreenBubble.spec.ts` (new)
+- `tests/e2e/support/testApi.ts`
+- `tests/tools/build/checkDist.test.ts`
+- `tools/build/inspectDist.ts`
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-11-04 | Story created (`gds-create-story`), status `ready-for-dev`. Ultimate context engine analysis completed: comprehensive developer guide created. |
+| 2026-11-04 | Dev halted at T0 (HUD at 36 nodes before any bubble); Geo raised `HUD_MAX_DOM_NODES` to 64. Off-screen bubble implemented (`gds-dev-story`): pure in-frame test, layout, HUD bubbles with the marker's icon and ring, tap through the input mapper, target and chip, neutral silence bubble in follow levels, `data-pp-offscreen`; status `review`. |

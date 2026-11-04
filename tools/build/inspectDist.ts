@@ -107,6 +107,8 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   'ppPhoto',
   // Story 2.11: the chrono-ring's judged mirror (`data-pp-chrono-judged`), the same way.
   'ppChronoJudged',
+  // Story 9.3: the off-screen bubbles' mirror (`data-pp-offscreen`), the same way.
+  'ppOffscreen',
 ];
 
 /**

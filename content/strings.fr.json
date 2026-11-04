@@ -53,6 +53,7 @@
   "hud.gauges": "Jauges",
   "hud.silence_bubble": "…",
   "hud.silence_bubble_label": "Silence",
+  "hud.offscreen_bubble_label": "Bêtise hors de l'écran",
   "hud.sequence_stay_awake": "Sommeil",
   "hud.sequence_lullaby_walk": "Calme",
   "pause.title": "Pause",

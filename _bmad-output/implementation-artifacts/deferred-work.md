@@ -1011,8 +1011,8 @@ Open:
 
 ## Deferred from: dev of 9-2-camera-qui-suit-papa (2026-11-04)
 
-- **The silence bubble's side is computed when it shows** (`silenceBubble.place`, on show and on resize): in a follow level the camera moves under it. For 9.3.
-- **An off-screen threat can be neither seen nor tapped** until the off-screen bubble: for 9.3. Keyboard and gamepad auto-target already reach it. On a landscape phone the kitchen's whole width is in the frame (below), so only the vertical travel can hide one.
+- ~~**The silence bubble's side is computed when it shows** (`silenceBubble.place`, on show and on resize): in a follow level the camera moves under it. For 9.3.~~ **Resolved by 9.3**: in a follow level the bubble has no side any more (`isDirectional`, right edge under the HUD row).
+- ~~**An off-screen threat can be neither seen nor tapped** until the off-screen bubble: for 9.3.~~ **Resolved by 9.3** (the off-screen bubble, tappable as the threat). Keyboard and gamepad auto-target already reach it. On a landscape phone the kitchen's whole width is in the frame (below), so only the vertical travel can hide one.
 - **The follow is stepped once per frame on the drawn clock, not once per sim step**: 9.8's visibility model will step the same `stepFollow` per sim step; the two can differ by a fraction of a step (the dead zone's goal is sampled per call). Accepted for a model of perception.
 - **The composed clamp ignores the perfect's turn (≤ 12°)**: a sliver beyond the room's box is possible during the turn, near a wall. The turn is 0 under reduced motion.
 - **Papa's edge margin can lose to the clamp across the kitchen**: on a landscape phone the frame (16.5 to 20 m of view) is wider than the kitchen's view extent (15.4 m), so the view stands on the room's middle across and Papa at the kitchen's far corners is nearer the side edges than `edgeMarginPct` (still fully on screen). Geo's call at the review: the walls win, and the margin also gives way at the near and far walls on every aspect. Pinned on the live corners (`isoCamera.test.ts`): Papa stays in the frame, and the margin gives way only where the view stands against the room's extent.
@@ -1044,3 +1044,12 @@ Open:
 - **Papa's edge margin is applied to the zoom-1 base, not to the composed view**: a sequence framing zoom (up to 100 %) plus a perfect while aiming at a threat can take Papa off screen. Reason: no sequence in a follow level yet; a perfect alone keeps him in view.
 - **Reduced motion switched on mid-catch-up keeps the 0.8 spring's velocity** (`stepFollow`), so the critically damped spring can overshoot once. Reason: rare (a settings change while the camera moves).
 - **`ppThreatPx` of a threat that follows the baby or Papa is a snapshot of its point at the telegraph**: re-projected through the moving camera, it still misses the moving body. Reason: pre-existing, the mirror was already a snapshot under the fixed camera.
+
+## Deferred from: story 9-3-bulle-d-info-hors-cadre (2026-11-04)
+
+- **The in-frame test ignores the perfect's zoom, lean and turn** (D2, `src/shared/followVisibility.ts`): for about a second a threat near the edge may be cropped without a bubble, or keep its bubble while the lean brings it in. The `human` bot of 9.8 runs the same test.
+- **A triangle (dodge) bubble costs 9 nodes** (D5, `offscreenBubble.test.ts`): no dodge threat exists yet. Three triangle bubbles would bring the big room's peak to 36 + 3 + 3 + 3 × 9 = 69, over the 64: 5.1 brings the first dodge threat and owns the budget then.
+- **No bubble for a chore post** (9.4 decides whether a post out of frame needs one).
+- **Today's `salon_kitchen` threats never leave the frame on a landscape phone** (the story's numbers): the bubble shows on 4:3, with 9.5–9.7's kitchen threats, or with a tighter `feel.camera` frame (9.2's question 1).
+- **The HUD budget is 64 now** (Geo, 2026-11-04): the big room's HUD measured 36 nodes before any bubble (39 with the silence ring), so the 40 of UX-DR26 could not hold one bubble. Slimming the HUD (inline SVG gauges and timer) would win the room back if the budget ever matters on a device.
+- **The glyph chip's room is an estimate** (`OFFSCREEN_BUBBLE_CHIP_WIDTH_PX` 96 × 32, D7): the layout keeps the chip off the other bubbles from it, not from the chip's measured box (a key name wider than « Espace » would need it raised).

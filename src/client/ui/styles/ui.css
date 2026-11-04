@@ -2357,6 +2357,21 @@ body {
   top: calc(-1 * (var(--pp-threat-size) / 2 + var(--pp-verb-gap) + var(--pp-chip-rise)));
 }
 
+/*
+  Beside an off-screen bubble (story 9.3, D7): the anchor is the bubble's centre and `--pp-chip-half` its
+  outer radius. The right of the bubble is the default placement above; its left, or under it.
+*/
+.pp-glyph-chip-anchor--bubble-left .pp-glyph-chip {
+  left: auto;
+  right: calc(var(--pp-chip-half) + var(--pp-spacing-2));
+}
+
+.pp-glyph-chip-anchor--bubble-below .pp-glyph-chip {
+  left: 0;
+  top: calc(var(--pp-chip-half) + var(--pp-spacing-2));
+  transform: translateX(-50%);
+}
+
 @keyframes pp-hold-pop {
   0% {
     transform: scale(1);
@@ -2671,4 +2686,226 @@ body {
 
 :where(:root[data-pp-motion="reduced"]) .pp-silence-bubble {
   animation: pp-silence-pulse 1000ms ease-in-out infinite;
+}
+
+/*
+  The off-screen bubble (story 9.3; DESIGN.md › offscreen-bubble, UX-DR30): in a follow level, a paper disc
+  with an ink border at the left, right or top edge for a threat whose icon is outside the frame. It holds
+  the threat's own icon (`.pp-threat-icon`, its shape and colour), the threat's chrono-ring as its marker
+  draws it, and an ink chevron on its rim toward the threat. `offscreenLayout.ts` places its centre
+  (`left`, `top`, whole px) and turns the chevron (`--pp-offscreen-angle`); `offscreenBubble.ts` writes the
+  ring's per-mille and its geometry. Every size is a constant written on the root per surface by
+  `applyOffscreenBubbleMetrics` (`offscreenBubbleSpec.test.ts`): no px literal here. It takes no input (the
+  canvas gets the tap) and never animates: it pops in and out, so it has no reduced-motion rule.
+*/
+:root {
+  /* Placeholders (the stylesheet check wants a declaration): `applyOffscreenBubbleMetrics` writes the constants inline. */
+  --pp-offscreen-icon-compact: 0px;
+  --pp-offscreen-icon-regular: 0px;
+  --pp-offscreen-disc-compact: 0px;
+  --pp-offscreen-disc-regular: 0px;
+  --pp-offscreen-border-compact: 0px;
+  --pp-offscreen-border-regular: 0px;
+  --pp-offscreen-ring-in-compact: 0px;
+  --pp-offscreen-ring-in-regular: 0px;
+  --pp-offscreen-band-out-compact: 0px;
+  --pp-offscreen-band-out-regular: 0px;
+  --pp-offscreen-outline-out-compact: 0px;
+  --pp-offscreen-outline-out-regular: 0px;
+  --pp-offscreen-arc-out-compact: 0px;
+  --pp-offscreen-arc-out-regular: 0px;
+  --pp-offscreen-reach-compact: 0px;
+  --pp-offscreen-reach-regular: 0px;
+  --pp-offscreen-chevron-compact: 0px;
+  --pp-offscreen-chevron-regular: 0px;
+  --pp-offscreen-notch-compact: 0deg;
+  --pp-offscreen-notch-regular: 0deg;
+  --pp-offscreen-icon: var(--pp-offscreen-icon-regular);
+  --pp-offscreen-disc: var(--pp-offscreen-disc-regular);
+  --pp-offscreen-border: var(--pp-offscreen-border-regular);
+  --pp-offscreen-ring-in: var(--pp-offscreen-ring-in-regular);
+  --pp-offscreen-band-out: var(--pp-offscreen-band-out-regular);
+  --pp-offscreen-outline-out: var(--pp-offscreen-outline-out-regular);
+  --pp-offscreen-arc-out: var(--pp-offscreen-arc-out-regular);
+  --pp-offscreen-reach: var(--pp-offscreen-reach-regular);
+  --pp-offscreen-chevron: var(--pp-offscreen-chevron-regular);
+  --pp-offscreen-notch: var(--pp-offscreen-notch-regular);
+}
+
+:root[data-pp-surface="compact"] {
+  --pp-offscreen-icon: var(--pp-offscreen-icon-compact);
+  --pp-offscreen-disc: var(--pp-offscreen-disc-compact);
+  --pp-offscreen-border: var(--pp-offscreen-border-compact);
+  --pp-offscreen-ring-in: var(--pp-offscreen-ring-in-compact);
+  --pp-offscreen-band-out: var(--pp-offscreen-band-out-compact);
+  --pp-offscreen-outline-out: var(--pp-offscreen-outline-out-compact);
+  --pp-offscreen-arc-out: var(--pp-offscreen-arc-out-compact);
+  --pp-offscreen-reach: var(--pp-offscreen-reach-compact);
+  --pp-offscreen-chevron: var(--pp-offscreen-chevron-compact);
+  --pp-offscreen-notch: var(--pp-offscreen-notch-compact);
+}
+
+.pp-offscreen-bubble {
+  /* Written inline by `offscreenBubble.ts`; these are the values before the first write. */
+  --pp-offscreen-angle: 0deg;
+  --pp-offscreen-progress: 0;
+  --pp-offscreen-arc-from: 1000;
+  --pp-offscreen-notch-at: 0;
+  /* The colour past the arc's start in the band: the track until the window opens, then the alert. */
+  --pp-offscreen-lit-color: var(--pp-color-ring-track);
+  position: absolute;
+  z-index: 30;
+  box-sizing: border-box;
+  width: calc(2 * var(--pp-offscreen-disc));
+  height: calc(2 * var(--pp-offscreen-disc));
+  /* `left` and `top` are the centre. */
+  margin: calc(-1 * var(--pp-offscreen-disc)) 0 0 calc(-1 * var(--pp-offscreen-disc));
+  border: var(--pp-offscreen-border) solid var(--pp-color-ink);
+  border-radius: 50%;
+  background: var(--pp-color-paper);
+  box-shadow: var(--pp-lift);
+  pointer-events: none;
+}
+
+/* The ink chevron on the rim, toward the threat: an arrowhead turned around the centre, its base on the border's outer edge. */
+.pp-offscreen-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--pp-offscreen-chevron);
+  height: calc(2 * var(--pp-offscreen-chevron));
+  background: var(--pp-color-ink);
+  clip-path: polygon(0 0, 100% 50%, 0 100%, 40% 50%);
+  transform-origin: 0 50%;
+  transform: translateY(-50%) rotate(var(--pp-offscreen-angle)) translateX(var(--pp-offscreen-disc));
+}
+
+/* The threat's icon, at the bubble's size for it, in the middle. */
+.pp-offscreen-bubble .pp-threat-icon {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: var(--pp-offscreen-icon);
+  height: var(--pp-offscreen-icon);
+  translate: -50% -50%;
+}
+
+/* The target-highlight (D7): the alert ring outside the ink border, with its ink edge. */
+.pp-offscreen-bubble--targeted {
+  box-shadow:
+    0 0 0 var(--pp-highlight-stroke) var(--pp-color-alert),
+    0 0 0 calc(var(--pp-highlight-stroke) + var(--pp-highlight-outline)) var(--pp-color-ink);
+}
+
+.pp-offscreen-bubble--lit {
+  --pp-offscreen-lit-color: var(--pp-color-alert);
+}
+
+.pp-offscreen-band,
+.pp-offscreen-arc {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(2 * var(--pp-offscreen-reach));
+  height: calc(2 * var(--pp-offscreen-reach));
+  translate: -50% -50%;
+  border-radius: 50%;
+}
+
+.pp-offscreen-band[hidden],
+.pp-offscreen-arc[hidden] {
+  display: none;
+}
+
+/*
+  The band, as the marker's ring draws it: paper progress over the ring-track, clockwise from 12 o'clock;
+  past the final arc's start the lit colour (the alert once the window is open, the track before).
+*/
+/* The band itself draws nothing: its look is its `::before` (masked to the ring) and the notch its `::after`, so
+   that the mask does not cut the notch. */
+.pp-offscreen-band {
+  z-index: 1;
+}
+
+.pp-offscreen-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--pp-color-paper) 0 calc(var(--pp-offscreen-progress) * 0.1%),
+    var(--pp-color-ring-track) calc(var(--pp-offscreen-progress) * 0.1%)
+      calc(var(--pp-offscreen-arc-from) * 0.1%),
+    var(--pp-offscreen-lit-color) calc(var(--pp-offscreen-arc-from) * 0.1%)
+  );
+  mask: radial-gradient(
+    circle,
+    transparent var(--pp-offscreen-ring-in),
+    var(--pp-color-ink) var(--pp-offscreen-ring-in),
+    var(--pp-color-ink) var(--pp-offscreen-band-out),
+    transparent var(--pp-offscreen-band-out)
+  );
+}
+
+/* The perfect notch: an ink tick across the band and the lit arc, at the window's centre. */
+.pp-offscreen-band::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    transparent var(--pp-offscreen-ring-in),
+    var(--pp-color-ink) var(--pp-offscreen-ring-in),
+    var(--pp-color-ink) var(--pp-offscreen-arc-out),
+    transparent var(--pp-offscreen-arc-out)
+  );
+  mask: conic-gradient(
+    from calc(var(--pp-offscreen-notch-at) * 0.36deg - var(--pp-offscreen-notch)),
+    var(--pp-color-ink) 0 calc(2 * var(--pp-offscreen-notch)),
+    transparent 0
+  );
+}
+
+/* Under the band: its ink outline all round, then (lit) the outer part of the final arc and its ink. */
+.pp-offscreen-arc {
+  background: radial-gradient(
+    circle,
+    transparent var(--pp-offscreen-band-out),
+    var(--pp-color-ink) var(--pp-offscreen-band-out),
+    var(--pp-color-ink) var(--pp-offscreen-outline-out),
+    transparent var(--pp-offscreen-outline-out)
+  );
+}
+
+.pp-offscreen-arc::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    transparent var(--pp-offscreen-ring-in),
+    var(--pp-color-alert) var(--pp-offscreen-ring-in),
+    var(--pp-color-alert) var(--pp-offscreen-arc-out),
+    var(--pp-color-ink) var(--pp-offscreen-arc-out),
+    var(--pp-color-ink) var(--pp-offscreen-reach),
+    transparent var(--pp-offscreen-reach)
+  );
+  mask: conic-gradient(
+    transparent 0 calc(var(--pp-offscreen-arc-from) * 0.1%),
+    var(--pp-color-ink) 0
+  );
+  visibility: hidden;
+}
+
+.pp-offscreen-bubble--lit .pp-offscreen-arc::after {
+  visibility: visible;
+}
+
+/* A held Firmness drains the ring: no lit arc, no notch. */
+.pp-offscreen-bubble--hold .pp-offscreen-arc::after,
+.pp-offscreen-bubble--hold .pp-offscreen-band::after {
+  visibility: hidden;
 }

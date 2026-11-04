@@ -12,7 +12,7 @@ import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
 import { createPapaHint, type PapaHint } from './papaHint.ts';
 import { createStealthExitMarker, type StealthExitMarker } from './stealthExitMarker.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
-import { createThreatMarkers, type ThreatMarkerEntry } from './threatMarkers.ts';
+import { type ChronoDraw, createThreatMarkers, type ThreatMarkerEntry } from './threatMarkers.ts';
 import { createTidyMarkers } from './tidyMarkers.ts';
 import { createBrowserVerbMetrics, type VerbMetrics } from './verbMetrics.ts';
 
@@ -76,6 +76,11 @@ export interface WorldUi {
    * no ring, or one not drawn yet. The marker's own object: allocation-free.
    */
   chronoRingOf(threatId: number): Readonly<ChronoRing> | null;
+  /**
+   * What the marker of `threatId` drew of its chrono-ring in the last `updateThreats` (story 9.3): the
+   * off-screen bubble draws the same. Null when it draws none. One record, rewritten at each call.
+   */
+  chronoDrawOf(threatId: number): Readonly<ChronoDraw> | null;
   /** Removes the threat icons (a restart hides the old ones before its countdown). */
   unmountThreats(): void;
   /**
@@ -237,6 +242,7 @@ export function createWorldUi(
     unmountThreats: threats.unmount,
     updateThreats: threats.update,
     chronoRingOf: threats.chronoRing,
+    chronoDrawOf: threats.chronoDrawOf,
     mountObjects: objects.mount,
     unmountObjects: objects.unmount,
     updateObjects: objects.update,

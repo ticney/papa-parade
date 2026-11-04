@@ -87,6 +87,8 @@ function setup() {
   let babySlide = { xM: 0, zM: 0 };
   const pressedIds: number[] = [];
   let targets: ThreatTargets | null = null;
+  // The off-screen bubbles' pick (story 9.3): no bubble unless a test sets one.
+  let bubblePick: (clientX: number, clientY: number) => number | null = () => null;
   const moveIntent = createMoveIntent({
     camera,
     input: { stickDeadzonePct: 20, stickAngleStepDeg: 5 },
@@ -129,6 +131,7 @@ function setup() {
     onPadPresence: (isPresent, family) => padPresence.push([isPresent, family]),
     moveIntent,
     getThreatTargets: () => targets,
+    pickOffscreenBubble: (clientX, clientY) => bubblePick(clientX, clientY),
     touchRadiusPx: TOUCH_RADIUS_PX,
     objectTouchRadiusPx: OBJECT_TOUCH_RADIUS_PX,
     babyBodyRadiusM: BABY_RADIUS_M,
@@ -159,6 +162,8 @@ function setup() {
     camera,
     pressedIds,
     setTargets: (next: ThreatTargets | null) => (targets = next),
+    setBubblePick: (next: (clientX: number, clientY: number) => number | null) =>
+      (bubblePick = next),
     setActive: (next: ActiveLevel | null) => (active = next),
     newSim: () => {
       const other = {
@@ -535,6 +540,80 @@ describe('createInputMapper: threats', () => {
     state.pause = 'paused';
     mapper.handlePointerDown(click(iconPx.x, iconPx.y));
     expect(commands).toEqual([]);
+  });
+});
+
+describe('createInputMapper: an off-screen bubble (story 9.3, D4, AC 5)', () => {
+  const ICON = {
+    threatId: 4,
+    xM: -3,
+    yM: 0.3,
+    zM: 0.5,
+    icon: 'bolt' as const,
+    followsPapa: false,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
+  };
+  /** A bubble for threat 9 around the page point (100, 100), 37 px across its radius. */
+  const bubbleAt = (clientX: number, clientY: number): number | null =>
+    Math.hypot(clientX - 100, clientY - 100) <= 37 ? 9 : null;
+
+  function withBubble() {
+    const env = setup();
+    env.setTargets({
+      threats: [{ id: 4, state: 'windowOpen' } as never, { id: 9, state: 'windowOpen' } as never],
+      entries: [ICON, { ...ICON, threatId: 9, xM: 30, zM: 30 }],
+    });
+    env.setBubblePick(bubbleAt);
+    return env;
+  }
+
+  it('turns a press on the bubble into the PressThreat of its threat, and its Release follows', () => {
+    const { mapper, commands, markers, taps, pressedIds } = withBubble();
+    mapper.handlePointerDown(click(110, 95, { pointerId: 3 }));
+    mapper.handlePointerUp(click(600, 400, { pointerId: 3, timeStamp: 1300 }));
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 234, threatId: 9 },
+      { type: 'Release', t: 300 },
+    ]);
+    expect(markers).toEqual([]);
+    expect(taps).toEqual([]);
+    expect(pressedIds).toEqual([9]);
+  });
+
+  it('wins over a world threat or the floor under it', () => {
+    const { mapper, commands, camera, setBubblePick } = withBubble();
+    const probe = new Vector3(ICON.xM, ICON.yM, ICON.zM).project(camera);
+    const iconPx = {
+      x: RECT.left + ((probe.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - probe.y) / 2) * RECT.height,
+    };
+    // The bubble over the threat 4's icon: the bubble's threat is pressed.
+    setBubblePick((x, y) => (Math.hypot(x - iconPx.x, y - iconPx.y) <= 37 ? 9 : null));
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y));
+    expect(commands).toEqual([{ type: 'PressThreat', t: 234, threatId: 9 }]);
+  });
+
+  it('still sends the press when Papa is busy, to be refused by the sim, with no highlight mark', () => {
+    const { mapper, sim, commands, pressedIds } = withBubble();
+    sim.world.papa.state = 'drink';
+    mapper.handlePointerDown(click(100, 100, { pointerId: 2 }));
+    mapper.handlePointerUp(click(0, 0, { pointerId: 2, timeStamp: 1300 }));
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 234, threatId: 9 },
+      { type: 'Release', t: 300 },
+    ]);
+    expect(pressedIds).toEqual([]);
+  });
+
+  it('is the usual tap off the bubble', () => {
+    const { mapper, commands } = withBubble();
+    mapper.handlePointerDown(click(RECT.left + 400, RECT.top + 300));
+    expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
   });
 });
 
