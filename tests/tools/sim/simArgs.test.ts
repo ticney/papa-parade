@@ -40,6 +40,8 @@ describe('parseSimArgs', () => {
         untilSimMs: null,
         outPath: null,
         journalsDir: null,
+        chronoRing: 'on',
+        compareDir: null,
         sequenceId: null,
         sequenceAtMs: 1000,
         help: false,
@@ -65,6 +67,10 @@ describe('parseSimArgs', () => {
       'report.json',
       '--journals',
       'games',
+      '--chrono-ring',
+      'off',
+      '--compare',
+      'docs/playtest/journals',
       '--sequence',
       'stay_awake',
       '--sequence-at-ms',
@@ -81,6 +87,8 @@ describe('parseSimArgs', () => {
         untilSimMs: 60_000,
         outPath: 'report.json',
         journalsDir: 'games',
+        chronoRing: 'off',
+        compareDir: 'docs/playtest/journals',
         sequenceId: 'stay_awake',
         sequenceAtMs: 5010,
         help: false,
@@ -101,6 +109,29 @@ describe('parseSimArgs', () => {
     expect(messageOf(['--bot', 'idle', '--sequence', 'a', '--sequence-at-ms', 'soon'])).toContain(
       '--sequence-at-ms',
     );
+  });
+
+  it('reads --chrono-ring on or off (story 3.14) and names the choices when it is anything else', () => {
+    for (const mode of ['on', 'off']) {
+      const parsed = parseSimArgs(['--bot', 'human', '--chrono-ring', mode]);
+      expect(parsed.ok && parsed.value.chronoRing).toBe(mode);
+    }
+    const message = messageOf(['--bot', 'human', '--chrono-ring', 'maybe']);
+    expect(message).toContain('--chrono-ring');
+    expect(message).toContain('on, off');
+  });
+
+  it('reads --compare (story 3.14) and refuses an empty folder', () => {
+    const parsed = parseSimArgs(['--bot', 'human', '--compare', 'panel']);
+    expect(parsed.ok && parsed.value.compareDir).toBe('panel');
+    expect(messageOf(['--bot', 'human', '--compare', ''])).toContain('--compare');
+  });
+
+  it('documents --chrono-ring, --compare and the new report fields in --help', () => {
+    expect(SIM_HELP).toContain('--chrono-ring');
+    expect(SIM_HELP).toContain('--compare');
+    expect(SIM_HELP).toContain('comparison');
+    expect(SIM_HELP).toContain('perfectPct');
   });
 
   it('describes the sequence flags in --help', () => {

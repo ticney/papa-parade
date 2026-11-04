@@ -47,6 +47,19 @@ export function fingerPlanFor(response: BotResponse, tapMs: number): FingerPlan 
 }
 
 /**
+ * Which responses the player is shown a chrono-ring on (story 2.11, D1 of story 3.14): the bot's own copy
+ * of the client's `HAS_CHRONO_RING`, which `src/bots` may not import (`tests/bots/hasChronoRing.test.ts`
+ * pins the two equal). A `firm` with a `release` (the bomb drop) has one too. Exhaustive on `BotResponse`:
+ * a new response fails to typecheck here until the bots decide whether it shows a ring.
+ */
+export const HAS_CHRONO_RING: Readonly<Record<BotResponse, boolean>> = {
+  parry: true,
+  firm: true,
+  wait: false,
+  nothing: false,
+};
+
+/**
  * The one finger of a bot while it holds a Firmness (story 1.23 D7). `Release` names no threat, so
  * any other tap would end the hold: while one is under way the bot presses nothing else, and a
  * Firmness is never pressed before the `Release` of a tap already planned.

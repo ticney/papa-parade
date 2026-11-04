@@ -29,6 +29,7 @@ const INPUT = {
   level: 'salon_crawler',
   bot: 'human',
   tier: 'normal' as const,
+  chronoRing: 'on' as const,
   seed: 5,
   untilSimMs: 1000,
   hashes: { feel: 'f', geometry: 'g', level: 'l', bots: 'b' },
@@ -128,6 +129,25 @@ const tally = (overrides: Partial<RunSummary['threats'][string]> = {}) => ({
 });
 
 describe('summarizeRuns', () => {
+  it('the pooled perfect rate counts every response of every run, each run keeps its own, none is null (story 3.14)', () => {
+    const perfect = (responses: number, perfects: number) =>
+      run(1, {
+        responses,
+        threats: { outlet: tally({ responses, perfect: perfects, success: responses - perfects }) },
+      });
+    const report = summarizeRuns({ ...INPUT, chronoRing: 'off' }, [
+      { ...perfect(4, 1), seed: 1 },
+      { ...perfect(8, 5), seed: 2 },
+      { ...run(3, {}), seed: 3 },
+    ]);
+    // 6 perfects of 12 responses: pooled over the responses, not the mean of the runs' rates (25 and 62.5).
+    expect(report.perfectPct).toBe(50);
+    expect(report.runList.map((entry) => entry.perfectPct)).toEqual([25, 62.5, null]);
+    expect(report.chronoRing).toBe('off');
+    expect(summarizeRuns(INPUT, [run(1, {})]).perfectPct).toBeNull();
+    expect(summarizeRuns(INPUT, []).perfectPct).toBeNull();
+  });
+
   it('counts per threat def, with percentages rounded to 0.1 and the mean offset', () => {
     const report = summarizeRuns(INPUT, [
       run(5, {
@@ -161,6 +181,9 @@ describe('summarizeRuns', () => {
       meanAbsOffsetMs: 15,
     });
     expect(report.meanSuccessPct).toBe(66.7);
+    expect(report.perfectPct).toBe(33.3);
+    expect(report.chronoRing).toBe('on');
+    expect(report.comparison).toBeNull();
     expect(report.gags).toEqual({
       total: 1,
       meanPerRun: 1,
@@ -177,6 +200,7 @@ describe('summarizeRuns', () => {
         seed: 5,
         worldHash: 'hash5',
         responses: 3,
+        perfectPct: 33.3,
         gags: 1,
         fairnessViolations: 0,
         commands: 6,

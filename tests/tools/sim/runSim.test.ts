@@ -37,6 +37,60 @@ describe('runSim', () => {
     expect(a).toBe(b);
   });
 
+  describe('--chrono-ring (story 3.14)', () => {
+    /** The frozen level, with a human who reads the ring far better than a bare dial. */
+    const sharpWithRing = () => {
+      const loaded = createTestSimLevel();
+      const { human } = loaded.content.bots;
+      return {
+        ...loaded,
+        content: {
+          ...loaded.content,
+          bots: {
+            ...loaded.content.bots,
+            human: {
+              ...human,
+              readError: {
+                withChronoRing: { offsetMs: 0, sdMs: 10 },
+                withoutChronoRing: { offsetMs: 0, sdMs: 700 },
+              },
+            },
+          },
+        },
+      };
+    };
+    const playOn = async (overrides: Parameters<typeof simArgs>[0]) => {
+      const result = await runSim(simArgs({ runs: 6, seed: 20, ...overrides }), sharpWithRing());
+      if (!result.ok) throw new Error(result.error);
+      return result.value;
+    };
+
+    it('changes the games of the human bot: fewer perfects without the ring, on the same seeds', async () => {
+      const on = await playOn({ botId: 'human', chronoRing: 'on' });
+      const off = await playOn({ botId: 'human', chronoRing: 'off' });
+      expect(on.chronoRing).toBe('on');
+      expect(off.chronoRing).toBe('off');
+      expect(on.perfectPct).not.toBeNull();
+      expect(off.perfectPct).not.toBeNull();
+      expect((on.perfectPct ?? 0) - (off.perfectPct ?? 0)).toBeGreaterThan(20);
+      expect(on.hashes.bots).toBe(off.hashes.bots);
+      expect(on.runList.map((entry) => entry.worldHash)).not.toEqual(
+        off.runList.map((entry) => entry.worldHash),
+      );
+    });
+
+    it('does not change the games of the perfect bot, nor of the idle one', async () => {
+      for (const botId of ['perfect', 'idle'] as const) {
+        const on = await playOn({ botId, chronoRing: 'on' });
+        const off = await playOn({ botId, chronoRing: 'off' });
+        expect(
+          off.runList.map((entry) => entry.worldHash),
+          botId,
+        ).toEqual(on.runList.map((entry) => entry.worldHash));
+      }
+    });
+  });
+
   it('shows the perfect bot perfect and the idle bot failing', async () => {
     const perfect = await reportOf({ botId: 'perfect', runs: 2 });
     expect(perfect.meanSuccessPct).toBe(100);
@@ -220,6 +274,7 @@ describe('runSim on the live content', () => {
         holdMinMs: feel.input.holdMinMs,
         responses: botResponsesOf(loaded.level.threats),
         releaseDefIds: releaseDefIdsOf(loaded.level.threats),
+        isChronoRingShown: true,
         safeSpot: null,
         settings: loaded.content.bots,
       });

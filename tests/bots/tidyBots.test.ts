@@ -18,7 +18,7 @@ import {
 const DURATION_MS = 20_000;
 const content = createTestContent();
 const RUSH_AT = DURATION_MS - content.feel.endOfLevel.finalRushMs;
-const { reactionMs } = createTestBots().human;
+const { reactionMeanMs: reactionMs } = createTestBots().human;
 // A row is a whole number: half a point rounds up (story 3.12).
 // The sigh row of one prop on the floor, the only mess here: the row is rounded once over all the
 // props (story 3.12), so it is not a per-prop cost from any other count.

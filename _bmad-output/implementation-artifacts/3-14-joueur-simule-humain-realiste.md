@@ -1,6 +1,10 @@
+---
+baseline_commit: 8b340486fdebd59e70d4b1b1061561c0b116c1b0
+---
+
 # Story 3.14: Joueur simulé humain réaliste
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -58,36 +62,36 @@ Requirements: FR66 (bots), the GDD v2.3 indicator « Le joueur simulé humain jo
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Pin today's games first** (AC 6)
-  - [ ] In `tests/bots/humanBot.test.ts` (or a new `humanBotRegression.test.ts`), a test that plays `human` on `botTestLevel()` and `botTrioLevel()` for seeds 1, 2, 3 (`BOT_TEST_UNTIL_MS`) and pins `hashJson(sim.journal())`. Run it on the **unchanged** code, write the six hashes in, commit nothing yet. It is the proof that the frozen settings reduce to today's bot.
-- [ ] **Task 2: Settings, schema, contract** (AC 4, 5, 7)
-  - [ ] `src/content/schemas/bots.ts`: the new `human` keys (D2), `.describe()` on each, strict; `npm run content:schemas`.
-  - [ ] `content/bots.json`: starting values (D7) before tuning.
-  - [ ] `src/bots/bot.ts`: `BotOptions.human` mirrors the schema; `BotSetup.isChronoRingShown`.
-  - [ ] `src/bots/createBot.ts`: `setupProblem` checks every new key; `tests/bots/createBot.test.ts` one case per key.
-  - [ ] `tests/support/testContent.ts › createTestBots()` with the D4 values; `tests/support/botSupport.ts › botSetup()` passes `isChronoRingShown: true`; every other `BotSetup` literal (`grep -rn "releaseDefIds" src tools tests`) gains it: `tools/sim/runSim.ts`, `src/debug/autoplay.ts` and its test, the bot tests.
-  - [ ] `tests/content/botsSchema.test.ts` and `tests/content/loadContent.test.ts`: the new shape, a value out of range refused.
-- [ ] **Task 3: The model** (AC 1, 2, 3, 5, 6)
-  - [ ] `src/bots/threatTiming.ts`: `HAS_CHRONO_RING: Readonly<Record<BotResponse, boolean>>` (`parry`, `firm` true; `wait`, `nothing` false), exhaustive like `fingerPlanFor`; a test in `tests/architecture/` or `tests/bots/` asserts it equals the client's `hasChronoRing` for every response (D1).
-  - [ ] `src/bots/humanBot.ts`: `drawReaction()` (AC 1), the aim by mode (AC 2), the attention memory and the busy test (AC 3, D3). Keep one draw per decision, no draw when an sd or a percentage is 0 (D4). Update the class doc comment (it lists every path: keep it true).
-  - [ ] Unit tests in `tests/bots/humanBot.test.ts` with frozen levels: a large `withoutChronoRing.sdMs` with the ring hidden gives fewer perfects than with it shown on the same seeds; `missWhileBusyPct` 100 misses a threat first seen while a Firmness is held (`firmBotLevel`) or while a press is planned (`botTrioLevel`) and 0 never does; a threat first seen while free is answered whatever the percentage; `reactionSdMs` > 0 spreads the press instants of a late-aimed threat; `reactionMinMs` is a floor; the bomb drop's release uses the mode (`dropBots.test.ts`); a `wait` and a beat do not change with the mode.
-  - [ ] Task 1's test green with the new code.
-- [ ] **Task 4: CLI and report** (AC 8, 10, 13)
-  - [ ] `tools/sim/simArgs.ts`: `--chrono-ring on|off` and `--compare <dir>`, `SIM_HELP`; `tests/tools/sim/simArgs.test.ts`.
-  - [ ] `tools/sim/simReport.ts`: `perfectPct` per run and pooled, `chronoRing`, `comparison: HumanComparison | null`; `renderReport` unchanged in form.
-  - [ ] `tools/sim/humanComparison.ts` (new, D6): reads the panel with `loadJournals` (`tools/playtest/loadJournals.ts`), filters by level, tier and score shape, computes medians and statuses; pure computation split from the I/O for tests. `content/playtest.json › humanBot { maxStarGap, maxPerfectExcessPct }` with schema (`src/content/schemas/playtest.ts`), JSON Schema, `content:check`.
-  - [ ] `tools/sim/runSim.ts`: passes the mode to the setup, loads the comparison in `main()` (I/O stays out of `runSim`), logs a `warn` per skipped journal.
-  - [ ] Tests: `tests/tools/sim/humanComparison.test.ts` (median of an even and an odd count, a level / tier / legacy-score skip, `n/a` with no game, both statuses at and around their thresholds, using journals built by `makeJournal` of `tests/tools/playtest/support.ts`), `simReport.test.ts` (new fields), `runSim.test.ts` (`--chrono-ring off` changes a `human` game, not a `perfect` one), `cli.test.ts` (`--compare` on a fixture panel, exit 0 on KO, exit 1 on a missing folder).
-- [ ] **Task 5: Geo's games and the tuning** (AC 9, 11, 12, 14, 15)
-  - [ ] Check `docs/playtest/journals/geo/`: **if it holds fewer than 5 salon journals, stop and ask Geo** (« What Geo does » below); finish everything else first.
-  - [ ] Run `npm run playtest:metrics -- docs/playtest/journals` (no input error) and note the median stars, score, perfect rate.
-  - [ ] Tune `bots.json › human` (D7) until AC 11 and AC 12 hold, with `--runs 200`; keep the steps and the final numbers for the Completion Notes. Run under `caffeinate -i -s`.
-  - [ ] Check `perfect` (unchanged), `human` on `chambre_night` (AC 14) and the end reason of seed 1 on the salon with the ring on (AC 15: `npm run sim -- --bot human --seed 1`).
-- [ ] **Task 6: Calme du bébé** (AC 16)
-  - [ ] `--runs 50` for `perfect`, `human` on and off, `idle`; then each option, the value changed for the run only and put back. Table in the Completion Notes; open point for Geo.
-- [ ] **Task 7: Docs and checks** (AC 17)
-  - [ ] `project-context.md`, `CLAUDE.md`, `deferred-work.md`; check `game-architecture.md` L285.
-  - [ ] `npm run ci:fast` after each task; e2e on Chromium for the specs that autoplay `human`: `npm run e2e -- tests/e2e/characters.spec.ts tests/e2e/juice.spec.ts tests/e2e/autoplay.spec.ts --project=chromium`, in the background. `ci:story` is the review's.
+- [x] **Task 1: Pin today's games first** (AC 6)
+  - [x] In `tests/bots/humanBot.test.ts` (or a new `humanBotRegression.test.ts`), a test that plays `human` on `botTestLevel()` and `botTrioLevel()` for seeds 1, 2, 3 (`BOT_TEST_UNTIL_MS`) and pins `hashJson(sim.journal())`. Run it on the **unchanged** code, write the six hashes in, commit nothing yet. It is the proof that the frozen settings reduce to today's bot.
+- [x] **Task 2: Settings, schema, contract** (AC 4, 5, 7)
+  - [x] `src/content/schemas/bots.ts`: the new `human` keys (D2), `.describe()` on each, strict; `npm run content:schemas`.
+  - [x] `content/bots.json`: starting values (D7) before tuning.
+  - [x] `src/bots/bot.ts`: `BotOptions.human` mirrors the schema; `BotSetup.isChronoRingShown`.
+  - [x] `src/bots/createBot.ts`: `setupProblem` checks every new key; `tests/bots/createBot.test.ts` one case per key.
+  - [x] `tests/support/testContent.ts › createTestBots()` with the D4 values; `tests/support/botSupport.ts › botSetup()` passes `isChronoRingShown: true`; every other `BotSetup` literal (`grep -rn "releaseDefIds" src tools tests`) gains it: `tools/sim/runSim.ts`, `src/debug/autoplay.ts` and its test, the bot tests.
+  - [x] `tests/content/botsSchema.test.ts` and `tests/content/loadContent.test.ts`: the new shape, a value out of range refused.
+- [x] **Task 3: The model** (AC 1, 2, 3, 5, 6)
+  - [x] `src/bots/threatTiming.ts`: `HAS_CHRONO_RING: Readonly<Record<BotResponse, boolean>>` (`parry`, `firm` true; `wait`, `nothing` false), exhaustive like `fingerPlanFor`; a test in `tests/architecture/` or `tests/bots/` asserts it equals the client's `hasChronoRing` for every response (D1).
+  - [x] `src/bots/humanBot.ts`: `drawReaction()` (AC 1), the aim by mode (AC 2), the attention memory and the busy test (AC 3, D3). Keep one draw per decision, no draw when an sd or a percentage is 0 (D4). Update the class doc comment (it lists every path: keep it true).
+  - [x] Unit tests (`tests/bots/humanModel.test.ts`; fake worlds for the busy rules, since the frozen levels never overlap two threats): a large `withoutChronoRing.sdMs` with the ring hidden gives fewer perfects than with it shown on the same seeds; `missWhileBusyPct` 100 misses a threat first seen while a Firmness is held or while a press is planned and 0 never does; a threat first seen while free is answered whatever the percentage; `reactionSdMs` > 0 spreads the press instants of a late-aimed threat; `reactionMinMs` is a floor; the bomb drop's release uses the mode; a `wait` and a beat do not change with the mode.
+  - [x] Task 1's test green with the new code.
+- [x] **Task 4: CLI and report** (AC 8, 10, 13)
+  - [x] `tools/sim/simArgs.ts`: `--chrono-ring on|off` and `--compare <dir>`, `SIM_HELP`; `tests/tools/sim/simArgs.test.ts`.
+  - [x] `tools/sim/simReport.ts`: `perfectPct` per run and pooled, `chronoRing`, `comparison: HumanComparison | null`; `renderReport` unchanged in form.
+  - [x] `tools/sim/humanComparison.ts` (new, D6): reads the panel with `loadJournals` (`tools/playtest/loadJournals.ts`), filters by level, tier and score shape, computes medians and statuses; pure computation split from the I/O for tests. `content/playtest.json › humanBot { maxStarGap, maxPerfectExcessPct }` with schema (`src/content/schemas/playtest.ts`), JSON Schema, `content:check`.
+  - [x] `tools/sim/runSim.ts`: passes the mode to the setup, loads the comparison in `main()` (I/O stays out of `runSim`), logs a `warn` per skipped journal.
+  - [x] Tests: `tests/tools/sim/humanComparison.test.ts` (median of an even and an odd count, a level / tier / legacy-score skip, `n/a` with no game, both statuses at and around their thresholds, using journals built by `makeJournal` of `tests/tools/playtest/support.ts`), `simReport.test.ts` (new fields), `runSim.test.ts` (`--chrono-ring off` changes a `human` game, not a `perfect` one), `cli.test.ts` (`--compare` on a fixture panel, exit 0 on KO, exit 1 on a missing folder).
+- [x] **Task 5: Geo's games and the tuning** (AC 9, 11, 12, 14, 15)
+  - [x] (waived by Geo in chat, 2026-11-04: « je ne vais pas pouvoir te fournir les journaux, on avance sans »; AC 9 and AC 11 stay unmet) Check `docs/playtest/journals/geo/`: **if it holds fewer than 5 salon journals, stop and ask Geo** (« What Geo does » below); finish everything else first.
+  - [x] (waived with the journals) Run `npm run playtest:metrics -- docs/playtest/journals` (no input error) and note the median stars, score, perfect rate.
+  - [x] Tune `bots.json › human` (D7) until AC 11 and AC 12 hold, with `--runs 200`; keep the steps and the final numbers for the Completion Notes. Run under `caffeinate -i -s`.
+  - [x] Check `perfect` (unchanged), `human` on `chambre_night` (AC 14) and the end reason of seed 1 on the salon with the ring on (AC 15: `npm run sim -- --bot human --seed 1`).
+- [x] **Task 6: Calme du bébé** (AC 16)
+  - [x] `--runs 50` for `perfect`, `human` on and off, `idle`; then each option, the value changed for the run only and put back. Table in the Completion Notes; open point for Geo.
+- [x] **Task 7: Docs and checks** (AC 17)
+  - [x] `project-context.md`, `CLAUDE.md`, `deferred-work.md`; check `game-architecture.md` L285.
+  - [x] `npm run ci:fast` after each task; e2e on Chromium for the specs that autoplay `human`: `npm run e2e -- tests/e2e/characters.spec.ts tests/e2e/juice.spec.ts tests/e2e/autoplay.spec.ts --project=chromium`, in the background. `ci:story` is the review's.
 
 ## Dev Notes
 
@@ -234,10 +238,40 @@ Follows the layers and aliases: the model in `src/bots`, the comparison in `tool
 
 ### Agent Model Used
 
+claude-sonnet-5-5
+
 ### Debug Log References
 
+- Task 1: the six hashes of `humanBotRegression.test.ts` were taken on the unchanged `humanBot.ts` (baseline `8b34048`) and are green with the new code (frozen settings = old bot, byte for byte).
+- 200-run measurements (salon, normal tier, `--seed 1000`, ~17 s each), with the model as built:
+  - starting values of D2 (ring off sd 200): ring on 3.2★ / 73.6 pts / 56 % perfects / 40 of 200 games end on `mamaWoke`; ring off 1.8★ / 52.9 pts / 18.3 % perfects (AC 12 not met: perfects).
+  - ring off `sdMs` 400 (offset 0): **0.9★ / 34.8 pts / 9.3 % perfects**, 60 of 200 `mamaWoke`: AC 12 holds (and 34.8 pts is the 34 pts / 1★ of Geo's tally).
+- `npm run sim -- --bot human --seed 1` (ring on) ends on `timer` (3★, 74 pts), AC 15 holds with the current values.
+
 ### Completion Notes List
+
+- **Tasks 1-4 done** (`ci:fast` green: 398 files, 8397 tests): the pin, the settings / schema / contract, the model (reaction draw, read error by mode, attention while busy), `--chrono-ring` / `--compare`, `perfectPct`, `chronoRing`, `comparison`, `content/playtest.json › humanBot`.
+- **Design calls worth knowing:** (a) `PlaytestThresholds` stays what `playtest:metrics` reads (the file minus `humanBot`), the new `PlaytestFile` is the whole file, so no `playtest:metrics` test moved; (b) the busy test counts any command the bot has planned and not sent (`scheduler.size`), which includes a held breath's release; (c) the attention of a `wait` is decided at its telegraph (first pressable sight), the press still waits for the signal; (d) the busy rules are tested on fake worlds (`tests/bots/humanModel.test.ts`), because the frozen levels never overlap two threats; (e) `READ_ERROR_SD_MAX_MS` 2000 caps `readError.*.sdMs` in the schema and in `setupProblem`.
+- **Geo's journals will not come (his call, 2026-11-04: « on avance sans »).** AC 9 (journals committed) and AC 11 (ring on, both statuses `OK` against his games) are therefore **not met and not verifiable**; nothing was invented in their place. `--compare` is built and tested on hand-made journals, so it measures the GDD indicator as soon as any panel exists in `docs/playtest/journals/<testerId>/` (the post-catch-up playtest). The ring-on values are a judgement call, listed for Geo below.
+- **Final `bots.json › human`** (`reactionMeanMs` 250, `reactionSdMs` 50, `reactionMinMs` 150, `readError.withChronoRing` {0, 90}, `readError.withoutChronoRing` {0, 400}, `aimOffsetMs` 0, `jitterSdMs` 60, `missWhileBusyPct` 10). Steps (salon, normal, 200 runs from seed 1000): before the story (the old bot = the frozen settings) 79.2 pts / 4★ / 61.2 % perfects / 99.8 % success; D2 starting values (ring sd 60, no-ring sd 200, miss 20 %): ring on 3.2★ / 73.6 pts / 56 % perfects / 40 `mamaWoke`, ring off 1.8★ / 52.9 pts / 18.3 % perfects (AC 12 missed on perfects); no-ring sd 400: ring off 0.9★ / 34.8 pts / 9.3 % perfects (AC 12 met); ring sd 90 and miss 10 %: **ring on 3.4★ / 73.6 pts / 41.2 % perfects / 95.1 % success / 25 `mamaWoke`; ring off 0.9★ / 34.9 pts / 9.4 % perfects / 44.4 % success / 61 `mamaWoke`** (AC 12 holds: `meanStars` < 2, `perfectPct` ≤ 10).
+- **AC 14, `chambre_night`, 20 runs from seed 1000, human:** before 20 / 20 bedtime cycles done, 4★, 85 pts, 48.1 % perfects; after 20 / 20 done, 4★, 84.2 pts, 29.8 % perfects. No drop.
+- **AC 15:** `npm run sim -- --bot human --seed 1` (ring on) ends on `timer` (3★, 74 pts, 3 gags). The perf spec of `e2e:dist` was not run (only in `npm run ci`).
+- **For 3.16 (`endsByReason` of the new `human`, salon, 200 runs):** ring on 175 `timer` / 25 `mamaWoke`; ring off 139 / 61. The old bot never woke Mama.
+- **Calme du bébé (AC 16), salon, 50 runs from seed 1000, `calmPoints` mean (sd over the runs):** current feel (`calmNoiseThresholdPct` 50, `phoneRinging.perSec` 7): perfect 15 (0), human ring on 15.9 (1.7), human ring off 16.1 (1.8), idle 15.6 (1.5). The row does not follow the quality of play: a game cut short by `mamaWoke` raises it (share over the time played, AC 8). Options measured by changing the value for the run only (`content/feel.json` unchanged, checked):
+  - A. `mama.calmNoiseThresholdPct` 40 / 60 / 25: no real effect (perfect 15 / 15 / 14; human ring on 15.9 / 15.9 / 15.1; idle 15.6 / 16 / 14.7). The phone keeps the noise above any of these.
+  - B. `noise.sources.phoneRinging.perSec` 5: perfect 19, human on 17.8 (1.4), human off 17.8 (1.0), idle 18 (0.7); Mama never wakes (0 / 50 for all). `perSec` 3: everyone 20 (the maximum), Mama never wakes, human on 3.9★ / idle 1★.
+  - C. (not measured, a sim change) take the share over the level's `durationMs` instead of the time played, so waking Mama early stops raising the row. Out of scope here (no `src/sim` change).
+  - None of A / B makes the row tell a good game from a bad one; B changes how often Mama wakes (11 / 50 for human on today, 0 at `perSec` 5) and the whole score by ±4 pts. Open point for Geo: keep as is, B at 5, or ask for C as its own story.
+- **Tasks 5-7 done as far as possible:** AC 9 and AC 11 are open (see above); the tuning, AC 12, 14, 15, 16, 17 are done; the Chromium specs `characters`, `juice`, `autoplay` pass (17 / 17). Previously: `docs/playtest/journals/geo/` does not exist yet (AC 9). AC 11 (ring on against his games) and the final tuning of `readError.withChronoRing`, `reactionMeanMs`, `reactionSdMs`, `missWhileBusyPct` wait for at least 5 salon games at the normal tier. Task 6 (Calme du bébé) and the AC 14 before / after wait for that final tuning.
 
 - Ultimate context engine analysis completed - comprehensive developer guide created (story creation, 2026-11-04). Geo chose the reference (new games with the ring, the 2026-11-03 tally without it) and « measure and propose » for Calme du bébé.
 
 ### File List
+
+- New: `tools/sim/humanComparison.ts`; `tests/bots/{hasChronoRing,humanBotRegression,humanModel}.test.ts`; `tests/tools/sim/humanComparison.test.ts`.
+- Updated: `src/bots/{bot,createBot,humanBot,threatTiming}.ts`; `src/content/{contentFiles}.ts`, `src/content/schemas/{bots,playtest,playtest.test}.ts`; `content/{bots,playtest}.json`; `content/_schemas/{bots,playtest}.schema.json`; `src/debug/autoplay.ts`; `tools/sim/{runSim,simArgs,simReport}.ts`; `tools/playtest/playtestMetrics.ts` (exports `loadThresholds`, returns the whole file); `tests/support/{botSupport,simSupport,testContent}.ts`; `tests/bots/*` and `tests/tools/sim/*` that build a `BotSetup`, a `human` setting or a `SimArgs`; `tests/content/botsSchema.test.ts`; `tests/golden/scenarios.ts` and `tests/tools/playtest/playtestMetrics.test.ts` (one `isChronoRingShown` line in a `BotSetup` literal); `CLAUDE.md`; `_bmad-output/project-context.md`; the story and `sprint-status.yaml`.
+- Also: `_bmad-output/implementation-artifacts/deferred-work.md` (pointer for « Calme du bébé »).
+
+### Change Log
+
+- 2026-11-04: the human bot gets a drawn reaction, a read error by what is shown, and inattention while busy; `--chrono-ring` and `--compare`; `perfectPct`, `chronoRing`, `comparison` in the report; `playtest.json › humanBot`. Ring-off tuned against the 2026-11-03 tally; ring-on tuned by judgement (Geo's journals not provided). Calme du bébé measured, nothing changed in `feel.json`.

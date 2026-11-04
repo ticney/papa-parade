@@ -48,6 +48,7 @@ async function playHumanGame(
       holdMinMs: content.feel.input.holdMinMs,
       responses: botResponsesOf(level.threats),
       releaseDefIds: releaseDefIdsOf(level.threats),
+      isChronoRingShown: true,
       safeSpot: null,
       settings: content.bots,
     });

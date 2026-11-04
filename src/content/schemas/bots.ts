@@ -5,23 +5,71 @@ import { z } from 'zod';
 // recorded journal. Same rules as the other schemas: strict, camelCase, units in the names, no
 // `.default()`, `.optional()` or `.transform()`.
 
+const ReadErrorSchema = z
+  .strictObject({
+    offsetMs: z
+      .number()
+      .describe(
+        "Where the human bot aims relative to the window's centre on this display, in ms (negative = early, 0 = dead centre).",
+      ),
+    sdMs: z
+      .number()
+      .min(0)
+      .max(2000)
+      .describe(
+        "Standard deviation of the human bot's press (or release) around that aim, in ms (Gaussian); capped so that a press stays in its cycle.",
+      ),
+  })
+  .describe('How well the human bot times a response that has a chrono-ring.');
+
 const BotHumanSchema = z
   .strictObject({
-    reactionMs: z
+    reactionMeanMs: z
       .number()
       .min(0)
       .describe(
-        'Shortest time the human bot needs to react, in ms: it never presses before the telegraph plus this.',
+        'Mean time the human bot needs to react to a sight or a signal, in ms: its press is never before the telegraph plus a draw around this.',
+      ),
+    reactionSdMs: z
+      .number()
+      .min(0)
+      .describe(
+        'Standard deviation of that reaction time, in ms (Gaussian, one draw per response; 0 takes no draw).',
+      ),
+    reactionMinMs: z
+      .number()
+      .min(0)
+      .describe('Shortest reaction time the human bot can draw, in ms: nobody reacts faster.'),
+    readError: z
+      .strictObject({
+        withChronoRing: ReadErrorSchema.describe(
+          'The chrono-ring is shown (the game always shows it since story 2.11).',
+        ),
+        withoutChronoRing: ReadErrorSchema.describe(
+          'The chrono-ring is hidden (the conditions of the 2026-11-03 playtest: `npm run sim -- --chrono-ring off`).',
+        ),
+      })
+      .describe(
+        'The timing error of a press on a parry or a Firmness, by what the player is shown.',
       ),
     aimOffsetMs: z
       .number()
       .describe(
-        "Where the human bot aims relative to the window's centre, in ms (negative = early, 0 = dead centre).",
+        'Where the human bot aims on a rhythm or a signal with no chrono-ring (beats, wait, breath), in ms (negative = early, 0 = dead centre).',
       ),
     jitterSdMs: z
       .number()
       .min(0)
-      .describe("Standard deviation of the human bot's press around its aim, in ms (Gaussian)."),
+      .describe(
+        "Standard deviation of the human bot's press on a rhythm or a signal, in ms (Gaussian).",
+      ),
+    missWhileBusyPct: z
+      .number()
+      .min(0)
+      .max(100)
+      .describe(
+        'Chance, in %, that the human bot never answers a threat it first sees while busy elsewhere (finger down, another press planned, Papa asleep, drinking, on the phone or on the toilet); 0 = never.',
+      ),
   })
   .describe('The `human` bot: a plausible attentive player.');
 

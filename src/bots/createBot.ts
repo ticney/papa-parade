@@ -6,6 +6,8 @@ import { createIdleBot } from './idleBot.ts';
 import { createPerfectBot } from './perfectBot.ts';
 import { createRandomBot } from './randomBot.ts';
 
+/** A press must stay in its cycle: a wider spread than this is a typo (deferred-work 1.12). Mirrors the schema. */
+const READ_ERROR_SD_MAX_MS = 2000;
 const isFinitePositive = (value: number): boolean => Number.isFinite(value) && value > 0;
 const isFiniteNonNegative = (value: number): boolean => Number.isFinite(value) && value >= 0;
 
@@ -23,9 +25,31 @@ function setupProblem(setup: BotSetup): string | null {
   if (settings.tapMs >= holdMinMs) {
     return `tapMs (${settings.tapMs}) must be under holdMinMs (${holdMinMs}), or the bot's tap would be a Firmness`;
   }
-  if (!isFiniteNonNegative(human.reactionMs)) return 'human.reactionMs must be a number >= 0';
+  if (!isFiniteNonNegative(human.reactionMeanMs)) {
+    return 'human.reactionMeanMs must be a number >= 0';
+  }
+  if (!isFiniteNonNegative(human.reactionSdMs)) return 'human.reactionSdMs must be a number >= 0';
+  if (!isFiniteNonNegative(human.reactionMinMs)) {
+    return 'human.reactionMinMs must be a number >= 0';
+  }
+  for (const mode of ['withChronoRing', 'withoutChronoRing'] as const) {
+    const { offsetMs, sdMs } = human.readError[mode];
+    if (!Number.isFinite(offsetMs)) {
+      return `human.readError.${mode}.offsetMs must be a finite number`;
+    }
+    if (!isFiniteNonNegative(sdMs) || sdMs > READ_ERROR_SD_MAX_MS) {
+      return `human.readError.${mode}.sdMs must be a number in [0, ${READ_ERROR_SD_MAX_MS}]`;
+    }
+  }
   if (!Number.isFinite(human.aimOffsetMs)) return 'human.aimOffsetMs must be a finite number';
   if (!isFiniteNonNegative(human.jitterSdMs)) return 'human.jitterSdMs must be a number >= 0';
+  if (
+    !Number.isFinite(human.missWhileBusyPct) ||
+    human.missWhileBusyPct < 0 ||
+    human.missWhileBusyPct > 100
+  ) {
+    return 'human.missWhileBusyPct must be a number in [0, 100]';
+  }
   if (!isFiniteNonNegative(random.actionsPerSec) || random.actionsPerSec > 100) {
     return 'random.actionsPerSec must be a number in [0, 100]';
   }
