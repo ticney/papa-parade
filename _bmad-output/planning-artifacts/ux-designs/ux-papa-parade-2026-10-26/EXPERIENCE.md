@@ -458,6 +458,7 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | silence-bubble blink | Slow pulse, 1Hz or slower |
 | Follow camera (large room, v2.3) | Slower catch-up, no overshoot (story 9.2) |
 | catastrophe-face alert pulse (v2.3) | Slow pulse, 1Hz or slower; the alarmed face stays |
+| Papa's busy side effects (steam, bla-bla) (v2.3) | Held still; the pose, the props and the facing stay `[ASSUMPTION]` |
 | activity-bubble squash, pop and refused-tap shake (v2.3) | Removed; the refused tap keeps its sound and haptic, and the bubble outline thickens for 150ms instead `[ASSUMPTION]` |
 | chrono-ring (v2.3) | Unchanged, because it is gameplay timing |
 | Loading bottle | Static fill |

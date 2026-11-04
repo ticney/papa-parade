@@ -2076,6 +2076,9 @@ export async function boot(): Promise<void> {
           papaClip: real?.papaClip ?? null,
           babyClip: real?.babyClip ?? null,
           papaMixerMs: real?.papaMixerMs ?? 0,
+          papaBodyYawRad: real?.papaBodyYawRad ?? 0,
+          papaSteamSwayDeg: real?.papaSteamSwayDeg ?? 0,
+          papaBlablaTiltDeg: real?.papaBlablaTiltDeg ?? 0,
           doorOpenDeg: real?.doorOpenDeg ?? 0,
           dangerTintsShown: real?.dangerTintsShown ?? 0,
         };

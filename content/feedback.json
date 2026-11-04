@@ -104,14 +104,29 @@
       { "event": "BabyPutDown", "character": "baby", "amountPct": -24, "durationMs": 300 },
       { "event": "GagTriggered", "character": "baby", "amountPct": -26, "durationMs": 420 },
       { "event": "BabyWoke", "character": "baby", "amountPct": 28, "durationMs": 360 },
-      { "event": "BabyStirred", "character": "baby", "amountPct": 10, "durationMs": 220 }
+      { "event": "BabyStirred", "character": "baby", "amountPct": 10, "durationMs": 220 },
+      { "event": "CoffeeDrunk", "character": "papa", "amountPct": 18, "durationMs": 320 }
     ],
     "clipSpeeds": [
       { "clip": "walk", "speedMps": 3 },
       { "clip": "carry_walk", "speedMps": 3 },
       { "clip": "crawl", "speedMps": 0.6 },
       { "clip": "sneak", "speedMps": 1.2 }
-    ]
+    ],
+    "papaClipFacing": [
+      { "clip": "drink", "facing": "camera" },
+      { "clip": "coffee_kick", "facing": "camera" },
+      { "clip": "on_phone", "facing": "awayFromBaby" }
+    ],
+    "busyProps": {
+      "steamSwayDeg": 12,
+      "steamStretchPct": 15,
+      "steamPeriodMs": 900,
+      "blablaTiltDeg": 8,
+      "blablaBobAmplitudeM": 0.03,
+      "blablaPeriodMs": 700,
+      "blablaPlace": { "screenOffsetM": 0.85, "heightM": 0.35 }
+    }
   },
   "door": {
     "openMs": 700,
@@ -539,6 +554,11 @@
       "audio": { "clip": "papa_phone_answer", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
       "haptic": "light"
+    },
+    "papa_coffee_slurp": {
+      "audio": { "clip": "papa_coffee_slurp", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
     }
   },
   "events": {
@@ -565,6 +585,7 @@
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
     "ChronoArcLit": "chrono_arc_lit",
+    "CoffeeStarted": "papa_coffee_slurp",
     "ActivityBubbleShaken": "papa_busy_refused",
     "ActivityBubblePopped": "papa_free",
     "InstinctVignetteShown": "instinct_triggered",

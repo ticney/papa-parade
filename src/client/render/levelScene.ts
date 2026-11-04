@@ -147,6 +147,12 @@ export interface LevelScene {
     babyClip: string | null;
     /** Papa's mixer clock, in sim ms. */
     papaMixerMs: number;
+    /** The way Papa's drawn body faces, in radians: it turns for the camera and away from the baby (story 2.13). */
+    papaBodyYawRad: number;
+    /** How far the coffee steam leans, in degrees; 0 while hidden or held (story 2.13). */
+    papaSteamSwayDeg: number;
+    /** How far the bla-bla bubble tilts, in degrees; 0 while hidden or held (story 2.13). */
+    papaBlablaTiltDeg: number;
     /** How far the door was drawn open, in degrees; 0 while it is shut (story 3.5). */
     doorOpenDeg: number;
     /** How many alert glows stand on the room's dangers (story 7.3). */
@@ -387,8 +393,9 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     },
   });
 
-  const { crossFadeMs, turnRateDegPerSec, clipSpeeds, squash } = bodies.characters;
-  const motion = { turnRateDegPerSec, clips: clipSpeeds };
+  const { crossFadeMs, turnRateDegPerSec, clipSpeeds, squash, papaClipFacing, busyProps } =
+    bodies.characters;
+  const motion = { turnRateDegPerSec, clips: clipSpeeds, clipFacing: papaClipFacing, busyProps };
   const papa = createPapaView(
     content,
     toon,
@@ -519,6 +526,9 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         papaClip: papa.clipName,
         babyClip: baby.clipName,
         papaMixerMs: papa.mixerTimeMs,
+        papaBodyYawRad: papa.bodyYawRad,
+        papaSteamSwayDeg: papa.steamSwayDeg,
+        papaBlablaTiltDeg: papa.blablaTiltDeg,
         doorOpenDeg: door?.openAngleDeg ?? 0,
         dangerTintsShown: dangerTint.shownCount,
       };
@@ -543,8 +553,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       // Papa's nap, coffee and call, from the world every frame (stories 1.19, 1.20; diegetic, no overlay).
       papa.setEyelids(eyelidsAmountAt(world, clockMs, bodies.microSleepDefId));
       papa.setAsleep(world.papa.state === 'asleep', clockMs);
-      papa.setDrinking(world.papa.state === 'drink');
-      papa.setOnPhone(world.papa.state === 'onPhone');
+      papa.setDrinking(world.papa.state === 'drink', clockMs, bodies.isMotionReduced());
+      papa.setOnPhone(world.papa.state === 'onPhone', clockMs, bodies.isMotionReduced());
       // Out of the room, in the toilet (story 4.3): not him, not his shadow.
       papa.setAway(world.papa.state === 'onToilet');
       // The door, from the rush's start on the sim clock: a pause or a slow-mo holds it (story 3.5).

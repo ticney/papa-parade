@@ -50,6 +50,8 @@ export function papaOneShotOf(event: Readonly<SimEvent>): string | null {
       return 'stumble';
     case 'PapaSnored':
       return 'snore';
+    case 'CoffeeDrunk':
+      return 'coffee_kick';
     default:
       return null;
   }
@@ -114,6 +116,7 @@ export const PAPA_CONTRACT = {
     'root',
     'spine',
     'head',
+    'eyes',
     'eyelids',
     'arm_l',
     'hand_l',
@@ -123,7 +126,15 @@ export const PAPA_CONTRACT = {
     'leg_r',
   ],
   visibleNodes: ['papa_body', 'papa_shirt'],
-  hiddenNodes: ['papa_mug', 'papa_handset', 'papa_hair', 'papa_look_mash', 'papa_look_shirt'],
+  hiddenNodes: [
+    'papa_mug',
+    'papa_mug_steam',
+    'papa_handset',
+    'papa_blabla',
+    'papa_hair',
+    'papa_look_mash',
+    'papa_look_shirt',
+  ],
   clips: [
     'idle',
     'walk',
@@ -140,8 +151,11 @@ export const PAPA_CONTRACT = {
     'gag_shock',
     'stumble',
     'snore',
+    'coffee_kick',
   ],
   codeDrivenBones: ['eyelids'],
+  /** The steam sways and the bla-bla bubble wobbles by code on the sim clock, so reduced motion can hold them (D3). */
+  codeDrivenNodes: ['papa_mug_steam', 'papa_blabla'],
 } as const;
 
 /** The baby's contract with his `.glb`: `head` turns to the gaze and `eyelids` follow the duel, both by code. */
@@ -166,4 +180,5 @@ export const BABY_CONTRACT = {
     'laugh',
   ],
   codeDrivenBones: ['head', 'eyelids'],
+  codeDrivenNodes: [],
 } as const;

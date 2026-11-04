@@ -1,4 +1,4 @@
-import { STEP_MS } from '@shared/constants';
+import { ISO_YAW_DEG, STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type RealMs } from '@shared/time';
 import { createSim, type SimEvent, type World } from '@sim';
@@ -44,13 +44,16 @@ const BODIES = {
   anchorThreatDefIds: [] as string[],
   laidHeightM: 0.3,
   characters: {
-    crossFadeMs: 100,
-    turnRateDegPerSec: 720,
+    ...createTestFeedback().characters,
+    papaClipFacing: [
+      { clip: 'drink', facing: 'camera' },
+      { clip: 'coffee_kick', facing: 'camera' },
+      { clip: 'on_phone', facing: 'awayFromBaby' },
+    ],
     squash: [
       { event: 'PapaBlocked', character: 'papa', amountPct: -20, durationMs: 200 },
       { event: 'BabyWoke', character: 'baby', amountPct: 20, durationMs: 200 },
     ],
-    clipSpeeds: [],
   } as SceneBodies['characters'],
   door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
   render: createTestFeedback().render,
@@ -520,6 +523,9 @@ describe('createLevelScene', () => {
       papaClip: 'idle',
       babyClip: 'babble',
       papaMixerMs: 0,
+      papaBodyYawRad: 0,
+      papaSteamSwayDeg: 0,
+      papaBlablaTiltDeg: 0,
       doorOpenDeg: 0,
       dangerTintsShown: 0,
     });
@@ -1014,5 +1020,112 @@ describe('eyelidsAmountAt (story 1.19)', () => {
     // The micro-sleep after it in the list is still found.
     const sleepy = micro('telegraph', 1000, 2200);
     expect(eyelidsAmountAt(worldOf(duelLate, sleepy), 1600, MICRO)).toBeCloseTo(0.5, 12);
+  });
+});
+
+describe("the busy Papa's body (story 2.13)", () => {
+  const withState = (state: 'drink' | 'onPhone' | 'idle', simMs: number): World => {
+    const world = fakeWorldAt(simMs);
+    world.papa.state = state;
+    return world;
+  };
+  const CAMERA_YAW_RAD = (ISO_YAW_DEG * Math.PI) / 180;
+  const { busyProps } = BODIES.characters;
+
+  afterEach(() => {
+    effectsWorld.papa.state = 'idle';
+  });
+
+  it('sways the steam on the sim clock while he drinks: the same clock, the same sway, and a hitstop holds it', () => {
+    const { update, realFxState } = build();
+    update(withState('drink', 0), 0);
+    const quarterMs = busyProps.steamPeriodMs / 4;
+    update(withState('drink', quarterMs), 0);
+    expect(realFxState().papaSteamSwayDeg).toBeCloseTo(busyProps.steamSwayDeg, 6);
+    update(withState('drink', quarterMs), 0);
+    expect(realFxState().papaSteamSwayDeg).toBeCloseTo(busyProps.steamSwayDeg, 6);
+    update(withState('drink', 3 * quarterMs), 0);
+    expect(realFxState().papaSteamSwayDeg).toBeCloseTo(-busyProps.steamSwayDeg, 6);
+    // No steam, no sway: he stopped drinking.
+    update(withState('idle', 3 * quarterMs), 0);
+    expect(realFxState().papaSteamSwayDeg).toBe(0);
+  });
+
+  it('wobbles the bubble while he is on the phone, and not otherwise', () => {
+    const { update, realFxState } = build();
+    update(withState('onPhone', busyProps.blablaPeriodMs / 4), 0);
+    expect(realFxState().papaBlablaTiltDeg).toBeCloseTo(busyProps.blablaTiltDeg, 6);
+    update(withState('drink', busyProps.blablaPeriodMs / 4), 0);
+    expect(realFxState().papaBlablaTiltDeg).toBe(0);
+  });
+
+  it('holds the steam and the bubble still under reduced motion, and keeps the clips and the turn', () => {
+    const level = createLevelScene(
+      {
+        id: 'test_room',
+        geometry: createTestLevelGeometry('test_room'),
+        model: buildModel(),
+        characters: createTestCharacters(),
+      },
+      { ...BODIES, isMotionReduced: () => true },
+    );
+    const quarterMs = busyProps.steamPeriodMs / 4;
+    level.update(withState('drink', 0), 0, asRealMs(0));
+    level.update(withState('drink', quarterMs), 0, asRealMs(0));
+    expect(level.realFxState().papaSteamSwayDeg).toBe(0);
+    expect(level.realFxState().papaClip).toBe('drink');
+    expect(level.realFxState().papaMixerMs).toBeGreaterThan(0);
+    // He still turns for the camera: a pose carries a state.
+    level.update(withState('drink', quarterMs + 1000), 0, asRealMs(0));
+    expect(level.realFxState().papaBodyYawRad).toBeCloseTo(CAMERA_YAW_RAD, 6);
+    level.update(withState('onPhone', 5000), 0, asRealMs(0));
+    expect(level.realFxState().papaBlablaTiltDeg).toBe(0);
+    expect(level.scene.getObjectByName('papa_blabla')?.visible).toBe(true);
+    level.dispose();
+  });
+
+  it('turns for the camera while he drinks, and turns his back to the baby on the phone', () => {
+    const { update, realFxState } = build();
+    update(withState('drink', 0), 0);
+    update(withState('drink', 1000), 0);
+    expect(realFxState().papaBodyYawRad).toBeCloseTo(CAMERA_YAW_RAD, 6);
+    const world = withState('onPhone', 2000);
+    update(world, 0);
+    update(withState('onPhone', 3000), 0);
+    const toBabyX = world.baby.xM - world.papa.xM;
+    const toBabyZ = world.baby.zM - world.papa.zM;
+    expect(Math.hypot(toBabyX, toBabyZ)).toBeGreaterThan(0.05);
+    expect(realFxState().papaBodyYawRad).toBeCloseTo(Math.atan2(-toBabyX, -toBabyZ), 6);
+  });
+
+  it('kicks and stretches him on CoffeeDrunk from the data, and holds the stretch under reduced motion', () => {
+    const bodies = {
+      ...BODIES,
+      characters: {
+        ...BODIES.characters,
+        squash: [{ event: 'CoffeeDrunk', character: 'papa', amountPct: 18, durationMs: 320 }],
+      } as SceneBodies['characters'],
+    };
+    const drunk: SimEvent = { type: 'CoffeeDrunk', t: asSimMs(1000), fatigue: 10 };
+    for (const isReduced of [false, true]) {
+      const level = createLevelScene(
+        {
+          id: 'test_room',
+          geometry: createTestLevelGeometry('test_room'),
+          model: buildModel(),
+          characters: createTestCharacters(),
+        },
+        { ...bodies, isMotionReduced: () => isReduced },
+      );
+      const body = level.scene.getObjectByName('papa') as Object3D;
+      level.update(fakeWorldAt(1000), 0, asRealMs(0));
+      level.fx.playCharacterEvent(drunk, fakeWorldAt(1000), isReduced);
+      level.update(fakeWorldAt(1100), 0, asRealMs(0));
+      // The kick is the pose: it plays either way. The stretch is a side effect: only without the setting.
+      expect(level.realFxState().papaClip, `reduced ${isReduced}`).toBe('coffee_kick');
+      if (isReduced) expect(body.scale.toArray()).toEqual([1, 1, 1]);
+      else expect(body.scale.y).toBeGreaterThan(1);
+      level.dispose();
+    }
   });
 });

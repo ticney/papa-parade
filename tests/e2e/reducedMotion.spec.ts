@@ -2,6 +2,16 @@ import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { SCREEN_FLASH_CLASSES } from '../../src/client/ui/hud/screenFlash.ts';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
+import {
+  advanceAndRead,
+  busyProps,
+  CAMERA_YAW_RAD,
+  freezeSalon,
+  startCall,
+  startDrinking,
+  wrapRad,
+  YAW_TOLERANCE_RAD,
+} from './support/busyPapa.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
   collectProblems,
@@ -523,3 +533,68 @@ function largeVerbsWhole(): void {
     expect(problems).toEqual([]);
   });
 }
+
+// Papa's busy poses (story 2.13): a pose carries a state, so « Réduire les animations » keeps the clip, the
+// props and the facing and freezes only what decorates them: the steam and the bla-bla.
+test.describe('Papa busy under « Réduire les animations » (story 2.13)', () => {
+  /** What the view shows of him while he drinks, after the turn is done and the sim moved on a little. */
+  async function drinkingView(page: Page, reducedMotion: boolean) {
+    await seedSettings(page, { reducedMotion });
+    await freezeSalon(page);
+    await startDrinking(page);
+    if (reducedMotion) await expect(html(page)).toHaveAttribute('data-pp-motion', 'reduced');
+    else await expect(html(page)).not.toHaveAttribute('data-pp-motion', /./);
+    const first = await advanceAndRead(page, Math.ceil(300 / STEP_MS));
+    const eighthSteps = Math.max(1, Math.round(busyProps.steamPeriodMs / 8 / STEP_MS));
+    const second = await advanceAndRead(page, eighthSteps);
+    const third = await advanceAndRead(page, eighthSteps);
+    return { first, second, third };
+  }
+
+  test('the pose stays, he still turns for the camera, and the steam holds still', async ({
+    page,
+  }) => {
+    const { first, second, third } = await drinkingView(page, true);
+    expect(first.papaClip).toBe('drink');
+    // The clip runs: his mixer moves with the sim.
+    expect(second.papaMixerMs).toBeGreaterThan(first.papaMixerMs);
+    expect(third.papaMixerMs).toBeGreaterThan(second.papaMixerMs);
+    // He still faces the camera: the facing is the pose's.
+    expect(Math.abs(wrapRad(first.papaBodyYawRad - CAMERA_YAW_RAD))).toBeLessThan(
+      YAW_TOLERANCE_RAD,
+    );
+    // The steam is exactly where it rests, however long the clock runs.
+    expect(first.papaSteamSwayDeg).toBe(0);
+    expect(second.papaSteamSwayDeg).toBe(0);
+    expect(third.papaSteamSwayDeg).toBe(0);
+  });
+
+  test('positive control: with the setting off, the same steps move the steam', async ({
+    page,
+  }) => {
+    const { first, second, third } = await drinkingView(page, false);
+    expect(first.papaClip).toBe('drink');
+    expect(Math.abs(wrapRad(first.papaBodyYawRad - CAMERA_YAW_RAD))).toBeLessThan(
+      YAW_TOLERANCE_RAD,
+    );
+    const angles = new Set([first, second, third].map((fx) => fx.papaSteamSwayDeg));
+    expect(angles.size).toBeGreaterThan(1);
+  });
+
+  test('on the phone, the bubble is shown and holds still, and he still turns his back to the baby', async ({
+    page,
+  }) => {
+    await seedSettings(page, { reducedMotion: true });
+    await freezeSalon(page);
+    await startCall(page);
+    const first = await advanceAndRead(page, Math.ceil(300 / STEP_MS));
+    const eighthSteps = Math.max(1, Math.round(busyProps.blablaPeriodMs / 8 / STEP_MS));
+    const second = await advanceAndRead(page, eighthSteps);
+    expect(first.papaClip).toBe('on_phone');
+    expect(first.papaBlablaTiltDeg).toBe(0);
+    expect(second.papaBlablaTiltDeg).toBe(0);
+    const world = await ppWorld(page);
+    const away = Math.atan2(world.papa.xM - world.baby.xM, world.papa.zM - world.baby.zM);
+    expect(Math.abs(wrapRad(second.papaBodyYawRad - away))).toBeLessThan(YAW_TOLERANCE_RAD);
+  });
+});

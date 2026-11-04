@@ -547,6 +547,7 @@ describe('the characters table (story 7.2)', () => {
   const characters = real.characters as {
     squash: Json[];
     clipSpeeds: Json[];
+    papaClipFacing: Json[];
   };
 
   it('refuses a second squash of the same character on the same event', () => {
@@ -574,6 +575,76 @@ describe('the characters table (story 7.2)', () => {
 
   it('squashes only on events the sim emits: a typo would silence a squash', () => {
     for (const event of SQUASH_EVENTS) expect(SIM_EVENT_TYPES, event).toContain(event);
+  });
+});
+
+describe('the busy props and the facing of Papa (story 2.13)', () => {
+  const characters = real.characters as { papaClipFacing: Json[]; busyProps: Json };
+
+  it('refuses a second facing for the same clip', () => {
+    const first = characters.papaClipFacing[0] as Json;
+    const result = mutated([
+      'characters.papaClipFacing',
+      [...characters.papaClipFacing, { ...first, facing: 'awayFromBaby' }],
+    ]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.papaClipFacing'))).toBe(
+      true,
+    );
+  });
+
+  it('refuses a facing that is neither the camera nor away from the baby', () => {
+    const result = mutated(['characters.papaClipFacing', [{ clip: 'drink', facing: 'sideways' }]]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.papaClipFacing'))).toBe(
+      true,
+    );
+  });
+
+  it('accepts a table with no facing row: Papa then faces his heading', () => {
+    expect(mutated(['characters.papaClipFacing', []])).toMatchObject({ ok: true });
+  });
+
+  it.each([
+    ['a sway of the steam past 45 degrees', 'steamSwayDeg', 46],
+    ['a negative sway of the steam', 'steamSwayDeg', -1],
+    ['a stretch of the steam past 50 percent', 'steamStretchPct', 51],
+    ['a steam period under the 3 Hz flash cap', 'steamPeriodMs', 333],
+    ['a tilt of the bubble past 45 degrees', 'blablaTiltDeg', 46],
+    ['a bob of the bubble past 0.2 m', 'blablaBobAmplitudeM', 0.21],
+    ['a bubble period under the 3 Hz flash cap', 'blablaPeriodMs', 333],
+  ])('refuses %s', (_name, key, value) => {
+    const result = mutated([`characters.busyProps.${key}`, value]);
+    expect(failedPaths(result)).toContain(`characters.busyProps.${key}`);
+  });
+
+  it.each([
+    ['a bubble more than 1 m aside', 'screenOffsetM', 1.1],
+    ['a bubble more than 1 m aside, to the left', 'screenOffsetM', -1.1],
+    ['a bubble under 0.3 m high', 'heightM', 0.2],
+    ['a bubble over 1.2 m high', 'heightM', 1.3],
+  ])('refuses %s', (_name, key, value) => {
+    const result = mutated([`characters.busyProps.blablaPlace.${key}`, value]);
+    expect(failedPaths(result)).toContain(`characters.busyProps.blablaPlace.${key}`);
+  });
+
+  it('accepts a period exactly at the flash cap', () => {
+    expect(mutated(['characters.busyProps.steamPeriodMs', 334])).toMatchObject({ ok: true });
+  });
+
+  it('squashes Papa when the coffee is drunk, and the cue plays on the first sip', () => {
+    const parsed = parse(real);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(
+      parsed.value.characters.squash.some(
+        (row) => row.event === 'CoffeeDrunk' && row.character === 'papa',
+      ),
+    ).toBe(true);
+    const cueId = parsed.value.events.CoffeeStarted;
+    expect(cueId).toBeDefined();
+    const cue = parsed.value.cues[cueId as string];
+    expect(cue?.audio).toBeDefined();
+    expect(cue?.visual).toBeDefined();
+    expect(cue?.haptic).toBeDefined();
   });
 });
 

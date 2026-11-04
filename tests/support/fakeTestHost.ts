@@ -23,6 +23,9 @@ const NO_FX_STATE: FxState = {
   papaClip: null,
   babyClip: null,
   papaMixerMs: 0,
+  papaBodyYawRad: 0,
+  papaSteamSwayDeg: 0,
+  papaBlablaTiltDeg: 0,
   doorOpenDeg: 0,
   dangerTintsShown: 0,
 };

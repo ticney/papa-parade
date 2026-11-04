@@ -431,6 +431,7 @@ export const SQUASH_EVENTS = [
   'GagTriggered',
   'BabyWoke',
   'BabyStirred',
+  'CoffeeDrunk',
 ] as const;
 export const SQUASH_CHARACTERS = ['papa', 'baby'] as const;
 
@@ -465,6 +466,80 @@ const ClipSpeedSchema = z
   })
   .describe('The natural speed of one travelling clip.');
 
+/** Where a clip turns Papa's body (story 2.13, D5). */
+export const PAPA_FACINGS = ['camera', 'awayFromBaby'] as const;
+
+const ClipFacingSchema = z
+  .strictObject({
+    clip: z
+      .string()
+      .regex(CUE_ID_PATTERN, 'a clip name is lower_snake_case')
+      .describe("A clip of Papa's, as named in the `.glb`."),
+    facing: z
+      .enum(PAPA_FACINGS)
+      .describe(
+        "Where his body turns while the player sees this clip: `camera` faces the screen, `awayFromBaby` turns his back to the baby. The sim's heading is untouched.",
+      ),
+  })
+  .describe('Where Papa faces while one clip plays.');
+
+const BlablaPlaceSchema = z
+  .strictObject({
+    screenOffsetM: z
+      .number()
+      .min(-1)
+      .max(1)
+      .describe(
+        'How far from his head the bla-bla bubble stands across the screen, in metres: above 0 toward the right of the screen, below 0 toward the left.',
+      ),
+    heightM: z
+      .number()
+      .min(0.3)
+      .max(1.2)
+      .describe('How high above the floor the foot of the bla-bla bubble stands, in metres.'),
+  })
+  .describe('Where the bla-bla bubble stands beside Papa.');
+
+const BusyPropsSchema = z
+  .strictObject({
+    steamSwayDeg: z
+      .number()
+      .min(0)
+      .max(45)
+      .describe('How far the coffee steam leans to each side, in degrees.'),
+    steamStretchPct: z
+      .number()
+      .min(0)
+      .max(50)
+      .describe('How much the steam grows and shrinks in height, in percent.'),
+    steamPeriodMs: z
+      .number()
+      .min(SCREEN_FLASH_MIN_INTERVAL_MS)
+      .describe(
+        'How long a full sway of the steam lasts, in sim ms. Never under the 3 Hz flash cap.',
+      ),
+    blablaTiltDeg: z
+      .number()
+      .min(0)
+      .max(45)
+      .describe('How far the bla-bla bubble tilts to each side, in degrees.'),
+    blablaBobAmplitudeM: z
+      .number()
+      .min(0)
+      .max(0.2)
+      .describe('How far the bla-bla bubble bobs up and down, in metres.'),
+    blablaPeriodMs: z
+      .number()
+      .min(SCREEN_FLASH_MIN_INTERVAL_MS)
+      .describe(
+        'How long a full wobble of the bla-bla bubble lasts, in sim ms. Never under the 3 Hz flash cap.',
+      ),
+    blablaPlace: BlablaPlaceSchema,
+  })
+  .describe(
+    "The side effects of Papa's busy props (story 2.13): the steam of his mug and the bla-bla of his phone. Sim clock; held still under reduced motion.",
+  );
+
 const CharactersSchema = z
   .strictObject({
     crossFadeMs: z
@@ -479,6 +554,10 @@ const CharactersSchema = z
       ),
     squash: z.array(SquashRowSchema).describe('Which events squash and stretch whom.'),
     clipSpeeds: z.array(ClipSpeedSchema).describe('The natural speed of the travelling clips.'),
+    papaClipFacing: z
+      .array(ClipFacingSchema)
+      .describe('Which clips turn Papa toward the camera or away from the baby (story 2.13).'),
+    busyProps: BusyPropsSchema,
   })
   .superRefine((characters, ctx) => {
     // One row each: a second row for the same thing would silently win or lose, and an edit of Geo's
@@ -505,6 +584,17 @@ const CharactersSchema = z
         });
       }
       travelling.add(row.clip);
+    }
+    const facing = new Set<string>();
+    for (const [index, row] of characters.papaClipFacing.entries()) {
+      if (facing.has(row.clip)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['papaClipFacing', index],
+          message: `a second facing for the clip "${row.clip}": one row each`,
+        });
+      }
+      facing.add(row.clip);
     }
   })
   .describe(

@@ -32,7 +32,7 @@ world.time.sim = asSimMs(4200);
 
 const TABLE: FeedbackTable = {
   render: createTestFeedback().render,
-  characters: { crossFadeMs: 100, turnRateDegPerSec: 720, squash: [], clipSpeeds: [] },
+  characters: createTestFeedback().characters,
   buses: {
     music: { gainPct: 50 },
     sfx: { gainPct: 90 },

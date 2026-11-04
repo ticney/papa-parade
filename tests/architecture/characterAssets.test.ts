@@ -23,7 +23,7 @@ const CHARACTERS = [
 ] as const;
 
 const feedback = JSON.parse(readFileSync(join(root, 'content', 'feedback.json'), 'utf8')) as {
-  characters: { clipSpeeds: { clip: string }[] };
+  characters: { clipSpeeds: { clip: string }[]; papaClipFacing: { clip: string }[] };
 };
 const gags = readFileSync(join(root, 'src', 'client', 'render', 'gags.ts'), 'utf8');
 const clips = readFileSync(
@@ -88,6 +88,13 @@ describe('the clips the code names exist in the files', () => {
   it('every clip of `feedback.json › characters.clipSpeeds`', () => {
     const all = new Set([...namesIn('papa'), ...namesIn('baby')]);
     for (const { clip } of feedback.characters.clipSpeeds) expect(all, clip).toContain(clip);
+  });
+
+  it("every clip of `feedback.json › characters.papaClipFacing`, among Papa's", () => {
+    expect(feedback.characters.papaClipFacing.length).toBeGreaterThan(0);
+    for (const { clip } of feedback.characters.papaClipFacing) {
+      expect(namesIn('papa'), clip).toContain(clip);
+    }
   });
 
   it('every clip of GAG_PRESENTATIONS, on the right character', () => {
@@ -215,7 +222,8 @@ describe("Papa's look and accessories sit where the view shows them (story 7.2, 
     const part = (name: string): Box3 => {
       const node = asset.scene.getObjectByName(name);
       if (node === undefined) throw new Error(`papa.glb has no node "${name}"`);
-      return drawnBox(node, []);
+      // The steam is the mug's child: the mug's own box leaves it out (story 2.13).
+      return drawnBox(node, name === 'papa_mug_steam' ? [] : ['papa_mug_steam']);
     };
     return { asset, part, body: drawnBox(asset.scene, PAPA_CONTRACT.hiddenNodes) };
   };
@@ -262,6 +270,83 @@ describe("Papa's look and accessories sit where the view shows them (story 7.2, 
     const { part, body } = await posed(null);
     expect(within(body, part('papa_look_mash'), ACCESSORY_SLACK_M)).toBe(true);
     expect(within(part('papa_shirt'), part('papa_look_shirt'), 0.03)).toBe(true);
+  });
+});
+
+/** Story 7.2's props, longest side of the box at rest, in metres: story 2.13 makes each at least twice as big (AC 1, 6). */
+const MUG_LONGEST_SIDE_7_2_M = 0.218;
+const HANDSET_LONGEST_SIDE_7_2_M = 0.32;
+const PROP_SIZE_FACTOR_MIN = 2;
+/** The eyes widen to at least this scale at the kick's peak (AC 5). */
+const EYES_WIDEST_SCALE_MIN = 1.4;
+
+describe("Papa's exaggerated props and poses (story 2.13)", () => {
+  const posed = async (clip: string | null) => {
+    const asset = await load('papa');
+    if (clip !== null) {
+      const found = asset.animations.find((candidate) => candidate.name === clip);
+      if (found === undefined) throw new Error(`papa.glb has no clip "${clip}"`);
+      const mixer = new AnimationMixer(asset.scene);
+      mixer.clipAction(found).play();
+      mixer.setTime(found.duration / 2);
+    }
+    asset.scene.updateMatrixWorld(true);
+    const part = (name: string): Box3 => {
+      const node = asset.scene.getObjectByName(name);
+      if (node === undefined) throw new Error(`papa.glb has no node "${name}"`);
+      return drawnBox(node, name === 'papa_mug_steam' ? [] : ['papa_mug_steam']);
+    };
+    return { asset, part };
+  };
+  const longestSideOf = (box: Box3): number => {
+    const size = box.getSize(new Vector3());
+    return Math.max(size.x, size.y, size.z);
+  };
+
+  it('has a mug at least twice as big as in story 7.2', async () => {
+    const { part } = await posed(null);
+    expect(longestSideOf(part('papa_mug'))).toBeGreaterThanOrEqual(
+      PROP_SIZE_FACTOR_MIN * MUG_LONGEST_SIDE_7_2_M,
+    );
+  });
+
+  it('has a handset at least twice as big as in story 7.2', async () => {
+    const { part } = await posed(null);
+    expect(longestSideOf(part('papa_handset'))).toBeGreaterThanOrEqual(
+      PROP_SIZE_FACTOR_MIN * HANDSET_LONGEST_SIDE_7_2_M,
+    );
+  });
+
+  it("stands the steam above the mug's rim while he drinks", async () => {
+    const { part } = await posed('drink');
+    const mug = part('papa_mug');
+    const steam = part('papa_mug_steam');
+    expect(steam.isEmpty()).toBe(false);
+    expect((steam.min.y + steam.max.y) / 2).toBeGreaterThan(mug.max.y - 0.02);
+  });
+
+  it('widens his eyes to at least 1.4 in coffee_kick, and in no other clip', async () => {
+    const asset = await load('papa');
+    const eyesTracks = (clip: string) =>
+      (asset.animations.find((candidate) => candidate.name === clip)?.tracks ?? []).filter(
+        (track) => track.name.startsWith('eyes.'),
+      );
+    const kick = eyesTracks('coffee_kick').find((track) => track.name === 'eyes.scale');
+    expect(kick, 'coffee_kick keys the scale of `eyes`').toBeDefined();
+    expect(Math.max(...(kick?.values ?? [0]))).toBeGreaterThanOrEqual(EYES_WIDEST_SCALE_MIN);
+    const others = asset.animations.filter((clip) => clip.name !== 'coffee_kick');
+    expect(others.length).toBeGreaterThan(10);
+    for (const clip of others) expect(eyesTracks(clip.name), clip.name).toEqual([]);
+  });
+
+  it('keys nothing the code moves: not the steam, not the bubble, not the lids', async () => {
+    const asset = await load('papa');
+    expect(asset.animations.length).toBeGreaterThan(10);
+    for (const clip of asset.animations) {
+      for (const track of clip.tracks) {
+        expect(track.name, clip.name).not.toMatch(/^(papa_mug_steam|papa_blabla|eyelids)\./);
+      }
+    }
   });
 });
 

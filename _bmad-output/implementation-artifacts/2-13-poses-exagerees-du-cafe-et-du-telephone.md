@@ -1,6 +1,10 @@
+---
+baseline_commit: d20dddd3843d98220cf390bcd2e4ce5531658a57
+---
+
 # Story 2.13: Poses exagérées du café et du téléphone
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -117,114 +121,114 @@ The epics' criteria are: *given `papa.glb`, when the `drink` and `on_phone` clip
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Read « Blender access » and « The file today »** (AC 1-8, D1)
-  - [ ] Never touch the live Blender MCP session. Work headless in this worktree, with throwaway scripts in the scratchpad.
-  - [ ] Rerun the read-only listing (`papa.blend`'s objects, bones, actions) and compare it with « The file today »: if they differ, trust the file.
-- [ ] **T1. Data and schema** (AC 4, 5, 9, 10, 11; D5, D7)
-  - [ ] `src/content/schemas/feedback.ts`:
+- [x] **T0. Read « Blender access » and « The file today »** (AC 1-8, D1)
+  - [x] Never touch the live Blender MCP session. Work headless in this worktree, with throwaway scripts in the scratchpad.
+  - [x] Rerun the read-only listing (`papa.blend`'s objects, bones, actions) and compare it with « The file today »: if they differ, trust the file.
+- [x] **T1. Data and schema** (AC 4, 5, 9, 10, 11; D5, D7)
+  - [x] `src/content/schemas/feedback.ts`:
     - `CharactersSchema` gains `papaClipFacing: { clip, facing: 'camera' | 'awayFromBaby' }[]`, with a duplicate-clip refusal in the existing `superRefine`, and `busyProps: { steamSwayDeg, steamStretchPct, steamPeriodMs, blablaTiltDeg, blablaBobAmplitudeM, blablaPeriodMs, blablaPlace: { screenOffsetM, heightM } }`. These names end in suffixes `feedbackSchema.test.ts`'s `UNIT_SUFFIX` already accepts (`Deg`, `Pct`, `Ms`, `AmplitudeM`, `OffsetM`, `^heightM`); a name like `bobM` or `sideM` would fail it;
     - bounds: degrees in 0–45, the stretch in 0–50, `blablaBobAmplitudeM` in 0–0.2, periods ≥ `SCREEN_FLASH_MIN_INTERVAL_MS`, `screenOffsetM` in −1–1, `heightM` within 0.3–1.2;
     - `SQUASH_EVENTS` gains `'CoffeeDrunk'` (the test that ties it to `SIM_EVENT_TYPES` must still pass).
-  - [ ] `content/feedback.json`:
+  - [x] `content/feedback.json`:
     - the three facing rows;
     - `busyProps` (start: sway 12°, stretch 15 %, 900 ms; tilt 8°, bob 0.03 m, 700 ms; side 0.35 m, height 0.8 m; measure and adjust in T9);
     - a squash row `{ "event": "CoffeeDrunk", "character": "papa", "amountPct": 18, "durationMs": 320 }`;
     - the cue `papa_coffee_slurp` (`audio` on `sfx` at about 90 %, `soundWave` on `papa` near 0.6 m / 350 ms like `papa_phone_answer`, `haptic: "light"`);
     - `"CoffeeStarted": "papa_coffee_slurp"` in `events`.
-  - [ ] Then:
+  - [x] Then:
     - `npm run content:schemas`;
     - `tests/support/testContent.ts` gains the same keys;
     - `tests/content/feedbackSchema.test.ts`: each bound and the duplicate refusal, one failing case each. Its numeric-key check (`UNIT_SUFFIX`, L23) must pass unchanged; never widen it to let a name through.
-  - [ ] `npm run content:check`.
-- [ ] **T2. Contract and guards, before any art** (AC 1, 3, 5, 6, 8, 13; D2, D3, D6)
-  - [ ] `characterClips.ts` › `PAPA_CONTRACT`:
+  - [x] `npm run content:check`.
+- [x] **T2. Contract and guards, before any art** (AC 1, 3, 5, 6, 8, 13; D2, D3, D6)
+  - [x] `characterClips.ts` › `PAPA_CONTRACT`:
     - `bones` + `'eyes'`;
     - `hiddenNodes` + `'papa_mug_steam'`, `'papa_blabla'`;
     - `clips` + `'coffee_kick'`;
     - a new `codeDrivenNodes: ['papa_mug_steam', 'papa_blabla']`. `BABY_CONTRACT.codeDrivenNodes` is `[]`.
-  - [ ] `tools/assets/characterArt.ts`:
+  - [x] `tools/assets/characterArt.ts`:
     - `CharacterContract` gains `codeDrivenNodes`;
     - `characterRigProblems` refuses a clip track on any of them, with the same message shape as for `codeDrivenBones`;
     - a failing fixture in `tests/tools/assets/characterArt.test.ts`.
-  - [ ] `tests/architecture/characterAssets.test.ts`, new cases on the committed file:
+  - [x] `tests/architecture/characterAssets.test.ts`, new cases on the committed file:
     - the mug's and the handset's longest side at rest are ≥ twice 7.2's (name the two numbers as constants, with the story's reference);
     - in `drink` at mid-clip, `papa_mug_steam` is above the mug's box;
     - the bone `eyes` reaches a scale ≥ 1.4 in `coffee_kick` and has no track in any other clip (the eyes widen only at the kick, until Geo says otherwise);
     - every clip of `feedback.json › characters.papaClipFacing` exists in `papa.glb` (extend the `clipSpeeds` case).
-  - [ ] These fail on the 7.2 file: that is the point. Run them again after T3.
-- [ ] **T3. The art, in `papa.blend`, headless** (AC 1-3, 5-8; D1, D2, D3, D6)
-  - [ ] Scale the mug and the handset mesh data (not the object), keeping each grip at its hand bone. The handset may be remodelled. Apply the transforms.
-  - [ ] `papa_mug_steam`: one or two wisps in `art_paper`, parented to `papa_mug` (object parent), its origin at the mug's rim so that the code's sway pivots there. Authored upright.
-  - [ ] `papa_blabla`: a paper bubble with a tail and two or three ink squiggles, as one object with the two materials, parented to the armature object (`OBJECT`, not a bone). Facing Blender's -Y (glTF +Z, the way Papa faces), its origin at the tail's tip.
-  - [ ] Bone `eyes`, child of `head`, standing straight up with no roll like every other bone, its head at the eyes' centre. Move the eye whites and the pupils from the `head` vertex group to `eyes`; the eyelids stay on `eyelids`.
-  - [ ] Reauthor `drink` and `on_phone`, author `coffee_kick` (about 0.6–0.8 s, longer than 3 × `crossFadeMs`). Each action needs a slot and a fake user (see 7.2's T0 note). No action keys `eyelids`, `papa_mug_steam` or `papa_blabla`.
-  - [ ] Purge orphans; pack no image; save once.
-  - [ ] Then:
+  - [x] These fail on the 7.2 file: that is the point. Run them again after T3.
+- [x] **T3. The art, in `papa.blend`, headless** (AC 1-3, 5-8; D1, D2, D3, D6)
+  - [x] Scale the mug and the handset mesh data (not the object), keeping each grip at its hand bone. The handset may be remodelled. Apply the transforms.
+  - [x] `papa_mug_steam`: one or two wisps in `art_paper`, parented to `papa_mug` (object parent), its origin at the mug's rim so that the code's sway pivots there. Authored upright.
+  - [x] `papa_blabla`: a paper bubble with a tail and two or three ink squiggles, as one object with the two materials, parented to the armature object (`OBJECT`, not a bone). Facing Blender's -Y (glTF +Z, the way Papa faces), its origin at the tail's tip.
+  - [x] Bone `eyes`, child of `head`, standing straight up with no roll like every other bone, its head at the eyes' centre. Move the eye whites and the pupils from the `head` vertex group to `eyes`; the eyelids stay on `eyelids`.
+  - [x] Reauthor `drink` and `on_phone`, author `coffee_kick` (about 0.6–0.8 s, longer than 3 × `crossFadeMs`). Each action needs a slot and a fake user (see 7.2's T0 note). No action keys `eyelids`, `papa_mug_steam` or `papa_blabla`.
+  - [x] Purge orphans; pack no image; save once.
+  - [x] Then:
     - `npm run assets:character:export -- papa`, then `npm run assets:character:optimize -- papa`;
     - `npx vitest run tests/architecture/characterAssets.test.ts tests/tools/assets/characterArt.test.ts`.
-  - [ ] Iterate by looking in the browser (T9), never in a Blender render (GDD: the modelling tool's render does not carry over).
-- [ ] **T4. The view** (AC 5, 8-11, 14; D3, D4, D5)
-  - [ ] `characterMotion.ts`: `papaFacingYawRad(papa, baby, clip, facings): number | null`, where `null` means « his heading ». It is pure, with a unit test for each branch: camera, away, no row, carried, `mischiefSilent`, too close.
-  - [ ] `characterClips.ts`: `papaOneShotOf` gains `case 'CoffeeDrunk': return 'coffee_kick'`.
-  - [ ] `papaView.ts`:
+  - [x] Iterate by looking in the browser (T9), never in a Blender render (GDD: the modelling tool's render does not carry over).
+- [x] **T4. The view** (AC 5, 8-11, 14; D3, D4, D5)
+  - [x] `characterMotion.ts`: `papaFacingYawRad(papa, baby, clip, facings): number | null`, where `null` means « his heading ». It is pure, with a unit test for each branch: camera, away, no row, carried, `mischiefSilent`, too close.
+  - [x] `characterClips.ts`: `papaOneShotOf` gains `case 'CoffeeDrunk': return 'coffee_kick'`.
+  - [x] `papaView.ts`:
     - `animate` aims the body at `papaFacingYawRad(…) ?? pose.yawRad` through `turnToward`.
     - `CharacterMotionConfig` gains `clipFacing` and `busyProps`. Its fields are read once; the clip lookup must not allocate.
     - `setDrinking(isDrinking, clockMs, isMotionReduced)` and `setOnPhone(isOnPhone, clockMs, isMotionReduced)` show the props and write the sway and wobble. Both are held at rest under reduced motion, and the transform is written only when shown.
     - At creation, move `papa_blabla` from the rig into `group` (`group.add(node)`), position it from `blablaPlace` along the screen side computed once from `ISO_YAW_DEG`, and set `rotation.y` so it faces the camera.
     - `dispose` frees its geometry and its hull's, which `rig.dispose()` no longer reaches.
     - Getters `bodyYawRad`, `steamSwayDeg`, `blablaTiltDeg` (0 when hidden).
-  - [ ] `levelScene.ts`:
+  - [x] `levelScene.ts`:
     - pass `clockMs` and `bodies.isMotionReduced()` to both setters;
     - pass the new config from `bodies.characters`;
     - `realFxState()` gains `papaBodyYawRad`, `papaSteamSwayDeg`, `papaBlablaTiltDeg`.
-  - [ ] Update `testHost.ts`'s `RealFxState` and the e2e default in `tests/e2e/support/testApi.ts`. `dist:check --flavor prod` must still find no debug marker.
-  - [ ] Update the views' unit tests (`papaView.test.ts`, `levelScene.test.ts`, `characterClips.test.ts`, `characterMotion.test.ts`). The fixture rig (`tests/support/testCharacters.ts`) builds every contract node, so the new ones come for free.
-- [ ] **T5. The slurp** (AC 4; D7)
-  - [ ] `tools/audio/makePlaceholderAudio.ts`: a `papa_coffee_slurp` synth, a short noisy rising sip of about 350 ms, unlike `papa_busy`. Use the next free seed offset and say which one. Update the header's story list.
-  - [ ] Then:
+  - [x] Update `testHost.ts`'s `RealFxState` and the e2e default in `tests/e2e/support/testApi.ts`. `dist:check --flavor prod` must still find no debug marker.
+  - [x] Update the views' unit tests (`papaView.test.ts`, `levelScene.test.ts`, `characterClips.test.ts`, `characterMotion.test.ts`). The fixture rig (`tests/support/testCharacters.ts`) builds every contract node, so the new ones come for free.
+- [x] **T5. The slurp** (AC 4; D7)
+  - [x] `tools/audio/makePlaceholderAudio.ts`: a `papa_coffee_slurp` synth, a short noisy rising sip of about 350 ms, unlike `papa_busy`. Use the next free seed offset and say which one. Update the header's story list.
+  - [x] Then:
     - `npm run assets:audio -- --only papa_coffee_slurp` (macOS `afconvert`);
     - commit the `.m4a`;
     - `npm run content:check`.
-- [ ] **T6. Tests in the browser** (AC 5, 8-10, 13)
-  - [ ] Run all of it on a frozen salon, through `__PP__`, with a `waitFrames` after each `ppAdvance` before reading.
-  - [ ] `tests/e2e/characters.spec.ts`, **coffee**:
+- [x] **T6. Tests in the browser** (AC 5, 8-10, 13)
+  - [x] Run all of it on a frozen salon, through `__PP__`, with a `waitFrames` after each `ppAdvance` before reading.
+  - [x] `tests/e2e/characters.spec.ts`, **coffee**:
     - `TapObject coffee_machine`, until `drink`;
     - `fx().papaClip === 'drink'`;
     - after at least 300 ms of sim time, `papaBodyYawRad` is within 0.05 rad of `ISO_YAW_DEG`;
     - `papaSteamSwayDeg` changes between two advances;
     - `data-pp-draw-calls` ≤ 100;
     - at `CoffeeDrunk`, `papaClip === 'coffee_kick'`, then the loop's clip once it ends.
-  - [ ] `tests/e2e/characters.spec.ts`, **phone**:
+  - [x] `tests/e2e/characters.spec.ts`, **phone**:
     - `StartDisruption`, `TapObject phone`, until `onPhone`;
     - the yaw is within 0.05 rad of the away-from-baby angle computed from `ppWorld`;
     - `papaBlablaTiltDeg` changes;
     - draw calls ≤ 100.
 
     Pick a moment where the baby is neither carried nor `mischiefSilent`, and assert it.
-  - [ ] `tests/e2e/reducedMotion.spec.ts`: with the saved setting on, during `drink` the clip is `drink`, `papaMixerMs` advances, the yaw still turns, and `papaSteamSwayDeg` stays exactly the same across advances. Add a positive control with the setting off.
-  - [ ] Every test must be able to fail (lesson of the 2.11 and 2.12 reviews): no `typeof` checks, no bound true by construction, no `.every` on a possibly empty list.
-  - [ ] Run on Chromium, through the queue: `characters`, `reducedMotion`, `activityBubble`, `phone`, `fatigue`, `level`, `feedback`, `testApi`, `render`, `autoplay`.
-- [ ] **T7. Prove nothing moved** (AC 12)
-  - [ ] `git diff --stat main` on AC 12's paths is empty.
-  - [ ] The four bots on both levels, seed 1, against `main`: 8 reports byte-identical.
-  - [ ] `npm run ci:fast` with no golden regenerated.
-- [ ] **T8. Budgets on the build, after the last art edit** (AC 13), in the background, under `caffeinate`
-  - [ ] `npm run build:playtest`, then `npm run dist:check -- --flavor playtest`: write the payload and `papa.glb`'s size.
-  - [ ] `npm run e2e:dist` (it waits its turn and runs `perf.spec.ts` alone): write p95, draw calls max and triangles max for the salon.
-  - [ ] A failure under load is rerun alone, and both runs are reported.
-- [ ] **T9. Look, and screenshots** (AC 16; D10)
-  - [ ] AC 16's list. Run through the frozen salon and `__PP__`, Chromium, at both sizes.
-  - [ ] Tune `busyProps` and the art until the bla-bla clears the activity bubble and the badge, and say what you changed.
-  - [ ] `autoplay.spec.ts`'s frozen frame moves only if Papa's rest pose or file changed in view. If it moves, regenerate the two macOS references deliberately, open them and say so.
-  - [ ] List what you did not open and what you did not capture, such as the motion itself. Never claim a look you did not take.
-- [ ] **T10. Docs and debts**
-  - [ ] `project-context.md` › « Rigged characters (story 7.2) »:
+  - [x] `tests/e2e/reducedMotion.spec.ts`: with the saved setting on, during `drink` the clip is `drink`, `papaMixerMs` advances, the yaw still turns, and `papaSteamSwayDeg` stays exactly the same across advances. Add a positive control with the setting off.
+  - [x] Every test must be able to fail (lesson of the 2.11 and 2.12 reviews): no `typeof` checks, no bound true by construction, no `.every` on a possibly empty list.
+  - [x] Run on Chromium, through the queue: `characters`, `reducedMotion`, `activityBubble`, `phone`, `fatigue`, `level`, `feedback`, `testApi`, `render`, `autoplay`.
+- [x] **T7. Prove nothing moved** (AC 12)
+  - [x] `git diff --stat main` on AC 12's paths is empty.
+  - [x] The four bots on both levels, seed 1, against `main`: 8 reports byte-identical.
+  - [x] `npm run ci:fast` with no golden regenerated.
+- [x] **T8. Budgets on the build, after the last art edit** (AC 13), in the background, under `caffeinate`
+  - [x] `npm run build:playtest`, then `npm run dist:check -- --flavor playtest`: write the payload and `papa.glb`'s size.
+  - [x] `npm run e2e:dist` (it waits its turn and runs `perf.spec.ts` alone): write p95, draw calls max and triangles max for the salon.
+  - [x] A failure under load is rerun alone, and both runs are reported.
+- [x] **T9. Look, and screenshots** (AC 16; D10)
+  - [x] AC 16's list. Run through the frozen salon and `__PP__`, Chromium, at both sizes.
+  - [x] Tune `busyProps` and the art until the bla-bla clears the activity bubble and the badge, and say what you changed.
+  - [x] `autoplay.spec.ts`'s frozen frame moves only if Papa's rest pose or file changed in view. If it moves, regenerate the two macOS references deliberately, open them and say so.
+  - [x] List what you did not open and what you did not capture, such as the motion itself. Never claim a look you did not take.
+- [x] **T10. Docs and debts**
+  - [x] `project-context.md` › « Rigged characters (story 7.2) »:
     - `codeDrivenNodes`;
     - `papaClipFacing`, with the body turning per clip while `pose.yawRad` stays the sim's;
     - `busyProps` on the sim clock, held under reduced motion;
     - the `eyes` bone.
-  - [ ] `EXPERIENCE.md`, the reduced-motion table: a row « Papa's busy side effects (steam, bla-bla) (v2.3) | Held still; the pose, the props and the facing stay `[ASSUMPTION]` ».
-  - [ ] `deferred-work.md`:
+  - [x] `EXPERIENCE.md`, the reduced-motion table: a row « Papa's busy side effects (steam, bla-bla) (v2.3) | Held still; the pose, the props and the facing stay `[ASSUMPTION]` ».
+  - [x] `deferred-work.md`:
     - close « No spec for the busy feedback or the coffee cue » (story 1.19, L342) for the coffee's sound: the slurp;
     - record « Elbows » (L930) and « carried variants » (L936) as still open, with D8.
 
@@ -451,8 +455,76 @@ The last commits are 2.12 (bubble, `TapRefused`, `activityBubble.ts`, `feedback.
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`), in the story's worktree on `story/2-13-poses-exagerees-du-cafe-et-du-telephone`.
+
 ### Debug Log References
+
+- `papa.blend` was read and authored headless (Blender 5.2.3, `-b … -P <scratchpad script>`), never through the live MCP session. The scripts stayed in the scratchpad (throwaway: the `.blend` is the source, D1). The authoring step started again from `git show HEAD:…/papa.blend` each time, so no edit was applied twice.
+- Poses were not hand-keyed blind: a small forward-kinematics module (validated against Blender's own measure of the 7.2 poses to the millimetre) and a pattern search found the arm and hand angles that put the huge mug's rim at his lips, then Blender's flat workbench renders (never saved into the file) showed each key before the real game did.
+- Two dead ends worth knowing: (1) a first mug tilt of about 65° hid the steam, which is the mug's child and tips with it, and covered his eyes; the final poses keep the cup within about 40° of upright, so the steam rises in front of his face. (2) With the handset's cups all on `art_ink`, the front view read as a black bar; the cups are in `art_paper` now (their hull gives the outline).
+- `?threats=off` also drops the planned phone, so the combo-badge capture was staged differently (see « Screenshots »).
 
 ### Completion Notes List
 
+**What is in**
+
+- **Data and schema (T1).** `characters.papaClipFacing` (`drink` and `coffee_kick` face the camera, `on_phone` turns away from the baby) and `characters.busyProps` (sway, stretch, tilt, bob, periods, `blablaPlace`) in `feedback.json` and `CharactersSchema`, with a duplicate-clip refusal and every bound of the story; `SQUASH_EVENTS` gains `CoffeeDrunk` with a squash row (18 %, 320 ms); the cue `papa_coffee_slurp` (audio, `soundWave`, `light`) on `CoffeeStarted`. `UNIT_SUFFIX` was not touched. `content:schemas` regenerated, `tests/support/testContent.ts` and the two other fixtures that spell `characters` follow.
+- **Slurp (T5).** `synthCoffeeSlurp` in `makePlaceholderAudio.ts` (seed `SEED + 50`, the next free offset after the shutter's 49): a 350 ms hiss that brightens over a wobbling, rising gurgle, unlike `papa_busy`. `papa_coffee_slurp.m4a` is 7.8 KB.
+- **Contract and guards (T2).** `PAPA_CONTRACT` gains the `eyes` bone, the hidden nodes `papa_mug_steam` and `papa_blabla`, the clip `coffee_kick` and `codeDrivenNodes`; `CharacterContract` and `characterRigProblems` refuse a clip track on a code-driven node, with a failing fixture. `characterAssets.test.ts` holds: the mug ≥ 2 × 0.218 m and the handset ≥ 2 × 0.32 m (the two constants named, longest side of the box at rest), the steam above the mug in `drink`, the `eyes` scale ≥ 1.4 in `coffee_kick` and no `eyes` track in any other clip, no track on the steam, the bubble or the lids, and every clip of `papaClipFacing` in the file. All six failed on the 7.2 file before the art, and pass after it.
+- **Art (T3).** `papa_mug` is 0.502 m on its longest side (×2.3, scaled in the mesh data about the handle so that the handle stays in his fist, the object only moved to put it there); `papa_handset` is a 0.671 m handset (a bar, two arms and two paper cups); `papa_mug_steam` (two wisps, `art_paper`, origin at the rim, child of the mug); `papa_blabla` (a paper bubble with a tail and three ink squiggles, child of the armature object, origin at the tail's tip, facing Blender's −Y); the `eyes` bone (child of `head`, straight up, no roll) holds the 120 white and 120 pupil polygons moved off `head`, none of them shared with the face. `drink` (60 frames, two sips, the free arm flung wide), `on_phone` (49 frames, the handset at the left ear, the right arm gesturing, a nod every 12 frames, never faster than 2.5 Hz) and the new `coffee_kick` (22 frames = 0.73 s, 5 × the 140 ms cross-fade; the eyes scale to 1.7) are authored. No new material (6), no image packed, no orphan. `papa.glb` is 59.2 KB (46.6 KB before), 4 visible draw calls and 2,600 visible triangles as before (the new nodes are hidden), 11 bones.
+- **View (T4).** `papaFacingYawRad` (pure, in `characterMotion.ts`, a unit test per branch), `busyCycleAt`, the `CoffeeDrunk → coffee_kick` one-shot, `papaView` turning the body toward the facing of the clip the player sees (`rig.clipName`, so the kick keeps the camera facing once he is idle) with `pose.yawRad` untouched, the steam and bubble setters on `clockMs` (held at the rest transform under reduced motion, written only while shown), the bubble moved into `group` at creation (its geometry and its hull's freed in `dispose`), the getters, `realFxState` and `__PP__.fx()` (`papaBodyYawRad`, `papaSteamSwayDeg`, `papaBlablaTiltDeg`; `dist:check --flavor prod` still finds no debug marker). Two choices the story left open: the camera facing never depends on the baby (the carried, hiding and too-close fallbacks only apply to `awayFromBaby`, the only facing that reads him), and `createBabyView` takes only the two fields of `CharacterMotionConfig` it reads.
+- **Tests (T6).** Unit: `papaView` (facing for the camera, away, back to the heading for a carried or hiding baby, the kick, the turn rate and a pause; the steam and bubble on the sim clock, held, hidden, in the group, faced, freed), `levelScene` (the setters on the sim clock, reduced motion, the squash and the kick on `CoffeeDrunk`), `characterClips`, `characterMotion`, the schema bounds. E2E on Chromium, a frozen salon through `__PP__`: `characters.spec.ts › Papa busy` (the facing and sway of the coffee, its kick and its return to the loop, the call's facing against the angle computed from the world, draw calls ≤ `DRAW_CALLS_MAX` in both) and `reducedMotion.spec.ts` (the clip, the mixer and the turn stay, the steam and the bubble hold exactly still, with a positive control). The sim's heading is asserted to differ from the wanted facing before each turn is read, so a test cannot pass for a body that never turned. Not done: a mutation run of the e2e (removing a facing row to watch a spec fail); the unit tests pin each branch instead.
+- **Nothing moved (T7).** `git diff --stat main` is empty on AC 12's paths; the four bots on both levels at seed 1 give 8 reports byte-identical to `main` (one script, both checkouts); `ci:fast` passes with no golden regenerated.
+- **Docs (T10).** `project-context.md` (the `codeDrivenNodes`, `papaClipFacing`, `busyProps` on the sim clock and held under reduced motion, the `eyes` bone, the slurp), the `EXPERIENCE.md` reduced-motion row, `deferred-work.md` (the coffee's sound closed; elbows and carried variants recorded as still open, D8).
+
+**Budgets (T8, after the last art edit).** `npm run build:playtest` then `npm run dist:check -- --flavor playtest`: level payload 2,671.3 KiB (≤ 3 MiB), first-load gzip 4,350.6 KiB. `npm run e2e:dist` (12 dist specs on chromium and webkit, then `perf.spec.ts` alone, a whole salon level at speed 1, chromium): p95 frame 16.8 ms (≤ 20), draw calls max 85 (≤ 100), triangles max 15,394 (≤ 100k), 16,035 frames; both runs green on the first try, no rerun needed (the 7.3 figures were 87 draw calls and p95 16.7 ms). Prod build (`build` and `dist:check --flavor prod`) not rerun here: it belongs to `npm run ci` at the end of the epic.
+
+**Screenshots (T9, AC 16).** In `2-13-screenshots/`, taken on a frozen salon through `__PP__` at 844 × 390 and 667 × 375: each `…-<name>.png` is the frame as played (css pixels), each `…-zoom.png` a close-up of Papa at 3× with the DOM activity bubble and the combo badge hidden, `capture-log.txt` the clip, yaw, steam, tilt and positions at each. Opened by me: the 844 close-ups of the sip (`coffee-2-sip`) and of the mid-clip (`coffee-4-mid`), `coffee-6-kick-wide` (the 667 one too), `phone-4-badge` (frame and close-up, and the 667 frame), `phone-6-baby-elsewhere`, `reduced-motion-drink`. Opened before the last edit of the bubble's size and place, so to look at again: `phone-1-baby-a`. Not opened: `coffee-1-ready`, `coffee-3-gulp`, `coffee-5-kick-early`, `coffee-7-kick-late`, `phone-2-baby-b`, `phone-3-baby-c`, and the 667 files other than the three named. Two baby positions: `phone-1-baby-a` (yaw −2.67 rad) and `phone-6-baby-elsewhere` (−1.52 rad). The badge frame (`phone-4-badge`, ×3) was staged by carrying the baby with the combo's carry tick and the cry-in-the-arms delay shortened by `setFeel` for the capture only (nothing of it is in the repo), because a threat gags and resets the combo before a normal call. **Not captured:** the bla-bla with the activity bubble *aside* (a threat that follows Papa while he is on the phone never came: the aside frame I got was after the call, with no bla-bla, so I deleted it). **Not watched:** the motion itself (the sway, the wobble, the sips between keys, the kick's timing); everything above is a frozen frame, and Geo's look is still owed.
+
+**Tuned in T9.** `blablaPlace` went from 0.35 m / 0.8 m to 0.85 m / 0.35 m: at the first values the DOM activity bubble, drawn over the canvas, hid the bla-bla completely; at the new ones it stands at his right (screen), under the badge and clear of the bubble. The bubble mesh went from 0.42 m to 0.64 m wide and its squiggles got thicker, because 22 px was unreadable. The steam wisps grew (0.46 m tall) and the mug poses were reworked so the cup stays within about 40° of upright.
+
+**Left for Geo / open.** The charm and the sizes (the 0.50 m mug and the 0.67 m handset on a 0.9 m Papa are a gag to judge); the steam and the bla-bla read small and pale at 844 × 390; the handset is a vertical bar hugging the head (the ear sits in the middle of it, the cups above and below), the first idea that kept both hand and ear reachable with one-bone arms; the free arm of `drink` and the nods of `on_phone` are first-pass keys. The open points of the story (the facing to drink, squiggles not letters, the slurp's place, no elbows, the sizes) are unchanged. `autoplay.spec.ts`'s frozen frame did not move (rest pose and file unchanged in view): no macOS reference was regenerated.
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/2-13-poses-exagerees-du-cafe-et-du-telephone.md` (this file)
+- `_bmad-output/implementation-artifacts/2-13-screenshots/` (new: 52 captures and `capture-log.txt`)
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md`
+- `_bmad-output/project-context.md`
+- `assets-src/blender/characters/papa.blend`
+- `content/_schemas/feedback.schema.json` (regenerated)
+- `content/feedback.json`
+- `public/assets/audio/papa_coffee_slurp.m4a` (new)
+- `public/assets/characters/papa.glb`
+- `src/client/app/levelSession.test.ts`
+- `src/client/app/testHost.ts`
+- `src/client/boot.ts`
+- `src/client/feedback/feedbackDirector.test.ts`
+- `src/client/render/levelScene.ts`
+- `src/client/render/levelScene.test.ts`
+- `src/client/render/views/babyView.ts`
+- `src/client/render/views/characterClips.ts`
+- `src/client/render/views/characterClips.test.ts`
+- `src/client/render/views/characterMotion.ts`
+- `src/client/render/views/characterMotion.test.ts`
+- `src/client/render/views/papaView.ts`
+- `src/client/render/views/papaView.test.ts`
+- `src/content/schemas/feedback.ts`
+- `tests/architecture/characterAssets.test.ts`
+- `tests/content/feedbackSchema.test.ts`
+- `tests/e2e/characters.spec.ts`
+- `tests/e2e/reducedMotion.spec.ts`
+- `tests/e2e/support/busyPapa.ts` (new)
+- `tests/e2e/support/testApi.ts`
+- `tests/support/fakeTestHost.ts`
+- `tests/support/testCharacters.ts`
+- `tests/support/testContent.ts`
+- `tests/tools/assets/characterArt.test.ts`
+- `tools/assets/characterArt.ts`
+- `tools/audio/makePlaceholderAudio.ts`
+
+### Change Log
+
+- 2026-11-04: Story 2.13 implemented: the huge mug and handset, the reauthored `drink` and `on_phone` and the new `coffee_kick` in `papa.blend` (with the steam, the bla-bla bubble and the `eyes` bone), the facing per clip and the busy props' side effects on the sim clock (held under reduced motion), the slurp cue, the contract and its guards, the tests, the captures and the docs. No sim change; 8 bot reports byte-identical to `main`. Status: review.

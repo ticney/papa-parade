@@ -1,5 +1,17 @@
 import { expect, type Page, test } from '@playwright/test';
-import { STEP_MS } from '../../src/shared/constants.ts';
+import { DRAW_CALLS_MAX, STEP_MS } from '../../src/shared/constants.ts';
+import {
+  advanceAndRead,
+  advanceUntil,
+  busyProps,
+  CAMERA_YAW_RAD,
+  freezeSalon,
+  headingYawRad,
+  startCall,
+  startDrinking,
+  wrapRad,
+  YAW_TOLERANCE_RAD,
+} from './support/busyPapa.ts';
 import { html, sceneShot, startLevel, waitFrames } from './support/game.ts';
 import {
   ppAdvance,
@@ -167,3 +179,87 @@ for (const query of ['', '&level=chambre_night']) {
     expect(warnings).toEqual([]);
   });
 }
+
+// Papa busy (story 2.13): the coffee and the call say it with his body, not only the bubble. The facing,
+// the steam and the bla-bla come from the sim's state and the live feedback table; how they look is Geo's call.
+test.describe('Papa busy', () => {
+  test('drinking: he turns to face the camera, the steam sways, and the coffee ends on a kick', async ({
+    page,
+  }) => {
+    await freezeSalon(page);
+    await startDrinking(page);
+    const world = await ppWorld(page);
+    // The walk to the machine left his heading elsewhere: the camera facing is the view's doing.
+    expect(Math.abs(wrapRad(headingYawRad(world) - CAMERA_YAW_RAD))).toBeGreaterThan(
+      YAW_TOLERANCE_RAD,
+    );
+
+    const first = await advanceAndRead(page, Math.ceil(300 / STEP_MS));
+    expect(first.papaClip).toBe('drink');
+    expect(Math.abs(wrapRad(first.papaBodyYawRad - CAMERA_YAW_RAD))).toBeLessThan(
+      YAW_TOLERANCE_RAD,
+    );
+    // The sim's heading did not follow: only the drawn body turned.
+    expect(Math.abs(wrapRad(headingYawRad(await ppWorld(page)) - CAMERA_YAW_RAD))).toBeGreaterThan(
+      YAW_TOLERANCE_RAD,
+    );
+
+    // The steam sways on the sim clock: two clocks an eighth of a period apart show two angles.
+    const eighthSteps = Math.max(1, Math.round(busyProps.steamPeriodMs / 8 / STEP_MS));
+    const second = await advanceAndRead(page, eighthSteps);
+    expect(second.papaSteamSwayDeg).not.toBeCloseTo(first.papaSteamSwayDeg, 3);
+    expect(Math.abs(second.papaSteamSwayDeg)).toBeLessThanOrEqual(busyProps.steamSwayDeg + 1e-6);
+    // A frozen sim holds it.
+    await waitFrames(page, 5);
+    expect((await ppFx(page)).papaSteamSwayDeg).toBe(second.papaSteamSwayDeg);
+
+    const drawCalls = Number(await html(page).getAttribute('data-pp-draw-calls'));
+    expect(drawCalls).toBeGreaterThan(0);
+    expect(drawCalls).toBeLessThanOrEqual(DRAW_CALLS_MAX);
+
+    // The coffee drunk: the kick, still facing the camera while he is already idle, then back to his loop.
+    await advanceUntil(page, 'the coffee drunk', 60_000, (w) => w.papa.state !== 'drink');
+    expect((await ppWorld(page)).papa.state).toBe('idle');
+    const kick = await advanceAndRead(page, 2);
+    expect(kick.papaClip).toBe('coffee_kick');
+    expect(Math.abs(wrapRad(kick.papaBodyYawRad - CAMERA_YAW_RAD))).toBeLessThan(YAW_TOLERANCE_RAD);
+    const after = await advanceAndRead(page, Math.ceil(2000 / STEP_MS));
+    expect(after.papaClip).toBe('idle');
+  });
+
+  test('on the phone: he turns his back to the baby, and the bla-bla wobbles', async ({ page }) => {
+    await freezeSalon(page);
+    await startCall(page);
+    const world = await ppWorld(page);
+    // The turn is only for a baby he can turn from: asserted, not assumed.
+    expect(['carried', 'mischiefSilent']).not.toContain(world.baby.state);
+    const awayRad = Math.atan2(world.papa.xM - world.baby.xM, world.papa.zM - world.baby.zM);
+    expect(Math.abs(wrapRad(headingYawRad(world) - awayRad))).toBeGreaterThan(YAW_TOLERANCE_RAD);
+
+    const first = await advanceAndRead(page, Math.ceil(300 / STEP_MS));
+    const now = await ppWorld(page);
+    expect(now.papa.state).toBe('onPhone');
+    expect(first.papaClip).toBe('on_phone');
+    // Papa and the baby stand where the view read them: the angle is the sim's, from the baby to Papa.
+    const away = Math.atan2(now.papa.xM - now.baby.xM, now.papa.zM - now.baby.zM);
+    expect(Math.abs(wrapRad(first.papaBodyYawRad - away))).toBeLessThan(YAW_TOLERANCE_RAD);
+
+    const eighthSteps = Math.max(1, Math.round(busyProps.blablaPeriodMs / 8 / STEP_MS));
+    const second = await advanceAndRead(page, eighthSteps);
+    expect(second.papaBlablaTiltDeg).not.toBeCloseTo(first.papaBlablaTiltDeg, 3);
+    expect(Math.abs(second.papaBlablaTiltDeg)).toBeLessThanOrEqual(busyProps.blablaTiltDeg + 1e-6);
+
+    const drawCalls = Number(await html(page).getAttribute('data-pp-draw-calls'));
+    expect(drawCalls).toBeGreaterThan(0);
+    expect(drawCalls).toBeLessThanOrEqual(DRAW_CALLS_MAX);
+  });
+
+  test('the bubble and the steam are still when he is not busy', async ({ page }) => {
+    await freezeSalon(page);
+    await ppAdvance(page, 10);
+    await waitFrames(page, 3);
+    const idle = await ppFx(page);
+    expect(idle.papaSteamSwayDeg).toBe(0);
+    expect(idle.papaBlablaTiltDeg).toBe(0);
+  });
+});
