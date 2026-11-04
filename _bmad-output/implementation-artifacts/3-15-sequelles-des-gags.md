@@ -244,6 +244,8 @@ Follows the architecture's own placement (L233, L501, L989: `src/sim/threats/aft
 
 ### Open points for Geo
 
+**Decided by Geo in chat, 2026-11-04: all five kept as written** (self-return after 6 s, the literal replace rule, the 1 s busy pick-up with a hand pictogram and the marker outside the rush, baby-target debris deferred and broken props not picked up, the stairs' cost checked at the playtest). The dev builds D1-D12 as they are.
+
 1. **The baby climbs back by himself** after `selfReturnMs` (6 s) if Papa does not fetch him (D4). The GDD says nothing; without it a baby left downstairs blocks every later threat, which helps the player and freezes `idle`. Alternative: he waits forever (and cries?). Say which.
 2. **« Remplace sans l'allonger », read literally** (D2): a second séquelle keeps the first one's end. The other reading (the new one restarts its own duration) lets a chain of misses keep Papa busy longer. Confirm the literal one.
 3. **Picking up a debris** is a 1 s busy occupation with a new « main » pictogram, and debris carry the « RANGE ! » marker outside the final rush too (D5, D9). The GDD names no pictogram and the UX shows the marker in the rush only.
@@ -276,6 +278,6 @@ Follows the architecture's own placement (L233, L501, L989: `src/sim/threats/aft
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created (story creation, 2026-11-04). Five open points for Geo (self-return of the baby, the replace rule, the pick-up pictogram and marker, deferred baby-target debris, the stairs' cost); the story's decisions let the dev start without waiting for them.
+- Ultimate context engine analysis completed - comprehensive developer guide created (story creation, 2026-11-04). Five open points for Geo (self-return of the baby, the replace rule, the pick-up pictogram and marker, deferred baby-target debris, the stairs' cost); the story's decisions let the dev start without waiting for them. Geo kept all five as written (chat, 2026-11-04).
 
 ### File List
