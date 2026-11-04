@@ -15,6 +15,9 @@ import { err, ok, type Result } from '@shared/result';
 /** When `--sequence` starts the sequence if `--sequence-at-ms` says nothing, in sim ms. */
 export const DEFAULT_SEQUENCE_AT_MS = 1000;
 
+export const CHRONO_RING_MODES = ['on', 'off'] as const;
+export type ChronoRingMode = (typeof CHRONO_RING_MODES)[number];
+
 export interface SimArgs {
   levelId: string;
   botId: BotId;
@@ -29,6 +32,13 @@ export interface SimArgs {
   outPath: string | null;
   /** Where the recorded games go; `null` = nowhere. */
   journalsDir: string | null;
+  /**
+   * Whether the `human` bot is shown the chrono-ring (story 3.14): `on` (the game as it is) or `off` (the conditions
+   * of the 2026-11-03 playtest). The other bots ignore it.
+   */
+  chronoRing: ChronoRingMode;
+  /** The playtest folder (`<dir>/<testerId>/*.json`) the report compares the bot with (story 3.14); `null` = none. */
+  compareDir: string | null;
   /** The special sequence to start in every game (story 4.4); `null` = none. */
   sequenceId: string | null;
   /** When the sequence is started, in sim ms, rounded up to the step grid (default 1000). */
@@ -46,6 +56,8 @@ export const SIM_HELP = `Usage: npm run sim -- --bot <id> [options]
   --until-ms <n>     cap the sim time of a game, in ms, rounded up to ${STEP_MS}, at most ${SIM_CLI_MAX_UNTIL_MS} (default: no cap, a game lasts the level's duration)
   --out <file>       write the JSON report there (default: stdout)
   --journals <dir>   write one recorded game per run there, for \`npm run sim:replay\`
+  --chrono-ring <m>  ${CHRONO_RING_MODES.join(', ')} (default on): whether the human bot is shown the chrono-ring; off replays the conditions of 2026-11-03
+  --compare <dir>    compare the bot with the testers' journals in <dir>/<testerId>/*.json (the \`comparison\` block of the report)
   --sequence <id>    start this special sequence of the level in every game (story 4.4), by \`StartSequence\`
   --sequence-at-ms <n>  when to start it, in sim ms, rounded up to ${STEP_MS} (default ${DEFAULT_SEQUENCE_AT_MS}); needs --sequence
   --help             print this
@@ -67,6 +79,11 @@ Fatherly Instinct (story 2.9) is counted per game and over the runs: \`instinctT
 The pressing need (story 4.3) is counted per game and over the runs: \`toiletVisits\` (the finished
 visits; 0 for a bot, which never goes) and \`bladderPeakPct\`, the highest the need reached, in % to
 one decimal (the highest of any game in the aggregate; 0 in a level with no \`gauges.need\`).
+The human bot's realism (story 3.14): the report holds \`chronoRing\` (\`on\` or \`off\`, what the bot was shown), \`perfectPct\`
+(the share of perfect responses of every run, in % to one decimal; null when there is none) and each run's own. With \`--compare\` it
+also holds a \`comparison\` block (null otherwise): the testers' games kept and skipped, the median stars, score and perfect rate
+of the testers, the bot's, the gaps, and an OK / KO / n/a status for each indicator (the thresholds are \`content/playtest.json\`
+\`humanBot\`). A KO is not an error: the exit code stays 0.
 The special sequences (story 4.4) are counted per game and over the runs: \`sequencesStarted\`,
 \`sequencesSucceeded\` and \`sequencesFailed\`. Nothing starts one in a normal game: \`--sequence\` does.
 A start the sim refuses (Papa busy, a silence, a phone ringing) is sent once, not retried: the run logs a
@@ -122,6 +139,8 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
         'until-ms': { type: 'string' },
         out: { type: 'string' },
         journals: { type: 'string' },
+        'chrono-ring': { type: 'string' },
+        compare: { type: 'string' },
         sequence: { type: 'string' },
         'sequence-at-ms': { type: 'string' },
         help: { type: 'boolean' },
@@ -178,6 +197,13 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
   const journalsDir = text('journals');
   if (journalsDir === '') return err('--journals needs a folder path, got an empty string');
 
+  const chronoRingText = text('chrono-ring') ?? 'on';
+  if (!(CHRONO_RING_MODES as readonly string[]).includes(chronoRingText)) {
+    return err(`unknown --chrono-ring "${chronoRingText}": choose ${CHRONO_RING_MODES.join(', ')}`);
+  }
+  const compareDir = text('compare');
+  if (compareDir === '') return err('--compare needs a folder path, got an empty string');
+
   const sequenceText = text('sequence');
   if (sequenceText === '') return err('--sequence needs a sequence id, got an empty string');
   const sequenceAt = integerOption(
@@ -192,6 +218,13 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
   if (sequenceText === undefined && text('sequence-at-ms') !== undefined) {
     return err('--sequence-at-ms needs --sequence');
   }
+  // The testers played whole games of the level as it is: a capped or sequence-started game says nothing.
+  if (compareDir !== undefined && untilSimMs !== null) {
+    return err('--compare needs whole games: drop --until-ms');
+  }
+  if (compareDir !== undefined && sequenceText !== undefined) {
+    return err('--compare needs games as the testers played them: drop --sequence');
+  }
 
   return ok({
     levelId: text('level') ?? DEFAULT_LEVEL_ID,
@@ -202,6 +235,8 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
     untilSimMs,
     outPath: outPath ?? null,
     journalsDir: journalsDir ?? null,
+    chronoRing: chronoRingText as ChronoRingMode,
+    compareDir: compareDir ?? null,
     sequenceId: sequenceText ?? null,
     sequenceAtMs: Math.ceil(sequenceAt.value / STEP_MS) * STEP_MS,
     help,

@@ -267,6 +267,8 @@ describe('the fairness check on the live sim (story 3.13, AC 11)', () => {
           untilSimMs: null,
           outPath: null,
           journalsDir: null,
+          chronoRing: 'on',
+          compareDir: null,
           sequenceId: null,
           sequenceAtMs: 1000,
           help: false,

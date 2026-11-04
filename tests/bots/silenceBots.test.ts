@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { botSetup, makeBot, playBotGame } from '../support/botSupport.ts';
+import { botSetup, legacyHuman, makeBot, playBotGame } from '../support/botSupport.ts';
 import { createTestLevel, SILENCE, testWave } from '../support/testContent.ts';
 
 // Story 1.21: the bots that look for the baby. The frozen level plans only the silence, from 0 ms;
@@ -14,7 +14,7 @@ async function journalOf(bot: 'perfect' | 'human' | 'random' | 'idle', human = {
   const { sim, events } = await playBotGame(bot, 1, {
     untilSimMs: UNTIL_MS,
     level: silenceLevel(),
-    settings: { human: { reactionMs: 250, aimOffsetMs: 0, jitterSdMs: 0, ...human } },
+    settings: { human: legacyHuman({ reactionMs: 250, aimOffsetMs: 0, jitterSdMs: 0, ...human }) },
   });
   const entries = sim.journal().entries.filter((entry) => entry.command.type === 'TapBaby');
   return { events, entries, sim };
@@ -71,7 +71,7 @@ describe('the bots and the suspicious silence', () => {
   it('human drops its planned tap when the silence ends before it is due (no stray TapBaby later)', () => {
     const bot = makeBot(
       'human',
-      botSetup(1, { human: { reactionMs: 400, aimOffsetMs: 0, jitterSdMs: 0 } } as never),
+      botSetup(1, { human: legacyHuman({ reactionMs: 400, aimOffsetMs: 0, jitterSdMs: 0 }) }),
     );
     const worldAt = (sim: number, startedAt: number | null) =>
       ({

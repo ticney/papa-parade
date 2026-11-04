@@ -6,7 +6,7 @@ import { type FeedbackTable, FeedbackTableSchema } from './schemas/feedback.ts';
 import { type Feel, FeelSchema } from './schemas/feel.ts';
 import { type Level, LevelSchema } from './schemas/level.ts';
 import { type LevelGeometry, LevelGeometrySchema } from './schemas/levelGeometry.ts';
-import { PlaytestSchema, type PlaytestThresholds } from './schemas/playtest.ts';
+import { type PlaytestFile, PlaytestSchema } from './schemas/playtest.ts';
 import { type SequenceDef, SequenceDefSchema } from './schemas/sequence.ts';
 import { type Strings, StringsSchema } from './schemas/strings.ts';
 import { type ThreatDef, ThreatDefSchema } from './schemas/threat.ts';
@@ -48,7 +48,7 @@ export const STRINGS_FILE: ContentFile<Strings> = {
  * `content:check` validates it and `content:schemas` emits its JSON Schema, but `loadContent` does
  * not load it and the browser bundle does not ship it.
  */
-export const PLAYTEST_FILE: ContentFile<PlaytestThresholds> = {
+export const PLAYTEST_FILE: ContentFile<PlaytestFile> = {
   file: 'playtest.json',
   schemaName: 'playtest',
   schema: PlaytestSchema,

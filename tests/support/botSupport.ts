@@ -43,6 +43,27 @@ export function firmBotLevel(holdUntilMs = FIRM_HOLD_UNTIL_MS): LevelContent {
   };
 }
 
+/**
+ * The human settings of the model before story 3.14 (one reaction time, one aim, one jitter), as the
+ * new shape: no reaction draw, no inattention, and the same aim and jitter on a ring and on a signal,
+ * ring shown or not. The older bot tests state their numbers this way and keep their meaning.
+ */
+export function legacyHuman(
+  old: { reactionMs?: number; aimOffsetMs?: number; jitterSdMs?: number } = {},
+): BotOptions['human'] {
+  const { reactionMs = 250, aimOffsetMs = 0, jitterSdMs = 60 } = old;
+  const readError = { offsetMs: aimOffsetMs, sdMs: jitterSdMs };
+  return {
+    reactionMeanMs: reactionMs,
+    reactionSdMs: 0,
+    reactionMinMs: 0,
+    readError: { withChronoRing: readError, withoutChronoRing: { ...readError } },
+    aimOffsetMs,
+    jitterSdMs,
+    missWhileBusyPct: 0,
+  };
+}
+
 export function botSetup(
   seed: number,
   settings: Partial<BotOptions> = {},
@@ -57,6 +78,7 @@ export function botSetup(
     // The defs judged on a release (story 4.8): still `firm` above, told apart here.
     releaseDefIds: releaseDefIdsOf(level?.threats ?? createTestThreats()),
     safeSpot: null,
+    isChronoRingShown: true,
     settings: { ...createTestBots(), ...settings },
   };
 }
@@ -82,6 +104,8 @@ export async function playBotGame(
     level?: LevelContent;
     /** The difficulty tier, sent as the client does: a `SetDifficultyTier` at t = 0, none at `normal` (story 2.8). */
     tier?: DifficultyTierId;
+    /** Whether the player is shown the chrono-ring (story 3.14); the game always does, so it is the default. */
+    isChronoRingShown?: boolean;
   } = {},
 ): Promise<BotGame> {
   const sim = await createSim({
@@ -97,7 +121,10 @@ export async function playBotGame(
   const events: SimEvent[] = [];
   playGame(
     sim,
-    makeBot(id, botSetup(seed, options.settings, options.level)),
+    makeBot(id, {
+      ...botSetup(seed, options.settings, options.level),
+      isChronoRingShown: options.isChronoRingShown ?? true,
+    }),
     options.untilSimMs ?? BOT_TEST_UNTIL_MS,
     (event) => events.push(event),
   );

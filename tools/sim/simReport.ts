@@ -15,6 +15,8 @@ import {
   type SimEvent,
 } from '@sim';
 import { createFairnessCheck } from './fairnessCheck.ts';
+import type { HumanComparison } from './humanComparison.ts';
+import type { ChronoRingMode } from './simArgs.ts';
 
 /** Every `NoiseSource` the report counts, in file order, `debug` last (a bot never sends `SetNoise`, so it stays 0). */
 const NOISE_SOURCES: readonly NoiseSource[] = [...NOISE_SOURCE_IDS, 'debug'];
@@ -580,6 +582,8 @@ export interface SimReport {
   bot: string;
   /** The difficulty tier the games were played at (story 2.8). */
   tier: DifficultyTierId;
+  /** What the `human` bot was shown (story 3.14): the chrono-ring `on` (the game), or `off` (the playtest of 2026-11-03). */
+  chronoRing: ChronoRingMode;
   seed: number;
   runs: number;
   /** Where each game stops at the latest: the cap, or the level's duration. */
@@ -601,6 +605,8 @@ export interface SimReport {
   starCounts: number[];
   /** `null` when no response was seen (no threat, or a game too short for one): not 0 %. */
   meanSuccessPct: number | null;
+  /** Share of perfect responses over every response of every run, in % to one decimal; `null` when there is none (story 3.14). */
+  perfectPct: number | null;
   threats: Record<string, ThreatReport>;
   /** One per wave of the level, in order. */
   waves: WaveReport[];
@@ -699,6 +705,8 @@ export interface SimReport {
     seed: number;
     worldHash: string;
     responses: number;
+    /** Share of this run's responses that were perfect, in % to one decimal; null when it had none (story 3.14). */
+    perfectPct: number | null;
     gags: number;
     /** The fairness violations of this run (story 3.13). */
     fairnessViolations: number;
@@ -722,6 +730,8 @@ export interface SimReport {
     decoysTapped: number;
     beatsStray: number;
   }[];
+  /** The bot against the testers' journals (`--compare`, story 3.14); `null` without it. */
+  comparison: HumanComparison | null;
 }
 
 const round = (value: number, decimals: number): number => {
@@ -737,12 +747,17 @@ export interface ReportInput {
   level: string;
   bot: string;
   tier: DifficultyTierId;
+  chronoRing: ChronoRingMode;
   seed: number;
   untilSimMs: number;
   hashes: SimReport['hashes'];
   /** The level's waves: where they start and how many threats they allow at once. */
   waves: readonly { readonly fromMs: number; readonly maxSimultaneous: number }[];
 }
+
+/** The perfect responses of one run, over its threats. */
+const perfectOf = (run: RunSummary): number =>
+  Object.values(run.threats).reduce((sum, tally) => sum + tally.perfect, 0);
 
 const sortedKeys = (record: Record<string, unknown>): string[] => Object.keys(record).sort();
 
@@ -751,6 +766,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   const merged: Record<string, ThreatTally> = {};
   const byGag: Record<string, number> = {};
   let responses = 0;
+  let perfectResponses = 0;
   let good = 0;
   let gags = 0;
   let nearMisses = 0;
@@ -916,6 +932,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       into.offsetCount += from.offsetCount;
     }
     responses += run.responses;
+    perfectResponses += perfectOf(run);
   }
 
   const threats: Record<string, ThreatReport> = {};
@@ -943,6 +960,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     level: input.level,
     bot: input.bot,
     tier: input.tier,
+    chronoRing: input.chronoRing,
     seed: input.seed,
     runs: runs.length,
     untilSimMs: input.untilSimMs,
@@ -964,6 +982,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
           },
     starCounts,
     meanSuccessPct: responses === 0 ? null : pct(good, responses),
+    perfectPct: responses === 0 ? null : pct(perfectResponses, responses),
     threats,
     waves,
     gags: {
@@ -1023,6 +1042,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       seed: run.seed,
       worldHash: run.worldHash,
       responses: run.responses,
+      perfectPct: run.responses === 0 ? null : pct(perfectOf(run), run.responses),
       gags: run.gags,
       fairnessViolations: run.fairnessViolations,
       commands: run.commands,
@@ -1040,6 +1060,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       decoysTapped: run.decoysTapped,
       beatsStray: run.beatsStray,
     })),
+    comparison: null,
   };
 }
 

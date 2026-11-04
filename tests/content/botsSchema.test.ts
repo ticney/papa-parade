@@ -30,7 +30,7 @@ function mutated(path: string, value: unknown) {
 }
 
 // Every numeric key carries its unit, as in the other content files.
-const UNIT_SUFFIX = /(?:Ms|M|PerSec)$/;
+const UNIT_SUFFIX = /(?:Ms|M|PerSec|Pct)$/;
 
 function numericKeys(node: unknown, path = ''): string[] {
   if (typeof node === 'number') return [path];
@@ -58,6 +58,8 @@ describe('content/bots.json', () => {
   it('refuses an unknown key, at the top and in each group', () => {
     expect(mutated('extra', 1).ok).toBe(false);
     expect(mutated('human.extra', 1).ok).toBe(false);
+    expect(mutated('human.readError.extra', 1).ok).toBe(false);
+    expect(mutated('human.readError.withChronoRing.extra', 1).ok).toBe(false);
     expect(mutated('random.extra', 1).ok).toBe(false);
   });
 
@@ -65,7 +67,13 @@ describe('content/bots.json', () => {
     'tapMs',
     'human',
     'random',
-    'human.reactionMs',
+    'human.reactionMeanMs',
+    'human.reactionSdMs',
+    'human.reactionMinMs',
+    'human.readError',
+    'human.readError.withChronoRing',
+    'human.readError.withoutChronoRing.sdMs',
+    'human.missWhileBusyPct',
     'human.aimOffsetMs',
     'random.maxHoldMs',
   ])('needs %s', (path) => {
@@ -76,7 +84,15 @@ describe('content/bots.json', () => {
     ['tapMs', 0],
     ['tapMs', -1],
     ['tapMs', 'x'],
-    ['human.reactionMs', -1],
+    ['human.reactionMeanMs', -1],
+    ['human.reactionSdMs', -1],
+    ['human.reactionMinMs', -1],
+    ['human.readError.withChronoRing.sdMs', -1],
+    ['human.readError.withChronoRing.sdMs', 2001],
+    ['human.readError.withoutChronoRing.sdMs', -1],
+    ['human.readError.withoutChronoRing.sdMs', 2001],
+    ['human.missWhileBusyPct', -1],
+    ['human.missWhileBusyPct', 100.5],
     ['human.jitterSdMs', -0.5],
     ['random.actionsPerSec', -1],
     ['random.actionsPerSec', 101],
@@ -89,7 +105,14 @@ describe('content/bots.json', () => {
   });
 
   it.each([
-    ['human.reactionMs', 0],
+    ['human.reactionMeanMs', 0],
+    ['human.reactionSdMs', 0],
+    ['human.reactionMinMs', 0],
+    ['human.readError.withChronoRing.sdMs', 0],
+    ['human.readError.withChronoRing.offsetMs', -400],
+    ['human.readError.withoutChronoRing.sdMs', 2000],
+    ['human.missWhileBusyPct', 0],
+    ['human.missWhileBusyPct', 100],
     ['human.jitterSdMs', 0],
     ['human.aimOffsetMs', -400],
     ['random.actionsPerSec', 0],

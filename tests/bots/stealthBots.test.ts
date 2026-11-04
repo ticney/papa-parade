@@ -6,7 +6,7 @@ import { createRng } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { createSim, type SimCommand, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
-import { botSetup, makeBot, responses } from '../support/botSupport.ts';
+import { botSetup, legacyHuman, makeBot, responses } from '../support/botSupport.ts';
 import {
   CARRY,
   createTestContent,
@@ -65,7 +65,7 @@ async function playStealth(
   });
   sim.enqueue({ type: 'StartSequence', t: asSimMs(0), sequenceId: tuned.id });
   const events: SimEvent[] = [];
-  const settings = { human: { ...NO_JITTER, ...human } };
+  const settings = { human: legacyHuman({ ...NO_JITTER, ...human }) };
   playGame(sim, makeBot(id, botSetup(seed, settings, lvl)), untilSimMs, (event) =>
     events.push({ ...event }),
   );

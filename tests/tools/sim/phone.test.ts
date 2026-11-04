@@ -25,6 +25,7 @@ describe('the phone of the live salon_crawler, with the idle bot', () => {
       holdMinMs: content.feel.input.holdMinMs,
       responses: {},
       releaseDefIds: [],
+      isChronoRingShown: true,
       safeSpot: null,
       settings: content.bots,
     });

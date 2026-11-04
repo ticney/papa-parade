@@ -62,7 +62,16 @@ function setupFor(
   releaseDefIds: readonly string[],
   safeSpot: BotSetup['safeSpot'],
 ): BotSetup {
-  return { seed, holdMinMs, responses, releaseDefIds, safeSpot, settings: host.content.bots };
+  return {
+    seed,
+    holdMinMs,
+    responses,
+    releaseDefIds,
+    safeSpot,
+    // The game always draws the chrono-ring since story 2.11.
+    isChronoRingShown: true,
+    settings: host.content.bots,
+  };
 }
 
 /** Before a step: asks the bot, enqueues what it says. One reused array, no allocation per step. */

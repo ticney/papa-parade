@@ -12,6 +12,8 @@ import { err, ok, type Result } from '@shared/result';
 import { asSimMs } from '@shared/time';
 import { createSim, type Sim } from '@sim';
 import { outProblem, writeText } from '../outputFile.ts';
+import { loadThresholds } from '../playtest/playtestMetrics.ts';
+import { loadHumanComparison } from './humanComparison.ts';
 import { loadSimLevel, type SimLevel } from './loadSimLevel.ts';
 import { type RunFile, runFileName, toRunFile } from './runFile.ts';
 import { parseSimArgs, SIM_HELP, type SimArgs } from './simArgs.ts';
@@ -123,6 +125,7 @@ export async function runSim(
       responses,
       releaseDefIds,
       safeSpot,
+      isChronoRingShown: args.chronoRing === 'on',
       settings: content.bots,
     };
     const bot = createBot(args.botId, setup);
@@ -188,6 +191,7 @@ export async function runSim(
         level: loaded.levelId,
         bot: args.botId,
         tier: args.tier,
+        chronoRing: args.chronoRing,
         seed: args.seed,
         untilSimMs,
         waves: level.level.waves,
@@ -249,7 +253,30 @@ async function main(): Promise<void> {
         },
   });
   if (!result.ok) return fail(result.error);
-  const report = result.value;
+  let report = result.value;
+  if (args.compareDir !== null) {
+    if (args.botId !== 'human') {
+      log.warn(
+        'sim',
+        `--compare: the ${args.botId} bot does not play like a tester (--chrono-ring changes nothing for it); the verdict is about the human bot`,
+      );
+    }
+    // The panel is read here, not in `runSim`: the games stay a pure function of their arguments.
+    const thresholds = await loadThresholds();
+    if (!thresholds.ok) return fail(thresholds.error.join('; '));
+    const compared = await loadHumanComparison(args.compareDir, report, thresholds.value.humanBot);
+    if (!compared.ok) return fail(compared.error);
+    for (const { file, reason } of compared.value.skipped) {
+      log.warn('sim', `--compare: ${file} is left out: ${reason}`);
+    }
+    if (compared.value.games === 0) {
+      log.warn(
+        'sim',
+        `--compare: no game of ${args.compareDir} fits (level ${args.levelId}, tier ${args.tier}): both statuses are n/a`,
+      );
+    }
+    report = { ...report, comparison: compared.value };
+  }
 
   if (args.journalsDir !== null) {
     const made = await makeDir(args.journalsDir);

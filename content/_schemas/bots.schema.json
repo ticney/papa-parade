@@ -14,25 +14,108 @@
     "human": {
       "type": "object",
       "properties": {
-        "reactionMs": {
+        "reactionMeanMs": {
           "type": "number",
           "minimum": 0,
-          "description": "Shortest time the human bot needs to react, in ms: it never presses before the telegraph plus this."
+          "maximum": 10000,
+          "description": "Mean time the human bot needs to react to a sight or a signal, in ms: its press is never before the telegraph plus a draw around this."
+        },
+        "reactionSdMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "Standard deviation of that reaction time, in ms (Gaussian, one draw per response; 0 takes no draw)."
+        },
+        "reactionMinMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "Shortest reaction time the human bot can draw, in ms: nobody reacts faster."
+        },
+        "readError": {
+          "type": "object",
+          "properties": {
+            "withChronoRing": {
+              "type": "object",
+              "properties": {
+                "offsetMs": {
+                  "type": "number",
+                  "minimum": -10000,
+                  "maximum": 10000,
+                  "description": "Where the human bot aims relative to the window's centre on this display, in ms (negative = early, 0 = dead centre)."
+                },
+                "sdMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 2000,
+                  "description": "Standard deviation of the human bot's press (or release) around that aim, in ms (Gaussian); capped so that a press stays in its cycle."
+                }
+              },
+              "required": [
+                "offsetMs",
+                "sdMs"
+              ],
+              "additionalProperties": false,
+              "description": "The chrono-ring is shown (the game always shows it since story 2.11)."
+            },
+            "withoutChronoRing": {
+              "type": "object",
+              "properties": {
+                "offsetMs": {
+                  "type": "number",
+                  "minimum": -10000,
+                  "maximum": 10000,
+                  "description": "Where the human bot aims relative to the window's centre on this display, in ms (negative = early, 0 = dead centre)."
+                },
+                "sdMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 2000,
+                  "description": "Standard deviation of the human bot's press (or release) around that aim, in ms (Gaussian); capped so that a press stays in its cycle."
+                }
+              },
+              "required": [
+                "offsetMs",
+                "sdMs"
+              ],
+              "additionalProperties": false,
+              "description": "The chrono-ring is hidden (the conditions of the 2026-11-03 playtest: `npm run sim -- --chrono-ring off`)."
+            }
+          },
+          "required": [
+            "withChronoRing",
+            "withoutChronoRing"
+          ],
+          "additionalProperties": false,
+          "description": "The timing error of a press on a parry or a Firmness, by what the player is shown."
         },
         "aimOffsetMs": {
           "type": "number",
-          "description": "Where the human bot aims relative to the window's centre, in ms (negative = early, 0 = dead centre)."
+          "minimum": -10000,
+          "maximum": 10000,
+          "description": "Where the human bot aims on a rhythm or a signal with no chrono-ring (beats, wait, breath), in ms (negative = early, 0 = dead centre)."
         },
         "jitterSdMs": {
           "type": "number",
           "minimum": 0,
-          "description": "Standard deviation of the human bot's press around its aim, in ms (Gaussian)."
+          "maximum": 10000,
+          "description": "Standard deviation of the human bot's press on a rhythm or a signal, in ms (Gaussian)."
+        },
+        "missWhileBusyPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Chance, in %, that the human bot never answers a threat it first sees while busy elsewhere (finger down, another press planned, Papa asleep, drinking, on the phone or on the toilet); 0 = never. A false alarm it misses is not braced for either: no held breath, no gasp."
         }
       },
       "required": [
-        "reactionMs",
+        "reactionMeanMs",
+        "reactionSdMs",
+        "reactionMinMs",
+        "readError",
         "aimOffsetMs",
-        "jitterSdMs"
+        "jitterSdMs",
+        "missWhileBusyPct"
       ],
       "additionalProperties": false,
       "description": "The `human` bot: a plausible attentive player."

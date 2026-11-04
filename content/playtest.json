@@ -6,5 +6,6 @@
   "identifiedMinPct": 80,
   "firstEncounterSuccessMinPct": 80,
   "touchVsKeyboardMinPct": 80,
-  "laughedMinPct": 80
+  "laughedMinPct": 80,
+  "humanBot": { "maxStarGap": 1, "maxPerfectExcessPct": 10 }
 }

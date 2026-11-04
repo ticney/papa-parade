@@ -132,7 +132,20 @@ export function createTestFeedback(): FeedbackTable {
 export function createTestBots(): BotSettings {
   return {
     tapMs: 80,
-    human: { reactionMs: 250, aimOffsetMs: 0, jitterSdMs: 60 },
+    // Story 3.14 AC 6: these values reduce the human model to the one of before the story (no
+    // reaction draw, `withChronoRing` at the old jitter, nobody inattentive).
+    human: {
+      reactionMeanMs: 250,
+      reactionSdMs: 0,
+      reactionMinMs: 0,
+      readError: {
+        withChronoRing: { offsetMs: 0, sdMs: 60 },
+        withoutChronoRing: { offsetMs: 0, sdMs: 60 },
+      },
+      aimOffsetMs: 0,
+      jitterSdMs: 60,
+      missWhileBusyPct: 0,
+    },
     random: { actionsPerSec: 2, floorReachM: 3, maxHoldMs: 800 },
   };
 }
