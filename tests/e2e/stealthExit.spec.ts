@@ -456,6 +456,8 @@ test.describe('a real wake', () => {
   test('shows the cry and « BERCE ! »; a real tap in time parries it, Papa glides back, and he walks again', async ({
     page,
   }, testInfo) => {
+    // `reachAlert` searches the seeds for a real wake: 28 s of the 30 s on a quiet machine.
+    test.slow();
     const problems = collectProblems(page);
     const alert = await reachAlert(page, WAKE);
     await expect.poll(async () => (await shownMarkers(page))[0]?.glyph).toBe(THREAT_ICON_PATHS.cry);
@@ -487,6 +489,7 @@ test.describe('a real wake', () => {
   });
 
   test('not answered: gag_baby_woke_crying, and the sequence is failed', async ({ page }) => {
+    test.slow();
     const alert = await reachAlert(page, WAKE);
     await advanceTo(page, alert.windowOpenAt + alert.windowMs + 400);
     await waitFrames(page, 3);

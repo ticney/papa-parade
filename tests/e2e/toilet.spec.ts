@@ -25,6 +25,7 @@ import {
   ppLoadLevel,
   ppSend,
   ppSetFeel,
+  ppSilenceCatastrophe,
   ppWorld,
 } from './support/testApi.ts';
 
@@ -124,6 +125,8 @@ test.describe('the gauge', () => {
   }) => {
     const problems = collectProblems(page);
     await openFrozen(page);
+    // 20 s of an idle player are gags: the catastrophe must not end the level under the bladder's rise.
+    await ppSilenceCatastrophe(page);
     const labels = await page
       .locator(`${PILL} > .pp-hud-gauge`)
       .evaluateAll((elements) =>

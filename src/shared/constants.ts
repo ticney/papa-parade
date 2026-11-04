@@ -201,8 +201,12 @@ export const TOUCH_TARGET_MIN_PX = 44;
 /** The HUD band is at most this share of the room height, in percent. */
 export const HUD_BAND_MAX_PCT = 12;
 
-/** The HUD layer has at most this many DOM nodes. */
-export const HUD_MAX_DOM_NODES = 40;
+/**
+ * The HUD layer has at most this many DOM nodes. 40 until story 3.16, raised to 43 by Geo
+ * (2026-11-04) when Mama's face (3 nodes) came in: the busiest measured HUD, a silence with its ring,
+ * reads 42.
+ */
+export const HUD_MAX_DOM_NODES = 43;
 
 /** A panel pops in within this much real time, in ms (a plain fade under reduced motion). */
 export const PANEL_POP_MAX_MS = 220;
