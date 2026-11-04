@@ -4,7 +4,6 @@ import { ISO_YAW_DEG, STEP_MS } from '../../../src/shared/constants.ts';
 import { WALK_BOUND_MS, waitFrames } from './game.ts';
 import {
   ppAdvance,
-  ppEvents,
   ppFreeze,
   ppFx,
   ppLoadLevel,
@@ -96,9 +95,4 @@ export async function advanceAndRead(page: Page, steps: number) {
   await ppAdvance(page, steps);
   await waitFrames(page, 3);
   return ppFx(page);
-}
-
-/** The events of the run so far, of one type. */
-export async function eventsOfType<T extends string>(page: Page, type: T) {
-  return (await ppEvents(page)).filter((event) => event.type === type);
 }

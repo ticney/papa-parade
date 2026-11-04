@@ -496,7 +496,7 @@ describe('the steam and the bla-bla (story 2.13, D3, D4)', () => {
     }
   });
 
-  it('stands the bubble beside his head toward the screen side the data gives, facing the camera', () => {
+  it('stands the bubble at his side toward the screen side the data gives, facing the camera', () => {
     const { view, named } = buildView();
     const bubble = named('papa_blabla');
     view.setOnPhone(true, 0, true);

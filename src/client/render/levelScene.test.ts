@@ -1036,7 +1036,7 @@ describe("the busy Papa's body (story 2.13)", () => {
     effectsWorld.papa.state = 'idle';
   });
 
-  it('sways the steam on the sim clock while he drinks: the same clock, the same sway, and a hitstop holds it', () => {
+  it('sways the steam on the sim clock while he drinks: the same clock, the same sway, and a frozen sim clock holds it', () => {
     const { update, realFxState } = build();
     update(withState('drink', 0), 0);
     const quarterMs = busyProps.steamPeriodMs / 4;

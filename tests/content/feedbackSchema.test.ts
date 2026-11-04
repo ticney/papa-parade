@@ -630,7 +630,7 @@ describe('the busy props and the facing of Papa (story 2.13)', () => {
     expect(mutated(['characters.busyProps.steamPeriodMs', 334])).toMatchObject({ ok: true });
   });
 
-  it('squashes Papa when the coffee is drunk, and the cue plays on the first sip', () => {
+  it('squashes Papa when the coffee is drunk, and maps the first sip to a cue with audio, visual and haptic', () => {
     const parsed = parse(real);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;

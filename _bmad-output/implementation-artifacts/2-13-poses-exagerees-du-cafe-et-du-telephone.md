@@ -4,7 +4,7 @@ baseline_commit: d20dddd3843d98220cf390bcd2e4ce5531658a57
 
 # Story 2.13: Poses exagérées du café et du téléphone
 
-Status: review
+Status: done
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -52,7 +52,7 @@ The epics' criteria are: *given `papa.glb`, when the `drink` and `on_phone` clip
 
 ### The phone
 
-6. **A huge handset.** `papa_handset` is at least twice as big as in 7.2: the longest side of its box at rest is ≥ 2 × 0.32 m. It may be remodelled from its 8-vertex box into a readable handset (an earpiece and a mouthpiece), in `art_ink`, still in his left hand (`hand_l`). The existing guard still holds: in `on_phone` it touches his body's box and its centre is above 0.55 m.
+6. **A huge handset.** `papa_handset` is at least twice as big as in 7.2: the longest side of its box at rest is ≥ 2 × 0.32 m. It may be remodelled from its 8-vertex box into a readable handset (an earpiece and a mouthpiece), in `art_ink` (review, 2026-11-04: the two cups are `art_paper`, so that the front view does not read as a black bar; see the Debug Log), still in his left hand (`hand_l`). The existing guard still holds: in `on_phone` it touches his body's box and its centre is above 0.55 m.
 7. **The phone pose, redone.** `on_phone` is reauthored:
    - the handset at his ear;
    - the free arm gesturing broadly, as people talk with their hands;
@@ -82,9 +82,9 @@ The epics' criteria are: *given `papa.glb`, when the `drink` and `on_phone` clip
      - `awayFromBaby`: `atan2(papa.xM − baby.xM, papa.zM − baby.zM)`.
    - It falls back to his heading:
      - for a clip with no row;
-     - when the baby is `carried`;
-     - when the baby is `mischiefSilent` (a turn away from a hidden baby would point at him, D5);
-     - when the baby is closer than a small epsilon.
+     - for `awayFromBaby` only (the `camera` facing never reads the baby; amended after the code review, 2026-11-04): when the baby is `carried`;
+     - for `awayFromBaby` only: when the baby is `mischiefSilent` (a turn away from a hidden baby would point at him, D5);
+     - for `awayFromBaby` only: when the baby is closer than a small epsilon.
    - `papaPose.yawRad`, the sim's heading and every marker are unchanged: only the drawn body turns.
    - The helper is pure, takes Papa, the baby and the clip only, never a threat, and allocates nothing.
 
@@ -207,7 +207,7 @@ The epics' criteria are: *given `papa.glb`, when the `drink` and `on_phone` clip
     Pick a moment where the baby is neither carried nor `mischiefSilent`, and assert it.
   - [x] `tests/e2e/reducedMotion.spec.ts`: with the saved setting on, during `drink` the clip is `drink`, `papaMixerMs` advances, the yaw still turns, and `papaSteamSwayDeg` stays exactly the same across advances. Add a positive control with the setting off.
   - [x] Every test must be able to fail (lesson of the 2.11 and 2.12 reviews): no `typeof` checks, no bound true by construction, no `.every` on a possibly empty list.
-  - [x] Run on Chromium, through the queue: `characters`, `reducedMotion`, `activityBubble`, `phone`, `fatigue`, `level`, `feedback`, `testApi`, `render`, `autoplay`.
+  - [x] Run on Chromium, through the queue: `characters`, `reducedMotion`, `activityBubble`, `phone`, `fatigue`, `level`, `feedback`, `testApi`, `render`, `autoplay`. (Review 2026-11-04: rerun after the review fixes, 87 passed in 2.9 min on Chromium, no retry; `level` covers AC 14, `autoplay` AC 15.)
 - [x] **T7. Prove nothing moved** (AC 12)
   - [x] `git diff --stat main` on AC 12's paths is empty.
   - [x] The four bots on both levels, seed 1, against `main`: 8 reports byte-identical.
@@ -217,7 +217,7 @@ The epics' criteria are: *given `papa.glb`, when the `drink` and `on_phone` clip
   - [x] `npm run e2e:dist` (it waits its turn and runs `perf.spec.ts` alone): write p95, draw calls max and triangles max for the salon.
   - [x] A failure under load is rerun alone, and both runs are reported.
 - [x] **T9. Look, and screenshots** (AC 16; D10)
-  - [x] AC 16's list. Run through the frozen salon and `__PP__`, Chromium, at both sizes.
+  - [x] AC 16's list. Run through the frozen salon and `__PP__`, Chromium, at both sizes. (Review 2026-11-04: all but the frame with the activity bubble *aside*, never captured; open point 6.)
   - [x] Tune `busyProps` and the art until the bla-bla clears the activity bubble and the badge, and say what you changed.
   - [x] `autoplay.spec.ts`'s frozen frame moves only if Papa's rest pose or file changed in view. If it moves, regenerate the two macOS references deliberately, open them and say so.
   - [x] List what you did not open and what you did not capture, such as the motion itself. Never claim a look you did not take.
@@ -231,6 +231,26 @@ The epics' criteria are: *given `papa.glb`, when the `drink` and `on_phone` clip
   - [x] `deferred-work.md`:
     - close « No spec for the busy feedback or the coffee cue » (story 1.19, L342) for the coffee's sound: the slurp;
     - record « Elbows » (L930) and « carried variants » (L936) as still open, with D8.
+
+### Review Findings
+
+Code review of 2026-11-04 (Blind Hunter, Edge Case Hunter, Acceptance Auditor; diff `main...story/2-13-…`). 3 `decision_needed` (all resolved by Geo on 2026-11-04: D1 → patch, D2 → dismissed, D3 → patch), 7 `patch`, 7 `defer`, 12 dismissed as noise.
+
+- [x] [Review][Patch] Keep `blablaPlace` at 0.85 m / 0.35 m (Geo chose option 1, 2026-11-04) and document it [content/feedback.json:128, src/content/schemas/feedback.ts:488-500, tests/support/testContent.ts:64] — add the T9 retune to « Open points for Geo » (the bla-bla stands at hip level, beside the badge, so that the DOM activity bubble does not hide it; the aside capture of D10 was never taken); say the same on T9; replace « beside his head » in the schema descriptions, comments and test titles by what it is (a bubble at his side, clear of the activity bubble).
+- [x] [Review][Dismissed] The mug and the steam vanish on the first frame of `coffee_kick` [src/client/render/levelScene.ts:556, papaView.ts:307-309] — Geo kept it (2026-11-04): the sip is over, the mug is gone, the eyes pop.
+- [x] [Review][Patch] Amend AC 9's wording to match the code (Geo kept the code, 2026-11-04) [this file, AC 9; src/client/render/views/characterMotion.ts:93] — the `camera` facing never reads the baby; the fallbacks to his heading (baby `carried`, `mischiefSilent`, or within epsilon) apply to `awayFromBaby` only, as D5's reasoning says.
+- [x] [Review][Patch] `papa_mug_steam` is never asserted to be the mug's child in the real `papa.glb` [tests/architecture/characterAssets.test.ts:323] — the view only toggles `mug.visible`, so the steam shows and hides with the mug only if it really is its child; the test only checks geometry (and `createTestPapa` re-parents it by hand). Add `expect(steam.parent).toBe(mug)` on the real asset.
+- [x] [Review][Patch] The `eyes` guard checks only the maximum [tests/architecture/characterAssets.test.ts:~340] — AC 5 says « scales up … then back »; `max ≥ 1.4` over a flat array passes for a single axis and does not check that the scale returns to 1 or that the peak falls mid-clip. Check the first and last keys are 1 and the peak is inside the clip, on all three axes.
+- [x] [Review][Patch] Dead `eventsOfType` export [tests/e2e/support/busyPapa.ts:102] — unused by every spec; remove it (and its `ppEvents` import if nothing else uses it).
+- [x] [Review][Patch] Two test titles claim more than they check [src/client/render/levelScene.test.ts, tests/content/feedbackSchema.test.ts] — « … and a hitstop holds it » only repeats the same clock value (no hitstop is run); « the cue plays on the first sip » only checks that `CoffeeStarted` maps to a cue with audio, visual and haptic. Rename them to what they pin, or make them pin it.
+- [x] [Review][Patch] The story record is out of step with the code [this file] — (a) AC 6 says the handset is `art_ink`; its cups are `art_paper` (Debug Log only): add it to the open points as a deviation and its reason; (b) T6 ticks `level`, `phone`, `fatigue`, `feedback`, `testApi`, `render`, `autoplay` but the record only reports `characters` and `reducedMotion`: run the others on Chromium (`npm run e2e -- <specs> --project=chromium`) and write the result (AC 14: equal counts after a restart; AC 15: `autoplay=human` without an `assets` / `render` warn); (c) T9 is ticked although the aside capture is missing: say so on the task.
+- [x] [Review][Defer] The end photo and the perfect camera use another yaw than `ISO_YAW_DEG` [src/client/render/views/characterMotion.ts:74, papaView.ts:190] — the `camera` facing and the bubble billboard are fixed to 45°; with `photoCamera.yawDeg` (live 38) or `perfectCamera.yawDeg` Papa faces up to 30° off the camera and the bubble is foreshortened by up to cos 30°. Deferred: the spec fixes `ISO_YAW_DEG`; revisit with the end photo's look.
+- [x] [Review][Defer] Papa can slide in the kick pose, facing the camera, if he is sent off right after the coffee [src/client/render/views/papaView.ts:257-269] — facing follows `rig.clipName`, and `rig.play` waits for the one-shot (up to about 0.7 s). Deferred: the one-shot rule is story 7.2's; judge it in the motion pass.
+- [x] [Review][Defer] `awayFromBaby` can swing by up to 180° when the baby passes within 0.05 m, and jitter with a baby circling at 0.1–0.3 m [src/client/render/views/characterMotion.ts:73,97] — no hysteresis; the 0.05 m is the spec's value but sits in code. Deferred: not seen in a frozen frame; Geo's playtest will say.
+- [x] [Review][Defer] `papa_blabla` is taken out of the rig by `group.add` [src/client/render/views/papaView.ts:194,219] — a second `createPapaView` on the same `CharacterAsset` would find no bubble (`levelSession` re-parses on every start, so it cannot happen today); the file's x / y rotation and translation are dropped. Deferred: latent only.
+- [x] [Review][Defer] `resetFx` / `resetAnimation` leave `bodyYawRad` and the props' view state stale until the next `update` [src/client/render/levelScene.ts:569-580, papaView.ts:284-287] — a restart builds a new view today. Deferred: latent only.
+- [x] [Review][Defer] The reduced-motion e2e cannot tell a hidden steam or bubble from a held one [tests/e2e/reducedMotion.spec.ts] — `papaSteamSwayDeg` and `papaBlablaTiltDeg` are 0 in both cases; the unit tests (`papaView`, `levelScene`) pin the visibility. Deferred: covered one layer down.
+- [x] [Review][Defer] The busy props are outside the static draw-call budget, and the e2e reads draw calls in one state per prop [src/client/render/views/characterClips.ts:129-137] — `perf.spec.ts` plays a whole level (max 85 draw calls). Deferred: measured by the perf run.
 
 ## Dev Notes
 
@@ -433,6 +453,9 @@ The last commits are 2.12 (bubble, `TapRefused`, `activityBubble.ts`, `feedback.
 3. **The slurp at the start of the coffee** (D7), not at the end where the ding and the kick already play.
 4. **No elbows** (D8): the poses stay « rigid parts ». Elbows are a later art pass.
 5. **Sizes:** ×2 is the floor the epics set. Whether a 0.64 m handset on a 0.9 m Papa is funny or too much is your call.
+6. **Where the bla-bla stands** (D10, review 2026-11-04). T9 retuned `blablaPlace` to `screenOffsetM` 0.85 / `heightM` 0.35 so that the DOM activity bubble does not hide it: it stands at his side at hip level, not beside his head. Kept as is by Geo's call; the frame with the activity bubble stepping left while he is on the phone was never captured, so that overlap has not been seen. It is data (`feedback.json › characters.busyProps.blablaPlace`).
+7. **The handset's cups are paper** (AC 6): the two cups are `art_paper`, the bar and arms `art_ink`, because an all-ink handset read as a black bar from the front.
+8. **The mug and the steam leave with the sip** (review 2026-11-04): `CoffeeDrunk` puts him in `idle` in the same step, so the `coffee_kick` plays with an empty fist and no steam. Kept as is by Geo's call.
 
 ### References
 
@@ -528,3 +551,4 @@ Claude Sonnet 5.5 (`claude-sonnet-5-5`), in the story's worktree on `story/2-13-
 ### Change Log
 
 - 2026-11-04: Story 2.13 implemented: the huge mug and handset, the reauthored `drink` and `on_phone` and the new `coffee_kick` in `papa.blend` (with the steam, the bla-bla bubble and the `eyes` bone), the facing per clip and the busy props' side effects on the sim clock (held under reduced motion), the slurp cue, the contract and its guards, the tests, the captures and the docs. No sim change; 8 bot reports byte-identical to `main`. Status: review.
+- 2026-11-04: Code review (3 layers): 3 decisions settled by Geo (bla-bla place kept and documented, mug leaves with the sip, `camera` facing independent of the baby with AC 9 amended), 7 patches applied (steam parent and eyes guards on the real `.glb`, dead helper, test titles, wording, story record), 7 findings deferred. Status: done.

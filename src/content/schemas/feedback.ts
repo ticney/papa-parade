@@ -490,7 +490,7 @@ const BlablaPlaceSchema = z
       .min(-1)
       .max(1)
       .describe(
-        'How far from his head the bla-bla bubble stands across the screen, in metres: above 0 toward the right of the screen, below 0 toward the left.',
+        'How far from Papa the bla-bla bubble stands across the screen, in metres: above 0 toward the right of the screen, below 0 toward the left.',
       ),
     heightM: z
       .number()
@@ -498,7 +498,7 @@ const BlablaPlaceSchema = z
       .max(1.2)
       .describe('How high above the floor the foot of the bla-bla bubble stands, in metres.'),
   })
-  .describe('Where the bla-bla bubble stands beside Papa.');
+  .describe("Where the bla-bla bubble stands at Papa's side, clear of the activity bubble.");
 
 const BusyPropsSchema = z
   .strictObject({

@@ -325,6 +325,12 @@ describe("Papa's exaggerated props and poses (story 2.13)", () => {
     expect((steam.min.y + steam.max.y) / 2).toBeGreaterThan(mug.max.y - 0.02);
   });
 
+  it('hangs the steam under the mug, so that it shows and hides with the mug', async () => {
+    const { asset } = await posed(null);
+    const steam = asset.scene.getObjectByName('papa_mug_steam');
+    expect(steam?.parent?.name).toBe('papa_mug');
+  });
+
   it('widens his eyes to at least 1.4 in coffee_kick, and in no other clip', async () => {
     const asset = await load('papa');
     const eyesTracks = (clip: string) =>
@@ -334,6 +340,21 @@ describe("Papa's exaggerated props and poses (story 2.13)", () => {
     const kick = eyesTracks('coffee_kick').find((track) => track.name === 'eyes.scale');
     expect(kick, 'coffee_kick keys the scale of `eyes`').toBeDefined();
     expect(Math.max(...(kick?.values ?? [0]))).toBeGreaterThanOrEqual(EYES_WIDEST_SCALE_MIN);
+    // Up, then back: each axis starts and ends at rest and peaks in the middle of the clip.
+    const values = kick?.values ?? [];
+    const keyCount = values.length / 3;
+    expect(keyCount).toBeGreaterThanOrEqual(3);
+    for (let axis = 0; axis < 3; axis++) {
+      const keys = Array.from({ length: keyCount }, (_, key) => values[key * 3 + axis] as number);
+      expect(keys[0], `axis ${axis} starts at rest`).toBeCloseTo(1, 3);
+      expect(keys[keyCount - 1], `axis ${axis} returns to rest`).toBeCloseTo(1, 3);
+      expect(Math.max(...keys), `axis ${axis} widens`).toBeGreaterThanOrEqual(
+        EYES_WIDEST_SCALE_MIN,
+      );
+      const peakKey = keys.indexOf(Math.max(...keys));
+      expect(peakKey, `axis ${axis} peaks mid-clip`).toBeGreaterThan(0);
+      expect(peakKey, `axis ${axis} peaks mid-clip`).toBeLessThan(keyCount - 1);
+    }
     const others = asset.animations.filter((clip) => clip.name !== 'coffee_kick');
     expect(others.length).toBeGreaterThan(10);
     for (const clip of others) expect(eyesTracks(clip.name), clip.name).toEqual([]);

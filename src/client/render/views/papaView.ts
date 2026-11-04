@@ -115,7 +115,7 @@ export interface PapaView {
    */
   setDrinking(isDrinking: boolean, clockMs: number, isMotionReduced: boolean): void;
   /**
-   * A handset at the side of his head while he is on the phone, and a bla-bla bubble beside it that
+   * A handset at the side of his head while he is on the phone, and a bla-bla bubble at his side that
    * wobbles on `clockMs` (sim ms). Under reduced motion the bubble is shown, held at its rest transform.
    * Allocates nothing.
    */
@@ -184,7 +184,7 @@ export function createPapaView(
   const { busyProps } = motion;
   const steamSwayRad = (busyProps.steamSwayDeg * Math.PI) / 180;
   const blablaTiltRad = (busyProps.blablaTiltDeg * Math.PI) / 180;
-  // The bubble leaves the turning body for the group, which never turns, and stands beside his head on
+  // The bubble leaves the turning body for the group, which never turns, and stands at his side, on
   // the side of the screen `screenOffsetM` says (screen right is (cos yaw, -sin yaw) for the camera at
   // `ISO_YAW_DEG`). It faces the camera, so that it reads from every heading (D4).
   const cameraYawRad = (ISO_YAW_DEG * Math.PI) / 180;
