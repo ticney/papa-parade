@@ -545,8 +545,45 @@ describe('several threats', () => {
 });
 
 // Story 1.18 D13: two threats at once resolve one after the other with sequential taps (press,
-// release, press, release); each press is classified on its own release.
+// release, press, release); each press is classified on its own release. Since story 3.13 the
+// director keeps the two windows `glideMaxMs + fairnessMarginMs` apart: both threats are announced
+// together, but the second opens later, so each is tapped inside its own window.
 describe('two threats active at once', () => {
+  // The director no longer produces two open windows (above), but `ForceThreat` still can (it ignores
+  // the fairness rule): the routing of a press by threat id while both windows are open stays proved.
+  it('resolves two windows open together when they are tapped one after the other, each by its own id', async () => {
+    const level = createTestLevel({
+      waves: [
+        testWave([OUTLET, { def: 'outlet', anchor: 'phone' }], {
+          fromMs: 60_000,
+          maxSimultaneous: 2,
+        }),
+      ],
+    });
+    const sim = await newSim(level);
+    const [first, second] = sim.world.threats.map((threat) => threat.id) as [number, number];
+    sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: first } as SimCommand);
+    sim.enqueue({ type: 'ForceThreat', t: asSimMs(STEP_MS), threatId: second } as SimCommand);
+    run(sim, 3);
+    const openAt = Math.max(...sim.world.threats.map((threat) => threat.windowOpenAt));
+    const closesAt = Math.min(
+      ...sim.world.threats.map(
+        (threat) => threat.windowOpenAt + (threat.responseWindow?.windowMs ?? 0),
+      ),
+    );
+    // The two windows overlap: both are open from `openAt` to `closesAt`.
+    expect(openAt).toBeLessThan(closesAt);
+    sim.enqueue(press(openAt + 60, first));
+    sim.enqueue(release(openAt + 100));
+    sim.enqueue(press(openAt + 140, second));
+    sim.enqueue(release(openAt + 180));
+    const later = runTo(sim, openAt + 400);
+    const resolved = only(later, 'ResponseResolved');
+    expect(resolved.map((event) => event.threatId)).toEqual([first, second]);
+    expect(resolved.every((event) => event.quality !== 'fail')).toBe(true);
+    expect(only(later, 'GagTriggered')).toEqual([]);
+  });
+
   it('resolves both when they are tapped one after the other, each by its own id', async () => {
     const level = createTestLevel({
       waves: [testWave([OUTLET, { def: 'outlet', anchor: 'phone' }], { maxSimultaneous: 2 })],
@@ -556,13 +593,14 @@ describe('two threats active at once', () => {
     const telegraphed = only(events, 'ThreatTelegraphed').map((event) => event.threatId);
     expect(telegraphed).toHaveLength(2);
     const [first, second] = telegraphed as [number, number];
-    const openAt = Math.max(...sim.world.threats.map((threat) => threat.windowOpenAt));
-    // Both windows are open by `openAt`; tap the first, then the second, inside both.
-    sim.enqueue(press(openAt + 60, first));
-    sim.enqueue(release(openAt + 100));
-    sim.enqueue(press(openAt + 140, second));
-    sim.enqueue(release(openAt + 180));
-    const later = runTo(sim, openAt + 400);
+    const openOf = (threatId: number): number =>
+      sim.world.threats.find((threat) => threat.id === threatId)?.windowOpenAt ?? 0;
+    // Each is tapped inside its own window, the second one's coming after the first one's is over.
+    sim.enqueue(press(openOf(first) + 60, first));
+    sim.enqueue(release(openOf(first) + 100));
+    sim.enqueue(press(openOf(second) + 60, second));
+    sim.enqueue(release(openOf(second) + 100));
+    const later = runTo(sim, openOf(second) + 400);
     const resolved = only(later, 'ResponseResolved');
     expect(resolved.map((event) => event.threatId)).toEqual([first, second]);
     expect(resolved.every((event) => event.quality !== 'fail')).toBe(true);

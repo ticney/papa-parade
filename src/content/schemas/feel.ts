@@ -141,6 +141,14 @@ const MovementSchema = z
   })
   .describe('Papa movement (GDD §3).');
 
+const DirectorSchema = z
+  .strictObject({
+    fairnessMarginMs: delayMs(
+      'Margin added to `movement.glideMaxMs`: two windows of the director never open closer than their sum (FR75, ADR-011), in ms. 0 keeps the glide alone.',
+    ),
+  })
+  .describe('Wave director (GDD mechanic 17, ADR-011).');
+
 const BabySchema = z
   .strictObject({
     crawlSpeedMps: z
@@ -859,6 +867,7 @@ export const FeelSchema = z
     timing: TimingSchema,
     input: InputSchema,
     movement: MovementSchema,
+    director: DirectorSchema,
     baby: BabySchema,
     fatigue: FatigueSchema,
     carry: CarrySchema,

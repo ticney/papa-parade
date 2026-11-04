@@ -20,6 +20,7 @@ import type {
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
 import { type SequenceDef, SequenceDefSchema } from '@content/schemas/sequence';
 import { type ThreatDef, ThreatDefSchema } from '@content/schemas/threat';
+import { SILENCE_SIMULTANEOUS_WEIGHT } from '@shared/constants';
 import type { Sim } from '@sim';
 
 const FEEL_FIXTURE = 'tests/support/testFeel.json';
@@ -476,15 +477,18 @@ export function testPhoneEntry(atMs: number): LevelWaveDisruption {
 /**
  * A wave of `threats`: from 0 ms, one at a time, no gap and no lull, no disruption unless `overrides` says so. A
  * test that used `outletEntry(2000)` uses `testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })`:
- * its first telegraph lands at the first step at or after 2000 ms.
+ * its first telegraph lands at the first step at or after 2000 ms. A wave that plans a silence allows
+ * two at once, not one: a silence counts for two against `maxSimultaneous`, and `createSim` refuses a
+ * wave where it could never be drawn (story 3.13); a test that wants the refusal passes `maxSimultaneous: 1`.
  */
 export function testWave(
   threats: readonly LevelWaveThreat[],
   overrides: Partial<Omit<LevelWave, 'threats'>> = {},
 ): LevelWave {
+  const isSilencePlanned = threats.some((entry) => entry.def === SILENCE.def);
   return {
     fromMs: 0,
-    maxSimultaneous: 1,
+    maxSimultaneous: isSilencePlanned ? SILENCE_SIMULTANEOUS_WEIGHT : 1,
     gapMinMs: 0,
     gapMaxMs: 0,
     lullMs: 0,

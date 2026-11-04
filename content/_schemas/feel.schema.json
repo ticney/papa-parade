@@ -201,6 +201,21 @@
       "additionalProperties": false,
       "description": "Papa movement (GDD §3)."
     },
+    "director": {
+      "type": "object",
+      "properties": {
+        "fairnessMarginMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Margin added to `movement.glideMaxMs`: two windows of the director never open closer than their sum (FR75, ADR-011), in ms. 0 keeps the glide alone."
+        }
+      },
+      "required": [
+        "fairnessMarginMs"
+      ],
+      "additionalProperties": false,
+      "description": "Wave director (GDD mechanic 17, ADR-011)."
+    },
     "baby": {
       "type": "object",
       "properties": {
@@ -1641,6 +1656,7 @@
     "timing",
     "input",
     "movement",
+    "director",
     "baby",
     "fatigue",
     "carry",

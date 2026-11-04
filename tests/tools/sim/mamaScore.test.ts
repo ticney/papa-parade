@@ -84,7 +84,11 @@ describe('Mama’s note of the live salon_crawler', () => {
           const scored = events.filter((event): event is Scored => event.type === 'LevelScored');
           expect(scored, `seed ${seed}`).toHaveLength(1);
           const index = events.findIndex((event) => event.type === 'LevelScored');
-          const ended = events[index - 1];
+          // Right after `LevelEnded`, but for the near misses the end photo freezes (story 3.6): where the
+          // baby stands at the end moves with every change of the room's timing (story 3.13).
+          let endedIndex = index - 1;
+          while (events[endedIndex]?.type === 'NearMissFrozen') endedIndex--;
+          const ended = events[endedIndex];
           expect(ended?.type, `seed ${seed}`).toBe('LevelEnded');
           expect(scored[0]?.t, `seed ${seed}`).toBe(ended?.t);
           const note = noteOf(scored[0] as Scored);
@@ -107,9 +111,15 @@ describe('Mama’s note of the live salon_crawler', () => {
     'perfect: no sigh, no scream, and the laughs of its perfects',
     async () => {
       for (const seed of SEEDS) {
-        const { mama, final, perfects } = await runOf('perfect', seed);
+        const { events, mama, final, perfects } = await runOf('perfect', seed);
         expect(final?.sighPoints, `seed ${seed}`).toBe(0);
-        expect(final?.screamPoints, `seed ${seed}`).toBe(0);
+        // No scream of its own: only the near misses frozen on the end photo (story 3.6), where the baby
+        // happens to stand at the end of the level, are counted.
+        const frozen = events.filter((event) => event.type === 'NearMissFrozen').length;
+        // Pinned exactly: the frozen near misses times their points, held to the row and rounded, as the score does.
+        expect(final?.screamPoints, `seed ${seed}`).toBe(
+          Math.round(Math.min(frozen * mama.screamPerNearMissPoints, mama.screamMaxPoints)),
+        );
         expect(final?.laughPoints, `seed ${seed}`).toBe(
           Math.min(mama.laughMaxPoints, perfects * mama.laughPerPerfectPoints),
         );

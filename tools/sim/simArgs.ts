@@ -83,6 +83,11 @@ in the rush), per game and over the runs. A game that ends on \`timer\` in a lev
 The end photo (story 3.6) adds \`frozenNearMisses\` (the baby, not carried, within \`feel.endOfLevel.frozenNearMissReachM\` of
 the stairs when the level ends: one for each, counted in Mama's « Hurlement » and kept apart from \`nearMisses\`), per game and
 over the runs.
+The director's fairness (story 3.13, FR75) adds \`fairnessViolations\` (the director-drawn windows that opened closer than
+\`movement.glideMaxMs + director.fairnessMarginMs\` to a window announced before them, inside a found silence's guard, or that were
+drawn while a silence was under way: 0 when the director is right, checked on the events alone), \`stretchedTelegraphs\` (the
+threats whose window opened later than their telegraph delay: how often the director waits) and \`meanStretchMs\` (how much
+later, on average; null when none). The waves' \`peakSimultaneous\` and \`overLimitRuns\` count a silence for two.
 `;
 
 const DIGITS = /^\d+$/;

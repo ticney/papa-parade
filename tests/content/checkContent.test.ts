@@ -1107,7 +1107,8 @@ describe('checkContent on level files', () => {
   const entry = { def: 'outlet', anchor: 'outlet_01' };
   const wave = (threats: Record<string, unknown>[], fromMs = 0) => ({
     fromMs,
-    maxSimultaneous: 1,
+    // Two when the wave plans a silence: it counts for two against the limit (story 3.13).
+    maxSimultaneous: threats.some((threat) => threat.def === 'silence_mischief') ? 2 : 1,
     gapMinMs: 1000,
     gapMaxMs: 2000,
     lullMs: 500,
@@ -1396,6 +1397,20 @@ describe('checkContent on level files', () => {
     it('accepts it planned in a hidden zone of the geometry', async () => {
       await plan([silence]);
       expect(await checkContent(root)).toEqual([]);
+    });
+
+    it('refuses a silence in a wave that allows one at a time, with the words of the sim (story 3.13)', async () => {
+      await mutateJson(FILE, (level) => {
+        level.waves = [{ ...wave([silence]), maxSimultaneous: 1 }];
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'waves[0].maxSimultaneous',
+          message:
+            'wave 0 plans the silence "silence_mischief" (target "hiddenZone"), which counts for 2 against maxSimultaneous, but allows 1: it could never be drawn there',
+        }),
+      ]);
     });
 
     it('names the wave threat planned at an anchor instead of a hidden zone', async () => {

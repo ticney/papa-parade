@@ -51,6 +51,7 @@ import {
   sequenceDuelProblems,
   sequenceLayProblems,
   sequenceStealthProblems,
+  silenceLimitProblem,
   stealthRoomForGeometry,
 } from '@sim';
 
@@ -1092,6 +1093,17 @@ function checkLevelReferences(
               file,
               jsonPath: formatJsonPath(['waves', w, 'threats', i, 'anchor']),
               message: `"${entry.anchor}" is not an anchor of content/${geometryFile}`,
+            });
+          }
+        }
+        if (threatDef?.target === 'hiddenZone') {
+          // The silence counts for two against `maxSimultaneous` (story 3.13): the words are `simLevelOf`'s.
+          const limitProblem = silenceLimitProblem(w, entry.def, wave.maxSimultaneous);
+          if (limitProblem !== null) {
+            problems.push({
+              file,
+              jsonPath: formatJsonPath(['waves', w, 'maxSimultaneous']),
+              message: limitProblem,
             });
           }
         }
