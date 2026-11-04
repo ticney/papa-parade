@@ -109,7 +109,7 @@ export function createBabyView(
   blobs: BlobKit,
   radiusM: number,
   rig: CharacterRig,
-  motion: CharacterMotionConfig,
+  motion: Pick<CharacterMotionConfig, 'turnRateDegPerSec' | 'clips'>,
   laidHeightM: number = BABY_CARRIED_HEIGHT_M,
 ): BabyView {
   const bodyRadiusM = Math.max(radiusM, BABY_MIN_RADIUS_M);

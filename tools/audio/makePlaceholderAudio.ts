@@ -10,10 +10,10 @@ import { ROOT } from '../assets/paths.ts';
 import { synthBabyLaugh, synthFirm, synthParry } from './cultSounds.ts';
 import { normalize, PEAK_LOUD, SAMPLE_RATE_HZ, SEED, samplesOf } from './synthKit.ts';
 
-// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 2.9, 2.12, 3.2, 4.1, 4.3 and 4.6 (the outlet's cues,
+// The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 2.9, 2.12, 2.13, 3.2, 4.1, 4.3 and 4.6 (the outlet's cues,
 // then the stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled
 // swell and Papa's snore, then the phone's ring and Papa's pick-up click, then the silence's « ah-ha »
-// chirp and the baby's paper rustle, then story 4.1's cry in the arms, pick-up and put-down, story 4.3's need alarm, toilet door and flush, story 2.9's heartbeat, story 2.12's double « bonk » for a refused tap on a busy Papa and the bubble's ding; story 2.3 replaced the parry's pop by a toy squeak, dropped the
+// chirp and the baby's paper rustle, then story 4.1's cry in the arms, pick-up and put-down, story 4.3's need alarm, toilet door and flush, story 2.9's heartbeat, story 2.12's double « bonk » for a refused tap on a busy Papa and the bubble's ding, story 2.13's coffee slurp; story 2.3 replaced the parry's pop by a toy squeak, dropped the
 // perfect's chime and added the Firmness's cupboard clack and the baby's laugh, in `cultSounds.ts`; story 3.2 added Mama's door slam and the lost star's cue),
 // synthesized so that the whole audio pipeline works end to end with no human (golden rule). Real
 // sounds replace the `.m4a` files under the same names (story 7.5, or Geo's recordings; `--only`
@@ -2236,6 +2236,51 @@ export function synthFreeDing(): Float32Array {
   return out;
 }
 
+// Story 2.13, seed `SEED + 50`: Papa's slurp at the first sip of his coffee (cue `papa_coffee_slurp`).
+const SLURP_LENGTH_MS = 350;
+const SLURP_ATTACK_MS = 40;
+const SLURP_RELEASE_MS = 90;
+/** The airy hiss of the sip, smoothed by a one-pole filter whose cutoff opens as he draws in. */
+const SLURP_SMOOTHING = { from: 0.08, to: 0.45 };
+const SLURP_HISS_GAIN = 0.9;
+/** The liquid gurgle under it: a sine that glides up while it wobbles. */
+const SLURP_GURGLE_PITCH_HZ = { from: 260, to: 620 };
+const SLURP_GURGLE_WOBBLE_HZ = 38;
+const SLURP_GURGLE_WOBBLE_DEPTH = 0.55;
+const SLURP_GURGLE_GAIN = 0.4;
+
+/**
+ * A short rising sip: a hiss that brightens as it draws in over a wobbling gurgle, unlike the dry
+ * double « bonk » of `papa_busy` (cue `papa_coffee_slurp`, clip `papa_coffee_slurp`).
+ */
+export function synthCoffeeSlurp(): Float32Array {
+  const rng = createRng(SEED + 50);
+  const out = new Float32Array(samplesOf(SLURP_LENGTH_MS));
+  const attack = samplesOf(SLURP_ATTACK_MS);
+  const release = samplesOf(SLURP_RELEASE_MS);
+  let smoothed = 0;
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const smoothing = SLURP_SMOOTHING.from + (SLURP_SMOOTHING.to - SLURP_SMOOTHING.from) * progress;
+    smoothed += smoothing * (nextFloat(rng) * 2 - 1 - smoothed);
+    const frequencyHz =
+      SLURP_GURGLE_PITCH_HZ.from +
+      (SLURP_GURGLE_PITCH_HZ.to - SLURP_GURGLE_PITCH_HZ.from) * progress;
+    phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+    const wobble =
+      1 -
+      SLURP_GURGLE_WOBBLE_DEPTH *
+        (0.5 + 0.5 * Math.sin((2 * Math.PI * SLURP_GURGLE_WOBBLE_HZ * i) / SAMPLE_RATE_HZ));
+    const envelope = Math.min(1, i / attack, (out.length - i) / release) * (0.4 + 0.6 * progress);
+    out[i] = (smoothed * SLURP_HISS_GAIN + Math.sin(phase) * SLURP_GURGLE_GAIN * wobble) * envelope;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Array }[] = [
   { clip: 'baby_babble_loop', synth: synthBabble },
   { clip: 'music_crawler_calm', synth: synthMusic },
@@ -2310,6 +2355,7 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'ui_camera_shutter', synth: synthCameraShutter },
   { clip: 'papa_busy', synth: synthBusyRefused },
   { clip: 'ui_papa_free_ding', synth: synthFreeDing },
+  { clip: 'papa_coffee_slurp', synth: synthCoffeeSlurp },
 ];
 
 /**

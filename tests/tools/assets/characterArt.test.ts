@@ -17,6 +17,7 @@ const CONTRACT: CharacterContract = {
   hiddenNodes: ['mug'],
   clips: ['idle'],
   codeDrivenBones: ['eyelids'],
+  codeDrivenNodes: ['mug'],
 };
 
 /** A small file that conforms: a body of 2 primitives, a hidden mug, a skeleton of 2 bones and one clip. */
@@ -102,6 +103,20 @@ describe('characterRigProblems', () => {
     expect(characterRigProblems(file, CONTRACT)).toEqual([
       'clip "idle" has a scale track on "eyelids", which the code drives',
     ]);
+  });
+
+  it('refuses a clip track on a node the code moves', () => {
+    const file = conforming();
+    file.animations[0]?.channels.push({ target: { node: 3, path: 'translation' } });
+    expect(characterRigProblems(file, CONTRACT)).toEqual([
+      'clip "idle" has a translation track on "mug", which the code drives',
+    ]);
+  });
+
+  it('allows a track on a node the code leaves alone', () => {
+    const file = conforming();
+    file.animations[0]?.channels.push({ target: { node: 3, path: 'translation' } });
+    expect(characterRigProblems(file, { ...CONTRACT, codeDrivenNodes: [] })).toEqual([]);
   });
 
   it('refuses more than 4 influences a vertex', () => {

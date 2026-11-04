@@ -32,6 +32,12 @@ export interface FxState {
   readonly babyClip: string | null;
   /** Papa's mixer clock, in sim ms: it stands still in a pause and a hitstop. */
   readonly papaMixerMs: number;
+  /** The way Papa's drawn body faces, in radians: it turns for the camera and away from the baby (story 2.13). */
+  readonly papaBodyYawRad: number;
+  /** How far the coffee steam leans, in degrees; 0 while hidden or held still by reduced motion (story 2.13). */
+  readonly papaSteamSwayDeg: number;
+  /** How far the bla-bla bubble tilts, in degrees; 0 while hidden or held still by reduced motion (story 2.13). */
+  readonly papaBlablaTiltDeg: number;
   /** How far the door is drawn open, in degrees; 0 while shut (story 3.5: the final rush). */
   readonly doorOpenDeg: number;
   /** How many alert glows stand on the room's dangers (story 7.3). */

@@ -622,7 +622,8 @@
                   "BabyPutDown",
                   "GagTriggered",
                   "BabyWoke",
-                  "BabyStirred"
+                  "BabyStirred",
+                  "CoffeeDrunk"
                 ],
                 "description": "The sim event that starts it."
               },
@@ -682,13 +683,116 @@
             "description": "The natural speed of one travelling clip."
           },
           "description": "The natural speed of the travelling clips."
+        },
+        "papaClipFacing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clip": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+                "description": "A clip of Papa's, as named in the `.glb`."
+              },
+              "facing": {
+                "type": "string",
+                "enum": [
+                  "camera",
+                  "awayFromBaby"
+                ],
+                "description": "Where his body turns while the player sees this clip: `camera` faces the screen, `awayFromBaby` turns his back to the baby. The sim's heading is untouched."
+              }
+            },
+            "required": [
+              "clip",
+              "facing"
+            ],
+            "additionalProperties": false,
+            "description": "Where Papa faces while one clip plays."
+          },
+          "description": "Which clips turn Papa toward the camera or away from the baby (story 2.13)."
+        },
+        "busyProps": {
+          "type": "object",
+          "properties": {
+            "steamSwayDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 45,
+              "description": "How far the coffee steam leans to each side, in degrees."
+            },
+            "steamStretchPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 50,
+              "description": "How much the steam grows and shrinks in height, in percent."
+            },
+            "steamPeriodMs": {
+              "type": "number",
+              "minimum": 334,
+              "description": "How long a full sway of the steam lasts, in sim ms. Never under the 3 Hz flash cap."
+            },
+            "blablaTiltDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 45,
+              "description": "How far the bla-bla bubble tilts to each side, in degrees."
+            },
+            "blablaBobAmplitudeM": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.2,
+              "description": "How far the bla-bla bubble bobs up and down, in metres."
+            },
+            "blablaPeriodMs": {
+              "type": "number",
+              "minimum": 334,
+              "description": "How long a full wobble of the bla-bla bubble lasts, in sim ms. Never under the 3 Hz flash cap."
+            },
+            "blablaPlace": {
+              "type": "object",
+              "properties": {
+                "screenOffsetM": {
+                  "type": "number",
+                  "minimum": -1,
+                  "maximum": 1,
+                  "description": "How far from Papa the bla-bla bubble stands across the screen, in metres: above 0 toward the right of the screen, below 0 toward the left."
+                },
+                "heightM": {
+                  "type": "number",
+                  "minimum": 0.3,
+                  "maximum": 1.2,
+                  "description": "How high above the floor the foot of the bla-bla bubble stands, in metres."
+                }
+              },
+              "required": [
+                "screenOffsetM",
+                "heightM"
+              ],
+              "additionalProperties": false,
+              "description": "Where the bla-bla bubble stands at Papa's side, clear of the activity bubble."
+            }
+          },
+          "required": [
+            "steamSwayDeg",
+            "steamStretchPct",
+            "steamPeriodMs",
+            "blablaTiltDeg",
+            "blablaBobAmplitudeM",
+            "blablaPeriodMs",
+            "blablaPlace"
+          ],
+          "additionalProperties": false,
+          "description": "The side effects of Papa's busy props (story 2.13): the steam of his mug and the bla-bla of his phone. Sim clock; held still under reduced motion."
         }
       },
       "required": [
         "crossFadeMs",
         "turnRateDegPerSec",
         "squash",
-        "clipSpeeds"
+        "clipSpeeds",
+        "papaClipFacing",
+        "busyProps"
       ],
       "additionalProperties": false,
       "description": "The animated characters (story 7.2). Read by the views on the sim clock; the sim never reads it."

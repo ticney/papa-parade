@@ -48,7 +48,22 @@ export function createTestFeedback(): FeedbackTable {
     comboBadge: { cashInHoldMs: 900 },
     papaHint: { holdMs: 1200 },
     bombDrop: { laidHeightM: 0.3 },
-    characters: { crossFadeMs: 100, turnRateDegPerSec: 720, squash: [], clipSpeeds: [] },
+    characters: {
+      crossFadeMs: 100,
+      turnRateDegPerSec: 720,
+      squash: [],
+      clipSpeeds: [],
+      papaClipFacing: [],
+      busyProps: {
+        steamSwayDeg: 12,
+        steamStretchPct: 15,
+        steamPeriodMs: 900,
+        blablaTiltDeg: 8,
+        blablaBobAmplitudeM: 0.03,
+        blablaPeriodMs: 700,
+        blablaPlace: { screenOffsetM: 0.35, heightM: 0.8 },
+      },
+    },
     door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
     photo: {
       widthPx: 570,
