@@ -124,3 +124,37 @@ export function fitIsoCamera(
   camera.bottom = middleY - halfHeight;
   camera.updateProjectionMatrix();
 }
+
+/** The size of the follow camera's frame (`feel.camera`, story 9.2): a floor box of this size is fitted. */
+export interface FollowFrameSize {
+  readonly frameWidthM: number;
+  readonly frameDepthM: number;
+}
+
+/**
+ * The follow camera's framing (story 9.2): {@link fitIsoCamera} on a `frameWidthM × frameDepthM` box
+ * of the room's height and floor, centred on the floor point `(centreXM, centreZM)`. The characters
+ * are then drawn at the scale of a room of the frame's size, whatever the room's own size; moving
+ * the centre is a translation of this fit (orthographic camera).
+ */
+export function fitFollowCamera(
+  camera: OrthographicCamera,
+  room: RoomSize,
+  frame: FollowFrameSize,
+  centreXM: number,
+  centreZM: number,
+  aspect: number,
+): void {
+  fitIsoCamera(
+    camera,
+    {
+      widthM: frame.frameWidthM,
+      depthM: frame.frameDepthM,
+      heightM: room.heightM,
+      floorYM: room.floorYM ?? 0,
+      centerXM: centreXM,
+      centerZM: centreZM,
+    },
+    aspect,
+  );
+}

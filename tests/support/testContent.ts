@@ -632,6 +632,7 @@ export function createTestLevel({
       ...(carry === undefined ? {} : { carry: structuredClone(carry) }),
       sequences: [...sequences],
       ...(finalRush === undefined ? {} : { finalRush: structuredClone(finalRush) }),
+      camera: 'fixed',
       feelOverrides: { ...feelOverrides },
     },
     threats,

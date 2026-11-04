@@ -1,6 +1,6 @@
 {
   "untilSimMs": 15000,
-  "worldHash": "0040963cda6e26",
+  "worldHash": "1274a3c3abeea3",
   "eventTypes": [
     "PapaPathPlanned",
     "PapaStateChanged",

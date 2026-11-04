@@ -1,6 +1,7 @@
-import { Vector3 } from 'three';
+import { type OrthographicCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createIsoCamera, fitIsoCamera } from '../render/isoCamera.ts';
+import { createCameraFx } from '../render/cameraFx.ts';
+import { createIsoCamera, fitFollowCamera, fitIsoCamera } from '../render/isoCamera.ts';
 import { createHitTester, type FloorPoint } from './hitTest.ts';
 
 const ROOM = {
@@ -287,5 +288,105 @@ describe('pickBaby (story 1.21)', () => {
     ).toBeNull();
     expect(tester.pickBaby(at.x, at.y, RECT, BABY, HEIGHT_M, -1)).toBeNull();
     expect(tester.pickBaby(at.x, at.y, RECT, { xM: 1e6, zM: 1e6 }, HEIGHT_M, RADIUS)).toBeNull();
+  });
+});
+
+describe('on a camera the follow has moved (story 9.2, AC 7)', () => {
+  const KITCHEN = {
+    widthM: 14.6,
+    depthM: 7.2,
+    heightM: 3.3,
+    floorYM: -0.8,
+    centerXM: 0.35,
+    centerZM: -0.1,
+  };
+  const FRAME = { frameWidthM: 9.1, frameDepthM: 6.2 };
+  const RECT = { left: 0, top: 0, width: 844, height: 390 };
+  const RADIUS = 48;
+
+  /** The game's own path: fitted on Papa's start, then the framing moved by the follow. */
+  function movedCamera() {
+    const camera = createIsoCamera();
+    fitFollowCamera(camera, KITCHEN, FRAME, 5.25, 1, RECT.width / RECT.height);
+    const fx = createCameraFx(camera);
+    fx.captureBase();
+    const before = camera.clone();
+    fx.moveBaseTo(-4, -1.5);
+    fx.update(
+      { time: { sim: 0, slowMos: [] } } as never,
+      0,
+      { zoomPct: 0, yawDeg: 0, focusPct: 0, zoomInMs: 0, refocusMs: 0 },
+      false,
+      { blend: 0, zoomPct: 0, focusPct: 0, xM: 0, zM: 0 },
+    );
+    return { camera, before };
+  }
+  const pxOf = (camera: OrthographicCamera, x: number, y: number, z: number) => {
+    const v = new Vector3(x, y, z).project(camera);
+    expect(Math.abs(v.x)).toBeLessThan(1);
+    expect(Math.abs(v.y)).toBeLessThan(1);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+
+  it('lands a floor tap on the world point under the finger, to the micrometre', () => {
+    const { camera } = movedCamera();
+    const tester = createHitTester(camera);
+    const out: FloorPoint = { xM: 0, zM: 0 };
+    const probe = new Vector3();
+    for (const [x, z] of [
+      [-6.4, -2.4],
+      [-4, -1.5],
+      [-1.2, 0.8],
+    ] as const) {
+      probe.set(x, 0, z).project(camera);
+      expect(tester.pickFloor(probe.x, probe.y, out)).toBe(true);
+      expect(Math.abs(out.xM - x)).toBeLessThan(1e-6);
+      expect(Math.abs(out.zM - z)).toBeLessThan(1e-6);
+    }
+  });
+
+  it('presses a threat, an object and the baby at their icons as drawn now, not where they were', () => {
+    const { camera, before } = movedCamera();
+    const tester = createHitTester(camera);
+    const entry = {
+      threatId: 3,
+      xM: -5.15,
+      yM: 0.92,
+      zM: -3.125,
+      icon: 'bolt' as const,
+      followsPapa: false,
+      verb: '',
+      iconShape: 'circle' as const,
+      color: 'parry' as const,
+      verbWidthPx: 0,
+      verbHeightPx: 0,
+      verbOffsetPx: 0,
+    };
+    const targets = { threats: [{ id: 3, state: 'windowOpen' } as never], entries: [entry] };
+    const icon = pxOf(camera, entry.xM, entry.yM, entry.zM);
+    expect(tester.pickThreat(icon.x, icon.y, RECT, targets, RADIUS)).toBe(3);
+    // Where the icon was before the framing moved: far off by now.
+    const stale = new Vector3(entry.xM, entry.yM, entry.zM).project(before);
+    const staleX = RECT.left + ((stale.x + 1) / 2) * RECT.width;
+    const staleY = RECT.top + ((1 - stale.y) / 2) * RECT.height;
+    expect(Math.hypot(staleX - icon.x, staleY - icon.y)).toBeGreaterThan(RADIUS * 2);
+    expect(tester.pickThreat(staleX, staleY, RECT, targets, RADIUS)).toBeNull();
+
+    const coffee = {
+      id: 'coffee_machine',
+      kind: 'coffee_machine' as const,
+      xM: -6.4,
+      yM: 1.05,
+      zM: -2,
+    };
+    const cup = pxOf(camera, coffee.xM, coffee.yM, coffee.zM);
+    expect(tester.pickObject(cup.x, cup.y, RECT, [coffee], RADIUS)).toBe('coffee_machine');
+
+    const baby = { xM: -3, zM: 0.5 };
+    const centre = pxOf(camera, baby.xM, 0.3, baby.zM);
+    expect(tester.pickBaby(centre.x, centre.y, RECT, baby, 0.3, RADIUS)).toBeCloseTo(0, 6);
   });
 });

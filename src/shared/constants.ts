@@ -177,6 +177,15 @@ export const ISO_CAMERA_DISTANCE_M = 40;
 /** Breathing room added around the room when the camera is fitted to the window, in percent. */
 export const ISO_FIT_MARGIN_PCT = 4;
 
+/**
+ * The follow camera (story 9.2) jumps to its goal instead of catching up when more sim time than
+ * this passed since its last step (a level start, a restart, a debug `advance` of many steps).
+ */
+export const FOLLOW_SNAP_AFTER_MS = 1000;
+
+/** The share of a sudden jump of its goal the follow camera covers in `feel.camera.catchUpMs`, in %. */
+export const FOLLOW_CATCH_UP_SHARE_PCT = 95;
+
 /** Near plane of the isometric camera, in metres: the room is ~`ISO_CAMERA_DISTANCE_M` away, so nothing is ever this close. */
 export const ISO_CAMERA_NEAR_M = 0.1;
 

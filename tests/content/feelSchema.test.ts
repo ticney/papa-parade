@@ -22,8 +22,10 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // Story 2.7 adds `Taps` (`minValidTaps`: a count of taps) and the exact key `bpm` (a tempo; the unit
 // is the name).
 // Story 4.1 adds `OffsetM` (`putDownOffsetM`) and the exact key `reachM` (lengths in metres, spelled out).
+// Story 9.2 adds `WidthM` and `DepthM` (`frameWidthM`: lengths in metres, spelled out) and the exact key
+// `dampingRatio` (a spring's damping ratio has no unit; the key says what it is).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|OffsetM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm|reachM)$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|OffsetM|WidthM|DepthM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm|reachM|dampingRatio)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -384,6 +386,10 @@ describe('feel unit suffixes', () => {
     expect(UNIT_SUFFIX.test('propReachDistM')).toBe(true);
     expect(UNIT_SUFFIX.test('minValidTaps')).toBe(true);
     expect(UNIT_SUFFIX.test('bpm')).toBe(true);
+    expect(UNIT_SUFFIX.test('frameWidthM')).toBe(true);
+    expect(UNIT_SUFFIX.test('dampingRatio')).toBe(true);
+    expect(UNIT_SUFFIX.test('ratio')).toBe(false);
+    expect(UNIT_SUFFIX.test('frameM')).toBe(false);
     expect(UNIT_SUFFIX.test('taps')).toBe(false);
     expect(UNIT_SUFFIX.test('mass')).toBe(false);
     expect(UNIT_SUFFIX.test('impulse')).toBe(false);
@@ -507,6 +513,113 @@ describe('feel.fx.photoCamera and feel.endOfLevel.frozenNearMissReachM (story 3.
     ['a reach of 0', [[reach, 0]], [reach]],
     ['a negative reach', [[reach, -1]], [reach]],
     ['a missing reach', [[reach, undefined]], [reach]],
+  ])('refuses %s, at its path', (_name, changes, paths) => {
+    expect(failedPaths(mutated(...changes))).toEqual(paths);
+  });
+});
+
+describe('feel.camera (story 9.2)', () => {
+  const p = (path: string) => `camera.${path}`;
+
+  it('accepts the bounds themselves', () => {
+    expect(
+      mutated(
+        [p('frameWidthM'), 3],
+        [p('frameDepthM'), 3],
+        [p('deadZoneWidthPct'), 0],
+        [p('deadZoneHeightPct'), 0],
+        [p('edgeMarginPct'), 0],
+        [p('catchUpMs'), 50],
+        [p('dampingRatio'), 0.5],
+        [p('reducedCatchUpMs'), 50],
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      mutated(
+        [p('frameWidthM'), 30],
+        [p('frameDepthM'), 30],
+        [p('deadZoneWidthPct'), 18],
+        [p('deadZoneHeightPct'), 18],
+        [p('edgeMarginPct'), 40],
+        [p('catchUpMs'), 3000],
+        [p('dampingRatio'), 1],
+        [p('reducedCatchUpMs'), 5000],
+      ),
+    ).toMatchObject({ ok: true });
+    // The widest dead zone, with no edge margin.
+    expect(
+      mutated([p('deadZoneWidthPct'), 80], [p('deadZoneHeightPct'), 80], [p('edgeMarginPct'), 0]),
+    ).toMatchObject({ ok: true });
+  });
+
+  it('accepts a reduced catch-up equal to the normal one', () => {
+    expect(mutated([p('catchUpMs'), 600], [p('reducedCatchUpMs'), 600])).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a frame under 3 m wide', [[p('frameWidthM'), 2.9]], [p('frameWidthM')]],
+    ['a frame over 30 m wide', [[p('frameWidthM'), 31]], [p('frameWidthM')]],
+    ['a frame under 3 m deep', [[p('frameDepthM'), 2.9]], [p('frameDepthM')]],
+    ['a frame over 30 m deep', [[p('frameDepthM'), 31]], [p('frameDepthM')]],
+    ['a negative dead zone', [[p('deadZoneWidthPct'), -1]], [p('deadZoneWidthPct')]],
+    [
+      'a dead zone over 80 %',
+      [
+        [p('deadZoneHeightPct'), 81],
+        [p('edgeMarginPct'), 0],
+      ],
+      [p('deadZoneHeightPct')],
+    ],
+    ['a negative edge margin', [[p('edgeMarginPct'), -1]], [p('edgeMarginPct')]],
+    [
+      'an edge margin over 40 %',
+      [
+        [p('edgeMarginPct'), 41],
+        [p('deadZoneWidthPct'), 0],
+        [p('deadZoneHeightPct'), 0],
+      ],
+      [p('edgeMarginPct')],
+    ],
+    ['a catch-up under 50 ms', [[p('catchUpMs'), 49]], [p('catchUpMs')]],
+    [
+      'a catch-up over 3000 ms',
+      [
+        [p('catchUpMs'), 3001],
+        [p('reducedCatchUpMs'), 5000],
+      ],
+      [p('catchUpMs')],
+    ],
+    ['a damping under 0.5', [[p('dampingRatio'), 0.49]], [p('dampingRatio')]],
+    ['a damping over 1', [[p('dampingRatio'), 1.01]], [p('dampingRatio')]],
+    ['a reduced catch-up over 5000 ms', [[p('reducedCatchUpMs'), 5001]], [p('reducedCatchUpMs')]],
+    [
+      'a dead zone that reaches into the edge margin across',
+      [
+        [p('deadZoneWidthPct'), 40],
+        [p('edgeMarginPct'), 30],
+      ],
+      [p('deadZoneWidthPct')],
+    ],
+    [
+      'a dead zone that reaches into the edge margin up and down',
+      [
+        [p('deadZoneHeightPct'), 70],
+        [p('edgeMarginPct'), 15],
+      ],
+      [p('deadZoneHeightPct')],
+    ],
+    [
+      'a reduced catch-up faster than the normal one',
+      [
+        [p('catchUpMs'), 600],
+        [p('reducedCatchUpMs'), 599],
+      ],
+      [p('reducedCatchUpMs')],
+    ],
+    ['a missing camera block', [['camera', undefined]], ['camera']],
+    ['an unknown key', [[p('zoomPct'), 10]], [p('zoomPct')]],
   ])('refuses %s, at its path', (_name, changes, paths) => {
     expect(failedPaths(mutated(...changes))).toEqual(paths);
   });

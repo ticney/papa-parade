@@ -59,6 +59,9 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
       window.__PP__?.fx() ?? {
         cameraZoom: 1,
         cameraYawDeg: 0,
+        cameraMode: 'fixed' as const,
+        cameraCentreXM: 0,
+        cameraCentreZM: 0,
         shakeOffsetM: 0,
         particlesAlive: 0,
         stampCount: 0,
@@ -73,6 +76,25 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
         dangerTintsShown: 0,
       },
   );
+
+/**
+ * Where a world point is on the page now, in px (`__PP__.pagePoint`, story 9.2): the live game camera,
+ * so it holds on a camera that follows Papa (`pagePointOf` in `game.ts` is the fixed camera's).
+ */
+export async function ppPagePoint(
+  page: Page,
+  xM: number,
+  yM: number,
+  zM: number,
+): Promise<{ x: number; y: number }> {
+  const point = await page.evaluate(([x, y, z]) => window.__PP__?.pagePoint(x, y, z) ?? null, [
+    xM,
+    yM,
+    zM,
+  ] as const);
+  if (point === null) throw new Error('window.__PP__ is not installed');
+  return { x: point.xPx, y: point.yPx };
+}
 
 /** The cues the director played, oldest first, with the visuals each drew (`__PP__.cueLog()`, story 2.4). */
 export const ppCueLog = (page: Page): Promise<ReturnType<PPTestApi['cueLog']>> =>

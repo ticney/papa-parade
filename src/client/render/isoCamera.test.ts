@@ -1,12 +1,18 @@
+import { readFileSync } from 'node:fs';
+import { parseContentFile } from '@content/parseContentFile';
+import { FeelSchema } from '@content/schemas/feel';
+import { LevelGeometrySchema } from '@content/schemas/levelGeometry';
 import {
   ISO_CAMERA_DISTANCE_M,
   ISO_FIT_MARGIN_PCT,
   ISO_PITCH_DEG,
   ISO_YAW_DEG,
 } from '@shared/constants';
+import { createFollowFrame, fitFollowFrame, viewUM, viewVM } from '@shared/followCamera';
 import { type OrthographicCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createIsoCamera, fitIsoCamera, type RoomSize } from './isoCamera.ts';
+import { createIsoCamera, fitFollowCamera, fitIsoCamera, type RoomSize } from './isoCamera.ts';
+import { roomOf } from './levelScene.ts';
 
 const ROOM: RoomSize = { widthM: 8, depthM: 6, heightM: 2.5 };
 // The real living room: off-centre because its stairs stick out of the +x edge.
@@ -236,4 +242,104 @@ describe('fitIsoCamera with a view (the end photo, story 3.6)', () => {
       fitIsoCamera(createIsoCamera(), ROOM, 16 / 9, { yawDeg: Number.NaN, pitchDeg: 30 }),
     ).toThrow(/view/i);
   });
+});
+
+describe('fitFollowCamera (story 9.2)', () => {
+  const FRAME = { frameWidthM: 9.1, frameDepthM: 6.2 };
+
+  it('is a translation of one fit: same orientation and view size, the centre moved', () => {
+    const atCentre = createIsoCamera();
+    fitFollowCamera(atCentre, SUNKEN_ROOM, FRAME, 0, 0, 16 / 9);
+    const moved = createIsoCamera();
+    fitFollowCamera(moved, SUNKEN_ROOM, FRAME, -4.5, 2.25, 16 / 9);
+    expect(moved.quaternion.toArray()).toEqual(atCentre.quaternion.toArray());
+    expect(moved.right - moved.left).toBeCloseTo(atCentre.right - atCentre.left, 12);
+    expect(moved.top - moved.bottom).toBeCloseTo(atCentre.top - atCentre.bottom, 12);
+    const shift = moved.position.clone().sub(atCentre.position);
+    expect(shift.x).toBeCloseTo(-4.5, 9);
+    expect(shift.y).toBeCloseTo(0, 9);
+    expect(shift.z).toBeCloseTo(2.25, 9);
+    // The floor point it is centred on, at the box's middle height, is the middle of the screen.
+    const middle = new Vector3(-4.5, -0.8 + 3.3 / 2, 2.25).project(moved);
+    expect(Math.abs(middle.x)).toBeLessThan(EPSILON);
+    expect(Math.abs(middle.y)).toBeLessThan(EPSILON);
+  });
+
+  it("matches the follow maths: the view basis and the frame's half size are the camera's", () => {
+    for (const aspect of ASPECTS) {
+      const camera = createIsoCamera();
+      fitFollowCamera(camera, SUNKEN_ROOM, FRAME, 1.5, -0.5, aspect);
+      const frame = createFollowFrame();
+      fitFollowFrame(frame, SUNKEN_ROOM, FRAME.frameWidthM, FRAME.frameDepthM, aspect);
+      expect(frame.halfWidthM).toBeCloseTo((camera.right - camera.left) / 2, 9);
+      expect(frame.halfHeightM).toBeCloseTo((camera.top - camera.bottom) / 2, 9);
+      const right = new Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+      const up = new Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+      // Relative to the look-at point, which `fitFollowCamera` put at the screen's middle.
+      const look = new Vector3(1.5, frame.lookYM, -0.5);
+      for (const point of [
+        new Vector3(0, 0, 0),
+        new Vector3(3.2, 1.1, -1.5),
+        new Vector3(-6.4, 2.5, 3),
+      ]) {
+        const offset = point.clone().sub(look);
+        expect(viewUM(point.x, point.z) - viewUM(look.x, look.z)).toBeCloseTo(offset.dot(right), 9);
+        expect(viewVM(point.x, point.y, point.z) - viewVM(look.x, look.y, look.z)).toBeCloseTo(
+          offset.dot(up),
+          9,
+        );
+      }
+    }
+  });
+
+  it("gives the room's extent the fixed camera's breathing room", () => {
+    const frame = createFollowFrame();
+    fitFollowFrame(frame, SUNKEN_ROOM, FRAME.frameWidthM, FRAME.frameDepthM, 16 / 9);
+    // At the extent's own aspect, the fixed camera shows exactly the extent.
+    const camera = fitted(SUNKEN_ROOM, (frame.maxUM - frame.minUM) / (frame.maxVM - frame.minVM));
+    expect((frame.maxUM - frame.minUM) / 2).toBeCloseTo((camera.right - camera.left) / 2, 9);
+    expect((frame.maxVM - frame.minVM) / 2).toBeCloseTo((camera.top - camera.bottom) / 2, 9);
+  });
+
+  it('is the fixed camera when the frame is the room: the same picture', () => {
+    const viaFollow = createIsoCamera();
+    fitFollowCamera(viaFollow, SUNKEN_ROOM, FRAME, 0.35, -0.1, 16 / 9);
+    const viaFixed = fitted(SUNKEN_ROOM, 16 / 9);
+    expect(viaFollow.position.toArray()).toEqual(viaFixed.position.toArray());
+    expect(Array.from(viaFollow.projectionMatrix.elements)).toEqual(
+      Array.from(viaFixed.projectionMatrix.elements),
+    );
+  });
+});
+
+describe('the characters keep their size in the big room (story 9.2, AC 5)', () => {
+  const read = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
+  const roomOfLevel = (id: string): RoomSize => {
+    const path = `content/levels/${id}.geometry.json`;
+    const parsed = parseContentFile(path, read(path), LevelGeometrySchema);
+    if (!parsed.ok) throw new Error(`${path} is invalid`);
+    return roomOf(parsed.value);
+  };
+  const feel = parseContentFile('content/feel.json', read('content/feel.json'), FeelSchema);
+
+  it.each([
+    ['844 × 390', 844 / 390],
+    ['667 × 375', 667 / 375],
+  ])(
+    'draws a metre of floor at the salon fixed camera scale at %s (within 1 %)',
+    (_name, aspect) => {
+      if (!feel.ok) throw new Error('the live feel is invalid');
+      const salon = fitted(roomOfLevel('salon_crawler'), aspect);
+      const kitchen = roomOfLevel('salon_kitchen');
+      const follow = createIsoCamera();
+      fitFollowCamera(follow, kitchen, feel.value.camera, 5.25, 1, aspect);
+      // The same canvas: the pixels per metre are the inverse of the view's height in metres.
+      const salonHeightM = (salon.top - salon.bottom) / salon.zoom;
+      const followHeightM = (follow.top - follow.bottom) / follow.zoom;
+      expect(Math.abs(followHeightM / salonHeightM - 1)).toBeLessThanOrEqual(0.01);
+      // The fixed camera on the big room would shrink them (story 9.1: about three quarters).
+      const fixedKitchen = fitted(kitchen, aspect);
+      expect((fixedKitchen.top - fixedKitchen.bottom) / salonHeightM).toBeGreaterThan(1.2);
+    },
+  );
 });

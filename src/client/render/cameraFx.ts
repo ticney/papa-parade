@@ -1,5 +1,12 @@
 import type { Feel } from '@content/schemas/feel';
 import { ISO_CAMERA_DISTANCE_M, REDUCED_MOTION_ZOOM_CAP_PCT } from '@shared/constants';
+import {
+  clampFollowAxis,
+  type FollowFrame,
+  viewUM,
+  viewVM,
+  worldOfView,
+} from '@shared/followCamera';
 import type { World } from '@sim';
 import { type OrthographicCamera, Quaternion, Vector3 } from 'three';
 
@@ -144,12 +151,27 @@ export interface CameraFx {
   ): void;
   /** Puts the framing back at once (level end, restart, loading). */
   reset(): void;
+  /**
+   * Moves the captured framing so that it looks at the floor point `(xM, zM)` (the follow camera,
+   * story 9.2): its position and centre by the same floor vector, its orientation untouched, a move
+   * under way kept as it is. The next `update` writes the camera even with no move under way.
+   */
+  moveBaseTo(xM: number, zM: number): void;
+  /**
+   * The follow frame whose room extent the composed view must stay in (story 9.2), or `null` for the
+   * fixed camera, which is never clamped. The frame is read at each `update`, not copied.
+   */
+  clampTo(frame: Readonly<FollowFrame> | null): void;
   /** The zoom and the rotation now applied, for the debug `fx()`. */
   readonly zoom: number;
   readonly yawDeg: number;
+  /** The floor point the framing (before any move) looks at, for the debug `fx()`. */
+  readonly baseCentreXM: number;
+  readonly baseCentreZM: number;
 }
 
 const direction = new Vector3();
+const clamped = { xM: 0, zM: 0 };
 
 /**
  * The perfect response's camera move (FR61): zoom, a pan toward the action and a slight turn
@@ -187,6 +209,9 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
   let appliedFrameZM = Number.NaN;
   let isDirty = true;
   let yawDeg = 0;
+  // The follow camera moved the base since the camera was last written (story 9.2).
+  let isBaseMoved = false;
+  let clampFrame: Readonly<FollowFrame> | null = null;
 
   const restore = (): void => {
     camera.position.copy(basePosition);
@@ -195,6 +220,7 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld(true);
     isDisplaced = false;
+    isBaseMoved = false;
     wasPerfectMoving = false;
     appliedBlend = 0;
     appliedFrameBlend = 0;
@@ -212,6 +238,7 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       camera.zoom = 1;
       camera.updateProjectionMatrix();
       isDisplaced = false;
+      isBaseMoved = false;
       wasPerfectMoving = false;
       appliedBlend = -1;
       appliedFrameBlend = -1;
@@ -231,7 +258,7 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       const blend = perfectCameraBlendAt(slowMo, clockMs, perfectCamera.zoomInMs);
       const frameBlend = framing.blend;
       if (blend === 0 && frameBlend === 0) {
-        if (isDisplaced) restore();
+        if (isDisplaced || isBaseMoved) restore();
         return;
       }
       // The refocus and its glide belong to the perfect's move alone (a framing never starts one).
@@ -282,6 +309,32 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       const dy = (focus.y - baseCentre.y) * k + (FOCUS_HEIGHT_M - baseCentre.y) * kFrame;
       const dz = (focus.z - baseCentre.z) * k + (framing.zM - baseCentre.z) * kFrame;
       centre.set(baseCentre.x + dx, baseCentre.y + dy, baseCentre.z + dz);
+      const zoom =
+        1 +
+        (perfectCamera.zoomPct / 100) * capPct * blend +
+        (framing.zoomPct / 100) * capPct * frameBlend;
+      if (clampFrame !== null) {
+        // The follow camera: the zoomed view stays inside the room's extent (the turn is ignored).
+        const uM = viewUM(centre.x, centre.z);
+        const vM = viewVM(centre.x, centre.y, centre.z);
+        const clampedUM = clampFollowAxis(
+          uM,
+          clampFrame.halfWidthM / zoom,
+          clampFrame.minUM,
+          clampFrame.maxUM,
+        );
+        const clampedVM = clampFollowAxis(
+          vM,
+          clampFrame.halfHeightM / zoom,
+          clampFrame.minVM,
+          clampFrame.maxVM,
+        );
+        if (clampedUM !== uM || clampedVM !== vM) {
+          worldOfView(clampedUM, clampedVM, centre.y, clamped);
+          centre.x = clamped.xM;
+          centre.z = clamped.zM;
+        }
+      }
       // Turn around the vertical axis through the moved centre; none under reduced motion.
       const turnDeg = isMotionReduced ? 0 : perfectCamera.yawDeg * blend;
       const turn = turnDeg * DEG_TO_RAD;
@@ -293,13 +346,11 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
         centre.z - offsetX * Math.sin(turn) + offsetZ * Math.cos(turn),
       );
       camera.lookAt(centre);
-      camera.zoom =
-        1 +
-        (perfectCamera.zoomPct / 100) * capPct * blend +
-        (framing.zoomPct / 100) * capPct * frameBlend;
+      camera.zoom = zoom;
       camera.updateProjectionMatrix();
       camera.updateMatrixWorld(true);
       isDisplaced = true;
+      isBaseMoved = false;
       isDirty = false;
       appliedBlend = blend;
       appliedReduced = isMotionReduced;
@@ -322,11 +373,32 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       isRefocusing = false;
       isDirty = true;
     },
+    moveBaseTo(xM, zM) {
+      const dxM = xM - baseCentre.x;
+      const dzM = zM - baseCentre.z;
+      if (dxM === 0 && dzM === 0) return;
+      basePosition.x += dxM;
+      basePosition.z += dzM;
+      baseCentre.x = xM;
+      baseCentre.z = zM;
+      isBaseMoved = true;
+      isDirty = true;
+    },
+    clampTo(frame) {
+      clampFrame = frame;
+      isDirty = true;
+    },
     get zoom() {
       return camera.zoom;
     },
     get yawDeg() {
       return yawDeg;
+    },
+    get baseCentreXM() {
+      return baseCentre.x;
+    },
+    get baseCentreZM() {
+      return baseCentre.z;
     },
   };
 }

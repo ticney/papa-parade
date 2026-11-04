@@ -4,7 +4,7 @@ baseline_commit: c14ff68360d9b9af776b9d62422b91d663fdd57d
 
 # Story 9.2: Caméra qui suit papa
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -42,41 +42,41 @@ so that the characters stay as big as they are today.
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Pre-flight** (all ACs)
-  - [ ] `env | grep VITE_`: if `VITE_DEBUG_ALLOWED` is set, wrap `dev` and `e2e` in `(unset VITE_DEBUG_ALLOWED; …)`.
-  - [ ] `git worktree list`: **3.15** (`story/3-15-sequelles-des-gags`) touches `content/feel.json`, `feel.ts`, `content/_schemas/`, `testHost.ts`, `boot.ts`, `testApi`, the goldens. **7.4** (cadrages parodiques) may touch the sequence framing. Whichever merges second regenerates schemas and goldens after merging `main`: note it, do not block on it.
-- [ ] **T1. Content: `level.camera` and `feel.camera`** (AC 1, 2)
-  - [ ] `src/content/schemas/level.ts`: `LEVEL_CAMERA_MODES = ['fixed', 'follow'] as const`, `LevelCameraMode`, and `camera: z.enum(LEVEL_CAMERA_MODES).default('fixed')` with a `describe` (D1). Update the header comment's list of stories.
-  - [ ] `src/content/schemas/feel.ts`: a `CameraSchema` (D2) and `camera` in `FeelSchema` (after `fx`). Every key has a unit suffix and a `describe`; client only (say so in the block's `describe`, like `fx`).
-  - [ ] `content/feel.json`, `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json` (if it is a whole feel: check how 3.6 updated it): the block with the D2 values. `content/levels/salon_kitchen.json`: `"camera": "follow"`.
-  - [ ] `npm run content:schemas`, `npm run content:check`. Tests in `levelSchema.test.ts`, `feelSchema.test.ts`, `salonKitchen.test.ts`.
-  - [ ] `npm run ci:fast`: the goldens go red on hashes only (expected). Run `npm run golden:update` once, read the diff (AC 11), and say so in the notes.
-- [ ] **T2. The follow maths, pure** (AC 3, 4, 8)
-  - [ ] `src/shared/followCamera.ts` (D3): view-plane projection, the room's view extent, the clamp, the dead zone, the edge margin, the spring, the snap. Std lib only, no `three`, no `@content` import (a structural `FollowParams` interface that `Feel['camera']` satisfies), allocation-free in the step.
-  - [ ] `src/shared/followCamera.test.ts`: the list in Testing. Constants in `src/shared/constants.ts` (`FOLLOW_SNAP_AFTER_MS`, any other non-tunable).
-- [ ] **T3. The camera** (AC 3, 4, 5, 10)
-  - [ ] `src/client/render/isoCamera.ts`: `fitFollowCamera(camera, room, frame, centreXM, centreZM, aspect)` (or an equivalent): `fitIsoCamera` on a box of `frameWidthM × frameDepthM`, with the room's `heightM` and `floorYM`, centred on the follow point. `fitIsoCamera` itself does not change.
-  - [ ] `src/client/render/cameraFx.ts`: a way to move the captured base without resetting the move (D4), and, in follow mode only, the clamp of the composed view. The fixed path stays bit for bit (no change to the existing tests).
-  - [ ] Scale test (AC 5) with the live geometries and feel.
-- [ ] **T4. Wiring in `boot.ts` and the level** (AC 3, 6, 8)
-  - [ ] The level's camera mode reaches the client when the camera is first fitted (`onLevelReady`), D7. `fitViewToCanvas` fits the follow frame for a `follow` level.
-  - [ ] `beforeRender`: step the follow on the drawn sim clock, target Papa's drawn pose (`level.papaPose`) or the judged threat (D5), params from `world.feel.camera` and `prefersReducedMotion()`, then `cameraFx.update` as today.
-  - [ ] `onSimEvent`: record the judged threat (D5) beside the existing `cameraFx.focusOn`.
-  - [ ] Unit tests on the glue (a `followRig.ts` or similar module beside `cameraFx.ts`, so `boot.ts` stays thin): mode choice, reduced params, judged-threat target and its end, snap at level start.
-- [ ] **T5. Hit-test and test hooks** (AC 7)
-  - [ ] `hitTest.test.ts`: `pickFloor`, `pickThreat`, `pickObject`, `pickBaby` through a camera panned by `fitFollowCamera` land where the projection says (round trip world → screen → world within 1e-6 m). No change to `hitTest.ts` is expected; if one is needed, say why.
-  - [ ] Mirrors: in a `follow` level re-project `data-pp-threat-px` (the last telegraphed threat) and `data-pp-object-px` when the camera has moved since they were written (D9). Mirrored builds only.
-  - [ ] `TestHost` / `__PP__`: `pagePoint(xM, yM, zM)` (live projection, page px) and `fx()` gains `cameraMode`, `cameraCentreXM`, `cameraCentreZM`. `testApi.test.ts`, `tests/e2e/support/testApi.ts` (`ppPagePoint`), and the `pagePointOf` doc comment says it is the fixed camera's.
-- [ ] **T6. Glide cap** (AC 9)
-  - [ ] A test on the live `salon_kitchen` content (in `salonKitchen.test.ts` or a sim test with the live bundle): effective feel `glideMaxMs` 900; `PressThreat` on the farthest planned threat from `papa_spawn` → `arriveAt − t === 900`, and Papa reaches the glide's goal.
-- [ ] **T7. Browser** (AC 4, 7, 10, 12)
-  - [ ] `tests/e2e/salonKitchen.spec.ts`: new tests (Testing › E2E). Keep the three of 9.1 green (the tap test must still pass, now on a follow camera).
-  - [ ] Run in the background: `npm run e2e -- tests/e2e/salonKitchen.spec.ts tests/e2e/testApi.spec.ts tests/e2e/juice.spec.ts tests/e2e/reducedMotion.spec.ts tests/e2e/autoplay.spec.ts tests/e2e/move.spec.ts tests/e2e/threat.spec.ts tests/e2e/level.spec.ts tests/e2e/chambreNight.spec.ts tests/e2e/sequence.spec.ts --project=chromium`.
-  - [ ] Screenshots (AC 12) by a throwaway spec, then delete it.
-- [ ] **T8. Docs**
-  - [ ] `_bmad-output/project-context.md`: replace « The camera is the fixed one until 9.2 » in the `salon_kitchen` paragraph; one paragraph on the follow camera (mode, `feel.camera`, sim clock, clamp, judged threat, reduced motion, mirrors and `__PP__.pagePoint`); the reduced-motion rule (L91 area) names the follow.
-  - [ ] `deferred-work.md`: a section for this story (Dev Notes › Deferred items); mark the 9.1 item « The fixed camera shrinks the characters » resolved.
-  - [ ] `EXPERIENCE.md`: check the reduced-motion row is there and matches (D8); change nothing else in the UX docs.
+- [x] **T0. Pre-flight** (all ACs)
+  - [x] `env | grep VITE_`: if `VITE_DEBUG_ALLOWED` is set, wrap `dev` and `e2e` in `(unset VITE_DEBUG_ALLOWED; …)`.
+  - [x] `git worktree list`: **3.15** (`story/3-15-sequelles-des-gags`) touches `content/feel.json`, `feel.ts`, `content/_schemas/`, `testHost.ts`, `boot.ts`, `testApi`, the goldens. **7.4** (cadrages parodiques) may touch the sequence framing. Whichever merges second regenerates schemas and goldens after merging `main`: note it, do not block on it.
+- [x] **T1. Content: `level.camera` and `feel.camera`** (AC 1, 2)
+  - [x] `src/content/schemas/level.ts`: `LEVEL_CAMERA_MODES = ['fixed', 'follow'] as const`, `LevelCameraMode`, and `camera: z.enum(LEVEL_CAMERA_MODES).default('fixed')` with a `describe` (D1). Update the header comment's list of stories.
+  - [x] `src/content/schemas/feel.ts`: a `CameraSchema` (D2) and `camera` in `FeelSchema` (after `fx`). Every key has a unit suffix and a `describe`; client only (say so in the block's `describe`, like `fx`).
+  - [x] `content/feel.json`, `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json` (if it is a whole feel: check how 3.6 updated it): the block with the D2 values. `content/levels/salon_kitchen.json`: `"camera": "follow"`.
+  - [x] `npm run content:schemas`, `npm run content:check`. Tests in `levelSchema.test.ts`, `feelSchema.test.ts`, `salonKitchen.test.ts`.
+  - [x] `npm run ci:fast`: the goldens go red on hashes only (expected). Run `npm run golden:update` once, read the diff (AC 11), and say so in the notes.
+- [x] **T2. The follow maths, pure** (AC 3, 4, 8)
+  - [x] `src/shared/followCamera.ts` (D3): view-plane projection, the room's view extent, the clamp, the dead zone, the edge margin, the spring, the snap. Std lib only, no `three`, no `@content` import (a structural `FollowParams` interface that `Feel['camera']` satisfies), allocation-free in the step.
+  - [x] `src/shared/followCamera.test.ts`: the list in Testing. Constants in `src/shared/constants.ts` (`FOLLOW_SNAP_AFTER_MS`, any other non-tunable).
+- [x] **T3. The camera** (AC 3, 4, 5, 10)
+  - [x] `src/client/render/isoCamera.ts`: `fitFollowCamera(camera, room, frame, centreXM, centreZM, aspect)` (or an equivalent): `fitIsoCamera` on a box of `frameWidthM × frameDepthM`, with the room's `heightM` and `floorYM`, centred on the follow point. `fitIsoCamera` itself does not change.
+  - [x] `src/client/render/cameraFx.ts`: a way to move the captured base without resetting the move (D4), and, in follow mode only, the clamp of the composed view. The fixed path stays bit for bit (no change to the existing tests).
+  - [x] Scale test (AC 5) with the live geometries and feel.
+- [x] **T4. Wiring in `boot.ts` and the level** (AC 3, 6, 8)
+  - [x] The level's camera mode reaches the client when the camera is first fitted (`onLevelReady`), D7. `fitViewToCanvas` fits the follow frame for a `follow` level.
+  - [x] `beforeRender`: step the follow on the drawn sim clock, target Papa's drawn pose (`level.papaPose`) or the judged threat (D5), params from `world.feel.camera` and `prefersReducedMotion()`, then `cameraFx.update` as today.
+  - [x] `onSimEvent`: record the judged threat (D5) beside the existing `cameraFx.focusOn`.
+  - [x] Unit tests on the glue (a `followRig.ts` or similar module beside `cameraFx.ts`, so `boot.ts` stays thin): mode choice, reduced params, judged-threat target and its end, snap at level start.
+- [x] **T5. Hit-test and test hooks** (AC 7)
+  - [x] `hitTest.test.ts`: `pickFloor`, `pickThreat`, `pickObject`, `pickBaby` through a camera panned by `fitFollowCamera` land where the projection says (round trip world → screen → world within 1e-6 m). No change to `hitTest.ts` is expected; if one is needed, say why.
+  - [x] Mirrors: in a `follow` level re-project `data-pp-threat-px` (the last telegraphed threat) and `data-pp-object-px` when the camera has moved since they were written (D9). Mirrored builds only.
+  - [x] `TestHost` / `__PP__`: `pagePoint(xM, yM, zM)` (live projection, page px) and `fx()` gains `cameraMode`, `cameraCentreXM`, `cameraCentreZM`. `testApi.test.ts`, `tests/e2e/support/testApi.ts` (`ppPagePoint`), and the `pagePointOf` doc comment says it is the fixed camera's.
+- [x] **T6. Glide cap** (AC 9)
+  - [x] A test on the live `salon_kitchen` content (in `salonKitchen.test.ts` or a sim test with the live bundle): effective feel `glideMaxMs` 900; `PressThreat` on the farthest planned threat from `papa_spawn` → `arriveAt − t === 900`, and Papa reaches the glide's goal.
+- [x] **T7. Browser** (AC 4, 7, 10, 12)
+  - [x] `tests/e2e/salonKitchen.spec.ts`: new tests (Testing › E2E). Keep the three of 9.1 green (the tap test must still pass, now on a follow camera).
+  - [x] Run in the background: `npm run e2e -- tests/e2e/salonKitchen.spec.ts tests/e2e/testApi.spec.ts tests/e2e/juice.spec.ts tests/e2e/reducedMotion.spec.ts tests/e2e/autoplay.spec.ts tests/e2e/move.spec.ts tests/e2e/threat.spec.ts tests/e2e/level.spec.ts tests/e2e/chambreNight.spec.ts tests/e2e/sequence.spec.ts --project=chromium`.
+  - [x] Screenshots (AC 12) by a throwaway spec, then delete it.
+- [x] **T8. Docs**
+  - [x] `_bmad-output/project-context.md`: replace « The camera is the fixed one until 9.2 » in the `salon_kitchen` paragraph; one paragraph on the follow camera (mode, `feel.camera`, sim clock, clamp, judged threat, reduced motion, mirrors and `__PP__.pagePoint`); the reduced-motion rule (L91 area) names the follow.
+  - [x] `deferred-work.md`: a section for this story (Dev Notes › Deferred items); mark the 9.1 item « The fixed camera shrinks the characters » resolved.
+  - [x] `EXPERIENCE.md`: check the reduced-motion row is there and matches (D8); change nothing else in the UX docs.
 
 ## Dev Notes
 
@@ -200,14 +200,78 @@ No new dependency. `three@0.186.1` (pinned): `OrthographicCamera.zoom` scales th
 
 ### Agent Model Used
 
+Claude Opus 5.5 (`claude-opus-5-5`), `gds-dev-story`.
+
 ### Debug Log References
+
+- `npm run ci:fast` green after each task (last run: 401 files, 8588 tests passed, 3 skipped; Biome's two `noDescendingSpecificity` warnings in `ui.css` predate the story).
+- `npm run e2e -- tests/e2e/salonKitchen.spec.ts --project=chromium`: 5 passed (1.6 min).
+- `npm run e2e -- <the 9 neighbour specs of T7> tests/e2e/zz92Shots.spec.ts --project=chromium`: 92 passed, 2 failed. `testApi.spec.ts` « thirteen methods » failed as expected (`pagePoint` is the fourteenth: updated). `level.spec.ts` 6a failed because the page reloaded itself mid-test (the log shows it navigating to `?throwAfterMs=1500` a second time, then on `start`): I had edited `followRig.ts` during the run and Vite reloaded the page. Rerun alone, `npm run e2e -- tests/e2e/testApi.spec.ts tests/e2e/level.spec.ts --project=chromium`: 24 passed. `autoplay.spec.ts` (darwin screenshot references, not regenerated) passed in the first run.
 
 ### Completion Notes List
 
+- **Content (AC 1, 2).** `LevelSchema.camera` (`LEVEL_CAMERA_MODES`, default `fixed`); only `salon_kitchen.json` writes `"camera": "follow"`. `feel.camera` (top level, after `fx`, client only) with the D2 keys and values, bounds and the three refines; `content/_schemas/{level,feel}.schema.json` regenerated. The unit-suffix test of `feelSchema.test.ts` gains `WidthM`, `DepthM` and the exact key `dampingRatio` (a ratio has no unit, like `friction`). `testFeel.json` and `feelSample.json` (a whole feel) carry the block; the hand-built levels of `tests/support/testContent.ts` and `threatCatalog.test.ts` write `camera: 'fixed'`.
+- **Goldens (AC 11), deliberately.** `npm run golden:update` once: 54 files under `tests/golden/journals/`, and only `feelHash`, `levelHash` and `worldHash` moved (27 + 27 + 27 lines); no `eventTypes`, no `eventsHash`. The writer re-wrapped one `eventTypes` array (`mama_woke.expected.json`); `biome format` put it back on one line.
+- **`humanBotRegression.test.ts` changed, said plainly.** Its six pins hash the whole journal, which carries `feelHash` and `levelHash`: the new feel key and level field moved all six with no change to the bot. Before touching it I proved it: with the pre-9.2 content hashes put back, each of the six journals hashed exactly to its 3.14 pin. The test now hashes the journal without those two fields (the game), with new pins of the same journals and the proof in its comment. A reviewer may prefer another way; nothing else in the guard changed.
+- **The maths (AC 3, 4, 8)** are pure in `src/shared/followCamera.ts` (variance from the architecture, which puts the follow in `isoCamera.ts`: the 9.8 bot needs them without `three`). The spring is solved exactly over each `STEP_MS` sub-step (a goal that holds still during the sub-step), so it is stable at any frame time and a damping of 1 never overshoots; ω comes from a bisection of the 95 % time, cached per damping ratio. `followCamera.test.ts` (20 tests) covers the Testing list; the checks against `three`'s camera (view basis, frame half size, the room extent) are in `isoCamera.test.ts`, because Biome forbids a `shared` test from importing `three` or `@client`.
+- **The camera (AC 3, 4, 5, 10).** `fitFollowCamera` in `isoCamera.ts` (`fitIsoCamera` untouched). `cameraFx` gains `moveBaseTo(xM, zM)`, `clampTo(frame | null)` and `baseCentreXM/ZM`; the fixed path never calls the first two, and every existing `cameraFx`, `isoCamera` and `hitTest` test passes unchanged. AC 5: 844 × 390 and 667 × 375, the follow camera on `salon_kitchen` and the fixed one on `salon_crawler` draw a metre of floor at the same size (within 1 %, live geometries and feel).
+- **Glue (AC 3, 6, 8; D5, D7).** `render/followRig.ts`: fits the camera per mode, steps the follow toward `level.papaPose` or the judged threat, moves `cameraFx`'s base; `onLevelReady` gets a third argument `LevelCameraSetup` (mode, effective `feel.camera`, Papa's start), because `levelSession.active` is still the previous level at that point (a resize before the new level's first frame uses the new level's own tuning: pinned). A frame-size change in `world.feel.camera` refits at once (the feel panel). 13 glue tests, plus one in `levelSession.test.ts` for the setup.
+- **Hit-test and mirrors (AC 7).** No change to `hitTest.ts` was needed; `hitTest.test.ts` proves the four picks on a camera moved by `cameraFx.moveBaseTo`, and that a tap at the stale (pre-move) icon point misses. In a follow level `data-pp-object-px` and the last `data-pp-threat-px` are written again whenever the base framing moved. `__PP__.pagePoint` and `fx().cameraMode / cameraCentreXM / cameraCentreZM`; `ppPagePoint` in the e2e support; `pagePointOf`'s comment says it is the fixed camera's.
+- **Glide (AC 9).** On the live `salon_kitchen` (`loadSimLevel`): effective `glideMaxMs` 900; a `PressThreat` on the farthest anchored planned threat from `papa_spawn` gives `arriveAt − t` = 900 and Papa ends on the glide's goal. No sim change.
+- **Fact for Geo (question 1), measured:** on a landscape phone the frame is wider than the kitchen's view extent, so across the screen the view stands on the room's middle and only moves up and down. There, Papa at the kitchen's far side corners is nearer the side edges than `edgeMarginPct` (still on screen): the clamp wins, as D3 says. The margin holds wherever the camera can move (13 m glide test). Logged in `deferred-work.md`.
+- **Reduced motion (AC 8).** `reducedCatchUpMs` and a damping of 1; `EXPERIENCE.md`'s row « Follow camera (large room, v2.3) · Slower catch-up, no overshoot (story 9.2) » is there and matches; nothing else in the UX docs changed. `comfortSettings.test.ts` is unchanged and green.
+- **Screenshots (AC 12)** in `9-2-screenshots/`: `9-2-salon_kitchen-<844x390|667x375>-<spawn|kitchen>.png`, frozen, seed 42, Papa at `papa_spawn`, then walked (a `TapFloor` through `__PP__`) to (−5.5, −1.5) at the kitchen end and the follow settled; taken by a throwaway spec, deleted. The base framing's floor point moved from (2.04, 1.59) to (−1.34, −1.79) at both sizes. **Seen by eye:** the whole width of the room is in view at both sizes on both shots (the view moves only up and down, as measured); at the spawn the kitchen end is above the top edge, its counter partly under the HUD pill, and an empty ink band sits below the room (the clamp's extent includes the stairwell's depth below the floor and the fit's margin); at the kitchen end the kitchen, the coffee machine's icon and Papa are fully in view and the stairs leave the bottom edge. Papa and the baby look bigger than on 9.1's shots, which is AC 5 (checked by numbers, not by eye). **Only Geo can judge:** how much the camera moves and whether that vertical travel is enough (question 1), the dead zone and the catch-up in motion (no video was taken), the empty band under the room at the spawn, and the HUD over the kitchen at the spawn.
+- **Not run here (by the workflow's rule):** `npm run ci:story` and `npm run ci` are the review's.
+
 ### File List
 
+- `_bmad-output/implementation-artifacts/9-2-camera-qui-suit-papa.md`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/project-context.md`
+- `content/_schemas/feel.schema.json`
+- `content/_schemas/level.schema.json`
+- `content/feel.json`
+- `content/levels/salon_kitchen.json`
+- `src/client/app/levelSession.test.ts`
+- `src/client/app/levelSession.ts`
+- `src/client/app/testHost.ts`
+- `src/client/boot.ts`
+- `src/client/input/hitTest.test.ts`
+- `src/client/render/cameraFx.test.ts`
+- `src/client/render/cameraFx.ts`
+- `src/client/render/followRig.test.ts` (new)
+- `src/client/render/followRig.ts` (new)
+- `src/client/render/isoCamera.test.ts`
+- `src/client/render/isoCamera.ts`
+- `src/content/schemas/feel.ts`
+- `src/content/schemas/level.ts`
+- `src/debug/testApi.test.ts`
+- `src/debug/testApi.ts`
+- `src/shared/constants.ts`
+- `src/shared/followCamera.test.ts` (new)
+- `src/shared/followCamera.ts` (new)
+- `tests/bots/humanBotRegression.test.ts`
+- `tests/content/feelSchema.test.ts`
+- `tests/content/levelSchema.test.ts`
+- `tests/content/salonKitchen.test.ts`
+- `tests/e2e/salonKitchen.spec.ts`
+- `tests/e2e/support/game.ts`
+- `tests/e2e/support/testApi.ts`
+- `tests/e2e/testApi.spec.ts`
+- `tests/support/fakeTestHost.ts`
+- `tests/support/testContent.ts`
+- `tests/support/testFeel.json`
+- `tests/threats/threatCatalog.test.ts`
+- `tests/tools/vite/fixtures/feelSample.json`
+- `_bmad-output/implementation-artifacts/9-2-screenshots/9-2-salon_kitchen-667x375-kitchen.png` (new)
+- `_bmad-output/implementation-artifacts/9-2-screenshots/9-2-salon_kitchen-667x375-spawn.png` (new)
+- `_bmad-output/implementation-artifacts/9-2-screenshots/9-2-salon_kitchen-844x390-kitchen.png` (new)
+- `_bmad-output/implementation-artifacts/9-2-screenshots/9-2-salon_kitchen-844x390-spawn.png` (new)
+- `tests/golden/journals/*` (54 files: `feelHash`, `levelHash`, `worldHash` only)
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-11-04 | Story created (`gds-create-story`), status `ready-for-dev`. Ultimate context engine analysis completed: comprehensive developer guide created. |
+| 2026-11-04 | Implemented (`gds-dev-story`): `level.camera` and `feel.camera`, the pure follow maths in `shared/followCamera.ts`, `fitFollowCamera`, `cameraFx`'s movable base and composed clamp, `render/followRig.ts`, the judged-threat aim, reduced motion, re-projected mirrors and `__PP__.pagePoint`, the live glide-cap test, goldens regenerated (hashes only), screenshots. Status `review`. |

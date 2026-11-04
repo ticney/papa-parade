@@ -543,6 +543,7 @@ describe('installTestApi', () => {
         'fx',
         'journal',
         'loadLevel',
+        'pagePoint',
         'perf',
         'send',
         'setFeel',
@@ -561,6 +562,9 @@ describe('fx (story 2.5)', () => {
     let state = {
       cameraZoom: 1,
       cameraYawDeg: 0,
+      cameraMode: 'fixed',
+      cameraCentreXM: 0.35,
+      cameraCentreZM: -0.1,
       shakeOffsetM: 0,
       particlesAlive: 0,
       stampCount: 0,
@@ -575,6 +579,9 @@ describe('fx (story 2.5)', () => {
     state = {
       cameraZoom: 1.18,
       cameraYawDeg: 6,
+      cameraMode: 'follow',
+      cameraCentreXM: -4.2,
+      cameraCentreZM: 1.5,
       shakeOffsetM: 0.02,
       particlesAlive: 9,
       stampCount: 2,
@@ -583,6 +590,38 @@ describe('fx (story 2.5)', () => {
       dangerTintsShown: 1,
     };
     expect(api.fx()).toEqual(state);
+  });
+});
+
+describe('pagePoint (story 9.2)', () => {
+  it("answers the host's live projection, as a copy", () => {
+    const host = createFakeTestHost();
+    let point = { xPx: 120.5, yPx: 64 };
+    const seen: [number, number, number][] = [];
+    host.pagePoint = (xM, yM, zM) => {
+      seen.push([xM, yM, zM]);
+      return point;
+    };
+    const api = createTestApi(host);
+    const first = api.pagePoint(-6.4, 1.05, -2);
+    expect(first).toEqual({ xPx: 120.5, yPx: 64 });
+    expect(first).not.toBe(point);
+    point = { xPx: 300, yPx: 210.25 };
+    expect(api.pagePoint(0, 0, 0)).toEqual(point);
+    expect(seen).toEqual([
+      [-6.4, 1.05, -2],
+      [0, 0, 0],
+    ]);
+  });
+
+  it.each([
+    ['a NaN', [Number.NaN, 0, 0]],
+    ['an infinity', [0, Number.POSITIVE_INFINITY, 0]],
+    ['a string', [0, 0, '1']],
+  ])('throws, naming itself, on %s', (_name, args) => {
+    const api = createTestApi(createFakeTestHost());
+    const [xM, yM, zM] = args as [number, number, number];
+    expect(() => api.pagePoint(xM, yM, zM)).toThrow(/__PP__\.pagePoint/);
   });
 });
 

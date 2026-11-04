@@ -21,6 +21,7 @@ import {
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
+import type { LevelCameraSetup } from '../render/followRig.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
 import type { LevelFx, LevelScene } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
@@ -127,6 +128,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
   }[] = [];
   const ready: LevelScene[] = [];
   const readyEntries: (readonly ThreatMarkerEntry[])[] = [];
+  const readyCameras: LevelCameraSetup[] = [];
   const deps: LevelSessionDeps = {
     content: createTestContent(),
     t: (key) => `<${key}>`,
@@ -137,10 +139,11 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     scheduler,
     newSeed: () => seeds.shift() ?? 999,
     onSeed: (seed) => reportedSeeds.push(seed),
-    onLevelReady: (level, threatEntries) => {
+    onLevelReady: (level, threatEntries, camera) => {
       trace.push('ready');
       ready.push(level);
       readyEntries.push(threatEntries);
+      readyCameras.push(camera);
     },
     onLevelFrame: () => {
       drawn.frames++;
@@ -190,6 +193,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     scenes,
     ready,
     readyEntries,
+    readyCameras,
     sims: () => simsCreated,
   };
 }
@@ -460,6 +464,23 @@ describe('createLevelSession', () => {
     await session.start();
     expect(asked).toEqual(['other_room']);
     expect(ready.map((level) => level.id)).toEqual(['other_room']);
+  });
+
+  it("hands onLevelReady the level's camera, its follow tuning and Papa's start (story 9.2)", async () => {
+    const fixed = setup();
+    await fixed.session.start();
+    const { papa, feel } = fixed.session.active?.sim.world ?? { papa: null, feel: null };
+    expect(fixed.readyCameras).toEqual([
+      { mode: 'fixed', follow: feel?.camera, papaStartXM: papa?.xM, papaStartZM: papa?.zM },
+    ]);
+    const follow = setup({
+      loadLevelContent: async (id) => {
+        const content = levelOf(id);
+        return ok({ ...content, level: { ...content.level, camera: 'follow' as const } });
+      },
+    });
+    await follow.session.start();
+    expect(follow.readyCameras.map((camera) => camera.mode)).toEqual(['follow']);
   });
 
   it('hands onLevelReady the icon points of the planned threats, from the anchors of the geometry', async () => {

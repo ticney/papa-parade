@@ -69,8 +69,9 @@ import {
   type SequenceFraming,
   sequenceFramingBlendAt,
 } from './render/cameraFx.ts';
+import { createFollowRig } from './render/followRig.ts';
 import { slideDirection } from './render/gags.ts';
-import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
+import { createIsoCamera, type RoomSize } from './render/isoCamera.ts';
 import type { LevelFx, LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
 import { createRenderer, type RenderStats } from './render/renderer.ts';
@@ -236,6 +237,8 @@ export async function boot(): Promise<void> {
   const photoCamera = createIsoCamera();
   // The perfect's zoom, pan and turn, around the framing `fitIsoCamera` computes (story 2.5).
   const cameraFx = createCameraFx(camera);
+  // The framing under those effects: the whole room, or a frame that follows Papa (story 9.2).
+  const followRig = createFollowRig(camera, cameraFx);
   // The special sequence's framing, one object written each frame (story 4.4), and the defs of the
   // level being played, set at its start.
   const sequenceFraming: SequenceFraming = { blend: 0, zoomPct: 0, focusPct: 0, xM: 0, zM: 0 };
@@ -266,8 +269,7 @@ export async function boot(): Promise<void> {
   const fitViewToCanvas = (): void => {
     const aspect = renderer.resize();
     if (aspect !== null && room !== null) {
-      fitIsoCamera(camera, room, aspect);
-      cameraFx.captureBase();
+      followRig.fit(aspect, levelSession.active?.sim.world.feel.camera);
     }
     worldUi.setSize(canvas.clientWidth, canvas.clientHeight);
     drawStatic();
@@ -746,6 +748,10 @@ export async function boot(): Promise<void> {
     ] as const) {
       delete document.documentElement.dataset[name];
     }
+    hasThreatPxPoint = false;
+    // The object points were just written at the level's first framing: written again once it moves.
+    mirroredCentreXM = cameraFx.baseCentreXM;
+    mirroredCentreZM = cameraFx.baseCentreZM;
     // The entry of the bedtime cycle: a restart never shows the last game's (story 4.10).
     mirror('ppCycleIndex', String(levelSession.active?.sim.world.cycle.index ?? 0));
     beatHitCount = 0;
@@ -832,6 +838,31 @@ export async function boot(): Promise<void> {
   // The threats, on their events only: the state of the threat, where its icon is on the page
   // (CSS px, for a test to tap), the last response and the last gag.
   const iconPoint = new Vector3();
+  // The world point behind `data-pp-threat-px`, kept to write it again when the camera follows Papa.
+  const threatPxPoint = new Vector3();
+  let hasThreatPxPoint = false;
+  // Where the framing looked when the tap points were last written (story 9.2).
+  let mirroredCentreXM = Number.NaN;
+  let mirroredCentreZM = Number.NaN;
+  /**
+   * In a level whose camera follows Papa (story 9.2), the tap points written at a telegraph and at the
+   * level start go stale as the camera moves: written again whenever the framing has moved since.
+   */
+  const mirrorFollowedPoints = (): void => {
+    if (followRig.mode !== 'follow') return;
+    if (cameraFx.baseCentreXM === mirroredCentreXM && cameraFx.baseCentreZM === mirroredCentreZM) {
+      return;
+    }
+    mirroredCentreXM = cameraFx.baseCentreXM;
+    mirroredCentreZM = cameraFx.baseCentreZM;
+    mirrorObjectPoints();
+    if (!hasThreatPxPoint) return;
+    const rect = canvas.getBoundingClientRect();
+    iconPoint.copy(threatPxPoint).project(camera);
+    const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
+    const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
+    mirror('ppThreatPx', `${x.toFixed(1)},${y.toFixed(1)}`);
+  };
   const mirrorThreatEvent = (event: SimEvent): void => {
     switch (event.type) {
       case 'ThreatTelegraphed': {
@@ -849,14 +880,15 @@ export async function boot(): Promise<void> {
                   (candidate) => candidate.id === event.threatId,
                 )
               : undefined;
-          iconPoint
-            .set(instance?.xM ?? entry.xM, entry.yM, instance?.zM ?? entry.zM)
-            .project(camera);
+          threatPxPoint.set(instance?.xM ?? entry.xM, entry.yM, instance?.zM ?? entry.zM);
+          hasThreatPxPoint = true;
+          iconPoint.copy(threatPxPoint).project(camera);
           const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
           const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
           mirror('ppThreatPx', `${x.toFixed(1)},${y.toFixed(1)}`);
         } else {
           // No icon for this threat: a point left by a previous one must not be tapped.
+          hasThreatPxPoint = false;
           document.documentElement.removeAttribute('data-pp-threat-px');
         }
         return;
@@ -1108,7 +1140,7 @@ export async function boot(): Promise<void> {
     onSeed: (seed) => {
       if (isMirrored) document.documentElement.dataset.ppSeed = String(seed);
     },
-    onLevelReady: (level, threatEntries) => {
+    onLevelReady: (level, threatEntries, levelCamera) => {
       // The room is only known now: fit the camera and show it behind the loading screen.
       currentLevel = level;
       debugGroup = null; // the previous scene (and so its group) is gone
@@ -1116,6 +1148,7 @@ export async function boot(): Promise<void> {
       highlightedThreatId = null;
       choreography.reset();
       room = level.room;
+      followRig.setLevel(level.room, levelCamera);
       isStatsMirrored = false;
       fitViewToCanvas();
       if (isMirrored) mirror('ppLevel', level.id);
@@ -1149,6 +1182,19 @@ export async function boot(): Promise<void> {
         framingChain.apply(sequenceFraming, sequence.startedAt, framingCamera.outMs, clockMs);
         sequenceFraming.xM = world.papa.xM;
         sequenceFraming.zM = world.papa.zM;
+      }
+      // The follow camera moves the framing under the effects, on the same clock (story 9.2):
+      // Papa as drawn this frame (`level.update` ran just before), or the threat just judged.
+      if (currentLevel !== null) {
+        const { papaPose } = currentLevel;
+        followRig.update(
+          world,
+          clockMs,
+          papaPose.xM,
+          papaPose.zM,
+          sequenceFraming,
+          prefersReducedMotion(),
+        );
       }
       cameraFx.update(
         world,
@@ -1331,7 +1377,10 @@ export async function boot(): Promise<void> {
         }
       }
       showGlyphChip(world, targetedId, device);
-      if (isMirrored) mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
+      if (isMirrored) {
+        mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
+        mirrorFollowedPoints();
+      }
       worldUi.render(camera);
       if (isHighlightShown && isMirrored) {
         performance.clearMarks('highlightRendered');
@@ -1425,6 +1474,8 @@ export async function boot(): Promise<void> {
           const resolved = active.sim.world.threats.find((one) => one.id === event.threatId);
           if (resolved !== undefined) cameraFx.focusOn(resolved.xM, resolved.zM);
         }
+        // The follow frames a judged threat while its slow-mo or framing lasts (story 9.2, D5).
+        followRig.onSimEvent(event, active.sim.world);
         if (currentLevel !== null) {
           // Reduced motion: no hop of the baby, no snap of Papa's hair (the lights carry the gag).
           const isMotionReduced = prefersReducedMotion();
@@ -2069,6 +2120,9 @@ export async function boot(): Promise<void> {
         return {
           cameraZoom: camera.zoom,
           cameraYawDeg: cameraFx.yawDeg,
+          cameraMode: followRig.mode,
+          cameraCentreXM: cameraFx.baseCentreXM,
+          cameraCentreZM: cameraFx.baseCentreZM,
           shakeOffsetM: Math.hypot(real?.shakeOffsetXM ?? 0, real?.shakeOffsetZM ?? 0),
           particlesAlive: real?.particlesAlive ?? 0,
           stampCount: stampsShownCount,
@@ -2084,6 +2138,14 @@ export async function boot(): Promise<void> {
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),
+      pagePoint: (xM, yM, zM) => {
+        const rect = canvas.getBoundingClientRect();
+        const projected = new Vector3(xM, yM, zM).project(camera);
+        return {
+          xPx: rect.left + ((projected.x + 1) / 2) * rect.width,
+          yPx: rect.top + ((1 - projected.y) / 2) * rect.height,
+        };
+      },
       threatScreenPoints: () => {
         const rect = canvas.getBoundingClientRect();
         return worldUi.threatEntries.map((entry) => {

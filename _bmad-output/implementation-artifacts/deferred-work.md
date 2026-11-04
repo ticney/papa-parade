@@ -995,7 +995,7 @@ Open:
 
 ## Deferred from: dev of 9-1-grand-salon-avec-cuisine-ouverte-dans-blender (2026-11-04)
 
-- **The fixed camera shrinks the characters in `salon_kitchen`**: `fitIsoCamera` fits the whole 13.5 × 7 m room, so Papa and the baby look about three quarters of their salon size. For 9.2 (follow camera, « characters keep their size »).
+- **The fixed camera shrinks the characters in `salon_kitchen`**: `fitIsoCamera` fits the whole 13.5 × 7 m room, so Papa and the baby look about three quarters of their salon size. For 9.2 (follow camera, « characters keep their size »). **Resolved in story 9.2:** `salon_kitchen` has the follow camera, whose frame is the salon's camera box (`feel.camera.frameWidthM` × `frameDepthM`, 9.1 × 6.2): a metre of floor is drawn at the salon's size at 844 × 390 and 667 × 375 (`isoCamera.test.ts`, within 1 %).
 - **The E9 moving pieces are static nodes**: `dishwasher_door`, `low_cabinet_door`, `tablecloth`, `pan`, `bin_lid`, `plant` are their own visual nodes but nothing in `src/` moves them. For 9.5 to 9.7.
 - **5 MiB is an assumption** (NFR15, `LEVEL_PAYLOAD_MAX_BYTES_BY_ID`): to confirm with Epic 9's real audio.
 - **The playpen stands on walkable cells with no collider** in `salon_kitchen`, as in the salon it was copied from (0.3 m high, the `ZONE_safe_playpen` volume, no `COL_`): kept as the salon has it.
@@ -1007,3 +1007,15 @@ Open:
 - **The Rapier +x wall of `salon_kitchen` sits 0.9 m beyond the floor** (`boundsMaxM.x` 7.65 against a nav edge of 6.75, from the stairs visual): the salon has the same (4.9 against 4.0) and the living-corner block moved with it. Reason: inherited from the salon; walkability is not affected.
 - **`NAV_block_` ↔ `COL_` parity is not pinned by a test**: the geometry JSON does not carry the NAV nodes, so only the `.glb` shows it (the review checked it by hand: correct today). Reason: same gap as « no drift check between a `.blend` and its committed geometry » (1.6, 7.1).
 - **`salonKitchen.spec.ts` catches `[assets]` warnings in its third test only**, with no positive control that the pattern would match; tests 1 and 2 let `OWN_WARNINGS` through. Reason: copied from `chambreNight.spec.ts`; the `.glb` has all five `PROP_*` nodes today.
+
+## Deferred from: dev of 9-2-camera-qui-suit-papa (2026-11-04)
+
+- **The silence bubble's side is computed when it shows** (`silenceBubble.place`, on show and on resize): in a follow level the camera moves under it. For 9.3.
+- **An off-screen threat can be neither seen nor tapped** until the off-screen bubble: for 9.3. Keyboard and gamepad auto-target already reach it. On a landscape phone the kitchen's whole width is in the frame (below), so only the vertical travel can hide one.
+- **The follow is stepped once per frame on the drawn clock, not once per sim step**: 9.8's visibility model will step the same `stepFollow` per sim step; the two can differ by a fraction of a step (the dead zone's goal is sampled per call). Accepted for a model of perception.
+- **The composed clamp ignores the perfect's turn (≤ 12°)**: a sliver beyond the room's box is possible during the turn, near a wall. The turn is 0 under reduced motion.
+- **Papa's edge margin can lose to the clamp across the kitchen**: on a landscape phone the frame (16.5 to 20 m of view) is wider than the kitchen's view extent (15.4 m), so the view stands on the room's middle across and Papa at the kitchen's far corners is nearer the side edges than `edgeMarginPct` (still fully on screen). The margin holds wherever the camera can move (`followCamera.test.ts`, a 13 m glide in 900 ms).
+- **The end photo fits the whole big room** (story question 3): small characters on the photo of `salon_kitchen`. Keep, or frame it around Papa later (3.7 / 7.4)?
+- **The follow frame is the salon's size, which barely moves the camera on a landscape phone** (story question 1): about 2.3 m of travel, up and down only. Tighter is two numbers in `feel.camera` (AC 5 would then pin the new scale).
+- **The follow aims at Papa's floor point** (y = 0), not his middle: the edge margin holds his feet, so near the top edge his head is closer to it than the margin (not checked on screen). Revisit with Geo's playtest.
+- **`humanBotRegression.test.ts` now pins the game, not the whole journal**: the six hashes are of the journal without `feelHash` and `levelHash`, which a feel key or a level field the sim never reads moved. Proved before the change: with the pre-9.2 content hashes put back, each journal hashed to its 3.14 pin (see the test's comment).
