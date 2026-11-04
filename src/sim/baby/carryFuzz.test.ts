@@ -227,7 +227,8 @@ describe('carrying, played at random', () => {
     expect(armsCries).toBeGreaterThan(0);
     expect(comboChanges).toBeGreaterThan(0);
     expect(cashIns).toBeGreaterThan(0);
-    expect(toiletVisits).toBeGreaterThan(SEED_COUNT / 4);
+    // Fewer than before story 3.15: the outlet and the micro-sleep gags land on a visit and cancel it.
+    expect(toiletVisits).toBeGreaterThan(SEED_COUNT / 8);
     expect(refusals).toBeGreaterThan(0);
     expect(sequencesStarted).toBeGreaterThan(SEED_COUNT / 4);
     expect(sequencesSucceeded + sequencesFailed).toBeGreaterThan(0);

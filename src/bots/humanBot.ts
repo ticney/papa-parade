@@ -24,12 +24,18 @@ import {
   schedulePress,
 } from './threatTiming.ts';
 
+/** How long the bot waits for its tap to fetch the baby to work before it taps again, in sim ms. */
+const FETCH_RETRY_MS = 1000;
+
 /** Papa's states in which his hands are full: a threat first seen then is easily missed (D3 of story 3.14). */
 const BUSY_PAPA_STATES: ReadonlySet<World['papa']['state']> = new Set([
   'asleep',
   'drink',
   'onPhone',
   'onToilet',
+  'electrified',
+  'carryingUp',
+  'pickingUp',
 ]);
 
 /**
@@ -41,8 +47,8 @@ const BUSY_PAPA_STATES: ReadonlySet<World['papa']['state']> = new Set([
  * `withoutChronoRing` if not: reading the time left off a ring is far more precise than guessing it. On a
  * response with no ring (a lullaby beat, a `wait` signal, a held breath) the error is `aimOffsetMs` /
  * `jitterSdMs`. **The inattention.** A threat it first sees while busy elsewhere (its finger is down or an
- * answer is planned and not yet sent, the baby's find is pending, Papa is asleep, drinking, on the phone or
- * on the toilet) is never answered in that cycle with probability `missWhileBusyPct` %, one draw per such
+ * answer is planned and not yet sent, the baby's find is pending, Papa is asleep, drinking, on the phone,
+ * on the toilet, electrified, carrying the baby up or picking something up) is never answered in that cycle with probability `missWhileBusyPct` %, one draw per such
  * decision; a threat first seen while free is always answered.
  *
  * When it first sees a telegraph it plans one press at
@@ -64,6 +70,9 @@ const BUSY_PAPA_STATES: ReadonlySet<World['papa']['state']> = new Set([
  * In a stealth step (story 4.9) it walks to the exit (and so creaks), parries a real wake like any
  * threat and never presses a false alarm: it holds its breath a reaction after the telegraph and
  * lets go at the end of the window `aimOffsetMs + jitterSdMs × N(0, 1)` away, one draw, so it sometimes gasps.
+ * **It fetches the baby from the bottom of the stairs (story 3.15)**: a reaction after the stairs' gag (one
+ * draw, only when it meets such a baby), once Papa is free and nothing is planned, it taps him; it does not
+ * pick up the debris of the coffee table (a judgement: a player under pressure rarely does).
  * In the final rush (story 3.5) it tidies the props that are a mess, nearest first, from a reaction (drawn
  * once, when the door opens) after the door opened (`planTidy`): no aim draw.
  *
@@ -99,6 +108,9 @@ export function createHumanBot(setup: BotSetup): Bot {
   let rush: { finalRushAt: number; waitMs: number } | null = null;
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
   let find: { startedAt: number; atMs: number } | null = null;
+  // The fetch of a baby left at the bottom of the stairs (story 3.15), keyed by his `downstairsUntil` (one
+  // episode each): when it may tap him, and when it last did.
+  let fetch: { downstairsUntil: number; atMs: number; sentAt: number | null } | null = null;
   // The tap planned for the beat in play: dropped if the beat is settled before it is sent.
   let beatTap: { beatAt: number; atMs: number } | null = null;
   let lastBeatAt: number | null = null;
@@ -166,6 +178,34 @@ export function createHumanBot(setup: BotSetup): Bot {
           out.push({ type: 'TapBaby', t: asSimMs(find.atMs) });
           find = null;
         }
+      }
+      const { baby } = world;
+      if (baby.state === 'downstairs' && baby.downstairsUntil !== null) {
+        if (fetch?.downstairsUntil !== baby.downstairsUntil) {
+          // A new episode: the reaction is drawn here and nowhere else, so a game that never leaves a baby
+          // downstairs draws exactly what it drew before.
+          fetch = {
+            downstairsUntil: baby.downstairsUntil,
+            atMs: now + drawReactionMs(),
+            sentAt: null,
+          };
+        }
+        const isFree = !BUSY_PAPA_STATES.has(world.papa.state) && scheduler.size === 0;
+        const isDue = fetch.atMs < now + STEP_MS;
+        // Again after a second if the first tap came to nothing (Papa was busy when it landed).
+        const isRetry = fetch.sentAt === null || now - fetch.sentAt >= FETCH_RETRY_MS;
+        if (
+          isDue &&
+          isFree &&
+          isRetry &&
+          !firmHold.isHolding &&
+          world.papa.intent !== 'fetchBaby'
+        ) {
+          out.push({ type: 'TapBaby', t: asSimMs(Math.max(fetch.atMs, now)) });
+          fetch.sentAt = now;
+        }
+      } else if (fetch !== null) {
+        fetch = null;
       }
       firmHold.update(world.threats, now, out);
       for (let i = 0; i < world.threats.length; i++) {

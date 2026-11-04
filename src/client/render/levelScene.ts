@@ -17,6 +17,7 @@ import {
 } from 'three';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { addBlobShadows } from './blobShadow.ts';
+import { createDimFx } from './dimFx.ts';
 import { createGagFx } from './gags.ts';
 import type { RoomSize } from './isoCamera.ts';
 import { addOutlineHulls, createOutlineKit } from './materials/outlineHull.ts';
@@ -24,6 +25,7 @@ import { PALETTE } from './materials/palette.ts';
 import { createToonMaterialCache, swapToToon } from './materials/toonMaterial.ts';
 import { createDangerTint } from './vfx/dangerTint.ts';
 import { createLiftFx } from './vfx/liftHop.ts';
+import { createMischiefDecals } from './vfx/mischiefDecals.ts';
 import { createParticles, type ParticleStyle } from './vfx/particles.ts';
 import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
@@ -151,6 +153,10 @@ export interface LevelScene {
     doorOpenDeg: number;
     /** How many alert glows stand on the room's dangers (story 7.3). */
     dangerTintsShown: number;
+    /** The factor the 3D lights are scaled by: the darker of the outlet's flash and the pénombre (story 3.15). */
+    lightsFactor: number;
+    /** How many mischief decals lie on the floor (story 3.15). */
+    mischiefDecals: number;
   };
   /** Shows the parts of Papa's look. Nothing in a game sets it until story 3.7 (story 7.2, D2). */
   setPapaLook(look: Readonly<PapaLook>): void;
@@ -348,6 +354,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   scene.add(sun, sun.target);
 
   const shadows = addBlobShadows(content, geometry.colliders, render.blobSkipColliderIds);
+  // The mess a silence's mischief leaves, from `world.afterEffects.mischiefMarks` (story 3.15): the photo shows it too.
+  const decals = createMischiefDecals(content, geometry.colliders, toon);
 
   // The props: the model's PROP_ nodes are templates, the views are pooled per kind.
   const pools = new Map<string, ViewPool<PropView>>();
@@ -437,13 +445,31 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   );
   // The gags move the lights (the level's own: the outlet does not bring the salon into the bedroom),
   // Papa's hair and the baby's slide; the hop moves the baby too. Both on the sim clock.
+  // The lights answer to two things (story 3.15): the outlet's 600 ms flash and the pénombre the sim holds
+  // for 6 s (`world.afterEffects.dimUntil`); the room is as dark as the darker of the two. Only the 3D lights:
+  // the world UI is DOM over the canvas and is never dimmed.
+  const dim = createDimFx();
+  let flashLightsFactor = 1;
+  let dimLightsFactor = 1;
+  const applyLights = (): void => {
+    const factor = Math.min(flashLightsFactor, dimLightsFactor);
+    ambient.intensity = lights.ambientIntensity * factor;
+    sun.intensity = lights.sunIntensity * factor;
+  };
+  // Papa's hair: the gag's snap, or on end for as long as he is electrified.
+  let gagHairAmount = 0;
+  let isHairHeld = false;
+  const applyHair = (): void => papa.setHair(Math.max(gagHairAmount, isHairHeld ? 1 : 0));
   const gags = createGagFx({
     setLightsFactor: (factor) => {
-      ambient.intensity = lights.ambientIntensity * factor;
-      sun.intensity = lights.sunIntensity * factor;
+      flashLightsFactor = factor;
+      applyLights();
     },
-    setHairAmount: (amount) => papa.setHair(amount),
-    setBabySlide: (offsetXM, offsetZM) => baby.setSlideM(offsetXM, offsetZM),
+    setHairAmount: (amount) => {
+      gagHairAmount = amount;
+      applyHair();
+    },
+    setBabySlide: (offsetXM, offsetZM, dropM) => baby.setSlideM(offsetXM, offsetZM, dropM),
   });
   const lift = createLiftFx((heightM) => baby.setLiftM(heightM));
   /** The lowering of the baby as last drawn (story 4.8), read by the debug `fx()`. */
@@ -521,6 +547,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         papaMixerMs: papa.mixerTimeMs,
         doorOpenDeg: door?.openAngleDeg ?? 0,
         dangerTintsShown: dangerTint.shownCount,
+        lightsFactor: Math.min(flashLightsFactor, dimLightsFactor),
+        mischiefDecals: decals.count,
       };
     },
     setPapaLook(look) {
@@ -540,6 +568,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       applySquash(papaSquash, clockMs, setPapaSquash);
       applySquash(babySquash, clockMs, setBabySquash);
       props.sync(world.props, alpha);
+      decals.sync(world.afterEffects.mischiefMarks);
       // Papa's nap, coffee and call, from the world every frame (stories 1.19, 1.20; diegetic, no overlay).
       papa.setEyelids(eyelidsAmountAt(world, clockMs, bodies.microSleepDefId));
       papa.setAsleep(world.papa.state === 'asleep', clockMs);
@@ -553,7 +582,25 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       waves.update(clockMs);
       shake.update(nowReal);
       particles.update(nowReal);
-      gags.update(clockMs);
+      const dimFeel = world.feel.fx.dim;
+      const nextDimFactor = dim.update(
+        world.afterEffects.dimUntil > 0,
+        clockMs,
+        dimFeel.lightsPct,
+        dimFeel.fadeMs,
+      );
+      if (nextDimFactor !== dimLightsFactor) {
+        dimLightsFactor = nextDimFactor;
+        applyLights();
+      }
+      const isElectrified = world.papa.state === 'electrified';
+      if (isElectrified !== isHairHeld) {
+        isHairHeld = isElectrified;
+        applyHair();
+      }
+      // The baby left at the bottom of the stairs stays there (story 3.15); found there with no gag seen,
+      // he is put there at once, facing away from where he looks.
+      gags.update(clockMs, world.baby.state === 'downstairs', -world.baby.gazeX, -world.baby.gazeZ);
       lift.update(clockMs);
     },
     resetFx() {
@@ -562,6 +609,13 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       shake.reset();
       particles.reset();
       gags.reset();
+      decals.clear();
+      dim.reset();
+      dimLightsFactor = 1;
+      flashLightsFactor = 1;
+      isHairHeld = false;
+      gagHairAmount = 0;
+      applyLights();
       lift.reset();
       lastClockMs = null;
       papaSquash.startAt = null;
@@ -575,6 +629,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       papa.dispose();
       baby.dispose();
       props.dispose();
+      decals.dispose();
       waves.dispose();
       particles.dispose();
       dangerTint.dispose();

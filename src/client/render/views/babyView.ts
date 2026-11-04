@@ -90,10 +90,10 @@ export interface BabyView {
   setLiftM(heightM: number): void;
   /**
    * Offsets the whole view (body and shadow) from the sim position by (`xM`, `zM`) on the floor
-   * plane: the stairs gag's slide. It holds until set again, across `update`s. (0, 0) puts the baby
+   * plane, and lowered by `dropM` (default 0): the stairs gag's slide. It holds until set again, across `update`s. (0, 0) puts the baby
    * back. Allocates nothing.
    */
-  setSlideM(xM: number, zM: number): void;
+  setSlideM(xM: number, zM: number, dropM?: number): void;
   /** Frees the rig and what the view made; the shared materials belong to the scene. */
   dispose(): void;
 }
@@ -131,18 +131,21 @@ export function createBabyView(
   let bodyYawRad: number | null = null;
   let slideXM = 0;
   let slideZM = 0;
+  /** How much lower than the floor the baby sits at the bottom of the stairs (story 3.15). */
+  let dropM = 0;
   /** The hop of the response choreography (`setLiftM`) and the lift of the carry, summed in `placeY`. */
   let hopM = 0;
   let carriedLiftM = 0;
   const placeY = (): void => {
-    body.position.y = hopM + carriedLiftM;
+    body.position.y = hopM + carriedLiftM - dropM;
   };
 
   return {
     update(baby, alpha, papa, layDownPct = 0) {
       babyPoseAt(baby, alpha, pose);
       let wantedLiftM = 0;
-      if (baby.state === 'carried') {
+      // Carried up the stairs (story 3.15) he rides in Papa's arms like a carried baby, with no lay-down.
+      if (baby.state === 'carried' || baby.state === 'carriedUp') {
         if (papa !== undefined) {
           interpolateXZ(papa.prevXM, papa.prevZM, papa.xM, papa.zM, alpha, pose);
         }
@@ -152,7 +155,8 @@ export function createBabyView(
         // The lowering of the bomb drop: linear from the chest to the mattress. Motion-essential, so
         // it stays under reduced motion: it is what the release is aimed at.
         const heightM =
-          BABY_CARRIED_HEIGHT_M + (laidHeightM - BABY_CARRIED_HEIGHT_M) * (layDownPct / 100);
+          BABY_CARRIED_HEIGHT_M +
+          (laidHeightM - BABY_CARRIED_HEIGHT_M) * (baby.state === 'carried' ? layDownPct / 100 : 0);
         // Never under his resting height: a `laidHeightM` below his radius would sink him into the floor.
         wantedLiftM = Math.max(0, heightM - bodyRadiusM);
       }
@@ -201,12 +205,16 @@ export function createBabyView(
       hopM = heightM;
       placeY();
     },
-    setSlideM(xM, zM) {
+    setSlideM(xM, zM, nextDropM = 0) {
       // Moves the group now (the slide is set after the frame's `update`), as `update` will next frame.
       group.position.x += xM - slideXM;
       group.position.z += zM - slideZM;
       slideXM = xM;
       slideZM = zM;
+      if (nextDropM !== dropM) {
+        dropM = nextDropM;
+        placeY();
+      }
     },
     dispose() {
       rig.dispose();

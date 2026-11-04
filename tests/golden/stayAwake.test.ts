@@ -1,7 +1,11 @@
 import { STEP_MS } from '@shared/constants';
 import type { SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
-import { createTestContent, createTestGeometry } from '../support/testContent.ts';
+import {
+  createTestContent,
+  createTestGeometry,
+  testMicroSleepBusyMs,
+} from '../support/testContent.ts';
 import { recordScenario, SCENARIOS } from './scenarios.ts';
 
 /**
@@ -81,6 +85,7 @@ describe('golden scenario stay_awake_dozed covers the failure it is there for', 
       'ResponseResolved',
       'GagTriggered',
       'PapaStateChanged',
+      'AfterEffectStarted',
       'PapaSnored',
       'BabyWoke',
       'SequenceEnded',
@@ -101,11 +106,11 @@ describe('golden scenario stay_awake_dozed covers the failure it is there for', 
     expect(ofType(events, 'BabyPutDown')).toEqual([]);
   });
 
-  it('wakes Papa asleep.asleepMs later', () => {
+  it('wakes Papa afterEffect.busyMs later', () => {
     const asleep = ofType(events, 'PapaStateChanged').filter((event) => event.to === 'asleep');
     const awake = ofType(events, 'PapaStateChanged').filter((event) => event.from === 'asleep');
     expect(asleep).toHaveLength(1);
     expect(awake).toHaveLength(1);
-    expect((awake[0]?.t ?? 0) - (asleep[0]?.t ?? 0)).toBe(content.feel.fatigue.asleepMs);
+    expect((awake[0]?.t ?? 0) - (asleep[0]?.t ?? 0)).toBe(testMicroSleepBusyMs());
   });
 });

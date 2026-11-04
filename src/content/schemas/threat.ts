@@ -1,4 +1,8 @@
-import { BABY_CRYING_EVERY_MS } from '@shared/constants';
+import {
+  AFTER_EFFECT_BUSY_MAX_MS,
+  BABY_CRYING_EVERY_MS,
+  MICRO_SLEEP_BUSY_MAX_MS,
+} from '@shared/constants';
 import { z } from 'zod';
 import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 
@@ -83,6 +87,69 @@ const FeedbackCuesSchema = z
     ).optional(),
   })
   .describe('Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11).');
+
+const busyMs = (description: string, maxMs: number) =>
+  z.int().positive().max(maxMs).describe(description);
+const spanMs = (description: string) => z.int().positive().describe(description);
+
+/**
+ * What a gag leaves behind (story 3.15, FR72, GDD mechanic 13): the séquelle, as data on the threat.
+ * Every def declares one (`none` included: a new threat « doit déclarer sa séquelle »). A union on
+ * `kind`, so that a key is required where it belongs and refused elsewhere, with no `.optional()`.
+ * What Papa is busy for is capped by the GDD (`AFTER_EFFECT_BUSY_MAX_MS`, 2 s; the micro-sleep 3 s,
+ * `MICRO_SLEEP_BUSY_MAX_MS`); `createSim` and `content:check` pair the kind with the gag
+ * (`AFTER_EFFECT_OF_GAG`).
+ */
+export const AfterEffectDefSchema = z
+  .discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('none') }).describe('No séquelle (costed later, GDD).'),
+    z
+      .strictObject({
+        kind: z.literal('electrified'),
+        busyMs: busyMs(
+          'How long Papa cannot answer, in sim ms (at most 2000).',
+          AFTER_EFFECT_BUSY_MAX_MS,
+        ),
+        dimMs: spanMs('How long the room stays dim after the gag, in sim ms.'),
+      })
+      .describe('Papa is electrified (cannot answer) and the room goes dim (the outlet).'),
+    z
+      .strictObject({
+        kind: z.literal('babyDownstairs'),
+        carryUpMs: busyMs(
+          'How long Papa is busy carrying the baby back up, in sim ms (at most 2000).',
+          AFTER_EFFECT_BUSY_MAX_MS,
+        ),
+        selfReturnMs: spanMs(
+          'If Papa does not fetch him, the baby climbs back by himself after this long, in sim ms.',
+        ),
+      })
+      .describe('The baby is at the bottom of the stairs; Papa must fetch him (the stairs).'),
+    z
+      .strictObject({
+        kind: z.literal('debris'),
+        pickUpMs: busyMs(
+          'How long Papa is busy picking the debris up, in sim ms (at most 2000).',
+          AFTER_EFFECT_BUSY_MAX_MS,
+        ),
+      })
+      .describe('The pushed object stays on the floor until picked up (the coffee table).'),
+    z
+      .strictObject({ kind: z.literal('mess') })
+      .describe(
+        'The mischief stays visible until the end of the level and on the photo (the silence).',
+      ),
+    z
+      .strictObject({
+        kind: z.literal('asleep'),
+        busyMs: busyMs('How long Papa sleeps, in sim ms (at most 3000).', MICRO_SLEEP_BUSY_MAX_MS),
+      })
+      .describe('Papa nods off (the micro-sleep).'),
+  ])
+  .describe("The séquelle of the threat's gag (story 3.15).");
+
+export type AfterEffectDef = z.infer<typeof AfterEffectDefSchema>;
+export type AfterEffectDefKind = AfterEffectDef['kind'];
 
 /** The keys every threat def has, whatever its target. */
 const baseShape = {
@@ -199,6 +266,7 @@ const baseShape = {
     .enum(THREAT_COLORS)
     .describe("Colour of the threat's marker, by DESIGN.md token name (`parry` or `dodge`)."),
   feedback: FeedbackCuesSchema,
+  afterEffect: AfterEffectDefSchema,
   cooldownMs: z
     .number()
     .min(0)

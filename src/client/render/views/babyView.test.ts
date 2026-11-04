@@ -31,6 +31,7 @@ function baby(patch: Partial<BabySlice> = {}): BabySlice {
     approachSpeedMps: 0,
     cryStartedAt: null,
     cryEndsAt: null,
+    downstairsUntil: null,
     ...patch,
   };
 }

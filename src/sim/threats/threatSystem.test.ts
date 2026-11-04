@@ -6,6 +6,7 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestOutlet,
   OUTLET,
   SILENCE,
   testWave,
@@ -356,14 +357,24 @@ describe('a gag', () => {
     ]);
   });
 
-  it('is an event only: nothing of Papa or of the room changes because of it', async () => {
+  it('changes Papa only by its séquelle: electrified, nothing else of him or of the room (story 3.15)', async () => {
     const { sim, openAt, window } = await telegraphed();
     runTo(sim, openAt + window.windowMs + window.toleranceMs);
     const papa = structuredClone(sim.world.papa);
     const rest = { rng: structuredClone(sim.world.rng), nextId: sim.world.nextId };
     const events = run(sim, 1);
     expect(only(events, 'GagTriggered')).toHaveLength(1);
-    expect(sim.world.papa).toEqual({ ...papa, prevXM: papa.xM, prevZM: papa.zM });
+    const effect = createTestOutlet().afterEffect;
+    if (effect.kind !== 'electrified') throw new Error('the frozen outlet is not electrified');
+    const now = sim.world.time.sim;
+    expect(sim.world.papa).toEqual({
+      ...papa,
+      prevXM: papa.xM,
+      prevZM: papa.zM,
+      state: 'electrified',
+      enteredAt: now,
+      busyUntil: now + effect.busyMs,
+    });
     expect({ rng: sim.world.rng, nextId: sim.world.nextId }).toEqual(rest);
   });
 

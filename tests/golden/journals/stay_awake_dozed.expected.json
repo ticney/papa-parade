@@ -1,6 +1,6 @@
 {
   "untilSimMs": 12000,
-  "worldHash": "0be853bbd41587",
+  "worldHash": "06bed94020dc84",
   "eventTypes": [
     "BabyStateChanged",
     "BabyPickedUp",
@@ -13,11 +13,13 @@
     "ResponseResolved",
     "GagTriggered",
     "PapaStateChanged",
+    "AfterEffectStarted",
     "PapaSnored",
     "BabyWoke",
     "SequenceEnded",
     "NoiseChanged",
     "ThreatRearmed",
+    "AfterEffectEnded",
     "PapaStateChanged",
     "ThreatTelegraphed",
     "WindowOpened",
@@ -31,5 +33,5 @@
     "BabyCrying",
     "NoiseChanged"
   ],
-  "eventsHash": "1b21ba7542bacb"
+  "eventsHash": "014dc9bd0ea251"
 }

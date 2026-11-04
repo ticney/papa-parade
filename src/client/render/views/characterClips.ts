@@ -14,6 +14,10 @@ const PAPA_LOOPS: Readonly<Record<PapaState, string>> = {
   asleep: 'asleep',
   onPhone: 'on_phone',
   onToilet: 'idle',
+  // The shock of the outlet (the hair stays on end, `gags.ts`), the baby carried up the stairs, a debris picked up.
+  electrified: 'gag_shock',
+  carryingUp: 'carry_idle',
+  pickingUp: 'idle',
 };
 
 /** `wander` and `approach` crawl; a laid baby has no loop of his own: `carried`, lowered by `layDownPct`. */
@@ -25,6 +29,9 @@ const BABY_LOOPS: Readonly<Record<BabyState, string>> = {
   act: 'act',
   mischiefSilent: 'sneak',
   carried: 'carried',
+  // Left at the bottom of the stairs, and carried back up (story 3.15): he babbles, delighted, then is carried.
+  downstairs: 'babble',
+  carriedUp: 'carried',
 };
 
 /** The loop Papa's state says now; the baby's state alone says whether he carries (there is no `papa.carrying`). */

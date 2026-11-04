@@ -345,6 +345,7 @@ export async function boot(): Promise<void> {
       | 'ppFatigue'
       | 'ppNoise'
       | 'ppBladder'
+      | 'ppDim'
       | 'ppPhone'
       | 'ppSilence'
       | 'ppInstinct'
@@ -647,6 +648,11 @@ export async function boot(): Promise<void> {
     mirror('ppBabyState', event.to);
     mirrorBabyAt();
   };
+  // The pénombre of the outlet gag (story 3.15): `on` from `AfterEffectStarted{dim}` to `AfterEffectEnded{dim}`.
+  const mirrorDimEvent = (event: SimEvent): void => {
+    if (event.type === 'AfterEffectStarted' && event.kind === 'dim') mirror('ppDim', 'on');
+    else if (event.type === 'AfterEffectEnded' && event.kind === 'dim') mirror('ppDim', 'off');
+  };
   // The combo (story 4.2), on its events: the multiplier on `ComboChanged`, the points on `ComboCashedIn`.
   const mirrorComboEvent = (event: SimEvent): void => {
     if (event.type === 'ComboChanged') mirror('ppCombo', String(event.multiplier));
@@ -706,6 +712,7 @@ export async function boot(): Promise<void> {
     mirrorPapaAt();
     mirror('ppBabyState', levelSession.active?.sim.world.baby.state ?? 'babble');
     mirrorBabyAt();
+    mirror('ppDim', (levelSession.active?.sim.world.afterEffects.dimUntil ?? 0) > 0 ? 'on' : 'off');
     mirrorFatigue();
     mirrorNoise();
     mirrorBladder();
@@ -1483,6 +1490,7 @@ export async function boot(): Promise<void> {
         }
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);
+        mirrorDimEvent(event);
         mirrorComboEvent(event);
         mirrorThreatEvent(event);
         mirrorPhoneEvent(event);
@@ -2078,6 +2086,8 @@ export async function boot(): Promise<void> {
           papaMixerMs: real?.papaMixerMs ?? 0,
           doorOpenDeg: real?.doorOpenDeg ?? 0,
           dangerTintsShown: real?.dangerTintsShown ?? 0,
+          lightsFactor: real?.lightsFactor ?? 1,
+          mischiefDecals: real?.mischiefDecals ?? 0,
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),

@@ -26,8 +26,8 @@ import { CHRONO_RING_REACH_PX, chronoDrainPermille } from './chronoRing.ts';
 import { OBJECT_ICON_PATHS } from './objectMarkers.ts';
 import { THREAT_ICON_PATHS } from './threatMarkers.ts';
 
-/** What the bubble's pictogram draws: a cup, a handset, a door, dizzy stars. */
-export type ActivityPictogram = 'cup' | 'handset' | 'door' | 'stars';
+/** What the bubble's pictogram draws: a cup, a handset, a door, dizzy stars, a hand. */
+export type ActivityPictogram = 'cup' | 'handset' | 'door' | 'stars' | 'hand';
 
 /** A path that may be missing: an empty pictogram is never silent (project rule: every fallback logs a `warn`). */
 export function pictogramPathOrWarn(path: string | null, name: string): string {
@@ -50,6 +50,9 @@ export const ACTIVITY_PICTOGRAMS: Readonly<Record<PapaState, ActivityPictogram |
   onPhone: 'handset',
   onToilet: 'door',
   asleep: 'stars',
+  electrified: 'stars',
+  carryingUp: 'stars',
+  pickingUp: 'hand',
 };
 
 /**
@@ -63,6 +66,8 @@ export const ACTIVITY_PICTOGRAM_PATHS: Readonly<Record<ActivityPictogram, string
   handset:
     'M3.5 7.5c0-1.6 1.3-3 3-3h2.2v4.6H7c.9 2.6 3.7 5.4 6.4 6.4v-1.7H18v2.2c0 1.7-1.4 3-3 3C8.6 19 3.5 13.9 3.5 7.5z',
   door: pictogramPathOrWarn(OBJECT_ICON_PATHS.toilet, 'door'),
+  // The hand that picks a debris up (story 3.15): the open hand of the threats' glyphs.
+  hand: THREAT_ICON_PATHS.open_hand,
   // Three five-pointed stars: one up, two lower, the dizziness of a nap that was not chosen.
   stars:
     'M12.0 1.9 L13.2 4.9 L16.4 5.1 L13.9 7.1 L14.7 10.2 L12.0 8.5 L9.3 10.2 L10.1 7.1 L7.6 5.1 L10.8 4.9z M5.5 12.3 L6.6 15.0 L9.5 15.2 L7.2 17.1 L8.0 19.9 L5.5 18.3 L3.0 19.9 L3.8 17.1 L1.5 15.2 L4.4 15.0z M18.5 12.3 L19.6 15.0 L22.5 15.2 L20.2 17.1 L21.0 19.9 L18.5 18.3 L16.0 19.9 L16.8 17.1 L14.5 15.2 L17.4 15.0z',

@@ -192,14 +192,16 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     world: Readonly<World>,
     objects: readonly ObjectTarget[],
   ): readonly PickTarget[] => {
-    if (world.flow.state !== 'finalRush') return objects;
+    // Outside the rush a debris of the coffee table's gag is a target too (story 3.15): picked up on arrival.
+    const isRush = world.flow.state === 'finalRush';
+    // The level's objects first, then the props (a tie goes to the object).
     messTargets.length = 0;
     for (let i = 0; i < objects.length; i++) messTargets.push(objects[i] as ObjectTarget);
     for (let i = 0; i < world.props.length; i++) {
       const prop = world.props[i] as World['props'][number];
-      if (prop.isMess) messTargets.push(prop);
+      if (prop.isMess && (isRush || prop.debrisPickUpMs > 0)) messTargets.push(prop);
     }
-    return messTargets;
+    return messTargets.length === objects.length ? objects : messTargets;
   };
   let lastDevice: InputDevice | null = null;
   let wasPadPresent = false;
@@ -376,8 +378,15 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     const { contextReachM } = deps.input;
     // In the final rush a prop that is a mess comes first (story 3.5): ahead of the baby, carried or
     // not, and of any object. With none in reach the action is what it always was.
-    if (active.sim.world.flow.state === 'finalRush') {
-      const propId = pickMessProp(active.sim.world.props, papa.xM, papa.zM, contextReachM);
+    {
+      // Outside the rush only a debris of the coffee table's gag is picked up (story 3.15).
+      const propId = pickMessProp(
+        active.sim.world.props,
+        papa.xM,
+        papa.zM,
+        contextReachM,
+        active.sim.world.flow.state !== 'finalRush',
+      );
       if (propId !== null) {
         active.sim.enqueue({ type: 'TapObject', t, objectId: propId });
         return;

@@ -58,8 +58,7 @@
     "microSleepMinMs": 8000,
     "microSleepMaxMs": 12000,
     "coffeeReductionPoints": 40,
-    "coffeeDurationMs": 3000,
-    "asleepMs": 3000
+    "coffeeDurationMs": 3000
   },
   "carry": {
     "reachM": 1.2,
@@ -103,6 +102,9 @@
         "noisePct": 5
       },
       "sniff": {
+        "noisePct": 3
+      },
+      "debrisStep": {
         "noisePct": 3
       },
       "snore": {
@@ -217,7 +219,8 @@
     "tableObjectFall": {
       "pushImpulseNs": 0.72,
       "propReachDistM": 0.5
-    }
+    },
+    "debrisStepRadiusM": 0.25
   },
   "fx": {
     "shakeFrequencyHz": 14,
@@ -261,7 +264,15 @@
         "sizeM": 0.12
       }
     },
-    "photoCamera": { "yawDeg": 38, "pitchDeg": 30, "zoomPct": 0 },
+    "dim": {
+      "lightsPct": 40,
+      "fadeMs": 400
+    },
+    "photoCamera": {
+      "yawDeg": 38,
+      "pitchDeg": 30,
+      "zoomPct": 0
+    },
     "perfectCamera": {
       "zoomPct": 18,
       "yawDeg": 6,
@@ -271,7 +282,11 @@
     }
   },
   "music": {
-    "tense": { "fadeInMs": 600, "fadeOutMs": 1500, "calmGainPct": 60 },
+    "tense": {
+      "fadeInMs": 600,
+      "fadeOutMs": 1500,
+      "calmGainPct": 60
+    },
     "slowMo": {
       "belowScale": 1,
       "lowpassHz": 900,

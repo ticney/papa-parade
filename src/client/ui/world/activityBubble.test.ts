@@ -176,6 +176,43 @@ describe('the pictogram table', () => {
   });
 });
 
+describe('the séquelles and the pick-up (story 3.15)', () => {
+  it('draws the dizzy stars for the shock and the carry up, and a hand for the pick-up', () => {
+    expect(ACTIVITY_PICTOGRAMS.electrified).toBe('stars');
+    expect(ACTIVITY_PICTOGRAMS.carryingUp).toBe('stars');
+    expect(ACTIVITY_PICTOGRAMS.pickingUp).toBe('hand');
+    expect(ACTIVITY_PICTOGRAM_PATHS.hand.length).toBeGreaterThan(10);
+  });
+
+  it('shows each of the three with its own class and drains toward its own end', () => {
+    for (const [state, pictogram] of [
+      ['electrified', 'stars'],
+      ['carryingUp', 'stars'],
+      ['pickingUp', 'hand'],
+    ] as const) {
+      const { bubble, outer } = build();
+      bubble.update(papaIn(state, 1000, 2000), 1000, false, 0);
+      expect(bubble.pictogram).toBe(pictogram);
+      expect(pictogramClasses(outer)).toEqual([`pp-activity-bubble--${pictogram}`]);
+      bubble.update(papaIn(state, 1000, 2000), 1500, false, 16);
+      expect(bubble.progressPct, state).toBe(50);
+    }
+  });
+
+  it('swaps the pictogram when a séquelle replaces another, and restarts the ring toward the same end', () => {
+    const { bubble, outer } = build();
+    // The shock began at 1000 for 1.5 s; at 1500 a nap replaces it: the new state's own start, the old end.
+    bubble.update(papaIn('electrified', 1000, 2500), 1000, false, 0);
+    bubble.update(papaIn('asleep', 1500, 2500), 1500, false, 16);
+    expect(bubble.pictogram).toBe('stars');
+    expect(bubble.progressPct).toBe(100);
+    bubble.update(papaIn('asleep', 1500, 2500), 2000, false, 32);
+    expect(bubble.progressPct).toBe(50);
+    bubble.update(papaIn('pickingUp', 2600, 3600), 2600, false, 48);
+    expect(pictogramClasses(outer)).toEqual(['pp-activity-bubble--hand']);
+  });
+});
+
 describe('createActivityBubble: the element', () => {
   it('is a hidden, assistive-tech-hidden box in the layer at the combo badge height, ink widths from the constants', () => {
     const { bubble, outer, scene, object } = build();

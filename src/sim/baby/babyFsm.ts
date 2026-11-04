@@ -8,7 +8,10 @@ import type { World } from '../world.ts';
  * then hidden in, the zone of a suspicious silence, until Papa finds it or the mischief comes. Later
  * stories add `gagRecovery`: it adds its state here, to `BABY_STATES` in `snapshot.ts` and to the
  * system. `carried` (story 4.1): in Papa's arms; the single source of truth for carrying (there is
- * no `papa.carrying`), left only by Papa putting him down.
+ * no `papa.carrying`), left only by Papa putting him down. `downstairs` (story 3.15): left at the
+ * bottom of the stairs by the stairs' gag, until Papa fetches him or he climbs back by himself;
+ * `carriedUp`: Papa is carrying him back up (`papa.state === 'carryingUp'`). Neither is free, takeable
+ * or a target.
  */
 export type BabyState =
   | 'wander'
@@ -17,7 +20,9 @@ export type BabyState =
   | 'approach'
   | 'act'
   | 'mischiefSilent'
-  | 'carried';
+  | 'carried'
+  | 'downstairs'
+  | 'carriedUp';
 
 /** Whether Papa carries the baby (story 4.1): the baby's state is the single source of truth. */
 export function isBabyCarried(world: World): boolean {

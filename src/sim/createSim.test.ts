@@ -4,6 +4,7 @@ import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
   CARRY,
+  COFFEE_TABLE,
   createTestContent,
   createTestFalseAlarm,
   createTestGeometry,
@@ -11,6 +12,7 @@ import {
   FATIGUE_GAUGES,
   OUTLET,
   SILENCE,
+  STAIRS,
   stepN,
   TEST_OBJECTS,
   testPhoneEntry,
@@ -23,6 +25,46 @@ import { SYSTEMS } from './step.ts';
 const content = createTestContent();
 const geometry = createTestGeometry();
 const level = createTestLevel();
+
+describe('createSim refuses an afterEffect that does not fit its gag (story 3.15)', () => {
+  const withEffect = (defId: string, afterEffect: Record<string, unknown>) => {
+    const level = createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE])] });
+    const def = level.threats[defId];
+    if (def === undefined) throw new Error(`no ${defId}`);
+    return {
+      ...level,
+      threats: { ...level.threats, [defId]: { ...def, afterEffect } },
+    } as typeof level;
+  };
+
+  it('names the def, the gag and the expected kind', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: withEffect('outlet', { kind: 'asleep', busyMs: 1000 }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/"outlet".*"outlet_hair".*"electrified".*"asleep"/);
+  });
+
+  it('refuses every surprise gag of a silence that is not a mess', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: withEffect('silence_mischief', { kind: 'none' }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/"silence_mischief".*"mess".*"none"/);
+  });
+
+  it('accepts the frozen defs as they are', async () => {
+    const level = createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE])] });
+    const sim = await createSim({ content, geometry, level, seed: 1 });
+    expect(sim.world.threats).toHaveLength(4);
+  });
+});
 
 describe('createSim', () => {
   it('advances exactly 1000 ms in 100 steps', async () => {

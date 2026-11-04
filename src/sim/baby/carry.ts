@@ -75,6 +75,17 @@ export function takeBaby(world: World, ctx: StepContext): void {
   baby.zM = papa.zM;
   baby.gazeX = papa.headingX;
   baby.gazeZ = papa.headingZ;
+  // A sequence that carries the baby takes him wherever he is, the bottom of the stairs included
+  // (story 3.15): his wait is over.
+  if (baby.state === 'downstairs') {
+    baby.downstairsUntil = null;
+    ctx.events.push({
+      type: 'AfterEffectEnded',
+      t: world.time.sim,
+      kind: 'babyDownstairs',
+      propId: null,
+    });
+  }
   enterBabyState(world, ctx, 'carried');
   ctx.events.push({ type: 'BabyPickedUp', t: world.time.sim });
   for (let i = 0; i < world.threats.length; i++) {

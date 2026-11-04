@@ -21,5 +21,6 @@
     "perfect": "resp_firm_perfect",
     "gag": "gag_baby_woke_on_drop"
   },
+  "afterEffect": { "kind": "none" },
   "cooldownMs": 600
 }

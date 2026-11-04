@@ -6,6 +6,8 @@ import {
 } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import {
+  AFTER_EFFECT_KINDS,
+  type AfterEffectKind,
   type BreathGaspReason,
   LEVEL_END_REASONS,
   type LevelEndReason,
@@ -20,6 +22,13 @@ import type { ChronoRingMode } from './simArgs.ts';
 
 /** Every `NoiseSource` the report counts, in file order, `debug` last (a bot never sends `SetNoise`, so it stays 0). */
 const NOISE_SOURCES: readonly NoiseSource[] = [...NOISE_SOURCE_IDS, 'debug'];
+
+/** Every `AfterEffectKind` at 0: the report has all its keys, whether or not a séquelle of that kind began. */
+const emptyAfterEffects = (): Record<AfterEffectKind, number> =>
+  Object.fromEntries(AFTER_EFFECT_KINDS.map((kind) => [kind, 0])) as Record<
+    AfterEffectKind,
+    number
+  >;
 
 const emptyNoiseBySource = (): Record<NoiseSource, number> =>
   Object.fromEntries(NOISE_SOURCES.map((source) => [source, 0])) as Record<NoiseSource, number>;
@@ -89,6 +98,8 @@ export interface RunSummary {
   coffees: number;
   /** The `papa_asleep` gags: a missed micro-sleep. */
   asleepGags: number;
+  /** The séquelles that began, per kind (`AfterEffectStarted`, story 3.15). */
+  afterEffects: Record<AfterEffectKind, number>;
   /** The phones that started to ring (`PhoneRingStarted`, story 1.20). */
   phoneRings: number;
   /** The phones Papa picked up (`PhoneAnswered`). */
@@ -320,6 +331,7 @@ export function createRunRecorder(
   let bladderPeakPct = 0;
   let noisePeakPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
+  const afterEffects = emptyAfterEffects();
   // A silence is picked (`ThreatHidden`), then telegraphed only if the baby is found: the pick is
   // what counts against the wave, and the later telegraph of the same threat is not a second one.
   const hiddenThreatIds = new Set<number>();
@@ -465,6 +477,8 @@ export function createRunRecorder(
         if (event.gag === PAPA_ASLEEP_GAG_ID) asleepGags++;
       } else if (event.type === 'NearMiss') {
         nearMisses++;
+      } else if (event.type === 'AfterEffectStarted') {
+        afterEffects[event.kind]++;
       } else if (event.type === 'CoffeeDrunk') {
         coffees++;
       } else if (event.type === 'PhoneRingStarted') {
@@ -499,6 +513,7 @@ export function createRunRecorder(
         microSleeps,
         coffees,
         asleepGags,
+        afterEffects: { ...afterEffects },
         phoneRings,
         phoneAnswers,
         phoneRingingSeconds,
@@ -616,6 +631,14 @@ export interface SimReport {
     byGag: Record<string, number>;
     /** Total `NearMiss` events over the runs (the stairs' gags today). */
     nearMisses: number;
+  };
+  /**
+   * The séquelles the gags left (`AfterEffectStarted`, story 3.15): the total of each kind over the runs, and
+   * all of them per run. `perfect` has none; `idle` piles them up.
+   */
+  afterEffects: {
+    byKind: Record<AfterEffectKind, number>;
+    meanPerRun: number;
   };
   /** The director-drawn windows that broke the fairness rule, over the runs: 0 when the director is right (story 3.13, FR75). */
   fairnessViolations: number;
@@ -819,6 +842,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let noisePeakMaxPct = 0;
   let noiseFinalSumPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
+  const afterEffectsByKind = emptyAfterEffects();
   let scoredRuns = 0;
   let rowRuns = 0;
   let scoreSum = 0;
@@ -917,6 +941,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     noisePeakMaxPct = Math.max(noisePeakMaxPct, run.noisePeakPct);
     noiseFinalSumPct += run.noiseFinalPct;
     for (const source of NOISE_SOURCES) noiseBySourcePct[source] += run.noiseBySourcePct[source];
+    for (const kind of AFTER_EFFECT_KINDS) afterEffectsByKind[kind] += run.afterEffects[kind];
     for (const gag of Object.keys(run.byGag)) {
       byGag[gag] = countOf(byGag, gag) + countOf(run.byGag, gag);
     }
@@ -990,6 +1015,17 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       meanPerRun: runs.length === 0 ? 0 : round(gags / runs.length, 2),
       byGag: sortedByGag,
       nearMisses,
+    },
+    afterEffects: {
+      byKind: afterEffectsByKind,
+      meanPerRun:
+        runs.length === 0
+          ? 0
+          : round(
+              AFTER_EFFECT_KINDS.reduce((sum, kind) => sum + afterEffectsByKind[kind], 0) /
+                runs.length,
+              2,
+            ),
     },
     fairnessViolations,
     stretchedTelegraphs,

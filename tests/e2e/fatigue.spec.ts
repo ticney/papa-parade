@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { THREAT_ICON_PATHS } from '../../src/client/ui/world/threatMarkers.ts';
 import { HUD_MAX_DOM_NODES, STEP_MS } from '../../src/shared/constants.ts';
@@ -35,7 +36,12 @@ const FATIGUE_FEEL = (liveFeel as unknown as { fatigue: Record<string, number> }
 const COFFEE_REDUCTION = FATIGUE_FEEL.coffeeReductionPoints as number;
 const COFFEE_STEPS = Math.ceil((FATIGUE_FEEL.coffeeDurationMs as number) / STEP_MS);
 const MICRO_SLEEP_MAX_MS = FATIGUE_FEEL.microSleepMaxMs as number;
-const ASLEEP_MS = FATIGUE_FEEL.asleepMs as number;
+// The nap lasts as long as the micro-sleep's séquelle says (story 3.15: `afterEffect.busyMs`).
+const ASLEEP_MS = (
+  JSON.parse(readFileSync('content/threats/papa_microsleep.json', 'utf8')) as {
+    afterEffect: { busyMs: number };
+  }
+).afterEffect.busyMs;
 /** Upper bound of what a micro-sleep needs to be judged once telegraphed: delay + window + tolerance, rounded up. */
 const MICRO_SLEEP_JUDGE_MS = 2000;
 /** A floor point of the live level in the test viewport (a tap on it plans a walk; the first test of this spec shows it). */
@@ -287,7 +293,7 @@ test.describe('the micro-sleep', () => {
     expect(problems).toEqual([]);
   });
 
-  test('unanswered, it puts Papa to sleep for asleepMs: he answers no tap meanwhile, then wakes', async ({
+  test('unanswered, it puts Papa to sleep for its afterEffect busyMs: he answers no tap meanwhile, then wakes', async ({
     page,
   }) => {
     await openFrozen(page);

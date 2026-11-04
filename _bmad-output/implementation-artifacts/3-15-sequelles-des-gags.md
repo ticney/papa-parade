@@ -1,6 +1,10 @@
+---
+baseline_commit: 6507abe1dee746a6a437f8d5291f3beb426aa904
+---
+
 # Story 3.15: Séquelles des gags
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -63,49 +67,49 @@ Seventh story of the v2.3 catch-up (`sprint-change-proposal-2026-11-03.md` §3: 
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Content: the `afterEffect` field** (AC 1, 2, 3)
-  - [ ] `src/shared/constants.ts`: `AFTER_EFFECT_BUSY_MAX_MS = 2000`, `MICRO_SLEEP_BUSY_MAX_MS = 3000` (rules of the GDD, not tunables: D1).
-  - [ ] `src/content/schemas/threat.ts`: `AfterEffectDefSchema` = `z.discriminatedUnion('kind', [...])` of strict objects (no `.optional()`, `.default()`, `.transform()`), each duration `durationMs(...)`-style positive int with its cap; `afterEffect` required in `baseShape`. Export `AfterEffectDefKind` (`'none' | 'electrified' | 'babyDownstairs' | 'debris' | 'mess' | 'asleep'`).
-  - [ ] All 11 `content/threats/*.json` and the `tests/support/test*.threat.json` copies get their `afterEffect` (values in AC 1).
-  - [ ] `src/sim/threats/gags.ts`: `AFTER_EFFECT_OF_GAG: Readonly<Record<GagId, AfterEffectDefKind>>` beside `NEAR_MISS_GAGS` (outlet_hair→electrified, stairs_slide→babyDownstairs, table_object_fall→debris, papa_asleep→asleep, tissues_everywhere / crayon_scribbles→mess, the six E4 gags→none). `createSim` refuses a mismatch (same place and style as the `PAPA_ASLEEP_GAG_ID` pairing, `createSim.ts` ~L256-283); `tools/content/contentChecks.ts` reports it.
-  - [ ] `feel`: remove `fatigue.asleepMs` (schema `src/content/schemas/feel.ts:239`, `content/feel.json`, `tests/support/testFeel.json`, any debug-panel binding or `SetFeel` test that names it); add `noise.sources.debrisStep {noisePct}`, `gags.debrisStepRadiusM`, `fx.dim {lightsPct, fadeMs}`.
-  - [ ] `npm run content:schemas`; schema tests (each kind, each cap, a missing `afterEffect`, an unknown kind, an extra key); content-check tests for the pairing.
-- [ ] **Task 2 — Sim state, events and snapshot** (AC 4-9, 11)
-  - [ ] `PapaState` + `PAPA_STATES`: `electrified`, `carryingUp`, `pickingUp`. `PapaIntent` + `PAPA_INTENTS`: `fetchBaby`. Rewrite `isPapaBusy` as a `Record<PapaState, boolean>` table (busy: `drink`, `asleep`, `onPhone`, `onToilet`, `electrified`, `carryingUp`, `pickingUp`), and add `isAfterEffectState` (`electrified`, `carryingUp`, `asleep`).
-  - [ ] `BabyState` + `BABY_STATES`: `downstairs`, `carriedUp`; `BabySlice.downstairsUntil: SimMs | null`. Check every `Record<BabyState, …>` and every `switch` on the baby's state (the compiler lists them): they stay out of `isBabyFree`, `isTakeable`, wander, silence and cry-in-the-arms.
-  - [ ] `PropSlice.debrisPickUpMs: number` (0 = not a debris). `World.afterEffects: { dimUntil: SimMs; steppedDebrisIndex: number; mischiefMarks: MischiefMark[] }` (`MischiefMark = { gag: GagId; xM: number; zM: number }`), initial `{0, -1, []}`.
-  - [ ] Events (`events.ts`, `SIM_EVENT_TYPES`): `AfterEffectStarted{t, kind, until: SimMs | null, propId: string | null}`, `AfterEffectEnded{t, kind, propId: string | null}`, `DebrisSteppedOn{t, propId}`; `AfterEffectKind` = the def kinds minus `none`, plus `dim` and `carryUp` (D8).
-  - [ ] `snapshot.ts`: version 29 → 30, validators for every new field, state and intent, and the existing `isBusy === (busyUntil !== 0)` invariant extended to the new busy states.
-- [ ] **Task 3 — `src/sim/threats/afterEffects.ts`** (AC 4-10)
-  - [ ] `occupyPapa(world, ctx, state, busyMs)`: the D2 rule; generalizes `putPapaToSleep` (`src/sim/papa/sleep.ts`), which becomes `occupyPapa(…, 'asleep', def.afterEffect.busyMs)` (keep its doc's coffee / toilet rule). Papa-side `AfterEffectStarted` / `AfterEffectEnded`.
-  - [ ] `applyAfterEffect(world, ctx, threat, def, gag)`, called by `gagThreat` right after `applyGag` (`threatFsm.ts` ~L281-315), dispatching on `def.afterEffect.kind` (D3-D7). `GAG_CONSEQUENCES` keeps the one-shot consequences (the near miss, the push, the mischief count); the séquelle is applied by `applyAfterEffect`, so `papaAsleep` in `gags.ts` stops calling `putPapaToSleep` (one writer).
-  - [ ] `runAfterEffects(world, ctx)` at the end of `runThreats` (architecture L233: séquelles inside the threats system): the dim end, the baby's self-return, the debris step detection (D5), the debris mark cleared when its prop breaks.
-  - [ ] `runPapa`'s busy-end branch (`papaSystem.ts` ~L254-263): `carryingUp` → `finishCarryUp` (baby back, `babble`), `pickingUp` → `finishPickUp` (`tidyProp`), `electrified` / `asleep` → idle; each emits its `AfterEffectEnded`.
-  - [ ] `tapBaby` (`papaSystem.ts` ~L75): a `downstairs` baby is fetched (walk with intent `fetchBaby`, or at once if within reach), never taken into the carry. `arrive` handles `fetchBaby`.
-  - [ ] `tapObject` (`papaSystem.ts` ~L146): outside the rush, a debris prop is walked to; `arrive` starts `pickingUp` if it is still a debris. The rush path is unchanged.
-  - [ ] `runNoise`: `DebrisSteppedOn` → `addNoise(…, debrisStep.noisePct, 'debrisStep')`.
-  - [ ] Make sure the baby's post-gag `act` (`releaseTarget`, `babySystem.ts` ~L37) does not overwrite `downstairs` (Traps).
-  - [ ] Unit tests per rule (D2-D7), each able to fail: replace without extending, same séquelle twice, decor stacking, chosen occupation cancelled, carry replaced, self-return, fetch race (baby climbs back while Papa walks), debris landing on the table or breaking, step noise once per entry, no noise without a gauge, the AC 10 cap as a property over a fuzz of gags.
-- [ ] **Task 4 — Client** (AC 12-17)
-  - [ ] `activityBubble.ts`: `ACTIVITY_PICTOGRAMS` entries (`electrified` / `carryingUp` → `stars`, `pickingUp` → new `hand`: one ink path in the style of the others); its test against `isPapaBusy` passes.
-  - [ ] `characterClips.ts`: `PAPA_LOOPS` (`electrified`, `carryingUp`, `pickingUp`) and `BABY_LOOPS` (`downstairs`, `carriedUp`) with clips that exist in `papa.glb` / `baby.glb` (look them up; no Blender work: e.g. `carryingUp` → `carry_walk`, `carriedUp` → `carried`); the hair stays on end for the whole `electrified` state.
-  - [ ] Pénombre: `levelScene.ts` light factor = `min(gagFlash, dimFactor)` from `world.afterEffects.dimUntil` and `feel.fx.dim`, at `renderSimMs` (sim time, frozen by pause / hitstop). No scrim, no CSS filter, nothing on the world-UI layer (D3).
-  - [ ] The baby `downstairs` view (`src/client/render/gags.ts` slide functions and the baby view): out and stays while `downstairs`, with a small downward drop; back when he leaves the state.
-  - [ ] Debris: tidy marker outside the rush (`tidyMarkers.ts`), hit-test (`hitTest.ts`, `inputMapper.ts`) sends `TapObject` for a debris outside the rush; the `DebrisSteppedOn` cue in `content/feedback.json` (sound + visual + haptic, reusing an existing sound file), routed in `simEventFeedback.ts`.
-  - [ ] Mischief decals: one mesh per mark (merged or instanced if more than a few), cheap materials, drawn from `world.afterEffects.mischiefMarks` so the photo shows them with no extra code (`photo.ts` renders the frozen `World`).
-  - [ ] `boot.ts` mirror `data-pp-dim`.
-  - [ ] Unit tests (pictogram table, light factor, slide offset by state, decal count) and a new `tests/e2e/afterEffects.spec.ts` driving each séquelle with `window.__PP__` (force a gag, read the states, the bubble class, `data-pp-dim`, the world-UI styles, tap the baby and the debris, the photo); run with `activityBubble.spec.ts`, `finalRush.spec.ts`, `photo.spec.ts`, `noise.spec.ts`, `carry.spec.ts`, `silence.spec.ts`, `threat.spec.ts` on Chromium.
-- [ ] **Task 5 — Bots and the sim report** (AC 18)
-  - [ ] `src/bots/humanBot.ts`: `BUSY_PAPA_STATES` gains the new busy states; a `downstairs` baby is fetched (`TapBaby`) after a drawn reaction, when Papa is free and no command is planned. No draw on the paths that do not meet a downstairs baby.
-  - [ ] `perfect` and `idle` unchanged; a bot test on the salon-like test level: `perfect` 0 `AfterEffectStarted`, `idle` > 0.
-  - [ ] `tools/sim/simReport.ts` (+ tests that build whole reports): `afterEffects: { byKind: Record<AfterEffectKind, number>; meanPerRun: number }`.
-  - [ ] Measure (CLI, background, `caffeinate -i -s`): `npm run sim -- --bot perfect|human|idle --runs 200 --seed 1000` on the salon, and `human --chrono-ring off`; record before (on `main`) and after in the Completion Notes.
-- [ ] **Task 6 — Goldens** (AC 19)
-  - [ ] New scenarios in `tests/golden/scenarios.ts`: `outlet_electrified_dim`, `stairs_fetch_carry_up`, `stairs_self_return`, `debris_pick_up_and_step`, `silence_mess_mark`, `after_effect_replaced`.
-  - [ ] `npm run golden:update`; read each moved `*.expected.json` (only gag scenarios should move: say which in the Completion Notes).
-- [ ] **Task 7 — Docs and checks** (AC 20)
-  - [ ] `project-context.md`, `game-architecture.md` L411, `EXPERIENCE.md`, `DESIGN.md` (pictograms), `deferred-work.md`.
-  - [ ] `npm run ci:fast` after each task; the touched e2e specs on Chromium (`npm run e2e -- <specs> --project=chromium`, in the background). `ci:story` is the review's.
+- [x] **Task 1 — Content: the `afterEffect` field** (AC 1, 2, 3)
+  - [x] `src/shared/constants.ts`: `AFTER_EFFECT_BUSY_MAX_MS = 2000`, `MICRO_SLEEP_BUSY_MAX_MS = 3000` (rules of the GDD, not tunables: D1).
+  - [x] `src/content/schemas/threat.ts`: `AfterEffectDefSchema` = `z.discriminatedUnion('kind', [...])` of strict objects (no `.optional()`, `.default()`, `.transform()`), each duration `durationMs(...)`-style positive int with its cap; `afterEffect` required in `baseShape`. Export `AfterEffectDefKind` (`'none' | 'electrified' | 'babyDownstairs' | 'debris' | 'mess' | 'asleep'`).
+  - [x] All 11 `content/threats/*.json` and the `tests/support/test*.threat.json` copies get their `afterEffect` (values in AC 1).
+  - [x] `src/sim/threats/gags.ts`: `AFTER_EFFECT_OF_GAG: Readonly<Record<GagId, AfterEffectDefKind>>` beside `NEAR_MISS_GAGS` (outlet_hair→electrified, stairs_slide→babyDownstairs, table_object_fall→debris, papa_asleep→asleep, tissues_everywhere / crayon_scribbles→mess, the six E4 gags→none). `createSim` refuses a mismatch (same place and style as the `PAPA_ASLEEP_GAG_ID` pairing, `createSim.ts` ~L256-283); `tools/content/contentChecks.ts` reports it.
+  - [x] `feel`: remove `fatigue.asleepMs` (schema `src/content/schemas/feel.ts:239`, `content/feel.json`, `tests/support/testFeel.json`, any debug-panel binding or `SetFeel` test that names it); add `noise.sources.debrisStep {noisePct}`, `gags.debrisStepRadiusM`, `fx.dim {lightsPct, fadeMs}`.
+  - [x] `npm run content:schemas`; schema tests (each kind, each cap, a missing `afterEffect`, an unknown kind, an extra key); content-check tests for the pairing.
+- [x] **Task 2 — Sim state, events and snapshot** (AC 4-9, 11)
+  - [x] `PapaState` + `PAPA_STATES`: `electrified`, `carryingUp`, `pickingUp`. `PapaIntent` + `PAPA_INTENTS`: `fetchBaby`. Rewrite `isPapaBusy` as a `Record<PapaState, boolean>` table (busy: `drink`, `asleep`, `onPhone`, `onToilet`, `electrified`, `carryingUp`, `pickingUp`), and add `isAfterEffectState` (`electrified`, `carryingUp`, `asleep`).
+  - [x] `BabyState` + `BABY_STATES`: `downstairs`, `carriedUp`; `BabySlice.downstairsUntil: SimMs | null`. Check every `Record<BabyState, …>` and every `switch` on the baby's state (the compiler lists them): they stay out of `isBabyFree`, `isTakeable`, wander, silence and cry-in-the-arms.
+  - [x] `PropSlice.debrisPickUpMs: number` (0 = not a debris). `World.afterEffects: { dimUntil: SimMs; steppedDebrisIndex: number; mischiefMarks: MischiefMark[] }` (`MischiefMark = { gag: GagId; xM: number; zM: number }`), initial `{0, -1, []}`.
+  - [x] Events (`events.ts`, `SIM_EVENT_TYPES`): `AfterEffectStarted{t, kind, until: SimMs | null, propId: string | null}`, `AfterEffectEnded{t, kind, propId: string | null}`, `DebrisSteppedOn{t, propId}`; `AfterEffectKind` = the def kinds minus `none`, plus `dim` and `carryUp` (D8).
+  - [x] `snapshot.ts`: version 29 → 30, validators for every new field, state and intent, and the existing `isBusy === (busyUntil !== 0)` invariant extended to the new busy states.
+- [x] **Task 3 — `src/sim/threats/afterEffects.ts`** (AC 4-10)
+  - [x] `occupyPapa(world, ctx, state, busyMs)`: the D2 rule; generalizes `putPapaToSleep` (`src/sim/papa/sleep.ts`), which becomes `occupyPapa(…, 'asleep', def.afterEffect.busyMs)` (keep its doc's coffee / toilet rule). Papa-side `AfterEffectStarted` / `AfterEffectEnded`.
+  - [x] `applyAfterEffect(world, ctx, threat, def, gag)`, called by `gagThreat` right after `applyGag` (`threatFsm.ts` ~L281-315), dispatching on `def.afterEffect.kind` (D3-D7). `GAG_CONSEQUENCES` keeps the one-shot consequences (the near miss, the push, the mischief count); the séquelle is applied by `applyAfterEffect`, so `papaAsleep` in `gags.ts` stops calling `putPapaToSleep` (one writer).
+  - [x] `runAfterEffects(world, ctx)` at the end of `runThreats` (architecture L233: séquelles inside the threats system): the dim end, the baby's self-return, the debris step detection (D5), the debris mark cleared when its prop breaks.
+  - [x] `runPapa`'s busy-end branch (`papaSystem.ts` ~L254-263): `carryingUp` → `finishCarryUp` (baby back, `babble`), `pickingUp` → `finishPickUp` (`tidyProp`), `electrified` / `asleep` → idle; each emits its `AfterEffectEnded`.
+  - [x] `tapBaby` (`papaSystem.ts` ~L75): a `downstairs` baby is fetched (walk with intent `fetchBaby`, or at once if within reach), never taken into the carry. `arrive` handles `fetchBaby`.
+  - [x] `tapObject` (`papaSystem.ts` ~L146): outside the rush, a debris prop is walked to; `arrive` starts `pickingUp` if it is still a debris. The rush path is unchanged.
+  - [x] `runNoise`: `DebrisSteppedOn` → `addNoise(…, debrisStep.noisePct, 'debrisStep')`.
+  - [x] Make sure the baby's post-gag `act` (`releaseTarget`, `babySystem.ts` ~L37) does not overwrite `downstairs` (Traps).
+  - [x] Unit tests per rule (D2-D7), each able to fail: replace without extending, same séquelle twice, decor stacking, chosen occupation cancelled, carry replaced, self-return, fetch race (baby climbs back while Papa walks), debris landing on the table or breaking, step noise once per entry, no noise without a gauge, the AC 10 cap as a property over a fuzz of gags.
+- [x] **Task 4 — Client** (AC 12-17)
+  - [x] `activityBubble.ts`: `ACTIVITY_PICTOGRAMS` entries (`electrified` / `carryingUp` → `stars`, `pickingUp` → new `hand`: one ink path in the style of the others); its test against `isPapaBusy` passes.
+  - [x] `characterClips.ts`: `PAPA_LOOPS` (`electrified`, `carryingUp`, `pickingUp`) and `BABY_LOOPS` (`downstairs`, `carriedUp`) with clips that exist in `papa.glb` / `baby.glb` (look them up; no Blender work: e.g. `carryingUp` → `carry_walk`, `carriedUp` → `carried`); the hair stays on end for the whole `electrified` state.
+  - [x] Pénombre: `levelScene.ts` light factor = `min(gagFlash, dimFactor)` from `world.afterEffects.dimUntil` and `feel.fx.dim`, at `renderSimMs` (sim time, frozen by pause / hitstop). No scrim, no CSS filter, nothing on the world-UI layer (D3).
+  - [x] The baby `downstairs` view (`src/client/render/gags.ts` slide functions and the baby view): out and stays while `downstairs`, with a small downward drop; back when he leaves the state.
+  - [x] Debris: tidy marker outside the rush (`tidyMarkers.ts`), hit-test (`hitTest.ts`, `inputMapper.ts`) sends `TapObject` for a debris outside the rush; the `DebrisSteppedOn` cue in `content/feedback.json` (sound + visual + haptic, reusing an existing sound file), routed in `simEventFeedback.ts`.
+  - [x] Mischief decals: one mesh per mark (merged or instanced if more than a few), cheap materials, drawn from `world.afterEffects.mischiefMarks` so the photo shows them with no extra code (`photo.ts` renders the frozen `World`).
+  - [x] `boot.ts` mirror `data-pp-dim`.
+  - [x] Unit tests (pictogram table, light factor, slide offset by state, decal count) and a new `tests/e2e/afterEffects.spec.ts` driving each séquelle with `window.__PP__` (force a gag, read the states, the bubble class, `data-pp-dim`, the world-UI styles, tap the baby and the debris, the photo); run with `activityBubble.spec.ts`, `finalRush.spec.ts`, `photo.spec.ts`, `noise.spec.ts`, `carry.spec.ts`, `silence.spec.ts`, `threat.spec.ts` on Chromium.
+- [x] **Task 5 — Bots and the sim report** (AC 18)
+  - [x] `src/bots/humanBot.ts`: `BUSY_PAPA_STATES` gains the new busy states; a `downstairs` baby is fetched (`TapBaby`) after a drawn reaction, when Papa is free and no command is planned. No draw on the paths that do not meet a downstairs baby.
+  - [x] `perfect` and `idle` unchanged; a bot test on the salon-like test level: `perfect` 0 `AfterEffectStarted`, `idle` > 0.
+  - [x] `tools/sim/simReport.ts` (+ tests that build whole reports): `afterEffects: { byKind: Record<AfterEffectKind, number>; meanPerRun: number }`.
+  - [x] Measure (CLI, background, `caffeinate -i -s`): `npm run sim -- --bot perfect|human|idle --runs 200 --seed 1000` on the salon, and `human --chrono-ring off`; record before (on `main`) and after in the Completion Notes.
+- [x] **Task 6 — Goldens** (AC 19)
+  - [x] New scenarios in `tests/golden/scenarios.ts`: `outlet_electrified_dim`, `stairs_fetch_carry_up`, `stairs_self_return`, `debris_pick_up_and_step`, `silence_mess_mark`, `after_effect_replaced`.
+  - [x] `npm run golden:update`; read each moved `*.expected.json` (only gag scenarios should move: say which in the Completion Notes).
+- [x] **Task 7 — Docs and checks** (AC 20)
+  - [x] `project-context.md`, `game-architecture.md` L411, `EXPERIENCE.md`, `DESIGN.md` (pictograms), `deferred-work.md`.
+  - [x] `npm run ci:fast` after each task; the touched e2e specs on Chromium (`npm run e2e -- <specs> --project=chromium`, in the background). `ci:story` is the review's.
 
 ## Dev Notes
 
@@ -272,12 +276,181 @@ Follows the architecture's own placement (L233, L501, L989: `src/sim/threats/aft
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-sonnet-5-5 (Claude Code, `/gds-dev-story 3-15`, 2026-11-04).
 
 ### Debug Log References
+
+- `humanBotRegression.test.ts` moved: the proof is in its header (the commands are the ones of `main`, the whole-journal hash moved because the journal's header carries the feel and level hashes). Measured with `tsx` on `main` (5572c36) and on the branch, séquelles neutralized and not: `journal.entries` of `human` on the frozen `test` and `trio` levels, seeds 1-3, are identical (`0632f181689687`, `158358e075a1a2`, `111636e2c690a2`, `1f13d096e14190`, `0dcf36b7fba7c5`, `045e0bb9041d03`).
+- `directorSystem.test.ts` « baseline trace » moved: with `applyAfterEffect` neutralized the rng state is exactly the captured one (1581132668, 1663718832, 1567227279, 81), only one `AfterEffectStarted{debris}` event more (184 against 183): the draws did not move on their own. With séquelles: rng `{1395406730, -1107192812, 768810317, 71}`, 217 events, hash `0576724a320731`.
+- A first `e2e` run was disturbed by my own edits (Vite reloads the page when a watched file changes: « Execution context was destroyed »): a rerun with nothing edited meanwhile was green. An `activityBubble.spec.ts` run with six spec files at once timed out under load and passed alone (45 s).
+- Open point of the test levels: the stairs' anchor of the salon (3.9, -1.25) is a closed nav cell, the baby stands at (3.125, -1.375), the nearest open one; the sim does not move him (no teleport), the client draws the slide from where he stands.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created (story creation, 2026-11-04). Five open points for Geo (self-return of the baby, the replace rule, the pick-up pictogram and marker, deferred baby-target debris, the stairs' cost); the story's decisions let the dev start without waiting for them. Geo kept all five as written (chat, 2026-11-04).
+- **What was built (Tasks 1-7, AC 1-20).** Content: every threat def declares `afterEffect` (union on `kind`, caps `AFTER_EFFECT_BUSY_MAX_MS` 2000 / `MICRO_SLEEP_BUSY_MAX_MS` 3000 as constants, enforced by the schema), `AFTER_EFFECT_OF_GAG` paired by `createSim` (after every other check, so the older messages keep their wording) and `content:check`; `feel.fatigue.asleepMs` gone, `noise.sources.debrisStep`, `gags.debrisStepRadiusM`, `fx.dim` added; schemas regenerated. Sim: `threats/afterEffects.ts` (`occupyPapa`, `applyAfterEffect`, `runAfterEffects`, `startCarryUp`, `startPickUp`, `markDebris`, `finishPapaBusy`), new Papa states (`electrified`, `carryingUp`, `pickingUp`), intent `fetchBaby`, baby states (`downstairs`, `carriedUp`), `World.afterEffects`, `BabySlice.downstairsUntil`, `PropSlice.debrisPickUpMs`, events `AfterEffectStarted` / `AfterEffectEnded` / `DebrisSteppedOn`, snapshot version 30. `putPapaToSleep` (`papa/sleep.ts`) is gone: `occupyPapa` is the one writer.
+- **Behaviour worth knowing.** (1) A Papa-occupying séquelle replaces the one under way and keeps its end; the AC 10 property test measures a chain from its first séquelle (a shock replacing a nap ends at the nap's end, so measured from the shock's own start it can exceed 2 s; from the chain's start it never does). (2) A gag that lands on a chosen occupation cancels it (coffee, call, toilet visit, pick-up), as the nap always did: **an outlet gag now ends a toilet visit** (the visit is cancelled, no `ToiletFinished`), which changed a few specs (below). (3) An early press that gags in the same step as its glide now gives no glide: `runThreats` judges first, Papa is electrified, `runPapa` ignores the press (the old `outlet_parry` cycle 2 glide of length 0 is gone). (4) `takeBaby` also ends a `downstairs` wait (a sequence that carries the baby takes him wherever he is: found by `carryFuzz`). (5) The baby is not moved by the gag: he stays where he stands (the salon's `stairs_top` is a closed cell); the client draws the slide (0.6 m, 0.15 m down) and holds it while `downstairs`, instant under reduced motion, and puts him at the bottom at once when a restored game finds him there. (6) A debris is no step-noise for the one Papa walks to (`papa.objectId`). (7) Self-return uses `feel.baby.babbleMinMs`, no rng draw.
+- **Client.** Pénombre: `createDimFx` eases the 3D lights only (`min` with the outlet's flash in `levelScene.ts`); nothing touches the world UI, and an e2e reads the computed `opacity` / `filter` of the layer's ancestors and of each shown marker (equal to outside the pénombre) plus a macOS screenshot (`penombre-threat-up`, looked at: the room is darker, the marker, ring and bubble keep their colours). Hair on end for the whole `electrified` state. `carriedUp` is drawn like `carried`. Debris: the tidy marker outside the rush, `TapObject` on it (touch and Space / A), cue `debris_stepped` (sound `env_floor_creak`, soundWave + light haptic). Mischief decals (`vfx/mischiefDecals.ts`, one draw call each, toon material so the pénombre dims them): the silence hides the baby behind the sofa, so the decal is moved along the line of sight to the first floor point no collider hides (D6's fallback, documented in `deferred-work.md`). `data-pp-dim` mirror; `__PP__.fx()` gains `lightsFactor` and `mischiefDecals`.
+- **Clips without Blender.** `electrified` → `gag_shock`, `carryingUp` → `carry_idle`, `carriedUp` → `carried`, `downstairs` → `babble`; **`pickingUp` plays `idle`** (the `.glb` has no bending clip).
+- **Bots.** `human` fetches a baby downstairs after a drawn reaction (only on that path), retrying a second later if the tap came to nothing; `BUSY_PAPA_STATES` gained the three busy states; it never picks debris up. `perfect` and `idle` unchanged.
+- **Measurements (AC 18)**, `npm run sim -- --bot <b> --level salon_crawler --tier normal --runs 200 --seed 1000`, before = `main` at 5572c36, after = this branch:
+
+| bot | | ends (timer / mamaWoke) | mean ★ | mean points | perfect % | success % | gags per run | séquelles per run |
+|---|---|---|---|---|---|---|---|---|
+| perfect | before | 200 / 0 | 4 | 79.8 | 100 | 100 | 0 | n/a |
+| perfect | after | 200 / 0 | 4 | 79.8 | 100 | 100 | 0 | **0** (all kinds 0) |
+| human (ring on) | before | 175 / 25 | 3.4 | 73.6 | 41.2 | 95.1 | 2.35 | n/a |
+| human (ring on) | after | 164 / 36 | 3.2 | 72.0 | 40.7 | 93.9 | 2.90 | 4.56 (146 electrified, 190 downstairs, 172 debris, 33 mess, 38 asleep, 146 dim, **187 carryUp**) |
+| human (ring off) | before | 139 / 61 | 0.9 | 34.9 | 9.4 | 44.4 | 24.59 | n/a |
+| human (ring off) | after | 148 / 52 | 0.8 | 32.9 | 8.8 | 40.3 | 27.48 | 41.82 (1687 / 1603 / 803 / 771 / 232 / 1687 / 1580 carryUp) |
+| idle | before | 158 / 42 | 0 | 16.1 | 0 | 0 | 35.22 | n/a |
+| idle | after | 199 / 1 | 0 | 15.0 | 0 | 0 | 46.46 | 55.43 (3163 / 2839 / 800 / 632 / 488 / 3163 / **0** carryUp) |
+
+  `fairnessViolations` 0 everywhere. `human --seed 1` (ring on) ends on `timer` (4★, 78 points): the autoplay specs keep their end. **For 3.16:** `idle` now almost never wakes Mama (42 → 1 games of 200, noise peak 96.4 → 91.6 %: the phone's 21 000 % of noise is the same, the props' fall earlier and the baby left downstairs holds the director for 6 s at a time), so « idle always loses » will have to come from the catastrophe gauge, not from the noise; `human` ring-on loses a little more (36 against 25 games of 200 end on `mamaWoke`).
+- **Goldens (AC 19): `npm run golden:update` was run, deliberately.** Every journal and every summary moved (the journal header and the world hash carry the new feel, level and world fields); the **events** moved only for `feel_change`, `instinct`, `outlet_parry`, `stay_awake_dozed`, `threat_trio` and `toilet_visit` (all gag scenarios); the 21 others moved by `worldHash` alone. Their specific tests were adapted (`outlet_parry`: cycle 2's early press no longer glides and the tap of cycle 3 waits for the shock, `toilet_visit`: the outlet starts at 5 s so that it does not shock the visit away, `stay_awake_dozed`: one more event). Six new scenarios, pinned by `tests/golden/afterEffects.test.ts`: `outlet_electrified_dim`, `stairs_fetch_carry_up`, `stairs_self_return`, `debris_pick_up_and_step`, `silence_mess_mark`, `after_effect_replaced`.
+- **Specs changed because the game changed (all on Chromium, nothing loosened).** Unit: the glide tests press inside the window's buffer and release (an early press now gags and shocks); the coffee, phone and toilet tests that expected their occupation to survive a gag now expect the shock (`electrified`, no `CoffeeDrunk` / `ToiletFinished`); `step.test.ts` lets the level last 5 s so the shock is over; `carryFuzz` counts fewer toilet visits (`SEED_COUNT / 8` instead of `/ 4`: shocks cancel them); `snapshot` versions 29 → 30. e2e: `toilet.spec` waits for the first gag and uses a 1.5 s visit; `fatigue.spec` reads the nap from the JSON; `chambreNight.spec` widens the response window for its toilet test; `reducedMotion.spec` « every threat shows its verb whole » no longer counts a verb that happened to be up (it now carries the baby to see the cry in the arms, and skips the sequence-spawned duel defs, which `ForceThreat` never starts: their own specs read their verbs).
+- **Run, not run.** Green: `npm run ci:fast` (8535 tests), `npm run test:coverage` (`src/sim` 97.97 % statements, `afterEffects.ts` 97.4 %), `npm run content:check`, the unit tests of every touched area, and on Chromium `afterEffects`, `activityBubble`, `finalRush`, `photo`, `noise`, `carry`, `silence`, `threat`, `threats`, `fatigue`, `toilet`, `phone`, `testApi`, `props`, `baby`, `instinct`, `mamaWoke`, `autoplay` (its macOS screenshot did not move), `feedback`, `juice`, `characters`, `render`, `reducedMotion`, `ui`, `journal`, `result`, `level`, `combo`, `chambreNight`, `timeEffects`, `debugOverlay`. **Not run:** `ci:story` and `ci` (the review's and the epic's), WebKit (the pénombre screenshot has references for both, generated here), `perf.spec.ts` (decals are one draw call each, a handful per level), `stealthExit`, `bedtimeDuel`, `bombDrop`, `fakeSleep`, `lullaby`, `sequence` specs.
+- **Replays.** Run files and tester journals recorded before this story may no longer reach the same end state (the sim changed: séquelles, snapshot 30, feel without `asleepMs`); expected. Two fresh `human` games recorded with `npm run sim -- --bot human --seed 5 --runs 2 --journals <dir>` replay with `npm run sim:replay` (`replay matches`, exit 0), a debris included; every golden journal replays to its committed summary.
 
 ### File List
+
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/planning-artifacts/game-architecture.md`
+- `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/DESIGN.md`
+- `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md`
+- `_bmad-output/project-context.md`
+- `content/_schemas/feel.schema.json`
+- `content/_schemas/threat.schema.json`
+- `content/feedback.json`
+- `content/feel.json`
+- `content/threats/arms_cry.json`
+- `content/threats/bedtime_eyes.json`
+- `content/threats/bomb_drop_lay.json`
+- `content/threats/coffee_table_object.json`
+- `content/threats/fake_sleep.json`
+- `content/threats/false_alarm_sigh.json`
+- `content/threats/outlet.json`
+- `content/threats/papa_microsleep.json`
+- `content/threats/real_wake.json`
+- `content/threats/silence_mischief.json`
+- `content/threats/stairs.json`
+- `src/bots/humanBot.ts`
+- `src/client/app/levelSession.test.ts`
+- `src/client/app/testHost.ts`
+- `src/client/boot.ts`
+- `src/client/feedback/feedbackDirector.test.ts`
+- `src/client/input/contextObject.ts`
+- `src/client/input/inputMapper.ts`
+- `src/client/render/dimFx.test.ts`
+- `src/client/render/dimFx.ts`
+- `src/client/render/gags.test.ts`
+- `src/client/render/gags.ts`
+- `src/client/render/levelScene.test.ts`
+- `src/client/render/levelScene.ts`
+- `src/client/render/vfx/mischiefDecals.test.ts`
+- `src/client/render/vfx/mischiefDecals.ts`
+- `src/client/render/views/babyView.test.ts`
+- `src/client/render/views/babyView.ts`
+- `src/client/render/views/characterClips.ts`
+- `src/client/render/views/propView.test.ts`
+- `src/client/ui/world/activityBubble.test.ts`
+- `src/client/ui/world/activityBubble.ts`
+- `src/client/ui/world/tidyMarkers.ts`
+- `src/content/schemas/feel.ts`
+- `src/content/schemas/threat.ts`
+- `src/debug/testApi.test.ts`
+- `src/shared/constants.ts`
+- `src/sim/baby/approach.test.ts`
+- `src/sim/baby/babyFsm.ts`
+- `src/sim/baby/babySystem.ts`
+- `src/sim/baby/carry.test.ts`
+- `src/sim/baby/carry.ts`
+- `src/sim/baby/carryFuzz.test.ts`
+- `src/sim/baby/wander.test.ts`
+- `src/sim/createSim.test.ts`
+- `src/sim/createSim.ts`
+- `src/sim/director/directorSystem.test.ts`
+- `src/sim/events.test.ts`
+- `src/sim/events.ts`
+- `src/sim/gauges/fatigue.test.ts`
+- `src/sim/gauges/noiseSystem.ts`
+- `src/sim/index.ts`
+- `src/sim/papa/coffee.test.ts`
+- `src/sim/papa/glide.test.ts`
+- `src/sim/papa/papaFsm.ts`
+- `src/sim/papa/papaSystem.test.ts`
+- `src/sim/papa/papaSystem.ts`
+- `src/sim/papa/phoneCall.test.ts`
+- `src/sim/papa/sleep.test.ts`
+- `src/sim/papa/sleep.ts`
+- `src/sim/papa/tidyProp.ts`
+- `src/sim/papa/toilet.test.ts`
+- `src/sim/physics/dropProps.ts`
+- `src/sim/scoring/frozenNearMiss.test.ts`
+- `src/sim/sequences/bombDropSnapshot.test.ts`
+- `src/sim/sequences/cycleSnapshot.test.ts`
+- `src/sim/sequences/duelSnapshot.test.ts`
+- `src/sim/sequences/fakeSleepSnapshot.test.ts`
+- `src/sim/sequences/sequenceSnapshot.test.ts`
+- `src/sim/snapshot.test.ts`
+- `src/sim/snapshot.ts`
+- `src/sim/step.test.ts`
+- `src/sim/threats/afterEffects.test.ts`
+- `src/sim/threats/afterEffects.ts`
+- `src/sim/threats/afterEffectsSnapshot.test.ts`
+- `src/sim/threats/gags.test.ts`
+- `src/sim/threats/gags.ts`
+- `src/sim/threats/inputLag.test.ts`
+- `src/sim/threats/tapRefused.test.ts`
+- `src/sim/threats/threatFsm.test.ts`
+- `src/sim/threats/threatFsm.ts`
+- `src/sim/threats/threatSystem.test.ts`
+- `src/sim/threats/threatSystem.ts`
+- `src/sim/world.ts`
+- `tests/bots/afterEffects.test.ts`
+- `tests/bots/beatBots.test.ts`
+- `tests/bots/humanBotRegression.test.ts`
+- `tests/bots/humanModel.test.ts`
+- `tests/bots/silenceBots.test.ts`
+- `tests/content/checkContent.test.ts`
+- `tests/content/threatSchema.test.ts`
+- `tests/e2e/__screenshots__/afterEffects.spec.ts/`
+- `tests/e2e/afterEffects.spec.ts`
+- `tests/e2e/chambreNight.spec.ts`
+- `tests/e2e/fatigue.spec.ts`
+- `tests/e2e/reducedMotion.spec.ts`
+- `tests/e2e/support/testApi.ts`
+- `tests/e2e/toilet.spec.ts`
+- `tests/golden/afterEffects.test.ts`
+- `tests/golden/outletParry.test.ts`
+- `tests/golden/scenarios.ts`
+- `tests/golden/stayAwake.test.ts`
+- `tests/golden/toiletVisit.test.ts`
+- `tests/support/fakeTestHost.ts`
+- `tests/support/testArmsCry.threat.json`
+- `tests/support/testBedtimeEyes.threat.json`
+- `tests/support/testBombDrop.threat.json`
+- `tests/support/testCoffeeTableObject.threat.json`
+- `tests/support/testContent.ts`
+- `tests/support/testCrying.threat.json`
+- `tests/support/testFakeSleep.threat.json`
+- `tests/support/testFalseAlarm.threat.json`
+- `tests/support/testFeel.json`
+- `tests/support/testMicroSleep.threat.json`
+- `tests/support/testOutlet.threat.json`
+- `tests/support/testRealWake.threat.json`
+- `tests/support/testSilence.threat.json`
+- `tests/support/testStairs.threat.json`
+- `tests/threats/fixtures/test_firm.json`
+- `tests/threats/fixtures/test_wait.json`
+- `tests/tools/sim/simReport.test.ts`
+- `tests/tools/vite/fixtures/feelSample.json`
+- `tools/content/contentChecks.ts`
+- `tools/sim/simReport.ts`
+- `tests/golden/journals/*.json` (all journals and `*.expected.json` regenerated, six scenarios added: `after_effect_replaced`, `debris_pick_up_and_step`, `outlet_electrified_dim`, `silence_mess_mark`, `stairs_fetch_carry_up`, `stairs_self_return`)
+- `src/sim/papa/sleep.ts` (deleted: `occupyPapa` replaces `putPapaToSleep`)
+- `_bmad-output/implementation-artifacts/3-15-sequelles-des-gags.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+### Change Log
+
+- 2026-11-04: story 3.15 implemented (séquelles des gags): content `afterEffect`, `threats/afterEffects.ts`, snapshot 30, client pénombre / downstairs baby / debris / decals, human bot fetch, sim report `afterEffects`, goldens regenerated with six new scenarios, docs. Status → review.

@@ -8,17 +8,20 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestMicroSleep,
   FATIGUE_GAUGES,
   OUTLET,
   SILENCE,
   STAIRS,
   stepN,
+  testMicroSleepBusyMs,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { StepContext } from '../context.ts';
 import { createSim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import type { World } from '../world.ts';
+import { applyAfterEffect } from './afterEffects.ts';
 import { applyGag, GAG_IDS, type GagId, isNearMissGag } from './gags.ts';
 
 const content = createTestContent();
@@ -61,7 +64,10 @@ async function setup(feel: Feel = content.feel) {
 
 const withReach = (reachM: number): Feel => ({
   ...content.feel,
-  gags: { tableObjectFall: { pushImpulseNs, propReachDistM: reachM } },
+  gags: {
+    ...content.feel.gags,
+    tableObjectFall: { pushImpulseNs, propReachDistM: reachM },
+  },
 });
 
 /** What each gag does on the threat that owns it: a `Record`, so that a new gag with no row is a type error. */
@@ -69,8 +75,8 @@ const OWN_THREAT: Record<GagId, { defId: string; eventCount: number; pushCount: 
   outlet_hair: { defId: 'outlet', eventCount: 0, pushCount: 0 },
   stairs_slide: { defId: 'stairs', eventCount: 1, pushCount: 0 },
   table_object_fall: { defId: 'coffee_table_object', eventCount: 0, pushCount: 1 },
-  // One `PapaStateChanged`: he falls asleep, nothing else (no near miss, no prop).
-  papa_asleep: { defId: 'papa_microsleep', eventCount: 1, pushCount: 0 },
+  // Nothing: the nap is the séquelle of the micro-sleep's def (`applyAfterEffect`, story 3.15).
+  papa_asleep: { defId: 'papa_microsleep', eventCount: 0, pushCount: 0 },
   // The surprise mischiefs of the silence: mess only, no near miss (story 1.21 D11).
   tissues_everywhere: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
   crayon_scribbles: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
@@ -138,12 +144,26 @@ describe('applyGag', () => {
 });
 
 describe('papa_asleep', () => {
-  it('puts Papa to sleep for feel.fatigue.asleepMs, with no near miss and no prop pushed', async () => {
-    const { world, ctx, events, impulses, threatOf } = await setup();
-    applyGag(world, ctx, threatOf('papa_microsleep'), 'papa_asleep');
+  it('is a gag with nothing to do: the nap belongs to the afterEffect of the micro-sleep', async () => {
+    const { world, ctx, events, threatOf } = await setup();
+    applyGag(world, ctx, threatOf('papa_microsleep'), 'papa_asleep', createTestMicroSleep());
+    expect(world.papa.state).toBe('idle');
+    expect(events).toEqual([]);
+  });
+
+  it('puts Papa to sleep for the afterEffect busyMs of the micro-sleep, with no near miss and no prop pushed', async () => {
+    const { world, ctx, events, impulses } = await setup();
+    applyAfterEffect(world, ctx, createTestMicroSleep(), 'papa_asleep');
     expect(world.papa.state).toBe('asleep');
-    expect(world.papa.busyUntil).toBe(world.time.sim + content.feel.fatigue.asleepMs);
-    expect(events.map((event) => event.type)).toEqual(['PapaStateChanged']);
+    expect(world.papa.busyUntil).toBe(world.time.sim + testMicroSleepBusyMs());
+    expect(events.map((event) => event.type)).toEqual(['PapaStateChanged', 'AfterEffectStarted']);
+    expect(events[1]).toEqual({
+      type: 'AfterEffectStarted',
+      t: world.time.sim,
+      kind: 'asleep',
+      until: world.papa.busyUntil,
+      propId: null,
+    });
     expect(impulses).toEqual([]);
   });
 });

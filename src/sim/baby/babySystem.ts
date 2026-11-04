@@ -95,6 +95,9 @@ export function runBaby(world: World, ctx: StepContext): void {
     runCarry(world, ctx);
     return;
   }
+  // Left at the bottom of the stairs, or carried back up (story 3.15): inert like a carried baby. His
+  // return is `runAfterEffects`' and `finishCarryUp`'s.
+  if (baby.state === 'downstairs' || baby.state === 'carriedUp') return;
   // The baby sleeps through a stealth step (story 4.9): inert like a carried one. His cry, above, still
   // runs, and `prevXM` was remembered, so the view has nothing to slide.
   if (isStealthStepRunning(world)) return;

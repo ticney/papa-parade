@@ -11,18 +11,21 @@ import {
   FATIGUE_GAUGES,
   OUTLET,
   stepN,
+  testMicroSleepBusyMs,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { StepContext } from '../context.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
-import { putPapaToSleep } from '../papa/sleep.ts';
+import { occupyPapa } from '../threats/afterEffects.ts';
 import type { World } from '../world.ts';
 import { addFatigue, fatigueWindowModifier } from './fatigue.ts';
 
 const base = createTestContent();
 const geometry = createTestGeometry();
 const { fatigue: fatigueFeel, timing, difficulty } = base.feel;
+/** The nap's length: the micro-sleep's `afterEffect.busyMs` (story 3.15). */
+const ASLEEP_MS = testMicroSleepBusyMs();
 const GAIN_PER_STEP = (fatigueFeel.perSec * STEP_MS) / MS_PER_S;
 
 function contentWith(fatigue: Partial<Feel['fatigue']> = {}): ContentBundle {
@@ -308,7 +311,7 @@ describe('the micro-sleeps', () => {
       strictInvariants: true,
       t: world.time.sim,
     } as unknown as StepContext;
-    putPapaToSleep(world, ctx);
+    occupyPapa(world, ctx, 'asleep', ASLEEP_MS);
     const wakeAt = world.papa.busyUntil;
     const events = runUntil(sim, wakeAt + 200);
     const [first] = microSleeps(events);
@@ -383,7 +386,7 @@ describe('judging the micro-sleep', () => {
     expect(sim.world.papa.glide).toBeNull();
   });
 
-  it('falls asleep for asleepMs when it is missed, with a papa_asleep gag and no near miss', async () => {
+  it('falls asleep for the afterEffect busyMs when it is missed, with a papa_asleep gag and no near miss', async () => {
     const { sim } = await telegraphedSim();
     const events = runUntil(sim, 3000);
     expect(events).toContainEqual(
@@ -393,10 +396,10 @@ describe('judging the micro-sleep', () => {
     const asleep = events.find(
       (event) => event.type === 'PapaStateChanged' && event.to === 'asleep',
     ) as { t: number };
-    expect(sim.world.papa.busyUntil).toBe(asleep.t + fatigueFeel.asleepMs);
-    const wake = runUntil(sim, asleep.t + fatigueFeel.asleepMs + STEP_MS).find(
+    expect(sim.world.papa.busyUntil).toBe(asleep.t + ASLEEP_MS);
+    const wake = runUntil(sim, asleep.t + ASLEEP_MS + STEP_MS).find(
       (event) => event.type === 'PapaStateChanged' && event.from === 'asleep',
     ) as { t: number; to: string };
-    expect(wake).toMatchObject({ to: 'idle', t: asleep.t + fatigueFeel.asleepMs });
+    expect(wake).toMatchObject({ to: 'idle', t: asleep.t + ASLEEP_MS });
   });
 });
