@@ -114,8 +114,8 @@
   },
   "catastrophe": {
     "risePct": { "nearMiss": 35, "mess": 20, "microSleep": 15, "choreBeat": 10 },
-    "decayPerSec": 0.5,
-    "perfectDropPct": 5,
+    "decayPerSec": 0.4,
+    "perfectDropPct": 2,
     "alertPct": 70,
     "faceStepsPct": [25, 50]
   },

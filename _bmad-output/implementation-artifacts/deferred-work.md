@@ -1035,4 +1035,4 @@ Open:
 - **Sieste wording**: in a Sieste level Mama is next door, yet the header says « Maman est rentrée plus tôt ! » (the AC and the UX). The GDD's Sieste line is « Maman débarque, réveillée par un mauvais pressentiment ». One string for now; a variant string belongs to 3.10 (Retour) if Geo wants it.
 - **`choreBeat` is a rise in `feel.json` only** (FR73): 9.4 / 9.5 emit it (`CatastropheSource` already has it).
 - **`failStreak` / progress with 0 stars is 3.11's**: a `mamaHome` ends with 0 stars and a note, and 3.11 decides what that does to the progress.
-- **The loss rate needs Geo's call (D13)**: see the Completion Notes of 3.16 for the four options measured.
+- **The loss rate**: Geo picked option D (`perfectDropPct` 2, `decayPerSec` 0.4; `human` loses 15 % of the games on `mamaHome`). To re-check at the catch-up playtest (« aucun ne juge la défaite injuste », GDD L628).
