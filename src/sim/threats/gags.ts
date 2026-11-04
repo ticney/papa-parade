@@ -1,4 +1,4 @@
-import type { AfterEffectDefKind, ThreatDef } from '@content/schemas/threat';
+import type { AfterEffectDefKind, ThreatCatastrophe, ThreatDef } from '@content/schemas/threat';
 import { invariant } from '@shared/invariant';
 import type { StepContext } from '../context.ts';
 import { dropProps } from '../physics/dropProps.ts';
@@ -212,6 +212,48 @@ export function afterEffectProblem(
     const expected = AFTER_EFFECT_OF_GAG[gag as GagId];
     if (expected !== kind) {
       return `the threat "${defId}" has the gag "${gag}", whose afterEffect.kind must be "${expected}", not "${kind}"`;
+    }
+  }
+  return null;
+}
+
+/**
+ * The catastrophe category of each gag (story 3.16, FR73, GDD mechanic 14): the row of
+ * `feel.catastrophe.risePct` it raises the gauge by. A def declares it too (`catastrophe`, GDD: a
+ * threat « doit déclarer sa hausse de catastrophe ») and `createSim` / `content:check` refuse a def
+ * that disagrees with its gag, so that two defs sharing a gag cannot disagree. The outlet is a
+ * `nearMiss` here (GDD L226) though it is not a `NearMiss` for Mama's scream (`NEAR_MISS_GAGS`); the
+ * gags of the E4 sequences are `none` (GDD: to be costed with E4).
+ */
+export const CATASTROPHE_OF_GAG: Readonly<Record<GagId, ThreatCatastrophe>> = {
+  outlet_hair: 'nearMiss',
+  stairs_slide: 'nearMiss',
+  table_object_fall: 'mess',
+  papa_asleep: 'microSleep',
+  tissues_everywhere: 'mess',
+  crayon_scribbles: 'mess',
+  arms_wail: 'none',
+  baby_eyes_reopened: 'none',
+  baby_sat_up: 'none',
+  baby_woke_on_drop: 'none',
+  baby_woke_by_touch: 'none',
+  baby_woke_crying: 'none',
+};
+
+/**
+ * Why a def's `catastrophe` does not fit its gags, or `null` when it does (the pattern of
+ * {@link afterEffectProblem}, which it follows). Shared by `createSim` and `content:check`.
+ */
+export function catastropheProblem(
+  defId: string,
+  gags: readonly string[],
+  category: ThreatCatastrophe,
+): string | null {
+  for (const gag of gags) {
+    if (!(GAG_IDS as readonly string[]).includes(gag)) continue;
+    const expected = CATASTROPHE_OF_GAG[gag as GagId];
+    if (expected !== category) {
+      return `the threat "${defId}" has the gag "${gag}", whose catastrophe must be "${expected}", not "${category}"`;
     }
   }
   return null;

@@ -22,7 +22,14 @@ import { createSim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import type { World } from '../world.ts';
 import { applyAfterEffect } from './afterEffects.ts';
-import { applyGag, GAG_IDS, type GagId, isNearMissGag } from './gags.ts';
+import {
+  applyGag,
+  CATASTROPHE_OF_GAG,
+  catastropheProblem,
+  GAG_IDS,
+  type GagId,
+  isNearMissGag,
+} from './gags.ts';
 
 const content = createTestContent();
 const { pushImpulseNs, propReachDistM } = content.feel.gags.tableObjectFall;
@@ -316,5 +323,30 @@ describe('table_object_fall (real Rapier, through createSim)', () => {
     stepN(sim, Math.round(MS_PER_S / STEP_MS));
     expect(mug.isOnFloor).toBe(true);
     sim.dispose();
+  });
+});
+
+describe('CATASTROPHE_OF_GAG (story 3.16)', () => {
+  it('has a category for every gag, and the outlet is a nearMiss without being a NearMiss', () => {
+    expect(Object.keys(CATASTROPHE_OF_GAG).sort()).toEqual([...GAG_IDS].sort());
+    expect(CATASTROPHE_OF_GAG.outlet_hair).toBe('nearMiss');
+    expect(isNearMissGag('outlet_hair')).toBe(false);
+  });
+
+  it('names the def, the gag and the expected category when a def disagrees', () => {
+    expect(catastropheProblem('outlet', ['outlet_hair'], 'nearMiss')).toBeNull();
+    expect(catastropheProblem('outlet', ['outlet_hair'], 'mess')).toBe(
+      'the threat "outlet" has the gag "outlet_hair", whose catastrophe must be "nearMiss", not "mess"',
+    );
+  });
+
+  it('checks every gag of a def, and leaves an unknown gag to its own message', () => {
+    expect(
+      catastropheProblem('silence', ['tissues_everywhere', 'crayon_scribbles'], 'mess'),
+    ).toBeNull();
+    expect(catastropheProblem('silence', ['tissues_everywhere', 'papa_asleep'], 'mess')).toContain(
+      '"papa_asleep"',
+    );
+    expect(catastropheProblem('x', ['not_a_gag'], 'none')).toBeNull();
   });
 });

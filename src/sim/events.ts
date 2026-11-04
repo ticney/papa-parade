@@ -1,5 +1,9 @@
 import type { Feel } from '@content/schemas/feel';
-import type { AfterEffectDefKind, ThreatResponse } from '@content/schemas/threat';
+import type {
+  AfterEffectDefKind,
+  ThreatCatastrophe,
+  ThreatResponse,
+} from '@content/schemas/threat';
 import type { InvariantViolation } from '@shared/invariant';
 import type { SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
@@ -12,6 +16,17 @@ import type { EffectiveWindow } from './timing/effectiveWindow.ts';
  * forgotten here), or `debug` for the `SetNoise` command (story 3.1).
  */
 export type NoiseSource = keyof Feel['noise']['sources'] | 'debug';
+
+/**
+ * What moved the catastrophe gauge (story 3.16): the category of a gag (a threat's `catastrophe`
+ * other than `none`), `choreBeat` (a missed chore beat, stories 9.4 / 9.5), `perfect` (a perfect
+ * response takes it down) or `debug` for the `SetCatastrophe` command.
+ */
+export type CatastropheSource =
+  | Exclude<ThreatCatastrophe, 'none'>
+  | 'choreBeat'
+  | 'perfect'
+  | 'debug';
 
 /** How a response ended: `fail` is a gag. */
 export type ResponseQuality = 'perfect' | 'success' | 'fail';
@@ -40,16 +55,18 @@ export type SilenceEndReason = 'found' | 'timedOut' | 'levelEnded';
 
 /**
  * Why a level ended: the clock reached the level's `durationMs` (`timer`), the noise reached 100 %
- * in a Sieste level and woke Mama (`mamaWoke`, story 3.2), or the last entry of the bedtime cycle was
- * won (`cycleDone`, story 4.10).
+ * in a Sieste level and woke Mama (`mamaWoke`, story 3.2), the last entry of the bedtime cycle was
+ * won (`cycleDone`, story 4.10), or the catastrophe gauge reached 100 % and Mama came home early
+ * (`mamaHome`, story 3.16: the only « lost level », a gag and never a game over).
  */
-export type LevelEndReason = 'timer' | 'mamaWoke' | 'cycleDone';
+export type LevelEndReason = 'timer' | 'mamaWoke' | 'cycleDone' | 'mamaHome';
 
 /** Every `LevelEndReason`, as data: the report and the client key their records by it. */
 export const LEVEL_END_REASONS = [
   'timer',
   'mamaWoke',
   'cycleDone',
+  'mamaHome',
 ] as const satisfies readonly LevelEndReason[];
 
 type UnlistedLevelEndReason = Exclude<LevelEndReason, (typeof LEVEL_END_REASONS)[number]>;
@@ -369,6 +386,19 @@ export type SimEvent =
    */
   | { type: 'NoiseChanged'; t: SimMs; source: NoiseSource; noisePct: number; deltaPct: number }
   /**
+   * The catastrophe gauge moved by a gag, a perfect response or the debug command (story 3.16):
+   * `deltaPct` is the change after the clamp (never 0) and `catastrophePct` the value after it, in %
+   * of the gauge. The decay is silent: read `world.gauges.catastrophePct` for the exact value.
+   * `source` is the gag's category, `perfect` or `debug`.
+   */
+  | {
+      type: 'CatastropheChanged';
+      t: SimMs;
+      source: CatastropheSource;
+      catastrophePct: number;
+      deltaPct: number;
+    }
+  /**
    * The need reached `feel.bladder.slowFromPct` (story 4.3): from now on Papa's walks are slower,
    * until a visit to the toilet. Once per upward crossing.
    */
@@ -540,6 +570,7 @@ export const SIM_EVENT_TYPES = [
   'BreathGasped',
   'BreathHeld',
   'BreathReleased',
+  'CatastropheChanged',
   'CoffeeDrunk',
   'CoffeeStarted',
   'ComboCashedIn',

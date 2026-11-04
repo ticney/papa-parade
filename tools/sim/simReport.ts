@@ -202,6 +202,10 @@ export interface RunSummary {
   endReason: LevelEndReason | null;
   /** The sim time of `MamaWoke`, in ms; null if Mama did not wake in this run. */
   mamaWokeAtMs: number | null;
+  /** The sim time of `LevelEnded{mamaHome}`, in ms (story 3.16); null if Mama did not come home early in this run. */
+  mamaHomeAtMs: number | null;
+  /** The highest value the catastrophe gauge reached, in % (story 3.16): the max `catastrophePct` of the run's `CatastropheChanged` (the decay is silent, so the peak is exact); 0 when it never rose. */
+  catastrophePeakPct: number;
   /** Mama's score and stars (`LevelScored`, story 1.22); null for a run cut before the end. */
   scorePoints: number | null;
   stars: number | null;
@@ -355,6 +359,8 @@ export function createRunRecorder(
   let isEnded = false;
   let endReason: LevelEndReason | null = null;
   let mamaWokeAtMs: number | null = null;
+  let mamaHomeAtMs: number | null = null;
+  let catastrophePeakPct = 0;
   let scored: { scorePoints: number; stars: number; lostStars: number; rows: ScoreRows } | null =
     null;
   return {
@@ -441,6 +447,9 @@ export function createRunRecorder(
       } else if (event.type === 'LevelEnded') {
         isEnded = true;
         endReason = event.reason;
+        if (event.reason === 'mamaHome') mamaHomeAtMs = event.t;
+      } else if (event.type === 'CatastropheChanged') {
+        if (event.catastrophePct > catastrophePeakPct) catastrophePeakPct = event.catastrophePct;
       } else if (event.type === 'MamaWoke') {
         mamaWokeAtMs = event.t;
       } else if (event.type === 'LevelScored') {
@@ -559,6 +568,8 @@ export function createRunRecorder(
         isEnded,
         endReason,
         mamaWokeAtMs,
+        mamaHomeAtMs,
+        catastrophePeakPct: round(catastrophePeakPct, 1),
         scorePoints: scored?.scorePoints ?? null,
         stars: scored?.stars ?? null,
         lostStars: scored?.lostStars ?? null,
@@ -609,6 +620,10 @@ export interface SimReport {
   endsByReason: Record<LevelEndReason, number>;
   /** Mean sim time of `MamaWoke` over the runs it happened in, in ms to one decimal; null if Mama never woke. */
   mamaWokeMeanAtMs: number | null;
+  /** Mean sim time of `LevelEnded{mamaHome}` over the runs it happened in, in ms to one decimal; null if Mama never came home early (story 3.16). */
+  mamaHomeMeanAtMs: number | null;
+  /** Mean over all the runs of the highest value the catastrophe gauge reached, in % to one decimal; null when there are no runs (story 3.16). */
+  meanCatastrophePeakPct: number | null;
   hashes: { feel: string; geometry: string; level: string; bots: string };
   /** Mean of Mama's score over the runs that ended, one decimal; null when none ended. */
   meanScore: number | null;
@@ -740,6 +755,10 @@ export interface SimReport {
     /** Null for a run cut before the end (story 3.2). */
     endReason: LevelEndReason | null;
     lostStars: number | null;
+    /** The sim time Mama came home early at, in ms; null if she did not in this run (story 3.16). */
+    mamaHomeAtMs: number | null;
+    /** The highest value the catastrophe gauge reached in this run, in % (story 3.16). */
+    catastrophePeakPct: number;
     /** The five rows of the note; null for a run cut before the end (story 3.12). */
     rows: ScoreRows | null;
     /** The special sequences started, won and lost in this run (story 4.4). */
@@ -797,6 +816,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   const endsByReason = emptyEndsByReason();
   let mamaWokeCount = 0;
   let mamaWokeSumAtMs = 0;
+  let mamaHomeCount = 0;
+  let mamaHomeSumAtMs = 0;
+  let catastrophePeakSumPct = 0;
   let fairnessViolations = 0;
   let stretchedTelegraphs = 0;
   let stretchSumMs = 0;
@@ -869,6 +891,11 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       mamaWokeCount++;
       mamaWokeSumAtMs += run.mamaWokeAtMs;
     }
+    if (run.mamaHomeAtMs !== null) {
+      mamaHomeCount++;
+      mamaHomeSumAtMs += run.mamaHomeAtMs;
+    }
+    catastrophePeakSumPct += run.catastrophePeakPct;
     if (run.rows !== null) {
       rowRuns++;
       for (const key of SCORE_ROW_KEYS) rowSums[key] += run.rows[key];
@@ -992,6 +1019,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     endedRuns,
     endsByReason,
     mamaWokeMeanAtMs: mamaWokeCount === 0 ? null : round(mamaWokeSumAtMs / mamaWokeCount, 1),
+    mamaHomeMeanAtMs: mamaHomeCount === 0 ? null : round(mamaHomeSumAtMs / mamaHomeCount, 1),
+    meanCatastrophePeakPct:
+      runs.length === 0 ? null : round(catastrophePeakSumPct / runs.length, 1),
     hashes: input.hashes,
     meanScore: scoredRuns === 0 ? null : round(scoreSum / scoredRuns, 1),
     meanStars: scoredRuns === 0 ? null : round(starSum / scoredRuns, 1),
@@ -1086,6 +1116,8 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       stars: run.stars,
       endReason: run.endReason,
       lostStars: run.lostStars,
+      mamaHomeAtMs: run.mamaHomeAtMs,
+      catastrophePeakPct: run.catastrophePeakPct,
       rows: run.rows,
       sequencesStarted: run.sequencesStarted,
       sequencesSucceeded: run.sequencesSucceeded,

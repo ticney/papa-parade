@@ -655,6 +655,86 @@
       "additionalProperties": false,
       "description": "The noise gauge of the Sieste levels (FR18, GDD rule 7)."
     },
+    "catastrophe": {
+      "type": "object",
+      "properties": {
+        "risePct": {
+          "type": "object",
+          "properties": {
+            "nearMiss": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Catastrophe added by a near-miss gag (outlet, stairs), in % of the gauge."
+            },
+            "mess": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Catastrophe added by a mess gag (table object, silence mischief), in % of the gauge."
+            },
+            "microSleep": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Catastrophe added by a micro-sleep gag, in % of the gauge."
+            },
+            "choreBeat": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Catastrophe added by a missed chore beat (stories 9.4 / 9.5), in % of the gauge."
+            }
+          },
+          "required": [
+            "nearMiss",
+            "mess",
+            "microSleep",
+            "choreBeat"
+          ],
+          "additionalProperties": false,
+          "description": "The rise of one gag by its category, before the tier multiplier (GDD mechanic 14)."
+        },
+        "decayPerSec": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Catastrophe lost per second, in % of the gauge per second (GDD: 0.5 %/s)."
+        },
+        "perfectDropPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Catastrophe lost by a perfect response, in % of the gauge (GDD: 5 %)."
+        },
+        "alertPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Above this catastrophe Mama is alarmed: the client plays the alert, tightens the music, in % of the gauge."
+        },
+        "faceStepsPct": {
+          "minItems": 2,
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "A threshold of the face, in % of the gauge."
+          },
+          "description": "The two thresholds between Mama's faces, in % of the gauge: she frowns from the first and is worried from the second (strictly ascending, below `alertPct`)."
+        }
+      },
+      "required": [
+        "risePct",
+        "decayPerSec",
+        "perfectDropPct",
+        "alertPct",
+        "faceStepsPct"
+      ],
+      "additionalProperties": false,
+      "description": "The catastrophe gauge (FR73, GDD mechanic 14): at 100 % Mama comes home early."
+    },
     "bladder": {
       "type": "object",
       "properties": {
@@ -856,11 +936,17 @@
             "hasInstinct": {
               "type": "boolean",
               "description": "Whether Fatherly Instinct (GDD §9) is available."
+            },
+            "catastropheMultiplier": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Multiplier applied to every rise of the catastrophe gauge (story 3.16; GDD: ×0.5 / ×1 / ×1.25). Not applied to the perfect drop or the decay."
             }
           },
           "required": [
             "windowMultiplier",
-            "hasInstinct"
+            "hasInstinct",
+            "catastropheMultiplier"
           ],
           "additionalProperties": false,
           "description": "Assistance tier: wider windows, instinct on (GDD, accessibility)."
@@ -876,11 +962,17 @@
             "hasInstinct": {
               "type": "boolean",
               "description": "Whether Fatherly Instinct (GDD §9) is available."
+            },
+            "catastropheMultiplier": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Multiplier applied to every rise of the catastrophe gauge (story 3.16; GDD: ×0.5 / ×1 / ×1.25). Not applied to the perfect drop or the decay."
             }
           },
           "required": [
             "windowMultiplier",
-            "hasInstinct"
+            "hasInstinct",
+            "catastropheMultiplier"
           ],
           "additionalProperties": false,
           "description": "Normal tier: the game as designed."
@@ -896,11 +988,17 @@
             "hasInstinct": {
               "type": "boolean",
               "description": "Whether Fatherly Instinct (GDD §9) is available."
+            },
+            "catastropheMultiplier": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Multiplier applied to every rise of the catastrophe gauge (story 3.16; GDD: ×0.5 / ×1 / ×1.25). Not applied to the perfect drop or the decay."
             }
           },
           "required": [
             "windowMultiplier",
-            "hasInstinct"
+            "hasInstinct",
+            "catastropheMultiplier"
           ],
           "additionalProperties": false,
           "description": "Experienced-dad tier: tighter windows, no instinct."
@@ -1703,6 +1801,7 @@
     "carry",
     "combo",
     "noise",
+    "catastrophe",
     "bladder",
     "sequences",
     "endOfLevel",

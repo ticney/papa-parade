@@ -56,7 +56,7 @@ describe('Mama’s note of the live salon_crawler', () => {
           },
           content.feel.mama,
           // The salon's props now fall more, and more noise can wake Mama before the end (story 3.5).
-          events.some((event) => event.type === 'MamaWoke'),
+          events.find((event) => event.type === 'LevelEnded')?.reason ?? 'timer',
         ),
       };
     } finally {

@@ -3,9 +3,9 @@ import { STEP_MS } from '@shared/constants';
 import { nextFloat, type RngState } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
+import { createTestContentWithoutCatastrophe } from '../../../tests/support/noCatastrophe.ts';
 import {
   CARRY,
-  createTestContent,
   createTestGeometry,
   createTestLevel,
   createTestStayAwake,
@@ -21,7 +21,8 @@ import type { SimEvent } from '../events.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { sequenceRefusal } from './sequenceStart.ts';
 
-const content = createTestContent();
+// The catastrophe gauge cannot rise (story 3.16 D14): this file is not about it, and a pile of gags would bring Mama home.
+const content = createTestContentWithoutCatastrophe();
 const geometry = createTestGeometry();
 const FRAME = STEP_MS;
 

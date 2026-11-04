@@ -67,7 +67,9 @@ describe('SIM_EVENT_TYPES', () => {
 describe('the fatigue events (story 1.19)', () => {
   it('lists CoffeeDrunk, CoffeeStarted and FatigueThresholdCrossed in their alphabetical places', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
-    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('BreathReleased') + 1);
+    // `CatastropheChanged` (story 3.16) sorts between them.
+    expect(names.indexOf('CatastropheChanged')).toBe(names.indexOf('BreathReleased') + 1);
+    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('CatastropheChanged') + 1);
     expect(names.indexOf('CoffeeStarted')).toBe(names.indexOf('CoffeeDrunk') + 1);
     expect(names.indexOf('ComboCashedIn')).toBe(names.indexOf('CoffeeStarted') + 1);
     expect(names.indexOf('ComboChanged')).toBe(names.indexOf('ComboCashedIn') + 1);
@@ -114,8 +116,8 @@ describe('the lullaby walk events (story 4.5)', () => {
 });
 
 describe('LEVEL_END_REASONS (story 3.2)', () => {
-  it('lists the three ways a level ends', () => {
-    expect([...LEVEL_END_REASONS]).toEqual(['timer', 'mamaWoke', 'cycleDone']);
+  it('lists the four ways a level ends', () => {
+    expect([...LEVEL_END_REASONS]).toEqual(['timer', 'mamaWoke', 'cycleDone', 'mamaHome']);
     expect(new Set(LEVEL_END_REASONS).size).toBe(LEVEL_END_REASONS.length);
   });
 

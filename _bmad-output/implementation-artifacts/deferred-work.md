@@ -1025,3 +1025,14 @@ Open:
 - **`downstairsDefOf` takes the first `babyDownstairs` def** (`src/sim/threats/afterEffects.ts`): `startCarryUp` returns silently when none is found and nothing enforces « one stairs per level ». Add a `content:check` rule when a level has two.
 - **`simReport.afterEffects.meanPerRun` mixes kinds** (`tools/sim/simReport.ts`): an outlet gag counts as `electrified` + `dim`, a fetch adds `carryUp` to `babyDownstairs`; read `byKind`. Revisit with the 3.16 report.
 - **The `hand` pictogram reuses `THREAT_ICON_PATHS.open_hand`** (`src/client/ui/world/activityBubble.ts`) instead of a new ink path. Revisit with the feel pass.
+
+## Deferred from: story 3-16-jauge-de-catastrophe-et-maman-est-rentree-plus-tot (2026-11-04)
+
+- **The six E4 gags raise no catastrophe** (`CATASTROPHE_OF_GAG`: `arms_wail`, `baby_eyes_reopened`, `baby_sat_up`, `baby_woke_on_drop`, `baby_woke_by_touch`, `baby_woke_crying` are `none`; GDD: « à chiffrer avec E4 »). `chambre_night` can only end on `mamaHome` through its outlet, table object and micro-sleeps. To cost with Geo at the playtest; a new category (or a value per def) is a schema change.
+- **Mama's scream on `mamaHome` is story 3.7's** (`mamaReactionsOf`, GDD L114, EXPERIENCE L340): the result shows the header and the cue, but no mum-bubble. 3.7 must give `mamaHome` its scream.
+- **The replay « cascade » of gags that brought Mama home is story 3.9's** (GDD L537): `world.flow.endReason` and the `CatastropheChanged` events are there to build it from.
+- **Story 7.4's « finale » must not fire after `mamaHome`** (`boot.ts` `LevelScored` block, music mute): a `mamaHome` is not a finished level.
+- **Sieste wording**: in a Sieste level Mama is next door, yet the header says « Maman est rentrée plus tôt ! » (the AC and the UX). The GDD's Sieste line is « Maman débarque, réveillée par un mauvais pressentiment ». One string for now; a variant string belongs to 3.10 (Retour) if Geo wants it.
+- **`choreBeat` is a rise in `feel.json` only** (FR73): 9.4 / 9.5 emit it (`CatastropheSource` already has it).
+- **`failStreak` / progress with 0 stars is 3.11's**: a `mamaHome` ends with 0 stars and a note, and 3.11 decides what that does to the progress.
+- **The loss rate needs Geo's call (D13)**: see the Completion Notes of 3.16 for the four options measured.

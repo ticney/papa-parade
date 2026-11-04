@@ -2,6 +2,7 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
+import { createTestContentWithoutCatastrophe } from '../../../tests/support/noCatastrophe.ts';
 import {
   CARRY,
   COFFEE_TABLE,
@@ -19,7 +20,8 @@ import { SYSTEMS } from '../step.ts';
 import { enterThreatState, type ThreatState } from '../threats/threatFsm.ts';
 import type { World } from '../world.ts';
 
-const CONTENT = createTestContent();
+// The catastrophe gauge cannot rise (story 3.16 D14): this file is not about it, and a pile of gags would bring Mama home.
+const CONTENT = createTestContentWithoutCatastrophe();
 const { frozenNearMissReachM: REACH_M } = CONTENT.feel.endOfLevel;
 const MAMA = CONTENT.feel.mama;
 const DURATION_MS = 3000;
@@ -149,6 +151,9 @@ async function play(scenario: Scenario = {}): Promise<Played> {
   if (scenario.reason === 'mamaWoke') {
     sim.enqueue({ type: 'SetNoise', t: asSimMs(sim.world.time.sim), pct: 100 });
   }
+  if (scenario.reason === 'mamaHome') {
+    sim.enqueue({ type: 'SetCatastrophe', t: asSimMs(sim.world.time.sim), pct: 100 });
+  }
   isCycleDone = scenario.reason === 'cycleDone';
   isResolved = scenario.resolved === true;
   for (let guard = 0; guard < 10 && !isOver(sim.world); guard++) stepOnce();
@@ -248,7 +253,7 @@ describe('recordFrozenNearMisses (story 3.6, D2)', () => {
     expect(world.score.nearMisses).toBe(2);
   });
 
-  it.each<LevelEndReason>(['timer', 'mamaWoke', 'cycleDone'])(
+  it.each<LevelEndReason>(['timer', 'mamaWoke', 'cycleDone', 'mamaHome'])(
     'counts on a %s end',
     async (reason) => {
       const { events, world } = await play({ reason, babyAt: JUST_INSIDE });
@@ -298,6 +303,7 @@ describe('the end snapshot of a frozen world (story 3.6 AC 2)', () => {
   it.each<[string, Scenario, string]>([
     ['an ended world', { babyAt: JUST_INSIDE }, 'ended'],
     ['a mamaWoke world', { reason: 'mamaWoke' }, 'ended'],
+    ['a mamaHome world', { reason: 'mamaHome' }, 'ended'],
     ['a photo world, the timer ending a final rush', { rush: true }, 'photo'],
   ])('restores %s with the same hash', async (_name, scenario, flowState) => {
     const { sim } = await play(scenario);
@@ -307,6 +313,6 @@ describe('the end snapshot of a frozen world (story 3.6 AC 2)', () => {
     sim.restore(snapshot);
     expect(hashJson(sim.world)).toBe(hashBefore);
     // Story 3.6 added no world field; 29 is story 3.12's (`score.successes`, `score.calmMs`).
-    expect(snapshot.version).toBe(30);
+    expect(snapshot.version).toBe(31);
   });
 });

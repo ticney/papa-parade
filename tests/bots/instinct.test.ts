@@ -9,6 +9,7 @@ import { createSim, type SimEvent } from '@sim';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createNodeContentSource } from '../../tools/content/nodeContentSource.ts';
 import { loadSimLevel, type SimLevel } from '../../tools/sim/loadSimLevel.ts';
+import { silenceCatastrophe } from '../support/noCatastrophe.ts';
 
 // Story 2.9, AC 25: Fatherly Instinct on the real `salon_crawler`, played by the bots. It reads the
 // live content and asserts no tuned value: only that the rule can happen at all for a player who
@@ -27,6 +28,8 @@ beforeAll(async () => {
   const level = await loadSimLevel(CONTENT_DIR, 'salon_crawler');
   if (!level.ok) throw new Error(level.error);
   loaded = level.value;
+  // This is about the instinct: the idle bot's gags would bring Mama home before it can help (story 3.16 D14).
+  silenceCatastrophe(loaded.content.feel);
   const content = await loadContent(createNodeContentSource(CONTENT_DIR));
   if (!content.ok) throw new Error('cannot load the content');
   bots = content.value.bots;

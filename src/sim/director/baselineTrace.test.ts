@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createTestContentWithoutCatastrophe } from '../../../tests/support/noCatastrophe.ts';
 import {
   COFFEE_TABLE,
-  createTestContent,
   createTestGeometry,
   createTestLevel,
   FATIGUE_GAUGES,
@@ -23,7 +23,8 @@ vi.mock('../threats/afterEffects.ts', async (importOriginal) => ({
 describe('the baseline trace without the séquelles (story 3.15)', () => {
   it('ends on the rng state captured before story 1.21', async () => {
     const sim = await createSim({
-      content: createTestContent(),
+      // The gauge off (story 3.16 D14): a pile of gags would bring Mama home before the minute is up.
+      content: createTestContentWithoutCatastrophe(),
       geometry: createTestGeometry(),
       level: createTestLevel({
         waves: [

@@ -58,7 +58,7 @@ export interface ResultMaxima {
 export interface ResultScreenOptions {
   t: Translator;
   score: MamaScore;
-  /** Why the level ended: `mamaWoke` adds the header « Maman s'est réveillée ! » (story 3.2), `cycleDone` « Il dort enfin ! » (story 4.10). */
+  /** Why the level ended: `mamaWoke` adds the header « Maman s'est réveillée ! » (story 3.2), `mamaHome` « Maman est rentrée plus tôt ! » (story 3.16), `cycleDone` « Il dort enfin ! » (story 4.10). */
   endReason: LevelEndReason;
   maxima: ResultMaxima;
   timings: ResultScreenTimings;
@@ -79,6 +79,8 @@ export interface ResultScreenOptions {
   onStar(isLast: boolean): void;
   /** The header of a woken Mama comes up, once, when the rows start (never on a rebuild or a skip). */
   onMamaWoke(): void;
+  /** The header of a Mama come home early comes up, once, when the rows start (never on a rebuild or a skip): the door slams (story 3.16). */
+  onMamaHome(): void;
   /** A lost star is stamped (after the earned ones). Never called for a skipped or done one. */
   onStarLost(): void;
   /** The phase changed (also once at build). `actions` means the sequence is done. */
@@ -208,8 +210,8 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const panel = make(
     'section',
     `pp-panel pp-result-panel${options.endReason === 'mamaWoke' ? ' pp-result-panel-woken' : ''}${
-      options.endReason === 'cycleDone' ? ' pp-result-panel-cycle-done' : ''
-    }`,
+      options.endReason === 'mamaHome' ? ' pp-result-panel-home' : ''
+    }${options.endReason === 'cycleDone' ? ' pp-result-panel-cycle-done' : ''}`,
   );
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-modal', 'true');
@@ -231,12 +233,16 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   }
 
   const isMamaWoke = options.endReason === 'mamaWoke';
+  const isMamaHome = options.endReason === 'mamaHome';
   // The slam is one run of an animation: a rebuilt, finished screen shows the header at rest. The end
   // of the bedtime cycle (story 4.10) shows its header in the same place, with no slam and no event.
   // With a photo the header waits for the rows (`mountHeader`, story 3.6); without one it is there at once.
   let header: HTMLElement | null = null;
   if (isMamaWoke) {
     header = make('h2', 'pp-result-reason pp-type-heading', t('result.mama_woke'));
+  } else if (isMamaHome) {
+    // The same place and style as « Maman s'est réveillée ! » (UX early-end banner): Domestic, no red, no stamp.
+    header = make('h2', 'pp-result-reason pp-type-heading', t('result.mama_home'));
   } else if (options.endReason === 'cycleDone') {
     header = make(
       'h2',
@@ -249,7 +255,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const mountHeader = (isSlammed: boolean): void => {
     if (header === null || isHeaderMounted) return;
     isHeaderMounted = true;
-    if (isSlammed && isMamaWoke) header.classList.add('pp-result-reason-slam');
+    if (isSlammed && (isMamaWoke || isMamaHome)) header.classList.add('pp-result-reason-slam');
     panel.prepend(header);
   };
   /** The panel is transparent while the photo stands alone; this lets it show (its pop-in plays then). */
@@ -555,6 +561,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     mountHeader(true);
     enter('rows');
     if (isMamaWoke) options.onMamaWoke();
+    if (isMamaHome) options.onMamaHome();
     for (let index = 0; index < rows.length; index++) {
       later(() => countUp(index), index * timings.rowStaggerMs);
     }

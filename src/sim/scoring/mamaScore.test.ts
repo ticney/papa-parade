@@ -38,7 +38,7 @@ const rowSum = (score: MamaScore, from: Feel['mama'] = mama): number =>
 
 describe('computeMamaScore', () => {
   it('gives a calm game with nothing else in it the full calm row, no chore and the full base', () => {
-    const score = computeMamaScore(NONE, mama, false);
+    const score = computeMamaScore(NONE, mama, 'timer');
     expect(score.laughPoints).toBe(0);
     expect(score.calmPoints).toBe(mama.calmMaxPoints);
     expect(score.homePoints).toBe(0);
@@ -50,19 +50,19 @@ describe('computeMamaScore', () => {
 
   it('counts half a perfect per success (story 3.12), whole numbers after one rounding', () => {
     const slopes = withMama({ laughPerPerfectPoints: 1, laughPerSuccessPoints: 0.5 });
-    expect(computeMamaScore(tally({ successes: 4 }), slopes, false).laughPoints).toBe(2);
+    expect(computeMamaScore(tally({ successes: 4 }), slopes, 'timer').laughPoints).toBe(2);
     // 2 perfects + 3 successes = 3.5, rounded up once.
-    expect(computeMamaScore(tally({ perfects: 2, successes: 3 }), slopes, false).laughPoints).toBe(
-      4,
-    );
-    expect(computeMamaScore(tally({ successes: 10_000 }), mama, false).laughPoints).toBe(
+    expect(
+      computeMamaScore(tally({ perfects: 2, successes: 3 }), slopes, 'timer').laughPoints,
+    ).toBe(4);
+    expect(computeMamaScore(tally({ successes: 10_000 }), mama, 'timer').laughPoints).toBe(
       mama.laughMaxPoints,
     );
   });
 
   it('gives the calm row the share of the played time the baby was calm, times its maximum', () => {
     const calm = (calmMs: number, playedMs: number) =>
-      computeMamaScore(tally({ calmMs, playedMs }), mama, false).calmPoints;
+      computeMamaScore(tally({ calmMs, playedMs }), mama, 'timer').calmPoints;
     expect(calm(0, PLAYED_MS)).toBe(0);
     expect(calm(PLAYED_MS / 2, PLAYED_MS)).toBe(Math.round(mama.calmMaxPoints / 2));
     expect(calm(PLAYED_MS, PLAYED_MS)).toBe(mama.calmMaxPoints);
@@ -76,51 +76,51 @@ describe('computeMamaScore', () => {
 
   it('holds the home row to its maximum, whole (story 9.4 writes it)', () => {
     const home = (homePoints: number) =>
-      computeMamaScore(tally({ homePoints }), mama, false).homePoints;
+      computeMamaScore(tally({ homePoints }), mama, 'timer').homePoints;
     expect(home(0)).toBe(0);
     expect(home(7)).toBe(7);
     expect(home(mama.homeMaxPoints + 40)).toBe(mama.homeMaxPoints);
     expect(home(-3)).toBe(0);
-    const full = computeMamaScore(tally({ homePoints: 999 }), mama, false);
+    const full = computeMamaScore(tally({ homePoints: 999 }), mama, 'timer');
     expect(full.scorePoints).toBe(mama.calmMaxPoints + mama.homeMaxPoints + mama.baseScorePoints);
     expect(rowSum(full)).toBe(full.scorePoints);
   });
 
   it('counts the laughs per perfect, and holds them to their maximum', () => {
-    expect(computeMamaScore(tally({ perfects: 3 }), mama, false).laughPoints).toBe(
+    expect(computeMamaScore(tally({ perfects: 3 }), mama, 'timer').laughPoints).toBe(
       Math.min(mama.laughMaxPoints, 3 * mama.laughPerPerfectPoints),
     );
     const over = Math.ceil(mama.laughMaxPoints / mama.laughPerPerfectPoints) + 5;
-    expect(computeMamaScore(tally({ perfects: over }), mama, false).laughPoints).toBe(
+    expect(computeMamaScore(tally({ perfects: over }), mama, 'timer').laughPoints).toBe(
       mama.laughMaxPoints,
     );
   });
 
   it('adds the points of the combos cashed in to the laughs (story 4.2), not rounded before the sum', () => {
     const small = withMama({ laughPerPerfectPoints: 1, laughMaxPoints: 40 });
-    expect(computeMamaScore(tally({ perfects: 2, comboPoints: 6 }), small, false).laughPoints).toBe(
-      8,
-    );
+    expect(
+      computeMamaScore(tally({ perfects: 2, comboPoints: 6 }), small, 'timer').laughPoints,
+    ).toBe(8);
     // 0.4 + 0.4 + 0.4 cashed in: 1.2, shown as 1 (one rounding, at the end).
-    expect(computeMamaScore(tally({ comboPoints: 1.2 }), small, false).laughPoints).toBe(1);
-    expect(computeMamaScore(tally({ comboPoints: 28 }), small, false).laughPoints).toBe(28);
+    expect(computeMamaScore(tally({ comboPoints: 1.2 }), small, 'timer').laughPoints).toBe(1);
+    expect(computeMamaScore(tally({ comboPoints: 28 }), small, 'timer').laughPoints).toBe(28);
   });
 
   it('holds the laughs to their maximum with the combo points, and the five rows still add up', () => {
     const score = computeMamaScore(
       tally({ perfects: mama.laughMaxPoints, comboPoints: 500 }),
       mama,
-      false,
+      'timer',
     );
     expect(score.laughPoints).toBe(mama.laughMaxPoints);
     expect(rowSum(score)).toBe(score.scorePoints);
-    const onlyCombo = computeMamaScore(tally({ comboPoints: 500 }), mama, false);
+    const onlyCombo = computeMamaScore(tally({ comboPoints: 500 }), mama, 'timer');
     expect(onlyCombo.laughPoints).toBe(mama.laughMaxPoints);
     expect(rowSum(onlyCombo)).toBe(onlyCombo.scorePoints);
   });
 
   it('adds the floor, the broken props and the mischiefs into the sigh, and holds it to its maximum', () => {
-    const score = computeMamaScore(tally({ propsOnFloor: 1 }), mama, false);
+    const score = computeMamaScore(tally({ propsOnFloor: 1 }), mama, 'timer');
     expect(score.sighPoints).toBe(
       Math.round(Math.min(mama.sighMaxPoints, mama.sighPerPropOnFloorPoints)),
     );
@@ -133,19 +133,19 @@ describe('computeMamaScore', () => {
     const mixed = computeMamaScore(
       tally({ propsOnFloor: 1, propsBroken: 1, mischiefs: 1 }),
       small,
-      false,
+      'timer',
     );
     expect(mixed.sighPoints).toBe(6);
     expect(rowSum(mixed, small)).toBe(mixed.scorePoints);
-    const capped = computeMamaScore(tally({ propsBroken: 50, mischiefs: 50 }), mama, false);
+    const capped = computeMamaScore(tally({ propsBroken: 50, mischiefs: 50 }), mama, 'timer');
     expect(capped.sighPoints).toBe(mama.sighMaxPoints);
   });
 
   it('counts the screams per near miss, and holds them to their maximum', () => {
-    expect(computeMamaScore(tally({ nearMisses: 1 }), mama, false).screamPoints).toBe(
+    expect(computeMamaScore(tally({ nearMisses: 1 }), mama, 'timer').screamPoints).toBe(
       Math.round(Math.min(mama.screamMaxPoints, mama.screamPerNearMissPoints)),
     );
-    expect(computeMamaScore(tally({ nearMisses: 1000 }), mama, false).screamPoints).toBe(
+    expect(computeMamaScore(tally({ nearMisses: 1000 }), mama, 'timer').screamPoints).toBe(
       mama.screamMaxPoints,
     );
   });
@@ -159,7 +159,7 @@ describe('computeMamaScore', () => {
     const score = computeMamaScore(
       tally({ perfects: 3, propsOnFloor: 1, nearMisses: 1 }),
       fractional,
-      false,
+      'timer',
     );
     expect(score.laughPoints).toBe(2); // 2.1
     expect(score.sighPoints).toBe(1); // 1.25
@@ -179,7 +179,7 @@ describe('computeMamaScore', () => {
                 const score = computeMamaScore(
                   tally({ perfects, successes, propsOnFloor, nearMisses, calmMs, homePoints }),
                   mama,
-                  false,
+                  'timer',
                 );
                 expect(rowSum(score)).toBe(score.scorePoints);
                 for (const value of Object.values(score))
@@ -202,7 +202,7 @@ describe('computeMamaScore', () => {
   it('rounds half a point up, one row at a time: the score is the sum of rounded rows', () => {
     // 3 props on the floor = 7.5 -> 8 and 5 near misses = 7.5 -> 8 with these slopes.
     const slopes = withMama({ sighPerPropOnFloorPoints: 2.5, screamPerNearMissPoints: 1.5 });
-    const score = computeMamaScore(tally({ propsOnFloor: 3, nearMisses: 5 }), slopes, false);
+    const score = computeMamaScore(tally({ propsOnFloor: 3, nearMisses: 5 }), slopes, 'timer');
     expect(score.sighPoints).toBe(8);
     expect(score.screamPoints).toBe(8);
     expect(score.scorePoints).toBe(slopes.calmMaxPoints + slopes.baseScorePoints - 8 - 8);
@@ -210,16 +210,16 @@ describe('computeMamaScore', () => {
 
   it('holds the score to 0 and 100, with the refines bypassed by a hand-made feel', () => {
     const generous = withMama({ baseScorePoints: 500 });
-    expect(computeMamaScore(NONE, generous, false).scorePoints).toBe(MAMA_SCORE_MAX_POINTS);
+    expect(computeMamaScore(NONE, generous, 'timer').scorePoints).toBe(MAMA_SCORE_MAX_POINTS);
     const harsh = withMama({ baseScorePoints: 0 });
     expect(
-      computeMamaScore(tally({ calmMs: 0, nearMisses: 100, propsBroken: 100 }), harsh, false)
+      computeMamaScore(tally({ calmMs: 0, nearMisses: 100, propsBroken: 100 }), harsh, 'timer')
         .scorePoints,
     ).toBe(0);
   });
 
   it('gives the stars of the score, from the feel’s thresholds', () => {
-    const top = computeMamaScore(tally({ perfects: 10_000 }), mama, false);
+    const top = computeMamaScore(tally({ perfects: 10_000 }), mama, 'timer');
     expect(top.scorePoints).toBe(mama.laughMaxPoints + mama.calmMaxPoints + mama.baseScorePoints);
     expect(top.stars).toBe(
       mama.starThresholdPoints.filter((points) => points <= top.scorePoints).length,
@@ -227,25 +227,49 @@ describe('computeMamaScore', () => {
     const none = computeMamaScore(
       NONE,
       withMama({ starThresholdPoints: [99, 99.5, 99.7, 99.8, 99.9] }),
-      false,
+      'timer',
     );
     expect(none.stars).toBe(0);
+  });
+});
+
+describe('computeMamaScore: Mama come home early (story 3.16)', () => {
+  const rich = withMama({ earlyWakePenaltyStars: 1 });
+
+  it('gives 0 stars and no lost star whatever the score, and keeps every row and point', () => {
+    const timer = computeMamaScore(NONE, rich, 'timer');
+    expect(timer.stars).toBeGreaterThanOrEqual(1);
+    const home = computeMamaScore(NONE, rich, 'mamaHome');
+    expect(home.stars).toBe(0);
+    expect(home.lostStars).toBe(0);
+    const { stars: _timerStars, lostStars: _timerLost, ...timerPoints } = timer;
+    const { stars: _homeStars, lostStars: _homeLost, ...homePoints } = home;
+    expect(homePoints).toEqual(timerPoints);
+    expect(rowSum(home, rich)).toBe(home.scorePoints);
+  });
+
+  it('is not the woken Mama: she takes no star off a score that earns none, and a score of 100 earns none either', () => {
+    const top = withMama({ starThresholdPoints: [1, 2, 3, 4, 5] });
+    expect(computeMamaScore(NONE, top, 'timer').stars).toBe(5);
+    expect(computeMamaScore(NONE, top, 'mamaWoke').lostStars).toBe(1);
+    const home = computeMamaScore(NONE, top, 'mamaHome');
+    expect({ stars: home.stars, lostStars: home.lostStars }).toEqual({ stars: 0, lostStars: 0 });
   });
 });
 
 describe('computeMamaScore: a woken Mama (story 3.2)', () => {
   /** A game that earns stars, then one that earns none (a feel whose thresholds the score never reaches). */
   const rich = withMama({ earlyWakePenaltyStars: 1 });
-  const baseStars = computeMamaScore(NONE, rich, false).stars;
+  const baseStars = computeMamaScore(NONE, rich, 'timer').stars;
 
   it('has no lost star for a timer end', () => {
-    expect(computeMamaScore(NONE, rich, false).lostStars).toBe(0);
+    expect(computeMamaScore(NONE, rich, 'timer').lostStars).toBe(0);
   });
 
   it('takes earlyWakePenaltyStars off the stars when she wakes, and keeps every point', () => {
     expect(baseStars).toBeGreaterThanOrEqual(1);
-    const timer = computeMamaScore(NONE, rich, false);
-    const woken = computeMamaScore(NONE, rich, true);
+    const timer = computeMamaScore(NONE, rich, 'timer');
+    const woken = computeMamaScore(NONE, rich, 'mamaWoke');
     expect(woken.lostStars).toBe(1);
     expect(woken.stars).toBe(baseStars - 1);
     const { stars: _timerStars, lostStars: _timerLost, ...timerPoints } = timer;
@@ -256,7 +280,7 @@ describe('computeMamaScore: a woken Mama (story 3.2)', () => {
 
   it('never goes below 0 stars: no base star means nothing to lose', () => {
     const none = withMama({ starThresholdPoints: [99, 99.5, 99.7, 99.8, 99.9] });
-    const woken = computeMamaScore(NONE, none, true);
+    const woken = computeMamaScore(NONE, none, 'mamaWoke');
     expect(woken.stars).toBe(0);
     expect(woken.lostStars).toBe(0);
   });
@@ -272,14 +296,14 @@ describe('computeMamaScore: a woken Mama (story 3.2)', () => {
         mama.calmMaxPoints + mama.baseScorePoints + 4,
       ],
     });
-    expect(computeMamaScore(NONE, oneStar, false).stars).toBe(1);
-    const woken = computeMamaScore(NONE, oneStar, true);
+    expect(computeMamaScore(NONE, oneStar, 'timer').stars).toBe(1);
+    const woken = computeMamaScore(NONE, oneStar, 'mamaWoke');
     expect(woken.lostStars).toBe(1);
     expect(woken.stars).toBe(0);
   });
 
   it('a penalty of 0 loses nothing even when she wakes', () => {
-    const woken = computeMamaScore(NONE, withMama({ earlyWakePenaltyStars: 0 }), true);
+    const woken = computeMamaScore(NONE, withMama({ earlyWakePenaltyStars: 0 }), 'mamaWoke');
     expect(woken.lostStars).toBe(0);
     expect(woken.stars).toBe(baseStars);
   });
@@ -320,7 +344,7 @@ describe('scoreLevel', () => {
         mischiefs: 2,
       },
       mama,
-      false,
+      'timer',
     );
     expect(world.score.final).toEqual(expected);
     expect(events).toEqual([{ type: 'LevelScored', t: 1230, ...expected }]);
@@ -348,7 +372,7 @@ describe('scoreLevel', () => {
 
     scoreLevel(world, ctx, 'mamaWoke');
 
-    const expected = computeMamaScore(tally({ calmMs: 500, playedMs: 500 }), mama, true);
+    const expected = computeMamaScore(tally({ calmMs: 500, playedMs: 500 }), mama, 'mamaWoke');
     expect(expected.lostStars).toBeGreaterThanOrEqual(1);
     expect(world.score.final).toEqual(expected);
     expect(events).toEqual([{ type: 'LevelScored', t: 500, ...expected }]);
@@ -368,7 +392,7 @@ describe('the Geo tally of the 2026-11-03 playtest (story 3.12, D7)', () => {
   });
 
   it('is 34 points and 1 star with the five-row note, row by row', () => {
-    const score = computeMamaScore(geo, mama, false);
+    const score = computeMamaScore(geo, mama, 'timer');
     expect(score).toEqual({
       laughPoints: 10,
       calmPoints: 10,

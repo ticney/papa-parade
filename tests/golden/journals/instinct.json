@@ -1,11 +1,28 @@
 {
   "version": 3,
   "seed": 42,
-  "feelHash": "06a345204b719a",
+  "feelHash": "07f8e987c8ea43",
   "geometryHash": "1fad21f04c6015",
-  "levelHash": "144257184520a0",
+  "levelHash": "14b09181708906",
   "startSimMs": 0,
   "entries": [
+    {
+      "applyAt": 10,
+      "command": {
+        "patch": {
+          "catastrophe": {
+            "risePct": {
+              "choreBeat": 0,
+              "mess": 0,
+              "microSleep": 0,
+              "nearMiss": 0
+            }
+          }
+        },
+        "t": 0,
+        "type": "SetFeel"
+      }
+    },
     {
       "applyAt": 100,
       "command": {

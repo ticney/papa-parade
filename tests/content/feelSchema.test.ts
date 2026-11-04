@@ -21,9 +21,11 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // presets) and `count` (a particle count).
 // Story 2.7 adds `Taps` (`minValidTaps`: a count of taps) and the exact key `bpm` (a tempo; the unit
 // is the name).
+// Story 3.16 adds the exact keys of `catastrophe.risePct` (`nearMiss`, `mess`, `microSleep`,
+// `choreBeat`): the group name `risePct` carries the unit, like `fatigue.perSec`.
 // Story 4.1 adds `OffsetM` (`putDownOffsetM`) and the exact key `reachM` (lengths in metres, spelled out).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|OffsetM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm|reachM)$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|OffsetM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm|reachM|nearMiss|mess|microSleep|choreBeat)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -722,5 +724,64 @@ describe('feel.bladder (story 4.3)', () => {
   it('refuses a missing group and an unknown key', () => {
     expect(failedPaths(mutated(['bladder', undefined]))).toEqual(['bladder']);
     expect(failedPaths(mutated(['bladder.bogusPct', 1]))).toEqual(['bladder.bogusPct']);
+  });
+});
+
+describe('feel.catastrophe (story 3.16)', () => {
+  const TIERS = ['assistance', 'normal', 'experienced'] as const;
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a missing catastrophe block', [['catastrophe', undefined]], ['catastrophe']],
+    ['a missing rise row', [['catastrophe.risePct.mess', undefined]], ['catastrophe.risePct.mess']],
+    ['an unknown rise row', [['catastrophe.risePct.bogus', 1]], ['catastrophe.risePct.bogus']],
+    ['a rise above 100', [['catastrophe.risePct.nearMiss', 101]], ['catastrophe.risePct.nearMiss']],
+    ['a negative rise', [['catastrophe.risePct.mess', -1]], ['catastrophe.risePct.mess']],
+    ['a negative decayPerSec', [['catastrophe.decayPerSec', -0.5]], ['catastrophe.decayPerSec']],
+    [
+      'a perfectDropPct above 100',
+      [['catastrophe.perfectDropPct', 101]],
+      ['catastrophe.perfectDropPct'],
+    ],
+    ['an alertPct above 100', [['catastrophe.alertPct', 101]], ['catastrophe.alertPct']],
+    [
+      'faceStepsPct that are not ascending',
+      [['catastrophe.faceStepsPct', [50, 25]]],
+      ['catastrophe.faceStepsPct'],
+    ],
+    [
+      'faceStepsPct that are equal',
+      [['catastrophe.faceStepsPct', [30, 30]]],
+      ['catastrophe.faceStepsPct'],
+    ],
+    [
+      'a last face step at alertPct',
+      [['catastrophe.faceStepsPct', [25, 70]]],
+      ['catastrophe.faceStepsPct'],
+    ],
+    [
+      'a last face step above alertPct',
+      [['catastrophe.faceStepsPct', [25, 80]]],
+      ['catastrophe.faceStepsPct'],
+    ],
+    [
+      'three face steps',
+      [['catastrophe.faceStepsPct', [10, 25, 50]]],
+      ['catastrophe.faceStepsPct'],
+    ],
+    ['an unknown key', [['catastrophe.bogusPct', 1]], ['catastrophe.bogusPct']],
+  ])('refuses %s, at its path', (_name, changes, paths) => {
+    expect(failedPaths(mutated(...changes))).toEqual(paths);
+  });
+
+  it('accepts the bounds themselves', () => {
+    expect(mutated(['catastrophe.faceStepsPct', [0, 69]])).toMatchObject({ ok: true });
+    expect(mutated(['catastrophe.decayPerSec', 0])).toMatchObject({ ok: true });
+    expect(mutated(['catastrophe.risePct.nearMiss', 100])).toMatchObject({ ok: true });
+  });
+
+  it.each(TIERS)('requires a catastropheMultiplier on the %s tier', (tier) => {
+    const path = `difficulty.${tier}.catastropheMultiplier`;
+    expect(failedPaths(mutated([path, undefined]))).toEqual([path]);
+    expect(failedPaths(mutated([path, -1]))).toEqual([path]);
   });
 });

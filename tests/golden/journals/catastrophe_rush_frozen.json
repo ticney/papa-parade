@@ -1,0 +1,26 @@
+{
+  "version": 3,
+  "seed": 42,
+  "feelHash": "07f8e987c8ea43",
+  "geometryHash": "181bcc6e7772a8",
+  "levelHash": "0b9942b959190c",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 19510,
+      "command": {
+        "pct": 60,
+        "t": 19500,
+        "type": "SetCatastrophe"
+      }
+    },
+    {
+      "applyAt": 26010,
+      "command": {
+        "pct": 100,
+        "t": 26000,
+        "type": "SetCatastrophe"
+      }
+    }
+  ]
+}

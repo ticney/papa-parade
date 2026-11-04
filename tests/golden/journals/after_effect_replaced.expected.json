@@ -1,6 +1,6 @@
 {
   "untilSimMs": 16000,
-  "worldHash": "0e6b5b32a6c228",
+  "worldHash": "1eac44aac18250",
   "eventTypes": [
     "FatigueThresholdCrossed",
     "BabyStateChanged",
@@ -15,6 +15,7 @@
     "GagTriggered",
     "PapaStateChanged",
     "AfterEffectStarted",
+    "CatastropheChanged",
     "BabyStateChanged",
     "ThreatRearmed",
     "WindowOpened",
@@ -24,11 +25,12 @@
     "PapaStateChanged",
     "AfterEffectStarted",
     "AfterEffectStarted",
+    "CatastropheChanged",
     "BabyStateChanged",
     "BabyStateChanged",
     "AfterEffectEnded",
     "PapaStateChanged",
     "BabyStateChanged"
   ],
-  "eventsHash": "09d437299d3151"
+  "eventsHash": "1966ae7c2a925e"
 }

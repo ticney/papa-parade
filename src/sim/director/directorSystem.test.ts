@@ -3,6 +3,7 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
+import { createTestContentWithoutCatastrophe } from '../../../tests/support/noCatastrophe.ts';
 import {
   COFFEE_TABLE,
   createTestContent,
@@ -18,7 +19,8 @@ import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 
-const content = createTestContent();
+// The catastrophe gauge cannot rise (story 3.16 D14): this file is not about it, and a pile of gags would bring Mama home.
+const content = createTestContentWithoutCatastrophe();
 const geometry = createTestGeometry();
 
 async function newSim(level: LevelContent, seed = 1): Promise<Sim> {

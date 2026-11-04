@@ -10,6 +10,7 @@ import { replayRunFile } from '../../../tools/sim/replaySim.ts';
 import type { RunFile } from '../../../tools/sim/runFile.ts';
 import { runSim } from '../../../tools/sim/runSim.ts';
 import { renderReport } from '../../../tools/sim/simReport.ts';
+import { silenceCatastrophe } from '../../support/noCatastrophe.ts';
 import { createTestSimLevel, simArgs } from '../../support/simSupport.ts';
 
 async function reportOf(overrides: Parameters<typeof simArgs>[0]) {
@@ -177,6 +178,8 @@ describe('runSim on the live content', () => {
 
   it('plays each idle game to LevelEnded: every wave telegraphs, none goes over its limit', async () => {
     const loaded = await load();
+    // This is about the waves, not the catastrophe (story 3.16 D14): an idle player's gags would bring Mama home first.
+    silenceCatastrophe(loaded.content.feel);
     const result = await runSim(simArgs({ botId: 'idle', runs: 5, untilSimMs: null }), loaded);
     if (!result.ok) throw new Error(result.error);
     const report = result.value;
@@ -230,6 +233,24 @@ describe('runSim on the live content', () => {
     });
     expect(result.ok).toBe(true);
     expect(games[0]?.untilSimMs).toBe(loaded.level.level.durationMs);
+    const replayed = await replayRunFile(games[0] as RunFile, loaded);
+    expect(replayed.ok).toBe(true);
+  }, 120_000);
+
+  it('records a game that ended on Mama come home early and replays it to the same state (story 3.16)', async () => {
+    const loaded = await load();
+    const games: RunFile[] = [];
+    const result = await runSim(simArgs({ botId: 'idle', untilSimMs: null }), loaded, {
+      onGame: (_name, game) => games.push(game),
+    });
+    if (!result.ok) throw new Error(result.error);
+    const [run] = result.value.runList;
+    expect(run?.endReason).toBe('mamaHome');
+    expect(run?.mamaHomeAtMs).toBeLessThan(loaded.level.level.durationMs);
+    expect(run?.catastrophePeakPct).toBe(100);
+    expect(result.value.endsByReason.mamaHome).toBe(1);
+    // The run stops with the level: the file's horizon is the end, not the level's duration.
+    expect(games[0]?.untilSimMs).toBeLessThanOrEqual(loaded.level.level.durationMs);
     const replayed = await replayRunFile(games[0] as RunFile, loaded);
     expect(replayed.ok).toBe(true);
   }, 120_000);

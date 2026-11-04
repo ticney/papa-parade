@@ -61,7 +61,8 @@ describe('the bedtime cycle, played by the bots (story 4.10)', () => {
         ends.every((event) => event.id === 'stay_awake' && event.outcome !== 'succeeded'),
       ).toBe(true);
       const [ended] = events.filter((event) => event.type === 'LevelEnded');
-      expect(['mamaWoke', 'timer']).toContain(ended?.reason);
+      // Idle's gags now bring Mama home early (story 3.16); the cycle is still never completed.
+      expect(['mamaWoke', 'mamaHome', 'timer']).toContain(ended?.reason);
       expect(events.filter((event) => event.type === 'CycleCompleted')).toEqual([]);
     },
     20_000,

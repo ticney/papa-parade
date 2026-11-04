@@ -82,6 +82,8 @@ export type { SimSnapshot } from './snapshot.ts';
 export {
   AFTER_EFFECT_OF_GAG,
   afterEffectProblem,
+  CATASTROPHE_OF_GAG,
+  catastropheProblem,
   GAG_IDS,
   type GagId,
   PAPA_ASLEEP_GAG_ID,

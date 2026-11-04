@@ -607,7 +607,12 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       // Out of the room, in the toilet (story 4.3): not him, not his shadow.
       papa.setAway(world.papa.state === 'onToilet');
       // The door, from the rush's start on the sim clock: a pause or a slow-mo holds it (story 3.5).
-      door?.update(world.flow.finalRushAt, clockMs, bodies.isMotionReduced());
+      door?.update(
+        world.flow.finalRushAt,
+        clockMs,
+        bodies.isMotionReduced(),
+        world.flow.endReason === 'mamaHome',
+      );
       dangerTint.update(world, clockMs, bodies.isMotionReduced());
       waves.update(clockMs);
       shake.update(nowReal);

@@ -38,6 +38,7 @@ import {
 import {
   afterEffectProblem,
   beatWindowLimitsOf,
+  catastropheProblem,
   cycleProblems,
   cycleRoomForGeometry,
   duelLimitsOf,
@@ -404,6 +405,10 @@ function checkThreatReferences(
     );
     if (afterEffectMismatch !== null) {
       problems.push({ file, jsonPath: 'afterEffect.kind', message: afterEffectMismatch });
+    }
+    const catastropheMismatch = catastropheProblem(id, ThreatGagIds(threat), threat.catastrophe);
+    if (catastropheMismatch !== null) {
+      problems.push({ file, jsonPath: 'catastrophe', message: catastropheMismatch });
     }
     if (feedback === undefined) continue;
     for (const [role, cueId] of Object.entries(threat.feedback)) {

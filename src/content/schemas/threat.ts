@@ -22,6 +22,15 @@ export const THREAT_RESPONSES = ['parry', 'firm', 'wait', 'nothing'] as const;
 export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
 
 /**
+ * The catastrophe category of a threat's gags (story 3.16, FR73, GDD mechanic 14): which row of
+ * `feel.catastrophe.risePct` a gag of the threat raises the gauge by. `none` raises nothing (the
+ * gags of the E4 sequences, to be costed later). `choreBeat` is a rise of its own, not a threat's.
+ * `createSim` and `content:check` pair it with the gag (`CATASTROPHE_OF_GAG`).
+ */
+export const THREAT_CATASTROPHE_CATEGORIES = ['nearMiss', 'mess', 'microSleep', 'none'] as const;
+export type ThreatCatastrophe = (typeof THREAT_CATASTROPHE_CATEGORIES)[number];
+
+/**
  * The glyphs a threat's marker can draw, as data (the client has one per entry, as a
  * `Record<ThreatIcon, …>`: a missing glyph is a type error). The marker's shape and colour are
  * separate keys (`THREAT_ICON_SHAPES`, `THREAT_COLORS`, story 2.2).
@@ -266,6 +275,11 @@ const baseShape = {
     .enum(THREAT_COLORS)
     .describe("Colour of the threat's marker, by DESIGN.md token name (`parry` or `dodge`)."),
   feedback: FeedbackCuesSchema,
+  catastrophe: z
+    .enum(THREAT_CATASTROPHE_CATEGORIES)
+    .describe(
+      'How much a gag of this threat raises the catastrophe gauge: the row of `feel.catastrophe.risePct` (`none` = nothing). Must fit the gag (story 3.16).',
+    ),
   afterEffect: AfterEffectDefSchema,
   cooldownMs: z
     .number()

@@ -1,6 +1,10 @@
+---
+baseline_commit: 52669ba8d6452222cbc3f62cf428f9e24ee52ac9
+---
+
 # Story 3.16: Jauge de catastrophe et « Maman est rentrée plus tôt ! »
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -61,35 +65,35 @@ Eighth and last story of the v2.3 catch-up (`sprint-change-proposal-2026-11-03.m
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Content and schemas** (AC 1, 2)
-  - [ ] `src/content/schemas/feel.ts`: `CatastropheSchema` (D2), `catastropheMultiplier` in `difficultyTier`; refines for `faceStepsPct`. `content/feel.json`, `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json`.
-  - [ ] `src/content/schemas/threat.ts`: `catastrophe` in `baseShape` (export `THREAT_CATASTROPHE_CATEGORIES` / type). All 11 `content/threats/*.json`, the `tests/support/test*.threat.json` copies and `tests/threats/fixtures/test_{firm,wait}.json`.
-  - [ ] `src/sim/threats/gags.ts`: `CATASTROPHE_OF_GAG: Readonly<Record<GagId, ThreatCatastrophe>>` and `catastropheProblem(defId, gags, category)`, exported from `@sim`; called in `createSim › simLevelOf` and `tools/content/contentChecks.ts` beside `afterEffectProblem`.
-  - [ ] `npm run content:schemas`; `npm run content:check`; schema tests (each refine able to fail).
-- [ ] **Task 2: The gauge** (AC 3-7)
-  - [ ] `world.gauges.catastrophePct` (0 at start; `snapshot.ts › gaugesProblem` checks a finite value in `[0, 100]`), `src/sim/gauges/catastrophe.ts`: `addCatastrophe(world, ctx, deltaPct, source)` (the only writer with `decayCatastrophe`), `runCatastrophe(world, ctx)` (D3). Called from `runGauges` after `runBladder`; `SetCatastrophe` applied after `SetNoise` / `SetBladder`.
-  - [ ] `CatastropheChanged` and `CatastropheSource` in `events.ts`, in `SIM_EVENT_TYPES` (alphabetical). `SetCatastrophe` in `commands.ts` (union, list, validation). Exports in `src/sim/index.ts`.
-  - [ ] Unit tests: each category × each tier, the clamp, perfect drop (not multiplied), success and beat do nothing, silent decay, frozen rush, debug command, a gag in a sequence, no event on a 0 change.
-- [ ] **Task 3: The end** (AC 8-11)
-  - [ ] `LevelEndReason` gains `'mamaHome'` (and `LEVEL_END_REASONS`). `runFlow`: catastrophe check first (D5). `endLevel` writes `flow.endReason`; no `MamaWoke` for `mamaHome`.
-  - [ ] `computeMamaScore(tally, mama, reason)` (D6); `scoreLevel` passes the reason.
-  - [ ] `world.flow.endReason`, snapshot 30 → 31 (the version comment says what 31 adds) and its check (null iff live).
-  - [ ] Tests: ties with noise, cycle and timer; a sequence under way is closed; frozen near misses still counted; stars 0 / lostStars 0; snapshot round trip.
-- [ ] **Task 4: Tests that are not about the catastrophe, and the goldens** (AC 22)
-  - [ ] `npm run ci:fast`; any test whose gags now end the level early gets the `NO_CATASTROPHE` feel patch (D14), never a weaker live value. List them in the Completion Notes.
-  - [ ] Check the end reason of every golden before regenerating; add `catastrophe_mama_home` and `catastrophe_rush_frozen` to `tests/golden/scenarios.ts` with a test file; `npm run golden:update` and say so.
-- [ ] **Task 5: The client** (AC 12-18)
-  - [ ] `src/client/ui/hud/catastropheFace.ts` (+ test): `createCatastropheFace(doc, {t})`, `setPercent`, `setCompact`, `frame`; the four SVG faces (D8); CSS in `ui.css` (ring, pulse ≤ 3 Hz, reduced motion ≤ 1 Hz, idle opacity). Mounted by `timerHud` (beside the variant icon) or in the timer zone by `hudLayer`, fed through `hudBatch` like the gauges.
-  - [ ] `src/client/feedback/catastropheAlert.ts` (`isCatastropheAlertCrossing`, + test); `CatastropheAlertReached` and `ResultMamaHomeShown` in `FEEDBACK_CLIENT_EVENTS`; cues `catastrophe_alert`, `mama_home` and their event rows in `content/feedback.json` (D9).
-  - [ ] `boot.ts`: face values, alert, music mood, mirrors, `resultEndReason`; `doorView.ts` open on `mamaHome` (D7); `resultScreen.ts`: `mamaHome` header, `pp-result-panel-home`, `onMamaHome`, dashed empty stars.
-  - [ ] `strings.fr.json`: `result.mama_home` « Maman est rentrée plus tôt ! », the face's four `hud.catastrophe_*` labels (D8); the forbidden-words test.
-- [ ] **Task 6: Report, replay, measurements** (AC 19-21, 23)
-  - [ ] `tools/sim/simReport.ts` (+ `simArgs` help text): fields of AC 19; `tests/tools/sim/*` whole-report fixtures gain them.
-  - [ ] Replay tests: a run file and a client journal ending on `mamaHome` replay to the same state.
-  - [ ] 200-run measurements (D13) for `human`, `perfect`, `idle`, plus `human --seed 1`. **Halt for Geo if AC 20 or AC 23 is not met.**
-- [ ] **Task 7: e2e and docs** (AC 12-18, 24)
-  - [ ] `tests/e2e/catastrophe.spec.ts` (Testing). Then the specs the change touches, Chromium, in the background: `npm run e2e -- tests/e2e/catastrophe.spec.ts tests/e2e/mamaWoke.spec.ts tests/e2e/photo.spec.ts tests/e2e/finalRush.spec.ts tests/e2e/result.spec.ts tests/e2e/journal.spec.ts tests/e2e/adaptiveMusic.spec.ts tests/e2e/ui.spec.ts tests/e2e/timer.spec.ts tests/e2e/feedback.spec.ts tests/e2e/testApi.spec.ts tests/e2e/chambreNight.spec.ts tests/e2e/autoplay.spec.ts --project=chromium` (all exist at the story's creation).
-  - [ ] `CLAUDE.md`, `project-context.md`, `deferred-work.md` (AC 24). `npm run ci:fast` green. `ci:story` is the review's.
+- [x] **Task 1: Content and schemas** (AC 1, 2)
+  - [x] `src/content/schemas/feel.ts`: `CatastropheSchema` (D2), `catastropheMultiplier` in `difficultyTier`; refines for `faceStepsPct`. `content/feel.json`, `tests/support/testFeel.json`, `tests/tools/vite/fixtures/feelSample.json`.
+  - [x] `src/content/schemas/threat.ts`: `catastrophe` in `baseShape` (export `THREAT_CATASTROPHE_CATEGORIES` / type). All 11 `content/threats/*.json`, the `tests/support/test*.threat.json` copies and `tests/threats/fixtures/test_{firm,wait}.json`.
+  - [x] `src/sim/threats/gags.ts`: `CATASTROPHE_OF_GAG: Readonly<Record<GagId, ThreatCatastrophe>>` and `catastropheProblem(defId, gags, category)`, exported from `@sim`; called in `createSim › simLevelOf` and `tools/content/contentChecks.ts` beside `afterEffectProblem`.
+  - [x] `npm run content:schemas`; `npm run content:check`; schema tests (each refine able to fail).
+- [x] **Task 2: The gauge** (AC 3-7)
+  - [x] `world.gauges.catastrophePct` (0 at start; `snapshot.ts › gaugesProblem` checks a finite value in `[0, 100]`), `src/sim/gauges/catastrophe.ts`: `addCatastrophe(world, ctx, deltaPct, source)` (the only writer with `decayCatastrophe`), `runCatastrophe(world, ctx)` (D3). Called from `runGauges` after `runBladder`; `SetCatastrophe` applied after `SetNoise` / `SetBladder`.
+  - [x] `CatastropheChanged` and `CatastropheSource` in `events.ts`, in `SIM_EVENT_TYPES` (alphabetical). `SetCatastrophe` in `commands.ts` (union, list, validation). Exports in `src/sim/index.ts`.
+  - [x] Unit tests: each category × each tier, the clamp, perfect drop (not multiplied), success and beat do nothing, silent decay, frozen rush, debug command, a gag in a sequence, no event on a 0 change.
+- [x] **Task 3: The end** (AC 8-11)
+  - [x] `LevelEndReason` gains `'mamaHome'` (and `LEVEL_END_REASONS`). `runFlow`: catastrophe check first (D5). `endLevel` writes `flow.endReason`; no `MamaWoke` for `mamaHome`.
+  - [x] `computeMamaScore(tally, mama, reason)` (D6); `scoreLevel` passes the reason.
+  - [x] `world.flow.endReason`, snapshot 30 → 31 (the version comment says what 31 adds) and its check (null iff live).
+  - [x] Tests: ties with noise, cycle and timer; a sequence under way is closed; frozen near misses still counted; stars 0 / lostStars 0; snapshot round trip.
+- [x] **Task 4: Tests that are not about the catastrophe, and the goldens** (AC 22)
+  - [x] `npm run ci:fast`; any test whose gags now end the level early gets the `NO_CATASTROPHE` feel patch (D14), never a weaker live value. List them in the Completion Notes.
+  - [x] Check the end reason of every golden before regenerating; add `catastrophe_mama_home` and `catastrophe_rush_frozen` to `tests/golden/scenarios.ts` with a test file; `npm run golden:update` and say so.
+- [x] **Task 5: The client** (AC 12-18)
+  - [x] `src/client/ui/hud/catastropheFace.ts` (+ test): `createCatastropheFace(doc, {t})`, `setPercent`, `setCompact`, `frame`; the four SVG faces (D8); CSS in `ui.css` (ring, pulse ≤ 3 Hz, reduced motion ≤ 1 Hz, idle opacity). Mounted by `timerHud` (beside the variant icon) or in the timer zone by `hudLayer`, fed through `hudBatch` like the gauges.
+  - [x] `src/client/feedback/catastropheAlert.ts` (`isCatastropheAlertCrossing`, + test); `CatastropheAlertReached` and `ResultMamaHomeShown` in `FEEDBACK_CLIENT_EVENTS`; cues `catastrophe_alert`, `mama_home` and their event rows in `content/feedback.json` (D9).
+  - [x] `boot.ts`: face values, alert, music mood, mirrors, `resultEndReason`; `doorView.ts` open on `mamaHome` (D7); `resultScreen.ts`: `mamaHome` header, `pp-result-panel-home`, `onMamaHome`, dashed empty stars.
+  - [x] `strings.fr.json`: `result.mama_home` « Maman est rentrée plus tôt ! », the face's four `hud.catastrophe_*` labels (D8); the forbidden-words test.
+- [x] **Task 6: Report, replay, measurements** (AC 19-21, 23)
+  - [x] `tools/sim/simReport.ts` (+ `simArgs` help text): fields of AC 19; `tests/tools/sim/*` whole-report fixtures gain them.
+  - [x] Replay tests: a run file and a client journal ending on `mamaHome` replay to the same state.
+  - [x] 200-run measurements (D13) for `human`, `perfect`, `idle`, plus `human --seed 1`. **Halt for Geo if AC 20 or AC 23 is not met.**
+- [x] **Task 7: e2e and docs** (AC 12-18, 24)
+  - [x] `tests/e2e/catastrophe.spec.ts` (Testing). Then the specs the change touches, Chromium, in the background: `npm run e2e -- tests/e2e/catastrophe.spec.ts tests/e2e/mamaWoke.spec.ts tests/e2e/photo.spec.ts tests/e2e/finalRush.spec.ts tests/e2e/result.spec.ts tests/e2e/journal.spec.ts tests/e2e/adaptiveMusic.spec.ts tests/e2e/ui.spec.ts tests/e2e/timer.spec.ts tests/e2e/feedback.spec.ts tests/e2e/testApi.spec.ts tests/e2e/chambreNight.spec.ts tests/e2e/autoplay.spec.ts --project=chromium` (all exist at the story's creation).
+  - [x] `CLAUDE.md`, `project-context.md`, `deferred-work.md` (AC 24). `npm run ci:fast` green. `ci:story` is the review's.
 
 ## Dev Notes
 
@@ -242,10 +246,69 @@ Follows the layers and aliases: the gauge in `src/sim/gauges`, the category tabl
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (claude-sonnet-5-5), via the `gds-dev-story` workflow, in the worktree `story/3-16-jauge-de-catastrophe-et-maman-est-rentree-plus-tot`.
+
 ### Debug Log References
+
+- `npm run ci:fast` green at the end (typecheck, lint with the two pre-existing `ui.css` warnings, content:check, 411 test files / 8800+ tests).
+- `npm run e2e -- tests/e2e/catastrophe.spec.ts --project=chromium`: 9 passed. The twelve touched specs (mamaWoke, photo, finalRush, result, journal, adaptiveMusic, ui, timer, feedback, testApi, chambreNight, autoplay) on Chromium: 110 passed, 1 failed (the macOS screenshot `autoplay-frozen`, which now shows Mama's face in the timer).
+- Measurements (D13) are in the table below; the scripts and raw reports were in the session scratchpad (not committed).
+
+### Implementation Plan
+
+- **Sim.** `feel.catastrophe` + `difficulty.<tier>.catastropheMultiplier` (strict schema, `faceStepsPct` a fixed-length array so the feel panel keeps one control per leaf); `catastrophe` on every threat def with `CATASTROPHE_OF_GAG` / `catastropheProblem` (the `afterEffectProblem` pattern, called by `createSim` and `content:check`); `src/sim/gauges/catastrophe.ts` (`addCatastrophe` and `decayCatastrophe` the only writers, `runCatastrophe` called by `runGauges` after `runBladder`, frozen in `finalRush`); `SetCatastrophe` applied last in `runGauges`; `LevelEndReason` gains `mamaHome`, checked first in `runFlow`; `world.flow.endReason` (snapshot 30 → 31, with its checks); `computeMamaScore(tally, mama, reason)`.
+- **Client.** `catastropheFace.ts` (one `svg`, one swapped `path`: three nodes), mounted in the timer pill by `timerHud.mountFace`, fed through `hudBatch` in hundredths of a percent; `isCatastropheAlertCrossing` and the client events `CatastropheAlertReached` / `ResultMamaHomeShown` with cues `catastrophe_alert` / `mama_home`; music tense above `alertPct` from the world each frame; door bursts open on a `mamaHome` (`doorOpenAngleDegAt(…, isBurstOpen)`); Result screen header, slam, `pp-result-panel-home`, dashed empty stars; mirrors `data-pp-catastrophe`, `data-pp-catastrophe-face`.
+- **Tools.** `endsByReason.mamaHome`, `mamaHomeMeanAtMs`, `meanCatastrophePeakPct`, per run `mamaHomeAtMs` and `catastrophePeakPct`.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created (story creation, 2026-11-04).
+- **Deliberate variances / decisions to know.**
+  - `CatastropheChanged{t, source, catastrophePct, deltaPct}` instead of the architecture sketch's `{value, delta}` (unit suffixes, `NoiseChanged` model), as D3 said.
+  - The gauge reads the category from the threat **def** (`ctx.level.threats[i].def.catastrophe`, index-aligned with `world.threats`), not from the gag; the two are proved equal at `createSim` / `content:check`.
+  - The unit-suffix guard (`tests/content/feelSchema.test.ts`) gained the four exact keys of `catastrophe.risePct` (`nearMiss`, `mess`, `microSleep`, `choreBeat`) as documented exceptions, like `fatigue.perSec`: AC 1 fixes those names and the group name `risePct` carries the unit.
+  - A gag that lifts the gauge to exactly 100 ends the step at 100 after the clamp; one that only reaches it from below ends at `100 − one decay step` (the decay runs first, D3): `runFlow` reads `>= 100`, so a gauge at 99.995 does not end the level. Nothing rounds in the sim.
+  - The face is fed through `hudBatch` in **hundredths** of a percent: « alarmed » is strictly above `alertPct`, which a whole percent cannot tell.
+- **Tests that are not about the catastrophe (D14), listed.** `tests/support/noCatastrophe.ts` (`withoutCatastrophe`, `createTestContentWithoutCatastrophe`, `silenceCatastrophe`, `NO_CATASTROPHE_PATCH`: every `risePct` at 0, the live values untouched in `testFeel.json`): `src/sim/director/baselineTrace.test.ts`, `src/sim/director/directorSystem.test.ts`, `src/sim/assist/paternalInstinct.test.ts`, `src/sim/baby/carryFuzz.test.ts`, `src/sim/papa/tidyProp.test.ts`, `src/sim/sequences/sequenceSystem.test.ts`, `src/sim/threats/inputLag.test.ts`, `src/sim/scoring/frozenNearMiss.test.ts`, `tests/bots/bedtimeCycleFuzz.test.ts`, `tests/bots/instinct.test.ts`, `tests/content/liveProps.test.ts`, `tests/tools/sim/{phone,silence,microSleep}.test.ts` and `runSim.test.ts` (« plays each idle game to LevelEnded »), and the goldens `threat_trio` and `instinct` (a `SetFeel` at step 0). `tests/tools/sim/cycleLevel.test.ts` accepts `mamaHome` for the idle bot. `tests/bots/botContract.test.ts` replays up to where the game stopped (a bot's game ends with the level). `tests/bots/humanBotRegression.test.ts`: the whole-journal hashes were re-pinned (the feel and the defs changed; `PINNED_COMMANDS` still hold: the human bot plays the same game).
+- **Goldens regenerated deliberately** (`npm run golden:update`) after checking each scenario's end: all existing goldens end on the same reason as before (`mama_woke` → `mamaWoke`, `combo_cash_in` and `final_rush_tidied` → `timer`, `bedtime_cycle_won` → `cycleDone`, the others never end); `threat_trio` and `instinct` would have ended on `mamaHome` and got the `NO_CATASTROPHE` patch to keep their original ends. New: `catastrophe_mama_home` and `catastrophe_rush_frozen` (+ `tests/golden/catastrophe.test.ts`). The gags of the other goldens now carry `CatastropheChanged` events.
+- **AC 23 met**: `npm run sim -- --bot human --seed 1` ends on `timer` with the GDD values (and with every option below).
+- **AC 21 met**: a recorded `idle` run ending on `mamaHome` replays with exit 0 (`sim:replay`), and an exported journal's `summary.endReason` is `mamaHome` and replays to the same world (`tests/tools/sim/journalReplay.test.ts`, `runSim.test.ts`).
+- **AC 20 is NOT met as written, and it is Geo's call (D13).** Normal tier, 200 salon games from seed 1000, ring on:
+
+  | values | `human` (timer / mamaWoke / **mamaHome**) | `human` stars | `idle` mamaHome (mean time) | `perfect` mamaHome | `human --seed 1` |
+  |---|---|---|---|---|---|
+  | **GDD values (what is in `feel.json`)**: rises 35 / 20 / 15, decay 0.5, drop 5 | 147 / 34 / **19 (9.5 %)** | 2.9 | 200 / 200 (22.2 s) | 0 | timer |
+  | A: `perfectDropPct` 3 | 143 / 34 / 23 (11.5 %) | 2.9 | 200 (22.2 s) | 0 | timer |
+  | B: `decayPerSec` 0.3 | 142 / 34 / 24 (12 %) | 2.8 | 200 (17.9 s) | 0 | timer |
+  | C: rises 40 / 25 / 20 | 132 / 33 / 35 (17.5 %) | 2.7 | 200 (17.9 s) | 0 | timer |
+  | D: `perfectDropPct` 2 and `decayPerSec` 0.4 | 136 / 34 / 30 (15 %) | 2.7 | 200 (18.5 s) | 0 | timer |
+
+  With the GDD's own numbers `human` loses 9.5 % of the games, just under the 10-30 % band (the 200-game sampling noise is about ±2 points, so this is a hair outside, not far). `perfect` never loses and `idle` always does, as asked. Nothing in `feel.json` was changed for the options (each was a temporary patch, restored): the file holds the GDD values. Waiting for Geo to pick A, B, C, D, or to keep the GDD values.
+- **Screenshot references regenerated deliberately** (`npm run e2e -- tests/e2e/autoplay.spec.ts --update-snapshots`): `autoplay-frozen-{chromium,webkit}-darwin.png` now show the serene face beside the timer's icon (looked at: the pill, the gauges and the threat are unchanged). `autoplay.spec.ts` passes on both engines.
+- **E2E.** `tests/e2e/catastrophe.spec.ts` (9 tests on Chromium; WebKit checks the DOM and the cues only). The face's alarmed pulse is 700 ms (about 1.4 Hz) and 1000 ms (1 Hz) under reduced motion, both asserted from computed styles.
+- Open points for Geo (story): the Sieste wording of the header, the loss rate above, the six E4 gags raising no catastrophe: all three are in `deferred-work.md`.
 
 ### File List
+
+**New**
+- `src/sim/gauges/catastrophe.ts`, `src/sim/gauges/catastrophe.test.ts`
+- `src/sim/flow/mamaHome.test.ts`
+- `src/client/ui/hud/catastropheFace.ts`, `src/client/ui/hud/catastropheFace.test.ts`
+- `src/client/feedback/catastropheAlert.ts`, `src/client/feedback/catastropheAlert.test.ts`
+- `tests/support/noCatastrophe.ts`
+- `tests/golden/catastrophe.test.ts`, `tests/golden/journals/catastrophe_mama_home{,.expected}.json`, `tests/golden/journals/catastrophe_rush_frozen{,.expected}.json`
+- `tests/e2e/catastrophe.spec.ts`
+
+**Modified**
+- Docs: `CLAUDE.md`, `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
+- Content: `content/feel.json`, `content/feedback.json`, `content/strings.fr.json`, `content/threats/*.json` (all 11), `content/_schemas/{feel,threat}.schema.json` (generated)
+- Schemas and sim: `src/content/schemas/{feel,threat}.ts`, `src/sim/{events,commands,world,snapshot,index,createSim}.ts`, `src/sim/gauges/gaugesSystem.ts`, `src/sim/flow/flowSystem.ts`, `src/sim/scoring/mamaScore.ts`, `src/sim/threats/gags.ts`
+- Client: `src/client/boot.ts`, `src/client/feedback/feedbackEvents.ts`, `src/client/render/levelScene.ts`, `src/client/render/views/doorView.ts`, `src/client/ui/hud/timerHud.ts`, `src/client/ui/screens/resultScreen.ts`, `src/client/ui/styles/ui.css`
+- Tools: `tools/content/contentChecks.ts`, `tools/sim/{simReport,simArgs}.ts`
+- Tests and fixtures: `src/sim/**` tests listed in the D14 note and the snapshot / flow / events / commands / score / gags tests; `src/client/render/views/doorView.test.ts`, `src/client/ui/hud/timerHud.test.ts`, `src/client/ui/screens/resultScreen.test.ts`; `tests/bots/*`, `tests/content/*`, `tests/tools/sim/*`, `tests/e2e/support/game.ts`, `tests/golden/{scenarios,stayAwake.test}.ts`, `tests/support/testFeel.json`, `tests/support/test*.threat.json`, `tests/threats/fixtures/test_{firm,wait}.json`, `tests/tools/vite/fixtures/feelSample.json`
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-{chromium,webkit}-darwin.png` (regenerated)
+- All the other golden journals and references under `tests/golden/journals/` (regenerated)
+
+### Change Log
+
+- 2026-11-04: Story 3.16 implemented: the catastrophe gauge (`feel.catastrophe`, `CatastropheChanged`, `SetCatastrophe`), Mama come home early (`LevelEnded{mamaHome}`, 0 stars, `world.flow.endReason`, snapshot 31), Mama's face, alert, tense music, burst-open door and the Result header on the client, the report fields, two new goldens and the e2e spec. The loss rate (AC 20) waits for Geo's pick among four measured options.

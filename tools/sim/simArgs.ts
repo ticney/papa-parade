@@ -65,8 +65,10 @@ export const SIM_HELP = `Usage: npm run sim -- --bot <id> [options]
 The report also holds the noise gauge of the level (story 3.1): the mean and max of each game's peak,
 the mean final value and the noise per source, all in % of the gauge (0 in a level with no noise).
 It also tells how the games ended (story 3.2): \`endsByReason\` counts the ended runs per reason
-(\`timer\`, \`mamaWoke\`), \`mamaWokeMeanAtMs\` is the mean sim time Mama woke at, and each run has its
-\`endReason\` and \`lostStars\`.
+(\`timer\`, \`mamaWoke\`, \`cycleDone\`, \`mamaHome\`), \`mamaWokeMeanAtMs\` is the mean sim time Mama woke at, and each run has its
+\`endReason\` and \`lostStars\`. The catastrophe gauge (story 3.16) adds \`mamaHome\` (Mama came home early:
+the only « lost level »), \`mamaHomeMeanAtMs\` (the mean sim time of that end), \`meanCatastrophePeakPct\` (the mean
+of the highest value each game's gauge reached), and per run \`mamaHomeAtMs\` and \`catastrophePeakPct\`.
 Carrying (story 4.1) is counted over the runs: \`babyPickUps\`, \`babyPutDowns\`, \`safePutDowns\`,
 \`armsCries\` (the cries in the arms) and \`cancelledThreats\` (threats dropped when Papa took the
 baby). The bots never carry, so they are 0 for a bot.

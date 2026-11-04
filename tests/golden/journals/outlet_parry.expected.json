@@ -1,6 +1,6 @@
 {
   "untilSimMs": 30000,
-  "worldHash": "1c02dc6765ec07",
+  "worldHash": "1391ec65c8fad6",
   "eventTypes": [
     "WaveStarted",
     "BabyStateChanged",
@@ -55,6 +55,7 @@
     "PapaStateChanged",
     "AfterEffectStarted",
     "AfterEffectStarted",
+    "CatastropheChanged",
     "BabyStateChanged",
     "AfterEffectEnded",
     "PapaStateChanged",
@@ -71,6 +72,7 @@
     "PapaStateChanged",
     "AfterEffectStarted",
     "AfterEffectStarted",
+    "CatastropheChanged",
     "BabyStateChanged",
     "AfterEffectEnded",
     "PapaStateChanged",
@@ -90,6 +92,7 @@
     "TimeScaleChanged",
     "PapaGlideStarted",
     "PapaStateChanged",
+    "CatastropheChanged",
     "BabyStateChanged",
     "PapaPathPlanned",
     "PapaStateChanged",
@@ -127,5 +130,5 @@
     "PapaArrived",
     "PapaStateChanged"
   ],
-  "eventsHash": "069a5eaf96b39c"
+  "eventsHash": "1ca19a5dca7974"
 }

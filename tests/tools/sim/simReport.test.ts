@@ -119,6 +119,8 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     isEnded: false,
     endReason: null,
     mamaWokeAtMs: null,
+    mamaHomeAtMs: null,
+    catastrophePeakPct: 0,
     scorePoints: null,
     stars: null,
     lostStars: null,
@@ -218,6 +220,8 @@ describe('summarizeRuns', () => {
         stars: null,
         endReason: null,
         lostStars: null,
+        mamaHomeAtMs: null,
+        catastrophePeakPct: 0,
         rows: null,
         sequencesStarted: 0,
         sequencesSucceeded: 0,
@@ -356,7 +360,7 @@ describe('summarizeRuns', () => {
       // Cut by `--until-ms`: ended for nobody.
       run(4, {}),
     ]);
-    expect(report.endsByReason).toEqual({ timer: 1, mamaWoke: 2, cycleDone: 0 });
+    expect(report.endsByReason).toEqual({ timer: 1, mamaWoke: 2, cycleDone: 0, mamaHome: 0 });
     expect(Object.values(report.endsByReason).reduce((sum, count) => sum + count, 0)).toBe(
       report.endedRuns,
     );
@@ -367,6 +371,53 @@ describe('summarizeRuns', () => {
       ['mamaWoke', 1],
       [null, null],
     ]);
+  });
+
+  it('counts the games Mama came home early in, with the mean time and the mean peak of the gauge (story 3.16)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, {
+        isEnded: true,
+        endReason: 'timer',
+        scorePoints: 80,
+        stars: 3,
+        lostStars: 0,
+        catastrophePeakPct: 40,
+      }),
+      run(2, {
+        isEnded: true,
+        endReason: 'mamaHome',
+        mamaHomeAtMs: 30_000,
+        catastrophePeakPct: 100,
+        scorePoints: 50,
+        stars: 0,
+        lostStars: 0,
+      }),
+      run(3, {
+        isEnded: true,
+        endReason: 'mamaHome',
+        mamaHomeAtMs: 40_001,
+        catastrophePeakPct: 100,
+        scorePoints: 50,
+        stars: 0,
+        lostStars: 0,
+      }),
+      // Cut by `--until-ms`: no end, but its peak still counts in the mean.
+      run(4, { catastrophePeakPct: 10 }),
+    ]);
+    expect(report.endsByReason).toEqual({ timer: 1, mamaWoke: 0, cycleDone: 0, mamaHome: 2 });
+    expect(report.mamaHomeMeanAtMs).toBe(35_000.5);
+    expect(report.meanCatastrophePeakPct).toBe(62.5);
+    expect(report.runList.map(({ mamaHomeAtMs }) => mamaHomeAtMs)).toEqual([
+      null,
+      30_000,
+      40_001,
+      null,
+    ]);
+    // A mama who never came home leaves no mean time; the peak mean is there as soon as there is a run.
+    const quiet = summarizeRuns(INPUT, [run(1, { isEnded: true, endReason: 'timer' })]);
+    expect(quiet.mamaHomeMeanAtMs).toBeNull();
+    expect(quiet.meanCatastrophePeakPct).toBe(0);
+    expect(summarizeRuns(INPUT, []).meanCatastrophePeakPct).toBeNull();
   });
 
   it('folds the bedtime cycle: runs completed, mean entries, and each sequence by id (story 4.10)', () => {
@@ -390,10 +441,10 @@ describe('summarizeRuns', () => {
 
   it('keeps every endsByReason key at 0 when nothing ended, and no mean time when Mama never woke', () => {
     const none = summarizeRuns(INPUT, [run(1, {})]);
-    expect(none.endsByReason).toEqual({ timer: 0, mamaWoke: 0, cycleDone: 0 });
+    expect(none.endsByReason).toEqual({ timer: 0, mamaWoke: 0, cycleDone: 0, mamaHome: 0 });
     expect(none.mamaWokeMeanAtMs).toBeNull();
     const timerOnly = summarizeRuns(INPUT, [run(1, { isEnded: true, endReason: 'timer' })]);
-    expect(timerOnly.endsByReason).toEqual({ timer: 1, mamaWoke: 0, cycleDone: 0 });
+    expect(timerOnly.endsByReason).toEqual({ timer: 1, mamaWoke: 0, cycleDone: 0, mamaHome: 0 });
     expect(timerOnly.mamaWokeMeanAtMs).toBeNull();
   });
 
@@ -713,6 +764,8 @@ describe('createRunRecorder', () => {
       isEnded: true,
       endReason: 'timer',
       mamaWokeAtMs: null,
+      mamaHomeAtMs: null,
+      catastrophePeakPct: 0,
       scorePoints: 72,
       stars: 3,
       lostStars: 0,
@@ -750,6 +803,36 @@ describe('createRunRecorder', () => {
     });
     expect(summary.lostStars).toBeGreaterThanOrEqual(1);
     expect(summary.mamaWokeAtMs).toBeLessThan(60_000);
+    expect(summary.mamaHomeAtMs).toBeNull();
+  });
+
+  it('records Mama coming home early: the end time and the peak of the gauge, from the events (story 3.16)', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 1,
+    });
+    const recorder = createRunRecorder(sim, 1);
+    sim.step();
+    sim.drainEvents();
+    sim.enqueue({ type: 'SetCatastrophe', t: asSimMs(sim.world.time.sim), pct: 70 });
+    sim.step();
+    for (const event of sim.drainEvents()) recorder.onEvent(event);
+    sim.enqueue({ type: 'SetCatastrophe', t: asSimMs(sim.world.time.sim), pct: 100 });
+    sim.step();
+    for (const event of sim.drainEvents()) recorder.onEvent(event);
+    const summary = recorder.finish();
+    expect(sim.world.flow.endReason).toBe('mamaHome');
+    expect(summary).toMatchObject({
+      isEnded: true,
+      endReason: 'mamaHome',
+      mamaHomeAtMs: sim.world.flow.enteredAt,
+      catastrophePeakPct: 100,
+      mamaWokeAtMs: null,
+      stars: 0,
+      lostStars: 0,
+    });
   });
 
   describe('the waves', () => {

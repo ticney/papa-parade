@@ -10,6 +10,7 @@ import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { beatTimelineOf, createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
 import { createTestCycleGeometry, createTestCycleLevel } from '../support/cycleSupport.ts';
+import { NO_CATASTROPHE_PATCH } from '../support/noCatastrophe.ts';
 import {
   CARRY,
   COFFEE_TABLE,
@@ -429,7 +430,9 @@ export const SCENARIOS: readonly Scenario[] = [
     level: createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])] }),
     seed: 42,
     untilSimMs: 40000,
-    actions: [],
+    // Not about the catastrophe (story 3.16 D14): the gauge cannot rise, or the three gags and the ones after
+    // them would bring Mama home before the 40 s are up. The one command is the golden's only.
+    actions: [{ atStep: 0, command: setFeel(0, NO_CATASTROPHE_PATCH) }],
   },
   {
     // Carrying the baby (story 4.1), on the frozen living room with a cry in the arms. The outlet,
@@ -520,6 +523,8 @@ export const SCENARIOS: readonly Scenario[] = [
     seed: 42,
     untilSimMs: 12000,
     actions: [
+      // Not about the catastrophe (story 3.16 D14): the three misses that start the instinct would otherwise bring Mama home.
+      { atStep: 0, command: setFeel(0, NO_CATASTROPHE_PATCH) },
       { atStep: 9, command: forceThreat(100, 1) },
       { atStep: 19, command: forceThreat(200, 2) },
       { atStep: 89, command: forceThreat(900, 3) },
@@ -848,6 +853,38 @@ export const SCENARIOS: readonly Scenario[] = [
     actions: [
       { atStep: 9, command: { type: 'SetFatigue', t: asSimMs(100), points: 100 } },
       { atStep: 1049, command: forceThreat(10_500, 1) },
+    ],
+  },
+  {
+    // Mama comes home early (story 3.16, FR73): the outlet and the stairs are drawn by the director and
+    // nobody answers, so each ends in its gag, a near miss worth 35 % of the catastrophe gauge. The third
+    // fills it: `CatastropheChanged` up to 100, then `LevelEnded{mamaHome}` and `LevelScored` (0 stars) in the
+    // same step, well before the end of the level, and a frozen world after it. No command at all.
+    // `catastrophe.test.ts` (golden) pins what it covers.
+    name: 'catastrophe_mama_home',
+    level: createTestLevel({ waves: [testWave([OUTLET, STAIRS])] }),
+    seed: 43,
+    untilSimMs: 40000,
+    actions: [],
+  },
+  {
+    // The gauge in the final rush (story 3.16): frozen. The room is the final rush's, the door opens at 20 s.
+    // A debug `SetCatastrophe` takes the gauge to 60 % at 19.5 s; a wave planned from 19 s then fails its
+    // gags (the outlet and the stairs) inside the rush, which moves nothing: no `CatastropheChanged` after
+    // the rush starts. A second `SetCatastrophe`, to 100 % at 26 s, is ignored too: the level ends on the
+    // photo at 30 s with `LevelEnded{timer}`. `catastrophe.test.ts` (golden) pins what it covers.
+    name: 'catastrophe_rush_frozen',
+    level: createTestLevel({
+      durationMs: 30_000,
+      finalRush: { spillAnchor: 'coffee_table' },
+      waves: [testWave([OUTLET, STAIRS], { fromMs: 19_000 })],
+    }),
+    geometry: finalRushGeometry(),
+    seed: 42,
+    untilSimMs: 30_000,
+    actions: [
+      { atStep: 1950, command: { type: 'SetCatastrophe', t: asSimMs(19_500), pct: 60 } },
+      { atStep: 2600, command: { type: 'SetCatastrophe', t: asSimMs(26_000), pct: 100 } },
     ],
   },
 ];

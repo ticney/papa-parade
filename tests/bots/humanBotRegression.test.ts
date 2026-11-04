@@ -17,9 +17,11 @@ import {
 // commands themselves did not move: `PINNED_COMMANDS` are the hashes of `journal.entries` taken on the code
 // BEFORE the story (`main` at 5572c36), and still hold. The frozen levels meet no downstairs baby, so the
 // new fetch draw never runs.
+// Story 3.16 re-pinned them again, for the same reason: the feel gained `catastrophe` and the tiers'
+// `catastropheMultiplier`, every threat gained its `catastrophe`. `PINNED_COMMANDS` still hold.
 const PINNED: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
-  test: { 1: '0eef6a84dbdeef', 2: '116eeb5926c8bc', 3: '0efdd049575cfe' },
-  trio: { 1: '1dd455ba059672', 2: '1269d0a3d4b0e3', 3: '106b107f02d736' },
+  test: { 1: '1ea45571c5700f', 2: '1f7912a54c85cd', 3: '1d25bf56aed037' },
+  trio: { 1: '1f231e81c3fea6', 2: '136c55519c8af4', 3: '15a25be65a1d3e' },
 };
 const PINNED_COMMANDS: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
   test: { 1: '0632f181689687', 2: '158358e075a1a2', 3: '111636e2c690a2' },

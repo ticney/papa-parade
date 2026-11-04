@@ -212,4 +212,17 @@ describe('setRush (story 3.5)', () => {
     expect(root.classes.has('pp-hud-timer--rush')).toBe(true);
     expect(root.classes.has('pp-hud-timer--compact')).toBe(true);
   });
+
+  it('seats Mama’s face in front of the variant’s icon, and keeps the icon when the variant is set after', () => {
+    const { hud, root } = build();
+    const face = new FakeNode('div');
+    hud.setVariant('nap');
+    hud.mountFace(face as unknown as HTMLElement);
+    expect(root.children[0]).toBe(face);
+    expect(root.children[1]?.tag).toBe('svg');
+    // A new level sets the variant again: the icon is replaced in place, the face stays first.
+    hud.setVariant('nap');
+    expect(root.children[0]).toBe(face);
+    expect(root.children.filter((child) => child.tag === 'svg')).toHaveLength(1);
+  });
 });

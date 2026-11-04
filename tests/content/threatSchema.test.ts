@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { parseContentFile } from '@content/parseContentFile';
-import { ThreatDefSchema } from '@content/schemas/threat';
+import { THREAT_CATASTROPHE_CATEGORIES, ThreatDefSchema } from '@content/schemas/threat';
 import { AFTER_EFFECT_BUSY_MAX_MS, MICRO_SLEEP_BUSY_MAX_MS } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 
@@ -383,5 +383,21 @@ describe('afterEffect (story 3.15)', () => {
         mutated(['afterEffect', { kind: 'babyDownstairs', carryUpMs: 1000, selfReturnMs: bad }]).ok,
       ).toBe(false);
     }
+  });
+});
+
+describe('catastrophe (story 3.16)', () => {
+  it.each(THREAT_CATASTROPHE_CATEGORIES)('accepts the category %s', (category) => {
+    expect(mutated(['catastrophe', category])).toMatchObject({ ok: true });
+  });
+
+  it('is required: a def without it is refused at `catastrophe`', () => {
+    expect(failedPaths(mutated(['catastrophe', undefined]))).toContain('catastrophe');
+  });
+
+  it('refuses a category that is not one of the four (choreBeat is not a threat category)', () => {
+    expect(mutated(['catastrophe', 'choreBeat']).ok).toBe(false);
+    expect(mutated(['catastrophe', 'bogus']).ok).toBe(false);
+    expect(mutated(['catastrophe', 35]).ok).toBe(false);
   });
 });
