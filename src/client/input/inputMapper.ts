@@ -244,8 +244,10 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     active.sim.world.flow.state === 'sequence' && !isStealthStepRunning(active.sim.world);
 
   // Papa drinks, sleeps, is on the phone or in the toilet (stories 1.19 D6, 1.20, 4.3): the sim
-  // ignores every move and press meanwhile, so the client sends none either. A key held through it walks again on `PapaStateChanged → idle`
-  // (boot calls `resumeHeld`).
+  // ignores every move and press meanwhile, so the client sends no move, floor, object or baby
+  // command. A press on a threat is the one it does send (story 2.12): the sim refuses it with
+  // `TapRefused`, or judges it if that step already has Papa free. A key held through it walks again
+  // on `PapaStateChanged → idle` (boot calls `resumeHeld`).
   const isBusy = (active: ActiveLevel): boolean => isPapaBusy(active.sim.world.papa);
 
   // A new level begins with nothing sent and no finger down on a threat of the old one.
@@ -329,12 +331,19 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       return;
     }
     bindTo(active);
-    if (isBusy(active)) {
-      if (log.enabled('debug')) log.debug('input', 'action dropped: Papa is busy');
-      return;
-    }
     const t = stampOf(active);
     const threatId = targetNow(active);
+    if (isBusy(active)) {
+      // The finger is recorded so that its `Release` follows (D2); no target-highlight mark.
+      if (threatId !== null) {
+        heldPressAt = t;
+        active.sim.enqueue({ type: 'PressThreat', t, threatId });
+        press.pressed(pressId, threatId);
+      } else if (log.enabled('debug')) {
+        log.debug('input', 'action dropped: Papa is busy');
+      }
+      return;
+    }
     if (threatId !== null) {
       heldPressAt = t;
       active.sim.enqueue({ type: 'PressThreat', t, threatId });
@@ -535,10 +544,6 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       const rect = deps.canvasRect();
       if (!(rect.width > 0 && rect.height > 0)) return;
       bindTo(active);
-      if (isBusy(active)) {
-        if (log.enabled('debug')) log.debug('input', 'tap dropped: Papa is busy');
-        return;
-      }
       const targets = deps.getThreatTargets();
       const threatId =
         targets === null
@@ -550,6 +555,19 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
               targets,
               deps.touchRadiusPx,
             );
+      if (isBusy(active)) {
+        // The press the client used to drop (story 2.12 D2): the sim refuses it with `TapRefused`,
+        // or judges it if that step already has Papa free. The finger is recorded so that its
+        // `Release` follows. No highlight mark, no tap marker, and no floor, object or baby command.
+        if (threatId !== null) {
+          heldPressAt = toSim(active, sample.timeStamp);
+          active.sim.enqueue({ type: 'PressThreat', t: heldPressAt, threatId });
+          press.pressed(sample.pointerId, threatId);
+        } else if (log.enabled('debug')) {
+          log.debug('input', 'tap dropped: Papa is busy');
+        }
+        return;
+      }
       if (threatId !== null) {
         heldPressAt = toSim(active, sample.timeStamp);
         active.sim.enqueue({ type: 'PressThreat', t: heldPressAt, threatId });

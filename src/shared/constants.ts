@@ -571,3 +571,47 @@ export const VOLUME_MAX_PCT = 100;
 
 /** The version of the save the game writes. Every bump adds a migration `v{n-1} → v{n}` (story 2.7). */
 export const SAVE_VERSION = 3;
+
+/**
+ * The activity bubble above a busy Papa (story 2.12; DESIGN.md › activity-bubble). Every size is a
+ * DESIGN value, written to the page root by `applyActivityBubbleMetrics` and pinned by
+ * `activityBubbleSpec.test.ts`; the ring's band and outline are the hold-ring's constants.
+ * The bubble's ink border, in CSS px (`borderWidth`).
+ */
+export const ACTIVITY_BUBBLE_BORDER_PX = 3;
+
+/** ...its diameter on the compact surface, in CSS px (`sizeCompact`; the same surface as `--pp-threat-size` 56). */
+export const ACTIVITY_BUBBLE_COMPACT_PX = 48;
+
+/** ...and on the regular surface, in CSS px (`sizeRegular`; `--pp-threat-size` is 64 there). */
+export const ACTIVITY_BUBBLE_REGULAR_PX = 56;
+
+/** The bubble shakes for this long when a tap on a threat is refused, in real ms (`refusedShakeMs`). */
+export const ACTIVITY_BUBBLE_REFUSED_SHAKE_MS = 150;
+
+/** Reduced motion: the border is this thick for the same `refusedShakeMs`, in CSS px (3 → 5, like the gauge alert). */
+export const ACTIVITY_BUBBLE_REDUCED_BORDER_PX = 5;
+
+/** The bubble squashes in for this long when it appears, in real ms (an `[ASSUMPTION]` of the UX spec). */
+export const ACTIVITY_BUBBLE_SQUASH_MS = 180;
+
+/** ...starting from this scale (a squash: flat, then back to 1). */
+export const ACTIVITY_BUBBLE_SQUASH_SCALE_FROM = 0.5;
+
+/** The bubble pops out (scales up and fades) for this long when Papa is free again, in real ms. */
+export const ACTIVITY_BUBBLE_POP_MS = 160;
+
+/** ...up to this scale. */
+export const ACTIVITY_BUBBLE_POP_SCALE_TO = 1.4;
+
+/** The gap between the bubble's ring and the combo badge, or the chrono-ring of a threat on Papa, in CSS px. */
+export const ACTIVITY_BUBBLE_GAP_PX = 8;
+
+/** Half the combo badge's width at its widest (« x8 » in the combo type, stroke included), in CSS px. */
+export const COMBO_BADGE_HALF_WIDTH_PX = 24;
+
+/** The threat icon's size on the compact surface, in CSS px (`--pp-threat-size`; `activityBubbleSpec.test.ts` pins it to `ui.css`). */
+export const THREAT_ICON_COMPACT_PX = 56;
+
+/** ...and on the regular surface, in CSS px. */
+export const THREAT_ICON_REGULAR_PX = 64;

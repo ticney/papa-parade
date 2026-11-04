@@ -1,5 +1,5 @@
 # generated: 2026-10-26
-# last_updated: 2026-11-03
+# last_updated: 2026-11-04
 # project: papa-parade
 # project_key: NOKEY
 # tracking_system: file-system
@@ -43,7 +43,7 @@
 #   se livrent après 3.6, puis un playtest, puis l'epic 9, puis 3.7 à 3.11. Les clés 2-x restent rattachées à epic-2.
 
 generated: 2026-10-26
-last_updated: 2026-11-03
+last_updated: 2026-11-04
 project: papa-parade
 project_key: NOKEY
 tracking_system: file-system
@@ -120,7 +120,7 @@ development_status:
   3-12-note-de-maman-sur-cinq-lignes: done
   2-11-anneau-chrono-autour-des-menaces: done
   3-13-equite-de-trajet-du-directeur: done
-  2-12-bulle-d-activite-de-papa-et-tap-refuse-visible: backlog
+  2-12-bulle-d-activite-de-papa-et-tap-refuse-visible: done
   2-13-poses-exagerees-du-cafe-et-du-telephone: backlog
   3-14-joueur-simule-humain-realiste: backlog
   3-15-sequelles-des-gags: backlog

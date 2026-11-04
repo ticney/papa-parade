@@ -1,5 +1,5 @@
 import type { LevelContent } from '@content/contentBundle';
-import type { SimEvent, World } from '@sim';
+import { isPapaBusy, type SimEvent, type World } from '@sim';
 import { disruptionCueOf } from './disruptionFeedback.ts';
 import type { FeedbackDirector } from './feedbackDirector.ts';
 import { sequenceCueOf } from './sequenceFeedback.ts';
@@ -37,6 +37,16 @@ export function playSimEventFeedback(
   // The lit arc of the chrono-ring vibrates once, at the opening of a window that has one (story 2.11).
   if (opensChronoArc(event, active.sim.world, active.level.threats)) {
     director.handle('ChronoArcLit', null);
+  }
+  // The activity bubble (story 2.12): a tap on a threat that a busy Papa refused shakes it; the end of every busy
+  // state pops it (a busy → busy change is a swap, not an end). Both cues are `uiElement`: the bubble is their visual.
+  if (event.type === 'TapRefused') director.handle('ActivityBubbleShaken', null);
+  if (
+    event.type === 'PapaStateChanged' &&
+    isPapaBusy({ state: event.from }) &&
+    !isPapaBusy({ state: event.to })
+  ) {
+    director.handle('ActivityBubblePopped', null);
   }
   // A disruption's cues come from its def too (story 1.20 D10), anchored on its object.
   const disruptionCue = disruptionCueOf(event, active.level.level, active.level.disruptions);

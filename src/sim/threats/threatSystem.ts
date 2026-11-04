@@ -146,7 +146,20 @@ export function runThreats(world: World, ctx: StepContext): void {
       // ends in its gag (`late`), which is the cost of the coffee. `Release` still passes below.
       // At the step where `busyUntil` is reached he is awake already (`runPapa` only records it
       // later in the step), so a press then is judged, and it glides him.
-      if (isPapaBusy(world.papa) && now < world.papa.busyUntil) continue;
+      if (isPapaBusy(world.papa) && now < world.papa.busyUntil) {
+        // The refusal is an event (story 2.12): once per command, for a threat that could be answered.
+        for (let j = 0; j < threats.length; j++) {
+          const threat = threats[j] as ThreatInstance;
+          if (
+            threat.id === command.threatId &&
+            (threat.state === 'telegraph' || threat.state === 'windowOpen')
+          ) {
+            ctx.events.push({ type: 'TapRefused', t: asSimMs(now), threatId: threat.id });
+            break;
+          }
+        }
+        continue;
+      }
       for (let j = 0; j < threats.length; j++) {
         const threat = threats[j] as ThreatInstance;
         if (threat.id === command.threatId) pressThreat(world, ctx, threat, j, command.t);

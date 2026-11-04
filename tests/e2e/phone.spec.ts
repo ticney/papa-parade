@@ -11,6 +11,7 @@ import {
   recordVibrations,
   vibrations,
   WALK_BOUND_MS,
+  waitFrames,
 } from './support/game.ts';
 import {
   ppAdvance,
@@ -169,6 +170,10 @@ test.describe('the phone is answered', () => {
       fatigueBefore + livePhone.answerFatiguePoints + growthMax,
     );
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'onPhone');
+    // The activity bubble (story 2.12) shows the handset for the call.
+    await waitFrames(page, 3);
+    await expect(page.locator('.pp-activity-bubble')).toBeVisible();
+    await expect(page.locator('.pp-activity-bubble')).toHaveClass(/pp-activity-bubble--handset/);
     await expect(html(page)).toHaveAttribute('data-pp-phone', 'answered');
     await expect(html(page)).toHaveAttribute(
       'data-pp-fatigue',

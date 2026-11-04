@@ -234,6 +234,11 @@ export type SimEvent =
   | { type: 'SilenceEnded'; t: SimMs; threatId: number; reason: SilenceEndReason }
   | { type: 'WindowOpened'; t: SimMs; threatId: number }
   /**
+   * A `PressThreat` on an answerable (`telegraph` / `windowOpen`) threat reached a busy Papa
+   * (story 2.12): refused, so no press is recorded and nothing else changes. Once per command.
+   */
+  | { type: 'TapRefused'; t: SimMs; threatId: number }
+  /**
    * The feint of a `wait` threat that has one (story 4.7): « un œil s'entrouvre », before the signal.
    * Once per telegraph, never after the window opens, and never for a def with no `feint`.
    */
@@ -535,6 +540,7 @@ export const SIM_EVENT_TYPES = [
   'SequenceStepStarted',
   'SilenceEnded',
   'SilenceStarted',
+  'TapRefused',
   'ThreatCancelled',
   'ThreatHidden',
   'ThreatRearmed',

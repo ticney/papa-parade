@@ -101,6 +101,7 @@ import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
 import { createStartScreen } from './ui/screens/startScreen.ts';
 import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
+import { applyActivityBubbleMetrics } from './ui/world/activityBubble.ts';
 import { applyChronoRingMetrics, chronoJudgedMirror } from './ui/world/chronoRing.ts';
 import { createWorldUi } from './ui/world/worldUi.ts';
 
@@ -280,6 +281,8 @@ export async function boot(): Promise<void> {
   bindSurface(window, document.documentElement);
   // The chrono-ring's reach and the highlight's size (story 2.11) come from the constants, not from CSS literals.
   applyChronoRingMetrics(document.documentElement);
+  // The activity bubble's sizes and the combo badge's offsets beside it (story 2.12), from the constants.
+  applyActivityBubbleMetrics(document.documentElement);
 
   // Debug mirrors of the flow for Playwright, stripped from store builds by the flag. They go
   // before the bindings below, which can emit as soon as they are bound. The existing specs read
@@ -1286,6 +1289,19 @@ export async function boot(): Promise<void> {
         // Papa has no pose while he is out of the room: the badge and the hint hide with him.
         const papaPose = world.papa.state === 'onToilet' ? null : (currentLevel?.papaPose ?? null);
         const nowAtReal = performance.now();
+        // The bubble above a busy Papa, from the world's Papa (he has no pose on the toilet), its ring in the
+        // sim time as drawn. Before the badge, which sits to its right while it shows. A frozen level (the
+        // end, the photo) has none: it goes with no pop.
+        if (isFlowLive(world)) {
+          worldUi.updateActivity(
+            world.papa,
+            world.time.sim - STEP_MS * (1 - alpha),
+            world.threats,
+            nowAtReal,
+          );
+        } else {
+          worldUi.activityBubble.hide();
+        }
         worldUi.updateCombo(
           world.combo,
           world.feel.combo.minMultiplier,
@@ -1476,6 +1492,9 @@ export async function boot(): Promise<void> {
         mirrorBeatEvent(event);
         mirrorDuelEvent(event);
       }
+      // A tap on a threat that a busy Papa refused: the bubble shakes (story 2.12). The cue plays in
+      // `playSimEventFeedback`.
+      if (event.type === 'TapRefused') worldUi.shakeActivity(performance.now());
       // A refused toilet says why above Papa, for `holdMs` of real time (story 4.3).
       if (event.type === 'ToiletRefused') {
         worldUi.papaHint.show(feedbackTable.papaHint.holdMs, performance.now());
@@ -1944,6 +1963,7 @@ export async function boot(): Promise<void> {
     worldUi.unmountTidy();
     worldUi.glyphChip.hide();
     worldUi.comboBadge.hide();
+    worldUi.activityBubble.hide();
     worldUi.papaHint.hide();
     highlightedThreatId = null;
     // A pad lost in that level does not follow the player into the next one (the line is for the pause).

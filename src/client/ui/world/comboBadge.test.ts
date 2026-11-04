@@ -178,6 +178,30 @@ describe('createComboBadge', () => {
     expect(badge.isVisible).toBe(true);
   });
 
+  it('sits beside the activity bubble while it shows (story 2.12), and goes back', () => {
+    const { badge, outer } = build();
+    badge.update(2, MIN, PAPA, false, 0, true);
+    expect(outer.classes.has('pp-combo-badge--beside-activity')).toBe(true);
+    expect(outer.classes.has('pp-combo-badge--aside')).toBe(false);
+    badge.update(2, MIN, PAPA, false, 16, false);
+    expect(outer.classes.has('pp-combo-badge--beside-activity')).toBe(false);
+  });
+
+  it('keeps the right of the threat on Papa, not the bubble’s, when both apply', () => {
+    const { badge, outer } = build();
+    badge.update(2, MIN, PAPA, true, 0, true);
+    expect(outer.classes.has('pp-combo-badge--aside')).toBe(true);
+    expect(outer.classes.has('pp-combo-badge--beside-activity')).toBe(false);
+  });
+
+  it('writes the beside state only on a change, and forgets it on hide', () => {
+    const { badge, outer } = build();
+    for (let frame = 0; frame < 20; frame++) badge.update(3, MIN, PAPA, false, frame * 16, true);
+    expect(outer.classToggles).toBe(1);
+    badge.hide();
+    expect(outer.classes.has('pp-combo-badge--beside-activity')).toBe(false);
+  });
+
   describe('the pop on a rise', () => {
     it('pops once per rise, with the constant duration', () => {
       const { badge, text } = build();

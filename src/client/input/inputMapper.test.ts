@@ -1262,22 +1262,81 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
   });
 
   describe('while Papa is busy (drinking, asleep or on the phone)', () => {
-    it.each(['drink', 'asleep', 'onPhone'])(
-      'drops a press, an object tap, a floor tap and a Move (%s)',
+    it.each(['drink', 'asleep', 'onPhone', 'onToilet'])(
+      'drops an object tap, a floor tap, a Move and an action with no threat up (%s)',
       (state) => {
-        const { mapper, sim, commands, held, camera, setObjects, setTargets } = setup();
+        const { mapper, sim, commands, held, markers, camera, setObjects } = setup();
         setObjects([COFFEE]);
-        setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
         sim.world.papa.state = state;
         const at = pxOf(camera, COFFEE);
-        mapper.handlePointerDown(click(at.x, at.y)); // a threat and an object
+        mapper.handlePointerDown(click(at.x, at.y)); // an object
         mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10)); // the floor
         held.add('KeyD');
         mapper.onKeysChanged(1500);
         mapper.handleAction('down', 1500, 'keyboard');
         expect(commands).toEqual([]);
+        expect(markers).toEqual([]);
       },
     );
+
+    it.each(['drink', 'asleep', 'onPhone', 'onToilet'])(
+      'sends the PressThreat of a tap on a threat, without a marker or a highlight mark (%s, story 2.12)',
+      (state) => {
+        const { mapper, sim, commands, markers, taps, pressedIds, camera, setObjects, setTargets } =
+          setup();
+        setObjects([COFFEE]);
+        setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+        sim.world.papa.state = state;
+        const at = pxOf(camera, COFFEE);
+        mapper.handlePointerDown(click(at.x, at.y));
+        expect(commands).toEqual([{ type: 'PressThreat', t: 234, threatId: 4 }]);
+        expect(markers).toEqual([]);
+        expect(taps).toEqual([]);
+        expect(pressedIds).toEqual([]);
+      },
+    );
+
+    it('sends the Release of a busy press, so a refused tap never becomes a hold (D2)', () => {
+      const { mapper, sim, commands, camera, setTargets } = setup();
+      setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+      sim.world.papa.state = 'drink';
+      const at = pxOf(camera, COFFEE);
+      mapper.handlePointerDown(click(at.x, at.y, { pointerId: 7 }));
+      mapper.handlePointerUp(click(0, 0, { pointerId: 7, timeStamp: 1300 }));
+      expect(commands).toEqual([
+        { type: 'PressThreat', t: 234, threatId: 4 },
+        { type: 'Release', t: 300 },
+      ]);
+    });
+
+    it('drops a tap on the floor while busy even with a threat up elsewhere', () => {
+      const { mapper, sim, commands, markers, setTargets } = setup();
+      setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+      sim.world.papa.state = 'onPhone';
+      mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+      expect(commands).toEqual([]);
+      expect(markers).toEqual([]);
+    });
+
+    it('Space / A with a threat up sends the PressThreat while busy, without a highlight mark', () => {
+      const { mapper, sim, commands, pressedIds } = setup();
+      sim.world.threats = [
+        {
+          id: 1,
+          state: 'windowOpen',
+          xM: 1,
+          zM: 1,
+          windowOpenAt: 1000,
+          responseWindow: { windowMs: 600, perfectMs: 100, toleranceMs: 30, bufferMs: 100 },
+        },
+      ];
+      sim.world.papa.state = 'drink';
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+      expect(pressedIds).toEqual([]);
+      mapper.handleAction('up', 1600, 'keyboard');
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat', 'Release']);
+    });
 
     it('control: the same inputs with Papa idle do send commands (so the drops above are the busy gate)', () => {
       const { mapper, sim, commands, held, camera, setObjects, setTargets } = setup();

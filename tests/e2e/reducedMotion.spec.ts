@@ -11,6 +11,7 @@ import {
   OVERRUN_MARGIN_MS,
   objectIconPoint,
   startLevel,
+  threatIconPoint,
   WALK_BOUND_MS,
   waitFrames,
 } from './support/game.ts';
@@ -243,6 +244,77 @@ test.describe('the CSS follows the saved setting, not the OS', () => {
     expect(await animationNameOf(page, 'pp-panel')).toBe('pp-pop-in');
     expect(await animationNameOf(page, 'pp-silence-bubble')).toBe('pp-silence-blink');
     expect(await animationNameOf(page, 'pp-bottle-fill')).not.toBe('none');
+    expect(problems).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// The activity bubble (story 2.12): a refused tap shakes it, or thickens its border under reduced motion.
+// ---------------------------------------------------------------------------------------------
+
+test.describe('the activity bubble and a refused tap (story 2.12)', () => {
+  const BODY = '.pp-activity-body';
+
+  /** Papa drinks, the outlet is up, and a real click on its marker is refused: what the bubble did at that step. */
+  async function refuseATap(page: Page, reducedMotion: boolean) {
+    await seedSettings(page, { reducedMotion });
+    await startLevel(page);
+    await ppFreeze(page, true);
+    await ppLoadLevel(page, LEVEL, SEED);
+    await ppSend(page, { type: 'TapObject', objectId: 'coffee_machine' });
+    for (let i = 0; i < Math.ceil(WALK_BOUND_MS / STEP_MS); i++) {
+      await ppAdvance(page, 1);
+      if ((await ppWorld(page)).papa.state === 'drink') break;
+    }
+    expect((await ppWorld(page)).papa.state).toBe('drink');
+    const outlet = (await ppWorld(page)).threats.find((threat) => threat.defId === 'outlet');
+    if (outlet === undefined) throw new Error('the level does not plan the outlet');
+    await ppSend(page, { type: 'ForceThreat', threatId: outlet.id });
+    await ppAdvance(page, 1);
+    await waitFrames(page, 3);
+    const point = await threatIconPoint(page);
+    await page.mouse.click(point.x, point.y);
+    // Read at the very step that refuses: the shake lasts 150 ms of real time.
+    return page.evaluate(() => {
+      window.__PP__?.advance(1);
+      const body = document.querySelector('.pp-activity-body');
+      return {
+        classes: [...(body?.classList ?? [])],
+        animations: body?.getAnimations().length ?? -1,
+        shadow: getComputedStyle(document.querySelector('.pp-activity-disc') as Element).boxShadow,
+      };
+    });
+  }
+
+  test('with the setting on: no animation runs on the bubble, its border is thicker, and the cue still plays', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const seen = await refuseATap(page, true);
+    expect(seen.classes).toContain('pp-activity-body--thick');
+    expect(seen.classes).not.toContain('pp-activity-body--refused');
+    expect(seen.animations).toBe(0);
+    expect(seen.shadow).not.toBe('none');
+    const cues = (await ppCueLog(page)).filter((record) => record.cueId === 'papa_busy_refused');
+    expect(cues).toHaveLength(1);
+    expect(cues[0]?.haptic).toBe('light');
+    // The ring is gameplay timing: it is there, and the bubble was never squashed in.
+    await expect(page.locator('.pp-activity-bubble')).toBeVisible();
+    expect(await page.locator(BODY).evaluate((body) => body.getAnimations().length)).toBe(0);
+    expect(problems).toEqual([]);
+  });
+
+  test('positive control: with the setting off, the same refused tap shakes the bubble and leaves its border alone', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const seen = await refuseATap(page, false);
+    expect(seen.classes).toContain('pp-activity-body--refused');
+    expect(seen.classes).not.toContain('pp-activity-body--thick');
+    expect(seen.animations).toBeGreaterThan(0);
+    expect(seen.shadow).toBe('none');
     expect(problems).toEqual([]);
   });
 });
