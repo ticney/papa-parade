@@ -243,6 +243,14 @@ export const MAX_BABY_RADIUS_M = 1;
 /** A level's shipped payload (the optimised `.glb`) is at most this many bytes (NFR3: 3 MB). */
 export const LEVEL_PAYLOAD_MAX_BYTES = 3 * 1024 * 1024;
 
+/**
+ * Levels whose payload may exceed `LEVEL_PAYLOAD_MAX_BYTES` (NFR15: the big room with its kitchen,
+ * story 9.1). Open assumption: 5 MB is to be confirmed with the real audio of Epic 9's chores.
+ */
+export const LEVEL_PAYLOAD_MAX_BYTES_BY_ID: Readonly<Record<string, number>> = {
+  salon_kitchen: 5 * 1024 * 1024,
+};
+
 /** The level the prototype loads, until story 1.10 gives the level JSON its own `id`. */
 export const DEFAULT_LEVEL_ID = 'salon_crawler';
 

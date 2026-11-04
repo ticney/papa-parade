@@ -8,6 +8,7 @@ import { FeedbackTableSchema } from '../../src/content/schemas/feedback.ts';
 import { LevelGeometrySchema } from '../../src/content/schemas/levelGeometry.ts';
 import {
   LEVEL_PAYLOAD_MAX_BYTES,
+  LEVEL_PAYLOAD_MAX_BYTES_BY_ID,
   ROOM_DRAW_CALLS_MAX,
   ROOM_TRIANGLES_MAX,
 } from '../../src/shared/constants.ts';
@@ -76,12 +77,31 @@ function holdsMesh(nodes: GltfNode[], index: number): boolean {
   return node.mesh !== undefined || (node.children ?? []).some((child) => holdsMesh(nodes, child));
 }
 
+describe('the per-level payload budgets (NFR15)', () => {
+  it('names only committed levels', () => {
+    // A typo or a renamed level would otherwise fall back to the 3 MiB budget without a word.
+    for (const id of Object.keys(LEVEL_PAYLOAD_MAX_BYTES_BY_ID)) {
+      expect(levelIds, `the budget of "${id}"`).toContain(id);
+    }
+  });
+
+  it('only raises the default budget', () => {
+    for (const [id, budgetBytes] of Object.entries(LEVEL_PAYLOAD_MAX_BYTES_BY_ID)) {
+      expect(budgetBytes, `the budget of "${id}"`).toBeGreaterThan(LEVEL_PAYLOAD_MAX_BYTES);
+    }
+  });
+});
+
 describe.each(levelIds)('the committed %s level', (levelId) => {
   const glbFile = join(root, 'public', 'assets', 'levels', `${levelId}.glb`);
   const geometryFile = join(root, 'content', 'levels', `${levelId}.geometry.json`);
 
   it('ships a .glb within the payload ceiling', () => {
-    expect(statSync(glbFile).size).toBeLessThanOrEqual(LEVEL_PAYLOAD_MAX_BYTES);
+    // The level's own budget (NFR15), as `dist:check` reads it.
+    const budgetBytes = Object.hasOwn(LEVEL_PAYLOAD_MAX_BYTES_BY_ID, levelId)
+      ? (LEVEL_PAYLOAD_MAX_BYTES_BY_ID[levelId] as number)
+      : LEVEL_PAYLOAD_MAX_BYTES;
+    expect(statSync(glbFile).size).toBeLessThanOrEqual(budgetBytes);
   });
 
   it('has a geometry file that passes LevelGeometrySchema', () => {

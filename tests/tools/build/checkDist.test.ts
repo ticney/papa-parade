@@ -1,4 +1,8 @@
-import { CHARACTER_GLB_MAX_BYTES, LEVEL_PAYLOAD_MAX_BYTES } from '@shared/constants';
+import {
+  CHARACTER_GLB_MAX_BYTES,
+  LEVEL_PAYLOAD_MAX_BYTES,
+  LEVEL_PAYLOAD_MAX_BYTES_BY_ID,
+} from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import { parseCheckDistArgs } from '../../../tools/build/checkDist.ts';
 import {
@@ -255,6 +259,45 @@ describe('inspectDist: both flavours', () => {
     const { problems } = inspectDist(prodInput({ files: heavy }), 'prod');
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain('level "salon_crawler": payload is');
+  });
+
+  // NFR15 (story 9.1): the big room has its own budget, every other level keeps the 3 MiB one.
+  const KITCHEN_BUDGET_BYTES = LEVEL_PAYLOAD_MAX_BYTES_BY_ID.salon_kitchen as number;
+  const twoLevels = (payloadBytes: number): DistInput => {
+    // Both levels carry a `.glb` of the same size, so that one payload is each level's payload.
+    const glbBytes = FILES.find((f) => f.path === 'assets/levels/salon_crawler.glb')?.bytes;
+    if (glbBytes === undefined) throw new Error('the FILES fixture has no salon_crawler.glb');
+    const others = FILES.filter(
+      (f) => !/testApi|autoplay|perfHud|debugOverlay|playtestJournal/.test(f.path),
+    ).filter((f) => f.path !== 'assets/audio/pop.m4a');
+    const shared = others
+      .filter((f) => /^assets\/(characters|audio)\//.test(f.path))
+      .reduce((sum, f) => sum + f.bytes, 0);
+    return prodInput({
+      files: [
+        ...others,
+        file('assets/levels/salon_kitchen.glb', glbBytes),
+        file('assets/audio/pop.m4a', payloadBytes - glbBytes - shared),
+      ],
+      levelIds: ['salon_crawler', 'salon_kitchen'],
+    });
+  };
+
+  it('passes a 4 MiB payload for salon_kitchen and fails it for another level (NFR15)', () => {
+    const { problems } = inspectDist(twoLevels(4 * 1024 * 1024), 'prod');
+    expect(problems).toEqual([
+      `level "salon_crawler": payload is ${4 * 1024 * 1024} B (assets/levels/salon_crawler.glb + the characters + all audio), over the ${LEVEL_PAYLOAD_MAX_BYTES} B budget`,
+    ]);
+  });
+
+  it('passes salon_kitchen at exactly its budget and fails it one byte over, printing its budget', () => {
+    expect(inspectDist(twoLevels(KITCHEN_BUDGET_BYTES), 'prod').problems).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('salon_kitchen')]),
+    );
+    const { problems } = inspectDist(twoLevels(KITCHEN_BUDGET_BYTES + 1), 'prod');
+    expect(problems).toContain(
+      `level "salon_kitchen": payload is ${KITCHEN_BUDGET_BYTES + 1} B (assets/levels/salon_kitchen.glb + the characters + all audio), over the ${KITCHEN_BUDGET_BYTES} B budget`,
+    );
   });
 
   it('fails a level whose glb is missing', () => {

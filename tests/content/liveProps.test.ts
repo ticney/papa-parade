@@ -42,6 +42,11 @@ const LEVELS = [
     tableProps: ['mug_01', 'toy_01', 'mug_02', 'book_01'],
   },
   { levelId: 'chambre_night', anchor: 'nightstand', tableProps: ['mug_01', 'toy_01', 'book_01'] },
+  {
+    levelId: 'salon_kitchen',
+    anchor: 'coffee_table',
+    tableProps: ['mug_01', 'toy_01', 'mug_02', 'book_01'],
+  },
 ] as const;
 
 const DURATION_MS = 120_000;

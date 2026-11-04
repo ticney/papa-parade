@@ -76,6 +76,18 @@ describe.each([
     ],
   },
   {
+    levelId: 'salon_kitchen',
+    safeZone: 'playpen',
+    // The salon's clean route, moved with the living corner (story 9.1), checked here with the sim's own A*.
+    cleanRoute: [
+      [1.95, 1.25],
+      [3.75, 0.6],
+      [5.55, -0.2],
+      [5.7, -1.6],
+      [5.65, -2.7],
+    ],
+  },
+  {
     levelId: 'chambre_night',
     safeZone: 'crib',
     // The long way round: along the near edge, then between the boards and the wardrobe (story 4.10).
@@ -88,7 +100,7 @@ describe.each([
     ],
   },
 ])(
-  'the boards of the live room $levelId (stories 4.9, 4.10)',
+  'the boards of the live room $levelId (stories 4.9, 4.10, 9.1)',
   ({ levelId, safeZone, cleanRoute }) => {
     const geometry = live(levelId);
     const door = doorOf(geometry);
