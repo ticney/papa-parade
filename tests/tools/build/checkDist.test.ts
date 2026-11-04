@@ -264,7 +264,9 @@ describe('inspectDist: both flavours', () => {
   // NFR15 (story 9.1): the big room has its own budget, every other level keeps the 3 MiB one.
   const KITCHEN_BUDGET_BYTES = LEVEL_PAYLOAD_MAX_BYTES_BY_ID.salon_kitchen as number;
   const twoLevels = (payloadBytes: number): DistInput => {
-    const glbBytes = 21_000;
+    // Both levels carry a `.glb` of the same size, so that one payload is each level's payload.
+    const glbBytes = FILES.find((f) => f.path === 'assets/levels/salon_crawler.glb')?.bytes;
+    if (glbBytes === undefined) throw new Error('the FILES fixture has no salon_crawler.glb');
     const others = FILES.filter(
       (f) => !/testApi|autoplay|perfHud|debugOverlay|playtestJournal/.test(f.path),
     ).filter((f) => f.path !== 'assets/audio/pop.m4a');

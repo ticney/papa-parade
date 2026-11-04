@@ -4,7 +4,7 @@ baseline_commit: 104234b17b386e9771daeec66a9aefc8784a1616
 
 # Story 9.1: Grand salon avec cuisine ouverte dans Blender
 
-Status: review
+Status: done
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -73,6 +73,22 @@ so that the living room is less crowded and Papa has things to do.
   - [x] `CLAUDE.md`, row `dist:check`: « each level's `.glb` + audio ≤ 3 MiB (5 MiB for `salon_kitchen`, NFR15) ».
   - [x] `_bmad-output/project-context.md`: the « Loading » line of Performance Rules gets the NFR15 exception; one short paragraph after « Final rooms on a frozen layout » on `salon_kitchen` (a new room, not frozen until 9.8; the E9 anchors and moving pieces; fixed camera until 9.2).
   - [x] `deferred-work.md`: a section for this story (see Dev Notes › Deferred items).
+
+### Review Findings
+
+Code review of 2026-11-04 (Blind Hunter, Edge Case Hunter, Acceptance Auditor; no `decision_needed`). The 11 ACs hold; the checks the reviewers ran (189 tests of the touched areas, `content:check`, `perfect` bot 100 %) are green. What is left is test hardening and one missing doc bullet. 11 findings dismissed as noise (same data as the salon, covered elsewhere, or documented).
+
+- [x] [Review][Patch] `levelAssets.test.ts` still holds every `.glb` to the 3 MiB `LEVEL_PAYLOAD_MAX_BYTES`, ignoring `LEVEL_PAYLOAD_MAX_BYTES_BY_ID`; use the level's own budget, so the test agrees with `dist:check` (NFR15) [tests/architecture/levelAssets.test.ts:84]
+- [x] [Review][Patch] `LEVEL_PAYLOAD_MAX_BYTES_BY_ID` is keyed by a free string: a typo or a renamed level silently falls back to 3 MiB; add a test that every key is a committed level [src/shared/constants.ts:250]
+- [x] [Review][Patch] `checkDist.test.ts`: the `glbBytes = 21_000` of the two-level fixture must equal the `FILES` fixture's `salon_crawler.glb` size, or the exact « 4 MiB » assertion fails with a confusing message; derive it from the fixture [tests/tools/build/checkDist.test.ts:267]
+- [x] [Review][Patch] `salonKitchen.test.ts`: the reach check runs on the 6 E9 anchors only; also run it on the salon's gameplay anchors (`stairs_top`, `coffee_machine`, `outlet_01`, `phone`, `toilet`, `door`) and the spawns, which the level's waves need (the nearest cell is about 0.54 m for `stairs_top` and `coffee_machine`) [tests/content/salonKitchen.test.ts:135]
+- [x] [Review][Patch] `salonKitchen.test.ts`: the nav-block test looks at one centre cell per collider and leaves out `side_table`; check the collider's whole footprint, and add `side_table` [tests/content/salonKitchen.test.ts:105]
+- [x] [Review][Patch] `salonKitchen.test.ts`: the props test is named « on its coffee table » but pins the exact ordered list, `vase_01` (on the floor) included, so any prop added in Blender (9.7) breaks it; compare with `arrayContaining` and fix the title [tests/content/salonKitchen.test.ts:127]
+- [x] [Review][Patch] `salonKitchen.test.ts`: `liveGeometry()` / `liveContextReachM()` drop `parsed.error`; put it in the thrown message [tests/content/salonKitchen.test.ts:61]
+- [x] [Review][Patch] `deferred-work.md`: the 9.1 section lacks the spec's bullet « anything the review of the screenshots leaves for Geo » (HUD gauges over the wall cabinets, the colours of the new pieces, the plan itself) [_bmad-output/implementation-artifacts/deferred-work.md:998]
+- [x] [Review][Defer] Physics walls on +x sit 0.9 m beyond the floor (`boundsMaxM.x` 7.65 against a nav edge of 6.75, the stairs visual); the salon has the same (4.9 against 4.0) and the block moved with it [content/levels/salon_kitchen.geometry.json:11] — deferred, pre-existing
+- [x] [Review][Defer] `NAV_block_` ↔ `COL_` parity is not pinned by a test, because the geometry JSON does not carry the NAV nodes (the auditor checked it in the `.glb`: correct today) — deferred, pre-existing (1.6 / 7.1: no drift check between the `.blend` and the committed geometry)
+- [x] [Review][Defer] `salonKitchen.spec.ts` catches `[assets]` warnings in the third test only, with no positive control that the pattern would match; tests 1 and 2 let `OWN_WARNINGS` through, copied from `chambreNight.spec.ts` [tests/e2e/salonKitchen.spec.ts:51] — deferred, pre-existing pattern
 
 ## Dev Notes
 

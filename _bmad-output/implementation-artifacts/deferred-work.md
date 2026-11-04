@@ -999,4 +999,11 @@ Open:
 - **The E9 moving pieces are static nodes**: `dishwasher_door`, `low_cabinet_door`, `tablecloth`, `pan`, `bin_lid`, `plant` are their own visual nodes but nothing in `src/` moves them. For 9.5 to 9.7.
 - **5 MiB is an assumption** (NFR15, `LEVEL_PAYLOAD_MAX_BYTES_BY_ID`): to confirm with Epic 9's real audio.
 - **The playpen stands on walkable cells with no collider** in `salon_kitchen`, as in the salon it was copied from (0.3 m high, the `ZONE_safe_playpen` volume, no `COL_`): kept as the salon has it.
+- **Left for Geo by the screenshots of `salon_kitchen`** (what only Geo can judge): the plan itself (D3: kitchen at the −x end, living corner at +x); whether the HUD's gauges, which cover the wall cabinets and the top of the side run at 844 × 390 and 667 × 375, hide too much; the colours of the new pieces (sky cloth, coral pan and pot, paper / butter tiles); the floor's 3:1 contrast, checked by the numbers only.
 - **Still open from 1.6 and 7.1, unchanged:** no drift check between a `.blend` and its committed geometry; gameplay nodes still ship in the `.glb`.
+
+## Deferred from: code review of 9-1-grand-salon-avec-cuisine-ouverte-dans-blender (2026-11-04)
+
+- **The Rapier +x wall of `salon_kitchen` sits 0.9 m beyond the floor** (`boundsMaxM.x` 7.65 against a nav edge of 6.75, from the stairs visual): the salon has the same (4.9 against 4.0) and the living-corner block moved with it. Reason: inherited from the salon; walkability is not affected.
+- **`NAV_block_` ↔ `COL_` parity is not pinned by a test**: the geometry JSON does not carry the NAV nodes, so only the `.glb` shows it (the review checked it by hand: correct today). Reason: same gap as « no drift check between a `.blend` and its committed geometry » (1.6, 7.1).
+- **`salonKitchen.spec.ts` catches `[assets]` warnings in its third test only**, with no positive control that the pattern would match; tests 1 and 2 let `OWN_WARNINGS` through. Reason: copied from `chambreNight.spec.ts`; the `.glb` has all five `PROP_*` nodes today.

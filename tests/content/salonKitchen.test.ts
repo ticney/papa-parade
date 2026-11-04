@@ -18,6 +18,7 @@ const FLOOR_DEPTH_MAX_M = 7.5;
 const FLOOR_PIECES = [
   'sofa',
   'coffee_table',
+  'side_table',
   'stairs',
   'counter',
   'counter_back',
@@ -58,13 +59,13 @@ function liveGeometry(): LevelGeometry {
     read('content/levels/salon_kitchen.geometry.json'),
     LevelGeometrySchema,
   );
-  if (!parsed.ok) throw new Error('the live geometry is invalid');
+  if (!parsed.ok) throw new Error(`the live geometry is invalid: ${JSON.stringify(parsed.error)}`);
   return parsed.value;
 }
 
 function liveContextReachM(): number {
   const parsed = parseContentFile('content/feel.json', read('content/feel.json'), FeelSchema);
-  if (!parsed.ok) throw new Error('the live feel is invalid');
+  if (!parsed.ok) throw new Error(`the live feel is invalid: ${JSON.stringify(parsed.error)}`);
   return parsed.value.input.contextReachM;
 }
 
@@ -102,15 +103,25 @@ describe('the live salon_kitchen room (story 9.1)', () => {
     );
   });
 
-  it('blocks the nav grid under each floor piece (D5)', () => {
+  it('blocks the nav grid under the whole footprint of each floor piece (D5)', () => {
     const { originM, rows } = geometry.nav;
     for (const id of FLOOR_PIECES) {
       const collider = geometry.colliders.find((candidate) => candidate.id === id);
       if (collider === undefined) throw new Error(`no collider ${id}`);
-      const c = Math.floor((collider.centerM[0] - originM[0]) / geometry.cellM);
-      const r = Math.floor((collider.centerM[2] - originM[1]) / geometry.cellM);
-      // The stairs' collider stands on the floor's edge; its centre cell is still inside the grid.
-      expect(rows[r]?.[c], `the cell under ${id}`).toBe('0');
+      const [centerX, , centerZ] = collider.centerM;
+      const [halfX, , halfZ] = collider.halfExtentsM;
+      let checkedCells = 0;
+      rows.forEach((row, r) => {
+        for (let c = 0; c < row.length; c++) {
+          const cellX = originM[0] + (c + 0.5) * geometry.cellM;
+          const cellZ = originM[1] + (r + 0.5) * geometry.cellM;
+          // The stairs' collider stands on the floor's edge: only the cells inside the grid count.
+          if (Math.abs(cellX - centerX) >= halfX || Math.abs(cellZ - centerZ) >= halfZ) continue;
+          checkedCells++;
+          expect(row[c], `the cell (${c}, ${r}) under ${id}`).toBe('0');
+        }
+      });
+      expect(checkedCells, `the cells under ${id}`).toBeGreaterThan(0);
     }
   });
 
@@ -124,18 +135,22 @@ describe('the live salon_kitchen room (story 9.1)', () => {
     }
   });
 
-  it('has the props of the salon on its coffee table', () => {
-    expect(geometry.props.map((prop) => prop.id)).toEqual([...SALON_PROPS]);
+  it('has the props of the salon gameplay', () => {
+    // At least these: a prop added in Blender (9.7) must not break the test.
+    expect(geometry.props.map((prop) => prop.id)).toEqual(expect.arrayContaining([...SALON_PROPS]));
   });
 
   it('has the anchors of Epic 9', () => {
     expect(anchorIds).toEqual(expect.arrayContaining([...E9_ANCHORS]));
   });
 
-  it.each(E9_ANCHORS)('reaches %s from a walkable cell within feel.input.contextReachM', (id) => {
-    const anchor = geometry.anchors.find((candidate) => candidate.id === id);
-    if (anchor === undefined) throw new Error(`no anchor ${id}`);
-    const [xM, , zM] = anchor.positionM;
-    expect(nearestWalkableM(geometry, xM, zM)).toBeLessThanOrEqual(liveContextReachM());
-  });
+  it.each([...SALON_ANCHORS, ...E9_ANCHORS])(
+    'reaches %s from a walkable cell within feel.input.contextReachM',
+    (id) => {
+      const anchor = geometry.anchors.find((candidate) => candidate.id === id);
+      if (anchor === undefined) throw new Error(`no anchor ${id}`);
+      const [xM, , zM] = anchor.positionM;
+      expect(nearestWalkableM(geometry, xM, zM)).toBeLessThanOrEqual(liveContextReachM());
+    },
+  );
 });
