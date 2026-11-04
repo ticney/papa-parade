@@ -1,6 +1,10 @@
+---
+baseline_commit: 104234b17b386e9771daeec66a9aefc8784a1616
+---
+
 # Story 9.1: Grand salon avec cuisine ouverte dans Blender
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -37,38 +41,38 @@ so that the living room is less crowded and Papa has things to do.
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Pre-flight** (all ACs)
-  - [ ] Read « Blender access » below. Work headless, on the worktree's files.
-  - [ ] `env | grep VITE_`: if `VITE_DEBUG_ALLOWED` is set, wrap `dev` and `e2e` commands in `(unset VITE_DEBUG_ALLOWED; …)`.
-  - [ ] `git worktree list`: note any other story that touches `src/shared/constants.ts`, `tools/build/inspectDist.ts`, `creakZones.test.ts` or `liveProps.test.ts` (merge order, not a blocker).
-- [ ] **T1. NFR15 in `dist:check`** (AC 7), before any modelling
-  - [ ] `src/shared/constants.ts`: next to `LEVEL_PAYLOAD_MAX_BYTES`, add `LEVEL_PAYLOAD_MAX_BYTES_BY_ID: Readonly<Record<string, number>> = { salon_kitchen: 5 * 1024 * 1024 }`, with a comment citing NFR15 and its open assumption (5 MB to confirm with E9's real audio).
-  - [ ] `tools/build/inspectDist.ts`: each level's budget is `LEVEL_PAYLOAD_MAX_BYTES_BY_ID[id] ?? LEVEL_PAYLOAD_MAX_BYTES` (`Object.hasOwn`, not a bare lookup); the problem message prints the budget it used. No other rule changes.
-  - [ ] `tests/tools/build/checkDist.test.ts`: one fixture with a payload between the two budgets, passing for `salon_kitchen`, failing for `salon_crawler`; one at exactly 5 MiB passing.
-- [ ] **T2. Model the room** (AC 1, 2, 3, 5)
-  - [ ] Copy `assets-src/blender/salon_crawler.blend` to `assets-src/blender/salon_kitchen.blend` with a scratchpad script (D2). Never edit the salon's file.
-  - [ ] Lay out the plan of D3, the nodes of D4 and D5, the art rules of D8. Run the three commands often and read the geometry at each export.
-  - [ ] Join static furniture by material to stay within 40 draw calls; keep the pieces of D5 › « moving later » as their own visual nodes.
-  - [ ] Look at it in the browser through `?level=salon_kitchen&autoplay=human&seed=1&speed=4` at both sizes, not in a Blender render.
-- [ ] **T3. Level JSON** (AC 4, 8)
-  - [ ] `content/levels/salon_kitchen.json` per D7. `npm run content:check`.
-- [ ] **T4. Tests on the live room** (AC 2, 3, 8)
-  - [ ] `tests/content/salonKitchen.test.ts` (D9).
-  - [ ] `creakZones.test.ts`: a `salon_kitchen` entry (`safeZone: 'playpen'`, a clean route found with a throwaway A* in the scratchpad, as 4.9 and 4.10 did). If the plain walk from the playpen to the door crosses no board, move a board in Blender, not the test.
-  - [ ] `liveProps.test.ts`: a `salon_kitchen` entry (`anchor: 'coffee_table'`, the props that stand on it).
-  - [ ] `npm run ci:fast`.
-- [ ] **T5. Bots** (AC 8)
-  - [ ] `npm run sim -- --level salon_kitchen --bot <b> --runs 20 --out <scratchpad>/<b>.json` for the four bots. A `perfect` miss is a room bug first (an anchor too far from walkable floor, a board on the only path): look at the journal (`--journals`) before anything else. Do not tune waves or `feel.json` here (9.8). If it is not the room, stop and tell Geo.
-- [ ] **T6. Browser** (AC 9, 11)
-  - [ ] `tests/e2e/salonKitchen.spec.ts`, modelled on `chambreNight.spec.ts` (`startLevel`, `ppLoadLevel`, `threatIconPoint`, `collectProblems`, `OWN_WARNINGS`), three tests. Run `npm run e2e -- tests/e2e/salonKitchen.spec.ts tests/e2e/level.spec.ts tests/e2e/chambreNight.spec.ts --project=chromium` in the background.
-  - [ ] Screenshots into `_bmad-output/implementation-artifacts/9-1-screenshots/` (`9-1-salon_kitchen-<size>-play.png`, `-threat.png`). Say what you saw and what you did not.
-- [ ] **T7. Performance and payload** (AC 6, 7), one at a time, in the background
-  - [ ] `npm run build:playtest`, then `npm run dist:check -- --flavor playtest`.
-  - [ ] `PP_PERF_LEVEL=salon_kitchen bash tools/ci/heavyLock.sh npx playwright test -c playwright.dist.config.ts --project perf --workers=1` (about 5 min; through the lock, never a bare `npx playwright test`). Write the numbers in the story.
-- [ ] **T8. Docs**
-  - [ ] `CLAUDE.md`, row `dist:check`: « each level's `.glb` + audio ≤ 3 MiB (5 MiB for `salon_kitchen`, NFR15) ».
-  - [ ] `_bmad-output/project-context.md`: the « Loading » line of Performance Rules gets the NFR15 exception; one short paragraph after « Final rooms on a frozen layout » on `salon_kitchen` (a new room, not frozen until 9.8; the E9 anchors and moving pieces; fixed camera until 9.2).
-  - [ ] `deferred-work.md`: a section for this story (see Dev Notes › Deferred items).
+- [x] **T0. Pre-flight** (all ACs)
+  - [x] Read « Blender access » below. Work headless, on the worktree's files.
+  - [x] `env | grep VITE_`: if `VITE_DEBUG_ALLOWED` is set, wrap `dev` and `e2e` commands in `(unset VITE_DEBUG_ALLOWED; …)`.
+  - [x] `git worktree list`: note any other story that touches `src/shared/constants.ts`, `tools/build/inspectDist.ts`, `creakZones.test.ts` or `liveProps.test.ts` (merge order, not a blocker).
+- [x] **T1. NFR15 in `dist:check`** (AC 7), before any modelling
+  - [x] `src/shared/constants.ts`: next to `LEVEL_PAYLOAD_MAX_BYTES`, add `LEVEL_PAYLOAD_MAX_BYTES_BY_ID: Readonly<Record<string, number>> = { salon_kitchen: 5 * 1024 * 1024 }`, with a comment citing NFR15 and its open assumption (5 MB to confirm with E9's real audio).
+  - [x] `tools/build/inspectDist.ts`: each level's budget is `LEVEL_PAYLOAD_MAX_BYTES_BY_ID[id] ?? LEVEL_PAYLOAD_MAX_BYTES` (`Object.hasOwn`, not a bare lookup); the problem message prints the budget it used. No other rule changes.
+  - [x] `tests/tools/build/checkDist.test.ts`: one fixture with a payload between the two budgets, passing for `salon_kitchen`, failing for `salon_crawler`; one at exactly 5 MiB passing.
+- [x] **T2. Model the room** (AC 1, 2, 3, 5)
+  - [x] Copy `assets-src/blender/salon_crawler.blend` to `assets-src/blender/salon_kitchen.blend` with a scratchpad script (D2). Never edit the salon's file.
+  - [x] Lay out the plan of D3, the nodes of D4 and D5, the art rules of D8. Run the three commands often and read the geometry at each export.
+  - [x] Join static furniture by material to stay within 40 draw calls; keep the pieces of D5 › « moving later » as their own visual nodes.
+  - [x] Look at it in the browser through `?level=salon_kitchen&autoplay=human&seed=1&speed=4` at both sizes, not in a Blender render.
+- [x] **T3. Level JSON** (AC 4, 8)
+  - [x] `content/levels/salon_kitchen.json` per D7. `npm run content:check`.
+- [x] **T4. Tests on the live room** (AC 2, 3, 8)
+  - [x] `tests/content/salonKitchen.test.ts` (D9).
+  - [x] `creakZones.test.ts`: a `salon_kitchen` entry (`safeZone: 'playpen'`, a clean route found with a throwaway A* in the scratchpad, as 4.9 and 4.10 did). If the plain walk from the playpen to the door crosses no board, move a board in Blender, not the test.
+  - [x] `liveProps.test.ts`: a `salon_kitchen` entry (`anchor: 'coffee_table'`, the props that stand on it).
+  - [x] `npm run ci:fast`.
+- [x] **T5. Bots** (AC 8)
+  - [x] `npm run sim -- --level salon_kitchen --bot <b> --runs 20 --out <scratchpad>/<b>.json` for the four bots. A `perfect` miss is a room bug first (an anchor too far from walkable floor, a board on the only path): look at the journal (`--journals`) before anything else. Do not tune waves or `feel.json` here (9.8). If it is not the room, stop and tell Geo.
+- [x] **T6. Browser** (AC 9, 11)
+  - [x] `tests/e2e/salonKitchen.spec.ts`, modelled on `chambreNight.spec.ts` (`startLevel`, `ppLoadLevel`, `threatIconPoint`, `collectProblems`, `OWN_WARNINGS`), three tests. Run `npm run e2e -- tests/e2e/salonKitchen.spec.ts tests/e2e/level.spec.ts tests/e2e/chambreNight.spec.ts --project=chromium` in the background.
+  - [x] Screenshots into `_bmad-output/implementation-artifacts/9-1-screenshots/` (`9-1-salon_kitchen-<size>-play.png`, `-threat.png`). Say what you saw and what you did not.
+- [x] **T7. Performance and payload** (AC 6, 7), one at a time, in the background
+  - [x] `npm run build:playtest`, then `npm run dist:check -- --flavor playtest`.
+  - [x] `PP_PERF_LEVEL=salon_kitchen bash tools/ci/heavyLock.sh npx playwright test -c playwright.dist.config.ts --project perf --workers=1` (about 5 min; through the lock, never a bare `npx playwright test`). Write the numbers in the story.
+- [x] **T8. Docs**
+  - [x] `CLAUDE.md`, row `dist:check`: « each level's `.glb` + audio ≤ 3 MiB (5 MiB for `salon_kitchen`, NFR15) ».
+  - [x] `_bmad-output/project-context.md`: the « Loading » line of Performance Rules gets the NFR15 exception; one short paragraph after « Final rooms on a frozen layout » on `salon_kitchen` (a new room, not frozen until 9.8; the E9 anchors and moving pieces; fixed camera until 9.2).
+  - [x] `deferred-work.md`: a section for this story (see Dev Notes › Deferred items).
 
 ## Dev Notes
 
@@ -176,14 +180,60 @@ No new dependency. The stack is pinned (`three@0.186.1`, `gltfpack@1.3.0`, Blend
 
 ### Agent Model Used
 
+Claude Opus 5.5 (`claude-opus-5-5`), Claude Code, `gds-dev-story`.
+
 ### Debug Log References
+
+- Room built headless (Blender 5.2.3 LTS) by a scratchpad script run on a fresh copy of `salon_crawler.blend` at each iteration (7.1 D9: no generator committed); the `.blend` is committed once, orphans purged, no packed image.
+- 7.1 D2 / D4 / D5 rules checked by a scratchpad Blender script on every rebuild. First pass found the side run's carcass 3 cm into `COL_counter_back`; fixed. What remains is the playpen (no collider, 0.3 m, on walkable cells), copied as the salon has it.
+- The live Blender MCP session was never used.
 
 ### Completion Notes List
 
+- **T1 / AC 7 (NFR15).** `LEVEL_PAYLOAD_MAX_BYTES_BY_ID = { salon_kitchen: 5 MiB }` in `src/shared/constants.ts`; `inspectDist` takes `Object.hasOwn(…) ? byId : LEVEL_PAYLOAD_MAX_BYTES` and prints the budget it used. `checkDist.test.ts`: a 4 MiB payload passes for `salon_kitchen` and fails for `salon_crawler`; the kitchen at exactly 5 MiB passes, one byte over fails (red first, then green). `npm run dist:check -- --flavor playtest` on the playtest build: **OK, levelPayload 2693.9 KiB, firstLoadGzip 4359.9 KiB** (the printed payload is the biggest level's, the kitchen's).
+- **T2 / AC 1, 2, 3, 5 (room).** Plan of D3: walkable floor x ∈ [-6.75, 6.75], z ∈ [-3.5, 3.5] (54 × 28 cells, 13.5 × 7 m). The salon's living corner (sofa, coffee table and props, side table and phone, stairs, playpen, door, toilet door, window, rug, the three boards, the hidden and safe zones) moved as one block by (+2.75, 0, −0.5) in glTF; the outlet plate moved to the back wall beside the side table (`outlet_01` at (1.6, 0.3, −3.45)). Kitchen at the −x end: an L of low cabinets (`COL_counter` along the side wall, `COL_counter_back` along the back wall, both topped at 0.9, touching at z = −2.75, no gap), with the salon's door model, the coffee machine and the lamp, a hob, a sink and tap, a hood and wall cabinets on the walls, the bin on the floor at the end of the side run (`COL_bin`), checker tiles painted in `floor`. Dining corner: a table with two benches tucked inside `COL_dining_table`, the side wall's two pictures moved above it. A plant (`COL_plant`) against the back wall between the table and the toilet door. Every floor piece has its `COL_` and `NAV_block_`; the E9 anchors `stove`, `dishwasher`, `dining_table`, `low_cabinet`, `bin`, `plant` are in place (nearest walkable cell 0.2 to 0.7 m away, reach 1.5 m). Static visuals joined by material into `floor`, `walls`, `furniture`; the moving-later pieces are their own nodes (`dishwasher_door`, `low_cabinet_door`, `tablecloth`, `pan`, `bin_lid`, `plant`). Everything taller than 0.3 m stands on the back half; the 12 salon materials are reused, none added. The three commands report no problem. **Room budget: 37 draw calls, 7,918 triangles, 12 materials, `.glb` 81,920 B** (salon: 40, 5,040, 12). `levelAssets.test.ts` and `blenderConventions.test.ts` pass unchanged.
+- **T3 / AC 4.** `salon_kitchen.json` = the salon's JSON with `id: salon_kitchen` and `feelOverrides: { movement: { glideMaxMs: 900 } }` (no field from 3.15 / 3.16: neither has merged). `npm run content:check` OK; no schema change.
+- **T4 / AC 2, 3, 8.** `tests/content/salonKitchen.test.ts` (13 tests on the live geometry and feel; run against the salon's geometry it fails 10 of them). `creakZones.test.ts`: a `salon_kitchen` entry whose clean route is the salon's moved with the living corner; the plain walk from the playpen to the door creaks, the route does not, with the sim's A* (no board had to move). `liveProps.test.ts`: a `salon_kitchen` entry on `coffee_table`. All pass.
+- **T5 / AC 8 (bots, `--runs 20`, seed 1, tier normal, strict invariants).** All four exit 0, every run ends (`endedRuns` 20/20), 0 fairness violations, 0 floor creaks:
+  - `perfect`: 20 timer ends, mean score 79.8, 4 stars in all 20, success 100 %, perfect 100 %, fail 0 % on every threat (outlet 321, stairs 318, coffee table 224, silence 209, micro-sleep 50 responses).
+  - `human`: 18 timer / 2 mama woke (mean at 140.8 s), mean score 74.9, stars 3.6 (13 × 4, 5 × 3, 2 × 2), success 94.7 %, perfect 41.4 %.
+  - `random`: 17 timer / 3 mama woke, mean score 16, 0 stars, success 1.1 %.
+  - `idle`: 18 timer / 2 mama woke, mean score 15.4, 0 stars, success 0 %.
+- **T6 / AC 9, 11.** `tests/e2e/salonKitchen.spec.ts` (3 tests): the room shows within `DRAW_CALLS_MAX` / `TRIANGLES_MAX` at 844 × 390; a real tap parries the outlet, frozen, on the fixed camera; `?autoplay=perfect` reaches the Result (`timer`) with no `[assets]` warning and no problem. `npm run e2e -- tests/e2e/salonKitchen.spec.ts tests/e2e/level.spec.ts tests/e2e/chambreNight.spec.ts --project=chromium`: **25 passed**. The screenshots were taken by a throwaway spec run in the same batch and deleted (the only warnings it saw were one `[sim] frame stall` per size, under the load of 7 workers).
+- **Screenshots** (`_bmad-output/implementation-artifacts/9-1-screenshots/`): `9-1-salon_kitchen-<844x390|667x375>-play.png` (`human` bot, seed 1, speed 4, past 70 s of sim; both were caught during the « Parade parfaite » zoom) and `-threat.png` (frozen, seed 42, on the first open window: the outlet's « Soulève ! »).
+  - *Checked by eye:* the three corners read at both sizes: L-shaped kitchen with hob, sink, white dishwasher, coffee machine, lamp, teal bin and checker tiles; the table with its blue cloth and benches; the plant by the pink toilet door; the salon's corner as it was. Papa, the threat icon and its verb stand out. The characters look smaller than in the salon (D1, expected until 9.2).
+  - *Only Geo can judge:* the plan itself (D3, question 1); whether the HUD's gauges, which cover the wall cabinets and the top of the side run at both sizes, hide too much; the colours chosen for the new pieces (sky cloth, coral pan and pot, paper/butter tiles); the floor's 3:1 contrast holds by the numbers only. No sound wave was looked for in these frames.
+- **T7 / AC 6.** `npm run build:playtest`, then `PP_PERF_LEVEL=salon_kitchen` `perf.spec.ts` through `heavyLock.sh` (waited 45 s behind 3.15's e2e): **14,879 frames, p95 16.7 ms (mean 16.69, max 116.6), draw calls max 86, triangles max 18,278** — within 20 ms / 100 / 100k.
+- **T8.** `CLAUDE.md` (`dist:check` row), `project-context.md` (Loading line, a paragraph on `salon_kitchen`), `deferred-work.md` (a section for this story, the playpen added to it).
+- **AC 10.** No change under `src/sim`, `src/bots`, `src/client`, `tests/golden/`, nor to `salon_crawler.*`, `chambre_night.*`, `DEFAULT_LEVEL_ID`, `export_level.py`, `tools/assets/*`, `levelNodeNames.ts`, `public/_headers`, the darwin references. `npm run ci:fast` green (8,498 tests; the 2 Biome warnings are the existing ones in `ui.css`), no golden regenerated.
+- **Not run here, by the workflow's rule:** `ci:story` (the review runs it before the merge). WebKit was not run.
+
 ### File List
+
+- `assets-src/blender/salon_kitchen.blend` (new)
+- `public/assets/levels/salon_kitchen.glb` (new)
+- `content/levels/salon_kitchen.json` (new)
+- `content/levels/salon_kitchen.geometry.json` (new)
+- `tests/content/salonKitchen.test.ts` (new)
+- `tests/e2e/salonKitchen.spec.ts` (new)
+- `_bmad-output/implementation-artifacts/9-1-screenshots/9-1-salon_kitchen-844x390-play.png` (new)
+- `_bmad-output/implementation-artifacts/9-1-screenshots/9-1-salon_kitchen-844x390-threat.png` (new)
+- `_bmad-output/implementation-artifacts/9-1-screenshots/9-1-salon_kitchen-667x375-play.png` (new)
+- `_bmad-output/implementation-artifacts/9-1-screenshots/9-1-salon_kitchen-667x375-threat.png` (new)
+- `src/shared/constants.ts`
+- `tools/build/inspectDist.ts`
+- `tests/tools/build/checkDist.test.ts`
+- `tests/content/creakZones.test.ts`
+- `tests/content/liveProps.test.ts`
+- `CLAUDE.md`
+- `_bmad-output/project-context.md`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/implementation-artifacts/9-1-grand-salon-avec-cuisine-ouverte-dans-blender.md`
 
 ## Change Log
 
 | Date | Change |
 |---|---|
 | 2026-11-04 | Story created (`gds-create-story`), status `ready-for-dev`. Ultimate context engine analysis completed: comprehensive developer guide created. |
+| 2026-11-04 | Implemented (`gds-dev-story`): NFR15 per-level payload budget in `dist:check`; new `salon_kitchen` room (Blender, glb, geometry, level JSON) playing the salon's gameplay with a 900 ms glide cap; room, creak and props tests; e2e spec; screenshots; bots, perf and payload measured. Status `review`. |
