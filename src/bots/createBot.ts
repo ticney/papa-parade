@@ -6,10 +6,14 @@ import { createIdleBot } from './idleBot.ts';
 import { createPerfectBot } from './perfectBot.ts';
 import { createRandomBot } from './randomBot.ts';
 
-/** A press must stay in its cycle: a wider spread than this is a typo (deferred-work 1.12). Mirrors the schema. */
+/** A press must stay in its cycle: a wider read-error spread than this is a typo (deferred-work 1.12). Mirrors the schema. */
 const READ_ERROR_SD_MAX_MS = 2000;
+/** Longer than any telegraph, silence or window: a longer delay, offset or jitter than this is a typo. Mirrors the schema. */
+const HUMAN_TIMING_MAX_MS = 10_000;
 const isFinitePositive = (value: number): boolean => Number.isFinite(value) && value > 0;
 const isFiniteNonNegative = (value: number): boolean => Number.isFinite(value) && value >= 0;
+const isDurationInRange = (value: number, minMs: number): boolean =>
+  Number.isFinite(value) && value >= minMs && value <= HUMAN_TIMING_MAX_MS;
 
 /** Why a setup cannot make a bot, or `null`. Checks what the bots would otherwise only fail on mid-game. */
 function setupProblem(setup: BotSetup): string | null {
@@ -25,24 +29,30 @@ function setupProblem(setup: BotSetup): string | null {
   if (settings.tapMs >= holdMinMs) {
     return `tapMs (${settings.tapMs}) must be under holdMinMs (${holdMinMs}), or the bot's tap would be a Firmness`;
   }
-  if (!isFiniteNonNegative(human.reactionMeanMs)) {
-    return 'human.reactionMeanMs must be a number >= 0';
+  if (!isDurationInRange(human.reactionMeanMs, 0)) {
+    return `human.reactionMeanMs must be a number in [0, ${HUMAN_TIMING_MAX_MS}]`;
   }
-  if (!isFiniteNonNegative(human.reactionSdMs)) return 'human.reactionSdMs must be a number >= 0';
-  if (!isFiniteNonNegative(human.reactionMinMs)) {
-    return 'human.reactionMinMs must be a number >= 0';
+  if (!isDurationInRange(human.reactionSdMs, 0)) {
+    return `human.reactionSdMs must be a number in [0, ${HUMAN_TIMING_MAX_MS}]`;
+  }
+  if (!isDurationInRange(human.reactionMinMs, 0)) {
+    return `human.reactionMinMs must be a number in [0, ${HUMAN_TIMING_MAX_MS}]`;
   }
   for (const mode of ['withChronoRing', 'withoutChronoRing'] as const) {
     const { offsetMs, sdMs } = human.readError[mode];
-    if (!Number.isFinite(offsetMs)) {
-      return `human.readError.${mode}.offsetMs must be a finite number`;
+    if (!isDurationInRange(offsetMs, -HUMAN_TIMING_MAX_MS)) {
+      return `human.readError.${mode}.offsetMs must be a number in [-${HUMAN_TIMING_MAX_MS}, ${HUMAN_TIMING_MAX_MS}]`;
     }
     if (!isFiniteNonNegative(sdMs) || sdMs > READ_ERROR_SD_MAX_MS) {
       return `human.readError.${mode}.sdMs must be a number in [0, ${READ_ERROR_SD_MAX_MS}]`;
     }
   }
-  if (!Number.isFinite(human.aimOffsetMs)) return 'human.aimOffsetMs must be a finite number';
-  if (!isFiniteNonNegative(human.jitterSdMs)) return 'human.jitterSdMs must be a number >= 0';
+  if (!isDurationInRange(human.aimOffsetMs, -HUMAN_TIMING_MAX_MS)) {
+    return `human.aimOffsetMs must be a number in [-${HUMAN_TIMING_MAX_MS}, ${HUMAN_TIMING_MAX_MS}]`;
+  }
+  if (!isDurationInRange(human.jitterSdMs, 0)) {
+    return `human.jitterSdMs must be a number in [0, ${HUMAN_TIMING_MAX_MS}]`;
+  }
   if (
     !Number.isFinite(human.missWhileBusyPct) ||
     human.missWhileBusyPct < 0 ||

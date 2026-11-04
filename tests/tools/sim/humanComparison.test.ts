@@ -197,6 +197,12 @@ describe('compareWithTesters (story 3.14, D6)', () => {
       expect(statusFor(meanStars).starStatus).toBe(status);
     });
 
+    it('decides on the exact gap, and only rounds what it reports', () => {
+      const close = statusFor(3.96);
+      expect(close.starStatus).toBe('OK'); // 0.96 is under 1, though it prints as 1
+      expect(close.starGap).toBe(1);
+    });
+
     it('gives the gap signed, to one decimal', () => {
       expect(statusFor(3.9).starGap).toBe(0.9);
       expect(statusFor(2.1).starGap).toBe(-0.9);
@@ -218,6 +224,14 @@ describe('compareWithTesters (story 3.14, D6)', () => {
       [75, 'KO'],
     ] as const)('a bot at %s %%: %s', (perfectPct, status) => {
       expect(statusFor(perfectPct).perfectStatus).toBe(status);
+    });
+
+    it('decides on the exact excess, and only rounds what it reports', () => {
+      // One game in three is perfect: a median of 33.33 %, printed 33.3.
+      const third = [game('geo/1.json', { responses: mix(1, 2) })];
+      const over = compareWithTesters('p', panel(third), { ...BOT, perfectPct: 43.34 }, THRESHOLDS);
+      expect(over.perfectStatus).toBe('KO'); // 10.007 is over 10, though it prints as 10
+      expect(over.perfectExcessPct).toBe(10);
     });
 
     it('gives the excess in points, signed', () => {

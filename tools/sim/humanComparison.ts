@@ -116,30 +116,28 @@ export function compareWithTesters(
       else kept.push(verdict);
     }
   }
-  const median = (pick: (game: KeptGame) => number): number | null => {
-    const value = medianOf(kept.map(pick));
-    return value === null ? null : round1(value);
-  };
+  const median = (pick: (game: KeptGame) => number): number | null => medianOf(kept.map(pick));
+  const roundOrNull = (value: number | null): number | null =>
+    value === null ? null : round1(value);
+  // The statuses are decided on the exact figures; only the report rounds them (a true gap of 0.96 is under 1).
   const medianStars = median((game) => game.stars);
   const medianPerfectPct = median((game) => game.perfectPct);
   const starGap =
-    medianStars === null || bot.meanStars === null ? null : round1(bot.meanStars - medianStars);
+    medianStars === null || bot.meanStars === null ? null : bot.meanStars - medianStars;
   const perfectExcessPct =
-    medianPerfectPct === null || bot.perfectPct === null
-      ? null
-      : round1(bot.perfectPct - medianPerfectPct);
+    medianPerfectPct === null || bot.perfectPct === null ? null : bot.perfectPct - medianPerfectPct;
   return {
     dir,
     games: kept.length,
     skipped,
-    medianStars,
-    medianScorePoints: median((game) => game.scorePoints),
-    medianPerfectPct,
+    medianStars: roundOrNull(medianStars),
+    medianScorePoints: roundOrNull(median((game) => game.scorePoints)),
+    medianPerfectPct: roundOrNull(medianPerfectPct),
     botMeanStars: bot.meanStars,
     botMeanScore: bot.meanScore,
     botPerfectPct: bot.perfectPct,
-    starGap,
-    perfectExcessPct,
+    starGap: roundOrNull(starGap),
+    perfectExcessPct: roundOrNull(perfectExcessPct),
     starStatus: starGap === null ? 'n/a' : Math.abs(starGap) < thresholds.maxStarGap ? 'OK' : 'KO',
     perfectStatus:
       perfectExcessPct === null

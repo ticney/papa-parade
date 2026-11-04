@@ -50,12 +50,19 @@ describe('the human bot, reaction time (AC 1)', () => {
         untilSimMs: 40_000,
         settings: { human: { ...settings, readError } },
       });
-      const telegraphs = events.filter((event) => event.type === 'ThreatTelegraphed');
+      const telegraphs = events.flatMap((event) =>
+        event.type === 'ThreatTelegraphed' ? [{ threatId: event.threatId, t: event.t }] : [],
+      );
       const presses = sim.journal().entries.filter((entry) => entry.command.type === 'PressThreat');
       expect(presses.length).toBeGreaterThanOrEqual(2);
-      presses.forEach((press, i) => {
-        lags.push(press.command.t - (telegraphs[i]?.t ?? Number.NaN));
-      });
+      for (const { command } of presses) {
+        // Each press is paired with the last telegraph of its own threat before it (a threat rearms),
+        // not with the telegraph at the same rank.
+        const { threatId } = command as { threatId: number };
+        const own = telegraphs.filter((telegraph) => telegraph.threatId === threatId);
+        const last = own.filter((telegraph) => telegraph.t <= command.t).at(-1);
+        lags.push(command.t - (last?.t ?? Number.NaN));
+      }
     }
     return lags;
   }
@@ -357,6 +364,39 @@ describe('the human bot, not seeing a threat while busy (AC 3)', () => {
     expect(missed.map((press) => press.id)).toEqual([1]);
     const both = pressesOf(botWith(1, 0), 1000, 2800, worldAt);
     expect(both.map((press) => press.id).sort()).toEqual([1, 2]);
+  });
+
+  it('a threat first seen while the find of a silence is pending is missed; once found, it is not', () => {
+    const SILENCE = { threatId: null, zoneEnteredAt: null, startedAt: 1000 };
+    const LATE = threatAt(1, 'outlet', 1100, 2400);
+    const setupOf = (pct: number) =>
+      botSetup(1, {
+        human: human({
+          reactionMeanMs: 600,
+          reactionSdMs: 0,
+          reactionMinMs: 0,
+          missWhileBusyPct: pct,
+        }),
+      });
+    const withSilence = (now: number): Readonly<World> =>
+      ({
+        ...worldOf(now, now < 1100 ? [] : [LATE]),
+        silence: SILENCE,
+      }) as unknown as Readonly<World>;
+    // The find is planned at 1000 for 1600: at 1100 the bot's hand is on its way to the baby.
+    expect(pressesOf(makeBot('human', setupOf(100)), 1000, 3000, withSilence)).toEqual([]);
+    expect(
+      pressesOf(makeBot('human', setupOf(0)), 1000, 3000, withSilence).map((press) => press.id),
+    ).toEqual([1]);
+    // Seen after the find was sent (1600), the same threat is answered even at 100 %.
+    const later = (now: number): Readonly<World> =>
+      ({
+        ...worldOf(now, now < 1700 ? [] : [threatAt(1, 'outlet', 1700, 3000)]),
+        silence: SILENCE,
+      }) as unknown as Readonly<World>;
+    expect(
+      pressesOf(makeBot('human', setupOf(100)), 1000, 3800, later).map((press) => press.id),
+    ).toEqual([1]);
   });
 
   it('a threat first seen while a Firmness is held is missed for good, though the finger frees later', () => {

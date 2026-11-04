@@ -5,17 +5,23 @@ import { z } from 'zod';
 // recorded journal. Same rules as the other schemas: strict, camelCase, units in the names, no
 // `.default()`, `.optional()` or `.transform()`.
 
+// A press must stay in its cycle: a longer delay, offset or spread than these is a typo. Mirrors `createBot`.
+const READ_ERROR_SD_MAX_MS = 2000;
+const HUMAN_TIMING_MAX_MS = 10_000;
+
 const ReadErrorSchema = z
   .strictObject({
     offsetMs: z
       .number()
+      .min(-HUMAN_TIMING_MAX_MS)
+      .max(HUMAN_TIMING_MAX_MS)
       .describe(
         "Where the human bot aims relative to the window's centre on this display, in ms (negative = early, 0 = dead centre).",
       ),
     sdMs: z
       .number()
       .min(0)
-      .max(2000)
+      .max(READ_ERROR_SD_MAX_MS)
       .describe(
         "Standard deviation of the human bot's press (or release) around that aim, in ms (Gaussian); capped so that a press stays in its cycle.",
       ),
@@ -27,18 +33,21 @@ const BotHumanSchema = z
     reactionMeanMs: z
       .number()
       .min(0)
+      .max(HUMAN_TIMING_MAX_MS)
       .describe(
         'Mean time the human bot needs to react to a sight or a signal, in ms: its press is never before the telegraph plus a draw around this.',
       ),
     reactionSdMs: z
       .number()
       .min(0)
+      .max(HUMAN_TIMING_MAX_MS)
       .describe(
         'Standard deviation of that reaction time, in ms (Gaussian, one draw per response; 0 takes no draw).',
       ),
     reactionMinMs: z
       .number()
       .min(0)
+      .max(HUMAN_TIMING_MAX_MS)
       .describe('Shortest reaction time the human bot can draw, in ms: nobody reacts faster.'),
     readError: z
       .strictObject({
@@ -54,12 +63,15 @@ const BotHumanSchema = z
       ),
     aimOffsetMs: z
       .number()
+      .min(-HUMAN_TIMING_MAX_MS)
+      .max(HUMAN_TIMING_MAX_MS)
       .describe(
         'Where the human bot aims on a rhythm or a signal with no chrono-ring (beats, wait, breath), in ms (negative = early, 0 = dead centre).',
       ),
     jitterSdMs: z
       .number()
       .min(0)
+      .max(HUMAN_TIMING_MAX_MS)
       .describe(
         "Standard deviation of the human bot's press on a rhythm or a signal, in ms (Gaussian).",
       ),
@@ -68,7 +80,7 @@ const BotHumanSchema = z
       .min(0)
       .max(100)
       .describe(
-        'Chance, in %, that the human bot never answers a threat it first sees while busy elsewhere (finger down, another press planned, Papa asleep, drinking, on the phone or on the toilet); 0 = never.',
+        'Chance, in %, that the human bot never answers a threat it first sees while busy elsewhere (finger down, another press planned, Papa asleep, drinking, on the phone or on the toilet); 0 = never. A false alarm it misses is not braced for either: no held breath, no gasp.',
       ),
   })
   .describe('The `human` bot: a plausible attentive player.');

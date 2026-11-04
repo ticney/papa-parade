@@ -218,6 +218,13 @@ export function parseSimArgs(argv: readonly string[]): Result<SimArgs, string> {
   if (sequenceText === undefined && text('sequence-at-ms') !== undefined) {
     return err('--sequence-at-ms needs --sequence');
   }
+  // The testers played whole games of the level as it is: a capped or sequence-started game says nothing.
+  if (compareDir !== undefined && untilSimMs !== null) {
+    return err('--compare needs whole games: drop --until-ms');
+  }
+  if (compareDir !== undefined && sequenceText !== undefined) {
+    return err('--compare needs games as the testers played them: drop --sequence');
+  }
 
   return ok({
     levelId: text('level') ?? DEFAULT_LEVEL_ID,

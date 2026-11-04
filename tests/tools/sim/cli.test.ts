@@ -173,14 +173,7 @@ describe('npm run sim --compare (story 3.14)', () => {
   it(
     'exits non-zero on a folder it cannot read, naming it',
     () => {
-      const done = run('runSim', [
-        '--bot',
-        'idle',
-        '--until-ms',
-        '10000',
-        '--compare',
-        join(dir, 'nowhere'),
-      ]);
+      const done = run('runSim', ['--bot', 'idle', '--compare', join(dir, 'nowhere')]);
       expect(done.status).toBeGreaterThan(0);
       expect(done.stderr).toContain('--compare');
       expect(done.stderr).toContain('nowhere');

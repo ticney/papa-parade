@@ -45,8 +45,21 @@ describe('createBot', () => {
   it.each([
     ['human.reactionMeanMs', human({ reactionMeanMs: -1 })],
     ['human.reactionMeanMs', human({ reactionMeanMs: Number.NaN })],
+    ['human.reactionMeanMs', human({ reactionMeanMs: 25_000 })],
     ['human.reactionSdMs', human({ reactionSdMs: -1 })],
+    ['human.reactionSdMs', human({ reactionSdMs: 25_000 })],
     ['human.reactionMinMs', human({ reactionMinMs: -1 })],
+    ['human.reactionMinMs', human({ reactionMinMs: 25_000 })],
+    [
+      'human.readError.withChronoRing.offsetMs',
+      readError('withChronoRing', { offsetMs: -25_000, sdMs: 60 }),
+    ],
+    [
+      'human.readError.withoutChronoRing.offsetMs',
+      readError('withoutChronoRing', { offsetMs: 25_000, sdMs: 60 }),
+    ],
+    ['human.aimOffsetMs', human({ aimOffsetMs: -25_000 })],
+    ['human.jitterSdMs', human({ jitterSdMs: 25_000 })],
     [
       'human.readError.withChronoRing.offsetMs',
       readError('withChronoRing', { offsetMs: Infinity, sdMs: 60 }),

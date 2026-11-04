@@ -25,7 +25,12 @@ import {
 } from './threatTiming.ts';
 
 /** Papa's states in which his hands are full: a threat first seen then is easily missed (D3 of story 3.14). */
-const BUSY_PAPA_STATES: ReadonlySet<string> = new Set(['asleep', 'drink', 'onPhone', 'onToilet']);
+const BUSY_PAPA_STATES: ReadonlySet<World['papa']['state']> = new Set([
+  'asleep',
+  'drink',
+  'onPhone',
+  'onToilet',
+]);
 
 /**
  * A plausible player (story 3.14). **The reaction.** Everything it answers to a sight or a signal waits for a

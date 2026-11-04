@@ -69,8 +69,6 @@ describe('parseSimArgs', () => {
       'games',
       '--chrono-ring',
       'off',
-      '--compare',
-      'docs/playtest/journals',
       '--sequence',
       'stay_awake',
       '--sequence-at-ms',
@@ -88,12 +86,24 @@ describe('parseSimArgs', () => {
         outPath: 'report.json',
         journalsDir: 'games',
         chronoRing: 'off',
-        compareDir: 'docs/playtest/journals',
+        compareDir: null,
         sequenceId: 'stay_awake',
         sequenceAtMs: 5010,
         help: false,
       },
     });
+  });
+
+  it('reads --compare (story 3.14) and refuses it with games that are not whole', () => {
+    const parsed = parseSimArgs(['--bot', 'human', '--compare', 'docs/playtest/journals']);
+    expect(parsed.ok && parsed.value.compareDir).toBe('docs/playtest/journals');
+    expect(messageOf(['--bot', 'human', '--compare', ''])).toContain('--compare');
+    expect(messageOf(['--bot', 'human', '--compare', 'p', '--until-ms', '5000'])).toContain(
+      '--until-ms',
+    );
+    expect(messageOf(['--bot', 'human', '--compare', 'p', '--sequence', 'stay_awake'])).toContain(
+      '--sequence',
+    );
   });
 
   it('reads the sequence flags (story 4.4): the start rounds up to the step grid and needs --sequence', () => {

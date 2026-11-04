@@ -255,6 +255,12 @@ async function main(): Promise<void> {
   if (!result.ok) return fail(result.error);
   let report = result.value;
   if (args.compareDir !== null) {
+    if (args.botId !== 'human') {
+      log.warn(
+        'sim',
+        `--compare: the ${args.botId} bot does not play like a tester (--chrono-ring changes nothing for it); the verdict is about the human bot`,
+      );
+    }
     // The panel is read here, not in `runSim`: the games stay a pure function of their arguments.
     const thresholds = await loadThresholds();
     if (!thresholds.ok) return fail(thresholds.error.join('; '));
@@ -262,6 +268,12 @@ async function main(): Promise<void> {
     if (!compared.ok) return fail(compared.error);
     for (const { file, reason } of compared.value.skipped) {
       log.warn('sim', `--compare: ${file} is left out: ${reason}`);
+    }
+    if (compared.value.games === 0) {
+      log.warn(
+        'sim',
+        `--compare: no game of ${args.compareDir} fits (level ${args.levelId}, tier ${args.tier}): both statuses are n/a`,
+      );
     }
     report = { ...report, comparison: compared.value };
   }
