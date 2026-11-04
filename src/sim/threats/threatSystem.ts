@@ -155,6 +155,7 @@ export function runThreats(world: World, ctx: StepContext): void {
             (threat.state === 'telegraph' || threat.state === 'windowOpen')
           ) {
             ctx.events.push({ type: 'TapRefused', t: asSimMs(now), threatId: threat.id });
+            break;
           }
         }
         continue;

@@ -229,7 +229,8 @@ export function createWorldUi(
         papa,
         isFollowingThreatUp(threatInstances),
         nowAtReal,
-        activityBubble.isActive,
+        // Visible, not active: the badge keeps its place beside the bubble until the pop is over.
+        activityBubble.isVisible,
       );
     },
     mountThreats: threats.mount,

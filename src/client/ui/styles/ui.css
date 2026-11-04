@@ -1726,6 +1726,8 @@ body {
   translate: calc(-1 * var(--pp-activity-aside-offset)) 0;
 }
 
+/* The squash and the pop (Web Animations) run on the pop; the shake (a class) on the body inside it. */
+.pp-activity-pop,
 .pp-activity-body {
   position: absolute;
   inset: 0;

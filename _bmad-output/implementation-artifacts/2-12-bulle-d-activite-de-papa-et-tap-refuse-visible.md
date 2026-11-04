@@ -4,7 +4,7 @@ baseline_commit: 827a927e9f08d6c207b6ec057bc43323ffd9d2d6
 
 # Story 2.12: Bulle d'activité de papa et tap refusé visible
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -218,6 +218,22 @@ Requirement: FR74 `[P]`, UX-DR28. This is the fourth story of the v2.3 catch-up 
     - the nap with its stars and the 3D « Z »;
     - a micro-sleep threat on Papa during the phone (bubble aside).
     - Say in the notes what Geo should judge.
+
+### Review Findings
+
+Code review 2026-11-04 (Blind Hunter, Edge Case Hunter, Acceptance Auditor; full diff `main...HEAD`). No high-severity finding; ACs 1-18 are met except where noted.
+
+- [x] [Review][Patch] (decided by Geo: 1a, capture both surfaces + e2e measuring overlap and edge clamp) AC 12's three-way layout (bubble aside, threat in the centre, badge on the right) was never looked at, and its no-overlap unit test is true by construction — The test (`activityBubble.test.ts` L498-533) checks geometry computed from the same constants (`reach + GAP + HALF`), so it can only fail if a constant becomes ≤ 0; `COMBO_BADGE_HALF_WIDTH_PX = 24` is a guess not tied to the badge's real CSS (a « x10 » is wider). Task 6's last look item (a micro-sleep threat on Papa during the phone) is ticked `[x]` but the Completion Notes say it was not captured. The `--aside` offset has no screen-edge clamp (Papa near the left edge: the bubble may leave the screen), also unlooked. Options: (a) capture both surfaces and add an e2e that measures `getBoundingClientRect` overlap and the edge clamp; (b) untick the item, say so in the notes, and leave it to Geo's device pass.
+- [x] [Review][Patch] (decided by Geo: 2b, nested wrapper for the shake) A refused tap's shake can be swallowed — The shake is a CSS animation on `transform` on the same `body` that the squash/pop animates through WAAPI, and script animations outrank CSS ones: a refusal in the first 180 ms of a bubble (or a busy → busy swap) shows no shake, while sound and haptic play. `shake()` also returns early when `!isActive`, so a refusal handled before the frame's first `update` (several sim steps in one frame) is dropped. Options: (a) accept and note it (rare, 180 ms); (b) put the shake on a nested wrapper so the two never share `transform`, and let `shake()` arm itself for a bubble about to appear.
+- [x] [Review][Patch] The `pp-activity-bubble--<pictogram>` class is never removed after a pop [`src/client/ui/world/activityBubble.ts:341-355`] — `update` sets `shownPictogram = null` before `forget()`, whose removal is guarded by `shownPictogram !== null`; `setPictogram` has the same guard. After drink then phone the element carries `--cup --handset`, and the e2e regexes (`toHaveClass(/--stars/)`) pass anyway. Keep the class actually on the element in its own variable, and add a pop-path test.
+- [x] [Review][Patch] The combo badge snaps back to the centre while the bubble is still popping [`src/client/ui/world/worldUi.ts:232`] — `updateCombo` passes `activityBubble.isActive`, false from the first frame of the 160 ms pop, so the badge drops `--beside-activity` under the enlarging bubble (AC 12 / D6). Pass `isVisible` instead, and test it.
+- [x] [Review][Patch] `hide()` writes the DOM every frame once the flow is `ended` or `photo` [`src/client/boot.ts:1303`, `activityBubble.ts:304-314`] — `forget()` always runs `classList.remove` and `enter?.cancel()`, against « DOM written only on change ». Return early when nothing is shown.
+- [x] [Review][Patch] `door: OBJECT_ICON_PATHS.toilet ?? ''` is a silent fallback [`src/client/ui/world/activityBubble.ts`, near the pictogram table] — an empty door with no `log.warn`, against the project rule. Warn once, or fail loudly.
+- [x] [Review][Patch] Weak e2e assertions [`tests/e2e/activityBubble.spec.ts` L117-120, L205-225, floor-tap test] — the coffee spec only asserts `toBeHidden()` + the cue, so nothing fails if the pop is removed; the pause check `toBeLessThanOrEqual(100)` is true by construction and never asserts the ring had drained before the pause; the floor tap clicks a hard-coded `(300, 200)` without proving it hit the floor.
+- [x] [Review][Patch] The sim's busy tests set `papa.state` / `busyUntil` by hand [`src/sim/threats/tapRefused.test.ts:608-612`] — `makeBusy` does not prove that the real `startCoffee`, `startCall`, `startToilet` and `putPapaToSleep` leave `now < busyUntil`. Drive at least one case per busy state through the real start path.
+- [x] [Review][Patch] Nits: `enter?.cancel(); enter = null;` before `play()` is redundant (`activityBubble.ts:368-371`, `play` cancels), and the `TapRefused` loop has no `break` after its match [`src/sim/threats/threatSystem.ts:151-159`].
+- [x] [Review][Defer] The ring refills when an already-asleep Papa is put to sleep again [`src/sim/papa/sleep.ts:28-31`, `papaFsm.ts:73-81`] — deferred, pre-existing: `busyUntil` is extended but `enterPapaState` returns early, so `enteredAt` stays and the ring jumps back up with no cue. Not confirmed that a level can produce it.
+- [x] [Review][Defer] « Papa is free » ding plays on a busy → idle → busy chain in one step [`src/client/feedback/simEventFeedback.ts:46-52`] — deferred, pre-existing: a nap landing on the step a coffee or toilet ends emits the pop cue while the bubble only swaps.
 
 ## Dev Notes
 
@@ -462,7 +478,7 @@ Claude Sonnet 5.5 (claude-sonnet-5-5)
 - **Bubble (AC 1–7, 12, 13).** `activityBubble.ts`: one `CSS2DObject` (outer box placed by the renderer, a body animated by the Web Animations API, the ring built like `breathRing.ts`, the pictogram SVG, a tail). `ACTIVITY_PICTOGRAMS` is a `Record<PapaState, …>`, checked against `isPapaBusy`. The ring is `chronoDrainPermille(enteredAt, busyUntil, renderSimMs)` in whole percent, written only on change. Squash, pop and shake are real-time juice; reduced motion removes all three and thickens the border (`pp-activity-body--thick`) for the same 150 ms. A busy state with no pictogram warns once.
 - **Layout.** `activityMetricsFor` computes every offset from constants; `applyActivityBubbleMetrics` writes them to the root per surface, so `ui.css` holds no px literal of the bubble (`activityBubbleSpec.test.ts` pins the constants to DESIGN.md and the threat sizes to `ui.css`). The badge's `--aside` offset used to be a 64 px literal, which overlapped a threat's chrono-ring (reach 19 px beyond the icon); it is now computed (83 px regular, 79 px compact) and the three-way no-overlap test covers both surfaces.
 - **Cues (AC 7, 10).** `ActivityBubbleShaken` / `ActivityBubblePopped` client events, routed in `simEventFeedback.ts`; cues `papa_busy_refused` and `papa_free` in `feedback.json` (`uiElement`, `light`); two placeholder clips `papa_busy.m4a` (dry double « bonk ») and `ui_papa_free_ding.m4a` (small bell), written by `npm run assets:audio -- --only papa_busy,ui_papa_free_ding`.
-- **Deviations from the task text** (task text updated): the bubble is index 7 of the layer so the threat markers mounted later start at 8; `updateCombo` returns nothing (`updateActivity` runs before it and the badge reads `activityBubble.isActive`); `boot.ts` calls `shakeActivity` itself instead of a callback from `simEventFeedback`; `boot.ts` hides the bubble when the flow is not live (end, photo) and when leaving a level, in addition to what the story lists.
+- **Deviations from the task text** (task text updated): the bubble is index 7 of the layer so the threat markers mounted later start at 8; `updateCombo` returns nothing (`updateActivity` runs before it and the badge reads `activityBubble.isVisible`, so it stays beside the bubble through its pop: review fix); `boot.ts` calls `shakeActivity` itself instead of a callback from `simEventFeedback`; `boot.ts` hides the bubble when the flow is not live (end, photo) and when leaving a level, in addition to what the story lists.
 - **Docs (AC 18).** `project-context.md` (the « Busy Papa » correction and an « Activity bubble » paragraph), `game-architecture.md` L413 (`threatId`), `EXPERIENCE.md` (refused-tap haptic decided; the nap's stars).
 - **Checks.** `npm run ci:fast` green (392 files, 8237 tests; 2 pre-existing CSS specificity warnings). AC 17's 14 specs on Chromium green (the 4 load timeouts above rerun alone). `ci:story` is the review's gate, not run here. `autoplay.spec.ts`'s frozen frame did not move: no reference regenerated.
 - **For Geo to judge (the look, from zoomed Chromium captures at 844 × 390 and 1024 × 768).**
@@ -470,8 +486,12 @@ Claude Sonnet 5.5 (claude-sonnet-5-5)
   - The cup in the bubble is the same glyph as the coffee-machine's own icon, and the two sit close together in the salon: judge whether the cup should be something else (a steaming cup?).
   - On a nap the bubble hides the 3D « Z » above Papa's head (open point 5): keep both or drop the « Z ».
   - The tail covers the bottom of the ring (a few px). Two sounds still play at the end of the toilet: the flush and the ding (open point 4).
-  - Not captured: a micro-sleep telegraphed on Papa during the phone (the bubble's aside step). The geometry is pinned by a unit test, but the picture is not looked at.
+  - The bubble's aside step with a micro-sleep up on Papa (it is telegraphed first, then he drinks) is now captured at 667 × 375 and 1024 × 768 by the layout e2e, and its boxes are measured (review). The bubble steps left of the threat's chrono-ring and the badge sits on its right. When Papa stands next to the toilet door, the door's object icon is drawn over the left of the badge: judge it.
+  - Not measured: Papa standing at the far left of the room (the bubble's aside step has no screen-edge clamp; at the coffee machine it clears the screen by a wide margin).
   - Squash 180 ms from scale 0.5, pop 160 ms to scale 1.4: all `[ASSUMPTION]`s, judge them by playing.
+
+- **Review fixes (2026-11-04).** The shake is a class on a `body` nested in a new `pp-activity-pop`, which carries the squash and the pop, so the two never share `transform`. The pictogram class is tracked apart (`classedPictogram`) and goes with the pop. `hide()` writes nothing when nothing is shown. `pictogramPathOrWarn` warns for a missing icon path. `TapRefused` loop breaks after its match. Tests: the four busy states through their real start paths in `tapRefused.test.ts`; unit tests for the class, `hide()`, the shake's place and the warning; e2e for the pop, a floor-tap control, a pause on a drained ring, and `the layout above a busy Papa` (real boxes, both surfaces, screenshots in `test-results`). The e2e raises the combo with a real parry and sets the badge text to the widest (`x8`): the micro-sleep is never telegraphed once Papa is busy, so it is telegraphed first and its window made long. A refusal handled before the bubble's first `update` of a frame is still dropped (accepted: sound and haptic play).
+- **Review checks.** `npm run ci:fast` green (392 files, 8246 tests). Chromium: `activityBubble`, `reducedMotion`, `phone`, `toilet`, `fatigue` and `combo` specs green (49). `ci:story` still to run before the merge.
 
 ### File List
 
@@ -510,4 +530,5 @@ Claude Sonnet 5.5 (claude-sonnet-5-5)
 
 ### Change Log
 
+- 2026-11-04: Code review: 9 patches applied (nested shake, stale pictogram class, badge beside the bubble through its pop, `hide()` quiet, icon-path warning, real-flow sim tests, stronger e2e, layout e2e at both surfaces), 2 deferred. Status → done.
 - 2026-11-03: Story 2.12 implemented: `TapRefused` sim event, the busy press the client now sends, the activity bubble with its sim-time ring, the squash / pop / shake, the two cues and clips, the combo badge beside it, reduced motion, tests and docs. Status → review.

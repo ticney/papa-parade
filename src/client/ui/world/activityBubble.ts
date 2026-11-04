@@ -29,6 +29,13 @@ import { THREAT_ICON_PATHS } from './threatMarkers.ts';
 /** What the bubble's pictogram draws: a cup, a handset, a door, dizzy stars. */
 export type ActivityPictogram = 'cup' | 'handset' | 'door' | 'stars';
 
+/** A path that may be missing: an empty pictogram is never silent (project rule: every fallback logs a `warn`). */
+export function pictogramPathOrWarn(path: string | null, name: string): string {
+  if (path !== null) return path;
+  log.warn('render', 'an activity pictogram has no icon path: its bubble draws nothing', { name });
+  return '';
+}
+
 /**
  * The pictogram of each Papa state, `null` for a state that is not busy. Typed on `PapaState`, so a new
  * state (3.15's after-effects, 9.4's chores) cannot compile without choosing one; `activityBubble.test.ts`
@@ -55,7 +62,7 @@ export const ACTIVITY_PICTOGRAM_PATHS: Readonly<Record<ActivityPictogram, string
   // A handset: the earpiece and the mouthpiece joined by a curved grip.
   handset:
     'M3.5 7.5c0-1.6 1.3-3 3-3h2.2v4.6H7c.9 2.6 3.7 5.4 6.4 6.4v-1.7H18v2.2c0 1.7-1.4 3-3 3C8.6 19 3.5 13.9 3.5 7.5z',
-  door: OBJECT_ICON_PATHS.toilet ?? '',
+  door: pictogramPathOrWarn(OBJECT_ICON_PATHS.toilet, 'door'),
   // Three five-pointed stars: one up, two lower, the dizziness of a nap that was not chosen.
   stars:
     'M12.0 1.9 L13.2 4.9 L16.4 5.1 L13.9 7.1 L14.7 10.2 L12.0 8.5 L9.3 10.2 L10.1 7.1 L7.6 5.1 L10.8 4.9z M5.5 12.3 L6.6 15.0 L9.5 15.2 L7.2 17.1 L8.0 19.9 L5.5 18.3 L3.0 19.9 L3.8 17.1 L1.5 15.2 L4.4 15.0z M18.5 12.3 L19.6 15.0 L22.5 15.2 L20.2 17.1 L21.0 19.9 L18.5 18.3 L16.0 19.9 L16.8 17.1 L14.5 15.2 L17.4 15.0z',
@@ -181,6 +188,7 @@ const POP_KEYFRAMES: Keyframe[] = [
 /** The classes the CSS styles (`ui.css` owns the look). */
 export const ACTIVITY_BUBBLE_CLASSES = {
   root: 'pp-activity-bubble',
+  pop: 'pp-activity-pop',
   aside: 'pp-activity-bubble--aside',
   body: 'pp-activity-body',
   refused: 'pp-activity-body--refused',
@@ -194,7 +202,8 @@ type Doc = Pick<Document, 'createElement' | 'createElementNS'>;
  * a pictogram, above Papa at the combo badge's height, for as long as he is busy (`isPapaBusy`), with the
  * hold-ring's visual around it draining to `busyUntil`. One pooled `CSS2DObject`, like the combo badge: the
  * outer element is placed by the `CSS2DRenderer` (it writes its `transform`; the aside step is `translate`),
- * the body inside it is the one the Web Animations API squashes and pops, and the shake is a class. It is
+ * the `pop` inside it is the one the Web Animations API squashes and pops, and the shake is a class on the
+ * `body` inside that: the two never animate the same `transform`, so a refusal during a squash still shows. It is
  * `aria-hidden` and takes no tap. The ring is gameplay information (sim time, never a timer or a transition);
  * the squash, the pop and the shake are juice (real time).
  */
@@ -217,6 +226,8 @@ export function createActivityBubble(
   element.style.setProperty('--pp-activity-outline', `${HOLD_RING_OUTLINE_PX}px`);
   element.style.setProperty('--pp-activity-shake-ms', `${ACTIVITY_BUBBLE_REFUSED_SHAKE_MS}ms`);
 
+  const pop = doc.createElement('div');
+  pop.className = ACTIVITY_BUBBLE_CLASSES.pop;
   const body = doc.createElement('div');
   body.className = ACTIVITY_BUBBLE_CLASSES.body;
   const ringOutline = doc.createElement('div');
@@ -259,7 +270,8 @@ export function createActivityBubble(
     doc,
   );
   body.append(ringOutline, ringBand, tail, disc);
-  element.append(body);
+  pop.append(body);
+  element.append(pop);
 
   const object = new CSS2DObject(element);
   object.visible = false;
@@ -267,6 +279,8 @@ export function createActivityBubble(
   scene.add(object);
 
   let shownPictogram: ActivityPictogram | null = null;
+  // The pictogram whose class is on the element: it outlives `shownPictogram` for the length of a pop.
+  let classedPictogram: ActivityPictogram | null = null;
   let isActive = false;
   let isAsideShown = false;
   let shownPct = HIDDEN;
@@ -290,25 +304,41 @@ export function createActivityBubble(
   };
   const play = (keyframes: Keyframe[], durationMs: number, fill: FillMode): Animation => {
     enter?.cancel();
-    const animation = body.animate(keyframes, { duration: durationMs, easing: 'ease-out', fill });
+    const animation = pop.animate(keyframes, { duration: durationMs, easing: 'ease-out', fill });
     enter = animation;
     return animation;
   };
   const setPictogram = (next: ActivityPictogram): void => {
     if (next === shownPictogram) return;
-    if (shownPictogram !== null) element.classList.remove(`pp-activity-bubble--${shownPictogram}`);
     shownPictogram = next;
+    // Busy again during a pop with the same pictogram: the path and the class are still right.
+    if (next === classedPictogram) return;
+    if (classedPictogram !== null)
+      element.classList.remove(`pp-activity-bubble--${classedPictogram}`);
+    classedPictogram = next;
     pictogramPath.setAttribute('d', ACTIVITY_PICTOGRAM_PATHS[next]);
     element.classList.add(`pp-activity-bubble--${next}`);
   };
   const forget = (): void => {
+    // Called every frame while no level is live: nothing shown, nothing written.
+    if (
+      !object.visible &&
+      !isActive &&
+      enter === null &&
+      shakeUntilAtReal === null &&
+      classedPictogram === null
+    ) {
+      return;
+    }
     enter?.cancel();
     enter = null;
     clearShake();
     setAside(false);
     setVisible(false);
     isActive = false;
-    if (shownPictogram !== null) element.classList.remove(`pp-activity-bubble--${shownPictogram}`);
+    if (classedPictogram !== null)
+      element.classList.remove(`pp-activity-bubble--${classedPictogram}`);
+    classedPictogram = null;
     shownPictogram = null;
     shownPct = HIDDEN;
   };
@@ -366,9 +396,12 @@ export function createActivityBubble(
       object.position.z = papa.zM;
       if (isStart || isSwap) {
         // A new busy state replaces a pop still running, or another busy state: squash in again.
-        enter?.cancel();
-        enter = null;
-        if (!isMotionReduced()) play(SQUASH_KEYFRAMES, ACTIVITY_BUBBLE_SQUASH_MS, 'none');
+        if (isMotionReduced()) {
+          enter?.cancel();
+          enter = null;
+        } else {
+          play(SQUASH_KEYFRAMES, ACTIVITY_BUBBLE_SQUASH_MS, 'none');
+        }
       }
       const permille = chronoDrainPermille(papa.enteredAt, papa.busyUntil, renderSimMs);
       const pct = Math.min(100, Math.floor(permille / 10));

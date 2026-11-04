@@ -6,13 +6,18 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  FATIGUE_GAUGES,
+  NEED_GAUGES,
   OUTLET,
+  TEST_OBJECTS,
+  TEST_TOILET,
+  testPhoneEntry,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
-import type { PapaState } from '../papa/papaFsm.ts';
+import { isPapaBusy, type PapaState } from '../papa/papaFsm.ts';
 import type { ThreatInstance } from '../world.ts';
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -155,4 +160,89 @@ describe('TapRefused (story 2.12)', () => {
     sim.enqueue({ type: 'TapFloor', t: sim.world.time.sim, xM: 0, zM: 0 });
     expect(refused(run(sim, 1))).toEqual([]);
   });
+});
+
+describe('TapRefused through the real busy flows (story 2.12)', () => {
+  // The outlet's wave starts long after Papa is busy, and each busy state lasts longer than the test.
+  const LATE_MS = 20_000;
+  const LONG_MS = 600_000;
+
+  async function busySim(state: 'drink' | 'onPhone' | 'onToilet' | 'asleep'): Promise<Sim> {
+    const feel = {
+      ...content.feel,
+      fatigue: {
+        ...content.feel.fatigue,
+        coffeeDurationMs: LONG_MS,
+        asleepMs: LONG_MS,
+        // The micro-sleep is due at once, so a missed one puts Papa to sleep.
+        ...(state === 'asleep' ? { startPoints: 90, microSleepMinMs: 0, microSleepMaxMs: 0 } : {}),
+      },
+      bladder: { ...content.feel.bladder, toiletDurationMs: LONG_MS },
+    };
+    const outletWave = testWave([OUTLET], { fromMs: LATE_MS });
+    const level = createTestLevel({
+      waves:
+        state === 'onPhone'
+          ? [testWave([], { disruptions: [testPhoneEntry(5000)] }), outletWave]
+          : [outletWave],
+      objects: [...TEST_OBJECTS, TEST_TOILET],
+      gauges: { ...NEED_GAUGES, ...FATIGUE_GAUGES },
+    });
+    const phone = level.disruptions.phone;
+    const sim = await createSim({
+      content: { ...content, feel },
+      geometry,
+      level: phone
+        ? { ...level, disruptions: { phone: { ...phone, answerBusyMs: LONG_MS } } }
+        : level,
+      seed: 1,
+    });
+    const command = (cmd: Record<string, unknown>) =>
+      sim.enqueue({ ...cmd, t: asSimMs(sim.world.time.sim) } as SimCommand);
+    const stepUntil = (done: () => boolean): void => {
+      while (!done()) {
+        if (sim.world.time.sim > 15_000) throw new Error(`Papa never became ${state}`);
+        sim.step();
+        sim.drainEvents();
+      }
+    };
+    if (state === 'drink') {
+      command({ type: 'SetFatigue', points: 80 });
+      command({ type: 'TapObject', objectId: 'coffee_machine' });
+    } else if (state === 'onToilet') {
+      command({ type: 'SetBladder', pct: 100 });
+      command({ type: 'TapObject', objectId: 'toilet' });
+    } else if (state === 'onPhone') {
+      command({ type: 'StartDisruption', index: 0 });
+      command({ type: 'TapObject', objectId: 'phone' });
+    }
+    stepUntil(() => sim.world.papa.state === state);
+    return sim;
+  }
+
+  it.each(['drink', 'onPhone', 'onToilet', 'asleep'] as const)(
+    'refuses a press on a telegraphed threat while Papa is %s, entered by the real flow',
+    async (state) => {
+      const sim = await busySim(state);
+      // The real start path left Papa busy for a good while, not for the instant it was set.
+      expect(isPapaBusy(sim.world.papa)).toBe(true);
+      expect(sim.world.papa.busyUntil).toBeGreaterThan(sim.world.time.sim + LONG_MS / 2);
+      const events: SimEvent[] = [];
+      while (!sim.world.threats.some((t) => t.state === 'telegraph' || t.state === 'windowOpen')) {
+        if (sim.world.time.sim > LATE_MS + 5000) throw new Error('the outlet never telegraphed');
+        sim.step();
+        for (const event of sim.drainEvents()) events.push(event);
+      }
+      const threat = sim.world.threats.find(
+        (t) => t.state === 'telegraph' || t.state === 'windowOpen',
+      ) as ThreatInstance;
+      expect(sim.world.papa.state).toBe(state);
+      sim.enqueue(press(sim.world.time.sim, threat.id));
+      expect(refused(run(sim, 1))).toEqual([
+        { type: 'TapRefused', t: sim.world.time.sim, threatId: threat.id },
+      ]);
+      expect(sim.world.papa.state).toBe(state);
+      expect(sim.world.threats.find((t) => t.id === threat.id)?.press).toBeNull();
+    },
+  );
 });

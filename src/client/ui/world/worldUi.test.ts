@@ -28,9 +28,14 @@ class FakeElement {
     this.appended.push(child);
   }
   animate() {
-    return { cancel() {}, addEventListener() {} };
+    const animation = { cancel() {}, addEventListener() {}, onfinish: null as (() => void) | null };
+    runningAnimations.push(animation);
+    return animation;
   }
 }
+
+/** Every animation a fake element started, in order: a test finishes one by calling its `onfinish`. */
+const runningAnimations: { onfinish: (() => void) | null }[] = [];
 
 function build(metrics?: VerbMetrics) {
   const container = new FakeElement();
@@ -264,17 +269,28 @@ describe('createWorldUi, activity bubble (story 2.12)', () => {
     expect(Object.keys(bubble.element.style)).toContain('transform');
   });
 
-  it('puts the badge beside the bubble while it shows, and back when Papa is free', () => {
+  it('puts the badge beside the bubble while it shows, pop included, and back once it is gone', () => {
     const { ui } = build();
     ui.setSize(800, 400);
+    runningAnimations.length = 0;
     const badge = ui.scene.children[2] as unknown as { element: FakeElement };
     const toggles = togglesOf(badge.element);
+    const besideToggles = () =>
+      toggles.filter(([name]) => name === 'pp-combo-badge--beside-activity');
     ui.updateCombo(combo(3), 1, drinking, [], 0);
     ui.updateActivity(drinking, 0, [], 0);
     ui.updateCombo(combo(3), 1, drinking, [], 16);
+    // Papa is free: the bubble pops out for ACTIVITY_BUBBLE_POP_MS, and the badge stays clear of it.
     ui.updateActivity(idle, 100, [], 32);
+    expect(ui.activityBubble.isActive).toBe(false);
+    expect(ui.activityBubble.isVisible).toBe(true);
     ui.updateCombo(combo(3), 1, drinking, [], 48);
-    expect(toggles.filter(([name]) => name === 'pp-combo-badge--beside-activity')).toEqual([
+    expect(besideToggles()).toEqual([['pp-combo-badge--beside-activity', true]]);
+    // The pop is over: the bubble is gone and the badge goes back to the centre.
+    runningAnimations.at(-1)?.onfinish?.();
+    expect(ui.activityBubble.isVisible).toBe(false);
+    ui.updateCombo(combo(3), 1, drinking, [], 64);
+    expect(besideToggles()).toEqual([
       ['pp-combo-badge--beside-activity', true],
       ['pp-combo-badge--beside-activity', false],
     ]);

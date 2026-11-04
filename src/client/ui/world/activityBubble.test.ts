@@ -24,6 +24,7 @@ import {
   activityMetricsFor,
   applyActivityBubbleMetrics,
   createActivityBubble,
+  pictogramPathOrWarn,
 } from './activityBubble.ts';
 import { CHRONO_RING_REACH_PX } from './chronoRing.ts';
 
@@ -94,6 +95,12 @@ class FakeElement {
   }
 }
 
+/** The `pp-activity-bubble--<pictogram>` classes on the element. */
+const pictogramClasses = (element: FakeElement): string[] =>
+  [...element.classes].filter(
+    (name) => name.startsWith('pp-activity-bubble--') && name !== 'pp-activity-bubble--aside',
+  );
+
 const DRINK_START = 1000;
 const DRINK_END = 4000;
 
@@ -128,13 +135,14 @@ function build(isMotionReduced = false, pictograms = ACTIVITY_PICTOGRAMS) {
     pictograms,
   });
   const outer = created.find((e) => e.className === ACTIVITY_BUBBLE_CLASSES.root) as FakeElement;
+  const popEl = created.find((e) => e.className === ACTIVITY_BUBBLE_CLASSES.pop) as FakeElement;
   const body = created.find((e) => e.className === ACTIVITY_BUBBLE_CLASSES.body) as FakeElement;
   const pictogramPath = created.find((e) => e.tag === 'path' && e.attributes.has('fill'));
   const object = scene.children[0] as unknown as {
     visible: boolean;
     position: { x: number; y: number; z: number };
   };
-  return { bubble, outer, body, scene, object, state, created, pictogramPath };
+  return { bubble, outer, popEl, body, scene, object, state, created, pictogramPath };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -146,6 +154,15 @@ describe('the pictogram table', () => {
       if (isPapaBusy({ state })) expect(pictogram, state).not.toBeNull();
       else expect(pictogram, state).toBeNull();
     }
+  });
+
+  it('warns, and only then draws nothing, for an icon path that is missing', async () => {
+    const { log } = await import('@shared/log');
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    expect(pictogramPathOrWarn('M0 0h1v1z', 'door')).toBe('M0 0h1v1z');
+    expect(warn).not.toHaveBeenCalled();
+    expect(pictogramPathOrWarn(null, 'door')).toBe('');
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it('draws a cup, a handset, a door and dizzy stars, each from its own non-empty path', () => {
@@ -222,15 +239,15 @@ describe('shown and hidden by state', () => {
   });
 
   it('swaps the pictogram on a busy → busy change, and squashes again', () => {
-    const { bubble, outer, body } = build();
+    const { bubble, outer, popEl } = build();
     bubble.update(papaIn('drink'), 1500, false, 0);
-    expect(body.animations).toHaveLength(1);
+    expect(popEl.animations).toHaveLength(1);
     bubble.update(papaIn('asleep', 1600, 4600), 1700, false, 16);
     expect(bubble.pictogram).toBe('stars');
     expect(outer.classes.has('pp-activity-bubble--cup')).toBe(false);
     expect(outer.classes.has('pp-activity-bubble--stars')).toBe(true);
-    expect(body.animations).toHaveLength(2);
-    expect(body.animations[0]?.isCancelled).toBe(true);
+    expect(popEl.animations).toHaveLength(2);
+    expect(popEl.animations[0]?.isCancelled).toBe(true);
     // No pop in between: it stays active.
     expect(bubble.isActive).toBe(true);
   });
@@ -322,10 +339,10 @@ describe('the aside step', () => {
 
 describe('the squash at the start', () => {
   it('squashes in once, from a scale below 1 back to 1, for the constant’s ms', () => {
-    const { bubble, body } = build();
+    const { bubble, popEl } = build();
     bubble.update(papaIn('drink'), 1000, false, 0);
-    expect(body.animations).toHaveLength(1);
-    const squash = body.animations[0] as FakeAnimation;
+    expect(popEl.animations).toHaveLength(1);
+    const squash = popEl.animations[0] as FakeAnimation;
     expect(squash.options.duration).toBe(ACTIVITY_BUBBLE_SQUASH_MS);
     const [from, to] = squash.keyframes as { transform: string }[];
     expect(to?.transform).toBe('scale(1)');
@@ -333,32 +350,32 @@ describe('the squash at the start', () => {
     // The following frames of the same state start nothing.
     bubble.update(papaIn('drink'), 1100, false, 16);
     bubble.update(papaIn('drink'), 1200, false, 32);
-    expect(body.animations).toHaveLength(1);
+    expect(popEl.animations).toHaveLength(1);
   });
 
   it('starts no animation under reduced motion', () => {
-    const { bubble, body } = build(true);
+    const { bubble, popEl } = build(true);
     bubble.update(papaIn('drink'), 1000, false, 0);
     expect(bubble.isVisible).toBe(true);
-    expect(body.animations).toHaveLength(0);
+    expect(popEl.animations).toHaveLength(0);
   });
 });
 
 describe('the end', () => {
   it('pops out when Papa is free, then is hidden once the pop is over', () => {
-    const { bubble, outer, body } = build();
+    const { bubble, outer, popEl } = build();
     bubble.update(papaIn('drink'), 3900, false, 0);
     bubble.update(papaIn('idle', DRINK_END, 0), DRINK_END, false, 16);
     expect(bubble.isActive).toBe(false);
     expect(bubble.isVisible).toBe(true);
-    const pop = body.animations.at(-1) as FakeAnimation;
+    const pop = popEl.animations.at(-1) as FakeAnimation;
     expect(pop.options.duration).toBe(ACTIVITY_BUBBLE_POP_MS);
     const frames = pop.keyframes as { transform: string; opacity: number }[];
     expect(frames[0]?.opacity).toBe(1);
     expect(frames[1]?.opacity).toBe(0);
     // Still there while the pop runs, and again free on the next frame: no second pop.
     bubble.update(papaIn('idle', DRINK_END, 0), DRINK_END + 16, false, 32);
-    expect(body.animations).toHaveLength(2);
+    expect(popEl.animations).toHaveLength(2);
     expect(outer.style.display).toBe('');
     pop.finish();
     expect(bubble.isVisible).toBe(false);
@@ -367,36 +384,61 @@ describe('the end', () => {
   });
 
   it('does not pop on a busy → busy change', () => {
-    const { bubble, body } = build();
+    const { bubble, popEl } = build();
     bubble.update(papaIn('drink'), 1500, false, 0);
     bubble.update(papaIn('asleep', 1600, 4600), 1700, false, 16);
-    expect(body.animations.some((a) => a.options.fill === 'forwards')).toBe(false);
+    expect(popEl.animations.some((a) => a.options.fill === 'forwards')).toBe(false);
   });
 
   it('shows again, with a squash, if Papa gets busy again while the pop is running', () => {
-    const { bubble, body } = build();
+    const { bubble, outer, popEl } = build();
     bubble.update(papaIn('drink'), 1500, false, 0);
     bubble.update(papaIn('idle', DRINK_END, 0), DRINK_END, false, 16);
-    const pop = body.animations.at(-1) as FakeAnimation;
+    const pop = popEl.animations.at(-1) as FakeAnimation;
     bubble.update(papaIn('onPhone', 4100, 9100), 4100, false, 32);
     expect(pop.isCancelled).toBe(true);
     expect(bubble.isActive).toBe(true);
     expect(bubble.pictogram).toBe('handset');
+    // The cup's class went with the pop: the element carries the handset's alone.
+    expect(pictogramClasses(outer)).toEqual(['pp-activity-bubble--handset']);
     // The cancelled pop's late callback hides nothing.
     pop.finish();
     expect(bubble.isVisible).toBe(true);
   });
 
+  it('takes the pictogram class off when the pop is over, so the next state starts with one class', () => {
+    const { bubble, outer, popEl } = build();
+    bubble.update(papaIn('drink'), 1500, false, 0);
+    bubble.update(papaIn('idle', DRINK_END, 0), DRINK_END, false, 16);
+    // The class stays for the length of the pop, then goes with the bubble.
+    expect(pictogramClasses(outer)).toEqual(['pp-activity-bubble--cup']);
+    (popEl.animations.at(-1) as FakeAnimation).finish();
+    expect(pictogramClasses(outer)).toEqual([]);
+    bubble.update(papaIn('onPhone', 5000, 9000), 5000, false, 48);
+    expect(pictogramClasses(outer)).toEqual(['pp-activity-bubble--handset']);
+  });
+
+  it('keeps its one class when Papa is busy again with the same pictogram during the pop', () => {
+    const { bubble, outer, popEl } = build();
+    bubble.update(papaIn('drink'), 1500, false, 0);
+    bubble.update(papaIn('idle', DRINK_END, 0), DRINK_END, false, 16);
+    bubble.update(papaIn('drink', 4100, 7100), 4100, false, 32);
+    expect(bubble.pictogram).toBe('cup');
+    expect(pictogramClasses(outer)).toEqual(['pp-activity-bubble--cup']);
+    (popEl.animations[1] as FakeAnimation).finish();
+    expect(bubble.isVisible).toBe(true);
+  });
+
   it('just goes under reduced motion: no pop animation', () => {
-    const { bubble, body } = build(true);
+    const { bubble, popEl } = build(true);
     bubble.update(papaIn('drink'), 1500, false, 0);
     bubble.update(papaIn('idle', DRINK_END, 0), DRINK_END, false, 16);
     expect(bubble.isVisible).toBe(false);
-    expect(body.animations).toHaveLength(0);
+    expect(popEl.animations).toHaveLength(0);
   });
 
   it('hide() goes at once with no pop (a restart, the end of the level, a new level)', () => {
-    const { bubble, body, outer } = build();
+    const { bubble, outer, popEl } = build();
     bubble.update(papaIn('drink'), 1500, true, 0);
     bubble.hide();
     expect(bubble.isVisible).toBe(false);
@@ -404,22 +446,49 @@ describe('the end', () => {
     expect(outer.style.display).toBe('none');
     expect(outer.classes.has('pp-activity-bubble--aside')).toBe(false);
     expect(outer.classes.has('pp-activity-bubble--cup')).toBe(false);
-    expect(body.animations.every((a) => a.options.fill !== 'forwards')).toBe(true);
+    expect(popEl.animations.every((a) => a.options.fill !== 'forwards')).toBe(true);
     // And the next busy state starts clean.
     bubble.update(papaIn('drink'), 1500, false, 16);
     expect(bubble.isActive).toBe(true);
   });
 
+  it('hide() on a bubble that shows nothing writes nothing (it runs every frame outside a level)', () => {
+    const { bubble, outer, popEl, body } = build();
+    const writes = () => outer.writes + popEl.writes + body.writes;
+    const before = writes();
+    bubble.hide();
+    bubble.hide();
+    expect(writes()).toBe(before);
+    // After a real hide, the next one is quiet too.
+    bubble.update(papaIn('drink'), 1500, false, 0);
+    bubble.hide();
+    const afterHide = writes();
+    bubble.hide();
+    expect(writes()).toBe(afterHide);
+  });
+
   it('dispose() removes it from the layer with no pop', () => {
-    const { bubble, scene, body } = build();
+    const { bubble, scene, popEl } = build();
     bubble.update(papaIn('drink'), 1500, false, 0);
     bubble.dispose();
     expect(scene.children).toHaveLength(0);
-    expect(body.animations.every((a) => a.options.fill !== 'forwards')).toBe(true);
+    expect(popEl.animations.every((a) => a.options.fill !== 'forwards')).toBe(true);
   });
 });
 
 describe('the shake on a refused tap', () => {
+  it('shakes the body inside the pop, so a squash or a pop never hides it', () => {
+    const { bubble, popEl, body } = build();
+    bubble.update(papaIn('drink'), 1500, false, 0);
+    // The squash is running on the pop; the shake is a class on the body, which the animations never touch.
+    expect(popEl.animations).toHaveLength(1);
+    bubble.shake(5);
+    expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.refused)).toBe(true);
+    expect(popEl.classes.size).toBe(0);
+    expect(body.animations).toHaveLength(0);
+    expect(popEl.children).toContain(body);
+  });
+
   it('puts the shake class on the body for refusedShakeMs of real time, then takes it off', () => {
     const { bubble, body } = build();
     bubble.update(papaIn('drink'), 1500, false, 0);
@@ -475,12 +544,12 @@ describe('the shake on a refused tap', () => {
   });
 
   it('under reduced motion thickens the border instead (a class, no animation), for the same time', () => {
-    const { bubble, body } = build(true);
+    const { bubble, body, popEl } = build(true);
     bubble.update(papaIn('drink'), 1500, false, 0);
     bubble.shake(1000);
     expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.thick)).toBe(true);
     expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.refused)).toBe(false);
-    expect(body.animations).toHaveLength(0);
+    expect(popEl.animations).toHaveLength(0);
     bubble.update(papaIn('drink'), 1500, false, 1000 + ACTIVITY_BUBBLE_REFUSED_SHAKE_MS);
     expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.thick)).toBe(false);
   });
