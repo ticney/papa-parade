@@ -14,14 +14,14 @@ export const GAG_HAIR_MS = 900;
 /** The part of `GAG_HAIR_MS` the hair takes to stand on end, in percent. */
 export const GAG_HAIR_RISE_PCT = 15;
 
-/** The baby slides away from the stairs this far, in metres... */
+/** The baby slides down the stairs this far, in metres... */
 export const GAG_SLIDE_M = 0.6;
-/** ...out over this long, in sim ms (ease-out: it shoots off, then slows)... */
+/** ...out over this long, in sim ms (ease-out: it shoots off, then slows) and stays there while the sim says he is downstairs (story 3.15)... */
 export const GAG_SLIDE_OUT_MS = 500;
-/** ...stays there this long, in sim ms (« ravi »)... */
-export const GAG_SLIDE_HOLD_MS = 500;
-/** ...and is back at the stairs over this long, in sim ms. */
+/** ...and is back at the stairs over this long, in sim ms, when he climbs back or is carried up. */
 export const GAG_SLIDE_BACK_MS = 400;
+/** He sits this much lower than the floor at the bottom of the stairs, in metres (the room has no stairwell to draw: provisional until E7). */
+export const GAG_DOWNSTAIRS_DROP_M = 0.15;
 
 /** What a gag shows. A flag is a stage effect the scene can play; a clip is a one-shot of that character's `.glb`. */
 export interface GagPresentation {
@@ -29,7 +29,7 @@ export interface GagPresentation {
   readonly lightsOff: boolean;
   /** Papa's hair stands on end. */
   readonly hair: boolean;
-  /** The baby slides away from the threat and back (« en bas des marches », provisional: deferred-work.md). */
+  /** The baby goes down the stairs, out and stays while the sim keeps him `downstairs`, then back (story 3.15). */
   readonly babySlide: boolean;
   /** Papa's one-shot, or null. During a glide his squash plays instead: a gag never stops a glide. */
   readonly papaClip: string | null;
@@ -103,23 +103,24 @@ export function hairAmountAt(elapsedMs: number): number {
   return 1 - (elapsedMs - riseMs) / (GAG_HAIR_MS - riseMs);
 }
 
-/** Total time the baby is away from the threat, in sim ms. */
-export const GAG_SLIDE_TOTAL_MS = GAG_SLIDE_OUT_MS + GAG_SLIDE_HOLD_MS + GAG_SLIDE_BACK_MS;
-
 /**
- * How far the baby is from where the gag found it, 0 to `GAG_SLIDE_M` in metres, `elapsedMs` after
- * the gag began: out (ease-out), held, back (ease-in). Exactly 0 before it starts and once it is over.
+ * How far the baby is from where the gag found him, 0 to `GAG_SLIDE_M` in metres, `elapsedMs` after
+ * the stairs gag began: out (ease-out), then held as long as he is downstairs. `releasedAfterMs` is the
+ * `elapsedMs` at which the sim brought him back (null while he is still down): from there he comes back
+ * (ease-in) over `GAG_SLIDE_BACK_MS`, from wherever he had got to. Exactly 0 before it starts and once back.
  */
-export function slideOffsetAt(elapsedMs: number): number {
-  if (!(elapsedMs > 0 && elapsedMs < GAG_SLIDE_TOTAL_MS)) return 0;
-  if (elapsedMs < GAG_SLIDE_OUT_MS) {
-    const left = 1 - elapsedMs / GAG_SLIDE_OUT_MS;
+export function downstairsOffsetAt(elapsedMs: number, releasedAfterMs: number | null): number {
+  const outAt = (ms: number): number => {
+    if (!(ms > 0)) return 0;
+    if (ms >= GAG_SLIDE_OUT_MS) return GAG_SLIDE_M;
+    const left = 1 - ms / GAG_SLIDE_OUT_MS;
     return GAG_SLIDE_M * (1 - left * left);
-  }
-  const backStartMs = GAG_SLIDE_OUT_MS + GAG_SLIDE_HOLD_MS;
-  if (elapsedMs < backStartMs) return GAG_SLIDE_M;
-  const left = 1 - (elapsedMs - backStartMs) / GAG_SLIDE_BACK_MS;
-  return GAG_SLIDE_M * left * left;
+  };
+  if (releasedAfterMs === null || elapsedMs < releasedAfterMs) return outAt(elapsedMs);
+  const sinceMs = elapsedMs - releasedAfterMs;
+  if (sinceMs >= GAG_SLIDE_BACK_MS) return 0;
+  const left = 1 - sinceMs / GAG_SLIDE_BACK_MS;
+  return outAt(releasedAfterMs) * left * left;
 }
 
 /**
@@ -159,15 +160,18 @@ export interface GagStage {
   setLightsFactor(factor: number): void;
   /** Raises Papa's hair: 0 flat, 1 on end. */
   setHairAmount(amount: number): void;
-  /** Offsets the baby's view from its sim position, in metres on the floor plane; (0, 0) puts it back. */
-  setBabySlide(offsetXM: number, offsetZM: number): void;
+  /**
+   * Offsets the baby's view from its sim position, in metres on the floor plane, and lowers him by `dropM`
+   * (story 3.15: « en bas des marches »); (0, 0, 0) puts it back.
+   */
+  setBabySlide(offsetXM: number, offsetZM: number, dropM: number): void;
 }
 
 export interface GagFx {
   /**
    * Starts a gag's presentation at `startAt` (sim ms); a new one restarts the effects it lists.
    * `isMotionReduced` (the player asked for fewer animations) keeps the lights, which carry the
-   * gag, and drops the hair's snap and the baby's slide. `slideDirX` / `slideDirZ` is the unit
+   * gag, and drops the hair's snap; the baby is then put at the bottom of the stairs without the slide. `slideDirX` / `slideDirZ` is the unit
    * vector the baby slides along (`slideDirection`); only a gag with a slide reads it.
    */
   start(
@@ -177,8 +181,18 @@ export interface GagFx {
     slideDirX?: number,
     slideDirZ?: number,
   ): void;
-  /** Sets the stage for `clockMs` (sim ms). Writes only while an effect runs, and a last time when it ends. */
-  update(clockMs: number): void;
+  /**
+   * Sets the stage for `clockMs` (sim ms). Writes only while an effect runs, and a last time when it ends.
+   * `isBabyDownstairs` (the sim's `baby.state`) keeps the baby down the stairs: out and stays while it is
+   * true, back over `GAG_SLIDE_BACK_MS` once it is not. A baby found downstairs with no gag having started
+   * (a restored game) is put there at once, along `fallbackDirX` / `fallbackDirZ`.
+   */
+  update(
+    clockMs: number,
+    isBabyDownstairs?: boolean,
+    fallbackDirX?: number,
+    fallbackDirZ?: number,
+  ): void;
   /** Ends the effects at once and puts the stage back (a restart, a stopped loop). */
   reset(): void;
 }
@@ -191,6 +205,10 @@ export function createGagFx(stage: GagStage): GagFx {
   let lightsStartAt: number | null = null;
   let hairStartAt: number | null = null;
   let slideStartAt: number | null = null;
+  /** The `elapsedMs` at which the baby left `downstairs`, or null while he is down. */
+  let slideReleasedAfterMs: number | null = null;
+  /** True when motion is reduced (or the slide was not seen): the pose without the movement. */
+  let isSlideInstant = false;
   let slideDirX = 0;
   let slideDirZ = 0;
   return {
@@ -198,13 +216,15 @@ export function createGagFx(stage: GagStage): GagFx {
       const presentation = GAG_PRESENTATIONS[gag];
       if (presentation.lightsOff) lightsStartAt = startAt;
       if (presentation.hair && !isMotionReduced) hairStartAt = startAt;
-      if (presentation.babySlide && !isMotionReduced) {
+      if (presentation.babySlide) {
         slideStartAt = startAt;
+        slideReleasedAfterMs = null;
+        isSlideInstant = isMotionReduced;
         slideDirX = dirX;
         slideDirZ = dirZ;
       }
     },
-    update(clockMs) {
+    update(clockMs, isBabyDownstairs = false, fallbackDirX = 0, fallbackDirZ = 1) {
       if (lightsStartAt !== null) {
         const elapsedMs = clockMs - lightsStartAt;
         stage.setLightsFactor(lightsFactorAt(elapsedMs));
@@ -215,20 +235,44 @@ export function createGagFx(stage: GagStage): GagFx {
         stage.setHairAmount(hairAmountAt(elapsedMs));
         if (elapsedMs >= GAG_HAIR_MS) hairStartAt = null;
       }
+      if (slideStartAt === null && isBabyDownstairs) {
+        // Found downstairs with no gag seen (a restored game): at the bottom at once.
+        slideStartAt = clockMs - GAG_SLIDE_OUT_MS;
+        slideReleasedAfterMs = null;
+        isSlideInstant = true;
+        slideDirX = fallbackDirX;
+        slideDirZ = fallbackDirZ;
+      }
       if (slideStartAt !== null) {
         const elapsedMs = clockMs - slideStartAt;
-        const offsetM = slideOffsetAt(elapsedMs);
-        stage.setBabySlide(slideDirX * offsetM, slideDirZ * offsetM);
-        if (elapsedMs >= GAG_SLIDE_TOTAL_MS) slideStartAt = null;
+        if (!isBabyDownstairs && slideReleasedAfterMs === null) {
+          slideReleasedAfterMs = Math.max(0, elapsedMs);
+        }
+        const releasedAfterMs = slideReleasedAfterMs;
+        const offsetM = isSlideInstant
+          ? releasedAfterMs === null
+            ? GAG_SLIDE_M
+            : 0
+          : downstairsOffsetAt(elapsedMs, releasedAfterMs);
+        stage.setBabySlide(
+          slideDirX * offsetM,
+          slideDirZ * offsetM,
+          (offsetM / GAG_SLIDE_M) * GAG_DOWNSTAIRS_DROP_M,
+        );
+        const isBack =
+          releasedAfterMs !== null &&
+          (isSlideInstant || elapsedMs - releasedAfterMs >= GAG_SLIDE_BACK_MS);
+        if (isBack) slideStartAt = null;
       }
     },
     reset() {
       lightsStartAt = null;
       hairStartAt = null;
       slideStartAt = null;
+      slideReleasedAfterMs = null;
       stage.setLightsFactor(1);
       stage.setHairAmount(0);
-      stage.setBabySlide(0, 0);
+      stage.setBabySlide(0, 0, 0);
     },
   };
 }

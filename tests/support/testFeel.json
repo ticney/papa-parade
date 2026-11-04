@@ -58,8 +58,7 @@
     "microSleepMinMs": 8000,
     "microSleepMaxMs": 12000,
     "coffeeReductionPoints": 40,
-    "coffeeDurationMs": 3000,
-    "asleepMs": 3000
+    "coffeeDurationMs": 3000
   },
   "carry": {
     "reachM": 1.2,
@@ -103,6 +102,9 @@
         "noisePct": 5
       },
       "sniff": {
+        "noisePct": 3
+      },
+      "debrisStep": {
         "noisePct": 3
       },
       "snore": {
@@ -217,7 +219,8 @@
     "tableObjectFall": {
       "pushImpulseNs": 0.72,
       "propReachDistM": 0.5
-    }
+    },
+    "debrisStepRadiusM": 0.25
   },
   "fx": {
     "shakeFrequencyHz": 14,
@@ -260,6 +263,10 @@
         "lifeMs": 650,
         "sizeM": 0.12
       }
+    },
+    "dim": {
+      "lightsPct": 40,
+      "fadeMs": 400
     },
     "photoCamera": { "yawDeg": 38, "pitchDeg": 30, "zoomPct": 0 },
     "perfectCamera": {

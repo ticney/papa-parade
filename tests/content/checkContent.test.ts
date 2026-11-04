@@ -811,6 +811,34 @@ describe('checkContent on threat files', () => {
     });
   });
 
+  it('reports an afterEffect whose kind does not fit the gag, naming the def, the gag and the expected kind (story 3.15)', async () => {
+    await mutateJson(FILE, (threat) => {
+      threat.afterEffect = { kind: 'asleep', busyMs: 1000 };
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'afterEffect.kind',
+        message: expect.stringMatching(/"outlet".*"outlet_hair".*"electrified".*"asleep"/),
+      }),
+    );
+  });
+
+  it('reports a silence whose afterEffect is not a mess, whichever surprise gag it draws (story 3.15)', async () => {
+    await mutateJson('content/threats/silence_mischief.json', (threat) => {
+      threat.afterEffect = { kind: 'none' };
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: 'content/threats/silence_mischief.json',
+        jsonPath: 'afterEffect.kind',
+        message: expect.stringMatching(/"silence_mischief".*"mess".*"none"/),
+      }),
+    );
+  });
+
   it('reports a gag the sim does not know', async () => {
     await mutateJson(FILE, (threat) => {
       threat.gag = 'outlet_hairs';

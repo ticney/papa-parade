@@ -9,6 +9,7 @@ import type { EffectiveWindow } from '../timing/effectiveWindow.ts';
 import { firmHoldOutcome, holdEndAt } from '../timing/holdEnd.ts';
 import { judgePress } from '../timing/judge.ts';
 import type { ThreatInstance, World } from '../world.ts';
+import { runAfterEffects } from './afterEffects.ts';
 import { gagThreat, giveFeint, openWindow, rearmThreat, resolveThreat } from './threatFsm.ts';
 
 type SimLevelEntry = StepContext['level']['threats'][number];
@@ -281,4 +282,6 @@ export function runThreats(world: World, ctx: StepContext): void {
       rearmThreat(world, ctx, threat);
     }
   }
+  // The séquelles that end or are noticed on their own (story 3.15), after every gag of the step.
+  runAfterEffects(world, ctx);
 }

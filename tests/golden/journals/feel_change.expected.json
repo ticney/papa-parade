@@ -1,6 +1,6 @@
 {
   "untilSimMs": 20000,
-  "worldHash": "1d2a2588e47d1e",
+  "worldHash": "03cdf48d780c4e",
   "eventTypes": [
     "WaveStarted",
     "BabyStateChanged",
@@ -69,8 +69,13 @@
     "WindowOpened",
     "ResponseResolved",
     "GagTriggered",
+    "PapaStateChanged",
+    "AfterEffectStarted",
+    "AfterEffectStarted",
     "BabyStateChanged",
+    "AfterEffectEnded",
+    "PapaStateChanged",
     "BabyStateChanged"
   ],
-  "eventsHash": "1d016b729ebbda"
+  "eventsHash": "1f3c16a1f7a807"
 }

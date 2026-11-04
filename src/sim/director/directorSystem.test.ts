@@ -486,8 +486,12 @@ describe('the suspicious silence and the director (story 1.21)', () => {
     expect(hiddenAt as number).toBeGreaterThanOrEqual(outletEndedAt as number);
   });
 
-  it('keeps the draws of a level with no silence exactly as before (the baseline trace)', async () => {
-    // Captured on the commit before story 1.21: same rng state and same events, to the byte.
+  it('keeps the draws of a level with no silence exactly as before, séquelles aside (the baseline trace)', async () => {
+    // Captured on the commit before story 1.21: same rng state and same events, to the byte. Re-pinned by
+    // story 3.15, which adds the séquelles: what follows a gag moves the rest of the game (a baby left downstairs
+    // draws no babble, a Papa electrified or asleep answers nothing, hence other gags) and adds `AfterEffect*` and
+    // `PapaStateChanged` events (217 instead of 183). `baselineTrace.test.ts` is the proof that the draws
+    // themselves did not move: with the séquelles switched off it ends on the rng state captured before.
     const sim = await createSim({
       content,
       geometry,
@@ -505,15 +509,15 @@ describe('the suspicious silence and the director (story 1.21)', () => {
       seed: 7,
     });
     const events = runTo(sim, 60_000);
-    expect(sim.world.rng).toEqual({ a: 1581132668, b: 1663718832, c: 1567227279, d: 81 });
-    expect(events).toHaveLength(183);
+    expect(sim.world.rng).toEqual({ a: 1395406730, b: -1107192812, c: 768810317, d: 71 });
+    expect(events).toHaveLength(217);
     // Story 2.1 added `responseWindow` to `ResponseResolved`: the trace is compared as it was captured, without it.
     const asCaptured = events.map((event) => {
       if (event.type !== 'ResponseResolved') return event;
       const { responseWindow: _responseWindow, ...rest } = event;
       return rest;
     });
-    expect(hashJson(asCaptured)).toBe('01c85cbbfc3da3');
+    expect(hashJson(asCaptured)).toBe('0576724a320731');
   });
 
   describe('ForceThreat', () => {

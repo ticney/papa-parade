@@ -696,6 +696,12 @@ const RenderSchema = z
       .describe(
         'The reserved alert glow on the anchor of a telegraphed or open threat (story 7.3, D5).',
       ),
+    decalWallHeightM: z
+      .number()
+      .positive()
+      .describe(
+        "The colliders taller than this are the room's walls, no cover for the mess of a silence on the floor: its decal is moved off the furniture that hides it, never off the wall (story 3.15).",
+      ),
     blobSkipColliderIds: z
       .array(z.string().min(1))
       .describe(

@@ -46,7 +46,7 @@ import { SEQUENCE_HANDLER_KINDS } from './sequences/sequenceSteps.ts';
 import { sequenceStealthProblems, stealthRoomOf } from './sequences/stealthExit.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
-import { GAG_IDS, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
+import { afterEffectProblem, GAG_IDS, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
 import { consumeFreeze, createFreezeState, requestFreeze } from './time/hitstop.ts';
 import { allocateId, createWorld, type World } from './world.ts';
 
@@ -502,6 +502,12 @@ function simLevelOf(
     );
     invariant(cycleProblem === undefined, `level ${level.level.id} › cycle: ${cycleProblem}`);
   }
+  // Every other check first, so that a wrong gag is told by the more specific message; then the séquelle's kind (story 3.15).
+  for (const [defId, def] of Object.entries(level.threats)) {
+    const problem = afterEffectProblem(defId, gagIdsOf(def), def.afterEffect.kind);
+    invariant(problem === null, `level ${level.level.id}: ${problem}`);
+  }
+
   return {
     cycle:
       levelCycle === undefined

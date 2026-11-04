@@ -76,10 +76,10 @@ function pressCentre(sim: Sim): void {
 }
 
 describe('the feint in a snapshot (story 4.7)', () => {
-  it('is version 29 and carries a clear feint at rest', async () => {
+  it('is version 30 and carries a clear feint at rest', async () => {
     const sim = await started();
     const snapshot = roundTrip(sim);
-    expect(snapshot.version).toBe(29);
+    expect(snapshot.version).toBe(30);
     expect(snapshot.world.threats.find((threat) => threat.defId === 'fake_sleep')).toMatchObject({
       feintAt: null,
       isFeintGiven: false,

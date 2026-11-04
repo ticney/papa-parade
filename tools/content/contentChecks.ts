@@ -36,6 +36,7 @@ import {
   STEP_MS,
 } from '@shared/constants';
 import {
+  afterEffectProblem,
   beatWindowLimitsOf,
   cycleProblems,
   cycleRoomForGeometry,
@@ -395,6 +396,14 @@ function checkThreatReferences(
           message: `"${PAPA_ASLEEP_GAG_ID}" is the micro-sleep's gag: only a threat with target "papa" may end in it`,
         });
       }
+    }
+    const afterEffectMismatch = afterEffectProblem(
+      id,
+      ThreatGagIds(threat),
+      threat.afterEffect.kind,
+    );
+    if (afterEffectMismatch !== null) {
+      problems.push({ file, jsonPath: 'afterEffect.kind', message: afterEffectMismatch });
     }
     if (feedback === undefined) continue;
     for (const [role, cueId] of Object.entries(threat.feedback)) {

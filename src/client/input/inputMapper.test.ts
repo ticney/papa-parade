@@ -84,6 +84,7 @@ function setup() {
   const taps: [number, number][] = [];
   let nowAtReal = 2000;
   let visualOffsetMs = 0;
+  let babySlide = { xM: 0, zM: 0 };
   const pressedIds: number[] = [];
   let targets: ThreatTargets | null = null;
   const moveIntent = createMoveIntent({
@@ -133,6 +134,7 @@ function setup() {
     babyBodyRadiusM: BABY_RADIUS_M,
     babyCarriedHeightM: BABY_CARRIED_HEIGHT_M,
     babyCarriedForwardM: BABY_CARRIED_FORWARD_M,
+    getBabySlideM: () => babySlide,
     onThreatPressed: (id) => pressedIds.push(id),
     showTapMarker: (x, z) => markers.push([x, z]),
     onTap: (x, z) => taps.push([x, z]),
@@ -146,6 +148,9 @@ function setup() {
     padButtons,
     padPresence,
     setObjects: (next: ObjectTarget[]) => (objects = next),
+    setBabySlide: (xM: number, zM: number) => {
+      babySlide = { xM, zM };
+    },
     state,
     commands,
     held,
@@ -2202,6 +2207,118 @@ describe('createInputMapper: tidying in the final rush (story 3.5)', () => {
       sim.world.flow.state = 'playing';
       mapper.handleAction('down', 1500, 'keyboard');
       expect(commands).toEqual([]);
+    });
+  });
+});
+
+describe('createInputMapper: the debris of the coffee table (story 3.15)', () => {
+  const MUG = {
+    id: 'mug_01',
+    xM: 0.8,
+    yM: 0.05,
+    zM: 0.2,
+    isMess: true,
+    debrisPickUpMs: 1500,
+  };
+  const CUSHION = { id: 'cushion_01', xM: -1.4, yM: 0.05, zM: -1, isMess: true };
+  const pxOfPoint = (
+    camera: Parameters<typeof Vector3.prototype.project>[0],
+    o: { xM: number; yM: number; zM: number },
+  ) => {
+    const v = new Vector3(o.xM, o.yM, o.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+
+  function playing(props: unknown[] = [MUG, CUSHION]) {
+    const harness = setup();
+    (harness.sim.world.props as unknown[]).push(...props.map((prop) => ({ ...(prop as object) })));
+    return harness;
+  }
+
+  it('taps a debris during the level, and only a debris: a mess without the mark is just floor', () => {
+    const { mapper, commands, markers, camera } = playing();
+    const mug = pxOfPoint(camera, MUG);
+    mapper.handlePointerDown(click(mug.x, mug.y));
+    expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'mug_01' }]);
+    expect(markers).toEqual([[MUG.xM, MUG.zM]]);
+    commands.length = 0;
+    const cushion = pxOfPoint(camera, CUSHION);
+    mapper.handlePointerDown(click(cushion.x, cushion.y));
+    expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
+  });
+
+  describe('Space / A', () => {
+    it('walks to the nearest debris within contextReachM, and ignores a mess that is no debris', () => {
+      const { mapper, commands } = playing();
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'mug_01' }]);
+      const none = playing([{ ...CUSHION, xM: 0.5, zM: 0 }]);
+      none.mapper.handleAction('down', 1500, 'keyboard');
+      expect(none.commands).toEqual([]);
+    });
+
+    it('lets the baby come first while he is in the arms (put down) or at the bottom of the stairs (fetch)', () => {
+      for (const state of ['carried', 'downstairs']) {
+        const { mapper, sim, commands } = playing();
+        Object.assign(sim.world.baby, { xM: 0.1, zM: 0, state });
+        mapper.handleAction('down', 1500, 'keyboard');
+        expect(commands, state).toEqual([{ type: 'TapBaby', t: 500 }]);
+      }
+    });
+
+    it('picks the debris up with a free baby in reach, as it does with none', () => {
+      const { mapper, sim, commands } = playing();
+      Object.assign(sim.world.baby, { xM: 0.1, zM: 0, state: 'babble' });
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'mug_01' }]);
+    });
+  });
+
+  describe('the baby at the bottom of the stairs', () => {
+    const BABY = { xM: -1, zM: 0.5 };
+    const SLIDE = { xM: -2, zM: 0.8 };
+
+    it('is aimed where he is drawn (slid away from his sim point), not at his sim point', () => {
+      const { mapper, sim, commands, setBabySlide, camera } = playing([]);
+      Object.assign(sim.world.baby, { ...BABY, state: 'downstairs' });
+      setBabySlide(SLIDE.xM, SLIDE.zM);
+      const drawn = pxOfPoint(camera, {
+        xM: BABY.xM + SLIDE.xM,
+        yM: BABY_RADIUS_M,
+        zM: BABY.zM + SLIDE.zM,
+      });
+      mapper.handlePointerDown(click(drawn.x, drawn.y));
+      expect(commands).toEqual([{ type: 'TapBaby', t: 234 }]);
+    });
+
+    it('is not aimed at his sim point once he is drawn elsewhere', () => {
+      const { mapper, sim, commands, setBabySlide, camera } = playing([]);
+      Object.assign(sim.world.baby, { ...BABY, state: 'downstairs' });
+      setBabySlide(SLIDE.xM, SLIDE.zM);
+      const sim_ = pxOfPoint(camera, { ...BABY, yM: BABY_RADIUS_M });
+      const drawn = pxOfPoint(camera, {
+        xM: BABY.xM + SLIDE.xM,
+        yM: BABY_RADIUS_M,
+        zM: BABY.zM + SLIDE.zM,
+      });
+      // Only meaningful if the two points are farther apart than the touch radius.
+      expect(Math.hypot(sim_.x - drawn.x, sim_.y - drawn.y)).toBeGreaterThan(
+        OBJECT_TOUCH_RADIUS_PX,
+      );
+      mapper.handlePointerDown(click(sim_.x, sim_.y));
+      expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
+    });
+
+    it('ignores the slide for a baby who is not downstairs', () => {
+      const { mapper, sim, commands, setBabySlide, camera } = playing([]);
+      Object.assign(sim.world.baby, { ...BABY, state: 'babble' });
+      setBabySlide(SLIDE.xM, SLIDE.zM);
+      const at = pxOfPoint(camera, { ...BABY, yM: BABY_RADIUS_M });
+      mapper.handlePointerDown(click(at.x, at.y));
+      expect(commands).toEqual([{ type: 'TapBaby', t: 234 }]);
     });
   });
 });

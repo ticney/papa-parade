@@ -240,6 +240,137 @@
           "additionalProperties": false,
           "description": "Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11)."
         },
+        "afterEffect": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "none"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false,
+              "description": "No séquelle (costed later, GDD)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "electrified"
+                },
+                "busyMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa cannot answer, in sim ms (at most 2000)."
+                },
+                "dimMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "How long the room stays dim after the gag, in sim ms."
+                }
+              },
+              "required": [
+                "kind",
+                "busyMs",
+                "dimMs"
+              ],
+              "additionalProperties": false,
+              "description": "Papa is electrified (cannot answer) and the room goes dim (the outlet)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "babyDownstairs"
+                },
+                "carryUpMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa is busy carrying the baby back up, in sim ms (at most 2000)."
+                },
+                "selfReturnMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "If Papa does not fetch him, the baby climbs back by himself after this long, in sim ms."
+                }
+              },
+              "required": [
+                "kind",
+                "carryUpMs",
+                "selfReturnMs"
+              ],
+              "additionalProperties": false,
+              "description": "The baby is at the bottom of the stairs; Papa must fetch him (the stairs)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "debris"
+                },
+                "pickUpMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa is busy picking the debris up, in sim ms (at most 2000)."
+                }
+              },
+              "required": [
+                "kind",
+                "pickUpMs"
+              ],
+              "additionalProperties": false,
+              "description": "The pushed object stays on the floor until picked up (the coffee table)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "mess"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false,
+              "description": "The mischief stays visible until the end of the level and on the photo (the silence)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "asleep"
+                },
+                "busyMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 3000,
+                  "description": "How long Papa sleeps, in sim ms (at most 3000)."
+                }
+              },
+              "required": [
+                "kind",
+                "busyMs"
+              ],
+              "additionalProperties": false,
+              "description": "Papa nods off (the micro-sleep)."
+            }
+          ],
+          "description": "The séquelle of the threat's gag (story 3.15)."
+        },
         "cooldownMs": {
           "type": "number",
           "minimum": 0,
@@ -276,6 +407,7 @@
         "iconShape",
         "color",
         "feedback",
+        "afterEffect",
         "cooldownMs",
         "target",
         "gag"
@@ -522,6 +654,137 @@
           "additionalProperties": false,
           "description": "Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11)."
         },
+        "afterEffect": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "none"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false,
+              "description": "No séquelle (costed later, GDD)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "electrified"
+                },
+                "busyMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa cannot answer, in sim ms (at most 2000)."
+                },
+                "dimMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "How long the room stays dim after the gag, in sim ms."
+                }
+              },
+              "required": [
+                "kind",
+                "busyMs",
+                "dimMs"
+              ],
+              "additionalProperties": false,
+              "description": "Papa is electrified (cannot answer) and the room goes dim (the outlet)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "babyDownstairs"
+                },
+                "carryUpMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa is busy carrying the baby back up, in sim ms (at most 2000)."
+                },
+                "selfReturnMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "If Papa does not fetch him, the baby climbs back by himself after this long, in sim ms."
+                }
+              },
+              "required": [
+                "kind",
+                "carryUpMs",
+                "selfReturnMs"
+              ],
+              "additionalProperties": false,
+              "description": "The baby is at the bottom of the stairs; Papa must fetch him (the stairs)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "debris"
+                },
+                "pickUpMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa is busy picking the debris up, in sim ms (at most 2000)."
+                }
+              },
+              "required": [
+                "kind",
+                "pickUpMs"
+              ],
+              "additionalProperties": false,
+              "description": "The pushed object stays on the floor until picked up (the coffee table)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "mess"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false,
+              "description": "The mischief stays visible until the end of the level and on the photo (the silence)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "asleep"
+                },
+                "busyMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 3000,
+                  "description": "How long Papa sleeps, in sim ms (at most 3000)."
+                }
+              },
+              "required": [
+                "kind",
+                "busyMs"
+              ],
+              "additionalProperties": false,
+              "description": "Papa nods off (the micro-sleep)."
+            }
+          ],
+          "description": "The séquelle of the threat's gag (story 3.15)."
+        },
         "cooldownMs": {
           "type": "number",
           "minimum": 0,
@@ -564,6 +827,7 @@
         "iconShape",
         "color",
         "feedback",
+        "afterEffect",
         "cooldownMs",
         "target",
         "findMaxMs",

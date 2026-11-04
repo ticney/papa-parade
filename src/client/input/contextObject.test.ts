@@ -94,4 +94,15 @@ describe('pickMessProp (story 3.5)', () => {
     expect(pickMessProp([prop('tidy', 0.5, 0, false)], 0, 0, 1.5)).toBeNull();
     expect(pickMessProp([], 0, 0, 1.5)).toBeNull();
   });
+
+  it('with isDebrisOnly (story 3.15) skips a mess that is no debris, even the nearest', () => {
+    const props = [
+      { ...prop('cushion', 0.2, 0), debrisPickUpMs: 0 },
+      prop('book', 0.5, 0),
+      { ...prop('mug', 1, 0), debrisPickUpMs: 1500 },
+    ];
+    expect(pickMessProp(props, 0, 0, 1.5)).toBe('cushion');
+    expect(pickMessProp(props, 0, 0, 1.5, true)).toBe('mug');
+    expect(pickMessProp(props.slice(0, 2), 0, 0, 1.5, true)).toBeNull();
+  });
 });

@@ -1,0 +1,28 @@
+{
+  "untilSimMs": 10000,
+  "worldHash": "013eaa65892899",
+  "eventTypes": [
+    "ThreatTelegraphed",
+    "BabyStateChanged",
+    "BabyStateChanged",
+    "WindowOpened",
+    "ResponseResolved",
+    "GagTriggered",
+    "PapaStateChanged",
+    "AfterEffectStarted",
+    "AfterEffectStarted",
+    "BabyStateChanged",
+    "AfterEffectEnded",
+    "PapaStateChanged",
+    "BabyStateChanged",
+    "PapaPathPlanned",
+    "PapaStateChanged",
+    "PapaArrived",
+    "PapaStateChanged",
+    "BabyStateChanged",
+    "ThreatRearmed",
+    "AfterEffectEnded",
+    "BabyStateChanged"
+  ],
+  "eventsHash": "1719fa8cd97a7b"
+}

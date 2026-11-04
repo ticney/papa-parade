@@ -24,6 +24,7 @@ import {
   ppFreeze,
   ppLoadLevel,
   ppSend,
+  ppSetFeel,
   ppWorld,
 } from './support/testApi.ts';
 
@@ -35,6 +36,8 @@ import {
 const LEVEL = 'salon_crawler';
 const SEED = 42;
 const CHUNK_STEPS = 10;
+/** A visit short enough to end before the next outlet (story 3.15: a gag during a visit cancels it). */
+const SHORT_VISIT_MS = 1500;
 const PILL = '[data-pp-zone="gauges"] > .pp-hud-gauges';
 const GAUGE_LABELS = [STRINGS['gauge.noise'], STRINGS['gauge.fatigue'], STRINGS['gauge.urge']];
 const NEED_GAUGE = `${PILL} > .pp-hud-gauge[aria-label^="${STRINGS['gauge.urge']} "]`;
@@ -311,13 +314,21 @@ test.describe('the door', () => {
     await recordVibrations(page);
     await openFrozen(page);
     const vibrationsBefore = hasVibrate() ? (await vibrations(page)).length : 0;
+    // The first outlet gags before Papa can get to the door, and its shock (story 3.15) would cancel a
+    // visit: let it go by, and keep the visit short enough to end before the next one is up (it is at
+    // least `cooldownMs` away from that gag).
+    await advanceUntil(page, 'the first gag', 15_000, (w) =>
+      w.threats.some((t) => t.state === 'gag'),
+    );
+    await advanceUntil(page, 'the end of the shock', 4000, (w) => w.papa.state === 'idle');
+    await ppSetFeel(page, { bladder: { toiletDurationMs: SHORT_VISIT_MS } });
     await ppSend(page, { type: 'SetBladder', pct: 100 });
     await ppSend(page, { type: 'TapObject', objectId: 'toilet' });
     await advanceUntil(page, 'the visit', WALK_BOUND_MS * 2, (w) => w.papa.state === 'onToilet');
     await advanceUntil(
       page,
       'the end of the visit',
-      bladder.toiletDurationMs + 2000,
+      SHORT_VISIT_MS + 2000,
       (w) => w.papa.state === 'idle',
     );
     const cues = (await ppCueLog(page)).map((entry) => entry.cueId);

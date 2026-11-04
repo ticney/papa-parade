@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { parseContentFile } from '@content/parseContentFile';
 import { ThreatDefSchema } from '@content/schemas/threat';
+import { AFTER_EFFECT_BUSY_MAX_MS, MICRO_SLEEP_BUSY_MAX_MS } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 
 // Tunable values are never pinned here (golden rule: Geo tunes them). Structure, ranges and
@@ -324,5 +325,63 @@ describe('content/threats/silence_mischief.json (story 1.21)', () => {
       .filter(([, value]) => typeof value === 'number')
       .map(([key]) => key);
     expect(keys.filter((key) => !UNIT_SUFFIX.test(key))).toEqual([]);
+  });
+});
+
+describe('afterEffect (story 3.15)', () => {
+  const effects: [string, Record<string, unknown>][] = [
+    ['none', { kind: 'none' }],
+    ['electrified', { kind: 'electrified', busyMs: 1500, dimMs: 6000 }],
+    ['babyDownstairs', { kind: 'babyDownstairs', carryUpMs: 2000, selfReturnMs: 6000 }],
+    ['debris', { kind: 'debris', pickUpMs: 1000 }],
+    ['mess', { kind: 'mess' }],
+    ['asleep', { kind: 'asleep', busyMs: 3000 }],
+  ];
+
+  it.each(effects)('accepts a %s afterEffect', (_kind, effect) => {
+    expect(mutated(['afterEffect', effect])).toMatchObject({ ok: true });
+  });
+
+  it('is required: a def with none is refused at `afterEffect`', () => {
+    expect(failedPaths(mutated(['afterEffect', undefined]))).toContain('afterEffect');
+  });
+
+  it('refuses an unknown kind, a missing duration and a key of another kind', () => {
+    expect(mutated(['afterEffect', { kind: 'burning' }]).ok).toBe(false);
+    expect(mutated(['afterEffect', { kind: 'electrified', busyMs: 1500 }]).ok).toBe(false);
+    expect(mutated(['afterEffect', { kind: 'mess', busyMs: 1000 }]).ok).toBe(false);
+    expect(mutated(['afterEffect', { kind: 'none', dimMs: 1000 }]).ok).toBe(false);
+    expect(mutated(['afterEffect', { kind: 'debris', pickUpMs: 1000, extra: 1 }]).ok).toBe(false);
+  });
+
+  it('holds what keeps Papa busy to AFTER_EFFECT_BUSY_MAX_MS (2 s), and the nap to MICRO_SLEEP_BUSY_MAX_MS (3 s)', () => {
+    const at = (effect: Record<string, unknown>) => mutated(['afterEffect', effect]).ok;
+    expect(at({ kind: 'electrified', busyMs: AFTER_EFFECT_BUSY_MAX_MS, dimMs: 6000 })).toBe(true);
+    expect(at({ kind: 'electrified', busyMs: AFTER_EFFECT_BUSY_MAX_MS + 1, dimMs: 6000 })).toBe(
+      false,
+    );
+    expect(
+      at({ kind: 'babyDownstairs', carryUpMs: AFTER_EFFECT_BUSY_MAX_MS + 1, selfReturnMs: 6000 }),
+    ).toBe(false);
+    expect(at({ kind: 'debris', pickUpMs: AFTER_EFFECT_BUSY_MAX_MS + 1 })).toBe(false);
+    expect(at({ kind: 'asleep', busyMs: MICRO_SLEEP_BUSY_MAX_MS })).toBe(true);
+    expect(at({ kind: 'asleep', busyMs: MICRO_SLEEP_BUSY_MAX_MS + 1 })).toBe(false);
+    // The nap's cap is not the others': 2.5 s of electrified is refused, 2.5 s of nap is not.
+    expect(at({ kind: 'electrified', busyMs: 2500, dimMs: 6000 })).toBe(false);
+    expect(at({ kind: 'asleep', busyMs: 2500 })).toBe(true);
+  });
+
+  it('wants every duration to be a positive whole number of ms', () => {
+    for (const bad of [0, -100, 1.5]) {
+      expect(mutated(['afterEffect', { kind: 'electrified', busyMs: bad, dimMs: 6000 }]).ok).toBe(
+        false,
+      );
+      expect(mutated(['afterEffect', { kind: 'electrified', busyMs: 1500, dimMs: bad }]).ok).toBe(
+        false,
+      );
+      expect(
+        mutated(['afterEffect', { kind: 'babyDownstairs', carryUpMs: 1000, selfReturnMs: bad }]).ok,
+      ).toBe(false);
+    }
   });
 });

@@ -85,6 +85,11 @@ export interface InputMapperDeps {
    * aims there, not at Papa's feet axis. Read at each tap.
    */
   babyCarriedForwardM: number;
+  /**
+   * How far the baby is drawn from his sim point on the floor (the stairs gag's slide, story 3.15): a
+   * tap aims at the drawn baby, so it follows him while he is downstairs. Absent: no offset.
+   */
+  getBabySlideM?(): Readonly<{ xM: number; zM: number }>;
   /** The interactive objects of the level being played (`sim.objects`), or an empty list. */
   getObjects(): readonly ObjectTarget[];
   /**
@@ -192,14 +197,16 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     world: Readonly<World>,
     objects: readonly ObjectTarget[],
   ): readonly PickTarget[] => {
-    if (world.flow.state !== 'finalRush') return objects;
+    // Outside the rush a debris of the coffee table's gag is a target too (story 3.15): picked up on arrival.
+    const isRush = world.flow.state === 'finalRush';
+    // The level's objects first, then the props (a tie goes to the object).
     messTargets.length = 0;
     for (let i = 0; i < objects.length; i++) messTargets.push(objects[i] as ObjectTarget);
     for (let i = 0; i < world.props.length; i++) {
       const prop = world.props[i] as World['props'][number];
-      if (prop.isMess) messTargets.push(prop);
+      if (prop.isMess && (isRush || prop.debrisPickUpMs > 0)) messTargets.push(prop);
     }
-    return messTargets;
+    return messTargets.length === objects.length ? objects : messTargets;
   };
   let lastDevice: InputDevice | null = null;
   let wasPadPresent = false;
@@ -375,9 +382,12 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     const { papa, baby } = active.sim.world;
     const { contextReachM } = deps.input;
     // In the final rush a prop that is a mess comes first (story 3.5): ahead of the baby, carried or
-    // not, and of any object. With none in reach the action is what it always was.
-    if (active.sim.world.flow.state === 'finalRush') {
-      const propId = pickMessProp(active.sim.world.props, papa.xM, papa.zM, contextReachM);
+    // not, and of any object. Outside it only a debris of the coffee table's gag counts (story 3.15),
+    // and the baby comes first while he is in the arms (put him down) or at the bottom of the stairs
+    // (fetch him). With none in reach the action is what it always was.
+    const isRush = active.sim.world.flow.state === 'finalRush';
+    if (isRush || (baby.state !== 'carried' && baby.state !== 'downstairs')) {
+      const propId = pickMessProp(active.sim.world.props, papa.xM, papa.zM, contextReachM, !isRush);
       if (propId !== null) {
         active.sim.enqueue({ type: 'TapObject', t, objectId: propId });
         return;
@@ -607,6 +617,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       // Where he is drawn: lifted, and a little in front of Papa, when he is in his arms.
       babyAim.xM = isCarried ? baby.xM + baby.gazeX * deps.babyCarriedForwardM : baby.xM;
       babyAim.zM = isCarried ? baby.zM + baby.gazeZ * deps.babyCarriedForwardM : baby.zM;
+      // Downstairs he is drawn away from his sim point, lower: aim at the drawn body.
+      if (baby.state === 'downstairs') {
+        const slideM = deps.getBabySlideM?.();
+        if (slideM !== undefined) {
+          babyAim.xM += slideM.xM;
+          babyAim.zM += slideM.zM;
+        }
+      }
       const babyDistSq = deps.hitTester.pickBaby(
         sample.clientX,
         sample.clientY,

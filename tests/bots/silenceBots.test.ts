@@ -78,6 +78,7 @@ describe('the bots and the suspicious silence', () => {
         time: { sim },
         threats: [],
         silence: { threatId: startedAt === null ? null : 1, zoneEnteredAt: startedAt, startedAt },
+        baby: { state: 'babble', downstairsUntil: null },
         cycle: { index: 0, nextAt: null, completedAt: null },
         flow: { state: 'playing', enteredAt: 0, finalRushAt: null },
         props: [],

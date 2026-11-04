@@ -408,7 +408,7 @@ if (log.enabled('debug')) log.debug('input', 'press mapped', { target: hit.kind,
 **Ajouts v2.3 (2026-11-03) :**
 - `LevelEnded.reason` gagne `mamaHome` (jauge de catastrophe pleine : fin anticipée, sans rush final, 0 étoile). Le journal exporté garde la raison ; `sim:replay` la rejoue.
 - `CatastropheChanged{value, delta}` (story 3.16), sur le modèle de `NoiseChanged`.
-- `AfterEffectStarted{kind, until}` / `AfterEffectEnded{kind}` : séquelles des gags (story 3.15).
+- `AfterEffectStarted{kind, until, propId}` / `AfterEffectEnded{kind, propId}` : séquelles des gags (story 3.15). `kind` est celui du `afterEffect` de la menace (`electrified`, `babyDownstairs`, `debris`, `mess`, `asleep`) plus `dim` (la pénombre) et `carryUp` (la seconde moitié de la séquelle de l'escalier) ; `until` est `null` pour `debris` et `mess` ; `propId` n'est non nul que pour `debris` (plusieurs débris s'empilent, leurs fins se distinguent). `DebrisSteppedOn{propId}` : Papa marche sur un débris (+3 % de bruit). Le sim publie des faits, le client dessine (la pénombre ne touche que les lumières 3D).
 - `ChoreBeatTelegraphed` / `ChoreBeatJudged{quality}` / `ChoreCompleted` : tâches de la maison (E9, stories 9.4–9.6).
 - `TapRefused{t, threatId}` : commande visant une menace pendant une occupation non interruptible ; elle reste refusée, mais le refus devient visible et audible (story 2.12, bulle d'activité).
 

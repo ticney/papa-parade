@@ -973,7 +973,7 @@ Open:
 
 ## Deferred from: code review of 2-12-bulle-d-activite-de-papa-et-tap-refuse-visible (2026-11-04)
 
-- **The activity ring refills when an already-asleep Papa is put to sleep again** (`src/sim/papa/sleep.ts:28-31`, `src/sim/papa/papaFsm.ts:73-81`): `busyUntil` is extended but `enterPapaState` returns early, so `enteredAt` is not updated and no event is emitted; the bubble's ring (`enteredAt`, `busyUntil`) jumps back up (for example 20 % to 70 %) with no cue. Not confirmed that a level can produce it. Reason: sim-side behaviour that predates the bubble; check when 3.15's after-effects can stack on a nap.
+- **The activity ring refills when an already-asleep Papa is put to sleep again** (`src/sim/papa/sleep.ts:28-31`, `src/sim/papa/papaFsm.ts:73-81`): `busyUntil` is extended but `enterPapaState` returns early, so `enteredAt` is not updated and no event is emitted; the bubble's ring (`enteredAt`, `busyUntil`) jumps back up (for example 20 % to 70 %) with no cue. Not confirmed that a level can produce it. Reason: sim-side behaviour that predates the bubble; check when 3.15's after-effects can stack on a nap. **Closed by story 3.15:** `occupyPapa` (`threats/afterEffects.ts`) replaces a séquelle without extending it and does nothing at all for the same one again; `putPapaToSleep` is gone, and `AfterEffectStarted` / `AfterEffectEnded` tell the bubble and the log.
 - **The « Papa is free » ding plays on a busy → idle → busy chain inside one sim step** (`src/client/feedback/simEventFeedback.ts:46-52`, `src/sim/papa/sleep.ts:19-31`): a nap landing on the step a coffee or toilet visit ends emits `drink → idle` then `idle → asleep`; the cue fires but the bubble only swaps. Reason: very rare and cosmetic; revisit with the feel pass on the cues (story 2.13 / playtest).
 
 ## Deferred from: code review of 3-14-joueur-simule-humain-realiste (2026-11-04)
@@ -1002,8 +1002,26 @@ Open:
 - **Left for Geo by the screenshots of `salon_kitchen`** (what only Geo can judge): the plan itself (D3: kitchen at the −x end, living corner at +x); whether the HUD's gauges, which cover the wall cabinets and the top of the side run at 844 × 390 and 667 × 375, hide too much; the colours of the new pieces (sky cloth, coral pan and pot, paper / butter tiles); the floor's 3:1 contrast, checked by the numbers only.
 - **Still open from 1.6 and 7.1, unchanged:** no drift check between a `.blend` and its committed geometry; gameplay nodes still ship in the `.glb`.
 
+
 ## Deferred from: code review of 9-1-grand-salon-avec-cuisine-ouverte-dans-blender (2026-11-04)
 
 - **The Rapier +x wall of `salon_kitchen` sits 0.9 m beyond the floor** (`boundsMaxM.x` 7.65 against a nav edge of 6.75, from the stairs visual): the salon has the same (4.9 against 4.0) and the living-corner block moved with it. Reason: inherited from the salon; walkability is not affected.
 - **`NAV_block_` ↔ `COL_` parity is not pinned by a test**: the geometry JSON does not carry the NAV nodes, so only the `.glb` shows it (the review checked it by hand: correct today). Reason: same gap as « no drift check between a `.blend` and its committed geometry » (1.6, 7.1).
 - **`salonKitchen.spec.ts` catches `[assets]` warnings in its third test only**, with no positive control that the pattern would match; tests 1 and 2 let `OWN_WARNINGS` through. Reason: copied from `chambreNight.spec.ts`; the `.glb` has all five `PROP_*` nodes today.
+
+## Deferred from: story 3-15-sequelles-des-gags (2026-11-04)
+
+- **A debris is not a target of the baby** (GDD mechanic 13, catalogue: « deviennent une cible possible du bébé »): needs a threat anchor that moves with a prop, which the director and `lockOnThreat` do not have. Reason: Geo's call (open point 4): E9's new bêtises are the place; the debris only costs the Sigh, a step's noise and a pick-up for now. A broken prop is not a debris either (« cassé » counts 4 in the Sigh and nothing repairs it).
+- **The bottom of the stairs is a drawing, not a place** (`src/client/render/gags.ts`, `GAG_SLIDE_M`, `GAG_DOWNSTAIRS_DROP_M`): the sim keeps the baby at the stairs' end of the room and the client slides him 0.6 m out and 0.15 m down; there is no `stairs_bottom` anchor and no stairwell to draw him in. Reason: no Blender work in this story; the Blender story of the catch-up (2.13) did not cover it. Revisit at E7.
+- **The stairs' cost may feel light** (open point 5): while the baby is downstairs no threat that needs him starts, so the séquelle is mostly the two seconds of the carry and the near miss on the note. To check at the playtest after 3.16.
+- **The mischief decal of a silence is drawn where the baby was visible from, not where he hid** (`src/client/render/vfx/mischiefDecals.ts`, `visibleDecalPoint`): behind the sofa nothing can be seen from the game or the photo camera, so the decal is moved along the line of sight to the first floor point no collider hides (about two metres from the hiding place in the salon). Reason: « visible from the level camera » won over « at its point »; E7 may give the mess a place the camera can see.
+- **The « Papa is free » ding can chain more often** (`src/client/feedback/simEventFeedback.ts`): a pick-up or a carry that ends on the step a séquelle lands emits `busy → idle → busy` in one step, which `occupyPapa` makes a little likelier. Not seen in the e2e runs; left as the 2.12 item says.
+- **The nap, the shock and the carry share one pictogram** (`ACTIVITY_PICTOGRAMS`: `stars`): a player cannot tell them apart from the bubble alone, which is what the GDD's « étoiles de vertige pour une séquelle » asks for; Papa's clip tells them apart (`asleep`, `gag_shock`, `carry_idle`). Revisit with the feel pass.
+- **`pickingUp` has no clip of its own** (`src/client/render/views/characterClips.ts`): Papa plays `idle` while he picks a debris up (the `.glb` has no bending clip, and no Blender work is in this story).
+
+## Deferred from: code review of 3-15-sequelles-des-gags (2026-11-04)
+
+- **`restore` validates the 3.15 slices loosely** (`src/sim/snapshot.ts`): `mischiefMarks[].gag` accepts any `GAG_ID`, `steppedDebrisIndex` may point at a non-debris prop, `dimUntil` is not tied to the clock and `fetchBaby` is not tied to the baby state. Only a hand-edited snapshot hits it.
+- **`downstairsDefOf` takes the first `babyDownstairs` def** (`src/sim/threats/afterEffects.ts`): `startCarryUp` returns silently when none is found and nothing enforces « one stairs per level ». Add a `content:check` rule when a level has two.
+- **`simReport.afterEffects.meanPerRun` mixes kinds** (`tools/sim/simReport.ts`): an outlet gag counts as `electrified` + `dim`, a fetch adds `carryUp` to `babyDownstairs`; read `byKind`. Revisit with the 3.16 report.
+- **The `hand` pictogram reuses `THREAT_ICON_PATHS.open_hand`** (`src/client/ui/world/activityBubble.ts`) instead of a new ink path. Revisit with the feel pass.

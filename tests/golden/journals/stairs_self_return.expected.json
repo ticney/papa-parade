@@ -1,0 +1,21 @@
+{
+  "untilSimMs": 12000,
+  "worldHash": "0bbe1cc9c8f2f5",
+  "eventTypes": [
+    "ThreatTelegraphed",
+    "BabyStateChanged",
+    "BabyStateChanged",
+    "WindowOpened",
+    "ResponseResolved",
+    "GagTriggered",
+    "NearMiss",
+    "BabyStateChanged",
+    "AfterEffectStarted",
+    "ThreatRearmed",
+    "BabyStateChanged",
+    "AfterEffectEnded",
+    "BabyStateChanged",
+    "BabyStateChanged"
+  ],
+  "eventsHash": "0d5c7bf95c7b70"
+}

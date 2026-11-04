@@ -567,6 +567,8 @@ describe('fx (story 2.5)', () => {
       babyLayDownPct: 0,
       doorOpenDeg: 0,
       dangerTintsShown: 0,
+      lightsFactor: 1,
+      mischiefDecals: 0,
     };
     const host = createFakeTestHost();
     (host as { fxState: () => typeof state }).fxState = () => state;
@@ -581,6 +583,8 @@ describe('fx (story 2.5)', () => {
       babyLayDownPct: 40,
       doorOpenDeg: 65,
       dangerTintsShown: 1,
+      lightsFactor: 0.4,
+      mischiefDecals: 2,
     };
     expect(api.fx()).toEqual(state);
   });

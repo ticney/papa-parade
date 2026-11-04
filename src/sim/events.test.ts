@@ -72,7 +72,8 @@ describe('the fatigue events (story 1.19)', () => {
     expect(names.indexOf('ComboCashedIn')).toBe(names.indexOf('CoffeeStarted') + 1);
     expect(names.indexOf('ComboChanged')).toBe(names.indexOf('ComboCashedIn') + 1);
     expect(names.indexOf('CycleCompleted')).toBe(names.indexOf('ComboChanged') + 1);
-    expect(names.indexOf('DecoyCued')).toBe(names.indexOf('CycleCompleted') + 1);
+    expect(names.indexOf('DebrisSteppedOn')).toBe(names.indexOf('CycleCompleted') + 1);
+    expect(names.indexOf('DecoyCued')).toBe(names.indexOf('DebrisSteppedOn') + 1);
     expect(names.indexOf('DecoyTapped')).toBe(names.indexOf('DecoyCued') + 1);
     expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('DecoyTapped') + 1);
     expect(names.indexOf('FinalRushStarted')).toBe(names.indexOf('FatigueThresholdCrossed') + 1);

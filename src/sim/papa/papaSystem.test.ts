@@ -255,9 +255,11 @@ describe('TapObject (story 1.17)', () => {
     const content2 = createTestContent();
     const planning = createTestLevel({ waves: [testWave([OUTLET])], objects: TEST_OBJECTS });
     const sim = await createSim({ content: content2, geometry, level: planning, seed: 1 });
-    // Telegraph the outlet, press it: Papa glides.
-    for (let i = 0; i < 400 && sim.world.threats[0]?.state === 'idle'; i++) sim.step();
+    // Telegraph the outlet, press it within its window's buffer (it opens at 1210), released at once:
+    // a Parry, so no gag electrifies Papa where he stands (story 3.15): Papa glides.
+    while (sim.world.time.sim < 1120) sim.step();
     sim.enqueue({ type: 'PressThreat', t: sim.world.time.sim, threatId: 1 });
+    sim.enqueue({ type: 'Release', t: sim.world.time.sim });
     sim.step();
     expect(papaOf(sim).state).toBe('glide');
     sim.enqueue(tapObject('phone', sim.world.time.sim));
@@ -728,8 +730,10 @@ describe('a full need slows the walks, not the glide (story 4.3)', () => {
     const arrivals: number[] = [];
     for (const pct of [100, 0]) {
       const sim = await simWithNeed(pct, [testWave([OUTLET])]);
-      for (let i = 0; i < 400 && sim.world.threats[0]?.state === 'idle'; i++) sim.step();
+      // Within the buffer of the window (opens at 1210), released at once: a Parry, no gag (story 3.15).
+      while (sim.world.time.sim < 1120) sim.step();
       sim.enqueue({ type: 'PressThreat', t: sim.world.time.sim, threatId: 1 });
+      sim.enqueue({ type: 'Release', t: sim.world.time.sim });
       const events = run(sim, 200);
       expect(types(events), String(pct)).toContain('PapaGlideStarted');
       arrivals.push((events.find((event) => event.type === 'PapaArrived') as { t: number }).t);

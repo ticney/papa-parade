@@ -56,6 +56,8 @@ const NO_REAL_FX = () => ({
   papaBlablaTiltDeg: 0,
   doorOpenDeg: 0,
   dangerTintsShown: 0,
+  lightsFactor: 1,
+  mischiefDecals: 0,
 });
 
 interface Deferred<T> {

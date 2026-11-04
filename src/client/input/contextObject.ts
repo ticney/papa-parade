@@ -44,18 +44,21 @@ export interface ContextProp {
   readonly xM: number;
   readonly zM: number;
   readonly isMess: boolean;
+  /** The coffee table's gag marked it as a debris (story 3.15); 0 or absent: not one. */
+  readonly debrisPickUpMs?: number;
 }
 
 /**
  * The prop Space or A walks Papa to in the final rush (story 3.5): the nearest `isMess` prop to
  * Papa on the floor, at most `reachM` away (inclusive), ties to the earlier one. Null when none is
- * in reach. Allocates nothing.
+ * in reach. Outside the final rush only a debris counts (`isDebrisOnly`, story 3.15). Allocates nothing.
  */
 export function pickMessProp(
   props: readonly ContextProp[],
   papaXM: number,
   papaZM: number,
   reachM: number,
+  isDebrisOnly = false,
 ): string | null {
   const reachSquared = reachM * reachM;
   let bestId: string | null = null;
@@ -63,6 +66,7 @@ export function pickMessProp(
   for (let i = 0; i < props.length; i++) {
     const prop = props[i] as ContextProp;
     if (!prop.isMess) continue;
+    if (isDebrisOnly && !((prop.debrisPickUpMs ?? 0) > 0)) continue;
     const dx = prop.xM - papaXM;
     const dz = prop.zM - papaZM;
     const squared = dx * dx + dz * dz;

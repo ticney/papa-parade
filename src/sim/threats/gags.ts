@@ -1,8 +1,9 @@
+import type { AfterEffectDefKind, ThreatDef } from '@content/schemas/threat';
 import { invariant } from '@shared/invariant';
 import type { StepContext } from '../context.ts';
-import { putPapaToSleep } from '../papa/sleep.ts';
 import { dropProps } from '../physics/dropProps.ts';
 import type { ThreatInstance, World } from '../world.ts';
+import { markDebris } from './afterEffects.ts';
 
 /**
  * Every gag a threat can end in, as data. A gag is a harmless, comic consequence (NFR9). The sim
@@ -44,9 +45,16 @@ export function gagIdOf(gag: string): GagId {
 
 /**
  * What a gag does to the world, at the step its threat is failed. It never writes a slice
- * directly: it emits events and goes through helpers (`pushProp`, `putPapaToSleep`).
+ * directly: it emits events and goes through helpers (`pushProp`, `markDebris`). What the gag leaves
+ * behind (Papa electrified or asleep, the baby downstairs, the mess) is `applyAfterEffect`'s (story 3.15).
+ * `def` is the threat's def, when the caller has it: the coffee table's gag reads its `afterEffect` to mark the debris.
  */
-type GagConsequence = (world: World, ctx: StepContext, threat: ThreatInstance) => void;
+type GagConsequence = (
+  world: World,
+  ctx: StepContext,
+  threat: ThreatInstance,
+  def: ThreatDef | undefined,
+) => void;
 
 /** Cartoon jolt, lights and hair: all client-side (D3: not a near miss). */
 function outletHair(): void {}
@@ -69,24 +77,35 @@ function stairsSlide(world: World, ctx: StepContext, threat: ThreatInstance): vo
  * the anchor, so that it leaves the table by its nearest edge. A prop exactly on the anchor is
  * pushed along the baby's gaze. No such prop: nothing is pushed.
  */
-function tableObjectFall(world: World, ctx: StepContext, threat: ThreatInstance): void {
+function tableObjectFall(
+  world: World,
+  ctx: StepContext,
+  threat: ThreatInstance,
+  def: ThreatDef | undefined,
+): void {
   const { pushImpulseNs, propReachDistM } = ctx.feel.gags.tableObjectFall;
   // The choice and the push are shared with the door's spill (story 3.5): one prop, any kind.
-  dropProps(world, ctx, threat.xM, threat.zM, {
-    count: 1,
-    reachM: propReachDistM,
-    pushImpulseNs,
-    isUnbreakableOnly: false,
-  });
+  const pushed: number[] = [];
+  dropProps(
+    world,
+    ctx,
+    threat.xM,
+    threat.zM,
+    { count: 1, reachM: propReachDistM, pushImpulseNs, isUnbreakableOnly: false },
+    pushed,
+  );
+  // The pushed prop stays on the floor until Papa picks it up (story 3.15): only this gag knows which one it chose.
+  if (def !== undefined && def.afterEffect.kind === 'debris') {
+    markDebris(world, ctx, pushed, def.afterEffect.pickUpMs);
+  }
 }
 
 /**
- * Papa nods off for a few seconds (story 1.19 D10): no near miss. The snore and its noise belong
- * to the sequence's failure (`failSequenceOnGag`, story 4.4 D2), never to a nap outside one.
+ * Papa nods off for a few seconds (story 1.19 D10): no near miss, and nothing for the gag to do: the
+ * nap is the séquelle of the micro-sleep's def (`applyAfterEffect`, story 3.15 D7). The snore and its
+ * noise belong to the sequence's failure (`failSequenceOnGag`, story 4.4 D2), never to a nap outside one.
  */
-function papaAsleep(world: World, ctx: StepContext): void {
-  putPapaToSleep(world, ctx);
-}
+function papaAsleep(): void {}
 
 /**
  * A surprise mischief of the suspicious silence (story 1.21 D11): mess, not a near accident. It
@@ -158,9 +177,57 @@ export function isNearMissGag(gag: GagId): boolean {
 }
 
 /**
- * Applies what `gag` does to the world. `gagThreat` calls it right after `GagTriggered`, inside
- * `runThreats`: a prop pushed here is stepped by `runPhysics` in the same step.
+ * The kind of `afterEffect` each gag goes with (story 3.15, FR72): a def's séquelle is data, but which
+ * kind fits which gag is a rule of the sim (`applyAfterEffect` dispatches on the kind and reads the
+ * gag's own state), so `createSim` and `content:check` refuse a mismatch. Every silence mischief
+ * (`tissues_everywhere`, `crayon_scribbles`) is a `mess`; the gags of the E4 sequences are `none`
+ * (GDD: their séquelles are to be costed later).
  */
-export function applyGag(world: World, ctx: StepContext, threat: ThreatInstance, gag: GagId): void {
-  GAG_CONSEQUENCES[gag](world, ctx, threat);
+export const AFTER_EFFECT_OF_GAG: Readonly<Record<GagId, AfterEffectDefKind>> = {
+  outlet_hair: 'electrified',
+  stairs_slide: 'babyDownstairs',
+  table_object_fall: 'debris',
+  papa_asleep: 'asleep',
+  tissues_everywhere: 'mess',
+  crayon_scribbles: 'mess',
+  arms_wail: 'none',
+  baby_eyes_reopened: 'none',
+  baby_sat_up: 'none',
+  baby_woke_on_drop: 'none',
+  baby_woke_by_touch: 'none',
+  baby_woke_crying: 'none',
+};
+
+/**
+ * Why a def's `afterEffect.kind` does not fit its gags, or `null` when it does. A gag the sim does
+ * not know is not this check's business (it has its own message). Shared by `createSim` and `content:check`.
+ */
+export function afterEffectProblem(
+  defId: string,
+  gags: readonly string[],
+  kind: AfterEffectDefKind,
+): string | null {
+  for (const gag of gags) {
+    if (!(GAG_IDS as readonly string[]).includes(gag)) continue;
+    const expected = AFTER_EFFECT_OF_GAG[gag as GagId];
+    if (expected !== kind) {
+      return `the threat "${defId}" has the gag "${gag}", whose afterEffect.kind must be "${expected}", not "${kind}"`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Applies what `gag` does to the world. `gagThreat` calls it right after `GagTriggered`, inside
+ * `runThreats`: a prop pushed here is stepped by `runPhysics` in the same step. `def` is the
+ * threat's def (omitted, a gag leaves no séquelle of its own).
+ */
+export function applyGag(
+  world: World,
+  ctx: StepContext,
+  threat: ThreatInstance,
+  gag: GagId,
+  def?: ThreatDef,
+): void {
+  GAG_CONSEQUENCES[gag](world, ctx, threat, def);
 }

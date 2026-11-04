@@ -16,6 +16,7 @@
     "perfect": "resp_parry_perfect",
     "gag": "gag_arms_wail"
   },
+  "afterEffect": { "kind": "none" },
   "cooldownMs": 1000,
   "gagCryMs": 4000
 }

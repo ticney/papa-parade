@@ -60,6 +60,23 @@ function drawArmsCryAt(world: World, ctx: StepContext) {
 }
 
 /**
+ * The baby leaves the bottom of the stairs by another way than the self-return or Papa's fetch (a
+ * sequence takes or places him, the level ends): his wait is over, `downstairsUntil` back to null and
+ * `AfterEffectEnded{babyDownstairs}`. Does nothing if he is not `downstairs`. The caller moves him.
+ */
+export function endDownstairsWait(world: World, ctx: StepContext): void {
+  const { baby } = world;
+  if (baby.state !== 'downstairs') return;
+  baby.downstairsUntil = null;
+  ctx.events.push({
+    type: 'AfterEffectEnded',
+    t: world.time.sim,
+    kind: 'babyDownstairs',
+    propId: null,
+  });
+}
+
+/**
  * Papa takes the baby in his arms, at the step of the command: he stops, the baby stops crawling,
  * drops his target and is set at Papa's point looking where Papa looks (`BabyStateChanged`, then
  * `BabyPickedUp`). Every threat of the baby that is announced or open, an anchored one or a found
@@ -75,6 +92,9 @@ export function takeBaby(world: World, ctx: StepContext): void {
   baby.zM = papa.zM;
   baby.gazeX = papa.headingX;
   baby.gazeZ = papa.headingZ;
+  // A sequence that carries the baby takes him wherever he is, the bottom of the stairs included
+  // (story 3.15): his wait is over.
+  endDownstairsWait(world, ctx);
   enterBabyState(world, ctx, 'carried');
   ctx.events.push({ type: 'BabyPickedUp', t: world.time.sim });
   for (let i = 0; i < world.threats.length; i++) {

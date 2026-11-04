@@ -56,9 +56,9 @@ async function started(): Promise<Sim> {
 }
 
 describe('the bomb drop in a snapshot (story 4.8)', () => {
-  it('is version 29 and knows the sequence slow-mo source', async () => {
+  it('is version 30 and knows the sequence slow-mo source', async () => {
     const sim = await started();
-    expect(sim.snapshot().version).toBe(29);
+    expect(sim.snapshot().version).toBe(30);
     expect(SLOW_MO_SOURCES).toContain('sequence');
   });
 

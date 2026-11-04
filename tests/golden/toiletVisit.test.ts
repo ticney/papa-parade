@@ -6,8 +6,9 @@ import { recordScenario, SCENARIOS } from './scenarios.ts';
 /**
  * The golden compares hashes, which say nothing about what a scenario exercises. This pins that
  * `toilet_visit` really is the story it is there for: a full need slows the walk to the door by
- * `slowdownPct`, Papa goes in and is out of the room for exactly `toiletDurationMs`, an outlet
- * nobody answers gags `late` meanwhile, and the visit ends with the need back at 0.
+ * `slowdownPct`, Papa goes in and is out of the room for exactly `toiletDurationMs`, the visit ends
+ * with the need back at 0, and an outlet nobody answers gags `late` once he is back (a gag during the
+ * visit would cancel it: story 3.15).
  */
 const content = createTestContent();
 const { bladder } = content.feel;
@@ -67,17 +68,18 @@ describe('golden scenario toilet_visit covers the need it is there for', () => {
       'idle>walkPath',
       'walkPath>onToilet',
       'onToilet>idle',
+      // The outlet's gag, once he is back (story 3.15): the run ends before the shock does.
+      'idle>electrified',
     ]);
   });
 
-  it('misses the outlet meanwhile: it gags late while Papa is out of the room', () => {
-    const [started] = ofType('ToiletStarted');
+  it('misses the outlet once he is back: it gags late and electrifies him, the visit being over', () => {
     const [finished] = ofType('ToiletFinished');
     const [resolved] = ofType('ResponseResolved');
     expect(ofType('ResponseResolved')).toHaveLength(1);
     expect(resolved).toMatchObject({ quality: 'fail', reason: 'late' });
-    expect(resolved?.t).toBeGreaterThan(started?.t ?? Number.POSITIVE_INFINITY);
-    expect(resolved?.t).toBeLessThan(finished?.t ?? 0);
+    expect(resolved?.t).toBeGreaterThan(finished?.t ?? Number.POSITIVE_INFINITY);
     expect(ofType('GagTriggered')).toEqual([expect.objectContaining({ reason: 'late' })]);
+    expect(ofType('PapaStateChanged').at(-1)).toMatchObject({ to: 'electrified' });
   });
 });

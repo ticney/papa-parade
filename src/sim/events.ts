@@ -1,5 +1,5 @@
 import type { Feel } from '@content/schemas/feel';
-import type { ThreatResponse } from '@content/schemas/threat';
+import type { AfterEffectDefKind, ThreatResponse } from '@content/schemas/threat';
 import type { InvariantViolation } from '@shared/invariant';
 import type { SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
@@ -150,6 +150,31 @@ type UnlistedComboChangeReason = Exclude<ComboChangeReason, (typeof COMBO_CHANGE
 export const COMBO_CHANGE_REASONS_ARE_COMPLETE: [UnlistedComboChangeReason] extends [never]
   ? true
   : UnlistedComboChangeReason = true;
+
+/**
+ * What `AfterEffectStarted` / `AfterEffectEnded` name (story 3.15, D8): the kinds of the defs
+ * (`none` is no séquelle), plus `dim` (the outlet's pénombre, a décor séquelle of its own) and
+ * `carryUp` (the second half of the stairs' séquelle: Papa carries the baby up, which no def names).
+ */
+export type AfterEffectKind = Exclude<AfterEffectDefKind, 'none'> | 'dim' | 'carryUp';
+
+/** Every `AfterEffectKind`, as data (the sim report counts one row each). */
+export const AFTER_EFFECT_KINDS = [
+  'electrified',
+  'babyDownstairs',
+  'debris',
+  'mess',
+  'asleep',
+  'dim',
+  'carryUp',
+] as const satisfies readonly AfterEffectKind[];
+
+type UnlistedAfterEffectKind = Exclude<AfterEffectKind, (typeof AFTER_EFFECT_KINDS)[number]>;
+
+/** Compile-time proof that `AFTER_EFFECT_KINDS` holds every member of the union. */
+export const AFTER_EFFECT_KINDS_ARE_COMPLETE: [UnlistedAfterEffectKind] extends [never]
+  ? true
+  : UnlistedAfterEffectKind = true;
 
 /** Domain events pushed by the systems into `ctx.events`; `t` is sim time. */
 export type SimEvent =
@@ -441,6 +466,21 @@ export type SimEvent =
    */
   | { type: 'PropTidied'; t: SimMs; propId: string }
   /**
+   * A gag's séquelle began (story 3.15, FR72). `until` is when it ends on its own, null for a
+   * `debris` and a `mess` (a pick-up, or never). `propId` is the debris' prop, null for the others.
+   */
+  | {
+      type: 'AfterEffectStarted';
+      t: SimMs;
+      kind: AfterEffectKind;
+      until: SimMs | null;
+      propId: string | null;
+    }
+  /** A séquelle ended, or was replaced by another (story 3.15); `propId` as in `AfterEffectStarted`. */
+  | { type: 'AfterEffectEnded'; t: SimMs; kind: AfterEffectKind; propId: string | null }
+  /** Papa came within `feel.gags.debrisStepRadiusM` of a debris, once per entry (story 3.15): +`noise.sources.debrisStep`. */
+  | { type: 'DebrisSteppedOn'; t: SimMs; propId: string }
+  /**
    * Mama was woken by the noise (story 3.2): the noise reached 100 % in a Sieste level. Right before
    * `LevelEnded{mamaWoke}`, at the same `t`.
    */
@@ -484,6 +524,8 @@ export type SimEvent =
  * `content/feedback.json` against it. No system reads it, so no golden moves.
  */
 export const SIM_EVENT_TYPES = [
+  'AfterEffectEnded',
+  'AfterEffectStarted',
   'BabyCrying',
   'BabyPickedUp',
   'BabyPutDown',
@@ -503,6 +545,7 @@ export const SIM_EVENT_TYPES = [
   'ComboCashedIn',
   'ComboChanged',
   'CycleCompleted',
+  'DebrisSteppedOn',
   'DecoyCued',
   'DecoyTapped',
   'FatigueThresholdCrossed',
