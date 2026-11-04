@@ -992,3 +992,10 @@ Open:
 - **The « Papa is free » ding can chain more often** (`src/client/feedback/simEventFeedback.ts`): a pick-up or a carry that ends on the step a séquelle lands emits `busy → idle → busy` in one step, which `occupyPapa` makes a little likelier. Not seen in the e2e runs; left as the 2.12 item says.
 - **The nap, the shock and the carry share one pictogram** (`ACTIVITY_PICTOGRAMS`: `stars`): a player cannot tell them apart from the bubble alone, which is what the GDD's « étoiles de vertige pour une séquelle » asks for; Papa's clip tells them apart (`asleep`, `gag_shock`, `carry_idle`). Revisit with the feel pass.
 - **`pickingUp` has no clip of its own** (`src/client/render/views/characterClips.ts`): Papa plays `idle` while he picks a debris up (the `.glb` has no bending clip, and no Blender work is in this story).
+
+## Deferred from: code review of 3-15-sequelles-des-gags (2026-11-04)
+
+- **`restore` validates the 3.15 slices loosely** (`src/sim/snapshot.ts`): `mischiefMarks[].gag` accepts any `GAG_ID`, `steppedDebrisIndex` may point at a non-debris prop, `dimUntil` is not tied to the clock and `fetchBaby` is not tied to the baby state. Only a hand-edited snapshot hits it.
+- **`downstairsDefOf` takes the first `babyDownstairs` def** (`src/sim/threats/afterEffects.ts`): `startCarryUp` returns silently when none is found and nothing enforces « one stairs per level ». Add a `content:check` rule when a level has two.
+- **`simReport.afterEffects.meanPerRun` mixes kinds** (`tools/sim/simReport.ts`): an outlet gag counts as `electrified` + `dim`, a fetch adds `carryUp` to `babyDownstairs`; read `byKind`. Revisit with the 3.16 report.
+- **The `hand` pictogram reuses `THREAT_ICON_PATHS.open_hand`** (`src/client/ui/world/activityBubble.ts`) instead of a new ink path. Revisit with the feel pass.

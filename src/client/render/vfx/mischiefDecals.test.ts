@@ -7,10 +7,23 @@ import {
   createDecalGeometry,
   createMischiefDecals,
   DECAL_LIFT_M,
+  type DecalCover,
+  type DecalView,
+  GAME_VIEW,
   visibleDecalPoint,
 } from './mischiefDecals.ts';
 
-const colliders = createTestGeometry().colliders;
+const geometry = createTestGeometry();
+const colliders = geometry.colliders;
+const cover: DecalCover = {
+  colliders,
+  wallHeightM: 2,
+  boundsMinM: geometry.boundsMinM,
+  boundsMaxM: geometry.boundsMaxM,
+};
+// The end photo's camera, lower and turned from the game's (`feel.fx.photoCamera`).
+const PHOTO: DecalView = { yawDeg: 38, pitchDeg: 30 };
+const VIEWS = [GAME_VIEW, PHOTO];
 const TONES = [96, 178, 255];
 
 const mark = (gag: MischiefMark['gag'], xM: number, zM: number): MischiefMark => ({
@@ -23,35 +36,71 @@ describe('visibleDecalPoint', () => {
   const out = { xM: 0, zM: 0 };
 
   it('keeps a point the camera sees where it is (in front of the furniture)', () => {
-    visibleDecalPoint(-2, 2, colliders, out);
+    visibleDecalPoint(-2, 2, cover, VIEWS, out);
     expect(out).toEqual({ xM: -2, zM: 2 });
   });
 
   it('moves a point hidden behind the sofa towards the camera, past what hid it', () => {
     // The silence's hiding place: behind the sofa, as the baby went there (`ZONE_hidden_behind_sofa`).
-    visibleDecalPoint(0.5, -2.6, colliders, out);
+    visibleDecalPoint(0.5, -2.6, cover, VIEWS, out);
     expect(out.xM).toBeGreaterThan(0.5);
     expect(out.zM).toBeGreaterThan(-2.6);
     // And it is seen from there, by the same test the search ends on.
     const moved = { xM: 0, zM: 0 };
-    visibleDecalPoint(out.xM, out.zM, colliders, moved);
+    visibleDecalPoint(out.xM, out.zM, cover, VIEWS, moved);
     expect(moved).toEqual(out);
   });
 
   it('does not take a wall for cover: a point against the back wall is in front of it', () => {
-    visibleDecalPoint(-3, -2.9, colliders, out);
+    visibleDecalPoint(-3, -2.9, cover, VIEWS, out);
     expect(out).toEqual({ xM: -3, zM: -2.9 });
   });
 
   it('stays where it is when no collider can hide it', () => {
-    visibleDecalPoint(0.5, -2.6, [], out);
+    visibleDecalPoint(0.5, -2.6, { ...cover, colliders: [] }, VIEWS, out);
+    expect(out).toEqual({ xM: 0.5, zM: -2.6 });
+  });
+
+  it('is seen from the end photo too: a point the game camera sees but the photo camera does not is moved', () => {
+    // Find a floor point hidden from the photo camera only, then check it moves with the photo view and not without.
+    const hiddenFromPhoto = { xM: 0, zM: 0 };
+    let found = false;
+    for (let x = -3; x <= 3 && !found; x += 0.1) {
+      for (let z = -3; z <= 3 && !found; z += 0.1) {
+        const gameOnly = { xM: 0, zM: 0 };
+        const both = { xM: 0, zM: 0 };
+        visibleDecalPoint(x, z, cover, [GAME_VIEW], gameOnly);
+        visibleDecalPoint(x, z, cover, VIEWS, both);
+        if (gameOnly.xM === x && gameOnly.zM === z && (both.xM !== x || both.zM !== z)) {
+          hiddenFromPhoto.xM = x;
+          hiddenFromPhoto.zM = z;
+          found = true;
+        }
+      }
+    }
+    expect(found).toBe(true);
+    visibleDecalPoint(hiddenFromPhoto.xM, hiddenFromPhoto.zM, cover, VIEWS, out);
+    const moved = { xM: 0, zM: 0 };
+    visibleDecalPoint(out.xM, out.zM, cover, VIEWS, moved);
+    expect(moved).toEqual(out);
+  });
+
+  it('follows the wall height it is given: a collider taller than it is a wall, not cover', () => {
+    const tall = { ...cover, wallHeightM: 0.1 };
+    visibleDecalPoint(0.5, -2.6, tall, VIEWS, out);
+    expect(out).toEqual({ xM: 0.5, zM: -2.6 });
+  });
+
+  it('never moves a decal out of the room', () => {
+    const tiny = { ...cover, boundsMaxM: [0.6, 3, -2.5] as const };
+    visibleDecalPoint(0.5, -2.6, tiny, VIEWS, out);
     expect(out).toEqual({ xM: 0.5, zM: -2.6 });
   });
 
   it('writes the same point for the same input (no randomness)', () => {
     const a = { xM: 0, zM: 0 };
-    visibleDecalPoint(0.5, -2.6, colliders, a);
-    visibleDecalPoint(0.5, -2.6, colliders, out);
+    visibleDecalPoint(0.5, -2.6, cover, VIEWS, a);
+    visibleDecalPoint(0.5, -2.6, cover, VIEWS, out);
     expect(a).toEqual(out);
   });
 });
@@ -97,47 +146,47 @@ describe('createMischiefDecals', () => {
   const build = () => {
     const parent = new Group();
     const toon = createToonMaterialCache(TONES);
-    return { parent, decals: createMischiefDecals(parent, colliders, toon), toon };
+    return { parent, decals: createMischiefDecals(parent, cover, toon), toon };
   };
 
   it('draws one mesh per mark, a little above the floor, and makes nothing more on the next frame', () => {
     const { parent, decals } = build();
     const marks = [mark('tissues_everywhere', -2, 2), mark('crayon_scribbles', -1, 1.5)];
-    decals.sync(marks);
+    decals.sync(marks, PHOTO);
     expect(decals.count).toBe(2);
     expect(parent.children).toHaveLength(2);
     const [first] = parent.children as Mesh[];
     expect(first?.position.y).toBe(DECAL_LIFT_M);
     const meshes = [...parent.children];
-    decals.sync(marks);
+    decals.sync(marks, PHOTO);
     expect(parent.children).toEqual(meshes);
   });
 
   it('adds the mark that comes later, and keeps the ones it has', () => {
     const { parent, decals } = build();
-    decals.sync([mark('tissues_everywhere', -2, 2)]);
+    decals.sync([mark('tissues_everywhere', -2, 2)], PHOTO);
     const first = parent.children[0];
-    decals.sync([mark('tissues_everywhere', -2, 2), mark('crayon_scribbles', 1, 2)]);
+    decals.sync([mark('tissues_everywhere', -2, 2), mark('crayon_scribbles', 1, 2)], PHOTO);
     expect(parent.children).toHaveLength(2);
     expect(parent.children[0]).toBe(first);
   });
 
   it('removes every decal when the world lists fewer (a restart), and on clear and dispose', () => {
     const { parent, decals } = build();
-    decals.sync([mark('tissues_everywhere', -2, 2), mark('crayon_scribbles', 1, 2)]);
-    decals.sync([]);
+    decals.sync([mark('tissues_everywhere', -2, 2), mark('crayon_scribbles', 1, 2)], PHOTO);
+    decals.sync([], PHOTO);
     expect(parent.children).toHaveLength(0);
-    decals.sync([mark('crayon_scribbles', 1, 2)]);
+    decals.sync([mark('crayon_scribbles', 1, 2)], PHOTO);
     decals.clear();
     expect(decals.count).toBe(0);
-    decals.sync([mark('crayon_scribbles', 1, 2)]);
+    decals.sync([mark('crayon_scribbles', 1, 2)], PHOTO);
     decals.dispose();
     expect(parent.children).toHaveLength(0);
   });
 
   it('shares its materials: two marks of the same kind add no draw state', () => {
     const { toon, decals } = build();
-    decals.sync([mark('tissues_everywhere', -2, 2), mark('tissues_everywhere', 1, 2)]);
+    decals.sync([mark('tissues_everywhere', -2, 2), mark('tissues_everywhere', 1, 2)], PHOTO);
     expect(toon.size).toBe(1);
   });
 });

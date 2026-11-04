@@ -268,11 +268,7 @@
       "lightsPct": 40,
       "fadeMs": 400
     },
-    "photoCamera": {
-      "yawDeg": 38,
-      "pitchDeg": 30,
-      "zoomPct": 0
-    },
+    "photoCamera": { "yawDeg": 38, "pitchDeg": 30, "zoomPct": 0 },
     "perfectCamera": {
       "zoomPct": 18,
       "yawDeg": 6,
@@ -282,11 +278,7 @@
     }
   },
   "music": {
-    "tense": {
-      "fadeInMs": 600,
-      "fadeOutMs": 1500,
-      "calmGainPct": 60
-    },
+    "tense": { "fadeInMs": 600, "fadeOutMs": 1500, "calmGainPct": 60 },
     "slowMo": {
       "belowScale": 1,
       "lowpassHz": 900,

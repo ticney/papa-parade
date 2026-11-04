@@ -2,13 +2,14 @@ import type { ThreatDef } from '@content/schemas/threat';
 import { asSimMs } from '@shared/time';
 import { stopCrawling } from '../baby/approach.ts';
 import { enterBabyState } from '../baby/babyFsm.ts';
+import { endDownstairsWait } from '../baby/carry.ts';
 import type { StepContext } from '../context.ts';
 import type { AfterEffectKind } from '../events.ts';
 import { finishCoffee } from '../papa/coffee.ts';
 import { enterPapaState, isAfterEffectState, isPapaBusy } from '../papa/papaFsm.ts';
 import { tidyProp } from '../papa/tidyProp.ts';
 import { finishToilet } from '../papa/toilet.ts';
-import type { PapaSlice, World } from '../world.ts';
+import type { PapaSlice, PropSlice, World } from '../world.ts';
 import type { GagId } from './gags.ts';
 
 // The séquelles of the gags (story 3.15, FR72, GDD mechanic 13). A gag is a one-shot (`applyGag`);
@@ -167,7 +168,7 @@ export function occupyPapa(
   if (isPapaBusy(papa) && world.time.sim >= papa.busyUntil) finishPapaBusy(world, ctx);
   if (isAfterEffectState(papa.state)) {
     if (papa.state === state) return;
-    const old = papa.state as 'electrified' | 'carryingUp' | 'asleep';
+    const old = papa.state;
     if (old === 'carryingUp') releaseCarriedUpBaby(world, ctx);
     ctx.events.push({
       type: 'AfterEffectEnded',
@@ -195,11 +196,8 @@ export function occupyPapa(
 export function startPickUp(world: World, ctx: StepContext, propIndex: number): void {
   const prop = world.props[propIndex];
   if (prop === undefined) return;
-  const { papa } = world;
-  dropPapaMotion(papa);
-  papa.busyUntil = asSimMs(world.time.sim + prop.debrisPickUpMs);
-  papa.objectId = prop.id;
-  enterPapaState(world, ctx, 'pickingUp');
+  beginBusy(world, ctx, 'pickingUp', prop.debrisPickUpMs);
+  world.papa.objectId = prop.id;
 }
 
 /**
@@ -264,14 +262,18 @@ export function applyAfterEffect(world: World, ctx: StepContext, def: ThreatDef,
     case 'electrified': {
       occupyPapa(world, ctx, 'electrified', effect.busyMs);
       const { afterEffects } = world;
+      // One dim, one Started and one Ended: a second shock inside it only extends it.
+      const isDimRunning = afterEffects.dimUntil > 0;
       afterEffects.dimUntil = asSimMs(Math.max(afterEffects.dimUntil, now + effect.dimMs));
-      ctx.events.push({
-        type: 'AfterEffectStarted',
-        t: now,
-        kind: 'dim',
-        until: afterEffects.dimUntil,
-        propId: null,
-      });
+      if (!isDimRunning) {
+        ctx.events.push({
+          type: 'AfterEffectStarted',
+          t: now,
+          kind: 'dim',
+          until: afterEffects.dimUntil,
+          propId: null,
+        });
+      }
       return;
     }
     case 'babyDownstairs': {
@@ -314,16 +316,28 @@ export function applyAfterEffect(world: World, ctx: StepContext, def: ThreatDef,
   }
 }
 
-/** The débris Papa stands within `debrisStepRadiusM` of (the first, by index), or -1. */
+/** Whether the débris `prop` is within `radiusM` of Papa. */
+function isDebrisNearPapa(papa: PapaSlice, prop: PropSlice, radiusM: number): boolean {
+  if (prop.debrisPickUpMs <= 0 || !prop.isMess) return false;
+  const dx = prop.xM - papa.xM;
+  const dz = prop.zM - papa.zM;
+  return dx * dx + dz * dz <= radiusM * radiusM;
+}
+
+/**
+ * The débris Papa stands within `debrisStepRadiusM` of: the one he already stands on while he is
+ * still within its radius (two overlapping débris do not flip-flop), else the first by index, or -1.
+ */
 function debrisUnderPapa(world: World, ctx: StepContext): number {
-  const { papa, props } = world;
+  const { papa, props, afterEffects } = world;
   const radiusM = ctx.feel.gags.debrisStepRadiusM;
+  const current = props[afterEffects.steppedDebrisIndex];
+  if (current !== undefined && isDebrisNearPapa(papa, current, radiusM)) {
+    return afterEffects.steppedDebrisIndex;
+  }
   for (let i = 0; i < props.length; i++) {
     const prop = props[i];
-    if (prop === undefined || prop.debrisPickUpMs <= 0 || !prop.isMess) continue;
-    const dx = prop.xM - papa.xM;
-    const dz = prop.zM - papa.zM;
-    if (dx * dx + dz * dz <= radiusM * radiusM) return i;
+    if (prop !== undefined && isDebrisNearPapa(papa, prop, radiusM)) return i;
   }
   return -1;
 }
@@ -359,12 +373,34 @@ export function runAfterEffects(world: World, ctx: StepContext): void {
     ctx.events.push({ type: 'AfterEffectEnded', t: now, kind: 'debris', propId: prop.id });
   }
 
+  // A step is Papa's movement into the radius (he moved in the last step): a debris that lands beside
+  // a Papa standing still, or the one he walks to pick up, is entered silently.
   const under = debrisUnderPapa(world, ctx);
   if (under !== afterEffects.steppedDebrisIndex) {
     afterEffects.steppedDebrisIndex = under;
     const prop = under >= 0 ? props[under] : undefined;
-    if (prop !== undefined && prop.id !== papa.objectId) {
+    const hasMoved = papa.xM !== papa.prevXM || papa.zM !== papa.prevZM;
+    if (prop !== undefined && hasMoved && prop.id !== papa.objectId) {
       ctx.events.push({ type: 'DebrisSteppedOn', t: now, propId: prop.id });
     }
+  }
+}
+
+/**
+ * The level ends (`endLevel`): the séquelles that have an end close like a phone or a silence. A Papa
+ * under a séquelle (`electrified`, `carryingUp`, `asleep`) is freed (`AfterEffectEnded`; a carried-up
+ * baby is set back first), a baby at the bottom of the stairs goes back up, the pénombre ends.
+ * The debris and the marks of a mess stay: they are on the photo.
+ */
+export function endAfterEffects(world: World, ctx: StepContext): void {
+  const { afterEffects, papa } = world;
+  if (isAfterEffectState(papa.state)) finishPapaBusy(world, ctx);
+  if (world.baby.state === 'downstairs') {
+    endDownstairsWait(world, ctx);
+    releaseCarriedUpBaby(world, ctx);
+  }
+  if (afterEffects.dimUntil > 0) {
+    afterEffects.dimUntil = asSimMs(0);
+    ctx.events.push({ type: 'AfterEffectEnded', t: world.time.sim, kind: 'dim', propId: null });
   }
 }

@@ -486,12 +486,12 @@ describe('the suspicious silence and the director (story 1.21)', () => {
     expect(hiddenAt as number).toBeGreaterThanOrEqual(outletEndedAt as number);
   });
 
-  it('keeps the draws of a level with no silence exactly as before (the baseline trace)', async () => {
+  it('keeps the draws of a level with no silence exactly as before, séquelles aside (the baseline trace)', async () => {
     // Captured on the commit before story 1.21: same rng state and same events, to the byte. Re-pinned by
-    // story 3.15, which adds the séquelles: with `applyAfterEffect` neutralized the rng state is exactly the
-    // captured one (1581132668, 1663718832, 1567227279, 81), so the draws did not move on their own; what
-    // moves it now is what follows a gag (a baby left downstairs draws no babble, a Papa electrified or
-    // asleep answers nothing, hence other gags), and 34 more events (`AfterEffect*`, `PapaStateChanged`...).
+    // story 3.15, which adds the séquelles: what follows a gag moves the rest of the game (a baby left downstairs
+    // draws no babble, a Papa electrified or asleep answers nothing, hence other gags) and adds `AfterEffect*` and
+    // `PapaStateChanged` events (217 instead of 183). `baselineTrace.test.ts` is the proof that the draws
+    // themselves did not move: with the séquelles switched off it ends on the rng state captured before.
     const sim = await createSim({
       content,
       geometry,

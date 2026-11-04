@@ -25,7 +25,7 @@ import type { StepContext } from '../context.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import type { World } from '../world.ts';
-import { occupyPapa } from './afterEffects.ts';
+import { endAfterEffects, occupyPapa, runAfterEffects } from './afterEffects.ts';
 
 const content = createTestContent();
 const geometry = createTestGeometry();
@@ -396,14 +396,38 @@ describe('the stairs: the baby at the bottom (AC 5)', () => {
     expect(world.papa.intent).toBe('none');
   });
 
-  it('keeps the director from drawing anything that needs him while he is downstairs', async () => {
+  it('carries no baby up when the walk ends short of him', async () => {
     const sim = await newSim();
     gag(sim, 'stairs');
     const world = worldOf(sim);
-    // The silence is drawn only while the baby is free: a downstairs baby is not.
+    command(sim, { type: 'TapBaby' });
+    run(sim, 1);
+    expect(world.papa.intent).toBe('fetchBaby');
+    // The path was blocked short of him: he stays out of reach where Papa stops.
+    const { baby, papa } = world;
+    world.baby.xM = papa.xM + 20;
+    const events = runUntil(sim, () => world.papa.state === 'idle');
+    expect(baby.state).toBe('downstairs');
+    expect(world.papa.state).toBe('idle');
+    expect(kindsOf(events, 'AfterEffectStarted')).toEqual([]);
+  });
+
+  it('lets no silence start while he is downstairs (the director asks `isBabyFree`), and starts one once he is back', async () => {
+    const sim = await newSim();
+    gag(sim, 'stairs');
+    const world = worldOf(sim);
     const silence = threatOf(sim, 'silence_mischief');
-    expect(silence.state).toBe('idle');
+    // The same check the director's draw makes: a silence needs a free baby, and a downstairs one is not.
+    command(sim, { type: 'ForceThreat', threatId: silence.id });
+    run(sim, 3);
     expect(world.baby.state).toBe('downstairs');
+    expect(silence.state).toBe('idle');
+    // He is back (the self-return): the same command now starts the silence.
+    runUntil(sim, () => world.baby.state !== 'downstairs');
+    expect(world.baby.state).toBe('babble');
+    command(sim, { type: 'ForceThreat', threatId: silence.id });
+    run(sim, 3);
+    expect(silence.state).not.toBe('idle');
   });
 });
 
@@ -516,6 +540,59 @@ describe('the coffee table: the debris (AC 6)', () => {
     expect(world.gauges.noisePct).toBeGreaterThan(before);
     // Off it, then on it again: a new entry, a new step.
     expect(only(stepOnAndOff(sim), 'DebrisSteppedOn')).toHaveLength(1);
+  });
+
+  it('makes no noise when a debris lands beside a Papa who stands still, but when he walks off and back', async () => {
+    const sim = await withDebris();
+    const world = worldOf(sim);
+    const prop = mug(sim);
+    // Papa stands on the mug, still, while it is no mess; then it lands (becomes a mess) under him.
+    prop.isMess = false;
+    world.papa.xM = prop.xM;
+    world.papa.zM = prop.zM;
+    run(sim, 3);
+    prop.isMess = true;
+    expect(types(run(sim, 3))).not.toContain('DebrisSteppedOn');
+    expect(world.afterEffects.steppedDebrisIndex).toBeGreaterThanOrEqual(0);
+    // He walks off it and back on: a step.
+    world.papa.xM = prop.xM + 3;
+    run(sim, 1);
+    world.papa.xM = prop.xM;
+    expect(only(run(sim, 1), 'DebrisSteppedOn')).toHaveLength(1);
+  });
+
+  it('does not flip-flop between two overlapping debris: one step per entry, from either side', async () => {
+    const sim = await newSim();
+    const world = worldOf(sim);
+    const { events, ctx } = stub();
+    const radiusM = content.feel.gags.debrisStepRadiusM;
+    const [a, b] = world.props;
+    if (a === undefined || b === undefined) throw new Error('the test level needs two props');
+    // Two debris closer than the radius: each radius holds the other's centre.
+    for (const [prop, xM] of [
+      [a, 10],
+      [b, 10 + radiusM * 0.6],
+    ] as const) {
+      prop.debrisPickUpMs = DEBRIS.pickUpMs;
+      prop.isMess = true;
+      prop.isBroken = false;
+      prop.xM = xM;
+      prop.zM = 10;
+    }
+    const at = (xM: number): void => {
+      world.papa.prevXM = world.papa.xM;
+      world.papa.prevZM = world.papa.zM;
+      world.papa.xM = xM;
+      world.papa.zM = 10;
+      runAfterEffects(world, ctx);
+    };
+    // Far, in at the far side of the second (only it), to the middle (both), back, away; then from the first's side.
+    const secondOnly = b.xM + radiusM * 0.9;
+    const middle = (a.xM + b.xM) / 2;
+    const firstOnly = a.xM - radiusM * 0.9;
+    for (const xM of [0, secondOnly, middle, secondOnly, 0, firstOnly, middle, firstOnly, 0])
+      at(xM);
+    expect(only(events, 'DebrisSteppedOn').map((event) => event.propId)).toEqual([b.id, a.id]);
   });
 
   it('makes no noise for the debris he walks to pick up', async () => {
@@ -639,4 +716,81 @@ describe('a séquelle never keeps Papa busy past its cap (AC 10)', () => {
     expect(chains).toBeGreaterThan(SEEDS);
     expect(replaced).toBeGreaterThan(0);
   }, 120_000);
+});
+
+describe('the end of the level closes the séquelles (review of story 3.15)', () => {
+  async function setup() {
+    const sim = await newSim();
+    const world = worldOf(sim);
+    world.time.sim = asSimMs(1000);
+    const { events, ctx } = stub();
+    return { world, events, ctx };
+  }
+
+  it('frees an electrified Papa and ends the pénombre, each with its event', async () => {
+    const { world, events, ctx } = await setup();
+    occupyPapa(world, ctx, 'electrified', 1500);
+    world.afterEffects.dimUntil = asSimMs(7000);
+    events.length = 0;
+    endAfterEffects(world, ctx);
+    expect(world.papa.state).toBe('idle');
+    expect(world.papa.busyUntil).toBe(0);
+    expect(world.afterEffects.dimUntil).toBe(0);
+    expect(only(events, 'AfterEffectEnded').map((event) => event.kind)).toEqual([
+      'electrified',
+      'dim',
+    ]);
+  });
+
+  it('puts a baby back up who is waiting at the bottom of the stairs', async () => {
+    const { world, events, ctx } = await setup();
+    world.baby.state = 'downstairs';
+    world.baby.downstairsUntil = asSimMs(9000);
+    endAfterEffects(world, ctx);
+    expect(world.baby.state).toBe('babble');
+    expect(world.baby.downstairsUntil).toBeNull();
+    expect(only(events, 'AfterEffectEnded').map((event) => event.kind)).toEqual(['babyDownstairs']);
+  });
+
+  it('sets down the baby of a carry under way, and frees Papa', async () => {
+    const { world, events, ctx } = await setup();
+    world.papa.state = 'carryingUp';
+    world.papa.busyUntil = asSimMs(3000);
+    world.baby.state = 'carriedUp';
+    endAfterEffects(world, ctx);
+    expect(world.papa.state).toBe('idle');
+    expect(world.baby.state).toBe('babble');
+    expect(only(events, 'AfterEffectEnded').map((event) => event.kind)).toEqual(['carryUp']);
+  });
+
+  it('leaves a chosen occupation, the debris and the marks alone, and says nothing when nothing is live', async () => {
+    const { world, events, ctx } = await setup();
+    world.papa.state = 'pickingUp';
+    world.papa.busyUntil = asSimMs(3000);
+    world.afterEffects.mischiefMarks.push({ gag: 'tissues_everywhere', xM: 1, zM: 1 });
+    endAfterEffects(world, ctx);
+    expect(world.papa.state).toBe('pickingUp');
+    expect(world.afterEffects.mischiefMarks).toHaveLength(1);
+    expect(events).toEqual([]);
+  });
+
+  it('runs at the end of a level: no pénombre is left on the photo', async () => {
+    const sim = await newSim({ durationMs: 9000 });
+    const world = worldOf(sim);
+    gag(sim, 'outlet');
+    expect(world.afterEffects.dimUntil).toBeGreaterThan(world.time.sim);
+    const events = runUntil(
+      sim,
+      () => world.flow.state === 'ended' || world.flow.state === 'photo',
+    );
+    expect(['ended', 'photo']).toContain(world.flow.state);
+    expect(world.afterEffects.dimUntil).toBe(0);
+    expect(world.papa.state).toBe('idle');
+    const started = kindsOf(events, 'AfterEffectEnded');
+    expect(started).toContain('dim');
+    // Every pénombre that began has ended.
+    expect(
+      only(events, 'AfterEffectStarted').filter((event) => event.kind === 'dim').length,
+    ).toBeLessThanOrEqual(started.filter((kind) => kind === 'dim').length + 1);
+  });
 });

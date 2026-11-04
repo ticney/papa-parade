@@ -100,18 +100,29 @@ describe('the human bot and a baby downstairs (story 3.15)', () => {
     expect(taps()).toBe(1); // a second later, Papa is still idle: it taps again
   });
 
-  it('does not tap while Papa is busy, nor once the baby is no longer downstairs', async () => {
+  it('does not tap while Papa is busy (once the reaction is over), then taps when he is free, and never once the baby is no longer downstairs', async () => {
     const world = await downstairsWorld();
     const human = bot();
-    const out: SimCommand[] = [];
-    world.time.sim = 3000 as typeof world.time.sim;
+    const act = (): SimCommand[] => {
+      const out: SimCommand[] = [];
+      human.act(world, out);
+      return out;
+    };
+    // The bot sees the baby down at 1000; its reaction ends at 1250.
     world.papa.state = 'electrified';
-    human.act(world, out);
-    expect(out).toEqual([]);
+    expect(act()).toEqual([]);
+    for (const state of ['electrified', 'carryingUp', 'asleep', 'pickingUp'] as const) {
+      world.papa.state = state;
+      world.time.sim = (world.time.sim + 500) as typeof world.time.sim;
+      expect(act(), state).toEqual([]);
+    }
     world.papa.state = 'idle';
+    world.time.sim = (world.time.sim + 50) as typeof world.time.sim;
+    expect(act().map((command) => command.type)).toEqual(['TapBaby']);
+    // He climbed back by himself: nothing more, however long it waits.
     world.baby.state = 'babble';
     world.baby.downstairsUntil = null;
-    human.act(world, out);
-    expect(out).toEqual([]);
+    world.time.sim = (world.time.sim + 5000) as typeof world.time.sim;
+    expect(act()).toEqual([]);
   });
 });

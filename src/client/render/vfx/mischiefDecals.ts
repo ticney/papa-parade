@@ -31,11 +31,6 @@ const TISSUE_COLOR = 0xffffff;
 /** One crayon colour per mark, in turn. */
 const CRAYON_COLORS = [0xe0573b, 0x3b86e0, 0x43b05c] as const;
 
-/**
- * The camera pitch the decals must be visible from, the lowest of the game camera (35°) and the end photo's
- * (`feel.fx.photoCamera`, 30° at the time of writing): a lower camera sees less behind furniture.
- */
-export const DECAL_VIEW_PITCH_DEG = 30;
 /** A decal that had to move is put this far past the edge of what hid it, in metres. */
 const CLEAR_MARGIN_M = 0.2;
 /** The search for a visible point moves by this much at a time, in metres... */
@@ -45,59 +40,93 @@ const SEARCH_MAX_M = 3.5;
 
 type Collider = LevelGeometry['colliders'][number];
 
-/** Whether a point on the floor is hidden from a camera looking from `(sin yaw, cos yaw)` at `pitch` by a collider. */
-function isHidden(
-  xM: number,
-  zM: number,
-  colliders: readonly Collider[],
-  towardX: number,
-  towardZ: number,
-  tanPitch: number,
-): boolean {
-  for (const collider of colliders) {
+/** A camera the decals must be seen from: where it looks from around the vertical, and how high. */
+export interface DecalView {
+  readonly yawDeg: number;
+  readonly pitchDeg: number;
+}
+
+/** What can hide a decal, and where it may be put. */
+export interface DecalCover {
+  readonly colliders: readonly Collider[];
+  /** Colliders taller than this are the room's walls, no cover for a floor point (`feedback.json › render.decalWallHeightM`). */
+  readonly wallHeightM: number;
+  /** The box the room fits (`LevelGeometry`): a decal is never moved out of it. */
+  readonly boundsMinM: readonly number[];
+  readonly boundsMaxM: readonly number[];
+}
+
+/** The game camera, one of the views a decal must be seen from. */
+export const GAME_VIEW: DecalView = { yawDeg: ISO_YAW_DEG, pitchDeg: ISO_PITCH_DEG };
+
+/** Whether a floor point is hidden from a camera looking from `(sin yaw, cos yaw)` at `pitch` by a collider. */
+function isHiddenFrom(xM: number, zM: number, cover: DecalCover, view: DecalView): boolean {
+  const yaw = (view.yawDeg * Math.PI) / 180;
+  const towardX = Math.sin(yaw);
+  const towardZ = Math.cos(yaw);
+  const tanPitch = Math.tan((view.pitchDeg * Math.PI) / 180);
+  for (const collider of cover.colliders) {
     const [cx, cy, cz] = collider.centerM;
     const [hx, hy, hz] = collider.halfExtentsM;
     const topM = cy + hy;
     // A wall is no cover for a floor point: it is the room's edge, and the point is in front of it.
-    if (topM > 2) continue;
+    if (topM > cover.wallHeightM) continue;
     // March from the point towards the camera until the ray is above the collider's top.
     const maxS = topM / tanPitch;
     for (let s = 0; s <= maxS; s += SEARCH_STEP_M) {
       const x = xM + towardX * s;
       const z = zM + towardZ * s;
-      if (Math.abs(x - cx) <= hx && Math.abs(z - cz) <= hz && s * tanPitch <= topM) return true;
+      if (Math.abs(x - cx) <= hx && Math.abs(z - cz) <= hz) return true;
     }
   }
   return false;
 }
 
+function isHidden(xM: number, zM: number, cover: DecalCover, views: readonly DecalView[]): boolean {
+  for (const view of views) if (isHiddenFrom(xM, zM, cover, view)) return true;
+  return false;
+}
+
+function isInRoom(xM: number, zM: number, cover: DecalCover): boolean {
+  return (
+    xM >= (cover.boundsMinM[0] as number) &&
+    xM <= (cover.boundsMaxM[0] as number) &&
+    zM >= (cover.boundsMinM[2] as number) &&
+    zM <= (cover.boundsMaxM[2] as number)
+  );
+}
+
 /**
- * Where a mark's decal is drawn. At the mark itself when it can be seen from a camera at `yawDeg` / `pitchDeg`;
- * else (the baby hid behind the sofa, the whole point of a silence), moved towards the camera, along the line
- * of sight, to the first floor point that is not hidden by a collider, plus a margin. If none is found within
- * `SEARCH_MAX_M` it stays where it is. Pure; writes into `out`.
+ * Where a mark's decal is drawn. At the mark itself when every one of `views` (the game camera, the end
+ * photo's) can see it; else (the baby hid behind the sofa, the whole point of a silence), moved towards the
+ * first view's camera, along the line of sight, to the first floor point inside the room that no collider
+ * hides from any view, plus a margin. If none is found within `SEARCH_MAX_M` it stays where it is. Pure;
+ * writes into `out`.
  */
 export function visibleDecalPoint(
   xM: number,
   zM: number,
-  colliders: readonly Collider[],
+  cover: DecalCover,
+  views: readonly DecalView[],
   out: { xM: number; zM: number },
-  yawDeg = ISO_YAW_DEG,
-  pitchDeg = DECAL_VIEW_PITCH_DEG,
 ): void {
   out.xM = xM;
   out.zM = zM;
-  const yaw = (yawDeg * Math.PI) / 180;
+  const first = views[0];
+  if (first === undefined || !isHidden(xM, zM, cover, views)) return;
+  const yaw = (first.yawDeg * Math.PI) / 180;
   const towardX = Math.sin(yaw);
   const towardZ = Math.cos(yaw);
-  const tanPitch = Math.tan((Math.min(pitchDeg, ISO_PITCH_DEG) * Math.PI) / 180);
-  if (!isHidden(xM, zM, colliders, towardX, towardZ, tanPitch)) return;
   for (let s = SEARCH_STEP_M; s <= SEARCH_MAX_M; s += SEARCH_STEP_M) {
     const x = xM + towardX * s;
     const z = zM + towardZ * s;
-    if (!isHidden(x, z, colliders, towardX, towardZ, tanPitch)) {
-      out.xM = x + towardX * CLEAR_MARGIN_M;
-      out.zM = z + towardZ * CLEAR_MARGIN_M;
+    if (!isHidden(x, z, cover, views)) {
+      const clearX = x + towardX * CLEAR_MARGIN_M;
+      const clearZ = z + towardZ * CLEAR_MARGIN_M;
+      // Past the wall there is no floor: stay where the baby was rather than draw out of the room.
+      if (!isInRoom(clearX, clearZ, cover)) return;
+      out.xM = clearX;
+      out.zM = clearZ;
       return;
     }
   }
@@ -192,7 +221,7 @@ export interface MischiefDecals {
    * Draws one decal per mark: the new ones are made, the ones the world no longer lists are removed (a
    * restart). Marks are never removed during a level, so this does nothing on most frames.
    */
-  sync(marks: readonly MischiefMark[]): void;
+  sync(marks: readonly MischiefMark[], photoCamera: DecalView): void;
   /** How many decals are drawn. */
   readonly count: number;
   /** Removes every decal (a restart). */
@@ -206,11 +235,13 @@ export interface MischiefDecals {
  */
 export function createMischiefDecals(
   parent: Object3D,
-  colliders: readonly Collider[],
+  cover: DecalCover,
   toon: ToonMaterialCache,
 ): MischiefDecals {
   const meshes: Mesh[] = [];
   const point = { xM: 0, zM: 0 };
+  // The game camera and the end photo's (`feel.fx.photoCamera`, tunable): a mark is seen from both.
+  const views: DecalView[] = [GAME_VIEW, GAME_VIEW];
   const materialOf = (gag: string, index: number): MeshToonMaterial =>
     toon.get(
       new Color(
@@ -227,13 +258,14 @@ export function createMischiefDecals(
     meshes.length = 0;
   };
   return {
-    sync(marks) {
+    sync(marks, photoCamera) {
       if (marks.length < meshes.length) clear();
+      views[1] = photoCamera;
       for (let i = meshes.length; i < marks.length; i++) {
         const mark = marks[i] as MischiefMark;
         const mesh = new Mesh(createDecalGeometry(mark.gag, i), materialOf(mark.gag, i));
         mesh.name = `mischief_decal_${i}`;
-        visibleDecalPoint(mark.xM, mark.zM, colliders, point);
+        visibleDecalPoint(mark.xM, mark.zM, cover, views, point);
         mesh.position.set(point.xM, DECAL_LIFT_M, point.zM);
         mesh.receiveShadow = false;
         mesh.castShadow = false;

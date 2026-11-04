@@ -130,6 +130,11 @@ export interface LevelScene {
   /** The effects of the level; they die with it. */
   readonly fx: LevelFx;
   /**
+   * Where the baby's view is displaced from his sim point, in metres on the floor (the stairs gag's
+   * slide, story 3.15): a tap aims at where he is drawn. Read at call time.
+   */
+  readonly babySlideM?: Readonly<{ xM: number; zM: number }>;
+  /**
    * Moves what the world moves: Papa, the baby and the props, drawn `alpha` of the way from the
    * last step to the next; then the sim-clocked effects on the interpolated sim clock, and the
    * real-time ones (shake, particles) at `nowReal`, the frame's timestamp: they move on every
@@ -355,7 +360,16 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
 
   const shadows = addBlobShadows(content, geometry.colliders, render.blobSkipColliderIds);
   // The mess a silence's mischief leaves, from `world.afterEffects.mischiefMarks` (story 3.15): the photo shows it too.
-  const decals = createMischiefDecals(content, geometry.colliders, toon);
+  const decals = createMischiefDecals(
+    content,
+    {
+      colliders: geometry.colliders,
+      wallHeightM: render.decalWallHeightM,
+      boundsMinM: geometry.boundsMinM,
+      boundsMaxM: geometry.boundsMaxM,
+    },
+    toon,
+  );
 
   // The props: the model's PROP_ nodes are templates, the views are pooled per kind.
   const pools = new Map<string, ViewPool<PropView>>();
@@ -460,6 +474,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   let gagHairAmount = 0;
   let isHairHeld = false;
   const applyHair = (): void => papa.setHair(Math.max(gagHairAmount, isHairHeld ? 1 : 0));
+  const babySlideM = { xM: 0, zM: 0 };
   const gags = createGagFx({
     setLightsFactor: (factor) => {
       flashLightsFactor = factor;
@@ -469,7 +484,11 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       gagHairAmount = amount;
       applyHair();
     },
-    setBabySlide: (offsetXM, offsetZM, dropM) => baby.setSlideM(offsetXM, offsetZM, dropM),
+    setBabySlide: (offsetXM, offsetZM, dropM) => {
+      babySlideM.xM = offsetXM;
+      babySlideM.zM = offsetZM;
+      baby.setSlideM(offsetXM, offsetZM, dropM);
+    },
   });
   const lift = createLiftFx((heightM) => baby.setLiftM(heightM));
   /** The lowering of the baby as last drawn (story 4.8), read by the debug `fx()`. */
@@ -533,6 +552,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     scene,
     room,
     fx,
+    babySlideM,
     get papaPose() {
       return papa.pose;
     },
@@ -568,7 +588,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       applySquash(papaSquash, clockMs, setPapaSquash);
       applySquash(babySquash, clockMs, setBabySquash);
       props.sync(world.props, alpha);
-      decals.sync(world.afterEffects.mischiefMarks);
+      decals.sync(world.afterEffects.mischiefMarks, world.feel.fx.photoCamera);
       // Papa's nap, coffee and call, from the world every frame (stories 1.19, 1.20; diegetic, no overlay).
       papa.setEyelids(eyelidsAmountAt(world, clockMs, bodies.microSleepDefId));
       papa.setAsleep(world.papa.state === 'asleep', clockMs);

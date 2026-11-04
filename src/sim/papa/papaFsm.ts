@@ -95,7 +95,9 @@ export function isPapaBusy(papa: { readonly state: PapaState }): boolean {
  * extending it (`occupyPapa`). A chosen occupation (`drink`, `onPhone`, `onToilet`, `pickingUp`) is
  * not one, and a séquelle that lands on it cancels it.
  */
-export function isAfterEffectState(state: PapaState): boolean {
+export function isAfterEffectState(
+  state: PapaState,
+): state is 'electrified' | 'carryingUp' | 'asleep' {
   return state === 'electrified' || state === 'carryingUp' || state === 'asleep';
 }
 

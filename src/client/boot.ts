@@ -114,6 +114,7 @@ const SEQUENCE_SLOT = GAUGE_IDS.length + 1;
 /** The most the scheduler takes off the audio clock to pair it with the loop's, in real ms (story 4.5): a frame older than this is a clock to distrust, not a skew to correct. */
 const BEAT_CLOCK_AGE_MAX_MS = 100;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
+const NO_BABY_SLIDE: Readonly<{ xM: number; zM: number }> = { xM: 0, zM: 0 };
 const NO_SIM_OBJECTS: readonly SimObjectSpec[] = [];
 
 /** The floor point of the level's `ANCHOR_door`, or null when the geometry has none (story 3.5). */
@@ -1849,6 +1850,7 @@ export async function boot(): Promise<void> {
     },
     babyCarriedHeightM: BABY_CARRIED_HEIGHT_M,
     babyCarriedForwardM: BABY_CARRIED_FORWARD_M,
+    getBabySlideM: () => currentLevel?.babySlideM ?? NO_BABY_SLIDE,
     get input() {
       return levelFeel().input;
     },

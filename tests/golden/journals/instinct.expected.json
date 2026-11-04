@@ -28,10 +28,8 @@
     "WindowOpened",
     "ResponseResolved",
     "GagTriggered",
-    "AfterEffectStarted",
     "ResponseResolved",
     "GagTriggered",
-    "AfterEffectStarted",
     "ThreatTelegraphed",
     "ResponseResolved",
     "GagTriggered",
@@ -47,7 +45,6 @@
     "ResponseResolved",
     "GagTriggered",
     "PapaStateChanged",
-    "AfterEffectStarted",
     "AfterEffectStarted",
     "AfterEffectEnded",
     "PapaStateChanged",
@@ -94,5 +91,5 @@
     "AfterEffectEnded",
     "BabyStateChanged"
   ],
-  "eventsHash": "1bc0c989f56cfc"
+  "eventsHash": "024ccca244a2be"
 }

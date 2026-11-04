@@ -299,4 +299,20 @@ describe('createGagFx', () => {
       `slide:0.00,${(-GAG_SLIDE_M).toFixed(2)},${GAG_DOWNSTAIRS_DROP_M.toFixed(2)}`,
     ]);
   });
+
+  it('lets the gag that starts after a frame already saw the baby downstairs take over: its direction, its slide', () => {
+    const { calls, fx } = build();
+    // A frame sees the baby down before the cue reaches the effect: the fallback places him at once...
+    fx.update(500, true, 0, -1);
+    calls.length = 0;
+    // ...then the cue starts the real slide, along its own direction, which plays from its start.
+    fx.start('stairs_slide', 500, false, 1, 0);
+    fx.update(500, true, 0, -1);
+    expect(calls).toEqual(['slide:0.00,0.00,0.00']);
+    calls.length = 0;
+    fx.update(500 + 1000, true, 0, -1);
+    expect(calls).toEqual([
+      `slide:${GAG_SLIDE_M.toFixed(2)},0.00,${GAG_DOWNSTAIRS_DROP_M.toFixed(2)}`,
+    ]);
+  });
 });

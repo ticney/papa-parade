@@ -151,7 +151,6 @@ export const COMBO_CHANGE_REASONS_ARE_COMPLETE: [UnlistedComboChangeReason] exte
   ? true
   : UnlistedComboChangeReason = true;
 
-/** Domain events pushed by the systems into `ctx.events`; `t` is sim time. */
 /**
  * What `AfterEffectStarted` / `AfterEffectEnded` name (story 3.15, D8): the kinds of the defs
  * (`none` is no séquelle), plus `dim` (the outlet's pénombre, a décor séquelle of its own) and
@@ -177,6 +176,7 @@ export const AFTER_EFFECT_KINDS_ARE_COMPLETE: [UnlistedAfterEffectKind] extends 
   ? true
   : UnlistedAfterEffectKind = true;
 
+/** Domain events pushed by the systems into `ctx.events`; `t` is sim time. */
 export type SimEvent =
   | { type: 'TimeScaleChanged'; t: SimMs; from: number; to: number }
   | { type: 'PapaStateChanged'; t: SimMs; from: PapaState; to: PapaState }

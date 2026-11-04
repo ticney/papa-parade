@@ -1,7 +1,7 @@
 import { STEP_MS } from '@shared/constants';
 import { createRng, nextFloat } from '@shared/rng';
 import { asSimMs } from '@shared/time';
-import type { SimCommand, ThreatInstance, World } from '@sim';
+import { isPapaBusy, type SimCommand, type ThreatInstance, type World } from '@sim';
 import type { Bot, BotResponse, BotSetup } from './bot.ts';
 import { botSeed } from './botSeed.ts';
 import { createCommandScheduler } from './commandScheduler.ts';
@@ -26,17 +26,6 @@ import {
 
 /** How long the bot waits for its tap to fetch the baby to work before it taps again, in sim ms. */
 const FETCH_RETRY_MS = 1000;
-
-/** Papa's states in which his hands are full: a threat first seen then is easily missed (D3 of story 3.14). */
-const BUSY_PAPA_STATES: ReadonlySet<World['papa']['state']> = new Set([
-  'asleep',
-  'drink',
-  'onPhone',
-  'onToilet',
-  'electrified',
-  'carryingUp',
-  'pickingUp',
-]);
 
 /**
  * A plausible player (story 3.14). **The reaction.** Everything it answers to a sight or a signal waits for a
@@ -110,7 +99,7 @@ export function createHumanBot(setup: BotSetup): Bot {
   let find: { startedAt: number; atMs: number } | null = null;
   // The fetch of a baby left at the bottom of the stairs (story 3.15), keyed by his `downstairsUntil` (one
   // episode each): when it may tap him, and when it last did.
-  let fetch: { downstairsUntil: number; atMs: number; sentAt: number | null } | null = null;
+  let fetchPlan: { downstairsUntil: number; tapAt: number; sentAt: number | null } | null = null;
   // The tap planned for the beat in play: dropped if the beat is settled before it is sent.
   let beatTap: { beatAt: number; atMs: number } | null = null;
   let lastBeatAt: number | null = null;
@@ -134,7 +123,7 @@ export function createHumanBot(setup: BotSetup): Bot {
     firmHold.tapUntil > now ||
     scheduler.size > 0 ||
     find !== null ||
-    BUSY_PAPA_STATES.has(world.papa.state);
+    isPapaBusy(world.papa);
   /**
    * True when the bot never answers this cycle of `threat`. Decided once per cycle, the first time it sees it:
    * while it is free it always answers, while it is busy it misses with probability `missWhileBusyPct` %. A
@@ -181,19 +170,19 @@ export function createHumanBot(setup: BotSetup): Bot {
       }
       const { baby } = world;
       if (baby.state === 'downstairs' && baby.downstairsUntil !== null) {
-        if (fetch?.downstairsUntil !== baby.downstairsUntil) {
+        if (fetchPlan?.downstairsUntil !== baby.downstairsUntil) {
           // A new episode: the reaction is drawn here and nowhere else, so a game that never leaves a baby
           // downstairs draws exactly what it drew before.
-          fetch = {
+          fetchPlan = {
             downstairsUntil: baby.downstairsUntil,
-            atMs: now + drawReactionMs(),
+            tapAt: now + drawReactionMs(),
             sentAt: null,
           };
         }
-        const isFree = !BUSY_PAPA_STATES.has(world.papa.state) && scheduler.size === 0;
-        const isDue = fetch.atMs < now + STEP_MS;
+        const isFree = !isPapaBusy(world.papa) && scheduler.size === 0;
+        const isDue = fetchPlan.tapAt < now + STEP_MS;
         // Again after a second if the first tap came to nothing (Papa was busy when it landed).
-        const isRetry = fetch.sentAt === null || now - fetch.sentAt >= FETCH_RETRY_MS;
+        const isRetry = fetchPlan.sentAt === null || now - fetchPlan.sentAt >= FETCH_RETRY_MS;
         if (
           isDue &&
           isFree &&
@@ -201,11 +190,11 @@ export function createHumanBot(setup: BotSetup): Bot {
           !firmHold.isHolding &&
           world.papa.intent !== 'fetchBaby'
         ) {
-          out.push({ type: 'TapBaby', t: asSimMs(Math.max(fetch.atMs, now)) });
-          fetch.sentAt = now;
+          out.push({ type: 'TapBaby', t: asSimMs(Math.max(fetchPlan.tapAt, now)) });
+          fetchPlan.sentAt = now;
         }
-      } else if (fetch !== null) {
-        fetch = null;
+      } else if (fetchPlan !== null) {
+        fetchPlan = null;
       }
       firmHold.update(world.threats, now, out);
       for (let i = 0; i < world.threats.length; i++) {

@@ -72,6 +72,7 @@ export function createTestFeedback(): FeedbackTable {
       sunOffsetM: [5, 9, 7],
       outlines: { widthM: 0.025, skipMaterials: ['art_ink'] },
       dangerTint: { radiusM: 0.5, minOpacityPct: 40, peakOpacityPct: 80, pulseHz: 2 },
+      decalWallHeightM: 2,
       blobSkipColliderIds: [],
     },
     resultScreen: {

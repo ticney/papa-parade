@@ -149,6 +149,7 @@
     "sunOffsetM": [3, 9, 5],
     "outlines": { "widthM": 0.025, "skipMaterials": ["art_ink"] },
     "dangerTint": { "radiusM": 0.55, "minOpacityPct": 35, "peakOpacityPct": 85, "pulseHz": 2 },
+    "decalWallHeightM": 2,
     "blobSkipColliderIds": ["stairs"]
   },
   "cues": {

@@ -136,9 +136,10 @@ function arrive(world: World, ctx: StepContext): void {
     putDownBaby(world, ctx);
     return;
   }
-  // The walk was to fetch the baby from the stairs (story 3.15): if he climbed back meanwhile, nothing more.
+  // The walk was to fetch the baby from the stairs (story 3.15): if he climbed back meanwhile, or the
+  // walk ended short of him (a blocked path), nothing more.
   if (intent === 'fetchBaby') {
-    startCarryUp(world, ctx);
+    if (isBabyInReach(world, ctx)) startCarryUp(world, ctx);
     if (world.papa.state !== 'carryingUp') enterPapaState(world, ctx, 'idle');
     return;
   }

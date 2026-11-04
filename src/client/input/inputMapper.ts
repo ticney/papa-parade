@@ -85,6 +85,11 @@ export interface InputMapperDeps {
    * aims there, not at Papa's feet axis. Read at each tap.
    */
   babyCarriedForwardM: number;
+  /**
+   * How far the baby is drawn from his sim point on the floor (the stairs gag's slide, story 3.15): a
+   * tap aims at the drawn baby, so it follows him while he is downstairs. Absent: no offset.
+   */
+  getBabySlideM?(): Readonly<{ xM: number; zM: number }>;
   /** The interactive objects of the level being played (`sim.objects`), or an empty list. */
   getObjects(): readonly ObjectTarget[];
   /**
@@ -377,16 +382,12 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     const { papa, baby } = active.sim.world;
     const { contextReachM } = deps.input;
     // In the final rush a prop that is a mess comes first (story 3.5): ahead of the baby, carried or
-    // not, and of any object. With none in reach the action is what it always was.
-    {
-      // Outside the rush only a debris of the coffee table's gag is picked up (story 3.15).
-      const propId = pickMessProp(
-        active.sim.world.props,
-        papa.xM,
-        papa.zM,
-        contextReachM,
-        active.sim.world.flow.state !== 'finalRush',
-      );
+    // not, and of any object. Outside it only a debris of the coffee table's gag counts (story 3.15),
+    // and the baby comes first while he is in the arms (put him down) or at the bottom of the stairs
+    // (fetch him). With none in reach the action is what it always was.
+    const isRush = active.sim.world.flow.state === 'finalRush';
+    if (isRush || (baby.state !== 'carried' && baby.state !== 'downstairs')) {
+      const propId = pickMessProp(active.sim.world.props, papa.xM, papa.zM, contextReachM, !isRush);
       if (propId !== null) {
         active.sim.enqueue({ type: 'TapObject', t, objectId: propId });
         return;
@@ -616,6 +617,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       // Where he is drawn: lifted, and a little in front of Papa, when he is in his arms.
       babyAim.xM = isCarried ? baby.xM + baby.gazeX * deps.babyCarriedForwardM : baby.xM;
       babyAim.zM = isCarried ? baby.zM + baby.gazeZ * deps.babyCarriedForwardM : baby.zM;
+      // Downstairs he is drawn away from his sim point, lower: aim at the drawn body.
+      if (baby.state === 'downstairs') {
+        const slideM = deps.getBabySlideM?.();
+        if (slideM !== undefined) {
+          babyAim.xM += slideM.xM;
+          babyAim.zM += slideM.zM;
+        }
+      }
       const babyDistSq = deps.hitTester.pickBaby(
         sample.clientX,
         sample.clientY,
