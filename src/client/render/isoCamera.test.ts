@@ -8,7 +8,14 @@ import {
   ISO_PITCH_DEG,
   ISO_YAW_DEG,
 } from '@shared/constants';
-import { createFollowFrame, fitFollowFrame, viewUM, viewVM } from '@shared/followCamera';
+import {
+  createFollowFrame,
+  createFollowState,
+  fitFollowFrame,
+  snapFollow,
+  viewUM,
+  viewVM,
+} from '@shared/followCamera';
 import { type OrthographicCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { createIsoCamera, fitFollowCamera, fitIsoCamera, type RoomSize } from './isoCamera.ts';
@@ -301,6 +308,31 @@ describe('fitFollowCamera (story 9.2)', () => {
     expect((frame.maxVM - frame.minVM) / 2).toBeCloseTo((camera.top - camera.bottom) / 2, 9);
   });
 
+  it('never clips the room behind the far plane, however small the frame', () => {
+    const big = {
+      widthM: 14.6,
+      depthM: 7.2,
+      heightM: 3.3,
+      floorYM: -0.8,
+      centerXM: 0.35,
+      centerZM: -0.1,
+    };
+    for (const aspect of [0.46, 1, 16 / 9]) {
+      const camera = createIsoCamera();
+      // The smallest frame `feel.camera` allows: the room reaches far deeper than its box.
+      fitFollowCamera(camera, big, { frameWidthM: 3, frameDepthM: 3 }, -4, 2, aspect);
+      for (const xM of [big.centerXM - big.widthM / 2, big.centerXM + big.widthM / 2]) {
+        for (const yM of [big.floorYM, big.floorYM + big.heightM]) {
+          for (const zM of [big.centerZM - big.depthM / 2, big.centerZM + big.depthM / 2]) {
+            const depth = new Vector3(xM, yM, zM).project(camera).z;
+            expect(depth).toBeGreaterThanOrEqual(-1);
+            expect(depth).toBeLessThanOrEqual(1);
+          }
+        }
+      }
+    }
+  });
+
   it('is the fixed camera when the frame is the room: the same picture', () => {
     const viaFollow = createIsoCamera();
     fitFollowCamera(viaFollow, SUNKEN_ROOM, FRAME, 0.35, -0.1, 16 / 9);
@@ -340,6 +372,59 @@ describe('the characters keep their size in the big room (story 9.2, AC 5)', () 
       // The fixed camera on the big room would shrink them (story 9.1: about three quarters).
       const fixedKitchen = fitted(kitchen, aspect);
       expect((fixedKitchen.top - fixedKitchen.bottom) / salonHeightM).toBeGreaterThan(1.2);
+    },
+  );
+
+  // Geo's call at the review of 9.2: where the edge margin and the room's bounds disagree, the walls
+  // win. Papa may then come nearer an edge than `edgeMarginPct`, but never off the frame, and only on
+  // an axis where the view stands against the room's extent.
+  it.each([
+    ['844 × 390', 844 / 390],
+    ['667 × 375', 667 / 375],
+    ['4:3', 4 / 3],
+  ])(
+    'keeps Papa in the frame at the kitchen walkable corners at %s: the walls win over the margin',
+    (_name, aspect) => {
+      if (!feel.ok) throw new Error('the live feel is invalid');
+      const params = feel.value.camera;
+      const frame = createFollowFrame();
+      fitFollowFrame(
+        frame,
+        roomOfLevel('salon_kitchen'),
+        params.frameWidthM,
+        params.frameDepthM,
+        aspect,
+      );
+      const marginPct = params.edgeMarginPct;
+      // The walkable floor of 9.1: 13.5 × 7 m, x in [-6.75, 6.75], z in [-3.5, 3.5].
+      for (const [xM, zM] of [
+        [-6.75, -3.5],
+        [-6.75, 3.5],
+        [6.75, -3.5],
+        [6.75, 3.5],
+        [5.25, 1],
+      ] as const) {
+        const state = createFollowState();
+        const papaUM = viewUM(xM, zM);
+        const papaVM = viewVM(xM, 0, zM);
+        snapFollow(state, frame, params, papaUM, papaVM, papaUM, papaVM, 0);
+        const axes = [
+          [papaUM - state.centreUM, frame.halfWidthM, state.centreUM, frame.minUM, frame.maxUM],
+          [papaVM - state.centreVM, frame.halfHeightM, state.centreVM, frame.minVM, frame.maxVM],
+        ] as const;
+        for (const [offsetM, halfM, centreM, minM, maxM] of axes) {
+          const edgePct = ((halfM - Math.abs(offsetM)) / (2 * halfM)) * 100;
+          expect(edgePct).toBeGreaterThan(0);
+          if (edgePct < marginPct - 1e-9) {
+            // The margin gave way: the view stands against the room's extent (or on its middle).
+            const isAgainstWall =
+              Math.abs(centreM - (minM + halfM)) < 1e-9 ||
+              Math.abs(centreM - (maxM - halfM)) < 1e-9 ||
+              Math.abs(centreM - (minM + maxM) / 2) < 1e-9;
+            expect(isAgainstWall).toBe(true);
+          }
+        }
+      }
     },
   );
 });

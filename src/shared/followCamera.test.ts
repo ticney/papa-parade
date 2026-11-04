@@ -361,7 +361,7 @@ describe('the follow (story 9.2, AC 3, 4, 8)', () => {
     expect(clampFollowAxis(-3.5, 1, -4, 4)).toBe(-3);
   });
 
-  it('snaps to its goal on its first step, and after more than FOLLOW_SNAP_AFTER_MS', () => {
+  it('snaps onto the aim on its first step, and onto the dead zone goal after more than FOLLOW_SNAP_AFTER_MS', () => {
     const frame = frameOf(HUGE);
     const state = createFollowState();
     stepFollow(state, frame, PARAMS, false, 2, -1, 2, -1, 5000);
@@ -370,10 +370,22 @@ describe('the follow (story 9.2, AC 3, 4, 8)', () => {
     ]);
     stepFollow(state, frame, PARAMS, false, 9, -1, 9, -1, 5010);
     expect(state.velocityUMps).not.toBe(0);
-    stepFollow(state, frame, PARAMS, false, -3, 4, -3, 4, 5010 + FOLLOW_SNAP_AFTER_MS + 1);
-    expect([state.centreUM, state.centreVM, state.velocityUMps, state.velocityVMps]).toEqual([
-      -3, 4, 0, 0,
-    ]);
+    const { centreUM, centreVM } = state;
+    const deadHalfUM = (frame.halfWidthM * PARAMS.deadZoneWidthPct) / 100;
+    const deadHalfVM = (frame.halfHeightM * PARAMS.deadZoneHeightPct) / 100;
+    // Out of the dead zone on both axes: the nearest centre that puts the aim back on its edge.
+    const farUM = centreUM - deadHalfUM - 3;
+    const farVM = centreVM + deadHalfVM + 2;
+    let atMs = 5010 + FOLLOW_SNAP_AFTER_MS + 1;
+    stepFollow(state, frame, PARAMS, false, farUM, farVM, farUM, farVM, atMs);
+    expect(state.centreUM).toBeCloseTo(farUM + deadHalfUM, 9);
+    expect(state.centreVM).toBeCloseTo(farVM - deadHalfVM, 9);
+    expect([state.velocityUMps, state.velocityVMps, state.lastAtMs]).toEqual([0, 0, atMs]);
+    // Inside the dead zone: a long jump of the clock does not re-centre the view.
+    const before = [state.centreUM, state.centreVM];
+    atMs += FOLLOW_SNAP_AFTER_MS + 1;
+    stepFollow(state, frame, PARAMS, false, farUM + 0.5, farVM, farUM + 0.5, farVM, atMs);
+    expect([state.centreUM, state.centreVM]).toEqual(before);
   });
 
   it('snaps under the edge margin and the room’s bounds too', () => {
@@ -452,5 +464,23 @@ describe('the follow (story 9.2, AC 3, 4, 8)', () => {
       return state.centreUM;
     };
     expect(at(10)).toBeCloseTo(at(20), 6);
+  });
+
+  it('barely depends on the frame rate with Papa walking, the dead zone and the margin', () => {
+    // Papa walks along u at 3 m/s for a second, then stands; the aim is sampled once per frame.
+    const papaUMAt = (atMs: number): number => (3 * Math.min(atMs, 1000)) / 1000;
+    const at = (framesPerS: number): number => {
+      const frame = frameOf(HUGE);
+      const state = restingAt(0, 0);
+      for (let i = 1; i <= (1500 * framesPerS) / 1000; i++) {
+        const atMs = (i * 1000) / framesPerS;
+        const papaUM = papaUMAt(atMs);
+        stepFollow(state, frame, PARAMS, false, papaUM, 0, papaUM, 0, atMs);
+      }
+      return state.centreUM;
+    };
+    expect(at(30)).not.toBe(0);
+    expect(Math.abs(at(30) - at(100))).toBeLessThan(0.05);
+    expect(Math.abs(at(60) - at(100))).toBeLessThan(0.02);
   });
 });

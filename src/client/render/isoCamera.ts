@@ -135,7 +135,8 @@ export interface FollowFrameSize {
  * The follow camera's framing (story 9.2): {@link fitIsoCamera} on a `frameWidthM × frameDepthM` box
  * of the room's height and floor, centred on the floor point `(centreXM, centreZM)`. The characters
  * are then drawn at the scale of a room of the frame's size, whatever the room's own size; moving
- * the centre is a translation of this fit (orthographic camera).
+ * the centre is a translation of this fit (orthographic camera). The far plane is the larger of the
+ * frame's and the room's, so a narrow aspect never clips the back of the room.
  */
 export function fitFollowCamera(
   camera: OrthographicCamera,
@@ -157,4 +158,10 @@ export function fitFollowCamera(
     },
     aspect,
   );
+  // The follow frame is smaller than the room; at a narrow aspect the view reaches deeper than it.
+  const roomFarM = ISO_CAMERA_DISTANCE_M + Math.hypot(room.widthM, room.depthM, room.heightM);
+  if (roomFarM > camera.far) {
+    camera.far = roomFarM;
+    camera.updateProjectionMatrix();
+  }
 }

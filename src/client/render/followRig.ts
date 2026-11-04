@@ -151,6 +151,8 @@ export function createFollowRig(camera: OrthographicCamera, cameraFx: CameraFx):
       fittedAspect = 0;
       papaXM = setup.papaStartXM;
       papaZM = setup.papaStartZM;
+      // No clamp left from a previous follow level, even if the canvas has no size to fit yet.
+      cameraFx.clampTo(null);
     },
     fit(aspect, params) {
       if (room === null) return;

@@ -149,9 +149,25 @@ test.describe('Grand salon avec cuisine', () => {
     await waitFrames(page, 3);
     const atSpawn = await ppFx(page);
     expect(atSpawn.cameraMode).toBe('follow');
+    // The centre after each chunk of the walk (100 ms of sim time, under the 1 s snap): the camera
+    // catches up frame by frame, it does not jump there at the end.
+    const centres: { xM: number; zM: number }[] = [];
     await walkToKitchen(page, async () => {
-      expect((await ppFx(page)).cameraYawDeg).toBe(0);
+      const fx = await ppFx(page);
+      expect(fx.cameraYawDeg).toBe(0);
+      centres.push({ xM: fx.cameraCentreXM, zM: fx.cameraCentreZM });
     });
+    const moves = centres.map((centre, i) => {
+      const previous =
+        i === 0 ? { xM: atSpawn.cameraCentreXM, zM: atSpawn.cameraCentreZM } : centres[i - 1];
+      return Math.hypot(centre.xM - (previous?.xM ?? 0), centre.zM - (previous?.zM ?? 0));
+    });
+    const lastWalked = centres.at(-1) ?? { xM: atSpawn.cameraCentreXM, zM: atSpawn.cameraCentreZM };
+    expect(
+      Math.hypot(lastWalked.xM - atSpawn.cameraCentreXM, lastWalked.zM - atSpawn.cameraCentreZM),
+    ).toBeGreaterThan(1);
+    expect(moves.filter((moveM) => moveM > 0.01).length).toBeGreaterThanOrEqual(5);
+    expect(Math.max(...moves)).toBeLessThan(1);
     const atKitchen = await ppFx(page);
     expect(atKitchen.cameraMode).toBe('follow');
     expect(atKitchen.cameraYawDeg).toBe(0);
@@ -188,13 +204,32 @@ test.describe('Grand salon avec cuisine', () => {
       Math.hypot((tapped?.xM ?? 0) - FLOOR_POINT[0], (tapped?.zM ?? 0) - FLOOR_POINT[1]),
     ).toBeLessThan(0.1);
 
-    // A threat, at its tap point mirrored for the camera as it is now.
-    let open: Awaited<ReturnType<typeof ppWorld>>['threats'][number] | undefined;
-    for (let i = 0; i < 2000 && open === undefined; i++) {
+    // A threat, at its tap point mirrored for the camera as it is now. The view changes between the
+    // telegraph (where the point is written) and the tap: a resize refits the follow frame, so the
+    // point must be written again for the new view (story 9.2 review).
+    type ThreatView = Awaited<ReturnType<typeof ppWorld>>['threats'][number];
+    const isAnchored = (threat: ThreatView, state: string) =>
+      threat.state === state && threat.anchorId !== null;
+    let telegraphed: ThreatView | undefined;
+    for (let i = 0; i < 2000 && telegraphed === undefined; i++) {
       await ppAdvance(page, 5);
+      telegraphed = (await ppWorld(page)).threats.find((threat) => isAnchored(threat, 'telegraph'));
+    }
+    expect(telegraphed).toBeDefined();
+    await waitFrames(page, 3);
+    const atTelegraph = await threatIconPoint(page);
+    await page.setViewportSize({ width: 667, height: 375 });
+    await waitFrames(page, 3);
+    const afterResize = await threatIconPoint(page);
+    expect(
+      Math.hypot(afterResize.x - atTelegraph.x, afterResize.y - atTelegraph.y),
+    ).toBeGreaterThan(1);
+    let open: ThreatView | undefined;
+    for (let i = 0; i < 400 && open === undefined; i++) {
       open = (await ppWorld(page)).threats.find(
-        (threat) => threat.state === 'windowOpen' && threat.anchorId !== null,
+        (threat) => threat.id === telegraphed?.id && isAnchored(threat, 'windowOpen'),
       );
+      if (open === undefined) await ppAdvance(page, 1);
     }
     expect(open).toBeDefined();
     await waitFrames(page, 3);

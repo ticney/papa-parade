@@ -757,9 +757,9 @@ export async function boot(): Promise<void> {
       delete document.documentElement.dataset[name];
     }
     hasThreatPxPoint = false;
+    hasBabyPxPoint = false;
     // The object points were just written at the level's first framing: written again once it moves.
-    mirroredCentreXM = cameraFx.baseCentreXM;
-    mirroredCentreZM = cameraFx.baseCentreZM;
+    storeView(mirroredView);
     // The entry of the bedtime cycle: a restart never shows the last game's (story 4.10).
     mirror('ppCycleIndex', String(levelSession.active?.sim.world.cycle.index ?? 0));
     beatHitCount = 0;
@@ -832,11 +832,9 @@ export async function boot(): Promise<void> {
     const active = levelSession.active;
     if (active === null) return;
     const { baby } = active.sim.world;
-    const rect = canvas.getBoundingClientRect();
-    iconPoint.set(baby.xM, startFeel().baby.bodyRadiusM, baby.zM).project(camera);
-    const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
-    const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
-    mirror('ppBabyPx', `${x.toFixed(1)},${y.toFixed(1)}`);
+    babyPxPoint.set(baby.xM, startFeel().baby.bodyRadiusM, baby.zM);
+    hasBabyPxPoint = true;
+    mirrorPagePoint('ppBabyPx', babyPxPoint, canvas.getBoundingClientRect());
   };
   // The phone, on its events only: ringing, then answered or timedOut (never per frame).
   const mirrorPhoneEvent = (event: SimEvent): void => {
@@ -846,30 +844,60 @@ export async function boot(): Promise<void> {
   // The threats, on their events only: the state of the threat, where its icon is on the page
   // (CSS px, for a test to tap), the last response and the last gag.
   const iconPoint = new Vector3();
-  // The world point behind `data-pp-threat-px`, kept to write it again when the camera follows Papa.
+  /** Writes where the world point `point` is on the page now, in CSS px, to the mirror `name`. */
+  const mirrorPagePoint = (
+    name: 'ppThreatPx' | 'ppBabyPx',
+    point: Readonly<Vector3>,
+    rect: DOMRect,
+  ): void => {
+    iconPoint.copy(point).project(camera);
+    const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
+    const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
+    mirror(name, `${x.toFixed(1)},${y.toFixed(1)}`);
+  };
+  // The world points behind `data-pp-threat-px` and `data-pp-baby-px`, kept to write them again when
+  // the camera follows Papa (story 9.2).
   const threatPxPoint = new Vector3();
   let hasThreatPxPoint = false;
-  // Where the framing looked when the tap points were last written (story 9.2).
-  let mirroredCentreXM = Number.NaN;
-  let mirroredCentreZM = Number.NaN;
+  const babyPxPoint = new Vector3();
+  let hasBabyPxPoint = false;
+  // The camera's view (its world matrix, then its projection), as last seen and as when the tap
+  // points were last written: preallocated, compared and copied without allocating.
+  const VIEW_LENGTH = 32;
+  const seenView = new Float64Array(VIEW_LENGTH).fill(Number.NaN);
+  const mirroredView = new Float64Array(VIEW_LENGTH).fill(Number.NaN);
+  const isViewStored = (store: Float64Array): boolean => {
+    const world = camera.matrixWorld.elements;
+    const projection = camera.projectionMatrix.elements;
+    for (let i = 0; i < 16; i++) {
+      if (store[i] !== world[i] || store[16 + i] !== projection[i]) return false;
+    }
+    return true;
+  };
+  const storeView = (store: Float64Array): void => {
+    store.set(camera.matrixWorld.elements, 0);
+    store.set(camera.projectionMatrix.elements, 16);
+  };
   /**
-   * In a level whose camera follows Papa (story 9.2), the tap points written at a telegraph and at the
-   * level start go stale as the camera moves: written again whenever the framing has moved since.
+   * In a level whose camera follows Papa (story 9.2), the tap points written at a telegraph, at a
+   * silence and at the level start go stale as the camera moves (the follow, the perfect's zoom and
+   * turn, a refit). They are written again once the camera has come to rest on a new view: never
+   * while it moves, so a playtest build does not measure the page each frame of a catch-up.
    */
   const mirrorFollowedPoints = (): void => {
     if (followRig.mode !== 'follow') return;
-    if (cameraFx.baseCentreXM === mirroredCentreXM && cameraFx.baseCentreZM === mirroredCentreZM) {
+    const isAtRest = isViewStored(seenView);
+    if (!isAtRest) {
+      storeView(seenView);
       return;
     }
-    mirroredCentreXM = cameraFx.baseCentreXM;
-    mirroredCentreZM = cameraFx.baseCentreZM;
+    if (isViewStored(mirroredView)) return;
+    storeView(mirroredView);
     mirrorObjectPoints();
-    if (!hasThreatPxPoint) return;
+    if (!hasThreatPxPoint && !hasBabyPxPoint) return;
     const rect = canvas.getBoundingClientRect();
-    iconPoint.copy(threatPxPoint).project(camera);
-    const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
-    const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
-    mirror('ppThreatPx', `${x.toFixed(1)},${y.toFixed(1)}`);
+    if (hasThreatPxPoint) mirrorPagePoint('ppThreatPx', threatPxPoint, rect);
+    if (hasBabyPxPoint) mirrorPagePoint('ppBabyPx', babyPxPoint, rect);
   };
   const mirrorThreatEvent = (event: SimEvent): void => {
     switch (event.type) {
@@ -890,10 +918,7 @@ export async function boot(): Promise<void> {
               : undefined;
           threatPxPoint.set(instance?.xM ?? entry.xM, entry.yM, instance?.zM ?? entry.zM);
           hasThreatPxPoint = true;
-          iconPoint.copy(threatPxPoint).project(camera);
-          const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
-          const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
-          mirror('ppThreatPx', `${x.toFixed(1)},${y.toFixed(1)}`);
+          mirrorPagePoint('ppThreatPx', threatPxPoint, rect);
         } else {
           // No icon for this threat: a point left by a previous one must not be tapped.
           hasThreatPxPoint = false;

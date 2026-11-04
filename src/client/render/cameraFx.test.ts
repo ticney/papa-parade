@@ -601,8 +601,11 @@ describe('the follow camera under createCameraFx (story 9.2, D4)', () => {
     }
   });
 
-  it('never clamps the fixed camera: the same lean shows beyond the room', () => {
+  it('never clamps the fixed camera, even after a follow level: the same lean shows beyond the room', () => {
     const { camera, fx, frame } = buildFollow(-6, -3);
+    // A follow level clamped it; the next, fixed level lets go (`followRig.setLevel` and `fit`).
+    fx.clampTo(frame);
+    fx.clampTo(null);
     fx.focusOn(-30, -30);
     fx.update(worldWith(slowMo(1000, 2200, 2500)), 1500, PERFECT_CAMERA, false, NO_FRAMING);
     const view = viewOf(camera, frame);

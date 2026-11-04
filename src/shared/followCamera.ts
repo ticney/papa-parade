@@ -237,8 +237,9 @@ function deadZoneGoal(centreM: number, aimM: number, halfM: number): number {
 
 /**
  * Keeps Papa's point at least the edge margin from the frame's edges, then the view inside the
- * room's extent (the clamp wins: it can only bite at a wall, where Papa cannot stand). A velocity
- * that pushes against either limit is dropped.
+ * room's extent. The walls win (Geo, review of 9.2): near a wall, or across a room narrower than the
+ * frame, the margin gives way and Papa can come nearer the edge than `edgeMarginPct`, never off the
+ * frame. A velocity that pushes against either limit is dropped.
  */
 function constrain(
   state: FollowState,
@@ -284,8 +285,9 @@ function constrain(
 }
 
 /**
- * Puts the view on its goal at once, at rest (the first frame of a level, a long jump of the clock):
- * centred on the aim, then the edge margin and the room's bounds.
+ * Puts the view on `aimUM, aimVM` at once, at rest, then applies the edge margin and the room's
+ * bounds. `stepFollow` passes the aim itself on a level's first frame and the dead zone's goal after
+ * a long jump of the clock.
  */
 export function snapFollow(
   state: FollowState,
@@ -323,8 +325,9 @@ export function settleFollow(
  * Moves the view toward the aim (Papa, or the judged threat) up to the sim time `atMs`: the dead zone
  * around the centre, a spring sub-stepped at `STEP_MS` (ω from the catch-up time, `dampingRatio`;
  * `reducedCatchUpMs` and no overshoot at all under reduced motion), then Papa's edge margin and the
- * room's bounds. A clock that did not move does nothing; the first step, and one after more than
- * `FOLLOW_SNAP_AFTER_MS`, snaps. Pure in its inputs; allocates nothing.
+ * room's bounds. A clock that did not move does nothing. The first step snaps onto the aim; one after
+ * more than `FOLLOW_SNAP_AFTER_MS` snaps onto the dead zone's goal (an aim inside it moves nothing).
+ * Pure in its inputs; allocates nothing.
  */
 export function stepFollow(
   state: FollowState,
@@ -337,11 +340,19 @@ export function stepFollow(
   aimVM: number,
   atMs: number,
 ): void {
-  if (state.lastAtMs === null || atMs - state.lastAtMs > FOLLOW_SNAP_AFTER_MS) {
+  if (state.lastAtMs === null) {
     snapFollow(state, frame, params, papaUM, papaVM, aimUM, aimVM, atMs);
     return;
   }
+  const deadHalfUM = (frame.halfWidthM * params.deadZoneWidthPct) / 100;
+  const deadHalfVM = (frame.halfHeightM * params.deadZoneHeightPct) / 100;
   const elapsedMs = atMs - state.lastAtMs;
+  if (elapsedMs > FOLLOW_SNAP_AFTER_MS) {
+    const goalUM = deadZoneGoal(state.centreUM, aimUM, deadHalfUM);
+    const goalVM = deadZoneGoal(state.centreVM, aimVM, deadHalfVM);
+    snapFollow(state, frame, params, papaUM, papaVM, goalUM, goalVM, atMs);
+    return;
+  }
   if (!(elapsedMs > 0)) return;
   state.lastAtMs = atMs;
 
@@ -354,8 +365,6 @@ export function stepFollow(
   const omegaPerMs = state.reachTau / catchUpMs;
   const subSteps = Math.ceil(elapsedMs / STEP_MS);
   setTransition(elapsedMs / subSteps, omegaPerMs, zeta);
-  const deadHalfUM = (frame.halfWidthM * params.deadZoneWidthPct) / 100;
-  const deadHalfVM = (frame.halfHeightM * params.deadZoneHeightPct) / 100;
 
   for (let i = 0; i < subSteps; i++) {
     const goalUM = deadZoneGoal(state.centreUM, aimUM, deadHalfUM);

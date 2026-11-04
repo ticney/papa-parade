@@ -1015,11 +1015,11 @@ Open:
 - **An off-screen threat can be neither seen nor tapped** until the off-screen bubble: for 9.3. Keyboard and gamepad auto-target already reach it. On a landscape phone the kitchen's whole width is in the frame (below), so only the vertical travel can hide one.
 - **The follow is stepped once per frame on the drawn clock, not once per sim step**: 9.8's visibility model will step the same `stepFollow` per sim step; the two can differ by a fraction of a step (the dead zone's goal is sampled per call). Accepted for a model of perception.
 - **The composed clamp ignores the perfect's turn (≤ 12°)**: a sliver beyond the room's box is possible during the turn, near a wall. The turn is 0 under reduced motion.
-- **Papa's edge margin can lose to the clamp across the kitchen**: on a landscape phone the frame (16.5 to 20 m of view) is wider than the kitchen's view extent (15.4 m), so the view stands on the room's middle across and Papa at the kitchen's far corners is nearer the side edges than `edgeMarginPct` (still fully on screen). The margin holds wherever the camera can move (`followCamera.test.ts`, a 13 m glide in 900 ms).
+- **Papa's edge margin can lose to the clamp across the kitchen**: on a landscape phone the frame (16.5 to 20 m of view) is wider than the kitchen's view extent (15.4 m), so the view stands on the room's middle across and Papa at the kitchen's far corners is nearer the side edges than `edgeMarginPct` (still fully on screen). Geo's call at the review: the walls win, and the margin also gives way at the near and far walls on every aspect. Pinned on the live corners (`isoCamera.test.ts`): Papa stays in the frame, and the margin gives way only where the view stands against the room's extent.
 - **The end photo fits the whole big room** (story question 3): small characters on the photo of `salon_kitchen`. Keep, or frame it around Papa later (3.7 / 7.4)?
 - **The follow frame is the salon's size, which barely moves the camera on a landscape phone** (story question 1): about 2.3 m of travel, up and down only. Tighter is two numbers in `feel.camera` (AC 5 would then pin the new scale).
 - **The follow aims at Papa's floor point** (y = 0), not his middle: the edge margin holds his feet, so near the top edge his head is closer to it than the margin (not checked on screen). Revisit with Geo's playtest.
-- **`humanBotRegression.test.ts` now pins the game, not the whole journal**: the six hashes are of the journal without `feelHash` and `levelHash`, which a feel key or a level field the sim never reads moved. Proved before the change: with the pre-9.2 content hashes put back, each journal hashed to its 3.14 pin (see the test's comment).
+- **`humanBotRegression.test.ts` re-pinned its whole-journal hashes** (review of 9.2): the six `PINNED` hashes moved with `feelHash` and `levelHash` (the new `camera` keys, never read by the sim); `PINNED_COMMANDS` of 3.15, the hashes of the commands, were not touched and still hold, so the bot plays the same game.
 
 ## Deferred from: story 3-15-sequelles-des-gags (2026-11-04)
 
@@ -1037,3 +1037,10 @@ Open:
 - **`downstairsDefOf` takes the first `babyDownstairs` def** (`src/sim/threats/afterEffects.ts`): `startCarryUp` returns silently when none is found and nothing enforces « one stairs per level ». Add a `content:check` rule when a level has two.
 - **`simReport.afterEffects.meanPerRun` mixes kinds** (`tools/sim/simReport.ts`): an outlet gag counts as `electrified` + `dim`, a fetch adds `carryUp` to `babyDownstairs`; read `byKind`. Revisit with the 3.16 report.
 - **The `hand` pictogram reuses `THREAT_ICON_PATHS.open_hand`** (`src/client/ui/world/activityBubble.ts`) instead of a new ink path. Revisit with the feel pass.
+
+## Deferred from: code review of 9-2-camera-qui-suit-papa (2026-11-04)
+
+- **The judged-threat aim lasts a whole sequence framing** (D5 as written, `followRig.ts` `isJudgedFramed`): in a follow level with a special sequence, the first judgement would hold the aim on that threat's point until the framing ends, the camera dragging at Papa's edge margin. Reason: no sequence in a follow level yet.
+- **Papa's edge margin is applied to the zoom-1 base, not to the composed view**: a sequence framing zoom (up to 100 %) plus a perfect while aiming at a threat can take Papa off screen. Reason: no sequence in a follow level yet; a perfect alone keeps him in view.
+- **Reduced motion switched on mid-catch-up keeps the 0.8 spring's velocity** (`stepFollow`), so the critically damped spring can overshoot once. Reason: rare (a settings change while the camera moves).
+- **`ppThreatPx` of a threat that follows the baby or Papa is a snapshot of its point at the telegraph**: re-projected through the moving camera, it still misses the moving body. Reason: pre-existing, the mirror was already a snapshot under the fixed camera.

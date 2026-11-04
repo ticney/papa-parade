@@ -1,6 +1,7 @@
 import type { Feel } from '@content/schemas/feel';
 import { asSimMs } from '@shared/time';
 import type { SimEvent, World } from '@sim';
+import { type OrthographicCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { createCameraFx, type SequenceFraming } from './cameraFx.ts';
 import { createFollowRig, type LevelCameraSetup } from './followRig.ts';
@@ -171,6 +172,47 @@ describe('createFollowRig (story 9.2)', () => {
     expect(centreOf(built).xM).toBeGreaterThan(onThreat.xM + 0.3);
   });
 
+  it("keeps the judged threat's icon in the frame through the perfect's zoom, lean and turn (AC 6)", () => {
+    // The live perfect move (feel.json › fx.perfectCamera), as `boot.ts` drives it on a perfect.
+    const PERFECT_CAMERA = { zoomPct: 18, yawDeg: 6, focusPct: 35, zoomInMs: 150, refocusMs: 200 };
+    const perfect = { source: 'perfect', startedAt: 1000, holdUntil: 1600, endsAt: 1900 };
+    const icon = new Vector3();
+    const isIconInFrame = (camera: OrthographicCamera): boolean => {
+      icon.set(THREAT.xM, 0.5, THREAT.zM).project(camera);
+      return Math.abs(icon.x) <= 1 && Math.abs(icon.y) <= 1;
+    };
+    // Papa next to the threat at the judgement, then Papa gliding to it from the far end (900 ms).
+    for (const [fromXM, fromZM] of [
+      [-4, -1],
+      [5.25, 1],
+    ] as const) {
+      const built = build();
+      const world = worldOf({ slowMos: [perfect] });
+      const papaAt = (atMs: number): [number, number] => {
+        const k = Math.min(1, Math.max(0, (atMs - 1000) / 900));
+        return [fromXM + (THREAT.xM + 0.4 - fromXM) * k, fromZM + (THREAT.zM + 0.3 - fromZM) * k];
+      };
+      let frames = 0;
+      for (let atMs = 0; atMs < 1900; atMs += 10) {
+        if (atMs === 1000) {
+          built.rig.onSimEvent(resolved(1000), world);
+          built.fx.focusOn(THREAT.xM, THREAT.zM);
+        }
+        const [xM, zM] = papaAt(atMs);
+        built.rig.update(atMs < 1000 ? worldOf() : world, atMs, xM, zM, NO_FRAMING, false);
+        built.fx.update(world, atMs, PERFECT_CAMERA, false, NO_FRAMING);
+        // Once the follow has caught up with a threat that was off the frame (`catchUpMs`), and
+        // from the judgement on for one that was in it.
+        const isFramed = fromXM < 0 ? atMs >= 1000 : atMs >= 1000 + PARAMS.catchUpMs;
+        if (!isFramed) continue;
+        if (atMs > perfect.startedAt) expect(built.camera.zoom).toBeGreaterThan(1);
+        expect(isIconInFrame(built.camera), `at ${atMs} ms from (${fromXM}, ${fromZM})`).toBe(true);
+        frames += 1;
+      }
+      expect(frames).toBeGreaterThan(40);
+    }
+  });
+
   it('frames a gag judged inside an instinct slow-mo that had already started', () => {
     const built = build();
     const instinct = { source: 'instinct', startedAt: 500, holdUntil: 2500, endsAt: 3000 };
@@ -270,5 +312,25 @@ describe('createFollowRig (story 9.2)', () => {
     const again = build();
     expect(centreOf(built).xM).toBeCloseTo(centreOf(again).xM, 9);
     expect(centreOf(built).zM).toBeCloseTo(centreOf(again).zM, 9);
+  });
+
+  it('lets go of the clamp at a new level, before any fit (a canvas with no size yet)', () => {
+    const camera = createIsoCamera();
+    const fx = createCameraFx(camera);
+    const clamps: unknown[] = [];
+    const rig = createFollowRig(camera, {
+      ...fx,
+      captureBase: () => fx.captureBase(),
+      moveBaseTo: (xM, zM) => fx.moveBaseTo(xM, zM),
+      clampTo: (frame) => {
+        clamps.push(frame);
+        fx.clampTo(frame);
+      },
+    });
+    rig.setLevel(KITCHEN, FOLLOW);
+    rig.fit(ASPECT);
+    expect(clamps.at(-1)).toBe(rig.frame);
+    rig.setLevel(KITCHEN, { ...FOLLOW, mode: 'fixed' });
+    expect(clamps.at(-1)).toBeNull();
   });
 });

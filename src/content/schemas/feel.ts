@@ -787,7 +787,7 @@ const CameraSchema = z
       .min(0)
       .max(40)
       .describe(
-        "Papa's drawn point never comes nearer an edge of the frame than this, in % of the frame's size on that axis (a hard limit, even during a glide).",
+        "Papa's drawn point never comes nearer an edge of the frame than this, in % of the frame's size on that axis (a hard limit, even during a glide), except where the view would leave the room: the walls win, near a wall or across a room narrower than the frame.",
       ),
     catchUpMs: z
       .number()

@@ -478,11 +478,28 @@ describe('createLevelSession', () => {
     const follow = setup({
       loadLevelContent: async (id) => {
         const content = levelOf(id);
-        return ok({ ...content, level: { ...content.level, camera: 'follow' as const } });
+        return ok({
+          ...content,
+          level: {
+            ...content.level,
+            camera: 'follow' as const,
+            feelOverrides: { ...content.level.feelOverrides, camera: { frameWidthM: 12 } },
+          },
+        });
       },
     });
     await follow.session.start();
-    expect(follow.readyCameras.map((camera) => camera.mode)).toEqual(['follow']);
+    const world = follow.session.active?.sim.world;
+    // The level's effective feel: its own override of the frame, not the base feel.
+    expect(world?.feel.camera.frameWidthM).toBe(12);
+    expect(follow.readyCameras).toEqual([
+      {
+        mode: 'follow',
+        follow: world?.feel.camera,
+        papaStartXM: world?.papa.xM,
+        papaStartZM: world?.papa.zM,
+      },
+    ]);
   });
 
   it('hands onLevelReady the icon points of the planned threats, from the anchors of the geometry', async () => {

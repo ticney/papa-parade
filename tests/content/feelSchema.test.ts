@@ -564,6 +564,15 @@ describe('feel.camera (story 9.2)', () => {
     ['a frame under 3 m deep', [[p('frameDepthM'), 2.9]], [p('frameDepthM')]],
     ['a frame over 30 m deep', [[p('frameDepthM'), 31]], [p('frameDepthM')]],
     ['a negative dead zone', [[p('deadZoneWidthPct'), -1]], [p('deadZoneWidthPct')]],
+    ['a negative dead zone height', [[p('deadZoneHeightPct'), -1]], [p('deadZoneHeightPct')]],
+    [
+      'a dead zone over 80 % wide',
+      [
+        [p('deadZoneWidthPct'), 81],
+        [p('edgeMarginPct'), 0],
+      ],
+      [p('deadZoneWidthPct')],
+    ],
     [
       'a dead zone over 80 %',
       [
@@ -594,6 +603,15 @@ describe('feel.camera (story 9.2)', () => {
     ['a damping under 0.5', [[p('dampingRatio'), 0.49]], [p('dampingRatio')]],
     ['a damping over 1', [[p('dampingRatio'), 1.01]], [p('dampingRatio')]],
     ['a reduced catch-up over 5000 ms', [[p('reducedCatchUpMs'), 5001]], [p('reducedCatchUpMs')]],
+    [
+      // Its bound, and the refine: no catch-up is under 50 ms, so the reduced one is below it too.
+      'a reduced catch-up under 50 ms',
+      [
+        [p('catchUpMs'), 50],
+        [p('reducedCatchUpMs'), 49],
+      ],
+      [p('reducedCatchUpMs'), p('reducedCatchUpMs')],
+    ],
     [
       'a dead zone that reaches into the edge margin across',
       [
