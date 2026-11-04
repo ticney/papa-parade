@@ -127,8 +127,8 @@ development_status:
   3-16-jauge-de-catastrophe-et-maman-est-rentree-plus-tot: backlog
 
   # Epic 9 [P3] — après le playtest du rattrapage, avant 3.7 à 3.11.
-  epic-9: backlog
-  9-1-grand-salon-avec-cuisine-ouverte-dans-blender: backlog
+  epic-9: in-progress
+  9-1-grand-salon-avec-cuisine-ouverte-dans-blender: ready-for-dev
   9-2-camera-qui-suit-papa: backlog
   9-3-bulle-d-info-hors-cadre: backlog
   9-4-cadre-des-taches-de-la-maison: backlog
