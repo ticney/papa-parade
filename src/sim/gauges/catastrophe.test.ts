@@ -136,6 +136,24 @@ describe('runCatastrophe: the rise of a gag', () => {
     expect(changed(events).map((event) => event.source)).toEqual(['nearMiss', 'mess']);
   });
 
+  it('applies the step’s perfect drops before its rises, whatever the emission order', () => {
+    const results = [
+      [gag(1), resolved('perfect')],
+      [resolved('perfect'), gag(1)],
+    ].map((stepEvents) => {
+      const { world, ctx, events } = setup({ pct: 100 - catastrophe.risePct.nearMiss / 2 });
+      events.push(...(stepEvents as SimEvent[]));
+      runCatastrophe(world, ctx);
+      return {
+        pct: world.gauges.catastrophePct,
+        sources: changed(events).map((event) => event.source),
+      };
+    });
+    // The drop lands first and the rise then reaches 100: the level ends in both orders.
+    expect(results[0]).toEqual({ pct: 100, sources: ['perfect', 'nearMiss'] });
+    expect(results[1]).toEqual(results[0]);
+  });
+
   it('emits nothing for a threat whose category is none, and nothing for an unknown threat', () => {
     const { world, ctx, events } = setup();
     events.push(gag(4), gag(99));

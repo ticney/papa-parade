@@ -33,6 +33,8 @@ export interface CatastropheFace {
    * frame; the DOM is written only when the state or the idle dimming changes, and nothing is allocated.
    */
   setPercent(percent: number): void;
+  /** A new level's start value: like `setPercent`, but the last level's « changing » hold is dropped, so a restart never flashes the face. */
+  reset(percent: number): void;
   /** The 36 px chip, while a sequence bar sits under the timer (UX-DR23); the DOM is written on a change only. */
   setCompact(isCompact: boolean): void;
   /** Once per frame: ends the « changing » hold. Allocation-free. */
@@ -126,6 +128,7 @@ export function createCatastropheFace(doc: Doc, options: CatastropheFaceOptions)
 
   let state: CatastropheFaceState = 'serene';
   let wholePercent = 0;
+  let exactPercent = 0;
   let isFirst = true;
   let isChanging = false;
   let changedAtReal = 0;
@@ -165,7 +168,15 @@ export function createCatastropheFace(doc: Doc, options: CatastropheFaceOptions)
         wholePercent = whole;
         isFirst = false;
       }
+      exactPercent = percent;
       applyIdle(percent);
+    },
+    reset(percent) {
+      // A new level starts from a settled face: no « changing » hold left over from the last one.
+      isFirst = true;
+      isChanging = false;
+      changedAtReal = 0;
+      this.setPercent(percent);
     },
     setCompact(next) {
       if (next === isCompact) return;
@@ -175,7 +186,7 @@ export function createCatastropheFace(doc: Doc, options: CatastropheFaceOptions)
     frame(now) {
       if (!isChanging || now - changedAtReal < GAUGE_CHANGE_HOLD_MS) return;
       isChanging = false;
-      applyIdle(wholePercent);
+      applyIdle(exactPercent);
     },
   };
 }

@@ -113,9 +113,8 @@ const TIMER_SLOT = 0;
 const gaugeSlotOf = (id: GaugeId): number => GAUGE_IDS.indexOf(id) + 1;
 /** The sequence bar's slot, after the gauges' (story 4.4): its whole percent. */
 const SEQUENCE_SLOT = GAUGE_IDS.length + 1;
-/** Mama's face (story 3.16), after the sequence bar's: the catastrophe in hundredths of a percent (a state boundary is a strict comparison, so a whole percent would not do). */
+/** Mama's face (story 3.16), after the sequence bar's: the exact catastrophe (a state boundary is a strict comparison, so a rounded value would not do). */
 const CATASTROPHE_SLOT = GAUGE_IDS.length + 2;
-const CATASTROPHE_HUNDREDTHS = 100;
 /** The most the scheduler takes off the audio clock to pair it with the loop's, in real ms (story 4.5): a frame older than this is a clock to distrust, not a skew to correct. */
 const BEAT_CLOCK_AGE_MAX_MS = 100;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
@@ -1117,7 +1116,7 @@ export async function boot(): Promise<void> {
       timerHud.setVariant(started.level.level.variant);
       // Mama's face at the start value (a restart never shows the last level's worry).
       catastropheFace.setCompact(false);
-      catastropheFace.setPercent(started.sim.world.gauges.catastrophePct);
+      catastropheFace.reset(started.sim.world.gauges.catastrophePct);
       // The gauges this level has, each at its start value (a restart never shows the last level's).
       const { gauges } = started.level.level;
       gaugesHud.setGauges(GAUGE_IDS.filter((id) => id in gauges));
@@ -1280,11 +1279,9 @@ export async function boot(): Promise<void> {
         if (running.level.level.gauges.need !== undefined) {
           hudBatch.set(gaugeSlotOf('need'), Math.round(running.sim.world.gauges.bladderPct));
         }
-        // Mama's face, in every level: from the gauge, every frame (story 3.16). Hundredths of a percent.
-        hudBatch.set(
-          CATASTROPHE_SLOT,
-          Math.round(running.sim.world.gauges.catastrophePct * CATASTROPHE_HUNDREDTHS),
-        );
+        // Mama's face, in every level: from the gauge, every frame (story 3.16). The exact value: the
+        // alert and the music read it too, and a state boundary is a strict comparison.
+        hudBatch.set(CATASTROPHE_SLOT, running.sim.world.gauges.catastrophePct);
       }
       // The sequence bar and the compact timer follow the world's state each frame (story 4.4).
       if (running !== null) {
@@ -1653,8 +1650,8 @@ export async function boot(): Promise<void> {
     (seconds) => timerHud.setRemainingS(seconds),
     ...GAUGE_IDS.map((id) => (percent: number) => gaugesHud.setValue(id, percent)),
     (percent) => sequenceBar.setPercent(percent),
-    (hundredths) => {
-      catastropheFace.setPercent(hundredths / CATASTROPHE_HUNDREDTHS);
+    (percent) => {
+      catastropheFace.setPercent(percent);
       // The face's state, mirrored when it changes (the setter writes only on a change).
       if (isMirrored) mirror('ppCatastropheFace', catastropheFace.state);
     },

@@ -1036,3 +1036,11 @@ Open:
 - **`choreBeat` is a rise in `feel.json` only** (FR73): 9.4 / 9.5 emit it (`CatastropheSource` already has it).
 - **`failStreak` / progress with 0 stars is 3.11's**: a `mamaHome` ends with 0 stars and a note, and 3.11 decides what that does to the progress.
 - **The loss rate**: Geo picked option D (`perfectDropPct` 2, `decayPerSec` 0.4; `human` loses 15 % of the games on `mamaHome`). To re-check at the catch-up playtest (« aucun ne juge la défaite injuste », GDD L628).
+
+## Deferred from: code review of 3-16-jauge-de-catastrophe-et-maman-est-rentree-plus-tot (2026-11-04)
+
+- **`restore` accepts contradictory flow states** (`src/sim/snapshot.ts`): `ended` + `timer` before the duration is accepted whenever the noise is full or the cycle is done, `ended` + `mamaHome` is accepted at any gauge once `nowMs >= durationMs`, and a live state (`playing`, `sequence`, `finalRush`) with `catastrophePct` 100 passes `gaugesProblem` (the next `runFlow` then ends on `mamaHome`, even inside the rush). Same looseness as the noise and cycle checks; only a hand-edited snapshot reaches it. Tie each `endReason` to its proof and refuse 100 % in a live state in a snapshot pass.
+- **`decayCatastrophe` can raise the gauge silently** (`src/sim/gauges/catastrophe.ts`): a negative `decayPerSec` through `SetFeel` (shape check only, the schema's `min(0)` is not enforced there) climbs to 100 with no `CatastropheChanged`, and `catastrophePeakPct` (taken from events) reads 0. Debug path only; clamp with `Math.min(0, deltaPct)` or refuse it in `SetFeel`.
+- **`catastrophe_alert` plays in the step that ends the level** (`src/client/boot.ts`): a rise from 70 % or less straight to 100 % gives the door-key cue and a medium haptic right before the slam and the heavy haptic. Cosmetic; decide at the catch-up playtest.
+- **The catastrophe alert has no hysteresis** (`src/client/feedback/catastropheAlert.ts`): the decay is silent and the check stateless, so hovering at 68-72 % re-fires the cue at each upward crossing. A feel question for the playtest.
+- **No screen-reader announcement of the alarmed face** (`src/client/ui/hud/catastropheFace.ts`): `role="img"` with a changing `aria-label`, no live region; the alert is sound, ring and haptic only. For the accessibility pass.

@@ -698,13 +698,13 @@
         "decayPerSec": {
           "type": "number",
           "minimum": 0,
-          "description": "Catastrophe lost per second, in % of the gauge per second (GDD: 0.5 %/s)."
+          "description": "Catastrophe lost per second, in % of the gauge per second (GDD: 0.5 %/s; tuned to 0.4 by Geo, story 3.16 option D)."
         },
         "perfectDropPct": {
           "type": "number",
           "minimum": 0,
           "maximum": 100,
-          "description": "Catastrophe lost by a perfect response, in % of the gauge (GDD: 5 %)."
+          "description": "Catastrophe lost by a perfect response, in % of the gauge (GDD: 5 %; tuned to 2 by Geo, story 3.16 option D)."
         },
         "alertPct": {
           "type": "number",

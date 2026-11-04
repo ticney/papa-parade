@@ -94,6 +94,7 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
   element.append(digits);
   let variant: LevelVariant | null = null;
   let icon: SVGSVGElement | null = null;
+  let face: HTMLElement | null = null;
   let clock = '';
   let isCompact = false;
   let isRush = false;
@@ -111,8 +112,9 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
     setVariant(next) {
       variant = next;
       const fresh = ICONS[next](doc);
-      if (icon === null) element.prepend(fresh);
-      else icon.replaceWith(fresh);
+      if (icon !== null) icon.replaceWith(fresh);
+      else if (face !== null) face.after(fresh);
+      else element.prepend(fresh);
       icon = fresh;
       refreshLabel();
     },
@@ -128,8 +130,9 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
       isRush = next;
       element.classList.toggle('pp-hud-timer--rush', next);
     },
-    mountFace(face) {
-      element.prepend(face);
+    mountFace(next) {
+      face = next;
+      element.prepend(next);
     },
     setRemainingS(seconds) {
       clock = formatClock(seconds);

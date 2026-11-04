@@ -397,9 +397,11 @@ const CatastropheSchema = z
         'The rise of one gag by its category, before the tier multiplier (GDD mechanic 14).',
       ),
     decayPerSec: points(
-      'Catastrophe lost per second, in % of the gauge per second (GDD: 0.5 %/s).',
+      'Catastrophe lost per second, in % of the gauge per second (GDD: 0.5 %/s; tuned to 0.4 by Geo, story 3.16 option D).',
     ),
-    perfectDropPct: pct('Catastrophe lost by a perfect response, in % of the gauge (GDD: 5 %).'),
+    perfectDropPct: pct(
+      'Catastrophe lost by a perfect response, in % of the gauge (GDD: 5 %; tuned to 2 by Geo, story 3.16 option D).',
+    ),
     alertPct: pct(
       'Above this catastrophe Mama is alarmed: the client plays the alert, tightens the music, in % of the gauge.',
     ),

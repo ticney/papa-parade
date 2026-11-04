@@ -34,11 +34,19 @@ describe('isCatastropheAlertCrossing', () => {
     expect(isCatastropheAlertCrossing(changed(80, -5, 'perfect'), ALERT)).toBe(false);
   });
 
-  it('fires again on the next upward crossing, after a fall below', () => {
-    const rise = changed(80, 20);
-    expect(isCatastropheAlertCrossing(rise, ALERT)).toBe(true);
-    expect(isCatastropheAlertCrossing(changed(60, -20, 'perfect'), ALERT)).toBe(false);
-    expect(isCatastropheAlertCrossing(rise, ALERT)).toBe(true);
+  it('follows a gauge over a game: one alert per upward crossing, again after a fall below', () => {
+    // The gauge's own moves, in order: 50 → 80 (up), → 90 (already above), → 60 (a perfect, down),
+    // → 75 (up again), → 100 (already above).
+    const moves: Array<[SimEvent, boolean]> = [
+      [changed(80, 30), true],
+      [changed(90, 10), false],
+      [changed(60, -30, 'perfect'), false],
+      [changed(75, 15), true],
+      [changed(100, 25), false],
+    ];
+    expect(moves.map(([event]) => isCatastropheAlertCrossing(event, ALERT))).toEqual(
+      moves.map(([, expected]) => expected),
+    );
   });
 
   it('counts the debug source (SetCatastrophe to 75 from 0)', () => {

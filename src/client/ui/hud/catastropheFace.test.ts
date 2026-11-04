@@ -169,6 +169,29 @@ describe('createCatastropheFace', () => {
     expect(root.classes.has('pp-hud-catastrophe--idle')).toBe(true);
   });
 
+  it('ends a change on the exact value: 49.6 % stays dimmed when the hold is over', () => {
+    const { face, root, clock } = build();
+    face.setPercent(40);
+    clock.now = 2000;
+    face.setPercent(49.6);
+    expect(root.classes.has('pp-hud-catastrophe--idle')).toBe(false);
+    face.frame(2000 + GAUGE_CHANGE_HOLD_MS);
+    expect(root.classes.has('pp-hud-catastrophe--idle')).toBe(true);
+  });
+
+  it('reset starts a level settled: the last level’s change hold is dropped, no flash at 0 %', () => {
+    const { face, root, clock } = build();
+    face.setPercent(0);
+    clock.now = 2000;
+    face.setPercent(100);
+    expect(root.classes.has('pp-hud-catastrophe--idle')).toBe(false);
+    clock.now = 2100;
+    face.reset(0);
+    expect(face.state).toBe('serene');
+    expect(root.classes.has('pp-hud-catastrophe--alarmed')).toBe(false);
+    expect(root.classes.has('pp-hud-catastrophe--idle')).toBe(true);
+  });
+
   it('counts the crossing of a 10-point boundary as a change, even by one point', () => {
     const { face, root, clock } = build();
     face.setPercent(19);

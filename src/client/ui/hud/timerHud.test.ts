@@ -36,6 +36,12 @@ class FakeNode {
     for (const node of nodes) node.parent = this;
     this.children.unshift(...nodes);
   }
+  after(next: FakeNode): void {
+    const siblings = this.parent?.children;
+    if (siblings === undefined) return;
+    siblings.splice(siblings.indexOf(this) + 1, 0, next);
+    next.parent = this.parent;
+  }
   replaceWith(next: FakeNode): void {
     const siblings = this.parent?.children;
     if (siblings === undefined) return;
@@ -223,6 +229,19 @@ describe('setRush (story 3.5)', () => {
     // A new level sets the variant again: the icon is replaced in place, the face stays first.
     hud.setVariant('nap');
     expect(root.children[0]).toBe(face);
+    expect(root.children.filter((child) => child.tag === 'svg')).toHaveLength(1);
+  });
+
+  it('keeps the face in front when it is mounted before the first variant (the order of boot)', () => {
+    const { hud, root } = build();
+    const face = new FakeNode('div');
+    hud.mountFace(face as unknown as HTMLElement);
+    hud.setVariant('nap');
+    expect(root.children[0]).toBe(face);
+    expect(root.children[1]?.tag).toBe('svg');
+    hud.setVariant('nap');
+    expect(root.children[0]).toBe(face);
+    expect(root.children[1]?.tag).toBe('svg');
     expect(root.children.filter((child) => child.tag === 'svg')).toHaveLength(1);
   });
 });

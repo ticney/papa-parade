@@ -50,7 +50,7 @@ export function addCatastrophe(
 }
 
 /**
- * The gauge's own fall, `deltaPct` negative or 0, with no event: 0.5 %/s at 10 ms a step would be
+ * The gauge's own fall, `deltaPct` negative or 0, with no event: a fall every 10 ms step would be
  * 100 events a second in every journal (the `decayNoise` rule, story 3.1 D5). Readers that need the
  * exact value read `world.gauges.catastrophePct`.
  */
@@ -72,10 +72,11 @@ function threatIndexOf(world: World, threatId: number): number {
  * level, outside the final rush. In order:
  *
  * 1. the decay, `decayPerSec` for one step of sim time (silent: no event);
- * 2. the events of **this step** (`t === now`, scanned from the end like `runNoise`, then applied in
- *    emission order, with no allocation): a `GagTriggered` raises the gauge by `risePct` of the
- *    threat def's `catastrophe` category times the tier's `catastropheMultiplier`, a perfect
- *    `ResponseResolved` lowers it by `perfectDropPct` (not multiplied). A success or a beat does nothing.
+ * 2. the events of **this step** (`t === now`, scanned from the end like `runNoise`, with no
+ *    allocation), the perfect drops first, then the rises, each in emission order: a perfect
+ *    `ResponseResolved` lowers the gauge by `perfectDropPct` (not multiplied), a `GagTriggered`
+ *    raises it by `risePct` of the threat def's `catastrophe` category times the tier's
+ *    `catastropheMultiplier`. A success or a beat does nothing.
  *
  * It reads events and the threat's def, never the threats' state. The threats never call the gauge
  * (architecture L233): it runs with the gauges, before the score and the flow, which read it in the
@@ -92,17 +93,22 @@ export function runCatastrophe(world: World, ctx: StepContext): void {
   const end = events.length;
   let start = end;
   while (start > 0 && events[start - 1]?.t === now) start--;
+  // The step's drops first, then its rises: the gauge is clamped at each move, so the order decides
+  // whether a step that holds both ends the level, and it must not depend on the threats' index
+  // (story 3.16 review, Geo).
   for (let i = start; i < end; i++) {
     const event = events[i];
-    if (event === undefined) continue;
-    if (event.type === 'GagTriggered') {
-      const index = threatIndexOf(world, event.threatId);
-      const category = index < 0 ? undefined : ctx.level.threats[index]?.def.catastrophe;
-      if (category === undefined || category === 'none') continue;
-      const multiplier = activeDifficulty(world, ctx).catastropheMultiplier;
-      addCatastrophe(world, ctx, risePct[category] * multiplier, category);
-    } else if (event.type === 'ResponseResolved' && event.quality === 'perfect') {
+    if (event?.type === 'ResponseResolved' && event.quality === 'perfect') {
       addCatastrophe(world, ctx, -perfectDropPct, 'perfect');
     }
+  }
+  for (let i = start; i < end; i++) {
+    const event = events[i];
+    if (event?.type !== 'GagTriggered') continue;
+    const index = threatIndexOf(world, event.threatId);
+    const category = index < 0 ? undefined : ctx.level.threats[index]?.def.catastrophe;
+    if (category === undefined || category === 'none') continue;
+    const multiplier = activeDifficulty(world, ctx).catastropheMultiplier;
+    addCatastrophe(world, ctx, risePct[category] * multiplier, category);
   }
 }
