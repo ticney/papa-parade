@@ -129,7 +129,7 @@ development_status:
   # Epic 9 [P3] — après le playtest du rattrapage, avant 3.7 à 3.11.
   epic-9: in-progress
   9-1-grand-salon-avec-cuisine-ouverte-dans-blender: done
-  9-2-camera-qui-suit-papa: backlog
+  9-2-camera-qui-suit-papa: ready-for-dev
   9-3-bulle-d-info-hors-cadre: backlog
   9-4-cadre-des-taches-de-la-maison: backlog
   9-5-tache-cuisine-et-casserole-sur-le-feu: backlog
