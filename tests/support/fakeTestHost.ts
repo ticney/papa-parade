@@ -16,6 +16,9 @@ import { createTestContent } from './testContent.ts';
 const NO_FX_STATE: FxState = {
   cameraZoom: 1,
   cameraYawDeg: 0,
+  cameraMode: 'fixed',
+  cameraCentreXM: 0,
+  cameraCentreZM: 0,
   shakeOffsetM: 0,
   particlesAlive: 0,
   stampCount: 0,
@@ -114,6 +117,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     fxState: () => options.fxState ?? NO_FX_STATE,
     setPapaLook: () => {},
     threatScreenPoints: () => [],
+    pagePoint: (xM, _yM, zM) => ({ xPx: xM * 100, yPx: zM * 100 }),
     lastInputDevice: () => lastInput,
     auditionCue(cueId) {
       calls.push(`audition:${cueId}`);

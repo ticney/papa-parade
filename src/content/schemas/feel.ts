@@ -756,6 +756,79 @@ const FxSchema = z
     'On-screen juice (story 2.5): shake, particles, stamp and the perfect camera. Client only.',
   );
 
+const CameraSchema = z
+  .strictObject({
+    frameWidthM: z
+      .number()
+      .min(3)
+      .max(30)
+      .describe(
+        "Width of the floor box the follow camera fits, in metres (story 9.2): the same fit as the fixed camera on a room this size, so it sets the characters' scale on screen.",
+      ),
+    frameDepthM: z
+      .number()
+      .min(3)
+      .max(30)
+      .describe('Depth of the floor box the follow camera fits, in metres.'),
+    deadZoneWidthPct: z
+      .number()
+      .min(0)
+      .max(80)
+      .describe(
+        "Width of the centred dead zone, in % of the frame's width: Papa moves inside it without moving the camera.",
+      ),
+    deadZoneHeightPct: z
+      .number()
+      .min(0)
+      .max(80)
+      .describe("Height of the centred dead zone, in % of the frame's height."),
+    edgeMarginPct: z
+      .number()
+      .min(0)
+      .max(40)
+      .describe(
+        "Papa's drawn point never comes nearer an edge of the frame than this, in % of the frame's size on that axis (a hard limit, even during a glide), except where the view would leave the room: the walls win, near a wall or across a room narrower than the frame.",
+      ),
+    catchUpMs: z
+      .number()
+      .min(50)
+      .max(3000)
+      .describe(
+        'Time the camera takes to cover 95 % of a sudden jump of its goal, in **sim** ms (a pause holds it, a slow-mo slows it).',
+      ),
+    dampingRatio: z
+      .number()
+      .min(0.5)
+      .max(1)
+      .describe(
+        'Damping of the catch-up spring: 1 = no overshoot; below, a slight bounce (0.8 = about 1.5 %).',
+      ),
+    reducedCatchUpMs: z
+      .number()
+      .min(50)
+      .max(5000)
+      .describe(
+        'The catch-up time under « Réduire les animations », in **sim** ms, with no overshoot at all (a damping of 1). Not below `catchUpMs`.',
+      ),
+  })
+  .refine((camera) => camera.deadZoneWidthPct / 2 + camera.edgeMarginPct < 50, {
+    path: ['deadZoneWidthPct'],
+    error:
+      'deadZoneWidthPct / 2 + edgeMarginPct must stay below 50: the dead zone sits inside the edge margin',
+  })
+  .refine((camera) => camera.deadZoneHeightPct / 2 + camera.edgeMarginPct < 50, {
+    path: ['deadZoneHeightPct'],
+    error:
+      'deadZoneHeightPct / 2 + edgeMarginPct must stay below 50: the dead zone sits inside the edge margin',
+  })
+  .refine((camera) => camera.reducedCatchUpMs >= camera.catchUpMs, {
+    path: ['reducedCatchUpMs'],
+    error: 'reducedCatchUpMs must not be below catchUpMs: the reduced catch-up is the slower one',
+  })
+  .describe(
+    'The follow camera of a level with `camera: "follow"` (story 9.2): its frame, dead zone, edge margin and catch-up. Client only.',
+  );
+
 const MusicSchema = z
   .strictObject({
     tense: z
@@ -905,6 +978,7 @@ export const FeelSchema = z
     physics: PhysicsSchema,
     gags: GagsSchema,
     fx: FxSchema,
+    camera: CameraSchema,
     music: MusicSchema,
     calibration: CalibrationSchema,
   })

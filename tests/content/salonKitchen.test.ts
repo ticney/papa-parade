@@ -1,8 +1,14 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { parseContentFile } from '@content/parseContentFile';
 import { FeelSchema } from '@content/schemas/feel';
+import { LevelSchema } from '@content/schemas/level';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
+import { STEP_MS } from '@shared/constants';
+import { asSimMs } from '@shared/time';
+import { createSim } from '@sim';
 import { describe, expect, it } from 'vitest';
+import { loadSimLevel } from '../../tools/sim/loadSimLevel.ts';
 
 // The big room with its open kitchen (story 9.1, AC 2 and 3) is a test on the LIVE geometry and feel,
 // like the boards of `creakZones.test.ts`: when Geo moves furniture in Blender and re-exports, this
@@ -153,4 +159,72 @@ describe('the live salon_kitchen room (story 9.1)', () => {
       expect(nearestWalkableM(geometry, xM, zM)).toBeLessThanOrEqual(liveContextReachM());
     },
   );
+});
+
+describe('the live salon_kitchen level (story 9.2)', () => {
+  it('follows Papa with the follow camera (the room is too big for the fixed one)', () => {
+    const parsed = parseContentFile(
+      'content/levels/salon_kitchen.json',
+      read('content/levels/salon_kitchen.json'),
+      LevelSchema,
+    );
+    if (!parsed.ok) throw new Error(`the live level is invalid: ${JSON.stringify(parsed.error)}`);
+    expect(parsed.value.camera).toBe('follow');
+  });
+
+  it.each(['salon_crawler', 'chambre_night'])('leaves %s on the fixed camera', (id) => {
+    const parsed = parseContentFile(
+      `content/levels/${id}.json`,
+      read(`content/levels/${id}.json`),
+      LevelSchema,
+    );
+    if (!parsed.ok) throw new Error(`the live level is invalid: ${JSON.stringify(parsed.error)}`);
+    expect(parsed.value.camera).toBe('fixed');
+  });
+
+  it('caps a glide across the big room at the level glideMaxMs: 900 ms of sim time, Papa arriving (AC 9)', async () => {
+    const loaded = await loadSimLevel(
+      fileURLToPath(new URL('../../content', import.meta.url)),
+      'salon_kitchen',
+    );
+    if (!loaded.ok) throw new Error(loaded.error);
+    const { content, geometry, level } = loaded.value;
+    expect(content.feel.movement.glideMaxMs).toBe(900);
+    const sim = await createSim({ content, geometry, level, seed: 1, strictInvariants: true });
+    try {
+      const { papa } = sim.world;
+      // The planned threat Papa can press that stands farthest from his spawn.
+      const pressable = sim.world.threats.filter(
+        (threat) => level.threats[threat.defId]?.target === 'anchor',
+      );
+      const farthest = pressable.reduce((best, threat) =>
+        Math.hypot(threat.xM - papa.xM, threat.zM - papa.zM) >
+        Math.hypot(best.xM - papa.xM, best.zM - papa.zM)
+          ? threat
+          : best,
+      );
+      expect(Math.hypot(farthest.xM - papa.xM, farthest.zM - papa.zM)).toBeGreaterThan(
+        (content.feel.movement.walkSpeedMps * 900) / 1000,
+      );
+      sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: farthest.id });
+      sim.step();
+      // Pressed in its window: an early press is a gag, whose séquelle (story 3.15) holds Papa still.
+      while (sim.world.time.sim < farthest.windowOpenAt) sim.step();
+      const pressAt = sim.world.time.sim;
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(pressAt), threatId: farthest.id });
+      sim.enqueue({ type: 'Release', t: asSimMs(pressAt + STEP_MS) });
+      sim.drainEvents();
+      sim.step();
+      const glide = sim
+        .drainEvents()
+        .find((event) => event.type === 'PapaGlideStarted' && event.threatId === farthest.id);
+      if (glide?.type !== 'PapaGlideStarted') throw new Error('the press started no glide');
+      expect(glide.arriveAt - glide.t).toBe(900);
+      while (sim.world.time.sim < glide.arriveAt + STEP_MS) sim.step();
+      expect(sim.world.papa.xM).toBeCloseTo(glide.toXM, 6);
+      expect(sim.world.papa.zM).toBeCloseTo(glide.toZM, 6);
+    } finally {
+      sim.dispose();
+    }
+  });
 });

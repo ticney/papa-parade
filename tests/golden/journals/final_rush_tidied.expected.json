@@ -1,6 +1,6 @@
 {
   "untilSimMs": 30000,
-  "worldHash": "1a8c83c933a8b3",
+  "worldHash": "004d72f33fc983",
   "eventTypes": [
     "BabyStateChanged",
     "PropImpact",

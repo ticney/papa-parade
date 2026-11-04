@@ -7,7 +7,8 @@ import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 // interactive things (coffee machine, phone) Space or A can walk Papa to. Story 1.19 added
 // `gauges` (the fatigue system a level opts into) and the `kind` of an object; story 3.1 added `gauges.noise`. Story 1.20 added
 // `disruptions` to a wave: the phone that rings at a fixed time, on an object of the level. Story 4.3 added
-// `gauges.need` (the pressing need) and the `toilet` object kind.
+// `gauges.need` (the pressing need) and the `toilet` object kind. Story 9.2 added `camera`: whether the
+// view stays on the whole room or follows Papa (the client alone reads it).
 
 /** The level variants the game has. Each one has its own timer icon (`client/ui/hud/timerHud.ts`). */
 export const LEVEL_VARIANTS = ['nap'] as const;
@@ -27,6 +28,13 @@ export type GaugeId = (typeof GAUGE_IDS)[number];
  */
 export const OBJECT_KINDS = ['coffee_machine', 'phone', 'toilet'] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
+
+/**
+ * How the game camera frames the level (story 9.2): `fixed` fits the whole room, `follow` keeps a
+ * frame of `feel.camera`'s size on Papa (the big room). Client only: the sim never reads it.
+ */
+export const LEVEL_CAMERA_MODES = ['fixed', 'follow'] as const;
+export type LevelCameraMode = (typeof LEVEL_CAMERA_MODES)[number];
 
 const idSchema = (description: string) =>
   z.string().regex(SNAKE_ID_PATTERN, 'an id is lower_snake_case').describe(description);
@@ -226,6 +234,12 @@ export const LevelSchema = z
     finalRush: LevelFinalRushSchema.optional().describe(
       'The final rush (story 3.5): the door opens before the end and the level ends on the photo. Absent: the level ends on `ended`, as before.',
     ),
+    camera: z
+      .enum(LEVEL_CAMERA_MODES)
+      .default('fixed')
+      .describe(
+        'How the camera frames the level (story 9.2): `fixed` shows the whole room, `follow` follows Papa with a frame of `feel.camera`. Client only. Default `fixed`.',
+      ),
     feelOverrides: z
       .record(z.string(), z.unknown())
       .default({})

@@ -1,4 +1,5 @@
 import type { ContentBundle } from '@content/contentBundle';
+import type { LevelCameraMode } from '@content/schemas/level';
 import type { Sim, SimEvent } from '@sim';
 import type { Group } from 'three';
 import type { SoundedNote } from '../audio/beatScheduler.ts';
@@ -15,11 +16,22 @@ export interface ThreatScreenPoint {
   readonly yPx: number;
 }
 
+/** Where a point is on the page, in CSS px (`__PP__.pagePoint`, story 9.2). */
+export interface PagePoint {
+  readonly xPx: number;
+  readonly yPx: number;
+}
+
 /** What the screen effects are doing, for the debug `fx()` (story 2.5). */
 export interface FxState {
   readonly cameraZoom: number;
   /** The camera's turn from the iso framing around the vertical, in degrees. */
   readonly cameraYawDeg: number;
+  /** The running level's camera (story 9.2): the whole room, or the frame that follows Papa. */
+  readonly cameraMode: LevelCameraMode;
+  /** The floor point the framing looks at, before the perfect's move and the sequence framing, in metres. */
+  readonly cameraCentreXM: number;
+  readonly cameraCentreZM: number;
   /** How far the shake has moved the room, in metres. */
   readonly shakeOffsetM: number;
   readonly particlesAlive: number;
@@ -123,6 +135,11 @@ export interface TestHost {
   setPapaLook(look: PapaLook): void;
   /** The icon points of the running level's threats as they are on the page now (a new array per call). */
   threatScreenPoints(): readonly ThreatScreenPoint[];
+  /**
+   * Where the world point `(xM, yM, zM)` is on the page now, in CSS px: the live game camera (the
+   * follow, the perfect's move), the projection `threatScreenPoints` uses (story 9.2).
+   */
+  pagePoint(xM: number, yM: number, zM: number): PagePoint;
   /**
    * Plays the sound of the cue `cueId` of `feedback.json` once, its `audio` then its `layers`, and
    * nothing else: no ring, vibration or `onCue` (story 2.3 AC 14, the sound board). Returns `false`

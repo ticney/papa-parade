@@ -45,5 +45,6 @@
   "carry": { "armsCryDef": "arms_cry" },
   "sequences": ["stay_awake", "lullaby_walk", "bedtime_duel", "bomb_drop", "stealth_exit"],
   "finalRush": { "spillAnchor": "coffee_table" },
+  "camera": "follow",
   "feelOverrides": { "movement": { "glideMaxMs": 900 } }
 }

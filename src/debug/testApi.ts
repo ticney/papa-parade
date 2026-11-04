@@ -1,5 +1,5 @@
 import type { LevelStartOptions } from '@client/app/levelSession';
-import type { CuePlayedRecord, FxState, TestHost } from '@client/app/testHost';
+import type { CuePlayedRecord, FxState, PagePoint, TestHost } from '@client/app/testHost';
 import type { SoundedNote } from '@client/audio/beatScheduler';
 import type { PapaLook } from '@client/render/views/papaView';
 import {
@@ -93,6 +93,12 @@ export interface PPTestApi {
    * the stamps shown so far. Reduced motion shows as a turn of 0 and an offset of 0.
    */
   fx(): FxState;
+  /**
+   * Where the world point `(xM, yM, zM)` (metres) is on the page now, in CSS px: the live game camera,
+   * moved by the follow camera and the perfect's move (story 9.2). For a Playwright tap on a level
+   * whose camera follows Papa. Throws on a coordinate that is not a finite number.
+   */
+  pagePoint(xM: number, yM: number, zM: number): PagePoint;
   /** Shows the parts of Papa's look (story 7.2: nothing in a game sets it until story 3.7). */
   setPapaLook(look: PapaLook): void;
   /** A copy of what the level's frames measured so far: frame intervals (real ms), draw calls, triangles. */
@@ -305,6 +311,16 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
     },
     fx() {
       return host.fxState();
+    },
+
+    pagePoint(xM, yM, zM) {
+      if (![xM, yM, zM].every((value) => typeof value === 'number' && Number.isFinite(value))) {
+        throw new Error(
+          `__PP__.pagePoint: the point must be three finite numbers (${String(xM)}, ${String(yM)}, ${String(zM)})`,
+        );
+      }
+      const { xPx, yPx } = host.pagePoint(xM, yM, zM);
+      return { xPx, yPx };
     },
 
     perf() {
