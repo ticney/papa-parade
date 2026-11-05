@@ -148,12 +148,13 @@ function build(isMotionReduced = false, pictograms = ACTIVITY_PICTOGRAMS) {
 afterEach(() => vi.restoreAllMocks());
 
 describe('the pictogram table', () => {
-  it('has a pictogram for exactly the states isPapaBusy calls busy, and null for the others', () => {
+  it('has a pictogram for exactly the busy states and a chore (story 9.4), and null for the others', () => {
     for (const state of PAPA_STATES) {
       const pictogram = ACTIVITY_PICTOGRAMS[state];
-      if (isPapaBusy({ state })) expect(pictogram, state).not.toBeNull();
+      if (isPapaBusy({ state }) || state === 'chore') expect(pictogram, state).not.toBeNull();
       else expect(pictogram, state).toBeNull();
     }
+    expect(ACTIVITY_PICTOGRAMS.chore).toBe('pan');
   });
 
   it('warns, and only then draws nothing, for an icon path that is missing', async () => {
@@ -654,5 +655,50 @@ describe('the layout: the bubble, the combo badge and a threat on Papa never ove
         `${metrics.asideBadgePx}px`,
       );
     }
+  });
+});
+
+describe('the bubble of a chore (story 9.4, D11)', () => {
+  it('shows the saucepan while Papa works at a station, though he is not busy', () => {
+    const { bubble, outer } = build();
+    bubble.update(papaIn('chore', 1000, 0), 1000, false, 0, 25);
+    expect(bubble.isActive).toBe(true);
+    expect(bubble.pictogram).toBe('pan');
+    expect(outer.classes.has('pp-activity-bubble--pan')).toBe(true);
+  });
+
+  it('fills its ring with the chore’s progress instead of draining to busyUntil', () => {
+    const { bubble } = build();
+    bubble.update(papaIn('chore', 1000, 0), 1000, false, 0, 0);
+    expect(bubble.progressPct).toBe(0);
+    bubble.update(papaIn('chore', 1000, 0), 2000, false, 16, 25);
+    expect(bubble.progressPct).toBe(25);
+    bubble.update(papaIn('chore', 1000, 0), 90_000, false, 32, 75);
+    expect(bubble.progressPct).toBe(75);
+    // The sim time does not move it: only the progress does.
+    bubble.update(papaIn('chore', 1000, 0), 120_000, false, 48, 75);
+    expect(bubble.progressPct).toBe(75);
+  });
+
+  it('never drains a chore whose progress is not given: it reads as an empty ring, not a negative one', () => {
+    const { bubble } = build();
+    bubble.update(papaIn('chore', 1000, 0), 1500, false, 0);
+    expect(bubble.progressPct).toBeGreaterThanOrEqual(0);
+    expect(bubble.progressPct).toBeLessThanOrEqual(100);
+  });
+
+  it('pops out when Papa leaves the station, and a busy state keeps draining as before', () => {
+    const { bubble } = build();
+    bubble.update(papaIn('chore', 1000, 0), 1000, false, 0, 50);
+    bubble.update(papaIn('walkPath'), 1100, false, 16, -1);
+    expect(bubble.isActive).toBe(false);
+    bubble.update(papaIn('drink', 1000, 2000), 1500, false, 32, 50);
+    expect(bubble.progressPct).toBe(50);
+  });
+
+  it('is never shaken by a refused tap: a chore refuses none (a press on a threat gets through)', () => {
+    const { bubble } = build();
+    bubble.update(papaIn('chore', 1000, 0), 1000, false, 0, 50);
+    expect(bubble.isShaking).toBe(false);
   });
 });

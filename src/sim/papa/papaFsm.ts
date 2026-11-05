@@ -8,6 +8,8 @@ import type { World } from '../world.ts';
  * (out of the room, story 4.3) are the busy states (story 1.19 D6): Papa answers nothing until `busyUntil`.
  * Story 3.15 adds three: `electrified` (the outlet's séquelle) and `carryingUp` (the stairs': the
  * baby is carried back up) are after-effect states, and `pickingUp` (a debris, a chosen occupation).
+ * Story 9.4 adds `chore`: Papa works at a house chore's station. It is not busy (a chore gives way
+ * to anything: a press, a tap, a séquelle), and the chore system pauses the chore when he leaves it.
  */
 export type PapaState =
   | 'idle'
@@ -20,7 +22,8 @@ export type PapaState =
   | 'onToilet'
   | 'electrified'
   | 'carryingUp'
-  | 'pickingUp';
+  | 'pickingUp'
+  | 'chore';
 
 /** Every `PapaState`, as data: a snapshot is checked against it. */
 export const PAPA_STATES = [
@@ -35,6 +38,7 @@ export const PAPA_STATES = [
   'electrified',
   'carryingUp',
   'pickingUp',
+  'chore',
 ] as const satisfies readonly PapaState[];
 
 type UnlistedPapaState = Exclude<PapaState, (typeof PAPA_STATES)[number]>;
@@ -79,6 +83,7 @@ const BUSY_PAPA_STATES: Readonly<Record<PapaState, boolean>> = {
   electrified: true,
   carryingUp: true,
   pickingUp: true,
+  chore: false,
 };
 
 /**

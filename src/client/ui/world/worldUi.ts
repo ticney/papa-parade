@@ -8,7 +8,7 @@ import { type BreathRing, createBreathRing } from './breathRing.ts';
 import type { ChronoRing } from './chronoRing.ts';
 import { type ComboBadge, type ComboBadgeOptions, createComboBadge } from './comboBadge.ts';
 import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
-import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
+import { createObjectMarkers, type ObjectMarkerSpec, type ObjectMarkers } from './objectMarkers.ts';
 import { createPapaHint, type PapaHint } from './papaHint.ts';
 import { createStealthExitMarker, type StealthExitMarker } from './stealthExitMarker.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
@@ -52,6 +52,7 @@ export interface WorldUi {
     renderSimMs: number,
     threats: readonly Readonly<ThreatInstance>[],
     nowAtReal: number,
+    choreProgressPct?: number,
   ): void;
   /** A tap on a threat was refused: the bubble shakes (story 2.12). */
   shakeActivity(nowAtReal: number): void;
@@ -118,7 +119,7 @@ export interface WorldUi {
    */
   updatePapaHint(papa: Readonly<{ xM: number; zM: number }> | null, nowAtReal: number): void;
   /** Mounts the icons of the level's interactive objects (the coffee machine, the toilet door), replacing the previous level's. */
-  mountObjects(objects: readonly ObjectMarkerSpec[]): void;
+  mountObjects(objects: readonly ObjectMarkerSpec[], stationIds?: readonly string[]): void;
   /** Removes the object icons. */
   unmountObjects(): void;
   /**
@@ -127,6 +128,14 @@ export interface WorldUi {
    * `isToiletOccupied` Papa being on the toilet.
    */
   updateObjects(isCoffeeUrgent: boolean, isToiletUrgent: boolean, isToiletOccupied: boolean): void;
+  /**
+   * Once per frame, before `render`, in a level with chores (story 9.4): the chrono-ring of each station's
+   * announced beat and its done look, from the world's chores and the sim time as drawn. True when an arc lit in
+   * this frame (the caller plays `ChronoArcLit`). Allocation-free.
+   */
+  updateChores: ObjectMarkers['updateChores'];
+  /** What the ring of a chore's station drew in the last `updateChores` (the tests'). */
+  choreRingDrawOf: ObjectMarkers['choreRingDrawOf'];
   /** Mounts one « RANGE ! » marker per prop of the level (`world.props` order), replacing the previous level's (story 3.5). */
   mountTidy(propCount: number): void;
   /** Removes the tidy markers. */
@@ -184,7 +193,11 @@ export function createWorldUi(
     return verbMetrics;
   });
   let layerWidthPx = 0;
-  const objects = createObjectMarkers(scene, doc);
+  // The stations' rings hang from the icon's size on the current surface (story 9.4): the page's, read lazily.
+  const objects = createObjectMarkers(scene, doc, () => {
+    verbMetrics ??= createBrowserVerbMetrics();
+    return verbMetrics;
+  });
   // After the markers above it (index 4) and before the object markers, which moved up to 5+ with
   // it: the earlier children keep their places (a test reads them by index).
   const beatRing = createBeatRing(scene, doc, { isMotionReduced: comboOptions.isMotionReduced });
@@ -223,8 +236,14 @@ export function createWorldUi(
       stealthExitMarker.update(stealth);
     },
     activityBubble,
-    updateActivity(papa, renderSimMs, threatInstances, nowAtReal) {
-      activityBubble.update(papa, renderSimMs, isFollowingThreatUp(threatInstances), nowAtReal);
+    updateActivity(papa, renderSimMs, threatInstances, nowAtReal, choreProgressPct) {
+      activityBubble.update(
+        papa,
+        renderSimMs,
+        isFollowingThreatUp(threatInstances),
+        nowAtReal,
+        choreProgressPct,
+      );
     },
     shakeActivity: activityBubble.shake,
     updateCombo(combo, minMultiplier, papa, threatInstances, nowAtReal) {
@@ -246,6 +265,8 @@ export function createWorldUi(
     mountObjects: objects.mount,
     unmountObjects: objects.unmount,
     updateObjects: objects.update,
+    updateChores: objects.updateChores,
+    choreRingDrawOf: objects.choreRingDrawOf,
     mountTidy: tidyMarkers.mount,
     unmountTidy: tidyMarkers.unmount,
     updateTidy: tidyMarkers.update,

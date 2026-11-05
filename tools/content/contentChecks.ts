@@ -4,6 +4,7 @@ import { FEEDBACK_CLIENT_EVENTS } from '@client/feedback/feedbackEvents';
 import type { ContentProblem } from '@content/contentError';
 import {
   BOTS_FILE,
+  CHORE_DEF_PATTERN,
   CONTENT_FILES,
   CONTENT_SCHEMAS,
   DISRUPTION_DEF_PATTERN,
@@ -21,6 +22,7 @@ import { formatJsonPath } from '@content/jsonPath';
 import { renderContentJsonSchema } from '@content/jsonSchema';
 import { parseContentFile } from '@content/parseContentFile';
 import type { BotSettings } from '@content/schemas/bots';
+import type { ChoreDef } from '@content/schemas/chore';
 import type { DisruptionDef } from '@content/schemas/disruption';
 import type { FeedbackCue, FeedbackTable } from '@content/schemas/feedback';
 import type { Feel } from '@content/schemas/feel';
@@ -348,6 +350,7 @@ function checkBotReferences(bots: BotSettings, feel: Feel): ContentProblem[] {
 interface ParsedFamilies {
   threats: Map<string, ThreatDef>;
   disruptions: Map<string, DisruptionDef>;
+  chores: Map<string, ChoreDef>;
   sequences: Map<string, SequenceDef>;
   levels: Map<string, Level>;
   geometries: Map<string, LevelGeometry>;
@@ -1058,6 +1061,118 @@ function checkDisruptionRing(
 }
 
 /**
+ * The references a chore file makes that its schema cannot see (story 9.4): each of its feedback
+ * cues is a cue of `feedback.json` (and none is a `uiElement`: a chore's cues are played for sim
+ * events), each beat is announced longer before its window than the window lasts (`windowMs`, or the
+ * `feel.json` window when it is `null`), and its station is a kind the sim has an action for.
+ */
+function checkChoreReferences(
+  chores: ReadonlyMap<string, ChoreDef>,
+  feedback: FeedbackTable | undefined,
+  feel: Feel | undefined,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  for (const [id, chore] of chores) {
+    const file = `content/${CHORE_DEF_PATTERN.dir}/${id}${CHORE_DEF_PATTERN.suffix}`;
+    if (feedback !== undefined) {
+      for (const [role, cueId] of Object.entries(chore.feedback)) {
+        if (!Object.hasOwn(feedback.cues, cueId)) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['feedback', role]),
+            message: `"${cueId}" is not a cue of content/${FEEDBACK_FILE.file} › cues`,
+          });
+        } else if (visualAnchorOf(feedback.cues[cueId]) === 'threat') {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['feedback', role]),
+            message: `the cue "${cueId}" is anchored on a threat, but a chore event names no threat`,
+          });
+        } else if (feedback.cues[cueId]?.visual?.kind === 'uiElement') {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['feedback', role]),
+            message: `the cue "${cueId}" has a \`uiElement\` visual, but a chore's cues are played for sim events`,
+          });
+        }
+      }
+    }
+    const windowMs = chore.windowMs ?? feel?.timing.windowMs;
+    if (windowMs !== undefined) {
+      chore.beats.forEach((beat, i) => {
+        if (beat.telegraphDelayMs <= windowMs) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['beats', i, 'telegraphDelayMs']),
+            message: `beats[${i}].telegraphDelayMs (${beat.telegraphDelayMs}) must be above the window (${windowMs} ms), or the ring would have no time to be read`,
+          });
+        }
+      });
+    }
+    if (!(OBJECT_ACTION_KINDS as readonly string[]).includes(chore.station)) {
+      problems.push({
+        file,
+        jsonPath: 'station',
+        message: `the station "${chore.station}" is a kind the sim has no action for (${OBJECT_ACTION_KINDS.join(', ')})`,
+      });
+    }
+  }
+  return problems;
+}
+
+/**
+ * The chores a level declares (story 9.4): each def is a file, each object is of the def's station
+ * kind, and the points they pay add up to at most the Maison row (`homeMaxPoints`, the level's
+ * `feelOverrides` applied). The rules that need no def (an object named twice, a station nobody
+ * names) are the level schema's.
+ */
+function checkLevelChores(
+  families: ParsedFamilies,
+  present: ReadonlySet<string>,
+  feel: Feel | undefined,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  for (const [id, level] of families.levels) {
+    if (level.chores === undefined) continue;
+    const file = `content/${LEVEL_PATTERN.dir}/${id}${LEVEL_PATTERN.suffix}`;
+    let totalPoints = 0;
+    level.chores.forEach((entry, i) => {
+      const defFile = `${CHORE_DEF_PATTERN.dir}/${entry.def}${CHORE_DEF_PATTERN.suffix}`;
+      const chore = families.chores.get(entry.def);
+      if (chore === undefined) {
+        if (!present.has(defFile)) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['chores', i, 'def']),
+            message: `no chore "${entry.def}" (content/${defFile} does not exist)`,
+          });
+        }
+        return;
+      }
+      totalPoints += chore.homePoints;
+      const object = level.objects.find((candidate) => candidate.id === entry.object);
+      if (object !== undefined && object.kind !== chore.station) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['chores', i, 'object']),
+          message: `the chore "${entry.def}" is played at a "${chore.station}", but the object "${entry.object}" has the kind "${object.kind}"`,
+        });
+      }
+    });
+    if (feel === undefined) continue;
+    const merged = mergeFeel(feel, level.feelOverrides, file);
+    if (merged.ok && totalPoints > merged.value.mama.homeMaxPoints) {
+      problems.push({
+        file,
+        jsonPath: 'chores',
+        message: `the chores of level ${id} pay ${totalPoints} points, above the Maison row's ${merged.value.mama.homeMaxPoints} (feel.mama.homeMaxPoints)`,
+      });
+    }
+  }
+  return problems;
+}
+
+/**
  * The references a level file makes: it has its geometry beside it, each threat of each wave is a
  * threat file whose gag the sim knows, each anchor (of a threat or an object) is an anchor of that
  * geometry, object ids are unique, and its `feelOverrides` merge into a valid feel. A file that
@@ -1424,6 +1539,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   const families: ParsedFamilies = {
     threats: new Map(),
     disruptions: new Map(),
+    chores: new Map(),
     sequences: new Map(),
     levels: new Map(),
     geometries: new Map(),
@@ -1456,6 +1572,8 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
         families.threats.set(matched.id, result.value as ThreatDef);
       } else if (matched.pattern === DISRUPTION_DEF_PATTERN) {
         families.disruptions.set(matched.id, result.value as DisruptionDef);
+      } else if (matched.pattern === CHORE_DEF_PATTERN) {
+        families.chores.set(matched.id, result.value as ChoreDef);
       } else if (matched.pattern === SEQUENCE_DEF_PATTERN) {
         families.sequences.set(matched.id, result.value as SequenceDef);
       } else if (matched.pattern === LEVEL_PATTERN) {
@@ -1524,7 +1642,9 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   problems.push(...checkThreatReferences(families.threats, feedback, feel));
   problems.push(...checkDisruptionReferences(families.disruptions, feedback));
   problems.push(...checkTelegraphClips(families.threats, families.disruptions, feedback));
+  problems.push(...checkChoreReferences(families.chores, feedback, feel));
   problems.push(...checkLevelReferences(families, present, feel));
+  problems.push(...checkLevelChores(families, present, feel));
   problems.push(...checkSequenceReferences(families, present, feedback, feel));
 
   if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));

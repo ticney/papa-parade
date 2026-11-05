@@ -66,7 +66,7 @@ describe('the cycle in a snapshot (story 4.10)', () => {
       seed: 1,
     });
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(31);
+    expect(snapshot.version).toBe(32);
     expect(snapshot.world.cycle).toEqual({ index: 0, nextAt: null, completedAt: null });
     sim.dispose();
   });

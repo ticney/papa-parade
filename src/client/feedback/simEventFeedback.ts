@@ -1,5 +1,7 @@
 import type { LevelContent } from '@content/contentBundle';
+import type { ChoreDef } from '@content/schemas/chore';
 import { isPapaBusy, type SimEvent, type World } from '@sim';
+import { choreCueOf } from './choreFeedback.ts';
 import { disruptionCueOf } from './disruptionFeedback.ts';
 import type { FeedbackDirector } from './feedbackDirector.ts';
 import { sequenceCueOf } from './sequenceFeedback.ts';
@@ -7,7 +9,14 @@ import { opensChronoArc, threatCueOf } from './threatFeedback.ts';
 
 /** What the routing reads of the level being played: its world and the defs that name the cues. */
 export interface FeedbackSource {
-  readonly sim: { readonly world: Readonly<World> };
+  readonly sim: {
+    readonly world: Readonly<World>;
+    /**
+     * The level's chores (story 9.4, `Sim.chores`: the def and the station of each, index-aligned with
+     * `world.chores`). Absent or empty: a level with no station.
+     */
+    readonly chores?: readonly { readonly def: ChoreDef; readonly objectId: string }[];
+  };
   readonly level: Pick<LevelContent, 'threats' | 'level' | 'disruptions' | 'sequences'>;
 }
 
@@ -52,6 +61,14 @@ export function playSimEventFeedback(
   const disruptionCue = disruptionCueOf(event, active.level.level, active.level.disruptions);
   if (disruptionCue !== null && 'objectId' in event) {
     director.playCue(disruptionCue, active.sim.world, null, event.objectId);
+  }
+  // A house chore's cues come from its def too (story 9.4), anchored on its station.
+  const { chores } = active.sim;
+  if (chores !== undefined && chores.length > 0) {
+    const choreCue = choreCueOf(event, chores);
+    if (choreCue !== null && 'choreIndex' in event) {
+      director.playCue(choreCue, active.sim.world, null, chores[event.choreIndex]?.objectId);
+    }
   }
   // A special sequence's cues come from its def too (story 4.4), anchored on Papa (`content:check`).
   const sequenceCue = sequenceCueOf(event, active.level.sequences);

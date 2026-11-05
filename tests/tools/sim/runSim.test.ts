@@ -295,6 +295,7 @@ describe('runSim on the live content', () => {
         holdMinMs: feel.input.holdMinMs,
         responses: botResponsesOf(loaded.level.threats),
         releaseDefIds: releaseDefIdsOf(loaded.level.threats),
+        choreObjectIds: [],
         isChronoRingShown: true,
         safeSpot: null,
         settings: loaded.content.bots,

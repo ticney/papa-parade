@@ -18,6 +18,8 @@ const PAPA_LOOPS: Readonly<Record<PapaState, string>> = {
   electrified: 'gag_shock',
   carryingUp: 'carry_idle',
   pickingUp: 'idle',
+  // A house chore (story 9.4): idle at the station until story 9.5 gives the cooking its own gestures.
+  chore: 'idle',
 };
 
 /** `wander` and `approach` crawl; a laid baby has no loop of his own: `carried`, lowered by `layDownPct`. */

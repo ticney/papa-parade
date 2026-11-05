@@ -3,6 +3,7 @@ import { STEP_MS } from '@shared/constants';
 import { isBabyCarried } from '../baby/babyFsm.ts';
 import { isBabyInReach, isInSafeZone, putDownBaby, takeBaby } from '../baby/carry.ts';
 import { isBabyFoundNow } from '../baby/silence.ts';
+import { choreIndexOfObject, startChore } from '../chores/chores.ts';
 import type { SimObjectSpec, StepContext } from '../context.ts';
 import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
 import { bladderSpeedFactor } from '../gauges/bladder.ts';
@@ -17,7 +18,7 @@ import {
 } from '../threats/afterEffects.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import { startCoffee } from './coffee.ts';
-import { startGlide } from './glide.ts';
+import { startGlide, startGlideTo } from './glide.ts';
 import { enterPapaState, isPapaBusy } from './papaFsm.ts';
 import { startCall } from './phoneCall.ts';
 import { startWalkTo } from './planWalk.ts';
@@ -53,6 +54,9 @@ const OBJECT_ACTIONS: Readonly<Record<ObjectKind, ObjectAction>> = {
     startToilet(world, ctx, object.id);
     return true;
   },
+  // A house chore's station (story 9.4): Papa works there until he leaves, unless the chore is done
+  // (then he is only standing at the stove, idle).
+  stove: (world, ctx, object) => startChore(world, ctx, object.id),
 };
 
 /** Every object kind the sim has an action for. */
@@ -181,6 +185,20 @@ function tapObject(world: World, ctx: StepContext, objectId: string): void {
     // The toilet is no place for a baby in the arms: refused at the tap, Papa goes nowhere (4.3 D4).
     if (object.kind === 'toilet' && isBabyCarried(world)) {
       ctx.events.push({ type: 'ToiletRefused', t: world.time.sim, objectId });
+      return;
+    }
+    // A chore's station (story 9.4): Papa glides to it and works on arrival; the baby in his arms
+    // refuses it at the tap (D10). A done chore's station is only somewhere to walk to.
+    const choreIndex = choreIndexOfObject(ctx, objectId);
+    if (choreIndex >= 0 && world.chores[choreIndex]?.state !== 'done') {
+      if (isBabyCarried(world)) {
+        ctx.events.push({ type: 'ChoreRefused', t: world.time.sim, objectId, reason: 'carrying' });
+        return;
+      }
+      if (startGlideTo(world, ctx, object.xM, object.zM, null)) {
+        world.papa.objectId = objectId;
+        ctx.events.push({ type: 'ObjectTapped', t: world.time.sim, objectId });
+      }
       return;
     }
     if (startWalkTo(world, ctx, object.xM, object.zM) !== null) {

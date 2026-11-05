@@ -124,7 +124,7 @@ const SoundWaveSchema = z
     anchor: z
       .enum(['papa', 'baby', 'threat', 'object', 'door'])
       .describe(
-        "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption def points at. `door` is the level's `ANCHOR_door` (story 3.5), for a generic event.",
+        "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption or a house chore def points at. `door` is the level's `ANCHOR_door` (story 3.5), for a generic event.",
       ),
     maxRadiusM: z.number().gt(0).max(3).describe('Radius of the ring when it is gone, in metres.'),
     durationMs: z

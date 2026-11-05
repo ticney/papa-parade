@@ -39,8 +39,10 @@
   "objects": [
     { "id": "coffee_machine", "kind": "coffee_machine", "anchor": "coffee_machine" },
     { "id": "phone", "kind": "phone", "anchor": "phone" },
-    { "id": "toilet", "kind": "toilet", "anchor": "toilet" }
+    { "id": "toilet", "kind": "toilet", "anchor": "toilet" },
+    { "id": "stove", "kind": "stove", "anchor": "stove" }
   ],
+  "chores": [{ "def": "cooking", "object": "stove" }],
   "gauges": { "noise": {}, "fatigue": { "microSleepDef": "papa_microsleep" }, "need": {} },
   "carry": { "armsCryDef": "arms_cry" },
   "sequences": ["stay_awake", "lullaby_walk", "bedtime_duel", "bomb_drop", "stealth_exit"],

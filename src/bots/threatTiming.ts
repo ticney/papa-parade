@@ -1,3 +1,4 @@
+import { STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import type { SilenceSlice, SimCommand, ThreatInstance, World } from '@sim';
 import type { BotResponse } from './bot.ts';
@@ -364,4 +365,103 @@ export function planTidy(
   if (nearestId === null) return;
   memory.sentAtById.set(nearestId, now);
   out.push({ type: 'TapObject', t: asSimMs(now), objectId: nearestId });
+}
+
+/** A station is not tapped twice within this long: a tap that came to nothing must not fill the journal (a bot's habit). */
+const CHORE_RETRY_MS = 1000;
+
+/** What a bot remembers of the house chores (story 9.4): see {@link planChore} and {@link planChoreBeat}. */
+export interface ChoreMemory {
+  /** The last instant a threat was active (hidden, announced or open): chores wait for a lull after it. */
+  lastThreatActiveAt: number;
+  /** When the station was last tapped; null before the first tap. */
+  sentAt: number | null;
+  /** The press planned for the beat in play, keyed by the instant its window opens (unique per announcement). */
+  beat: { key: number; atMs: number; isSent: boolean } | null;
+}
+
+export function createChoreMemory(): ChoreMemory {
+  return { lastThreatActiveAt: 0, sentAt: null, beat: null };
+}
+
+/** A threat is active when it is hidden, announced or open (the director's own definition). */
+function isAnyThreatActive(world: Readonly<World>): boolean {
+  for (let i = 0; i < world.threats.length; i++) {
+    const { state } = world.threats[i] as Readonly<ThreatInstance>;
+    if (state === 'hidden' || state === 'telegraph' || state === 'windowOpen') return true;
+  }
+  return false;
+}
+
+/**
+ * Starts or resumes a house chore (story 9.4), shared by `perfect` and `human`: Papa idle with the baby
+ * on the floor, nothing of the bot's to answer (`isFree`), no threat active for `quietMinMs`, and a
+ * chore not done: one `TapObject` on the first such station, stamped `now`, then none for
+ * {@link CHORE_RETRY_MS}. It draws nothing and remembers nothing in a level with no station, or when
+ * `isEnabled` is false, so the games of a level without one are untouched. `choreObjectIds` is
+ * index-aligned with `world.chores`.
+ */
+export function planChore(
+  world: Readonly<World>,
+  choreObjectIds: readonly string[],
+  chores: { readonly isEnabled: boolean; readonly quietMinMs: number },
+  isFree: boolean,
+  out: SimCommand[],
+  memory: ChoreMemory,
+): void {
+  if (!chores.isEnabled || choreObjectIds.length === 0) return;
+  const now = world.time.sim;
+  if (isAnyThreatActive(world)) memory.lastThreatActiveAt = now;
+  if (!isFree || world.flow.state !== 'playing' || world.papa.state !== 'idle') return;
+  if (world.baby.state === 'carried') return;
+  if (now - memory.lastThreatActiveAt < chores.quietMinMs) return;
+  if (memory.sentAt !== null && now - memory.sentAt < CHORE_RETRY_MS) return;
+  for (let i = 0; i < world.chores.length; i++) {
+    if ((world.chores[i] as Readonly<World['chores'][number]>).state === 'done') continue;
+    const objectId = choreObjectIds[i];
+    if (objectId === undefined) continue;
+    memory.sentAt = now;
+    out.push({ type: 'TapObject', t: asSimMs(now), objectId });
+    return;
+  }
+}
+
+/**
+ * The press of a beat (story 9.4), shared by `perfect` and `human`: while Papa works and a beat is
+ * announced, one `TapObject` on the station at the instant `aimAt` says. `aimAt` is called once per
+ * announcement (a beat held or missed is announced again with a new window, hence a new plan), so a
+ * bot that draws for its aim draws once per beat. A plan whose beat was withdrawn is dropped. Nothing
+ * happens, and nothing is drawn, in a level with no station.
+ */
+export function planChoreBeat(
+  world: Readonly<World>,
+  choreObjectIds: readonly string[],
+  out: SimCommand[],
+  memory: ChoreMemory,
+  aimAt: (chore: Readonly<World['chores'][number]>) => number,
+): void {
+  if (choreObjectIds.length === 0) return;
+  const index = world.chores.findIndex((chore) => chore.state === 'working');
+  const chore = world.chores[index];
+  if (chore === undefined || chore.beatState !== 'telegraph' || world.papa.state !== 'chore') {
+    memory.beat = null;
+    return;
+  }
+  const now = world.time.sim;
+  if (memory.beat?.key !== chore.beatWindowOpenAt) {
+    memory.beat = {
+      key: chore.beatWindowOpenAt,
+      atMs: Math.max(Math.round(aimAt(chore)), now),
+      isSent: false,
+    };
+  }
+  const objectId = choreObjectIds[index];
+  if (objectId === undefined || memory.beat.isSent || memory.beat.atMs >= now + STEP_MS) return;
+  memory.beat.isSent = true;
+  out.push({ type: 'TapObject', t: asSimMs(memory.beat.atMs), objectId });
+}
+
+/** The centre of the response window of the beat announced now, in sim ms: where a tap is `perfect`. */
+export function choreCentreOf(chore: Readonly<World['chores'][number]>): number {
+  return chore.beatWindowOpenAt + chore.responseWindow.windowMs / 2;
 }

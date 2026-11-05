@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import { SNAKE_ID_PATTERN } from './levelNodeNames.ts';
 import { type BotSettings, BotsSchema } from './schemas/bots.ts';
+import { type ChoreDef, ChoreDefSchema } from './schemas/chore.ts';
 import { type DisruptionDef, DisruptionDefSchema } from './schemas/disruption.ts';
 import { type FeedbackTable, FeedbackTableSchema } from './schemas/feedback.ts';
 import { type Feel, FeelSchema } from './schemas/feel.ts';
@@ -102,6 +103,13 @@ export const DISRUPTION_DEF_PATTERN: ContentPattern<DisruptionDef> = {
   schema: DisruptionDefSchema,
 };
 
+export const CHORE_DEF_PATTERN: ContentPattern<ChoreDef> = {
+  dir: 'chores',
+  suffix: '.json',
+  schemaName: 'chore',
+  schema: ChoreDefSchema,
+};
+
 export const SEQUENCE_DEF_PATTERN: ContentPattern<SequenceDef> = {
   dir: 'sequences',
   suffix: '.json',
@@ -121,6 +129,7 @@ export const CONTENT_PATTERNS: readonly ContentPattern<unknown>[] = [
   LEVEL_GEOMETRY_PATTERN,
   THREAT_DEF_PATTERN,
   DISRUPTION_DEF_PATTERN,
+  CHORE_DEF_PATTERN,
   SEQUENCE_DEF_PATTERN,
   LEVEL_PATTERN,
 ];

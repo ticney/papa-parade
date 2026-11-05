@@ -4,6 +4,8 @@ import type { Bot, BotSetup } from './bot.ts';
 import { createCommandScheduler } from './commandScheduler.ts';
 import {
   centreOf,
+  choreCentreOf,
+  createChoreMemory,
   createCycleDropMemory,
   createCycleMemory,
   createFirmHold,
@@ -11,6 +13,8 @@ import {
   createStealthWalkMemory,
   createTidyMemory,
   isPressable,
+  planChore,
+  planChoreBeat,
   planCycleDrop,
   planStealthWalk,
   planTidy,
@@ -29,6 +33,9 @@ import {
  * presses a real wake at its centre like any parry, never presses a false alarm, and holds its breath
  * from the first step of the false alarm's telegraph to the end of its window (no gasp, ever). In the
  * final rush (story 3.5) it tidies the props that are a mess, nearest first, the moment the door opens.
+ * In a level with stations (story 9.4) it starts or resumes a house chore in a lull (`bots.json › chores`) and taps
+ * each beat at the centre of its window, so `perfect`; a threat still gets its press at its centre, which
+ * takes Papa off the station (the chore keeps its progress).
  */
 export function createPerfectBot(setup: BotSetup): Bot {
   const scheduler = createCommandScheduler();
@@ -44,6 +51,8 @@ export function createPerfectBot(setup: BotSetup): Bot {
   const cycleDrop = createCycleDropMemory();
   // The prop tapped last in the final rush (story 3.5).
   const tidy = createTidyMemory();
+  // The house chores (story 9.4): when the station was last tapped, and the press planned for its beat.
+  const chores = createChoreMemory();
   // The beat tapped last: `nextBeatAt` is unique per beat, so one tap per beat whatever the step.
   let lastBeatAt: number | null = null;
   return {
@@ -96,6 +105,10 @@ export function createPerfectBot(setup: BotSetup): Bot {
       planStealthWalk(world, setup.responses, out, stealthWalk);
       planCycleDrop(world, setup.responses, setup.safeSpot, out, cycleDrop);
       planTidy(world, setup.responses, out, tidy, 0);
+      // The house chores (story 9.4): started in a lull, each beat tapped at the centre of its window.
+      const isFree = !firmHold.isHolding && scheduler.size === 0;
+      planChore(world, setup.choreObjectIds, setup.settings.chores, isFree, out, chores);
+      planChoreBeat(world, setup.choreObjectIds, out, chores, choreCentreOf);
     },
   };
 }

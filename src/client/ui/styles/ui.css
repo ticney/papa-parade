@@ -2535,6 +2535,12 @@ body {
   opacity: 0.6;
 }
 
+/* A chore's station once its chore is done (story 9.4): dimmed like a toilet in use, and inert. */
+.pp-object-done .pp-object-icon {
+  background: var(--pp-color-ink-soft);
+  opacity: 0.6;
+}
+
 .pp-object-urgent .pp-object-halo {
   opacity: 1;
   animation: pp-threat-pulse 1400ms ease-in-out infinite;

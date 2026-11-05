@@ -24,6 +24,7 @@ describe('system order', () => {
       'runDisruptions',
       'runBaby',
       'runThreats',
+      'runChores',
       'runPapa',
       'runPhysics',
       'runGauges',

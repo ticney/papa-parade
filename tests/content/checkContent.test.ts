@@ -1965,3 +1965,150 @@ describe('the stealth exit (story 4.9)', () => {
     expect((await messages()).join('\n')).toMatch(/stealth step, but the level has no carry/);
   });
 });
+
+describe('checkContent on the house chores (story 9.4)', () => {
+  const KITCHEN = 'content/levels/salon_kitchen.json';
+  const COOKING = 'content/chores/cooking.json';
+  const FEEDBACK = 'content/feedback.json';
+
+  const messages = async (): Promise<string[]> =>
+    (await checkContent(root)).map(
+      (problem) => `${problem.file} ${problem.jsonPath}: ${problem.message}`,
+    );
+
+  it('accepts the live cooking on the stove of the kitchen', async () => {
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('refuses a cue that feedback.json does not have', async () => {
+    await mutateJson(COOKING, (chore) => {
+      (chore.feedback as Record<string, string>).miss = 'no_such_cue';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: COOKING,
+        jsonPath: 'feedback.miss',
+        message: expect.stringContaining('no_such_cue'),
+      }),
+    ]);
+  });
+
+  it('refuses a cue anchored on a threat: a chore event names no threat', async () => {
+    await mutateJson(COOKING, (chore) => {
+      (chore.feedback as Record<string, string>).success = 'resp_parry';
+    });
+    expect((await messages()).join('\n')).toMatch(/feedback\.success.*anchored on a threat/);
+  });
+
+  it('refuses a uiElement cue: a chore cue is played for sim events', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const cues = feedback.cues as Record<string, Record<string, unknown>>;
+      cues.chore_beat_missed = { visual: { kind: 'uiElement' }, haptic: 'light' };
+    });
+    expect((await messages()).join('\n')).toMatch(/feedback\.miss.*uiElement/);
+  });
+
+  it('refuses a beat whose delay is not above the window (the feel window when windowMs is null)', async () => {
+    await mutateJson(COOKING, (chore) => {
+      ((chore.beats as Record<string, unknown>[])[1] as Record<string, unknown>).telegraphDelayMs =
+        300;
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: COOKING,
+        jsonPath: 'beats[1].telegraphDelayMs',
+        message: expect.stringMatching(/\(300\) must be above the window \(300 ms\)/),
+      }),
+    );
+  });
+
+  it('refuses a beat delay not above the chore’s own window', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.windowMs = 2200;
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /beats\[0\]\.telegraphDelayMs.*\(2000\) must be above the window \(2200 ms\)/,
+    );
+  });
+
+  it('refuses a station kind the chore schema does not know', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.station = 'sink';
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({ file: COOKING, jsonPath: 'station' }),
+    );
+  });
+
+  it('refuses a file whose id is not its name', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.id = 'frying';
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({ file: COOKING, jsonPath: 'id' }),
+    );
+  });
+
+  it('refuses a level that names a chore with no file', async () => {
+    await rm(join(root, COOKING));
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: KITCHEN,
+        jsonPath: 'chores[0].def',
+        message: expect.stringMatching(/no chore "cooking".*chores\/cooking\.json/),
+      }),
+    );
+  });
+
+  it('refuses a chore on an object that is not of its station kind', async () => {
+    await mutateJson(KITCHEN, (level) => {
+      (level.chores as Record<string, unknown>[])[0] = { def: 'cooking', object: 'toilet' };
+      level.objects = (level.objects as { id: string; kind: string; anchor: string }[]).map(
+        (object) => (object.id === 'stove' ? { ...object, id: 'second_stove' } : object),
+      );
+      (level.chores as Record<string, unknown>[]).push({ def: 'cooking', object: 'second_stove' });
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /the chore "cooking" is played at a "stove", but the object "toilet" has the kind "toilet"/,
+    );
+  });
+
+  it('refuses a chore on an object the level does not have', async () => {
+    await mutateJson(KITCHEN, (level) => {
+      (level.chores as Record<string, unknown>[])[0] = { def: 'cooking', object: 'no_such_object' };
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /the object "no_such_object" is not in the level objects/,
+    );
+  });
+
+  it('refuses an object named by two chores', async () => {
+    await mutateJson(KITCHEN, (level) => {
+      (level.chores as Record<string, unknown>[]).push({ def: 'cooking', object: 'stove' });
+    });
+    expect((await messages()).join('\n')).toMatch(/already the station of another chore/);
+  });
+
+  it('refuses a station that no chore names', async () => {
+    await mutateJson(KITCHEN, (level) => {
+      delete level.chores;
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /the stove "stove" is a station and no chore names it/,
+    );
+  });
+
+  it('refuses chores that pay more than the Maison row, the level’s overrides applied', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.homePoints = 20;
+    });
+    expect((await messages()).join('\n')).toMatch(/pay 20 points, above the Maison row's 15/);
+  });
+
+  it('reports a stale chore schema', async () => {
+    await writeFile(join(root, 'content/_schemas/chore.schema.json'), '{}\n');
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({ file: 'content/_schemas/chore.schema.json' }),
+    );
+  });
+});

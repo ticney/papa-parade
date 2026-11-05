@@ -134,6 +134,11 @@ const CHIP_ICONS: Readonly<Record<RowKind, readonly [string, Record<string, stri
 
 type RowKind = 'laugh' | 'calm' | 'home' | 'sigh' | 'scream';
 
+/** Points as the screen writes them: whole, or with a half and a decimal comma (`7,5`: a chore is worth half points, story 9.4). */
+function formatPoints(points: number): string {
+  return String(points).replace('.', ',');
+}
+
 interface Row {
   kind: RowKind;
   labelKey: string;
@@ -426,8 +431,8 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const showRow = (index: number, points: number): void => {
     if (shown[index] === points) return;
     shown[index] = points;
-    (values[index] as HTMLElement).textContent = String(points);
-    totalValue.textContent = String(shown.reduce((sum, value) => sum + value, 0));
+    (values[index] as HTMLElement).textContent = formatPoints(points);
+    totalValue.textContent = formatPoints(shown.reduce((sum, value) => sum + value, 0));
   };
   const showTotals = (): void => {
     for (let index = 0; index < rows.length; index++) {
@@ -489,7 +494,9 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     const startedAtReal = options.now();
     const tick = (): void => {
       const share = Math.min(1, (options.now() - startedAtReal) / timings.rowCountUpMs);
-      showRow(index, Math.round(totalPoints * share));
+      // The Maison row counts in halves, as it can end on one (7,5); the others never do.
+      const perPoint = (rows[index] as Row).kind === 'home' ? 2 : 1;
+      showRow(index, Math.round(totalPoints * share * perPoint) / perPoint);
       if (share < 1) later(tick, COUNT_UP_FRAME_MS);
     };
     tick();

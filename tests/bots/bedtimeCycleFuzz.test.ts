@@ -48,6 +48,7 @@ async function play(seed: number, isQuiet: boolean): Promise<Outcome> {
     holdMinMs: content.feel.input.holdMinMs,
     responses: botResponsesOf(level.threats),
     releaseDefIds: releaseDefIdsOf(level.threats),
+    choreObjectIds: [],
     isChronoRingShown: true,
     safeSpot: safeSpotOf(geometry),
     settings: createTestBots(),

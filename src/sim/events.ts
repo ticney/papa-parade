@@ -229,11 +229,14 @@ export type SimEvent =
    * `ComboChanged{cashIn}`.
    */
   | { type: 'ComboCashedIn'; t: SimMs; multiplier: number; basePoints: number; points: number }
-  /** Papa set off to a pressed threat; he arrives by `arriveAt` (choreography: no judgement waits for it). */
+  /**
+   * Papa set off to a pressed threat; he arrives by `arriveAt` (choreography: no judgement waits for it).
+   * `threatId` is null for a glide to a chore's station (story 9.4).
+   */
   | {
       type: 'PapaGlideStarted';
       t: SimMs;
-      threatId: number;
+      threatId: number | null;
       toXM: number;
       toZM: number;
       arriveAt: SimMs;
@@ -410,6 +413,36 @@ export type SimEvent =
   /** A tap on the toilet while the baby is carried: Papa does not move (he must put the baby down first). */
   | { type: 'ToiletRefused'; t: SimMs; objectId: string }
   /**
+   * A beat of a house chore was announced (story 9.4): its window opens at `windowOpenAt`. `choreIndex`
+   * is the index in `world.chores` and `ctx.level.chores`. Emitted when the chore starts or resumes,
+   * after a hold, and after a miss (the same beat again).
+   */
+  | {
+      type: 'ChoreBeatTelegraphed';
+      t: SimMs;
+      choreIndex: number;
+      beatIndex: number;
+      windowOpenAt: SimMs;
+    }
+  /**
+   * A beat was judged on the tap's own `t` (story 9.4). `fail` is a miss, with its `reason` (`early`
+   * under `feel.input.earlyPress: "fail"`, or `late`, which is also the absence of any tap); the
+   * beat is announced again right after it. `offsetMs` is null when nobody tapped.
+   */
+  | {
+      type: 'ChoreBeatJudged';
+      t: SimMs;
+      choreIndex: number;
+      beatIndex: number;
+      quality: ResponseQuality;
+      reason: 'early' | 'late' | null;
+      offsetMs: number | null;
+    }
+  /** The last beat of a chore was caught: it is done for the level and its `homePoints` are Mama's (story 9.4). */
+  | { type: 'ChoreCompleted'; t: SimMs; choreIndex: number; homePoints: number }
+  /** A tap on a chore's station while the baby is carried: Papa goes nowhere (story 9.4 D10). */
+  | { type: 'ChoreRefused'; t: SimMs; objectId: string; reason: 'carrying' }
+  /**
    * A special sequence started (story 4.4). Follows `ThreatCancelled`s and the baby's pick-up, and
    * precedes `SequenceStepStarted{0}`.
    */
@@ -571,6 +604,10 @@ export const SIM_EVENT_TYPES = [
   'BreathHeld',
   'BreathReleased',
   'CatastropheChanged',
+  'ChoreBeatJudged',
+  'ChoreBeatTelegraphed',
+  'ChoreCompleted',
+  'ChoreRefused',
   'CoffeeDrunk',
   'CoffeeStarted',
   'ComboCashedIn',

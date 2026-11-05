@@ -69,7 +69,12 @@ describe('the fatigue events (story 1.19)', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
     // `CatastropheChanged` (story 3.16) sorts between them.
     expect(names.indexOf('CatastropheChanged')).toBe(names.indexOf('BreathReleased') + 1);
-    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('CatastropheChanged') + 1);
+    // The four `Chore*` events (story 9.4) sort between `CatastropheChanged` and `CoffeeDrunk`.
+    expect(names.indexOf('ChoreBeatJudged')).toBe(names.indexOf('CatastropheChanged') + 1);
+    expect(names.indexOf('ChoreBeatTelegraphed')).toBe(names.indexOf('ChoreBeatJudged') + 1);
+    expect(names.indexOf('ChoreCompleted')).toBe(names.indexOf('ChoreBeatTelegraphed') + 1);
+    expect(names.indexOf('ChoreRefused')).toBe(names.indexOf('ChoreCompleted') + 1);
+    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('ChoreRefused') + 1);
     expect(names.indexOf('CoffeeStarted')).toBe(names.indexOf('CoffeeDrunk') + 1);
     expect(names.indexOf('ComboCashedIn')).toBe(names.indexOf('CoffeeStarted') + 1);
     expect(names.indexOf('ComboChanged')).toBe(names.indexOf('ComboCashedIn') + 1);

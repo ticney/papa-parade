@@ -89,6 +89,7 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     comboPeakMultiplier: 0,
     instinctTriggers: 0,
     toiletVisits: 0,
+    chores: { beats: { perfect: 0, success: 0, fail: 0 }, completed: 0, homePoints: 0 },
     sequencesStarted: 0,
     sequencesSucceeded: 0,
     sequencesFailed: 0,

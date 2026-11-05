@@ -1,3 +1,4 @@
+import type { ChoreDef } from '@content/schemas/chore';
 import type { DisruptionDef } from '@content/schemas/disruption';
 import type { Feel } from '@content/schemas/feel';
 import type { ObjectKind } from '@content/schemas/level';
@@ -32,6 +33,11 @@ export interface SimLevel {
    * `world.disruptions`. Empty: the level plans none.
    */
   readonly disruptions: readonly SimPlannedDisruption[];
+  /**
+   * The house chores (story 9.4), index-aligned with `world.chores`: each def and the station it is
+   * played at. Empty: the level has no station.
+   */
+  readonly chores: readonly SimPlannedChore[];
   /**
    * The special sequences the level can run (story 4.4), in the level's order. Empty: it has none.
    * `StartSequence` starts any of them, and the level's `cycle` chains them (story 4.10).
@@ -125,6 +131,16 @@ export interface SimPlannedDisruption {
   /** It starts at the first step at or after this sim time, in sim ms. */
   readonly atMs: number;
   readonly waveIndex: number;
+}
+
+/** One planned house chore (story 9.4): its def, its station object, and where that stands. */
+export interface SimPlannedChore {
+  readonly def: ChoreDef;
+  /** The `id` of the level object that is its station (an entry of `SimLevel.objects`). */
+  readonly objectId: string;
+  /** The station's floor point, the anchor of its object. */
+  readonly xM: number;
+  readonly zM: number;
 }
 
 /** One special sequence a level can run (story 4.4): its id and its def. */

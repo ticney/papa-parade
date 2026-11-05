@@ -345,6 +345,32 @@ describe('createResultScreen', () => {
     expect(values().reduce((sum, value) => sum + value, 0)).toBe(total());
   });
 
+  it('writes a half point of the Maison row with a decimal comma: 7,5 over 15 with the cooking done (story 9.4)', () => {
+    const { clock, root } = build({
+      score: { ...SCORE, homePoints: 7.5, scorePoints: SCORE.scorePoints - SCORE.homePoints + 7.5 },
+    });
+    clock.advance(ROWS_END_MS);
+    const texts = root.find('pp-score-value').map((node) => node.textContent);
+    expect(texts).toEqual(['28', '14', '7,5', '9', '12']);
+    expect(root.find('pp-score-max')[2]?.textContent).toBe(`/${maxima.homeMaxPoints}`);
+    // The total adds the rows, a half included.
+    expect(root.find('pp-score-total-value')[0]?.textContent).toBe('70,5');
+  });
+
+  it('counts the Maison row up in halves and the other rows in whole points', () => {
+    const { clock, root } = build({
+      score: { ...SCORE, homePoints: 7.5, scorePoints: SCORE.scorePoints - SCORE.homePoints + 7.5 },
+    });
+    const seen = new Set<string>();
+    for (let step = 0; step <= ROWS_END_MS; step += 16) {
+      clock.advance(16);
+      root.find('pp-score-value').forEach((node, row) => {
+        if (row !== 2) seen.add(node.textContent ?? '');
+      });
+    }
+    for (const text of seen) expect(text, text).toMatch(/^\d+$/);
+  });
+
   it('stamps the earned stars starsDelayMs after the rows, starIntervalMs apart, the last one marked', () => {
     const { clock, calls, earned, stamped, phases } = build();
     clock.advance(ROWS_END_MS);

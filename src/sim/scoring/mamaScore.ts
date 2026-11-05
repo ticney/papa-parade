@@ -18,20 +18,27 @@ export interface ScoreTally {
   calmMs: number;
   /** Sim time played, at the step the level ends (`world.time.sim`): the calm share's denominator. */
   playedMs: number;
-  /** Points of the house chores, before the clamp (story 9.4 writes them; 0 until E9). */
+  /** Points of the house chores, before the clamp (story 9.4: the sum of the done chores' `homePoints`). */
   homePoints: number;
   propsOnFloor: number;
   propsBroken: number;
   mischiefs: number;
 }
 
-/** `value` held to `[0, max]`, then rounded: every row is a whole number (D3). */
+/** `value` held to `[0, max]`, then rounded: every row is a whole number (D3), the Maison row apart. */
 const row = (value: number, maxPoints: number): number =>
   Math.round(Math.min(Math.max(value, 0), maxPoints));
 
 /**
+ * The Maison row (story 9.4): `value` held to `[0, max]`, then rounded to the nearest half, because
+ * a chore is worth `7.5` (two of them fill the 15) and the Result screen shows it (`7,5 / 15`).
+ */
+const homeRow = (value: number, maxPoints: number): number =>
+  Math.round(Math.min(Math.max(value, 0), maxPoints) * 2) / 2;
+
+/**
  * Mama's note (GDD › economy, story 1.22, five rows since 3.12): Rire + Calme du bébé + Maison +
- * base − Soupir − Hurlement, each row held to its range and rounded, the sum held to `[0, 100]`.
+ * base − Soupir − Hurlement, each row held to its range and rounded (to a whole number, the Maison row to a half), the sum held to `[0, 100]`.
  * With the refines of `MamaSchema` (the maxima add up to 100, the base is the sigh and scream
  * maxima) the rows always add up to the score. A woken Mama (story 3.2, D3) changes the stars only:
  * she takes off `earlyWakePenaltyStars` of them (never below 0, `lostStars`), the five rows and the
@@ -54,7 +61,7 @@ export function computeMamaScore(
     calmShareOf(tally.calmMs, tally.playedMs) * mama.calmMaxPoints,
     mama.calmMaxPoints,
   );
-  const homePoints = row(tally.homePoints, mama.homeMaxPoints);
+  const homePoints = homeRow(tally.homePoints, mama.homeMaxPoints);
   const sighPoints = row(
     tally.propsOnFloor * mama.sighPerPropOnFloorPoints +
       tally.propsBroken * mama.sighPerBrokenPropPoints +
@@ -95,6 +102,11 @@ export function computeMamaScore(
 export function scoreLevel(world: World, ctx: StepContext, reason: LevelEndReason): void {
   const { perfects, successes, nearMisses, comboPoints, calmMs } = world.score;
   const { propsOnFloor, propsBroken, mischiefs } = world.mess;
+  // The Maison row (story 9.4): what the chores finished by now are worth; an unfinished one pays nothing.
+  let homePoints = 0;
+  for (let i = 0; i < world.chores.length; i++) {
+    if (world.chores[i]?.state === 'done') homePoints += ctx.level.chores[i]?.def.homePoints ?? 0;
+  }
   const score = computeMamaScore(
     {
       perfects,
@@ -104,8 +116,7 @@ export function scoreLevel(world: World, ctx: StepContext, reason: LevelEndReaso
       calmMs,
       // The clock stops mattering from the ending step on (`ENDED_SYSTEMS` keeps it going): read it here.
       playedMs: world.time.sim,
-      // No house chore before E9 (story 9.4 writes it).
-      homePoints: 0,
+      homePoints,
       propsOnFloor,
       propsBroken,
       mischiefs,

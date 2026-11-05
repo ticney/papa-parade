@@ -11,6 +11,27 @@
       "exclusiveMinimum": 0,
       "description": "How long the perfect and human bots hold a tap, in ms; must stay under `feel.input.holdMinMs` so the tap is a Parry."
     },
+    "chores": {
+      "type": "object",
+      "properties": {
+        "isEnabled": {
+          "type": "boolean",
+          "description": "The perfect and human bots do the house chores of a level that has stations (story 9.4). False: they never tap a station."
+        },
+        "quietMinMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "How long no threat must have been active before a bot starts or resumes a chore, in ms: chores are done in the lulls."
+        }
+      },
+      "required": [
+        "isEnabled",
+        "quietMinMs"
+      ],
+      "additionalProperties": false,
+      "description": "How the perfect and human bots do the house chores (story 9.4)."
+    },
     "human": {
       "type": "object",
       "properties": {
@@ -106,6 +127,12 @@
           "minimum": 0,
           "maximum": 100,
           "description": "Chance, in %, that the human bot never answers a threat it first sees while busy elsewhere (finger down, another press planned, Papa asleep, drinking, on the phone or on the toilet); 0 = never. A false alarm it misses is not braced for either: no held breath, no gasp."
+        },
+        "backTurnedReactionMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "Extra time, in ms, the human bot needs to react to a threat's telegraph while Papa works at a chore's station (story 9.4: his back is turned to the baby); 0 = none. Added to the reaction time, once per response."
         }
       },
       "required": [
@@ -115,7 +142,8 @@
         "readError",
         "aimOffsetMs",
         "jitterSdMs",
-        "missWhileBusyPct"
+        "missWhileBusyPct",
+        "backTurnedReactionMs"
       ],
       "additionalProperties": false,
       "description": "The `human` bot: a plausible attentive player."
@@ -151,6 +179,7 @@
   },
   "required": [
     "tapMs",
+    "chores",
     "human",
     "random"
   ],

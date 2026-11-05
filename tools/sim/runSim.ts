@@ -124,6 +124,8 @@ export async function runSim(
       holdMinMs: content.feel.input.holdMinMs,
       responses,
       releaseDefIds,
+      // The stations of the level (story 9.4), index-aligned with `world.chores`.
+      choreObjectIds: (level.level.chores ?? []).map((chore) => chore.object),
       safeSpot,
       isChronoRingShown: args.chronoRing === 'on',
       settings: content.bots,

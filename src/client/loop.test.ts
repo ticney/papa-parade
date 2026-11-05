@@ -71,6 +71,7 @@ function createSimDouble(real: Sim) {
       return real.drainEvents();
     },
     objects: real.objects,
+    chores: real.chores,
     get world() {
       return real.world;
     },

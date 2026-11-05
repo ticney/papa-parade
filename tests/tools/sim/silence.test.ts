@@ -33,6 +33,7 @@ describe('the suspicious silence of the live salon_crawler', () => {
       holdMinMs: content.feel.input.holdMinMs,
       responses: botResponsesOf(level.threats),
       releaseDefIds: releaseDefIdsOf(level.threats),
+      choreObjectIds: [],
       isChronoRingShown: true,
       safeSpot: null,
       settings: content.bots,

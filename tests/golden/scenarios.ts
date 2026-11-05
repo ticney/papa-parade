@@ -699,6 +699,7 @@ export const SCENARIOS: readonly Scenario[] = [
         holdMinMs: createTestContent().feel.input.holdMinMs,
         responses: botResponsesOf(createTestCycleLevel().threats),
         releaseDefIds: releaseDefIdsOf(createTestCycleLevel().threats),
+        choreObjectIds: [],
         isChronoRingShown: true,
         safeSpot: safeSpotOf(createTestCycleGeometry()),
         settings: createTestBots(),

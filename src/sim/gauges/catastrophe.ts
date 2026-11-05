@@ -76,7 +76,10 @@ function threatIndexOf(world: World, threatId: number): number {
  *    allocation), the perfect drops first, then the rises, each in emission order: a perfect
  *    `ResponseResolved` lowers the gauge by `perfectDropPct` (not multiplied), a `GagTriggered`
  *    raises it by `risePct` of the threat def's `catastrophe` category times the tier's
- *    `catastropheMultiplier`. A success or a beat does nothing.
+ *    `catastropheMultiplier`. A success or a lullaby beat does nothing. The beats of a house chore
+ *    (story 9.4) count like responses: a `ChoreBeatJudged{perfect}` lowers the gauge by
+ *    `perfectDropPct`, a `ChoreBeatJudged{fail}` raises it by `risePct.choreBeat` times the
+ *    multiplier (source `choreBeat`), in emission order with the gags.
  *
  * It reads events and the threat's def, never the threats' state. The threats never call the gauge
  * (architecture L233): it runs with the gauges, before the score and the flow, which read it in the
@@ -98,12 +101,23 @@ export function runCatastrophe(world: World, ctx: StepContext): void {
   // (story 3.16 review, Geo).
   for (let i = start; i < end; i++) {
     const event = events[i];
-    if (event?.type === 'ResponseResolved' && event.quality === 'perfect') {
+    if (
+      (event?.type === 'ResponseResolved' || event?.type === 'ChoreBeatJudged') &&
+      event.quality === 'perfect'
+    ) {
       addCatastrophe(world, ctx, -perfectDropPct, 'perfect');
     }
   }
   for (let i = start; i < end; i++) {
     const event = events[i];
+    // A missed beat of a house chore (story 9.4, D9): `risePct.choreBeat`, like a gag's category.
+    if (event?.type === 'ChoreBeatJudged') {
+      if (event.quality === 'fail') {
+        const multiplier = activeDifficulty(world, ctx).catastropheMultiplier;
+        addCatastrophe(world, ctx, risePct.choreBeat * multiplier, 'choreBeat');
+      }
+      continue;
+    }
     if (event?.type !== 'GagTriggered') continue;
     const index = threatIndexOf(world, event.threatId);
     const category = index < 0 ? undefined : ctx.level.threats[index]?.def.catastrophe;

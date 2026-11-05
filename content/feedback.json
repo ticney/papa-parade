@@ -575,6 +575,36 @@
       "audio": { "clip": "papa_coffee_slurp", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
       "haptic": "light"
+    },
+    "chore_beat_cued": { "haptic": "light" },
+    "chore_beat_caught": {
+      "audio": { "clip": "resp_parry", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "object", "maxRadiusM": 0.8, "durationMs": 350 },
+      "haptic": "medium",
+      "fx": "success"
+    },
+    "chore_beat_perfect": {
+      "audio": { "clip": "resp_parry", "bus": "sfx", "gainPct": 100 },
+      "layers": [{ "clip": "baby_laugh_perfect", "bus": "voice", "gainPct": 100 }],
+      "visual": { "kind": "soundWave", "anchor": "object", "maxRadiusM": 1.2, "durationMs": 450 },
+      "flash": { "peakOpacityPct": 35, "durationMs": 180 },
+      "haptic": "heavy",
+      "fx": "perfect"
+    },
+    "chore_beat_missed": {
+      "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.8, "durationMs": 400 },
+      "haptic": "medium"
+    },
+    "chore_completed": {
+      "audio": { "clip": "env_sequence_succeeded", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 1.2, "durationMs": 500 },
+      "haptic": "medium"
+    },
+    "chore_refused": {
+      "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
     }
   },
   "events": {
@@ -588,6 +618,7 @@
     "ToiletStarted": "toilet_entered",
     "ToiletFinished": "toilet_flushed",
     "ToiletRefused": "toilet_refused",
+    "ChoreRefused": "chore_refused",
     "FinalRushStarted": "final_rush_started",
     "PropTidied": "prop_tidied",
     "PapaSnored": "papa_snored",

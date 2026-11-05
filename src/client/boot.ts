@@ -24,6 +24,7 @@ import {
   type SimEvent,
   type SimObjectSpec,
   type ThreatInstance,
+  type World,
 } from '@sim';
 import { Color, Group, Scene, Vector3 } from 'three';
 import { createAccessibilitySettings } from './app/accessibilitySettings.ts';
@@ -107,6 +108,7 @@ import { createStartScreen } from './ui/screens/startScreen.ts';
 import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
 import { applyActivityBubbleMetrics } from './ui/world/activityBubble.ts';
+import { createChoreMirror } from './ui/world/choreMirror.ts';
 import { applyChronoRingMetrics, chronoJudgedMirror } from './ui/world/chronoRing.ts';
 import { applyOffscreenBubbleMetrics, createOffscreenBubbles } from './ui/world/offscreenBubble.ts';
 import { createWorldUi } from './ui/world/worldUi.ts';
@@ -126,6 +128,21 @@ const NO_OBJECTS: readonly ObjectTarget[] = [];
 const NO_THREATS: readonly ThreatInstance[] = [];
 const NO_BABY_SLIDE: Readonly<{ xM: number; zM: number }> = { xM: 0, zM: 0 };
 const NO_SIM_OBJECTS: readonly SimObjectSpec[] = [];
+
+/**
+ * The activity bubble's ring in a chore (story 9.4): the beats done over the beats, in percent, of the chore
+ * Papa works at; -1 outside one (the ring then drains to `busyUntil`, as for any occupation).
+ */
+function choreProgressPctOf(world: Readonly<World>, chores: Sim['chores'] | undefined): number {
+  if (world.papa.state !== 'chore' || chores === undefined) return -1;
+  for (let i = 0; i < world.chores.length; i++) {
+    const chore = world.chores[i];
+    if (chore?.state !== 'working') continue;
+    const beatCount = chores[i]?.def.beats.length ?? 0;
+    return beatCount > 0 ? (chore.beatsDone / beatCount) * 100 : 0;
+  }
+  return -1;
+}
 
 /** The floor point of the level's `ANCHOR_door`, or null when the geometry has none (story 3.5). */
 function doorPointOf(
@@ -276,6 +293,8 @@ export async function boot(): Promise<void> {
     translate: t,
     isMotionReduced: () => prefersReducedMotion(),
   });
+  // The mirror `data-pp-chore` (story 9.4): written on change, in mirrored builds only.
+  const choreMirror = createChoreMirror();
   const fitViewToCanvas = (): void => {
     const aspect = renderer.resize();
     if (aspect !== null && room !== null) {
@@ -353,6 +372,7 @@ export async function boot(): Promise<void> {
       | 'ppThreat'
       | 'ppThreatPx'
       | 'ppOffscreen'
+      | 'ppChore'
       | 'ppResponse'
       | 'ppChronoJudged'
       | 'ppGag'
@@ -1220,7 +1240,11 @@ export async function boot(): Promise<void> {
       if (gauges.need !== undefined) {
         gaugesHud.setValue('need', Math.round(started.sim.world.gauges.bladderPct));
       }
-      worldUi.mountObjects(started.sim.objects);
+      worldUi.mountObjects(
+        started.sim.objects,
+        started.sim.chores.map((chore) => chore.objectId),
+      );
+      choreMirror.reset();
       worldUi.mountTidy(started.sim.world.props.length);
       // The full duration at once, so a restart never shows the last level's `0:00`.
       hudBatch.set(TIMER_SLOT, Math.ceil(started.level.level.durationMs / MS_PER_S));
@@ -1432,6 +1456,20 @@ export async function boot(): Promise<void> {
         world !== undefined && world.gauges.bladderPct >= world.feel.bladder.urgentFromPct,
         world?.papa.state === 'onToilet',
       );
+      // The station's beat ring and done look (story 9.4), from the world and the sim time as drawn; the arc
+      // that lights vibrates once, as a threat's does at `WindowOpened`. Nothing in a level with no chore.
+      if (world !== undefined && world.chores.length > 0) {
+        if (worldUi.updateChores(world.chores, world.time.sim - STEP_MS * (1 - alpha))) {
+          director.handle('ChronoArcLit', null);
+        }
+        if (isMirrored) {
+          const choreText = choreMirror.update(
+            world.chores,
+            levelSession.active?.sim.chores.map((chore) => chore.def.beats.length) ?? [],
+          );
+          if (choreText !== null) mirror('ppChore', choreText);
+        }
+      }
       if (world !== undefined) {
         // Papa has no pose while he is out of the room: the badge and the hint hide with him.
         const papaPose = world.papa.state === 'onToilet' ? null : (currentLevel?.papaPose ?? null);
@@ -1445,6 +1483,7 @@ export async function boot(): Promise<void> {
             world.time.sim - STEP_MS * (1 - alpha),
             world.threats,
             nowAtReal,
+            choreProgressPctOf(world, levelSession.active?.sim.chores),
           );
         } else {
           worldUi.activityBubble.hide();
@@ -2203,6 +2242,7 @@ export async function boot(): Promise<void> {
     if (!isLevelGone) return;
     worldUi.unmountThreats();
     worldUi.unmountObjects();
+    if (isMirrored) delete document.documentElement.dataset.ppChore;
     worldUi.unmountTidy();
     worldUi.glyphChip.hide();
     worldUi.comboBadge.hide();

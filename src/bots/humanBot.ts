@@ -8,6 +8,8 @@ import { createCommandScheduler } from './commandScheduler.ts';
 import { nextGaussian } from './gaussian.ts';
 import {
   centreOf,
+  choreCentreOf,
+  createChoreMemory,
   createCycleDropMemory,
   createCycleMemory,
   createFirmHold,
@@ -16,6 +18,8 @@ import {
   createTidyMemory,
   HAS_CHRONO_RING,
   isPressable,
+  planChore,
+  planChoreBeat,
   planCycleDrop,
   planStealthWalk,
   planTidy,
@@ -71,7 +75,7 @@ const FETCH_RETRY_MS = 1000;
 export function createHumanBot(setup: BotSetup): Bot {
   const { reactionMeanMs, reactionSdMs, reactionMinMs, readError, aimOffsetMs, jitterSdMs } =
     setup.settings.human;
-  const { missWhileBusyPct } = setup.settings.human;
+  const { missWhileBusyPct, backTurnedReactionMs } = setup.settings.human;
   // What the player is shown decides how well it reads the time left on a ring.
   const ringError = setup.isChronoRingShown
     ? readError.withChronoRing
@@ -93,6 +97,8 @@ export function createHumanBot(setup: BotSetup): Bot {
   const cycleDrop = createCycleDropMemory();
   // The prop tapped last in the final rush (story 3.5).
   const tidy = createTidyMemory();
+  // The house chores (story 9.4): when the station was last tapped, and the press planned for its beat.
+  const chores = createChoreMemory();
   // The rush it has drawn its reaction for, and how long it waits (story 3.14: one draw per rush).
   let rush: { finalRushAt: number; waitMs: number } | null = null;
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
@@ -245,7 +251,10 @@ export function createHumanBot(setup: BotSetup): Bot {
           schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
           continue;
         }
-        const reactionMs = drawReactionMs();
+        // His back turned to the baby (story 9.4): a telegraph seen while Papa works at a station is
+        // reacted to later. No draw: the extra is a constant, and 0 outside a chore.
+        const backTurnedMs = world.papa.state === 'chore' ? backTurnedReactionMs : 0;
+        const reactionMs = drawReactionMs() + backTurnedMs;
         const aim = aimOf(response, centreOf(threat));
         const reacted = threat.enteredAt + reactionMs;
         // `now` is a floor too: a command never goes into the past.
@@ -260,6 +269,22 @@ export function createHumanBot(setup: BotSetup): Bot {
         rush = { finalRushAt, waitMs: drawReactionMs() };
       }
       planTidy(world, setup.responses, out, tidy, rush?.waitMs ?? reactionMeanMs);
+      // The house chores (story 9.4): in a lull, and each beat read off its ring like a parry (one reaction
+      // draw and one aim draw per beat announced, none in a level with no station).
+      if (setup.choreObjectIds.length > 0) {
+        planChore(
+          world,
+          setup.choreObjectIds,
+          setup.settings.chores,
+          !isBusy(world, now),
+          out,
+          chores,
+        );
+        planChoreBeat(world, setup.choreObjectIds, out, chores, (chore) => {
+          const reactedAt = chore.beatTelegraphAt + drawReactionMs();
+          return Math.max(reactedAt, aimOf('parry', choreCentreOf(chore)));
+        });
+      }
     },
   };
 }
