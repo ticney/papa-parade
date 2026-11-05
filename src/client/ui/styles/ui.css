@@ -543,7 +543,7 @@ body {
   color: var(--pp-color-ink);
 }
 
-.pp-hud-timer svg {
+.pp-hud-timer > svg {
   width: 28px;
   height: 28px;
 }
@@ -575,7 +575,7 @@ body {
   height: 32px;
 }
 
-.pp-hud-timer--compact svg {
+.pp-hud-timer--compact > svg {
   width: 22px;
   height: 22px;
 }
@@ -599,6 +599,69 @@ body {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* Mama's face (story 3.16, UX `catastrophe-face`): a round paper chip with an ink outline, 44 px (36 px
+   while the timer is compact), seated at the start of the timer pill beside the variant's icon. It sticks
+   out of the 40 px pill by 2 px on each side (negative block margins keep the pill's height). The face
+   is ink, drawn by one path; the expression, not the hue, carries the state. Idle (under 50 % and not
+   changing) it sits at 70 % opacity, like the gauges. */
+.pp-hud-catastrophe {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -2px 0;
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+  color: var(--pp-color-ink);
+}
+
+.pp-hud-catastrophe svg {
+  width: 100%;
+  height: 100%;
+}
+
+.pp-hud-catastrophe--compact {
+  width: 36px;
+  height: 36px;
+}
+
+.pp-hud-catastrophe--idle {
+  opacity: 0.7;
+}
+
+.pp-hud-catastrophe-line {
+  fill: none;
+  stroke: var(--pp-color-ink);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Above 70 %: a 3 px gauge-warn ring whose colour pulses (paint only, no movement) slower than 3 Hz: 700 ms a beat is
+   about 1.4 Hz. The state also reads from the expression, never from the hue alone. Reduced motion
+   keeps the ring and the pulse but slows it to 1 Hz (1000 ms a beat), with no movement at all. */
+.pp-hud-catastrophe--alarmed {
+  box-shadow:
+    0 0 0 3px var(--pp-color-gauge-warn),
+    0 0 0 5px var(--pp-color-ink);
+  animation: pp-catastrophe-pulse 700ms ease-in-out infinite;
+}
+
+@keyframes pp-catastrophe-pulse {
+  50% {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--pp-color-gauge-warn) 45%, transparent),
+      0 0 0 5px var(--pp-color-ink);
+  }
+}
+
+:where(:root[data-pp-motion="reduced"]) .pp-hud-catastrophe--alarmed {
+  animation: pp-catastrophe-pulse 1000ms ease-in-out infinite;
 }
 
 /* The sequence bar (story 4.4, UX-DR23): directly under the timer, out of the grid (the gauges and
@@ -1205,6 +1268,13 @@ body {
   stroke-width: 2;
 }
 
+/* « Maman est rentrée plus tôt ! » (story 3.16): 0 stars whatever the score, so every slot is a dashed
+   empty star in ink-soft, with no chip and nothing red. Only on this panel: the other results keep
+   their solid empty stars. */
+.pp-result-panel-home .pp-star-empty .pp-star-shape {
+  stroke-dasharray: 3.2 2.4;
+}
+
 /* The ink outline is mandatory: `star` on paper is too faint alone (DESIGN, contrast). */
 .pp-star-earned {
   stroke: var(--pp-color-ink);
@@ -1311,6 +1381,12 @@ body {
 /* « Il dort enfin ! » (story 4.10): the same place and shape, in Mama's laugh rather than her scream. */
 .pp-result-reason-done {
   box-shadow: 0 3px 0 var(--pp-color-mama-laugh);
+}
+
+/* « Maman est rentrée plus tôt ! » (story 3.16): the same place and shape, in the ink's neutral: the
+   Domestic register has no red here, and no alert. */
+.pp-result-panel-home .pp-result-reason {
+  box-shadow: 0 3px 0 var(--pp-color-ink-soft);
 }
 
 /* One slam when the header comes up: in from large and tilted, down to rest. `transform` only. */

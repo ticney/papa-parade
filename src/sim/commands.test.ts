@@ -44,6 +44,7 @@ describe('commandProblem', () => {
       'Release',
       'ReleaseHold',
       'SetBladder',
+      'SetCatastrophe',
       'SetDifficultyTier',
       'SetFatigue',
       'SetFeel',
@@ -57,6 +58,19 @@ describe('commandProblem', () => {
       'TapFloor',
       'TapObject',
     ]);
+  });
+
+  it('accepts a SetCatastrophe with a finite pct and refuses any other (story 3.16)', () => {
+    expect(commandProblem({ type: 'SetCatastrophe', t: 10, pct: 60 })).toBeNull();
+    expect(commandProblem({ type: 'SetCatastrophe', t: 10, pct: -5 })).toBeNull();
+    expect(commandProblem({ type: 'SetCatastrophe', t: 10, pct: Number.NaN })).toMatch(
+      /SetCatastrophe: pct must be a finite number/,
+    );
+    expect(
+      commandProblem({ type: 'SetCatastrophe', t: 10, pct: Number.POSITIVE_INFINITY }),
+    ).toMatch(/SetCatastrophe/);
+    expect(commandProblem({ type: 'SetCatastrophe', t: 10, pct: '60' })).toMatch(/SetCatastrophe/);
+    expect(commandProblem({ type: 'SetCatastrophe', t: 10 })).toMatch(/SetCatastrophe/);
   });
 
   it('accepts the two breath commands with a timestamp and nothing else (story 4.9)', () => {

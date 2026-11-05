@@ -90,6 +90,8 @@ describe('golden scenario stay_awake_dozed covers the failure it is there for', 
       'BabyWoke',
       'SequenceEnded',
       'NoiseChanged',
+      // The micro-sleep is a gag like the others: the catastrophe gauge runs after the noise's (story 3.16).
+      'CatastropheChanged',
     ]);
     expect(ofType(events, 'ResponseResolved')[0]).toMatchObject({
       quality: 'fail',

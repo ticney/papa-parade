@@ -56,7 +56,7 @@ afterEach(() => {
 });
 
 interface PlayOptions {
-  botId?: 'perfect' | 'human';
+  botId?: 'perfect' | 'human' | 'idle';
   seed?: number;
   strictInvariants?: boolean;
   /** Commands enqueued before the first step, as a live tuning would. */
@@ -134,6 +134,29 @@ describe('sim:replay on an exported journal (story 3.3)', () => {
         ok: true,
         value: { worldHash: file.replay.worldHash, hasSameContent: true },
       });
+    },
+    TIMEOUT_MS,
+  );
+
+  it(
+    'replays a game that ended on Mama come home early to the same world, with the same reason (story 3.16)',
+    async () => {
+      // The idle bot fails every threat: its gags fill the catastrophe gauge and the level ends early.
+      const file = await playExportedGame({ botId: 'idle', seed: 1000 });
+      expect(file.summary.endReason).toBe('mamaHome');
+      expect(file.replay.endSimMs).toBeLessThan(loaded.level.level.durationMs);
+      const { path, json } = throughDisk(file, 'mama-home.json');
+      const parsed = parseJournalFile(json);
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+      const replay = await replayJournalFile(parsed.value, loaded);
+      expect(replay).toEqual({
+        ok: true,
+        value: { worldHash: file.replay.worldHash, hasSameContent: true },
+      });
+      const done = runCli([path]);
+      expect(done.status).toBe(0);
+      expect(done.stdout).toContain('replay matches');
     },
     TIMEOUT_MS,
   );

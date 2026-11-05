@@ -1,6 +1,6 @@
 {
   "untilSimMs": 10000,
-  "worldHash": "07212c15146bc0",
+  "worldHash": "1a2a103196c433",
   "eventTypes": [
     "BladderFilled",
     "PapaPathPlanned",
@@ -24,7 +24,8 @@
     "PapaStateChanged",
     "AfterEffectStarted",
     "AfterEffectStarted",
+    "CatastropheChanged",
     "BabyStateChanged"
   ],
-  "eventsHash": "00c5e5a02e1a3f"
+  "eventsHash": "10a7856ed37a28"
 }

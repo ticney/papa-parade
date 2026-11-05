@@ -41,7 +41,13 @@ describe('the flow FSM', () => {
     stepN(sim, 5);
     const world = sim.world as Parameters<typeof enterFlowState>[0];
     enterFlowState(world, 'ended');
-    expect(world.flow).toEqual({ state: 'ended', enteredAt: 5 * STEP_MS, finalRushAt: null });
+    // The state's writer leaves the reason to `endLevel` (story 3.16).
+    expect(world.flow).toEqual({
+      state: 'ended',
+      enteredAt: 5 * STEP_MS,
+      finalRushAt: null,
+      endReason: null,
+    });
     expect(sim.drainEvents()).toEqual([]);
   });
 });
@@ -49,7 +55,12 @@ describe('the flow FSM', () => {
 describe('runFlow', () => {
   it('starts playing', async () => {
     const sim = await newSim();
-    expect(sim.world.flow).toEqual({ state: 'playing', enteredAt: 0, finalRushAt: null });
+    expect(sim.world.flow).toEqual({
+      state: 'playing',
+      enteredAt: 0,
+      finalRushAt: null,
+      endReason: null,
+    });
   });
 
   it('ends the level at the first step where the clock reaches durationMs, with LevelEnded{timer} once', async () => {
@@ -63,6 +74,7 @@ describe('runFlow', () => {
       state: 'ended',
       enteredAt: DURATION_MS,
       finalRushAt: null,
+      endReason: 'timer',
     });
     expect(sim.drainEvents().filter((event) => event.type === 'LevelEnded')).toEqual([
       { type: 'LevelEnded', t: DURATION_MS, reason: 'timer' },
@@ -131,7 +143,7 @@ describe('runFlow', () => {
           mischiefs: sim.world.mess.mischiefs,
         },
         createTestContent().feel.mama,
-        false,
+        'timer',
       ),
     });
     expect(last.filter((event) => event.type === 'LevelScored')).toHaveLength(1);
@@ -204,7 +216,12 @@ describe('runFlow: Mama wakes (story 3.2)', () => {
     const events = sim.drainEvents();
     const t = sim.world.time.sim;
     expect(sim.world.gauges.noisePct).toBe(100);
-    expect(sim.world.flow).toEqual({ state: 'ended', enteredAt: t, finalRushAt: null });
+    expect(sim.world.flow).toEqual({
+      state: 'ended',
+      enteredAt: t,
+      finalRushAt: null,
+      endReason: 'mamaWoke',
+    });
     expect(events.map((event) => event.type)).toEqual([
       'NoiseChanged',
       'MamaWoke',
@@ -379,7 +396,7 @@ describe('runFlow: Mama wakes (story 3.2)', () => {
         mischiefs: mess.mischiefs,
       },
       MAMA,
-      false,
+      'timer',
     );
     expect(asTimer.stars).toBeGreaterThanOrEqual(1);
     expect(note.scorePoints).toBe(asTimer.scorePoints);

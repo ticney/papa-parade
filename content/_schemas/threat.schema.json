@@ -240,6 +240,16 @@
           "additionalProperties": false,
           "description": "Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11)."
         },
+        "catastrophe": {
+          "type": "string",
+          "enum": [
+            "nearMiss",
+            "mess",
+            "microSleep",
+            "none"
+          ],
+          "description": "How much a gag of this threat raises the catastrophe gauge: the row of `feel.catastrophe.risePct` (`none` = nothing). Must fit the gag (story 3.16)."
+        },
         "afterEffect": {
           "oneOf": [
             {
@@ -407,6 +417,7 @@
         "iconShape",
         "color",
         "feedback",
+        "catastrophe",
         "afterEffect",
         "cooldownMs",
         "target",
@@ -654,6 +665,16 @@
           "additionalProperties": false,
           "description": "Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11)."
         },
+        "catastrophe": {
+          "type": "string",
+          "enum": [
+            "nearMiss",
+            "mess",
+            "microSleep",
+            "none"
+          ],
+          "description": "How much a gag of this threat raises the catastrophe gauge: the row of `feel.catastrophe.risePct` (`none` = nothing). Must fit the gag (story 3.16)."
+        },
         "afterEffect": {
           "oneOf": [
             {
@@ -827,6 +848,7 @@
         "iconShape",
         "color",
         "feedback",
+        "catastrophe",
         "afterEffect",
         "cooldownMs",
         "target",

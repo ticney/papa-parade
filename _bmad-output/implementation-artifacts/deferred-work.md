@@ -1038,6 +1038,25 @@ Open:
 - **`simReport.afterEffects.meanPerRun` mixes kinds** (`tools/sim/simReport.ts`): an outlet gag counts as `electrified` + `dim`, a fetch adds `carryUp` to `babyDownstairs`; read `byKind`. Revisit with the 3.16 report.
 - **The `hand` pictogram reuses `THREAT_ICON_PATHS.open_hand`** (`src/client/ui/world/activityBubble.ts`) instead of a new ink path. Revisit with the feel pass.
 
+## Deferred from: story 3-16-jauge-de-catastrophe-et-maman-est-rentree-plus-tot (2026-11-04)
+
+- **The six E4 gags raise no catastrophe** (`CATASTROPHE_OF_GAG`: `arms_wail`, `baby_eyes_reopened`, `baby_sat_up`, `baby_woke_on_drop`, `baby_woke_by_touch`, `baby_woke_crying` are `none`; GDD: « à chiffrer avec E4 »). `chambre_night` can only end on `mamaHome` through its outlet, table object and micro-sleeps. To cost with Geo at the playtest; a new category (or a value per def) is a schema change.
+- **Mama's scream on `mamaHome` is story 3.7's** (`mamaReactionsOf`, GDD L114, EXPERIENCE L340): the result shows the header and the cue, but no mum-bubble. 3.7 must give `mamaHome` its scream.
+- **The replay « cascade » of gags that brought Mama home is story 3.9's** (GDD L537): `world.flow.endReason` and the `CatastropheChanged` events are there to build it from.
+- **Story 7.4's « finale » must not fire after `mamaHome`** (`boot.ts` `LevelScored` block, music mute): a `mamaHome` is not a finished level.
+- **Sieste wording**: in a Sieste level Mama is next door, yet the header says « Maman est rentrée plus tôt ! » (the AC and the UX). The GDD's Sieste line is « Maman débarque, réveillée par un mauvais pressentiment ». One string for now; a variant string belongs to 3.10 (Retour) if Geo wants it.
+- **`choreBeat` is a rise in `feel.json` only** (FR73): 9.4 / 9.5 emit it (`CatastropheSource` already has it).
+- **`failStreak` / progress with 0 stars is 3.11's**: a `mamaHome` ends with 0 stars and a note, and 3.11 decides what that does to the progress.
+- **The loss rate**: Geo picked option D (`perfectDropPct` 2, `decayPerSec` 0.4; `human` loses 15 % of the games on `mamaHome`). To re-check at the catch-up playtest (« aucun ne juge la défaite injuste », GDD L628).
+
+## Deferred from: code review of 3-16-jauge-de-catastrophe-et-maman-est-rentree-plus-tot (2026-11-04)
+
+- **`restore` accepts contradictory flow states** (`src/sim/snapshot.ts`): `ended` + `timer` before the duration is accepted whenever the noise is full or the cycle is done, `ended` + `mamaHome` is accepted at any gauge once `nowMs >= durationMs`, and a live state (`playing`, `sequence`, `finalRush`) with `catastrophePct` 100 passes `gaugesProblem` (the next `runFlow` then ends on `mamaHome`, even inside the rush). Same looseness as the noise and cycle checks; only a hand-edited snapshot reaches it. Tie each `endReason` to its proof and refuse 100 % in a live state in a snapshot pass.
+- **`decayCatastrophe` can raise the gauge silently** (`src/sim/gauges/catastrophe.ts`): a negative `decayPerSec` through `SetFeel` (shape check only, the schema's `min(0)` is not enforced there) climbs to 100 with no `CatastropheChanged`, and `catastrophePeakPct` (taken from events) reads 0. Debug path only; clamp with `Math.min(0, deltaPct)` or refuse it in `SetFeel`.
+- **`catastrophe_alert` plays in the step that ends the level** (`src/client/boot.ts`): a rise from 70 % or less straight to 100 % gives the door-key cue and a medium haptic right before the slam and the heavy haptic. Cosmetic; decide at the catch-up playtest.
+- **The catastrophe alert has no hysteresis** (`src/client/feedback/catastropheAlert.ts`): the decay is silent and the check stateless, so hovering at 68-72 % re-fires the cue at each upward crossing. A feel question for the playtest.
+- **No screen-reader announcement of the alarmed face** (`src/client/ui/hud/catastropheFace.ts`): `role="img"` with a changing `aria-label`, no live region; the alert is sound, ring and haptic only. For the accessibility pass.
+
 ## Deferred from: code review of 9-2-camera-qui-suit-papa (2026-11-04)
 
 - **The judged-threat aim lasts a whole sequence framing** (D5 as written, `followRig.ts` `isJudgedFramed`): in a follow level with a special sequence, the first judgement would hold the aim on that threat's point until the framing ends, the camera dragging at Papa's edge margin. Reason: no sequence in a follow level yet.

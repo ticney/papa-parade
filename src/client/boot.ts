@@ -50,6 +50,7 @@ import {
   type SoundedNote,
 } from './audio/beatScheduler.ts';
 import { takeEndPhoto } from './endOfLevel/photo.ts';
+import { isCatastropheAlertCrossing } from './feedback/catastropheAlert.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
 import { createGatedHaptics } from './feedback/gatedHaptics.ts';
 import { isNoiseAlertCrossing } from './feedback/noiseAlert.ts';
@@ -78,6 +79,7 @@ import { createRenderer, type RenderStats } from './render/renderer.ts';
 import { BABY_CARRIED_FORWARD_M, BABY_CARRIED_HEIGHT_M } from './render/views/babyView.ts';
 import { createSaveStore } from './save/saveStore.ts';
 import { loadFonts } from './ui/fonts.ts';
+import { createCatastropheFace } from './ui/hud/catastropheFace.ts';
 import { createEpicStamp } from './ui/hud/epicStamp.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
@@ -112,6 +114,8 @@ const TIMER_SLOT = 0;
 const gaugeSlotOf = (id: GaugeId): number => GAUGE_IDS.indexOf(id) + 1;
 /** The sequence bar's slot, after the gauges' (story 4.4): its whole percent. */
 const SEQUENCE_SLOT = GAUGE_IDS.length + 1;
+/** Mama's face (story 3.16), after the sequence bar's: the exact catastrophe (a state boundary is a strict comparison, so a rounded value would not do). */
+const CATASTROPHE_SLOT = GAUGE_IDS.length + 2;
 /** The most the scheduler takes off the audio clock to pair it with the loop's, in real ms (story 4.5): a frame older than this is a clock to distrust, not a skew to correct. */
 const BEAT_CLOCK_AGE_MAX_MS = 100;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
@@ -347,6 +351,8 @@ export async function boot(): Promise<void> {
       | 'ppPress'
       | 'ppFatigue'
       | 'ppNoise'
+      | 'ppCatastrophe'
+      | 'ppCatastropheFace'
       | 'ppBladder'
       | 'ppDim'
       | 'ppPhone'
@@ -680,6 +686,19 @@ export async function boot(): Promise<void> {
     }
     mirror('ppNoise', String(Math.round(active.sim.world.gauges.noisePct)));
   };
+  // The catastrophe, rounded, like the noise (story 3.16): at the level start and on each `CatastropheChanged`,
+  // never per frame (the decay is silent: a test reads `__PP__` for exact values). The face's state
+  // is the face's own (`data-pp-catastrophe-face`), written when it changes.
+  const mirrorCatastrophe = (): void => {
+    const active = levelSession.active;
+    if (active === null) {
+      delete document.documentElement.dataset.ppCatastrophe;
+      delete document.documentElement.dataset.ppCatastropheFace;
+      return;
+    }
+    mirror('ppCatastrophe', String(Math.round(active.sim.world.gauges.catastrophePct)));
+    mirror('ppCatastropheFace', catastropheFace.state);
+  };
   // The need, rounded, like the noise (story 4.3): at the level start and on `BladderFilled`,
   // `ToiletStarted` and `ToiletFinished`, never per frame. Removed in a level with no need gauge.
   const mirrorBladder = (): void => {
@@ -718,6 +737,7 @@ export async function boot(): Promise<void> {
     mirror('ppDim', (levelSession.active?.sim.world.afterEffects.dimUntil ?? 0) > 0 ? 'on' : 'off');
     mirrorFatigue();
     mirrorNoise();
+    mirrorCatastrophe();
     mirrorBladder();
     mirrorObjectPoints();
     mirror('ppCombo', String(levelSession.active?.sim.world.combo.multiplier ?? 1));
@@ -1151,6 +1171,9 @@ export async function boot(): Promise<void> {
       timerHud.setCompact(false);
       timerHud.setRush(false);
       timerHud.setVariant(started.level.level.variant);
+      // Mama's face at the start value (a restart never shows the last level's worry).
+      catastropheFace.setCompact(false);
+      catastropheFace.reset(started.sim.world.gauges.catastrophePct);
       // The gauges this level has, each at its start value (a restart never shows the last level's).
       const { gauges } = started.level.level;
       gaugesHud.setGauges(GAUGE_IDS.filter((id) => id in gauges));
@@ -1289,8 +1312,12 @@ export async function boot(): Promise<void> {
       // The music follows the world's state too (story 2.6): tense while a threat is on, slowed
       // while the time scale is down. Allocation-free: a loop over a handful of threats.
       const isPlaying = babbleWorld !== undefined && isFlowLive(babbleWorld);
+      // Tense while a threat is up, or while Mama is alarmed (story 3.16 AC 15): from the world's state,
+      // so a pause, a restart or the end never leaves it tense.
       audio.setMusicMood(
-        isPlaying && isTensionActive(babbleWorld.threats),
+        isPlaying &&
+          (isTensionActive(babbleWorld.threats) ||
+            babbleWorld.gauges.catastrophePct > levelFeel().catastrophe.alertPct),
         isPlaying && isSlowMoActive(babbleWorld, levelFeel().music.slowMo.belowScale),
       );
       // The ring beside the bubble fills over the drawn sim time, like the threat rings (story 2.11, AC 12).
@@ -1323,6 +1350,9 @@ export async function boot(): Promise<void> {
         if (running.level.level.gauges.need !== undefined) {
           hudBatch.set(gaugeSlotOf('need'), Math.round(running.sim.world.gauges.bladderPct));
         }
+        // Mama's face, in every level: from the gauge, every frame (story 3.16). The exact value: the
+        // alert and the music read it too, and a state boundary is a strict comparison.
+        hudBatch.set(CATASTROPHE_SLOT, running.sim.world.gauges.catastrophePct);
       }
       // The sequence bar and the compact timer follow the world's state each frame (story 4.4).
       if (running !== null) {
@@ -1333,11 +1363,13 @@ export async function boot(): Promise<void> {
         hudBatch.set(SEQUENCE_SLOT, sequenceBar.update(running.sim.world, barDef));
         sequenceBar.frame(performance.now());
         timerHud.setCompact(sequenceBar.isMounted);
+        catastropheFace.setCompact(sequenceBar.isMounted);
         // The last ten seconds of a level with a door (story 3.5): from the world's state, every frame.
         timerHud.setRush(running.sim.world.flow.state === 'finalRush');
       }
       shell.frame();
       gaugesHud.frame(performance.now());
+      catastropheFace.frame(performance.now());
       inputMapper.pollGamepad();
       const world = levelSession.active?.sim.world;
       // The auto-target shows for the keyboard and the gamepad only, never after a touch or a click
@@ -1545,11 +1577,17 @@ export async function boot(): Promise<void> {
         director.handle('NoiseAlertReached', null);
         gaugesHud.alert('noise');
       }
+      // The catastrophe crossed 70 % upwards (story 3.16 AC 14): a sound, a visual and a vibration. The
+      // face's alarmed ring (drawn from the state) is the visual twin of the sound, as the gauge's shake is the noise's.
+      if (isCatastropheAlertCrossing(event, levelFeel().catastrophe.alertPct)) {
+        director.handle('CatastropheAlertReached', null);
+      }
       // Fatherly Instinct started (story 2.9 D4): the heartbeat and its vibration. The vignette is a UI
       // element drawn from the state, so the cue goes through a client event like the noise alert.
       if (event.type === 'InstinctTriggered') director.handle('InstinctVignetteShown', null);
       if (isMirrored) {
         if (event.type === 'NoiseChanged') mirrorNoise();
+        if (event.type === 'CatastropheChanged') mirrorCatastrophe();
         if (
           event.type === 'BladderFilled' ||
           event.type === 'ToiletStarted' ||
@@ -1671,6 +1709,13 @@ export async function boot(): Promise<void> {
   };
 
   const timerHud = createTimerHud(document, { t });
+  // Mama's worry (story 3.16, UX `catastrophe-face`): seated in the timer, beside the variant's icon.
+  const catastropheFace = createCatastropheFace(document, {
+    t,
+    thresholds: () => levelFeel().catastrophe,
+    nowAtReal: () => performance.now(),
+  });
+  timerHud.mountFace(catastropheFace.element);
   const sequenceBar = createSequenceBar(document, {
     t,
     slideMs: feedbackTable.sequenceBar.slideMs,
@@ -1681,6 +1726,11 @@ export async function boot(): Promise<void> {
     (seconds) => timerHud.setRemainingS(seconds),
     ...GAUGE_IDS.map((id) => (percent: number) => gaugesHud.setValue(id, percent)),
     (percent) => sequenceBar.setPercent(percent),
+    (percent) => {
+      catastropheFace.setPercent(percent);
+      // The face's state, mirrored when it changes (the setter writes only on a change).
+      if (isMirrored) mirror('ppCatastropheFace', catastropheFace.state);
+    },
   ]);
   // The silence bubble is screen-anchored, in the HUD root beside the row (UX `silence-bubble`).
   const bubblePoint = new Vector3();
@@ -1839,6 +1889,8 @@ export async function boot(): Promise<void> {
           director.handle(isLast ? 'ResultLastStarStamped' : 'ResultStarStamped', null),
         // The header of a woken Mama and the star she took off have their own cues (story 3.2 D4, D5).
         onMamaWoke: () => director.handle('ResultMamaWokeShown', null),
+        // The header of a Mama come home early has its own door-slam cue (story 3.16 D9).
+        onMamaHome: () => director.handle('ResultMamaHomeShown', null),
         onStarLost: () => director.handle('ResultStarLost', null),
         onPhase: (phase) => {
           hasResultStarted = true;

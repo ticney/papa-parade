@@ -168,6 +168,7 @@ function build(overrides: Partial<ResultScreenOptions> = {}) {
     onPhoto: () => calls.push('photo'),
     onStar: (isLast) => calls.push(isLast ? 'last star' : 'star'),
     onMamaWoke: () => calls.push('mama woke'),
+    onMamaHome: () => calls.push('mama home'),
     onStarLost: () => calls.push('star lost'),
     onPhase: (phase) => phases.push(phase),
     onReplay: () => calls.push('replay'),
@@ -620,6 +621,77 @@ describe('createResultScreen: a woken Mama (story 3.2)', () => {
     expect(doneHeader?.classList.contains('pp-result-reason-slam')).toBe(false);
     expect(done.root.find('pp-result-panel-woken')).toHaveLength(0);
     expect(timer.root.all().some((node) => node.tag === 'h2')).toBe(false);
+  });
+
+  describe('Mama come home early (story 3.16)', () => {
+    /** The note of the room as it is, and 0 stars whatever the score: no star lost, none to take off. */
+    const HOME: MamaScore = { ...SCORE, scorePoints: 80, stars: 0, lostStars: 0 };
+    const home = (overrides: Partial<ResultScreenOptions> = {}) =>
+      build({ endReason: 'mamaHome', score: HOME, ...overrides });
+
+    it('puts the header « result.mama_home » over the card, with the slam, in the place of the woken one', () => {
+      const { root, panel } = home();
+      const header = root.find('pp-result-reason')[0] as FakeElement;
+      expect(header.tag).toBe('h2');
+      expect(header.textContent).toBe('result.mama_home');
+      expect(header.classList.contains('pp-type-heading')).toBe(true);
+      expect(header.classList.contains('pp-result-reason-slam')).toBe(true);
+      expect(panel.children[0]).toBe(header);
+      expect(panel.children[1]?.classList.contains('pp-score-card')).toBe(true);
+      expect(panel.classList.contains('pp-result-panel-home')).toBe(true);
+      expect(panel.classList.contains('pp-result-panel-woken')).toBe(false);
+      expect(build().panel.classList.contains('pp-result-panel-home')).toBe(false);
+    });
+
+    it('calls onMamaHome once, when the sequence starts, never onMamaWoke, and never for another end', () => {
+      const { clock, calls } = home();
+      expect(calls).toEqual(['mama home']);
+      clock.advance(20_000);
+      expect(calls.filter((call) => call === 'mama home')).toHaveLength(1);
+      expect(calls).not.toContain('mama woke');
+      expect(build().calls).toEqual([]);
+      expect(woken().calls).toEqual(['mama woke']);
+    });
+
+    it('counts the rows up to the room’s note, but earns no star and loses none: five empty slots, no chip', () => {
+      const { root, clock, values, earned, lost, phases } = home();
+      clock.advance(ROWS_END_MS);
+      expect(values()).toEqual(ROW_TOTALS);
+      clock.advance(20_000);
+      expect(earned()).toBe(0);
+      expect(lost()).toBe(0);
+      expect(root.find('pp-star-lost-chip')).toHaveLength(0);
+      const slots = root.find('pp-stars')[0]?.children.filter((node) => node.tag === 'svg') ?? [];
+      expect(slots).toHaveLength(STAR_COUNT_MAX);
+      expect(slots.every((slot) => slot.classList.contains('pp-star-empty'))).toBe(true);
+      expect(phases.at(-1)).toBe('actions');
+    });
+
+    it('puts « Rejouer » up, primary, after the rows', () => {
+      const { clock, replay, actions } = home();
+      expect(actions.hidden).toBe(true);
+      clock.advance(20_000);
+      expect(actions.hidden).toBe(false);
+      expect(replay.classList.contains('pp-button-primary')).toBe(true);
+    });
+
+    it('shows the header at rest on a done build: no slam class, no onMamaHome', () => {
+      const { root, calls } = home({ isDone: true });
+      const header = root.find('pp-result-reason')[0] as FakeElement;
+      expect(header.textContent).toBe('result.mama_home');
+      expect(header.classList.contains('pp-result-reason-slam')).toBe(false);
+      expect(calls).toEqual([]);
+    });
+
+    it('names no failure in the screen the player reads', () => {
+      const { root } = home();
+      const text = root
+        .all()
+        .map((node) => node.textContent)
+        .join(' ')
+        .toLowerCase();
+      for (const word of ['perdu', 'échec', 'game over', 'mort']) expect(text).not.toContain(word);
+    });
   });
 
   it('calls onMamaWoke once, when the sequence starts, and never for a timer end', () => {

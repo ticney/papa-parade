@@ -47,6 +47,9 @@ const difficultyTier = (description: string) =>
     .strictObject({
       windowMultiplier: multiplier('Multiplier applied to every response window of the tier.'),
       hasInstinct: z.boolean().describe('Whether Fatherly Instinct (GDD §9) is available.'),
+      catastropheMultiplier: multiplier(
+        'Multiplier applied to every rise of the catastrophe gauge (story 3.16; GDD: ×0.5 / ×1 / ×1.25). Not applied to the perfect drop or the decay.',
+      ),
     })
     .describe(description);
 
@@ -376,6 +379,48 @@ const NoiseSchema = z
     sources: NoiseSourcesSchema,
   })
   .describe('The noise gauge of the Sieste levels (FR18, GDD rule 7).');
+
+const CatastropheSchema = z
+  .strictObject({
+    risePct: z
+      .strictObject({
+        nearMiss: pct('Catastrophe added by a near-miss gag (outlet, stairs), in % of the gauge.'),
+        mess: pct(
+          'Catastrophe added by a mess gag (table object, silence mischief), in % of the gauge.',
+        ),
+        microSleep: pct('Catastrophe added by a micro-sleep gag, in % of the gauge.'),
+        choreBeat: pct(
+          'Catastrophe added by a missed chore beat (stories 9.4 / 9.5), in % of the gauge.',
+        ),
+      })
+      .describe(
+        'The rise of one gag by its category, before the tier multiplier (GDD mechanic 14).',
+      ),
+    decayPerSec: points(
+      'Catastrophe lost per second, in % of the gauge per second (GDD: 0.5 %/s; tuned to 0.4 by Geo, story 3.16 option D).',
+    ),
+    perfectDropPct: pct(
+      'Catastrophe lost by a perfect response, in % of the gauge (GDD: 5 %; tuned to 2 by Geo, story 3.16 option D).',
+    ),
+    alertPct: pct(
+      'Above this catastrophe Mama is alarmed: the client plays the alert, tightens the music, in % of the gauge.',
+    ),
+    faceStepsPct: z
+      .array(pct('A threshold of the face, in % of the gauge.'))
+      .length(2)
+      .describe(
+        "The two thresholds between Mama's faces, in % of the gauge: she frowns from the first and is worried from the second (strictly ascending, below `alertPct`).",
+      ),
+  })
+  .refine((catastrophe) => catastrophe.faceStepsPct[0] < catastrophe.faceStepsPct[1], {
+    path: ['faceStepsPct'],
+    error: 'faceStepsPct must be strictly ascending',
+  })
+  .refine((catastrophe) => catastrophe.faceStepsPct[1] < catastrophe.alertPct, {
+    path: ['faceStepsPct'],
+    error: 'faceStepsPct must stay below alertPct',
+  })
+  .describe('The catastrophe gauge (FR73, GDD mechanic 14): at 100 % Mama comes home early.');
 
 const BladderSchema = z
   .strictObject({
@@ -968,6 +1013,7 @@ export const FeelSchema = z
     carry: CarrySchema,
     combo: ComboSchema,
     noise: NoiseSchema,
+    catastrophe: CatastropheSchema,
     bladder: BladderSchema,
     sequences: SequencesSchema,
     endOfLevel: EndOfLevelSchema,

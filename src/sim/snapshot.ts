@@ -13,6 +13,7 @@ import {
 import { cloneJson } from '@shared/hash';
 import { invariant } from '@shared/invariant';
 import { DISRUPTION_STATES } from './disruptions/disruptionFsm.ts';
+import { LEVEL_END_REASONS, type LevelEndReason } from './events.ts';
 import { feelShapeProblem } from './feel/applyFeelPatch.ts';
 import { FLOW_STATES, type FlowState } from './flow/flowFsm.ts';
 import { isPapaBusy, PAPA_INTENTS, PAPA_STATES, type PapaState } from './papa/papaFsm.ts';
@@ -35,14 +36,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 30 since story 3.15: `world.afterEffects` (the pénombre, the debris Papa stands on, the marks of a silence's mischief), `PropSlice.debrisPickUpMs`, `BabySlice.downstairsUntil`, the `electrified` / `carryingUp` / `pickingUp` Papa states, the `downstairs` / `carriedUp` baby states, the `fetchBaby` intent, and `feel.fatigue.asleepMs` gone (the nap's length is the micro-sleep's `afterEffect`). 29 since story 3.12: `score.successes` and `score.calmMs`, and Mama's note has five rows (`calmPoints` and `homePoints` replace `babyStatePoints`). 28 since story 3.5: `world.flow.finalRushAt`, the `finalRush` and `photo` flow states, `PropSlice.isMess` and `score.propsTidied`. 27 since story 4.10: `world.cycle` (the bedtime cycle: the entry, when it is due and when the cycle was completed), and the `CycleCompleted` event. 26 since story 4.9: `world.sequence.stealth` (the running `stealth` step: the exit, the next alert, the breath and the board Papa stands on). 25 since story 4.8: the `sequence` slow-mo source (a duel step's own slow motion); no new field. 24 since story 4.7: `ThreatInstance.feintAt` / `isFeintGiven` (the feint of a fake sleep, before its signal). 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 31 since story 3.16: `gauges.catastrophePct` (the catastrophe gauge, in every level), `flow.endReason` (why the level ended, null while it is live), and the `mamaHome` end reason with its `CatastropheChanged` event. 30 since story 3.15: `world.afterEffects` (the pénombre, the debris Papa stands on, the marks of a silence's mischief), `PropSlice.debrisPickUpMs`, `BabySlice.downstairsUntil`, the `electrified` / `carryingUp` / `pickingUp` Papa states, the `downstairs` / `carriedUp` baby states, the `fetchBaby` intent, and `feel.fatigue.asleepMs` gone (the nap's length is the micro-sleep's `afterEffect`). 29 since story 3.12: `score.successes` and `score.calmMs`, and Mama's note has five rows (`calmPoints` and `homePoints` replace `babyStatePoints`). 28 since story 3.5: `world.flow.finalRushAt`, the `finalRush` and `photo` flow states, `PropSlice.isMess` and `score.propsTidied`. 27 since story 4.10: `world.cycle` (the bedtime cycle: the entry, when it is due and when the cycle was completed), and the `CycleCompleted` event. 26 since story 4.9: `world.sequence.stealth` (the running `stealth` step: the exit, the next alert, the breath and the board Papa stands on). 25 since story 4.8: the `sequence` slow-mo source (a duel step's own slow motion); no new field. 24 since story 4.7: `ThreatInstance.feintAt` / `isFeintGiven` (the feint of a fake sleep, before its signal). 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 30;
+  version: 31;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -61,7 +62,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 30,
+    version: 31,
     seed,
     feelHash,
     geometryHash,
@@ -397,6 +398,14 @@ function gaugesProblem(
   ) {
     return 'world.gauges.noisePct';
   }
+  // The catastrophe (story 3.16) is held in [0, 100] in every level.
+  if (
+    !isFiniteNumber(slice.catastrophePct) ||
+    (slice.catastrophePct as number) < 0 ||
+    (slice.catastrophePct as number) > GAUGE_MAX_POINTS
+  ) {
+    return 'world.gauges.catastrophePct';
+  }
   // The need (story 4.3) is held in [0, 100], and is 0 and not full for good in a level without the
   // gauge. `isBladderFull` is not held to `feel.bladder.slowFromPct`: a `SetFeel` can move the
   // threshold, and the flag follows at the next step.
@@ -529,12 +538,22 @@ function flowProblem(
   if (isRushState && (!hasFinalRush || finalRushAt === null)) return 'world.flow.state';
   if (!isRushState && slice.state !== 'ended' && finalRushAt !== null)
     return 'world.flow.finalRushAt';
-  if (slice.state === 'photo' && nowMs < durationMs) return 'world.flow.state';
+  // The reason the level ended (story 3.16): null while it is live, one of the reasons once it is over.
+  const { endReason } = slice;
+  const isOver = slice.state === 'ended' || slice.state === 'photo';
+  if (isOver ? !LEVEL_END_REASONS.includes(endReason as LevelEndReason) : endReason !== null) {
+    return 'world.flow.endReason';
+  }
+  if (slice.state === 'photo' && (nowMs < durationMs || endReason !== 'timer')) {
+    return 'world.flow.state';
+  }
   if (slice.state === 'ended' && nowMs < durationMs) {
-    const noisePct = (gauges as Record<string, unknown> | null | undefined)?.noisePct;
+    const gaugeSlice = gauges as Record<string, unknown> | null | undefined;
     const completedAt = (cycle as Record<string, unknown> | null | undefined)?.completedAt;
     const isCycleDone = completedAt !== null && completedAt !== undefined;
-    if (!isCycleDone && (!hasNoise || noisePct !== GAUGE_MAX_POINTS)) return 'world.flow.state';
+    const isMamaHome = endReason === 'mamaHome' && gaugeSlice?.catastrophePct === GAUGE_MAX_POINTS;
+    const isMamaWoke = hasNoise && gaugeSlice?.noisePct === GAUGE_MAX_POINTS;
+    if (!isMamaHome && !isCycleDone && !isMamaWoke) return 'world.flow.state';
   }
   return null;
 }
@@ -1427,7 +1446,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 30, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 31, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

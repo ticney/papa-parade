@@ -10,6 +10,7 @@ import { createSim, type Sim } from '../../src/sim/createSim.ts';
 import type { SimEvent } from '../../src/sim/events.ts';
 import type { World } from '../../src/sim/world.ts';
 import { botSetup, makeBot } from '../support/botSupport.ts';
+import { silenceCatastrophe } from '../support/noCatastrophe.ts';
 import { createTestContent, createTestLevel, testWave } from '../support/testContent.ts';
 
 // The props of the final rush (story 3.5, AC 25 to 29) are a test on the LIVE geometry and the LIVE feel,
@@ -54,6 +55,8 @@ const DURATION_MS = 120_000;
 async function liveSim(levelId: string, anchor: string, withGags: boolean): Promise<Sim> {
   const content = createTestContent();
   content.feel = liveFeel();
+  // About the door's spill, not the catastrophe: the table's gags must not bring Mama home (story 3.16 D14).
+  silenceCatastrophe(content.feel);
   const geometry = liveGeometry(levelId);
   const level = createTestLevel({
     durationMs: DURATION_MS,
@@ -276,6 +279,8 @@ describe.each(LEVELS)('the door’s spill in $levelId (story 3.5)', ({ levelId, 
   it('spills nothing more when the gags already dropped the props of the table', async () => {
     const content = createTestContent();
     content.feel = liveFeel();
+    // About the door's spill, not the catastrophe: the table's gags must not bring Mama home (story 3.16 D14).
+    silenceCatastrophe(content.feel);
     const level = createTestLevel({
       durationMs: DURATION_MS,
       waves: [testWave([{ def: 'coffee_table_object', anchor }], { gapMinMs: 0, gapMaxMs: 0 })],

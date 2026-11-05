@@ -1,6 +1,6 @@
 {
   "untilSimMs": 12000,
-  "worldHash": "0374bae4041bd0",
+  "worldHash": "19bccac753468f",
   "eventTypes": [
     "ThreatTelegraphed",
     "BabyStateChanged",
@@ -9,6 +9,7 @@
     "ResponseResolved",
     "GagTriggered",
     "AfterEffectStarted",
+    "CatastropheChanged",
     "BabyStateChanged",
     "PropImpact",
     "PropImpact",
@@ -35,5 +36,5 @@
     "PapaStateChanged",
     "ThreatRearmed"
   ],
-  "eventsHash": "1870bd9c374174"
+  "eventsHash": "0337e2fc97e719"
 }

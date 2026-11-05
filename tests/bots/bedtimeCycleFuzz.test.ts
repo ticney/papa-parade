@@ -5,7 +5,8 @@ import { asSimMs } from '@shared/time';
 import { createSim, type SimCommand, type SimEvent } from '@sim';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCycleGeometry, createTestCycleLevel } from '../support/cycleSupport.ts';
-import { createTestBots, createTestContent } from '../support/testContent.ts';
+import { createTestContentWithoutCatastrophe } from '../support/noCatastrophe.ts';
+import { createTestBots } from '../support/testContent.ts';
 
 // The bedtime cycle under 30 seeds (story 4.10). The sim runs with its invariants on, and each seed is
 // played once and cached: seeds 1, 4, 7… by the perfect bot; 2, 5, 8… by the human bot with junk mixed
@@ -35,7 +36,8 @@ function junk(rng: ReturnType<typeof createRng>, now: number): SimCommand | null
 }
 
 async function play(seed: number, isQuiet: boolean): Promise<Outcome> {
-  const content = createTestContent();
+  // The fuzz is about the cycle: the gauge cannot rise, or the junk players' gags would end every seed on Mama come home (story 3.16 D14).
+  const content = createTestContentWithoutCatastrophe();
   const geometry = createTestCycleGeometry();
   const level = createTestCycleLevel(
     isQuiet ? { gauges: { fatigue: { microSleepDef: 'papa_microsleep' }, need: {} } } : {},

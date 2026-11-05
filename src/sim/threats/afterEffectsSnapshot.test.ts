@@ -104,11 +104,11 @@ describe('a game stopped in the middle of a séquelle', () => {
     },
   );
 
-  it('is at version 30, and refuses a version 29 snapshot', async () => {
+  it('is at version 31, and refuses a version 30 snapshot', async () => {
     const sim = await newSim();
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(30);
-    expect(() => sim.restore({ ...snapshot, version: 29 as 30 })).toThrow(/version 29/);
+    expect(snapshot.version).toBe(31);
+    expect(() => sim.restore({ ...snapshot, version: 30 as 31 })).toThrow(/version 30/);
   });
 });
 

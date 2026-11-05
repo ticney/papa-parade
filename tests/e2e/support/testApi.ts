@@ -39,6 +39,17 @@ export const ppFreeze = (page: Page, on: boolean): Promise<void> =>
 export const ppSetFeel = (page: Page, patch: Patch): Promise<void> =>
   page.evaluate((feelPatch) => window.__PP__?.setFeel(feelPatch), patch);
 
+/**
+ * Story 3.16 D14: every rise of the catastrophe gauge at 0 (a `SetFeel`, applied at the next step). A
+ * spec that lets threats fail on purpose and is not about the catastrophe sends it after the level
+ * is loaded, so that the gags do not bring Mama home and end the level under it. Never lower the
+ * live values in `content/feel.json` to keep a spec green.
+ */
+export const ppSilenceCatastrophe = (page: Page): Promise<void> =>
+  ppSetFeel(page, {
+    catastrophe: { risePct: { nearMiss: 0, mess: 0, microSleep: 0, choreBeat: 0 } },
+  });
+
 export const ppLoadLevel = (page: Page, id: string, seed: number): Promise<void> =>
   page.evaluate(([levelId, levelSeed]) => window.__PP__?.loadLevel(levelId, levelSeed), [
     id,

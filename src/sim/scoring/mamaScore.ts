@@ -35,12 +35,14 @@ const row = (value: number, maxPoints: number): number =>
  * With the refines of `MamaSchema` (the maxima add up to 100, the base is the sigh and scream
  * maxima) the rows always add up to the score. A woken Mama (story 3.2, D3) changes the stars only:
  * she takes off `earlyWakePenaltyStars` of them (never below 0, `lostStars`), the five rows and the
- * points stay those of a timer end. Pure: it reads values and returns one.
+ * points stay those of a timer end. A Mama come home early (`mamaHome`, story 3.16) gives 0 stars
+ * and takes none off (`lostStars` 0: every slot is an empty star, whatever the score); the five rows and
+ * the points are those of the room as it is. Pure: it reads values and returns one.
  */
 export function computeMamaScore(
   tally: ScoreTally,
   mama: Feel['mama'],
-  isMamaWoke: boolean,
+  reason: LevelEndReason,
 ): MamaScore {
   const laughPoints = row(
     tally.perfects * mama.laughPerPerfectPoints +
@@ -67,8 +69,10 @@ export function computeMamaScore(
     ),
     MAMA_SCORE_MAX_POINTS,
   );
-  const baseStars = starsForScore(scorePoints, mama.starThresholdPoints);
-  const lostStars = isMamaWoke ? Math.min(mama.earlyWakePenaltyStars, baseStars) : 0;
+  // Mama come home early: no star whatever the score, and nothing to take off (story 3.16 D6).
+  const baseStars =
+    reason === 'mamaHome' ? 0 : starsForScore(scorePoints, mama.starThresholdPoints);
+  const lostStars = reason === 'mamaWoke' ? Math.min(mama.earlyWakePenaltyStars, baseStars) : 0;
   return {
     laughPoints,
     calmPoints,
@@ -86,7 +90,7 @@ export function computeMamaScore(
  * the counters and the mess of the frozen room (D5), writes `world.score.final` and emits
  * `LevelScored` at the same `t`. A helper, not a system (`runScoring` holds the calm tracker and the
  * combo's carry tick). The combo points cashed in feed the Rire; the ones not cashed are lost. `reason` is why
- * the level ended: a woken Mama costs stars.
+ * the level ended: a woken Mama costs stars, a Mama come home early gives none.
  */
 export function scoreLevel(world: World, ctx: StepContext, reason: LevelEndReason): void {
   const { perfects, successes, nearMisses, comboPoints, calmMs } = world.score;
@@ -107,7 +111,7 @@ export function scoreLevel(world: World, ctx: StepContext, reason: LevelEndReaso
       mischiefs,
     },
     ctx.feel.mama,
-    reason === 'mamaWoke',
+    reason,
   );
   world.score.final = score;
   ctx.events.push({ type: 'LevelScored', t: world.time.sim, ...score });

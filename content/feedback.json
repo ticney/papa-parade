@@ -189,6 +189,11 @@
       "visual": { "kind": "uiElement" },
       "haptic": "heavy"
     },
+    "mama_home": {
+      "audio": { "clip": "env_door_slam", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "heavy"
+    },
     "result_star_lost": {
       "audio": { "clip": "ui_star_lost", "bus": "ui", "gainPct": 90 },
       "visual": { "kind": "uiElement" },
@@ -202,6 +207,11 @@
     },
     "silence_started": { "haptic": "light" },
     "noise_alert": { "visual": { "kind": "uiElement" }, "haptic": "medium" },
+    "catastrophe_alert": {
+      "audio": { "clip": "env_door_key", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "medium"
+    },
     "chrono_arc_lit": { "visual": { "kind": "uiElement" }, "haptic": "light" },
     "papa_busy_refused": {
       "audio": { "clip": "papa_busy", "bus": "sfx", "gainPct": 100 },
@@ -591,6 +601,7 @@
     "DecoyCued": "decoy_cued",
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
+    "CatastropheAlertReached": "catastrophe_alert",
     "ChronoArcLit": "chrono_arc_lit",
     "CoffeeStarted": "papa_coffee_slurp",
     "ActivityBubbleShaken": "papa_busy_refused",
@@ -600,6 +611,7 @@
     "ResultStarStamped": "result_star",
     "ResultLastStarStamped": "result_star_last",
     "ResultMamaWokeShown": "mama_woke",
+    "ResultMamaHomeShown": "mama_home",
     "ResultStarLost": "result_star_lost"
   }
 }

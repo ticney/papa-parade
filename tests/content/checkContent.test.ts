@@ -839,6 +839,34 @@ describe('checkContent on threat files', () => {
     );
   });
 
+  it('reports a catastrophe that does not fit the gag, naming the def, the gag and the expected category (story 3.16)', async () => {
+    await mutateJson(FILE, (threat) => {
+      threat.catastrophe = 'mess';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'catastrophe',
+        message: expect.stringMatching(/"outlet".*"outlet_hair".*"nearMiss".*"mess"/),
+      }),
+    );
+  });
+
+  it('reports a silence whose catastrophe is not a mess, whichever surprise gag it draws (story 3.16)', async () => {
+    await mutateJson('content/threats/silence_mischief.json', (threat) => {
+      threat.catastrophe = 'none';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: 'content/threats/silence_mischief.json',
+        jsonPath: 'catastrophe',
+        message: expect.stringMatching(/"silence_mischief".*"mess".*"none"/),
+      }),
+    );
+  });
+
   it('reports a gag the sim does not know', async () => {
     await mutateJson(FILE, (threat) => {
       threat.gag = 'outlet_hairs';

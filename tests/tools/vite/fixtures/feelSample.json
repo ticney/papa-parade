@@ -90,6 +90,13 @@
       "snore": { "noisePct": 15 }
     }
   },
+  "catastrophe": {
+    "risePct": { "nearMiss": 35, "mess": 20, "microSleep": 15, "choreBeat": 10 },
+    "decayPerSec": 0.5,
+    "perfectDropPct": 5,
+    "alertPct": 70,
+    "faceStepsPct": [25, 50]
+  },
   "bladder": {
     "startPct": 0,
     "perSec": 0.4,
@@ -117,9 +124,9 @@
     "missesWithinMs": 10000
   },
   "difficulty": {
-    "assistance": { "windowMultiplier": 1.5, "hasInstinct": true },
-    "normal": { "windowMultiplier": 1, "hasInstinct": true },
-    "experienced": { "windowMultiplier": 0.75, "hasInstinct": false }
+    "assistance": { "windowMultiplier": 1.5, "hasInstinct": true, "catastropheMultiplier": 0.5 },
+    "normal": { "windowMultiplier": 1, "hasInstinct": true, "catastropheMultiplier": 1 },
+    "experienced": { "windowMultiplier": 0.75, "hasInstinct": false, "catastropheMultiplier": 1.25 }
   },
   "mama": {
     "laughMaxPoints": 35,

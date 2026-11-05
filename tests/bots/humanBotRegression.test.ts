@@ -17,12 +17,14 @@ import {
 // commands themselves did not move: `PINNED_COMMANDS` are the hashes of `journal.entries` taken on the code
 // BEFORE the story (`main` at 5572c36), and still hold. The frozen levels meet no downstairs baby, so the
 // new fetch draw never runs.
+// Story 3.16 re-pinned them again, for the same reason: the feel gained `catastrophe` and the tiers'
+// `catastropheMultiplier`, every threat gained its `catastrophe`. `PINNED_COMMANDS` still hold.
 //
 // Story 9.2 re-pinned them again, for the same reason: the feel gained `camera` and the level its
 // `camera` field, which the sim never reads. `PINNED_COMMANDS` were not touched and still hold.
 const PINNED: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
-  test: { 1: '1b7aa4ff20901f', 2: '18717537c1db1e', 3: '12ad9c52688559' },
-  trio: { 1: '04cffb3ecad72f', 2: '029e85fac4d2ba', 3: '135f4730250614' },
+  test: { 1: '01fb62f3e5bed6', 2: '172655e74e1da9', 3: '1fd6879cbc5cfc' },
+  trio: { 1: '05439a0375cac5', 2: '0f5e6188e0aa92', 3: '15df63c84bd908' },
 };
 const PINNED_COMMANDS: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
   test: { 1: '0632f181689687', 2: '158358e075a1a2', 3: '111636e2c690a2' },

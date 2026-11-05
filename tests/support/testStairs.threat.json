@@ -16,6 +16,7 @@
     "perfect": "resp_parry_perfect",
     "gag": "gag_stairs"
   },
+  "catastrophe": "nearMiss",
   "afterEffect": { "kind": "babyDownstairs", "carryUpMs": 2000, "selfReturnMs": 6000 },
   "cooldownMs": 6000
 }

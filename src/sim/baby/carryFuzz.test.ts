@@ -1,10 +1,10 @@
 import { createRng, nextFloat, nextInt } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
+import { createTestContentWithoutCatastrophe } from '../../../tests/support/noCatastrophe.ts';
 import {
   CARRY,
   COFFEE_TABLE,
-  createTestContent,
   createTestGeometry,
   createTestLevel,
   FATIGUE_GAUGES,
@@ -43,7 +43,8 @@ const COMMAND_CHANCE = 0.05;
 const SEQUENCE_CHANCE = 0.0004;
 
 // A short carry tick: random play seldom carries for ten seconds, and the cash-in must be exercised.
-const baseContent = createTestContent();
+// The catastrophe gauge cannot rise (story 3.16 D14): this file is not about it, and a pile of gags would bring Mama home.
+const baseContent = createTestContentWithoutCatastrophe();
 const content = {
   ...baseContent,
   feel: {

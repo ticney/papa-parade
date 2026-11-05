@@ -373,7 +373,12 @@ describe('the level it plans', () => {
       threats: [{ anchorId: 'outlet_01', firstWaveIndex: 0 }],
     });
     expect(sim.world.director).toEqual({ waveIndex: -1, nextAt: 0 });
-    expect(sim.world.flow).toEqual({ state: 'playing', enteredAt: 0, finalRushAt: null });
+    expect(sim.world.flow).toEqual({
+      state: 'playing',
+      enteredAt: 0,
+      finalRushAt: null,
+      endReason: null,
+    });
   });
 
   it('hashes the level into the journal and the snapshot', async () => {

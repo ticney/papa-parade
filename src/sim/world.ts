@@ -5,6 +5,7 @@ import { createRng, type RngState } from '@shared/rng';
 import { asSimMs, type SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
 import type { DisruptionState } from './disruptions/disruptionFsm.ts';
+import type { LevelEndReason } from './events.ts';
 import type { FlowState } from './flow/flowFsm.ts';
 import type { PapaIntent, PapaState } from './papa/papaFsm.ts';
 import type { GagId } from './threats/gags.ts';
@@ -343,6 +344,11 @@ export interface GaugesSlice {
   microSleepAt: SimMs | null;
   /** The noise, in % of the gauge (0-100); stays 0 in a level with no noise gauge (story 3.1). */
   noisePct: number;
+  /**
+   * The catastrophe, in % of the gauge (0-100), in every level (story 3.16), written only by
+   * `addCatastrophe` and `decayCatastrophe`. At 100 Mama comes home early; frozen in the final rush.
+   */
+  catastrophePct: number;
   /** The pressing need, in % of the gauge (0-100); stays 0 in a level with no need gauge (story 4.3). */
   bladderPct: number;
   /** Whether `bladderPct` has reached `feel.bladder.slowFromPct`: Papa's walks are slower then (the crossing is an event). */
@@ -367,6 +373,11 @@ export interface FlowSlice {
    * `photo`, and in `ended` after a `mamaWoke` in the rush. The door's animation is a function of it.
    */
   finalRushAt: SimMs | null;
+  /**
+   * Why the level ended (story 3.16), the reason of `LevelEnded`; null while the level is live, so it
+   * is non-null exactly in `ended` and `photo`. The client reads it for the door and the result.
+   */
+  endReason: LevelEndReason | null;
 }
 
 /**
@@ -757,12 +768,13 @@ export function createWorld({
     threats: [],
     director: { waveIndex: -1, nextAt: asSimMs(0) },
     disruptions: [],
-    flow: { state: 'playing', enteredAt: asSimMs(0), finalRushAt: null },
+    flow: { state: 'playing', enteredAt: asSimMs(0), finalRushAt: null, endReason: null },
     gauges: {
       fatigue: fatiguePoints,
       isFatigueAbove: false,
       microSleepAt: null,
       noisePct: 0,
+      catastrophePct: 0,
       bladderPct,
       isBladderFull: false,
       propNoiseAt: props.map(() => null),

@@ -19,6 +19,7 @@ import {
   ppLoadLevel,
   ppSend,
   ppSetFeel,
+  ppSilenceCatastrophe,
   ppState,
   ppWorld,
   waitForTestApi,
@@ -358,6 +359,8 @@ test.describe('the debug overlay › the timing timeline', () => {
   test('shows « no press » for a window nobody answered, and keeps ten rows', async ({ page }) => {
     const problems = collectProblems(page);
     await openFrozenLevel(page);
+    // Ten unanswered windows are ten gags: without this the catastrophe would bring Mama home first.
+    await ppSilenceCatastrophe(page);
     await page.keyboard.press('F1');
     await stepToFirstTelegraph(page);
     // Let the level run unanswered: threats time out one after another, past ten responses.

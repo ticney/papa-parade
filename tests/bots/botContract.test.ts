@@ -67,7 +67,8 @@ describe.each(BOT_IDS)('the %s bot contract', (id: BotId) => {
       geometry: createTestGeometry(),
       level: botTestLevel(),
       journal: live.sim.journal(),
-      untilSimMs: BOT_TEST_UNTIL_MS,
+      // To where the game stopped: a bot's game ends with the level (Mama may come home early, story 3.16).
+      untilSimMs: live.sim.world.time.sim,
       strictInvariants: true,
     });
     if (!replayed.ok) throw new Error(replayed.error.message);
