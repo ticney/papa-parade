@@ -995,7 +995,7 @@ Open:
 
 ## Deferred from: dev of 9-1-grand-salon-avec-cuisine-ouverte-dans-blender (2026-11-04)
 
-- **The fixed camera shrinks the characters in `salon_kitchen`**: `fitIsoCamera` fits the whole 13.5 × 7 m room, so Papa and the baby look about three quarters of their salon size. For 9.2 (follow camera, « characters keep their size »).
+- **The fixed camera shrinks the characters in `salon_kitchen`**: `fitIsoCamera` fits the whole 13.5 × 7 m room, so Papa and the baby look about three quarters of their salon size. For 9.2 (follow camera, « characters keep their size »). **Resolved in story 9.2:** `salon_kitchen` has the follow camera, whose frame is the salon's camera box (`feel.camera.frameWidthM` × `frameDepthM`, 9.1 × 6.2): a metre of floor is drawn at the salon's size at 844 × 390 and 667 × 375 (`isoCamera.test.ts`, within 1 %).
 - **The E9 moving pieces are static nodes**: `dishwasher_door`, `low_cabinet_door`, `tablecloth`, `pan`, `bin_lid`, `plant` are their own visual nodes but nothing in `src/` moves them. For 9.5 to 9.7.
 - **5 MiB is an assumption** (NFR15, `LEVEL_PAYLOAD_MAX_BYTES_BY_ID`): to confirm with Epic 9's real audio.
 - **The playpen stands on walkable cells with no collider** in `salon_kitchen`, as in the salon it was copied from (0.3 m high, the `ZONE_safe_playpen` volume, no `COL_`): kept as the salon has it.
@@ -1008,6 +1008,18 @@ Open:
 - **The Rapier +x wall of `salon_kitchen` sits 0.9 m beyond the floor** (`boundsMaxM.x` 7.65 against a nav edge of 6.75, from the stairs visual): the salon has the same (4.9 against 4.0) and the living-corner block moved with it. Reason: inherited from the salon; walkability is not affected.
 - **`NAV_block_` ↔ `COL_` parity is not pinned by a test**: the geometry JSON does not carry the NAV nodes, so only the `.glb` shows it (the review checked it by hand: correct today). Reason: same gap as « no drift check between a `.blend` and its committed geometry » (1.6, 7.1).
 - **`salonKitchen.spec.ts` catches `[assets]` warnings in its third test only**, with no positive control that the pattern would match; tests 1 and 2 let `OWN_WARNINGS` through. Reason: copied from `chambreNight.spec.ts`; the `.glb` has all five `PROP_*` nodes today.
+
+## Deferred from: dev of 9-2-camera-qui-suit-papa (2026-11-04)
+
+- **The silence bubble's side is computed when it shows** (`silenceBubble.place`, on show and on resize): in a follow level the camera moves under it. For 9.3.
+- **An off-screen threat can be neither seen nor tapped** until the off-screen bubble: for 9.3. Keyboard and gamepad auto-target already reach it. On a landscape phone the kitchen's whole width is in the frame (below), so only the vertical travel can hide one.
+- **The follow is stepped once per frame on the drawn clock, not once per sim step**: 9.8's visibility model will step the same `stepFollow` per sim step; the two can differ by a fraction of a step (the dead zone's goal is sampled per call). Accepted for a model of perception.
+- **The composed clamp ignores the perfect's turn (≤ 12°)**: a sliver beyond the room's box is possible during the turn, near a wall. The turn is 0 under reduced motion.
+- **Papa's edge margin can lose to the clamp across the kitchen**: on a landscape phone the frame (16.5 to 20 m of view) is wider than the kitchen's view extent (15.4 m), so the view stands on the room's middle across and Papa at the kitchen's far corners is nearer the side edges than `edgeMarginPct` (still fully on screen). Geo's call at the review: the walls win, and the margin also gives way at the near and far walls on every aspect. Pinned on the live corners (`isoCamera.test.ts`): Papa stays in the frame, and the margin gives way only where the view stands against the room's extent.
+- **The end photo fits the whole big room** (story question 3): small characters on the photo of `salon_kitchen`. Keep, or frame it around Papa later (3.7 / 7.4)?
+- **The follow frame is the salon's size, which barely moves the camera on a landscape phone** (story question 1): about 2.3 m of travel, up and down only. Tighter is two numbers in `feel.camera` (AC 5 would then pin the new scale).
+- **The follow aims at Papa's floor point** (y = 0), not his middle: the edge margin holds his feet, so near the top edge his head is closer to it than the margin (not checked on screen). Revisit with Geo's playtest.
+- **`humanBotRegression.test.ts` re-pinned its whole-journal hashes** (review of 9.2): the six `PINNED` hashes moved with `feelHash` and `levelHash` (the new `camera` keys, never read by the sim); `PINNED_COMMANDS` of 3.15, the hashes of the commands, were not touched and still hold, so the bot plays the same game.
 
 ## Deferred from: story 3-15-sequelles-des-gags (2026-11-04)
 
@@ -1044,3 +1056,10 @@ Open:
 - **`catastrophe_alert` plays in the step that ends the level** (`src/client/boot.ts`): a rise from 70 % or less straight to 100 % gives the door-key cue and a medium haptic right before the slam and the heavy haptic. Cosmetic; decide at the catch-up playtest.
 - **The catastrophe alert has no hysteresis** (`src/client/feedback/catastropheAlert.ts`): the decay is silent and the check stateless, so hovering at 68-72 % re-fires the cue at each upward crossing. A feel question for the playtest.
 - **No screen-reader announcement of the alarmed face** (`src/client/ui/hud/catastropheFace.ts`): `role="img"` with a changing `aria-label`, no live region; the alert is sound, ring and haptic only. For the accessibility pass.
+
+## Deferred from: code review of 9-2-camera-qui-suit-papa (2026-11-04)
+
+- **The judged-threat aim lasts a whole sequence framing** (D5 as written, `followRig.ts` `isJudgedFramed`): in a follow level with a special sequence, the first judgement would hold the aim on that threat's point until the framing ends, the camera dragging at Papa's edge margin. Reason: no sequence in a follow level yet.
+- **Papa's edge margin is applied to the zoom-1 base, not to the composed view**: a sequence framing zoom (up to 100 %) plus a perfect while aiming at a threat can take Papa off screen. Reason: no sequence in a follow level yet; a perfect alone keeps him in view.
+- **Reduced motion switched on mid-catch-up keeps the 0.8 spring's velocity** (`stepFollow`), so the critically damped spring can overshoot once. Reason: rare (a settings change while the camera moves).
+- **`ppThreatPx` of a threat that follows the baby or Papa is a snapshot of its point at the telegraph**: re-projected through the moving camera, it still misses the moving body. Reason: pre-existing, the mirror was already a snapshot under the fixed camera.

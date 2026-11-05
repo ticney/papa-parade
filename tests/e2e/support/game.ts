@@ -368,7 +368,8 @@ export async function objectIconPoint(
 
 /**
  * Where a point of the live room (metres) is on the page, in px: the game's own iso camera, fitted
- * to the live room and to the canvas box. For checking where something is drawn.
+ * to the live room and to the canvas box. For checking where something is drawn. This is the
+ * **fixed** camera's: a level whose camera follows Papa (story 9.2) uses `ppPagePoint` instead.
  */
 export async function pagePointOf(
   page: Page,

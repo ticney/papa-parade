@@ -19,9 +19,12 @@ import {
 // new fetch draw never runs.
 // Story 3.16 re-pinned them again, for the same reason: the feel gained `catastrophe` and the tiers'
 // `catastropheMultiplier`, every threat gained its `catastrophe`. `PINNED_COMMANDS` still hold.
+//
+// Story 9.2 re-pinned them again, for the same reason: the feel gained `camera` and the level its
+// `camera` field, which the sim never reads. `PINNED_COMMANDS` were not touched and still hold.
 const PINNED: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
-  test: { 1: '1ea45571c5700f', 2: '1f7912a54c85cd', 3: '1d25bf56aed037' },
-  trio: { 1: '1f231e81c3fea6', 2: '136c55519c8af4', 3: '15a25be65a1d3e' },
+  test: { 1: '01fb62f3e5bed6', 2: '172655e74e1da9', 3: '1fd6879cbc5cfc' },
+  trio: { 1: '05439a0375cac5', 2: '0f5e6188e0aa92', 3: '15df63c84bd908' },
 };
 const PINNED_COMMANDS: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
   test: { 1: '0632f181689687', 2: '158358e075a1a2', 3: '111636e2c690a2' },

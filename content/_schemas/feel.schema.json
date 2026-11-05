@@ -1619,6 +1619,71 @@
       "additionalProperties": false,
       "description": "On-screen juice (story 2.5): shake, particles, stamp and the perfect camera. Client only."
     },
+    "camera": {
+      "type": "object",
+      "properties": {
+        "frameWidthM": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 30,
+          "description": "Width of the floor box the follow camera fits, in metres (story 9.2): the same fit as the fixed camera on a room this size, so it sets the characters' scale on screen."
+        },
+        "frameDepthM": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 30,
+          "description": "Depth of the floor box the follow camera fits, in metres."
+        },
+        "deadZoneWidthPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 80,
+          "description": "Width of the centred dead zone, in % of the frame's width: Papa moves inside it without moving the camera."
+        },
+        "deadZoneHeightPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 80,
+          "description": "Height of the centred dead zone, in % of the frame's height."
+        },
+        "edgeMarginPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "Papa's drawn point never comes nearer an edge of the frame than this, in % of the frame's size on that axis (a hard limit, even during a glide), except where the view would leave the room: the walls win, near a wall or across a room narrower than the frame."
+        },
+        "catchUpMs": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 3000,
+          "description": "Time the camera takes to cover 95 % of a sudden jump of its goal, in **sim** ms (a pause holds it, a slow-mo slows it)."
+        },
+        "dampingRatio": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 1,
+          "description": "Damping of the catch-up spring: 1 = no overshoot; below, a slight bounce (0.8 = about 1.5 %)."
+        },
+        "reducedCatchUpMs": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 5000,
+          "description": "The catch-up time under « Réduire les animations », in **sim** ms, with no overshoot at all (a damping of 1). Not below `catchUpMs`."
+        }
+      },
+      "required": [
+        "frameWidthM",
+        "frameDepthM",
+        "deadZoneWidthPct",
+        "deadZoneHeightPct",
+        "edgeMarginPct",
+        "catchUpMs",
+        "dampingRatio",
+        "reducedCatchUpMs"
+      ],
+      "additionalProperties": false,
+      "description": "The follow camera of a level with `camera: \"follow\"` (story 9.2): its frame, dead zone, edge margin and catch-up. Client only."
+    },
     "music": {
       "type": "object",
       "properties": {
@@ -1812,6 +1877,7 @@
     "physics",
     "gags",
     "fx",
+    "camera",
     "music",
     "calibration"
   ],

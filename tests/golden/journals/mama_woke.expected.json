@@ -1,6 +1,6 @@
 {
   "untilSimMs": 2000,
-  "worldHash": "0ab65c4ee7d448",
+  "worldHash": "1976e060f2008c",
   "eventTypes": ["NoiseChanged", "MamaWoke", "LevelEnded", "LevelScored"],
   "eventsHash": "0c0280af57f734"
 }

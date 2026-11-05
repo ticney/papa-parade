@@ -287,6 +287,15 @@
       ],
       "additionalProperties": false
     },
+    "camera": {
+      "default": "fixed",
+      "description": "How the camera frames the level (story 9.2): `fixed` shows the whole room, `follow` follows Papa with a frame of `feel.camera`. Client only. Default `fixed`.",
+      "type": "string",
+      "enum": [
+        "fixed",
+        "follow"
+      ]
+    },
     "feelOverrides": {
       "default": {},
       "description": "A partial `feel.json` merged over the base feel for this level only.",
@@ -305,6 +314,7 @@
     "objects",
     "gauges",
     "sequences",
+    "camera",
     "feelOverrides"
   ],
   "additionalProperties": false,

@@ -12,6 +12,7 @@ import { type CreateSimOptions, createSim, type FeelPatch, type Sim, type SimEve
 import type { OrthographicCamera } from 'three';
 import { type LevelAssets, loadLevelAssets } from '../assets/loadLevelAssets.ts';
 import { createGameLoop, type FrameScheduler, type GameLoop, type LoopStats } from '../loop.ts';
+import type { LevelCameraSetup } from '../render/followRig.ts';
 import { createLevelScene, type LevelScene, type SceneBodies } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import { createTimeMap, type TimeMap } from '../timeMap.ts';
@@ -36,9 +37,14 @@ export interface LevelSessionDeps {
    * The level's scene is up (its room is known): fit the camera, show it behind the loading screen.
    * Called before the previous level's scene is disposed. `threatEntries` are the icon points of the
    * level's threats (one per `world.threats` entry, same order), for the world UI and the hit test.
-   * The level's objects are `sim.objects`.
+   * The level's objects are `sim.objects`. `camera` is the level's camera mode, its follow tuning
+   * and Papa's start (story 9.2).
    */
-  onLevelReady(level: LevelScene, threatEntries: readonly ThreatMarkerEntry[]): void;
+  onLevelReady(
+    level: LevelScene,
+    threatEntries: readonly ThreatMarkerEntry[],
+    camera: LevelCameraSetup,
+  ): void;
   /**
    * Once per rendered frame, paused or not (the UI follows the countdown there). `alpha` is the
    * loop's, in `[0, 1]`: how far the next step is under way, which the drawn sim time follows.
@@ -512,6 +518,12 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
               deps.t,
               effective.timing.telegraphDelayDefaultMs,
             ),
+            {
+              mode: levelPlan.level.camera,
+              follow: effective.camera,
+              papaStartXM: sim.world.papa.xM,
+              papaStartZM: sim.world.papa.zM,
+            },
           );
         } catch (cause) {
           // The new scene never became current: free it, and keep the previous one as it was.

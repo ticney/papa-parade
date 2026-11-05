@@ -287,6 +287,16 @@
       "refocusMs": 200
     }
   },
+  "camera": {
+    "frameWidthM": 9.1,
+    "frameDepthM": 6.2,
+    "deadZoneWidthPct": 30,
+    "deadZoneHeightPct": 30,
+    "edgeMarginPct": 15,
+    "catchUpMs": 400,
+    "dampingRatio": 0.8,
+    "reducedCatchUpMs": 800
+  },
   "music": {
     "tense": { "fadeInMs": 600, "fadeOutMs": 1500, "calmGainPct": 60 },
     "slowMo": {
