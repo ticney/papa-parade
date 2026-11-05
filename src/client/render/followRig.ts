@@ -38,6 +38,12 @@ export interface FollowRig {
   readonly aim: 'papa' | 'threat';
   /** The follow's frame (its size and the room's extent), for the debug and the tests. */
   readonly frame: Readonly<FollowFrame>;
+  /**
+   * The follow's view centre in the view plane (`viewUM`, `viewVM`), at zoom 1: with `frame`, the base
+   * frame the off-screen bubbles test their threats against (story 9.3, D2). Read-only.
+   */
+  readonly centreUM: number;
+  readonly centreVM: number;
   /** A new level: its room and camera. The follow starts over (its first frame snaps to Papa). */
   setLevel(room: RoomSize, setup: LevelCameraSetup): void;
   /**
@@ -141,6 +147,12 @@ export function createFollowRig(camera: OrthographicCamera, cameraFx: CameraFx):
       return aim;
     },
     frame,
+    get centreUM() {
+      return state.centreUM;
+    },
+    get centreVM() {
+      return state.centreVM;
+    },
     setLevel(levelRoom, setup) {
       room = levelRoom;
       mode = setup.mode;

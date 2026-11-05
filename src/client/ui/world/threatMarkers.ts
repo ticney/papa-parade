@@ -180,7 +180,20 @@ export interface ThreatMarkers {
    * object, never a copy: it allocates nothing, and changes at the next telegraph.
    */
   chronoRing(threatId: number): Readonly<ChronoRing> | null;
+  /**
+   * What the chrono-ring of `threatId`'s marker drew in the last `update` (story 9.3, D6): its per-mille, the
+   * lit arc and the hold drain, for the off-screen bubble to draw the same. Null for a threat with no ring, or
+   * whose ring is not drawn (not active). One record, rewritten at each call: read it at once.
+   */
+  chronoDrawOf(threatId: number): Readonly<ChronoDraw> | null;
   dispose(): void;
+}
+
+/** What a marker's chrono-ring drew in a frame (`ThreatMarkers.chronoDrawOf`). */
+export interface ChronoDraw {
+  permille: number;
+  isLit: boolean;
+  isHold: boolean;
 }
 
 /** What a marker falls back to when the threat's def is unknown: a bolt, in the parry circle, with no verb. */
@@ -463,6 +476,10 @@ interface Marker {
   /** The telegraph instant seen in `telegraph` and the `windowOpenAt` it went with (D3); NaN before the first. */
   chronoStartAt: number;
   chronoWindowOpenAt: number;
+  /** What the ring drew in the last update (`chronoDrawOf`): `CHRONO_HIDDEN` while it is not drawn. */
+  chronoPermille: number;
+  isChronoLit: boolean;
+  isChronoHold: boolean;
   isShown: boolean;
   isHighlighted: boolean;
   /** The press highlight is up for this marker (the return value of `update` follows its rising edge). */
@@ -470,6 +487,81 @@ interface Marker {
 }
 
 type Doc = Pick<Document, 'createElement' | 'createElementNS'>;
+
+/** A threat's icon as its marker draws it: the element and the glyph's path (swapped at a signal or a feint). */
+export interface ThreatIconElement {
+  readonly element: HTMLElement;
+  readonly glyphPath: Element;
+}
+
+/**
+ * The threat's icon (`.pp-threat-icon`): a circle holding the glyph, or for a `dodge` the triangle's two
+ * polygons and the glyph (story 2.2). Shared by the marker and the off-screen bubble (story 9.3, D5), so
+ * the two can never draw a threat differently. The colour is read from `--pp-threat-color` on the icon
+ * or an ancestor: the marker sets it on its root, the bubble on the icon.
+ */
+export function createThreatIconElement(
+  entry: Pick<ThreatMarkerEntry, 'icon' | 'iconShape'>,
+  doc: Doc,
+): ThreatIconElement {
+  const icon = doc.createElement('div');
+  icon.className = THREAT_CLASSES.icon;
+  const glyphPath = svgElement(
+    'path',
+    {
+      d: THREAT_ICON_PATHS[entry.icon],
+      fill: 'var(--pp-color-paper)',
+      stroke: 'var(--pp-color-ink)',
+      'stroke-width': '2',
+      'stroke-linejoin': 'round',
+    },
+    [],
+    doc,
+  );
+  const glyph = svgElement(
+    'svg',
+    { class: THREAT_CLASSES.glyph, viewBox: '0 0 24 24' },
+    [glyphPath],
+    doc,
+  );
+  if (entry.iconShape === 'triangle') {
+    icon.className = `${THREAT_CLASSES.icon} ${THREAT_CLASSES.iconTriangle}`;
+    const outline = {
+      'stroke-linejoin': 'round',
+      stroke: 'var(--pp-color-ink)',
+      'stroke-width': '3',
+    };
+    icon.append(
+      svgElement(
+        'svg',
+        { class: THREAT_CLASSES.triangle, viewBox: '0 0 52 48' },
+        [
+          svgElement(
+            'polygon',
+            {
+              points: TRIANGLE_POINTS,
+              fill: 'var(--pp-color-ink)',
+              transform: `translate(0,${TRIANGLE_SHADOW_DROP})`,
+            },
+            [],
+            doc,
+          ),
+          svgElement(
+            'polygon',
+            { points: TRIANGLE_POINTS, fill: 'var(--pp-threat-color)', ...outline },
+            [],
+            doc,
+          ),
+        ],
+        doc,
+      ),
+      glyph,
+    );
+  } else {
+    icon.append(glyph);
+  }
+  return { element: icon, glyphPath };
+}
 
 function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
   const element = doc.createElement('div');
@@ -524,64 +616,9 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
   } else {
     verbStack.append(chevron);
   }
-  const icon = doc.createElement('div');
-  icon.className = THREAT_CLASSES.icon;
-  const glyphPath = svgElement(
-    'path',
-    {
-      d: THREAT_ICON_PATHS[entry.icon],
-      fill: 'var(--pp-color-paper)',
-      stroke: 'var(--pp-color-ink)',
-      'stroke-width': '2',
-      'stroke-linejoin': 'round',
-    },
-    [],
-    doc,
-  );
-  const glyph = svgElement(
-    'svg',
-    { class: THREAT_CLASSES.glyph, viewBox: '0 0 24 24' },
-    [glyphPath],
-    doc,
-  );
   // The colour is the def's, by its DESIGN token name; the circle fills with it in CSS, the triangle below.
   element.style.setProperty('--pp-threat-color', `var(--pp-color-${entry.color})`);
-  if (entry.iconShape === 'triangle') {
-    icon.className = `${THREAT_CLASSES.icon} ${THREAT_CLASSES.iconTriangle}`;
-    const outline = {
-      'stroke-linejoin': 'round',
-      stroke: 'var(--pp-color-ink)',
-      'stroke-width': '3',
-    };
-    icon.append(
-      svgElement(
-        'svg',
-        { class: THREAT_CLASSES.triangle, viewBox: '0 0 52 48' },
-        [
-          svgElement(
-            'polygon',
-            {
-              points: TRIANGLE_POINTS,
-              fill: 'var(--pp-color-ink)',
-              transform: `translate(0,${TRIANGLE_SHADOW_DROP})`,
-            },
-            [],
-            doc,
-          ),
-          svgElement(
-            'polygon',
-            { points: TRIANGLE_POINTS, fill: 'var(--pp-threat-color)', ...outline },
-            [],
-            doc,
-          ),
-        ],
-        doc,
-      ),
-      glyph,
-    );
-  } else {
-    icon.append(glyph);
-  }
+  const { element: icon, glyphPath } = createThreatIconElement(entry, doc);
   // The chrono-ring (story 2.11) only for a response that has one: a `wait` marker has no such element at all,
   // so no code can read the timing of a signal off it (the 4.6 rule).
   const chrono = entry.hasChronoRing === true ? createChronoRingElement(doc) : null;
@@ -617,6 +654,9 @@ function createMarker(entry: ThreatMarkerEntry, doc: Doc): Marker {
     isChronoRingSet: false,
     chronoStartAt: Number.NaN,
     chronoWindowOpenAt: Number.NaN,
+    chronoPermille: CHRONO_HIDDEN,
+    isChronoLit: false,
+    isChronoHold: false,
     isShown: false,
     isHighlighted: false,
     isPressed: false,
@@ -731,6 +771,9 @@ function updateChronoRing(
     // The telegraph this geometry belonged to is over: `chronoRing(threatId)` must not hand it to the next one.
     marker.isChronoRingSet = false;
   }
+  marker.chronoPermille = permille;
+  marker.isChronoLit = isLit;
+  marker.isChronoHold = isHold;
   chrono.draw(permille, isLit, isHold);
 }
 
@@ -758,6 +801,8 @@ export function createThreatMarkers(
   let fittedSurface = '';
   // One Vector3 and arrays sized at mount: the per-frame layout allocates nothing.
   const projected = new Vector3();
+  /** The one record `chronoDrawOf` hands out. */
+  const chronoDraw: ChronoDraw = { permille: CHRONO_HIDDEN, isLit: false, isHold: false };
   let stack: VerbStack = createVerbStack(0);
   let stackSource = new Int32Array(0);
   /** Scratch of `layout`: the sideways shift of each laid-out box, by its index in `stack`. */
@@ -1046,6 +1091,18 @@ export function createThreatMarkers(
         if ((mounted[i] as ThreatMarkerEntry).threatId !== threatId) continue;
         const marker = markers[i] as Marker;
         return marker.chrono !== null && marker.isChronoRingSet ? marker.chronoRing : null;
+      }
+      return null;
+    },
+    chronoDrawOf(threatId) {
+      for (let i = 0; i < markers.length; i++) {
+        if ((mounted[i] as ThreatMarkerEntry).threatId !== threatId) continue;
+        const marker = markers[i] as Marker;
+        if (marker.chrono === null || marker.chronoPermille === CHRONO_HIDDEN) return null;
+        chronoDraw.permille = marker.chronoPermille;
+        chronoDraw.isLit = marker.isChronoLit;
+        chronoDraw.isHold = marker.isChronoHold;
+        return chronoDraw;
       }
       return null;
     },

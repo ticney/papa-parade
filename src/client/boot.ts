@@ -23,6 +23,7 @@ import {
   type Sim,
   type SimEvent,
   type SimObjectSpec,
+  type ThreatInstance,
 } from '@sim';
 import { Color, Group, Scene, Vector3 } from 'three';
 import { createAccessibilitySettings } from './app/accessibilitySettings.ts';
@@ -85,6 +86,7 @@ import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
 import { createInstinctVignette } from './ui/hud/instinctVignette.ts';
+import { createOffscreenHud, type OffscreenChip } from './ui/hud/offscreenHud.ts';
 import { createScreenFlash, SCREEN_FLASH_CLASSES } from './ui/hud/screenFlash.ts';
 import { createSequenceBar } from './ui/hud/sequenceBar.ts';
 import { createSilenceBubble } from './ui/hud/silenceBubble.ts';
@@ -106,6 +108,7 @@ import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
 import { applyActivityBubbleMetrics } from './ui/world/activityBubble.ts';
 import { applyChronoRingMetrics, chronoJudgedMirror } from './ui/world/chronoRing.ts';
+import { applyOffscreenBubbleMetrics, createOffscreenBubbles } from './ui/world/offscreenBubble.ts';
 import { createWorldUi } from './ui/world/worldUi.ts';
 
 /** The timer's slot in the HUD batch. */
@@ -119,6 +122,8 @@ const CATASTROPHE_SLOT = GAUGE_IDS.length + 2;
 /** The most the scheduler takes off the audio clock to pair it with the loop's, in real ms (story 4.5): a frame older than this is a clock to distrust, not a skew to correct. */
 const BEAT_CLOCK_AGE_MAX_MS = 100;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
+/** No threats outside a level: the off-screen bubbles then hide (story 9.3). */
+const NO_THREATS: readonly ThreatInstance[] = [];
 const NO_BABY_SLIDE: Readonly<{ xM: number; zM: number }> = { xM: 0, zM: 0 };
 const NO_SIM_OBJECTS: readonly SimObjectSpec[] = [];
 
@@ -290,6 +295,8 @@ export async function boot(): Promise<void> {
   applyChronoRingMetrics(document.documentElement);
   // The activity bubble's sizes and the combo badge's offsets beside it (story 2.12), from the constants.
   applyActivityBubbleMetrics(document.documentElement);
+  // The off-screen bubbles' sizes, for both surfaces (story 9.3), from the constants.
+  applyOffscreenBubbleMetrics(document.documentElement);
 
   // Debug mirrors of the flow for Playwright, stripped from store builds by the flag. They go
   // before the bindings below, which can emit as soon as they are bound. The existing specs read
@@ -345,6 +352,7 @@ export async function boot(): Promise<void> {
       | 'ppStampCount'
       | 'ppThreat'
       | 'ppThreatPx'
+      | 'ppOffscreen'
       | 'ppResponse'
       | 'ppChronoJudged'
       | 'ppGag'
@@ -610,6 +618,16 @@ export async function boot(): Promise<void> {
   let keyboardLayoutMap: ReadonlyMap<string, string> | null = null;
   // The chip's text, recomputed only when what it depends on changes (no string built per frame).
   let chipText = '';
+  // The chip beside an off-screen bubble (story 9.3, D7): where it goes, and the world point under it.
+  const offscreenChip: OffscreenChip = {
+    side: null,
+    xPx: 0,
+    yPx: 0,
+    ndcX: 0,
+    ndcY: 0,
+    radiusPx: 0,
+  };
+  const offscreenChipPoint = new Vector3();
   let chipDevice: 'keyboard' | 'gamepad' | null = null;
   let chipFamily: 'xbox' | 'playstation' | null = null;
   let chipMap: ReadonlyMap<string, string> | null = null;
@@ -1009,6 +1027,22 @@ export async function boot(): Promise<void> {
           ? keyGlyph('Space', keyboardLayoutMap, t)
           : padConfirmGlyph(family, t);
     }
+    // Off screen, the chip sits beside the target's bubble (story 9.3, D7): at the world point under the
+    // bubble's centre for the camera as it is (any depth projects there), on the side the layout chose.
+    if (offscreenHud.chipOf(targetedId, offscreenChip) && offscreenChip.side !== null) {
+      // The rig and the camera fx moved the camera this frame; the renderer has not refreshed its matrices yet.
+      camera.updateMatrixWorld();
+      offscreenChipPoint.set(offscreenChip.ndcX, offscreenChip.ndcY, 0).unproject(camera);
+      worldUi.glyphChip.showAtPoint(
+        offscreenChipPoint.x,
+        offscreenChipPoint.y,
+        offscreenChipPoint.z,
+        chipText,
+        offscreenChip.side,
+        offscreenChip.radiusPx,
+      );
+      return;
+    }
     const entries = worldUi.threatEntries;
     for (let i = 0; i < world.threats.length; i++) {
       if ((world.threats[i] as { id: number }).id !== targetedId) continue;
@@ -1201,6 +1235,8 @@ export async function boot(): Promise<void> {
       currentLevel = level;
       debugGroup = null; // the previous scene (and so its group) is gone
       worldUi.mountThreats(threatEntries);
+      offscreenHud.setLevel(threatEntries);
+      if (isMirrored) mirror('ppOffscreen', '');
       highlightedThreatId = null;
       choreography.reset();
       room = level.room;
@@ -1441,6 +1477,16 @@ export async function boot(): Promise<void> {
           mirror('ppBreathHeld', String(world.sequence.stealth.breathHeldAt !== null));
         }
       }
+      // The off-screen bubbles of a follow level (story 9.3): after the markers' update, whose rings they
+      // copy, and before the chip, which may sit beside one. A level that is not live has none.
+      offscreenHud.update(
+        world !== undefined && isFlowLive(world),
+        world?.threats ?? NO_THREATS,
+        targetedId,
+        highlightedThreatId,
+        !silenceBubble.element.hidden,
+      );
+      if (isMirrored && offscreenHud.hasChanged) mirror('ppOffscreen', offscreenHud.mirrorText());
       showGlyphChip(world, targetedId, device);
       if (isMirrored) {
         mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
@@ -1753,8 +1799,65 @@ export async function boot(): Promise<void> {
       const def = levelSession.active?.level.threats[defId];
       return def?.target === 'hiddenZone' ? def.findMaxMs : null;
     },
+    // In the big room the « … » says no direction (story 9.3, D8; FR19 v2.3).
+    isDirectional: () => followRig.mode !== 'follow',
   });
   window.addEventListener('resize', () => silenceBubble.relayout());
+  // The off-screen bubbles of a follow level (story 9.3): HUD elements, mounted in `#pp-hud` while shown.
+  const offscreenBubbles = createOffscreenBubbles(document, {
+    t,
+    host: hudRoot,
+    chronoRingOf: (threatId) => worldUi.chronoRingOf(threatId),
+    chronoDrawOf: (threatId) => worldUi.chronoDrawOf(threatId),
+  });
+  const offscreenHud = createOffscreenHud({
+    bubbles: offscreenBubbles,
+    follow: followRig,
+    // Once per resize or level, never per frame.
+    measure: (out) => {
+      const hudRect = hudRoot.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      const row = hudRoot.querySelector('.pp-hud-row')?.getBoundingClientRect();
+      if (
+        row === undefined ||
+        !(hudRect.width > 0 && canvasRect.width > 0 && canvasRect.height > 0)
+      ) {
+        return false;
+      }
+      out.hudLeftPx = hudRect.left;
+      out.hudTopPx = hudRect.top;
+      out.widthPx = hudRect.width;
+      out.heightPx = hudRect.height;
+      out.insetLeftPx = row.left - hudRect.left;
+      out.insetRightPx = hudRect.right - row.right;
+      out.hudBottomPx = row.bottom - hudRect.top;
+      out.canvasLeftPx = canvasRect.left - hudRect.left;
+      out.canvasTopPx = canvasRect.top - hudRect.top;
+      out.canvasWidthPx = canvasRect.width;
+      out.canvasHeightPx = canvasRect.height;
+      out.isCompact = document.documentElement.dataset.ppSurface === 'compact';
+      return true;
+    },
+    // The silence bubble and its ring, when it shows (D8): measured once then.
+    silenceBox: (out) => {
+      const hudRect = hudRoot.getBoundingClientRect();
+      const box = silenceBubble.element.getBoundingClientRect();
+      let { left, top, right, bottom } = box;
+      if (silenceBubble.ring.parentNode !== null && !silenceBubble.ring.hidden) {
+        const ring = silenceBubble.ring.getBoundingClientRect();
+        left = Math.min(left, ring.left);
+        top = Math.min(top, ring.top);
+        right = Math.max(right, ring.right);
+        bottom = Math.max(bottom, ring.bottom);
+      }
+      out.isSet = right > left;
+      out.leftPx = left - hudRect.left;
+      out.topPx = top - hudRect.top;
+      out.rightPx = right - hudRect.left;
+      out.bottomPx = bottom - hudRect.top;
+    },
+  });
+  window.addEventListener('resize', () => offscreenHud.invalidate());
   const hud = createHudLayer(hudRoot, {
     t,
     onPausePress: () => pause.requestPause('user'),
@@ -1958,6 +2061,8 @@ export async function boot(): Promise<void> {
         if (!isGameInputBlocked) levelSession.active?.sim.enqueue(command);
       },
     }),
+    // A press on an off-screen bubble is a press on its threat (story 9.3, D4): asked first.
+    pickOffscreenBubble: (clientX, clientY) => offscreenHud.pick(clientX, clientY),
     getThreatTargets: () => {
       const active = levelSession.active;
       if (active === null) return null;
@@ -2102,6 +2207,8 @@ export async function boot(): Promise<void> {
     worldUi.glyphChip.hide();
     worldUi.comboBadge.hide();
     worldUi.activityBubble.hide();
+    offscreenHud.hide();
+    if (isMirrored && offscreenHud.hasChanged) mirror('ppOffscreen', '');
     worldUi.papaHint.hide();
     highlightedThreatId = null;
     // A pad lost in that level does not follow the player into the next one (the line is for the pause).

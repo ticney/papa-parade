@@ -1,4 +1,6 @@
 import type { Feel } from '@content/schemas/feel';
+import { viewUM, viewVM } from '@shared/followCamera';
+import { followFramePointOf } from '@shared/followVisibility';
 import { asSimMs } from '@shared/time';
 import type { SimEvent, World } from '@sim';
 import { type OrthographicCamera, Vector3 } from 'three';
@@ -332,5 +334,45 @@ describe('createFollowRig (story 9.2)', () => {
     expect(clamps.at(-1)).toBe(rig.frame);
     rig.setLevel(KITCHEN, { ...FOLLOW, mode: 'fixed' });
     expect(clamps.at(-1)).toBeNull();
+  });
+});
+
+describe("the follow's base frame on screen (story 9.3, D2)", () => {
+  it("puts a point where three's projection of the moved camera does, within 0.5 px", () => {
+    for (const [widthPx, heightPx] of [
+      [844, 390],
+      [1024, 768],
+    ] as const) {
+      const camera = createIsoCamera();
+      const fx = createCameraFx(camera);
+      const rig = createFollowRig(camera, fx);
+      rig.setLevel(KITCHEN, FOLLOW);
+      rig.fit(widthPx / heightPx);
+      const built = { camera, fx, rig };
+      // Papa walks to the kitchen end: the follow (and so `cameraFx`'s base) moves, no perfect on top.
+      play(built, worldOf(), 0, 3000, -6, -2.5);
+      expect(Math.abs(rig.centreUM - viewUM(5.25, 1))).toBeGreaterThan(1);
+      const out = { xPx: 0, yPx: 0 };
+      for (const [xM, yM, zM] of [
+        [-6.4, 1.05, -2],
+        [5.6, 1.4, 2.5],
+        [0.35, 0, -3.5],
+        [-9, 2.5, 3],
+      ] as const) {
+        followFramePointOf(
+          rig.frame,
+          rig.centreUM,
+          rig.centreVM,
+          viewUM(xM, zM),
+          viewVM(xM, yM, zM),
+          widthPx,
+          heightPx,
+          out,
+        );
+        const ndc = new Vector3(xM, yM, zM).project(camera);
+        expect(Math.abs(out.xPx - ((ndc.x + 1) / 2) * widthPx)).toBeLessThan(0.5);
+        expect(Math.abs(out.yPx - ((1 - ndc.y) / 2) * heightPx)).toBeLessThan(0.5);
+      }
+    }
   });
 });

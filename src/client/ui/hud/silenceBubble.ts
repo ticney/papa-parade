@@ -35,6 +35,12 @@ export interface SilenceBubbleOptions {
    * (story 2.11). Called when the bubble shows, never per frame. With no answer the ring stays hidden.
    */
   findMaxMs?(defId: string): number | null;
+  /**
+   * Whether the bubble tells the side and the height of the zone (story 9.3, D8): false in a level whose
+   * camera follows Papa, where the « … » stays without any direction (FR19 v2.3) and sits at the right
+   * edge just under the HUD row. Read when the bubble is placed. Absent: directional (a fixed camera).
+   */
+  isDirectional?(): boolean;
 }
 
 export interface SilenceBubble {
@@ -155,8 +161,9 @@ export function createSilenceBubble(doc: Doc, options: SilenceBubbleOptions): Si
   const place = (): boolean => {
     const { width, height } = options.viewport();
     const minTopPx = options.hudBottomPx() + BUBBLE_GAP_PX;
-    if (!hasZone) {
-      // The silence names no threat the HUD knows: never leave the player without the cue.
+    if (!hasZone || options.isDirectional?.() === false) {
+      // The silence names no threat the HUD knows, or the room is too big to give a direction (story
+      // 9.3): never leave the player without the cue, and never tell where the baby hides.
       setSide('right');
       setTop(minTopPx);
       return true;

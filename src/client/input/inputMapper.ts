@@ -51,6 +51,11 @@ export interface InputMapperDeps {
   onTap?(xM: number, zM: number): void;
   /** The threats of the level being played and their icon points, or null outside a level. */
   getThreatTargets(): ThreatTargets | null;
+  /**
+   * The threat whose off-screen bubble is under the page point `(clientX, clientY)` (story 9.3, D4), or
+   * null: asked first, so a bubble wins over whatever lies under it. Absent: no bubbles (a fixed level).
+   */
+  pickOffscreenBubble?(clientX: number, clientY: number): number | null;
   /** `feel.input.touchRadiusPx`: how far from a threat's icon a press still counts, in CSS px. */
   touchRadiusPx: number;
   /** `feel.input.objectTouchRadiusPx`: how far from an object's icon point a press still counts, in CSS px. */
@@ -555,16 +560,20 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       if (!(rect.width > 0 && rect.height > 0)) return;
       bindTo(active);
       const targets = deps.getThreatTargets();
+      // A bubble is the threat it stands for (story 9.3): the same press, whatever is under it.
+      const bubbleThreatId = deps.pickOffscreenBubble?.(sample.clientX, sample.clientY) ?? null;
       const threatId =
-        targets === null
-          ? null
-          : deps.hitTester.pickThreat(
-              sample.clientX,
-              sample.clientY,
-              rect,
-              targets,
-              deps.touchRadiusPx,
-            );
+        bubbleThreatId !== null
+          ? bubbleThreatId
+          : targets === null
+            ? null
+            : deps.hitTester.pickThreat(
+                sample.clientX,
+                sample.clientY,
+                rect,
+                targets,
+                deps.touchRadiusPx,
+              );
       if (isBusy(active)) {
         // The press the client used to drop (story 2.12 D2): the sim refuses it with `TapRefused`,
         // or judges it if that step already has Papa free. The finger is recorded so that its

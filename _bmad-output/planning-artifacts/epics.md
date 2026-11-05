@@ -266,7 +266,7 @@ La spécification UX fait foi pour l'interface : `ux-designs/ux-papa-parade-2026
 - UX-DR24 : **Crédits.** On les ouvre depuis les réglages ; ils se jouent aussi automatiquement à la première fin du niveau Adulte avec au moins 1 étoile.
 - UX-DR25 : **Retour Android.** Il met en pause en jeu et revient d'un niveau dans les menus.
 - UX-DR26 : **Budget de performance de l'UI.**
-  - HUD de 40 nœuds DOM au plus, mises à jour regroupées une fois par frame.
+  - HUD de 64 nœuds DOM au plus (40 avant la story 9.3 : le HUD de `salon_kitchen` en compte 36 avant toute bulle), mises à jour regroupées une fois par frame.
   - Jauges animées en `scaleX` uniquement, étiquettes CSS2D en pool.
   - Retour visuel au plus 50 ms après le tap.
 - UX-DR27 : **anneau-chrono.** 5 px autour de l'icône de menace, à l'extérieur du `hold-ring` (2 px d'écart). Progression `paper` sur `ring-track`, contour `ink` de 2 px ; dernier arc `alert`, épaissi à 8 px ; encoche parfaite : un trait `ink` de 2 px. Jamais aux couleurs `parry` / `dodge`. Pendant un maintien (Fermeté), le `hold-ring` se remplit à l'intérieur et l'anneau-chrono se vide jusqu'à la fin de l'attaque.
@@ -659,7 +659,7 @@ afin de ne jamais perdre l'action de vue.
 
 **Et** toutes les marges intègrent `env(safe-area-inset-*)` (viewport `viewport-fit=cover`), si bien qu'aucun élément n'est masqué par l'encoche d'un iPhone en paysage (vérifié par un test Playwright avec un viewport d'iPhone 12 en paysage)
 **Et** la surface est « compacte » quand le petit côté du paysage fait moins de 430 px, « normale » au-delà ; les coins du HUD ne bougent pas d'une surface à l'autre
-**Et** le HUD compte au plus 40 nœuds DOM, ses mises à jour sont regroupées une fois par frame, et ses jauges ne s'animent que par `transform: scaleX` (vérifié par un test Playwright)
+**Et** le HUD compte au plus 64 nœuds DOM (40 avant la story 9.3), ses mises à jour sont regroupées une fois par frame, et ses jauges ne s'animent que par `transform: scaleX` (vérifié par un test Playwright)
 
 **Étant donné** le bouton pause (`button-icon`, cible d'au moins 44 × 44 pt) ou la touche Échap
 **Quand** je l'actionne en jeu

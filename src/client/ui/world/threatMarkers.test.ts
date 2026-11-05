@@ -1915,6 +1915,54 @@ describe('the chrono-ring of a marker (story 2.11)', () => {
     });
   });
 
+  describe('what the ring drew, for the off-screen bubble (story 9.3, D6)', () => {
+    it('hands out this frame’s per-mille, lit arc and hold, and null when no ring is drawn', () => {
+      const { markers } = buildRing();
+      markers.mount([RING_ENTRY, { ...ENTRY, threatId: 5 }]);
+      expect(markers.chronoDrawOf(4)).toBeNull();
+      expect(markers.chronoDrawOf(5)).toBeNull();
+      expect(markers.chronoDrawOf(99)).toBeNull();
+      markers.update([ringThreat('telegraph')], null, null, null, 1700);
+      const span = OPEN_AT + WINDOW.windowMs - START_AT;
+      expect(markers.chronoDrawOf(4)).toEqual({
+        permille: Math.round(((1700 - START_AT) / span) * 1000),
+        isLit: false,
+        isHold: false,
+      });
+      markers.update([ringThreat('windowOpen')], null, null, null, 2100);
+      expect(markers.chronoDrawOf(4)).toEqual({
+        permille: Math.round(((2100 - START_AT) / span) * 1000),
+        isLit: true,
+        isHold: false,
+      });
+      // A held Firmness drains, with no lit arc.
+      const held = buildRing();
+      held.markers.mount([{ ...RING_ENTRY, holdUntilMs: 800 }]);
+      held.markers.update(
+        [
+          ringThreat('windowOpen', {
+            press: {
+              t: asSimMs(2100),
+              quality: 'success',
+              offsetMs: 0,
+              releasedAt: null,
+              heldAt: null,
+            },
+          }),
+        ],
+        null,
+        null,
+        null,
+        2100,
+        400,
+      );
+      expect(held.markers.chronoDrawOf(4)).toEqual({ permille: 1000, isLit: false, isHold: true });
+      // Resolved: the ring is not drawn any more.
+      markers.update([ringThreat('resolved')], null, null, null, 2200);
+      expect(markers.chronoDrawOf(4)).toBeNull();
+    });
+  });
+
   describe('the hold drains the ring (AC 11, D5)', () => {
     const HOLD_MIN_MS = 400;
     const HOLD_UNTIL_MS = 800;

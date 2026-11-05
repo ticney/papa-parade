@@ -507,7 +507,7 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | Budget | Value | Source |
 |---|---|---|
 | Tap → visual feedback | 50ms or less: the highlight and the glide start in the frame after `pointerdown`, with no heavy work in handlers | NFR2, ARCH, story 1.11 |
-| HUD DOM nodes | 43 or fewer (40 before story 3.16: Geo raised it, 2026-11-04, for the catastrophe-face's 3 nodes; the busiest HUD measured reads 42), plus up to 3 offscreen-bubbles (v2.3, story 9.3: re-measure then) | `[ASSUMPTION]` |
+| HUD DOM nodes | 64 or fewer, including the catastrophe-face and up to 3 offscreen-bubbles (40 before story 3.16; 43 for the catastrophe-face's 3 nodes, Geo, 2026-11-04; 64 for story 9.3, v2.3: the big room's HUD measured 36 nodes before any bubble, Geo raised it on 2026-11-04) | `[ASSUMPTION]` |
 | Gauge animation | `transform: scaleX` only; no layout work | `[ASSUMPTION]` |
 | CSS2D labels | Pooled; no per-frame allocation | `[ASSUMPTION]`; ARCH pooling rule |
 | Filters | No blur filters and no `backdrop-filter` | `[ASSUMPTION]` |

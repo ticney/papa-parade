@@ -112,3 +112,31 @@ export async function ppPagePoint(
 /** The cues the director played, oldest first, with the visuals each drew (`__PP__.cueLog()`, story 2.4). */
 export const ppCueLog = (page: Page): Promise<ReturnType<PPTestApi['cueLog']>> =>
   page.evaluate(() => window.__PP__?.cueLog() ?? []);
+
+/** One off-screen bubble as `data-pp-offscreen` mirrors it (story 9.3): its threat, edge, centre (page px) and chevron angle. */
+export interface OffscreenBubbleMirror {
+  threatId: number;
+  edge: 'left' | 'top' | 'right';
+  xPx: number;
+  yPx: number;
+  angleDeg: number;
+}
+
+/** The off-screen bubbles shown (`data-pp-offscreen`, sorted by threat id); empty when none. */
+export async function ppOffscreen(page: Page): Promise<OffscreenBubbleMirror[]> {
+  const value = await page.evaluate(() => document.documentElement.dataset.ppOffscreen ?? '');
+  if (value === '') return [];
+  return value.split(';').map((item) => {
+    const [threatId, edge, xPx, yPx, angleDeg] = item.split(':');
+    if (edge !== 'left' && edge !== 'top' && edge !== 'right') {
+      throw new Error(`data-pp-offscreen has "${item}", not "<id>:<edge>:<x>:<y>:<angle>"`);
+    }
+    return {
+      threatId: Number(threatId),
+      edge,
+      xPx: Number(xPx),
+      yPx: Number(yPx),
+      angleDeg: Number(angleDeg),
+    };
+  });
+}

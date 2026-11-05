@@ -213,9 +213,11 @@ export const HUD_BAND_MAX_PCT = 12;
 /**
  * The HUD layer has at most this many DOM nodes. 40 until story 3.16, raised to 43 by Geo
  * (2026-11-04) when Mama's face (3 nodes) came in: the busiest measured HUD, a silence with its ring,
- * reads 42.
+ * reads 42. Then 64 for story 9.3: the big room's HUD already had 36 (39 with the silence ring), and
+ * 3 off-screen bubbles at 6 nodes each bring its peak to 60 with the catastrophe-face; Geo raised it
+ * to 64 (2026-11-04).
  */
-export const HUD_MAX_DOM_NODES = 43;
+export const HUD_MAX_DOM_NODES = 64;
 
 /** A panel pops in within this much real time, in ms (a plain fade under reduced motion). */
 export const PANEL_POP_MAX_MS = 220;
@@ -646,3 +648,41 @@ export const THREAT_ICON_COMPACT_PX = 56;
 
 /** ...and on the regular surface, in CSS px. */
 export const THREAT_ICON_REGULAR_PX = 64;
+
+/**
+ * The off-screen bubble of a follow level (story 9.3; DESIGN.md › offscreen-bubble, UX-DR30): a paper
+ * disc at the left, right or top edge for a threat whose icon is outside the follow frame. DESIGN sizes
+ * and plumbing, not feel (D9): `offscreenBubbleSpec.test.ts` pins them to DESIGN.md. At most this many
+ * at once (`maxCount`).
+ */
+export const OFFSCREEN_BUBBLE_MAX_COUNT = 3;
+
+/** The threat icon inside the bubble on the compact surface, in CSS px (`iconSizeCompact`). */
+export const OFFSCREEN_BUBBLE_ICON_COMPACT_PX = 40;
+
+/** ...and on the regular surface, in CSS px (`iconSizeRegular`). */
+export const OFFSCREEN_BUBBLE_ICON_REGULAR_PX = 48;
+
+/** The bubble's ink border, in CSS px (`borderWidth`). */
+export const OFFSCREEN_BUBBLE_BORDER_PX = 3;
+
+/** Paper between the ring's outermost ink and the bubble's border, in CSS px. */
+export const OFFSCREEN_BUBBLE_PADDING_PX = 2;
+
+/** How far the ink chevron reaches beyond the bubble's border, toward the threat, in CSS px. */
+export const OFFSCREEN_BUBBLE_CHEVRON_PX = 10;
+
+/** The gap between two bubbles' outer edges, chevrons included, and under the HUD row, in CSS px (`stackGap`, `{spacing.2}`). */
+export const OFFSCREEN_BUBBLE_STACK_GAP_PX = 8;
+
+/** A shown bubble hides once its threat's icon is this much further inside the frame, in CSS px: no flicker at the edge. */
+export const OFFSCREEN_BUBBLE_HYSTERESIS_PX = 12;
+
+/** The DOM nodes one bubble costs with a circle icon, at most (UX-DR26, the HUD's budget). */
+export const OFFSCREEN_BUBBLE_MAX_NODES = 7;
+
+/** The room the layout keeps for the glyph chip beside a targeted bubble, in CSS px (« Espace » at its widest, outline included). */
+export const OFFSCREEN_BUBBLE_CHIP_WIDTH_PX = 96;
+
+/** ...and its height (the chip's 32 px). */
+export const OFFSCREEN_BUBBLE_CHIP_HEIGHT_PX = 32;
