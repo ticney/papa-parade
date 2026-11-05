@@ -267,6 +267,17 @@ describe('createOffscreenBubbles (story 9.3, D5, AC 3, 8, 9)', () => {
     expect(second?.classes.has(OFFSCREEN_BUBBLE_CLASSES.targeted)).toBe(false);
   });
 
+  it('shows the same highlight on the pressed threat’s bubble (D7)', () => {
+    const { host, slots, bubbles, show } = setup();
+    show([1, 80, 100, 180], [2, 80, 210, 180]);
+    bubbles.update(slots, null, 1);
+    const [first, second] = mounted(host);
+    expect(first?.classes.has(OFFSCREEN_BUBBLE_CLASSES.targeted)).toBe(true);
+    expect(second?.classes.has(OFFSCREEN_BUBBLE_CLASSES.targeted)).toBe(false);
+    bubbles.update(slots, null, null);
+    expect(first?.classes.has(OFFSCREEN_BUBBLE_CLASSES.targeted)).toBe(false);
+  });
+
   it('picks the disc under a point, the nearest of two, and nothing outside or when hidden', () => {
     const { slots, bubbles, show } = setup();
     show([1, 80, 100, 180], [2, 80, 180, 180]);

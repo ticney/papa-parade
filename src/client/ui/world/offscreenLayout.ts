@@ -140,9 +140,9 @@ let forbidFrom = 0;
 let forbidTo = 0;
 let minGapPx = 0;
 // The chosen candidates (indices), their wishes and their places along the track.
-const chosen = [0, 0, 0];
-const wishes = [0, 0, 0];
-const places = [0, 0, 0];
+const chosen: number[] = new Array(OFFSCREEN_BUBBLE_MAX_COUNT).fill(0);
+const wishes: number[] = new Array(OFFSCREEN_BUBBLE_MAX_COUNT).fill(0);
+const places: number[] = new Array(OFFSCREEN_BUBBLE_MAX_COUNT).fill(0);
 const BISECTIONS = 40;
 
 function setTrack(viewport: Readonly<OffscreenViewport>): void {

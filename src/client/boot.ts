@@ -1010,6 +1010,8 @@ export async function boot(): Promise<void> {
     // Off screen, the chip sits beside the target's bubble (story 9.3, D7): at the world point under the
     // bubble's centre for the camera as it is (any depth projects there), on the side the layout chose.
     if (offscreenHud.chipOf(targetedId, offscreenChip) && offscreenChip.side !== null) {
+      // The rig and the camera fx moved the camera this frame; the renderer has not refreshed its matrices yet.
+      camera.updateMatrixWorld();
       offscreenChipPoint.set(offscreenChip.ndcX, offscreenChip.ndcY, 0).unproject(camera);
       worldUi.glyphChip.showAtPoint(
         offscreenChipPoint.x,

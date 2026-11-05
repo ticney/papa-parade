@@ -56,6 +56,7 @@ function setup(mode: 'fixed' | 'follow' = 'follow') {
     [];
   let hides = 0;
   let measures = 0;
+  let canMeasure = true;
   const bubbles: OffscreenBubbles = {
     elements: [],
     setLevel: () => {},
@@ -76,6 +77,7 @@ function setup(mode: 'fixed' | 'follow' = 'follow') {
     follow: followOf(mode),
     measure: (out: OffscreenScreen) => {
       measures++;
+      if (!canMeasure) return false;
       Object.assign(out, {
         hudLeftPx: 10,
         hudTopPx: 20,
@@ -100,6 +102,9 @@ function setup(mode: 'fixed' | 'follow' = 'follow') {
     updates,
     hides: () => hides,
     measures: () => measures,
+    setCanMeasure: (next: boolean) => {
+      canMeasure = next;
+    },
   };
 }
 
@@ -118,6 +123,43 @@ describe('createOffscreenHud (story 9.3)', () => {
     hud.setLevel([entryAt(1, 400, 40), entryAt(2, -80, 200), entryAt(3, -80, 100)]);
     hud.update(true, [threat(1), threat(2, 'hidden'), threat(3, 'idle')], null, null, false);
     expect(updates.at(-1)?.slots.map((slot) => [slot.threatId, slot.edge])).toEqual([[1, 'top']]);
+  });
+
+  it('gives the found baby’s threat a bubble once it leaves hidden (AC 7)', () => {
+    const { hud, updates } = setup();
+    hud.setLevel([entryAt(1, -80, 200)]);
+    hud.update(true, [threat(1, 'hidden')], null, null, false);
+    expect(updates.at(-1)?.slots).toEqual([]);
+    hud.update(true, [threat(1, 'telegraph')], null, null, false);
+    expect(updates.at(-1)?.slots.map((slot) => [slot.threatId, slot.edge])).toEqual([[1, 'left']]);
+  });
+
+  it('hides the bubbles of the old screen when it cannot be measured again', () => {
+    const { hud, hides, setCanMeasure } = setup();
+    hud.setLevel([entryAt(1, -80, 200)]);
+    hud.update(true, [threat(1)], null, null, false);
+    expect(hud.pick(100 + 10, 50 + 20)).toBe(7);
+    setCanMeasure(false);
+    hud.invalidate();
+    const before = hides();
+    hud.update(true, [threat(1)], null, null, false);
+    expect(hides()).toBe(before + 1);
+    expect(hud.pick(100 + 10, 50 + 20)).toBeNull();
+    expect(hud.mirrorText()).toBe('');
+    expect(hud.hasChanged).toBe(true);
+  });
+
+  it('counts the same bubble back after a new level as a change (the mirror is rewritten)', () => {
+    const { hud } = setup();
+    const entries = [entryAt(1, -80, 200)];
+    hud.setLevel(entries);
+    hud.update(true, [threat(1)], null, null, false);
+    const mirror = hud.mirrorText();
+    expect(mirror).not.toBe('');
+    hud.setLevel(entries);
+    hud.update(true, [threat(1)], null, null, false);
+    expect(hud.mirrorText()).toBe(mirror);
+    expect(hud.hasChanged).toBe(true);
   });
 
   it('keeps a shown bubble until the icon is the hysteresis inside, then lets it go', () => {

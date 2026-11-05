@@ -207,6 +207,8 @@ export function createOffscreenHud(deps: OffscreenHudDeps): OffscreenHud {
   return {
     setLevel(levelEntries) {
       hide();
+      // What was drawn is gone with the level: a bubble that comes back identical is a change.
+      takeChange();
       entries = levelEntries;
       candidates = levelEntries.map(() => createOffscreenCandidate());
       wasOutside = levelEntries.map(() => false);
@@ -231,7 +233,12 @@ export function createOffscreenHud(deps: OffscreenHudDeps): OffscreenHud {
       }
       if (!isMeasured) {
         isMeasured = measure();
-        if (!isMeasured) return;
+        if (!isMeasured) {
+          // No screen to lay out on (the HUD is hidden): the bubbles drawn for the old one must not stay.
+          hide();
+          hasChanged = takeChange();
+          return;
+        }
         // A new screen: the silence's box moved with it.
         wasSilenceShown = false;
       }

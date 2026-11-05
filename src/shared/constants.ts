@@ -676,7 +676,7 @@ export const OFFSCREEN_BUBBLE_STACK_GAP_PX = 8;
 /** A shown bubble hides once its threat's icon is this much further inside the frame, in CSS px: no flicker at the edge. */
 export const OFFSCREEN_BUBBLE_HYSTERESIS_PX = 12;
 
-/** The DOM nodes one bubble costs with a circle icon, at most (the HUD's 40, UX-DR26). */
+/** The DOM nodes one bubble costs with a circle icon, at most (UX-DR26, the HUD's budget). */
 export const OFFSCREEN_BUBBLE_MAX_NODES = 7;
 
 /** The room the layout keeps for the glyph chip beside a targeted bubble, in CSS px (« Espace » at its widest, outline included). */

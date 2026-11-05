@@ -1053,3 +1053,11 @@ Open:
 - **Today's `salon_kitchen` threats never leave the frame on a landscape phone** (the story's numbers): the bubble shows on 4:3, with 9.5–9.7's kitchen threats, or with a tighter `feel.camera` frame (9.2's question 1).
 - **The HUD budget is 64 now** (Geo, 2026-11-04): the big room's HUD measured 36 nodes before any bubble (39 with the silence ring), so the 40 of UX-DR26 could not hold one bubble. Slimming the HUD (inline SVG gauges and timer) would win the room back if the budget ever matters on a device.
 - **The glyph chip's room is an estimate** (`OFFSCREEN_BUBBLE_CHIP_WIDTH_PX` 96 × 32, D7): the layout keeps the chip off the other bubbles from it, not from the chip's measured box (a key name wider than « Espace » would need it raised).
+
+## Deferred from: code review of 9-3-bulle-d-info-hors-cadre (2026-11-05)
+
+- **The bubble keeps the level-start glyph** (`offscreenBubble.setLevel`): the icon is built once, so it never gets the marker's glyph swap at a `wait` signal or a feint, and a `wait` has no ring: an off-screen signal would be missed. No follow level has a `wait` or fake-sleep threat yet; the story that adds one owns it.
+- **The targeted threat can have no bubble** (`boot.showGlyphChip` fall-through): with 4 or more threats outside the frame (cap 3), an unmeasured HUD or a packing failure, `chipOf` is false and the chip falls back to the off-screen marker, where it is clipped. Auto-target follows the bubbles' urgency order, so only keyboard cycling to a 4th threat reaches it.
+- **`measure` retries every frame while `#pp-hud` is hidden or sizeless** (a `querySelector` and three `getBoundingClientRect`, no log), and a layout change that fires no `resize` (sequence bar, safe area, font load) is not seen. A `ResizeObserver` and a throttle if it shows.
+- **No stickiness in the bubbles' places**: they are assigned by wish each frame, so two crossing wishes swap their bubbles and the cap-3 choice flips when two urgencies cross. Judge it when Geo plays 9.5–9.7 with several off-screen threats.
+- **The chip's room is not pinned when no side is free** (`chipOf` goes toward the centre all the same): the layout's property test skips `side === null`.

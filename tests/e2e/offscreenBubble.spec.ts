@@ -258,8 +258,8 @@ test.describe('the off-screen bubble (story 9.3)', () => {
   // On a phone only the coffee table and the stairs can leave the frame (the outlet stays in, however
   // tight the frame): two bubbles, which fill the right edge and wrap onto the top. Three bubbles need a
   // 4:3 screen; the layout's property test proves three at every size (`offscreenLayout.test.ts`).
-  // A phone's right edge holds one bubble at 750 × 340 and two at 844 × 390 under the HUD row, so the
-  // second (or third) wraps onto the top; a 4:3 one holds four.
+  // A phone's right edge, under the HUD row, holds one bubble at 750 × 340 and at 844 × 390 alike, so the
+  // second wraps onto the top (`isWrapped`); a 4:3 screen's holds all three.
   for (const [width, height, defIds, isWrapped] of [
     [844, 390, ['coffee_table_object', 'stairs'], true],
     [750, 340, ['coffee_table_object', 'stairs'], true],
