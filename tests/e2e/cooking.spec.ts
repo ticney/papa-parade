@@ -190,15 +190,26 @@ test.describe('the cooking: verbs, smoke and the pot on the stove', () => {
     if (beat === undefined) throw new Error('the level has no chore');
     const closeAt =
       beat.beatWindowOpenAt + beat.responseWindow.windowMs + beat.responseWindow.toleranceMs;
-    await advanceUntil(page, (world) => world.time.sim > closeAt + 40, 2000);
-    await waitFrames(page, 2);
+    await advanceUntil(page, (world) => world.time.sim >= closeAt - 20, 2000);
+    // Step to the miss and read the puff in the same page call, a frame after its cue: the particles live
+    // a short real time, which a round trip per step (under the load of the whole suite) can outlast.
+    const particlesAtMiss = await page.evaluate(async (untilSimMs) => {
+      const api = window.__PP__;
+      if (api === undefined) return -1;
+      while ((api.state()?.time.sim ?? Number.POSITIVE_INFINITY) <= untilSimMs) {
+        api.advance(1);
+        if (api.cueLog().some((record) => record.cueId === 'chore_puree_stuck')) break;
+      }
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      return api.fx().particlesAlive;
+    }, closeAt + 200);
     expect(await cueIds(page)).toContain('chore_puree_stuck');
     expect(await cueIds(page)).not.toContain('chore_beat_missed');
     // The cue drew its ring at the stove and the gag's puff: particles are alive.
     const log = await page.evaluate(() => window.__PP__?.cueLog() ?? []);
     const stuck = log.find((record) => record.cueId === 'chore_puree_stuck');
     expect(stuck?.visuals).toEqual(expect.arrayContaining(['soundWave', 'particles']));
-    expect((await ppFx(page)).particlesAlive).toBeGreaterThan(0);
+    expect(particlesAtMiss).toBeGreaterThan(0);
     expect(problems).toEqual([]);
   });
 
