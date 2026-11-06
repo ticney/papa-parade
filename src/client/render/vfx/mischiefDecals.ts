@@ -14,7 +14,8 @@ import type { ToonMaterialCache } from '../materials/toonMaterial.ts';
 // The mess a silence's mischief leaves (story 3.15, FR72): one floor decal per mark of
 // `world.afterEffects.mischiefMarks`, drawn until the level ends and, since the photo renders the frozen
 // `World` through the same scene, on the end photo. Provisional art (E7 draws the final one): a handful of
-// paper scraps for the tissues, a crayon scribble for the crayons. One mesh, one draw call, per mark.
+// paper scraps for the tissues, a crayon scribble for the crayons, a pale puddle of purée with a few
+// splashes around it for the pot that boiled over (story 9.5). One mesh, one draw call, per mark.
 
 /** The decals float this far above the floor so that they never fight it for the depth buffer, in metres. */
 export const DECAL_LIFT_M = 0.012;
@@ -28,6 +29,17 @@ const LINE_M = 0.028;
 const SCRIBBLE_M = 0.5;
 
 const TISSUE_COLOR = 0xffffff;
+/** The purée of the pot that boiled over: a pale yellow. */
+const PUREE_COLOR = 0xf0d878;
+/** The puddle's mean radius, in metres, and how far its edge wanders from it (a share of the radius). */
+const PUDDLE_RADIUS_M = 0.28;
+const PUDDLE_WOBBLE_PCT = 30;
+/** The rim of the puddle is this many points. */
+const PUDDLE_POINTS = 14;
+/** The splashes around the puddle: how many, how big (a quad's side) and how far from the centre, in metres. */
+const SPLASH_COUNT = 4;
+const SPLASH_M = 0.07;
+const SPLASH_REACH_M = 0.46;
 /** One crayon colour per mark, in turn. */
 const CRAYON_COLORS = [0xe0573b, 0x3b86e0, 0x43b05c] as const;
 
@@ -192,6 +204,31 @@ export function createDecalGeometry(gag: string, index: number): BufferGeometry 
       previousX = x;
       previousZ = z;
     }
+  } else if (gag === 'pot_boiled_over') {
+    // A fan of triangles round the centre: an irregular puddle, then a few splashes beyond it.
+    positions.push(0, 0, 0);
+    for (let i = 0; i < PUDDLE_POINTS; i++) {
+      const angle = (i / PUDDLE_POINTS) * Math.PI * 2;
+      const radius =
+        PUDDLE_RADIUS_M * (1 + ((hash01(index, i) - 0.5) * 2 * PUDDLE_WOBBLE_PCT) / 100);
+      positions.push(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+    }
+    for (let i = 0; i < PUDDLE_POINTS; i++) {
+      indices.push(0, 1 + ((i + 1) % PUDDLE_POINTS), 1 + i);
+    }
+    for (let i = 0; i < SPLASH_COUNT; i++) {
+      const angle = hash01(index, i + 50) * Math.PI * 2;
+      const reach = SPLASH_REACH_M * (0.7 + 0.3 * hash01(index, i + 60));
+      pushQuad(
+        positions,
+        indices,
+        Math.cos(angle) * reach,
+        Math.sin(angle) * reach,
+        SPLASH_M,
+        SPLASH_M,
+        hash01(index, i + 70) * Math.PI,
+      );
+    }
   } else {
     for (let i = 0; i < 5; i++) {
       const angle = hash01(index, i) * Math.PI * 2;
@@ -247,7 +284,9 @@ export function createMischiefDecals(
       new Color(
         gag === 'crayon_scribbles'
           ? (CRAYON_COLORS[index % CRAYON_COLORS.length] as number)
-          : TISSUE_COLOR,
+          : gag === 'pot_boiled_over'
+            ? PUREE_COLOR
+            : TISSUE_COLOR,
       ),
     );
   const clear = (): void => {

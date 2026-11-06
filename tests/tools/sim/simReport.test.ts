@@ -50,6 +50,7 @@ const NO_NOISE: RunSummary['noiseBySourcePct'] = {
   sniff: 0,
   debrisStep: 0,
   snore: 0,
+  gag: 0,
   debug: 0,
 };
 
@@ -89,7 +90,12 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     comboPeakMultiplier: 0,
     instinctTriggers: 0,
     toiletVisits: 0,
-    chores: { beats: { perfect: 0, success: 0, fail: 0 }, completed: 0, homePoints: 0 },
+    chores: {
+      beats: { perfect: 0, success: 0, fail: 0 },
+      completed: 0,
+      homePoints: 0,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+    },
     sequencesStarted: 0,
     sequencesSucceeded: 0,
     sequencesFailed: 0,
@@ -654,7 +660,13 @@ describe('summarizeRuns › chores (story 9.4)', () => {
     fail: number,
     completed: number,
     homePoints: number,
-  ): RunSummary['chores'] => ({ beats: { perfect, success, fail }, completed, homePoints });
+    abandoned = { telegraphed: 0, resolved: 0, boiledOver: 0 },
+  ): RunSummary['chores'] => ({
+    beats: { perfect, success, fail },
+    completed,
+    homePoints,
+    abandoned,
+  });
 
   it('is all zero in a level with no station, and for no run at all', () => {
     const empty = {
@@ -662,6 +674,7 @@ describe('summarizeRuns › chores (story 9.4)', () => {
       beats: { perfect: 0, success: 0, fail: 0 },
       meanHomePoints: 0,
       meanBeatsPerRun: 0,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
     };
     expect(summarizeRuns(INPUT, [run(1, {}), run(2, {})]).chores).toEqual(empty);
     expect(summarizeRuns(INPUT, []).chores).toEqual(empty);
@@ -680,7 +693,17 @@ describe('summarizeRuns › chores (story 9.4)', () => {
       // 15 points over 4 runs, 13 beats judged over 4 runs (3.25, to one decimal).
       meanHomePoints: 3.75,
       meanBeatsPerRun: 3.3,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
     });
+  });
+
+  it('sums the pots of the abandoned chores over the runs (story 9.5)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { chores: chores(0, 0, 0, 0, 0, { telegraphed: 3, resolved: 2, boiledOver: 1 }) }),
+      run(2, { chores: chores(0, 0, 0, 0, 0, { telegraphed: 1, resolved: 0, boiledOver: 1 }) }),
+      run(3, {}),
+    ]);
+    expect(report.chores.abandoned).toEqual({ telegraphed: 4, resolved: 2, boiledOver: 2 });
   });
 });
 
@@ -1372,7 +1395,64 @@ describe('createRunRecorder › chores (story 9.4)', () => {
       beats: { perfect: 2, success: 1, fail: 3 },
       completed: 2,
       homePoints: 10,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
     });
+  });
+
+  it('counts a pot telegraphed, lowered in time and boiled over, and never as a micro-sleep (story 9.5)', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 1,
+    });
+    const threatId = sim.world.threats[0]?.id ?? 0;
+    const defId = sim.world.threats[0]?.defId ?? '';
+    // The first threat of the level stands in for the pot: the recorder is told it is one.
+    const recorder = createRunRecorder(sim, 1, [], null, new Set(), null, new Set([defId]));
+    const telegraphed = (): SimEvent => ({
+      type: 'ThreatTelegraphed',
+      t: asSimMs(0),
+      threatId,
+      kind: defId,
+      anchorId: 'stove',
+      waveIndex: -1,
+    });
+    const resolved = (quality: 'perfect' | 'fail'): SimEvent =>
+      quality === 'fail'
+        ? {
+            type: 'ResponseResolved',
+            t: asSimMs(0),
+            threatId,
+            response: 'parry',
+            quality,
+            reason: 'late',
+            offsetMs: null,
+            responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+          }
+        : {
+            type: 'ResponseResolved',
+            t: asSimMs(0),
+            threatId,
+            response: 'parry',
+            quality,
+            offsetMs: 0,
+            responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+          };
+    recorder.onEvent(telegraphed());
+    recorder.onEvent(resolved('perfect'));
+    recorder.onEvent(telegraphed());
+    recorder.onEvent(resolved('fail'));
+    recorder.onEvent({
+      type: 'GagTriggered',
+      t: asSimMs(0),
+      threatId,
+      gag: 'pot_boiled_over',
+      reason: 'late',
+    });
+    const summary = recorder.finish();
+    expect(summary.chores.abandoned).toEqual({ telegraphed: 2, resolved: 1, boiledOver: 1 });
+    expect(summary.microSleeps).toBe(0);
   });
 
   it('counts nothing for a game that never touches a station', async () => {
@@ -1386,6 +1466,7 @@ describe('createRunRecorder › chores (story 9.4)', () => {
       beats: { perfect: 0, success: 0, fail: 0 },
       completed: 0,
       homePoints: 0,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
     });
   });
 });

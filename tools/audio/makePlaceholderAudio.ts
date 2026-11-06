@@ -2281,6 +2281,46 @@ export function synthCoffeeSlurp(): Float32Array {
   return out;
 }
 
+/** Length of the pot's telegraph (story 9.5), in ms. */
+const TEL_POT_LENGTH_MS = 800;
+/** The pot's simmer: the starting pitch of the bubbles in Hz, and how far they rise over the clip. */
+const TEL_POT_BUBBLE_HZ = 220;
+const TEL_POT_BUBBLE_RISE_HZ = 260;
+/** The bubbles pop this many times a second. */
+const TEL_POT_BUBBLE_RATE_HZ = 9;
+/** The hiss of the steam under the bubbles: the share of the noise in the mix, in percent. */
+const TEL_POT_HISS_PCT = 35;
+const TEL_POT_ATTACK_MS = 15;
+const TEL_POT_RELEASE_MS = 120;
+
+/** A pot coming to the boil (cue `tel_pot_on_stove`, story 9.5): rising bubbling pops over a thin hiss. */
+export function synthTelegraphPot(): Float32Array {
+  const rng = createRng(SEED + 51);
+  const out = new Float32Array(samplesOf(TEL_POT_LENGTH_MS));
+  const attack = samplesOf(TEL_POT_ATTACK_MS);
+  const release = samplesOf(TEL_POT_RELEASE_MS);
+  let phase = 0;
+  let hiss = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const seconds = i / SAMPLE_RATE_HZ;
+    // Each bubble is a short swell of a sine that climbs a little, like a bubble rising.
+    const bubble = (seconds * TEL_POT_BUBBLE_RATE_HZ) % 1;
+    const pop = Math.exp(-bubble * 7);
+    phase +=
+      (2 * Math.PI * (TEL_POT_BUBBLE_HZ + TEL_POT_BUBBLE_RISE_HZ * progress * (1 - bubble))) /
+      SAMPLE_RATE_HZ;
+    hiss += 0.3 * (nextFloat(rng) * 2 - 1 - hiss);
+    out[i] =
+      (pop * Math.sin(phase) + (TEL_POT_HISS_PCT / 100) * progress * hiss) *
+      Math.min(1, i / attack, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Array }[] = [
   { clip: 'baby_babble_loop', synth: synthBabble },
   { clip: 'music_crawler_calm', synth: synthMusic },
@@ -2344,6 +2384,7 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'music_bomb_thriller', synth: synthBombThriller },
   { clip: 'tel_false_alarm_sigh', synth: synthTelegraphFalseAlarmSigh },
   { clip: 'tel_real_wake', synth: synthTelegraphRealWake },
+  { clip: 'tel_pot_on_stove', synth: synthTelegraphPot },
   { clip: 'resp_nothing', synth: synthRespNothing },
   { clip: 'gag_baby_woke_by_touch', synth: synthGagBabyWokeByTouch },
   { clip: 'gag_baby_woke_crying', synth: synthGagBabyWokeCrying },

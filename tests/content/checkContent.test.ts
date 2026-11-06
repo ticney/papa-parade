@@ -2000,10 +2000,78 @@ describe('checkContent on the house chores (story 9.4)', () => {
     expect((await messages()).join('\n')).toMatch(/feedback\.success.*anchored on a threat/);
   });
 
+  it("refuses a beat whose verb has no string (the threats' wording)", async () => {
+    await mutateJson(COOKING, (chore) => {
+      (chore.beats as { verbKey: string }[])[1] = {
+        ...(chore.beats as { verbKey: string }[])[1],
+        verbKey: 'verb.no_such_verb',
+      } as { verbKey: string };
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /beats\[1\]\.verbKey.*verb\.no_such_verb.*strings\.fr\.json/,
+    );
+  });
+
+  it('refuses an abandoned threat whose file does not exist', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.abandonedThreat = { def: 'no_such_pot', afterMs: 30000 };
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /cooking\.json abandonedThreat\.def: no threat "no_such_pot"/,
+    );
+  });
+
+  it('refuses an abandoned threat that is not on a station', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.abandonedThreat = { def: 'outlet', afterMs: 30000 };
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /abandonedThreat\.def: the threat "outlet" has target "anchor", but the threat of an abandoned chore must have target "station"/,
+    );
+  });
+
+  it('refuses a station threat that no chore names', async () => {
+    await mutateJson(COOKING, (chore) => {
+      delete chore.abandonedThreat;
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /pot_on_stove\.json target: the threat "pot_on_stove" has target "station", but no chore names it/,
+    );
+  });
+
+  it('refuses a wave that plans the pot: only a chore spawns it', async () => {
+    await mutateJson('content/levels/salon_crawler.json', (level) => {
+      (level.waves as { threats: { def: string; anchor: string }[] }[])[0]?.threats.push({
+        def: 'pot_on_stove',
+        anchor: 'door',
+      });
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /the threat "pot_on_stove" has target "station": only a chore's abandonedThreat spawns it, a wave cannot plan it/,
+    );
+  });
+
+  it('refuses a pot whose def is not a parry', async () => {
+    await mutateJson('content/threats/pot_on_stove.json', (threat) => {
+      threat.response = 'nothing';
+      threat.nothingMs = 1000;
+    });
+    expect((await messages()).join('\n')).toMatch(/target "station".*response must be "parry"/);
+  });
+
+  it('refuses a pot whose gag has the wrong séquelle', async () => {
+    await mutateJson('content/threats/pot_on_stove.json', (threat) => {
+      threat.afterEffect = { kind: 'none' };
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /"pot_boiled_over", whose afterEffect\.kind must be "mess"/,
+    );
+  });
+
   it('refuses a uiElement cue: a chore cue is played for sim events', async () => {
     await mutateJson(FEEDBACK, (feedback) => {
       const cues = feedback.cues as Record<string, Record<string, unknown>>;
-      cues.chore_beat_missed = { visual: { kind: 'uiElement' }, haptic: 'light' };
+      cues.chore_puree_stuck = { visual: { kind: 'uiElement' }, haptic: 'light' };
     });
     expect((await messages()).join('\n')).toMatch(/feedback\.miss.*uiElement/);
   });

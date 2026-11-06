@@ -9,6 +9,7 @@ import type { StepContext } from '../context.ts';
 import { isLastOfWave } from '../director/waveState.ts';
 import type { FailReason, ResponseQuality, ThreatCancelReason } from '../events.ts';
 import { fatigueWindowModifier } from '../gauges/fatigue.ts';
+import { addNoise } from '../gauges/noise.ts';
 import { addResponseToCombo, resetCombo } from '../scoring/combo.ts';
 import { advanceSequenceOnResolve, failSequenceOnGag } from '../sequences/sequenceEnd.ts';
 import { startSlowMo } from '../time/slowMo.ts';
@@ -306,9 +307,11 @@ export function gagThreat(
   );
   applyGag(world, ctx, threat, gag, def);
   // What the gag leaves behind: Papa electrified or asleep, the baby downstairs, the mess (story 3.15).
-  applyAfterEffect(world, ctx, def, gag);
+  applyAfterEffect(world, ctx, def, gag, threat);
   // The cry belongs to the def, not to the gag id: many defs share a gag (story 3.1 D9).
   if (def.gagCryMs !== undefined) startBabyCry(world, ctx, def.gagCryMs);
+  // Same for the noise a gag makes by itself (story 9.5: the pot boiling over).
+  if (def.gagNoisePct !== undefined) addNoise(world, ctx, def.gagNoisePct, 'gag');
   // A missed threat loses the combo, nothing is cashed (story 4.2).
   resetCombo(world, ctx, 'gag');
   // Every failure is a miss for Fatherly Instinct, the timed-out silence and the micro-sleep too (story 2.9).

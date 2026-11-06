@@ -12,7 +12,8 @@ import { markDebris } from './afterEffects.ts';
  * `world.mess` and her scream from `world.score.nearMisses`, story 1.22: the stairs gag writes it, and
  * `recordFrozenNearMisses` adds the baby's frozen ones when the level ends, story 3.6). The presentation is the client's
  * (`client/render/gags.ts`). `content:check` checks a threat's `gag` (or `surpriseGags`) against this
- * list. The surprise mischiefs of the suspicious silence (story 1.21) add to `world.mess.mischiefs`.
+ * list. The surprise mischiefs of the suspicious silence (story 1.21) and the pot boiling over (story 9.5) add to
+ * `world.mess.mischiefs`.
  * A gag that makes the baby cry is not a gag id's business: the def says it with `gagCryMs`, and
  * `gagThreat` starts the cry (story 3.1 D9).
  */
@@ -23,6 +24,7 @@ export const GAG_IDS = [
   'papa_asleep',
   'tissues_everywhere',
   'crayon_scribbles',
+  'pot_boiled_over',
   'arms_wail',
   'baby_eyes_reopened',
   'baby_sat_up',
@@ -142,6 +144,8 @@ const GAG_CONSEQUENCES: Readonly<Record<GagId, GagConsequence>> = {
   papa_asleep: papaAsleep,
   tissues_everywhere: addMischief,
   crayon_scribbles: addMischief,
+  // The pot on the stove (story 9.5): a mess like the silence's, its noise is the def's `gagNoisePct`.
+  pot_boiled_over: addMischief,
   // The cry in the arms (story 4.1): no sim consequence. The baby's cry is `gagCryMs` on the def (story 3.1 D9), which feeds the noise gauge.
   arms_wail: armsWail,
   baby_eyes_reopened: babyEyesReopened,
@@ -163,6 +167,7 @@ const NEAR_MISS_GAGS: Readonly<Record<GagId, boolean>> = {
   papa_asleep: false,
   tissues_everywhere: false,
   crayon_scribbles: false,
+  pot_boiled_over: false,
   arms_wail: false,
   baby_eyes_reopened: false,
   baby_sat_up: false,
@@ -180,7 +185,7 @@ export function isNearMissGag(gag: GagId): boolean {
  * The kind of `afterEffect` each gag goes with (story 3.15, FR72): a def's séquelle is data, but which
  * kind fits which gag is a rule of the sim (`applyAfterEffect` dispatches on the kind and reads the
  * gag's own state), so `createSim` and `content:check` refuse a mismatch. Every silence mischief
- * (`tissues_everywhere`, `crayon_scribbles`) is a `mess`; the gags of the E4 sequences are `none`
+ * (`tissues_everywhere`, `crayon_scribbles`) and the pot boiling over (`pot_boiled_over`) are a `mess`; the gags of the E4 sequences are `none`
  * (GDD: their séquelles are to be costed later).
  */
 export const AFTER_EFFECT_OF_GAG: Readonly<Record<GagId, AfterEffectDefKind>> = {
@@ -190,6 +195,7 @@ export const AFTER_EFFECT_OF_GAG: Readonly<Record<GagId, AfterEffectDefKind>> = 
   papa_asleep: 'asleep',
   tissues_everywhere: 'mess',
   crayon_scribbles: 'mess',
+  pot_boiled_over: 'mess',
   arms_wail: 'none',
   baby_eyes_reopened: 'none',
   baby_sat_up: 'none',
@@ -232,6 +238,7 @@ export const CATASTROPHE_OF_GAG: Readonly<Record<GagId, ThreatCatastrophe>> = {
   papa_asleep: 'microSleep',
   tissues_everywhere: 'mess',
   crayon_scribbles: 'mess',
+  pot_boiled_over: 'mess',
   arms_wail: 'none',
   baby_eyes_reopened: 'none',
   baby_sat_up: 'none',

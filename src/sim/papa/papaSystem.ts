@@ -3,7 +3,7 @@ import { STEP_MS } from '@shared/constants';
 import { isBabyCarried } from '../baby/babyFsm.ts';
 import { isBabyInReach, isInSafeZone, putDownBaby, takeBaby } from '../baby/carry.ts';
 import { isBabyFoundNow } from '../baby/silence.ts';
-import { choreIndexOfObject, startChore } from '../chores/chores.ts';
+import { choreIndexOfObject, resumeChoreOfPot, startChore } from '../chores/chores.ts';
 import type { SimObjectSpec, StepContext } from '../context.ts';
 import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
 import { bladderSpeedFactor } from '../gauges/bladder.ts';
@@ -125,8 +125,11 @@ function arrive(world: World, ctx: StepContext): void {
   const { papa } = world;
   papa.path.length = 0;
   papa.pathIndex = 0;
+  const glideThreatId = papa.glide?.threatId ?? null;
   papa.glide = null;
   ctx.events.push({ type: 'PapaArrived', t: world.time.sim, xM: papa.xM, zM: papa.zM });
+  // A glide to a chore's own pot (story 9.5, review): the heat lowered, Papa goes back to the cooking.
+  if (glideThreatId !== null && resumeChoreOfPot(world, ctx, glideThreatId)) return;
   const objectId = papa.objectId;
   papa.objectId = null;
   // The walk was to take the baby (if he is then within reach and free to be taken) or to put him down.

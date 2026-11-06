@@ -107,7 +107,7 @@ describe('visibleDecalPoint', () => {
 
 describe('createDecalGeometry', () => {
   it('lies flat on the floor and is the same every time for the same mark', () => {
-    for (const gag of ['tissues_everywhere', 'crayon_scribbles']) {
+    for (const gag of ['tissues_everywhere', 'crayon_scribbles', 'pot_boiled_over']) {
       const a = createDecalGeometry(gag, 3);
       const b = createDecalGeometry(gag, 3);
       const positions = a.getAttribute('position');
@@ -132,13 +132,27 @@ describe('createDecalGeometry', () => {
     for (const geometry of [first, second, crayon]) geometry.dispose();
   });
 
-  it('indexes only vertices it made', () => {
-    const geometry = createDecalGeometry('crayon_scribbles', 2);
-    const count = geometry.getAttribute('position').count;
-    const index = geometry.getIndex();
-    expect(index).not.toBeNull();
-    expect(Math.max(...Array.from(index?.array ?? []))).toBeLessThan(count);
-    geometry.dispose();
+  it.each(['tissues_everywhere', 'crayon_scribbles', 'pot_boiled_over'])(
+    'indexes only vertices it made (%s)',
+    (gag) => {
+      const geometry = createDecalGeometry(gag, 2);
+      const count = geometry.getAttribute('position').count;
+      const index = geometry.getIndex();
+      expect(index).not.toBeNull();
+      expect(Math.max(...Array.from(index?.array ?? []))).toBeLessThan(count);
+      geometry.dispose();
+    },
+  );
+
+  it('draws the purée of the pot as a puddle with splashes of its own, not the tissues or the crayons (story 9.5)', () => {
+    const puree = createDecalGeometry('pot_boiled_over', 0);
+    const tissues = createDecalGeometry('tissues_everywhere', 0);
+    const crayons = createDecalGeometry('crayon_scribbles', 0);
+    // The puddle's centre and rim (1 + 14 points), then four splashes of four corners each.
+    expect(puree.getAttribute('position').count).toBe(1 + 14 + 4 * 4);
+    expect(puree.getAttribute('position').count).not.toBe(tissues.getAttribute('position').count);
+    expect(puree.getAttribute('position').count).not.toBe(crayons.getAttribute('position').count);
+    for (const geometry of [puree, tissues, crayons]) geometry.dispose();
   });
 });
 
