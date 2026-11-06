@@ -55,7 +55,15 @@ const SALON_ZONES = [
 const SALON_PROPS = ['book_01', 'mug_01', 'mug_02', 'toy_01', 'vase_01'] as const;
 
 /** The stations and mischief places of Epic 9 (chores 9.4 to 9.6, mischiefs 9.7). */
-const E9_ANCHORS = ['stove', 'dishwasher', 'dining_table', 'low_cabinet', 'bin', 'plant'] as const;
+const E9_ANCHORS = [
+  'stove',
+  'dishwasher',
+  'dining_table',
+  'low_cabinet',
+  'bin',
+  'plant',
+  'papa_mug',
+] as const;
 
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 
@@ -161,6 +169,45 @@ describe('the live salon_kitchen room (story 9.1)', () => {
   );
 });
 
+describe('the five new mischiefs of the big salon (story 9.7)', () => {
+  const parsed = parseContentFile(
+    'content/levels/salon_kitchen.json',
+    read('content/levels/salon_kitchen.json'),
+    LevelSchema,
+  );
+  if (!parsed.ok) throw new Error(`the live level is invalid: ${JSON.stringify(parsed.error)}`);
+  const level = parsed.value;
+
+  /** Where each is planned: the wave that enters it (0 or 1) and its anchor. */
+  const PLAN = [
+    { def: 'tablecloth_pull', anchor: 'dining_table', wave: 0 },
+    { def: 'low_cabinet_open', anchor: 'low_cabinet', wave: 0 },
+    { def: 'plant_dig', anchor: 'plant', wave: 0 },
+    { def: 'bin_rummage', anchor: 'bin', wave: 1 },
+    { def: 'papa_mug_low', anchor: 'papa_mug', wave: 1 },
+  ] as const;
+
+  it.each(PLAN)('plans $def at $anchor in wave $wave', ({ def, anchor, wave }) => {
+    const entries = level.waves.flatMap((candidate, index) =>
+      (candidate.threats ?? [])
+        .filter((entry) => entry.def === def)
+        .map((entry) => ({ ...entry, index })),
+    );
+    expect(entries).toEqual([{ def, anchor, index: wave }]);
+  });
+
+  it('keeps the mug at least 1 m from the coffee table, so their markers never stack', () => {
+    const at = (id: string) => {
+      const found = liveGeometry().anchors.find((candidate) => candidate.id === id);
+      if (found === undefined) throw new Error(`no anchor ${id}`);
+      return found.positionM;
+    };
+    const [mugX, , mugZ] = at('papa_mug');
+    const [tableX, , tableZ] = at('coffee_table');
+    expect(Math.hypot(mugX - tableX, mugZ - tableZ)).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('the live salon_kitchen level (story 9.2)', () => {
   it('follows Papa with the follow camera (the room is too big for the fixed one)', () => {
     const parsed = parseContentFile(
@@ -195,12 +242,16 @@ describe('the live salon_kitchen level (story 9.2)', () => {
       const { papa } = sim.world;
       // The planned threat Papa can press that stands farthest from his spawn. The open dishwasher is a
       // wave threat the director draws only while its chore is paused and open (story 9.6): `ForceThreat`
-      // ignores it, so it is not the one to force here.
+      // ignores it, so it is not the one to force here. A Firmness is out too (story 9.7): the test
+      // presses and releases one step later, which is a tap, so a `wrongResponse` gag, not a glide;
+      // the farthest parry (the low cabinet) is the one to cross the room for.
       const doorDefIds = new Set((level.chores ?? []).map((chore) => chore.openThreat));
-      const pressable = sim.world.threats.filter(
-        (threat) =>
-          level.threats[threat.defId]?.target === 'anchor' && !doorDefIds.has(threat.defId),
-      );
+      const pressable = sim.world.threats.filter((threat) => {
+        const def = level.threats[threat.defId];
+        return (
+          def?.target === 'anchor' && def.response === 'parry' && !doorDefIds.has(threat.defId)
+        );
+      });
       const farthest = pressable.reduce((best, threat) =>
         Math.hypot(threat.xM - papa.xM, threat.zM - papa.zM) >
         Math.hypot(best.xM - papa.xM, best.zM - papa.zM)

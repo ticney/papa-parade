@@ -318,6 +318,7 @@ test.describe('the dishwasher: plates and the open door', () => {
     await advanceUntil(page, (world) => doorOf(world).state === 'telegraph', 20);
     await waitFrames(page, 4);
     await shot(page, testInfo, 'c-the-open-door-papa-across-the-room.png');
+    const messRisesBefore = (await catastropheRise(page, 'mess')).length;
     await advanceUntil(page, (world) => doorOf(world).state === 'gag', 1000);
     await waitFrames(page, 4);
     const gags = (await typesOf(page, 'GagTriggered')) as unknown as {
@@ -328,15 +329,17 @@ test.describe('the dishwasher: plates and the open door', () => {
       expect.objectContaining({ threatId: opening.id }),
     ]);
     const { feel } = await ppWorld(page);
-    const mess = await catastropheRise(page, 'mess');
+    // The door's gag is one `mess` rise of its own (another mischief of the kitchen may have come earlier in the
+    // seeded run, story 9.7: the pool is bigger now, so only the rises since the telegraph count).
+    const mess = (await catastropheRise(page, 'mess')).slice(messRisesBefore);
     expect(mess).toHaveLength(1);
     expect(mess[0]).toBeCloseTo(
       feel.catastrophe.risePct.mess * feel.difficulty.normal.catastropheMultiplier,
       6,
     );
     // The cutlery on the floor, and a mischief for Mama's Soupir; the door stays open.
-    expect((await ppFx(page)).mischiefDecals).toBe(1);
     const afterGag = await ppWorld(page);
+    expect((await ppFx(page)).mischiefDecals).toBe(afterGag.afterEffects.mischiefMarks.length);
     expect(afterGag.mess.mischiefs).toBeGreaterThanOrEqual(1);
     // The cutlery lies at the dishwasher, wherever the baby was drawn when the gag came.
     const marks = afterGag.afterEffects.mischiefMarks.filter(

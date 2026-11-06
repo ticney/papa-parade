@@ -1,3 +1,4 @@
+import { STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import type { SimCommand, ThreatInstance, World } from '@sim';
 import type { Bot, BotSetup } from './bot.ts';
@@ -90,7 +91,19 @@ export function createPerfectBot(setup: BotSetup): Bot {
           }
           continue;
         }
-        if (response === undefined || !cycles.isNew(threat)) continue;
+        if (response === undefined) continue;
+        // A held Firmness takes the finger from the moment it is planned and waits for every tap planned
+        // before it (story 9.7: the first ones in a wave). So it is planned when its press is due, not
+        // from its telegraph: planned early, it would shut out a threat whose window comes first, and it
+        // would wait for a tap planned later in time than itself.
+        if (
+          response === 'firm' &&
+          !releaseDefIds.has(threat.defId) &&
+          now < Math.round(centreOf(threat)) - STEP_MS
+        ) {
+          continue;
+        }
+        if (!cycles.isNew(threat)) continue;
         if (releaseDefIds.has(threat.defId)) {
           // The bomb drop (story 4.8): it presses at the first step of the telegraph (the centre is far
           // past `pressWithinMs`) and lets go at the centre of the window: offset 0, so `perfect`.

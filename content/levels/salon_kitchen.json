@@ -13,7 +13,10 @@
       "threats": [
         { "def": "outlet", "anchor": "outlet_01" },
         { "def": "stairs", "anchor": "stairs_top" },
-        { "def": "dishwasher_open", "anchor": "dishwasher" }
+        { "def": "dishwasher_open", "anchor": "dishwasher" },
+        { "def": "tablecloth_pull", "anchor": "dining_table" },
+        { "def": "low_cabinet_open", "anchor": "low_cabinet" },
+        { "def": "plant_dig", "anchor": "plant" }
       ]
     },
     {
@@ -24,7 +27,9 @@
       "lullMs": 3000,
       "threats": [
         { "def": "coffee_table_object", "anchor": "coffee_table" },
-        { "def": "silence_mischief", "anchor": "behind_sofa" }
+        { "def": "silence_mischief", "anchor": "behind_sofa" },
+        { "def": "bin_rummage", "anchor": "bin" },
+        { "def": "papa_mug_low", "anchor": "papa_mug" }
       ]
     },
     {

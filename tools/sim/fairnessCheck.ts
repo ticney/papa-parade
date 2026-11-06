@@ -12,6 +12,17 @@ export interface FairnessResult {
   stretchSumMs: number;
 }
 
+/**
+ * What the check reads of the held Firmnesses (story 9.7 review): a Firmness keeps Papa's finger down
+ * after its window opens, so nothing else may open in its guard. Written plain, like the spacing.
+ */
+export interface HeldFirmnessSetup {
+  /** `holdUntilMs` of each `firm` def that has one, by def id. */
+  readonly holdUntilMsOf: Readonly<Record<string, number>>;
+  /** `input.holdMinMs`. */
+  readonly holdMinMs: number;
+}
+
 export interface FairnessCheck {
   onEvent(event: SimEvent): void;
   /** Call once the run is over. */
@@ -31,6 +42,8 @@ interface Cycle {
   isDrawn: boolean;
   /** A silence was under way when this cycle was telegraphed. */
   isDrawnDuringSilence: boolean;
+  /** Telegraphed by no wave (`waveIndex < 0`: the micro-sleep): Papa's need, checked against held Firmnesses only. */
+  isNeed: boolean;
   openedAt: number | null;
   /** From `ResponseResolved.responseWindow`; null until resolved. */
   windowMs: number | null;
@@ -57,18 +70,35 @@ interface Cycle {
  * The micro-sleep (and every threat no wave plans) is never B: it is Papa's need, not a draw. It
  * can still be A. `spacingMs` is read once, at creation (a run that `SetFeel`s the margin is out of scope).
  *
+ * With `held` (story 9.7), a fourth clause covers a Firmness held on an anchor: its hold after the window
+ * opens is `max(holdUntilMs, windowMs + toleranceMs + holdMinMs)` (`windowMs` from its `ResponseResolved`; a
+ * Firmness never resolved holds `holdUntilMs`). With A a held Firmness announced before B, B is a violation when
+ * `A.openedAt − spacingMs < B.openedAt < A.openedAt + hold + spacingMs`; with B a held Firmness and A any
+ * other, when `A.openedAt − spacingMs − hold(B) < B.openedAt < A.openedAt + spacingMs`. The micro-sleep is
+ * checked by the first form only (it keeps clear of a held Firmness and of nothing else).
+ *
  * @param spacingMs the level's effective `movement.glideMaxMs + director.fairnessMarginMs`
  * @param telegraphDelayMsOf the telegraph delay by def id (`def.telegraphDelayMs ?? feel.timing.telegraphDelayDefaultMs`);
  *   a def missing from it (a `wait` def, whose signal adds a random delay) is left out of the stretch stats
+ * @param held the held Firmnesses of the level; without it (or with no def in it) the fourth clause is off
  */
 export function createFairnessCheck(
   spacingMs: number,
   telegraphDelayMsOf: Readonly<Record<string, number>>,
+  held: HeldFirmnessSetup = { holdUntilMsOf: {}, holdMinMs: 0 },
 ): FairnessCheck {
   const cycles: Cycle[] = [];
   const openByThreat = new Map<number, Cycle>();
   const silencesUnderway = new Set<number>();
   let order = 0;
+
+  /** How long the finger stays down after `cycle`'s window opened, in ms; 0 for any cycle that is not a held Firmness. */
+  const holdOf = (cycle: Cycle): number => {
+    const holdUntilMs = held.holdUntilMsOf[cycle.kind];
+    if (holdUntilMs === undefined) return 0;
+    if (cycle.windowMs === null || cycle.toleranceMs === null) return holdUntilMs;
+    return Math.max(holdUntilMs, cycle.windowMs + cycle.toleranceMs + held.holdMinMs);
+  };
 
   const startCycle = (threatId: number, kind: string, isSilence: boolean): Cycle => {
     const cycle: Cycle = {
@@ -79,6 +109,7 @@ export function createFairnessCheck(
       telegraphedAt: null,
       isDrawn: false,
       isDrawnDuringSilence: false,
+      isNeed: false,
       openedAt: null,
       windowMs: null,
       toleranceMs: null,
@@ -107,6 +138,8 @@ export function createFairnessCheck(
         if (!cycle.isSilence && event.waveIndex >= 0) {
           cycle.isDrawn = true;
           cycle.isDrawnDuringSilence = silencesUnderway.size > 0;
+        } else if (!cycle.isSilence) {
+          cycle.isNeed = true;
         }
       } else if (event.type === 'WindowOpened') {
         const cycle = openByThreat.get(event.threatId);
@@ -123,11 +156,44 @@ export function createFairnessCheck(
       }
     },
     finish() {
+      /**
+       * Whether `b`, opening at `openedAt` and holding `ownHoldMs` after it, lands in the guard of a held
+       * Firmness `a` announced before it (the fourth clause), or, if `b` is held itself, has `a` open in its hold.
+       */
+      const isInHeldGuard = (b: Cycle, openedAt: number, ownHoldMs: number): boolean => {
+        if (b.telegraphedOrder === null) return false;
+        for (const a of cycles) {
+          if (a === b || a.telegraphedOrder === null || a.openedAt === null) continue;
+          if (a.telegraphedOrder > b.telegraphedOrder) continue;
+          const aHoldMs = holdOf(a);
+          if (
+            aHoldMs > 0 &&
+            openedAt > a.openedAt - spacingMs &&
+            openedAt < a.openedAt + aHoldMs + spacingMs
+          ) {
+            return true;
+          }
+          if (
+            ownHoldMs > 0 &&
+            openedAt > a.openedAt - spacingMs - ownHoldMs &&
+            openedAt < a.openedAt + spacingMs
+          ) {
+            return true;
+          }
+        }
+        return false;
+      };
       let fairnessViolations = 0;
       let stretchedTelegraphs = 0;
       let stretchSumMs = 0;
       for (const b of cycles) {
-        if (!b.isDrawn || b.telegraphedOrder === null || b.telegraphedAt === null) continue;
+        if (b.telegraphedOrder === null || b.telegraphedAt === null) continue;
+        if (!b.isDrawn) {
+          // The micro-sleep: only a held Firmness's guard binds it.
+          if (b.isNeed && b.openedAt !== null && isInHeldGuard(b, b.openedAt, 0))
+            fairnessViolations++;
+          continue;
+        }
         let isViolation = b.isDrawnDuringSilence;
         if (b.openedAt !== null) {
           const delayMs = telegraphDelayMsOf[b.kind];
@@ -138,6 +204,7 @@ export function createFairnessCheck(
               stretchSumMs += stretchMs;
             }
           }
+          isViolation = isViolation || isInHeldGuard(b, b.openedAt, holdOf(b));
           for (const a of cycles) {
             if (isViolation) break;
             if (a === b || a.telegraphedOrder === null || a.openedAt === null) continue;

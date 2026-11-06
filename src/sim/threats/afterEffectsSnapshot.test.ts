@@ -104,6 +104,24 @@ describe('a game stopped in the middle of a séquelle', () => {
     },
   );
 
+  it.each([
+    'dishes_on_floor',
+    'pan_concert',
+    'peelings_everywhere',
+    'soil_on_rug',
+    'coffee_spilled',
+  ])('round-trips a mess mark of the new gag %s (story 9.7)', async (gag) => {
+    const live = await newSim();
+    (SCENES.mess as (sim: Sim) => void)(live);
+    const snapshot = structuredClone(live.snapshot());
+    const marks = snapshot.world.afterEffects.mischiefMarks;
+    expect(marks).toHaveLength(1);
+    (marks[0] as { gag: string }).gag = gag;
+    const resumed = await newSim();
+    resumed.restore(snapshot);
+    expect(resumed.world.afterEffects.mischiefMarks).toEqual(marks);
+  });
+
   it('is at version 33, and refuses a version 30 snapshot', async () => {
     const sim = await newSim();
     const snapshot = sim.snapshot();

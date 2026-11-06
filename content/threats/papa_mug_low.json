@@ -1,0 +1,23 @@
+{
+  "$schema": "../_schemas/threat.schema.json",
+  "id": "papa_mug_low",
+  "target": "anchor",
+  "response": "firm",
+  "holdUntilMs": 1200,
+  "telegraphDelayMs": 1500,
+  "windowMs": null,
+  "gag": "coffee_spilled",
+  "verbKey": "verb.no",
+  "icon": "cup",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_papa_mug_low",
+    "success": "resp_firm",
+    "perfect": "resp_firm_perfect",
+    "gag": "gag_papa_mug_low"
+  },
+  "catastrophe": "mess",
+  "afterEffect": { "kind": "mess" },
+  "cooldownMs": 6000
+}

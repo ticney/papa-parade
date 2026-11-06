@@ -1,0 +1,23 @@
+{
+  "$schema": "../_schemas/threat.schema.json",
+  "id": "tablecloth_pull",
+  "target": "anchor",
+  "response": "parry",
+  "telegraphDelayMs": 1500,
+  "windowMs": null,
+  "gag": "dishes_on_floor",
+  "verbKey": "verb.catch",
+  "icon": "tablecloth",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_tablecloth_pull",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_tablecloth_pull"
+  },
+  "catastrophe": "mess",
+  "afterEffect": { "kind": "mess" },
+  "cooldownMs": 6000,
+  "gagNoisePct": 10
+}

@@ -16,7 +16,9 @@ import type { ToonMaterialCache } from '../materials/toonMaterial.ts';
 // `World` through the same scene, on the end photo. Provisional art (E7 draws the final one): a handful of
 // paper scraps for the tissues, a crayon scribble for the crayons, a pale puddle of purée with a few
 // splashes around it for the pot that boiled over (story 9.5), forks and spoons strewn on the floor for the baby
-// who got into the dishwasher (story 9.6). One mesh, one draw call, per mark.
+// who got into the dishwasher (story 9.6), and, for the five mischiefs of the big salon (story 9.7), white shards
+// (the dishes), grey discs (the pans and their lids), beige and green scraps (the peelings), a dark patch with
+// crumbs (the soil) and a brown puddle (the coffee). One mesh, one draw call, per mark.
 
 /** The decals float this far above the floor so that they never fight it for the depth buffer, in metres. */
 export const DECAL_LIFT_M = 0.012;
@@ -52,6 +54,58 @@ const CUTLERY_BOWL_M = 0.13;
 /** How many pieces lie around the mark, and how far from it (a radius), in metres. */
 const CUTLERY_COUNT = 6;
 const CUTLERY_SCATTER_M = 0.45;
+
+// The five mischiefs of the big salon (story 9.7). Provisional art, like the others.
+/** The broken dishes: a pale china white-blue (not the tissues' pure white), in sharp shards. */
+const SHARD_COLOR = 0xdfe9f2;
+/** How many shards, the length of their sides (a share of `SHARD_SIZE_M`, varied) and how far they fly, in metres. */
+const SHARD_COUNT = 9;
+const SHARD_SIZE_M = 0.16;
+const SHARD_SCATTER_M = 0.5;
+/** The pans and lids that crashed: a dark metal grey. */
+const PAN_COLOR = 0x59606b;
+/** A pan's and a lid's radius, in metres; the discs are this many points round, and lie within the scatter radius. */
+const PAN_RADIUS_M = 0.15;
+const LID_RADIUS_M = 0.1;
+const DISC_POINTS = 10;
+const PAN_COUNT = 4;
+const PAN_SCATTER_M = 0.4;
+/** The peelings, one colour per mark in turn (beige, green): thin scraps, this many, of this size (length, width) in metres. */
+const PEELING_COLORS = [0xd9c59a, 0x8fb85a] as const;
+const PEELING_COUNT = 9;
+const PEELING_LENGTH_M = 0.17;
+const PEELING_WIDTH_M = 0.05;
+const PEELING_SCATTER_M = 0.45;
+/** The soil on the rug: a dark brown patch with crumbs. */
+const SOIL_COLOR = 0x4a3223;
+const SOIL_RADIUS_M = 0.26;
+const SOIL_CRUMB_COUNT = 6;
+const SOIL_CRUMB_M = 0.05;
+const SOIL_CRUMB_REACH_M = 0.42;
+/** The spilled coffee: a warm brown puddle. */
+const COFFEE_COLOR = 0x7a4a2b;
+const COFFEE_RADIUS_M = 0.27;
+
+/**
+ * The colour of each gag's decal, by gag id. A list is one colour per mark of that gag, in turn. A gag with no row has
+ * the tissues' white: a new gag is one line here (and one branch in `createDecalGeometry`).
+ */
+const DECAL_COLORS: Readonly<Record<string, number | readonly number[]>> = {
+  crayon_scribbles: CRAYON_COLORS,
+  pot_boiled_over: PUREE_COLOR,
+  baby_in_dishwasher: CUTLERY_COLOR,
+  dishes_on_floor: SHARD_COLOR,
+  pan_concert: PAN_COLOR,
+  peelings_everywhere: PEELING_COLORS,
+  soil_on_rug: SOIL_COLOR,
+  coffee_spilled: COFFEE_COLOR,
+};
+
+/** The colour of the decal of the mark number `index` of `gag` (`index` counts the marks of that gag only). */
+export function decalColorOf(gag: string, index: number): number {
+  const color = DECAL_COLORS[gag] ?? TISSUE_COLOR;
+  return typeof color === 'number' ? color : (color[index % color.length] as number);
+}
 
 /** A decal that had to move is put this far past the edge of what hid it, in metres. */
 const CLEAR_MARGIN_M = 0.2;
@@ -185,9 +239,45 @@ function pushQuad(
   indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
 }
 
+/** Adds a flat triangle with its corners at `corners` (x, z pairs, relative to the origin) to the buffers. */
+function pushTriangle(
+  positions: number[],
+  indices: number[],
+  corners: readonly [number, number, number, number, number, number],
+): void {
+  const base = positions.length / 3;
+  positions.push(corners[0], 0, corners[1], corners[2], 0, corners[3], corners[4], 0, corners[5]);
+  indices.push(base, base + 2, base + 1);
+}
+
+/**
+ * Adds a flat fan round `(xM, zM)`: a disc of `radiusM` that is `points` round, its rim wandering from the
+ * radius by up to `wobblePct` (a share of the radius; 0 is a round disc). `seed` varies the wobble.
+ */
+function pushDisc(
+  positions: number[],
+  indices: number[],
+  xM: number,
+  zM: number,
+  radiusM: number,
+  points: number,
+  wobblePct: number,
+  seed: number,
+): void {
+  const base = positions.length / 3;
+  positions.push(xM, 0, zM);
+  for (let i = 0; i < points; i++) {
+    const angle = (i / points) * Math.PI * 2;
+    const radius = radiusM * (1 + ((hash01(seed, i) - 0.5) * 2 * wobblePct) / 100);
+    positions.push(xM + Math.cos(angle) * radius, 0, zM + Math.sin(angle) * radius);
+  }
+  for (let i = 0; i < points; i++) indices.push(base, base + 1 + ((i + 1) % points), base + 1 + i);
+}
+
 /**
  * The geometry of one decal, around its own origin, lying flat: a few scraps for the tissues, a zigzag of
- * thin quads for the crayons. `index` (the mark's) varies the pattern from one mark to the next.
+ * thin quads for the crayons, and so on for each gag. `index` (the mark's) varies the pattern from one mark
+ * to the next.
  */
 export function createDecalGeometry(gag: string, index: number): BufferGeometry {
   const positions: number[] = [];
@@ -254,6 +344,83 @@ export function createDecalGeometry(gag: string, index: number): BufferGeometry 
       const headZ = z + Math.cos(turn) * (CUTLERY_LENGTH_M / 2);
       pushQuad(positions, indices, headX, headZ, CUTLERY_BOWL_M, CUTLERY_BOWL_M, turn);
     }
+  } else if (gag === 'dishes_on_floor') {
+    // Sharp white shards (story 9.7): a scalene triangle each, flung round the mark.
+    for (let i = 0; i < SHARD_COUNT; i++) {
+      const angle = hash01(index, i) * Math.PI * 2;
+      const radius = SHARD_SCATTER_M * Math.sqrt(hash01(index, i + 10));
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const turn = hash01(index, i + 20) * Math.PI * 2;
+      const size = SHARD_SIZE_M * (0.6 + 0.8 * hash01(index, i + 30));
+      const corner = (arm: number, along: number): [number, number] => [
+        x + Math.cos(turn + arm) * size * along,
+        z + Math.sin(turn + arm) * size * along,
+      ];
+      const [ax, az] = corner(0, 1);
+      const [bx, bz] = corner(2.1, 0.6 + 0.5 * hash01(index, i + 40));
+      const [cx, cz] = corner(4.0, 0.5 + 0.5 * hash01(index, i + 50));
+      pushTriangle(positions, indices, [ax, az, bx, bz, cx, cz]);
+    }
+  } else if (gag === 'pan_concert') {
+    // Pans and their lids (story 9.7): round grey discs, the first the biggest, fallen all around.
+    for (let i = 0; i < PAN_COUNT; i++) {
+      const angle = hash01(index, i) * Math.PI * 2;
+      const radius = PAN_SCATTER_M * Math.sqrt(hash01(index, i + 10));
+      pushDisc(
+        positions,
+        indices,
+        Math.cos(angle) * radius,
+        Math.sin(angle) * radius,
+        i % 2 === 0 ? PAN_RADIUS_M : LID_RADIUS_M,
+        DISC_POINTS,
+        0,
+        0,
+      );
+    }
+  } else if (gag === 'peelings_everywhere') {
+    // Peelings (story 9.7): thin long scraps, turned every which way.
+    for (let i = 0; i < PEELING_COUNT; i++) {
+      const angle = hash01(index, i) * Math.PI * 2;
+      const radius = PEELING_SCATTER_M * Math.sqrt(hash01(index, i + 10));
+      pushQuad(
+        positions,
+        indices,
+        Math.cos(angle) * radius,
+        Math.sin(angle) * radius,
+        PEELING_WIDTH_M * (0.7 + 0.6 * hash01(index, i + 20)),
+        PEELING_LENGTH_M * (0.7 + 0.6 * hash01(index, i + 30)),
+        hash01(index, i + 40) * Math.PI,
+      );
+    }
+  } else if (gag === 'soil_on_rug') {
+    // Soil (story 9.7): an irregular dark patch, and crumbs spread beyond it.
+    pushDisc(positions, indices, 0, 0, SOIL_RADIUS_M, PUDDLE_POINTS, PUDDLE_WOBBLE_PCT, index);
+    for (let i = 0; i < SOIL_CRUMB_COUNT; i++) {
+      const angle = hash01(index, i + 50) * Math.PI * 2;
+      const reach = SOIL_CRUMB_REACH_M * (0.7 + 0.3 * hash01(index, i + 60));
+      pushQuad(
+        positions,
+        indices,
+        Math.cos(angle) * reach,
+        Math.sin(angle) * reach,
+        SOIL_CRUMB_M,
+        SOIL_CRUMB_M,
+        hash01(index, i + 70) * Math.PI,
+      );
+    }
+  } else if (gag === 'coffee_spilled') {
+    // Coffee (story 9.7): one wobbly puddle, rounder and smoother than the soil's patch, with no crumbs.
+    pushDisc(
+      positions,
+      indices,
+      0,
+      0,
+      COFFEE_RADIUS_M,
+      PUDDLE_POINTS,
+      PUDDLE_WOBBLE_PCT / 2,
+      index + 7,
+    );
   } else {
     for (let i = 0; i < 5; i++) {
       const angle = hash01(index, i) * Math.PI * 2;
@@ -304,19 +471,15 @@ export function createMischiefDecals(
   const point = { xM: 0, zM: 0 };
   // The game camera and the end photo's (`feel.fx.photoCamera`, tunable): a mark is seen from both.
   const views: DecalView[] = [GAME_VIEW, GAME_VIEW];
-  const materialOf = (gag: string, index: number): MeshToonMaterial =>
-    toon.get(
-      new Color(
-        gag === 'crayon_scribbles'
-          ? (CRAYON_COLORS[index % CRAYON_COLORS.length] as number)
-          : gag === 'pot_boiled_over'
-            ? PUREE_COLOR
-            : gag === 'baby_in_dishwasher'
-              ? CUTLERY_COLOR
-              : TISSUE_COLOR,
-      ),
-    );
+  // How many decals of each gag are drawn: a list of colours turns on the gag's own marks, not on the whole list.
+  const drawnOf = new Map<string, number>();
+  const materialOf = (gag: string): MeshToonMaterial => {
+    const rank = drawnOf.get(gag) ?? 0;
+    drawnOf.set(gag, rank + 1);
+    return toon.get(new Color(decalColorOf(gag, rank)));
+  };
   const clear = (): void => {
+    drawnOf.clear();
     for (const mesh of meshes) {
       parent.remove(mesh);
       mesh.geometry.dispose();
@@ -329,7 +492,7 @@ export function createMischiefDecals(
       views[1] = photoCamera;
       for (let i = meshes.length; i < marks.length; i++) {
         const mark = marks[i] as MischiefMark;
-        const mesh = new Mesh(createDecalGeometry(mark.gag, i), materialOf(mark.gag, i));
+        const mesh = new Mesh(createDecalGeometry(mark.gag, i), materialOf(mark.gag));
         mesh.name = `mischief_decal_${i}`;
         visibleDecalPoint(mark.xM, mark.zM, cover, views, point);
         mesh.position.set(point.xM, DECAL_LIFT_M, point.zM);

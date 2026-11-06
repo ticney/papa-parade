@@ -1,0 +1,23 @@
+{
+  "$schema": "../_schemas/threat.schema.json",
+  "id": "bin_rummage",
+  "target": "anchor",
+  "response": "firm",
+  "holdUntilMs": 1500,
+  "telegraphDelayMs": 1500,
+  "windowMs": null,
+  "gag": "peelings_everywhere",
+  "verbKey": "verb.no",
+  "icon": "bin",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_bin_rummage",
+    "success": "resp_firm",
+    "perfect": "resp_firm_perfect",
+    "gag": "gag_bin_rummage"
+  },
+  "catastrophe": "mess",
+  "afterEffect": { "kind": "mess" },
+  "cooldownMs": 6000
+}

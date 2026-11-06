@@ -195,6 +195,34 @@ describe('schedulePress', () => {
     scheduler.flush(2600, out);
     expect(out.at(-1)).toEqual({ type: 'PressThreat', t: 2600, threatId: 2 });
   });
+
+  it('does not make a Firmness wait for a tap planned to go down after it (story 9.7)', () => {
+    const scheduler = createCommandScheduler();
+    const hold = createFirmHold();
+    // The tap's window comes later in time, but the bot met its threat first: it is planned first.
+    schedulePress(scheduler, hold, threat({ id: 1 }), 'parry', 9000, 80);
+    expect(hold.tapUntil).toBe(9080);
+    schedulePress(scheduler, hold, threat({ id: 2 }), 'firm', 2380, 80);
+    const out: SimCommand[] = [];
+    scheduler.flush(2380, out);
+    expect(out).toEqual([{ type: 'PressThreat', t: 2380, threatId: 2 }]);
+    expect(hold.isHolding).toBe(true);
+  });
+
+  it('tapUntilAt is the release of the last tap pressed no later than the instant asked, 0 for none', () => {
+    const scheduler = createCommandScheduler();
+    const hold = createFirmHold();
+    expect(hold.tapUntilAt(5000)).toBe(0);
+    schedulePress(scheduler, hold, threat({ id: 1 }), 'parry', 2350, 80);
+    schedulePress(scheduler, hold, threat({ id: 2 }), 'parry', 4000, 80);
+    expect(hold.tapUntilAt(2349)).toBe(0);
+    expect(hold.tapUntilAt(2350)).toBe(2430);
+    expect(hold.tapUntilAt(3999)).toBe(2430);
+    expect(hold.tapUntilAt(4000)).toBe(4080);
+    // A tap noted without its press goes down "before everything": it always counts.
+    hold.noteTap(1234);
+    expect(hold.tapUntilAt(0)).toBe(1234);
+  });
 });
 
 describe('createCycleMemory', () => {

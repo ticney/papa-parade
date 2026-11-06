@@ -1,0 +1,22 @@
+{
+  "$schema": "../_schemas/threat.schema.json",
+  "id": "plant_dig",
+  "target": "anchor",
+  "response": "parry",
+  "telegraphDelayMs": 1400,
+  "windowMs": null,
+  "gag": "soil_on_rug",
+  "verbKey": "verb.distract",
+  "icon": "plant",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_plant_dig",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_plant_dig"
+  },
+  "catastrophe": "mess",
+  "afterEffect": { "kind": "mess" },
+  "cooldownMs": 6000
+}

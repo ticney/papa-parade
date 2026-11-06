@@ -2369,6 +2369,236 @@ export function synthTelegraphDishwasherOpen(): Float32Array {
   return out;
 }
 
+const TEL_TABLECLOTH_LENGTH_MS = 750;
+/** The cloth being pulled: a swish of noise whose cutoff opens, over this many ms, and how soft it starts. */
+const TEL_TABLECLOTH_SWISH_MS = 380;
+const TEL_TABLECLOTH_SMOOTHING = { from: 0.05, to: 0.5 };
+/** The dishes sliding after it: four rattles, each with its start (ms from the clip start) and pitch in Hz. */
+const TEL_TABLECLOTH_RATTLES: readonly { atMs: number; hz: number }[] = [
+  { atMs: 330, hz: 1500 },
+  { atMs: 410, hz: 2150 },
+  { atMs: 500, hz: 1750 },
+  { atMs: 590, hz: 2600 },
+];
+const TEL_TABLECLOTH_RATTLE_DECAY = 45;
+const TEL_TABLECLOTH_RATTLE_GAIN_PCT = 50;
+const TEL_TABLECLOTH_RELEASE_MS = 90;
+
+/** A tablecloth pulled with the dishes on it (cue `tel_tablecloth_pull`, story 9.7): a cloth swish, then plates rattling. */
+export function synthTelegraphTablecloth(): Float32Array {
+  const rng = createRng(SEED + 53);
+  const out = new Float32Array(samplesOf(TEL_TABLECLOTH_LENGTH_MS));
+  const release = samplesOf(TEL_TABLECLOTH_RELEASE_MS);
+  let smoothed = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const swishProgress = (seconds * 1000) / TEL_TABLECLOTH_SWISH_MS;
+    const noise = nextFloat(rng) * 2 - 1;
+    let swish = 0;
+    if (swishProgress < 1) {
+      const smoothing =
+        TEL_TABLECLOTH_SMOOTHING.from +
+        (TEL_TABLECLOTH_SMOOTHING.to - TEL_TABLECLOTH_SMOOTHING.from) * swishProgress;
+      smoothed += smoothing * (noise - smoothed);
+      swish = smoothed * Math.sin(Math.PI * swishProgress);
+    }
+    let rattles = 0;
+    for (const rattle of TEL_TABLECLOTH_RATTLES) {
+      const since = seconds - rattle.atMs / 1000;
+      if (since < 0) continue;
+      rattles +=
+        Math.exp(-since * TEL_TABLECLOTH_RATTLE_DECAY) * Math.sin(2 * Math.PI * rattle.hz * since);
+    }
+    out[i] =
+      (swish * 1.6 + (TEL_TABLECLOTH_RATTLE_GAIN_PCT / 100) * rattles) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const TEL_CABINET_LENGTH_MS = 650;
+/** The door's creak: a saw-ish tone that glides up over the first part of the clip, in Hz and ms. */
+const TEL_CABINET_CREAK_HZ = { from: 150, to: 310 };
+const TEL_CABINET_CREAK_MS = 320;
+const TEL_CABINET_CREAK_WOBBLE_HZ = 31;
+/** The pans knocking inside, each with its start (ms from the clip start) and pitch in Hz. */
+const TEL_CABINET_CLINKS: readonly { atMs: number; hz: number }[] = [
+  { atMs: 360, hz: 740 },
+  { atMs: 470, hz: 980 },
+];
+const TEL_CABINET_CLINK_DECAY = 22;
+const TEL_CABINET_CLINK_GAIN_PCT = 70;
+const TEL_CABINET_RELEASE_MS = 90;
+
+/** A low cabinet door creaking open on the pans (cue `tel_low_cabinet_open`, story 9.7): a rising creak, then two metallic clinks. */
+export function synthTelegraphCabinet(): Float32Array {
+  const rng = createRng(SEED + 54);
+  const out = new Float32Array(samplesOf(TEL_CABINET_LENGTH_MS));
+  const release = samplesOf(TEL_CABINET_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const creakProgress = (seconds * 1000) / TEL_CABINET_CREAK_MS;
+    let creak = 0;
+    if (creakProgress < 1) {
+      const frequencyHz =
+        TEL_CABINET_CREAK_HZ.from +
+        (TEL_CABINET_CREAK_HZ.to - TEL_CABINET_CREAK_HZ.from) * creakProgress;
+      phase += (2 * Math.PI * frequencyHz) / SAMPLE_RATE_HZ;
+      // A sawtooth with a little grit: the hinge.
+      const saw = ((phase / (2 * Math.PI)) % 1) * 2 - 1;
+      const wobble = 0.55 + 0.45 * Math.sin(2 * Math.PI * TEL_CABINET_CREAK_WOBBLE_HZ * seconds);
+      creak =
+        (0.7 * saw + 0.3 * (nextFloat(rng) * 2 - 1)) * wobble * Math.sin(Math.PI * creakProgress);
+    }
+    let clinks = 0;
+    for (const clink of TEL_CABINET_CLINKS) {
+      const since = seconds - clink.atMs / 1000;
+      if (since < 0) continue;
+      clinks +=
+        Math.exp(-since * TEL_CABINET_CLINK_DECAY) * Math.sin(2 * Math.PI * clink.hz * since);
+    }
+    out[i] =
+      (creak * 0.8 + (TEL_CABINET_CLINK_GAIN_PCT / 100) * clinks) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const TEL_BIN_LENGTH_MS = 800;
+/** The lid flapping open: a hollow plastic « tonk » (two partials, in Hz) and how fast it dies. */
+const TEL_BIN_FLAP_HZ = [290, 430] as const;
+const TEL_BIN_FLAP_DECAY = 20;
+/** The rustling of paper and peelings: bursts of noise at this rate, smoothed, in percent of the thump's level. */
+const TEL_BIN_RUSTLE_RATE_HZ = 13;
+const TEL_BIN_RUSTLE_SMOOTHING = 0.35;
+const TEL_BIN_RUSTLE_GAIN_PCT = 80;
+const TEL_BIN_RUSTLE_START_MS = 120;
+const TEL_BIN_RELEASE_MS = 120;
+
+/** A bin lid flapping open on a rummage (cue `tel_bin_rummage`, story 9.7): a hollow lid « tonk », then rustling. */
+export function synthTelegraphBin(): Float32Array {
+  const rng = createRng(SEED + 55);
+  const out = new Float32Array(samplesOf(TEL_BIN_LENGTH_MS));
+  const release = samplesOf(TEL_BIN_RELEASE_MS);
+  let smoothed = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const flap =
+      Math.exp(-seconds * TEL_BIN_FLAP_DECAY) *
+      (Math.sin(2 * Math.PI * TEL_BIN_FLAP_HZ[0] * seconds) +
+        0.6 * Math.sin(2 * Math.PI * TEL_BIN_FLAP_HZ[1] * seconds));
+    smoothed += TEL_BIN_RUSTLE_SMOOTHING * (nextFloat(rng) * 2 - 1 - smoothed);
+    let rustle = 0;
+    const rustleSeconds = seconds - TEL_BIN_RUSTLE_START_MS / 1000;
+    if (rustleSeconds > 0) {
+      // Each burst swells and dies, so it reads as a hand digging, not a hiss.
+      const burst = (rustleSeconds * TEL_BIN_RUSTLE_RATE_HZ) % 1;
+      rustle = smoothed * Math.sin(Math.PI * burst) ** 2;
+    }
+    out[i] =
+      (flap + (TEL_BIN_RUSTLE_GAIN_PCT / 100) * rustle) * Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const TEL_PLANT_LENGTH_MS = 700;
+/** The leaves brushed aside: noise through a one-pole filter, in bursts at this rate, and its smoothing. */
+const TEL_PLANT_LEAF_RATE_HZ = 7;
+const TEL_PLANT_LEAF_SMOOTHING = 0.6;
+/** The soft dig under it: dull thuds with their start (ms from the clip start) and pitch in Hz. */
+const TEL_PLANT_DIGS: readonly { atMs: number; hz: number }[] = [
+  { atMs: 280, hz: 190 },
+  { atMs: 430, hz: 165 },
+  { atMs: 560, hz: 175 },
+];
+const TEL_PLANT_DIG_DECAY = 34;
+const TEL_PLANT_DIG_GAIN_PCT = 70;
+const TEL_PLANT_RELEASE_MS = 100;
+
+/** A baby digging in the plant pot (cue `tel_plant_dig`, story 9.7): leaves rustling, then soft digs in the soil. */
+export function synthTelegraphPlant(): Float32Array {
+  const rng = createRng(SEED + 56);
+  const out = new Float32Array(samplesOf(TEL_PLANT_LENGTH_MS));
+  const release = samplesOf(TEL_PLANT_RELEASE_MS);
+  let smoothed = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    smoothed += TEL_PLANT_LEAF_SMOOTHING * (nextFloat(rng) * 2 - 1 - smoothed);
+    const leaves =
+      seconds < 0.45 ? smoothed * Math.sin(Math.PI * ((seconds * TEL_PLANT_LEAF_RATE_HZ) % 1)) : 0;
+    let digs = 0;
+    for (const dig of TEL_PLANT_DIGS) {
+      const since = seconds - dig.atMs / 1000;
+      if (since < 0) continue;
+      digs += Math.exp(-since * TEL_PLANT_DIG_DECAY) * Math.sin(2 * Math.PI * dig.hz * since);
+    }
+    out[i] =
+      (leaves * 0.9 + (TEL_PLANT_DIG_GAIN_PCT / 100) * digs) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const TEL_MUG_LENGTH_MS = 600;
+/** A cup scraping on wood: a rough, low-passed noise whose pitch-like grit slides, and how long the scrape lasts. */
+const TEL_MUG_SCRAPE_MS = 420;
+const TEL_MUG_SCRAPE_SMOOTHING = { from: 0.18, to: 0.07 };
+const TEL_MUG_SCRAPE_GRIT_HZ = 52;
+/** The little knock when it stops at the edge: its start (ms from the clip start), pitch in Hz and decay. */
+const TEL_MUG_KNOCK = { atMs: 440, hz: 520, decay: 40 };
+const TEL_MUG_KNOCK_GAIN_PCT = 80;
+const TEL_MUG_RELEASE_MS = 80;
+
+/** A mug scraped to the edge of the floor (cue `tel_papa_mug_low`, story 9.7): a rough wooden scrape, then a knock. */
+export function synthTelegraphMug(): Float32Array {
+  const rng = createRng(SEED + 57);
+  const out = new Float32Array(samplesOf(TEL_MUG_LENGTH_MS));
+  const release = samplesOf(TEL_MUG_RELEASE_MS);
+  let smoothed = 0;
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    const scrapeProgress = (seconds * 1000) / TEL_MUG_SCRAPE_MS;
+    let scrape = 0;
+    if (scrapeProgress < 1) {
+      const smoothing =
+        TEL_MUG_SCRAPE_SMOOTHING.from +
+        (TEL_MUG_SCRAPE_SMOOTHING.to - TEL_MUG_SCRAPE_SMOOTHING.from) * scrapeProgress;
+      smoothed += smoothing * (nextFloat(rng) * 2 - 1 - smoothed);
+      const grit = 0.5 + 0.5 * Math.sign(Math.sin(2 * Math.PI * TEL_MUG_SCRAPE_GRIT_HZ * seconds));
+      scrape =
+        smoothed *
+        (0.4 + 0.6 * grit) *
+        Math.min(1, scrapeProgress * 8) *
+        (1 - 0.4 * scrapeProgress);
+    }
+    const since = seconds - TEL_MUG_KNOCK.atMs / 1000;
+    const knock =
+      since < 0
+        ? 0
+        : Math.exp(-since * TEL_MUG_KNOCK.decay) * Math.sin(2 * Math.PI * TEL_MUG_KNOCK.hz * since);
+    out[i] =
+      (scrape * 2.2 + (TEL_MUG_KNOCK_GAIN_PCT / 100) * knock) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Array }[] = [
   { clip: 'baby_babble_loop', synth: synthBabble },
   { clip: 'music_crawler_calm', synth: synthMusic },
@@ -2434,6 +2664,11 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'tel_real_wake', synth: synthTelegraphRealWake },
   { clip: 'tel_pot_on_stove', synth: synthTelegraphPot },
   { clip: 'tel_dishwasher_open', synth: synthTelegraphDishwasherOpen },
+  { clip: 'tel_tablecloth_pull', synth: synthTelegraphTablecloth },
+  { clip: 'tel_low_cabinet_open', synth: synthTelegraphCabinet },
+  { clip: 'tel_bin_rummage', synth: synthTelegraphBin },
+  { clip: 'tel_plant_dig', synth: synthTelegraphPlant },
+  { clip: 'tel_papa_mug_low', synth: synthTelegraphMug },
   { clip: 'resp_nothing', synth: synthRespNothing },
   { clip: 'gag_baby_woke_by_touch', synth: synthGagBabyWokeByTouch },
   { clip: 'gag_baby_woke_crying', synth: synthGagBabyWokeCrying },

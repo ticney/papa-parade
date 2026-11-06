@@ -133,6 +133,10 @@
       "positionM": [1.6, 0.3, -3.45]
     },
     {
+      "id": "papa_mug",
+      "positionM": [4.6, 0, -2.2]
+    },
+    {
       "id": "papa_spawn",
       "positionM": [5.25, 0, 1]
     },

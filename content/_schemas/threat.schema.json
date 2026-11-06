@@ -76,7 +76,12 @@
             "open_hand",
             "sigh",
             "pot",
-            "dishwasher"
+            "dishwasher",
+            "tablecloth",
+            "cabinet",
+            "bin",
+            "plant",
+            "cup"
           ]
         },
         "feint": {
@@ -116,7 +121,12 @@
                 "open_hand",
                 "sigh",
                 "pot",
-                "dishwasher"
+                "dishwasher",
+                "tablecloth",
+                "cabinet",
+                "bin",
+                "plant",
+                "cup"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -183,7 +193,12 @@
             "open_hand",
             "sigh",
             "pot",
-            "dishwasher"
+            "dishwasher",
+            "tablecloth",
+            "cabinet",
+            "bin",
+            "plant",
+            "cup"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -514,7 +529,12 @@
             "open_hand",
             "sigh",
             "pot",
-            "dishwasher"
+            "dishwasher",
+            "tablecloth",
+            "cabinet",
+            "bin",
+            "plant",
+            "cup"
           ]
         },
         "feint": {
@@ -554,7 +574,12 @@
                 "open_hand",
                 "sigh",
                 "pot",
-                "dishwasher"
+                "dishwasher",
+                "tablecloth",
+                "cabinet",
+                "bin",
+                "plant",
+                "cup"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -621,7 +646,12 @@
             "open_hand",
             "sigh",
             "pot",
-            "dishwasher"
+            "dishwasher",
+            "tablecloth",
+            "cabinet",
+            "bin",
+            "plant",
+            "cup"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },

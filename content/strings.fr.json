@@ -38,6 +38,8 @@
   "verb.turn_off_heat": "COUPE LE FEU !",
   "verb.lower_heat": "BAISSE LE FEU !",
   "verb.close_door": "REFERME !",
+  "verb.no": "NON !",
+  "verb.distract": "DÉTOURNE !",
   "stamp.perfect_parry": "PARADE PARFAITE",
   "stamp.replay": "REPLAY",
   "silence.bubble": "…",
