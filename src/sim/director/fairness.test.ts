@@ -21,6 +21,7 @@ import type { ThreatInstance, World } from '../world.ts';
 import {
   fairnessSpacingMs,
   fairWindowOpenAt,
+  heldFirmnessClearAt,
   silenceLimitProblem,
   simultaneousWeightOf,
 } from './fairness.ts';
@@ -32,7 +33,10 @@ const COFFEE_I = 2;
 const SILENCE_I = 3;
 const MICRO_SLEEP_I = 4;
 
-async function setup(marginMs?: number) {
+/** A held Firmness (story 9.7): the def of the planned threat, asking for a finger held to the end of the attack. */
+const HOLD_UNTIL_MS = 1500;
+
+async function setup(marginMs?: number, firmIndexes: readonly number[] = []) {
   const level = createTestLevel({
     waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE], { maxSimultaneous: 5 })],
     gauges: FATIGUE_GAUGES,
@@ -46,7 +50,9 @@ async function setup(marginMs?: number) {
   const events: SimEvent[] = [];
   const planned = [
     ...[OUTLET, STAIRS, COFFEE_TABLE, SILENCE].map((entry, index) => ({
-      def: level.threats[entry.def],
+      def: firmIndexes.includes(index)
+        ? { ...level.threats[entry.def], response: 'firm' as const, holdUntilMs: HOLD_UNTIL_MS }
+        : level.threats[entry.def],
       firstWaveIndex: 0,
       anchorId: entry.anchor,
       zone: index === SILENCE_I ? {} : null,
@@ -172,6 +178,74 @@ describe('fairWindowOpenAt (story 3.13, FR75)', () => {
     const { world, ctx, freeze } = await setup();
     freeze(MICRO_SLEEP_I, 3000);
     expect(fairWindowOpenAt(world, ctx, OUTLET_I, 3100)).toBe(3000 + S);
+  });
+});
+
+describe('a Firmness held on an anchor (story 9.7)', () => {
+  /** How long the frozen Firmness keeps Papa's finger down after its window opens: its `holdUntilMs`, or the window's end plus `holdMinMs`. */
+  const holdOf = (window: { windowMs: number; toleranceMs: number }) =>
+    Math.max(HOLD_UNTIL_MS, window.windowMs + window.toleranceMs + content.feel.input.holdMinMs);
+
+  it('keeps every other window clear until its hold is over and Papa has glided away: hold + S after its opening', async () => {
+    const { world, ctx, freeze, threatAt } = await setup(undefined, [STAIRS_I]);
+    freeze(STAIRS_I, 3000);
+    const window = threatAt(STAIRS_I).responseWindow;
+    if (window === null) throw new Error('the Firmness has a frozen window');
+    const endAt = 3000 + holdOf(window) + S;
+    expect(endAt).toBeGreaterThan(3000 + S);
+    expect(fairWindowOpenAt(world, ctx, OUTLET_I, 3000 + S)).toBe(
+      Math.ceil(endAt / STEP_MS) * STEP_MS,
+    );
+    expect(fairWindowOpenAt(world, ctx, OUTLET_I, endAt - STEP_MS)).toBe(
+      Math.ceil(endAt / STEP_MS) * STEP_MS,
+    );
+    expect(fairWindowOpenAt(world, ctx, OUTLET_I, endAt)).toBe(endAt);
+    // Before its opening the spacing is the usual one.
+    expect(fairWindowOpenAt(world, ctx, OUTLET_I, 3000 - S)).toBe(3000 - S);
+  });
+
+  it('is the same for a tap: the same threat as a parry only keeps S away', async () => {
+    const { world, ctx, freeze } = await setup();
+    freeze(STAIRS_I, 3000);
+    expect(fairWindowOpenAt(world, ctx, OUTLET_I, 3000 + S - STEP_MS)).toBe(3000 + S);
+  });
+
+  it('draws a Firmness no closer than hold + S before another window, since the hold would run into it', async () => {
+    const { world, ctx, freeze } = await setup(undefined, [STAIRS_I]);
+    freeze(OUTLET_I, 6000);
+    // As a parry, the stairs could open S before the outlet; as a Firmness it needs the hold on top.
+    expect(fairWindowOpenAt(world, ctx, STAIRS_I, 6000 - S)).toBe(6000 + S);
+    expect(fairWindowOpenAt(world, ctx, STAIRS_I, 6000 - S - HOLD_UNTIL_MS + STEP_MS)).toBe(
+      6000 + S,
+    );
+    expect(fairWindowOpenAt(world, ctx, STAIRS_I, 6000 - S - HOLD_UNTIL_MS)).toBe(
+      6000 - S - HOLD_UNTIL_MS,
+    );
+    // A plain threat drawn there is allowed, as before.
+    const plain = await setup();
+    plain.freeze(OUTLET_I, 6000);
+    expect(fairWindowOpenAt(plain.world, plain.ctx, STAIRS_I, 6000 - S)).toBe(6000 - S);
+  });
+
+  it('is cleared of by a micro-sleep window that keeps out of its hold only (heldFirmnessClearAt)', async () => {
+    const { world, ctx, freeze, threatAt } = await setup(undefined, [STAIRS_I]);
+    freeze(STAIRS_I, 3000);
+    const window = threatAt(STAIRS_I).responseWindow;
+    if (window === null) throw new Error('the Firmness has a frozen window');
+    const endAt = 3000 + holdOf(window) + S;
+    expect(heldFirmnessClearAt(world, ctx, 3000 + S)).toBe(Math.ceil(endAt / STEP_MS) * STEP_MS);
+    expect(heldFirmnessClearAt(world, ctx, endAt)).toBe(endAt);
+    // It does not keep the micro-sleep out of the S before the Firmness's opening more than the rule does.
+    expect(heldFirmnessClearAt(world, ctx, 3000 - S)).toBe(3000 - S);
+  });
+
+  it('leaves the micro-sleep alone when no Firmness is held: a tap, a silence, nothing frozen', async () => {
+    const { world, ctx, freeze } = await setup();
+    expect(heldFirmnessClearAt(world, ctx, 3100)).toBe(3100);
+    freeze(STAIRS_I, 3000);
+    freeze(SILENCE_I, 3000 + 5 * S);
+    expect(heldFirmnessClearAt(world, ctx, 3100)).toBe(3100);
+    expect(heldFirmnessClearAt(world, ctx, 3000 + 5 * S + 100)).toBe(3000 + 5 * S + 100);
   });
 });
 

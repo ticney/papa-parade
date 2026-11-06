@@ -1,0 +1,23 @@
+{
+  "$schema": "../_schemas/threat.schema.json",
+  "id": "low_cabinet_open",
+  "target": "anchor",
+  "response": "parry",
+  "telegraphDelayMs": 1300,
+  "windowMs": null,
+  "gag": "pan_concert",
+  "verbKey": "verb.close_door",
+  "icon": "cabinet",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_low_cabinet_open",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_low_cabinet_open"
+  },
+  "catastrophe": "mess",
+  "afterEffect": { "kind": "mess" },
+  "cooldownMs": 6000,
+  "gagNoisePct": 15
+}

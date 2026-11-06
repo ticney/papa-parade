@@ -63,15 +63,24 @@ export const HAS_CHRONO_RING: Readonly<Record<BotResponse, boolean>> = {
 /**
  * The one finger of a bot while it holds a Firmness (story 1.23 D7). `Release` names no threat, so
  * any other tap would end the hold: while one is under way the bot presses nothing else, and a
- * Firmness is never pressed before the `Release` of a tap already planned.
+ * Firmness is never pressed before the `Release` of a tap planned to be down when it is pressed.
  */
 export interface FirmHold {
   /** True from the moment a Firmness press is planned until its `Release` has been sent. */
   readonly isHolding: boolean;
   /** Sim ms when the last tap planned so far lets go (0 if none): the finger is free from then on. */
   readonly tapUntil: number;
-  /** The bot has planned a tap whose `Release` falls at `releaseAt`. */
-  noteTap(releaseAt: number): void;
+  /**
+   * The bot has planned a tap whose `Release` falls at `releaseAt`. `pressAt` is when it goes down
+   * (omitted: before anything, so that it always counts).
+   */
+  noteTap(releaseAt: number, pressAt?: number): void;
+  /**
+   * Sim ms when the last tap that goes down no later than `at` lets go (0 if none): the earliest a
+   * Firmness pressed at `at` can go down. A tap planned for later does not hold it back: the bot plans
+   * a threat when it sees it, not in the order of their windows (story 9.7: a Firmness in a wave).
+   */
+  tapUntilAt(at: number): number;
   /** The bot has planned a press on this threat that it will hold. */
   begin(threatId: number): void;
   /**
@@ -82,11 +91,16 @@ export interface FirmHold {
   update(threats: readonly Readonly<ThreatInstance>[], now: number, out: SimCommand[]): void;
 }
 
+/** How many taps a `FirmHold` remembers (a wave allows a handful of threats at once). */
+const MAX_REMEMBERED_TAPS = 8;
+
 export function createFirmHold(): FirmHold {
   let threatId: number | null = null;
   // False until the sim has taken the press: the press is planned ahead of its step.
   let isPressed = false;
   let tapUntil = 0;
+  // The taps planned, as (press, release): a few at most are ever alive, the rest are dropped.
+  const taps: { pressAt: number; releaseAt: number }[] = [];
   return {
     get isHolding() {
       return threatId !== null;
@@ -94,8 +108,15 @@ export function createFirmHold(): FirmHold {
     get tapUntil() {
       return tapUntil;
     },
-    noteTap(releaseAt) {
+    noteTap(releaseAt, pressAt = 0) {
       tapUntil = Math.max(tapUntil, releaseAt);
+      taps.push({ pressAt, releaseAt });
+      if (taps.length > MAX_REMEMBERED_TAPS) taps.shift();
+    },
+    tapUntilAt(at) {
+      let until = 0;
+      for (const tap of taps) if (tap.pressAt <= at) until = Math.max(until, tap.releaseAt);
+      return until;
     },
     begin(id) {
       threatId = id;
@@ -131,11 +152,11 @@ export function schedulePress(
   const plan = fingerPlanFor(response, tapMs);
   // A `nothing` is left alone (story 4.9): a bot never presses it, so this is a guard, not a path.
   if (plan.kind === 'none') return;
-  const at = plan.kind === 'tap' ? pressAt : Math.max(pressAt, hold.tapUntil);
+  const at = plan.kind === 'tap' ? pressAt : Math.max(pressAt, hold.tapUntilAt(pressAt));
   scheduler.schedule({ type: 'PressThreat', t: asSimMs(at), threatId: threat.id });
   if (plan.kind === 'tap') {
     scheduler.schedule({ type: 'Release', t: asSimMs(at + plan.holdMs) });
-    hold.noteTap(at + plan.holdMs);
+    hold.noteTap(at + plan.holdMs, at);
   } else {
     hold.begin(threat.id);
   }
@@ -159,7 +180,7 @@ export function scheduleDrop(
   const releaseT = Math.max(releaseAt, at + 1);
   scheduler.schedule({ type: 'PressThreat', t: asSimMs(at), threatId: threat.id });
   scheduler.schedule({ type: 'Release', t: asSimMs(releaseT) });
-  hold.noteTap(releaseT);
+  hold.noteTap(releaseT, at);
 }
 
 /** What a bot asks of a threat def it knows, else `undefined` (the bot leaves that threat alone). */

@@ -2128,14 +2128,17 @@ describe('checkContent on the house chores (story 9.4)', () => {
     });
 
     it('refuses a level that plans the door twice: the count, then the second entry away from its station', async () => {
+      // The entry lands after the wave's own threats, whatever their number (story 9.7 added two).
+      let pushedAt = -1;
       await mutateJson(KITCHEN, (level) => {
         const second = wavesOf(level)[1];
         if (second === undefined) throw new Error('no second wave');
+        pushedAt = second.threats.length;
         second.threats.push({ def: 'dishwasher_open', anchor: 'coffee_machine' });
       });
       expect(await messages()).toEqual([
         `${KITCHEN} chores[1].def: the chore "unload_dishwasher" names the open threat "dishwasher_open", which the level must plan in one of its waves exactly once, but plans it 2 times`,
-        `${KITCHEN} waves[1].threats[2].anchor: the threat "dishwasher_open" is the open threat of the chore "unload_dishwasher": it must be planned at the anchor of the chore's station ("dishwasher"), not at "coffee_machine"`,
+        `${KITCHEN} waves[1].threats[${pushedAt}].anchor: the threat "dishwasher_open" is the open threat of the chore "unload_dishwasher": it must be planned at the anchor of the chore's station ("dishwasher"), not at "coffee_machine"`,
       ]);
     });
 

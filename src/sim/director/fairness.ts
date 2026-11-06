@@ -1,3 +1,4 @@
+import type { ThreatDef } from '@content/schemas/threat';
 import { SILENCE_SIMULTANEOUS_WEIGHT, STEP_MS } from '@shared/constants';
 import type { StepContext } from '../context.ts';
 import type { ThreatInstance, World } from '../world.ts';
@@ -33,22 +34,38 @@ export function fairnessSpacingMs(ctx: StepContext): number {
 }
 
 /**
- * The earliest instant at or after `openAt` where the window of the idle threat at `threatIndex` can
- * open without breaking the rule against any other frozen window (D4): `openAt` itself when nothing
- * is near, otherwise rounded up to the step grid. Another window opening at `open` forbids the open
- * interval `(open - S, open + S)`; a found silence's forbids `(open - S, open + windowMs +
- * toleranceMs + S)` (its parry's end plus the glide plus the margin, D3). Exactly `S` apart is
- * allowed. Pure and allocation-free: a fixed-point loop over `world.threats`; the instant only
- * grows and each threat moves it at most once, so it ends.
+ * How long a Firmness held on an anchor keeps Papa's finger down after its window opens, in ms: its
+ * `holdUntilMs`, or the end of the window plus `holdMinMs` if that is later. 0 for any other threat
+ * (a tap is over in a moment). With `windowMs`, `toleranceMs` and `holdMinMs` at 0, a def's own span.
  */
-export function fairWindowOpenAt(
+function heldSpanMs(
+  def: ThreatDef | undefined,
+  windowMs: number,
+  toleranceMs: number,
+  holdMinMs: number,
+): number {
+  if (def === undefined || def.response !== 'firm' || def.holdUntilMs === undefined) return 0;
+  return Math.max(def.holdUntilMs, windowMs + toleranceMs + holdMinMs);
+}
+
+/**
+ * The shared search of {@link fairWindowOpenAt} and {@link heldFirmnessClearAt}. With
+ * `isHeldFirmnessOnly`, only the held Firmnesses' guards count (the micro-sleep keeps clear of them and
+ * of nothing else, so that a level with no such Firmness runs exactly as before).
+ */
+function clearOpenAt(
   world: World,
   ctx: StepContext,
   threatIndex: number,
   openAt: number,
+  isHeldFirmnessOnly: boolean,
 ): number {
   const { threats } = world;
   const spacingMs = fairnessSpacingMs(ctx);
+  // A held Firmness drawn now must also end, and Papa glide away, before the window it would shut out.
+  const ownHoldMs = isHeldFirmnessOnly
+    ? 0
+    : heldSpanMs(ctx.level.threats[threatIndex]?.def, 0, 0, 0);
   let at = openAt;
   for (let pass = 0; pass <= threats.length; pass++) {
     let isMoved = false;
@@ -58,11 +75,19 @@ export function fairWindowOpenAt(
       const frozen = other.responseWindow;
       if (frozen === null || !hasFrozenWindow(other)) continue;
       const openedAt = other.windowOpenAt;
-      const isSilence = ctx.level.threats[i]?.def.target === 'hiddenZone';
+      const otherDef = ctx.level.threats[i]?.def;
+      const holdMs = heldSpanMs(
+        otherDef,
+        frozen.windowMs,
+        frozen.toleranceMs,
+        ctx.feel.input.holdMinMs,
+      );
+      if (isHeldFirmnessOnly && holdMs === 0) continue;
+      const isSilence = otherDef?.target === 'hiddenZone';
       const guardEndAt = isSilence
         ? openedAt + frozen.windowMs + frozen.toleranceMs + spacingMs
-        : openedAt + spacingMs;
-      if (at > openedAt - spacingMs && at < guardEndAt) {
+        : openedAt + holdMs + spacingMs;
+      if (at > openedAt - spacingMs - ownHoldMs && at < guardEndAt) {
         at = Math.ceil(guardEndAt / STEP_MS) * STEP_MS;
         isMoved = true;
       }
@@ -70,6 +95,37 @@ export function fairWindowOpenAt(
     if (!isMoved) break;
   }
   return at;
+}
+
+/**
+ * The earliest instant at or after `openAt` where the window of the idle threat at `threatIndex` can
+ * open without breaking the rule against any other frozen window (D4): `openAt` itself when nothing
+ * is near, otherwise rounded up to the step grid. Another window opening at `open` forbids the open
+ * interval `(open - S, open + S)`; a found silence's forbids `(open - S, open + windowMs +
+ * toleranceMs + S)` (its parry's end plus the glide plus the margin, D3). Exactly `S` apart is
+ * allowed. A Firmness held on an anchor keeps Papa's finger down for `hold` after its window opens
+ * ({@link heldSpanMs}, story 9.7: the first Firmness in a wave), so its window forbids `(open - S, open +
+ * hold + S)`, and a held Firmness being drawn forbids the `hold` before another window too. No other
+ * threat has a `hold`: a level with no Firmness in a wave runs exactly as before. Pure and
+ * allocation-free: a fixed-point loop over `world.threats`; the instant only grows and each threat moves
+ * it at most once, so it ends.
+ */
+export function fairWindowOpenAt(
+  world: World,
+  ctx: StepContext,
+  threatIndex: number,
+  openAt: number,
+): number {
+  return clearOpenAt(world, ctx, threatIndex, openAt, false);
+}
+
+/**
+ * The earliest instant at or after `openAt` where a window that no wave draws (the micro-sleep, which
+ * the fatigue gauge starts) can open without landing in a held Firmness's guard (story 9.7): `openAt`
+ * itself unless a Firmness is held near it. It keeps clear of nothing else, as before.
+ */
+export function heldFirmnessClearAt(world: World, ctx: StepContext, openAt: number): number {
+  return clearOpenAt(world, ctx, -1, openAt, true);
 }
 
 /**

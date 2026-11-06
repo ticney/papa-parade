@@ -55,6 +55,14 @@ const STATION_AFTER_MS = 1000;
  */
 const DOOR_STATION_ANCHOR = 'baby_spawn';
 
+/**
+ * Where the catalogue plays a def that only the big salon plans (story 9.7: the five mischiefs of the kitchen and
+ * the dining corner, at anchors the frozen room does not have): a floor point of the frozen room that no live def
+ * uses, no fixture takes and no object stands on. An anchor is planned once per level, so `levelPlanning` plans
+ * only the tested one there, and leaves the other kitchen-only defs out of that level (they are not its subject).
+ */
+const KITCHEN_CATALOG_ANCHOR = 'toilet';
+
 /** A release time beyond every case's horizon: the other defs stay idle while one is tested. */
 const CATALOG_OTHERS_FROM_MS = 600_000;
 
@@ -89,6 +97,8 @@ const frozenAnchorIds = new Set(
   [...frozenRoom.anchors, ...frozenRoom.zones].map((point) => point.id),
 );
 const anchors = new Map<string, string>();
+/** The defs a live level plans at some anchor, the frozen room's or not: what is left of `anchors` is the big salon's own. */
+const plannedAtAnyAnchor = new Set<string>();
 /**
  * The defs a live level spawns on Papa (`gauges.fatigue.microSleepDef`, `carry.armsCryDef`): they
  * have no anchor.
@@ -125,6 +135,7 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
   const parsed = parseContentFile(`content/levels/${name}`, text, LevelSchema);
   if (!parsed.ok) throw new Error(`${name} is invalid: ${JSON.stringify(parsed.error)}`);
   for (const entry of parsed.value.waves.flatMap((wave) => wave.threats)) {
+    plannedAtAnyAnchor.add(entry.def);
     if (!anchors.has(entry.def) && frozenAnchorIds.has(entry.anchor)) {
       anchors.set(entry.def, entry.anchor);
     }
@@ -170,6 +181,22 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
     }
   }
 }
+
+/**
+ * The anchored defs only the big salon plans, at anchors the frozen room lacks (story 9.7). The open door of a chore
+ * has its own station level (`doorDefs`), so it is not one of them.
+ */
+const kitchenOnlyDefs = new Set(
+  liveDefs
+    .filter(
+      (def) =>
+        def.target === 'anchor' &&
+        plannedAtAnyAnchor.has(def.id) &&
+        !anchors.has(def.id) &&
+        !doorDefs.has(def.id),
+    )
+    .map((def) => def.id),
+);
 
 /** The cry in the arms a duel level carries with (the schema asks for one): the first a live level has. */
 const CARRY_CRY_DEF = [...armsCryDefs][0] ?? 'arms_cry';
@@ -262,8 +289,9 @@ function anchorOf(def: ThreatDef): string {
     return fixtureAnchor;
   }
   const anchor = anchors.get(def.id);
-  if (anchor === undefined) throw new Error(`"${def.id}" is planned by no level`);
-  return anchor;
+  if (anchor !== undefined) return anchor;
+  if (kitchenOnlyDefs.has(def.id)) return KITCHEN_CATALOG_ANCHOR;
+  throw new Error(`"${def.id}" is planned by no level`);
 }
 
 /**
@@ -277,7 +305,9 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       def.target !== 'papa' &&
       def.target !== 'baby' &&
       def.target !== 'station' &&
-      !doorDefs.has(def.id),
+      !doorDefs.has(def.id) &&
+      // Only the tested one of the big salon's own defs: they would share `KITCHEN_CATALOG_ANCHOR`.
+      (!kitchenOnlyDefs.has(def.id) || def === tested),
   );
   const planned = (def: ThreatDef) => ({ def: def.id, anchor: anchorOf(def) });
   if (duelDefs.has(tested.id)) {
@@ -659,7 +689,7 @@ describe('the threat catalogue', () => {
             ? stealthDefs.has(id)
             : target === 'station'
               ? stationDefs.has(id)
-              : anchors.has(id) || doorDefs.has(id);
+              : anchors.has(id) || doorDefs.has(id) || kitchenOnlyDefs.has(id);
       expect(planned, `"${id}" is planned by no level`).toBe(true);
     },
   );
@@ -672,6 +702,28 @@ describe('the threat catalogue', () => {
     for (const def of fixtureDefs) {
       expect(liveDefs.map((live) => live.id)).not.toContain(def.id);
       expect(def.target).toBe('anchor');
+    }
+  });
+
+  it("plays the big salon's own defs at one free anchor of the frozen room, a level apiece (story 9.7)", () => {
+    expect([...kitchenOnlyDefs].sort()).toEqual([
+      'bin_rummage',
+      'low_cabinet_open',
+      'papa_mug_low',
+      'plant_dig',
+      'tablecloth_pull',
+    ]);
+    expect(frozenAnchorIds.has(KITCHEN_CATALOG_ANCHOR)).toBe(true);
+    // Nothing else stands on it: no live def, no fixture, not the chore's station.
+    expect([...anchors.values()]).not.toContain(KITCHEN_CATALOG_ANCHOR);
+    expect(Object.values(FIXTURE_ANCHORS)).not.toContain(KITCHEN_CATALOG_ANCHOR);
+    expect(DOOR_STATION_ANCHOR).not.toBe(KITCHEN_CATALOG_ANCHOR);
+    // A level plans the tested one and no other kitchen-only def (an anchor is planned once per level).
+    for (const tested of kitchenOnlyDefs) {
+      const def = defs.find((candidate) => candidate.id === tested) as ThreatDef;
+      const planned = levelPlanning(def).level.waves.flatMap((wave) => wave.threats);
+      const atKitchenAnchor = planned.filter((entry) => entry.anchor === KITCHEN_CATALOG_ANCHOR);
+      expect(atKitchenAnchor.map((entry) => entry.def)).toEqual([tested]);
     }
   });
 

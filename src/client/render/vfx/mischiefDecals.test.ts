@@ -1,5 +1,5 @@
 import type { MischiefMark } from '@sim';
-import { Group, type Mesh } from 'three';
+import { Group, type Mesh, type MeshToonMaterial } from 'three';
 import { describe, expect, it } from 'vitest';
 import { createTestGeometry } from '../../../../tests/support/testContent.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
@@ -9,6 +9,7 @@ import {
   DECAL_LIFT_M,
   type DecalCover,
   type DecalView,
+  decalColorOf,
   GAME_VIEW,
   visibleDecalPoint,
 } from './mischiefDecals.ts';
@@ -178,6 +179,87 @@ describe('createDecalGeometry', () => {
     );
     cutlery.dispose();
     second.dispose();
+  });
+});
+
+describe('the decals of the five mischiefs of the big salon (story 9.7)', () => {
+  /** Each new gag, its vertex count for mark 0 (what its pattern is made of) and its colour. */
+  const NEW_DECALS = [
+    // Nine triangle shards.
+    { gag: 'dishes_on_floor', vertices: 9 * 3, color: 0xdfe9f2 },
+    // Four discs of a centre and ten rim points.
+    { gag: 'pan_concert', vertices: 4 * 11, color: 0x59606b },
+    // Nine thin quads; the first mark's peelings are beige.
+    { gag: 'peelings_everywhere', vertices: 9 * 4, color: 0xd9c59a },
+    // The patch (a centre and 14 rim points) and six crumbs of four corners.
+    { gag: 'soil_on_rug', vertices: 1 + 14 + 6 * 4, color: 0x4a3223 },
+    // One puddle: a centre and 14 rim points.
+    { gag: 'coffee_spilled', vertices: 1 + 14, color: 0x7a4a2b },
+  ] as const;
+
+  it.each(NEW_DECALS)(
+    'draws $gag flat, with its own pattern and the same every time',
+    ({ gag, vertices }) => {
+      const a = createDecalGeometry(gag, 0);
+      const b = createDecalGeometry(gag, 0);
+      const positions = a.getAttribute('position');
+      expect(positions.count).toBe(vertices);
+      for (let i = 0; i < positions.count; i++) expect(positions.getY(i)).toBe(0);
+      expect(Array.from(positions.array)).toEqual(Array.from(b.getAttribute('position').array));
+      const index = a.getIndex();
+      expect(Math.max(...Array.from(index?.array ?? []))).toBeLessThan(positions.count);
+      // Another mark of the same gag is not a copy of this one.
+      const next = createDecalGeometry(gag, 1);
+      expect(Array.from(next.getAttribute('position').array)).not.toEqual(
+        Array.from(positions.array),
+      );
+      for (const geometry of [a, b, next]) geometry.dispose();
+    },
+  );
+
+  it('gives each of the five, the older gags and the tissues a pattern of its own', () => {
+    const gags = [
+      'tissues_everywhere',
+      'crayon_scribbles',
+      'pot_boiled_over',
+      'baby_in_dishwasher',
+      ...NEW_DECALS.map(({ gag }) => gag),
+    ];
+    const patterns = gags.map((gag) => {
+      const geometry = createDecalGeometry(gag, 0);
+      const pattern = Array.from(geometry.getAttribute('position').array).join(',');
+      geometry.dispose();
+      return pattern;
+    });
+    expect(new Set(patterns).size).toBe(gags.length);
+  });
+
+  it.each(NEW_DECALS)(
+    'colours $gag in a colour of its own, never the tissues’ white',
+    ({ gag, color }) => {
+      expect(decalColorOf(gag, 0)).toBe(color);
+      expect(decalColorOf(gag, 0)).not.toBe(decalColorOf('tissues_everywhere', 0));
+      const parent = new Group();
+      const decals = createMischiefDecals(parent, cover, createToonMaterialCache(TONES));
+      decals.sync([mark(gag, -2, 2)], PHOTO);
+      const mesh = parent.children[0] as Mesh;
+      expect((mesh.material as MeshToonMaterial).color.getHex()).toBe(color);
+    },
+  );
+
+  it('alternates the peelings between beige and green from one mark to the next', () => {
+    const first = decalColorOf('peelings_everywhere', 0);
+    const second = decalColorOf('peelings_everywhere', 1);
+    expect(first).not.toBe(second);
+    expect(decalColorOf('peelings_everywhere', 2)).toBe(first);
+  });
+
+  it('falls back to the tissues’ colour for a gag with no row', () => {
+    expect(decalColorOf('burp', 0)).toBe(decalColorOf('tissues_everywhere', 0));
+  });
+
+  it('keeps the soil and the coffee apart: two browns, not one', () => {
+    expect(decalColorOf('soil_on_rug', 0)).not.toBe(decalColorOf('coffee_spilled', 0));
   });
 });
 

@@ -72,6 +72,13 @@ export const GAG_PRESENTATIONS: Readonly<Record<GagId, GagPresentation>> = {
   // The baby gets into the open dishwasher (story 9.6): the cutlery on the floor is the decal, the baby is
   // delighted. The rack he sits in is E7's art (the door node is static).
   baby_in_dishwasher: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'gag_delight' },
+  // The five mischiefs of the big salon (story 9.7): the mess is the decal at the threat's point, the crash
+  // or the rustle the gag cue; the nodes (cloth, cabinet door, bin lid, plant, mug) stay static until E7.
+  dishes_on_floor: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'gag_delight' },
+  pan_concert: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'gag_delight' },
+  peelings_everywhere: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'laugh' },
+  soil_on_rug: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'laugh' },
+  coffee_spilled: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'laugh' },
   // The wail in Papa's arms (story 4.1): the baby's cry is his own loop, `cryEndsAt` says so.
   arms_wail: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: null },
   // The eyes reopen in the bedtime duel (story 4.6): `babyLidsAfter` opens them, the clip wakes him.

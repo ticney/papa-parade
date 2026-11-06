@@ -435,6 +435,19 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   // The machine and its door folded down, a slot of the rack in it (story 9.6: the open dishwasher; the slot runs
   // the other way round, so that the nonzero fill leaves it a hole). Provisional, like the others.
   dishwasher: 'M5 3h14v8H5z M3 21l2-9h14l2 9z M8.5 15.2v1.6h7v-1.6z',
+  // The five mischiefs of the big salon (story 9.7), placeholder glyphs like the others (E7 redraws them).
+  // A table top and the cloth hanging from it, its hem in scallops: « RATTRAPE ! » the tablecloth.
+  tablecloth:
+    'M2.5 4.5h19v4h-19z M4.5 8.5h15v10.5l-2.5 2.5-2.5-2.5-2.5 2.5-2.5-2.5-2.5 2.5-2.5-2.5z',
+  // A low cupboard under its worktop, the door open on a dark inside (the hole runs the other way round).
+  cabinet: 'M2 4h20v3.2H2z M3 7.2h18V21H3z M6 10.2v8.3h12v-8.3z',
+  // A bin with its lid and handle, two slots in its side.
+  bin: 'M10 2.5h4v2.5h-4z M4.5 5h15v2.8h-15z M6 8.5h12l-1.3 13H7.3z M9.6 11.5v7.5h1.5v-7.5z M12.9 11.5v7.5h1.5v-7.5z',
+  // A potted plant: two leaves and a sprout over the pot.
+  plant:
+    'M7 15.2h10l-1.5 6.3h-7z M12 15C12 9.5 8 6.5 3.5 6.5c0 5 3 8.3 8.5 8.5z M12 15c0-5.5 4-8.5 8.5-8.5 0 5-3 8.3-8.5 8.5z M11.3 15.2V3h1.4v12.2z',
+  // A cup on its saucer with two wisps of steam: unlike the coffee table's `mug`, no handle-only silhouette (story 9.7: Papa's mug, set too low).
+  cup: 'M5 9.5h11v6.5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z M16 11.5h2a2.5 2.5 0 0 1 0 5h-2v-1.8h2a.7.7 0 0 0 0-1.4h-2z M3 20h15.5v2.2H3z M8 7c-1-1.2 1-2 0-3.5 M12 7c-1-1.2 1-2 0-3.5',
 };
 /** The chevron: a down-pointing triangle above the verb (12 × 8 view box). */
 const CHEVRON_PATH = 'M1 1h10L6 7z';
