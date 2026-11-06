@@ -2095,6 +2095,27 @@ describe('checkContent on the house chores (story 9.4)', () => {
       );
     });
 
+    it('refuses an open threat that is not parried', async () => {
+      await mutateJson('content/threats/dishwasher_open.json', (threat) => {
+        threat.response = 'nothing';
+        threat.nothingMs = 1500;
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /unload_dishwasher\.json openThreat: the threat "dishwasher_open" has response "nothing", but the open threat of a chore must have response "parry"/,
+      );
+    });
+
+    it('refuses a door named by two chores the level declares', async () => {
+      await mutateJson('content/chores/cooking.json', (chore) => {
+        chore.openThreat = 'dishwasher_open';
+      });
+      expect((await messages()).join('\n')).toMatch(
+        new RegExp(
+          `${KITCHEN.replace(/[.*+?^${'$'}{}()|[\\]\\\\]/g, '\\\\$&')} chores\\[1\\]\\.def: the threat "dishwasher_open" is already the open threat of another chore \\("cooking"\\)`,
+        ),
+      );
+    });
+
     it('refuses a level that declares the chore and plans its door in no wave', async () => {
       await mutateJson(KITCHEN, (level) => {
         const [first] = wavesOf(level);

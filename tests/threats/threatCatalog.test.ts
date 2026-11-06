@@ -716,6 +716,8 @@ describe.each(
 )('threat %s at the %s tier', (_id, tier, def) => {
   // A Firmness judged on its release (story 4.8) is pressed early and judged on the release: its own set below.
   const release = def.release;
+  // Its marker covers its station's, so an early press is a glide, never a gag: a pot (story 9.5) or the open door of a chore (story 9.6, review).
+  const isOnStationMarker = def.target === 'station' || doorDefs.has(def.id);
 
   it('is perfect when answered at the centre of the window', async () => {
     const { sim, center, openAt, threatId } = await telegraphed(def, tier);
@@ -739,9 +741,10 @@ describe.each(
     expect(gags(events)).toEqual([]);
   });
 
-  // A pot on the stove (story 9.5, review) takes an early press as a glide, whatever `earlyPress` says.
-  it.skipIf(release !== undefined || def.target !== 'station')(
-    'ignores a press answered too early, on a station',
+  // A pot on the stove (story 9.5, review) and the open door of a chore (story 9.6, review) take an early
+  // press as a glide, whatever `earlyPress` says.
+  it.skipIf(release !== undefined || !isOnStationMarker)(
+    'ignores a press answered too early, on a station marker',
     async () => {
       const { sim, openAt, window, threatId } = await telegraphed(def, tier);
       const t = openAt - window.toleranceMs - window.bufferMs - 1;
@@ -752,7 +755,7 @@ describe.each(
     },
   );
 
-  it.skipIf(release !== undefined || def.target === 'station')(
+  it.skipIf(release !== undefined || isOnStationMarker)(
     'is a gag when answered too early',
     async () => {
       const { sim, center, openAt, window, threatId } = await telegraphed(def, tier);

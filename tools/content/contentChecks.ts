@@ -51,6 +51,7 @@ import {
   openThreatAnchorProblem,
   openThreatOrphanProblem,
   openThreatPlanProblem,
+  openThreatResponseProblem,
   PAPA_ASLEEP_GAG_ID,
   playableMsOf,
   SIM_EVENT_TYPES,
@@ -1122,6 +1123,15 @@ function checkChoreReferences(
           jsonPath: formatJsonPath(['openThreat']),
           message: `the threat "${def}" has target "${threat.target}", but the open threat of a chore must have target "anchor"`,
         });
+      } else {
+        const responseProblem = openThreatResponseProblem(def, threat.response);
+        if (responseProblem !== null) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['openThreat']),
+            message: responseProblem,
+          });
+        }
       }
     }
     if (feedback !== undefined) {
@@ -1201,10 +1211,22 @@ function checkOpenThreatPlans(
   problems: ContentProblem[],
 ): void {
   const declared = new Set<string>();
+  // The chore that named each door first: `createSim` refuses a door shared by two declared chores.
+  const doorOwners = new Map<string, string>();
   level.chores?.forEach((entry, i) => {
     const chore = families.chores.get(entry.def);
     declared.add(entry.def);
     if (chore?.openThreat === undefined) return;
+    const owner = doorOwners.get(chore.openThreat);
+    if (owner === undefined) {
+      doorOwners.set(chore.openThreat, entry.def);
+    } else {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['chores', i, 'def']),
+        message: `the threat "${chore.openThreat}" is already the open threat of another chore ("${owner}"): a door belongs to one chore`,
+      });
+    }
     const planned: { wave: number; index: number; anchor: string }[] = [];
     level.waves.forEach((wave, w) => {
       wave.threats.forEach((threat, t) => {

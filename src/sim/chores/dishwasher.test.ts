@@ -64,6 +64,8 @@ interface Options {
   alsoPlans?: (typeof OUTLET)[];
   isNoisy?: boolean;
   isCarrying?: boolean;
+  /** The sequences the level can run (by id). */
+  sequences?: readonly string[];
   /** The baby is within Papa's reach wherever he crawls (the threat catalogue's trick). */
   isBabyAlwaysInReach?: boolean;
   durationMs?: number;
@@ -85,6 +87,7 @@ function levelOf(options: Options = {}) {
     chores: cooking ? [TEST_COOKING, TEST_UNLOAD_DISHWASHER] : [TEST_UNLOAD_DISHWASHER],
     ...(options.isNoisy === true ? { gauges: NOISE_GAUGES } : {}),
     ...(options.isCarrying === true ? { carry: CARRY } : {}),
+    ...(options.sequences === undefined ? {} : { sequences: options.sequences }),
     ...(options.durationMs === undefined ? {} : { durationMs: options.durationMs }),
   });
 }
@@ -279,6 +282,21 @@ describe('the dishwasher level (story 9.6, AC 1, 5)', () => {
     );
   });
 
+  it('refuses an open threat that is not parried', async () => {
+    const level = levelOf();
+    const unparried = { ...DOOR, response: 'nothing', nothingMs: 1500 } as typeof DOOR;
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: { ...level, threats: { ...level.threats, [DOOR.id]: unparried } },
+        seed: 1,
+      }),
+    ).rejects.toThrow(
+      /chores\[0\]: the threat "dishwasher_open" has response "nothing", but the open threat of a chore must have response "parry"/,
+    );
+  });
+
   it('refuses two chores that name the same door', async () => {
     // Both stations share the door's anchor, so that only the sharing is wrong.
     const level = createTestLevel({
@@ -404,6 +422,35 @@ describe('the door (AC 7)', () => {
       expect.objectContaining({ gag: 'baby_in_dishwasher' }),
     ]);
     expect(choreOf(sim)).toMatchObject({ state: 'paused', isOpen: true });
+  });
+
+  it('stays open when a sequence cancels the threat: only a parry shuts the door', async () => {
+    // « Les 100 pas en rythme » carries the baby, so the level needs a carry.
+    const sim = await newSim({ sequences: ['lullaby_walk'], isCarrying: true });
+    openAndForceDoor(sim);
+    tell(sim, { type: 'StartSequence', sequenceId: 'lullaby_walk' });
+    const events = stepEvents(sim, 3);
+    expect(only(events, 'ThreatCancelled')).toEqual([
+      expect.objectContaining({ threatId: doorOf(sim).id, reason: 'sequence' }),
+    ]);
+    expect(doorOf(sim).state).toBe('idle');
+    expect(choreOf(sim)).toMatchObject({ state: 'paused', isOpen: true });
+  });
+
+  it('lets a tap on the dishwasher before the door’s window pass: the early press is no gag, the baby waits', async () => {
+    const sim = await newSim();
+    openAndForceDoor(sim);
+    const door = doorOf(sim);
+    // The marker sits on the station: a tap meant to go back to the chore reaches the sim as a press.
+    expect(sim.world.time.sim).toBeLessThan(door.windowOpenAt - bufferMs);
+    tell(sim, { type: 'PressThreat', threatId: door.id });
+    const early = stepEvents(sim, 3);
+    expect(only(early, 'GagTriggered')).toEqual([]);
+    expect(doorOf(sim).state).toBe('telegraph');
+    // The press in the window still parries it.
+    const answered = pressDoor(sim);
+    expect(only(answered, 'GagTriggered')).toEqual([]);
+    expect(choreOf(sim)).toMatchObject({ state: 'paused', isOpen: false });
   });
 
   it('stays open when the baby is taken: the threat is cancelled, not answered', async () => {

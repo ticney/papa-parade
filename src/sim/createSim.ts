@@ -15,6 +15,7 @@ import {
   CHORE_STATION_OBJECT_KINDS,
   openThreatAnchorProblem,
   openThreatPlanProblem,
+  openThreatResponseProblem,
 } from './chores/chores.ts';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
@@ -588,6 +589,8 @@ function simLevelOf(
       def.target === 'anchor',
       `${where}: the threat "${openThreat}" has target "${def.target}", but the open threat of a chore must have target "anchor"`,
     );
+    const responseProblem = openThreatResponseProblem(openThreat, def.response);
+    invariant(responseProblem === null, `${where}: ${responseProblem}`);
     const object = level.level.objects.find((candidate) => candidate.id === base.objectId);
     invariant(
       object !== undefined,

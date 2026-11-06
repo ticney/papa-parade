@@ -43,6 +43,17 @@ export function openThreatPlanProblem(
 }
 
 /**
+ * Why a threat cannot be the open door of a chore for its response (story 9.6, review), or null: the door
+ * is closed by a parry (« refermer la porte »), and the `(telegraph | windowOpen) ⇒ isOpen` rule and the
+ * director's gate read a parry. The pot's threat is held to the same (`createSim`). `simLevelOf` and
+ * `content:check` both call it. Pure.
+ */
+export function openThreatResponseProblem(threatDefId: string, response: string): string | null {
+  if (response === 'parry') return null;
+  return `the threat "${threatDefId}" has response "${response}", but the open threat of a chore must have response "parry"`;
+}
+
+/**
  * Why the wave entry of a chore's open-door threat stands in the wrong place (story 9.6), or null: it is
  * planned at the anchor of the chore's station, or the door would be a target away from the dishwasher.
  */

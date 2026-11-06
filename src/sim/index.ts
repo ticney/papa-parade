@@ -13,6 +13,7 @@ export {
   openThreatAnchorProblem,
   openThreatOrphanProblem,
   openThreatPlanProblem,
+  openThreatResponseProblem,
 } from './chores/chores.ts';
 export type { SimCommand } from './commands.ts';
 export type { SimObjectSpec } from './context.ts';

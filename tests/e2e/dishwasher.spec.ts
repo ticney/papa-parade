@@ -283,7 +283,9 @@ test.describe('the dishwasher: plates and the open door', () => {
     const closed = resolved.find((event) => event.threatId === opening.id);
     expect(closed?.quality === 'perfect' || closed?.quality === 'success').toBe(true);
     expect(dishwasherOf(await ppWorld(page)).isOpen).toBe(false);
-    // A second one cannot be forced: the door is shut (and the threat has its cooldown).
+    // The baby is not sent back to the door Papa has just shut: the threat is in its cooldown, so this only
+    // shows that no second telegraph follows the parry. That a shut door itself refuses `ForceThreat` and
+    // the director is pinned by the sim tests (« ignores ForceThreat on a shut door »), not here.
     await ppSend(page, { type: 'ForceThreat', threatId: opening.id });
     await ppAdvance(page, 3);
     const again = (await typesOf(page, 'ThreatTelegraphed')) as unknown as { kind: string }[];
@@ -394,10 +396,19 @@ test.describe('the dishwasher: plates and the open door', () => {
     }[];
     const { feel } = await ppWorld(page);
     expect(scored[0]?.homePoints).toBe(feel.mama.homeMaxPoints);
-    expect(scored[0]?.sighPoints).toBeGreaterThanOrEqual(
-      Math.min(
-        feel.mama.sighMaxPoints,
-        unload.missBrokenObjects * feel.mama.sighPerBrokenPropPoints,
+    // The Soupir row, to the point: the plates the chore counted join the props the physics broke, and
+    // nothing else is added (the final rush's mess is in `world.mess`, read once the level is over).
+    const { mess, chores } = await ppWorld(page);
+    const platesBroken = (chores[INDEX]?.beatsMissed ?? 0) * (unload.missBrokenObjects as number);
+    expect(platesBroken).toBe(unload.missBrokenObjects);
+    expect(scored[0]?.sighPoints).toBe(
+      Math.round(
+        Math.min(
+          feel.mama.sighMaxPoints,
+          mess.propsOnFloor * feel.mama.sighPerPropOnFloorPoints +
+            (mess.propsBroken + platesBroken) * feel.mama.sighPerBrokenPropPoints +
+            mess.mischiefs * feel.mama.sighPerMischiefPoints,
+        ),
       ),
     );
     await expect(page.locator('.pp-result-panel .pp-score-row-home .pp-score-value')).toHaveText(
