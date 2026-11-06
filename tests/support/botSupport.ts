@@ -61,7 +61,7 @@ export function legacyHuman(
     aimOffsetMs,
     jitterSdMs,
     missWhileBusyPct: 0,
-    backTurnedReactionMs: 0,
+    backTurnedSdMs: 0,
   };
 }
 

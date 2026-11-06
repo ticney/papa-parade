@@ -39,8 +39,8 @@ export interface BotOptions {
     jitterSdMs: number;
     /** Chance, in %, of never answering a threat first seen while busy elsewhere. */
     missWhileBusyPct: number;
-    /** Extra reaction time to a telegraph while Papa works at a chore's station, in ms (story 9.4). */
-    backTurnedReactionMs: number;
+    /** Extra standard deviation of its aim at a window while Papa works at a chore's station, in ms (story 9.4). */
+    backTurnedSdMs: number;
   };
   random: {
     /** Actions started per second of sim time, on average. */

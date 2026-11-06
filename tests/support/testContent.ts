@@ -154,8 +154,8 @@ export function createTestBots(): BotSettings {
     // them (no draw, no tap), so they move no existing test; a level with a station gets them.
     chores: { isEnabled: true, quietMinMs: 1500 },
     // Story 3.14 AC 6: these values reduce the human model to the one of before the story (no
-    // reaction draw, `withChronoRing` at the old jitter, nobody inattentive), except the 9.4 delay of
-    // a Papa who works at a station, which only a level with a station reads.
+    // reaction draw, `withChronoRing` at the old jitter, nobody inattentive), except the 9.4 spread of
+    // the aim of a Papa who works at a station, which only a level with a station reads.
     human: {
       reactionMeanMs: 250,
       reactionSdMs: 0,
@@ -167,7 +167,7 @@ export function createTestBots(): BotSettings {
       aimOffsetMs: 0,
       jitterSdMs: 60,
       missWhileBusyPct: 0,
-      backTurnedReactionMs: 400,
+      backTurnedSdMs: 150,
     },
     random: { actionsPerSec: 2, floorReachM: 3, maxHoldMs: 800 },
   };

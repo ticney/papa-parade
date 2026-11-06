@@ -13,7 +13,7 @@
     "aimOffsetMs": 0,
     "jitterSdMs": 60,
     "missWhileBusyPct": 10,
-    "backTurnedReactionMs": 400
+    "backTurnedSdMs": 150
   },
   "random": { "actionsPerSec": 2, "floorReachM": 3, "maxHoldMs": 800 }
 }

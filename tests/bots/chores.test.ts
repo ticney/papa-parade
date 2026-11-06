@@ -136,14 +136,12 @@ describe('the human bot does the chores', () => {
     expect(misses).toBeGreaterThan(0);
   });
 
-  it('reacts backTurnedReactionMs later to a telegraph while Papa works at the station', async () => {
-    const slow: Partial<BotOptions> = {
-      human: { ...legacyHuman({ reactionMs: 250, jitterSdMs: 0 }), backTurnedReactionMs: 1500 },
-    };
-    const quick: Partial<BotOptions> = {
-      human: { ...legacyHuman({ reactionMs: 250, jitterSdMs: 0 }), backTurnedReactionMs: 0 },
-    };
-    const lateFails = async (settings: Partial<BotOptions>) => {
+  it('aims worse at a telegraph while Papa works at the station: backTurnedSdMs widens the spread', async () => {
+    // A human who aims exactly at the centre of the window (no jitter): the only error is the spread.
+    const human = (backTurnedSdMs: number): Partial<BotOptions> => ({
+      human: { ...legacyHuman({ reactionMs: 250, jitterSdMs: 0 }), backTurnedSdMs },
+    });
+    const failedThreats = async (settings: Partial<BotOptions>) => {
       let fails = 0;
       for (const seed of SEEDS) {
         const { sim, events } = await play('human', seed, settings);
@@ -154,8 +152,24 @@ describe('the human bot does the chores', () => {
       }
       return fails;
     };
-    // A back turned for 1.5 s costs responses that a quick bot lands.
-    expect(await lateFails(slow)).toBeGreaterThanOrEqual(await lateFails(quick));
+    const exact = await failedThreats(human(0));
+    expect(exact).toBe(0);
+    // 400 ms of spread against a 300 ms window: presses fall outside it.
+    expect(await failedThreats(human(400))).toBeGreaterThan(exact);
+  });
+
+  it('draws the spread only while Papa is at a station: with the chores off it changes nothing', async () => {
+    const withSpread = async (backTurnedSdMs: number) => {
+      const settings: Partial<BotOptions> = {
+        chores: { isEnabled: false, quietMinMs: 1500 },
+        human: { ...legacyHuman({ reactionMs: 250, jitterSdMs: 30 }), backTurnedSdMs },
+      };
+      const { sim } = await play('human', 3, settings);
+      const hash = hashJson(sim.world);
+      sim.dispose();
+      return hash;
+    };
+    expect(await withSpread(400)).toBe(await withSpread(0));
   });
 });
 

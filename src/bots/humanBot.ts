@@ -69,13 +69,18 @@ const FETCH_RETRY_MS = 1000;
  * In the final rush (story 3.5) it tidies the props that are a mess, nearest first, from a reaction (drawn
  * once, when the door opens) after the door opened (`planTidy`): no aim draw.
  *
+ * **His back turned (story 9.4).** A parry or a Firmness it first sees while Papa works at a chore's station
+ * is aimed at with `backTurnedSdMs × N(0, 1)` more on top of the aim: a spread, so that the cost grows smoothly
+ * with the value (a delay on the reaction floor would only bind past the window's centre and be a cliff).
+ *
  * The order of the draws, which AC 6 of story 3.14 pins on the frozen settings: the attention (only when busy
- * and `missWhileBusyPct` is above 0), then the reaction (only when `reactionSdMs` is above 0), then the aim.
+ * and `missWhileBusyPct` is above 0), then the reaction (only when `reactionSdMs` is above 0), then the aim,
+ * then the back-turned error (only while Papa is in `chore` and `backTurnedSdMs` is above 0).
  */
 export function createHumanBot(setup: BotSetup): Bot {
   const { reactionMeanMs, reactionSdMs, reactionMinMs, readError, aimOffsetMs, jitterSdMs } =
     setup.settings.human;
-  const { missWhileBusyPct, backTurnedReactionMs } = setup.settings.human;
+  const { missWhileBusyPct, backTurnedSdMs } = setup.settings.human;
   // What the player is shown decides how well it reads the time left on a ring.
   const ringError = setup.isChronoRingShown
     ? readError.withChronoRing
@@ -252,10 +257,14 @@ export function createHumanBot(setup: BotSetup): Bot {
           continue;
         }
         // His back turned to the baby (story 9.4): a telegraph seen while Papa works at a station is
-        // reacted to later. No draw: the extra is a constant, and 0 outside a chore.
-        const backTurnedMs = world.papa.state === 'chore' ? backTurnedReactionMs : 0;
-        const reactionMs = drawReactionMs() + backTurnedMs;
-        const aim = aimOf(response, centreOf(threat));
+        // aimed at with a wider spread (`backTurnedSdMs`). One more draw after the aim, only then: Papa
+        // is in `chore` only in a level with a station, so no other level draws it.
+        const reactionMs = drawReactionMs();
+        const backTurnedErrorMs =
+          world.papa.state === 'chore' && backTurnedSdMs > 0
+            ? backTurnedSdMs * nextGaussian(rng)
+            : 0;
+        const aim = aimOf(response, centreOf(threat)) + backTurnedErrorMs;
         const reacted = threat.enteredAt + reactionMs;
         // `now` is a floor too: a command never goes into the past.
         const pressAt = Math.max(Math.round(Math.max(reacted, aim)), now);

@@ -60,8 +60,8 @@ function setupProblem(setup: BotSetup): string | null {
   ) {
     return 'human.missWhileBusyPct must be a number in [0, 100]';
   }
-  if (!isDurationInRange(human.backTurnedReactionMs, 0)) {
-    return `human.backTurnedReactionMs must be a number in [0, ${HUMAN_TIMING_MAX_MS}]`;
+  if (!isDurationInRange(human.backTurnedSdMs, 0)) {
+    return `human.backTurnedSdMs must be a number in [0, ${HUMAN_TIMING_MAX_MS}]`;
   }
   if (typeof settings.chores.isEnabled !== 'boolean') {
     return 'chores.isEnabled must be a boolean';

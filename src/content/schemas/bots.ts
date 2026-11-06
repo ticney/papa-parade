@@ -82,12 +82,12 @@ const BotHumanSchema = z
       .describe(
         'Chance, in %, that the human bot never answers a threat it first sees while busy elsewhere (finger down, another press planned, Papa asleep, drinking, on the phone or on the toilet); 0 = never. A false alarm it misses is not braced for either: no held breath, no gasp.',
       ),
-    backTurnedReactionMs: z
+    backTurnedSdMs: z
       .number()
       .min(0)
       .max(HUMAN_TIMING_MAX_MS)
       .describe(
-        "Extra time, in ms, the human bot needs to react to a threat's telegraph while Papa works at a chore's station (story 9.4: his back is turned to the baby); 0 = none. Added to the reaction time, once per response.",
+        "Extra standard deviation, in ms, of the human bot's aim at a threat's window while Papa works at a chore's station (story 9.4: his back is turned to the baby, he reads the room worse); 0 = none. Gaussian, added to the ring's read error, so the cost grows smoothly with the value: one more draw per response planned in a chore, none otherwise.",
       ),
   })
   .describe('The `human` bot: a plausible attentive player.');

@@ -87,9 +87,9 @@ describe('createBot', () => {
     ['human.missWhileBusyPct', human({ missWhileBusyPct: 100.5 })],
     ['human.missWhileBusyPct', human({ missWhileBusyPct: Number.NaN })],
     // The house chores (story 9.4).
-    ['human.backTurnedReactionMs', human({ backTurnedReactionMs: -1 })],
-    ['human.backTurnedReactionMs', human({ backTurnedReactionMs: Number.NaN })],
-    ['human.backTurnedReactionMs', human({ backTurnedReactionMs: 25_000 })],
+    ['human.backTurnedSdMs', human({ backTurnedSdMs: -1 })],
+    ['human.backTurnedSdMs', human({ backTurnedSdMs: Number.NaN })],
+    ['human.backTurnedSdMs', human({ backTurnedSdMs: 25_000 })],
     ['chores.quietMinMs', { chores: { isEnabled: true, quietMinMs: -1 } }],
     ['chores.quietMinMs', { chores: { isEnabled: true, quietMinMs: Number.NaN } }],
     ['chores.quietMinMs', { chores: { isEnabled: true, quietMinMs: 25_000 } }],
@@ -105,7 +105,7 @@ describe('createBot', () => {
       { missWhileBusyPct: 0 },
       { missWhileBusyPct: 100 },
       { reactionSdMs: 0, reactionMinMs: 0 },
-      { backTurnedReactionMs: 0 },
+      { backTurnedSdMs: 0 },
     ]) {
       expect(createBot('human', botSetup(1, human(patch))).ok).toBe(true);
     }
