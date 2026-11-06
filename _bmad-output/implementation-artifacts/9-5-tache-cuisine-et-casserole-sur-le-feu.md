@@ -174,7 +174,7 @@ Add a section for 9.5 in `deferred-work.md`:
 
 No new dependency, no version change: `zod` (pinned) for the schema keys, the project's `emitSchemas.ts` for the JSON Schemas, `three@0.186.1` for the existing decal and particle code. No web research was needed: the feature is the project's own sim, content and DOM.
 
-### Questions for Geo (decided provisionally above; the dev follows the decision unless Geo says otherwise)
+### Questions for Geo (all four answered « Yes, keep them » by Geo, 2026-11-06: the decisions below stand as written)
 
 1. **D1 / D2:** the pot is a parried threat on the stove (ring, verb, off-screen bubble, gag, séquelle), not a disruption like the phone. OK?
 2. **D4 / D10:** after a parry or a boil-over the cooking keeps its beats, and a new pot comes 30 s later while the cooking stays abandoned. Or should a boil-over ruin the purée (back to 0, or the chore lost)?
