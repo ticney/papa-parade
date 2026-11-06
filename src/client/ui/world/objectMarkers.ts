@@ -2,7 +2,7 @@ import { CHORE_STATION_KINDS } from '@content/schemas/chore';
 import type { ObjectKind } from '@content/schemas/level';
 import { VERB_MAX_WIDTH_PCT, VERB_STROKE_PX } from '@shared/constants';
 import type { ChoreInstance } from '@sim';
-import type { Scene } from 'three';
+import { type Camera, type Scene, Vector3 } from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { svgElement } from '../svg.ts';
 import {
@@ -11,6 +11,7 @@ import {
   chronoRingOf,
   createChronoRing,
   isChronoArcLit,
+  threatFootprint,
 } from './chronoRing.ts';
 import {
   CHRONO_HIDDEN,
@@ -18,8 +19,8 @@ import {
   createChronoRingElement,
 } from './chronoRingElement.ts';
 import { THREAT_ICON_PATHS } from './threatMarkers.ts';
-import { fitVerbFontPx } from './verbLayout.ts';
-import type { VerbMetrics } from './verbMetrics.ts';
+import { clampVerbDropPx, clampVerbShiftPx, fitVerbFontPx } from './verbLayout.ts';
+import { type VerbMetrics, verbTopMinPx } from './verbMetrics.ts';
 
 /** An object's icon is this share of the threat icon (`.pp-object` in `ui.css`): the station's ring hangs from it. */
 const OBJECT_SIZE_SHARE = 0.7;
@@ -46,10 +47,18 @@ export interface ObjectMarkers {
     stationVerbs?: readonly (readonly string[])[],
   ): void;
   /**
-   * Fits the stations' verbs to a layer `layerWidthPx` wide (CSS px), like a threat's verb (`fitVerbFontPx`,
-   * `VERB_MAX_WIDTH_PCT`, the « Grands verbes » scale). Runs when the layer is sized and when the verbs refit.
+   * Fits the stations' verbs to a layer `layerWidthPx` × `layerHeightPx` (CSS px), like a threat's verb
+   * (`fitVerbFontPx`, `VERB_MAX_WIDTH_PCT`, the « Grands verbes » scale). Runs when the layer is sized and
+   * when the verbs refit; `updateChores` refits them too when the surface changes.
    */
-  refit(layerWidthPx: number): void;
+  refit(layerWidthPx: number, layerHeightPx: number): void;
+  /**
+   * Once per frame, before the DOM renderer: keeps the verb a station shows inside the layer, like a
+   * threat's (`ThreatMarkers.layout`): shifted sideways off an edge (`--pp-verb-shift-x`) and pulled down
+   * under the HUD's top row (`--pp-verb-offset` below 0). A verb that fits is left as it is, with nothing
+   * written. Allocates nothing; writes the DOM only when a shift changes.
+   */
+  layout(camera: Camera): void;
   /** The text of the verb a station shows now, or '' when it shows none (the tests'; never read per frame). */
   stationVerbOf(choreIndex: number): string | null;
   /** Removes the markers of the current level. */
@@ -146,10 +155,16 @@ interface Marker {
   readonly verbs: readonly string[];
   /** The font size, in px, each beat's verb is fitted to; 0 until the first `refit`. */
   verbFontsPx: number[];
+  /** Each beat's verb box as fitted, outline included, in CSS px (what `layout` keeps on screen); 0 until then. */
+  verbWidthsPx: number[];
+  verbHeightsPx: number[];
   /** The beat whose verb is shown now, or -1 for none. */
   shownVerb: number;
   /** The font size as written to the DOM, in px; 0 until a fitted one is written. */
   writtenFontPx: number;
+  /** The verb stack's sideways shift and vertical offset as written, in whole px (0: the CSS default). */
+  verbShiftXPx: number;
+  verbOffsetPx: number;
 }
 
 function createMarker(
@@ -223,8 +238,12 @@ function createMarker(
     verb,
     verbs,
     verbFontsPx: verbs.map(() => 0),
+    verbWidthsPx: verbs.map(() => 0),
+    verbHeightsPx: verbs.map(() => 0),
     shownVerb: -1,
     writtenFontPx: 0,
+    verbShiftXPx: 0,
+    verbOffsetPx: 0,
   };
 }
 
@@ -246,6 +265,15 @@ export function createObjectMarkers(
   let hasRings = false;
   let ringSurface = '';
   let layerWidthPx = 0;
+  let layerHeightPx = 0;
+  /** From a station's centre up to its verb's bottom edge on this surface (`threatFootprint`), in CSS px. */
+  let verbRisePx = 0;
+  /** The empty band between the ring's outer ink and the verb: how far a verb may come down onto it. */
+  let verbSlackPx = 0;
+  /** The highest a verb's top edge may be (`verbTopMinPx`); `-Infinity` until the verbs are fitted. */
+  let verbTopPx = Number.NEGATIVE_INFINITY;
+  /** The one vector `layout` projects with. */
+  const projected = new Vector3();
 
   /** Writes the font size of the shown verb when it differs from the one written. */
   const writeVerbFont = (marker: Marker): void => {
@@ -264,6 +292,12 @@ export function createObjectMarkers(
     const scale = typography.scale();
     const scaledBasePx = basePx * scale;
     const maxWidthPx = (layerWidthPx * VERB_MAX_WIDTH_PCT) / 100;
+    const lineHeight = typography.lineHeight();
+    // The verb stands on the station's icon (0.7 of a threat's), above its ring, as a threat's does.
+    const footprint = threatFootprint(typography.threatSizePx() * OBJECT_SIZE_SHARE);
+    verbRisePx = footprint.verbBottomPx;
+    verbSlackPx = footprint.verbBottomPx - footprint.ringOuterPx;
+    verbTopPx = verbTopMinPx(typography);
     for (const marker of markers) {
       for (let beat = 0; beat < marker.verbs.length; beat++) {
         const advancePx = typography.widthPx(
@@ -271,12 +305,10 @@ export function createObjectMarkers(
           scaledBasePx,
         );
         // The outline adds `VERB_STROKE_PX` on each side and does not shrink with the font.
-        marker.verbFontsPx[beat] = fitVerbFontPx(
-          advancePx,
-          basePx,
-          maxWidthPx - 2 * VERB_STROKE_PX,
-          scale,
-        );
+        const fontPx = fitVerbFontPx(advancePx, basePx, maxWidthPx - 2 * VERB_STROKE_PX, scale);
+        marker.verbFontsPx[beat] = fontPx;
+        marker.verbWidthsPx[beat] = (advancePx * fontPx) / scaledBasePx + 2 * VERB_STROKE_PX;
+        marker.verbHeightsPx[beat] = fontPx * lineHeight + 2 * VERB_STROKE_PX;
       }
       // The verb on show keeps its place in the list but its size may have changed.
       if (marker.shownVerb >= 0) writeVerbFont(marker);
@@ -342,9 +374,45 @@ export function createObjectMarkers(
       fitRings();
       fitVerbs();
     },
-    refit(nextLayerWidthPx) {
+    refit(nextLayerWidthPx, nextLayerHeightPx) {
       layerWidthPx = nextLayerWidthPx;
+      layerHeightPx = nextLayerHeightPx;
       fitVerbs();
+    },
+    layout(camera) {
+      if (layerWidthPx <= 0 || layerHeightPx <= 0) return;
+      let isCameraReady = false;
+      for (const marker of markers) {
+        const stack = marker.verbStack;
+        if (stack === null || marker.shownVerb < 0) continue;
+        if (!isCameraReady) {
+          camera.updateMatrixWorld();
+          isCameraReady = true;
+        }
+        projected.copy(marker.object.position).project(camera);
+        const widthPx = marker.verbWidthsPx[marker.shownVerb] ?? 0;
+        const heightPx = marker.verbHeightsPx[marker.shownVerb] ?? 0;
+        const centerXPx = (projected.x * 0.5 + 0.5) * layerWidthPx;
+        const shiftXPx = clampVerbShiftPx(centerXPx, widthPx, layerWidthPx);
+        const centerYPx = (-projected.y * 0.5 + 0.5) * layerHeightPx;
+        const offsetPx =
+          0 -
+          clampVerbDropPx(
+            centerYPx - verbRisePx - heightPx,
+            heightPx,
+            verbTopPx,
+            verbRisePx,
+            verbSlackPx,
+          );
+        if (shiftXPx !== marker.verbShiftXPx) {
+          marker.verbShiftXPx = shiftXPx;
+          stack.style.setProperty('--pp-verb-shift-x', `${shiftXPx}px`);
+        }
+        if (offsetPx !== marker.verbOffsetPx) {
+          marker.verbOffsetPx = offsetPx;
+          stack.style.setProperty('--pp-verb-offset', `${offsetPx}px`);
+        }
+      }
     },
     stationVerbOf(choreIndex) {
       const marker = markers.find((candidate) => candidate.choreIndex === choreIndex);
@@ -364,7 +432,12 @@ export function createObjectMarkers(
     },
     updateChores(chores, renderSimMs) {
       if (!hasRings) return false;
-      if (getMetrics !== undefined && getMetrics().surfaceKey() !== ringSurface) fitRings();
+      // A surface change (a resize across `COMPACT_SURFACE_MAX_PX`) resizes the icon, its ring and the
+      // verb's base size: the rings and the verbs are fitted again, as a threat's are.
+      if (getMetrics !== undefined && getMetrics().surfaceKey() !== ringSurface) {
+        fitRings();
+        fitVerbs();
+      }
       let hasLit = false;
       for (const marker of markers) {
         const chrono = marker.chrono;

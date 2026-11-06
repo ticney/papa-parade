@@ -57,6 +57,14 @@ const LOWER_HEAT = STRINGS['verb.lower_heat'] as string;
 
 type World = Awaited<ReturnType<typeof ppWorld>>;
 
+/** The verb's box starts under the HUD's top row (the 9.5 review's clamp): it is not cut at the kitchen end. */
+async function expectUnderHudRow(page: Page, verb: ReturnType<Page['locator']>): Promise<void> {
+  const row = await page.locator('.pp-hud-row').first().boundingBox();
+  const box = await verb.boundingBox();
+  if (row === null || box === null) throw new Error('no HUD row or no verb box');
+  expect(box.y).toBeGreaterThanOrEqual(row.y + row.height - 1);
+}
+
 async function open(page: Page): Promise<void> {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto(`/${THREATS_OFF}&level=${LEVEL}`);
@@ -148,6 +156,7 @@ test.describe('the cooking: verbs, smoke and the pot on the stove', () => {
     await startCooking(page);
     await expect(page.locator(VERB)).toBeVisible();
     await expect(page.locator(VERB)).toHaveText(verbOfBeat(0));
+    await expectUnderHudRow(page, page.locator(VERB));
     await catchBeat(page);
     expect(await ppChore(page)).toBe('0:working:1/4:telegraph');
     await expect(page.locator(VERB)).toHaveText(verbOfBeat(1));
@@ -210,6 +219,7 @@ test.describe('the cooking: verbs, smoke and the pot on the stove', () => {
     expect(telegraphed.at(-1)).toMatchObject({ kind: POT_DEF, waveIndex: -1 });
     // Its marker stands at the stove, with « BAISSE LE FEU ! ».
     await expect(page.locator('.pp-threat-verb', { hasText: LOWER_HEAT })).toBeVisible();
+    await expectUnderHudRow(page, page.locator('.pp-threat-verb', { hasText: LOWER_HEAT }));
     // The cooking keeps its progress: one beat caught, still to do.
     expect(await ppChore(page)).toBe('0:paused:1/4:none');
     // A real finger on the marker at the centre of the window.

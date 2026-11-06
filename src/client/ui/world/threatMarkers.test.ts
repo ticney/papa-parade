@@ -12,6 +12,7 @@ import type { ThreatInstance, ThreatState } from '@sim';
 import { OrthographicCamera, Scene } from 'three';
 import { describe, expect, it } from 'vitest';
 import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
+import { threatFootprint } from './chronoRing.ts';
 import { CHRONO_RING_CLASSES } from './chronoRingElement.ts';
 import {
   createThreatMarkers,
@@ -1433,6 +1434,64 @@ describe('the verb fit and layout of the markers (story 2.2)', () => {
         0,
         BOX_H + VERB_STACK_GAP_PX,
       ]);
+    });
+
+    describe('under the HUD row (story 9.5 review)', () => {
+      /** The bottom of the HUD's top row in the tests, in CSS px. */
+      const HUD_BOTTOM_PX = 56;
+      const MIN_TOP_PX = HUD_BOTTOM_PX;
+      /** From the icon's centre to the verb's bottom edge, on the regular surface. */
+      const RISE_PX = threatFootprint(64).verbBottomPx;
+      /** The empty band between the ring's outer ink and the verb, on the regular surface. */
+      const SLACK_PX = RISE_PX - threatFootprint(64).ringOuterPx;
+      const withHud = () => {
+        const typography = fakeMetrics();
+        return {
+          ...typography,
+          metrics: { ...typography.metrics, hudBottomPx: () => HUD_BOTTOM_PX },
+        };
+      };
+
+      it('flips a verb the row would cut under its icon, once, and leaves one under the row alone', () => {
+        // Threat 1's icon is high (its verb would start above the row); threat 2's is low, far to the right.
+        const { markers, byClass } = setup(
+          [entryAt(1, 'RETIRE !', 200, 130.5), entryAt(2, 'RETIRE !', 600, 200)],
+          withHud(),
+        );
+        // Cut by more than the band under the verb: flipped under its icon, clear of the ring.
+        const needPx = MIN_TOP_PX - (130.5 - RISE_PX - BOX_H);
+        expect(needPx).toBeGreaterThan(SLACK_PX);
+        const drop = Math.ceil(Math.max(2 * RISE_PX + BOX_H, needPx));
+        expect(200 - RISE_PX - BOX_H).toBeGreaterThan(MIN_TOP_PX);
+        markers.update([closing(1, 5000), closing(2, 6000)], null, null);
+        markers.layout(camera());
+        markers.layout(camera());
+        const [high, low] = byClass(THREAT_CLASSES.verbStack);
+        expect(high?.vars.get('--pp-verb-offset')).toBe(`${-drop}px`);
+        expect(high?.writes['--pp-verb-offset']).toBe(1);
+        // The glyph chip rises to the verb's centre from this offset: it comes down with it.
+        expect(markers.entries[0]?.verbOffsetPx).toBe(-drop);
+        // The verb that fits is drawn as before the clamp: nothing written.
+        expect(low?.writes['--pp-verb-offset']).toBeUndefined();
+        expect(markers.entries[1]?.verbOffsetPx).toBe(0);
+      });
+
+      it('leaves a verb the stacking pushes up into the row where the stacking put it: none covers another', () => {
+        // The most urgent verb fits (top 89); the next one, pushed above it, starts in the row.
+        const { markers } = setup(
+          [entryAt(1, 'RETIRE !', 400, 200), entryAt(2, 'RETIRE !', 400, 200)],
+          withHud(),
+        );
+        markers.update([closing(1, 5000), closing(2, 6000)], null, null);
+        markers.layout(camera());
+        const [first, second] = markers.entries.map((entry) => entry.verbOffsetPx) as [
+          number,
+          number,
+        ];
+        expect(first).toBe(0);
+        expect(200 - RISE_PX - BOX_H - second).toBeLessThan(MIN_TOP_PX);
+        expect(second).toBe(Math.ceil(BOX_H) + VERB_STACK_GAP_PX);
+      });
     });
   });
 });

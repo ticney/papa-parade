@@ -38,9 +38,6 @@ export type GagId = (typeof GAG_IDS)[number];
 /** The gag of the micro-sleep, and only of it: `createSim` and `content:check` pair it with `target: "papa"`. */
 export const PAPA_ASLEEP_GAG_ID: GagId = 'papa_asleep';
 
-/** The gag of the pot left on the fire (story 9.5): the sim report counts it as a boil-over. */
-export const POT_BOILED_OVER_GAG_ID: GagId = 'pot_boiled_over';
-
 /** The gag a threat def names, as a `GagId`. `createSim` has already refused a def with another, so this guards a bug, not content. */
 export function gagIdOf(gag: string): GagId {
   const known = (GAG_IDS as readonly string[]).includes(gag);

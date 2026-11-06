@@ -13,7 +13,6 @@ import {
   type LevelEndReason,
   type NoiseSource,
   PAPA_ASLEEP_GAG_ID,
-  POT_BOILED_OVER_GAG_ID,
   type Sim,
   type SimEvent,
 } from '@sim';
@@ -523,7 +522,8 @@ export function createRunRecorder(
         gags++;
         byGag[event.gag] = countOf(byGag, event.gag) + 1;
         if (event.gag === PAPA_ASLEEP_GAG_ID) asleepGags++;
-        if (event.gag === POT_BOILED_OVER_GAG_ID) chores.abandoned.boiledOver++;
+        // Counted by the gagged threat's def, as the telegraphs and the lowerings are, not by the gag id.
+        if (abandonedDefs.has(defIdOf.get(event.threatId) ?? '')) chores.abandoned.boiledOver++;
       } else if (event.type === 'NearMiss') {
         nearMisses++;
       } else if (event.type === 'AfterEffectStarted') {

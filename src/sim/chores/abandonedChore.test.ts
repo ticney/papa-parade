@@ -7,18 +7,22 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestPot,
   FATIGUE_GAUGES,
   NOISE_GAUGES,
   OUTLET,
+  SILENCE,
   TEST_COOKING,
   TEST_OBJECTS,
   TEST_STOVE,
   testWave,
 } from '../../../tests/support/testContent.ts';
+import { isSilenceUnderway } from '../baby/babyFsm.ts';
 import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
+import { replayJournal } from '../replay.ts';
 
 // The pot on the stove (story 9.5): a cooking left `paused` for `afterMs` telegraphs the threat the
 // chore names (`abandonedThreat`), under the same conditions as the sim's other spawned threats. Every
@@ -31,6 +35,11 @@ const { windowMs, toleranceMs } = content.feel.timing;
 const FAIRNESS_SPACING_MS =
   content.feel.movement.glideMaxMs + content.feel.director.fairnessMarginMs;
 const SHORT_AFTER_MS = 3000;
+// Longer than the micro-sleep `stay_awake` may leave Papa in, so that the pot after a sequence is not
+// merely waiting for him to wake (which would hide whether the sequence counted).
+const SEQUENCE_AFTER_MS = 4000;
+const POT = createTestPot();
+const POT_DELAY_MS = POT.telegraphDelayMs ?? content.feel.timing.telegraphDelayDefaultMs;
 
 type DistributiveOmit<T, K extends string> = T extends unknown ? Omit<T, K> : never;
 type OfType<T extends SimEvent['type']> = Extract<SimEvent, { type: T }>;
@@ -49,12 +58,17 @@ interface Options {
 }
 
 async function newSim(options: Options = {}): Promise<Sim> {
+  return createSim({ ...worldOf(options), seed: 1 });
+}
+
+/** The content and level of {@link newSim}, apart, for a test that replays a journal on them. */
+function worldOf(options: Options = {}) {
   // `stay_awake` has a micro-sleeps step and carries the baby; the frozen room has no unbreakable prop
   // for the door to spill, so a final rush spills none.
   const hasSequence = options.sequences !== undefined;
   const levelContent = createTestContent();
   if (options.finalRush === true) levelContent.feel.endOfLevel.doorSpillCount = 0;
-  return createSim({
+  return {
     content: levelContent,
     geometry,
     level: createTestLevel({
@@ -75,8 +89,7 @@ async function newSim(options: Options = {}): Promise<Sim> {
       ...(options.finalRush === true ? { finalRush: { spillAnchor: 'coffee_table' } } : {}),
       ...(options.durationMs === undefined ? {} : { durationMs: options.durationMs }),
     }),
-    seed: 1,
-  });
+  };
 }
 
 function tell(sim: Sim, cmd: DistributiveOmit<SimCommand, 't'>, t?: number): void {
@@ -161,10 +174,30 @@ function leaveStove(sim: Sim): void {
   expect(sim.world.chores[0]?.state).toBe('paused');
 }
 
-/** When the pot is due: the later of the chore being paused and the pot last going idle, plus `afterMs`. */
+/**
+ * When the pot is due: the latest of the chore being paused, the pot last going idle and the flow last
+ * becoming `playing`, plus `afterMs`.
+ */
 const dueAtOf = (sim: Sim): number =>
-  Math.max(sim.world.chores[0]!.enteredAt, potOf(sim).enteredAt) +
+  Math.max(sim.world.chores[0]!.enteredAt, potOf(sim).enteredAt, sim.world.flow.enteredAt) +
   (sim.chores[0]!.abandoned!.afterMs as number);
+
+/**
+ * Steps to the pot's telegraph, due at `dueAt`: none before it, then at `dueAt` itself, or later only
+ * while Papa is busy (after `stay_awake` he may be asleep: the pot waits for him). Returns its instant.
+ */
+function stepToPot(sim: Sim, dueAt: number): number {
+  expect(stepUntil(sim, dueAt - 10).some(isPotTelegraph)).toBe(false);
+  while (sim.world.time.sim < dueAt + 20_000) {
+    const wasBusy = isPapaBusy(sim.world.papa);
+    if (stepEvents(sim, 1).some(isPotTelegraph)) {
+      expect(wasBusy).toBe(false);
+      return sim.world.time.sim;
+    }
+    expect(wasBusy, `no pot at ${sim.world.time.sim} with Papa free`).toBe(true);
+  }
+  throw new Error(`no pot within 20 s of ${dueAt}`);
+}
 
 describe('planning the pot (story 9.5, AC 4)', () => {
   it('plans one instance after every other threat, at the station, in no wave', async () => {
@@ -199,19 +232,50 @@ describe('planning the pot (story 9.5, AC 4)', () => {
     expect(sim.world.threats.map((threat) => threat.defId)).toEqual(['outlet']);
   });
 
-  it('refuses a pot whose threat is not on a station', async () => {
+  /** The abandonable level, its pot def replaced (or dropped, `undefined`), and the waves given. */
+  function levelWithPot(pot: typeof POT | undefined, waves: ReturnType<typeof testWave>[] = []) {
     const level = createTestLevel({
+      waves,
       objects: [...TEST_OBJECTS, TEST_STOVE],
       chores: [TEST_COOKING],
-      choreDefs: {
-        cooking: {
-          ...createTestAbandonableCooking(),
-          abandonedThreat: { def: 'outlet', afterMs: 1000 },
-        },
-      },
+      choreDefs: { cooking: createTestAbandonableCooking(SHORT_AFTER_MS) },
     });
-    // The outlet is not carried by the level: refused as not loaded, whichever way it is named.
-    await expect(createSim({ content, geometry, level, seed: 1 })).rejects.toThrow(/outlet/);
+    const { pot_on_stove: _loaded, ...others } = level.threats;
+    return { ...level, threats: pot === undefined ? others : { ...others, pot_on_stove: pot } };
+  }
+  const create = (level: ReturnType<typeof levelWithPot>) =>
+    createSim({ content, geometry, level, seed: 1 });
+
+  it('refuses a pot the level does not load', async () => {
+    await expect(create(levelWithPot(undefined))).rejects.toThrow(
+      /chores\[0\]: no threat "pot_on_stove" is loaded for the abandoned chore/,
+    );
+  });
+
+  it('refuses a pot whose threat is not on a station', async () => {
+    await expect(create(levelWithPot({ ...POT, target: 'anchor' } as typeof POT))).rejects.toThrow(
+      /has target "anchor", but the threat of an abandoned chore must have target "station"/,
+    );
+  });
+
+  it('refuses a pot that is not parried', async () => {
+    await expect(
+      create(levelWithPot({ ...POT, response: 'hold' } as unknown as typeof POT)),
+    ).rejects.toThrow(
+      /a threat on a chore station \(target "station"\) is parried: the response of "pot_on_stove" must be "parry", not "hold"/,
+    );
+  });
+
+  it('refuses a pot that would end in the micro-sleep', async () => {
+    const asleep = { ...POT, gag: 'papa_asleep', afterEffect: { kind: 'asleep' } } as typeof POT;
+    await expect(create(levelWithPot(asleep))).rejects.toThrow(
+      /"papa_asleep" is the micro-sleep's gag: only a threat with target "papa" may end in it/,
+    );
+  });
+
+  it('refuses a wave that plans the pot', async () => {
+    const level = levelWithPot(POT, [testWave([{ def: 'pot_on_stove', anchor: 'stairs_top' }])]);
+    await expect(create(level)).rejects.toThrow(/target "station"/);
   });
 });
 
@@ -253,7 +317,12 @@ describe('when the pot starts (story 9.5, AC 5)', () => {
     const telegraphs = events.filter(({ event }) => isPotTelegraph(event));
     expect(telegraphs).toHaveLength(1);
     expect(telegraphs[0]?.t).toBe(pausedAt + SHORT_AFTER_MS);
-    expect(telegraphs[0]?.event).toMatchObject({ type: 'ThreatTelegraphed', kind: 'pot_on_stove' });
+    expect(telegraphs[0]?.event).toMatchObject({
+      type: 'ThreatTelegraphed',
+      kind: 'pot_on_stove',
+      anchorId: TEST_STOVE.anchor,
+      waveIndex: -1,
+    });
   });
 
   it('reads the afterMs of the chore, not a constant', async () => {
@@ -334,26 +403,53 @@ describe('when the pot starts (story 9.5, AC 5)', () => {
     expect(sim.world.chores[0]?.state).toBe('working');
   });
 
-  it('does not start during a special sequence, and starts when it is over', async () => {
-    const sim = await newSim({ sequences: ['stay_awake'] });
+  it('does not count a special sequence: the wait starts again when it is over', async () => {
+    const sim = await newSim({ sequences: ['stay_awake'], afterMs: SEQUENCE_AFTER_MS });
     startCooking(sim);
     tell(sim, { type: 'StartSequence', sequenceId: 'stay_awake' });
-    let dueDuringSequence = 0;
-    let telegraphedIn: string | null = null;
-    const limitMs = sim.world.time.sim + 120_000;
-    while (telegraphedIn === null && sim.world.time.sim < limitMs) {
-      const events = stepEvents(sim, 1);
-      if (
-        sim.world.flow.state === 'sequence' &&
-        sim.world.chores[0]?.state === 'paused' &&
-        sim.world.time.sim >= dueAtOf(sim)
-      ) {
-        dueDuringSequence++;
-      }
-      if (events.some(isPotTelegraph)) telegraphedIn = sim.world.flow.state;
+    stepEvents(sim, 1);
+    expect(sim.world.flow.state).toBe('sequence');
+    const pausedAt = sim.world.chores[0]!.enteredAt;
+    const events: SimEvent[] = [];
+    while (sim.world.flow.state !== 'playing' && sim.world.time.sim < 200_000) {
+      events.push(...stepEvents(sim, 1));
     }
-    expect(dueDuringSequence).toBeGreaterThan(0);
-    expect(telegraphedIn).toBe('playing');
+    const playingAt = sim.world.flow.enteredAt;
+    // The sequence outlasts the wait, which would have been over without it.
+    expect(playingAt).toBeGreaterThan(pausedAt + SEQUENCE_AFTER_MS);
+    expect(events.some(isPotTelegraph)).toBe(false);
+    expect(stepToPot(sim, playingAt + SEQUENCE_AFTER_MS)).toBeGreaterThanOrEqual(
+      playingAt + SEQUENCE_AFTER_MS,
+    );
+    expect(sim.world.flow.state).toBe('playing');
+  });
+
+  it('does not start while a silence is under way, the director’s rule', async () => {
+    const sim = await newSim({
+      waves: [testWave([SILENCE], { gapMinMs: 500_000, gapMaxMs: 500_000 })],
+    });
+    startCooking(sim);
+    leaveStove(sim);
+    stepUntil(sim, dueAtOf(sim) - 500);
+    tell(sim, { type: 'ForceThreat', threatId: sim.world.threats[0]!.id });
+    stepEvents(sim, 1);
+    expect(isSilenceUnderway(sim.world)).toBe(true);
+    let dueInSilence = 0;
+    let telegraphsInSilence = 0;
+    let telegraphedAt: number | null = null;
+    const limitMs = sim.world.time.sim + 120_000;
+    while (telegraphedAt === null && sim.world.time.sim < limitMs) {
+      const events = stepEvents(sim, 1);
+      const isSilent = isSilenceUnderway(sim.world);
+      if (isSilent && sim.world.time.sim >= dueAtOf(sim)) dueInSilence++;
+      if (events.some(isPotTelegraph)) {
+        if (isSilent) telegraphsInSilence++;
+        telegraphedAt = sim.world.time.sim;
+      }
+    }
+    expect(dueInSilence).toBeGreaterThan(0);
+    expect(telegraphsInSilence).toBe(0);
+    expect(telegraphedAt).not.toBeNull();
   });
 
   it('does not start in the final rush', async () => {
@@ -373,12 +469,8 @@ describe('when the pot starts (story 9.5, AC 5)', () => {
     startCooking(probe);
     leaveStove(probe);
     const dueAt = dueAtOf(probe);
-    const delayMs = createTestContent().feel.timing.telegraphDelayDefaultMs;
-    const potDelayMs = 2000;
-    expect(potDelayMs).toBeGreaterThan(0);
-    void delayMs;
     // One ms short of what the pot needs: its delay, its window and its tolerance.
-    const durationMs = dueAt + potDelayMs + windowMs + toleranceMs - 1;
+    const durationMs = dueAt + POT_DELAY_MS + windowMs + toleranceMs - 1;
     const sim = await newSim({ durationMs });
     startCooking(sim);
     leaveStove(sim);
@@ -406,7 +498,7 @@ describe('when the pot starts (story 9.5, AC 5)', () => {
     expect(outlet.state).toBe('telegraph');
     expect(events.some(isPotTelegraph)).toBe(true);
     const pot = potOf(sim);
-    const naturalAt = pot.enteredAt + 2000;
+    const naturalAt = pot.enteredAt + POT_DELAY_MS;
     expect(pot.windowOpenAt).toBeGreaterThan(naturalAt);
     expect(Math.abs(pot.windowOpenAt - outlet.windowOpenAt)).toBeGreaterThanOrEqual(
       FAIRNESS_SPACING_MS,
@@ -420,7 +512,7 @@ describe('answering the pot (story 9.5, AC 6, 7)', () => {
     const sim = await newSim(options);
     startCooking(sim);
     leaveStove(sim);
-    runUntilEvent(sim, 'ThreatTelegraphed', SHORT_AFTER_MS + 1000);
+    runUntilEvent(sim, 'ThreatTelegraphed', (options.afterMs ?? SHORT_AFTER_MS) + 1000);
     expect(potOf(sim).state).toBe('telegraph');
     return sim;
   }
@@ -464,8 +556,8 @@ describe('answering the pot (story 9.5, AC 6, 7)', () => {
     ]);
     const noise = only(events, 'NoiseChanged').filter((event) => event.source === 'gag');
     expect(noise).toHaveLength(1);
-    expect(noise[0]?.deltaPct).toBe(10);
-    expect(noise[0]?.noisePct).toBeGreaterThanOrEqual(10);
+    expect(noise[0]?.deltaPct).toBe(POT.gagNoisePct);
+    expect(noise[0]?.noisePct).toBeGreaterThanOrEqual(POT.gagNoisePct as number);
     const rises = only(events, 'CatastropheChanged').filter((event) => event.source === 'mess');
     expect(rises).toHaveLength(1);
     expect(sim.world.gauges.catastrophePct).toBeGreaterThan(catastropheBefore);
@@ -496,9 +588,10 @@ describe('answering the pot (story 9.5, AC 6, 7)', () => {
     const pot = potOf(carrying);
     tell(carrying, { type: 'TapBaby' });
     const events = runUntilEvent(carrying, 'BabyPickedUp', 20_000);
+    // Still on the fire at the pick-up: `takeBaby` saw it and left it alone.
+    expect(['telegraph', 'windowOpen']).toContain(pot.state);
     const cancelled = only(events, 'ThreatCancelled').filter((event) => event.threatId === pot.id);
     expect(cancelled).toEqual([]);
-    expect(['telegraph', 'windowOpen', 'resolved', 'gag']).toContain(pot.state);
 
     const sequenced = await atPot({ sequences: ['stay_awake'] });
     tell(sequenced, { type: 'StartSequence', sequenceId: 'stay_awake' });
@@ -521,13 +614,109 @@ describe('answering the pot (story 9.5, AC 6, 7)', () => {
     expect(sim.world.time.sim).toBe(rearmedAt + SHORT_AFTER_MS);
   });
 
-  it('is started again from the later of the two instants after a cancel by a sequence', async () => {
-    const sim = await atPot({ sequences: ['stay_awake'] });
+  it('comes again `afterMs` after it was lowered, when Papa does not stay at the stove', async () => {
+    const sim = await atPot();
+    const pot = potOf(sim);
+    tell(sim, { type: 'PressThreat', threatId: pot.id }, centreOfPot(sim));
+    tell(sim, { type: 'Release' }, centreOfPot(sim) + 20);
+    // Papa sets off for the pot, then turns away before he gets there: the cooking stays abandoned.
+    stepUntil(sim, Math.ceil(centreOfPot(sim) / 10) * 10 + 10);
+    tell(sim, { type: 'TapFloor', xM: 0, zM: 0 });
+    const events = runUntilEvent(sim, 'ThreatRearmed', 20_000);
+    expect(only(events, 'ResponseResolved')).toEqual([
+      expect.objectContaining({ threatId: pot.id, quality: 'perfect' }),
+    ]);
+    expect(sim.world.chores[0]?.state).toBe('paused');
+    const rearmedAt = only(events, 'ThreatRearmed')[0]!.t;
+    expect(stepUntil(sim, rearmedAt + SHORT_AFTER_MS - 10).some(isPotTelegraph)).toBe(false);
+    expect(stepEvents(sim, 1).some(isPotTelegraph)).toBe(true);
+    expect(sim.world.time.sim).toBe(rearmedAt + SHORT_AFTER_MS);
+  });
+
+  it('comes again `afterMs` after the play resumes, when a sequence cancelled it', async () => {
+    const sim = await atPot({ sequences: ['stay_awake'], afterMs: SEQUENCE_AFTER_MS });
     tell(sim, { type: 'StartSequence', sequenceId: 'stay_awake' });
     stepEvents(sim, 2);
-    const cancelledAt = potOf(sim).enteredAt;
     expect(potOf(sim).state).toBe('idle');
-    expect(dueAtOf(sim)).toBe(cancelledAt + SHORT_AFTER_MS);
+    while (sim.world.flow.state !== 'playing' && sim.world.time.sim < 200_000) stepEvents(sim, 1);
+    const playingAt = sim.world.flow.enteredAt;
+    expect(sim.world.chores[0]?.state).toBe('paused');
+    expect(dueAtOf(sim)).toBe(playingAt + SEQUENCE_AFTER_MS);
+    stepToPot(sim, playingAt + SEQUENCE_AFTER_MS);
+  });
+
+  it('takes an early press as a glide, not a boil-over: only a press in the window is judged', async () => {
+    // The pot's marker covers the stove's, so a tap meant for the cooking may land on it too soon.
+    expect(content.feel.input.earlyPress).toBe('fail');
+    const sim = await atPot();
+    const pot = potOf(sim);
+    tell(sim, { type: 'PressThreat', threatId: pot.id });
+    const early = stepEvents(sim, 2);
+    expect(only(early, 'GagTriggered')).toEqual([]);
+    expect(only(early, 'ResponseResolved')).toEqual([]);
+    expect(only(early, 'PapaGlideStarted')).toHaveLength(1);
+    expect(pot.state).toBe('telegraph');
+    tell(sim, { type: 'PressThreat', threatId: pot.id }, centreOfPot(sim));
+    tell(sim, { type: 'Release' }, centreOfPot(sim) + 20);
+    const judged = stepUntil(sim, centreOfPot(sim) + 200);
+    expect(only(judged, 'ResponseResolved')).toEqual([
+      expect.objectContaining({ threatId: pot.id, quality: 'perfect' }),
+    ]);
+    expect(only(judged, 'GagTriggered')).toEqual([]);
+  });
+
+  it('sends Papa back to the cooking when he lowers the heat: no new pot while he cooks', async () => {
+    const sim = await atPot();
+    const pot = potOf(sim);
+    tell(sim, { type: 'PressThreat', threatId: pot.id }, centreOfPot(sim));
+    tell(sim, { type: 'Release' }, centreOfPot(sim) + 20);
+    const events = stepUntil(sim, centreOfPot(sim) + SHORT_AFTER_MS * 3);
+    expect(only(events, 'ResponseResolved')).toEqual([
+      expect.objectContaining({ threatId: pot.id, quality: 'perfect' }),
+    ]);
+    // Back at the stove, the cooking resumes on its own, and its beat comes back once the pot is off.
+    expect(sim.world.papa.state).toBe('chore');
+    expect(sim.world.chores[0]?.state).toBe('working');
+    expect(only(events, 'ChoreBeatTelegraphed').length).toBeGreaterThan(0);
+    expect(events.filter(isPotTelegraph)).toEqual([]);
+  });
+
+  it('keeps Papa at the cooking when he lowers the heat from the stove itself', async () => {
+    const sim = await atPot();
+    tell(sim, { type: 'TapObject', objectId: 'stove' });
+    while (sim.world.papa.state !== 'chore' && sim.world.time.sim < 20_000) stepEvents(sim, 1);
+    expect(sim.world.chores[0]?.beatState).toBe('held');
+    const pot = potOf(sim);
+    tell(sim, { type: 'PressThreat', threatId: pot.id }, centreOfPot(sim));
+    tell(sim, { type: 'Release' }, centreOfPot(sim) + 20);
+    const events = stepUntil(sim, centreOfPot(sim) + SHORT_AFTER_MS * 3);
+    expect(only(events, 'ResponseResolved')).toEqual([
+      expect.objectContaining({ threatId: pot.id, quality: 'perfect' }),
+    ]);
+    expect(sim.world.papa.state).toBe('chore');
+    expect(sim.world.chores[0]?.state).toBe('working');
+    expect(events.filter(isPotTelegraph)).toEqual([]);
+  });
+
+  it('replays: a game with a boiled-over pot ends in the same world from its journal', async () => {
+    const options: Options = { noise: true };
+    const { content: liveContent, level } = worldOf(options);
+    const live = await createSim({ content: liveContent, geometry, level, seed: 1 });
+    startCooking(live);
+    leaveStove(live);
+    stepUntil(live, 12_000);
+    expect(live.world.mess.mischiefs).toBe(1);
+    const replay = await replayJournal({
+      content: liveContent,
+      geometry,
+      level,
+      journal: live.journal(),
+      untilSimMs: live.world.time.sim,
+    });
+    expect(replay.ok).toBe(true);
+    if (!replay.ok) return;
+    expect(hashJson(replay.value.sim.world)).toBe(hashJson(live.world));
+    replay.value.sim.dispose();
   });
 
   it('holds the cooking: the beat of a chore Papa returns to waits for its own pot', async () => {

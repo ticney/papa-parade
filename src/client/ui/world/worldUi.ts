@@ -139,8 +139,6 @@ export interface WorldUi {
   updateChores: ObjectMarkers['updateChores'];
   /** What the ring of a chore's station drew in the last `updateChores` (the tests'). */
   choreRingDrawOf: ObjectMarkers['choreRingDrawOf'];
-  /** The verb a chore's station shows now (story 9.5): '' for none, null for an unknown station (the tests'). */
-  stationVerbOf: ObjectMarkers['stationVerbOf'];
   /** Mounts one « RANGE ! » marker per prop of the level (`world.props` order), replacing the previous level's (story 3.5). */
   mountTidy(propCount: number): void;
   /** Removes the tidy markers. */
@@ -164,7 +162,8 @@ export interface WorldUi {
   refitVerbs(): void;
   /**
    * Places the elements for this frame's camera: first the verb layout (the verbs that would overlap
-   * are offset, the most urgent threat is in front) and the chip beside its verb, then the DOM renderer.
+   * are offset, the most urgent threat is in front; every verb, a station's too, is kept inside the layer
+   * and under the HUD's top row) and the chip beside its verb, then the DOM renderer.
    * Returns at once, without calling the DOM renderer, while nothing in the layer is visible (no tap
    * marker, no threat icon, no object icon, no chip, no combo badge, no papa hint, no activity bubble).
    */
@@ -198,6 +197,7 @@ export function createWorldUi(
     return verbMetrics;
   });
   let layerWidthPx = 0;
+  let layerHeightPx = 0;
   // The stations' rings hang from the icon's size on the current surface (story 9.4): the page's, read lazily.
   const objects = createObjectMarkers(scene, doc, () => {
     verbMetrics ??= createBrowserVerbMetrics();
@@ -272,7 +272,6 @@ export function createWorldUi(
     updateObjects: objects.update,
     updateChores: objects.updateChores,
     choreRingDrawOf: objects.choreRingDrawOf,
-    stationVerbOf: objects.stationVerbOf,
     mountTidy: tidyMarkers.mount,
     unmountTidy: tidyMarkers.unmount,
     updateTidy: tidyMarkers.update,
@@ -283,13 +282,14 @@ export function createWorldUi(
       renderer.setSize(widthPx, heightPx);
       threats.setSize(widthPx, heightPx);
       layerWidthPx = widthPx;
+      layerHeightPx = heightPx;
       papaHint.refit(widthPx);
-      objects.refit(widthPx);
+      objects.refit(widthPx, heightPx);
     },
     refitVerbs() {
       threats.refit();
       papaHint.refit(layerWidthPx);
-      objects.refit(layerWidthPx);
+      objects.refit(layerWidthPx, layerHeightPx);
     },
     render(camera) {
       if (
@@ -311,6 +311,7 @@ export function createWorldUi(
       }
       // Before the DOM renderer: the layout writes the offsets and the z-indices it places.
       threats.layout(camera);
+      objects.layout(camera);
       papaHint.layout(camera);
       glyphChip.refresh();
       renderer.render(scene, camera);

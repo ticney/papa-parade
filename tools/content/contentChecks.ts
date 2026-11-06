@@ -393,7 +393,10 @@ function checkThreatReferences(
           jsonPath,
           message: `"${gag}" is not a gag of the sim (${GAG_IDS.join(', ')}; a new gag is added to GAG_IDS in src/sim/threats/gags.ts)`,
         });
-      } else if (threat.target === 'hiddenZone' && gag === PAPA_ASLEEP_GAG_ID) {
+      } else if (
+        (threat.target === 'hiddenZone' || threat.target === 'station') &&
+        gag === PAPA_ASLEEP_GAG_ID
+      ) {
         problems.push({
           file,
           jsonPath,

@@ -2295,7 +2295,7 @@ const TEL_POT_RELEASE_MS = 120;
 
 /** A pot coming to the boil (cue `tel_pot_on_stove`, story 9.5): rising bubbling pops over a thin hiss. */
 export function synthTelegraphPot(): Float32Array {
-  const rng = createRng(SEED + 9);
+  const rng = createRng(SEED + 51);
   const out = new Float32Array(samplesOf(TEL_POT_LENGTH_MS));
   const attack = samplesOf(TEL_POT_ATTACK_MS);
   const release = samplesOf(TEL_POT_RELEASE_MS);

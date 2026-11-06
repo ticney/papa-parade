@@ -44,6 +44,29 @@ export function clampVerbShiftPx(centerPx: number, widthPx: number, layerWidthPx
 }
 
 /**
+ * How far a verb box whose top edge is at `topPx` must move down so that it starts no higher than
+ * `minTopPx` (the bottom of the HUD's top row: `verbTopMinPx`), in whole px, rounded up. 0 when the box
+ * already starts there or lower, and 0 for a box with no text (`heightPx` 0). A box that only reaches
+ * into the row by `slackPx` or less (the empty band between the icon's ring and its verb) comes down by
+ * just that much; one that would need more is flipped **under** its icon (`2 × risePx + heightPx`, where
+ * `risePx` is from the icon's centre to the verb's bottom edge), so that it covers neither its icon nor
+ * its ring. Story 9.5 review: the follow camera can put a station or a threat near the top of the frame,
+ * where its verb went under the HUD row and off the screen. Pure.
+ */
+export function clampVerbDropPx(
+  topPx: number,
+  heightPx: number,
+  minTopPx: number,
+  risePx: number,
+  slackPx: number,
+): number {
+  const needPx = minTopPx - topPx;
+  if (!(heightPx > 0) || !(needPx > 0)) return 0;
+  if (needPx <= slackPx) return Math.ceil(needPx);
+  return Math.ceil(Math.max(2 * risePx + heightPx, needPx));
+}
+
+/**
  * The boxes of the verbs that are on screen, as parallel arrays sized once for the whole level (a
  * struct of arrays: filling and stacking them allocates nothing). The caller writes the inputs of
  * boxes `0..count - 1` each frame; `stackVerbs` writes `offsetPx` and `rank`. Screen space: `y`

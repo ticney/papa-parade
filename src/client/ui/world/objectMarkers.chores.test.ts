@@ -1,7 +1,9 @@
+import { VERB_MIN_FONT_PX, VERB_STROKE_PX } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import type { ChoreInstance } from '@sim';
-import { Scene } from 'three';
+import { OrthographicCamera, Scene } from 'three';
 import { describe, expect, it } from 'vitest';
+import { threatFootprint } from './chronoRing.ts';
 import { CHRONO_HIDDEN } from './chronoRingElement.ts';
 import {
   createObjectMarkers,
@@ -20,6 +22,8 @@ class FakeElement {
   className = '';
   hidden = false;
   textContent = '';
+  /** How many times each custom property was written with `style.setProperty`. */
+  writes: Record<string, number> = {};
   style: {
     fontSize?: string;
     setProperty: (name: string, value: string) => void;
@@ -27,6 +31,7 @@ class FakeElement {
   } = {
     setProperty: (name: string, value: string): void => {
       this.style[name] = value;
+      this.writes[name] = (this.writes[name] ?? 0) + 1;
     },
   };
   attributes = new Map<string, string>();
@@ -55,19 +60,28 @@ const COFFEE: ObjectMarkerSpec = {
   zM: -2,
 };
 
-const METRICS = {
-  surfaceKey: () => 'regular',
-  threatSizePx: () => 64,
-  basePx: () => 40,
-  scale: () => 1,
-  // Ten px a letter, so that « COUPE LE FEU ! » is wider than the share of a narrow layer.
-  widthPx: (text: string, fontPx: number) => text.length * fontPx * 0.25,
-} as unknown as VerbMetrics;
+/** The typography of the tests: `surface` flips the surface (and the base size) as a resize would. */
+function metricsOf(
+  state: { surface: string; hudBottomPx?: number } = { surface: 'regular' },
+): VerbMetrics {
+  return {
+    surfaceKey: () => state.surface,
+    threatSizePx: () => (state.surface === 'compact' ? 56 : 64),
+    basePx: () => (state.surface === 'compact' ? 32 : 40),
+    lineHeight: () => 1,
+    scale: () => 1,
+    // Ten px a letter, so that « COUPE LE FEU ! » is wider than the share of a narrow layer.
+    widthPx: (text: string, fontPx: number) => text.length * fontPx * 0.25,
+    ...(state.hudBottomPx === undefined ? {} : { hudBottomPx: () => state.hudBottomPx as number }),
+  };
+}
+
+const METRICS = metricsOf();
 
 /** The beats of the cooking: the verbs of its four temps forts, as `t()` gives them. */
 const COOKING_VERBS = ['REMUE !', 'ÉCRASE !', 'REMUE !', 'COUPE LE FEU !'] as const;
 
-function build(hasMetrics = true) {
+function build(hasMetrics = true, metrics: VerbMetrics = METRICS) {
   const made: FakeElement[] = [];
   const make = (): FakeElement => {
     const element = new FakeElement();
@@ -78,7 +92,7 @@ function build(hasMetrics = true) {
     Document,
     'createElement' | 'createElementNS'
   >;
-  const markers = createObjectMarkers(new Scene(), doc, hasMetrics ? () => METRICS : undefined);
+  const markers = createObjectMarkers(new Scene(), doc, hasMetrics ? () => metrics : undefined);
   const root = (): FakeElement | undefined =>
     made.find((element) => element.attributes.get('data-pp-object') === 'stove');
   const ring = (): FakeElement | undefined =>
@@ -288,17 +302,38 @@ describe('the verb of the announced beat (story 9.5, AC 1)', () => {
   it('fits the verb to the layer like a threat’s: narrower layer, smaller font, never under the floor', () => {
     const wide = build();
     wide.markers.mount([STOVE], ['stove'], [COOKING_VERBS]);
-    wide.markers.refit(2000);
+    wide.markers.refit(2000, 1000);
     wide.markers.updateChores([beat(3)], 1000);
     const wideFont = wide.verb()?.style.fontSize;
     const narrow = build();
     narrow.markers.mount([STOVE], ['stove'], [COOKING_VERBS]);
-    narrow.markers.refit(120);
+    narrow.markers.refit(120, 400);
     narrow.markers.updateChores([beat(3)], 1000);
     const narrowFont = narrow.verb()?.style.fontSize;
     expect(wideFont).toBe('40px');
-    expect(Number.parseFloat(narrowFont ?? '0')).toBeLessThan(40);
-    expect(Number.parseFloat(narrowFont ?? '0')).toBeGreaterThan(0);
+    // « COUPE LE FEU ! » would need about 13 px to fit 45 % of 120 px: it stops at the floor, not under it.
+    expect(narrowFont).toBe(`${VERB_MIN_FONT_PX}px`);
+    // A layer where it fits between the floor and the base size: shrunk, and still above the floor.
+    const middle = build();
+    middle.markers.mount([STOVE], ['stove'], [COOKING_VERBS]);
+    middle.markers.refit(300, 400);
+    middle.markers.updateChores([beat(3)], 1000);
+    const middlePx = Number.parseFloat(middle.verb()?.style.fontSize ?? '0');
+    expect(middlePx).toBeLessThan(40);
+    expect(middlePx).toBeGreaterThan(VERB_MIN_FONT_PX);
+  });
+
+  it('refits the verb when the surface changes, as a threat’s does (story 9.5 review)', () => {
+    const state = { surface: 'regular' };
+    const { markers, verb } = build(true, metricsOf(state));
+    markers.mount([STOVE], ['stove'], [COOKING_VERBS]);
+    markers.refit(2000, 1000);
+    markers.updateChores([beat(0)], 1000);
+    expect(verb()?.style.fontSize).toBe('40px');
+    // A resize across the compact width: the verb's base size is the compact one from the next frame on.
+    state.surface = 'compact';
+    markers.updateChores([beat(0)], 1010);
+    expect(verb()?.style.fontSize).toBe('32px');
   });
 
   it('has no verb element for a level whose stations carry no verbs, nor for a station of no chore', () => {
@@ -309,5 +344,101 @@ describe('the verb of the announced beat (story 9.5, AC 1)', () => {
     const other = build();
     other.markers.mount([STOVE, COFFEE], ['stove'], [COOKING_VERBS]);
     expect(other.markers.stationVerbOf(1)).toBeNull();
+  });
+});
+
+describe('the verb of a station stays on screen (story 9.5 review)', () => {
+  const beat = (beatsDone: number): ChoreInstance => ({ ...announced(), beatsDone });
+  const LAYER = { widthPx: 800, heightPx: 400 };
+  /** The bottom of the HUD's top row in the tests, in CSS px. */
+  const HUD_BOTTOM_PX = 56;
+  // « REMUE ! » is 7 chars: 70 px + the outline wide, 40 + the outline high.
+  const BOX_W = 7 * 40 * 0.25 + 2 * VERB_STROKE_PX;
+  const BOX_H = 40 + 2 * VERB_STROKE_PX;
+  /** From the station's centre to its verb's bottom edge: its icon is 0.7 of a threat's. */
+  const RISE_PX = threatFootprint(64 * 0.7).verbBottomPx;
+
+  /** One unit is 100 px, the camera looks straight at the z = 0 plane: x → 400 + 100x, y → 200 - 100y. */
+  function camera(): OrthographicCamera {
+    const cam = new OrthographicCamera(-4, 4, 2, -2, 0.1, 100);
+    cam.position.set(0, 0, 10);
+    cam.updateMatrixWorld();
+    return cam;
+  }
+
+  /** A stove whose icon is at screen `(screenX, screenY)` in px, announcing its first beat. */
+  function stoveAt(
+    screenX: number,
+    screenY: number,
+    hudBottomPx: number | undefined = HUD_BOTTOM_PX,
+  ) {
+    const built = build(
+      true,
+      metricsOf(
+        hudBottomPx === undefined ? { surface: 'regular' } : { surface: 'regular', hudBottomPx },
+      ),
+    );
+    built.markers.mount(
+      [{ ...STOVE, xM: (screenX - 400) / 100, yM: (200 - screenY) / 100, zM: 0 }],
+      ['stove'],
+      [COOKING_VERBS],
+    );
+    built.markers.refit(LAYER.widthPx, LAYER.heightPx);
+    built.markers.updateChores([beat(0)], 1000);
+    return built;
+  }
+
+  it('leaves a verb that fits where it is: nothing written', () => {
+    const { markers, verbStack } = stoveAt(400, 200);
+    markers.layout(camera());
+    expect(verbStack()?.writes).toEqual({});
+  });
+
+  it('shifts a verb that reaches past a side edge back in, like a threat’s, and writes it once', () => {
+    const left = stoveAt(20, 200);
+    left.markers.layout(camera());
+    left.markers.layout(camera());
+    const leftShift = Number.parseFloat(String(left.verbStack()?.style['--pp-verb-shift-x']));
+    // Whole px, away from zero: its left edge at 20 - BOX_W / 2 is cut, so it moves right to touch 0.
+    expect(Number.isInteger(leftShift)).toBe(true);
+    expect(leftShift).toBeGreaterThanOrEqual(BOX_W / 2 - 20);
+    expect(leftShift).toBeLessThan(BOX_W / 2 - 20 + 1.01);
+    expect(left.verbStack()?.writes['--pp-verb-shift-x']).toBe(1);
+    expect(left.verbStack()?.writes['--pp-verb-offset']).toBeUndefined();
+    const right = stoveAt(790, 200);
+    right.markers.layout(camera());
+    const rightShift = Number.parseFloat(String(right.verbStack()?.style['--pp-verb-shift-x']));
+    expect(rightShift).toBeLessThanOrEqual(-(790 + BOX_W / 2 - 800));
+    expect(rightShift).toBeGreaterThan(-(790 + BOX_W / 2 - 800) - 1.01);
+  });
+
+  it('flips a verb the HUD row would cut under its icon, and writes it once', () => {
+    // The icon at y 120.5: the verb's top would be at 120.5 - RISE_PX - BOX_H, above the row.
+    const { markers, verbStack } = stoveAt(400, 120.5);
+    const minTopPx = HUD_BOTTOM_PX;
+    // Cut by more than the band under the verb: flipped under the station's icon, clear of its ring.
+    const needPx = minTopPx - (120.5 - RISE_PX - BOX_H);
+    expect(needPx).toBeGreaterThan(RISE_PX - threatFootprint(64 * 0.7).ringOuterPx);
+    const expectedDrop = Math.ceil(Math.max(2 * RISE_PX + BOX_H, needPx));
+    markers.layout(camera());
+    markers.layout(camera());
+    expect(verbStack()?.style['--pp-verb-offset']).toBe(`${-expectedDrop}px`);
+    expect(verbStack()?.writes['--pp-verb-offset']).toBe(1);
+    expect(verbStack()?.writes['--pp-verb-shift-x']).toBeUndefined();
+  });
+
+  it('lays out nothing while no verb is shown, nor before the layer has a size', () => {
+    const hidden = stoveAt(20, 100);
+    hidden.markers.updateChores(
+      [chore({ state: 'working', beatsDone: 0, beatState: 'held' })],
+      1100,
+    );
+    hidden.markers.layout(camera());
+    expect(hidden.verbStack()?.writes).toEqual({});
+    const unsized = build(true, metricsOf({ surface: 'regular', hudBottomPx: HUD_BOTTOM_PX }));
+    unsized.markers.mount([{ ...STOVE, xM: -3.8, yM: 1, zM: 0 }], ['stove'], [COOKING_VERBS]);
+    unsized.markers.updateChores([beat(0)], 1000);
+    unsized.markers.layout(camera());
+    expect(unsized.verbStack()?.writes).toEqual({});
   });
 });

@@ -60,12 +60,20 @@ describe('the chores of the live salon_kitchen', () => {
     // Every pot ends lowered or boiled over, but the game may end on one still under way or cancelled.
     expect(abandoned.resolved + abandoned.boiledOver).toBeLessThanOrEqual(abandoned.telegraphed);
     expect(abandoned.resolved + abandoned.boiledOver).toBeGreaterThan(0);
+    // `human` both lowers some pots and lets some boil over (seeded, so always the same runs).
+    expect(abandoned.resolved).toBeGreaterThan(0);
+    expect(abandoned.boiledOver).toBeGreaterThan(0);
     // The boil-overs are the gags of the pot: the report's own gag count says the same.
     expect(report.gags.byGag.pot_boiled_over ?? 0).toBe(abandoned.boiledOver);
   });
 
   it('has perfect lower every pot an abandoned cooking makes: no boil-over', async () => {
     const report = await reportOf('perfect', 10, 1000);
-    expect(report.chores.abandoned.boiledOver).toBe(0);
+    const { abandoned } = report.chores;
+    // It meets pots (the wait cut to 1 s), and lowers them all.
+    expect(abandoned.telegraphed).toBeGreaterThan(0);
+    expect(abandoned.resolved).toBeGreaterThan(0);
+    expect(abandoned.boiledOver).toBe(0);
+    expect(report.gags.total).toBe(0);
   });
 });

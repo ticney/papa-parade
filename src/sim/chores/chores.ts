@@ -2,6 +2,7 @@ import type { ChoreStationKind } from '@content/schemas/chore';
 import type { ObjectKind } from '@content/schemas/level';
 import { asSimMs } from '@shared/time';
 import { instinctWindowModifier } from '../assist/paternalInstinct.ts';
+import { isBabyCarried } from '../baby/babyFsm.ts';
 import type { StepContext } from '../context.ts';
 import { fatigueWindowModifier } from '../gauges/fatigue.ts';
 import { enterPapaState } from '../papa/papaFsm.ts';
@@ -68,6 +69,31 @@ export function potOf(
 export function isPotActive(world: World, ctx: StepContext, choreIndex: number): boolean {
   const pot = potOf(world, ctx, choreIndex);
   return pot !== undefined && (pot.state === 'telegraph' || pot.state === 'windowOpen');
+}
+
+/**
+ * Papa's glide to the threat `threatId` has ended (story 9.5, review): if it was a chore's own pot and
+ * that chore is `paused`, he has lowered the heat at its station, so he goes back to it (`startChore`;
+ * the beat stays held while the pot is still on). Not with the baby in his arms (the station refuses
+ * him, 9.4 D10) nor in a sequence. True when he works there now.
+ */
+export function resumeChoreOfPot(world: World, ctx: StepContext, threatId: number): boolean {
+  if (world.flow.state === 'sequence' || isBabyCarried(world)) return false;
+  const { chores } = ctx.level;
+  for (let i = 0; i < chores.length; i++) {
+    const planned = chores[i] as StepContext['level']['chores'][number];
+    if (planned.abandoned === null || potOf(world, ctx, i)?.id !== threatId) continue;
+    const state = world.chores[i]?.state;
+    if (state === 'working') {
+      // A press from the stove itself: the glide was empty and ended in the step that started it,
+      // before `settleChores` could pause the chore. Papa simply keeps working.
+      enterPapaState(world, ctx, 'chore');
+      return true;
+    }
+    if (state !== 'paused') return false;
+    return startChore(world, ctx, planned.objectId);
+  }
+  return false;
 }
 
 /** The beat is no more: nothing announced, nothing to draw. */

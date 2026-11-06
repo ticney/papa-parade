@@ -94,7 +94,6 @@ export {
   GAG_IDS,
   type GagId,
   PAPA_ASLEEP_GAG_ID,
-  POT_BOILED_OVER_GAG_ID,
 } from './threats/gags.ts';
 export type { ThreatState } from './threats/threatFsm.ts';
 export { holdEndAt } from './timing/holdEnd.ts';

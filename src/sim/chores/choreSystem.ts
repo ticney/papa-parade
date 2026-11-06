@@ -1,4 +1,4 @@
-import { isBabyCarried } from '../baby/babyFsm.ts';
+import { isBabyCarried, isSilenceUnderway } from '../baby/babyFsm.ts';
 import type { StepContext } from '../context.ts';
 import { fairWindowOpenAt } from '../director/fairness.ts';
 import { enterPapaState, isPapaBusy } from '../papa/papaFsm.ts';
@@ -195,14 +195,16 @@ export function runChores(world: World, ctx: StepContext): void {
 /**
  * A chore left alone becomes a threat (story 9.5): for each `paused` chore that names an
  * `abandonedThreat`, the pot is telegraphed in the first step where all of this holds: its instance
- * is `idle`, `afterMs` have passed since the later of the chore being paused and the pot last going
- * `idle` (D4: no world field, the next pot is due `afterMs` after the last one is over), the flow is
- * `playing`, Papa is not busy and not on his way to this station, and the pot could still be judged
- * before the level ends. Its window opens no closer than the fairness spacing to another one (D5,
- * `fairWindowOpenAt`), the director's rule. Draws nothing from `world.rng`.
+ * is `idle`, `afterMs` have passed since the latest of the chore being paused, the pot last going
+ * `idle` and the flow last becoming `playing` (D4: no world field, the next pot is due `afterMs` after
+ * the last one is over; review: the time of a sequence, when Papa could not come back, is not
+ * counted), the flow is `playing`, no silence is under way (review: the director's rule, the search
+ * is the one occupation it keeps clear), Papa is not busy and not on his way to this station, and the
+ * pot could still be judged before the level ends. Its window opens no closer than the fairness
+ * spacing to another one (D5, `fairWindowOpenAt`), the director's rule. Draws nothing from `world.rng`.
  */
 function startAbandonedPots(world: World, ctx: StepContext): void {
-  if (world.flow.state !== 'playing' || isPapaBusy(world.papa)) return;
+  if (world.flow.state !== 'playing' || isPapaBusy(world.papa) || isSilenceUnderway(world)) return;
   const { chores, papa } = world;
   const now = world.time.sim;
   for (let i = 0; i < chores.length; i++) {
@@ -213,7 +215,8 @@ function startAbandonedPots(world: World, ctx: StepContext): void {
     const pot = potOf(world, ctx, i);
     const potDef = ctx.level.threats[abandoned.threatIndex]?.def;
     if (pot === undefined || potDef === undefined || pot.state !== 'idle') continue;
-    if (now < Math.max(chore.enteredAt, pot.enteredAt) + abandoned.afterMs) continue;
+    const since = Math.max(chore.enteredAt, pot.enteredAt, world.flow.enteredAt);
+    if (now < since + abandoned.afterMs) continue;
     // Papa is already on his way to this stove: he is coming back to the cooking.
     if (
       papa.state === 'glide' &&

@@ -63,7 +63,9 @@ function pressThreat(
   }
   if (judgement.quality === 'early') {
     // `guard`: Papa has already set off (the glide is his system's); only a new press in the window counts.
-    if (ctx.feel.input.earlyPress === 'fail') {
+    // A pot on the stove (story 9.5, review) is always `guard`: its marker covers the station's, so a
+    // tap meant to go back to the cooking must not boil it over.
+    if (ctx.feel.input.earlyPress === 'fail' && def.target !== 'station') {
       gagThreat(world, ctx, threat, def, 'early', judgement.offsetMs);
     }
     return;

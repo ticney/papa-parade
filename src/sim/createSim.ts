@@ -552,7 +552,7 @@ function simLevelOf(
       : undefined;
     invariant(
       def !== undefined,
-      `${where}: the threat ${abandonedThreat.def} of the abandoned chore is not loaded`,
+      `${where}: no threat "${abandonedThreat.def}" is loaded for the abandoned chore`,
     );
     invariant(
       def.target === 'station',
@@ -560,12 +560,16 @@ function simLevelOf(
     );
     invariant(
       def.response === 'parry',
-      `${where}: the threat "${abandonedThreat.def}" of the abandoned chore has the response "${def.response}", but a threat on a station is parried`,
+      `${where}: a threat on a chore station (target "station") is parried: the response of "${abandonedThreat.def}" must be "parry", not "${def.response}"`,
     );
     for (const gag of gagIdsOf(def)) {
       invariant(
         (GAG_IDS as readonly string[]).includes(gag),
         `${where}: the threat "${abandonedThreat.def}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+      );
+      invariant(
+        gag !== PAPA_ASLEEP_GAG_ID,
+        `${where}: "${PAPA_ASLEEP_GAG_ID}" is the micro-sleep's gag: only a threat with target "papa" may end in it`,
       );
     }
     const object = level.level.objects.find((candidate) => candidate.id === base.objectId);

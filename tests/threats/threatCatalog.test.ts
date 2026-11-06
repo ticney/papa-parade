@@ -677,17 +677,33 @@ describe.each(
     expect(gags(events)).toEqual([]);
   });
 
-  it.skipIf(release !== undefined)('is a gag when answered too early', async () => {
-    const { sim, center, openAt, window, threatId } = await telegraphed(def, tier);
-    const t = openAt - window.toleranceMs - window.bufferMs - 1;
-    sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
-    const events = runUntil(sim, openAt);
-    expect(results(events)).toEqual([
-      expect.objectContaining({ quality: 'fail', reason: 'early', offsetMs: t - center }),
-    ]);
-    expect(gags(events)).toEqual([expect.objectContaining({ reason: 'early', threatId })]);
-    expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
-  });
+  // A pot on the stove (story 9.5, review) takes an early press as a glide, whatever `earlyPress` says.
+  it.skipIf(release !== undefined || def.target !== 'station')(
+    'ignores a press answered too early, on a station',
+    async () => {
+      const { sim, openAt, window, threatId } = await telegraphed(def, tier);
+      const t = openAt - window.toleranceMs - window.bufferMs - 1;
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
+      const events = runUntil(sim, openAt);
+      expect(results(events)).toEqual([]);
+      expect(gags(events)).toEqual([]);
+    },
+  );
+
+  it.skipIf(release !== undefined || def.target === 'station')(
+    'is a gag when answered too early',
+    async () => {
+      const { sim, center, openAt, window, threatId } = await telegraphed(def, tier);
+      const t = openAt - window.toleranceMs - window.bufferMs - 1;
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
+      const events = runUntil(sim, openAt);
+      expect(results(events)).toEqual([
+        expect.objectContaining({ quality: 'fail', reason: 'early', offsetMs: t - center }),
+      ]);
+      expect(gags(events)).toEqual([expect.objectContaining({ reason: 'early', threatId })]);
+      expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
+    },
+  );
 
   it('is a gag when not answered in time', async () => {
     const { sim, enteredAt, openAt, window, threatId } = await telegraphed(def, tier);
