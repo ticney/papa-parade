@@ -1,6 +1,8 @@
 import type { ThreatDef } from '@content/schemas/threat';
 import { SILENCE_SIMULTANEOUS_WEIGHT, STEP_MS } from '@shared/constants';
+import { instinctWindowModifier } from '../assist/paternalInstinct.ts';
 import type { StepContext } from '../context.ts';
+import { activeDifficulty } from '../timing/difficulty.ts';
 import type { ThreatInstance, World } from '../world.ts';
 
 /**
@@ -38,7 +40,7 @@ export function fairnessSpacingMs(ctx: StepContext): number {
  * `holdUntilMs`, or the end of the window plus `holdMinMs` if that is later. 0 for any other threat
  * (a tap is over in a moment). With `windowMs`, `toleranceMs` and `holdMinMs` at 0, a def's own span.
  */
-function heldSpanMs(
+export function heldSpanMs(
   def: ThreatDef | undefined,
   windowMs: number,
   toleranceMs: number,
@@ -46,6 +48,19 @@ function heldSpanMs(
 ): number {
   if (def === undefined || def.response !== 'firm' || def.holdUntilMs === undefined) return 0;
   return Math.max(def.holdUntilMs, windowMs + toleranceMs + holdMinMs);
+}
+
+/**
+ * The longest `def`'s window can be once telegraphed now, in ms: its own `windowMs` (or the feel's) at the
+ * player's tier and with the instinct's bonus while it is active, as `telegraphThreat` will freeze it,
+ * but not the fatigue's penalty, which only shrinks it (the rules built on it err on the safe side).
+ */
+export function plannedWindowMs(world: World, ctx: StepContext, def: ThreatDef): number {
+  return (
+    (def.windowMs ?? ctx.feel.timing.windowMs) *
+    activeDifficulty(world, ctx).windowMultiplier *
+    instinctWindowModifier(world, ctx)
+  );
 }
 
 /**
@@ -62,10 +77,18 @@ function clearOpenAt(
 ): number {
   const { threats } = world;
   const spacingMs = fairnessSpacingMs(ctx);
-  // A held Firmness drawn now must also end, and Papa glide away, before the window it would shut out.
-  const ownHoldMs = isHeldFirmnessOnly
-    ? 0
-    : heldSpanMs(ctx.level.threats[threatIndex]?.def, 0, 0, 0);
+  // A held Firmness drawn now must also end, and Papa glide away, before the window it would shut out: its
+  // span is read as the other windows' are, from its longest window (a tier, the instinct) and `holdMinMs`.
+  const ownDef = isHeldFirmnessOnly ? undefined : ctx.level.threats[threatIndex]?.def;
+  const ownHoldMs =
+    ownDef === undefined
+      ? 0
+      : heldSpanMs(
+          ownDef,
+          plannedWindowMs(world, ctx, ownDef),
+          ctx.feel.timing.toleranceMs,
+          ctx.feel.input.holdMinMs,
+        );
   let at = openAt;
   for (let pass = 0; pass <= threats.length; pass++) {
     let isMoved = false;

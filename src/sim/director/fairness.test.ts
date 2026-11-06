@@ -16,12 +16,14 @@ import {
 import type { StepContext } from '../context.ts';
 import { createSim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
+import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
 import { rearmThreat, telegraphThreat } from '../threats/threatFsm.ts';
 import type { ThreatInstance, World } from '../world.ts';
 import {
   fairnessSpacingMs,
   fairWindowOpenAt,
   heldFirmnessClearAt,
+  plannedWindowMs,
   silenceLimitProblem,
   simultaneousWeightOf,
 } from './fairness.ts';
@@ -225,6 +227,46 @@ describe('a Firmness held on an anchor (story 9.7)', () => {
     const plain = await setup();
     plain.freeze(OUTLET_I, 6000);
     expect(fairWindowOpenAt(plain.world, plain.ctx, STAIRS_I, 6000 - S)).toBe(6000 - S);
+  });
+
+  it('reads the hold of a Firmness being drawn like the others: the window, the tolerance and holdMinMs when they outlast holdUntilMs', async () => {
+    const { world, ctx, freeze } = await setup(undefined, [STAIRS_I]);
+    const holdMinMs = 3000;
+    (ctx as { feel: typeof ctx.feel }).feel = {
+      ...ctx.feel,
+      input: { ...ctx.feel.input, holdMinMs },
+    };
+    const def = ctx.level.threats[STAIRS_I]?.def;
+    if (def === undefined) throw new Error('the stairs have a def');
+    const ownHoldMs = plannedWindowMs(world, ctx, def) + ctx.feel.timing.toleranceMs + holdMinMs;
+    expect(ownHoldMs).toBeGreaterThan(HOLD_UNTIL_MS);
+    freeze(OUTLET_I, 9000);
+    expect(fairWindowOpenAt(world, ctx, STAIRS_I, 9000 - S - ownHoldMs + STEP_MS)).toBe(9000 + S);
+    expect(fairWindowOpenAt(world, ctx, STAIRS_I, 9000 - S - ownHoldMs)).toBe(9000 - S - ownHoldMs);
+  });
+
+  it('counts the hold of a Firmness in whether it can be judged before the end of the level', async () => {
+    const { world, ctx } = await setup(undefined, [STAIRS_I]);
+    const firm = ctx.level.threats[STAIRS_I]?.def;
+    const tap = ctx.level.threats[OUTLET_I]?.def;
+    if (firm === undefined || tap === undefined) throw new Error('both have a def');
+    const { telegraphDelayDefaultMs, toleranceMs } = ctx.feel.timing;
+    const delayMs = firm.telegraphDelayMs ?? telegraphDelayDefaultMs;
+    const answerMs = plannedWindowMs(world, ctx, firm) + toleranceMs;
+    // The window plus the tolerance fit well before the hold is over: the hold decides.
+    expect(answerMs).toBeLessThan(HOLD_UNTIL_MS);
+    const judgedAt = 1000 + delayMs + (firm.maxDelayMs ?? 0) + HOLD_UNTIL_MS;
+    expect(isJudgeableBeforeEnd(world, ctx, firm, 1000, judgedAt)).toBe(true);
+    expect(isJudgeableBeforeEnd(world, ctx, firm, 1000, judgedAt - 1)).toBe(false);
+    // A tap is judged with its window, as before.
+    const tapJudgedAt =
+      1000 +
+      (tap.telegraphDelayMs ?? telegraphDelayDefaultMs) +
+      (tap.maxDelayMs ?? 0) +
+      plannedWindowMs(world, ctx, tap) +
+      toleranceMs;
+    expect(isJudgeableBeforeEnd(world, ctx, tap, 1000, tapJudgedAt)).toBe(true);
+    expect(isJudgeableBeforeEnd(world, ctx, tap, 1000, tapJudgedAt - 1)).toBe(false);
   });
 
   it('is cleared of by a micro-sleep window that keeps out of its hold only (heldFirmnessClearAt)', async () => {

@@ -29,6 +29,8 @@ import {
 
 const LEVEL = 'salon_kitchen';
 const SEED = 42;
+/** The camera frame (width, depth) of the picture of the five messes, in metres: wide enough for the whole room. It is presentation, not a rule. */
+const WIDE_FRAME_M = [15, 9] as const;
 
 test.skip(({ browserName }) => browserName !== 'chromium', 'Chromium only (story 9.7)');
 
@@ -43,7 +45,7 @@ interface DefFile {
   gagNoisePct?: number;
 }
 
-/** The five: the file, the anchor the level plans it at, and the wave that enters it. */
+/** The five: the file and the anchor the level plans it at. */
 const FIVE = [
   { id: 'tablecloth_pull', anchor: 'dining_table' },
   { id: 'low_cabinet_open', anchor: 'low_cabinet' },
@@ -348,6 +350,15 @@ test.describe('the five new mischiefs of the big salon', () => {
     // Behind the kitchen wall as the camera sees it: out on the left or the top edge, never the right.
     for (const bubble of shown) expect(['left', 'top']).toContain(bubble.edge);
     await expect(page.locator('.pp-offscreen-bubble')).not.toHaveCount(0);
+    // The arrow: each bubble's chevron is turned toward its threat by `--pp-offscreen-angle`.
+    const turned = await page
+      .locator('.pp-offscreen-bubble')
+      .evaluateAll((bubbles) =>
+        bubbles.map((bubble) =>
+          (bubble as HTMLElement).style.getPropertyValue('--pp-offscreen-angle'),
+        ),
+      );
+    expect(turned.sort()).toEqual(shown.map((bubble) => `${bubble.angleDeg}deg`).sort());
     await shot(page, testInfo, 'g-the-kitchen-off-screen.png');
     expect(problems).toEqual([]);
   });
@@ -361,7 +372,9 @@ test.describe('the five new mischiefs of the big salon', () => {
     // Only the messes are under test: no gag may bring Mama home (five rises of the mess would).
     await ppSilenceCatastrophe(page);
     // A wide frame so that the whole room, the five messes in it, is in the picture.
-    await ppSetFeel(page, { camera: { frameWidthM: 15, frameDepthM: 9 } }).catch(() => undefined);
+    await ppSetFeel(page, {
+      camera: { frameWidthM: WIDE_FRAME_M[0], frameDepthM: WIDE_FRAME_M[1] },
+    });
     await ppSend(page, { type: 'TapFloor', xM: -1.5, zM: 0 });
     for (let i = 0; i < 200 && (await ppWorld(page)).papa.state !== 'idle'; i++) {
       await ppAdvance(page, 10);

@@ -87,7 +87,7 @@ const COFFEE_COLOR = 0x7a4a2b;
 const COFFEE_RADIUS_M = 0.27;
 
 /**
- * The colour of each gag's decal, by gag id. A list is one colour per mark, in turn. A gag with no row has
+ * The colour of each gag's decal, by gag id. A list is one colour per mark of that gag, in turn. A gag with no row has
  * the tissues' white: a new gag is one line here (and one branch in `createDecalGeometry`).
  */
 const DECAL_COLORS: Readonly<Record<string, number | readonly number[]>> = {
@@ -101,7 +101,7 @@ const DECAL_COLORS: Readonly<Record<string, number | readonly number[]>> = {
   coffee_spilled: COFFEE_COLOR,
 };
 
-/** The colour of the decal of mark number `index` of `gag`. */
+/** The colour of the decal of the mark number `index` of `gag` (`index` counts the marks of that gag only). */
 export function decalColorOf(gag: string, index: number): number {
   const color = DECAL_COLORS[gag] ?? TISSUE_COLOR;
   return typeof color === 'number' ? color : (color[index % color.length] as number);
@@ -247,7 +247,7 @@ function pushTriangle(
 ): void {
   const base = positions.length / 3;
   positions.push(corners[0], 0, corners[1], corners[2], 0, corners[3], corners[4], 0, corners[5]);
-  indices.push(base, base + 1, base + 2);
+  indices.push(base, base + 2, base + 1);
 }
 
 /**
@@ -471,9 +471,15 @@ export function createMischiefDecals(
   const point = { xM: 0, zM: 0 };
   // The game camera and the end photo's (`feel.fx.photoCamera`, tunable): a mark is seen from both.
   const views: DecalView[] = [GAME_VIEW, GAME_VIEW];
-  const materialOf = (gag: string, index: number): MeshToonMaterial =>
-    toon.get(new Color(decalColorOf(gag, index)));
+  // How many decals of each gag are drawn: a list of colours turns on the gag's own marks, not on the whole list.
+  const drawnOf = new Map<string, number>();
+  const materialOf = (gag: string): MeshToonMaterial => {
+    const rank = drawnOf.get(gag) ?? 0;
+    drawnOf.set(gag, rank + 1);
+    return toon.get(new Color(decalColorOf(gag, rank)));
+  };
   const clear = (): void => {
+    drawnOf.clear();
     for (const mesh of meshes) {
       parent.remove(mesh);
       mesh.geometry.dispose();
@@ -486,7 +492,7 @@ export function createMischiefDecals(
       views[1] = photoCamera;
       for (let i = meshes.length; i < marks.length; i++) {
         const mark = marks[i] as MischiefMark;
-        const mesh = new Mesh(createDecalGeometry(mark.gag, i), materialOf(mark.gag, i));
+        const mesh = new Mesh(createDecalGeometry(mark.gag, i), materialOf(mark.gag));
         mesh.name = `mischief_decal_${i}`;
         visibleDecalPoint(mark.xM, mark.zM, cover, views, point);
         mesh.position.set(point.xM, DECAL_LIFT_M, point.zM);

@@ -66,8 +66,11 @@ const rearmed = (t: number, threatId: number): SimEvent => ({
   threatId,
 });
 
-function check(events: readonly SimEvent[]) {
-  const fairness = createFairnessCheck(SPACING_MS, DELAYS);
+// A held Firmness (story 9.7 review): the bin keeps the finger down 1500 ms after its window opens.
+const HELD = { holdUntilMsOf: { bin: 1500 }, holdMinMs: 400 };
+
+function check(events: readonly SimEvent[], held?: typeof HELD) {
+  const fairness = createFairnessCheck(SPACING_MS, DELAYS, held);
   for (const event of events) fairness.onEvent(event);
   return fairness.finish();
 }
@@ -219,6 +222,92 @@ describe('the fairness check (story 3.13, AC 10)', () => {
       telegraphed(0, 2, 'outlet'),
     ]);
     expect(result).toEqual({ fairnessViolations: 0, stretchedTelegraphs: 0, stretchSumMs: 0 });
+  });
+});
+
+describe('the fairness check and a held Firmness (story 9.7)', () => {
+  const afterHold = 1200 + HELD.holdUntilMsOf.bin + SPACING_MS;
+
+  it('keeps every window out of the hold plus the spacing after a held Firmness opens', () => {
+    const run = (openAt: number, held?: typeof HELD) =>
+      check(
+        [
+          telegraphed(0, 1, 'bin'),
+          telegraphed(10, 2, 'outlet'),
+          opened(1200, 1),
+          opened(openAt, 2),
+        ],
+        held,
+      ).fairnessViolations;
+    expect(run(afterHold - 10, HELD)).toBe(1);
+    expect(run(afterHold, HELD)).toBe(0);
+    // Without the setup, the check knows only the spacing: the same stream passes.
+    expect(run(afterHold - 10)).toBe(0);
+  });
+
+  it('keeps a held Firmness being drawn out of the hold before a window announced earlier', () => {
+    const run = (openAt: number) =>
+      check(
+        [
+          telegraphed(0, 1, 'outlet'),
+          telegraphed(10, 2, 'bin'),
+          opened(5000, 1),
+          opened(openAt, 2),
+        ],
+        HELD,
+      ).fairnessViolations;
+    const clearAt = 5000 - SPACING_MS - HELD.holdUntilMsOf.bin;
+    expect(run(clearAt + 10)).toBe(1);
+    expect(run(clearAt)).toBe(0);
+  });
+
+  it('reads the hold from the window when it outlasts holdUntilMs (holdMinMs on top)', () => {
+    const resolvedLong = (t: number, threatId: number): SimEvent => ({
+      ...(resolved(t, threatId) as Extract<SimEvent, { type: 'ResponseResolved' }>),
+      responseWindow: { ...WINDOW, windowMs: 1500 },
+    });
+    // 1500 + 60 + 400 = 1960 > 1500.
+    const holdMs = 1500 + WINDOW.toleranceMs + HELD.holdMinMs;
+    const run = (openAt: number) =>
+      check(
+        [
+          telegraphed(0, 1, 'bin'),
+          telegraphed(10, 2, 'outlet'),
+          opened(1200, 1),
+          resolvedLong(1300, 1),
+          opened(openAt, 2),
+        ],
+        HELD,
+      ).fairnessViolations;
+    expect(run(1200 + holdMs + SPACING_MS - 10)).toBe(1);
+    expect(run(1200 + holdMs + SPACING_MS)).toBe(0);
+  });
+
+  it('binds the micro-sleep to the hold of a held Firmness, and to nothing else', () => {
+    const run = (openAt: number, held = HELD) =>
+      check(
+        [
+          telegraphed(0, 1, 'bin'),
+          telegraphed(10, 2, 'micro_sleep', -1),
+          opened(1200, 1),
+          opened(openAt, 2),
+        ],
+        held,
+      ).fairnessViolations;
+    expect(run(afterHold - 10)).toBe(1);
+    expect(run(afterHold)).toBe(0);
+    // Next to a plain tap it is as free as before.
+    expect(
+      check(
+        [
+          telegraphed(0, 1, 'outlet'),
+          telegraphed(10, 2, 'micro_sleep', -1),
+          opened(1200, 1),
+          opened(1300, 2),
+        ],
+        HELD,
+      ).fairnessViolations,
+    ).toBe(0);
   });
 });
 

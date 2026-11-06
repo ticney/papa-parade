@@ -321,6 +321,10 @@ export interface FairnessSetup {
   readonly spacingMs: number;
   /** The telegraph delay of each def, `def.telegraphDelayMs ?? feel.timing.telegraphDelayDefaultMs`. */
   readonly telegraphDelayMsOf: Readonly<Record<string, number>>;
+  /** The held Firmnesses (story 9.7): `holdUntilMs` of each `firm` def that has one, by def id. */
+  readonly holdUntilMsOf: Readonly<Record<string, number>>;
+  /** `input.holdMinMs`. */
+  readonly holdMinMs: number;
 }
 
 /**
@@ -405,7 +409,12 @@ export function createRunRecorder(
   // The silences of the run (kept after the reveal): they take two places of the wave's limit, like in the director.
   const silenceThreatIds = new Set<number>();
   const fairnessCheck =
-    fairness === null ? null : createFairnessCheck(fairness.spacingMs, fairness.telegraphDelayMsOf);
+    fairness === null
+      ? null
+      : createFairnessCheck(fairness.spacingMs, fairness.telegraphDelayMsOf, {
+          holdUntilMsOf: fairness.holdUntilMsOf,
+          holdMinMs: fairness.holdMinMs,
+        });
   const weightOf = (threatId: number): number =>
     silenceThreatIds.has(threatId) ? SILENCE_SIMULTANEOUS_WEIGHT : 1;
   // The threats no wave planned (the micro-sleep, the cry in the arms): they are in no wave's tally

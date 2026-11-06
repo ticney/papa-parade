@@ -150,6 +150,41 @@ describe('createDecalGeometry', () => {
     },
   );
 
+  it.each([
+    'tissues_everywhere',
+    'crayon_scribbles',
+    'pot_boiled_over',
+    'baby_in_dishwasher',
+    'dishes_on_floor',
+    'pan_concert',
+    'peelings_everywhere',
+    'soil_on_rug',
+    'coffee_spilled',
+  ])('lays every triangle of %s facing up, so the toon material does not cull it', (gag) => {
+    for (let mark_ = 0; mark_ < 6; mark_++) {
+      const geometry = createDecalGeometry(gag, mark_);
+      const position = geometry.getAttribute('position');
+      const index = geometry.getIndex();
+      expect(index).not.toBeNull();
+      const triangles = index?.array ?? [];
+      expect(triangles.length).toBeGreaterThan(0);
+      for (let t = 0; t < triangles.length; t += 3) {
+        const [a, b, c] = [triangles[t], triangles[t + 1], triangles[t + 2]] as [
+          number,
+          number,
+          number,
+        ];
+        const abX = position.getX(b) - position.getX(a);
+        const abZ = position.getZ(b) - position.getZ(a);
+        const acX = position.getX(c) - position.getX(a);
+        const acZ = position.getZ(c) - position.getZ(a);
+        // The y of (b - a) x (c - a): positive is facing up (a degenerate triangle is 0).
+        expect(acX * abZ - acZ * abX).toBeGreaterThanOrEqual(0);
+      }
+      geometry.dispose();
+    }
+  });
+
   it('draws the purée of the pot as a puddle with splashes of its own, not the tissues or the crayons (story 9.5)', () => {
     const puree = createDecalGeometry('pot_boiled_over', 0);
     const tissues = createDecalGeometry('tissues_everywhere', 0);
@@ -281,6 +316,24 @@ describe('createMischiefDecals', () => {
     const meshes = [...parent.children];
     decals.sync(marks, PHOTO);
     expect(parent.children).toEqual(meshes);
+  });
+
+  it('turns the peelings between beige and green on the peelings only, whatever lands between them', () => {
+    const { parent, decals } = build();
+    decals.sync(
+      [
+        mark('peelings_everywhere', -2, 2),
+        mark('tissues_everywhere', -1, 2),
+        mark('peelings_everywhere', 1, 2),
+        mark('peelings_everywhere', 2, 2),
+      ],
+      PHOTO,
+    );
+    const colors = (parent.children as Mesh[]).map((mesh) =>
+      (mesh.material as MeshToonMaterial).color.getHex(),
+    );
+    expect(colors[2]).not.toBe(colors[0]);
+    expect(colors[3]).toBe(colors[0]);
   });
 
   it('adds the mark that comes later, and keeps the ones it has', () => {

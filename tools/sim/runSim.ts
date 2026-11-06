@@ -69,13 +69,18 @@ export function fairnessSetupOf(
   level: SimLevel['level'],
 ): FairnessSetup {
   const telegraphDelayMsOf: Record<string, number> = {};
+  const holdUntilMsOf: Record<string, number> = {};
   for (const [id, def] of Object.entries(level.threats)) {
+    if (def.response === 'firm' && def.holdUntilMs !== undefined)
+      holdUntilMsOf[id] = def.holdUntilMs;
     if (def.response === 'wait') continue;
     telegraphDelayMsOf[id] = def.telegraphDelayMs ?? content.feel.timing.telegraphDelayDefaultMs;
   }
   return {
     spacingMs: content.feel.movement.glideMaxMs + content.feel.director.fairnessMarginMs,
     telegraphDelayMsOf,
+    holdUntilMsOf,
+    holdMinMs: content.feel.input.holdMinMs,
   };
 }
 
