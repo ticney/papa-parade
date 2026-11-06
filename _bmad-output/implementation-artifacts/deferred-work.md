@@ -1090,9 +1090,8 @@ Open:
 - **Leaving just before a miss avoids the gag**: a tap on the floor drops an announced beat without judgement (D5); it costs the time to come back and the beat is announced again in full.
 - **The Maison row is rounded to a half, the other rows to a whole point** (`homeRow` in `mamaScore.ts`): the story asked for `7,5 / 15` on the Result screen, which D3 of 1.22 (« every row is a whole number ») did not allow. The total (`scorePoints`) can now end on a half (`87,5`), which `starsForScore` and the Result screen handle; `gameSummary` / `simReport` carry the number as it is. A story that touches the note's rounding should know it.
 - **The activity bubble's pictogram table is keyed by Papa's state**, so `chore` has one pictogram (the saucepan): 9.6's dishwasher has to resolve it by the station Papa works at (the bubble already takes the progress as an argument).
-- **A bot that does chores adds near-misses and wakes to the kitchen's balance**: `human` finished the cooking in 30 / 30 games on 2026-11-05 (`backTurnedReactionMs` 400, `quietMinMs` 1500: dev's starting values) and Mama woke in 11 of them against 5 before; 9.8's 200-game balancing owns the numbers.
+- **A bot that does chores adds gags and early homecomings to the kitchen's balance**: on 2026-11-06 (30 seeds, `backTurnedSdMs` 150, `quietMinMs` 1500: dev's starting values) `human` finishes the cooking in 28 / 30 games, makes 96 gags against 72 with no back-turned error, and its ends (timer · `mamaWoke` · `mamaHome`) are 15 · 7 · 8 against 14 · 11 · 5; 9.8's 200-game balancing owns the numbers.
 - **`ChoreRefused` is the table's, not the def's**: one cue for every chore (`chore_refused`).
-
 
 ## Deferred from: code review of 9-4-cadre-des-taches-de-la-maison, group 1 sim (2026-11-05)
 
